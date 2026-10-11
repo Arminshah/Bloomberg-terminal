@@ -6,18 +6,19 @@ import { Chg, SecLink, Section } from '../components/cells';
 import { fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { closeAt, horizonStart, type Horizon } from '../data/analytics';
+import { barsSince } from '../data/series';
 import { resolveSecurity, searchSecurities } from '../data/registry';
 import type { FnProps } from '../terminal/types';
 
 const DEFAULT_BENCH: Record<string, string> = { Americas: 'SPX Index', EMEA: 'SXXP Index', APAC: 'NKY Index' };
-const H: { n: number; h: Horizon; bars: number }[] = [
-  { n: 1, h: '1M', bars: 21 },
-  { n: 2, h: '3M', bars: 63 },
-  { n: 3, h: '6M', bars: 126 },
-  { n: 4, h: 'YTD', bars: 0 },
-  { n: 5, h: '1Y', bars: 252 },
-  { n: 6, h: '2Y', bars: 504 },
-  { n: 7, h: '5Y', bars: 1260 },
+const H: { n: number; h: Horizon }[] = [
+  { n: 1, h: '1M' },
+  { n: 2, h: '3M' },
+  { n: 3, h: '6M' },
+  { n: 4, h: 'YTD' },
+  { n: 5, h: '1Y' },
+  { n: 6, h: '2Y' },
+  { n: 7, h: '5Y' },
 ];
 
 export function COMP({ sec }: FnProps) {
@@ -30,12 +31,7 @@ export function COMP({ sec }: FnProps) {
   const ids = [s.id, ...others];
   const daily = engine.daily(s.id);
   const h = H[tab - 1];
-  const ytdBars = useMemo(() => {
-    const start = horizonStart('YTD');
-    let i = daily.length - 1;
-    while (i > 0 && daily.t[i - 1] > start) i--;
-    return daily.length - i + 1;
-  }, [daily]);
+  const initialBars = useMemo(() => barsSince(daily, horizonStart(h.h)), [daily, h.h]);
   const options: ChartOptions = useMemo(
     () => ({
       type: 'line',
@@ -47,11 +43,11 @@ export function COMP({ sec }: FnProps) {
       compare: others.map((id, i) => ({ label: engine.get(id)!.ticker, series: engine.daily(id), color: COMPARE_COLORS[i % COMPARE_COLORS.length] })),
       percent: true,
       annotate: false,
-      initialBars: h.bars || ytdBars,
+      initialBars,
       dateLabel: (t) => fmtDay(t),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [others, h, ytdBars, s, tick],
+    [others, initialBars, s, tick],
   );
   const hits = text.trim() ? searchSecurities(text, 6) : [];
   const add = (id: string) => {

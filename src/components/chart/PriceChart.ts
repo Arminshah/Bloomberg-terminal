@@ -985,9 +985,9 @@ export class PriceChart {
       const v = arr[legendIdx];
       rows.push({ k: opt.compare[k].label, v: Number.isFinite(v) && Number.isFinite(b0) ? `${fmtNum((v / b0 - 1) * 100, 2)}%` : '--', c: opt.compare[k].color });
     });
-    if (a.pct && opt.compare.length) {
+    if (a.pct && opt.compare.length && idx == null) {
       const b0 = s.c[a.i0];
-      rows.splice(1, 0, { k: '', v: `${fmtNum((s.c[legendIdx] / b0 - 1) * 100, 2)}%`, c: color });
+      rows[0] = { k: opt.label, v: `${fmtNum((s.c[legendIdx] / b0 - 1) * 100, 2)}%`, c: color };
     }
     ctx.font = T.font;
     ctx.textBaseline = 'middle';

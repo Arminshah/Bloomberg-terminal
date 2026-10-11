@@ -103,3 +103,10 @@ export function aggregate(s: Series, p: Periodicity): Series {
   out.length = n + 1;
   return out;
 }
+
+/** Number of bars from the first bar after `start` to the end (calendar-exact periods). */
+export function barsSince(s: Series, start: number): number {
+  let i = s.length - 1;
+  while (i > 0 && s.t[i - 1] > start) i--;
+  return s.length - i + 1;
+}

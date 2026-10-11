@@ -7,7 +7,8 @@ import { createStore } from '../core/store';
 import { fmtDay, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { resolveSecurity, searchSecurities } from '../data/registry';
-import { aggregate, type Periodicity } from '../data/series';
+import { aggregate, barsSince, type Periodicity, type Series } from '../data/series';
+import { horizonStart, type Horizon } from '../data/analytics';
 import type { SecurityDef } from '../data/types';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
@@ -49,19 +50,14 @@ const TYPES: { id: ChartType; label: string }[] = [
   { id: 'bar', label: 'Bar' },
 ];
 
-function barsFor(period: string, freq: Periodicity, daily: { t: Float64Array; length: number }, crypto: boolean): number {
-  const p = PERIODS.find((x) => x.id === period)!;
-  let bars: number;
-  if (period === 'YTD') {
-    const y = new Date(daily.t[daily.length - 1]).getUTCFullYear();
-    const start = Date.UTC(y, 0, 1);
-    let i = daily.length - 1;
-    while (i > 0 && daily.t[i - 1] >= start) i--;
-    bars = daily.length - i;
-  } else bars = p.bars ?? 252;
-  if (crypto && period !== 'YTD') bars = Math.round(bars * (365 / 252));
-  if (freq === 'W') return Math.max(8, Math.ceil(bars / (crypto ? 7 : 5)));
-  if (freq === 'M') return Math.max(6, Math.ceil(bars / (crypto ? 30.4 : 21)));
+const PERIOD_HORIZON: Record<string, Horizon | undefined> = { '1M': '1M', '3M': '3M', '6M': '6M', YTD: 'YTD', '1Y': '1Y', '2Y': '2Y', '5Y': '5Y' };
+
+/** Visible bars for a period, measured in calendar time from today. */
+function barsFor(period: string, freq: Periodicity, daily: Series): number {
+  const h = PERIOD_HORIZON[period];
+  const bars = h ? barsSince(daily, horizonStart(h)) : daily.length;
+  if (freq === 'W') return Math.max(8, Math.ceil(bars / 5) + 1);
+  if (freq === 'M') return Math.max(6, Math.ceil(bars / 21) + 1);
   return Math.max(5, bars);
 }
 
@@ -120,7 +116,6 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
   const [freq, setFreq] = useState<Periodicity>('D');
   const [compare, setCompare] = useState<string[]>([]);
   const tick = useTick(intraday ? 1 : freq === 'D' ? 1_000_000 : 5);
-  const crypto = sec.cls === 'crypto';
 
   const daily = engine.daily(sec.id);
   const series = useMemo(() => {
@@ -153,11 +148,11 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
       percent: compareSeries.length > 0,
       annotate: true,
       refLine: intraday ? { value: engine.prevClose(sec.id), label: 'Prev' } : undefined,
-      initialBars: intraday ? 100000 : barsFor(period, freq, daily, crypto),
+      initialBars: intraday ? 100000 : barsFor(period, freq, daily),
       timeLabel: (t) => fmtTime(t, false),
       dateLabel: (t) => fmtDay(t),
     }),
-    [p, sec, intraday, compareSeries, period, freq, daily, crypto, series],
+    [p, sec, intraday, compareSeries, period, freq, daily, series],
   );
 
   const toggleStudy = (id: string) =>
