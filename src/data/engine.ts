@@ -1,8 +1,8 @@
 import { hashString, normal } from '../core/rng';
-import { cleanFromYield, settlementDate, type BondTerms } from '../finance/bonds';
-import { buildGrid, DAY_MS, dayNum, dayStart, isBusinessDay, isoToDay, MINUTE_MS, prevBusinessDay } from './calendar';
+import { cleanPricer, settlementDate, type BondTerms } from '../finance/bonds';
+import { buildGrid, DAY_MS, dayNum, dayStart, frontFuture, isBusinessDay, isoToDay, MINUTE_MS, prevBusinessDay } from './calendar';
 import { factorLoadings, idioWeight, type Loadings } from './factors';
-import { makeSeries, type Series } from './series';
+import { indexAtOrBefore, makeSeries, type Series } from './series';
 import type { Quote, SecurityDef, Trade } from './types';
 import { ANCHORS, buildUniverse, CURRENCY_DEFS, CURRENCY_INFO } from './universe';
 
@@ -10,7 +10,7 @@ const HIST_YEARS = 10;
 const MINUTES = 1440;
 const TRADE_BUFFER = 400;
 
-type Kind = 'base' | 'pair' | 'dxy' | 'bond';
+type Kind = 'base' | 'pair' | 'dxy' | 'bond' | 'fut';
 
 interface Intra {
   day: number;
@@ -58,8 +58,16 @@ interface State {
   prevClose: number;
   volume: number;
   pair?: { base: string; quote: string };
-  bond?: { terms: BondTerms; curveId: string; spread: number; issueDay: number };
+  bond?: { terms: BondTerms; legs: { id: string; w: number }[]; spread: number; issueDay: number; issuer?: string; issuerRef?: number };
+  fut?: { underlying: string; rateId?: string; rate: number; q: number; tick: number; monthly: boolean };
 }
+
+type Field = 'o' | 'h' | 'l' | 'c';
+
+/** Exchange codes shown in Time & Sales for futures. */
+const FUT_VENUE: Record<string, string> = {
+  CME: 'CME', CBOT: 'CBT', Eurex: 'EUX', 'ICE Futures Europe': 'ICE', Euronext: 'ENX', 'Osaka Exchange': 'OSE', HKEX: 'HKF', ASX: 'ASX',
+};
 
 export type EngineListener = (changed: Set<string>) => void;
 
@@ -102,9 +110,14 @@ export class MarketEngine {
       if (d.fx && d.cls === 'fx') this.addState(d, 'pair');
       else if (d.id === 'DXY Curncy') this.addState(d, 'dxy');
       else if (d.bond) this.addState(d, 'bond');
-      else this.addState(d, 'base');
+      else if (d.fut) {
+        // A future moves like its index; px is filled in from the first fair value.
+        d.vol = this.byId.get(d.fut.underlying)?.vol ?? d.vol;
+        this.addState(d, 'fut');
+      } else this.addState(d, 'base');
     }
     this.refreshAll(t, false);
+    for (const st of this.states.values()) if (st.kind === 'fut') st.def.px = st.last;
   }
 
   private addState(def: SecurityDef, kind: Kind) {
@@ -145,9 +158,22 @@ export class MarketEngine {
       const b = def.bond!;
       st.bond = {
         terms: { coupon: b.coupon, maturity: new Date(`${b.maturity}T00:00:00Z`), freq: b.freq },
-        curveId: b.curve,
+        legs: b.legs,
         spread: b.spread,
         issueDay: isoToDay(b.issue),
+        issuer: b.issuer,
+        issuerRef: b.issuerRef,
+      };
+    }
+    if (kind === 'fut') {
+      const f = def.fut!;
+      st.fut = {
+        underlying: f.underlying,
+        rateId: typeof f.rate === 'string' ? f.rate : undefined,
+        rate: typeof f.rate === 'number' ? f.rate : 0,
+        q: f.divYield,
+        tick: f.tick,
+        monthly: !!f.monthly,
       };
     }
     this.states.set(def.id, st);
@@ -301,6 +327,8 @@ export class MarketEngine {
         return 0.45;
       case 'bond':
         return 0.45;
+      case 'future':
+        return 0.9;
       default:
         return 0.5;
     }
@@ -648,70 +676,163 @@ export class MarketEngine {
     return this.states.get(id)!.last;
   }
 
-  private derivedValue(st: State, val: (id: string) => number): number {
-    if (st.kind === 'pair') return val(st.pair!.base) / val(st.pair!.quote);
-    if (st.kind === 'dxy') {
-      let ln = Math.log(DXY_CONST);
-      for (const [c, w] of DXY_WEIGHTS) {
-        // Weights apply to USD-quoted pairs (EURUSD, USDJPY...): EUR/GBP pairs are EURUSD, others USDxxx.
-        const usdPer = val(`CCY:${c}`);
-        const pair = c === 'EUR' || c === 'GBP' ? usdPer : 1 / usdPer;
-        ln += w * Math.log(pair);
+  /** Value of a derived line given its component levels, on a settlement/pricing day. */
+  private derivedValue(st: State, val: (id: string) => number, day = this.today): number {
+    switch (st.kind) {
+      case 'pair':
+        return val(st.pair!.base) / val(st.pair!.quote);
+      case 'dxy': {
+        let ln = Math.log(DXY_CONST);
+        for (const [c, w] of DXY_WEIGHTS) {
+          // Weights apply to USD-quoted pairs (EURUSD, USDJPY...): EUR/GBP pairs are EURUSD, others USDxxx.
+          const usdPer = val(`CCY:${c}`);
+          const pair = c === 'EUR' || c === 'GBP' ? usdPer : 1 / usdPer;
+          ln += w * Math.log(pair);
+        }
+        return Math.exp(ln);
       }
-      return Math.exp(ln);
+      case 'bond':
+        return this.bondPrice(st, this.bondYield(st, val), day);
+      case 'fut':
+        return this.futurePrice(st, val, day);
+      default:
+        return NaN;
     }
-    return NaN;
   }
+
+  /**
+   * Bond yield: interpolated benchmark yield plus the credit spread. The
+   * spread widens when the issuer's shares fall and tightens when they rally.
+   */
+  private bondYield(st: State, val: (id: string) => number): number {
+    const b = st.bond!;
+    let y = 0;
+    for (const l of b.legs) y += l.w * val(l.id);
+    let mult = 1;
+    if (b.issuer && b.issuerRef) {
+      const px = val(b.issuer);
+      if (px > 0) mult = Math.exp(-0.6 * Math.max(-0.7, Math.min(0.7, Math.log(px / b.issuerRef))));
+    }
+    return y + (b.spread * mult) / 100;
+  }
+
+  private pricers = new Map<string, { day: number; fn: (y: number) => number }>();
 
   private bondPrice(st: State, yieldPct: number, day: number): number {
     const b = st.bond!;
-    const settle = settlementDate(new Date(dayStart(day)));
-    if (settle.getTime() >= b.terms.maturity.getTime()) return 100;
-    return cleanFromYield(b.terms, settle, yieldPct + b.spread / 100);
+    let p = this.pricers.get(st.def.id);
+    if (!p || p.day !== day) {
+      const settle = settlementDate(new Date(dayStart(day)));
+      p = { day, fn: settle.getTime() >= b.terms.maturity.getTime() ? () => 100 : cleanPricer(b.terms, settle) };
+      this.pricers.set(st.def.id, p);
+    }
+    return p.fn(yieldPct);
+  }
+
+  /** Fair value of the front contract: index carried at (r - q) to expiry, on the tick grid. */
+  private futurePrice(st: State, val: (id: string) => number, day: number): number {
+    const f = st.fut!;
+    const und = val(f.underlying);
+    const r = f.rateId ? val(f.rateId) : f.rate;
+    const T = (frontFuture(day, f.monthly).expiry - day) / 365;
+    const px = und * Math.exp((r / 100 - f.q) * T);
+    return Math.round(px / f.tick) * f.tick;
+  }
+
+  /** A bond's market yield now and at the previous close (percent). */
+  bondYields(id: string): { last: number; prev: number; spread: number } | undefined {
+    const st = this.states.get(id);
+    if (!st || st.kind !== 'bond') return undefined;
+    const last = this.bondYield(st, (c) => this.componentValue(c));
+    const prev = this.bondYield(st, (c) => this.states.get(c)!.prevClose);
+    let bench = 0;
+    for (const l of st.bond!.legs) bench += l.w * this.componentValue(l.id);
+    return { last, prev, spread: (last - bench) * 100 };
+  }
+
+  /** Front contract details for a generic future. */
+  futureContract(id: string): { code: string; expiry: number; days: number; fair: number; carry: number; rate: number; q: number } | undefined {
+    const st = this.states.get(id);
+    if (!st || st.kind !== 'fut') return undefined;
+    const f = st.fut!;
+    const front = frontFuture(this.today, f.monthly);
+    const und = this.componentValue(f.underlying);
+    const rate = f.rateId ? this.componentValue(f.rateId) : f.rate;
+    const fair = und * Math.exp((rate / 100 - f.q) * ((front.expiry - this.today) / 365));
+    const root = st.def.ticker.replace(/1$/, '').trim();
+    // Single-letter roots keep Bloomberg's space: "Z Z6".
+    return { code: `${root}${root.length === 1 ? ' ' : ''}${front.code}`, expiry: front.expiry, days: front.expiry - this.today, fair, carry: fair - und, rate, q: f.q };
+  }
+
+  /** Open/high/low/close of a derived line from component bars. */
+  private derivedBar(st: State, get: (id: string, f: Field) => number, day: number, up: number, dn: number): [number, number, number, number] {
+    const at = (pick: (id: string) => Field) => this.derivedValue(st, (id) => (id === 'USD' ? 1 : get(id, pick(id))), day);
+    const o = at(() => 'o');
+    const c = at(() => 'c');
+    let h: number;
+    let l: number;
+    if (st.kind === 'bond') {
+      // Price is inverse to yield: the yield low is the price high.
+      const legs = new Set(st.bond!.legs.map((x) => x.id));
+      h = at((id) => (legs.has(id) ? 'l' : 'c'));
+      l = at((id) => (legs.has(id) ? 'h' : 'c'));
+    } else if (st.kind === 'fut') {
+      const und = st.fut!.underlying;
+      h = at((id) => (id === und ? 'h' : 'c'));
+      l = at((id) => (id === und ? 'l' : 'c'));
+    } else {
+      h = Math.max(o, c) * (1 + up);
+      l = Math.min(o, c) * (1 - dn);
+    }
+    return [o, Math.max(h, o, c), Math.min(l, o, c), c];
   }
 
   private updateDerived(st: State, t: number) {
-    let px: number;
-    if (st.kind === 'bond') {
-      const curve = this.states.get(st.bond!.curveId)!;
-      px = this.bondPrice(st, curve.last, this.today);
-      if (!st.intra || st.intra.day !== this.today) {
-        st.intra = { day: this.today, x: new Float64Array(0), filled: 0, series: makeSeries(0, MINUTE_MS), cur: -1, totalVol: 0 };
-        st.prevClose = this.bondPrice(st, curve.prevClose, prevBusinessDay(this.today));
-        st.dayOpen = this.bondPrice(st, curve.dayOpen, this.today);
-        st.dayHigh = Math.max(st.dayOpen, px);
-        st.dayLow = Math.min(st.dayOpen, px);
-      }
-    } else {
-      const isNew = !st.intra || st.intra.day !== this.today;
-      px = this.derivedValue(st, (id) => this.componentValue(id));
-      if (isNew) {
-        st.intra = { day: this.today, x: new Float64Array(0), filled: 0, series: makeSeries(0, MINUTE_MS), cur: -1, totalVol: 0 };
-        const comps = this.componentIds(st);
-        const prevVals = new Map(comps.map((c) => [c, c === 'USD' ? 1 : this.states.get(c)!.prevClose]));
-        const openVals = new Map(comps.map((c) => [c, c === 'USD' ? 1 : this.states.get(c)!.dayOpen]));
-        st.prevClose = this.derivedValue(st, (id) => prevVals.get(id)!);
-        st.dayOpen = this.derivedValue(st, (id) => openVals.get(id)!);
-        const intra = this.derivedIntraday(st);
-        st.dayHigh = st.dayOpen;
-        st.dayLow = st.dayOpen;
-        for (let i = 0; i < intra.length; i++) {
-          st.dayHigh = Math.max(st.dayHigh, intra.h[i]);
-          st.dayLow = Math.min(st.dayLow, intra.l[i]);
-        }
+    const isNew = !st.intra || st.intra.day !== this.today;
+    const px = this.derivedValue(st, (id) => this.componentValue(id));
+    // Set before rebuilding today's bars: the forming bar closes at the current level.
+    st.last = px;
+    if (isNew) {
+      st.intra = { day: this.today, x: new Float64Array(0), filled: 0, series: makeSeries(0, MINUTE_MS), cur: -1, totalVol: 0 };
+      const comps = this.componentIds(st);
+      const prevVals = new Map(comps.map((c) => [c, c === 'USD' ? 1 : this.states.get(c)!.prevClose]));
+      const openVals = new Map(comps.map((c) => [c, c === 'USD' ? 1 : this.states.get(c)!.dayOpen]));
+      st.prevClose = this.derivedValue(st, (id) => prevVals.get(id)!, this.lastHistDay(false));
+      st.dayOpen = this.derivedValue(st, (id) => openVals.get(id)!);
+      const intra = this.derivedIntraday(st);
+      st.dayHigh = st.dayOpen;
+      st.dayLow = st.dayOpen;
+      for (let i = 0; i < intra.length; i++) {
+        st.dayHigh = Math.max(st.dayHigh, intra.h[i]);
+        st.dayLow = Math.min(st.dayLow, intra.l[i]);
       }
     }
     st.last = px;
     st.dayHigh = Math.max(st.dayHigh, px);
     st.dayLow = Math.min(st.dayLow, px);
-    void t;
+    if (st.kind === 'fut') {
+      const frac = Math.min(1, (t - dayStart(this.today)) / DAY_MS);
+      st.volume = Math.round(this.advFor(st) * frac * Math.exp(0.25 * normal(st.seed, this.today, 6) - 0.03));
+    }
   }
 
   private componentIds(st: State): string[] {
-    if (st.kind === 'pair') return [st.pair!.base, st.pair!.quote];
-    if (st.kind === 'dxy') return DXY_WEIGHTS.map(([c]) => `CCY:${c}`);
-    if (st.kind === 'bond') return [st.bond!.curveId];
-    return [];
+    switch (st.kind) {
+      case 'pair':
+        return [st.pair!.base, st.pair!.quote];
+      case 'dxy':
+        return DXY_WEIGHTS.map(([c]) => `CCY:${c}`);
+      case 'bond': {
+        const b = st.bond!;
+        return [...b.legs.map((l) => l.id), ...(b.issuer ? [b.issuer] : [])];
+      }
+      case 'fut': {
+        const f = st.fut!;
+        return [f.underlying, ...(f.rateId ? [f.rateId] : [])];
+      }
+      default:
+        return [];
+    }
   }
 
   private derivedDaily(st: State): Series {
@@ -724,59 +845,52 @@ export class MarketEngine {
     const key = `D:${this.today}:${this.version}:${comps.map((c) => this.states.get(c)!.dailyKey).join('|')}`;
     const cached = this.derivedCache.get(`D:${st.def.id}`);
     if (cached && cached.key === key) {
-      this.writeDerivedToday(st, cached.series, bases);
+      this.writeDerivedToday(st, cached.series);
       return cached.series;
     }
-    const n = bases[0].length;
+    const primary = bases[0];
+    const n = primary.length;
     const out = makeSeries(n, DAY_MS);
     const sd = st.def.vol / Math.sqrt(252);
+    const adv = this.advFor(st);
+    const issueDay = st.bond?.issueDay ?? -Infinity;
     let w = 0;
     for (let i = 0; i < n; i++) {
-      if (st.kind === 'bond') {
-        const day = dayNum(bases[0].t[i]);
-        if (day < st.bond!.issueDay) continue;
-        const yc = bases[0];
-        out.t[w] = yc.t[i];
-        out.o[w] = this.bondPrice(st, yc.o[i], day);
-        out.c[w] = this.bondPrice(st, yc.c[i], day);
-        // Price is inverse to yield: the yield low is the price high.
-        out.h[w] = this.bondPrice(st, yc.l[i], day);
-        out.l[w] = this.bondPrice(st, yc.h[i], day);
-        out.v[w] = 0;
-        w++;
-        continue;
-      }
-      const at = (field: 'o' | 'c') => {
-        const vals = new Map(comps.map((c, j) => [c, bases[j][field][i]]));
-        return this.derivedValue(st, (id) => (id === 'USD' ? 1 : vals.get(id)!));
+      const tm = primary.t[i];
+      const day = dayNum(tm);
+      if (day < issueDay) continue;
+      // Business-day calendars line up by index; anything else is matched by time.
+      const idx = bases.map((b) => (b.length === n && b.t[i] === tm ? i : indexAtOrBefore(b, tm)));
+      const get = (id: string, f: Field) => {
+        const j = comps.indexOf(id);
+        const k = idx[j];
+        return k >= 0 ? bases[j][f][k] : this.componentValue(id);
       };
-      const o = at('o');
-      const c = at('c');
-      const day = dayNum(bases[0].t[i]);
       const up = sd * 0.5 * Math.abs(normal(st.seed, day, 4));
       const dn = sd * 0.5 * Math.abs(normal(st.seed, day, 5));
-      out.t[w] = bases[0].t[i];
+      const [o, h, l, c] = this.derivedBar(st, get, day, Math.expm1(up), -Math.expm1(-dn));
+      out.t[w] = tm;
       out.o[w] = o;
+      out.h[w] = h;
+      out.l[w] = l;
       out.c[w] = c;
-      out.h[w] = Math.max(o, c) * Math.exp(up);
-      out.l[w] = Math.min(o, c) * Math.exp(-dn);
-      out.v[w] = 0;
+      out.v[w] = adv > 0 ? Math.round(adv * Math.exp(0.3 * normal(st.seed, day, 6) - 0.045)) : 0;
       w++;
     }
     out.length = w;
     this.derivedCache.set(`D:${st.def.id}`, { key, series: out });
-    this.writeDerivedToday(st, out, bases);
+    this.writeDerivedToday(st, out);
     return out;
   }
 
-  private writeDerivedToday(st: State, s: Series, bases: Series[]) {
+  private writeDerivedToday(st: State, s: Series) {
     const n = s.length - 1;
     if (n < 0 || dayNum(s.t[n]) !== this.today) return;
-    void bases;
     s.o[n] = st.dayOpen;
     s.h[n] = Math.max(st.dayHigh, st.dayLow);
     s.l[n] = Math.min(st.dayLow, st.dayHigh);
     s.c[n] = st.last;
+    if (st.kind === 'fut') s.v[n] = st.volume;
   }
 
   private derivedIntraday(st: State): Series {
@@ -790,33 +904,28 @@ export class MarketEngine {
     const key = `I:${this.tickCount}:${this.version}:${bases.map((b) => b.length).join(',')}`;
     const cached = this.derivedCache.get(`I:${st.def.id}`);
     if (cached && cached.key === key) return cached.series;
-    const n = Math.min(...bases.map((b) => b.length));
-    const out = makeSeries(n, MINUTE_MS);
+    const primary = bases[0];
+    const n = primary.length;
+    const out = makeSeries(n, primary.span);
     const sm = st.def.vol / Math.sqrt(252) / Math.sqrt(MINUTES);
+    const advMin = this.advFor(st) / MINUTES;
     for (let i = 0; i < n; i++) {
-      const at = (field: 'o' | 'c' | 'h' | 'l') => {
-        const vals = new Map(comps.map((c, j) => [c, bases[j][field][i]]));
-        return vals;
+      const tm = primary.t[i];
+      const idx = bases.map((b) => (b.t[i] === tm && i < b.length ? i : indexAtOrBefore(b, tm)));
+      const get = (id: string, f: Field) => {
+        const j = comps.indexOf(id);
+        const k = idx[j];
+        return k >= 0 ? bases[j][f][k] : this.componentValue(id);
       };
-      let o: number;
-      let c: number;
-      if (st.kind === 'bond') {
-        o = this.bondPrice(st, bases[0].o[i], this.today);
-        c = this.bondPrice(st, bases[0].c[i], this.today);
-      } else {
-        const ov = at('o');
-        const cv = at('c');
-        o = this.derivedValue(st, (id) => (id === 'USD' ? 1 : ov.get(id)!));
-        c = this.derivedValue(st, (id) => (id === 'USD' ? 1 : cv.get(id)!));
-      }
       const up = sm * 0.5 * Math.abs(normal(st.seed, this.today, 30_000 + i));
       const dn = sm * 0.5 * Math.abs(normal(st.seed, this.today, 40_000 + i));
-      out.t[i] = bases[0].t[i];
+      const [o, h, l, c] = this.derivedBar(st, get, this.today, up, dn);
+      out.t[i] = tm;
       out.o[i] = o;
+      out.h[i] = h;
+      out.l[i] = l;
       out.c[i] = c;
-      out.h[i] = Math.max(o, c) * (1 + up);
-      out.l[i] = Math.min(o, c) * (1 - dn);
-      out.v[i] = 0;
+      out.v[i] = advMin > 0 ? Math.round(advMin * Math.exp(0.5 * normal(st.seed, this.today, 50_000 + i) - 0.125)) : 0;
     }
     if (n > 0) {
       out.c[n - 1] = st.last;
@@ -845,7 +954,10 @@ export class MarketEngine {
       case 'rate':
         return 0.004;
       case 'bond':
-        return 1 / 128;
+        // Treasuries quote in 1/128ths; investment-grade corporates about an eighth wide.
+        return d.yk === 'Corp' ? 0.125 : 1 / 128;
+      case 'future':
+        return d.fut!.tick;
       default:
         return 0;
     }
@@ -857,11 +969,18 @@ export class MarketEngine {
     const sp = this.spread(st, last);
     const tick: -1 | 0 | 1 = prev ? (last > prev.last ? 1 : last < prev.last ? -1 : prev.tick) : 0;
     const chg = last - st.prevClose;
+    let bid = sp > 0 ? (st.additive ? last + sp / 2 : last - sp / 2) : NaN;
+    let ask = sp > 0 ? (st.additive ? last - sp / 2 : last + sp / 2) : NaN;
+    if (st.kind === 'fut') {
+      // One tick wide, with the last trade on the side that was lifted or hit.
+      bid = tick > 0 ? last - sp : last;
+      ask = bid + sp;
+    }
     const q: Quote = {
       id: st.def.id,
       last,
-      bid: sp > 0 ? (st.additive ? last + sp / 2 : last - sp / 2) : NaN,
-      ask: sp > 0 ? (st.additive ? last - sp / 2 : last + sp / 2) : NaN,
+      bid,
+      ask,
       open: st.dayOpen,
       high: st.dayHigh,
       low: st.dayLow,
@@ -876,14 +995,27 @@ export class MarketEngine {
     this.quotes.set(st.def.id, q);
   }
 
+  private venuesFor(st: State): string[] {
+    switch (st.def.cls) {
+      case 'equity':
+        return VENUES[st.def.country] ?? VENUES_US;
+      case 'crypto':
+        return ['CB', 'BS', 'KR'];
+      case 'future':
+        return [FUT_VENUE[st.def.fut!.exch] ?? 'E'];
+      default:
+        return ['E'];
+    }
+  }
+
   private maybeTrade(st: State, t: number) {
     const cls = st.def.cls;
-    if (cls !== 'equity' && cls !== 'commodity' && cls !== 'crypto') return;
+    if (cls !== 'equity' && cls !== 'commodity' && cls !== 'crypto' && cls !== 'future') return;
     if (st.live) return;
     const q = this.quotes.get(st.def.id)!;
     const n = Math.random() < 0.35 ? 0 : 1 + Math.floor(Math.random() * 3);
     const adv = this.advFor(st);
-    const venues = cls === 'equity' ? (VENUES[st.def.country] ?? VENUES_US) : cls === 'crypto' ? ['CB', 'BS', 'KR'] : ['E'];
+    const venues = this.venuesFor(st);
     for (let i = 0; i < n; i++) {
       const side: -1 | 1 = Math.random() < 0.5 ? -1 : 1;
       const px = side > 0 ? q.ask : q.bid;
@@ -911,8 +1043,8 @@ export class MarketEngine {
     const now = this.now();
     const adv = this.advFor(st);
     const cls = st.def.cls;
-    if (cls !== 'equity' && cls !== 'commodity' && cls !== 'crypto') return;
-    const venues = cls === 'equity' ? (VENUES[st.def.country] ?? VENUES_US) : cls === 'crypto' ? ['CB', 'BS', 'KR'] : ['E'];
+    if (cls !== 'equity' && cls !== 'commodity' && cls !== 'crypto' && cls !== 'future') return;
+    const venues = this.venuesFor(st);
     const sp = this.spread(st, q.last);
     const out: Trade[] = [];
     let t = st.trades.length ? st.trades[st.trades.length - 1].t : now;
@@ -925,7 +1057,7 @@ export class MarketEngine {
       let size = Math.max(1, Math.round(base * Math.exp(gaussianRandom() * 0.9)));
       if (cls === 'equity') size = size >= 100 ? Math.round(size / 100) * 100 : size;
       if (cls === 'crypto') size = Number((base * Math.exp(gaussianRandom() * 1.1)).toPrecision(3));
-      out.push({ t, px: mid + (side * sp) / 2, size, side, venue: venues[i % venues.length], cond: size < 100 && cls === 'equity' ? 'I' : '' });
+      out.push({ t, px: cls === 'future' ? (side > 0 ? mid : mid - sp) : mid + (side * sp) / 2, size, side, venue: venues[i % venues.length], cond: size < 100 && cls === 'equity' ? 'I' : '' });
     }
     st.trades = [...st.trades, ...out];
   }

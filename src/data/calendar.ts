@@ -80,3 +80,35 @@ export function rollForward(date: Date): Date {
   while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
   return d;
 }
+
+const MONTH_CODES = 'FGHJKMNQUVXZ';
+
+/**
+ * Front equity-index future on `day`: quarterly contracts expire on the third
+ * Friday of Mar/Jun/Sep/Dec; monthly ones (HSI) on the second-last business
+ * day of the month. The generic contract rolls on expiry day.
+ */
+export function frontFuture(day: number, monthly = false): { expiry: number; month0: number; year: number; code: string } {
+  const d = new Date(day * DAY_MS);
+  let y = d.getUTCFullYear();
+  let m = d.getUTCMonth();
+  for (let k = 0; k < 15; k++) {
+    if (monthly || m % 3 === 2) {
+      let exp: number;
+      if (monthly) {
+        let e = Math.floor(endOfMonth(y, m).getTime() / DAY_MS);
+        while (!isBusinessDay(e)) e--;
+        e--;
+        while (!isBusinessDay(e)) e--;
+        exp = e;
+      } else exp = Math.floor(thirdFriday(y, m).getTime() / DAY_MS);
+      if (exp > day) return { expiry: exp, month0: m, year: y, code: `${MONTH_CODES[m]}${y % 10}` };
+    }
+    m++;
+    if (m > 11) {
+      m = 0;
+      y++;
+    }
+  }
+  throw new Error('no future expiry');
+}

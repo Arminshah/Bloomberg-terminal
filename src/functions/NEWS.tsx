@@ -106,8 +106,10 @@ function NewsScreen({ code, title, ticker, initialTopic, query }: { code: string
   );
 }
 
-export function TOP() {
-  return <NewsScreen code="TOP" title="Top News" initialTopic="TOP" />;
+export function TOP({ route }: FnProps) {
+  const arg = route.args?.toUpperCase();
+  const topic = arg && NEWS_TOPICS.some((t) => t.code === arg) ? arg : 'TOP';
+  return <NewsScreen code="TOP" title="Top News" initialTopic={topic} />;
 }
 
 export function N({ route, sec }: FnProps) {
@@ -120,4 +122,66 @@ export function N({ route, sec }: FnProps) {
 export function CN({ sec }: FnProps) {
   useEffect(() => requestCompanyNews(sec!.id), [sec]);
   return <NewsScreen code="CN" title="Company News" ticker={sec!.id} />;
+}
+
+/** Simulated readership: bigger, hotter and market-wide stories draw more readers, accumulating after release. */
+function reads(s: Story, now: number): number {
+  let h = 0;
+  for (let i = 0; i < s.id.length; i++) h = (h * 31 + s.id.charCodeAt(i)) >>> 0;
+  let weight = 1 + (h % 1000) / 400;
+  if (s.hot) weight *= 3;
+  if (s.topics.includes('TOP')) weight *= 2;
+  if (s.topics.includes('CB') || s.topics.includes('ECO')) weight *= 1.5;
+  if (s.real) weight *= 1.4;
+  weight *= 1 + Math.min(4, s.tickers.length) * 0.15;
+  const ageMin = Math.max(0, (now - s.time) / 60_000);
+  return Math.round(900 * weight * (1 - Math.exp(-ageMin / 90)));
+}
+
+/** READ: most-read stories. */
+export function READ(_: FnProps) {
+  const stories = news.use((n) => n.stories);
+  const [tab, setTab] = useState(1);
+  const [sel, setSel] = useState<string | null>(null);
+  const now = engine.now();
+  const window = tab === 1 ? 24 * 3600_000 : 7 * 24 * 3600_000;
+  const ranked = useMemo(
+    () =>
+      stories
+        .filter((s) => now - s.time <= window && s.time <= now)
+        .map((s) => ({ s, r: reads(s, now) }))
+        .sort((a, b) => b.r - a.r)
+        .slice(0, 40),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stories, tab, Math.floor(now / 60_000)],
+  );
+  const current = ranked.find((x) => x.s.id === sel)?.s ?? ranked[0]?.s;
+  return (
+    <div className="fn-fill">
+      <FnHeader
+        code="READ"
+        title="Most Read News"
+        sub="Ranked by readership across the terminal (simulated)"
+        tabs={[
+          { n: 1, label: 'Last 24 hours' },
+          { n: 2, label: 'Last 7 days' },
+        ]}
+        tab={tab}
+        onTab={setTab}
+      />
+      <div className={`news${sel ? ' reading' : ''}`} style={{ flex: 1, minHeight: 0 }}>
+        <div className="news-list" role="list">
+          {ranked.length === 0 && <div className="empty">No stories yet.</div>}
+          {ranked.map(({ s, r }, i) => (
+            <div key={s.id} role="listitem" className={`news-item${s.hot ? ' hot' : ''}${current?.id === s.id ? ' sel' : ''}`} onClick={() => setSel(s.id)}>
+              <span className="time yellow">{i + 1})</span>
+              <span className="hl">{s.headline}</span>
+              <span className="src">{r.toLocaleString('en-US')}</span>
+            </div>
+          ))}
+        </div>
+        {current ? <StoryView story={current} onBack={() => setSel(null)} /> : <div className="empty">Select a headline.</div>}
+      </div>
+    </div>
+  );
 }

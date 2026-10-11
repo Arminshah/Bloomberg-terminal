@@ -26,7 +26,7 @@ function RelatedMenu({ sec, fns }: { sec: SecurityDef; fns: [string, string][] }
   useMenu('des-related', items);
   return (
     <Section title="Related functions" right="Type the number and <GO>">
-      <div className="pad-s" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '2px 12px' }}>
+      <div className="pad-s" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '2px 12px' }}>
         {fns.map(([code, label], i) => (
           <button key={code} type="button" className="act" style={{ textAlign: 'left' }} onClick={() => execute(panel, `${sec.id} ${code}`)}>
             <b>{21 + i})</b> <span className="amber">{code}</span> {label}
@@ -363,7 +363,7 @@ function IndexDES({ sec }: { sec: SecurityDef }) {
         </Section>
       </div>
       {members.length > 0 && sec.ticker !== 'VIX' && (
-        <Section title="Members in the Amber universe" right={`${members.length} securities`}>
+        <Section title="Members in the Armin universe" right={`${members.length} securities`}>
           <DataTable
             rows={members}
             rowKey={(d) => d.id}
@@ -634,35 +634,135 @@ function BondDES({ sec }: { sec: SecurityDef }) {
   useTick(3);
   const b = sec.bond!;
   const q = engine.quote(sec.id)!;
-  const curveY = engine.quote(b.curve)!.last + b.spread / 100;
+  const by = engine.bondYields(sec.id)!;
   const terms = { coupon: b.coupon, maturity: new Date(`${b.maturity}T00:00:00Z`), freq: 2 };
   const settle = settlementDate(new Date(engine.now()));
-  const a = bondAnalytics(terms, settle, curveY);
+  const a = bondAnalytics(terms, settle, by.last);
+  const issuer = b.issuer ? engine.get(b.issuer) : undefined;
+  const govt = sec.yk === 'Govt';
+  const bench = b.legs.map((l) => engine.get(l.id)!.ticker).join(' / ');
+  const others = issuer ? engine.securities.filter((d) => d.bond?.issuer === b.issuer && d.id !== sec.id) : [];
   return (
     <>
       <div className="cols">
         <Section title="Security">
           <KV
             items={[
-              ['Issuer', 'United States Treasury'],
-              ['Type', `${sec.tenor}-Year ${sec.tenor! >= 20 ? 'Bond' : 'Note'} (on-the-run)`],
+              ['Issuer', issuer ? issuer.name : 'United States Treasury'],
+              ['Type', govt ? `${sec.tenor}-Year ${sec.tenor! >= 20 ? 'Bond' : 'Note'} (on-the-run)` : 'Fixed-rate bullet, senior notes'],
+              ['Seniority', b.seniority ?? 'Govt'],
+              ['Rating (composite)', b.rating ?? 'AA+'],
               ['Coupon', `${fmtNum(b.coupon, 3)}% semi-annual`],
               ['Maturity', fmtDay(terms.maturity.getTime(), true)],
               ['Issue date', fmtDay(Date.parse(`${b.issue}T00:00:00Z`), true)],
+              ['Amount outstanding', b.amount ? `USD ${fmtInt(b.amount)}MM` : 'n/a'],
               ['Day count', 'ACT/ACT'],
               ['Settlement', `T+1 (${fmtDay(settle.getTime())})`],
-              ['Price', fmtNum(q.last, 4)],
-              ['Yield', `${fmtNum(curveY, 3)}%`],
+            ]}
+          />
+        </Section>
+        <Section title="Pricing">
+          <KV
+            items={[
+              ['Bid / Ask', `${fmtNum(q.bid, 3)} / ${fmtNum(q.ask, 3)}`],
+              ['Price', fmtNum(q.last, govt ? 4 : 3)],
+              ['Yield', `${fmtNum(by.last, 3)}%`],
+              ['Yield change', `${fmtNum((by.last - by.prev) * 100, 1)} bp`],
+              ['Benchmark', govt ? 'Generic yield' : `Interpolated UST (${bench})`],
+              ['Spread to benchmark', `${fmtNum(by.spread, 1)} bp`],
+              ['Accrued', fmtNum(a.accrued, 4)],
               ['Mod. duration', fmtNum(a.modified, 3)],
+              ['Convexity', fmtNum(a.convexity, 3)],
               ['DV01 / 1MM', fmtNum(a.dv01 * 10000, 2)],
             ]}
           />
         </Section>
-        <Section title="Price history">
-          <PriceChartMini sec={sec} />
+      </div>
+      <Section title="Price history">
+        <PriceChartMini sec={sec} />
+      </Section>
+      {others.length > 0 && (
+        <Section title={`Other ${issuer!.ticker.split(' ')[0]} bonds`} right="DDIS for the full debt distribution">
+          <DataTable
+            rows={others}
+            rowKey={(d) => d.id}
+            columns={[
+              { key: 't', label: 'Security', render: (d) => <SecLink id={d.id} fn="YAS">{d.ticker}</SecLink> },
+              { key: 'p', label: 'Price', num: true, render: (d) => <LivePx id={d.id} /> },
+              { key: 'y', label: 'Yield', num: true, render: (d) => fmtNum(engine.bondYields(d.id)!.last, 3) },
+              { key: 's', label: 'Spread bp', num: true, render: (d) => fmtNum(engine.bondYields(d.id)!.spread, 0) },
+              { key: 'a', label: 'Amt $MM', num: true, render: (d) => fmtInt(d.bond!.amount ?? 0) },
+            ]}
+          />
+        </Section>
+      )}
+      <RelatedMenu
+        sec={sec}
+        fns={
+          govt
+            ? [['YAS', 'Yield analysis'], ['GP', 'Price graph'], ['HP', 'Price table'], ['ALLQ', 'All quotes'], ['BTMM', 'Treasury monitor'], ['GC', 'Yield curves']]
+            : [['YAS', 'Yield analysis'], ['GP', 'Price graph'], ['ALLQ', 'All quotes'], ['DDIS', 'Debt distribution'], ['SRCH', 'Bond search'], ['HP', 'Price table']]
+        }
+      />
+    </>
+  );
+}
+
+/** Deterministic open interest for a generic future (simulated). */
+function openInterest(sec: SecurityDef): number {
+  let h = 0;
+  for (const ch of sec.id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return Math.round((sec.adv ?? 0) * (1.3 + (h % 100) / 100));
+}
+
+function FutureDES({ sec }: { sec: SecurityDef }) {
+  useTick(2);
+  const f = sec.fut!;
+  const q = engine.quote(sec.id)!;
+  const und = engine.get(f.underlying)!;
+  const uq = engine.quote(und.id)!;
+  const c = engine.futureContract(sec.id)!;
+  const notional = q.last * f.multiplier;
+  const rs = rangeStats(sec.id);
+  return (
+    <>
+      <div className="cols">
+        <Section title="Contract">
+          <KV
+            items={[
+              ['Underlying', <SecLink key="u" id={und.id}>{`${und.ticker} Index · ${und.name}`}</SecLink>],
+              ['Exchange', f.exch],
+              ['Front contract', c.code],
+              ['Last trade date', fmtDay(c.expiry * 86_400_000, true)],
+              ['Days to expiry', String(c.days)],
+              ['Contract size', `${fmtInt(f.multiplier)} ${sec.ccy} x index`],
+              ['Tick size / value', `${fmtNum(f.tick, f.tick < 1 ? 2 : 0)} / ${sec.ccy} ${fmtNum(f.tick * f.multiplier, 2)}`],
+              ['Contract value', `${sec.ccy} ${fmtInt(notional)}`],
+              ['Settlement', 'Cash, final settlement on expiry'],
+            ]}
+          />
+        </Section>
+        <Section title="Fair value">
+          <KV
+            items={[
+              ['Last', <LivePx key="l" id={sec.id} />],
+              ['Index', <LivePx key="i" id={und.id} />],
+              ['Basis (fut - index)', fmtNum(q.last - uq.last, 2)],
+              ['Fair value', fmtNum(c.fair, 2)],
+              ['Fair carry', fmtNum(c.carry, 2)],
+              ['Financing rate', `${fmtNum(c.rate, 3)}%`],
+              ['Dividend yield', `${fmtNum(c.q * 100, 2)}%`],
+              ['Volume', fmtInt(q.volume)],
+              ['Open interest (sim)', fmtInt(openInterest(sec))],
+              ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
+            ]}
+          />
         </Section>
       </div>
-      <RelatedMenu sec={sec} fns={[['YAS', 'Yield analysis'], ['GP', 'Price graph'], ['HP', 'Price table'], ['BTMM', 'Treasury monitor']]} />
+      <Section title="1-year price">
+        <PriceChartMini sec={sec} />
+      </Section>
+      <RelatedMenu sec={sec} fns={[['GP', 'Price graph'], ['GIP', 'Intraday'], ['TAS', 'Time and sales'], ['DEPTH', 'Market depth'], ['WEIF', 'World index futures'], ['HP', 'Price table']]} />
     </>
   );
 }
@@ -693,6 +793,9 @@ export function DES({ sec }: FnProps) {
       break;
     case 'bond':
       body = <BondDES sec={s} />;
+      break;
+    case 'future':
+      body = <FutureDES sec={s} />;
       break;
   }
   return (

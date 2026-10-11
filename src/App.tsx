@@ -4,7 +4,7 @@ import { Panel } from './components/Panel';
 import { TickerTape } from './components/TickerTape';
 import { Toasts } from './components/Toasts';
 import { TopBar } from './components/TopBar';
-import { clearPanelInput, focusPanelInput, typeInto, FKEY_TEXT } from './components/CommandLine';
+import { clearPanelInput, focusPanelInput, pagePanel, typeInto, FKEY_TEXT } from './components/CommandLine';
 import { engine } from './data/market';
 import { setTimeZone } from './core/format';
 import { execute } from './terminal/exec';
@@ -76,16 +76,26 @@ export function App() {
   const activeRoute = terminal.use((s) => currentRoute(s, s.active));
   useEffect(() => {
     const r = activeRoute;
-    document.title = `${r.sec ? `${r.sec.split(' ')[0]} ` : ''}${r.fn} · Amber Terminal`;
+    document.title = `${r.sec ? `${r.sec.split(' ')[0]} ` : ''}${r.fn} · Armin Terminal`;
   }, [activeRoute]);
 
   useEffect(() => {
+    let lastHelp = 0;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const active = terminal.get().active;
       if (e.key === 'F1') {
         e.preventDefault();
-        execute(active, 'HELP');
+        // HELP twice in quick succession reaches the help desk, as on the real keyboard.
+        const now = Date.now();
+        execute(active, now - lastHelp < 1500 ? 'HELP HELP' : 'HELP');
+        lastHelp = now;
+        return;
+      }
+      if (e.key === 'PageUp' || e.key === 'PageDown') {
+        if (isTyping(e.target) && !(e.target as HTMLElement).classList.contains('cmd-input')) return;
+        e.preventDefault();
+        pagePanel(active, e.key === 'PageDown' ? 1 : -1);
         return;
       }
       if (e.key in FKEY_TEXT && !isTyping(e.target)) {

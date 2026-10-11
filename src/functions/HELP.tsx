@@ -18,14 +18,19 @@ const SHORTCUTS: [string, string][] = [
   ['Backspace (empty line)', 'Previous screen (MENU)'],
   ['Alt+1 … Alt+6', 'Switch panel'],
   ['Alt+← / Alt+→', 'Back / forward'],
-  ['F1', 'Help'],
-  ['F2 F8 F9 F10 F11', 'GOVT EQUITY CMDTY INDEX CRNCY yellow keys'],
+  ['F1 (twice: help desk)', 'HELP'],
+  ['F2 F3 F4 F5 F6 F7', 'GOVT CORP MTGE M-MKT MUNI PFD yellow keys'],
+  ['F8 F9 F10 F11 F12', 'EQUITY CMDTY INDEX CRNCY CLIENT yellow keys'],
+  ['PgUp / PgDn', 'PAGE BACK / PAGE FWD'],
+  ['EQUITY <GO>', 'Market sector menu'],
+  ['IBM <CORP> <GO>', "An issuer's bonds"],
   ['↑ ↓ Tab', 'Move through and complete suggestions'],
   ['3 <GO>', 'Pick numbered item 3) on the screen'],
   ['GP?', 'Help on a function'],
 ];
 
 const EXAMPLES: [string, string][] = [
+  ['AAPL US <EQUITY> <GO>', 'Related functions menu for Apple'],
   ['AAPL US <EQUITY> GP <GO>', 'Price graph for Apple'],
   ['NVDA DES', 'Ticker shorthand plus function'],
   ['EURUSD <CRNCY> GIP', 'Intraday EUR-USD'],

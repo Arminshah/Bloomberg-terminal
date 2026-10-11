@@ -4,6 +4,7 @@ import { COMMODITIES, CRYPTO, CURRENCIES, DXY, FX, INDICES, RATES, type Currency
 import snapshot from './snapshot.json';
 import { addMonths, dayToIso, endOfMonth, isoToDay } from '../calendar';
 import { couponFraction } from '../../finance/bonds';
+import { buildCorporates, buildFutures } from './credit';
 
 export interface Calibration {
   px: number;
@@ -166,8 +167,8 @@ export function buildTreasuries(today: Date): SecurityDef[] {
       region: 'Americas', px: 100, vol: generic.vol, dec: 4, quote: 'price', tenor,
       alias: [`CT${tenor}`, `UST${tenor}Y`],
       bond: {
-        coupon, maturity: maturity.toISOString().slice(0, 10), issue: issue.toISOString().slice(0, 10), curve: generic.id,
-        spread: tenor >= 20 ? -1.5 : -0.5, freq: 2,
+        coupon, maturity: maturity.toISOString().slice(0, 10), issue: issue.toISOString().slice(0, 10), legs: [{ id: generic.id, w: 1 }],
+        spread: tenor >= 20 ? -1.5 : -0.5, freq: 2, amount: tenor <= 7 ? 70_000 : 42_000, rating: 'AA+', seniority: 'Govt',
       },
     } satisfies SecurityDef;
   });
@@ -190,7 +191,7 @@ export function anchorNear(id: string, day: number): number | undefined {
 }
 
 export function buildUniverse(today: Date): SecurityDef[] {
-  return [...EQUITIES, ...INDICES, ...FX, DXY, ...COMMODITIES, ...RATES, ...CRYPTO, ...buildTreasuries(today)];
+  return [...EQUITIES, ...INDICES, ...buildFutures(), ...FX, DXY, ...COMMODITIES, ...RATES, ...CRYPTO, ...buildTreasuries(today), ...buildCorporates(today)];
 }
 
 export { EQUITIES, INDICES, FX, DXY, COMMODITIES, RATES, CRYPTO, CURRENCIES };

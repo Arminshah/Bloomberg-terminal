@@ -87,9 +87,9 @@ export function TopBar() {
   const run = (cmd: string) => execute(terminal.get().active, cmd);
   return (
     <div className="topbar" role="banner">
-      <span className="brand" title="Amber Terminal">
+      <span className="brand" title="Armin Terminal">
         <span className="brand-mark" aria-hidden="true" />
-        AMBER<small className="hide-m">TERMINAL</small>
+        ARMIN<small className="hide-m">TERMINAL</small>
       </span>
       <span className="tb-sep hide-m" />
       {LAYOUTS.map((l) => (

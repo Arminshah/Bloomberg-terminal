@@ -18,8 +18,8 @@ import { CORR } from '../functions/CORR';
 import { DEPTH } from '../functions/DEPTH';
 import { TAS } from '../functions/TAS';
 import { BQ } from '../functions/BQ';
-import { CN, N, TOP } from '../functions/NEWS';
-import { WEI } from '../functions/WEI';
+import { CN, N, READ, TOP } from '../functions/NEWS';
+import { WEI, WEIF } from '../functions/WEI';
 import { IMAP } from '../functions/IMAP';
 import { MOST } from '../functions/MOST';
 import { EQS } from '../functions/EQS';
@@ -35,9 +35,14 @@ import { LAST, LPAD, PDFU, SECF } from '../functions/TOOLS';
 import { IB } from '../functions/IB';
 import { HS } from '../functions/HS';
 import { NOTE } from '../functions/NOTE';
+import { MENU } from '../functions/MENU';
+import { EMSX } from '../functions/EMSX';
+import { ALLQ, DDIS, SRCH } from '../functions/CREDIT';
+import { GF, HVT, MOV, TRA, VWAP } from '../functions/ANALYSIS';
+import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
 
 const EQ: AssetClass[] = ['equity'];
-const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto'];
+const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
 
 export const FUNCTIONS: FnDef[] = [
   // Equity research
@@ -50,40 +55,56 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'RV', name: 'Relative Valuation', category: 'Equity', needsSec: true, classes: EQ, desc: 'Peer comparison of valuation multiples, profitability and returns with peer medians.', component: RV, aliases: ['COMPS', 'PEERS'] },
   { code: 'EVTS', name: 'Corporate Events', category: 'Equity', classes: EQ, desc: 'Calendar of earnings releases and ex-dividend dates, for one company or the whole universe.', component: EVTS, aliases: ['EA', 'ERNC', 'CACS'] },
   { code: 'WACC', name: 'Cost of Capital', category: 'Equity', needsSec: true, classes: EQ, desc: 'Weighted average cost of capital from CAPM and after-tax cost of debt, with a perpetuity value check.', component: WACC },
+  { code: 'GF', name: 'Graph Fundamentals', category: 'Equity', needsSec: true, classes: EQ, desc: 'Charts of revenue, EPS, margins, P/E and cash flow across fiscal years and quarters.', component: GF, aliases: ['GFD'] },
   // Charts
   { code: 'GP', name: 'Price Graph', category: 'Charts', needsSec: true, desc: 'Historical chart with line, mountain, candle and bar styles, daily/weekly/monthly frequency, SMA/EMA, Bollinger bands, volume, RSI, MACD and comparison overlays. Scroll to zoom, drag to pan.', component: GP, aliases: ['G', 'CHART', 'GPC', 'GPO'], example: 'AAPL US <EQUITY> GP <GO>' },
   { code: 'GIP', name: 'Intraday Price Graph', category: 'Charts', needsSec: true, desc: "Today's intraday chart against the previous close, updating live.", component: GIP, aliases: ['IGP'], example: 'EURUSD <CRNCY> GIP <GO>' },
   { code: 'HP', name: 'Historical Prices', category: 'Charts', needsSec: true, desc: 'Daily, weekly, monthly, quarterly or yearly price table with changes and volume; copy or export to CSV.', component: HP, aliases: ['HPT'] },
-  { code: 'COMP', name: 'Comparative Returns', category: 'Charts', needsSec: true, desc: 'Rebased performance of a security against benchmarks and peers over a chosen period.', component: COMP, aliases: ['CMP', 'TRA'] },
+  { code: 'COMP', name: 'Comparative Returns', category: 'Charts', needsSec: true, desc: 'Rebased performance of a security against benchmarks and peers over a chosen period.', component: COMP, aliases: ['CMP'] },
+  { code: 'TRA', name: 'Total Return Analysis', category: 'Charts', needsSec: true, classes: ['equity', 'index', 'commodity', 'crypto', 'fx', 'future'], desc: 'Price and total return with dividends reinvested against a benchmark: annualised return, volatility and drawdown.', component: TRA, aliases: ['TRR'] },
   { code: 'HS', name: 'Historical Spread', category: 'Charts', needsSec: true, desc: 'Spread or ratio between two securities with mean, standard deviation, z-score and percentile (2s10s, Brent-WTI, gold/silver).', component: HS, aliases: ['SPRD', 'RATIO'], example: 'USGG10YR <INDEX> HS <GO>' },
   { code: 'BETA', name: 'Historical Beta', category: 'Charts', needsSec: true, classes: ['equity', 'index', 'crypto', 'commodity', 'fx'], desc: 'Regression of returns against an index: raw and adjusted beta, alpha, R², with scatter plot.', component: BETA },
+  { code: 'HVT', name: 'Historical Volatility', category: 'Charts', needsSec: true, desc: 'Realised volatility over 10 to 260 days with percentiles, rolling chart and implied volatility comparison.', component: HVT, aliases: ['HVG', 'HV'] },
   // News
   { code: 'TOP', name: 'Top News', category: 'News', desc: 'Most important headlines across markets, updating as the session unfolds.', component: TOP, aliases: ['NEWS', 'TOPS'] },
   { code: 'N', name: 'News Search', category: 'News', desc: 'All news with topic tabs and keyword search. Add a topic (N CRYPTO) or a security (AAPL N).', component: N, aliases: ['NI', 'NSE'], example: 'N CRYPTO <GO>' },
   { code: 'CN', name: 'Company News', category: 'News', needsSec: true, desc: 'Headlines mentioning the loaded security.', component: CN },
+  { code: 'READ', name: 'Most Read News', category: 'News', desc: 'The stories most read across the terminal in the last day or week.', component: READ, aliases: ['MOSTREAD'] },
   // Markets
-  { code: 'WEI', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI, aliases: ['WEIF'] },
+  { code: 'WEI', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI },
+  { code: 'WEIF', name: 'World Index Futures', category: 'Markets', desc: 'Front equity index futures with basis, fair value and premium or discount to fair value.', component: WEIF, aliases: ['WIF'] },
+  { code: 'MOV', name: 'Index Movers', category: 'Markets', desc: 'Members that moved an index the most today, in index points, with advancers and decliners.', component: MOV, aliases: ['MOVERS2', 'IMOV'], example: 'SPX <INDEX> MOV <GO>' },
   { code: 'IMAP', name: 'Intraday Market Map', category: 'Markets', desc: 'Heat map of stocks by sector sized by market cap and coloured by performance.', component: IMAP, aliases: ['MMAP', 'HEAT'] },
-  { code: 'MOST', name: 'Most Active', category: 'Markets', desc: 'Most active, top gainers, losers, value traded and unusual volume by region.', component: MOST, aliases: ['MOV', 'MOVERS'] },
+  { code: 'MOST', name: 'Most Active', category: 'Markets', desc: 'Most active, top gainers, losers, value traded and unusual volume by region.', component: MOST, aliases: ['MOVERS'] },
   { code: 'EQS', name: 'Equity Screening', category: 'Markets', desc: 'Screen stocks by region, sector, size, valuation, yield, quality and momentum.', component: EQS, aliases: ['SCREEN'] },
   { code: 'BQ', name: 'Composite Quote', category: 'Markets', needsSec: true, desc: 'One-screen quote: live price, intraday chart, depth, trades, key statistics and news.', component: BQ, aliases: ['Q', 'QUOTE'] },
   { code: 'TAS', name: 'Time and Sales', category: 'Markets', needsSec: true, classes: TRADABLE, desc: 'Trade-by-trade tape with price, size, venue and conditions; VWAP and volume summary.', component: TAS, aliases: ['QR', 'T&S'] },
-  { code: 'DEPTH', name: 'Market Depth', category: 'Markets', needsSec: true, classes: ['equity', 'commodity', 'crypto', 'fx'], desc: 'Limit order book with sizes, order counts, cumulative depth chart and imbalance.', component: DEPTH, aliases: ['MBO', 'MBP', 'BOOK'] },
+  { code: 'DEPTH', name: 'Market Depth', category: 'Markets', needsSec: true, classes: ['equity', 'commodity', 'crypto', 'fx', 'future'], desc: 'Limit order book with sizes, order counts, cumulative depth chart and imbalance.', component: DEPTH, aliases: ['MBO', 'MBP', 'BOOK'] },
+  { code: 'VWAP', name: 'VWAP Analysis', category: 'Markets', needsSec: true, classes: TRADABLE, desc: 'Intraday volume-weighted average price with 30-minute buckets, TWAP and price against VWAP.', component: VWAP, aliases: ['AQR'] },
+  { code: 'EMSX', name: 'Execution Management', category: 'Markets', desc: 'Paper trading: order ticket, working orders, fills and cancels. Fills book into PORT positions and cash.', component: EMSX, aliases: ['EMS', 'TRADE', 'ORDER'], example: 'AAPL US <EQUITY> EMSX <GO>' },
   // FX & crypto
   { code: 'FXC', name: 'Currency Cross Rates', category: 'FX & Crypto', desc: 'Live cross-rate matrix of major currencies.', component: FXC, aliases: ['FXCX'] },
   { code: 'WCRS', name: 'World Currency Ranker', category: 'FX & Crypto', desc: 'Currencies ranked by performance against the US dollar over a chosen period.', component: WCRS, aliases: ['FXR'] },
   { code: 'CRYP', name: 'Crypto Monitor', category: 'FX & Crypto', desc: 'Major digital assets: live price, 24h range, volume, market value and returns. Streams real prices when online.', component: CRYP, aliases: ['CRYPTO', 'XBT'] },
+  { code: 'FRD', name: 'Forward Rates', category: 'FX & Crypto', desc: 'FX forward points and outrights from 1 week to 5 years by covered interest parity.', component: FRD, aliases: ['FRDA', 'FWD'], example: 'EURUSD <CRNCY> FRD <GO>' },
+  { code: 'OVML', name: 'FX Option Valuation', category: 'FX & Crypto', desc: 'Vanilla FX option pricer (Garman-Kohlhagen): premium in pips and percent, greeks and expiry P&L.', component: OVML, aliases: ['OVDV'], example: 'USDJPY <CRNCY> OVML <GO>' },
   // Rates
-  { code: 'WB', name: 'World Bond Markets', category: 'Rates & Credit', desc: 'Government yields by country and tenor with changes, spreads to Treasuries and Bunds, and curve slope.', component: WB, aliases: ['WBM', 'GOVT'] },
+  { code: 'WB', name: 'World Bond Markets', category: 'Rates & Credit', desc: 'Government yields by country and tenor with changes, spreads to Treasuries and Bunds, and curve slope.', component: WB, aliases: ['WBM'] },
   { code: 'GC', name: 'Graph Curves', category: 'Rates & Credit', desc: 'Yield curves (US, Germany, UK, Japan) today versus one week, one month and one year ago.', component: GC, aliases: ['GCDF', 'CURVE', 'I25'] },
   { code: 'BTMM', name: 'Treasury & Money Markets', category: 'Rates & Credit', desc: 'Fed funds, SOFR, bills, Treasury actives in 32nds, curve spreads and swap rates.', component: BTMM, aliases: ['MMKT'] },
   { code: 'YAS', name: 'Yield & Spread Analysis', category: 'Rates & Credit', needsSec: true, classes: ['bond'], desc: 'Bond calculator: price/yield, accrued, duration, convexity, DV01, scenarios and cash flows.', component: YAS, aliases: ['YA'], example: 'CT10 <GOVT> YAS <GO>' },
   { code: 'WIRP', name: 'Rate Probabilities', category: 'Rates & Credit', desc: 'Market-implied central bank moves meeting by meeting, from the short end of the curve.', component: WIRP, aliases: ['FEDP'] },
+  { code: 'SWPM', name: 'Swap Manager', category: 'Rates & Credit', desc: 'USD SOFR swap valuation: par rate, NPV, DV01, bootstrapped discount and forward curves, cash flows.', component: SWPM, aliases: ['SWAP', 'IRS'] },
+  { code: 'CENB', name: 'Central Bank Monitor', category: 'Rates & Credit', desc: 'Policy rates, last moves and next decision dates for major central banks against 2-year yields.', component: CENB, aliases: ['CB', 'CBRT'] },
+  { code: 'SRCH', name: 'Fixed Income Search', category: 'Rates & Credit', desc: 'Search Treasuries and corporate bonds by issuer, rating, maturity and coupon with yields and spreads.', component: SRCH, aliases: ['FISR', 'BSRCH'], example: 'AAPL <CORP> <GO>' },
+  { code: 'DDIS', name: 'Debt Distribution', category: 'Rates & Credit', desc: "An issuer's bonds by maturity: amounts outstanding, weighted coupon, life and spread.", component: DDIS, example: 'JPM <CORP> DDIS <GO>' },
+  { code: 'ALLQ', name: 'All Quotes', category: 'Rates & Credit', needsSec: true, classes: ['bond'], desc: 'Dealer quote montage for a bond with best bid and offer, yields and sizes.', component: ALLQ, aliases: ['PCS'] },
   // Commodities
-  { code: 'GLCO', name: 'Global Commodities', category: 'Commodities', desc: 'Energy, metals, grains, softs and livestock futures with changes, YTD and intraday.', component: GLCO, aliases: ['CMDTY', 'BCOM'] },
+  { code: 'GLCO', name: 'Global Commodities', category: 'Commodities', desc: 'Energy, metals, grains, softs and livestock futures with changes, YTD and intraday.', component: GLCO, aliases: ['BCOM'] },
   // Economics
   { code: 'ECO', name: 'Economic Calendar', category: 'Economics', desc: 'Releases and central bank decisions with consensus, actual and prior; actuals appear live at release time.', component: ECO, aliases: ['ECOW', 'CAL'] },
   { code: 'ECST', name: 'World Economic Statistics', category: 'Economics', desc: 'GDP, inflation, unemployment and policy rates by country alongside live yields and markets.', component: ECST, aliases: ['ECFC', 'WECO'] },
+  { code: 'CDR', name: 'Holiday Calendar', category: 'Economics', desc: 'Exchange holiday and early-close calendars for New York, London, Frankfurt and Tokyo.', component: CDR, aliases: ['HOL', 'HOLIDAYS'], example: 'CDR US <GO>' },
   // Derivatives
   { code: 'OMON', name: 'Option Monitor', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'Option chain by expiry with bids, offers, implied vol, greeks, volume and open interest; smile and term structure.', component: OMON, aliases: ['OSA'] },
   { code: 'OVME', name: 'Option Valuation', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'Black-Scholes valuation, greeks, P&L profile and spot scenarios for a single option.', component: OVME, aliases: ['OV', 'OVM'] },
@@ -99,7 +120,8 @@ export const FUNCTIONS: FnDef[] = [
   // Communication
   { code: 'IB', name: 'Instant Messages', category: 'Communication', desc: 'Chat with the help desk bot (quotes, news, calendar) and simulated trading desks.', component: IB, aliases: ['MSG', 'CHAT'] },
   // System
-  { code: 'HELP', name: 'Function Directory', category: 'System', desc: 'Searchable list of every function, command syntax and keyboard shortcuts.', component: HELP, aliases: ['FUNC', 'MENU', 'H'] },
+  { code: 'HELP', name: 'Function Directory', category: 'System', desc: 'Searchable list of every function, command syntax and keyboard shortcuts.', component: HELP, aliases: ['FUNC', 'H'] },
+  { code: 'MENU', name: 'Related Functions Menu', category: 'System', desc: 'Numbered menu of every function for the loaded security, a market sector menu for a yellow key (EQUITY <GO>), or the main menu.', component: MENU, aliases: ['RFM'], example: 'IBM US <EQUITY> <GO>' },
   { code: 'PDFU', name: 'Settings & Data Sources', category: 'System', desc: 'Display preferences, time zone, live data connections and workspace reset.', component: PDFU, aliases: ['SETTINGS', 'PREFS', 'PDF'] },
 ];
 

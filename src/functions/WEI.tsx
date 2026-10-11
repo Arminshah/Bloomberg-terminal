@@ -101,3 +101,96 @@ export function WEI(_: FnProps) {
     </div>
   );
 }
+
+const FUT_GROUPS: { name: string; ids: string[] }[] = [
+  { name: 'Americas', ids: ['ES1 Index', 'NQ1 Index', 'DM1 Index', 'RTY1 Index'] },
+  { name: 'EMEA', ids: ['VG1 Index', 'GX1 Index', 'Z 1 Index', 'CF1 Index'] },
+  { name: 'Asia/Pacific', ids: ['NK1 Index', 'HI1 Index', 'XP1 Index'] },
+];
+
+/** WEIF: world equity index futures with fair value and basis. */
+export function WEIF(_: FnProps) {
+  useTick(1);
+  const panel = usePanelId();
+  return (
+    <div>
+      <FnHeader code="WEIF" title="World Equity Index Futures" sub="Front contracts · fair value from financing rate and dividend yield" />
+      <table className="tbl">
+        <thead>
+          <tr>
+            <th>Future</th>
+            <th className="hide-m">Contract</th>
+            <th className="num">Last</th>
+            <th className="num">Net Chg</th>
+            <th className="num">%Chg</th>
+            <th className="num hide-m">High</th>
+            <th className="num hide-m">Low</th>
+            <th className="num hide-m">Volume</th>
+            <th className="num">Index</th>
+            <th className="num">Basis</th>
+            <th className="num hide-m">Fair value</th>
+            <th className="num">Prem/Disc</th>
+            <th className="num hide-m">Days</th>
+            <th className="hide-m">Intraday</th>
+          </tr>
+        </thead>
+        <tbody>
+          {FUT_GROUPS.map((g, gi) => (
+            <Fragment key={g.name}>
+              <tr className="group">
+                <td colSpan={14}>
+                  {gi + 1}) {g.name}
+                </td>
+              </tr>
+              {g.ids.map((id) => {
+                const d = engine.get(id);
+                if (!d) return null;
+                const q = engine.quote(id)!;
+                const u = engine.quote(d.fut!.underlying)!;
+                const c = engine.futureContract(id)!;
+                const intra = engine.intraday(id);
+                return (
+                  <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e, 'GIP')}>
+                    <td>
+                      <SecLink id={id} fn="MENU">
+                        {d.ticker}
+                      </SecLink>
+                    </td>
+                    <td className="hide-m">{c.code}</td>
+                    <td className="num white">
+                      <LivePx id={id} />
+                    </td>
+                    <td className="num">
+                      <Chg v={q.chg} dec={d.dec} />
+                    </td>
+                    <td className="num">
+                      <Chg v={q.pct} pct />
+                    </td>
+                    <td className="num hide-m">{fmtNum(q.high, d.dec)}</td>
+                    <td className="num hide-m">{fmtNum(q.low, d.dec)}</td>
+                    <td className="num hide-m">{fmtNum(q.volume, 0)}</td>
+                    <td className="num">
+                      <SecLink id={d.fut!.underlying} fn="GP">
+                        {fmtNum(u.last, 2)}
+                      </SecLink>
+                    </td>
+                    <td className="num">{fmtNum(q.last - u.last, 2)}</td>
+                    <td className="num hide-m">{fmtNum(c.fair, 2)}</td>
+                    <td className="num">
+                      <Chg v={q.last - c.fair} dec={2} />
+                    </td>
+                    <td className="num hide-m">{c.days}</td>
+                    <td className="hide-m">
+                      <Sparkline values={intra.c.subarray(0, intra.length)} width={90} height={14} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
+      <p className="pad-s muted">Fair value = index × e^((r − q) × days/365), using the 3-month bill (or local policy rate) and the index dividend yield. Futures prices are simulated around fair value.</p>
+    </div>
+  );
+}

@@ -1,5 +1,5 @@
-export type YellowKey = 'Equity' | 'Index' | 'Curncy' | 'Comdty' | 'Govt' | 'Corp';
-export type AssetClass = 'equity' | 'index' | 'fx' | 'commodity' | 'rate' | 'crypto' | 'bond';
+export type YellowKey = 'Equity' | 'Index' | 'Curncy' | 'Comdty' | 'Govt' | 'Corp' | 'Mtge' | 'M-Mkt' | 'Muni' | 'Pfd' | 'Client';
+export type AssetClass = 'equity' | 'index' | 'future' | 'fx' | 'commodity' | 'rate' | 'crypto' | 'bond';
 export type Region = 'Americas' | 'EMEA' | 'APAC';
 
 export interface EquityInfo {
@@ -47,10 +47,29 @@ export interface BondInfo {
   coupon: number;
   maturity: string; // ISO date
   issue: string;
-  /** Generic yield security this bond prices off. */
-  curve: string;
-  spread: number; // bp over the generic yield
+  /** Generic yield securities this bond prices off, with interpolation weights. */
+  legs: { id: string; w: number }[];
+  /** Spread in bp over the interpolated generic yield. */
+  spread: number;
   freq: 2;
+  /** Corporate issuer (equity id); its share price drives the credit spread. */
+  issuer?: string;
+  issuerRef?: number;
+  /** Amount outstanding, millions. */
+  amount?: number;
+  rating?: string;
+  seniority?: string;
+}
+
+export interface FutureInfo {
+  underlying: string;
+  exch: string;
+  multiplier: number;
+  tick: number;
+  divYield: number;
+  /** Funding rate in percent, or the id of a yield security. */
+  rate: number | string;
+  monthly?: boolean;
 }
 
 export interface SecurityDef {
@@ -80,6 +99,7 @@ export interface SecurityDef {
   cmd?: CommodityInfo;
   cry?: CryptoInfo;
   bond?: BondInfo;
+  fut?: FutureInfo;
   /** For FX: base and quote ISO codes. */
   fx?: { base: string; quote: string };
   /** For indices: description. */

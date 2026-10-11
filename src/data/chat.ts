@@ -7,7 +7,7 @@ import { ecoEvents } from './eco';
 import { chats, type ChatRoom } from '../terminal/userdata';
 
 export const CONTACTS: Omit<ChatRoom, 'messages' | 'unread'>[] = [
-  { id: 'helpdesk', name: 'AMBR Help Desk', who: 'Help Desk (bot)' },
+  { id: 'helpdesk', name: 'ARMN Help Desk', who: 'Help Desk (bot)' },
   { id: 'rates', name: 'Rates Desk', who: 'Rates Desk (sim)' },
   { id: 'fx', name: 'FX Sales', who: 'FX Sales (sim)' },
   { id: 'eq', name: 'Equity Sales Trading', who: 'EQ Sales Trading (sim)' },
@@ -117,7 +117,7 @@ export function ensureRooms() {
       unread: c.id === 'helpdesk' ? 1 : 0,
       messages:
         c.id === 'helpdesk'
-          ? [{ id: seq++, from: c.who, text: 'Welcome to Amber Terminal. I can answer quick questions: try "AAPL", "news NVDA" or "eco". Desk channels post simulated market color during the session.', at: now() }]
+          ? [{ id: seq++, from: c.who, text: 'Welcome to Armin Terminal. I can answer quick questions: try "AAPL", "news NVDA" or "eco". Desk channels post simulated market color during the session.', at: now() }]
           : [],
     })),
   ];

@@ -1,8 +1,8 @@
 /**
  * Folds the `--mode single` build into one self-contained HTML document:
  * scripts and styles inlined (fonts are already data URIs). Writes
- * dist-single/amber-terminal.html (full document) and
- * dist-single/amber-terminal.fragment.html (head/body wrappers removed, for
+ * dist-single/armin-terminal.html (full document) and
+ * dist-single/armin-terminal.fragment.html (head/body wrappers removed, for
  * hosts that supply their own document skeleton).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -25,13 +25,13 @@ html = html.replace(/<script type="module"[^>]*src="\.?\/?([^"]+\.js)"[^>]*><\/s
 html = html.replace('</body>', `${scripts}</body>`);
 html = html.replace(/<link rel="modulepreload"[^>]*>/g, '');
 
-writeFileSync(join(dir, 'amber-terminal.html'), html);
+writeFileSync(join(dir, 'armin-terminal.html'), html);
 
-const title = /<title>[\s\S]*?<\/title>/.exec(html)?.[0] ?? '<title>Amber Terminal</title>';
+const title = /<title>[\s\S]*?<\/title>/.exec(html)?.[0] ?? '<title>Armin Terminal</title>';
 const head = html.slice(0, html.indexOf('<body>'));
 const styles = [...head.matchAll(/<style>[\s\S]*?<\/style>/g)].map((m) => m[0]).join('\n');
 const body = html.slice(html.indexOf('<body>') + '<body>'.length, html.lastIndexOf('</body>'));
-writeFileSync(join(dir, 'amber-terminal.fragment.html'), `${title}\n${styles}\n${body.trim()}\n`);
+writeFileSync(join(dir, 'armin-terminal.fragment.html'), `${title}\n${styles}\n${body.trim()}\n`);
 
 const kb = (s) => `${(Buffer.byteLength(s) / 1024).toFixed(0)} KB`;
-console.log(`amber-terminal.html ${kb(html)}`);
+console.log(`armin-terminal.html ${kb(html)}`);

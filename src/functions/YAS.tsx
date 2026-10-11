@@ -15,7 +15,7 @@ export function YAS({ sec }: FnProps) {
   const b = s.bond!;
   const terms = { coupon: b.coupon, maturity: new Date(`${b.maturity}T00:00:00Z`), freq: 2 };
   const settle = settlementDate(new Date(engine.now()));
-  const mktYield = engine.quote(b.curve)!.last + b.spread / 100;
+  const mktYield = engine.bondYields(s.id)!.last;
   const [mode, setMode] = useState<'live' | 'price' | 'yield'>('live');
   const [input, setInput] = useState('');
   const [face, setFace] = useState(1_000_000);

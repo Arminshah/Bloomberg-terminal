@@ -1,6 +1,6 @@
 import { execute } from '../terminal/exec';
 import { back, PANEL_COUNT, LAYOUT_PANELS, setActive, terminal } from '../terminal/state';
-import { clearPanelInput, focusPanelInput, submitPanel, typeInto } from './CommandLine';
+import { clearPanelInput, focusPanelInput, pagePanel, submitPanel, typeInto } from './CommandLine';
 
 interface Key {
   label: string;
@@ -15,10 +15,12 @@ const KEYS: Key[] = [
   { label: 'HELP', sub: 'F1', color: 'green', run: (p) => execute(p, 'HELP'), title: 'Function directory (F1)' },
   { label: 'MENU', sub: 'BACK', color: 'green', run: (p) => back(p), title: 'Previous screen (Backspace on empty line)', mobile: true },
   { label: 'GOVT', sub: 'F2', color: 'yellow', run: (p) => typeInto(p, 'GOVT'), title: 'Government securities yellow key (F2)' },
+  { label: 'CORP', sub: 'F3', color: 'yellow', run: (p) => typeInto(p, 'CORP'), title: 'Corporate bonds yellow key (F3)' },
   { label: 'EQUITY', sub: 'F8', color: 'yellow', run: (p) => typeInto(p, 'EQUITY'), title: 'Equity yellow key (F8)', mobile: true },
   { label: 'CMDTY', sub: 'F9', color: 'yellow', run: (p) => typeInto(p, 'CMDTY'), title: 'Commodity yellow key (F9)' },
   { label: 'INDEX', sub: 'F10', color: 'yellow', run: (p) => typeInto(p, 'INDEX'), title: 'Index yellow key (F10)', mobile: true },
   { label: 'CRNCY', sub: 'F11', color: 'yellow', run: (p) => typeInto(p, 'CRNCY'), title: 'Currency yellow key (F11)', mobile: true },
+  { label: 'CLIENT', sub: 'F12', color: 'yellow', run: (p) => execute(p, 'CLIENT'), title: 'Portfolio (F12)' },
   { label: 'NEWS', sub: 'TOP', color: 'gray', run: (p) => execute(p, 'TOP'), title: 'Top news' },
   { label: 'MSG', sub: 'IB', color: 'gray', run: (p) => execute(p, 'IB'), title: 'Instant messages' },
   {
@@ -55,6 +57,14 @@ export function KeyBar() {
         </button>
       ))}
       <span className="gap" />
+      <button type="button" className="key gray hide-m" title="Page back (PgUp)" onMouseDown={(e) => e.preventDefault()} onClick={() => pagePanel(active, -1)}>
+        PG BK
+        <small>PGUP</small>
+      </button>
+      <button type="button" className="key gray hide-m" title="Page forward (PgDn)" onMouseDown={(e) => e.preventDefault()} onClick={() => pagePanel(active, 1)}>
+        PG FWD
+        <small>PGDN</small>
+      </button>
       <button type="button" className="key red" title="Clear the command line (Esc)" onMouseDown={(e) => e.preventDefault()} onClick={() => clearPanelInput(active)}>
         CANCEL
         <small>ESC</small>

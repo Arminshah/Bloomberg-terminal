@@ -75,6 +75,25 @@ export function cleanFromYield(terms: BondTerms, settle: Date, yieldPct: number)
   return dirtyFromYield(terms, settle, yieldPct) - accruedInterest(terms, settle);
 }
 
+/** Clean price as a function of yield for a fixed settlement date (schedule computed once). */
+export function cleanPricer(terms: BondTerms, settle: Date): (yieldPct: number) => number {
+  const freq = terms.freq ?? 2;
+  const { remaining, w, accruedDays, period } = periodInfo(terms, settle);
+  const cpn = terms.coupon / freq;
+  const accrued = cpn * (accruedDays / period);
+  return (yieldPct) => {
+    const v = 1 / (1 + yieldPct / 100 / freq);
+    let pv = 0;
+    let vk = v ** w;
+    for (let k = 0; k < remaining; k++) {
+      pv += cpn * vk;
+      vk *= v;
+    }
+    pv += 100 * v ** (w + remaining - 1);
+    return pv - accrued;
+  };
+}
+
 /** Solves for yield (percent) given a clean price, by bisection then Newton polish. */
 export function yieldFromClean(terms: BondTerms, settle: Date, clean: number): number {
   const target = clean + accruedInterest(terms, settle);

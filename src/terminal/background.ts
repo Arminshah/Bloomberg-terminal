@@ -1,9 +1,10 @@
 import { engine } from '../data/market';
-import { newsTick, seedNews } from '../data/news';
+import { news, newsTick, seedNews, type Story } from '../data/news';
 import { chatTick, ensureRooms } from '../data/chat';
 import { describe } from '../functions/ALRT';
 import { startLiveFeeds } from '../data/live/feeds';
-import { alerts } from './userdata';
+import { alerts, newsAlerts } from './userdata';
+import { startOms } from './oms';
 import { settings } from './settings';
 import { toast } from './toasts';
 
@@ -44,12 +45,43 @@ function checkAlerts() {
   }
 }
 
+/** Keyword news alerts: any new headline or ticker containing a watched word. */
+function watchNews(): () => void {
+  const seen = new Set(news.get().stories.map((s) => s.id));
+  return news.subscribe(() => {
+    const fresh: Story[] = [];
+    for (const s of news.get().stories) {
+      if (seen.has(s.id)) continue;
+      seen.add(s.id);
+      fresh.push(s);
+    }
+    const st = newsAlerts.get();
+    if (!fresh.length || !st.list.some((a) => a.active)) return;
+    let changed = false;
+    const list = st.list.map((a) => {
+      if (!a.active) return a;
+      const k = a.keyword.toUpperCase();
+      const hit = fresh.find((s) => s.headline.toUpperCase().includes(k) || s.tickers.some((t) => t.split(' ')[0] === k));
+      if (!hit) return a;
+      changed = true;
+      toast({ title: `NEWS ALERT · ${a.keyword}`, body: hit.headline.replace(/^\*/, ''), kind: 'alert', command: hit.tickers[0] ? `${hit.tickers[0]} CN` : `N ${a.keyword}` }, 12000);
+      return { ...a, hits: a.hits + 1, lastHit: engine.now(), lastHeadline: hit.headline };
+    });
+    if (changed) {
+      newsAlerts.set((x) => ({ ...x, list }));
+      if (settings.get().sound) beep();
+    }
+  });
+}
+
 /** Starts app-wide background services; returns a cleanup function. */
 export function startBackground(): () => void {
   const stops: (() => void)[] = [];
   seedNews();
   ensureRooms();
   stops.push(engine.subscribe(() => checkAlerts()));
+  stops.push(startOms());
+  stops.push(watchNews());
   let lastFlash = 0;
   const newsTimer = setInterval(() => {
     const hot = newsTick();

@@ -1,4 +1,4 @@
-import { resolveSecurity, YELLOW_KEYS } from '../data/registry';
+import { resolveSecurity, UNCOVERED_KEYS, YELLOW_KEYS } from '../data/registry';
 import type { SecurityDef } from '../data/types';
 
 export type Parsed =
@@ -29,6 +29,8 @@ function clean(input: string): string {
  *   N TECH / HELP GP            function with arguments
  *   3 <GO>                      numbered menu item
  *   GP?                         help on a function
+ *   EQUITY <GO>                 market sector menu for a yellow key
+ *   IBM <CORP> <GO>             an issuer's bonds (SRCH)
  */
 export function parseCommand(input: string, lookup: FnLookup): Parsed {
   const s = clean(input);
@@ -39,10 +41,29 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
   const raw = s.split(' ');
   const tokens = raw.map((t) => t.toUpperCase());
 
+  // A yellow key on its own opens that market sector's menu; CLIENT opens the portfolio.
+  if (tokens.length === 1 && YELLOW_KEYS[tokens[0]]) {
+    const yk = YELLOW_KEYS[tokens[0]];
+    if (yk === 'Client') return lookup('PORT') ? { kind: 'route', fn: 'PORT' } : { kind: 'error', message: 'PORT is not available' };
+    return { kind: 'route', fn: 'MENU', args: yk.toUpperCase() };
+  }
+
   const ykAt = tokens.findIndex((t, i) => i > 0 && YELLOW_KEYS[t]);
   if (ykAt > 0) {
     const yk = YELLOW_KEYS[tokens[ykAt]];
     const secText = raw.slice(0, ykAt).join(' ');
+    if (UNCOVERED_KEYS.has(yk)) {
+      return { kind: 'error', message: `${yk} securities are not covered. Armin Terminal covers Govt, Corp, Equity, Cmdty, Index and Curncy.` };
+    }
+    const rest0 = tokens.slice(ykAt + 1);
+    // "IBM <CORP>" or "T <GOVT>" without a coupon names an issuer: list its bonds.
+    if ((yk === 'Corp' || yk === 'Govt') && !/\d/.test(secText)) {
+      const issuer = `${secText.toUpperCase()} ${yk.toUpperCase()}`;
+      if (rest0.length === 0) return { kind: 'route', fn: 'SRCH', args: issuer };
+      const fn = lookup(rest0[0]);
+      if (!fn) return { kind: 'error', message: `Unknown function: ${rest0[0]}` };
+      return { kind: 'route', fn: fn.code, args: issuer };
+    }
     const sec = resolveSecurity(secText, yk);
     if (!sec) return { kind: 'error', message: `Unknown security: ${secText.toUpperCase()} ${yk}` };
     const rest = tokens.slice(ykAt + 1);

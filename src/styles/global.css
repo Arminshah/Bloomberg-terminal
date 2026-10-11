@@ -499,6 +499,9 @@ button { cursor: pointer; }
 .btn.primary:hover { filter: brightness(1.1); color: #000; }
 .btn.danger:hover { border-color: var(--dn); color: var(--dn); }
 .btn:disabled { opacity: 0.4; cursor: default; }
+.btn.buy.on, .btn.primary.buy { background: #1f8f4a; border-color: #1f8f4a; color: #fff; font-weight: 600; }
+.btn.sell.on, .btn.primary.sell { background: #b8312f; border-color: #b8312f; color: #fff; font-weight: 600; }
+.btn.buy.on:hover, .btn.sell.on:hover, .btn.primary.buy:hover, .btn.primary.sell:hover { color: #fff; filter: brightness(1.12); }
 .inp, .sel-inp {
   background: #000;
   border: 1px solid var(--line-2);
@@ -579,6 +582,22 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .key:hover { filter: brightness(1.12); }
 .key:active { transform: translateY(1px); box-shadow: none; }
 .keybar .gap { flex: 1; min-width: 8px; }
+.ykey { display: inline-block; min-width: 54px; padding: 1px 6px; background: var(--key-yellow); color: #000; font-weight: 600; font-size: var(--fs-s); text-align: center; border-radius: 2px; }
+.menu-tbl td { padding-top: 3px; padding-bottom: 3px; }
+.ddis-bars { display: flex; align-items: stretch; gap: 6px; height: 170px; padding: 10px 10px 6px; }
+.ddis-col { flex: 1; min-width: 16px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+.ddis-bar { width: 70%; max-width: 40px; background: var(--amber); min-height: 2px; }
+.ddis-amt { font-size: 9px; color: var(--muted); margin-bottom: 2px; }
+.ddis-yr { font-size: var(--fs-s); margin-top: 3px; }
+.cdr-months { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; padding: 8px 10px; }
+.cdr-title { color: var(--amber); font-weight: 600; margin-bottom: 4px; }
+.cdr-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-size: var(--fs-s); }
+.cdr-wd { color: var(--muted); }
+.cdr-day { padding: 2px 0; }
+.cdr-day.wkend { color: var(--faint); }
+.cdr-day.hol { background: rgba(255, 77, 79, 0.28); color: #fff; }
+.cdr-day.early { background: rgba(255, 158, 27, 0.28); color: #fff; }
+.cdr-day.today { outline: 1px solid var(--yellow); }
 
 /* --------------------------------------------------------- toasts, modal */
 .toasts {

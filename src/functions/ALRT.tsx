@@ -4,8 +4,9 @@ import { LivePx, SecLink, Section } from '../components/cells';
 import { fmtDate, fmtNum, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { resolveSecurity, searchSecurities } from '../data/registry';
+import { execute } from '../terminal/exec';
 import { flash, usePanelId } from '../terminal/panel';
-import { alerts, type AlertCond } from '../terminal/userdata';
+import { alerts, newsAlerts, type AlertCond } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
 
 const CONDS: { id: AlertCond; label: string }[] = [
@@ -138,6 +139,7 @@ export function ALRT({ sec }: FnProps) {
           </tbody>
         </table>
       </Section>
+      <NewsAlerts />
       <Section title="Triggered" right={fired.length ? <button type="button" className="act" onClick={() => alerts.set((s) => ({ ...s, list: s.list.filter((x) => x.active) }))}>Clear</button> : undefined}>
         <table className="tbl">
           <tbody>
@@ -168,5 +170,61 @@ export function ALRT({ sec }: FnProps) {
         </table>
       </Section>
     </div>
+  );
+}
+
+function NewsAlerts() {
+  const panel = usePanelId();
+  const st = newsAlerts.use((s) => s);
+  const [kw, setKw] = useState('');
+  const add = () => {
+    const k = kw.trim();
+    if (k.length < 2) return flash(panel, 'Enter a keyword or ticker (two characters or more)', 'error');
+    newsAlerts.set((s) => ({ seq: s.seq + 1, list: [{ id: s.seq, keyword: k.toUpperCase(), active: true, hits: 0, created: engine.now() }, ...s.list] }));
+    setKw('');
+    flash(panel, `News alert set for "${k.toUpperCase()}"`, 'info');
+  };
+  return (
+    <Section title="News keyword alerts" right={`${st.list.filter((a) => a.active).length} active`}>
+      <div className="pad row" style={{ gap: 8 }}>
+        <input className="inp" placeholder="Keyword or ticker, e.g. FED or NVDA" aria-label="News keyword" value={kw} onChange={(e) => setKw(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <button type="button" className="btn primary" onClick={add}>
+          Add news alert
+        </button>
+      </div>
+      <table className="tbl">
+        <tbody>
+          {st.list.length === 0 && (
+            <tr>
+              <td className="empty">No news alerts. New headlines that contain the word or name the ticker pop up as alerts.</td>
+            </tr>
+          )}
+          {st.list.map((a) => (
+            <tr key={a.id}>
+              <td className="amber b">{a.keyword}</td>
+              <td className="num">{a.hits} hits</td>
+              <td className="ellipsis hide-m" style={{ maxWidth: 320 }}>
+                {a.lastHeadline ? (
+                  <span className="click" onClick={() => execute(panel, `N ${a.keyword}`)}>
+                    {a.lastHit ? `${fmtTime(a.lastHit, false)} ` : ''}
+                    {a.lastHeadline}
+                  </span>
+                ) : (
+                  <span className="muted">Waiting for a matching headline</span>
+                )}
+              </td>
+              <td>
+                <button type="button" className="act" onClick={() => newsAlerts.set((s) => ({ ...s, list: s.list.map((x) => (x.id === a.id ? { ...x, active: !x.active } : x)) }))}>
+                  {a.active ? 'Pause' : 'Resume'}
+                </button>
+                <button type="button" className="act" aria-label="Delete news alert" onClick={() => newsAlerts.set((s) => ({ ...s, list: s.list.filter((x) => x.id !== a.id) }))}>
+                  ×
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Section>
   );
 }

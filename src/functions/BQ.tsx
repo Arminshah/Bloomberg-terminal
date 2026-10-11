@@ -41,7 +41,7 @@ export function BQ({ sec }: FnProps) {
   const y = s.quote === 'yield';
   const ks = s.eq ? keyStats(s) : undefined;
   const ne = s.eq ? nextEarnings(s) : undefined;
-  const tradable = s.cls === 'equity' || s.cls === 'crypto' || s.cls === 'commodity';
+  const tradable = s.cls === 'equity' || s.cls === 'crypto' || s.cls === 'commodity' || s.cls === 'future';
   return (
     <div>
       <FnHeader
@@ -53,6 +53,12 @@ export function BQ({ sec }: FnProps) {
           { n: 1, label: 'Chart', onClick: () => execute(panel, `${s.id} GP`) },
           { n: 2, label: 'Desc', onClick: () => execute(panel, `${s.id} DES`) },
           { n: 3, label: 'News', onClick: () => execute(panel, `${s.id} CN`) },
+          ...(tradable
+            ? [
+                { n: 4, label: 'Buy', onClick: () => execute(panel, `${s.id} EMSX BUY`), title: 'Open a buy ticket in EMSX' },
+                { n: 5, label: 'Sell', onClick: () => execute(panel, `${s.id} EMSX SELL`), title: 'Open a sell ticket in EMSX' },
+              ]
+            : []),
         ]}
       />
       <div className="cols">

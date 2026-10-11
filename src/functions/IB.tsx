@@ -6,8 +6,11 @@ import { chats } from '../terminal/userdata';
 import { settings } from '../terminal/settings';
 import type { FnProps } from '../terminal/types';
 
-export function IB(_: FnProps) {
-  useEffect(() => ensureRooms(), []);
+export function IB({ route }: FnProps) {
+  useEffect(() => {
+    ensureRooms();
+    if (route.args === 'HELP') chats.set((s) => ({ ...s, active: 'helpdesk' }));
+  }, [route.args]);
   const st = chats.use((s) => s);
   const user = settings.use((s) => s.userName);
   const room = st.rooms.find((r) => r.id === st.active) ?? st.rooms[0];

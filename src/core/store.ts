@@ -33,23 +33,70 @@ export function removeKey(key: string) {
   }
 }
 
-const PREFIX = 'amber:';
+const PREFIX = 'armin:';
+
+/**
+ * Desktop windows after the first open with ?w=N. Each window keeps its own
+ * panel layout; everything else (watchlists, portfolio, orders, settings) is
+ * shared and kept in sync across windows.
+ */
+export const WINDOW_ID: number = (() => {
+  try {
+    const w = Number(new URLSearchParams(globalThis.location?.search ?? '').get('w'));
+    return Number.isInteger(w) && w > 1 ? w : 1;
+  } catch {
+    return 1;
+  }
+})();
+
+/** One-time move of data saved under the app's previous name. */
+(function migrate() {
+  try {
+    const old = 'amber:';
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(old)) keys.push(k);
+    }
+    for (const k of keys) {
+      const next = PREFIX + k.slice(old.length);
+      if (localStorage.getItem(next) == null) localStorage.setItem(next, localStorage.getItem(k) ?? '');
+      localStorage.removeItem(k);
+    }
+  } catch {
+    /* storage unavailable */
+  }
+})();
 
 /**
  * Minimal external store. With `persist`, state is mirrored to localStorage
  * (debounced) and restored on load, merged over `initial` for forward
  * compatibility when fields are added.
  */
-export function createStore<T extends object>(initial: T, persist?: string, version = 1): Store<T> {
-  const key = persist ? `${PREFIX}${persist}` : '';
-  let state = initial;
-  if (key) {
-    const saved = loadJson<{ v: number; s: T }>(key);
+export function createStore<T extends object>(initial: T, persist?: string, version = 1, opts: { perWindow?: boolean } = {}): Store<T> {
+  const key = persist ? `${PREFIX}${persist}${opts.perWindow && WINDOW_ID > 1 ? `:w${WINDOW_ID}` : ''}` : '';
+  const restore = (saved: { v: number; s: T } | undefined): T | undefined => {
     if (saved && saved.v === version && saved.s && typeof saved.s === 'object') {
-      state = Array.isArray(initial) ? (saved.s as T) : { ...initial, ...saved.s };
+      return Array.isArray(initial) ? (saved.s as T) : { ...initial, ...saved.s };
     }
-  }
+    return undefined;
+  };
+  let state = (key && restore(loadJson<{ v: number; s: T }>(key))) || initial;
   const listeners = new Set<() => void>();
+  if (key && typeof window !== 'undefined') {
+    // Another window saved this store: adopt its state without saving it back.
+    window.addEventListener('storage', (e) => {
+      if (e.key !== key || !e.newValue) return;
+      try {
+        const next = restore(JSON.parse(e.newValue) as { v: number; s: T });
+        if (!next) return;
+        state = next;
+        for (const fn of listeners) fn();
+      } catch {
+        /* ignore malformed data */
+      }
+    });
+  }
   let timer: ReturnType<typeof setTimeout> | null = null;
   const store: Store<T> = {
     get: () => state,

@@ -12,7 +12,7 @@ function lot(id: string): number {
   const d = engine.get(id)!;
   if (d.cls === 'crypto') return 0.01;
   if (d.cls === 'fx') return 1_000_000;
-  if (d.cls === 'commodity') return 1;
+  if (d.cls === 'commodity' || d.cls === 'future') return 1;
   return d.country === 'US' || d.country === 'CA' ? 100 : d.country === 'JP' ? 100 : 1;
 }
 
@@ -22,6 +22,7 @@ function step(id: string): number {
   const tick = 10 ** -d.dec;
   if (d.cls === 'crypto') return Math.max(tick, q.last * 0.00005);
   if (d.cls === 'equity') return Math.max(tick, Math.round((q.last * 0.0001) / tick) * tick);
+  if (d.fut) return d.fut.tick;
   return tick;
 }
 

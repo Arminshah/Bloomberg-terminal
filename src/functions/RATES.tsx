@@ -183,7 +183,7 @@ export function BTMM(_: FnProps) {
   const lower = fed.rate - 0.25;
   const effr = lower + 0.08;
   const sofr = effr + 0.02;
-  const bonds = engine.securities.filter((d) => d.cls === 'bond');
+  const bonds = engine.securities.filter((d) => d.cls === 'bond' && d.yk === 'Govt');
   const us = curveAt('US', 0);
   const y = (t: number) => interp(us, t);
   const swaps = [2, 5, 10, 30].map((t) => ({ t, rate: y(t) + (t <= 2 ? 0.05 : t <= 5 ? -0.08 : t <= 10 ? -0.22 : -0.48) }));
@@ -253,7 +253,7 @@ export function BTMM(_: FnProps) {
           <tbody>
             {bonds.map((b) => {
               const q = engine.quote(b.id)!;
-              const gq = engine.quote(b.bond!.curve)!;
+              const by = engine.bondYields(b.id)!;
               return (
                 <tr key={b.id}>
                   <td>
@@ -265,9 +265,9 @@ export function BTMM(_: FnProps) {
                   <td>{fmtDay(Date.parse(`${b.bond!.maturity}T00:00:00Z`))}</td>
                   <td className="num">{to32nds(q.bid)}</td>
                   <td className="num">{to32nds(q.ask)}</td>
-                  <td className="num white">{fmtNum(gq.last + b.bond!.spread / 100, 3)}</td>
+                  <td className="num white">{fmtNum(by.last, 3)}</td>
                   <td className="num">
-                    <Chg v={gq.chg} bp />
+                    <Chg v={by.last - by.prev} bp />
                   </td>
                 </tr>
               );

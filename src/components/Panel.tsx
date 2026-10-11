@@ -20,7 +20,7 @@ export function Panel({ index }: { index: number }) {
     >
       <PanelContext.Provider value={index}>
         <CommandLine panel={index} route={route} />
-        <div className="panel-body">
+        <div className="panel-body" id={`panel-body-${index}`}>
           <ErrorBoundary key={key} label={def.code}>
             <Fn route={route} sec={sec} />
           </ErrorBoundary>

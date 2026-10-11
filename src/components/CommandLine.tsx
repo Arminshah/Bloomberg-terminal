@@ -15,13 +15,40 @@ interface CommandApi {
 }
 export const commandApis = new Map<number, CommandApi>();
 
+/** The Bloomberg keyboard's yellow market sector keys on F2-F12. */
 export const FKEY_TEXT: Record<string, string> = {
   F2: 'GOVT',
+  F3: 'CORP',
+  F4: 'MTGE',
+  F5: 'M-MKT',
+  F6: 'MUNI',
+  F7: 'PFD',
   F8: 'EQUITY',
   F9: 'CMDTY',
   F10: 'INDEX',
   F11: 'CRNCY',
+  F12: 'CLIENT',
 };
+
+/** PAGE BACK / PAGE FWD: scroll the panel by most of a screen. */
+export function pagePanel(panel: number, dir: 1 | -1) {
+  const body = document.getElementById(`panel-body-${panel}`);
+  if (!body) return;
+  // Scroll the largest scrollable region inside the panel (tables, news lists).
+  let target: HTMLElement = body;
+  let best = body.scrollHeight - body.clientHeight;
+  for (const el of body.querySelectorAll<HTMLElement>('*')) {
+    const room = el.scrollHeight - el.clientHeight;
+    if (room > best + 8 && el.clientHeight > 80) {
+      const oy = getComputedStyle(el).overflowY;
+      if (oy === 'auto' || oy === 'scroll') {
+        target = el;
+        best = room;
+      }
+    }
+  }
+  target.scrollBy({ top: dir * target.clientHeight * 0.9 });
+}
 
 /** Appends a yellow key (or any token) to a panel's command line. */
 export function typeInto(panel: number, token: string) {
@@ -168,6 +195,11 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
           e.preventDefault();
           back(panel);
         }
+        break;
+      case 'PageUp':
+      case 'PageDown':
+        e.preventDefault();
+        pagePanel(panel, e.key === 'PageDown' ? 1 : -1);
         break;
       default:
     }

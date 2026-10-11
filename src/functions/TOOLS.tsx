@@ -8,35 +8,36 @@ import { CLASS_LABEL, searchSecurities } from '../data/registry';
 import { COUNTRY_NAMES } from '../data/eco';
 import { feedStatus } from '../data/live/status';
 import { SNAPSHOT_AS_OF } from '../data/universe';
-import type { AssetClass } from '../data/types';
 import { execute } from '../terminal/exec';
 import { lookupFn } from '../terminal/registry';
 import { flash, usePanelId } from '../terminal/panel';
 import { settings, type ClickAction } from '../terminal/settings';
 import { applyPreset, defaultTerminal, terminal } from '../terminal/state';
 import { PRESETS } from '../components/TopBar';
+import type { SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
 
-const CLASSES: { n: number; label: string; cls?: AssetClass }[] = [
+const CLASSES: { n: number; label: string; test?: (d: SecurityDef) => boolean }[] = [
   { n: 1, label: 'All' },
-  { n: 2, label: 'Equity', cls: 'equity' },
-  { n: 3, label: 'Index', cls: 'index' },
-  { n: 4, label: 'Currency', cls: 'fx' },
-  { n: 5, label: 'Crypto', cls: 'crypto' },
-  { n: 6, label: 'Commodity', cls: 'commodity' },
-  { n: 7, label: 'Rates', cls: 'rate' },
-  { n: 8, label: 'Govt', cls: 'bond' },
+  { n: 2, label: 'Equity', test: (d) => d.cls === 'equity' },
+  { n: 3, label: 'Index', test: (d) => d.cls === 'index' },
+  { n: 4, label: 'Futures', test: (d) => d.cls === 'future' || d.cls === 'commodity' },
+  { n: 5, label: 'Currency', test: (d) => d.cls === 'fx' },
+  { n: 6, label: 'Crypto', test: (d) => d.cls === 'crypto' },
+  { n: 7, label: 'Rates', test: (d) => d.cls === 'rate' },
+  { n: 8, label: 'Govt', test: (d) => d.yk === 'Govt' },
+  { n: 9, label: 'Corp', test: (d) => d.yk === 'Corp' },
 ];
 
 export function SECF({ route }: FnProps) {
   const panel = usePanelId();
   const [q, setQ] = useState(route.args ?? '');
   const [tab, setTab] = useState(1);
-  const cls = CLASSES[tab - 1].cls;
+  const test = CLASSES[tab - 1].test;
   const rows = useMemo(() => {
-    if (q.trim()) return searchSecurities(q, 60, (d) => !cls || d.cls === cls).map((h) => h.def);
-    return engine.securities.filter((d) => !cls || d.cls === cls);
-  }, [q, cls]);
+    if (q.trim()) return searchSecurities(q, 60, (d) => !test || test(d)).map((h) => h.def);
+    return engine.securities.filter((d) => !test || test(d));
+  }, [q, test]);
   return (
     <div>
       <FnHeader code="SECF" title="Security Finder" sub={`${rows.length} securities`} tabs={CLASSES.map((c) => ({ n: c.n, label: c.label }))} tab={tab} onTab={setTab} />
@@ -286,7 +287,7 @@ export function PDFU(_: FnProps) {
       </div>
       <Section title="About">
         <p className="prose">
-          Amber Terminal is an independent, Bloomberg-style market terminal that runs entirely in the browser. It is not affiliated with Bloomberg L.P. Prices are
+          Armin Terminal is an independent, Bloomberg-style market terminal that runs entirely in the browser. It is not affiliated with Bloomberg L.P. Prices are
           simulated by a calibrated factor model unless a live feed is connected and marked LIVE; fundamentals, analyst views, holders, news and economic
           figures are generated for demonstration and are not investment advice.
         </p>

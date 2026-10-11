@@ -29,11 +29,19 @@ export function execute(panel: number, text: string): boolean {
       flash(panel, parsed.message, 'error');
       return false;
     case 'route': {
+      if (parsed.fn === 'HELP' && parsed.args === 'HELP') {
+        // HELP HELP: straight to the help desk.
+        clearFlash(panel);
+        navigate(panel, { fn: 'IB', args: 'HELP' });
+        return true;
+      }
       const cur = currentRoute(terminal.get(), panel);
       const fnCode = parsed.fn ?? defaultFunction(parsed.sec?.cls);
       const def = lookupFn(fnCode)!;
       let secId = parsed.sec?.id;
       if (def.needsSec && !secId) secId = cur.sec;
+      // MENU <GO> on its own returns to the loaded security's menu.
+      if (def.code === 'MENU' && !secId && !parsed.args) secId = cur.sec;
       if (def.needsSec && !secId) {
         flash(panel, `${def.code} needs a security, e.g. AAPL US <EQUITY> ${def.code} <GO>`, 'error');
         return false;
@@ -53,7 +61,7 @@ export function execute(panel: number, text: string): boolean {
   }
 }
 
+/** Loading a security on its own shows its menu of related functions. */
 function defaultFunction(cls: string | undefined): string {
-  if (cls === 'bond') return 'YAS';
-  return 'DES';
+  return cls ? 'MENU' : 'DES';
 }

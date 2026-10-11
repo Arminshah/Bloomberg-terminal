@@ -40,7 +40,7 @@ export const defaultTerminal = (): TerminalState => ({
   recentFns: ['GP', 'DES', 'TOP', 'WEI'],
 });
 
-export const terminal = createStore<TerminalState>(defaultTerminal(), 'terminal', 2);
+export const terminal = createStore<TerminalState>(defaultTerminal(), 'terminal', 2, { perWindow: true });
 
 export const LAYOUT_PANELS: Record<LayoutId, number> = { '1': 1, '2': 2, '2v': 2, '3': 3, '4': 4, '6': 6 };
 

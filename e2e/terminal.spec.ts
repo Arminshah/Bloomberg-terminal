@@ -8,8 +8,8 @@ async function boot(page: Page, layout?: string) {
     if (m.type() === 'error') errors.push(m.text());
   });
   await page.addInitScript((lay) => {
-    localStorage.setItem('amber:settings', JSON.stringify({ v: 1, s: { liveCrypto: false, liveFx: false, newsFlashes: false } }));
-    if (lay) localStorage.setItem('amber:terminal', JSON.stringify({ v: 2, s: { layout: lay } }));
+    localStorage.setItem('armin:settings', JSON.stringify({ v: 1, s: { liveCrypto: false, liveFx: false, newsFlashes: false } }));
+    if (lay) localStorage.setItem('armin:terminal', JSON.stringify({ v: 2, s: { layout: lay } }));
   }, layout ?? '');
   await page.goto('/');
   await expect(page.locator('.panel').first()).toBeVisible();
@@ -34,6 +34,12 @@ const COMMANDS: [string, string][] = [
   ['W', 'W'], ['PORT', 'PORT'], ['ALRT', 'ALRT'], ['SECF', 'SECF'], ['LAST', 'LAST'], ['LPAD', 'LPAD'], ['IB', 'IB'],
   ['PDFU', 'PDFU'], ['HELP', 'HELP'], ['EURUSD CRNCY DES', 'DES'], ['SPX INDEX DES', 'DES'], ['CL1 CMDTY DES', 'DES'],
   ['USGG10YR INDEX DES', 'DES'], ['XBTUSD CRNCY DES', 'DES'], ['CT2 GOVT DES', 'DES'], ['USGG10YR INDEX HS', 'HS'], ['AAPL NOTE', 'NOTE'],
+  ['IBM US EQUITY', 'MENU'], ['EQUITY', 'EQUITY'], ['GOVT', 'GOVT'], ['CORP', 'CORP'], ['CRNCY', 'CRNCY'], ['MTGE', 'MTGE'], ['MENU', 'MENU'],
+  ['AAPL CORP', 'SRCH'], ['JPM CORP DDIS', 'DDIS'], ['AAPL 4.65 02/23/46 CORP DES', 'DES'], ['AAPL 4.65 02/23/46 CORP YAS', 'YAS'],
+  ['AAPL 4.65 02/23/46 CORP ALLQ', 'ALLQ'], ['CT10 GOVT ALLQ', 'ALLQ'], ['ES1 INDEX DES', 'DES'], ['ES1 INDEX GIP', 'GIP'], ['ES1 INDEX TAS', 'TAS'],
+  ['ES1 INDEX DEPTH', 'DEPTH'], ['WEIF', 'WEIF'], ['SPX INDEX MOV', 'MOV'], ['INDU INDEX MOV', 'MOV'], ['AAPL TRA', 'TRA'], ['SPX INDEX TRA', 'TRA'],
+  ['AAPL GF', 'GF'], ['AAPL HVT', 'HVT'], ['USGG10YR INDEX HVT', 'HVT'], ['AAPL VWAP', 'VWAP'], ['EURUSD CRNCY FRD', 'FRD'], ['USDJPY CRNCY OVML', 'OVML'],
+  ['SWPM', 'SWPM'], ['CDR', 'CDR'], ['CENB', 'CENB'], ['READ', 'READ'], ['AAPL EMSX', 'EMSX'], ['ES1 INDEX EMSX', 'EMSX'], ['HELP HELP', 'IB'],
 ];
 
 test('default workspace renders four live panels', async ({ page }) => {

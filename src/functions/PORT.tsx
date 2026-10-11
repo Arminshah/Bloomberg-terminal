@@ -13,30 +13,19 @@ import type { SecurityDef } from '../data/types';
 import { maxDrawdown, percentile, regress, stdev } from '../finance/stats';
 import { flash, usePanelId } from '../terminal/panel';
 import { portfolio, type Position } from '../terminal/userdata';
+import { isMargined, navValue, usdPerPrice } from '../terminal/oms';
 import type { FnProps } from '../terminal/types';
 
-/** Units of underlying per quantity unit (contract size for futures, 1/100 for bond face). */
-export function multiplier(d: SecurityDef): number {
-  if (d.cls === 'commodity') {
-    const m = /([\d,]+)/.exec(d.cmd!.size);
-    return m ? Number(m[1].replace(/,/g, '')) : 1;
-  }
-  if (d.cls === 'bond') return 0.01;
-  return 1;
-}
-
-/** USD value of one unit of price for a security. */
-function usdPerPrice(d: SecurityDef): number {
-  const ccy = d.ccy === 'GBp' ? 'GBP' : d.ccy === 'USd' ? 'USD' : d.ccy;
-  const minor = d.minor ? 0.01 : 1;
-  return engine.usdValue(ccy) * minor * multiplier(d);
-}
+export { multiplier } from '../terminal/oms';
 
 interface Line {
   p: Position;
   d: SecurityDef;
   px: number;
+  /** Exposure in USD (futures at full notional). */
   mv: number;
+  /** Contribution to NAV in USD (futures at unrealised P&L). */
+  nav: number;
   cost: number;
   day: number;
   total: number;
@@ -50,7 +39,7 @@ function lines(positions: Position[]): Line[] {
       const q = engine.quote(p.id)!;
       const k = usdPerPrice(d);
       const mv = p.qty * q.last * k;
-      return { p, d, px: q.last, mv, cost: p.qty * p.cost * k, day: p.qty * q.chg * k, total: p.qty * (q.last - p.cost) * k };
+      return { p, d, px: q.last, mv, nav: navValue(d, p.qty, q.last, p.cost), cost: p.qty * p.cost * k, day: p.qty * q.chg * k, total: p.qty * (q.last - p.cost) * k };
     });
 }
 
@@ -63,7 +52,8 @@ function Holdings() {
   const day = ls.reduce((a, l) => a + l.day, 0);
   const tot = ls.reduce((a, l) => a + l.total, 0);
   const cost = ls.reduce((a, l) => a + l.cost, 0);
-  const nav = mv + st.cash;
+  const nav = st.cash + ls.reduce((a, l) => a + l.nav, 0);
+  const futNotional = ls.filter((l) => isMargined(l.d)).reduce((a, l) => a + l.mv, 0);
   const [sec, setSec] = useState('');
   const [qty, setQty] = useState('');
   const [px, setPx] = useState('');
@@ -92,11 +82,13 @@ function Holdings() {
           <KV
             items={[
               ['Net asset value', <span key="n" className="white b" style={{ fontSize: 'var(--fs-xl)' }}>{fmtNum(nav, 0)}</span>],
-              ['Invested', fmtNum(mv, 0)],
+              ['Securities at market', fmtNum(mv - futNotional, 0)],
+              ['Futures notional', fmtNum(futNotional, 0)],
               ['Cash', fmtNum(st.cash, 0)],
               ['Day P&L', <Chg key="d" v={day} dec={0} />],
               ['Day return', <Chg key="dr" v={(day / (nav - day)) * 100} pct />],
               ['Unrealised P&L', <Chg key="u" v={tot} dec={0} />],
+              ['Realised P&L (EMSX)', <Chg key="r" v={st.realised ?? 0} dec={0} />],
               ['Return on cost', <Chg key="rc" v={(tot / cost) * 100} pct />],
             ]}
           />
@@ -110,7 +102,7 @@ function Holdings() {
               Add
             </button>
           </div>
-          <div className="note">Futures quantities are contracts; Treasury quantities are face value. A blank price uses the live market.</div>
+          <div className="note">Futures quantities are contracts and count toward NAV at unrealised P&L; Treasury quantities are face value. A blank price uses the live market. Adjustments here do not touch cash; trade through EMSX to book fills against cash.</div>
         </Section>
       </div>
       <table className="tbl">
@@ -167,8 +159,8 @@ function Holdings() {
   );
 }
 
-/** Daily NAV of today's holdings replayed over history (static weights). */
-function navHistory(positions: Position[], bars: number) {
+/** Daily NAV of today's holdings and cash replayed over history (static weights). */
+function navHistory(positions: Position[], bars: number, cash = portfolio.get().cash) {
   const ids = positions.map((p) => p.id).filter((id) => engine.get(id));
   const spine = engine.daily('SPX Index');
   const n = spine.length;
@@ -177,13 +169,13 @@ function navHistory(positions: Position[], bars: number) {
   let w = 0;
   for (let i = from; i < n; i++) {
     const t = spine.t[i];
-    let v = 0;
+    let v = cash;
     for (const id of ids) {
       const d = engine.get(id)!;
       const p = positions.find((x) => x.id === id)!;
       const px = i === n - 1 ? engine.quote(id)!.last : closeAt(engine.daily(id), t + 43_200_000);
       if (!Number.isFinite(px)) continue;
-      v += p.qty * px * usdPerPrice(d);
+      v += navValue(d, p.qty, px, p.cost);
     }
     out.t[w] = t;
     out.o[w] = out.h[w] = out.l[w] = out.c[w] = v;

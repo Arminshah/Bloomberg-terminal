@@ -24,6 +24,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+        env:
+          # The web build and tests never launch Electron.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

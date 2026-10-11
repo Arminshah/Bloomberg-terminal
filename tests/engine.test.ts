@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { MarketEngine } from '../src/data/engine';
 import { dayNum } from '../src/data/calendar';
+import { settlementDate, yieldFromClean } from '../src/finance/bonds';
 
 const NOW = Date.parse('2026-10-12T15:30:00Z'); // a Monday
 
@@ -70,13 +71,46 @@ describe('MarketEngine', () => {
   });
 
   it('prices treasuries near par', () => {
-    const bonds = engine.securities.filter((d) => d.cls === 'bond');
+    const bonds = engine.securities.filter((d) => d.yk === 'Govt');
     expect(bonds.length).toBe(7);
     for (const b of bonds) {
       const q = engine.quote(b.id)!;
       expect(q.last, b.id).toBeGreaterThan(85);
       expect(q.last, b.id).toBeLessThan(110);
     }
+  });
+
+  it('prices corporate bonds off the Treasury curve plus a credit spread', () => {
+    const corps = engine.securities.filter((d) => d.yk === 'Corp');
+    expect(corps.length).toBeGreaterThan(30);
+    const settle = settlementDate(new Date(NOW));
+    for (const b of corps) {
+      const q = engine.quote(b.id)!;
+      const y = engine.bondYields(b.id)!;
+      expect(q.last, b.id).toBeGreaterThan(40);
+      expect(q.last, b.id).toBeLessThan(130);
+      expect(y.spread, b.id).toBeGreaterThan(15);
+      expect(y.spread, b.id).toBeLessThan(400);
+      const terms = { coupon: b.bond!.coupon, maturity: new Date(`${b.bond!.maturity}T00:00:00Z`), freq: 2 };
+      expect(yieldFromClean(terms, settle, q.last), b.id).toBeCloseTo(y.last, 6);
+      expect(q.ask - q.bid, b.id).toBeCloseTo(0.125, 9);
+    }
+  });
+
+  it('prices index futures at fair value on the tick grid', () => {
+    const es = engine.futureContract('ES1 Index')!;
+    expect(es.code).toBe('ESZ6');
+    expect(es.days).toBe(dayNum(Date.parse('2026-12-18T00:00:00Z')) - dayNum(NOW));
+    for (const d of engine.securities.filter((x) => x.cls === 'future')) {
+      const q = engine.quote(d.id)!;
+      const u = engine.quote(d.fut!.underlying)!;
+      expect(Math.abs(q.last / u.last - 1), d.id).toBeLessThan(0.03);
+      const ticks = q.last / d.fut!.tick;
+      expect(Math.abs(ticks - Math.round(ticks)), d.id).toBeLessThan(1e-6);
+      expect(q.ask - q.bid, d.id).toBeCloseTo(d.fut!.tick, 9);
+      expect(q.volume, d.id).toBeGreaterThan(0);
+    }
+    expect(engine.futureContract('HI1 Index')!.code).toBe('HIV6');
   });
 
   it('is deterministic across instances', () => {

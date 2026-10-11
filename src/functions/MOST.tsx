@@ -56,7 +56,7 @@ export function MOST(_: FnProps) {
       <FnHeader
         code="MOST"
         title="Most Active Securities"
-        sub="Equities in the Amber universe"
+        sub="Equities in the Armin universe"
         tabs={VIEWS.map((v) => ({ n: v.n, label: v.label }))}
         tab={view}
         onTab={setView}

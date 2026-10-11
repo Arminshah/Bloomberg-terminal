@@ -41,7 +41,7 @@ export interface Position {
   cost: number;
 }
 
-export const portfolio = createStore<{ name: string; positions: Position[]; benchmark: string; cash: number }>(
+export const portfolio = createStore<{ name: string; positions: Position[]; benchmark: string; cash: number; realised?: number }>(
   {
     name: 'Sample Growth Portfolio',
     benchmark: 'SPX Index',
@@ -84,6 +84,18 @@ export const alerts = createStore<{ list: PriceAlert[]; seq: number; unseen: num
   'alerts',
   1,
 );
+
+export interface NewsAlert {
+  id: number;
+  keyword: string;
+  active: boolean;
+  hits: number;
+  created: number;
+  lastHit?: number;
+  lastHeadline?: string;
+}
+
+export const newsAlerts = createStore<{ list: NewsAlert[]; seq: number }>({ list: [], seq: 1 }, 'newsalerts', 1);
 
 export interface ChatMessage {
   id: number;

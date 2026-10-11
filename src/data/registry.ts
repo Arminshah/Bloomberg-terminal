@@ -8,11 +8,19 @@ export const YELLOW_KEYS: Record<string, YellowKey> = {
   COMDTY: 'Comdty', CMDTY: 'Comdty', COMMODITY: 'Comdty', CMDT: 'Comdty',
   GOVT: 'Govt', GOV: 'Govt',
   CORP: 'Corp',
+  MTGE: 'Mtge', MORTGAGE: 'Mtge',
+  'M-MKT': 'M-Mkt', MMKT: 'M-Mkt',
+  MUNI: 'Muni',
+  PFD: 'Pfd', PREFERRED: 'Pfd',
+  CLIENT: 'Client',
 };
 
 export const CLASS_LABEL: Record<AssetClass, string> = {
-  equity: 'Equity', index: 'Index', fx: 'Currency', commodity: 'Commodity', rate: 'Rate', crypto: 'Crypto', bond: 'Govt Bond',
+  equity: 'Equity', index: 'Index', future: 'Index Future', fx: 'Currency', commodity: 'Commodity', rate: 'Rate', crypto: 'Crypto', bond: 'Bond',
 };
+
+/** Yellow keys with no securities in this terminal. */
+export const UNCOVERED_KEYS = new Set(['Mtge', 'M-Mkt', 'Muni', 'Pfd']);
 
 const norm = (s: string) => s.toUpperCase().replace(/\s+/g, ' ').trim();
 
@@ -39,7 +47,7 @@ function index(): Map<string, SecurityDef[]> {
   return tickerIndex;
 }
 
-const CLASS_PRIORITY: Record<AssetClass, number> = { equity: 0, index: 1, fx: 2, crypto: 3, commodity: 4, rate: 5, bond: 6 };
+const CLASS_PRIORITY: Record<AssetClass, number> = { equity: 0, index: 1, fx: 2, crypto: 3, commodity: 4, future: 5, rate: 6, bond: 7 };
 
 function prefer(list: SecurityDef[]): SecurityDef {
   return [...list].sort((a, b) => {
