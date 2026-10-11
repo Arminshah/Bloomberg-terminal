@@ -10,7 +10,8 @@ import { setTimeZone } from './core/format';
 import { execute } from './terminal/exec';
 import { lookupFn } from './terminal/registry';
 import { settings } from './terminal/settings';
-import { back, currentRoute, forward, LAYOUT_PANELS, setActive, terminal } from './terminal/state';
+import { back, currentRoute, forward, LAYOUT_PANELS, setActive, splitFor, terminal } from './terminal/state';
+import { Splitters } from './components/Splitters';
 import { startBackground } from './terminal/background';
 
 function MobileTabs() {
@@ -54,6 +55,7 @@ export function App() {
   const tickMs = settings.use((s) => s.tickMs);
   const tape = settings.use((s) => s.tape);
   const mobile = useMediaQuery('(max-width: 760px)');
+  const split = terminal.use((s) => splitFor(s));
   const count = mobile ? Math.max(LAYOUT_PANELS[layout], 4) : LAYOUT_PANELS[layout];
 
   useEffect(() => {
@@ -70,6 +72,12 @@ export function App() {
   }, [tickMs]);
 
   useEffect(() => startBackground(), []);
+
+  const activeRoute = terminal.use((s) => currentRoute(s, s.active));
+  useEffect(() => {
+    const r = activeRoute;
+    document.title = `${r.sec ? `${r.sec.split(' ')[0]} ` : ''}${r.fn} · Amber Terminal`;
+  }, [activeRoute]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -127,10 +135,11 @@ export function App() {
     <div className="app">
       <TopBar />
       <MobileTabs />
-      <main className="workspace" data-layout={layout}>
+      <main className="workspace" data-layout={layout} style={mobile ? undefined : { gridTemplateColumns: split.cols.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: split.rows.map((r) => `minmax(0, ${r}fr)`).join(' ') }}>
         {Array.from({ length: count }, (_, i) => (
           <Panel key={i} index={i} />
         ))}
+        {!mobile && <Splitters />}
       </main>
       {tape ? <TickerTape /> : <div />}
       <KeyBar />

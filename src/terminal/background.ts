@@ -50,10 +50,13 @@ export function startBackground(): () => void {
   seedNews();
   ensureRooms();
   stops.push(engine.subscribe(() => checkAlerts()));
+  let lastFlash = 0;
   const newsTimer = setInterval(() => {
     const hot = newsTick();
-    if (settings.get().newsFlashes) {
-      for (const s of hot.slice(0, 2)) {
+    // At most one flash headline every 15 seconds keeps the screen readable.
+    if (settings.get().newsFlashes && hot.length && Date.now() - lastFlash > 15_000) {
+      lastFlash = Date.now();
+      for (const s of hot.slice(0, 1)) {
         const ticker = s.tickers[0];
         toast({ title: s.source === 'ECO' ? 'ECONOMIC RELEASE' : 'FIRST WORD', body: s.headline.replace(/^\*/, ''), kind: 'news', command: ticker ? `${ticker} CN` : 'TOP' });
       }

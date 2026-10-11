@@ -17,6 +17,9 @@ export interface Settings {
   userName: string;
 }
 
+/** The single-file build runs where network requests are blocked; feeds start off there. */
+const embedded = import.meta.env.MODE === 'single';
+
 export const settings = createStore<Settings>(
   {
     flash: true,
@@ -26,8 +29,8 @@ export const settings = createStore<Settings>(
     newsFlashes: true,
     sound: false,
     finnhubKey: '',
-    liveCrypto: true,
-    liveFx: true,
+    liveCrypto: !embedded,
+    liveFx: !embedded,
     clickAction: 'auto',
     tape: true,
     userName: 'TRADER',

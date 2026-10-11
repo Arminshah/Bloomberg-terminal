@@ -55,18 +55,19 @@ function rateLoadings(def: SecurityDef): [string, number][] {
   const t = def.tenor ?? 10;
   switch (def.curve) {
     case 'US':
-      return [['R:US', 0.88], ['R:US:SLOPE', US_SLOPE[t] ?? 0.2], ['G', 0.15]];
+      // Level, slope and curvature explain almost all of a curve's daily move.
+      return [['R:US', 0.93], ['R:US:SLOPE', US_SLOPE[t] ?? 0.2], ['R:US:CURV', t >= 2 && t <= 7 ? 0.12 : -0.06], ['G', 0.1]];
     case 'DE':
     case 'FR':
     case 'IT':
     case 'ES':
-      return [['R:EU', 0.78], ['R:US', 0.38], ['R:EU:SLOPE', t <= 2 ? -0.3 : t >= 30 ? 0.3 : 0]];
+      return [['R:EU', 0.86], ['R:US', 0.4], ['R:EU:SLOPE', t <= 2 ? -0.28 : t >= 30 ? 0.28 : t >= 10 ? 0.08 : -0.05]];
     case 'GB':
-      return [['R:GB', 0.72], ['R:US', 0.42], ['R:GB:SLOPE', t <= 2 ? -0.3 : t >= 30 ? 0.3 : 0]];
+      return [['R:GB', 0.82], ['R:US', 0.45], ['R:GB:SLOPE', t <= 2 ? -0.28 : t >= 30 ? 0.28 : t >= 10 ? 0.08 : -0.05]];
     case 'JP':
-      return [['R:JP', 0.82], ['R:US', 0.18], ['R:JP:SLOPE', t <= 2 ? -0.3 : t >= 30 ? 0.35 : 0]];
+      return [['R:JP', 0.9], ['R:US', 0.2], ['R:JP:SLOPE', t <= 2 ? -0.3 : t >= 30 ? 0.33 : t >= 10 ? 0.1 : -0.05]];
     default:
-      return [[`R:${def.curve}`, 0.8], ['R:US', 0.3]];
+      return [[`R:${def.curve}`, 0.82], ['R:US', 0.32]];
   }
 }
 
@@ -99,11 +100,12 @@ export function factorLoadings(def: SecurityDef, risk = 0): Loadings {
       raw = [];
   }
   const total = raw.reduce((s, [, l]) => s + l * l, 0);
-  const scale = total > 0.96 ? Math.sqrt(0.96 / total) : 1;
+  const cap = def.cls === 'rate' ? 0.985 : 0.96;
+  const scale = total > cap ? Math.sqrt(cap / total) : 1;
   return raw.filter(([, l]) => l !== 0).map(([name, l]) => [F(name), l * scale]);
 }
 
 export function idioWeight(loadings: Loadings): number {
   const total = loadings.reduce((s, [, l]) => s + l * l, 0);
-  return Math.sqrt(Math.max(0.04, 1 - total));
+  return Math.sqrt(Math.max(0.015, 1 - total));
 }

@@ -757,7 +757,7 @@ export class PriceChart {
     const opt = this.opt!;
     const span = s.t[i1] - s.t[i0];
     const ticks: { i: number; label: string; strong: boolean }[] = [];
-    const maxTicks = Math.max(2, Math.floor(this.plotW() / 78));
+    const maxTicks = Math.max(3, Math.floor(this.plotW() / 62));
     if (opt.intraday) {
       const choices = [5, 10, 15, 30, 60, 120, 180, 240, 360, 720].map((m) => m * 60_000);
       const stepMs = choices.find((c) => span / c <= maxTicks) ?? 1_440 * 60_000;

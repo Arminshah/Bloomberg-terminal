@@ -33,6 +33,8 @@ import { PORT } from '../functions/PORT';
 import { ALRT } from '../functions/ALRT';
 import { LAST, LPAD, PDFU, SECF } from '../functions/TOOLS';
 import { IB } from '../functions/IB';
+import { HS } from '../functions/HS';
+import { NOTE } from '../functions/NOTE';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto'];
@@ -46,17 +48,18 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'DVD', name: 'Dividend History', category: 'Equity', needsSec: true, classes: EQ, desc: 'Declared, ex, record and pay dates, amounts, frequency and projected next dividend.', component: DVD, aliases: ['DVDH'] },
   { code: 'HDS', name: 'Holders', category: 'Equity', needsSec: true, classes: EQ, desc: 'Largest institutional holders with position, percent outstanding and changes.', component: HDS, aliases: ['OWN'] },
   { code: 'RV', name: 'Relative Valuation', category: 'Equity', needsSec: true, classes: EQ, desc: 'Peer comparison of valuation multiples, profitability and returns with peer medians.', component: RV, aliases: ['COMPS', 'PEERS'] },
-  { code: 'EVTS', name: 'Corporate Events', category: 'Equity', classes: EQ, desc: 'Calendar of earnings releases and ex-dividend dates, for one company or the whole universe.', component: EVTS, aliases: ['EA', 'ERNC'] },
+  { code: 'EVTS', name: 'Corporate Events', category: 'Equity', classes: EQ, desc: 'Calendar of earnings releases and ex-dividend dates, for one company or the whole universe.', component: EVTS, aliases: ['EA', 'ERNC', 'CACS'] },
   { code: 'WACC', name: 'Cost of Capital', category: 'Equity', needsSec: true, classes: EQ, desc: 'Weighted average cost of capital from CAPM and after-tax cost of debt, with a perpetuity value check.', component: WACC },
   // Charts
   { code: 'GP', name: 'Price Graph', category: 'Charts', needsSec: true, desc: 'Historical chart with line, mountain, candle and bar styles, daily/weekly/monthly frequency, SMA/EMA, Bollinger bands, volume, RSI, MACD and comparison overlays. Scroll to zoom, drag to pan.', component: GP, aliases: ['G', 'CHART', 'GPC', 'GPO'], example: 'AAPL US <EQUITY> GP <GO>' },
   { code: 'GIP', name: 'Intraday Price Graph', category: 'Charts', needsSec: true, desc: "Today's intraday chart against the previous close, updating live.", component: GIP, aliases: ['IGP'], example: 'EURUSD <CRNCY> GIP <GO>' },
   { code: 'HP', name: 'Historical Prices', category: 'Charts', needsSec: true, desc: 'Daily, weekly, monthly, quarterly or yearly price table with changes and volume; copy or export to CSV.', component: HP, aliases: ['HPT'] },
-  { code: 'COMP', name: 'Comparative Returns', category: 'Charts', needsSec: true, desc: 'Rebased performance of a security against benchmarks and peers over a chosen period.', component: COMP, aliases: ['CMP'] },
+  { code: 'COMP', name: 'Comparative Returns', category: 'Charts', needsSec: true, desc: 'Rebased performance of a security against benchmarks and peers over a chosen period.', component: COMP, aliases: ['CMP', 'TRA'] },
+  { code: 'HS', name: 'Historical Spread', category: 'Charts', needsSec: true, desc: 'Spread or ratio between two securities with mean, standard deviation, z-score and percentile (2s10s, Brent-WTI, gold/silver).', component: HS, aliases: ['SPRD', 'RATIO'], example: 'USGG10YR <INDEX> HS <GO>' },
   { code: 'BETA', name: 'Historical Beta', category: 'Charts', needsSec: true, classes: ['equity', 'index', 'crypto', 'commodity', 'fx'], desc: 'Regression of returns against an index: raw and adjusted beta, alpha, R², with scatter plot.', component: BETA },
   // News
   { code: 'TOP', name: 'Top News', category: 'News', desc: 'Most important headlines across markets, updating as the session unfolds.', component: TOP, aliases: ['NEWS', 'TOPS'] },
-  { code: 'N', name: 'News Search', category: 'News', desc: 'All news with topic tabs and keyword search. Add a topic (N CRYPTO) or a security (AAPL N).', component: N, example: 'N CRYPTO <GO>' },
+  { code: 'N', name: 'News Search', category: 'News', desc: 'All news with topic tabs and keyword search. Add a topic (N CRYPTO) or a security (AAPL N).', component: N, aliases: ['NI', 'NSE'], example: 'N CRYPTO <GO>' },
   { code: 'CN', name: 'Company News', category: 'News', needsSec: true, desc: 'Headlines mentioning the loaded security.', component: CN },
   // Markets
   { code: 'WEI', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI, aliases: ['WEIF'] },
@@ -91,6 +94,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'CORR', name: 'Correlation Matrix', category: 'Portfolio & Tools', desc: 'Correlation of daily returns across any set of securities and periods.', component: CORR, aliases: ['CORM'] },
   { code: 'SECF', name: 'Security Finder', category: 'Portfolio & Tools', desc: 'Search every security by ticker, name or alias, filtered by asset class.', component: SECF, aliases: ['FIND', 'SEARCH'] },
   { code: 'LAST', name: 'Recently Used', category: 'Portfolio & Tools', desc: 'Your recently viewed securities and functions.', component: LAST, aliases: ['HIST', 'RECENT'] },
+  { code: 'NOTE', name: 'Notes', category: 'Portfolio & Tools', desc: 'Personal notes per security or general, saved as you type.', component: NOTE, aliases: ['NOTES', 'MEMO'] },
   { code: 'LPAD', name: 'Launchpad Workspaces', category: 'Portfolio & Tools', desc: 'Apply a preset multi-panel workspace.', component: LPAD, aliases: ['BLP', 'LAUNCH'] },
   // Communication
   { code: 'IB', name: 'Instant Messages', category: 'Communication', desc: 'Chat with the help desk bot (quotes, news, calendar) and simulated trading desks.', component: IB, aliases: ['MSG', 'CHAT'] },

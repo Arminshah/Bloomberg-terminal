@@ -6,8 +6,14 @@ export interface PanelState {
   idx: number;
 }
 
+export interface Split {
+  cols: number[];
+  rows: number[];
+}
+
 export interface TerminalState {
   layout: LayoutId;
+  sizes: Partial<Record<LayoutId, Split>>;
   active: number;
   panels: PanelState[];
   recentSecs: string[];
@@ -27,6 +33,7 @@ const DEFAULT_ROUTES: Route[] = [
 
 export const defaultTerminal = (): TerminalState => ({
   layout: '4',
+  sizes: {},
   active: 0,
   panels: DEFAULT_ROUTES.map((r) => ({ history: [r], idx: 0 })),
   recentSecs: ['AAPL US Equity', 'SPX Index', 'EURUSD Curncy', 'XBTUSD Curncy'],
@@ -98,4 +105,26 @@ export function applyPreset(routes: Route[], layout: LayoutId) {
       return { history, idx: history.length - 1 };
     }),
   }));
+}
+
+export const DEFAULT_SPLIT: Record<LayoutId, Split> = {
+  '1': { cols: [1], rows: [1] },
+  '2': { cols: [0.5, 0.5], rows: [1] },
+  '2v': { cols: [1], rows: [0.5, 0.5] },
+  '3': { cols: [0.575, 0.425], rows: [0.5, 0.5] },
+  '4': { cols: [0.5, 0.5], rows: [0.5, 0.5] },
+  '6': { cols: [1 / 3, 1 / 3, 1 / 3], rows: [0.5, 0.5] },
+};
+
+export function splitFor(s: TerminalState): Split {
+  return s.sizes?.[s.layout] ?? DEFAULT_SPLIT[s.layout];
+}
+
+export function setSplit(layout: LayoutId, split: Split | undefined) {
+  terminal.set((s) => {
+    const sizes = { ...(s.sizes ?? {}) };
+    if (split) sizes[layout] = split;
+    else delete sizes[layout];
+    return { ...s, sizes };
+  });
 }

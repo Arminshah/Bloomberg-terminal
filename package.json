@@ -2,7 +2,7 @@
   "name": "amber-terminal",
   "private": true,
   "version": "1.0.0",
-  "description": "A Bloomberg-style market terminal for the browser: command line, panels, charts and 50+ functions on a simulated market with optional live feeds.",
+  "description": "A Bloomberg-style market terminal for the browser: command line, panels, charts and 49 functions on a calibrated simulated market with optional live feeds.",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -33,7 +33,7 @@
     "eslint-plugin-react-hooks": "7.0.1",
     "globals": "16.4.0",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.46.2",
+    "typescript-eslint": "8.71.1",
     "vite": "7.3.7",
     "vitest": "4.1.11"
   }

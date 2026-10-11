@@ -751,3 +751,26 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .msg.me .txt { background: #2a1a05; border-color: var(--amber-dim); }
 .chat-input { display: flex; gap: 6px; padding: 6px; border-top: 1px solid var(--line); }
 @media (max-width: 760px) { .chat { grid-template-columns: 1fr; grid-template-rows: auto 1fr; } .chat-rooms { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); } .chat-room { border-bottom: 0; white-space: nowrap; } }
+
+/* --------------------------------------------------------- splitters */
+.workspace { position: relative; }
+.splitters { position: absolute; inset: 3px var(--gutter); pointer-events: none; }
+.splitter { position: absolute; pointer-events: auto; z-index: 20; }
+.splitter.v { top: 0; bottom: 0; width: 7px; margin-left: -4px; cursor: col-resize; }
+.splitter.h { left: 0; right: 0; height: 7px; margin-top: -4px; cursor: row-resize; }
+.splitter:hover, .splitter:active { background: rgba(255, 158, 27, 0.35); }
+
+/* ------------------------------------------- narrow panels (container queries) */
+.panel { container-type: inline-size; container-name: panel; }
+@container panel (max-width: 620px) {
+  .fnh-row { flex-wrap: wrap; row-gap: 0; padding-top: 2px; padding-bottom: 2px; }
+  .fnh-sub { display: none; }
+  .fnh-actions { margin-left: 0; flex-wrap: wrap; width: 100%; }
+  .act { padding: 1px 5px; }
+  .qstrip { gap: 2px 10px; }
+  .qstrip .px { font-size: var(--fs-l); }
+}
+@container panel (max-width: 420px) {
+  .kv-cols { grid-template-columns: 1fr; }
+  .cmd-msg { right: 44px; max-width: 70%; }
+}

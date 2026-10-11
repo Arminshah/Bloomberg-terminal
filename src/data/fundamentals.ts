@@ -399,12 +399,21 @@ export function analystViews(def: SecurityDef): BrokerView[] {
       const mu = { 'Strong Buy': 0.24, Buy: 0.17, Outperform: 0.11, Hold: 0.03, Underperform: -0.07, Sell: -0.15 }[rating];
       const target = px * (1 + mu + gaussian(r) * 0.07);
       const ar = r();
-      const action: BrokerView['action'] = ar < 0.08 ? 'Upgrade' : ar < 0.14 ? 'Downgrade' : ar < 0.2 ? 'Initiate' : ar < 0.45 ? 'Raise PT' : ar < 0.55 ? 'Cut PT' : 'Maintain';
+      let action: BrokerView['action'] = ar < 0.08 ? 'Upgrade' : ar < 0.14 ? 'Downgrade' : ar < 0.2 ? 'Initiate' : ar < 0.45 ? 'Raise PT' : ar < 0.55 ? 'Cut PT' : 'Maintain';
+      // A downgrade cannot land on the top rating, nor an upgrade on the bottom one.
+      if ((action === 'Downgrade' && rating === 'Strong Buy') || (action === 'Upgrade' && rating === 'Sell')) action = 'Maintain';
       const prevTarget = action === 'Raise PT' ? target / (1.04 + r() * 0.12) : action === 'Cut PT' ? target * (1.04 + r() * 0.1) : target;
-      const date = rollForward(new Date(today - Math.floor(r() * r() * 150 + 1) * DAY_MS)).getTime();
+      const date = rollBack(today - Math.floor(r() * r() * 150 + 1) * DAY_MS);
       return { firm, rating, target: roundTarget(target), prevTarget: roundTarget(prevTarget), action, date, horizon: '12 month' };
     })
     .sort((a, b) => b.date - a.date);
+}
+
+/** Business day on or before `ms` (UTC midnight). */
+function rollBack(ms: number): number {
+  const d = new Date(ms);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() - 1);
+  return d.getTime();
 }
 
 function roundTarget(x: number): number {

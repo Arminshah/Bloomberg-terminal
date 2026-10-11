@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { SecLink } from '../components/cells';
 import { fmtDate, fmtStamp, fmtTime } from '../core/format';
 import { engine } from '../data/market';
 import { news, NEWS_TOPICS, storyMatches, type Story } from '../data/news';
 import { feedStatus } from '../data/live/status';
+import { requestCompanyNews } from '../data/live/feeds';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
@@ -117,5 +118,6 @@ export function N({ route, sec }: FnProps) {
 }
 
 export function CN({ sec }: FnProps) {
+  useEffect(() => requestCompanyNews(sec!.id), [sec]);
   return <NewsScreen code="CN" title="Company News" ticker={sec!.id} />;
 }

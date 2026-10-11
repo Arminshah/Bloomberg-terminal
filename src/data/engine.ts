@@ -904,7 +904,7 @@ export class MarketEngine {
   /** Seeds a recent tape so Time & Sales is never empty on open. */
   backfillTrades(id: string) {
     const st = this.states.get(id);
-    if (!st || st.trades.length > 0) return;
+    if (!st || st.trades.length >= 100) return;
     const s = this.intraday(id);
     const q = this.quotes.get(id);
     if (!q || s.length === 0) return;
@@ -915,8 +915,8 @@ export class MarketEngine {
     const venues = cls === 'equity' ? (VENUES[st.def.country] ?? VENUES_US) : cls === 'crypto' ? ['CB', 'BS', 'KR'] : ['E'];
     const sp = this.spread(st, q.last);
     const out: Trade[] = [];
-    let t = now;
-    for (let i = 0; i < 120; i++) {
+    let t = st.trades.length ? st.trades[st.trades.length - 1].t : now;
+    for (let i = 0; i < 150 - st.trades.length; i++) {
       t -= 400 + Math.random() * 2500;
       const idx = Math.max(0, Math.min(s.length - 1, Math.floor((t - s.t[0]) / s.span)));
       const mid = s.c[idx];
@@ -927,7 +927,7 @@ export class MarketEngine {
       if (cls === 'crypto') size = Number((base * Math.exp(gaussianRandom() * 1.1)).toPrecision(3));
       out.push({ t, px: mid + (side * sp) / 2, size, side, venue: venues[i % venues.length], cond: size < 100 && cls === 'equity' ? 'I' : '' });
     }
-    st.trades = out;
+    st.trades = [...st.trades, ...out];
   }
 
   // ------------------------------------------------------------ live feeds
@@ -1099,6 +1099,20 @@ export class MarketEngine {
         this.publishQuote(other, this.now());
       }
     }
+  }
+
+  /** Hands a line back to the simulator (feed switched off or lost). */
+  unlive(id: string) {
+    const st = this.states.get(id);
+    if (!st || st.kind !== 'base' || !st.live) return;
+    st.live = false;
+    st.liveIntraday = false;
+    st.intra = null;
+    st.dailyKey = '';
+    this.version++;
+    const t = this.now();
+    this.updateBase(st, t, false);
+    this.publishQuote(st, t);
   }
 
   /** Every security that should appear in search and monitors. */

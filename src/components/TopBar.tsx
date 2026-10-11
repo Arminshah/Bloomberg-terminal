@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useInterval } from '../data/market';
 import { feedStatus } from '../data/live/status';
 import { execute } from '../terminal/exec';
@@ -75,7 +75,15 @@ export function TopBar() {
   const layout = terminal.use((s) => s.layout);
   const unreadAlerts = alerts.use((a) => a.unseen);
   const unreadMsgs = chats.use((c) => c.rooms.reduce((n, r) => n + r.unread, 0));
-  const [presetOpen, setPresetOpen] = useState(false);
+  const [presetAt, setPresetAt] = useState<{ left: number; top: number } | null>(null);
+  const presetOpen = presetAt != null;
+  const setPresetOpen = (open: boolean | ((o: boolean) => boolean)) => {
+    const next = typeof open === 'function' ? open(presetOpen) : open;
+    if (!next) return setPresetAt(null);
+    const r = presetBtn.current?.getBoundingClientRect();
+    setPresetAt(r ? { left: r.left, top: r.bottom } : { left: 8, top: 32 });
+  };
+  const presetBtn = useRef<HTMLButtonElement>(null);
   const run = (cmd: string) => execute(terminal.get().active, cmd);
   return (
     <div className="topbar" role="banner">
@@ -90,11 +98,11 @@ export function TopBar() {
         </button>
       ))}
       <span style={{ position: 'relative', display: 'flex' }} className="hide-m">
-        <button type="button" className={`tb-btn${presetOpen ? ' on' : ''}`} onClick={() => setPresetOpen((o) => !o)} onBlur={() => setTimeout(() => setPresetOpen(false), 150)} aria-haspopup="menu" aria-expanded={presetOpen}>
+        <button ref={presetBtn} type="button" className={`tb-btn${presetOpen ? ' on' : ''}`} onClick={() => setPresetOpen((o) => !o)} onBlur={() => setTimeout(() => setPresetOpen(false), 150)} aria-haspopup="menu" aria-expanded={presetOpen}>
           LAUNCHPAD ▾
         </button>
         {presetOpen && (
-          <div className="ac" style={{ left: 0, right: 'auto', minWidth: 230, top: '100%', position: 'fixed', marginTop: 30 }} role="menu">
+          <div className="ac" style={{ position: 'fixed', left: presetAt!.left, top: presetAt!.top, right: 'auto', minWidth: 260 }} role="menu">
             <div className="ac-head">Workspace presets</div>
             {PRESETS.map((p, i) => (
               <div
