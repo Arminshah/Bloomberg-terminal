@@ -2,9 +2,12 @@ import { copyText, downloadText, toCsv } from '../core/csv';
 import { flash } from '../terminal/panel';
 import type { Action } from './FnHeader';
 
+/** The single-file build runs in hosts that block downloads; it offers Copy only. */
+const canDownload = import.meta.env.MODE !== 'single';
+
 /** Standard 98) Copy / 99) Export actions for tabular screens. */
 export function exportActions(panel: number, filename: string, rows: () => (string | number | null | undefined)[][]): Action[] {
-  return [
+  const actions: Action[] = [
     {
       n: 98,
       label: 'Copy',
@@ -23,4 +26,5 @@ export function exportActions(panel: number, filename: string, rows: () => (stri
       },
     },
   ];
+  return canDownload ? actions : actions.slice(0, 1);
 }
