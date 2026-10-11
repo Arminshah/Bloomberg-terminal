@@ -1,0 +1,51 @@
+import type { ComponentType } from 'react';
+import type { AssetClass, SecurityDef } from '../data/types';
+
+export interface Route {
+  fn: string;
+  sec?: string;
+  /** Free-form arguments typed after the mnemonic, e.g. "N TECH". */
+  args?: string;
+}
+
+export type LayoutId = '1' | '2' | '2v' | '3' | '4' | '6';
+
+export interface FnProps {
+  route: Route;
+  sec?: SecurityDef;
+}
+
+export type FnCategory =
+  | 'Equity'
+  | 'Charts'
+  | 'News'
+  | 'Markets'
+  | 'FX & Crypto'
+  | 'Rates & Credit'
+  | 'Commodities'
+  | 'Economics'
+  | 'Derivatives'
+  | 'Portfolio & Tools'
+  | 'Communication'
+  | 'System';
+
+export interface FnDef {
+  code: string;
+  name: string;
+  category: FnCategory;
+  desc: string;
+  /** Requires a loaded security. */
+  needsSec?: boolean;
+  /** Restricts to asset classes (when a security is loaded). */
+  classes?: AssetClass[];
+  aliases?: string[];
+  component: ComponentType<FnProps>;
+  /** Example command shown in HELP. */
+  example?: string;
+}
+
+export interface MenuItem {
+  n: number;
+  label: string;
+  run: () => void;
+}

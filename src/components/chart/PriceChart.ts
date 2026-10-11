@@ -1,0 +1,1028 @@
+import { bollinger, ema, macd, rsi, sma } from '../../finance/indicators';
+import type { Series } from '../../data/series';
+import { fmtBig, fmtNum, MONTHS } from '../../core/format';
+
+export type ChartType = 'line' | 'mountain' | 'candle' | 'bar';
+export type LowerKind = 'VOL' | 'RSI' | 'MACD';
+
+export interface Overlay {
+  kind: 'SMA' | 'EMA' | 'BOLL';
+  n: number;
+  color: string;
+}
+
+export interface CompareInput {
+  label: string;
+  series: Series;
+  color: string;
+}
+
+export interface ChartOptions {
+  type: ChartType;
+  dec: number;
+  label: string;
+  intraday: boolean;
+  overlays: Overlay[];
+  lower: LowerKind[];
+  compare: CompareInput[];
+  percent: boolean;
+  annotate: boolean;
+  refLine?: { value: number; label: string };
+  /** Number of bars visible when the view is reset. */
+  initialBars: number;
+  color?: string;
+  /** Formats times in the user's display zone (intraday labels). */
+  timeLabel?: (ms: number) => string;
+  dateLabel?: (ms: number) => string;
+}
+
+export const CHART_THEME = {
+  bg: '#000000',
+  grid: '#1b1b1b',
+  gridStrong: '#2a2a2a',
+  axis: '#8f8f8f',
+  axisText: '#b8b8b8',
+  text: '#e8e8e8',
+  amber: '#ff9e1b',
+  line: '#ffb547',
+  up: '#2fd36b',
+  dn: '#ff4d4f',
+  upFill: 'rgba(47,211,107,0.55)',
+  dnFill: 'rgba(255,77,79,0.55)',
+  cross: 'rgba(255,255,255,0.45)',
+  ref: '#6d6d6d',
+  font: '11px "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace',
+  fontB: '600 11px "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace',
+};
+
+export const COMPARE_COLORS = ['#45d3e6', '#d77bff', '#2fd36b', '#ffd23f', '#ff6f91', '#7aa2ff'];
+
+interface Pane {
+  kind: 'MAIN' | LowerKind;
+  top: number;
+  h: number;
+}
+
+const AXIS_W = 70;
+const AXIS_H = 18;
+const LEFT = 4;
+const TOP = 6;
+
+function niceStep(range: number, target: number): number {
+  const raw = range / Math.max(1, target);
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const f = raw / mag;
+  const nice = f < 1.5 ? 1 : f < 2.25 ? 2 : f < 3.5 ? 2.5 : f < 7.5 ? 5 : 10;
+  return nice * mag;
+}
+
+function decimalsFor(step: number, base: number): number {
+  if (step >= 1) return Math.min(base, step % 1 === 0 ? 0 : 1);
+  return Math.min(6, Math.max(0, Math.ceil(-Math.log10(step) + 0.001)));
+}
+
+export class PriceChart {
+  private canvas: HTMLCanvasElement;
+  private ctx: CanvasRenderingContext2D;
+  private ro: ResizeObserver;
+  private w = 0;
+  private h = 0;
+  private dpr = 1;
+  private s: Series | null = null;
+  private opt: ChartOptions | null = null;
+  private v0 = 0;
+  private v1 = 1;
+  private hover: { x: number; y: number } | null = null;
+  private pointers = new Map<number, { x: number; y: number }>();
+  private drag: { x: number; v0: number; v1: number; dist?: number } | null = null;
+  private raf = 0;
+  private lastLen = 0;
+  private ind: {
+    overlays: { o: Overlay; a: Float64Array; b?: Float64Array; c?: Float64Array }[];
+    rsi?: Float64Array;
+    macd?: { macd: Float64Array; signal: Float64Array; hist: Float64Array };
+    cmp: Float64Array[];
+  } = { overlays: [], cmp: [] };
+  private indKey = '';
+  onHover?: (index: number | null) => void;
+
+  constructor(private host: HTMLElement) {
+    this.canvas = document.createElement('canvas');
+    this.canvas.style.display = 'block';
+    this.canvas.style.width = '100%';
+    this.canvas.style.height = '100%';
+    this.canvas.style.touchAction = 'none';
+    this.canvas.style.cursor = 'crosshair';
+    host.appendChild(this.canvas);
+    this.ctx = this.canvas.getContext('2d')!;
+    this.ro = new ResizeObserver(() => this.resize());
+    this.ro.observe(host);
+    this.resize();
+    this.bind();
+    if (document.fonts?.ready) document.fonts.ready.then(() => this.schedule()).catch(() => undefined);
+  }
+
+  destroy() {
+    cancelAnimationFrame(this.raf);
+    this.ro.disconnect();
+    this.canvas.remove();
+  }
+
+  setData(s: Series, opt: ChartOptions, resetView: boolean) {
+    const prevLen = this.lastLen;
+    const wasAtEdge = this.v1 >= prevLen - 0.5;
+    this.s = s;
+    this.opt = opt;
+    if (resetView || prevLen === 0) this.resetView();
+    else if (s.length !== prevLen && wasAtEdge) {
+      const d = s.length - prevLen;
+      this.v0 += d;
+      this.v1 += d;
+    }
+    this.lastLen = s.length;
+    this.indKey = '';
+    this.schedule();
+  }
+
+  /** The underlying arrays changed in place (live tick). */
+  refresh() {
+    if (!this.s) return;
+    if (this.s.length !== this.lastLen) {
+      const d = this.s.length - this.lastLen;
+      if (this.v1 >= this.lastLen - 0.5) {
+        this.v0 += d;
+        this.v1 += d;
+      }
+      this.lastLen = this.s.length;
+      this.indKey = '';
+    } else {
+      // Indicators depend on the last close too.
+      this.indKey = '';
+    }
+    this.schedule();
+  }
+
+  resetView() {
+    if (!this.s || !this.opt) return;
+    const n = this.s.length;
+    const count = Math.min(n, Math.max(5, this.opt.initialBars));
+    const pad = Math.max(1, count * 0.02);
+    this.v1 = n + pad;
+    this.v0 = n - count;
+    this.schedule();
+  }
+
+  zoom(factor: number) {
+    const mid = (this.v0 + this.v1) / 2;
+    this.zoomAt(mid, factor);
+  }
+
+  private resize() {
+    const r = this.host.getBoundingClientRect();
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.w = Math.max(10, Math.floor(r.width));
+    this.h = Math.max(10, Math.floor(r.height));
+    this.canvas.width = Math.floor(this.w * this.dpr);
+    this.canvas.height = Math.floor(this.h * this.dpr);
+    this.draw();
+  }
+
+  private schedule() {
+    if (this.raf) return;
+    this.raf = requestAnimationFrame(() => {
+      this.raf = 0;
+      this.draw();
+    });
+  }
+
+  // ------------------------------------------------------------- input
+
+  private bind() {
+    const c = this.canvas;
+    c.addEventListener('pointermove', (e) => {
+      const p = this.local(e);
+      if (this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, p);
+      if (this.drag && this.pointers.size >= 2 && this.drag.dist) {
+        const pts = [...this.pointers.values()];
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        const count = (this.drag.v1 - this.drag.v0) * (this.drag.dist / Math.max(20, dist));
+        const mid = (this.drag.v0 + this.drag.v1) / 2;
+        this.setWindow(mid - count / 2, mid + count / 2);
+        return;
+      }
+      if (this.drag && this.pointers.size === 1) {
+        const bw = this.plotW() / (this.drag.v1 - this.drag.v0);
+        const shift = (this.drag.x - p.x) / bw;
+        this.setWindow(this.drag.v0 + shift, this.drag.v1 + shift);
+        this.hover = e.pointerType === 'mouse' ? p : null;
+        return;
+      }
+      this.hover = p;
+      this.schedule();
+    });
+    c.addEventListener('pointerdown', (e) => {
+      c.setPointerCapture(e.pointerId);
+      const p = this.local(e);
+      this.pointers.set(e.pointerId, p);
+      if (this.pointers.size === 2) {
+        const pts = [...this.pointers.values()];
+        this.drag = { x: p.x, v0: this.v0, v1: this.v1, dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) };
+      } else {
+        this.drag = { x: p.x, v0: this.v0, v1: this.v1 };
+      }
+      if (e.pointerType !== 'mouse') this.hover = p;
+    });
+    const end = (e: PointerEvent) => {
+      this.pointers.delete(e.pointerId);
+      if (this.pointers.size === 0) this.drag = null;
+      else {
+        const rest = [...this.pointers.values()][0];
+        this.drag = { x: rest.x, v0: this.v0, v1: this.v1 };
+      }
+    };
+    c.addEventListener('pointerup', end);
+    c.addEventListener('pointercancel', end);
+    c.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'mouse') {
+        this.hover = null;
+        this.onHover?.(null);
+        this.schedule();
+      }
+    });
+    c.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        const p = this.local(e);
+        const anchor = this.indexAt(p.x);
+        const factor = Math.exp(Math.sign(e.deltaY) * Math.min(Math.abs(e.deltaY), 120) * 0.0022);
+        this.zoomAt(anchor, factor);
+      },
+      { passive: false },
+    );
+    c.addEventListener('dblclick', () => this.resetView());
+  }
+
+  private local(e: MouseEvent): { x: number; y: number } {
+    const r = this.canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  private zoomAt(anchor: number, factor: number) {
+    const count = this.v1 - this.v0;
+    const n = this.s?.length ?? 0;
+    const next = Math.min(Math.max(count * factor, 8), Math.max(n * 1.05, 10));
+    const k = next / count;
+    this.setWindow(anchor - (anchor - this.v0) * k, anchor + (this.v1 - anchor) * k);
+  }
+
+  private setWindow(a: number, b: number) {
+    const n = this.s?.length ?? 0;
+    const count = b - a;
+    const maxRight = n + count * 0.25;
+    const minLeft = -count * 0.25;
+    if (b > maxRight) {
+      a -= b - maxRight;
+      b = maxRight;
+    }
+    if (a < minLeft) {
+      b += minLeft - a;
+      a = minLeft;
+    }
+    this.v0 = a;
+    this.v1 = b;
+    this.schedule();
+  }
+
+  // ------------------------------------------------------------- geometry
+
+  private plotW() {
+    return this.w - AXIS_W - LEFT;
+  }
+
+  private indexAt(x: number): number {
+    return this.v0 + ((x - LEFT) / this.plotW()) * (this.v1 - this.v0);
+  }
+
+  private xAt(i: number): number {
+    return LEFT + ((i + 0.5 - this.v0) / (this.v1 - this.v0)) * this.plotW();
+  }
+
+  private panes(): Pane[] {
+    const lower = this.opt?.lower ?? [];
+    const total = this.h - AXIS_H - TOP;
+    const share: Record<LowerKind, number> = { VOL: 0.16, RSI: 0.16, MACD: 0.18 };
+    let used = 0;
+    const lowerPanes: Pane[] = [];
+    for (const k of lower) used += share[k];
+    const mainH = Math.max(60, total * (1 - used));
+    let y = TOP + mainH;
+    for (const k of lower) {
+      const ph = (total - mainH) * (share[k] / used);
+      lowerPanes.push({ kind: k, top: y, h: ph });
+      y += ph;
+    }
+    return [{ kind: 'MAIN', top: TOP, h: mainH }, ...lowerPanes];
+  }
+
+  // ------------------------------------------------------------ indicators
+
+  private computeIndicators() {
+    const s = this.s!;
+    const opt = this.opt!;
+    const key = `${s.length}:${s.c[s.length - 1]}:${opt.overlays.map((o) => o.kind + o.n).join()}:${opt.lower.join()}:${opt.compare.length}`;
+    if (key === this.indKey) return;
+    this.indKey = key;
+    const closes = s.c.subarray(0, s.length);
+    this.ind.overlays = opt.overlays.map((o) => {
+      if (o.kind === 'BOLL') {
+        const b = bollinger(closes, o.n, 2);
+        return { o, a: b.mid, b: b.upper, c: b.lower };
+      }
+      return { o, a: o.kind === 'SMA' ? sma(closes, o.n) : ema(closes, o.n) };
+    });
+    this.ind.rsi = opt.lower.includes('RSI') ? rsi(closes, 14) : undefined;
+    this.ind.macd = opt.lower.includes('MACD') ? macd(closes) : undefined;
+    // Align comparison series to the primary timestamps (last value at or before).
+    this.ind.cmp = opt.compare.map((cmp) => {
+      const out = new Float64Array(s.length).fill(NaN);
+      const cs = cmp.series;
+      let j = 0;
+      for (let i = 0; i < s.length; i++) {
+        while (j + 1 < cs.length && cs.t[j + 1] <= s.t[i] + (opt.intraday ? 0 : 43_200_000)) j++;
+        if (cs.length && cs.t[j] <= s.t[i] + (opt.intraday ? 0 : 43_200_000)) out[i] = cs.c[j];
+      }
+      return out;
+    });
+  }
+
+  // ------------------------------------------------------------------ draw
+
+  private draw() {
+    const ctx = this.ctx;
+    const T = CHART_THEME;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.fillStyle = T.bg;
+    ctx.fillRect(0, 0, this.w, this.h);
+    const s = this.s;
+    const opt = this.opt;
+    if (!s || !opt || s.length === 0) {
+      ctx.fillStyle = T.axis;
+      ctx.font = T.font;
+      ctx.fillText('No data', 10, 20);
+      return;
+    }
+    this.computeIndicators();
+    const n = s.length;
+    const i0 = Math.max(0, Math.floor(this.v0));
+    const i1 = Math.min(n - 1, Math.ceil(this.v1) - 1);
+    if (i1 < i0) return;
+    const panes = this.panes();
+    const main = panes[0];
+    const pct = opt.percent || opt.compare.length > 0;
+    const base = s.c[i0];
+    const tr = (v: number) => (pct ? (v / base - 1) * 100 : v);
+
+    // Y range on visible bars.
+    let lo = Infinity;
+    let hi = -Infinity;
+    const useHL = opt.type === 'candle' || opt.type === 'bar';
+    for (let i = i0; i <= i1; i++) {
+      const a = tr(useHL ? s.l[i] : s.c[i]);
+      const b = tr(useHL ? s.h[i] : s.c[i]);
+      if (a < lo) lo = a;
+      if (b > hi) hi = b;
+    }
+    for (const ov of this.ind.overlays) {
+      for (let i = i0; i <= i1; i++) {
+        for (const arr of [ov.a, ov.b, ov.c]) {
+          if (!arr) continue;
+          const v = arr[i];
+          if (!Number.isFinite(v)) continue;
+          lo = Math.min(lo, tr(v));
+          hi = Math.max(hi, tr(v));
+        }
+      }
+    }
+    this.ind.cmp.forEach((arr) => {
+      const b0 = firstFinite(arr, i0, i1);
+      if (!Number.isFinite(b0)) return;
+      for (let i = i0; i <= i1; i++) {
+        const v = arr[i];
+        if (!Number.isFinite(v)) continue;
+        const p = (v / b0 - 1) * 100;
+        lo = Math.min(lo, p);
+        hi = Math.max(hi, p);
+      }
+    });
+    if (opt.refLine && !pct && Number.isFinite(opt.refLine.value)) {
+      lo = Math.min(lo, opt.refLine.value);
+      hi = Math.max(hi, opt.refLine.value);
+    }
+    if (!Number.isFinite(lo) || !Number.isFinite(hi)) return;
+    if (hi - lo < 1e-9) {
+      hi += Math.abs(hi) * 0.01 || 1;
+      lo -= Math.abs(lo) * 0.01 || 1;
+    }
+    const padY = (hi - lo) * 0.07;
+    lo -= padY;
+    hi += padY;
+    const yAt = (v: number) => main.top + ((hi - v) / (hi - lo)) * main.h;
+    const plotRight = LEFT + this.plotW();
+    const bw = this.plotW() / (this.v1 - this.v0);
+
+    // Grid and axes.
+    ctx.font = T.font;
+    ctx.textBaseline = 'middle';
+    const step = niceStep(hi - lo, Math.max(3, Math.floor(main.h / 46)));
+    const tickDec = pct ? decimalsFor(step, 2) : Math.max(decimalsFor(step, opt.dec), Math.min(opt.dec, decimalsFor(step, 6)));
+    ctx.strokeStyle = T.grid;
+    ctx.lineWidth = 1;
+    ctx.fillStyle = T.axisText;
+    ctx.textAlign = 'left';
+    for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+      const y = Math.round(yAt(v)) + 0.5;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(LEFT, y);
+      ctx.lineTo(plotRight, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillText(pct ? `${fmtNum(v, tickDec)}%` : fmtNum(v, tickDec), plotRight + 6, y);
+    }
+    this.drawTimeAxis(i0, i1, panes);
+
+    // Pane separators.
+    ctx.strokeStyle = T.gridStrong;
+    for (const p of panes.slice(1)) {
+      ctx.beginPath();
+      ctx.moveTo(LEFT, Math.round(p.top) + 0.5);
+      ctx.lineTo(this.w, Math.round(p.top) + 0.5);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(plotRight + 0.5, TOP);
+    ctx.lineTo(plotRight + 0.5, this.h - AXIS_H);
+    ctx.stroke();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(LEFT, main.top, this.plotW(), main.h);
+    ctx.clip();
+
+    // Reference line (previous close).
+    if (opt.refLine && !pct && Number.isFinite(opt.refLine.value)) {
+      const y = Math.round(yAt(opt.refLine.value)) + 0.5;
+      ctx.strokeStyle = T.ref;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(LEFT, y);
+      ctx.lineTo(plotRight, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Bollinger fill under lines.
+    for (const ov of this.ind.overlays) {
+      if (ov.o.kind !== 'BOLL' || !ov.b || !ov.c) continue;
+      ctx.fillStyle = 'rgba(160,160,160,0.08)';
+      ctx.beginPath();
+      let started = false;
+      for (let i = i0; i <= i1; i++) {
+        if (!Number.isFinite(ov.b[i])) continue;
+        const x = this.xAt(i);
+        const y = yAt(tr(ov.b[i]));
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else ctx.lineTo(x, y);
+      }
+      for (let i = i1; i >= i0; i--) {
+        if (!Number.isFinite(ov.c[i])) continue;
+        ctx.lineTo(this.xAt(i), yAt(tr(ov.c[i])));
+      }
+      ctx.closePath();
+      if (started) ctx.fill();
+    }
+
+    const color = opt.color ?? T.line;
+    if (opt.type === 'candle' || opt.type === 'bar') {
+      const body = Math.max(1, Math.min(bw * 0.7, 18));
+      for (let i = i0; i <= i1; i++) {
+        const x = this.xAt(i);
+        const o = yAt(tr(s.o[i]));
+        const c = yAt(tr(s.c[i]));
+        const h = yAt(tr(s.h[i]));
+        const l = yAt(tr(s.l[i]));
+        const up = s.c[i] >= s.o[i];
+        ctx.strokeStyle = up ? T.up : T.dn;
+        ctx.fillStyle = up ? T.up : T.dn;
+        ctx.lineWidth = 1;
+        const xr = Math.round(x) + 0.5;
+        if (opt.type === 'candle') {
+          ctx.beginPath();
+          ctx.moveTo(xr, h);
+          ctx.lineTo(xr, l);
+          ctx.stroke();
+          const top = Math.min(o, c);
+          const hgt = Math.max(1, Math.abs(c - o));
+          if (body >= 3) ctx.fillRect(Math.round(x - body / 2), top, Math.round(body), hgt);
+          else ctx.fillRect(xr - 0.5, top, 1, hgt);
+        } else {
+          const tick = Math.max(1, body / 2);
+          ctx.beginPath();
+          ctx.moveTo(xr, h);
+          ctx.lineTo(xr, l);
+          ctx.moveTo(xr - tick, o);
+          ctx.lineTo(xr, o);
+          ctx.moveTo(xr, c);
+          ctx.lineTo(xr + tick, c);
+          ctx.stroke();
+        }
+      }
+    } else {
+      ctx.beginPath();
+      for (let i = i0; i <= i1; i++) {
+        const x = this.xAt(i);
+        const y = yAt(tr(s.c[i]));
+        if (i === i0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      if (opt.type === 'mountain') {
+        const grad = ctx.createLinearGradient(0, main.top, 0, main.top + main.h);
+        grad.addColorStop(0, hexAlpha(color, 0.38));
+        grad.addColorStop(1, hexAlpha(color, 0.02));
+        ctx.save();
+        ctx.lineTo(this.xAt(i1), main.top + main.h);
+        ctx.lineTo(this.xAt(i0), main.top + main.h);
+        ctx.closePath();
+        ctx.fillStyle = grad;
+        ctx.fill();
+        ctx.restore();
+        ctx.beginPath();
+        for (let i = i0; i <= i1; i++) {
+          const x = this.xAt(i);
+          const y = yAt(tr(s.c[i]));
+          if (i === i0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+      }
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+    }
+
+    // Overlays.
+    for (const ov of this.ind.overlays) {
+      const lines = ov.o.kind === 'BOLL' ? [ov.a, ov.b!, ov.c!] : [ov.a];
+      lines.forEach((arr, k) => {
+        ctx.strokeStyle = ov.o.color;
+        ctx.lineWidth = k === 0 ? 1.2 : 1;
+        ctx.setLineDash(k === 0 ? [] : [3, 3]);
+        ctx.beginPath();
+        let started = false;
+        for (let i = i0; i <= i1; i++) {
+          const v = arr[i];
+          if (!Number.isFinite(v)) continue;
+          const x = this.xAt(i);
+          const y = yAt(tr(v));
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+    }
+
+    // Comparison lines (percent from first visible value).
+    const cmpLast: { y: number; v: number; color: string }[] = [];
+    this.ind.cmp.forEach((arr, k) => {
+      const b0 = firstFinite(arr, i0, i1);
+      if (!Number.isFinite(b0)) return;
+      const col = opt.compare[k].color;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      let started = false;
+      let lastV = NaN;
+      for (let i = i0; i <= i1; i++) {
+        const v = arr[i];
+        if (!Number.isFinite(v)) continue;
+        const p = (v / b0 - 1) * 100;
+        const x = this.xAt(i);
+        const y = yAt(p);
+        if (!started) {
+          ctx.moveTo(x, y);
+          started = true;
+        } else ctx.lineTo(x, y);
+        lastV = p;
+      }
+      ctx.stroke();
+      if (Number.isFinite(lastV)) cmpLast.push({ y: yAt(lastV), v: lastV, color: col });
+    });
+
+    // High / low annotations.
+    let hiI = i0;
+    let loI = i0;
+    let sum = 0;
+    for (let i = i0; i <= i1; i++) {
+      const hv = useHL ? s.h[i] : s.c[i];
+      const lv = useHL ? s.l[i] : s.c[i];
+      if (hv > (useHL ? s.h[hiI] : s.c[hiI])) hiI = i;
+      if (lv < (useHL ? s.l[loI] : s.c[loI])) loI = i;
+      sum += s.c[i];
+    }
+    const avg = sum / (i1 - i0 + 1);
+    const hiV = useHL ? s.h[hiI] : s.c[hiI];
+    const loV = useHL ? s.l[loI] : s.c[loI];
+    if (opt.annotate && !pct) {
+      ctx.strokeStyle = 'rgba(255,158,27,0.45)';
+      ctx.setLineDash([1, 3]);
+      const ya = Math.round(yAt(avg)) + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(LEFT, ya);
+      ctx.lineTo(plotRight, ya);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      this.marker(this.xAt(hiI), yAt(hiV), true, fmtNum(hiV, opt.dec));
+      this.marker(this.xAt(loI), yAt(loV), false, fmtNum(loV, opt.dec));
+    }
+    ctx.restore();
+
+    // Lower panes.
+    for (const p of panes.slice(1)) this.drawLower(p, i0, i1, bw);
+
+    // Axis tags: average, reference, comparisons, last.
+    if (opt.annotate && !pct) this.axisTag(yAt(avg), fmtNum(avg, opt.dec), '#3a2a10', T.amber, main);
+    if (opt.refLine && !pct && Number.isFinite(opt.refLine.value)) this.axisTag(yAt(opt.refLine.value), fmtNum(opt.refLine.value, opt.dec), '#2a2a2a', T.axisText, main);
+    for (const c of cmpLast) this.axisTag(c.y, `${fmtNum(c.v, 2)}%`, c.color, '#000', main);
+    const lastV = tr(s.c[n - 1]);
+    this.axisTag(yAt(lastV), pct ? `${fmtNum(lastV, 2)}%` : fmtNum(s.c[n - 1], opt.dec), color, '#000', main, true);
+
+    // Crosshair.
+    let hoverIndex: number | null = null;
+    if (this.hover && this.hover.x >= LEFT && this.hover.x <= plotRight && this.hover.y >= TOP && this.hover.y <= this.h - AXIS_H) {
+      const idx = Math.round(this.indexAt(this.hover.x) - 0.5);
+      if (idx >= i0 && idx <= i1) {
+        hoverIndex = idx;
+        const x = Math.round(this.xAt(idx)) + 0.5;
+        const y = Math.round(this.hover.y) + 0.5;
+        ctx.strokeStyle = T.cross;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(x, TOP);
+        ctx.lineTo(x, this.h - AXIS_H);
+        ctx.moveTo(LEFT, y);
+        ctx.lineTo(plotRight, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        if (this.hover.y <= main.top + main.h) {
+          const v = hi - ((this.hover.y - main.top) / main.h) * (hi - lo);
+          this.axisTag(this.hover.y, pct ? `${fmtNum(v, 2)}%` : fmtNum(v, opt.dec), '#e8e8e8', '#000', main);
+        }
+        const label = opt.intraday ? this.timeText(s.t[idx], true) : this.dateText(s.t[idx], true);
+        ctx.font = T.font;
+        const tw = ctx.measureText(label).width + 10;
+        const tx = Math.min(Math.max(LEFT, x - tw / 2), plotRight - tw);
+        ctx.fillStyle = '#e8e8e8';
+        ctx.fillRect(tx, this.h - AXIS_H + 1, tw, AXIS_H - 2);
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, tx + 5, this.h - AXIS_H / 2);
+      }
+    }
+    this.drawLegend(hoverIndex, { hiI, loI, hiV, loV, avg, pct, i0 });
+    this.onHover?.(hoverIndex);
+  }
+
+  private marker(x: number, y: number, top: boolean, text: string) {
+    const ctx = this.ctx;
+    const T = CHART_THEME;
+    ctx.fillStyle = top ? T.up : T.dn;
+    ctx.beginPath();
+    if (top) {
+      ctx.moveTo(x, y - 3);
+      ctx.lineTo(x - 4, y - 9);
+      ctx.lineTo(x + 4, y - 9);
+    } else {
+      ctx.moveTo(x, y + 3);
+      ctx.lineTo(x - 4, y + 9);
+      ctx.lineTo(x + 4, y + 9);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = T.font;
+    const tw = ctx.measureText(text).width;
+    const right = LEFT + this.plotW();
+    const tx = x + 6 + tw > right ? x - 6 - tw : x + 6;
+    ctx.fillStyle = T.text;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, tx, top ? y - 9 : y + 9);
+  }
+
+  private axisTag(y: number, text: string, bg: string, fg: string, pane: Pane, bold = false) {
+    if (y < pane.top - 2 || y > pane.top + pane.h + 2) return;
+    const ctx = this.ctx;
+    const x = LEFT + this.plotW() + 1;
+    ctx.fillStyle = bg;
+    ctx.fillRect(x, y - 8, AXIS_W - 2, 16);
+    ctx.fillStyle = fg;
+    ctx.font = bold ? CHART_THEME.fontB : CHART_THEME.font;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x + 5, y + 0.5);
+  }
+
+  private timeText(t: number, full: boolean): string {
+    if (this.opt?.timeLabel) return this.opt.timeLabel(t);
+    const d = new Date(t);
+    const s = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return full ? s : s;
+  }
+
+  private dateText(t: number, full: boolean): string {
+    if (full && this.opt?.dateLabel) return this.opt.dateLabel(t);
+    const d = new Date(t);
+    return `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCFullYear()).slice(2)}`;
+  }
+
+  private drawTimeAxis(i0: number, i1: number, panes: Pane[]) {
+    const ctx = this.ctx;
+    const T = CHART_THEME;
+    const s = this.s!;
+    const opt = this.opt!;
+    const span = s.t[i1] - s.t[i0];
+    const ticks: { i: number; label: string; strong: boolean }[] = [];
+    const maxTicks = Math.max(2, Math.floor(this.plotW() / 78));
+    if (opt.intraday) {
+      const choices = [5, 10, 15, 30, 60, 120, 180, 240, 360, 720].map((m) => m * 60_000);
+      const stepMs = choices.find((c) => span / c <= maxTicks) ?? 1_440 * 60_000;
+      let last = -1;
+      for (let i = i0; i <= i1; i++) {
+        const b = Math.floor(s.t[i] / stepMs);
+        if (b !== last && last !== -1) {
+          const d = new Date(s.t[i]);
+          ticks.push({ i, label: this.timeText(s.t[i], false), strong: d.getHours() === 0 && d.getMinutes() === 0 });
+        }
+        last = b;
+      }
+    } else {
+      const days = span / 86_400_000;
+      type Unit = 'week' | 'month' | 'quarter' | 'year' | 'year2' | 'year5';
+      const units: [Unit, number][] = [['week', 7], ['month', 30.4], ['quarter', 91], ['year', 365], ['year2', 730], ['year5', 1826]];
+      const unit = (units.find(([, d]) => days / d <= maxTicks) ?? units[units.length - 1])[0];
+      const key = (t: number) => {
+        const d = new Date(t);
+        const y = d.getUTCFullYear();
+        const m = d.getUTCMonth();
+        switch (unit) {
+          case 'week':
+            return Math.floor((t / 86_400_000 - 4) / 7);
+          case 'month':
+            return y * 12 + m;
+          case 'quarter':
+            return y * 4 + Math.floor(m / 3);
+          case 'year':
+            return y;
+          case 'year2':
+            return Math.floor(y / 2);
+          default:
+            return Math.floor(y / 5);
+        }
+      };
+      let last = key(s.t[i0]);
+      for (let i = i0 + 1; i <= i1; i++) {
+        const k = key(s.t[i]);
+        if (k === last) continue;
+        last = k;
+        const d = new Date(s.t[i]);
+        const y = d.getUTCFullYear();
+        const m = d.getUTCMonth();
+        let label: string;
+        if (unit === 'week') label = `${String(m + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}`;
+        else if (unit === 'month' || unit === 'quarter') label = m === 0 ? String(y) : `${MONTHS[m]}`;
+        else label = String(y);
+        ticks.push({ i, label, strong: m === 0 && unit !== 'week' });
+      }
+    }
+    ctx.font = T.font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    let lastX = -Infinity;
+    for (const tk of ticks) {
+      const x = Math.round(this.xAt(tk.i) - this.plotW() / (this.v1 - this.v0) / 2) + 0.5;
+      ctx.strokeStyle = tk.strong ? T.gridStrong : T.grid;
+      ctx.setLineDash(tk.strong ? [] : [2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, TOP);
+      ctx.lineTo(x, this.h - AXIS_H);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      const tw = ctx.measureText(tk.label).width;
+      if (x - tw / 2 > lastX + 6 && x + tw / 2 < LEFT + this.plotW()) {
+        ctx.fillStyle = tk.strong ? T.amber : T.axisText;
+        ctx.fillText(tk.label, x, this.h - AXIS_H / 2);
+        lastX = x + tw / 2;
+      }
+    }
+    void panes;
+  }
+
+  private drawLower(p: Pane, i0: number, i1: number, bw: number) {
+    const ctx = this.ctx;
+    const T = CHART_THEME;
+    const s = this.s!;
+    const right = LEFT + this.plotW();
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(LEFT, p.top, this.plotW(), p.h);
+    ctx.clip();
+    ctx.font = T.font;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    const label = (txt: string, color = T.amber) => {
+      ctx.fillStyle = color;
+      ctx.fillText(txt, LEFT + 4, p.top + 9);
+    };
+    if (p.kind === 'VOL') {
+      let max = 0;
+      for (let i = i0; i <= i1; i++) max = Math.max(max, s.v[i]);
+      if (max <= 0) {
+        ctx.restore();
+        return;
+      }
+      const w = Math.max(1, Math.min(bw * 0.7, 18));
+      for (let i = i0; i <= i1; i++) {
+        const hgt = (s.v[i] / max) * (p.h - 14);
+        ctx.fillStyle = s.c[i] >= s.o[i] ? T.upFill : T.dnFill;
+        ctx.fillRect(Math.round(this.xAt(i) - w / 2), p.top + p.h - hgt, Math.max(1, Math.round(w)), hgt);
+      }
+      label(`Volume ${fmtBig(s.v[i1])}`);
+      ctx.restore();
+      this.lowerAxis(p, [[0, '0'], [max, fmtBig(max)]], 0, max);
+      return;
+    }
+    if (p.kind === 'RSI' && this.ind.rsi) {
+      const r = this.ind.rsi;
+      const y = (v: number) => p.top + 4 + ((100 - v) / 100) * (p.h - 8);
+      ctx.strokeStyle = T.gridStrong;
+      ctx.setLineDash([3, 3]);
+      for (const lv of [30, 70]) {
+        ctx.beginPath();
+        ctx.moveTo(LEFT, Math.round(y(lv)) + 0.5);
+        ctx.lineTo(right, Math.round(y(lv)) + 0.5);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#d77bff';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      let started = false;
+      for (let i = i0; i <= i1; i++) {
+        if (!Number.isFinite(r[i])) continue;
+        const x = this.xAt(i);
+        if (!started) {
+          ctx.moveTo(x, y(r[i]));
+          started = true;
+        } else ctx.lineTo(x, y(r[i]));
+      }
+      ctx.stroke();
+      label(`RSI(14) ${fmtNum(r[i1], 2)}`, '#d77bff');
+      ctx.restore();
+      this.lowerAxis(p, [[30, '30'], [70, '70']], 0, 100, true);
+      return;
+    }
+    if (p.kind === 'MACD' && this.ind.macd) {
+      const m = this.ind.macd;
+      let ext = 0;
+      for (let i = i0; i <= i1; i++) {
+        for (const v of [m.macd[i], m.signal[i], m.hist[i]]) if (Number.isFinite(v)) ext = Math.max(ext, Math.abs(v));
+      }
+      if (ext === 0) ext = 1;
+      const y = (v: number) => p.top + p.h / 2 - (v / ext) * (p.h / 2 - 6);
+      const w = Math.max(1, Math.min(bw * 0.6, 14));
+      for (let i = i0; i <= i1; i++) {
+        const v = m.hist[i];
+        if (!Number.isFinite(v)) continue;
+        ctx.fillStyle = v >= 0 ? T.upFill : T.dnFill;
+        const y0 = y(0);
+        const y1 = y(v);
+        ctx.fillRect(Math.round(this.xAt(i) - w / 2), Math.min(y0, y1), Math.max(1, Math.round(w)), Math.abs(y1 - y0));
+      }
+      for (const [arr, col] of [[m.macd, '#45d3e6'], [m.signal, '#ff9e1b']] as const) {
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1.1;
+        ctx.beginPath();
+        let started = false;
+        for (let i = i0; i <= i1; i++) {
+          if (!Number.isFinite(arr[i])) continue;
+          const x = this.xAt(i);
+          if (!started) {
+            ctx.moveTo(x, y(arr[i]));
+            started = true;
+          } else ctx.lineTo(x, y(arr[i]));
+        }
+        ctx.stroke();
+      }
+      label(`MACD(12,26,9) ${fmtNum(m.macd[i1], 3)}  Sig ${fmtNum(m.signal[i1], 3)}`, '#45d3e6');
+      ctx.restore();
+      this.lowerAxis(p, [[0, '0']], -ext, ext);
+      return;
+    }
+    ctx.restore();
+  }
+
+  private lowerAxis(p: Pane, ticks: [number, string][], lo: number, hi: number, inset = false) {
+    const ctx = this.ctx;
+    ctx.font = CHART_THEME.font;
+    ctx.fillStyle = CHART_THEME.axisText;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    for (const [v, txt] of ticks) {
+      const pad = inset ? 4 : 8;
+      const y = p.top + pad + ((hi - v) / (hi - lo || 1)) * (p.h - pad * 2);
+      ctx.fillText(txt, LEFT + this.plotW() + 6, Math.min(Math.max(y, p.top + 7), p.top + p.h - 7));
+    }
+  }
+
+  private drawLegend(idx: number | null, a: { hiI: number; loI: number; hiV: number; loV: number; avg: number; pct: boolean; i0: number }) {
+    const ctx = this.ctx;
+    const T = CHART_THEME;
+    const s = this.s!;
+    const opt = this.opt!;
+    const n = s.length;
+    const color = opt.color ?? T.line;
+    const rows: { k: string; v: string; c: string }[] = [];
+    const dt = (t: number) => (opt.intraday ? this.timeText(t, true) : this.dateText(t, true));
+    if (idx != null) {
+      const prev = idx > 0 ? s.c[idx - 1] : s.o[idx];
+      const chg = s.c[idx] - prev;
+      rows.push({ k: dt(s.t[idx]), v: '', c: T.amber });
+      rows.push({ k: 'O', v: fmtNum(s.o[idx], opt.dec), c: T.text });
+      rows.push({ k: 'H', v: fmtNum(s.h[idx], opt.dec), c: T.text });
+      rows.push({ k: 'L', v: fmtNum(s.l[idx], opt.dec), c: T.text });
+      rows.push({ k: 'C', v: `${fmtNum(s.c[idx], opt.dec)} ${chg >= 0 ? '+' : ''}${fmtNum((chg / prev) * 100, 2)}%`, c: chg >= 0 ? T.up : T.dn });
+      if (s.v[idx] > 0) rows.push({ k: 'Vol', v: fmtBig(s.v[idx]), c: T.text });
+    } else {
+      rows.push({ k: opt.label, v: fmtNum(s.c[n - 1], opt.dec), c: color });
+      if (opt.annotate && !a.pct) {
+        rows.push({ k: `High on ${dt(s.t[a.hiI])}`, v: fmtNum(a.hiV, opt.dec), c: T.up });
+        rows.push({ k: 'Average', v: fmtNum(a.avg, opt.dec), c: T.amber });
+        rows.push({ k: `Low on ${dt(s.t[a.loI])}`, v: fmtNum(a.loV, opt.dec), c: T.dn });
+      }
+    }
+    const legendIdx = idx ?? n - 1;
+    for (const ov of this.ind.overlays) {
+      const v = ov.a[legendIdx];
+      rows.push({ k: ov.o.kind === 'BOLL' ? `BOLL(${ov.o.n},2)` : `${ov.o.kind}(${ov.o.n})`, v: fmtNum(v, opt.dec), c: ov.o.color });
+    }
+    this.ind.cmp.forEach((arr, k) => {
+      const b0 = firstFinite(arr, a.i0, n - 1);
+      const v = arr[legendIdx];
+      rows.push({ k: opt.compare[k].label, v: Number.isFinite(v) && Number.isFinite(b0) ? `${fmtNum((v / b0 - 1) * 100, 2)}%` : '--', c: opt.compare[k].color });
+    });
+    if (a.pct && opt.compare.length) {
+      const b0 = s.c[a.i0];
+      rows.splice(1, 0, { k: '', v: `${fmtNum((s.c[legendIdx] / b0 - 1) * 100, 2)}%`, c: color });
+    }
+    ctx.font = T.font;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    const lineH = 15;
+    let maxW = 0;
+    for (const r of rows) maxW = Math.max(maxW, ctx.measureText(`${r.k}  ${r.v}`).width);
+    const boxW = maxW + 22;
+    const boxH = rows.length * lineH + 6;
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillRect(LEFT + 4, TOP + 2, boxW, boxH);
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.strokeRect(LEFT + 4.5, TOP + 2.5, boxW, boxH);
+    rows.forEach((r, i) => {
+      const y = TOP + 2 + 3 + lineH * i + lineH / 2;
+      ctx.fillStyle = r.c;
+      ctx.fillRect(LEFT + 10, y - 1, 7, 2);
+      ctx.fillStyle = r.k === opt.label || i === 0 ? T.text : T.axisText;
+      ctx.fillText(r.k, LEFT + 21, y);
+      ctx.fillStyle = r.c;
+      ctx.textAlign = 'right';
+      ctx.fillText(r.v, LEFT + 4 + boxW - 6, y);
+      ctx.textAlign = 'left';
+    });
+  }
+}
+
+function firstFinite(arr: Float64Array, from: number, to: number): number {
+  for (let i = from; i <= to; i++) if (Number.isFinite(arr[i])) return arr[i];
+  return NaN;
+}
+
+function hexAlpha(hex: string, a: number): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return hex;
+  const v = parseInt(m[1], 16);
+  return `rgba(${(v >> 16) & 255},${(v >> 8) & 255},${v & 255},${a})`;
+}
