@@ -7,8 +7,9 @@
  * ships the raw series: it generates its own history through these anchors.
  *
  * Usage: npm run snapshot
+ *        npm run snapshot -- --only "APLD US Equity"   (refresh listed ids, keep the rest)
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { EQUITIES } from '../src/data/universe/equities.ts';
 import { COMMODITIES, CRYPTO, CURRENCIES, INDICES, RATES } from '../src/data/universe/markets.ts';
 
@@ -111,9 +112,14 @@ async function main() {
   for (const c of CURRENCIES) jobs.push({ key: `CCY:${c.code}`, symbol: `${c.code}=X`, additive: false });
   jobs.push({ key: 'DXY Curncy', symbol: 'DX-Y.NYB', additive: false });
 
-  const out: Record<string, Anchor> = {};
-  let asOf = '';
+  const file = new URL('../src/data/universe/snapshot.json', import.meta.url);
+  const onlyAt = process.argv.indexOf('--only');
+  const only = onlyAt >= 0 ? new Set(process.argv.slice(onlyAt + 1)) : null;
+  const previous = only ? (JSON.parse(readFileSync(file, 'utf8')) as { asOf: string; data: Record<string, Anchor> }) : null;
+  const out: Record<string, Anchor> = previous ? { ...previous.data } : {};
+  let asOf = previous?.asOf ?? '';
   for (const job of jobs) {
+    if (only && !only.has(job.key)) continue;
     const series = await fetchSeries(job.symbol);
     if (!series || series.c.length < 30) {
       console.warn(`skip ${job.key} (${job.symbol})`);
@@ -125,7 +131,6 @@ async function main() {
     console.log(`${job.key.padEnd(22)} ${String(a.px).padStart(12)}  ${a.date}  vol ${a.vol}`);
     await sleep(350);
   }
-  const file = new URL('../src/data/universe/snapshot.json', import.meta.url);
   writeFileSync(file, JSON.stringify({ asOf, source: 'Daily closes, reduced to anchors', data: out }, null, 0) + '\n');
   console.log(`wrote ${Object.keys(out).length} instruments as of ${asOf}`);
 }

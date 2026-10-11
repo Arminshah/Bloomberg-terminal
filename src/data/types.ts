@@ -16,7 +16,7 @@ export interface EquityInfo {
   emp: number;
   hq: string;
   ceo?: string;
-  founded: number;
+  founded?: number;
   /** Fiscal year end month, 1-12. */
   fye: number;
   /** Net debt, millions (negative = net cash). */
@@ -61,6 +61,16 @@ export interface BondInfo {
   seniority?: string;
 }
 
+export interface DynamicInfo {
+  source: 'yahoo' | 'finnhub';
+  /** Symbol at the data source (APLD, BRK-B for Yahoo, BRK.B for Finnhub). */
+  symbol: string;
+  /** When the profile and history were last loaded (ms). */
+  loaded: number;
+  /** Calibration points kept for offline restarts: [ISO date, close]. */
+  anchors: [string, number][];
+}
+
 export interface FutureInfo {
   underlying: string;
   exch: string;
@@ -100,6 +110,8 @@ export interface SecurityDef {
   cry?: CryptoInfo;
   bond?: BondInfo;
   fut?: FutureInfo;
+  /** Looked up online at runtime rather than built in. */
+  dynamic?: DynamicInfo;
   /** For FX: base and quote ISO codes. */
   fx?: { base: string; quote: string };
   /** For indices: description. */

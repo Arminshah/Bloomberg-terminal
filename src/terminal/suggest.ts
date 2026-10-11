@@ -2,6 +2,7 @@ import { resolveSecurity, searchSecurities, YELLOW_KEYS, CLASS_LABEL } from '../
 import type { SecurityDef } from '../data/types';
 import { FUNCTIONS } from './registry';
 import type { FnDef } from './types';
+import { lookupSource, normalizeTicker } from '../data/live/lookup';
 
 export interface Suggestion {
   kind: 'fn' | 'sec';
@@ -57,7 +58,7 @@ function secSuggestion(d: SecurityDef): Suggestion {
 }
 
 export function suggest(input: string): Suggestion[] {
-  const raw = input.replace(/<\s*GO\s*>/gi, ' ').replace(/[<>]/g, ' ');
+  const raw = input.replace(/<\s*GO\s*>/gi, ' ').replace(/[<>]/g, ' ').replace(/(^|\s)\$(?=[A-Za-z])/g, '$1');
   const trailing = /\s$/.test(raw);
   const tokens = raw.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return [];
@@ -87,5 +88,12 @@ export function suggest(input: string): Suggestion[] {
   const fns = matchFns(q, undefined, false, 6).map((f) => fnSuggestion(f, ''));
   const secs = searchSecurities(q, 9).map((h) => secSuggestion(h.def));
   const exactFn = fns.length && fns[0].primary === q.toUpperCase();
-  return exactFn ? [...fns, ...secs] : [...secs.slice(0, 1), ...fns, ...secs.slice(1)];
+  const out = exactFn ? [...fns, ...secs] : [...secs.slice(0, 1), ...fns, ...secs.slice(1)];
+  // A ticker that is not built in can be loaded online.
+  const ticker = tokens.length === 1 ? normalizeTicker(tokens[0]) : null;
+  const source = ticker && !resolveSecurity(ticker) ? lookupSource() : null;
+  if (ticker && source) {
+    out.unshift({ kind: 'sec', key: `online:${ticker}`, primary: `${ticker} US Equity`, secondary: `Load from ${source === 'yahoo' ? 'Yahoo Finance' : 'Finnhub'}`, tag: 'Online', execute: `${ticker} US EQUITY` });
+  }
+  return out;
 }

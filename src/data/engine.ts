@@ -1247,6 +1247,30 @@ export class MarketEngine {
     this.publishQuote(st, t);
   }
 
+  /**
+   * Registers a security found at runtime (online lookup). Daily bars or
+   * anchors, when given, calibrate its history before the first quote.
+   */
+  addSecurity(def: SecurityDef, init: { bars?: { day: number; o: number; h: number; l: number; c: number; v: number }[]; anchors?: [day: number, level: number][] } = {}): boolean {
+    if (this.byId.has(def.id)) return false;
+    this.defs.push(def);
+    this.byId.set(def.id, def);
+    this.addState(def, 'base');
+    const st = this.states.get(def.id)!;
+    for (const b of init.bars ?? []) {
+      if (b.day >= this.today) continue;
+      st.extBars.set(b.day, b);
+      st.extAnchors.set(b.day, b.c);
+    }
+    for (const [d, v] of init.anchors ?? []) if (d < this.today) st.extAnchors.set(d, v);
+    const t = this.now();
+    this.updateBase(st, t, false);
+    this.publishQuote(st, t);
+    this.version++;
+    for (const fn of this.listeners) fn(new Set([def.id]));
+    return true;
+  }
+
   /** Every security that should appear in search and monitors. */
   get securities(): SecurityDef[] {
     return this.defs;

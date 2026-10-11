@@ -333,6 +333,14 @@ const SEEDS: EqSeed[] = [
     desc: 'Palantir Technologies Inc. builds software platforms for data integration and AI, including Gotham for government and defense agencies, Foundry for commercial enterprises and the Artificial Intelligence Platform (AIP).',
   },
   {
+    // Figures from the company's filings as of fiscal Q1 2027 (quarter to 31 Aug 2026).
+    ...NQ, t: 'APLD US', n: 'Applied Digital Corp', px: 23.68, vol: 1.0, y: 'APLD', sector: 'Information Technology',
+    industry: 'IT Services', shares: 302.4, beta: 6.0, rev: 872, ni: -452, dps: 0, emp: 256,
+    hq: 'Dallas, TX', ceo: 'Wes Cummins', fye: 5, netDebt: 3534, book: 1631, lag: 37,
+    alias: ['APPLIED DIGITAL'],
+    desc: 'Applied Digital Corporation designs, builds and operates data centers for high-performance computing and AI. It hosts GPU clusters for AI and machine learning customers, provides energized infrastructure to crypto mining customers, and develops large AI factory campuses in North Dakota. It was known as Applied Blockchain until November 2022.',
+  },
+  {
     ...US, t: 'WFC US', n: 'Wells Fargo & Co', px: 82, vol: 0.27, y: 'WFC', sector: 'Financials',
     industry: 'Banks', shares: 3200, beta: 1.15, rev: 84000, ni: 20000, dps: 1.8, emp: 210000,
     hq: 'San Francisco, CA', ceo: 'Charlie Scharf', founded: 1852, fye: 12, netDebt: 0, book: 180000, lag: 14,

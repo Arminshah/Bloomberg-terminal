@@ -6,15 +6,20 @@ export type Parsed =
   | { kind: 'menu'; n: number }
   | { kind: 'help'; topic: string }
   | { kind: 'route'; fn?: string; sec?: SecurityDef; args?: string }
-  | { kind: 'error'; message: string };
+  /** `lookup` names a ticker that may be found online (not built in). */
+  | { kind: 'error'; message: string; lookup?: string };
 
 export interface FnLookup {
   (code: string): { code: string } | undefined;
 }
 
-/** Strips keyboard-style tokens: "<EQUITY>", "<GO>". */
+/** Ticker shapes worth looking up online: APLD, BRK/B, BRK.B. */
+const TICKER = /^[A-Z][A-Z0-9]{0,5}([./-][A-Z]{1,2})?$/;
+
+/** Strips keyboard-style tokens ("<EQUITY>", "<GO>") and cashtags ("$APLD"). */
 function clean(input: string): string {
   return input
+    .replace(/(^|\s)\$(?=[A-Za-z])/g, '$1')
     .replace(/<\s*GO\s*>/gi, ' ')
     .replace(/<\s*([A-Z-]+)\s*>/gi, ' $1 ')
     .replace(/\s+/g, ' ')
@@ -65,7 +70,10 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
       return { kind: 'route', fn: fn.code, args: issuer };
     }
     const sec = resolveSecurity(secText, yk);
-    if (!sec) return { kind: 'error', message: `Unknown security: ${secText.toUpperCase()} ${yk}` };
+    if (!sec) {
+      const root = secText.toUpperCase().replace(/\s+US$/, '');
+      return { kind: 'error', message: `Unknown security: ${secText.toUpperCase()} ${yk}`, lookup: yk === 'Equity' && TICKER.test(root) ? root : undefined };
+    }
     const rest = tokens.slice(ykAt + 1);
     if (rest.length === 0) return { kind: 'route', sec };
     const fn = lookup(rest[0]);
@@ -93,5 +101,8 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
     return { kind: 'route', sec, fn: fn.code, args: rest.slice(1).join(' ') || undefined };
   }
 
-  return { kind: 'error', message: `Unknown command: ${s.toUpperCase()}. Type HELP for functions.` };
+  // "APLD", "APLD DES", "APLD US", "APLD US GP": a ticker that is not built in.
+  const rest = tokens[1] === 'US' ? tokens.slice(2) : tokens.slice(1);
+  const lookupTicker = TICKER.test(tokens[0]) && (rest.length === 0 || !!lookup(rest[0])) ? tokens[0] : undefined;
+  return { kind: 'error', message: `Unknown command: ${s.toUpperCase()}. Type HELP for functions.`, lookup: lookupTicker };
 }

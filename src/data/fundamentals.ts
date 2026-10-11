@@ -85,7 +85,7 @@ function baseGrowth(def: SecurityDef): number {
     'Consumer Staples': 0.035, Financials: 0.06, Energy: 0.02, Industrials: 0.05, Materials: 0.03, Utilities: 0.05, 'Real Estate': 0.06,
   };
   const g = (sector[def.eq!.sector] ?? 0.05) + gaussian(r) * 0.05;
-  const special: Record<string, number> = { 'NVDA US Equity': 0.6, 'PLTR US Equity': 0.32, 'MU US Equity': 0.45, 'AVGO US Equity': 0.25, 'LLY US Equity': 0.3, 'AMD US Equity': 0.28, 'META US Equity': 0.18, 'UBER US Equity': 0.17, 'NOVOB DC Equity': 0.12, '2330 TT Equity': 0.3, 'INTC US Equity': -0.03, 'NKE US Equity': -0.04, 'TSLA US Equity': 0.04 };
+  const special: Record<string, number> = { 'NVDA US Equity': 0.6, 'PLTR US Equity': 0.32, 'MU US Equity': 0.45, 'AVGO US Equity': 0.25, 'LLY US Equity': 0.3, 'AMD US Equity': 0.28, 'META US Equity': 0.18, 'UBER US Equity': 0.17, 'NOVOB DC Equity': 0.12, '2330 TT Equity': 0.3, 'INTC US Equity': -0.03, 'APLD US Equity': 0.6, 'NKE US Equity': -0.04, 'TSLA US Equity': 0.04 };
   return special[def.id] ?? Math.max(-0.05, Math.min(0.3, g));
 }
 

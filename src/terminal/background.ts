@@ -3,6 +3,7 @@ import { news, newsTick, seedNews, type Story } from '../data/news';
 import { chatTick, ensureRooms } from '../data/chat';
 import { describe } from '../functions/ALRT';
 import { startLiveFeeds } from '../data/live/feeds';
+import { startDynamicFeeds } from '../data/live/lookup';
 import { alerts, newsAlerts } from './userdata';
 import { startOms } from './oms';
 import { settings } from './settings';
@@ -98,5 +99,6 @@ export function startBackground(): () => void {
   const chatTimer = setInterval(chatTick, 20_000);
   stops.push(() => clearInterval(chatTimer));
   stops.push(startLiveFeeds());
+  stops.push(startDynamicFeeds());
   return () => stops.forEach((s) => s());
 }

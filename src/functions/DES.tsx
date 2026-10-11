@@ -115,8 +115,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Industry', eq.industry],
               ['Headquarters', eq.hq],
               ['Chief executive', eq.ceo ?? '--'],
-              ['Founded', String(eq.founded)],
-              ['Employees', fmtInt(eq.emp)],
+              ['Founded', eq.founded ? String(eq.founded) : '--'],
+              ['Employees', eq.emp > 0 ? fmtInt(eq.emp) : '--'],
               ['Fiscal year end', ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][eq.fye - 1]],
               ['Primary exchange', sec.exch ?? '--'],
             ]}

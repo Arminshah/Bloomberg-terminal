@@ -9,6 +9,7 @@ import { COUNTRY_NAMES } from '../data/eco';
 import { feedStatus } from '../data/live/status';
 import { SNAPSHOT_AS_OF } from '../data/universe';
 import { execute } from '../terminal/exec';
+import { lookupSource, searchOnline, type OnlineHit } from '../data/live/lookup';
 import { lookupFn } from '../terminal/registry';
 import { flash, usePanelId } from '../terminal/panel';
 import { settings, type ClickAction } from '../terminal/settings';
@@ -34,10 +35,21 @@ export function SECF({ route }: FnProps) {
   const [q, setQ] = useState(route.args ?? '');
   const [tab, setTab] = useState(1);
   const test = CLASSES[tab - 1].test;
+  const count = engine.securities.length;
   const rows = useMemo(() => {
     if (q.trim()) return searchSecurities(q, 60, (d) => !test || test(d)).map((h) => h.def);
     return engine.securities.filter((d) => !test || test(d));
-  }, [q, test]);
+  }, [q, test, count]); // eslint-disable-line react-hooks/exhaustive-deps
+  const source = lookupSource();
+  const [online, setOnline] = useState<{ q: string; hits: OnlineHit[]; busy: boolean; error?: string }>({ q: '', hits: [], busy: false });
+  const searchWeb = () => {
+    const query = q.trim();
+    if (!query) return;
+    setOnline({ q: query, hits: [], busy: true });
+    searchOnline(query)
+      .then((hits) => setOnline({ q: query, hits, busy: false }))
+      .catch((err: unknown) => setOnline({ q: query, hits: [], busy: false, error: err instanceof Error ? err.message : String(err) }));
+  };
   return (
     <div>
       <FnHeader code="SECF" title="Security Finder" sub={`${rows.length} securities`} tabs={CLASSES.map((c) => ({ n: c.n, label: c.label }))} tab={tab} onTab={setTab} />
@@ -45,8 +57,44 @@ export function SECF({ route }: FnProps) {
         <label className="fld" htmlFor={`secf-${panel}`}>
           Search
         </label>
-        <input id={`secf-${panel}`} className="inp" style={{ width: 260 }} autoFocus value={q} placeholder="Ticker, name or alias (e.g. gold, tsmc, bund)" onChange={(e) => setQ(e.target.value)} />
+        <input
+          id={`secf-${panel}`}
+          className="inp"
+          style={{ width: 260 }}
+          autoFocus
+          value={q}
+          placeholder="Ticker, name or alias (e.g. gold, tsmc, bund)"
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && source && searchWeb()}
+        />
+        {source ? (
+          <button type="button" className="btn" onClick={searchWeb} disabled={!q.trim() || online.busy}>
+            Search all US stocks ({source === 'yahoo' ? 'Yahoo Finance' : 'Finnhub'})
+          </button>
+        ) : (
+          <span className="muted hide-m">Add a Finnhub key in PDFU, or use the desktop app, to search every US stock</span>
+        )}
       </div>
+      {(online.busy || online.hits.length > 0 || online.error || (online.q && !online.busy)) && (
+        <Section title={`Online results for "${online.q}"`} right={online.busy ? 'Searching…' : `${online.hits.length} found · click to load`}>
+          {online.error && <p className="pad-s dn">{online.error}</p>}
+          {!online.busy && !online.error && online.hits.length === 0 && <p className="pad-s muted">No US-listed stocks match.</p>}
+          <table className="tbl">
+            <tbody>
+              {online.hits.map((h) => (
+                <tr key={h.symbol} className="click" onClick={() => execute(panel, `${h.symbol} US EQUITY`)}>
+                  <td className="yellow" style={{ width: 120 }}>
+                    {h.symbol} US
+                  </td>
+                  <td className="white">{h.name}</td>
+                  <td className="muted hide-m">{h.exchange}</td>
+                  <td className="muted">{engine.get(`${h.symbol} US Equity`) ? 'Loaded' : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
       <DataTable
         rows={rows}
         rowKey={(d) => d.id}
@@ -250,7 +298,7 @@ export function PDFU(_: FnProps) {
               </button>
             </label>
             <div className="note" style={{ padding: 0 }}>
-              With a key, US stocks quote live and real headlines join the news feed. The key never leaves this browser except in requests to Finnhub.
+              With a key, US stocks quote live, real headlines join the news feed, and any US-listed stock that is not built in can be looked up by typing its ticker. The key never leaves this browser except in requests to Finnhub. The desktop app looks stocks up through Yahoo Finance without a key.
             </div>
           </div>
         </Section>

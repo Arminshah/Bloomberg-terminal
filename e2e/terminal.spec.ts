@@ -40,6 +40,7 @@ const COMMANDS: [string, string][] = [
   ['ES1 INDEX DEPTH', 'DEPTH'], ['WEIF', 'WEIF'], ['SPX INDEX MOV', 'MOV'], ['INDU INDEX MOV', 'MOV'], ['AAPL TRA', 'TRA'], ['SPX INDEX TRA', 'TRA'],
   ['AAPL GF', 'GF'], ['AAPL HVT', 'HVT'], ['USGG10YR INDEX HVT', 'HVT'], ['AAPL VWAP', 'VWAP'], ['EURUSD CRNCY FRD', 'FRD'], ['USDJPY CRNCY OVML', 'OVML'],
   ['SWPM', 'SWPM'], ['CDR', 'CDR'], ['CENB', 'CENB'], ['READ', 'READ'], ['AAPL EMSX', 'EMSX'], ['ES1 INDEX EMSX', 'EMSX'], ['HELP HELP', 'IB'],
+  ['$APLD', 'MENU'], ['APLD US EQUITY DES', 'DES'], ['$APLD GP', 'GP'], ['APLD FA', 'FA'],
 ];
 
 test('default workspace renders four live panels', async ({ page }) => {
@@ -98,6 +99,9 @@ test('bad commands explain themselves', async ({ page }) => {
   await expect(page.locator('.cmd-msg.error')).toContainText('Unknown');
   await run(page, 'EURUSD CRNCY FA');
   await expect(page.locator('.cmd-msg.error')).toContainText('not available');
+  // Without a Finnhub key the browser explains how to load stocks that are not built in.
+  await run(page, '$SOFI');
+  await expect(page.locator('.cmd-msg.error')).toContainText('Finnhub key');
 });
 
 test('watchlist add and alert creation persist', async ({ page }) => {

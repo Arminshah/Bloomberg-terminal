@@ -25,9 +25,12 @@ export const UNCOVERED_KEYS = new Set(['Mtge', 'M-Mkt', 'Muni', 'Pfd']);
 const norm = (s: string) => s.toUpperCase().replace(/\s+/g, ' ').trim();
 
 let tickerIndex: Map<string, SecurityDef[]> | null = null;
+let indexedCount = 0;
 
 function index(): Map<string, SecurityDef[]> {
-  if (tickerIndex) return tickerIndex;
+  // Securities looked up online are appended at runtime; rebuild when the list grows.
+  if (tickerIndex && indexedCount === engine.securities.length) return tickerIndex;
+  indexedCount = engine.securities.length;
   tickerIndex = new Map();
   const add = (k: string, d: SecurityDef) => {
     const key = norm(k);

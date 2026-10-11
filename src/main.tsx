@@ -7,6 +7,10 @@ import '@fontsource/ibm-plex-sans/latin-400.css';
 import '@fontsource/ibm-plex-sans/latin-600.css';
 import './styles/global.css';
 import { App } from './App';
+import { restoreCustomSecurities } from './data/live/lookup';
+
+// Securities looked up online in earlier sessions must exist before saved panels render.
+restoreCustomSecurities();
 
 if (import.meta.env.MODE === 'single') document.documentElement.classList.add('embedded');
 

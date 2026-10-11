@@ -2,7 +2,7 @@
 // Loads the built web app from dist/ and gives it a native window. There is no
 // menu bar: F1-F12 belong to the terminal's market sector keys, so window
 // commands use Ctrl+Shift shortcuts instead.
-const { app, BrowserWindow, Menu, shell, screen } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, net, shell, screen } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -44,6 +44,43 @@ function nextId() {
   return id;
 }
 
+// ------------------------------------------------------------ Yahoo Finance
+// Lets the terminal look up any US-listed stock without an API key. Profile
+// data needs Yahoo's session cookie and crumb, which the default session keeps.
+const YAHOO = 'https://query2.finance.yahoo.com';
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
+const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=-]+\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=-]+\?)/;
+let crumb = null;
+
+async function yahooFetch(url, json = true) {
+  return net.fetch(url, { headers: { 'User-Agent': UA, ...(json ? { Accept: 'application/json' } : {}) }, credentials: 'include' });
+}
+
+async function getCrumb(force) {
+  if (crumb && !force) return crumb;
+  // The cookie comes back on a 404 page; the crumb endpoint answers in plain text.
+  await yahooFetch('https://fc.yahoo.com/', false).catch(() => undefined);
+  const res = await yahooFetch(`${YAHOO}/v1/test/getcrumb`, false);
+  if (!res.ok) throw new Error(`crumb ${res.status}`);
+  crumb = (await res.text()).trim();
+  return crumb;
+}
+
+ipcMain.handle('yahoo', async (event, path) => {
+  if (!event.senderFrame || !event.senderFrame.url.startsWith('file://')) throw new Error('not allowed');
+  if (typeof path !== 'string' || path.length > 400 || !ALLOWED.test(path)) throw new Error('not allowed');
+  const needsCrumb = path.startsWith('/v10/');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let url = YAHOO + path;
+    if (needsCrumb) url += `&crumb=${encodeURIComponent(await getCrumb(attempt > 0))}`;
+    const res = await yahooFetch(url);
+    if (needsCrumb && attempt === 0 && (res.status === 401 || res.status === 403)) continue;
+    if (!res.ok) return { status: res.status, data: null };
+    return { status: res.status, data: await res.json() };
+  }
+  return { status: 401, data: null };
+});
+
 function createWindow(id = nextId()) {
   const saved = loadState()[id] ?? {};
   const bounds = visible(saved.bounds);
@@ -60,6 +97,7 @@ function createWindow(id = nextId()) {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,

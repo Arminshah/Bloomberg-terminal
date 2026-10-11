@@ -33,6 +33,8 @@ const EXAMPLES: [string, string][] = [
   ['AAPL US <EQUITY> <GO>', 'Related functions menu for Apple'],
   ['AAPL US <EQUITY> GP <GO>', 'Price graph for Apple'],
   ['NVDA DES', 'Ticker shorthand plus function'],
+  ['$APLD', 'Cashtags work too'],
+  ['SOFI US <EQUITY>', 'Any US stock: looked up online if not built in'],
   ['EURUSD <CRNCY> GIP', 'Intraday EUR-USD'],
   ['USGG10YR <INDEX> GP', 'US 10-year yield history'],
   ['CT10 <GOVT> YAS', 'Yield analysis, current 10-year Treasury'],

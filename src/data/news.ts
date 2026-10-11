@@ -46,7 +46,7 @@ const NAME_OVERRIDES: Record<string, string> = {
   '2330 TT Equity': 'TSMC', '005930 KS Equity': 'Samsung Electronics', 'MC FP Equity': 'LVMH', 'NOVOB DC Equity': 'Novo Nordisk',
   'GS US Equity': 'Goldman Sachs', 'MCD US Equity': "McDonald's", 'XOM US Equity': 'Exxon Mobil', 'JPM US Equity': 'JPMorgan',
   'BAC US Equity': 'Bank of America', 'LLY US Equity': 'Eli Lilly', 'UNH US Equity': 'UnitedHealth', 'MA US Equity': 'Mastercard',
-  'V US Equity': 'Visa', 'NKE US Equity': 'Nike', 'PLTR US Equity': 'Palantir', 'COIN US Equity': 'Coinbase', 'SHOP CN Equity': 'Shopify',
+  'V US Equity': 'Visa', 'NKE US Equity': 'Nike', 'PLTR US Equity': 'Palantir', 'APLD US Equity': 'Applied Digital', 'COIN US Equity': 'Coinbase', 'SHOP CN Equity': 'Shopify',
   'ROG SW Equity': 'Roche', 'NESN SW Equity': 'Nestle', 'NOVN SW Equity': 'Novartis', 'SIE GY Equity': 'Siemens', '7203 JT Equity': 'Toyota',
   '6758 JT Equity': 'Sony', '9984 JT Equity': 'SoftBank', '700 HK Equity': 'Tencent', '9988 HK Equity': 'Alibaba', 'RELIANCE IN Equity': 'Reliance Industries',
   'BHP AU Equity': 'BHP', 'CBA AU Equity': 'Commonwealth Bank', 'RY CN Equity': 'Royal Bank of Canada', 'TMO US Equity': 'Thermo Fisher',

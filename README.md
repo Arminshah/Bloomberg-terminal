@@ -39,6 +39,8 @@ Type anywhere and the text goes to the active panel's command line. The syntax f
 | `IBM US <EQUITY> <GO>` | Loads IBM and shows its related functions menu, numbered by category |
 | `AAPL US <EQUITY> GP <GO>` | Price graph for Apple |
 | `NVDA DES` | Ticker shorthand plus a function |
+| `$APLD` | Cashtags work too |
+| `SOFI US <EQUITY> <GO>` | Any US-listed stock; looked up online if it is not built in (see below) |
 | `EQUITY <GO>` | Market sector menu for equities (works for every yellow key) |
 | `AAPL <CORP> <GO>` | Apple's bonds outstanding |
 | `CT10 <GOVT> YAS` | Yield analysis on the current 10-year Treasury |
@@ -81,11 +83,20 @@ EMSX is paper trading. Market orders fill at the bid or offer, limit orders rest
 
 Tables can be copied or exported as CSV. Watchlists, the portfolio, orders, alerts, notes, chats, panel layouts and settings are saved locally.
 
+## Any US stock
+
+The built-in universe covers the large caps, but you can type any US-listed stock, with or without a `$`. If the ticker is not built in, the terminal looks it up online, adds it, and runs your command:
+
+- The desktop app asks Yahoo Finance through its own process, so no key is needed. It loads ten years of daily prices, the company profile (sector, headquarters, chief executive, employees, shares, revenue, earnings, debt), and during US market hours it updates the price from one-minute bars every 30 seconds.
+- In the browser, add a free Finnhub key in `PDFU`. Lookups then use Finnhub's profile, key metrics and quote; the history is calibrated through the real 1-week, 1-month, 3-month, 6-month, year-to-date and 1-year returns, and prices stream live.
+
+`SECF` searches all US stocks by name as well (click Search all US stocks). Looked-up stocks are saved and load instantly, calibrated, the next time, even offline. Funds, ETFs and non-US listings are not looked up; the terminal says so.
+
 ## Where the data comes from
 
-The universe holds 83 stocks across the US, Europe and Asia, 28 equity indices, 11 equity index futures, 23 currency pairs and the dollar index, 19 commodity futures, 32 government yields, 10 cryptocurrencies, the seven on-the-run US Treasuries and 42 corporate bonds from 20 large US issuers.
+The universe holds 84 stocks across the US, Europe and Asia, 28 equity indices, 11 equity index futures, 23 currency pairs and the dollar index, 19 commodity futures, 32 government yields, 10 cryptocurrencies, the seven on-the-run US Treasuries and 42 corporate bonds from 20 large US issuers.
 
-`scripts/snapshot.ts` reduces five years of daily closes for each instrument to a few anchor points (the last close and the levels one week, one month, three months, six months, year-to-date, one, two, three and five years ago) plus realised volatility and average volume. Those anchors live in `src/data/universe/snapshot.json`, currently as of 9 October 2026. The engine draws ten years of daily history that passes exactly through every anchor, so one-year returns and price levels match the real market at the snapshot date. From there a factor model (global, regional, sector, rates, dollar, oil, metals and crypto factors) simulates each day and each minute. The randomness is a pure function of instrument, date and minute, so every browser sees the same market and a reload shows the same history. Run `npm run snapshot` to refresh the calibration.
+`scripts/snapshot.ts` reduces five years of daily closes for each instrument to a few anchor points (the last close and the levels one week, one month, three months, six months, year-to-date, one, two, three and five years ago) plus realised volatility and average volume. Those anchors live in `src/data/universe/snapshot.json`, currently as of 9 October 2026. The engine draws ten years of daily history that passes exactly through every anchor, so one-year returns and price levels match the real market at the snapshot date. From there a factor model (global, regional, sector, rates, dollar, oil, metals and crypto factors) simulates each day and each minute. The randomness is a pure function of instrument, date and minute, so every browser sees the same market and a reload shows the same history. Run `npm run snapshot` to refresh the calibration, or `npm run snapshot -- --only "APLD US Equity"` for one instrument.
 
 Some instruments are priced from others. Treasuries and corporate bonds are priced off the generic Treasury curve, interpolated to each maturity. A corporate bond adds a credit spread that widens when the issuer's shares fall. Index futures trade at fair value to their index: the index carried at the financing rate less the dividend yield to the third-Friday expiry, rounded to the contract's tick. Currency crosses and the dollar index come from the underlying currencies.
 
@@ -116,7 +127,7 @@ The workflow in `.github/workflows/pages.yml` publishes the site to GitHub Pages
 | `npm run desktop:build` | Windows installer and portable .exe in `release/` |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript project build |
-| `npm test` | Unit tests (Vitest): market engine, bonds and futures pricing, calibration, option math, indicators, parser, paper trading, calendar, fundamentals |
+| `npm test` | Unit tests (Vitest): market engine, bonds and futures pricing, calibration, option math, indicators, parser, online ticker lookup, paper trading, calendar, fundamentals |
 | `npm run e2e` | Browser tests (Playwright): every function renders, keyboard flow, menus, persistence, phone layout |
 | `npm run snapshot` | Refresh calibration anchors from public daily closes |
 

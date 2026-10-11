@@ -215,7 +215,10 @@ class FinnhubFeed {
   constructor(readonly key: string) {}
 
   async start() {
-    for (const d of engine.securities) if (d.cls === 'equity' && d.country === 'US') this.symbols.set(FINNHUB_SYMBOL[d.id] ?? d.ticker.split(' ')[0], d.id);
+    for (const d of engine.securities) {
+      if (d.cls !== 'equity' || d.country !== 'US') continue;
+      this.symbols.set(d.dynamic?.source === 'finnhub' ? d.dynamic.symbol : (FINNHUB_SYMBOL[d.id] ?? d.ticker.split(' ')[0].replace('/', '.')), d.id);
+    }
     setFeed('equities', 'connecting', 'Requesting quotes');
     setFeed('news', 'connecting', 'Requesting headlines');
     void this.loadNews();
@@ -239,6 +242,22 @@ class FinnhubFeed {
       const blocked = isBlocked(err);
       setFeed('equities', blocked ? 'blocked' : 'error', blocked ? 'Network blocked here; using simulator' : `Finnhub: ${String(err)}`);
     }
+  }
+
+  /** Adds a security found at runtime: one quote now, then streaming trades. */
+  async track(sym: string, id: string) {
+    if (this.stopped || [...this.symbols.values()].includes(id)) return;
+    this.symbols.set(sym, id);
+    try {
+      const q = await getJson<{ c: number; h: number; l: number; o: number; pc: number; t: number }>(`${FINNHUB}/quote?symbol=${encodeURIComponent(sym)}&token=${this.key}`, this.ctrl.signal);
+      if (q.c > 0) {
+        engine.applyLive(id, { last: q.c, prevClose: q.pc, open: q.o, high: q.h, low: q.l, time: q.t * 1000 });
+        engine.flush([id]);
+      }
+    } catch {
+      /* streaming may still deliver trades */
+    }
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ type: 'subscribe', symbol: sym }));
   }
 
   private connect() {
@@ -350,6 +369,11 @@ function toStory(n: { id: number; datetime: number; headline: string; summary: s
 let crypto: CryptoFeed | null = null;
 let finnhub: FinnhubFeed | null = null;
 let fxCtrl: AbortController | null = null;
+
+/** Streams a security that was looked up after the Finnhub feed started. */
+export function trackFinnhubSymbol(sym: string, id: string) {
+  void finnhub?.track(sym, id);
+}
 
 export function requestCompanyNews(id: string) {
   void finnhub?.companyNews(id);
