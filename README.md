@@ -17,7 +17,7 @@ The executables are not code-signed, so the first launch may show "Windows prote
 
 The desktop app has no menu bar, so every F-key reaches the terminal. Window commands use Ctrl+Shift: Ctrl+Shift+N opens another terminal window with its own panel layout, Ctrl+Shift+F toggles full screen, Ctrl+Shift+I opens developer tools, and Ctrl+plus, Ctrl+minus and Ctrl+0 zoom. Watchlists, the portfolio, orders, alerts and settings are shared and stay in sync across windows. Each window remembers its size and position.
 
-To build the installers yourself, push a tag such as `v1.0.1`. The workflow in `.github/workflows/release.yml` builds both files on a Windows runner and attaches them to a GitHub Release for that tag. Locally, `npm run desktop` starts the desktop app and `npm run desktop:build` writes the installers to `release/` (on Windows; building the installer on Linux needs Wine).
+Every push also builds both files in CI; they are attached to each run of the CI workflow under Artifacts (`armin-terminal-windows`), for anyone signed in to GitHub. To publish a release, push a tag such as `v1.0.1`. The workflow in `.github/workflows/release.yml` builds both files on a Windows runner and attaches them to a GitHub Release for that tag. Locally, `npm run desktop` starts the desktop app and `npm run desktop:build` writes the installers to `release/` (on Windows; building the installer on Linux needs Wine).
 
 ## Run it in the browser
 

@@ -22,7 +22,8 @@ html = html.replace(/<script type="module"[^>]*src="\.?\/?([^"]+\.js)"[^>]*><\/s
   scripts += `<script type="module">${js}</script>`;
   return '';
 });
-html = html.replace('</body>', `${scripts}</body>`);
+// A replacer function: a plain string would expand $' and $& sequences found in the minified code.
+html = html.replace('</body>', () => `${scripts}</body>`);
 html = html.replace(/<link rel="modulepreload"[^>]*>/g, '');
 
 writeFileSync(join(dir, 'armin-terminal.html'), html);
