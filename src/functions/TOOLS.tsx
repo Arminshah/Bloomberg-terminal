@@ -209,7 +209,7 @@ export function PDFU(_: FnProps) {
   );
   return (
     <div>
-      <FnHeader code="PDFU" title="Personal Defaults & Data Sources" sub="Settings are stored in this browser" />
+      <FnHeader code="PDFU" title="Personal Defaults & Data Sources" sub={engine.realOnly ? 'Settings are stored on this computer' : 'Settings are stored in this browser'} />
       <div className="cols">
         <Section title="Display">
           <div className="pad" style={{ display: 'grid', gap: 8 }}>
@@ -344,11 +344,18 @@ export function PDFU(_: FnProps) {
         </Section>
       </div>
       <Section title="About">
-        <p className="prose">
-          Armin Terminal is an independent, Bloomberg-style market terminal that runs entirely in the browser. It is not affiliated with Bloomberg L.P. Prices are
-          simulated by a calibrated factor model unless a live feed is connected and marked LIVE; fundamentals, analyst views, holders, news and economic
-          figures are generated for demonstration and are not investment advice.
-        </p>
+        {engine.realOnly ? (
+          <p className="prose">
+            Armin Terminal is an independent, Bloomberg-style market terminal. It is not affiliated with Bloomberg L.P. The desktop app shows real data only, from the
+            free public sources listed above, with their delays: anything they do not cover is left out rather than simulated. It is not investment advice.
+          </p>
+        ) : (
+          <p className="prose">
+            Armin Terminal is an independent, Bloomberg-style market terminal that runs entirely in the browser. It is not affiliated with Bloomberg L.P. Prices are
+            simulated by a calibrated factor model unless a live feed is connected and marked LIVE; fundamentals, analyst views, holders, news and economic
+            figures are generated for demonstration and are not investment advice.
+          </p>
+        )}
       </Section>
     </div>
   );

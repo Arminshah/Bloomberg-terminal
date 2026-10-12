@@ -1,6 +1,7 @@
 import { createStore } from '../../core/store';
 import { zonedToUtc } from '../../core/format';
 import { setFeed } from './status';
+import { euroAreaCode, official, parseJsonStat, parseOnsCsv, parseOnsMonths } from './official';
 
 /**
  * US economic releases and international statistics for the desktop app from
@@ -68,19 +69,30 @@ export const US_EVENTS: FredEvent[] = [
   { rid: 51, name: 'Trade Balance', series: 'BOPGSTB', calc: 'level', freq: 'm', minDelay: 28, unit: 'bn', dec: 1, scale: 0.001, rel: 2, kind: 'other' },
 ];
 
-/** Country statistics for ECST: [series, calculation, frequency]. */
-export const COUNTRY_STATS: Record<string, { gdp?: [string, Freq]; cpi?: [string, Freq]; un?: [string, Freq] }> = {
-  US: { gdp: ['GDPC1', 'q'], cpi: ['CPIAUCNS', 'm'], un: ['UNRATE', 'm'] },
-  EZ: { gdp: ['CLVMNACSCAB1GQEA19', 'q'], cpi: ['CP0000EZ19M086NEST', 'm'] },
-  DE: { gdp: ['CLVMNACSCAB1GQDE', 'q'], cpi: ['CP0000DEM086NEST', 'm'], un: ['LRHUTTTTDEM156S', 'm'] },
-  FR: { gdp: ['CLVMNACSCAB1GQFR', 'q'], cpi: ['CP0000FRM086NEST', 'm'], un: ['LRHUTTTTFRM156S', 'm'] },
-  IT: { gdp: ['CLVMNACSCAB1GQIT', 'q'], cpi: ['CP0000ITM086NEST', 'm'], un: ['LRHUTTTTITM156S', 'm'] },
-  ES: { gdp: ['CLVMNACSCAB1GQES', 'q'], cpi: ['CP0000ESM086NEST', 'm'], un: ['LRHUTTTTESM156S', 'm'] },
-  GB: { gdp: ['NGDPRSAXDCGBQ', 'q'], un: ['LRHUTTTTGBM156S', 'm'] },
+/**
+ * Country statistics for ECST: [series, frequency, calculation], the calculation defaulting to the
+ * year-on-year change for GDP and prices. Wherever a statistics office publishes the headline rate
+ * itself, that published rate is used: BEA's real GDP growth on a year earlier, Eurostat's HICP
+ * annual rate, GDP growth and unemployment, and the ONS's CPI, GDP growth and unemployment.
+ * Japan, Canada and Australia have no such series here: their GDP growth is worked out from OECD
+ * real GDP levels and their unemployment is the OECD harmonised rate.
+ */
+export const COUNTRY_STATS: Record<string, { gdp?: [string, Freq, Calc?]; cpi?: [string, Freq, Calc?]; un?: [string, Freq] }> = {
+  US: { gdp: ['A191RO1Q156NBEA', 'q', 'level'], cpi: ['CPIAUCNS', 'm'], un: ['UNRATE', 'm'] },
+  EZ: { gdp: ['ESTAT:GDP:EA', 'q', 'level'], cpi: ['ESTAT:HICP:EA', 'm', 'level'], un: ['ESTAT:UN:EA', 'm'] },
+  DE: { gdp: ['ESTAT:GDP:DE', 'q', 'level'], cpi: ['ESTAT:HICP:DE', 'm', 'level'], un: ['ESTAT:UN:DE', 'm'] },
+  FR: { gdp: ['ESTAT:GDP:FR', 'q', 'level'], cpi: ['ESTAT:HICP:FR', 'm', 'level'], un: ['ESTAT:UN:FR', 'm'] },
+  IT: { gdp: ['ESTAT:GDP:IT', 'q', 'level'], cpi: ['ESTAT:HICP:IT', 'm', 'level'], un: ['ESTAT:UN:IT', 'm'] },
+  ES: { gdp: ['ESTAT:GDP:ES', 'q', 'level'], cpi: ['ESTAT:HICP:ES', 'm', 'level'], un: ['ESTAT:UN:ES', 'm'] },
+  NL: { gdp: ['ESTAT:GDP:NL', 'q', 'level'], cpi: ['ESTAT:HICP:NL', 'm', 'level'], un: ['ESTAT:UN:NL', 'm'] },
+  GB: { gdp: ['ONS:IHYR', 'q', 'level'], cpi: ['ONS:D7G7', 'm', 'level'], un: ['ONS:MGSX', 'm'] },
   JP: { gdp: ['JPNRGDPEXP', 'q'], un: ['LRHUTTTTJPM156S', 'm'] },
   CA: { gdp: ['NGDPRSAXDCCAQ', 'q'], un: ['LRHUTTTTCAM156S', 'm'] },
   AU: { gdp: ['NGDPRSAXDCAUQ', 'q'], un: ['LRHUTTTTAUM156S', 'm'] },
 };
+
+/** Countries whose growth figure is worked out here rather than published as a rate. */
+export const COMPUTED_GROWTH = new Set(['JP', 'CA', 'AU']);
 
 // ------------------------------------------------------------------ parsing
 
@@ -223,9 +235,9 @@ export function fredAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.fred === 'function';
 }
 
-async function get(kind: 'calendar' | 'series', arg: string, year?: number): Promise<string> {
+async function get(kind: 'calendar' | 'series', arg: string, from?: string): Promise<string> {
   try {
-    const res = await window.arminDesktop!.fred!(kind, arg, year);
+    const res = await window.arminDesktop!.fred!(kind, arg, from);
     return res.status === 200 ? res.text : '';
   } catch {
     return '';
@@ -236,9 +248,7 @@ async function get(kind: 'calendar' | 'series', arg: string, year?: number): Pro
 function seriesBatches(): string[] {
   const byFreq: Record<Freq, Set<string>> = { m: new Set(), q: new Set(), w: new Set() };
   for (const ev of US_EVENTS) byFreq[ev.freq].add(ev.series);
-  // GDP levels for ECST's growth figures are quarterly.
-  byFreq.q.add('GDPC1');
-  for (const c of Object.values(COUNTRY_STATS)) for (const s of [c.gdp, c.cpi, c.un]) if (s) byFreq[s[1]].add(s[0]);
+  for (const c of Object.values(COUNTRY_STATS)) for (const s of [c.gdp, c.cpi, c.un]) if (s && !s[0].includes(':')) byFreq[s[1]].add(s[0]);
   const out: string[] = [];
   for (const set of Object.values(byFreq)) {
     const ids = [...set];
@@ -247,9 +257,52 @@ function seriesBatches(): string[] {
   return out;
 }
 
+/** Headline rates the statistics offices publish themselves (ONS, Eurostat), under pseudo series ids. */
+async function loadOfficialStats(series: Record<string, Obs>) {
+  const since = new Date(Date.now() - 3 * 365.25 * 86_400_000).toISOString().slice(0, 10);
+  const [cpi, gdp, unemp, hicp, eun, egdp] = await Promise.all(
+    (['ukcpi', 'ukgdp', 'ukunemp', 'estatHicp', 'estatUnemp', 'estatGdp'] as const).map((k) => official(k, since)),
+  );
+  const put = (id: string, obs: Obs | undefined) => {
+    if (obs?.length) series[id] = obs;
+  };
+  put('ONS:D7G7', parseOnsCsv(cpi));
+  put('ONS:IHYR', parseOnsCsv(gdp, 'q'));
+  const lfs = parseOnsMonths(unemp);
+  put('ONS:MGSX', lfs.obs);
+  for (const [d, label] of lfs.labels) periodNames.set(`ONS:MGSX|${d}`, label);
+  for (const [kind, text] of [['HICP', hicp], ['UN', eun], ['GDP', egdp]] as const) {
+    const flags = new Map<string, string>();
+    const m = parseJsonStat(text, flags);
+    const ea = euroAreaCode(m);
+    for (const [g, as] of [...(ea ? [[ea, 'EA']] : []), ...['DE', 'FR', 'IT', 'ES', 'NL'].map((x) => [x, x])]) {
+      const id = `ESTAT:${kind}:${as}`;
+      put(id, m.get(g));
+      for (const [d] of m.get(g) ?? []) {
+        const f = flags.get(`${g}|${d}`);
+        if (f) statusFlags.set(`${id}|${d}`, f);
+      }
+    }
+  }
+}
+
+/** Status of an official figure, "estimate" or "provisional", when the source flags it. */
+export function figureStatus(id: string, date: string): string | undefined {
+  const f = statusFlags.get(`${id}|${date}`);
+  return f === 'e' ? 'estimate' : f === 'p' ? 'provisional' : undefined;
+}
+
+/** The period a figure covers: the source's own name for it ("May-Jul 2026" for a UK three-month average), else from its date. */
+export function figurePeriod(id: string, date: string, freq: Freq): string {
+  return periodNames.get(`${id}|${date}`) ?? periodLabel(date, freq);
+}
+
+const statusFlags = new Map<string, string>();
+const periodNames = new Map<string, string>();
+
 async function loadSeries(): Promise<boolean> {
-  const texts = await Promise.all(seriesBatches().map((b) => get('series', b)));
   const series = { ...fredData.get().series };
+  const [texts] = await Promise.all([Promise.all(seriesBatches().map((b) => get('series', b))), loadOfficialStats(series)]);
   let any = false;
   for (const t of texts) {
     const parsed = parseFredCsv(t);
@@ -264,20 +317,16 @@ async function loadSeries(): Promise<boolean> {
 }
 
 async function loadCalendars(): Promise<boolean> {
-  const now = new Date();
-  const years = [now.getUTCFullYear()];
-  // Early in the year "last week" reaches back; late in the year the next one is close.
-  if (now.getUTCMonth() === 0) years.unshift(now.getUTCFullYear() - 1);
-  if (now.getUTCMonth() >= 10) years.push(now.getUTCFullYear() + 1);
+  // A month back (ECO's "last week") to five months ahead.
+  const from = new Date(Date.now() - 31 * 86_400_000).toISOString().slice(0, 10);
   const rids = [...new Set(US_EVENTS.map((e) => e.rid))];
   const releases = { ...fredData.get().releases };
   let any = false;
   await Promise.all(
     rids.map(async (rid) => {
-      const all: number[] = [];
-      for (const y of years) all.push(...parseFredCalendar(await get('calendar', String(rid), y), rid));
-      if (all.length) {
-        releases[rid] = [...new Set(all)].sort((a, b) => a - b);
+      const times = parseFredCalendar(await get('calendar', String(rid), from), rid);
+      if (times.length) {
+        releases[rid] = times;
         any = true;
       }
     }),

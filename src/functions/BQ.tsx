@@ -119,7 +119,7 @@ export function BQ({ sec }: FnProps) {
               items={[
                 ['Market cap', `${fmtMln(ks.mcap)} ${ks.tradeCcy}`],
                 ['P/E LTM / FY1', `${fmtNum(ks.pe, 1)} / ${fmtNum(ks.fpe, 1)}`],
-                ['Dividend yield', fmtPct(ks.divYld, 2, false)],
+                ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
                 ['Beta', fmtNum(ks.beta, 2)],
                 ['Next earnings', ne ? fmtEarnDate(ne) : '--'],
                 ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],

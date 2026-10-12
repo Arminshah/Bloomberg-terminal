@@ -82,14 +82,49 @@ export function contractSymbols(root: string, exch: string, listed: string, n: n
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /**
- * The contract behind a continuous futures quote, as the source names it
- * ("E-Mini S&P 500 Dec 26", expiring 18 Dec): month code, expiry and open interest.
+ * The contract behind a continuous futures quote, as the source names it: its
+ * contract symbol ("RTYZ26.CME"), else its name ("E-Mini S&P 500 Dec 26"),
+ * with the expiry and open interest. Names can be cut short, so the symbol comes first.
  */
-export function frontContract(q: { shortName?: unknown; expireIsoDate?: unknown; expireDate?: unknown; openInterest?: unknown } | undefined): { code: string; month: string; expiry: number; openInterest: number } | null {
+export function frontContract(
+  q: { underlyingSymbol?: unknown; shortName?: unknown; expireIsoDate?: unknown; expireDate?: unknown; openInterest?: unknown } | undefined,
+): { code: string; month: string; expiry: number; openInterest: number } | null {
   if (!q) return null;
-  const m = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-\s,]+(?:20)?(\d{2})\s*$/.exec(String(q.shortName ?? '').trim());
   const expiry = typeof q.expireIsoDate === 'string' ? Date.parse(q.expireIsoDate) : Number(q.expireDate) * 1000;
-  if (!m || !Number.isFinite(expiry)) return null;
-  const k = MONTH_NAMES.indexOf(m[1]);
-  return { code: `${MONTH_CODES[k]}${m[2]}`, month: `${m[1]} ${m[2]}`, expiry, openInterest: Number(q.openInterest) || NaN };
+  if (!Number.isFinite(expiry)) return null;
+  const s = /([FGHJKMNQUVXZ])(\d{2})\.[A-Z]+$/.exec(String(q.underlyingSymbol ?? ''));
+  const n = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-\s,]+(?:20)?(\d{2})\s*$/.exec(String(q.shortName ?? '').trim());
+  const k = s ? MONTH_CODES.indexOf(s[1]) : n ? MONTH_NAMES.indexOf(n[1]) : -1;
+  const yy = s ? s[2] : n?.[2];
+  if (k < 0 || !yy) return null;
+  return { code: `${MONTH_CODES[k]}${yy}`, month: `${MONTH_NAMES[k]} ${yy}`, expiry, openInterest: Number(q.openInterest) || NaN };
+}
+
+const components = new Map<string, { list: string[] | null; at: number }>();
+const componentsInflight = new Set<string>();
+
+/**
+ * An index's current members as the source lists them (Yahoo has the Dow, the
+ * Nasdaq 100, the FTSE 100 and the DAX), refreshed every six hours. Null while
+ * loading, an empty list when the source has none.
+ */
+export function useIndexComponents(symbol: string): string[] | null {
+  extraQuotes.use((x) => x.v);
+  useEffect(() => {
+    if (!desktopData()) return;
+    const c = components.get(symbol);
+    if ((c && Date.now() - c.at < 6 * 3600_000) || componentsInflight.has(symbol)) return;
+    componentsInflight.add(symbol);
+    void yahooGet(`/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=components`)
+      .then((res) => {
+        const list = res?.quoteSummary?.result?.[0]?.components?.components;
+        components.set(symbol, { list: Array.isArray(list) ? list.map(String) : [], at: Date.now() });
+      })
+      .catch(() => components.set(symbol, { list: [], at: Date.now() - 6 * 3600_000 + 120_000 }))
+      .finally(() => {
+        componentsInflight.delete(symbol);
+        extraQuotes.set((x) => ({ v: x.v + 1 }));
+      });
+  }, [symbol]);
+  return components.get(symbol)?.list ?? null;
 }

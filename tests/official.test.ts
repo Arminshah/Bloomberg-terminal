@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBoeColumns, parseBubaCsv, parseMofCsv, parseRbaTable, parseSgs, parseSnbCube, parseValetGroup } from '../src/data/live/official';
+import { euroAreaCode, parseBoeColumns, parseBubaCsv, parseJsonStat, parseMofCsv, parseOnsCsv, parseOnsMonths, parseRbaTable, parseSgs, parseSnbCube, parseValetGroup } from '../src/data/live/official';
 import { parseFomcCalendar, parseNyFedLatest } from '../src/data/live/policy';
 import { obsToBars, OFFICIAL_LINES, parseSource } from '../src/data/live/govyields';
 import { fedPath } from '../src/data/fedpath';
@@ -7,6 +7,10 @@ import { centralBanks } from '../src/data/eco';
 import { isoToDay } from '../src/data/calendar';
 
 import fomcHtml from './fixtures/fomc-calendar.html?raw';
+import estatHicp from './fixtures/eurostat-hicp.json?raw';
+import estatUnemp from './fixtures/eurostat-unemp.json?raw';
+import estatGdp from './fixtures/eurostat-gdp.json?raw';
+import onsMgsx from './fixtures/ons-mgsx.json?raw';
 
 // Excerpts of what each source returned on 12 Oct 2026.
 const BUBA = `\uFEFF"",BBSIS.D.I.ZST.ZI.EUR.S1311.B.A604.R10XX.R.A.A._Z._Z.A,BBSIS.D.I.ZST.ZI.EUR.S1311.B.A604.R10XX.R.A.A._Z._Z.A_FLAGS,BBSIS.D.I.ZST.ZI.EUR.S1311.B.A604.R30XX.R.A.A._Z._Z.A,BBSIS.D.I.ZST.ZI.EUR.S1311.B.A604.R30XX.R.A.A._Z._Z.A_FLAGS
@@ -267,5 +271,66 @@ describe('FRED releases', () => {
     const times = [Date.parse('2026-10-02T14:00:00Z'), Date.parse('2026-10-27T12:30:00Z')];
     expect(eventTimes(ev('Durable Goods Orders MoM'), times)).toEqual([times[1]]);
     expect(eventTimes(ev('Factory Orders MoM'), times)).toEqual([times[0]]);
+  });
+});
+
+// ONS GDP growth on a year earlier (IHYR), as published on 30 Sep 2026.
+const ONS_IHYR = `"Title","Gross Domestic Product: q-on-q4 growth rate CVM SA %"
+"CDID","IHYR"
+"Source dataset ID","QNA"
+"PreUnit",""
+"Unit","%"
+"Release date","30-09-2026"
+"Next release","12 November 2026"
+"Important notes",
+"2025 Q4","0.8"
+"2026 Q1","0.8"
+"2026 Q2","1.4"`;
+
+describe('statistics offices', () => {
+  it('reads Eurostat annual inflation by country with its flash-estimate flags', () => {
+    const flags = new Map<string, string>();
+    const m = parseJsonStat(estatHicp, flags);
+    expect(m.get('EA')).toEqual([['2026-07-01', 2.9], ['2026-08-01', 3.2], ['2026-09-01', 3.8]]);
+    expect(m.get('EA21')?.[0]).toEqual(['2026-07-01', 3.0]);
+    expect(m.get('DE')?.[2]).toEqual(['2026-09-01', 3.3]);
+    expect(flags.get('EA|2026-09-01')).toBe('e');
+    expect(flags.get('EA|2026-08-01')).toBeUndefined();
+    // Eurostat's euro area headline (2.9% in July) is the EA series, not the fixed EA21 one.
+    expect(euroAreaCode(m)).toBe('EA');
+  });
+
+  it('leaves out months Eurostat has not published and falls back to the largest euro area aggregate', () => {
+    const m = parseJsonStat(estatUnemp);
+    expect(m.get('EA21')).toEqual([['2026-06-01', 6.4], ['2026-07-01', 6.4], ['2026-08-01', 6.4]]);
+    expect(m.get('FR')?.at(-1)).toEqual(['2026-08-01', 8.2]);
+    expect(euroAreaCode(m)).toBe('EA21');
+  });
+
+  it('dates Eurostat quarters by their first month and keeps provisional flags', () => {
+    const flags = new Map<string, string>();
+    const m = parseJsonStat(estatGdp, flags);
+    expect(m.get('EA')?.at(-1)).toEqual(['2026-04-01', 1.2]);
+    expect(m.get('ES')?.at(-1)).toEqual(['2026-04-01', 2.6]);
+    expect(flags.get('ES|2026-04-01')).toBe('p');
+    expect(flags.get('FR|2026-04-01')).toBeUndefined();
+    expect(parseJsonStat('not json').size).toBe(0);
+  });
+
+  it('reads ONS quarterly rows and skips them when months are asked for', () => {
+    expect(parseOnsCsv(ONS_IHYR, 'q')).toEqual([['2025-10-01', 0.8], ['2026-01-01', 0.8], ['2026-04-01', 1.4]]);
+    expect(parseOnsCsv(ONS_IHYR)).toEqual([]);
+  });
+
+  it('dates each Labour Force Survey average by the last month it covers', () => {
+    const { obs, labels } = parseOnsMonths(onsMgsx);
+    // The ONS dates May-Jul 2026 as "2026 JUN".
+    expect(obs.at(-1)).toEqual(['2026-07-01', 4.9]);
+    expect(labels.get('2026-07-01')).toBe('May-Jul 2026');
+    // Windows across a year end: "2024 NOV-JAN" and "2024 DEC-FEB".
+    expect(obs[0]).toEqual(['2025-01-01', 4.4]);
+    expect(labels.get('2025-01-01')).toBe('Nov 2024-Jan 2025');
+    expect(labels.get('2025-02-01')).toBe('Dec 2024-Feb 2025');
+    expect(obs.map(([d]) => d)).toEqual(['2025-01-01', '2025-02-01', '2026-05-01', '2026-06-01', '2026-07-01']);
   });
 });

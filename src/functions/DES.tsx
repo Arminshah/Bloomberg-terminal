@@ -157,7 +157,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Price / book', fmtNum(ks.pb, 2)],
               ['Price / sales', fmtNum(ks.ps, 2)],
               ['EV / EBITDA', fmtNum(ks.evEbitda, 1)],
-              ['Dividend yield', fmtPct(ks.divYld, 2, false)],
+              ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
               ['Payout ratio', fmtPct(ks.payout, 1, false)],
               ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : 'decl.'})` : sec.eq!.dps > 0 ? '--' : 'None'],
               ['EPS LTM', `${fmtNum(ks.epsLtm, 2)} ${ccy}`],

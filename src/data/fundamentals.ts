@@ -4,7 +4,7 @@ import { engine } from './market';
 import { marketCap } from './analytics';
 import type { SecurityDef } from './types';
 import { getRealFund, usTiming } from './live/yfund';
-import { realDividends, yahooQuotes } from './live/yahoo';
+import { realDividends, trailingDividendYield, yahooQuotes } from './live/yahoo';
 
 /** All money values in millions of the reporting currency (GBP for pence lines). */
 export interface FinPeriod {
@@ -345,13 +345,14 @@ export function keyStats(def: SecurityDef): KeyStats {
       put('pe', yq.trailingPE);
       put('fpe', yq.forwardPE);
       if (fx === 1) put('pb', yq.priceToBook);
-      put('divYld', yq.trailingAnnualDividendYield, 100, 0);
       put('epsLtm', yq.epsTrailingTwelveMonths);
       put('epsFy1', yq.epsCurrentYear);
       put('epsFy2', yq.epsForward);
       ks.shares = def.eq!.shares;
     }
   }
+  // On real data, the dividends paid over the past 12 months over the live price (see trailingDividendYield).
+  if (engine.realOnly || engine.isExternal(def.id) || yahooQuotes.has(def.id)) out.divYld = trailingDividendYield(def.id) * 100;
   // Multiples on losses are not meaningful.
   for (const k of ['pe', 'fpe', 'evEbitda'] as const) if (!(out[k] > 0)) out[k] = NaN;
   return out;
@@ -671,7 +672,8 @@ function realDividendList(def: SecurityDef): Dividend[] {
   const out: Dividend[] = list.map((x) => ({ declared: NaN, ex: x.day * DAY_MS, record: NaN, pay: NaN, amount: x.amount, freq: FREQ_LABEL[freq], type: 'Regular Cash' }));
   const next = getRealFund(def.id)?.nextDividend;
   if (next && next.ex > (list.length ? list[list.length - 1].day * DAY_MS : 0)) {
-    out.push({ declared: NaN, ex: next.ex, record: NaN, pay: next.pay, amount: Number.isFinite(next.rate) ? next.rate / freq : NaN, freq: FREQ_LABEL[freq], type: 'Declared' });
+    // The source gives the date but not the amount; the annual rate over the frequency would be a guess.
+    out.push({ declared: NaN, ex: next.ex, record: NaN, pay: next.pay, amount: NaN, freq: FREQ_LABEL[freq], type: 'Declared' });
   }
   return out.sort((a, b) => b.ex - a.ex);
 }

@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   yahoo: (path) => ipcRenderer.invoke('yahoo', String(path)),
   treasury: (year) => ipcRenderer.invoke('treasury', Number(year)),
   official: (source, since) => ipcRenderer.invoke('official', String(source), String(since)),
-  fred: (kind, arg, year) => ipcRenderer.invoke('fred', String(kind), String(arg), Number(year ?? 0)),
+  fred: (kind, arg, from) => ipcRenderer.invoke('fred', String(kind), String(arg), String(from ?? '')),
   streamOpen: () => ipcRenderer.invoke('stream:open'),
   streamSend: (msg) => ipcRenderer.invoke('stream:send', String(msg)),
   streamClose: () => ipcRenderer.invoke('stream:close'),

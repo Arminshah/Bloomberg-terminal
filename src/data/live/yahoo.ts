@@ -125,7 +125,36 @@ export const realDividends = new Map<string, Dividend[]>();
 export const yahooQuotes = new Map<string, Json>();
 /** Quotes of the ETFs that track the main indices, for index dividend yields. */
 export const etfQuotes = new Map<string, Json>();
+/** Dividends those ETFs paid, by symbol. */
+export const etfDividends = new Map<string, Dividend[]>();
 const ETFS = ['SPY', 'QQQ', 'DIA', 'IWM'];
+
+/** Dividends that went ex in the year to `today` (a day number), summed, in the units the price is quoted in. */
+export function paidInYear(list: Dividend[] | undefined, today: number): number {
+  let sum = 0;
+  for (const x of list ?? []) if (x.day > today - 365 && x.day <= today) sum += x.amount;
+  return sum;
+}
+
+/**
+ * Dividend yield over the past 12 months, as a fraction: the dividends that
+ * went ex in the year to today over the live price, both as the shares are
+ * quoted (pence in London). Zero when the record shows none; NaN until the
+ * line's history has loaded. The provider's own yield fields are not used:
+ * they divide by an old price or mix currencies (Shell's dollar dividend over
+ * its price in pence).
+ */
+export function trailingDividendYield(id: string): number {
+  if (!engine.isExternal(id)) return NaN;
+  const px = engine.quote(id)?.last ?? NaN;
+  return px > 0 ? paidInYear(realDividends.get(id), engine.today) / px : NaN;
+}
+
+/** The same for an index, from the ETF that tracks it (SPY for the S&P 500). */
+export function etfDividendYield(symbol: string): number {
+  const px = Number(etfQuotes.get(symbol)?.regularMarketPrice);
+  return etfDividends.has(symbol) && px > 0 ? paidInYear(etfDividends.get(symbol), engine.today) / px : NaN;
+}
 
 export function barsFromChart(chart: Json, invert = false, allDays = false): { bars: ExtBar[]; dividends: Dividend[]; gmtOffset: number } {
   const r = chart?.chart?.result?.[0];
@@ -235,7 +264,9 @@ export function extendedFromQuote(q: Json): ExtendedPrice | null {
 
 class YahooData {
   private stopped = false;
-  private bySymbol = new Map<string, Target>();
+  /** Lines fed by each Yahoo symbol: one symbol can feed several (JPY=X is USDJPY and, inverted, the yen's dollar value). */
+  private bySymbol = new Map<string, Target[]>();
+  private byId = new Map<string, Target>();
   private loaded = new Set<string>();
   private pendingQuote = new Map<string, Json>();
   private historyQueue: Target[] = [];
@@ -253,6 +284,7 @@ class YahooData {
   private suspect = new Map<string, Tick>();
   private lastPollOk = Date.now();
   private staleTimer: ReturnType<typeof setInterval> | null = null;
+  private etfTimer: ReturnType<typeof setInterval> | null = null;
   private stale = false;
   /** Streamed changes are drawn a few times a second rather than on every tick. */
   private dirty = new Set<string>();
@@ -281,8 +313,25 @@ class YahooData {
     // Whatever a panel opens loads ahead of the rest of the queue.
     this.unsubTerminal = terminal.subscribe(() => this.prioritize());
     void this.pollQuotes();
+    void this.loadEtfDividends();
     this.intradayTimer = setInterval(() => this.refreshIntraday(), 20_000);
     this.staleTimer = setInterval(() => this.checkStale(), 15_000);
+    this.etfTimer = setInterval(() => void this.loadEtfDividends(), 12 * 3600_000);
+  }
+
+  /** The index ETFs' dividends over the past year or so, for index dividend yields; tried again in two minutes if missing. */
+  private async loadEtfDividends() {
+    let missing = 0;
+    for (const sym of ETFS) {
+      try {
+        const chart = await yahooGet(`/v8/finance/chart/${sym}?range=13mo&interval=1mo&events=div`);
+        if (chart?.chart?.result?.[0]) etfDividends.set(sym, barsFromChart(chart).dividends);
+        else missing++;
+      } catch {
+        missing++;
+      }
+    }
+    if (missing && !this.stopped) setTimeout(() => void this.loadEtfDividends(), 120_000);
   }
 
   /** One place for the feed's state line: loading, streaming or polling. */
@@ -305,10 +354,13 @@ class YahooData {
     else this.status(streamOk);
   }
 
-  /** Applies one streamed price, after the bad-tick check. */
+  /** Applies one streamed price to every line its symbol feeds. */
   private applyTick(tick: Tick) {
-    const t = this.bySymbol.get(tick.id);
-    if (!t) return;
+    for (const t of this.bySymbol.get(tick.id) ?? []) this.applyTickTo(t, tick);
+  }
+
+  /** Applies one streamed price to one line, after the bad-tick check. */
+  private applyTickTo(t: Target, tick: Tick) {
     if (!this.loaded.has(t.id)) {
       this.pendingTick.set(t.id, tick);
       return;
@@ -377,6 +429,7 @@ class YahooData {
     if (this.quoteTimer) clearTimeout(this.quoteTimer);
     if (this.intradayTimer) clearInterval(this.intradayTimer);
     if (this.staleTimer) clearInterval(this.staleTimer);
+    if (this.etfTimer) clearInterval(this.etfTimer);
     engine.demand = undefined;
   }
 
@@ -386,11 +439,11 @@ class YahooData {
     this.known = engine.securities.length;
     const fresh: Target[] = [];
     for (const t of targets()) {
-      if (this.bySymbol.has(t.symbol)) continue;
-      this.bySymbol.set(t.symbol, t);
+      if (this.byId.has(t.id)) continue;
+      this.register(t);
       fresh.push(t);
     }
-    this.stream?.subscribe(fresh.map((t) => t.symbol));
+    this.stream?.subscribe([...new Set(fresh.map((t) => t.symbol))]);
     // Lines on screen first, then watchlists, then everything else.
     const shown = new Set<string>();
     for (const p of terminal.get().panels) for (const r of p.history) if (r.sec) shown.add(r.sec);
@@ -401,10 +454,18 @@ class YahooData {
     this.pumpHistory();
   }
 
+  /** Adds a line under its symbol, replacing an earlier entry for the same line. */
+  private register(t: Target) {
+    const old = this.byId.get(t.id);
+    if (old) this.bySymbol.set(old.symbol, (this.bySymbol.get(old.symbol) ?? []).filter((x) => x.id !== t.id));
+    this.byId.set(t.id, t);
+    this.bySymbol.set(t.symbol, [...(this.bySymbol.get(t.symbol) ?? []), t]);
+  }
+
   /** History already fetched elsewhere (an online lookup) can be adopted directly. */
   adopt(id: string, symbol: string, bars: ExtBar[], dividends: Dividend[]) {
     const t: Target = { id, symbol, invert: false, allDays: engine.get(id)?.cls === 'crypto' };
-    this.bySymbol.set(symbol, t);
+    this.register(t);
     this.stream?.subscribe([symbol]);
     this.historyQueue = this.historyQueue.filter((x) => x.id !== id);
     this.applyHistory(t, bars, dividends);
@@ -464,38 +525,39 @@ class YahooData {
   private async pollQuotes() {
     if (this.stopped) return;
     this.sync();
-    const all = [...this.bySymbol.values()];
+    const all = [...this.bySymbol.keys()].filter((sym) => this.bySymbol.get(sym)!.length);
     const changed: string[] = [];
     let ok = 0;
     for (let i = 0; i < all.length; i += 50) {
       const batch = all.slice(i, i + 50);
       const extra = i === 0 ? ETFS.filter((x) => !this.bySymbol.has(x)) : [];
       try {
-        const res = await yahooGet(`/v7/finance/quote?symbols=${[...batch.map((b) => encodeURIComponent(b.symbol)), ...extra].join(',')}`);
+        const res = await yahooGet(`/v7/finance/quote?symbols=${[...batch.map((b) => encodeURIComponent(b)), ...extra].join(',')}`);
         for (const q of (res?.quoteResponse?.result ?? []) as Json[]) {
           if (ETFS.includes(q.symbol)) etfQuotes.set(q.symbol, q);
-          const t = this.bySymbol.get(q.symbol);
-          if (!t) continue;
-          ok++;
-          yahooQuotes.set(t.id, q);
-          if (Number.isFinite(Number(q.gmtOffSetMilliseconds))) t.gmtOffset = Number(q.gmtOffSetMilliseconds);
-          t.delay = delayOf(q);
-          const def = engine.get(t.id);
-          const shares = def ? impliedShares(def, Number(q.marketCap), Number(q.regularMarketPrice)) : NaN;
-          if (def?.eq && Number.isFinite(shares)) def.eq.shares = shares;
-          if (def?.cry && Number(q.circulatingSupply) > 0) def.cry.supply = Number(q.circulatingSupply);
-          if (!this.loaded.has(t.id)) {
-            this.pendingQuote.set(t.id, q);
-            continue;
+          const lines = this.bySymbol.get(q.symbol) ?? [];
+          if (lines.length) ok++;
+          for (const t of lines) {
+            yahooQuotes.set(t.id, q);
+            if (Number.isFinite(Number(q.gmtOffSetMilliseconds))) t.gmtOffset = Number(q.gmtOffSetMilliseconds);
+            t.delay = delayOf(q);
+            const def = engine.get(t.id);
+            const shares = def ? impliedShares(def, Number(q.marketCap), Number(q.regularMarketPrice)) : NaN;
+            if (def?.eq && Number.isFinite(shares)) def.eq.shares = shares;
+            if (def?.cry && Number(q.circulatingSupply) > 0) def.cry.supply = Number(q.circulatingSupply);
+            if (!this.loaded.has(t.id)) {
+              this.pendingQuote.set(t.id, q);
+              continue;
+            }
+            const eq = extQuote(q, t.invert, t.allDays);
+            // A streamed price newer than the polled one stays.
+            if (eq && eq.time >= (engine.quote(t.id)?.time ?? 0) - 1000) {
+              engine.setExternalQuote(t.id, eq);
+              changed.push(t.id);
+            }
+            const x = engine.get(t.id)?.cls === 'equity' ? extendedFromQuote(q) : null;
+            if (x) engine.setExtended(t.id, x);
           }
-          const eq = extQuote(q, t.invert, t.allDays);
-          // A streamed price newer than the polled one stays.
-          if (eq && eq.time >= (engine.quote(t.id)?.time ?? 0) - 1000) {
-            engine.setExternalQuote(t.id, eq);
-            changed.push(t.id);
-          }
-          const x = engine.get(t.id)?.cls === 'equity' ? extendedFromQuote(q) : null;
-          if (x) engine.setExtended(t.id, x);
         }
       } catch {
         this.failures++;
@@ -530,7 +592,7 @@ class YahooData {
   }
 
   private async loadIntraday(id: string) {
-    const t = [...this.bySymbol.values()].find((x) => x.id === id);
+    const t = this.byId.get(id);
     if (!t || !this.loaded.has(id) || this.intradayActive >= 3) return;
     this.intradayAt.set(id, Date.now());
     this.intradayActive++;

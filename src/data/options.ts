@@ -4,7 +4,7 @@ import { DAY_MS, thirdFriday } from './calendar';
 import { engine } from './market';
 import { rangeStats } from './analytics';
 import { centralBanks } from './eco';
-import { etfQuotes, yahooQuotes } from './live/yahoo';
+import { etfDividendYield, trailingDividendYield } from './live/yahoo';
 import type { SecurityDef } from './types';
 
 export interface OptionQuote {
@@ -82,12 +82,8 @@ export const INDEX_ETF: Record<string, string> = { 'SPX Index': 'SPY', 'NDX Inde
 
 /** Continuous dividend yield for option and futures pricing, as a fraction. */
 export function dividendYield(def: SecurityDef): number {
-  if (engine.realOnly) {
-    // The source's trailing yield (an index's from its ETF); none known means none assumed.
-    const yq = def.cls === 'index' ? etfQuotes.get(INDEX_ETF[def.id] ?? '') : yahooQuotes.get(def.id);
-    const y = Number(yq?.trailingAnnualDividendYield);
-    return Number.isFinite(y) && y >= 0 ? Math.min(0.12, y) : NaN;
-  }
+  // On real data, the dividends paid over the past 12 months over the live price (an index's from its ETF).
+  if (engine.realOnly) return def.cls === 'index' ? etfDividendYield(INDEX_ETF[def.id] ?? '') : trailingDividendYield(def.id);
   if (!def.eq) return def.cls === 'index' ? 0.013 : 0;
   const px = engine.quote(def.id)?.last ?? def.px;
   return Math.min(0.12, def.eq.dps / px);

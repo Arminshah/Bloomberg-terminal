@@ -10,7 +10,7 @@ import { periodChange } from '../data/analytics';
 import type { FnProps } from '../terminal/types';
 import { RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
-import { COUNTRY_STATS, fredData, periodLabel, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
+import { COMPUTED_GROWTH, COUNTRY_STATS, figurePeriod, figureStatus, fredData, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
 
 const COUNTRIES = ['US', 'EZ', 'DE', 'GB', 'JP', 'CN', 'CA', 'AU'];
 /** The desktop app's calendar: US releases from FRED and the central banks with their own data. */
@@ -170,6 +170,11 @@ export function ECO(_: FnProps) {
   );
 }
 
+/** Market lines for countries only the desktop app's ECST lists. */
+const EXTRA_MARKETS: Record<string, { y10?: string; idx?: string; ccy?: string }> = {
+  NL: { idx: 'AEX Index', ccy: 'EURUSD Curncy' },
+};
+
 const STATS: Record<string, { gdp: number; cpi: number; un: number; y10?: string; idx?: string; ccy?: string }> = {
   US: { gdp: 1.8, cpi: 3.3, un: 4.4, y10: 'USGG10YR Index', idx: 'SPX Index', ccy: 'DXY Curncy' },
   EZ: { gdp: 0.9, cpi: 2.4, un: 6.3, y10: 'GDBR10 Index', idx: 'SX5E Index', ccy: 'EURUSD Curncy' },
@@ -195,21 +200,24 @@ export function ECST(props: FnProps) {
 }
 
 /** A statistic from FRED with the period it refers to. */
-function stat(key: [string, Freq] | undefined, calc: Calc, series: Record<string, Obs>): { v: number; period: string } | null {
+function stat(key: [string, Freq, Calc?] | undefined, calc: Calc, series: Record<string, Obs>): { v: number; period: string } | null {
   if (!key) return null;
   const [id, freq] = key;
+  calc = key[2] ?? calc;
   const obs = series[id];
   if (!obs?.length) return null;
   const p = obs[obs.length - 1][0];
   const v = valueAt(obs, p, calc, freq);
-  return v == null ? null : { v, period: periodLabel(p, freq) };
+  const status = figureStatus(id, p);
+  return v == null ? null : { v, period: `${figurePeriod(id, p, freq)}${status ? ` (${status})` : ''}` };
 }
 
-function StatCell({ s, dec = 1 }: { s: { v: number; period: string } | null; dec?: number }) {
+function StatCell({ s, dec = 1, mark }: { s: { v: number; period: string } | null; dec?: number; mark?: boolean }) {
   if (!s) return <span className="faint">--</span>;
   return (
-    <span title={s.period}>
-      {fmtNum(s.v, dec)} <span className="muted">{s.period}</span>
+    <span title={mark ? `${s.period}, worked out from OECD real GDP levels` : s.period}>
+      {fmtNum(s.v, dec)}
+      {mark ? '*' : ''} <span className="muted">{s.period}</span>
     </span>
   );
 }
@@ -223,7 +231,7 @@ function ECSTReal() {
   useInterval(2000);
   const series = fredData.use((x) => x.series);
   const cbs = centralBanks();
-  const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES'].includes(c) ? 'EZ' : c))?.rate;
+  const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES', 'NL'].includes(c) ? 'EZ' : c))?.rate;
   const market = (id?: string) => (id && engine.hasSource(id) ? id : undefined);
   const rows = Object.entries(COUNTRY_STATS).map(([c, k]) => {
     const cpi = stat(k.cpi, 'yoy', series);
@@ -235,9 +243,9 @@ function ECSTReal() {
       un: stat(k.un, 'level', series),
       rate,
       real: rate != null && cpi ? rate - cpi.v : NaN,
-      y10: market(STATS[c]?.y10),
-      idx: market(STATS[c]?.idx),
-      ccy: market(STATS[c]?.ccy),
+      y10: market((STATS[c] ?? EXTRA_MARKETS[c])?.y10),
+      idx: market((STATS[c] ?? EXTRA_MARKETS[c])?.idx),
+      ccy: market((STATS[c] ?? EXTRA_MARKETS[c])?.ccy),
     };
   });
   return (
@@ -247,7 +255,7 @@ function ECSTReal() {
         title="World Economic Statistics"
         sub={
           <>
-            <RealBadge /> latest published figures from FRED (BEA, BLS, Eurostat, OECD) with their periods · policy rates from the central banks
+            <RealBadge /> latest published figures with their periods: BEA and BLS (via FRED), Eurostat, the ONS and the OECD · policy rates from the central banks
           </>
         }
       />
@@ -257,7 +265,7 @@ function ECSTReal() {
         rowKey={(r) => r.c}
         columns={[
           { key: 'c', label: 'Country', render: (r) => <span className="amber">{COUNTRY_NAMES[r.c]}</span>, sort: (r) => COUNTRY_NAMES[r.c] },
-          { key: 'g', label: 'Real GDP YoY %', num: true, render: (r) => <StatCell s={r.gdp} />, sort: (r) => r.gdp?.v ?? NaN },
+          { key: 'g', label: 'Real GDP YoY %', num: true, render: (r) => <StatCell s={r.gdp} mark={COMPUTED_GROWTH.has(r.c)} />, sort: (r) => r.gdp?.v ?? NaN },
           { key: 'i', label: 'CPI YoY %', num: true, render: (r) => <StatCell s={r.cpi} />, sort: (r) => r.cpi?.v ?? NaN },
           { key: 'u', label: 'Unemp %', num: true, render: (r) => <StatCell s={r.un} />, sort: (r) => r.un?.v ?? NaN },
           { key: 'r', label: 'Policy %', num: true, render: (r) => (r.rate != null ? fmtNum(r.rate, 2) : '--'), sort: (r) => r.rate ?? NaN },
@@ -279,7 +287,7 @@ function ECSTReal() {
         />
       </Section>
       <div className="note">
-        Growth and inflation are year-on-year changes in the published real GDP and consumer price index (HICP in the euro area). The euro area HICP is Eurostat's 19-country aggregate. Inflation figures for the UK, Japan, Canada and Australia have no current FRED series and are left out. FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).
+        Growth is real GDP against the same quarter a year earlier and inflation the 12-month rate, as each statistics office publishes them: BEA and BLS for the US, Eurostat for the euro area and its members (HICP), the ONS for the UK. US inflation is worked out from the published CPI index the way the BLS does. UK unemployment is the ONS Labour Force Survey rate, an average over the three months shown. For Japan, Canada and Australia growth is worked out from OECD real GDP levels (marked *), unemployment is the OECD harmonised rate, and inflation has no current free series and is left out. FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).
       </div>
     </div>
   );
@@ -288,7 +296,7 @@ function ECSTReal() {
 function ECSTSim(_: FnProps) {
   useInterval(2000);
   const cbs = centralBanks();
-  const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES'].includes(c) ? 'EZ' : c))?.rate;
+  const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES', 'NL'].includes(c) ? 'EZ' : c))?.rate;
   const rows = Object.entries(STATS).map(([c, s]) => ({ c, ...s, rate: policy(c) }));
   return (
     <div>

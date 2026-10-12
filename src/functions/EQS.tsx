@@ -68,7 +68,7 @@ export function EQS(_: FnProps) {
       <input id={`eqs-${key}-${panel}`} className="inp" style={{ width: 70 }} inputMode="decimal" placeholder={ph} value={c[key]} onChange={(e) => setC({ ...c, [key]: e.target.value })} />
     </label>
   );
-  const csv = () => [['Ticker', 'Name', 'Region', 'Sector', 'Mkt cap USD bn', 'P/E', 'Div yld', 'ROE', 'Beta', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, r.d.region, r.d.eq!.sector, r.cap.toFixed(1), r.k.pe.toFixed(2), r.k.divYld.toFixed(2), r.k.roe.toFixed(1), r.d.eq!.beta, r.ytd.toFixed(2), r.y1.toFixed(2)])];
+  const csv = () => [['Ticker', 'Name', 'Region', 'Sector', 'Mkt cap USD bn', 'P/E', 'Div yld 12M', 'ROE', 'Beta', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, r.d.region, r.d.eq!.sector, r.cap.toFixed(1), r.k.pe.toFixed(2), r.k.divYld.toFixed(2), r.k.roe.toFixed(1), r.d.eq!.beta, r.ytd.toFixed(2), r.y1.toFixed(2)])];
   return (
     <div>
       <FnHeader code="EQS" title="Equity Screening" sub={
@@ -134,7 +134,7 @@ export function EQS(_: FnProps) {
           { key: 'px', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
           { key: 'cap', label: 'Mkt cap', num: true, render: (r) => fmtBig(r.cap * 1e9), sort: (r) => r.cap },
           { key: 'pe', label: 'P/E', num: true, render: (r) => fmtNum(r.k.pe, 1), sort: (r) => r.k.pe },
-          { key: 'dy', label: 'Yld %', num: true, render: (r) => fmtNum(r.k.divYld, 2), sort: (r) => r.k.divYld },
+          { key: 'dy', label: '12M yld %', num: true, render: (r) => fmtNum(r.k.divYld, 2), sort: (r) => r.k.divYld },
           { key: 'roe', label: 'ROE %', num: true, render: (r) => fmtNum(r.k.roe, 1), sort: (r) => r.k.roe, hideM: true },
           { key: 'b', label: 'Beta', num: true, render: (r) => fmtNum(r.d.eq!.beta, 2), sort: (r) => r.d.eq!.beta, hideM: true },
           { key: 'ytd', label: 'YTD %', num: true, render: (r) => <Chg v={r.ytd} pct dec={1} />, sort: (r) => r.ytd },

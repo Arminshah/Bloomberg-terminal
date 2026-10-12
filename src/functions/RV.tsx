@@ -61,7 +61,7 @@ export function RV({ sec }: FnProps) {
     num('fpe', 'P/E FY1'),
     num('pb', 'P/B', 2),
     num('evEbitda', 'EV/EBITDA'),
-    num('dy', 'Div yld', 2),
+    num('dy', 'Div yld 12M', 2),
     num('roe', 'ROE %'),
     num('margin', 'Net mgn %'),
     num('ytd', 'YTD %', 1, true),
@@ -77,7 +77,7 @@ export function RV({ sec }: FnProps) {
       ))}
     </tr>
   );
-  const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'P/E', 'P/E FY1', 'P/B', 'EV/EBITDA', 'Div yld', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), r.pe, r.fpe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
+  const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'P/E', 'P/E FY1', 'P/B', 'EV/EBITDA', 'Div yld 12M', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), r.pe, r.fpe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
   return (
     <div>
       <FnHeader code="RV" title="Relative Valuation" sec={s} sub={

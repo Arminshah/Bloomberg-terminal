@@ -402,7 +402,6 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     ps: num(sd.priceToSalesTrailing12Months),
     evEbitda: num(ks.enterpriseToEbitda),
     ev: M(num(ks.enterpriseValue)),
-    divYld: pct(num(sd.dividendYield ?? sd.trailingAnnualDividendYield)),
     payout: pct(num(sd.payoutRatio)),
     roe: pct(num(fd.returnOnEquity)),
     roa: pct(num(fd.returnOnAssets)),
@@ -446,8 +445,9 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   const bsSource = [...fund.quarterly].reverse().find((p) => Number.isFinite(p.equity)) ?? lastBs;
   if (bsSource && Number.isFinite(bsSource.equity)) eq.book = bsSource.equity;
   if (bsSource && Number.isFinite(bsSource.debt)) eq.netDebt = bsSource.debt - (Number.isFinite(bsSource.cash) ? bsSource.cash : 0);
+  // The source gives the annual rate in the main unit (pounds), while the line is quoted in pence.
   const dr = num(r.summaryDetail?.dividendRate);
-  eq.dps = Number.isFinite(dr) ? dr : 0;
+  eq.dps = Number.isFinite(dr) ? (def.minor ? dr * 100 : dr) : 0;
 }
 
 function timeseriesPath(symbol: string, prefix: string, types: string[], now: number): string {

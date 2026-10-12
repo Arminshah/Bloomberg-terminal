@@ -16,7 +16,8 @@ import { adoptYahooHistory, barsFromChart, yahooGet, type Dividend } from './yah
 /** Official sources the desktop app's main process fetches (fixed URLs, see electron/main.cjs). */
 export type OfficialSource =
   | 'effr' | 'sofr' | 'nyfed' | 'fomc' | 'ecb' | 'boe' | 'boc' | 'rba' | 'snb' | 'bcb'
-  | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb';
+  | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb'
+  | 'ukcpi' | 'ukgdp' | 'ukunemp' | 'estatHicp' | 'estatUnemp' | 'estatGdp';
 
 declare global {
   interface Window {
@@ -25,7 +26,7 @@ declare global {
       yahoo(path: string): Promise<{ status: number; data: unknown }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string }>;
-      fred?(kind: 'calendar' | 'series', arg: string, year?: number): Promise<{ status: number; text: string }>;
+      fred?(kind: 'calendar' | 'series', arg: string, from?: string): Promise<{ status: number; text: string }>;
       streamOpen?(): Promise<void>;
       streamSend?(msg: string): Promise<void>;
       streamClose?(): Promise<void>;

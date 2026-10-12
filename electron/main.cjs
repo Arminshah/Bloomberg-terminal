@@ -2,7 +2,7 @@
 // Loads the built web app from dist/ and gives it a native window. There is no
 // menu bar: F1-F12 belong to the terminal's market sector keys, so window
 // commands use Ctrl+Shift shortcuts instead.
-const { app, BrowserWindow, Menu, ipcMain, net, shell, screen } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, net, session, shell, screen } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -103,6 +103,10 @@ ipcMain.handle('treasury', async (event, year) => {
 // source is a fixed URL; the page only picks which one and a start date.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+const EUROSTAT = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data';
+// The euro area under its current and possible future aggregate codes, and the largest members.
+const EUROSTAT_GEO = ['EA', 'EA21', 'EA22', 'EA23', 'DE', 'FR', 'IT', 'ES', 'NL'].map((g) => `geo=${g}`).join('&');
+
 function boeSeries(codes, since) {
   const [y, m, d] = since.split('-');
   return `https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp?csv.x=yes&Datefrom=${d}/${MONTHS[Number(m) - 1]}/${y}&Dateto=now&SeriesCodes=${codes}&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N`;
@@ -130,6 +134,14 @@ const OFFICIAL = {
   jgbHistory: () => 'https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/historical/jgbcme_all.csv',
   canadas: (since) => `https://www.bankofcanada.ca/valet/observations/group/bond_yields_benchmark/json?start_date=${since}`,
   acgb: () => 'https://www.rba.gov.au/statistics/tables/csv/f2-data.csv',
+  // Official headline statistics: the ONS for the UK, Eurostat for the euro area and its members.
+  ukcpi: () => 'https://www.ons.gov.uk/generator?format=csv&uri=/economy/inflationandpriceindices/timeseries/d7g7/mm23',
+  ukgdp: () => 'https://www.ons.gov.uk/generator?format=csv&uri=/economy/grossdomesticproductgdp/timeseries/ihyr/qna',
+  // JSON rather than CSV: it names the three months each Labour Force Survey figure covers.
+  ukunemp: () => 'https://www.ons.gov.uk/employmentandlabourmarket/peoplenotinwork/unemployment/timeseries/mgsx/lms/data',
+  estatHicp: (since) => `${EUROSTAT}/prc_hicp_minr?format=JSON&lang=EN&${EUROSTAT_GEO}&coicop18=TOTAL&unit=RCH_A&sinceTimePeriod=${since.slice(0, 7)}`,
+  estatUnemp: (since) => `${EUROSTAT}/une_rt_m?format=JSON&lang=EN&${EUROSTAT_GEO}&s_adj=SA&age=TOTAL&sex=T&unit=PC_ACT&sinceTimePeriod=${since.slice(0, 7)}`,
+  estatGdp: (since) => `${EUROSTAT}/namq_10_gdp?format=JSON&lang=EN&${EUROSTAT_GEO}&na_item=B1GQ&unit=CLV_PCH_SM&s_adj=SCA&sinceTimePeriod=${since.slice(0, 4)}-Q1`,
 };
 
 ipcMain.handle('official', async (event, source, since) => {
@@ -144,30 +156,31 @@ ipcMain.handle('official', async (event, source, since) => {
 
 // ------------------------------------------------------------------- FRED
 // The St. Louis Fed's FRED: official US release dates and times, and the
-// published values of a fixed set of series. FRED refuses requests that claim
-// to be a desktop browser, so these go out with the app's own user agent.
+// published values of a fixed set of series. FRED's bot filter turns away some
+// user agents (an app name inside a browser string, or a bare name), so a
+// request goes out as plain Electron first and as a self-identified client
+// with the project's page second.
 const FRED = 'https://fred.stlouisfed.org';
+function fredAgents() {
+  const plain = session.defaultSession.getUserAgent().replace(/ armin-terminal\/\S+/i, '');
+  return [plain, `ArminTerminal/${app.getVersion()} (+https://github.com/arminshah/bloomberg-terminal)`];
+}
 const FRED_RELEASES = new Set([9, 10, 13, 27, 46, 50, 51, 53, 54, 95, 97, 180, 192]);
 const FRED_SERIES = new Set([
   'PAYEMS', 'UNRATE', 'CPIAUCSL', 'CPIAUCNS', 'CPILFESL', 'CPILFENS', 'PPIFIS', 'RSAFS', 'INDPRO', 'HOUST', 'HSN1F',
-  'DGORDER', 'AMTMNO', 'A191RL1Q225SBEA', 'GDPC1', 'PCEPI', 'PCEPILFE', 'ICSA', 'JTSJOL', 'BOPGSTB',
-  'CP0000EZ19M086NEST', 'CLVMNACSCAB1GQEA19',
-  'CP0000DEM086NEST', 'LRHUTTTTDEM156S', 'CLVMNACSCAB1GQDE',
-  'CP0000FRM086NEST', 'LRHUTTTTFRM156S', 'CLVMNACSCAB1GQFR',
-  'CP0000ITM086NEST', 'LRHUTTTTITM156S', 'CLVMNACSCAB1GQIT',
-  'CP0000ESM086NEST', 'LRHUTTTTESM156S', 'CLVMNACSCAB1GQES',
-  'LRHUTTTTGBM156S', 'NGDPRSAXDCGBQ', 'LRHUTTTTJPM156S', 'JPNRGDPEXP',
-  'LRHUTTTTCAM156S', 'NGDPRSAXDCCAQ', 'LRHUTTTTAUM156S', 'NGDPRSAXDCAUQ',
+  'DGORDER', 'AMTMNO', 'A191RL1Q225SBEA', 'A191RO1Q156NBEA', 'PCEPI', 'PCEPILFE', 'ICSA', 'JTSJOL', 'BOPGSTB',
+  'LRHUTTTTJPM156S', 'JPNRGDPEXP', 'LRHUTTTTCAM156S', 'NGDPRSAXDCCAQ', 'LRHUTTTTAUM156S', 'NGDPRSAXDCAUQ',
 ]);
 
-ipcMain.handle('fred', async (event, kind, arg, year) => {
+ipcMain.handle('fred', async (event, kind, arg, from) => {
   if (!fromApp(event)) throw new Error('not allowed');
   let url;
   if (kind === 'calendar') {
+    // A window of dates rather than a whole year: a year of weekly releases runs past one page.
     const rid = Number(arg);
-    const y = Number(year);
-    if (!FRED_RELEASES.has(rid) || !Number.isInteger(y) || y < 2000 || y > 2100) throw new Error('not allowed');
-    url = `${FRED}/releases/calendar?rid=${rid}&y=${y}`;
+    if (!FRED_RELEASES.has(rid) || typeof from !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(from)) throw new Error('not allowed');
+    const to = new Date(Date.parse(`${from}T00:00:00Z`) + 150 * 86_400_000).toISOString().slice(0, 10);
+    url = `${FRED}/releases/calendar?rid=${rid}&vs=${from}&ve=${to}`;
   } else if (kind === 'series') {
     const ids = typeof arg === 'string' ? arg.split(',') : [];
     // The graph service answers at most 12 series per request.
@@ -175,8 +188,17 @@ ipcMain.handle('fred', async (event, kind, arg, year) => {
     const from = new Date(Date.now() - 4 * 365.25 * 86_400_000).toISOString().slice(0, 10);
     url = `${FRED}/graph/fredgraph.csv?id=${ids.join(',')}&cosd=${ids.map(() => from).join(',')}`;
   } else throw new Error('not allowed');
-  const res = await net.fetch(url, { cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
-  return { status: res.status, text: res.ok ? await res.text() : '' };
+  let last = { status: 0, text: '' };
+  for (const agent of fredAgents()) {
+    try {
+      const res = await net.fetch(url, { headers: { 'User-Agent': agent }, cache: 'no-cache', signal: AbortSignal.timeout(15_000) });
+      if (res.ok) return { status: res.status, text: await res.text() };
+      last = { status: res.status, text: '' };
+    } catch {
+      /* the next agent is tried */
+    }
+  }
+  return last;
 });
 
 // ------------------------------------------------------------------ Stream

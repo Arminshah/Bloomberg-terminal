@@ -8,7 +8,7 @@ import type { SecurityDef } from './types';
 /**
  * An index future's front contract on real data: the contract the source
  * quotes (month, last trade date, open interest) and its fair value from real
- * inputs, the 3-month Treasury rate and the index's trailing dividend yield
+ * inputs, the 3-month Treasury rate and the index's dividend yield over the past 12 months
  * (from its ETF). Fair value is a model: F = S x e^((r - q) x days / 365).
  */
 export function realFutureContract(sec: SecurityDef) {

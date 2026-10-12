@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { RealBadge, SimBadge, sourceLabel } from '../components/Source';
 import { atmVolAt, useRealExpiries } from '../data/live/yopt';
+import { useIndexComponents, useYahooQuotes } from '../data/live/yquotes';
 import { useFundamentals } from '../data/live/yfund';
 import { DataTable } from '../components/DataTable';
 import { XYChart, type XYSeries } from '../components/chart/XYChart';
@@ -493,7 +494,7 @@ export function VWAP({ sec }: FnProps) {
 // ------------------------------------------------------------------- MOV
 
 /** Dow Jones Industrial Average members in the universe (price weighted). */
-const DOW = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'JPM', 'GS', 'V', 'UNH', 'HD', 'CAT', 'MCD', 'IBM', 'KO', 'DIS', 'WMT', 'CRM', 'CSCO', 'CVX', 'JNJ', 'MRK', 'PG', 'NKE', 'AXP', 'BA', 'HON', 'MMM', 'AMGN', 'SHW', 'TRV', 'VZ'];
+const DOW = ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'JPM', 'GS', 'V', 'UNH', 'HD', 'CAT', 'MCD', 'IBM', 'KO', 'DIS', 'WMT', 'CRM', 'CSCO', 'CVX', 'JNJ', 'MRK', 'PG', 'NKE', 'AXP', 'BA', 'HON', 'MMM', 'AMGN', 'SHW', 'TRV'];
 
 function indexMembers(ix: SecurityDef): SecurityDef[] {
   const eqs = engine.securities.filter((d) => d.cls === 'equity');
@@ -515,7 +516,110 @@ function indexMembers(ix: SecurityDef): SecurityDef[] {
 }
 
 /** MOV: which members moved the index, in index points. */
-export function MOV({ sec, route }: FnProps) {
+export function MOV(props: FnProps) {
+  const { sec, route } = props;
+  const ix = sec?.cls === 'index' ? sec : engine.get(route.args ? `${route.args} Index` : 'SPX Index') ?? engine.get('SPX Index')!;
+  if (engine.realOnly && ix.ticker === 'INDU') return <DowMovers ix={ix} />;
+  return <IndexMovers {...props} />;
+}
+
+interface DowRow {
+  ticker: string;
+  id?: string;
+  last: number;
+  prevClose: number;
+  chg: number;
+  pct: number;
+}
+
+/**
+ * The Dow on real data: every one of its 30 members, the ones outside the
+ * universe quoted directly. Points are each member's price change divided by
+ * the Dow divisor, which is the members' previous closes summed and divided
+ * by the index's previous close; the sum is checked against the index.
+ */
+function DowMovers({ ix }: { ix: SecurityDef }) {
+  useTick(2);
+  const iq = engine.quote(ix.id)!;
+  // The membership comes from the source: a fixed list goes out of date when the index changes.
+  const members = useIndexComponents('^DJI');
+  const list = members ?? [];
+  const inUniverse = (t: string) => {
+    const id = `${t} US Equity`;
+    return engine.get(id) && engine.hasSource(id) ? id : undefined;
+  };
+  const outside = list.filter((t) => !inUniverse(t));
+  const quotes = useYahooQuotes(outside, 30_000);
+  const rows: DowRow[] = list.map((t) => {
+    const id = inUniverse(t);
+    if (id) {
+      const q = engine.quote(id)!;
+      return { ticker: t, id, last: q.last, prevClose: q.prevClose, chg: q.chg, pct: q.pct };
+    }
+    const q = quotes.get(t);
+    const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : NaN);
+    return { ticker: t, last: n(q?.regularMarketPrice), prevClose: n(q?.regularMarketPreviousClose), chg: n(q?.regularMarketChange), pct: n(q?.regularMarketChangePercent) };
+  });
+  const complete = rows.length > 0 && rows.every((r) => Number.isFinite(r.prevClose) && Number.isFinite(r.chg));
+  const divisor = rows.reduce((a, r) => a + r.prevClose, 0) / iq.prevClose;
+  const pts = (r: DowRow) => (complete ? r.chg / divisor : NaN);
+  const explained = rows.reduce((a, r) => a + pts(r), 0);
+  const consistent = Math.abs(explained - iq.chg) <= Math.max(2, Math.abs(iq.chg) * 0.02);
+  const sorted = [...rows].sort((a, b) => pts(b) - pts(a));
+  const table = (list: DowRow[]) => (
+    <DataTable
+      rows={list}
+      rowKey={(r) => r.ticker}
+      columns={[
+        { key: 't', label: 'Ticker', render: (r) => (r.id ? <SecLink id={r.id}>{r.ticker} US</SecLink> : <span className="amber">{r.ticker} US</span>) },
+        { key: 'l', label: 'Last', num: true, render: (r) => (r.id ? <LivePx id={r.id} /> : fmtNum(r.last, 2)) },
+        { key: 'c', label: '%Chg', num: true, render: (r) => <Chg v={r.pct} pct /> },
+        { key: 'p', label: 'Index pts', num: true, render: (r) => <Chg v={pts(r)} dec={2} /> },
+        { key: 'w', label: 'Wt %', num: true, hideM: true, render: (r) => fmtNum((r.prevClose / (divisor * iq.prevClose)) * 100, 2) },
+      ]}
+    />
+  );
+  return (
+    <div>
+      <FnHeader code="MOV" title="Index Movers" sec={ix} sub={`${list.length || 'All'} members as the source lists them · price weighted · points from the Dow divisor`} />
+      <div className="qstrip">
+        <span className="yellow b">{ix.ticker}</span>
+        <LivePx id={ix.id} />
+        <Chg v={iq.chg} dec={2} />
+        <Chg v={iq.pct} pct />
+        <span>
+          <span className="lbl">Members explain</span>
+          {complete ? (
+            <>
+              <Chg v={explained} dec={2} /> pts
+            </>
+          ) : (
+            'loading members…'
+          )}
+        </span>
+        <span>
+          <span className="lbl">Divisor</span>
+          {complete ? fmtNum(divisor, 5) : '--'}
+        </span>
+      </div>
+      {!complete ? (
+        <div className="empty">{members && !members.length ? 'The source did not return the index membership; it is tried again shortly.' : 'Loading the members and their quotes…'}</div>
+      ) : (
+        <div className="cols">
+          <Section title="Leaders (index points)">{table(sorted.slice(0, 15))}</Section>
+          <Section title="Laggards (index points)">{table([...sorted].reverse().slice(0, 15))}</Section>
+        </div>
+      )}
+      <p className="pad-s muted">
+        {complete && !consistent
+          ? `The members' moves add up to ${fmtNum(explained, 2)} points against the index's ${fmtNum(iq.chg, 2)}: quotes may be at different times, or the membership list here may be out of date.`
+          : 'Points = price change ÷ divisor; the divisor is the members’ previous closes summed and divided by the index’s previous close.'}
+      </p>
+    </div>
+  );
+}
+
+function IndexMovers({ sec, route }: FnProps) {
   useTick(2);
   const ix = sec?.cls === 'index' ? sec : engine.get(route.args ? `${route.args} Index` : 'SPX Index') ?? engine.get('SPX Index')!;
   const iq = engine.quote(ix.id)!;
@@ -581,8 +685,8 @@ export function MOV({ sec, route }: FnProps) {
         <p className="pad muted">No members of {ix.ticker} in the Armin universe. Try SPX, INDU, NDX, UKX, DAX, NKY or HSI.</p>
       ) : (
         <div className="cols">
-          <Section title="Leaders (index points)">{table(up)}</Section>
-          <Section title="Laggards (index points)">{table(dn)}</Section>
+          <Section title={byValue ? 'Leaders (market value)' : 'Leaders (index points)'}>{table(up)}</Section>
+          <Section title={byValue ? 'Laggards (market value)' : 'Laggards (index points)'}>{table(dn)}</Section>
         </div>
       )}
       <p className="pad-s muted">

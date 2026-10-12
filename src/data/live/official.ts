@@ -163,3 +163,119 @@ export function parseMofCsv(text: string): Map<string, Obs> {
   }
   return out;
 }
+
+const MONTH_CAPS: Record<string, string> = { JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06', JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12' };
+
+/**
+ * ONS time series CSV: metadata rows, then yearly, quarterly and monthly rows such as
+ * "2026 Q2","1.4" or "2026 AUG","3.1". Quarterly or monthly rows, as `freq` says;
+ * a quarter is dated by its first month, the way FRED dates it.
+ */
+export function parseOnsCsv(text: string, freq: 'm' | 'q' = 'm'): Obs {
+  const out: Obs = [];
+  for (const line of lines(text)) {
+    const m = /^"(\d{4}) ([A-Z]{3}|Q[1-4])","(-?[\d.]+)"$/.exec(line.trim());
+    if (!m) continue;
+    if (freq === 'q' && m[2].startsWith('Q')) out.push([`${m[1]}-${String((Number(m[2][1]) - 1) * 3 + 1).padStart(2, '0')}-01`, Number(m[3])]);
+    if (freq === 'm' && MONTH_CAPS[m[2]]) out.push([`${m[1]}-${MONTH_CAPS[m[2]]}-01`, Number(m[3])]);
+  }
+  return out;
+}
+
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/**
+ * Monthly rows of an ONS time series JSON (.../timeseries/<cdid>/<dataset>/data):
+ * {months: [{date: "2026 JUN", label: "2026 MAY-JUL", value: "4.9"}]}. Labour Force
+ * Survey rates are three-month averages that the ONS dates by the middle month and
+ * labels with the whole window (the label's year is the first month's). Such a
+ * figure is dated here by the last month it covers, and `labels` names its window
+ * ("May-Jul 2026") under that date.
+ */
+export function parseOnsMonths(text: string): { obs: Obs; labels: Map<string, string> } {
+  const obs: Obs = [];
+  const labels = new Map<string, string>();
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return { obs, labels };
+  }
+  for (const row of (json?.months ?? []) as any[]) {
+    const v = num(String(row?.value ?? ''));
+    const d = /^(\d{4}) ([A-Z]{3})$/.exec(String(row?.date ?? ''));
+    if (!d || !MONTH_CAPS[d[2]] || !Number.isFinite(v)) continue;
+    let y = Number(d[1]);
+    let mo = Number(MONTH_CAPS[d[2]]);
+    const w = /^(\d{4}) ([A-Z]{3})-([A-Z]{3})$/.exec(String(row?.label ?? ''));
+    let label = '';
+    if (w && MONTH_CAPS[w[2]] && MONTH_CAPS[w[3]]) {
+      const a = Number(MONTH_CAPS[w[2]]);
+      const b = Number(MONTH_CAPS[w[3]]);
+      const y0 = Number(w[1]);
+      y = b < a ? y0 + 1 : y0;
+      mo = b;
+      label = b < a ? `${SHORT_MONTHS[a - 1]} ${y0}-${SHORT_MONTHS[b - 1]} ${y}` : `${SHORT_MONTHS[a - 1]}-${SHORT_MONTHS[b - 1]} ${y}`;
+    }
+    const date = `${y}-${String(mo).padStart(2, '0')}-01`;
+    obs.push([date, v]);
+    if (label) labels.set(date, label);
+  }
+  obs.sort((p, q) => (p[0] < q[0] ? -1 : p[0] > q[0] ? 1 : 0));
+  return { obs, labels };
+}
+
+/**
+ * Eurostat's JSON-stat answer for a query that fixes every dimension but geo
+ * and time: {id, size, dimension: {geo, time}, value: {flat index: number}}.
+ * Times such as "2026-09" or "2026-Q2" become the first day of the period.
+ * Status flags, when asked for, go into `flags` under "geo|date".
+ */
+export function parseJsonStat(text: string, flags?: Map<string, string>): Map<string, Obs> {
+  const out = new Map<string, Obs>();
+  let d: any;
+  try {
+    d = JSON.parse(text);
+  } catch {
+    return out;
+  }
+  const ids: string[] = Array.isArray(d?.id) ? d.id : [];
+  const size: number[] = Array.isArray(d?.size) ? d.size : [];
+  const gi = ids.indexOf('geo');
+  const ti = ids.indexOf('time');
+  if (gi < 0 || ti < 0 || size.length !== ids.length) return out;
+  const stride = size.map((_, i) => size.slice(i + 1).reduce((a, b) => a * b, 1));
+  const geos: Record<string, number> = d.dimension?.geo?.category?.index ?? {};
+  const times: Record<string, number> = d.dimension?.time?.category?.index ?? {};
+  const date = (t: string) => {
+    const q = /^(\d{4})-Q([1-4])$/.exec(t);
+    if (q) return `${q[1]}-${String((Number(q[2]) - 1) * 3 + 1).padStart(2, '0')}-01`;
+    const m = /^(\d{4})-(\d{2})$/.exec(t);
+    return m ? `${m[1]}-${m[2]}-01` : '';
+  };
+  for (const [g, gv] of Object.entries(geos)) {
+    const obs: Obs = [];
+    for (const [t, tv] of Object.entries(times).sort((a, b) => a[1] - b[1])) {
+      const k = String(gv * stride[gi] + tv * stride[ti]);
+      const v = d.value?.[k];
+      const iso = date(t);
+      if (iso && typeof v === 'number' && Number.isFinite(v)) {
+        obs.push([iso, v]);
+        // Eurostat's status flags: "e" estimated (a flash estimate), "p" provisional.
+        const f = d.status?.[k];
+        if (flags && typeof f === 'string' && f) flags.set(`${g}|${iso}`, f);
+      }
+    }
+    if (obs.length) out.set(g, obs);
+  }
+  return out;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** The euro area's aggregate code the source fills: EA, else the largest EAnn. */
+export function euroAreaCode(m: Map<string, Obs>): string | undefined {
+  if (m.get('EA')?.length) return 'EA';
+  const codes = [...m.keys()].filter((k) => /^EA\d{2}$/.test(k)).sort();
+  return codes[codes.length - 1];
+}

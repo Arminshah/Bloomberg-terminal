@@ -85,7 +85,8 @@ describe('real quotes fill gaps with nothing, not with generated figures', () =>
     expect(ks.pe).toBeNaN();
     expect(ks.fpe).toBeNaN();
     expect(ks.pb).toBeCloseTo(4.39, 2);
-    expect(ks.divYld).toBe(0);
+    // The yield comes from the dividends paid, which arrive with the price history, not from the quote's own field.
+    expect(ks.divYld).toBeNaN();
     expect(ks.epsLtm).toBe(-1.62);
     yahooQuotes.delete(def.id);
   });
@@ -326,9 +327,43 @@ describe('futures contracts from the source', () => {
     expect(frontContract({ shortName: 'E-Mini S&P 500 Dec 26', expireIsoDate: '2026-12-18T00:00:00Z', openInterest: 1881988 })).toMatchObject({ code: 'Z26', month: 'Dec 26', openInterest: 1881988 });
     expect(frontContract({ shortName: 'Corn Futures,Dec-2026', expireIsoDate: '2026-12-14T00:00:00Z' })).toMatchObject({ code: 'Z26' });
     expect(frontContract({ shortName: 'Brent Crude Oil Last Day Financ', expireIsoDate: '2026-11-02T00:00:00Z' })).toBeNull();
+    // Yahoo cuts some names short; the contract symbol still names the month.
+    expect(frontContract({ underlyingSymbol: 'RTYZ26.CME', shortName: 'E-mini Russell 2000 Index Futur', expireIsoDate: '2026-12-18T00:00:00Z', openInterest: 433709 })).toMatchObject({ code: 'Z26', month: 'Dec 26', openInterest: 433709 });
+    expect(frontContract({ underlyingSymbol: 'NQZ26.CME', expireIsoDate: '2026-12-18T00:00:00Z' })).toMatchObject({ code: 'Z26' });
     const from = new Date(Date.UTC(2026, 9, 12));
     expect(contractSymbols('CL', 'NYM', 'All months', 3, from).map((x) => x.symbol)).toEqual(['CLV26.NYM', 'CLX26.NYM', 'CLZ26.NYM']);
     expect(contractSymbols('GC', 'CMX', 'G,J,M,Q,V,Z', 3, from).map((x) => x.symbol)).toEqual(['GCV26.CMX', 'GCZ26.CMX', 'GCG27.CMX']);
     expect(contractSymbols('ZQ', 'CBT', 'All months', 2, from).map((x) => x.symbol)).toEqual(['ZQV26.CBT', 'ZQX26.CBT']);
+  });
+});
+
+describe('dividend yields from paid dividends', () => {
+  it('sums the dividends that went ex in the past year', async () => {
+    const { paidInYear } = await import('../src/data/live/yahoo');
+    const { isoToDay } = await import('../src/data/calendar');
+    // SPY's dividends as Yahoo lists them on 12 Oct 2026.
+    const spy = [
+      ['2025-09-19', 1.831],
+      ['2025-12-19', 1.993],
+      ['2026-03-20', 1.797],
+      ['2026-06-18', 1.904],
+      ['2026-09-18', 1.889],
+    ].map(([d, amount]) => ({ day: isoToDay(d as string), amount: amount as number }));
+    expect(paidInYear(spy, isoToDay('2026-10-12'))).toBeCloseTo(7.583, 9);
+    // On the anniversary of an ex-date, that dividend has dropped out and the new one counts.
+    expect(paidInYear(spy, isoToDay('2026-09-19'))).toBeCloseTo(1.993 + 1.797 + 1.904 + 1.889, 9);
+    expect(paidInYear(undefined, isoToDay('2026-10-12'))).toBe(0);
+  });
+});
+
+describe('dividend amounts', () => {
+  it('shows the digits the source gives and drops single-precision noise', async () => {
+    const { fmtAmount } = await import('../src/functions/DVD');
+    expect(fmtAmount(0.278)).toBe('0.278');
+    expect(fmtAmount(0.2775)).toBe('0.2775');
+    expect(fmtAmount(0.52)).toBe('0.52');
+    expect(fmtAmount(29.179998)).toBe('29.18');
+    expect(fmtAmount(18.279999)).toBe('18.28');
+    expect(fmtAmount(NaN)).toBe('--');
   });
 });
