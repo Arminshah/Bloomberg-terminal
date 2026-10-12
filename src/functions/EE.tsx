@@ -2,12 +2,15 @@ import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { Section, Chg, KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
-import { fmtDay, fmtMln, fmtNum } from '../core/format';
+import { fmtEarnDate, fmtMln, fmtNum } from '../core/format';
 import { earningsHistory, estimates, reportCcy } from '../data/fundamentals';
 import type { FnProps } from '../terminal/types';
+import { useFundamentals } from '../data/live/yfund';
+import { sourceLabel } from '../components/Source';
 
 export function EE({ sec }: FnProps) {
   const s = sec!;
+  const { status } = useFundamentals(s);
   const hist = earningsHistory(s);
   const est = estimates(s);
   const done = hist.filter((h) => h.actual != null);
@@ -16,17 +19,17 @@ export function EE({ sec }: FnProps) {
   const ccy = reportCcy(s);
   return (
     <div>
-      <FnHeader code="EE" title="Earnings & Estimates" sec={s} sub={`${ccy} · simulated estimates`} />
+      <FnHeader code="EE" title="Earnings & Estimates" sec={s} sub={<>{ccy} · {sourceLabel(status, 'estimates generated; real data needs the desktop app')}</>} />
       <QuoteStrip sec={s} />
       <div className="cols">
         <Section title="Next report">
           <KV
             items={[
               ['Period', next?.period ?? '--'],
-              ['Expected date', next ? `${fmtDay(next.date)} ${next.timing}` : '--'],
+              ['Expected date', next ? fmtEarnDate(next) : '--'],
               ['EPS estimate', next ? fmtNum(next.estimate, 2) : '--'],
               ['Revenue estimate', next ? fmtMln(next.revEst) : '--'],
-              ['Beat rate (8Q)', `${beats} of ${done.length}`],
+              [`Beat rate (${done.length}Q)`, `${beats} of ${done.length}`],
               ['Avg surprise', `${fmtNum(done.reduce((a, h) => a + (h.surprise ?? 0), 0) / Math.max(1, done.length), 1)}%`],
             ]}
           />
@@ -72,7 +75,7 @@ export function EE({ sec }: FnProps) {
           yFormat={(v) => fmtNum(v, 2)}
         />
       </Section>
-      <Section title="Earnings history">
+      <Section title="Earnings history" right={hist.some((h) => h.approx) ? '~ estimated date' : undefined}>
         <table className="tbl zebra">
           <thead>
             <tr>
@@ -88,9 +91,9 @@ export function EE({ sec }: FnProps) {
           </thead>
           <tbody>
             {[...hist].reverse().map((h) => (
-              <tr key={h.period}>
+              <tr key={`${h.period}:${h.date}`}>
                 <td className="amber">{h.period}</td>
-                <td>{fmtDay(h.date)}</td>
+                <td>{fmtEarnDate(h, false)}</td>
                 <td className="muted">{h.timing}</td>
                 <td className="num">{fmtNum(h.estimate, 2)}</td>
                 <td className="num white">{h.actual != null ? fmtNum(h.actual, 2) : 'Pending'}</td>

@@ -4,7 +4,7 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { Sparkline } from '../components/Sparkline';
 import { Chg, HBar, KV, LivePx, SecLink, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
-import { fmtBig, fmtDay, fmtInt, fmtMln, fmtNum, fmtPct } from '../core/format';
+import { fmtBig, fmtDay, fmtEarnDate, fmtInt, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { marketCapUsd, periodChange, rangeStats } from '../data/analytics';
 import { consensus, dividends, earningsHistory, estimates, financials, holders, keyStats, nextEarnings, reportCcy, revenueMix } from '../data/fundamentals';
@@ -16,6 +16,8 @@ import { execute } from '../terminal/exec';
 import { useMenu, usePanelId } from '../terminal/panel';
 import type { FnProps, MenuItem } from '../terminal/types';
 import { CLASS_LABEL } from '../data/registry';
+import { getRealFund, useFundamentals } from '../data/live/yfund';
+import { sourceLabel } from '../components/Source';
 
 function RelatedMenu({ sec, fns }: { sec: SecurityDef; fns: [string, string][] }) {
   const panel = usePanelId();
@@ -102,7 +104,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
   const ne = nextEarnings(sec);
   const c = consensus(sec);
   const nextDiv = dividends(sec).filter((d) => d.ex >= engine.today * 86_400_000).pop();
-  const mix = revenueMix(sec);
+  const real = getRealFund(sec.id);
+  const mix = real ? [] : revenueMix(sec);
   const ccy = reportCcy(sec);
   return (
     <>
@@ -153,7 +156,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : 'decl.'})` : sec.eq!.dps > 0 ? '--' : 'None'],
               ['EPS LTM', `${fmtNum(ks.epsLtm, 2)} ${ccy}`],
               ['EPS est. FY1 / FY2', `${fmtNum(ks.epsFy1, 2)} / ${fmtNum(ks.epsFy2, 2)}`],
-              ['Next earnings', ne ? `${fmtDay(ne.date)} ${ne.timing}` : '--'],
+              ['Next earnings', ne ? fmtEarnDate(ne) : '--'],
               ['ROE', fmtPct(ks.roe, 1, false)],
               ['Net margin', fmtPct(ks.netMargin, 1, false)],
             ]}
@@ -162,7 +165,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <span className="amber">Analyst rating</span>
               <span className="white">
-                {fmtNum(c.score, 2)} / 5 · target {fmtNum(c.avg, sec.dec)}
+                {fmtNum(c.score, 2)} / 5 · target {fmtNum(c.avg, sec.dec)} · {c.n} analysts
               </span>
             </div>
             <div style={{ display: 'flex', height: 12, marginTop: 4 }}>
@@ -182,7 +185,20 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
         <Section title="1-year price" right="GP for the full chart">
           <PriceChartMini sec={sec} />
         </Section>
-        <Section title="Revenue by region (est.)">
+        {real ? (
+          <Section title="Ownership" right="HDS for holders">
+            <KV
+              items={[
+                ['Insiders', fmtPct(real.breakdown?.insiders, 2, false)],
+                ['Institutions', fmtPct(real.breakdown?.institutions, 2, false)],
+                ['Institutions, % of float', fmtPct(real.breakdown?.institutionsFloat, 2, false)],
+                ['Institutional holders', fmtInt(real.breakdown?.count)],
+                ['Largest holder', real.holders[0] ? `${real.holders[0].name} (${fmtNum(real.holders[0].pct, 2)}%)` : '--'],
+              ]}
+            />
+          </Section>
+        ) : (
+        <Section title="Revenue by region" right={<span className="badge sim">SIMULATED</span>}>
           <table className="tbl">
             <tbody>
               {mix.map((m) => (
@@ -199,6 +215,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
             </tbody>
           </table>
         </Section>
+        )}
       </div>
       <RelatedMenu
         sec={sec}
@@ -280,7 +297,7 @@ function EquityEstimates({ sec }: { sec: SecurityDef }) {
                 <td className="num">
                   <Chg v={x.growth} pct dec={1} />
                 </td>
-                <td className="num">{x.analysts}</td>
+                <td className="num">{fmtInt(x.analysts)}</td>
               </tr>
             ))}
           </tbody>
@@ -299,13 +316,13 @@ function EquityEstimates({ sec }: { sec: SecurityDef }) {
           </thead>
           <tbody>
             {hist.map((x) => (
-              <tr key={x.period}>
+              <tr key={`${x.period}:${x.date}`}>
                 <td className="amber">{x.period}</td>
-                <td>{fmtDay(x.date)}</td>
+                <td>{fmtEarnDate(x, false)}</td>
                 <td className="num">{fmtNum(x.estimate, 2)}</td>
                 <td className="num white">{fmtNum(x.actual, 2)}</td>
                 <td className="num">
-                  <Chg v={x.surprise ?? 0} pct dec={1} />
+                  {x.surprise != null ? <Chg v={x.surprise} pct dec={1} /> : '--'}
                 </td>
               </tr>
             ))}
@@ -317,7 +334,8 @@ function EquityEstimates({ sec }: { sec: SecurityDef }) {
 }
 
 function EquityOwnership({ sec }: { sec: SecurityDef }) {
-  const h = holders(sec).slice(0, 10);
+  // Fund filings overlap with their managers' 13F positions, so the summary counts managers only.
+  const h = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 10);
   const inst = h.reduce((s, x) => s + x.pct, 0);
   return (
     <Section title="Top institutional holders" right={`Top 10 hold ${fmtNum(inst, 1)}%`}>
@@ -770,6 +788,7 @@ function FutureDES({ sec }: { sec: SecurityDef }) {
 export function DES({ sec }: FnProps) {
   const s = sec!;
   const [tab, setTab] = useState(1);
+  const { status } = useFundamentals(s.cls === 'equity' ? s : undefined);
   const tabs = s.cls === 'equity' ? [{ n: 1, label: 'Profile' }, { n: 2, label: 'Financials' }, { n: 3, label: 'Estimates' }, { n: 4, label: 'Ownership' }] : undefined;
   let body: ReactNode;
   switch (s.cls) {
@@ -800,7 +819,23 @@ export function DES({ sec }: FnProps) {
   }
   return (
     <div>
-      <FnHeader code="DES" title="Description" sec={s} sub={`${s.name} · ${CLASS_LABEL[s.cls]}`} tabs={tabs} tab={tab} onTab={setTab} />
+      <FnHeader
+        code="DES"
+        title="Description"
+        sec={s}
+        sub={
+          s.cls === 'equity' ? (
+            <>
+              {s.name} · {CLASS_LABEL[s.cls]} · {sourceLabel(status, 'company data generated from the profile; real data needs the desktop app')}
+            </>
+          ) : (
+            `${s.name} · ${CLASS_LABEL[s.cls]}`
+          )
+        }
+        tabs={tabs}
+        tab={tab}
+        onTab={setTab}
+      />
       <QuoteStrip sec={s} />
       {body}
     </div>

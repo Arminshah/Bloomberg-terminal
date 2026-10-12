@@ -8,20 +8,47 @@ import { engine } from '../data/market';
 import { holders } from '../data/fundamentals';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
+import { getRealFund, useFundamentals } from '../data/live/yfund';
+import { sourceLabel } from '../components/Source';
 
 export function HDS({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
+  const { status } = useFundamentals(s);
   const list = holders(s);
+  const bd = getRealFund(s.id)?.breakdown;
   const px = engine.quote(s.id)!.last * (s.minor ? 0.01 : 1);
-  const total = list.reduce((a, h) => a + h.pct, 0);
+  // Funds report positions their managers also file, so the total counts managers only.
+  const managers = list.filter((h) => h.type !== 'Fund');
+  const funds = list.length - managers.length;
+  const total = managers.reduce((a, h) => a + h.pct, 0);
   const max = Math.max(...list.map((h) => h.pct));
   const csv = () => [['Holder', 'Type', '% Out', 'Position', 'Change', 'Filed', 'Source'], ...list.map((h) => [h.name, h.type, h.pct.toFixed(3), Math.round(h.shares), Math.round(h.change), fmtDay(h.filed, true), h.source])];
   return (
     <div>
-      <FnHeader code="HDS" title="Security Ownership" sec={s} sub={`Institutional holders · simulated positions`} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_HDS.csv`, csv)} />
+      <FnHeader code="HDS" title="Security Ownership" sec={s} sub={<>Institutional holders · {sourceLabel(status, 'positions generated; real data needs the desktop app')}</>} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_HDS.csv`, csv)} />
       <QuoteStrip sec={s} />
-      <Section title="Top holders" right={`${list.length} institutions · ${fmtNum(total, 1)}% of shares outstanding`}>
+      {bd && (
+        <div className="qstrip">
+          <span>
+            <span className="lbl">Insiders</span>
+            {fmtNum(bd.insiders, 2)}%
+          </span>
+          <span>
+            <span className="lbl">Institutions</span>
+            {fmtNum(bd.institutions, 2)}%
+          </span>
+          <span>
+            <span className="lbl">Of float</span>
+            {fmtNum(bd.institutionsFloat, 2)}%
+          </span>
+          <span>
+            <span className="lbl">Institutions holding</span>
+            {fmtNum(bd.count, 0)}
+          </span>
+        </div>
+      )}
+      <Section title="Top holders" right={`${managers.length} institutions hold ${fmtNum(total, 1)}% of shares outstanding${funds ? ` · ${funds} funds listed, already inside their managers' positions` : ''}`}>
         <DataTable
           rows={list}
           rowKey={(h) => h.name}

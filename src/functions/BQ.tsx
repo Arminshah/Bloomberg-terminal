@@ -1,17 +1,20 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Flash } from '../components/Flash';
 import { ChartView } from '../components/chart/ChartView';
 import type { ChartOptions } from '../components/chart/PriceChart';
 import { KV, Section } from '../components/cells';
 import { BookTable } from './DEPTH';
-import { TradeTape } from './TAS';
-import { fmtBig, fmtBp, fmtDay, fmtMln, fmtNum, fmtPct, fmtSigned, fmtStamp, fmtTime, signClass } from '../core/format';
+import { TapeSource, TradeTape } from './TAS';
+import { SimBadge } from '../components/Source';
+import { useFundamentals } from '../data/live/yfund';
+import { fmtBig, fmtBp, fmtDay, fmtEarnDate, fmtMln, fmtNum, fmtPct, fmtSigned, fmtStamp, fmtTime, signClass } from '../core/format';
 import { engine, useQuote, useTick } from '../data/market';
 import { rangeStats } from '../data/analytics';
 import { keyStats, nextEarnings, reportCcy } from '../data/fundamentals';
 import { news } from '../data/news';
 import { execute } from '../terminal/exec';
+import { requestCompanyNews } from '../data/live/feeds';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
@@ -20,6 +23,8 @@ export function BQ({ sec }: FnProps) {
   const panel = usePanelId();
   const q = useQuote(s.id)!;
   useTick(1);
+  useEffect(() => requestCompanyNews(s.id), [s.id]);
+  useFundamentals(s.eq ? s : undefined);
   const rs = rangeStats(s.id);
   const intra = engine.intraday(s.id);
   const stories = news.use((n) => n.stories);
@@ -91,12 +96,12 @@ export function BQ({ sec }: FnProps) {
       </div>
       <div className="cols">
         {tradable ? (
-          <Section title="Depth (top 5)">
+          <Section title="Depth (top 5)" right={<SimBadge />}>
             <BookTable sec={s} levels={5} compact />
           </Section>
         ) : null}
         {tradable ? (
-          <Section title="Trades">
+          <Section title="Trades" right={<TapeSource id={s.id} short />}>
             <div style={{ maxHeight: 220, overflow: 'auto' }}>
               <TradeTape sec={s} rows={15} />
             </div>
@@ -110,7 +115,7 @@ export function BQ({ sec }: FnProps) {
                 ['P/E LTM / FY1', `${fmtNum(ks.pe, 1)} / ${fmtNum(ks.fpe, 1)}`],
                 ['Dividend yield', fmtPct(ks.divYld, 2, false)],
                 ['Beta', fmtNum(ks.beta, 2)],
-                ['Next earnings', ne ? `${fmtDay(ne.date)} ${ne.timing}` : '--'],
+                ['Next earnings', ne ? fmtEarnDate(ne) : '--'],
                 ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
               ]}
             />

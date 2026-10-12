@@ -6,16 +6,20 @@ import { exportActions } from '../components/ExportActions';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { analystViews, consensus, RATING_SCORE } from '../data/fundamentals';
+import { analystViews, consensus } from '../data/fundamentals';
+import { useFundamentals } from '../data/live/yfund';
+import { sourceLabel } from '../components/Source';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
-const RATING_CLASS: Record<string, string> = { 'Strong Buy': 'up', Buy: 'up', Outperform: 'up', Hold: 'yellow', Underperform: 'dn', Sell: 'dn' };
+const scoreClass = (score: number) => (score >= 4 ? 'up' : score >= 3 ? 'yellow' : 'dn');
+const fmtTarget = (v: number, dec: number) => (Number.isFinite(v) ? fmtNum(v, dec) : '--');
 
 export function ANR({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
   useTick(5);
+  const { status } = useFundamentals(s);
   const views = analystViews(s);
   const c = consensus(s);
   const px = engine.quote(s.id)!.last;
@@ -25,7 +29,7 @@ export function ANR({ sec }: FnProps) {
   const csv = () => [['Firm', 'Rating', 'Target', 'Prior target', 'Action', 'Date'], ...views.map((v) => [v.firm, v.rating, v.target, v.prevTarget, v.action, fmtDay(v.date, true)])];
   return (
     <div>
-      <FnHeader code="ANR" title="Analyst Recommendations" sec={s} sub={`${c.n} brokers · fictional research firms`} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_ANR.csv`, csv)} />
+      <FnHeader code="ANR" title="Analyst Recommendations" sec={s} sub={<>{c.n} analysts · {sourceLabel(status, 'fictional research firms; real ratings need the desktop app')}</>} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_ANR.csv`, csv)} />
       <QuoteStrip sec={s} />
       <div className="cols">
         <Section title="Consensus">
@@ -40,11 +44,12 @@ export function ANR({ sec }: FnProps) {
             <div>
               <div className="muted">12M target</div>
               <div style={{ fontSize: 28, fontWeight: 600 }} className="white">
-                {fmtNum(c.avg, s.dec)}
+                {fmtTarget(c.avg, s.dec)}
               </div>
               <div>
-                Return potential <Chg v={(c.avg / px - 1) * 100} pct dec={1} />
+                Return potential {Number.isFinite(c.avg) ? <Chg v={(c.avg / px - 1) * 100} pct dec={1} /> : '--'}
               </div>
+              {c.nTargets != null && Number.isFinite(c.nTargets) && <div className="muted">{c.nTargets} price targets</div>}
             </div>
             <div className="grow" style={{ minWidth: 180 }}>
               {[
@@ -65,7 +70,7 @@ export function ANR({ sec }: FnProps) {
                 </div>
               ))}
               <div className="muted" style={{ marginTop: 4 }}>
-                Target range {fmtNum(c.lo, s.dec)} - {fmtNum(c.hi, s.dec)}
+                Target range {fmtTarget(c.lo, s.dec)} - {fmtTarget(c.hi, s.dec)}
               </div>
             </div>
           </div>
@@ -75,17 +80,17 @@ export function ANR({ sec }: FnProps) {
             height={200}
             series={[{ label: 'Price', color: '#ffb547', points: pts }]}
             refLines={[
-              { y: c.hi, color: '#2fd36b', label: `High ${fmtNum(c.hi, s.dec)}` },
-              { y: c.avg, color: '#45d3e6', label: `Consensus ${fmtNum(c.avg, s.dec)}` },
-              { y: c.lo, color: '#ff4d4f', label: `Low ${fmtNum(c.lo, s.dec)}` },
-            ]}
+              { y: c.hi, color: '#2fd36b', label: `High ${fmtTarget(c.hi, s.dec)}` },
+              { y: c.avg, color: '#45d3e6', label: `Consensus ${fmtTarget(c.avg, s.dec)}` },
+              { y: c.lo, color: '#ff4d4f', label: `Low ${fmtTarget(c.lo, s.dec)}` },
+            ].filter((l) => Number.isFinite(l.y))}
             xFormat={(v) => fmtDay(v)}
             yFormat={(v) => fmtNum(v, s.dec > 1 ? 0 : s.dec)}
             xTicks={pts.filter((_, i) => i % 21 === 0).map((p) => ({ v: p.x, label: fmtDay(p.x).slice(0, 5) }))}
           />
         </Section>
       </div>
-      <Section title="Broker recommendations">
+      <Section title="Broker recommendations" right={status === 'ok' ? 'Latest action per firm, last 18 months' : undefined}>
         <DataTable
           rows={views}
           rowKey={(v) => v.firm}
@@ -93,11 +98,11 @@ export function ANR({ sec }: FnProps) {
           defaultSort={{ key: 'd', dir: -1 }}
           columns={[
             { key: 'f', label: 'Firm', render: (v) => v.firm, sort: (v) => v.firm },
-            { key: 'r', label: 'Rating', render: (v) => <span className={RATING_CLASS[v.rating]}>{v.rating}</span>, sort: (v) => RATING_SCORE[v.rating] },
+            { key: 'r', label: 'Rating', render: (v) => <span className={scoreClass(v.score)}>{v.rating}</span>, sort: (v) => v.score },
             { key: 'a', label: 'Action', render: (v) => v.action, sort: (v) => v.action, hideM: true },
-            { key: 't', label: 'Target', num: true, render: (v) => fmtNum(v.target, s.dec), sort: (v) => v.target },
-            { key: 'p', label: 'Prior', num: true, render: (v) => (v.prevTarget !== v.target ? fmtNum(v.prevTarget, s.dec) : '--'), hideM: true },
-            { key: 'u', label: 'Upside', num: true, render: (v) => <Chg v={(v.target / px - 1) * 100} pct dec={1} />, sort: (v) => v.target / px },
+            { key: 't', label: 'Target', num: true, render: (v) => fmtTarget(v.target, s.dec), sort: (v) => (Number.isFinite(v.target) ? v.target : -1) },
+            { key: 'p', label: 'Prior', num: true, render: (v) => (v.prevTarget !== v.target ? fmtTarget(v.prevTarget, s.dec) : '--'), hideM: true },
+            { key: 'u', label: 'Upside', num: true, render: (v) => (Number.isFinite(v.target) ? <Chg v={(v.target / px - 1) * 100} pct dec={1} /> : '--'), sort: (v) => (Number.isFinite(v.target) ? v.target / px : -9) },
             { key: 'd', label: 'Date', render: (v) => fmtDay(v.date), sort: (v) => v.date },
           ]}
         />

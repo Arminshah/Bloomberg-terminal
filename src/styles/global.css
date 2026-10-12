@@ -525,6 +525,7 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .badge.sim { background: #3a2a0a; color: var(--amber); }
 .badge.live { background: #0d3a1d; color: var(--up); }
 .badge.hot { background: var(--dn); color: #fff; }
+.sim-px::after { content: 'SIM'; margin-left: 3px; font-size: 7px; letter-spacing: 0.06em; color: var(--amber); vertical-align: super; }
 .bar-track { position: relative; height: 10px; background: var(--bg-3); }
 .bar-fill { position: absolute; top: 0; bottom: 0; }
 

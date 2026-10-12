@@ -52,7 +52,8 @@ export function XYChart(props: Props) {
     let w = 0;
     let h = 0;
     const draw = () => {
-      const p = propsRef.current;
+      // Points without a value (a missing estimate, say) are left out rather than breaking the scale.
+      const p = { ...propsRef.current, series: propsRef.current.series.map((s) => ({ ...s, points: s.points.filter((q) => Number.isFinite(q.x) && Number.isFinite(q.y)) })) };
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const r = el.getBoundingClientRect();
       w = Math.max(10, Math.floor(r.width));

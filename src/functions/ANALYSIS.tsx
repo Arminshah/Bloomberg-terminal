@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { RealBadge, SimBadge, sourceLabel } from '../components/Source';
+import { atmVolAt, useRealExpiries } from '../data/live/yopt';
+import { useFundamentals } from '../data/live/yfund';
 import { DataTable } from '../components/DataTable';
 import { XYChart, type XYSeries } from '../components/chart/XYChart';
 import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { horizonStart, marketCapUsd, rangeStats, type Horizon } from '../data/analytics';
-import { dividends, financials, majorPrice } from '../data/fundamentals';
+import { dividends, financials, hasRealStatements, majorPrice } from '../data/fundamentals';
 import { atmVol, dividendYield } from '../data/options';
 import { resolveSecurity } from '../data/registry';
 import { indexAtOrBefore, type Series } from '../data/series';
@@ -164,6 +167,8 @@ const GF_TABS = [
 export function GF({ sec }: FnProps) {
   const s = sec!;
   const [tab, setTab] = useState(1);
+  const { status: fundStatus } = useFundamentals(s);
+  const status = fundStatus === 'ok' && !hasRealStatements(s) ? 'error' : fundStatus;
   const f = financials(s);
   const daily = engine.daily(s.id);
   const pxAt = (t: number) => {
@@ -214,7 +219,7 @@ export function GF({ sec }: FnProps) {
   }
   return (
     <div>
-      <FnHeader code="GF" title="Graph Fundamentals" sec={s} sub="Simulated fundamentals scaled to the company's reported size" tabs={GF_TABS} tab={tab} onTab={setTab} />
+      <FnHeader code="GF" title="Graph Fundamentals" sec={s} sub={sourceLabel(status, "statements generated from the company's reported size; real data needs the desktop app")} tabs={GF_TABS} tab={tab} onTab={setTab} />
       <Section title={title}>
         <XYChart series={series} height={300} legend={series.length > 1} xTicks={ticks} yFormat={fmt} yZero={tab !== 4 && tab !== 3} />
       </Section>
@@ -313,8 +318,11 @@ export function HVT({ sec }: FnProps) {
     chart[1].points.push({ x: daily.t[i], y: vols[4][i] });
     chart[2].points.push({ x: daily.t[i], y: vols[7][i] });
   }
-  const iv = optionable ? atmVol(s, 30 / 365) * 100 : NaN;
-  const iv3 = optionable ? atmVol(s, 91 / 365) * 100 : NaN;
+  // Listed options in the desktop app; the model's smile otherwise.
+  const listed = useRealExpiries(s);
+  const realIv = listed.status === 'ok' && listed.atmTerm.length > 0;
+  const iv = !optionable ? NaN : realIv ? atmVolAt(listed.atmTerm, 30) : atmVol(s, 30 / 365) * 100;
+  const iv3 = !optionable ? NaN : realIv ? atmVolAt(listed.atmTerm, 91) : atmVol(s, 91 / 365) * 100;
   const all30 = Array.from(vols[2].subarray(from, n)).filter(Number.isFinite);
   return (
     <div>
@@ -348,7 +356,7 @@ export function HVT({ sec }: FnProps) {
             </tbody>
           </table>
         </Section>
-        <Section title="Implied vs realised">
+        <Section title="Implied vs realised" right={optionable ? realIv ? <><RealBadge /> listed options</> : <><SimBadge /> model implied vol</> : undefined}>
           <KV
             items={[
               ['30D realised', `${fmtNum(rows[2].cur, 2)}${unit}`],

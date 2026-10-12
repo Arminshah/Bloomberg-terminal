@@ -269,11 +269,20 @@ export function PDFU(_: FnProps) {
         <Section title="Data sources">
           <table className="tbl">
             <tbody>
-              {feedRow('Simulator', 'live', `Calibrated to closes as of ${SNAPSHOT_AS_OF}; runs every instrument`)}
+              {feeds.market !== 'off' && feedRow('Real market data (Yahoo Finance, desktop)', feeds.market, feeds.detail.market)}
+              {feeds.rates !== 'off' && feedRow('US Treasury curve (treasury.gov, desktop)', feeds.rates, feeds.detail.rates)}
+              {feeds.policy !== 'off' && feedRow('Central bank rates (desktop)', feeds.policy, feeds.detail.policy)}
+              {feedRow(
+                'Simulator',
+                'live',
+                feeds.market === 'live'
+                  ? 'Only where no free source exists: non-US government yields, non-US index futures, bond prices (modelled off the curve), order books, dealer quotes and economic releases. These are marked SIM.'
+                  : `Calibrated to closes as of ${SNAPSHOT_AS_OF}; runs every instrument`,
+              )}
               {feedRow('Crypto (Coinbase)', feeds.crypto, feeds.detail.crypto)}
               {feedRow('FX fixings (ECB via Frankfurter)', feeds.fx, feeds.detail.fx)}
               {feedRow('US equities (Finnhub)', feeds.equities, feeds.detail.equities)}
-              {feedRow('Headlines (Finnhub)', feeds.news, feeds.detail.news)}
+              {feedRow('Headlines', feeds.news, feeds.detail.news)}
             </tbody>
           </table>
           <div className="pad" style={{ display: 'grid', gap: 8 }}>

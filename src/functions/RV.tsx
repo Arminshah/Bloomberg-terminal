@@ -12,6 +12,9 @@ import { median } from '../finance/stats';
 import type { SecurityDef } from '../data/types';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
+import { useFundamentalsFor } from '../data/live/yfund';
+import { desktopData } from '../data/live/yahoo';
+import { SimBadge } from '../components/Source';
 
 interface Row {
   d: SecurityDef;
@@ -31,14 +34,16 @@ export function RV({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
   const tick = useTick(5);
+  const group = useMemo(() => [s, ...peers(s, 12)], [s]);
+  const { loaded, failed } = useFundamentalsFor(group);
   const rows: Row[] = useMemo(
     () =>
-      [s, ...peers(s, 12)].map((d) => {
+      group.map((d) => {
         const k = keyStats(d);
         return { d, mcap: marketCapUsd(d.id), pe: k.pe, fpe: k.fpe, pb: k.pb, evEbitda: k.evEbitda, dy: k.divYld, roe: k.roe, margin: k.netMargin, ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y') };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [s, tick],
+    [group, tick, loaded],
   );
   const num = (key: keyof Row, label: string, dec = 1, pct = false): Column<Row> => ({
     key,
@@ -75,7 +80,30 @@ export function RV({ sec }: FnProps) {
   const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'P/E', 'P/E FY1', 'P/B', 'EV/EBITDA', 'Div yld', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), r.pe, r.fpe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
   return (
     <div>
-      <FnHeader code="RV" title="Relative Valuation" sec={s} sub={`Peers: ${s.eq!.industry}`} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_RV.csv`, csv)} />
+      <FnHeader code="RV" title="Relative Valuation" sec={s} sub={
+          <>
+            Peers: {s.eq!.industry} ·{' '}
+            {desktopData() ? (
+              loaded + failed < group.length ? (
+                `Loading real data, ${loaded} of ${group.length} companies…`
+              ) : (
+                <>
+                  <span className="badge live">REAL</span> Yahoo Finance ratios
+                  {failed ? (
+                    <>
+                      {' '}
+                      for {loaded} of {group.length}; <SimBadge /> for the rest
+                    </>
+                  ) : null}
+                </>
+              )
+            ) : (
+              <>
+                <SimBadge /> ratios from generated statements; real data needs the desktop app
+              </>
+            )}
+          </>
+        } actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_RV.csv`, csv)} />
       <QuoteStrip sec={s} />
       <DataTable
         rows={rows}

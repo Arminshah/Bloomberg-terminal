@@ -4,6 +4,7 @@ import { DAY_MS, dayNum, dayToIso, isBusinessDay, isoToDay, prevBusinessDay } fr
 import type { EquityInfo, SecurityDef } from '../types';
 import { settings } from '../../terminal/settings';
 import { trackFinnhubSymbol } from './feeds';
+import { adoptYahooHistory, barsFromChart, yahooGet, type Dividend } from './yahoo';
 
 /**
  * Securities that are not built in are looked up online when someone types
@@ -14,7 +15,12 @@ import { trackFinnhubSymbol } from './feeds';
 
 declare global {
   interface Window {
-    arminDesktop?: { platform: string; yahoo(path: string): Promise<{ status: number; data: unknown }> };
+    arminDesktop?: {
+      platform: string;
+      yahoo(path: string): Promise<{ status: number; data: unknown }>;
+      treasury(year: number): Promise<{ status: number; text: string }>;
+      policy(source: 'effr' | 'sofr' | 'ecb' | 'boe' | 'boc', since: string): Promise<{ status: number; text: string }>;
+    };
   }
 }
 
@@ -166,23 +172,6 @@ const raw = (o: Json, k: string): number | undefined => {
   return typeof n === 'number' && Number.isFinite(n) ? n : undefined;
 };
 
-/** Daily bars from a Yahoo chart response. */
-export function barsFromYahooChart(chart: Json): Bar[] {
-  const r = chart?.chart?.result?.[0];
-  if (!r?.timestamp) return [];
-  const q = r.indicators?.quote?.[0] ?? {};
-  const out: Bar[] = [];
-  r.timestamp.forEach((ts: number, i: number) => {
-    const c = q.close?.[i];
-    if (c == null || !Number.isFinite(c) || c <= 0) return;
-    const day = dayNum(ts * 1000);
-    const bar = { day, o: q.open?.[i] ?? c, h: q.high?.[i] ?? c, l: q.low?.[i] ?? c, c, v: q.volume?.[i] ?? 0 };
-    if (out.length && out[out.length - 1].day === day) out[out.length - 1] = bar;
-    else out.push(bar);
-  });
-  return out;
-}
-
 /** Builds a security from Yahoo chart (daily, multi-year) and quoteSummary responses. */
 export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def: SecurityDef; bars: Bar[] } | { error: string } {
   const meta = chart?.chart?.result?.[0]?.meta;
@@ -192,7 +181,7 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
     return { error: `${ticker} is ${kind[meta.instrumentType] ?? 'not a stock'}; only stocks can be looked up` };
   }
   if (meta.currency !== 'USD' || !YAHOO_EXCH[meta.exchangeName]) return { error: `${ticker} is not listed on a US exchange` };
-  const bars = barsFromYahooChart(chart);
+  const bars = barsFromChart(chart).bars;
   if (bars.length < 5) return { error: `Not enough price history for ${ticker}` };
   const r = summary?.quoteSummary?.result?.[0] ?? {};
   const ap = r.assetProfile ?? {};
@@ -244,21 +233,14 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
   return { def, bars };
 }
 
-async function yahoo(path: string): Promise<Json> {
-  const res = await window.arminDesktop!.yahoo(path);
-  if (res.status === 404) return null;
-  if (res.status !== 200) throw new Error(`Yahoo ${res.status}`);
-  return res.data;
-}
-
-async function loadYahoo(ticker: string): Promise<LookupResult & { bars?: Bar[] }> {
+async function loadYahoo(ticker: string): Promise<LookupResult & { bars?: Bar[]; dividends?: Dividend[] }> {
   const sym = encodeURIComponent(yahooSymbol(ticker));
-  const chart = await yahoo(`/v8/finance/chart/${sym}?range=10y&interval=1d&includePrePost=false`);
+  const chart = await yahooGet(`/v8/finance/chart/${sym}?range=10y&interval=1d&events=div%2Csplit&includePrePost=false`);
   if (!chart?.chart?.result?.[0]) return { ok: false, reason: `${ticker} was not found` };
-  const summary = await yahoo(`/v10/finance/quoteSummary/${sym}?modules=assetProfile,defaultKeyStatistics,financialData,summaryDetail,price,calendarEvents`).catch(() => null);
+  const summary = await yahooGet(`/v10/finance/quoteSummary/${sym}?modules=assetProfile,defaultKeyStatistics,financialData,summaryDetail,price,calendarEvents`).catch(() => null);
   const built = defFromYahoo(ticker, chart, summary);
   if ('error' in built) return { ok: false, reason: built.error };
-  return { ok: true, def: built.def, bars: built.bars };
+  return { ok: true, def: built.def, bars: built.bars, dividends: barsFromChart(chart).dividends };
 }
 
 // ----------------------------------------------------------------- Finnhub
@@ -363,7 +345,8 @@ export function lookupSecurity(input: string): Promise<LookupResult> {
         if (!r.ok) return r;
         engine.addSecurity(r.def, { bars: r.bars });
         persist(r.def);
-        void pollYahoo(r.def);
+        // The real-data service takes the line over: real history now, real quotes from the next poll.
+        adoptYahooHistory(r.def.id, r.def.dynamic!.symbol, r.bars!, r.dividends);
         return { ok: true, def: r.def };
       }
       const r = await loadFinnhub(ticker);
@@ -388,7 +371,7 @@ export async function searchOnline(q: string): Promise<OnlineHit[]> {
   const source = lookupSource();
   if (!source || !q.trim()) return [];
   if (source === 'yahoo') {
-    const res = await yahoo(`/v1/finance/search?q=${encodeURIComponent(q.trim())}&quotesCount=12&newsCount=0`);
+    const res = await yahooGet(`/v1/finance/search?q=${encodeURIComponent(q.trim())}&quotesCount=12&newsCount=0`);
     return ((res?.quotes ?? []) as Json[])
       .filter((x) => x.quoteType === 'EQUITY' && YAHOO_EXCH[x.exchange])
       .map((x) => ({ symbol: String(x.symbol).replace('-', '/'), name: x.longname ?? x.shortname ?? x.symbol, exchange: YAHOO_EXCH[x.exchange] }));
@@ -411,73 +394,15 @@ export function restoreCustomSecurities() {
   }
 }
 
-/** Live session prices for desktop lookups: Yahoo 1-minute bars, polled. */
-async function pollYahoo(def: SecurityDef) {
-  if (lookupSource() !== 'yahoo' || settings.get().finnhubKey.trim()) return;
-  try {
-    const res = await yahoo(`/v8/finance/chart/${encodeURIComponent(def.dynamic!.symbol)}?range=1d&interval=1m&includePrePost=false`);
-    const r = res?.chart?.result?.[0];
-    const meta = r?.meta;
-    if (!meta?.regularMarketTime) return;
-    const t = meta.regularMarketTime * 1000;
-    // Outside today's session the line keeps simulating from the real last close.
-    if (dayNum(t) !== engine.today) return;
-    const q = r.indicators?.quote?.[0] ?? {};
-    const bars: { t: number; o: number; h: number; l: number; c: number; v: number }[] = [];
-    (r.timestamp ?? []).forEach((ts: number, i: number) => {
-      const c = q.close?.[i];
-      if (c == null || !Number.isFinite(c)) return;
-      bars.push({ t: ts * 1000, o: q.open?.[i] ?? c, h: q.high?.[i] ?? c, l: q.low?.[i] ?? c, c, v: q.volume?.[i] ?? 0 });
-    });
-    if (bars.length) engine.setIntradayBars(def.id, bars, 60_000);
-    engine.applyLive(def.id, {
-      last: meta.regularMarketPrice,
-      prevClose: meta.chartPreviousClose ?? meta.previousClose,
-      open: bars[0]?.o,
-      high: meta.regularMarketDayHigh,
-      low: meta.regularMarketDayLow,
-      volume: meta.regularMarketVolume,
-      time: t,
-    });
-    engine.flush([def.id]);
-  } catch {
-    /* best effort; the line keeps simulating */
-  }
-}
-
-/** Refreshes saved securities' history and keeps desktop lookups live. */
+/** Streams saved Finnhub lookups once the feed is up (the desktop app's real-data service covers Yahoo ones). */
 export function startDynamicFeeds(): () => void {
   if (typeof window === 'undefined') return () => undefined;
-  const dynamicDefs = () => engine.securities.filter((d) => d.dynamic);
-  const refresh = async () => {
-    const source = lookupSource();
-    for (const d of dynamicDefs()) {
-      try {
-        if (source === 'yahoo' && d.dynamic!.source === 'yahoo' && Date.now() - d.dynamic!.loaded > 6 * 3600_000) {
-          const chart = await yahoo(`/v8/finance/chart/${encodeURIComponent(d.dynamic!.symbol)}?range=10y&interval=1d&includePrePost=false`);
-          const bars = barsFromYahooChart(chart).filter((b) => b.day < engine.today);
-          if (bars.length) {
-            engine.setDailyBars(d.id, bars);
-            engine.rebaseSimulated(d.id);
-            d.dynamic!.loaded = Date.now();
-            d.dynamic!.anchors = anchorsFromBars(bars);
-            persist(d);
-          }
-        }
-        if (source === 'finnhub' && settings.get().finnhubKey.trim()) trackFinnhubSymbol(d.dynamic!.source === 'finnhub' ? d.dynamic!.symbol : finnhubSymbol(d.ticker.split(' ')[0]), d.id);
-      } catch {
-        /* keep the saved calibration */
-      }
+  const first = setTimeout(() => {
+    if (lookupSource() !== 'finnhub') return;
+    for (const d of engine.securities) {
+      if (!d.dynamic) continue;
+      trackFinnhubSymbol(d.dynamic.source === 'finnhub' ? d.dynamic.symbol : finnhubSymbol(d.ticker.split(' ')[0]), d.id);
     }
-    engine.flush(dynamicDefs().map((d) => d.id));
-    for (const d of dynamicDefs()) void pollYahoo(d);
-  };
-  const first = setTimeout(() => void refresh(), 1500);
-  const poll = setInterval(() => {
-    for (const d of dynamicDefs()) void pollYahoo(d);
-  }, 30_000);
-  return () => {
-    clearTimeout(first);
-    clearInterval(poll);
-  };
+  }, 2500);
+  return () => clearTimeout(first);
 }

@@ -1,7 +1,7 @@
 {
   "name": "armin-terminal",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A Bloomberg-style market terminal for the browser and Windows desktop: command line, yellow keys, panels, charts and 66 functions on a calibrated simulated market with optional live feeds.",
   "author": "Armin",
   "homepage": "https://github.com/arminshah/bloomberg-terminal",

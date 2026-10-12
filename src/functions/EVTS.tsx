@@ -2,9 +2,12 @@ import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Chg, SecLink } from '../components/cells';
 import { fmtDay, fmtMln, fmtNum, WEEKDAYS } from '../core/format';
-import { engine } from '../data/market';
+import { SimBadge } from '../components/Source';
+import { getRealFund } from '../data/live/yfund';
+import { desktopData, yahooQuotes } from '../data/live/yahoo';
+import { engine, useTick } from '../data/market';
 import { DAY_MS } from '../data/calendar';
-import { dividends, earningsHistory } from '../data/fundamentals';
+import { dividends, earningsEvents } from '../data/fundamentals';
 import type { FnProps } from '../terminal/types';
 
 interface Ev {
@@ -16,10 +19,15 @@ interface Ev {
   act?: number | null;
   surprise?: number | null;
   timing?: string;
+  approx?: boolean;
+  /** From the simulator rather than a real record. */
+  sim?: boolean;
 }
 
 export function EVTS({ sec }: FnProps) {
   const [range, setRange] = useState(2);
+  // Re-reads the calendar as real dates arrive.
+  useTick(10);
   const now = engine.now();
   const spans = [
     { n: 1, label: 'This week', from: -3, to: 7 },
@@ -34,11 +42,15 @@ export function EVTS({ sec }: FnProps) {
     const list: Ev[] = [];
     const secs = sec ? [sec] : engine.securities.filter((d) => d.cls === 'equity');
     for (const d of secs) {
-      for (const e of earningsHistory(d)) {
-        if (e.date >= from && e.date <= to) list.push({ date: e.date, id: d.id, kind: 'Earnings', detail: `${e.period} results`, est: e.estimate, act: e.actual, surprise: e.surprise, timing: e.timing });
+      const realEarnings = !!getRealFund(d.id) || yahooQuotes.has(d.id) || engine.isExternal(d.id);
+      for (const e of earningsEvents(d)) {
+        if (e.date >= from && e.date <= to) {
+          list.push({ date: e.date, id: d.id, kind: 'Earnings', detail: e.period ? `${e.period} results` : 'Earnings release', est: e.estimate, act: e.actual, surprise: e.surprise, timing: e.timing, approx: e.approx, sim: !realEarnings });
+        }
       }
+      const realDvd = engine.isExternal(d.id) || !!getRealFund(d.id);
       for (const v of dividends(d)) {
-        if (v.ex >= from && v.ex <= to) list.push({ date: v.ex, id: d.id, kind: 'Ex-Dividend', detail: `${fmtNum(v.amount, 4)} ${d.ccy} ${v.type === 'Projected' ? '(projected)' : ''}`.trim() });
+        if (v.ex >= from && v.ex <= to) list.push({ date: v.ex, id: d.id, kind: 'Ex-Dividend', detail: `${fmtNum(v.amount, 4)} ${d.ccy} ${v.type === 'Projected' ? '(projected)' : ''}`.trim(), sim: !realDvd });
       }
     }
     return list.sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
@@ -46,7 +58,20 @@ export function EVTS({ sec }: FnProps) {
   let lastDay = '';
   return (
     <div>
-      <FnHeader code="EVTS" title={sec ? 'Corporate Events' : 'Corporate Events Calendar'} sec={sec} sub={`${events.length} events · earnings and ex-dividend dates`} tabs={spans.map((s) => ({ n: s.n, label: s.label }))} tab={range} onTab={setRange} />
+      <FnHeader code="EVTS" title={sec ? 'Corporate Events' : 'Corporate Events Calendar'} sec={sec} sub={
+          <>
+            {events.length} {events.length === 1 ? 'event' : 'events'} · earnings and ex-dividend dates ·{' '}
+            {events.some((e) => e.sim) ? (
+              <>
+                <SimBadge /> rows marked SIM are generated{desktopData() ? ' while real data loads' : '; real dates need the desktop app'}
+              </>
+            ) : (
+              <>
+                <span className="badge live">REAL</span> Yahoo Finance · ~ marks an estimated date
+              </>
+            )}
+          </>
+        } tabs={spans.map((s) => ({ n: s.n, label: s.label }))} tab={range} onTab={setRange} />
       <table className="tbl">
         <thead>
           <tr>
@@ -84,7 +109,10 @@ export function EVTS({ sec }: FnProps) {
                 </tr>
               ) : null,
               <tr key={`${e.id}${e.kind}${e.date}`} style={past ? { opacity: 0.8 } : undefined}>
-                <td className="muted">{e.timing ?? ''}</td>
+                <td className="muted">
+                  {e.approx ? '~ ' : ''}
+                  {e.timing && e.timing !== '--' ? e.timing : ''}
+                </td>
                 <td>
                   <SecLink id={e.id}>{d.ticker}</SecLink>
                 </td>
@@ -92,8 +120,11 @@ export function EVTS({ sec }: FnProps) {
                   {d.name}
                 </td>
                 <td className={e.kind === 'Earnings' ? 'amber' : 'cyan'}>{e.kind}</td>
-                <td>{e.detail}</td>
-                <td className="num">{e.est != null ? fmtNum(e.est, 2) : ''}</td>
+                <td>
+                  {e.detail}
+                  {e.sim ? <span className="muted"> SIM</span> : null}
+                </td>
+                <td className="num">{e.est != null && Number.isFinite(e.est) ? fmtNum(e.est, 2) : ''}</td>
                 <td className="num white">{e.act != null ? fmtNum(e.act, 2) : e.kind === 'Earnings' ? <span className="muted">pending</span> : ''}</td>
                 <td className="num">{e.surprise != null ? <Chg v={e.surprise} pct dec={1} /> : ''}</td>
               </tr>,

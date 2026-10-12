@@ -7,6 +7,8 @@ import { news, NEWS_TOPICS, storyMatches, type Story } from '../data/news';
 import { feedStatus } from '../data/live/status';
 import { requestCompanyNews } from '../data/live/feeds';
 import { usePanelId } from '../terminal/panel';
+import { RealBadge, SimBadge } from '../components/Source';
+import { desktopData } from '../data/live/yahoo';
 import type { FnProps } from '../terminal/types';
 
 function StoryView({ story, onBack }: { story: Story; onBack: () => void }) {
@@ -69,7 +71,24 @@ function NewsScreen({ code, title, ticker, initialTopic, query }: { code: string
         code={code}
         title={title}
         sec={ticker ? engine.get(ticker) : undefined}
-        sub={`${list.length} stories${realFeed === 'live' ? ' · live headlines connected' : ''}`}
+        sub={
+          <>
+            {list.length} stories ·{' '}
+            {list.every((x) => x.real) && list.length ? (
+              <>
+                <RealBadge /> headlines from {desktopData() ? 'Yahoo Finance and its publishers' : 'the connected feed'}
+              </>
+            ) : list.some((x) => x.real) ? (
+              <>
+                <RealBadge /> blue headlines are real · <SimBadge /> the rest are generated
+              </>
+            ) : (
+              <>
+                <SimBadge /> generated headlines{realFeed === 'live' ? '' : '; real headlines need the desktop app or a news key in PDFU'}
+              </>
+            )}
+          </>
+        }
         tabs={ticker ? undefined : tabs}
         tab={tabN}
         onTab={(n) => {
@@ -82,7 +101,7 @@ function NewsScreen({ code, title, ticker, initialTopic, query }: { code: string
           Search
         </label>
         <input id={`news-q-${panel}`} className="inp" style={{ width: 220 }} value={q} placeholder="keyword, ticker…" onChange={(e) => setQ(e.target.value)} />
-        <span className="muted hide-m">Red = flash headline · Blue = connected live feed</span>
+        <span className="muted hide-m">Red = flash headline · Blue = real headline</span>
       </div>
       <div className={`news${sel ? ' reading' : ''}`} style={{ flex: 1, minHeight: 0 }}>
         <div className="news-list" role="list">
@@ -161,7 +180,11 @@ export function READ(_: FnProps) {
       <FnHeader
         code="READ"
         title="Most Read News"
-        sub="Ranked by readership across the terminal (simulated)"
+        sub={
+          <>
+            <SimBadge /> readership ranking (the stories themselves are as listed in N)
+          </>
+        }
         tabs={[
           { n: 1, label: 'Last 24 hours' },
           { n: 2, label: 'Last 7 days' },

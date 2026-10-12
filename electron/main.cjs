@@ -48,12 +48,14 @@ function nextId() {
 // Lets the terminal look up any US-listed stock without an API key. Profile
 // data needs Yahoo's session cookie and crumb, which the default session keeps.
 const YAHOO = 'https://query2.finance.yahoo.com';
+/** A source that stops answering must not hold a screen in "loading" forever. */
+const TIMEOUT_MS = 20_000;
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
-const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=-]+\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=-]+\?)/;
+const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=%-]+\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=%-]+\?|v7\/finance\/quote\?|v7\/finance\/options\/[A-Za-z0-9.^=%-]+\?|ws\/fundamentals-timeseries\/v1\/finance\/timeseries\/[A-Za-z0-9.^=%-]+\?)/;
 let crumb = null;
 
 async function yahooFetch(url, json = true) {
-  return net.fetch(url, { headers: { 'User-Agent': UA, ...(json ? { Accept: 'application/json' } : {}) }, credentials: 'include' });
+  return net.fetch(url, { headers: { 'User-Agent': UA, ...(json ? { Accept: 'application/json' } : {}) }, credentials: 'include', signal: AbortSignal.timeout(TIMEOUT_MS) });
 }
 
 async function getCrumb(force) {
@@ -68,8 +70,9 @@ async function getCrumb(force) {
 
 ipcMain.handle('yahoo', async (event, path) => {
   if (!event.senderFrame || !event.senderFrame.url.startsWith('file://')) throw new Error('not allowed');
-  if (typeof path !== 'string' || path.length > 400 || !ALLOWED.test(path)) throw new Error('not allowed');
-  const needsCrumb = path.startsWith('/v10/');
+  if (typeof path !== 'string' || path.length > 4000 || !ALLOWED.test(path)) throw new Error('not allowed');
+  // Quotes, options and company data need the session crumb; charts, search and statements do not.
+  const needsCrumb = path.startsWith('/v10/') || path.startsWith('/v7/');
   for (let attempt = 0; attempt < 2; attempt++) {
     let url = YAHOO + path;
     if (needsCrumb) url += `&crumb=${encodeURIComponent(await getCrumb(attempt > 0))}`;
@@ -79,6 +82,42 @@ ipcMain.handle('yahoo', async (event, path) => {
     return { status: res.status, data: await res.json() };
   }
   return { status: 401, data: null };
+});
+
+// ----------------------------------------------------------- US Treasury
+// Official daily par yields for every tenor, one CSV per calendar year.
+const TREASURY = 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv';
+
+ipcMain.handle('treasury', async (event, year) => {
+  if (!event.senderFrame || !event.senderFrame.url.startsWith('file://')) throw new Error('not allowed');
+  const y = Number(year);
+  if (!Number.isInteger(y) || y < 1990 || y > 2100) throw new Error('not allowed');
+  const res = await net.fetch(`${TREASURY}/${y}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${y}&page&_format=csv`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  return { status: res.status, text: res.ok ? await res.text() : '' };
+});
+
+// ---------------------------------------------------------- Central banks
+// Policy rates from the central banks' own public data services (no keys).
+// Each source is a fixed URL; the page only picks which one and a start date.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const POLICY = {
+  effr: (since, today) => `https://markets.newyorkfed.org/api/rates/unsecured/effr/search.json?startDate=${since}&endDate=${today}`,
+  sofr: () => 'https://markets.newyorkfed.org/api/rates/secured/sofr/last/1.json',
+  ecb: (since) => `https://data-api.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.DFR.LEV?format=csvdata&startPeriod=${since}`,
+  boe: (since) => {
+    const [y, m, d] = since.split('-');
+    return `https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp?csv.x=yes&Datefrom=${d}/${MONTHS[Number(m) - 1]}/${y}&Dateto=now&SeriesCodes=IUDBEDR&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N`;
+  },
+  boc: (since) => `https://www.bankofcanada.ca/valet/observations/V39079/json?start_date=${since}`,
+};
+
+ipcMain.handle('policy', async (event, source, since) => {
+  if (!event.senderFrame || !event.senderFrame.url.startsWith('file://')) throw new Error('not allowed');
+  if (!Object.prototype.hasOwnProperty.call(POLICY, source)) throw new Error('not allowed');
+  if (typeof since !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(since)) throw new Error('not allowed');
+  const url = POLICY[source](since, new Date().toISOString().slice(0, 10));
+  const res = await net.fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 
 function createWindow(id = nextId()) {

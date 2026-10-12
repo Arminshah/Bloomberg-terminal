@@ -29,7 +29,8 @@ function Ticket({ secId, initialSide }: { secId?: string; initialSide: Side }) {
   const def = (secId && engine.get(secId)?.ticker === text ? engine.get(secId) : resolveSecurity(text)) ?? undefined;
   const q = useQuote(def?.id);
   const n = Number(qty);
-  const px = type === 'MKT' ? (side === 'BUY' ? q?.ask : q?.bid) ?? q?.last : Number(price);
+  const touch = side === 'BUY' ? q?.ask : q?.bid;
+  const px = type === 'MKT' ? (touch != null && Number.isFinite(touch) ? touch : q?.last) : Number(price);
   const notional = def && q && n > 0 && px ? n * px * usdPerPrice(def) : NaN;
   const fee = def && n > 0 && px ? commission(def, n, px) : NaN;
   const pos = def ? positionOf(def.id) : 0;

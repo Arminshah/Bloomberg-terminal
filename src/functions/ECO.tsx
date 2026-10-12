@@ -8,6 +8,8 @@ import { DAY_MS } from '../data/calendar';
 import { centralBanks, COUNTRY_NAMES, ecoEvents, type EcoEvent } from '../data/eco';
 import { periodChange } from '../data/analytics';
 import type { FnProps } from '../terminal/types';
+import { RealBadge, SimBadge } from '../components/Source';
+import { desktopData } from '../data/live/yahoo';
 
 const COUNTRIES = ['US', 'EZ', 'DE', 'GB', 'JP', 'CN', 'CA', 'AU'];
 
@@ -48,7 +50,20 @@ export function ECO(_: FnProps) {
       <FnHeader
         code="ECO"
         title="Economic Calendar"
-        sub="Times shown in your display time zone · simulated consensus and actuals"
+        sub={
+          <>
+            Times in your display time zone ·{' '}
+            {all.some((e) => e.real) ? (
+              <>
+                <RealBadge /> Fed, ECB, BoE and BoC decisions · <SimBadge /> other releases, marked SIM
+              </>
+            ) : (
+              <>
+                <SimBadge /> release dates, consensus and actuals
+              </>
+            )}
+          </>
+        }
         tabs={[
           { n: 1, label: 'Last week' },
           { n: 2, label: 'This week' },
@@ -117,7 +132,10 @@ export function ECO(_: FnProps) {
               <tr key={e.id} style={!released && e.time < now + 7 * DAY_MS ? undefined : { opacity: 0.92 }}>
                 <td className={soon ? 'yellow b' : 'muted'}>{fmtTime(e.time, false)}</td>
                 <td className="amber">{e.country}</td>
-                <td className={e.relevance >= 3 ? 'white b' : ''}>{e.name}</td>
+                <td className={e.relevance >= 3 ? 'white b' : ''}>
+                  {e.name}
+                  {e.real || !all.some((x) => x.real) ? null : <span className="muted"> SIM</span>}
+                </td>
                 <td className="muted">{e.period}</td>
                 <td className="num">{fmtVal(e, e.survey)}</td>
                 <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`}>{released ? fmtVal(e, e.actual) : soon ? <span className="yellow">{countdown(e.time - now)}</span> : ''}</td>
@@ -162,7 +180,15 @@ export function ECST(_: FnProps) {
   const rows = Object.entries(STATS).map(([c, s]) => ({ c, ...s, rate: policy(c) }));
   return (
     <div>
-      <FnHeader code="ECST" title="World Economic Statistics" sub="Latest prints (simulated) with live market levels" />
+      <FnHeader
+        code="ECST"
+        title="World Economic Statistics"
+        sub={
+          <>
+            <SimBadge /> GDP, inflation and jobless figures are reference settings{desktopData() ? ' · market levels and the Fed, ECB, BoE and BoC rates are real' : ''}
+          </>
+        }
+      />
       <DataTable
         rows={rows}
         rowKey={(r) => r.c}

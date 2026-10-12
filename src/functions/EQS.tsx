@@ -9,6 +9,8 @@ import { marketCapUsd, periodChange } from '../data/analytics';
 import { keyStats } from '../data/fundamentals';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
+import { desktopData } from '../data/live/yahoo';
+import { SimBadge } from '../components/Source';
 
 interface Criteria {
   region: string;
@@ -69,7 +71,20 @@ export function EQS(_: FnProps) {
   const csv = () => [['Ticker', 'Name', 'Region', 'Sector', 'Mkt cap USD bn', 'P/E', 'Div yld', 'ROE', 'Beta', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, r.d.region, r.d.eq!.sector, r.cap.toFixed(1), r.k.pe.toFixed(2), r.k.divYld.toFixed(2), r.k.roe.toFixed(1), r.d.eq!.beta, r.ytd.toFixed(2), r.y1.toFixed(2)])];
   return (
     <div>
-      <FnHeader code="EQS" title="Equity Screening" sub={`${rows.length} matches`} actions={exportActions(panel, 'EQS_results.csv', csv)} />
+      <FnHeader code="EQS" title="Equity Screening" sub={
+          <>
+            {rows.length} matches ·{' '}
+            {desktopData() ? (
+              <>
+                <span className="badge live">REAL</span> prices, market cap, P/E and yield · <SimBadge /> ROE and beta until a company's data is opened
+              </>
+            ) : (
+              <>
+                <SimBadge /> ratios; real data needs the desktop app
+              </>
+            )}
+          </>
+        } actions={exportActions(panel, 'EQS_results.csv', csv)} />
       <div className="chart-tools" style={{ gap: '6px 14px' }}>
         <label className="fld" htmlFor={`eqs-region-${panel}`}>
           Region

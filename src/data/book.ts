@@ -41,8 +41,10 @@ export function orderBook(id: string, levels = 10): { bids: Level[]; asks: Level
     }
     state.set(id, st);
   }
-  if (st.tick !== engine.tickCount) {
-    st.tick = engine.tickCount;
+  // A modelled book moves with the market: every simulator tick, or every real quote update.
+  const key = engine.isExternal(id) ? q.time : engine.tickCount;
+  if (st.tick !== key) {
+    st.tick = key;
     for (const side of [st.bid, st.ask]) {
       for (let i = 0; i < side.length; i++) {
         const target = base * (0.6 + i * 0.25);

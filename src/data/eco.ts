@@ -2,6 +2,7 @@ import { hashString, normal } from '../core/rng';
 import { zonedParts } from '../core/format';
 import { DAY_MS, isBusinessDay, dayNum } from './calendar';
 import { engine } from './market';
+import { levelOn, policyRates, type PolicyRates, type PolicySeries } from './live/policy';
 
 /** Converts a wall-clock time in `tz` to epoch ms. */
 export function zonedToUtc(y: number, m0: number, d: number, hh: number, mm: number, tz: string): number {
@@ -25,13 +26,19 @@ export interface CentralBank {
   meetings: string[];
   last: string;
   lastMove: number;
+  /** Rate, last move and history from the central bank's own data (desktop app) rather than reference settings. */
+  real?: boolean;
 }
 
-/** Policy rates. The Fed range is derived from the 3M bill at start-up. */
+/**
+ * Policy rates. In the desktop app the Fed, ECB, Bank of England and Bank of
+ * Canada come from their own data services; otherwise the Fed range is derived
+ * from the 3M bill and the rest are reference settings.
+ */
 export function centralBanks(): CentralBank[] {
   const bill = engine.quote('USGG3M Index')?.prevClose ?? 4;
   const fedUpper = Math.round((bill + 0.12) * 4) / 4;
-  return [
+  return withRealRates([
     { code: 'FED', country: 'US', bank: 'Federal Reserve', rate: fedUpper, name: 'FOMC Rate Decision (Upper Bound)', tz: 'America/New_York', time: [14, 0], meetings: ['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09', '2027-01-27', '2027-03-17', '2027-04-28', '2027-06-16', '2027-07-28', '2027-09-22'], last: '2026-09-16', lastMove: 0.25 },
     { code: 'ECB', country: 'EZ', bank: 'European Central Bank', rate: 2.0, name: 'ECB Deposit Facility Rate', tz: 'Europe/Berlin', time: [14, 15], meetings: ['2026-02-05', '2026-03-19', '2026-04-30', '2026-06-11', '2026-07-23', '2026-09-10', '2026-10-29', '2026-12-17', '2027-02-04', '2027-03-18'], last: '2025-06-05', lastMove: -0.25 },
     { code: 'BOE', country: 'GB', bank: 'Bank of England', rate: 3.75, name: 'BoE Bank Rate', tz: 'Europe/London', time: [12, 0], meetings: ['2026-02-05', '2026-03-19', '2026-04-30', '2026-06-18', '2026-07-30', '2026-09-17', '2026-11-05', '2026-12-17', '2027-02-04'], last: '2025-12-18', lastMove: -0.25 },
@@ -43,7 +50,27 @@ export function centralBanks(): CentralBank[] {
     { code: 'RBI', country: 'IN', bank: 'Reserve Bank of India', rate: 5.25, name: 'RBI Repurchase Rate', tz: 'Asia/Kolkata', time: [10, 0], meetings: ['2026-02-06', '2026-04-08', '2026-06-05', '2026-08-07', '2026-10-07', '2026-12-04'], last: '2025-12-05', lastMove: -0.25 },
     { code: 'BCB', country: 'BR', bank: 'Banco Central do Brasil', rate: 14.25, name: 'Selic Rate', tz: 'America/Sao_Paulo', time: [18, 30], meetings: ['2026-01-28', '2026-03-18', '2026-05-06', '2026-06-17', '2026-08-05', '2026-09-16', '2026-11-04', '2026-12-09'], last: '2026-09-16', lastMove: -0.25 },
     { code: 'BANXICO', country: 'MX', bank: 'Banco de Mexico', rate: 7.0, name: 'Overnight Rate', tz: 'America/Mexico_City', time: [13, 0], meetings: ['2026-02-12', '2026-03-26', '2026-05-14', '2026-06-25', '2026-08-13', '2026-09-24', '2026-11-12', '2026-12-17'], last: '2025-12-18', lastMove: -0.25 },
-  ];
+  ]);
+}
+
+const REAL_SERIES: Record<string, keyof PolicyRates> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOC: 'boc' };
+
+/** A bank's real rate series, when loaded. */
+export function policySeries(code: string): PolicySeries | undefined {
+  const key = REAL_SERIES[code];
+  return key ? policyRates.get()[key] : undefined;
+}
+
+function withRealRates(banks: CentralBank[]): CentralBank[] {
+  return banks.map((cb) => {
+    const s = policySeries(cb.code);
+    if (!s || !s.changes.length) return cb;
+    const [since, level] = s.changes[s.changes.length - 1];
+    const before = s.changes.length > 1 ? s.changes[s.changes.length - 2][1] : level;
+    // A move takes effect a day (Fed) to a week (ECB) after the meeting that decided it.
+    const meeting = [...cb.meetings].reverse().find((m) => m <= since && Date.parse(since) - Date.parse(m) <= 8 * DAY_MS);
+    return { ...cb, rate: level, last: meeting ?? since, lastMove: level - before, real: true };
+  });
 }
 
 export interface EcoEvent {
@@ -61,6 +88,8 @@ export interface EcoEvent {
   relevance: number;
   /** Positive surprise is good for the economy (e.g. payrolls), negative for inflation-type stats. */
   kind: 'activity' | 'inflation' | 'rate' | 'other';
+  /** A real record (a central bank decision from the bank's own data); everything else is generated. */
+  real?: boolean;
 }
 
 type Rule =
@@ -262,16 +291,25 @@ export function ecoEvents(from: number, to: number, now = engine.now()): EcoEven
         dec: 2,
         relevance: 3,
         kind: 'rate',
+        real: !!cb.real,
       });
     }
   }
   return out.sort((a, b) => a.time - b.time || b.relevance - a.relevance);
 }
 
-/** Meetings up to today keep the current rate; future ones show consensus. */
-function rateDecision(cb: CentralBank, iso: string): { survey: number; actual: number; prior: number } {
-  return { survey: cb.rate, actual: cb.rate, prior: cb.rate };
-  void iso;
+/**
+ * A meeting's prior rate and decision. With real history these are the levels
+ * before and after the meeting (no survey: consensus is not available);
+ * otherwise every meeting keeps the reference rate.
+ */
+function rateDecision(cb: CentralBank, iso: string): { survey: number | null; actual: number; prior: number } {
+  const s = policySeries(cb.code);
+  if (!s) return { survey: cb.rate, actual: cb.rate, prior: cb.rate };
+  const shift = (days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+  const prior = levelOn(s, shift(-1));
+  const after = shift(8) <= s.asOf ? levelOn(s, shift(8)) : s.last;
+  return { survey: null, actual: after, prior: Number.isFinite(prior) ? prior : s.last };
 }
 
 function round(x: number, dec: number): number {

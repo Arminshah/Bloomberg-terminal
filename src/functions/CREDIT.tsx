@@ -10,6 +10,8 @@ import type { SecurityDef } from '../data/types';
 import { analytics, settlementDate, yieldFromClean } from '../finance/bonds';
 import { usePanelId } from '../terminal/panel';
 import { openSecurity } from '../components/cells';
+import { SimBadge } from '../components/Source';
+import { desktopData } from '../data/live/yahoo';
 import type { FnProps } from '../terminal/types';
 
 const RATING_ORDER = ['AAA', 'AA+', 'AA', 'AA-', 'A+', 'A', 'A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-'];
@@ -93,7 +95,11 @@ export function SRCH({ route, sec }: FnProps) {
       <FnHeader
         code="SRCH"
         title="Fixed Income Search"
-        sub={`${rows.length} securities match · prices simulated`}
+        sub={
+          <>
+            {rows.length} securities match · <SimBadge /> bond prices{desktopData() ? ' modelled off the real Treasury curve plus an issuer spread' : ''}
+          </>
+        }
         tabs={[
           { n: 1, label: 'All' },
           { n: 2, label: 'Corporates' },
@@ -278,7 +284,16 @@ export function ALLQ({ sec }: FnProps) {
   const dec = govt ? 4 : 3;
   return (
     <div>
-      <FnHeader code="ALLQ" title="All Quotes" sec={s} sub={`${s.name} · dealer montage (simulated dealers)`} />
+      <FnHeader
+        code="ALLQ"
+        title="All Quotes"
+        sec={s}
+        sub={
+          <>
+            {s.name} · <SimBadge /> dealer montage: dealers and their quotes are generated
+          </>
+        }
+      />
       <div className="cols">
         <Section title="Composite">
           <KV

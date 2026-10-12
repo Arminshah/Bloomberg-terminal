@@ -4,6 +4,10 @@ import { chatTick, ensureRooms } from '../data/chat';
 import { describe } from '../functions/ALRT';
 import { startLiveFeeds } from '../data/live/feeds';
 import { startDynamicFeeds } from '../data/live/lookup';
+import { startYahooData } from '../data/live/yahoo';
+import { startTreasury } from '../data/live/ust';
+import { startPolicyRates } from '../data/live/policy';
+import { startYahooNews } from '../data/live/ynews';
 import { alerts, newsAlerts } from './userdata';
 import { startOms } from './oms';
 import { settings } from './settings';
@@ -78,13 +82,17 @@ function watchNews(): () => void {
 /** Starts app-wide background services; returns a cleanup function. */
 export function startBackground(): () => void {
   const stops: (() => void)[] = [];
-  seedNews();
+  // The desktop app shows only real headlines; elsewhere the simulated newsroom runs (stories are marked).
+  const realNews = startYahooNews();
+  if (realNews) stops.push(realNews);
+  else seedNews();
   ensureRooms();
   stops.push(engine.subscribe(() => checkAlerts()));
   stops.push(startOms());
   stops.push(watchNews());
   let lastFlash = 0;
   const newsTimer = setInterval(() => {
+    if (realNews) return;
     const hot = newsTick();
     // At most one flash headline every 15 seconds keeps the screen readable.
     if (settings.get().newsFlashes && hot.length && Date.now() - lastFlash > 15_000) {
@@ -100,5 +108,8 @@ export function startBackground(): () => void {
   stops.push(() => clearInterval(chatTimer));
   stops.push(startLiveFeeds());
   stops.push(startDynamicFeeds());
+  stops.push(startYahooData());
+  stops.push(startTreasury());
+  stops.push(startPolicyRates());
   return () => stops.forEach((s) => s());
 }

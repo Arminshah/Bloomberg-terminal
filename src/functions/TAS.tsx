@@ -5,6 +5,7 @@ import { fmtBig, fmtNum, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import type { SecurityDef, Trade } from '../data/types';
 import type { FnProps } from '../terminal/types';
+import { priceSource, SimBadge } from '../components/Source';
 
 export function TradeTape({ sec, rows = 200, minSize = 0 }: { sec: SecurityDef; rows?: number; minSize?: number }) {
   useTick(1);
@@ -44,6 +45,33 @@ export function TradeTape({ sec, rows = 200, minSize = 0 }: { sec: SecurityDef; 
   );
 }
 
+/** Says what the prints on a line's tape are. */
+export function TapeSource({ id, short }: { id: string; short?: boolean }) {
+  switch (priceSource(id)) {
+    case 'real':
+      return (
+        <>
+          <span className="badge live">REAL</span>{' '}
+          {short ? 'volume per update' : 'volume from Yahoo Finance, which reports totals rather than single trades: each print is the volume since the last update'}
+        </>
+      );
+    case 'live':
+      return (
+        <>
+          <span className="badge live">LIVE</span> {short ? 'feed prints' : 'trade prints from the streaming feed, newest first'}
+        </>
+      );
+    default:
+      return short ? (
+        <SimBadge />
+      ) : (
+        <>
+          <SimBadge /> trade prints from the simulator
+        </>
+      );
+  }
+}
+
 export function TAS({ sec }: FnProps) {
   const s = sec!;
   const [minSize, setMinSize] = useState(0);
@@ -53,7 +81,7 @@ export function TAS({ sec }: FnProps) {
   const vwap = vol ? trades.reduce((a, t) => a + t.px * t.size, 0) / vol : NaN;
   return (
     <div>
-      <FnHeader code="TAS" title="Time and Sales" sec={s} sub="Trade prints, newest first" />
+      <FnHeader code="TAS" title="Time and Sales" sec={s} sub={<TapeSource id={s.id} />} />
       <QuoteStrip sec={s} />
       <div className="chart-tools">
         <label className="fld" htmlFor="tas-min">

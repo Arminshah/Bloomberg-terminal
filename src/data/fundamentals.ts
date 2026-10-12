@@ -3,6 +3,8 @@ import { DAY_MS, rollForward } from './calendar';
 import { engine } from './market';
 import { marketCap } from './analytics';
 import type { SecurityDef } from './types';
+import { getRealFund, usTiming } from './live/yfund';
+import { realDividends, yahooQuotes } from './live/yahoo';
 
 /** All money values in millions of the reporting currency (GBP for pence lines). */
 export interface FinPeriod {
@@ -146,8 +148,26 @@ function buildPeriod(def: SecurityDef, label: string, end: number, scale: number
 
 const finCache = new Map<string, { annual: FinPeriod[]; quarterly: FinPeriod[]; ltm: FinPeriod }>();
 
-/** Five fiscal years, eight quarters and trailing twelve months. */
-export function financials(def: SecurityDef) {
+/** Real statements when loaded (desktop app), otherwise the generated ones. */
+export function financials(def: SecurityDef): { annual: FinPeriod[]; quarterly: FinPeriod[]; ltm: FinPeriod } {
+  const real = getRealFund(def.id);
+  if (real && (real.annual.length || real.quarterly.length)) {
+    // A recent listing may have filed only quarters so far; the filings are shown as they are.
+    const annual = real.annual.length ? real.annual : real.quarterly;
+    const quarterly = real.quarterly.length ? real.quarterly : real.annual;
+    return { annual, quarterly, ltm: real.ltm ?? annual[annual.length - 1] };
+  }
+  return simFinancials(def);
+}
+
+/** True when a company's statements come from its filings rather than the generator. */
+export function hasRealStatements(def: SecurityDef): boolean {
+  const real = getRealFund(def.id);
+  return !!real && (real.annual.length > 0 || real.quarterly.length > 0);
+}
+
+/** Five fiscal years, eight quarters and trailing twelve months (generated). */
+function simFinancials(def: SecurityDef) {
   const key = `${def.id}:${engine.today}`;
   const hit = finCache.get(def.id + key);
   if (hit) return hit;
@@ -247,7 +267,7 @@ export function keyStats(def: SecurityDef): KeyStats {
   const est = estimates(def);
   const prevYear = f.annual[f.annual.length - 2];
   const lastYear = f.annual[f.annual.length - 1];
-  return {
+  const out: KeyStats = {
     price,
     mcap,
     ev,
@@ -267,13 +287,39 @@ export function keyStats(def: SecurityDef): KeyStats {
     epsLtm: ltm.eps,
     epsFy1: est.fy1.eps,
     epsFy2: est.fy2.eps,
-    revGrowth: (lastYear.rev / prevYear.rev - 1) * 100,
-    epsGrowth: prevYear.eps > 0 ? (lastYear.eps / prevYear.eps - 1) * 100 : NaN,
+    revGrowth: prevYear ? (lastYear.rev / prevYear.rev - 1) * 100 : NaN,
+    epsGrowth: prevYear && prevYear.eps > 0 ? (lastYear.eps / prevYear.eps - 1) * 100 : NaN,
     beta: eq.beta,
     shares: eq.shares,
     fcfYield: (ltm.fcf / mcap) * 100,
     ccy: reportCcy(def),
   };
+  // Prefer the ratios as the data provider reports them.
+  const real = getRealFund(def.id);
+  const ks = out as unknown as Record<string, number>;
+  if (real) {
+    for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v)) ks[k] = v as number;
+  } else {
+    const yq = yahooQuotes.get(def.id);
+    if (yq) {
+      // The quote's own figures, and none where it has none: a loss-maker has no P/E, not a generated one.
+      const put = (k: string, v: unknown, scale = 1, missing = NaN) => {
+        const x = Number(v);
+        ks[k] = v != null && Number.isFinite(x) ? x * scale : missing;
+      };
+      put('pe', yq.trailingPE);
+      put('fpe', yq.forwardPE);
+      put('pb', yq.priceToBook);
+      put('divYld', yq.trailingAnnualDividendYield, 100, 0);
+      put('epsLtm', yq.epsTrailingTwelveMonths);
+      put('epsFy1', yq.epsCurrentYear);
+      put('epsFy2', yq.epsForward);
+      ks.shares = def.eq!.shares;
+    }
+  }
+  // Multiples on losses are not meaningful.
+  for (const k of ['pe', 'fpe', 'evEbitda'] as const) if (!(out[k] > 0)) out[k] = NaN;
+  return out;
 }
 
 export interface Estimate {
@@ -287,7 +333,9 @@ export interface Estimate {
 }
 
 export function estimates(def: SecurityDef): { fy1: Estimate; fy2: Estimate; nq: Estimate } {
-  const f = financials(def);
+  const real = getRealFund(def.id)?.estimates;
+  if (real) return real;
+  const f = simFinancials(def);
   const r = rng(def.id, 'est');
   const g = baseGrowth(def);
   const last = f.annual[f.annual.length - 1];
@@ -309,7 +357,7 @@ export function estimates(def: SecurityDef): { fy1: Estimate; fy2: Estimate; nq:
 }
 
 function nextQuarterLabel(def: SecurityDef): string {
-  const f = financials(def);
+  const f = simFinancials(def);
   const lq = f.quarterly[f.quarterly.length - 1];
   const next = Date.UTC(new Date(lq.end).getUTCFullYear(), new Date(lq.end).getUTCMonth() + 4, 0);
   return fiscalQuarterLabel(def, next);
@@ -329,14 +377,18 @@ export interface EarningsEvent {
   estimate: number;
   actual: number | null;
   surprise: number | null;
-  timing: 'Bef-mkt' | 'Aft-mkt';
+  timing: 'Bef-mkt' | 'Aft-mkt' | '--';
   revEst: number;
   revAct: number | null;
+  /** Report date estimated from the quarter end (the data source gives the quarter, not the day). */
+  approx?: boolean;
 }
 
-/** Past eight reports plus the next scheduled one. */
+/** Past reports plus the next scheduled one: real when loaded, otherwise generated. */
 export function earningsHistory(def: SecurityDef): EarningsEvent[] {
-  const f = financials(def);
+  const real = getRealFund(def.id);
+  if (real && real.earnings.length) return real.earnings;
+  const f = simFinancials(def);
   const today = engine.today * DAY_MS;
   const r = rng(def.id, 'surprise');
   const timing: EarningsEvent['timing'] = rng(def.id, 'timing')() < 0.55 ? 'Aft-mkt' : 'Bef-mkt';
@@ -355,9 +407,33 @@ export function earningsHistory(def: SecurityDef): EarningsEvent[] {
   return out.map((e) => (e.date > today && e.actual != null ? { ...e, actual: null, surprise: null, revAct: null } : e));
 }
 
+/**
+ * Report dates for calendars and quote screens: the company's real reports when
+ * loaded; otherwise the last and next dates from its real quote (desktop app);
+ * otherwise, for a simulated line, the generated schedule.
+ */
+export function earningsEvents(def: SecurityDef): EarningsEvent[] {
+  const real = getRealFund(def.id);
+  if (real && real.earnings.length) return real.earnings;
+  const yq = yahooQuotes.get(def.id);
+  if (!yq) return engine.isExternal(def.id) ? [] : earningsHistory(def);
+  const now = engine.now();
+  const out: EarningsEvent[] = [];
+  const blank = { period: '', estimate: NaN, surprise: null, revEst: NaN, revAct: null };
+  const last = Number(yq.earningsTimestamp) * 1000;
+  const next = Number(yq.earningsTimestampStart) * 1000;
+  const estimated = yq.isEarningsDateEstimate === true;
+  const timing = (ms: number, est: boolean) => (!est && def.country === 'US' ? usTiming(ms) : '--');
+  // A reported quarter's figures are not in the quote, so its actual shows as unknown rather than pending.
+  if (last > 0 && last <= now) out.push({ ...blank, date: last, actual: NaN, timing: timing(last, false) });
+  if (next > 0 && next > now - DAY_MS && next !== last) out.push({ ...blank, date: next, actual: null, approx: estimated, timing: timing(next, estimated) });
+  else if (last > now) out.push({ ...blank, date: last, actual: null, approx: estimated, timing: timing(last, estimated) });
+  return out;
+}
+
 export function nextEarnings(def: SecurityDef): EarningsEvent | undefined {
   const today = engine.today * DAY_MS;
-  return earningsHistory(def).find((e) => e.date >= today);
+  return earningsEvents(def).find((e) => e.date >= today && e.actual == null);
 }
 
 // --------------------------------------------------------------- analysts
@@ -376,7 +452,10 @@ export const RATING_SCORE: Record<Rating, number> = { 'Strong Buy': 5, Buy: 5, O
 
 export interface BrokerView {
   firm: string;
-  rating: Rating;
+  /** The broker's own wording (Overweight, Outperform, Neutral...). */
+  rating: string;
+  /** 5 = buy ... 1 = sell. */
+  score: number;
   target: number;
   prevTarget: number;
   action: 'Upgrade' | 'Downgrade' | 'Maintain' | 'Initiate' | 'Raise PT' | 'Cut PT';
@@ -385,6 +464,8 @@ export interface BrokerView {
 }
 
 export function analystViews(def: SecurityDef): BrokerView[] {
+  const real = getRealFund(def.id);
+  if (real && (real.views.length || real.consensus)) return real.views;
   const r = rng(def.id, `anr:${Math.floor(engine.today / 7)}`);
   const base = rng(def.id, 'anr-base');
   const n = Math.min(BROKERS.length, estimates(def).fy1.analysts);
@@ -404,7 +485,7 @@ export function analystViews(def: SecurityDef): BrokerView[] {
       if ((action === 'Downgrade' && rating === 'Strong Buy') || (action === 'Upgrade' && rating === 'Sell')) action = 'Maintain';
       const prevTarget = action === 'Raise PT' ? target / (1.04 + r() * 0.12) : action === 'Cut PT' ? target * (1.04 + r() * 0.1) : target;
       const date = rollBack(today - Math.floor(r() * r() * 150 + 1) * DAY_MS);
-      return { firm, rating, target: roundTarget(target), prevTarget: roundTarget(prevTarget), action, date, horizon: '12 month' };
+      return { firm, rating, score: RATING_SCORE[rating], target: roundTarget(target), prevTarget: roundTarget(prevTarget), action, date, horizon: '12 month' };
     })
     .sort((a, b) => b.date - a.date);
 }
@@ -423,12 +504,14 @@ function roundTarget(x: number): number {
   return Math.round(x * 100) / 100;
 }
 
-export function consensus(def: SecurityDef) {
+export function consensus(def: SecurityDef): { buy: number; hold: number; sell: number; score: number; avg: number; hi: number; lo: number; n: number; nTargets?: number } {
+  const real = getRealFund(def.id)?.consensus;
+  if (real) return real;
   const v = analystViews(def);
-  const buy = v.filter((x) => RATING_SCORE[x.rating] >= 4).length;
-  const hold = v.filter((x) => x.rating === 'Hold').length;
+  const buy = v.filter((x) => x.score >= 4).length;
+  const hold = v.filter((x) => x.score === 3).length;
   const sell = v.length - buy - hold;
-  const score = v.reduce((s, x) => s + RATING_SCORE[x.rating], 0) / v.length;
+  const score = v.reduce((s, x) => s + x.score, 0) / v.length;
   const targets = v.map((x) => x.target);
   const avg = targets.reduce((a, b) => a + b, 0) / targets.length;
   return { buy, hold, sell, score, avg, hi: Math.max(...targets), lo: Math.min(...targets), n: v.length };
@@ -465,6 +548,8 @@ export interface Holder {
 }
 
 export function holders(def: SecurityDef): Holder[] {
+  const real = getRealFund(def.id);
+  if (real && real.holders.length) return real.holders;
   const r = rng(def.id, 'holders');
   const list = def.country === 'US' ? HOLDERS_US : HOLDERS_INTL;
   const today = engine.today * DAY_MS;
@@ -498,6 +583,8 @@ const FREQ_BY_COUNTRY: Record<string, number> = { US: 4, CA: 4, GB: 2, TW: 4, KR
 const FREQ_OVERRIDE: Record<string, number> = { 'SHEL LN Equity': 4, 'HSBA LN Equity': 4, 'ULVR LN Equity': 4, 'TTE FP Equity': 4, 'OR FP Equity': 1, '700 HK Equity': 1, 'RELIANCE IN Equity': 1, 'DIS US Equity': 2, '9988 HK Equity': 1 };
 
 export function dividends(def: SecurityDef): Dividend[] {
+  // On real data the dividend history comes from the exchange record, including none at all.
+  if (engine.isExternal(def.id) || getRealFund(def.id)) return realDividendList(def);
   const eq = def.eq!;
   if (eq.dps <= 0) return [];
   const freq = FREQ_OVERRIDE[def.id] ?? FREQ_BY_COUNTRY[def.country] ?? 4;
@@ -534,6 +621,19 @@ export function dividends(def: SecurityDef): Dividend[] {
 }
 
 const FREQ_LABEL: Record<number, string> = { 1: 'Annual', 2: 'Semi-Anl', 4: 'Quarter', 12: 'Monthly' };
+
+/** Paid dividends from the exchange record, newest first, plus the next declared one. */
+function realDividendList(def: SecurityDef): Dividend[] {
+  const list = realDividends.get(def.id) ?? [];
+  const recent = list.filter((x) => x.day * DAY_MS > engine.now() - 400 * DAY_MS).length;
+  const freq = recent >= 10 ? 12 : recent >= 4 ? 4 : recent >= 2 ? 2 : 1;
+  const out: Dividend[] = list.map((x) => ({ declared: NaN, ex: x.day * DAY_MS, record: NaN, pay: NaN, amount: x.amount, freq: FREQ_LABEL[freq], type: 'Regular Cash' }));
+  const next = getRealFund(def.id)?.nextDividend;
+  if (next && next.ex > (list.length ? list[list.length - 1].day * DAY_MS : 0)) {
+    out.push({ declared: NaN, ex: next.ex, record: NaN, pay: next.pay, amount: Number.isFinite(next.rate) ? next.rate / freq : NaN, freq: FREQ_LABEL[freq], type: 'Declared' });
+  }
+  return out.sort((a, b) => b.ex - a.ex);
+}
 
 // ------------------------------------------------------------------ peers
 

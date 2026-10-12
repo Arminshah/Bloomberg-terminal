@@ -60,6 +60,49 @@ interface State {
   pair?: { base: string; quote: string };
   bond?: { terms: BondTerms; legs: { id: string; w: number }[]; spread: number; issueDay: number; issuer?: string; issuerRef?: number };
   fut?: { underlying: string; rateId?: string; rate: number; q: number; tick: number; monthly: boolean };
+  /** Real data from an external source; when present it replaces the simulation for this line. */
+  ext?: ExtData;
+}
+
+interface ExtData {
+  /** Real daily bars; the last one is the latest session, which is earlier than today while the market has not opened. */
+  daily: Series;
+  /** Intraday bars of the latest session. */
+  intra: Series;
+  session: number;
+  /** Market currently in its regular session. */
+  open: boolean;
+  bid: number;
+  ask: number;
+  seq: number;
+  /** End-of-day values only (no quotes during the session). */
+  eod: boolean;
+}
+
+export interface ExtBar {
+  day: number;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+
+export interface ExtQuote {
+  last: number;
+  prevClose?: number;
+  open?: number;
+  high?: number;
+  low?: number;
+  volume?: number;
+  /** Time of the last trade (ms). */
+  time: number;
+  /** Session date in the exchange's own time zone (defaults to the UTC date of `time`). */
+  day?: number;
+  bid?: number;
+  ask?: number;
+  /** The market is in its regular session. */
+  marketOpen: boolean;
 }
 
 type Field = 'o' | 'h' | 'l' | 'c';
@@ -98,6 +141,8 @@ export class MarketEngine {
   tickCount = 0;
   tickMs = 1000;
   now: () => number;
+  /** Called when a line with external data is asked for its intraday bars (lets the source load them). */
+  demand?: (id: string, what: 'intraday') => void;
 
   constructor(now: () => number = Date.now) {
     this.now = now;
@@ -203,6 +248,7 @@ export class MarketEngine {
   daily(id: string): Series {
     const st = this.states.get(id);
     if (!st) return makeSeries(0, DAY_MS);
+    if (st.ext) return st.ext.daily;
     if (st.kind === 'base') {
       this.ensureDaily(st);
       return st.daily!;
@@ -214,6 +260,10 @@ export class MarketEngine {
   intraday(id: string): Series {
     const st = this.states.get(id);
     if (!st) return makeSeries(0, MINUTE_MS);
+    if (st.ext) {
+      this.demand?.(id, 'intraday');
+      return st.ext.intra;
+    }
     if (st.kind === 'base') {
       this.ensureIntra(st, this.now());
       return st.intra!.series;
@@ -270,6 +320,8 @@ export class MarketEngine {
     this.version++;
     this.derivedCache.clear();
     for (const st of this.states.values()) {
+      // Lines on real data keep their sessions; the source moves them on.
+      if (st.ext) continue;
       st.daily = null;
       st.dailyKey = '';
       // Rolling feed windows (e.g. 24h of 5-minute crypto bars) survive midnight.
@@ -290,14 +342,14 @@ export class MarketEngine {
     const changed = new Set<string>();
     this.tickCount++;
     for (const st of this.states.values()) {
-      if (st.kind !== 'base') continue;
+      if (st.kind !== 'base' || st.ext) continue;
       if (jitter && st.live) continue;
       if (jitter && Math.random() > this.tickProbability(st)) continue;
       this.updateBase(st, t, jitter);
       changed.add(st.def.id);
     }
     for (const st of this.states.values()) {
-      if (st.kind === 'base') continue;
+      if (st.kind === 'base' || st.ext) continue;
       if (jitter && Math.random() > this.tickProbability(st)) continue;
       this.updateDerived(st, t);
       changed.add(st.def.id);
@@ -671,6 +723,18 @@ export class MarketEngine {
 
   // ---------------------------------------------------------------- derived
 
+  private dailyOf(st: State): Series {
+    if (st.ext) return st.ext.daily;
+    this.ensureDaily(st);
+    return st.daily!;
+  }
+
+  private intraOf(st: State, t: number): Series {
+    if (st.ext) return st.ext.intra;
+    this.ensureIntra(st, t);
+    return st.intra!.series;
+  }
+
   private componentValue(id: string): number {
     if (id === 'USD') return 1;
     return this.states.get(id)!.last;
@@ -816,6 +880,17 @@ export class MarketEngine {
     }
   }
 
+  /**
+   * A cross is as real as its currencies. Bonds and futures without their own
+   * feed are model prices (curve plus spread, or fair value), so they stay SIM.
+   */
+  private derivedSrc(st: State): Quote['src'] {
+    if (st.kind !== 'pair' && st.kind !== 'dxy') return 'SIM';
+    const comps = this.componentIds(st).filter((c) => c !== 'USD').map((c) => this.states.get(c));
+    if (!comps.length || comps.some((c) => !c?.ext)) return 'SIM';
+    return comps.some((c) => c!.ext!.open) ? 'LIVE' : 'CLOSE';
+  }
+
   private componentIds(st: State): string[] {
     switch (st.kind) {
       case 'pair':
@@ -837,11 +912,7 @@ export class MarketEngine {
 
   private derivedDaily(st: State): Series {
     const comps = this.componentIds(st).filter((c) => c !== 'USD');
-    const bases = comps.map((c) => {
-      const cs = this.states.get(c)!;
-      this.ensureDaily(cs);
-      return cs.daily!;
-    });
+    const bases = comps.map((c) => this.dailyOf(this.states.get(c)!));
     const key = `D:${this.today}:${this.version}:${comps.map((c) => this.states.get(c)!.dailyKey).join('|')}`;
     const cached = this.derivedCache.get(`D:${st.def.id}`);
     if (cached && cached.key === key) {
@@ -896,11 +967,7 @@ export class MarketEngine {
   private derivedIntraday(st: State): Series {
     const comps = this.componentIds(st).filter((c) => c !== 'USD');
     const t = this.now();
-    const bases = comps.map((c) => {
-      const cs = this.states.get(c)!;
-      this.ensureIntra(cs, t);
-      return cs.intra!.series;
-    });
+    const bases = comps.map((c) => this.intraOf(this.states.get(c)!, t));
     const key = `I:${this.tickCount}:${this.version}:${bases.map((b) => b.length).join(',')}`;
     const cached = this.derivedCache.get(`I:${st.def.id}`);
     if (cached && cached.key === key) return cached.series;
@@ -971,7 +1038,11 @@ export class MarketEngine {
     const chg = last - st.prevClose;
     let bid = sp > 0 ? (st.additive ? last + sp / 2 : last - sp / 2) : NaN;
     let ask = sp > 0 ? (st.additive ? last - sp / 2 : last + sp / 2) : NaN;
-    if (st.kind === 'fut') {
+    if (st.ext) {
+      // The source's own bid and offer, or none: a real line never shows an invented spread.
+      bid = Number.isFinite(st.ext.bid) && st.ext.bid > 0 ? st.ext.bid : NaN;
+      ask = Number.isFinite(st.ext.ask) && st.ext.ask > 0 ? st.ext.ask : NaN;
+    } else if (st.kind === 'fut') {
       // One tick wide, with the last trade on the side that was lifted or hit.
       bid = tick > 0 ? last - sp : last;
       ask = bid + sp;
@@ -990,7 +1061,7 @@ export class MarketEngine {
       pct: st.prevClose ? (chg / Math.abs(st.prevClose)) * 100 : 0,
       time: t,
       tick,
-      src: st.live ? 'LIVE' : 'SIM',
+      src: st.ext ? (st.ext.eod ? 'EOD' : st.ext.open ? 'LIVE' : 'CLOSE') : st.kind !== 'base' ? this.derivedSrc(st) : st.live ? 'LIVE' : 'SIM',
     };
     this.quotes.set(st.def.id, q);
   }
@@ -1036,7 +1107,8 @@ export class MarketEngine {
   /** Seeds a recent tape so Time & Sales is never empty on open. */
   backfillTrades(id: string) {
     const st = this.states.get(id);
-    if (!st || st.trades.length >= 100) return;
+    // Lines on real or live data show only the source's prints, never an invented tape.
+    if (!st || st.ext || st.live || st.trades.length >= 100) return;
     const s = this.intraday(id);
     const q = this.quotes.get(id);
     if (!q || s.length === 0) return;
@@ -1067,7 +1139,7 @@ export class MarketEngine {
   /** Feeds a live quote; the line stops simulating and follows the feed. */
   applyLive(id: string, u: { last: number; time?: number; prevClose?: number; open?: number; high?: number; low?: number; volume?: number; size?: number }) {
     const st = this.states.get(id);
-    if (!st || st.kind !== 'base' || !Number.isFinite(u.last) || u.last <= 0) return;
+    if (!st || st.ext || st.kind !== 'base' || !Number.isFinite(u.last) || u.last <= 0) return;
     const t = u.time ?? this.now();
     if (u.prevClose && Number.isFinite(u.prevClose)) {
       const lastDay = this.lastHistDay(st.allDays);
@@ -1080,6 +1152,8 @@ export class MarketEngine {
     this.ensureIntra(st, t);
     if (!st.live) {
       st.live = true;
+      // From here the tape holds only the feed's own prints.
+      st.trades = [];
       if (!st.liveIntraday) this.bridgeIntradayTo(st, u.last, u.open);
     }
     if (u.open && Number.isFinite(u.open)) st.dayOpen = u.open;
@@ -1171,7 +1245,7 @@ export class MarketEngine {
   /** Replaces today's intraday bars with feed bars (any span). */
   setIntradayBars(id: string, bars: { t: number; o: number; h: number; l: number; c: number; v: number }[], span: number) {
     const st = this.states.get(id);
-    if (!st || st.kind !== 'base' || bars.length === 0) return;
+    if (!st || st.ext || st.kind !== 'base' || bars.length === 0) return;
     this.ensureIntra(st, this.now());
     const s = makeSeries(bars.length + 64, span);
     bars.forEach((b, i) => {
@@ -1195,7 +1269,7 @@ export class MarketEngine {
   /** External daily closes the simulated history must pass through. */
   setDailyAnchors(id: string, points: [day: number, level: number][]) {
     const st = this.states.get(id);
-    if (!st || st.kind !== 'base') return;
+    if (!st || st.ext || st.kind !== 'base') return;
     for (const [d, v] of points) st.extAnchors.set(d, v);
     st.dailyKey = '';
     this.version++;
@@ -1205,7 +1279,7 @@ export class MarketEngine {
   /** External full daily bars (also used as anchors). */
   setDailyBars(id: string, bars: { day: number; o: number; h: number; l: number; c: number; v: number }[]) {
     const st = this.states.get(id);
-    if (!st || st.kind !== 'base') return;
+    if (!st || st.ext || st.kind !== 'base') return;
     for (const b of bars) {
       st.extBars.set(b.day, b);
       st.extAnchors.set(b.day, b.c);
@@ -1217,7 +1291,7 @@ export class MarketEngine {
   /** Re-derives prevClose/open/intraday after anchors changed (e.g. FX fixings). */
   rebaseSimulated(id: string) {
     const st = this.states.get(id);
-    if (!st || st.kind !== 'base' || st.live) return;
+    if (!st || st.ext || st.kind !== 'base' || st.live) return;
     st.intra = null;
     st.dailyKey = '';
     this.derivedCache.clear();
@@ -1236,7 +1310,7 @@ export class MarketEngine {
   /** Hands a line back to the simulator (feed switched off or lost). */
   unlive(id: string) {
     const st = this.states.get(id);
-    if (!st || st.kind !== 'base' || !st.live) return;
+    if (!st || st.ext || st.kind !== 'base' || !st.live) return;
     st.live = false;
     st.liveIntraday = false;
     st.intra = null;
@@ -1245,6 +1319,182 @@ export class MarketEngine {
     const t = this.now();
     this.updateBase(st, t, false);
     this.publishQuote(st, t);
+  }
+
+  // ------------------------------------------------------------ external data
+
+  /** True when the line follows real data from an external source. */
+  isExternal(id: string): boolean {
+    return !!this.states.get(id)?.ext;
+  }
+
+  /**
+   * Switches a line to real daily history. From here on the simulation leaves
+   * it alone: quotes, intraday bars and prints come from setExternalQuote and
+   * setExternalIntraday, and nothing moves while its market is closed.
+   */
+  setExternalDaily(id: string, bars: ExtBar[], opts: { eod?: boolean } = {}) {
+    const st = this.states.get(id);
+    if (!st || bars.length === 0) return;
+    const s = makeSeries(bars.length + 16, DAY_MS);
+    bars.forEach((b, i) => {
+      s.t[i] = dayStart(b.day);
+      s.o[i] = b.o;
+      s.h[i] = Math.max(b.h, b.o, b.c);
+      s.l[i] = Math.min(b.l, b.o, b.c);
+      s.c[i] = b.c;
+      s.v[i] = b.v;
+    });
+    s.length = bars.length;
+    const last = bars[bars.length - 1];
+    const prev = st.ext;
+    const flat = makeSeries(512, MINUTE_MS);
+    flat.t[0] = dayStart(last.day);
+    flat.o[0] = flat.h[0] = flat.l[0] = flat.c[0] = last.c;
+    flat.length = 1;
+    st.ext = {
+      daily: s,
+      intra: prev && prev.session === last.day ? prev.intra : flat,
+      session: last.day,
+      open: prev?.open ?? false,
+      bid: prev?.bid ?? NaN,
+      ask: prev?.ask ?? NaN,
+      seq: (prev?.seq ?? 0) + 1,
+      eod: opts.eod ?? prev?.eod ?? false,
+    };
+    st.live = true;
+    st.liveIntraday = true;
+    st.last = last.c;
+    st.prevClose = bars.length > 1 ? bars[bars.length - 2].c : last.o;
+    st.dayOpen = last.o;
+    st.dayHigh = s.h[s.length - 1];
+    st.dayLow = s.l[s.length - 1];
+    st.volume = last.v;
+    if (!prev) st.trades = [];
+    st.dailyKey = `ext:${st.ext.seq}`;
+    this.version++;
+    this.derivedCache.clear();
+    this.resetDependents(st.def.id);
+    this.publishQuote(st, this.now());
+  }
+
+  /** Applies a real quote to a line already on external history. */
+  setExternalQuote(id: string, q: ExtQuote) {
+    const st = this.states.get(id);
+    const ext = st?.ext;
+    if (!st || !ext || !Number.isFinite(q.last) || !Number.isFinite(q.time)) return;
+    const day = q.day ?? dayNum(q.time);
+    let s = ext.daily;
+    let n = s.length - 1;
+    const lastDay = dayNum(s.t[n]);
+    if (day < lastDay) return;
+    const newSession = day > lastDay;
+    if (newSession) {
+      if (s.length >= s.t.length) {
+        const bigger = makeSeries(s.t.length + 64, DAY_MS);
+        for (const k of ['t', 'o', 'h', 'l', 'c', 'v'] as const) bigger[k].set(s[k]);
+        bigger.length = s.length;
+        ext.daily = s = bigger;
+      }
+      n++;
+      s.t[n] = dayStart(day);
+      s.o[n] = q.open && Number.isFinite(q.open) ? q.open : q.last;
+      s.h[n] = s.o[n];
+      s.l[n] = s.o[n];
+      s.v[n] = 0;
+      s.length = n + 1;
+      const fresh = makeSeries(512, MINUTE_MS);
+      fresh.t[0] = Math.floor(q.time / MINUTE_MS) * MINUTE_MS;
+      fresh.o[0] = fresh.h[0] = fresh.l[0] = fresh.c[0] = s.o[n];
+      fresh.length = 1;
+      ext.intra = fresh;
+      st.trades = [];
+      st.volume = 0;
+    }
+    if (q.open && Number.isFinite(q.open)) s.o[n] = q.open;
+    s.h[n] = Math.max(q.high && Number.isFinite(q.high) ? q.high : -Infinity, newSession ? -Infinity : s.h[n], q.last, s.o[n]);
+    s.l[n] = Math.min(q.low && Number.isFinite(q.low) ? q.low : Infinity, newSession ? Infinity : s.l[n], q.last, s.o[n]);
+    s.c[n] = q.last;
+    const vol = q.volume != null && Number.isFinite(q.volume) ? q.volume : s.v[n];
+    const dv = vol - st.volume;
+    s.v[n] = vol;
+    // Time and sales on real data: one aggregated print per change in cumulative volume.
+    if (dv > 0 && !newSession && (st.def.cls === 'equity' || st.def.cls === 'future' || st.def.cls === 'commodity')) {
+      this.pushTrade(st, { t: q.time, px: q.last, size: dv, side: q.last > st.last ? 1 : q.last < st.last ? -1 : 0, venue: 'CONS', cond: 'AGG' });
+    }
+    st.last = q.last;
+    st.prevClose = q.prevClose && Number.isFinite(q.prevClose) ? q.prevClose : n > 0 ? s.c[n - 1] : st.prevClose;
+    st.dayOpen = s.o[n];
+    st.dayHigh = s.h[n];
+    st.dayLow = s.l[n];
+    st.volume = vol;
+    ext.bid = q.bid ?? NaN;
+    ext.ask = q.ask ?? NaN;
+    ext.open = q.marketOpen;
+    ext.session = day;
+    // Keep the intraday series current between bar refreshes.
+    const it = ext.intra;
+    if (it.length > 0 && q.marketOpen) {
+      let k = it.length - 1;
+      while (q.time >= it.t[k] + it.span) {
+        if (it.length >= it.t.length) {
+          const bigger = makeSeries(it.t.length * 2, it.span);
+          for (const f of ['t', 'o', 'h', 'l', 'c', 'v'] as const) bigger[f].set(it[f]);
+          bigger.length = it.length;
+          ext.intra = bigger;
+        }
+        const ns = ext.intra;
+        ns.t[k + 1] = ns.t[k] + ns.span;
+        ns.o[k + 1] = ns.h[k + 1] = ns.l[k + 1] = ns.c[k + 1] = ns.c[k];
+        ns.v[k + 1] = 0;
+        ns.length = k + 2;
+        k++;
+      }
+      const ns = ext.intra;
+      ns.c[k] = q.last;
+      ns.h[k] = Math.max(ns.h[k], q.last);
+      ns.l[k] = Math.min(ns.l[k], q.last);
+      if (dv > 0) ns.v[k] += dv;
+    }
+    if (newSession) {
+      st.dailyKey = `ext:${++ext.seq}`;
+      this.version++;
+      this.derivedCache.clear();
+      this.resetDependents(st.def.id);
+    }
+    this.publishQuote(st, q.time);
+  }
+
+  /** Replaces the latest session's intraday bars with real ones. */
+  setExternalIntraday(id: string, bars: { t: number; o: number; h: number; l: number; c: number; v: number }[], span: number, day = dayNum(bars[bars.length - 1]?.t ?? 0)) {
+    const st = this.states.get(id);
+    if (!st?.ext || bars.length === 0) return;
+    // Only bars from the session the line is on; a newer session arrives through quotes first.
+    if (day !== st.ext.session) return;
+    const s = makeSeries(bars.length + 512, span);
+    bars.forEach((b, i) => {
+      s.t[i] = b.t;
+      s.o[i] = b.o;
+      s.h[i] = Math.max(b.h, b.o, b.c);
+      s.l[i] = Math.min(b.l, b.o, b.c);
+      s.c[i] = b.c;
+      s.v[i] = b.v;
+    });
+    s.length = bars.length;
+    // The latest quote is newer than the last completed bar.
+    s.c[s.length - 1] = st.last;
+    s.h[s.length - 1] = Math.max(s.h[s.length - 1], st.last);
+    s.l[s.length - 1] = Math.min(s.l[s.length - 1], st.last);
+    st.ext.intra = s;
+    this.derivedCache.clear();
+  }
+
+  /** Derived lines (crosses, futures fair value, bonds) recompute their session when a component's changes. */
+  private resetDependents(id: string) {
+    for (const other of this.states.values()) {
+      if (other.kind === 'base' || other.ext) continue;
+      if (this.componentIds(other).includes(id)) other.intra = null;
+    }
   }
 
   /**

@@ -453,7 +453,7 @@ const SEEDS: EqSeed[] = [
     desc: 'Novartis AG is an innovative medicines company focused on cardiovascular, renal and metabolic diseases, immunology, neuroscience and oncology, with medicines including Entresto, Kisqali, Cosentyx and Pluvicto.',
   },
   {
-    t: 'ROG SW', n: 'Roche Holding AG-Genusschein', x: 'SIX Swiss Ex', ccy: 'CHF', c: 'CH', px: 265, vol: 0.20, y: 'ROG.SW',
+    t: 'ROG SW', n: 'Roche Holding AG-Genusschein', x: 'SIX Swiss Ex', ccy: 'CHF', c: 'CH', px: 265, vol: 0.20, y: 'ROP.SW',
     sector: 'Health Care', industry: 'Pharmaceuticals', shares: 800, beta: 0.40, rev: 61000, ni: 11000, dps: 9.7, emp: 103000,
     hq: 'Basel, Switzerland', ceo: 'Thomas Schinecker', founded: 1896, fye: 12, netDebt: 22000, book: 22000, lag: 23,
     alias: ['ROCHE'],

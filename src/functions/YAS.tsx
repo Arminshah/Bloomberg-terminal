@@ -7,6 +7,8 @@ import { fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { curveAt, interp } from '../data/curves';
 import { analytics, cleanFromYield, couponSchedule, settlementDate, to32nds, yieldFromClean } from '../finance/bonds';
+import { SimBadge } from '../components/Source';
+import { desktopData } from '../data/live/yahoo';
 import type { FnProps } from '../terminal/types';
 
 export function YAS({ sec }: FnProps) {
@@ -41,7 +43,12 @@ export function YAS({ sec }: FnProps) {
   });
   return (
     <div>
-      <FnHeader code="YAS" title="Yield & Spread Analysis" sec={s} sub={`${s.alias?.[0]} · ${fmtNum(b.coupon, 3)}% due ${fmtDay(terms.maturity.getTime(), true)}`} />
+      <FnHeader code="YAS" title="Yield & Spread Analysis" sec={s} sub={
+          <>
+            {s.alias?.[0]} · {fmtNum(b.coupon, 3)}% due {fmtDay(terms.maturity.getTime(), true)} · <SimBadge /> model price{desktopData() ? ' off the real Treasury curve' : ''}
+          </>
+        }
+      />
       <QuoteStrip sec={s} />
       <div className="chart-tools">
         <span className="seg" role="group" aria-label="Pricing mode">

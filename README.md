@@ -2,22 +2,26 @@
 
 Armin Terminal is a Bloomberg-style market terminal for the browser and the Windows desktop. It copies the way the Bloomberg Professional terminal is driven: amber-on-black screens, a command line where you type a ticker, a yellow market sector key and a function mnemonic, numbered menus you pick with `3 <GO>`, the F1 to F12 sector keys, and up to six independent panels. It has 66 functions covering equities, charts, news, FX, rates, credit, commodities, index futures, economics, options, swaps, paper trading, portfolios, alerts and chat.
 
-Prices come from a simulated market that is calibrated to real closing levels and keeps ticking every second, day or night. When the machine can reach the internet it also streams real crypto prices from Coinbase and real ECB currency fixings, and with a free Finnhub key it adds live US stock quotes and real headlines.
+The Windows desktop app runs on real data from free public sources: prices, ten years of history, intraday bars, company financials, estimates, analyst ratings, holders, dividends, listed options and headlines from Yahoo Finance, the US Treasury yield curve from the Treasury, and policy rates from the Fed, ECB, Bank of England and Bank of Canada. Anything those sources do not cover is simulated and marked SIMULATED or SIM on screen.
+
+The browser version cannot reach those sources, so it runs a simulated market calibrated to real closing levels, with real crypto prices from Coinbase, real ECB currency fixings and, with a free Finnhub key, live US stock quotes and headlines. Its screens say SIMULATED wherever the figures are generated.
 
 ![Four-panel workspace: world indices, an Apple price chart, top news and a sector heat map](docs/workspace.png)
 
 ## Download for Windows
 
-The [latest release](https://github.com/arminshah/bloomberg-terminal/releases/latest) has two files:
+Every push builds the Windows app in CI. Open the [Actions tab](https://github.com/arminshah/bloomberg-terminal/actions), pick the latest successful CI run, and download `armin-terminal-windows` under Artifacts (you need to be signed in to GitHub). The zip holds two files:
 
 - `Armin-Terminal-Setup-<version>.exe` installs the app with Start menu and desktop shortcuts.
 - `Armin-Terminal-<version>-Portable.exe` runs without installing.
 
 The executables are not code-signed, so the first launch may show "Windows protected your PC". Choose More info, then Run anyway.
 
+This is the version with real market and company data (see [Where the data comes from](#where-the-data-comes-from)). It needs an internet connection; offline it falls back to the simulator.
+
 The desktop app has no menu bar, so every F-key reaches the terminal. Window commands use Ctrl+Shift: Ctrl+Shift+N opens another terminal window with its own panel layout, Ctrl+Shift+F toggles full screen, Ctrl+Shift+I opens developer tools, and Ctrl+plus, Ctrl+minus and Ctrl+0 zoom. Watchlists, the portfolio, orders, alerts and settings are shared and stay in sync across windows. Each window remembers its size and position.
 
-Every push also builds both files in CI; they are attached to each run of the CI workflow under Artifacts (`armin-terminal-windows`), for anyone signed in to GitHub. To publish a release, push a tag such as `v1.0.1`. The workflow in `.github/workflows/release.yml` builds both files on a Windows runner and attaches them to a GitHub Release for that tag. Locally, `npm run desktop` starts the desktop app and `npm run desktop:build` writes the installers to `release/` (on Windows; building the installer on Linux needs Wine).
+To publish a release instead, push a tag such as `v1.0.1`. The workflow in `.github/workflows/release.yml` builds both files on a Windows runner and attaches them to a GitHub Release for that tag. Locally, `npm run desktop` starts the desktop app and `npm run desktop:build` writes the installers to `release/` (on Windows; building the installer on Linux needs Wine).
 
 ## Run it in the browser
 
@@ -87,30 +91,50 @@ Tables can be copied or exported as CSV. Watchlists, the portfolio, orders, aler
 
 The built-in universe covers the large caps, but you can type any US-listed stock, with or without a `$`. If the ticker is not built in, the terminal looks it up online, adds it, and runs your command:
 
-- The desktop app asks Yahoo Finance through its own process, so no key is needed. It loads ten years of daily prices, the company profile (sector, headquarters, chief executive, employees, shares, revenue, earnings, debt), and during US market hours it updates the price from one-minute bars every 30 seconds.
+- The desktop app asks Yahoo Finance through its own process, so no key is needed. The stock then gets the same real data as the built-in ones: ten years of daily prices, quotes every 10 seconds, one-minute intraday bars, and the company's statements, estimates, ratings and holders.
 - In the browser, add a free Finnhub key in `PDFU`. Lookups then use Finnhub's profile, key metrics and quote; the history is calibrated through the real 1-week, 1-month, 3-month, 6-month, year-to-date and 1-year returns, and prices stream live.
 
 `SECF` searches all US stocks by name as well (click Search all US stocks). Looked-up stocks are saved and load instantly, calibrated, the next time, even offline. Funds, ETFs and non-US listings are not looked up; the terminal says so.
 
 ## Where the data comes from
 
-The universe holds 84 stocks across the US, Europe and Asia, 28 equity indices, 11 equity index futures, 23 currency pairs and the dollar index, 19 commodity futures, 32 government yields, 10 cryptocurrencies, the seven on-the-run US Treasuries and 42 corporate bonds from 20 large US issuers.
+The universe holds 84 stocks across the US, Europe and Asia, 28 equity indices, 11 equity index futures, 23 currency pairs and the dollar index, 19 commodity futures, 32 government yields, 10 cryptocurrencies, the seven on-the-run US Treasuries and 42 corporate bonds from 20 large US issuers. Any other US stock can be added by typing its ticker.
+
+### Desktop app: real data
+
+The desktop app fetches everything through its own process, so it needs no keys and no browser permissions. The top bar shows REAL DATA once it is connected, and `PDFU` lists each source and its state.
+
+| Data | Source | Screens |
+| --- | --- | --- |
+| Quotes, daily history (10 years), intraday one-minute bars, dividends and splits for stocks, indices, US index futures, commodities, currencies and crypto | Yahoo Finance | Every price screen, `GP`, `GIP`, `HP`, `BQ`, `W`, `WEI`, `IMAP`, `DVD` |
+| Financial statements, estimates, earnings dates and surprises, analyst ratings and price targets by firm, institutional and fund holders, company profile and key ratios | Yahoo Finance | `DES`, `FA`, `GF`, `EE`, `ANR`, `HDS`, `RV`, `EQS`, `EVTS`, `WACC` |
+| Listed option chains: expiries, strikes, bid, offer, last, volume, open interest and implied volatility | Yahoo Finance | `OMON`, `HVT`, `OVME` from a quote |
+| Company and market headlines with links to the publisher | Yahoo Finance | `TOP`, `N`, `CN`, `BQ` |
+| US Treasury par yields for every tenor, end of day | US Treasury | `GC`, `WB`, `BTMM`, `WIRP`, bond pricing |
+| Fed target range, effective fed funds and SOFR | New York Fed | `BTMM`, `CENB`, `WIRP`, `ECO` |
+| ECB deposit rate, Bank Rate, Bank of Canada overnight target | ECB, Bank of England, Bank of Canada | `CENB`, `ECO` |
+
+Prices stop moving when their market is closed and show the last session's change, the way a real terminal does; the quote strip says CLOSE, and LIVE during the session. Yahoo labels its US stock prices real time (Nasdaq last sale); other exchanges and futures can be delayed 15 to 20 minutes, and option quotes are delayed 15 minutes. The 5, 10 and 30-year Treasury yields update live; the other tenors show the Treasury's official close (marked EOD). Yahoo gives volume rather than individual trades, so `TAS` shows the volume traded between updates. Greeks in `OMON` are computed from each contract's own implied volatility, since Yahoo publishes none.
+
+Some things have no free source and stay simulated in the desktop app, marked SIM or SIMULATED where they appear: order book depth (built around the real best bid and offer), non-US government yields, index futures outside the US (modelled at fair value to the real index), bond prices (modelled off the real Treasury curve plus an issuer spread), dealer quotes in `ALLQ`, economic releases other than central bank decisions, policy rates other than the four banks above, FX forward points and swap rates (models), the readership ranking in `READ` and the chat desks in `IB`.
+
+### Browser: simulated market
 
 `scripts/snapshot.ts` reduces five years of daily closes for each instrument to a few anchor points (the last close and the levels one week, one month, three months, six months, year-to-date, one, two, three and five years ago) plus realised volatility and average volume. Those anchors live in `src/data/universe/snapshot.json`, currently as of 9 October 2026. The engine draws ten years of daily history that passes exactly through every anchor, so one-year returns and price levels match the real market at the snapshot date. From there a factor model (global, regional, sector, rates, dollar, oil, metals and crypto factors) simulates each day and each minute. The randomness is a pure function of instrument, date and minute, so every browser sees the same market and a reload shows the same history. Run `npm run snapshot` to refresh the calibration, or `npm run snapshot -- --only "APLD US Equity"` for one instrument.
 
 Some instruments are priced from others. Treasuries and corporate bonds are priced off the generic Treasury curve, interpolated to each maturity. A corporate bond adds a credit spread that widens when the issuer's shares fall. Index futures trade at fair value to their index: the index carried at the financing rate less the dividend yield to the third-Friday expiry, rounded to the contract's tick. Currency crosses and the dollar index come from the underlying currencies.
 
-Live feeds replace the simulation where they are available, and the status chip in the top bar shows which are connected:
+Live feeds replace the simulation where the browser can reach them, and the status chip in the top bar shows which are connected:
 
 - Crypto prices and daily candles from the public Coinbase Exchange API, streamed over WebSocket with a polling fallback.
 - Daily ECB reference rates from Frankfurter, which become the FX history; intraday FX stays simulated around the latest fixing.
 - With a free key from finnhub.io entered in `PDFU`, US stock quotes and trades plus general and company headlines.
 
-Company fundamentals, analyst views, holders, dividends, bond issues and amounts, dealer quotes, option chains, order books, the economic calendar and most news stories are generated from each company's real scale and sector profile so the screens behave realistically. They are clearly marked as simulated and are not reported figures. Analyst firms and bond dealers are fictional. Deposit and swap rates used by FRD, OVML and SWPM are indicative.
+In the browser, company fundamentals, analyst views, holders, dividends, option chains, order books, the economic calendar and most news stories are generated from each company's real scale and sector profile so the screens behave realistically. Every such screen is labelled SIMULATED, and the analyst firms and bond dealers it shows are fictional.
 
 ## What it does not do
 
-A real Bloomberg terminal has tens of thousands of functions, licensed real-time data from hundreds of exchanges, and a network of other users. Armin Terminal reproduces the interface, the command language and the behaviour of the most used screens, but most of its data is simulated, it has no messaging network beyond the built-in bot and simulated desks, and its orders never leave your machine.
+A real Bloomberg terminal has tens of thousands of functions, licensed real-time data from hundreds of exchanges, and a network of other users. Armin Terminal reproduces the interface, the command language and the behaviour of the most used screens. Its desktop data comes from free public sources, with their delays and gaps, and the browser version is simulated. It has no messaging network beyond the built-in bot and simulated desks, and its orders never leave your machine.
 
 ## Deploying the web version
 
@@ -127,7 +151,7 @@ The workflow in `.github/workflows/pages.yml` publishes the site to GitHub Pages
 | `npm run desktop:build` | Windows installer and portable .exe in `release/` |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript project build |
-| `npm test` | Unit tests (Vitest): market engine, bonds and futures pricing, calibration, option math, indicators, parser, online ticker lookup, paper trading, calendar, fundamentals |
+| `npm test` | Unit tests (Vitest): market engine, bonds and futures pricing, calibration, option math, indicators, parser, online ticker lookup, paper trading, calendar, fundamentals, and the real-data readers (company data, option chains, Treasury curve, central bank rates) checked against saved responses |
 | `npm run e2e` | Browser tests (Playwright): every function renders, keyboard flow, menus, persistence, phone layout |
 | `npm run snapshot` | Refresh calibration anchors from public daily closes |
 

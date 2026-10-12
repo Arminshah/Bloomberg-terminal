@@ -3,10 +3,11 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { Section } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtBig, fmtNum, fmtPct } from '../core/format';
-import { useTick } from '../data/market';
+import { engine, useTick } from '../data/market';
 import { orderBook, type Level } from '../data/book';
 import type { SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
+import { SimBadge } from '../components/Source';
 
 export function BookTable({ sec, levels = 10, compact }: { sec: SecurityDef; levels?: number; compact?: boolean }) {
   useTick(1);
@@ -58,6 +59,17 @@ export function BookTable({ sec, levels = 10, compact }: { sec: SecurityDef; lev
   );
 }
 
+/** The book is always modelled; on real data its top level is the real bid and offer. */
+export function BookSource({ id }: { id: string }) {
+  const q = engine.quote(id);
+  const touch = engine.isExternal(id) && q && Number.isFinite(q.bid) && Number.isFinite(q.ask);
+  return (
+    <>
+      <SimBadge /> order book{touch ? ' around the real best bid and offer' : ''} · no depth feed is available
+    </>
+  );
+}
+
 export function DEPTH({ sec }: FnProps) {
   const s = sec!;
   useTick(1);
@@ -71,7 +83,7 @@ export function DEPTH({ sec }: FnProps) {
   const spread = b.asks[0].px - b.bids[0].px;
   return (
     <div>
-      <FnHeader code="DEPTH" title="Market Depth" sec={s} sub="Simulated limit order book · 15 levels" />
+      <FnHeader code="DEPTH" title="Market Depth" sec={s} sub={<BookSource id={s.id} />} />
       <QuoteStrip sec={s} />
       <div className="chart-tools">
         <span>

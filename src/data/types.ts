@@ -143,8 +143,11 @@ export interface Quote {
   time: number;
   /** Direction of last tick: 1 up, -1 down, 0 unchanged. */
   tick: -1 | 0 | 1;
-  /** Data source for this quote. */
-  src: 'SIM' | 'LIVE' | 'DELAYED';
+  /**
+   * Data source: simulated, live feed, the source's last price while its market
+   * is closed, or an official end-of-day value (no intraday source).
+   */
+  src: 'SIM' | 'LIVE' | 'DELAYED' | 'CLOSE' | 'EOD';
 }
 
 export interface Bar {

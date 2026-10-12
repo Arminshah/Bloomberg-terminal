@@ -111,6 +111,12 @@ export function fmtDay(ms: number, long = false): string {
   return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())}/${y}`;
 }
 
+/** Earnings report date. "~" marks a date estimated from the quarter end; an unknown time of day is left out. */
+export function fmtEarnDate(e: { date: number; approx?: boolean; timing?: string }, withTiming = true): string {
+  const time = withTiming && e.timing && e.timing !== '--' ? ` ${e.timing}` : '';
+  return `${e.approx ? '~' : ''}${fmtDay(e.date)}${time}`;
+}
+
 export function fmtTime(ms: number, seconds = true, tz: TzMode = tzMode): string {
   if (!Number.isFinite(ms)) return DASH;
   const p = zonedParts(ms, tz);

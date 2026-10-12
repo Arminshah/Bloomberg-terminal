@@ -14,6 +14,7 @@ import type { SecurityDef } from '../data/types';
 import { blackScholes, type OptType } from '../finance/options';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
+import { SimBadge } from '../components/Source';
 import type { FnProps } from '../terminal/types';
 
 function pairFor(sec: SecurityDef | undefined, args: string | undefined): SecurityDef {
@@ -74,7 +75,12 @@ export function FRD({ sec, route }: FnProps) {
   const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx).slice(0, 23);
   return (
     <div>
-      <FnHeader code="FRD" title="Forward Rates" sec={pair} sub={`Spot ${fmtDay(sd * DAY_MS)} · points in ${pip === 1 ? 'units' : pip === 0.01 ? 'hundredths' : 'pips'} · covered interest parity`} />
+      <FnHeader code="FRD" title="Forward Rates" sec={pair} sub={
+          <>
+            Spot {fmtDay(sd * DAY_MS)} · points in {pip === 1 ? 'units' : pip === 0.01 ? 'hundredths' : 'pips'} · <SimBadge /> modelled by covered interest parity from policy rates, not dealer points
+          </>
+        }
+      />
       <div className="chart-tools">
         <span className="muted">Pair</span>
         <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FRD`)}>
@@ -293,7 +299,15 @@ export function SWPM(_: FnProps) {
   const fwdCurve = Array.from({ length: 30 }, (_, i) => ({ x: i + 1, y: (df[i] / df[i + 1] - 1) * 100 }));
   return (
     <div>
-      <FnHeader code="SWPM" title="Swap Manager" sub="USD SOFR OIS · annual fixed vs compounded SOFR · curve bootstrapped from indicative par rates" />
+      <FnHeader
+        code="SWPM"
+        title="Swap Manager"
+        sub={
+          <>
+            USD SOFR OIS · annual fixed vs compounded SOFR · <SimBadge /> curve bootstrapped from modelled par rates
+          </>
+        }
+      />
       <div className="chart-tools">
         <label className="fld">
           Side
@@ -421,7 +435,9 @@ export function CENB(_: FnProps) {
                   <span className="amber b">{b.code}</span> <span className="hide-m">{b.bank}</span>
                 </td>
                 <td className="hide-m">{COUNTRY_NAMES[b.country] ?? b.country}</td>
-                <td className="num white b">{fmtNum(b.rate, 2)}%</td>
+                <td className="num white b">
+                  {fmtNum(b.rate, 2)}%{b.real ? null : <span className="muted" title="Reference setting, not a live source"> SIM</span>}
+                </td>
                 <td className="num">
                   <Chg v={b.lastMove * 100} dec={0} /> bp
                 </td>
@@ -435,7 +451,12 @@ export function CENB(_: FnProps) {
           })}
         </tbody>
       </table>
-      <p className="pad-s muted">The Fed range is derived from the 3-month bill; other policy rates and dates are the terminal's reference settings. A 2-year yield below the policy rate means the market expects cuts.</p>
+      <p className="pad-s muted">
+        {banks.some((b) => b.real)
+          ? 'Rates without SIM, and their last moves, come from the central banks’ own data. Rates marked SIM are reference settings with no free daily source and may be out of date.'
+          : 'Policy rates are reference settings (the Fed range is derived from the 3-month bill) and may be out of date; the desktop app loads the Fed, ECB, Bank of England and Bank of Canada rates from the banks themselves.'}{' '}
+        A 2-year yield below the policy rate means the market expects cuts.
+      </p>
     </div>
   );
 }

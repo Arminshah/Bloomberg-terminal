@@ -3,6 +3,14 @@ import type { SecurityDef } from '../data/types';
 import { fmtBig, fmtBp, fmtNum, fmtPct, fmtSigned, fmtTime, signClass } from '../core/format';
 import { Flash } from './Flash';
 
+const SRC_TITLE: Record<string, string> = {
+  LIVE: 'Real price, market open',
+  CLOSE: 'Real price, market closed: the last trade of the latest session',
+  DELAYED: 'Real price, delayed',
+  EOD: 'Real end-of-day value: the source publishes once a day, after the close',
+  SIM: 'Price from the simulator, not a real market',
+};
+
 /** One-line live quote under a function header. */
 export function QuoteStrip({ sec }: { sec: SecurityDef }) {
   const q = useQuote(sec.id);
@@ -48,7 +56,9 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
         </span>
       )}
       <span className="muted hide-m">{fmtTime(q.time)}</span>
-      <span className={`src ${q.src === 'LIVE' ? 'up' : 'amber'}`}>{q.src}</span>
+      <span className={`src ${q.src === 'LIVE' ? 'up' : q.src === 'SIM' ? 'amber' : 'white'}`} title={SRC_TITLE[q.src]}>
+        {q.src === 'SIM' ? 'SIMULATED' : q.src}
+      </span>
     </div>
   );
 }

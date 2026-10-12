@@ -10,6 +10,9 @@ import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { DAY_MS } from '../data/calendar';
 import { to32nds } from '../finance/bonds';
 import type { FnProps } from '../terminal/types';
+import { RatesSource, RealBadge, SimBadge } from '../components/Source';
+import { desktopData } from '../data/live/yahoo';
+import { policyRates } from '../data/live/policy';
 
 // ------------------------------------------------------------------- WB
 
@@ -36,7 +39,15 @@ export function WB(_: FnProps) {
   const bund = engine.quote('GDBR10 Index')!.last;
   return (
     <div>
-      <FnHeader code="WB" title="World Bond Markets" sub="Generic government yields · changes in basis points" />
+      <FnHeader
+        code="WB"
+        title="World Bond Markets"
+        sub={
+          <>
+            Generic government yields, changes in bp · <RatesSource />
+          </>
+        }
+      />
       <table className="tbl">
         <thead>
           <tr>
@@ -90,7 +101,7 @@ export function WB(_: FnProps) {
           })}
         </tbody>
       </table>
-      <div className="note">Spreads and curve slope in basis points. Non-US curves move with US rates through a country beta in the simulation.</div>
+      <div className="note">Spreads and curve slope in basis points. Simulated curves move with US rates through a country beta.</div>
     </div>
   );
 }
@@ -119,7 +130,18 @@ export function GC(_: FnProps) {
   const ticks = cur.map((p) => ({ v: p.tenor, label: tenorLabel(p.tenor) }));
   return (
     <div>
-      <FnHeader code="GC" title="Graph Curves" sub={CURVES[tab - 1].name} tabs={CURVES.map((c, i) => ({ n: i + 1, label: c.name }))} tab={tab} onTab={setTab} />
+      <FnHeader
+        code="GC"
+        title="Graph Curves"
+        sub={
+          <>
+            {CURVES[tab - 1].name} · <RatesSource curve={code} />
+          </>
+        }
+        tabs={CURVES.map((c, i) => ({ n: i + 1, label: c.name }))}
+        tab={tab}
+        onTab={setTab}
+      />
       <div className="cols" style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(260px, 1fr)' }}>
         <Section title="Yield curve" right="% · square-root tenor scale">
           <XYChart
@@ -180,18 +202,29 @@ export function GC(_: FnProps) {
 export function BTMM(_: FnProps) {
   useTick(2);
   const fed = centralBanks()[0];
-  const lower = fed.rate - 0.25;
-  const effr = lower + 0.08;
-  const sofr = effr + 0.02;
+  // The New York Fed's published levels in the desktop app; otherwise the usual spreads to the range.
+  const pr = policyRates.use((x) => x);
+  const lower = pr.fedLower?.last ?? fed.rate - 0.25;
+  const effr = pr.effr?.last ?? lower + 0.08;
+  const sofr = pr.sofr?.last ?? effr + 0.02;
+  const realPolicy = !!pr.fedUpper;
   const bonds = engine.securities.filter((d) => d.cls === 'bond' && d.yk === 'Govt');
   const us = curveAt('US', 0);
   const y = (t: number) => interp(us, t);
   const swaps = [2, 5, 10, 30].map((t) => ({ t, rate: y(t) + (t <= 2 ? 0.05 : t <= 5 ? -0.08 : t <= 10 ? -0.22 : -0.48) }));
   return (
     <div>
-      <FnHeader code="BTMM" title="US Treasury & Money Markets" sub="Policy rates, actives, bills, swaps" />
+      <FnHeader
+        code="BTMM"
+        title="US Treasury & Money Markets"
+        sub={
+          <>
+            Policy rates, actives, bills, swaps · <RatesSource curve="US" />
+          </>
+        }
+      />
       <div className="cols">
-        <Section title="Policy and funding">
+        <Section title="Policy and funding" right={realPolicy ? <><RealBadge /> New York Fed, as of {fmtDay(Date.parse(`${pr.fedUpper!.asOf}T00:00:00Z`))}</> : <SimBadge />}>
           <KV
             items={[
               ['Fed funds target', `${fmtNum(lower, 2)} - ${fmtNum(fed.rate, 2)}%`],
@@ -237,7 +270,7 @@ export function BTMM(_: FnProps) {
           />
         </Section>
       </div>
-      <Section title="Treasury actives" right="Price in 32nds · click for YAS">
+      <Section title="Treasury actives" right={<>{desktopData() ? 'Model prices off the real curve' : <SimBadge />} · price in 32nds · click for YAS</>}>
         <table className="tbl">
           <thead>
             <tr>
@@ -275,7 +308,7 @@ export function BTMM(_: FnProps) {
           </tbody>
         </table>
       </Section>
-      <Section title="SOFR swap rates (indicative)">
+      <Section title="SOFR swap rates" right={<><SimBadge /> modelled from the Treasury curve</>}>
         <table className="tbl">
           <thead>
             <tr>
@@ -314,7 +347,9 @@ export function WIRP(_: FnProps) {
   const cfg = WIRP_BANKS[tab - 1];
   const cb = centralBanks().find((b) => b.code === cfg.code)!;
   const now = engine.now();
-  const current = cfg.code === 'FED' ? cb.rate - 0.25 + 0.08 : cb.rate;
+  const effr = policyRates.use((x) => x.effr?.last);
+  const current = cfg.code === 'FED' ? (effr ?? cb.rate - 0.25 + 0.08) : cb.rate;
+  const realCurve = desktopData() && cfg.code === 'FED';
   const pts = [{ tenor: 0, y: current }, ...cfg.curve.map(([id, t]) => ({ tenor: t, y: engine.quote(id)!.last + cfg.basis }))];
   const meetings = cb.meetings.map((m) => Date.parse(`${m}T18:00:00Z`)).filter((t) => t > now).slice(0, 8);
   const rows = useMemo(() => {
@@ -332,7 +367,17 @@ export function WIRP(_: FnProps) {
   }, [pts.map((p) => p.y).join(), meetings.join(), current]);
   return (
     <div>
-      <FnHeader code="WIRP" title="World Interest Rate Probability" sub={`${cb.bank} · implied from the simulated short end`} tabs={WIRP_BANKS.map((b) => ({ n: b.n, label: b.code === 'FED' ? 'Fed' : b.code }))} tab={tab} onTab={setTab} />
+      <FnHeader code="WIRP" title="World Interest Rate Probability" sub={
+          realCurve ? (
+            <>
+              {cb.bank} · <RealBadge /> rates, implied with a simple forward model from Treasury bills and the 2Y (not fed funds futures)
+            </>
+          ) : (
+            <>
+              {cb.bank} · <SimBadge /> implied from a simulated short end
+            </>
+          )
+        } tabs={WIRP_BANKS.map((b) => ({ n: b.n, label: b.code === 'FED' ? 'Fed' : b.code }))} tab={tab} onTab={setTab} />
       <div className="chart-tools">
         <span>
           <span className="amber">Current {cfg.code === 'FED' ? 'effective rate' : 'policy rate'}</span> {fmtNum(current, 3)}%

@@ -5,8 +5,10 @@ import { Sparkline } from '../components/Sparkline';
 import { Chg } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtNum } from '../core/format';
-import { financials, reportCcy, type FinPeriod } from '../data/fundamentals';
+import { financials, hasRealStatements, reportCcy, type FinPeriod } from '../data/fundamentals';
 import { usePanelId } from '../terminal/panel';
+import { useFundamentals } from '../data/live/yfund';
+import { sourceLabel } from '../components/Source';
 import type { FnProps } from '../terminal/types';
 
 type Row = { label: string; get: (p: FinPeriod) => number; dec?: number; bold?: boolean; pct?: boolean; indent?: boolean };
@@ -83,6 +85,8 @@ export function FA({ sec }: FnProps) {
   const panel = usePanelId();
   const [tab, setTab] = useState(1);
   const [quarterly, setQuarterly] = useState(false);
+  const { status: fundStatus } = useFundamentals(s);
+  const status = fundStatus === 'ok' && !hasRealStatements(s) ? 'error' : fundStatus;
   const f = financials(s);
   const cols = quarterly ? f.quarterly : [...f.annual, f.ltm];
   const rows = TABS[tab - 1].rows;
@@ -94,7 +98,7 @@ export function FA({ sec }: FnProps) {
         code="FA"
         title="Financial Analysis"
         sec={s}
-        sub={`${ccy} millions except per share · simulated statements`}
+        sub={<>{ccy} millions except per share · {sourceLabel(status, 'statements generated from the company profile; real data needs the desktop app')}</>}
         tabs={TABS.map((t) => ({ n: t.n, label: t.label }))}
         tab={tab}
         onTab={setTab}

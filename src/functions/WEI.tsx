@@ -8,6 +8,7 @@ import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
 import { usePanelId } from '../terminal/panel';
 import { openSecurity } from '../components/cells';
+import { desktopData } from '../data/live/yahoo';
 import type { FnProps } from '../terminal/types';
 
 const GROUPS: { name: string; ids: string[] }[] = [
@@ -190,7 +191,12 @@ export function WEIF(_: FnProps) {
           ))}
         </tbody>
       </table>
-      <p className="pad-s muted">Fair value = index × e^((r − q) × days/365), using the 3-month bill (or local policy rate) and the index dividend yield. Futures prices are simulated around fair value.</p>
+      <p className="pad-s muted">
+        Fair value = index × e^((r − q) × days/365), using the 3-month bill (or local policy rate) and the index dividend yield.{' '}
+        {desktopData()
+          ? 'ES, NQ, YM and RTY are real trade prices from Yahoo Finance; the other contracts have no free source and are modelled around fair value (marked SIM).'
+          : 'Futures prices are simulated around fair value.'}
+      </p>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { fmtBp, fmtNum, fmtPct, fmtSigned, signClass } from '../core/format';
 import { defaultFnFor, usePanelId } from '../terminal/panel';
 import { LAYOUT_PANELS, navigate, terminal } from '../terminal/state';
 import { settings } from '../terminal/settings';
+import { desktopData } from '../data/live/yahoo';
 import { Flash } from './Flash';
 
 /** Opens a security: plain click in this panel, shift-click in the next panel. */
@@ -47,7 +48,16 @@ export function LivePx({ id, dec }: { id: string; dec?: number }) {
   const q = useQuote(id);
   const def = engine.get(id);
   if (!q || !def) return <span>--</span>;
-  return <Flash value={q.last}>{fmtNum(q.last, dec ?? def.dec)}</Flash>;
+  const px = <Flash value={q.last}>{fmtNum(q.last, dec ?? def.dec)}</Flash>;
+  // On real data, a line the sources do not cover is marked so it is not read as a market price.
+  if (q.src === 'SIM' && desktopData()) {
+    return (
+      <span className="sim-px" title="Simulated price: no real source covers this line">
+        {px}
+      </span>
+    );
+  }
+  return px;
 }
 
 export function LiveChg({ id, mode = 'pct' }: { id: string; mode?: 'pct' | 'net' }) {

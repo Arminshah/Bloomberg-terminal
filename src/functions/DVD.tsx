@@ -8,10 +8,13 @@ import { engine } from '../data/market';
 import { dividends, keyStats } from '../data/fundamentals';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
+import { useFundamentals } from '../data/live/yfund';
+import { sourceLabel } from '../components/Source';
 
 export function DVD({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
+  const { status } = useFundamentals(s);
   const list = dividends(s);
   const ks = keyStats(s);
   const ccy = s.ccy === 'GBp' ? 'GBp' : s.ccy;
@@ -25,7 +28,7 @@ export function DVD({ sec }: FnProps) {
   const csv = () => [['Declared', 'Ex-date', 'Record', 'Payable', 'Amount', 'Frequency', 'Type'], ...list.map((d) => [fmtDay(d.declared, true), fmtDay(d.ex, true), fmtDay(d.record, true), fmtDay(d.pay, true), d.amount, d.freq, d.type])];
   return (
     <div>
-      <FnHeader code="DVD" title="Dividend & Split History" sec={s} sub={`${ccy} per share · simulated schedule`} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_DVD.csv`, csv)} />
+      <FnHeader code="DVD" title="Dividend & Split History" sec={s} sub={<>{ccy} per share · {sourceLabel(engine.isExternal(s.id) ? 'ok' : status, 'schedule generated; real data needs the desktop app')}</>} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_DVD.csv`, csv)} />
       <QuoteStrip sec={s} />
       {list.length === 0 ? (
         <div className="empty">{s.name} does not pay a regular cash dividend.</div>

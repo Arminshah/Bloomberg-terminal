@@ -8,11 +8,14 @@ import { betaTo } from '../data/analytics';
 import { financials, keyStats, reportCcy } from '../data/fundamentals';
 import { riskFree } from '../data/options';
 import type { FnProps } from '../terminal/types';
+import { sourceLabel } from '../components/Source';
+import { useFundamentals } from '../data/live/yfund';
 
 const BENCH: Record<string, string> = { Americas: 'SPX Index', EMEA: 'SXXP Index', APAC: 'NKY Index' };
 
 export function WACC({ sec }: FnProps) {
   const s = sec!;
+  const { status } = useFundamentals(s);
   const ks = keyStats(s);
   const f = financials(s);
   const beta = betaTo(s.id, BENCH[s.region], 504);
@@ -36,7 +39,7 @@ export function WACC({ sec }: FnProps) {
   const ccy = reportCcy(s);
   return (
     <div>
-      <FnHeader code="WACC" title="Weighted Average Cost of Capital" sec={s} sub="CAPM cost of equity, after-tax cost of debt" />
+      <FnHeader code="WACC" title="Weighted Average Cost of Capital" sec={s} sub={<>CAPM cost of equity, after-tax cost of debt · {sourceLabel(status, 'balance sheet generated; real data needs the desktop app')}</>} />
       <QuoteStrip sec={s} />
       <div className="cols">
         <Section title="Cost of equity">

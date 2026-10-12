@@ -59,6 +59,15 @@ function Clock({ tz, label, secondary }: { tz: string; label: string; secondary?
 
 function FeedChip() {
   const f = feedStatus.use((s) => s);
+  if (f.market === 'live' || f.market === 'connecting') {
+    // Desktop app on real data: everything with a market source is real; the rest is labelled where shown.
+    return (
+      <button type="button" className={`status-chip live`} onClick={() => execute(terminal.get().active, 'PDFU')} title={f.detail.market ?? 'Data sources (PDFU)'}>
+        <span className="dot" />
+        {f.market === 'live' ? 'REAL DATA' : 'LOADING REAL DATA'}
+      </button>
+    );
+  }
   const live = [f.crypto === 'live' && 'CRYPTO', f.fx === 'live' && 'FX', f.equities === 'live' && 'EQUITY', f.news === 'live' && 'NEWS'].filter(Boolean);
   const isLive = live.length > 0;
   return (
