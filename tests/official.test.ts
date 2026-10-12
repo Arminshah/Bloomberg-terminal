@@ -38,7 +38,7 @@ const VALET = JSON.stringify({
   ],
 });
 
-const RBA_F2 = `﻿F2 CAPITAL MARKET YIELDS – GOVERNMENT BONDS
+const RBA_F2 = `\uFEFFF2 CAPITAL MARKET YIELDS – GOVERNMENT BONDS
 Title,Australian Government 2 year bond,Australian Government 3 year bond,Australian Government 5 year bond,Australian Government 10 year bond,Australian Government Indexed Bond
 Frequency,Daily,Daily,Daily,Daily,Daily
 Series ID,FCMYGBAG2D,FCMYGBAG3D,FCMYGBAG5D,FCMYGBAG10D,FCMYGBAGID
@@ -56,7 +56,7 @@ Series ID,FIRMMCRTD,FIRMMCCRT,FIRMMCRID
 09-Oct-2026,4.60,,4.60
 12-Oct-2026,,,`;
 
-const SNB = `﻿"CubeId";"snbgwdzid"
+const SNB = `\uFEFF"CubeId";"snbgwdzid"
 "PublishingDate";"2026-10-05 10:00"
 
 "Date";"D0";"Value"

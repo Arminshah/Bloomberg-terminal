@@ -76,7 +76,7 @@ export function EQS(_: FnProps) {
             {rows.length} matches ·{' '}
             {desktopData() ? (
               <>
-                <span className="badge live">REAL</span> prices, market cap, P/E and yield · <SimBadge /> ROE and beta until a company's data is opened
+                <span className="badge live">REAL</span> prices, market cap, P/E and yield · ROE and beta show once a company's data has been opened (DES or FA)
               </>
             ) : (
               <>

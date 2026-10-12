@@ -11,11 +11,33 @@ import { blackScholes, type OptType } from '../finance/options';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
-import { expiryInstant, realChain, useRealExpiries, useRealLeg } from '../data/live/yopt';
+import { atmVolAt, expiryInstant, realChain, useRealExpiries, useRealLeg } from '../data/live/yopt';
+import { rangeStats } from '../data/analytics';
 import { desktopData } from '../data/live/yahoo';
 import { SimBadge } from '../components/Source';
 
-export function OMON({ sec }: FnProps) {
+export function OMON(props: FnProps) {
+  const real = useRealExpiries(props.sec!);
+  // The desktop app shows listed options only: no model chain stands in for a missing one.
+  if (engine.realOnly && real.status !== 'ok') {
+    return (
+      <div>
+        <FnHeader code="OMON" title="Option Monitor" sec={props.sec} sub={real.status === 'loading' ? 'Loading the real option chain…' : 'No listed options from the source'} />
+        <QuoteStrip sec={props.sec!} />
+        <div className="empty">
+          {real.status === 'loading'
+            ? 'Loading the real option chain…'
+            : real.status === 'error'
+              ? 'The option chain source did not answer. It is tried again when you reopen OMON.'
+              : 'The source lists no options for this security. Listed options are available for US stocks, ETFs and the S&P 500, Nasdaq 100, Russell 2000 and VIX indices.'}
+        </div>
+      </div>
+    );
+  }
+  return <OMONChain {...props} />;
+}
+
+function OMONChain({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
   const tick = useTick(2);
@@ -220,9 +242,18 @@ export function OVME({ sec, route }: FnProps) {
   const spot = spotOverride && Number(spotOverride) > 0 ? Number(spotOverride) : spotLive;
   const t = Math.max((expiry - engine.now()) / (365 * DAY_MS), 1 / (365 * 24));
   const r = riskFree(s);
-  const q = dividendYield(s);
+  // On real data an unknown dividend yield counts as zero (and says so); the default vol is the
+  // listed options' at-the-money implied vol for the expiry, or 30-day realised vol without options.
+  const qSource = dividendYield(s);
+  const q = engine.realOnly && !Number.isFinite(qSource) ? 0 : qSource;
   const fwd = spot * Math.exp((r - q) * t);
-  const vol = volOverride && Number(volOverride) > 0 ? Number(volOverride) / 100 : smileVol(s, t, strike, fwd);
+  const listed = useRealExpiries(s);
+  const listedIv = listed.status === 'ok' && listed.atmTerm.length ? atmVolAt(listed.atmTerm, t * 365) : NaN;
+  const realised = rangeStats(s.id).vol30;
+  const realDefault = Number.isFinite(listedIv) ? listedIv / 100 : realised / 100;
+  const volDefault = engine.realOnly ? realDefault : smileVol(s, t, strike, fwd);
+  const volSource = volOverride && Number(volOverride) > 0 ? 'your input' : !engine.realOnly ? 'model smile' : Number.isFinite(listedIv) ? 'listed ATM implied' : '30D realised';
+  const vol = volOverride && Number(volOverride) > 0 ? Number(volOverride) / 100 : volDefault;
   const g = blackScholes(type, spot, strike, t, r, q, vol);
   const contract = s.cls === 'index' ? 100 : 100;
   const scen = [-20, -10, -5, -2, 0, 2, 5, 10, 20].map((pct) => {
@@ -243,7 +274,7 @@ export function OVME({ sec, route }: FnProps) {
   );
   return (
     <div>
-      <FnHeader code="OVME" title="Option Valuation" sec={s} sub="Black-Scholes-Merton with continuous dividend yield" />
+      <FnHeader code="OVME" title="Option Valuation" sec={s} sub={engine.realOnly ? 'Theoretical value, Black-Scholes-Merton with continuous dividend yield · rate from Treasury, dividend from the source' : 'Black-Scholes-Merton with continuous dividend yield'} />
       <QuoteStrip sec={s} />
       <div className="chart-tools" style={{ gap: '6px 14px' }}>
         <span className="seg" role="group" aria-label="Option type">
@@ -278,9 +309,9 @@ export function OVME({ sec, route }: FnProps) {
               ['Per contract (x100)', fmtNum(g.price * contract, 2)],
               ['Underlying', fmtNum(spot, s.dec)],
               ['Forward', fmtNum(fwd, s.dec)],
-              ['Volatility', `${fmtNum(vol * 100, 2)}%`],
+              ['Volatility', `${fmtNum(vol * 100, 2)}% (${volSource})`],
               ['Time to expiry', `${fmtNum(t * 365, 1)} days`],
-              ['Rate / dividend', `${fmtNum(r * 100, 2)}% / ${fmtNum(q * 100, 2)}%`],
+              ['Rate / dividend', `${fmtNum(r * 100, 2)}% / ${engine.realOnly && !Number.isFinite(qSource) ? 'unknown, 0% used' : `${fmtNum(q * 100, 2)}%`}`],
               ['Intrinsic / time value', `${fmtNum(Math.max(0, type === 'C' ? spot - strike : strike - spot), 4)} / ${fmtNum(g.price - Math.max(0, type === 'C' ? spot - strike : strike - spot), 4)}`],
             ]}
           />

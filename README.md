@@ -2,7 +2,7 @@
 
 Armin Terminal is a Bloomberg-style market terminal for the browser and the Windows desktop. It copies the way the Bloomberg Professional terminal is driven: amber-on-black screens, a command line where you type a ticker, a yellow market sector key and a function mnemonic, numbered menus you pick with `3 <GO>`, the F1 to F12 sector keys, and up to six independent panels. It has 66 functions covering equities, charts, news, FX, rates, credit, commodities, index futures, economics, options, swaps, paper trading, portfolios, alerts and chat.
 
-The Windows desktop app runs on real data from free public sources: prices, ten years of history, intraday bars, company financials, estimates, analyst ratings, holders, dividends, listed options and headlines from Yahoo Finance, the US Treasury yield curve from the Treasury, and policy rates from the Fed, ECB, Bank of England and Bank of Canada. Anything those sources do not cover is simulated and marked SIMULATED or SIM on screen.
+The Windows desktop app runs on real data only, from free public sources: streaming prices, ten years of history, intraday bars, company financials, estimates, analyst ratings, holders, dividends, listed options and headlines from Yahoo Finance; government bond yields from the US Treasury and the central banks and finance ministries of Germany, the UK, Japan, Canada and Australia; policy rates, funding rates and meeting calendars from the Fed and six other central banks; and US economic releases from FRED. Its simulator is switched off. Anything those sources do not cover is left out or the screen says it is not available, instead of showing an invented number.
 
 The browser version cannot reach those sources, so it runs a simulated market calibrated to real closing levels, with real crypto prices from Coinbase, real ECB currency fixings and, with a free Finnhub key, live US stock quotes and headlines. Its screens say SIMULATED wherever the figures are generated.
 
@@ -17,7 +17,7 @@ Every push builds the Windows app in CI. Open the [Actions tab](https://github.c
 
 The executables are not code-signed, so the first launch may show "Windows protected your PC". Choose More info, then Run anyway.
 
-This is the version with real market and company data (see [Where the data comes from](#where-the-data-comes-from)). It needs an internet connection; offline it falls back to the simulator.
+This is the version with real market and company data (see [Where the data comes from](#where-the-data-comes-from)). It needs an internet connection; without one it shows no prices rather than simulated ones.
 
 The desktop app has no menu bar, so every F-key reaches the terminal. Window commands use Ctrl+Shift: Ctrl+Shift+N opens another terminal window with its own panel layout, Ctrl+Shift+F toggles full screen, Ctrl+Shift+I opens developer tools, and Ctrl+plus, Ctrl+minus and Ctrl+0 zoom. Watchlists, the portfolio, orders, alerts and settings are shared and stay in sync across windows. Each window remembers its size and position.
 
@@ -79,11 +79,11 @@ The layout buttons in the top bar switch between one, two, three, four and six p
 | Economics | `ECO` economic calendar with live releases, `ECST` world economic statistics, `CDR` exchange holiday calendars |
 | Derivatives | `OMON` option chain, `OVME` option valuation |
 | Tools | `W` watchlists, `PORT` portfolio, performance and risk, `ALRT` price and news keyword alerts, `CORR` correlation matrix, `NOTE` notes, `SECF` security finder, `LAST` recent history, `LPAD` workspaces |
-| Communication and system | `IB` chat with a help-desk bot and simulated trading desks, `HELP` function directory, `PDFU` settings and data sources |
+| Communication and system | `IB` chat with a help-desk bot (and simulated trading desks in the browser), `HELP` function directory, `PDFU` settings and data sources |
 
 ![Related functions menu for IBM next to an EMSX ticket with a filled S&P 500 futures order](docs/menu-emsx.png)
 
-EMSX is paper trading. Market orders fill at the bid or offer, limit orders rest until the market reaches them, stop orders trigger on the last price, DAY orders expire at the end of the UTC day, and algorithmic brokers slice large orders. Stocks and crypto settle against cash at the full price. Index and commodity futures are margined: fills only move cash by commission and realised P&L, and PORT counts them at unrealised P&L while showing their full notional as exposure. Gross exposure is capped at twice net asset value.
+EMSX is paper trading: orders never leave your machine, and in the desktop app they fill against real prices while the market is open (an order entered after the close waits for the next session). Market orders fill at the bid or offer, limit orders rest until the market reaches them, stop orders trigger on the last price, DAY orders expire at the end of the UTC day, and algorithmic brokers slice large orders. Stocks and crypto settle against cash at the full price. Index and commodity futures are margined: fills only move cash by commission and realised P&L, and PORT counts them at unrealised P&L while showing their full notional as exposure. Gross exposure is capped at twice net asset value.
 
 Tables can be copied or exported as CSV. Watchlists, the portfolio, orders, alerts, notes, chats, panel layouts and settings are saved locally.
 
@@ -100,24 +100,31 @@ The built-in universe covers the large caps, but you can type any US-listed stoc
 
 The universe holds 84 stocks across the US, Europe and Asia, 28 equity indices, 11 equity index futures, 23 currency pairs and the dollar index, 19 commodity futures, 32 government yields, 10 cryptocurrencies, the seven on-the-run US Treasuries and 42 corporate bonds from 20 large US issuers. Any other US stock can be added by typing its ticker.
 
-### Desktop app: real data
+### Desktop app: real data only
 
-The desktop app fetches everything through its own process, so it needs no keys and no browser permissions. The top bar shows REAL DATA once it is connected, and `PDFU` lists each source and its state.
+The desktop app shows real data and nothing else. A line or screen with no free real source is left out, or says the data is not available, instead of being filled in by the simulator. Everything is fetched through the app's own process, so it needs no keys and no browser permissions. The top bar shows LIVE · STREAMING once prices stream, and `PDFU` lists each source and its state.
 
 | Data | Source | Screens |
 | --- | --- | --- |
-| Quotes, daily history (10 years), intraday one-minute bars, dividends and splits for stocks, indices, US index futures, commodities and currencies | Yahoo Finance | Every price screen, `GP`, `GIP`, `HP`, `BQ`, `W`, `WEI`, `IMAP`, `DVD` |
-| Crypto prices and candles | Coinbase (Yahoo Finance when crypto streaming is off in `PDFU`) | `CRYP`, every price screen |
+| Streaming prices for stocks, ETFs, indices, US index futures, commodities, currencies and crypto, checked against a quote poll every 30 seconds (every 10 seconds when the stream is down) | Yahoo Finance | Every price screen |
+| Daily history (10 years), one-minute intraday bars, dividends and splits | Yahoo Finance | `GP`, `GIP`, `HP`, `BQ`, `W`, `WEI`, `IMAP`, `DVD` |
 | Financial statements, estimates, earnings dates and surprises, analyst ratings and price targets by firm, institutional and fund holders, company profile and key ratios | Yahoo Finance | `DES`, `FA`, `GF`, `EE`, `ANR`, `HDS`, `RV`, `EQS`, `EVTS`, `WACC` |
-| Listed option chains: expiries, strikes, bid, offer, last, volume, open interest and implied volatility | Yahoo Finance | `OMON`, `HVT`, `OVME` from a quote |
-| Company and market headlines with links to the publisher | Yahoo Finance | `TOP`, `N`, `CN`, `BQ` |
-| US Treasury par yields for every tenor, end of day | US Treasury | `GC`, `WB`, `BTMM`, `WIRP`, bond pricing |
-| Fed target range, effective fed funds and SOFR | New York Fed | `BTMM`, `CENB`, `WIRP`, `ECO` |
-| ECB deposit rate, Bank Rate, Bank of Canada overnight target | ECB, Bank of England, Bank of Canada | `CENB`, `ECO` |
+| Listed option chains: expiries, strikes, bid, offer, last, volume, open interest and implied volatility | Yahoo Finance | `OMON`, `HVT`, `OVME` |
+| Company and market headlines with links to the publisher | Yahoo Finance | `TOP`, `N`, `CN`, `READ`, `BQ` |
+| US Treasury par yields for every tenor; 5, 10 and 30 years also stream during the session from the Cboe Treasury yield indices | US Treasury, Cboe via Yahoo Finance | `GC`, `WB`, `BTMM`, `DES` |
+| Government yields, end of day: Germany 2, 5, 10 and 30 years (zero-coupon yields from the Svensson curve), UK 5, 10 and 20 years (par yields), Japan 2, 5, 10 and 30 years, Canada 10 years, Australia 10 years | Deutsche Bundesbank, Bank of England, Ministry of Finance Japan, Bank of Canada, Reserve Bank of Australia | `WB`, `GC`, `BTMM`, `CENB`, `DES` |
+| Fed target range, effective fed funds, SOFR, OBFR, BGCR and TGCR with their volumes | New York Fed | `BTMM`, `WIRP`, `CENB`, `ECO` |
+| FOMC meeting dates | Federal Reserve Board | `WIRP`, `CENB`, `ECO` |
+| Policy rates and every move in them | ECB, Bank of England, Bank of Canada, Reserve Bank of Australia, Swiss National Bank, Banco Central do Brasil (and the Fed above) | `CENB`, `ECST`, `ECO`, `DES` |
+| 30-day fed funds futures and three-month SOFR futures | CME, via Yahoo Finance | `WIRP`, `BTMM` |
+| US economic releases: official release dates and times, and the published values (payrolls, unemployment, CPI, PPI, retail sales, industrial production, housing, durable goods, GDP, PCE, jobless claims, JOLTS, trade) | FRED (St. Louis Fed), which republishes the BLS, BEA, Census Bureau and Fed figures | `ECO` |
+| GDP growth, inflation and unemployment for the US, the euro area and major economies | FRED (BEA, BLS, Eurostat, OECD) | `ECST` |
 
-Prices stop moving when their market is closed and show the last session's change, the way a real terminal does; the quote strip says CLOSE, and LIVE during the session. Yahoo labels its US stock prices real time (Nasdaq last sale); other exchanges and futures can be delayed 15 to 20 minutes, and option quotes are delayed 15 minutes. The 5, 10 and 30-year Treasury yields update live; the other tenors show the Treasury's official close (marked EOD). Yahoo gives volume rather than individual trades, so `TAS` shows the volume traded between updates. Greeks in `OMON` are computed from each contract's own implied volatility, since Yahoo publishes none.
+Prices stop moving when their market is closed and show the last session's change, the way a real terminal does; the quote strip says CLOSE with the time of the last trade, and LIVE during the session. Yahoo labels its US stock prices real time (Nasdaq last sale). Other exchanges and futures are delayed 10 to 20 minutes and marked DELAYED with the number of minutes, and option quotes are delayed 15 minutes. Pre-market, after-hours and overnight prices for US stocks show beside the regular-session price. A price that jumps more than a few percent within two minutes is held until a second tick confirms it, crossed or far-off bids and offers are dropped, and if both the stream and the quote poll stop answering for two minutes the affected prices turn amber and say STALE. Official figures (yields, policy rates, economic releases) are marked EOD with the date they refer to; the app checks them again every hour (FRED values every 10 minutes) and asks each server for a fresh copy instead of a cached one. Yahoo reports crypto volume in US dollars, so crypto volume is labelled USD. `TAS` shows the volume traded between updates, since the free feed has no trade-by-trade tape.
 
-Some things have no free source and stay simulated in the desktop app, marked SIM or SIMULATED where they appear: order book depth (built around the real best bid and offer), non-US government yields, index futures outside the US (modelled at fair value to the real index), bond prices (modelled off the real Treasury curve plus an issuer spread), dealer quotes in `ALLQ`, economic releases other than central bank decisions, policy rates other than the four banks above, FX forward points and swap rates (models), the readership ranking in `READ` and the chat desks in `IB`. The CSI 300 index and the offshore yuan also stay simulated, because Yahoo returns no price history for them.
+Some screens calculate figures from the real data with standard methods, and say so on screen: the meeting-by-meeting Fed path in `WIRP` (the CME FedWatch method applied to fed funds futures), the fair value of index futures in `DES` and `WEIF` (the index carried at the 3-month Treasury rate less the index ETF's trailing dividend yield), year-on-year rates in `ECO` and `ECST` (from the published index levels), option Greeks in `OMON` (from each contract's implied volatility), the theoretical values in `OVME` and `OVML`, and realised volatility, beta, correlation and returns everywhere.
+
+These have no free source, so the desktop app does not show them: prices and dealer quotes for individual bonds (`SRCH`, `DDIS`, `ALLQ`, `YAS`), FX forward points (`FRD`), swap rates (`SWPM`), order book levels behind the best bid and offer (`DEPTH`), index futures outside the US, government yields for France, Italy, Spain, Switzerland, China, India, Brazil and Mexico, the UK 2 and 30-year gilt yields, policy rates of the Bank of Japan and banks without a free daily source, economic releases outside the US, consensus forecasts, and news readership (`READ` lists the latest headlines instead). The CSI 300 index and the offshore yuan are left out because Yahoo has no price history for them.
 
 ### Browser: simulated market
 
@@ -135,7 +142,7 @@ In the browser, company fundamentals, analyst views, holders, dividends, option 
 
 ## What it does not do
 
-A real Bloomberg terminal has tens of thousands of functions, licensed real-time data from hundreds of exchanges, and a network of other users. Armin Terminal reproduces the interface, the command language and the behaviour of the most used screens. Its desktop data comes from free public sources, with their delays and gaps, and the browser version is simulated. It has no messaging network beyond the built-in bot and simulated desks, and its orders never leave your machine.
+A real Bloomberg terminal has tens of thousands of functions, licensed real-time data from hundreds of exchanges, and a network of other users. Armin Terminal reproduces the interface, the command language and the behaviour of the most used screens. Its desktop data comes from free public sources, with their delays and gaps, and the browser version is simulated. It has no messaging network beyond the built-in help desk bot (and, in the browser, simulated desks), and its orders never leave your machine.
 
 ## Deploying the web version
 
@@ -152,7 +159,7 @@ The workflow in `.github/workflows/pages.yml` publishes the site to GitHub Pages
 | `npm run desktop:build` | Windows installer and portable .exe in `release/` |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | TypeScript project build |
-| `npm test` | Unit tests (Vitest): market engine, bonds and futures pricing, calibration, option math, indicators, parser, online ticker lookup, paper trading, calendar, fundamentals, and the real-data readers (company data, option chains, Treasury curve, central bank rates) checked against saved responses |
+| `npm test` | Unit tests (Vitest): market engine, bonds and futures pricing, calibration, option math, indicators, parser, online ticker lookup, paper trading, calendar, fundamentals, and the real-data readers (company data, option chains, streaming quotes, Treasury curve, central bank rates and calendars, government yields, FRED releases, the fed funds futures path) checked against saved responses |
 | `npm run e2e` | Browser tests (Playwright): every function renders, keyboard flow, menus, persistence, phone layout |
 | `npm run snapshot` | Refresh calibration anchors from public daily closes |
 

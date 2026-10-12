@@ -9,7 +9,8 @@ import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { curveMembers } from '../data/curves';
 import { rangeStats } from '../data/analytics';
 import { resolveSecurity } from '../data/registry';
-import { bootstrap, depoRate, fxForward, pipSize, swapRate } from '../data/rates';
+import { bootstrap, depoRate, fxForward, pipSize, policyRate, swapRate } from '../data/rates';
+import { policyRates } from '../data/live/policy';
 import type { SecurityDef } from '../data/types';
 import { blackScholes, type OptType } from '../finance/options';
 import { execute } from '../terminal/exec';
@@ -54,7 +55,39 @@ function valueDay(spot: number, t: { days?: number; months?: number }): number {
 // ------------------------------------------------------------------- FRD
 
 /** FRD: FX forward points and outrights by tenor. */
-export function FRD({ sec, route }: FnProps) {
+export function FRD(props: FnProps) {
+  if (engine.realOnly) return <FRDReal {...props} />;
+  return <FRDSim {...props} />;
+}
+
+/** Forward points are dealer quotes with no free source: the desktop app shows the real spot rate only. */
+function FRDReal({ sec, route }: FnProps) {
+  useTick(2);
+  const panel = usePanelId();
+  const pair = pairFor(sec, route.args);
+  const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx).slice(0, 23);
+  return (
+    <div>
+      <FnHeader code="FRD" title="Forward Rates" sec={pair} sub="Forward points need dealer quotes, which have no free source" />
+      <div className="chart-tools">
+        <span className="muted">Pair</span>
+        <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FRD`)}>
+          {pairs.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.ticker}
+            </option>
+          ))}
+        </select>
+        <span>
+          <span className="lbl">Spot</span> <LivePx id={pair.id} />
+        </span>
+      </div>
+      <div className="empty">FX forward points are quoted by dealers and have no free public source, so the desktop app does not show forward points or outrights. The spot rate above is live.</div>
+    </div>
+  );
+}
+
+function FRDSim({ sec, route }: FnProps) {
   useTick(2);
   const panel = usePanelId();
   const pair = pairFor(sec, route.args);
@@ -167,11 +200,15 @@ export function OVML({ sec, route }: FnProps) {
   const [notionalText, setNotionalText] = useState('1000000');
   const days = EXPIRIES[exp][1];
   const T = days / 365;
-  const rd = depoRate(quote, T) / 100;
-  const rf = depoRate(base, T) / 100;
+  // On real data the rates are the central banks' published rates held flat (effective fed funds
+  // for USD) and the default vol is 90-day realised: no modelled curve or vol premium.
+  const real = engine.realOnly;
+  const flatRate = (ccy: string) => (ccy === 'USD' ? (policyRates.get().effr?.last ?? NaN) : policyRate(ccy));
+  const rd = (real ? flatRate(quote) : depoRate(quote, T)) / 100;
+  const rf = (real ? flatRate(base) : depoRate(base, T)) / 100;
   const fwd = spot * Math.exp((rd - rf) * T);
   const rs = rangeStats(pair.id);
-  const defVol = Math.max(0.03, ((Number.isFinite(rs.vol90) ? rs.vol90 : pair.vol * 100) / 100) * 1.05 * (1 + 0.08 * Math.exp(-T * 4)));
+  const defVol = real ? rs.vol90 / 100 : Math.max(0.03, ((Number.isFinite(rs.vol90) ? rs.vol90 : pair.vol * 100) / 100) * 1.05 * (1 + 0.08 * Math.exp(-T * 4)));
   const K = strikeText.trim() ? Number(strikeText) : Number(fwd.toFixed(pair.dec));
   const vol = volText.trim() ? Number(volText) / 100 : defVol;
   const notional = Number(notionalText) || 0;
@@ -192,7 +229,7 @@ export function OVML({ sec, route }: FnProps) {
   const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx);
   return (
     <div>
-      <FnHeader code="OVML" title="FX Option Valuation" sec={pair} sub={`Vanilla European · Garman-Kohlhagen · notional in ${base}`} />
+      <FnHeader code="OVML" title="FX Option Valuation" sec={pair} sub={`Vanilla European · Garman-Kohlhagen theoretical value · notional in ${base}${real ? ' · rates without a published policy rate leave the value blank' : ''}`} />
       <div className="chart-tools">
         <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} OVML`)}>
           {pairs.map((d) => (
@@ -233,9 +270,9 @@ export function OVML({ sec, route }: FnProps) {
               ['Forward', fmtNum(fwd, pair.dec + 1)],
               ['Strike', `${fmtNum(K, pair.dec)}${strikeText.trim() ? '' : ' (ATMF)'}`],
               ['Expiry', `${EXPIRIES[exp][0]} · ${fmtDay((engine.today + days) * DAY_MS)}`],
-              ['Volatility', `${fmtNum(vol * 100, 2)}%${volText.trim() ? '' : ' (realised + premium)'}`],
-              [`${quote} rate`, `${fmtNum(rd * 100, 3)}%`],
-              [`${base} rate`, `${fmtNum(rf * 100, 3)}%`],
+              ['Volatility', `${fmtNum(vol * 100, 2)}%${volText.trim() ? '' : real ? ' (90D realised)' : ' (realised + premium)'}`],
+              [`${quote} rate${real ? ' (policy, flat)' : ''}`, `${fmtNum(rd * 100, 3)}%`],
+              [`${base} rate${real ? ' (policy, flat)' : ''}`, `${fmtNum(rf * 100, 3)}%`],
             ]}
           />
         </Section>
@@ -271,7 +308,21 @@ export function OVML({ sec, route }: FnProps) {
 // ------------------------------------------------------------------ SWPM
 
 /** SWPM: USD SOFR interest rate swap valuation. */
-export function SWPM(_: FnProps) {
+export function SWPM(props: FnProps) {
+  if (engine.realOnly) {
+    return (
+      <div>
+        <FnHeader code="SWPM" title="Swap Manager" sub="USD SOFR OIS" />
+        <div className="empty">
+          Pricing a swap needs a market swap curve. Swap rates are dealer quotes with no free public source, so the swap manager is not available on real data. SOFR futures (BTMM) and the fed funds path (WIRP) show what the market prices for the next few years.
+        </div>
+      </div>
+    );
+  }
+  return <SWPMSim {...props} />;
+}
+
+function SWPMSim(_: FnProps) {
   useTick(3);
   const [tenor, setTenor] = useState(5);
   const [notionalText, setNotionalText] = useState('10000000');
@@ -404,7 +455,7 @@ export function CENB(_: FnProps) {
   const twoYear = (country: string) => {
     const code = country === 'EZ' ? 'DE' : country;
     const m = curveMembers(code).find((d) => d.tenor === 2);
-    return m ? m.id : undefined;
+    return m && engine.hasSource(m.id) ? m.id : undefined;
   };
   return (
     <div>
@@ -452,7 +503,9 @@ export function CENB(_: FnProps) {
         </tbody>
       </table>
       <p className="pad-s muted">
-        {banks.some((b) => b.real)
+        {engine.realOnly
+          ? 'Policy rates and their last moves come from the central banks’ own data; meeting dates are their published calendars. Banks without a free daily source are not listed. The euro area 2-year is the Bundesbank’s zero-coupon yield.'
+          : banks.some((b) => b.real)
           ? 'Rates without SIM, and their last moves, come from the central banks’ own data. Rates marked SIM are reference settings with no free daily source and may be out of date.'
           : 'Policy rates are reference settings (the Fed range is derived from the 3-month bill) and may be out of date; the desktop app loads the Fed, ECB, Bank of England and Bank of Canada rates from the banks themselves.'}{' '}
         A 2-year yield below the policy rate means the market expects cuts.

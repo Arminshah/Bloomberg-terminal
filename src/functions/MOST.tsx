@@ -56,7 +56,7 @@ export function MOST(_: FnProps) {
       <FnHeader
         code="MOST"
         title="Most Active Securities"
-        sub="Equities in the Armin universe"
+        sub="Equities in the Armin universe · value traded is estimated as last price × volume"
         tabs={VIEWS.map((v) => ({ n: v.n, label: v.label }))}
         tab={view}
         onTab={setView}
@@ -75,7 +75,7 @@ export function MOST(_: FnProps) {
           { key: 'p', label: '%Chg', num: true, render: (r) => <Chg v={r.q.pct} pct /> },
           { key: 'v', label: 'Volume', num: true, render: (r) => fmtBig(r.q.volume) },
           { key: 'r', label: 'Rel Vol', num: true, render: (r) => <span className={r.rel > 1.5 ? 'yellow' : ''}>{fmtNum(r.rel, 2)}x</span> },
-          { key: 'val', label: 'Value USD', num: true, render: (r) => fmtBig(r.value), hideM: true },
+          { key: 'val', label: 'Value USD', title: 'Estimated value traded: last price × volume', num: true, render: (r) => `≈${fmtBig(r.value)}`, hideM: true },
           { key: 'x', label: 'Exch', render: (r) => <span className="muted">{r.d.exch}</span>, hideM: true },
         ]}
       />

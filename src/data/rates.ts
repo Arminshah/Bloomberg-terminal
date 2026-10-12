@@ -20,7 +20,7 @@ const OTHER_POLICY: Record<string, number> = {
 const CURVE_FOR: Record<string, string> = { USD: 'US', EUR: 'DE', GBP: 'GB', JPY: 'JP' };
 
 export function policyRate(ccy: string): number {
-  if (ccy === 'HKD') return policyRate('USD') - 0.25;
+  if (ccy === 'HKD') return engine.realOnly ? NaN : policyRate('USD') - 0.25;
   const code = BANK_FOR[ccy];
   if (code) {
     const cb = centralBanks().find((b) => b.code === code);

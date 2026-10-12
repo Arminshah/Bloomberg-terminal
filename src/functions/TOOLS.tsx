@@ -271,20 +271,20 @@ export function PDFU(_: FnProps) {
             <tbody>
               {feeds.market !== 'off' && feedRow('Real market data (Yahoo Finance, desktop)', feeds.market, feeds.detail.market)}
               {feeds.rates !== 'off' && feedRow('US Treasury curve (treasury.gov, desktop)', feeds.rates, feeds.detail.rates)}
-              {feeds.policy !== 'off' && feedRow('Central bank rates (desktop)', feeds.policy, feeds.detail.policy)}
-              {feedRow(
-                'Simulator',
-                'live',
-                feeds.market === 'live'
-                  ? 'Only where no free source exists: non-US government yields, non-US index futures, bond prices (modelled off the curve), order books, dealer quotes and economic releases. These are marked SIM.'
-                  : `Calibrated to closes as of ${SNAPSHOT_AS_OF}; runs every instrument`,
-              )}
-              {feedRow('Crypto (Coinbase)', feeds.crypto, feeds.detail.crypto)}
-              {feedRow('FX fixings (ECB via Frankfurter)', feeds.fx, feeds.detail.fx)}
-              {feedRow('US equities (Finnhub)', feeds.equities, feeds.detail.equities)}
+              {feeds.yields !== 'off' && feedRow('Government yields (central banks, finance ministries)', feeds.yields, feeds.detail.yields)}
+              {feeds.policy !== 'off' && feedRow('Central bank rates and calendars (desktop)', feeds.policy, feeds.detail.policy)}
+              {feeds.eco !== 'off' && feedRow('US economic releases (FRED, desktop)', feeds.eco, feeds.detail.eco)}
+              {engine.realOnly
+                ? feedRow('Simulator', 'off', 'Off in the desktop app: every figure comes from a real source, and anything without one is left out')
+                : feedRow('Simulator', 'live', `Calibrated to closes as of ${SNAPSHOT_AS_OF}; runs every instrument`)}
+              {engine.realOnly ? null : feedRow('Crypto (Coinbase)', feeds.crypto, feeds.detail.crypto)}
+              {engine.realOnly ? null : feedRow('FX fixings (ECB via Frankfurter)', feeds.fx, feeds.detail.fx)}
+              {engine.realOnly ? null : feedRow('US equities (Finnhub)', feeds.equities, feeds.detail.equities)}
               {feedRow('Headlines', feeds.news, feeds.detail.news)}
             </tbody>
           </table>
+          {/* The browser's optional feeds; the desktop app has its own sources and needs no key. */}
+          {engine.realOnly ? null : (
           <div className="pad" style={{ display: 'grid', gap: 8 }}>
             <label className="fld" style={{ color: 'var(--text)' }}>
               <input type="checkbox" checked={s.liveCrypto} onChange={(e) => set('liveCrypto', e.target.checked)} /> Stream real crypto prices
@@ -310,6 +310,7 @@ export function PDFU(_: FnProps) {
               With a key, US stocks quote live, real headlines join the news feed, and any US-listed stock that is not built in can be looked up by typing its ticker. The key never leaves this browser except in requests to Finnhub. The desktop app looks stocks up through Yahoo Finance without a key.
             </div>
           </div>
+          )}
         </Section>
         <Section title="Workspace">
           <KV items={[['Panels', String(terminal.get().panels.length)], ['Layout', terminal.get().layout]]} />

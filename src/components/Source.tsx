@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { FnHeader } from './FnHeader';
 import { engine } from '../data/market';
 import { desktopData } from '../data/live/yahoo';
 import { feedStatus } from '../data/live/status';
@@ -38,10 +39,11 @@ export function sourceLabel(status: SourceStatus, simText: string): ReactNode {
  * (Yahoo Finance in the desktop app), 'live' for a streaming feed on top of
  * simulated history, 'sim' for the simulator alone.
  */
-export function priceSource(id: string): 'real' | 'live' | 'sim' {
+export function priceSource(id: string): 'real' | 'live' | 'sim' | 'none' {
   if (engine.isExternal(id)) return 'real';
   const q = engine.quote(id);
-  return q && q.src !== 'SIM' ? 'live' : 'sim';
+  if (!q || q.src === 'NONE') return 'none';
+  return q.src !== 'SIM' ? 'live' : 'sim';
 }
 
 export function SimBadge() {
@@ -95,3 +97,15 @@ const CURVE_SOURCE: Record<string, string> = {
   CA: 'Bank of Canada benchmark bond yields',
   AU: 'Reserve Bank of Australia interpolated yields',
 };
+
+/** What bond screens show on real data: no free source quotes individual bonds. */
+export function NoBondData({ code, title }: { code: string; title: string }) {
+  return (
+    <div>
+      <FnHeader code={code} title={title} />
+      <div className="empty">
+        Prices for individual bonds come from dealers and trading venues that have no free public feed, so the desktop app does not show bond prices, spreads or dealer quotes. Government yields are real: see GC, WB and BTMM.
+      </div>
+    </div>
+  );
+}

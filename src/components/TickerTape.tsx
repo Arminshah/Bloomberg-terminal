@@ -19,7 +19,7 @@ export function TickerTape() {
           TAPE.map((id) => {
             const d = engine.get(id);
             const q = engine.quote(id);
-            if (!d || !q) return null;
+            if (!d || !q || !engine.hasSource(id)) return null;
             const y = d.quote === 'yield';
             const cls = q.chg > 0 ? 'up' : q.chg < 0 ? 'dn' : 'muted';
             return (

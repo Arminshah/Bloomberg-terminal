@@ -521,13 +521,18 @@ export function MOV({ sec, route }: FnProps) {
   const iq = engine.quote(ix.id)!;
   const members = indexMembers(ix);
   const priceWeighted = ix.ticker === 'INDU';
+  // On real data a cap-weighted index is ranked by each member's change in market value: the full
+  // index weights are not public, and weights within the members covered here would overstate points.
+  const byValue = engine.realOnly && !priceWeighted;
   const w = members.map((d) => (priceWeighted ? engine.quote(d.id)!.prevClose : marketCapUsd(d.id)));
-  const wSum = w.reduce((a, b) => a + b, 0) || 1;
+  const wSum = w.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0) || 1;
   const rows = members.map((d, i) => {
     const q = engine.quote(d.id)!;
     const weight = w[i] / wSum;
-    return { d, q, weight, pts: iq.prevClose * weight * (q.pct / 100) };
-  });
+    const cap = marketCapUsd(d.id);
+    const valueChg = cap * (q.pct / (100 + q.pct));
+    return { d, q, weight, pts: byValue ? valueChg : iq.prevClose * weight * (q.pct / 100) };
+  }).filter((r) => Number.isFinite(r.pts));
   const explained = rows.reduce((a, r) => a + r.pts, 0);
   const adv = rows.filter((r) => r.q.pct > 0).length;
   const dec = rows.filter((r) => r.q.pct < 0).length;
@@ -541,23 +546,32 @@ export function MOV({ sec, route }: FnProps) {
         { key: 't', label: 'Ticker', render: (r) => <SecLink id={r.d.id}>{r.d.ticker}</SecLink> },
         { key: 'l', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
         { key: 'c', label: '%Chg', num: true, render: (r) => <Chg v={r.q.pct} pct /> },
-        { key: 'p', label: 'Index pts', num: true, render: (r) => <Chg v={r.pts} dec={2} /> },
-        { key: 'w', label: 'Wt %', num: true, hideM: true, render: (r) => fmtNum(r.weight * 100, 2) },
+        byValue
+          ? { key: 'p', label: 'Mkt value chg USD', num: true, render: (r) => <span className={r.pts > 0 ? 'up' : r.pts < 0 ? 'dn' : ''}>{fmtBig(r.pts)}</span> }
+          : { key: 'p', label: 'Index pts', num: true, render: (r) => <Chg v={r.pts} dec={2} /> },
+        ...(byValue ? [] : [{ key: 'w', label: 'Wt %', num: true, hideM: true, render: (r: (typeof rows)[number]) => fmtNum(r.weight * 100, 2) }]),
       ]}
     />
   );
   return (
     <div>
-      <FnHeader code="MOV" title="Index Movers" sec={ix} sub={`${members.length} members in the Armin universe · ${priceWeighted ? 'price weighted' : 'cap weighted'} within the universe`} />
+      <FnHeader
+        code="MOV"
+        title="Index Movers"
+        sec={ix}
+        sub={byValue ? `${rows.length} members covered here · ranked by change in market value today` : `${members.length} members in the Armin universe · ${priceWeighted ? 'price weighted' : 'cap weighted'} within the universe`}
+      />
       <div className="qstrip">
         <span className="yellow b">{ix.ticker}</span>
         <LivePx id={ix.id} />
         <Chg v={iq.chg} dec={2} />
         <Chg v={iq.pct} pct />
-        <span>
-          <span className="lbl">Members explain</span>
-          <Chg v={explained} dec={2} /> pts
-        </span>
+        {byValue ? null : (
+          <span>
+            <span className="lbl">Members explain</span>
+            <Chg v={explained} dec={2} /> pts
+          </span>
+        )}
         <span>
           <span className="lbl">Adv / Dec</span>
           <span className="up">{adv}</span> / <span className="dn">{dec}</span>
@@ -571,7 +585,13 @@ export function MOV({ sec, route }: FnProps) {
           <Section title="Laggards (index points)">{table(dn)}</Section>
         </div>
       )}
-      <p className="pad-s muted">Contribution = previous index close × member weight × member % change. Weights are relative to the members covered here, not the official index weights.</p>
+      <p className="pad-s muted">
+        {byValue
+          ? 'Market value change = market cap now minus market cap at the previous close (USD). The index’s full membership and weights are not public, so contributions in index points are not shown.'
+          : priceWeighted
+            ? 'Contribution = price change × (previous index close ÷ sum of members’ previous closes), which equals price change ÷ the Dow divisor when every member is covered. “Members explain” should match the index’s own change.'
+            : 'Contribution = previous index close × member weight × member % change. Weights are relative to the members covered here, not the official index weights.'}
+      </p>
       <div className="pad-s muted">{fmtPct(iq.pct)} index move today.</div>
     </div>
   );

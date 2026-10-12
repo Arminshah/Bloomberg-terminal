@@ -7,7 +7,36 @@ import { engine, useTick } from '../data/market';
 import { orderBook, type Level } from '../data/book';
 import type { SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
-import { SimBadge } from '../components/Source';
+import { RealBadge, SimBadge } from '../components/Source';
+
+/** Level 1 on real data: the source's best bid and offer, with no invented depth behind them. */
+export function TopOfBook({ sec }: { sec: SecurityDef }) {
+  useTick(1);
+  const q = engine.quote(sec.id)!;
+  const has = Number.isFinite(q.bid) && Number.isFinite(q.ask);
+  if (!has) return <div className="empty">No bid or offer from the source right now{q.src === 'CLOSE' ? ' (market closed)' : ''}.</div>;
+  const spread = q.ask - q.bid;
+  return (
+    <table className="tbl">
+      <thead>
+        <tr>
+          <th className="num">Bid</th>
+          <th className="num">Ask</th>
+          <th className="num">Spread</th>
+          <th className="num hide-m">Spread bp</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td className="num up b">{fmtNum(q.bid, sec.dec)}</td>
+          <td className="num dn b">{fmtNum(q.ask, sec.dec)}</td>
+          <td className="num">{fmtNum(spread, sec.dec)}</td>
+          <td className="num hide-m">{fmtNum((spread / ((q.bid + q.ask) / 2)) * 10000, 1)}</td>
+        </tr>
+      </tbody>
+    </table>
+  );
+}
 
 export function BookTable({ sec, levels = 10, compact }: { sec: SecurityDef; levels?: number; compact?: boolean }) {
   useTick(1);
@@ -63,6 +92,13 @@ export function BookTable({ sec, levels = 10, compact }: { sec: SecurityDef; lev
 export function BookSource({ id }: { id: string }) {
   const q = engine.quote(id);
   const touch = engine.isExternal(id) && q && Number.isFinite(q.bid) && Number.isFinite(q.ask);
+  if (engine.realOnly) {
+    return (
+      <>
+        <RealBadge /> best bid and offer from the source · deeper levels have no free feed
+      </>
+    );
+  }
   return (
     <>
       <SimBadge /> order book{touch ? ' around the real best bid and offer' : ''} · no depth feed is available
@@ -72,6 +108,22 @@ export function BookSource({ id }: { id: string }) {
 
 export function DEPTH({ sec }: FnProps) {
   const s = sec!;
+  if (engine.realOnly) {
+    return (
+      <div>
+        <FnHeader code="DEPTH" title="Market Depth" sec={s} sub={<BookSource id={s.id} />} />
+        <QuoteStrip sec={s} />
+        <Section title="Top of book">
+          <TopOfBook sec={s} />
+        </Section>
+        <div className="note">The desktop app shows the best bid and offer the source publishes. Full order book depth needs an exchange data feed, so no levels behind the top are shown.</div>
+      </div>
+    );
+  }
+  return <DepthSim sec={s} />;
+}
+
+function DepthSim({ sec: s }: { sec: SecurityDef }) {
   useTick(1);
   const b = orderBook(s.id, 15);
   const bidTot = b.bids.reduce((a, x) => a + x.size, 0);

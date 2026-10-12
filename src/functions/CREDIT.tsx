@@ -10,7 +10,7 @@ import type { SecurityDef } from '../data/types';
 import { analytics, settlementDate, yieldFromClean } from '../finance/bonds';
 import { usePanelId } from '../terminal/panel';
 import { openSecurity } from '../components/cells';
-import { SimBadge } from '../components/Source';
+import { NoBondData, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import type { FnProps } from '../terminal/types';
 
@@ -68,7 +68,12 @@ function rowsFor(list: SecurityDef[]): Row[] {
 }
 
 /** SRCH: fixed income search with issuer, sector, rating, maturity and coupon filters. */
-export function SRCH({ route, sec }: FnProps) {
+export function SRCH(props: FnProps) {
+  if (engine.realOnly) return <NoBondData code="SRCH" title="Fixed Income Search" />;
+  return <SRCHSim {...props} />;
+}
+
+function SRCHSim({ route, sec }: FnProps) {
   useTick(3);
   const init = parseIssuer(route.args, sec);
   const [issuer, setIssuer] = useState(init.root);
@@ -155,7 +160,12 @@ export function SRCH({ route, sec }: FnProps) {
 }
 
 /** DDIS: an issuer's debt distribution by maturity. */
-export function DDIS({ route, sec }: FnProps) {
+export function DDIS(props: FnProps) {
+  if (engine.realOnly) return <NoBondData code="DDIS" title="Debt Distribution" />;
+  return <DDISSim {...props} />;
+}
+
+function DDISSim({ route, sec }: FnProps) {
   useTick(5);
   const panel = usePanelId();
   const { root } = parseIssuer(route.args, sec);
@@ -248,7 +258,12 @@ const DEALER_NAMES: Record<string, string> = {
 };
 
 /** ALLQ: dealer quote montage for a bond (simulated dealers). */
-export function ALLQ({ sec }: FnProps) {
+export function ALLQ(props: FnProps) {
+  if (engine.realOnly) return <NoBondData code="ALLQ" title="All Quotes" />;
+  return <ALLQSim {...props} />;
+}
+
+function ALLQSim({ sec }: FnProps) {
   useTick(2);
   const s = sec!;
   const q = engine.quote(s.id)!;

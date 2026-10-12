@@ -7,11 +7,16 @@ import { fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { curveAt, interp } from '../data/curves';
 import { analytics, cleanFromYield, couponSchedule, settlementDate, to32nds, yieldFromClean } from '../finance/bonds';
-import { SimBadge } from '../components/Source';
+import { NoBondData, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import type { FnProps } from '../terminal/types';
 
-export function YAS({ sec }: FnProps) {
+export function YAS(props: FnProps) {
+  if (engine.realOnly) return <NoBondData code="YAS" title="Yield & Spread Analysis" />;
+  return <YASSim {...props} />;
+}
+
+function YASSim({ sec }: FnProps) {
   const s = sec!;
   useTick(2);
   const b = s.bond!;

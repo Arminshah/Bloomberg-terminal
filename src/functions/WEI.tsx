@@ -59,6 +59,8 @@ export function WEI(_: FnProps) {
                 </td>
               </tr>
               {g.ids.map((id) => {
+                // The desktop app lists only indices it has a real source for.
+                if (!engine.hasSource(id)) return null;
                 const d = engine.get(id)!;
                 const q = engine.quote(id)!;
                 const intra = engine.intraday(id);

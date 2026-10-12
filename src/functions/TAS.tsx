@@ -61,6 +61,8 @@ export function TapeSource({ id, short }: { id: string; short?: boolean }) {
           <span className="badge live">LIVE</span> {short ? 'feed prints' : 'trade prints from the streaming feed, newest first'}
         </>
       );
+    case 'none':
+      return <>{short ? 'no data' : 'No prices from the source yet'}</>;
     default:
       return short ? (
         <SimBadge />

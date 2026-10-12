@@ -3,7 +3,7 @@ import { zonedToUtc } from '../core/format';
 import { DAY_MS, isBusinessDay, dayNum } from './calendar';
 import { engine } from './market';
 import { levelOn, policyRates, type PolicyRates, type PolicySeries } from './live/policy';
-import { eventTimes, expectedPeriod, fredData, periodLabel, previousPeriod, US_EVENTS, valueAt } from './live/fred';
+import { eventTimes, expectedPeriod, fredData, periodLabel as fredPeriodLabel, previousPeriod, US_EVENTS, valueAt } from './live/fred';
 
 export { zonedToUtc } from '../core/format';
 
@@ -253,7 +253,7 @@ function usReleases(from: number, to: number, now: number): EcoEvent[] {
         time: t,
         country: 'US',
         name: ev.name,
-        period: periodLabel(p, ev.freq),
+        period: fredPeriodLabel(p, ev.freq),
         survey: null,
         actual: t <= now ? valueAt(obs, p, ev.calc, ev.freq, ev.scale) : null,
         prior: prior ?? NaN,

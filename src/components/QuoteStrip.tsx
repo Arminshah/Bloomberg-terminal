@@ -1,4 +1,4 @@
-import { useQuote } from '../data/market';
+import { engine, useQuote } from '../data/market';
 import type { SecurityDef } from '../data/types';
 import { fmtBig, fmtBp, fmtDay, fmtNum, fmtPct, fmtSigned, fmtStamp, fmtTime, signClass } from '../core/format';
 import { Flash } from './Flash';
@@ -63,7 +63,8 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
       </span>
       {q.volume > 0 && (
         <span>
-          <span className="lbl">Vol</span>
+          {/* The source reports crypto volume in dollars, not coins. */}
+          <span className="lbl">{sec.cls === 'crypto' && engine.realOnly ? 'Vol USD' : 'Vol'}</span>
           {fmtBig(q.volume)}
         </span>
       )}

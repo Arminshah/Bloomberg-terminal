@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { yahooQuotes } from '../data/live/yahoo';
+import { srcLabel } from '../components/QuoteStrip';
 import { Flash } from '../components/Flash';
 import { Sparkline } from '../components/Sparkline';
 import { Chg, HBar, LivePx, SecLink, openSecurity } from '../components/cells';
@@ -20,6 +22,8 @@ function rateDec(v: number): number {
 
 export function FXC(_: FnProps) {
   useTick(1);
+  // Currencies without a real rate are left out of the matrix in the desktop app.
+  const ccys = MATRIX.filter((c) => !engine.realOnly || Number.isFinite(engine.usdValue(c)));
   return (
     <div>
       <FnHeader code="FXC" title="Currency Cross Rates" sub="Units of the column currency per one unit of the row currency" />
@@ -28,7 +32,7 @@ export function FXC(_: FnProps) {
           <thead>
             <tr>
               <th />
-              {MATRIX.map((c) => (
+              {ccys.map((c) => (
                 <th key={c} className="num">
                   {c}
                 </th>
@@ -36,10 +40,10 @@ export function FXC(_: FnProps) {
             </tr>
           </thead>
           <tbody>
-            {MATRIX.map((row) => (
+            {ccys.map((row) => (
               <tr key={row}>
                 <td className="amber b">{row}</td>
-                {MATRIX.map((col) => {
+                {ccys.map((col) => {
                   if (row === col) return <td key={col} className="num faint">--</td>;
                   const v = engine.usdValue(row) / engine.usdValue(col);
                   return (
@@ -84,7 +88,10 @@ export function WCRS(_: FnProps) {
   const [tab, setTab] = useState(1);
   const h = RANK_H[tab - 1].h;
   const codes = ['EUR', 'JPY', 'GBP', 'CHF', 'AUD', 'CAD', 'NZD', 'SEK', 'NOK', 'CNH', 'HKD', 'SGD', 'INR', 'KRW', 'MXN', 'BRL', 'ZAR', 'TRY'];
-  const rows = codes.map((c) => ({ c, ...ccyVsUsd(c, h) })).sort((a, b) => b.pct - a.pct);
+  const rows = codes
+    .map((c) => ({ c, ...ccyVsUsd(c, h) }))
+    .filter((r) => !engine.realOnly || (r.id && engine.hasSource(r.id) && Number.isFinite(r.pct)))
+    .sort((a, b) => b.pct - a.pct);
   const max = Math.max(...rows.map((r) => Math.abs(r.pct)).filter(Number.isFinite), 0.01);
   return (
     <div>
@@ -126,12 +133,22 @@ export function WCRS(_: FnProps) {
 export function CRYP(_: FnProps) {
   const panel = usePanelId();
   useTick(1);
+  const real = engine.realOnly;
   const list = engine.securities.filter((d) => d.cls === 'crypto');
-  const caps = list.map((d) => engine.quote(d.id)!.last * d.cry!.supply);
-  const total = caps.reduce((a, b) => a + b, 0);
+  // On real data: the source's market cap (price x circulating supply); its volume is already in US dollars.
+  const caps = list.map((d) => {
+    const mc = Number(yahooQuotes.get(d.id)?.marketCap);
+    return real && mc > 0 ? mc : engine.quote(d.id)!.last * d.cry!.supply;
+  });
+  const total = caps.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+  const btc = list.findIndex((d) => d.id === 'XBTUSD Curncy');
+  const usdVolume = (d: (typeof list)[number]) => {
+    const q = engine.quote(d.id)!;
+    return real ? q.volume : q.volume * q.last;
+  };
   return (
     <div>
-      <FnHeader code="CRYP" title="Cryptocurrency Monitor" sub={`Total value ${fmtBig(total)} USD · BTC share ${fmtNum((caps[0] / total) * 100, 1)}% of listed assets`} />
+      <FnHeader code="CRYP" title="Cryptocurrency Monitor" sub={`Total value ${fmtBig(total)} USD · BTC share ${btc >= 0 && total > 0 ? fmtNum((caps[btc] / total) * 100, 1) : '--'}% of listed assets`} />
       <table className="tbl">
         <thead>
           <tr>
@@ -141,7 +158,7 @@ export function CRYP(_: FnProps) {
             <th className="num">%Chg</th>
             <th className="num hide-m">High</th>
             <th className="num hide-m">Low</th>
-            <th className="num hide-m">Volume</th>
+            <th className="num hide-m">{real ? 'Volume USD 24h' : 'Volume USD'}</th>
             <th className="num">Mkt value</th>
             <th className="num hide-m">7D %</th>
             <th className="num">30D %</th>
@@ -173,7 +190,7 @@ export function CRYP(_: FnProps) {
                 </td>
                 <td className="num hide-m">{fmtNum(q.high, d.dec)}</td>
                 <td className="num hide-m">{fmtNum(q.low, d.dec)}</td>
-                <td className="num hide-m">{fmtBig(q.volume * q.last)}</td>
+                <td className="num hide-m">{fmtBig(usdVolume(d))}</td>
                 <td className="num">{fmtBig(caps[i])}</td>
                 <td className="num hide-m">
                   <Chg v={periodChange(d.id, '5D')} pct dec={1} />
@@ -188,14 +205,18 @@ export function CRYP(_: FnProps) {
                   <Sparkline values={intra.c.subarray(0, intra.length)} width={80} height={14} />
                 </td>
                 <td>
-                  <span className={`badge ${q.src === 'SIM' ? 'sim' : 'live'}`}>{q.src === 'SIM' ? 'SIMULATED' : q.src}</span>
+                  <span className={`badge ${q.src === 'SIM' || q.src === 'STALE' || q.src === 'NONE' ? 'sim' : 'live'}`}>{srcLabel(q)}</span>
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      <div className="note">With network access the monitor streams real prices from Coinbase; otherwise it runs on the simulator.</div>
+      <div className="note">
+        {real
+          ? 'Prices stream from Yahoo Finance around the clock. Market value is the source’s market cap (price × circulating supply); volume is the source’s 24-hour volume in US dollars.'
+          : 'With network access the monitor streams real prices from Coinbase; otherwise it runs on the simulator.'}
+      </div>
     </div>
   );
 }

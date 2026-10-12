@@ -234,9 +234,13 @@ function bookFill(d: SecurityDef, side: Side, qty: number, px: number, fee: numb
 function fillPrice(o: Order, d: SecurityDef): number | null {
   const q = engine.quote(d.id);
   if (!q) return null;
+  // On real data an order works only while its market trades: never at a missing price, and
+  // never at the last close of a closed market or at a price that has stopped updating.
+  if (engine.realOnly && q.src !== 'LIVE' && q.src !== 'DELAYED') return null;
   const ask = Number.isFinite(q.ask) ? q.ask : q.last;
   const bid = Number.isFinite(q.bid) ? q.bid : q.last;
   const px = o.side === 'BUY' ? ask : bid;
+  if (!Number.isFinite(px) || px <= 0) return null;
   if (o.type === 'LMT') {
     if (o.side === 'BUY' && px > o.limit!) return null;
     if (o.side === 'SELL' && px < o.limit!) return null;

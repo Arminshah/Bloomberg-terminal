@@ -4,7 +4,7 @@ import { Flash } from '../components/Flash';
 import { ChartView } from '../components/chart/ChartView';
 import type { ChartOptions } from '../components/chart/PriceChart';
 import { KV, Section } from '../components/cells';
-import { BookTable } from './DEPTH';
+import { TopOfBook, BookTable } from './DEPTH';
 import { TapeSource, TradeTape } from './TAS';
 import { SimBadge } from '../components/Source';
 import { useFundamentals } from '../data/live/yfund';
@@ -96,9 +96,15 @@ export function BQ({ sec }: FnProps) {
       </div>
       <div className="cols">
         {tradable ? (
-          <Section title="Depth (top 5)" right={<SimBadge />}>
-            <BookTable sec={s} levels={5} compact />
-          </Section>
+          engine.realOnly ? (
+            <Section title="Best bid and offer" right="level 1 from the source">
+              <TopOfBook sec={s} />
+            </Section>
+          ) : (
+            <Section title="Depth (top 5)" right={<SimBadge />}>
+              <BookTable sec={s} levels={5} compact />
+            </Section>
+          )
         ) : null}
         {tradable ? (
           <Section title="Trades" right={<TapeSource id={s.id} short />}>
