@@ -166,6 +166,8 @@ button { cursor: pointer; }
 }
 .status-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 6px var(--amber); }
 .status-chip.live .dot { background: var(--up); box-shadow: 0 0 6px var(--up); animation: pulse 1.6s infinite; }
+.status-chip.down { color: var(--dn); border-color: var(--dn); }
+.status-chip.down .dot { background: var(--dn); box-shadow: 0 0 6px var(--dn); }
 @keyframes pulse { 50% { opacity: 0.35; } }
 
 .mobile-tabs { display: none; }
@@ -526,6 +528,8 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .badge.live { background: #0d3a1d; color: var(--up); }
 .badge.hot { background: var(--dn); color: #fff; }
 .sim-px::after { content: 'SIM'; margin-left: 3px; font-size: 7px; letter-spacing: 0.06em; color: var(--amber); vertical-align: super; }
+.delayed-px::after { content: 'D'; margin-left: 2px; font-size: 7px; color: var(--muted); vertical-align: super; }
+.stale-px { color: var(--amber); }
 .bar-track { position: relative; height: 10px; background: var(--bg-3); }
 .bar-fill { position: absolute; top: 0; bottom: 0; }
 

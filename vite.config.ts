@@ -15,7 +15,8 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.exchange.coinbase.com wss://ws-feed.exchange.coinbase.com https://api.frankfurter.dev https://finnhub.io wss://ws.finnhub.io",
+  // Yahoo's price stream is opened by the desktop app's page; its other requests go through the main process.
+  "connect-src 'self' https://api.exchange.coinbase.com wss://ws-feed.exchange.coinbase.com https://api.frankfurter.dev https://finnhub.io wss://ws.finnhub.io wss://streamer.finance.yahoo.com",
   "object-src 'none'",
   "base-uri 'self'",
 ].join('; ');

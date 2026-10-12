@@ -9,4 +9,12 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   yahoo: (path) => ipcRenderer.invoke('yahoo', String(path)),
   treasury: (year) => ipcRenderer.invoke('treasury', Number(year)),
   policy: (source, since) => ipcRenderer.invoke('policy', String(source), String(since)),
+  streamOpen: () => ipcRenderer.invoke('stream:open'),
+  streamSend: (msg) => ipcRenderer.invoke('stream:send', String(msg)),
+  streamClose: () => ipcRenderer.invoke('stream:close'),
+  onStream: (cb) => {
+    const handler = (_event, kind, data) => cb(String(kind), typeof data === 'string' ? data : undefined);
+    ipcRenderer.on('stream', handler);
+    return () => ipcRenderer.removeListener('stream', handler);
+  },
 });

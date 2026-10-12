@@ -57,6 +57,20 @@ export function LivePx({ id, dec }: { id: string; dec?: number }) {
       </span>
     );
   }
+  if (q.src === 'DELAYED') {
+    return (
+      <span className="delayed-px" title={`Delayed ${q.delay ?? 15} minutes by the exchange`}>
+        {px}
+      </span>
+    );
+  }
+  if (q.src === 'STALE') {
+    return (
+      <span className="stale-px" title="The data source is not answering: last price received">
+        {px}
+      </span>
+    );
+  }
   return px;
 }
 

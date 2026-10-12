@@ -1,12 +1,13 @@
 import { engine } from '../market';
-import { dayNum } from '../calendar';
-import type { ExtBar, ExtQuote } from '../engine';
+import { DAY_MS, dayNum } from '../calendar';
+import type { ExtBar, ExtendedPrice, ExtQuote } from '../engine';
 import type { SecurityDef } from '../types';
 import { CURRENCY_DEFS } from '../universe';
 import { settings } from '../../terminal/settings';
 import { terminal } from '../../terminal/state';
 import { watchlists } from '../../terminal/userdata';
 import { setFeed } from './status';
+import { YahooStream, type Tick } from './ystream';
 import { TREASURY_IDS, treasuryAvailable } from './ust';
 
 /**
@@ -38,19 +39,31 @@ interface Target {
   invert: boolean;
   /** Failed history requests so far. */
   tries?: number;
+  /** Trades every day (crypto); other markets' weekend trading belongs to Monday's session. */
+  allDays: boolean;
+  /** Exchange offset from UTC in ms, from the source. */
+  gmtOffset?: number;
+  /** Minutes the source delays this market. */
+  delay?: number;
 }
 
 /** Futures with a continuous Yahoo contract; the rest keep their fair value to the real index. */
 const FUTURES: Record<string, string> = { 'ES1 Index': 'ES=F', 'NQ1 Index': 'NQ=F', 'DM1 Index': 'YM=F', 'RTY1 Index': 'RTY=F' };
 
-/** The Yahoo symbol for a security, or undefined when it has none. */
+/**
+ * The Yahoo symbol for a security, or undefined when it has none. In the
+ * desktop app Yahoo is the source for every quoted line it covers: currency
+ * pairs and crypto included, so each price is the market's own quote.
+ */
 export function yahooSymbolFor(d: SecurityDef): string | undefined {
   if (d.dynamic) return d.dynamic.source === 'yahoo' ? d.dynamic.symbol : d.ticker.split(' ')[0].replace('/', '-');
   if (d.fut) return FUTURES[d.id];
-  if (d.cls === 'fx' && d.fx) return undefined; // crosses are derived from the currencies below
   if (d.cls === 'bond') return undefined;
   if (treasuryAvailable() && TREASURY_IDS.has(d.id)) return undefined; // official Treasury curve instead
-  if (d.cls === 'crypto' && settings.get().liveCrypto) return undefined; // Coinbase streams these
+  if (!engine.realOnly) {
+    if (d.cls === 'fx' && d.fx) return undefined; // the browser derives crosses from the currencies
+    if (d.cls === 'crypto' && settings.get().liveCrypto) return undefined; // Coinbase streams these
+  }
   return d.yahoo;
 }
 
@@ -58,9 +71,9 @@ function targets(): Target[] {
   const out: Target[] = [];
   for (const d of engine.securities) {
     const symbol = yahooSymbolFor(d);
-    if (symbol) out.push({ id: d.id, symbol, invert: false });
+    if (symbol) out.push({ id: d.id, symbol, invert: false, allDays: d.cls === 'crypto' });
   }
-  for (const c of CURRENCY_DEFS) out.push({ id: c.id, symbol: `${c.ticker}=X`, invert: true });
+  for (const c of CURRENCY_DEFS) out.push({ id: c.id, symbol: `${c.ticker}=X`, invert: true, allDays: false });
   return out;
 }
 
@@ -68,6 +81,38 @@ const inv = (x: number) => (x ? 1 / x : NaN);
 
 /** Exchange-local date of a Unix timestamp (seconds). */
 const localDay = (ts: number, gmtOffset: number) => dayNum((ts + gmtOffset) * 1000);
+
+/**
+ * The session a price belongs to: the exchange-local date, except that
+ * futures and currencies trading from Sunday evening count in Monday's
+ * session, as their daily history does. Crypto trades every day.
+ */
+export function sessionDay(ms: number, gmtOffsetMs: number, allDays: boolean): number {
+  const d = dayNum(ms + gmtOffsetMs);
+  if (allDays) return d;
+  const wd = new Date(d * DAY_MS).getUTCDay();
+  return wd === 6 ? d + 2 : wd === 0 ? d + 1 : d;
+}
+
+/**
+ * A bid and offer only if they make sense: a crossed pair (bid above offer)
+ * or a side far from the last price is a stale quote from the source, and is
+ * dropped rather than shown. Undefined stays undefined (no information).
+ */
+export function saneTouch(bid: number | undefined, ask: number | undefined, last: number): [number | undefined, number | undefined] {
+  const ok = (x: number | undefined) => (x === undefined ? undefined : x > 0 && Number.isFinite(x) && Math.abs(x / last - 1) <= 0.05 ? x : NaN);
+  let b = ok(bid);
+  let a = ok(ask);
+  if (b !== undefined && a !== undefined && b > a) b = a = NaN;
+  return [b, a];
+}
+
+/** Minutes the source delays a market's prices; US stocks come real time from Nasdaq. */
+export function delayOf(q: Json): number {
+  const d = Number(q?.exchangeDataDelayedBy);
+  if (!Number.isFinite(d) || d <= 0) return 0;
+  return /real ?time/i.test(String(q?.quoteSourceName ?? '')) ? 0 : d;
+}
 
 export interface Dividend {
   day: number;
@@ -79,7 +124,7 @@ export const realDividends = new Map<string, Dividend[]>();
 /** Latest raw Yahoo quote per security (ratios, market cap, earnings date). */
 export const yahooQuotes = new Map<string, Json>();
 
-export function barsFromChart(chart: Json, invert = false): { bars: ExtBar[]; dividends: Dividend[]; gmtOffset: number } {
+export function barsFromChart(chart: Json, invert = false, allDays = false): { bars: ExtBar[]; dividends: Dividend[]; gmtOffset: number } {
   const r = chart?.chart?.result?.[0];
   const gmtOffset = Number(r?.meta?.gmtoffset ?? 0);
   if (!r?.timestamp) return { bars: [], dividends: [], gmtOffset };
@@ -94,10 +139,20 @@ export function barsFromChart(chart: Json, invert = false): { bars: ExtBar[]; di
     if (invert) {
       [c, o, h, l] = [inv(c), inv(o), inv(l), inv(h)];
     }
-    const day = localDay(ts, gmtOffset);
-    const bar = { day, o, h, l, c, v: invert ? 0 : (q.volume?.[i] ?? 0) };
-    if (bars.length && bars[bars.length - 1].day === day) bars[bars.length - 1] = bar;
-    else bars.push(bar);
+    const day = sessionDay(ts * 1000, gmtOffset * 1000, allDays);
+    const v = invert ? 0 : (q.volume?.[i] ?? 0);
+    const prev = bars[bars.length - 1];
+    if (prev && prev.day === day) {
+      // A weekend bar folds into Monday's session; a repeated date is the newer of the two.
+      const weekend = localDay(ts, gmtOffset) !== day;
+      bars[bars.length - 1] = weekend ? { day, o: prev.o, h: Math.max(prev.h, h), l: Math.min(prev.l, l), c, v: prev.v + v } : { day, o, h, l, c, v };
+    } else if (!prev || day > prev.day) {
+      bars.push({ day, o, h, l, c, v });
+    } else {
+      // Sunday's bar (rolled to Monday) arriving before Monday's own: merge into it.
+      const k = bars.findIndex((b) => b.day === day);
+      if (k >= 0) bars[k] = { day, o: bars[k].o, h: Math.max(bars[k].h, h), l: Math.min(bars[k].l, l), c, v: bars[k].v + v };
+    }
   });
   const dividends: Dividend[] = Object.values(r.events?.dividends ?? {})
     .map((x: Json) => ({ day: localDay(x.date, gmtOffset), amount: Number(x.amount) }))
@@ -124,7 +179,7 @@ export function impliedShares(d: SecurityDef, cap: number, px: number): number {
 }
 
 /** Engine quote from a Yahoo v7 quote. */
-export function extQuote(q: Json, invert: boolean): ExtQuote | null {
+export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | null {
   const last = Number(q.regularMarketPrice);
   const t = Number(q.regularMarketTime);
   if (!Number.isFinite(last) || last === 0 || !Number.isFinite(t)) return null;
@@ -141,11 +196,14 @@ export function extQuote(q: Json, invert: boolean): ExtQuote | null {
     low: n(q.regularMarketDayLow),
     volume: Number.isFinite(Number(q.regularMarketVolume)) ? Number(q.regularMarketVolume) : undefined,
     time: t * 1000,
-    day: dayNum(t * 1000 + off),
-    bid: n(q.bid),
-    ask: n(q.ask),
+    day: sessionDay(t * 1000, off, allDays),
+    // A full quote without a bid or offer means there is none now.
+    bid: n(q.bid) ?? NaN,
+    ask: n(q.ask) ?? NaN,
     marketOpen: q.marketState === 'REGULAR',
+    delay: delayOf(q),
   };
+  [base.bid, base.ask] = saneTouch(base.bid, base.ask, last);
   if (!invert) return base;
   return {
     ...base,
@@ -154,10 +212,20 @@ export function extQuote(q: Json, invert: boolean): ExtQuote | null {
     open: base.open && inv(base.open),
     high: base.low && inv(base.low),
     low: base.high && inv(base.high),
-    bid: base.ask && inv(base.ask),
-    ask: base.bid && inv(base.bid),
+    bid: base.ask !== undefined ? inv(base.ask) : undefined,
+    ask: base.bid !== undefined ? inv(base.bid) : undefined,
     volume: 0,
   };
+}
+
+/** The pre-market or after-hours price of a stock while its regular session is shut. */
+export function extendedFromQuote(q: Json): ExtendedPrice | null {
+  const state = String(q?.marketState ?? '');
+  const post = Number(q?.postMarketPrice);
+  const pre = Number(q?.preMarketPrice);
+  if ((state === 'PRE' || state === 'PREPRE') && pre > 0) return { price: pre, time: Number(q.preMarketTime) * 1000, session: 'pre' };
+  if (state !== 'REGULAR' && post > 0) return { price: post, time: Number(q.postMarketTime) * 1000, session: 'post' };
+  return null;
 }
 
 // ------------------------------------------------------------------ service
@@ -176,15 +244,112 @@ class YahooData {
   private intradayTimer: ReturnType<typeof setInterval> | null = null;
   private failures = 0;
   private known = 0;
+  private stream: YahooStream | null = null;
+  private pendingTick = new Map<string, Tick>();
+  /** A big jump waits for a second tick to confirm it before it is shown. */
+  private suspect = new Map<string, Tick>();
+  private lastPollOk = Date.now();
+  private staleTimer: ReturnType<typeof setInterval> | null = null;
+  private stale = false;
+  /** Streamed changes are drawn a few times a second rather than on every tick. */
+  private dirty = new Set<string>();
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private changed(id: string) {
+    this.dirty.add(id);
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      const ids = [...this.dirty];
+      this.dirty.clear();
+      engine.flush(ids);
+    }, 150);
+  }
 
   start() {
     setFeed('market', 'connecting', 'Yahoo Finance: loading history');
     engine.demand = (id) => this.wantIntraday(id);
+    this.stream = new YahooStream(
+      (t) => this.applyTick(t),
+      (up) => this.status(up),
+    );
+    this.stream.start();
     this.sync();
     // Whatever a panel opens loads ahead of the rest of the queue.
     this.unsubTerminal = terminal.subscribe(() => this.prioritize());
     void this.pollQuotes();
     this.intradayTimer = setInterval(() => this.refreshIntraday(), 20_000);
+    this.staleTimer = setInterval(() => this.checkStale(), 15_000);
+  }
+
+  /** One place for the feed's state line: loading, streaming or polling. */
+  private status(_streaming?: boolean) {
+    if (this.stale) return;
+    const loading = this.historyQueue.length > 0 || this.historyActive > 0;
+    const how = this.stream?.connected ? 'streaming' : 'polling every 10 s';
+    setFeed('market', loading ? 'connecting' : 'live', `Yahoo Finance · ${this.loaded.size} securities on real data · ${how}`);
+  }
+
+  /** If neither the stream nor the quote service has answered for 90 seconds, open markets are marked stale. */
+  private checkStale() {
+    const streamOk = !!this.stream?.connected && Date.now() - (this.stream?.lastMessage ?? 0) < 120_000;
+    const stale = !streamOk && Date.now() - this.lastPollOk > 90_000;
+    if (stale === this.stale) return;
+    this.stale = stale;
+    engine.setStale(this.loaded, stale);
+    engine.flush(this.loaded);
+    if (stale) setFeed('market', 'error', 'Connection to Yahoo Finance lost: open markets show their last price, marked STALE');
+    else this.status(streamOk);
+  }
+
+  /** Applies one streamed price, after the bad-tick check. */
+  private applyTick(tick: Tick) {
+    const t = this.bySymbol.get(tick.id);
+    if (!t) return;
+    if (!this.loaded.has(t.id)) {
+      this.pendingTick.set(t.id, tick);
+      return;
+    }
+    const def = engine.get(t.id);
+    const q = engine.quote(t.id);
+    // Stocks: only regular-session trades move the last price; others are shown as extended hours.
+    const stock = def?.cls === 'equity';
+    if (stock && tick.marketHours !== 1) {
+      engine.setExtended(t.id, { price: tick.price, time: tick.time, session: tick.marketHours === 0 ? 'pre' : tick.marketHours === 2 ? 'post' : 'overnight' });
+      this.changed(t.id);
+      return;
+    }
+    const price = t.invert ? inv(tick.price) : tick.price;
+    if (q && Number.isFinite(q.last) && q.last > 0 && Math.abs(tick.time - q.time) < 120_000) {
+      const jump = Math.abs(price / q.last - 1);
+      const limit = def?.cls === 'crypto' ? 0.08 : def?.cls === 'fx' || t.id.startsWith('CCY:') ? 0.03 : 0.06;
+      if (jump > limit) {
+        const held = this.suspect.get(t.id);
+        const heldPx = held ? (t.invert ? inv(held.price) : held.price) : NaN;
+        if (!held || Math.abs(price / heldPx - 1) > 0.005) {
+          this.suspect.set(t.id, tick);
+          return;
+        }
+      }
+    }
+    this.suspect.delete(t.id);
+    const inverted = (x: number | undefined) => (x === undefined ? undefined : t.invert ? inv(x) : x);
+    const [bid, ask] = saneTouch(t.invert ? inverted(tick.ask) : tick.bid, t.invert ? inverted(tick.bid) : tick.ask, price);
+    engine.setExternalQuote(t.id, {
+      last: price,
+      time: tick.time,
+      day: sessionDay(tick.time, t.gmtOffset ?? 0, t.allDays),
+      prevClose: inverted(tick.previousClose),
+      open: inverted(tick.openPrice),
+      high: t.invert ? inverted(tick.dayLow) : tick.dayHigh,
+      low: t.invert ? inverted(tick.dayHigh) : tick.dayLow,
+      volume: t.invert ? undefined : tick.dayVolume,
+      bid,
+      ask,
+      marketOpen: true,
+      delay: t.delay,
+    });
+    this.changed(t.id);
   }
 
   private unsubTerminal: (() => void) | null = null;
@@ -205,8 +370,10 @@ class YahooData {
   stop() {
     this.stopped = true;
     this.unsubTerminal?.();
+    this.stream?.stop();
     if (this.quoteTimer) clearTimeout(this.quoteTimer);
     if (this.intradayTimer) clearInterval(this.intradayTimer);
+    if (this.staleTimer) clearInterval(this.staleTimer);
     engine.demand = undefined;
   }
 
@@ -220,6 +387,7 @@ class YahooData {
       this.bySymbol.set(t.symbol, t);
       fresh.push(t);
     }
+    this.stream?.subscribe(fresh.map((t) => t.symbol));
     // Lines on screen first, then watchlists, then everything else.
     const shown = new Set<string>();
     for (const p of terminal.get().panels) for (const r of p.history) if (r.sec) shown.add(r.sec);
@@ -232,8 +400,9 @@ class YahooData {
 
   /** History already fetched elsewhere (an online lookup) can be adopted directly. */
   adopt(id: string, symbol: string, bars: ExtBar[], dividends: Dividend[]) {
-    const t: Target = { id, symbol, invert: false };
+    const t: Target = { id, symbol, invert: false, allDays: engine.get(id)?.cls === 'crypto' };
     this.bySymbol.set(symbol, t);
+    this.stream?.subscribe([symbol]);
     this.historyQueue = this.historyQueue.filter((x) => x.id !== id);
     this.applyHistory(t, bars, dividends);
     this.known = engine.securities.length;
@@ -246,7 +415,7 @@ class YahooData {
       void this.loadHistory(t).finally(() => {
         this.historyActive--;
         this.pumpHistory();
-        if (!this.historyQueue.length && !this.historyActive) setFeed('market', 'live', `Yahoo Finance · ${this.loaded.size} securities on real data`);
+        if (!this.historyQueue.length && !this.historyActive) this.status();
       });
     }
   }
@@ -254,9 +423,10 @@ class YahooData {
   private async loadHistory(t: Target) {
     try {
       const chart = await yahooGet(`/v8/finance/chart/${encodeURIComponent(t.symbol)}?range=10y&interval=1d&events=div%2Csplit&includePrePost=false`);
-      const { bars, dividends } = barsFromChart(chart, t.invert);
-      // Too little history from the source: the line stays simulated and marked SIM.
-      if (bars.length < 2) return;
+      const { bars, dividends, gmtOffset } = barsFromChart(chart, t.invert, t.allDays);
+      // Some lines come with no history beyond the current session; the quote still makes them real.
+      if (bars.length < 1) return;
+      t.gmtOffset = gmtOffset * 1000;
       this.applyHistory(t, bars, dividends);
     } catch {
       // A network error or rate limit: try again later, three times at most.
@@ -277,12 +447,15 @@ class YahooData {
     this.loaded.add(t.id);
     const q = this.pendingQuote.get(t.id);
     if (q) {
-      const eq = extQuote(q, t.invert);
+      const eq = extQuote(q, t.invert, t.allDays);
       if (eq) engine.setExternalQuote(t.id, eq);
       this.pendingQuote.delete(t.id);
     }
+    const tick = this.pendingTick.get(t.id);
+    this.pendingTick.delete(t.id);
+    if (tick && tick.time > (engine.quote(t.id)?.time ?? 0)) this.applyTick(tick);
     engine.flush([t.id]);
-    setFeed('market', this.historyQueue.length || this.historyActive > 1 ? 'connecting' : 'live', `Yahoo Finance · ${this.loaded.size} securities on real data`);
+    this.status();
   }
 
   private async pollQuotes() {
@@ -300,6 +473,8 @@ class YahooData {
           if (!t) continue;
           ok++;
           yahooQuotes.set(t.id, q);
+          if (Number.isFinite(Number(q.gmtOffSetMilliseconds))) t.gmtOffset = Number(q.gmtOffSetMilliseconds);
+          t.delay = delayOf(q);
           const def = engine.get(t.id);
           const shares = def ? impliedShares(def, Number(q.marketCap), Number(q.regularMarketPrice)) : NaN;
           if (def?.eq && Number.isFinite(shares)) def.eq.shares = shares;
@@ -307,22 +482,30 @@ class YahooData {
             this.pendingQuote.set(t.id, q);
             continue;
           }
-          const eq = extQuote(q, t.invert);
-          if (eq) {
+          const eq = extQuote(q, t.invert, t.allDays);
+          // A streamed price newer than the polled one stays.
+          if (eq && eq.time >= (engine.quote(t.id)?.time ?? 0) - 1000) {
             engine.setExternalQuote(t.id, eq);
             changed.push(t.id);
           }
+          const x = engine.get(t.id)?.cls === 'equity' ? extendedFromQuote(q) : null;
+          if (x) engine.setExtended(t.id, x);
         }
       } catch {
         this.failures++;
       }
     }
     if (changed.length) engine.flush(changed);
-    if (ok) this.failures = 0;
-    else if (!this.loaded.size) setFeed('market', 'error', 'Yahoo Finance unreachable; using the simulator');
-    // Every 10 s while the window is in front, once a minute behind; back off on errors.
+    if (ok) {
+      this.failures = 0;
+      this.lastPollOk = Date.now();
+    } else if (!this.loaded.size) setFeed('market', 'error', 'Yahoo Finance unreachable: no prices until it answers');
+    // The stream carries prices as they change; polling fills in the rest (volume, bid and offer,
+    // market state) every 30 s, or every 10 s while the stream is down. Back off on errors.
     const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
-    const delay = Math.min(120_000, (hidden ? 60_000 : 10_000) * 2 ** Math.min(3, this.failures));
+    const streaming = !!this.stream?.connected;
+    const base = hidden ? 60_000 : streaming ? 30_000 : 10_000;
+    const delay = Math.min(120_000, base * 2 ** Math.min(3, this.failures));
     this.quoteTimer = setTimeout(() => void this.pollQuotes(), delay);
   }
 

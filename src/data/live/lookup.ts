@@ -20,6 +20,10 @@ declare global {
       yahoo(path: string): Promise<{ status: number; data: unknown }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
       policy(source: 'effr' | 'sofr' | 'ecb' | 'boe' | 'boc', since: string): Promise<{ status: number; text: string }>;
+      streamOpen?(): Promise<void>;
+      streamSend?(msg: string): Promise<void>;
+      streamClose?(): Promise<void>;
+      onStream?(cb: (kind: string, data?: string) => void): () => void;
     };
   }
 }

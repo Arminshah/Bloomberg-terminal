@@ -145,9 +145,14 @@ export interface Quote {
   tick: -1 | 0 | 1;
   /**
    * Data source: simulated, live feed, the source's last price while its market
-   * is closed, or an official end-of-day value (no intraday source).
+   * is closed, an official end-of-day value (no intraday source), or nothing
+   * yet (desktop app before a real source has answered).
    */
-  src: 'SIM' | 'LIVE' | 'DELAYED' | 'CLOSE' | 'EOD';
+  src: 'SIM' | 'LIVE' | 'DELAYED' | 'CLOSE' | 'EOD' | 'NONE' | 'STALE';
+  /** Minutes the source delays this market (set for delayed markets). */
+  delay?: number;
+  /** Pre-market, after-hours or overnight price, apart from the regular-session last. */
+  extended?: { price: number; time: number; session: 'pre' | 'post' | 'overnight' };
 }
 
 export interface Bar {

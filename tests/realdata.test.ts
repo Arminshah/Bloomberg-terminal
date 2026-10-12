@@ -13,6 +13,7 @@ import summary from './fixtures/yahoo-apld-summary.json';
 import timeseries from './fixtures/yahoo-apld-timeseries.json';
 import options from './fixtures/yahoo-apld-options.json';
 import treasuryCsv from './fixtures/treasury-2026.csv?raw';
+import stream from './fixtures/yahoo-stream.json';
 
 const APLD = 'APLD US Equity';
 const NOW = Date.UTC(2026, 9, 12, 12);
@@ -257,5 +258,64 @@ describe('real quotes during a session', () => {
     expect(s.length).toBe(1440);
     expect(s.c[s.length - 1]).toBeCloseTo(1.25 + 1439 / 1e6, 9);
     for (let i = 1; i < s.length; i++) expect(s.t[i] - s.t[i - 1]).toBe(60_000);
+  });
+});
+
+describe('streaming quotes (Yahoo pricing protobuf)', () => {
+  it('decodes captured messages into clean prices', async () => {
+    const { decodeTick, cleanPrice } = await import('../src/data/live/ystream');
+    const fx = decodeTick(stream['EURUSD=X'])!;
+    expect(fx.id).toBe('EURUSD=X');
+    expect(fx.price).toBeCloseTo(1.12148, 5);
+    expect(fx.exchange).toBe('CCY');
+    expect(fx.quoteType).toBe(14);
+    expect(fx.marketHours).toBe(1);
+    expect(new Date(fx.time).toISOString().startsWith('2026-10-12T01:')).toBe(true);
+    const btc = decodeTick(stream['BTC-USD'])!;
+    expect(btc.price).toBeGreaterThan(80_000);
+    expect(btc.dayHigh).toBeGreaterThan(btc.dayLow!);
+    expect(btc.circulatingSupply).toBeGreaterThan(19_000_000);
+    expect(btc.marketCap).toBeGreaterThan(1e12);
+    // AAPL trading overnight: the stream flags it outside the regular session.
+    const aapl = decodeTick(stream.AAPL)!;
+    expect(aapl.price).toBe(336.96);
+    expect(aapl.marketHours).not.toBe(1);
+    expect(cleanPrice(336.9599914550781, 2)).toBe(336.96);
+    expect(cleanPrice(83757.640625, 2)).toBe(83757.64);
+    expect(decodeTick('not base64 at all!')).toBeNull();
+  });
+
+  it('counts weekend trading in Monday’s session except for crypto', async () => {
+    const { sessionDay, barsFromChart } = await import('../src/data/live/yahoo');
+    const sundayEvening = Date.UTC(2026, 9, 12, 1, 20); // Sunday 21:20 in New York
+    const et = -4 * 3600_000;
+    expect(new Date(sessionDay(sundayEvening, et, false) * DAY_MS).toISOString().slice(0, 10)).toBe('2026-10-12');
+    expect(new Date(sessionDay(sundayEvening, et, true) * DAY_MS).toISOString().slice(0, 10)).toBe('2026-10-11');
+    // Yahoo's futures chart dates the open Sunday session on Sunday; it becomes Monday's bar.
+    const ts = (iso: string) => Date.parse(iso) / 1000;
+    const chart = {
+      chart: {
+        result: [
+          {
+            meta: { gmtoffset: -14400 },
+            timestamp: [ts('2026-10-08T04:00:00Z'), ts('2026-10-09T04:00:00Z'), ts('2026-10-12T01:20:55Z')],
+            indicators: { quote: [{ open: [7850, 7816, 7860], high: [7860, 7865, 7885], low: [7800, 7810, 7855], close: [7816.25, 7859.75, 7880.5], volume: [1, 2, 3] }] },
+          },
+        ],
+      },
+    };
+    const { bars } = barsFromChart(chart, false, false);
+    expect(bars.map((b) => new Date(b.day * DAY_MS).toISOString().slice(0, 10))).toEqual(['2026-10-08', '2026-10-09', '2026-10-12']);
+    expect(bars[2].c).toBe(7880.5);
+  });
+});
+
+describe('quote hygiene', () => {
+  it('drops crossed or far-off bids and offers', async () => {
+    const { saneTouch } = await import('../src/data/live/yahoo');
+    expect(saneTouch(1.1206, 1.1199, 1.1216)).toEqual([NaN, NaN]);
+    expect(saneTouch(23.54, 25.12, 23.68)).toEqual([23.54, NaN]);
+    expect(saneTouch(23.6, 23.7, 23.68)).toEqual([23.6, 23.7]);
+    expect(saneTouch(undefined, undefined, 10)).toEqual([undefined, undefined]);
   });
 });

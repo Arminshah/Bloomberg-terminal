@@ -77,6 +77,11 @@ interface ExtData {
   seq: number;
   /** End-of-day values only (no quotes during the session). */
   eod: boolean;
+  /** Minutes the source delays prices for this market. */
+  delay: number;
+  /** The source has stopped answering: prices may be out of date. */
+  stale: boolean;
+  extended?: ExtendedPrice;
 }
 
 export interface ExtBar {
@@ -99,10 +104,20 @@ export interface ExtQuote {
   time: number;
   /** Session date in the exchange's own time zone (defaults to the UTC date of `time`). */
   day?: number;
+  /** Best bid and offer; undefined leaves the current ones, NaN clears them. */
   bid?: number;
   ask?: number;
   /** The market is in its regular session. */
   marketOpen: boolean;
+  /** Minutes the source delays this market's prices (0 for real time). */
+  delay?: number;
+}
+
+/** A price from outside the regular session (pre-market, after hours, overnight). */
+export interface ExtendedPrice {
+  price: number;
+  time: number;
+  session: 'pre' | 'post' | 'overnight';
 }
 
 type Field = 'o' | 'h' | 'l' | 'c';
@@ -125,6 +140,19 @@ const VENUES: Record<string, string[]> = {
   JP: ['T', 'J'], HK: ['H'], TW: ['T'], KR: ['K'], IN: ['N', 'B'], AU: ['A', 'C'], CA: ['T', 'A', 'O'], DK: ['C', 'B'],
 };
 
+/** How a line on real data is marked: live, delayed, closed, end of day, or stale. */
+function extSrc(e: ExtData): Quote['src'] {
+  if (e.eod) return 'EOD';
+  if (e.stale && e.open) return 'STALE';
+  if (!e.open) return 'CLOSE';
+  return e.delay > 0 ? 'DELAYED' : 'LIVE';
+}
+
+/** What a line shows before (or without) real data: no price at all. */
+function emptyQuote(id: string): Quote {
+  return { id, last: NaN, bid: NaN, ask: NaN, open: NaN, high: NaN, low: NaN, prevClose: NaN, volume: 0, chg: NaN, pct: NaN, time: NaN, tick: 0, src: 'NONE' };
+}
+
 export class MarketEngine {
   readonly defs: SecurityDef[];
   readonly byId = new Map<string, SecurityDef>();
@@ -143,6 +171,15 @@ export class MarketEngine {
   now: () => number;
   /** Called when a line with external data is asked for its intraday bars (lets the source load them). */
   demand?: (id: string, what: 'intraday') => void;
+  /**
+   * Desktop app: the simulator never publishes a value. A line shows nothing
+   * until a real source fills it, and lines no source covers are left out of
+   * lists (see sourceFilter).
+   */
+  realOnly = false;
+  /** In real-only mode, which securities have a real source and are listed. */
+  sourceFilter?: (d: SecurityDef) => boolean;
+  private listed: SecurityDef[] | null = null;
 
   constructor(now: () => number = Date.now) {
     this.now = now;
@@ -249,6 +286,7 @@ export class MarketEngine {
     const st = this.states.get(id);
     if (!st) return makeSeries(0, DAY_MS);
     if (st.ext) return st.ext.daily;
+    if (this.realOnly) return makeSeries(0, DAY_MS);
     if (st.kind === 'base') {
       this.ensureDaily(st);
       return st.daily!;
@@ -264,6 +302,7 @@ export class MarketEngine {
       this.demand?.(id, 'intraday');
       return st.ext.intra;
     }
+    if (this.realOnly) return makeSeries(0, MINUTE_MS);
     if (st.kind === 'base') {
       this.ensureIntra(st, this.now());
       return st.intra!.series;
@@ -281,12 +320,16 @@ export class MarketEngine {
     if (code === 'GBp') return this.usdValue('GBP') / 100;
     if (code === 'USd') return 0.01;
     if (code === 'CNY') return this.usdValue('CNH');
-    return this.states.get(`CCY:${code}`)?.last ?? NaN;
+    const st = this.states.get(`CCY:${code}`);
+    if (!st || (this.realOnly && !st.ext)) return NaN;
+    return st.last;
   }
 
   /** Previous close (last completed daily bar). */
   prevClose(id: string): number {
-    return this.states.get(id)?.prevClose ?? NaN;
+    const st = this.states.get(id);
+    if (!st || (this.realOnly && !st.ext)) return NaN;
+    return st.prevClose;
   }
 
   lastHistDay(allDays: boolean): number {
@@ -341,6 +384,11 @@ export class MarketEngine {
   private refreshAll(t: number, jitter: boolean) {
     const changed = new Set<string>();
     this.tickCount++;
+    if (this.realOnly) {
+      // Nothing is simulated: the tick only lets screens refresh their clocks.
+      for (const fn of this.listeners) fn(changed);
+      return;
+    }
     for (const st of this.states.values()) {
       if (st.kind !== 'base' || st.ext) continue;
       if (jitter && st.live) continue;
@@ -1031,6 +1079,10 @@ export class MarketEngine {
   }
 
   private publishQuote(st: State, t: number) {
+    if (this.realOnly && !st.ext) {
+      this.quotes.set(st.def.id, emptyQuote(st.def.id));
+      return;
+    }
     const prev = this.quotes.get(st.def.id);
     const last = st.last;
     const sp = this.spread(st, last);
@@ -1061,8 +1113,10 @@ export class MarketEngine {
       pct: st.prevClose ? (chg / Math.abs(st.prevClose)) * 100 : 0,
       time: t,
       tick,
-      src: st.ext ? (st.ext.eod ? 'EOD' : st.ext.open ? 'LIVE' : 'CLOSE') : st.kind !== 'base' ? this.derivedSrc(st) : st.live ? 'LIVE' : 'SIM',
+      src: st.ext ? extSrc(st.ext) : st.kind !== 'base' ? this.derivedSrc(st) : st.live ? 'LIVE' : 'SIM',
     };
+    if (st.ext?.delay) q.delay = st.ext.delay;
+    if (st.ext?.extended) q.extended = st.ext.extended;
     this.quotes.set(st.def.id, q);
   }
 
@@ -1108,7 +1162,7 @@ export class MarketEngine {
   backfillTrades(id: string) {
     const st = this.states.get(id);
     // Lines on real or live data show only the source's prints, never an invented tape.
-    if (!st || st.ext || st.live || st.trades.length >= 100) return;
+    if (!st || this.realOnly || st.ext || st.live || st.trades.length >= 100) return;
     const s = this.intraday(id);
     const q = this.quotes.get(id);
     if (!q || s.length === 0) return;
@@ -1139,7 +1193,7 @@ export class MarketEngine {
   /** Feeds a live quote; the line stops simulating and follows the feed. */
   applyLive(id: string, u: { last: number; time?: number; prevClose?: number; open?: number; high?: number; low?: number; volume?: number; size?: number }) {
     const st = this.states.get(id);
-    if (!st || st.ext || st.kind !== 'base' || !Number.isFinite(u.last) || u.last <= 0) return;
+    if (!st || this.realOnly || st.ext || st.kind !== 'base' || !Number.isFinite(u.last) || u.last <= 0) return;
     const t = u.time ?? this.now();
     if (u.prevClose && Number.isFinite(u.prevClose)) {
       const lastDay = this.lastHistDay(st.allDays);
@@ -1323,6 +1377,50 @@ export class MarketEngine {
 
   // ------------------------------------------------------------ external data
 
+  /**
+   * Switches the simulator off (desktop app): every line without real data
+   * publishes an empty quote and no history, and `filter` decides which
+   * securities appear in lists.
+   */
+  setRealOnly(filter: (d: SecurityDef) => boolean) {
+    this.realOnly = true;
+    this.sourceFilter = filter;
+    this.listed = null;
+    for (const st of this.states.values()) {
+      if (st.ext) continue;
+      st.trades = [];
+      st.live = false;
+      this.publishQuote(st, this.now());
+    }
+    this.version++;
+    this.derivedCache.clear();
+    for (const fn of this.listeners) fn(new Set(this.states.keys()));
+  }
+
+  /** A pre-market, after-hours or overnight price, shown beside the regular-session last. */
+  setExtended(id: string, x: ExtendedPrice) {
+    const st = this.states.get(id);
+    if (!st?.ext) return;
+    st.ext.extended = x;
+    this.publishQuote(st, this.now());
+  }
+
+  /** Marks real lines whose market is open as stale while their source is unreachable. */
+  setStale(ids: Iterable<string>, stale: boolean) {
+    for (const id of ids) {
+      const st = this.states.get(id);
+      if (!st?.ext || st.ext.stale === stale) continue;
+      st.ext.stale = stale;
+      this.publishQuote(st, this.now());
+    }
+  }
+
+  /** In real-only mode: whether a security has a real source (listed securities). */
+  hasSource(id: string): boolean {
+    const d = this.byId.get(id);
+    return !!d && (!this.realOnly || !this.sourceFilter || this.sourceFilter(d));
+  }
+
   /** True when the line follows real data from an external source. */
   isExternal(id: string): boolean {
     return !!this.states.get(id)?.ext;
@@ -1361,11 +1459,15 @@ export class MarketEngine {
       ask: prev?.ask ?? NaN,
       seq: (prev?.seq ?? 0) + 1,
       eod: opts.eod ?? prev?.eod ?? false,
+      delay: prev?.delay ?? 0,
+      stale: false,
+      extended: prev?.extended,
     };
     st.live = true;
     st.liveIntraday = true;
     st.last = last.c;
-    st.prevClose = bars.length > 1 ? bars[bars.length - 2].c : last.o;
+    // With a single session of history the previous close comes from the first quote, never a guess.
+    st.prevClose = bars.length > 1 ? bars[bars.length - 2].c : NaN;
     st.dayOpen = last.o;
     st.dayHigh = s.h[s.length - 1];
     st.dayLow = s.l[s.length - 1];
@@ -1423,15 +1525,21 @@ export class MarketEngine {
       this.pushTrade(st, { t: q.time, px: q.last, size: dv, side: q.last > st.last ? 1 : q.last < st.last ? -1 : 0, venue: 'CONS', cond: 'AGG' });
     }
     st.last = q.last;
-    st.prevClose = q.prevClose && Number.isFinite(q.prevClose) ? q.prevClose : n > 0 ? s.c[n - 1] : st.prevClose;
+    // A partial update (a streamed tick) leaves what it does not carry as it was.
+    if (q.prevClose && Number.isFinite(q.prevClose)) st.prevClose = q.prevClose;
+    else if (newSession) st.prevClose = n > 0 ? s.c[n - 1] : NaN;
     st.dayOpen = s.o[n];
     st.dayHigh = s.h[n];
     st.dayLow = s.l[n];
     st.volume = vol;
-    ext.bid = q.bid ?? NaN;
-    ext.ask = q.ask ?? NaN;
+    if (q.bid !== undefined) ext.bid = q.bid;
+    if (q.ask !== undefined) ext.ask = q.ask;
+    if (q.delay !== undefined) ext.delay = q.delay;
     ext.open = q.marketOpen;
     ext.session = day;
+    ext.stale = false;
+    // A regular-session trade supersedes an earlier pre-market or after-hours price.
+    if (q.marketOpen) ext.extended = undefined;
     // Keep the intraday series current between bar refreshes.
     let it = ext.intra;
     if (it.length > 0 && q.marketOpen) {
@@ -1503,6 +1611,7 @@ export class MarketEngine {
     if (this.byId.has(def.id)) return false;
     this.defs.push(def);
     this.byId.set(def.id, def);
+    this.listed = null;
     this.addState(def, 'base');
     const st = this.states.get(def.id)!;
     for (const b of init.bars ?? []) {
@@ -1521,7 +1630,9 @@ export class MarketEngine {
 
   /** Every security that should appear in search and monitors. */
   get securities(): SecurityDef[] {
-    return this.defs;
+    if (!this.realOnly || !this.sourceFilter) return this.defs;
+    if (!this.listed) this.listed = this.defs.filter(this.sourceFilter);
+    return this.listed;
   }
 
   isBusinessToday(): boolean {

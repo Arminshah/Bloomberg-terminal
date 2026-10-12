@@ -412,6 +412,8 @@ function reconcile() {
 /** Starts the configured live feeds and follows settings changes. */
 export function startLiveFeeds(): () => void {
   if (typeof window === 'undefined' || typeof fetch === 'undefined') return () => undefined;
+  // The desktop app takes every price from its real sources; these browser feeds would only duplicate them.
+  if (engine.realOnly) return () => undefined;
   // Let the first frame render before network work starts.
   const t = setTimeout(reconcile, 400);
   const unsub = settings.subscribe(reconcile);

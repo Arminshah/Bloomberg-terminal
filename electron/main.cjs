@@ -120,6 +120,51 @@ ipcMain.handle('policy', async (event, source, since) => {
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 
+// ------------------------------------------------------------------ Stream
+// Relays Yahoo's streaming quotes for a window whose page cannot open the
+// socket itself (some proxies). Only subscribe messages for ticker symbols pass.
+const STREAM_URL = 'wss://streamer.finance.yahoo.com/?version=2';
+const SYMBOL = /^[A-Za-z0-9.^=\-]{1,24}$/;
+const streams = new Map();
+
+function fromApp(event) {
+  return !!event.senderFrame && event.senderFrame.url.startsWith('file://');
+}
+
+ipcMain.handle('stream:open', (event) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const wc = event.sender;
+  streams.get(wc.id)?.close();
+  const ws = new WebSocket(STREAM_URL);
+  streams.set(wc.id, ws);
+  const post = (...args) => {
+    if (!wc.isDestroyed()) wc.send('stream', ...args);
+  };
+  ws.onopen = () => post('open');
+  ws.onmessage = (e) => post('message', String(e.data));
+  ws.onclose = () => {
+    if (streams.get(wc.id) === ws) streams.delete(wc.id);
+    post('close');
+  };
+  ws.onerror = () => undefined; // a close event follows
+  wc.once('destroyed', () => ws.close());
+});
+
+ipcMain.handle('stream:send', (event, msg) => {
+  if (!fromApp(event) || typeof msg !== 'string' || msg.length > 20_000) throw new Error('not allowed');
+  const parsed = JSON.parse(msg);
+  const list = parsed && Array.isArray(parsed.subscribe) ? parsed.subscribe : null;
+  if (!list || !list.every((x) => typeof x === 'string' && SYMBOL.test(x)) || Object.keys(parsed).length !== 1) throw new Error('not allowed');
+  const ws = streams.get(event.sender.id);
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ subscribe: list }));
+});
+
+ipcMain.handle('stream:close', (event) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  streams.get(event.sender.id)?.close();
+  streams.delete(event.sender.id);
+});
+
 function createWindow(id = nextId()) {
   const saved = loadState()[id] ?? {};
   const bounds = visible(saved.bounds);
