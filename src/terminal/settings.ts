@@ -38,3 +38,6 @@ export const settings = createStore<Settings>(
   'settings',
   1,
 );
+
+// Finnhub is switched off and keys no longer live in the browser: drop one saved by an earlier version.
+if (settings.get().finnhubKey) settings.set((s) => ({ ...s, finnhubKey: '' }));

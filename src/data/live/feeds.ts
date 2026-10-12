@@ -1,3 +1,4 @@
+import { BROWSER_FEEDS_ENABLED } from '../providers';
 import { engine } from '../market';
 import { dayNum, DAY_MS } from '../calendar';
 import { addRealStories, type Story } from '../news';
@@ -412,6 +413,8 @@ function reconcile() {
 /** Starts the configured live feeds and follows settings changes. */
 export function startLiveFeeds(): () => void {
   if (typeof window === 'undefined' || typeof fetch === 'undefined') return () => undefined;
+  // Switched off by policy (see BROWSER_FEEDS_ENABLED).
+  if (!BROWSER_FEEDS_ENABLED) return () => undefined;
   // The desktop app takes every price from its real sources; these browser feeds would only duplicate them.
   if (engine.realOnly) return () => undefined;
   // Let the first frame render before network work starts.

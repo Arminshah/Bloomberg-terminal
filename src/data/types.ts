@@ -148,9 +148,13 @@ export interface Quote {
    * is closed, an official end-of-day value (no intraday source), or nothing
    * yet (desktop app before a real source has answered).
    */
-  src: 'SIM' | 'LIVE' | 'DELAYED' | 'CLOSE' | 'EOD' | 'NONE' | 'STALE';
-  /** Minutes the source delays this market (set for delayed markets). */
+  src: 'SIM' | 'LIVE' | 'DELAYED' | 'UNCONFIRMED' | 'CLOSE' | 'EOD' | 'NONE' | 'STALE';
+  /** Minutes the source says it delays this market (set for delayed markets that give a figure). */
   delay?: number;
+  /** The source's own name for the quote ("Nasdaq Real Time Price", "Delayed Quote"). */
+  sourceName?: string;
+  /** When the app received the latest value (epoch ms), as against `time`, when the market set it. */
+  fetched?: number;
   /** Pre-market, after-hours or overnight price, apart from the regular-session last. */
   extended?: { price: number; time: number; session: 'pre' | 'post' | 'overnight' };
 }

@@ -77,8 +77,14 @@ interface ExtData {
   seq: number;
   /** End-of-day values only (no quotes during the session). */
   eod: boolean;
-  /** Minutes the source delays prices for this market. */
+  /** Minutes the source says it delays prices for this market (0 when it gives none). */
   delay: number;
+  /** What the source says about timing: real time, delayed, or nothing either way. */
+  timing: Timing;
+  /** The source's own name for its quotes. */
+  sourceName?: string;
+  /** When the app received the latest value (epoch ms). */
+  fetched: number;
   /** The source has stopped answering: prices may be out of date. */
   stale: boolean;
   extended?: ExtendedPrice;
@@ -111,9 +117,17 @@ export interface ExtQuote {
   ask?: number;
   /** The market is in its regular session. */
   marketOpen: boolean;
-  /** Minutes the source delays this market's prices (0 for real time). */
+  /** Minutes the source says it delays this market's prices. */
   delay?: number;
+  /** What the source says about timing; left as it was when not given. */
+  timing?: Timing;
+  sourceName?: string;
+  /** When the app received this value (epoch ms); defaults to now. */
+  fetched?: number;
 }
+
+/** Timing as the source labels it: real time, delayed, or not stated (never inferred). */
+export type Timing = 'realtime' | 'delayed' | 'unknown';
 
 /** A price from outside the regular session (pre-market, after hours, overnight). */
 export interface ExtendedPrice {
@@ -142,12 +156,15 @@ const VENUES: Record<string, string[]> = {
   JP: ['T', 'J'], HK: ['H'], TW: ['T'], KR: ['K'], IN: ['N', 'B'], AU: ['A', 'C'], CA: ['T', 'A', 'O'], DK: ['C', 'B'],
 };
 
-/** How a line on real data is marked: live, delayed, closed, end of day, or stale. */
+/**
+ * How a line on real data is marked: end of day, stale, market closed, or, while
+ * its market trades, live or delayed as the source labels it, else unconfirmed.
+ */
 function extSrc(e: ExtData): Quote['src'] {
   if (e.eod) return 'EOD';
   if (e.stale && e.open) return 'STALE';
   if (!e.open) return 'CLOSE';
-  return e.delay > 0 ? 'DELAYED' : 'LIVE';
+  return e.timing === 'realtime' ? 'LIVE' : e.timing === 'delayed' ? 'DELAYED' : 'UNCONFIRMED';
 }
 
 /** What a line shows before (or without) real data: no price at all. */
@@ -1119,6 +1136,8 @@ export class MarketEngine {
       src: st.ext ? extSrc(st.ext) : st.kind !== 'base' ? this.derivedSrc(st) : st.live ? 'LIVE' : 'SIM',
     };
     if (st.ext?.delay) q.delay = st.ext.delay;
+    if (st.ext?.sourceName) q.sourceName = st.ext.sourceName;
+    if (st.ext) q.fetched = st.ext.fetched;
     if (st.ext?.extended) q.extended = st.ext.extended;
     this.quotes.set(st.def.id, q);
   }
@@ -1463,6 +1482,9 @@ export class MarketEngine {
       seq: (prev?.seq ?? 0) + 1,
       eod: opts.eod ?? prev?.eod ?? false,
       delay: prev?.delay ?? 0,
+      timing: prev?.timing ?? 'unknown',
+      sourceName: prev?.sourceName,
+      fetched: prev?.fetched ?? Date.now(),
       stale: false,
       extended: prev?.extended,
       // A quote already received for this session is newer than the daily bar.
@@ -1540,6 +1562,9 @@ export class MarketEngine {
     if (q.bid !== undefined) ext.bid = q.bid;
     if (q.ask !== undefined) ext.ask = q.ask;
     if (q.delay !== undefined) ext.delay = q.delay;
+    if (q.timing !== undefined) ext.timing = q.timing;
+    if (q.sourceName !== undefined) ext.sourceName = q.sourceName;
+    ext.fetched = q.fetched ?? Date.now();
     ext.open = q.marketOpen;
     ext.session = day;
     ext.stale = false;

@@ -218,38 +218,62 @@ describe('fed funds futures path', () => {
   });
 });
 
-import { eventTimes, expectedPeriod, parseFredCalendar, parseFredCsv, periodLabel, previousPeriod, US_EVENTS, valueAt } from '../src/data/live/fred';
-import fredCalendar from './fixtures/fred-calendar-cpi.html?raw';
+import { eventDates, expectedPeriod, parseFredObservations, parseFredReleaseDates, periodLabel, previousPeriod, US_EVENTS, valueAt, type Obs } from '../src/data/live/fred';
 import fredMonthly from './fixtures/fred-us-monthly.csv?raw';
 import fredMonthly2 from './fixtures/fred-us-monthly2.csv?raw';
 import fredQuarterly from './fixtures/fred-us-quarterly.csv?raw';
 import fredWeekly from './fixtures/fred-us-weekly.csv?raw';
 
+/** The saved FRED downloads ("observation_date,A,B" then dated rows), one observation list per series. */
+function csvSeries(text: string): Record<string, Obs> {
+  const rows = text.trim().split(/\r?\n/);
+  const head = rows[0].split(',');
+  const out: Record<string, Obs> = Object.fromEntries(head.slice(1).map((id) => [id, [] as Obs]));
+  for (const row of rows.slice(1)) {
+    const cells = row.split(',');
+    head.forEach((id, i) => {
+      const v = Number(cells[i]);
+      if (i > 0 && cells[i] && cells[i] !== '.' && Number.isFinite(v)) out[id].push([cells[0], v]);
+    });
+  }
+  return out;
+}
+
+// Excerpts of the example responses in FRED's API documentation (series_observations.html and release_dates.html, read 12 Oct 2026).
+const FRED_OBS = `{"realtime_start": "2013-08-14", "realtime_end": "2013-08-14", "observation_start": "1776-07-04", "observation_end": "9999-12-31", "units": "lin", "output_type": 1, "file_type": "json", "order_by": "observation_date", "sort_order": "asc", "count": 84, "offset": 0, "limit": 100000,
+ "observations": [{"realtime_start": "2013-08-14", "realtime_end": "2013-08-14", "date": "1929-01-01", "value": "1065.9"}, {"realtime_start": "2013-08-14", "realtime_end": "2013-08-14", "date": "1930-01-01", "value": "975.5"}, {"realtime_start": "2013-08-14", "realtime_end": "2013-08-14", "date": "1931-01-01", "value": "912.1"}]}`;
+const FRED_DATES = `{"realtime_start": "1776-07-04", "realtime_end": "9999-12-31", "order_by": "release_date", "sort_order": "asc", "count": 17, "offset": 0, "limit": 10000,
+ "release_dates": [{"release_id": 82, "date": "1997-02-10"}, {"release_id": 82, "date": "1998-02-10"}, {"release_id": 82, "date": "1999-02-04"}]}`;
+
 describe('FRED releases', () => {
   const ev = (name: string) => US_EVENTS.find((e) => e.name === name)!;
-  const series = { ...parseFredCsv(fredMonthly), ...parseFredCsv(fredMonthly2), ...parseFredCsv(fredQuarterly), ...parseFredCsv(fredWeekly) };
+  const series = { ...csvSeries(fredMonthly), ...csvSeries(fredMonthly2), ...csvSeries(fredQuarterly), ...csvSeries(fredWeekly) };
 
-  it('reads release times in US Central time', () => {
-    const times = parseFredCalendar(fredCalendar, 10);
-    expect(times).toHaveLength(12);
-    // 14 Oct 2026, 7:30 am Central = 8:30 am Eastern.
-    expect(new Date(times[9]).toISOString()).toBe('2026-10-14T12:30:00.000Z');
-    expect(new Date(times[11]).toISOString()).toBe('2026-12-10T13:30:00.000Z');
-    expect(parseFredCalendar(fredCalendar, 50)).toEqual([]);
+  it('reads observations and release dates from the API', () => {
+    expect(parseFredObservations(FRED_OBS)).toEqual([
+      ['1929-01-01', 1065.9],
+      ['1930-01-01', 975.5],
+      ['1931-01-01', 912.1],
+    ]);
+    // FRED writes "." for a period without a value (this case is made up for the test).
+    expect(parseFredObservations('{"observations": [{"date": "2026-09-01", "value": "."}, {"date": "2026-08-01", "value": "4.3"}]}')).toEqual([['2026-08-01', 4.3]]);
+    expect(parseFredObservations('not json')).toEqual([]);
+    expect(parseFredReleaseDates(FRED_DATES, 82)).toEqual(['1997-02-10', '1998-02-10', '1999-02-04']);
+    expect(parseFredReleaseDates(FRED_DATES, 10)).toEqual([]);
   });
 
   it('works out which period each release publishes', () => {
     const at = (iso: string) => Date.parse(iso);
-    expect(expectedPeriod(ev('CPI MoM'), at('2026-10-14T12:30:00Z'))).toBe('2026-09-01');
-    expect(expectedPeriod(ev('Change in Nonfarm Payrolls'), at('2026-10-02T12:30:00Z'))).toBe('2026-09-01');
-    expect(expectedPeriod(ev('JOLTS Job Openings'), at('2026-10-06T14:00:00Z'))).toBe('2026-08-01');
-    expect(expectedPeriod(ev('GDP Annualized QoQ'), at('2026-10-29T12:30:00Z'))).toBe('2026-07-01');
-    expect(expectedPeriod(ev('GDP Annualized QoQ'), at('2026-09-30T12:30:00Z'))).toBe('2026-04-01');
-    expect(expectedPeriod(ev('Initial Jobless Claims'), at('2026-10-08T12:30:00Z'))).toBe('2026-10-03');
+    expect(expectedPeriod(ev('CPI MoM'), at('2026-10-14T00:00:00Z'))).toBe('2026-09-01');
+    expect(expectedPeriod(ev('Change in Nonfarm Payrolls'), at('2026-10-02T00:00:00Z'))).toBe('2026-09-01');
+    expect(expectedPeriod(ev('JOLTS Job Openings'), at('2026-10-06T00:00:00Z'))).toBe('2026-08-01');
+    expect(expectedPeriod(ev('GDP Annualized QoQ'), at('2026-10-29T00:00:00Z'))).toBe('2026-07-01');
+    expect(expectedPeriod(ev('GDP Annualized QoQ'), at('2026-09-30T00:00:00Z'))).toBe('2026-04-01');
+    expect(expectedPeriod(ev('Initial Jobless Claims'), at('2026-10-08T00:00:00Z'))).toBe('2026-10-03');
     // A Wednesday release in Thanksgiving week still covers the week ending the Saturday before.
-    expect(expectedPeriod(ev('Initial Jobless Claims'), at('2026-11-25T13:30:00Z'))).toBe('2026-11-21');
+    expect(expectedPeriod(ev('Initial Jobless Claims'), at('2026-11-25T00:00:00Z'))).toBe('2026-11-21');
     // A report delayed by two weeks still covers the period it was due to cover.
-    expect(expectedPeriod(ev('CPI MoM'), at('2026-10-28T12:30:00Z'))).toBe('2026-09-01');
+    expect(expectedPeriod(ev('CPI MoM'), at('2026-10-28T00:00:00Z'))).toBe('2026-09-01');
     expect(previousPeriod('2026-01-01', 'm')).toBe('2025-12-01');
     expect(previousPeriod('2026-01-01', 'q', 4)).toBe('2025-01-01');
     expect(periodLabel('2026-07-01', 'q')).toBe('3Q 2026');
@@ -267,10 +291,11 @@ describe('FRED releases', () => {
     expect(valueAt(series.BOPGSTB, '2026-08-01', 'level', 'm', 0.001)).toBeCloseTo(-105.572, 6);
   });
 
-  it('splits the two monthly M3 reports', () => {
-    const times = [Date.parse('2026-10-02T14:00:00Z'), Date.parse('2026-10-27T12:30:00Z')];
-    expect(eventTimes(ev('Durable Goods Orders MoM'), times)).toEqual([times[1]]);
-    expect(eventTimes(ev('Factory Orders MoM'), times)).toEqual([times[0]]);
+  it('splits the two monthly M3 reports by day of the month', () => {
+    const dates = ['2026-10-02', '2026-10-27'];
+    expect(eventDates(ev('Durable Goods Orders MoM'), dates)).toEqual(['2026-10-27']);
+    expect(eventDates(ev('Factory Orders MoM'), dates)).toEqual(['2026-10-02']);
+    expect(eventDates(ev('CPI MoM'), dates)).toEqual(dates);
   });
 });
 

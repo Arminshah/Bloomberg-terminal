@@ -8,6 +8,8 @@ async function boot(page: Page, layout?: string) {
     if (m.type() === 'error') errors.push(m.text());
   });
   await page.addInitScript((lay) => {
+    // The browser build only runs the demo once it has been opened.
+    localStorage.setItem('armin:demo', '1');
     localStorage.setItem('armin:settings', JSON.stringify({ v: 1, s: { liveCrypto: false, liveFx: false, newsFlashes: false } }));
     if (lay) localStorage.setItem('armin:terminal', JSON.stringify({ v: 2, s: { layout: lay } }));
   }, layout ?? '');
@@ -15,6 +17,18 @@ async function boot(page: Page, layout?: string) {
   await expect(page.locator('.panel').first()).toBeVisible();
   return errors;
 }
+
+test('the browser build opens without data until the demo is chosen, and the demo says so', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('This browser version has no market data source.')).toBeVisible();
+  await expect(page.locator('.panel')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Open the demo (simulated data)' }).click();
+  await expect(page.locator('.panel').first()).toBeVisible();
+  await expect(page.locator('.demo-banner')).toContainText('DEMO DATA');
+  await expect(page.locator('.status-chip')).toContainText('DEMO DATA');
+  await page.getByRole('button', { name: 'Leave demo' }).click();
+  await expect(page.getByText('This browser version has no market data source.')).toBeVisible();
+});
 
 async function run(page: Page, cmd: string, panel = 0) {
   const input = page.locator(`#cmd-${panel}`);

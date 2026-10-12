@@ -13,6 +13,8 @@ import { settings } from './terminal/settings';
 import { back, currentRoute, forward, LAYOUT_PANELS, setActive, splitFor, terminal } from './terminal/state';
 import { Splitters } from './components/Splitters';
 import { startBackground } from './terminal/background';
+import { DemoBanner } from './components/NoDataSource';
+import { demoMode } from './data/demo';
 
 function MobileTabs() {
   const s = terminal.use((x) => x);
@@ -142,7 +144,8 @@ export function App() {
   }, []);
 
   return (
-    <div className="app">
+    <div className={`app${demoMode() ? ' demo' : ''}`}>
+      {demoMode() ? <DemoBanner /> : null}
       <TopBar />
       <MobileTabs />
       <main className="workspace" data-layout={layout} style={mobile ? undefined : { gridTemplateColumns: split.cols.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: split.rows.map((r) => `minmax(0, ${r}fr)`).join(' ') }}>

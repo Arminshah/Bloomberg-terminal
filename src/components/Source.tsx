@@ -22,13 +22,13 @@ export function sourceLabel(status: SourceStatus, simText: string): ReactNode {
       if (engine.realOnly) return 'No data from the source for this security';
       return (
         <>
-          <span className="badge sim">SIMULATED</span> real data unavailable for this security
+          <span className="badge sim">DEMO DATA</span> real data unavailable for this security
         </>
       );
     default:
       return (
         <>
-          <span className="badge sim">SIMULATED</span> {simText}
+          <span className="badge sim">DEMO DATA</span> {simText}
         </>
       );
   }
@@ -47,7 +47,7 @@ export function priceSource(id: string): 'real' | 'live' | 'sim' | 'none' {
 }
 
 export function SimBadge() {
-  return <span className="badge sim">SIMULATED</span>;
+  return <span className="badge sim">DEMO DATA</span>;
 }
 
 export function RealBadge() {

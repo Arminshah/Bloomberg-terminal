@@ -5,7 +5,7 @@ import { DataTable } from '../components/DataTable';
 import { fmtNum, fmtTime, WEEKDAYS, zonedParts } from '../core/format';
 import { engine, useInterval } from '../data/market';
 import { DAY_MS } from '../data/calendar';
-import { centralBanks, COUNTRY_NAMES, ecoEvents, type EcoEvent } from '../data/eco';
+import { centralBanks, COUNTRY_NAMES, ecoEvents, newYorkDate, type EcoEvent } from '../data/eco';
 import { periodChange } from '../data/analytics';
 import type { FnProps } from '../terminal/types';
 import { RealBadge, SimBadge } from '../components/Source';
@@ -45,11 +45,13 @@ export function ECO(_: FnProps) {
   const countries = real ? REAL_COUNTRIES : COUNTRIES;
   const [ctry, setCtry] = useState<string[]>(countries);
   fredData.use((x) => x.loaded);
+  const needsKey = fredData.use((x) => x.needsKey);
   const [minRel, setMinRel] = useState(1);
+  const today = newYorkDate(now);
   const start = weekStart(now) + (week - 2) * 7 * DAY_MS;
   const all = useMemo(() => ecoEvents(start, start + 7 * DAY_MS, now), [start, Math.floor(now / 30_000)]); // eslint-disable-line react-hooks/exhaustive-deps
   const events = all.filter((e) => ctry.includes(e.country) && e.relevance >= minRel);
-  const next = ecoEvents(now, now + 14 * DAY_MS, now).find((e) => e.relevance >= 3 && e.time > now);
+  const next = ecoEvents(now - DAY_MS, now + 14 * DAY_MS, now).find((e) => e.relevance >= 3 && (e.date ? e.date > today || (e.date === today && e.actual == null) : e.time > now));
   let lastDay = '';
   return (
     <div>
@@ -61,11 +63,11 @@ export function ECO(_: FnProps) {
             Times in your display time zone ·{' '}
             {real ? (
               <>
-                <RealBadge /> US releases: dates, times and published values from FRED (St. Louis Fed) · central bank decisions from the banks' own data · consensus forecasts are not public
+                <RealBadge /> US releases: scheduled dates and published values from the FRED API (it gives no times of day) · central bank decisions from the banks' own data · consensus forecasts are not public
               </>
             ) : all.some((e) => e.real) ? (
               <>
-                <RealBadge /> Fed, ECB, BoE and BoC decisions · <SimBadge /> other releases, marked SIM
+                <RealBadge /> Fed, ECB, BoE and BoC decisions · <SimBadge /> other releases, marked DEMO
               </>
             ) : (
               <>
@@ -97,7 +99,14 @@ export function ECO(_: FnProps) {
         </span>
         {next && (
           <span>
-            <span className="amber">Next key release</span> {next.country} {next.name} in <span className="white b">{countdown(next.time - now)}</span>
+            <span className="amber">Next key release</span> {next.country} {next.name}{' '}
+            {next.date ? (
+              <span className="white b">{next.date === today ? 'today' : `on ${WEEKDAYS[new Date(`${next.date}T12:00:00Z`).getUTCDay()]} ${next.date.slice(5, 7)}/${next.date.slice(8, 10)}`}</span>
+            ) : (
+              <>
+                in <span className="white b">{countdown(next.time - now)}</span>
+              </>
+            )}
           </span>
         )}
       </div>
@@ -123,18 +132,20 @@ export function ECO(_: FnProps) {
           {events.length === 0 && (
             <tr>
               <td colSpan={real ? 7 : 9} className="empty">
-                {real && !fredData.get().loaded ? 'Loading the release calendar from FRED…' : 'No events for the selected filters.'}
+                {real && needsKey ? 'US releases need your free FRED API key: add it in PROV (fredaccount.stlouisfed.org issues one in a minute).' : real && !fredData.get().loaded ? 'Loading the release calendar from FRED…' : 'No events for the selected filters.'}
               </td>
             </tr>
           )}
           {events.map((e, i) => {
-            const p = zonedParts(e.time);
+            // A date-only event belongs to its own date, whatever the display time zone.
+            const p = e.date ? { y: Number(e.date.slice(0, 4)), mo: Number(e.date.slice(5, 7)), d: Number(e.date.slice(8, 10)) } : zonedParts(e.time);
             const dayKey = `${p.y}-${p.mo}-${p.d}`;
             const head = dayKey !== lastDay;
             lastDay = dayKey;
             const diff = e.actual != null && e.survey != null ? e.actual - e.survey : 0;
-            const released = real ? e.time <= now : e.actual != null;
-            const soon = !released && e.time - now < 3600_000 && e.time > now;
+            const released = e.date ? e.actual != null || e.date < today : real ? e.time <= now : e.actual != null;
+            const dueToday = !released && e.date === today;
+            const soon = !e.date && !released && e.time - now < 3600_000 && e.time > now;
             return [
               head ? (
                 <tr key={`h${i}`} className="group">
@@ -144,16 +155,34 @@ export function ECO(_: FnProps) {
                 </tr>
               ) : null,
               <tr key={e.id} style={!released && e.time < now + 7 * DAY_MS ? undefined : { opacity: 0.92 }}>
-                <td className={soon ? 'yellow b' : 'muted'}>{fmtTime(e.time, false)}</td>
+                <td className={soon ? 'yellow b' : 'muted'} title={e.date ? 'FRED gives the release date, not the time' : undefined}>
+                  {e.date ? '--' : fmtTime(e.time, false)}
+                </td>
                 <td className="amber">{e.country}</td>
                 <td className={e.relevance >= 3 ? 'white b' : ''}>
                   {e.name}
-                  {e.real || !all.some((x) => x.real) ? null : <span className="muted"> SIM</span>}
+                  {e.real || !all.some((x) => x.real) ? null : <span className="muted"> DEMO</span>}
                 </td>
                 <td className="muted">{e.period}</td>
                 {real ? null : <td className="num">{fmtVal(e, e.survey)}</td>}
                 <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`}>
-                  {released ? (e.actual != null ? fmtVal(e, e.actual) : <span className="muted" title="Released; the value has not reached the source yet">pending</span>) : soon ? <span className="yellow">{countdown(e.time - now)}</span> : ''}
+                  {released ? (
+                    e.actual != null ? (
+                      fmtVal(e, e.actual)
+                    ) : (
+                      <span className="muted" title="Released; the value has not reached the source yet">
+                        pending
+                      </span>
+                    )
+                  ) : dueToday ? (
+                    <span className="yellow" title="Scheduled for today; the value shows once the source has it">
+                      due today
+                    </span>
+                  ) : soon ? (
+                    <span className="yellow">{countdown(e.time - now)}</span>
+                  ) : (
+                    ''
+                  )}
                 </td>
                 <td className="num">{fmtVal(e, e.prior)}</td>
                 {real ? null : <td className="num hide-m muted">{fmtVal(e, e.revised)}</td>}

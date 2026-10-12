@@ -4,21 +4,46 @@ import { fmtBig, fmtBp, fmtDay, fmtNum, fmtPct, fmtSigned, fmtStamp, fmtTime, si
 import { Flash } from './Flash';
 
 const SRC_TITLE: Record<string, string> = {
-  LIVE: 'Real price, market open',
-  CLOSE: 'Real price, market closed: the last trade of the latest session',
-  DELAYED: 'Real price, delayed by the exchange',
-  EOD: 'Real end-of-day value: the source publishes once a day, after the close',
+  LIVE: 'The source labels this quote real time',
+  DELAYED: 'The source labels this quote delayed by the minutes shown',
+  UNCONFIRMED: 'The source does not say whether this quote is real time or delayed',
+  CLOSE: 'Market closed: the last trade of the latest session',
+  EOD: 'End-of-day value: the source publishes once a day, after the close',
   STALE: 'The data source is not answering: this is the last price received',
-  NONE: 'No price yet from the real source',
-  SIM: 'Price from the simulator, not a real market',
+  NONE: 'No price yet from the source',
+  SIM: 'Demo data: simulated, not a market price',
 };
 
-/** The source badge text: SIMULATED, NO DATA, DELAYED 15M and so on. */
+/** Short source badge text for tables: LIVE, DELAYED 15M, NOT CONFIRMED, CLOSED and so on. */
 export function srcLabel(q: { src: string; delay?: number }): string {
-  if (q.src === 'SIM') return 'SIMULATED';
+  if (q.src === 'SIM') return 'DEMO DATA';
   if (q.src === 'NONE') return 'NO DATA';
+  if (q.src === 'UNCONFIRMED') return 'NOT CONFIRMED';
+  if (q.src === 'CLOSE') return 'CLOSED';
   if (q.src === 'DELAYED' && q.delay) return `DELAYED ${q.delay}M`;
   return q.src;
+}
+
+/** The freshness label in words: "Live (provider-labelled)", "Delayed 15 min (provider-labelled)", "Timing not confirmed" and so on. */
+export function srcLabelLong(q: { src: string; delay?: number }): string {
+  switch (q.src) {
+    case 'LIVE':
+      return 'Live (provider-labelled)';
+    case 'DELAYED':
+      return q.delay ? `Delayed ${q.delay} min (provider-labelled)` : 'Delayed (provider-labelled)';
+    case 'UNCONFIRMED':
+      return 'Timing not confirmed';
+    case 'CLOSE':
+      return 'Market closed';
+    case 'EOD':
+      return 'End of day';
+    case 'STALE':
+      return 'Stale';
+    case 'NONE':
+      return 'No data';
+    default:
+      return 'DEMO DATA';
+  }
 }
 
 const SESSION: Record<string, string> = { pre: 'Pre-mkt', post: 'After hrs', overnight: 'Overnight' };
@@ -68,8 +93,9 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
           {fmtBig(q.volume)}
         </span>
       )}
-      <span className="muted hide-m" title={q.src === 'EOD' ? 'Date of the latest published value' : 'Time of the latest price'}>
-        {q.src === 'EOD' ? `as of ${fmtDay(q.time)}` : q.src === 'LIVE' || q.src === 'DELAYED' || q.src === 'SIM' ? fmtTime(q.time) : fmtStamp(q.time)}
+      <span className="muted hide-m" title={q.src === 'EOD' ? 'Date of the latest published value' : 'When the market set the latest price (source time) and when the app received it'}>
+        {q.src === 'EOD' ? `as of ${fmtDay(q.time)}` : q.src === 'SIM' ? fmtTime(q.time) : `source ${q.src === 'CLOSE' || q.src === 'STALE' ? fmtStamp(q.time) : fmtTime(q.time)}`}
+        {q.fetched && q.src !== 'SIM' && q.src !== 'NONE' ? ` · retrieved ${fmtTime(q.fetched)}` : ''}
       </span>
       {q.extended && Number.isFinite(q.last) && (
         <span className="hide-m" title={`${SESSION[q.extended.session]} price at ${fmtTime(q.extended.time)}`}>
@@ -77,8 +103,8 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
           {fmtNum(q.extended.price, sec.dec)} <span className={signClass(q.extended.price - q.last)}>{fmtPct((q.extended.price / q.last - 1) * 100)}</span>
         </span>
       )}
-      <span className={`src ${q.src === 'LIVE' ? 'up' : q.src === 'SIM' || q.src === 'STALE' || q.src === 'NONE' ? 'amber' : 'white'}`} title={SRC_TITLE[q.src]}>
-        {srcLabel(q)}
+      <span className={`src ${q.src === 'LIVE' ? 'up' : q.src === 'SIM' || q.src === 'STALE' || q.src === 'NONE' || q.src === 'UNCONFIRMED' ? 'amber' : 'white'}`} title={`${SRC_TITLE[q.src]}${q.sourceName ? ` (Yahoo Finance: "${q.sourceName}")` : ''}`}>
+        {srcLabelLong(q)}
       </span>
     </div>
   );

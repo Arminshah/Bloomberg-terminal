@@ -1,6 +1,6 @@
 import { engine } from '../market';
 import { DAY_MS, dayNum } from '../calendar';
-import type { ExtBar, ExtendedPrice, ExtQuote } from '../engine';
+import type { ExtBar, ExtendedPrice, ExtQuote, Timing } from '../engine';
 import type { SecurityDef } from '../types';
 import { CURRENCY_DEFS } from '../universe';
 import { settings } from '../../terminal/settings';
@@ -43,8 +43,11 @@ interface Target {
   allDays: boolean;
   /** Exchange offset from UTC in ms, from the source. */
   gmtOffset?: number;
-  /** Minutes the source delays this market. */
+  /** Minutes the source says it delays this market. */
   delay?: number;
+  /** What the source says about timing, from the latest full quote. */
+  timing?: Timing;
+  sourceName?: string;
 }
 
 /** Futures with a continuous Yahoo contract; the rest keep their fair value to the real index. */
@@ -107,11 +110,18 @@ export function saneTouch(bid: number | undefined, ask: number | undefined, last
   return [b, a];
 }
 
-/** Minutes the source delays a market's prices; US stocks come real time from Nasdaq. */
-export function delayOf(q: Json): number {
+/**
+ * What Yahoo's quote says about its timing, and nothing more: real time when
+ * the quote's source name says so ("Nasdaq Real Time Price", "Free Realtime
+ * Quote"), delayed by the minutes it gives in exchangeDataDelayedBy, and
+ * unknown otherwise (a "Delayed Quote" with no minutes, or no metadata).
+ */
+export function timingOf(q: Json): { timing: Timing; delay: number; sourceName?: string } {
+  const name = typeof q?.quoteSourceName === 'string' ? q.quoteSourceName : undefined;
   const d = Number(q?.exchangeDataDelayedBy);
-  if (!Number.isFinite(d) || d <= 0) return 0;
-  return /real ?time/i.test(String(q?.quoteSourceName ?? '')) ? 0 : d;
+  if (name && /real ?time/i.test(name)) return { timing: 'realtime', delay: 0, sourceName: name };
+  if (Number.isFinite(d) && d > 0) return { timing: 'delayed', delay: d, sourceName: name };
+  return { timing: 'unknown', delay: 0, sourceName: name };
 }
 
 export interface Dividend {
@@ -233,7 +243,8 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
     bid: n(q.bid) ?? NaN,
     ask: n(q.ask) ?? NaN,
     marketOpen: q.marketState === 'REGULAR',
-    delay: delayOf(q),
+    ...timingOf(q),
+    fetched: Date.now(),
   };
   [base.bid, base.ask] = saneTouch(base.bid, base.ask, last);
   if (!invert) return base;
@@ -403,6 +414,9 @@ class YahooData {
       ask,
       marketOpen: true,
       delay: t.delay,
+      timing: t.timing,
+      sourceName: t.sourceName,
+      fetched: Date.now(),
     });
     this.changed(t.id);
   }
@@ -473,7 +487,8 @@ class YahooData {
   }
 
   private pumpHistory() {
-    while (!this.stopped && this.historyActive < 6 && this.historyQueue.length) {
+    // Three at a time keeps the start-up load gentle; what panels show is loaded first.
+    while (!this.stopped && this.historyActive < 3 && this.historyQueue.length) {
       const t = this.historyQueue.shift()!;
       this.historyActive++;
       void this.loadHistory(t).finally(() => {
@@ -540,7 +555,10 @@ class YahooData {
           for (const t of lines) {
             yahooQuotes.set(t.id, q);
             if (Number.isFinite(Number(q.gmtOffSetMilliseconds))) t.gmtOffset = Number(q.gmtOffSetMilliseconds);
-            t.delay = delayOf(q);
+            const timing = timingOf(q);
+            t.delay = timing.delay;
+            t.timing = timing.timing;
+            t.sourceName = timing.sourceName;
             const def = engine.get(t.id);
             const shares = def ? impliedShares(def, Number(q.marketCap), Number(q.regularMarketPrice)) : NaN;
             if (def?.eq && Number.isFinite(shares)) def.eq.shares = shares;

@@ -3,7 +3,7 @@ import { zonedToUtc } from '../core/format';
 import { DAY_MS, isBusinessDay, dayNum } from './calendar';
 import { engine } from './market';
 import { levelOn, policyRates, type PolicyRates, type PolicySeries } from './live/policy';
-import { eventTimes, expectedPeriod, fredData, periodLabel as fredPeriodLabel, previousPeriod, US_EVENTS, valueAt } from './live/fred';
+import { eventDates, expectedPeriod, fredData, periodLabel as fredPeriodLabel, previousPeriod, US_EVENTS, valueAt } from './live/fred';
 
 export { zonedToUtc } from '../core/format';
 
@@ -89,6 +89,8 @@ export interface EcoEvent {
   kind: 'activity' | 'inflation' | 'rate' | 'other';
   /** A real record (a central bank decision from the bank's own data); everything else is generated. */
   real?: boolean;
+  /** For an event whose source gives the day but not the time (FRED release dates): that day, ISO. */
+  date?: string;
 }
 
 type Rule =
@@ -234,28 +236,40 @@ function periodLabel(tpl: Tpl, y: number, m0: number, day: number): string {
   return MONTH[pm];
 }
 
+/** Today's date in New York, where the US agencies publish. */
+export function newYorkDate(now: number): string {
+  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now));
+  return p.slice(0, 10);
+}
+
 /**
- * US releases from FRED: the agencies' own dates and times, and the values
- * published for each release's period. Actual and prior are the figures as
- * currently published, so they include any revisions since.
+ * US releases from the FRED API: the agencies' scheduled dates (FRED gives no
+ * time of day) and the values published for each release's period. An event
+ * sits at noon UTC of its date so it sorts into the right day; screens show
+ * its date, never a time. Actual and prior are the figures as currently
+ * published, so they include any revisions since.
  */
 function usReleases(from: number, to: number, now: number): EcoEvent[] {
   const st = fredData.get();
+  const today = newYorkDate(now);
   const out: EcoEvent[] = [];
   for (const ev of US_EVENTS) {
-    for (const t of eventTimes(ev, st.releases[ev.rid] ?? [])) {
+    for (const d of eventDates(ev, st.releases[ev.rid] ?? [])) {
+      const [y, m, day] = d.split('-').map(Number);
+      const t = Date.UTC(y, m - 1, day, 12);
       if (t < from || t > to) continue;
-      const p = expectedPeriod(ev, t);
+      const p = expectedPeriod(ev, Date.UTC(y, m - 1, day));
       const obs = st.series[ev.series];
       const prior = valueAt(obs, previousPeriod(p, ev.freq), ev.calc, ev.freq, ev.scale);
       out.push({
-        id: `US:${ev.name}:${t}`,
+        id: `US:${ev.name}:${d}`,
         time: t,
+        date: d,
         country: 'US',
         name: ev.name,
         period: fredPeriodLabel(p, ev.freq),
         survey: null,
-        actual: t <= now ? valueAt(obs, p, ev.calc, ev.freq, ev.scale) : null,
+        actual: d <= today ? valueAt(obs, p, ev.calc, ev.freq, ev.scale) : null,
         prior: prior ?? NaN,
         revised: null,
         unit: ev.unit,

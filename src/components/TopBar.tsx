@@ -63,9 +63,10 @@ function FeedChip() {
   if (engine.realOnly) {
     // Desktop app: real data only. The chip says whether prices are streaming, loading or cut off.
     const lost = f.market === 'error';
-    const label = lost ? 'CONNECTION LOST' : f.market === 'live' ? (/streaming/.test(f.detail.market ?? '') ? 'LIVE · STREAMING' : 'LIVE DATA') : 'LOADING DATA';
+    // The chip reports the connection; how fresh each quote is shows beside the quote itself.
+    const label = lost ? 'CONNECTION LOST' : f.market === 'live' ? (/streaming/.test(f.detail.market ?? '') ? 'CONNECTED · STREAMING' : 'CONNECTED · POLLING') : 'LOADING DATA';
     return (
-      <button type="button" className={`status-chip${lost ? ' down' : ' live'}`} onClick={() => execute(terminal.get().active, 'PDFU')} title={f.detail.market ?? 'Data sources (PDFU)'}>
+      <button type="button" className={`status-chip${lost ? ' down' : ' live'}`} onClick={() => execute(terminal.get().active, 'PROV')} title={`${f.detail.market ?? 'Data providers'} · PROV for every provider's state`}>
         <span className="dot" />
         {label}
       </button>
@@ -76,8 +77,8 @@ function FeedChip() {
   return (
     <button type="button" className={`status-chip${isLive ? ' live' : ''}`} onClick={() => execute(terminal.get().active, 'PDFU')} title="Data sources (PDFU)">
       <span className="dot" />
-      {isLive ? `LIVE ${live.join('·')}` : 'SIMULATED'}
-      {isLive && <span className="muted hide-m">+SIM</span>}
+      {isLive ? `LIVE ${live.join('·')}` : 'DEMO DATA'}
+      {isLive && <span className="muted hide-m">+DEMO</span>}
     </button>
   );
 }

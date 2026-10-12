@@ -1,3 +1,4 @@
+import { srcLabelLong } from '../components/QuoteStrip';
 import { useEffect, useMemo } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Flash } from '../components/Flash';
@@ -67,7 +68,7 @@ export function BQ({ sec }: FnProps) {
         ]}
       />
       <div className="cols">
-        <Section title="Quote" right={q.src}>
+        <Section title="Quote" right={srcLabelLong(q)}>
           <div className="pad row" style={{ alignItems: 'baseline', gap: 14 }}>
             <Flash value={q.last} className={`white ${q.tick > 0 ? 'arrow-up' : q.tick < 0 ? 'arrow-dn' : ''}`}>
               <span style={{ fontSize: 30, fontWeight: 600 }}>{fmtNum(q.last, s.dec)}</span>

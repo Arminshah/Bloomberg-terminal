@@ -1,13 +1,13 @@
 import { createStore } from '../../core/store';
-import { zonedToUtc } from '../../core/format';
 import { setFeed } from './status';
 import { euroAreaCode, official, parseJsonStat, parseOnsCsv, parseOnsMonths } from './official';
 
 /**
  * US economic releases and international statistics for the desktop app from
- * FRED (Federal Reserve Bank of St. Louis): official release dates and times
- * for each release, and the published values of each series. FRED republishes
- * the agencies' figures (BLS, BEA, Census, the Fed, Eurostat, the OECD).
+ * the FRED API (Federal Reserve Bank of St. Louis), which needs the user's own
+ * free key: the scheduled release dates of each release, and the published
+ * values of each series. FRED republishes the agencies' figures (BLS, BEA,
+ * Census, the Fed, the OECD) and gives release dates without times of day.
  * Consensus forecasts are not public, so there is no survey.
  */
 
@@ -16,12 +16,14 @@ export type Obs = [string, number][];
 export interface FredState {
   /** Series id -> observations in date order. */
   series: Record<string, Obs>;
-  /** Release id -> release times (epoch ms), in order. */
-  releases: Record<number, number[]>;
+  /** Release id -> scheduled release dates (ISO), in order. */
+  releases: Record<number, string[]>;
   loaded: boolean;
+  /** True when the FRED API key is not configured, so nothing from FRED loads. */
+  needsKey: boolean;
 }
 
-export const fredData = createStore<FredState>({ series: {}, releases: {}, loaded: false });
+export const fredData = createStore<FredState>({ series: {}, releases: {}, loaded: false, needsKey: false });
 
 export type Calc = 'level' | 'diff' | 'mom' | 'yoy';
 export type Freq = 'm' | 'q' | 'w';
@@ -40,7 +42,7 @@ export interface FredEvent {
   scale?: number;
   rel: number;
   kind: 'activity' | 'inflation' | 'rate' | 'other';
-  /** For a release with two reports a month: true for the 7:30 am Central one, false for the other. */
+  /** For a release with two reports a month: true for the one late in the month, false for the one early in the month. */
   early?: boolean;
 }
 
@@ -96,54 +98,44 @@ export const COMPUTED_GROWTH = new Set(['JP', 'CA', 'AU']);
 
 // ------------------------------------------------------------------ parsing
 
-/** FRED graph CSV: "observation_date,A,B" then "2026-08-01,334.131,". Blanks and "." are skipped. */
-export function parseFredCsv(text: string): Record<string, Obs> {
-  const out: Record<string, Obs> = {};
-  const rows = text.replace(/^\uFEFF/, '').trim().split(/\r?\n/);
-  const head = (rows[0] ?? '').split(',');
-  if (head[0] !== 'observation_date') return out;
-  for (const id of head.slice(1)) out[id] = [];
-  for (const row of rows.slice(1)) {
-    const cells = row.split(',');
-    const d = cells[0];
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
-    head.forEach((id, i) => {
-      if (i === 0) return;
-      const c = (cells[i] ?? '').trim();
-      const v = Number(c);
-      if (c !== '' && c !== '.' && Number.isFinite(v)) out[id].push([d, v]);
-    });
-  }
-  return out;
-}
-
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * FRED's release calendar page: a bold "Wednesday October 14, 2026" row for
- * each day, then each release's time ("7:30 am", US Central) and link. A blank
- * time repeats the one above it.
+ * fred/series/observations JSON: {observations: [{date: "2026-08-01", value: "334.131"}]}.
+ * Values are strings; "." marks a period without a value and is left out.
  */
-export function parseFredCalendar(html: string, rid: number): number[] {
-  const out: number[] = [];
-  const re = /<span style="font-weight: bold;">\s*[A-Za-z]+ ([A-Za-z]+) (\d{1,2}), (\d{4})\s*<\/span>|<td nowrap[^>]*>\s*([^<]*?)\s*<\/td>\s*<td[^>]*>\s*<a href="\/release\?rid=(\d+)">/g;
-  let day: [number, number, number] | null = null;
-  let time: [number, number] | null = null;
-  for (const m of html.matchAll(re)) {
-    if (m[1]) {
-      const mo = MONTHS.indexOf(m[1]);
-      day = mo >= 0 ? [Number(m[3]), mo, Number(m[2])] : null;
-      time = null;
-      continue;
-    }
-    const t = /^(\d{1,2}):(\d{2})\s*(am|pm)$/i.exec(m[4] ?? '');
-    if (t) time = [(Number(t[1]) % 12) + (t[3].toLowerCase() === 'pm' ? 12 : 0), Number(t[2])];
-    else if ((m[4] ?? '').trim() !== '') time = null; // "N/A": no time given
-    if (!day || !time || Number(m[5]) !== rid) continue;
-    out.push(zonedToUtc(day[0], day[1], day[2], time[0], time[1], 'America/Chicago'));
+export function parseFredObservations(text: string): Obs {
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return [];
   }
-  return [...new Set(out)].sort((a, b) => a - b);
+  const out: Obs = [];
+  for (const o of (json?.observations ?? []) as any[]) {
+    const d = String(o?.date ?? '');
+    const c = String(o?.value ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^-?\d*\.?\d+$/.test(c)) continue;
+    out.push([d, Number(c)]);
+  }
+  return out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 }
+
+/** fred/release/dates JSON: {release_dates: [{release_id: 10, date: "2026-10-14"}]}. The release's dates, in order. */
+export function parseFredReleaseDates(text: string, rid: number): string[] {
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  const out = new Set<string>();
+  for (const r of (json?.release_dates ?? []) as any[]) {
+    const d = String(r?.date ?? '');
+    if (Number(r?.release_id) === rid && /^\d{4}-\d{2}-\d{2}$/.test(d)) out.add(d);
+  }
+  return [...out].sort();
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ------------------------------------------------------------- calculations
 
@@ -219,14 +211,15 @@ export function periodLabel(p: string, freq: Freq): string {
   return `${SHORT[m - 1]} ${y}`;
 }
 
-/** Releases of one event: which of a release id's times belong to it (the M3 survey has two reports a month). */
-export function eventTimes(ev: FredEvent, times: number[]): number[] {
-  if (ev.early == null) return times;
-  const early = (t: number) => {
-    const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit', hour12: false }).format(new Date(t));
-    return p === '07:30' || p === '7:30';
-  };
-  return times.filter((t) => early(t) === ev.early);
+/**
+ * Releases of one event: which of a release id's dates belong to it. The Census
+ * M3 survey has two reports a month under one release: the advance report on
+ * durable goods late in the month and the full report early in the next, so
+ * the day of the month tells them apart.
+ */
+export function eventDates(ev: FredEvent, dates: string[]): string[] {
+  if (ev.early == null) return dates;
+  return dates.filter((d) => Number(d.slice(8, 10)) >= 15 === ev.early);
 }
 
 // ------------------------------------------------------------------ loading
@@ -235,26 +228,23 @@ export function fredAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.fred === 'function';
 }
 
-async function get(kind: 'calendar' | 'series', arg: string, from?: string): Promise<string> {
+/** The answer to one FRED request, '' when it fails, or null when no API key is configured. */
+async function get(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<string | null> {
   try {
     const res = await window.arminDesktop!.fred!(kind, arg, from);
+    if (res.missing) return null;
     return res.status === 200 ? res.text : '';
   } catch {
     return '';
   }
 }
 
-/** Series grouped by frequency (FRED answers a mixed request with a zip), at most 12 per request. */
-function seriesBatches(): string[] {
-  const byFreq: Record<Freq, Set<string>> = { m: new Set(), q: new Set(), w: new Set() };
-  for (const ev of US_EVENTS) byFreq[ev.freq].add(ev.series);
-  for (const c of Object.values(COUNTRY_STATS)) for (const s of [c.gdp, c.cpi, c.un]) if (s && !s[0].includes(':')) byFreq[s[1]].add(s[0]);
-  const out: string[] = [];
-  for (const set of Object.values(byFreq)) {
-    const ids = [...set];
-    for (let i = 0; i < ids.length; i += 12) out.push(ids.slice(i, i + 12).join(','));
-  }
-  return out;
+/** Every FRED series the app reads: the US releases and the OECD figures for Japan, Canada and Australia. */
+function fredSeriesIds(): string[] {
+  const ids = new Set<string>();
+  for (const ev of US_EVENTS) ids.add(ev.series);
+  for (const c of Object.values(COUNTRY_STATS)) for (const s of [c.gdp, c.cpi, c.un]) if (s && !s[0].includes(':')) ids.add(s[0]);
+  return [...ids];
 }
 
 /** Headline rates the statistics offices publish themselves (ONS, Eurostat), under pseudo series ids. */
@@ -302,58 +292,85 @@ const periodNames = new Map<string, string>();
 
 async function loadSeries(): Promise<boolean> {
   const series = { ...fredData.get().series };
-  const [texts] = await Promise.all([Promise.all(seriesBatches().map((b) => get('series', b))), loadOfficialStats(series)]);
   let any = false;
-  for (const t of texts) {
-    const parsed = parseFredCsv(t);
-    for (const [id, obs] of Object.entries(parsed)) {
-      if (!obs.length) continue;
+  let needsKey = false;
+  const official = loadOfficialStats(series);
+  for (const id of fredSeriesIds()) {
+    const text = await get('observations', id);
+    if (text === null) {
+      needsKey = true;
+      break;
+    }
+    const obs = parseFredObservations(text);
+    if (obs.length) {
       series[id] = obs;
       any = true;
     }
   }
-  if (any) fredData.set((s) => ({ ...s, series, loaded: true }));
+  await official;
+  any ||= Object.keys(series).some((id) => id.includes(':'));
+  fredData.set((s) => ({ ...s, series, loaded: s.loaded || any, needsKey }));
   return any;
 }
 
 async function loadCalendars(): Promise<boolean> {
-  // A month back (ECO's "last week") to five months ahead.
+  // A month back (ECO's "last week") onwards, scheduled dates included.
   const from = new Date(Date.now() - 31 * 86_400_000).toISOString().slice(0, 10);
   const rids = [...new Set(US_EVENTS.map((e) => e.rid))];
   const releases = { ...fredData.get().releases };
   let any = false;
-  await Promise.all(
-    rids.map(async (rid) => {
-      const times = parseFredCalendar(await get('calendar', String(rid), from), rid);
-      if (times.length) {
-        releases[rid] = times;
-        any = true;
-      }
-    }),
-  );
-  if (any) fredData.set((s) => ({ ...s, releases }));
+  for (const rid of rids) {
+    const text = await get('release-dates', String(rid), from);
+    if (text === null) {
+      fredData.set((s) => ({ ...s, needsKey: true }));
+      return false;
+    }
+    const dates = parseFredReleaseDates(text, rid);
+    if (dates.length) {
+      releases[rid] = dates;
+      any = true;
+    }
+  }
+  if (any) fredData.set((s) => ({ ...s, releases, needsKey: false }));
   return any;
 }
 
-/** Loads release calendars (every 12 hours) and series values (every 10 minutes). */
+let reload: (() => void) | null = null;
+
+/** Loads FRED again now, after the user saves an API key. */
+export function reloadFred() {
+  reload?.();
+}
+
+/** Loads release dates (every 12 hours) and series values (every 10 minutes); retries every 2 minutes until both answer. */
 export function startFred(): () => void {
   if (!fredAvailable()) return () => undefined;
-  setFeed('eco', 'connecting', 'FRED (St. Louis Fed)');
+  setFeed('eco', 'connecting', 'FRED API (St. Louis Fed), ONS and Eurostat');
   let retry: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
   const report = () => {
     const s = fredData.get();
-    const ok = s.loaded && Object.keys(s.releases).length > 0;
-    setFeed('eco', ok ? 'live' : 'error', ok ? 'US release calendar and published values from FRED (St. Louis Fed)' : 'FRED unavailable: no economic releases');
-    return ok;
+    const fredOk = Object.keys(s.releases).length > 0 && US_EVENTS.some((e) => s.series[e.series]?.length);
+    const officialOk = Object.keys(s.series).some((id) => id.includes(':'));
+    if (fredOk) setFeed('eco', 'live', 'US releases and values from the FRED API; UK and euro area statistics from the ONS and Eurostat');
+    else if (s.needsKey) setFeed('eco', officialOk ? 'live' : 'blocked', `FRED needs your API key (open PROV to add it)${officialOk ? '; ONS and Eurostat statistics are live' : ''}`);
+    else setFeed('eco', officialOk ? 'live' : 'error', officialOk ? 'FRED unavailable; ONS and Eurostat statistics are live' : 'Economic data sources unavailable');
+    return fredOk;
   };
   const first = async () => {
+    if (retry) clearTimeout(retry);
+    retry = null;
     await Promise.all([loadCalendars(), loadSeries()]);
+    if (stopped) return;
     if (!report()) retry = setTimeout(() => void first(), 120_000);
   };
+  reload = () => void first();
   void first();
   const seriesTimer = setInterval(() => void loadSeries().then(report), 10 * 60_000);
   const calTimer = setInterval(() => void loadCalendars().then(report), 12 * 3600_000);
   return () => {
+    stopped = true;
+    reload = null;
     clearInterval(seriesTimer);
     clearInterval(calTimer);
     if (retry) clearTimeout(retry);

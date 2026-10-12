@@ -5,6 +5,7 @@
 const { app, BrowserWindow, Menu, ipcMain, net, session, shell, screen } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
+const providers = require('./providers.cjs');
 
 const STATE_FILE = () => path.join(app.getPath('userData'), 'window-state.json');
 const ICON = path.join(__dirname, '..', 'build', 'icon.png');
@@ -44,25 +45,80 @@ function nextId() {
   return id;
 }
 
+/** True for requests from the app's own pages (file://), the only ones allowed to ask for data. */
+function fromApp(event) {
+  return !!event.senderFrame && event.senderFrame.url.startsWith('file://');
+}
+
+/** Sends a request on behalf of `provider`, counting it and recording how it ended. */
+async function tracked(provider, url, init) {
+  providers.recordRequest(provider);
+  try {
+    const res = await net.fetch(url, init);
+    providers.recordResult(provider, res.status);
+    return res;
+  } catch (err) {
+    providers.recordResult(provider, 0, err);
+    throw err;
+  }
+}
+
+// ------------------------------------------------------- Provider status
+// What each provider has done lately and which credentials are configured.
+// Credential values never come back to the page.
+ipcMain.handle('providers:status', (event) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  return { credentials: providers.credentialStatus(), providers: providers.providerStats() };
+});
+
+ipcMain.handle('providers:set', (event, name, value) => {
+  if (!fromApp(event) || typeof name !== 'string' || typeof value !== 'string' || value.length > 400) throw new Error('not allowed');
+  try {
+    providers.saveCredential(name, value);
+    return { ok: true, credentials: providers.credentialStatus() };
+  } catch (err) {
+    return { ok: false, error: String(err.message ?? err), credentials: providers.credentialStatus() };
+  }
+});
+
+ipcMain.handle('providers:clear', (event, name) => {
+  if (!fromApp(event) || typeof name !== 'string') throw new Error('not allowed');
+  providers.clearCredential(name);
+  return { ok: true, credentials: providers.credentialStatus() };
+});
+
 // ------------------------------------------------------------ Yahoo Finance
 // Lets the terminal look up any US-listed stock without an API key. Profile
 // data needs Yahoo's session cookie and crumb, which the default session keeps.
 const YAHOO = 'https://query2.finance.yahoo.com';
 /** A source that stops answering must not hold a screen in "loading" forever. */
 const TIMEOUT_MS = 20_000;
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
+
+/**
+ * Who the app says it is. Yahoo gets Electron's own user agent, which names
+ * this app, its Electron version and the Chromium engine that sends the
+ * request (Yahoo turns away clients that do not look like a browser engine);
+ * every other provider gets the app's name and its repository.
+ */
+function browserAgent() {
+  return session.defaultSession.getUserAgent();
+}
+function clientAgent() {
+  return `ArminTerminal/${app.getVersion()} (+https://github.com/arminshah/bloomberg-terminal)`;
+}
 const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=%-]+\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=%-]+\?|v7\/finance\/quote\?|v7\/finance\/options\/[A-Za-z0-9.^=%-]+\?|ws\/fundamentals-timeseries\/v1\/finance\/timeseries\/[A-Za-z0-9.^=%-]+\?)/;
 let crumb = null;
 
 // Every data request revalidates with the server, so a refresh never shows a cached copy.
 async function yahooFetch(url, json = true) {
-  return net.fetch(url, { headers: { 'User-Agent': UA, ...(json ? { Accept: 'application/json' } : {}) }, credentials: 'include', cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+  return tracked('yahoo', url, { headers: { 'User-Agent': browserAgent(), ...(json ? { Accept: 'application/json' } : {}) }, credentials: 'include', cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
 }
 
 async function getCrumb(force) {
   if (crumb && !force) return crumb;
-  // The cookie comes back on a 404 page; the crumb endpoint answers in plain text.
-  await yahooFetch('https://fc.yahoo.com/', false).catch(() => undefined);
+  // The cookie comes back on a 404 page (expected, so not recorded as a failure); the crumb endpoint answers in plain text.
+  providers.recordRequest('yahoo');
+  await net.fetch('https://fc.yahoo.com/', { headers: { 'User-Agent': browserAgent() }, credentials: 'include', cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) }).catch(() => undefined);
   const res = await yahooFetch(`${YAHOO}/v1/test/getcrumb`, false);
   if (!res.ok) throw new Error(`crumb ${res.status}`);
   crumb = (await res.text()).trim();
@@ -70,7 +126,7 @@ async function getCrumb(force) {
 }
 
 ipcMain.handle('yahoo', async (event, path) => {
-  if (!event.senderFrame || !event.senderFrame.url.startsWith('file://')) throw new Error('not allowed');
+  if (!fromApp(event)) throw new Error('not allowed');
   if (typeof path !== 'string' || path.length > 4000 || !ALLOWED.test(path)) throw new Error('not allowed');
   // Quotes, options and company data need the session crumb; charts, search and statements do not.
   const needsCrumb = path.startsWith('/v10/') || path.startsWith('/v7/');
@@ -90,10 +146,10 @@ ipcMain.handle('yahoo', async (event, path) => {
 const TREASURY = 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv';
 
 ipcMain.handle('treasury', async (event, year) => {
-  if (!event.senderFrame || !event.senderFrame.url.startsWith('file://')) throw new Error('not allowed');
+  if (!fromApp(event)) throw new Error('not allowed');
   const y = Number(year);
   if (!Number.isInteger(y) || y < 1990 || y > 2100) throw new Error('not allowed');
-  const res = await net.fetch(`${TREASURY}/${y}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${y}&page&_format=csv`, { headers: { 'User-Agent': UA }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const res = await tracked('treasury', `${TREASURY}/${y}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${y}&page&_format=csv`, { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 
@@ -144,61 +200,56 @@ const OFFICIAL = {
   estatGdp: (since) => `${EUROSTAT}/namq_10_gdp?format=JSON&lang=EN&${EUROSTAT_GEO}&na_item=B1GQ&unit=CLV_PCH_SM&s_adj=SCA&sinceTimePeriod=${since.slice(0, 4)}-Q1`,
 };
 
+/** Which provider publishes each official source, for the status screen. */
+const OFFICIAL_PROVIDER = {
+  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', ecb: 'ecb', boe: 'boe', gilts: 'boe', boc: 'boc', canadas: 'boc',
+  rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
+  ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
+};
+
 ipcMain.handle('official', async (event, source, since) => {
-  if (!event.senderFrame || !event.senderFrame.url.startsWith('file://')) throw new Error('not allowed');
+  if (!fromApp(event)) throw new Error('not allowed');
   if (!Object.prototype.hasOwnProperty.call(OFFICIAL, source)) throw new Error('not allowed');
   if (typeof since !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(since)) throw new Error('not allowed');
   const url = OFFICIAL[source](since, new Date().toISOString().slice(0, 10));
   // Some statistics services answer large requests slowly; a stalled one still ends.
-  const res = await net.fetch(url, { headers: { 'User-Agent': UA }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 
 // ------------------------------------------------------------------- FRED
-// The St. Louis Fed's FRED: official US release dates and times, and the
-// published values of a fixed set of series. FRED's bot filter turns away some
-// user agents (an app name inside a browser string, or a bare name), so a
-// request goes out as plain Electron first and as a self-identified client
-// with the project's page second.
-const FRED = 'https://fred.stlouisfed.org';
-function fredAgents() {
-  const plain = session.defaultSession.getUserAgent().replace(/ armin-terminal\/\S+/i, '');
-  return [plain, `ArminTerminal/${app.getVersion()} (+https://github.com/arminshah/bloomberg-terminal)`];
-}
+// The St. Louis Fed's FRED API: scheduled release dates and the published
+// values of a fixed set of series. FRED's terms ask applications to use the
+// API with each user's own key, and its site terms rule out scraping, so
+// nothing here reads the FRED website. Without a key the request is not sent.
+const FRED_API = 'https://api.stlouisfed.org/fred';
 const FRED_RELEASES = new Set([9, 10, 13, 27, 46, 50, 51, 53, 54, 95, 97, 180, 192]);
 const FRED_SERIES = new Set([
   'PAYEMS', 'UNRATE', 'CPIAUCSL', 'CPIAUCNS', 'CPILFESL', 'CPILFENS', 'PPIFIS', 'RSAFS', 'INDPRO', 'HOUST', 'HSN1F',
   'DGORDER', 'AMTMNO', 'A191RL1Q225SBEA', 'A191RO1Q156NBEA', 'PCEPI', 'PCEPILFE', 'ICSA', 'JTSJOL', 'BOPGSTB',
   'LRHUTTTTJPM156S', 'JPNRGDPEXP', 'LRHUTTTTCAM156S', 'NGDPRSAXDCCAQ', 'LRHUTTTTAUM156S', 'NGDPRSAXDCAUQ',
 ]);
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 ipcMain.handle('fred', async (event, kind, arg, from) => {
   if (!fromApp(event)) throw new Error('not allowed');
   let url;
-  if (kind === 'calendar') {
-    // A window of dates rather than a whole year: a year of weekly releases runs past one page.
+  if (kind === 'release-dates') {
+    // Dates from `from` on, future scheduled ones included.
     const rid = Number(arg);
-    if (!FRED_RELEASES.has(rid) || typeof from !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(from)) throw new Error('not allowed');
-    const to = new Date(Date.parse(`${from}T00:00:00Z`) + 150 * 86_400_000).toISOString().slice(0, 10);
-    url = `${FRED}/releases/calendar?rid=${rid}&vs=${from}&ve=${to}`;
-  } else if (kind === 'series') {
-    const ids = typeof arg === 'string' ? arg.split(',') : [];
-    // The graph service answers at most 12 series per request.
-    if (!ids.length || ids.length > 12 || !ids.every((id) => FRED_SERIES.has(id))) throw new Error('not allowed');
-    const from = new Date(Date.now() - 4 * 365.25 * 86_400_000).toISOString().slice(0, 10);
-    url = `${FRED}/graph/fredgraph.csv?id=${ids.join(',')}&cosd=${ids.map(() => from).join(',')}`;
+    if (!FRED_RELEASES.has(rid) || typeof from !== 'string' || !ISO_DATE.test(from)) throw new Error('not allowed');
+    url = `${FRED_API}/release/dates?release_id=${rid}&realtime_start=${from}&include_release_dates_with_no_data=true&sort_order=asc&limit=1000&file_type=json`;
+  } else if (kind === 'observations') {
+    if (typeof arg !== 'string' || !FRED_SERIES.has(arg)) throw new Error('not allowed');
+    const start = new Date(Date.now() - 4 * 365.25 * 86_400_000).toISOString().slice(0, 10);
+    url = `${FRED_API}/series/observations?series_id=${arg}&observation_start=${start}&file_type=json`;
   } else throw new Error('not allowed');
-  let last = { status: 0, text: '' };
-  for (const agent of fredAgents()) {
-    try {
-      const res = await net.fetch(url, { headers: { 'User-Agent': agent }, cache: 'no-cache', signal: AbortSignal.timeout(15_000) });
-      if (res.ok) return { status: res.status, text: await res.text() };
-      last = { status: res.status, text: '' };
-    } catch {
-      /* the next agent is tried */
-    }
-  }
-  return last;
+  const key = providers.credential('FRED_API_KEY').value;
+  if (!key) return { status: 0, text: '', missing: 'FRED_API_KEY' };
+  // FRED publishes no fixed rate; the app keeps itself to one request a second on average.
+  await providers.slot('fred', 60, 60_000);
+  const res = await tracked('fred', `${url}&api_key=${encodeURIComponent(key)}`, { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(20_000) });
+  return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 
 // ------------------------------------------------------------------ Stream
@@ -208,23 +259,24 @@ const STREAM_URL = 'wss://streamer.finance.yahoo.com/?version=2';
 const SYMBOL = /^[A-Za-z0-9.^=\-]{1,24}$/;
 const streams = new Map();
 
-function fromApp(event) {
-  return !!event.senderFrame && event.senderFrame.url.startsWith('file://');
-}
-
 ipcMain.handle('stream:open', (event) => {
   if (!fromApp(event)) throw new Error('not allowed');
   const wc = event.sender;
   streams.get(wc.id)?.close();
+  providers.recordRequest('yahoo-stream');
   const ws = new WebSocket(STREAM_URL);
   streams.set(wc.id, ws);
   const post = (...args) => {
     if (!wc.isDestroyed()) wc.send('stream', ...args);
   };
-  ws.onopen = () => post('open');
+  ws.onopen = () => {
+    providers.recordResult('yahoo-stream', 200);
+    post('open');
+  };
   ws.onmessage = (e) => post('message', String(e.data));
-  ws.onclose = () => {
+  ws.onclose = (e) => {
     if (streams.get(wc.id) === ws) streams.delete(wc.id);
+    if (e && e.code !== 1000) providers.recordProblem('yahoo-stream', 'network', `stream closed (code ${e.code})`);
     post('close');
   };
   ws.onerror = () => undefined; // a close event follows

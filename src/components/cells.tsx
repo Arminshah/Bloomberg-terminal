@@ -52,14 +52,14 @@ export function LivePx({ id, dec }: { id: string; dec?: number }) {
   // On real data, a line the sources do not cover is marked so it is not read as a market price.
   if (q.src === 'SIM' && desktopData()) {
     return (
-      <span className="sim-px" title="Simulated price: no real source covers this line">
+      <span className="sim-px" title="Demo data: a simulated price, no real source covers this line">
         {px}
       </span>
     );
   }
   if (q.src === 'DELAYED') {
     return (
-      <span className="delayed-px" title={`Delayed ${q.delay ?? 15} minutes by the exchange`}>
+      <span className="delayed-px" title={q.delay ? `Delayed ${q.delay} min, as the source labels it` : 'Delayed, as the source labels it'}>
         {px}
       </span>
     );

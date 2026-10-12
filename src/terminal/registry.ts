@@ -32,6 +32,7 @@ import { W } from '../functions/W';
 import { PORT } from '../functions/PORT';
 import { ALRT } from '../functions/ALRT';
 import { LAST, LPAD, PDFU, SECF } from '../functions/TOOLS';
+import { PROV } from '../functions/PROV';
 import { IB } from '../functions/IB';
 import { HS } from '../functions/HS';
 import { NOTE } from '../functions/NOTE';
@@ -122,6 +123,7 @@ export const FUNCTIONS: FnDef[] = [
   // System
   { code: 'HELP', name: 'Function Directory', category: 'System', desc: 'Searchable list of every function, command syntax and keyboard shortcuts.', component: HELP, aliases: ['FUNC', 'H'] },
   { code: 'MENU', name: 'Related Functions Menu', category: 'System', desc: 'Numbered menu of every function for the loaded security, a market sector menu for a yellow key (EQUITY <GO>), or the main menu.', component: MENU, aliases: ['RFM'], example: 'IBM US <EQUITY> <GO>' },
+  { code: 'PROV', name: 'Data Providers & Status', category: 'System', desc: 'Every data provider: what it serves, its state, last answer and error, requests per minute, the terms that apply, and credentials (desktop).', component: PROV, aliases: ['STATUS', 'SOURCES', 'PROVIDERS'] },
   { code: 'PDFU', name: 'Settings & Data Sources', category: 'System', desc: 'Display preferences, time zone, live data connections and workspace reset.', component: PDFU, aliases: ['SETTINGS', 'PREFS', 'PDF'] },
 ];
 

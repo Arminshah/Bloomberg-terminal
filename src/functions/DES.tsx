@@ -207,7 +207,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
             )}
           </Section>
         ) : (
-        <Section title="Revenue by region" right={<span className="badge sim">SIMULATED</span>}>
+        <Section title="Revenue by region" right={<span className="badge sim">DEMO DATA</span>}>
           <table className="tbl">
             <tbody>
               {mix.map((m) => (

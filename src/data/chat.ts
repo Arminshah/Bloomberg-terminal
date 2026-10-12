@@ -35,7 +35,8 @@ export function botReply(text: string): string {
   if (/^ECO|CALENDAR|DATA/.test(up)) {
     const now = engine.now();
     const next = ecoEvents(now, now + 7 * 86_400_000, now).filter((e) => e.relevance >= 3).slice(0, 4);
-    return next.length ? `Next key releases: ${next.map((e) => `${e.country} ${e.name} (${new Date(e.time).toUTCString().slice(5, 22)} UTC)`).join('; ')}` : 'No major releases this week.';
+    // FRED gives US release dates without times; those say the date only.
+    return next.length ? `Next key releases: ${next.map((e) => `${e.country} ${e.name} (${e.date ? `${new Date(`${e.date}T12:00:00Z`).toUTCString().slice(0, 11)}, time not published by the source` : `${new Date(e.time).toUTCString().slice(5, 22)} UTC`})`).join('; ')}` : 'No major releases this week.';
   }
   if (/MOVERS|GAINERS|LOSERS/.test(up)) {
     const eq = engine.securities.filter((d) => d.cls === 'equity').map((d) => ({ d, p: engine.quote(d.id)!.pct })).sort((a, b) => b.p - a.p);

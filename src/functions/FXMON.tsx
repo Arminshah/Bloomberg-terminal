@@ -205,7 +205,7 @@ export function CRYP(_: FnProps) {
                   <Sparkline values={intra.c.subarray(0, intra.length)} width={80} height={14} />
                 </td>
                 <td>
-                  <span className={`badge ${q.src === 'SIM' || q.src === 'STALE' || q.src === 'NONE' ? 'sim' : 'live'}`}>{srcLabel(q)}</span>
+                  <span className={`badge ${q.src === 'SIM' || q.src === 'STALE' || q.src === 'NONE' || q.src === 'UNCONFIRMED' ? 'sim' : 'live'}`}>{srcLabel(q)}</span>
                 </td>
               </tr>
             );

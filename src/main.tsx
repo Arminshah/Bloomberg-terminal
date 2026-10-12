@@ -7,6 +7,9 @@ import '@fontsource/ibm-plex-sans/latin-400.css';
 import '@fontsource/ibm-plex-sans/latin-600.css';
 import './styles/global.css';
 import { App } from './App';
+import { NoDataSource } from './components/NoDataSource';
+import { demoMode } from './data/demo';
+import { desktopData } from './data/live/yahoo';
 import { restoreCustomSecurities } from './data/live/lookup';
 import { enableRealOnly } from './data/live/sources';
 
@@ -17,8 +20,5 @@ enableRealOnly();
 
 if (import.meta.env.MODE === 'single') document.documentElement.classList.add('embedded');
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// The browser build runs only as a demo, and only once the user opens it.
+createRoot(document.getElementById('root')!).render(<StrictMode>{desktopData() || demoMode() ? <App /> : <NoDataSource />}</StrictMode>);

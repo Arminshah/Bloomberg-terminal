@@ -11,7 +11,7 @@ import { SNAPSHOT_AS_OF } from '../data/universe';
 import { execute } from '../terminal/exec';
 import { lookupSource, searchOnline, type OnlineHit } from '../data/live/lookup';
 import { lookupFn } from '../terminal/registry';
-import { flash, usePanelId } from '../terminal/panel';
+import { usePanelId } from '../terminal/panel';
 import { settings, type ClickAction } from '../terminal/settings';
 import { applyPreset, defaultTerminal, terminal } from '../terminal/state';
 import { PRESETS } from '../components/TopBar';
@@ -72,7 +72,7 @@ export function SECF({ route }: FnProps) {
             Search all US stocks ({source === 'yahoo' ? 'Yahoo Finance' : 'Finnhub'})
           </button>
         ) : (
-          <span className="muted hide-m">Add a Finnhub key in PDFU, or use the desktop app, to search every US stock</span>
+          <span className="muted hide-m">The desktop app searches every US stock</span>
         )}
       </div>
       {(online.busy || online.hits.length > 0 || online.error || (online.q && !online.busy)) && (
@@ -192,10 +192,8 @@ const TZS = [
 ];
 
 export function PDFU(_: FnProps) {
-  const panel = usePanelId();
   const s = settings.use((x) => x);
   const feeds = feedStatus.use((f) => f);
-  const [key, setKey] = useState(s.finnhubKey);
   const [confirmReset, setConfirmReset] = useState(false);
   const set = <K extends keyof typeof s>(k: K, v: (typeof s)[K]) => settings.set((x) => ({ ...x, [k]: v }));
   const feedRow = (name: string, state: string, detail?: string) => (
@@ -277,40 +275,10 @@ export function PDFU(_: FnProps) {
               {engine.realOnly
                 ? feedRow('Simulator', 'off', 'Off in the desktop app: every figure comes from a real source, and anything without one is left out')
                 : feedRow('Simulator', 'live', `Calibrated to closes as of ${SNAPSHOT_AS_OF}; runs every instrument`)}
-              {engine.realOnly ? null : feedRow('Crypto (Coinbase)', feeds.crypto, feeds.detail.crypto)}
-              {engine.realOnly ? null : feedRow('FX fixings (ECB via Frankfurter)', feeds.fx, feeds.detail.fx)}
-              {engine.realOnly ? null : feedRow('US equities (Finnhub)', feeds.equities, feeds.detail.equities)}
               {feedRow('Headlines', feeds.news, feeds.detail.news)}
             </tbody>
           </table>
-          {/* The browser's optional feeds; the desktop app has its own sources and needs no key. */}
-          {engine.realOnly ? null : (
-          <div className="pad" style={{ display: 'grid', gap: 8 }}>
-            <label className="fld" style={{ color: 'var(--text)' }}>
-              <input type="checkbox" checked={s.liveCrypto} onChange={(e) => set('liveCrypto', e.target.checked)} /> Stream real crypto prices
-            </label>
-            <label className="fld" style={{ color: 'var(--text)' }}>
-              <input type="checkbox" checked={s.liveFx} onChange={(e) => set('liveFx', e.target.checked)} /> Use real ECB FX history
-            </label>
-            <label className="fld" htmlFor="pdfu-key">
-              Finnhub API key
-              <input id="pdfu-key" className="inp" style={{ width: 230 }} type="password" autoComplete="off" value={key} placeholder="free key from finnhub.io" onChange={(e) => setKey(e.target.value.trim())} />
-              <button
-                type="button"
-                className="btn primary"
-                onClick={() => {
-                  set('finnhubKey', key);
-                  flash(panel, key ? 'Connecting to Finnhub…' : 'Finnhub disconnected', 'info');
-                }}
-              >
-                {key ? 'Connect' : 'Disconnect'}
-              </button>
-            </label>
-            <div className="note" style={{ padding: 0 }}>
-              With a key, US stocks quote live, real headlines join the news feed, and any US-listed stock that is not built in can be looked up by typing its ticker. The key never leaves this browser except in requests to Finnhub. The desktop app looks stocks up through Yahoo Finance without a key.
-            </div>
-          </div>
-          )}
+          <div className="note">Every provider, its state, terms and credentials: PROV &lt;GO&gt;.</div>
         </Section>
         <Section title="Workspace">
           <KV items={[['Panels', String(terminal.get().panels.length)], ['Layout', terminal.get().layout]]} />

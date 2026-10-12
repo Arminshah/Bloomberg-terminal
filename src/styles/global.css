@@ -798,3 +798,11 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
   .kv-cols { grid-template-columns: 1fr; }
   .cmd-msg { right: 44px; max-width: 70%; }
 }
+
+/* Browser build: no data source until the demo is opened; the demo says so on every screen. */
+.nodata { min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text); padding: 16px; }
+.nodata-box { max-width: 560px; border: 1px solid var(--line); background: var(--bg-2); padding: 20px 22px; line-height: 1.5; }
+.nodata-title { color: var(--amber); font-weight: 600; font-size: 16px; margin-bottom: 8px; }
+.nodata-box p { margin: 0 0 10px; }
+.demo-banner { display: flex; align-items: center; gap: 10px; padding: 3px 8px; background: #3a2a0a; color: var(--amber); font-size: var(--fs-s); border-bottom: 1px solid var(--amber); }
+.demo-banner .btn { margin-left: auto; padding: 0 6px; }

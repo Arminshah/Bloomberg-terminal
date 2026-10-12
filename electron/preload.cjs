@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   treasury: (year) => ipcRenderer.invoke('treasury', Number(year)),
   official: (source, since) => ipcRenderer.invoke('official', String(source), String(since)),
   fred: (kind, arg, from) => ipcRenderer.invoke('fred', String(kind), String(arg), String(from ?? '')),
+  // Provider status and credentials: values can be saved or cleared, never read back.
+  providersStatus: () => ipcRenderer.invoke('providers:status'),
+  providersSet: (name, value) => ipcRenderer.invoke('providers:set', String(name), String(value)),
+  providersClear: (name) => ipcRenderer.invoke('providers:clear', String(name)),
   streamOpen: () => ipcRenderer.invoke('stream:open'),
   streamSend: (msg) => ipcRenderer.invoke('stream:send', String(msg)),
   streamClose: () => ipcRenderer.invoke('stream:close'),

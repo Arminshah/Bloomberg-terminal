@@ -1,3 +1,4 @@
+import { BROWSER_FEEDS_ENABLED } from '../providers';
 import { createStore } from '../../core/store';
 import { engine } from '../market';
 import { DAY_MS, dayNum, dayToIso, isBusinessDay, isoToDay, prevBusinessDay } from '../calendar';
@@ -26,7 +27,10 @@ declare global {
       yahoo(path: string): Promise<{ status: number; data: unknown }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string }>;
-      fred?(kind: 'calendar' | 'series', arg: string, from?: string): Promise<{ status: number; text: string }>;
+      fred?(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string }>;
+      providersStatus?(): Promise<import('../providers').ProviderReport>;
+      providersSet?(name: string, value: string): Promise<{ ok: boolean; error?: string; credentials: import('../providers').ProviderReport['credentials'] }>;
+      providersClear?(name: string): Promise<{ ok: boolean; credentials: import('../providers').ProviderReport['credentials'] }>;
       streamOpen?(): Promise<void>;
       streamSend?(msg: string): Promise<void>;
       streamClose?(): Promise<void>;
@@ -52,7 +56,7 @@ export const customSecurities = createStore<{ defs: SecurityDef[] }>({ defs: [] 
 
 export function lookupSource(): LookupSource | null {
   if (typeof window !== 'undefined' && window.arminDesktop?.yahoo) return 'yahoo';
-  if (settings.get().finnhubKey.trim()) return 'finnhub';
+  if (BROWSER_FEEDS_ENABLED && settings.get().finnhubKey.trim()) return 'finnhub';
   return null;
 }
 
@@ -346,7 +350,7 @@ export function lookupSecurity(input: string): Promise<LookupResult> {
   const existing = engine.get(`${ticker} US Equity`);
   if (existing) return Promise.resolve({ ok: true, def: existing });
   const source = lookupSource();
-  if (!source) return Promise.resolve({ ok: false, reason: `${ticker} is not in the built-in list. Add a free Finnhub key in PDFU, or use the desktop app, to load any US stock` });
+  if (!source) return Promise.resolve({ ok: false, reason: `${ticker} is not in the built-in list. The desktop app looks up any US stock` });
   const pending = inflight.get(ticker);
   if (pending) return pending;
   const job = (async (): Promise<LookupResult> => {

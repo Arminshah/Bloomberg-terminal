@@ -22,7 +22,7 @@ function StoryView({ story, onBack }: { story: Story; onBack: () => void }) {
         <span>
           {fmtDate(story.time)} {fmtTime(story.time)}
         </span>
-        {story.real ? <span className="badge live">REAL NEWS</span> : <span className="badge sim">SIMULATED</span>}
+        {story.real ? <span className="badge live">REAL NEWS</span> : <span className="badge sim">DEMO DATA</span>}
       </div>
       <h2>{story.headline.replace(/^\*/, '')}</h2>
       {story.tickers.length > 0 && (
