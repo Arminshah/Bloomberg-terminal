@@ -208,10 +208,12 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
   const mcap = raw(pr, 'marketCap') ?? raw(sd, 'marketCap');
   const shares = (raw(ks, 'sharesOutstanding') ?? (mcap ? mcap / last : 0)) / 1e6;
   if (!(shares > 0)) return { error: `No company profile for ${ticker}` };
-  const rev = Math.max(0.1, (raw(fd, 'totalRevenue') ?? 0) / 1e6);
-  const ni = (raw(ks, 'netIncomeToCommon') ?? (raw(fd, 'profitMargins') ?? 0) * rev * 1e6) / 1e6;
+  // A figure the source does not give stays missing (NaN), never a default or an estimate.
+  const opt = (v: number | undefined) => (v == null ? NaN : v);
+  const rev = opt(raw(fd, 'totalRevenue')) / 1e6;
+  const ni = opt(raw(ks, 'netIncomeToCommon')) / 1e6;
   const fyeRaw = raw(ks, 'lastFiscalYearEnd');
-  const fye = fyeRaw ? new Date(fyeRaw * 1000).getUTCMonth() + 1 : 12;
+  const fye = fyeRaw ? new Date(fyeRaw * 1000).getUTCMonth() + 1 : NaN;
   const mrq = raw(ks, 'mostRecentQuarter');
   const nextEarn = r.calendarEvents?.earnings?.earningsDate?.[0]?.raw as number | undefined;
   let lag = 30;
@@ -221,23 +223,26 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
   }
   const ceo = (ap.companyOfficers ?? []).find((o: Json) => /chief executive|ceo/i.test(o?.title ?? ''));
   const sector = YAHOO_SECTOR[ap.sector] ?? sectorFromIndustry(ap.industry ?? '');
-  const book = (raw(ks, 'bookValue') ?? 0) * shares;
+  const book = opt(raw(ks, 'bookValue')) * shares;
+  const debt = raw(fd, 'totalDebt');
+  const cash = raw(fd, 'totalCash');
   const hq = ap.city ? `${ap.city}, ${ap.state ?? ap.country ?? ''}`.replace(/, $/, '') : '--';
   const name = (pr.longName ?? meta.longName ?? meta.shortName ?? ticker) as string;
   const eq: EquityInfo = {
     sector,
     industry: ap.industry ?? sector,
     shares,
-    beta: raw(ks, 'beta') ?? 1,
+    beta: opt(raw(ks, 'beta')),
     rev,
     ni,
-    dps: raw(sd, 'dividendRate') ?? raw(sd, 'trailingAnnualDividendRate') ?? 0,
-    emp: ap.fullTimeEmployees ?? 0,
+    // The indicated annual rate as the source gives it; without one it is unknown.
+    dps: opt(raw(sd, 'dividendRate')),
+    emp: opt(ap.fullTimeEmployees),
     hq,
     ceo: ceo ? cleanName(ceo.name) : undefined,
     fye,
-    netDebt: ((raw(fd, 'totalDebt') ?? 0) - (raw(fd, 'totalCash') ?? 0)) / 1e6,
-    book: book > 0 ? book : Math.max(1, (mcap ?? shares * last * 1e6) / 1e6 / 3),
+    netDebt: debt != null && cash != null ? (debt - cash) / 1e6 : NaN,
+    book,
     desc: shortDesc(ap.longBusinessSummary, `${name} is listed on ${YAHOO_EXCH[meta.exchangeName]}.`),
     lag,
   };

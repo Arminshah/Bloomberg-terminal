@@ -72,6 +72,25 @@ describe('securities from Yahoo Finance', () => {
     expect(Number.isFinite(keyStats(def).mcap)).toBe(true);
   });
 
+  it('leaves figures the source does not give missing instead of inventing them', () => {
+    const summary = fixture('yahoo-sofi-summary.json');
+    const r = summary.quoteSummary.result[0];
+    delete r.defaultKeyStatistics.beta;
+    delete r.defaultKeyStatistics.bookValue;
+    delete r.financialData.totalDebt;
+    delete r.assetProfile.fullTimeEmployees;
+    delete r.summaryDetail.dividendRate;
+    const built = defFromYahoo('SOFIX', fixture('yahoo-sofi-chart.json'), summary);
+    if ('error' in built) throw new Error(built.error);
+    const eq = built.def.eq!;
+    // Before, these read 1, a third of market cap, cash only, 0 and 0.
+    expect(eq.beta).toBeNaN();
+    expect(eq.book).toBeNaN();
+    expect(eq.netDebt).toBeNaN();
+    expect(eq.emp).toBeNaN();
+    expect(eq.dps).toBeNaN();
+  });
+
   it('rejects funds and non-US listings', () => {
     const chart = fixture('yahoo-sofi-chart.json');
     chart.chart.result[0].meta.instrumentType = 'ETF';

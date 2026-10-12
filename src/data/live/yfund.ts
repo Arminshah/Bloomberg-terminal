@@ -283,9 +283,8 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const nq = est('0q', (e) => fiscalQuarter(e, fye));
   const estimates = fy1 && fy2 && nq ? { fy1, fy2, nq } : null;
 
-  // Earnings: the last four reports and the next one
-  const lag = def.eq?.lag ?? 30;
-  // Report dates come with the earnings chart; without one the date is estimated from the quarter end.
+  // Earnings: the last four reports and the next one.
+  // Report dates come with the earnings chart; a report without one keeps an unknown date (never a guessed one).
   const reported = new Map<number, number>();
   for (const q of (r.earnings?.earningsChart?.quarterly ?? []) as Json[]) {
     const end = num(q?.periodEndDate) * 1000;
@@ -299,8 +298,8 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
       const at = reported.get(end);
       return {
         period: fiscalQuarter(end, fye),
-        date: at ?? end + lag * DAY_MS,
-        approx: at == null,
+        date: at ?? end,
+        dateUnknown: at == null,
         estimate: num(h.epsEstimate),
         actual: Number.isFinite(num(h.epsActual)) ? num(h.epsActual) : null,
         surprise: Number.isFinite(num(h.surprisePercent)) ? num(h.surprisePercent) * 100 : null,
@@ -315,9 +314,9 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const callDate = num(cal.earningsCallDate?.[0]) * 1000;
   const latest = earnings[earnings.length - 1];
   const latestEnd = num(eh[eh.length - 1]?.quarter) * 1000;
-  if (latest?.approx && callDate > latestEnd && callDate - latestEnd < 120 * DAY_MS) {
+  if (latest?.dateUnknown && callDate > latestEnd && callDate - latestEnd < 120 * DAY_MS) {
     latest.date = callDate;
-    latest.approx = false;
+    latest.dateUnknown = false;
     latest.timing = def.country === 'US' ? usTiming(callDate) : '--';
   }
   const nextDate = num(cal.earningsDate?.[0]) * 1000;
@@ -447,7 +446,7 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   if (bsSource && Number.isFinite(bsSource.debt)) eq.netDebt = bsSource.debt - (Number.isFinite(bsSource.cash) ? bsSource.cash : 0);
   // The source gives the annual rate in the main unit (pounds), while the line is quoted in pence.
   const dr = num(r.summaryDetail?.dividendRate);
-  eq.dps = Number.isFinite(dr) ? (def.minor ? dr * 100 : dr) : 0;
+  eq.dps = Number.isFinite(dr) ? (def.minor ? dr * 100 : dr) : NaN;
 }
 
 function timeseriesPath(symbol: string, prefix: string, types: string[], now: number): string {

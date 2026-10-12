@@ -43,7 +43,7 @@ export function DVD({ sec }: FnProps) {
             <Section title="Summary">
               <KV
                 items={[
-                  ['Indicated annual', `${fmtNum(s.eq!.dps, 2)} ${ccy}`],
+                  ['Indicated annual', Number.isFinite(s.eq!.dps) ? `${fmtNum(s.eq!.dps, 2)} ${ccy}` : '--'],
                   ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
                   ['Payout ratio', fmtPct(ks.payout, 1, false)],
                   ['Frequency', list[0].freq],

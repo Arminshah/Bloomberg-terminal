@@ -126,7 +126,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Chief executive', eq.ceo ?? '--'],
               ['Founded', eq.founded ? String(eq.founded) : '--'],
               ['Employees', eq.emp > 0 ? fmtInt(eq.emp) : '--'],
-              ['Fiscal year end', ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][eq.fye - 1]],
+              ['Fiscal year end', ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][eq.fye - 1] ?? '--'],
               ['Primary exchange', sec.exch ?? '--'],
             ]}
           />
@@ -159,7 +159,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['EV / EBITDA', fmtNum(ks.evEbitda, 1)],
               ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
               ['Payout ratio', fmtPct(ks.payout, 1, false)],
-              ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : 'decl.'})` : sec.eq!.dps > 0 ? '--' : 'None'],
+              ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : 'decl.'})` : sec.eq!.dps === 0 ? 'None' : '--'],
               ['EPS LTM', `${fmtNum(ks.epsLtm, 2)} ${ccy}`],
               ['EPS est. FY1 / FY2', `${fmtNum(ks.epsFy1, 2)} / ${fmtNum(ks.epsFy2, 2)}`],
               ['Next earnings', ne ? fmtEarnDate(ne) : '--'],

@@ -44,7 +44,8 @@ export function EVTS({ sec }: FnProps) {
     for (const d of secs) {
       const realEarnings = !!getRealFund(d.id) || yahooQuotes.has(d.id) || engine.isExternal(d.id);
       for (const e of earningsEvents(d)) {
-        if (e.date >= from && e.date <= to) {
+        // A report whose date the source does not give has no place on a calendar.
+        if (!e.dateUnknown && e.date >= from && e.date <= to) {
           list.push({ date: e.date, id: d.id, kind: 'Earnings', detail: e.period ? `${e.period} results` : 'Earnings release', est: e.estimate, act: e.actual, surprise: e.surprise, timing: e.timing, approx: e.approx, sim: !realEarnings });
         }
       }

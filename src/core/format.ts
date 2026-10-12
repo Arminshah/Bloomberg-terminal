@@ -122,8 +122,9 @@ export function fmtDay(ms: number, long = false): string {
   return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())}/${y}`;
 }
 
-/** Earnings report date. "~" marks a date estimated from the quarter end; an unknown time of day is left out. */
-export function fmtEarnDate(e: { date: number; approx?: boolean; timing?: string }, withTiming = true): string {
+/** Earnings report date. "~" marks a date the source calls an estimate; an unknown date or time of day is left out. */
+export function fmtEarnDate(e: { date: number; approx?: boolean; dateUnknown?: boolean; timing?: string }, withTiming = true): string {
+  if (e.dateUnknown) return '--';
   const time = withTiming && e.timing && e.timing !== '--' ? ` ${e.timing}` : '';
   return `${e.approx ? '~' : ''}${fmtDay(e.date)}${time}`;
 }

@@ -37,7 +37,8 @@ const COMMODITY_FACTORS: Record<string, [string, number][]> = {
 const US_SLOPE: Record<number, number> = { 0.25: -0.4, 0.5: -0.38, 1: -0.33, 2: -0.25, 3: -0.16, 5: 0, 7: 0.1, 10: 0.2, 20: 0.3, 30: 0.35 };
 
 function equityLoadings(def: SecurityDef): [string, number][] {
-  const beta = Math.min(Math.max(def.eq!.beta, 0.3), 2.2);
+  // The simulator's own loading; a beta the source does not give counts as 1 here and is never shown.
+  const beta = Math.min(Math.max(Number.isFinite(def.eq!.beta) ? def.eq!.beta : 1, 0.3), 2.2);
   const g = 0.42 * Math.sqrt(beta);
   return [['G', g], [REGION_FACTOR[def.region], 0.42], [`SEC:${def.eq!.sector}`, 0.38]];
 }

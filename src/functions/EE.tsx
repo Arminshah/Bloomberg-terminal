@@ -75,7 +75,7 @@ export function EE({ sec }: FnProps) {
           yFormat={(v) => fmtNum(v, 2)}
         />
       </Section>
-      <Section title="Earnings history" right={hist.some((h) => h.approx) ? '~ estimated date' : undefined}>
+      <Section title="Earnings history" right={hist.some((h) => h.approx) ? '~ date the source marks as estimated' : hist.some((h) => h.dateUnknown) ? '-- report date not given by the source' : undefined}>
         <table className="tbl zebra">
           <thead>
             <tr>

@@ -417,8 +417,10 @@ export interface EarningsEvent {
   timing: 'Bef-mkt' | 'Aft-mkt' | '--';
   revEst: number;
   revAct: number | null;
-  /** Report date estimated from the quarter end (the data source gives the quarter, not the day). */
+  /** A date the source itself marks as an estimate (an upcoming report not yet confirmed). */
   approx?: boolean;
+  /** The source gives the quarter but not the report date: `date` is the quarter end, for ordering only. */
+  dateUnknown?: boolean;
 }
 
 /** Past reports plus the next scheduled one: real when loaded, otherwise generated. */
