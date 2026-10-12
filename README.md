@@ -29,7 +29,7 @@ Most sources need no key. These do, and each is optional:
 
 | Key | What it enables | Where to get it |
 | --- | --- | --- |
-| `FRED_API_KEY` | US economic releases in `ECO`, US, Japan, Canada and Australia figures in `ECST` | Free from [fredaccount.stlouisfed.org](https://fredaccount.stlouisfed.org) |
+| `FRED_API_KEY` | US economic releases in `ECO`, US, Japan, Canada and Australia figures in `ECST` | Free from [fredaccount.stlouisfed.org](https://fredaccount.stlouisfed.org). The app uses FRED API version 1, which takes the key as the `api_key` parameter. |
 | `MASSIVE_API_KEY` | US end-of-day history from Massive (planned, not used yet) | Free Stocks Basic plan at [massive.com](https://massive.com/pricing?product=stocks) |
 | `SEC_USER_AGENT` | SEC filings (planned, not used yet). The SEC asks every client to give a name and a contact email it can reach. | Your own, for example `Armin Terminal your-address@your-domain` |
 

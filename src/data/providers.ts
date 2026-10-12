@@ -274,10 +274,11 @@ export const PROVIDERS: ProviderDef[] = [
     credential: 'FRED_API_KEY',
     feed: 'eco',
     limit: '60',
-    terms: 'Each user needs their own API key; the site terms rule out scraping. Cite FRED and the original source; series marked Copyrighted are for personal use only without the owner\'s permission.',
+    terms: 'Each user needs their own API key; the site terms rule out scraping. Cite FRED and the original source; series marked Copyrighted are for personal use only without the owner\'s permission. API version 1 allows up to 120 requests a minute; the app sends at most 60.',
     docs: [
       { label: 'FRED API', url: 'https://fred.stlouisfed.org/docs/api/fred/' },
-      { label: 'API keys', url: 'https://fred.stlouisfed.org/docs/api/api_key.html' },
+      { label: 'API keys (version 1)', url: 'https://fred.stlouisfed.org/docs/api/api_key.html' },
+      { label: 'Errors and rate limit', url: 'https://fred.stlouisfed.org/docs/api/fred/errors.html' },
       { label: 'API terms of use', url: 'https://fred.stlouisfed.org/docs/api/terms_of_use.html' },
       { label: 'FRED terms', url: 'https://fred.stlouisfed.org/legal/' },
     ],

@@ -7,6 +7,7 @@ export function clearCredential(name: string): void;
 export function recordRequest(provider: string): void;
 export function recordResult(provider: string, status: number, err?: unknown): void;
 export function recordProblem(provider: string, kind: string, message: string): void;
+export function providerMessage(text: string, secrets?: string[]): string;
 export function providerStats(): Record<string, { lastMinute: number; total: number; lastSuccessAt: number | null; lastErrorAt: number | null; lastError: string | null; lastErrorKind: string | null }>;
 export function slot(provider: string, max: number, windowMs: number): Promise<void>;
 export function parseDotEnv(text: string): Record<string, string>;

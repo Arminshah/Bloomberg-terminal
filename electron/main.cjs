@@ -246,10 +246,23 @@ ipcMain.handle('fred', async (event, kind, arg, from) => {
   } else throw new Error('not allowed');
   const key = providers.credential('FRED_API_KEY').value;
   if (!key) return { status: 0, text: '', missing: 'FRED_API_KEY' };
-  // FRED publishes no fixed rate; the app keeps itself to one request a second on average.
+  if (!providers.CREDENTIALS.FRED_API_KEY.valid(key)) {
+    const why = 'The configured key is not 32 lowercase letters and digits, so it was not sent.';
+    providers.recordProblem('fred', 'not-entitled', why);
+    return { status: 0, text: '', refused: why };
+  }
+  // API version 1, which takes the key as the api_key parameter. FRED allows up
+  // to 120 requests a minute (its errors page); the app keeps to half that.
   await providers.slot('fred', 60, 60_000);
   const res = await tracked('fred', `${url}&api_key=${encodeURIComponent(key)}`, { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(20_000) });
-  return { status: res.status, text: res.ok ? await res.text() : '' };
+  if (res.ok) return { status: res.status, text: await res.text() };
+  // FRED explains a failure in the body, for example "The value for variable
+  // api_key is not registered." Keep that explanation, without the key.
+  const why = providers.providerMessage(await res.text().catch(() => ''), [key]);
+  const refused = res.status === 400 && /api_key/i.test(why);
+  if (why) providers.recordProblem('fred', refused ? 'not-entitled' : providers.errorKind(res.status), `HTTP ${res.status}: ${why}`);
+  // 429 and 423: FRED is throttling; the caller stops and tries again later.
+  return { status: res.status, text: '', ...(refused ? { refused: why } : {}), ...(res.status === 429 || res.status === 423 ? { throttled: true } : {}) };
 });
 
 // ------------------------------------------------------------------ Stream

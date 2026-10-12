@@ -46,6 +46,7 @@ export function ECO(_: FnProps) {
   const [ctry, setCtry] = useState<string[]>(countries);
   fredData.use((x) => x.loaded);
   const needsKey = fredData.use((x) => x.needsKey);
+  const keyRefused = fredData.use((x) => x.keyRefused);
   const [minRel, setMinRel] = useState(1);
   const today = newYorkDate(now);
   const start = weekStart(now) + (week - 2) * 7 * DAY_MS;
@@ -132,7 +133,13 @@ export function ECO(_: FnProps) {
           {events.length === 0 && (
             <tr>
               <td colSpan={real ? 7 : 9} className="empty">
-                {real && needsKey ? 'US releases need your free FRED API key: add it in PROV (fredaccount.stlouisfed.org issues one in a minute).' : real && !fredData.get().loaded ? 'Loading the release calendar from FRED…' : 'No events for the selected filters.'}
+                {real && keyRefused
+                  ? `The FRED API key was not accepted: ${keyRefused} Check the key in PROV.`
+                  : real && needsKey
+                    ? 'US releases need your free FRED API key (from fredaccount.stlouisfed.org): add it in PROV.'
+                    : real && !fredData.get().loaded
+                      ? 'Loading the release calendar from FRED…'
+                      : 'No events for the selected filters.'}
               </td>
             </tr>
           )}

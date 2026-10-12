@@ -162,6 +162,26 @@ function recordProblem(provider, kind, message) {
   s.lastError = String(message).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160);
 }
 
+/**
+ * The provider's own explanation of a failed request, from an error body such
+ * as FRED's {"error_code":400,"error_message":"..."} or <error message="..."/>.
+ * Secret values and URLs are removed; '' when the body explains nothing.
+ */
+function providerMessage(text, secrets = []) {
+  let msg = '';
+  try {
+    const j = JSON.parse(text);
+    msg = typeof j?.error_message === 'string' ? j.error_message : typeof j?.message === 'string' ? j.message : '';
+  } catch {
+    msg = /<error\b[^>]*\bmessage="([^"]*)"/.exec(String(text))?.[1] ?? '';
+  }
+  for (const s of secrets) if (s) msg = msg.split(s).join('<key>');
+  msg = msg.replace(/https?:\/\/\S+/g, '<url>').replace(/\s+/g, ' ').trim();
+  // "Read <url> for more information." says nothing once the link is gone.
+  const sentences = msg.split(/(?<=\.) /).filter((x) => !x.includes('<url>'));
+  return (sentences.length ? sentences.join(' ') : msg).slice(0, 160);
+}
+
 function providerStats() {
   const now = Date.now();
   const out = {};
@@ -200,4 +220,4 @@ function slot(provider, max, windowMs) {
   return next;
 }
 
-module.exports = { CREDENTIALS, credential, credentialStatus, saveCredential, clearCredential, recordRequest, recordResult, recordProblem, providerStats, slot, parseDotEnv, errorKind };
+module.exports = { CREDENTIALS, credential, credentialStatus, saveCredential, clearCredential, recordRequest, recordResult, recordProblem, providerMessage, providerStats, slot, parseDotEnv, errorKind };

@@ -21,9 +21,11 @@ export interface FredState {
   loaded: boolean;
   /** True when the FRED API key is not configured, so nothing from FRED loads. */
   needsKey: boolean;
+  /** FRED's reason for refusing the configured key, '' when it has not refused it. */
+  keyRefused: string;
 }
 
-export const fredData = createStore<FredState>({ series: {}, releases: {}, loaded: false, needsKey: false });
+export const fredData = createStore<FredState>({ series: {}, releases: {}, loaded: false, needsKey: false, keyRefused: '' });
 
 export type Calc = 'level' | 'diff' | 'mom' | 'yoy';
 export type Freq = 'm' | 'q' | 'w';
@@ -228,15 +230,31 @@ export function fredAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.fred === 'function';
 }
 
-/** The answer to one FRED request, '' when it fails, or null when no API key is configured. */
-async function get(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<string | null> {
+/** Why a pass over FRED stops early: no key, a key FRED refused, or FRED throttling requests. */
+interface Stop {
+  stop: 'missing' | 'refused' | 'throttled';
+  why?: string;
+}
+
+/** The answer to one FRED request ('' when it fails), or why to stop asking for now. */
+async function get(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<string | Stop> {
   try {
     const res = await window.arminDesktop!.fred!(kind, arg, from);
-    if (res.missing) return null;
+    if (res.missing) return { stop: 'missing' };
+    if (res.refused) return { stop: 'refused', why: res.refused };
+    if (res.throttled) return { stop: 'throttled' };
     return res.status === 200 ? res.text : '';
   } catch {
     return '';
   }
+}
+
+/** The key flags after a pass: a missing or refused key sets them, a pass that got through clears them, throttling leaves them. */
+export function keyState(s: Pick<FredState, 'needsKey' | 'keyRefused'>, stop: Stop | null): Pick<FredState, 'needsKey' | 'keyRefused'> {
+  if (!stop) return { needsKey: false, keyRefused: '' };
+  if (stop.stop === 'missing') return { needsKey: true, keyRefused: '' };
+  if (stop.stop === 'refused') return { needsKey: false, keyRefused: stop.why || 'FRED did not accept it.' };
+  return { needsKey: s.needsKey, keyRefused: s.keyRefused };
 }
 
 /** Every FRED series the app reads: the US releases and the OECD figures for Japan, Canada and Australia. */
@@ -293,12 +311,12 @@ const periodNames = new Map<string, string>();
 async function loadSeries(): Promise<boolean> {
   const series = { ...fredData.get().series };
   let any = false;
-  let needsKey = false;
+  let stop: Stop | null = null;
   const official = loadOfficialStats(series);
   for (const id of fredSeriesIds()) {
     const text = await get('observations', id);
-    if (text === null) {
-      needsKey = true;
+    if (typeof text !== 'string') {
+      stop = text;
       break;
     }
     const obs = parseFredObservations(text);
@@ -309,7 +327,7 @@ async function loadSeries(): Promise<boolean> {
   }
   await official;
   any ||= Object.keys(series).some((id) => id.includes(':'));
-  fredData.set((s) => ({ ...s, series, loaded: s.loaded || any, needsKey }));
+  fredData.set((s) => ({ ...s, series, loaded: s.loaded || any, ...keyState(s, stop) }));
   return any;
 }
 
@@ -319,11 +337,12 @@ async function loadCalendars(): Promise<boolean> {
   const rids = [...new Set(US_EVENTS.map((e) => e.rid))];
   const releases = { ...fredData.get().releases };
   let any = false;
+  let stop: Stop | null = null;
   for (const rid of rids) {
     const text = await get('release-dates', String(rid), from);
-    if (text === null) {
-      fredData.set((s) => ({ ...s, needsKey: true }));
-      return false;
+    if (typeof text !== 'string') {
+      stop = text;
+      break;
     }
     const dates = parseFredReleaseDates(text, rid);
     if (dates.length) {
@@ -331,7 +350,7 @@ async function loadCalendars(): Promise<boolean> {
       any = true;
     }
   }
-  if (any) fredData.set((s) => ({ ...s, releases, needsKey: false }));
+  fredData.set((s) => ({ ...s, releases, ...keyState(s, stop) }));
   return any;
 }
 
@@ -342,7 +361,11 @@ export function reloadFred() {
   reload?.();
 }
 
-/** Loads release dates (every 12 hours) and series values (every 10 minutes); retries every 2 minutes until both answer. */
+/**
+ * Loads release dates (every 12 hours) and series values (every 10 minutes);
+ * retries every 2 minutes until both answer, except while the key is missing or
+ * refused: then asking again cannot help, and saving a key in PROV loads again.
+ */
 export function startFred(): () => void {
   if (!fredAvailable()) return () => undefined;
   setFeed('eco', 'connecting', 'FRED API (St. Louis Fed), ONS and Eurostat');
@@ -353,6 +376,7 @@ export function startFred(): () => void {
     const fredOk = Object.keys(s.releases).length > 0 && US_EVENTS.some((e) => s.series[e.series]?.length);
     const officialOk = Object.keys(s.series).some((id) => id.includes(':'));
     if (fredOk) setFeed('eco', 'live', 'US releases and values from the FRED API; UK and euro area statistics from the ONS and Eurostat');
+    else if (s.keyRefused) setFeed('eco', officialOk ? 'live' : 'blocked', `The FRED API key was not accepted (check it in PROV)${officialOk ? '; ONS and Eurostat statistics are live' : ''}`);
     else if (s.needsKey) setFeed('eco', officialOk ? 'live' : 'blocked', `FRED needs your API key (open PROV to add it)${officialOk ? '; ONS and Eurostat statistics are live' : ''}`);
     else setFeed('eco', officialOk ? 'live' : 'error', officialOk ? 'FRED unavailable; ONS and Eurostat statistics are live' : 'Economic data sources unavailable');
     return fredOk;
@@ -362,7 +386,8 @@ export function startFred(): () => void {
     retry = null;
     await Promise.all([loadCalendars(), loadSeries()]);
     if (stopped) return;
-    if (!report()) retry = setTimeout(() => void first(), 120_000);
+    const { needsKey, keyRefused } = fredData.get();
+    if (!report() && !needsKey && !keyRefused) retry = setTimeout(() => void first(), 120_000);
   };
   reload = () => void first();
   void first();

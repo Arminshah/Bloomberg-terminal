@@ -42,6 +42,18 @@ describe('provider accounting', () => {
     expect(s.lastError).toContain('<url>');
   });
 
+  it('keeps the provider\'s own explanation of a failure, without the key or links', () => {
+    // FRED's answer to a request without a key, as received on 12 October 2026 (HTTP 400).
+    expect(providers.providerMessage('{"error_code":400,"error_message":"Bad Request.  Variable api_key is not set.  Read https:\\/\\/fred.stlouisfed.org\\/docs\\/api\\/api_key.html for more information."}')).toBe('Bad Request. Variable api_key is not set.');
+    // An unregistered key, from FRED's errors page, in JSON and XML.
+    expect(providers.providerMessage('{"error_code":400,"error_message":"Bad Request.  The value for variable api_key is not registered.  Read https://fred.stlouisfed.org/docs/api/api_key.html for more information."}')).toBe('Bad Request. The value for variable api_key is not registered.');
+    expect(providers.providerMessage('<error code="400" message="Bad Request.  Variable api_key has not been set."/>')).toBe('Bad Request. Variable api_key has not been set.');
+    // A message that repeats the key loses it.
+    const key = 'abcdefghijklmnopqrstuvwxyz123456';
+    expect(providers.providerMessage(`{"error_message":"Key ${key} is unknown."}`, [key])).toBe('Key <key> is unknown.');
+    expect(providers.providerMessage('<html>Server error</html>')).toBe('');
+  });
+
   it('spaces requests to stay under a limit', async () => {
     const t0 = Date.now();
     await Promise.all([0, 1, 2].map(() => providers.slot('limit-test', 2, 300)));

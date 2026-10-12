@@ -218,7 +218,7 @@ describe('fed funds futures path', () => {
   });
 });
 
-import { eventDates, expectedPeriod, parseFredObservations, parseFredReleaseDates, periodLabel, previousPeriod, US_EVENTS, valueAt, type Obs } from '../src/data/live/fred';
+import { eventDates, expectedPeriod, keyState, parseFredObservations, parseFredReleaseDates, periodLabel, previousPeriod, US_EVENTS, valueAt, type Obs } from '../src/data/live/fred';
 import fredMonthly from './fixtures/fred-us-monthly.csv?raw';
 import fredMonthly2 from './fixtures/fred-us-monthly2.csv?raw';
 import fredQuarterly from './fixtures/fred-us-quarterly.csv?raw';
@@ -296,6 +296,16 @@ describe('FRED releases', () => {
     expect(eventDates(ev('Durable Goods Orders MoM'), dates)).toEqual(['2026-10-27']);
     expect(eventDates(ev('Factory Orders MoM'), dates)).toEqual(['2026-10-02']);
     expect(eventDates(ev('CPI MoM'), dates)).toEqual(dates);
+  });
+
+  it('keeps track of whether FRED has a key it accepts', () => {
+    const fine = { needsKey: false, keyRefused: '' };
+    expect(keyState(fine, { stop: 'missing' })).toEqual({ needsKey: true, keyRefused: '' });
+    const refused = keyState(fine, { stop: 'refused', why: 'Bad Request. The value for variable api_key is not registered.' });
+    expect(refused).toEqual({ needsKey: false, keyRefused: 'Bad Request. The value for variable api_key is not registered.' });
+    // Throttling says nothing about the key; a pass that gets through clears both flags.
+    expect(keyState(refused, { stop: 'throttled' })).toEqual(refused);
+    expect(keyState(refused, null)).toEqual(fine);
   });
 });
 

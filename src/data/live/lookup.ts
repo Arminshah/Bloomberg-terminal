@@ -27,7 +27,7 @@ declare global {
       yahoo(path: string): Promise<{ status: number; data: unknown }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string }>;
-      fred?(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string }>;
+      fred?(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
       providersStatus?(): Promise<import('../providers').ProviderReport>;
       providersSet?(name: string, value: string): Promise<{ ok: boolean; error?: string; credentials: import('../providers').ProviderReport['credentials'] }>;
       providersClear?(name: string): Promise<{ ok: boolean; credentials: import('../providers').ProviderReport['credentials'] }>;
