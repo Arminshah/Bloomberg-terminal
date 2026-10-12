@@ -2,7 +2,7 @@
   "name": "armin-terminal",
   "private": true,
   "version": "1.1.0",
-  "description": "A Bloomberg-style market terminal for the browser and Windows desktop: command line, yellow keys, panels, charts and 66 functions on a calibrated simulated market with optional live feeds.",
+  "description": "A Bloomberg-style research terminal for private use: a Windows desktop app on real data from free public sources, with command line, yellow keys, panels, charts and 67 functions, plus an opt-in browser demo.",
   "author": "Armin",
   "homepage": "https://github.com/arminshah/bloomberg-terminal",
   "type": "module",

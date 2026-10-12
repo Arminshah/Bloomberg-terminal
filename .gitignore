@@ -8,3 +8,8 @@ playwright-report
 .DS_Store
 .vite
 release
+
+# Provider keys and local data never go into the repository
+.env
+.env.*
+!.env.example

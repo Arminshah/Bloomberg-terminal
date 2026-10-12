@@ -46,7 +46,7 @@ const COMMANDS: [string, string][] = [
   ['FXC', 'FXC'], ['WCRS', 'WCRS'], ['CRYP', 'CRYP'], ['WB', 'WB'], ['GC', 'GC'], ['BTMM', 'BTMM'], ['CT10 GOVT YAS', 'YAS'],
   ['WIRP', 'WIRP'], ['GLCO', 'GLCO'], ['ECO', 'ECO'], ['ECST', 'ECST'], ['NVDA OMON', 'OMON'], ['NVDA OVME', 'OVME'],
   ['W', 'W'], ['PORT', 'PORT'], ['ALRT', 'ALRT'], ['SECF', 'SECF'], ['LAST', 'LAST'], ['LPAD', 'LPAD'], ['IB', 'IB'],
-  ['PDFU', 'PDFU'], ['HELP', 'HELP'], ['EURUSD CRNCY DES', 'DES'], ['SPX INDEX DES', 'DES'], ['CL1 CMDTY DES', 'DES'],
+  ['PDFU', 'PDFU'], ['PROV', 'PROV'], ['HELP', 'HELP'], ['EURUSD CRNCY DES', 'DES'], ['SPX INDEX DES', 'DES'], ['CL1 CMDTY DES', 'DES'],
   ['USGG10YR INDEX DES', 'DES'], ['XBTUSD CRNCY DES', 'DES'], ['CT2 GOVT DES', 'DES'], ['USGG10YR INDEX HS', 'HS'], ['AAPL NOTE', 'NOTE'],
   ['IBM US EQUITY', 'MENU'], ['EQUITY', 'EQUITY'], ['GOVT', 'GOVT'], ['CORP', 'CORP'], ['CRNCY', 'CRNCY'], ['MTGE', 'MTGE'], ['MENU', 'MENU'],
   ['AAPL CORP', 'SRCH'], ['JPM CORP DDIS', 'DDIS'], ['AAPL 4.65 02/23/46 CORP DES', 'DES'], ['AAPL 4.65 02/23/46 CORP YAS', 'YAS'],
@@ -113,9 +113,9 @@ test('bad commands explain themselves', async ({ page }) => {
   await expect(page.locator('.cmd-msg.error')).toContainText('Unknown');
   await run(page, 'EURUSD CRNCY FA');
   await expect(page.locator('.cmd-msg.error')).toContainText('not available');
-  // Without a Finnhub key the browser explains how to load stocks that are not built in.
+  // The browser demo cannot look stocks up and says where to do it.
   await run(page, '$SOFI');
-  await expect(page.locator('.cmd-msg.error')).toContainText('Finnhub key');
+  await expect(page.locator('.cmd-msg.error')).toContainText('the desktop app looks up any US stock');
 });
 
 test('watchlist add and alert creation persist', async ({ page }) => {
