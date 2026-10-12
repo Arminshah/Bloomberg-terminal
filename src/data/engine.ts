@@ -1433,7 +1433,7 @@ export class MarketEngine {
     ext.open = q.marketOpen;
     ext.session = day;
     // Keep the intraday series current between bar refreshes.
-    const it = ext.intra;
+    let it = ext.intra;
     if (it.length > 0 && q.marketOpen) {
       let k = it.length - 1;
       while (q.time >= it.t[k] + it.span) {
@@ -1441,20 +1441,18 @@ export class MarketEngine {
           const bigger = makeSeries(it.t.length * 2, it.span);
           for (const f of ['t', 'o', 'h', 'l', 'c', 'v'] as const) bigger[f].set(it[f]);
           bigger.length = it.length;
-          ext.intra = bigger;
+          ext.intra = it = bigger;
         }
-        const ns = ext.intra;
-        ns.t[k + 1] = ns.t[k] + ns.span;
-        ns.o[k + 1] = ns.h[k + 1] = ns.l[k + 1] = ns.c[k + 1] = ns.c[k];
-        ns.v[k + 1] = 0;
-        ns.length = k + 2;
+        it.t[k + 1] = it.t[k] + it.span;
+        it.o[k + 1] = it.h[k + 1] = it.l[k + 1] = it.c[k + 1] = it.c[k];
+        it.v[k + 1] = 0;
+        it.length = k + 2;
         k++;
       }
-      const ns = ext.intra;
-      ns.c[k] = q.last;
-      ns.h[k] = Math.max(ns.h[k], q.last);
-      ns.l[k] = Math.min(ns.l[k], q.last);
-      if (dv > 0) ns.v[k] += dv;
+      it.c[k] = q.last;
+      it.h[k] = Math.max(it.h[k], q.last);
+      it.l[k] = Math.min(it.l[k], q.last);
+      if (dv > 0) it.v[k] += dv;
     }
     if (newSession) {
       st.dailyKey = `ext:${++ext.seq}`;

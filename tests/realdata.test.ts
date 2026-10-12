@@ -241,3 +241,21 @@ describe('official rates', () => {
     policyRates.set({});
   });
 });
+
+describe('real quotes during a session', () => {
+  it('extends the intraday series minute by minute past its first capacity', () => {
+    const id = 'CCY:CHF';
+    const today = engine.today;
+    engine.setExternalDaily(id, [
+      { day: today - 2, o: 1.24, h: 1.25, l: 1.23, c: 1.245, v: 0 },
+      { day: today - 1, o: 1.245, h: 1.26, l: 1.24, c: 1.25, v: 0 },
+    ]);
+    const start = (today - 1) * DAY_MS;
+    // 24 hours of quotes, one a minute: more bars than the series starts with.
+    for (let m = 0; m < 1440; m++) engine.setExternalQuote(id, { last: 1.25 + m / 1e6, time: start + m * 60_000, day: today - 1, marketOpen: true });
+    const s = engine.intraday(id);
+    expect(s.length).toBe(1440);
+    expect(s.c[s.length - 1]).toBeCloseTo(1.25 + 1439 / 1e6, 9);
+    for (let i = 1; i < s.length; i++) expect(s.t[i] - s.t[i - 1]).toBe(60_000);
+  });
+});
