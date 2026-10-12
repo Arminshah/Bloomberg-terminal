@@ -106,7 +106,8 @@ The desktop app fetches everything through its own process, so it needs no keys 
 
 | Data | Source | Screens |
 | --- | --- | --- |
-| Quotes, daily history (10 years), intraday one-minute bars, dividends and splits for stocks, indices, US index futures, commodities, currencies and crypto | Yahoo Finance | Every price screen, `GP`, `GIP`, `HP`, `BQ`, `W`, `WEI`, `IMAP`, `DVD` |
+| Quotes, daily history (10 years), intraday one-minute bars, dividends and splits for stocks, indices, US index futures, commodities and currencies | Yahoo Finance | Every price screen, `GP`, `GIP`, `HP`, `BQ`, `W`, `WEI`, `IMAP`, `DVD` |
+| Crypto prices and candles | Coinbase (Yahoo Finance when crypto streaming is off in `PDFU`) | `CRYP`, every price screen |
 | Financial statements, estimates, earnings dates and surprises, analyst ratings and price targets by firm, institutional and fund holders, company profile and key ratios | Yahoo Finance | `DES`, `FA`, `GF`, `EE`, `ANR`, `HDS`, `RV`, `EQS`, `EVTS`, `WACC` |
 | Listed option chains: expiries, strikes, bid, offer, last, volume, open interest and implied volatility | Yahoo Finance | `OMON`, `HVT`, `OVME` from a quote |
 | Company and market headlines with links to the publisher | Yahoo Finance | `TOP`, `N`, `CN`, `BQ` |
@@ -116,7 +117,7 @@ The desktop app fetches everything through its own process, so it needs no keys 
 
 Prices stop moving when their market is closed and show the last session's change, the way a real terminal does; the quote strip says CLOSE, and LIVE during the session. Yahoo labels its US stock prices real time (Nasdaq last sale); other exchanges and futures can be delayed 15 to 20 minutes, and option quotes are delayed 15 minutes. The 5, 10 and 30-year Treasury yields update live; the other tenors show the Treasury's official close (marked EOD). Yahoo gives volume rather than individual trades, so `TAS` shows the volume traded between updates. Greeks in `OMON` are computed from each contract's own implied volatility, since Yahoo publishes none.
 
-Some things have no free source and stay simulated in the desktop app, marked SIM or SIMULATED where they appear: order book depth (built around the real best bid and offer), non-US government yields, index futures outside the US (modelled at fair value to the real index), bond prices (modelled off the real Treasury curve plus an issuer spread), dealer quotes in `ALLQ`, economic releases other than central bank decisions, policy rates other than the four banks above, FX forward points and swap rates (models), the readership ranking in `READ` and the chat desks in `IB`.
+Some things have no free source and stay simulated in the desktop app, marked SIM or SIMULATED where they appear: order book depth (built around the real best bid and offer), non-US government yields, index futures outside the US (modelled at fair value to the real index), bond prices (modelled off the real Treasury curve plus an issuer spread), dealer quotes in `ALLQ`, economic releases other than central bank decisions, policy rates other than the four banks above, FX forward points and swap rates (models), the readership ranking in `READ` and the chat desks in `IB`. The CSI 300 index and the offshore yuan also stay simulated, because Yahoo returns no price history for them.
 
 ### Browser: simulated market
 
