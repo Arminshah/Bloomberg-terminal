@@ -470,13 +470,29 @@ function pump() {
   }
 }
 
+/** Company data older than this is loaded again the next time a screen asks for it. */
+export const FUND_TTL = 6 * 3600_000;
+
 /**
- * Loads a company's real data once per session (desktop only). `front` puts it
- * ahead of queued peers, for the security the user is looking at.
+ * True when a company's data should be loaded again: after 6 hours, or every
+ * hour once a report it was waiting for is due (statements, EPS, estimates and
+ * the next report date change then).
+ */
+export function fundDue(fund: Pick<RealFund, 'fetched' | 'earnings'>, now: number): boolean {
+  if (now - fund.fetched >= FUND_TTL) return true;
+  const pending = fund.earnings.find((e) => e.actual == null && !e.dateUnknown && Number.isFinite(e.date));
+  return !!pending && pending.date <= now && now - fund.fetched >= 3600_000;
+}
+
+/**
+ * Loads a company's real data (desktop only), and again when it is due (see
+ * fundDue); the figures already loaded stay on screen meanwhile. `front` puts
+ * it ahead of queued peers, for the security the user is looking at.
  */
 export function requestFundamentals(def: SecurityDef | undefined, front = false): void {
   if (!def?.eq || !desktopData()) return;
-  if (realFund.has(def.id)) return;
+  const have = realFund.get(def.id);
+  if (have && !fundDue(have, Date.now())) return;
   if (Date.now() - (failedAt.get(def.id) ?? -Infinity) < 10 * 60_000) return;
   if (loading.has(def.id)) {
     // Already queued: move it up if the user opened it.
@@ -517,10 +533,14 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false)
   pump();
 }
 
-/** Loads a company's real data and re-renders when it arrives. */
+/** Loads a company's real data, re-renders when it arrives, and reloads it while the screen stays open (see fundDue). */
 export function useFundamentals(def: SecurityDef | undefined): { real: RealFund | undefined; status: 'loading' | 'ok' | 'error' | 'sim' } {
   const status = fundVersion.use((x) => (def ? x.status[def.id] : undefined));
-  useEffect(() => requestFundamentals(def, true), [def]);
+  useEffect(() => {
+    requestFundamentals(def, true);
+    const timer = setInterval(() => requestFundamentals(def, true), 15 * 60_000);
+    return () => clearInterval(timer);
+  }, [def]);
   const real = def ? realFund.get(def.id) : undefined;
   return { real, status: real ? 'ok' : (status ?? (desktopData() && def?.eq ? 'loading' : 'sim')) };
 }
@@ -530,7 +550,12 @@ export function useFundamentalsFor(defs: SecurityDef[]): { loaded: number; faile
   const status = fundVersion.use((x) => x.status);
   const key = defs.map((d) => d.id).join(',');
   useEffect(() => {
-    for (const d of defs) requestFundamentals(d);
+    const load = () => {
+      for (const d of defs) requestFundamentals(d);
+    };
+    load();
+    const timer = setInterval(load, 15 * 60_000);
+    return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   const loaded = defs.filter((d) => realFund.has(d.id)).length;

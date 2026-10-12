@@ -157,6 +157,8 @@ export interface Quote {
   fetched?: number;
   /** Pre-market, after-hours or overnight price, apart from the regular-session last. */
   extended?: { price: number; time: number; session: 'pre' | 'post' | 'overnight' };
+  /** No quote has arrived yet: `time` is only the date of the latest daily bar, not a trade time. */
+  dayOnly?: boolean;
 }
 
 export interface Bar {

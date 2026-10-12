@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { engine } from '../src/data/market';
 import { dayNum, DAY_MS } from '../src/data/calendar';
 import { earningsEvents, keyStats, nextEarnings } from '../src/data/fundamentals';
-import { buildRealFund, usTiming } from '../src/data/live/yfund';
+import { buildRealFund, fundDue, FUND_TTL, usTiming } from '../src/data/live/yfund';
 import { impliedShares, yahooQuotes } from '../src/data/live/yahoo';
 import { atmVolAt, realChain, type Leg } from '../src/data/live/yopt';
 import { parseTreasuryCsv } from '../src/data/live/ust';
@@ -18,6 +18,24 @@ import stream from './fixtures/yahoo-stream.json';
 const APLD = 'APLD US Equity';
 const NOW = Date.UTC(2026, 9, 12, 12);
 const apldFund = () => buildRealFund(engine.get(APLD)!, structuredClone(summary), structuredClone(timeseries), structuredClone(timeseries), structuredClone(timeseries), NOW);
+
+describe('company data refresh', () => {
+  const report = (date: number, actual: number | null) => ({ period: 'Q3 26', date, estimate: -0.5, actual, surprise: null, timing: '--' as const, revEst: NaN, revAct: null });
+  it('reloads after 6 hours, or hourly once a pending report is due', () => {
+    const t0 = Date.UTC(2026, 9, 12, 12);
+    const quiet = { fetched: t0, earnings: [report(Date.UTC(2026, 10, 10, 12), null)] };
+    expect(fundDue(quiet, t0 + 30 * 60_000)).toBe(false);
+    expect(fundDue(quiet, t0 + FUND_TTL - 1)).toBe(false);
+    expect(fundDue(quiet, t0 + FUND_TTL)).toBe(true);
+    // The report was due this morning and the loaded data has no actual for it yet.
+    const waiting = { fetched: t0, earnings: [report(t0 - 3 * 3600_000, null)] };
+    expect(fundDue(waiting, t0 + 30 * 60_000)).toBe(false);
+    expect(fundDue(waiting, t0 + 3600_000)).toBe(true);
+    // Reported: back to the 6-hour rule.
+    const done = { fetched: t0, earnings: [report(t0 - 3 * 3600_000, -0.4)] };
+    expect(fundDue(done, t0 + 3600_000)).toBe(false);
+  });
+});
 
 describe('real company data (Applied Digital, from Yahoo Finance)', () => {
   it('reads the analyst consensus and broker actions as reported', () => {
@@ -259,6 +277,28 @@ describe('real quotes during a session', () => {
     expect(s.length).toBe(1440);
     expect(s.c[s.length - 1]).toBeCloseTo(1.25 + 1439 / 1e6, 9);
     for (let i = 1; i < s.length; i++) expect(s.t[i] - s.t[i - 1]).toBe(60_000);
+  });
+});
+
+describe('the quote before the first poll', () => {
+  it('gives only the date of the daily bar, then the trade time once a quote arrives', () => {
+    const id = 'MSFT US Equity';
+    const today = engine.today;
+    engine.setExternalDaily(id, [
+      { day: today - 1, o: 400, h: 405, l: 398, c: 402, v: 1e7 },
+      { day: today, o: 402, h: 410, l: 401, c: 409, v: 2e7 },
+    ]);
+    let q = engine.quote(id)!;
+    // Not "00:00" and not "Market closed": the bar has a date, and whether the market is open is not known yet.
+    expect(q.dayOnly).toBe(true);
+    expect(q.src).toBe('UNCONFIRMED');
+    expect(dayNum(q.time)).toBe(today);
+    const t = today * DAY_MS + 20 * 3600_000;
+    engine.setExternalQuote(id, { last: 409.5, time: t, day: today, marketOpen: false, timing: 'realtime' });
+    q = engine.quote(id)!;
+    expect(q.dayOnly).toBeUndefined();
+    expect(q.src).toBe('CLOSE');
+    expect(q.time).toBe(t);
   });
 });
 

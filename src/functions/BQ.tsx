@@ -85,7 +85,7 @@ export function BQ({ sec }: FnProps) {
               ['Previous close', fmtNum(q.prevClose, s.dec)],
               ...(q.volume > 0 ? ([['Volume', fmtBig(q.volume)], ['VWAP', fmtNum(vwap, s.dec)], ['Avg vol 30D', fmtBig(rs.avgVol30)]] as [string, string][]) : []),
               ['52-week range', `${fmtNum(rs.lo52, s.dec)} - ${fmtNum(rs.hi52, s.dec)}`],
-              ['Last update', q.src === 'EOD' ? `as of ${fmtDay(q.time)}` : fmtStamp(q.time)],
+              ['Last update', q.src === 'EOD' || q.dayOnly ? `as of ${fmtDay(q.time)}` : fmtStamp(q.time)],
             ]}
           />
         </Section>

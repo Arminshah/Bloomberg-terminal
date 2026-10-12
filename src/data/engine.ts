@@ -90,6 +90,8 @@ interface ExtData {
   extended?: ExtendedPrice;
   /** When the latest value was set by the market: the last trade, or the date of an end-of-day value. */
   time: number;
+  /** No quote has given a time yet: `time` is only the date of the latest daily bar. */
+  dayOnly: boolean;
 }
 
 export interface ExtBar {
@@ -162,6 +164,8 @@ const VENUES: Record<string, string[]> = {
  */
 function extSrc(e: ExtData): Quote['src'] {
   if (e.eod) return 'EOD';
+  // Only history so far: the price is real, but whether the market is open is not known yet.
+  if (e.dayOnly) return 'UNCONFIRMED';
   if (e.stale && e.open) return 'STALE';
   if (!e.open) return 'CLOSE';
   return e.timing === 'realtime' ? 'LIVE' : e.timing === 'delayed' ? 'DELAYED' : 'UNCONFIRMED';
@@ -1139,6 +1143,7 @@ export class MarketEngine {
     if (st.ext?.sourceName) q.sourceName = st.ext.sourceName;
     if (st.ext) q.fetched = st.ext.fetched;
     if (st.ext?.extended) q.extended = st.ext.extended;
+    if (st.ext?.dayOnly && !st.ext.eod) q.dayOnly = true;
     this.quotes.set(st.def.id, q);
   }
 
@@ -1489,6 +1494,7 @@ export class MarketEngine {
       extended: prev?.extended,
       // A quote already received for this session is newer than the daily bar.
       time: prev && prev.session === last.day && Number.isFinite(prev.time) && prev.time > dayStart(last.day) ? prev.time : dayStart(last.day),
+      dayOnly: !(prev && prev.session === last.day && Number.isFinite(prev.time) && prev.time > dayStart(last.day)),
     };
     st.live = true;
     st.liveIntraday = true;
@@ -1569,6 +1575,7 @@ export class MarketEngine {
     ext.session = day;
     ext.stale = false;
     ext.time = q.time;
+    ext.dayOnly = false;
     // A regular-session trade supersedes an earlier pre-market or after-hours price.
     if (q.marketOpen) ext.extended = undefined;
     // Keep the intraday series current between bar refreshes.

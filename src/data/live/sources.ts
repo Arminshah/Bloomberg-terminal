@@ -17,15 +17,15 @@ export function hasRealSource(d: SecurityDef): boolean {
 }
 
 /**
- * Turns the simulator off in the desktop app. Call before the first render.
- * The built-in company profiles (shares, revenue, beta, chief executive and
- * so on) were written by hand and can be out of date, so they are cleared:
- * every figure comes from the source when it answers.
+ * Turns the simulator off in the desktop app. Call after the saved lookups are
+ * restored and before the first render. Company profiles are cleared, so every
+ * figure comes from the source when it answers in this session: the built-in
+ * ones were written by hand, and a stock looked up online kept the figures of
+ * the day it was looked up (from older versions, with defaults in the gaps).
  */
 export function enableRealOnly() {
   if (!desktopData()) return;
   for (const d of engine.defs) {
-    if (d.dynamic) continue; // looked up online: already from the source
     if (d.eq) {
       const eq = d.eq;
       eq.shares = eq.beta = eq.rev = eq.ni = eq.dps = eq.emp = eq.netDebt = eq.book = NaN;

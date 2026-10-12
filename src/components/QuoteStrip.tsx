@@ -93,8 +93,17 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
           {fmtBig(q.volume)}
         </span>
       )}
-      <span className="muted hide-m" title={q.src === 'EOD' ? 'Date of the latest published value' : 'When the market set the latest price (source time) and when the app received it'}>
-        {q.src === 'EOD' ? `as of ${fmtDay(q.time)}` : q.src === 'SIM' ? fmtTime(q.time) : `source ${q.src === 'CLOSE' || q.src === 'STALE' ? fmtStamp(q.time) : fmtTime(q.time)}`}
+      <span
+        className="muted hide-m"
+        title={
+          q.src === 'EOD'
+            ? 'Date of the latest published value'
+            : q.dayOnly
+              ? 'Price from the latest daily bar; the time of the last trade comes with the first quote'
+              : 'When the market set the latest price (source time) and when the app received it'
+        }
+      >
+        {q.src === 'EOD' || q.dayOnly ? `as of ${fmtDay(q.time)}` : q.src === 'SIM' ? fmtTime(q.time) : `source ${q.src === 'CLOSE' || q.src === 'STALE' ? fmtStamp(q.time) : fmtTime(q.time)}`}
         {q.fetched && q.src !== 'SIM' && q.src !== 'NONE' ? ` · retrieved ${fmtTime(q.fetched)}` : ''}
       </span>
       {q.extended && Number.isFinite(q.last) && (
