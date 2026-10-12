@@ -77,19 +77,31 @@ export function IMAP(_: FnProps) {
   const W = Math.max(200, size.w);
   const H = Math.max(160, size.h);
   const tiles = useMemo(() => {
-    const secs = engine.securities.filter((d) => d.cls === 'equity' && REGIONS[region - 1].f(d));
+    // A company is drawn once the source has given its market cap; nothing is sized on a guess.
+    const cap = (id: string) => {
+      const c = marketCapUsd(id);
+      return Number.isFinite(c) && c > 0 ? c : 0;
+    };
+    const secs = engine.securities.filter((d) => d.cls === 'equity' && REGIONS[region - 1].f(d) && cap(d.id) > 0);
     const bySector = new Map<string, SecurityDef[]>();
     for (const d of secs) {
       const k = d.eq!.sector;
       bySector.set(k, [...(bySector.get(k) ?? []), d]);
     }
-    const sectors = [...bySector.entries()].map(([name, list]) => ({ v: list.reduce((a, d) => a + marketCapUsd(d.id), 0), item: { name, list } }));
+    const sectors = [...bySector.entries()].map(([name, list]) => ({ v: list.reduce((a, d) => a + cap(d.id), 0), item: { name, list } }));
     return squarify(sectors, { x: 0, y: 0, w: W, h: H }).map(({ r, item }) => {
       const inner = { x: r.x + 1, y: r.y + 15, w: r.w - 2, h: r.h - 16 };
-      const kids = squarify(item.list.map((d) => ({ v: marketCapUsd(d.id), item: d })), inner);
-      const capW = item.list.reduce((a, d) => a + marketCapUsd(d.id), 0);
-      const sectorChg = item.list.reduce((a, d) => a + periodChange(d.id, m.h) * marketCapUsd(d.id), 0) / capW;
-      return { r, name: item.name, kids, chg: sectorChg };
+      const kids = squarify(item.list.map((d) => ({ v: cap(d.id), item: d })), inner);
+      // Sector change weighted over the companies that have one for the period.
+      let w = 0;
+      let sum = 0;
+      for (const d of item.list) {
+        const pct = periodChange(d.id, m.h);
+        if (!Number.isFinite(pct)) continue;
+        w += cap(d.id);
+        sum += pct * cap(d.id);
+      }
+      return { r, name: item.name, kids, chg: w > 0 ? sum / w : NaN };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [region, measure, tick, W, H]);
@@ -105,12 +117,13 @@ export function IMAP(_: FnProps) {
         actions={MEASURES.map((x) => ({ n: x.n, label: x.h, on: x.n === measure, onClick: () => setMeasure(x.n) }))}
       />
       <div ref={box} style={{ flex: 1, minHeight: 260, position: 'relative', margin: 4 }}>
+        {tiles.length === 0 ? <div className="empty">Waiting for market caps from the source…</div> : null}
         <svg viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
           {tiles.map((t) => (
             <g key={t.name}>
               <rect x={t.r.x} y={t.r.y} width={t.r.w} height={t.r.h} fill="#0a0a0a" stroke="#000" strokeWidth={2} />
               <text x={t.r.x + 4} y={t.r.y + 11} fill="#ff9e1b" fontSize={10} fontFamily="IBM Plex Mono, monospace">
-                {t.r.w > 90 ? `${t.name.toUpperCase()} ${t.chg >= 0 ? '+' : ''}${fmtNum(t.chg, 2)}%` : ''}
+                {t.r.w > 90 ? `${t.name.toUpperCase()} ${Number.isFinite(t.chg) ? `${t.chg >= 0 ? '+' : ''}${fmtNum(t.chg, 2)}%` : ''}` : ''}
               </text>
               {t.kids.map(({ r, item: d }) => {
                 const pct = periodChange(d.id, m.h);

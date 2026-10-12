@@ -74,7 +74,7 @@ function NewsScreen({ code, title, ticker, initialTopic, query }: { code: string
         sub={
           <>
             {list.length} stories ·{' '}
-            {list.every((x) => x.real) && list.length ? (
+            {desktopData() || (list.every((x) => x.real) && list.length) ? (
               <>
                 <RealBadge /> headlines from {desktopData() ? 'Yahoo Finance and its publishers' : 'the connected feed'}
               </>
@@ -164,15 +164,17 @@ export function READ(_: FnProps) {
   const [sel, setSel] = useState<string | null>(null);
   const now = engine.now();
   const window = tab === 1 ? 24 * 3600_000 : 7 * 24 * 3600_000;
+  // Readership is not public, so the desktop app lists the window's headlines newest first.
+  const real = engine.realOnly;
   const ranked = useMemo(
     () =>
       stories
         .filter((s) => now - s.time <= window && s.time <= now)
-        .map((s) => ({ s, r: reads(s, now) }))
+        .map((s) => ({ s, r: real ? s.time : reads(s, now) }))
         .sort((a, b) => b.r - a.r)
         .slice(0, 40),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stories, tab, Math.floor(now / 60_000)],
+    [stories, tab, real, Math.floor(now / 60_000)],
   );
   const current = ranked.find((x) => x.s.id === sel)?.s ?? ranked[0]?.s;
   return (
@@ -181,9 +183,15 @@ export function READ(_: FnProps) {
         code="READ"
         title="Most Read News"
         sub={
-          <>
-            <SimBadge /> readership ranking (the stories themselves are as listed in N)
-          </>
+          real ? (
+            <>
+              <RealBadge /> headlines newest first · readership figures are not public, so stories are not ranked by reads
+            </>
+          ) : (
+            <>
+              <SimBadge /> readership ranking (the stories themselves are as listed in N)
+            </>
+          )
         }
         tabs={[
           { n: 1, label: 'Last 24 hours' },
@@ -199,7 +207,7 @@ export function READ(_: FnProps) {
             <div key={s.id} role="listitem" className={`news-item${s.hot ? ' hot' : ''}${current?.id === s.id ? ' sel' : ''}`} onClick={() => setSel(s.id)}>
               <span className="time yellow">{i + 1})</span>
               <span className="hl">{s.headline}</span>
-              <span className="src">{r.toLocaleString('en-US')}</span>
+              <span className="src">{real ? s.source : r.toLocaleString('en-US')}</span>
             </div>
           ))}
         </div>

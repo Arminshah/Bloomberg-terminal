@@ -1,19 +1,11 @@
 import { hashString, normal } from '../core/rng';
-import { zonedParts } from '../core/format';
+import { zonedToUtc } from '../core/format';
 import { DAY_MS, isBusinessDay, dayNum } from './calendar';
 import { engine } from './market';
 import { levelOn, policyRates, type PolicyRates, type PolicySeries } from './live/policy';
+import { eventTimes, expectedPeriod, fredData, periodLabel, previousPeriod, US_EVENTS, valueAt } from './live/fred';
 
-/** Converts a wall-clock time in `tz` to epoch ms. */
-export function zonedToUtc(y: number, m0: number, d: number, hh: number, mm: number, tz: string): number {
-  let guess = Date.UTC(y, m0, d, hh, mm);
-  for (let i = 0; i < 2; i++) {
-    const p = zonedParts(guess, tz);
-    const asUtc = Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi);
-    guess -= asUtc - Date.UTC(y, m0, d, hh, mm);
-  }
-  return guess;
-}
+export { zonedToUtc } from '../core/format';
 
 export interface CentralBank {
   code: string;
@@ -31,21 +23,23 @@ export interface CentralBank {
 }
 
 /**
- * Policy rates. In the desktop app the Fed, ECB, Bank of England and Bank of
- * Canada come from their own data services; otherwise the Fed range is derived
- * from the 3M bill and the rest are reference settings.
+ * Policy rates and meeting calendars. Meeting dates are each bank's published
+ * schedule. In the desktop app the rates of the Fed, ECB, Bank of England,
+ * Bank of Canada, RBA, SNB and Banco Central do Brasil come from their own data
+ * services and the others are left out; in the browser the Fed range is
+ * derived from the 3M bill and the rest are reference settings.
  */
 export function centralBanks(): CentralBank[] {
   const bill = engine.quote('USGG3M Index')?.prevClose ?? 4;
   const fedUpper = Math.round((bill + 0.12) * 4) / 4;
   return withRealRates([
-    { code: 'FED', country: 'US', bank: 'Federal Reserve', rate: fedUpper, name: 'FOMC Rate Decision (Upper Bound)', tz: 'America/New_York', time: [14, 0], meetings: ['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09', '2027-01-27', '2027-03-17', '2027-04-28', '2027-06-16', '2027-07-28', '2027-09-22'], last: '2026-09-16', lastMove: 0.25 },
-    { code: 'ECB', country: 'EZ', bank: 'European Central Bank', rate: 2.0, name: 'ECB Deposit Facility Rate', tz: 'Europe/Berlin', time: [14, 15], meetings: ['2026-02-05', '2026-03-19', '2026-04-30', '2026-06-11', '2026-07-23', '2026-09-10', '2026-10-29', '2026-12-17', '2027-02-04', '2027-03-18'], last: '2025-06-05', lastMove: -0.25 },
-    { code: 'BOE', country: 'GB', bank: 'Bank of England', rate: 3.75, name: 'BoE Bank Rate', tz: 'Europe/London', time: [12, 0], meetings: ['2026-02-05', '2026-03-19', '2026-04-30', '2026-06-18', '2026-07-30', '2026-09-17', '2026-11-05', '2026-12-17', '2027-02-04'], last: '2025-12-18', lastMove: -0.25 },
-    { code: 'BOJ', country: 'JP', bank: 'Bank of Japan', rate: 1.0, name: 'BOJ Policy Balance Rate', tz: 'Asia/Tokyo', time: [12, 0], meetings: ['2026-01-23', '2026-03-19', '2026-04-28', '2026-06-16', '2026-07-31', '2026-09-18', '2026-10-30', '2026-12-18', '2027-01-22'], last: '2026-07-31', lastMove: 0.25 },
-    { code: 'BOC', country: 'CA', bank: 'Bank of Canada', rate: 2.25, name: 'Bank of Canada Rate Decision', tz: 'America/Toronto', time: [9, 45], meetings: ['2026-01-28', '2026-03-11', '2026-04-15', '2026-06-03', '2026-07-15', '2026-09-09', '2026-10-28', '2026-12-09'], last: '2025-10-29', lastMove: -0.25 },
-    { code: 'RBA', country: 'AU', bank: 'Reserve Bank of Australia', rate: 3.6, name: 'RBA Cash Rate Target', tz: 'Australia/Sydney', time: [14, 30], meetings: ['2026-02-03', '2026-03-31', '2026-05-05', '2026-06-16', '2026-08-11', '2026-09-29', '2026-11-03', '2026-12-08'], last: '2025-08-12', lastMove: -0.25 },
-    { code: 'SNB', country: 'CH', bank: 'Swiss National Bank', rate: 0.0, name: 'SNB Policy Rate', tz: 'Europe/Zurich', time: [9, 30], meetings: ['2026-03-19', '2026-06-18', '2026-09-24', '2026-12-10'], last: '2025-06-19', lastMove: -0.25 },
+    { code: 'FED', country: 'US', bank: 'Federal Reserve', rate: fedUpper, name: 'FOMC Rate Decision (Upper Bound)', tz: 'America/New_York', time: [14, 0], meetings: ['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09', '2027-01-27', '2027-03-17', '2027-04-28', '2027-06-09', '2027-07-28', '2027-09-15', '2027-10-27', '2027-12-08'], last: '2026-09-16', lastMove: 0.25 },
+    { code: 'ECB', country: 'EZ', bank: 'European Central Bank', rate: 2.0, name: 'ECB Deposit Facility Rate', tz: 'Europe/Berlin', time: [14, 15], meetings: ['2026-02-05', '2026-03-19', '2026-04-30', '2026-06-11', '2026-07-23', '2026-09-10', '2026-10-29', '2026-12-17', '2027-02-04', '2027-03-18', '2027-04-29', '2027-06-10', '2027-07-22', '2027-09-09', '2027-10-28', '2027-12-16', '2028-02-03', '2028-03-23', '2028-05-04', '2028-06-08', '2028-07-20', '2028-09-07', '2028-10-12', '2028-12-07'], last: '2025-06-05', lastMove: -0.25 },
+    { code: 'BOE', country: 'GB', bank: 'Bank of England', rate: 3.75, name: 'BoE Bank Rate', tz: 'Europe/London', time: [12, 0], meetings: ['2026-02-05', '2026-03-19', '2026-04-30', '2026-06-18', '2026-07-30', '2026-09-17', '2026-11-05', '2026-12-17', '2027-02-04', '2027-03-18', '2027-04-29', '2027-06-17', '2027-07-29', '2027-09-16', '2027-11-04', '2027-12-16'], last: '2025-12-18', lastMove: -0.25 },
+    { code: 'BOJ', country: 'JP', bank: 'Bank of Japan', rate: 1.0, name: 'BOJ Policy Balance Rate', tz: 'Asia/Tokyo', time: [12, 0], meetings: ['2026-01-23', '2026-03-19', '2026-04-28', '2026-06-16', '2026-07-31', '2026-09-18', '2026-10-30', '2026-12-18', '2027-01-22', '2027-03-18', '2027-04-28', '2027-06-11', '2027-07-22', '2027-09-22', '2027-10-29', '2027-12-17'], last: '2026-07-31', lastMove: 0.25 },
+    { code: 'BOC', country: 'CA', bank: 'Bank of Canada', rate: 2.25, name: 'Bank of Canada Rate Decision', tz: 'America/Toronto', time: [9, 45], meetings: ['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-10', '2026-07-15', '2026-09-02', '2026-10-28', '2026-12-09', '2027-01-27', '2027-03-03', '2027-04-28', '2027-06-02', '2027-07-21', '2027-09-08', '2027-10-27', '2027-12-08'], last: '2025-10-29', lastMove: -0.25 },
+    { code: 'RBA', country: 'AU', bank: 'Reserve Bank of Australia', rate: 3.6, name: 'RBA Cash Rate Target', tz: 'Australia/Sydney', time: [14, 30], meetings: ['2026-02-03', '2026-03-17', '2026-05-05', '2026-06-16', '2026-08-11', '2026-09-29', '2026-11-03', '2026-12-08', '2027-02-09', '2027-03-23', '2027-05-04', '2027-06-22', '2027-08-10', '2027-09-28', '2027-11-02', '2027-12-14'], last: '2025-08-12', lastMove: -0.25 },
+    { code: 'SNB', country: 'CH', bank: 'Swiss National Bank', rate: 0.0, name: 'SNB Policy Rate', tz: 'Europe/Zurich', time: [9, 30], meetings: ['2026-03-19', '2026-06-18', '2026-09-24', '2026-12-10', '2027-03-18', '2027-06-24', '2027-09-23', '2027-12-16'], last: '2025-06-19', lastMove: -0.25 },
     { code: 'PBOC', country: 'CN', bank: "People's Bank of China", rate: 3.0, name: '1-Year Loan Prime Rate', tz: 'Asia/Shanghai', time: [9, 15], meetings: [], last: '2025-05-20', lastMove: -0.1 },
     { code: 'RBI', country: 'IN', bank: 'Reserve Bank of India', rate: 5.25, name: 'RBI Repurchase Rate', tz: 'Asia/Kolkata', time: [10, 0], meetings: ['2026-02-06', '2026-04-08', '2026-06-05', '2026-08-07', '2026-10-07', '2026-12-04'], last: '2025-12-05', lastMove: -0.25 },
     { code: 'BCB', country: 'BR', bank: 'Banco Central do Brasil', rate: 14.25, name: 'Selic Rate', tz: 'America/Sao_Paulo', time: [18, 30], meetings: ['2026-01-28', '2026-03-18', '2026-05-06', '2026-06-17', '2026-08-05', '2026-09-16', '2026-11-04', '2026-12-09'], last: '2026-09-16', lastMove: -0.25 },
@@ -53,16 +47,19 @@ export function centralBanks(): CentralBank[] {
   ]);
 }
 
-const REAL_SERIES: Record<string, keyof PolicyRates> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOC: 'boc' };
+const REAL_SERIES: Record<string, keyof PolicyRates> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOC: 'boc', RBA: 'rba', SNB: 'snb', BCB: 'bcb' };
 
 /** A bank's real rate series, when loaded. */
 export function policySeries(code: string): PolicySeries | undefined {
   const key = REAL_SERIES[code];
-  return key ? policyRates.get()[key] : undefined;
+  return key ? (policyRates.get()[key] as PolicySeries | undefined) : undefined;
 }
 
 function withRealRates(banks: CentralBank[]): CentralBank[] {
-  return banks.map((cb) => {
+  // The Fed's meeting list comes from the Board's own calendar once it has loaded.
+  const fomc = policyRates.get().fomc;
+  if (fomc?.length) banks = banks.map((cb) => (cb.code === 'FED' ? { ...cb, meetings: fomc } : cb));
+  const out = banks.map((cb) => {
     const s = policySeries(cb.code);
     if (!s || !s.changes.length) return cb;
     const [since, level] = s.changes[s.changes.length - 1];
@@ -71,6 +68,8 @@ function withRealRates(banks: CentralBank[]): CentralBank[] {
     const meeting = [...cb.meetings].reverse().find((m) => m <= since && Date.parse(since) - Date.parse(m) <= 8 * DAY_MS);
     return { ...cb, rate: level, last: meeting ?? since, lastMove: level - before, real: true };
   });
+  // The desktop app lists only the banks whose rates come from their own data.
+  return engine.realOnly ? out.filter((b) => b.real) : out;
 }
 
 export interface EcoEvent {
@@ -235,12 +234,49 @@ function periodLabel(tpl: Tpl, y: number, m0: number, day: number): string {
   return MONTH[pm];
 }
 
+/**
+ * US releases from FRED: the agencies' own dates and times, and the values
+ * published for each release's period. Actual and prior are the figures as
+ * currently published, so they include any revisions since.
+ */
+function usReleases(from: number, to: number, now: number): EcoEvent[] {
+  const st = fredData.get();
+  const out: EcoEvent[] = [];
+  for (const ev of US_EVENTS) {
+    for (const t of eventTimes(ev, st.releases[ev.rid] ?? [])) {
+      if (t < from || t > to) continue;
+      const p = expectedPeriod(ev, t);
+      const obs = st.series[ev.series];
+      const prior = valueAt(obs, previousPeriod(p, ev.freq), ev.calc, ev.freq, ev.scale);
+      out.push({
+        id: `US:${ev.name}:${t}`,
+        time: t,
+        country: 'US',
+        name: ev.name,
+        period: periodLabel(p, ev.freq),
+        survey: null,
+        actual: t <= now ? valueAt(obs, p, ev.calc, ev.freq, ev.scale) : null,
+        prior: prior ?? NaN,
+        revised: null,
+        unit: ev.unit,
+        dec: ev.dec,
+        relevance: ev.rel,
+        kind: ev.kind,
+        real: true,
+      });
+    }
+  }
+  return out;
+}
+
 /** Events between two times, with actuals filled in once released. */
 export function ecoEvents(from: number, to: number, now = engine.now()): EcoEvent[] {
   const out: EcoEvent[] = [];
   const start = new Date(from - 2 * DAY_MS);
   const end = new Date(to + 2 * DAY_MS);
-  for (let y = start.getUTCFullYear(), m = start.getUTCMonth(); y < end.getUTCFullYear() || (y === end.getUTCFullYear() && m <= end.getUTCMonth()); m === 11 ? (y++, (m = 0)) : m++) {
+  // The desktop app lists only real releases; the browser's calendar is generated.
+  if (engine.realOnly) out.push(...usReleases(from, to, now));
+  else for (let y = start.getUTCFullYear(), m = start.getUTCMonth(); y < end.getUTCFullYear() || (y === end.getUTCFullYear() && m <= end.getUTCMonth()); m === 11 ? (y++, (m = 0)) : m++) {
     for (const tpl of TEMPLATES) {
       if (tpl.months && !tpl.months.includes(m)) continue;
       for (const day of ruleDates(tpl.rule, y, m)) {

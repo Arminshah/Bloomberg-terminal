@@ -96,6 +96,17 @@ export function zonedParts(ms: number, tz: TzMode = tzMode): Parts {
   return { y: +p.year, mo: +p.month, d: +p.day, h: +p.hour % 24, mi: +p.minute, s: +p.second };
 }
 
+/** Converts a wall-clock time in `tz` to epoch ms. */
+export function zonedToUtc(y: number, m0: number, d: number, hh: number, mm: number, tz: string): number {
+  let guess = Date.UTC(y, m0, d, hh, mm);
+  for (let i = 0; i < 2; i++) {
+    const p = zonedParts(guess, tz);
+    const asUtc = Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi);
+    guess -= asUtc - Date.UTC(y, m0, d, hh, mm);
+  }
+  return guess;
+}
+
 /** MM/DD/YY in the display time zone. */
 export function fmtDate(ms: number, tz: TzMode = tzMode): string {
   if (!Number.isFinite(ms)) return DASH;

@@ -123,6 +123,9 @@ export interface Dividend {
 export const realDividends = new Map<string, Dividend[]>();
 /** Latest raw Yahoo quote per security (ratios, market cap, earnings date). */
 export const yahooQuotes = new Map<string, Json>();
+/** Quotes of the ETFs that track the main indices, for index dividend yields. */
+export const etfQuotes = new Map<string, Json>();
+const ETFS = ['SPY', 'QQQ', 'DIA', 'IWM'];
 
 export function barsFromChart(chart: Json, invert = false, allDays = false): { bars: ExtBar[]; dividends: Dividend[]; gmtOffset: number } {
   const r = chart?.chart?.result?.[0];
@@ -466,9 +469,11 @@ class YahooData {
     let ok = 0;
     for (let i = 0; i < all.length; i += 50) {
       const batch = all.slice(i, i + 50);
+      const extra = i === 0 ? ETFS.filter((x) => !this.bySymbol.has(x)) : [];
       try {
-        const res = await yahooGet(`/v7/finance/quote?symbols=${batch.map((b) => encodeURIComponent(b.symbol)).join(',')}`);
+        const res = await yahooGet(`/v7/finance/quote?symbols=${[...batch.map((b) => encodeURIComponent(b.symbol)), ...extra].join(',')}`);
         for (const q of (res?.quoteResponse?.result ?? []) as Json[]) {
+          if (ETFS.includes(q.symbol)) etfQuotes.set(q.symbol, q);
           const t = this.bySymbol.get(q.symbol);
           if (!t) continue;
           ok++;
@@ -478,6 +483,7 @@ class YahooData {
           const def = engine.get(t.id);
           const shares = def ? impliedShares(def, Number(q.marketCap), Number(q.regularMarketPrice)) : NaN;
           if (def?.eq && Number.isFinite(shares)) def.eq.shares = shares;
+          if (def?.cry && Number(q.circulatingSupply) > 0) def.cry.supply = Number(q.circulatingSupply);
           if (!this.loaded.has(t.id)) {
             this.pendingQuote.set(t.id, q);
             continue;

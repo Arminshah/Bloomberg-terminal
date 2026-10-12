@@ -4,6 +4,7 @@ import { feedStatus } from '../data/live/status';
 import { execute } from '../terminal/exec';
 import { applyPreset, LAYOUT_PANELS, setLayout, terminal } from '../terminal/state';
 import { alerts, chats } from '../terminal/userdata';
+import { contacts } from '../data/chat';
 import { zonedParts } from '../core/format';
 import type { LayoutId, Route } from '../terminal/types';
 
@@ -85,7 +86,10 @@ export function TopBar() {
   useInterval(1000);
   const layout = terminal.use((s) => s.layout);
   const unreadAlerts = alerts.use((a) => a.unseen);
-  const unreadMsgs = chats.use((c) => c.rooms.reduce((n, r) => n + r.unread, 0));
+  const unreadMsgs = chats.use((c) => {
+    const allowed = new Set(contacts().map((x) => x.id));
+    return c.rooms.reduce((n, r) => n + (allowed.has(r.id) ? r.unread : 0), 0);
+  });
   const [presetAt, setPresetAt] = useState<{ left: number; top: number } | null>(null);
   const presetOpen = presetAt != null;
   const setPresetOpen = (open: boolean | ((o: boolean) => boolean)) => {

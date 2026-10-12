@@ -319,3 +319,16 @@ describe('quote hygiene', () => {
     expect(saneTouch(undefined, undefined, 10)).toEqual([undefined, undefined]);
   });
 });
+
+describe('futures contracts from the source', () => {
+  it('reads the front contract from a continuous quote and lists contract months', async () => {
+    const { frontContract, contractSymbols } = await import('../src/data/live/yquotes');
+    expect(frontContract({ shortName: 'E-Mini S&P 500 Dec 26', expireIsoDate: '2026-12-18T00:00:00Z', openInterest: 1881988 })).toMatchObject({ code: 'Z26', month: 'Dec 26', openInterest: 1881988 });
+    expect(frontContract({ shortName: 'Corn Futures,Dec-2026', expireIsoDate: '2026-12-14T00:00:00Z' })).toMatchObject({ code: 'Z26' });
+    expect(frontContract({ shortName: 'Brent Crude Oil Last Day Financ', expireIsoDate: '2026-11-02T00:00:00Z' })).toBeNull();
+    const from = new Date(Date.UTC(2026, 9, 12));
+    expect(contractSymbols('CL', 'NYM', 'All months', 3, from).map((x) => x.symbol)).toEqual(['CLV26.NYM', 'CLX26.NYM', 'CLZ26.NYM']);
+    expect(contractSymbols('GC', 'CMX', 'G,J,M,Q,V,Z', 3, from).map((x) => x.symbol)).toEqual(['GCV26.CMX', 'GCZ26.CMX', 'GCG27.CMX']);
+    expect(contractSymbols('ZQ', 'CBT', 'All months', 2, from).map((x) => x.symbol)).toEqual(['ZQV26.CBT', 'ZQX26.CBT']);
+  });
+});

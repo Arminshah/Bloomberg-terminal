@@ -1,6 +1,6 @@
 import { useQuote } from '../data/market';
 import type { SecurityDef } from '../data/types';
-import { fmtBig, fmtBp, fmtNum, fmtPct, fmtSigned, fmtTime, signClass } from '../core/format';
+import { fmtBig, fmtBp, fmtDay, fmtNum, fmtPct, fmtSigned, fmtStamp, fmtTime, signClass } from '../core/format';
 import { Flash } from './Flash';
 
 const SRC_TITLE: Record<string, string> = {
@@ -67,7 +67,9 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
           {fmtBig(q.volume)}
         </span>
       )}
-      <span className="muted hide-m">{fmtTime(q.time)}</span>
+      <span className="muted hide-m" title={q.src === 'EOD' ? 'Date of the latest published value' : 'Time of the latest price'}>
+        {q.src === 'EOD' ? `as of ${fmtDay(q.time)}` : q.src === 'LIVE' || q.src === 'DELAYED' || q.src === 'SIM' ? fmtTime(q.time) : fmtStamp(q.time)}
+      </span>
       {q.extended && Number.isFinite(q.last) && (
         <span className="hide-m" title={`${SESSION[q.extended.session]} price at ${fmtTime(q.extended.time)}`}>
           <span className="lbl">{SESSION[q.extended.session]}</span>

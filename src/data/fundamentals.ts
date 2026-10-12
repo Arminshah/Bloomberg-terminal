@@ -75,7 +75,25 @@ export function majorPrice(def: SecurityDef, px: number): number {
   return def.minor ? px / 100 : px;
 }
 
+/** A period with no figures: what the desktop app shows before (or without) a company's real data. */
+export function emptyPeriod(label = 'LTM', end = NaN): FinPeriod {
+  const n = NaN;
+  return {
+    label, end, rev: n, cogs: n, gp: n, sga: n, rnd: n, opInc: n, da: n, ebitda: n, interest: n, pretax: n, tax: n, ni: n, shares: n,
+    eps: n, dps: n, cash: n, recv: n, inv: n, curAssets: n, ppe: n, intang: n, totAssets: n, curLiab: n, debt: n, totLiab: n, equity: n,
+    cfo: n, capex: n, fcf: n, divPaid: n, buyback: n,
+  };
+}
+
+const emptyEstimate = (label: string): Estimate => ({ label, eps: NaN, rev: NaN, epsHi: NaN, epsLo: NaN, analysts: NaN, growth: NaN });
+
+/**
+ * The currency a company reports its statements in: the filings' own (Shell
+ * reports in dollars though it trades in pence) when known, else the trading one.
+ */
 export function reportCcy(def: SecurityDef): string {
+  const fc = yahooQuotes.get(def.id)?.financialCurrency;
+  if (typeof fc === 'string' && /^[A-Z]{3}$/.test(fc)) return fc;
   return def.ccy === 'GBp' ? 'GBP' : def.ccy;
 }
 
@@ -157,6 +175,8 @@ export function financials(def: SecurityDef): { annual: FinPeriod[]; quarterly: 
     const quarterly = real.quarterly.length ? real.quarterly : real.annual;
     return { annual, quarterly, ltm: real.ltm ?? annual[annual.length - 1] };
   }
+  // The desktop app never shows generated statements: nothing until the filings arrive.
+  if (engine.realOnly) return { annual: [], quarterly: [], ltm: emptyPeriod() };
   return simFinancials(def);
 }
 
@@ -252,18 +272,28 @@ export interface KeyStats {
   beta: number;
   shares: number;
   fcfYield: number;
+  /** Currency of the statements and of ev. */
   ccy: string;
+  /** Currency of price and mcap. */
+  tradeCcy: string;
 }
 
 export function keyStats(def: SecurityDef): KeyStats {
   const eq = def.eq!;
   const q = engine.quote(def.id);
-  const price = majorPrice(def, q?.last ?? def.px);
+  const price = majorPrice(def, q?.last ?? (engine.realOnly ? NaN : def.px));
   const f = financials(def);
   const ltm = f.ltm;
   const mcap = marketCap(def.id) / 1e6;
+  // Statements can be in another currency than the shares trade in (Shell: dollars against pence);
+  // ratios compare like with like.
+  const tradeCcy = def.ccy === 'GBp' ? 'GBP' : def.ccy;
+  const repCcy = reportCcy(def);
+  const fx = repCcy === tradeCcy ? 1 : engine.usdValue(tradeCcy) / engine.usdValue(repCcy);
+  const mcapRep = mcap * fx;
+  const priceRep = price * fx;
   const bank = PROFILES[eq.sector]?.bank;
-  const ev = bank ? NaN : mcap + eq.netDebt;
+  const ev = bank ? NaN : mcapRep + eq.netDebt;
   const est = estimates(def);
   const prevYear = f.annual[f.annual.length - 2];
   const lastYear = f.annual[f.annual.length - 1];
@@ -271,12 +301,12 @@ export function keyStats(def: SecurityDef): KeyStats {
     price,
     mcap,
     ev,
-    pe: ltm.eps > 0 ? price / ltm.eps : NaN,
-    fpe: est.fy1.eps > 0 ? price / est.fy1.eps : NaN,
-    pb: ltm.equity > 0 ? mcap / ltm.equity : NaN,
-    ps: mcap / ltm.rev,
+    pe: ltm.eps > 0 ? priceRep / ltm.eps : NaN,
+    fpe: est.fy1.eps > 0 ? priceRep / est.fy1.eps : NaN,
+    pb: ltm.equity > 0 ? mcapRep / ltm.equity : NaN,
+    ps: mcapRep / ltm.rev,
     evEbitda: bank || ltm.ebitda <= 0 ? NaN : ev / ltm.ebitda,
-    divYld: (ltm.dps / price) * 100,
+    divYld: (ltm.dps / priceRep) * 100,
     payout: ltm.eps > 0 ? (ltm.dps / ltm.eps) * 100 : NaN,
     roe: ltm.equity > 0 ? (ltm.ni / ltm.equity) * 100 : NaN,
     roa: (ltm.ni / ltm.totAssets) * 100,
@@ -287,18 +317,23 @@ export function keyStats(def: SecurityDef): KeyStats {
     epsLtm: ltm.eps,
     epsFy1: est.fy1.eps,
     epsFy2: est.fy2.eps,
-    revGrowth: prevYear ? (lastYear.rev / prevYear.rev - 1) * 100 : NaN,
-    epsGrowth: prevYear && prevYear.eps > 0 ? (lastYear.eps / prevYear.eps - 1) * 100 : NaN,
+    revGrowth: prevYear && lastYear ? (lastYear.rev / prevYear.rev - 1) * 100 : NaN,
+    epsGrowth: prevYear && lastYear && prevYear.eps > 0 ? (lastYear.eps / prevYear.eps - 1) * 100 : NaN,
     beta: eq.beta,
     shares: eq.shares,
-    fcfYield: (ltm.fcf / mcap) * 100,
-    ccy: reportCcy(def),
+    fcfYield: (ltm.fcf / mcapRep) * 100,
+    ccy: repCcy,
+    tradeCcy,
   };
   // Prefer the ratios as the data provider reports them.
   const real = getRealFund(def.id);
   const ks = out as unknown as Record<string, number>;
   if (real) {
-    for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v)) ks[k] = v as number;
+    // When the shares trade in one currency and the company reports in another, Yahoo mixes the two
+    // in book value, enterprise value and sales multiples (Shell's price/book reads 155); those are
+    // computed here with the exchange rate instead.
+    const mixed = new Set(fx !== 1 ? ['pb', 'ev', 'evEbitda', 'ps'] : []);
+    for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v) && !mixed.has(k)) ks[k] = v as number;
   } else {
     const yq = yahooQuotes.get(def.id);
     if (yq) {
@@ -309,7 +344,7 @@ export function keyStats(def: SecurityDef): KeyStats {
       };
       put('pe', yq.trailingPE);
       put('fpe', yq.forwardPE);
-      put('pb', yq.priceToBook);
+      if (fx === 1) put('pb', yq.priceToBook);
       put('divYld', yq.trailingAnnualDividendYield, 100, 0);
       put('epsLtm', yq.epsTrailingTwelveMonths);
       put('epsFy1', yq.epsCurrentYear);
@@ -335,6 +370,7 @@ export interface Estimate {
 export function estimates(def: SecurityDef): { fy1: Estimate; fy2: Estimate; nq: Estimate } {
   const real = getRealFund(def.id)?.estimates;
   if (real) return real;
+  if (engine.realOnly) return { fy1: emptyEstimate('FY1'), fy2: emptyEstimate('FY2'), nq: emptyEstimate('Next Q') };
   const f = simFinancials(def);
   const r = rng(def.id, 'est');
   const g = baseGrowth(def);
@@ -388,6 +424,7 @@ export interface EarningsEvent {
 export function earningsHistory(def: SecurityDef): EarningsEvent[] {
   const real = getRealFund(def.id);
   if (real && real.earnings.length) return real.earnings;
+  if (engine.realOnly) return [];
   const f = simFinancials(def);
   const today = engine.today * DAY_MS;
   const r = rng(def.id, 'surprise');
@@ -416,7 +453,7 @@ export function earningsEvents(def: SecurityDef): EarningsEvent[] {
   const real = getRealFund(def.id);
   if (real && real.earnings.length) return real.earnings;
   const yq = yahooQuotes.get(def.id);
-  if (!yq) return engine.isExternal(def.id) ? [] : earningsHistory(def);
+  if (!yq) return engine.realOnly || engine.isExternal(def.id) ? [] : earningsHistory(def);
   const now = engine.now();
   const out: EarningsEvent[] = [];
   const blank = { period: '', estimate: NaN, surprise: null, revEst: NaN, revAct: null };
@@ -466,6 +503,7 @@ export interface BrokerView {
 export function analystViews(def: SecurityDef): BrokerView[] {
   const real = getRealFund(def.id);
   if (real && (real.views.length || real.consensus)) return real.views;
+  if (engine.realOnly) return [];
   const r = rng(def.id, `anr:${Math.floor(engine.today / 7)}`);
   const base = rng(def.id, 'anr-base');
   const n = Math.min(BROKERS.length, estimates(def).fy1.analysts);
@@ -507,6 +545,7 @@ function roundTarget(x: number): number {
 export function consensus(def: SecurityDef): { buy: number; hold: number; sell: number; score: number; avg: number; hi: number; lo: number; n: number; nTargets?: number } {
   const real = getRealFund(def.id)?.consensus;
   if (real) return real;
+  if (engine.realOnly) return { buy: 0, hold: 0, sell: 0, score: NaN, avg: NaN, hi: NaN, lo: NaN, n: 0 };
   const v = analystViews(def);
   const buy = v.filter((x) => x.score >= 4).length;
   const hold = v.filter((x) => x.score === 3).length;
@@ -550,6 +589,7 @@ export interface Holder {
 export function holders(def: SecurityDef): Holder[] {
   const real = getRealFund(def.id);
   if (real && real.holders.length) return real.holders;
+  if (engine.realOnly) return [];
   const r = rng(def.id, 'holders');
   const list = def.country === 'US' ? HOLDERS_US : HOLDERS_INTL;
   const today = engine.today * DAY_MS;
@@ -585,6 +625,7 @@ const FREQ_OVERRIDE: Record<string, number> = { 'SHEL LN Equity': 4, 'HSBA LN Eq
 export function dividends(def: SecurityDef): Dividend[] {
   // On real data the dividend history comes from the exchange record, including none at all.
   if (engine.isExternal(def.id) || getRealFund(def.id)) return realDividendList(def);
+  if (engine.realOnly) return [];
   const eq = def.eq!;
   if (eq.dps <= 0) return [];
   const freq = FREQ_OVERRIDE[def.id] ?? FREQ_BY_COUNTRY[def.country] ?? 4;
@@ -646,6 +687,7 @@ export function peers(def: SecurityDef, max = 10): SecurityDef[] {
 
 /** Geographic revenue mix by home region (percent). */
 export function revenueMix(def: SecurityDef): { region: string; pct: number }[] {
+  if (engine.realOnly) return [];
   const r = rng(def.id, 'geo');
   const home = def.region;
   const base: Record<string, number> = { Americas: 0.2, EMEA: 0.2, APAC: 0.2 };

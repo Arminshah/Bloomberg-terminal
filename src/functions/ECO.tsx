@@ -10,8 +10,11 @@ import { periodChange } from '../data/analytics';
 import type { FnProps } from '../terminal/types';
 import { RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
+import { COUNTRY_STATS, fredData, periodLabel, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
 
 const COUNTRIES = ['US', 'EZ', 'DE', 'GB', 'JP', 'CN', 'CA', 'AU'];
+/** The desktop app's calendar: US releases from FRED and the central banks with their own data. */
+const REAL_COUNTRIES = ['US', 'EZ', 'GB', 'CA', 'AU', 'CH', 'BR'];
 
 /** Monday of the current week; on weekends, the coming week. */
 function weekStart(ms: number): number {
@@ -22,7 +25,7 @@ function weekStart(ms: number): number {
 }
 
 function fmtVal(e: EcoEvent, v: number | null): string {
-  if (v == null) return '';
+  if (v == null || !Number.isFinite(v)) return '';
   return `${fmtNum(v, e.dec)}${e.unit === '%' ? '%' : e.unit}`;
 }
 
@@ -38,7 +41,10 @@ export function ECO(_: FnProps) {
   useInterval(1000);
   const now = engine.now();
   const [week, setWeek] = useState(2);
-  const [ctry, setCtry] = useState<string[]>(COUNTRIES);
+  const real = engine.realOnly;
+  const countries = real ? REAL_COUNTRIES : COUNTRIES;
+  const [ctry, setCtry] = useState<string[]>(countries);
+  fredData.use((x) => x.loaded);
   const [minRel, setMinRel] = useState(1);
   const start = weekStart(now) + (week - 2) * 7 * DAY_MS;
   const all = useMemo(() => ecoEvents(start, start + 7 * DAY_MS, now), [start, Math.floor(now / 30_000)]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -53,7 +59,11 @@ export function ECO(_: FnProps) {
         sub={
           <>
             Times in your display time zone ·{' '}
-            {all.some((e) => e.real) ? (
+            {real ? (
+              <>
+                <RealBadge /> US releases: dates, times and published values from FRED (St. Louis Fed) · central bank decisions from the banks' own data · consensus forecasts are not public
+              </>
+            ) : all.some((e) => e.real) ? (
               <>
                 <RealBadge /> Fed, ECB, BoE and BoC decisions · <SimBadge /> other releases, marked SIM
               </>
@@ -73,7 +83,7 @@ export function ECO(_: FnProps) {
         onTab={setWeek}
       />
       <div className="chart-tools">
-        {COUNTRIES.map((c) => (
+        {countries.map((c) => (
           <button key={c} type="button" className={`chip-btn${ctry.includes(c) ? ' on' : ''}`} style={ctry.includes(c) ? { background: 'var(--amber)' } : undefined} onClick={() => setCtry(ctry.includes(c) ? ctry.filter((x) => x !== c) : [...ctry, c])}>
             {c}
           </button>
@@ -98,18 +108,22 @@ export function ECO(_: FnProps) {
             <th>Ctry</th>
             <th>Event</th>
             <th>Period</th>
-            <th className="num">Survey</th>
-            <th className="num">Actual</th>
-            <th className="num">Prior</th>
-            <th className="num hide-m">Revised</th>
+            {real ? null : <th className="num">Survey</th>}
+            <th className="num" title={real ? 'The published value for the period, including any revisions since' : undefined}>
+              Actual
+            </th>
+            <th className="num" title={real ? 'The previous period as currently published' : undefined}>
+              Prior
+            </th>
+            {real ? null : <th className="num hide-m">Revised</th>}
             <th className="hide-m">Relevance</th>
           </tr>
         </thead>
         <tbody>
           {events.length === 0 && (
             <tr>
-              <td colSpan={9} className="empty">
-                No events for the selected filters.
+              <td colSpan={real ? 7 : 9} className="empty">
+                {real && !fredData.get().loaded ? 'Loading the release calendar from FRED…' : 'No events for the selected filters.'}
               </td>
             </tr>
           )}
@@ -119,12 +133,12 @@ export function ECO(_: FnProps) {
             const head = dayKey !== lastDay;
             lastDay = dayKey;
             const diff = e.actual != null && e.survey != null ? e.actual - e.survey : 0;
-            const released = e.actual != null;
+            const released = real ? e.time <= now : e.actual != null;
             const soon = !released && e.time - now < 3600_000 && e.time > now;
             return [
               head ? (
                 <tr key={`h${i}`} className="group">
-                  <td colSpan={9}>
+                  <td colSpan={real ? 7 : 9}>
                     {WEEKDAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]} {String(p.mo).padStart(2, '0')}/{String(p.d).padStart(2, '0')}/{String(p.y).slice(2)}
                   </td>
                 </tr>
@@ -137,10 +151,12 @@ export function ECO(_: FnProps) {
                   {e.real || !all.some((x) => x.real) ? null : <span className="muted"> SIM</span>}
                 </td>
                 <td className="muted">{e.period}</td>
-                <td className="num">{fmtVal(e, e.survey)}</td>
-                <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`}>{released ? fmtVal(e, e.actual) : soon ? <span className="yellow">{countdown(e.time - now)}</span> : ''}</td>
+                {real ? null : <td className="num">{fmtVal(e, e.survey)}</td>}
+                <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`}>
+                  {released ? (e.actual != null ? fmtVal(e, e.actual) : <span className="muted" title="Released; the value has not reached the source yet">pending</span>) : soon ? <span className="yellow">{countdown(e.time - now)}</span> : ''}
+                </td>
                 <td className="num">{fmtVal(e, e.prior)}</td>
-                <td className="num hide-m muted">{fmtVal(e, e.revised)}</td>
+                {real ? null : <td className="num hide-m muted">{fmtVal(e, e.revised)}</td>}
                 <td className="hide-m amber" title={`Relevance ${e.relevance}/3`}>
                   {'●'.repeat(e.relevance)}
                   <span className="faint">{'●'.repeat(3 - e.relevance)}</span>
@@ -173,7 +189,103 @@ const STATS: Record<string, { gdp: number; cpi: number; un: number; y10?: string
   MX: { gdp: 0.8, cpi: 3.9, un: 2.7, y10: 'GMXN10YR Index', idx: 'MEXBOL Index', ccy: 'USDMXN Curncy' },
 };
 
-export function ECST(_: FnProps) {
+export function ECST(props: FnProps) {
+  if (engine.realOnly) return <ECSTReal />;
+  return <ECSTSim {...props} />;
+}
+
+/** A statistic from FRED with the period it refers to. */
+function stat(key: [string, Freq] | undefined, calc: Calc, series: Record<string, Obs>): { v: number; period: string } | null {
+  if (!key) return null;
+  const [id, freq] = key;
+  const obs = series[id];
+  if (!obs?.length) return null;
+  const p = obs[obs.length - 1][0];
+  const v = valueAt(obs, p, calc, freq);
+  return v == null ? null : { v, period: periodLabel(p, freq) };
+}
+
+function StatCell({ s, dec = 1 }: { s: { v: number; period: string } | null; dec?: number }) {
+  if (!s) return <span className="faint">--</span>;
+  return (
+    <span title={s.period}>
+      {fmtNum(s.v, dec)} <span className="muted">{s.period}</span>
+    </span>
+  );
+}
+
+/**
+ * ECST on real data: growth, inflation and unemployment from FRED (the
+ * agencies' published figures, growth rates worked out from the published
+ * levels), policy rates from the central banks, markets from the live feeds.
+ */
+function ECSTReal() {
+  useInterval(2000);
+  const series = fredData.use((x) => x.series);
+  const cbs = centralBanks();
+  const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES'].includes(c) ? 'EZ' : c))?.rate;
+  const market = (id?: string) => (id && engine.hasSource(id) ? id : undefined);
+  const rows = Object.entries(COUNTRY_STATS).map(([c, k]) => {
+    const cpi = stat(k.cpi, 'yoy', series);
+    const rate = policy(c);
+    return {
+      c,
+      gdp: stat(k.gdp, 'yoy', series),
+      cpi,
+      un: stat(k.un, 'level', series),
+      rate,
+      real: rate != null && cpi ? rate - cpi.v : NaN,
+      y10: market(STATS[c]?.y10),
+      idx: market(STATS[c]?.idx),
+      ccy: market(STATS[c]?.ccy),
+    };
+  });
+  return (
+    <div>
+      <FnHeader
+        code="ECST"
+        title="World Economic Statistics"
+        sub={
+          <>
+            <RealBadge /> latest published figures from FRED (BEA, BLS, Eurostat, OECD) with their periods · policy rates from the central banks
+          </>
+        }
+      />
+      {!Object.keys(series).length ? <div className="empty">Loading statistics from FRED…</div> : null}
+      <DataTable
+        rows={rows}
+        rowKey={(r) => r.c}
+        columns={[
+          { key: 'c', label: 'Country', render: (r) => <span className="amber">{COUNTRY_NAMES[r.c]}</span>, sort: (r) => COUNTRY_NAMES[r.c] },
+          { key: 'g', label: 'Real GDP YoY %', num: true, render: (r) => <StatCell s={r.gdp} />, sort: (r) => r.gdp?.v ?? NaN },
+          { key: 'i', label: 'CPI YoY %', num: true, render: (r) => <StatCell s={r.cpi} />, sort: (r) => r.cpi?.v ?? NaN },
+          { key: 'u', label: 'Unemp %', num: true, render: (r) => <StatCell s={r.un} />, sort: (r) => r.un?.v ?? NaN },
+          { key: 'r', label: 'Policy %', num: true, render: (r) => (r.rate != null ? fmtNum(r.rate, 2) : '--'), sort: (r) => r.rate ?? NaN },
+          { key: 'real', label: 'Real rate', num: true, render: (r) => (Number.isFinite(r.real) ? <Chg v={r.real} dec={2} /> : '--'), sort: (r) => r.real, hideM: true },
+          { key: 'y', label: '10Y yld', num: true, render: (r) => (r.y10 ? <LivePx id={r.y10} /> : '--') },
+          { key: 'idx', label: 'Equity YTD', num: true, render: (r) => (r.idx ? <Chg v={periodChange(r.idx, 'YTD')} pct dec={1} /> : '--'), sort: (r) => (r.idx ? periodChange(r.idx, 'YTD') : NaN) },
+          { key: 'fx', label: 'FX YTD', num: true, render: (r) => (r.ccy ? <Chg v={periodChange(r.ccy, 'YTD')} pct dec={1} /> : '--'), hideM: true },
+        ]}
+      />
+      <Section title="Central banks">
+        <DataTable
+          rows={cbs}
+          rowKey={(b) => b.code}
+          columns={[
+            { key: 'b', label: 'Bank', render: (b) => b.bank },
+            { key: 'r', label: 'Rate', num: true, render: (b) => `${fmtNum(b.rate, 2)}%` },
+            { key: 'n', label: 'Next meeting', render: (b) => b.meetings.find((m) => Date.parse(`${m}T23:59:00Z`) > engine.now()) ?? 'n/a' },
+          ]}
+        />
+      </Section>
+      <div className="note">
+        Growth and inflation are year-on-year changes in the published real GDP and consumer price index (HICP in the euro area). The euro area HICP is Eurostat's 19-country aggregate. Inflation figures for the UK, Japan, Canada and Australia have no current FRED series and are left out. FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).
+      </div>
+    </div>
+  );
+}
+
+function ECSTSim(_: FnProps) {
   useInterval(2000);
   const cbs = centralBanks();
   const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES'].includes(c) ? 'EZ' : c))?.rate;

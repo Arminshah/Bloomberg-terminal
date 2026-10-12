@@ -143,7 +143,8 @@ export function FA({ sec }: FnProps) {
                   ))}
                   <td className="num">{r.pct ? <Chg v={g} dec={1} /> : <Chg v={g} pct dec={1} />}</td>
                   <td className="hide-m">
-                    <Sparkline values={vals.map((v) => (Number.isFinite(v) ? v : 0))} width={70} height={14} color="var(--amber)" />
+                    {/* A missing period is left out of the trend rather than drawn as zero. */}
+                    <Sparkline values={vals.filter((v) => Number.isFinite(v))} width={70} height={14} color="var(--amber)" />
                   </td>
                 </tr>
               );
@@ -151,7 +152,10 @@ export function FA({ sec }: FnProps) {
           </tbody>
         </table>
       </div>
-      <div className="note">Statements are simulated from each company's scale and sector profile; they are not reported figures.</div>
+      {cols.length === 0 ? <div className="empty">{status === 'loading' ? 'Loading statements…' : 'No statements from the source for this security.'}</div> : null}
+      <div className="note">
+        {status === 'ok' ? 'Reported figures from the company filings as published by Yahoo Finance; LTM sums the last four reported quarters.' : status === 'sim' ? "Statements are simulated from each company's scale and sector profile; they are not reported figures." : ''}
+      </div>
     </div>
   );
 }

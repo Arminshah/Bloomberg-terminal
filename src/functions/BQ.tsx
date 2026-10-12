@@ -11,7 +11,7 @@ import { useFundamentals } from '../data/live/yfund';
 import { fmtBig, fmtBp, fmtDay, fmtEarnDate, fmtMln, fmtNum, fmtPct, fmtSigned, fmtStamp, fmtTime, signClass } from '../core/format';
 import { engine, useQuote, useTick } from '../data/market';
 import { rangeStats } from '../data/analytics';
-import { keyStats, nextEarnings, reportCcy } from '../data/fundamentals';
+import { keyStats, nextEarnings } from '../data/fundamentals';
 import { news } from '../data/news';
 import { execute } from '../terminal/exec';
 import { requestCompanyNews } from '../data/live/feeds';
@@ -84,7 +84,7 @@ export function BQ({ sec }: FnProps) {
               ['Previous close', fmtNum(q.prevClose, s.dec)],
               ...(q.volume > 0 ? ([['Volume', fmtBig(q.volume)], ['VWAP', fmtNum(vwap, s.dec)], ['Avg vol 30D', fmtBig(rs.avgVol30)]] as [string, string][]) : []),
               ['52-week range', `${fmtNum(rs.lo52, s.dec)} - ${fmtNum(rs.hi52, s.dec)}`],
-              ['Last update', fmtTime(q.time)],
+              ['Last update', q.src === 'EOD' ? `as of ${fmtDay(q.time)}` : fmtStamp(q.time)],
             ]}
           />
         </Section>
@@ -111,7 +111,7 @@ export function BQ({ sec }: FnProps) {
           {ks ? (
             <KV
               items={[
-                ['Market cap', `${fmtMln(ks.mcap)} ${reportCcy(s)}`],
+                ['Market cap', `${fmtMln(ks.mcap)} ${ks.tradeCcy}`],
                 ['P/E LTM / FY1', `${fmtNum(ks.pe, 1)} / ${fmtNum(ks.fpe, 1)}`],
                 ['Dividend yield', fmtPct(ks.divYld, 2, false)],
                 ['Beta', fmtNum(ks.beta, 2)],

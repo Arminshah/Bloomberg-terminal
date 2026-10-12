@@ -7,6 +7,8 @@ import { startDynamicFeeds } from '../data/live/lookup';
 import { startYahooData } from '../data/live/yahoo';
 import { startTreasury } from '../data/live/ust';
 import { startPolicyRates } from '../data/live/policy';
+import { startGovYields } from '../data/live/govyields';
+import { startFred } from '../data/live/fred';
 import { startYahooNews } from '../data/live/ynews';
 import { alerts, newsAlerts } from './userdata';
 import { startOms } from './oms';
@@ -111,5 +113,7 @@ export function startBackground(): () => void {
   stops.push(startYahooData());
   stops.push(startTreasury());
   stops.push(startPolicyRates());
+  stops.push(startGovYields());
+  stops.push(startFred());
   return () => stops.forEach((s) => s());
 }

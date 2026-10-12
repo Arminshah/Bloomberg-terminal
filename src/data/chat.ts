@@ -104,10 +104,15 @@ function now() {
   return Date.now();
 }
 
+/** Contacts on this app: the desktop app has no simulated desks, only the help desk bot. */
+export function contacts() {
+  return engine.realOnly ? CONTACTS.filter((c) => c.id === 'helpdesk') : CONTACTS;
+}
+
 export function ensureRooms() {
   const st = chats.get();
   const have = new Set(st.rooms.map((r) => r.id));
-  const missing = CONTACTS.filter((c) => !have.has(c.id));
+  const missing = contacts().filter((c) => !have.has(c.id));
   if (!missing.length) return;
   let seq = st.seq;
   const rooms = [
@@ -117,7 +122,7 @@ export function ensureRooms() {
       unread: c.id === 'helpdesk' ? 1 : 0,
       messages:
         c.id === 'helpdesk'
-          ? [{ id: seq++, from: c.who, text: 'Welcome to Armin Terminal. I can answer quick questions: try "AAPL", "news NVDA" or "eco". Desk channels post simulated market color during the session.', at: now() }]
+          ? [{ id: seq++, from: c.who, text: engine.realOnly ? 'Welcome to Armin Terminal. I can answer quick questions with live data: try "AAPL", "news NVDA" or "eco".' : 'Welcome to Armin Terminal. I can answer quick questions: try "AAPL", "news NVDA" or "eco". Desk channels post simulated market color during the session.', at: now() }]
           : [],
     })),
   ];
@@ -137,7 +142,8 @@ export function postMessage(roomId: string, from: string, text: string) {
 
 /** Called periodically: desks post market color now and then. */
 export function chatTick() {
-  if (Math.random() > 0.18) return;
+  // Desk color is written by the simulator; the desktop app has no simulated desks.
+  if (engine.realOnly || Math.random() > 0.18) return;
   const desks = ['rates', 'fx', 'eq', 'crypto'];
   const room = desks[Math.floor(Math.random() * desks.length)];
   const text = deskColor(room);

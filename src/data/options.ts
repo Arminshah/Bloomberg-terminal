@@ -4,6 +4,7 @@ import { DAY_MS, thirdFriday } from './calendar';
 import { engine } from './market';
 import { rangeStats } from './analytics';
 import { centralBanks } from './eco';
+import { etfQuotes, yahooQuotes } from './live/yahoo';
 import type { SecurityDef } from './types';
 
 export interface OptionQuote {
@@ -70,13 +71,23 @@ export function strikeStep(spot: number): number {
 }
 
 export function riskFree(def: SecurityDef): number {
-  if (def.ccy === 'USD') return (engine.quote('USGG3M Index')?.last ?? 4) / 100;
-  const country = def.country === 'NL' || def.country === 'DE' || def.country === 'FR' ? 'EZ' : def.country;
+  if (def.ccy === 'USD') return (engine.quote('USGG3M Index')?.last ?? (engine.realOnly ? NaN : 4)) / 100;
+  const country = def.country === 'NL' || def.country === 'DE' || def.country === 'FR' || def.country === 'IT' || def.country === 'ES' ? 'EZ' : def.country;
   const cb = centralBanks().find((b) => b.country === country);
-  return (cb?.rate ?? 3) / 100;
+  return (cb?.rate ?? (engine.realOnly ? NaN : 3)) / 100;
 }
 
+/** Index dividend yields come from the ETF that tracks each index (desktop app). */
+export const INDEX_ETF: Record<string, string> = { 'SPX Index': 'SPY', 'NDX Index': 'QQQ', 'INDU Index': 'DIA', 'RTY Index': 'IWM' };
+
+/** Continuous dividend yield for option and futures pricing, as a fraction. */
 export function dividendYield(def: SecurityDef): number {
+  if (engine.realOnly) {
+    // The source's trailing yield (an index's from its ETF); none known means none assumed.
+    const yq = def.cls === 'index' ? etfQuotes.get(INDEX_ETF[def.id] ?? '') : yahooQuotes.get(def.id);
+    const y = Number(yq?.trailingAnnualDividendYield);
+    return Number.isFinite(y) && y >= 0 ? Math.min(0.12, y) : NaN;
+  }
   if (!def.eq) return def.cls === 'index' ? 0.013 : 0;
   const px = engine.quote(def.id)?.last ?? def.px;
   return Math.min(0.12, def.eq.dps / px);

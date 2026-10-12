@@ -8,7 +8,7 @@ import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
 import { usePanelId } from '../terminal/panel';
 import { openSecurity } from '../components/cells';
-import { desktopData } from '../data/live/yahoo';
+import { realFutureContract } from '../data/realfut';
 import type { FnProps } from '../terminal/types';
 
 const GROUPS: { name: string; ids: string[] }[] = [
@@ -115,7 +115,7 @@ export function WEIF(_: FnProps) {
   const panel = usePanelId();
   return (
     <div>
-      <FnHeader code="WEIF" title="World Equity Index Futures" sub="Front contracts · fair value from financing rate and dividend yield" />
+      <FnHeader code="WEIF" title="World Equity Index Futures" sub={engine.realOnly ? 'Front contracts · fair value is a model from the financing rate and dividend yield' : 'Front contracts · fair value from financing rate and dividend yield'} />
       <table className="tbl">
         <thead>
           <tr>
@@ -136,7 +136,7 @@ export function WEIF(_: FnProps) {
           </tr>
         </thead>
         <tbody>
-          {FUT_GROUPS.map((g, gi) => (
+          {FUT_GROUPS.filter((g) => g.ids.some((id) => engine.hasSource(id))).map((g, gi) => (
             <Fragment key={g.name}>
               <tr className="group">
                 <td colSpan={14}>
@@ -145,10 +145,10 @@ export function WEIF(_: FnProps) {
               </tr>
               {g.ids.map((id) => {
                 const d = engine.get(id);
-                if (!d) return null;
+                if (!d || !engine.hasSource(id)) return null;
                 const q = engine.quote(id)!;
                 const u = engine.quote(d.fut!.underlying)!;
-                const c = engine.futureContract(id)!;
+                const c = engine.realOnly ? realFutureContract(d) : engine.futureContract(id)!;
                 const intra = engine.intraday(id);
                 return (
                   <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e, 'GIP')}>
@@ -192,10 +192,9 @@ export function WEIF(_: FnProps) {
         </tbody>
       </table>
       <p className="pad-s muted">
-        Fair value = index × e^((r − q) × days/365), using the 3-month bill (or local policy rate) and the index dividend yield.{' '}
-        {desktopData()
-          ? 'ES, NQ, YM and RTY are real trade prices from Yahoo Finance; the other contracts have no free source and are modelled around fair value (marked SIM).'
-          : 'Futures prices are simulated around fair value.'}
+        {engine.realOnly
+          ? 'Prices, contracts and last trade dates from Yahoo Finance (CME, delayed 10 minutes). Fair value is a model: index × e^((r − q) × days/365) with the 3-month Treasury rate and the index ETF’s trailing dividend yield. Non-US index futures have no free source and are not listed.'
+          : 'Fair value = index × e^((r − q) × days/365), using the 3-month bill (or local policy rate) and the index dividend yield. Futures prices are simulated around fair value.'}
       </p>
     </div>
   );

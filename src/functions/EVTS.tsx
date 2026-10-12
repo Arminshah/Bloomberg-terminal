@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Chg, SecLink } from '../components/cells';
-import { fmtDay, fmtMln, fmtNum, WEEKDAYS } from '../core/format';
+import { fmtDay, fmtNum, WEEKDAYS } from '../core/format';
 import { SimBadge } from '../components/Source';
 import { getRealFund } from '../data/live/yfund';
 import { desktopData, yahooQuotes } from '../data/live/yahoo';
@@ -132,7 +132,6 @@ export function EVTS({ sec }: FnProps) {
           })}
         </tbody>
       </table>
-      {sec?.eq && <div className="note">Revenue base LTM {fmtMln(sec.eq.rev)} {sec.ccy}.</div>}
     </div>
   );
 }

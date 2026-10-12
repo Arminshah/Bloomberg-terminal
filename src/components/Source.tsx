@@ -17,6 +17,8 @@ export function sourceLabel(status: SourceStatus, simText: string): ReactNode {
     case 'loading':
       return 'Loading real data…';
     case 'error':
+      // The desktop app never fills in for a source with simulated figures.
+      if (engine.realOnly) return 'No data from the source for this security';
       return (
         <>
           <span className="badge sim">SIMULATED</span> real data unavailable for this security
@@ -53,17 +55,20 @@ export function RealBadge() {
 /** Where a yield curve's levels come from. `curve` is a country code; omit it for a table of countries. */
 export function RatesSource({ curve }: { curve?: string }) {
   const rates = feedStatus.use((s) => s.rates);
+  const yields = feedStatus.use((s) => s.yields);
   if (!desktopData()) {
     return (
       <>
-        <SimBadge /> yields from the simulator; the US curve is real in the desktop app
+        <SimBadge /> yields from the simulator; the desktop app shows official yields
       </>
     );
   }
   if (curve && curve !== 'US') {
+    if (yields === 'off' || yields === 'connecting') return <>Loading official yields…</>;
+    if (yields === 'error') return <>Official yields unavailable right now</>;
     return (
       <>
-        <SimBadge /> no free source for this curve, so its levels are simulated
+        <RealBadge /> {CURVE_SOURCE[curve] ?? 'official source'}, end of day
       </>
     );
   }
@@ -71,19 +76,22 @@ export function RatesSource({ curve }: { curve?: string }) {
   if (rates === 'error') {
     return (
       <>
-        <RealBadge /> 5Y, 10Y and 30Y from Yahoo · <SimBadge /> other tenors (Treasury data unavailable)
+        <RealBadge /> 5Y, 10Y and 30Y from Yahoo · other US tenors unavailable (Treasury data not answering)
       </>
     );
   }
   return (
     <>
-      <RealBadge /> US Treasury: 5Y, 10Y and 30Y live from Yahoo, other tenors official end of day
-      {curve ? null : (
-        <>
-          {' '}
-          · <SimBadge /> other countries
-        </>
-      )}
+      <RealBadge /> US Treasury par yields: 5Y, 10Y and 30Y live from Yahoo, other tenors official end of day
+      {curve ? null : <> · other countries official end of day</>}
     </>
   );
 }
+
+const CURVE_SOURCE: Record<string, string> = {
+  DE: 'Deutsche Bundesbank zero-coupon yields (Svensson curve)',
+  GB: 'Bank of England nominal par yields (5Y, 10Y and 20Y)',
+  JP: 'Ministry of Finance Japan constant-maturity JGB yields',
+  CA: 'Bank of Canada benchmark bond yields',
+  AU: 'Reserve Bank of Australia interpolated yields',
+};

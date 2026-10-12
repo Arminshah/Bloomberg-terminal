@@ -193,7 +193,7 @@ export const RATES: SecurityDef[] = [
     [0.25, 3.85], [0.5, 3.78], [1, 3.62], [2, 3.5], [3, 3.52], [5, 3.68], [7, 3.88], [10, 4.08], [20, 4.62], [30, 4.68],
   ], 0.85, { 0.25: '^IRX', 5: '^FVX', 10: '^TNX', 30: '^TYX' }),
   ...curveSet((t) => `GDBR${t}`, 'German Govt Bond', 'DE', 'EMEA', 'EUR', 'DE', [[2, 2.02], [5, 2.3], [10, 2.68], [30, 3.25]], 0.7),
-  ...curveSet((t) => `GUKG${t}`, 'UK Gilts', 'GB', 'EMEA', 'GBP', 'GB', [[2, 3.82], [5, 3.98], [10, 4.55], [30, 5.3]], 0.85),
+  ...curveSet((t) => `GUKG${t}`, 'UK Gilts', 'GB', 'EMEA', 'GBP', 'GB', [[2, 3.82], [5, 3.98], [10, 4.55], [20, 5.12], [30, 5.3]], 0.85),
   ...curveSet((t) => `GJGB${t}`, 'Japan Govt Bond', 'JP', 'APAC', 'JPY', 'JP', [[2, 1.05], [5, 1.42], [10, 1.95], [30, 3.3]], 0.45),
   rate('GFRN10', 'French Govt OAT 10Y', 'FR', 'EMEA', 'EUR', 'FR', 10, 3.45, 0.72),
   rate('GBTPGR10', 'Italy Govt BTP 10Y', 'IT', 'EMEA', 'EUR', 'IT', 10, 3.5, 0.8),

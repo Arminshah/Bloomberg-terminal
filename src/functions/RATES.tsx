@@ -13,6 +13,8 @@ import type { FnProps } from '../terminal/types';
 import { RatesSource, RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { policyRates } from '../data/live/policy';
+import { contractSymbols, useYahooQuotes } from '../data/live/yquotes';
+import { fedPath } from '../data/fedpath';
 
 // ------------------------------------------------------------------- WB
 
@@ -37,6 +39,9 @@ export function WB(_: FnProps) {
   useTick(2);
   const ust = engine.quote('USGG10YR Index')!.last;
   const bund = engine.quote('GDBR10 Index')!.last;
+  // The desktop app lists only countries with an official source, and only their published tenors.
+  const has = (id?: string) => !!id && engine.hasSource(id);
+  const rows = WB_ROWS.filter((r) => Object.values(r.ids).some(has));
   return (
     <div>
       <FnHeader
@@ -66,16 +71,16 @@ export function WB(_: FnProps) {
           </tr>
         </thead>
         <tbody>
-          {WB_ROWS.map((r) => {
+          {rows.map((r) => {
             const ten = r.ids[10];
             const q10 = engine.quote(ten)!;
-            const two = r.ids[2] ? engine.quote(r.ids[2])!.last : NaN;
+            const two = has(r.ids[2]) ? engine.quote(r.ids[2])!.last : NaN;
             return (
               <tr key={r.c}>
                 <td className="amber">{COUNTRY_NAMES[r.c]}</td>
                 {[2, 5, 10, 30].map((t) => (
                   <td key={t} className="num white">
-                    {r.ids[t] ? (
+                    {has(r.ids[t]) ? (
                       <SecLink id={r.ids[t]} fn="GP">
                         <LivePx id={r.ids[t]} />
                       </SecLink>
@@ -93,17 +98,26 @@ export function WB(_: FnProps) {
                 <td className="num hide-m">
                   <Chg v={periodChange(ten, 'YTD')} bp dec={0} />
                 </td>
-                <td className="num">{r.c === 'US' ? '--' : fmtNum((q10.last - ust) * 100, 0)}</td>
-                <td className="num hide-m">{r.c === 'DE' ? '--' : fmtNum((q10.last - bund) * 100, 0)}</td>
-                <td className="num hide-m">{Number.isFinite(two) ? fmtNum((q10.last - two) * 100, 0) : '--'}</td>
+                <td className="num">{r.c === 'US' ? '--' : spread(q10.last, ust)}</td>
+                <td className="num hide-m">{r.c === 'DE' ? '--' : spread(q10.last, bund)}</td>
+                <td className="num hide-m">{spread(q10.last, two)}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      <div className="note">Spreads and curve slope in basis points. Simulated curves move with US rates through a country beta.</div>
+      <div className="note">
+        {engine.realOnly
+          ? 'Spreads and curve slope in basis points. Each yield is the figure its source publishes: US Treasury par yields (5Y, 10Y and 30Y stream during the session), Bundesbank zero-coupon yields, Bank of England par yields, Japanese Ministry of Finance constant-maturity yields, Bank of Canada benchmark yields and RBA interpolated yields, so methods differ slightly between countries. Countries without a free official source are not listed.'
+          : 'Spreads and curve slope in basis points. Simulated curves move with US rates through a country beta.'}
+      </div>
     </div>
   );
+}
+
+/** Difference in basis points, or "--" when either yield is missing. */
+function spread(a: number, b: number): string {
+  return Number.isFinite(a) && Number.isFinite(b) ? fmtNum((a - b) * 100, 0) : '--';
 }
 
 // ------------------------------------------------------------------- GC
@@ -121,12 +135,16 @@ export function GC(_: FnProps) {
   const code = CURVES[tab - 1].code;
   const curves = COMPARE.map((c) => ({ ...c, pts: curveAt(code, c.k) }));
   const cur = curves[0].pts;
-  const y = (t: number) => interp(cur, t);
-  const spreads = [
-    ['2s10s', (y(10) - y(2)) * 100],
-    ['5s30s', (y(30) - y(5)) * 100],
-    [code === 'US' ? '3m10y' : '2s30s', ((code === 'US' ? y(10) - y(0.25) : y(30) - y(2))) * 100],
-  ] as const;
+  // Slopes use published tenors only; a missing tenor is never filled in from its neighbours.
+  const y = (t: number) => cur.find((p) => p.tenor === t)?.y ?? NaN;
+  const spreads = (
+    [
+      ['2s10s', (y(10) - y(2)) * 100],
+      ['5s30s', (y(30) - y(5)) * 100],
+      ['5s20s', (y(20) - y(5)) * 100],
+      [code === 'US' ? '3m10y' : '2s30s', (code === 'US' ? y(10) - y(0.25) : y(30) - y(2)) * 100],
+    ] as const
+  ).filter(([k, v]) => Number.isFinite(v) && !(k === '5s20s' && Number.isFinite(y(30))));
   const ticks = cur.map((p) => ({ v: p.tenor, label: tenorLabel(p.tenor) }));
   return (
     <div>
@@ -153,8 +171,8 @@ export function GC(_: FnProps) {
           />
         </Section>
         <Section title="Curve slope" right="bp">
-          <KV items={spreads.map(([k, v]) => [k, <span key={k} className={v < 0 ? 'dn' : 'up'}>{fmtNum(v, 1)}</span>])} />
-          <div className="note">{spreads[0][1] < 0 ? 'The 2s10s curve is inverted.' : 'The 2s10s curve is positively sloped.'}</div>
+          {spreads.length ? <KV items={spreads.map(([k, v]) => [k, <span key={k} className={v < 0 ? 'dn' : 'up'}>{fmtNum(v, 1)}</span>])} /> : <div className="empty">No published tenors to compare yet.</div>}
+          {spreads[0]?.[0] === '2s10s' ? <div className="note">{spreads[0][1] < 0 ? 'The 2s10s curve is inverted.' : 'The 2s10s curve is positively sloped.'}</div> : null}
         </Section>
       </div>
       <table className="tbl">
@@ -199,7 +217,169 @@ export function GC(_: FnProps) {
 
 // ----------------------------------------------------------------- BTMM
 
-export function BTMM(_: FnProps) {
+export function BTMM(props: FnProps) {
+  if (engine.realOnly) return <BTMMReal />;
+  return <BTMMSim {...props} />;
+}
+
+const FUNDING_NAMES: Record<string, string> = {
+  EFFR: 'Effective fed funds',
+  OBFR: 'Overnight bank funding',
+  SOFR: 'SOFR',
+  BGCR: 'Broad general collateral',
+  TGCR: 'Tri-party general collateral',
+};
+
+/** Futures contract months with prices from the source: [symbol, month, year, quote]. */
+function useStrip(root: string, exch: string, listed: string, n: number) {
+  const contracts = useMemo(() => contractSymbols(root, exch, listed, n), [root, exch, listed, n]);
+  const quotes = useYahooQuotes(contracts.map((c) => c.symbol));
+  return contracts.map((c) => ({ ...c, q: quotes.get(c.symbol) })).filter((c) => Number.isFinite(Number(c.q?.regularMarketPrice)));
+}
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** BTMM on real data: New York Fed reference rates, Treasury bills, curve spreads and SOFR futures. */
+function BTMMReal() {
+  useTick(2);
+  const pr = policyRates.use((x) => x);
+  const funding = pr.funding ?? [];
+  const asOf = funding.reduce((m, f) => (f.date > m ? f.date : m), '');
+  const fed = centralBanks().find((b) => b.code === 'FED');
+  const nextFomc = (pr.fomc ?? fed?.meetings ?? []).find((m) => Date.parse(`${m}T18:00:00Z`) > engine.now());
+  const us = curveAt('US', 0);
+  const y = (t: number) => us.find((p) => p.tenor === t)?.y ?? NaN;
+  const y10 = y(10);
+  const vs = (id: string) => (engine.hasSource(id) ? (y10 - engine.quote(id)!.last) * 100 : NaN);
+  const sofr = useStrip('SR3', 'CME', 'H,M,U,Z', 8);
+  const bp = (v: number) => (Number.isFinite(v) ? fmtNum(v, 1) : '--');
+  return (
+    <div>
+      <FnHeader
+        code="BTMM"
+        title="US Treasury & Money Markets"
+        sub={
+          <>
+            Reference rates, bills, curve and SOFR futures · <RealBadge /> New York Fed, US Treasury, CME futures via Yahoo
+          </>
+        }
+      />
+      <div className="cols">
+        <Section title="Policy and funding" right={asOf ? <>New York Fed, rates for {fmtDay(Date.parse(`${asOf}T00:00:00Z`))}</> : 'Loading the New York Fed…'}>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Rate</th>
+                <th className="num">%</th>
+                <th className="num hide-m">1st-99th pct</th>
+                <th className="num">Vol $bn</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pr.fedLower && pr.fedUpper ? (
+                <tr>
+                  <td className="amber">Fed funds target</td>
+                  <td className="num white">
+                    {fmtNum(pr.fedLower.last, 2)} - {fmtNum(pr.fedUpper.last, 2)}
+                  </td>
+                  <td className="num hide-m muted">since {fmtDay(Date.parse(`${pr.fedUpper.changes[pr.fedUpper.changes.length - 1][0]}T00:00:00Z`))}</td>
+                  <td className="num">--</td>
+                </tr>
+              ) : null}
+              {['EFFR', 'OBFR', 'SOFR', 'BGCR', 'TGCR'].map((type) => {
+                const f = funding.find((x) => x.type === type);
+                if (!f) return null;
+                return (
+                  <tr key={type}>
+                    <td className="amber">{FUNDING_NAMES[type]}</td>
+                    <td className="num white">{fmtNum(f.rate, 2)}</td>
+                    <td className="num hide-m">{Number.isFinite(f.p1) ? `${fmtNum(f.p1, 2)} - ${fmtNum(f.p99, 2)}` : '--'}</td>
+                    <td className="num">{Number.isFinite(f.volume) ? fmtNum(f.volume, 0) : '--'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <KV items={[['Next FOMC decision', nextFomc ? fmtDay(Date.parse(`${nextFomc}T00:00:00Z`)) : '--']]} />
+        </Section>
+        <Section title="Bills" right="Treasury par yield curve">
+          <table className="tbl">
+            <tbody>
+              {['USGG3M Index', 'USGG6M Index', 'USGG12M Index'].map((id) => (
+                <tr key={id}>
+                  <td>
+                    <SecLink id={id} fn="GP">
+                      {engine.get(id)!.ticker}
+                    </SecLink>
+                  </td>
+                  <td className="num white">
+                    <LivePx id={id} />
+                  </td>
+                  <td className="num">
+                    <Chg v={engine.quote(id)!.chg} bp />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+        <Section title="Spreads (bp)">
+          <KV
+            items={[
+              ['2s10s', bp((y10 - y(2)) * 100)],
+              ['5s30s', bp((y(30) - y(5)) * 100)],
+              ['3m10y', bp((y10 - y(0.25)) * 100)],
+              ['10Y vs Bund', bp(vs('GDBR10 Index'))],
+              ['10Y vs Gilt', bp(vs('GUKG10 Index'))],
+            ]}
+          />
+          <div className="note">Bund and gilt yields are the Bundesbank's zero-coupon and the Bank of England's par yields, so these two spreads mix methods.</div>
+        </Section>
+      </div>
+      <Section title="Three-month SOFR futures (CME)" right="implied rate = 100 - price · delayed 10 min">
+        {sofr.length === 0 ? (
+          <div className="empty">Loading SOFR futures…</div>
+        ) : (
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>Contract</th>
+                <th>Month</th>
+                <th className="num">Price</th>
+                <th className="num">Implied %</th>
+                <th className="num">Chg bp</th>
+                <th className="num hide-m">Open int.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sofr.map((c) => {
+                const px = Number(c.q.regularMarketPrice);
+                const chg = Number(c.q.regularMarketChange);
+                return (
+                  <tr key={c.symbol}>
+                    <td className="amber">{c.symbol.replace(/\..*$/, '')}</td>
+                    <td>
+                      {MONTH_ABBR[c.month]} {c.year}
+                    </td>
+                    <td className="num white">{fmtNum(px, 3)}</td>
+                    <td className="num">{fmtNum(100 - px, 3)}</td>
+                    <td className="num">
+                      <Chg v={Number.isFinite(chg) ? -chg : NaN} bp />
+                    </td>
+                    <td className="num hide-m">{Number(c.q.openInterest) > 0 ? fmtNum(Number(c.q.openInterest), 0) : '--'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </Section>
+      <div className="note">Treasury note and bond prices have no free source here, so the actives table is not shown in the desktop app.</div>
+    </div>
+  );
+}
+
+function BTMMSim(_: FnProps) {
   useTick(2);
   const fed = centralBanks()[0];
   // The New York Fed's published levels in the desktop app; otherwise the usual spreads to the range.
@@ -341,7 +521,145 @@ const WIRP_BANKS = [
   { n: 4, code: 'BOJ', curve: [['GJGB2 Index', 2]] as [string, number][], basis: 0.0, step: 0.25 },
 ];
 
-export function WIRP(_: FnProps) {
+export function WIRP(props: FnProps) {
+  if (engine.realOnly) return <WIRPReal />;
+  return <WIRPSim {...props} />;
+}
+
+/**
+ * WIRP on real data: the Fed path priced in CBOT 30-day fed funds futures,
+ * meeting by meeting, from the New York Fed's effective rate and the Board's
+ * FOMC calendar. Other central banks have no free futures source here.
+ */
+function WIRPReal() {
+  useTick(3);
+  const pr = policyRates.use((x) => x);
+  const strip = useStrip('ZQ', 'CBT', 'All months', 16);
+  const now = engine.now();
+  const current = pr.effr?.last ?? NaN;
+  const meetings = pr.fomc ?? centralBanks().find((b) => b.code === 'FED')?.meetings ?? [];
+  const months = strip.map((c) => ({ year: c.year, month: c.month, avg: 100 - Number(c.q.regularMarketPrice) }));
+  const path = fedPath(months, meetings, current, now);
+  const step = 0.25;
+  const header = (
+    <FnHeader
+      code="WIRP"
+      title="World Interest Rate Probability"
+      sub={
+        <>
+          Federal Reserve · <RealBadge /> CBOT 30-day fed funds futures (via Yahoo, delayed 10 min), New York Fed effective rate, FOMC calendar
+        </>
+      }
+    />
+  );
+  if (!Number.isFinite(current) || !strip.length) {
+    return (
+      <div>
+        {header}
+        <div className="empty">{!Number.isFinite(current) ? 'Loading the effective fed funds rate from the New York Fed…' : 'Loading fed funds futures…'}</div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      {header}
+      <div className="chart-tools">
+        <span>
+          <span className="amber">Effective fed funds</span> {fmtNum(current, 2)}% ({fmtDay(Date.parse(`${pr.effr!.asOf}T00:00:00Z`))})
+        </span>
+        {pr.fedLower && pr.fedUpper ? (
+          <span>
+            <span className="amber">Target range</span> {fmtNum(pr.fedLower.last, 2)}-{fmtNum(pr.fedUpper.last, 2)}%
+          </span>
+        ) : null}
+        <span className="muted">Positive = hikes priced, negative = cuts.</span>
+      </div>
+      {path.length === 0 ? (
+        <div className="empty">No upcoming FOMC decision is covered by the listed futures.</div>
+      ) : (
+        <div className="cols" style={{ gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)' }}>
+          <Section title="Meeting by meeting">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Meeting</th>
+                  <th className="num">#Hikes/Cuts</th>
+                  <th className="num">% Prob of move</th>
+                  <th className="num">Imp. rate</th>
+                  <th className="num">Δ bp</th>
+                </tr>
+              </thead>
+              <tbody>
+                {path.map((r) => {
+                  const move = r.end - r.start;
+                  const prob = Math.min(100, (Math.abs(move) / step) * 100);
+                  return (
+                    <tr key={r.date}>
+                      <td className="amber">{fmtDay(Date.parse(`${r.date}T00:00:00Z`))}</td>
+                      <td className="num">
+                        <Chg v={(r.end - current) / step} dec={2} />
+                      </td>
+                      <td className="num">
+                        <span className={move >= 0 ? 'up' : 'dn'}>{fmtPct(prob, 1, false)}</span> {move >= 0 ? 'hike' : 'cut'}
+                      </td>
+                      <td className="num white">{fmtNum(r.end, 3)}</td>
+                      <td className="num">
+                        <Chg v={(r.end - current) * 100} dec={1} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Section>
+          <Section title="Implied policy path">
+            <XYChart
+              height={260}
+              series={[{ label: 'Implied rate', color: '#ffb547', markers: true, points: [{ x: now, y: current, label: 'Now' }, ...path.map((r) => ({ x: Date.parse(`${r.date}T00:00:00Z`), y: r.end, label: fmtDay(Date.parse(`${r.date}T00:00:00Z`)) }))] }]}
+              xTicks={path.map((r) => ({ v: Date.parse(`${r.date}T00:00:00Z`), label: fmtDay(Date.parse(`${r.date}T00:00:00Z`)).slice(0, 5) }))}
+              yFormat={(v) => fmtNum(v, 2)}
+              refLines={[{ y: current, color: '#5c5c5c', label: 'Current' }]}
+            />
+          </Section>
+        </div>
+      )}
+      <Section title="Fed funds futures" right="implied average rate for the month = 100 - price">
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Contract</th>
+              <th>Month</th>
+              <th className="num">Price</th>
+              <th className="num">Implied %</th>
+              <th className="num hide-m">Open int.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {strip.map((c) => {
+              const px = Number(c.q.regularMarketPrice);
+              return (
+                <tr key={c.symbol}>
+                  <td className="amber">{c.symbol.replace(/\..*$/, '')}</td>
+                  <td>
+                    {MONTH_ABBR[c.month]} {c.year}
+                  </td>
+                  <td className="num white">{fmtNum(px, 4)}</td>
+                  <td className="num">{fmtNum(100 - px, 4)}</td>
+                  <td className="num hide-m">{Number(c.q.openInterest) > 0 ? fmtNum(Number(c.q.openInterest), 0) : '--'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Section>
+      <div className="note">
+        Method as CME FedWatch: each contract settles on its month's average effective rate. A month without a decision fixes the rate after the meeting before it; in a decision month the average splits into the days before and after the decision. One move = 25 bp. Futures settle on the effective rate, which trades inside the target range, so implied rates sit near the middle of the range.
+      </div>
+    </div>
+  );
+}
+
+function WIRPSim(_: FnProps) {
   useTick(3);
   const [tab, setTab] = useState(1);
   const cfg = WIRP_BANKS[tab - 1];

@@ -82,6 +82,8 @@ interface ExtData {
   /** The source has stopped answering: prices may be out of date. */
   stale: boolean;
   extended?: ExtendedPrice;
+  /** When the latest value was set by the market: the last trade, or the date of an end-of-day value. */
+  time: number;
 }
 
 export interface ExtBar {
@@ -1111,7 +1113,8 @@ export class MarketEngine {
       volume: st.volume,
       chg,
       pct: st.prevClose ? (chg / Math.abs(st.prevClose)) * 100 : 0,
-      time: t,
+      // A real line carries the market's own time, not the moment it was redrawn.
+      time: st.ext ? st.ext.time : t,
       tick,
       src: st.ext ? extSrc(st.ext) : st.kind !== 'base' ? this.derivedSrc(st) : st.live ? 'LIVE' : 'SIM',
     };
@@ -1462,6 +1465,8 @@ export class MarketEngine {
       delay: prev?.delay ?? 0,
       stale: false,
       extended: prev?.extended,
+      // A quote already received for this session is newer than the daily bar.
+      time: prev && prev.session === last.day && Number.isFinite(prev.time) && prev.time > dayStart(last.day) ? prev.time : dayStart(last.day),
     };
     st.live = true;
     st.liveIntraday = true;
@@ -1538,6 +1543,7 @@ export class MarketEngine {
     ext.open = q.marketOpen;
     ext.session = day;
     ext.stale = false;
+    ext.time = q.time;
     // A regular-session trade supersedes an earlier pre-market or after-hours price.
     if (q.marketOpen) ext.extended = undefined;
     // Keep the intraday series current between bar refreshes.

@@ -17,7 +17,13 @@ import { useMenu, usePanelId } from '../terminal/panel';
 import type { FnProps, MenuItem } from '../terminal/types';
 import { CLASS_LABEL } from '../data/registry';
 import { getRealFund, useFundamentals } from '../data/live/yfund';
+import { contractSymbols, useYahooQuotes } from '../data/live/yquotes';
+import { yahooQuotes } from '../data/live/yahoo';
+import { DAY_MS } from '../data/calendar';
 import { sourceLabel } from '../components/Source';
+import { realFutureContract } from '../data/realfut';
+import { yieldMethod } from '../data/live/govyields';
+import { usYieldMethod } from '../data/live/ust';
 
 function RelatedMenu({ sec, fns }: { sec: SecurityDef; fns: [string, string][] }) {
   const panel = usePanelId();
@@ -111,12 +117,12 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
     <>
       <div className="cols">
         <Section title="Company">
-          <p className="prose">{eq.desc}</p>
+          <p className="prose">{eq.desc || (engine.realOnly ? 'Loading the company profile…' : '')}</p>
           <KV
             items={[
               ['Sector', eq.sector],
               ['Industry', eq.industry],
-              ['Headquarters', eq.hq],
+              ['Headquarters', eq.hq || '--'],
               ['Chief executive', eq.ceo ?? '--'],
               ['Founded', eq.founded ? String(eq.founded) : '--'],
               ['Employees', eq.emp > 0 ? fmtInt(eq.emp) : '--'],
@@ -132,9 +138,9 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Last', <LivePx key="l" id={sec.id} />],
               ['52W high', `${fmtNum(rs.hi52, sec.dec)}  ${fmtDay(rs.hi52t)}`],
               ['52W low', `${fmtNum(rs.lo52, sec.dec)}  ${fmtDay(rs.lo52t)}`],
-              ['Market cap', `${fmtMln(ks.mcap)} ${ccy}`],
+              ['Market cap', `${fmtMln(ks.mcap)} ${ks.tradeCcy}`],
               ['Mkt cap (USD)', fmtBig(marketCapUsd(sec.id))],
-              ['Enterprise value', Number.isFinite(ks.ev) ? `${fmtMln(ks.ev)} ${ccy}` : 'n/m (financial)'],
+              ['Enterprise value', Number.isFinite(ks.ev) ? `${fmtMln(ks.ev)} ${ks.ccy}` : '--'],
               ['Shares out', fmtMln(eq.shares)],
               ['Avg volume 30D', fmtBig(rs.avgVol30)],
               ['Beta vs local index', fmtNum(eq.beta, 2)],
@@ -185,8 +191,10 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
         <Section title="1-year price" right="GP for the full chart">
           <PriceChartMini sec={sec} />
         </Section>
-        {real ? (
+        {real || engine.realOnly ? (
           <Section title="Ownership" right="HDS for holders">
+            {!real && <p className="pad-s muted">Loading ownership from the company's filings…</p>}
+            {real && (
             <KV
               items={[
                 ['Insiders', fmtPct(real.breakdown?.insiders, 2, false)],
@@ -196,6 +204,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
                 ['Largest holder', real.holders[0] ? `${real.holders[0].name} (${fmtNum(real.holders[0].pct, 2)}%)` : '--'],
               ]}
             />
+            )}
           </Section>
         ) : (
         <Section title="Revenue by region" right={<span className="badge sim">SIMULATED</span>}>
@@ -453,13 +462,16 @@ function FxDES({ sec }: { sec: SecurityDef }) {
           <Range52 sec={sec} />
           <Returns id={sec.id} />
         </Section>
-        <Section title="Policy rates and forwards" right="Covered interest parity">
+        <Section title={engine.realOnly ? 'Policy rates' : 'Policy rates and forwards'} right={engine.realOnly ? "Central banks' own data" : 'Covered interest parity'}>
           <KV
             items={[
               [`${base} policy rate`, rb != null ? `${fmtNum(rb, 2)}%` : '--'],
               [`${quote} policy rate`, rq != null ? `${fmtNum(rq, 2)}%` : '--'],
             ]}
           />
+          {engine.realOnly ? (
+            <p className="pad-s muted">Forward points are quoted by dealers and have no free source, so none are shown.</p>
+          ) : (
           <table className="tbl">
             <thead>
               <tr>
@@ -480,6 +492,7 @@ function FxDES({ sec }: { sec: SecurityDef }) {
               ))}
             </tbody>
           </table>
+          )}
         </Section>
         <Section title="1-year">
           <PriceChartMini sec={sec} />
@@ -519,6 +532,9 @@ function CommodityDES({ sec }: { sec: SecurityDef }) {
           <Range52 sec={sec} />
           <Returns id={sec.id} />
         </Section>
+        {engine.realOnly ? (
+          <RealStrip sec={sec} />
+        ) : (
         <Section title="Futures strip (simulated)" right={k < 0 ? 'Backwardation' : 'Contango'}>
           <table className="tbl">
             <thead>
@@ -544,6 +560,7 @@ function CommodityDES({ sec }: { sec: SecurityDef }) {
             </tbody>
           </table>
         </Section>
+        )}
         <Section title="1-year">
           <PriceChartMini sec={sec} />
         </Section>
@@ -553,11 +570,77 @@ function CommodityDES({ sec }: { sec: SecurityDef }) {
   );
 }
 
+/** Exchange suffix of each futures root on Yahoo, for its contract months. */
+const FUT_EXCH: Record<string, string> = {
+  CL: 'NYM', BZ: 'NYM', NG: 'NYM', HO: 'NYM', RB: 'NYM', PL: 'NYM', PA: 'NYM', GC: 'CMX', SI: 'CMX', HG: 'CMX',
+  ZW: 'CBT', ZC: 'CBT', ZS: 'CBT', KC: 'NYB', SB: 'NYB', CC: 'NYB', CT: 'NYB', LE: 'CME', HE: 'CME',
+};
+
+/** The listed contract months with their own prices, expiries and open interest (desktop app). */
+function RealStrip({ sec }: { sec: SecurityDef }) {
+  const root = (sec.yahoo ?? '').replace(/=F$/, '');
+  const exch = FUT_EXCH[root];
+  const contracts = useMemo(() => (exch ? contractSymbols(root, exch, sec.cmd!.months, 12) : []), [root, exch, sec.cmd]);
+  const quotes = useYahooQuotes(contracts.map((c) => c.symbol));
+  const now = engine.now();
+  const rows = contracts
+    .map((c) => ({ ...c, q: quotes.get(c.symbol) }))
+    .filter((r) => r.q && Number(r.q.regularMarketPrice) > 0 && Date.parse(String(r.q.expireIsoDate ?? '')) >= now - DAY_MS)
+    .slice(0, 8);
+  const first = Number(rows[0]?.q?.regularMarketPrice);
+  const last = Number(rows[rows.length - 1]?.q?.regularMarketPrice);
+  const shape = rows.length > 1 ? (last > first ? 'Contango' : last < first ? 'Backwardation' : 'Flat') : '';
+  return (
+    <Section title="Futures strip" right={shape}>
+      {!exch ? (
+        <p className="pad-s muted">No contract months listed for this future.</p>
+      ) : rows.length === 0 ? (
+        <p className="pad-s muted">Loading contract months…</p>
+      ) : (
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Contract</th>
+              <th className="num">Price</th>
+              <th className="num">Chg</th>
+              <th className="num">Spread to 1st</th>
+              <th className="num hide-m">Expiry</th>
+              <th className="num hide-m">Open int</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const px = Number(r.q.regularMarketPrice);
+              return (
+                <tr key={r.symbol}>
+                  <td className="amber" title={r.symbol}>
+                    {root} {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][r.month]} {String(r.year).slice(2)}
+                  </td>
+                  <td className="num">{fmtNum(px, sec.dec)}</td>
+                  <td className="num">
+                    <Chg v={Number(r.q.regularMarketChange)} dec={sec.dec} />
+                  </td>
+                  <td className="num">
+                    <Chg v={px - first} dec={sec.dec} />
+                  </td>
+                  <td className="num hide-m">{fmtDay(Date.parse(String(r.q.expireIsoDate)))}</td>
+                  <td className="num hide-m">{fmtInt(Number(r.q.openInterest))}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </Section>
+  );
+}
+
 function RateDES({ sec }: { sec: SecurityDef }) {
   useTick(3);
   const rs = rangeStats(sec.id);
   const curve = engine.securities.filter((d) => d.curve === sec.curve && d.cls === 'rate').sort((a, b) => a.tenor! - b.tenor!);
   const cb = centralBanks().find((b) => b.country === (sec.country === 'DE' || sec.country === 'FR' || sec.country === 'IT' || sec.country === 'ES' ? 'EZ' : sec.country));
+  const method = sec.country === 'US' ? usYieldMethod(sec) : yieldMethod(sec.id);
   return (
     <>
       <div className="cols">
@@ -567,6 +650,7 @@ function RateDES({ sec }: { sec: SecurityDef }) {
               ['Description', sec.name],
               ['Country', COUNTRY_NAMES[sec.country] ?? sec.country],
               ['Tenor', `${sec.tenor! < 1 ? `${Math.round(sec.tenor! * 12)} months` : `${sec.tenor} years`}`],
+              ...(engine.realOnly && method ? ([['Source', method]] as [string, string][]) : []),
               ['Yield', <LivePx key="l" id={sec.id} />],
               ['52W range', `${fmtNum(rs.lo52, 3)} - ${fmtNum(rs.hi52, 3)}`],
               ['Policy rate', cb ? `${fmtNum(cb.rate, 2)}% (${cb.bank})` : '--'],
@@ -627,13 +711,13 @@ function CryptoDES({ sec }: { sec: SecurityDef }) {
               ['Quote currency', 'USD'],
               ['Price', <LivePx key="l" id={sec.id} />],
               ['Circulating supply', fmtBig(cr.supply)],
-              ['Market value', fmtBig(q.last * cr.supply)],
+              ['Market value', fmtBig(engine.realOnly && Number(yahooQuotes.get(sec.id)?.marketCap) > 0 ? Number(yahooQuotes.get(sec.id)!.marketCap) : q.last * cr.supply)],
               ['Launched', String(cr.launched)],
               ['24h range', `${fmtNum(q.low, sec.dec)} - ${fmtNum(q.high, sec.dec)}`],
               ['High (10Y window)', `${fmtNum(ath, sec.dec)}  ${fmtDay(athT)}`],
               ['Drawdown from high', fmtPct((q.last / ath - 1) * 100, 1)],
               ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
-              ['Live feed', engine.isLive(sec.id) ? `Coinbase ${cr.coinbase}` : 'Simulated'],
+              ['Source', engine.realOnly ? 'Yahoo Finance (CoinMarketCap prices)' : engine.isLive(sec.id) ? `Coinbase ${cr.coinbase}` : 'Simulated'],
             ]}
           />
           <Range52 sec={sec} />
@@ -739,9 +823,11 @@ function FutureDES({ sec }: { sec: SecurityDef }) {
   const q = engine.quote(sec.id)!;
   const und = engine.get(f.underlying)!;
   const uq = engine.quote(und.id)!;
-  const c = engine.futureContract(sec.id)!;
+  const model = engine.futureContract(sec.id)!;
   const notional = q.last * f.multiplier;
   const rs = rangeStats(sec.id);
+  // Desktop app: the contract Yahoo actually quotes, its open interest, and fair value from real inputs.
+  const c = engine.realOnly ? realFutureContract(sec) : { ...model, oi: openInterest(sec) };
   return (
     <>
       <div className="cols">
@@ -766,12 +852,12 @@ function FutureDES({ sec }: { sec: SecurityDef }) {
               ['Last', <LivePx key="l" id={sec.id} />],
               ['Index', <LivePx key="i" id={und.id} />],
               ['Basis (fut - index)', fmtNum(q.last - uq.last, 2)],
-              ['Fair value', fmtNum(c.fair, 2)],
+              [engine.realOnly ? 'Fair value (model)' : 'Fair value', fmtNum(c.fair, 2)],
               ['Fair carry', fmtNum(c.carry, 2)],
               ['Financing rate', `${fmtNum(c.rate, 3)}%`],
               ['Dividend yield', `${fmtNum(c.q * 100, 2)}%`],
               ['Volume', fmtInt(q.volume)],
-              ['Open interest (sim)', fmtInt(openInterest(sec))],
+              [engine.realOnly ? 'Open interest' : 'Open interest (sim)', fmtInt(c.oi)],
               ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
             ]}
           />

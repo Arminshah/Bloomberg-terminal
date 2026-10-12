@@ -1,13 +1,17 @@
 import { createStore } from '../../core/store';
 import { DAY_MS } from '../calendar';
 import { setFeed } from './status';
+import { official, officialAvailable, parseRbaTable, parseSgs, parseSnbCube } from './official';
 
 /**
  * Real policy and funding rates for the desktop app, from the central banks'
- * own data services: the Fed's target range, effective fed funds and SOFR
- * (New York Fed), the ECB deposit rate (ECB Data Portal), Bank Rate (Bank of
- * England) and the overnight target (Bank of Canada). Each series keeps the
- * date and size of every move. Other central banks stay reference settings.
+ * own data services: the Fed's target range, effective fed funds, SOFR and the
+ * other reference rates (New York Fed), the FOMC calendar (Federal Reserve
+ * Board), the ECB deposit rate (ECB Data Portal), Bank Rate (Bank of
+ * England), the overnight target (Bank of Canada), the cash rate target
+ * (Reserve Bank of Australia), the SNB policy rate (Swiss National Bank) and
+ * the Selic target (Banco Central do Brasil). Each series keeps the date and
+ * size of every move.
  */
 
 export interface PolicySeries {
@@ -25,6 +29,26 @@ export interface PolicyRates {
   ecb?: PolicySeries;
   boe?: PolicySeries;
   boc?: PolicySeries;
+  rba?: PolicySeries;
+  snb?: PolicySeries;
+  bcb?: PolicySeries;
+  /** FOMC decision days (the second day of each scheduled meeting), from the Federal Reserve Board's calendar. */
+  fomc?: string[];
+  /** The New York Fed's latest reference rates. */
+  funding?: FundingRate[];
+}
+
+/** One New York Fed reference rate (EFFR, OBFR, SOFR, BGCR, TGCR) for its latest business day. */
+export interface FundingRate {
+  type: string;
+  date: string;
+  rate: number;
+  p1: number;
+  p25: number;
+  p75: number;
+  p99: number;
+  /** USD billions. */
+  volume: number;
 }
 
 export const policyRates = createStore<PolicyRates>({});
@@ -107,19 +131,60 @@ export function parseBoeCsv(text: string): Obs {
   return out;
 }
 
-async function get(source: 'effr' | 'sofr' | 'ecb' | 'boe' | 'boc', since: string): Promise<string> {
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/** The New York Fed's latest reference rates: {refRates: [{type, effectiveDate, percentRate, percentPercentile1, ..., volumeInBillions}]}. */
+export function parseNyFedLatest(text: string): FundingRate[] {
+  let json: any;
   try {
-    const res = await window.arminDesktop!.policy(source, since);
-    return res.status === 200 ? res.text : '';
+    json = JSON.parse(text);
   } catch {
-    return '';
+    return [];
   }
+  const out: FundingRate[] = [];
+  for (const r of (json?.refRates ?? []) as any[]) {
+    const date = String(r?.effectiveDate ?? '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(r?.percentRate)) continue;
+    const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : NaN);
+    out.push({ type: String(r.type), date, rate: r.percentRate, p1: n(r.percentPercentile1), p25: n(r.percentPercentile25), p75: n(r.percentPercentile75), p99: n(r.percentPercentile99), volume: n(r.volumeInBillions) });
+  }
+  return out;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const SHORT_MONTH = (m: string) => MONTH_NAMES.findIndex((x) => x.startsWith(m));
+
+/**
+ * FOMC decision days from the Board's calendar page: each year's panel lists
+ * "January 27-28" or "Apr/May 30-1". Notation votes and unscheduled meetings
+ * are left out; the decision is announced on the last day of a meeting.
+ */
+export function parseFomcCalendar(html: string): string[] {
+  const panels = [...html.matchAll(/(\d{4}) FOMC Meetings/g)].map((m) => ({ year: Number(m[1]), at: m.index ?? 0 })).sort((a, b) => a.at - b.at);
+  const out = new Set<string>();
+  panels.forEach((p, i) => {
+    const seg = html.slice(p.at, i + 1 < panels.length ? panels[i + 1].at : html.length);
+    for (const m of seg.matchAll(/fomc-meeting__month[^>]*>\s*<strong>([^<]+)<\/strong>\s*<\/div>\s*<div[^>]*fomc-meeting__date[^>]*>([^<]+)<\/div>/g)) {
+      const months = m[1].trim().split('/');
+      const days = /^(\d{1,2})-(\d{1,2})\*?$/.exec(m[2].trim());
+      if (!days) continue; // notation votes, unscheduled meetings
+      const k = SHORT_MONTH(months[months.length - 1].trim().slice(0, 3));
+      if (k < 0) continue;
+      out.add(`${p.year}-${String(k + 1).padStart(2, '0')}-${days[2].padStart(2, '0')}`);
+    }
+  });
+  return [...out].sort();
 }
 
 async function load(): Promise<number> {
   const since = new Date(Date.now() - 4 * 365 * DAY_MS).toISOString().slice(0, 10);
-  const [effr, sofr, ecb, boe, boc] = await Promise.all([get('effr', since), get('sofr', since), get('ecb', since), get('boe', since), get('boc', since)]);
+  const today = new Date().toISOString().slice(0, 10);
+  const [effr, sofr, nyfed, fomc, ecb, boe, boc, rba, snb, bcb] = await Promise.all(
+    (['effr', 'sofr', 'nyfed', 'fomc', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb'] as const).map((k) => official(k, since)),
+  );
   const fed = parseNyFed(effr);
+  const calendar = parseFomcCalendar(fomc);
+  const prev = policyRates.get();
   const next: PolicyRates = {
     fedUpper: toChanges(fed.upper),
     fedLower: toChanges(fed.lower),
@@ -128,21 +193,50 @@ async function load(): Promise<number> {
     ecb: toChanges(parseEcbCsv(ecb)),
     boe: toChanges(parseBoeCsv(boe)),
     boc: toChanges(parseValet(boc, 'V39079')),
+    rba: toChanges(parseRbaTable(rba).get('FIRMMCRTD') ?? []),
+    snb: toChanges(parseSnbCube(snb, 'LZ')),
+    bcb: toChanges(parseSgs(bcb, today)),
+    // A source that fails this time keeps what it gave before.
+    fomc: calendar.length ? calendar : prev.fomc,
+    funding: nyfed ? parseNyFedLatest(nyfed) : prev.funding,
   };
+  for (const k of ['fedUpper', 'fedLower', 'effr', 'sofr', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb'] as const) next[k] ??= prev[k];
   policyRates.set(next);
-  return ['fedUpper', 'ecb', 'boe', 'boc'].filter((k) => next[k as keyof PolicyRates]).length;
+  return BANKS.filter(([k]) => next[k]).length;
 }
 
-/** Loads the rates in the desktop app and refreshes them every six hours. */
+const BANKS: [keyof PolicyRates, string][] = [
+  ['fedUpper', 'Fed (New York Fed)'],
+  ['ecb', 'ECB'],
+  ['boe', 'Bank of England'],
+  ['boc', 'Bank of Canada'],
+  ['rba', 'Reserve Bank of Australia'],
+  ['snb', 'Swiss National Bank'],
+  ['bcb', 'Banco Central do Brasil'],
+];
+
+/** Loads the rates in the desktop app and refreshes them every hour; a source that fails is tried again after two minutes. */
 export function startPolicyRates(): () => void {
-  if (typeof window === 'undefined' || typeof window.arminDesktop?.policy !== 'function') return () => undefined;
+  if (!officialAvailable()) return () => undefined;
   setFeed('policy', 'connecting', 'Central bank rates');
+  let retry: ReturnType<typeof setTimeout> | null = null;
+  let retries = 0;
   const run = () =>
     void load().then((n) => {
-      if (n) setFeed('policy', 'live', `${n} of 4 central banks: Fed (New York Fed), ECB, Bank of England, Bank of Canada`);
-      else setFeed('policy', 'error', 'Central bank sources unavailable; policy rates are reference settings');
+      const got = BANKS.filter(([k]) => policyRates.get()[k]).map(([, name]) => name);
+      if (n) setFeed('policy', 'live', `${n} of ${BANKS.length} central banks: ${got.join(', ')}`);
+      else setFeed('policy', 'error', 'Central bank sources unavailable');
+      const p = policyRates.get();
+      const missing = n < BANKS.length || !p.funding?.length || !p.fomc?.length;
+      if (missing && retries < 5) {
+        retries++;
+        retry = setTimeout(run, 120_000);
+      } else if (!missing) retries = 0;
     });
   run();
-  const timer = setInterval(run, 6 * 3600_000);
-  return () => clearInterval(timer);
+  const timer = setInterval(run, 3600_000);
+  return () => {
+    clearInterval(timer);
+    if (retry) clearTimeout(retry);
+  };
 }

@@ -54,8 +54,9 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=%-]+\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=%-]+\?|v7\/finance\/quote\?|v7\/finance\/options\/[A-Za-z0-9.^=%-]+\?|ws\/fundamentals-timeseries\/v1\/finance\/timeseries\/[A-Za-z0-9.^=%-]+\?)/;
 let crumb = null;
 
+// Every data request revalidates with the server, so a refresh never shows a cached copy.
 async function yahooFetch(url, json = true) {
-  return net.fetch(url, { headers: { 'User-Agent': UA, ...(json ? { Accept: 'application/json' } : {}) }, credentials: 'include', signal: AbortSignal.timeout(TIMEOUT_MS) });
+  return net.fetch(url, { headers: { 'User-Agent': UA, ...(json ? { Accept: 'application/json' } : {}) }, credentials: 'include', cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
 }
 
 async function getCrumb(force) {
@@ -92,31 +93,89 @@ ipcMain.handle('treasury', async (event, year) => {
   if (!event.senderFrame || !event.senderFrame.url.startsWith('file://')) throw new Error('not allowed');
   const y = Number(year);
   if (!Number.isInteger(y) || y < 1990 || y > 2100) throw new Error('not allowed');
-  const res = await net.fetch(`${TREASURY}/${y}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${y}&page&_format=csv`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const res = await net.fetch(`${TREASURY}/${y}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${y}&page&_format=csv`, { headers: { 'User-Agent': UA }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 
-// ---------------------------------------------------------- Central banks
-// Policy rates from the central banks' own public data services (no keys).
-// Each source is a fixed URL; the page only picks which one and a start date.
+// ---------------------------------------------------------- Official data
+// Policy rates, funding rates, meeting calendars and government bond yields
+// from central banks and finance ministries (public services, no keys). Each
+// source is a fixed URL; the page only picks which one and a start date.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const POLICY = {
+
+function boeSeries(codes, since) {
+  const [y, m, d] = since.split('-');
+  return `https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp?csv.x=yes&Datefrom=${d}/${MONTHS[Number(m) - 1]}/${y}&Dateto=now&SeriesCodes=${codes}&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N`;
+}
+
+const OFFICIAL = {
+  // New York Fed: effective fed funds with the target range, SOFR, and the latest of every reference rate.
   effr: (since, today) => `https://markets.newyorkfed.org/api/rates/unsecured/effr/search.json?startDate=${since}&endDate=${today}`,
   sofr: () => 'https://markets.newyorkfed.org/api/rates/secured/sofr/last/1.json',
+  nyfed: () => 'https://markets.newyorkfed.org/api/rates/all/latest.json',
+  fomc: () => 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   ecb: (since) => `https://data-api.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.DFR.LEV?format=csvdata&startPeriod=${since}`,
-  boe: (since) => {
-    const [y, m, d] = since.split('-');
-    return `https://www.bankofengland.co.uk/boeapps/database/_iadb-fromshowcolumns.asp?csv.x=yes&Datefrom=${d}/${MONTHS[Number(m) - 1]}/${y}&Dateto=now&SeriesCodes=IUDBEDR&CSVF=TN&UsingCodes=Y&VPD=Y&VFD=N`;
-  },
+  boe: (since) => boeSeries('IUDBEDR', since),
   boc: (since) => `https://www.bankofcanada.ca/valet/observations/V39079/json?start_date=${since}`,
+  rba: () => 'https://www.rba.gov.au/statistics/tables/csv/f1-data.csv',
+  snb: (since) => `https://data.snb.ch/api/cube/snbgwdzid/data/csv/en?fromDate=${since}`,
+  bcb: (since) => {
+    const [y, m, d] = since.split('-');
+    return `https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json&dataInicial=${d}/${m}/${y}`;
+  },
+  // Government bond yields, end of day.
+  bunds: () => 'https://api.statistiken.bundesbank.de/rest/download/BBSIS/D.I.ZST.ZI.EUR.S1311.B.A604.R02XX+R05XX+R10XX+R30XX.R.A.A._Z._Z.A?format=csv&lang=en',
+  gilts: (since) => boeSeries('IUDSNPY,IUDMNPY,IUDLNPY', since),
+  jgb: () => 'https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/jgbcme.csv',
+  jgbHistory: () => 'https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/historical/jgbcme_all.csv',
+  canadas: (since) => `https://www.bankofcanada.ca/valet/observations/group/bond_yields_benchmark/json?start_date=${since}`,
+  acgb: () => 'https://www.rba.gov.au/statistics/tables/csv/f2-data.csv',
 };
 
-ipcMain.handle('policy', async (event, source, since) => {
+ipcMain.handle('official', async (event, source, since) => {
   if (!event.senderFrame || !event.senderFrame.url.startsWith('file://')) throw new Error('not allowed');
-  if (!Object.prototype.hasOwnProperty.call(POLICY, source)) throw new Error('not allowed');
+  if (!Object.prototype.hasOwnProperty.call(OFFICIAL, source)) throw new Error('not allowed');
   if (typeof since !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(since)) throw new Error('not allowed');
-  const url = POLICY[source](since, new Date().toISOString().slice(0, 10));
-  const res = await net.fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const url = OFFICIAL[source](since, new Date().toISOString().slice(0, 10));
+  // Some statistics services answer large requests slowly; a stalled one still ends.
+  const res = await net.fetch(url, { headers: { 'User-Agent': UA }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+  return { status: res.status, text: res.ok ? await res.text() : '' };
+});
+
+// ------------------------------------------------------------------- FRED
+// The St. Louis Fed's FRED: official US release dates and times, and the
+// published values of a fixed set of series. FRED refuses requests that claim
+// to be a desktop browser, so these go out with the app's own user agent.
+const FRED = 'https://fred.stlouisfed.org';
+const FRED_RELEASES = new Set([9, 10, 13, 27, 46, 50, 51, 53, 54, 95, 97, 180, 192]);
+const FRED_SERIES = new Set([
+  'PAYEMS', 'UNRATE', 'CPIAUCSL', 'CPIAUCNS', 'CPILFESL', 'CPILFENS', 'PPIFIS', 'RSAFS', 'INDPRO', 'HOUST', 'HSN1F',
+  'DGORDER', 'AMTMNO', 'A191RL1Q225SBEA', 'GDPC1', 'PCEPI', 'PCEPILFE', 'ICSA', 'JTSJOL', 'BOPGSTB',
+  'CP0000EZ19M086NEST', 'CLVMNACSCAB1GQEA19',
+  'CP0000DEM086NEST', 'LRHUTTTTDEM156S', 'CLVMNACSCAB1GQDE',
+  'CP0000FRM086NEST', 'LRHUTTTTFRM156S', 'CLVMNACSCAB1GQFR',
+  'CP0000ITM086NEST', 'LRHUTTTTITM156S', 'CLVMNACSCAB1GQIT',
+  'CP0000ESM086NEST', 'LRHUTTTTESM156S', 'CLVMNACSCAB1GQES',
+  'LRHUTTTTGBM156S', 'NGDPRSAXDCGBQ', 'LRHUTTTTJPM156S', 'JPNRGDPEXP',
+  'LRHUTTTTCAM156S', 'NGDPRSAXDCCAQ', 'LRHUTTTTAUM156S', 'NGDPRSAXDCAUQ',
+]);
+
+ipcMain.handle('fred', async (event, kind, arg, year) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  let url;
+  if (kind === 'calendar') {
+    const rid = Number(arg);
+    const y = Number(year);
+    if (!FRED_RELEASES.has(rid) || !Number.isInteger(y) || y < 2000 || y > 2100) throw new Error('not allowed');
+    url = `${FRED}/releases/calendar?rid=${rid}&y=${y}`;
+  } else if (kind === 'series') {
+    const ids = typeof arg === 'string' ? arg.split(',') : [];
+    // The graph service answers at most 12 series per request.
+    if (!ids.length || ids.length > 12 || !ids.every((id) => FRED_SERIES.has(id))) throw new Error('not allowed');
+    const from = new Date(Date.now() - 4 * 365.25 * 86_400_000).toISOString().slice(0, 10);
+    url = `${FRED}/graph/fredgraph.csv?id=${ids.join(',')}&cosd=${ids.map(() => from).join(',')}`;
+  } else throw new Error('not allowed');
+  const res = await net.fetch(url, { cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 

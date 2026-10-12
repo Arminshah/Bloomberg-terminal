@@ -25,6 +25,13 @@ const COLUMNS: Record<string, string> = {
 /** Lines this source owns; the Yahoo service leaves them alone. */
 export const TREASURY_IDS = new Set(Object.values(COLUMNS));
 
+/** Who publishes a US generic yield in the desktop app and how it is measured. */
+export function usYieldMethod(d: { id: string; yahoo?: string }): string | undefined {
+  if (TREASURY_IDS.has(d.id)) return 'US Department of the Treasury, daily par yield curve rate (end of day)';
+  if (d.yahoo) return `Cboe Treasury yield index ${d.yahoo} (latest auctioned note or bond), via Yahoo Finance`;
+  return undefined;
+}
+
 export function treasuryAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.treasury === 'function';
 }

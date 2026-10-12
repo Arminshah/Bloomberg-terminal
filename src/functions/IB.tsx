@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { fmtTime } from '../core/format';
-import { botReply, ensureRooms, postMessage } from '../data/chat';
+import { botReply, contacts, ensureRooms, postMessage } from '../data/chat';
+import { engine } from '../data/market';
 import { chats } from '../terminal/userdata';
 import { settings } from '../terminal/settings';
 import type { FnProps } from '../terminal/types';
@@ -11,8 +12,11 @@ export function IB({ route }: FnProps) {
     ensureRooms();
     if (route.args === 'HELP') chats.set((s) => ({ ...s, active: 'helpdesk' }));
   }, [route.args]);
-  const st = chats.use((s) => s);
+  const all = chats.use((s) => s);
   const user = settings.use((s) => s.userName);
+  // Rooms saved by an earlier version may include simulated desks; the desktop app shows only real contacts.
+  const allowed = new Set(contacts().map((c) => c.id));
+  const st = { ...all, rooms: all.rooms.filter((r) => allowed.has(r.id)) };
   const room = st.rooms.find((r) => r.id === st.active) ?? st.rooms[0];
   const [text, setText] = useState('');
   const end = useRef<HTMLDivElement>(null);
@@ -37,7 +41,7 @@ export function IB({ route }: FnProps) {
   if (!room) return null;
   return (
     <div className="fn-fill">
-      <FnHeader code="IB" title="Instant Messages" sub={`Signed in as ${user} · desks are simulated contacts`} />
+      <FnHeader code="IB" title="Instant Messages" sub={engine.realOnly ? `Signed in as ${user} · the help desk answers with live quotes and headlines` : `Signed in as ${user} · desks are simulated contacts`} />
       <div className="chat" style={{ flex: 1, minHeight: 0 }}>
         <nav className="chat-rooms" aria-label="Chats">
           {st.rooms.map((r) => (

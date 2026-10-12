@@ -26,6 +26,8 @@ export function policyRate(ccy: string): number {
     const cb = centralBanks().find((b) => b.code === code);
     if (cb) return cb.rate;
   }
+  // The desktop app has no reference rates: a currency without a real policy rate has none.
+  if (engine.realOnly) return NaN;
   return OTHER_POLICY[ccy] ?? 3;
 }
 
