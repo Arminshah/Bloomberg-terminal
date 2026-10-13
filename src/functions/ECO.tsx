@@ -58,7 +58,7 @@ export function ECO(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="ECO"
+        code="RELEASES"
         title="Economic Calendar"
         sub={
           <>
@@ -291,7 +291,7 @@ function ECSTReal() {
   return (
     <div>
       <FnHeader
-        code="ECST"
+        code="ECONSTATS"
         title="World Economic Statistics"
         sub={
           <>
@@ -347,7 +347,7 @@ function ECSTSim(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="ECST"
+        code="ECONSTATS"
         title="World Economic Statistics"
         sub={
           <>

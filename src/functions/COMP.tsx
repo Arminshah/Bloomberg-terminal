@@ -57,7 +57,7 @@ export function COMP({ sec }: FnProps) {
   const start = horizonStart(h.h);
   return (
     <div className="fn-fill">
-      <FnHeader code="COMP" title="Comparative Returns" sec={s} tabs={H.map((x) => ({ n: x.n, label: x.h }))} tab={tab} onTab={setTab} />
+      <FnHeader code="RETURNS" title="Comparative Returns" sec={s} tabs={H.map((x) => ({ n: x.n, label: x.h }))} tab={tab} onTab={setTab} />
       <div className="chart-tools">
         {others.map((id, i) => (
           <span key={id} className="cmp-chip" style={{ color: COMPARE_COLORS[i % COMPARE_COLORS.length] }}>

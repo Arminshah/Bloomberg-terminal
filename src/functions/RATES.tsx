@@ -45,7 +45,7 @@ export function WB(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="WB"
+        code="BONDS"
         title="World Bond Markets"
         sub={
           <>
@@ -81,7 +81,7 @@ export function WB(_: FnProps) {
                 {[2, 5, 10, 30].map((t) => (
                   <td key={t} className="num white">
                     {has(r.ids[t]) ? (
-                      <SecLink id={r.ids[t]} fn="GP">
+                      <SecLink id={r.ids[t]} fn="CHART">
                         <LivePx id={r.ids[t]} />
                       </SecLink>
                     ) : (
@@ -149,7 +149,7 @@ export function GC(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="GC"
+        code="CURVE"
         title="Graph Curves"
         sub={
           <>
@@ -192,7 +192,7 @@ export function GC(_: FnProps) {
             <tr key={d.id}>
               <td className="amber">{tenorLabel(d.tenor!)}</td>
               <td>
-                <SecLink id={d.id} fn="GP">
+                <SecLink id={d.id} fn="CHART">
                   {d.ticker}
                 </SecLink>
               </td>
@@ -256,7 +256,7 @@ function BTMMReal() {
   return (
     <div>
       <FnHeader
-        code="BTMM"
+        code="MONEYMARKET"
         title="US Treasury & Money Markets"
         sub={
           <>
@@ -308,7 +308,7 @@ function BTMMReal() {
               {['USGG3M Index', 'USGG6M Index', 'USGG12M Index'].map((id) => (
                 <tr key={id}>
                   <td>
-                    <SecLink id={id} fn="GP">
+                    <SecLink id={id} fn="CHART">
                       {engine.get(id)!.ticker}
                     </SecLink>
                   </td>
@@ -395,7 +395,7 @@ function BTMMSim(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="BTMM"
+        code="MONEYMARKET"
         title="US Treasury & Money Markets"
         sub={
           <>
@@ -423,7 +423,7 @@ function BTMMSim(_: FnProps) {
               {['USGG3M Index', 'USGG6M Index', 'USGG12M Index'].map((id) => (
                 <tr key={id}>
                   <td>
-                    <SecLink id={id} fn="GP">
+                    <SecLink id={id} fn="CHART">
                       {engine.get(id)!.ticker}
                     </SecLink>
                   </td>
@@ -450,7 +450,7 @@ function BTMMSim(_: FnProps) {
           />
         </Section>
       </div>
-      <Section title="Treasury actives" right={<>{desktopData() ? 'Model prices off the real curve' : <SimBadge />} · price in 32nds · click for YAS</>}>
+      <Section title="Treasury actives" right={<>{desktopData() ? 'Model prices off the real curve' : <SimBadge />} · price in 32nds · click for BONDCALC</>}>
         <table className="tbl">
           <thead>
             <tr>
@@ -470,7 +470,7 @@ function BTMMSim(_: FnProps) {
               return (
                 <tr key={b.id}>
                   <td>
-                    <SecLink id={b.id} fn="YAS">
+                    <SecLink id={b.id} fn="BONDCALC">
                       {b.alias![0]} · {b.ticker}
                     </SecLink>
                   </td>
@@ -543,7 +543,7 @@ function WIRPReal() {
   const step = 0.25;
   const header = (
     <FnHeader
-      code="WIRP"
+      code="RATEPROBS"
       title="World Interest Rate Probability"
       sub={
         <>
@@ -685,7 +685,7 @@ function WIRPSim(_: FnProps) {
   }, [pts.map((p) => p.y).join(), meetings.join(), current]);
   return (
     <div>
-      <FnHeader code="WIRP" title="World Interest Rate Probability" sub={
+      <FnHeader code="RATEPROBS" title="World Interest Rate Probability" sub={
           realCurve ? (
             <>
               {cb.bank} · <RealBadge /> rates, implied with a simple forward model from Treasury bills and the 2Y (not fed funds futures)

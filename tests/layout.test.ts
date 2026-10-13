@@ -8,7 +8,7 @@ describe('workspace layout', () => {
     const s = defaultTerminal();
     expect(s.layout).toBe('5');
     expect(LAYOUT_PANELS['5']).toBe(5);
-    expect(s.panels[4].history[0].fn).toBe('W');
+    expect(s.panels[4].history[0].fn).toBe('WATCHLIST');
   });
 
   it('gives a saved four-panel workspace the watchlist column and keeps its panels', () => {
@@ -17,7 +17,7 @@ describe('workspace layout', () => {
     expect(v).toBe(3);
     expect(s.layout).toBe('5');
     expect(s.panels[0].history[0]).toEqual({ fn: 'DES', sec: 'NBIS US Equity' });
-    expect(s.panels[4].history[0].fn).toBe('W');
+    expect(s.panels[4].history[0].fn).toBe('WATCHLIST');
     // Another layout the user chose stays as it was.
     const six = migrateTerminal({ v: 2, s: { ...old, layout: '6' } });
     expect(six.s.layout).toBe('6');

@@ -100,7 +100,7 @@ export function FA({ sec }: FnProps) {
   return (
     <div>
       <FnHeader
-        code="FA"
+        code="FINANCIALS"
         title="Financial Analysis"
         sec={s}
         sub={<>{ccy} millions except per share · {sourceLabel(status, 'statements generated from the company profile; real data needs the desktop app')}</>}

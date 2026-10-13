@@ -53,7 +53,7 @@ export function HP({ sec }: FnProps) {
   return (
     <div>
       <FnHeader
-        code="HP"
+        code="HISTORY"
         title="Historical Price Table"
         sec={s}
         tabs={RANGES.map((r) => ({ n: r.n, label: r.id }))}

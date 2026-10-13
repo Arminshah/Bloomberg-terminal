@@ -29,7 +29,7 @@ export function HDS({ sec }: FnProps) {
   const csv = () => [['Holder', 'Type', '% Out', 'Position', 'Change', 'As of', 'Source'], ...list.map((h) => [h.name, h.type, pctOf(h).toFixed(3), Math.round(h.shares), h.newOrDoubled ? 'new or doubled' : Math.round(h.change), fmtDay(h.filed, true), h.source])];
   return (
     <div>
-      <FnHeader code="HDS" title="Security Ownership" sec={s} sub={<>Institutional holders · {sourceLabel(status, 'positions generated; real data needs the desktop app')}</>} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_HDS.csv`, csv)} />
+      <FnHeader code="HOLDERS" title="Security Ownership" sec={s} sub={<>Institutional holders · {sourceLabel(status, 'positions generated; real data needs the desktop app')}</>} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_HDS.csv`, csv)} />
       <QuoteStrip sec={s} />
       {bd && (
         <div className="qstrip">

@@ -41,7 +41,7 @@ export function IB({ route }: FnProps) {
   if (!room) return null;
   return (
     <div className="fn-fill">
-      <FnHeader code="IB" title="Instant Messages" sub={engine.realOnly ? `Signed in as ${user} · the help desk answers with live quotes and headlines` : `Signed in as ${user} · desks are simulated contacts`} />
+      <FnHeader code="MESSAGES" title="Help Desk Messages" sub={engine.realOnly ? `Signed in as ${user} · the help desk answers with live quotes and headlines` : `Signed in as ${user} · desks are simulated contacts`} />
       <div className="chat" style={{ flex: 1, minHeight: 0 }}>
         <nav className="chat-rooms" aria-label="Chats">
           {st.rooms.map((r) => (

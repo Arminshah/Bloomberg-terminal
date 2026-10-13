@@ -15,7 +15,7 @@ interface CommandApi {
 }
 export const commandApis = new Map<number, CommandApi>();
 
-/** The Bloomberg keyboard's yellow market sector keys on F2-F12. */
+/** Market sector keys on F2-F12: each types its sector word (GOVT, CORP, EQUITY...). */
 export const FKEY_TEXT: Record<string, string> = {
   F2: 'GOVT',
   F3: 'CORP',
@@ -50,7 +50,7 @@ export function pagePanel(panel: number, dir: 1 | -1) {
   target.scrollBy({ top: dir * target.clientHeight * 0.9 });
 }
 
-/** Appends a yellow key (or any token) to a panel's command line. */
+/** Appends a market sector word (or any token) to a panel's command line. */
 export function typeInto(panel: number, token: string) {
   commandApis.get(panel)?.append(token);
 }

@@ -78,7 +78,7 @@ export function RV({ sec }: FnProps) {
   const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'P/E', 'P/B', 'EV/EBITDA', 'Div yld 12M', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), r.pe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
   return (
     <div>
-      <FnHeader code="RV" title="Relative Valuation" sec={s} sub={
+      <FnHeader code="PEERS" title="Relative Valuation" sec={s} sub={
           <>
             Peers from the built-in list: {s.eq!.industry}, then {s.eq!.sector} ·{' '}
             {desktopData() ? (

@@ -29,13 +29,13 @@ export function NOTE({ sec }: FnProps) {
   const others = Object.keys(all).filter((k) => k !== key);
   return (
     <div className="fn-fill">
-      <FnHeader code="NOTE" title="Notes" sec={sec} sub={saved ? `Saved ${fmtDate(saved)} ${fmtTime(saved)} · stored in this browser` : 'Stored in this browser'} />
+      <FnHeader code="NOTES" title="Notes" sec={sec} sub={saved ? `Saved ${fmtDate(saved)} ${fmtTime(saved)} · stored in this browser` : 'Stored in this browser'} />
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(160px, 240px)', flex: 1, minHeight: 0 }}>
         <textarea
           className="inp"
           aria-label={sec ? `Notes on ${sec.id}` : 'General notes'}
           style={{ resize: 'none', margin: 6, fontFamily: 'var(--sans)', fontSize: 'var(--fs-l)', lineHeight: 1.5, color: 'var(--text)' }}
-          placeholder={sec ? `Thesis, levels and reminders for ${sec.ticker}…` : 'General notes. Load a security first (AAPL NOTE) to keep notes per security.'}
+          placeholder={sec ? `Thesis, levels and reminders for ${sec.ticker}…` : 'General notes. Load a security first (NOTES AAPL) to keep notes per security.'}
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -44,7 +44,7 @@ export function NOTE({ sec }: FnProps) {
           {others.length === 0 && <div className="note">None yet.</div>}
           {others.map((k) => (
             <div key={k} className="pad-s">
-              {k === KEY_GENERAL ? <span className="amber">General</span> : engine.get(k) ? <SecLink id={k} fn="NOTE">{k}</SecLink> : k}
+              {k === KEY_GENERAL ? <span className="amber">General</span> : engine.get(k) ? <SecLink id={k} fn="NOTES">{k}</SecLink> : k}
               <div className="muted ellipsis">{all[k].slice(0, 60)}</div>
             </div>
           ))}

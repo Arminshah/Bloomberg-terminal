@@ -19,28 +19,31 @@ const SHORTCUTS: [string, string][] = [
   ['Alt+1 … Alt+6', 'Switch panel'],
   ['Alt+← / Alt+→', 'Back / forward'],
   ['F1 (twice: help desk)', 'HELP'],
-  ['F2 F3 F4 F5 F6 F7', 'GOVT CORP MTGE M-MKT MUNI PFD yellow keys'],
-  ['F8 F9 F10 F11 F12', 'EQUITY CMDTY INDEX CRNCY CLIENT yellow keys'],
+  ['F2 F3 F4 F5 F6 F7', 'GOVT CORP MTGE M-MKT MUNI PFD market sector keys'],
+  ['F8 F9 F10 F11 F12', 'EQUITY CMDTY INDEX CRNCY CLIENT market sector keys'],
   ['PgUp / PgDn', 'PAGE BACK / PAGE FWD'],
-  ['EQUITY <GO>', 'Market sector menu'],
-  ['IBM <CORP> <GO>', "An issuer's bonds"],
+  ['EQUITY', 'Market sector menu'],
+  ['IBM CORP', "An issuer's bonds"],
   ['↑ ↓ Tab', 'Move through and complete suggestions'],
-  ['3 <GO>', 'Pick numbered item 3) on the screen'],
-  ['GP?', 'Help on a function'],
+  ['3', 'Pick numbered item 3) on the screen'],
+  ['CHART?', 'Help on a function'],
 ];
 
 const EXAMPLES: [string, string][] = [
-  ['AAPL US <EQUITY> <GO>', 'Related functions menu for Apple'],
-  ['AAPL US <EQUITY> GP <GO>', 'Price graph for Apple'],
-  ['NVDA DES', 'Ticker shorthand plus function'],
+  ['QUOTE AAPL', 'Quote for Apple'],
+  ['CHART NVDA', 'Price chart for Nvidia'],
+  ['CHART NVDA 1D', "Today's intraday chart"],
+  ['PROFILE MSFT', 'Company profile'],
+  ['FILINGS MSFT', 'SEC filings and reported figures'],
+  ['WATCHLIST TECH', 'Open the watchlist named Tech'],
+  ['MARKET US', 'World equity indices, Americas'],
+  ['CRYPTO BTC', 'Bitcoin on the crypto monitor'],
+  ['AAPL', 'Related functions menu for Apple'],
   ['$APLD', 'Cashtags work too'],
-  ['SOFI US <EQUITY>', 'Any US stock: looked up online if not built in'],
-  ['EURUSD <CRNCY> GIP', 'Intraday EUR-USD'],
-  ['USGG10YR <INDEX> GP', 'US 10-year yield history'],
-  ['CT10 <GOVT> YAS', 'Yield analysis, current 10-year Treasury'],
-  ['TOP', 'Top news'],
-  ['N CRYPTO', 'News search'],
-  ['WEI', 'World equity indices'],
+  ['SOFI', 'Any US stock: looked up online if not built in'],
+  ['AAPL CHART', 'Security first, then the function, also works'],
+  ['CURVE', 'Yield curves'],
+  ['NEWS CRYPTO', 'Search official announcements'],
 ];
 
 function Directory({ filter }: { filter: string }) {
@@ -108,10 +111,10 @@ function FunctionHelp({ code }: { code: string }) {
             </>
           )}
           <dt>Example</dt>
-          <dd className="yellow">{fn.example ?? (fn.needsSec ? `AAPL US <EQUITY> ${fn.code} <GO>` : `${fn.code} <GO>`)}</dd>
+          <dd className="yellow">{fn.example ?? (fn.needsSec ? `${fn.code} AAPL` : fn.code)}</dd>
         </dl>
         <div className="pad row">
-          <button type="button" className="btn primary" onClick={() => execute(panel, fn.example?.replace(/<|>|GO/g, ' ') ?? (fn.needsSec ? `AAPL US EQUITY ${fn.code}` : fn.code))}>
+          <button type="button" className="btn primary" onClick={() => execute(panel, fn.example ?? (fn.needsSec ? `${fn.code} AAPL` : fn.code))}>
             Run example
           </button>
           <button type="button" className="btn" onClick={() => execute(panel, 'HELP')}>

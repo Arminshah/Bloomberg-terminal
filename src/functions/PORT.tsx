@@ -299,7 +299,7 @@ export function PORT(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="PORT"
+        code="PORTFOLIO"
         title="Portfolio & Risk Analytics"
         sub={`${st.name} · sample holdings, edit freely`}
         tabs={[

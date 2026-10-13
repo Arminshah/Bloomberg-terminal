@@ -83,7 +83,7 @@ export function TAS({ sec }: FnProps) {
   const vwap = vol ? trades.reduce((a, t) => a + t.px * t.size, 0) / vol : NaN;
   return (
     <div>
-      <FnHeader code="TAS" title="Time and Sales" sec={s} sub={<TapeSource id={s.id} />} />
+      <FnHeader code="TRADES" title="Time and Sales" sec={s} sub={<TapeSource id={s.id} />} />
       <QuoteStrip sec={s} />
       <div className="chart-tools">
         <label className="fld" htmlFor="tas-min">

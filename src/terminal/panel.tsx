@@ -66,5 +66,5 @@ export function useOpen() {
 
 /** Default function when a security is clicked in a list. */
 export function defaultFnFor(def: SecurityDef): string {
-  return def.cls === 'equity' ? 'DES' : def.cls === 'bond' ? 'YAS' : 'GP';
+  return def.cls === 'equity' ? 'PROFILE' : def.cls === 'bond' ? 'BONDCALC' : 'CHART';
 }

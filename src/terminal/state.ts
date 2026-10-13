@@ -1,5 +1,6 @@
 import { createStore, loadJson, saveJson } from '../core/store';
 import type { LayoutId, Route } from './types';
+import { migrateRoute, renamedCode } from './legacy';
 
 export interface PanelState {
   history: Route[];
@@ -23,12 +24,12 @@ export interface TerminalState {
 export const PANEL_COUNT = 6;
 
 const DEFAULT_ROUTES: Route[] = [
-  { fn: 'WEI' },
-  { fn: 'GP', sec: 'AAPL US Equity' },
-  { fn: 'TOP' },
-  { fn: 'IMAP' },
-  { fn: 'W' },
-  { fn: 'FXC' },
+  { fn: 'MARKET' },
+  { fn: 'CHART', sec: 'AAPL US Equity' },
+  { fn: 'HEADLINES' },
+  { fn: 'HEATMAP' },
+  { fn: 'WATCHLIST' },
+  { fn: 'FXMATRIX' },
 ];
 
 export const defaultTerminal = (): TerminalState => ({
@@ -38,7 +39,7 @@ export const defaultTerminal = (): TerminalState => ({
   active: 0,
   panels: DEFAULT_ROUTES.map((r) => ({ history: [r], idx: 0 })),
   recentSecs: ['AAPL US Equity', 'SPX Index', 'EURUSD Curncy', 'XBTUSD Curncy'],
-  recentFns: ['GP', 'DES', 'TOP', 'WEI'],
+  recentFns: ['CHART', 'PROFILE', 'HEADLINES', 'MARKET'],
 });
 
 /**
@@ -54,7 +55,7 @@ export function migrateTerminal(saved: { v: number; s: TerminalState }): { v: nu
     if (Array.isArray(s.panels)) {
       s.panels = [...s.panels];
       const p5 = s.panels[4];
-      if (!p5 || p5.history[p5.idx]?.fn !== 'W') s.panels[4] = { history: [{ fn: 'W' }], idx: 0 };
+      if (!p5 || p5.history[p5.idx]?.fn !== 'WATCHLIST') s.panels[4] = { history: [{ fn: 'WATCHLIST' }], idx: 0 };
     }
   }
   return { v: 3, s };
@@ -74,6 +75,19 @@ if (typeof localStorage !== 'undefined') {
 }
 
 export const terminal = createStore<TerminalState>(defaultTerminal(), 'terminal', 3, { perWindow: true });
+
+/** Saved panels and recent functions under the current function names (the old codes were renamed). */
+export function renameSavedCodes(s: TerminalState): TerminalState {
+  const panels = s.panels.map((p) => ({ ...p, history: p.history.map(migrateRoute) }));
+  const recentFns = [...new Set(s.recentFns.map((f) => renamedCode(f) ?? f))];
+  const changed = panels.some((p, i) => p.history.some((r, j) => r !== s.panels[i].history[j])) || recentFns.join() !== s.recentFns.join();
+  return changed ? { ...s, panels, recentFns } : s;
+}
+{
+  const before = terminal.get();
+  const after = renameSavedCodes(before);
+  if (after !== before) terminal.set(after);
+}
 
 export const LAYOUT_PANELS: Record<LayoutId, number> = { '1': 1, '2': 2, '2v': 2, '3': 3, '4': 4, '5': 5, '6': 6 };
 

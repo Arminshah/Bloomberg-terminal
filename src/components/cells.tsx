@@ -14,7 +14,7 @@ export function openSecurity(panel: number, id: string, e?: MouseEvent, fn?: str
   const def = engine.get(id);
   if (!def) return;
   const pref = settings.get().clickAction;
-  const code = fn ?? (pref === 'auto' ? defaultFnFor(def) : def.cls === 'bond' && pref !== 'DES' ? 'YAS' : pref);
+  const code = fn ?? (pref === 'auto' ? defaultFnFor(def) : def.cls === 'bond' && pref !== 'PROFILE' ? 'BONDCALC' : pref);
   let target = panel;
   if (e?.shiftKey) {
     const n = LAYOUT_PANELS[terminal.get().layout];

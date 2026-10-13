@@ -170,11 +170,11 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
         </Section>
       </div>
       <div className="cols">
-        <Section title="1-year price" right="GP for the full chart">
+        <Section title="1-year price" right="CHART for the full chart">
           <PriceChartMini sec={sec} />
         </Section>
         {real || engine.realOnly ? (
-          <Section title="Ownership" right="HDS for holders">
+          <Section title="Ownership" right="HOLDERS for holders">
             {!real && <p className="pad-s muted">Loading ownership from Yahoo Finance (unofficial)…</p>}
             {real && (
             <KV
@@ -212,8 +212,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
       <RelatedMenu
         sec={sec}
         fns={[
-          ['GP', 'Price graph'], ['GIP', 'Intraday'], ['FA', 'Financials'], ['ANR', 'Analysts'], ['EE', 'Earnings'], ['DVD', 'Dividends'],
-          ['HDS', 'Holders'], ['RV', 'Relative value'], ['CN', 'Company news'], ['OMON', 'Options'], ['BQ', 'Quote'], ['HP', 'Price table'],
+          ['CHART', 'Price graph'], ['INTRADAY', 'Intraday'], ['FINANCIALS', 'Financials'], ['ANALYSTS', 'Analysts'], ['EARNINGS', 'Earnings'], ['DIVIDENDS', 'Dividends'],
+          ['HOLDERS', 'Holders'], ['PEERS', 'Relative value'], ['COMPANYNEWS', 'Company news'], ['OPTIONS', 'Options'], ['QUOTE', 'Quote'], ['HISTORY', 'Price table'],
         ]}
       />
     </>
@@ -229,7 +229,7 @@ function EquityFinSummary({ sec }: { sec: SecurityDef }) {
   ];
   const cols = [...f.annual.slice(-4), f.ltm];
   return (
-    <Section title={`Financial summary (${reportCcy(sec)} millions)`} right="FA for full statements">
+    <Section title={`Financial summary (${reportCcy(sec)} millions)`} right="FINANCIALS for full statements">
       <div className="tbl-wrap">
         <table className="tbl">
           <thead>
@@ -265,7 +265,7 @@ function EquityEarnings({ sec }: { sec: SecurityDef }) {
   const next = nextEarnings(sec);
   return (
     <div className="cols">
-      <Section title="Reported earnings" right="EE for history">
+      <Section title="Reported earnings" right="EARNINGS for history">
         <table className="tbl">
           <thead>
             <tr>
@@ -357,7 +357,7 @@ function IndexDES({ sec }: { sec: SecurityDef }) {
           />
         </Section>
       )}
-      <RelatedMenu sec={sec} fns={[['GP', 'Price graph'], ['GIP', 'Intraday'], ['HP', 'Price table'], ['COMP', 'Comparative returns'], ['OMON', 'Options'], ['BETA', 'Beta']]} />
+      <RelatedMenu sec={sec} fns={[['CHART', 'Price graph'], ['INTRADAY', 'Intraday'], ['HISTORY', 'Price table'], ['RETURNS', 'Comparative returns'], ['OPTIONS', 'Options'], ['BETA', 'Beta']]} />
     </>
   );
 }
@@ -450,7 +450,7 @@ function FxDES({ sec }: { sec: SecurityDef }) {
           <PriceChartMini sec={sec} />
         </Section>
       </div>
-      <RelatedMenu sec={sec} fns={[['GP', 'Price graph'], ['GIP', 'Intraday'], ['HP', 'Price table'], ['DEPTH', 'Order book']]} />
+      <RelatedMenu sec={sec} fns={[['CHART', 'Price graph'], ['INTRADAY', 'Intraday'], ['HISTORY', 'Price table'], ['DEPTH', 'Order book']]} />
     </>
   );
 }
@@ -517,7 +517,7 @@ function CommodityDES({ sec }: { sec: SecurityDef }) {
           <PriceChartMini sec={sec} />
         </Section>
       </div>
-      <RelatedMenu sec={sec} fns={[['GP', 'Price graph'], ['GIP', 'Intraday'], ['HP', 'Price table'], ['TAS', 'Time and sales'], ['GLCO', 'Commodity monitor']]} />
+      <RelatedMenu sec={sec} fns={[['CHART', 'Price graph'], ['INTRADAY', 'Intraday'], ['HISTORY', 'Price table'], ['TRADES', 'Time and sales'], ['COMMODITIES', 'Commodity monitor']]} />
     </>
   );
 }
@@ -612,7 +612,7 @@ function RateDES({ sec }: { sec: SecurityDef }) {
           />
           <Returns id={sec.id} />
         </Section>
-        <Section title="Curve points" right="GC for the curve chart">
+        <Section title="Curve points" right="CURVE for the curve chart">
           <table className="tbl">
             <tbody>
               {curve.map((d) => (
@@ -635,7 +635,7 @@ function RateDES({ sec }: { sec: SecurityDef }) {
           <PriceChartMini sec={sec} />
         </Section>
       </div>
-      <RelatedMenu sec={sec} fns={[['GP', 'Yield graph'], ['GIP', 'Intraday'], ['HP', 'History']]} />
+      <RelatedMenu sec={sec} fns={[['CHART', 'Yield graph'], ['INTRADAY', 'Intraday'], ['HISTORY', 'History']]} />
     </>
   );
 }
@@ -691,7 +691,7 @@ function CryptoDES({ sec }: { sec: SecurityDef }) {
           <PriceChartMini sec={sec} bars={365} />
         </Section>
       </div>
-      <RelatedMenu sec={sec} fns={[['GP', 'Price graph'], ['GIP', 'Intraday'], ['HP', 'Price table'], ['TAS', 'Time and sales'], ['DEPTH', 'Order book'], ['CRYP', 'Crypto monitor']]} />
+      <RelatedMenu sec={sec} fns={[['CHART', 'Price graph'], ['INTRADAY', 'Intraday'], ['HISTORY', 'Price table'], ['TRADES', 'Time and sales'], ['DEPTH', 'Order book'], ['CRYPTO', 'Crypto monitor']]} />
     </>
   );
 }
@@ -748,12 +748,12 @@ function BondDES({ sec }: { sec: SecurityDef }) {
         <PriceChartMini sec={sec} />
       </Section>
       {others.length > 0 && (
-        <Section title={`Other ${issuer!.ticker.split(' ')[0]} bonds`} right="DDIS for the full debt distribution">
+        <Section title={`Other ${issuer!.ticker.split(' ')[0]} bonds`} right="DEBTPROFILE for the full debt distribution">
           <DataTable
             rows={others}
             rowKey={(d) => d.id}
             columns={[
-              { key: 't', label: 'Security', render: (d) => <SecLink id={d.id} fn="YAS">{d.ticker}</SecLink> },
+              { key: 't', label: 'Security', render: (d) => <SecLink id={d.id} fn="BONDCALC">{d.ticker}</SecLink> },
               { key: 'p', label: 'Price', num: true, render: (d) => <LivePx id={d.id} /> },
               { key: 'y', label: 'Yield', num: true, render: (d) => fmtNum(engine.bondYields(d.id)!.last, 3) },
               { key: 's', label: 'Spread bp', num: true, render: (d) => fmtNum(engine.bondYields(d.id)!.spread, 0) },
@@ -766,8 +766,8 @@ function BondDES({ sec }: { sec: SecurityDef }) {
         sec={sec}
         fns={
           govt
-            ? [['YAS', 'Yield analysis'], ['GP', 'Price graph'], ['HP', 'Price table'], ['ALLQ', 'All quotes'], ['BTMM', 'Treasury monitor'], ['GC', 'Yield curves']]
-            : [['YAS', 'Yield analysis'], ['GP', 'Price graph'], ['ALLQ', 'All quotes'], ['DDIS', 'Debt distribution'], ['SRCH', 'Bond search'], ['HP', 'Price table']]
+            ? [['BONDCALC', 'Yield analysis'], ['CHART', 'Price graph'], ['HISTORY', 'Price table'], ['DEALERQUOTES', 'All quotes'], ['MONEYMARKET', 'Treasury monitor'], ['CURVE', 'Yield curves']]
+            : [['BONDCALC', 'Yield analysis'], ['CHART', 'Price graph'], ['DEALERQUOTES', 'All quotes'], ['DEBTPROFILE', 'Debt distribution'], ['BONDSEARCH', 'Bond search'], ['HISTORY', 'Price table']]
         }
       />
     </>
@@ -830,7 +830,7 @@ function FutureDES({ sec }: { sec: SecurityDef }) {
       <Section title="1-year price">
         <PriceChartMini sec={sec} />
       </Section>
-      <RelatedMenu sec={sec} fns={[['GP', 'Price graph'], ['GIP', 'Intraday'], ['TAS', 'Time and sales'], ['DEPTH', 'Market depth'], ['WEIF', 'World index futures'], ['HP', 'Price table']]} />
+      <RelatedMenu sec={sec} fns={[['CHART', 'Price graph'], ['INTRADAY', 'Intraday'], ['TRADES', 'Time and sales'], ['DEPTH', 'Market depth'], ['INDEXFUTURES', 'World index futures'], ['HISTORY', 'Price table']]} />
     </>
   );
 }
@@ -870,7 +870,7 @@ export function DES({ sec }: FnProps) {
   return (
     <div>
       <FnHeader
-        code="DES"
+        code="PROFILE"
         title="Description"
         sec={s}
         sub={

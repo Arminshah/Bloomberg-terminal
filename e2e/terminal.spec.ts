@@ -39,29 +39,29 @@ async function run(page: Page, cmd: string, panel = 0) {
 }
 
 const COMMANDS: [string, string][] = [
-  ['AAPL US EQUITY DES', 'DES'], ['AAPL GP', 'GP'], ['AAPL GIP', 'GIP'], ['AAPL HP', 'HP'], ['AAPL FA', 'FA'], ['AAPL ANR', 'ANR'],
-  ['AAPL EE', 'EE'], ['AAPL DVD', 'DVD'], ['AAPL HDS', 'HDS'], ['AAPL RV', 'RV'], ['EVTS', 'EVTS'], ['AAPL WACC', 'WACC'],
-  ['AAPL COMP', 'COMP'], ['AAPL BETA', 'BETA'], ['CORR', 'CORR'], ['TSLA BQ', 'BQ'], ['TSLA TAS', 'TAS'], ['TSLA DEPTH', 'DEPTH'],
-  ['TOP', 'TOP'], ['N CRYPTO', 'N'], ['AAPL CN', 'CN'], ['WEI', 'WEI'], ['IMAP', 'IMAP'], ['MOST', 'MOST'], ['EQS', 'EQS'],
-  ['FXC', 'FXC'], ['WCRS', 'WCRS'], ['CRYP', 'CRYP'], ['WB', 'WB'], ['GC', 'GC'], ['BTMM', 'BTMM'], ['CT10 GOVT YAS', 'YAS'],
-  ['WIRP', 'WIRP'], ['GLCO', 'GLCO'], ['ECO', 'ECO'], ['ECST', 'ECST'], ['NVDA OMON', 'OMON'], ['NVDA OVME', 'OVME'],
-  ['W', 'W'], ['PORT', 'PORT'], ['ALRT', 'ALRT'], ['SECF', 'SECF'], ['LAST', 'LAST'], ['LPAD', 'LPAD'], ['IB', 'IB'],
-  ['PDFU', 'PDFU'], ['PROV', 'PROV'], ['HELP', 'HELP'], ['EURUSD CRNCY DES', 'DES'], ['SPX INDEX DES', 'DES'], ['CL1 CMDTY DES', 'DES'],
-  ['USGG10YR INDEX DES', 'DES'], ['XBTUSD CRNCY DES', 'DES'], ['CT2 GOVT DES', 'DES'], ['USGG10YR INDEX HS', 'HS'], ['AAPL NOTE', 'NOTE'],
+  ['AAPL US EQUITY PROFILE', 'PROFILE'], ['AAPL CHART', 'CHART'], ['AAPL INTRADAY', 'INTRADAY'], ['AAPL HISTORY', 'HISTORY'], ['AAPL FINANCIALS', 'FINANCIALS'], ['AAPL ANALYSTS', 'ANALYSTS'],
+  ['AAPL EARNINGS', 'EARNINGS'], ['AAPL DIVIDENDS', 'DIVIDENDS'], ['AAPL HOLDERS', 'HOLDERS'], ['AAPL PEERS', 'PEERS'], ['EVENTS', 'EVENTS'], ['AAPL WACC', 'WACC'],
+  ['AAPL RETURNS', 'RETURNS'], ['AAPL BETA', 'BETA'], ['CORRELATION', 'CORRELATION'], ['TSLA QUOTE', 'QUOTE'], ['TSLA TRADES', 'TRADES'], ['TSLA DEPTH', 'DEPTH'],
+  ['HEADLINES', 'HEADLINES'], ['NEWS CRYPTO', 'NEWS'], ['AAPL COMPANYNEWS', 'COMPANYNEWS'], ['MARKET', 'MARKET'], ['HEATMAP', 'HEATMAP'], ['MOVERS', 'MOVERS'], ['SCREEN', 'SCREEN'],
+  ['FXMATRIX', 'FXMATRIX'], ['FXRANK', 'FXRANK'], ['CRYPTO', 'CRYPTO'], ['BONDS', 'BONDS'], ['CURVE', 'CURVE'], ['MONEYMARKET', 'MONEYMARKET'], ['CT10 GOVT BONDCALC', 'BONDCALC'],
+  ['RATEPROBS', 'RATEPROBS'], ['COMMODITIES', 'COMMODITIES'], ['RELEASES', 'RELEASES'], ['ECONSTATS', 'ECONSTATS'], ['NVDA OPTIONS', 'OPTIONS'], ['NVDA OPTIONCALC', 'OPTIONCALC'],
+  ['WATCHLIST', 'WATCHLIST'], ['PORTFOLIO', 'PORTFOLIO'], ['ALERTS', 'ALERTS'], ['SEARCH', 'SEARCH'], ['RECENT', 'RECENT'], ['LAYOUTS', 'LAYOUTS'], ['MESSAGES', 'MESSAGES'],
+  ['SETTINGS', 'SETTINGS'], ['PROVIDERS', 'PROVIDERS'], ['HELP', 'HELP'], ['EURUSD CRNCY PROFILE', 'PROFILE'], ['SPX INDEX PROFILE', 'PROFILE'], ['CL1 CMDTY PROFILE', 'PROFILE'],
+  ['USGG10YR INDEX PROFILE', 'PROFILE'], ['XBTUSD CRNCY PROFILE', 'PROFILE'], ['CT2 GOVT PROFILE', 'PROFILE'], ['USGG10YR INDEX SPREAD', 'SPREAD'], ['AAPL NOTES', 'NOTES'],
   ['IBM US EQUITY', 'MENU'], ['EQUITY', 'EQUITY'], ['GOVT', 'GOVT'], ['CORP', 'CORP'], ['CRNCY', 'CRNCY'], ['MTGE', 'MTGE'], ['MENU', 'MENU'],
-  ['AAPL CORP', 'SRCH'], ['JPM CORP DDIS', 'DDIS'], ['AAPL 4.65 02/23/46 CORP DES', 'DES'], ['AAPL 4.65 02/23/46 CORP YAS', 'YAS'],
-  ['AAPL 4.65 02/23/46 CORP ALLQ', 'ALLQ'], ['CT10 GOVT ALLQ', 'ALLQ'], ['ES1 INDEX DES', 'DES'], ['ES1 INDEX GIP', 'GIP'], ['ES1 INDEX TAS', 'TAS'],
-  ['ES1 INDEX DEPTH', 'DEPTH'], ['WEIF', 'WEIF'], ['SPX INDEX MOV', 'MOV'], ['INDU INDEX MOV', 'MOV'], ['AAPL TRA', 'TRA'], ['SPX INDEX TRA', 'TRA'],
-  ['AAPL GF', 'GF'], ['AAPL HVT', 'HVT'], ['USGG10YR INDEX HVT', 'HVT'], ['AAPL VWAP', 'VWAP'], ['EURUSD CRNCY FRD', 'FRD'], ['USDJPY CRNCY OVML', 'OVML'],
-  ['SWPM', 'SWPM'], ['CDR', 'CDR'], ['CENB', 'CENB'], ['HELP HELP', 'IB'],
-  ['$APLD', 'MENU'], ['APLD US EQUITY DES', 'DES'], ['$APLD GP', 'GP'], ['APLD FA', 'FA'],
+  ['AAPL CORP', 'BONDSEARCH'], ['JPM CORP DEBTPROFILE', 'DEBTPROFILE'], ['AAPL 4.65 02/23/46 CORP PROFILE', 'PROFILE'], ['AAPL 4.65 02/23/46 CORP BONDCALC', 'BONDCALC'],
+  ['AAPL 4.65 02/23/46 CORP DEALERQUOTES', 'DEALERQUOTES'], ['CT10 GOVT DEALERQUOTES', 'DEALERQUOTES'], ['ES1 INDEX PROFILE', 'PROFILE'], ['ES1 INDEX INTRADAY', 'INTRADAY'], ['ES1 INDEX TRADES', 'TRADES'],
+  ['ES1 INDEX DEPTH', 'DEPTH'], ['INDEXFUTURES', 'INDEXFUTURES'], ['SPX INDEX CONTRIB', 'CONTRIB'], ['INDU INDEX CONTRIB', 'CONTRIB'], ['AAPL TOTALRETURN', 'TOTALRETURN'], ['SPX INDEX TOTALRETURN', 'TOTALRETURN'],
+  ['AAPL FUNDCHART', 'FUNDCHART'], ['AAPL VOLATILITY', 'VOLATILITY'], ['USGG10YR INDEX VOLATILITY', 'VOLATILITY'], ['AAPL VWAP', 'VWAP'], ['EURUSD CRNCY FXFORWARD', 'FXFORWARD'], ['USDJPY CRNCY FXOPTION', 'FXOPTION'],
+  ['SWAPCALC', 'SWAPCALC'], ['HOLIDAYS', 'HOLIDAYS'], ['CENTRALBANKS', 'CENTRALBANKS'], ['HELP HELP', 'MESSAGES'],
+  ['$APLD', 'MENU'], ['APLD US EQUITY PROFILE', 'PROFILE'], ['$APLD CHART', 'CHART'], ['APLD FINANCIALS', 'FINANCIALS'],
 ];
 
 test('default workspace renders four live panels and the watchlist column', async ({ page }) => {
   const errors = await boot(page);
   await expect(page.locator('.panel')).toHaveCount(5);
-  await expect(page.locator('.fnh-code').first()).toHaveText('WEI');
-  await expect(page.locator('.panel').nth(4).locator('.fnh-code')).toHaveText('W');
+  await expect(page.locator('.fnh-code').first()).toHaveText('MARKET');
+  await expect(page.locator('.panel').nth(4).locator('.fnh-code')).toHaveText('WATCHLIST');
   await expect(page.locator('.clock').first()).toContainText('BRUSSELS');
   const first = await page.locator('.panel').nth(1).locator('.qstrip .px').textContent();
   await page.waitForTimeout(2500);
@@ -91,29 +91,29 @@ test('typing anywhere goes to the command line, with autocomplete', async ({ pag
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(page.locator('#cmd-0')).toHaveValue(/NVDA US EQUITY/);
-  await page.keyboard.type('GP');
+  await page.keyboard.type('CHART');
   await page.keyboard.press('Enter');
   await expect(page.locator('.fnh-sec').first()).toHaveText('NVDA US Equity');
-  await expect(page.locator('.fnh-code').first()).toHaveText('GP');
+  await expect(page.locator('.fnh-code').first()).toHaveText('CHART');
 });
 
 test('numbered menu items and back navigation work', async ({ page }) => {
   await boot(page, '1');
-  await run(page, 'MSFT GP');
+  await run(page, 'MSFT CHART');
   await run(page, '3');
   await expect(page.locator('.tab.on')).toContainText('3M');
-  await run(page, 'MSFT DES');
-  await expect(page.locator('.fnh-code').first()).toHaveText('DES');
+  await run(page, 'MSFT PROFILE');
+  await expect(page.locator('.fnh-code').first()).toHaveText('PROFILE');
   await page.locator('#cmd-0').click();
   await page.keyboard.press('Backspace');
-  await expect(page.locator('.fnh-code').first()).toHaveText('GP');
+  await expect(page.locator('.fnh-code').first()).toHaveText('CHART');
 });
 
 test('bad commands explain themselves', async ({ page }) => {
   await boot(page, '1');
-  await run(page, 'ZZZZ GP');
+  await run(page, 'ZZZZ CHART');
   await expect(page.locator('.cmd-msg.error')).toContainText('Unknown');
-  await run(page, 'EURUSD CRNCY FA');
+  await run(page, 'EURUSD CRNCY FINANCIALS');
   await expect(page.locator('.cmd-msg.error')).toContainText('not available');
   // The browser demo cannot look stocks up and says where to do it.
   await run(page, '$SOFI');
@@ -122,18 +122,18 @@ test('bad commands explain themselves', async ({ page }) => {
 
 test('watchlist add and alert creation persist', async ({ page }) => {
   await boot(page, '1');
-  await run(page, 'W');
+  await run(page, 'WATCHLIST');
   await page.getByLabel('Add security to monitor').fill('ORCL');
   await page.getByLabel('Add security to monitor').press('Enter');
   await expect(page.locator('table.tbl')).toContainText('ORCL US');
-  await run(page, 'ALRT');
+  await run(page, 'ALERTS');
   await page.getByLabel('Security').fill('AAPL US Equity');
   await page.getByLabel('Trigger value').fill('1');
   await page.getByRole('button', { name: 'Create alert' }).click();
   // A price alert at 1 or above fires immediately.
   await expect(page.locator('.toast.toast-alert')).toBeVisible({ timeout: 5000 });
   await page.reload();
-  await run(page, 'W');
+  await run(page, 'WATCHLIST');
   await expect(page.locator('table.tbl')).toContainText('ORCL US');
 });
 
@@ -145,5 +145,5 @@ test('phone layout shows one panel without horizontal scroll', async ({ page }) 
   const [sw, iw] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(sw).toBeLessThanOrEqual(iw);
   await page.locator('.mobile-tabs button').nth(1).click();
-  await expect(page.locator('.panel:visible .fnh-code').first()).toHaveText('GP');
+  await expect(page.locator('.panel:visible .fnh-code').first()).toHaveText('CHART');
 });

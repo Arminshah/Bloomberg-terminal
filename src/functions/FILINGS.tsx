@@ -64,7 +64,7 @@ function Problem({ result }: { result: Extract<SecResult<unknown>, { ok: false }
     <div className="pad" role="status">
       <p className={result.reason === 'not-found' ? 'muted' : 'amber'}>{result.message}</p>
       {(result.reason === 'needs-agent' || result.reason === 'refused') && (
-        <button type="button" className="btn primary" onClick={() => execute(panel, 'PROV')}>
+        <button type="button" className="btn primary" onClick={() => execute(panel, 'PROVIDERS')}>
           Open the provider screen
         </button>
       )}

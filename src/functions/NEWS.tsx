@@ -103,7 +103,7 @@ function NewsScreen({ code, title, initialTopic, query }: { code: string; title:
 export function TOP({ route }: FnProps) {
   const arg = route.args?.toUpperCase();
   const topic = arg && NEWS_TOPICS.some((t) => t.code === arg) ? arg : 'ALL';
-  return <NewsScreen code="TOP" title="Official Announcements" initialTopic={topic} />;
+  return <NewsScreen code="HEADLINES" title="Official Announcements" initialTopic={topic} />;
 }
 
 export function N(props: FnProps) {
@@ -111,7 +111,7 @@ export function N(props: FnProps) {
   const arg = route.args?.toUpperCase();
   const topic = arg && NEWS_TOPICS.some((t) => t.code === arg) ? arg : undefined;
   if (sec) return <CN {...props} />;
-  return <NewsScreen code="N" title="News Search" initialTopic={topic} query={topic ? undefined : route.args} />;
+  return <NewsScreen code="NEWS" title="News Search" initialTopic={topic} query={topic ? undefined : route.args} />;
 }
 
 /**
@@ -124,7 +124,7 @@ export function CN({ sec }: FnProps) {
   const panel = usePanelId();
   return (
     <div>
-      <FnHeader code="CN" title="Company News" sec={s} sub="A company's own announcements" />
+      <FnHeader code="COMPANYNEWS" title="Company News" sec={s} sub="A company's own announcements" />
       <div className="pad">
         <p>
           No news feed with terms that allow it is connected for companies, and Yahoo&apos;s news is switched off. A company&apos;s own announcements are its filings: current reports (8-K), results and ownership filings, from SEC

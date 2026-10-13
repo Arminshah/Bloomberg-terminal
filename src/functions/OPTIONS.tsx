@@ -20,15 +20,15 @@ export function OMON({ sec }: FnProps) {
   const s = sec!;
   return (
     <div>
-      <FnHeader code="OMON" title="Option Monitor" sec={s} sub="Listed option chains, implied volatility and open interest" />
+      <FnHeader code="OPTIONS" title="Option Monitor" sec={s} sub="Listed option chains, implied volatility and open interest" />
       <QuoteStrip sec={s} />
       <NotConnected
         what="This screen would list the option chain by expiry: bids, offers, last trades, implied volatility, Greeks, volume and open interest."
         why="Listed option quotes are licensed exchange data (OPRA in the US), and no free source in this app permits showing them. Yahoo's option chains are switched off: Yahoo is used here only as an unofficial, personal-use price source. No model chain is shown in their place."
         needs="a provider whose terms allow showing option quotes to you, with its key configured in the provider status screen."
         see={[
-          { label: 'Option calculator', command: `${s.id} OVME` },
-          { label: 'Historical volatility', command: `${s.id} HVT` },
+          { label: 'Option calculator', command: `${s.id} OPTIONCALC` },
+          { label: 'Historical volatility', command: `${s.id} VOLATILITY` },
         ]}
       />
     </div>
@@ -85,7 +85,7 @@ export function OVME({ sec, route }: FnProps) {
   );
   return (
     <div>
-      <FnHeader code="OVME" title="Option Valuation" sec={s} sub={engine.realOnly ? 'Theoretical value, Black-Scholes-Merton with continuous dividend yield · rate from Treasury, dividend from the source' : 'Black-Scholes-Merton with continuous dividend yield'} />
+      <FnHeader code="OPTIONCALC" title="Option Valuation" sec={s} sub={engine.realOnly ? 'Theoretical value, Black-Scholes-Merton with continuous dividend yield · rate from Treasury, dividend from the source' : 'Black-Scholes-Merton with continuous dividend yield'} />
       <QuoteStrip sec={s} />
       <div className="chart-tools" style={{ gap: '6px 14px' }}>
         <span className="seg" role="group" aria-label="Option type">

@@ -165,21 +165,21 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
   return (
     <div className="fn-fill">
       <FnHeader
-        code={intraday ? 'GIP' : 'GP'}
-        title={intraday ? 'Intraday Price Graph' : 'Price Graph'}
+        code={intraday ? 'INTRADAY' : 'CHART'}
+        title={intraday ? 'Intraday Chart' : 'Price Chart'}
         sec={sec}
         sub={sec.name}
         tabs={tabs}
         tab={currentTab}
         onTab={(n) => {
           const per = PERIODS.find((x) => x.n === n)!;
-          if (per.id === '1D') execute(panel, `${sec.id} GIP`);
+          if (per.id === '1D') execute(panel, `${sec.id} INTRADAY`);
           else setPeriod(per.id);
         }}
         actions={[
-          ...(intraday ? [{ n: 95, label: 'Daily', onClick: () => execute(panel, `${sec.id} GP`) }] : []),
-          { n: 96, label: 'Table', onClick: () => execute(panel, `${sec.id} HP`) },
-          { n: 97, label: 'Compare', onClick: () => execute(panel, `${sec.id} COMP`) },
+          ...(intraday ? [{ n: 95, label: 'Daily', onClick: () => execute(panel, `${sec.id} CHART`) }] : []),
+          { n: 96, label: 'Table', onClick: () => execute(panel, `${sec.id} HISTORY`) },
+          { n: 97, label: 'Compare', onClick: () => execute(panel, `${sec.id} RETURNS`) },
         ]}
       />
       <QuoteStrip sec={sec} />

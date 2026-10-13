@@ -108,7 +108,7 @@ export function IMAP(_: FnProps) {
   return (
     <div className="fn-fill">
       <FnHeader
-        code="IMAP"
+        code="HEATMAP"
         title="Intraday Market Map"
         sub={`Sized by market cap (USD) · coloured by ${m.h} % change`}
         tabs={REGIONS.map((r) => ({ n: r.n, label: r.label }))}
@@ -129,7 +129,7 @@ export function IMAP(_: FnProps) {
                 const pct = periodChange(d.id, m.h);
                 const big = r.w > 46 && r.h > 26;
                 return (
-                  <g key={d.id} style={{ cursor: 'pointer' }} onClick={(e) => openSecurity(panel, d.id, e as unknown as React.MouseEvent, 'GP')}>
+                  <g key={d.id} style={{ cursor: 'pointer' }} onClick={(e) => openSecurity(panel, d.id, e as unknown as React.MouseEvent, 'CHART')}>
                     <title>{`${d.name}\n${fmtNum(engine.quote(d.id)!.last, d.dec)} ${d.ccy}  ${fmtPct(pct, 2)}\nMkt cap ${fmtBig(marketCapUsd(d.id))} USD`}</title>
                     <rect x={r.x} y={r.y} width={Math.max(0, r.w)} height={Math.max(0, r.h)} fill={heat(pct, m.scale)} stroke="#000" strokeWidth={1} />
                     {big && (

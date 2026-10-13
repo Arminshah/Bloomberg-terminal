@@ -71,12 +71,12 @@ export function EQS(_: FnProps) {
   const csv = () => [['Ticker', 'Name', 'Region', 'Sector', 'Mkt cap USD bn', 'P/E', 'Div yld 12M', 'ROE', 'Beta', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, r.d.region, r.d.eq!.sector, r.cap.toFixed(1), r.k.pe.toFixed(2), r.k.divYld.toFixed(2), r.k.roe.toFixed(1), r.d.eq!.beta, r.ytd.toFixed(2), r.y1.toFixed(2)])];
   return (
     <div>
-      <FnHeader code="EQS" title="Equity Screening" sub={
+      <FnHeader code="SCREEN" title="Equity Screening" sub={
           <>
             {rows.length} matches ·{' '}
             {desktopData() ? (
               <>
-                <span className="badge live">REAL</span> prices, market cap, P/E and yield · ROE and beta show once a company's data has been opened (DES or FA)
+                <span className="badge live">REAL</span> prices, market cap, P/E and yield · ROE and beta show once a company's data has been opened (PROFILE or FINANCIALS)
               </>
             ) : (
               <>

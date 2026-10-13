@@ -51,14 +51,14 @@ export function BQ({ sec }: FnProps) {
   return (
     <div>
       <FnHeader
-        code="BQ"
-        title="Composite Quote"
+        code="QUOTE"
+        title="Quote"
         sec={s}
         sub={s.name}
         actions={[
-          { n: 1, label: 'Chart', onClick: () => execute(panel, `${s.id} GP`) },
-          { n: 2, label: 'Desc', onClick: () => execute(panel, `${s.id} DES`) },
-          { n: 3, label: 'News', onClick: () => execute(panel, `${s.id} CN`) },
+          { n: 1, label: 'Chart', onClick: () => execute(panel, `${s.id} CHART`) },
+          { n: 2, label: 'Profile', onClick: () => execute(panel, `${s.id} PROFILE`) },
+          { n: 3, label: 'News', onClick: () => execute(panel, `${s.id} COMPANYNEWS`) },
         ]}
       />
       <div className="cols">
@@ -148,12 +148,12 @@ export function BQ({ sec }: FnProps) {
           )}
         </Section>
       </div>
-      <Section title="Latest news" right={<button type="button" className="act" onClick={() => execute(panel, `${s.id} CN`)}>All news ›</button>}>
+      <Section title="Latest news" right={<button type="button" className="act" onClick={() => execute(panel, `${s.id} COMPANYNEWS`)}>All news ›</button>}>
         {related.length === 0 ? (
           <div className="note">No recent stories.</div>
         ) : (
           related.map((st) => (
-            <div key={st.id} className={`news-item${st.hot ? ' hot' : ''}`} onClick={() => execute(panel, `${s.id} CN`)}>
+            <div key={st.id} className={`news-item${st.hot ? ' hot' : ''}`} onClick={() => execute(panel, `${s.id} COMPANYNEWS`)}>
               <span className="time">{fmtStamp(st.time, engine.now())}</span>
               <span className="hl">{st.headline}</span>
               <span className="src">{st.source}</span>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
@@ -12,10 +12,18 @@ import { flash, usePanelId } from '../terminal/panel';
 import { watchlists } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
 
-export function W(_: FnProps) {
+export function W({ route }: FnProps) {
   const panel = usePanelId();
   useTick(1);
   const st = watchlists.use((s) => s);
+  // WATCHLIST TECH opens the list whose name starts with TECH.
+  const wanted = route.args?.trim().toUpperCase();
+  useEffect(() => {
+    if (!wanted) return;
+    const i = watchlists.get().lists.findIndex((l) => l.name.toUpperCase().startsWith(wanted));
+    if (i >= 0) watchlists.set((s) => ({ ...s, active: i }));
+    else flash(panel, `No watchlist named ${wanted}: 91) New list makes one`, 'error');
+  }, [wanted, panel]);
   const active = Math.min(st.active, st.lists.length - 1);
   const list = st.lists[active];
   const [text, setText] = useState('');
@@ -46,8 +54,8 @@ export function W(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="W"
-        title="Monitor"
+        code="WATCHLIST"
+        title="Watchlists"
         sub={`${list.ids.length} securities`}
         tabs={st.lists.map((l, i) => ({ n: i + 1, label: l.name }))}
         tab={active + 1}

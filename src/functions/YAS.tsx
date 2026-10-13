@@ -12,7 +12,7 @@ import { desktopData } from '../data/live/yahoo';
 import type { FnProps } from '../terminal/types';
 
 export function YAS(props: FnProps) {
-  if (engine.realOnly) return <NoBondData code="YAS" title="Yield & Spread Analysis" />;
+  if (engine.realOnly) return <NoBondData code="BONDCALC" title="Yield & Spread Analysis" />;
   return <YASSim {...props} />;
 }
 
@@ -48,7 +48,7 @@ function YASSim({ sec }: FnProps) {
   });
   return (
     <div>
-      <FnHeader code="YAS" title="Yield & Spread Analysis" sec={s} sub={
+      <FnHeader code="BONDCALC" title="Yield & Spread Analysis" sec={s} sub={
           <>
             {s.alias?.[0]} · {fmtNum(b.coupon, 3)}% due {fmtDay(terms.maturity.getTime(), true)} · <SimBadge /> model price{desktopData() ? ' off the real Treasury curve' : ''}
           </>

@@ -94,7 +94,7 @@ export function PROV(_: FnProps) {
   const desktop = providersAvailable();
   return (
     <div>
-      <FnHeader code="PROV" title="Data Providers & Status" sub={desktop ? 'What each source serves, how it is doing, and the terms that apply' : 'Desktop app only: this browser build has no backend to reach the providers'} />
+      <FnHeader code="PROVIDERS" title="Data Providers & Status" sub={desktop ? 'What each source serves, how it is doing, and the terms that apply' : 'Desktop app only: this browser build has no backend to reach the providers'} />
       {!desktop && (
         <div className="note">
           The browser build cannot reach market data providers: their terms and browser security rules rule it out. Every provider request in the desktop app goes out from its main process, which also keeps the keys. The list below is what the desktop app uses.

@@ -19,13 +19,13 @@ const LAYOUTS: { id: LayoutId; cols: number; rows: number; label: string }[] = [
 ];
 
 export const PRESETS: { name: string; layout: LayoutId; routes: Route[] }[] = [
-  { name: 'Market Overview', layout: '5', routes: [{ fn: 'WEI' }, { fn: 'GP', sec: 'SPX Index' }, { fn: 'TOP' }, { fn: 'IMAP' }, { fn: 'W' }] },
-  { name: 'Equity Research', layout: '4', routes: [{ fn: 'DES', sec: 'NVDA US Equity' }, { fn: 'GP', sec: 'NVDA US Equity' }, { fn: 'FA', sec: 'NVDA US Equity' }, { fn: 'ANR', sec: 'NVDA US Equity' }] },
-  { name: 'Trading Desk', layout: '6', routes: [{ fn: 'W' }, { fn: 'BQ', sec: 'TSLA US Equity' }, { fn: 'GIP', sec: 'TSLA US Equity' }, { fn: 'MOST' }, { fn: 'TAS', sec: 'TSLA US Equity' }, { fn: 'DEPTH', sec: 'TSLA US Equity' }] },
-  { name: 'Macro & Rates', layout: '4', routes: [{ fn: 'ECO' }, { fn: 'GC' }, { fn: 'WIRP' }, { fn: 'WB' }] },
-  { name: 'FX & Commodities', layout: '4', routes: [{ fn: 'FXC' }, { fn: 'WCRS' }, { fn: 'GLCO' }, { fn: 'GIP', sec: 'EURUSD Curncy' }] },
-  { name: 'Digital Assets', layout: '4', routes: [{ fn: 'CRYP' }, { fn: 'GIP', sec: 'XBTUSD Curncy' }, { fn: 'GP', sec: 'XETUSD Curncy' }, { fn: 'N', args: 'CRYPTO' }] },
-  { name: 'Portfolio & Risk', layout: '4', routes: [{ fn: 'PORT' }, { fn: 'CORR' }, { fn: 'ALRT' }, { fn: 'EVTS' }] },
+  { name: 'Market Overview', layout: '5', routes: [{ fn: 'MARKET' }, { fn: 'CHART', sec: 'SPX Index' }, { fn: 'HEADLINES' }, { fn: 'HEATMAP' }, { fn: 'WATCHLIST' }] },
+  { name: 'Equity Research', layout: '4', routes: [{ fn: 'PROFILE', sec: 'NVDA US Equity' }, { fn: 'CHART', sec: 'NVDA US Equity' }, { fn: 'FINANCIALS', sec: 'NVDA US Equity' }, { fn: 'ANALYSTS', sec: 'NVDA US Equity' }] },
+  { name: 'Trading Desk', layout: '6', routes: [{ fn: 'WATCHLIST' }, { fn: 'QUOTE', sec: 'TSLA US Equity' }, { fn: 'INTRADAY', sec: 'TSLA US Equity' }, { fn: 'MOVERS' }, { fn: 'TRADES', sec: 'TSLA US Equity' }, { fn: 'DEPTH', sec: 'TSLA US Equity' }] },
+  { name: 'Macro & Rates', layout: '4', routes: [{ fn: 'RELEASES' }, { fn: 'CURVE' }, { fn: 'RATEPROBS' }, { fn: 'BONDS' }] },
+  { name: 'FX & Commodities', layout: '4', routes: [{ fn: 'FXMATRIX' }, { fn: 'FXRANK' }, { fn: 'COMMODITIES' }, { fn: 'INTRADAY', sec: 'EURUSD Curncy' }] },
+  { name: 'Digital Assets', layout: '4', routes: [{ fn: 'CRYPTO' }, { fn: 'INTRADAY', sec: 'XBTUSD Curncy' }, { fn: 'CHART', sec: 'XETUSD Curncy' }, { fn: 'NEWS', args: 'CRYPTO' }] },
+  { name: 'Portfolio & Risk', layout: '4', routes: [{ fn: 'PORTFOLIO' }, { fn: 'CORRELATION' }, { fn: 'ALERTS' }, { fn: 'EVENTS' }] },
 ];
 
 function LayoutIcon({ cols, rows, id }: { cols: number; rows: number; id: LayoutId }) {
@@ -70,7 +70,7 @@ function FeedChip() {
     // The chip reports the connection; how fresh each quote is shows beside the quote itself.
     const label = lost ? 'CONNECTION LOST' : f.market === 'live' ? (/streaming/.test(f.detail.market ?? '') ? 'CONNECTED · STREAMING' : 'CONNECTED · POLLING') : 'LOADING DATA';
     return (
-      <button type="button" className={`status-chip${lost ? ' down' : ' live'}`} onClick={() => execute(terminal.get().active, 'PROV')} title={`${f.detail.market ?? 'Data providers'} · PROV for every provider's state`}>
+      <button type="button" className={`status-chip${lost ? ' down' : ' live'}`} onClick={() => execute(terminal.get().active, 'PROVIDERS')} title={`${f.detail.market ?? 'Data providers'} · PROVIDERS for every provider's state`}>
         <span className="dot" />
         {label}
       </button>
@@ -79,7 +79,7 @@ function FeedChip() {
   const live = [f.crypto === 'live' && 'CRYPTO', f.fx === 'live' && 'FX', f.equities === 'live' && 'EQUITY', f.news === 'live' && 'NEWS'].filter(Boolean);
   const isLive = live.length > 0;
   return (
-    <button type="button" className={`status-chip${isLive ? ' live' : ''}`} onClick={() => execute(terminal.get().active, 'PDFU')} title="Data sources (PDFU)">
+    <button type="button" className={`status-chip${isLive ? ' live' : ''}`} onClick={() => execute(terminal.get().active, 'SETTINGS')} title="Data sources (SETTINGS)">
       <span className="dot" />
       {isLive ? `LIVE ${live.join('·')}` : 'DEMO DATA'}
       {isLive && <span className="muted hide-m">+DEMO</span>}
@@ -119,7 +119,7 @@ export function TopBar() {
       ))}
       <span style={{ position: 'relative', display: 'flex' }} className="hide-m">
         <button ref={presetBtn} type="button" className={`tb-btn${presetOpen ? ' on' : ''}`} onClick={() => setPresetOpen((o) => !o)} onBlur={() => setTimeout(() => setPresetOpen(false), 150)} aria-haspopup="menu" aria-expanded={presetOpen}>
-          LAUNCHPAD ▾
+          LAYOUTS ▾
         </button>
         {presetOpen && (
           <div className="ac" style={{ position: 'fixed', left: presetAt!.left, top: presetAt!.top, right: 'auto', minWidth: 260 }} role="menu">
@@ -145,11 +145,11 @@ export function TopBar() {
         )}
       </span>
       <span className="tb-sep" />
-      <button type="button" className="tb-btn" onClick={() => run('IB')} title="Instant messages (IB)">
+      <button type="button" className="tb-btn" onClick={() => run('MESSAGES')} title="Help desk messages (MESSAGES)">
         MSG <span className={`count${unreadMsgs ? '' : ' zero'}`}>{unreadMsgs}</span>
       </button>
-      <button type="button" className="tb-btn" onClick={() => run('ALRT')} title="Alerts (ALRT)">
-        ALRT <span className={`count${unreadAlerts ? '' : ' zero'}`}>{unreadAlerts}</span>
+      <button type="button" className="tb-btn" onClick={() => run('ALERTS')} title="Price and news alerts (ALERTS)">
+        ALERTS <span className={`count${unreadAlerts ? '' : ' zero'}`}>{unreadAlerts}</span>
       </button>
       <button type="button" className="tb-btn hide-m" onClick={() => run('HELP')} title="Function directory (F1)">
         HELP
@@ -159,7 +159,7 @@ export function TopBar() {
         <Clock key={c.tz} {...c} />
       ))}
       <FeedChip />
-      <button type="button" className="tb-btn" onClick={() => run('PDFU')} title="Settings (PDFU)" aria-label="Settings">
+      <button type="button" className="tb-btn" onClick={() => run('SETTINGS')} title="Settings (SETTINGS)" aria-label="Settings">
         ⚙
       </button>
     </div>

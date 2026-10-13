@@ -13,16 +13,16 @@ export function ANR({ sec }: FnProps) {
   const s = sec!;
   return (
     <div>
-      <FnHeader code="ANR" title="Analyst Research" sec={s} sub="Ratings, price targets and consensus estimates" />
+      <FnHeader code="ANALYSTS" title="Analyst Research" sec={s} sub="Ratings, price targets and consensus estimates" />
       <QuoteStrip sec={s} />
       <NotConnected
         what="This screen would list broker ratings and price targets, the consensus rating and target, and consensus earnings and revenue estimates."
         why="Analyst research and consensus estimates are licensed datasets, and no free source in this app permits showing them. Yahoo's ratings, recommendations, price targets and estimates are switched off: Yahoo is used here only as an unofficial, personal-use price source."
         needs="a provider whose terms allow showing analyst consensus and ratings to you, with its key configured in the provider status screen."
         see={[
-          { label: 'Earnings history', command: `${s.id} EE` },
-          { label: 'Financial statements', command: `${s.id} FA` },
-          { label: 'Provider status', command: 'PROV' },
+          { label: 'Earnings history', command: `${s.id} EARNINGS` },
+          { label: 'Financial statements', command: `${s.id} FINANCIALS` },
+          { label: 'Provider status', command: 'PROVIDERS' },
         ]}
       />
     </div>

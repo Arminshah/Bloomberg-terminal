@@ -66,7 +66,7 @@ export function HS({ sec, route }: FnProps) {
   return (
     <div className="fn-fill">
       <FnHeader
-        code="HS"
+        code="SPREAD"
         title="Historical Spread"
         sec={a}
         sub={`vs ${b.id}`}

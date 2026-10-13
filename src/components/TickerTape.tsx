@@ -26,7 +26,7 @@ export function TickerTape() {
               <span
                 key={`${rep}:${id}`}
                 className="tape-item"
-                onClick={() => execute(terminal.get().active, `${id} GP`)}
+                onClick={() => execute(terminal.get().active, `${id} CHART`)}
                 aria-hidden={rep === 1}
               >
                 <span className="t">{d.ticker}</span>

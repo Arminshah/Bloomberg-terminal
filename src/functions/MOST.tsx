@@ -57,7 +57,7 @@ export function MOST(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="MOST"
+        code="MOVERS"
         title="Most Active Securities"
         sub="Equities in the Armin universe · value traded is estimated as last price × volume"
         tabs={VIEWS.map((v) => ({ n: v.n, label: v.label }))}

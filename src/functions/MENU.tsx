@@ -20,103 +20,103 @@ interface Group {
 }
 
 const EQUITY: Group[] = [
-  { title: 'Company', entries: ['DES', 'CN', 'FA', 'EE', 'ANR', 'DVD', 'HDS', 'RV', 'WACC', 'EVTS'] },
-  { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'COMP', 'TRA', 'GF', 'HVT', 'BETA', 'HS'] },
-  { title: 'Quotes and trading data', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP', 'OMON', 'OVME'] },
-  { title: 'Credit', entries: ['SRCH', 'DDIS'] },
-  { title: 'Tools', entries: ['ALRT', 'NOTE', 'CORR'] },
+  { title: 'Company', entries: ['PROFILE', 'COMPANYNEWS', 'FINANCIALS', 'EARNINGS', 'ANALYSTS', 'DIVIDENDS', 'HOLDERS', 'PEERS', 'WACC', 'EVENTS'] },
+  { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'FUNDCHART', 'VOLATILITY', 'BETA', 'SPREAD'] },
+  { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP', 'OPTIONS', 'OPTIONCALC'] },
+  { title: 'Credit', entries: ['BONDSEARCH', 'DEBTPROFILE'] },
+  { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION'] },
 ];
 
 const MENUS: Record<AssetClass, Group[]> = {
   equity: EQUITY,
   index: [
-    { title: 'Index', entries: ['DES', 'MOV', 'IMAP', 'WEI', 'WEIF', 'CN'] },
-    { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'COMP', 'TRA', 'HVT', 'HS'] },
-    { title: 'Derivatives', entries: ['OMON', 'OVME'] },
-    { title: 'Tools', entries: ['ALRT', 'NOTE', 'CORR'] },
+    { title: 'Index', entries: ['PROFILE', 'CONTRIB', 'HEATMAP', 'MARKET', 'INDEXFUTURES', 'COMPANYNEWS'] },
+    { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'VOLATILITY', 'SPREAD'] },
+    { title: 'Derivatives', entries: ['OPTIONS', 'OPTIONCALC'] },
+    { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION'] },
   ],
   future: [
-    { title: 'Contract', entries: ['DES', 'WEIF', 'CN'] },
-    { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'HVT', 'HS'] },
-    { title: 'Quotes and trading data', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP'] },
-    { title: 'Tools', entries: ['ALRT', 'NOTE'] },
+    { title: 'Contract', entries: ['PROFILE', 'INDEXFUTURES', 'COMPANYNEWS'] },
+    { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'VOLATILITY', 'SPREAD'] },
+    { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP'] },
+    { title: 'Tools', entries: ['ALERTS', 'NOTES'] },
   ],
   fx: [
-    { title: 'Currency', entries: ['DES', 'FXC', 'WCRS', 'FRD', 'OVML', 'CN'] },
-    { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'COMP', 'HVT', 'HS', 'BETA'] },
-    { title: 'Trading', entries: ['BQ', 'DEPTH'] },
-    { title: 'Tools', entries: ['ALRT', 'NOTE', 'CORR'] },
+    { title: 'Currency', entries: ['PROFILE', 'FXMATRIX', 'FXRANK', 'FXFORWARD', 'FXOPTION', 'COMPANYNEWS'] },
+    { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'VOLATILITY', 'SPREAD', 'BETA'] },
+    { title: 'Trading', entries: ['QUOTE', 'DEPTH'] },
+    { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION'] },
   ],
   commodity: [
-    { title: 'Commodity', entries: ['DES', 'GLCO', 'CN'] },
-    { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'COMP', 'HVT', 'HS', 'BETA'] },
-    { title: 'Quotes and trading data', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP'] },
-    { title: 'Tools', entries: ['ALRT', 'NOTE', 'CORR'] },
+    { title: 'Commodity', entries: ['PROFILE', 'COMMODITIES', 'COMPANYNEWS'] },
+    { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'VOLATILITY', 'SPREAD', 'BETA'] },
+    { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP'] },
+    { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION'] },
   ],
   crypto: [
-    { title: 'Digital asset', entries: ['DES', 'CRYP', 'CN'] },
-    { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'COMP', 'HVT', 'HS', 'BETA'] },
-    { title: 'Quotes and trading data', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP'] },
-    { title: 'Tools', entries: ['ALRT', 'NOTE', 'CORR'] },
+    { title: 'Digital asset', entries: ['PROFILE', 'CRYPTO', 'COMPANYNEWS'] },
+    { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'VOLATILITY', 'SPREAD', 'BETA'] },
+    { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP'] },
+    { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION'] },
   ],
   rate: [
-    { title: 'Rate', entries: ['DES', 'GC', 'WB', 'BTMM', 'WIRP', 'SWPM', 'CENB'] },
-    { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'HS'] },
-    { title: 'Tools', entries: ['ALRT', 'NOTE'] },
+    { title: 'Rate', entries: ['PROFILE', 'CURVE', 'BONDS', 'MONEYMARKET', 'RATEPROBS', 'SWAPCALC', 'CENTRALBANKS'] },
+    { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'SPREAD'] },
+    { title: 'Tools', entries: ['ALERTS', 'NOTES'] },
   ],
   bond: [
-    { title: 'Bond', entries: ['DES', 'YAS', 'ALLQ', 'DDIS', 'SRCH'] },
-    { title: 'Price and charts', entries: ['GP', 'HP', 'GIP'] },
-    { title: 'Market', entries: ['BTMM', 'GC', 'WB'] },
-    { title: 'Tools', entries: ['ALRT', 'NOTE'] },
+    { title: 'Bond', entries: ['PROFILE', 'BONDCALC', 'DEALERQUOTES', 'DEBTPROFILE', 'BONDSEARCH'] },
+    { title: 'Price and charts', entries: ['CHART', 'HISTORY', 'INTRADAY'] },
+    { title: 'Market', entries: ['MONEYMARKET', 'CURVE', 'BONDS'] },
+    { title: 'Tools', entries: ['ALERTS', 'NOTES'] },
   ],
 };
 
-/** Market sector menus for a yellow key on its own. */
+/** Market sector menus for a sector word on its own (EQUITY, GOVT, CRNCY). */
 const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: SecurityDef) => boolean; rank?: (d: SecurityDef) => number; note?: string }> = {
   GOVT: {
     title: 'Government Securities',
     groups: [
-      { title: 'Monitors', entries: ['BTMM', 'WB', 'GC', 'WIRP', 'CENB'] },
-      { title: 'Analysis', entries: [{ code: 'SRCH', label: 'Treasury search', cmd: 'T GOVT' }, 'SWPM', 'CDR'] },
+      { title: 'Monitors', entries: ['MONEYMARKET', 'BONDS', 'CURVE', 'RATEPROBS', 'CENTRALBANKS'] },
+      { title: 'Analysis', entries: [{ code: 'BONDSEARCH', label: 'Treasury search', cmd: 'T GOVT' }, 'SWAPCALC', 'HOLIDAYS'] },
     ],
     list: (d) => d.yk === 'Govt',
   },
   CORP: {
     title: 'Corporate Bonds',
-    groups: [{ title: 'Search and analysis', entries: [{ code: 'SRCH', cmd: 'SRCH' }, { code: 'DDIS', cmd: 'AAPL CORP DDIS', label: 'Debt distribution (Apple)' }, 'BTMM'] }],
+    groups: [{ title: 'Search and analysis', entries: [{ code: 'BONDSEARCH', cmd: 'BONDSEARCH' }, { code: 'DEBTPROFILE', cmd: 'AAPL CORP DEBTPROFILE', label: 'Debt distribution (Apple)' }, 'MONEYMARKET'] }],
     list: (d) => d.yk === 'Corp',
     rank: (d) => d.bond?.amount ?? 0,
   },
   EQUITY: {
     title: 'Equity',
     groups: [
-      { title: 'Markets', entries: ['WEI', 'IMAP', 'MOST', 'MOV', 'EQS', 'EVTS'] },
-      { title: 'News and research', entries: ['TOP', 'N', 'ECO'] },
-      { title: 'Portfolio and monitors', entries: ['PORT', 'W', 'ALRT'] },
+      { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'MOVERS', 'CONTRIB', 'SCREEN', 'EVENTS'] },
+      { title: 'News and research', entries: ['HEADLINES', 'NEWS', 'RELEASES'] },
+      { title: 'Portfolio and monitors', entries: ['PORTFOLIO', 'WATCHLIST', 'ALERTS'] },
     ],
     list: (d) => d.cls === 'equity',
     rank: (d) => marketCapUsd(d.id),
   },
   CMDTY: {
     title: 'Commodities',
-    groups: [{ title: 'Markets', entries: ['GLCO', 'WEIF', 'ECO'] }],
+    groups: [{ title: 'Markets', entries: ['COMMODITIES', 'INDEXFUTURES', 'RELEASES'] }],
     list: (d) => d.cls === 'commodity',
   },
   INDEX: {
     title: 'Indices',
-    groups: [{ title: 'Markets', entries: ['WEI', 'WEIF', 'IMAP', 'MOV', 'GC', 'ECST'] }],
+    groups: [{ title: 'Markets', entries: ['MARKET', 'INDEXFUTURES', 'HEATMAP', 'CONTRIB', 'CURVE', 'ECONSTATS'] }],
     list: (d) => (d.cls === 'index' && d.ticker !== 'VIX') || d.cls === 'future',
   },
   CURNCY: {
     title: 'Currencies',
-    groups: [{ title: 'Markets', entries: ['FXC', 'WCRS', 'FRD', 'OVML', 'CRYP', 'CENB'] }],
+    groups: [{ title: 'Markets', entries: ['FXMATRIX', 'FXRANK', 'FXFORWARD', 'FXOPTION', 'CRYPTO', 'CENTRALBANKS'] }],
     list: (d) => d.cls === 'fx' || d.id === 'DXY Curncy',
   },
-  MTGE: { title: 'Mortgages', groups: [{ title: 'Related', entries: ['GC', 'BTMM', 'SWPM'] }], note: 'Mortgage-backed securities are not covered by Armin Terminal. The screens below cover the rates that drive them.' },
-  'M-MKT': { title: 'Money Markets', groups: [{ title: 'Related', entries: ['BTMM', 'WIRP', 'CENB', 'FRD'] }], note: 'Individual money market instruments are not covered. BTMM shows bills, SOFR and fed funds.' },
-  MUNI: { title: 'Municipals', groups: [{ title: 'Related', entries: ['GC', 'BTMM', 'SRCH'] }], note: 'Municipal bonds are not covered by Armin Terminal.' },
-  PFD: { title: 'Preferreds', groups: [{ title: 'Related', entries: ['SRCH', 'DVD', 'EQS'] }], note: 'Preferred shares are not covered by Armin Terminal.' },
+  MTGE: { title: 'Mortgages', groups: [{ title: 'Related', entries: ['CURVE', 'MONEYMARKET', 'SWAPCALC'] }], note: 'Mortgage-backed securities are not covered by Armin Terminal. The screens below cover the rates that drive them.' },
+  'M-MKT': { title: 'Money Markets', groups: [{ title: 'Related', entries: ['MONEYMARKET', 'RATEPROBS', 'CENTRALBANKS', 'FXFORWARD'] }], note: 'Individual money market instruments are not covered. MONEYMARKET shows bills, SOFR and fed funds.' },
+  MUNI: { title: 'Municipals', groups: [{ title: 'Related', entries: ['CURVE', 'MONEYMARKET', 'BONDSEARCH'] }], note: 'Municipal bonds are not covered by Armin Terminal.' },
+  PFD: { title: 'Preferreds', groups: [{ title: 'Related', entries: ['BONDSEARCH', 'DIVIDENDS', 'SCREEN'] }], note: 'Preferred shares are not covered by Armin Terminal.' },
 };
 
 const MAIN: { key: string; label: string }[] = [
@@ -152,14 +152,14 @@ function linesFor(groups: Group[], sec: SecurityDef | undefined, start = 1): { t
       const fn = lookupFn(entry.code);
       if (!fn) continue;
       if (sec && fn.classes && !fn.classes.includes(sec.cls)) continue;
-      let cmd = entry.cmd ?? (sec && (fn.needsSec || fn.classes || ['CN', 'ALRT', 'NOTE', 'HS', 'CORR', 'COMP', 'EVTS', 'TRA'].includes(fn.code)) ? `${sec.id} ${fn.code}` : fn.code);
+      let cmd = entry.cmd ?? (sec && (fn.needsSec || fn.classes || ['COMPANYNEWS', 'ALERTS', 'NOTES', 'SPREAD', 'CORRELATION', 'RETURNS', 'EVENTS', 'TOTALRETURN'].includes(fn.code)) ? `${sec.id} ${fn.code}` : fn.code);
       let label = entry.label ?? fn.name;
-      if (sec && (fn.code === 'SRCH' || fn.code === 'DDIS') && sec.cls !== 'bond') {
+      if (sec && (fn.code === 'BONDSEARCH' || fn.code === 'DEBTPROFILE') && sec.cls !== 'bond') {
         if (!issuerRoot || !hasBonds) continue;
         cmd = `${issuerRoot} CORP ${fn.code}`;
-        label = fn.code === 'SRCH' ? `${issuerRoot} bonds outstanding` : 'Debt distribution';
+        label = fn.code === 'BONDSEARCH' ? `${issuerRoot} bonds outstanding` : 'Debt distribution';
       }
-      if (sec?.cls === 'bond' && (fn.code === 'SRCH' || fn.code === 'DDIS')) {
+      if (sec?.cls === 'bond' && (fn.code === 'BONDSEARCH' || fn.code === 'DEBTPROFILE')) {
         const root = sec.yk === 'Govt' ? 'T' : sec.ticker.split(' ')[0];
         cmd = `${root} ${sec.yk.toUpperCase()} ${fn.code}`;
       }
@@ -298,7 +298,8 @@ function MainMenu() {
         </Section>
         <Section title="Getting started">
           <p className="prose">
-            Load a security with its ticker and yellow key, for example <span className="yellow">IBM US &lt;EQUITY&gt; &lt;GO&gt;</span>, to see every function that applies to it. Type{' '}
+            Type a ticker, for example <span className="yellow">IBM</span>, to see every function that applies to it, or a function and a ticker, such as{' '}
+            <span className="yellow">CHART IBM</span>. Type{' '}
             <span className="yellow">HELP</span> for the full function directory or <span className="yellow">HELP HELP</span> to message the help desk.
           </p>
         </Section>

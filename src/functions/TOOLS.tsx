@@ -52,7 +52,7 @@ export function SECF({ route }: FnProps) {
   };
   return (
     <div>
-      <FnHeader code="SECF" title="Security Finder" sub={`${rows.length} securities`} tabs={CLASSES.map((c) => ({ n: c.n, label: c.label }))} tab={tab} onTab={setTab} />
+      <FnHeader code="SEARCH" title="Security Finder" sub={`${rows.length} securities`} tabs={CLASSES.map((c) => ({ n: c.n, label: c.label }))} tab={tab} onTab={setTab} />
       <div className="chart-tools">
         <label className="fld" htmlFor={`secf-${panel}`}>
           Search
@@ -117,7 +117,7 @@ export function LAST(_: FnProps) {
   const st = terminal.use((s) => s);
   return (
     <div>
-      <FnHeader code="LAST" title="Recently Used" sub="Securities and functions from this browser" />
+      <FnHeader code="RECENT" title="Recently Used" sub="Securities and functions from this browser" />
       <div className="cols">
         <Section title="Securities">
           <table className="tbl">
@@ -162,7 +162,7 @@ export function LAST(_: FnProps) {
 export function LPAD(_: FnProps) {
   return (
     <div>
-      <FnHeader code="LPAD" title="Launchpad Workspaces" sub="Apply a preset layout to all panels" />
+      <FnHeader code="LAYOUTS" title="Saved Layouts" sub="Apply a preset layout to all panels" />
       <table className="tbl">
         <tbody>
           {PRESETS.map((p, i) => (
@@ -207,7 +207,7 @@ export function PDFU(_: FnProps) {
   );
   return (
     <div>
-      <FnHeader code="PDFU" title="Personal Defaults & Data Sources" sub={engine.realOnly ? 'Settings are stored on this computer' : 'Settings are stored in this browser'} />
+      <FnHeader code="SETTINGS" title="Personal Defaults & Data Sources" sub={engine.realOnly ? 'Settings are stored on this computer' : 'Settings are stored in this browser'} />
       <div className="cols">
         <Section title="Display">
           <div className="pad" style={{ display: 'grid', gap: 8 }}>
@@ -234,10 +234,10 @@ export function PDFU(_: FnProps) {
             <label className="fld" htmlFor="pdfu-click">
               Clicking a security opens
               <select id="pdfu-click" className="sel-inp" value={s.clickAction} onChange={(e) => set('clickAction', e.target.value as ClickAction)}>
-                <option value="auto">DES for stocks, GP otherwise</option>
-                <option value="DES">DES Description</option>
-                <option value="GP">GP Price graph</option>
-                <option value="BQ">BQ Quote</option>
+                <option value="auto">PROFILE for stocks, CHART otherwise</option>
+                <option value="PROFILE">PROFILE Company or security profile</option>
+                <option value="CHART">CHART Price chart</option>
+                <option value="QUOTE">QUOTE Quote</option>
               </select>
             </label>
             {(
@@ -314,14 +314,14 @@ export function PDFU(_: FnProps) {
       <Section title="About">
         {engine.realOnly ? (
           <p className="prose">
-            Armin Terminal is an independent, Bloomberg-style market terminal. It is not affiliated with Bloomberg L.P. The desktop app shows real data only, from the
-            free public sources listed above, with their delays: anything they do not cover is left out rather than simulated. It is not investment advice.
+            Armin Terminal is an independent, keyboard-driven market terminal for private use. It is not affiliated with any terminal maker or data vendor. The desktop app
+            shows real data only, from the free public sources listed above, with their delays: anything they do not cover is left out rather than simulated. It is not
+            investment advice.
           </p>
         ) : (
           <p className="prose">
-            Armin Terminal is an independent, Bloomberg-style market terminal that runs entirely in the browser. It is not affiliated with Bloomberg L.P. Prices are
-            simulated by a calibrated factor model unless a live feed is connected and marked LIVE; fundamentals, analyst views, holders, news and economic
-            figures are generated for demonstration and are not investment advice.
+            This is the browser demo of Armin Terminal, an independent, keyboard-driven market terminal. It is not affiliated with any terminal maker or data vendor.
+            Every price, figure and headline here is simulated and marked DEMO DATA; none of it is market data or investment advice.
           </p>
         )}
       </Section>

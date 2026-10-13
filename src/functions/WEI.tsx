@@ -31,13 +31,18 @@ function ytdUsd(id: string): number {
   return ((1 + local / 100) * (1 + ccyRet) - 1) * 100;
 }
 
-export function WEI(_: FnProps) {
+/** MARKET US, MARKET EUROPE, MARKET ASIA: one region; MARKET on its own: all three. */
+const REGION_ARGS: Record<string, string> = { US: 'Americas', AMERICAS: 'Americas', EUROPE: 'EMEA', EMEA: 'EMEA', UK: 'EMEA', ASIA: 'Asia/Pacific', APAC: 'Asia/Pacific', PACIFIC: 'Asia/Pacific' };
+
+export function WEI({ route }: FnProps) {
   useTick(1);
   const panel = usePanelId();
   const now = engine.now();
+  const region = REGION_ARGS[route.args?.trim().toUpperCase() ?? ''];
+  const groups = region ? GROUPS.filter((g) => g.name === region) : GROUPS;
   return (
     <div>
-      <FnHeader code="WEI" title="World Equity Indices" sub="Standard view · values in local currency" />
+      <FnHeader code="MARKET" title="World Equity Indices" sub={`${region ?? 'Standard view'} · values in local currency${route.args && !region ? ` · no region "${route.args}": try US, EUROPE or ASIA` : ''}`} />
       <table className="tbl">
         <thead>
           <tr>
@@ -53,7 +58,7 @@ export function WEI(_: FnProps) {
           </tr>
         </thead>
         <tbody>
-          {GROUPS.map((g, gi) => (
+          {groups.map((g, gi) => (
             <Fragment key={g.name}>
               <tr className="group">
                 <td colSpan={9}>
@@ -67,9 +72,9 @@ export function WEI(_: FnProps) {
                 const q = engine.quote(id)!;
                 const intra = engine.intraday(id);
                 return (
-                  <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e, 'GP')}>
+                  <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e, 'CHART')}>
                     <td>
-                      <SecLink id={id} fn="GP">
+                      <SecLink id={id} fn="CHART">
                         {d.ticker}
                       </SecLink>
                     </td>
@@ -119,7 +124,7 @@ export function WEIF(_: FnProps) {
   const panel = usePanelId();
   return (
     <div>
-      <FnHeader code="WEIF" title="World Equity Index Futures" sub={engine.realOnly ? 'Front contracts · fair value is a model from the financing rate and dividend yield' : 'Front contracts · fair value from financing rate and dividend yield'} />
+      <FnHeader code="INDEXFUTURES" title="World Equity Index Futures" sub={engine.realOnly ? 'Front contracts · fair value is a model from the financing rate and dividend yield' : 'Front contracts · fair value from financing rate and dividend yield'} />
       <table className="tbl">
         <thead>
           <tr>
@@ -155,7 +160,7 @@ export function WEIF(_: FnProps) {
                 const c = engine.realOnly ? realFutureContract(d) : engine.futureContract(id)!;
                 const intra = engine.intraday(id);
                 return (
-                  <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e, 'GIP')}>
+                  <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e, 'INTRADAY')}>
                     <td>
                       <SecLink id={id} fn="MENU">
                         {d.ticker}
@@ -175,7 +180,7 @@ export function WEIF(_: FnProps) {
                     <td className="num hide-m">{fmtNum(q.low, d.dec)}</td>
                     <td className="num hide-m">{fmtNum(q.volume, 0)}</td>
                     <td className="num">
-                      <SecLink id={d.fut!.underlying} fn="GP">
+                      <SecLink id={d.fut!.underlying} fn="CHART">
                         {fmtNum(u.last, 2)}
                       </SecLink>
                     </td>

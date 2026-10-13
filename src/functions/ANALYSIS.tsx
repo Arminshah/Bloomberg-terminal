@@ -92,7 +92,7 @@ export function TRA({ sec }: FnProps) {
   const divSum = a.divs.reduce((x, d) => x + d.amount, 0);
   return (
     <div>
-      <FnHeader code="TRA" title="Total Return Analysis" sec={s} tabs={H.map((x) => ({ n: x.n, label: x.h }))} tab={tab} onTab={setTab} />
+      <FnHeader code="TOTALRETURN" title="Total Return Analysis" sec={s} tabs={H.map((x) => ({ n: x.n, label: x.h }))} tab={tab} onTab={setTab} />
       <div className="chart-tools">
         <span className="muted">Benchmark</span>
         <SecLink id={bench}>{bench}</SecLink>
@@ -220,7 +220,7 @@ export function GF({ sec }: FnProps) {
   }
   return (
     <div>
-      <FnHeader code="GF" title="Graph Fundamentals" sec={s} sub={sourceLabel(status, "statements generated from the company's reported size; real data needs the desktop app")} tabs={GF_TABS} tab={tab} onTab={setTab} />
+      <FnHeader code="FUNDCHART" title="Graph Fundamentals" sec={s} sub={sourceLabel(status, "statements generated from the company's reported size; real data needs the desktop app")} tabs={GF_TABS} tab={tab} onTab={setTab} />
       <Section title={title}>
         <XYChart series={series} height={300} legend={series.length > 1} xTicks={ticks} yFormat={fmt} yZero={tab !== 4 && tab !== 3} />
       </Section>
@@ -321,7 +321,7 @@ export function HVT({ sec }: FnProps) {
   const all30 = Array.from(vols[2].subarray(from, n)).filter(Number.isFinite);
   return (
     <div>
-      <FnHeader code="HVT" title="Historical Volatility" sec={s} sub={y ? 'Absolute volatility of yield changes, bp per year' : 'Close-to-close, annualised'} />
+      <FnHeader code="VOLATILITY" title="Historical Volatility" sec={s} sub={y ? 'Absolute volatility of yield changes, bp per year' : 'Close-to-close, annualised'} />
       <div className="cols">
         <Section title="Realised volatility">
           <table className="tbl">
@@ -566,7 +566,7 @@ function DowMovers({ ix }: { ix: SecurityDef }) {
   );
   return (
     <div>
-      <FnHeader code="MOV" title="Index Movers" sec={ix} sub={`${list.length || 'All'} members as the source lists them · price weighted · points from the Dow divisor`} />
+      <FnHeader code="CONTRIB" title="Index Movers" sec={ix} sub={`${list.length || 'All'} members as the source lists them · price weighted · points from the Dow divisor`} />
       <div className="qstrip">
         <span className="yellow b">{ix.ticker}</span>
         <LivePx id={ix.id} />
@@ -645,7 +645,7 @@ function IndexMovers({ sec, route }: FnProps) {
   return (
     <div>
       <FnHeader
-        code="MOV"
+        code="CONTRIB"
         title="Index Movers"
         sec={ix}
         sub={byValue ? `${rows.length} members covered here · ranked by change in market value today` : `${members.length} members in the Armin universe · ${priceWeighted ? 'price weighted' : 'cap weighted'} within the universe`}

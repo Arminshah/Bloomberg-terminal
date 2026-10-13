@@ -57,7 +57,7 @@ export function EVTS({ sec }: FnProps) {
   let lastDay = '';
   return (
     <div>
-      <FnHeader code="EVTS" title={sec ? 'Corporate Events' : 'Corporate Events Calendar'} sec={sec} sub={
+      <FnHeader code="EVENTS" title={sec ? 'Corporate Events' : 'Corporate Events Calendar'} sec={sec} sub={
           <>
             {events.length} {events.length === 1 ? 'event' : 'events'} · earnings and ex-dividend dates ·{' '}
             {events.some((e) => e.sim) ? (

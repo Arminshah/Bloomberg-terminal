@@ -69,7 +69,7 @@ function rowsFor(list: SecurityDef[]): Row[] {
 
 /** SRCH: fixed income search with issuer, sector, rating, maturity and coupon filters. */
 export function SRCH(props: FnProps) {
-  if (engine.realOnly) return <NoBondData code="SRCH" title="Fixed Income Search" />;
+  if (engine.realOnly) return <NoBondData code="BONDSEARCH" title="Fixed Income Search" />;
   return <SRCHSim {...props} />;
 }
 
@@ -98,7 +98,7 @@ function SRCHSim({ route, sec }: FnProps) {
   return (
     <div>
       <FnHeader
-        code="SRCH"
+        code="BONDSEARCH"
         title="Fixed Income Search"
         sub={
           <>
@@ -161,7 +161,7 @@ function SRCHSim({ route, sec }: FnProps) {
 
 /** DDIS: an issuer's debt distribution by maturity. */
 export function DDIS(props: FnProps) {
-  if (engine.realOnly) return <NoBondData code="DDIS" title="Debt Distribution" />;
+  if (engine.realOnly) return <NoBondData code="DEBTPROFILE" title="Debt Distribution" />;
   return <DDISSim {...props} />;
 }
 
@@ -188,7 +188,7 @@ function DDISSim({ route, sec }: FnProps) {
   if (rows.length === 0) {
     return (
       <div>
-        <FnHeader code="DDIS" title="Debt Distribution" />
+        <FnHeader code="DEBTPROFILE" title="Debt Distribution" />
         <p className="pad">
           No bonds for <span className="yellow">{target}</span> in the Armin universe. Issuers covered: {[...new Set(bonds().filter((d) => d.yk === 'Corp').map(issuerRoot))].join(', ')} and US Treasuries (T).
         </p>
@@ -197,7 +197,7 @@ function DDISSim({ route, sec }: FnProps) {
   }
   return (
     <div>
-      <FnHeader code="DDIS" title="Debt Distribution" sec={eq} sub={`${rows[0] ? issuerOf(rows[0].d) : target} · bonds in the Armin universe`} />
+      <FnHeader code="DEBTPROFILE" title="Debt Distribution" sec={eq} sub={`${rows[0] ? issuerOf(rows[0].d) : target} · bonds in the Armin universe`} />
       <div className="cols">
         <Section title="Summary">
           <KV
@@ -213,7 +213,7 @@ function DDISSim({ route, sec }: FnProps) {
           />
           {eq && (
             <div className="pad row">
-              <button type="button" className="btn" onClick={() => openSecurity(panel, eq.id, undefined, 'DES')}>
+              <button type="button" className="btn" onClick={() => openSecurity(panel, eq.id, undefined, 'PROFILE')}>
                 Equity DES
               </button>
               <button type="button" className="btn" onClick={() => openSecurity(panel, eq.id, undefined, 'MENU')}>
@@ -259,7 +259,7 @@ const DEALER_NAMES: Record<string, string> = {
 
 /** ALLQ: dealer quote montage for a bond (simulated dealers). */
 export function ALLQ(props: FnProps) {
-  if (engine.realOnly) return <NoBondData code="ALLQ" title="All Quotes" />;
+  if (engine.realOnly) return <NoBondData code="DEALERQUOTES" title="All Quotes" />;
   return <ALLQSim {...props} />;
 }
 
@@ -300,7 +300,7 @@ function ALLQSim({ sec }: FnProps) {
   return (
     <div>
       <FnHeader
-        code="ALLQ"
+        code="DEALERQUOTES"
         title="All Quotes"
         sec={s}
         sub={

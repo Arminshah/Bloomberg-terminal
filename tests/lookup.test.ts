@@ -17,7 +17,7 @@ const parse = (s: string) => parseCommand(s, lookupFn);
 
 describe('ticker input', () => {
   it('accepts cashtags and resolves built-in APLD', () => {
-    for (const s of ['APLD', '$APLD', '$apld DES', 'APLD US <EQUITY> GP <GO>']) {
+    for (const s of ['APLD', '$APLD', '$apld PROFILE', 'APLD US <EQUITY> CHART <GO>']) {
       const p = parse(s);
       expect(p.kind === 'route' && p.sec?.id, s).toBe('APLD US Equity');
     }
@@ -25,8 +25,8 @@ describe('ticker input', () => {
 
   it('marks unknown tickers for online lookup', () => {
     expect(parse('SOFI')).toMatchObject({ kind: 'error', lookup: 'SOFI' });
-    expect(parse('$SOFI DES')).toMatchObject({ kind: 'error', lookup: 'SOFI' });
-    expect(parse('SOFI US EQUITY GP')).toMatchObject({ kind: 'error', lookup: 'SOFI' });
+    expect(parse('$SOFI PROFILE')).toMatchObject({ kind: 'error', lookup: 'SOFI' });
+    expect(parse('SOFI US EQUITY CHART')).toMatchObject({ kind: 'error', lookup: 'SOFI' });
     expect(parse('SOFI US')).toMatchObject({ kind: 'error', lookup: 'SOFI' });
     expect(parse('ZZZZ NOPE')).toMatchObject({ kind: 'error', lookup: undefined });
     expect(parse('hello world again')).toMatchObject({ kind: 'error', lookup: undefined });
@@ -62,7 +62,7 @@ describe('securities from Yahoo Finance', () => {
     expect(engine.addSecurity(def, { bars })).toBe(true);
     expect(engine.addSecurity(def, { bars })).toBe(false);
     expect(resolveSecurity('SOFI')?.id).toBe('SOFI US Equity');
-    expect(parse('SOFI DES')).toMatchObject({ kind: 'route', fn: 'DES' });
+    expect(parse('SOFI PROFILE')).toMatchObject({ kind: 'route', fn: 'PROFILE' });
     // History passes through the real closes.
     const last = bars.filter((b) => b.day < engine.today).at(-1)!;
     const s = engine.daily(def.id);

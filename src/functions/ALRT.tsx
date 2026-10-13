@@ -59,7 +59,7 @@ export function ALRT({ sec }: FnProps) {
   const fired = st.list.filter((a) => !a.active);
   return (
     <div>
-      <FnHeader code="ALRT" title="Alert Manager" sub={`${active.length} active · ${fired.length} triggered`} />
+      <FnHeader code="ALERTS" title="Alert Manager" sub={`${active.length} active · ${fired.length} triggered`} />
       <Section title="New price alert">
         <div className="pad row" style={{ gap: 8 }}>
           <span style={{ position: 'relative' }}>
@@ -205,7 +205,7 @@ function NewsAlerts() {
               <td className="num">{a.hits} hits</td>
               <td className="ellipsis hide-m" style={{ maxWidth: 320 }}>
                 {a.lastHeadline ? (
-                  <span className="click" onClick={() => execute(panel, `N ${a.keyword}`)}>
+                  <span className="click" onClick={() => execute(panel, `NEWS ${a.keyword}`)}>
                     {a.lastHit ? `${fmtTime(a.lastHit, false)} ` : ''}
                     {a.lastHeadline}
                   </span>

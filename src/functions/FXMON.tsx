@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { QuoteStrip } from '../components/QuoteStrip';
 import { yahooQuotes } from '../data/live/yahoo';
 import { QuoteFreshness } from '../components/Freshness';
 import { krakenOwns } from '../data/live/kraken';
@@ -28,7 +29,7 @@ export function FXC(_: FnProps) {
   const ccys = MATRIX.filter((c) => !engine.realOnly || Number.isFinite(engine.usdValue(c)));
   return (
     <div>
-      <FnHeader code="FXC" title="Currency Cross Rates" sub="Units of the column currency per one unit of the row currency" />
+      <FnHeader code="FXMATRIX" title="Currency Cross Rates" sub="Units of the column currency per one unit of the row currency" />
       <div className="tbl-wrap">
         <table className="tbl">
           <thead>
@@ -97,7 +98,7 @@ export function WCRS(_: FnProps) {
   const max = Math.max(...rows.map((r) => Math.abs(r.pct)).filter(Number.isFinite), 0.01);
   return (
     <div>
-      <FnHeader code="WCRS" title="World Currency Ranker" sub="Performance against the US dollar" tabs={RANK_H.map((x) => ({ n: x.n, label: x.h }))} tab={tab} onTab={setTab} />
+      <FnHeader code="FXRANK" title="World Currency Ranker" sub="Performance against the US dollar" tabs={RANK_H.map((x) => ({ n: x.n, label: x.h }))} tab={tab} onTab={setTab} />
       <table className="tbl">
         <thead>
           <tr>
@@ -116,7 +117,7 @@ export function WCRS(_: FnProps) {
               <td className="num amber">{i + 1})</td>
               <td className="b">{r.c}</td>
               <td className="hide-m muted">{CURRENCY_INFO.get(r.c)?.name}</td>
-              <td>{r.id ? <SecLink id={r.id} fn="GP">{engine.get(r.id)!.ticker}</SecLink> : '--'}</td>
+              <td>{r.id ? <SecLink id={r.id} fn="CHART">{engine.get(r.id)!.ticker}</SecLink> : '--'}</td>
               <td className="num">{r.id ? <LivePx id={r.id} /> : '--'}</td>
               <td className="num">
                 <Chg v={r.pct} pct />
@@ -132,9 +133,11 @@ export function WCRS(_: FnProps) {
   );
 }
 
-export function CRYP(_: FnProps) {
+export function CRYP({ sec }: FnProps) {
   const panel = usePanelId();
   useTick(1);
+  // CRYPTO BTC: the monitor with Bitcoin's quote on top and its row marked.
+  const focus = sec?.cls === 'crypto' ? sec : undefined;
   const real = engine.realOnly;
   const cg = coinGecko.use((c) => c);
   const list = engine.securities.filter((d) => d.cls === 'crypto');
@@ -159,10 +162,11 @@ export function CRYP(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="CRYP"
+        code="CRYPTO"
         title="Cryptocurrency Monitor"
         sub={allCaps ? `Total value ${fmtBig(total)} USD · BTC share ${btc >= 0 && total > 0 ? fmtNum((caps[btc] / total) * 100, 1) : '--'}% of listed assets` : anyKraken ? 'Kraken exchange prices, USD pairs' : undefined}
       />
+      {focus && <QuoteStrip sec={focus} />}
       <table className="tbl">
         <thead>
           <tr>
@@ -191,9 +195,9 @@ export function CRYP(_: FnProps) {
             const intra = engine.intraday(d.id);
             const vol = usdVolume(d);
             return (
-              <tr key={d.id} className="click" onClick={(e) => openSecurity(panel, d.id, e, 'GP')}>
+              <tr key={d.id} className={`click${focus?.id === d.id ? ' sel' : ''}`} onClick={(e) => openSecurity(panel, d.id, e, 'CHART')}>
                 <td>
-                  <SecLink id={d.id} fn="GP">
+                  <SecLink id={d.id} fn="CHART">
                     {d.ticker}
                   </SecLink>{' '}
                   <span className="muted hide-m">{d.name.split(' / ')[0]}</span>
@@ -242,7 +246,7 @@ export function CRYP(_: FnProps) {
             Market value from CoinGecko, aggregated across exchanges, as of {fmtTime(cg.at)}. {COINGECKO_ATTRIBUTION}.
           </>
         ) : real && cg.status === 'needs-key' ? (
-          'Market value needs a free CoinGecko Demo key (COINGECKO_API_KEY on PROV); nothing is estimated in its place.'
+          'Market value needs a free CoinGecko Demo key (COINGECKO_API_KEY on PROVIDERS); nothing is estimated in its place.'
         ) : null}
       </div>
     </div>
@@ -257,7 +261,7 @@ export function GLCO(_: FnProps) {
   const now = engine.now();
   return (
     <div>
-      <FnHeader code="GLCO" title="Global Commodities" sub="Generic front-month futures" />
+      <FnHeader code="COMMODITIES" title="Global Commodities" sub="Generic front-month futures" />
       <table className="tbl">
         <thead>
           <tr>
@@ -288,9 +292,9 @@ export function GLCO(_: FnProps) {
                 const q = engine.quote(d.id)!;
                 const intra = engine.intraday(d.id);
                 return (
-                  <tr key={d.id} className="click" onClick={(e) => openSecurity(panel, d.id, e, 'GP')}>
+                  <tr key={d.id} className="click" onClick={(e) => openSecurity(panel, d.id, e, 'CHART')}>
                     <td>
-                      <SecLink id={d.id} fn="GP">
+                      <SecLink id={d.id} fn="CHART">
                         {d.ticker}
                       </SecLink>
                     </td>

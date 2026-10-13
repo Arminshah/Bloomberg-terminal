@@ -60,7 +60,7 @@ export function execute(panel: number, text: string): boolean {
       if (parsed.fn === 'HELP' && parsed.args === 'HELP') {
         // HELP HELP: straight to the help desk.
         clearFlash(panel);
-        navigate(panel, { fn: 'IB', args: 'HELP' });
+        navigate(panel, { fn: 'MESSAGES', args: 'HELP' });
         return true;
       }
       const cur = currentRoute(terminal.get(), panel);
@@ -91,5 +91,5 @@ export function execute(panel: number, text: string): boolean {
 
 /** Loading a security on its own shows its menu of related functions. */
 function defaultFunction(cls: string | undefined): string {
-  return cls ? 'MENU' : 'DES';
+  return cls ? 'MENU' : 'PROFILE';
 }

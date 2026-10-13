@@ -32,7 +32,7 @@ export function CORR({ sec }: FnProps) {
   }, [ids, tab]);
   return (
     <div>
-      <FnHeader code="CORR" title="Correlation Matrix" sub="Daily returns (yield changes for rates)" tabs={PERIODS.map((p) => ({ n: p.n, label: p.label }))} tab={tab} onTab={setTab} />
+      <FnHeader code="CORRELATION" title="Correlation Matrix" sub="Daily returns (yield changes for rates)" tabs={PERIODS.map((p) => ({ n: p.n, label: p.label }))} tab={tab} onTab={setTab} />
       <div className="chart-tools">
         <input
           className="inp"

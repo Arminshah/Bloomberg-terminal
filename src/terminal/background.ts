@@ -44,7 +44,7 @@ function checkAlerts() {
     const hit = a.cond === 'above' ? q.last >= a.value : a.cond === 'below' ? q.last <= a.value : a.cond === 'pctUp' ? q.pct >= a.value : q.pct <= -a.value;
     if (!hit) return a;
     fired++;
-    toast({ title: 'ALERT', body: `${d.ticker} ${describe(a.cond, a.value, d.dec)} · last ${q.last.toFixed(d.dec)}`, kind: 'alert', command: `${d.id} GP` }, 12000);
+    toast({ title: 'ALERT', body: `${d.ticker} ${describe(a.cond, a.value, d.dec)} · last ${q.last.toFixed(d.dec)}`, kind: 'alert', command: `${d.id} CHART` }, 12000);
     return { ...a, active: false, triggered: engine.now(), triggeredPx: q.last };
   });
   if (fired) {
@@ -72,7 +72,7 @@ function watchNews(): () => void {
       const hit = fresh.find((s) => s.headline.toUpperCase().includes(k) || s.tickers.some((t) => t.split(' ')[0] === k));
       if (!hit) return a;
       changed = true;
-      toast({ title: `NEWS ALERT · ${a.keyword}`, body: hit.headline.replace(/^\*/, ''), kind: 'alert', command: hit.tickers[0] ? `${hit.tickers[0]} CN` : `N ${a.keyword}` }, 12000);
+      toast({ title: `NEWS ALERT · ${a.keyword}`, body: hit.headline.replace(/^\*/, ''), kind: 'alert', command: hit.tickers[0] ? `${hit.tickers[0]} COMPANYNEWS` : `NEWS ${a.keyword}` }, 12000);
       return { ...a, hits: a.hits + 1, lastHit: engine.now(), lastHeadline: hit.headline };
     });
     if (changed) {

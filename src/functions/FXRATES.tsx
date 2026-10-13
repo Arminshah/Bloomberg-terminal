@@ -68,10 +68,10 @@ function FRDReal({ sec, route }: FnProps) {
   const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx).slice(0, 23);
   return (
     <div>
-      <FnHeader code="FRD" title="Forward Rates" sec={pair} sub="Forward points need dealer quotes, which have no free source" />
+      <FnHeader code="FXFORWARD" title="Forward Rates" sec={pair} sub="Forward points need dealer quotes, which have no free source" />
       <div className="chart-tools">
         <span className="muted">Pair</span>
-        <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FRD`)}>
+        <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FXFORWARD`)}>
           {pairs.map((d) => (
             <option key={d.id} value={d.id}>
               {d.ticker}
@@ -108,7 +108,7 @@ function FRDSim({ sec, route }: FnProps) {
   const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx).slice(0, 23);
   return (
     <div>
-      <FnHeader code="FRD" title="Forward Rates" sec={pair} sub={
+      <FnHeader code="FXFORWARD" title="Forward Rates" sec={pair} sub={
           <>
             Spot {fmtDay(sd * DAY_MS)} · points in {pip === 1 ? 'units' : pip === 0.01 ? 'hundredths' : 'pips'} · <SimBadge /> modelled by covered interest parity from policy rates, not dealer points
           </>
@@ -116,7 +116,7 @@ function FRDSim({ sec, route }: FnProps) {
       />
       <div className="chart-tools">
         <span className="muted">Pair</span>
-        <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FRD`)}>
+        <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FXFORWARD`)}>
           {pairs.map((d) => (
             <option key={d.id} value={d.id}>
               {d.ticker}
@@ -229,9 +229,9 @@ export function OVML({ sec, route }: FnProps) {
   const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx);
   return (
     <div>
-      <FnHeader code="OVML" title="FX Option Valuation" sec={pair} sub={`Vanilla European · Garman-Kohlhagen theoretical value · notional in ${base}${real ? ' · rates without a published policy rate leave the value blank' : ''}`} />
+      <FnHeader code="FXOPTION" title="FX Option Valuation" sec={pair} sub={`Vanilla European · Garman-Kohlhagen theoretical value · notional in ${base}${real ? ' · rates without a published policy rate leave the value blank' : ''}`} />
       <div className="chart-tools">
-        <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} OVML`)}>
+        <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FXOPTION`)}>
           {pairs.map((d) => (
             <option key={d.id} value={d.id}>
               {d.ticker}
@@ -312,7 +312,7 @@ export function SWPM(props: FnProps) {
   if (engine.realOnly) {
     return (
       <div>
-        <FnHeader code="SWPM" title="Swap Manager" sub="USD SOFR OIS" />
+        <FnHeader code="SWAPCALC" title="Swap Manager" sub="USD SOFR OIS" />
         <div className="empty">
           Pricing a swap needs a market swap curve. Swap rates are dealer quotes with no free public source, so the swap manager is not available on real data. SOFR futures (BTMM) and the fed funds path (WIRP) show what the market prices for the next few years.
         </div>
@@ -351,7 +351,7 @@ function SWPMSim(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="SWPM"
+        code="SWAPCALC"
         title="Swap Manager"
         sub={
           <>
@@ -461,7 +461,7 @@ export function CENB(_: FnProps) {
   };
   return (
     <div>
-      <FnHeader code="CENB" title="Central Bank Monitor" sub="Policy rates, last move and next decision" actions={[{ n: 1, label: 'Rate path (WIRP)', onClick: () => execute(panel, 'WIRP') }, { n: 2, label: 'Central bank news', onClick: () => execute(panel, 'N CB') }]} />
+      <FnHeader code="CENTRALBANKS" title="Central Bank Monitor" sub="Policy rates, last move and next decision" actions={[{ n: 1, label: 'Rate path (WIRP)', onClick: () => execute(panel, 'RATEPROBS') }, { n: 2, label: 'Central bank news', onClick: () => execute(panel, 'NEWS CB') }]} />
       <table className="tbl">
         <thead>
           <tr>
@@ -648,7 +648,7 @@ export function CDR({ route }: FnProps) {
   const upcoming = cal.holidays.filter((h) => h.date >= todayIso).slice(0, 12);
   return (
     <div>
-      <FnHeader code="CDR" title="Holiday Calendar" sub={`${cal.name} · ${cal.hours} local (${cal.tz})`} tabs={CALENDARS.map((c, i) => ({ n: i + 1, label: c.code }))} tab={tab} onTab={setTab} />
+      <FnHeader code="HOLIDAYS" title="Holiday Calendar" sub={`${cal.name} · ${cal.hours} local (${cal.tz})`} tabs={CALENDARS.map((c, i) => ({ n: i + 1, label: c.code }))} tab={tab} onTab={setTab} />
       <div className="cols">
         <Section title="Status">
           <KV

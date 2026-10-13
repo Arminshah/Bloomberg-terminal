@@ -22,7 +22,7 @@ export function EE({ sec }: FnProps) {
   const ccy = reportCcy(s);
   return (
     <div>
-      <FnHeader code="EE" title="Earnings History" sec={s} sub={<>{ccy} · reported figures · {sourceLabel(status, 'demo figures; real data needs the desktop app')}</>} />
+      <FnHeader code="EARNINGS" title="Earnings History" sec={s} sub={<>{ccy} · reported figures · {sourceLabel(status, 'demo figures; real data needs the desktop app')}</>} />
       <QuoteStrip sec={s} />
       <Section title="Next report">
         <KV
