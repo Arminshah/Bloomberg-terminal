@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { RealBadge, SimBadge, sourceLabel } from '../components/Source';
-import { atmVolAt, expiryInstant, useRealExpiries } from '../data/live/yopt';
+import { sourceLabel } from '../components/Source';
 import { useIndexComponents, useYahooQuotes } from '../data/live/yquotes';
 import { useFundamentals } from '../data/live/yfund';
 import { DataTable } from '../components/DataTable';
@@ -9,10 +8,9 @@ import { XYChart, type XYSeries } from '../components/chart/XYChart';
 import { Chg, DayChg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { DAY_MS } from '../data/calendar';
 import { horizonStart, marketCapUsd, type Horizon } from '../data/analytics';
 import { dividends, financials, hasRealStatements, majorPrice } from '../data/fundamentals';
-import { atmVol, dividendYield } from '../data/options';
+import { dividendYield } from '../data/options';
 import { resolveSecurity } from '../data/registry';
 import { indexAtOrBefore, type Series } from '../data/series';
 import type { SecurityDef } from '../data/types';
@@ -294,7 +292,6 @@ export function HVT({ sec }: FnProps) {
   const perYear = s.cls === 'crypto' ? 365 : 252;
   const vols = useMemo(() => WINDOWS.map((w) => rollingVol(daily, w, y, perYear)), [daily, y, perYear]);
   const n = daily.length;
-  const optionable = s.cls === 'equity' || s.cls === 'index';
   const unit = y ? 'bp' : '%';
   const rows = WINDOWS.map((w, k) => {
     const v = vols[k];
@@ -321,15 +318,6 @@ export function HVT({ sec }: FnProps) {
     chart[1].points.push({ x: daily.t[i], y: vols[4][i] });
     chart[2].points.push({ x: daily.t[i], y: vols[7][i] });
   }
-  // Listed options in the desktop app; the model's smile otherwise. The desktop app shows no implied vol without listed options.
-  const listed = useRealExpiries(s);
-  const realIv = listed.status === 'ok' && listed.atmTerm.length > 0;
-  const showIv = optionable && (realIv || !engine.realOnly);
-  const iv = !showIv ? NaN : realIv ? atmVolAt(listed.atmTerm, 30) : atmVol(s, 30 / 365) * 100;
-  // A 3-month implied vol needs a loaded expiry at least that far out; otherwise it would be a shorter tenor's.
-  const reaches91 = listed.atmTerm.some((x) => (expiryInstant(x.expiry) - engine.now()) / DAY_MS >= 88);
-  const iv3 = !showIv ? NaN : realIv ? (reaches91 ? atmVolAt(listed.atmTerm, 91) : NaN) : atmVol(s, 91 / 365) * 100;
-  const ivNote = engine.realOnly && optionable && !realIv ? (listed.status === 'loading' ? 'Loading listed options…' : 'No listed options from the source') : undefined;
   const all30 = Array.from(vols[2].subarray(from, n)).filter(Number.isFinite);
   return (
     <div>
@@ -363,25 +351,18 @@ export function HVT({ sec }: FnProps) {
             </tbody>
           </table>
         </Section>
-        <Section title={showIv ? 'Implied vs realised' : 'Realised summary'} right={showIv ? realIv ? <><RealBadge /> listed options</> : <><SimBadge /> model implied vol</> : ivNote}>
+        <Section title="Realised summary" right="Implied volatility: not connected (needs licensed option quotes)">
           <KV
             items={[
               ['30D realised', `${fmtNum(rows[2].cur, 2)}${unit}`],
               ['2Y median 30D', `${fmtNum(percentile(all30, 0.5), 2)}${unit}`],
               ['2Y 10th / 90th pctile', `${fmtNum(percentile(all30, 0.1), 2)} / ${fmtNum(percentile(all30, 0.9), 2)}`],
-              ...(showIv
-                ? ([
-                    ['1M ATM implied', `${fmtNum(iv, 2)}%`],
-                    ['3M ATM implied', `${fmtNum(iv3, 2)}%`],
-                    ['Implied - realised (1M)', `${fmtNum(iv - rows[2].cur, 2)} vol pts`],
-                  ] as [string, string][])
-                : []),
             ]}
           />
         </Section>
       </div>
       <Section title="Rolling realised volatility · 2 years">
-        <XYChart series={chart} height={260} legend xFormat={(v) => fmtDay(v)} yFormat={(v) => fmtNum(v, 1)} refLines={showIv && Number.isFinite(iv) ? [{ y: iv, color: '#d77bff', label: '1M implied' }] : []} />
+        <XYChart series={chart} height={260} legend xFormat={(v) => fmtDay(v)} yFormat={(v) => fmtNum(v, 1)} />
       </Section>
     </div>
   );

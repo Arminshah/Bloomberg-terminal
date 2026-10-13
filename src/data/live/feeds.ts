@@ -5,7 +5,6 @@ import { addRealStories, type Story } from '../news';
 import { settings } from '../../terminal/settings';
 import { setFeed } from './status';
 import { CURRENCIES } from '../universe/markets';
-import { requestYahooCompanyNews } from './ynews';
 
 const COINBASE_REST = 'https://api.exchange.coinbase.com';
 const COINBASE_WS = 'wss://ws-feed.exchange.coinbase.com';
@@ -379,7 +378,6 @@ export function trackFinnhubSymbol(sym: string, id: string) {
 
 export function requestCompanyNews(id: string) {
   void finnhub?.companyNews(id);
-  requestYahooCompanyNews(id);
 }
 
 function reconcile() {

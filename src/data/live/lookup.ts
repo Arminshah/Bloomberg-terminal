@@ -19,19 +19,21 @@ export type OfficialSource =
   | 'effr' | 'sofr' | 'nyfed' | 'fomc' | 'ecb' | 'boe' | 'boc' | 'rba' | 'snb' | 'bcb'
   | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb'
   | 'ukcpi' | 'ukgdp' | 'ukunemp' | 'estatHicp' | 'estatUnemp' | 'estatGdp'
-  | 'statcan' | 'absUnemp' | 'absCpi';
+  | 'statcan' | 'absUnemp' | 'absCpi'
+  | 'newsFed' | 'newsEcb' | 'newsBoe' | 'newsBoc' | 'newsRba' | 'newsBea' | 'newsEsma';
 
 declare global {
   interface Window {
     arminDesktop?: {
       platform: string;
-      yahoo(path: string): Promise<{ status: number; data: unknown }>;
+      yahoo(path: string): Promise<{ status: number; data: unknown; disabled?: boolean }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string }>;
       fred?(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
       providersStatus?(): Promise<import('../providers').ProviderReport>;
       providersSet?(name: string, value: string): Promise<{ ok: boolean; error?: string; credentials: import('../providers').ProviderReport['credentials'] }>;
       providersClear?(name: string): Promise<{ ok: boolean; credentials: import('../providers').ProviderReport['credentials'] }>;
+      providersSetting?(name: string, value: boolean): Promise<{ ok: boolean; error?: string; settings: import('../providers').ProviderReport['settings'] }>;
       streamOpen?(): Promise<void>;
       streamSend?(msg: string): Promise<void>;
       streamClose?(): Promise<void>;

@@ -52,7 +52,7 @@ export function TapeSource({ id, short }: { id: string; short?: boolean }) {
       return (
         <>
           <span className="badge live">REAL</span>{' '}
-          {short ? 'volume per update' : 'volume from Yahoo Finance, which reports totals rather than single trades: each print is the volume since the last update'}
+          {short ? 'volume per update' : 'volume from Yahoo Finance (unofficial), which reports totals rather than single trades: each print is the volume since the last update'}
         </>
       );
     case 'live':

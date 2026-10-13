@@ -68,7 +68,17 @@ async function tracked(provider, url, init) {
 // Credential values never come back to the page.
 ipcMain.handle('providers:status', (event) => {
   if (!fromApp(event)) throw new Error('not allowed');
-  return { credentials: providers.credentialStatus(), providers: providers.providerStats() };
+  return { credentials: providers.credentialStatus(), settings: providers.settingStatus(), providers: providers.providerStats() };
+});
+
+ipcMain.handle('providers:setting', (event, name, value) => {
+  if (!fromApp(event) || typeof name !== 'string' || typeof value !== 'boolean') throw new Error('not allowed');
+  try {
+    providers.saveSetting(name, value);
+    return { ok: true, settings: providers.settingStatus() };
+  } catch (err) {
+    return { ok: false, error: String(err.message ?? err), settings: providers.settingStatus() };
+  }
 });
 
 ipcMain.handle('providers:set', (event, name, value) => {
@@ -106,7 +116,12 @@ function browserAgent() {
 function clientAgent() {
   return `ArminTerminal/${app.getVersion()} (+https://github.com/arminshah/bloomberg-terminal)`;
 }
-const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=%-]+\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=%-]+\?|v7\/finance\/quote\?|v7\/finance\/options\/[A-Za-z0-9.^=%-]+\?|ws\/fundamentals-timeseries\/v1\/finance\/timeseries\/[A-Za-z0-9.^=%-]+\?)/;
+// What the page may ask Yahoo for, and what is removed from the answers (electron/yahoo-scope.cjs).
+const { ALLOWED, yahooRequest, withoutRestricted } = require('./yahoo-scope.cjs');
+
+function yahooEnabled() {
+  return providers.setting('YAHOO_PRICES_ENABLED').value;
+}
 let crumb = null;
 
 // Every data request revalidates with the server, so a refresh never shows a cached copy.
@@ -125,9 +140,11 @@ async function getCrumb(force) {
   return crumb;
 }
 
-ipcMain.handle('yahoo', async (event, path) => {
+ipcMain.handle('yahoo', async (event, asked) => {
   if (!fromApp(event)) throw new Error('not allowed');
-  if (typeof path !== 'string' || path.length > 4000 || !ALLOWED.test(path)) throw new Error('not allowed');
+  if (typeof asked !== 'string' || asked.length > 4000 || !ALLOWED.test(asked)) throw new Error('not allowed');
+  if (!yahooEnabled()) return { status: 0, data: null, disabled: true };
+  const path = yahooRequest(asked);
   // Quotes, options and company data need the session crumb; charts, search and statements do not.
   const needsCrumb = path.startsWith('/v10/') || path.startsWith('/v7/');
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -136,7 +153,7 @@ ipcMain.handle('yahoo', async (event, path) => {
     const res = await yahooFetch(url);
     if (needsCrumb && attempt === 0 && (res.status === 401 || res.status === 403)) continue;
     if (!res.ok) return { status: res.status, data: null };
-    return { status: res.status, data: await res.json() };
+    return { status: res.status, data: withoutRestricted(path, await res.json()) };
   }
   return { status: 401, data: null };
 });
@@ -205,6 +222,14 @@ const OFFICIAL = {
   // annual change, all groups, Australia.
   absUnemp: (since) => `https://data.api.abs.gov.au/rest/data/ABS,LF,1.0.0/M13.3.1599.20.AUS.M?startPeriod=${since.slice(0, 7)}&format=csv`,
   absCpi: (since) => `https://data.api.abs.gov.au/rest/data/ABS,CPI,2.0.0/3.10001.10.50.M?startPeriod=${since.slice(0, 7)}&format=csv`,
+  // Official announcements for the news screens: each publisher's own RSS feed (headline, link, date).
+  newsFed: () => 'https://www.federalreserve.gov/feeds/press_all.xml',
+  newsEcb: () => 'https://www.ecb.europa.eu/rss/press.html',
+  newsBoe: () => 'https://www.bankofengland.co.uk/rss/news',
+  newsBoc: () => 'https://www.bankofcanada.ca/content_type/press-releases/feed/',
+  newsRba: () => 'https://www.rba.gov.au/rss/rss-cb-media-releases.xml',
+  newsBea: () => 'https://apps.bea.gov/rss/rss.xml',
+  newsEsma: () => 'https://www.esma.europa.eu/rss.xml',
 };
 
 /** Which provider publishes each official source, for the status screen. */
@@ -213,6 +238,7 @@ const OFFICIAL_PROVIDER = {
   rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs',
+  newsFed: 'fedboard', newsEcb: 'ecb', newsBoe: 'boe', newsBoc: 'boc', newsRba: 'rba', newsBea: 'bea', newsEsma: 'esma',
 };
 
 ipcMain.handle('official', async (event, source, since) => {
@@ -283,6 +309,10 @@ const streams = new Map();
 ipcMain.handle('stream:open', (event) => {
   if (!fromApp(event)) throw new Error('not allowed');
   const wc = event.sender;
+  if (!yahooEnabled()) {
+    wc.send('stream', 'close');
+    return;
+  }
   streams.get(wc.id)?.close();
   providers.recordRequest('yahoo-stream');
   const ws = new WebSocket(STREAM_URL);
@@ -411,6 +441,8 @@ if (!app.requestSingleInstanceLock()) {
   // Launching the app again opens another terminal window.
   app.on('second-instance', () => createWindow());
   app.whenReady().then(() => {
+    // With Yahoo prices switched off, nothing reaches Yahoo: not even the page's own streaming socket.
+    session.defaultSession.webRequest.onBeforeRequest({ urls: ['wss://streamer.finance.yahoo.com/*', 'https://*.yahoo.com/*'] }, (_details, done) => done({ cancel: !yahooEnabled() }));
     // macOS needs a menu for Cmd+Q and the clipboard; other platforms get none.
     Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]) : null);
     createWindow(1);

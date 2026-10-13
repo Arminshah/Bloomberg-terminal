@@ -195,7 +195,7 @@ export function WEIF(_: FnProps) {
       </table>
       <p className="pad-s muted">
         {engine.realOnly
-          ? 'Prices, contracts and last trade dates from Yahoo Finance (CME, delayed 10 minutes). Fair value is a model: index × e^((r − q) × days/365) with the 3-month Treasury rate and the dividends the index’s ETF paid over the past 12 months as a share of its price. Non-US index futures have no free source and are not listed.'
+          ? 'Prices, contracts and last trade dates from Yahoo Finance (unofficial; CME, delayed 10 minutes). Fair value is a model: index × e^((r − q) × days/365) with the 3-month Treasury rate and the dividends the index’s ETF paid over the past 12 months as a share of its price. Non-US index futures have no free source and are not listed.'
           : 'Fair value = index × e^((r − q) × days/365), using the 3-month bill (or local policy rate) and the index dividend yield. Futures prices are simulated around fair value.'}
       </p>
     </div>

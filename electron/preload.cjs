@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   providersStatus: () => ipcRenderer.invoke('providers:status'),
   providersSet: (name, value) => ipcRenderer.invoke('providers:set', String(name), String(value)),
   providersClear: (name) => ipcRenderer.invoke('providers:clear', String(name)),
+  providersSetting: (name, value) => ipcRenderer.invoke('providers:setting', String(name), value === true),
   streamOpen: () => ipcRenderer.invoke('stream:open'),
   streamSend: (msg) => ipcRenderer.invoke('stream:send', String(msg)),
   streamClose: () => ipcRenderer.invoke('stream:close'),

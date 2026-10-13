@@ -112,7 +112,12 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
           {fmtNum(q.extended.price, sec.dec)} <span className={signClass(q.extended.price - q.last)}>{fmtPct((q.extended.price / q.last - 1) * 100)}</span>
         </span>
       )}
-      <span className={`src ${q.src === 'LIVE' ? 'up' : q.src === 'SIM' || q.src === 'STALE' || q.src === 'NONE' || q.src === 'UNCONFIRMED' ? 'amber' : 'white'}`} title={`${SRC_TITLE[q.src]}${q.sourceName ? ` (Yahoo Finance: "${q.sourceName}")` : ''}`}>
+      {q.provider && (
+        <span className="muted hide-m" title={q.provider.includes('unofficial') ? 'An unofficial source, kept for personal use: it does not guarantee timeliness or accuracy' : 'Who supplies this line'}>
+          {q.provider}
+        </span>
+      )}
+      <span className={`src ${q.src === 'LIVE' ? 'up' : q.src === 'SIM' || q.src === 'STALE' || q.src === 'NONE' || q.src === 'UNCONFIRMED' ? 'amber' : 'white'}`} title={`${SRC_TITLE[q.src]}${q.sourceName ? ` (the source's own label: "${q.sourceName}")` : ''}`}>
         {srcLabelLong(q)}
       </span>
     </div>

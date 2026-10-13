@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { engine } from '../src/data/market';
 import { squarify } from '../src/functions/IMAP';
 import { ecoEvents, zonedToUtc } from '../src/data/eco';
-import { analystViews, consensus, dividends, earningsHistory, financials, fiscalQuarterLabel, keyStats } from '../src/data/fundamentals';
-import { chainFor, expiries } from '../src/data/options';
+import { dividends, earningsHistory, financials, fiscalQuarterLabel, keyStats } from '../src/data/fundamentals';
+import { expiries } from '../src/data/options';
 import { aggregate } from '../src/data/series';
 
 describe('treemap', () => {
@@ -65,14 +65,11 @@ describe('fundamentals', () => {
     expect(f.quarterly).toHaveLength(8);
   });
 
-  it('produces sensible valuation and consensus', () => {
+  it('produces sensible valuation', () => {
     const k = keyStats(aapl);
     expect(k.mcap).toBeGreaterThan(1e6);
     expect(k.pe).toBeGreaterThan(5);
     expect(k.pe).toBeLessThan(80);
-    const c = consensus(aapl);
-    expect(c.buy + c.hold + c.sell).toBe(c.n);
-    expect(analystViews(aapl).length).toBe(c.n);
   });
 
   it('never shows an actual for a future report', () => {
@@ -91,17 +88,15 @@ describe('fundamentals', () => {
   });
 });
 
-describe('options', () => {
-  it('builds a monotone chain around the money', () => {
-    const nvda = engine.get('NVDA US Equity')!;
+describe('option calendar', () => {
+  it('lists Friday expiries, including the third-Friday monthlies, in order', () => {
     const exp = expiries(engine.now());
     expect(exp.length).toBeGreaterThan(8);
-    const ch = chainFor(nvda, exp[3], 8);
-    for (let i = 1; i < ch.rows.length; i++) {
-      expect(ch.rows[i].call.mid).toBeLessThanOrEqual(ch.rows[i - 1].call.mid + 1e-9);
-      expect(ch.rows[i].put.mid).toBeGreaterThanOrEqual(ch.rows[i - 1].put.mid - 1e-9);
+    for (let i = 0; i < exp.length; i++) {
+      expect(new Date(exp[i]).getUTCDay()).toBe(5);
+      if (i) expect(exp[i]).toBeGreaterThan(exp[i - 1]);
     }
-    for (const r of ch.rows) expect(r.call.ask).toBeGreaterThanOrEqual(r.call.bid);
+    expect(exp.some((e) => new Date(e).getUTCDate() >= 15 && new Date(e).getUTCDate() <= 21)).toBe(true);
   });
 });
 

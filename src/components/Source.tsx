@@ -12,7 +12,7 @@ export function sourceLabel(status: SourceStatus, simText: string): ReactNode {
     case 'ok':
       return (
         <>
-          <span className="badge live">REAL</span> Yahoo Finance
+          <span className="badge live">REAL</span> Yahoo Finance (unofficial)
         </>
       );
     case 'loading':

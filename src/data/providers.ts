@@ -398,8 +398,16 @@ export interface ProviderStats {
   lastErrorKind: string | null;
 }
 
+export interface SettingState {
+  label: string;
+  value: boolean;
+  source: string | null;
+}
+
 export interface ProviderReport {
   credentials: Partial<Record<Credential, CredentialState>>;
+  /** Switches that are not secrets, such as YAHOO_PRICES_ENABLED. */
+  settings?: Partial<Record<'YAHOO_PRICES_ENABLED', SettingState>>;
   providers: Record<string, ProviderStats>;
 }
 

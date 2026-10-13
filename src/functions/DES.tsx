@@ -7,7 +7,7 @@ import { DataTable } from '../components/DataTable';
 import { fmtBig, fmtDay, fmtEarnDate, fmtInt, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { marketCapUsd, periodChange, rangeStats } from '../data/analytics';
-import { consensus, dividends, earningsHistory, estimates, financials, holders, keyStats, nextEarnings, reportCcy, revenueMix } from '../data/fundamentals';
+import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings, reportCcy, revenueMix } from '../data/fundamentals';
 import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { CURRENCY_INFO } from '../data/universe';
 import { analytics as bondAnalytics, settlementDate } from '../finance/bonds';
@@ -106,11 +106,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
   useTick(5);
   const eq = sec.eq!;
   const ks = keyStats(sec);
-  const est = estimates(sec);
-  const nEst = (n: number) => (Number.isFinite(n) && n > 0 ? ` (${n})` : '');
   const rs = rangeStats(sec.id);
   const ne = nextEarnings(sec);
-  const c = consensus(sec);
   const nextDiv = dividends(sec).filter((d) => d.ex >= engine.today * 86_400_000).pop();
   const real = getRealFund(sec.id);
   const mix = real ? [] : revenueMix(sec);
@@ -155,7 +152,6 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
           <KV
             items={[
               ['P/E (LTM)', fmtNum(ks.pe, 1)],
-              ['P/E (FY1 est.)', fmtNum(ks.fpe, 1)],
               ['Price / book', fmtNum(ks.pb, 2)],
               ['Price / sales', fmtNum(ks.ps, 2)],
               ['EV / EBITDA', fmtNum(ks.evEbitda, 1)],
@@ -163,32 +159,12 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Payout ratio', fmtPct(ks.payout, 1, false)],
               ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : nextDiv.type === 'Expected' ? 'expected' : 'decl.'})` : sec.eq!.dps === 0 ? 'None' : '--'],
               ['EPS LTM', `${fmtNum(ks.epsLtm, 2)} ${ccy}${financials(sec).ltm?.epsComputed ? ' (computed)' : ''}`],
-              // With the number of analysts behind each average.
-              ['EPS est. FY1 / FY2', `${fmtNum(ks.epsFy1, 2)}${nEst(est.fy1.analysts)} / ${fmtNum(ks.epsFy2, 2)}${nEst(est.fy2.analysts)}`],
               ['Next earnings', ne ? fmtEarnDate(ne) : '--'],
               ['ROE', fmtPct(ks.roe, 1, false)],
               ['Net margin', fmtPct(ks.netMargin, 1, false)],
             ]}
           />
-          <div className="pad-s">
-            <div className="row" style={{ justifyContent: 'space-between' }}>
-              <span className="amber">Analyst rating</span>
-              <span className="white">
-                {fmtNum(c.score, 2)} / 5 ({c.n} ratings) · target {fmtNum(c.avg, sec.dec)}
-                {Number.isFinite(c.nTargets) ? ` (${c.nTargets} analysts)` : ''}
-              </span>
-            </div>
-            <div style={{ display: 'flex', height: 12, marginTop: 4 }}>
-              <div style={{ flex: c.buy, background: 'var(--up)' }} title={`Buy ${c.buy}`} />
-              <div style={{ flex: c.hold, background: '#c9a227' }} title={`Hold ${c.hold}`} />
-              <div style={{ flex: c.sell || 0.0001, background: 'var(--dn)' }} title={`Sell ${c.sell}`} />
-            </div>
-            <div className="row muted" style={{ justifyContent: 'space-between', fontSize: 'var(--fs-s)' }}>
-              <span>Buy {c.buy}</span>
-              <span>Hold {c.hold}</span>
-              <span>Sell {c.sell}</span>
-            </div>
-          </div>
+          <p className="pad-s muted">Analyst ratings, price targets and estimates: not connected (no permitted source).</p>
         </Section>
       </div>
       <div className="cols">
@@ -282,50 +258,19 @@ function EquityFinSummary({ sec }: { sec: SecurityDef }) {
   );
 }
 
-function EquityEstimates({ sec }: { sec: SecurityDef }) {
-  const e = estimates(sec);
-  const hist = earningsHistory(sec).filter((x) => x.actual != null).slice(-4);
+function EquityEarnings({ sec }: { sec: SecurityDef }) {
+  const hist = earningsHistory(sec).filter((x) => x.actual != null || x.revAct != null).slice(-4);
+  const next = nextEarnings(sec);
   return (
     <div className="cols">
-      <Section title="Consensus estimates">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>Period</th>
-              <th className="num">EPS</th>
-              <th className="num">High</th>
-              <th className="num">Low</th>
-              <th className="num">Revenue</th>
-              <th className="num">Growth</th>
-              <th className="num"># Est</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[e.nq, e.fy1, e.fy2].map((x) => (
-              <tr key={x.label}>
-                <td className="amber">{x.label}</td>
-                <td className="num white">{fmtNum(x.eps, 2)}</td>
-                <td className="num">{fmtNum(x.epsHi, 2)}</td>
-                <td className="num">{fmtNum(x.epsLo, 2)}</td>
-                <td className="num">{fmtMln(x.rev)}</td>
-                <td className="num">
-                  <Chg v={x.growth} pct dec={1} />
-                </td>
-                <td className="num">{fmtInt(x.analysts)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
-      <Section title="Recent surprises" right="EE for history">
+      <Section title="Reported earnings" right="EE for history">
         <table className="tbl">
           <thead>
             <tr>
               <th>Period</th>
               <th>Date</th>
-              <th className="num">Est</th>
-              <th className="num">Actual</th>
-              <th className="num">Surprise</th>
+              <th className="num">Diluted EPS</th>
+              <th className="num">Revenue</th>
             </tr>
           </thead>
           <tbody>
@@ -333,15 +278,15 @@ function EquityEstimates({ sec }: { sec: SecurityDef }) {
               <tr key={`${x.period}:${x.date}`}>
                 <td className="amber">{x.period}</td>
                 <td>{fmtEarnDate(x, false)}</td>
-                <td className="num">{fmtNum(x.estimate, 2)}</td>
-                <td className="num white">{fmtNum(x.actual, 2)}</td>
-                <td className="num">
-                  {x.surprise != null ? <Chg v={x.surprise} pct dec={1} /> : '--'}
-                </td>
+                <td className="num white">{x.actual != null ? fmtNum(x.actual, 2) : '--'}</td>
+                <td className="num">{x.revAct != null ? fmtMln(x.revAct) : '--'}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      </Section>
+      <Section title="Next report">
+        <KV items={[['Date', next ? fmtEarnDate(next) : '--'], ['Estimates', 'Not connected: no permitted source']]} />
       </Section>
     </div>
   );
@@ -722,7 +667,7 @@ function CryptoDES({ sec }: { sec: SecurityDef }) {
               ['High (10Y window)', `${fmtNum(ath, sec.dec)}  ${fmtDay(athT)}`],
               ['Drawdown from high', fmtPct((q.last / ath - 1) * 100, 1)],
               ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
-              ['Source', engine.realOnly ? 'Yahoo Finance (CoinMarketCap prices)' : engine.isLive(sec.id) ? `Coinbase ${cr.coinbase}` : 'Simulated'],
+              ['Source', engine.realOnly ? 'Yahoo Finance (unofficial; CoinMarketCap prices)' : engine.isLive(sec.id) ? `Coinbase ${cr.coinbase}` : 'Simulated'],
             ]}
           />
           <Range52 sec={sec} />
@@ -880,11 +825,11 @@ export function DES({ sec }: FnProps) {
   const s = sec!;
   const [tab, setTab] = useState(1);
   const { status } = useFundamentals(s.cls === 'equity' ? s : undefined);
-  const tabs = s.cls === 'equity' ? [{ n: 1, label: 'Profile' }, { n: 2, label: 'Financials' }, { n: 3, label: 'Estimates' }, { n: 4, label: 'Ownership' }] : undefined;
+  const tabs = s.cls === 'equity' ? [{ n: 1, label: 'Profile' }, { n: 2, label: 'Financials' }, { n: 3, label: 'Earnings' }, { n: 4, label: 'Ownership' }] : undefined;
   let body: ReactNode;
   switch (s.cls) {
     case 'equity':
-      body = tab === 1 ? <EquityProfile sec={s} /> : tab === 2 ? <EquityFinSummary sec={s} /> : tab === 3 ? <EquityEstimates sec={s} /> : <EquityOwnership sec={s} />;
+      body = tab === 1 ? <EquityProfile sec={s} /> : tab === 2 ? <EquityFinSummary sec={s} /> : tab === 3 ? <EquityEarnings sec={s} /> : <EquityOwnership sec={s} />;
       break;
     case 'index':
       body = <IndexDES sec={s} />;

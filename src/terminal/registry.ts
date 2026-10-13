@@ -18,7 +18,7 @@ import { CORR } from '../functions/CORR';
 import { DEPTH } from '../functions/DEPTH';
 import { TAS } from '../functions/TAS';
 import { BQ } from '../functions/BQ';
-import { CN, N, READ, TOP } from '../functions/NEWS';
+import { CN, N, TOP } from '../functions/NEWS';
 import { WEI, WEIF } from '../functions/WEI';
 import { IMAP } from '../functions/IMAP';
 import { MOST } from '../functions/MOST';
@@ -70,7 +70,6 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'TOP', name: 'Top News', category: 'News', desc: 'Most important headlines across markets, updating as the session unfolds.', component: TOP, aliases: ['NEWS', 'TOPS'] },
   { code: 'N', name: 'News Search', category: 'News', desc: 'All news with topic tabs and keyword search. Add a topic (N CRYPTO) or a security (AAPL N).', component: N, aliases: ['NI', 'NSE'], example: 'N CRYPTO <GO>' },
   { code: 'CN', name: 'Company News', category: 'News', needsSec: true, desc: 'Headlines mentioning the loaded security.', component: CN },
-  { code: 'READ', name: 'Most Read News', category: 'News', desc: 'The stories most read across the terminal in the last day or week (in the desktop app, where readership is not public, the latest headlines).', component: READ, aliases: ['MOSTREAD'] },
   // Markets
   { code: 'WEI', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI },
   { code: 'WEIF', name: 'World Index Futures', category: 'Markets', desc: 'Front equity index futures with basis, fair value and premium or discount to fair value.', component: WEIF, aliases: ['WIF'] },

@@ -76,7 +76,7 @@ function apply(): string[] {
     if (!engine.get(id)) continue;
     const bars: ExtBar[] = [...days.entries()].sort((a, b) => a[0] - b[0]).map(([day, c]) => ({ day, o: c, h: c, l: c, c, v: 0 }));
     if (bars.length < 2) continue;
-    engine.setExternalDaily(id, bars, { eod: true });
+    engine.setExternalDaily(id, bars, { eod: true, provider: 'US Department of the Treasury' });
     changed.push(id);
   }
   if (changed.length) engine.flush(changed);

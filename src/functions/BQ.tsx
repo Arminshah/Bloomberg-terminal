@@ -68,7 +68,7 @@ export function BQ({ sec }: FnProps) {
         ]}
       />
       <div className="cols">
-        <Section title="Quote" right={srcLabelLong(q)}>
+        <Section title="Quote" right={q.provider ? `${q.provider} · ${srcLabelLong(q)}` : srcLabelLong(q)}>
           <div className="pad row" style={{ alignItems: 'baseline', gap: 14 }}>
             <Flash value={q.last} className={`white ${q.tick > 0 ? 'arrow-up' : q.tick < 0 ? 'arrow-dn' : ''}`}>
               <span style={{ fontSize: 30, fontWeight: 600 }}>{fmtNum(q.last, s.dec)}</span>
@@ -127,7 +127,7 @@ export function BQ({ sec }: FnProps) {
             <KV
               items={[
                 ['Market cap', `${fmtMln(ks.mcap)} ${ks.tradeCcy}`],
-                ['P/E LTM / FY1', `${fmtNum(ks.pe, 1)} / ${fmtNum(ks.fpe, 1)}`],
+                ['P/E LTM', fmtNum(ks.pe, 1)],
                 ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
                 ['Beta (5Y monthly)', fmtNum(ks.beta, 2)],
                 ['Next earnings', ne ? fmtEarnDate(ne) : '--'],

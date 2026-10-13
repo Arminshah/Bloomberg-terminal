@@ -4,7 +4,6 @@ import { dayNum, DAY_MS } from '../src/data/calendar';
 import { earningsEvents, keyStats, nextEarnings } from '../src/data/fundamentals';
 import { buildRealFund, fundDue, FUND_TTL, realFund, usTiming } from '../src/data/live/yfund';
 import { dropVolumeSpikes, impliedShares, yahooQuotes } from '../src/data/live/yahoo';
-import { atmVolAt, realChain, type Leg } from '../src/data/live/yopt';
 import { parseTreasuryCsv } from '../src/data/live/ust';
 import { rangeStats } from '../src/data/analytics';
 import { levelOn, parseBoeCsv, parseEcbCsv, parseNyFed, parseValet, policyRates, toChanges } from '../src/data/live/policy';
@@ -12,7 +11,6 @@ import { centralBanks, ecoEvents } from '../src/data/eco';
 
 import summary from './fixtures/yahoo-apld-summary.json';
 import timeseries from './fixtures/yahoo-apld-timeseries.json';
-import options from './fixtures/yahoo-apld-options.json';
 import treasuryCsv from './fixtures/treasury-2026.csv?raw';
 import stream from './fixtures/yahoo-stream.json';
 
@@ -39,23 +37,22 @@ describe('company data refresh', () => {
 });
 
 describe('real company data (Applied Digital, from Yahoo Finance)', () => {
-  it('reads the analyst consensus and broker actions as reported', () => {
-    const f = apldFund();
-    expect(f.consensus).toMatchObject({ n: 15, strongBuy: 2, buy: 13, hold: 2, sell: 0, hi: 93, lo: 22 });
-    expect(f.consensus!.avg).toBeCloseTo(64.27, 2);
-    const wells = f.views.find((v) => v.firm === 'Wells Fargo')!;
-    expect(wells).toMatchObject({ rating: 'Overweight', target: 55, prevTarget: 50, action: 'Raise PT' });
-    expect(f.views.find((v) => v.firm === 'Needham')).toMatchObject({ target: 70, prevTarget: 83, action: 'Cut PT' });
-    expect(f.views.find((v) => v.firm === 'Rothschild & Co')).toMatchObject({ rating: 'Neutral', action: 'Initiate', target: 22 });
+  it('keeps no analyst data, even from an answer that carries it', () => {
+    // The fixture is a raw answer captured before the main process stripped analyst modules.
+    const f = apldFund() as unknown as Record<string, unknown>;
+    for (const k of ['consensus', 'views', 'estimates']) expect(f[k]).toBeUndefined();
+    expect((f.stats as Record<string, unknown>).fpe).toBeUndefined();
   });
 
   it('uses the real report dates and times, and the next date as an estimate', () => {
     const f = apldFund();
     const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
-    const done = f.earnings.filter((e) => e.actual != null);
+    const done = f.earnings.filter((e) => e.actual != null || e.revAct != null);
     expect(done.map((e) => iso(e.date))).toEqual(['2026-01-07', '2026-04-08', '2026-07-27', '2026-10-07']);
     expect(done.every((e) => !e.approx && e.timing === 'Aft-mkt')).toBe(true);
-    expect(done.map((e) => e.actual)).toEqual([0, 0.09, 0.04, -0.01]);
+    // Reported diluted EPS from the statements; the latest quarter's EPS is not in them yet, its revenue is.
+    expect(done.map((e) => e.actual)).toEqual([-0.07, -0.36, -0.39, null]);
+    expect(done.map((e) => e.revAct)).toEqual([126.589, 126.637, 258.749, 341.875]);
     const next = f.earnings[f.earnings.length - 1];
     expect(iso(next.date)).toBe('2027-01-06');
     expect(next).toMatchObject({ actual: null, approx: true, timing: '--' });
@@ -76,9 +73,6 @@ describe('real company data (Applied Digital, from Yahoo Finance)', () => {
     expect(last.label).toBe('Q1 27');
     expect(last.rev).toBeCloseTo(341.875, 3);
     expect(f.ltm!.rev).toBeCloseTo(126.589 + 126.637 + 258.749 + 341.875, 2);
-    expect(f.estimates!.fy1).toMatchObject({ label: 'FY 2027' });
-    expect(f.estimates!.fy1.eps).toBeCloseTo(-1.063, 3);
-    expect(f.estimates!.fy2.rev).toBeCloseTo(1956.8, 1);
   });
 
   it('lists holders and the ownership breakdown as filed', () => {
@@ -135,14 +129,6 @@ describe('figures that sit side by side agree', () => {
 });
 
 describe('second audit round (15 stocks)', () => {
-  it('shows no EPS growth across a change of sign, and keeps it between two losses', () => {
-    // Applied Digital: FY2026 EPS estimate -1.06 against +0.11 a year earlier (the source says -1,066.7%).
-    const f = apldFund();
-    expect(f.estimates!.fy1.growth).toBeNaN();
-    // FY2027: -0.78 against -1.06, a narrowing loss, as FA shows it.
-    expect(f.estimates!.fy2.growth).toBeCloseTo(26.23, 1);
-  });
-
   it("uses the company's reported revenue when the statements feed adds other items", () => {
     const s = structuredClone(summary);
     // As for Berkshire, whose feed adds investment gains: the latest year differs from the reported figure by over 2%.
@@ -186,7 +172,6 @@ describe('real quotes fill gaps with nothing, not with generated figures', () =>
     yahooQuotes.set(def.id, { trailingPE: undefined, forwardPE: -38.8, priceToBook: 4.39, trailingAnnualDividendYield: 0, epsTrailingTwelveMonths: -1.62 });
     const ks = keyStats(def);
     expect(ks.pe).toBeNaN();
-    expect(ks.fpe).toBeNaN();
     expect(ks.pb).toBeCloseTo(4.39, 2);
     // The yield comes from the dividends paid, which arrive with the price history, not from the quote's own field.
     expect(ks.divYld).toBeNaN();
@@ -230,48 +215,6 @@ describe('external lines in the engine', () => {
     expect(q.prevClose).toBeCloseTo(5.28, 6);
     expect(q.bid).toBeNaN();
     expect(engine.daily(id).c[engine.daily(id).length - 1]).toBeCloseTo(5.29, 6);
-  });
-});
-
-describe('listed options (Yahoo Finance)', () => {
-  const r = options.optionChain.result[0];
-  const leg: Leg = { calls: r.options[0].calls, puts: r.options[0].puts, at: Date.now() };
-  const exp = r.options[0].expirationDate * 1000;
-
-  it('builds the chain around spot with real quotes and computed Greeks', () => {
-    const def = engine.get(APLD)!;
-    const today = engine.today;
-    engine.setExternalDaily(APLD, [
-      { day: today - 2, o: 24, h: 24.2, l: 23.5, c: 23.85, v: 1e7 },
-      { day: today - 1, o: 23.8, h: 24.1, l: 22.8, c: 23.68, v: 2e7 },
-    ]);
-    const chain = realChain(def, exp, leg, 3, exp - 4 * DAY_MS);
-    // Listed strikes, half-dollar ones included, three each side of the strike nearest 23.68.
-    expect(chain.rows.map((x) => x.strike)).toEqual([22, 22.5, 23, 23.5, 24, 24.5, 25]);
-    const atm = chain.rows.find((x) => x.strike === 24)!;
-    const c = r.options[0].calls.find((x: { strike: number }) => x.strike === 24)!;
-    expect(atm.call.bid).toBe(c.bid);
-    expect(atm.call.ask).toBe(c.ask);
-    expect(atm.call.oi).toBe(c.openInterest);
-    expect(atm.call.iv).toBeCloseTo(c.impliedVolatility * 100, 6);
-    expect(atm.call.delta).toBeGreaterThan(0.2);
-    expect(atm.call.delta).toBeLessThan(0.8);
-    expect(atm.put.delta).toBeLessThan(0);
-    expect(chain.atmIv).toBeGreaterThan(20);
-    expect(atm.call.ticker).toBe('APLD US 10/16/26 C24 Equity');
-  });
-
-  it('interpolates ATM vol in total variance between expiries', () => {
-    const now = Date.UTC(2026, 0, 1);
-    const term = [
-      { expiry: now + 10 * DAY_MS - 20 * 3600_000, iv: 50 },
-      { expiry: now + 40 * DAY_MS - 20 * 3600_000, iv: 40 },
-    ];
-    expect(atmVolAt(term, 5, now)).toBe(50);
-    expect(atmVolAt(term, 60, now)).toBe(40);
-    const mid = atmVolAt(term, 25, now);
-    expect(mid).toBeGreaterThan(40);
-    expect(mid).toBeLessThan(50);
   });
 });
 

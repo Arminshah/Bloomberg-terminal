@@ -2,47 +2,31 @@ import { useEffect } from 'react';
 import { createStore } from '../../core/store';
 import { engine } from '../market';
 import { DAY_MS } from '../calendar';
-import type { BrokerView, EarningsEvent, Estimate, FinPeriod, Holder } from '../fundamentals';
+import type { EarningsEvent, FinPeriod, Holder } from '../fundamentals';
 import type { SecurityDef } from '../types';
 import { desktopData, impliedShares, realDividends, yahooGet, yahooSymbolFor } from './yahoo';
 
 /**
- * Real company data for the desktop app from Yahoo Finance: statements from
- * the fundamentals time series, and estimates, earnings, analyst ratings and
- * targets, holders and the company profile from quoteSummary. fundamentals.ts
- * prefers these over its generated figures whenever they are loaded.
+ * Company data for the desktop app from Yahoo Finance (unofficial, personal
+ * use): statements from the fundamentals time series, and report dates,
+ * holders and the company profile from quoteSummary. Analyst data (ratings,
+ * recommendations, price targets, estimates) is not requested: the main
+ * process also strips it from every answer. fundamentals.ts prefers these
+ * over its generated figures whenever they are loaded.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Json = any;
-
-export interface Consensus {
-  buy: number;
-  hold: number;
-  sell: number;
-  score: number;
-  avg: number;
-  hi: number;
-  lo: number;
-  n: number;
-  /** Analysts with a price target (may differ from the rating count). */
-  nTargets?: number;
-  strongBuy?: number;
-  strongSell?: number;
-}
 
 export interface RealFund {
   fetched: number;
   annual: FinPeriod[];
   quarterly: FinPeriod[];
   ltm: FinPeriod | null;
-  estimates: { fy1: Estimate; fy2: Estimate; nq: Estimate } | null;
   earnings: EarningsEvent[];
-  consensus: Consensus | null;
-  views: BrokerView[];
   holders: Holder[];
   breakdown: { insiders: number; institutions: number; institutionsFloat: number; count: number } | null;
-  stats: Partial<Record<'pe' | 'fpe' | 'pb' | 'ps' | 'evEbitda' | 'ev' | 'divYld' | 'payout' | 'roe' | 'roa' | 'opMargin' | 'netMargin' | 'grossMargin' | 'de' | 'beta' | 'revGrowth' | 'epsGrowth' | 'shares', number>>;
+  stats: Partial<Record<'pe' | 'pb' | 'ps' | 'evEbitda' | 'ev' | 'divYld' | 'payout' | 'roe' | 'roa' | 'opMargin' | 'netMargin' | 'grossMargin' | 'de' | 'beta' | 'revGrowth' | 'epsGrowth' | 'shares', number>>;
   nextDividend: { ex: number; pay: number; rate: number } | null;
 }
 
@@ -185,38 +169,6 @@ function dividendsIn(id: string, from: number, to: number): number {
   return sum;
 }
 
-// ------------------------------------------------------------------- ratings
-
-/** Maps a broker's own grade to the 1-5 scale (5 = buy). */
-export function gradeScore(grade: string): number {
-  const g = grade.toLowerCase();
-  if (/strong buy|top pick|conviction/.test(g)) return 5;
-  if (/strong sell/.test(g)) return 1;
-  if (/underperform|underweight|reduce|negative|moderate sell|sector underperform|market underperform/.test(g)) return 2;
-  if (/sell/.test(g)) return 1;
-  if (/buy|overweight|outperform|positive|accumulate|add|long-term/.test(g)) return 4;
-  return 3;
-}
-
-const ACTION: Record<string, BrokerView['action']> = { up: 'Upgrade', down: 'Downgrade', init: 'Initiate', main: 'Maintain', reit: 'Maintain' };
-
-export function viewsFromHistory(history: Json[], since: number): BrokerView[] {
-  const latest = new Map<string, BrokerView>();
-  for (const h of history) {
-    const date = num(h.epochGradeDate) * 1000;
-    if (!Number.isFinite(date) || date < since || !h.firm) continue;
-    const firm = String(h.firm);
-    if (latest.has(firm) && latest.get(firm)!.date >= date) continue;
-    const target = num(h.currentPriceTarget);
-    const prev = num(h.priorPriceTarget);
-    let action = ACTION[h.action] ?? 'Maintain';
-    if (action === 'Maintain' && target > 0 && prev > 0 && target !== prev) action = target > prev ? 'Raise PT' : 'Cut PT';
-    const rating = String(h.toGrade || h.fromGrade || 'Not rated');
-    latest.set(firm, { firm, rating, score: gradeScore(rating), target: target > 0 ? target : NaN, prevTarget: prev > 0 ? prev : NaN, action, date, horizon: '12 month' });
-  }
-  return [...latest.values()].sort((a, b) => b.date - a.date);
-}
-
 // -------------------------------------------------------------------- build
 
 export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, quarterlyRes: Json, trailingRes: Json, now: number): RealFund {
@@ -236,7 +188,6 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     .slice(-8)
     .map(([end, row]) => periodFrom(fiscalQuarter(end, fye), end, row, undefined, dividendsIn(def.id, end - 91 * DAY_MS, end)));
   // The statements feed can lag a quarter; the earnings module already has the newest quarter's revenue and profit.
-  const eh = (r.earningsHistory?.history ?? []) as Json[];
   const fq = (r.earnings?.financialsChart?.quarterly ?? []) as Json[];
   // The source labels quarters its own way ("2Q2026" for NVIDIA's July quarter): its earnings chart pairs each
   // label with the period end, so a quarter is found by its end date, not by the calendar quarter it ends in.
@@ -247,8 +198,8 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   };
   const calQuarter = (end: number) => `${Math.floor(new Date(end).getUTCMonth() / 3) + 1}Q${new Date(end).getUTCFullYear()}`;
   const lastEnd = quarterly.length ? quarterly[quarterly.length - 1].end : 0;
-  for (const h of eh) {
-    const end = num(h.quarter) * 1000;
+  for (const c of chartQ) {
+    const end = num(c?.periodEndDate) * 1000;
     if (!(end > lastEnd)) continue;
     const fin = finFor(end);
     if (!fin) continue;
@@ -298,60 +249,32 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   }
   if (ltm) ltm.basis = ltm === summed ? 'quarters' : 'trailing';
 
-  // Estimates
-  const trend = (r.earningsTrend?.trend ?? []) as Json[];
-  const est = (period: string, label: (end: number) => string): Estimate | null => {
-    const t = trend.find((x) => x.period === period);
-    if (!t) return null;
-    const end = Date.parse(`${t.endDate}T00:00:00Z`);
-    return {
-      label: label(end),
-      eps: num(t.earningsEstimate?.avg),
-      rev: M(num(t.revenueEstimate?.avg)),
-      epsHi: num(t.earningsEstimate?.high),
-      epsLo: num(t.earningsEstimate?.low),
-      analysts: num(t.earningsEstimate?.numberOfAnalysts),
-      // Growth from a loss to a profit, or back, means nothing: shown as --. Between two losses it is kept,
-      // as FA keeps it (a narrowing loss counts as growth).
-      growth: num(t.earningsEstimate?.yearAgoEps) * num(t.earningsEstimate?.avg) > 0 ? num(t.earningsEstimate?.growth) * 100 : NaN,
-    };
-  };
-  const fy1 = est('0y', (e) => `FY ${new Date(e).getUTCFullYear()}`);
-  const fy2 = est('+1y', (e) => `FY ${new Date(e).getUTCFullYear()}`);
-  const nq = est('0q', (e) => fiscalQuarter(e, fye));
-  const estimates = fy1 && fy2 && nq ? { fy1, fy2, nq } : null;
-
-  // Earnings: the last four reports and the next one.
-  // Report dates come with the earnings chart; a report without one keeps an unknown date (never a guessed one).
+  // Earnings: the last four reports from the statements (reported diluted EPS and revenue), with the
+  // report dates the source's earnings chart gives; a report without one keeps an unknown date (never a
+  // guessed one). Analyst estimates and surprises are not shown: there is no permitted source for them.
   const reported = new Map<number, number>();
-  for (const q of (r.earnings?.earningsChart?.quarterly ?? []) as Json[]) {
+  for (const q of chartQ) {
     const end = num(q?.periodEndDate) * 1000;
     const at = num(q?.reportedDate) * 1000;
     if (Number.isFinite(end) && Number.isFinite(at)) reported.set(end, at);
   }
-  const earnings: EarningsEvent[] = eh
-    .map((h) => {
-      const end = num(h.quarter) * 1000;
-      const fin = finFor(end);
-      const at = reported.get(end);
-      return {
-        period: fiscalQuarter(end, fye),
-        date: at ?? end,
-        dateUnknown: at == null,
-        estimate: num(h.epsEstimate),
-        actual: Number.isFinite(num(h.epsActual)) ? num(h.epsActual) : null,
-        surprise: Number.isFinite(num(h.surprisePercent)) ? num(h.surprisePercent) * 100 : null,
-        timing: at != null && def.country === 'US' ? usTiming(at) : ('--' as const),
-        revEst: NaN,
-        revAct: fin ? M(num(fin.revenue)) : null,
-      };
-    })
-    .filter((e) => Number.isFinite(e.date));
+  const reportedAt = (end: number) => [...reported.entries()].find(([e]) => Math.abs(e - end) < 20 * DAY_MS)?.[1];
+  const earnings: EarningsEvent[] = quarterly.slice(-4).map((p) => {
+    const at = reportedAt(p.end);
+    return {
+      period: p.label,
+      date: at ?? p.end,
+      dateUnknown: at == null,
+      actual: Number.isFinite(p.eps) ? p.eps : null,
+      timing: at != null && def.country === 'US' ? usTiming(at) : ('--' as const),
+      revAct: Number.isFinite(p.rev) ? p.rev : null,
+    };
+  });
   const cal = r.calendarEvents?.earnings ?? {};
   // The latest report's real date and time come from its earnings call.
   const callDate = num(cal.earningsCallDate?.[0]) * 1000;
   const latest = earnings[earnings.length - 1];
-  const latestEnd = num(eh[eh.length - 1]?.quarter) * 1000;
+  const latestEnd = quarterly.length ? quarterly[quarterly.length - 1].end : NaN;
   if (latest?.dateUnknown && callDate > latestEnd && callDate - latestEnd < 120 * DAY_MS) {
     latest.date = callDate;
     latest.dateUnknown = false;
@@ -364,47 +287,16 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     const callSet = Number.isFinite(callDate) && callDate >= nextDate - DAY_MS;
     const estimated = cal.isEarningsDateEstimate === true || !callSet;
     earnings.push({
-      period: nq?.label ?? 'Next',
+      period: 'Next',
       date: nextDate,
       approx: estimated,
-      // The quarter's consensus from the same estimates as the annual rows; the calendar's own figure only without it.
-      estimate: Number.isFinite(nq?.eps ?? NaN) ? nq!.eps : num(cal.earningsAverage),
       actual: null,
-      surprise: null,
       timing: !estimated && def.country === 'US' ? usTiming(nextDate) : '--',
-      revEst: Number.isFinite(nq?.rev ?? NaN) ? nq!.rev : M(num(cal.revenueAverage)),
       revAct: null,
     });
   }
 
-  // Analysts
-  const rt = (r.recommendationTrend?.trend ?? []).find((x: Json) => x.period === '0m');
   const fd = r.financialData ?? {};
-  let consensus: Consensus | null = null;
-  if (rt) {
-    const sb = num(rt.strongBuy) || 0;
-    const b = num(rt.buy) || 0;
-    const h = num(rt.hold) || 0;
-    const s = num(rt.sell) || 0;
-    const ss = num(rt.strongSell) || 0;
-    const n = sb + b + h + s + ss;
-    if (n > 0) {
-      consensus = {
-        buy: sb + b,
-        hold: h,
-        sell: s + ss,
-        strongBuy: sb,
-        strongSell: ss,
-        score: (5 * sb + 4 * b + 3 * h + 2 * s + ss) / n,
-        avg: num(fd.targetMeanPrice),
-        hi: num(fd.targetHighPrice),
-        lo: num(fd.targetLowPrice),
-        n,
-        nTargets: num(fd.numberOfAnalystOpinions),
-      };
-    }
-  }
-  const views = viewsFromHistory(r.upgradeDowngradeHistory?.history ?? [], now - 548 * DAY_MS);
 
   // Holders
   const holdersOf = (list: Json[], type: string, source: string): Holder[] =>
@@ -440,7 +332,6 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const pct = (v: number) => (Number.isFinite(v) ? v * 100 : NaN);
   const stats: RealFund['stats'] = {
     pe: num(sd.trailingPE),
-    fpe: num(sd.forwardPE ?? ks.forwardPE),
     pb: num(ks.priceToBook),
     ps: num(sd.priceToSalesTrailing12Months),
     evEbitda: num(ks.enterpriseToEbitda),
@@ -460,7 +351,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const exDiv = num(r.calendarEvents?.exDividendDate) * 1000;
   const payDiv = num(r.calendarEvents?.dividendDate) * 1000;
   const nextDividend = Number.isFinite(exDiv) ? { ex: exDiv, pay: payDiv, rate: num(sd.dividendRate) } : null;
-  return { fetched: now, annual, quarterly, ltm, estimates, earnings, consensus, views, holders, breakdown, stats, nextDividend };
+  return { fetched: now, annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend };
 }
 
 /** Writes the real profile into the security so DES, market cap and the model inputs use it. */
@@ -554,7 +445,7 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false)
     try {
       const enc = encodeURIComponent(symbol);
       const [summary, annual, quarterly, trailing] = await Promise.all([
-        yahooGet(`/v10/finance/quoteSummary/${enc}?modules=assetProfile,summaryDetail,defaultKeyStatistics,financialData,earningsHistory,earningsTrend,earnings,calendarEvents,recommendationTrend,upgradeDowngradeHistory,institutionOwnership,fundOwnership,majorHoldersBreakdown`),
+        yahooGet(`/v10/finance/quoteSummary/${enc}?modules=assetProfile,summaryDetail,defaultKeyStatistics,financialData,earnings,calendarEvents,institutionOwnership,fundOwnership,majorHoldersBreakdown`),
         yahooGet(timeseriesPath(symbol, 'annual', [...INCOME, ...BALANCE, ...CASH], now)).catch(() => null),
         yahooGet(timeseriesPath(symbol, 'quarterly', [...INCOME, ...BALANCE, ...CASH], now)).catch(() => null),
         yahooGet(timeseriesPath(symbol, 'trailing', [...INCOME, ...CASH], now)).catch(() => null),

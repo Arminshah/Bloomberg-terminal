@@ -87,6 +87,8 @@ interface ExtData {
   timing: Timing;
   /** The source's own name for its quotes. */
   sourceName?: string;
+  /** Who supplies this line ("Yahoo Finance (unofficial)", "US Treasury"), shown with every value. */
+  provider?: string;
   /** When the app received the latest value (epoch ms). */
   fetched: number;
   /** The source has stopped answering: prices may be out of date. */
@@ -1188,6 +1190,7 @@ export class MarketEngine {
     };
     if (st.ext?.delay) q.delay = st.ext.delay;
     if (st.ext?.sourceName) q.sourceName = st.ext.sourceName;
+    if (st.ext?.provider) q.provider = st.ext.provider;
     if (st.ext) {
       if (st.prevCloseDay !== undefined) q.prevCloseDay = st.prevCloseDay;
       if (st.chgCheck) q.chgCheck = st.chgCheck;
@@ -1509,7 +1512,7 @@ export class MarketEngine {
    * it alone: quotes, intraday bars and prints come from setExternalQuote and
    * setExternalIntraday, and nothing moves while its market is closed.
    */
-  setExternalDaily(id: string, bars: ExtBar[], opts: { eod?: boolean } = {}) {
+  setExternalDaily(id: string, bars: ExtBar[], opts: { eod?: boolean; provider?: string } = {}) {
     const st = this.states.get(id);
     if (!st || bars.length === 0) return;
     const s = makeSeries(bars.length + 16, DAY_MS);
@@ -1537,6 +1540,7 @@ export class MarketEngine {
       ask: prev?.ask ?? NaN,
       seq: (prev?.seq ?? 0) + 1,
       eod: opts.eod ?? prev?.eod ?? false,
+      provider: opts.provider ?? prev?.provider,
       delay: prev?.delay ?? 0,
       timing: prev?.timing ?? 'unknown',
       sourceName: prev?.sourceName,

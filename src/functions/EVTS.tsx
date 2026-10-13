@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { Chg, SecLink } from '../components/cells';
+import { SecLink } from '../components/cells';
 import { fmtDay, fmtNum, WEEKDAYS } from '../core/format';
 import { SimBadge } from '../components/Source';
 import { getRealFund } from '../data/live/yfund';
@@ -15,9 +15,7 @@ interface Ev {
   id: string;
   kind: 'Earnings' | 'Ex-Dividend';
   detail: string;
-  est?: number;
   act?: number | null;
-  surprise?: number | null;
   timing?: string;
   approx?: boolean;
   /** From the simulator rather than a real record. */
@@ -46,7 +44,7 @@ export function EVTS({ sec }: FnProps) {
       for (const e of earningsEvents(d)) {
         // A report whose date the source does not give has no place on a calendar.
         if (!e.dateUnknown && e.date >= from && e.date <= to) {
-          list.push({ date: e.date, id: d.id, kind: 'Earnings', detail: e.period ? `${e.period} results` : 'Earnings release', est: e.estimate, act: e.actual, surprise: e.surprise, timing: e.timing, approx: e.approx, sim: !realEarnings });
+          list.push({ date: e.date, id: d.id, kind: 'Earnings', detail: e.period ? `${e.period} results` : 'Earnings release', act: e.actual, timing: e.timing, approx: e.approx, sim: !realEarnings });
         }
       }
       const realDvd = engine.isExternal(d.id) || !!getRealFund(d.id);
@@ -68,7 +66,7 @@ export function EVTS({ sec }: FnProps) {
               </>
             ) : (
               <>
-                <span className="badge live">REAL</span> Yahoo Finance · ~ marks an estimated date
+                <span className="badge live">REAL</span> Yahoo Finance (unofficial) · ~ marks an expected date
               </>
             )}
           </>
@@ -81,15 +79,13 @@ export function EVTS({ sec }: FnProps) {
             <th className="hide-m">Name</th>
             <th>Event</th>
             <th>Detail</th>
-            <th className="num">EPS est</th>
-            <th className="num">Actual</th>
-            <th className="num">Surprise</th>
+            <th className="num" title="Diluted EPS as reported">EPS reported</th>
           </tr>
         </thead>
         <tbody>
           {events.length === 0 && (
             <tr>
-              <td colSpan={8} className="empty">
+              <td colSpan={6} className="empty">
                 No events in this window.
               </td>
             </tr>
@@ -103,7 +99,7 @@ export function EVTS({ sec }: FnProps) {
             return [
               head ? (
                 <tr key={`h${i}`} className="group">
-                  <td colSpan={8}>
+                  <td colSpan={6}>
                     {WEEKDAYS[new Date(e.date).getUTCDay()]} {day}
                     {Math.floor(e.date / DAY_MS) === Math.floor(now / DAY_MS) ? '  · TODAY' : ''}
                   </td>
@@ -125,9 +121,7 @@ export function EVTS({ sec }: FnProps) {
                   {e.detail}
                   {e.sim ? <span className="muted"> SIM</span> : null}
                 </td>
-                <td className="num">{e.est != null && Number.isFinite(e.est) ? fmtNum(e.est, 2) : ''}</td>
-                <td className="num white">{e.act != null ? fmtNum(e.act, 2) : e.kind === 'Earnings' ? <span className="muted">pending</span> : ''}</td>
-                <td className="num">{e.surprise != null ? <Chg v={e.surprise} pct dec={1} /> : ''}</td>
+                <td className="num white">{e.act != null ? fmtNum(e.act, 2) : e.kind === 'Earnings' ? <span className="muted">{e.date > now ? 'pending' : '--'}</span> : ''}</td>
               </tr>,
             ];
           })}

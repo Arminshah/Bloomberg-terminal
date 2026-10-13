@@ -69,7 +69,7 @@ export function SECF({ route }: FnProps) {
         />
         {source ? (
           <button type="button" className="btn" onClick={searchWeb} disabled={!q.trim() || online.busy}>
-            Search all US stocks ({source === 'yahoo' ? 'Yahoo Finance' : 'Finnhub'})
+            Search all US stocks ({source === 'yahoo' ? 'Yahoo Finance, unofficial' : 'Finnhub'})
           </button>
         ) : (
           <span className="muted hide-m">The desktop app searches every US stock</span>
@@ -267,7 +267,7 @@ export function PDFU(_: FnProps) {
         <Section title="Data sources">
           <table className="tbl">
             <tbody>
-              {feeds.market !== 'off' && feedRow('Real market data (Yahoo Finance, desktop)', feeds.market, feeds.detail.market)}
+              {feeds.market !== 'off' && feedRow('Real market data (Yahoo Finance, unofficial; desktop)', feeds.market, feeds.detail.market)}
               {feeds.rates !== 'off' && feedRow('US Treasury curve (treasury.gov, desktop)', feeds.rates, feeds.detail.rates)}
               {feeds.yields !== 'off' && feedRow('Government yields (central banks, finance ministries)', feeds.yields, feeds.detail.yields)}
               {feeds.policy !== 'off' && feedRow('Central bank rates and calendars (desktop)', feeds.policy, feeds.detail.policy)}

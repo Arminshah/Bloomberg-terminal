@@ -54,6 +54,9 @@ const BY_ID = new Map(OFFICIAL_LINES.map((l) => [l.id, l]));
 /** Lines this module owns in the desktop app. */
 export const OFFICIAL_YIELD_IDS = new Set(BY_ID.keys());
 
+/** The publisher of each official source, shown as the line's provider. */
+const PUBLISHER: Record<string, string> = { bunds: 'Deutsche Bundesbank', gilts: 'Bank of England', jgb: 'Ministry of Finance Japan', canadas: 'Bank of Canada', acgb: 'Reserve Bank of Australia' };
+
 /** Who publishes a line's yield and how it is measured, for lines on an official source. */
 export function yieldMethod(id: string): string | undefined {
   return BY_ID.get(id)?.method;
@@ -105,7 +108,7 @@ function apply(): string[] {
     if (!engine.get(id)) continue;
     const bars = [...days.entries()].sort((a, b) => a[0] - b[0]).map(([day, c]) => ({ day, o: c, h: c, l: c, c, v: 0 }));
     if (bars.length < 2) continue;
-    engine.setExternalDaily(id, bars, { eod: true });
+    engine.setExternalDaily(id, bars, { eod: true, provider: PUBLISHER[OFFICIAL_LINES.find((l) => l.id === id)?.source ?? ''] });
     changed.push(id);
   }
   if (changed.length) engine.flush(changed);

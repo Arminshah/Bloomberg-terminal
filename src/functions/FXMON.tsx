@@ -214,7 +214,7 @@ export function CRYP(_: FnProps) {
       </table>
       <div className="note">
         {real
-          ? 'Prices stream from Yahoo Finance around the clock. Market value is the source’s market cap (price × circulating supply); volume is the source’s 24-hour volume in US dollars.'
+          ? 'Prices stream from Yahoo Finance (unofficial) around the clock. Market value is the source’s market cap (price × circulating supply); volume is the source’s 24-hour volume in US dollars.'
           : 'With network access the monitor streams real prices from Coinbase; otherwise it runs on the simulator.'}
       </div>
     </div>

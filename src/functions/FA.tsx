@@ -162,7 +162,7 @@ export function FA({ sec }: FnProps) {
       {cols.length === 0 ? <div className="empty">{status === 'loading' ? 'Loading statements…' : 'No statements from the source for this security.'}</div> : null}
       <div className="note">
         {status === 'ok'
-          ? `Reported figures from the company filings as published by Yahoo Finance; LTM ${f.ltm?.basis === 'trailing' ? "is the source's trailing twelve months" : 'sums the last four reported quarters'}${f.ltm?.epsComputed ? ', with EPS as net income over diluted shares (a quarter has no EPS in the source)' : ''}.`
+          ? `Reported figures from the company filings as published by Yahoo Finance (unofficial); LTM ${f.ltm?.basis === 'trailing' ? "is the source's trailing twelve months" : 'sums the last four reported quarters'}${f.ltm?.epsComputed ? ', with EPS as net income over diluted shares (a quarter has no EPS in the source)' : ''}.`
           : status === 'sim' ? "Statements are simulated from each company's scale and sector profile; they are not reported figures." : ''}
       </div>
     </div>

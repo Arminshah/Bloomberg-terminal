@@ -80,6 +80,56 @@ function credential(name) {
   return { value: '', source: null };
 }
 
+// ---------------------------------------------------------------- settings
+// Switches that are not secrets: environment first, then .env (from source),
+// then the value saved from the app's provider screen, then the default.
+
+const SETTINGS = {
+  // Yahoo Finance prices are an unofficial, personal-use source the owner chose to keep. Off stops every
+  // Yahoo request and the streaming socket.
+  YAHOO_PRICES_ENABLED: { label: 'Yahoo Finance prices (unofficial, personal use)', default: true },
+};
+
+const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'provider-settings.json');
+
+function readSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(SETTINGS_FILE(), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+/** "false", "0", "no" and "off" are off; anything else set is on. */
+function parseSwitch(v) {
+  return !/^(false|0|no|off)$/i.test(String(v).trim());
+}
+
+/** A setting's value and where it came from. */
+function setting(name) {
+  const def = SETTINGS[name];
+  if (!def) return { value: false, source: null };
+  const env = (process.env[name] ?? '').trim();
+  if (env) return { value: parseSwitch(env), source: 'environment' };
+  const file = fromDotEnv(name);
+  if (file) return { value: parseSwitch(file), source: '.env file' };
+  const saved = readSettings()[name];
+  if (typeof saved === 'boolean') return { value: saved, source: 'saved in this app' };
+  return { value: def.default, source: 'default' };
+}
+
+function settingStatus() {
+  const out = {};
+  for (const [name, def] of Object.entries(SETTINGS)) out[name] = { label: def.label, ...setting(name) };
+  return out;
+}
+
+function saveSetting(name, value) {
+  if (!SETTINGS[name] || typeof value !== 'boolean') throw new Error('unknown setting');
+  fs.mkdirSync(path.dirname(SETTINGS_FILE()), { recursive: true });
+  fs.writeFileSync(SETTINGS_FILE(), JSON.stringify({ ...readSettings(), [name]: value }));
+}
+
 function credentialStatus() {
   const out = {};
   for (const [name, def] of Object.entries(CREDENTIALS)) {
@@ -220,4 +270,4 @@ function slot(provider, max, windowMs) {
   return next;
 }
 
-module.exports = { CREDENTIALS, credential, credentialStatus, saveCredential, clearCredential, recordRequest, recordResult, recordProblem, providerMessage, providerStats, slot, parseDotEnv, errorKind };
+module.exports = { CREDENTIALS, SETTINGS, credential, credentialStatus, saveCredential, clearCredential, setting, settingStatus, saveSetting, parseSwitch, recordRequest, recordResult, recordProblem, providerMessage, providerStats, slot, parseDotEnv, errorKind };

@@ -89,8 +89,6 @@ export function emptyPeriod(label = 'LTM', end = NaN): FinPeriod {
   };
 }
 
-const emptyEstimate = (label: string): Estimate => ({ label, eps: NaN, rev: NaN, epsHi: NaN, epsLo: NaN, analysts: NaN, growth: NaN });
-
 /**
  * The currency a company reports its statements in: the filings' own (Shell
  * reports in dollars though it trades in pence) when known, else the trading one.
@@ -256,7 +254,6 @@ export interface KeyStats {
   mcap: number;
   ev: number;
   pe: number;
-  fpe: number;
   pb: number;
   ps: number;
   evEbitda: number;
@@ -269,8 +266,6 @@ export interface KeyStats {
   grossMargin: number;
   de: number;
   epsLtm: number;
-  epsFy1: number;
-  epsFy2: number;
   revGrowth: number;
   epsGrowth: number;
   beta: number;
@@ -298,7 +293,6 @@ export function keyStats(def: SecurityDef): KeyStats {
   const priceRep = price * fx;
   const bank = PROFILES[eq.sector]?.bank;
   const ev = bank ? NaN : mcapRep + eq.netDebt;
-  const est = estimates(def);
   const prevYear = f.annual[f.annual.length - 2];
   const lastYear = f.annual[f.annual.length - 1];
   const out: KeyStats = {
@@ -306,7 +300,6 @@ export function keyStats(def: SecurityDef): KeyStats {
     mcap,
     ev,
     pe: ltm.eps > 0 ? priceRep / ltm.eps : NaN,
-    fpe: est.fy1.eps > 0 ? priceRep / est.fy1.eps : NaN,
     pb: ltm.equity > 0 ? mcapRep / ltm.equity : NaN,
     ps: mcapRep / ltm.rev,
     evEbitda: bank || ltm.ebitda <= 0 ? NaN : ev / ltm.ebitda,
@@ -319,8 +312,6 @@ export function keyStats(def: SecurityDef): KeyStats {
     grossMargin: (ltm.gp / ltm.rev) * 100,
     de: ltm.equity > 0 ? (ltm.debt / ltm.equity) * 100 : NaN,
     epsLtm: ltm.eps,
-    epsFy1: est.fy1.eps,
-    epsFy2: est.fy2.eps,
     revGrowth: prevYear && lastYear ? (lastYear.rev / prevYear.rev - 1) * 100 : NaN,
     epsGrowth: prevYear && lastYear && prevYear.eps > 0 ? (lastYear.eps / prevYear.eps - 1) * 100 : NaN,
     beta: eq.beta,
@@ -340,10 +331,9 @@ export function keyStats(def: SecurityDef): KeyStats {
     // Figures that sit next to their inputs on screen are worked out here from those inputs, so they agree:
     // P/E from the LTM EPS shown, enterprise value from the market cap and the latest balance sheet, and
     // EV/EBITDA from those two. The source's own ratios use other bases (Nebius: P/E 164 next to an EPS of -0.08).
-    // Forward P/E over the FY1 consensus shown beside it (the source's uses its own forward EPS), and price
-    // to book from the market cap and the latest equity (Berkshire's source figure divided a Class B price by
-    // a Class A book value).
-    const own = new Set(['ev', 'evEbitda', 'fpe', ...(Number.isFinite(ltm.eps) ? ['pe'] : []), ...(ltm.equity > 0 ? ['pb'] : [])]);
+    // Price to book from the market cap and the latest equity (Berkshire's source figure divided a Class B
+    // price by a Class A book value).
+    const own = new Set(['ev', 'evEbitda', ...(Number.isFinite(ltm.eps) ? ['pe'] : []), ...(ltm.equity > 0 ? ['pb'] : [])]);
     for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v) && !mixed.has(k) && !own.has(k)) ks[k] = v as number;
   } else {
     const yq = yahooQuotes.get(def.id);
@@ -354,55 +344,16 @@ export function keyStats(def: SecurityDef): KeyStats {
         ks[k] = v != null && Number.isFinite(x) ? x * scale : missing;
       };
       put('pe', yq.trailingPE);
-      // Yahoo's price over the current fiscal year's estimate, the FY1 shown beside it (its forwardPE uses the next year's).
-      put('fpe', yq.priceEpsCurrentYear);
       if (fx === 1) put('pb', yq.priceToBook);
       put('epsLtm', yq.epsTrailingTwelveMonths);
-      put('epsFy1', yq.epsCurrentYear);
-      put('epsFy2', yq.epsForward);
       ks.shares = def.eq!.shares;
     }
   }
   // On real data, the dividends paid over the past 12 months over the live price (see trailingDividendYield).
   if (engine.realOnly || engine.isExternal(def.id) || yahooQuotes.has(def.id)) out.divYld = trailingDividendYield(def.id) * 100;
   // Multiples on losses are not meaningful.
-  for (const k of ['pe', 'fpe', 'evEbitda'] as const) if (!(out[k] > 0)) out[k] = NaN;
+  for (const k of ['pe', 'evEbitda'] as const) if (!(out[k] > 0)) out[k] = NaN;
   return out;
-}
-
-export interface Estimate {
-  label: string;
-  eps: number;
-  rev: number;
-  epsHi: number;
-  epsLo: number;
-  analysts: number;
-  growth: number;
-}
-
-export function estimates(def: SecurityDef): { fy1: Estimate; fy2: Estimate; nq: Estimate } {
-  const real = getRealFund(def.id)?.estimates;
-  if (real) return real;
-  if (engine.realOnly) return { fy1: emptyEstimate('FY1'), fy2: emptyEstimate('FY2'), nq: emptyEstimate('Next Q') };
-  const f = simFinancials(def);
-  const r = rng(def.id, 'est');
-  const g = baseGrowth(def);
-  const last = f.annual[f.annual.length - 1];
-  const fyLabel = (n: number) => `FY ${Number(last.label.slice(3)) + n}`;
-  const analysts = Math.round(12 + Math.min(45, Math.sqrt(Math.max(1, marketCap(def.id) / 1e9)) * 1.6) + r() * 6);
-  const mk = (n: number, label: string): Estimate => {
-    const growth = Math.pow(1 + g * 1.1 + gaussian(r) * 0.02, n);
-    const eps = last.eps * growth;
-    const disp = 0.04 + r() * 0.06 + n * 0.03;
-    return { label, eps, rev: last.rev * Math.pow(1 + g, n), epsHi: eps * (1 + disp), epsLo: eps * (1 - disp), analysts: analysts - n * 2, growth: (growth - 1) * 100 };
-  };
-  const lq = f.quarterly[f.quarterly.length - 1];
-  const nqEps = lq.eps * (1 + g * 0.3 + gaussian(r) * 0.03);
-  return {
-    fy1: mk(1, fyLabel(1)),
-    fy2: mk(2, fyLabel(2)),
-    nq: { label: nextQuarterLabel(def), eps: nqEps, rev: lq.rev * (1 + g * 0.25), epsHi: nqEps * 1.06, epsLo: nqEps * 0.94, analysts: analysts - 3, growth: g * 25 },
-  };
 }
 
 function nextQuarterLabel(def: SecurityDef): string {
@@ -420,14 +371,15 @@ export function reportDate(def: SecurityDef, qEnd: number): number {
   return rollForward(d).getTime();
 }
 
+/**
+ * A company's earnings report: the date and, once reported, the figures from its statements (diluted EPS as
+ * reported, revenue). Analyst estimates and surprises are not part of it: the app has no permitted source.
+ */
 export interface EarningsEvent {
   period: string;
   date: number;
-  estimate: number;
   actual: number | null;
-  surprise: number | null;
   timing: 'Bef-mkt' | 'Aft-mkt' | '--';
-  revEst: number;
   revAct: number | null;
   /** A date the source itself marks as an estimate (an upcoming report not yet confirmed). */
   approx?: boolean;
@@ -442,21 +394,13 @@ export function earningsHistory(def: SecurityDef): EarningsEvent[] {
   if (engine.realOnly) return [];
   const f = simFinancials(def);
   const today = engine.today * DAY_MS;
-  const r = rng(def.id, 'surprise');
   const timing: EarningsEvent['timing'] = rng(def.id, 'timing')() < 0.55 ? 'Aft-mkt' : 'Bef-mkt';
-  const out: EarningsEvent[] = f.quarterly.map((q) => {
-    const surprise = 0.02 + gaussian(r) * 0.045;
-    const est = q.eps / (1 + surprise);
-    const revSurprise = 0.008 + gaussian(r) * 0.012;
-    return { period: q.label, date: reportDate(def, q.end), estimate: est, actual: q.eps, surprise: surprise * 100, timing, revEst: q.rev / (1 + revSurprise), revAct: q.rev };
-  });
+  const out: EarningsEvent[] = f.quarterly.map((q) => ({ period: q.label, date: reportDate(def, q.end), actual: q.eps, timing, revAct: q.rev }));
   const lq = f.quarterly[f.quarterly.length - 1];
   const nextEnd = Date.UTC(new Date(lq.end).getUTCFullYear(), new Date(lq.end).getUTCMonth() + 4, 0);
-  const est = estimates(def).nq;
-  const nextDate = reportDate(def, nextEnd);
-  out.push({ period: est.label, date: nextDate, estimate: est.eps, actual: null, surprise: null, timing, revEst: est.rev, revAct: null });
+  out.push({ period: nextQuarterLabel(def), date: reportDate(def, nextEnd), actual: null, timing, revAct: null });
   // A report dated in the future must not show an actual yet.
-  return out.map((e) => (e.date > today && e.actual != null ? { ...e, actual: null, surprise: null, revAct: null } : e));
+  return out.map((e) => (e.date > today && e.actual != null ? { ...e, actual: null, revAct: null } : e));
 }
 
 /**
@@ -471,7 +415,7 @@ export function earningsEvents(def: SecurityDef): EarningsEvent[] {
   if (!yq) return engine.realOnly || engine.isExternal(def.id) ? [] : earningsHistory(def);
   const now = engine.now();
   const out: EarningsEvent[] = [];
-  const blank = { period: '', estimate: NaN, surprise: null, revEst: NaN, revAct: null };
+  const blank = { period: '', revAct: null };
   const last = Number(yq.earningsTimestamp) * 1000;
   const next = Number(yq.earningsTimestampStart) * 1000;
   const estimated = yq.isEarningsDateEstimate === true;
@@ -486,89 +430,6 @@ export function earningsEvents(def: SecurityDef): EarningsEvent[] {
 export function nextEarnings(def: SecurityDef): EarningsEvent | undefined {
   const today = engine.today * DAY_MS;
   return earningsEvents(def).find((e) => e.date >= today && e.actual == null);
-}
-
-// --------------------------------------------------------------- analysts
-
-const BROKERS = [
-  'Atlas Ridge Securities', 'Bramwell & Co', 'Castlegate Capital', 'Driftwood Partners', 'Eastbourne Research',
-  'Fairhaven Securities', 'Granite Peak Advisors', 'Halberd Capital Markets', 'Ironwood Securities', 'Juniper Hill Research',
-  'Kingsbridge Partners', 'Larkspur Securities', 'Marlowe Capital', 'Northlake Research', 'Oakmont Securities',
-  'Pinecrest Capital', 'Quarry Lane Partners', 'Redfern & Co', 'Silverline Securities', 'Thornbury Capital',
-  'Upland Research', 'Vantage Row Securities', 'Westmarch Partners', 'Yarrow Equity Research', 'Ashcombe Markets',
-  'Belmont Hart', 'Cobalt Bay Securities', 'Dunmore Research', 'Elmstead & Co', 'Foxhall Capital',
-];
-
-export type Rating = 'Strong Buy' | 'Buy' | 'Outperform' | 'Hold' | 'Underperform' | 'Sell';
-export const RATING_SCORE: Record<Rating, number> = { 'Strong Buy': 5, Buy: 5, Outperform: 4, Hold: 3, Underperform: 2, Sell: 1 };
-
-export interface BrokerView {
-  firm: string;
-  /** The broker's own wording (Overweight, Outperform, Neutral...). */
-  rating: string;
-  /** 5 = buy ... 1 = sell. */
-  score: number;
-  target: number;
-  prevTarget: number;
-  action: 'Upgrade' | 'Downgrade' | 'Maintain' | 'Initiate' | 'Raise PT' | 'Cut PT';
-  date: number;
-  horizon: string;
-}
-
-export function analystViews(def: SecurityDef): BrokerView[] {
-  const real = getRealFund(def.id);
-  if (real && (real.views.length || real.consensus)) return real.views;
-  if (engine.realOnly) return [];
-  const r = rng(def.id, `anr:${Math.floor(engine.today / 7)}`);
-  const base = rng(def.id, 'anr-base');
-  const n = Math.min(BROKERS.length, estimates(def).fy1.analysts);
-  const bias = 0.55 + base() * 0.3 - (def.eq!.beta < 0.6 ? 0.1 : 0);
-  const px = def.minor ? (engine.quote(def.id)?.last ?? def.px) : engine.quote(def.id)?.last ?? def.px;
-  const firms = [...BROKERS].sort(() => base() - 0.5).slice(0, n);
-  const today = engine.today * DAY_MS;
-  return firms
-    .map((firm) => {
-      const u = r();
-      const rating: Rating = u < bias * 0.2 ? 'Strong Buy' : u < bias * 0.75 ? 'Buy' : u < bias ? 'Outperform' : u < bias + (1 - bias) * 0.75 ? 'Hold' : u < bias + (1 - bias) * 0.9 ? 'Underperform' : 'Sell';
-      const mu = { 'Strong Buy': 0.24, Buy: 0.17, Outperform: 0.11, Hold: 0.03, Underperform: -0.07, Sell: -0.15 }[rating];
-      const target = px * (1 + mu + gaussian(r) * 0.07);
-      const ar = r();
-      let action: BrokerView['action'] = ar < 0.08 ? 'Upgrade' : ar < 0.14 ? 'Downgrade' : ar < 0.2 ? 'Initiate' : ar < 0.45 ? 'Raise PT' : ar < 0.55 ? 'Cut PT' : 'Maintain';
-      // A downgrade cannot land on the top rating, nor an upgrade on the bottom one.
-      if ((action === 'Downgrade' && rating === 'Strong Buy') || (action === 'Upgrade' && rating === 'Sell')) action = 'Maintain';
-      const prevTarget = action === 'Raise PT' ? target / (1.04 + r() * 0.12) : action === 'Cut PT' ? target * (1.04 + r() * 0.1) : target;
-      const date = rollBack(today - Math.floor(r() * r() * 150 + 1) * DAY_MS);
-      return { firm, rating, score: RATING_SCORE[rating], target: roundTarget(target), prevTarget: roundTarget(prevTarget), action, date, horizon: '12 month' };
-    })
-    .sort((a, b) => b.date - a.date);
-}
-
-/** Business day on or before `ms` (UTC midnight). */
-function rollBack(ms: number): number {
-  const d = new Date(ms);
-  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() - 1);
-  return d.getTime();
-}
-
-function roundTarget(x: number): number {
-  if (x >= 1000) return Math.round(x / 5) * 5;
-  if (x >= 100) return Math.round(x);
-  if (x >= 10) return Math.round(x * 2) / 2;
-  return Math.round(x * 100) / 100;
-}
-
-export function consensus(def: SecurityDef): { buy: number; hold: number; sell: number; score: number; avg: number; hi: number; lo: number; n: number; nTargets?: number } {
-  const real = getRealFund(def.id)?.consensus;
-  if (real) return real;
-  if (engine.realOnly) return { buy: 0, hold: 0, sell: 0, score: NaN, avg: NaN, hi: NaN, lo: NaN, n: 0 };
-  const v = analystViews(def);
-  const buy = v.filter((x) => x.score >= 4).length;
-  const hold = v.filter((x) => x.score === 3).length;
-  const sell = v.length - buy - hold;
-  const score = v.reduce((s, x) => s + x.score, 0) / v.length;
-  const targets = v.map((x) => x.target);
-  const avg = targets.reduce((a, b) => a + b, 0) / targets.length;
-  return { buy, hold, sell, score, avg, hi: Math.max(...targets), lo: Math.min(...targets), n: v.length };
 }
 
 // ---------------------------------------------------------------- holders

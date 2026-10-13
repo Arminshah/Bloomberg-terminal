@@ -24,8 +24,19 @@ export function desktopData(): boolean {
   return typeof window !== 'undefined' && !!window.arminDesktop?.yahoo;
 }
 
+/** How every Yahoo-sourced value is labelled: an unofficial source, kept for personal use. */
+export const YAHOO_PROVIDER = 'Yahoo Finance (unofficial)';
+
+/** Yahoo prices are switched off in the provider settings (YAHOO_PRICES_ENABLED). */
+export class YahooDisabled extends Error {
+  constructor() {
+    super('Yahoo Finance prices are switched off');
+  }
+}
+
 export async function yahooGet(path: string): Promise<Json> {
   const res = await window.arminDesktop!.yahoo(path);
+  if (res.disabled) throw new YahooDisabled();
   if (res.status === 404) return null;
   if (res.status === 429) throw new Error('Yahoo rate limit');
   if (res.status !== 200) throw new Error(`Yahoo ${res.status}`);
@@ -536,7 +547,7 @@ class YahooData {
   }
 
   private applyHistory(t: Target, bars: ExtBar[], dividends: Dividend[]) {
-    engine.setExternalDaily(t.id, bars);
+    engine.setExternalDaily(t.id, bars, { provider: YAHOO_PROVIDER });
     if (dividends.length) realDividends.set(t.id, dividends);
     this.loaded.add(t.id);
     const q = this.pendingQuote.get(t.id);
@@ -677,13 +688,31 @@ export function dropVolumeSpikes(bars: { v: number }[], dayVolume: number): numb
 
 let service: YahooData | null = null;
 
-/** Starts real market data in the desktop app; a no-op in the browser. */
+/** Starts real market data in the desktop app; a no-op in the browser, or when Yahoo prices are switched off. */
 export function startYahooData(): () => void {
   if (!desktopData()) return () => undefined;
-  service = new YahooData();
-  service.start();
-  const unsub = engine.subscribe(() => service?.sync());
+  let stopped = false;
+  let unsub = () => undefined as void;
+  const begin = () => {
+    if (stopped) return;
+    service = new YahooData();
+    service.start();
+    unsub = engine.subscribe(() => service?.sync());
+  };
+  const report = window.arminDesktop?.providersStatus?.();
+  if (!report) begin();
+  else
+    void report
+      .then((r) => {
+        if (r.settings?.YAHOO_PRICES_ENABLED?.value === false) {
+          setFeed('market', 'off', `Yahoo Finance prices are switched off (YAHOO_PRICES_ENABLED, ${r.settings.YAHOO_PRICES_ENABLED.source}): no market prices until a source is on`);
+          return;
+        }
+        begin();
+      })
+      .catch(begin);
   return () => {
+    stopped = true;
     unsub();
     service?.stop();
     service = null;

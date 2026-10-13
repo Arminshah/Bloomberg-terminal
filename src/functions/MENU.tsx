@@ -92,7 +92,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
     title: 'Equity',
     groups: [
       { title: 'Markets', entries: ['WEI', 'IMAP', 'MOST', 'MOV', 'EQS', 'EVTS'] },
-      { title: 'News and research', entries: ['TOP', 'N', 'READ', 'ECO'] },
+      { title: 'News and research', entries: ['TOP', 'N', 'ECO'] },
       { title: 'Trading and portfolio', entries: ['EMSX', 'PORT', 'W', 'ALRT'] },
     ],
     list: (d) => d.cls === 'equity',

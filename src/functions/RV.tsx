@@ -20,7 +20,6 @@ interface Row {
   d: SecurityDef;
   mcap: number;
   pe: number;
-  fpe: number;
   pb: number;
   evEbitda: number;
   dy: number;
@@ -40,7 +39,7 @@ export function RV({ sec }: FnProps) {
     () =>
       group.map((d) => {
         const k = keyStats(d);
-        return { d, mcap: marketCapUsd(d.id), pe: k.pe, fpe: k.fpe, pb: k.pb, evEbitda: k.evEbitda, dy: k.divYld, roe: k.roe, margin: k.netMargin, ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y') };
+        return { d, mcap: marketCapUsd(d.id), pe: k.pe, pb: k.pb, evEbitda: k.evEbitda, dy: k.divYld, roe: k.roe, margin: k.netMargin, ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y') };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [group, tick, loaded],
@@ -58,7 +57,6 @@ export function RV({ sec }: FnProps) {
     { key: 'px', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
     { key: 'mcap', label: 'Mkt cap USD', num: true, render: (r) => fmtBig(r.mcap), sort: (r) => r.mcap },
     num('pe', 'P/E'),
-    num('fpe', 'P/E FY1'),
     num('pb', 'P/B', 2),
     num('evEbitda', 'EV/EBITDA'),
     num('dy', 'Div yld 12M', 2),
@@ -70,14 +68,14 @@ export function RV({ sec }: FnProps) {
   const stat = (f: (xs: number[]) => number, label: string) => (
     <tr className="group">
       <td colSpan={4}>{label}</td>
-      {(['pe', 'fpe', 'pb', 'evEbitda', 'dy', 'roe', 'margin', 'ytd', 'y1'] as (keyof Row)[]).map((k) => (
+      {(['pe', 'pb', 'evEbitda', 'dy', 'roe', 'margin', 'ytd', 'y1'] as (keyof Row)[]).map((k) => (
         <td key={k} className="num">
           {fmtNum(f(rows.slice(1).map((r) => r[k] as number).filter(Number.isFinite)), k === 'pb' || k === 'dy' ? 2 : 1)}
         </td>
       ))}
     </tr>
   );
-  const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'P/E', 'P/E FY1', 'P/B', 'EV/EBITDA', 'Div yld 12M', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), r.pe, r.fpe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
+  const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'P/E', 'P/B', 'EV/EBITDA', 'Div yld 12M', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), r.pe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
   return (
     <div>
       <FnHeader code="RV" title="Relative Valuation" sec={s} sub={
@@ -88,7 +86,7 @@ export function RV({ sec }: FnProps) {
                 `Loading real data, ${loaded} of ${group.length} companies…`
               ) : (
                 <>
-                  <span className="badge live">REAL</span> Yahoo Finance ratios
+                  <span className="badge live">REAL</span> Yahoo Finance (unofficial) ratios
                   {failed ? (
                     <>
                       {' '}

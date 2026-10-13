@@ -69,7 +69,7 @@ describe('command parser', () => {
     const es = parse('ES1 INDEX WEIF');
     expect(es.kind === 'route' && es.sec?.id).toBe('ES1 Index');
     expect(parse('HELP HELP')).toMatchObject({ kind: 'route', fn: 'HELP', args: 'HELP' });
-    for (const code of ['EMSX', 'SRCH', 'DDIS', 'ALLQ', 'WEIF', 'MOV', 'TRA', 'GF', 'HVT', 'VWAP', 'FRD', 'OVML', 'SWPM', 'CDR', 'CENB', 'READ', 'MENU']) {
+    for (const code of ['EMSX', 'SRCH', 'DDIS', 'ALLQ', 'WEIF', 'MOV', 'TRA', 'GF', 'HVT', 'VWAP', 'FRD', 'OVML', 'SWPM', 'CDR', 'CENB', 'MENU']) {
       expect(lookupFn(code)?.code, code).toBe(code);
     }
   });

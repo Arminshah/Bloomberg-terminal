@@ -153,6 +153,8 @@ export interface Quote {
   delay?: number;
   /** The source's own name for the quote ("Nasdaq Real Time Price", "Delayed Quote"). */
   sourceName?: string;
+  /** Who supplies the line: "Yahoo Finance (unofficial)", "US Treasury", "Deutsche Bundesbank" and so on. */
+  provider?: string;
   /** When the app received the latest value (epoch ms), as against `time`, when the market set it. */
   fetched?: number;
   /** Pre-market, after-hours or overnight price, apart from the regular-session last. */

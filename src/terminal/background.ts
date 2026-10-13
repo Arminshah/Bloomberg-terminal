@@ -1,5 +1,5 @@
 import { engine } from '../data/market';
-import { news, newsTick, seedNews, type Story } from '../data/news';
+import { news, type Story } from '../data/news';
 import { chatTick, ensureRooms } from '../data/chat';
 import { describe } from '../functions/ALRT';
 import { startLiveFeeds } from '../data/live/feeds';
@@ -9,7 +9,7 @@ import { startTreasury } from '../data/live/ust';
 import { startPolicyRates } from '../data/live/policy';
 import { startGovYields } from '../data/live/govyields';
 import { startFred } from '../data/live/fred';
-import { startYahooNews } from '../data/live/ynews';
+import { startOfficialNews } from '../data/live/officialnews';
 import { alerts, newsAlerts } from './userdata';
 import { startOms } from './oms';
 import { settings } from './settings';
@@ -84,28 +84,13 @@ function watchNews(): () => void {
 /** Starts app-wide background services; returns a cleanup function. */
 export function startBackground(): () => void {
   const stops: (() => void)[] = [];
-  // The desktop app shows only real headlines; elsewhere the simulated newsroom runs (stories are marked).
-  const realNews = startYahooNews();
-  if (realNews) stops.push(realNews);
-  else seedNews();
+  // Headlines come only from official publishers' feeds (desktop app); nothing is generated anywhere.
+  const officialNews = startOfficialNews();
+  if (officialNews) stops.push(officialNews);
   ensureRooms();
   stops.push(engine.subscribe(() => checkAlerts()));
   stops.push(startOms());
   stops.push(watchNews());
-  let lastFlash = 0;
-  const newsTimer = setInterval(() => {
-    if (realNews) return;
-    const hot = newsTick();
-    // At most one flash headline every 15 seconds keeps the screen readable.
-    if (settings.get().newsFlashes && hot.length && Date.now() - lastFlash > 15_000) {
-      lastFlash = Date.now();
-      for (const s of hot.slice(0, 1)) {
-        const ticker = s.tickers[0];
-        toast({ title: s.source === 'ECO' ? 'ECONOMIC RELEASE' : 'FIRST WORD', body: s.headline.replace(/^\*/, ''), kind: 'news', command: ticker ? `${ticker} CN` : 'TOP' });
-      }
-    }
-  }, 4000);
-  stops.push(() => clearInterval(newsTimer));
   const chatTimer = setInterval(chatTick, 20_000);
   stops.push(() => clearInterval(chatTimer));
   stops.push(startLiveFeeds());
