@@ -11,7 +11,6 @@ import { startGovYields } from '../data/live/govyields';
 import { startFred } from '../data/live/fred';
 import { startOfficialNews } from '../data/live/officialnews';
 import { alerts, newsAlerts } from './userdata';
-import { startOms } from './oms';
 import { settings } from './settings';
 import { toast } from './toasts';
 
@@ -89,7 +88,6 @@ export function startBackground(): () => void {
   if (officialNews) stops.push(officialNews);
   ensureRooms();
   stops.push(engine.subscribe(() => checkAlerts()));
-  stops.push(startOms());
   stops.push(watchNews());
   const chatTimer = setInterval(chatTick, 20_000);
   stops.push(() => clearInterval(chatTimer));

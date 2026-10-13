@@ -37,7 +37,6 @@ import { IB } from '../functions/IB';
 import { HS } from '../functions/HS';
 import { NOTE } from '../functions/NOTE';
 import { MENU } from '../functions/MENU';
-import { EMSX } from '../functions/EMSX';
 import { ALLQ, DDIS, SRCH } from '../functions/CREDIT';
 import { GF, HVT, MOV, TRA, VWAP } from '../functions/ANALYSIS';
 import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
@@ -81,7 +80,6 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'TAS', name: 'Time and Sales', category: 'Markets', needsSec: true, classes: TRADABLE, desc: 'Trade-by-trade tape with price, size, venue and conditions; VWAP and volume summary.', component: TAS, aliases: ['QR', 'T&S'] },
   { code: 'DEPTH', name: 'Market Depth', category: 'Markets', needsSec: true, classes: ['equity', 'commodity', 'crypto', 'fx', 'future'], desc: 'Best bid and offer from the source; the browser version models a full limit order book with sizes and depth.', component: DEPTH, aliases: ['MBO', 'MBP', 'BOOK'] },
   { code: 'VWAP', name: 'VWAP Analysis', category: 'Markets', needsSec: true, classes: TRADABLE, desc: 'Intraday volume-weighted average price with 30-minute buckets, TWAP and price against VWAP.', component: VWAP, aliases: ['AQR'] },
-  { code: 'EMSX', name: 'Execution Management', category: 'Markets', desc: 'Paper trading: order ticket, working orders, fills and cancels. Fills book into PORT positions and cash.', component: EMSX, aliases: ['EMS', 'TRADE', 'ORDER'], example: 'AAPL US <EQUITY> EMSX <GO>' },
   // FX & crypto
   { code: 'FXC', name: 'Currency Cross Rates', category: 'FX & Crypto', desc: 'Live cross-rate matrix of major currencies.', component: FXC, aliases: ['FXCX'] },
   { code: 'WCRS', name: 'World Currency Ranker', category: 'FX & Crypto', desc: 'Currencies ranked by performance against the US dollar over a chosen period.', component: WCRS, aliases: ['FXR'] },

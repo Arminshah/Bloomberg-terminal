@@ -1,4 +1,4 @@
-import { createStore } from '../core/store';
+import { createStore, loadJson, removeKey, saveJson } from '../core/store';
 
 export interface Watchlist {
   name: string;
@@ -41,28 +41,31 @@ export interface Position {
   cost: number;
 }
 
-export const portfolio = createStore<{ name: string; positions: Position[]; benchmark: string; cash: number; realised?: number }>(
+/**
+ * Earlier versions opened with a sample portfolio and booked paper-trading fills into it. Neither was your
+ * data: the portfolio now starts empty and holds only what you enter. What was saved before is kept aside
+ * under armin:portfolio-v1-backup, never deleted.
+ */
+(function setAsideOldPortfolio() {
+  const key = 'armin:portfolio';
+  const old = loadJson<{ v: number }>(key);
+  if (old && old.v === 1) {
+    if (loadJson('armin:portfolio-v1-backup') === undefined) saveJson('armin:portfolio-v1-backup', old);
+    removeKey(key);
+  }
+  // The paper-trading blotter is gone with paper trading.
+  removeKey('armin:orders');
+})();
+
+export const portfolio = createStore<{ name: string; positions: Position[]; benchmark: string; cash: number }>(
   {
-    name: 'Sample Growth Portfolio',
+    name: 'My portfolio',
     benchmark: 'SPX Index',
-    cash: 250_000,
-    positions: [
-      { id: 'AAPL US Equity', qty: 1500, cost: 228.4 },
-      { id: 'MSFT US Equity', qty: 900, cost: 415.1 },
-      { id: 'NVDA US Equity', qty: 2600, cost: 128.6 },
-      { id: 'AMZN US Equity', qty: 1400, cost: 186.2 },
-      { id: 'GOOGL US Equity', qty: 1300, cost: 171.3 },
-      { id: 'JPM US Equity', qty: 800, cost: 245.0 },
-      { id: 'LLY US Equity', qty: 250, cost: 780.5 },
-      { id: 'XOM US Equity', qty: 1200, cost: 112.7 },
-      { id: 'COST US Equity', qty: 200, cost: 905.0 },
-      { id: 'ASML NA Equity', qty: 180, cost: 690.0 },
-      { id: 'GC1 Comdty', qty: 2, cost: 3350.0 },
-      { id: 'XBTUSD Curncy', qty: 3, cost: 71200 },
-    ],
+    cash: 0,
+    positions: [],
   },
   'portfolio',
-  1,
+  2,
 );
 
 export type AlertCond = 'above' | 'below' | 'pctUp' | 'pctDn';

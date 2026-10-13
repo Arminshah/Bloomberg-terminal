@@ -22,7 +22,7 @@ interface Group {
 const EQUITY: Group[] = [
   { title: 'Company', entries: ['DES', 'CN', 'FA', 'EE', 'ANR', 'DVD', 'HDS', 'RV', 'WACC', 'EVTS'] },
   { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'COMP', 'TRA', 'GF', 'HVT', 'BETA', 'HS'] },
-  { title: 'Trading', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP', 'EMSX', 'OMON', 'OVME'] },
+  { title: 'Quotes and trading data', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP', 'OMON', 'OVME'] },
   { title: 'Credit', entries: ['SRCH', 'DDIS'] },
   { title: 'Tools', entries: ['ALRT', 'NOTE', 'CORR'] },
 ];
@@ -38,7 +38,7 @@ const MENUS: Record<AssetClass, Group[]> = {
   future: [
     { title: 'Contract', entries: ['DES', 'WEIF', 'CN'] },
     { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'HVT', 'HS'] },
-    { title: 'Trading', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP', 'EMSX'] },
+    { title: 'Quotes and trading data', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP'] },
     { title: 'Tools', entries: ['ALRT', 'NOTE'] },
   ],
   fx: [
@@ -50,13 +50,13 @@ const MENUS: Record<AssetClass, Group[]> = {
   commodity: [
     { title: 'Commodity', entries: ['DES', 'GLCO', 'CN'] },
     { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'COMP', 'HVT', 'HS', 'BETA'] },
-    { title: 'Trading', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP', 'EMSX'] },
+    { title: 'Quotes and trading data', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP'] },
     { title: 'Tools', entries: ['ALRT', 'NOTE', 'CORR'] },
   ],
   crypto: [
     { title: 'Digital asset', entries: ['DES', 'CRYP', 'CN'] },
     { title: 'Price and charts', entries: ['GP', 'GIP', 'HP', 'COMP', 'HVT', 'HS', 'BETA'] },
-    { title: 'Trading', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP', 'EMSX'] },
+    { title: 'Quotes and trading data', entries: ['BQ', 'TAS', 'DEPTH', 'VWAP'] },
     { title: 'Tools', entries: ['ALRT', 'NOTE', 'CORR'] },
   ],
   rate: [
@@ -93,7 +93,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
     groups: [
       { title: 'Markets', entries: ['WEI', 'IMAP', 'MOST', 'MOV', 'EQS', 'EVTS'] },
       { title: 'News and research', entries: ['TOP', 'N', 'ECO'] },
-      { title: 'Trading and portfolio', entries: ['EMSX', 'PORT', 'W', 'ALRT'] },
+      { title: 'Portfolio and monitors', entries: ['PORT', 'W', 'ALRT'] },
     ],
     list: (d) => d.cls === 'equity',
     rank: (d) => marketCapUsd(d.id),

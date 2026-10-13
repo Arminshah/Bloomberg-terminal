@@ -13,10 +13,10 @@ import type { SecurityDef } from '../data/types';
 import { maxDrawdown, percentile, regress, stdev } from '../finance/stats';
 import { flash, usePanelId } from '../terminal/panel';
 import { portfolio, type Position } from '../terminal/userdata';
-import { isMargined, navValue, usdPerPrice } from '../terminal/oms';
+import { isMargined, navValue, usdPerPrice } from '../terminal/portfolio';
 import type { FnProps } from '../terminal/types';
 
-export { multiplier } from '../terminal/oms';
+export { multiplier } from '../terminal/portfolio';
 
 interface Line {
   p: Position;
@@ -57,6 +57,14 @@ function Holdings() {
   const [sec, setSec] = useState('');
   const [qty, setQty] = useState('');
   const [px, setPx] = useState('');
+  const [cash, setCash] = useState('');
+  const saveCash = () => {
+    const c = Number(cash.replace(/,/g, ''));
+    if (!Number.isFinite(c)) return flash(panel, 'Enter the cash amount in USD', 'error');
+    portfolio.set((s) => ({ ...s, cash: c }));
+    setCash('');
+    flash(panel, `Cash set to ${fmtNum(c, 0)} USD`, 'info');
+  };
   const add = () => {
     const d = resolveSecurity(sec);
     if (!d) return flash(panel, `Unknown security: ${sec}`, 'error');
@@ -88,7 +96,6 @@ function Holdings() {
               ['Day P&L', <Chg key="d" v={day} dec={0} />],
               ['Day return', <Chg key="dr" v={(day / (nav - day)) * 100} pct />],
               ['Unrealised P&L', <Chg key="u" v={tot} dec={0} />],
-              ['Realised P&L (EMSX)', <Chg key="r" v={st.realised ?? 0} dec={0} />],
               ['Return on cost', <Chg key="rc" v={(tot / cost) * 100} pct />],
             ]}
           />
@@ -102,7 +109,16 @@ function Holdings() {
               Add
             </button>
           </div>
-          <div className="note">Futures quantities are contracts and count toward NAV at unrealised P&L; Treasury quantities are face value. A blank price uses the live market. Adjustments here do not touch cash; trade through EMSX to book fills against cash.</div>
+          <div className="pad row" style={{ gap: 8 }}>
+            <input className="inp" style={{ width: 140 }} placeholder="Cash (USD)" aria-label="Cash in USD" inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveCash()} />
+            <button type="button" className="btn" onClick={saveCash}>
+              Set cash
+            </button>
+          </div>
+          <div className="note">
+            The portfolio holds only the positions and cash you enter here: there is no order entry and no simulated trading. Futures quantities are contracts and count toward NAV at unrealised P&L; Treasury quantities are face value. A
+            blank price records today&apos;s market price as your cost.
+          </div>
         </Section>
       </div>
       <table className="tbl">

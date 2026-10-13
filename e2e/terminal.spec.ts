@@ -53,7 +53,7 @@ const COMMANDS: [string, string][] = [
   ['AAPL 4.65 02/23/46 CORP ALLQ', 'ALLQ'], ['CT10 GOVT ALLQ', 'ALLQ'], ['ES1 INDEX DES', 'DES'], ['ES1 INDEX GIP', 'GIP'], ['ES1 INDEX TAS', 'TAS'],
   ['ES1 INDEX DEPTH', 'DEPTH'], ['WEIF', 'WEIF'], ['SPX INDEX MOV', 'MOV'], ['INDU INDEX MOV', 'MOV'], ['AAPL TRA', 'TRA'], ['SPX INDEX TRA', 'TRA'],
   ['AAPL GF', 'GF'], ['AAPL HVT', 'HVT'], ['USGG10YR INDEX HVT', 'HVT'], ['AAPL VWAP', 'VWAP'], ['EURUSD CRNCY FRD', 'FRD'], ['USDJPY CRNCY OVML', 'OVML'],
-  ['SWPM', 'SWPM'], ['CDR', 'CDR'], ['CENB', 'CENB'], ['AAPL EMSX', 'EMSX'], ['ES1 INDEX EMSX', 'EMSX'], ['HELP HELP', 'IB'],
+  ['SWPM', 'SWPM'], ['CDR', 'CDR'], ['CENB', 'CENB'], ['HELP HELP', 'IB'],
   ['$APLD', 'MENU'], ['APLD US EQUITY DES', 'DES'], ['$APLD GP', 'GP'], ['APLD FA', 'FA'],
 ];
 
