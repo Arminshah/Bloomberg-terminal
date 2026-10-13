@@ -7,7 +7,8 @@ Definitions of the figures the desktop app shows, the units and dates they carry
 | Field | Meaning |
 | --- | --- |
 | `last` | Latest price from the source, in the currency and unit the line is quoted in (pence for London lines, marked GBp). |
-| `prevClose` | The previous session's close as the source reports it. |
+| `prevClose` | The previous session's close. Yahoo gives two readings: its previous-close field and the close implied by its own change (last minus change). Either can be wrong: on 13 Oct 2026 the field was a session old for the Hang Seng, Shanghai, TAIEX, ASX 200, Sensex and Nifty, and already held the new settlement for CME livestock, while for crypto the change was the odd one out. The app takes the reading that matches the previous bar of the daily history (within 0.1%). When neither matches, as when the bars are still on the expiring futures contract, two readings that agree are kept and two that disagree leave the change "--". |
+| `high`, `low` | The day's range. A full quote's own high and low replace the daily bar's, which can belong to another contract after a futures roll; a zero in the source counts as missing. |
 | `time` | When the market set the latest value: the last trade, or the date of an end-of-day value. Shown as "source". |
 | `fetched` | When the app received that value. Shown as "retrieved". |
 | `src` | Freshness state, below. |

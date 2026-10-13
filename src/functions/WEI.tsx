@@ -3,7 +3,7 @@ import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { Chg, LivePx, SecLink } from '../components/cells';
 import { Flash } from '../components/Flash';
-import { fmtNum, fmtStamp } from '../core/format';
+import { fmtNum, fmtPct, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
 import { usePanelId } from '../terminal/panel';
@@ -22,7 +22,8 @@ function ytdUsd(id: string): number {
   const d = engine.get(id)!;
   const local = periodChange(id, 'YTD');
   if (d.ccy === 'USD') return local;
-  const pair = engine.get(`${d.ccy}USD Curncy`) ? `${d.ccy}USD Curncy` : engine.get(`USD${d.ccy === 'CNY' ? 'CNH' : d.ccy} Curncy`) ? `USD${d.ccy === 'CNY' ? 'CNH' : d.ccy} Curncy` : undefined;
+  // The index's own currency (onshore yuan for Shanghai, not the offshore CNH), from its history.
+  const pair = [`${d.ccy}USD Curncy`, `USD${d.ccy} Curncy`].find((x) => engine.get(x) && engine.hasSource(x));
   if (!pair) return NaN;
   const fx = periodChange(pair, 'YTD') / 100;
   const ccyRet = pair.startsWith('USD') ? 1 / (1 + fx) - 1 : fx;
@@ -80,8 +81,7 @@ export function WEI(_: FnProps) {
                     </td>
                     <td className="num">
                       <Flash value={q.pct} className={q.pct > 0 ? 'up' : q.pct < 0 ? 'dn' : ''}>
-                        {q.pct > 0 ? '+' : ''}
-                        {fmtNum(q.pct, 2)}%
+                        {fmtPct(q.pct, 2)}
                       </Flash>
                     </td>
                     <td className="num muted hide-m">{fmtStamp(q.time, now)}</td>

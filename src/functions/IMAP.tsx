@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { heat, openSecurity } from '../components/cells';
-import { fmtBig, fmtNum } from '../core/format';
+import { fmtBig, fmtNum, fmtPct } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { marketCapUsd, periodChange, type Horizon } from '../data/analytics';
 import { shortName } from '../data/news';
@@ -130,7 +130,7 @@ export function IMAP(_: FnProps) {
                 const big = r.w > 46 && r.h > 26;
                 return (
                   <g key={d.id} style={{ cursor: 'pointer' }} onClick={(e) => openSecurity(panel, d.id, e as unknown as React.MouseEvent, 'GP')}>
-                    <title>{`${d.name}\n${fmtNum(engine.quote(d.id)!.last, d.dec)} ${d.ccy}  ${pct >= 0 ? '+' : ''}${fmtNum(pct, 2)}%\nMkt cap ${fmtBig(marketCapUsd(d.id))} USD`}</title>
+                    <title>{`${d.name}\n${fmtNum(engine.quote(d.id)!.last, d.dec)} ${d.ccy}  ${fmtPct(pct, 2)}\nMkt cap ${fmtBig(marketCapUsd(d.id))} USD`}</title>
                     <rect x={r.x} y={r.y} width={Math.max(0, r.w)} height={Math.max(0, r.h)} fill={heat(pct, m.scale)} stroke="#000" strokeWidth={1} />
                     {big && (
                       <>
@@ -138,8 +138,7 @@ export function IMAP(_: FnProps) {
                           {d.ticker.split(' ')[0]}
                         </text>
                         <text x={r.x + r.w / 2} y={r.y + r.h / 2 + 11} textAnchor="middle" fill="#e8e8e8" fontSize={Math.min(12, Math.max(8, r.w / 9))} fontFamily="IBM Plex Mono, monospace">
-                          {pct >= 0 ? '+' : ''}
-                          {fmtNum(pct, 2)}%
+                          {fmtPct(pct, 2)}
                         </text>
                         {r.h > 54 && r.w > 90 && (
                           <text x={r.x + r.w / 2} y={r.y + r.h / 2 + 24} textAnchor="middle" fill="#bdbdbd" fontSize={9} fontFamily="IBM Plex Sans, sans-serif">

@@ -166,6 +166,17 @@ export function etfDividendYield(symbol: string): number {
   return etfDividends.has(symbol) && px > 0 ? paidInYear(etfDividends.get(symbol), engine.today) / px : NaN;
 }
 
+/**
+ * A bar's close, open, high and low with a missing or zero open, high or low
+ * read as the close (Yahoo gave a cotton low of 0.00 on 12 Oct 2026), and the
+ * high and low widened to hold the open and close.
+ */
+export function cleanBar(c: number, o: unknown, h: unknown, l: unknown): [number, number, number, number] {
+  const ok = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x) && x !== 0;
+  const oo = ok(o) ? o : c;
+  return [c, oo, Math.max(ok(h) ? h : c, oo, c), Math.min(ok(l) ? l : c, oo, c)];
+}
+
 export function barsFromChart(chart: Json, invert = false, allDays = false): { bars: ExtBar[]; dividends: Dividend[]; gmtOffset: number } {
   const r = chart?.chart?.result?.[0];
   const gmtOffset = Number(r?.meta?.gmtoffset ?? 0);
@@ -173,11 +184,9 @@ export function barsFromChart(chart: Json, invert = false, allDays = false): { b
   const q = r.indicators?.quote?.[0] ?? {};
   const bars: ExtBar[] = [];
   r.timestamp.forEach((ts: number, i: number) => {
-    let c = q.close?.[i];
-    if (c == null || !Number.isFinite(c) || c === 0) return;
-    let o = q.open?.[i] ?? c;
-    let h = q.high?.[i] ?? c;
-    let l = q.low?.[i] ?? c;
+    const close = q.close?.[i];
+    if (close == null || !Number.isFinite(close) || close === 0) return;
+    let [c, o, h, l] = cleanBar(close, q.open?.[i], q.high?.[i], q.low?.[i]);
     if (invert) {
       [c, o, h, l] = [inv(c), inv(o), inv(l), inv(h)];
     }
@@ -230,9 +239,13 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
     const x = Number(v);
     return Number.isFinite(x) && x !== 0 ? x : undefined;
   };
+  const change = Number(q.regularMarketChange);
   const base: ExtQuote = {
     last,
     prevClose: n(q.regularMarketPreviousClose),
+    // The engine checks the two readings against the daily bars (choosePrevClose): either can be off.
+    prevCloseAlt: Number.isFinite(change) && q.regularMarketChange != null ? n(last - change) : undefined,
+    full: true,
     open: n(q.regularMarketOpen),
     high: n(q.regularMarketDayHigh),
     low: n(q.regularMarketDayLow),
@@ -252,6 +265,7 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
     ...base,
     last: inv(base.last),
     prevClose: base.prevClose && inv(base.prevClose),
+    prevCloseAlt: base.prevCloseAlt && inv(base.prevCloseAlt),
     open: base.open && inv(base.open),
     high: base.low && inv(base.low),
     low: base.high && inv(base.high),
@@ -406,6 +420,7 @@ class YahooData {
       time: tick.time,
       day: sessionDay(tick.time, t.gmtOffset ?? 0, t.allDays),
       prevClose: inverted(tick.previousClose),
+      prevCloseAlt: tick.change != null && Number.isFinite(tick.change) && tick.price - tick.change !== 0 ? inverted(tick.price - tick.change) : undefined,
       open: inverted(tick.openPrice),
       high: t.invert ? inverted(tick.dayLow) : tick.dayHigh,
       low: t.invert ? inverted(tick.dayHigh) : tick.dayLow,
@@ -622,11 +637,9 @@ class YahooData {
       const q = r.indicators?.quote?.[0] ?? {};
       const bars: { t: number; o: number; h: number; l: number; c: number; v: number }[] = [];
       r.timestamp.forEach((ts: number, i: number) => {
-        let c = q.close?.[i];
-        if (c == null || !Number.isFinite(c) || c === 0) return;
-        let o = q.open?.[i] ?? c;
-        let h = q.high?.[i] ?? c;
-        let l = q.low?.[i] ?? c;
+        const close = q.close?.[i];
+        if (close == null || !Number.isFinite(close) || close === 0) return;
+        let [c, o, h, l] = cleanBar(close, q.open?.[i], q.high?.[i], q.low?.[i]);
         if (t.invert) [c, o, h, l] = [inv(c), inv(o), inv(l), inv(h)];
         bars.push({ t: ts * 1000, o, h, l, c, v: t.invert ? 0 : (q.volume?.[i] ?? 0) });
       });

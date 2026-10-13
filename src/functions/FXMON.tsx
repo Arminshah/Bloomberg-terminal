@@ -5,7 +5,7 @@ import { srcLabel } from '../components/QuoteStrip';
 import { Flash } from '../components/Flash';
 import { Sparkline } from '../components/Sparkline';
 import { Chg, HBar, LivePx, SecLink, openSecurity } from '../components/cells';
-import { fmtBig, fmtNum } from '../core/format';
+import { fmtBig, fmtNum, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange, type Horizon } from '../data/analytics';
 import { CURRENCY_INFO } from '../data/universe';
@@ -226,6 +226,7 @@ const GROUPS = ['Energy', 'Precious Metals', 'Base Metals', 'Grains', 'Softs', '
 export function GLCO(_: FnProps) {
   const panel = usePanelId();
   useTick(1);
+  const now = engine.now();
   return (
     <div>
       <FnHeader code="GLCO" title="Global Commodities" sub="Generic front-month futures" />
@@ -237,6 +238,7 @@ export function GLCO(_: FnProps) {
             <th className="num">Last</th>
             <th className="num">Net Chg</th>
             <th className="num">%Chg</th>
+            <th className="num hide-m">Time</th>
             <th className="num hide-m">High</th>
             <th className="num hide-m">Low</th>
             <th className="num">YTD %</th>
@@ -248,7 +250,7 @@ export function GLCO(_: FnProps) {
         <tbody>
           {GROUPS.map((g, gi) => [
             <tr key={g} className="group">
-              <td colSpan={11}>
+              <td colSpan={12}>
                 {gi + 1}) {g}
               </td>
             </tr>,
@@ -274,6 +276,8 @@ export function GLCO(_: FnProps) {
                     <td className="num">
                       <Chg v={q.pct} pct />
                     </td>
+                    {/* The source's last trade: a date instead of a time shows a line that has not traded today. */}
+                    <td className="num muted hide-m">{fmtStamp(q.time, now)}</td>
                     <td className="num hide-m">{fmtNum(q.high, d.dec)}</td>
                     <td className="num hide-m">{fmtNum(q.low, d.dec)}</td>
                     <td className="num">

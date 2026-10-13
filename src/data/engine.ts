@@ -106,6 +106,10 @@ export interface ExtBar {
 export interface ExtQuote {
   last: number;
   prevClose?: number;
+  /** The previous close implied by the source's own change (last - change): a second reading to check prevClose against. */
+  prevCloseAlt?: number;
+  /** A full quote (the poll): its open, high and low are the day's, replacing the bar's; a streamed tick only extends them. */
+  full?: boolean;
   open?: number;
   high?: number;
   low?: number;
@@ -126,6 +130,29 @@ export interface ExtQuote {
   sourceName?: string;
   /** When the app received this value (epoch ms); defaults to now. */
   fetched?: number;
+}
+
+/**
+ * The previous session's close for a quote, from the two readings a source
+ * gives: its previous-close field and the close its own change implies. Yahoo's
+ * field can lag a session (the Hang Seng, Shanghai, TAIEX, ASX 200, Sensex and
+ * Nifty on 13 Oct 2026) or already hold the new settlement (CME livestock after
+ * the close), while for crypto its change is the odd one out. The reading that
+ * matches the close of the previous bar in the daily history wins. When neither
+ * matches (the history can be a contract behind after a futures roll), two that
+ * agree are kept and two that disagree give NaN, no previous close, rather than
+ * a guess. Undefined means the quote carried neither.
+ */
+export function choosePrevClose(field: number | undefined, implied: number | undefined, histPrev: number): number | undefined {
+  const ok = (x: number | undefined): x is number => x !== undefined && Number.isFinite(x) && x !== 0;
+  const c = [field, implied].filter(ok);
+  if (c.length < 2) return c[0];
+  const rel = (a: number, b: number) => Math.abs(a - b) / Math.abs(b);
+  if (ok(histPrev)) {
+    const best = rel(c[0], histPrev) <= rel(c[1], histPrev) ? c[0] : c[1];
+    if (rel(best, histPrev) <= 1e-3) return best;
+  }
+  return rel(c[0], c[1]) <= 2e-4 ? c[0] : NaN;
 }
 
 /** Timing as the source labels it: real time, delayed, or not stated (never inferred). */
@@ -1133,7 +1160,8 @@ export class MarketEngine {
       prevClose: st.prevClose,
       volume: st.volume,
       chg,
-      pct: st.prevClose ? (chg / Math.abs(st.prevClose)) * 100 : 0,
+      // No previous close (or zero) gives no percentage, never 0%.
+      pct: Number.isFinite(st.prevClose) && st.prevClose !== 0 ? (chg / Math.abs(st.prevClose)) * 100 : NaN,
       // A real line carries the market's own time, not the moment it was redrawn.
       time: st.ext ? st.ext.time : t,
       tick,
@@ -1547,8 +1575,14 @@ export class MarketEngine {
       st.volume = 0;
     }
     if (q.open && Number.isFinite(q.open)) s.o[n] = q.open;
-    s.h[n] = Math.max(q.high && Number.isFinite(q.high) ? q.high : -Infinity, newSession ? -Infinity : s.h[n], q.last, s.o[n]);
-    s.l[n] = Math.min(q.low && Number.isFinite(q.low) ? q.low : Infinity, newSession ? Infinity : s.l[n], q.last, s.o[n]);
+    // A full quote's high and low are the day's own. The bar's can be another contract's after a futures roll
+    // (Yahoo's lean hogs on 12 Oct 2026: a quote on December, 67.825-69.00, and a bar on October up to 75.675).
+    const hi = q.high && Number.isFinite(q.high) ? q.high : NaN;
+    const lo = q.low && Number.isFinite(q.low) ? q.low : NaN;
+    const keepHi = newSession || (q.full && Number.isFinite(hi)) ? -Infinity : s.h[n];
+    const keepLo = newSession || (q.full && Number.isFinite(lo)) ? Infinity : s.l[n];
+    s.h[n] = Math.max(Number.isFinite(hi) ? hi : -Infinity, keepHi, q.last, s.o[n]);
+    s.l[n] = Math.min(Number.isFinite(lo) ? lo : Infinity, keepLo, q.last, s.o[n]);
     s.c[n] = q.last;
     const vol = q.volume != null && Number.isFinite(q.volume) ? q.volume : s.v[n];
     const dv = vol - st.volume;
@@ -1559,7 +1593,8 @@ export class MarketEngine {
     }
     st.last = q.last;
     // A partial update (a streamed tick) leaves what it does not carry as it was.
-    if (q.prevClose && Number.isFinite(q.prevClose)) st.prevClose = q.prevClose;
+    const prevClose = choosePrevClose(q.prevClose, q.prevCloseAlt, n > 0 ? s.c[n - 1] : NaN);
+    if (prevClose !== undefined) st.prevClose = prevClose;
     else if (newSession) st.prevClose = n > 0 ? s.c[n - 1] : NaN;
     st.dayOpen = s.o[n];
     st.dayHigh = s.h[n];

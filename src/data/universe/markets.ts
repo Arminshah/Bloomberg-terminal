@@ -67,6 +67,7 @@ export const CURRENCIES: CurrencyDef[] = [
   { code: 'SEK', name: 'Swedish Krona', country: 'SE', region: 'EMEA', perUsd: 9.97, vol: 0.10, risk: 0.35, bank: 'Sveriges Riksbank' },
   { code: 'NOK', name: 'Norwegian Krone', country: 'NO', region: 'EMEA', perUsd: 9.56, vol: 0.11, risk: 0.4, bank: 'Norges Bank' },
   { code: 'CNH', name: 'Chinese Renminbi (Offshore)', country: 'CN', region: 'APAC', perUsd: 6.69, vol: 0.04, risk: 0.15, bank: "People's Bank of China" },
+  { code: 'CNY', name: 'Chinese Renminbi', country: 'CN', region: 'APAC', perUsd: 6.69, vol: 0.035, risk: 0.1, bank: "People's Bank of China" },
   { code: 'HKD', name: 'Hong Kong Dollar', country: 'HK', region: 'APAC', perUsd: 7.85, vol: 0.004, risk: 0.0, bank: 'Hong Kong Monetary Authority' },
   { code: 'SGD', name: 'Singapore Dollar', country: 'SG', region: 'APAC', perUsd: 1.28, vol: 0.045, risk: 0.2, bank: 'Monetary Authority of Singapore' },
   { code: 'INR', name: 'Indian Rupee', country: 'IN', region: 'APAC', perUsd: 96.7, vol: 0.045, risk: 0.2, bank: 'Reserve Bank of India' },
@@ -83,7 +84,7 @@ const FX_PAIRS: [string, string][] = [
   ['EUR', 'USD'], ['USD', 'JPY'], ['GBP', 'USD'], ['USD', 'CHF'], ['AUD', 'USD'], ['USD', 'CAD'], ['NZD', 'USD'],
   ['EUR', 'GBP'], ['EUR', 'JPY'], ['EUR', 'CHF'], ['GBP', 'JPY'], ['AUD', 'JPY'], ['USD', 'CNH'], ['USD', 'HKD'],
   ['USD', 'SGD'], ['USD', 'INR'], ['USD', 'KRW'], ['USD', 'MXN'], ['USD', 'BRL'], ['USD', 'ZAR'], ['USD', 'TRY'],
-  ['USD', 'SEK'], ['USD', 'NOK'],
+  ['USD', 'SEK'], ['USD', 'NOK'], ['USD', 'CNY'], ['USD', 'TWD'],
 ];
 
 const CCY = new Map(CURRENCIES.map((c) => [c.code, c]));

@@ -37,18 +37,20 @@ export function MOST(_: FnProps) {
       const px = d.minor ? q.last / 100 : q.last;
       return { d, q, value: toUsd(px * q.volume, d.ccy === 'GBp' ? 'GBP' : d.ccy), rel: rs.avgVol30 > 0 ? q.volume / rs.avgVol30 : NaN };
     });
+  // Highest first (lowest for dir -1), with lines that have no figure last.
+  const rank = (x: number, y: number, dir = 1) => (Number.isFinite(x) ? (Number.isFinite(y) ? dir * (y - x) : -1) : Number.isFinite(y) ? 1 : 0);
   const sorted = [...rows].sort((a, b) => {
     switch (view) {
       case 2:
-        return b.q.pct - a.q.pct;
+        return rank(a.q.pct, b.q.pct);
       case 3:
-        return a.q.pct - b.q.pct;
+        return rank(a.q.pct, b.q.pct, -1);
       case 4:
-        return b.value - a.value;
+        return rank(a.value, b.value);
       case 5:
-        return b.rel - a.rel;
+        return rank(a.rel, b.rel);
       default:
-        return b.q.volume - a.q.volume;
+        return rank(a.q.volume, b.q.volume);
     }
   });
   return (
