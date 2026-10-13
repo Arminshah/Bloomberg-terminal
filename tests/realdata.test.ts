@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { engine } from '../src/data/market';
 import { dayNum, DAY_MS } from '../src/data/calendar';
 import { earningsEvents, keyStats, nextEarnings } from '../src/data/fundamentals';
-import { buildRealFund, fundDue, FUND_TTL, usTiming } from '../src/data/live/yfund';
-import { impliedShares, yahooQuotes } from '../src/data/live/yahoo';
+import { buildRealFund, fundDue, FUND_TTL, realFund, usTiming } from '../src/data/live/yfund';
+import { dropVolumeSpikes, impliedShares, yahooQuotes } from '../src/data/live/yahoo';
 import { atmVolAt, realChain, type Leg } from '../src/data/live/yopt';
 import { parseTreasuryCsv } from '../src/data/live/ust';
 import { levelOn, parseBoeCsv, parseEcbCsv, parseNyFed, parseValet, policyRates, toChanges } from '../src/data/live/policy';
@@ -92,6 +92,44 @@ describe('real company data (Applied Digital, from Yahoo Finance)', () => {
     expect(usTiming(Date.UTC(2026, 9, 7, 20, 27))).toBe('Aft-mkt');
     expect(usTiming(Date.UTC(2026, 9, 7, 11, 0))).toBe('Bef-mkt');
     expect(usTiming(Date.UTC(2026, 9, 7, 4, 0))).toBe('--');
+  });
+});
+
+describe('figures that sit side by side agree', () => {
+  it('works P/E and enterprise value out from the EPS, market cap and balance sheet shown', () => {
+    const def = engine.get(APLD)!;
+    const today = engine.today;
+    engine.setExternalDaily(APLD, [
+      { day: today - 2, o: 24, h: 24.2, l: 23.5, c: 23.85, v: 1e7 },
+      { day: today - 1, o: 23.8, h: 24.1, l: 22.8, c: 23.68, v: 2e7 },
+    ]);
+    const fund = apldFund();
+    // The source's own ratios on other bases (as for Nebius: P/E 164.1 next to an LTM EPS of -0.08).
+    fund.stats.pe = 164.1;
+    fund.stats.ev = 999_999;
+    fund.stats.evEbitda = 243.2;
+    fund.ltm = { ...fund.ltm!, eps: -0.08 };
+    realFund.set(def.id, fund);
+    let ks = keyStats(def);
+    expect(ks.epsLtm).toBe(-0.08);
+    expect(ks.pe).toBeNaN();
+    expect(ks.ev).not.toBe(999_999);
+    expect(ks.ev).toBeCloseTo(ks.mcap + def.eq!.netDebt, 6);
+    fund.ltm = { ...fund.ltm!, eps: 2 };
+    ks = keyStats(def);
+    expect(ks.pe).toBeCloseTo(ks.price / 2, 6);
+    realFund.delete(def.id);
+  });
+
+  it('drops the volume of a minute bar that the day volume rules out, and keeps a real closing print', () => {
+    const bars = Array.from({ length: 390 }, () => ({ v: 20_000 }));
+    bars[200].v = 10_552_546;
+    expect(dropVolumeSpikes(bars, 13_918_067)).toBe(1);
+    expect(bars[200].v).toBe(0);
+    const ok = Array.from({ length: 390 }, () => ({ v: 20_000 }));
+    ok[389].v = 2_000_000;
+    expect(dropVolumeSpikes(ok, 389 * 20_000 + 2_000_000)).toBe(0);
+    expect(ok[389].v).toBe(2_000_000);
   });
 });
 
