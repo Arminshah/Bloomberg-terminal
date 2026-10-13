@@ -33,6 +33,11 @@ Freshness states:
 | --- | --- | --- |
 | Dividend yield 12M | Dividends with ex-dates in the past 365 days, divided by the live price, both in the unit the line is quoted in. Source: Yahoo's dividend history and quote. | `DES`, `BQ`, `DVD`, `EQS`, `RV` |
 | P/E (LTM) | Price over the LTM diluted EPS shown beside it (the statements' trailing figure, else the sum of the last four quarters); "--" when that EPS is zero or negative. Yahoo's own trailing P/E is used only when the statements give no EPS. | `DES`, `BQ`, `RV`, `EQS` |
+| P/E (FY1 est.) | Price over the FY1 consensus EPS shown beside it; "--" when that estimate is not positive. | `DES`, `BQ`, `RV` |
+| Price / book | Market cap over the equity in the latest balance sheet. | `DES`, `RV` |
+| LTM figures | The source's trailing figures, unless their net income or revenue differs from the sum of the last four quarters by more than 0.5%; then the sum. A quarter the statements do not have yet carries no EPS. | `DES`, `FA` |
+| Revenue | The statements' total revenue, unless the latest year differs from the company's reported revenue (the source's earnings module) by more than 2%, as when investment gains are added; then the reported revenue for every year and quarter it has. | `FA`, `DES`, `EE` |
+| 52-week high and low | The highest high and lowest low over the last 365 days of daily bars. | `DES`, `BQ` |
 | Enterprise value | Market cap shown, plus total debt, minus cash, from the latest balance sheet in the statements. | `DES`, `RV` |
 | EBITDA | Operating income plus depreciation and amortisation, in every period. The source's own EBITDA starts from pretax income and so includes gains such as revaluations of investments. | `FA`, `GF`, `DES`, `RV` |
 | EV/EBITDA | The enterprise value above over LTM EBITDA as defined above; "--" when EBITDA is zero or negative. | `DES`, `RV` |

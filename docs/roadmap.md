@@ -10,6 +10,11 @@
 - Browser build: no data until you open the demo; every simulated value says DEMO DATA; browser feeds that needed a key in the browser or whose terms were not reviewed are off; the public Pages deployment is removed.
 - Gaps no longer filled with defaults: looked-up companies, earnings dates, dividend rates.
 
+## Done (13 October 2026, version 1.2.1)
+
+- From the audit of 15 stocks: forward P/E on the FY1 estimate shown, price to book from market cap and equity, 52-week ranges over 365 days, LTM figures checked against the four quarters, quarters matched by end date, reported revenue where the feed adds gains, expected (not declared) dividend dates, Shell's pence dividends labelled, EE's EPS basis marked.
+- From the audit of `ECO` and `ECST`: no phantom Housing Starts or retail-revision rows; PCE to one decimal; sources named right; the Fed's target range; Canada and Australia from Statistics Canada and the ABS (current months, and their inflation).
+
 ## Done (13 October 2026, version 1.2.0)
 
 - Brussels clock first in the top bar; a layout with the watchlist as a full-height column beside the four main panels, now the default.
@@ -19,7 +24,8 @@
 
 ## Next
 
-1. Finish the data audit started on 12 October: the 15-stock sample (DES, BQ, FA, EE, ANR, DVD, HDS), rates against each central bank's file, `ECO`/`ECST` against the agencies' releases, and the market screens. The NBIS part is done.
+1. Finish the data audit: rates against each central bank's file (`WB`, `GC`, `BTMM`, `WIRP`, `CENB`) and the market screens (`WEI`, `FXC`, `GLCO`, `CRYP`, `MOST`). NBIS, the 15-stock sample and `ECO`/`ECST` are done.
+2. Japan's unemployment from the Statistics Bureau (the OECD series runs a month behind) and its CPI, which needs an e-Stat key.
 2. SEC EDGAR filings (`CF`). Needs `SEC_USER_AGENT` with a contact you control. Recent filings with form, filing date, accession number and a link to the filing; then a small set of reported facts from company facts with period, form and accession. Acceptance: tested against real responses, at most 5 requests a second, no request without the user agent.
 3. Massive end-of-day history. Needs `MASSIVE_API_KEY` (free Stocks Basic). A source switch on `GP`: Yahoo or Massive, never mixed in one series; Massive bars labelled End of day, split-adjusted, with the last bar's market date. Acceptance: at most 5 calls a minute, paging through `next_url`, an honest error when the plan does not cover a request.
 4. Release times for US economic data from the agencies' own schedules, if their terms allow automated reading.
