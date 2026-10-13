@@ -279,3 +279,53 @@ export function euroAreaCode(m: Map<string, Obs>): string | undefined {
   const codes = [...m.keys()].filter((k) => /^EA\d{2}$/.test(k)).sort();
   return codes[codes.length - 1];
 }
+
+/**
+ * Statistics Canada Web Data Service, getDataFromVectorByReferencePeriodRange: one entry per
+ * vector, each point dated by its reference period (the first of the month), in date order.
+ * Points StatCan marks as not available (a status code other than 0) are left out.
+ */
+export function parseStatcanVectors(text: string): Map<number, Obs> {
+  const out = new Map<number, Obs>();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return out;
+  }
+  if (!Array.isArray(parsed)) return out;
+  for (const entry of parsed as { status?: string; object?: { vectorId?: number; vectorDataPoint?: { refPer?: string; value?: number | null; statusCode?: number }[] } }[]) {
+    const o = entry?.object;
+    if (entry?.status !== 'SUCCESS' || !o || typeof o.vectorId !== 'number') continue;
+    const obs: Obs = [];
+    for (const p of o.vectorDataPoint ?? []) {
+      if (typeof p.refPer !== 'string' || !ISO.test(p.refPer) || (p.statusCode ?? 0) !== 0) continue;
+      const v = Number(p.value);
+      if (p.value != null && Number.isFinite(v)) obs.push([p.refPer, v]);
+    }
+    obs.sort((a, b) => a[0].localeCompare(b[0]));
+    out.set(o.vectorId, obs);
+  }
+  return out;
+}
+
+/**
+ * The ABS Data API's CSV (format=csv): a header row, then one row per period with TIME_PERIOD
+ * (YYYY-MM) and OBS_VALUE, not necessarily in order. Monthly figures dated by the first day.
+ */
+export function parseAbsCsv(text: string): Obs {
+  const rows = lines(text);
+  if (!rows.length) return [];
+  const head = rows[0].split(',').map((c) => c.trim());
+  const ti = head.indexOf('TIME_PERIOD');
+  const vi = head.indexOf('OBS_VALUE');
+  if (ti < 0 || vi < 0) return [];
+  const out: Obs = [];
+  for (const row of rows.slice(1)) {
+    const cells = row.split(',');
+    const m = /^(\d{4})-(\d{2})$/.exec(cells[ti]?.trim() ?? '');
+    const v = num(cells[vi]);
+    if (m && Number.isFinite(v)) out.push([`${m[1]}-${m[2]}-01`, v]);
+  }
+  return out.sort((a, b) => a[0].localeCompare(b[0]));
+}

@@ -1,6 +1,6 @@
 import { createStore } from '../../core/store';
 import { setFeed } from './status';
-import { euroAreaCode, official, parseJsonStat, parseOnsCsv, parseOnsMonths } from './official';
+import { euroAreaCode, official, parseAbsCsv, parseJsonStat, parseOnsCsv, parseOnsMonths, parseStatcanVectors } from './official';
 
 /**
  * US economic releases and international statistics for the desktop app from
@@ -79,9 +79,10 @@ export const US_EVENTS: FredEvent[] = [
  * year-on-year change for GDP and prices. Wherever a statistics office publishes the headline rate
  * itself, that published rate is used: BEA's real GDP growth on a year earlier, Eurostat's HICP
  * annual rate, GDP growth and unemployment, and the ONS's CPI, GDP growth and unemployment.
- * Japan, Canada and Australia have no such series here: their GDP growth is worked out from real
- * GDP levels (Japan's Cabinet Office; the IMF's International Financial Statistics for Canada and
- * Australia) and their unemployment is the OECD harmonised rate, all via FRED.
+ * Canada's unemployment and inflation come from Statistics Canada and Australia's from the ABS.
+ * Japan, Canada and Australia have no published growth rate here: it is worked out from real GDP
+ * levels (Japan's Cabinet Office; the IMF's International Financial Statistics for Canada and
+ * Australia), via FRED. Japan's unemployment is the OECD harmonised rate on FRED.
  */
 export const COUNTRY_STATS: Record<string, { gdp?: [string, Freq, Calc?]; cpi?: [string, Freq, Calc?]; un?: [string, Freq] }> = {
   US: { gdp: ['A191RO1Q156NBEA', 'q', 'level'], cpi: ['CPIAUCNS', 'm'], un: ['UNRATE', 'm'] },
@@ -93,8 +94,8 @@ export const COUNTRY_STATS: Record<string, { gdp?: [string, Freq, Calc?]; cpi?: 
   NL: { gdp: ['ESTAT:GDP:NL', 'q', 'level'], cpi: ['ESTAT:HICP:NL', 'm', 'level'], un: ['ESTAT:UN:NL', 'm'] },
   GB: { gdp: ['ONS:IHYR', 'q', 'level'], cpi: ['ONS:D7G7', 'm', 'level'], un: ['ONS:MGSX', 'm'] },
   JP: { gdp: ['JPNRGDPEXP', 'q'], un: ['LRHUTTTTJPM156S', 'm'] },
-  CA: { gdp: ['NGDPRSAXDCCAQ', 'q'], un: ['LRHUTTTTCAM156S', 'm'] },
-  AU: { gdp: ['NGDPRSAXDCAUQ', 'q'], un: ['LRHUTTTTAUM156S', 'm'] },
+  CA: { gdp: ['NGDPRSAXDCCAQ', 'q'], cpi: ['STATCAN:CPI', 'm'], un: ['STATCAN:UN', 'm'] },
+  AU: { gdp: ['NGDPRSAXDCAUQ', 'q'], cpi: ['ABS:CPI', 'm', 'level'], un: ['ABS:UN', 'm'] },
 };
 
 /** Countries whose growth figure is worked out here rather than published as a rate. */
@@ -270,12 +271,20 @@ function fredSeriesIds(): string[] {
 /** Headline rates the statistics offices publish themselves (ONS, Eurostat), under pseudo series ids. */
 async function loadOfficialStats(series: Record<string, Obs>) {
   const since = new Date(Date.now() - 3 * 365.25 * 86_400_000).toISOString().slice(0, 10);
-  const [cpi, gdp, unemp, hicp, eun, egdp] = await Promise.all(
-    (['ukcpi', 'ukgdp', 'ukunemp', 'estatHicp', 'estatUnemp', 'estatGdp'] as const).map((k) => official(k, since)),
+  const [cpi, gdp, unemp, hicp, eun, egdp, statcan, absUnemp, absCpi] = await Promise.all(
+    (['ukcpi', 'ukgdp', 'ukunemp', 'estatHicp', 'estatUnemp', 'estatGdp', 'statcan', 'absUnemp', 'absCpi'] as const).map((k) => official(k, since)),
   );
   const put = (id: string, obs: Obs | undefined) => {
     if (obs?.length) series[id] = obs;
   };
+  // Canada: Statistics Canada's unemployment rate and all-items CPI (the 12-month change is worked out
+  // from the published index, as StatCan does). Australia: the ABS's unemployment rate and the monthly
+  // CPI's published annual change.
+  const sc = parseStatcanVectors(statcan);
+  put('STATCAN:UN', sc.get(2062815));
+  put('STATCAN:CPI', sc.get(41690973));
+  put('ABS:UN', parseAbsCsv(absUnemp));
+  put('ABS:CPI', parseAbsCsv(absCpi));
   put('ONS:D7G7', parseOnsCsv(cpi));
   put('ONS:IHYR', parseOnsCsv(gdp, 'q'));
   const lfs = parseOnsMonths(unemp);

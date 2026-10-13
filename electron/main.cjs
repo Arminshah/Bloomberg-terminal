@@ -198,6 +198,13 @@ const OFFICIAL = {
   estatHicp: (since) => `${EUROSTAT}/prc_hicp_minr?format=JSON&lang=EN&${EUROSTAT_GEO}&coicop18=TOTAL&unit=RCH_A&sinceTimePeriod=${since.slice(0, 7)}`,
   estatUnemp: (since) => `${EUROSTAT}/une_rt_m?format=JSON&lang=EN&${EUROSTAT_GEO}&s_adj=SA&age=TOTAL&sex=T&unit=PC_ACT&sinceTimePeriod=${since.slice(0, 7)}`,
   estatGdp: (since) => `${EUROSTAT}/namq_10_gdp?format=JSON&lang=EN&${EUROSTAT_GEO}&na_item=B1GQ&unit=CLV_PCH_SM&s_adj=SCA&sinceTimePeriod=${since.slice(0, 4)}-Q1`,
+  // Statistics Canada (Web Data Service): unemployment rate, seasonally adjusted (vector 2062815), and the
+  // all-items CPI (vector 41690973), in one request.
+  statcan: (since, today) => `https://www150.statcan.gc.ca/t1/wds/rest/getDataFromVectorByReferencePeriodRange?vectorIds=%222062815%22,%2241690973%22&startRefPeriod=${since}&endReferencePeriod=${today}`,
+  // Australian Bureau of Statistics (Data API): unemployment rate, seasonally adjusted, and the monthly CPI's
+  // annual change, all groups, Australia.
+  absUnemp: (since) => `https://data.api.abs.gov.au/rest/data/ABS,LF,1.0.0/M13.3.1599.20.AUS.M?startPeriod=${since.slice(0, 7)}&format=csv`,
+  absCpi: (since) => `https://data.api.abs.gov.au/rest/data/ABS,CPI,2.0.0/3.10001.10.50.M?startPeriod=${since.slice(0, 7)}&format=csv`,
 };
 
 /** Which provider publishes each official source, for the status screen. */
@@ -205,6 +212,7 @@ const OFFICIAL_PROVIDER = {
   effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', ecb: 'ecb', boe: 'boe', gilts: 'boe', boc: 'boc', canadas: 'boc',
   rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
+  statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs',
 };
 
 ipcMain.handle('official', async (event, source, since) => {

@@ -43,10 +43,11 @@ Freshness states:
 | Index future fair value | index × e^((r − q) × days / 365), with r the 3-month Treasury par yield, q the index dividend yield and days to the contract's last trade date. A model, labelled as one. | `DES`, `WEIF` |
 | Fed path | CME FedWatch method: a 30-day fed funds future's implied average rate is 100 − price; a meeting month splits into days before and after the decision. | `WIRP` |
 | Year-on-year and month-on-month rates for US releases | From the published index levels, (level / level a year or a month earlier − 1) × 100, rounded to the decimals the agency publishes. | `ECO`, `ECST` |
-| GDP growth for Japan, Canada, Australia | Real GDP level against the same quarter a year earlier, from OECD series on FRED. Marked * on screen. | `ECST` |
+| GDP growth for Japan, Canada, Australia | Real GDP level against the same quarter a year earlier: Japan's Cabinet Office series and the IMF's International Financial Statistics for Canada and Australia, on FRED. Marked * on screen. | `ECST` |
+| Canada inflation | 12-month change of Statistics Canada's all-items CPI, from the published index as StatCan works it out. | `ECST` |
 | Option Greeks | Black-Scholes-Merton with each contract's implied volatility from the source. | `OMON`, `OVME` |
 
-Published rates are shown as published, not recalculated: Eurostat's HICP annual rate, GDP growth and unemployment; the ONS's CPI annual rate, GDP growth and unemployment; BEA's real GDP growth.
+Published rates are shown as published, not recalculated: Eurostat's HICP annual rate, GDP growth and unemployment; the ONS's CPI annual rate, GDP growth and unemployment; BEA's real GDP growth; Statistics Canada's and the ABS's unemployment rates; the ABS's monthly CPI annual change.
 
 ## Periods and dates
 

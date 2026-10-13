@@ -22,6 +22,8 @@ In the desktop app, every request below goes out from the Electron main process 
 | Ministry of Finance Japan | JGB yields | CSV download | None | Enabled |
 | Office for National Statistics | UK CPI, GDP growth, unemployment | Time series CSV and JSON | None | Enabled |
 | Eurostat | HICP, GDP growth and unemployment for the euro area and its largest members | Statistics API (JSON-stat) | None | Enabled |
+| Statistics Canada | Canada unemployment rate and CPI | Web Data Service | None | Enabled |
+| Australian Bureau of Statistics | Australia unemployment rate and monthly CPI | Data API (SDMX, CSV) | None | Enabled |
 | FRED | US release dates and values; OECD series for Japan, Canada and Australia | FRED API | `FRED_API_KEY` | Enabled once the key is set |
 | SEC EDGAR | Filings and reported company facts | data.sec.gov APIs | `SEC_USER_AGENT` (your contact) | Planned, not connected |
 | Massive (formerly Polygon.io) | US stock end-of-day history | REST API | `MASSIVE_API_KEY` | Planned, not connected |
@@ -90,6 +92,22 @@ The ONS dates each Labour Force Survey rate by the middle month of its three mon
 The app calls the [Statistics API](https://ec.europa.eu/eurostat/web/user-guides/data-browser/api-data-access/api-getting-started/api) for `prc_hicp_minr`, `une_rt_m` and `namq_10_gdp` in JSON-stat, filtered with `sinceTimePeriod`. The [copyright notice](https://ec.europa.eu/eurostat/en/help/copyright-notice): "Reuse of statistical data, metadata, publications, and other dissemination tools published on this website for commercial or non-commercial purposes is authorised provided the source is acknowledged." Modifications to the data "must be stated clearly to the end user".
 
 The app keeps Eurostat's status flags: "e" (estimated, as for flash estimates) and "p" (provisional), and ECST shows them next to the period. For the euro area it uses geo code EA, the series Eurostat headlines: its July 2026 rate, 2.9%, matches the euro area rate in Eurostat's release for that month, while the fixed-composition EA21 series reads 3.0%.
+
+## Statistics Canada
+
+Checked on 13 October 2026.
+
+- [Web Data Service user guide](https://www.statcan.gc.ca/en/developers/wds/user-guide): the app uses `getDataFromVectorByReferencePeriodRange` for vector 2062815 (unemployment rate, seasonally adjusted) and vector 41690973 (CPI, all items), in one request. "Server limits of 50 requests per second with a individual IP address limit of 25 requests per second."
+- [Open Licence](https://www.statcan.gc.ca/en/terms-conditions/open-licence): "You shall include and maintain the following notice on all licensed rights of the Information: Source: Statistics Canada, name of product, reference date. Reproduced and distributed on an "as is" basis with the permission of Statistics Canada." For figures worked out from it: "Adapted from Statistics Canada, name of product, reference date".
+
+ECST shows the unemployment rate as published and the 12-month CPI change worked out from the published index (StatCan's own method), and names Statistics Canada as the source. Before 13 October 2026 Canada's unemployment came from the OECD's series on FRED, a month behind StatCan, and its inflation was not shown.
+
+## Australian Bureau of Statistics
+
+Checked on 13 October 2026.
+
+- [Data API user guide](https://www.abs.gov.au/about/data-services/application-programming-interfaces-apis/data-api-user-guide): "As of the 29th of November 2024, Data API keys have been removed" and "The Data API is freely accessible without the need for an API key." CSV with `format=csv`. The app reads `ABS,LF,1.0.0/M13.3.1599.20.AUS.M` (unemployment rate, seasonally adjusted) and `ABS,CPI,2.0.0/3.10001.10.50.M` (monthly CPI, all groups, percentage change from a year earlier).
+- [Copyright](https://www.abs.gov.au/website-privacy-copyright-and-disclaimer): "All material presented on this website is provided under a Creative Commons Attribution 4.0 International licence", with exceptions (the coat of arms, the ABS logo, trade marks, microdata, third-party content) that the app does not use.
 
 ## FRED (Federal Reserve Bank of St. Louis)
 

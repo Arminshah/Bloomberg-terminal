@@ -295,7 +295,7 @@ function ECSTReal() {
         title="World Economic Statistics"
         sub={
           <>
-            <RealBadge /> latest published figures with their periods: BEA and BLS, Japan's Cabinet Office, the IMF and the OECD (via FRED), Eurostat, the ONS · policy rates from the central banks
+            <RealBadge /> latest published figures with their periods: BEA and BLS, Japan's Cabinet Office, the IMF and the OECD (via FRED), Eurostat, the ONS, Statistics Canada, the ABS · policy rates from the central banks
           </>
         }
       />
@@ -333,7 +333,7 @@ function ECSTReal() {
         />
       </Section>
       <div className="note">
-        Growth is real GDP against the same quarter a year earlier and inflation the 12-month rate, as each statistics office publishes them: BEA and BLS for the US, Eurostat for the euro area and its members (HICP), the ONS for the UK. US inflation is worked out from the published CPI index the way the BLS does. UK unemployment is the ONS Labour Force Survey rate, an average over the three months shown. For Japan, Canada and Australia, growth is worked out from real GDP levels (marked *): the Cabinet Office's for Japan and the IMF's International Financial Statistics for Canada and Australia, via FRED. Their unemployment is the OECD harmonised rate, which comes about a month after each national statistics office publishes its own, and their inflation is not connected yet. The US policy rate is the Fed's target range; the real rate uses its upper limit. FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).
+        Growth is real GDP against the same quarter a year earlier and inflation the 12-month rate, as each statistics office publishes them: BEA and BLS for the US, Eurostat for the euro area and its members (HICP), the ONS for the UK. US inflation is worked out from the published CPI index the way the BLS does. UK unemployment is the ONS Labour Force Survey rate, an average over the three months shown. Canada's unemployment and inflation are Statistics Canada's (inflation adapted from its CPI index, the way StatCan works it out), Australia's the ABS's. For Japan, Canada and Australia, growth is worked out from real GDP levels (marked *): the Cabinet Office's for Japan and the IMF's International Financial Statistics for Canada and Australia, via FRED. Japan's unemployment is the OECD harmonised rate, which comes about a month after the Statistics Bureau publishes its own, and Japan's inflation is not connected yet. The US policy rate is the Fed's target range; the real rate uses its upper limit. FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).
       </div>
     </div>
   );

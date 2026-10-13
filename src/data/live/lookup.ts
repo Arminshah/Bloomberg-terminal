@@ -18,7 +18,8 @@ import { adoptYahooHistory, barsFromChart, yahooGet, type Dividend } from './yah
 export type OfficialSource =
   | 'effr' | 'sofr' | 'nyfed' | 'fomc' | 'ecb' | 'boe' | 'boc' | 'rba' | 'snb' | 'bcb'
   | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb'
-  | 'ukcpi' | 'ukgdp' | 'ukunemp' | 'estatHicp' | 'estatUnemp' | 'estatGdp';
+  | 'ukcpi' | 'ukgdp' | 'ukunemp' | 'estatHicp' | 'estatUnemp' | 'estatGdp'
+  | 'statcan' | 'absUnemp' | 'absCpi';
 
 declare global {
   interface Window {

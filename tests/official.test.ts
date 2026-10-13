@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { euroAreaCode, parseBoeColumns, parseBubaCsv, parseJsonStat, parseMofCsv, parseOnsCsv, parseOnsMonths, parseRbaTable, parseSgs, parseSnbCube, parseValetGroup } from '../src/data/live/official';
+import { euroAreaCode, parseAbsCsv, parseBoeColumns, parseBubaCsv, parseJsonStat, parseMofCsv, parseOnsCsv, parseOnsMonths, parseRbaTable, parseSgs, parseSnbCube, parseStatcanVectors, parseValetGroup } from '../src/data/live/official';
 import { parseFomcCalendar, parseNyFedLatest } from '../src/data/live/policy';
 import { obsToBars, OFFICIAL_LINES, parseSource } from '../src/data/live/govyields';
 import { fedPath } from '../src/data/fedpath';
@@ -11,6 +11,9 @@ import estatHicp from './fixtures/eurostat-hicp.json?raw';
 import estatUnemp from './fixtures/eurostat-unemp.json?raw';
 import estatGdp from './fixtures/eurostat-gdp.json?raw';
 import onsMgsx from './fixtures/ons-mgsx.json?raw';
+import statcanJson from './fixtures/statcan-unemp-cpi.json?raw';
+import absUnemp from './fixtures/abs-unemp.csv?raw';
+import absCpi from './fixtures/abs-cpi.csv?raw';
 
 // Excerpts of what each source returned on 12 Oct 2026.
 const BUBA = `\uFEFF"",BBSIS.D.I.ZST.ZI.EUR.S1311.B.A604.R10XX.R.A.A._Z._Z.A,BBSIS.D.I.ZST.ZI.EUR.S1311.B.A604.R10XX.R.A.A._Z._Z.A_FLAGS,BBSIS.D.I.ZST.ZI.EUR.S1311.B.A604.R30XX.R.A.A._Z._Z.A,BBSIS.D.I.ZST.ZI.EUR.S1311.B.A604.R30XX.R.A.A._Z._Z.A_FLAGS
@@ -383,5 +386,32 @@ describe('statistics offices', () => {
     expect(labels.get('2025-01-01')).toBe('Nov 2024-Jan 2025');
     expect(labels.get('2025-02-01')).toBe('Dec 2024-Feb 2025');
     expect(obs.map(([d]) => d)).toEqual(['2025-01-01', '2025-02-01', '2026-05-01', '2026-06-01', '2026-07-01']);
+  });
+});
+
+describe('national statistics offices for Canada and Australia', () => {
+  // Statistics Canada's Web Data Service and the ABS Data API, as they answered on 13 October 2026.
+  it('reads the Canadian unemployment rate and CPI, newest month last', () => {
+    const v = parseStatcanVectors(statcanJson);
+    const un = v.get(2062815)!;
+    // September's Labour Force Survey, released 9 October: 6.5%.
+    expect(un[un.length - 1]).toEqual(['2026-09-01', 6.5]);
+    const cpi = v.get(41690973)!;
+    expect(cpi[cpi.length - 1]).toEqual(['2026-08-01', 169.8]);
+    // The 12-month change as StatCan works it out from the published index: 3.0% in August.
+    expect(valueAt(cpi, '2026-08-01', 'yoy', 'm')).toBeCloseTo((169.8 / 164.8 - 1) * 100, 6);
+    expect(parseStatcanVectors('not json').size).toBe(0);
+  });
+
+  it('reads the ABS unemployment rate and the monthly CPI annual change, in date order', () => {
+    const un = parseAbsCsv(absUnemp);
+    expect(un[un.length - 1][0]).toBe('2026-08-01');
+    // August's Labour Force release: "The seasonally adjusted unemployment rate rose to 4.6 per cent".
+    expect(un[un.length - 1][1]).toBeCloseTo(4.646, 2);
+    const cpi = parseAbsCsv(absCpi);
+    expect(cpi.map((x) => x[0])).toEqual([...cpi.map((x) => x[0])].sort());
+    // "CPI rose 4.0% in the year to August 2026".
+    expect(cpi.find((x) => x[0] === '2026-08-01')?.[1]).toBe(4);
+    expect(parseAbsCsv('nothing,here')).toEqual([]);
   });
 });
