@@ -67,15 +67,21 @@ describe('provider status', () => {
   const def = (id: string) => PROVIDERS.find((p) => p.id === id)!;
 
   it('says what each provider is doing from its policy, key and last requests', () => {
-    expect(providerState(def('yahoo'), report, 'live')).toBe('live');
+    // Times in this report are a few seconds after the epoch; `now` is set to match.
+    const now = 3500;
+    expect(providerState(def('yahoo'), report, 'live', now)).toBe('live');
+    // A provider asked continually that has not answered for several rounds is stale.
+    expect(providerState(def('yahoo'), report, 'live', 2000 + 4 * 60_000)).toBe('stale');
+    // Its switch off: switched off, whatever its last answers.
+    expect(providerState(def('yahoo'), { ...report, settings: { YAHOO_PRICES_ENABLED: { label: 'Yahoo', value: false, source: 'saved in this app' } } }, 'live', now)).toBe('switched-off');
     expect(providerState(def('fred'), report)).toBe('not-configured');
     expect(providerState(def('fred'), { ...report, credentials: { FRED_API_KEY: { label: 'FRED', configured: true, valid: true, source: 'environment' } } })).toBe('idle');
     expect(providerState(def('finnhub'), report)).toBe('disabled');
     expect(providerState(def('sec'), report)).toBe('not-configured');
     expect(providerState(def('massive'), report)).toBe('planned');
-    expect(providerState(def('yahoo'), { ...report, providers: { yahoo: { ...report.providers.yahoo, lastErrorAt: 3000 } } })).toBe('error');
+    expect(providerState(def('yahoo'), { ...report, providers: { yahoo: { ...report.providers.yahoo, lastErrorAt: 3000 } } }, undefined, now)).toBe('error');
     // A symbol without data is an answer, not an outage.
-    expect(providerState(def('yahoo'), { ...report, providers: { yahoo: { ...report.providers.yahoo, lastErrorAt: 3000, lastErrorKind: 'no-data' } } }, 'live')).toBe('live');
+    expect(providerState(def('yahoo'), { ...report, providers: { yahoo: { ...report.providers.yahoo, lastErrorAt: 3000, lastErrorKind: 'no-data' } } }, 'live', now)).toBe('live');
   });
 
   it('lists official pages and a check date for every provider', () => {
@@ -98,5 +104,21 @@ describe('quote timing', () => {
     expect(timingOf({ quoteSourceName: 'Delayed Quote', exchangeDataDelayedBy: 0 }).timing).toBe('unknown');
     expect(timingOf({ quoteSourceName: 'CoinMarketCap', exchangeDataDelayedBy: 0 }).timing).toBe('unknown');
     expect(timingOf({}).timing).toBe('unknown');
+  });
+});
+
+describe('provider accounting for the status page', () => {
+  it('records when a request went out and how long a successful one took', () => {
+    const t = providers.recordRequest('latency-test');
+    providers.recordResult('latency-test', 200, undefined, t - 120);
+    const st = providers.providerStats()['latency-test'];
+    expect(st.lastAttemptAt).toBe(t);
+    expect(st.lastLatencyMs).toBeGreaterThanOrEqual(120);
+    // A failure keeps the last good latency and records its kind.
+    providers.recordRequest('latency-test');
+    providers.recordResult('latency-test', 429);
+    const after = providers.providerStats()['latency-test'];
+    expect(after.lastErrorKind).toBe('rate-limited');
+    expect(after.lastLatencyMs).toBe(st.lastLatencyMs);
   });
 });

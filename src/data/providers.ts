@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { FeedStatus } from './live/status';
+import type { FeedName } from './live/status';
 
 /**
  * Every data provider the app uses or has planned, with what it serves, the
@@ -28,7 +28,11 @@ export interface ProviderDef {
   policy: ProviderPolicy;
   credential?: Credential;
   /** The feed light this provider drives, if any. */
-  feed?: keyof Omit<FeedStatus, 'detail'>;
+  feed?: FeedName;
+  /** The switch that turns it off, for providers that have one. */
+  setting?: SettingName;
+  /** How often the app asks while it runs: longer without an answer counts as stale. */
+  cadenceMs?: number;
   /** The app's own ceiling on requests, below what the provider allows. */
   limit?: string;
   /** Conditions of use that matter for this app, in one or two sentences. */
@@ -57,6 +61,8 @@ export const PROVIDERS: ProviderDef[] = [
     serves: 'Quotes, price history, company profiles and statements, holders, symbol search; crypto only when Kraken is off. Options chains, news and analyst data are switched off.',
     dataClass: 'Yahoo Finance quote: live or delayed as Yahoo labels each exchange; history end of day',
     policy: 'enabled',
+    setting: 'YAHOO_PRICES_ENABLED',
+    cadenceMs: 60_000,
     feed: 'market',
     terms: 'Personal use only and no redistribution (Yahoo\'s help page). Yahoo\'s terms of service forbid collecting data by automated means without permission: a known risk this private app accepts. The endpoints are undocumented and can change or stop without notice.',
     docs: [
@@ -73,6 +79,8 @@ export const PROVIDERS: ProviderDef[] = [
     serves: 'Crypto prices, best bid and offer, the UTC day\'s range and volume, daily and 5-minute candles, and order books for 10 USD pairs',
     dataClass: 'Exchange data: one exchange\'s market, real time as of each snapshot (Kraken\'s server time)',
     policy: 'enabled',
+    setting: 'KRAKEN_ENABLED',
+    cadenceMs: 15_000,
     feed: 'crypto',
     limit: '60',
     terms: 'Kraken\'s terms let you use its content, pricing data included, only for your own benefit, and restrict bots and third-party applications without its consent (Global Terms of 6 Oct 2026, sections 8 and 9): a risk this private app accepts. The public REST API is Kraken\'s documented interface for market data; the app sends at most one request a second, as Kraken\'s support pages advise.',
@@ -90,6 +98,7 @@ export const PROVIDERS: ProviderDef[] = [
     serves: 'Market capitalisation and circulating supply of the listed coins (CRYP, DES)',
     dataClass: 'Aggregated across exchanges; reference figures, not a price',
     policy: 'needs-credential',
+    cadenceMs: 10 * 60_000,
     credential: 'COINGECKO_API_KEY',
     limit: '10',
     terms: 'Free Demo plan with your own key: 10,000 calls a month, 100 a minute, attribution required ("Powered by CoinGecko"). The API terms discourage storing data and rule out redistributing access. The app asks every 10 minutes and keeps the answer in memory only.',
@@ -107,6 +116,7 @@ export const PROVIDERS: ProviderDef[] = [
     serves: 'Price updates pushed as trades print, for the securities on screen',
     dataClass: 'Yahoo Finance quote (streamed)',
     policy: 'enabled',
+    setting: 'YAHOO_PRICES_ENABLED',
     terms: 'Same as Yahoo Finance.',
     docs: [{ label: 'Exchanges, data providers and delays', url: 'https://help.yahoo.com/kb/finance/SLN2310.html' }],
     checked: CHECKED,
@@ -460,11 +470,17 @@ export interface CredentialState {
 export interface ProviderStats {
   lastMinute: number;
   total: number;
+  /** When a request last went out. */
+  lastAttemptAt?: number | null;
+  /** How long the last successful request took (ms). */
+  lastLatencyMs?: number | null;
   lastSuccessAt: number | null;
   lastErrorAt: number | null;
   lastError: string | null;
   lastErrorKind: string | null;
 }
+
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED';
 
 export interface SettingState {
   label: string;
@@ -475,7 +491,7 @@ export interface SettingState {
 export interface ProviderReport {
   credentials: Partial<Record<Credential, CredentialState>>;
   /** Switches that are not secrets, such as YAHOO_PRICES_ENABLED. */
-  settings?: Partial<Record<'YAHOO_PRICES_ENABLED', SettingState>>;
+  settings?: Partial<Record<SettingName, SettingState>>;
   providers: Record<string, ProviderStats>;
 }
 
@@ -505,16 +521,19 @@ export function useProviderReport(refreshMs = 3000): [ProviderReport | null, () 
   return [report, () => setN((x) => x + 1)];
 }
 
-export type ProviderState = 'live' | 'ok' | 'idle' | 'error' | 'not-configured' | 'planned' | 'disabled';
+export type ProviderState = 'live' | 'ok' | 'idle' | 'error' | 'stale' | 'not-configured' | 'switched-off' | 'planned' | 'disabled';
 
-/** One word for a provider's state from its policy, credential and recent requests. */
-export function providerState(def: ProviderDef, report: ProviderReport | null, feed?: string): ProviderState {
+/** One word for a provider's state from its policy, switch, credential and recent requests. */
+export function providerState(def: ProviderDef, report: ProviderReport | null, feed?: string, now = Date.now()): ProviderState {
   if (def.policy === 'disabled') return 'disabled';
   if (def.policy === 'planned') return 'planned';
+  if (def.setting && report?.settings?.[def.setting]?.value === false) return 'switched-off';
   if (def.credential && !report?.credentials[def.credential]?.configured) return 'not-configured';
   const s = report?.providers[def.id];
   // "No data" for one symbol or series is an answer, not a failure of the provider.
   if (s?.lastErrorAt && s.lastErrorKind !== 'no-data' && (!s.lastSuccessAt || s.lastErrorAt > s.lastSuccessAt)) return 'error';
+  // A provider the app asks continually that has not answered for several rounds.
+  if (def.cadenceMs && s?.lastSuccessAt && now - s.lastSuccessAt > 3 * def.cadenceMs) return 'stale';
   if (feed === 'live' && s?.lastSuccessAt) return 'live';
   if (s?.lastSuccessAt) return 'ok';
   return 'idle';

@@ -169,7 +169,7 @@ const stats = new Map();
 function entry(provider) {
   let s = stats.get(provider);
   if (!s) {
-    s = { times: [], total: 0, lastSuccessAt: null, lastErrorAt: null, lastError: null, lastErrorKind: null };
+    s = { times: [], total: 0, lastAttemptAt: null, lastSuccessAt: null, lastLatencyMs: null, lastErrorAt: null, lastError: null, lastErrorKind: null };
     stats.set(provider, s);
   }
   return s;
@@ -189,18 +189,22 @@ function errorKind(status, err) {
   return 'provider-error';
 }
 
+/** Counts a request going out; returns its start time, for the latency. */
 function recordRequest(provider) {
   const s = entry(provider);
   const now = Date.now();
   s.times.push(now);
   s.total++;
+  s.lastAttemptAt = now;
   while (s.times.length && s.times[0] < now - 60_000) s.times.shift();
+  return now;
 }
 
-function recordResult(provider, status, err) {
+function recordResult(provider, status, err, startedAt) {
   const s = entry(provider);
   if (!err && status >= 200 && status < 300) {
     s.lastSuccessAt = Date.now();
+    if (typeof startedAt === 'number') s.lastLatencyMs = s.lastSuccessAt - startedAt;
     return;
   }
   s.lastErrorAt = Date.now();
@@ -241,7 +245,7 @@ function providerStats() {
   const out = {};
   for (const [provider, s] of stats) {
     while (s.times.length && s.times[0] < now - 60_000) s.times.shift();
-    out[provider] = { lastMinute: s.times.length, total: s.total, lastSuccessAt: s.lastSuccessAt, lastErrorAt: s.lastErrorAt, lastError: s.lastError, lastErrorKind: s.lastErrorKind };
+    out[provider] = { lastMinute: s.times.length, total: s.total, lastAttemptAt: s.lastAttemptAt, lastSuccessAt: s.lastSuccessAt, lastLatencyMs: s.lastLatencyMs, lastErrorAt: s.lastErrorAt, lastError: s.lastError, lastErrorKind: s.lastErrorKind };
   }
   return out;
 }

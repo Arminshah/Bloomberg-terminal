@@ -52,10 +52,10 @@ function fromApp(event) {
 
 /** Sends a request on behalf of `provider`, counting it and recording how it ended. */
 async function tracked(provider, url, init) {
-  providers.recordRequest(provider);
+  const started = providers.recordRequest(provider);
   try {
     const res = await net.fetch(url, init);
-    providers.recordResult(provider, res.status);
+    providers.recordResult(provider, res.status, undefined, started);
     return res;
   } catch (err) {
     providers.recordResult(provider, 0, err);
