@@ -113,7 +113,7 @@ export function DEPTH({ sec }: FnProps) {
       <div>
         <FnHeader code="DEPTH" title="Market Depth" sec={s} sub={<BookSource id={s.id} />} />
         <QuoteStrip sec={s} />
-        <Section title="Top of book">
+        <Section title="Top of book" right={engine.quote(s.id)?.src === 'CLOSE' ? 'outside the regular session' : undefined}>
           <TopOfBook sec={s} />
         </Section>
         <div className="note">The desktop app shows the best bid and offer the source publishes. Full order book depth needs an exchange data feed, so no levels behind the top are shown.</div>

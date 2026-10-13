@@ -82,7 +82,7 @@ export function RV({ sec }: FnProps) {
     <div>
       <FnHeader code="RV" title="Relative Valuation" sec={s} sub={
           <>
-            Peers: {s.eq!.industry} ·{' '}
+            Peers from the built-in list: {s.eq!.industry}, then {s.eq!.sector} ·{' '}
             {desktopData() ? (
               loaded + failed < group.length ? (
                 `Loading real data, ${loaded} of ${group.length} companies…`

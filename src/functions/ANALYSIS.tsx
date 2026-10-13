@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { RealBadge, SimBadge, sourceLabel } from '../components/Source';
-import { atmVolAt, useRealExpiries } from '../data/live/yopt';
+import { atmVolAt, expiryInstant, useRealExpiries } from '../data/live/yopt';
 import { useIndexComponents, useYahooQuotes } from '../data/live/yquotes';
 import { useFundamentals } from '../data/live/yfund';
 import { DataTable } from '../components/DataTable';
@@ -9,6 +9,7 @@ import { XYChart, type XYSeries } from '../components/chart/XYChart';
 import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
+import { DAY_MS } from '../data/calendar';
 import { horizonStart, marketCapUsd, type Horizon } from '../data/analytics';
 import { dividends, financials, hasRealStatements, majorPrice } from '../data/fundamentals';
 import { atmVol, dividendYield } from '../data/options';
@@ -87,7 +88,8 @@ export function TRA({ sec }: FnProps) {
   const series: XYSeries[] = [
     { label: `${s.ticker} total return`, color: '#ffb547', points: a.t.map((t, i) => ({ x: t, y: a.total[i] })) },
     { label: `${s.ticker} price return`, color: '#c9d3df', dash: [4, 3], points: a.t.map((t, i) => ({ x: t, y: a.price[i] })) },
-    { label: `${engine.get(bench)!.ticker} total return`, color: '#5aa7ff', points: b.t.map((t, i) => ({ x: t, y: b.total[i] })) },
+    // An index has no dividend history here: its total return adds today's dividend yield day by day, an approximation.
+    { label: `${engine.get(bench)!.ticker} total return${engine.get(bench)!.cls === 'index' ? ' (approx.)' : ''}`, color: '#5aa7ff', points: b.t.map((t, i) => ({ x: t, y: b.total[i] })) },
   ];
   const divSum = a.divs.reduce((x, d) => x + d.amount, 0);
   return (
@@ -119,7 +121,7 @@ export function TRA({ sec }: FnProps) {
               ['Dividends (ex in period)', s.eq ? `${fmtNum(divSum, 4)} ${s.ccy} · ${a.divs.length} payments` : s.cls === 'index' ? `${fmtNum(dividendYield(s) * 100, 2)}% yield accrued` : 'None'],
               ['Total return', <Chg key="t" v={last(a.total)} pct />],
               ['Annualised total return', <Chg key="a" v={ann(last(a.total))} pct />],
-              [`Benchmark total return`, <Chg key="b" v={last(b.total)} pct />],
+              [`Benchmark total return${engine.get(bench)!.cls === 'index' ? ' (approx.: price plus the current dividend yield, daily)' : ''}`, <Chg key="b" v={last(b.total)} pct />],
               ['Excess return', <Chg key="x" v={last(a.total) - last(b.total)} pct />],
               ['Volatility (ann.)', `${fmtNum(vol, 1)}%`],
               ['Max drawdown', `${fmtNum(dd, 1)}%`],
@@ -324,7 +326,9 @@ export function HVT({ sec }: FnProps) {
   const realIv = listed.status === 'ok' && listed.atmTerm.length > 0;
   const showIv = optionable && (realIv || !engine.realOnly);
   const iv = !showIv ? NaN : realIv ? atmVolAt(listed.atmTerm, 30) : atmVol(s, 30 / 365) * 100;
-  const iv3 = !showIv ? NaN : realIv ? atmVolAt(listed.atmTerm, 91) : atmVol(s, 91 / 365) * 100;
+  // A 3-month implied vol needs a loaded expiry at least that far out; otherwise it would be a shorter tenor's.
+  const reaches91 = listed.atmTerm.some((x) => (expiryInstant(x.expiry) - engine.now()) / DAY_MS >= 88);
+  const iv3 = !showIv ? NaN : realIv ? (reaches91 ? atmVolAt(listed.atmTerm, 91) : NaN) : atmVol(s, 91 / 365) * 100;
   const ivNote = engine.realOnly && optionable && !realIv ? (listed.status === 'loading' ? 'Loading listed options…' : 'No listed options from the source') : undefined;
   const all30 = Array.from(vols[2].subarray(from, n)).filter(Number.isFinite);
   return (

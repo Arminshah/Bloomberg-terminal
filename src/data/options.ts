@@ -19,9 +19,12 @@ export interface OptionQuote {
   gamma: number;
   theta: number;
   vega: number;
+  /** Contracts traded today only (a listed contract's last trade can be weeks old). */
   volume: number;
   oi: number;
   ticker: string;
+  /** When the contract last traded (epoch ms), when the source says. */
+  lastTraded?: number;
 }
 
 export interface ExpiryChain {

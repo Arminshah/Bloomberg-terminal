@@ -39,7 +39,9 @@ export function ANR({ sec }: FnProps) {
               <div style={{ fontSize: 28, fontWeight: 600 }} className={c.score >= 4 ? 'up' : c.score >= 3 ? 'yellow' : 'dn'}>
                 {fmtNum(c.score, 2)}
               </div>
-              <div className="muted">5 = Buy · 1 = Sell</div>
+              <div className="muted" title="Average of the ratings: strong buy 5, buy 4, hold 3, sell 2, strong sell 1">
+                5 strong buy · 3 hold · 1 strong sell · {c.n} ratings
+              </div>
             </div>
             <div>
               <div className="muted">12M target</div>

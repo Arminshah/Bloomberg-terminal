@@ -20,7 +20,7 @@ const IS: Row[] = [
   { label: 'Selling, general & admin', get: (p) => -p.sga, indent: true },
   { label: 'Research & development', get: (p) => -p.rnd, indent: true },
   { label: 'Operating income', get: (p) => p.opInc, bold: true },
-  { label: 'Net interest income (expense)', get: (p) => -p.interest, indent: true },
+  { label: 'Interest expense', get: (p) => -p.interest, indent: true },
   { label: 'Pretax income', get: (p) => p.pretax },
   { label: 'Income tax', get: (p) => -p.tax, indent: true },
   { label: 'Net income', get: (p) => p.ni, bold: true },
@@ -129,8 +129,10 @@ export function FA({ sec }: FnProps) {
               const last = vals[quarterly ? vals.length - 1 : vals.length - 2];
               const prev = vals[quarterly ? vals.length - 2 : vals.length - 3];
               // Growth of magnitude; for cost lines (negative values) a rise is shown as a negative.
+              // From a loss to a profit, or back, a percentage means nothing: shown as --.
               const cost = prev < 0 && last < 0;
-              const g = r.pct ? last - prev : prev !== 0 ? ((Math.abs(last) - Math.abs(prev)) / Math.abs(prev)) * 100 * (cost ? -1 : 1) : NaN;
+              const flipped = prev * last < 0;
+              const g = r.pct ? last - prev : prev !== 0 && !flipped ? ((Math.abs(last) - Math.abs(prev)) / Math.abs(prev)) * 100 * (cost ? -1 : 1) : NaN;
               return (
                 <tr key={r.label}>
                   <td className={r.bold ? 'amber b' : 'amber'} style={r.indent ? { paddingLeft: 18 } : undefined}>

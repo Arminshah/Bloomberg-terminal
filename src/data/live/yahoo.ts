@@ -631,6 +631,7 @@ class YahooData {
         bars.push({ t: ts * 1000, o, h, l, c, v: t.invert ? 0 : (q.volume?.[i] ?? 0) });
       });
       if (!bars.length) return;
+      dropVolumeSpikes(bars, Number(r.meta?.regularMarketVolume));
       engine.setExternalIntraday(id, bars, 60_000, localDay(r.timestamp[r.timestamp.length - 1], gmt));
       engine.flush([id]);
     } catch {
@@ -639,6 +640,26 @@ class YahooData {
       this.intradayActive--;
     }
   }
+}
+
+/**
+ * Minute bars whose volumes add up to clearly more than the day's volume carry a bad print
+ * (Nebius on 12 Oct 2026: one minute of 10.6M shares in a 13.9M-share day). The volume of a
+ * bar more than 50 times the median minute is dropped then; its prices stay. Returns how many.
+ */
+export function dropVolumeSpikes(bars: { v: number }[], dayVolume: number): number {
+  const total = bars.reduce((a, b) => a + (b.v || 0), 0);
+  if (!(dayVolume > 0) || total <= dayVolume * 1.1) return 0;
+  const sorted = bars.map((b) => b.v || 0).filter((v) => v > 0).sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
+  let dropped = 0;
+  for (const b of bars) {
+    if (median > 0 && b.v > median * 50) {
+      b.v = 0;
+      dropped++;
+    }
+  }
+  return dropped;
 }
 
 let service: YahooData | null = null;

@@ -79,7 +79,8 @@ export function BQ({ sec }: FnProps) {
           </div>
           <KV
             items={[
-              ['Bid / Ask', Number.isFinite(q.bid) ? `${fmtNum(q.bid, s.dec)} / ${fmtNum(q.ask, s.dec)}` : '--'],
+              // Outside the regular session the source's bid and offer are extended-hours quotes.
+              [q.src === 'CLOSE' ? 'Bid / Ask (outside session)' : 'Bid / Ask', Number.isFinite(q.bid) ? `${fmtNum(q.bid, s.dec)} / ${fmtNum(q.ask, s.dec)}` : '--'],
               ['Open', fmtNum(q.open, s.dec)],
               ['Day high / low', `${fmtNum(q.high, s.dec)} / ${fmtNum(q.low, s.dec)}`],
               ['Previous close', fmtNum(q.prevClose, s.dec)],
@@ -98,7 +99,7 @@ export function BQ({ sec }: FnProps) {
       <div className="cols">
         {tradable ? (
           engine.realOnly ? (
-            <Section title="Best bid and offer" right="level 1 from the source">
+            <Section title="Best bid and offer" right={q.src === 'CLOSE' ? 'level 1 from the source, outside the regular session' : 'level 1 from the source'}>
               <TopOfBook sec={s} />
             </Section>
           ) : (
@@ -121,7 +122,7 @@ export function BQ({ sec }: FnProps) {
                 ['Market cap', `${fmtMln(ks.mcap)} ${ks.tradeCcy}`],
                 ['P/E LTM / FY1', `${fmtNum(ks.pe, 1)} / ${fmtNum(ks.fpe, 1)}`],
                 ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
-                ['Beta', fmtNum(ks.beta, 2)],
+                ['Beta (5Y monthly)', fmtNum(ks.beta, 2)],
                 ['Next earnings', ne ? fmtEarnDate(ne) : '--'],
                 ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
               ]}

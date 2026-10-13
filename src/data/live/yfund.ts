@@ -110,7 +110,9 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
   const capex = Math.abs(M(g('CapitalExpenditure')));
   const cfo = M(g('OperatingCashFlow'));
   const fcfRaw = M(g('FreeCashFlow'));
-  const ebitda = M(g('EBITDA'));
+  // Operating income plus depreciation and amortisation. The feed's own EBITDA starts from pretax income,
+  // so it carries non-operating gains such as revaluations of investments.
+  const ebitdaFeed = M(g('EBITDA'));
   return {
     label,
     end,
@@ -121,7 +123,7 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
     rnd: M(g('ResearchAndDevelopment')),
     opInc,
     da,
-    ebitda: Number.isFinite(ebitda) ? ebitda : opInc + da,
+    ebitda: Number.isFinite(opInc) && Number.isFinite(da) ? opInc + da : ebitdaFeed,
     interest: M(g('InterestExpense')),
     pretax: M(g('PretaxIncome')),
     tax: M(g('TaxProvision')),
@@ -321,16 +323,20 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   }
   const nextDate = num(cal.earningsDate?.[0]) * 1000;
   if (Number.isFinite(nextDate)) {
-    const estimated = cal.isEarningsDateEstimate === true;
+    // Confirmed only when the source says so and has the earnings call on that date; the source
+    // also marks dates the company has not announced as confirmed.
+    const callSet = Number.isFinite(callDate) && callDate >= nextDate - DAY_MS;
+    const estimated = cal.isEarningsDateEstimate === true || !callSet;
     earnings.push({
       period: nq?.label ?? 'Next',
       date: nextDate,
       approx: estimated,
-      estimate: Number.isFinite(num(cal.earningsAverage)) ? num(cal.earningsAverage) : (nq?.eps ?? NaN),
+      // The quarter's consensus from the same estimates as the annual rows; the calendar's own figure only without it.
+      estimate: Number.isFinite(nq?.eps ?? NaN) ? nq!.eps : num(cal.earningsAverage),
       actual: null,
       surprise: null,
       timing: !estimated && def.country === 'US' ? usTiming(nextDate) : '--',
-      revEst: Number.isFinite(num(cal.revenueAverage)) ? M(num(cal.revenueAverage)) : (nq?.rev ?? NaN),
+      revEst: Number.isFinite(nq?.rev ?? NaN) ? nq!.rev : M(num(cal.revenueAverage)),
       revAct: null,
     });
   }
@@ -374,7 +380,9 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         type,
         pct: num(o.pctHeld) * 100,
         shares,
-        change: Number.isFinite(ch) && ch > -1 ? shares - shares / (1 + ch) : 0,
+        // +100% is what the source reports for a new position as well as a doubled one: no share count from it.
+        change: Number.isFinite(ch) && ch > -1 && ch < 1 ? shares - shares / (1 + ch) : ch >= 1 ? NaN : 0,
+        newOrDoubled: ch >= 1,
         filed: num(o.reportDate) * 1000,
         source,
       };

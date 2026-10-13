@@ -152,9 +152,15 @@ function atmIv(leg: Leg | undefined, spot: number): number {
 /** Expiry as an instant: 16:00 New York on the listed day. */
 export const expiryInstant = (yahooDate: number) => yahooDate + 20 * 3600_000;
 
+const NY_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
+/** The New York trading date of an instant, as YYYY-MM-DD. */
+export const nyDay = (ms: number) => NY_DAY.format(new Date(ms));
+
 /** A Yahoo expiry's contracts as the OMON table rows, `count` strikes each side of the money. */
 export function realChain(def: SecurityDef, yahooDate: number, leg: Leg, count: number, now = engine.now()): ExpiryChain {
   const spot = engine.quote(def.id)?.last ?? def.px;
+  // The underlying's latest session: a contract's volume counts only if it traded in that session.
+  const session = nyDay(engine.quote(def.id)?.time ?? now);
   const expiry = expiryInstant(yahooDate);
   const t = Math.max((expiry - now) / (365 * DAY_MS), 1 / (365 * 24));
   const r = riskFree(def);
@@ -178,6 +184,8 @@ export function realChain(def: SecurityDef, yahooDate: number, leg: Leg, count: 
     const bid = num(c?.bid);
     const ask = num(c?.ask);
     const last = num(c?.lastPrice);
+    const traded = num(c?.lastTradeDate) * 1000;
+    const today = Number.isFinite(traded) && nyDay(traded) === session;
     return {
       type,
       strike,
@@ -190,7 +198,9 @@ export function realChain(def: SecurityDef, yahooDate: number, leg: Leg, count: 
       gamma: g?.gamma ?? NaN,
       theta: g?.theta ?? NaN,
       vega: g?.vega ?? NaN,
-      volume: c ? num(c.volume) || 0 : NaN,
+      // The source's volume is for the contract's last trading day, which may be an earlier one.
+      volume: c ? (today ? num(c.volume) || 0 : 0) : NaN,
+      lastTraded: Number.isFinite(traded) ? traded : undefined,
       oi: c ? num(c.openInterest) || 0 : NaN,
       ticker: c ? `${root} ${def.cls === 'equity' ? 'US ' : ''}${exp} ${type}${strike} ${def.cls === 'index' ? 'Index' : 'Equity'}` : '',
     };

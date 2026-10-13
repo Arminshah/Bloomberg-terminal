@@ -20,7 +20,7 @@ Freshness states:
 | --- | --- | --- |
 | `LIVE` | Live (provider-labelled) | The market is open and Yahoo's quote names itself real time. |
 | `DELAYED` | Delayed N min (provider-labelled) | The market is open and the quote gives a delay in minutes. |
-| `UNCONFIRMED` | Timing not confirmed | The market is open and the quote says neither. |
+| `UNCONFIRMED` | Timing not confirmed | The market is open and the quote says neither; or no quote has arrived yet, in which case the price is the latest daily bar's and the time shows only its date ("as of"). |
 | `CLOSE` | Market closed | The market is outside its regular session; the price is the last trade. |
 | `STALE` | Stale | Neither the stream nor the poll has answered for two minutes while the market is open. |
 | `EOD` | End of day | Official end-of-day figures (yields, policy rates). |
@@ -32,6 +32,13 @@ Freshness states:
 | Figure | Formula and inputs | Where |
 | --- | --- | --- |
 | Dividend yield 12M | Dividends with ex-dates in the past 365 days, divided by the live price, both in the unit the line is quoted in. Source: Yahoo's dividend history and quote. | `DES`, `BQ`, `DVD`, `EQS`, `RV` |
+| P/E (LTM) | Price over the LTM diluted EPS shown beside it (the statements' trailing figure, else the sum of the last four quarters); "--" when that EPS is zero or negative. Yahoo's own trailing P/E is used only when the statements give no EPS. | `DES`, `BQ`, `RV`, `EQS` |
+| Enterprise value | Market cap shown, plus total debt, minus cash, from the latest balance sheet in the statements. | `DES`, `RV` |
+| EBITDA | Operating income plus depreciation and amortisation, in every period. The source's own EBITDA starts from pretax income and so includes gains such as revaluations of investments. | `FA`, `GF`, `DES`, `RV` |
+| EV/EBITDA | The enterprise value above over LTM EBITDA as defined above; "--" when EBITDA is zero or negative. | `DES`, `RV` |
+| Holder % Out | A holder's reported position over the shares outstanding now (the source's own percentages use older share counts). "new or 2x" where the source reports +100%, which it uses for a new position as well as a doubled one. | `HDS`, `DES` |
+| Option volume | Contracts traded in the underlying's latest session; a contract that last traded on an earlier day counts as 0, and its last price is greyed with that date. | `OMON` |
+| Next earnings date | Confirmed only when the source says so and has the earnings call on that date; otherwise marked expected (~), without before or after market. | `DES`, `BQ`, `EE`, `EVTS` |
 | Index dividend yield | The same, for the ETF that tracks the index (SPY, QQQ, DIA, IWM). | `DES`, `WEIF`, `OVME` |
 | Index future fair value | index × e^((r − q) × days / 365), with r the 3-month Treasury par yield, q the index dividend yield and days to the contract's last trade date. A model, labelled as one. | `DES`, `WEIF` |
 | Fed path | CME FedWatch method: a 30-day fed funds future's implied average rate is 100 − price; a meeting month splits into days before and after the decision. | `WIRP` |

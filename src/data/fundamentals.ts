@@ -333,7 +333,11 @@ export function keyStats(def: SecurityDef): KeyStats {
     // in book value, enterprise value and sales multiples (Shell's price/book reads 155); those are
     // computed here with the exchange rate instead.
     const mixed = new Set(fx !== 1 ? ['pb', 'ev', 'evEbitda', 'ps'] : []);
-    for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v) && !mixed.has(k)) ks[k] = v as number;
+    // Figures that sit next to their inputs on screen are worked out here from those inputs, so they agree:
+    // P/E from the LTM EPS shown, enterprise value from the market cap and the latest balance sheet, and
+    // EV/EBITDA from those two. The source's own ratios use other bases (Nebius: P/E 164 next to an EPS of -0.08).
+    const own = new Set(['ev', 'evEbitda', ...(Number.isFinite(ltm.eps) ? ['pe'] : [])]);
+    for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v) && !mixed.has(k) && !own.has(k)) ks[k] = v as number;
   } else {
     const yq = yahooQuotes.get(def.id);
     if (yq) {
@@ -585,6 +589,8 @@ export interface Holder {
   pct: number;
   shares: number;
   change: number;
+  /** The source reports +100% both for a new position and for a doubled one. */
+  newOrDoubled?: boolean;
   filed: number;
   source: string;
 }

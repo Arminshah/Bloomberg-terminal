@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { XYChart } from '../components/chart/XYChart';
@@ -11,7 +11,7 @@ import { blackScholes, type OptType } from '../finance/options';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
-import { atmVolAt, expiryInstant, realChain, useRealExpiries, useRealLeg } from '../data/live/yopt';
+import { atmVolAt, expiryInstant, nyDay, realChain, useRealExpiries, useRealLeg } from '../data/live/yopt';
 import { rangeStats } from '../data/analytics';
 import { desktopData } from '../data/live/yahoo';
 import { SimBadge } from '../components/Source';
@@ -82,7 +82,14 @@ function OMONChain({ sec }: FnProps) {
       case 'Ask':
         return fmtNum(o.ask, 2);
       case 'Last':
-        return fmtNum(o.last, 2);
+        // A last price from an earlier session is greyed, with its date on hover.
+        return o.lastTraded != null && nyDay(o.lastTraded) !== nyDay(engine.quote(s.id)?.time ?? engine.now()) ? (
+          <span className="muted" title={`Last traded ${fmtDay(o.lastTraded)}`}>
+            {fmtNum(o.last, 2)}
+          </span>
+        ) : (
+          fmtNum(o.last, 2)
+        );
       case 'IVM':
         return fmtNum(o.iv, 2);
       case 'Volm':
@@ -155,7 +162,7 @@ function OMONChain({ sec }: FnProps) {
         {chain && (
           <span>
             <span className="amber">Fwd</span> {fmtNum(chain.fwd, s.dec)} <span className="amber">ATM IV</span> {fmtNum(chain.atmIv, 2)}% <span className="amber">Rate</span> {fmtNum(chain.rate, 2)}% <span className="amber">Div</span> {fmtNum(chain.div, 2)}%{' '}
-            <span className="amber">P/C vol</span> {fmtNum(putVol / Math.max(1, callVol), 2)}
+            <span className="amber" title="Put over call contracts traded today, over the strikes shown">P/C vol (shown)</span> {fmtNum(putVol / Math.max(1, callVol), 2)}
           </span>
         )}
       </div>
@@ -228,7 +235,10 @@ export function OVME({ sec, route }: FnProps) {
   const s = sec!;
   useTick(1);
   const parts = (route.args ?? '').split(/\s+/);
-  const exps = expiries(engine.now());
+  const listed = useRealExpiries(s);
+  // The listed contracts' expiries when the source has options; the standard calendar only without them.
+  const listedExps = useMemo(() => (listed.status === 'ok' ? listed.expiries.map(expiryInstant).filter((e) => e > engine.now()) : []), [listed.status, listed.expiries]);
+  const exps = listedExps.length ? listedExps : expiries(engine.now());
   const spotLive = engine.quote(s.id)!.last;
   const [type, setType] = useState<OptType>(parts[0] === 'P' ? 'P' : 'C');
   const [strike, setStrike] = useState(() => (Number(parts[1]) > 0 ? Number(parts[1]) : Math.round(spotLive / strikeStep(spotLive)) * strikeStep(spotLive)));
@@ -236,6 +246,11 @@ export function OVME({ sec, route }: FnProps) {
     const p = parts[2] ? Date.parse(`${parts[2]}T20:00:00Z`) : NaN;
     return Number.isFinite(p) ? p : exps[Math.min(3, exps.length - 1)];
   });
+  // Once the listed expiries arrive, a date that is not listed moves to the next listed one.
+  useEffect(() => {
+    if (!listedExps.length || listedExps.includes(expiry)) return;
+    setExpiry(listedExps.find((e) => e >= expiry) ?? listedExps[listedExps.length - 1]);
+  }, [listedExps, expiry]);
   const [spotOverride, setSpotOverride] = useState('');
   // A fourth argument is the listed contract's implied vol, from OMON.
   const [volOverride, setVolOverride] = useState(() => (Number(parts[3]) > 0 ? parts[3] : ''));
@@ -247,7 +262,6 @@ export function OVME({ sec, route }: FnProps) {
   const qSource = dividendYield(s);
   const q = engine.realOnly && !Number.isFinite(qSource) ? 0 : qSource;
   const fwd = spot * Math.exp((r - q) * t);
-  const listed = useRealExpiries(s);
   const listedIv = listed.status === 'ok' && listed.atmTerm.length ? atmVolAt(listed.atmTerm, t * 365) : NaN;
   const realised = rangeStats(s.id).vol30;
   const realDefault = Number.isFinite(listedIv) ? listedIv / 100 : realised / 100;

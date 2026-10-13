@@ -106,6 +106,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
   useTick(5);
   const eq = sec.eq!;
   const ks = keyStats(sec);
+  const est = estimates(sec);
+  const nEst = (n: number) => (Number.isFinite(n) && n > 0 ? ` (${n})` : '');
   const rs = rangeStats(sec.id);
   const ne = nextEarnings(sec);
   const c = consensus(sec);
@@ -143,7 +145,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Enterprise value', Number.isFinite(ks.ev) ? `${fmtMln(ks.ev)} ${ks.ccy}` : '--'],
               ['Shares out', fmtMln(eq.shares)],
               ['Avg volume 30D', fmtBig(rs.avgVol30)],
-              ['Beta vs local index', fmtNum(eq.beta, 2)],
+              ['Beta (source, 5Y monthly)', fmtNum(eq.beta, 2)],
               ['Volatility 30D / 260D', `${fmtNum(rs.vol30, 1)}% / ${fmtNum(rs.vol260, 1)}%`],
             ]}
           />
@@ -161,7 +163,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Payout ratio', fmtPct(ks.payout, 1, false)],
               ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : 'decl.'})` : sec.eq!.dps === 0 ? 'None' : '--'],
               ['EPS LTM', `${fmtNum(ks.epsLtm, 2)} ${ccy}`],
-              ['EPS est. FY1 / FY2', `${fmtNum(ks.epsFy1, 2)} / ${fmtNum(ks.epsFy2, 2)}`],
+              // With the number of analysts behind each average.
+              ['EPS est. FY1 / FY2', `${fmtNum(ks.epsFy1, 2)}${nEst(est.fy1.analysts)} / ${fmtNum(ks.epsFy2, 2)}${nEst(est.fy2.analysts)}`],
               ['Next earnings', ne ? fmtEarnDate(ne) : '--'],
               ['ROE', fmtPct(ks.roe, 1, false)],
               ['Net margin', fmtPct(ks.netMargin, 1, false)],
@@ -171,7 +174,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <span className="amber">Analyst rating</span>
               <span className="white">
-                {fmtNum(c.score, 2)} / 5 · target {fmtNum(c.avg, sec.dec)} · {c.n} analysts
+                {fmtNum(c.score, 2)} / 5 ({c.n} ratings) · target {fmtNum(c.avg, sec.dec)}
+                {Number.isFinite(c.nTargets) ? ` (${c.nTargets} analysts)` : ''}
               </span>
             </div>
             <div style={{ display: 'flex', height: 12, marginTop: 4 }}>
@@ -201,7 +205,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
                 ['Institutions', fmtPct(real.breakdown?.institutions, 2, false)],
                 ['Institutions, % of float', fmtPct(real.breakdown?.institutionsFloat, 2, false)],
                 ['Institutional holders', fmtInt(real.breakdown?.count)],
-                ['Largest holder', real.holders[0] ? `${real.holders[0].name} (${fmtNum(real.holders[0].pct, 2)}%)` : '--'],
+                // Percent of the shares outstanding now, as on HDS (the source's own figure uses an older share count).
+                ['Largest holder', real.holders[0] ? `${real.holders[0].name} (${fmtNum(Number.isFinite(real.stats.shares) && real.stats.shares! > 0 ? (real.holders[0].shares / (real.stats.shares! * 1e6)) * 100 : real.holders[0].pct, 2)}%)` : '--'],
               ]}
             />
             )}

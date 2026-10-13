@@ -25,8 +25,13 @@ export function WACC({ sec }: FnProps) {
   const rf = s.ccy === 'USD' ? engine.quote('USGG10YR Index')!.last : riskFree(s) * 100 + 0.6;
   const ke = rf + adjBeta * erp;
   const ltm = f.ltm;
-  const kdPre = ltm.debt > 0 ? Math.max(rf + 0.8, Math.min(rf + 4, (Math.abs(ltm.interest) / Math.max(ltm.debt, 1)) * 100 + rf * 0.5)) : rf + 1;
-  const taxRate = ltm.pretax > 0 ? ltm.tax / ltm.pretax : 0.21;
+  // The company's effective rate: LTM interest expense over total debt. Without one, the risk-free rate, labelled as assumed.
+  const effective = ltm.debt > 0 && Number.isFinite(ltm.interest) ? (Math.abs(ltm.interest) / ltm.debt) * 100 : NaN;
+  const kdKnown = effective > 0;
+  const kdPre = kdKnown ? effective : rf;
+  // The effective tax rate from the statements; with no pretax profit, the US federal 21%, labelled as assumed.
+  const taxKnown = ltm.pretax > 0 && Number.isFinite(ltm.tax);
+  const taxRate = taxKnown ? ltm.tax / ltm.pretax : 0.21;
   const kd = kdPre * (1 - taxRate);
   const E = ks.mcap;
   const D = ltm.debt;
@@ -59,8 +64,8 @@ export function WACC({ sec }: FnProps) {
         <Section title="Cost of debt">
           <KV
             items={[
-              ['Pre-tax cost of debt', `${fmtNum(kdPre, 2)}%`],
-              ['Effective tax rate', fmtPct(taxRate * 100, 1, false)],
+              ['Pre-tax cost of debt', `${fmtNum(kdPre, 2)}% ${kdKnown ? '(LTM interest / debt)' : '(assumed: risk-free)'}`],
+              [taxKnown ? 'Effective tax rate' : 'Tax rate (assumed)', fmtPct(taxRate * 100, 1, false)],
               ['After-tax cost of debt', <span key="kd" className="white b">{fmtNum(kd, 2)}%</span>],
               ['Total debt', `${fmtMln(D)} ${ccy}`],
             ]}
@@ -85,8 +90,8 @@ export function WACC({ sec }: FnProps) {
               'Terminal growth',
               <input key="g" type="number" step="0.25" className="inp" style={{ width: 80, textAlign: 'right' }} value={growth} onChange={(e) => setGrowth(Number(e.target.value) || 0)} aria-label="Terminal growth" />,
             ],
-            ['Enterprise value', wacc > growth ? `${fmtMln(tv)} ${ccy}` : 'Growth must be below WACC'],
-            ['Implied value per share', wacc > growth ? `${fmtNum(implied, 2)} ${ccy}` : '--'],
+            ['Enterprise value', !(fcf > 0) ? 'n.m. (free cash flow is negative)' : wacc > growth ? `${fmtMln(tv)} ${ccy}` : 'Growth must be below WACC'],
+            ['Implied value per share', fcf > 0 && wacc > growth ? `${fmtNum(implied, 2)} ${ccy}` : '--'],
             ['Current price', `${fmtNum(ks.price, 2)} ${ccy}`],
           ]}
         />
