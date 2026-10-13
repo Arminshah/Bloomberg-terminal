@@ -169,6 +169,10 @@ export interface Quote {
    * makes `chg` and `pct` NaN.
    */
   chgCheck?: 'verified' | 'unverified';
+  /** The market's session as the source states it, apart from how fresh the data is; unset when not known. */
+  session?: 'open' | 'pre' | 'post' | 'overnight' | 'closed';
+  /** The exchange's time zone (IANA name), when the source gives it. */
+  tz?: string;
 }
 
 export interface Bar {

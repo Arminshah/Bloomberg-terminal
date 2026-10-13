@@ -5,11 +5,12 @@ import { setFeed } from './status';
 
 /**
  * Official US Treasury par yields (home.treasury.gov) for the desktop app:
- * every tenor of the generic curve, end of day, ten years of history. Yahoo
- * streams 5Y, 10Y and 30Y during the session; the other tenors have no free
- * intraday source and show the latest official close. The Treasury's 3-month
- * rate is used rather than Yahoo's 13-week bill index, which is quoted on a
- * discount basis and sits below the rest of the curve.
+ * every tenor of the generic US curve, end of day, ten years of history. One
+ * source and one measure for the whole curve, so its slopes and spreads
+ * compare like with like. Intraday yields of the latest auctioned 5, 10 and
+ * 30-year issues are separate lines (Cboe's FVX, TNX and TYX, via Yahoo).
+ * The Treasury's 3-month rate is used rather than the 13-week bill index,
+ * which is quoted on a discount basis and sits below the rest of the curve.
  */
 
 const COLUMNS: Record<string, string> = {
@@ -18,8 +19,11 @@ const COLUMNS: Record<string, string> = {
   '1 Yr': 'USGG12M Index',
   '2 Yr': 'USGG2YR Index',
   '3 Yr': 'USGG3YR Index',
+  '5 Yr': 'USGG5YR Index',
   '7 Yr': 'USGG7YR Index',
+  '10 Yr': 'USGG10YR Index',
   '20 Yr': 'USGG20YR Index',
+  '30 Yr': 'USGG30YR Index',
 };
 
 /** Lines this source owns; the Yahoo service leaves them alone. */

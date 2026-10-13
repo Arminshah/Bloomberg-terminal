@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { DataTable } from '../components/DataTable';
 import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
+import { FreshnessLegend } from '../components/Freshness';
 import { fmtBig, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { rangeStats, toUsd } from '../data/analytics';
@@ -81,6 +82,7 @@ export function MOST(_: FnProps) {
           { key: 'x', label: 'Exch', render: (r) => <span className="muted">{r.d.exch}</span>, hideM: true },
         ]}
       />
+      <FreshnessLegend />
     </div>
   );
 }

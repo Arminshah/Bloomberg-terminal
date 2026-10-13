@@ -241,6 +241,15 @@ export function impliedShares(d: SecurityDef, cap: number, px: number): number {
 }
 
 /** Engine quote from a Yahoo v7 quote. */
+/** Yahoo's marketState outside the regular session: PRE and PREPRE, POST and POSTPOST, CLOSED. */
+export function marketStateOf(q: Json): { state?: 'pre' | 'post' | 'closed' } {
+  const m = String(q?.marketState ?? '');
+  if (m === 'PRE' || m === 'PREPRE') return { state: 'pre' };
+  if (m === 'POST' || m === 'POSTPOST') return { state: 'post' };
+  if (m === 'CLOSED') return { state: 'closed' };
+  return {};
+}
+
 export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | null {
   const last = Number(q.regularMarketPrice);
   const t = Number(q.regularMarketTime);
@@ -267,6 +276,8 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
     bid: n(q.bid) ?? NaN,
     ask: n(q.ask) ?? NaN,
     marketOpen: q.marketState === 'REGULAR',
+    ...marketStateOf(q),
+    ...(typeof q.exchangeTimezoneName === 'string' && q.exchangeTimezoneName ? { tz: q.exchangeTimezoneName } : {}),
     ...timingOf(q),
     fetched: Date.now(),
   };

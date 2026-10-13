@@ -3,10 +3,10 @@ import { engine, useQuote } from '../data/market';
 import { fmtBp, fmtDay, fmtNum, fmtPct, fmtSigned, signClass } from '../core/format';
 import { DAY_MS } from '../data/calendar';
 import type { Quote } from '../data/types';
+import { freshnessOf, type FreshnessLabel } from '../data/freshness';
 import { defaultFnFor, usePanelId } from '../terminal/panel';
 import { LAYOUT_PANELS, navigate, terminal } from '../terminal/state';
 import { settings } from '../terminal/settings';
-import { desktopData } from '../data/live/yahoo';
 import { Flash } from './Flash';
 
 /** Opens a security: plain click in this panel, shift-click in the next panel. */
@@ -86,35 +86,29 @@ export function DayChg({ q, pct, bp, dec = 2, unit = '' }: { q: Quote; pct?: boo
   );
 }
 
-/** Live last price with tick flash. */
+const MARK_CLASS: Partial<Record<FreshnessLabel, string>> = {
+  DELAYED: 'delayed-px',
+  'END OF DAY': 'eod-px',
+  REFERENCE: 'ref-px',
+  STALE: 'stale-px',
+  'DEMO DATA': 'sim-px',
+  'UNKNOWN FRESHNESS': 'unk-px',
+};
+
+/** Live last price with tick flash, marked with its freshness (no mark for real time). */
 export function LivePx({ id, dec }: { id: string; dec?: number }) {
   const q = useQuote(id);
   const def = engine.get(id);
   if (!q || !def) return <span>--</span>;
   const px = <Flash value={q.last}>{fmtNum(q.last, dec ?? def.dec)}</Flash>;
-  // On real data, a line the sources do not cover is marked so it is not read as a market price.
-  if (q.src === 'SIM' && desktopData()) {
-    return (
-      <span className="sim-px" title="Demo data: a simulated price, no real source covers this line">
-        {px}
-      </span>
-    );
-  }
-  if (q.src === 'DELAYED') {
-    return (
-      <span className="delayed-px" title={q.delay ? `Delayed ${q.delay} min, as the source labels it` : 'Delayed, as the source labels it'}>
-        {px}
-      </span>
-    );
-  }
-  if (q.src === 'STALE') {
-    return (
-      <span className="stale-px" title="The data source is not answering: last price received">
-        {px}
-      </span>
-    );
-  }
-  return px;
+  const f = freshnessOf(q, def, Date.now());
+  const cls = f ? MARK_CLASS[f.label] : undefined;
+  if (!f || !cls) return f ? <span title={f.why}>{px}</span> : px;
+  return (
+    <span className={cls} title={`${f.label}: ${f.why}`}>
+      {px}
+    </span>
+  );
 }
 
 export function LiveChg({ id, mode = 'pct' }: { id: string; mode?: 'pct' | 'net' }) {

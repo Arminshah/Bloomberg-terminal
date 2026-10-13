@@ -192,7 +192,13 @@ const usTicker: Record<number, string> = {
 export const RATES: SecurityDef[] = [
   ...curveSet((t) => usTicker[t], 'US Generic Govt', 'US', 'Americas', 'USD', 'US', [
     [0.25, 3.85], [0.5, 3.78], [1, 3.62], [2, 3.5], [3, 3.52], [5, 3.68], [7, 3.88], [10, 4.08], [20, 4.62], [30, 4.68],
-  ], 0.85, { 0.25: '^IRX', 5: '^FVX', 10: '^TNX', 30: '^TYX' }),
+  ], 0.85),
+  // Cboe's Treasury yield indices: yields of the latest auctioned 5, 10 and 30-year issues through the session, via
+  // Yahoo. They measure something else than the Treasury's par yields (USGG lines, end of day), so they are kept
+  // off the US curve and out of its spreads.
+  rate('FVX', 'Cboe 5-Year Treasury Yield Index', 'US', 'Americas', 'USD', 'CBOE', 5, 3.68, 0.85, '^FVX'),
+  rate('TNX', 'Cboe 10-Year Treasury Yield Index', 'US', 'Americas', 'USD', 'CBOE', 10, 4.08, 0.85, '^TNX'),
+  rate('TYX', 'Cboe 30-Year Treasury Yield Index', 'US', 'Americas', 'USD', 'CBOE', 30, 4.68, 0.85, '^TYX'),
   ...curveSet((t) => `GDBR${t}`, 'German Govt Bond', 'DE', 'EMEA', 'EUR', 'DE', [[2, 2.02], [5, 2.3], [10, 2.68], [30, 3.25]], 0.7),
   ...curveSet((t) => `GUKG${t}`, 'UK Gilts', 'GB', 'EMEA', 'GBP', 'GB', [[2, 3.82], [5, 3.98], [10, 4.55], [20, 5.12], [30, 5.3]], 0.85),
   ...curveSet((t) => `GJGB${t}`, 'Japan Govt Bond', 'JP', 'APAC', 'JPY', 'JP', [[2, 1.05], [5, 1.42], [10, 1.95], [30, 3.3]], 0.45),
@@ -209,7 +215,7 @@ export const RATES: SecurityDef[] = [
 ];
 
 const RATE_ALIASES: Record<string, string[]> = {
-  USGG10YR: ['UST10', 'US10Y', 'TNX', '10Y'], USGG2YR: ['US2Y', 'UST2'], USGG30YR: ['US30Y', 'UST30'],
+  USGG10YR: ['UST10', 'US10Y', '10Y'], USGG2YR: ['US2Y', 'UST2'], USGG30YR: ['US30Y', 'UST30'],
   USGG5YR: ['US5Y'], USGG3M: ['US3M', 'TBILL'], GDBR10: ['BUND', 'DE10Y'], GUKG10: ['GILT', 'UK10Y'], GJGB10: ['JGB', 'JP10Y'],
 };
 for (const r of RATES) r.alias = RATE_ALIASES[r.ticker];

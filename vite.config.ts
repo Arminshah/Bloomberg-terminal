@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import type { Plugin } from 'vite';
 
@@ -33,8 +33,12 @@ function csp(): Plugin {
 // scripts/artifact.mjs folds into one self-contained HTML file.
 export default defineConfig(({ mode }) => {
   const single = mode === 'single';
+  // DEMO_MODE=true opens the browser build straight into the demo (simulated data, marked DEMO DATA). Off by
+  // default; only this one switch is read from the environment into the page, never a key.
+  const demo = /^(1|true|yes|on)$/i.test((process.env.DEMO_MODE ?? loadEnv(mode, process.cwd(), '').DEMO_MODE ?? '').trim());
   return {
     base: './',
+    define: { __DEMO_MODE__: JSON.stringify(demo) },
     plugins: single ? [react()] : [react(), csp()],
     build: single
       ? {

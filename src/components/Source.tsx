@@ -75,17 +75,11 @@ export function RatesSource({ curve }: { curve?: string }) {
     );
   }
   if (rates === 'off' || rates === 'connecting') return <>Loading the US Treasury curve…</>;
-  if (rates === 'error') {
-    return (
-      <>
-        <RealBadge /> 5Y, 10Y and 30Y from Yahoo · other US tenors unavailable (Treasury data not answering)
-      </>
-    );
-  }
+  if (rates === 'error') return <>US Treasury yields unavailable right now (the Treasury's data is not answering)</>;
   return (
     <>
-      <RealBadge /> US Treasury par yields: 5Y, 10Y and 30Y live from Yahoo, other tenors official end of day
-      {curve ? null : <> · other countries official end of day</>}
+      <RealBadge /> US Treasury par yields, official end of day, every tenor
+      {curve ? null : <> · other countries official end of day · intraday 5, 10 and 30-year yields on FVX, TNX and TYX (Cboe, via Yahoo)</>}
     </>
   );
 }

@@ -6,7 +6,7 @@ import { terminal } from '../terminal/state';
 
 const TAPE = [
   'SPX Index', 'INDU Index', 'CCMP Index', 'RTY Index', 'VIX Index', 'SX5E Index', 'UKX Index', 'DAX Index', 'NKY Index',
-  'HSI Index', 'EURUSD Curncy', 'USDJPY Curncy', 'GBPUSD Curncy', 'DXY Curncy', 'USGG2YR Index', 'USGG10YR Index',
+  'HSI Index', 'EURUSD Curncy', 'USDJPY Curncy', 'GBPUSD Curncy', 'DXY Curncy', 'USGG2YR Index', 'USGG10YR Index', 'TNX Index',
   'CL1 Comdty', 'CO1 Comdty', 'NG1 Comdty', 'GC1 Comdty', 'SI1 Comdty', 'HG1 Comdty', 'XBTUSD Curncy', 'XETUSD Curncy',
   'NVDA US Equity', 'AAPL US Equity', 'MSFT US Equity',
 ];

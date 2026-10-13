@@ -173,7 +173,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
         </Section>
         {real || engine.realOnly ? (
           <Section title="Ownership" right="HDS for holders">
-            {!real && <p className="pad-s muted">Loading ownership from the company's filings…</p>}
+            {!real && <p className="pad-s muted">Loading ownership from Yahoo Finance (unofficial)…</p>}
             {real && (
             <KV
               items={[

@@ -539,9 +539,14 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .badge.fr-stale { background: #4a1414; color: #ff8a80; }
 .badge.fr-demo { background: var(--amber); color: #000; }
 .badge.fr-unknown { background: var(--bg-4); color: var(--text); }
-.sim-px::after { content: 'SIM'; margin-left: 3px; font-size: 7px; letter-spacing: 0.06em; color: var(--amber); vertical-align: super; }
+.sim-px::after { content: 'DEMO'; margin-left: 3px; font-size: 7px; letter-spacing: 0.06em; color: var(--amber); vertical-align: super; }
 .delayed-px::after { content: 'D'; margin-left: 2px; font-size: 7px; color: var(--muted); vertical-align: super; }
+.eod-px::after { content: 'E'; margin-left: 2px; font-size: 7px; color: var(--muted); vertical-align: super; }
+.ref-px::after { content: 'R'; margin-left: 2px; font-size: 7px; color: var(--magenta); vertical-align: super; }
+.unk-px::after { content: '?'; margin-left: 2px; font-size: 7px; color: var(--muted); vertical-align: super; }
 .stale-px { color: var(--amber); }
+.stale-px::after { content: 'S'; margin-left: 2px; font-size: 7px; color: var(--amber); vertical-align: super; }
+.badge.session { background: var(--bg-3); color: var(--muted); margin-left: 4px; }
 .bar-track { position: relative; height: 10px; background: var(--bg-3); }
 .bar-fill { position: absolute; top: 0; bottom: 0; }
 

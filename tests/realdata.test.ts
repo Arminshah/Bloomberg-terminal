@@ -213,6 +213,8 @@ describe('external lines in the engine', () => {
     expect(q.src).toBe('EOD');
     expect(q.last).toBeCloseTo(5.29, 6);
     expect(q.prevClose).toBeCloseTo(5.28, 6);
+    // Two consecutive values from the same publisher: the change is what it means.
+    expect(q.chgCheck).toBe('verified');
     expect(q.bid).toBeNaN();
     expect(engine.daily(id).c[engine.daily(id).length - 1]).toBeCloseTo(5.29, 6);
   });
@@ -225,8 +227,8 @@ describe('official rates', () => {
     expect(curve.get('USGG2YR Index')!.get(d)).toBe(4.8);
     expect(curve.get('USGG3M Index')!.get(d)).toBe(4.25);
     expect(curve.get('USGG20YR Index')!.get(d)).toBe(5.65);
-    // Yahoo streams 10Y; the Treasury file does not override it.
-    expect(curve.has('USGG10YR Index')).toBe(false);
+    // Every tenor of the US curve comes from the Treasury file: one source and one measure.
+    for (const id of ['USGG5YR Index', 'USGG10YR Index', 'USGG30YR Index']) expect(curve.get(id)!.get(d)).toBeGreaterThan(0);
   });
 
   it("reads each central bank's own format and turns it into moves", () => {

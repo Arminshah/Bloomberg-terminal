@@ -76,6 +76,10 @@ interface ExtData {
   session: number;
   /** Market currently in its regular session. */
   open: boolean;
+  /** Outside the regular session: which part of the day the source says it is, when it says. */
+  state?: 'pre' | 'post' | 'closed';
+  /** The exchange's time zone (IANA name), for showing times as the exchange keeps them. */
+  tz?: string;
   bid: number;
   ask: number;
   seq: number;
@@ -129,6 +133,10 @@ export interface ExtQuote {
   ask?: number;
   /** The market is in its regular session. */
   marketOpen: boolean;
+  /** Outside the regular session: pre-market, after hours or closed, as the source states it. */
+  state?: 'pre' | 'post' | 'closed';
+  /** The exchange's time zone (IANA name). */
+  tz?: string;
   /** Minutes the source says it delays this market's prices. */
   delay?: number;
   /** What the source says about timing; left as it was when not given. */
@@ -1198,6 +1206,9 @@ export class MarketEngine {
     if (st.ext) q.fetched = st.ext.fetched;
     if (st.ext?.extended) q.extended = st.ext.extended;
     if (st.ext?.dayOnly && !st.ext.eod) q.dayOnly = true;
+    if (st.ext?.tz) q.tz = st.ext.tz;
+    // The trading session apart from the data's freshness: unknown for end-of-day series and before the first quote.
+    if (st.ext && !st.ext.eod && !st.ext.dayOnly) q.session = st.ext.open ? 'open' : (st.ext.state ?? st.ext.extended?.session ?? 'closed');
     this.quotes.set(st.def.id, q);
   }
 
@@ -1561,7 +1572,9 @@ export class MarketEngine {
     const kept = prev?.session === last.day && st.chgCheck === 'verified' && before !== undefined && Math.abs(st.prevClose / before.c - 1) <= 1e-3;
     st.prevClose = before ? before.c : NaN;
     st.prevCloseDay = before?.day;
-    st.chgCheck = kept ? 'verified' : 'unverified';
+    // A once-a-day official series has no quote to check against: its change is between two values the same
+    // publisher gave for consecutive dates, which is what the change means.
+    st.chgCheck = kept || (before !== undefined && (opts.eod ?? prev?.eod)) ? 'verified' : 'unverified';
     st.dayOpen = last.o;
     st.dayHigh = s.h[s.length - 1];
     st.dayLow = s.l[s.length - 1];
@@ -1650,6 +1663,9 @@ export class MarketEngine {
     if (q.sourceName !== undefined) ext.sourceName = q.sourceName;
     ext.fetched = q.fetched ?? Date.now();
     ext.open = q.marketOpen;
+    if (q.marketOpen) ext.state = undefined;
+    else if (q.state) ext.state = q.state;
+    if (q.tz) ext.tz = q.tz;
     ext.session = day;
     ext.stale = false;
     ext.time = q.time;

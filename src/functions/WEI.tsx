@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { Chg, DayChg, LivePx, SecLink } from '../components/cells';
+import { FreshnessLegend } from '../components/Freshness';
 import { Flash } from '../components/Flash';
 import { fmtNum, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
@@ -101,6 +102,7 @@ export function WEI(_: FnProps) {
           ))}
         </tbody>
       </table>
+      <FreshnessLegend />
     </div>
   );
 }

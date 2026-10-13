@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
+import { FreshnessLegend } from '../components/Freshness';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtBp, fmtNum, fmtPct, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
@@ -185,6 +186,7 @@ export function W(_: FnProps) {
           })}
         </tbody>
       </table>
+      <FreshnessLegend />
     </div>
   );
 }

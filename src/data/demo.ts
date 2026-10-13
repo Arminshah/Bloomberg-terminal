@@ -6,11 +6,13 @@ const KEY = 'armin:demo';
  * The browser build has no data source of its own (provider terms and browser
  * security rules keep market data in the desktop app), so it opens with the
  * demo off. The demo, a simulator whose every value is marked DEMO DATA, runs
- * only once the user asks for it on this browser or opens the page with
- * ?demo=1. The desktop app never runs it.
+ * only once the user asks for it on this browser, opens the page with
+ * ?demo=1, or builds with DEMO_MODE=true. The desktop app never runs it.
  */
 export function demoMode(): boolean {
   if (desktopData()) return false;
+  // Set at build time with DEMO_MODE=true (see .env.example); false unless asked for.
+  if (__DEMO_MODE__) return true;
   try {
     if (new URLSearchParams(window.location.search).get('demo') === '1') return true;
     return window.localStorage.getItem(KEY) === '1';
