@@ -56,6 +56,10 @@ interface State {
   dayLow: number;
   dayOpen: number;
   prevClose: number;
+  /** Day number of the session `prevClose` closed, when the daily bars give it. */
+  prevCloseDay?: number;
+  /** Real lines: whether the daily bars confirm `prevClose` (verified) or nothing has checked it yet (unverified). */
+  chgCheck?: 'verified' | 'unverified';
   volume: number;
   pair?: { base: string; quote: string };
   bond?: { terms: BondTerms; legs: { id: string; w: number }[]; spread: number; issueDay: number; issuer?: string; issuerRef?: number };
@@ -132,27 +136,42 @@ export interface ExtQuote {
   fetched?: number;
 }
 
+/** A previous close and whether the daily bars confirm it. */
+export interface PrevCloseReading {
+  /** NaN when nothing settles which reading is right: the change is then shown as missing. */
+  value: number;
+  /** It matches the close of the previous daily bar (within 0.1%), so that bar's date is the session it closed. */
+  verified: boolean;
+}
+
 /**
  * The previous session's close for a quote, from the two readings a source
  * gives: its previous-close field and the close its own change implies. Yahoo's
  * field can lag a session (the Hang Seng, Shanghai, TAIEX, ASX 200, Sensex and
  * Nifty on 13 Oct 2026) or already hold the new settlement (CME livestock after
- * the close), while for crypto its change is the odd one out. The reading that
- * matches the close of the previous bar in the daily history wins. When neither
- * matches (the history can be a contract behind after a futures roll), two that
- * agree are kept and two that disagree give NaN, no previous close, rather than
- * a guess. Undefined means the quote carried neither.
+ * the close), while for crypto its change is the odd one out. A reading that
+ * matches the close of the previous bar in the daily history is verified. When
+ * the bars contradict every reading (they can be a contract behind after a
+ * futures roll) there is no previous close (NaN) rather than a guess. With no
+ * previous bar to check against, readings that agree are kept as unverified.
+ * Undefined means the quote carried neither reading.
  */
-export function choosePrevClose(field: number | undefined, implied: number | undefined, histPrev: number): number | undefined {
+export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number): PrevCloseReading | undefined {
   const ok = (x: number | undefined): x is number => x !== undefined && Number.isFinite(x) && x !== 0;
   const c = [field, implied].filter(ok);
-  if (c.length < 2) return c[0];
+  if (!c.length) return undefined;
   const rel = (a: number, b: number) => Math.abs(a - b) / Math.abs(b);
   if (ok(histPrev)) {
-    const best = rel(c[0], histPrev) <= rel(c[1], histPrev) ? c[0] : c[1];
-    if (rel(best, histPrev) <= 1e-3) return best;
+    const best = c.length > 1 && rel(c[1], histPrev) < rel(c[0], histPrev) ? c[1] : c[0];
+    return rel(best, histPrev) <= 1e-3 ? { value: best, verified: true } : { value: NaN, verified: false };
   }
-  return rel(c[0], c[1]) <= 2e-4 ? c[0] : NaN;
+  if (c.length === 1) return { value: c[0], verified: false };
+  return { value: rel(c[0], c[1]) <= 2e-4 ? c[0] : NaN, verified: false };
+}
+
+/** The value part of resolvePrevClose. */
+export function choosePrevClose(field: number | undefined, implied: number | undefined, histPrev: number): number | undefined {
+  return resolvePrevClose(field, implied, histPrev)?.value;
 }
 
 /** Timing as the source labels it: real time, delayed, or not stated (never inferred). */
@@ -1169,6 +1188,10 @@ export class MarketEngine {
     };
     if (st.ext?.delay) q.delay = st.ext.delay;
     if (st.ext?.sourceName) q.sourceName = st.ext.sourceName;
+    if (st.ext) {
+      if (st.prevCloseDay !== undefined) q.prevCloseDay = st.prevCloseDay;
+      if (st.chgCheck) q.chgCheck = st.chgCheck;
+    }
     if (st.ext) q.fetched = st.ext.fetched;
     if (st.ext?.extended) q.extended = st.ext.extended;
     if (st.ext?.dayOnly && !st.ext.eod) q.dayOnly = true;
@@ -1528,7 +1551,13 @@ export class MarketEngine {
     st.liveIntraday = true;
     st.last = last.c;
     // With a single session of history the previous close comes from the first quote, never a guess.
-    st.prevClose = bars.length > 1 ? bars[bars.length - 2].c : NaN;
+    // From the bars alone it is unverified until a quote's readings match it; a check already made
+    // for this session stays when the reloaded bar agrees.
+    const before = bars.length > 1 ? bars[bars.length - 2] : undefined;
+    const kept = prev?.session === last.day && st.chgCheck === 'verified' && before !== undefined && Math.abs(st.prevClose / before.c - 1) <= 1e-3;
+    st.prevClose = before ? before.c : NaN;
+    st.prevCloseDay = before?.day;
+    st.chgCheck = kept ? 'verified' : 'unverified';
     st.dayOpen = last.o;
     st.dayHigh = s.h[s.length - 1];
     st.dayLow = s.l[s.length - 1];
@@ -1592,10 +1621,20 @@ export class MarketEngine {
       this.pushTrade(st, { t: q.time, px: q.last, size: dv, side: q.last > st.last ? 1 : q.last < st.last ? -1 : 0, venue: 'CONS', cond: 'AGG' });
     }
     st.last = q.last;
-    // A partial update (a streamed tick) leaves what it does not carry as it was.
-    const prevClose = choosePrevClose(q.prevClose, q.prevCloseAlt, n > 0 ? s.c[n - 1] : NaN);
-    if (prevClose !== undefined) st.prevClose = prevClose;
-    else if (newSession) st.prevClose = n > 0 ? s.c[n - 1] : NaN;
+    // The previous close, checked against the previous daily bar. A partial update (a streamed tick)
+    // leaves what it does not carry as it was, and does not undo a check already made for this session.
+    const histPrev = n > 0 ? s.c[n - 1] : NaN;
+    const histDay = n > 0 ? dayNum(s.t[n - 1]) : undefined;
+    const reading = resolvePrevClose(q.prevClose, q.prevCloseAlt, histPrev);
+    if (reading && (reading.verified || q.full || newSession || st.chgCheck !== 'verified')) {
+      st.prevClose = reading.value;
+      st.prevCloseDay = reading.verified ? histDay : undefined;
+      st.chgCheck = reading.verified ? 'verified' : 'unverified';
+    } else if (!reading && newSession) {
+      st.prevClose = histPrev;
+      st.prevCloseDay = histDay;
+      st.chgCheck = 'unverified';
+    }
     st.dayOpen = s.o[n];
     st.dayHigh = s.h[n];
     st.dayLow = s.l[n];

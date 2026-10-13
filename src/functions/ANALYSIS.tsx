@@ -6,7 +6,7 @@ import { useIndexComponents, useYahooQuotes } from '../data/live/yquotes';
 import { useFundamentals } from '../data/live/yfund';
 import { DataTable } from '../components/DataTable';
 import { XYChart, type XYSeries } from '../components/chart/XYChart';
-import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
+import { Chg, DayChg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { DAY_MS } from '../data/calendar';
@@ -589,8 +589,8 @@ function DowMovers({ ix }: { ix: SecurityDef }) {
       <div className="qstrip">
         <span className="yellow b">{ix.ticker}</span>
         <LivePx id={ix.id} />
-        <Chg v={iq.chg} dec={2} />
-        <Chg v={iq.pct} pct />
+        <DayChg q={iq} dec={2} />
+        <DayChg q={iq} pct />
         <span>
           <span className="lbl">Members explain</span>
           {complete ? (
@@ -653,7 +653,7 @@ function IndexMovers({ sec, route }: FnProps) {
       columns={[
         { key: 't', label: 'Ticker', render: (r) => <SecLink id={r.d.id}>{r.d.ticker}</SecLink> },
         { key: 'l', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
-        { key: 'c', label: '%Chg', num: true, render: (r) => <Chg v={r.q.pct} pct /> },
+        { key: 'c', label: '%Chg', num: true, render: (r) => <DayChg q={r.q} pct /> },
         byValue
           ? { key: 'p', label: 'Mkt value chg USD', num: true, render: (r) => <span className={r.pts > 0 ? 'up' : r.pts < 0 ? 'dn' : ''}>{fmtBig(r.pts)}</span> }
           : { key: 'p', label: 'Index pts', num: true, render: (r) => <Chg v={r.pts} dec={2} /> },
@@ -672,8 +672,8 @@ function IndexMovers({ sec, route }: FnProps) {
       <div className="qstrip">
         <span className="yellow b">{ix.ticker}</span>
         <LivePx id={ix.id} />
-        <Chg v={iq.chg} dec={2} />
-        <Chg v={iq.pct} pct />
+        <DayChg q={iq} dec={2} />
+        <DayChg q={iq} pct />
         {byValue ? null : (
           <span>
             <span className="lbl">Members explain</span>

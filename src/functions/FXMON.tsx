@@ -4,7 +4,7 @@ import { yahooQuotes } from '../data/live/yahoo';
 import { srcLabel } from '../components/QuoteStrip';
 import { Flash } from '../components/Flash';
 import { Sparkline } from '../components/Sparkline';
-import { Chg, HBar, LivePx, SecLink, openSecurity } from '../components/cells';
+import { Chg, DayChg, HBar, LivePx, SecLink, openSecurity } from '../components/cells';
 import { fmtBig, fmtNum, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange, type Horizon } from '../data/analytics';
@@ -183,10 +183,10 @@ export function CRYP(_: FnProps) {
                   <LivePx id={d.id} />
                 </td>
                 <td className="num">
-                  <Chg v={q.chg} dec={d.dec} />
+                  <DayChg q={q} dec={d.dec} />
                 </td>
                 <td className="num">
-                  <Chg v={q.pct} pct />
+                  <DayChg q={q} pct />
                 </td>
                 <td className="num hide-m">{fmtNum(q.high, d.dec)}</td>
                 <td className="num hide-m">{fmtNum(q.low, d.dec)}</td>
@@ -271,10 +271,10 @@ export function GLCO(_: FnProps) {
                       <LivePx id={d.id} />
                     </td>
                     <td className="num">
-                      <Chg v={q.chg} dec={d.dec} />
+                      <DayChg q={q} dec={d.dec} />
                     </td>
                     <td className="num">
-                      <Chg v={q.pct} pct />
+                      <DayChg q={q} pct />
                     </td>
                     {/* The source's last trade: a date instead of a time shows a line that has not traded today. */}
                     <td className="num muted hide-m">{fmtStamp(q.time, now)}</td>

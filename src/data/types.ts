@@ -159,6 +159,14 @@ export interface Quote {
   extended?: { price: number; time: number; session: 'pre' | 'post' | 'overnight' };
   /** No quote has arrived yet: `time` is only the date of the latest daily bar, not a trade time. */
   dayOnly?: boolean;
+  /** Real lines: day number of the session whose close `prevClose` is, when the daily bars give it. */
+  prevCloseDay?: number;
+  /**
+   * Real lines: 'verified' when the previous close matches the previous daily bar, 'unverified' when
+   * nothing has checked it yet (the change is then shown greyed and marked). A missing previous close
+   * makes `chg` and `pct` NaN.
+   */
+  chgCheck?: 'verified' | 'unverified';
 }
 
 export interface Bar {

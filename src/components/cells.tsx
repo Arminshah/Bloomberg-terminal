@@ -1,6 +1,8 @@
 import type { MouseEvent, ReactNode } from 'react';
 import { engine, useQuote } from '../data/market';
-import { fmtBp, fmtNum, fmtPct, fmtSigned, signClass } from '../core/format';
+import { fmtBp, fmtDay, fmtNum, fmtPct, fmtSigned, signClass } from '../core/format';
+import { DAY_MS } from '../data/calendar';
+import type { Quote } from '../data/types';
 import { defaultFnFor, usePanelId } from '../terminal/panel';
 import { LAYOUT_PANELS, navigate, terminal } from '../terminal/state';
 import { settings } from '../terminal/settings';
@@ -43,6 +45,47 @@ export function Chg({ v, dec = 2, pct, bp, plain }: { v: number; dec?: number; p
   return <span className={plain ? '' : signClass(v)}>{text}</span>;
 }
 
+const UNVERIFIED = 'Not verified: no previous daily bar to check the previous close against yet';
+const NO_PREV = "No verified previous close: the source's readings disagree with the daily bars, or it gave none";
+
+/** Where a verified change comes from, for its tooltip: "Against the close of 12 Oct 2026: 24,271.20". */
+function prevTitle(q: Quote, dec: number): string | undefined {
+  if (q.chgCheck !== 'verified' || !Number.isFinite(q.prevClose)) return undefined;
+  const on = q.prevCloseDay !== undefined ? ` of ${fmtDay(q.prevCloseDay * DAY_MS)}` : '';
+  return `Against the close${on}: ${fmtNum(q.prevClose, dec)}`;
+}
+
+/**
+ * A quote's change on the day. Greyed and marked "?" while its previous close is
+ * unverified; "--" when there is none (or the sources conflict); otherwise
+ * coloured, with the previous close and its date on hover. `bp` shows a yield's
+ * change in basis points, `unit` adds a suffix such as "bp".
+ */
+export function DayChg({ q, pct, bp, dec = 2, unit = '' }: { q: Quote; pct?: boolean; bp?: boolean; dec?: number; unit?: string }) {
+  const v = pct ? q.pct : q.chg;
+  if (!Number.isFinite(v)) {
+    const real = q.src !== 'SIM' && q.src !== 'NONE';
+    return (
+      <span className="muted" title={real ? NO_PREV : undefined}>
+        --
+      </span>
+    );
+  }
+  const text = (bp ? fmtBp(v) : pct ? fmtPct(v, dec) : fmtSigned(v, dec)) + unit;
+  if (q.chgCheck === 'unverified') {
+    return (
+      <span className="muted" title={UNVERIFIED}>
+        {text}?
+      </span>
+    );
+  }
+  return (
+    <span className={signClass(v)} title={prevTitle(q, dec)}>
+      {text}
+    </span>
+  );
+}
+
 /** Live last price with tick flash. */
 export function LivePx({ id, dec }: { id: string; dec?: number }) {
   const q = useQuote(id);
@@ -78,8 +121,8 @@ export function LiveChg({ id, mode = 'pct' }: { id: string; mode?: 'pct' | 'net'
   const q = useQuote(id);
   const def = engine.get(id);
   if (!q || !def) return <span>--</span>;
-  if (def.quote === 'yield') return <Chg v={q.chg} bp />;
-  return mode === 'pct' ? <Chg v={q.pct} pct /> : <Chg v={q.chg} dec={def.dec} />;
+  if (def.quote === 'yield') return <DayChg q={q} bp />;
+  return mode === 'pct' ? <DayChg q={q} pct /> : <DayChg q={q} dec={def.dec} />;
 }
 
 export function Section({ title, right, children, className }: { title: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {

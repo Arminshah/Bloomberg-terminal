@@ -1,5 +1,6 @@
 import { engine, useTick } from '../data/market';
-import { fmtBp, fmtNum, fmtPct } from '../core/format';
+import { fmtNum } from '../core/format';
+import { DayChg } from './cells';
 import { execute } from '../terminal/exec';
 import { terminal } from '../terminal/state';
 
@@ -21,7 +22,6 @@ export function TickerTape() {
             const q = engine.quote(id);
             if (!d || !q || !engine.hasSource(id)) return null;
             const y = d.quote === 'yield';
-            const cls = q.chg > 0 ? 'up' : q.chg < 0 ? 'dn' : 'muted';
             return (
               <span
                 key={`${rep}:${id}`}
@@ -31,7 +31,7 @@ export function TickerTape() {
               >
                 <span className="t">{d.ticker}</span>
                 <span className="p">{fmtNum(q.last, Math.min(d.dec, 4))}</span>
-                <span className={cls}>{y ? `${fmtBp(q.chg)}bp` : fmtPct(q.pct)}</span>
+                {y ? <DayChg q={q} bp unit="bp" /> : <DayChg q={q} pct />}
               </span>
             );
           }),

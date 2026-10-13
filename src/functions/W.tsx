@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
-import { Chg, LivePx, SecLink, openSecurity } from '../components/cells';
+import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtBp, fmtNum, fmtPct, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
@@ -159,8 +159,8 @@ export function W(_: FnProps) {
                 <td className="num white">
                   <LivePx id={id} />
                 </td>
-                <td className="num">{y ? <span className={q.chg > 0 ? 'up' : q.chg < 0 ? 'dn' : ''}>{fmtBp(q.chg)}bp</span> : <Chg v={q.chg} dec={d.dec} />}</td>
-                <td className="num">{y ? '' : <Chg v={q.pct} pct />}</td>
+                <td className="num">{y ? <DayChg q={q} bp unit="bp" /> : <DayChg q={q} dec={d.dec} />}</td>
+                <td className="num">{y ? '' : <DayChg q={q} pct />}</td>
                 <td className="num hide-m">{fmtNum(q.bid, d.dec)}</td>
                 <td className="num hide-m">{fmtNum(q.ask, d.dec)}</td>
                 <td className="num hide-m">{q.volume ? fmtBig(q.volume) : ''}</td>

@@ -1,7 +1,8 @@
 import { engine, useQuote } from '../data/market';
 import type { SecurityDef } from '../data/types';
-import { fmtBig, fmtBp, fmtDay, fmtNum, fmtPct, fmtSigned, fmtStamp, fmtTime, signClass } from '../core/format';
+import { fmtBig, fmtDay, fmtNum, fmtPct, fmtStamp, fmtTime, signClass } from '../core/format';
 import { Flash } from './Flash';
+import { DayChg } from './cells';
 
 const SRC_TITLE: Record<string, string> = {
   LIVE: 'The source labels this quote real time',
@@ -53,7 +54,6 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
   const q = useQuote(sec.id);
   if (!q) return null;
   const y = sec.quote === 'yield';
-  const cls = signClass(q.chg);
   const ccy = sec.minor ? sec.ccy : sec.cls === 'rate' ? '%' : sec.ccy;
   return (
     <div className="qstrip">
@@ -62,8 +62,8 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
       <Flash value={q.last} className={`px ${q.tick > 0 ? 'arrow-up' : q.tick < 0 ? 'arrow-dn' : ''}`}>
         {fmtNum(q.last, sec.dec)}
       </Flash>
-      <span className={cls}>{y ? `${fmtBp(q.chg)}bp` : fmtSigned(q.chg, sec.dec)}</span>
-      {!y && <span className={cls}>{fmtPct(q.pct)}</span>}
+      {y ? <DayChg q={q} bp unit="bp" /> : <DayChg q={q} dec={sec.dec} />}
+      {!y && <DayChg q={q} pct />}
       {Number.isFinite(q.bid) && (
         <span className="hide-m">
           <span className="lbl">B/A</span>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { DataTable } from '../components/DataTable';
-import { Chg, LivePx, SecLink, openSecurity } from '../components/cells';
+import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { fmtBig, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { rangeStats, toUsd } from '../data/analytics';
@@ -73,8 +73,8 @@ export function MOST(_: FnProps) {
           { key: 't', label: 'Ticker', render: (r) => <SecLink id={r.d.id}>{r.d.ticker}</SecLink> },
           { key: 'n', label: 'Name', render: (r) => <span className="ellipsis" style={{ display: 'inline-block', maxWidth: 220 }}>{r.d.name}</span>, hideM: true },
           { key: 'l', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
-          { key: 'c', label: 'Net Chg', num: true, render: (r) => <Chg v={r.q.chg} dec={r.d.dec} />, hideM: true },
-          { key: 'p', label: '%Chg', num: true, render: (r) => <Chg v={r.q.pct} pct /> },
+          { key: 'c', label: 'Net Chg', num: true, render: (r) => <DayChg q={r.q} dec={r.d.dec} />, hideM: true },
+          { key: 'p', label: '%Chg', num: true, render: (r) => <DayChg q={r.q} pct /> },
           { key: 'v', label: 'Volume', num: true, render: (r) => fmtBig(r.q.volume) },
           { key: 'r', label: 'Rel Vol', num: true, render: (r) => <span className={r.rel > 1.5 ? 'yellow' : ''}>{fmtNum(r.rel, 2)}x</span> },
           { key: 'val', label: 'Value USD', title: 'Estimated value traded: last price × volume', num: true, render: (r) => `≈${fmtBig(r.value)}`, hideM: true },

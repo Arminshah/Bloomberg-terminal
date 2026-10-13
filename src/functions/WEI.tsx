@@ -1,9 +1,9 @@
 import { Fragment } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
-import { Chg, LivePx, SecLink } from '../components/cells';
+import { Chg, DayChg, LivePx, SecLink } from '../components/cells';
 import { Flash } from '../components/Flash';
-import { fmtNum, fmtPct, fmtStamp } from '../core/format';
+import { fmtNum, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
 import { usePanelId } from '../terminal/panel';
@@ -77,11 +77,11 @@ export function WEI(_: FnProps) {
                       <LivePx id={id} />
                     </td>
                     <td className="num">
-                      <Chg v={q.chg} dec={2} />
+                      <DayChg q={q} dec={2} />
                     </td>
                     <td className="num">
-                      <Flash value={q.pct} className={q.pct > 0 ? 'up' : q.pct < 0 ? 'dn' : ''}>
-                        {fmtPct(q.pct, 2)}
+                      <Flash value={q.pct}>
+                        <DayChg q={q} pct />
                       </Flash>
                     </td>
                     <td className="num muted hide-m">{fmtStamp(q.time, now)}</td>
@@ -164,10 +164,10 @@ export function WEIF(_: FnProps) {
                       <LivePx id={id} />
                     </td>
                     <td className="num">
-                      <Chg v={q.chg} dec={d.dec} />
+                      <DayChg q={q} dec={d.dec} />
                     </td>
                     <td className="num">
-                      <Chg v={q.pct} pct />
+                      <DayChg q={q} pct />
                     </td>
                     <td className="num hide-m">{fmtNum(q.high, d.dec)}</td>
                     <td className="num hide-m">{fmtNum(q.low, d.dec)}</td>

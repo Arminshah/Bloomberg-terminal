@@ -4,12 +4,12 @@ import { FnHeader } from '../components/FnHeader';
 import { Flash } from '../components/Flash';
 import { ChartView } from '../components/chart/ChartView';
 import type { ChartOptions } from '../components/chart/PriceChart';
-import { KV, Section } from '../components/cells';
+import { DayChg, KV, Section } from '../components/cells';
 import { TopOfBook, BookTable } from './DEPTH';
 import { TapeSource, TradeTape } from './TAS';
 import { SimBadge } from '../components/Source';
 import { useFundamentals } from '../data/live/yfund';
-import { fmtBig, fmtBp, fmtDay, fmtEarnDate, fmtMln, fmtNum, fmtPct, fmtSigned, fmtStamp, fmtTime, signClass } from '../core/format';
+import { fmtBig, fmtDay, fmtEarnDate, fmtMln, fmtNum, fmtPct, fmtStamp, fmtTime } from '../core/format';
 import { engine, useQuote, useTick } from '../data/market';
 import { rangeStats } from '../data/analytics';
 import { keyStats, nextEarnings } from '../data/fundamentals';
@@ -73,8 +73,15 @@ export function BQ({ sec }: FnProps) {
             <Flash value={q.last} className={`white ${q.tick > 0 ? 'arrow-up' : q.tick < 0 ? 'arrow-dn' : ''}`}>
               <span style={{ fontSize: 30, fontWeight: 600 }}>{fmtNum(q.last, s.dec)}</span>
             </Flash>
-            <span className={signClass(q.chg)} style={{ fontSize: 'var(--fs-xl)' }}>
-              {y ? `${fmtBp(q.chg)} bp` : `${fmtSigned(q.chg, s.dec)}  ${fmtPct(q.pct)}`}
+            <span style={{ fontSize: 'var(--fs-xl)' }}>
+              {y ? (
+                <DayChg q={q} bp unit=" bp" />
+              ) : (
+                <>
+                  <DayChg q={q} dec={s.dec} />{'  '}
+                  <DayChg q={q} pct />
+                </>
+              )}
             </span>
           </div>
           <KV
