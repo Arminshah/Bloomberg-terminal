@@ -11,7 +11,7 @@ async function boot(page: Page, layout?: string) {
     // The browser build only runs the demo once it has been opened.
     localStorage.setItem('armin:demo', '1');
     localStorage.setItem('armin:settings', JSON.stringify({ v: 1, s: { liveCrypto: false, liveFx: false, newsFlashes: false } }));
-    if (lay) localStorage.setItem('armin:terminal', JSON.stringify({ v: 2, s: { layout: lay } }));
+    if (lay) localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: lay } }));
   }, layout ?? '');
   await page.goto('/');
   await expect(page.locator('.panel').first()).toBeVisible();
@@ -57,10 +57,12 @@ const COMMANDS: [string, string][] = [
   ['$APLD', 'MENU'], ['APLD US EQUITY DES', 'DES'], ['$APLD GP', 'GP'], ['APLD FA', 'FA'],
 ];
 
-test('default workspace renders four live panels', async ({ page }) => {
+test('default workspace renders four live panels and the watchlist column', async ({ page }) => {
   const errors = await boot(page);
-  await expect(page.locator('.panel')).toHaveCount(4);
+  await expect(page.locator('.panel')).toHaveCount(5);
   await expect(page.locator('.fnh-code').first()).toHaveText('WEI');
+  await expect(page.locator('.panel').nth(4).locator('.fnh-code')).toHaveText('W');
+  await expect(page.locator('.clock').first()).toContainText('BRUSSELS');
   const first = await page.locator('.panel').nth(1).locator('.qstrip .px').textContent();
   await page.waitForTimeout(2500);
   const later = await page.locator('.panel').nth(1).locator('.qstrip .px').textContent();

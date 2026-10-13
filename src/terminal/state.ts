@@ -46,12 +46,16 @@ export const defaultTerminal = (): TerminalState => ({
  * keeps its panels and gains the column, with the watchlist in panel 5.
  */
 export function migrateTerminal(saved: { v: number; s: TerminalState }): { v: number; s: TerminalState } {
-  if (saved.v !== 2 || !saved.s || !Array.isArray(saved.s.panels)) return saved;
-  const s = { ...saved.s, panels: [...saved.s.panels] };
+  if (saved.v !== 2 || !saved.s || typeof saved.s !== 'object') return saved;
+  const s = { ...saved.s };
   if (s.layout === '4') {
     s.layout = '5';
-    const p5 = s.panels[4];
-    if (!p5 || p5.history[p5.idx]?.fn !== 'W') s.panels[4] = { history: [{ fn: 'W' }], idx: 0 };
+    // Without saved panels the defaults apply, which have the watchlist in panel 5.
+    if (Array.isArray(s.panels)) {
+      s.panels = [...s.panels];
+      const p5 = s.panels[4];
+      if (!p5 || p5.history[p5.idx]?.fn !== 'W') s.panels[4] = { history: [{ fn: 'W' }], idx: 0 };
+    }
   }
   return { v: 3, s };
 }

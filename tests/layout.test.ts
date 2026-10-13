@@ -22,5 +22,7 @@ describe('workspace layout', () => {
     const six = migrateTerminal({ v: 2, s: { ...old, layout: '6' } });
     expect(six.s.layout).toBe('6');
     expect(six.s.panels[4].history[0].fn).toBe('FXC');
+    // A save with only a layout keeps it, under the new version (the defaults fill in the panels).
+    expect(migrateTerminal({ v: 2, s: { layout: '1' } as TerminalState })).toEqual({ v: 3, s: { layout: '1' } });
   });
 });
