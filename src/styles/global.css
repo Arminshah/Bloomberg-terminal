@@ -442,6 +442,8 @@ button { cursor: pointer; }
   border-bottom: 1px solid var(--line-2);
 }
 .tbl tr.click { cursor: pointer; }
+.tbl a.fact-link { color: inherit; text-decoration: none; }
+.tbl a.fact-link:hover { text-decoration: underline; }
 .tbl td.idx { color: var(--amber); width: 1%; }
 .tbl.zebra tbody tr:nth-child(even) td { background: #0b0b0b; }
 .tbl-wrap { overflow: auto; min-height: 0; }
@@ -529,6 +531,14 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .badge.sim { background: #3a2a0a; color: var(--amber); }
 .badge.live { background: #0d3a1d; color: var(--up); }
 .badge.hot { background: var(--dn); color: #fff; }
+/* Freshness labels: every figure's data class (src/components/Freshness.tsx). */
+.badge.fr-rt { background: #0d3a1d; color: var(--up); }
+.badge.fr-delayed { background: #3a300a; color: var(--yellow); }
+.badge.fr-eod { background: #10243a; color: var(--blue); }
+.badge.fr-ref { background: #22183a; color: var(--magenta); }
+.badge.fr-stale { background: #4a1414; color: #ff8a80; }
+.badge.fr-demo { background: var(--amber); color: #000; }
+.badge.fr-unknown { background: var(--bg-4); color: var(--text); }
 .sim-px::after { content: 'SIM'; margin-left: 3px; font-size: 7px; letter-spacing: 0.06em; color: var(--amber); vertical-align: super; }
 .delayed-px::after { content: 'D'; margin-left: 2px; font-size: 7px; color: var(--muted); vertical-align: super; }
 .stale-px { color: var(--amber); }

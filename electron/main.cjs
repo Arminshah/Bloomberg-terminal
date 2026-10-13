@@ -299,6 +299,65 @@ ipcMain.handle('fred', async (event, kind, arg, from) => {
   return { status: res.status, text: '', ...(refused ? { refused: why } : {}), ...(res.status === 429 || res.status === 423 ? { throttled: true } : {}) };
 });
 
+// -------------------------------------------------------------- SEC EDGAR
+// The SEC's company list, filing histories and XBRL company facts
+// (electron/sec.cjs). Nothing is sent until the owner has configured a
+// User-Agent with their own contact email; the app never makes one up.
+const sec = require('./sec.cjs');
+const secCache = new sec.SecCache(64_000_000);
+const SEC_TICKERS_FILE = () => path.join(app.getPath('userData'), 'sec-company-tickers.json');
+
+/** The company list survives restarts: it is about a megabyte and changes slowly. */
+function secTickersFromDisk() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(SEC_TICKERS_FILE(), 'utf8'));
+    if (typeof saved?.at === 'number' && typeof saved?.text === 'string') secCache.set(sec.TICKERS_URL, saved.text, saved.at);
+  } catch {
+    /* not saved yet */
+  }
+}
+
+ipcMain.handle('sec', async (event, kind, arg) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const target = sec.secRequest(kind, arg || undefined);
+  if (!target) throw new Error('not allowed');
+  const ua = providers.credential('SEC_USER_AGENT').value;
+  if (!ua) return { status: 0, text: '', missing: 'SEC_USER_AGENT' };
+  if (!providers.CREDENTIALS.SEC_USER_AGENT.valid(ua)) {
+    const why = 'The configured SEC User-Agent does not give an application name and a contact email, so nothing was sent.';
+    providers.recordProblem('sec', 'not-entitled', why);
+    return { status: 0, text: '', refused: why };
+  }
+  if (kind === 'tickers' && !secCache.get(target.url)) secTickersFromDisk();
+  const kept = secCache.get(target.url);
+  if (kept && Date.now() - kept.at < target.ttl) return { status: 200, text: kept.text, at: kept.at, cached: true };
+  await providers.slot('sec', sec.PER_SECOND, 1000);
+  let res;
+  try {
+    res = await tracked('sec', target.url, { headers: { 'User-Agent': ua, Accept: 'application/json' }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+  } catch (err) {
+    // A copy fetched earlier goes back marked stale, with its time; never as current.
+    const error = String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160);
+    return kept ? { status: 0, text: kept.text, at: kept.at, stale: true, error } : { status: 0, text: '', error };
+  }
+  if (res.ok) {
+    const text = await res.text();
+    const at = Date.now();
+    secCache.set(target.url, text, at);
+    if (kind === 'tickers') {
+      try {
+        fs.writeFileSync(SEC_TICKERS_FILE(), JSON.stringify({ at, text }));
+      } catch {
+        /* kept in memory only */
+      }
+    }
+    return { status: res.status, text, at };
+  }
+  if (res.status === 403 || res.status === 429) providers.recordProblem('sec', providers.errorKind(res.status), sec.refusalReason(res.status));
+  // 404: the SEC has no such file, for example company facts for a filer without XBRL financial data.
+  return kept ? { status: res.status, text: kept.text, at: kept.at, stale: true } : { status: res.status, text: '' };
+});
+
 // ------------------------------------------------------------------ Stream
 // Relays Yahoo's streaming quotes for a window whose page cannot open the
 // socket itself (some proxies). Only subscribe messages for ticker symbols pass.

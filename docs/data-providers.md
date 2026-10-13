@@ -8,7 +8,7 @@ In the desktop app, every request below goes out from the Electron main process 
 
 | Provider | Used for | Access | Credential | State in the app |
 | --- | --- | --- | --- | --- |
-| Yahoo Finance | Quotes, streaming prices, history, company data, options, headlines, search | Undocumented web endpoints | None | Enabled (desktop) |
+| Yahoo Finance (unofficial) | Quotes, streaming prices, history, company profiles and statements, holders, symbol search | Undocumented web endpoints | None | Enabled (desktop), switch `YAHOO_PRICES_ENABLED`; options, news and analyst data off |
 | US Treasury | Daily par yield curve | CSV download | None | Enabled |
 | Federal Reserve Bank of New York | EFFR, SOFR and the other reference rates | Markets data API | None | Enabled |
 | Federal Reserve Board | FOMC meeting calendar | Web page | None | Enabled |
@@ -25,7 +25,8 @@ In the desktop app, every request below goes out from the Electron main process 
 | Statistics Canada | Canada unemployment rate and CPI | Web Data Service | None | Enabled |
 | Australian Bureau of Statistics | Australia unemployment rate and monthly CPI | Data API (SDMX, CSV) | None | Enabled |
 | FRED | US release dates and values; OECD series for Japan, Canada and Australia | FRED API | `FRED_API_KEY` | Enabled once the key is set |
-| SEC EDGAR | Filings and reported company facts | data.sec.gov APIs | `SEC_USER_AGENT` (your contact) | Planned, not connected |
+| SEC EDGAR | Company search, filing histories with document links, XBRL reported figures (`FILINGS`) | data.sec.gov APIs and the SEC's company ticker file | `SEC_USER_AGENT` (your contact) | Enabled once `SEC_USER_AGENT` is set |
+| Official announcements | Press releases from the Fed Board, ECB, Bank of England, Bank of Canada, RBA, BEA and ESMA (`TOP`, `N`) | Each publisher's RSS feed | None | Enabled |
 | Massive (formerly Polygon.io) | US stock end-of-day history | REST API | `MASSIVE_API_KEY` | Planned, not connected |
 | Finnhub, Coinbase Exchange, Frankfurter | Former browser-build feeds | | | Disabled |
 | Twelve Data, Financial Modeling Prep | | | | Not used; terms not reviewed |
@@ -129,14 +130,41 @@ What changed on 12 October 2026: the app used to download the website's `fredgra
 
 Not live-tested with a key: none was available while building this. The parsers are tested on the example responses in FRED's documentation, and the error format on the one keyless request above.
 
-## SEC EDGAR (planned)
+## Official announcements
 
-SEC.gov refuses automated requests that do not declare a contact, including requests for its documentation pages, so these two pages were read through a tool that summarises; the quotes below are as it returned them.
+The news screens (`TOP`, `N`) show press releases from each publisher's own RSS feed, with the publisher's headline, link and publication time, and the time the app received it. Nothing is summarised, generated or labelled as breaking. Feeds are read every 10 minutes. Terms, read on 13 October 2026:
 
-- [Accessing EDGAR data](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data) (last reviewed 26 June 2024): "Current max request rate: 10 requests/second." Declare a user agent such as "Sample Company Name AdminContact@<sample company domain>.com".
-- [EDGAR APIs](https://www.sec.gov/search-filings/edgar-application-programming-interfaces) (last reviewed 8 April 2025): submissions at `https://data.sec.gov/submissions/CIK##########.json`, company facts at `https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json`, plus companyconcept and frames. "These APIs do not require any authentication or API keys to access." "data.sec.gov does not support Cross Origin Resource Scripting (CORS)." The JSON is updated as filings are disseminated, typically within a second for submissions and a minute for XBRL data; bulk ZIP files are rebuilt nightly at about 3:00 a.m. ET.
+| Publisher | Feed | Terms |
+| --- | --- | --- |
+| Federal Reserve Board | `https://www.federalreserve.gov/feeds/press_all.xml` | [Website policies](https://www.federalreserve.gov/disclaimer.htm): public domain unless marked otherwise; cite the Board. |
+| European Central Bank | `https://www.ecb.europa.eu/rss/press.html` | [Disclaimer and copyright](https://www.ecb.europa.eu/home/disclaimer/html/index.en.html): reproduction with the source acknowledged. |
+| Bank of England | `https://www.bankofengland.co.uk/rss/news` | [Legal](https://www.bankofengland.co.uk/legal): website content for personal, non-commercial use. |
+| Bank of Canada | `https://www.bankofcanada.ca/content_type/press-releases/feed/` | [Terms](https://www.bankofcanada.ca/terms/): free use with the Bank named as the source. |
+| Reserve Bank of Australia | `https://www.rba.gov.au/rss/rss-cb-media-releases.xml` | [Copyright](https://www.rba.gov.au/copyright/): CC BY 4.0 with attribution. |
+| US Bureau of Economic Analysis | `https://apps.bea.gov/rss/rss.xml` | [FAQ](https://bea.gov/help/faq/145): "in the public domain and may be used or reproduced without specific permission"; a citation such as "Source: U.S. Bureau of Economic Analysis" is appreciated. |
+| ESMA | `https://www.esma.europa.eu/rss.xml` | [Legal notice](https://www.esma.europa.eu/legal-notice): "Reproduction of all information on this site (ESMA Library) is authorised except as otherwise stated", with the source acknowledged; adaptations must say so. |
 
-The pages do not list the JSON field names, so the adapter will be written against real responses once `SEC_USER_AGENT` holds a contact you control. Planned limit: 5 requests a second.
+Not used: the BLS feeds refused the app's requests (HTTP 403), and no working US Treasury press release feed was found. Company news comes from no feed: a company's own announcements are its SEC filings (`FILINGS`). Yahoo's headlines are switched off.
+
+## SEC EDGAR
+
+Read on 13 October 2026. SEC.gov refuses automated requests that do not declare a contact, including requests for its documentation pages, so these pages were read through a tool that summarises; the quotes below are as it returned them.
+
+- [Accessing EDGAR data](https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data): "Current max request rate: 10 requests/second." Declare a user agent such as "Sample Company Name AdminContact@<sample company domain>.com". Filing index pages are at `/Archives/edgar/data/{CIK}/{accession}-index.html`, and every document of a filing sits in `/Archives/edgar/data/{CIK}/{accession without dashes}/`. The page lists `/files/company_tickers.json`.
+- [EDGAR APIs](https://www.sec.gov/search-filings/edgar-application-programming-interfaces): submissions at `https://data.sec.gov/submissions/CIK##########.json` (a ten-digit CIK with leading zeros), company facts at `https://data.sec.gov/api/xbrl/companyfacts/CIK##########.json`. "These APIs do not require any authentication or API keys to access." "data.sec.gov does not support Cross Origin Resource Scripting (CORS)." The JSON is updated "in real time, as submissions are disseminated", with "a typical processing delay of less than a second" for submissions and "under a minute" for XBRL data, longer at peak filing times. A company's recent filings cover "at least one year's of filing or to 1,000 (whichever is more)"; older ones are in extra files the main file lists.
+- [Webmaster FAQ](https://www.sec.gov/os/webmaster-faq): "We allow scripted access to sec.gov content", "our current maximum access rate is 10 requests per second", declare a user agent in the sample format above. `/files/company_tickers.json` maps ticker, CIK and EDGAR conformed name, updated periodically "without a guarantee of accuracy or scope". "All Government-created content on sec.gov and EDGAR public filing content are free to access and reuse."
+
+The documentation pages do not list the JSON field names. The parsers follow the field names published for these files (`filings.recent` with the columns `accessionNumber`, `filingDate`, `reportDate`, `acceptanceDateTime`, `form`, `items`, `size`, `isXBRL`, `primaryDocument`, `primaryDocDescription`; `filings.files` with `name`, `filingCount`, `filingFrom`, `filingTo`; company facts as `facts.{taxonomy}.{concept}.units.{unit}[]` with `start`, `end`, `val`, `accn`, `fy`, `fp`, `form`, `filed`) and skip anything that does not match.
+
+How the app uses it (`electron/sec.cjs`, `src/data/live/sec.ts`, the `FILINGS` screen):
+
+- Nothing is sent until `SEC_USER_AGENT` holds an application name and your contact email. The app never makes one up and never fills in an address from anywhere else; until it is set, `FILINGS` says what is needed.
+- At most 5 requests a second, half the SEC's ceiling. Answers are kept: filing lists for 5 minutes, company facts for an hour, the company list for a day (also on disk). If a refresh fails, the copy fetched earlier is shown marked STALE with its time.
+- A company is found by its US ticker in the SEC's list, or by name or CIK on the search screen. Securities that are not US-listed have no ticker there.
+- Filings show the filing date, form, report period, 8-K items by name, and links to the primary document and the filing index on sec.gov. The acceptance time is shown as the submissions file gives it: its time zone suffix was not checked against a live filing.
+- Reported figures come from company facts: income statement, cash flow and balance sheet lines in US GAAP or IFRS, annual and quarterly. Each period shows the figure from the most recent filing that reports it, with that filing's form, date and accession; a figure a later filing changed is marked `r` and keeps the first figure in its tooltip. A period is named by the fiscal year of the filing that first reported it, counted back for prior-year comparatives; nothing is named when the dates do not line up. Fourth quarters are not derived from the year.
+
+Not live-tested: no contact User-Agent was available while building this, and sending one that is not the owner's would break the SEC's rules. The parsers are tested on files laid out in the documented structure (`tests/sec.test.ts`), and the screen was checked with the same kind of files served in place of the SEC.
 
 ## Massive (planned)
 
@@ -156,4 +184,4 @@ Not connected and not live-tested: no key was available. Bars from Massive will 
 
 - Yahoo: Electron's own user agent.
 - Every other provider: `ArminTerminal/<version> (+https://github.com/arminshah/bloomberg-terminal)`. All 14 official endpoints the app reads answered it on 12 October 2026.
-- SEC (when connected): the value of `SEC_USER_AGENT`.
+- SEC: the value of `SEC_USER_AGENT`, exactly as you set it.

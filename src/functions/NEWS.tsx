@@ -130,7 +130,7 @@ export function CN({ sec }: FnProps) {
           No news feed with terms that allow it is connected for companies, and Yahoo&apos;s news is switched off. A company&apos;s own announcements are its filings: current reports (8-K), results and ownership filings, from SEC
           EDGAR for companies that file there.
         </p>
-        <button type="button" className="btn primary" onClick={() => execute(panel, `${s.id} FILE`)}>
+        <button type="button" className="btn primary" onClick={() => execute(panel, `${s.id} FILINGS`)}>
           Open its filings
         </button>
       </div>

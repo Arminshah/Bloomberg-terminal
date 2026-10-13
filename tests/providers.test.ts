@@ -71,7 +71,8 @@ describe('provider status', () => {
     expect(providerState(def('fred'), report)).toBe('not-configured');
     expect(providerState(def('fred'), { ...report, credentials: { FRED_API_KEY: { label: 'FRED', configured: true, valid: true, source: 'environment' } } })).toBe('idle');
     expect(providerState(def('finnhub'), report)).toBe('disabled');
-    expect(providerState(def('sec'), report)).toBe('planned');
+    expect(providerState(def('sec'), report)).toBe('not-configured');
+    expect(providerState(def('massive'), report)).toBe('planned');
     expect(providerState(def('yahoo'), { ...report, providers: { yahoo: { ...report.providers.yahoo, lastErrorAt: 3000 } } })).toBe('error');
     // A symbol without data is an answer, not an outage.
     expect(providerState(def('yahoo'), { ...report, providers: { yahoo: { ...report.providers.yahoo, lastErrorAt: 3000, lastErrorKind: 'no-data' } } }, 'live')).toBe('live');

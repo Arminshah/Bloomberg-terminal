@@ -2,8 +2,8 @@
 // process, which (unlike the page) is not limited by browser cross-origin
 // rules: Yahoo Finance paths on an allowlist, the US Treasury's daily yield
 // curve by year, official rates, calendars and bond yields from central banks
-// and finance ministries (fixed sources named by key), and FRED release dates
-// and series from a fixed list.
+// and finance ministries (fixed sources named by key), FRED release dates
+// and series from a fixed list, and SEC EDGAR files by kind and CIK.
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('arminDesktop', {
@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   treasury: (year) => ipcRenderer.invoke('treasury', Number(year)),
   official: (source, since) => ipcRenderer.invoke('official', String(source), String(since)),
   fred: (kind, arg, from) => ipcRenderer.invoke('fred', String(kind), String(arg), String(from ?? '')),
+  sec: (kind, arg) => ipcRenderer.invoke('sec', String(kind), String(arg ?? '')),
   // Provider status and credentials: values can be saved or cleared, never read back.
   providersStatus: () => ipcRenderer.invoke('providers:status'),
   providersSet: (name, value) => ipcRenderer.invoke('providers:set', String(name), String(value)),

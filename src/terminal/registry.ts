@@ -11,6 +11,7 @@ import { DVD } from '../functions/DVD';
 import { HDS } from '../functions/HDS';
 import { RV } from '../functions/RV';
 import { EVTS } from '../functions/EVTS';
+import { FILINGS } from '../functions/FILINGS';
 import { WACC } from '../functions/WACC';
 import { COMP } from '../functions/COMP';
 import { BETA } from '../functions/BETA';
@@ -54,6 +55,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'HDS', name: 'Holders', category: 'Equity', needsSec: true, classes: EQ, desc: 'Largest institutional holders with position, percent outstanding and changes.', component: HDS, aliases: ['OWN'] },
   { code: 'RV', name: 'Relative Valuation', category: 'Equity', needsSec: true, classes: EQ, desc: 'Peer comparison of valuation multiples, profitability and returns with peer medians.', component: RV, aliases: ['COMPS', 'PEERS'] },
   { code: 'EVTS', name: 'Corporate Events', category: 'Equity', classes: EQ, desc: 'Calendar of earnings releases and ex-dividend dates, for one company or the whole universe.', component: EVTS, aliases: ['EA', 'ERNC', 'CACS'] },
+  { code: 'FILINGS', name: 'Company Filings', category: 'Equity', classes: EQ, desc: 'SEC EDGAR: a company\'s filings (annual and quarterly reports, current reports, ownership, proxies, offerings) with links to the documents on sec.gov, and the figures it reported in its XBRL financial statements. Finds any SEC filer by ticker, name or CIK.', component: FILINGS, aliases: ['EDGAR'], example: 'FILINGS MSFT <GO>' },
   { code: 'WACC', name: 'Cost of Capital', category: 'Equity', needsSec: true, classes: EQ, desc: 'Weighted average cost of capital from CAPM and after-tax cost of debt, with a perpetuity value check.', component: WACC },
   { code: 'GF', name: 'Graph Fundamentals', category: 'Equity', needsSec: true, classes: EQ, desc: 'Charts of revenue, EPS, margins, P/E and cash flow across fiscal years and quarters.', component: GF, aliases: ['GFD'] },
   // Charts
