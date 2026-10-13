@@ -80,6 +80,8 @@ interface ExtData {
   state?: 'pre' | 'post' | 'closed';
   /** The exchange's time zone (IANA name), for showing times as the exchange keeps them. */
   tz?: string;
+  /** What the volume counts: coins of the base asset, or dollars ("USD"). */
+  volumeUnit?: string;
   bid: number;
   ask: number;
   seq: number;
@@ -137,6 +139,8 @@ export interface ExtQuote {
   state?: 'pre' | 'post' | 'closed';
   /** The exchange's time zone (IANA name). */
   tz?: string;
+  /** What the volume counts, when it is not shares or contracts: "BTC", "USD". */
+  volumeUnit?: string;
   /** Minutes the source says it delays this market's prices. */
   delay?: number;
   /** What the source says about timing; left as it was when not given. */
@@ -248,8 +252,14 @@ export class MarketEngine {
   tickCount = 0;
   tickMs = 1000;
   now: () => number;
-  /** Called when a line with external data is asked for its intraday bars (lets the source load them). */
-  demand?: (id: string, what: 'intraday') => void;
+  /** Told when a line with external data is asked for its intraday bars; each source ignores lines it does not feed. */
+  private demandHandlers = new Set<(id: string, what: 'intraday') => void>();
+
+  /** Registers a source's intraday loader; returns the function that removes it. */
+  onDemand(fn: (id: string, what: 'intraday') => void): () => void {
+    this.demandHandlers.add(fn);
+    return () => this.demandHandlers.delete(fn);
+  }
   /**
    * Desktop app: the simulator never publishes a value. A line shows nothing
    * until a real source fills it, and lines no source covers are left out of
@@ -378,7 +388,7 @@ export class MarketEngine {
     const st = this.states.get(id);
     if (!st) return makeSeries(0, MINUTE_MS);
     if (st.ext) {
-      this.demand?.(id, 'intraday');
+      for (const fn of this.demandHandlers) fn(id, 'intraday');
       return st.ext.intra;
     }
     if (this.realOnly) return makeSeries(0, MINUTE_MS);
@@ -1207,6 +1217,7 @@ export class MarketEngine {
     if (st.ext?.extended) q.extended = st.ext.extended;
     if (st.ext?.dayOnly && !st.ext.eod) q.dayOnly = true;
     if (st.ext?.tz) q.tz = st.ext.tz;
+    if (st.ext?.volumeUnit) q.volumeUnit = st.ext.volumeUnit;
     // The trading session apart from the data's freshness: unknown for end-of-day series and before the first quote.
     if (st.ext && !st.ext.eod && !st.ext.dayOnly) q.session = st.ext.open ? 'open' : (st.ext.state ?? st.ext.extended?.session ?? 'closed');
     this.quotes.set(st.def.id, q);
@@ -1666,6 +1677,7 @@ export class MarketEngine {
     if (q.marketOpen) ext.state = undefined;
     else if (q.state) ext.state = q.state;
     if (q.tz) ext.tz = q.tz;
+    if (q.volumeUnit) ext.volumeUnit = q.volumeUnit;
     ext.session = day;
     ext.stale = false;
     ext.time = q.time;

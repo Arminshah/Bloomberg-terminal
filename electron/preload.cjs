@@ -3,7 +3,8 @@
 // rules: Yahoo Finance paths on an allowlist, the US Treasury's daily yield
 // curve by year, official rates, calendars and bond yields from central banks
 // and finance ministries (fixed sources named by key), FRED release dates
-// and series from a fixed list, and SEC EDGAR files by kind and CIK.
+// and series from a fixed list, SEC EDGAR files by kind and CIK, and Kraken
+// tickers, candles and order books for a fixed list of crypto pairs.
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('arminDesktop', {
@@ -13,6 +14,10 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   official: (source, since) => ipcRenderer.invoke('official', String(source), String(since)),
   fred: (kind, arg, from) => ipcRenderer.invoke('fred', String(kind), String(arg), String(from ?? '')),
   sec: (kind, arg) => ipcRenderer.invoke('sec', String(kind), String(arg ?? '')),
+  kraken: (kind, arg, n) => ipcRenderer.invoke('kraken', String(kind), String(arg ?? ''), Number(n ?? 0)),
+  coingecko: () => ipcRenderer.invoke('coingecko'),
+  // The provider switches as they were when this page loaded (YAHOO_PRICES_ENABLED, KRAKEN_ENABLED).
+  settings: ipcRenderer.sendSync('providers:settings-sync'),
   // Provider status and credentials: values can be saved or cleared, never read back.
   providersStatus: () => ipcRenderer.invoke('providers:status'),
   providersSet: (name, value) => ipcRenderer.invoke('providers:set', String(name), String(value)),

@@ -26,8 +26,11 @@ In the desktop app, every request below goes out from the Electron main process 
 | Australian Bureau of Statistics | Australia unemployment rate and monthly CPI | Data API (SDMX, CSV) | None | Enabled |
 | FRED | US release dates and values; OECD series for Japan, Canada and Australia | FRED API | `FRED_API_KEY` | Enabled once the key is set |
 | SEC EDGAR | Company search, filing histories with document links, XBRL reported figures (`FILINGS`) | data.sec.gov APIs and the SEC's company ticker file | `SEC_USER_AGENT` (your contact) | Enabled once `SEC_USER_AGENT` is set |
+| Kraken | Crypto prices, best bid and offer, daily and 5-minute candles, order books for 10 USD pairs | Public REST API | None | Enabled (desktop), switch `KRAKEN_ENABLED` |
+| CoinGecko | Market value and circulating supply of the listed coins (aggregated) | Demo API | `COINGECKO_API_KEY` | Enabled once the key is set |
 | Official announcements | Press releases from the Fed Board, ECB, Bank of England, Bank of Canada, RBA, BEA and ESMA (`TOP`, `N`) | Each publisher's RSS feed | None | Enabled |
 | Massive (formerly Polygon.io) | US stock end-of-day history | REST API | `MASSIVE_API_KEY` | Planned, not connected |
+| Binance | | Spot REST API | | Evaluated, not connected (see below) |
 | Finnhub, Coinbase Exchange, Frankfurter | Former browser-build feeds | | | Disabled |
 | Twelve Data, Financial Modeling Prep | | | | Not used; terms not reviewed |
 
@@ -129,6 +132,27 @@ When FRED turns a request down, the body says why, for example `{"error_code":40
 What changed on 12 October 2026: the app used to download the website's `fredgraph.csv` and read the HTML release calendar, presenting a browser user agent first. That goes against the terms above, so FRED now goes through the API with your key. Without a key nothing is sent, and ECO and ECST say the key is needed. ECO shows US release dates without a time of day, because the API gives none.
 
 Not live-tested with a key: none was available while building this. The parsers are tested on the example responses in FRED's documentation, and the error format on the one keyless request above.
+
+## Kraken
+
+Read on 13 October 2026.
+
+- [Ticker](https://docs.kraken.com/api/docs/rest-api/get-ticker-information): `GET https://api.kraken.com/0/public/Ticker?pair=...`, no key. Per pair: `a` ask, `b` bid, `c` "Last trade closed", and `v`, `p`, `t`, `l`, `h` as `[<today>, <last 24 hours>]`, `o` "Today's opening price". "Today's prices start at midnight UTC." The ticker carries no time of its own.
+- OHLC (`/0/public/OHLC?pair=...&interval=...`): `[time, open, high, low, close, vwap, volume, count]` per candle, oldest first; the last candle is still forming, and `last` names the last complete one. Depth (`/0/public/Depth?pair=...&count=...`): asks and bids as `[price, volume, timestamp]`. Checked against live answers.
+- [Rate limits](https://support.kraken.com/at/articles/206548367-What-are-the-API-rate-limits-): public endpoints are limited by IP address (Trades and OHLC also by pair); calling them "at a frequency of 1 per second (or less) would remain within the rate limits". Errors come in the body, for example `EGeneral:Too many requests`.
+- [Terms](https://www.kraken.com/legal) (Global Terms, last updated 6 October 2026; EEA Terms effective 7 October 2026): Kraken's content, "including, for example, our pricing data", may be used "only for your own benefit"; the restrictions include bots and scripts and "any third party applications that interact with Our Content without our prior written consent". The public REST API is Kraken's documented route to market data. This private app uses it only for its owner's display, one request a second at most: a risk accepted here, as with Yahoo.
+
+How the app uses it (`electron/kraken.cjs`, `src/data/live/kraken.ts`): Kraken owns the ten crypto lines (BTC, ETH, SOL, XRP, ADA, DOGE as Kraken's XDG, AVAX, LINK, LTC, DOT, all against USD) unless `KRAKEN_ENABLED` is off. Two years of daily candles at start; the ticker for all ten pairs every 5 seconds in one request; five-minute candles of the UTC day when a chart asks; the top 15 levels of the order book every 3 seconds while DEPTH is open. A snapshot is timed by Kraken's `Date` header. The day's change is against the close of Kraken's previous daily candle; after midnight UTC the candles are reloaded and the change shows unverified until they are. Every price is labelled Kraken's: one exchange's market, not a market-wide price.
+
+## CoinGecko
+
+Read on 13 October 2026. [Pricing](https://www.coingecko.com/en/api/pricing): the Demo plan is "$0 /month", 10k call credits a month, 100 calls a minute, one API key, "Attribution required". [API terms](https://www.coingecko.com/en/api_terms) (5 September 2025): show "Powered by CoinGecko" (section 4.1.4); "We do not encourage caching or storage of Data", and a cache should be refreshed at least every 24 hours (section 6.1); no redistributing or syndicating access (4.1.6).
+
+The app asks `coins/markets` for the ten coins every 10 minutes with your key (`COINGECKO_API_KEY`), keeps the answer in memory only, and shows market value and circulating supply in CRYP and DES, marked as CoinGecko's and aggregated, with the attribution. Without a key nothing is sent and those fields show `--`. Not live-tested: no key was available.
+
+## Binance (evaluated, not connected)
+
+From the build environment, `api.binance.com` answered HTTP 451: "Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms". The app does not route around that, for example through another Binance host. Binance's spot market also quotes these coins against USDT and USDC, not US dollars, so its prices are for different instruments than the app's USD lines and would not be mixed into them. A Binance adapter would follow the Kraken one (a fixed list of pairs and request kinds in the main process); it would need its own lines, labelled as USDT pairs, and a check that Binance serves the owner's location.
 
 ## Official announcements
 

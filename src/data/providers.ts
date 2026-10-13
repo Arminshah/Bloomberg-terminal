@@ -9,7 +9,7 @@ import type { FeedStatus } from './live/status';
  * puts the two together. See docs/data-providers.md for the full notes.
  */
 
-export type Credential = 'FRED_API_KEY' | 'MASSIVE_API_KEY' | 'SEC_USER_AGENT';
+export type Credential = 'FRED_API_KEY' | 'MASSIVE_API_KEY' | 'SEC_USER_AGENT' | 'COINGECKO_API_KEY';
 
 /**
  * enabled: in use; needs-credential: in use once its key is configured;
@@ -54,7 +54,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'yahoo',
     name: 'Yahoo Finance',
-    serves: 'Quotes, price history, company profiles and statements, holders, symbol search. Options chains, news and analyst data are switched off.',
+    serves: 'Quotes, price history, company profiles and statements, holders, symbol search; crypto only when Kraken is off. Options chains, news and analyst data are switched off.',
     dataClass: 'Yahoo Finance quote: live or delayed as Yahoo labels each exchange; history end of day',
     policy: 'enabled',
     feed: 'market',
@@ -65,6 +65,40 @@ export const PROVIDERS: ProviderDef[] = [
       { label: 'Yahoo API terms', url: 'https://legal.yahoo.com/us/en/yahoo/terms/product-atos/apitnc/index.html' },
     ],
     checked: CHECKED,
+    desktop: true,
+  },
+  {
+    id: 'kraken',
+    name: 'Kraken (exchange)',
+    serves: 'Crypto prices, best bid and offer, the UTC day\'s range and volume, daily and 5-minute candles, and order books for 10 USD pairs',
+    dataClass: 'Exchange data: one exchange\'s market, real time as of each snapshot (Kraken\'s server time)',
+    policy: 'enabled',
+    feed: 'crypto',
+    limit: '60',
+    terms: 'Kraken\'s terms let you use its content, pricing data included, only for your own benefit, and restrict bots and third-party applications without its consent (Global Terms of 6 Oct 2026, sections 8 and 9): a risk this private app accepts. The public REST API is Kraken\'s documented interface for market data; the app sends at most one request a second, as Kraken\'s support pages advise.',
+    docs: [
+      { label: 'REST API: ticker', url: 'https://docs.kraken.com/api/docs/rest-api/get-ticker-information' },
+      { label: 'API rate limits', url: 'https://support.kraken.com/at/articles/206548367-What-are-the-API-rate-limits-' },
+      { label: 'Terms of service', url: 'https://www.kraken.com/legal' },
+    ],
+    checked: '2026-10-13',
+    desktop: true,
+  },
+  {
+    id: 'coingecko',
+    name: 'CoinGecko',
+    serves: 'Market capitalisation and circulating supply of the listed coins (CRYP, DES)',
+    dataClass: 'Aggregated across exchanges; reference figures, not a price',
+    policy: 'needs-credential',
+    credential: 'COINGECKO_API_KEY',
+    limit: '10',
+    terms: 'Free Demo plan with your own key: 10,000 calls a month, 100 a minute, attribution required ("Powered by CoinGecko"). The API terms discourage storing data and rule out redistributing access. The app asks every 10 minutes and keeps the answer in memory only.',
+    docs: [
+      { label: 'API pricing (Demo plan)', url: 'https://www.coingecko.com/en/api/pricing' },
+      { label: 'API terms', url: 'https://www.coingecko.com/en/api_terms' },
+      { label: 'Attribution guide', url: 'https://brand.coingecko.com/resources/attribution-guide' },
+    ],
+    checked: '2026-10-13',
     desktop: true,
   },
   {

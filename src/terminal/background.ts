@@ -10,6 +10,8 @@ import { startPolicyRates } from '../data/live/policy';
 import { startGovYields } from '../data/live/govyields';
 import { startFred } from '../data/live/fred';
 import { startOfficialNews } from '../data/live/officialnews';
+import { startKraken } from '../data/live/kraken';
+import { startCoinGecko } from '../data/live/coingecko';
 import { alerts, newsAlerts } from './userdata';
 import { settings } from './settings';
 import { toast } from './toasts';
@@ -94,6 +96,8 @@ export function startBackground(): () => void {
   stops.push(startLiveFeeds());
   stops.push(startDynamicFeeds());
   stops.push(startYahooData());
+  stops.push(startKraken());
+  stops.push(startCoinGecko());
   stops.push(startTreasury());
   stops.push(startPolicyRates());
   stops.push(startGovYields());

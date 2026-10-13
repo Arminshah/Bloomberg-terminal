@@ -71,6 +71,11 @@ ipcMain.handle('providers:status', (event) => {
   return { credentials: providers.credentialStatus(), settings: providers.settingStatus(), providers: providers.providerStats() };
 });
 
+// The settings as they were when the page loaded: screens decide at start which source owns each line.
+ipcMain.on('providers:settings-sync', (event) => {
+  event.returnValue = fromApp(event) ? Object.fromEntries(Object.entries(providers.settingStatus()).map(([k, v]) => [k, v.value])) : {};
+});
+
 ipcMain.handle('providers:setting', (event, name, value) => {
   if (!fromApp(event) || typeof name !== 'string' || typeof value !== 'boolean') throw new Error('not allowed');
   try {
@@ -356,6 +361,47 @@ ipcMain.handle('sec', async (event, kind, arg) => {
   if (res.status === 403 || res.status === 429) providers.recordProblem('sec', providers.errorKind(res.status), sec.refusalReason(res.status));
   // 404: the SEC has no such file, for example company facts for a filer without XBRL financial data.
   return kept ? { status: res.status, text: kept.text, at: kept.at, stale: true } : { status: res.status, text: '' };
+});
+
+// ----------------------------------------------------------------- Kraken
+// Exchange-native crypto prices, candles and order books (electron/kraken.cjs).
+// The page names a kind and a pair from a fixed list; the URL is built here.
+// Kraken's Date header is kept: its tickers carry no time of their own, so the
+// time the exchange answered is the time of the snapshot.
+const kraken = require('./kraken.cjs');
+
+ipcMain.handle('kraken', async (event, kind, arg, n) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const url = kraken.krakenUrl(kind, arg, n);
+  if (!url) throw new Error('not allowed');
+  if (!providers.setting('KRAKEN_ENABLED').value) return { status: 0, text: '', disabled: true };
+  await providers.slot('kraken', kraken.PER_SECOND, 1000);
+  const res = await tracked('kraken', url, { headers: { 'User-Agent': clientAgent(), Accept: 'application/json' }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const serverTime = Date.parse(res.headers.get('date') ?? '');
+  if (!res.ok) return { status: res.status, text: '' };
+  const text = await res.text();
+  const errors = kraken.krakenErrors(text);
+  if (errors.length) providers.recordProblem('kraken', kraken.krakenErrorKind(errors), errors.join('; '));
+  return { status: res.status, text, ...(Number.isFinite(serverTime) ? { serverTime } : {}) };
+});
+
+// -------------------------------------------------------------- CoinGecko
+// Market capitalisation and circulating supply for the listed coins, from
+// CoinGecko's free Demo plan with the owner's own key (10,000 calls a month,
+// attribution required). Aggregated across exchanges: never used as a price.
+const COINGECKO_IDS = 'bitcoin,ethereum,solana,ripple,cardano,dogecoin,avalanche-2,chainlink,litecoin,polkadot';
+
+ipcMain.handle('coingecko', async (event) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const key = providers.credential('COINGECKO_API_KEY').value;
+  if (!key) return { status: 0, text: '', missing: 'COINGECKO_API_KEY' };
+  // The app asks every 10 minutes at most (about 4,400 calls a month); the plan allows 100 a minute.
+  await providers.slot('coingecko', 10, 60_000);
+  const res = await tracked('coingecko', `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${COINGECKO_IDS}`, { headers: { 'User-Agent': clientAgent(), Accept: 'application/json', 'x-cg-demo-api-key': key }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+  if (res.ok) return { status: res.status, text: await res.text() };
+  const why = providers.providerMessage(await res.text().catch(() => ''), [key]);
+  if (why) providers.recordProblem('coingecko', providers.errorKind(res.status), `HTTP ${res.status}: ${why}`);
+  return { status: res.status, text: '' };
 });
 
 // ------------------------------------------------------------------ Stream

@@ -31,6 +31,10 @@ declare global {
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string }>;
       fred?(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
+      kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
+      coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
+      /** Provider switches as they were when the page loaded. */
+      settings?: Record<string, boolean>;
       providersStatus?(): Promise<import('../providers').ProviderReport>;
       providersSet?(name: string, value: string): Promise<{ ok: boolean; error?: string; credentials: import('../providers').ProviderReport['credentials'] }>;
       providersClear?(name: string): Promise<{ ok: boolean; credentials: import('../providers').ProviderReport['credentials'] }>;

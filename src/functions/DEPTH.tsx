@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { Freshness } from '../components/Freshness';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { Section } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
-import { fmtBig, fmtNum, fmtPct } from '../core/format';
+import { fmtBig, fmtNum, fmtPct, fmtTime } from '../core/format';
+import { krakenOwns, krakenPairFor, loadKrakenBook, type KrakenBook } from '../data/live/kraken';
 import { engine, useTick } from '../data/market';
 import { orderBook, type Level } from '../data/book';
 import type { SecurityDef } from '../data/types';
@@ -106,8 +109,122 @@ export function BookSource({ id }: { id: string }) {
   );
 }
 
+const BOOK_MS = 3_000;
+
+/**
+ * Kraken's own order book for a crypto line: the best levels on each side as
+ * the exchange publishes them, asked for every few seconds while the screen
+ * is open. It is one exchange's book, not the whole market's.
+ */
+function KrakenDepth({ sec: s }: { sec: SecurityDef }) {
+  const [book, setBook] = useState<(KrakenBook & { at: number }) | null>(null);
+  const [failed, setFailed] = useState<{ at: number; n: number } | null>(null);
+  useEffect(() => {
+    let live = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const load = async () => {
+      const b = await loadKrakenBook(s.id, 15).catch(() => null);
+      if (!live) return;
+      if (b) {
+        setBook(b);
+        setFailed(null);
+      } else setFailed((f) => ({ at: Date.now(), n: (f?.n ?? 0) + 1 }));
+      timer = setTimeout(() => void load(), BOOK_MS);
+    };
+    void load();
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [s.id]);
+  const pair = krakenPairFor(s.id);
+  const stale = !!failed && !!book;
+  const sizeDec = 4;
+  const rows = book ? Math.max(book.bids.length, book.asks.length) : 0;
+  let cb = 0;
+  let ca = 0;
+  const cumBid = book?.bids.map((l) => (cb += l.volume)) ?? [];
+  const cumAsk = book?.asks.map((l) => (ca += l.volume)) ?? [];
+  const spread = book?.asks[0] && book?.bids[0] ? book.asks[0].price - book.bids[0].price : NaN;
+  const mid = book?.asks[0] && book?.bids[0] ? (book.asks[0].price + book.bids[0].price) / 2 : NaN;
+  return (
+    <div>
+      <FnHeader
+        code="DEPTH"
+        title="Market Depth"
+        sec={s}
+        sub={
+          <>
+            Kraken order book, {pair?.base}/USD, top 15 levels ·{' '}
+            {book ? (
+              stale ? (
+                <Freshness label="STALE" title={`Kraken has not answered since ${fmtTime(book.at)}; the book shown is from then`} />
+              ) : (
+                <Freshness label="REAL-TIME" title={`Kraken's book as of ${fmtTime(book.at)} (Kraken server time), asked for every ${BOOK_MS / 1000} s`} />
+              )
+            ) : null}
+          </>
+        }
+      />
+      <QuoteStrip sec={s} />
+      {!book ? (
+        <div className="empty">{failed ? 'Kraken did not answer; trying again every few seconds (PROV shows why).' : 'Loading the order book from Kraken…'}</div>
+      ) : (
+        <>
+          <div className="chart-tools">
+            <span>
+              <span className="lbl">Spread</span> {fmtNum(spread, s.dec)} ({fmtNum((spread / mid) * 10000, 2)} bp)
+            </span>
+            <span>
+              <span className="lbl">Bid volume</span> {fmtNum(cb, sizeDec)} {pair?.base}
+            </span>
+            <span>
+              <span className="lbl">Ask volume</span> {fmtNum(ca, sizeDec)} {pair?.base}
+            </span>
+            <span className="muted">as of {fmtTime(book.at)} (Kraken server time)</span>
+          </div>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th className="num hide-m">Cum</th>
+                <th className="num">Bid size</th>
+                <th className="num">Bid</th>
+                <th className="num">Ask</th>
+                <th className="num">Ask size</th>
+                <th className="num hide-m">Cum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: rows }, (_, i) => {
+                const b = book.bids[i];
+                const a = book.asks[i];
+                return (
+                  <tr key={i}>
+                    <td className="num muted hide-m">{b ? fmtNum(cumBid[i], sizeDec) : ''}</td>
+                    <td className="num" title={b ? `Level changed ${fmtTime(b.time)}` : undefined}>
+                      {b ? fmtNum(b.volume, sizeDec) : ''}
+                    </td>
+                    <td className="num up">{b ? fmtNum(b.price, s.dec) : ''}</td>
+                    <td className="num dn">{a ? fmtNum(a.price, s.dec) : ''}</td>
+                    <td className="num" title={a ? `Level changed ${fmtTime(a.time)}` : undefined}>
+                      {a ? fmtNum(a.volume, sizeDec) : ''}
+                    </td>
+                    <td className="num muted hide-m">{a ? fmtNum(cumAsk[i], sizeDec) : ''}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="note">Sizes in {pair?.base}. Kraken&apos;s own resting orders only: other exchanges trade the same asset at their own prices, and a displayed level is not a guaranteed fill.</div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function DEPTH({ sec }: FnProps) {
   const s = sec!;
+  if (engine.realOnly && krakenOwns(s.id)) return <KrakenDepth sec={s} />;
   if (engine.realOnly) {
     return (
       <div>

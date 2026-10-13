@@ -9,6 +9,7 @@ import { watchlists } from '../../terminal/userdata';
 import { setFeed } from './status';
 import { YahooStream, type Tick } from './ystream';
 import { TREASURY_IDS, treasuryAvailable } from './ust';
+import { krakenOwns } from './kraken';
 
 /**
  * Real market data for the desktop app from Yahoo Finance, fetched by the
@@ -74,6 +75,7 @@ export function yahooSymbolFor(d: SecurityDef): string | undefined {
   if (d.fut) return FUTURES[d.id];
   if (d.cls === 'bond') return undefined;
   if (treasuryAvailable() && TREASURY_IDS.has(d.id)) return undefined; // official Treasury curve instead
+  if (krakenOwns(d.id)) return undefined; // the exchange's own prices instead
   if (!engine.realOnly) {
     if (d.cls === 'fx' && d.fx) return undefined; // the browser derives crosses from the currencies
     if (d.cls === 'crypto' && settings.get().liveCrypto) return undefined; // Coinbase streams these
@@ -278,6 +280,8 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
     marketOpen: q.marketState === 'REGULAR',
     ...marketStateOf(q),
     ...(typeof q.exchangeTimezoneName === 'string' && q.exchangeTimezoneName ? { tz: q.exchangeTimezoneName } : {}),
+    // Yahoo gives crypto volume in dollars, not coins.
+    ...(q.quoteType === 'CRYPTOCURRENCY' ? { volumeUnit: 'USD' } : {}),
     ...timingOf(q),
     fetched: Date.now(),
   };
@@ -321,6 +325,7 @@ class YahooData {
   private intradayAt = new Map<string, number>();
   private intradayWanted = new Map<string, number>();
   private intradayActive = 0;
+  private offDemand?: () => void;
   private quoteTimer: ReturnType<typeof setTimeout> | null = null;
   private intradayTimer: ReturnType<typeof setInterval> | null = null;
   private failures = 0;
@@ -350,7 +355,7 @@ class YahooData {
 
   start() {
     setFeed('market', 'connecting', 'Yahoo Finance: loading history');
-    engine.demand = (id) => this.wantIntraday(id);
+    this.offDemand = engine.onDemand((id) => this.wantIntraday(id));
     this.stream = new YahooStream(
       (t) => this.applyTick(t),
       (up) => this.status(up),
@@ -481,7 +486,7 @@ class YahooData {
     if (this.intradayTimer) clearInterval(this.intradayTimer);
     if (this.staleTimer) clearInterval(this.staleTimer);
     if (this.etfTimer) clearInterval(this.etfTimer);
-    engine.demand = undefined;
+    this.offDemand?.();
   }
 
   /** Picks up securities added at runtime (online lookups). */

@@ -1,5 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { krakenOwns, krakenPairFor } from '../data/live/kraken';
+import { COINGECKO_ATTRIBUTION, coinGecko } from '../data/live/coingecko';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { Sparkline } from '../components/Sparkline';
 import { Chg, HBar, KV, LivePx, SecLink, Section } from '../components/cells';
@@ -651,6 +653,8 @@ function CryptoDES({ sec }: { sec: SecurityDef }) {
       athT = s.t[i];
     }
   const cr = sec.cry!;
+  const kraken = engine.realOnly && krakenOwns(sec.id);
+  const gecko = coinGecko.use((c) => c.coins[sec.id]);
   return (
     <>
       <div className="cols">
@@ -660,16 +664,26 @@ function CryptoDES({ sec }: { sec: SecurityDef }) {
               ['Asset', sec.name.split(' / ')[0]],
               ['Quote currency', 'USD'],
               ['Price', <LivePx key="l" id={sec.id} />],
-              ['Circulating supply', fmtBig(cr.supply)],
-              ['Market value', fmtBig(engine.realOnly && Number(yahooQuotes.get(sec.id)?.marketCap) > 0 ? Number(yahooQuotes.get(sec.id)!.marketCap) : q.last * cr.supply)],
+              ['Circulating supply', engine.realOnly ? (gecko?.supply ? `${fmtBig(gecko.supply)} (CoinGecko)` : '--') : fmtBig(cr.supply)],
+              [
+                'Market value',
+                engine.realOnly
+                  ? gecko?.marketCap
+                    ? `${fmtBig(gecko.marketCap)} (CoinGecko, aggregated)`
+                    : Number(yahooQuotes.get(sec.id)?.marketCap) > 0
+                      ? `${fmtBig(Number(yahooQuotes.get(sec.id)!.marketCap))} (Yahoo)`
+                      : '--'
+                  : fmtBig(q.last * cr.supply),
+              ],
               ['Launched', String(cr.launched)],
-              ['24h range', `${fmtNum(q.low, sec.dec)} - ${fmtNum(q.high, sec.dec)}`],
+              [kraken ? 'Day range (UTC day)' : '24h range', `${fmtNum(q.low, sec.dec)} - ${fmtNum(q.high, sec.dec)}`],
               ['High (10Y window)', `${fmtNum(ath, sec.dec)}  ${fmtDay(athT)}`],
               ['Drawdown from high', fmtPct((q.last / ath - 1) * 100, 1)],
               ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
-              ['Source', engine.realOnly ? 'Yahoo Finance (unofficial; CoinMarketCap prices)' : engine.isLive(sec.id) ? `Coinbase ${cr.coinbase}` : 'Simulated'],
+              ['Source', kraken ? `Kraken exchange, ${krakenPairFor(sec.id)!.base}/USD (one exchange's market)` : engine.realOnly ? 'Yahoo Finance (unofficial; CoinMarketCap prices)' : engine.isLive(sec.id) ? `Coinbase ${cr.coinbase}` : 'Simulated'],
             ]}
           />
+          {gecko ? <div className="note">Supply and market value: {COINGECKO_ATTRIBUTION}, aggregated across the exchanges it tracks.</div> : null}
           <Range52 sec={sec} />
           <Returns id={sec.id} />
         </Section>

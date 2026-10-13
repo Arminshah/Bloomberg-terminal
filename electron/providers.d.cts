@@ -1,7 +1,7 @@
 // Types for providers.cjs, for the tests that import it.
-export const CREDENTIALS: Record<'FRED_API_KEY' | 'MASSIVE_API_KEY' | 'SEC_USER_AGENT', { label: string; valid: (v: string) => boolean }>;
+export const CREDENTIALS: Record<'FRED_API_KEY' | 'MASSIVE_API_KEY' | 'SEC_USER_AGENT' | 'COINGECKO_API_KEY', { label: string; valid: (v: string) => boolean }>;
 export function credential(name: string): { value: string; source: string | null };
-export const SETTINGS: Record<'YAHOO_PRICES_ENABLED', { label: string; default: boolean }>;
+export const SETTINGS: Record<'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED', { label: string; default: boolean }>;
 export function setting(name: string): { value: boolean; source: string | null };
 export function settingStatus(): Record<string, { label: string; value: boolean; source: string | null }>;
 export function saveSetting(name: string, value: boolean): void;

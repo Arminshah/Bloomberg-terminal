@@ -173,6 +173,8 @@ export interface Quote {
   session?: 'open' | 'pre' | 'post' | 'overnight' | 'closed';
   /** The exchange's time zone (IANA name), when the source gives it. */
   tz?: string;
+  /** What the volume counts, when it is not shares or contracts: coins of the base asset, or "USD". */
+  volumeUnit?: string;
 }
 
 export interface Bar {

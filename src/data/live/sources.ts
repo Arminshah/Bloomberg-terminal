@@ -3,6 +3,7 @@ import type { SecurityDef } from '../types';
 import { desktopData, yahooSymbolFor } from './yahoo';
 import { TREASURY_IDS, treasuryAvailable } from './ust';
 import { OFFICIAL_YIELD_IDS } from './govyields';
+import { krakenOwns } from './kraken';
 import { officialAvailable } from './official';
 
 /**
@@ -10,6 +11,7 @@ import { officialAvailable } from './official';
  * left out of its lists: the desktop app shows real data or nothing.
  */
 export function hasRealSource(d: SecurityDef): boolean {
+  if (krakenOwns(d.id)) return true;
   if (yahooSymbolFor(d)) return true;
   if (treasuryAvailable() && TREASURY_IDS.has(d.id)) return true;
   if (officialAvailable() && OFFICIAL_YIELD_IDS.has(d.id)) return true;

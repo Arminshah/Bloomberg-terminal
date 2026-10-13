@@ -12,6 +12,8 @@ const CREDENTIALS = {
   // FRED documents its keys as 32-character lowercase alphanumeric strings.
   FRED_API_KEY: { label: 'FRED API key', valid: (v) => /^[a-z0-9]{32}$/.test(v) },
   MASSIVE_API_KEY: { label: 'Massive API key', valid: (v) => /^[A-Za-z0-9_-]{8,128}$/.test(v) },
+  // CoinGecko's free Demo plan: market caps and circulating supply, aggregated across exchanges.
+  COINGECKO_API_KEY: { label: 'CoinGecko Demo API key', valid: (v) => /^[A-Za-z0-9_-]{10,64}$/.test(v) },
   // The SEC asks for an application name and a contact email it can reach.
   SEC_USER_AGENT: {
     label: 'SEC User-Agent (application name and your contact email)',
@@ -88,6 +90,8 @@ const SETTINGS = {
   // Yahoo Finance prices are an unofficial, personal-use source the owner chose to keep. Off stops every
   // Yahoo request and the streaming socket.
   YAHOO_PRICES_ENABLED: { label: 'Yahoo Finance prices (unofficial, personal use)', default: true },
+  // Kraken's public market data for the crypto lines. Off hands them back to Yahoo, when Yahoo is on.
+  KRAKEN_ENABLED: { label: 'Kraken exchange prices for crypto (public market data)', default: true },
 };
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'provider-settings.json');
