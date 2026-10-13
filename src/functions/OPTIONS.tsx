@@ -246,11 +246,14 @@ export function OVME({ sec, route }: FnProps) {
     const p = parts[2] ? Date.parse(`${parts[2]}T20:00:00Z`) : NaN;
     return Number.isFinite(p) ? p : exps[Math.min(3, exps.length - 1)];
   });
-  // Once the listed expiries arrive, a date that is not listed moves to the next listed one.
+  // Once the listed expiries arrive, a date that is not listed moves to one that is: the nearest
+  // to the date asked for (from OMON), else the fourth listed, as with the standard calendar.
+  const asked = Boolean(parts[2]);
   useEffect(() => {
     if (!listedExps.length || listedExps.includes(expiry)) return;
-    setExpiry(listedExps.find((e) => e >= expiry) ?? listedExps[listedExps.length - 1]);
-  }, [listedExps, expiry]);
+    const nearest = listedExps.reduce((b, e) => (Math.abs(e - expiry) < Math.abs(b - expiry) ? e : b), listedExps[0]);
+    setExpiry(asked ? nearest : listedExps[Math.min(3, listedExps.length - 1)]);
+  }, [listedExps, expiry, asked]);
   const [spotOverride, setSpotOverride] = useState('');
   // A fourth argument is the listed contract's implied vol, from OMON.
   const [volOverride, setVolOverride] = useState(() => (Number(parts[3]) > 0 ? parts[3] : ''));
