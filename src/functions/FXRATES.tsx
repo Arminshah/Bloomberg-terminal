@@ -5,12 +5,12 @@ import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { fmtDay, fmtInt, fmtNum, MONTHS, WEEKDAYS } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { DAY_MS, addMonths, dayNum, isBusinessDay } from '../data/calendar';
-import { centralBanks, COUNTRY_NAMES } from '../data/eco';
+import { centralBanks, COUNTRY_NAMES, newYorkDate } from '../data/eco';
 import { curveMembers } from '../data/curves';
 import { rangeStats } from '../data/analytics';
 import { resolveSecurity } from '../data/registry';
 import { bootstrap, depoRate, fxForward, pipSize, policyRate, swapRate } from '../data/rates';
-import { policyRates } from '../data/live/policy';
+import { levelOn, policyRates } from '../data/live/policy';
 import type { SecurityDef } from '../data/types';
 import { blackScholes, type OptType } from '../finance/options';
 import { execute } from '../terminal/exec';
@@ -452,6 +452,8 @@ export function CENB(_: FnProps) {
   const panel = usePanelId();
   const now = engine.now();
   const banks = centralBanks();
+  const fedLower = policyRates.get().fedLower;
+  const fedLow = fedLower ? levelOn(fedLower, newYorkDate(now)) : NaN;
   const twoYear = (country: string) => {
     const code = country === 'EZ' ? 'DE' : country;
     const m = curveMembers(code).find((d) => d.tenor === 2);
@@ -487,7 +489,8 @@ export function CENB(_: FnProps) {
                 </td>
                 <td className="hide-m">{COUNTRY_NAMES[b.country] ?? b.country}</td>
                 <td className="num white b">
-                  {fmtNum(b.rate, 2)}%{b.real ? null : <span className="muted" title="Reference setting, not a live source"> SIM</span>}
+                  {/* The Fed sets a target range; the rate used elsewhere in this row is its upper limit. */}
+                  {b.code === 'FED' && Number.isFinite(fedLow) ? `${fmtNum(fedLow, 2)}-${fmtNum(b.rate, 2)}` : fmtNum(b.rate, 2)}%{b.real ? null : <span className="muted" title="Reference setting, not a live source"> SIM</span>}
                 </td>
                 <td className="num">
                   <Chg v={b.lastMove * 100} dec={0} /> bp
@@ -508,7 +511,7 @@ export function CENB(_: FnProps) {
           : banks.some((b) => b.real)
           ? 'Rates without SIM, and their last moves, come from the central banks’ own data. Rates marked SIM are reference settings with no free daily source and may be out of date.'
           : 'Policy rates are reference settings (the Fed range is derived from the 3-month bill) and may be out of date; the desktop app loads the Fed, ECB, Bank of England and Bank of Canada rates from the banks themselves.'}{' '}
-        A 2-year yield below the policy rate means the market expects cuts.
+        The Fed's 2-year spread is to the upper limit of its target range. A 2-year yield below the policy rate means the market expects cuts.
       </p>
     </div>
   );
