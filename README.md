@@ -10,10 +10,12 @@ The browser version has no data source. It opens on a page that says so, and run
 
 ## Download for Windows
 
-Every push builds the Windows app in CI. Open the [Actions tab](https://github.com/arminshah/bloomberg-terminal/actions), pick the latest successful CI run, and download `armin-terminal-windows` under Artifacts (you need to be signed in to GitHub). The zip holds two files:
+Download the latest version from the [Releases page](https://github.com/arminshah/bloomberg-terminal/releases) (sign in to GitHub first: the repository is private). Each release has two files:
 
-- `Armin-Terminal-Setup-<version>.exe` installs the app with Start menu and desktop shortcuts.
+- `Armin-Terminal-Setup-<version>.exe` installs the app with Start menu and desktop shortcuts. Installing a newer version over an older one keeps your watchlists, settings and saved keys.
 - `Armin-Terminal-<version>-Portable.exe` runs without installing.
+
+Every push also builds the app in CI: open the [Actions tab](https://github.com/arminshah/bloomberg-terminal/actions), pick the latest successful CI run, and download `armin-terminal-windows` under Artifacts.
 
 The executables are not code-signed, so the first launch may show "Windows protected your PC". Choose More info, then Run anyway.
 
