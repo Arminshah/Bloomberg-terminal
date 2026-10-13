@@ -10,6 +10,10 @@ import { realDividends, trailingDividendYield, yahooQuotes } from './live/yahoo'
 export interface FinPeriod {
   label: string;
   end: number;
+  /** LTM only: from the source's trailing figures, or the sum of the last four quarters. */
+  basis?: 'trailing' | 'quarters';
+  /** LTM only: EPS worked out as net income over diluted shares (a quarter's EPS was missing). */
+  epsComputed?: boolean;
   rev: number;
   cogs: number;
   gp: number;
@@ -350,7 +354,8 @@ export function keyStats(def: SecurityDef): KeyStats {
         ks[k] = v != null && Number.isFinite(x) ? x * scale : missing;
       };
       put('pe', yq.trailingPE);
-      put('fpe', yq.forwardPE);
+      // Yahoo's price over the current fiscal year's estimate, the FY1 shown beside it (its forwardPE uses the next year's).
+      put('fpe', yq.priceEpsCurrentYear);
       if (fx === 1) put('pb', yq.priceToBook);
       put('epsLtm', yq.epsTrailingTwelveMonths);
       put('epsFy1', yq.epsCurrentYear);

@@ -10,6 +10,10 @@
 - Browser build: no data until you open the demo; every simulated value says DEMO DATA; browser feeds that needed a key in the browser or whose terms were not reviewed are off; the public Pages deployment is removed.
 - Gaps no longer filled with defaults: looked-up companies, earnings dates, dividend rates.
 
+## Done (13 October 2026, version 1.2.2)
+
+- The adversarial check of the 15-stock audit confirmed all 13 findings and refined four fixes: forward P/E on FY1 also before company data loads, LTM EPS from net income over shares when a quarter's EPS is missing (ASML), revenue switched only on a gap over 5%, and growth kept between two losses.
+
 ## Done (13 October 2026, version 1.2.1)
 
 - From the audit of 15 stocks: forward P/E on the FY1 estimate shown, price to book from market cap and equity, 52-week ranges over 365 days, LTM figures checked against the four quarters, quarters matched by end date, reported revenue where the feed adds gains, expected (not declared) dividend dates, Shell's pence dividends labelled, EE's EPS basis marked.

@@ -262,13 +262,13 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   }
   // Revenue as the company reports it. The statements feed adds investment and derivative gains to some
   // companies' revenue (Berkshire 2025: 410,522 against the 371,444 it reports); where its latest yearly
-  // figure differs from the earnings module's by more than 2%, the earnings module's revenue is used for
+  // figure differs from the earnings module's by more than 5%, the earnings module's revenue is used for
   // the years and quarters it has.
   const fy = (r.earnings?.financialsChart?.yearly ?? []) as Json[];
   const yearOf = (p: FinPeriod) => fy.find((x) => Number(x?.date) === new Date(p.end).getUTCFullYear());
   const lastYear = annual[annual.length - 1];
   const reportedRev = lastYear ? M(num(yearOf(lastYear)?.revenue)) : NaN;
-  if (lastYear && reportedRev > 0 && Math.abs(reportedRev - lastYear.rev) > 0.02 * reportedRev) {
+  if (lastYear && reportedRev > 0 && Math.abs(reportedRev - lastYear.rev) > 0.05 * reportedRev) {
     for (const p of annual) {
       const v = M(num(yearOf(p)?.revenue));
       if (Number.isFinite(v)) p.rev = v;
@@ -289,7 +289,14 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const fromTrailing = trailing && (!consecutive || trailing[0] >= q4[3].end - 5 * DAY_MS) ? periodFrom('LTM', trailing[0], trailing[1], lastQ?.[1], ltmDividends) : null;
   const summed = consecutive ? sumQuarters(q4, ltmDividends) : null;
   const agrees = (a: number, b: number) => !Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) <= 0.005 * Math.max(Math.abs(a), Math.abs(b));
-  const ltm = fromTrailing && (!summed || (agrees(fromTrailing.ni, summed.ni) && agrees(fromTrailing.rev, summed.rev))) ? fromTrailing : (summed ?? fromTrailing);
+  const ltm = fromTrailing && (!summed || (agrees(fromTrailing.ni, summed.ni) && agrees(fromTrailing.rev, summed.rev) && agrees(fromTrailing.opInc, summed.opInc))) ? fromTrailing : (summed ?? fromTrailing);
+  // A quarter without its EPS in the feed (ASML's Q3 2025) leaves the sum without one: LTM net income over the
+  // latest diluted share count instead, marked as worked out here.
+  if (ltm && ltm === summed && !Number.isFinite(ltm.eps) && Number.isFinite(ltm.ni) && ltm.shares > 0) {
+    ltm.eps = ltm.ni / ltm.shares;
+    ltm.epsComputed = true;
+  }
+  if (ltm) ltm.basis = ltm === summed ? 'quarters' : 'trailing';
 
   // Estimates
   const trend = (r.earningsTrend?.trend ?? []) as Json[];
@@ -304,8 +311,9 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
       epsHi: num(t.earningsEstimate?.high),
       epsLo: num(t.earningsEstimate?.low),
       analysts: num(t.earningsEstimate?.numberOfAnalysts),
-      // Growth between a loss and a profit, or between two losses, means nothing: shown as --.
-      growth: num(t.earningsEstimate?.yearAgoEps) > 0 && num(t.earningsEstimate?.avg) > 0 ? num(t.earningsEstimate?.growth) * 100 : NaN,
+      // Growth from a loss to a profit, or back, means nothing: shown as --. Between two losses it is kept,
+      // as FA keeps it (a narrowing loss counts as growth).
+      growth: num(t.earningsEstimate?.yearAgoEps) * num(t.earningsEstimate?.avg) > 0 ? num(t.earningsEstimate?.growth) * 100 : NaN,
     };
   };
   const fy1 = est('0y', (e) => `FY ${new Date(e).getUTCFullYear()}`);

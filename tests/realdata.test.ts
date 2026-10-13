@@ -135,11 +135,12 @@ describe('figures that sit side by side agree', () => {
 });
 
 describe('second audit round (15 stocks)', () => {
-  it('shows no EPS growth between a profit and a loss or between two losses', () => {
+  it('shows no EPS growth across a change of sign, and keeps it between two losses', () => {
     // Applied Digital: FY2026 EPS estimate -1.06 against +0.11 a year earlier (the source says -1,066.7%).
     const f = apldFund();
     expect(f.estimates!.fy1.growth).toBeNaN();
-    expect(f.estimates!.fy2.growth).toBeNaN();
+    // FY2027: -0.78 against -1.06, a narrowing loss, as FA shows it.
+    expect(f.estimates!.fy2.growth).toBeCloseTo(26.23, 1);
   });
 
   it("uses the company's reported revenue when the statements feed adds other items", () => {

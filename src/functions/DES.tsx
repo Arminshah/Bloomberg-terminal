@@ -162,7 +162,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
               ['Payout ratio', fmtPct(ks.payout, 1, false)],
               ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : nextDiv.type === 'Expected' ? 'expected' : 'decl.'})` : sec.eq!.dps === 0 ? 'None' : '--'],
-              ['EPS LTM', `${fmtNum(ks.epsLtm, 2)} ${ccy}`],
+              ['EPS LTM', `${fmtNum(ks.epsLtm, 2)} ${ccy}${financials(sec).ltm?.epsComputed ? ' (computed)' : ''}`],
               // With the number of analysts behind each average.
               ['EPS est. FY1 / FY2', `${fmtNum(ks.epsFy1, 2)}${nEst(est.fy1.analysts)} / ${fmtNum(ks.epsFy2, 2)}${nEst(est.fy2.analysts)}`],
               ['Next earnings', ne ? fmtEarnDate(ne) : '--'],
