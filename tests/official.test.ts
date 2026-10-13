@@ -3,7 +3,7 @@ import { euroAreaCode, parseBoeColumns, parseBubaCsv, parseJsonStat, parseMofCsv
 import { parseFomcCalendar, parseNyFedLatest } from '../src/data/live/policy';
 import { obsToBars, OFFICIAL_LINES, parseSource } from '../src/data/live/govyields';
 import { fedPath } from '../src/data/fedpath';
-import { centralBanks } from '../src/data/eco';
+import { centralBanks, releaseDays } from '../src/data/eco';
 import { isoToDay } from '../src/data/calendar';
 
 import fomcHtml from './fixtures/fomc-calendar.html?raw';
@@ -296,6 +296,22 @@ describe('FRED releases', () => {
     expect(eventDates(ev('Durable Goods Orders MoM'), dates)).toEqual(['2026-10-27']);
     expect(eventDates(ev('Factory Orders MoM'), dates)).toEqual(['2026-10-02']);
     expect(eventDates(ev('CPI MoM'), dates)).toEqual(dates);
+  });
+
+  it('leaves out dates FRED files under a release for other reports', () => {
+    // FRED's release dates from April 2026, as the API returned them on 13 October 2026.
+    const iso = (s: string) => s.split(' ').map((d) => `2026-${d}`);
+    const releases = {
+      27: iso('04-29 05-05 05-21 05-28 06-16 06-24 07-17 07-24 08-18 08-25 09-17 09-24 10-20 10-27 11-18 11-25 12-17 12-23'),
+      97: iso('05-05 05-28 06-24 07-24 08-25 09-24 10-27 11-25 12-23'),
+      9: iso('04-01 04-21 05-14 06-17 07-16 08-14 09-16 09-28 10-15 11-17 12-16'),
+    };
+    // Housing Starts: the New Residential Sales dates are not Housing Starts releases (Census publishes starts once a month).
+    expect(releaseDays(ev('Housing Starts'), releases)).toEqual(iso('04-29 05-21 06-16 07-17 08-18 09-17 10-20 11-18 12-17'));
+    expect(releaseDays(ev('New Home Sales'), releases)).toEqual(releases[97]);
+    // Retail Sales: 28 September was the annual revision, not a second August report.
+    expect(releaseDays(ev('Retail Sales Advance MoM'), releases)).not.toContain('2026-09-28');
+    expect(releaseDays(ev('Retail Sales Advance MoM'), releases)).toContain('2026-10-15');
   });
 
   it('keeps track of whether FRED has a key it accepts', () => {

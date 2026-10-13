@@ -64,10 +64,11 @@ export const US_EVENTS: FredEvent[] = [
   { rid: 95, name: 'Durable Goods Orders MoM', series: 'DGORDER', calc: 'mom', freq: 'm', minDelay: 20, unit: '%', dec: 1, rel: 2, kind: 'activity', early: true },
   { rid: 95, name: 'Factory Orders MoM', series: 'AMTMNO', calc: 'mom', freq: 'm', minDelay: 28, unit: '%', dec: 1, rel: 1, kind: 'activity', early: false },
   { rid: 53, name: 'GDP Annualized QoQ', series: 'A191RL1Q225SBEA', calc: 'level', freq: 'q', minDelay: 20, unit: '%', dec: 1, rel: 3, kind: 'activity' },
-  // BEA computes these from unrounded data; two decimals keep the figure from the rounded index consistent with it.
-  { rid: 54, name: 'PCE Core Deflator MoM', series: 'PCEPILFE', calc: 'mom', freq: 'm', minDelay: 20, unit: '%', dec: 2, rel: 3, kind: 'inflation' },
-  { rid: 54, name: 'PCE Core Deflator YoY', series: 'PCEPILFE', calc: 'yoy', freq: 'm', minDelay: 20, unit: '%', dec: 2, rel: 3, kind: 'inflation' },
-  { rid: 54, name: 'PCE Deflator YoY', series: 'PCEPI', calc: 'yoy', freq: 'm', minDelay: 20, unit: '%', dec: 2, rel: 2, kind: 'inflation' },
+  // One decimal, as BEA publishes them. BEA works from unrounded data, so in a rare month the last digit
+  // worked out from the published index can differ from BEA's.
+  { rid: 54, name: 'PCE Core Deflator MoM', series: 'PCEPILFE', calc: 'mom', freq: 'm', minDelay: 20, unit: '%', dec: 1, rel: 3, kind: 'inflation' },
+  { rid: 54, name: 'PCE Core Deflator YoY', series: 'PCEPILFE', calc: 'yoy', freq: 'm', minDelay: 20, unit: '%', dec: 1, rel: 3, kind: 'inflation' },
+  { rid: 54, name: 'PCE Deflator YoY', series: 'PCEPI', calc: 'yoy', freq: 'm', minDelay: 20, unit: '%', dec: 1, rel: 2, kind: 'inflation' },
   { rid: 180, name: 'Initial Jobless Claims', series: 'ICSA', calc: 'level', freq: 'w', minDelay: 4, unit: 'k', dec: 0, scale: 0.001, rel: 2, kind: 'other' },
   { rid: 192, name: 'JOLTS Job Openings', series: 'JTSJOL', calc: 'level', freq: 'm', minDelay: 28, unit: 'k', dec: 0, rel: 2, kind: 'activity' },
   { rid: 51, name: 'Trade Balance', series: 'BOPGSTB', calc: 'level', freq: 'm', minDelay: 28, unit: 'bn', dec: 1, scale: 0.001, rel: 2, kind: 'other' },
@@ -78,8 +79,9 @@ export const US_EVENTS: FredEvent[] = [
  * year-on-year change for GDP and prices. Wherever a statistics office publishes the headline rate
  * itself, that published rate is used: BEA's real GDP growth on a year earlier, Eurostat's HICP
  * annual rate, GDP growth and unemployment, and the ONS's CPI, GDP growth and unemployment.
- * Japan, Canada and Australia have no such series here: their GDP growth is worked out from OECD
- * real GDP levels and their unemployment is the OECD harmonised rate.
+ * Japan, Canada and Australia have no such series here: their GDP growth is worked out from real
+ * GDP levels (Japan's Cabinet Office; the IMF's International Financial Statistics for Canada and
+ * Australia) and their unemployment is the OECD harmonised rate, all via FRED.
  */
 export const COUNTRY_STATS: Record<string, { gdp?: [string, Freq, Calc?]; cpi?: [string, Freq, Calc?]; un?: [string, Freq] }> = {
   US: { gdp: ['A191RO1Q156NBEA', 'q', 'level'], cpi: ['CPIAUCNS', 'm'], un: ['UNRATE', 'm'] },
@@ -332,8 +334,8 @@ async function loadSeries(): Promise<boolean> {
 }
 
 async function loadCalendars(): Promise<boolean> {
-  // A month back (ECO's "last week") onwards, scheduled dates included.
-  const from = new Date(Date.now() - 31 * 86_400_000).toISOString().slice(0, 10);
+  // Six weeks back (ECO's "last week", and the first date of each period, so later dates for it can be left out) onwards.
+  const from = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10);
   const rids = [...new Set(US_EVENTS.map((e) => e.rid))];
   const releases = { ...fredData.get().releases };
   let any = false;

@@ -3,7 +3,7 @@ import { zonedToUtc } from '../core/format';
 import { DAY_MS, isBusinessDay, dayNum } from './calendar';
 import { engine } from './market';
 import { levelOn, policyRates, type PolicyRates, type PolicySeries } from './live/policy';
-import { eventDates, expectedPeriod, fredData, periodLabel as fredPeriodLabel, previousPeriod, US_EVENTS, valueAt } from './live/fred';
+import { eventDates, expectedPeriod, fredData, periodLabel as fredPeriodLabel, previousPeriod, US_EVENTS, valueAt, type FredEvent } from './live/fred';
 
 export { zonedToUtc } from '../core/format';
 
@@ -249,12 +249,35 @@ export function newYorkDate(now: number): string {
  * its date, never a time. Actual and prior are the figures as currently
  * published, so they include any revisions since.
  */
+/**
+ * The days a US event is published. FRED files some dates of other reports under a release:
+ * every New Residential Sales date (release 97) under Housing Starts (27), and the annual retail
+ * revision under Retail Sales (9). Those are left out, and so is any later date for a month or week
+ * already published. Quarterly GDP is published three times for each quarter on purpose.
+ */
+export function releaseDays(ev: FredEvent, releases: Record<number, string[]>): string[] {
+  const other = ev.rid === 27 ? new Set(releases[97] ?? []) : new Set<string>();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const d of eventDates(ev, releases[ev.rid] ?? [])) {
+    if (other.has(d)) continue;
+    if (ev.freq !== 'q') {
+      const [y, m, day] = d.split('-').map(Number);
+      const p = expectedPeriod(ev, Date.UTC(y, m - 1, day));
+      if (seen.has(p)) continue;
+      seen.add(p);
+    }
+    out.push(d);
+  }
+  return out;
+}
+
 function usReleases(from: number, to: number, now: number): EcoEvent[] {
   const st = fredData.get();
   const today = newYorkDate(now);
   const out: EcoEvent[] = [];
   for (const ev of US_EVENTS) {
-    for (const d of eventDates(ev, st.releases[ev.rid] ?? [])) {
+    for (const d of releaseDays(ev, st.releases)) {
       const [y, m, day] = d.split('-').map(Number);
       const t = Date.UTC(y, m - 1, day, 12);
       if (t < from || t > to) continue;

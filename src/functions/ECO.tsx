@@ -10,7 +10,8 @@ import { periodChange } from '../data/analytics';
 import type { FnProps } from '../terminal/types';
 import { RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
-import { COMPUTED_GROWTH, COUNTRY_STATS, figurePeriod, figureStatus, fredData, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
+import { levelOn, policyRates } from '../data/live/policy';
+import { COMPUTED_GROWTH, COUNTRY_STATS, figurePeriod, figureStatus, fredData, US_EVENTS, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
 
 const COUNTRIES = ['US', 'EZ', 'DE', 'GB', 'JP', 'CN', 'CA', 'AU'];
 /** The desktop app's calendar: US releases from FRED and the central banks with their own data. */
@@ -64,7 +65,7 @@ export function ECO(_: FnProps) {
             Times in your display time zone ·{' '}
             {real ? (
               <>
-                <RealBadge /> US releases: scheduled dates and published values from the FRED API (it gives no times of day) · central bank decisions from the banks' own data · consensus forecasts are not public
+                <RealBadge /> selected US releases ({US_EVENTS.length} indicators from {new Set(US_EVENTS.map((e) => e.rid)).size} reports): scheduled dates and published values from the FRED API (it gives no times of day) · central bank decisions from the banks' own data · consensus forecasts are not public
               </>
             ) : all.some((e) => e.real) ? (
               <>
@@ -251,7 +252,7 @@ function stat(key: [string, Freq, Calc?] | undefined, calc: Calc, series: Record
 function StatCell({ s, dec = 1, mark }: { s: { v: number; period: string } | null; dec?: number; mark?: boolean }) {
   if (!s) return <span className="faint">--</span>;
   return (
-    <span title={mark ? `${s.period}, worked out from OECD real GDP levels` : s.period}>
+    <span title={mark ? `${s.period}, worked out from the real GDP level a year earlier` : s.period}>
       {fmtNum(s.v, dec)}
       {mark ? '*' : ''} <span className="muted">{s.period}</span>
     </span>
@@ -269,6 +270,9 @@ function ECSTReal() {
   const cbs = centralBanks();
   const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES', 'NL'].includes(c) ? 'EZ' : c))?.rate;
   const market = (id?: string) => (id && engine.hasSource(id) ? id : undefined);
+  // The Fed sets a target range: shown whole, with the real rate worked out from its upper limit.
+  const fed = policyRates.get().fedLower;
+  const fedLow = fed ? levelOn(fed, newYorkDate(Date.now())) : NaN;
   const rows = Object.entries(COUNTRY_STATS).map(([c, k]) => {
     const cpi = stat(k.cpi, 'yoy', series);
     const rate = policy(c);
@@ -291,7 +295,7 @@ function ECSTReal() {
         title="World Economic Statistics"
         sub={
           <>
-            <RealBadge /> latest published figures with their periods: BEA and BLS (via FRED), Eurostat, the ONS and the OECD · policy rates from the central banks
+            <RealBadge /> latest published figures with their periods: BEA and BLS, Japan's Cabinet Office, the IMF and the OECD (via FRED), Eurostat, the ONS · policy rates from the central banks
           </>
         }
       />
@@ -304,7 +308,13 @@ function ECSTReal() {
           { key: 'g', label: 'Real GDP YoY %', num: true, render: (r) => <StatCell s={r.gdp} mark={COMPUTED_GROWTH.has(r.c)} />, sort: (r) => r.gdp?.v ?? NaN },
           { key: 'i', label: 'CPI YoY %', num: true, render: (r) => <StatCell s={r.cpi} />, sort: (r) => r.cpi?.v ?? NaN },
           { key: 'u', label: 'Unemp %', num: true, render: (r) => <StatCell s={r.un} />, sort: (r) => r.un?.v ?? NaN },
-          { key: 'r', label: 'Policy %', num: true, render: (r) => (r.rate != null ? fmtNum(r.rate, 2) : '--'), sort: (r) => r.rate ?? NaN },
+          {
+            key: 'r',
+            label: 'Policy %',
+            num: true,
+            render: (r) => (r.rate == null ? '--' : r.c === 'US' && Number.isFinite(fedLow) ? <span title="Federal funds target range">{`${fmtNum(fedLow, 2)}-${fmtNum(r.rate, 2)}`}</span> : fmtNum(r.rate, 2)),
+            sort: (r) => r.rate ?? NaN,
+          },
           { key: 'real', label: 'Real rate', num: true, render: (r) => (Number.isFinite(r.real) ? <Chg v={r.real} dec={2} /> : '--'), sort: (r) => r.real, hideM: true },
           { key: 'y', label: '10Y yld', num: true, render: (r) => (r.y10 ? <LivePx id={r.y10} /> : '--') },
           { key: 'idx', label: 'Equity YTD', num: true, render: (r) => (r.idx ? <Chg v={periodChange(r.idx, 'YTD')} pct dec={1} /> : '--'), sort: (r) => (r.idx ? periodChange(r.idx, 'YTD') : NaN) },
@@ -323,7 +333,7 @@ function ECSTReal() {
         />
       </Section>
       <div className="note">
-        Growth is real GDP against the same quarter a year earlier and inflation the 12-month rate, as each statistics office publishes them: BEA and BLS for the US, Eurostat for the euro area and its members (HICP), the ONS for the UK. US inflation is worked out from the published CPI index the way the BLS does. UK unemployment is the ONS Labour Force Survey rate, an average over the three months shown. For Japan, Canada and Australia growth is worked out from OECD real GDP levels (marked *), unemployment is the OECD harmonised rate, and inflation has no current free series and is left out. FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).
+        Growth is real GDP against the same quarter a year earlier and inflation the 12-month rate, as each statistics office publishes them: BEA and BLS for the US, Eurostat for the euro area and its members (HICP), the ONS for the UK. US inflation is worked out from the published CPI index the way the BLS does. UK unemployment is the ONS Labour Force Survey rate, an average over the three months shown. For Japan, Canada and Australia, growth is worked out from real GDP levels (marked *): the Cabinet Office's for Japan and the IMF's International Financial Statistics for Canada and Australia, via FRED. Their unemployment is the OECD harmonised rate, which comes about a month after each national statistics office publishes its own, and their inflation is not connected yet. The US policy rate is the Fed's target range; the real rate uses its upper limit. FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).
       </div>
     </div>
   );
