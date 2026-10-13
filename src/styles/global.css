@@ -186,6 +186,8 @@ button { cursor: pointer; }
 .workspace[data-layout='3'] { grid-template: 1fr 1fr / 1.35fr 1fr; }
 .workspace[data-layout='3'] > .panel:first-child { grid-row: span 2; }
 .workspace[data-layout='4'] { grid-template: 1fr 1fr / 1fr 1fr; }
+.workspace[data-layout='5'] { grid-template: 1fr 1fr / 1fr 1fr 0.5fr; }
+.workspace[data-layout='5'] > .panel:nth-child(5) { grid-column: 3; grid-row: 1 / span 2; }
 .workspace[data-layout='6'] { grid-template: 1fr 1fr / 1fr 1fr 1fr; }
 
 .panel {
@@ -795,6 +797,7 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
   .qstrip .px { font-size: var(--fs-l); }
 }
 @container panel (max-width: 420px) {
+  .hide-m { display: none !important; }
   .kv-cols { grid-template-columns: 1fr; }
   .cmd-msg { right: 44px; max-width: 70%; }
 }

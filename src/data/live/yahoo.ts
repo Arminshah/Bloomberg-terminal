@@ -508,14 +508,14 @@ class YahooData {
       t.gmtOffset = gmtOffset * 1000;
       this.applyHistory(t, bars, dividends);
     } catch {
-      // A network error or rate limit: try again later, three times at most.
+      // A network error or rate limit: try again later, waiting longer each time (10 minutes at most).
       const tries = (t.tries ?? 0) + 1;
-      if (tries <= 3 && !this.stopped) {
+      if (!this.stopped) {
         setTimeout(() => {
           if (this.stopped || this.loaded.has(t.id)) return;
           this.historyQueue.push({ ...t, tries });
           this.pumpHistory();
-        }, 5_000 * 2 ** tries);
+        }, Math.min(600_000, 5_000 * 2 ** tries));
       }
     }
   }

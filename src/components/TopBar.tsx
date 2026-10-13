@@ -14,11 +14,12 @@ const LAYOUTS: { id: LayoutId; cols: number; rows: number; label: string }[] = [
   { id: '2v', cols: 1, rows: 2, label: 'Two panels stacked' },
   { id: '3', cols: 2, rows: 2, label: 'Three panels' },
   { id: '4', cols: 2, rows: 2, label: 'Four panels' },
+  { id: '5', cols: 3, rows: 2, label: 'Four panels and a watchlist column' },
   { id: '6', cols: 3, rows: 2, label: 'Six panels' },
 ];
 
 export const PRESETS: { name: string; layout: LayoutId; routes: Route[] }[] = [
-  { name: 'Market Overview', layout: '4', routes: [{ fn: 'WEI' }, { fn: 'GP', sec: 'SPX Index' }, { fn: 'TOP' }, { fn: 'IMAP' }] },
+  { name: 'Market Overview', layout: '5', routes: [{ fn: 'WEI' }, { fn: 'GP', sec: 'SPX Index' }, { fn: 'TOP' }, { fn: 'IMAP' }, { fn: 'W' }] },
   { name: 'Equity Research', layout: '4', routes: [{ fn: 'DES', sec: 'NVDA US Equity' }, { fn: 'GP', sec: 'NVDA US Equity' }, { fn: 'FA', sec: 'NVDA US Equity' }, { fn: 'ANR', sec: 'NVDA US Equity' }] },
   { name: 'Trading Desk', layout: '6', routes: [{ fn: 'W' }, { fn: 'BQ', sec: 'TSLA US Equity' }, { fn: 'GIP', sec: 'TSLA US Equity' }, { fn: 'MOST' }, { fn: 'TAS', sec: 'TSLA US Equity' }, { fn: 'DEPTH', sec: 'TSLA US Equity' }] },
   { name: 'Macro & Rates', layout: '4', routes: [{ fn: 'ECO' }, { fn: 'GC' }, { fn: 'WIRP' }, { fn: 'WB' }] },
@@ -28,17 +29,20 @@ export const PRESETS: { name: string; layout: LayoutId; routes: Route[] }[] = [
 ];
 
 function LayoutIcon({ cols, rows, id }: { cols: number; rows: number; id: LayoutId }) {
-  const cells = id === '3' ? 3 : cols * rows;
+  const cells = id === '3' ? 3 : id === '5' ? 5 : cols * rows;
+  // Layout 3: the first panel spans both rows; layout 5: the fifth, a narrow column on the right.
+  const span = (i: number) => (id === '3' && i === 0 ? { gridRow: 'span 2' } : id === '5' && i === 4 ? { gridColumn: '3', gridRow: '1 / span 2' } : undefined);
   return (
-    <span className="layout-icon" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
+    <span className="layout-icon" style={{ gridTemplateColumns: id === '5' ? '1fr 1fr 0.6fr' : `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
       {Array.from({ length: cells }, (_, i) => (
-        <i key={i} style={id === '3' && i === 0 ? { gridRow: 'span 2' } : undefined} />
+        <i key={i} style={span(i)} />
       ))}
     </span>
   );
 }
 
 const CLOCKS = [
+  { tz: 'Europe/Brussels', label: 'BRUSSELS' },
   { tz: 'America/New_York', label: 'NEW YORK' },
   { tz: 'Europe/London', label: 'LONDON' },
   { tz: 'Asia/Tokyo', label: 'TOKYO' },

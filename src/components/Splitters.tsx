@@ -63,7 +63,7 @@ export function Splitters() {
         role="separator"
         aria-orientation="horizontal"
         aria-label="Resize panels"
-        style={{ top: `${acc * 100}%`, ...(layout === '3' ? { left: `${split.cols[0] * 100}%` } : {}) }}
+        style={{ top: `${acc * 100}%`, ...(layout === '3' ? { left: `${split.cols[0] * 100}%` } : layout === '5' ? { right: `${split.cols[2] * 100}%` } : {}) }}
         onPointerDown={drag('rows', i)}
         onDoubleClick={() => setSplit(layout, undefined)}
       />,

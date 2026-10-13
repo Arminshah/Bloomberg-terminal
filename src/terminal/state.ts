@@ -1,4 +1,4 @@
-import { createStore } from '../core/store';
+import { createStore, loadJson, saveJson } from '../core/store';
 import type { LayoutId, Route } from './types';
 
 export interface PanelState {
@@ -32,7 +32,8 @@ const DEFAULT_ROUTES: Route[] = [
 ];
 
 export const defaultTerminal = (): TerminalState => ({
-  layout: '4',
+  // Four panels with the watchlist (panel 5) as a column on the right.
+  layout: '5',
   sizes: {},
   active: 0,
   panels: DEFAULT_ROUTES.map((r) => ({ history: [r], idx: 0 })),
@@ -40,9 +41,37 @@ export const defaultTerminal = (): TerminalState => ({
   recentFns: ['GP', 'DES', 'TOP', 'WEI'],
 });
 
-export const terminal = createStore<TerminalState>(defaultTerminal(), 'terminal', 2, { perWindow: true });
+/**
+ * Version 3 adds the watchlist column (layout 5). A saved four-panel workspace
+ * keeps its panels and gains the column, with the watchlist in panel 5.
+ */
+export function migrateTerminal(saved: { v: number; s: TerminalState }): { v: number; s: TerminalState } {
+  if (saved.v !== 2 || !saved.s || !Array.isArray(saved.s.panels)) return saved;
+  const s = { ...saved.s, panels: [...saved.s.panels] };
+  if (s.layout === '4') {
+    s.layout = '5';
+    const p5 = s.panels[4];
+    if (!p5 || p5.history[p5.idx]?.fn !== 'W') s.panels[4] = { history: [{ fn: 'W' }], idx: 0 };
+  }
+  return { v: 3, s };
+}
 
-export const LAYOUT_PANELS: Record<LayoutId, number> = { '1': 1, '2': 2, '2v': 2, '3': 3, '4': 4, '6': 6 };
+if (typeof localStorage !== 'undefined') {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !/^armin:terminal(:w\d+)?$/.test(key)) continue;
+      const saved = loadJson<{ v: number; s: TerminalState }>(key);
+      if (saved?.v === 2) saveJson(key, migrateTerminal(saved));
+    }
+  } catch {
+    // Storage unavailable: the defaults apply.
+  }
+}
+
+export const terminal = createStore<TerminalState>(defaultTerminal(), 'terminal', 3, { perWindow: true });
+
+export const LAYOUT_PANELS: Record<LayoutId, number> = { '1': 1, '2': 2, '2v': 2, '3': 3, '4': 4, '5': 5, '6': 6 };
 
 export function currentRoute(s: TerminalState, panel: number): Route {
   const p = s.panels[panel] ?? s.panels[0];
@@ -113,6 +142,7 @@ export const DEFAULT_SPLIT: Record<LayoutId, Split> = {
   '2v': { cols: [1], rows: [0.5, 0.5] },
   '3': { cols: [0.575, 0.425], rows: [0.5, 0.5] },
   '4': { cols: [0.5, 0.5], rows: [0.5, 0.5] },
+  '5': { cols: [0.4, 0.4, 0.2], rows: [0.5, 0.5] },
   '6': { cols: [1 / 3, 1 / 3, 1 / 3], rows: [0.5, 0.5] },
 };
 

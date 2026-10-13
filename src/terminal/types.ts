@@ -8,7 +8,7 @@ export interface Route {
   args?: string;
 }
 
-export type LayoutId = '1' | '2' | '2v' | '3' | '4' | '6';
+export type LayoutId = '1' | '2' | '2v' | '3' | '4' | '5' | '6';
 
 export interface FnProps {
   route: Route;
