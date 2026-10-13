@@ -25,7 +25,7 @@ jobs:
       - run: npm run e2e
 
   # Builds the Windows installer and portable app on every push; download them
-  # from the run's Artifacts. Tagged releases are published by release.yml.
+  # from the run's Artifacts, or from the Release the next job publishes.
   desktop:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -45,3 +45,40 @@ jobs:
           name: armin-terminal-windows
           path: release/*.exe
           if-no-files-found: error
+
+  # Publishes a GitHub Release with the Windows files once the tests and the build
+  # pass, when package.json carries a version that has no release yet. A pushed
+  # v* tag is published by release.yml instead.
+  release:
+    needs: [test, desktop]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/claude/amber-terminal' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: armin-terminal-windows
+          path: release
+      - name: Publish the release for a new version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if gh release view "$version" > /dev/null 2>&1; then
+            echo "$version is already released; nothing to publish"
+            exit 0
+          fi
+          cat > notes.md <<'NOTES'
+          Windows desktop build of Armin Terminal.
+
+          - `Armin-Terminal-Setup-*.exe` installs the app with Start menu and desktop shortcuts. Installing over an older version keeps your watchlists, settings and saved keys.
+          - `Armin-Terminal-*-Portable.exe` runs without installing.
+
+          The executables are not code-signed, so Windows SmartScreen may show "Windows protected your PC" on first launch. Choose "More info", then "Run anyway".
+
+          docs/roadmap.md lists what changed in this version.
+          NOTES
+          gh release create "$version" release/*.exe --target "$GITHUB_SHA" --title "Armin Terminal $version" --notes-file notes.md

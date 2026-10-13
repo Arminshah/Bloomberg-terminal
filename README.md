@@ -23,7 +23,7 @@ This is the version with real market and company data (see [Where the data comes
 
 The desktop app has no menu bar, so every F-key reaches the terminal. Window commands use Ctrl+Shift: Ctrl+Shift+N opens another terminal window with its own panel layout, Ctrl+Shift+F toggles full screen, Ctrl+Shift+I opens developer tools, and Ctrl+plus, Ctrl+minus and Ctrl+0 zoom. Watchlists, the portfolio, orders, alerts and settings are shared and stay in sync across windows. Each window remembers its size and position.
 
-To publish a release instead, push a tag such as `v1.0.1`. The workflow in `.github/workflows/release.yml` builds both files on a Windows runner and attaches them to a GitHub Release for that tag. Locally, `npm run desktop` starts the desktop app and `npm run desktop:build` writes the installers to `release/` (on Windows; building the installer on Linux needs Wine).
+A release is published by CI: when a push raises the version in `package.json` and the tests and the Windows build pass, the `release` job in `.github/workflows/ci.yml` creates the GitHub Release for that version with both files. Pushing a tag such as `v1.2.1` also works, through `.github/workflows/release.yml`. Locally, `npm run desktop` starts the desktop app and `npm run desktop:build` writes the installers to `release/` (on Windows; building the installer on Linux needs Wine).
 
 ## Provider keys
 
