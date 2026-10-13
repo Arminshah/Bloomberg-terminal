@@ -58,6 +58,8 @@ const num = (v: Json): number => {
 
 /** Before or after the US session, from a report time; '--' when the time is not known. */
 export function usTiming(ms: number): EarningsEvent['timing'] {
+  // A stamp at exactly midnight UTC is a date without a time.
+  if (ms % DAY_MS === 0) return '--';
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date(ms));
   const t = Number(parts.find((p) => p.type === 'hour')?.value) + Number(parts.find((p) => p.type === 'minute')?.value) / 60;
   if (!Number.isFinite(t) || t === 0) return '--';
@@ -236,33 +238,58 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   // The statements feed can lag a quarter; the earnings module already has the newest quarter's revenue and profit.
   const eh = (r.earningsHistory?.history ?? []) as Json[];
   const fq = (r.earnings?.financialsChart?.quarterly ?? []) as Json[];
+  // The source labels quarters its own way ("2Q2026" for NVIDIA's July quarter): its earnings chart pairs each
+  // label with the period end, so a quarter is found by its end date, not by the calendar quarter it ends in.
+  const chartQ = (r.earnings?.earningsChart?.quarterly ?? []) as Json[];
+  const finFor = (end: number): Json | undefined => {
+    const hit = chartQ.find((q) => Math.abs(num(q?.periodEndDate) * 1000 - end) < 20 * DAY_MS);
+    return fq.find((x) => x?.date === (hit?.date ?? calQuarter(end)));
+  };
   const calQuarter = (end: number) => `${Math.floor(new Date(end).getUTCMonth() / 3) + 1}Q${new Date(end).getUTCFullYear()}`;
   const lastEnd = quarterly.length ? quarterly[quarterly.length - 1].end : 0;
-  const lastShares = [...quarterly].reverse().find((p) => Number.isFinite(p.shares))?.shares ?? def.eq?.shares ?? NaN;
   for (const h of eh) {
     const end = num(h.quarter) * 1000;
     if (!(end > lastEnd)) continue;
-    const fin = fq.find((x) => x?.date === calQuarter(end));
+    const fin = finFor(end);
     if (!fin) continue;
     const row: Row = new Map();
     row.set('TotalRevenue', num(fin.revenue));
     row.set('NetIncomeCommonStockholders', num(fin.earnings));
-    // GAAP EPS like the other quarters (the earnings module's figure is the adjusted one).
-    row.set('DilutedEPS', num(fin.earnings) / (lastShares * 1e6));
+    // No EPS until the statements have the quarter: the earnings module's EPS is the adjusted one, and net
+    // income over the previous quarter's share count is not the reported figure.
+    row.set('DilutedEPS', NaN);
     quarterly = [...quarterly, periodFrom(fiscalQuarter(end, fye), end, row)].slice(-8);
+  }
+  // Revenue as the company reports it. The statements feed adds investment and derivative gains to some
+  // companies' revenue (Berkshire 2025: 410,522 against the 371,444 it reports); where its latest yearly
+  // figure differs from the earnings module's by more than 2%, the earnings module's revenue is used for
+  // the years and quarters it has.
+  const fy = (r.earnings?.financialsChart?.yearly ?? []) as Json[];
+  const yearOf = (p: FinPeriod) => fy.find((x) => Number(x?.date) === new Date(p.end).getUTCFullYear());
+  const lastYear = annual[annual.length - 1];
+  const reportedRev = lastYear ? M(num(yearOf(lastYear)?.revenue)) : NaN;
+  if (lastYear && reportedRev > 0 && Math.abs(reportedRev - lastYear.rev) > 0.02 * reportedRev) {
+    for (const p of annual) {
+      const v = M(num(yearOf(p)?.revenue));
+      if (Number.isFinite(v)) p.rev = v;
+    }
+    for (const p of quarterly) {
+      const v = M(num(finFor(p.end)?.revenue));
+      if (Number.isFinite(v)) p.rev = v;
+    }
   }
   const lastQ = [...quarterlyRows.entries()].sort((a, b) => b[0] - a[0])[0];
   const trailing = [...trailingRows.entries()].sort((a, b) => b[0] - a[0])[0];
   const ltmDividends = dividendsIn(def.id, now - 365 * DAY_MS, now);
   // Trailing twelve months: the feed's own figure when current, else the sum of the last four quarters.
+  // When both exist and disagree (ASML: trailing net income 9,814 against 10,638 for the four quarters, which
+  // match ASML's releases), the quarters win.
   const q4 = quarterly.slice(-4);
   const consecutive = q4.length === 4 && q4.every((p, i) => i === 0 || Math.abs(p.end - q4[i - 1].end - 91 * DAY_MS) <= 12 * DAY_MS);
-  const ltm =
-    trailing && (!consecutive || trailing[0] >= q4[3].end - 5 * DAY_MS)
-      ? periodFrom('LTM', trailing[0], trailing[1], lastQ?.[1], ltmDividends)
-      : consecutive
-        ? sumQuarters(q4, ltmDividends)
-        : null;
+  const fromTrailing = trailing && (!consecutive || trailing[0] >= q4[3].end - 5 * DAY_MS) ? periodFrom('LTM', trailing[0], trailing[1], lastQ?.[1], ltmDividends) : null;
+  const summed = consecutive ? sumQuarters(q4, ltmDividends) : null;
+  const agrees = (a: number, b: number) => !Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) <= 0.005 * Math.max(Math.abs(a), Math.abs(b));
+  const ltm = fromTrailing && (!summed || (agrees(fromTrailing.ni, summed.ni) && agrees(fromTrailing.rev, summed.rev))) ? fromTrailing : (summed ?? fromTrailing);
 
   // Estimates
   const trend = (r.earningsTrend?.trend ?? []) as Json[];
@@ -277,7 +304,8 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
       epsHi: num(t.earningsEstimate?.high),
       epsLo: num(t.earningsEstimate?.low),
       analysts: num(t.earningsEstimate?.numberOfAnalysts),
-      growth: num(t.earningsEstimate?.growth) * 100,
+      // Growth between a loss and a profit, or between two losses, means nothing: shown as --.
+      growth: num(t.earningsEstimate?.yearAgoEps) > 0 && num(t.earningsEstimate?.avg) > 0 ? num(t.earningsEstimate?.growth) * 100 : NaN,
     };
   };
   const fy1 = est('0y', (e) => `FY ${new Date(e).getUTCFullYear()}`);
@@ -296,7 +324,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const earnings: EarningsEvent[] = eh
     .map((h) => {
       const end = num(h.quarter) * 1000;
-      const fin = fq.find((x) => x?.date === calQuarter(end));
+      const fin = finFor(end);
       const at = reported.get(end);
       return {
         period: fiscalQuarter(end, fye),

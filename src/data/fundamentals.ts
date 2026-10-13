@@ -336,7 +336,10 @@ export function keyStats(def: SecurityDef): KeyStats {
     // Figures that sit next to their inputs on screen are worked out here from those inputs, so they agree:
     // P/E from the LTM EPS shown, enterprise value from the market cap and the latest balance sheet, and
     // EV/EBITDA from those two. The source's own ratios use other bases (Nebius: P/E 164 next to an EPS of -0.08).
-    const own = new Set(['ev', 'evEbitda', ...(Number.isFinite(ltm.eps) ? ['pe'] : [])]);
+    // Forward P/E over the FY1 consensus shown beside it (the source's uses its own forward EPS), and price
+    // to book from the market cap and the latest equity (Berkshire's source figure divided a Class B price by
+    // a Class A book value).
+    const own = new Set(['ev', 'evEbitda', 'fpe', ...(Number.isFinite(ltm.eps) ? ['pe'] : []), ...(ltm.equity > 0 ? ['pb'] : [])]);
     for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v) && !mixed.has(k) && !own.has(k)) ks[k] = v as number;
   } else {
     const yq = yahooQuotes.get(def.id);
@@ -680,8 +683,13 @@ function realDividendList(def: SecurityDef): Dividend[] {
   const out: Dividend[] = list.map((x) => ({ declared: NaN, ex: x.day * DAY_MS, record: NaN, pay: NaN, amount: x.amount, freq: FREQ_LABEL[freq], type: 'Regular Cash' }));
   const next = getRealFund(def.id)?.nextDividend;
   if (next && next.ex > (list.length ? list[list.length - 1].day * DAY_MS : 0)) {
-    // The source gives the date but not the amount; the annual rate over the frequency would be a guess.
-    out.push({ declared: NaN, ex: next.ex, record: NaN, pay: next.pay, amount: NaN, freq: FREQ_LABEL[freq], type: 'Declared' });
+    // The source gives the date but not the amount or a declaration (Toyota's March 2027 date is a forecast):
+    // it is an expected date, and the annual rate over the frequency would be a guess at the amount.
+    out.push({ declared: NaN, ex: next.ex, record: NaN, pay: next.pay, amount: NaN, freq: FREQ_LABEL[freq], type: 'Expected' });
+  } else if (next && Number.isFinite(next.pay)) {
+    // The dividend already went ex: its payable date belongs to that row.
+    const row = out.find((d) => Math.abs(d.ex - next.ex) < DAY_MS);
+    if (row) row.pay = next.pay;
   }
   return out.sort((a, b) => b.ex - a.ex);
 }

@@ -89,8 +89,13 @@ export function FA({ sec }: FnProps) {
   const status = fundStatus === 'ok' && !hasRealStatements(s) ? 'error' : fundStatus;
   const f = financials(s);
   const cols = quarterly ? f.quarterly : [...f.annual, f.ltm];
-  const rows = TABS[tab - 1].rows;
   const ccy = reportCcy(s);
+  // Dividends come in the unit the shares trade in (Shell: pence) while the statements are in the reporting
+  // currency (dollars): the row says its unit, and no payout ratio divides one by the other.
+  const divUnit = s.ccy !== ccy ? (s.ccy === 'GBp' ? 'pence' : s.ccy) : '';
+  const rows = TABS[tab - 1].rows.map((r) =>
+    divUnit && r.label === 'Dividend per share' ? { ...r, label: `Dividend per share (${divUnit})` } : divUnit && r.label === 'Payout ratio' ? { ...r, get: () => NaN } : r,
+  );
   const csv = () => [['Item', ...cols.map((c) => c.label)], ...rows.map((r) => [r.label, ...cols.map((c) => r.get(c).toFixed(r.dec ?? 1))])];
   return (
     <div>

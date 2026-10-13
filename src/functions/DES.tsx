@@ -155,13 +155,13 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
           <KV
             items={[
               ['P/E (LTM)', fmtNum(ks.pe, 1)],
-              ['P/E (BF FY1)', fmtNum(ks.fpe, 1)],
+              ['P/E (FY1 est.)', fmtNum(ks.fpe, 1)],
               ['Price / book', fmtNum(ks.pb, 2)],
               ['Price / sales', fmtNum(ks.ps, 2)],
               ['EV / EBITDA', fmtNum(ks.evEbitda, 1)],
               ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
               ['Payout ratio', fmtPct(ks.payout, 1, false)],
-              ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : 'decl.'})` : sec.eq!.dps === 0 ? 'None' : '--'],
+              ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : nextDiv.type === 'Expected' ? 'expected' : 'decl.'})` : sec.eq!.dps === 0 ? 'None' : '--'],
               ['EPS LTM', `${fmtNum(ks.epsLtm, 2)} ${ccy}`],
               // With the number of analysts behind each average.
               ['EPS est. FY1 / FY2', `${fmtNum(ks.epsFy1, 2)}${nEst(est.fy1.analysts)} / ${fmtNum(ks.epsFy2, 2)}${nEst(est.fy2.analysts)}`],

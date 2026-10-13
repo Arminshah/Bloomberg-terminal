@@ -74,7 +74,10 @@ export function rangeStats(id: string): RangeStats {
     return hit.v;
   }
   const n = s.length;
-  const from = Math.max(0, n - 252);
+  // 52 weeks by date, not a count of sessions: 252 sessions can reach back past a year.
+  const cutoff = n ? s.t[n - 1] - 365 * DAY_MS : 0;
+  let from = Math.max(0, n - 400); // more than a year of bars, for markets that trade every day
+  while (from < n - 1 && s.t[from] <= cutoff) from++;
   let hi = -Infinity;
   let lo = Infinity;
   let hiT = 0;

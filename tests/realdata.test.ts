@@ -6,6 +6,7 @@ import { buildRealFund, fundDue, FUND_TTL, realFund, usTiming } from '../src/dat
 import { dropVolumeSpikes, impliedShares, yahooQuotes } from '../src/data/live/yahoo';
 import { atmVolAt, realChain, type Leg } from '../src/data/live/yopt';
 import { parseTreasuryCsv } from '../src/data/live/ust';
+import { rangeStats } from '../src/data/analytics';
 import { levelOn, parseBoeCsv, parseEcbCsv, parseNyFed, parseValet, policyRates, toChanges } from '../src/data/live/policy';
 import { centralBanks, ecoEvents } from '../src/data/eco';
 
@@ -130,6 +131,51 @@ describe('figures that sit side by side agree', () => {
     ok[389].v = 2_000_000;
     expect(dropVolumeSpikes(ok, 389 * 20_000 + 2_000_000)).toBe(0);
     expect(ok[389].v).toBe(2_000_000);
+  });
+});
+
+describe('second audit round (15 stocks)', () => {
+  it('shows no EPS growth between a profit and a loss or between two losses', () => {
+    // Applied Digital: FY2026 EPS estimate -1.06 against +0.11 a year earlier (the source says -1,066.7%).
+    const f = apldFund();
+    expect(f.estimates!.fy1.growth).toBeNaN();
+    expect(f.estimates!.fy2.growth).toBeNaN();
+  });
+
+  it("uses the company's reported revenue when the statements feed adds other items", () => {
+    const s = structuredClone(summary);
+    // As for Berkshire, whose feed adds investment gains: the latest year differs from the reported figure by over 2%.
+    const yearly = s.quoteSummary.result[0].earnings.financialsChart.yearly;
+    yearly[yearly.length - 1].revenue = { raw: 500_000_000, fmt: '500M', longFmt: '500,000,000' };
+    const f = buildRealFund(engine.get(APLD)!, s, structuredClone(timeseries), structuredClone(timeseries), structuredClone(timeseries), NOW);
+    expect(f.annual[f.annual.length - 1].rev).toBe(500);
+    const fq = s.quoteSummary.result[0].earnings.financialsChart.quarterly;
+    const aug = f.quarterly.find((p) => new Date(p.end).toISOString().startsWith('2026-08'));
+    if (aug) expect(aug.rev).toBeCloseTo(fq[fq.length - 1].revenue.raw / 1e6, 6);
+  });
+
+  it('gives a report stamped at midnight UTC no time of day', () => {
+    expect(usTiming(Date.UTC(2026, 3, 28))).toBe('--');
+  });
+
+  it('takes the 52-week high and low from the last 365 days, not the last 252 sessions', () => {
+    const id = 'TSLA US Equity';
+    const today = engine.today;
+    // The high on the first weekday more than a year back (HOOD's was 367 days back).
+    let hiDay = today - 366;
+    while ([0, 6].includes(new Date(hiDay * DAY_MS).getUTCDay())) hiDay--;
+    const bars = [];
+    for (let d = today - 400; d <= today; d++) {
+      const dow = new Date(d * DAY_MS).getUTCDay();
+      if (dow === 0 || dow === 6) continue;
+      // Market holidays: with them, 252 sessions reach back past a year.
+      if (d % 12 === 0 && d !== hiDay && d !== today) continue;
+      bars.push({ day: d, o: 100, h: d === hiDay ? 153.56 : 101, l: 100, c: 100.5, v: 1e6 });
+    }
+    // The old 252-session window would have taken that high.
+    expect(bars.findIndex((b) => b.day === hiDay)).toBeGreaterThanOrEqual(bars.length - 252);
+    engine.setExternalDaily(id, bars);
+    expect(rangeStats(id).hi52).toBeLessThan(150);
   });
 });
 

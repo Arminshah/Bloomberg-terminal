@@ -21,7 +21,7 @@ export function DVD({ sec }: FnProps) {
   const ccy = s.ccy === 'GBp' ? 'GBp' : s.ccy;
   const byYear = new Map<number, number>();
   for (const d of list) {
-    if (d.type === 'Projected' || !Number.isFinite(d.amount)) continue;
+    if (d.type === 'Projected' || d.type === 'Expected' || !Number.isFinite(d.amount)) continue;
     const y = new Date(d.ex).getUTCFullYear();
     byYear.set(y, (byYear.get(y) ?? 0) + d.amount);
   }
@@ -78,7 +78,7 @@ export function DVD({ sec }: FnProps) {
                   <td>{fmtDay(d.pay)}</td>
                   <td className="num white">{fmtAmount(d.amount)}</td>
                   <td>{d.freq}</td>
-                  <td className={d.type === 'Projected' ? 'yellow' : ''}>{d.type}</td>
+                  <td className={d.type === 'Projected' || d.type === 'Expected' ? 'yellow' : ''}>{d.type}</td>
                 </tr>
               ))}
             </tbody>

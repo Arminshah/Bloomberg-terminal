@@ -82,8 +82,12 @@ export function EE({ sec }: FnProps) {
               <th>Period</th>
               <th>Date</th>
               <th>Time</th>
-              <th className="num">EPS est</th>
-              <th className="num">EPS actual</th>
+              <th className="num" title="The analysts' basis, usually adjusted EPS; FA shows the reported (GAAP) diluted EPS">
+                EPS est*
+              </th>
+              <th className="num" title="The analysts' basis, usually adjusted EPS; FA shows the reported (GAAP) diluted EPS">
+                EPS actual*
+              </th>
               <th className="num">Surprise</th>
               <th className="num hide-m">Rev est</th>
               <th className="num hide-m">Rev actual</th>
@@ -104,6 +108,7 @@ export function EE({ sec }: FnProps) {
             ))}
           </tbody>
         </table>
+        <div className="note">* EPS on the analysts' basis, usually adjusted; FA shows the reported (GAAP) diluted EPS.</div>
       </Section>
     </div>
   );
