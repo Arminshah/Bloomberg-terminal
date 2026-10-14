@@ -233,11 +233,17 @@ class KrakenData {
   private answered = false;
   /** Pairs whose daily candles loaded; null until the first load is over. */
   private dailyOk: number | null = null;
+  /** Lines whose daily candles have loaded in this session. */
+  private loaded = new Set<string>();
+  /** When to ask again for candles that failed, and how long to wait after that. */
+  private retryAt = 0;
+  private retryWait = 60_000;
   private intradayAt = new Map<string, number>();
   private offDemand?: () => void;
 
   start() {
     setFeed('crypto', 'connecting', 'Kraken: loading daily candles');
+    this.retryAt = Date.now() + this.retryWait;
     this.offDemand = engine.onDemand((id) => {
       if (BY_ID.has(id)) this.wantIntraday(id);
     });
@@ -253,10 +259,10 @@ class KrakenData {
     this.offDemand?.();
   }
 
-  /** Two years of daily candles per pair, one request a second. */
-  private async loadDaily() {
+  /** Two years of daily candles per pair, one request a second; `pairs` limits it to those still missing. */
+  private async loadDaily(pairs: KrakenPair[] = KRAKEN_PAIRS) {
     let ok = 0;
-    for (const p of KRAKEN_PAIRS) {
+    for (const p of pairs) {
       if (this.stopped) return;
       try {
         const res = await ask('ohlc', p.pair, 1440);
@@ -265,14 +271,15 @@ class KrakenData {
         engine.setExternalDaily(p.id, dailyBars(bars), { provider: KRAKEN_PROVIDER });
         const last = bars[bars.length - 1];
         this.prev.set(p.id, { day: dayNum(last.t), close: bars[bars.length - 2].c });
+        this.loaded.add(p.id);
         ok++;
       } catch {
         /* this pair stays without history; the others go on */
       }
     }
-    engine.flush(KRAKEN_PAIRS.map((p) => p.id));
+    engine.flush(pairs.map((p) => p.id));
     if (this.dailyOk === null) this.dailyOk = ok;
-    if (!ok) setFeed('crypto', 'error', 'Kraken: no daily candles (PROVIDERS shows why)');
+    if (!this.loaded.size) setFeed('crypto', 'error', 'Kraken: no daily candles (PROVIDERS shows why)');
   }
 
   private async poll() {
@@ -291,6 +298,9 @@ class KrakenData {
       for (const p of KRAKEN_PAIRS) {
         const t = tickers.get(p.id);
         if (!t) continue;
+        // Without its daily candles (they failed, or are still loading) a line starts from today's ticker, so
+        // the price shows; the day's change waits for the candles, which are asked for again below.
+        if (!engine.isExternal(p.id)) engine.setExternalDaily(p.id, [{ day, o: t.open, h: t.high, l: t.low, c: t.last, v: t.volume }], { provider: KRAKEN_PROVIDER });
         const prev = this.prev.get(p.id);
         // The candles end on an earlier day: a new UTC day has begun and they are reloaded.
         if (prev && prev.day < day) rolled = true;
@@ -317,9 +327,17 @@ class KrakenData {
       engine.flush(KRAKEN_PAIRS.map((p) => p.id));
       this.failures = 0;
       this.answered = true;
-      setFeed('crypto', 'live', `Kraken: ${tickers.size} of ${KRAKEN_PAIRS.length} pairs, snapshot ${new Date(at).toISOString().slice(11, 19)} UTC`);
+      const missing = KRAKEN_PAIRS.filter((p) => !this.loaded.has(p.id));
+      setFeed('crypto', 'live', `Kraken: ${tickers.size} of ${KRAKEN_PAIRS.length} pairs, snapshot ${new Date(at).toISOString().slice(11, 19)} UTC${missing.length ? `; daily candles missing for ${missing.length}, asked again` : ''}`);
       if (rolled && !this.loading) {
         this.loading = this.loadDaily().finally(() => {
+          this.loading = null;
+        });
+      } else if (missing.length && !this.loading && Date.now() >= this.retryAt) {
+        // Candles that failed are asked for again, waiting longer each time (1, 2, 4 ... up to 15 minutes).
+        this.retryAt = Date.now() + this.retryWait;
+        this.retryWait = Math.min(15 * 60_000, this.retryWait * 2);
+        this.loading = this.loadDaily(missing).finally(() => {
           this.loading = null;
         });
       }
