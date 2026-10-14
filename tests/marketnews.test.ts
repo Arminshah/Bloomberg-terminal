@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as newsMain from '../electron/news.cjs';
-import { canonicalUrl, mergeStories, parseEdgar8k, parseFinnhubNews, parseMarketaux, parseMarketWatch, titleKey } from '../src/data/live/marketnews';
+import { canonicalUrl, finnhubSymbol, mergeStories, parseEdgar8k, parseFinnhubNews, parseMarketaux, parseMarketWatch, sameTicker, titleKey, watchSymbols } from '../src/data/live/marketnews';
 
 // Made-up answers in the layouts each source documents; no request leaves the test.
 
@@ -138,5 +138,24 @@ describe('news answers', () => {
       { symbol: 'DEF', score: -0.2 },
     ]);
     expect(merged[0].time).toBe(1760450000000);
+  });
+});
+
+describe('8-K items and class shares', () => {
+  it('keeps an item whose name holds a colon', () => {
+    const xml = `<feed><entry><title>8-K - EXAMPLE CORP (0001234567) (Filer)</title><link rel="alternate" type="text/html" href="https://www.sec.gov/Archives/edgar/data/1234567/000123456726000124/0001234567-26-000124-index.htm"/><summary type="html"> &lt;b&gt;Filed:&lt;/b&gt; 2026-10-14 &lt;b&gt;AccNo:&lt;/b&gt; 0001234567-26-000124 &lt;b&gt;Size:&lt;/b&gt; 300 KB&lt;br&gt;Item 5.02: Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers: Compensatory Arrangements of Certain Officers&lt;br&gt;Item 9.01: Financial Statements and Exhibits</summary><updated>2026-10-14T17:00:00-04:00</updated></entry></feed>`;
+    expect(parseEdgar8k(xml)[0].summary).toBe(
+      'Item 5.02 Departure of Directors or Certain Officers; Election of Directors; Appointment of Certain Officers: Compensatory Arrangements of Certain Officers · Item 9.01 Financial Statements and Exhibits',
+    );
+  });
+
+  it('treats BRK-B, BRK.B and BRK/B as one ticker', () => {
+    expect(sameTicker('BRK.B', 'BRK-B')).toBe(true);
+    expect(sameTicker('BRK/B', 'BRK-B')).toBe(true);
+    expect(sameTicker('BRK.A', 'BRK-B')).toBe(false);
+    expect(finnhubSymbol('BRK-B')).toBe('BRK.B');
+    expect(newsMain.newsRequest('finnhub-company', 'BRK.B|2026-10-07|2026-10-14', 'k')!.url).toContain('symbol=BRK.B&');
+    // Marketaux is asked for both spellings of a class share, in one request.
+    expect(watchSymbols(['AAPL', 'BRK-B', 'AAPL', 'bad ticker'])).toBe('AAPL,BRK-B,BRK.B');
   });
 });

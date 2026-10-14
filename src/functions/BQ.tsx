@@ -17,7 +17,7 @@ import { news } from '../data/news';
 import { execute } from '../terminal/exec';
 import { requestCompanyNews } from '../data/live/feeds';
 import { useIex, type IexState } from '../data/live/alpaca';
-import { companyStories, marketNews, useCompanyNews } from '../data/live/marketnews';
+import { companyFeeds, companyStories, marketNews, useCompanyNews } from '../data/live/marketnews';
 import { secTicker } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
 import type { Quote, SecurityDef } from '../data/types';
@@ -40,7 +40,7 @@ export function BQ({ sec }: FnProps) {
   const nv = useCompanyNews(usStock, false);
   const feeds = marketNews.use((x) => x.feeds);
   const companyNews = useMemo(() => (usStock ? companyStories(usStock).slice(0, 8) : []), [usStock, nv]); // eslint-disable-line react-hooks/exhaustive-deps
-  const newsFeed = usStock ? Object.entries(feeds).find(([k]) => k.startsWith(`finnhub-company:${usStock}|`))?.[1] : undefined;
+  const newsFeed = usStock ? companyFeeds(feeds, usStock).finnhub : undefined;
   let vwap = NaN;
   {
     let pv = 0;

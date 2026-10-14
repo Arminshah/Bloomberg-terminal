@@ -242,8 +242,17 @@ function parseCredentialList(text) {
         value = def.valid(agent) ? agent : undefined;
       } else {
         // Candidate tokens: anything between spaces, brackets, quotes, colons or equals signs, except the names.
+        // Words from a label ("Massive (formerly Polygon.io)", "personal key") can pass a loose key check, so a
+        // token with both letters and digits wins, the longest if several; a line with several plain words and
+        // no such token is skipped rather than guessed.
         const tokens = line.split(/[\s[\]()<>"'`,;|:=]+/).filter((t) => t && !names.has(t.toLowerCase()));
-        value = tokens.find((t) => def.valid(t));
+        const passing = [...new Set(tokens.filter((t) => def.valid(t)))];
+        const keyish = passing.filter((t) => /\d/.test(t) && /[a-z]/i.test(t));
+        value = keyish.length ? keyish.reduce((a, b) => (b.length > a.length ? b : a)) : passing.length === 1 ? passing[0] : undefined;
+        if (!value && passing.length > 1) {
+          skipped.push({ line: i + 1, name, reason: 'more than one word could be the key; paste it into its own field' });
+          return;
+        }
       }
       if (!value) {
         skipped.push({ line: i + 1, name, reason: `no value that looks like a ${def.label}` });
@@ -360,7 +369,8 @@ function errorKind(status, err) {
     if (name === 'TimeoutError' || name === 'AbortError') return 'timeout';
     return 'network';
   }
-  if (status === 401 || status === 403) return 'not-entitled';
+  // 402: the plan does not include the request (FMP), or its allowance is used up.
+  if (status === 401 || status === 402 || status === 403) return 'not-entitled';
   if (status === 404) return 'no-data';
   if (status === 429) return 'rate-limited';
   if (status >= 500) return 'provider-error';

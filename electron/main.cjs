@@ -523,6 +523,11 @@ async function sendKeyed(provider, url, headers, pace, secrets, agent, id, old) 
   let res;
   for (let attempt = 0; ; attempt++) {
     await providers.slot(provider, pace[0], pace[1]);
+    // Checked again after the wait: requests queued together, and retries, must not pass the ceiling.
+    if (!providers.withinDailyCap(provider)) {
+      providers.recordProblem(provider, 'rate-limited', "The app's daily budget for this provider is spent; it asks again after midnight UTC.");
+      return stale({ budget: true });
+    }
     try {
       res = await tracked(provider, url, { headers: { 'User-Agent': agent ?? clientAgent(), Accept: 'application/json', ...headers }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (res.status < 500 || attempt >= 2) break;

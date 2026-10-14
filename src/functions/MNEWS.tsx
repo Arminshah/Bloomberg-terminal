@@ -4,7 +4,7 @@ import { fmtDate, fmtStamp, fmtTime } from '../core/format';
 import { engine } from '../data/market';
 import { useProviderReport } from '../data/providers';
 import { secTicker } from '../data/live/sec';
-import { companyStories, marketNews, newsAvailable, storiesFor, useCompanyNews, useMarketNews, type FeedState, type MarketStory } from '../data/live/marketnews';
+import { companyFeeds, companyStories, marketNews, newsAvailable, sameTicker, storiesFor, useCompanyNews, useMarketNews, watchSymbols, type FeedState, type MarketStory } from '../data/live/marketnews';
 import { watchlists } from '../terminal/userdata';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
@@ -114,10 +114,11 @@ const TABS = [
  * MARKETNEWS: market news merged from Finnhub, MarketWatch and Marketaux (your active watchlist, one request
  * an hour), with the SEC's latest 8-K filings, without duplicates. Filter by ticker or keyword.
  */
-export function MNEWS({ route }: FnProps) {
+export function MNEWS({ route, sec }: FnProps) {
   const panel = usePanelId();
   const [tab, setTab] = useState(1);
-  const [ticker, setTicker] = useState((route.args ?? '').trim().toUpperCase());
+  // "MARKETNEWS NVDA" arrives with NVDA as the security, "MARKETNEWS AI" as text.
+  const [ticker, setTicker] = useState((route.args ?? '').trim().toUpperCase() || secTicker(sec) || '');
   const [q, setQ] = useState('');
   const wl = watchlists.use((w) => w.lists[w.active] ?? w.lists[0]);
   const watch = useMemo(() => [...new Set((wl?.ids ?? []).map((id) => secTicker(engine.get(id))).filter((t): t is string => !!t))].slice(0, 20), [wl]);
@@ -127,8 +128,8 @@ export function MNEWS({ route }: FnProps) {
   const used = report?.providers.marketaux?.today;
   const all = useMemo(() => storiesFor(['finnhub-market', 'marketwatch', 'edgar-8k', 'marketaux']), [v]); // eslint-disable-line react-hooks/exhaustive-deps
   const t = ticker.replace(/^\$/, '');
-  const list = all.filter((s) => TABS[tab - 1].test(s) && (!t || s.tickers.includes(t) || s.title.toUpperCase().includes(t)) && (!q.trim() || `${s.title} ${s.summary ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()))).slice(0, 300);
-  const mk = Object.entries(feeds).find(([k]) => k.startsWith('marketaux:'))?.[1];
+  const list = all.filter((s) => TABS[tab - 1].test(s) && (!t || s.tickers.some((x) => sameTicker(x, t)) || s.title.toUpperCase().includes(t)) && (!q.trim() || `${s.title} ${s.summary ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()))).slice(0, 300);
+  const mk = watch.length ? feeds[`marketaux:${watchSymbols(watch)}`] : undefined;
   const waiting = Object.keys(feeds).length === 0 || Object.values(feeds).some((f) => f.state === 'loading' || f.state === 'idle');
   const status = [
     feedWord('Finnhub', feeds['finnhub-market']),
@@ -174,8 +175,7 @@ export function CompanyNews({ sec }: FnProps) {
   const v = useCompanyNews(symbol);
   const feeds = marketNews.use((x) => x.feeds);
   const stories = useMemo(() => (symbol ? companyStories(symbol) : []), [symbol, v]); // eslint-disable-line react-hooks/exhaustive-deps
-  const fin = Object.entries(feeds).find(([k]) => symbol && k.startsWith(`finnhub-company:${symbol}|`))?.[1];
-  const mk = symbol ? feeds[`marketaux:${symbol}`] : undefined;
+  const { finnhub: fin, marketaux: mk } = symbol ? companyFeeds(feeds, symbol) : {};
   return (
     <div className="fn-fill">
       <FnHeader code="COMPANYNEWS" title="Company News" sec={s} sub={symbol ? `${stories.length} stories · ${feedWord('Finnhub', fin)} · ${feedWord('Marketaux', mk)}` : 'US-listed stocks'} />

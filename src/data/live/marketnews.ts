@@ -38,6 +38,18 @@ export interface MarketStory {
 
 const TICKER = /^[A-Z][A-Z0-9.-]{0,9}$/;
 
+/** Tickers compared without caring how a class share is written: BRK-B, BRK.B and BRK/B are one. */
+export const sameTicker = (a: string, b: string) => a.replace(/[./]/g, '-') === b.replace(/[./]/g, '-');
+
+/** Finnhub writes class shares with a dot (BRK.B), as the app's earlier Finnhub lookup did. */
+export const finnhubSymbol = (symbol: string) => symbol.replace(/-/g, '.');
+
+/** A ticker with a class share, in both spellings, for Marketaux, whose spelling could not be checked. */
+const marketauxSymbols = (symbol: string) => [...new Set([symbol, symbol.replace(/-/g, '.')])];
+
+/** The watchlist as one Marketaux request: at most 50 symbols. */
+export const watchSymbols = (watch: string[]) => [...new Set(watch.filter((t) => TICKER.test(t)).flatMap(marketauxSymbols))].slice(0, 50).join(',');
+
 /** A link without tracking parameters, fragment, "www." or a trailing slash, for spotting the same story twice. */
 export function canonicalUrl(url: string): string {
   try {
@@ -139,7 +151,9 @@ export function parseEdgar8k(text: string): MarketStory[] {
     const acc = /AccNo:\s*([0-9-]+)/.exec(it.summary ?? '')?.[1] ?? it.link;
     if (seen.has(acc)) continue;
     seen.add(acc);
-    const items = [...(it.summary ?? '').matchAll(/Item\s+(\d+\.\d+):\s*([^:]+?)(?=\s*Item\s+\d+\.\d+:|$)/g)].map((x) => `${x[1]} ${x[2].trim()}`);
+    // An item's name can hold a colon itself (5.02: "... Appointment of Certain Officers: Compensatory ..."), so it
+    // runs to the next "Item n.nn:" or the end.
+    const items = [...(it.summary ?? '').matchAll(/Item\s+(\d+\.\d+):\s*(.+?)(?=\s*Item\s+\d+\.\d+:|$)/g)].map((x) => `${x[1]} ${x[2].trim()}`);
     out.push({
       id: canonicalUrl(it.link),
       title: `${m[2]} filed a ${m[1]}${items.length ? `: ${items.map((x) => x.replace(/^\d+\.\d+ /, '')).join('; ')}` : ''}`,
@@ -252,7 +266,7 @@ const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
 /** Keeps the market news sources fresh while a screen shows them: Finnhub every 5 minutes, the feeds every 10. */
 export function useMarketNews(watch: string[]) {
   const v = marketNews.use((s) => s.v);
-  const symbols = watch.filter((t) => TICKER.test(t)).slice(0, 50).join(',');
+  const symbols = watchSymbols(watch);
   useEffect(() => {
     if (!newsAvailable()) return;
     const tick = () => {
@@ -279,8 +293,8 @@ export function useCompanyNews(symbol: string | null, marketaux = true) {
     if (!symbol || !newsAvailable()) return;
     const tick = () => {
       const now = Date.now();
-      void loadNews('finnhub-company', `${symbol}|${isoDay(now - 7 * 86_400_000)}|${isoDay(now)}`, 15 * 60_000);
-      if (marketaux) void loadNews('marketaux', symbol, 60 * 60_000);
+      void loadNews('finnhub-company', `${finnhubSymbol(symbol)}|${isoDay(now - 7 * 86_400_000)}|${isoDay(now)}`, 15 * 60_000);
+      if (marketaux) void loadNews('marketaux', marketauxSymbols(symbol).join(','), 60 * 60_000);
     };
     tick();
     const t = setInterval(tick, 5 * 60_000);
@@ -298,9 +312,14 @@ export function storiesFor(prefixes: string[]): MarketStory[] {
 /** A company's stories: its Finnhub news and every Marketaux story tagged with its ticker. */
 export function companyStories(symbol: string): MarketStory[] {
   const lists = marketNews.get().lists;
-  const own = Object.entries(lists).filter(([k]) => k.startsWith(`finnhub-company:${symbol}|`)).map(([, l]) => l);
+  const own = Object.entries(lists).filter(([k]) => k.startsWith(`finnhub-company:${finnhubSymbol(symbol)}|`)).map(([, l]) => l);
   const tagged = Object.entries(lists)
     .filter(([k]) => k.startsWith('marketaux:'))
-    .map(([, l]) => l.filter((s) => s.tickers.includes(symbol)));
+    .map(([, l]) => l.filter((s) => s.tickers.some((t) => sameTicker(t, symbol))));
   return mergeStories([...own, ...tagged]);
+}
+
+/** The state of a company's two news requests, for the screens' status lines. */
+export function companyFeeds(feeds: Record<string, FeedState>, symbol: string): { finnhub?: FeedState; marketaux?: FeedState } {
+  return { finnhub: Object.entries(feeds).find(([k]) => k.startsWith(`finnhub-company:${finnhubSymbol(symbol)}|`))?.[1], marketaux: feeds[`marketaux:${marketauxSymbols(symbol).join(',')}`] };
 }

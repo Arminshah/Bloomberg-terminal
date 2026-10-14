@@ -209,3 +209,34 @@ describe('daily allowances and refusals of the keyed sources', () => {
     expect(providers.providerMessage('<!DOCTYPE html><html>Blocked</html>')).toBe('');
   });
 });
+
+describe('pasted keys with labels around them', () => {
+  it('takes the key, not a word from the label', () => {
+    // Made-up values. Labels as the provider table writes them, or as people annotate a key.
+    const text = [
+      'Massive (formerly Polygon.io): abcdEFGH1234ijklMNOP5678qrstUVWX',
+      'Alpha Vantage personal key: ABCDEFGH12345678',
+      'CoinGecko demo_api_key: CG-abcdefghijklmnop1234',
+      'Tiingo token 0123456789abcdef0123456789abcdef01234567 (internal use)',
+    ].join('\n');
+    const { found, skipped } = providers.parseCredentialList(text);
+    expect(Object.fromEntries(found.map((f: { name: string; value: string }) => [f.name, f.value]))).toEqual({
+      MASSIVE_API_KEY: 'abcdEFGH1234ijklMNOP5678qrstUVWX',
+      ALPHA_VANTAGE_API_KEY: 'ABCDEFGH12345678',
+      COINGECKO_API_KEY: 'CG-abcdefghijklmnop1234',
+      TIINGO_API_KEY: '0123456789abcdef0123456789abcdef01234567',
+    });
+    expect(skipped).toEqual([]);
+  });
+
+  it('skips a line where several plain words could be the key', () => {
+    const { found, skipped } = providers.parseCredentialList('Alpha Vantage: personal password');
+    expect(found).toEqual([]);
+    expect(skipped).toEqual([{ line: 1, name: 'ALPHA_VANTAGE_API_KEY', reason: 'more than one word could be the key; paste it into its own field' }]);
+  });
+
+  it('counts a 402 as a plan refusal, not an outage', () => {
+    expect(providers.errorKind(402)).toBe('not-entitled');
+    expect(providers.errorKind(500)).toBe('provider-error');
+  });
+});
