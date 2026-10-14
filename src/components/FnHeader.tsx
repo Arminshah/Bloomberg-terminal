@@ -50,7 +50,7 @@ export function FnHeader({ code, title, sec, sub, actions = [], tabs, tab, onTab
         <span className="fnh-actions">
           {right}
           {actions.map((a) => (
-            <button key={a.n} type="button" className={`act${a.on ? ' on' : ''}`} onClick={a.onClick} title={a.title ?? `${a.n} <GO>`}>
+            <button key={a.n} type="button" className={`act${a.on ? ' on' : ''}`} onClick={a.onClick} title={a.title ?? `Type ${a.n} and press Enter`}>
               <b>{a.n})</b> {a.label}
             </button>
           ))}

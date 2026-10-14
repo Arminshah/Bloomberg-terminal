@@ -546,7 +546,8 @@ function realDividendList(def: SecurityDef): Dividend[] {
   const list = realDividends.get(def.id) ?? [];
   const recent = list.filter((x) => x.day * DAY_MS > engine.now() - 400 * DAY_MS).length;
   const freq = recent >= 10 ? 12 : recent >= 4 ? 4 : recent >= 2 ? 2 : 1;
-  const out: Dividend[] = list.map((x) => ({ declared: NaN, ex: x.day * DAY_MS, record: NaN, pay: NaN, amount: x.amount, freq: FREQ_LABEL[freq], type: 'Regular Cash' }));
+  // The record gives dates and amounts only: whether a payment was regular or special is not in it.
+  const out: Dividend[] = list.map((x) => ({ declared: NaN, ex: x.day * DAY_MS, record: NaN, pay: NaN, amount: x.amount, freq: FREQ_LABEL[freq], type: 'Cash' }));
   const next = getRealFund(def.id)?.nextDividend;
   if (next && next.ex > (list.length ? list[list.length - 1].day * DAY_MS : 0)) {
     // The source gives the date but not the amount or a declaration (Toyota's March 2027 date is a forecast):

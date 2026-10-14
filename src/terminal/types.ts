@@ -42,6 +42,8 @@ export interface FnDef {
   component: ComponentType<FnProps>;
   /** Example command shown in HELP. */
   example?: string;
+  /** Why the desktop app has no data for this screen, when it has none; menus mark it. */
+  unavailable?: string;
 }
 
 export interface MenuItem {

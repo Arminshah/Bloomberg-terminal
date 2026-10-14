@@ -4,7 +4,7 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { XYChart } from '../components/chart/XYChart';
 import { KV, Section } from '../components/cells';
 import { fmtNum } from '../core/format';
-import { engine } from '../data/market';
+import { engine, useHistoryVersion } from '../data/market';
 import { alignedReturns, betaTo } from '../data/analytics';
 import { regress } from '../finance/stats';
 import { resolveSecurity } from '../data/registry';
@@ -25,6 +25,7 @@ export function BETA({ sec }: FnProps) {
   const [weekly, setWeekly] = useState(false);
   const [text, setText] = useState('');
   const bars = PERIODS[tab - 1].bars;
+  const history = useHistoryVersion();
   const data = useMemo(() => {
     const { rets } = alignedReturns([bench, s.id], bars);
     let x = rets[0];
@@ -39,7 +40,9 @@ export function BETA({ sec }: FnProps) {
       y = agg(y);
     }
     return { x, y, reg: regress(x, y) };
-  }, [bench, s.id, bars, weekly]);
+    // Recomputed when daily history arrives, which can be after the screen opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bench, s.id, bars, weekly, history]);
   const reg = data.reg;
   const adj = 0.67 * reg.beta + 0.33;
   const pts = data.x.map((v, i) => ({ x: v * 100, y: data.y[i] * 100 }));

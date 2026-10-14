@@ -58,7 +58,12 @@ export function BQ({ sec }: FnProps) {
         actions={[
           { n: 1, label: 'Chart', onClick: () => execute(panel, `${s.id} CHART`) },
           { n: 2, label: 'Profile', onClick: () => execute(panel, `${s.id} PROFILE`) },
-          { n: 3, label: 'News', onClick: () => execute(panel, `${s.id} COMPANYNEWS`) },
+          // The desktop app has no company news feed; a company's own announcements are its filings.
+          ...(!engine.realOnly
+            ? [{ n: 3, label: 'News', onClick: () => execute(panel, `${s.id} COMPANYNEWS`) }]
+            : s.cls === 'equity'
+              ? [{ n: 3, label: 'Filings', onClick: () => execute(panel, `${s.id} FILINGS`) }]
+              : []),
         ]}
       />
       <div className="cols">
@@ -148,19 +153,30 @@ export function BQ({ sec }: FnProps) {
           )}
         </Section>
       </div>
-      <Section title="Latest news" right={<button type="button" className="act" onClick={() => execute(panel, `${s.id} COMPANYNEWS`)}>All news ›</button>}>
-        {related.length === 0 ? (
-          <div className="note">No recent stories.</div>
-        ) : (
-          related.map((st) => (
-            <div key={st.id} className={`news-item${st.hot ? ' hot' : ''}`} onClick={() => execute(panel, `${s.id} COMPANYNEWS`)}>
-              <span className="time">{fmtStamp(st.time, engine.now())}</span>
-              <span className="hl">{st.headline}</span>
-              <span className="src">{st.source}</span>
-            </div>
-          ))
-        )}
-      </Section>
+      {engine.realOnly ? (
+        s.cls === 'equity' ? (
+          <div className="note">
+            No company news feed with terms that allow it is connected. A company&apos;s own announcements are its filings:{' '}
+            <button type="button" className="act" onClick={() => execute(panel, `${s.id} FILINGS`)}>
+              FILINGS ›
+            </button>
+          </div>
+        ) : null
+      ) : (
+        <Section title="Latest news" right={<button type="button" className="act" onClick={() => execute(panel, `${s.id} COMPANYNEWS`)}>All news ›</button>}>
+          {related.length === 0 ? (
+            <div className="note">No recent stories.</div>
+          ) : (
+            related.map((st) => (
+              <div key={st.id} className={`news-item${st.hot ? ' hot' : ''}`} onClick={() => execute(panel, `${s.id} COMPANYNEWS`)}>
+                <span className="time">{fmtStamp(st.time, engine.now())}</span>
+                <span className="hl">{st.headline}</span>
+                <span className="src">{st.source}</span>
+              </div>
+            ))
+          )}
+        </Section>
+      )}
     </div>
   );
 }

@@ -130,7 +130,7 @@ export function IMAP(_: FnProps) {
                 const big = r.w > 46 && r.h > 26;
                 return (
                   <g key={d.id} style={{ cursor: 'pointer' }} onClick={(e) => openSecurity(panel, d.id, e as unknown as React.MouseEvent, 'CHART')}>
-                    <title>{`${d.name}\n${fmtNum(engine.quote(d.id)!.last, d.dec)} ${d.ccy}  ${fmtPct(pct, 2)}\nMkt cap ${fmtBig(marketCapUsd(d.id))} USD`}</title>
+                    <title>{`${d.name}\n${fmtNum(engine.quote(d.id)!.last, d.dec)} ${d.ccy}  ${Number.isFinite(pct) ? fmtPct(pct, 2) : m.h === '1D' ? 'no confirmed previous close yet' : 'no history for the period'}\nMkt cap ${fmtBig(marketCapUsd(d.id))} USD`}</title>
                     <rect x={r.x} y={r.y} width={Math.max(0, r.w)} height={Math.max(0, r.h)} fill={heat(pct, m.scale)} stroke="#000" strokeWidth={1} />
                     {big && (
                       <>
@@ -155,6 +155,9 @@ export function IMAP(_: FnProps) {
         </svg>
       </div>
       <div className="row pad-s" style={{ justifyContent: 'center', gap: 2 }}>
+        <span style={{ background: heat(NaN), padding: '0 10px', fontSize: 10 }} title="No change for the period: a day's change shows once the previous close is confirmed">
+          n/a
+        </span>
         {[-1, -0.66, -0.33, 0, 0.33, 0.66, 1].map((k) => (
           <span key={k} style={{ background: heat(k * m.scale, m.scale), padding: '0 10px', fontSize: 10 }}>
             {k > 0 ? '+' : ''}

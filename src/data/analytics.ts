@@ -35,12 +35,20 @@ export function horizonStart(h: Horizon, now = engine.today * DAY_MS): number {
   }
 }
 
-/** Percent return (or yield change in % points for rates) over a horizon. */
+/**
+ * Percent return (or yield change in % points for rates) over a horizon. A day's
+ * change counts only against a previous close confirmed for the right session:
+ * while it is unconfirmed this gives NaN, so rankings, maps and averages leave
+ * the line out (DayChg shows such a change greyed, with a "?").
+ */
 export function periodChange(id: string, h: Horizon): number {
   const def = engine.get(id);
   const q = engine.quote(id);
   if (!def || !q) return NaN;
-  if (h === '1D') return def.quote === 'yield' ? q.chg : q.pct;
+  if (h === '1D') {
+    if (q.chgCheck === 'unverified') return NaN;
+    return def.quote === 'yield' ? q.chg : q.pct;
+  }
   const s = engine.daily(id);
   const base = closeAt(s, horizonStart(h));
   if (!Number.isFinite(base)) return NaN;

@@ -172,7 +172,7 @@ export function W({ route }: FnProps) {
                 <td className="num">{y ? '' : <DayChg q={q} pct />}</td>
                 <td className="num hide-m">{fmtNum(q.bid, d.dec)}</td>
                 <td className="num hide-m">{fmtNum(q.ask, d.dec)}</td>
-                <td className="num hide-m">{q.volume ? fmtBig(q.volume) : ''}</td>
+                <td className="num hide-m" title={q.volumeUnit ? `Volume in ${q.volumeUnit}` : undefined}>{q.volume ? `${fmtBig(q.volume)}${q.volumeUnit && q.volumeUnit !== 'USD' ? ` ${q.volumeUnit}` : ''}` : ''}</td>
                 <td className="num hide-m">{y ? `${fmtBp(periodChange(id, 'YTD'), 0)}` : <span className={periodChange(id, 'YTD') >= 0 ? 'up' : 'dn'}>{fmtPct(periodChange(id, 'YTD'), 1)}</span>}</td>
                 <td className="num muted hide-m">{fmtStamp(q.time, now)}</td>
                 <td className="hide-m">

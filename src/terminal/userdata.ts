@@ -1,4 +1,5 @@
 import { createStore, loadJson, removeKey, saveJson } from '../core/store';
+import type { LayoutId, Route } from './types';
 
 export interface Watchlist {
   name: string;
@@ -122,3 +123,14 @@ export const chats = createStore<{ rooms: ChatRoom[]; active: string; seq: numbe
 );
 
 export const notes = createStore<Record<string, string>>({}, 'notes', 1);
+
+/** A workspace saved on LAYOUTS: the layout, each visible panel's screen and the divider positions. */
+export interface SavedLayout {
+  name: string;
+  layout: LayoutId;
+  routes: Route[];
+  split?: { cols: number[]; rows: number[] };
+  saved: number;
+}
+
+export const savedLayouts = createStore<{ list: SavedLayout[] }>({ list: [] }, 'layouts', 1);

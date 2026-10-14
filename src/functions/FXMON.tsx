@@ -3,14 +3,14 @@ import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { yahooQuotes } from '../data/live/yahoo';
 import { QuoteFreshness } from '../components/Freshness';
-import { krakenOwns } from '../data/live/kraken';
+import { krakenHandedBack, krakenOwns } from '../data/live/kraken';
 import { COINGECKO_ATTRIBUTION, coinGecko } from '../data/live/coingecko';
 import { Flash } from '../components/Flash';
 import { Sparkline } from '../components/Sparkline';
 import { Chg, DayChg, HBar, LivePx, SecLink, openSecurity } from '../components/cells';
-import { fmtBig, fmtNum, fmtStamp, fmtTime } from '../core/format';
+import { fmtBig, fmtDay, fmtNum, fmtStamp, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { periodChange, type Horizon } from '../data/analytics';
+import { horizonStart, periodChange, type Horizon } from '../data/analytics';
 import { CURRENCY_INFO } from '../data/universe';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -23,10 +23,19 @@ function rateDec(v: number): number {
   return 4;
 }
 
+/** The quoted pair behind a currency's dollar value: EURUSD or USDJPY. */
+function usdPair(c: string): string | undefined {
+  return [`${c}USD Curncy`, `USD${c} Curncy`].find((id) => engine.get(id));
+}
+
 export function FXC(_: FnProps) {
   useTick(1);
   // Currencies without a real rate are left out of the matrix in the desktop app.
   const ccys = MATRIX.filter((c) => !engine.realOnly || Number.isFinite(engine.usdValue(c)));
+  const missing = engine.realOnly ? MATRIX.filter((c) => !ccys.includes(c)) : [];
+  const pairs = ccys.map(usdPair).filter((id): id is string => !!id);
+  const times = pairs.map((id) => engine.quote(id)?.time ?? NaN).filter(Number.isFinite);
+  const providers = [...new Set(pairs.map((id) => engine.quote(id)?.provider).filter(Boolean))];
   return (
     <div>
       <FnHeader code="FXMATRIX" title="Currency Cross Rates" sub="Units of the column currency per one unit of the row currency" />
@@ -60,7 +69,12 @@ export function FXC(_: FnProps) {
           </tbody>
         </table>
       </div>
-      <div className="note">Every cross is derived from the same currency set, so triangular arbitrage is zero by construction.</div>
+      <div className="note">
+        Every cross is worked out from each currency's rate against the US dollar ({pairs.map((id) => engine.get(id)!.ticker).join(', ')}), so crosses such as EURJPY are derived, not quoted, and triangular arbitrage is zero by construction.
+        {engine.realOnly && times.length > 0 &&
+          ` Rates from ${providers.join(', ') || 'the source'}, the oldest as of ${fmtStamp(Math.min(...times))}; QUOTE or WATCHLIST shows each rate's freshness.`}
+        {missing.length > 0 && ` No rate yet for ${missing.join(', ')}.`}
+      </div>
     </div>
   );
 }
@@ -91,10 +105,9 @@ export function WCRS(_: FnProps) {
   const [tab, setTab] = useState(1);
   const h = RANK_H[tab - 1].h;
   const codes = ['EUR', 'JPY', 'GBP', 'CHF', 'AUD', 'CAD', 'NZD', 'SEK', 'NOK', 'CNH', 'HKD', 'SGD', 'INR', 'KRW', 'MXN', 'BRL', 'ZAR', 'TRY'];
-  const rows = codes
-    .map((c) => ({ c, ...ccyVsUsd(c, h) }))
-    .filter((r) => !engine.realOnly || (r.id && engine.hasSource(r.id) && Number.isFinite(r.pct)))
-    .sort((a, b) => b.pct - a.pct);
+  const all = codes.map((c) => ({ c, ...ccyVsUsd(c, h) }));
+  const rows = all.filter((r) => !engine.realOnly || (r.id && engine.hasSource(r.id) && Number.isFinite(r.pct))).sort((a, b) => b.pct - a.pct);
+  const missing = all.filter((r) => !rows.includes(r)).map((r) => r.c);
   const max = Math.max(...rows.map((r) => Math.abs(r.pct)).filter(Number.isFinite), 0.01);
   return (
     <div>
@@ -129,6 +142,15 @@ export function WCRS(_: FnProps) {
           ))}
         </tbody>
       </table>
+      {engine.realOnly && (
+        <div className="note">
+          {h === '1D'
+            ? "The day's change against each pair's previous close, once that close is confirmed for the right session."
+            : `Change since the close on or before ${fmtDay(horizonStart(h))}, from the pair's daily closes.`}{' '}
+          Spot rates from {[...new Set(rows.map((r) => (r.id ? engine.quote(r.id)?.provider : undefined)).filter(Boolean))].join(', ') || 'the source'}.
+          {missing.length > 0 && ` No figure yet for ${missing.join(', ')}${h === '1D' ? ': its previous close is not confirmed yet, or no rate has arrived' : ': no rate or no daily history for the period'}.`}
+        </div>
+      )}
     </div>
   );
 }
@@ -240,7 +262,7 @@ export function CRYP({ sec }: FnProps) {
           ? 'With network access the monitor streams real prices from Coinbase; otherwise it runs on the simulator.'
           : anyKraken
             ? 'Prices, ranges and changes are Kraken\'s own, for its USD pairs, over the UTC day: one exchange\'s market, not a market-wide price. The previous close is the close of Kraken\'s previous daily candle.'
-            : 'Prices come from Yahoo Finance (unofficial), which gives CoinMarketCap\'s aggregated prices; volume is its 24-hour volume in US dollars.'}{' '}
+            : `${krakenHandedBack() ? `Kraken did not answer (${krakenHandedBack()}), so for this session prices` : 'Prices'} come from Yahoo Finance, which gives CoinMarketCap's aggregated prices; volume is its 24-hour volume in US dollars.`}{' '}
         {real && (cg.status === 'ok' || Object.keys(cg.coins).length) ? (
           <>
             Market value from CoinGecko, aggregated across exchanges, as of {fmtTime(cg.at)}. {COINGECKO_ATTRIBUTION}.

@@ -12,7 +12,7 @@ export function sourceLabel(status: SourceStatus, simText: string): ReactNode {
     case 'ok':
       return (
         <>
-          <span className="badge live">REAL</span> Yahoo Finance (unofficial)
+          <span className="badge live">REAL</span> Yahoo Finance
         </>
       );
     case 'loading':
@@ -79,7 +79,7 @@ export function RatesSource({ curve }: { curve?: string }) {
   return (
     <>
       <RealBadge /> US Treasury par yields, official end of day, every tenor
-      {curve ? null : <> · other countries official end of day · intraday 5, 10 and 30-year yields on FVX, TNX and TYX (Cboe, via Yahoo)</>}
+      {curve ? null : <> · other countries {yields === 'live' ? 'official end of day' : yields === 'error' || yields === 'blocked' ? 'unavailable right now' : 'loading'}</>}
     </>
   );
 }
@@ -92,14 +92,21 @@ const CURVE_SOURCE: Record<string, string> = {
   AU: 'Reserve Bank of Australia interpolated yields',
 };
 
+/** Why the desktop app shows nothing for an individual bond. */
+export function NoBondNotice() {
+  return (
+    <div className="empty">
+      Prices for individual bonds come from dealers and trading venues that have no free public feed, so the desktop app does not show bond prices, yields, spreads or dealer quotes, and the bond list it would draw them from is not from a source either. Government yields are real: see CURVE, BONDS and MONEYMARKET.
+    </div>
+  );
+}
+
 /** What bond screens show on real data: no free source quotes individual bonds. */
 export function NoBondData({ code, title }: { code: string; title: string }) {
   return (
     <div>
       <FnHeader code={code} title={title} />
-      <div className="empty">
-        Prices for individual bonds come from dealers and trading venues that have no free public feed, so the desktop app does not show bond prices, spreads or dealer quotes. Government yields are real: see CURVE, BONDS and MONEYMARKET.
-      </div>
+      <NoBondNotice />
     </div>
   );
 }

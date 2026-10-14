@@ -77,7 +77,7 @@ export function MOST(_: FnProps) {
           { key: 'c', label: 'Net Chg', num: true, render: (r) => <DayChg q={r.q} dec={r.d.dec} />, hideM: true },
           { key: 'p', label: '%Chg', num: true, render: (r) => <DayChg q={r.q} pct /> },
           { key: 'v', label: 'Volume', num: true, render: (r) => fmtBig(r.q.volume) },
-          { key: 'r', label: 'Rel Vol', num: true, render: (r) => <span className={r.rel > 1.5 ? 'yellow' : ''}>{fmtNum(r.rel, 2)}x</span> },
+          { key: 'r', label: 'Rel Vol', num: true, render: (r) => <span className={r.rel > 1.5 ? 'yellow' : ''} title="Today's volume so far over the average of the last 30 sessions, not adjusted for the time of day">{fmtNum(r.rel, 2)}x</span> },
           { key: 'val', label: 'Value USD', title: 'Estimated value traded: last price × volume', num: true, render: (r) => `≈${fmtBig(r.value)}`, hideM: true },
           { key: 'x', label: 'Exch', render: (r) => <span className="muted">{r.d.exch}</span>, hideM: true },
         ]}

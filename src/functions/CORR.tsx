@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { SecLink } from '../components/cells';
-import { fmtNum } from '../core/format';
-import { engine } from '../data/market';
+import { fmtDay, fmtNum } from '../core/format';
+import { engine, useHistoryVersion } from '../data/market';
 import { alignedReturns } from '../data/analytics';
 import { correlation } from '../finance/stats';
 import { resolveSecurity } from '../data/registry';
@@ -26,10 +26,15 @@ export function CORR({ sec }: FnProps) {
   const [ids, setIds] = useState<string[]>(() => (sec && !DEFAULT.includes(sec.id) ? [sec.id, ...DEFAULT.slice(0, 9)] : DEFAULT));
   const [tab, setTab] = useState(3);
   const [text, setText] = useState('');
-  const matrix = useMemo(() => {
-    const { rets } = alignedReturns(ids, PERIODS[tab - 1].bars);
-    return ids.map((_, i) => ids.map((__, j) => (i === j ? 1 : correlation(rets[i], rets[j]))));
-  }, [ids, tab]);
+  // Recomputed when daily history arrives, which can be after the screen opens.
+  const history = useHistoryVersion();
+  const { matrix, dates } = useMemo(() => {
+    const { dates, rets } = alignedReturns(ids, PERIODS[tab - 1].bars);
+    return { dates, matrix: ids.map((_, i) => ids.map((__, j) => (i === j ? 1 : correlation(rets[i], rets[j])))) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids, tab, history]);
+  const spine = ids.find((id) => engine.get(id)?.cls !== 'crypto') ?? ids[0];
+  const providers = [...new Set(ids.map((id) => engine.quote(id)?.provider).filter(Boolean))];
   return (
     <div>
       <FnHeader code="CORRELATION" title="Correlation Matrix" sub="Daily returns (yield changes for rates)" tabs={PERIODS.map((p) => ({ n: p.n, label: p.label }))} tab={tab} onTab={setTab} />
@@ -80,6 +85,12 @@ export function CORR({ sec }: FnProps) {
             ))}
           </tbody>
         </table>
+      </div>
+      <div className="note">
+        {dates.length > 1
+          ? `${dates.length - 1} daily returns from ${fmtDay(dates[0])} to ${fmtDay(dates[dates.length - 1])}, on the trading days of ${engine.get(spine)?.ticker ?? spine}: each line's close on or before each day, so a market closed that day counts as unchanged. Pearson correlation; rates use yield changes.`
+          : 'Waiting for daily history from the sources.'}
+        {providers.length ? ` Daily closes from ${providers.join(', ')}.` : ''}
       </div>
     </div>
   );

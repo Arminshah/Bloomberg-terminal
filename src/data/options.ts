@@ -39,11 +39,37 @@ export function strikeStep(spot: number): number {
   return 250;
 }
 
+/** The central bank rate that stands in for a currency's short rate, and its name. */
+const RATE_BY_CCY: Record<string, { bank: string; name: string }> = {
+  EUR: { bank: 'ECB', name: 'ECB deposit facility rate' },
+  GBP: { bank: 'BOE', name: 'Bank of England Bank Rate' },
+  GBp: { bank: 'BOE', name: 'Bank of England Bank Rate' },
+  CAD: { bank: 'BOC', name: 'Bank of Canada target rate' },
+  AUD: { bank: 'RBA', name: 'RBA cash rate target' },
+  CHF: { bank: 'SNB', name: 'SNB policy rate' },
+  BRL: { bank: 'BCB', name: 'Selic target' },
+  JPY: { bank: 'BOJ', name: 'Bank of Japan policy rate' },
+  CNY: { bank: 'PBOC', name: '1-year loan prime rate' },
+  INR: { bank: 'RBI', name: 'RBI repo rate' },
+  MXN: { bank: 'BANXICO', name: 'Banxico overnight rate' },
+};
+
+/**
+ * The financing rate for an option on `def`, by the currency it trades in, as
+ * a fraction, with what it is: the 3-month Treasury par yield for dollars,
+ * otherwise the central bank's policy rate. NaN in the desktop app when the
+ * bank has no free daily source there.
+ */
+export function riskFreeRate(def: SecurityDef): { r: number; name: string } {
+  if (def.ccy === 'USD') return { r: (engine.quote('USGG3M Index')?.last ?? (engine.realOnly ? NaN : 4)) / 100, name: 'US Treasury 3-month par yield' };
+  const m = RATE_BY_CCY[def.ccy];
+  const cb = m ? centralBanks().find((b) => b.code === m.bank) : undefined;
+  if (cb && m) return { r: cb.rate / 100, name: m.name };
+  return engine.realOnly ? { r: NaN, name: `no published ${def.ccy === 'GBp' ? 'GBP' : def.ccy} rate in this app` } : { r: 0.03, name: 'reference rate' };
+}
+
 export function riskFree(def: SecurityDef): number {
-  if (def.ccy === 'USD') return (engine.quote('USGG3M Index')?.last ?? (engine.realOnly ? NaN : 4)) / 100;
-  const country = def.country === 'NL' || def.country === 'DE' || def.country === 'FR' || def.country === 'IT' || def.country === 'ES' ? 'EZ' : def.country;
-  const cb = centralBanks().find((b) => b.country === country);
-  return (cb?.rate ?? (engine.realOnly ? NaN : 3)) / 100;
+  return riskFreeRate(def).r;
 }
 
 /** Index dividend yields come from the ETF that tracks each index (desktop app). */

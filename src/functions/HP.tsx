@@ -6,6 +6,7 @@ import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtDay, fmtNum, fmtPct } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { aggregate, type Periodicity } from '../data/series';
+import { freshnessOf } from '../data/freshness';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
@@ -46,6 +47,10 @@ export function HP({ sec }: FnProps) {
   const last = rows[0];
   const totalChg = last && first ? last.c - (first.c - first.chg) : NaN;
   const hasVol = rows.some((r) => r.v > 0);
+  // The newest row is still moving only while the source streams the session.
+  const q = engine.quote(s.id);
+  const fresh = q ? freshnessOf(q, s, Date.now()) : null;
+  const liveSession = !!fresh && (fresh.label === 'REAL-TIME' || fresh.label === 'DELAYED' || fresh.label === 'DEMO DATA');
   const csv = () => [
     ['Date', 'Open', 'High', 'Low', 'Close', 'Change', 'Change %', 'Volume'],
     ...rows.map((r) => [fmtDay(r.t, true), r.o.toFixed(s.dec), r.h.toFixed(s.dec), r.l.toFixed(s.dec), r.c.toFixed(s.dec), r.chg.toFixed(s.dec + 1), r.pct.toFixed(3), r.v || '']),
@@ -72,7 +77,7 @@ export function HP({ sec }: FnProps) {
         </span>
         <span>
           <span className="amber">High</span> {fmtNum(hi, s.dec)} <span className="amber">Low</span> {fmtNum(lo, s.dec)} <span className="amber">Avg</span> {fmtNum(avg, s.dec)}{' '}
-          <span className="amber">Net chg</span> <Chg v={totalChg} dec={s.dec} />{' '}
+          <span className="amber">Net chg</span> {yld ? <><Chg v={totalChg} bp /> bp</> : <Chg v={totalChg} dec={s.dec} />}{' '}
           {!yld && first && <Chg v={(totalChg / (first.c - first.chg)) * 100} pct />}
         </span>
         <span className="muted">{rows.length} rows</span>
@@ -108,7 +113,11 @@ export function HP({ sec }: FnProps) {
           ))}
         </tbody>
       </table>
-      <div className="note">* Current session, updating live.</div>
+      {per === 'D' && rows.length > 0 && (
+        <div className="note">
+          {liveSession ? '* Current session, updating as prices arrive.' : `* Latest session as the source last reported it${fresh ? ` (${fresh.label.toLowerCase()})` : ''}.`}
+        </div>
+      )}
     </div>
   );
 }

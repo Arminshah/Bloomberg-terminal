@@ -58,7 +58,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'yahoo',
     name: 'Yahoo Finance',
-    serves: 'Quotes, price history, company profiles and statements, holders, symbol search; crypto only when Kraken is off. Options chains, news and analyst data are switched off.',
+    serves: 'Quotes, price history, company profiles and statements, holders, symbol search; crypto when Kraken is switched off or does not answer. Options chains, news and analyst data are switched off.',
     dataClass: 'Yahoo Finance quote: live or delayed as Yahoo labels each exchange; history end of day',
     policy: 'enabled',
     setting: 'YAHOO_PRICES_ENABLED',
@@ -374,7 +374,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'fred',
     name: 'FRED (St. Louis Fed)',
-    serves: 'US release dates and published values; OECD series for Japan, Canada and Australia',
+    serves: 'US release dates and published values (MACRO, RELEASES); on ECONSTATS the US figures, Japan\'s GDP (Cabinet Office) and unemployment (OECD), and the GDP of Canada and Australia (IMF)',
     dataClass: 'Economic release (official, republished by FRED)',
     policy: 'enabled',
     credential: 'FRED_API_KEY',

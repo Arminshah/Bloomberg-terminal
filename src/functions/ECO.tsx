@@ -3,7 +3,9 @@ import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Chg, LivePx, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
-import { fmtNum, fmtTime, WEEKDAYS, zonedParts } from '../core/format';
+import { fmtDay, fmtNum, fmtTime, WEEKDAYS, zonedParts } from '../core/format';
+import { execute } from '../terminal/exec';
+import { usePanelId } from '../terminal/panel';
 import { engine, useInterval } from '../data/market';
 import { DAY_MS } from '../data/calendar';
 import { centralBanks, COUNTRY_NAMES, ecoEvents, newYorkDate, type EcoEvent } from '../data/eco';
@@ -180,7 +182,7 @@ export function ECO(_: FnProps) {
                     e.actual != null ? (
                       fmtVal(e, e.actual)
                     ) : (
-                      <span className="muted" title="Released; the value has not reached the source yet">
+                      <span className="muted" title={e.kind === 'rate' ? "Decided; the rate shows once the bank's own data reaches the day it takes effect" : 'Released; the value has not reached the source yet'}>
                         pending
                       </span>
                     )
@@ -269,7 +271,10 @@ function StatCell({ s, dec = 1, mark }: { s: { v: number; period: string } | nul
  */
 function ECSTReal() {
   useInterval(2000);
+  const panel = usePanelId();
   const series = fredData.use((x) => x.series);
+  const needsKey = fredData.use((x) => x.needsKey);
+  const keyRefused = fredData.use((x) => x.keyRefused);
   const cbs = centralBanks();
   const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES', 'NL'].includes(c) ? 'EZ' : c))?.rate;
   const market = (id?: string) => (id && engine.hasSource(id) ? id : undefined);
@@ -302,7 +307,16 @@ function ECSTReal() {
           </>
         }
       />
-      {!Object.keys(series).length ? <div className="empty">Loading statistics from FRED…</div> : null}
+      {needsKey || keyRefused ? (
+        <div className="note amber">
+          {keyRefused ? `FRED did not accept the API key (${keyRefused}), so` : 'FRED needs your free API key (from fredaccount.stlouisfed.org), so until it is added'} the figures for the US and Japan and the GDP of Canada and Australia show "--". The rest come from the statistics offices themselves.{' '}
+          <button type="button" className="btn" onClick={() => execute(panel, 'PROVIDERS')}>
+            Open the provider screen
+          </button>
+        </div>
+      ) : !Object.keys(series).length ? (
+        <div className="empty">Loading statistics from FRED…</div>
+      ) : null}
       <DataTable
         rows={rows}
         rowKey={(r) => r.c}
@@ -331,14 +345,21 @@ function ECSTReal() {
           columns={[
             { key: 'b', label: 'Bank', render: (b) => b.bank },
             { key: 'r', label: 'Rate', num: true, render: (b) => `${fmtNum(b.rate, 2)}%` },
-            { key: 'n', label: 'Next meeting', render: (b) => b.meetings.find((m) => Date.parse(`${m}T23:59:00Z`) > engine.now()) ?? 'n/a' },
+            {
+              key: 'n',
+              label: 'Next meeting',
+              render: (b) => {
+                const next = b.meetings.find((m) => Date.parse(`${m}T23:59:00Z`) > engine.now());
+                return next ? fmtDay(Date.parse(`${next}T00:00:00Z`)) : <span className="muted">not yet in the app</span>;
+              },
+            },
           ]}
         />
       </Section>
       <div className="note">
         Growth is real GDP against the same quarter a year earlier and inflation the 12-month rate, as each statistics office publishes them: BEA and BLS for the US, Eurostat for the euro area and its members (HICP), the ONS for the UK. US inflation is worked out from the published CPI index the way the BLS does. UK unemployment is the ONS Labour Force Survey rate, an average over the three months shown. Canada's unemployment and inflation are Statistics Canada's (inflation adapted from its CPI index, the way StatCan works it out), Australia's the ABS's. For Japan, Canada and Australia, growth is worked out from real GDP levels (marked *): the Cabinet Office's for Japan and the IMF's International Financial Statistics for Canada and Australia, via FRED. Japan's unemployment is the OECD harmonised rate, which comes about a month after the Statistics Bureau publishes its own, and Japan's inflation is not connected yet. The US policy rate is the Fed's target range; the real rate uses its upper limit. FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).
       </div>
-      <Credits ids={['ons', 'eurostat', 'statcan', 'abs']} />
+      <Credits ids={['ons', 'eurostat', 'statcan', 'abs', 'nyfed', 'ecb', 'boe', 'boc', 'rba', 'treasury', 'bundesbank', 'mof']} />
       <FredNotice />
     </div>
   );

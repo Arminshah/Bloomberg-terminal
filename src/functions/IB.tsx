@@ -33,15 +33,16 @@ export function IB({ route }: FnProps) {
     setText('');
     const rid = room.id;
     const who = room.who;
+    // The bot answers at once; the short pause only keeps the reply below your message.
     setTimeout(() => {
-      const reply = rid === 'helpdesk' ? botReply(t) : `Thanks — ${botReply(t)}`;
+      const reply = rid === 'helpdesk' ? botReply(t) : `Thanks: ${botReply(t)}`;
       if (reply) postMessage(rid, who, reply);
-    }, 600 + Math.random() * 900);
+    }, 150);
   };
   if (!room) return null;
   return (
     <div className="fn-fill">
-      <FnHeader code="MESSAGES" title="Help Desk Messages" sub={engine.realOnly ? `Signed in as ${user} · the help desk answers with live quotes and headlines` : `Signed in as ${user} · desks are simulated contacts`} />
+      <FnHeader code="MESSAGES" title="Help Desk Messages" sub={engine.realOnly ? 'A rule-based help desk bot that answers with the quotes and announcements the app has loaded' : `Signed in as ${user} · desks are simulated contacts`} />
       <div className="chat" style={{ flex: 1, minHeight: 0 }}>
         <nav className="chat-rooms" aria-label="Chats">
           {st.rooms.map((r) => (
@@ -69,7 +70,7 @@ export function IB({ route }: FnProps) {
             <input
               className="inp wide"
               aria-label="Message"
-              placeholder={room.id === 'helpdesk' ? 'Ask for a quote (AAPL), news NVDA, eco, movers…' : `Message ${room.name}`}
+              placeholder={room.id === 'helpdesk' ? `Ask for a quote (AAPL), ${engine.realOnly ? 'news FOMC' : 'news NVDA'}, eco, movers…` : `Message ${room.name}`}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {

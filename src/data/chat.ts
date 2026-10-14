@@ -1,4 +1,5 @@
 import { fmtBig, fmtBp, fmtNum, fmtPct } from '../core/format';
+import { freshnessOf } from './freshness';
 import { engine } from './market';
 import { periodChange } from './analytics';
 import { resolveSecurity, searchSecurities } from './registry';
@@ -18,8 +19,14 @@ function quoteLine(id: string): string {
   const d = engine.get(id);
   const q = engine.quote(id);
   if (!d || !q) return '';
-  if (d.quote === 'yield') return `${d.ticker} ${fmtNum(q.last, 3)}% (${fmtBp(q.chg)}bp)`;
-  return `${d.ticker} ${fmtNum(q.last, d.dec)} ${fmtPct(q.pct)}${q.volume ? ` vol ${fmtBig(q.volume)}` : ''}`;
+  if (!Number.isFinite(q.last)) return `No price for ${d.ticker} from the source yet.`;
+  // The day's change only against a confirmed previous close, and where the price comes from and how fresh it is.
+  const confirmed = Number.isFinite(q.chg) && q.chgCheck !== 'unverified';
+  const f = freshnessOf(q, d, Date.now());
+  const from = [q.provider, f?.label].filter(Boolean).join(', ');
+  const tail = from ? ` · ${from}` : '';
+  if (d.quote === 'yield') return `${d.ticker} ${fmtNum(q.last, 3)}%${confirmed ? ` (${fmtBp(q.chg)}bp)` : ''}${tail}`;
+  return `${d.ticker} ${fmtNum(q.last, d.dec)}${confirmed ? ` ${fmtPct(q.pct)}` : ' (change not confirmed yet)'}${q.volume ? ` vol ${fmtBig(q.volume)}` : ''}${tail}`;
 }
 
 /** Help-desk bot: answers quotes, news, eco and function questions. */
@@ -27,11 +34,12 @@ export function botReply(text: string): string {
   const t = text.trim();
   const up = t.toUpperCase();
   if (!t) return '';
-  if (/^(HI|HELLO|HEY)\b/.test(up)) return 'Hi. Ask me for a quote (e.g. "AAPL", "px gold"), "news NVDA", "eco" for the next releases, or "how do I chart?".';
-  if (/HELP|WHAT CAN/.test(up)) return 'Try: AAPL · px EURUSD · news TSLA · eco · movers · how do I chart · how do I set an alert';
+  const newsHint = engine.realOnly ? 'news FOMC' : 'news NVDA';
+  if (/^(HI|HELLO|HEY)\b/.test(up)) return `Hi. Ask me for a quote (e.g. "AAPL", "px gold"), "${newsHint}", "eco" for the next releases, or "how do I chart?".`;
+  if (/HELP|WHAT CAN/.test(up)) return `Try: AAPL · px EURUSD · ${newsHint} · eco · movers · how do I chart · how do I set an alert`;
   if (/HOW.*CHART/.test(up)) return 'Type CHART and a security, e.g. "CHART AAPL", or "CHART AAPL 1D" for today\'s intraday chart.';
-  if (/HOW.*ALERT/.test(up)) return 'Type ALERTS <GO>, pick the security, a condition and a level. Alerts fire as a pop-up even when ALERTS is closed.';
-  if (/HOW.*(PORT|PORTFOLIO)/.test(up)) return 'PORTFOLIO <GO> shows holdings, performance and risk. Add positions in the Holdings tab.';
+  if (/HOW.*ALERT/.test(up)) return 'Type ALERTS and press Enter, then pick the security, a condition and a level. Alerts pop up on any screen while the app is open.';
+  if (/HOW.*(PORT|PORTFOLIO)/.test(up)) return 'Type PORTFOLIO and press Enter for holdings, performance and risk. Add positions in the Holdings tab.';
   if (/^ECO|CALENDAR|DATA/.test(up)) {
     const now = engine.now();
     const next = ecoEvents(now, now + 7 * 86_400_000, now).filter((e) => e.relevance >= 3).slice(0, 4);
@@ -39,15 +47,25 @@ export function botReply(text: string): string {
     return next.length ? `Next key releases: ${next.map((e) => `${e.country} ${e.name} (${e.date ? `${new Date(`${e.date}T12:00:00Z`).toUTCString().slice(0, 11)}, time not published by the source` : `${new Date(e.time).toUTCString().slice(5, 22)} UTC`})`).join('; ')}` : 'No major releases this week.';
   }
   if (/MOVERS|GAINERS|LOSERS/.test(up)) {
-    const eq = engine.securities.filter((d) => d.cls === 'equity').map((d) => ({ d, p: engine.quote(d.id)!.pct })).sort((a, b) => b.p - a.p);
+    // Only changes against a confirmed previous close count.
+    const eq = engine.securities
+      .filter((d) => d.cls === 'equity')
+      .map((d) => ({ d, p: periodChange(d.id, '1D') }))
+      .filter((x) => Number.isFinite(x.p))
+      .sort((a, b) => b.p - a.p);
+    if (eq.length < 6) return 'Not enough confirmed day changes yet; try MOVERS in a moment.';
     return `Top: ${eq.slice(0, 3).map((x) => `${x.d.ticker} ${fmtPct(x.p, 1)}`).join(', ')} · Bottom: ${eq.slice(-3).map((x) => `${x.d.ticker} ${fmtPct(x.p, 1)}`).join(', ')}`;
   }
   const newsM = /^NEWS\s+(.+)$/i.exec(t);
   if (newsM) {
-    const d = resolveSecurity(newsM[1]) ?? searchSecurities(newsM[1], 1)[0]?.def;
-    if (!d) return `I could not find "${newsM[1]}".`;
-    const s = news.get().stories.find((x) => x.tickers.includes(d.id));
-    return s ? `${s.headline}: type COMPANYNEWS ${d.ticker.split(' ')[0]} for more` : `No recent headlines for ${d.ticker}.`;
+    const word = newsM[1].trim();
+    const d = resolveSecurity(word);
+    const stories = news.get().stories;
+    const byTicker = d ? stories.find((x) => x.tickers.includes(d.id)) : undefined;
+    const byWord = stories.find((x) => x.headline.toUpperCase().includes(word.toUpperCase()));
+    const hit = byTicker ?? byWord;
+    if (hit) return `${hit.headline.replace(/^\*/, '')} (${hit.source}): type NEWS ${word} for more`;
+    return engine.realOnly ? `No recent official announcement mentions "${word}". Company news has no permitted feed here; a company's announcements are in FILINGS.` : `No recent headlines for ${d?.ticker ?? word}.`;
   }
   const px = /^(?:PX|PRICE|QUOTE|Q)\s+(.+)$/i.exec(t);
   const target = px ? px[1] : t;
@@ -123,7 +141,7 @@ export function ensureRooms() {
       unread: c.id === 'helpdesk' ? 1 : 0,
       messages:
         c.id === 'helpdesk'
-          ? [{ id: seq++, from: c.who, text: engine.realOnly ? 'Welcome to Armin Terminal. I can answer quick questions with live data: try "AAPL", "news NVDA" or "eco".' : 'Welcome to Armin Terminal. I can answer quick questions: try "AAPL", "news NVDA" or "eco". Desk channels post simulated market color during the session.', at: now() }]
+          ? [{ id: seq++, from: c.who, text: engine.realOnly ? 'Welcome to Armin Terminal. I am a bot that answers quick questions from the data the app has loaded: try "AAPL", "news FOMC" or "eco".' : 'Welcome to Armin Terminal. I can answer quick questions: try "AAPL", "news NVDA" or "eco". Desk channels post simulated market color during the session.', at: now() }]
           : [],
     })),
   ];

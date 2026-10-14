@@ -48,13 +48,24 @@ export function TradeTape({ sec, rows = 200, minSize = 0 }: { sec: SecurityDef; 
 /** Says what the prints on a line's tape are. */
 export function TapeSource({ id, short }: { id: string; short?: boolean }) {
   switch (priceSource(id)) {
-    case 'real':
+    case 'real': {
+      const q = engine.quote(id);
+      const provider = q?.provider ?? 'the source';
+      const kraken = engine.get(id)?.cls === 'crypto' && provider === 'Kraken';
+      if (engine.get(id)?.cls === 'crypto' && !kraken) {
+        return <>{short ? 'no prints' : `${provider} gives crypto volume over a rolling 24 hours, which does not show when trades happened, so there are no prints`}</>;
+      }
       return (
         <>
           <span className="badge live">REAL</span>{' '}
-          {short ? 'volume per update' : 'volume from Yahoo Finance (unofficial), which reports totals rather than single trades: each print is the volume since the last update'}
+          {short
+            ? 'volume per update'
+            : kraken
+              ? "volume from Kraken's ticker, coins traded since 00:00 UTC: each print is the volume traded on Kraken between two polls, about 5 seconds apart, at the last price"
+              : `volume from ${provider}, which reports totals rather than single trades: each print is the volume since the last update, at the last price`}
         </>
       );
+    }
     case 'live':
       return (
         <>
@@ -99,7 +110,7 @@ export function TAS({ sec }: FnProps) {
         <span>
           <span className="amber">Prints</span> {trades.length} <span className="amber">Volume</span> {fmtBig(vol)} <span className="amber">VWAP</span> {fmtNum(vwap, s.dec)}
         </span>
-        <span className="muted">I odd lot · F intermarket sweep · large prints in yellow</span>
+        <span className="muted">{engine.realOnly ? 'AGG: volume added up between updates · CONS: all venues together · large prints in yellow' : 'I odd lot · F intermarket sweep · large prints in yellow'}</span>
       </div>
       <TradeTape sec={s} minSize={minSize} />
     </div>

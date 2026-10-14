@@ -33,10 +33,16 @@ export function DVD({ sec }: FnProps) {
   const csv = () => [['Declared', 'Ex-date', 'Record', 'Payable', 'Amount', 'Frequency', 'Type'], ...list.map((d) => [fmtDay(d.declared, true), fmtDay(d.ex, true), fmtDay(d.record, true), fmtDay(d.pay, true), Number.isFinite(d.amount) ? d.amount : '', d.freq, d.type])];
   return (
     <div>
-      <FnHeader code="DIVIDENDS" title="Dividend & Split History" sec={s} sub={<>{ccy} per share · {sourceLabel(engine.isExternal(s.id) ? 'ok' : status, 'schedule generated; real data needs the desktop app')}</>} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_DVD.csv`, csv)} />
+      <FnHeader code="DIVIDENDS" title="Dividend History" sec={s} sub={<>{ccy} per share · {sourceLabel(engine.isExternal(s.id) ? 'ok' : status, 'schedule generated; real data needs the desktop app')}</>} actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_DVD.csv`, csv)} />
       <QuoteStrip sec={s} />
       {list.length === 0 ? (
-        <div className="empty">{s.name} does not pay a regular cash dividend.</div>
+        <div className="empty">
+          {engine.realOnly && !engine.isExternal(s.id)
+            ? 'Loading the dividend record from Yahoo Finance…'
+            : engine.realOnly
+              ? `No cash dividends for ${s.name} in the source's ten-year record.`
+              : `${s.name} does not pay a regular cash dividend.`}
+        </div>
       ) : (
         <>
           <div className="cols">

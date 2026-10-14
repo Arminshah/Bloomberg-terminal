@@ -54,6 +54,14 @@ function Holdings() {
   const cost = ls.reduce((a, l) => a + l.cost, 0);
   const nav = st.cash + ls.reduce((a, l) => a + l.nav, 0);
   const futNotional = ls.filter((l) => isMargined(l.d)).reduce((a, l) => a + l.mv, 0);
+  // A day's P&L counts only changes against a previous close confirmed for the right session.
+  const unconfirmed = (l: Line) => !Number.isFinite(l.day) || engine.quote(l.p.id)?.chgCheck === 'unverified';
+  const pending = ls.filter(unconfirmed).map((l) => l.d.ticker);
+  const waiting = (key: string) => (
+    <span key={key} className="muted" title={`Waiting for a confirmed previous close: ${pending.join(', ')}`}>
+      --
+    </span>
+  );
   const [sec, setSec] = useState('');
   const [qty, setQty] = useState('');
   const [px, setPx] = useState('');
@@ -93,8 +101,8 @@ function Holdings() {
               ['Securities at market', fmtNum(mv - futNotional, 0)],
               ['Futures notional', fmtNum(futNotional, 0)],
               ['Cash', fmtNum(st.cash, 0)],
-              ['Day P&L', <Chg key="d" v={day} dec={0} />],
-              ['Day return', <Chg key="dr" v={(day / (nav - day)) * 100} pct />],
+              ['Day P&L', pending.length ? waiting('d') : <Chg key="d" v={day} dec={0} />],
+              ['Day return', pending.length ? waiting('dr') : <Chg key="dr" v={(day / (nav - day)) * 100} pct />],
               ['Unrealised P&L', <Chg key="u" v={tot} dec={0} />],
               ['Return on cost', <Chg key="rc" v={(tot / cost) * 100} pct />],
             ]}
@@ -154,7 +162,13 @@ function Holdings() {
                 <td className="num">{fmtNum(l.mv, 0)}</td>
                 <td className="num">{fmtNum((l.mv / nav) * 100, 1)}%</td>
                 <td className="num">
-                  <Chg v={l.day} dec={0} />
+                  {unconfirmed(l) ? (
+                    <span className="muted" title="Waiting for a confirmed previous close">
+                      --
+                    </span>
+                  ) : (
+                    <Chg v={l.day} dec={0} />
+                  )}
                 </td>
                 <td className="num hide-m">
                   <Chg v={l.total} dec={0} />
@@ -301,7 +315,7 @@ export function PORT(_: FnProps) {
       <FnHeader
         code="PORTFOLIO"
         title="Portfolio & Risk Analytics"
-        sub={`${st.name} · sample holdings, edit freely`}
+        sub={`${st.name} · the holdings you enter`}
         tabs={[
           { n: 1, label: 'Holdings' },
           { n: 2, label: 'Performance' },
@@ -312,7 +326,7 @@ export function PORT(_: FnProps) {
         actions={exportActions(panel, 'portfolio.csv', csv)}
       />
       {tab === 1 ? <Holdings /> : tab === 2 ? <Performance /> : <Risk />}
-      <div className="note">Values in USD at live FX rates. Holdings are stored in this browser only.</div>
+      <div className="note">Values in USD at live FX rates. Holdings are stored {engine.realOnly ? 'on this computer' : 'in this browser'} only.</div>
     </div>
   );
 }

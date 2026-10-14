@@ -3,10 +3,10 @@ import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { XYChart } from '../components/chart/XYChart';
 import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
-import { fmtDay, fmtInt, fmtNum, MONTHS, WEEKDAYS } from '../core/format';
+import { fmtDay, fmtInt, fmtNum, MONTHS, WEEKDAYS, zonedParts } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { DAY_MS, addMonths, dayNum, isBusinessDay } from '../data/calendar';
-import { euronextDays, nyseDays, type MarketDay } from '../data/exchanges';
+import { EXCHANGES, fmtCountdown, localDate, marketDay, sessionAt, type Exchange } from '../data/exchanges';
 import { centralBanks, COUNTRY_NAMES, newYorkDate } from '../data/eco';
 import { curveMembers } from '../data/curves';
 import { rangeStats } from '../data/analytics';
@@ -84,7 +84,7 @@ function FRDReal({ sec, route }: FnProps) {
           <span className="lbl">Spot</span> <LivePx id={pair.id} />
         </span>
       </div>
-      <div className="empty">FX forward points are quoted by dealers and have no free public source, so the desktop app does not show forward points or outrights. The spot rate above is live.</div>
+      <div className="empty">FX forward points are quoted by dealers and have no free public source, so the desktop app does not show forward points or outrights. The spot rate above is the source's latest; hover it for how fresh it is.</div>
     </div>
   );
 }
@@ -188,6 +188,17 @@ function FRDSim({ sec, route }: FnProps) {
 
 const EXPIRIES: [string, number][] = [['1W', 7], ['2W', 14], ['1M', 30], ['2M', 61], ['3M', 91], ['6M', 182], ['9M', 273], ['1Y', 365], ['2Y', 730]];
 
+/** The published rate the desktop app holds flat for each currency (rates.ts, policy.ts). */
+const RATE_NAME: Record<string, string> = {
+  USD: 'effective fed funds, NY Fed',
+  EUR: 'ECB deposit facility',
+  GBP: 'Bank Rate, BoE',
+  CAD: 'BoC target',
+  AUD: 'RBA cash rate target',
+  CHF: 'SNB policy rate',
+  BRL: 'Selic target, BCB',
+};
+
 /** OVML: FX option valuation (Garman-Kohlhagen). */
 export function OVML({ sec, route }: FnProps) {
   useTick(2);
@@ -229,9 +240,15 @@ export function OVML({ sec, route }: FnProps) {
     return pts;
   }, [spot, K, type, g.price, notional, vol, T]);
   const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx);
+  const noRate = [quote, base].filter((_, i) => !Number.isFinite(i === 0 ? rd : rf));
   return (
     <div>
-      <FnHeader code="FXOPTION" title="FX Option Valuation" sec={pair} sub={`Vanilla European · Garman-Kohlhagen theoretical value · notional in ${base}${real ? ' · rates without a published policy rate leave the value blank' : ''}`} />
+      <FnHeader code="FXOPTION" title="FX Option Valuation" sec={pair} sub={`Vanilla European · Garman-Kohlhagen theoretical value · notional in ${base}`} />
+      {real && noRate.length > 0 && (
+        <div className="note amber">
+          No published short-term rate for {noRate.join(' or ')} in this app (its central bank has no free daily source here), so the forward and the option are not valued.
+        </div>
+      )}
       <div className="chart-tools">
         <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FXOPTION`)}>
           {pairs.map((d) => (
@@ -253,11 +270,11 @@ export function OVML({ sec, route }: FnProps) {
         </select>
         <label className="fld">
           Strike
-          <input className="inp" style={{ width: 84 }} placeholder={fwd.toFixed(pair.dec)} inputMode="decimal" value={strikeText} onChange={(e) => setStrikeText(e.target.value)} />
+          <input className="inp" style={{ width: 84 }} placeholder={Number.isFinite(fwd) ? fwd.toFixed(pair.dec) : ''} inputMode="decimal" value={strikeText} onChange={(e) => setStrikeText(e.target.value)} />
         </label>
         <label className="fld">
           Vol %
-          <input className="inp" style={{ width: 56 }} placeholder={(defVol * 100).toFixed(2)} inputMode="decimal" value={volText} onChange={(e) => setVolText(e.target.value)} />
+          <input className="inp" style={{ width: 56 }} placeholder={Number.isFinite(defVol) ? (defVol * 100).toFixed(2) : ''} inputMode="decimal" value={volText} onChange={(e) => setVolText(e.target.value)} />
         </label>
         <label className="fld">
           Notional
@@ -273,8 +290,8 @@ export function OVML({ sec, route }: FnProps) {
               ['Strike', `${fmtNum(K, pair.dec)}${strikeText.trim() ? '' : ' (ATMF)'}`],
               ['Expiry', `${EXPIRIES[exp][0]} · ${fmtDay((engine.today + days) * DAY_MS)}`],
               ['Volatility', `${fmtNum(vol * 100, 2)}%${volText.trim() ? '' : real ? ' (90D realised)' : ' (realised + premium)'}`],
-              [`${quote} rate${real ? ' (policy, flat)' : ''}`, `${fmtNum(rd * 100, 3)}%`],
-              [`${base} rate${real ? ' (policy, flat)' : ''}`, `${fmtNum(rf * 100, 3)}%`],
+              [`${quote} rate${real ? ` (${RATE_NAME[quote] ?? 'none published'}, flat)` : ''}`, `${fmtNum(rd * 100, 3)}%`],
+              [`${base} rate${real ? ` (${RATE_NAME[base] ?? 'none published'}, flat)` : ''}`, `${fmtNum(rf * 100, 3)}%`],
             ]}
           />
         </Section>
@@ -303,6 +320,11 @@ export function OVML({ sec, route }: FnProps) {
           refLines={[{ y: 0, color: '#444' }, { x: spot, color: '#5aa7ff', label: 'Spot' }, { x: K, color: '#d77bff', label: 'Strike' }]}
         />
       </Section>
+      {real && (
+        <div className="note">
+          Expiry is the stated number of calendar days from today, without FX settlement conventions. Both rates are the latest published values held flat to expiry, and the volatility is realised, not implied: FX option quotes have no free source.
+        </div>
+      )}
     </div>
   );
 }
@@ -498,9 +520,17 @@ export function CENB(_: FnProps) {
                   <Chg v={b.lastMove * 100} dec={0} /> bp
                 </td>
                 <td className="hide-m">{fmtDay(Date.parse(`${b.last}T00:00:00Z`))}</td>
-                <td>{next ? fmtDay(Date.parse(`${next}T00:00:00Z`)) : <span className="muted">Monthly fixing</span>}</td>
+                <td>{next ? fmtDay(Date.parse(`${next}T00:00:00Z`)) : <span className="muted">{b.code === 'PBOC' ? 'Monthly fixing' : 'Not yet in the app'}</span>}</td>
                 <td className="num">{Number.isFinite(days) ? days : '--'}</td>
-                <td className="num hide-m">{y2 ? <SecLink id={y2}>{fmtNum(yv, 3)}</SecLink> : '--'}</td>
+                <td className="num hide-m">
+                  {y2 ? (
+                    <SecLink id={y2}>
+                      <LivePx id={y2} dec={3} />
+                    </SecLink>
+                  ) : (
+                    '--'
+                  )}
+                </td>
                 <td className="num hide-m">{Number.isFinite(yv) ? <Chg v={(yv - b.rate) * 100} dec={0} /> : '--'}</td>
               </tr>
             );
@@ -509,13 +539,13 @@ export function CENB(_: FnProps) {
       </table>
       <p className="pad-s muted">
         {engine.realOnly
-          ? 'Policy rates and their last moves come from the central banks’ own data; meeting dates are their published calendars. Banks without a free daily source are not listed. The euro area 2-year is the Bundesbank’s zero-coupon yield.'
+          ? 'Policy rates and their last moves come from the central banks’ own data, as in force: a decided change shows once it takes effect. The Fed’s meeting dates come from the Board’s calendar page; the other banks’ are their published calendars, entered in the app. Banks without a free daily source are not listed. 2-year yields are end of day: the US Treasury par yield, and for the euro area the Bundesbank’s zero-coupon yield.'
           : banks.some((b) => b.real)
           ? 'Rates without SIM, and their last moves, come from the central banks’ own data. Rates marked SIM are reference settings with no free daily source and may be out of date.'
           : 'Policy rates are reference settings (the Fed range is derived from the 3-month bill) and may be out of date; the desktop app loads the Fed, ECB, Bank of England and Bank of Canada rates from the banks themselves.'}{' '}
         The Fed's 2-year spread is to the upper limit of its target range. A 2-year yield below the policy rate means the market expects cuts.
       </p>
-      <Credits ids={['fedboard', 'nyfed', 'ecb', 'bundesbank', 'boe', 'boc', 'rba', 'snb', 'bcb']} />
+      <Credits ids={['fedboard', 'nyfed', 'treasury', 'ecb', 'bundesbank', 'boe', 'boc', 'rba', 'snb', 'bcb']} />
     </div>
   );
 }
@@ -528,79 +558,14 @@ interface Holiday {
   early?: boolean;
 }
 
-interface ExchangeCal {
-  code: string;
-  name: string;
-  tz: string;
-  hours: string;
-  holidays: Holiday[];
-}
+/** An exchange's holidays and early closes for a year and the next. */
+const holidaysOf = (ex: Exchange, year: number): Holiday[] =>
+  [...ex.days(year), ...ex.days(year + 1)].map((d) => ({ date: d.date, name: d.name, ...(d.close ? { early: true } : {}) }));
 
-/** Holidays from an exchange's rules (src/data/exchanges.ts) for a year and the next. */
-const fromRules = (days: (year: number) => MarketDay[], year: number): Holiday[] =>
-  [...days(year), ...days(year + 1)].map((d) => ({ date: d.date, name: d.name, ...(d.close ? { early: true } : {}) }));
-
-/** The calendars shown: NYSE and Euronext worked out from their rules, the others as published for 2026 and 2027. */
-function calendars(year: number): ExchangeCal[] {
-  return [
-    { code: 'US', name: 'New York Stock Exchange', tz: 'America/New_York', hours: '09:30-16:00', holidays: fromRules(nyseDays, year) },
-    { code: 'EU', name: 'Euronext (Amsterdam, Brussels, Lisbon, Paris)', tz: 'Europe/Brussels', hours: '09:00-17:30', holidays: fromRules(euronextDays, year) },
-    ...LISTED,
-  ];
-}
-
-const LISTED: ExchangeCal[] = [
-  {
-    code: 'GB',
-    name: 'London Stock Exchange',
-    tz: 'Europe/London',
-    hours: '08:00-16:30',
-    holidays: [
-      { date: '2026-01-01', name: "New Year's Day" }, { date: '2026-04-03', name: 'Good Friday' }, { date: '2026-04-06', name: 'Easter Monday' },
-      { date: '2026-05-04', name: 'Early May Bank Holiday' }, { date: '2026-05-25', name: 'Spring Bank Holiday' }, { date: '2026-08-31', name: 'Summer Bank Holiday' },
-      { date: '2026-12-24', name: 'Christmas Eve (12:30 close)', early: true }, { date: '2026-12-25', name: 'Christmas Day' }, { date: '2026-12-28', name: 'Boxing Day (substitute)' },
-      { date: '2026-12-31', name: "New Year's Eve (12:30 close)", early: true },
-      { date: '2027-01-01', name: "New Year's Day" }, { date: '2027-03-26', name: 'Good Friday' }, { date: '2027-03-29', name: 'Easter Monday' },
-      { date: '2027-05-03', name: 'Early May Bank Holiday' }, { date: '2027-05-31', name: 'Spring Bank Holiday' }, { date: '2027-08-30', name: 'Summer Bank Holiday' },
-      { date: '2027-12-24', name: 'Christmas Eve (12:30 close)', early: true }, { date: '2027-12-27', name: 'Christmas Day (substitute)' }, { date: '2027-12-28', name: 'Boxing Day (substitute)' },
-      { date: '2027-12-31', name: "New Year's Eve (12:30 close)", early: true },
-    ],
-  },
-  {
-    code: 'DE',
-    name: 'Xetra (Deutsche Boerse)',
-    tz: 'Europe/Berlin',
-    hours: '09:00-17:30',
-    holidays: [
-      { date: '2026-01-01', name: "New Year's Day" }, { date: '2026-04-03', name: 'Good Friday' }, { date: '2026-04-06', name: 'Easter Monday' },
-      { date: '2026-05-01', name: 'Labour Day' }, { date: '2026-12-24', name: 'Christmas Eve' }, { date: '2026-12-25', name: 'Christmas Day' },
-      { date: '2026-12-31', name: "New Year's Eve" },
-      { date: '2027-01-01', name: "New Year's Day" }, { date: '2027-03-26', name: 'Good Friday' }, { date: '2027-03-29', name: 'Easter Monday' },
-      { date: '2027-12-24', name: 'Christmas Eve' }, { date: '2027-12-31', name: "New Year's Eve" },
-    ],
-  },
-  {
-    code: 'JP',
-    name: 'Japan Exchange Group (Tokyo)',
-    tz: 'Asia/Tokyo',
-    hours: '09:00-15:30',
-    holidays: [
-      { date: '2026-01-01', name: "New Year's Day" }, { date: '2026-01-02', name: 'Market holiday' }, { date: '2026-01-12', name: 'Coming of Age Day' },
-      { date: '2026-02-11', name: 'National Foundation Day' }, { date: '2026-02-23', name: "Emperor's Birthday" }, { date: '2026-03-20', name: 'Vernal Equinox Day' },
-      { date: '2026-04-29', name: 'Showa Day' }, { date: '2026-05-04', name: 'Greenery Day' }, { date: '2026-05-05', name: "Children's Day" },
-      { date: '2026-05-06', name: 'Constitution Day (substitute)' }, { date: '2026-07-20', name: 'Marine Day' }, { date: '2026-08-11', name: 'Mountain Day' },
-      { date: '2026-09-21', name: 'Respect for the Aged Day' }, { date: '2026-09-22', name: 'National Holiday' }, { date: '2026-09-23', name: 'Autumnal Equinox Day' },
-      { date: '2026-10-12', name: 'Sports Day' }, { date: '2026-11-03', name: 'Culture Day' }, { date: '2026-11-23', name: 'Labour Thanksgiving Day' },
-      { date: '2026-12-31', name: 'Market holiday' },
-      { date: '2027-01-01', name: "New Year's Day" }, { date: '2027-01-11', name: 'Coming of Age Day' }, { date: '2027-02-11', name: 'National Foundation Day' },
-      { date: '2027-02-23', name: "Emperor's Birthday" }, { date: '2027-03-22', name: 'Vernal Equinox Day (substitute)' }, { date: '2027-04-29', name: 'Showa Day' },
-      { date: '2027-05-03', name: 'Constitution Day' }, { date: '2027-05-04', name: 'Greenery Day' }, { date: '2027-05-05', name: "Children's Day" },
-      { date: '2027-07-19', name: 'Marine Day' }, { date: '2027-08-11', name: 'Mountain Day' }, { date: '2027-09-20', name: 'Respect for the Aged Day' },
-      { date: '2027-09-23', name: 'Autumnal Equinox Day' }, { date: '2027-10-11', name: 'Sports Day' }, { date: '2027-11-03', name: 'Culture Day' },
-      { date: '2027-11-23', name: 'Labour Thanksgiving Day' }, { date: '2027-12-31', name: 'Market holiday' },
-    ],
-  },
-];
+const hhmmIn = (ms: number, tz: string) => {
+  const p = zonedParts(ms, tz);
+  return `${String(p.h).padStart(2, '0')}:${String(p.mi).padStart(2, '0')}`;
+};
 
 function MonthGrid({ year, month0, holidays, today }: { year: number; month0: number; holidays: Map<string, Holiday>; today: string }) {
   const first = new Date(Date.UTC(year, month0, 1));
@@ -636,51 +601,89 @@ function MonthGrid({ year, month0, holidays, today }: { year: number; month0: nu
   );
 }
 
-/** CDR: exchange holiday calendars. */
+/** CDR: exchange holiday calendars, each judged by the exchange's own date and time. */
 export function CDR({ route }: FnProps) {
-  const year = new Date(engine.today * DAY_MS).getUTCFullYear();
-  const cals = useMemo(() => calendars(year), [year]);
-  const initial = Math.max(0, cals.findIndex((c) => c.code === route.args?.trim().toUpperCase())) + 1;
+  useTick(5);
+  const now = Date.now();
+  const initial = Math.max(0, EXCHANGES.findIndex((x) => x.id === route.args?.trim().toUpperCase())) + 1;
   const [tab, setTab] = useState(initial);
-  const cal = cals[tab - 1];
-  const holidays = new Map(cal.holidays.map((h) => [h.date, h]));
-  const todayIso = new Date(engine.today * DAY_MS).toISOString().slice(0, 10);
-  const closedToday = !isBusinessDay(engine.today) || (holidays.has(todayIso) && !holidays.get(todayIso)!.early);
-  let next = engine.today + 1;
-  const iso = (d: number) => new Date(d * DAY_MS).toISOString().slice(0, 10);
-  while (!isBusinessDay(next) || (holidays.has(iso(next)) && !holidays.get(iso(next))!.early)) next++;
-  const d0 = new Date(engine.today * DAY_MS);
+  const ex = EXCHANGES[tab - 1];
+  const todayIso = localDate(ex, now);
+  const year = Number(todayIso.slice(0, 4));
+  const list = useMemo(() => holidaysOf(ex, year), [ex, year]);
+  const holidays = new Map(list.map((h) => [h.date, h]));
+  const today = marketDay(ex, todayIso);
+  const weekday = new Date(`${todayIso}T00:00:00Z`).getUTCDay();
+  const s = sessionAt(ex, now);
+  // The next session that starts after today, by the exchange's calendar.
+  const nextIso = (() => {
+    for (let k = 1; k < 21; k++) {
+      const d = new Date(Date.parse(`${todayIso}T00:00:00Z`) + k * DAY_MS);
+      const iso = d.toISOString().slice(0, 10);
+      const wd = d.getUTCDay();
+      const h = marketDay(ex, iso);
+      if (wd !== 0 && wd !== 6 && !(h && !h.close)) return iso;
+    }
+    return undefined;
+  })();
   const months = Array.from({ length: 12 }, (_, i) => {
-    const m = d0.getUTCMonth() + i;
-    return { year: d0.getUTCFullYear() + Math.floor(m / 12), month0: m % 12 };
+    const m = Number(todayIso.slice(5, 7)) - 1 + i;
+    return { year: year + Math.floor(m / 12), month0: m % 12 };
   });
-  const upcoming = cal.holidays.filter((h) => h.date >= todayIso).slice(0, 12);
+  const upcoming = list.filter((h) => h.date >= todayIso).slice(0, 12);
+  const pastTable = ex.through !== undefined && months.some((m) => m.year > ex.through!);
+  const todayText =
+    weekday === 0 || weekday === 6 ? (
+      <span className="muted">Weekend</span>
+    ) : today && !today.close ? (
+      <span className="dn">Closed: {today.name}</span>
+    ) : today?.close ? (
+      <span className="amber">Early close at {today.close}</span>
+    ) : (
+      <span className="up">Trading day</span>
+    );
+  const nowText = !Number.isFinite(s.at) ? (
+    '--'
+  ) : s.open ? (
+    <span className="up">
+      Open, closes {hhmmIn(s.at, ex.tz)} (in {fmtCountdown(s.at - now)})
+    </span>
+  ) : (
+    <span>
+      Closed, opens {fmtDay(Date.parse(`${localDate(ex, s.at)}T00:00:00Z`))} {hhmmIn(s.at, ex.tz)} (in {fmtCountdown(s.at - now)})
+    </span>
+  );
   return (
     <div>
-      <FnHeader code="HOLIDAYS" title="Holiday Calendar" sub={`${cal.name} · ${cal.hours} local (${cal.tz})`} tabs={cals.map((c, i) => ({ n: i + 1, label: c.code }))} tab={tab} onTab={setTab} />
+      <FnHeader code="HOLIDAYS" title="Holiday Calendar" sub={`${ex.name} · ${ex.open}-${ex.close} local (${ex.tz})`} tabs={EXCHANGES.map((x, i) => ({ n: i + 1, label: x.id }))} tab={tab} onTab={setTab} />
       <div className="cols">
         <Section title="Status">
           <KV
             items={[
-              ['Exchange', cal.name],
-              ['Today', closedToday ? <span key="c" className="dn">Closed</span> : holidays.get(todayIso)?.early ? <span key="e" className="amber">Early close</span> : <span key="o" className="up">Trading day</span>],
-              ['Next trading day', fmtDay(next * DAY_MS, true)],
-              ['Regular hours', `${cal.hours} ${cal.tz}`],
+              ['Exchange', ex.name],
+              [`Today (${fmtDay(Date.parse(`${todayIso}T00:00:00Z`))} local)`, todayText],
+              ['Now', nowText],
+              ['Next trading day', nextIso ? fmtDay(Date.parse(`${nextIso}T00:00:00Z`), true) : '--'],
+              ['Regular hours', `${ex.open}-${ex.close} ${ex.tz}`],
             ]}
           />
         </Section>
         <Section title="Upcoming holidays">
-          <table className="tbl">
-            <tbody>
-              {upcoming.map((h) => (
-                <tr key={h.date}>
-                  <td className={h.early ? 'amber' : 'dn'}>{fmtDay(Date.parse(`${h.date}T00:00:00Z`), true)}</td>
-                  <td>{WEEKDAYS[new Date(`${h.date}T00:00:00Z`).getUTCDay()]}</td>
-                  <td className="white">{h.name}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {upcoming.length ? (
+            <table className="tbl">
+              <tbody>
+                {upcoming.map((h) => (
+                  <tr key={h.date}>
+                    <td className={h.early ? 'amber' : 'dn'}>{fmtDay(Date.parse(`${h.date}T00:00:00Z`), true)}</td>
+                    <td>{WEEKDAYS[new Date(`${h.date}T00:00:00Z`).getUTCDay()]}</td>
+                    <td className="white">{h.name}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty">No holidays known to the app after {ex.through}.</div>
+          )}
         </Section>
       </div>
       <div className="cdr-months">
@@ -688,7 +691,9 @@ export function CDR({ route }: FnProps) {
           <MonthGrid key={`${m.year}-${m.month0}`} year={m.year} month0={m.month0} holidays={holidays} today={todayIso} />
         ))}
       </div>
-      <p className="pad-s muted">Red: exchange closed. Amber: early close. Grey: weekend.</p>
+      <p className="pad-s muted">
+        Red: exchange closed. Amber: early close. Grey: weekend. {ex.source}.{pastTable ? ` The table ends with ${ex.through}: later holidays are not shown.` : ''} Closures nobody can schedule ahead, such as a day of mourning or an outage, are not known to the app.
+      </p>
     </div>
   );
 }

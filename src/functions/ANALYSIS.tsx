@@ -7,9 +7,9 @@ import { DataTable } from '../components/DataTable';
 import { XYChart, type XYSeries } from '../components/chart/XYChart';
 import { Chg, DayChg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
-import { engine, useTick } from '../data/market';
+import { engine, useHistoryVersion, useTick } from '../data/market';
 import { horizonStart, marketCapUsd, type Horizon } from '../data/analytics';
-import { dividends, financials, hasRealStatements, majorPrice } from '../data/fundamentals';
+import { dividends, financials, hasRealStatements, majorPrice, reportCcy } from '../data/fundamentals';
 import { dividendYield } from '../data/options';
 import { resolveSecurity } from '../data/registry';
 import { indexAtOrBefore, type Series } from '../data/series';
@@ -46,7 +46,10 @@ function totalReturn(def: SecurityDef, start: number): TrResult {
   const s = engine.daily(def.id);
   const i0 = Math.max(0, indexAtOrBefore(s, start));
   const exList = def.eq ? dividends(def).filter((d) => d.ex > s.t[i0] && d.ex <= engine.now()) : [];
-  const q = def.cls === 'index' ? dividendYield(def) : 0;
+  // An index has no dividend record here: its total return adds the current yield of the ETF that tracks
+  // it, day by day. An index without such an ETF has no dividend source and gets its price return.
+  const qIdx = def.cls === 'index' ? dividendYield(def) : 0;
+  const q = Number.isFinite(qIdx) ? qIdx : 0;
   const t: number[] = [];
   const price: number[] = [];
   const total: number[] = [];
@@ -75,20 +78,28 @@ export function TRA({ sec }: FnProps) {
   const [bench, setBench] = useState(defBench);
   const h = H[tab - 1].h;
   const start = horizonStart(h);
-  const a = useMemo(() => totalReturn(s, start), [s, start]);
-  const b = useMemo(() => totalReturn(engine.get(bench)!, start), [bench, start]);
+  // Recomputed when daily history arrives, which can be after the screen opens.
+  const history = useHistoryVersion();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const a = useMemo(() => totalReturn(s, start), [s, start, history]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const b = useMemo(() => totalReturn(engine.get(bench)!, start), [bench, start, history]);
   const last = (xs: number[]) => xs[xs.length - 1] ?? NaN;
   const ann = (r: number) => (a.days > 0 ? (Math.pow(1 + r / 100, 365 / a.days) - 1) * 100 : NaN);
   const levels = a.total.map((x) => 1 + x / 100);
   const rets = levels.slice(1).map((v, i) => v / levels[i] - 1);
-  const vol = stdev(rets) * Math.sqrt(252) * 100;
+  const vol = stdev(rets) * Math.sqrt(s.cls === 'crypto' ? 365 : 252) * 100;
   const dd = maxDrawdown(levels) * 100;
+  const bDef = engine.get(bench)!;
+  // How an index's total return is reached: the yield of the ETF that tracks it, or nothing at all.
+  const indexBasis = (d: SecurityDef) => (d.cls !== 'index' ? '' : Number.isFinite(dividendYield(d)) ? ' (approx.)' : ' (price only)');
   const series: XYSeries[] = [
-    { label: `${s.ticker} total return`, color: '#ffb547', points: a.t.map((t, i) => ({ x: t, y: a.total[i] })) },
+    { label: `${s.ticker} total return${indexBasis(s)}`, color: '#ffb547', points: a.t.map((t, i) => ({ x: t, y: a.total[i] })) },
     { label: `${s.ticker} price return`, color: '#c9d3df', dash: [4, 3], points: a.t.map((t, i) => ({ x: t, y: a.price[i] })) },
-    // An index has no dividend history here: its total return adds today's dividend yield day by day, an approximation.
-    { label: `${engine.get(bench)!.ticker} total return${engine.get(bench)!.cls === 'index' ? ' (approx.)' : ''}`, color: '#5aa7ff', points: b.t.map((t, i) => ({ x: t, y: b.total[i] })) },
+    { label: `${bDef.ticker} total return${indexBasis(bDef)}`, color: '#5aa7ff', points: b.t.map((t, i) => ({ x: t, y: b.total[i] })) },
   ];
+  const indexNote = (d: SecurityDef) =>
+    Number.isFinite(dividendYield(d)) ? 'approx.: price plus the current dividend yield of the ETF that tracks it, daily' : 'price only: no dividend source for this index';
   const divSum = a.divs.reduce((x, d) => x + d.amount, 0);
   return (
     <div>
@@ -116,10 +127,10 @@ export function TRA({ sec }: FnProps) {
           <KV
             items={[
               ['Price return', <Chg key="p" v={last(a.price)} pct />],
-              ['Dividends (ex in period)', s.eq ? `${fmtNum(divSum, 4)} ${s.ccy} · ${a.divs.length} payments` : s.cls === 'index' ? `${fmtNum(dividendYield(s) * 100, 2)}% yield accrued` : 'None'],
+              ['Dividends (ex in period)', s.eq ? `${fmtNum(divSum, 4)} ${s.ccy} · ${a.divs.length} payments` : s.cls === 'index' ? (Number.isFinite(dividendYield(s)) ? `${fmtNum(dividendYield(s) * 100, 2)}% a year accrued (${indexNote(s)})` : 'No dividend source for this index: total return is the price return') : 'None'],
               ['Total return', <Chg key="t" v={last(a.total)} pct />],
               ['Annualised total return', <Chg key="a" v={ann(last(a.total))} pct />],
-              [`Benchmark total return${engine.get(bench)!.cls === 'index' ? ' (approx.: price plus the current dividend yield, daily)' : ''}`, <Chg key="b" v={last(b.total)} pct />],
+              [`Benchmark total return${bDef.cls === 'index' ? ` (${indexNote(bDef)})` : ''}`, <Chg key="b" v={last(b.total)} pct />],
               ['Excess return', <Chg key="x" v={last(a.total) - last(b.total)} pct />],
               ['Volatility (ann.)', `${fmtNum(vol, 1)}%`],
               ['Max drawdown', `${fmtNum(dd, 1)}%`],
@@ -178,6 +189,11 @@ export function GF({ sec }: FnProps) {
   };
   const annual = f.annual;
   const quarterly = f.quarterly;
+  // A P/E needs price and earnings in one currency; for a company that reports in another currency than it
+  // trades in (Shell: dollars against pence) that takes the exchange rate at each year end, so none is shown.
+  const repCcy = reportCcy(s);
+  const sameCcy = repCcy === (s.ccy === 'GBp' ? 'GBP' : s.ccy);
+  const pe = (p: { eps: number; end: number }) => (sameCcy && p.eps > 0 ? pxAt(p.end) / p.eps : NaN);
   let series: XYSeries[] = [];
   let fmt = (v: number) => fmtBig(v * 1e6);
   let title = '';
@@ -186,7 +202,7 @@ export function GF({ sec }: FnProps) {
   let ticks = ax.map((p) => ({ v: p.x, label: p.label.replace('FY ', 'FY') }));
   switch (tab) {
     case 1:
-      title = `Revenue (${s.ccy === 'GBp' ? 'GBP' : s.ccy} mn), quarterly`;
+      title = `Revenue (${repCcy} mn), quarterly`;
       series = [{ label: 'Revenue', color: '#ffb547', kind: 'bar', points: quarterly.map((p, i) => ({ x: i, y: p.rev })) }];
       ticks = qx.map((p) => ({ v: p.x, label: p.label }));
       break;
@@ -208,7 +224,7 @@ export function GF({ sec }: FnProps) {
     case 4:
       title = 'Price / earnings at each fiscal year end';
       fmt = (v) => `${fmtNum(v, 1)}x`;
-      series = [{ label: 'P/E', color: '#ffb547', markers: true, points: annual.map((p, i) => ({ x: i, y: p.eps > 0 ? pxAt(p.end) / p.eps : NaN })).filter((p) => Number.isFinite(p.y)) }];
+      series = [{ label: 'P/E', color: '#ffb547', markers: true, points: annual.map((p, i) => ({ x: i, y: pe(p) })).filter((p) => Number.isFinite(p.y)) }];
       break;
     case 5:
       title = 'Free cash flow by fiscal year (mn)';
@@ -247,11 +263,12 @@ export function GF({ sec }: FnProps) {
               <td className="num">{fmtNum(p.eps, 2)}</td>
               <td className="num hide-m">{fmtNum(p.fcf, 0)}</td>
               <td className="num hide-m">{fmtNum((p.opInc / p.rev) * 100, 1)}%</td>
-              <td className="num">{p.eps > 0 ? fmtNum(pxAt(p.end) / p.eps, 1) : '--'}</td>
+              <td className="num">{Number.isFinite(pe(p)) ? fmtNum(pe(p), 1) : '--'}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      {!sameCcy && <div className="note">Figures in {repCcy}, the reporting currency. No P/E is shown: the shares trade in another currency, and converting each year-end price would need that day's exchange rate.</div>}
     </div>
   );
 }
@@ -414,7 +431,7 @@ export function VWAP({ sec }: FnProps) {
   }
   return (
     <div>
-      <FnHeader code="VWAP" title="Volume Weighted Average Price" sec={s} sub="Today, UTC session" />
+      <FnHeader code="VWAP" title="Volume Weighted Average Price" sec={s} sub={`${s.cls === 'crypto' ? 'Current UTC day' : 'Latest session'}${intra.length > 1 ? `, ${Math.max(1, Math.round((intra.t[1] - intra.t[0]) / 60_000))}-minute bars` : ''} · 30-minute buckets in UTC`} />
       <div className="cols">
         <Section title="Summary">
           <KV

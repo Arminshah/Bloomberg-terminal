@@ -29,7 +29,7 @@ export function NOTE({ sec }: FnProps) {
   const others = Object.keys(all).filter((k) => k !== key);
   return (
     <div className="fn-fill">
-      <FnHeader code="NOTES" title="Notes" sec={sec} sub={saved ? `Saved ${fmtDate(saved)} ${fmtTime(saved)} · stored in this browser` : 'Stored in this browser'} />
+      <FnHeader code="NOTES" title="Notes" sec={sec} sub={`${saved ? `Saved ${fmtDate(saved)} ${fmtTime(saved)} · stored` : 'Stored'} ${engine.realOnly ? 'on this computer' : 'in this browser'}`} />
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(160px, 240px)', flex: 1, minHeight: 0 }}>
         <textarea
           className="inp"

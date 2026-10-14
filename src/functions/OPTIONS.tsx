@@ -7,7 +7,7 @@ import { KV, Section } from '../components/cells';
 import { fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { DAY_MS } from '../data/calendar';
-import { dividendYield, expiries, expiryLabel, riskFree, strikeStep } from '../data/options';
+import { dividendYield, expiries, expiryLabel, riskFreeRate, strikeStep } from '../data/options';
 import { blackScholes, type OptType } from '../finance/options';
 import type { FnProps } from '../terminal/types';
 import { rangeStats } from '../data/analytics';
@@ -24,7 +24,7 @@ export function OMON({ sec }: FnProps) {
       <QuoteStrip sec={s} />
       <NotConnected
         what="This screen would list the option chain by expiry: bids, offers, last trades, implied volatility, Greeks, volume and open interest."
-        why="Listed option quotes are licensed exchange data (OPRA in the US), and no free source in this app permits showing them. Yahoo's option chains are switched off: Yahoo is used here only as an unofficial, personal-use price source. No model chain is shown in their place."
+        why="Listed option quotes are licensed exchange data (OPRA in the US), and no free source in this app permits showing them. Yahoo's option chains are switched off: Yahoo is used here only as a personal-use price source. No model chain is shown in their place."
         needs="a provider whose terms allow showing option quotes to you, with its key configured in the provider status screen."
         see={[
           { label: 'Option calculator', command: `${s.id} OPTIONCALC` },
@@ -54,7 +54,12 @@ export function OVME({ sec, route }: FnProps) {
   const [volOverride, setVolOverride] = useState(() => (Number(parts[3]) > 0 ? parts[3] : ''));
   const spot = spotOverride && Number(spotOverride) > 0 ? Number(spotOverride) : spotLive;
   const t = Math.max((expiry - engine.now()) / (365 * DAY_MS), 1 / (365 * 24));
-  const r = riskFree(s);
+  // A rate you type replaces the published one, which some currencies lack.
+  const [rateOverride, setRateOverride] = useState('');
+  const published = riskFreeRate(s);
+  const typedRate = rateOverride.trim() !== '' && Number.isFinite(Number(rateOverride));
+  const r = typedRate ? Number(rateOverride) / 100 : published.r;
+  const rateName = typedRate ? 'your input' : published.name;
   // On real data an unknown dividend yield counts as zero (and says so). The default volatility is the
   // 30-day realised volatility of the price history: a reference, not an implied volatility, which needs
   // option quotes the app does not have.
@@ -85,8 +90,11 @@ export function OVME({ sec, route }: FnProps) {
   );
   return (
     <div>
-      <FnHeader code="OPTIONCALC" title="Option Valuation" sec={s} sub={engine.realOnly ? 'Theoretical value, Black-Scholes-Merton with continuous dividend yield · rate from Treasury, dividend from the source' : 'Black-Scholes-Merton with continuous dividend yield'} />
+      <FnHeader code="OPTIONCALC" title="Option Valuation" sec={s} sub={engine.realOnly ? `Theoretical value, Black-Scholes-Merton with continuous dividend yield · rate: ${rateName} · dividend from the source` : 'Black-Scholes-Merton with continuous dividend yield'} />
       <QuoteStrip sec={s} />
+      {engine.realOnly && !Number.isFinite(r) && (
+        <div className="note amber">There is {rateName} (the central bank has no free daily source here), so the option is valued only once you enter a rate.</div>
+      )}
       <div className="chart-tools" style={{ gap: '6px 14px' }}>
         <span className="seg" role="group" aria-label="Option type">
           {(['C', 'P'] as OptType[]).map((x) => (
@@ -111,6 +119,7 @@ export function OVME({ sec, route }: FnProps) {
         </label>
         <label className="fld">Spot {numInput(spotOverride, setSpotOverride, 'Spot override', fmtNum(spotLive, s.dec))}</label>
         <label className="fld">Vol % {numInput(volOverride, setVolOverride, 'Volatility override', fmtNum(vol * 100, 2))}</label>
+        <label className="fld">Rate % {numInput(rateOverride, setRateOverride, 'Rate override', Number.isFinite(published.r) ? fmtNum(published.r * 100, 2) : '')}</label>
       </div>
       <div className="cols">
         <Section title="Valuation">
@@ -122,7 +131,7 @@ export function OVME({ sec, route }: FnProps) {
               ['Forward', fmtNum(fwd, s.dec)],
               ['Volatility', `${fmtNum(vol * 100, 2)}% (${volSource})`],
               ['Time to expiry', `${fmtNum(t * 365, 1)} days`],
-              ['Rate / dividend', `${fmtNum(r * 100, 2)}% / ${engine.realOnly && !Number.isFinite(qSource) ? 'unknown, 0% used' : `${fmtNum(q * 100, 2)}%`}`],
+              [engine.realOnly ? `Rate (${rateName}) / dividend` : 'Rate / dividend', `${fmtNum(r * 100, 2)}% / ${engine.realOnly && !Number.isFinite(qSource) ? 'unknown, 0% used' : `${fmtNum(q * 100, 2)}%`}`],
               ['Intrinsic / time value', `${fmtNum(Math.max(0, type === 'C' ? spot - strike : strike - spot), 4)} / ${fmtNum(g.price - Math.max(0, type === 'C' ? spot - strike : strike - spot), 4)}`],
             ]}
           />
@@ -176,6 +185,11 @@ export function OVME({ sec, route }: FnProps) {
           </tbody>
         </table>
       </Section>
+      {engine.realOnly && (
+        <div className="note">
+          The expiry list is a calendar of Fridays (the next five weeks, third-Friday months and January long-dated), not the contracts actually listed: the option chain is licensed data. The rate is held flat to expiry and the volatility is realised, not implied.
+        </div>
+      )}
     </div>
   );
 }

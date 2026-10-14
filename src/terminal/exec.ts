@@ -71,7 +71,7 @@ export function execute(panel: number, text: string): boolean {
       // MENU <GO> on its own returns to the loaded security's menu.
       if (def.code === 'MENU' && !secId && !parsed.args) secId = cur.sec;
       if (def.needsSec && !secId) {
-        flash(panel, `${def.code} needs a security, e.g. AAPL US <EQUITY> ${def.code} <GO>`, 'error');
+        flash(panel, `${def.code} needs a security, e.g. ${def.code} AAPL`, 'error');
         return false;
       }
       const sec = secId ? engine.get(secId) : undefined;

@@ -1,9 +1,9 @@
-import { Fragment, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { engine, useInterval } from '../data/market';
 import { feedStatus } from '../data/live/status';
 import { execute } from '../terminal/exec';
-import { applyPreset, LAYOUT_PANELS, setLayout, terminal } from '../terminal/state';
-import { alerts, chats } from '../terminal/userdata';
+import { applyPreset, LAYOUT_PANELS, setLayout, setSplit, terminal } from '../terminal/state';
+import { alerts, chats, savedLayouts } from '../terminal/userdata';
 import { contacts } from '../data/chat';
 import { MONTHS, WEEKDAYS, zonedParts } from '../core/format';
 import { EU_MARKET, fmtCountdown, sessionAt, US_MARKET, type Exchange } from '../data/exchanges';
@@ -22,11 +22,11 @@ const LAYOUTS: { id: LayoutId; cols: number; rows: number; label: string; fold?:
 
 export const PRESETS: { name: string; layout: LayoutId; routes: Route[] }[] = [
   { name: 'Market Overview', layout: '5', routes: [{ fn: 'MARKET' }, { fn: 'CHART', sec: 'SPX Index' }, { fn: 'HEADLINES' }, { fn: 'HEATMAP' }, { fn: 'WATCHLIST' }] },
-  { name: 'Equity Research', layout: '4', routes: [{ fn: 'PROFILE', sec: 'NVDA US Equity' }, { fn: 'CHART', sec: 'NVDA US Equity' }, { fn: 'FINANCIALS', sec: 'NVDA US Equity' }, { fn: 'ANALYSTS', sec: 'NVDA US Equity' }] },
+  { name: 'Equity Research', layout: '4', routes: [{ fn: 'PROFILE', sec: 'NVDA US Equity' }, { fn: 'CHART', sec: 'NVDA US Equity' }, { fn: 'FINANCIALS', sec: 'NVDA US Equity' }, { fn: 'EARNINGS', sec: 'NVDA US Equity' }] },
   { name: 'Trading Desk', layout: '6', routes: [{ fn: 'WATCHLIST' }, { fn: 'QUOTE', sec: 'TSLA US Equity' }, { fn: 'INTRADAY', sec: 'TSLA US Equity' }, { fn: 'MOVERS' }, { fn: 'TRADES', sec: 'TSLA US Equity' }, { fn: 'DEPTH', sec: 'TSLA US Equity' }] },
   { name: 'Macro & Rates', layout: '4', routes: [{ fn: 'RELEASES' }, { fn: 'CURVE' }, { fn: 'RATEPROBS' }, { fn: 'BONDS' }] },
   { name: 'FX & Commodities', layout: '4', routes: [{ fn: 'FXMATRIX' }, { fn: 'FXRANK' }, { fn: 'COMMODITIES' }, { fn: 'INTRADAY', sec: 'EURUSD Curncy' }] },
-  { name: 'Digital Assets', layout: '4', routes: [{ fn: 'CRYPTO' }, { fn: 'INTRADAY', sec: 'XBTUSD Curncy' }, { fn: 'CHART', sec: 'XETUSD Curncy' }, { fn: 'NEWS', args: 'CRYPTO' }] },
+  { name: 'Digital Assets', layout: '4', routes: [{ fn: 'CRYPTO' }, { fn: 'INTRADAY', sec: 'XBTUSD Curncy' }, { fn: 'CHART', sec: 'XETUSD Curncy' }, { fn: 'DEPTH', sec: 'XBTUSD Curncy' }] },
   { name: 'Portfolio & Risk', layout: '4', routes: [{ fn: 'PORTFOLIO' }, { fn: 'CORRELATION' }, { fn: 'ALERTS' }, { fn: 'EVENTS' }] },
 ];
 
@@ -44,10 +44,10 @@ function LayoutIcon({ cols, rows, id }: { cols: number; rows: number; id: Layout
 }
 
 /** `fold`: the window width at or below which a clock gives way, so the market timers and status stay in view. */
-const CLOCKS: { tz: string; label: string; fold?: 1440 | 1340 | 1240 | 1024; market?: Exchange }[] = [
-  { tz: 'Europe/Brussels', label: 'BRUSSELS', fold: 1024, market: EU_MARKET },
-  { tz: 'America/New_York', label: 'NEW YORK', fold: 1024, market: US_MARKET },
-  { tz: 'Europe/London', label: 'LONDON', fold: 1240 },
+const CLOCKS: { tz: string; label: string; fold?: 1440 | 1340 | 1300 | 1024 }[] = [
+  { tz: 'Europe/Brussels', label: 'BRUSSELS', fold: 1024 },
+  { tz: 'America/New_York', label: 'NEW YORK', fold: 1024 },
+  { tz: 'Europe/London', label: 'LONDON', fold: 1300 },
   { tz: 'Asia/Tokyo', label: 'TOKYO', fold: 1340 },
   { tz: 'Asia/Hong_Kong', label: 'HONG KONG', fold: 1440 },
 ];
@@ -96,7 +96,7 @@ function MarketTimer({ ex }: { ex: Exchange }) {
     <button type="button" className={`clock mkt hide-m${s.open ? ' open' : ''}`} title={title} onClick={() => execute(terminal.get().active, `HOLIDAYS ${ex.id}`)}>
       <b>{fmtCountdown(s.at - now)}</b>
       <span>
-        {ex.label} {s.open ? 'CLOSES' : 'OPENS'} IN
+        {ex.label} {s.open ? 'closes' : 'opens'} in
       </span>
     </button>
   );
@@ -137,6 +137,7 @@ export function TopBar() {
   });
   const [presetAt, setPresetAt] = useState<{ left: number; top: number } | null>(null);
   const presetOpen = presetAt != null;
+  const saved = savedLayouts.use((s) => s.list);
   const setPresetOpen = (open: boolean | ((o: boolean) => boolean)) => {
     const next = typeof open === 'function' ? open(presetOpen) : open;
     if (!next) return setPresetAt(null);
@@ -163,6 +164,25 @@ export function TopBar() {
         </button>
         {presetOpen && (
           <div className="ac" style={{ position: 'fixed', left: presetAt!.left, top: presetAt!.top, right: 'auto', minWidth: 260 }} role="menu">
+            {saved.length > 0 && <div className="ac-head">Your layouts</div>}
+            {saved.map((l) => (
+              <div
+                key={`s:${l.name}`}
+                className="ac-item"
+                role="menuitem"
+                style={{ gridTemplateColumns: '24px 1fr auto' }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  applyPreset(l.routes, l.layout);
+                  setSplit(l.layout, l.split);
+                  setPresetOpen(false);
+                }}
+              >
+                <span className="fn">·</span>
+                <span>{l.name}</span>
+                <span className="tag">{LAYOUT_PANELS[l.layout]} panels</span>
+              </div>
+            ))}
             <div className="ac-head">Workspace presets</div>
             {PRESETS.map((p, i) => (
               <div
@@ -181,11 +201,25 @@ export function TopBar() {
                 <span className="tag">{LAYOUT_PANELS[p.layout]} panels</span>
               </div>
             ))}
+            <div
+              className="ac-item"
+              role="menuitem"
+              style={{ gridTemplateColumns: '24px 1fr auto' }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                run('LAYOUTS');
+                setPresetOpen(false);
+              }}
+            >
+              <span className="fn">+</span>
+              <span>Save or manage layouts…</span>
+              <span className="tag">LAYOUTS</span>
+            </div>
           </div>
         )}
       </span>
       <span className="tb-sep" />
-      <button type="button" className="tb-btn" onClick={() => run('MESSAGES')} title="Help desk messages (MESSAGES)">
+      <button type="button" className="tb-btn fold-820" onClick={() => run('MESSAGES')} title="Help desk messages (MESSAGES)">
         MSG <span className={`count${unreadMsgs ? '' : ' zero'}`}>{unreadMsgs}</span>
       </button>
       <button type="button" className="tb-btn" onClick={() => run('ALERTS')} title="Price and news alerts (ALERTS)">
@@ -195,11 +229,11 @@ export function TopBar() {
         HELP
       </button>
       <span className="tb-spacer" />
-      {CLOCKS.map(({ market, ...c }) => (
-        <Fragment key={c.tz}>
-          <Clock {...c} />
-          {market && <MarketTimer ex={market} />}
-        </Fragment>
+      <MarketTimer ex={EU_MARKET} />
+      <MarketTimer ex={US_MARKET} />
+      <span className="tb-sep hide-m" />
+      {CLOCKS.map((c) => (
+        <Clock key={c.tz} {...c} />
       ))}
       <FeedChip />
       <button type="button" className="tb-btn" onClick={() => run('SETTINGS')} title="Settings (SETTINGS)" aria-label="Settings">

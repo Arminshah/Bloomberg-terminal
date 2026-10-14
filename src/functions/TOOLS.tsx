@@ -7,16 +7,19 @@ import { engine } from '../data/market';
 import { CLASS_LABEL, searchSecurities } from '../data/registry';
 import { COUNTRY_NAMES } from '../data/eco';
 import { feedStatus } from '../data/live/status';
+import { coinGecko } from '../data/live/coingecko';
+import { fmtDate, fmtTime } from '../core/format';
 import { SNAPSHOT_AS_OF } from '../data/universe';
 import { execute } from '../terminal/exec';
 import { lookupSource, searchOnline, type OnlineHit } from '../data/live/lookup';
 import { lookupFn } from '../terminal/registry';
-import { usePanelId } from '../terminal/panel';
+import { flash, usePanelId } from '../terminal/panel';
 import { settings, type ClickAction } from '../terminal/settings';
-import { applyPreset, defaultTerminal, terminal } from '../terminal/state';
+import { applyPreset, defaultTerminal, LAYOUT_PANELS, setSplit, terminal } from '../terminal/state';
+import { savedLayouts, type SavedLayout } from '../terminal/userdata';
 import { PRESETS } from '../components/TopBar';
 import type { SecurityDef } from '../data/types';
-import type { FnProps } from '../terminal/types';
+import type { FnProps, LayoutId, Route } from '../terminal/types';
 
 const CLASSES: { n: number; label: string; test?: (d: SecurityDef) => boolean }[] = [
   { n: 1, label: 'All' },
@@ -69,7 +72,7 @@ export function SECF({ route }: FnProps) {
         />
         {source ? (
           <button type="button" className="btn" onClick={searchWeb} disabled={!q.trim() || online.busy}>
-            Search all US stocks ({source === 'yahoo' ? 'Yahoo Finance, unofficial' : 'Finnhub'})
+            Search all US stocks ({source === 'yahoo' ? 'Yahoo Finance' : 'Finnhub'})
           </button>
         ) : (
           <span className="muted hide-m">The desktop app searches every US stock</span>
@@ -117,7 +120,7 @@ export function LAST(_: FnProps) {
   const st = terminal.use((s) => s);
   return (
     <div>
-      <FnHeader code="RECENT" title="Recently Used" sub="Securities and functions from this browser" />
+      <FnHeader code="RECENT" title="Recently Used" sub={`Securities and functions you opened ${engine.realOnly ? 'on this computer' : 'in this browser'}`} />
       <div className="cols">
         <Section title="Securities">
           <table className="tbl">
@@ -159,23 +162,93 @@ export function LAST(_: FnProps) {
   );
 }
 
+/** The screen each visible panel shows, for saving; LAYOUTS itself gives way to the screen before it. */
+function currentRoutes(): { layout: LayoutId; routes: Route[] } {
+  const st = terminal.get();
+  const routes = st.panels.slice(0, LAYOUT_PANELS[st.layout]).map((p) => {
+    const r = p.history[p.idx];
+    return r.fn === 'LAYOUTS' && p.idx > 0 ? p.history[p.idx - 1] : r;
+  });
+  return { layout: st.layout, routes };
+}
+
+const routeText = (routes: Route[]) => routes.map((r) => (r.sec ? `${r.sec.split(' ')[0]} ${r.fn}` : r.args ? `${r.fn} ${r.args}` : r.fn)).join(' · ');
+
 export function LPAD(_: FnProps) {
+  const panel = usePanelId();
+  const saved = savedLayouts.use((s) => s.list);
+  const [name, setName] = useState('');
+  const save = () => {
+    const n = name.trim();
+    if (!n) return flash(panel, 'Name the layout first', 'error');
+    const { layout, routes } = currentRoutes();
+    const split = terminal.get().sizes?.[layout];
+    // Saving under a name you used before replaces that layout.
+    savedLayouts.set((s) => ({ list: [{ name: n, layout, routes, ...(split ? { split } : {}), saved: Date.now() }, ...s.list.filter((x) => x.name.toUpperCase() !== n.toUpperCase())] }));
+    setName('');
+    flash(panel, `Saved the panels as "${n}"`, 'info');
+  };
+  const apply = (l: SavedLayout) => {
+    applyPreset(l.routes, l.layout);
+    setSplit(l.layout, l.split);
+  };
   return (
     <div>
-      <FnHeader code="LAYOUTS" title="Saved Layouts" sub="Apply a preset layout to all panels" />
-      <table className="tbl">
-        <tbody>
-          {PRESETS.map((p, i) => (
-            <tr key={p.name} className="click" onClick={() => applyPreset(p.routes, p.layout)}>
-              <td className="amber" style={{ width: 40 }}>
-                {i + 1})
-              </td>
-              <td className="white b">{p.name}</td>
-              <td className="muted">{p.routes.map((r) => (r.sec ? `${r.sec.split(' ')[0]} ${r.fn}` : r.fn)).join(' · ')}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <FnHeader code="LAYOUTS" title="Layouts" sub="Save the panels as a workspace and bring it back, or apply a preset" />
+      <Section title="Your layouts" right={`${saved.length} saved`}>
+        <div className="pad row" style={{ gap: 8 }}>
+          <input className="inp" placeholder="Name, e.g. Morning" aria-label="Layout name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} />
+          <button type="button" className="btn primary" onClick={save}>
+            Save current panels
+          </button>
+        </div>
+        <table className="tbl">
+          <tbody>
+            {saved.length === 0 && (
+              <tr>
+                <td className="empty">No saved layouts yet. Arrange the panels, then name and save them here.</td>
+              </tr>
+            )}
+            {saved.map((l) => (
+              <tr key={l.name} className="click" onClick={() => apply(l)}>
+                <td className="white b">{l.name}</td>
+                <td className="muted">{LAYOUT_PANELS[l.layout]} panels</td>
+                <td className="muted hide-m">{routeText(l.routes)}</td>
+                <td className="muted hide-m">{fmtDate(l.saved)}</td>
+                <td>
+                  <button
+                    type="button"
+                    className="act"
+                    aria-label={`Delete layout ${l.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      savedLayouts.set((s) => ({ list: s.list.filter((x) => x.name !== l.name) }));
+                    }}
+                  >
+                    ×
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Section>
+      <Section title="Presets">
+        <table className="tbl">
+          <tbody>
+            {PRESETS.map((p, i) => (
+              <tr key={p.name} className="click" onClick={() => applyPreset(p.routes, p.layout)}>
+                <td className="amber" style={{ width: 40 }}>
+                  {i + 1})
+                </td>
+                <td className="white b">{p.name}</td>
+                <td className="muted">{routeText(p.routes)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Section>
+      <div className="note">The panels you have open are kept between sessions anyway; saved layouts are for switching between workspaces. They are stored {engine.realOnly ? 'on this computer' : 'in this browser'}.</div>
     </div>
   );
 }
@@ -194,6 +267,7 @@ const TZS = [
 export function PDFU(_: FnProps) {
   const s = settings.use((x) => x);
   const feeds = feedStatus.use((f) => f);
+  const gecko = coinGecko.use((g) => g);
   const [confirmReset, setConfirmReset] = useState(false);
   const set = <K extends keyof typeof s>(k: K, v: (typeof s)[K]) => settings.set((x) => ({ ...x, [k]: v }));
   const feedRow = (name: string, state: string, detail?: string) => (
@@ -267,18 +341,26 @@ export function PDFU(_: FnProps) {
         <Section title="Data sources">
           <table className="tbl">
             <tbody>
-              {feeds.market !== 'off' && feedRow('Real market data (Yahoo Finance, unofficial; desktop)', feeds.market, feeds.detail.market)}
+              {feeds.market !== 'off' && feedRow('Real market data (Yahoo Finance; desktop)', feeds.market, feeds.detail.market)}
               {feeds.rates !== 'off' && feedRow('US Treasury curve (treasury.gov, desktop)', feeds.rates, feeds.detail.rates)}
               {feeds.yields !== 'off' && feedRow('Government yields (central banks, finance ministries)', feeds.yields, feeds.detail.yields)}
               {feeds.policy !== 'off' && feedRow('Central bank rates and calendars (desktop)', feeds.policy, feeds.detail.policy)}
               {feeds.eco !== 'off' && feedRow('US economic releases (FRED, desktop)', feeds.eco, feeds.detail.eco)}
+              {feeds.crypto !== 'off' && feedRow('Crypto prices (Kraken, desktop)', feeds.crypto, feeds.detail.crypto)}
+              {engine.realOnly &&
+                gecko.status !== 'off' &&
+                feedRow(
+                  'Crypto market values (CoinGecko)',
+                  gecko.status === 'ok' ? 'live' : gecko.status === 'needs-key' ? 'off' : 'error',
+                  gecko.status === 'ok' ? `Received ${fmtTime(gecko.at, false)}` : gecko.status === 'needs-key' ? 'Needs a free CoinGecko Demo key (PROVIDERS)' : 'CoinGecko did not answer',
+                )}
               {engine.realOnly
                 ? feedRow('Simulator', 'off', 'Off in the desktop app: every figure comes from a real source, and anything without one is left out')
                 : feedRow('Simulator', 'live', `Calibrated to closes as of ${SNAPSHOT_AS_OF}; runs every instrument`)}
               {feedRow('Headlines', feeds.news, feeds.detail.news)}
             </tbody>
           </table>
-          <div className="note">Every provider, its state, terms and credentials: PROVIDERS &lt;GO&gt;.</div>
+          <div className="note">Every provider, its state, terms and credentials: type PROVIDERS.</div>
         </Section>
         <Section title="Workspace">
           <KV items={[['Panels', String(terminal.get().panels.length)], ['Layout', terminal.get().layout]]} />
@@ -288,7 +370,7 @@ export function PDFU(_: FnProps) {
             </button>
             {confirmReset ? (
               <>
-                <span className="dn">Erase watchlists, portfolio, alerts and chats?</span>
+                <span className="dn">Erase everything the app keeps here: watchlists, portfolio (and the saved copy of an older one), alerts, notes, saved layouts, chats and settings? Provider keys are kept.</span>
                 <button
                   type="button"
                   className="btn danger"

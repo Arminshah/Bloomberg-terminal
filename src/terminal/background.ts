@@ -41,7 +41,9 @@ function checkAlerts() {
     const q = engine.quote(a.sec);
     const d = engine.get(a.sec);
     if (!q || !d) return a;
-    const hit = a.cond === 'above' ? q.last >= a.value : a.cond === 'below' ? q.last <= a.value : a.cond === 'pctUp' ? q.pct >= a.value : q.pct <= -a.value;
+    // A percent alert waits for a day change against a confirmed previous close.
+    const pctOk = Number.isFinite(q.pct) && q.chgCheck !== 'unverified';
+    const hit = a.cond === 'above' ? q.last >= a.value : a.cond === 'below' ? q.last <= a.value : !pctOk ? false : a.cond === 'pctUp' ? q.pct >= a.value : q.pct <= -a.value;
     if (!hit) return a;
     fired++;
     toast({ title: 'ALERT', body: `${d.ticker} ${describe(a.cond, a.value, d.dec)} · last ${q.last.toFixed(d.dec)}`, kind: 'alert', command: `${d.id} CHART` }, 12000);

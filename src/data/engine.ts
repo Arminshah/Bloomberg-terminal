@@ -93,7 +93,7 @@ interface ExtData {
   timing: Timing;
   /** The source's own name for its quotes. */
   sourceName?: string;
-  /** Who supplies this line ("Yahoo Finance (unofficial)", "US Treasury"), shown with every value. */
+  /** Who supplies this line ("Yahoo Finance", "US Treasury"), shown with every value. */
   provider?: string;
   /** When the app received the latest value (epoch ms). */
   fetched: number;
@@ -1653,9 +1653,12 @@ export class MarketEngine {
     const vol = q.volume != null && Number.isFinite(q.volume) ? q.volume : s.v[n];
     const dv = vol - st.volume;
     s.v[n] = vol;
-    // Time and sales on real data: one aggregated print per change in cumulative volume.
-    if (dv > 0 && !newSession && (st.def.cls === 'equity' || st.def.cls === 'future' || st.def.cls === 'commodity')) {
-      this.pushTrade(st, { t: q.time, px: q.last, size: dv, side: q.last > st.last ? 1 : q.last < st.last ? -1 : 0, venue: 'CONS', cond: 'AGG' });
+    // Time and sales on real data: one aggregated print per change in cumulative volume. Kraken's crypto
+    // volume counts the UTC day, so it rises only with trades; Yahoo's crypto volume is a rolling 24 hours,
+    // which also falls as old trades drop out, so it gives no prints.
+    const krakenCrypto = st.def.cls === 'crypto' && ext.provider === 'Kraken';
+    if (dv > 0 && !newSession && (st.def.cls === 'equity' || st.def.cls === 'future' || st.def.cls === 'commodity' || krakenCrypto)) {
+      this.pushTrade(st, { t: q.time, px: q.last, size: dv, side: q.last > st.last ? 1 : q.last < st.last ? -1 : 0, venue: krakenCrypto ? 'KRAKEN' : 'CONS', cond: 'AGG' });
     }
     st.last = q.last;
     // The previous close, checked against the previous daily bar. A partial update (a streamed tick)

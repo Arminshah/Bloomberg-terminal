@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { createStore } from '../../core/store';
-import { desktopData, yahooGet } from './yahoo';
+import { fmtStamp } from '../../core/format';
+import { desktopData, timingOf, yahooGet } from './yahoo';
 
 /**
  * Quotes for symbols outside the universe, on demand (desktop app): futures
@@ -56,6 +57,19 @@ export function useYahooQuotes(symbols: string[], refreshMs = 60_000): Map<strin
     if (q) out.set(s, q);
   }
   return out;
+}
+
+/**
+ * How the source times a table of its quotes, for the table's header: "delayed
+ * 10 min per Yahoo · last trade 14:05", from the quotes' own delay and trade
+ * time rather than an assumption about the exchange.
+ */
+export function quotesTiming(quotes: Json[]): string {
+  const t = quotes.filter(Boolean).map(timingOf);
+  const delays = t.filter((x) => x.timing === 'delayed').map((x) => x.delay);
+  const timing = delays.length ? `delayed ${Math.max(...delays)} min per Yahoo` : t.some((x) => x.timing === 'realtime') ? 'real time per Yahoo' : 'timing not stated by Yahoo';
+  const times = quotes.map((q) => Number(q?.regularMarketTime) * 1000).filter((x) => Number.isFinite(x) && x > 0);
+  return times.length ? `${timing} · last trade ${fmtStamp(Math.max(...times))}` : timing;
 }
 
 const MONTH_CODES = 'FGHJKMNQUVXZ';

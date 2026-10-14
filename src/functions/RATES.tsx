@@ -14,7 +14,7 @@ import type { FnProps } from '../terminal/types';
 import { RatesSource, RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { policyRates } from '../data/live/policy';
-import { contractSymbols, useYahooQuotes } from '../data/live/yquotes';
+import { contractSymbols, quotesTiming, useYahooQuotes } from '../data/live/yquotes';
 import { fedPath } from '../data/fedpath';
 
 // ------------------------------------------------------------------- WB
@@ -109,7 +109,7 @@ export function WB(_: FnProps) {
       </table>
       <div className="note">
         {engine.realOnly
-          ? 'Spreads and curve slope in basis points. Each yield is the figure its source publishes: US Treasury par yields (5Y, 10Y and 30Y stream during the session), Bundesbank zero-coupon yields, Bank of England par yields, Japanese Ministry of Finance constant-maturity yields, Bank of Canada benchmark yields and RBA interpolated yields, so methods differ slightly between countries. Countries without a free official source are not listed.'
+          ? 'Spreads and curve slope in basis points. Each yield is the figure its source publishes: US Treasury par yields, Bundesbank zero-coupon yields, Bank of England par yields, Japanese Ministry of Finance constant-maturity yields, Bank of Canada benchmark yields and RBA interpolated yields, so methods differ slightly between countries. All are end of day; the Cboe intraday 5, 10 and 30-year Treasury yield indices are separate lines (FVX, TNX, TYX). Countries without a free official source are not listed.'
           : 'Spreads and curve slope in basis points. Simulated curves move with US rates through a country beta.'}
       </div>
       <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba']} />
@@ -126,7 +126,7 @@ function spread(a: number, b: number): string {
 
 const COMPARE = [
   { k: 0, label: 'Current', color: '#ffb547' },
-  { k: 5, label: '1W ago', color: '#45d3e6' },
+  { k: 7, label: '1W ago', color: '#45d3e6' },
   { k: 30, label: '1M ago', color: '#d77bff' },
   { k: 365, label: '1Y ago', color: '#6d6d6d' },
 ];
@@ -342,7 +342,7 @@ function BTMMReal() {
           <div className="note">Bund and gilt yields are the Bundesbank's zero-coupon and the Bank of England's par yields, so these two spreads mix methods.</div>
         </Section>
       </div>
-      <Section title="Three-month SOFR futures (CME)" right="implied rate = 100 - price · delayed 10 min">
+      <Section title="Three-month SOFR futures (CME)" right={`implied rate = 100 - price${sofr.length ? ` · ${quotesTiming(sofr.map((c) => c.q))}` : ''}`}>
         {sofr.length === 0 ? (
           <div className="empty">Loading SOFR futures…</div>
         ) : (
@@ -381,7 +381,7 @@ function BTMMReal() {
         )}
       </Section>
       <div className="note">Treasury note and bond prices have no free source here, so the actives table is not shown in the desktop app.</div>
-      <Credits ids={['treasury', 'nyfed']} />
+      <Credits ids={['treasury', 'nyfed', 'fedboard', 'bundesbank', 'boe']} />
     </div>
   );
 }
@@ -554,7 +554,7 @@ function WIRPReal() {
       title="World Interest Rate Probability"
       sub={
         <>
-          Federal Reserve · <RealBadge /> CBOT 30-day fed funds futures (via Yahoo, delayed 10 min), New York Fed effective rate, FOMC calendar
+          Federal Reserve · <RealBadge /> CBOT 30-day fed funds futures (via Yahoo{strip.length ? `, ${quotesTiming(strip.map((c) => c.q))}` : ''}), New York Fed effective rate, FOMC calendar
         </>
       }
     />
@@ -660,7 +660,7 @@ function WIRPReal() {
         </table>
       </Section>
       <div className="note">
-        Method as CME FedWatch: each contract settles on its month's average effective rate. A month without a decision fixes the rate after the meeting before it; in a decision month the average splits into the days before and after the decision. One move = 25 bp. Futures settle on the effective rate, which trades inside the target range, so implied rates sit near the middle of the range.
+        Method as CME FedWatch: each contract settles on its month's average effective rate. A month without a decision fixes the rate after the meeting before it; in a decision month the average splits into the days before and after the decision. One move = 25 bp. Futures settle on the effective rate, which trades inside the target range, so implied rates sit near the middle of the range. Only the Fed is covered: the ECB, Bank of England and Bank of Japan have no free futures source here.
       </div>
       <Credits ids={['fedboard', 'nyfed']} />
     </div>

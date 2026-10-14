@@ -21,6 +21,9 @@ import { zonedParts, zonedToUtc } from '../core/format';
  * December; half trading days on 24 and 31 December, closing by 14:05 CET.
  * Holidays falling on a weekend are not moved.
  *
+ * London, Xetra and Tokyo are tables entered from each exchange's published
+ * calendar, for the years they cover (`through`).
+ *
  * Closures nobody can schedule in advance, such as a national day of mourning
  * or an outage, are not known here.
  */
@@ -35,7 +38,8 @@ export interface MarketDay {
 }
 
 export interface Exchange {
-  id: 'US' | 'EU';
+  /** Short code, also the HOLIDAYS tab: US, EU, GB, DE, JP. */
+  id: string;
   /** Short label for the top bar. */
   label: string;
   name: string;
@@ -45,6 +49,10 @@ export interface Exchange {
   close: string;
   /** Holidays and early closes of a calendar year, in date order. */
   days(year: number): MarketDay[];
+  /** Where the calendar comes from. */
+  source: string;
+  /** The last year a published table covers; unset when the calendar follows from rules. */
+  through?: number;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -137,8 +145,118 @@ export function euronextDays(year: number): MarketDay[] {
   return out.sort(byDate);
 }
 
-export const US_MARKET: Exchange = { id: 'US', label: 'US', name: 'New York Stock Exchange', tz: 'America/New_York', city: 'New York', open: '09:30', close: '16:00', days: nyseDays };
-export const EU_MARKET: Exchange = { id: 'EU', label: 'EUROPE', name: 'Euronext Amsterdam, Brussels, Lisbon and Paris', tz: 'Europe/Brussels', city: 'Brussels', open: '09:00', close: '17:30', days: euronextDays };
+export const US_MARKET: Exchange = {
+  id: 'US',
+  label: 'NYSE',
+  name: 'New York Stock Exchange',
+  tz: 'America/New_York',
+  city: 'New York',
+  open: '09:30',
+  close: '16:00',
+  days: nyseDays,
+  source: "Worked out from the NYSE's published holiday and early-close rules (nyse.com, read 14 October 2026)",
+};
+export const EU_MARKET: Exchange = {
+  id: 'EU',
+  label: 'Euronext',
+  name: 'Euronext Amsterdam, Brussels, Lisbon and Paris',
+  tz: 'Europe/Brussels',
+  city: 'Brussels',
+  open: '09:00',
+  close: '17:30',
+  days: euronextDays,
+  source: "Worked out from Euronext's published trading calendar rules (euronext.com, read 14 October 2026)",
+};
+
+/** A calendar entered from an exchange's published table, for the years it covers. */
+function table(list: MarketDay[]): (year: number) => MarketDay[] {
+  return (year) => list.filter((d) => d.date.startsWith(`${year}-`));
+}
+
+/** London Stock Exchange: closed on English bank holidays; 12:30 close on Christmas Eve and New Year's Eve. */
+export const LSE_MARKET: Exchange = {
+  id: 'GB',
+  label: 'LSE',
+  name: 'London Stock Exchange',
+  tz: 'Europe/London',
+  city: 'London',
+  open: '08:00',
+  close: '16:30',
+  through: 2027,
+  source: "Entered from the London Stock Exchange's published business days for 2026 and 2027",
+  days: table([
+    { date: '2026-01-01', name: "New Year's Day" }, { date: '2026-04-03', name: 'Good Friday' }, { date: '2026-04-06', name: 'Easter Monday' },
+    { date: '2026-05-04', name: 'Early May Bank Holiday' }, { date: '2026-05-25', name: 'Spring Bank Holiday' }, { date: '2026-08-31', name: 'Summer Bank Holiday' },
+    { date: '2026-12-24', name: 'Christmas Eve (12:30 close)', close: '12:30' }, { date: '2026-12-25', name: 'Christmas Day' }, { date: '2026-12-28', name: 'Boxing Day (substitute)' },
+    { date: '2026-12-31', name: "New Year's Eve (12:30 close)", close: '12:30' },
+    { date: '2027-01-01', name: "New Year's Day" }, { date: '2027-03-26', name: 'Good Friday' }, { date: '2027-03-29', name: 'Easter Monday' },
+    { date: '2027-05-03', name: 'Early May Bank Holiday' }, { date: '2027-05-31', name: 'Spring Bank Holiday' }, { date: '2027-08-30', name: 'Summer Bank Holiday' },
+    { date: '2027-12-24', name: 'Christmas Eve (12:30 close)', close: '12:30' }, { date: '2027-12-27', name: 'Christmas Day (substitute)' }, { date: '2027-12-28', name: 'Boxing Day (substitute)' },
+    { date: '2027-12-31', name: "New Year's Eve (12:30 close)", close: '12:30' },
+  ]),
+};
+
+/** Xetra (Deutsche Börse). */
+export const XETRA_MARKET: Exchange = {
+  id: 'DE',
+  label: 'Xetra',
+  name: 'Xetra (Deutsche Börse)',
+  tz: 'Europe/Berlin',
+  city: 'Frankfurt',
+  open: '09:00',
+  close: '17:30',
+  through: 2027,
+  source: "Entered from Deutsche Börse's published Xetra trading calendar for 2026 and 2027",
+  days: table([
+    { date: '2026-01-01', name: "New Year's Day" }, { date: '2026-04-03', name: 'Good Friday' }, { date: '2026-04-06', name: 'Easter Monday' },
+    { date: '2026-05-01', name: 'Labour Day' }, { date: '2026-12-24', name: 'Christmas Eve' }, { date: '2026-12-25', name: 'Christmas Day' },
+    { date: '2026-12-31', name: "New Year's Eve" },
+    { date: '2027-01-01', name: "New Year's Day" }, { date: '2027-03-26', name: 'Good Friday' }, { date: '2027-03-29', name: 'Easter Monday' },
+    { date: '2027-12-24', name: 'Christmas Eve' }, { date: '2027-12-31', name: "New Year's Eve" },
+  ]),
+};
+
+/** Tokyo Stock Exchange (Japan Exchange Group). */
+export const JPX_MARKET: Exchange = {
+  id: 'JP',
+  label: 'TSE',
+  name: 'Japan Exchange Group (Tokyo)',
+  tz: 'Asia/Tokyo',
+  city: 'Tokyo',
+  open: '09:00',
+  close: '15:30',
+  through: 2027,
+  source: "Entered from Japan Exchange Group's published market holidays for 2026 and 2027",
+  days: table([
+    { date: '2026-01-01', name: "New Year's Day" }, { date: '2026-01-02', name: 'Market holiday' }, { date: '2026-01-12', name: 'Coming of Age Day' },
+    { date: '2026-02-11', name: 'National Foundation Day' }, { date: '2026-02-23', name: "Emperor's Birthday" }, { date: '2026-03-20', name: 'Vernal Equinox Day' },
+    { date: '2026-04-29', name: 'Showa Day' }, { date: '2026-05-04', name: 'Greenery Day' }, { date: '2026-05-05', name: "Children's Day" },
+    { date: '2026-05-06', name: 'Constitution Day (substitute)' }, { date: '2026-07-20', name: 'Marine Day' }, { date: '2026-08-11', name: 'Mountain Day' },
+    { date: '2026-09-21', name: 'Respect for the Aged Day' }, { date: '2026-09-22', name: 'National Holiday' }, { date: '2026-09-23', name: 'Autumnal Equinox Day' },
+    { date: '2026-10-12', name: 'Sports Day' }, { date: '2026-11-03', name: 'Culture Day' }, { date: '2026-11-23', name: 'Labour Thanksgiving Day' },
+    { date: '2026-12-31', name: 'Market holiday' },
+    { date: '2027-01-01', name: "New Year's Day" }, { date: '2027-01-11', name: 'Coming of Age Day' }, { date: '2027-02-11', name: 'National Foundation Day' },
+    { date: '2027-02-23', name: "Emperor's Birthday" }, { date: '2027-03-22', name: 'Vernal Equinox Day (substitute)' }, { date: '2027-04-29', name: 'Showa Day' },
+    { date: '2027-05-03', name: 'Constitution Day' }, { date: '2027-05-04', name: 'Greenery Day' }, { date: '2027-05-05', name: "Children's Day" },
+    { date: '2027-07-19', name: 'Marine Day' }, { date: '2027-08-11', name: 'Mountain Day' }, { date: '2027-09-20', name: 'Respect for the Aged Day' },
+    { date: '2027-09-23', name: 'Autumnal Equinox Day' }, { date: '2027-10-11', name: 'Sports Day' }, { date: '2027-11-03', name: 'Culture Day' },
+    { date: '2027-11-23', name: 'Labour Thanksgiving Day' }, { date: '2027-12-31', name: 'Market holiday' },
+  ]),
+};
+
+/** The calendars on HOLIDAYS, in tab order. */
+export const EXCHANGES: Exchange[] = [US_MARKET, EU_MARKET, LSE_MARKET, XETRA_MARKET, JPX_MARKET];
+
+/** The exchange's own calendar date at `now`: YYYY-MM-DD. */
+export function localDate(ex: Pick<Exchange, 'tz'>, now: number): string {
+  const p = zonedParts(now, ex.tz);
+  return isoOf(p.y, p.mo - 1, p.d);
+}
+
+/** The holiday or early close on a date (YYYY-MM-DD, the exchange's own), if any. */
+export function marketDay(ex: Exchange, iso: string): MarketDay | undefined {
+  return dayOf(ex, Number(iso.slice(0, 4)), iso);
+}
 
 const cache = new Map<string, Map<string, MarketDay>>();
 function dayOf(ex: Exchange, y: number, iso: string): MarketDay | undefined {

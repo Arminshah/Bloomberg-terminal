@@ -96,7 +96,7 @@ export function COMP({ sec }: FnProps) {
         <span className="muted">Rebased to 0% at the first visible date; scroll to zoom, drag to pan.</span>
       </div>
       <ChartView series={daily} options={options} resetKey={`${tab}|${others.join()}`} />
-      <Section title={`Total price return since ${fmtDay(start)}`}>
+      <Section title={`Price return since ${fmtDay(start)} (no dividends)`}>
         <table className="tbl">
           <thead>
             <tr>

@@ -18,11 +18,11 @@ import { execute } from '../terminal/exec';
 import { useMenu, usePanelId } from '../terminal/panel';
 import type { FnProps, MenuItem } from '../terminal/types';
 import { CLASS_LABEL } from '../data/registry';
-import { getRealFund, useFundamentals } from '../data/live/yfund';
+import { fundVersion, getRealFund, useFundamentals } from '../data/live/yfund';
 import { contractSymbols, useYahooQuotes } from '../data/live/yquotes';
 import { yahooQuotes } from '../data/live/yahoo';
 import { DAY_MS } from '../data/calendar';
-import { sourceLabel } from '../components/Source';
+import { NoBondNotice, sourceLabel } from '../components/Source';
 import { realFutureContract } from '../data/realfut';
 import { yieldMethod } from '../data/live/govyields';
 import { usYieldMethod } from '../data/live/ust';
@@ -35,7 +35,7 @@ function RelatedMenu({ sec, fns }: { sec: SecurityDef; fns: [string, string][] }
   );
   useMenu('des-related', items);
   return (
-    <Section title="Related functions" right="Type the number and <GO>">
+    <Section title="Related functions" right="Type the number and press Enter">
       <div className="pad-s" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '2px 12px' }}>
         {fns.map(([code, label], i) => (
           <button key={code} type="button" className="act" style={{ textAlign: 'left' }} onClick={() => execute(panel, `${sec.id} ${code}`)}>
@@ -125,7 +125,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Industry', eq.industry],
               ['Headquarters', eq.hq || '--'],
               ['Chief executive', eq.ceo ?? '--'],
-              ['Founded', eq.founded ? String(eq.founded) : '--'],
+              // No source gives the founding year in the desktop app, so the row is left out there.
+              ...(eq.founded || !engine.realOnly ? [['Founded', eq.founded ? String(eq.founded) : '--'] as [string, string]] : []),
               ['Employees', eq.emp > 0 ? fmtInt(eq.emp) : '--'],
               ['Fiscal year end', ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][eq.fye - 1] ?? '--'],
               ['Primary exchange', sec.exch ?? '--'],
@@ -175,7 +176,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
         </Section>
         {real || engine.realOnly ? (
           <Section title="Ownership" right="HOLDERS for holders">
-            {!real && <p className="pad-s muted">Loading ownership from Yahoo Finance (unofficial)…</p>}
+            {!real && <p className="pad-s muted">{fundVersion.get().status[sec.id] === 'error' ? 'No ownership data from Yahoo Finance for this company.' : 'Loading ownership from Yahoo Finance…'}</p>}
             {real && (
             <KV
               items={[
@@ -677,10 +678,10 @@ function CryptoDES({ sec }: { sec: SecurityDef }) {
               ],
               ['Launched', String(cr.launched)],
               [kraken ? 'Day range (UTC day)' : '24h range', `${fmtNum(q.low, sec.dec)} - ${fmtNum(q.high, sec.dec)}`],
-              ['High (10Y window)', `${fmtNum(ath, sec.dec)}  ${fmtDay(athT)}`],
+              [s.length ? `High since ${fmtDay(s.t[0])}` : 'High', `${fmtNum(ath, sec.dec)}  ${fmtDay(athT)}`],
               ['Drawdown from high', fmtPct((q.last / ath - 1) * 100, 1)],
               ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
-              ['Source', kraken ? `Kraken exchange, ${krakenPairFor(sec.id)!.base}/USD (one exchange's market)` : engine.realOnly ? 'Yahoo Finance (unofficial; CoinMarketCap prices)' : engine.isLive(sec.id) ? `Coinbase ${cr.coinbase}` : 'Simulated'],
+              ['Source', kraken ? `Kraken exchange, ${krakenPairFor(sec.id)!.base}/USD (one exchange's market)` : engine.realOnly ? 'Yahoo Finance (CoinMarketCap prices)' : engine.isLive(sec.id) ? `Coinbase ${cr.coinbase}` : 'Simulated'],
             ]}
           />
           {gecko ? <div className="note">Supply and market value: {COINGECKO_ATTRIBUTION}, aggregated across the exchanges it tracks.</div> : null}
@@ -861,7 +862,8 @@ export function DES({ sec }: FnProps) {
       body = <CryptoDES sec={s} />;
       break;
     case 'bond':
-      body = <BondDES sec={s} />;
+      // The bond's yield, spread and risk figures would come from a model on hand-written terms: none on real data.
+      body = engine.realOnly ? <NoBondNotice /> : <BondDES sec={s} />;
       break;
     case 'future':
       body = <FutureDES sec={s} />;

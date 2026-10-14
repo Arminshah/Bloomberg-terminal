@@ -9,7 +9,7 @@ export interface CurvePoint {
 }
 
 export const CURVES: { code: string; name: string; country: string }[] = [
-  { code: 'US', name: 'US Treasury Actives', country: 'US' },
+  { code: 'US', name: 'US Treasuries', country: 'US' },
   { code: 'DE', name: 'German Bunds', country: 'DE' },
   { code: 'GB', name: 'UK Gilts', country: 'GB' },
   { code: 'JP', name: 'Japan JGBs', country: 'JP' },
@@ -19,7 +19,7 @@ export function curveMembers(code: string) {
   return engine.securities.filter((d) => d.cls === 'rate' && d.curve === code).sort((a, b) => a.tenor! - b.tenor!);
 }
 
-/** Curve as of `daysAgo` business days (0 = live). */
+/** Curve as of `daysAgo` calendar days back, each tenor's close on or before then (0 = live). */
 export function curveAt(code: string, daysAgo: number): CurvePoint[] {
   return curveMembers(code).map((d) => {
     if (daysAgo === 0) return { id: d.id, tenor: d.tenor!, y: engine.quote(d.id)!.last };

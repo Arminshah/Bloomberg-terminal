@@ -7,7 +7,7 @@ import type { SecurityDef } from '../types';
 import { desktopData, impliedShares, realDividends, yahooGet, yahooSymbolFor } from './yahoo';
 
 /**
- * Company data for the desktop app from Yahoo Finance (unofficial, personal
+ * Company data for the desktop app from Yahoo Finance (personal
  * use): statements from the fundamentals time series, and report dates,
  * holders and the company profile from quoteSummary. Analyst data (ratings,
  * recommendations, price targets, estimates) is not requested: the main

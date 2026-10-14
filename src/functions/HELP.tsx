@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { CLASS_LABEL, searchSecurities } from '../data/registry';
+import { engine } from '../data/market';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { FUNCTIONS, lookupFn } from '../terminal/registry';
@@ -43,7 +44,7 @@ const EXAMPLES: [string, string][] = [
   ['SOFI', 'Any US stock: looked up online if not built in'],
   ['AAPL CHART', 'Security first, then the function, also works'],
   ['CURVE', 'Yield curves'],
-  ['NEWS CRYPTO', 'Search official announcements'],
+  ['NEWS CB', 'Central bank announcements'],
 ];
 
 function Directory({ filter }: { filter: string }) {
@@ -72,7 +73,10 @@ function Directory({ filter }: { filter: string }) {
                   <td style={{ width: 64 }}>
                     <span className="amber b">{fn.code}</span>
                   </td>
-                  <td className="white">{fn.name}</td>
+                  <td className={engine.realOnly && fn.unavailable ? 'muted' : 'white'} title={engine.realOnly && fn.unavailable ? `Not available: ${fn.unavailable}` : undefined}>
+                    {fn.name}
+                    {engine.realOnly && fn.unavailable ? ' (not available)' : ''}
+                  </td>
                   <td className="muted ellipsis hide-m" style={{ maxWidth: 260 }}>
                     {fn.desc}
                   </td>
@@ -98,6 +102,12 @@ function FunctionHelp({ code }: { code: string }) {
         </div>
         <p className="prose">{fn.desc}</p>
         <dl className="kv">
+          {engine.realOnly && fn.unavailable && (
+            <>
+              <dt>Desktop app</dt>
+              <dd className="amber">Not available: {fn.unavailable}</dd>
+            </>
+          )}
           <dt>Category</dt>
           <dd>{fn.category}</dd>
           <dt>Needs security</dt>

@@ -126,7 +126,10 @@ export function ALRT({ sec }: FnProps) {
                   <td className="num white">
                     <LivePx id={a.sec} />
                   </td>
-                  <td className="num">{fmtNum(dist, 2)}%</td>
+                  <td className="num" title={a.cond === 'above' || a.cond === 'below' ? 'Distance from the last price to the level' : "Gap between today's change and the trigger, in percentage points"}>
+                    {fmtNum(dist, 2)}
+                    {a.cond === 'above' || a.cond === 'below' ? '%' : ' pp'}
+                  </td>
                   <td className="muted">{fmtDate(a.created)} {fmtTime(a.created, false)}</td>
                   <td>
                     <button type="button" className="act" aria-label="Delete alert" onClick={() => alerts.set((s) => ({ ...s, list: s.list.filter((x) => x.id !== a.id) }))}>
@@ -187,7 +190,7 @@ function NewsAlerts() {
   return (
     <Section title="News keyword alerts" right={`${st.list.filter((a) => a.active).length} active`}>
       <div className="pad row" style={{ gap: 8 }}>
-        <input className="inp" placeholder="Keyword or ticker, e.g. FED or NVDA" aria-label="News keyword" value={kw} onChange={(e) => setKw(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
+        <input className="inp" placeholder={engine.realOnly ? 'Keyword, e.g. FOMC or inflation' : 'Keyword or ticker, e.g. FED or NVDA'} aria-label="News keyword" value={kw} onChange={(e) => setKw(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
         <button type="button" className="btn primary" onClick={add}>
           Add news alert
         </button>
@@ -196,7 +199,11 @@ function NewsAlerts() {
         <tbody>
           {st.list.length === 0 && (
             <tr>
-              <td className="empty">No news alerts. New headlines that contain the word or name the ticker pop up as alerts.</td>
+              <td className="empty">
+                {engine.realOnly
+                  ? 'No news alerts. New official announcements (central banks, the BEA, ESMA) that contain the word pop up as alerts while the app is open.'
+                  : 'No news alerts. New headlines that contain the word or name the ticker pop up as alerts.'}
+              </td>
             </tr>
           )}
           {st.list.map((a) => (

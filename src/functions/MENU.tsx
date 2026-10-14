@@ -138,6 +138,8 @@ interface Line {
   code: string;
   label: string;
   cmd: string;
+  /** Why the desktop app shows no data there, when it shows none. */
+  none?: string;
 }
 
 function linesFor(groups: Group[], sec: SecurityDef | undefined, start = 1): { title: string; lines: Line[] }[] {
@@ -163,7 +165,7 @@ function linesFor(groups: Group[], sec: SecurityDef | undefined, start = 1): { t
         const root = sec.yk === 'Govt' ? 'T' : sec.ticker.split(' ')[0];
         cmd = `${root} ${sec.yk.toUpperCase()} ${fn.code}`;
       }
-      lines.push({ n: n++, code: fn.code, label, cmd });
+      lines.push({ n: n++, code: fn.code, label, cmd, ...(engine.realOnly && fn.unavailable ? { none: fn.unavailable } : {}) });
     }
     if (lines.length) out.push({ title: g.title, lines });
   }
@@ -186,7 +188,10 @@ function MenuGrid({ groups }: { groups: { title: string; lines: Line[] }[] }) {
                   <td className="amber b" style={{ width: 58 }}>
                     {l.code}
                   </td>
-                  <td className="white">{l.label}</td>
+                  <td className={l.none ? 'muted' : 'white'} title={l.none ? `Not available: ${l.none}` : undefined}>
+                    {l.label}
+                    {l.none ? ' (not available)' : ''}
+                  </td>
                 </tr>
               ))}
             </tbody>

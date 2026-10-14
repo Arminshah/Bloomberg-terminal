@@ -86,11 +86,11 @@ export function RV({ sec }: FnProps) {
                 `Loading real data, ${loaded} of ${group.length} companies…`
               ) : (
                 <>
-                  <span className="badge live">REAL</span> Yahoo Finance (unofficial) ratios
+                  <span className="badge live">REAL</span> Yahoo Finance ratios
                   {failed ? (
                     <>
                       {' '}
-                      for {loaded} of {group.length}; <SimBadge /> for the rest
+                      for {loaded} of {group.length}; no company data from the source for the rest (their P/E and P/B are the quote's)
                     </>
                   ) : null}
                 </>

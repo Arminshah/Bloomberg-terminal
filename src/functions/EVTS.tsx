@@ -49,7 +49,11 @@ export function EVTS({ sec }: FnProps) {
       }
       const realDvd = engine.isExternal(d.id) || !!getRealFund(d.id);
       for (const v of dividends(d)) {
-        if (v.ex >= from && v.ex <= to) list.push({ date: v.ex, id: d.id, kind: 'Ex-Dividend', detail: `${fmtNum(v.amount, 4)} ${d.ccy} ${v.type === 'Projected' ? '(projected)' : ''}`.trim(), sim: !realDvd });
+        if (v.ex < from || v.ex > to) continue;
+        // The next ex-date the source announces comes without an amount.
+        const expected = v.type === 'Expected' || !Number.isFinite(v.amount);
+        const detail = expected ? 'Expected ex-date, amount not given' : `${fmtNum(v.amount, 4)} ${d.ccy} ${v.type === 'Projected' ? '(projected)' : ''}`.trim();
+        list.push({ date: v.ex, id: d.id, kind: 'Ex-Dividend', detail, approx: expected, sim: !realDvd });
       }
     }
     return list.sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
@@ -66,7 +70,7 @@ export function EVTS({ sec }: FnProps) {
               </>
             ) : (
               <>
-                <span className="badge live">REAL</span> Yahoo Finance (unofficial) · ~ marks an expected date
+                <span className="badge live">REAL</span> Yahoo Finance · ~ marks an expected date
               </>
             )}
           </>

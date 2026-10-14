@@ -187,7 +187,7 @@ export function PROV(_: FnProps) {
 }
 
 const SWITCHES: { name: SettingName; help: string }[] = [
-  { name: 'YAHOO_PRICES_ENABLED', help: 'Yahoo Finance prices, history and company data: unofficial, personal use. Off stops every request to Yahoo and its streaming socket.' },
+  { name: 'YAHOO_PRICES_ENABLED', help: 'Yahoo Finance prices, history and company data, for personal use. Off stops every request to Yahoo and its streaming socket.' },
   { name: 'KRAKEN_ENABLED', help: "Kraken's public market data for the crypto lines. Off hands them back to Yahoo, when Yahoo is on." },
   { name: 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED', help: 'Twelve Data\'s free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data.' },
 ];

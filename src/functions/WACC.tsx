@@ -13,6 +13,16 @@ import { useFundamentals } from '../data/live/yfund';
 
 const BENCH: Record<string, string> = { Americas: 'SPX Index', EMEA: 'SXXP Index', APAC: 'NKY Index' };
 
+/** The 10-year government yield the app has from an official source, per currency. */
+const TEN_YEAR: Record<string, { id: string; name: string }> = {
+  USD: { id: 'USGG10YR Index', name: 'US 10-year Treasury' },
+  EUR: { id: 'GDBR10 Index', name: 'German 10-year Bund' },
+  GBP: { id: 'GUKG10 Index', name: 'UK 10-year gilt' },
+  JPY: { id: 'GJGB10 Index', name: 'Japan 10-year JGB' },
+  CAD: { id: 'GCAN10YR Index', name: 'Canada 10-year' },
+  AUD: { id: 'GACGB10 Index', name: 'Australia 10-year' },
+};
+
 export function WACC({ sec }: FnProps) {
   const s = sec!;
   const { status } = useFundamentals(s);
@@ -22,7 +32,13 @@ export function WACC({ sec }: FnProps) {
   const adjBeta = 0.67 * beta.beta + 0.33;
   const [erp, setErp] = useState(5.5);
   const [growth, setGrowth] = useState(2.5);
-  const rf = s.ccy === 'USD' ? engine.quote('USGG10YR Index')!.last : riskFree(s) * 100 + 0.6;
+  const ccy = reportCcy(s);
+  // The risk-free rate in the currency of the cash flows: that currency's 10-year government yield.
+  const rfLine = TEN_YEAR[ccy];
+  const rf = rfLine ? (engine.quote(rfLine.id)?.last ?? NaN) : engine.realOnly ? NaN : riskFree(s) * 100 + 0.6;
+  // Market value in the reporting currency, so equity and debt are in the same units (Shell: pence against dollars).
+  const tradeCcy = s.ccy === 'GBp' ? 'GBP' : s.ccy;
+  const fx = ccy === tradeCcy ? 1 : engine.usdValue(tradeCcy) / engine.usdValue(ccy);
   const ke = rf + adjBeta * erp;
   const ltm = f.ltm;
   // The company's effective rate: LTM interest expense over total debt. Without one, the risk-free rate, labelled as assumed.
@@ -33,7 +49,7 @@ export function WACC({ sec }: FnProps) {
   const taxKnown = ltm.pretax > 0 && Number.isFinite(ltm.tax);
   const taxRate = taxKnown ? ltm.tax / ltm.pretax : 0.21;
   const kd = kdPre * (1 - taxRate);
-  const E = ks.mcap;
+  const E = ks.mcap * fx;
   const D = ltm.debt;
   const wE = E / (E + D);
   const wD = D / (E + D);
@@ -41,7 +57,6 @@ export function WACC({ sec }: FnProps) {
   const fcf = ltm.fcf;
   const tv = (fcf * (1 + growth / 100)) / ((wacc - growth) / 100);
   const implied = (tv - (ltm.debt - ltm.cash)) / ltm.shares;
-  const ccy = reportCcy(s);
   return (
     <div>
       <FnHeader code="WACC" title="Weighted Average Cost of Capital" sec={s} sub={<>CAPM cost of equity, after-tax cost of debt · {sourceLabel(status, 'balance sheet generated; real data needs the desktop app')}</>} />
@@ -50,7 +65,7 @@ export function WACC({ sec }: FnProps) {
         <Section title="Cost of equity">
           <KV
             items={[
-              ['Risk-free rate', `${fmtNum(rf, 3)}%`],
+              [rfLine ? `Risk-free rate (${rfLine.name})` : 'Risk-free rate', Number.isFinite(rf) ? `${fmtNum(rf, 3)}%` : `-- (no official 10-year ${ccy} yield in this app)`],
               ['Raw beta (2Y daily)', fmtNum(beta.beta, 3)],
               ['Adjusted beta', fmtNum(adjBeta, 3)],
               [
@@ -92,7 +107,7 @@ export function WACC({ sec }: FnProps) {
             ],
             ['Enterprise value', !(fcf > 0) ? 'n.m. (free cash flow is negative)' : wacc > growth ? `${fmtMln(tv)} ${ccy}` : 'Growth must be below WACC'],
             ['Implied value per share', fcf > 0 && wacc > growth ? `${fmtNum(implied, 2)} ${ccy}` : '--'],
-            ['Current price', `${fmtNum(ks.price, 2)} ${ccy}`],
+            ['Current price', `${fmtNum(ks.price * fx, 2)} ${ccy}${fx !== 1 ? ` (converted from ${tradeCcy})` : ''}`],
           ]}
         />
       </Section>

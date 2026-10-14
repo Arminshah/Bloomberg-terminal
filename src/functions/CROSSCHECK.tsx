@@ -133,7 +133,7 @@ export function CROSSCHECK({ sec }: FnProps) {
       )}
       <div className="note">
         Finished sessions only. Gaps over {FLAG_BP} bp are marked. Massive&apos;s closes are split-adjusted, Alpha Vantage&apos;s are as traded (a split in the window shows as a large gap), and Twelve Data is asked only once you confirm your plan
-        allows displaying its data. The app&apos;s own closes come from Yahoo Finance (unofficial). No source here is adjusted for dividends.
+        allows displaying its data. The app&apos;s own closes come from Yahoo Finance. No source here is adjusted for dividends.
       </div>
     </div>
   );
