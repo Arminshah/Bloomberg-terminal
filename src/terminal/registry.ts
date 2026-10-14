@@ -21,6 +21,7 @@ import { DEPTH } from '../functions/DEPTH';
 import { TAS } from '../functions/TAS';
 import { BQ } from '../functions/BQ';
 import { CN, N, TOP } from '../functions/NEWS';
+import { MNEWS } from '../functions/MNEWS';
 import { WEI, WEIF } from '../functions/WEI';
 import { IMAP } from '../functions/IMAP';
 import { MOST } from '../functions/MOST';
@@ -73,7 +74,8 @@ export const FUNCTIONS: FnDef[] = [
   // News
   { code: 'HEADLINES', name: 'Official Announcements', category: 'News', desc: 'Press releases from central banks, the BEA and ESMA, newest first, with topic tabs and a reader.', component: TOP, aliases: ['ANNOUNCEMENTS'] },
   { code: 'NEWS', name: 'News Search', category: 'News', desc: 'Keyword search of the official announcements, or a topic: NEWS CB (central banks), NEWS REG (regulators), NEWS STATS (statistics). With a security it opens COMPANYNEWS.', component: N, example: 'NEWS CB' },
-  { code: 'COMPANYNEWS', name: 'Company News', category: 'News', needsSec: true, desc: 'Company news. No permitted company news feed is connected, so this points to the company\'s SEC filings.', component: CN },
+  { code: 'MARKETNEWS', name: 'Market News', category: 'News', desc: 'Market news from Finnhub, MarketWatch and Marketaux (your watchlist, with sentiment), with the SEC\'s latest 8-K filings, merged without duplicates; filter by ticker or keyword.', component: MNEWS, aliases: ['MNEWS', 'WIRE'], example: 'MARKETNEWS NVDA' },
+  { code: 'COMPANYNEWS', name: 'Company News', category: 'News', needsSec: true, desc: "A US company's news from the last week (Finnhub) and Marketaux's latest stories tagged with it, with sentiment, and a way to its SEC filings.", component: CN, example: 'COMPANYNEWS AAPL' },
   // Markets
   { code: 'MARKET', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI, aliases: ['INDICES'], example: 'MARKET US' },
   { code: 'INDEXFUTURES', name: 'World Index Futures', category: 'Markets', desc: 'Front equity index futures with basis, fair value and premium or discount to fair value.', component: WEIF },

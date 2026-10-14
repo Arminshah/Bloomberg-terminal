@@ -764,6 +764,7 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
   cursor: pointer;
 }
 .news-item:hover { background: #151515; }
+a.news-item { color: inherit; text-decoration: none; }
 .news-item.sel { background: #2a1a05; }
 .news-item .time { color: var(--muted); }
 .news-item .hl { color: var(--white); overflow: hidden; text-overflow: ellipsis; }

@@ -35,6 +35,7 @@ declare global {
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<{ status: number; text: string; missing?: string; gated?: string; refused?: string; budget?: boolean }>;
       analysts?(kind: import('./analysts').AnalystKind, symbol: string): Promise<KeyedAnswer>;
+      news?(source: import('./marketnews').NewsSource, arg?: string): Promise<KeyedAnswer>;
       alpaca?(kind: 'snapshots', symbols: string): Promise<KeyedAnswer>;
       /** Provider switches as they were when the page loaded. */
       settings?: Record<string, boolean>;

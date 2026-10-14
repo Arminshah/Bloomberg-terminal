@@ -6,9 +6,9 @@ import { news, NEWS_TOPICS, storyMatches, type Story } from '../data/news';
 import { OFFICIAL_FEEDS } from '../data/live/officialnews';
 import { feedStatus } from '../data/live/status';
 import { desktopData } from '../data/live/yahoo';
-import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
+import { CompanyNews } from './MNEWS';
 
 const PUBLISHERS = OFFICIAL_FEEDS.map((f) => f.publisher).join(', ');
 
@@ -114,26 +114,7 @@ export function N(props: FnProps) {
   return <NewsScreen code="NEWS" title="News Search" initialTopic={topic} query={topic ? undefined : route.args} />;
 }
 
-/**
- * Company news. No permitted news feed covers companies; a company's own
- * announcements are its filings (8-K current reports and the rest), which the
- * filings screen shows from SEC EDGAR.
- */
-export function CN({ sec }: FnProps) {
-  const s = sec!;
-  const panel = usePanelId();
-  return (
-    <div>
-      <FnHeader code="COMPANYNEWS" title="Company News" sec={s} sub="A company's own announcements" />
-      <div className="pad">
-        <p>
-          No news feed with terms that allow it is connected for companies, and Yahoo&apos;s news is switched off. A company&apos;s own announcements are its filings: current reports (8-K), results and ownership filings, from SEC
-          EDGAR for companies that file there.
-        </p>
-        <button type="button" className="btn primary" onClick={() => execute(panel, `${s.id} FILINGS`)}>
-          Open its filings
-        </button>
-      </div>
-    </div>
-  );
+/** Company news: Finnhub and Marketaux through the desktop app (functions/MNEWS.tsx). */
+export function CN(props: FnProps) {
+  return <CompanyNews {...props} />;
 }
