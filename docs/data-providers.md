@@ -8,7 +8,7 @@ In the desktop app, every request below goes out from the Electron main process 
 
 | Provider | Used for | Access | Credential | State in the app |
 | --- | --- | --- | --- | --- |
-| Yahoo Finance (unofficial) | Quotes, streaming prices, history, company profiles and statements, holders, symbol search | Undocumented web endpoints | None | Enabled (desktop), switch `YAHOO_PRICES_ENABLED`; options, news and analyst data off |
+| Yahoo Finance | Quotes, streaming prices, history, company profiles and statements, holders, symbol search; crypto when Kraken does not answer | Undocumented web endpoints, personal use | None | Enabled (desktop), switch `YAHOO_PRICES_ENABLED`; options, news and analyst data off |
 | US Treasury | Daily par yield curve | CSV download | None | Enabled |
 | Federal Reserve Bank of New York | EFFR, SOFR and the other reference rates | Markets data API | None | Enabled |
 | Federal Reserve Board | FOMC meeting calendar | Web page | None | Enabled |
@@ -57,7 +57,7 @@ Request pacing: quotes are polled every 30 seconds while the stream is connected
 
 ## US Treasury
 
-The app downloads the daily par yield curve CSV for each year from `home.treasury.gov`. The [methodology page](https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/treasury-yield-curve-methodology) says: "The Treasury's official yield curve is a par yield curve derived using a monotone convex method. Our inputs are indicative, bid-side market price quotations (not actual transactions) for the most recently auctioned securities obtained by the Federal Reserve Bank of New York at or near 3:30 PM each trading day." Treasury's terms of use were not reviewed in this check.
+The app downloads the daily par yield curve CSV for each year from `home.treasury.gov`. The site answers programs slowly: about 18 seconds per yearly file for the app's own user agent on 14 October 2026, against under a second for a browser's. The app keeps its honest user agent; it fetches the current year first, then the year before, then the rest three at a time, and keeps finished years on the computer (they do not change), so later starts fetch only the current year. The [methodology page](https://home.treasury.gov/policy-issues/financing-the-government/interest-rate-statistics/treasury-yield-curve-methodology) says: "The Treasury's official yield curve is a par yield curve derived using a monotone convex method. Our inputs are indicative, bid-side market price quotations (not actual transactions) for the most recently auctioned securities obtained by the Federal Reserve Bank of New York at or near 3:30 PM each trading day." Treasury's terms of use were not reviewed in this check.
 
 ## Federal Reserve Bank of New York
 
@@ -85,7 +85,7 @@ The app reads tables F1 and F2 from the [statistical tables](https://www.rba.gov
 
 ## Swiss National Bank, Banco Central do Brasil, Ministry of Finance Japan
 
-The app reads the SNB policy rate from the [data portal](https://data.snb.ch/en), the Selic target from the [BCB open data portal](https://dadosabertos.bcb.gov.br/dataset/432-taxa-de-juros---meta-selic-definida-pelo-copom) and JGB yields from the [Ministry of Finance](https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/index.htm). Their terms were not verified in this check: the SNB and Ministry of Finance terms pages returned 404, and the BCB terms were not reviewed.
+The app reads the SNB policy rate from the [data portal](https://data.snb.ch/en), the Selic target from the [BCB open data portal](https://dadosabertos.bcb.gov.br/dataset/432-taxa-de-juros---meta-selic-definida-pelo-copom) and JGB yields from the [Ministry of Finance](https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/index.htm). Their terms were not verified in this check: the SNB and Ministry of Finance terms pages returned 404, and the BCB terms were not reviewed. Meeting dates for the banks other than the Fed are entered from their published calendars; the BCB's 2027 Copom dates (decisions on 27 January, 17 March, 28 April, 16 June, 4 August, 22 September, 27 October and 8 December) were published on 23 June 2026. The BCB's calendar page could not be read automatically on 14 October 2026; the dates were taken from news reports of that release, which agree with each other, and the first date with the BCB's English Copom page.
 
 ## Office for National Statistics
 
@@ -147,13 +147,15 @@ Read on 13 October 2026.
 - [Rate limits](https://support.kraken.com/at/articles/206548367-What-are-the-API-rate-limits-): public endpoints are limited by IP address (Trades and OHLC also by pair); calling them "at a frequency of 1 per second (or less) would remain within the rate limits". Errors come in the body, for example `EGeneral:Too many requests`.
 - [Terms](https://www.kraken.com/legal) (Global Terms, last updated 6 October 2026; EEA Terms effective 7 October 2026): Kraken's content, "including, for example, our pricing data", may be used "only for your own benefit"; the restrictions include bots and scripts and "any third party applications that interact with Our Content without our prior written consent". The public REST API is Kraken's documented route to market data. This private app uses it only for its owner's display, one request a second at most: a risk accepted here, as with Yahoo.
 
-How the app uses it (`electron/kraken.cjs`, `src/data/live/kraken.ts`): Kraken owns the ten crypto lines (BTC, ETH, SOL, XRP, ADA, DOGE as Kraken's XDG, AVAX, LINK, LTC, DOT, all against USD) unless `KRAKEN_ENABLED` is off. Two years of daily candles at start; the ticker for all ten pairs every 5 seconds in one request; five-minute candles of the UTC day when a chart asks; the top 15 levels of the order book every 3 seconds while DEPTH is open. A snapshot is timed by Kraken's `Date` header. The day's change is against the close of Kraken's previous daily candle; after midnight UTC the candles are reloaded and the change shows unverified until they are. Every price is labelled Kraken's: one exchange's market, not a market-wide price.
+How the app uses it (`electron/kraken.cjs`, `src/data/live/kraken.ts`): Kraken owns the ten crypto lines (BTC, ETH, SOL, XRP, ADA, DOGE as Kraken's XDG, AVAX, LINK, LTC, DOT, all against USD) unless `KRAKEN_ENABLED` is off. Two years of daily candles at start; the ticker for all ten pairs every 5 seconds in one request; five-minute candles of the UTC day when a chart asks; the top 15 levels of the order book every 3 seconds while DEPTH is open. A snapshot is timed by Kraken's `Date` header. The day's change is against the close of Kraken's previous daily candle; after midnight UTC the candles are reloaded and the change shows unverified until they are. Every price is labelled Kraken's: one exchange's market, not a market-wide price. The ticker's volume counts the UTC day (`v[0]`), so each rise between two polls is volume traded on Kraken in between; `TRADES` shows those rises as aggregated prints at the last price, marked `KRAKEN AGG`.
+
+When Kraken never answers in a session (three failed tickers, or one when the daily candles failed as well), the crypto lines go to Yahoo Finance for the rest of the session and `CRYPTO` and `PROVIDERS` give the reason Kraken's answer carried (its own error text, the HTTP status, or no answer at all). Once Kraken has answered, a later outage marks its prices stale instead. On 14 October 2026 Kraken answered normally from the build environment, so an ERROR on another machine points to that machine's network, a firewall or proxy, or Kraken refusing its region, not to a change in Kraken's API; `tests/kraken.test.ts` covers the hand-back.
 
 ## CoinGecko
 
 Read on 13 October 2026. [Pricing](https://www.coingecko.com/en/api/pricing): the Demo plan is "$0 /month", 10k call credits a month, 100 calls a minute, one API key, "Attribution required". [API terms](https://www.coingecko.com/en/api_terms) (5 September 2025): show "Powered by CoinGecko" (section 4.1.4); "We do not encourage caching or storage of Data", and a cache should be refreshed at least every 24 hours (section 6.1); no redistributing or syndicating access (4.1.6).
 
-The app asks `coins/markets` for the ten coins every 10 minutes with your key (`COINGECKO_API_KEY`), keeps the answer in memory only, and shows market value and circulating supply in CRYP and DES, marked as CoinGecko's and aggregated, with the attribution. Without a key nothing is sent and those fields show `--`. Not live-tested: no key was available.
+The app asks `coins/markets` for the ten coins every 10 minutes with your key (`COINGECKO_API_KEY`), keeps the answer in memory only, and shows market value and circulating supply in CRYP and DES, marked as CoinGecko's and aggregated, with the attribution. Without a key nothing is sent and those fields show `--`. Live-tested on 14 October 2026 with the owner's key: the ten coins' market values and supply answered.
 
 ## Binance (evaluated, not connected)
 
@@ -193,13 +195,13 @@ How the app uses it (`electron/sec.cjs`, `src/data/live/sec.ts`, the `FILINGS` s
 - Filings show the filing date, form, report period, 8-K items by name, and links to the primary document and the filing index on sec.gov. The acceptance time is shown as the submissions file gives it: its time zone suffix was not checked against a live filing.
 - Reported figures come from company facts: income statement, cash flow and balance sheet lines in US GAAP or IFRS, annual and quarterly. Each period shows the figure from the most recent filing that reports it, with that filing's form, date and accession; a figure a later filing changed is marked `r` and keeps the first figure in its tooltip. A period is named by the fiscal year of the filing that first reported it, counted back for prior-year comparatives; nothing is named when the dates do not line up. Fourth quarters are not derived from the year.
 
-Not live-tested: no contact User-Agent was available while building this, and sending one that is not the owner's would break the SEC's rules. The parsers are tested on files laid out in the documented structure (`tests/sec.test.ts`), and the screen was checked with the same kind of files served in place of the SEC.
+Live-tested on 14 October 2026 with the owner's own contact User-Agent: Microsoft's filing list and reported figures matched its published filings. The parsers are also tested on files laid out in the documented structure (`tests/sec.test.ts`).
 
 ## Second sources for daily closes
 
 `CROSSCHECK` sets the daily closes the app shows for a US stock (from Yahoo) beside the same sessions' closes from Massive, Alpha Vantage and Twelve Data, with the gap in basis points; gaps over 5 bp are marked. These sources are asked only from that screen, only with your own key, and only for finished sessions. Answers are kept for an hour. Requests go out from `electron/eod.cjs` through the main process like every other provider; the parsers are in `src/data/live/eod.ts`.
 
-None of the three was live-tested with a real key: no key was available while building this. The Alpha Vantage and Twelve Data parsers were checked against the answers their documented `demo` keys gave on 14 October 2026 (IBM and AAPL daily series), the Massive parser against the sample in its documentation.
+Live-tested on 14 October 2026 with the owner's keys: Massive and Alpha Vantage returned daily closes, and Alpha Vantage's matched Yahoo's to 0.0 bp over 20 sessions. Twelve Data was sent one request outside the screen to check the key (HTTP 200, 14 daily bars); nothing from it is shown until `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` is on. The parsers are also tested on the documented answers (`tests/eod.test.ts`).
 
 The closes do not all mean the same thing. Massive's are split-adjusted by default; Alpha Vantage's `TIME_SERIES_DAILY` is "raw (as-traded)", so a split inside the window shows as a large gap; Twelve Data gives the session's close. None is adjusted for dividends, and neither are the closes the app charts.
 

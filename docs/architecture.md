@@ -11,7 +11,7 @@ The Electron main process is the app's back end. Every request to a data provide
 
 ```
 renderer: window.arminDesktop.*            main process (electron/)                       provider
-  yahoo(path)                       --->   allowlist, analyst/news filter (yahoo-scope)  --->  Yahoo Finance (unofficial)
+  yahoo(path)                       --->   allowlist, analyst/news filter (yahoo-scope)  --->  Yahoo Finance (personal use)
   streamOpen/Send/Close, onStream   --->   relays Yahoo's websocket                      --->  Yahoo streamer
   treasury(year)                    --->   fixed URL by year                             --->  US Treasury
   official(source, since)           --->   fixed URL per source key                      --->  central banks, ONS, Eurostat,

@@ -4,7 +4,7 @@
 
 ## Prices
 
-**No prices at all, or CONNECTION LOST in the top bar.** The app shows no prices rather than old or simulated ones. Check the internet connection, then `PROVIDERS`: Yahoo with "not entitled" or "rate limited" means Yahoo refused or throttled the app. Yahoo is an unofficial source and can do that at any time; the app backs off and tries again. If `YAHOO_PRICES_ENABLED` is off, every line Yahoo feeds shows no data by design.
+**No prices at all, or CONNECTION LOST in the top bar.** The app shows no prices rather than old or simulated ones. Check the internet connection, then `PROVIDERS`: Yahoo with "not entitled" or "rate limited" means Yahoo refused or throttled the app. Yahoo's endpoints are undocumented and it can do that at any time; the app backs off and tries again. If `YAHOO_PRICES_ENABLED` is off, every line Yahoo feeds shows no data by design.
 
 **A price is marked S (STALE).** Its source has not delivered a new price for longer than the instrument's threshold (10 minutes for currencies, crypto and indices, 30 for stocks and futures, beyond any delay the source states) while its market should be trading, or the source stopped answering. Hover the price for the reason.
 
@@ -12,7 +12,7 @@
 
 **A day's change is grey with a ?.** The previous close behind it is not yet confirmed for the right session, for example just after midnight or before a market's daily bar has arrived. It turns normal once confirmed. `--` means there is no previous close, or the sources disagree.
 
-**Crypto prices missing.** Crypto comes from Kraken. Check its row in `PROVIDERS`. Switching `KRAKEN_ENABLED` off hands the crypto lines back to Yahoo after a reload.
+**Crypto prices missing, or Kraken shows ERROR.** Crypto comes from Kraken. Its row in `PROVIDERS` gives the last problem, for example `HTTP 403` (Kraken refused the request, which it does for some networks and regions), `HTTP 429` or `EGeneral:Too many requests` (rate limited), or a timeout (a firewall or proxy). If Kraken never answers in a session, the app gives the crypto lines to Yahoo Finance for the rest of that session: after three failed tries, or at once when the daily candles failed too. `CRYPTO` then says why, and the prices are Yahoo's (CoinMarketCap's aggregate) rather than one exchange's. Once Kraken has answered in a session, a later outage marks its prices stale instead. Switching `KRAKEN_ENABLED` off hands the crypto lines to Yahoo after a reload.
 
 ## Keys and providers
 
@@ -20,7 +20,7 @@
 
 **"The FRED API key was not accepted".** FRED refused the key; the reason is on `PROVIDERS`. Check it in your FRED account. The app sends almost nothing more until you save a key. After a rate limit (HTTP 429) or 423 it waits two minutes.
 
-**`FILINGS` asks for SEC_USER_AGENT.** The SEC requires every automated client to give a name and a contact email it can reach. Set `SEC_USER_AGENT` to something like `Armin Terminal you@example.com`, with your own address. Nothing is sent to the SEC without it.
+**`FILINGS` asks for SEC_USER_AGENT.** The SEC requires every automated client to give a name and a contact email it can reach. Set `SEC_USER_AGENT` to a name followed by your email, for example `Armin Terminal you@example.com` with your own address; labels such as `Name:` or `e-mail:` are not needed. Nothing is sent to the SEC without it.
 
 **Market value and supply show `--` on `CRYPTO`.** They need `COINGECKO_API_KEY`.
 
@@ -30,9 +30,13 @@
 
 **A key is set but the switch or key cannot be changed on `PROVIDERS`.** It comes from an environment variable or the `.env` file, which win over the screen. Change it there.
 
+## Yields
+
+**`BONDS` or `CURVE` says "Loading the US Treasury curve".** The Treasury's site answers programs slowly, about 18 seconds per yearly file (14 October 2026), against under a second for a browser; the app identifies itself honestly rather than posing as a browser. The current year comes first, then the year before (for year-to-date and one-year changes), then the rest three at a time. Finished years are kept on this computer, so later starts fetch only the current year.
+
 ## Market timers
 
-The timers count to the regular session only: 09:30 to 16:00 New York time for the NYSE, 09:00 to 17:30 Brussels time for Euronext. Pre-market and after-hours trading are not counted. Holidays and early closes follow each exchange's published rules; a closure announced at short notice (a national day of mourning, an outage) is not known to the app. Click a timer for that exchange's holiday calendar.
+The timers come first in the top bar, Euronext then NYSE, before the clocks. They count to the regular session only: 09:30 to 16:00 New York time for the NYSE, 09:00 to 17:30 Brussels time for Euronext. Pre-market and after-hours trading are not counted. Holidays and early closes follow each exchange's published rules; a closure announced at short notice (a national day of mourning, an outage) is not known to the app. Click a timer for that exchange's holiday calendar.
 
 On narrower windows the Hong Kong, Tokyo and London clocks, and then some layout buttons, give way so the timers and the connection status stay visible.
 

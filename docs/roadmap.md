@@ -1,5 +1,17 @@
 # Roadmap
 
+## Done (14 October 2026, version 2.0.1)
+
+- Kraken hands the crypto lines to Yahoo Finance for the session when it never answers, and `CRYPTO` and `PROVIDERS` say why. `TRADES` shows Kraken's volume as aggregated prints.
+- The market timers come first in the top bar, named "Euronext opens/closes in" and "NYSE opens/closes in". Yahoo Finance is labelled "Yahoo Finance" without "(unofficial)".
+- `HOLIDAYS` judges today and the next session by each exchange's own date and time, shows whether it is open now, and names where each calendar comes from. The 2027 Copom dates are in.
+- `LAYOUTS` saves the panels as named workspaces, and the top bar's layout menu lists them.
+- Rate decisions on `RELEASES` show as pending until the bank's own data reaches the day the new rate applies, instead of an unchanged level.
+- Day changes that rest on an unconfirmed previous close are left out of rankings, maps, averages, alerts, the portfolio's day P&L and the help desk's movers.
+- Futures tables state the delay Yahoo gives for the contracts, not an assumed one; `OPTIONCALC` and `FXOPTION` name the rate they use, take a rate you type where none is published, and say why a value is blank.
+- Wording that overstated what a screen does was corrected (function descriptions, `QUOTE`'s news box, `TRADES`, `VWAP`, `HISTORY`, `PORTFOLIO`, `MESSAGES`, `SETTINGS`), menus mark screens with no data in the desktop app, and the rates screens carry every publisher's credit.
+- The US Treasury curve keeps finished years on the computer, so later starts fetch only the current year.
+
 ## Done (14 October 2026, version 2.0.0)
 
 - Linux builds: an AppImage that runs without installing and a .deb for Debian and Ubuntu, built and released next to the Windows files.

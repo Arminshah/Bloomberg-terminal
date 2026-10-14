@@ -19,7 +19,7 @@ What each provider asks for when its data is shown, and where the app shows it. 
 | SEC EDGAR | Public filings, free to reuse | `FILINGS` names EDGAR and links every filing to sec.gov |
 | CoinGecko | "Powered by CoinGecko" wherever its data appears | Beside the market values on `CRYPTO` and `PROFILE` |
 | Kraken | Its pricing data for your own benefit only | Every crypto price is labelled Kraken's, one exchange's market |
-| Yahoo Finance | No redistribution; informational use | Quote strips and company screens name it as "Yahoo Finance (unofficial)"; `PROVIDERS` says what it serves |
+| Yahoo Finance | No redistribution; informational use | Quote strips and company screens name it as "Yahoo Finance", with "for personal use" on hover; `PROVIDERS` says what it serves and the terms |
 | Massive, Alpha Vantage, Twelve Data | Personal, non-commercial use; no display to others | Named per column on `CROSSCHECK` |
 
 Nothing the app shows may be passed on: screenshots and exports are for your own use, as the providers' terms say.

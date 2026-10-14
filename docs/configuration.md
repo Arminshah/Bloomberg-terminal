@@ -27,7 +27,7 @@ For each name, the first of these that has a value wins:
 
 | Name | Default | What it does |
 | --- | --- | --- |
-| `YAHOO_PRICES_ENABLED` | on | Yahoo Finance prices, history, company profiles and statements, holders and symbol search: an unofficial source, used here for private personal use. Off stops every request to Yahoo, its streaming socket included; the lines Yahoo feeds then show no data. |
+| `YAHOO_PRICES_ENABLED` | on | Yahoo Finance prices, history, company profiles and statements, holders and symbol search, from undocumented endpoints, used here for private personal use. Off stops every request to Yahoo, its streaming socket included; the lines Yahoo feeds then show no data. |
 | `KRAKEN_ENABLED` | on | Kraken's public market data for the ten crypto lines. Off hands them back to Yahoo, if Yahoo is on. |
 | `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` | off | Twelve Data's free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data. |
 | `DEMO_MODE` | off | Browser build only, set when building: opens straight into the demo, whose every value is simulated and marked DEMO DATA. The desktop app never runs the demo. |
@@ -36,7 +36,7 @@ Switch changes take effect after a reload of the window (Ctrl+R).
 
 ## What works with what
 
-- No key, no account: prices and history (Yahoo, unofficial), crypto (Kraken), the US Treasury curve, the New York Fed's reference rates, central bank policy rates and calendars, government yields from the Bundesbank, the Bank of England, Japan's Ministry of Finance, the Bank of Canada and the RBA, statistics from the ONS, Eurostat, Statistics Canada and the ABS, and official announcements.
+- No key, no account: prices and history (Yahoo Finance, personal use), crypto (Kraken, with Yahoo as the fallback), the US Treasury curve, the New York Fed's reference rates, central bank policy rates and calendars, government yields from the Bundesbank, the Bank of England, Japan's Ministry of Finance, the Bank of Canada and the RBA, statistics from the ONS, Eurostat, Statistics Canada and the ABS, and official announcements.
 - Free registration or your own contact: FRED, SEC EDGAR, CoinGecko, Massive, Alpha Vantage, Twelve Data.
 - End of day or as published: official yields and rates (marked REFERENCE), economic statistics, SEC filings, and the `CROSSCHECK` sources. Yahoo's quotes are real time or delayed by exchange, as Yahoo labels them; every price shows its label.
 - Not covered by any source the app may use: listed option chains, analyst ratings and estimates, prices and dealer quotes for individual bonds, FX forward points, swap rates, order books beyond the best bid and offer (crypto aside), and consensus forecasts. Those screens say so instead of showing numbers.
