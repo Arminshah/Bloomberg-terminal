@@ -174,6 +174,13 @@ async function poll() {
   if (wanted.size && !halted) schedule(added ? 50 : next);
 }
 
+/** After keys or switches change on PROVIDERS: ask again if a screen is waiting. */
+export function retryIex() {
+  if (!halted) return;
+  halted = false;
+  if (wanted.size) schedule(50);
+}
+
 /** IEX's last trade, bid and offer for a US stock while a screen shows it; null for anything else. */
 export function useIex(def: SecurityDef | undefined): IexState | null {
   const symbol = alpacaSymbol(def);

@@ -5,6 +5,8 @@ import { useInterval } from '../data/market';
 import { feedStatus } from '../data/live/status';
 import { PROVIDERS, providersAvailable, providerState, useProviderReport, type Credential, type ProviderDef, type ProviderReport, type ProviderState, type SettingName } from '../data/providers';
 import { reloadFred } from '../data/live/fred';
+import { retryAnalysts } from '../data/live/analysts';
+import { retryIex } from '../data/live/alpaca';
 import type { FnProps } from '../terminal/types';
 
 const STATE_LABEL: Record<ProviderState, string> = {
@@ -91,6 +93,12 @@ function Requirement({ p, report }: { p: ProviderDef; report: ProviderReport | n
 export function PROV(_: FnProps) {
   useInterval(1000);
   const [report, refresh] = useProviderReport();
+  // A key or switch changed: refresh the table, and let open screens ask again for what needed it.
+  const changed = () => {
+    refresh();
+    retryAnalysts();
+    retryIex();
+  };
   const feeds = feedStatus.use((f) => f);
   const now = Date.now();
   const desktop = providersAvailable();
@@ -182,8 +190,8 @@ export function PROV(_: FnProps) {
           </tbody>
         </table>
       </Section>
-      {desktop && <Switches report={report} onChange={refresh} />}
-      {desktop && <Credentials report={report} onChange={refresh} />}
+      {desktop && <Switches report={report} onChange={changed} />}
+      {desktop && <Credentials report={report} onChange={changed} />}
       <div className="note">
         States: LIVE and ANSWERING mean the provider answered its last request; STALE means a provider the app asks continually has not answered for several rounds; NOT ASKED YET means no screen has needed it since the app started; NOT
         CONFIGURED means it needs a key; SWITCHED OFF means its switch is off; NOT CONNECTED means the adapter is planned but not built; DISABLED means it is switched off by policy. A configured key is not proof that a provider works: the
@@ -271,13 +279,19 @@ function ImportKeys({ onChange }: { onChange: () => void }) {
   const [text, setText] = useState('');
   const [result, setResult] = useState<string>('');
   const run = async () => {
-    const res = await window.arminDesktop!.providersImport!(text);
-    // The text is cleared at once: the keys now live only in the main process.
-    setText('');
-    if (!res.ok) setResult(res.error ?? 'Nothing was saved.');
-    else {
-      const skipped = res.skipped.map((x) => `${x.line ? `line ${x.line}` : x.name}: ${x.reason}`);
-      setResult(`${res.saved.length ? `Saved ${res.saved.join(', ')}.` : 'Nothing was saved.'}${skipped.length ? ` Not saved: ${skipped.join('; ')}.` : ''}`);
+    try {
+      const res = await window.arminDesktop!.providersImport!(text);
+      if (!res.ok) setResult(res.error ?? 'Nothing was saved.');
+      else {
+        const skipped = res.skipped.map((x) => `${x.line ? `line ${x.line}` : x.name}: ${x.reason}`);
+        setResult(`${res.saved.length ? `Saved ${res.saved.join(', ')}.` : 'Nothing was saved.'}${skipped.length ? ` Not saved: ${skipped.join('; ')}.` : ''}`);
+        if (res.saved.includes('FRED_API_KEY')) reloadFred();
+      }
+    } catch {
+      setResult('Nothing was saved: the text was refused (at most 10,000 characters).');
+    } finally {
+      // The text is cleared either way: the keys live only in the main process.
+      setText('');
     }
     onChange();
   };

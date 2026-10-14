@@ -214,6 +214,8 @@ export async function loadNews(source: NewsSource, arg = '', minMs = 60_000): Pr
   if (!marketNews.get().feeds[key]) set({ state: 'loading' });
   try {
     const res = await window.arminDesktop!.news!(source, arg);
+    // No key or the switch off costs no request: ask again at the next tick, in case they were set meanwhile.
+    if (res.gated || res.missing || res.refused) lastAsked.delete(key);
     if (res.gated) return set({ state: 'off', message: `off until ${res.gated} is switched on (PROVIDERS)` });
     if (res.missing || res.refused) return set({ state: 'needs-key', message: res.refused ? `The configured ${res.missing ?? 'key'} has the wrong format.` : `Needs ${res.missing} (PROVIDERS).` });
     if (!res.text) {

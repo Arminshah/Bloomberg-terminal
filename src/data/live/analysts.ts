@@ -176,7 +176,12 @@ export interface AnalystPart<T = unknown> {
 
 type ByKind = Partial<Record<AnalystKind, AnalystPart>>;
 
-export const analystData = createStore<{ v: number; by: Record<string, ByKind> }>({ v: 0, by: {} });
+export const analystData = createStore<{ v: number; by: Record<string, ByKind>; retry: number }>({ v: 0, by: {}, retry: 0 });
+
+/** After keys or switches change on PROVIDERS: open screens ask again for what needed a key. */
+export function retryAnalysts() {
+  analystData.set((s) => ({ ...s, retry: s.retry + 1 }));
+}
 const asked = new Map<string, number>();
 
 export function analystsAvailable(): boolean {
@@ -197,7 +202,7 @@ export function fmpProblem(status: number, symbol: string, error?: string): stri
 }
 
 function put(symbol: string, kind: AnalystKind, part: AnalystPart) {
-  analystData.set((s) => ({ v: s.v + 1, by: { ...s.by, [symbol]: { ...s.by[symbol], [kind]: part } } }));
+  analystData.set((s) => ({ ...s, v: s.v + 1, by: { ...s.by, [symbol]: { ...s.by[symbol], [kind]: part } } }));
 }
 
 async function load(symbol: string, kind: AnalystKind) {
@@ -208,6 +213,8 @@ async function load(symbol: string, kind: AnalystKind) {
   if (!analystData.get().by[symbol]?.[kind]) put(symbol, kind, { state: 'loading' });
   try {
     const res = await window.arminDesktop!.analysts!(kind, symbol);
+    // No key or the switch off costs no request: the next screen asks again, in case they were set meanwhile.
+    if (res.gated || res.missing || res.refused) asked.delete(key);
     if (res.gated) return put(symbol, kind, { state: 'off', message: `Financial Modeling Prep is switched off (${res.gated} on PROVIDERS).` });
     if (res.missing || res.refused) return put(symbol, kind, { state: 'needs-key', message: res.refused ? 'The configured FMP_API_KEY has the wrong format.' : 'Needs FMP_API_KEY (PROVIDERS).' });
     if (!res.text) {
@@ -228,10 +235,11 @@ async function load(symbol: string, kind: AnalystKind) {
 export function useAnalysts(def: SecurityDef | undefined, kinds: AnalystKind[]): ByKind {
   const symbol = analystSymbol(def);
   const parts = analystData.use((s) => (symbol ? s.by[symbol] : undefined));
+  const retry = analystData.use((s) => s.retry);
   const want = kinds.join(',');
   useEffect(() => {
     if (!symbol || !analystsAvailable()) return;
     for (const k of want.split(',') as AnalystKind[]) void load(symbol, k);
-  }, [symbol, want]);
+  }, [symbol, want, retry]);
   return parts ?? {};
 }
