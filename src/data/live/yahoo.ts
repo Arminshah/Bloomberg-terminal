@@ -9,7 +9,7 @@ import { watchlists } from '../../terminal/userdata';
 import { setFeed } from './status';
 import { YahooStream, type Tick } from './ystream';
 import { TREASURY_IDS, treasuryAvailable } from './ust';
-import { krakenOwns } from './kraken';
+import { krakenOwns, whenKrakenHandsBack } from './kraken';
 
 /**
  * Real market data for the desktop app from Yahoo Finance, fetched by the
@@ -25,8 +25,8 @@ export function desktopData(): boolean {
   return typeof window !== 'undefined' && !!window.arminDesktop?.yahoo;
 }
 
-/** How every Yahoo-sourced value is labelled: an unofficial source, kept for personal use. */
-export const YAHOO_PROVIDER = 'Yahoo Finance (unofficial)';
+/** How every Yahoo-sourced value is labelled. */
+export const YAHOO_PROVIDER = 'Yahoo Finance';
 
 /** Yahoo prices are switched off in the provider settings (YAHOO_PRICES_ENABLED). */
 export class YahooDisabled extends Error {
@@ -356,6 +356,11 @@ class YahooData {
   start() {
     setFeed('market', 'connecting', 'Yahoo Finance: loading history');
     this.offDemand = engine.onDemand((id) => this.wantIntraday(id));
+    // When Kraken does not answer, its crypto lines come here for the rest of the session.
+    whenKrakenHandsBack(() => {
+      this.known = -1;
+      this.sync();
+    });
     this.stream = new YahooStream(
       (t) => this.applyTick(t),
       (up) => this.status(up),

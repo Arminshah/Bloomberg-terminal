@@ -50,9 +50,29 @@ export function krakenAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.kraken === 'function';
 }
 
-/** Kraken feeds this line: the desktop app with Kraken switched on (KRAKEN_ENABLED, read when the page loaded). */
+/** Why Kraken gave its lines up in this session, or null while it keeps them. */
+let handedBack: string | null = null;
+/** Who takes the lines when Kraken gives them up (the Yahoo service registers itself). */
+let takeOver: (() => void) | null = null;
+
+/** Kraken feeds this line: the desktop app with Kraken switched on (KRAKEN_ENABLED, read when the page loaded) and answering. */
 export function krakenOwns(id: string): boolean {
-  return BY_ID.has(id) && krakenAvailable() && window.arminDesktop?.settings?.KRAKEN_ENABLED !== false;
+  return BY_ID.has(id) && krakenAvailable() && window.arminDesktop?.settings?.KRAKEN_ENABLED !== false && handedBack === null;
+}
+
+/** The reason Kraken did not answer, when the crypto lines went to another source for this session. */
+export function krakenHandedBack(): string | null {
+  return handedBack;
+}
+
+/** Registers what to do when Kraken gives its lines up: another source picks them up. */
+export function whenKrakenHandsBack(fn: () => void) {
+  takeOver = fn;
+}
+
+/** For tests: back to the start-up state. */
+export function resetKrakenHandBack() {
+  handedBack = null;
 }
 
 export function krakenPairFor(id: string): KrakenPair | undefined {
@@ -175,6 +195,21 @@ async function ask(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): 
   return window.arminDesktop!.kraken!(kind, arg, n);
 }
 
+/** What an answer without prices says: Kraken's own errors, or the HTTP status. */
+export function krakenReason(res: { status: number; text: string }): string {
+  if (!res.text) return res.status ? `HTTP ${res.status}` : 'no answer';
+  try {
+    const j = JSON.parse(res.text);
+    const errors = Array.isArray(j?.error) ? j.error.filter((e: unknown) => typeof e === 'string') : [];
+    return errors.length ? errors.join('; ').slice(0, 160) : 'no prices in the answer';
+  } catch {
+    return 'an answer that is not JSON';
+  }
+}
+
+/** Ticker attempts without a single success before the lines go to another source. */
+export const HAND_BACK_AFTER = 3;
+
 /** The order book for a line, best levels first; null when Kraken does not cover it or does not answer. */
 export async function loadKrakenBook(id: string, levels = 15): Promise<(KrakenBook & { at: number }) | null> {
   const p = BY_ID.get(id);
@@ -194,6 +229,10 @@ class KrakenData {
   private prev = new Map<string, { day: number; close: number }>();
   private loading: Promise<void> | null = null;
   private failures = 0;
+  /** A ticker has answered at least once in this session. */
+  private answered = false;
+  /** Pairs whose daily candles loaded; null until the first load is over. */
+  private dailyOk: number | null = null;
   private intradayAt = new Map<string, number>();
   private offDemand?: () => void;
 
@@ -232,6 +271,7 @@ class KrakenData {
       }
     }
     engine.flush(KRAKEN_PAIRS.map((p) => p.id));
+    if (this.dailyOk === null) this.dailyOk = ok;
     if (!ok) setFeed('crypto', 'error', 'Kraken: no daily candles (PROVIDERS shows why)');
   }
 
@@ -244,7 +284,7 @@ class KrakenData {
         return;
       }
       const tickers = res.text ? parseTicker(res.text) : new Map();
-      if (!tickers.size) throw new Error(res.status ? `HTTP ${res.status}` : 'no answer');
+      if (!tickers.size) throw new Error(krakenReason(res));
       const at = res.serverTime ?? Date.now();
       const day = dayNum(at);
       let rolled = false;
@@ -276,6 +316,7 @@ class KrakenData {
       }
       engine.flush(KRAKEN_PAIRS.map((p) => p.id));
       this.failures = 0;
+      this.answered = true;
       setFeed('crypto', 'live', `Kraken: ${tickers.size} of ${KRAKEN_PAIRS.length} pairs, snapshot ${new Date(at).toISOString().slice(11, 19)} UTC`);
       if (rolled && !this.loading) {
         this.loading = this.loadDaily().finally(() => {
@@ -284,11 +325,26 @@ class KrakenData {
       }
     } catch (err) {
       this.failures++;
+      const reason = String((err as Error)?.message ?? err).replace(/^Error invoking remote method 'kraken': (Error: )?/, '');
+      // Kraken has never answered in this session: the crypto lines go to Yahoo Finance rather than stay empty.
+      // With no daily candles either, one failed ticker is enough to tell.
+      if (!this.answered && (this.failures >= HAND_BACK_AFTER || this.dailyOk === 0) && takeOver) {
+        this.handBack(reason);
+        return;
+      }
       engine.setStale(KRAKEN_PAIRS.map((p) => p.id), true);
-      setFeed('crypto', 'error', `Kraken did not answer (${String((err as Error)?.message ?? err)}); prices marked stale`);
+      setFeed('crypto', 'error', `Kraken did not answer (${reason}); prices marked stale`);
     } finally {
       if (!this.stopped) this.timer = setTimeout(() => void this.poll(), Math.min(60_000, POLL_MS * 2 ** Math.min(3, this.failures)));
     }
+  }
+
+  /** Gives the crypto lines to another source for the rest of the session. */
+  private handBack(reason: string) {
+    handedBack = reason;
+    this.stop();
+    setFeed('crypto', 'connecting', `Kraken did not answer (${reason}): crypto prices from Yahoo Finance for this session`);
+    takeOver?.();
   }
 
   /** Five-minute candles of the current UTC day, at most once a minute per line. */

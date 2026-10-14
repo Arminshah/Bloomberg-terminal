@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as krakenMain from '../electron/kraken.cjs';
 import { engine } from '../src/data/market';
-import { dailyBars, KRAKEN_PAIRS, parseDepth, parseOhlc, parseTicker } from '../src/data/live/kraken';
+import { dailyBars, KRAKEN_PAIRS, krakenHandedBack, krakenOwns, krakenReason, parseDepth, parseOhlc, parseTicker, resetKrakenHandBack, startKraken, whenKrakenHandsBack } from '../src/data/live/kraken';
 import { freshnessOf } from '../src/data/freshness';
 import { dayNum } from '../src/data/calendar';
 
@@ -142,5 +142,89 @@ describe('CoinGecko market values', () => {
     expect(out['DOGEUSD Curncy'].supply).toBeNaN();
     expect(parseMarkets('{"error":"x"}')).toEqual({});
     expect(Object.keys(COINGECKO_IDS)).toHaveLength(KRAKEN_PAIRS.length);
+  });
+});
+
+describe('Kraken hand-back to another source', () => {
+  type Answer = { status: number; text: string; serverTime?: number };
+  const g = globalThis as { window?: unknown };
+  const stub = (kraken: (kind: string, arg: string, n?: number) => Promise<Answer>) => {
+    g.window = { arminDesktop: { kraken, settings: {} } };
+  };
+  afterEach(() => {
+    vi.useRealTimers();
+    resetKrakenHandBack();
+    delete g.window;
+  });
+
+  it('says why an answer carries no prices', () => {
+    expect(krakenReason({ status: 0, text: '' })).toBe('no answer');
+    expect(krakenReason({ status: 403, text: '' })).toBe('HTTP 403');
+    expect(krakenReason({ status: 200, text: JSON.stringify({ error: ['EGeneral:Too many requests'] }) })).toBe('EGeneral:Too many requests');
+    expect(krakenReason({ status: 200, text: JSON.stringify({ error: [], result: {} }) })).toBe('no prices in the answer');
+    expect(krakenReason({ status: 200, text: '<html>blocked</html>' })).toBe('an answer that is not JSON');
+  });
+
+  it('gives the crypto lines up at once when neither candles nor a ticker ever answer', async () => {
+    stub(async () => {
+      throw new Error('HTTP 403');
+    });
+    let taken = 0;
+    whenKrakenHandsBack(() => taken++);
+    expect(krakenOwns(btc.id)).toBe(true);
+    const stop = startKraken();
+    await vi.waitFor(() => expect(krakenHandedBack()).toBe('HTTP 403'));
+    expect(taken).toBe(1);
+    expect(krakenOwns(btc.id)).toBe(false);
+    stop();
+  });
+
+  it('waits for three failed tickers when the candles loaded', async () => {
+    vi.useFakeTimers();
+    const day = Date.parse('2026-10-13T00:00:00Z') / 1000;
+    const ohlc = (pair: string) => JSON.stringify({ error: [], result: { [pair]: [[day - 86_400, '1', '2', '0.5', '1.5', '1.2', '10', 5], [day, '1.5', '2', '1', '1.8', '1.6', '12', 6]], last: day } });
+    let tickers = 0;
+    stub(async (kind, arg) => {
+      if (kind === 'ohlc') return { status: 200, text: ohlc(arg) };
+      tickers++;
+      return { status: 503, text: '' };
+    });
+    let taken = 0;
+    whenKrakenHandsBack(() => taken++);
+    const stop = startKraken();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(tickers).toBe(1);
+    expect(krakenHandedBack()).toBeNull();
+    // Retries back off: 10 s, then 20 s.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(tickers).toBe(2);
+    expect(krakenHandedBack()).toBeNull();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(tickers).toBe(3);
+    expect(krakenHandedBack()).toBe('HTTP 503');
+    expect(taken).toBe(1);
+    stop();
+  });
+
+  it('keeps the lines, marked stale, once a ticker has answered in the session', async () => {
+    vi.useFakeTimers();
+    let tickers = 0;
+    stub(async (kind) => {
+      if (kind === 'ohlc') throw new Error('HTTP 429');
+      tickers++;
+      return tickers === 1 ? { status: 200, text: ticker, serverTime: Date.parse('2026-10-13T23:30:00Z') } : { status: 0, text: '' };
+    });
+    let taken = 0;
+    whenKrakenHandsBack(() => taken++);
+    const stop = startKraken();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(tickers).toBe(1);
+    // Five failures after that first answer: the lines stay with Kraken.
+    for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(60_000);
+    expect(tickers).toBeGreaterThanOrEqual(5);
+    expect(krakenHandedBack()).toBeNull();
+    expect(taken).toBe(0);
+    expect(krakenOwns(btc.id)).toBe(true);
+    stop();
   });
 });
