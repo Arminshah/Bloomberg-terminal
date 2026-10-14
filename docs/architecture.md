@@ -1,6 +1,6 @@
 # Architecture
 
-Armin Terminal is a React 19 and TypeScript app built with Vite, packaged for Windows with Electron 43. It runs in two forms:
+Armin Terminal is a React 19 and TypeScript app built with Vite, packaged for Windows and Linux with Electron 43. It runs in two forms:
 
 - The desktop app (Windows installer and portable .exe). This is the normal way to use it. It shows real data only and never runs the simulator.
 - The browser build. It has no data source of its own and opens on a page that says so. A demo with simulated values, each marked DEMO DATA, runs only after you choose it, or when the build is made with `DEMO_MODE=true`.
@@ -21,13 +21,18 @@ renderer: window.arminDesktop.*            main process (electron/)             
                                            SEC_USER_AGENT, 5 a second, cached
   kraken(kind, pair, n)             --->   kraken.cjs: fixed pairs and request kinds     --->  Kraken public API
   coingecko()                       --->   one fixed request, COINGECKO_API_KEY          --->  CoinGecko Demo API
-  eod(provider, ticker, from, to)   --->   eod.cjs: keys, gates, per-minute and daily    --->  Massive, Alpha Vantage,
-                                           budgets                                             Twelve Data
+  eod(provider, ticker, from, to)   --->   eod.cjs: keys, gates, per-minute, hourly and  --->  Massive, Alpha Vantage,
+                                           daily budgets                                       Tiingo, Twelve Data
+  analysts(kind, symbol)            --->   fmp.cjs: five fixed research requests         --->  Financial Modeling Prep
+  news(source, arg)                 --->   news.cjs: fixed sources, keys, switches       --->  Finnhub, Marketaux,
+                                                                                               MarketWatch RSS, SEC 8-K feed
+  alpaca('snapshots', symbols)      --->   alpaca.cjs: the market data host only, IEX    --->  Alpaca Market Data
   providersStatus/Set/Clear/Setting --->   providers.cjs: keys, switches, counts, limits
+  providersImport(text)             --->   reads a pasted list, saves each key encrypted
   settings (read once at load)      --->   provider switches as they were at start
 ```
 
-`electron/providers.cjs` holds the credentials (`FRED_API_KEY`, `SEC_USER_AGENT`, `COINGECKO_API_KEY`, `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TWELVE_DATA_API_KEY`) and the switches (`YAHOO_PRICES_ENABLED`, `KRAKEN_ENABLED`, `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED`). A value comes from the environment first, then a `.env` file when running from source, then the user's app data folder, where keys are encrypted with the operating system's key store (Electron `safeStorage`). The page can save or clear a key and learn whether one is configured and in the right format, never read it back. A key in the wrong format is never sent. The same module counts requests per provider, records the last attempt, success, failure and latency (with URLs and key values removed from error text), and spaces requests to stay under each provider's limit.
+`electron/providers.cjs` holds the credentials (`FRED_API_KEY`, `SEC_USER_AGENT`, `COINGECKO_API_KEY`, `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TWELVE_DATA_API_KEY`, `TIINGO_API_KEY`, `FMP_API_KEY`, `FINNHUB_API_KEY`, `MARKETAUX_API_TOKEN`, `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`, `TIPRANKS_API_KEY`) and the switches (`YAHOO_PRICES_ENABLED`, `KRAKEN_ENABLED`, `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED`, `MARKETWATCH_RSS_ENABLED`, and one per source added in 2.1.0). A value comes from the environment first, then a `.env` file when running from source, then the user's app data folder, where keys are encrypted with the operating system's key store (Electron `safeStorage`). The page can save or clear a key and learn whether one is configured and in the right format, never read it back. A key in the wrong format is never sent. The same module counts requests per provider, per minute and per UTC day (the day's counts are kept in the app data folder so a restart does not reset them), records the last attempt, success, failure and latency (with URLs and key values removed from error text), and spaces requests to stay under each provider's limit. The analyst, news and Alpaca handlers share one request function in `main.cjs` (`keyedGet`): answers kept per request, identical requests sent once, retries with backoff and jitter, a circuit breaker after five failures in a row, the last answer marked stale when a newer request fails, and nothing sent past the daily ceiling.
 
 With `YAHOO_PRICES_ENABLED` off, the app's network session also cancels every request to Yahoo hosts, the page's own streaming socket included.
 
@@ -42,6 +47,9 @@ With `YAHOO_PRICES_ENABLED` off, the app's network session also cancels every re
   - `officialnews.ts`: press releases from official RSS feeds.
   - `sec.ts`: EDGAR company search, filing lists and XBRL company facts.
   - `eod.ts`: daily bars from the optional end-of-day sources for `CROSSCHECK`.
+  - `analysts.ts`: Financial Modeling Prep's price targets, ratings, rating actions and estimates.
+  - `marketnews.ts`: market and company news from Finnhub, Marketaux, MarketWatch and the SEC's 8-K feed, merged without duplicates.
+  - `alpaca.ts`: Alpaca's IEX snapshots for the stocks open on `QUOTE`, one request for all of them.
   - `lookup.ts`: finding any US ticker online. `sources.ts`, `feeds.ts` and `status.ts`: which source owns which line, start-up, and the feed status in the top bar.
 - `src/data/freshness.ts`: the freshness label of every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, STALE, DEMO DATA, UNKNOWN FRESHNESS) and the market session label, kept apart.
 - `src/data/providers.ts`: the provider registry shown by `PROVIDERS`: what each provider serves, its data class, terms, official pages, check date and policy (enabled, needs a credential, planned, disabled).

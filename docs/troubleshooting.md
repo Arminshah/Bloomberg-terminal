@@ -24,7 +24,15 @@
 
 **Market value and supply show `--` on `CRYPTO`.** They need `COINGECKO_API_KEY`.
 
-**`CROSSCHECK` says "no key", "display rights not confirmed" or "budget spent".** Each second source needs its own key; Twelve Data also needs `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` on; Alpha Vantage's free key allows 25 requests a day, and the app stops at 20 until midnight UTC.
+**`CROSSCHECK` says "no key", "display rights not confirmed" or "budget spent".** Each second source needs its own key; Twelve Data also needs `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` on; Alpha Vantage's free key allows 25 requests a day, and the app stops at 20 until midnight UTC; Tiingo stops at 40 an hour and 500 a day.
+
+**`ANALYSTS` says "Needs FMP_API_KEY", "free plan does not include this" or "allowance spent".** Analyst research needs your Financial Modeling Prep key. HTTP 402 means FMP's plan does not cover that request, usually that company on the free plan; the screen shows FMP's own words. The app stops at 220 requests a day (FMP allows 250); the count restarts at midnight UTC. Research is kept for six hours, so reopening a company costs nothing.
+
+**`MARKETNEWS` is empty.** Its status line says, per source, what happened: a missing key, a switch that is off (MarketWatch is off by default), a daily allowance that is spent, or the provider's own refusal. Marketaux allows 100 requests a day and three stories a request, so its stories are few; the app asks once an hour. The SEC's 8-K filings need `SEC_USER_AGENT`.
+
+**`QUOTE` shows no IEX box, or "Needs ALPACA_API_KEY_ID".** The box is for US-listed stocks in the desktop app and needs both Alpaca keys. Its figures are IEX's alone: a thinly traded stock may not have traded on IEX for a while, so the IEX last trade can lag the main price, and IEX's volume is a small part of the day's total.
+
+**I pasted my keys but some were skipped.** "Save these keys" on `PROVIDERS` lists every line it skipped and why: no provider named, no value in that provider's key format (a placeholder such as `tr_live_xxxxxxxx`, for example), or the same provider twice. Paste a skipped key into its own field instead. A key set by an environment variable or `.env` wins over a saved one.
 
 **"This system cannot encrypt saved keys".** On Linux the app saves keys only through a desktop keyring (GNOME Keyring or KWallet). Install and unlock one, or set the keys as environment variables before starting the app.
 

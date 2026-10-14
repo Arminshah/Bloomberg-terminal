@@ -2,7 +2,7 @@
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
-The desktop app shows real data only, from free public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, the Kraken exchange, and Yahoo Finance for market prices and company data, for personal use. Every price carries a label saying how fresh it is. What no permitted free source covers, such as option chains, analyst estimates or bond prices, is left out and the screen says so; nothing is filled in with invented numbers. The browser build has no data source and runs a demo, marked DEMO DATA throughout, only when you choose it.
+The desktop app shows real data only, from free public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, the Kraken exchange, and Yahoo Finance for market prices and company data, for personal use. With your own free keys it adds analyst price targets and estimates (Financial Modeling Prep), market and company news (Finnhub, Marketaux), IEX quotes (Alpaca) and more sources for checking closes. Every price carries a label saying how fresh it is. What no permitted free source covers, such as option chains or bond prices, is left out and the screen says so; nothing is filled in with invented numbers. The browser build has no data source and runs a demo, marked DEMO DATA throughout, only when you choose it.
 
 This is an independent project, not affiliated with Bloomberg L.P. It does not have the data coverage of a professional terminal; [docs/feature-matrix.md](docs/feature-matrix.md) says what is covered and what is not.
 
@@ -30,9 +30,12 @@ Prices, charts, yields, central bank rates, official statistics, official announ
 | `FRED_API_KEY` | US economic releases (`RELEASES`), the macro dashboard (`MACRO`), FRED's international series |
 | `SEC_USER_AGENT` | SEC filings and reported figures (`FILINGS`): an application name and your own email, as the SEC requires |
 | `COINGECKO_API_KEY` | Market value and supply of the listed coins |
-| `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TWELVE_DATA_API_KEY` | Second sources for US stock closes (`CROSSCHECK`) |
+| `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TIINGO_API_KEY`, `TWELVE_DATA_API_KEY` | Second sources for US stock closes (`CROSSCHECK`) |
+| `FMP_API_KEY` | Analyst price targets, ratings and estimates (`ANALYSTS`, `EARNINGS`) |
+| `FINNHUB_API_KEY`, `MARKETAUX_API_TOKEN` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) |
+| `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX quotes for US stocks on `QUOTE`, labelled IEX only; market data only |
 
-Environment variables of the same names work too and take precedence. [docs/configuration.md](docs/configuration.md) covers every key and switch.
+To add several at once, paste your whole list into "Save these keys" on `PROVIDERS`: it recognises each key, saves it encrypted and tells you which names it saved. Environment variables of the same names work too and take precedence. [docs/configuration.md](docs/configuration.md) covers every key and switch.
 
 ## Using the terminal
 
@@ -41,6 +44,8 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 | Command | What it does |
 | --- | --- |
 | `QUOTE AAPL` | Quote for Apple |
+| `ANALYSTS AAPL` | Analyst price targets, ratings and estimates (also `TARGETS AAPL`) |
+| `MARKETNEWS NVDA` | Market news, filtered to Nvidia |
 | `CHART NVDA` | Price chart; `CHART NVDA 1D` for today's intraday chart |
 | `PROFILE MSFT` | Company profile |
 | `FILINGS MSFT` | SEC filings and the figures Microsoft reported |
@@ -63,10 +68,10 @@ Command names changed in version 2.0.0. An old code such as `GP` or `DES` says w
 
 | Area | Functions |
 | --- | --- |
-| Equity | `PROFILE` description and key figures, `FINANCIALS` statements and ratios, `FUNDCHART` fundamentals over time, `EARNINGS` reported results, `DIVIDENDS`, `HOLDERS`, `PEERS` relative valuation, `EVENTS` earnings and dividend calendar, `FILINGS` SEC filings and reported figures, `CROSSCHECK` closes against other sources, `WACC` cost of capital, `ANALYSTS` (not available: no permitted source) |
+| Equity | `PROFILE` description and key figures, `FINANCIALS` statements and ratios, `FUNDCHART` fundamentals over time, `EARNINGS` reported results, `DIVIDENDS`, `HOLDERS`, `PEERS` relative valuation, `EVENTS` earnings and dividend calendar, `FILINGS` SEC filings and reported figures, `CROSSCHECK` closes against other sources, `WACC` cost of capital, `ANALYSTS` price targets, ratings and estimates |
 | Charts | `CHART` with studies and comparisons, `INTRADAY`, `HISTORY`, `RETURNS`, `TOTALRETURN`, `SPREAD`, `BETA`, `VOLATILITY` |
 | Markets | `MARKET` world indices, `INDEXFUTURES`, `CONTRIB` index movers, `HEATMAP`, `MOVERS`, `SCREEN` stock screener, `QUOTE`, `TRADES`, `DEPTH` (order book for crypto, best bid and offer otherwise), `VWAP` |
-| News | `HEADLINES` and `NEWS`: press releases from central banks, the BEA and ESMA; `COMPANYNEWS` points to the company's filings |
+| News | `MARKETNEWS` market news and the latest 8-K filings, `COMPANYNEWS` a company's news; `HEADLINES` and `NEWS`: press releases from central banks, the BEA and ESMA |
 | FX and crypto | `FXMATRIX` cross rates, `FXRANK`, `CRYPTO`, `FXOPTION` option pricer, `FXFORWARD` (spot only: forward points have no free source) |
 | Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `SWAPCALC`, `BONDCALC`, `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` say why they have no data (swap rates and bond prices have no free source) |
 | Commodities | `COMMODITIES` |
@@ -91,6 +96,9 @@ Tables can be copied or exported as CSV. Watchlists, the portfolio, alerts, note
 | Economic statistics | ONS, Eurostat, Statistics Canada, ABS; FRED (key) for US releases and other countries | As published |
 | Filings and reported financial figures | SEC EDGAR (your contact) | As filed |
 | Press releases | Central banks, BEA, ESMA (RSS) | As published |
+| Analyst price targets, ratings, rating actions, annual estimates | Financial Modeling Prep (key) | As of each answer, kept 6 to 24 hours |
+| Market and company news | Finnhub and Marketaux (keys), SEC EDGAR 8-K filings; MarketWatch if you switch it on | As each publisher posts |
+| IEX last trade, bid and offer for US stocks | Alpaca (keys) | Real time, IEX only (one exchange) |
 
 Each price shows one of these labels: REAL-TIME, DELAYED, END OF DAY, REFERENCE (an official value published once a day), STALE, UNKNOWN FRESHNESS, or DEMO DATA in the browser demo. Hover a price for the reason, the source's own time and the time it arrived. A day's change is shown only against a previous close confirmed for the right session.
 

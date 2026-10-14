@@ -1,6 +1,8 @@
 # Limits and entitlements
 
-Every provider in one table: what its free access allows, how often the app asks, and how fresh the result can be. The numbers in quotation marks, the terms and their sources are in [data-providers.md](data-providers.md). `PROVIDERS` shows the requests each provider received in the last minute against the app's own ceiling.
+Every provider in one table: what its free access allows, how often the app asks, and how fresh the result can be. The numbers in quotation marks, the terms and their sources are in [data-providers.md](data-providers.md). `PROVIDERS` shows the requests each provider received in the last minute against the app's own ceiling, and today's requests against the daily allowance where there is one.
+
+The keyed sources added in 2.1.0 share one way of asking: a request times out after a while, a network failure or server error is retried twice (about 1 and 2 seconds apart, with a little random delay), five failures in a row pause the source for two minutes (the last answer shows meanwhile, marked STALE), the same request asked twice at once goes out once, and nothing is sent past the app's daily ceiling.
 
 | Provider | Access | Published limit | How often the app asks | Freshness | Use the terms allow |
 | --- | --- | --- | --- | --- | --- |
@@ -17,13 +19,20 @@ Every provider in one table: what its free access allows, how often the app asks
 | Massive | Free key (Stocks Basic) | 5 calls a minute; 2 years of history; end of day | At most 5 a minute, only from `CROSSCHECK`, answers kept an hour | End of day, split-adjusted | Personal, non-commercial, non-business use; no display or redistribution to others |
 | Alpha Vantage | Free key | 25 requests a day | At most one a minute and 20 a day, only from `CROSSCHECK` | End of day, as traded; latest 100 sessions | Personal, non-commercial use; real-time and full history are premium |
 | Twelve Data | Key, plus `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` | Basic: 8 a minute, 800 a day | Nothing until the switch is on; then at most 6 a minute and 600 a day | End of day | Basic plan: "Internal non-display usage"; display needs a plan that allows it |
+| Tiingo | Free key | 50 an hour, 1,000 a day, 500 symbols a month | At most 1 a minute, 40 an hour and 500 a day, only from `CROSSCHECK`, kept an hour in memory | End of day, as traded | Internal use only; not shown or shared with others; no storage on disk |
+| Financial Modeling Prep | Free key | 250 a day | At most 220 a day and 30 a minute; a company's research kept 6 hours, estimates 24; only for the company on screen | As of each answer; targets and ratings as FMP collects them | Not quoted: FMP's pages refuse automated reading (HTTP 403); check the terms in your account |
+| Finnhub | Free key | 60 a minute | At most 30 a minute; market news every 5 minutes, a company's news every 15, while a screen shows them | As each publisher posts | Personal use only; no sharing; delete the data when the subscription ends |
+| Marketaux | Free token | 100 a day, 3 articles a request | At most 90 a day and 10 a minute; the watchlist in one request an hour; a company once an hour; backs off after failures | As each publisher posts | Personal, non-commercial use; snippets and links only |
+| MarketWatch (RSS) | No key; off by default | None published | Every 10 minutes when switched on | As posted | Dow Jones's terms bar automated access without written consent |
+| Alpaca | Free key ID and secret | 200 historical calls a minute | One request for every open quote, every 5 seconds while IEX trades, once a minute otherwise; kept 4 seconds | Real time, IEX only | Personal, non-commercial use |
 
 ## What no free source here covers
 
 Each of these screens says so instead of showing a number:
 
 - listed option chains, their quotes and implied volatilities (OPRA data, licensed);
-- analyst ratings, price targets and consensus estimates;
+- quarterly consensus estimates and earnings surprises (annual estimates, price targets and ratings come from Financial Modeling Prep, for US-listed stocks the free plan covers);
+- market-wide (consolidated) real-time bid, offer and volume from an official feed (Alpaca's free feed is IEX alone);
 - prices and dealer quotes for individual bonds, CDS and structured credit;
 - FX forward points and swap rates;
 - order books beyond the best bid and offer, except crypto from Kraken;

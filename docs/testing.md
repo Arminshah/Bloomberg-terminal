@@ -29,9 +29,12 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 | `macro.test.ts` | The macro dashboard's figures and FRED's first releases (ALFRED) |
 | `sec.test.ts` | SEC requests allowed by the main process, the company list, filing histories, reported figures and their periods |
 | `kraken.test.ts` | Kraken requests, answers and lines in the engine; CoinGecko market values |
-| `eod.test.ts` | Requests, budgets and answers of Massive, Alpha Vantage and Twelve Data, and the close comparison |
+| `eod.test.ts` | Requests, budgets and answers of Massive, Alpha Vantage, Tiingo and Twelve Data, and the close comparison |
+| `analysts.test.ts` | Financial Modeling Prep requests, price targets, the ratings tally, rating actions, estimates under both field namings, and refusals in words |
+| `marketnews.test.ts` | News requests and switches, canonical links, Finnhub, Marketaux, MarketWatch and SEC 8-K answers, and duplicates merged |
+| `alpaca.test.ts` | Alpaca requests limited to the market data host and IEX, snapshots, times with nanoseconds, symbols |
 | `exchanges.test.ts` | NYSE and Euronext holidays and early closes against the exchanges' own tables, and the market timers' sessions |
-| `providers.test.ts` | Credentials, request accounting, limits and provider states |
+| `providers.test.ts` | Credentials and pasted key lists, request accounting, daily allowances, providers' refusals, switches, limits and provider states |
 | `finance.test.ts` | Black-Scholes, Treasury math, indicators and statistics |
 | `data.test.ts`, `layout.test.ts`, `lookup.test.ts`, `portfolio.test.ts` | Heat map layout, calendars, fundamentals, workspace layouts, ticker lookup, the portfolio without paper trading |
 

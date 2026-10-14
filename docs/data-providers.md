@@ -25,16 +25,23 @@ In the desktop app, every request below goes out from the Electron main process 
 | Statistics Canada | Canada unemployment rate and CPI | Web Data Service | None | Enabled |
 | Australian Bureau of Statistics | Australia unemployment rate and monthly CPI | Data API (SDMX, CSV) | None | Enabled |
 | FRED | US release dates and values; OECD series for Japan, Canada and Australia | FRED API | `FRED_API_KEY` | Enabled once the key is set |
-| SEC EDGAR | Company search, filing histories with document links, XBRL reported figures (`FILINGS`) | data.sec.gov APIs and the SEC's company ticker file | `SEC_USER_AGENT` (your contact) | Enabled once `SEC_USER_AGENT` is set |
+| SEC EDGAR | Company search, filing histories with document links, XBRL reported figures (`FILINGS`); the latest 8-K filings (`MARKETNEWS`) | data.sec.gov APIs, the SEC's company ticker file, the latest filings Atom feed | `SEC_USER_AGENT` (your contact) | Enabled once `SEC_USER_AGENT` is set |
 | Kraken | Crypto prices, best bid and offer, daily and 5-minute candles, order books for 10 USD pairs | Public REST API | None | Enabled (desktop), switch `KRAKEN_ENABLED` |
 | CoinGecko | Market value and circulating supply of the listed coins (aggregated) | Demo API | `COINGECKO_API_KEY` | Enabled once the key is set |
 | Official announcements | Press releases from the Fed Board, ECB, Bank of England, Bank of Canada, RBA, BEA and ESMA (`HEADLINES`, `NEWS`) | Each publisher's RSS feed | None | Enabled |
 | Massive (formerly Polygon.io) | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `MASSIVE_API_KEY` | Enabled once the key is set |
 | Alpha Vantage | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `ALPHA_VANTAGE_API_KEY` | Enabled once the key is set |
 | Twelve Data | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `TWELVE_DATA_API_KEY` | Off until the key is set and `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` is on |
+| Tiingo | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `TIINGO_API_KEY` | Enabled once the key is set, switch `TIINGO_ENABLED` |
+| Financial Modeling Prep | Analyst price targets, ratings, rating actions and annual estimates (`ANALYSTS`, `EARNINGS`) | Stable REST API | `FMP_API_KEY` | Enabled once the key is set, switch `FMP_ENABLED` |
+| Finnhub | Market news and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) | REST API | `FINNHUB_API_KEY` | Enabled once the key is set, switch `FINNHUB_ENABLED` |
+| Marketaux | News tagged with tickers, with sentiment (`MARKETNEWS`, `COMPANYNEWS`) | REST API | `MARKETAUX_API_TOKEN` | Enabled once the token is set, switch `MARKETAUX_ENABLED` |
+| MarketWatch | Top stories headlines (`MARKETNEWS`) | RSS | None | Off until `MARKETWATCH_RSS_ENABLED` is on (Dow Jones terms) |
+| Alpaca Market Data | IEX last trade, bid and offer, volume for US stocks, labelled IEX only (`QUOTE`) | Market Data API v2 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | Enabled once both are set, switch `ALPACA_ENABLED`; market data only |
+| TipRanks | | MCP server | `TIPRANKS_API_KEY` | Not connected (see below) |
 | Binance | | Spot REST API | | Evaluated, not connected (see below) |
-| Finnhub, Coinbase Exchange, Frankfurter | Former browser-build feeds | | | Disabled |
-| Financial Modeling Prep | | | | Not connected: its documentation could not be read (see below) |
+| CNBC | | RSS | | Not used: its feeds refuse programs and its owner's terms bar it |
+| Coinbase Exchange, Frankfurter | Former browser-build feeds | | | Disabled |
 
 ## Yahoo Finance
 
@@ -175,7 +182,7 @@ The news screens (`HEADLINES`, `NEWS`) show press releases from each publisher's
 | US Bureau of Economic Analysis | `https://apps.bea.gov/rss/rss.xml` | [FAQ](https://bea.gov/help/faq/145): "in the public domain and may be used or reproduced without specific permission"; a citation such as "Source: U.S. Bureau of Economic Analysis" is appreciated. |
 | ESMA | `https://www.esma.europa.eu/rss.xml` | [Legal notice](https://www.esma.europa.eu/legal-notice): "Reproduction of all information on this site (ESMA Library) is authorised except as otherwise stated", with the source acknowledged; adaptations must say so. |
 
-Not used: the BLS feeds refused the app's requests (HTTP 403), and no working US Treasury press release feed was found. Company news comes from no feed: a company's own announcements are its SEC filings (`FILINGS`). Yahoo's headlines are switched off.
+Not used: the BLS feeds refused the app's requests (HTTP 403), and no working US Treasury press release feed was found. Yahoo's headlines are switched off. Market and company news are separate screens with their own sources (see [Market and company news](#market-and-company-news)).
 
 ## SEC EDGAR
 
@@ -197,13 +204,15 @@ How the app uses it (`electron/sec.cjs`, `src/data/live/sec.ts`, the `FILINGS` s
 
 Live-tested on 14 October 2026 with the owner's own contact User-Agent: Microsoft's filing list and reported figures matched its published filings. The parsers are also tested on files laid out in the documented structure (`tests/sec.test.ts`).
 
+`MARKETNEWS` also reads the SEC's latest 8-K filings, the Atom feed the [RSS feeds page](https://www.sec.gov/about/rss-feeds) points to (`/cgi-bin/browse-edgar?action=getcurrent&type=8-K&...&count=40&output=atom`), every 10 minutes while the screen is open, with the same User-Agent and within the same 5 requests a second. A filing listed once for each role (filer, subject) shows once; its 8-K items are named from the entry's summary.
+
 ## Second sources for daily closes
 
-`CROSSCHECK` sets the daily closes the app shows for a US stock (from Yahoo) beside the same sessions' closes from Massive, Alpha Vantage and Twelve Data, with the gap in basis points; gaps over 5 bp are marked. These sources are asked only from that screen, only with your own key, and only for finished sessions. Answers are kept for an hour. Requests go out from `electron/eod.cjs` through the main process like every other provider; the parsers are in `src/data/live/eod.ts`.
+`CROSSCHECK` sets the daily closes the app shows for a US stock (from Yahoo) beside the same sessions' closes from Massive, Alpha Vantage, Tiingo and Twelve Data, with the gap in basis points; gaps over 5 bp are marked. These sources are asked only from that screen, only with your own key, and only for finished sessions. Answers are kept for an hour. Requests go out from `electron/eod.cjs` through the main process like every other provider; the parsers are in `src/data/live/eod.ts`.
 
 Live-tested on 14 October 2026 with the owner's keys: Massive and Alpha Vantage returned daily closes, and Alpha Vantage's matched Yahoo's to 0.0 bp over 20 sessions. Twelve Data was sent one request outside the screen to check the key (HTTP 200, 14 daily bars); nothing from it is shown until `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` is on. The parsers are also tested on the documented answers (`tests/eod.test.ts`).
 
-The closes do not all mean the same thing. Massive's are split-adjusted by default; Alpha Vantage's `TIME_SERIES_DAILY` is "raw (as-traded)", so a split inside the window shows as a large gap; Twelve Data gives the session's close. None is adjusted for dividends, and neither are the closes the app charts.
+The closes do not all mean the same thing. Massive's are split-adjusted by default; Alpha Vantage's `TIME_SERIES_DAILY` is "raw (as-traded)", so a split inside the window shows as a large gap; Tiingo's `close` is as traded too (the app does not use its `adjClose`); Twelve Data gives the session's close. None is adjusted for dividends, and neither are the closes the app charts.
 
 ### Massive (formerly Polygon.io)
 
@@ -236,13 +245,74 @@ Read on 14 October 2026.
 
 Showing Twelve Data's prices on a screen is display use, which the free plan's "Internal non-display usage" does not cover. So nothing is sent to Twelve Data until you switch on `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED`, which says your plan allows display. Leave it off on the free plan. When it is on, the app keeps to 6 requests a minute and 600 a day.
 
-### Financial Modeling Prep (not connected)
+### Tiingo
 
-Its API documentation answered HTTP 403 to automated reading on 14 October 2026, so its free plan's endpoints and answer format could not be confirmed, and no adapter was written. There is no `FMP_API_KEY` setting. An adapter would go in `electron/eod.cjs` beside the three above.
+Read on 14 October 2026.
+
+- [Pricing](https://www.tiingo.com/about/pricing), Starter (free): "Max Requests Per Hour 50", "Max Requests Per Day 1000", "Unique Symbols per Month 500"; licence "Internal Use Only". News is not on the free plan, so the app does not ask for it.
+- [End-of-day API](https://www.tiingo.com/documentation/end-of-day): `GET /tiingo/daily/{ticker}/prices?startDate=&endDate=&format=json` on `https://api.tiingo.com`, the token in an `Authorization: Token <key>` header. Rows have `date`, `open`, `high`, `low`, `close`, `volume` and the adjusted versions; class shares are written with a dash (`brk-b`).
+- [Terms](https://www.tiingo.com/about/terms): for your own personal use, not to be displayed or shared with anyone else; its data may not be kept in persistent storage (1.6(a)). The app keeps Tiingo's answers in memory for an hour and never writes them to disk.
+
+The app asks only from `CROSSCHECK`: at most one request a minute, 40 an hour and 500 a day. Not live-tested: the request and parser follow the documentation and are tested on an answer in its layout (`tests/eod.test.ts`).
+
+## Analyst research: Financial Modeling Prep
+
+`ANALYSTS` (also `TARGETS`) and `EARNINGS` show, for a US-listed stock: the price target consensus (average), median, high and low against the live price; how many targets were published in the last month, quarter and year and their averages, with the publishers FMP gathers them from; the tally of ratings from strong buy to strong sell with FMP's consensus word; the latest rating actions by firm; and annual revenue and EPS estimates with their ranges and analyst counts. Requests go out from `electron/fmp.cjs` through the main process; the parsers are in `src/data/live/analysts.ts`.
+
+| Screen part | Endpoint (`https://financialmodelingprep.com/stable`) | Kept for |
+| --- | --- | --- |
+| Price target consensus | `/price-target-consensus?symbol=` | 6 hours |
+| Target history and publishers | `/price-target-summary?symbol=` | 6 hours |
+| Ratings tally | `/grades-consensus?symbol=` | 6 hours |
+| Rating actions | `/grades?symbol=` | 6 hours |
+| Annual estimates | `/analyst-estimates?symbol=&period=annual&limit=10` | 24 hours |
+
+- The free plan allows 250 requests a day, as the owner's account page states. The app stops at 220 a day (the count restarts at midnight UTC and survives a restart), asks only for the company on screen, and asks for a kind of research again at most every ten minutes. Opening `ANALYSTS` for a new company costs five requests; `EARNINGS` costs one.
+- Its documentation answers HTTP 403 to automated reading, so the endpoints were checked another way: on 14 October 2026 the price target consensus, the summary, the ratings tally and the rating actions answered for AAPL with the owner's free key, in the layouts the parsers read. The estimates' field names (`revenueAvg`, `epsAvg`, `numAnalystsEps` and so on) come from published examples of the stable API, not from a live answer; the parser also reads the older v3 names, and a field that is missing shows as `--`.
+- When the plan does not cover a request, FMP answers HTTP 402 ("payment required"); the screen says the free plan does not include it for that company, with FMP's own words. Which companies the free plan covers was not checked beyond AAPL.
+- Price targets and ratings are analysts' opinions as FMP collects them from published notes and news, not a forecast by the app. FMP does not say which currency its estimates are in; the app names it only for companies that report and trade in dollars.
+
+## Market and company news
+
+`MARKETNEWS` (also `MNEWS`, `WIRE`) merges market news from these sources into one list, newest first, apart from the official announcements on `HEADLINES`. A story carried twice (the same link once tracking parameters are removed, or the same title) shows once, with every source that carried it. You can filter by ticker or keyword. `COMPANYNEWS` shows one US company's news from Finnhub (the last seven days) and the Marketaux stories tagged with its ticker; `QUOTE` shows its latest Finnhub headlines. Only the headline, publisher, publication time, a short summary where the source gives one, and a link out are shown; no article text is fetched. Requests go out from `electron/news.cjs`; the parsers are in `src/data/live/marketnews.ts`.
+
+### Finnhub
+
+Read on 14 October 2026. [Market news](https://finnhub.io/docs/api/market-news) (`/news?category=general`) and [company news](https://finnhub.io/docs/api/company-news) (`/company-news?symbol=&from=&to=`) are on the free plan ("Personal Use", "60 API calls/minute"); company news covers North American companies and a year of history. Its price target endpoint says "Premium required", so analyst targets come from FMP. The key goes in the `X-Finnhub-Token` header, never in a URL. [Terms](https://finnhub.io/terms-of-service): plans are "strictly for personal use"; data is to be deleted when a subscription ends; no sharing. The app asks for market news every 5 minutes and a company's news every 15 while a screen shows it, at most 30 requests a minute. Not live-tested: the requests and parser follow the documentation and are tested on answers in its layout (`tests/marketnews.test.ts`).
+
+### Marketaux
+
+Read on 14 October 2026. [Pricing](https://www.marketaux.com/pricing), free plan: "100 requests daily" (reset at midnight UTC), "3 articles / news request". [Documentation](https://www.marketaux.com/documentation): `/v1/news/all` with `symbols`, `filter_entities`, `language`, `limit` and `api_token`; each article lists the companies it mentions with a `sentiment_score` from -1 to 1. [Terms](https://www.marketaux.com/terms): personal, non-commercial use; "We only provide a short snippet of articles along with their links."
+
+The free plan's three articles a request decide how the app asks: one request for the whole active watchlist (up to 20 tickers) at most once an hour from `MARKETNEWS`, and one for a company the first time `COMPANYNEWS` opens it, each kept an hour. The app stops at 90 requests a day, shows "N of 90 requests today" on `MARKETNEWS`, and after a failure waits 1, 2, 4, 8 minutes and so on (never more than the source's usual interval) before asking again, so an outage does not spend the allowance. Sentiment is shown only where Marketaux gives it, labelled as Marketaux's. Not live-tested; tested on answers in the documented layout.
+
+### MarketWatch (switched off by default)
+
+The top stories RSS feed (`https://feeds.content.dowjones.io/public/rss/mw_topstories`) answers without a key. Dow Jones's terms of use (30 June 2026) bar access to its content "using any automated means ... API client" without written consent (9.4.1), RSS feeds included (9.1). The feed is therefore off until you switch on `MARKETWATCH_RSS_ENABLED`, which accepts that risk for your own use, as with Yahoo. When on, it is read every 10 minutes. Its "real-time headlines" and "market pulse" feeds stopped updating in 2025 and are not used.
+
+### CNBC (not used)
+
+CNBC's www feeds answered HTTP 403 to programs, and its owner's terms bar using software to gather its content. The app does not route around that.
+
+### SEC 8-K filings
+
+See [SEC EDGAR](#sec-edgar).
+
+## Alpaca Market Data (IEX)
+
+Read on 14 October 2026. On the Basic (free) plan, [Alpaca](https://alpaca.markets/data) gives "Real-time market coverage IEX": the trades and quotes of one exchange, IEX, not the whole US market. Consolidated (SIP) data is delayed 15 minutes on that plan, and the latest-quote and snapshot endpoints need a subscription for SIP, so the app asks for `feed=iex`. Historical calls are limited to 200 a minute. Use "solely for your own personal and non-commercial purposes".
+
+- The app calls one endpoint, [snapshots](https://docs.alpaca.markets/reference/stocksnapshots-1) (`https://data.alpaca.markets/v2/stocks/snapshots?symbols=&feed=iex`), with the key ID and secret in the `APCA-API-KEY-ID` and `APCA-API-SECRET-KEY` headers. The answer is a map by symbol with `latestTrade`, `latestQuote`, `minuteBar`, `dailyBar` and `prevDailyBar`, as the reference page shows. `electron/alpaca.cjs` builds nothing else: no trading, order, account or position endpoint, and never the trading hosts `api.alpaca.markets` or `paper-api.alpaca.markets` (the owner's keys are paper-account keys; they are used for market data only).
+- `QUOTE` shows, for a US stock, IEX's last trade with its size and time, the difference from the quote above it, IEX's own bid and offer with sizes, and IEX's volume and range for the session, each labelled IEX only. IEX's volume, range and bid and offer are never shown as market-wide; the main price on every screen stays Yahoo Finance's.
+- One request covers every stock a screen shows (up to 20), every 5 seconds while IEX trades and once a minute when nothing new has printed for five minutes; answers are kept 4 seconds. Not live-tested: the request and parser follow the reference page and are tested on an answer in its layout (`tests/alpaca.test.ts`).
+
+## TipRanks (not connected)
+
+TipRanks offers an MCP server (JSON-RPC over HTTP) with tools such as `get_assets_data` (consensus, price target, Smart Score) and `get_recent_analyst_ratings`. The API-key free plan allows 10 requests a minute and 50 a month per account, every tool call counted. Its terms (1 June 2026) allow use "solely to build and operate your own applications", with "Data by TipRanks" credited and no storage beyond transient caching. It is not connected: the tools' inputs and answers are only visible with a key, and this build could not check them. `TIPRANKS_API_KEY` can be saved for a later version; nothing uses it yet.
 
 ## Disabled and not reviewed
 
-- Finnhub, Coinbase Exchange and Frankfurter fed the browser build. They are switched off (`BROWSER_FEEDS_ENABLED` in `src/data/providers.ts`): Finnhub needed an API key held in the browser, and none of their terms were reviewed for this use. A Finnhub key saved by an earlier version is erased at start-up.
+- Finnhub, Coinbase Exchange and Frankfurter fed the browser build. That build's feeds are switched off (`BROWSER_FEEDS_ENABLED` in `src/data/providers.ts`): Finnhub needed an API key held in the browser, and none of their terms were reviewed for that use. A Finnhub key saved in the browser by an earlier version is erased at start-up. The desktop app now asks Finnhub for news from the main process, with the key in the encrypted store (see above).
 
 ## User agents
 

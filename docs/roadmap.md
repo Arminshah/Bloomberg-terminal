@@ -1,5 +1,15 @@
 # Roadmap
 
+## Done (14 October 2026, version 2.1.0)
+
+- Analyst research from Financial Modeling Prep with your key: `ANALYSTS` (also `TARGETS`) shows the price target consensus, median, high and low against the live price, how targets moved over the last month, quarter and year with their publishers, the ratings tally, recent rating actions and annual estimates. `EARNINGS` shows the annual EPS and revenue estimates.
+- `MARKETNEWS`: market news from Finnhub and Marketaux (with sentiment, labelled as Marketaux's) and the SEC's latest 8-K filings in one list without duplicates, filtered by ticker or keyword. MarketWatch's feed can be switched on, off by default because of its terms; CNBC is not used.
+- `COMPANYNEWS` shows a company's news from Finnhub and Marketaux; `QUOTE` shows its latest headlines and, with Alpaca keys, IEX's last trade, bid and offer, labelled IEX only.
+- Tiingo joins `CROSSCHECK` as another source for daily closes, kept in memory only as its terms require.
+- Keys can be pasted as one list on `PROVIDERS` ("Save these keys"); each is saved encrypted and only its name is shown. Every new source has its own switch.
+- The keyed sources share timeouts, retries with backoff and jitter, a circuit breaker, daily ceilings below each free plan (counted per UTC day across restarts), and one request for identical asks; `PROVIDERS` shows today's requests against each daily allowance.
+- Kraken prices show even when its daily candles fail.
+
 ## Done (14 October 2026, version 2.0.1)
 
 - Kraken hands the crypto lines to Yahoo Finance for the session when it never answers, and `CRYPTO` and `PROVIDERS` say why. `TRADES` shows Kraken's volume as aggregated prints.
@@ -57,14 +67,14 @@
 ## Next
 
 1. Finish the data audit: rates against each central bank's file (`BONDS`, `CURVE`, `MONEYMARKET`, `RATEPROBS`, `CENTRALBANKS`) and the market screens (`MARKET`, `FXMATRIX`, `COMMODITIES`, `CRYPTO`, `MOVERS`). NBIS, the 15-stock sample and the economic screens are done.
-2. Live-test the providers no key or contact was available for while building: SEC EDGAR, CoinGecko, Massive, Alpha Vantage and Twelve Data.
+2. Live-test the 2.1.0 sources with the owner's keys: Finnhub, Marketaux, Alpaca, Tiingo, and FMP's estimates and its coverage beyond AAPL.
 3. Japan's unemployment from the Statistics Bureau (the OECD series runs a month behind) and its CPI, which needs an e-Stat key.
 4. Release times for US economic data from the agencies' own schedules, if their terms allow automated reading.
 5. Holiday calendars for London, Xetra and Tokyo beyond 2027 (NYSE and Euronext follow their rules for any year).
 6. The remaining conventions taken from Bloomberg: security identifiers such as `AAPL US Equity` and the market sector keys on F2 to F12.
-7. Financial Modeling Prep, once its documentation can be read, and Binance, if it serves the owner's location (as separate USDT lines).
+7. TipRanks through its MCP server, once its tools can be checked with a key; Binance, if it serves the owner's location (as separate USDT lines).
 8. Local SQLite store (`node:sqlite`) for portfolio transactions and last-known values, after checking each provider's storage terms.
 
 ## Blocked until a licensed source is approved
 
-These stay out of the app, or show "not available", until a provider with suitable terms is chosen and approved: prices and dealer quotes for individual bonds, CDS and structured credit; FX forward points and swap rates; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; listed option chains (OPRA); analyst ratings, price targets and estimates; full-text licensed news, transcripts and broker research; trading through a broker. Paper trading is switched off.
+These stay out of the app, or show "not available", until a provider with suitable terms is chosen and approved: prices and dealer quotes for individual bonds, CDS and structured credit; FX forward points and swap rates; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; listed option chains (OPRA); quarterly estimates and earnings surprises; consolidated real-time quotes from an official feed; full-text licensed news, transcripts and broker research; trading through a broker. Paper trading is switched off.

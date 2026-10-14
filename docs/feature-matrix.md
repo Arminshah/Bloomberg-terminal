@@ -1,6 +1,6 @@
 # Feature and data coverage
 
-What each function shows in the desktop app, where its data comes from, and what is missing. Checked screen by screen on 14 October 2026 (version 2.0.1). The browser build has no data source; its demo shows simulated figures marked DEMO DATA and is not covered here.
+What each function shows in the desktop app, where its data comes from, and what is missing. Checked screen by screen on 14 October 2026 (version 2.1.0; the screens added in 2.1.0 were checked without keys, see below). The browser build has no data source; its demo shows simulated figures marked DEMO DATA and is not covered here.
 
 Status:
 
@@ -18,15 +18,15 @@ Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, ST
 | `PROFILE` | Business description, key figures, ownership; one page per asset class | Yahoo Finance; CoinGecko for coin supply and market value; official sources for yields | Real, ratios calculated. No founding year or analyst figures |
 | `FINANCIALS` | Income statement, balance sheet, cash flow, ratios; annual and quarterly | Yahoo Finance (as companies report) | Real, ratios calculated |
 | `FUNDCHART` | Revenue, EPS, margins, P/E at each year end, cash flow | Yahoo Finance | Calculated. P/E only where trading and reporting currencies match |
-| `EARNINGS` | Reported EPS and revenue, report dates, next date | Yahoo Finance | Partial: no estimates or surprises |
+| `EARNINGS` | Reported EPS and revenue, report dates, next date; annual EPS and revenue estimates | Yahoo Finance; Financial Modeling Prep (your key) for estimates | Partial: no quarterly estimates or surprises |
 | `DIVIDENDS` | Ex-dates and amounts over ten years, frequency, 12-month yield, next ex-date | Yahoo Finance | Partial: declared and record dates not given |
 | `HOLDERS` | Largest institutional and fund holders, ownership breakdown | Yahoo Finance (13F and fund filings) | Real, as of each filing |
 | `PEERS` | Valuation, profitability and returns against peers | Yahoo Finance | Calculated. Peers chosen from the app's own industry labels |
 | `EVENTS` | Earnings and ex-dividend calendar | Yahoo Finance | Real; ~ marks a date the source calls expected |
 | `FILINGS` | SEC filings with links, and figures from XBRL statements | SEC EDGAR (needs `SEC_USER_AGENT`) | Real |
-| `CROSSCHECK` | A US stock's closes beside other end-of-day sources | Massive, Alpha Vantage, Twelve Data (your keys) | Real |
+| `CROSSCHECK` | A US stock's closes beside other end-of-day sources | Massive, Alpha Vantage, Tiingo, Twelve Data (your keys) | Real |
 | `WACC` | Cost of equity and debt, weights, perpetuity check | Yahoo Finance statements and prices; official 10-year yields | Calculated, inputs named. Blank where the app has no official 10-year yield for the currency |
-| `ANALYSTS` | Ratings, targets, estimates | none | Not available: licensed data |
+| `ANALYSTS` | Price targets (consensus, median, high, low) against the live price, how targets moved, the ratings tally, rating actions, annual estimates | Financial Modeling Prep (your key) | Real, as FMP collects it; US-listed stocks its free plan covers |
 
 ## Charts
 
@@ -44,7 +44,8 @@ Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, ST
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
 | `HEADLINES`, `NEWS` | Press releases, newest first, by topic or keyword | Federal Reserve Board, ECB, Bank of England, Bank of Canada, RBA, BEA, ESMA (RSS) | Real. Not a market news wire |
-| `COMPANYNEWS` | Points to the company's filings | none | Not available: no company news feed with terms that allow it |
+| `MARKETNEWS` | Market news merged without duplicates, with the latest 8-K filings; ticker and keyword filters | Finnhub, Marketaux (with sentiment), SEC EDGAR; MarketWatch if switched on | Real: headlines, summaries and links, not article text |
+| `COMPANYNEWS` | A US company's news from the last week, with sentiment where Marketaux gives it | Finnhub, Marketaux (your keys) | Real: headlines and links |
 
 ## Markets
 
@@ -56,7 +57,7 @@ Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, ST
 | `HEATMAP` | Stocks by sector, sized by market value, coloured by change | Yahoo Finance | Calculated |
 | `MOVERS` | Most active, gainers, losers, value traded, unusual volume | Yahoo Finance | Real; value traded and relative volume estimated |
 | `SCREEN` | Stock screener | Yahoo Finance | Real and calculated; ROE and beta once a company's data has loaded |
-| `QUOTE` | Price, intraday chart, best bid and offer, recent updates, key statistics | Yahoo Finance, Kraken, official sources | Real. No news box: no permitted company news feed |
+| `QUOTE` | Price, intraday chart, best bid and offer, recent updates, key statistics; for US stocks IEX's last trade, bid and offer, and the latest company news | Yahoo Finance, Kraken, official sources; Alpaca (IEX only) and Finnhub with your keys | Real. IEX figures are one exchange's, labelled IEX only |
 | `TRADES` | Volume added up between price updates | Yahoo Finance, Kraken | Partial: not single trades or venues |
 | `DEPTH` | Order book for crypto; best bid and offer for the rest | Kraken; Yahoo Finance | Partial: no free order book for stocks |
 | `VWAP` | VWAP, TWAP and 30-minute buckets for the latest session | Intraday bars | Calculated |
@@ -105,3 +106,7 @@ Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, ST
 | `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` | Finding securities, history, notes, saved workspaces | Yahoo Finance search for stocks not built in | Tools |
 | `MESSAGES` | A rule-based help desk bot | The quotes and announcements the app has loaded | Tool |
 | `HELP`, `MENU`, `PROVIDERS`, `SETTINGS` | Directory, menus, provider status and keys, preferences | | System |
+
+## Checked how
+
+The screens added or changed in 2.1.0 (`ANALYSTS`, `EARNINGS` estimates, `MARKETNEWS`, `COMPANYNEWS`, the IEX and news boxes on `QUOTE`, Tiingo on `CROSSCHECK`) were opened in the desktop app without keys, where each says which key it needs, and their parsers are tested on answers in each provider's documented layout. With keys, only Financial Modeling Prep was tried live (price targets, summary, ratings and rating actions for AAPL); the other new sources were not, because keys could not be used in the build environment.
