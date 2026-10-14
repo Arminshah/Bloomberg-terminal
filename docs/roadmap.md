@@ -1,5 +1,11 @@
 # Roadmap
 
+## Done (14 October 2026, version 2.1.1)
+
+- Pasted keys: a word from the label around a key ("formerly", "personal") is no longer saved in its place.
+- `MARKETNEWS NVDA` starts filtered to NVDA; 8-K items whose names hold a colon keep them; class shares such as BRK/B get their news from Finnhub and Marketaux.
+- The daily ceilings hold when several requests leave together, and a plan refusal (HTTP 402) shows as "not entitled" on `PROVIDERS`.
+
 ## Done (14 October 2026, version 2.1.0)
 
 - Analyst research from Financial Modeling Prep with your key: `ANALYSTS` (also `TARGETS`) shows the price target consensus, median, high and low against the live price, how targets moved over the last month, quarter and year with their publishers, the ratings tally, recent rating actions and annual estimates. `EARNINGS` shows the annual EPS and revenue estimates.
