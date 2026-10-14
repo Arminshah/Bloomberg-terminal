@@ -7,11 +7,15 @@ import { earningsHistory, reportCcy } from '../data/fundamentals';
 import type { FnProps } from '../terminal/types';
 import { useFundamentals } from '../data/live/yfund';
 import { sourceLabel } from '../components/Source';
+import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
+import { EstimatesTable, estimateUnit } from './ANR';
+import { execute } from '../terminal/exec';
+import { usePanelId } from '../terminal/panel';
 
 /**
- * Earnings: report dates and the reported figures (diluted EPS and revenue as
- * the statements give them). No estimates, consensus or surprises: there is no
- * permitted source for analyst data, and none is generated.
+ * Earnings: report dates and the reported figures (diluted EPS and revenue as the statements give them), with
+ * analysts' annual estimates from Financial Modeling Prep for US-listed stocks in the desktop app. No quarterly
+ * consensus or surprises: FMP's free plan is asked for annual estimates only, and none is generated.
  */
 export function EE({ sec }: FnProps) {
   const s = sec!;
@@ -20,6 +24,10 @@ export function EE({ sec }: FnProps) {
   const done = hist.filter((h) => h.actual != null || h.revAct != null);
   const next = hist.find((h) => h.actual == null && h.revAct == null);
   const ccy = reportCcy(s);
+  const panel = usePanelId();
+  const fmp = analystsAvailable() && !!analystSymbol(s);
+  const est = useAnalysts(fmp ? s : undefined, ['estimates']).estimates as AnalystPart<Estimate[]> | undefined;
+  const ahead = (est?.data ?? []).find((e) => Date.parse(`${e.date}T00:00:00Z`) > Date.now());
   return (
     <div>
       <FnHeader code="EARNINGS" title="Earnings History" sec={s} sub={<>{ccy} · reported figures · {sourceLabel(status, 'demo figures; real data needs the desktop app')}</>} />
@@ -29,10 +37,30 @@ export function EE({ sec }: FnProps) {
           items={[
             ['Period', next?.period ?? '--'],
             ['Date', next ? fmtEarnDate(next) : '--'],
-            ['Estimates', 'Not connected: no permitted source for analyst estimates'],
+            [
+              'EPS estimate, fiscal year',
+              !fmp
+                ? 'US-listed stocks in the desktop app, with FMP_API_KEY'
+                : ahead
+                  ? `${fmtNum(ahead.epsAvg, 2)} for the year to ${fmtEarnDate({ date: Date.parse(`${ahead.date}T00:00:00Z`) }, false)} (${fmtNum(ahead.epsLow, 2)} - ${fmtNum(ahead.epsHigh, 2)}${Number.isFinite(ahead.analystsEps) ? `, ${ahead.analystsEps} analysts` : ''})`
+                  : (est?.message ?? (est?.state === 'ok' ? 'None from FMP' : 'Loading…')),
+            ],
           ]}
         />
       </Section>
+      {fmp ? (
+        <Section
+          title="Analyst estimates, by fiscal year (Financial Modeling Prep)"
+          right={
+            <button type="button" className="act" onClick={() => execute(panel, `${s.id} ANALYSTS`)}>
+              ANALYSTS ›
+            </button>
+          }
+        >
+          <EstimatesTable part={est} rows={4} />
+          <div className="note">Annual consensus as FMP gathers it ({estimateUnit(s)}); analysts&apos; estimates, not a forecast by this app. Quarterly estimates and surprises are not shown.</div>
+        </Section>
+      ) : null}
       <Section title="Reported diluted EPS by quarter">
         <XYChart
           height={190}
@@ -67,7 +95,7 @@ export function EE({ sec }: FnProps) {
             ))}
           </tbody>
         </table>
-        <div className="note">Reported figures from the company's statements. Analyst estimates and surprises are not shown: no permitted source is connected.</div>
+        <div className="note">Reported figures from the company&apos;s statements.</div>
       </Section>
     </div>
   );
