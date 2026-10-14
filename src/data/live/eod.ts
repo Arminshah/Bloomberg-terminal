@@ -6,13 +6,14 @@
  *
  * What each close is: Massive's aggregates are split-adjusted ("By default,
  * results are adjusted"); Alpha Vantage's TIME_SERIES_DAILY is "raw
- * (as-traded)"; Twelve Data's time series gives the session's close. None is
+ * (as-traded)"; Tiingo's `close` is the raw close (its adjClose, not used here,
+ * is adjusted); Twelve Data's time series gives the session's close. None is
  * adjusted for dividends, like the closes the app charts.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type EodProvider = 'massive' | 'alphavantage' | 'twelvedata';
+export type EodProvider = 'massive' | 'alphavantage' | 'tiingo' | 'twelvedata';
 
 export interface EodBar {
   /** Session date, YYYY-MM-DD (US Eastern). */
@@ -35,6 +36,7 @@ export interface EodProviderInfo {
 export const EOD_PROVIDERS: EodProviderInfo[] = [
   { id: 'massive', name: 'Massive', basis: 'split-adjusted', credential: 'MASSIVE_API_KEY' },
   { id: 'alphavantage', name: 'Alpha Vantage', basis: 'as traded', credential: 'ALPHA_VANTAGE_API_KEY' },
+  { id: 'tiingo', name: 'Tiingo', basis: 'as traded', credential: 'TIINGO_API_KEY' },
   { id: 'twelvedata', name: 'Twelve Data', basis: 'as the exchange reported', credential: 'TWELVE_DATA_API_KEY' },
 ];
 
@@ -90,7 +92,20 @@ export function parseTwelveData(text: string): EodParsed {
   return { bars: bars.sort((a: EodBar, b: EodBar) => a.date.localeCompare(b.date)) };
 }
 
-const PARSERS: Record<EodProvider, (t: string) => EodParsed> = { massive: parseMassive, alphavantage: parseAlphaVantage, twelvedata: parseTwelveData };
+/** Tiingo end-of-day prices: [{date: ISO time, open, high, low, close, volume, adjClose, ...}]; errors as {detail}. */
+export function parseTiingo(text: string): EodParsed {
+  let j: any;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    return { error: 'not JSON' };
+  }
+  if (!Array.isArray(j)) return { error: String(j?.detail ?? j?.message ?? 'no price list in the answer').slice(0, 200) };
+  const bars = j.map((r: any) => ({ date: String(r?.date ?? '').slice(0, 10), o: num(r?.open), h: num(r?.high), l: num(r?.low), c: num(r?.close), v: num(r?.volume) })).filter(valid);
+  return { bars: bars.sort((a: EodBar, b: EodBar) => a.date.localeCompare(b.date)) };
+}
+
+const PARSERS: Record<EodProvider, (t: string) => EodParsed> = { massive: parseMassive, alphavantage: parseAlphaVantage, tiingo: parseTiingo, twelvedata: parseTwelveData };
 
 export type EodResult = { ok: true; bars: EodBar[]; at: number } | { ok: false; reason: 'desktop-only' | 'needs-key' | 'gated' | 'budget' | 'error'; message: string };
 
@@ -116,7 +131,8 @@ export async function loadEod(provider: EodProvider, ticker: string, days = 45):
   }
   let result: EodResult;
   if (res.missing) result = { ok: false, reason: 'needs-key', message: `Needs ${res.missing} (PROVIDERS).` };
-  else if (res.gated) result = { ok: false, reason: 'gated', message: `Off until ${res.gated} is on: the free plan is for internal, non-display use.` };
+  else if (res.gated)
+    result = { ok: false, reason: 'gated', message: res.gated === 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' ? `Off until ${res.gated} is on: the free plan is for internal, non-display use.` : `Switched off (${res.gated} on PROVIDERS).` };
   else if (res.budget) result = { ok: false, reason: 'budget', message: "Today's request budget for this provider is spent." };
   else if (res.refused) result = { ok: false, reason: 'error', message: 'The configured key has the wrong format.' };
   else if (!res.text) result = { ok: false, reason: 'error', message: `HTTP ${res.status}` };

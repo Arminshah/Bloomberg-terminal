@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as eodMain from '../electron/eod.cjs';
-import { compareCloses, diffBp, parseAlphaVantage, parseMassive, parseTwelveData } from '../src/data/live/eod';
+import { compareCloses, diffBp, parseAlphaVantage, parseMassive, parseTiingo, parseTwelveData } from '../src/data/live/eod';
 
 // Answers in the layouts the providers document: Massive's custom-bars sample,
 // and the shapes of Alpha Vantage's and Twelve Data's documented demo answers.
@@ -71,5 +71,32 @@ describe('close cross-check', () => {
     expect(diffBp(341.27, 341.26999)).toBeCloseTo(-0.0003, 3);
     expect(diffBp(100, 101)).toBeCloseTo(100, 10);
     expect(diffBp(100, undefined)).toBeNaN();
+  });
+});
+
+describe('Tiingo end-of-day', () => {
+  it('builds the request with the token in a header and class shares with a dash', () => {
+    const r = eodMain.eodRequest('tiingo', 'BRK.B', '2026-09-01', '2026-10-13', 'tok')!;
+    expect(r.url).toBe('https://api.tiingo.com/tiingo/daily/brk-b/prices?startDate=2026-09-01&endDate=2026-10-13&format=json');
+    expect(r.headers).toEqual({ Authorization: 'Token tok' });
+    expect(r.url).not.toContain('tok');
+    // Its free plan allows 50 an hour and 1,000 a day; the app stays below both and has a switch.
+    expect(eodMain.PROVIDERS.tiingo.perHour).toBeLessThan(50);
+    expect(eodMain.PROVIDERS.tiingo.perDay).toBeLessThan(1000);
+    expect(eodMain.PROVIDERS.tiingo.gate).toBe('TIINGO_ENABLED');
+  });
+
+  it('reads daily prices as traded, oldest first', () => {
+    const text = JSON.stringify([
+      { date: '2026-10-13T00:00:00.000Z', close: 101.5, high: 102, low: 100, open: 100.5, volume: 1200000, adjClose: 101.5, adjHigh: 102, adjLow: 100, adjOpen: 100.5, adjVolume: 1200000, divCash: 0, splitFactor: 1 },
+      { date: '2026-10-10T00:00:00.000Z', close: 100.25, high: 101, low: 99, open: 99.5, volume: 1000000, adjClose: 100.25, adjHigh: 101, adjLow: 99, adjOpen: 99.5, adjVolume: 1000000, divCash: 0, splitFactor: 1 },
+    ]);
+    expect(parseTiingo(text)).toEqual({
+      bars: [
+        { date: '2026-10-10', o: 99.5, h: 101, l: 99, c: 100.25, v: 1000000 },
+        { date: '2026-10-13', o: 100.5, h: 102, l: 100, c: 101.5, v: 1200000 },
+      ],
+    });
+    expect(parseTiingo('{"detail":"Invalid token."}')).toEqual({ error: 'Invalid token.' });
   });
 });
