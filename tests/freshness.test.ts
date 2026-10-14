@@ -44,7 +44,7 @@ describe('freshness labels', () => {
   it('labels official once-a-day values as reference values, and old ones as stale', () => {
     expect(label({ src: 'EOD', provider: 'US Treasury', time: NOW - 86_400_000 })).toBe('REFERENCE');
     expect(label({ src: 'EOD', provider: 'Deutsche Bundesbank', time: NOW - 2 * 86_400_000 })).toBe('REFERENCE');
-    expect(label({ src: 'EOD', provider: 'Yahoo Finance (unofficial)', time: NOW - 86_400_000 })).toBe('END OF DAY');
+    expect(label({ src: 'EOD', provider: 'Yahoo Finance', time: NOW - 86_400_000 })).toBe('END OF DAY');
     expect(label({ src: 'EOD', provider: 'US Treasury', time: NOW - DAILY_STALE_AFTER - MIN })).toBe('STALE');
   });
 
@@ -58,7 +58,7 @@ describe('freshness labels', () => {
     expect(staleAfter(crypto)).toBeLessThan(staleAfter(equity));
     expect(staleAfter(undefined)).toBe(30 * MIN);
     expect(isOfficialProvider('US Treasury')).toBe(true);
-    expect(isOfficialProvider('Yahoo Finance (unofficial)')).toBe(false);
+    expect(isOfficialProvider('Yahoo Finance')).toBe(false);
     expect(isOfficialProvider('Kraken')).toBe(false);
     expect(isOfficialProvider(undefined)).toBe(false);
   });
