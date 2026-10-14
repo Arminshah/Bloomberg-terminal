@@ -1,5 +1,21 @@
 # Roadmap
 
+## Done (14 October 2026, version 2.0.0)
+
+- Linux builds: an AppImage that runs without installing and a .deb for Debian and Ubuntu, built and released next to the Windows files.
+- Market timers in the top bar: the time until Euronext and the NYSE open or close their regular sessions, from each exchange's holiday and early-close rules. HOLIDAYS gains a Euronext calendar.
+- Original command names in place of Bloomberg's function mnemonics (`QUOTE AAPL`, `CHART NVDA 1D`, `MARKET US`, `FILINGS MSFT`, `CRYPTO BTC`). Typing an old code says what it is called now, and saved layouts and settings are carried over.
+- Yahoo Finance kept only as an unofficial, personal-use price source and labelled so; its option chains, news and analyst data are switched off in the main process. The news screens show official announcements from central banks, the BEA and ESMA instead.
+- Paper trading switched off: the portfolio holds only the positions you enter.
+- SEC EDGAR (`FILINGS`): company search, filing histories with links to the documents, and the figures companies reported in their XBRL statements, with restatements marked. Needs `SEC_USER_AGENT`.
+- A freshness label on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, STALE, DEMO DATA, UNKNOWN FRESHNESS), kept apart from the market session.
+- Daily changes only against a previous close confirmed for the right session; until then the change is marked unverified. The whole US Treasury curve comes from the Treasury; the Cboe yield indices are separate lines.
+- Crypto from the Kraken exchange: prices, best bid and offer, daily and five-minute candles, and the order book on `DEPTH`. Market value and circulating supply from CoinGecko with a free key.
+- Macro dashboard (`MACRO`) from FRED, with first published values against today's for payrolls and GDP growth, and FRED's required notice on every screen with FRED data.
+- `CROSSCHECK`: a US stock's daily closes beside Massive, Alpha Vantage and Twelve Data (each with your own key; Twelve Data only once you confirm display rights).
+- The provider screen (`PROVIDERS`) shows each provider's last attempt, latency, last data, switches and the kind of its last error.
+- `CENTRALBANKS` shows the Fed's target range from the New York Fed's own limits.
+
 ## Done (12 October 2026)
 
 - Provider status screen (`PROV`): each provider's state, last answer, last problem, requests per minute, terms and official pages with the date they were checked.
@@ -28,13 +44,15 @@
 
 ## Next
 
-1. Finish the data audit: rates against each central bank's file (`WB`, `GC`, `BTMM`, `WIRP`, `CENB`) and the market screens (`WEI`, `FXC`, `GLCO`, `CRYP`, `MOST`). NBIS, the 15-stock sample and `ECO`/`ECST` are done.
-2. Japan's unemployment from the Statistics Bureau (the OECD series runs a month behind) and its CPI, which needs an e-Stat key.
-2. SEC EDGAR filings (`CF`). Needs `SEC_USER_AGENT` with a contact you control. Recent filings with form, filing date, accession number and a link to the filing; then a small set of reported facts from company facts with period, form and accession. Acceptance: tested against real responses, at most 5 requests a second, no request without the user agent.
-3. Massive end-of-day history. Needs `MASSIVE_API_KEY` (free Stocks Basic). A source switch on `GP`: Yahoo or Massive, never mixed in one series; Massive bars labelled End of day, split-adjusted, with the last bar's market date. Acceptance: at most 5 calls a minute, paging through `next_url`, an honest error when the plan does not cover a request.
+1. Finish the data audit: rates against each central bank's file (`BONDS`, `CURVE`, `MONEYMARKET`, `RATEPROBS`, `CENTRALBANKS`) and the market screens (`MARKET`, `FXMATRIX`, `COMMODITIES`, `CRYPTO`, `MOVERS`). NBIS, the 15-stock sample and the economic screens are done.
+2. Live-test the providers no key or contact was available for while building: SEC EDGAR, CoinGecko, Massive, Alpha Vantage and Twelve Data.
+3. Japan's unemployment from the Statistics Bureau (the OECD series runs a month behind) and its CPI, which needs an e-Stat key.
 4. Release times for US economic data from the agencies' own schedules, if their terms allow automated reading.
-5. Local SQLite store (`node:sqlite`) for portfolio transactions and last-known values, after checking each provider's storage terms.
+5. Holiday calendars for London, Xetra and Tokyo beyond 2027 (NYSE and Euronext follow their rules for any year).
+6. The remaining conventions taken from Bloomberg: security identifiers such as `AAPL US Equity` and the market sector keys on F2 to F12.
+7. Financial Modeling Prep, once its documentation can be read, and Binance, if it serves the owner's location (as separate USDT lines).
+8. Local SQLite store (`node:sqlite`) for portfolio transactions and last-known values, after checking each provider's storage terms.
 
 ## Blocked until a licensed source is approved
 
-These stay out of the app, or show "not available", until a provider with suitable terms is chosen and approved: prices and dealer quotes for individual bonds, CDS and structured credit; FX forward points and swap rates; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; full-text licensed news, transcripts and broker research; trading through a broker. Paper trading stays separate from real holdings and never sends orders anywhere.
+These stay out of the app, or show "not available", until a provider with suitable terms is chosen and approved: prices and dealer quotes for individual bonds, CDS and structured credit; FX forward points and swap rates; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; listed option chains (OPRA); analyst ratings, price targets and estimates; full-text licensed news, transcripts and broker research; trading through a broker. Paper trading is switched off.

@@ -1,8 +1,9 @@
 {
   "name": "armin-terminal",
   "private": true,
-  "version": "1.2.2",
-  "description": "A keyboard-driven market terminal for private use: a Windows desktop app on data from free public and official sources, with a command line, panels, charts and about 70 functions, plus an opt-in browser demo.",
+  "version": "2.0.0",
+  "description": "A keyboard-driven market terminal for private use: a desktop app for Windows and Linux on data from free public and official sources, with a command line, panels, charts and about 70 functions, plus an opt-in browser demo.",
+  "desktopName": "armin-terminal.desktop",
   "author": "Armin",
   "homepage": "https://github.com/arminshah/bloomberg-terminal",
   "type": "module",
@@ -20,7 +21,8 @@
     "snapshot": "node scripts/snapshot.ts",
     "desktop": "npm run build && electron .",
     "desktop:build": "npm run build && electron-builder --win --x64 --publish never",
-    "desktop:dir": "npm run build && electron-builder --dir --publish never"
+    "desktop:dir": "npm run build && electron-builder --dir --publish never",
+    "desktop:build:linux": "npm run build && electron-builder --linux --x64 --publish never"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
@@ -58,6 +60,7 @@
       "package.json"
     ],
     "asar": true,
+    "publish": null,
     "win": {
       "target": [
         {
@@ -96,10 +99,31 @@
     },
     "linux": {
       "target": [
-        "AppImage"
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "category": "Office",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "executableName": "armin-terminal",
+      "synopsis": "Keyboard-driven market terminal for private use",
+      "maintainer": "Armin <arminshah@users.noreply.github.com>",
+      "syncDesktopName": true
+    },
+    "appImage": {
+      "artifactName": "Armin-Terminal-${version}-x86_64.${ext}"
+    },
+    "deb": {
+      "artifactName": "armin-terminal_${version}_amd64.${ext}"
     }
   }
 }

@@ -1,9 +1,9 @@
 name: Release desktop app
 
 # Pushing a version tag (v1.0.0, v1.1.0, ...) builds the Windows installer and
-# portable .exe and attaches them to a GitHub Release for that tag. Running the
-# workflow by hand builds the same files as a workflow artifact, and also
-# publishes a Release when a tag is given.
+# portable .exe and the Linux AppImage and .deb, and attaches them to a GitHub
+# Release for that tag. Running the workflow by hand builds the same files as
+# workflow artifacts, and also publishes a Release when a tag is given.
 on:
   push:
     tags: ['v*']
@@ -36,19 +36,59 @@ jobs:
           name: armin-terminal-windows
           path: release/*.exe
           if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build Linux AppImage and .deb
+        run: npm run desktop:build:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: armin-terminal-linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error
+
+  publish:
+    needs: [windows, linux]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: armin-terminal-windows
+          path: release
+      - uses: actions/download-artifact@v4
+        with:
+          name: armin-terminal-linux
+          path: release
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
           name: Armin Terminal ${{ inputs.tag || github.ref_name }}
-          files: release/*.exe
+          files: |
+            release/*.exe
+            release/*.AppImage
+            release/*.deb
           fail_on_unmatched_files: true
           body: |
-            Windows desktop build of Armin Terminal.
+            Desktop builds of Armin Terminal for Windows and Linux (64-bit).
 
+            Windows:
             - `Armin-Terminal-Setup-*.exe` installs the app with Start menu and desktop shortcuts.
             - `Armin-Terminal-*-Portable.exe` runs without installing.
 
             The executables are not code-signed, so Windows SmartScreen may show "Windows protected your PC" on first launch. Choose "More info", then "Run anyway".
+
+            Linux:
+            - `armin-terminal_*_amd64.deb` installs the app on Debian and Ubuntu (`sudo apt install ./armin-terminal_*_amd64.deb`), with a menu entry and Chromium's sandbox set up.
+            - `Armin-Terminal-*-x86_64.AppImage` runs without installing: make it executable (`chmod +x`) and start it. AppImages need FUSE 2 (`libfuse2`, on Ubuntu 24.04 `libfuse2t64`). On Ubuntu 24.04 and later an Electron AppImage cannot start Chromium's sandbox, so use the .deb there.

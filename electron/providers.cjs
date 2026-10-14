@@ -62,6 +62,16 @@ function fromDotEnv(name) {
   return (dotEnv[name] ?? '').trim();
 }
 
+/**
+ * Whether saved keys can be encrypted. On Linux that takes a desktop keyring (GNOME Keyring, KWallet);
+ * without one Electron may fall back to "basic_text", a fixed key that protects nothing, so the app
+ * declines to save keys there.
+ */
+function canEncrypt() {
+  if (!safeStorage.isEncryptionAvailable()) return false;
+  return !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text');
+}
+
 function fromStore(name) {
   const enc = readStore()[name];
   if (typeof enc !== 'string' || !safeStorage.isEncryptionAvailable()) return '';
@@ -153,7 +163,7 @@ function saveCredential(name, value) {
   if (!def) throw new Error('unknown credential');
   const v = typeof value === 'string' ? value.trim() : '';
   if (!def.valid(v)) throw new Error(`${def.label} does not look right`);
-  if (!safeStorage.isEncryptionAvailable()) throw new Error('This system cannot encrypt saved keys; set the environment variable instead');
+  if (!canEncrypt()) throw new Error('This system cannot encrypt saved keys; set the environment variable instead');
   writeStore({ ...readStore(), [name]: safeStorage.encryptString(v).toString('base64') });
 }
 
