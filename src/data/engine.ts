@@ -170,14 +170,20 @@ export interface PrevCloseReading {
  * previous bar to check against, readings that agree are kept as unverified.
  * Undefined means the quote carried neither reading.
  */
-export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number): PrevCloseReading | undefined {
+export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number, sessionOpen?: number): PrevCloseReading | undefined {
   const ok = (x: number | undefined): x is number => x !== undefined && Number.isFinite(x) && x !== 0;
   const c = [field, implied].filter(ok);
   if (!c.length) return undefined;
   const rel = (a: number, b: number) => Math.abs(a - b) / Math.abs(b);
   if (ok(histPrev)) {
     const best = c.length > 1 && rel(c[1], histPrev) < rel(c[0], histPrev) ? c[1] : c[0];
-    return rel(best, histPrev) <= 1e-3 ? { value: best, verified: true } : { value: NaN, verified: false };
+    if (rel(best, histPrev) <= 1e-3) return { value: best, verified: true };
+    // A market that trades through the change of day (currencies) opens where it closed, so the session's
+    // open confirms readings that agree with each other when the daily bar cannot: Yahoo's currency bars
+    // carry the close of the day before (EURUSD's bar for 13 Oct 2026 closed at 1.1160, its price at the
+    // start of that day; the quote's 1.1203 matched the end of the day and the next day's open, 1.1202).
+    if (ok(sessionOpen) && (c.length === 1 || rel(c[0], c[1]) <= 2e-4) && rel(c[0], sessionOpen) <= 1e-3) return { value: c[0], verified: true };
+    return { value: NaN, verified: false };
   }
   if (c.length === 1) return { value: c[0], verified: false };
   return { value: rel(c[0], c[1]) <= 2e-4 ? c[0] : NaN, verified: false };
@@ -1580,9 +1586,12 @@ export class MarketEngine {
     // From the bars alone it is unverified until a quote's readings match it; a check already made
     // for this session stays when the reloaded bar agrees.
     const before = bars.length > 1 ? bars[bars.length - 2] : undefined;
-    const kept = prev?.session === last.day && st.chgCheck === 'verified' && before !== undefined && Math.abs(st.prevClose / before.c - 1) <= 1e-3;
-    st.prevClose = before ? before.c : NaN;
-    st.prevCloseDay = before?.day;
+    // A currency's check rests on the session's open, not on the bar (see resolvePrevClose).
+    const kept = prev?.session === last.day && st.chgCheck === 'verified' && before !== undefined && (st.def.cls === 'fx' || Math.abs(st.prevClose / before.c - 1) <= 1e-3);
+    if (!(kept && st.def.cls === 'fx')) {
+      st.prevClose = before ? before.c : NaN;
+      st.prevCloseDay = before?.day;
+    }
     // A once-a-day official series has no quote to check against: its change is between two values the same
     // publisher gave for consecutive dates, which is what the change means.
     st.chgCheck = kept || (before !== undefined && (opts.eod ?? prev?.eod)) ? 'verified' : 'unverified';
@@ -1653,7 +1662,7 @@ export class MarketEngine {
     // leaves what it does not carry as it was, and does not undo a check already made for this session.
     const histPrev = n > 0 ? s.c[n - 1] : NaN;
     const histDay = n > 0 ? dayNum(s.t[n - 1]) : undefined;
-    const reading = resolvePrevClose(q.prevClose, q.prevCloseAlt, histPrev);
+    const reading = resolvePrevClose(q.prevClose, q.prevCloseAlt, histPrev, st.def.cls === 'fx' ? q.open : undefined);
     if (reading && (reading.verified || q.full || newSession || st.chgCheck !== 'verified')) {
       st.prevClose = reading.value;
       st.prevCloseDay = reading.verified ? histDay : undefined;

@@ -264,3 +264,42 @@ describe('previous close across sessions', () => {
     expect(engine.quote(id)!.prevCloseDay).toBe(day('2026-10-13'));
   });
 });
+
+describe('previous close for currencies', () => {
+  // EURUSD=X on 14 Oct 2026 around 05:20 UTC: Yahoo's bar for 13 Oct closed at 1.1160, the pair's price
+  // at the start of that London day; the quote's 1.1203 matched the end of the day and the 14 Oct open.
+  it('takes readings that agree and match the session open when the daily bar lags a day', () => {
+    expect(resolvePrevClose(1.1203227, 1.1209506 - 0.0006278753, 1.1160216331481934, 1.1201972)).toEqual({ value: 1.1203227, verified: true });
+    // Without the open, the bar still decides: no previous close.
+    expect(choosePrevClose(1.1203227, 1.1209506 - 0.0006278753, 1.1160216331481934)).toBeNaN();
+    // An open far from the readings confirms nothing.
+    expect(resolvePrevClose(1.1203227, 1.1203227, 1.1160216331481934, 1.13)).toEqual({ value: NaN, verified: false });
+    // Readings that disagree are not settled by the open either.
+    expect(resolvePrevClose(1.1203227, 1.118, 1.1160216331481934, 1.1201972)).toEqual({ value: NaN, verified: false });
+  });
+
+  it('shows the day change of a currency pair against the confirmed close, and keeps it when the bars reload', () => {
+    const day = (iso: string) => Math.floor(Date.parse(`${iso}T00:00:00Z`) / 86_400_000);
+    const id = 'EURUSD Curncy';
+    const bars = [
+      { day: day('2026-10-12'), o: 1.1213, h: 1.1225, l: 1.1195, c: 1.1204732656478882, v: 0 },
+      { day: day('2026-10-13'), o: 1.1205, h: 1.121, l: 1.115, c: 1.1160216331481934, v: 0 },
+      { day: day('2026-10-14'), o: 1.1201972, h: 1.1212, l: 1.1199, c: 1.1209506, v: 0 },
+    ];
+    engine.setExternalDaily(id, bars);
+    const q = extQuote(
+      { regularMarketPrice: 1.1209506, regularMarketChange: 0.0006278753, regularMarketPreviousClose: 1.1203227, regularMarketOpen: 1.1201972, regularMarketTime: Math.floor(Date.parse('2026-10-14T05:17:27Z') / 1000), gmtOffSetMilliseconds: 3_600_000, marketState: 'REGULAR' },
+      false,
+    )!;
+    engine.setExternalQuote(id, { ...q, day: day('2026-10-14') });
+    let out = engine.quote(id)!;
+    expect(out.prevClose).toBeCloseTo(1.1203227, 7);
+    expect(out.chgCheck).toBe('verified');
+    expect(out.pct).toBeCloseTo(0.056, 2);
+    // The history reloads for the same session: the confirmed close stays.
+    engine.setExternalDaily(id, bars);
+    out = engine.quote(id)!;
+    expect(out.prevClose).toBeCloseTo(1.1203227, 7);
+    expect(out.chgCheck).toBe('verified');
+  });
+});

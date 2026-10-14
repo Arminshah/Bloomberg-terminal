@@ -5,7 +5,7 @@ import { ChartView } from '../components/chart/ChartView';
 import { COMPARE_COLORS, type ChartOptions, type ChartType, type LowerKind, type Overlay } from '../components/chart/PriceChart';
 import { createStore } from '../core/store';
 import { fmtDay, fmtTime } from '../core/format';
-import { engine, useTick } from '../data/market';
+import { engine, useHistoryVersion, useTick } from '../data/market';
 import { resolveSecurity, searchSecurities } from '../data/registry';
 import { aggregate, barsSince, type Periodicity, type Series } from '../data/series';
 import { horizonStart, type Horizon } from '../data/analytics';
@@ -116,6 +116,8 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
   const [freq, setFreq] = useState<Periodicity>('D');
   const [compare, setCompare] = useState<string[]>([]);
   const tick = useTick(intraday ? 1 : freq === 'D' ? 1_000_000 : 5);
+  // The daily chart barely re-renders on ticks; this brings in a history that arrives after the first render.
+  const history = useHistoryVersion();
 
   const daily = engine.daily(sec.id);
   const series = useMemo(() => {
@@ -123,7 +125,7 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
     return freq === 'D' ? daily : aggregate(daily, freq);
     // Aggregated series are rebuilt every few ticks so the last bar stays live.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sec.id, intraday, freq, daily, tick]);
+  }, [sec.id, intraday, freq, daily, tick, history]);
 
   const compareSeries = useMemo(
     () =>
@@ -133,7 +135,7 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
         return { label: d.ticker, series: !intraday && freq !== 'D' ? aggregate(base, freq) : base, color: COMPARE_COLORS[i % COMPARE_COLORS.length] };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [compare, intraday, freq, tick],
+    [compare, intraday, freq, tick, history],
   );
 
   const options: ChartOptions = useMemo(
