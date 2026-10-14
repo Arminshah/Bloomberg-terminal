@@ -1,3 +1,4 @@
+import { Credits, type CreditId } from '../components/Credits';
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { XYChart } from '../components/chart/XYChart';
@@ -111,6 +112,7 @@ export function WB(_: FnProps) {
           ? 'Spreads and curve slope in basis points. Each yield is the figure its source publishes: US Treasury par yields (5Y, 10Y and 30Y stream during the session), Bundesbank zero-coupon yields, Bank of England par yields, Japanese Ministry of Finance constant-maturity yields, Bank of Canada benchmark yields and RBA interpolated yields, so methods differ slightly between countries. Countries without a free official source are not listed.'
           : 'Spreads and curve slope in basis points. Simulated curves move with US rates through a country beta.'}
       </div>
+      <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba']} />
     </div>
   );
 }
@@ -128,6 +130,9 @@ const COMPARE = [
   { k: 30, label: '1M ago', color: '#d77bff' },
   { k: 365, label: '1Y ago', color: '#6d6d6d' },
 ];
+
+/** Whose credit a country's curve carries. */
+const CURVE_CREDIT: Record<string, CreditId> = { US: 'treasury', DE: 'bundesbank', GB: 'boe', JP: 'mof', CA: 'boc', AU: 'rba' };
 
 export function GC(_: FnProps) {
   useTick(2);
@@ -211,6 +216,7 @@ export function GC(_: FnProps) {
           ))}
         </tbody>
       </table>
+      {CURVE_CREDIT[code] ? <Credits ids={[CURVE_CREDIT[code]]} /> : null}
     </div>
   );
 }
@@ -375,6 +381,7 @@ function BTMMReal() {
         )}
       </Section>
       <div className="note">Treasury note and bond prices have no free source here, so the actives table is not shown in the desktop app.</div>
+      <Credits ids={['treasury', 'nyfed']} />
     </div>
   );
 }
@@ -655,6 +662,7 @@ function WIRPReal() {
       <div className="note">
         Method as CME FedWatch: each contract settles on its month's average effective rate. A month without a decision fixes the rate after the meeting before it; in a decision month the average splits into the days before and after the decision. One move = 25 bp. Futures settle on the effective rate, which trades inside the target range, so implied rates sit near the middle of the range.
       </div>
+      <Credits ids={['fedboard', 'nyfed']} />
     </div>
   );
 }

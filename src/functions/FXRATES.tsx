@@ -1,3 +1,4 @@
+import { Credits } from '../components/Credits';
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { XYChart } from '../components/chart/XYChart';
@@ -514,6 +515,7 @@ export function CENB(_: FnProps) {
           : 'Policy rates are reference settings (the Fed range is derived from the 3-month bill) and may be out of date; the desktop app loads the Fed, ECB, Bank of England and Bank of Canada rates from the banks themselves.'}{' '}
         The Fed's 2-year spread is to the upper limit of its target range. A 2-year yield below the policy rate means the market expects cuts.
       </p>
+      <Credits ids={['fedboard', 'nyfed', 'ecb', 'bundesbank', 'boe', 'boc', 'rba', 'snb', 'bcb']} />
     </div>
   );
 }
