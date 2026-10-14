@@ -16,7 +16,11 @@ import { keyStats, nextEarnings } from '../data/fundamentals';
 import { news } from '../data/news';
 import { execute } from '../terminal/exec';
 import { requestCompanyNews } from '../data/live/feeds';
+import { useIex, type IexState } from '../data/live/alpaca';
+import { companyStories, marketNews, useCompanyNews } from '../data/live/marketnews';
+import { secTicker } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
+import type { Quote, SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
 
 export function BQ({ sec }: FnProps) {
@@ -30,6 +34,13 @@ export function BQ({ sec }: FnProps) {
   const intra = engine.intraday(s.id);
   const stories = news.use((n) => n.stories);
   const related = stories.filter((x) => x.tickers.includes(s.id)).slice(0, 8);
+  // On real data: IEX quotes from Alpaca and the company's news from Finnhub, for US-listed stocks.
+  const usStock = engine.realOnly ? secTicker(s) : null;
+  const iexState = useIex(usStock ? s : undefined);
+  const nv = useCompanyNews(usStock, false);
+  const feeds = marketNews.use((x) => x.feeds);
+  const companyNews = useMemo(() => (usStock ? companyStories(usStock).slice(0, 8) : []), [usStock, nv]); // eslint-disable-line react-hooks/exhaustive-deps
+  const newsFeed = usStock ? Object.entries(feeds).find(([k]) => k.startsWith(`finnhub-company:${usStock}|`))?.[1] : undefined;
   let vwap = NaN;
   {
     let pv = 0;
@@ -58,12 +69,13 @@ export function BQ({ sec }: FnProps) {
         actions={[
           { n: 1, label: 'Chart', onClick: () => execute(panel, `${s.id} CHART`) },
           { n: 2, label: 'Profile', onClick: () => execute(panel, `${s.id} PROFILE`) },
-          // The desktop app has no company news feed; a company's own announcements are its filings.
-          ...(!engine.realOnly
-            ? [{ n: 3, label: 'News', onClick: () => execute(panel, `${s.id} COMPANYNEWS`) }]
-            : s.cls === 'equity'
-              ? [{ n: 3, label: 'Filings', onClick: () => execute(panel, `${s.id} FILINGS`) }]
-              : []),
+          ...(!engine.realOnly || s.cls === 'equity' ? [{ n: 3, label: 'News', onClick: () => execute(panel, `${s.id} COMPANYNEWS`) }] : []),
+          ...(engine.realOnly && s.cls === 'equity'
+            ? [
+                { n: 4, label: 'Filings', onClick: () => execute(panel, `${s.id} FILINGS`) },
+                { n: 5, label: 'Analysts', onClick: () => execute(panel, `${s.id} ANALYSTS`) },
+              ]
+            : []),
         ]}
       />
       <div className="cols">
@@ -154,12 +166,55 @@ export function BQ({ sec }: FnProps) {
         </Section>
       </div>
       {engine.realOnly ? (
-        s.cls === 'equity' ? (
-          <div className="note">
-            No company news feed with terms that allow it is connected. A company&apos;s own announcements are its filings:{' '}
-            <button type="button" className="act" onClick={() => execute(panel, `${s.id} FILINGS`)}>
-              FILINGS ›
-            </button>
+        usStock ? (
+          <div className="cols">
+            {iexState ? (
+              <Section
+                title="IEX (Alpaca)"
+                right={
+                  <>
+                    <span className="badge sim" title="One exchange's trades and quotes, not the whole US market">
+                      IEX ONLY
+                    </span>
+                    {iexState.stale ? <span className="badge sim"> STALE</span> : null}
+                  </>
+                }
+              >
+                <IexPanel st={iexState} sec={s} q={q} />
+              </Section>
+            ) : null}
+            <Section
+              title="Company news"
+              right={
+                <button type="button" className="act" onClick={() => execute(panel, `${s.id} COMPANYNEWS`)}>
+                  All news ›
+                </button>
+              }
+            >
+              {companyNews.length ? (
+                companyNews.map((st) => (
+                  <a key={st.id} className="news-item real" href={st.url} target="_blank" rel="noreferrer noopener" title={st.title}>
+                    <span className="time">{fmtStamp(st.time, engine.now())}</span>
+                    <span className="hl">{st.title}</span>
+                    <span className="src">{st.publisher.replace(/ \(company filing\)$/, '')}</span>
+                  </a>
+                ))
+              ) : (
+                <div className="note">
+                  {newsFeed?.state === 'needs-key' || newsFeed?.state === 'off'
+                    ? `Company news: ${newsFeed.message}`
+                    : newsFeed?.state === 'error'
+                      ? `Finnhub: ${newsFeed.message}`
+                      : newsFeed?.state === 'ok'
+                        ? 'No stories in the last week from Finnhub.'
+                        : 'Loading company news…'}{' '}
+                  A company&apos;s own announcements are its filings:{' '}
+                  <button type="button" className="act" onClick={() => execute(panel, `${s.id} FILINGS`)}>
+                    FILINGS ›
+                  </button>
+                </div>
+              )}
+            </Section>
           </div>
         ) : null
       ) : (
@@ -178,5 +233,49 @@ export function BQ({ sec }: FnProps) {
         </Section>
       )}
     </div>
+  );
+}
+
+/** Alpaca's IEX snapshot for a US stock, every figure marked as IEX's alone. */
+function IexPanel({ st, sec, q }: { st: IexState; sec: SecurityDef; q: Quote }) {
+  const panel = usePanelId();
+  if (st.state === 'loading') return <div className="empty">Asking Alpaca for IEX quotes…</div>;
+  if (!st.data) {
+    return (
+      <div className="note">
+        {st.message ?? 'No IEX quote.'}{' '}
+        {st.state === 'needs-key' || st.state === 'off' ? (
+          <button type="button" className="act" onClick={() => execute(panel, 'PROVIDERS')}>
+            PROVIDERS ›
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+  const d = st.data;
+  const dec = sec.dec;
+  const diff = Number.isFinite(q.last) ? d.last - q.last : NaN;
+  const side = (px: number, size: number) => (px > 0 ? `${fmtNum(px, dec)} × ${fmtBig(size, 0)}` : '--');
+  return (
+    <>
+      <KV
+        items={[
+          [
+            'Last trade on IEX',
+            <span key="l">
+              <span className="white b">{fmtNum(d.last, dec)}</span> <span className="muted">× {fmtBig(d.lastSize, 0)} at {fmtStamp(d.lastAt, engine.now())}</span>
+            </span>,
+          ],
+          ['vs the quote above', Number.isFinite(diff) ? <span key="d" className={diff > 0 ? 'up' : diff < 0 ? 'dn' : 'muted'}>{`${diff > 0 ? '+' : ''}${fmtNum(diff, dec)}`}</span> : '--'],
+          ['IEX bid / ask (IEX only)', `${side(d.bid, d.bidSize)} / ${side(d.ask, d.askSize)}`],
+          [`IEX volume ${fmtDay(d.dayAt)} (IEX only)`, Number.isFinite(d.volume) ? fmtBig(d.volume) : '--'],
+          ['IEX day range (IEX only)', d.low > 0 ? `${fmtNum(d.low, dec)} - ${fmtNum(d.high, dec)}` : '--'],
+          ['Received', st.at ? fmtTime(st.at) : '--'],
+        ]}
+      />
+      <div className="note">
+        IEX only: trades and quotes on one exchange, not the whole US market. The bid and ask are IEX&apos;s own, not the national best; volume and range count IEX trades alone.{st.stale && st.message ? ` Latest request: ${st.message}` : ''}
+      </div>
+    </>
   );
 }
