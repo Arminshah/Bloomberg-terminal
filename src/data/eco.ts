@@ -42,7 +42,7 @@ export function centralBanks(): CentralBank[] {
     { code: 'SNB', country: 'CH', bank: 'Swiss National Bank', rate: 0.0, name: 'SNB Policy Rate', tz: 'Europe/Zurich', time: [9, 30], meetings: ['2026-03-19', '2026-06-18', '2026-09-24', '2026-12-10', '2027-03-18', '2027-06-24', '2027-09-23', '2027-12-16'], last: '2025-06-19', lastMove: -0.25 },
     { code: 'PBOC', country: 'CN', bank: "People's Bank of China", rate: 3.0, name: '1-Year Loan Prime Rate', tz: 'Asia/Shanghai', time: [9, 15], meetings: [], last: '2025-05-20', lastMove: -0.1 },
     { code: 'RBI', country: 'IN', bank: 'Reserve Bank of India', rate: 5.25, name: 'RBI Repurchase Rate', tz: 'Asia/Kolkata', time: [10, 0], meetings: ['2026-02-06', '2026-04-08', '2026-06-05', '2026-08-07', '2026-10-07', '2026-12-04'], last: '2025-12-05', lastMove: -0.25 },
-    { code: 'BCB', country: 'BR', bank: 'Banco Central do Brasil', rate: 14.25, name: 'Selic Rate', tz: 'America/Sao_Paulo', time: [18, 30], meetings: ['2026-01-28', '2026-03-18', '2026-05-06', '2026-06-17', '2026-08-05', '2026-09-16', '2026-11-04', '2026-12-09'], last: '2026-09-16', lastMove: -0.25 },
+    { code: 'BCB', country: 'BR', bank: 'Banco Central do Brasil', rate: 14.25, name: 'Selic Rate', tz: 'America/Sao_Paulo', time: [18, 30], meetings: ['2026-01-28', '2026-03-18', '2026-05-06', '2026-06-17', '2026-08-05', '2026-09-16', '2026-11-04', '2026-12-09', '2027-01-27', '2027-03-17', '2027-04-28', '2027-06-16', '2027-08-04', '2027-09-22', '2027-10-27', '2027-12-08'], last: '2026-09-16', lastMove: -0.25 },
     { code: 'BANXICO', country: 'MX', bank: 'Banco de Mexico', rate: 7.0, name: 'Overnight Rate', tz: 'America/Mexico_City', time: [13, 0], meetings: ['2026-02-12', '2026-03-26', '2026-05-14', '2026-06-25', '2026-08-13', '2026-09-24', '2026-11-12', '2026-12-17'], last: '2025-12-18', lastMove: -0.25 },
   ]);
 }
@@ -372,17 +372,29 @@ export function ecoEvents(from: number, to: number, now = engine.now()): EcoEven
 }
 
 /**
- * A meeting's prior rate and decision. With real history these are the levels
- * before and after the meeting (no survey: consensus is not available);
- * otherwise every meeting keeps the reference rate.
+ * Days from a decision to the day its rate applies: the ECB's changes take
+ * effect the following Wednesday, the others' the next day at the latest.
  */
-function rateDecision(cb: CentralBank, iso: string): { survey: number | null; actual: number; prior: number } {
-  const s = policySeries(cb.code);
+const EFFECTIVE_AFTER: Record<string, number> = { ECB: 6 };
+
+/**
+ * A meeting's prior rate and decision. With real history these are the levels
+ * before and after the meeting (no survey: consensus is not available). The
+ * decision is read from the bank's series once the series reaches the day the
+ * rate applies, or earlier if a change dated after the meeting is already
+ * there; until then it is null (pending), so an unchanged level never stands in
+ * for a decision that has not taken effect yet. Without real history every
+ * meeting keeps the reference rate.
+ */
+export function rateDecision(cb: Pick<CentralBank, 'code' | 'rate'>, iso: string, series = policySeries(cb.code)): { survey: number | null; actual: number | null; prior: number } {
+  const s = series;
   if (!s) return { survey: cb.rate, actual: cb.rate, prior: cb.rate };
   const shift = (days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
   const prior = levelOn(s, shift(-1));
-  const after = shift(8) <= s.asOf ? levelOn(s, shift(8)) : s.last;
-  return { survey: null, actual: after, prior: Number.isFinite(prior) ? prior : s.last };
+  const effective = shift(EFFECTIVE_AFTER[cb.code] ?? 1);
+  const moved = s.changes.find(([d]) => d > iso && d <= shift(8));
+  const actual = effective <= s.asOf ? levelOn(s, effective) : moved ? moved[1] : null;
+  return { survey: null, actual, prior: Number.isFinite(prior) ? prior : s.last };
 }
 
 function round(x: number, dec: number): number {

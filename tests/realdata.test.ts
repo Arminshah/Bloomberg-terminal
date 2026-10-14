@@ -7,7 +7,7 @@ import { dropVolumeSpikes, impliedShares, yahooQuotes } from '../src/data/live/y
 import { parseTreasuryCsv } from '../src/data/live/ust';
 import { rangeStats } from '../src/data/analytics';
 import { levelOn, parseBoeCsv, parseEcbCsv, parseNyFed, parseValet, policyRates, toChanges } from '../src/data/live/policy';
-import { centralBanks, ecoEvents } from '../src/data/eco';
+import { centralBanks, ecoEvents, rateDecision } from '../src/data/eco';
 
 import summary from './fixtures/yahoo-apld-summary.json';
 import timeseries from './fixtures/yahoo-apld-timeseries.json';
@@ -289,6 +289,19 @@ describe('official rates', () => {
     const sep = ecoEvents(Date.UTC(2026, 8, 15), Date.UTC(2026, 8, 18), Date.UTC(2026, 9, 1)).find((e) => e.id === 'FED:2026-09-16')!;
     expect(sep).toMatchObject({ prior: 3.75, actual: 4, survey: null, real: true });
     policyRates.set({});
+  });
+
+  it("leaves a rate decision pending until the bank's data reaches the day it takes effect", () => {
+    // The ECB decides on Thursday 29 October 2026; a change applies from the next Wednesday.
+    const soFar = toChanges([['2026-09-16', 2], ['2026-10-30', 2]])!;
+    expect(rateDecision({ code: 'ECB', rate: 2 }, '2026-10-29', soFar).actual).toBeNull();
+    const cut = toChanges([['2026-09-16', 2], ['2026-11-04', 1.75], ['2026-11-05', 1.75]])!;
+    expect(rateDecision({ code: 'ECB', rate: 2 }, '2026-10-29', cut)).toMatchObject({ prior: 2, actual: 1.75 });
+    const held = toChanges([['2026-09-16', 2], ['2026-11-05', 2]])!;
+    expect(rateDecision({ code: 'ECB', rate: 2 }, '2026-10-29', held).actual).toBe(2);
+    // The Fed's new range applies the day after the decision.
+    expect(rateDecision({ code: 'FED', rate: 4 }, '2026-10-28', toChanges([['2026-09-17', 4], ['2026-10-28', 4]])!).actual).toBeNull();
+    expect(rateDecision({ code: 'FED', rate: 4 }, '2026-10-28', toChanges([['2026-09-17', 4], ['2026-10-29', 3.75]])!).actual).toBe(3.75);
   });
 });
 
