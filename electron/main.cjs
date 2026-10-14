@@ -416,6 +416,39 @@ ipcMain.handle('coingecko', async (event) => {
   return { status: res.status, text: '' };
 });
 
+// ------------------------------------------------- End-of-day cross-checks
+// Daily bars from Massive, Alpha Vantage or Twelve Data (electron/eod.cjs) with
+// the owner's own key, for comparing the closes the app shows. Each provider's
+// budget is kept; Twelve Data is not asked until display rights are confirmed.
+const eod = require('./eod.cjs');
+
+ipcMain.handle('eod', async (event, provider, ticker, from, to) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const def = Object.prototype.hasOwnProperty.call(eod.PROVIDERS, provider) ? eod.PROVIDERS[provider] : null;
+  if (!def || !eod.eodRequest(provider, ticker, from, to, 'x')) throw new Error('not allowed');
+  if (def.gate && !providers.setting(def.gate).value) return { status: 0, text: '', gated: def.gate };
+  const key = providers.credential(def.credential).value;
+  if (!key) return { status: 0, text: '', missing: def.credential };
+  if (!providers.CREDENTIALS[def.credential].valid(key)) {
+    providers.recordProblem(provider, 'not-entitled', `The configured ${def.credential} has the wrong format, so it was not sent.`);
+    return { status: 0, text: '', refused: 'wrong format' };
+  }
+  if (!eod.takeDaily(provider)) {
+    providers.recordProblem(provider, 'rate-limited', "The app's daily budget for this provider is spent; it asks again tomorrow (UTC).");
+    return { status: 0, text: '', budget: true };
+  }
+  await providers.slot(provider, def.perMinute, 60_000);
+  const req = eod.eodRequest(provider, ticker, from, to, key);
+  const res = await tracked(provider, req.url, { headers: { 'User-Agent': clientAgent(), Accept: 'application/json', ...req.headers }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+  const text = await res.text().catch(() => '');
+  if (!res.ok) {
+    const why = providers.providerMessage(text, [key]);
+    providers.recordProblem(provider, providers.errorKind(res.status), `HTTP ${res.status}${why ? `: ${why}` : ''}`);
+    return { status: res.status, text: '' };
+  }
+  return { status: res.status, text };
+});
+
 // ------------------------------------------------------------------ Stream
 // Relays Yahoo's streaming quotes for a window whose page cannot open the
 // socket itself (some proxies). Only subscribe messages for ticker symbols pass.

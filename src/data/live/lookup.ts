@@ -33,6 +33,7 @@ declare global {
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
+      eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<{ status: number; text: string; missing?: string; gated?: string; refused?: string; budget?: boolean }>;
       /** Provider switches as they were when the page loaded. */
       settings?: Record<string, boolean>;
       providersStatus?(): Promise<import('../providers').ProviderReport>;

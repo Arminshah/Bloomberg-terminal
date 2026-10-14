@@ -1,8 +1,8 @@
 # Data providers
 
-Checked on 12 October 2026 against each provider's own pages. Text in quotation marks is copied from those pages. Where a page could not be read, the entry says so instead of guessing. Re-read these pages before changing how a provider is used, and update the date.
+Checked between 12 and 14 October 2026 against each provider's own pages; sections read after the 12th give their date. Text in quotation marks is copied from those pages. Where a page could not be read, the entry says so instead of guessing. Re-read these pages before changing how a provider is used, and update the date.
 
-In the desktop app, every request below goes out from the Electron main process (`electron/main.cjs`); the screens never call a provider directly and never see a key. The `PROV` screen shows each provider's live state, and `src/data/providers.ts` holds the same list in code.
+In the desktop app, every request below goes out from the Electron main process (`electron/main.cjs`); the screens never call a provider directly and never see a key. The `PROVIDERS` screen shows each provider's live state, and `src/data/providers.ts` holds the same list in code.
 
 ## Summary
 
@@ -28,11 +28,13 @@ In the desktop app, every request below goes out from the Electron main process 
 | SEC EDGAR | Company search, filing histories with document links, XBRL reported figures (`FILINGS`) | data.sec.gov APIs and the SEC's company ticker file | `SEC_USER_AGENT` (your contact) | Enabled once `SEC_USER_AGENT` is set |
 | Kraken | Crypto prices, best bid and offer, daily and 5-minute candles, order books for 10 USD pairs | Public REST API | None | Enabled (desktop), switch `KRAKEN_ENABLED` |
 | CoinGecko | Market value and circulating supply of the listed coins (aggregated) | Demo API | `COINGECKO_API_KEY` | Enabled once the key is set |
-| Official announcements | Press releases from the Fed Board, ECB, Bank of England, Bank of Canada, RBA, BEA and ESMA (`TOP`, `N`) | Each publisher's RSS feed | None | Enabled |
-| Massive (formerly Polygon.io) | US stock end-of-day history | REST API | `MASSIVE_API_KEY` | Planned, not connected |
+| Official announcements | Press releases from the Fed Board, ECB, Bank of England, Bank of Canada, RBA, BEA and ESMA (`HEADLINES`, `NEWS`) | Each publisher's RSS feed | None | Enabled |
+| Massive (formerly Polygon.io) | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `MASSIVE_API_KEY` | Enabled once the key is set |
+| Alpha Vantage | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `ALPHA_VANTAGE_API_KEY` | Enabled once the key is set |
+| Twelve Data | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `TWELVE_DATA_API_KEY` | Off until the key is set and `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` is on |
 | Binance | | Spot REST API | | Evaluated, not connected (see below) |
 | Finnhub, Coinbase Exchange, Frankfurter | Former browser-build feeds | | | Disabled |
-| Twelve Data, Financial Modeling Prep | | | | Not used; terms not reviewed |
+| Financial Modeling Prep | | | | Not connected: its documentation could not be read (see below) |
 
 ## Yahoo Finance
 
@@ -159,7 +161,7 @@ From the build environment, `api.binance.com` answered HTTP 451: "Service unavai
 
 ## Official announcements
 
-The news screens (`TOP`, `N`) show press releases from each publisher's own RSS feed, with the publisher's headline, link and publication time, and the time the app received it. Nothing is summarised, generated or labelled as breaking. Feeds are read every 10 minutes. Terms, read on 13 October 2026:
+The news screens (`HEADLINES`, `NEWS`) show press releases from each publisher's own RSS feed, with the publisher's headline, link and publication time, and the time the app received it. Nothing is summarised, generated or labelled as breaking. Feeds are read every 10 minutes. Terms, read on 13 October 2026:
 
 | Publisher | Feed | Terms |
 | --- | --- | --- |
@@ -193,19 +195,52 @@ How the app uses it (`electron/sec.cjs`, `src/data/live/sec.ts`, the `FILINGS` s
 
 Not live-tested: no contact User-Agent was available while building this, and sending one that is not the owner's would break the SEC's rules. The parsers are tested on files laid out in the documented structure (`tests/sec.test.ts`), and the screen was checked with the same kind of files served in place of the SEC.
 
-## Massive (planned)
+## Second sources for daily closes
+
+`CROSSCHECK` sets the daily closes the app shows for a US stock (from Yahoo) beside the same sessions' closes from Massive, Alpha Vantage and Twelve Data, with the gap in basis points; gaps over 5 bp are marked. These sources are asked only from that screen, only with your own key, and only for finished sessions. Answers are kept for an hour. Requests go out from `electron/eod.cjs` through the main process like every other provider; the parsers are in `src/data/live/eod.ts`.
+
+None of the three was live-tested with a real key: no key was available while building this. The Alpha Vantage and Twelve Data parsers were checked against the answers their documented `demo` keys gave on 14 October 2026 (IBM and AAPL daily series), the Massive parser against the sample in its documentation.
+
+The closes do not all mean the same thing. Massive's are split-adjusted by default; Alpha Vantage's `TIME_SERIES_DAILY` is "raw (as-traded)", so a split inside the window shows as a large gap; Twelve Data gives the session's close. None is adjusted for dividends, and neither are the closes the app charts.
+
+### Massive (formerly Polygon.io)
+
+Pricing and terms as read on 12 October 2026, the API pages on 14 October.
 
 - [Pricing](https://massive.com/pricing?product=stocks), Stocks Basic: "$0 /month", "5 API Calls / Minute", "2 Years Historical Data", "End of Day Data", "Reference Data", "Corporate Actions", "Technical Indicators", "Minute Aggregates", "Individual use".
-- [Custom bars](https://www.massive.com/docs/rest/stocks/aggregates/custom-bars): `GET /v2/aggs/ticker/{stocksTicker}/range/{multiplier}/{timespan}/{from}/{to}`; the example uses `https://api.massive.com` with an `apiKey` query parameter. Plan recency for Stocks Basic: "End-of-day". `adjusted`: "Whether or not the results are adjusted for splits. By default, results are adjusted." `limit`: "Max 50000 and Default 5000." Response: `ticker`, `adjusted`, `queryCount`, `request_id`, `resultsCount`, `status`, `results` (`c`, `h`, `l`, `n`, `o`, `otc`, `t` "The Unix millisecond timestamp for the start of the aggregate window", `v`, `vw`) and `next_url`. Bars are built in Eastern Time, and "If no eligible trades occur within a given timeframe, no aggregate bar is produced".
+- [REST quickstart](https://massive.com/docs/rest/quickstart): "You can include your API key in two ways": an `apiKey` query parameter or an `Authorization: Bearer` header. The app uses the header, so the key never appears in a URL.
+- [Custom bars](https://www.massive.com/docs/rest/stocks/aggregates/custom-bars): `GET /v2/aggs/ticker/{stocksTicker}/range/{multiplier}/{timespan}/{from}/{to}` on `https://api.massive.com`. Plan recency for Stocks Basic: "End-of-day". `adjusted`: "By default, results are adjusted. Set this to false to get results that are NOT adjusted for splits." `limit`: "Max 50000 and Default 5000." Response: `ticker`, `adjusted`, `queryCount`, `request_id`, `resultsCount`, `status`, `results` (`c`, `h`, `l`, `n`, `o`, `otc`, `t` "The Unix millisecond timestamp for the start of the aggregate window", `v`, `vw`) and `next_url`. Bars are built in Eastern Time, and "If no eligible trades occur within a given timeframe, no aggregate bar is produced".
 - [Individual terms](https://www.massive.com/legal/individuals-terms-of-service) (last updated 18 July 2025): use "solely for your own personal, non-commercial, and non-business purposes".
 - [Market data terms](https://massive.com/legal/market-data-terms-of-service) (last updated 28 August 2025): non-professional, "personal, non-business use" only; no redistribution or display of the data, or of works derived from it, to any third party; no "non-display use" or derivative works "unless you are licensed to do so".
 
-Not connected and not live-tested: no key was available. Bars from Massive will be kept apart from Yahoo's and labelled End of day, split-adjusted.
+The app asks for daily bars over the last 45 days, at most 5 requests a minute. A bar's session date is the New York date of its window start.
+
+### Alpha Vantage
+
+Read on 14 October 2026.
+
+- [Support](https://www.alphavantage.co/support/): "free stock API service covering the majority of our datasets for 25 API requests per day". No per-minute limit is stated for the free key.
+- [Documentation](https://www.alphavantage.co/documentation/), `TIME_SERIES_DAILY`: "raw (as-traded) daily time series"; `outputsize` defaults to `compact`, the latest 100 data points, and `full` needs a premium key. Real-time and 15-minute delayed US data are premium. The key goes in the `apikey` query parameter, the only way the page documents.
+- [Terms of service](https://www.alphavantage.co/terms_of_service/): the licence is to "install, use, access, display and run" the platform "for personal, non-commercial use". Use counts as commercial if, among other things, it goes beyond "investment analysis, research, testing, monitoring, and any other activities that are private and individual in nature", or if you work for or are affiliated with a financial planning advisor, insurance company, investment adviser, investment bank, money manager, registered representative or securities broker-dealer.
+
+The app asks for the compact series only, at most one request a minute and 20 a day (the count restarts at midnight UTC). When Alpha Vantage answers with a limit notice instead of data, `CROSSCHECK` shows the notice.
+
+### Twelve Data
+
+Read on 14 October 2026.
+
+- [Pricing](https://twelvedata.com/pricing), Basic (free) plan: "Basic plan with 8 requests per minute limit", "API requests: 8 (800 a day)", "Internal non-display usage". The Grow plan lists "Internal display data access". The page does not map its personal and commercial licence types to plans.
+- [Documentation](https://twelvedata.com/docs): `GET /time_series` on `https://api.twelvedata.com` with `symbol`, `interval` (`1day`), `start_date`, `end_date` and `order` (default `desc`); one credit per symbol. The key goes in the query string or, the recommended way, an `Authorization: apikey <key>` header, which the app uses. The answer has `meta`, `values` (`datetime`, `open`, `high`, `low`, `close`, `volume`, as strings) and `status`.
+
+Showing Twelve Data's prices on a screen is display use, which the free plan's "Internal non-display usage" does not cover. So nothing is sent to Twelve Data until you switch on `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED`, which says your plan allows display. Leave it off on the free plan. When it is on, the app keeps to 6 requests a minute and 600 a day.
+
+### Financial Modeling Prep (not connected)
+
+Its API documentation answered HTTP 403 to automated reading on 14 October 2026, so its free plan's endpoints and answer format could not be confirmed, and no adapter was written. There is no `FMP_API_KEY` setting. An adapter would go in `electron/eod.cjs` beside the three above.
 
 ## Disabled and not reviewed
 
 - Finnhub, Coinbase Exchange and Frankfurter fed the browser build. They are switched off (`BROWSER_FEEDS_ENABLED` in `src/data/providers.ts`): Finnhub needed an API key held in the browser, and none of their terms were reviewed for this use. A Finnhub key saved by an earlier version is erased at start-up.
-- Twelve Data and Financial Modeling Prep are not used. Their pricing and display terms were not reviewed in this check.
 
 ## User agents
 

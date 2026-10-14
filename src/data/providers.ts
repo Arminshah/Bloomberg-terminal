@@ -9,7 +9,7 @@ import type { FeedName } from './live/status';
  * puts the two together. See docs/data-providers.md for the full notes.
  */
 
-export type Credential = 'FRED_API_KEY' | 'MASSIVE_API_KEY' | 'SEC_USER_AGENT' | 'COINGECKO_API_KEY';
+export type Credential = 'FRED_API_KEY' | 'MASSIVE_API_KEY' | 'SEC_USER_AGENT' | 'COINGECKO_API_KEY' | 'ALPHA_VANTAGE_API_KEY' | 'TWELVE_DATA_API_KEY';
 
 /**
  * enabled: in use; needs-credential: in use once its key is configured;
@@ -411,20 +411,68 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'massive',
     name: 'Massive (formerly Polygon.io)',
-    serves: 'US stock end-of-day history (planned)',
-    dataClass: 'End of day',
-    policy: 'planned',
+    serves: 'US stock daily bars for checking the closes the app shows (CROSSCHECK)',
+    dataClass: 'End of day, split-adjusted',
+    policy: 'needs-credential',
     credential: 'MASSIVE_API_KEY',
-    terms: 'Personal, non-commercial, non-business use as a non-professional; no redistribution or display to anyone else, derived works included.',
+    limit: '5',
+    terms: 'Personal, non-commercial, non-business use as a non-professional; no redistribution or display to anyone else, derived works included. Stocks Basic: "$0 /month", "5 API Calls / Minute", "2 Years Historical Data", "End of Day Data". The app asks at most 5 times a minute, only from CROSSCHECK.',
     docs: [
       { label: 'Stocks pricing', url: 'https://massive.com/pricing?product=stocks' },
-      { label: 'Stocks REST docs', url: 'https://massive.com/docs/rest/stocks' },
+      { label: 'REST quickstart (keys)', url: 'https://massive.com/docs/rest/quickstart' },
+      { label: 'Custom bars', url: 'https://www.massive.com/docs/rest/stocks/aggregates/custom-bars' },
       { label: 'Individual terms', url: 'https://www.massive.com/legal/individuals-terms-of-service' },
       { label: 'Market data terms', url: 'https://massive.com/legal/market-data-terms-of-service' },
     ],
-    checked: CHECKED,
+    checked: '2026-10-14',
     desktop: true,
   },
+  {
+    id: 'alphavantage',
+    name: 'Alpha Vantage',
+    serves: 'US stock daily bars (latest 100 sessions) for checking closes (CROSSCHECK)',
+    dataClass: 'End of day, as traded (not adjusted)',
+    policy: 'needs-credential',
+    credential: 'ALPHA_VANTAGE_API_KEY',
+    limit: '1',
+    terms: 'Licence: "install, use, access, display and run" for "personal, non-commercial use"; use counts as commercial if, among other things, you work for a financial firm such as a broker-dealer or investment adviser. Free key: "25 API requests per day"; the full history and real-time or 15-minute delayed US data are premium. The app keeps to 20 requests a day and one a minute, only from CROSSCHECK.',
+    docs: [
+      { label: 'API documentation', url: 'https://www.alphavantage.co/documentation/' },
+      { label: 'Support and limits', url: 'https://www.alphavantage.co/support/' },
+      { label: 'Terms of service', url: 'https://www.alphavantage.co/terms_of_service/' },
+    ],
+    checked: '2026-10-14',
+    desktop: true,
+  },
+  {
+    id: 'twelvedata',
+    name: 'Twelve Data',
+    serves: 'US stock daily bars for checking closes (CROSSCHECK), once display rights are confirmed',
+    dataClass: 'End of day',
+    policy: 'needs-credential',
+    credential: 'TWELVE_DATA_API_KEY',
+    setting: 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED',
+    limit: '6',
+    terms: 'Basic (free) plan: 8 requests a minute, 800 a day, "Internal non-display usage". Showing its prices on a screen needs a plan that allows display, so the app sends nothing until you switch on TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED.',
+    docs: [
+      { label: 'Pricing', url: 'https://twelvedata.com/pricing' },
+      { label: 'API documentation', url: 'https://twelvedata.com/docs' },
+    ],
+    checked: '2026-10-14',
+    desktop: true,
+  },
+  {
+    id: 'fmp',
+    name: 'Financial Modeling Prep',
+    serves: 'Nothing yet: not connected',
+    dataClass: 'None',
+    policy: 'planned',
+    terms: "Its API documentation answered HTTP 403 to automated reading on 14 October 2026, so its free plan's endpoints and answer format could not be checked and no adapter was written. One would go beside the other end-of-day adapters in electron/eod.cjs.",
+    docs: [{ label: 'Pricing', url: 'https://site.financialmodelingprep.com/pricing-plans' }],
+    checked: '2026-10-14',
+    desktop: true,
+  },
+
   {
     id: 'finnhub',
     name: 'Finnhub',
@@ -442,7 +490,7 @@ export const PROVIDERS: ProviderDef[] = [
     serves: 'Nothing: switched off',
     dataClass: 'None',
     policy: 'disabled',
-    terms: 'Not approved: its market data terms have not been reviewed for this use. The desktop app takes crypto prices from Yahoo Finance.',
+    terms: 'Not approved: its market data terms have not been reviewed for this use. The desktop app takes crypto prices from Kraken.',
     docs: [{ label: 'Exchange API', url: 'https://docs.cdp.coinbase.com/exchange/docs/welcome' }],
     checked: CHECKED,
     desktop: false,
@@ -480,7 +528,7 @@ export interface ProviderStats {
   lastErrorKind: string | null;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED';
 
 export interface SettingState {
   label: string;

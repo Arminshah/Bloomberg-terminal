@@ -56,27 +56,27 @@ function ago(t: number | null | undefined, now: number): string {
   return new Date(t).toLocaleString();
 }
 
-/** The switch or key a provider depends on, and where its value comes from. */
+/** The switch and key a provider depends on, and where their values come from. */
 function Requirement({ p, report }: { p: ProviderDef; report: ProviderReport | null }) {
-  if (p.setting) {
-    const st = report?.settings?.[p.setting];
-    if (!st) return <span className="muted">--</span>;
-    return (
-      <span title={st.label}>
-        {p.setting} {st.value ? 'on' : 'off'} <span className="muted">({st.source})</span>
-      </span>
-    );
-  }
-  if (p.credential) {
-    const st = report?.credentials[p.credential];
-    return (
-      <span>
-        {p.credential} {st?.configured ? (st.valid ? 'set' : 'set, wrong format') : 'not set'}
-        {st?.source ? <span className="muted"> ({st.source})</span> : null}
-      </span>
-    );
-  }
-  return <span className="muted">no key needed</span>;
+  if (!p.setting && !p.credential) return <span className="muted">no key needed</span>;
+  const sw = p.setting ? report?.settings?.[p.setting] : undefined;
+  const key = p.credential ? report?.credentials[p.credential] : undefined;
+  return (
+    <>
+      {p.setting ? (
+        <div title={sw?.label}>
+          {p.setting} {sw ? (sw.value ? 'on' : 'off') : '--'}
+          {sw?.source ? <span className="muted"> ({sw.source})</span> : null}
+        </div>
+      ) : null}
+      {p.credential ? (
+        <div>
+          {p.credential} {key?.configured ? (key.valid ? 'set' : 'set, wrong format') : 'not set'}
+          {key?.source ? <span className="muted"> ({key.source})</span> : null}
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 /**
@@ -189,6 +189,7 @@ export function PROV(_: FnProps) {
 const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'YAHOO_PRICES_ENABLED', help: 'Yahoo Finance prices, history and company data: unofficial, personal use. Off stops every request to Yahoo and its streaming socket.' },
   { name: 'KRAKEN_ENABLED', help: "Kraken's public market data for the crypto lines. Off hands them back to Yahoo, when Yahoo is on." },
+  { name: 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED', help: 'Twelve Data\'s free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data.' },
 ];
 
 function Switches({ report, onChange }: { report: ProviderReport | null; onChange: () => void }) {
@@ -240,7 +241,9 @@ const CREDENTIALS: { name: Credential; help: string; secret: boolean; placeholde
   { name: 'FRED_API_KEY', help: 'Free key from your FRED account (fredaccount.stlouisfed.org).', secret: true, placeholder: '32 lowercase letters and digits' },
   { name: 'SEC_USER_AGENT', help: 'The SEC asks every client to name itself and give a contact email it can reach, for example: Armin Terminal your-address@your-domain', secret: false, placeholder: 'Application name and your email' },
   { name: 'COINGECKO_API_KEY', help: "Free Demo key from your CoinGecko developer account: market value and supply of the listed coins, aggregated, with CoinGecko's attribution.", secret: true, placeholder: 'Demo API key' },
-  { name: 'MASSIVE_API_KEY', help: 'Key from your Massive account; the free Stocks Basic plan gives end-of-day US data.', secret: true, placeholder: 'API key' },
+  { name: 'MASSIVE_API_KEY', help: 'Key from your Massive account; the free Stocks Basic plan gives end-of-day US data (CROSSCHECK).', secret: true, placeholder: 'API key' },
+  { name: 'ALPHA_VANTAGE_API_KEY', help: 'Free key from alphavantage.co: 25 requests a day, personal non-commercial use (CROSSCHECK).', secret: true, placeholder: 'API key' },
+  { name: 'TWELVE_DATA_API_KEY', help: 'Key from your Twelve Data account (CROSSCHECK); nothing is sent until the TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED switch is on.', secret: true, placeholder: 'API key' },
 ];
 
 function Credentials({ report, onChange }: { report: ProviderReport | null; onChange: () => void }) {

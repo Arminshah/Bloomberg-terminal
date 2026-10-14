@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   sec: (kind, arg) => ipcRenderer.invoke('sec', String(kind), String(arg ?? '')),
   kraken: (kind, arg, n) => ipcRenderer.invoke('kraken', String(kind), String(arg ?? ''), Number(n ?? 0)),
   coingecko: () => ipcRenderer.invoke('coingecko'),
+  eod: (provider, ticker, from, to) => ipcRenderer.invoke('eod', String(provider), String(ticker), String(from), String(to)),
   // The provider switches as they were when this page loaded (YAHOO_PRICES_ENABLED, KRAKEN_ENABLED).
   settings: ipcRenderer.sendSync('providers:settings-sync'),
   // Provider status and credentials: values can be saved or cleared, never read back.

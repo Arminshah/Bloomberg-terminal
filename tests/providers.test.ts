@@ -78,7 +78,12 @@ describe('provider status', () => {
     expect(providerState(def('fred'), { ...report, credentials: { FRED_API_KEY: { label: 'FRED', configured: true, valid: true, source: 'environment' } } })).toBe('idle');
     expect(providerState(def('finnhub'), report)).toBe('disabled');
     expect(providerState(def('sec'), report)).toBe('not-configured');
-    expect(providerState(def('massive'), report)).toBe('planned');
+    expect(providerState(def('massive'), report)).toBe('not-configured');
+    expect(providerState(def('fmp'), report)).toBe('planned');
+    // Twelve Data with a key stays off until its display-rights switch is on.
+    const td = { ...report, credentials: { TWELVE_DATA_API_KEY: { label: 'Twelve Data', configured: true, valid: true, source: 'environment' } }, settings: { TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED: { label: 'Twelve Data display rights', value: false, source: null } } };
+    expect(providerState(def('twelvedata'), td)).toBe('switched-off');
+    expect(providerState(def('twelvedata'), { ...td, settings: { TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED: { label: 'Twelve Data display rights', value: true, source: 'saved in this app' } } })).toBe('idle');
     expect(providerState(def('yahoo'), { ...report, providers: { yahoo: { ...report.providers.yahoo, lastErrorAt: 3000 } } }, undefined, now)).toBe('error');
     // A symbol without data is an answer, not an outage.
     expect(providerState(def('yahoo'), { ...report, providers: { yahoo: { ...report.providers.yahoo, lastErrorAt: 3000, lastErrorKind: 'no-data' } } }, 'live', now)).toBe('live');

@@ -12,6 +12,8 @@ const CREDENTIALS = {
   // FRED documents its keys as 32-character lowercase alphanumeric strings.
   FRED_API_KEY: { label: 'FRED API key', valid: (v) => /^[a-z0-9]{32}$/.test(v) },
   MASSIVE_API_KEY: { label: 'Massive API key', valid: (v) => /^[A-Za-z0-9_-]{8,128}$/.test(v) },
+  ALPHA_VANTAGE_API_KEY: { label: 'Alpha Vantage API key', valid: (v) => /^[A-Za-z0-9]{8,64}$/.test(v) },
+  TWELVE_DATA_API_KEY: { label: 'Twelve Data API key', valid: (v) => /^[A-Za-z0-9]{16,64}$/.test(v) },
   // CoinGecko's free Demo plan: market caps and circulating supply, aggregated across exchanges.
   COINGECKO_API_KEY: { label: 'CoinGecko Demo API key', valid: (v) => /^[A-Za-z0-9_-]{10,64}$/.test(v) },
   // The SEC asks for an application name and a contact email it can reach.
@@ -92,6 +94,9 @@ const SETTINGS = {
   YAHOO_PRICES_ENABLED: { label: 'Yahoo Finance prices (unofficial, personal use)', default: true },
   // Kraken's public market data for the crypto lines. Off hands them back to Yahoo, when Yahoo is on.
   KRAKEN_ENABLED: { label: 'Kraken exchange prices for crypto (public market data)', default: true },
+  // Twelve Data's free plan is for internal, non-display use. Only the owner can say a plan allows showing its
+  // prices on screen; until then nothing is sent to Twelve Data.
+  TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED: { label: 'Twelve Data: my plan allows displaying its data', default: false },
 };
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'provider-settings.json');

@@ -24,7 +24,7 @@ const EQUITY: Group[] = [
   { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'FUNDCHART', 'VOLATILITY', 'BETA', 'SPREAD'] },
   { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP', 'OPTIONS', 'OPTIONCALC'] },
   { title: 'Credit', entries: ['BONDSEARCH', 'DEBTPROFILE'] },
-  { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION'] },
+  { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION', 'CROSSCHECK'] },
 ];
 
 const MENUS: Record<AssetClass, Group[]> = {
