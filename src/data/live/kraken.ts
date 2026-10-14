@@ -232,7 +232,7 @@ class KrakenData {
       }
     }
     engine.flush(KRAKEN_PAIRS.map((p) => p.id));
-    if (!ok) setFeed('crypto', 'error', 'Kraken: no daily candles (PROV shows why)');
+    if (!ok) setFeed('crypto', 'error', 'Kraken: no daily candles (PROVIDERS shows why)');
   }
 
   private async poll() {

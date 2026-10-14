@@ -5,7 +5,7 @@ import type { FeedName } from './live/status';
  * Every data provider the app uses or has planned, with what it serves, the
  * kind of data it is, the use conditions that apply, and the official pages
  * those come from (checked on the date given). The main process counts each
- * provider's requests and records how they end; the status screen (PROV)
+ * provider's requests and records how they end; the status screen (PROVIDERS)
  * puts the two together. See docs/data-providers.md for the full notes.
  */
 
@@ -95,7 +95,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'coingecko',
     name: 'CoinGecko',
-    serves: 'Market capitalisation and circulating supply of the listed coins (CRYP, DES)',
+    serves: 'Market capitalisation and circulating supply of the listed coins (CRYPTO, PROFILE)',
     dataClass: 'Aggregated across exchanges; reference figures, not a price',
     policy: 'needs-credential',
     cadenceMs: 10 * 60_000,

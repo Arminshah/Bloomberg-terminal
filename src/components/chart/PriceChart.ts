@@ -369,7 +369,7 @@ export class PriceChart {
     if (!s || !opt || s.length === 0) {
       ctx.fillStyle = T.axis;
       ctx.font = T.font;
-      ctx.fillText('No price history from the source yet (PROV shows its status)', 10, 20);
+      ctx.fillText('No price history from the source yet (PROVIDERS shows its status)', 10, 20);
       return;
     }
     this.computeIndicators();

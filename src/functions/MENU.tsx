@@ -239,7 +239,7 @@ function SectorMenu({ yk }: { yk: string }) {
       {sector.note && <p className="pad-s amber">{sector.note}</p>}
       <MenuGrid groups={groups} />
       {list.length > 0 && (
-        <Section title="Securities" right={`${list.length} shown · SECF to search all`}>
+        <Section title="Securities" right={`${list.length} shown · SEARCH to search all`}>
           <table className="tbl">
             <tbody>
               {list.map((d, i) => (

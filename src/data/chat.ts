@@ -29,9 +29,9 @@ export function botReply(text: string): string {
   if (!t) return '';
   if (/^(HI|HELLO|HEY)\b/.test(up)) return 'Hi. Ask me for a quote (e.g. "AAPL", "px gold"), "news NVDA", "eco" for the next releases, or "how do I chart?".';
   if (/HELP|WHAT CAN/.test(up)) return 'Try: AAPL · px EURUSD · news TSLA · eco · movers · how do I chart · how do I set an alert';
-  if (/HOW.*CHART/.test(up)) return 'Load a security and type GP, e.g. "AAPL US <EQUITY> GP <GO>" or simply "AAPL GP". GIP gives intraday.';
-  if (/HOW.*ALERT/.test(up)) return 'Type ALRT <GO>, pick the security, a condition and a level. Alerts fire as a pop-up even when ALRT is closed.';
-  if (/HOW.*(PORT|PORTFOLIO)/.test(up)) return 'PORT <GO> shows holdings, performance and risk. Add positions in the Holdings tab.';
+  if (/HOW.*CHART/.test(up)) return 'Type CHART and a security, e.g. "CHART AAPL", or "CHART AAPL 1D" for today\'s intraday chart.';
+  if (/HOW.*ALERT/.test(up)) return 'Type ALERTS <GO>, pick the security, a condition and a level. Alerts fire as a pop-up even when ALERTS is closed.';
+  if (/HOW.*(PORT|PORTFOLIO)/.test(up)) return 'PORTFOLIO <GO> shows holdings, performance and risk. Add positions in the Holdings tab.';
   if (/^ECO|CALENDAR|DATA/.test(up)) {
     const now = engine.now();
     const next = ecoEvents(now, now + 7 * 86_400_000, now).filter((e) => e.relevance >= 3).slice(0, 4);
@@ -47,7 +47,7 @@ export function botReply(text: string): string {
     const d = resolveSecurity(newsM[1]) ?? searchSecurities(newsM[1], 1)[0]?.def;
     if (!d) return `I could not find "${newsM[1]}".`;
     const s = news.get().stories.find((x) => x.tickers.includes(d.id));
-    return s ? `${s.headline} — type ${d.ticker.split(' ')[0]} CN <GO> for more` : `No recent headlines for ${d.ticker}.`;
+    return s ? `${s.headline}: type COMPANYNEWS ${d.ticker.split(' ')[0]} for more` : `No recent headlines for ${d.ticker}.`;
   }
   const px = /^(?:PX|PRICE|QUOTE|Q)\s+(.+)$/i.exec(t);
   const target = px ? px[1] : t;

@@ -4,7 +4,7 @@ import type { AssetClass, SecurityDef } from '../data/types';
 export interface Route {
   fn: string;
   sec?: string;
-  /** Free-form arguments typed after the mnemonic, e.g. "N TECH". */
+  /** Free-form arguments typed after the mnemonic, e.g. "NEWS TECH". */
   args?: string;
 }
 

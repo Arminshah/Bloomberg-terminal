@@ -413,7 +413,7 @@ export function reloadFred() {
 /**
  * Loads release dates (every 12 hours) and series values (every 10 minutes);
  * retries every 2 minutes until both answer, except while the key is missing or
- * refused: then asking again cannot help, and saving a key in PROV loads again.
+ * refused: then asking again cannot help, and saving a key in PROVIDERS loads again.
  */
 export function startFred(): () => void {
   if (!fredAvailable()) return () => undefined;
@@ -425,8 +425,8 @@ export function startFred(): () => void {
     const fredOk = Object.keys(s.releases).length > 0 && US_EVENTS.some((e) => s.series[e.series]?.length);
     const officialOk = Object.keys(s.series).some((id) => id.includes(':'));
     if (fredOk) setFeed('eco', 'live', 'US releases and values from the FRED API; UK and euro area statistics from the ONS and Eurostat');
-    else if (s.keyRefused) setFeed('eco', officialOk ? 'live' : 'blocked', `The FRED API key was not accepted (check it in PROV)${officialOk ? '; ONS and Eurostat statistics are live' : ''}`);
-    else if (s.needsKey) setFeed('eco', officialOk ? 'live' : 'blocked', `FRED needs your API key (open PROV to add it)${officialOk ? '; ONS and Eurostat statistics are live' : ''}`);
+    else if (s.keyRefused) setFeed('eco', officialOk ? 'live' : 'blocked', `The FRED API key was not accepted (check it in PROVIDERS)${officialOk ? '; ONS and Eurostat statistics are live' : ''}`);
+    else if (s.needsKey) setFeed('eco', officialOk ? 'live' : 'blocked', `FRED needs your API key (open PROVIDERS to add it)${officialOk ? '; ONS and Eurostat statistics are live' : ''}`);
     else setFeed('eco', officialOk ? 'live' : 'error', officialOk ? 'FRED unavailable; ONS and Eurostat statistics are live' : 'Economic data sources unavailable');
     return fredOk;
   };

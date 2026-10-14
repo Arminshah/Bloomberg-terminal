@@ -10,7 +10,7 @@ import { adoptYahooHistory, barsFromChart, yahooGet, type Dividend } from './yah
 /**
  * Securities that are not built in are looked up online when someone types
  * them. The desktop app asks Yahoo Finance through its main process (no key
- * needed); the browser uses Finnhub with the key from PDFU. Found securities
+ * needed); the browser uses Finnhub with the key from SETTINGS. Found securities
  * are saved, so they load instantly (and calibrated) on the next start.
  */
 
@@ -335,7 +335,7 @@ export function defFromFinnhub(ticker: string, profile: Json, metricRes: Json, q
 async function finnhubGet(path: string): Promise<Json> {
   const key = settings.get().finnhubKey.trim();
   const res = await fetch(`${FINNHUB}${path}${path.includes('?') ? '&' : '?'}token=${encodeURIComponent(key)}`);
-  if (res.status === 401 || res.status === 403) throw new Error('Finnhub rejected the API key (check it in PDFU)');
+  if (res.status === 401 || res.status === 403) throw new Error('Finnhub rejected the API key (check it in SETTINGS)');
   if (res.status === 429) throw new Error('Finnhub rate limit reached; try again in a minute');
   if (!res.ok) throw new Error(`Finnhub ${res.status}`);
   return res.json();

@@ -37,7 +37,7 @@ export function secAvailable(): boolean {
 
 export const SEC_DESKTOP_ONLY = 'SEC EDGAR is read by the desktop app: data.sec.gov does not accept requests from web pages on other sites.';
 export const SEC_NEEDS_AGENT =
-  'The SEC asks every program that reads EDGAR to identify itself with a name and a contact email. Set SEC_USER_AGENT on the provider screen (PROV), for example "Armin Terminal you@yourdomain.com". Nothing is sent to the SEC until it is set.';
+  'The SEC asks every program that reads EDGAR to identify itself with a name and a contact email. Set SEC_USER_AGENT on the provider screen (PROVIDERS), for example "Armin Terminal you@yourdomain.com". Nothing is sent to the SEC until it is set.';
 
 /** Fetches one SEC file through the main process and parses it. */
 async function secFetch<T>(kind: SecKind, arg: string, parse: (text: string) => T | null): Promise<SecResult<T>> {

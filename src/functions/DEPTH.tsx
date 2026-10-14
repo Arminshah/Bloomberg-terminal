@@ -168,7 +168,7 @@ function KrakenDepth({ sec: s }: { sec: SecurityDef }) {
       />
       <QuoteStrip sec={s} />
       {!book ? (
-        <div className="empty">{failed ? 'Kraken did not answer; trying again every few seconds (PROV shows why).' : 'Loading the order book from Kraken…'}</div>
+        <div className="empty">{failed ? 'Kraken did not answer; trying again every few seconds (PROVIDERS shows why).' : 'Loading the order book from Kraken…'}</div>
       ) : (
         <>
           <div className="chart-tools">

@@ -278,7 +278,7 @@ export function PDFU(_: FnProps) {
               {feedRow('Headlines', feeds.news, feeds.detail.news)}
             </tbody>
           </table>
-          <div className="note">Every provider, its state, terms and credentials: PROV &lt;GO&gt;.</div>
+          <div className="note">Every provider, its state, terms and credentials: PROVIDERS &lt;GO&gt;.</div>
         </Section>
         <Section title="Workspace">
           <KV items={[['Panels', String(terminal.get().panels.length)], ['Layout', terminal.get().layout]]} />
