@@ -3,8 +3,10 @@
 // rules: Yahoo Finance paths on an allowlist, the US Treasury's daily yield
 // curve by year, official rates, calendars and bond yields from central banks
 // and finance ministries (fixed sources named by key), FRED release dates
-// and series from a fixed list, SEC EDGAR files by kind and CIK, and Kraken
-// tickers, candles and order books for a fixed list of crypto pairs.
+// and series from a fixed list, SEC EDGAR files by kind and CIK, Kraken
+// tickers, candles and order books for a fixed list of crypto pairs, analyst
+// research from Financial Modeling Prep, news from fixed sources and Alpaca's
+// IEX quotes, each for a validated ticker.
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('arminDesktop', {
@@ -17,12 +19,16 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   kraken: (kind, arg, n) => ipcRenderer.invoke('kraken', String(kind), String(arg ?? ''), Number(n ?? 0)),
   coingecko: () => ipcRenderer.invoke('coingecko'),
   eod: (provider, ticker, from, to) => ipcRenderer.invoke('eod', String(provider), String(ticker), String(from), String(to)),
+  analysts: (kind, symbol) => ipcRenderer.invoke('analysts', String(kind), String(symbol)),
+  news: (source, arg) => ipcRenderer.invoke('news', String(source), String(arg ?? '')),
+  alpaca: (kind, symbols) => ipcRenderer.invoke('alpaca', String(kind), String(symbols)),
   // The provider switches as they were when this page loaded (YAHOO_PRICES_ENABLED, KRAKEN_ENABLED).
   settings: ipcRenderer.sendSync('providers:settings-sync'),
   // Provider status and credentials: values can be saved or cleared, never read back.
   providersStatus: () => ipcRenderer.invoke('providers:status'),
   providersSet: (name, value) => ipcRenderer.invoke('providers:set', String(name), String(value)),
   providersClear: (name) => ipcRenderer.invoke('providers:clear', String(name)),
+  providersImport: (text) => ipcRenderer.invoke('providers:import', String(text)),
   providersSetting: (name, value) => ipcRenderer.invoke('providers:setting', String(name), value === true),
   streamOpen: () => ipcRenderer.invoke('stream:open'),
   streamSend: (msg) => ipcRenderer.invoke('stream:send', String(msg)),

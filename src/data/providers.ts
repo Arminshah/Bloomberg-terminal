@@ -9,7 +9,20 @@ import type { FeedName } from './live/status';
  * puts the two together. See docs/data-providers.md for the full notes.
  */
 
-export type Credential = 'FRED_API_KEY' | 'MASSIVE_API_KEY' | 'SEC_USER_AGENT' | 'COINGECKO_API_KEY' | 'ALPHA_VANTAGE_API_KEY' | 'TWELVE_DATA_API_KEY';
+export type Credential =
+  | 'FRED_API_KEY'
+  | 'MASSIVE_API_KEY'
+  | 'SEC_USER_AGENT'
+  | 'COINGECKO_API_KEY'
+  | 'ALPHA_VANTAGE_API_KEY'
+  | 'TWELVE_DATA_API_KEY'
+  | 'FINNHUB_API_KEY'
+  | 'MARKETAUX_API_TOKEN'
+  | 'TIINGO_API_KEY'
+  | 'ALPACA_API_KEY_ID'
+  | 'ALPACA_API_SECRET_KEY'
+  | 'FMP_API_KEY'
+  | 'TIPRANKS_API_KEY';
 
 /**
  * enabled: in use; needs-credential: in use once its key is configured;
@@ -27,6 +40,8 @@ export interface ProviderDef {
   dataClass: string;
   policy: ProviderPolicy;
   credential?: Credential;
+  /** A second key the provider needs (Alpaca's secret). */
+  credential2?: Credential;
   /** The feed light this provider drives, if any. */
   feed?: FeedName;
   /** The switch that turns it off, for providers that have one. */
@@ -394,7 +409,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'sec',
     name: 'SEC EDGAR',
-    serves: 'Company search (ticker to CIK), filing histories with links to the documents, and figures reported in XBRL financial statements',
+    serves: 'Company search (ticker to CIK), filing histories with links to the documents, figures reported in XBRL financial statements, and the latest 8-K filings for MARKETNEWS',
     dataClass: 'Reference: filed documents and as-filed figures',
     policy: 'needs-credential',
     credential: 'SEC_USER_AGENT',
@@ -404,8 +419,9 @@ export const PROVIDERS: ProviderDef[] = [
       { label: 'Accessing EDGAR data', url: 'https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data' },
       { label: 'EDGAR APIs', url: 'https://www.sec.gov/search-filings/edgar-application-programming-interfaces' },
       { label: 'Webmaster FAQ (developers)', url: 'https://www.sec.gov/os/webmaster-faq' },
+      { label: 'RSS feeds (latest filings)', url: 'https://www.sec.gov/about/rss-feeds' },
     ],
-    checked: '2026-10-13',
+    checked: '2026-10-14',
     desktop: true,
   },
   {
@@ -462,27 +478,123 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
-    id: 'fmp',
-    name: 'Financial Modeling Prep',
-    serves: 'Nothing yet: not connected',
-    dataClass: 'None',
-    policy: 'planned',
-    terms: "Its API documentation answered HTTP 403 to automated reading on 14 October 2026, so its free plan's endpoints and answer format could not be checked and no adapter was written. One would go beside the other end-of-day adapters in electron/eod.cjs.",
-    docs: [{ label: 'Pricing', url: 'https://site.financialmodelingprep.com/pricing-plans' }],
+    id: 'tiingo',
+    name: 'Tiingo',
+    serves: 'US stock daily bars for checking closes (CROSSCHECK)',
+    dataClass: 'End of day, as traded',
+    policy: 'needs-credential',
+    credential: 'TIINGO_API_KEY',
+    setting: 'TIINGO_ENABLED',
+    limit: '1',
+    terms: 'Starter (free) plan: "Max Requests Per Hour 50", "Max Requests Per Day 1000", "Unique Symbols per Month 500"; licence "Internal Use Only": for your own personal use, not to be displayed or shared with anyone else. Its data may not be kept in persistent storage (terms 1.6(a)), so the app keeps it in memory only. News is not on the free plan. The app asks only from CROSSCHECK: at most 40 an hour and 500 a day.',
+    docs: [
+      { label: 'End-of-day API', url: 'https://www.tiingo.com/documentation/end-of-day' },
+      { label: 'Pricing', url: 'https://www.tiingo.com/about/pricing' },
+      { label: 'Terms', url: 'https://www.tiingo.com/about/terms' },
+    ],
     checked: '2026-10-14',
     desktop: true,
   },
-
+  {
+    id: 'fmp',
+    name: 'Financial Modeling Prep',
+    serves: 'Analyst price targets, the tally of ratings, rating actions and annual estimates (ANALYSTS, EARNINGS)',
+    dataClass: "Analyst opinions as FMP gathers them; as of each answer",
+    policy: 'needs-credential',
+    credential: 'FMP_API_KEY',
+    setting: 'FMP_ENABLED',
+    limit: '30',
+    terms: "Free plan with your own key: 250 requests a day (as your account page states). The app keeps to 220, asks only for the company on screen, and keeps answers six hours (estimates a day). Checked live on 14 October 2026: price targets, ratings and rating actions answered for AAPL.",
+    docs: [
+      { label: 'Pricing', url: 'https://site.financialmodelingprep.com/pricing-plans' },
+      { label: 'Price target API', url: 'https://site.financialmodelingprep.com/developer/docs/stable/price-target-consensus' },
+      { label: 'Terms', url: 'https://site.financialmodelingprep.com/terms-of-service' },
+    ],
+    checked: '2026-10-14',
+    desktop: true,
+  },
   {
     id: 'finnhub',
     name: 'Finnhub',
-    serves: 'Nothing: switched off',
+    serves: 'Market news and company news (MARKETNEWS, COMPANYNEWS); not prices or history',
+    dataClass: 'News headlines with publisher, time and link',
+    policy: 'needs-credential',
+    credential: 'FINNHUB_API_KEY',
+    setting: 'FINNHUB_ENABLED',
+    limit: '30',
+    terms: 'Free plan: "Personal Use", "60 API calls/minute". Market news and company news are on it (company news: North American companies, a year of history); price targets are not ("Premium required"). Terms: plans are "strictly for personal use", data is to be deleted when a subscription ends, no sharing. The app asks for market news every 5 minutes and a company\'s news every 15 while a screen shows it, and shows headlines with links, not article text.',
+    docs: [
+      { label: 'Market news', url: 'https://finnhub.io/docs/api/market-news' },
+      { label: 'Company news', url: 'https://finnhub.io/docs/api/company-news' },
+      { label: 'Terms of service', url: 'https://finnhub.io/terms-of-service' },
+    ],
+    checked: '2026-10-14',
+    desktop: true,
+  },
+  {
+    id: 'marketaux',
+    name: 'Marketaux',
+    serves: 'News tagged with tickers and per-company sentiment, for your watchlist and the company on screen (MARKETNEWS, COMPANYNEWS)',
+    dataClass: 'News headlines with sentiment scores',
+    policy: 'needs-credential',
+    credential: 'MARKETAUX_API_TOKEN',
+    setting: 'MARKETAUX_ENABLED',
+    limit: '10',
+    terms: 'Free plan: "100 requests daily" (reset at midnight UTC), "3 articles / news request"; "We only provide a short snippet of articles along with their links." Licence for personal, non-commercial use. The app asks for the whole watchlist in one request, keeps each answer an hour, never polls in a loop and stops at 90 requests a day.',
+    docs: [
+      { label: 'Documentation', url: 'https://www.marketaux.com/documentation' },
+      { label: 'Pricing', url: 'https://www.marketaux.com/pricing' },
+      { label: 'Terms', url: 'https://www.marketaux.com/terms' },
+    ],
+    checked: '2026-10-14',
+    desktop: true,
+  },
+  {
+    id: 'marketwatch',
+    name: 'MarketWatch (RSS)',
+    serves: 'Top stories headlines (MARKETNEWS), only with its switch on',
+    dataClass: 'News headlines with time and link',
+    policy: 'enabled',
+    setting: 'MARKETWATCH_RSS_ENABLED',
+    limit: '6',
+    terms: "Dow Jones's terms of use (30 June 2026) bar access to its content \"using any automated means ... API client\" without written consent (9.4.1), RSS feeds included (9.1). Off by default; switching it on accepts that risk, as with Yahoo. When on: the top stories feed every 10 minutes, headlines and links only.",
+    docs: [{ label: 'Top stories feed', url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories' }],
+    checked: '2026-10-14',
+    desktop: true,
+  },
+  {
+    id: 'alpaca',
+    name: 'Alpaca Market Data (IEX)',
+    serves: 'IEX last trade, best bid and offer, and volume for a US stock on QUOTE, labelled IEX only',
+    dataClass: 'Real time, IEX only: one exchange, not the whole US market',
+    policy: 'needs-credential',
+    credential: 'ALPACA_API_KEY_ID',
+    credential2: 'ALPACA_API_SECRET_KEY',
+    setting: 'ALPACA_ENABLED',
+    limit: '120',
+    terms: 'Basic (free) plan: "Real-time market coverage IEX", "Historical API calls 200 / min"; the latest-quote and snapshot endpoints need a subscription for the consolidated (SIP) feed, so the app asks for IEX. Use "solely for your own personal and non-commercial purposes". Only data.alpaca.markets is called, never a trading or account endpoint; quotes are kept 4 seconds.',
+    docs: [
+      { label: 'Market data API', url: 'https://docs.alpaca.markets/docs/about-market-data-api' },
+      { label: 'Snapshots', url: 'https://docs.alpaca.markets/reference/stocksnapshots-1' },
+      { label: 'Pricing', url: 'https://alpaca.markets/data' },
+    ],
+    checked: '2026-10-14',
+    desktop: true,
+  },
+  {
+    id: 'tipranks',
+    name: 'TipRanks',
+    serves: 'Nothing yet: not connected',
     dataClass: 'None',
-    policy: 'disabled',
-    terms: 'Not approved: it needed an API key held in the browser, and its terms have not been reviewed for this use.',
-    docs: [{ label: 'Terms of service', url: 'https://finnhub.io/terms-of-service' }],
-    checked: CHECKED,
-    desktop: false,
+    policy: 'planned',
+    credential: 'TIPRANKS_API_KEY',
+    terms: 'An MCP server (JSON-RPC over HTTP) with tools such as get_assets_data (consensus, price target, Smart Score) and get_recent_analyst_ratings. API-key free plan: 10 requests a minute and 50 a month per account, every tool call counted. Terms (1 June 2026): use "solely to build and operate your own applications", credit "Data by TipRanks", no storage beyond transient caching. Not connected yet: its tools\' inputs and answers are only visible with a key, and this build could not check them. Analyst price targets come from Financial Modeling Prep meanwhile.',
+    docs: [
+      { label: 'MCP docs', url: 'https://mcp.tipranks.com/docs' },
+      { label: 'MCP terms', url: 'https://mcp.tipranks.com/terms' },
+    ],
+    checked: '2026-10-14',
+    desktop: true,
   },
   {
     id: 'coinbase',
@@ -526,9 +638,13 @@ export interface ProviderStats {
   lastErrorAt: number | null;
   lastError: string | null;
   lastErrorKind: string | null;
+  /** Requests sent today (UTC), and the provider's daily limit and the app's own ceiling where they apply. */
+  today?: number;
+  dayLimit?: number;
+  dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'TIINGO_ENABLED';
 
 export interface SettingState {
   label: string;
@@ -577,6 +693,7 @@ export function providerState(def: ProviderDef, report: ProviderReport | null, f
   if (def.policy === 'planned') return 'planned';
   if (def.setting && report?.settings?.[def.setting]?.value === false) return 'switched-off';
   if (def.credential && !report?.credentials[def.credential]?.configured) return 'not-configured';
+  if (def.credential2 && !report?.credentials[def.credential2]?.configured) return 'not-configured';
   const s = report?.providers[def.id];
   // "No data" for one symbol or series is an answer, not a failure of the provider.
   if (s?.lastErrorAt && s.lastErrorKind !== 'no-data' && (!s.lastSuccessAt || s.lastErrorAt > s.lastSuccessAt)) return 'error';

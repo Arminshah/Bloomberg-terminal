@@ -96,6 +96,16 @@ ipcMain.handle('providers:set', (event, name, value) => {
   }
 });
 
+// Keys pasted as a list (PROVIDERS): each recognised one is saved encrypted; only names and reasons return.
+ipcMain.handle('providers:import', (event, text) => {
+  if (!fromApp(event) || typeof text !== 'string' || text.length > 10_000) throw new Error('not allowed');
+  try {
+    return { ok: true, ...providers.importCredentials(text), credentials: providers.credentialStatus() };
+  } catch (err) {
+    return { ok: false, error: String(err.message ?? err), saved: [], skipped: [], credentials: providers.credentialStatus() };
+  }
+});
+
 ipcMain.handle('providers:clear', (event, name) => {
   if (!fromApp(event) || typeof name !== 'string') throw new Error('not allowed');
   providers.clearCredential(name);
@@ -433,11 +443,12 @@ ipcMain.handle('eod', async (event, provider, ticker, from, to) => {
     providers.recordProblem(provider, 'not-entitled', `The configured ${def.credential} has the wrong format, so it was not sent.`);
     return { status: 0, text: '', refused: 'wrong format' };
   }
-  if (!eod.takeDaily(provider)) {
+  if (!providers.withinDailyCap(provider) || !eod.takeDaily(provider)) {
     providers.recordProblem(provider, 'rate-limited', "The app's daily budget for this provider is spent; it asks again tomorrow (UTC).");
     return { status: 0, text: '', budget: true };
   }
   await providers.slot(provider, def.perMinute, 60_000);
+  if (def.perHour) await providers.slot(`${provider}:hour`, def.perHour, 3_600_000);
   const req = eod.eodRequest(provider, ticker, from, to, key);
   const res = await tracked(provider, req.url, { headers: { 'User-Agent': clientAgent(), Accept: 'application/json', ...req.headers }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
   const text = await res.text().catch(() => '');
@@ -447,6 +458,146 @@ ipcMain.handle('eod', async (event, provider, ticker, from, to) => {
     return { status: res.status, text: '' };
   }
   return { status: res.status, text };
+});
+
+// ----------------------------------------- Analyst research, news, IEX quotes
+// Financial Modeling Prep (electron/fmp.cjs), the news sources (electron/news.cjs) and Alpaca's IEX data
+// (electron/alpaca.cjs), each with the owner's key where it needs one. Answers are kept for a while per
+// request; a provider's daily ceiling, pace and failures are handled here, the same way for all of them.
+const fmp = require('./fmp.cjs');
+const news = require('./news.cjs');
+const alpaca = require('./alpaca.cjs');
+
+/** Answers kept per request (the URL without its key), with the time they arrived. */
+const kept = new Map();
+const keyless = (url) => url.replace(/([?&](?:apikey|api_token)=)[^&]*/gi, '$1<key>');
+
+/**
+ * Consecutive failures per provider. After five in a row the provider is left alone for two minutes
+ * (a circuit breaker), so a source that is down is not asked again and again; a kept answer, marked
+ * stale, stands in meanwhile.
+ */
+const breakers = new Map();
+const BREAK_AFTER = 5;
+const BREAK_FOR = 2 * 60_000;
+
+/**
+ * A GET for `provider`: a kept answer younger than `ttl` comes back as it is; otherwise the request
+ * waits for its pace slot, is retried twice after a network failure, timeout or server error (1 s and
+ * 2 s apart, plus up to 300 ms at random), and a failure brings back an older kept answer marked stale.
+ * Past the provider's daily ceiling nothing is sent.
+ */
+async function keyedGet(provider, url, headers, ttl, pace, secrets, agent) {
+  const id = keyless(url);
+  const old = kept.get(id);
+  if (old && Date.now() - old.at < ttl) return { status: 200, text: old.text, at: old.at, cached: true };
+  // The same request asked twice while the first is out shares its answer (and its place in the budget).
+  const out = inflight.get(id);
+  if (out) return out;
+  const p = sendKeyed(provider, url, headers, pace, secrets, agent, id, old);
+  inflight.set(id, p);
+  try {
+    return await p;
+  } finally {
+    inflight.delete(id);
+  }
+}
+
+/** Requests on their way, by their keyless URL. */
+const inflight = new Map();
+
+async function sendKeyed(provider, url, headers, pace, secrets, agent, id, old) {
+  const stale = (extra) => (old ? { status: 0, text: old.text, at: old.at, stale: true, ...extra } : { status: 0, text: '', ...extra });
+  const b = breakers.get(provider);
+  if (b && b.openUntil > Date.now()) return stale({ error: `Paused after ${b.fails} failures in a row; asks again at ${new Date(b.openUntil).toISOString().slice(11, 19)} UTC` });
+  if (!providers.withinDailyCap(provider)) {
+    providers.recordProblem(provider, 'rate-limited', "The app's daily budget for this provider is spent; it asks again after midnight UTC.");
+    return stale({ budget: true });
+  }
+  const failed = () => {
+    const f = breakers.get(provider) ?? { fails: 0, openUntil: 0 };
+    f.fails++;
+    if (f.fails >= BREAK_AFTER) f.openUntil = Date.now() + BREAK_FOR;
+    breakers.set(provider, f);
+  };
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    await providers.slot(provider, pace[0], pace[1]);
+    try {
+      res = await tracked(provider, url, { headers: { 'User-Agent': agent ?? clientAgent(), Accept: 'application/json', ...headers }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+      if (res.status < 500 || attempt >= 2) break;
+      // A server error is retried; its body is read and dropped so the connection is freed.
+      await res.text().catch(() => '');
+    } catch (err) {
+      if (attempt >= 2) {
+        failed();
+        return stale({ error: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) });
+      }
+    }
+    await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt + Math.random() * 300));
+  }
+  const text = await res.text().catch(() => '');
+  if (!res.ok) {
+    if (res.status >= 500 || res.status === 429) failed();
+    const why = providers.providerMessage(text, secrets);
+    providers.recordProblem(provider, providers.errorKind(res.status), `HTTP ${res.status}${why ? `: ${why}` : ''}`);
+    return { ...stale({ error: `HTTP ${res.status}${why ? `: ${why}` : ''}` }), status: res.status };
+  }
+  breakers.delete(provider);
+  const at = Date.now();
+  kept.set(id, { text, at });
+  // A few hundred answers at most; the oldest go first.
+  if (kept.size > 400) kept.delete(kept.keys().next().value);
+  return { status: res.status, text, at };
+}
+
+/** A configured key that passes its check, or why there is none. */
+function usableKey(name, provider) {
+  const value = providers.credential(name).value;
+  if (!value) return { missing: name };
+  if (!providers.CREDENTIALS[name].valid(value)) {
+    providers.recordProblem(provider, 'not-entitled', `The configured ${name} has the wrong format, so it was not sent.`);
+    return { refused: 'wrong format' };
+  }
+  return { value };
+}
+
+ipcMain.handle('analysts', async (event, kind, symbol) => {
+  if (!fromApp(event) || !fmp.fmpRequest(kind, symbol, 'x')) throw new Error('not allowed');
+  if (!providers.setting('FMP_ENABLED').value) return { status: 0, text: '', gated: 'FMP_ENABLED' };
+  const key = usableKey('FMP_API_KEY', 'fmp');
+  if (!key.value) return { status: 0, text: '', ...key };
+  const req = fmp.fmpRequest(kind, symbol, key.value);
+  return keyedGet('fmp', req.url, {}, req.ttl, [30, 60_000], [key.value]);
+});
+
+const NEWS_PACE = { finnhub: [30, 60_000], marketaux: [10, 60_000], marketwatch: [6, 60_000], sec: [sec.PER_SECOND, 1000] };
+
+ipcMain.handle('news', async (event, source, arg) => {
+  if (!fromApp(event) || !news.newsRequest(source, arg, 'x')) throw new Error('not allowed');
+  const def = news.SOURCES[source];
+  if (def.gate && !providers.setting(def.gate).value) return { status: 0, text: '', gated: def.gate };
+  let key = '';
+  if (def.credential) {
+    const k = usableKey(def.credential, def.provider);
+    if (!k.value) return { status: 0, text: '', ...k };
+    key = k.value;
+  }
+  const req = news.newsRequest(source, arg, key);
+  return keyedGet(def.provider, req.url, req.headers, req.ttl, NEWS_PACE[def.provider], def.agent ? [] : [key], def.agent ? key : undefined);
+});
+
+ipcMain.handle('alpaca', async (event, kind, symbols) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const url = alpaca.alpacaRequest(kind, symbols);
+  if (!url) throw new Error('not allowed');
+  if (!providers.setting('ALPACA_ENABLED').value) return { status: 0, text: '', gated: 'ALPACA_ENABLED' };
+  const id = usableKey('ALPACA_API_KEY_ID', 'alpaca');
+  if (!id.value) return { status: 0, text: '', ...id };
+  const secret = usableKey('ALPACA_API_SECRET_KEY', 'alpaca');
+  if (!secret.value) return { status: 0, text: '', ...secret };
+  // Alpaca's free plan allows 200 requests a minute; quotes are kept for 4 seconds.
+  return keyedGet('alpaca', url, alpaca.alpacaHeaders(id.value, secret.value), 4_000, [120, 60_000], [id.value, secret.value]);
 });
 
 // ------------------------------------------------------------------ Stream

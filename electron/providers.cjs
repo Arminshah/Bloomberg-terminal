@@ -16,6 +16,19 @@ const CREDENTIALS = {
   TWELVE_DATA_API_KEY: { label: 'Twelve Data API key', valid: (v) => /^[A-Za-z0-9]{16,64}$/.test(v) },
   // CoinGecko's free Demo plan: market caps and circulating supply, aggregated across exchanges.
   COINGECKO_API_KEY: { label: 'CoinGecko Demo API key', valid: (v) => /^[A-Za-z0-9_-]{10,64}$/.test(v) },
+  // News (Finnhub: market and company news; Marketaux: ticker-tagged news with sentiment).
+  FINNHUB_API_KEY: { label: 'Finnhub API key', valid: (v) => /^[A-Za-z0-9]{20,64}$/.test(v) },
+  MARKETAUX_API_TOKEN: { label: 'Marketaux API token', valid: (v) => /^[A-Za-z0-9]{20,64}$/.test(v) },
+  // Tiingo: end-of-day prices for CROSSCHECK.
+  TIINGO_API_KEY: { label: 'Tiingo API token', valid: (v) => /^[A-Za-z0-9]{20,64}$/.test(v) },
+  // Alpaca market data (IEX on the free plan). Paper and live accounts both have a key ID and a secret;
+  // the app uses them only for market data, never for trading.
+  ALPACA_API_KEY_ID: { label: 'Alpaca API key ID', valid: (v) => /^(PK|AK)[A-Z0-9]{14,38}$/.test(v) },
+  ALPACA_API_SECRET_KEY: { label: 'Alpaca API secret key', valid: (v) => /^[A-Za-z0-9/+=_-]{30,80}$/.test(v) },
+  // Financial Modeling Prep: analyst price targets, ratings and estimates.
+  FMP_API_KEY: { label: 'Financial Modeling Prep API key', valid: (v) => /^[A-Za-z0-9]{20,64}$/.test(v) },
+  // TipRanks: kept for a later adapter; nothing is sent to TipRanks yet.
+  TIPRANKS_API_KEY: { label: 'TipRanks API key', valid: (v) => /^tr_(live|test)_[A-Za-z0-9]{16,80}$/.test(v) && !/^tr_(live|test)_x+$/i.test(v) },
   // The SEC asks for an application name and a contact email it can reach.
   SEC_USER_AGENT: {
     label: 'SEC User-Agent (application name and your contact email)',
@@ -107,6 +120,15 @@ const SETTINGS = {
   // Twelve Data's free plan is for internal, non-display use. Only the owner can say a plan allows showing its
   // prices on screen; until then nothing is sent to Twelve Data.
   TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED: { label: 'Twelve Data: my plan allows displaying its data', default: false },
+  // Dow Jones's terms of use (30 June 2026, sections 9.4.1 and 9.4.3) bar automated access to MarketWatch
+  // content, its RSS feeds included, without written consent. Off until the owner decides to accept that.
+  MARKETWATCH_RSS_ENABLED: { label: 'MarketWatch top stories RSS (Dow Jones terms restrict automated access)', default: false },
+  // The keyed sources added in 2.1.0, each on while its key is set; off stops every request to it.
+  FMP_ENABLED: { label: 'Financial Modeling Prep analyst research', default: true },
+  FINNHUB_ENABLED: { label: 'Finnhub market and company news', default: true },
+  MARKETAUX_ENABLED: { label: 'Marketaux news and sentiment', default: true },
+  ALPACA_ENABLED: { label: 'Alpaca IEX quotes (market data only)', default: true },
+  TIINGO_ENABLED: { label: 'Tiingo end-of-day closes', default: true },
 };
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'provider-settings.json');
@@ -167,6 +189,90 @@ function saveCredential(name, value) {
   writeStore({ ...readStore(), [name]: safeStorage.encryptString(v).toString('base64') });
 }
 
+/**
+ * Which credential a pasted line is about: its variable name, or the provider's name or site as the owner
+ * might write it ("Finnhub.io:", "marketaux.com:", "6: SEC_USER_AGENT:"). Alpaca lines name the secret
+ * key with "secret"; otherwise an Alpaca line is about the key ID.
+ */
+const ALIASES = [
+  [/alpaca/i, (line) => (/secret/i.test(line) ? 'ALPACA_API_SECRET_KEY' : 'ALPACA_API_KEY_ID')],
+  [/alpha[\s_-]*vantage/i, 'ALPHA_VANTAGE_API_KEY'],
+  [/twelve[\s_-]*data/i, 'TWELVE_DATA_API_KEY'],
+  [/coin[\s_-]*gecko/i, 'COINGECKO_API_KEY'],
+  [/\bfred\b|fred_api_key/i, 'FRED_API_KEY'],
+  [/massive|polygon/i, 'MASSIVE_API_KEY'],
+  [/sec[\s_-]*user[\s_-]*agent/i, 'SEC_USER_AGENT'],
+  [/finnhub/i, 'FINNHUB_API_KEY'],
+  [/tiingo/i, 'TIINGO_API_KEY'],
+  [/marketaux/i, 'MARKETAUX_API_TOKEN'],
+  [/financial[\s_-]*modeling[\s_-]*prep|\bfmp\b|fmp_api_key/i, 'FMP_API_KEY'],
+  [/tipranks/i, 'TIPRANKS_API_KEY'],
+];
+
+/** The SEC contact from a line such as "SEC_USER_AGENT: Name: Ann Example e-mail: ann@mail.org". */
+function secAgentFrom(line) {
+  const rest = line.replace(/^.*?sec[\s_-]*user[\s_-]*agent\s*[:=]?\s*/i, '');
+  return rest.replace(/\b(name|e-?mail|contact)\s*:\s*/gi, '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Reads keys from pasted text, one per line, in whatever form the owner wrote them, and returns each one it
+ * recognised with the value that passes that credential's check. Values never leave the main process.
+ */
+function parseCredentialList(text) {
+  const names = new Set(Object.keys(CREDENTIALS).map((n) => n.toLowerCase()));
+  const found = [];
+  const skipped = [];
+  String(text)
+    .split(/\r?\n/)
+    .forEach((raw, i) => {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) return;
+      const explicit = Object.keys(CREDENTIALS).find((n) => new RegExp(`\\b${n}\\b`, 'i').test(line));
+      const alias = ALIASES.find(([re]) => re.test(line));
+      const name = explicit ?? (alias ? (typeof alias[1] === 'function' ? alias[1](line) : alias[1]) : undefined);
+      if (!name) {
+        skipped.push({ line: i + 1, reason: 'no provider named' });
+        return;
+      }
+      const def = CREDENTIALS[name];
+      let value;
+      if (name === 'SEC_USER_AGENT') {
+        const agent = secAgentFrom(line);
+        value = def.valid(agent) ? agent : undefined;
+      } else {
+        // Candidate tokens: anything between spaces, brackets, quotes, colons or equals signs, except the names.
+        const tokens = line.split(/[\s[\]()<>"'`,;|:=]+/).filter((t) => t && !names.has(t.toLowerCase()));
+        value = tokens.find((t) => def.valid(t));
+      }
+      if (!value) {
+        skipped.push({ line: i + 1, name, reason: `no value that looks like a ${def.label}` });
+        return;
+      }
+      if (found.some((f) => f.name === name)) {
+        skipped.push({ line: i + 1, name, reason: 'already given on an earlier line' });
+        return;
+      }
+      found.push({ name, value });
+    });
+  return { found, skipped };
+}
+
+/** Saves every key recognised in pasted text; reports names and reasons only, never values. */
+function importCredentials(text) {
+  const { found, skipped } = parseCredentialList(text);
+  const saved = [];
+  for (const { name, value } of found) {
+    try {
+      saveCredential(name, value);
+      saved.push(name);
+    } catch (err) {
+      skipped.push({ name, reason: String(err.message ?? err) });
+    }
+  }
+  return { saved, skipped };
+}
+
 function clearCredential(name) {
   if (!CREDENTIALS[name]) throw new Error('unknown credential');
   const data = readStore();
@@ -180,6 +286,63 @@ function clearCredential(name) {
 // which can carry keys.
 
 const stats = new Map();
+
+/**
+ * Daily allowances: the provider's published free-plan limit and the app's own ceiling below it. Counted
+ * per UTC day and kept across restarts, so closing the app does not reset them.
+ */
+const DAILY = {
+  alphavantage: { limit: 25, cap: 20 },
+  twelvedata: { limit: 800, cap: 600 },
+  fmp: { limit: 250, cap: 220 },
+  marketaux: { limit: 100, cap: 90 },
+  tiingo: { limit: 1000, cap: 500 },
+};
+
+const TODAY_FILE = () => (app?.getPath ? path.join(app.getPath('userData'), 'provider-requests-today.json') : null);
+const utcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+let today = null;
+
+function todayCounts() {
+  const day = utcDay();
+  if (!today) {
+    try {
+      const f = TODAY_FILE();
+      const saved = f ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
+      today = saved && saved.day === day && saved.counts && typeof saved.counts === 'object' ? saved : { day, counts: {} };
+    } catch {
+      today = { day, counts: {} };
+    }
+  }
+  if (today.day !== day) today = { day, counts: {} };
+  return today;
+}
+
+let saveTimer = null;
+function keepToday() {
+  const f = TODAY_FILE();
+  if (!f || saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    try {
+      fs.mkdirSync(path.dirname(f), { recursive: true });
+      fs.writeFileSync(f, JSON.stringify(todayCounts()));
+    } catch {
+      /* the count stays in memory */
+    }
+  }, 1000);
+}
+
+/** Requests sent to `provider` today (UTC). */
+function usedToday(provider) {
+  return todayCounts().counts[provider] ?? 0;
+}
+
+/** Whether `provider` may still be asked today under the app's own ceiling. */
+function withinDailyCap(provider) {
+  const d = DAILY[provider];
+  return !d || usedToday(provider) < d.cap;
+}
 
 function entry(provider) {
   let s = stats.get(provider);
@@ -212,6 +375,9 @@ function recordRequest(provider) {
   s.total++;
   s.lastAttemptAt = now;
   while (s.times.length && s.times[0] < now - 60_000) s.times.shift();
+  const t = todayCounts();
+  t.counts[provider] = (t.counts[provider] ?? 0) + 1;
+  keepToday();
   return now;
 }
 
@@ -244,9 +410,13 @@ function providerMessage(text, secrets = []) {
   let msg = '';
   try {
     const j = JSON.parse(text);
-    msg = typeof j?.error_message === 'string' ? j.error_message : typeof j?.message === 'string' ? j.message : '';
+    // Each provider words it its own way: {"error_message"}, {"message"}, {"Error Message"} (FMP),
+    // {"error": "..."} (Finnhub), {"error": {"message"}} (Marketaux), {"detail"} (Tiingo) or a bare string.
+    const first = [j?.error_message, j?.message, j?.['Error Message'], j?.error, j?.error?.message, j?.detail, j].find((x) => typeof x === 'string');
+    msg = first ?? '';
   } catch {
-    msg = /<error\b[^>]*\bmessage="([^"]*)"/.exec(String(text))?.[1] ?? '';
+    const t = String(text).trim();
+    msg = /<error\b[^>]*\bmessage="([^"]*)"/.exec(t)?.[1] ?? (t.startsWith('<') ? '' : t);
   }
   for (const s of secrets) if (s) msg = msg.split(s).join('<key>');
   msg = msg.replace(/https?:\/\/\S+/g, '<url>').replace(/\s+/g, ' ').trim();
@@ -261,6 +431,14 @@ function providerStats() {
   for (const [provider, s] of stats) {
     while (s.times.length && s.times[0] < now - 60_000) s.times.shift();
     out[provider] = { lastMinute: s.times.length, total: s.total, lastAttemptAt: s.lastAttemptAt, lastSuccessAt: s.lastSuccessAt, lastLatencyMs: s.lastLatencyMs, lastErrorAt: s.lastErrorAt, lastError: s.lastError, lastErrorKind: s.lastErrorKind };
+  }
+  // Requests today for every provider counted today, including ones not asked since this start.
+  for (const [provider, n] of Object.entries(todayCounts().counts)) {
+    out[provider] ??= { lastMinute: 0, total: 0, lastAttemptAt: null, lastSuccessAt: null, lastLatencyMs: null, lastErrorAt: null, lastError: null, lastErrorKind: null };
+    out[provider].today = n;
+  }
+  for (const [provider, d] of Object.entries(DAILY)) {
+    if (out[provider]) Object.assign(out[provider], { today: out[provider].today ?? 0, dayLimit: d.limit, dayCap: d.cap });
   }
   return out;
 }
@@ -293,4 +471,4 @@ function slot(provider, max, windowMs) {
   return next;
 }
 
-module.exports = { CREDENTIALS, SETTINGS, credential, credentialStatus, saveCredential, clearCredential, setting, settingStatus, saveSetting, parseSwitch, recordRequest, recordResult, recordProblem, providerMessage, providerStats, slot, parseDotEnv, errorKind };
+module.exports = { CREDENTIALS, SETTINGS, DAILY, credential, credentialStatus, saveCredential, clearCredential, parseCredentialList, importCredentials, setting, settingStatus, saveSetting, parseSwitch, recordRequest, recordResult, recordProblem, providerMessage, providerStats, slot, usedToday, withinDailyCap, parseDotEnv, errorKind };

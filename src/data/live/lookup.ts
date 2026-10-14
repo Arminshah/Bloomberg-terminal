@@ -34,11 +34,13 @@ declare global {
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<{ status: number; text: string; missing?: string; gated?: string; refused?: string; budget?: boolean }>;
+      alpaca?(kind: 'snapshots', symbols: string): Promise<KeyedAnswer>;
       /** Provider switches as they were when the page loaded. */
       settings?: Record<string, boolean>;
       providersStatus?(): Promise<import('../providers').ProviderReport>;
       providersSet?(name: string, value: string): Promise<{ ok: boolean; error?: string; credentials: import('../providers').ProviderReport['credentials'] }>;
       providersClear?(name: string): Promise<{ ok: boolean; credentials: import('../providers').ProviderReport['credentials'] }>;
+      providersImport?(text: string): Promise<{ ok: boolean; error?: string; saved: string[]; skipped: { line?: number; name?: string; reason: string }[]; credentials: import('../providers').ProviderReport['credentials'] }>;
       providersSetting?(name: string, value: boolean): Promise<{ ok: boolean; error?: string; settings: import('../providers').ProviderReport['settings'] }>;
       streamOpen?(): Promise<void>;
       streamSend?(msg: string): Promise<void>;
@@ -46,6 +48,25 @@ declare global {
       onStream?(cb: (kind: string, data?: string) => void): () => void;
     };
   }
+}
+
+/**
+ * An answer from a keyed source through the main process: the text with the time it arrived; `cached` when
+ * it was kept from an earlier request, `stale` when a newer one failed; `missing` or `refused` when no
+ * usable key is configured; `budget` when the app's daily allowance for the provider is spent.
+ */
+export interface KeyedAnswer {
+  status: number;
+  text: string;
+  at?: number;
+  cached?: boolean;
+  stale?: boolean;
+  missing?: string;
+  refused?: string;
+  budget?: boolean;
+  /** The switch that keeps this source off. */
+  gated?: string;
+  error?: string;
 }
 
 export type LookupSource = 'yahoo' | 'finnhub';

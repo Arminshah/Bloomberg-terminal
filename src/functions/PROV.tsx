@@ -60,7 +60,6 @@ function ago(t: number | null | undefined, now: number): string {
 function Requirement({ p, report }: { p: ProviderDef; report: ProviderReport | null }) {
   if (!p.setting && !p.credential) return <span className="muted">no key needed</span>;
   const sw = p.setting ? report?.settings?.[p.setting] : undefined;
-  const key = p.credential ? report?.credentials[p.credential] : undefined;
   return (
     <>
       {p.setting ? (
@@ -69,12 +68,15 @@ function Requirement({ p, report }: { p: ProviderDef; report: ProviderReport | n
           {sw?.source ? <span className="muted"> ({sw.source})</span> : null}
         </div>
       ) : null}
-      {p.credential ? (
-        <div>
-          {p.credential} {key?.configured ? (key.valid ? 'set' : 'set, wrong format') : 'not set'}
-          {key?.source ? <span className="muted"> ({key.source})</span> : null}
-        </div>
-      ) : null}
+      {[p.credential, p.credential2].filter((c): c is Credential => !!c).map((c) => {
+        const k = report?.credentials[c];
+        return (
+          <div key={c}>
+            {c} {k?.configured ? (k.valid ? 'set' : 'set, wrong format') : 'not set'}
+            {k?.source ? <span className="muted"> ({k.source})</span> : null}
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -114,6 +116,7 @@ export function PROV(_: FnProps) {
               <th className="hide-m" title="When data from this provider last reached the screens">Data updated</th>
               <th>Last problem</th>
               <th className="num hide-m" title="Requests in the last minute, and the app's own ceiling">Requests / min</th>
+              <th className="num hide-m" title="Requests sent today (UTC), against the app's daily ceiling; the provider's own daily limit on hover">Today</th>
               <th className="hide-m">Terms and official pages</th>
             </tr>
           </thead>
@@ -160,6 +163,10 @@ export function PROV(_: FnProps) {
                     {s ? s.lastMinute : '--'}
                     {p.limit ? <span className="muted"> / {p.limit}</span> : null}
                   </td>
+                  <td className="num hide-m" title={s?.dayLimit ? `The provider allows ${s.dayLimit} a day; the app stops at ${s.dayCap}` : undefined}>
+                    {s?.today ?? '--'}
+                    {s?.dayCap ? <span className={s.today != null && s.today >= s.dayCap * 0.9 ? 'dn' : 'muted'}> / {s.dayCap}</span> : null}
+                  </td>
                   <td className="hide-m">
                     <span className="muted">{p.terms}</span>{' '}
                     {p.docs.map((d) => (
@@ -190,6 +197,12 @@ const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'YAHOO_PRICES_ENABLED', help: 'Yahoo Finance prices, history and company data, for personal use. Off stops every request to Yahoo and its streaming socket.' },
   { name: 'KRAKEN_ENABLED', help: "Kraken's public market data for the crypto lines. Off hands them back to Yahoo, when Yahoo is on." },
   { name: 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED', help: 'Twelve Data\'s free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data.' },
+  { name: 'MARKETWATCH_RSS_ENABLED', help: "MarketWatch's top stories feed on MARKETNEWS. Dow Jones's terms bar automated access to its content, RSS feeds included, without written consent: switch it on only if you accept that risk for your own use." },
+  { name: 'FMP_ENABLED', help: 'Analyst price targets, ratings and estimates from Financial Modeling Prep (ANALYSTS, EARNINGS), while FMP_API_KEY is set. Off stops every request to FMP.' },
+  { name: 'FINNHUB_ENABLED', help: 'Market and company news from Finnhub (MARKETNEWS, COMPANYNEWS, QUOTE), while FINNHUB_API_KEY is set.' },
+  { name: 'MARKETAUX_ENABLED', help: 'Ticker-tagged news with sentiment from Marketaux, while MARKETAUX_API_TOKEN is set. Its free plan allows 100 requests a day.' },
+  { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },
+  { name: 'TIINGO_ENABLED', help: "Tiingo's end-of-day closes on CROSSCHECK, while TIINGO_API_KEY is set." },
 ];
 
 function Switches({ report, onChange }: { report: ProviderReport | null; onChange: () => void }) {
@@ -244,7 +257,54 @@ const CREDENTIALS: { name: Credential; help: string; secret: boolean; placeholde
   { name: 'MASSIVE_API_KEY', help: 'Key from your Massive account; the free Stocks Basic plan gives end-of-day US data (CROSSCHECK).', secret: true, placeholder: 'API key' },
   { name: 'ALPHA_VANTAGE_API_KEY', help: 'Free key from alphavantage.co: 25 requests a day, personal non-commercial use (CROSSCHECK).', secret: true, placeholder: 'API key' },
   { name: 'TWELVE_DATA_API_KEY', help: 'Key from your Twelve Data account (CROSSCHECK); nothing is sent until the TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED switch is on.', secret: true, placeholder: 'API key' },
+  { name: 'TIINGO_API_KEY', help: 'Token from your Tiingo account: end-of-day closes for CROSSCHECK.', secret: true, placeholder: 'API token' },
+  { name: 'FMP_API_KEY', help: 'Key from your Financial Modeling Prep account: analyst price targets, ratings and estimates (ANALYSTS). Free plan: 250 requests a day.', secret: true, placeholder: 'API key' },
+  { name: 'FINNHUB_API_KEY', help: 'Key from your Finnhub account: market and company news (MARKETNEWS, COMPANYNEWS).', secret: true, placeholder: 'API key' },
+  { name: 'MARKETAUX_API_TOKEN', help: 'Token from your Marketaux account: news tagged with tickers and sentiment. Free plan: 100 requests a day.', secret: true, placeholder: 'API token' },
+  { name: 'ALPACA_API_KEY_ID', help: 'Key ID from your Alpaca account (paper keys start with PK): IEX quotes on QUOTE. Used for market data only, never for trading.', secret: true, placeholder: 'Key ID' },
+  { name: 'ALPACA_API_SECRET_KEY', help: 'The secret that goes with the Alpaca key ID.', secret: true, placeholder: 'Secret key' },
+  { name: 'TIPRANKS_API_KEY', help: 'Kept for a later TipRanks adapter; nothing is sent to TipRanks yet.', secret: true, placeholder: 'tr_live_…' },
 ];
+
+/** A list of keys pasted at once, in the form you keep them ("FINNHUB_API_KEY: …", "Tiingo.com: …"). */
+function ImportKeys({ onChange }: { onChange: () => void }) {
+  const [text, setText] = useState('');
+  const [result, setResult] = useState<string>('');
+  const run = async () => {
+    const res = await window.arminDesktop!.providersImport!(text);
+    // The text is cleared at once: the keys now live only in the main process.
+    setText('');
+    if (!res.ok) setResult(res.error ?? 'Nothing was saved.');
+    else {
+      const skipped = res.skipped.map((x) => `${x.line ? `line ${x.line}` : x.name}: ${x.reason}`);
+      setResult(`${res.saved.length ? `Saved ${res.saved.join(', ')}.` : 'Nothing was saved.'}${skipped.length ? ` Not saved: ${skipped.join('; ')}.` : ''}`);
+    }
+    onChange();
+  };
+  return (
+    <div className="pad">
+      <div className="faint">
+        Paste several keys at once, one per line, as you keep them: the variable name or the provider&apos;s name, then the key. Each recognised key is checked and saved like the fields below; nothing is shown back.
+      </div>
+      <textarea
+        className="inp"
+        aria-label="Keys to save"
+        autoComplete="off"
+        spellCheck={false}
+        rows={5}
+        style={{ width: '100%', fontFamily: 'inherit', WebkitTextSecurity: 'disc' } as React.CSSProperties}
+        value={text}
+        placeholder={'FINNHUB_API_KEY: …\nTiingo.com: …\nALPACA_API_SECRET_KEY = …'}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.stopPropagation()}
+      />
+      <button type="button" className="btn primary" disabled={!text.trim()} onClick={() => void run()}>
+        Save these keys
+      </button>
+      {result ? <div className="muted">{result}</div> : null}
+    </div>
+  );
+}
 
 function Credentials({ report, onChange }: { report: ProviderReport | null; onChange: () => void }) {
   const [values, setValues] = useState<Record<string, string>>({});
@@ -267,6 +327,7 @@ function Credentials({ report, onChange }: { report: ProviderReport | null; onCh
       <div className="note">
         Keys stay in the desktop app&apos;s main process: saved ones are encrypted with your system&apos;s key store, and no screen can read them back. An environment variable of the same name takes precedence.
       </div>
+      <ImportKeys onChange={onChange} />
       <table className="tbl">
         <tbody>
           {CREDENTIALS.map((c) => {

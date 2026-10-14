@@ -1,5 +1,5 @@
 // Optional end-of-day history providers, each with the owner's own key: Massive
-// (formerly Polygon.io), Alpha Vantage and Twelve Data. The app uses them to
+// (formerly Polygon.io), Alpha Vantage, Tiingo and Twelve Data. The app uses them to
 // check the daily closes it shows against a second and third source (the
 // CROSSCHECK screen); none of them is asked unless its key is set.
 //
@@ -30,6 +30,18 @@ const PROVIDERS = {
     perDay: 20,
     url: (t, _from, _to, key) => `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${encodeURIComponent(t)}&outputsize=compact&apikey=${encodeURIComponent(key)}`,
     headers: () => ({}),
+  },
+  tiingo: {
+    credential: 'TIINGO_API_KEY',
+    perMinute: 1,
+    // Tiingo's free plan: 50 requests an hour and 1,000 a day; its data may not be stored on disk, and the app
+    // keeps it in memory only.
+    perHour: 40,
+    perDay: 500,
+    // Tiingo writes class shares with a dash (BRK-B); its token goes in the Authorization header.
+    url: (t, from, to) => `https://api.tiingo.com/tiingo/daily/${encodeURIComponent(t.toLowerCase().replace(/\./g, '-'))}/prices?startDate=${from}&endDate=${to}&format=json`,
+    headers: (key) => ({ Authorization: `Token ${key}` }),
+    gate: 'TIINGO_ENABLED',
   },
   twelvedata: {
     credential: 'TWELVE_DATA_API_KEY',
