@@ -267,7 +267,13 @@ const FRED_SERIES = new Set([
   'PAYEMS', 'UNRATE', 'CPIAUCSL', 'CPIAUCNS', 'CPILFESL', 'CPILFENS', 'PPIFIS', 'RSAFS', 'INDPRO', 'HOUST', 'HSN1F',
   'DGORDER', 'AMTMNO', 'A191RL1Q225SBEA', 'A191RO1Q156NBEA', 'PCEPI', 'PCEPILFE', 'ICSA', 'JTSJOL', 'BOPGSTB',
   'LRHUTTTTJPM156S', 'JPNRGDPEXP', 'LRHUTTTTCAM156S', 'NGDPRSAXDCCAQ', 'LRHUTTTTAUM156S', 'NGDPRSAXDCAUQ',
+  // The macro dashboard (MACRO): policy rate, Treasury yields and spreads, money, credit spreads, financial
+  // conditions and recession indicators.
+  'EFFR', 'DFEDTARU', 'DFEDTARL', 'DGS2', 'DGS10', 'DGS30', 'T10Y2Y', 'T10Y3M', 'M2SL', 'BAMLC0A0CM', 'BAMLH0A0HYM2',
+  'NFCI', 'STLFSI4', 'SAHMREALTIME', 'USREC',
 ]);
+// Series whose first releases the app compares with today's values (ALFRED vintages): payrolls and GDP growth.
+const FRED_FIRST_RELEASE = new Set(['PAYEMS', 'A191RL1Q225SBEA']);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 ipcMain.handle('fred', async (event, kind, arg, from) => {
@@ -282,6 +288,12 @@ ipcMain.handle('fred', async (event, kind, arg, from) => {
     if (typeof arg !== 'string' || !FRED_SERIES.has(arg)) throw new Error('not allowed');
     const start = new Date(Date.now() - 4 * 365.25 * 86_400_000).toISOString().slice(0, 10);
     url = `${FRED_API}/series/observations?series_id=${arg}&observation_start=${start}&file_type=json`;
+  } else if (kind === 'first-release') {
+    // output_type 4: "Observations, Initial Release Only", over every vintage; each value's realtime_start is
+    // the day it was first published.
+    if (typeof arg !== 'string' || !FRED_FIRST_RELEASE.has(arg)) throw new Error('not allowed');
+    const start = new Date(Date.now() - 2 * 365.25 * 86_400_000).toISOString().slice(0, 10);
+    url = `${FRED_API}/series/observations?series_id=${arg}&observation_start=${start}&output_type=4&realtime_start=1776-07-04&realtime_end=9999-12-31&file_type=json`;
   } else throw new Error('not allowed');
   const key = providers.credential('FRED_API_KEY').value;
   if (!key) return { status: 0, text: '', missing: 'FRED_API_KEY' };

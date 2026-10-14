@@ -77,7 +77,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   GOVT: {
     title: 'Government Securities',
     groups: [
-      { title: 'Monitors', entries: ['MONEYMARKET', 'BONDS', 'CURVE', 'RATEPROBS', 'CENTRALBANKS'] },
+      { title: 'Monitors', entries: ['MONEYMARKET', 'BONDS', 'CURVE', 'RATEPROBS', 'CENTRALBANKS', 'MACRO'] },
       { title: 'Analysis', entries: [{ code: 'BONDSEARCH', label: 'Treasury search', cmd: 'T GOVT' }, 'SWAPCALC', 'HOLIDAYS'] },
     ],
     list: (d) => d.yk === 'Govt',
@@ -92,7 +92,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
     title: 'Equity',
     groups: [
       { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'MOVERS', 'CONTRIB', 'SCREEN', 'EVENTS'] },
-      { title: 'News and research', entries: ['HEADLINES', 'NEWS', 'RELEASES'] },
+      { title: 'News and research', entries: ['HEADLINES', 'NEWS', 'FILINGS', 'RELEASES', 'MACRO'] },
       { title: 'Portfolio and monitors', entries: ['PORTFOLIO', 'WATCHLIST', 'ALERTS'] },
     ],
     list: (d) => d.cls === 'equity',
@@ -105,7 +105,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   },
   INDEX: {
     title: 'Indices',
-    groups: [{ title: 'Markets', entries: ['MARKET', 'INDEXFUTURES', 'HEATMAP', 'CONTRIB', 'CURVE', 'ECONSTATS'] }],
+    groups: [{ title: 'Markets', entries: ['MARKET', 'INDEXFUTURES', 'HEATMAP', 'CONTRIB', 'CURVE', 'ECONSTATS', 'MACRO'] }],
     list: (d) => (d.cls === 'index' && d.ticker !== 'VIX') || d.cls === 'future',
   },
   CURNCY: {

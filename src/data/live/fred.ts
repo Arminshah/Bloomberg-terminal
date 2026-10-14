@@ -1,6 +1,7 @@
 import { createStore } from '../../core/store';
 import { setFeed } from './status';
 import { euroAreaCode, official, parseAbsCsv, parseJsonStat, parseOnsCsv, parseOnsMonths, parseStatcanVectors } from './official';
+import { FIRST_RELEASE_IDS, MACRO_SERIES } from '../macroseries';
 
 /**
  * US economic releases and international statistics for the desktop app from
@@ -23,9 +24,15 @@ export interface FredState {
   needsKey: boolean;
   /** FRED's reason for refusing the configured key, '' when it has not refused it. */
   keyRefused: string;
+  /** Series id -> first published values (ALFRED): [period, value, day first published]. */
+  firstRelease: Record<string, FirstRelease[]>;
+  /** When the series values were last received (epoch ms). */
+  at: number;
 }
 
-export const fredData = createStore<FredState>({ series: {}, releases: {}, loaded: false, needsKey: false, keyRefused: '' });
+export type FirstRelease = [date: string, value: number, published: string];
+
+export const fredData = createStore<FredState>({ series: {}, releases: {}, loaded: false, needsKey: false, keyRefused: '', firstRelease: {}, at: 0 });
 
 export type Calc = 'level' | 'diff' | 'mom' | 'yoy';
 export type Freq = 'm' | 'q' | 'w';
@@ -121,6 +128,28 @@ export function parseFredObservations(text: string): Obs {
     const c = String(o?.value ?? '').trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^-?\d*\.?\d+$/.test(c)) continue;
     out.push([d, Number(c)]);
+  }
+  return out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+}
+
+/**
+ * fred/series/observations with output_type=4 ("Observations, Initial Release Only") over every vintage:
+ * each observation's realtime_start is the day its value was first published.
+ */
+export function parseFredFirstRelease(text: string): FirstRelease[] {
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  const out: FirstRelease[] = [];
+  for (const o of (json?.observations ?? []) as any[]) {
+    const d = String(o?.date ?? '');
+    const r = String(o?.realtime_start ?? '');
+    const c = String(o?.value ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{4}-\d{2}-\d{2}$/.test(r) || !/^-?\d*\.?\d+$/.test(c)) continue;
+    out.push([d, Number(c), r]);
   }
   return out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
 }
@@ -240,7 +269,7 @@ interface Stop {
 }
 
 /** The answer to one FRED request ('' when it fails), or why to stop asking for now. */
-async function get(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<string | Stop> {
+async function get(kind: 'release-dates' | 'observations' | 'first-release', arg: string, from?: string): Promise<string | Stop> {
   try {
     const res = await window.arminDesktop!.fred!(kind, arg, from);
     if (res.missing) return { stop: 'missing' };
@@ -265,6 +294,7 @@ function fredSeriesIds(): string[] {
   const ids = new Set<string>();
   for (const ev of US_EVENTS) ids.add(ev.series);
   for (const c of Object.values(COUNTRY_STATS)) for (const s of [c.gdp, c.cpi, c.un]) if (s && !s[0].includes(':')) ids.add(s[0]);
+  for (const m of MACRO_SERIES) ids.add(m.id);
   return [...ids];
 }
 
@@ -336,9 +366,17 @@ async function loadSeries(): Promise<boolean> {
       any = true;
     }
   }
+  // First releases of the series whose revisions MACRO shows.
+  const firstRelease = { ...fredData.get().firstRelease };
+  for (const id of stop ? [] : FIRST_RELEASE_IDS) {
+    const text = await get('first-release', id);
+    if (typeof text !== 'string') break;
+    const rows = parseFredFirstRelease(text);
+    if (rows.length) firstRelease[id] = rows;
+  }
   await official;
   any ||= Object.keys(series).some((id) => id.includes(':'));
-  fredData.set((s) => ({ ...s, series, loaded: s.loaded || any, ...keyState(s, stop) }));
+  fredData.set((s) => ({ ...s, series, firstRelease, loaded: s.loaded || any, ...(any ? { at: Date.now() } : {}), ...keyState(s, stop) }));
   return any;
 }
 

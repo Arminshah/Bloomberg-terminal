@@ -8,6 +8,7 @@ import { DAY_MS } from '../data/calendar';
 import { centralBanks, COUNTRY_NAMES, ecoEvents, newYorkDate, type EcoEvent } from '../data/eco';
 import { periodChange } from '../data/analytics';
 import type { FnProps } from '../terminal/types';
+import { FRED_NOTICE, FRED_TERMS_URL } from '../data/macroseries';
 import { RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { levelOn, policyRates } from '../data/live/policy';
@@ -135,9 +136,9 @@ export function ECO(_: FnProps) {
             <tr>
               <td colSpan={real ? 7 : 9} className="empty">
                 {real && keyRefused
-                  ? `The FRED API key was not accepted: ${keyRefused} Check the key in PROV.`
+                  ? `The FRED API key was not accepted: ${keyRefused} Check the key in PROVIDERS.`
                   : real && needsKey
-                    ? 'US releases need your free FRED API key (from fredaccount.stlouisfed.org): add it in PROV.'
+                    ? 'US releases need your free FRED API key (from fredaccount.stlouisfed.org): add it in PROVIDERS.'
                     : real && !fredData.get().loaded
                       ? 'Loading the release calendar from FRED…'
                       : 'No events for the selected filters.'}
@@ -203,6 +204,7 @@ export function ECO(_: FnProps) {
           })}
         </tbody>
       </table>
+      {real ? <FredNotice /> : null}
     </div>
   );
 }
@@ -335,6 +337,7 @@ function ECSTReal() {
       <div className="note">
         Growth is real GDP against the same quarter a year earlier and inflation the 12-month rate, as each statistics office publishes them: BEA and BLS for the US, Eurostat for the euro area and its members (HICP), the ONS for the UK. US inflation is worked out from the published CPI index the way the BLS does. UK unemployment is the ONS Labour Force Survey rate, an average over the three months shown. Canada's unemployment and inflation are Statistics Canada's (inflation adapted from its CPI index, the way StatCan works it out), Australia's the ABS's. For Japan, Canada and Australia, growth is worked out from real GDP levels (marked *): the Cabinet Office's for Japan and the IMF's International Financial Statistics for Canada and Australia, via FRED. Japan's unemployment is the OECD harmonised rate, which comes about a month after the Statistics Bureau publishes its own, and Japan's inflation is not connected yet. The US policy rate is the Fed's target range; the real rate uses its upper limit. FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).
       </div>
+      <FredNotice />
     </div>
   );
 }
@@ -382,6 +385,19 @@ function ECSTSim(_: FnProps) {
         />
       </Section>
       <div className="note">FX YTD is the pair as quoted (e.g. USDJPY up = weaker yen).</div>
+    </div>
+  );
+}
+
+/** The notice FRED's API terms ask every application to show where its data appears. */
+export function FredNotice() {
+  return (
+    <div className="note">
+      {FRED_NOTICE}{' '}
+      <a href={FRED_TERMS_URL} target="_blank" rel="noreferrer noopener" className="blue">
+        FRED API terms of use
+      </a>
+      .
     </div>
   );
 }

@@ -29,7 +29,7 @@ declare global {
       yahoo(path: string): Promise<{ status: number; data: unknown; disabled?: boolean }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string }>;
-      fred?(kind: 'release-dates' | 'observations', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
+      fred?(kind: 'release-dates' | 'observations' | 'first-release', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;

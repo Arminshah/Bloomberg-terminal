@@ -28,6 +28,7 @@ import { BTMM, GC, WB, WIRP } from '../functions/RATES';
 import { YAS } from '../functions/YAS';
 import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
 import { ECO, ECST } from '../functions/ECO';
+import { MACRO } from '../functions/MACRO';
 import { OMON, OVME } from '../functions/OPTIONS';
 import { W } from '../functions/W';
 import { PORT } from '../functions/PORT';
@@ -102,6 +103,7 @@ export const FUNCTIONS: FnDef[] = [
   // Commodities
   { code: 'COMMODITIES', name: 'Global Commodities', category: 'Commodities', desc: 'Energy, metals, grains, softs and livestock futures with changes, YTD and intraday.', component: GLCO },
   // Economics
+  { code: 'MACRO', name: 'Macro Dashboard', category: 'Economics', desc: 'US policy rate, Treasury yields and curve, inflation, jobs, growth, money, credit spreads, financial conditions and recession signals from the FRED API, with how payrolls and GDP were revised since first published.', component: MACRO, example: 'MACRO CPI' },
   { code: 'RELEASES', name: 'Economic Calendar', category: 'Economics', desc: 'Releases and central bank decisions with actual and prior; actuals appear at release time. The desktop app uses official US release times and values from FRED.', component: ECO, aliases: ['ECONCAL'] },
   { code: 'ECONSTATS', name: 'World Economic Statistics', category: 'Economics', desc: 'GDP, inflation, unemployment and policy rates by country alongside live yields and markets.', component: ECST },
   { code: 'HOLIDAYS', name: 'Holiday Calendar', category: 'Economics', desc: 'Exchange holiday and early-close calendars for New York, London, Frankfurt and Tokyo.', component: CDR, example: 'HOLIDAYS US' },
