@@ -2,6 +2,7 @@ import { engine } from '../market';
 import { dayNum } from '../calendar';
 import type { ExtBar } from '../engine';
 import { setFeed } from './status';
+import { loadJson, saveJson } from '../../core/store';
 
 /**
  * Official US Treasury par yields (home.treasury.gov) for the desktop app:
@@ -87,11 +88,34 @@ function apply(): string[] {
   return changed;
 }
 
-async function loadYear(year: number): Promise<boolean> {
+/**
+ * Years that are over, kept on this computer: their published yields do not
+ * change, and the Treasury's site answers a program like this one slowly (about
+ * 18 seconds a year on 14 Oct 2026, against under a second for a browser), so
+ * only the current year is fetched at each start once the rest is kept.
+ */
+const CACHE_KEY = 'armin:ust-years';
+type YearCache = Record<string, Record<string, [number, number][]>>;
+
+function cachedYears(): YearCache {
+  const c = loadJson<{ v: number; years: YearCache }>(CACHE_KEY);
+  return c && c.v === 1 && c.years && typeof c.years === 'object' ? c.years : {};
+}
+
+function keepYear(year: number, parsed: Map<string, Map<number, number>>) {
+  const years = cachedYears();
+  years[year] = Object.fromEntries([...parsed].map(([id, days]) => [id, [...days]]));
+  saveJson(CACHE_KEY, { v: 1, years });
+}
+
+async function loadYear(year: number, keep: boolean): Promise<boolean> {
   try {
     const res = await window.arminDesktop!.treasury(year);
     if (res.status !== 200 || !res.text) return false;
-    merge(parseTreasuryCsv(res.text));
+    const parsed = parseTreasuryCsv(res.text);
+    if (!parsed.size) return false;
+    merge(parsed);
+    if (keep) keepYear(year, parsed);
     return true;
   } catch {
     return false;
@@ -103,15 +127,35 @@ export function startTreasury(): () => void {
   if (!treasuryAvailable()) return () => undefined;
   let stopped = false;
   const year = new Date().getUTCFullYear();
+  // Years kept from earlier sessions go on screen at once, as history.
+  const kept = cachedYears();
+  for (const [y, lines] of Object.entries(kept)) {
+    if (Number(y) >= year) continue;
+    merge(new Map(Object.entries(lines).map(([id, days]) => [id, new Map(days)])));
+  }
+  if (history.size) apply();
   void (async () => {
-    // The current year alone is enough to put real levels on screen.
-    if (await loadYear(year)) apply();
-    for (let y = year - 1; y >= year - 9 && !stopped; y--) await loadYear(y);
-    if (!stopped && apply().length) setFeed('rates', 'live', 'US Treasury par yields, end of day');
-    else if (!stopped) setFeed('rates', 'error', 'US Treasury yields unavailable; tenors stay simulated');
+    // The current year puts today's levels on screen; last year next, for year-to-date and one-year changes.
+    const current = await loadYear(year, false);
+    if (stopped) return;
+    if (current && apply().length) setFeed('rates', 'live', 'US Treasury par yields, end of day');
+    const missing = Array.from({ length: 9 }, (_, i) => year - 1 - i).filter((y) => !kept[y]);
+    if (missing[0] === year - 1) {
+      await loadYear(year - 1, true);
+      if (!stopped) apply();
+      missing.shift();
+    }
+    // The rest three at a time, so ten years take a minute rather than three.
+    for (let i = 0; i < missing.length && !stopped; i += 3) {
+      await Promise.all(missing.slice(i, i + 3).map((y) => loadYear(y, true)));
+      if (!stopped) apply();
+    }
+    if (stopped) return;
+    if (current) setFeed('rates', 'live', 'US Treasury par yields, end of day');
+    else setFeed('rates', 'error', history.size ? 'The US Treasury did not answer for this year; earlier years shown' : 'US Treasury yields unavailable right now');
   })();
   const timer = setInterval(() => {
-    void loadYear(new Date().getUTCFullYear()).then((ok) => ok && apply());
+    void loadYear(new Date().getUTCFullYear(), false).then((ok) => ok && apply());
   }, 30 * 60_000);
   return () => {
     stopped = true;
