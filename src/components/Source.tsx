@@ -98,7 +98,7 @@ export function NoBondData({ code, title }: { code: string; title: string }) {
     <div>
       <FnHeader code={code} title={title} />
       <div className="empty">
-        Prices for individual bonds come from dealers and trading venues that have no free public feed, so the desktop app does not show bond prices, spreads or dealer quotes. Government yields are real: see GC, WB and BTMM.
+        Prices for individual bonds come from dealers and trading venues that have no free public feed, so the desktop app does not show bond prices, spreads or dealer quotes. Government yields are real: see CURVE, BONDS and MONEYMARKET.
       </div>
     </div>
   );

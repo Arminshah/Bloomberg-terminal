@@ -316,7 +316,7 @@ export function SWPM(props: FnProps) {
       <div>
         <FnHeader code="SWAPCALC" title="Swap Manager" sub="USD SOFR OIS" />
         <div className="empty">
-          Pricing a swap needs a market swap curve. Swap rates are dealer quotes with no free public source, so the swap manager is not available on real data. SOFR futures (BTMM) and the fed funds path (WIRP) show what the market prices for the next few years.
+          Pricing a swap needs a market swap curve. Swap rates are dealer quotes with no free public source, so the swap manager is not available on real data. SOFR futures (MONEYMARKET) and the fed funds path (RATEPROBS) show what the market prices for the next few years.
         </div>
       </div>
     );

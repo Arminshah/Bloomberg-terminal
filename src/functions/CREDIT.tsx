@@ -214,7 +214,7 @@ function DDISSim({ route, sec }: FnProps) {
           {eq && (
             <div className="pad row">
               <button type="button" className="btn" onClick={() => openSecurity(panel, eq.id, undefined, 'PROFILE')}>
-                Equity DES
+                Equity profile
               </button>
               <button type="button" className="btn" onClick={() => openSecurity(panel, eq.id, undefined, 'MENU')}>
                 Equity menu
