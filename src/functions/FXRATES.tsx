@@ -5,6 +5,7 @@ import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { fmtDay, fmtInt, fmtNum, MONTHS, WEEKDAYS } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { DAY_MS, addMonths, dayNum, isBusinessDay } from '../data/calendar';
+import { euronextDays, nyseDays, type MarketDay } from '../data/exchanges';
 import { centralBanks, COUNTRY_NAMES, newYorkDate } from '../data/eco';
 import { curveMembers } from '../data/curves';
 import { rangeStats } from '../data/analytics';
@@ -461,7 +462,7 @@ export function CENB(_: FnProps) {
   };
   return (
     <div>
-      <FnHeader code="CENTRALBANKS" title="Central Bank Monitor" sub="Policy rates, last move and next decision" actions={[{ n: 1, label: 'Rate path (WIRP)', onClick: () => execute(panel, 'RATEPROBS') }, { n: 2, label: 'Central bank news', onClick: () => execute(panel, 'NEWS CB') }]} />
+      <FnHeader code="CENTRALBANKS" title="Central Bank Monitor" sub="Policy rates, last move and next decision" actions={[{ n: 1, label: 'Rate path (RATEPROBS)', onClick: () => execute(panel, 'RATEPROBS') }, { n: 2, label: 'Central bank news', onClick: () => execute(panel, 'NEWS CB') }]} />
       <table className="tbl">
         <thead>
           <tr>
@@ -525,24 +526,28 @@ interface Holiday {
   early?: boolean;
 }
 
-const CALENDARS: { code: string; name: string; tz: string; hours: string; holidays: Holiday[] }[] = [
-  {
-    code: 'US',
-    name: 'New York Stock Exchange',
-    tz: 'America/New_York',
-    hours: '09:30-16:00',
-    holidays: [
-      { date: '2026-01-01', name: "New Year's Day" }, { date: '2026-01-19', name: 'Martin Luther King Jr. Day' }, { date: '2026-02-16', name: "Washington's Birthday" },
-      { date: '2026-04-03', name: 'Good Friday' }, { date: '2026-05-25', name: 'Memorial Day' }, { date: '2026-06-19', name: 'Juneteenth' },
-      { date: '2026-07-03', name: 'Independence Day (observed)' }, { date: '2026-09-07', name: 'Labor Day' }, { date: '2026-11-26', name: 'Thanksgiving Day' },
-      { date: '2026-11-27', name: 'Day after Thanksgiving (13:00 close)', early: true }, { date: '2026-12-24', name: 'Christmas Eve (13:00 close)', early: true },
-      { date: '2026-12-25', name: 'Christmas Day' },
-      { date: '2027-01-01', name: "New Year's Day" }, { date: '2027-01-18', name: 'Martin Luther King Jr. Day' }, { date: '2027-02-15', name: "Washington's Birthday" },
-      { date: '2027-03-26', name: 'Good Friday' }, { date: '2027-05-31', name: 'Memorial Day' }, { date: '2027-06-18', name: 'Juneteenth (observed)' },
-      { date: '2027-07-05', name: 'Independence Day (observed)' }, { date: '2027-09-06', name: 'Labor Day' }, { date: '2027-11-25', name: 'Thanksgiving Day' },
-      { date: '2027-11-26', name: 'Day after Thanksgiving (13:00 close)', early: true }, { date: '2027-12-24', name: 'Christmas Day (observed)' },
-    ],
-  },
+interface ExchangeCal {
+  code: string;
+  name: string;
+  tz: string;
+  hours: string;
+  holidays: Holiday[];
+}
+
+/** Holidays from an exchange's rules (src/data/exchanges.ts) for a year and the next. */
+const fromRules = (days: (year: number) => MarketDay[], year: number): Holiday[] =>
+  [...days(year), ...days(year + 1)].map((d) => ({ date: d.date, name: d.name, ...(d.close ? { early: true } : {}) }));
+
+/** The calendars shown: NYSE and Euronext worked out from their rules, the others as published for 2026 and 2027. */
+function calendars(year: number): ExchangeCal[] {
+  return [
+    { code: 'US', name: 'New York Stock Exchange', tz: 'America/New_York', hours: '09:30-16:00', holidays: fromRules(nyseDays, year) },
+    { code: 'EU', name: 'Euronext (Amsterdam, Brussels, Lisbon, Paris)', tz: 'Europe/Brussels', hours: '09:00-17:30', holidays: fromRules(euronextDays, year) },
+    ...LISTED,
+  ];
+}
+
+const LISTED: ExchangeCal[] = [
   {
     code: 'GB',
     name: 'London Stock Exchange',
@@ -631,9 +636,11 @@ function MonthGrid({ year, month0, holidays, today }: { year: number; month0: nu
 
 /** CDR: exchange holiday calendars. */
 export function CDR({ route }: FnProps) {
-  const initial = Math.max(0, CALENDARS.findIndex((c) => c.code === route.args?.toUpperCase())) + 1;
+  const year = new Date(engine.today * DAY_MS).getUTCFullYear();
+  const cals = useMemo(() => calendars(year), [year]);
+  const initial = Math.max(0, cals.findIndex((c) => c.code === route.args?.trim().toUpperCase())) + 1;
   const [tab, setTab] = useState(initial);
-  const cal = CALENDARS[tab - 1];
+  const cal = cals[tab - 1];
   const holidays = new Map(cal.holidays.map((h) => [h.date, h]));
   const todayIso = new Date(engine.today * DAY_MS).toISOString().slice(0, 10);
   const closedToday = !isBusinessDay(engine.today) || (holidays.has(todayIso) && !holidays.get(todayIso)!.early);
@@ -648,7 +655,7 @@ export function CDR({ route }: FnProps) {
   const upcoming = cal.holidays.filter((h) => h.date >= todayIso).slice(0, 12);
   return (
     <div>
-      <FnHeader code="HOLIDAYS" title="Holiday Calendar" sub={`${cal.name} · ${cal.hours} local (${cal.tz})`} tabs={CALENDARS.map((c, i) => ({ n: i + 1, label: c.code }))} tab={tab} onTab={setTab} />
+      <FnHeader code="HOLIDAYS" title="Holiday Calendar" sub={`${cal.name} · ${cal.hours} local (${cal.tz})`} tabs={cals.map((c, i) => ({ n: i + 1, label: c.code }))} tab={tab} onTab={setTab} />
       <div className="cols">
         <Section title="Status">
           <KV

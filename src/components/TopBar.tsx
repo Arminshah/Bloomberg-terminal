@@ -1,21 +1,23 @@
-import { useRef, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import { engine, useInterval } from '../data/market';
 import { feedStatus } from '../data/live/status';
 import { execute } from '../terminal/exec';
 import { applyPreset, LAYOUT_PANELS, setLayout, terminal } from '../terminal/state';
 import { alerts, chats } from '../terminal/userdata';
 import { contacts } from '../data/chat';
-import { zonedParts } from '../core/format';
+import { MONTHS, WEEKDAYS, zonedParts } from '../core/format';
+import { EU_MARKET, fmtCountdown, sessionAt, US_MARKET, type Exchange } from '../data/exchanges';
 import type { LayoutId, Route } from '../terminal/types';
 
-const LAYOUTS: { id: LayoutId; cols: number; rows: number; label: string }[] = [
+/** `fold`: the window width at or below which the button gives way (never while its layout is on). */
+const LAYOUTS: { id: LayoutId; cols: number; rows: number; label: string; fold?: 1180 | 900 }[] = [
   { id: '1', cols: 1, rows: 1, label: 'Single panel' },
-  { id: '2', cols: 2, rows: 1, label: 'Two panels side by side' },
-  { id: '2v', cols: 1, rows: 2, label: 'Two panels stacked' },
-  { id: '3', cols: 2, rows: 2, label: 'Three panels' },
-  { id: '4', cols: 2, rows: 2, label: 'Four panels' },
+  { id: '2', cols: 2, rows: 1, label: 'Two panels side by side', fold: 900 },
+  { id: '2v', cols: 1, rows: 2, label: 'Two panels stacked', fold: 1180 },
+  { id: '3', cols: 2, rows: 2, label: 'Three panels', fold: 1180 },
+  { id: '4', cols: 2, rows: 2, label: 'Four panels', fold: 900 },
   { id: '5', cols: 3, rows: 2, label: 'Four panels and a watchlist column' },
-  { id: '6', cols: 3, rows: 2, label: 'Six panels' },
+  { id: '6', cols: 3, rows: 2, label: 'Six panels', fold: 1180 },
 ];
 
 export const PRESETS: { name: string; layout: LayoutId; routes: Route[] }[] = [
@@ -41,24 +43,62 @@ function LayoutIcon({ cols, rows, id }: { cols: number; rows: number; id: Layout
   );
 }
 
-const CLOCKS = [
-  { tz: 'Europe/Brussels', label: 'BRUSSELS' },
-  { tz: 'America/New_York', label: 'NEW YORK' },
-  { tz: 'Europe/London', label: 'LONDON' },
-  { tz: 'Asia/Tokyo', label: 'TOKYO' },
-  { tz: 'Asia/Hong_Kong', label: 'HONG KONG', secondary: true },
+/** `fold`: the window width at or below which a clock gives way, so the market timers and status stay in view. */
+const CLOCKS: { tz: string; label: string; fold?: 1440 | 1340 | 1240 | 1024; market?: Exchange }[] = [
+  { tz: 'Europe/Brussels', label: 'BRUSSELS', fold: 1024, market: EU_MARKET },
+  { tz: 'America/New_York', label: 'NEW YORK', fold: 1024, market: US_MARKET },
+  { tz: 'Europe/London', label: 'LONDON', fold: 1240 },
+  { tz: 'Asia/Tokyo', label: 'TOKYO', fold: 1340 },
+  { tz: 'Asia/Hong_Kong', label: 'HONG KONG', fold: 1440 },
 ];
 
-function Clock({ tz, label, secondary }: { tz: string; label: string; secondary?: boolean }) {
+function Clock({ tz, label, fold }: { tz: string; label: string; fold?: number }) {
   const p = zonedParts(Date.now(), tz);
   const pad = (n: number) => String(n).padStart(2, '0');
   return (
-    <span className={`clock${secondary ? ' secondary hide-m' : ''}`}>
+    <span className={`clock${fold ? ` fold-${fold}` : ''}`}>
       <b>
         {pad(p.h)}:{pad(p.mi)}:{pad(p.s)}
       </b>
       <span>{label}</span>
     </span>
+  );
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const hhmm = (ms: number, tz: string) => {
+  const p = zonedParts(ms, tz);
+  return `${pad2(p.h)}:${pad2(p.mi)}`;
+};
+const dayName = (ms: number, tz: string) => {
+  const p = zonedParts(ms, tz);
+  return `${WEEKDAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]} ${p.d} ${MONTHS[p.mo - 1]}`;
+};
+
+/** Time left until a market's regular session opens or closes, from its published hours and holidays. */
+function MarketTimer({ ex }: { ex: Exchange }) {
+  const now = Date.now();
+  const s = sessionAt(ex, now);
+  const local = Number.isFinite(s.at) ? ` (${hhmm(s.at, 'local')} on this computer)` : '';
+  const title = [
+    `${ex.name}: regular session ${ex.open} to ${ex.close} ${ex.city} time.`,
+    !Number.isFinite(s.at)
+      ? 'No session found in the next three weeks.'
+      : s.open
+        ? `Open: closes at ${hhmm(s.at, ex.tz)} ${ex.city} time${local}${s.earlyClose ? ', an early close' : ''}.`
+        : `Closed: opens ${dayName(s.at, ex.tz)} at ${hhmm(s.at, ex.tz)} ${ex.city} time${local}${s.earlyClose ? `, and closes early at ${s.earlyClose}` : ''}.`,
+    s.today && !s.today.close ? `Closed today: ${s.today.name}.` : '',
+    "Pre-market and after-hours trading are not counted. Holidays and early closes follow the exchange's published rules; a closure announced at short notice is not known here. HOLIDAYS shows the calendar.",
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return (
+    <button type="button" className={`clock mkt hide-m${s.open ? ' open' : ''}`} title={title} onClick={() => execute(terminal.get().active, `HOLIDAYS ${ex.id}`)}>
+      <b>{fmtCountdown(s.at - now)}</b>
+      <span>
+        {ex.label} {s.open ? 'CLOSES' : 'OPENS'} IN
+      </span>
+    </button>
   );
 }
 
@@ -109,11 +149,11 @@ export function TopBar() {
     <div className="topbar" role="banner">
       <span className="brand" title="Armin Terminal">
         <span className="brand-mark" aria-hidden="true" />
-        ARMIN<small className="hide-m">TERMINAL</small>
+        ARMIN<small className="hide-m fold-860">TERMINAL</small>
       </span>
       <span className="tb-sep hide-m" />
       {LAYOUTS.map((l) => (
-        <button key={l.id} type="button" className={`tb-btn hide-m${layout === l.id ? ' on' : ''}`} title={l.label} aria-label={l.label} onClick={() => setLayout(l.id)}>
+        <button key={l.id} type="button" className={`tb-btn hide-m${layout === l.id ? ' on' : l.fold ? ` fold-${l.fold}` : ''}`} title={l.label} aria-label={l.label} onClick={() => setLayout(l.id)}>
           <LayoutIcon cols={l.cols} rows={l.rows} id={l.id} />
         </button>
       ))}
@@ -151,12 +191,15 @@ export function TopBar() {
       <button type="button" className="tb-btn" onClick={() => run('ALERTS')} title="Price and news alerts (ALERTS)">
         ALERTS <span className={`count${unreadAlerts ? '' : ' zero'}`}>{unreadAlerts}</span>
       </button>
-      <button type="button" className="tb-btn hide-m" onClick={() => run('HELP')} title="Function directory (F1)">
+      <button type="button" className="tb-btn hide-m fold-1180" onClick={() => run('HELP')} title="Function directory (F1)">
         HELP
       </button>
       <span className="tb-spacer" />
-      {CLOCKS.map((c) => (
-        <Clock key={c.tz} {...c} />
+      {CLOCKS.map(({ market, ...c }) => (
+        <Fragment key={c.tz}>
+          <Clock {...c} />
+          {market && <MarketTimer ex={market} />}
+        </Fragment>
       ))}
       <FeedChip />
       <button type="button" className="tb-btn" onClick={() => run('SETTINGS')} title="Settings (SETTINGS)" aria-label="Settings">
