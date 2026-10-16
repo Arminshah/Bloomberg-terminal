@@ -1,0 +1,88 @@
+{
+ "description": {
+  "title": "Unemployment rate (aged 16 and over, seasonally adjusted): %",
+  "cdid": "MGSX",
+  "datasetId": "LMS",
+  "releaseDate": "2026-09-14T23:00:00.000Z",
+  "nextRelease": "20 October 2026",
+  "date": "2026 JUN",
+  "number": "4.9",
+  "unit": "%"
+ },
+ "years": [
+  {
+   "date": "2025",
+   "value": "4.9",
+   "label": "2025",
+   "year": "2025",
+   "month": "",
+   "quarter": "",
+   "sourceDataset": "LMS",
+   "updateDate": "2026-07-20T23:00:00.000Z"
+  }
+ ],
+ "quarters": [
+  {
+   "date": "2026 Q2",
+   "value": "4.9",
+   "label": "2026 Q2",
+   "year": "2026",
+   "month": "",
+   "quarter": "Q2",
+   "sourceDataset": "LMS",
+   "updateDate": "2026-08-17T23:00:00.000Z"
+  }
+ ],
+ "months": [
+  {
+   "date": "2024 DEC",
+   "value": "4.4",
+   "label": "2024 NOV-JAN",
+   "year": "2024",
+   "month": "December",
+   "quarter": "",
+   "sourceDataset": "LMS",
+   "updateDate": "2025-03-20T00:00:00.000Z"
+  },
+  {
+   "date": "2025 JAN",
+   "value": "4.5",
+   "label": "2024 DEC-FEB",
+   "year": "2025",
+   "month": "January",
+   "quarter": "",
+   "sourceDataset": "LMS",
+   "updateDate": "2026-07-20T23:00:00.000Z"
+  },
+  {
+   "date": "2026 APR",
+   "value": "4.9",
+   "label": "2026 MAR-MAY",
+   "year": "2026",
+   "month": "April",
+   "quarter": "",
+   "sourceDataset": "LMS",
+   "updateDate": "2026-07-20T23:00:00.000Z"
+  },
+  {
+   "date": "2026 MAY",
+   "value": "4.9",
+   "label": "2026 APR-JUN",
+   "year": "2026",
+   "month": "May",
+   "quarter": "",
+   "sourceDataset": "LMS",
+   "updateDate": "2026-08-17T23:00:00.000Z"
+  },
+  {
+   "date": "2026 JUN",
+   "value": "4.9",
+   "label": "2026 MAY-JUL",
+   "year": "2026",
+   "month": "June",
+   "quarter": "",
+   "sourceDataset": "LMS",
+   "updateDate": "2026-09-14T23:00:00.000Z"
+  }
+ ]
+}

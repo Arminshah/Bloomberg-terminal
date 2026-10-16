@@ -1,0 +1,136 @@
+import { createStore, loadJson, removeKey, saveJson } from '../core/store';
+import type { LayoutId, Route } from './types';
+
+export interface Watchlist {
+  name: string;
+  ids: string[];
+}
+
+export const watchlists = createStore<{ lists: Watchlist[]; active: number }>(
+  {
+    lists: [
+      {
+        name: 'Core',
+        ids: [
+          'SPX Index', 'CCMP Index', 'INDU Index', 'VIX Index', 'AAPL US Equity', 'MSFT US Equity', 'NVDA US Equity',
+          'AMZN US Equity', 'GOOGL US Equity', 'META US Equity', 'TSLA US Equity', 'JPM US Equity', 'EURUSD Curncy',
+          'USDJPY Curncy', 'USGG10YR Index', 'CL1 Comdty', 'GC1 Comdty', 'XBTUSD Curncy',
+        ],
+      },
+      {
+        name: 'Semis',
+        ids: ['NVDA US Equity', 'AMD US Equity', 'AVGO US Equity', 'MU US Equity', 'INTC US Equity', 'QCOM US Equity', '2330 TT Equity', 'ASML NA Equity', '005930 KS Equity'],
+      },
+      {
+        name: 'Global Banks',
+        ids: ['JPM US Equity', 'BAC US Equity', 'C US Equity', 'WFC US Equity', 'GS US Equity', 'MS US Equity', 'HSBA LN Equity', 'RY CN Equity', 'CBA AU Equity'],
+      },
+      {
+        name: 'Macro',
+        ids: ['DXY Curncy', 'EURUSD Curncy', 'USDJPY Curncy', 'GBPUSD Curncy', 'USDCNH Curncy', 'USGG2YR Index', 'USGG10YR Index', 'GDBR10 Index', 'GJGB10 Index', 'CL1 Comdty', 'GC1 Comdty', 'HG1 Comdty', 'XBTUSD Curncy'],
+      },
+    ],
+    active: 0,
+  },
+  'watchlists',
+  1,
+);
+
+export interface Position {
+  id: string;
+  qty: number;
+  cost: number;
+}
+
+/**
+ * Earlier versions opened with a sample portfolio and booked paper-trading fills into it. Neither was your
+ * data: the portfolio now starts empty and holds only what you enter. What was saved before is kept aside
+ * under armin:portfolio-v1-backup, never deleted.
+ */
+(function setAsideOldPortfolio() {
+  const key = 'armin:portfolio';
+  const old = loadJson<{ v: number }>(key);
+  if (old && old.v === 1) {
+    if (loadJson('armin:portfolio-v1-backup') === undefined) saveJson('armin:portfolio-v1-backup', old);
+    removeKey(key);
+  }
+  // The paper-trading blotter is gone with paper trading.
+  removeKey('armin:orders');
+})();
+
+export const portfolio = createStore<{ name: string; positions: Position[]; benchmark: string; cash: number }>(
+  {
+    name: 'My portfolio',
+    benchmark: 'SPX Index',
+    cash: 0,
+    positions: [],
+  },
+  'portfolio',
+  2,
+);
+
+export type AlertCond = 'above' | 'below' | 'pctUp' | 'pctDn';
+
+export interface PriceAlert {
+  id: number;
+  sec: string;
+  cond: AlertCond;
+  value: number;
+  active: boolean;
+  created: number;
+  triggered?: number;
+  triggeredPx?: number;
+  note?: string;
+}
+
+export const alerts = createStore<{ list: PriceAlert[]; seq: number; unseen: number }>(
+  { list: [], seq: 1, unseen: 0 },
+  'alerts',
+  1,
+);
+
+export interface NewsAlert {
+  id: number;
+  keyword: string;
+  active: boolean;
+  hits: number;
+  created: number;
+  lastHit?: number;
+  lastHeadline?: string;
+}
+
+export const newsAlerts = createStore<{ list: NewsAlert[]; seq: number }>({ list: [], seq: 1 }, 'newsalerts', 1);
+
+export interface ChatMessage {
+  id: number;
+  from: string;
+  text: string;
+  at: number;
+}
+
+export interface ChatRoom {
+  id: string;
+  name: string;
+  who: string;
+  messages: ChatMessage[];
+  unread: number;
+}
+
+export const chats = createStore<{ rooms: ChatRoom[]; active: string; seq: number }>(
+  { rooms: [], active: '', seq: 1 },
+  'chats',
+  1,
+);
+
+export const notes = createStore<Record<string, string>>({}, 'notes', 1);
+
+/** A workspace saved on LAYOUTS: the layout, each visible panel's screen and the divider positions. */
+export interface SavedLayout {
+  name: string;
+  layout: LayoutId;
+  routes: Route[];
+  split?: { cols: number[]; rows: number[] };
+  saved: number;
+}
+
+export const savedLayouts = createStore<{ list: SavedLayout[] }>({ list: [] }, 'layouts', 1);

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="72" fill="#000"/>
+  <path d="M84 84h344v232L316 428H84z" fill="#ff9e1b"/>
+  <text x="140" y="300" font-family="IBM Plex Mono, Consolas, monospace" font-size="210" font-weight="700" fill="#000">A</text>
+</svg>
