@@ -83,7 +83,7 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
         </span>
       )}
       {q.provider && (
-        <span className="muted hide-m" title={/yahoo/i.test(q.provider) ? 'Yahoo Finance, for personal use: it does not guarantee timeliness or accuracy' : 'Who supplies this line'}>
+        <span className={`muted${/IEX/i.test(q.provider) ? '' : ' hide-m'}`} title={/yahoo/i.test(q.provider) ? 'Yahoo Finance, for personal use: it does not guarantee timeliness or accuracy' : /IEX/i.test(q.provider) ? 'IEX exchange only: not a consolidated US market price, volume or bid/offer' : 'Who supplies this line'}>
           {q.provider}
         </span>
       )}

@@ -1,5 +1,6 @@
 import type { AssetClass } from '../data/types';
 import type { FnDef } from './types';
+import { LEGACY_CODES } from './legacy';
 import { HELP } from '../functions/HELP';
 import { GIP, GP } from '../functions/GP';
 import { DES } from '../functions/DES';
@@ -134,6 +135,12 @@ export const FUNCTIONS: FnDef[] = [
 
 const BY_CODE = new Map<string, FnDef>();
 for (const f of FUNCTIONS) BY_CODE.set(f.code, f);
+// Keep help, completion and execution on one alias list. Saved routes and
+// function headers retain the descriptive canonical names.
+for (const [alias, code] of Object.entries(LEGACY_CODES)) {
+  const f = BY_CODE.get(code);
+  if (f && !BY_CODE.has(alias)) f.aliases = [...new Set([...(f.aliases ?? []), alias])];
+}
 for (const f of FUNCTIONS) for (const a of f.aliases ?? []) if (!BY_CODE.has(a)) BY_CODE.set(a, f);
 
 export function lookupFn(code: string): FnDef | undefined {

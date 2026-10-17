@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as alpacaMain from '../electron/alpaca.cjs';
-import { alpacaSymbol, alpacaTime, parseSnapshots } from '../src/data/live/alpaca';
+import { alpacaSymbol, alpacaTime, iexFreshness, parseSnapshots } from '../src/data/live/alpaca';
+import type { KeyedAnswer } from '../src/data/live/lookup';
 import type { SecurityDef } from '../src/data/types';
 
 // Made-up answers in the layout of Alpaca's snapshots endpoint; no request leaves the test.
@@ -11,6 +12,7 @@ describe('Alpaca requests (main process)', () => {
     const url = new URL(alpacaMain.alpacaRequest('snapshots', 'AAPL')!);
     expect(url.host).toBe('data.alpaca.markets');
     expect(alpacaMain.TRADING_HOSTS).not.toContain(url.host);
+    expect(alpacaMain.alpacaRequest('snapshots', 'BRK.B,AAPL,AAPL')).toBe(alpacaMain.alpacaRequest('snapshots', 'AAPL,BRK.B'));
   });
 
   it('builds nothing else: no orders, accounts or positions, no odd symbols', () => {
@@ -18,6 +20,7 @@ describe('Alpaca requests (main process)', () => {
     expect(alpacaMain.alpacaRequest('snapshots', 'aapl')).toBeNull();
     expect(alpacaMain.alpacaRequest('snapshots', 'AAPL&feed=sip')).toBeNull();
     expect(alpacaMain.alpacaRequest('snapshots', '')).toBeNull();
+    expect(alpacaMain.alpacaRequest('snapshots', ',AAPL')).toBeNull();
     // Twenty symbols at most in one request.
     const symbols = Array.from({ length: 21 }, (_, i) => `T${i}`);
     expect(alpacaMain.alpacaRequest('snapshots', symbols.slice(0, 20).join(','))).not.toBeNull();
@@ -31,6 +34,9 @@ describe('Alpaca answers', () => {
     expect(alpacaTime('2026-10-14T19:59:59.123456789Z')).toBe(Date.parse('2026-10-14T19:59:59.123Z'));
     expect(alpacaTime('2026-10-14T04:00:00Z')).toBe(Date.parse('2026-10-14T04:00:00Z'));
     expect(alpacaTime(undefined)).toBeNaN();
+    expect(alpacaTime('0001-01-01T00:00:00Z')).toBeNaN();
+    expect(alpacaTime('2026-10-14')).toBeNaN();
+    expect(alpacaTime('2026-02-31T15:00:00Z')).toBeNaN();
   });
 
   it('reads IEX snapshots keyed by symbol', () => {
@@ -62,6 +68,12 @@ describe('Alpaca answers', () => {
           close: 101.25,
           volume: 250000,
           dayAt: Date.parse('2026-10-14T04:00:00Z'),
+          prevOpen: 98,
+          prevHigh: 99.5,
+          prevLow: 97,
+          prevClose: 99.1,
+          prevVolume: 210000,
+          prevDayAt: Date.parse('2026-10-13T04:00:00Z'),
         },
       },
     });
@@ -72,6 +84,35 @@ describe('Alpaca answers', () => {
     expect(parseSnapshots('{"message":"forbidden."}')).toEqual({ error: 'forbidden.' });
     expect(parseSnapshots('[]')).toEqual({ error: 'No snapshots in the answer' });
     expect(parseSnapshots('oops')).toEqual({ error: 'The answer was not JSON' });
+    expect(parseSnapshots('{"snapshots":[]}')).toEqual({ error: 'No snapshots in the answer' });
+  });
+
+  it('keeps timed quotes without trades and rejects zero/invalid fields independently', () => {
+    const parsed = parseSnapshots(JSON.stringify({ snapshots: {
+      ABC: {
+        latestTrade: { p: 'Infinity', s: -1, t: '2026-10-14T15:00:00Z' },
+        latestQuote: { bp: 0, bs: -2, ap: 101.5, as: '3', t: '2026-10-14T15:01:00Z' },
+        dailyBar: { o: 100, h: 103, l: 99, c: 102, v: 1000, t: '0001-01-01T00:00:00Z' },
+      },
+      UNTIMED: { latestTrade: { p: 10 }, latestQuote: { bp: 10, ap: 11 } },
+      ZERO: { latestTrade: { p: 0, t: '2026-10-14T15:01:00Z' } },
+    } }));
+    expect('data' in parsed).toBe(true);
+    if (!('data' in parsed)) return;
+    expect(Object.keys(parsed.data)).toEqual(['ABC']);
+    expect(parsed.data.ABC).toMatchObject({ last: NaN, lastAt: NaN, bid: NaN, bidSize: NaN, ask: 101.5, askSize: 3, quoteAt: Date.parse('2026-10-14T15:01:00Z'), open: NaN, volume: NaN });
+  });
+
+  it('measures trade and quote age using independent exchange timestamps', () => {
+    const now = Date.parse('2026-10-14T15:01:00Z');
+    const parsed = parseSnapshots(JSON.stringify({ ABC: {
+      latestTrade: { p: 100, t: '2026-10-13T19:59:00Z' },
+      latestQuote: { bp: 100, ap: 101, t: '2026-10-14T15:01:00Z' },
+    } }));
+    if (!('data' in parsed)) throw new Error(parsed.error);
+    expect(iexFreshness(parsed.data.ABC, now)).toEqual({ tradeStale: true, quoteStale: false });
+    expect(iexFreshness(parsed.data.ABC, now + 60_001)).toEqual({ tradeStale: true, quoteStale: true });
+    expect(iexFreshness(parsed.data.ABC, now - 10_000)).toEqual({ tradeStale: true, quoteStale: true });
   });
 
   it("names US stocks the way Alpaca does, and nothing else", () => {
@@ -80,5 +121,93 @@ describe('Alpaca answers', () => {
     expect(alpacaSymbol(def('BRK/B US'))).toBe('BRK.B');
     expect(alpacaSymbol(def('ASML NA'))).toBeNull();
     expect(alpacaSymbol(def('BTC USD', 'crypto'))).toBeNull();
+  });
+});
+
+describe('Alpaca subscriptions and polling', () => {
+  let feed: typeof import('../src/data/live/alpaca');
+  let request: ReturnType<typeof vi.fn<(kind: string, symbols: string) => Promise<KeyedAnswer>>>;
+  let release: (() => void)[];
+  const response = (symbols: string): KeyedAnswer => ({ status: 200, at: Date.now(), text: JSON.stringify(Object.fromEntries(symbols.split(',').map((symbol) => [symbol, {
+    latestTrade: { p: 100, s: 1, t: new Date(Date.now() - 600_000).toISOString() },
+    latestQuote: { bp: 99, bs: 1, ap: 101, as: 1, t: new Date().toISOString() },
+  }]))) });
+
+  beforeEach(async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-14T15:01:00Z'));
+    request = vi.fn(async (_kind: string, symbols: string) => response(symbols));
+    vi.stubGlobal('window', { arminDesktop: { alpaca: request } });
+    feed = await import('../src/data/live/alpaca');
+    release = [];
+  });
+
+  afterEach(() => {
+    for (const stop of release) stop();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('polls every subscribed symbol beyond the twenty-symbol batch and follows fresh quotes', async () => {
+    for (let i = 0; i < 25; i++) release.push(feed.acquireIex(`T${i}`));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0][1].split(',')).toHaveLength(20);
+    // The trade is ten minutes old, but the quote is current: keep the five-second cadence.
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1][1].split(',')).toContain('T24');
+    expect(Object.values(feed.iex.get().by).every((state) => state.state === 'ok')).toBe(true);
+  });
+
+  it('reports a missing key to all subscribers, including those outside the current batch', async () => {
+    request.mockResolvedValue({ status: 0, text: '', missing: 'ALPACA_API_KEY_ID' });
+    for (let i = 0; i < 25; i++) release.push(feed.acquireIex(`T${i}`));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(Object.values(feed.iex.get().by).every((state) => state.state === 'needs-key')).toBe(true);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(request).toHaveBeenCalledTimes(1);
+    request.mockImplementation(async (_kind, symbols) => response(symbols));
+    feed.retryIex();
+    await vi.advanceTimersByTimeAsync(50);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the cached-response failure reason and backs off refreshes', async () => {
+    request.mockImplementation(async (_kind, symbols) => ({ ...response(symbols), stale: true, error: 'HTTP 429: too many requests' }));
+    release.push(feed.acquireIex('AAPL'));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(feed.iex.get().by.AAPL).toMatchObject({ state: 'ok', stale: true, message: 'HTTP 429: too many requests' });
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(request).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('immediately follows a pending response when another stock is added', async () => {
+    let finish!: (answer: KeyedAnswer) => void;
+    request.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    release.push(feed.acquireIex('AAPL'));
+    await vi.advanceTimersByTimeAsync(50);
+    release.push(feed.acquireIex('MSFT'));
+    finish(response('AAPL'));
+    await vi.advanceTimersByTimeAsync(50);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1][1]).toContain('MSFT');
+  });
+
+  it('keeps a shared symbol until its final consumer releases it', async () => {
+    const stopFirst = feed.acquireIex('AAPL');
+    const stopLast = feed.acquireIex('AAPL');
+    release.push(stopFirst, stopLast);
+    stopFirst();
+    stopFirst(); // A cleanup is idempotent.
+    await vi.advanceTimersByTimeAsync(50);
+    expect(request).toHaveBeenCalledTimes(1);
+    stopLast();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 });

@@ -2,6 +2,7 @@ import { engine } from './market';
 import { indexAtOrBefore, type Series } from './series';
 import { regress, stdev } from '../finance/stats';
 import { DAY_MS } from './calendar';
+import { IEX_PROVIDER } from './live/iex-engine';
 
 export type Horizon = '1D' | '5D' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '2Y' | '5Y';
 
@@ -69,6 +70,10 @@ export interface RangeStats {
 const statsCache = new Map<string, { key: string; v: RangeStats }>();
 
 export function rangeStats(id: string): RangeStats {
+  // The opt-in IEX snapshot source has two daily bars, not a 30/90/260-day or 52-week record.
+  if (engine.quote(id)?.provider === IEX_PROVIDER) {
+    return { hi52: NaN, lo52: NaN, hi52t: NaN, lo52t: NaN, avgVol30: NaN, vol30: NaN, vol90: NaN, vol260: NaN };
+  }
   const s = engine.daily(id);
   const key = `${engine.version}:${engine.today}:${s.length}`;
   const hit = statsCache.get(id);

@@ -1,10 +1,9 @@
 import type { Route } from './types';
 
 /**
- * Command codes of earlier versions, which followed Bloomberg's function
- * mnemonics, and the names that replaced them. Used to carry saved panels,
- * layouts and settings over, and to tell someone who types an old code what
- * it is called now. The old codes do not run anything themselves.
+ * Familiar function mnemonics accepted as aliases for the app's descriptive
+ * names. They select the same app workflows and data sources. This mapping
+ * also carries saved panels, layouts and settings to canonical names.
  */
 export const LEGACY_CODES: Record<string, string> = {
   DES: 'PROFILE',

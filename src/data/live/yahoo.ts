@@ -10,6 +10,7 @@ import { setFeed } from './status';
 import { YahooStream, type Tick } from './ystream';
 import { TREASURY_IDS, treasuryAvailable } from './ust';
 import { krakenOwns, whenKrakenHandsBack } from './kraken';
+import { iexOwns } from './iex-engine';
 
 /**
  * Real market data for the desktop app from Yahoo Finance, fetched by the
@@ -86,6 +87,7 @@ export function yahooSymbolFor(d: SecurityDef): string | undefined {
 function targets(): Target[] {
   const out: Target[] = [];
   for (const d of engine.securities) {
+    if (iexOwns(d.id)) continue;
     const symbol = yahooSymbolFor(d);
     if (symbol) out.push({ id: d.id, symbol, invert: false, allDays: d.cls === 'crypto' });
   }
@@ -168,7 +170,7 @@ export function paidInYear(list: Dividend[] | undefined, today: number): number 
  * its price in pence).
  */
 export function trailingDividendYield(id: string): number {
-  if (!engine.isExternal(id)) return NaN;
+  if (!engine.isExternal(id) || !realDividends.has(id)) return NaN;
   const px = engine.quote(id)?.last ?? NaN;
   return px > 0 ? paidInYear(realDividends.get(id), engine.today) / px : NaN;
 }
@@ -405,8 +407,9 @@ class YahooData {
     const stale = !streamOk && Date.now() - this.lastPollOk > 90_000;
     if (stale === this.stale) return;
     this.stale = stale;
-    engine.setStale(this.loaded, stale);
-    engine.flush(this.loaded);
+    const owned = [...this.loaded].filter((id) => !iexOwns(id));
+    engine.setStale(owned, stale);
+    engine.flush(owned);
     if (stale) setFeed('market', 'error', 'Connection to Yahoo Finance lost: open markets show their last price, marked STALE');
     else this.status(streamOk);
   }
@@ -418,6 +421,7 @@ class YahooData {
 
   /** Applies one streamed price to one line, after the bad-tick check. */
   private applyTickTo(t: Target, tick: Tick) {
+    if (iexOwns(t.id)) return;
     if (!this.loaded.has(t.id)) {
       this.pendingTick.set(t.id, tick);
       return;
@@ -525,6 +529,9 @@ class YahooData {
 
   /** History already fetched elsewhere (an online lookup) can be adopted directly. */
   adopt(id: string, symbol: string, bars: ExtBar[], dividends: Dividend[]) {
+    // Company/dividend data can be shared; the selected venue owns all price history.
+    realDividends.set(id, dividends);
+    if (iexOwns(id)) return;
     const t: Target = { id, symbol, invert: false, allDays: engine.get(id)?.cls === 'crypto' };
     this.register(t);
     this.stream?.subscribe([symbol]);
@@ -568,8 +575,9 @@ class YahooData {
   }
 
   private applyHistory(t: Target, bars: ExtBar[], dividends: Dividend[]) {
+    if (iexOwns(t.id)) return;
     engine.setExternalDaily(t.id, bars, { provider: YAHOO_PROVIDER });
-    if (dividends.length) realDividends.set(t.id, dividends);
+    realDividends.set(t.id, dividends);
     this.loaded.add(t.id);
     const q = this.pendingQuote.get(t.id);
     if (q) {
@@ -600,6 +608,7 @@ class YahooData {
           const lines = this.bySymbol.get(q.symbol) ?? [];
           if (lines.length) ok++;
           for (const t of lines) {
+            if (iexOwns(t.id)) continue;
             yahooQuotes.set(t.id, q);
             if (Number.isFinite(Number(q.gmtOffSetMilliseconds))) t.gmtOffset = Number(q.gmtOffSetMilliseconds);
             const timing = timingOf(q);
@@ -643,6 +652,7 @@ class YahooData {
   }
 
   private wantIntraday(id: string) {
+    if (iexOwns(id)) return;
     this.intradayWanted.set(id, Date.now());
     const at = this.intradayAt.get(id) ?? 0;
     if (Date.now() - at > 60_000) void this.loadIntraday(id);
@@ -657,6 +667,7 @@ class YahooData {
   }
 
   private async loadIntraday(id: string) {
+    if (iexOwns(id)) return;
     const t = this.byId.get(id);
     if (!t || !this.loaded.has(id) || this.intradayActive >= 3) return;
     this.intradayAt.set(id, Date.now());
@@ -664,7 +675,7 @@ class YahooData {
     try {
       const chart = await yahooGet(`/v8/finance/chart/${encodeURIComponent(t.symbol)}?range=1d&interval=1m&includePrePost=false`);
       const r = chart?.chart?.result?.[0];
-      if (!r?.timestamp) return;
+      if (!r?.timestamp || iexOwns(id)) return;
       const gmt = Number(r.meta?.gmtoffset ?? 0);
       const q = r.indicators?.quote?.[0] ?? {};
       const bars: { t: number; o: number; h: number; l: number; c: number; v: number }[] = [];

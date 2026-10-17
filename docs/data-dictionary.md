@@ -50,7 +50,7 @@ Freshness. Each price carries one label, worked out from the source's own statem
 | Index future fair value | index × e^((r − q) × days / 365), with r the 3-month Treasury par yield, q the index dividend yield and days to the contract's last trade date. A model, labelled as one. | `PROFILE`, `INDEXFUTURES` |
 | Fed path | CME FedWatch method: a 30-day fed funds future's implied average rate is 100 − price; a meeting month splits into days before and after the decision. | `RATEPROBS` |
 | Market timers | Time until the regular session opens or closes: NYSE 09:30 to 16:00 New York time, Euronext 09:00 to 17:30 Brussels time, with holidays and early closes from each exchange's published rules. | Top bar, `HOLIDAYS` |
-| Close gap | (other source's close / the app's close − 1) × 10,000, in basis points, for finished sessions; over 5 bp is marked. | `CROSSCHECK` |
+| Close gap | (other source's close / the app's close − 1) × 10,000, in basis points, for sessions past their NYSE regular or early close in New York time; over 5 bp is marked. The app's source is named on screen. IEX closes cover one exchange and can differ from market-wide closing prices. | `CROSSCHECK` |
 | Crypto change on the day | Kraken's last price against the close of its previous daily candle (UTC days). | `CRYPTO`, `QUOTE` |
 | First release | The value an agency first published for a period (FRED's ALFRED vintages), beside today's value and the day it was first published. | `MACRO` |
 | Year-on-year and month-on-month rates for US releases | From the published index levels, (level / level a year or a month earlier − 1) × 100, rounded to the decimals the agency publishes. | `RELEASES`, `ECONSTATS` |

@@ -443,21 +443,9 @@ ipcMain.handle('eod', async (event, provider, ticker, from, to) => {
     providers.recordProblem(provider, 'not-entitled', `The configured ${def.credential} has the wrong format, so it was not sent.`);
     return { status: 0, text: '', refused: 'wrong format' };
   }
-  if (!providers.withinDailyCap(provider) || !eod.takeDaily(provider)) {
-    providers.recordProblem(provider, 'rate-limited', "The app's daily budget for this provider is spent; it asks again tomorrow (UTC).");
-    return { status: 0, text: '', budget: true };
-  }
-  await providers.slot(provider, def.perMinute, 60_000);
-  if (def.perHour) await providers.slot(`${provider}:hour`, def.perHour, 3_600_000);
   const req = eod.eodRequest(provider, ticker, from, to, key);
-  const res = await tracked(provider, req.url, { headers: { 'User-Agent': clientAgent(), Accept: 'application/json', ...req.headers }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
-  const text = await res.text().catch(() => '');
-  if (!res.ok) {
-    const why = providers.providerMessage(text, [key]);
-    providers.recordProblem(provider, providers.errorKind(res.status), `HTTP ${res.status}${why ? `: ${why}` : ''}`);
-    return { status: res.status, text: '' };
-  }
-  return { status: res.status, text };
+  // The shared broker handles persistent daily caps, pacing, body errors and stale fallback.
+  return keyedGet(provider, req.url, req.headers, 3600_000, [def.perMinute, 60_000, def.perHour], [key]);
 });
 
 // ----------------------------------------- Analyst research, news, IEX quotes
@@ -468,93 +456,10 @@ const fmp = require('./fmp.cjs');
 const news = require('./news.cjs');
 const alpaca = require('./alpaca.cjs');
 
-/** Answers kept per request (the URL without its key), with the time they arrived. */
-const kept = new Map();
-const keyless = (url) => url.replace(/([?&](?:apikey|api_token)=)[^&]*/gi, '$1<key>');
-
-/**
- * Consecutive failures per provider. After five in a row the provider is left alone for two minutes
- * (a circuit breaker), so a source that is down is not asked again and again; a kept answer, marked
- * stale, stands in meanwhile.
- */
-const breakers = new Map();
-const BREAK_AFTER = 5;
-const BREAK_FOR = 2 * 60_000;
-
-/**
- * A GET for `provider`: a kept answer younger than `ttl` comes back as it is; otherwise the request
- * waits for its pace slot, is retried twice after a network failure, timeout or server error (1 s and
- * 2 s apart, plus up to 300 ms at random), and a failure brings back an older kept answer marked stale.
- * Past the provider's daily ceiling nothing is sent.
- */
-async function keyedGet(provider, url, headers, ttl, pace, secrets, agent) {
-  const id = keyless(url);
-  const old = kept.get(id);
-  if (old && Date.now() - old.at < ttl) return { status: 200, text: old.text, at: old.at, cached: true };
-  // The same request asked twice while the first is out shares its answer (and its place in the budget).
-  const out = inflight.get(id);
-  if (out) return out;
-  const p = sendKeyed(provider, url, headers, pace, secrets, agent, id, old);
-  inflight.set(id, p);
-  try {
-    return await p;
-  } finally {
-    inflight.delete(id);
-  }
-}
-
-/** Requests on their way, by their keyless URL. */
-const inflight = new Map();
-
-async function sendKeyed(provider, url, headers, pace, secrets, agent, id, old) {
-  const stale = (extra) => (old ? { status: 0, text: old.text, at: old.at, stale: true, ...extra } : { status: 0, text: '', ...extra });
-  const b = breakers.get(provider);
-  if (b && b.openUntil > Date.now()) return stale({ error: `Paused after ${b.fails} failures in a row; asks again at ${new Date(b.openUntil).toISOString().slice(11, 19)} UTC` });
-  if (!providers.withinDailyCap(provider)) {
-    providers.recordProblem(provider, 'rate-limited', "The app's daily budget for this provider is spent; it asks again after midnight UTC.");
-    return stale({ budget: true });
-  }
-  const failed = () => {
-    const f = breakers.get(provider) ?? { fails: 0, openUntil: 0 };
-    f.fails++;
-    if (f.fails >= BREAK_AFTER) f.openUntil = Date.now() + BREAK_FOR;
-    breakers.set(provider, f);
-  };
-  let res;
-  for (let attempt = 0; ; attempt++) {
-    await providers.slot(provider, pace[0], pace[1]);
-    // Checked again after the wait: requests queued together, and retries, must not pass the ceiling.
-    if (!providers.withinDailyCap(provider)) {
-      providers.recordProblem(provider, 'rate-limited', "The app's daily budget for this provider is spent; it asks again after midnight UTC.");
-      return stale({ budget: true });
-    }
-    try {
-      res = await tracked(provider, url, { headers: { 'User-Agent': agent ?? clientAgent(), Accept: 'application/json', ...headers }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
-      if (res.status < 500 || attempt >= 2) break;
-      // A server error is retried; its body is read and dropped so the connection is freed.
-      await res.text().catch(() => '');
-    } catch (err) {
-      if (attempt >= 2) {
-        failed();
-        return stale({ error: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) });
-      }
-    }
-    await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt + Math.random() * 300));
-  }
-  const text = await res.text().catch(() => '');
-  if (!res.ok) {
-    if (res.status >= 500 || res.status === 429) failed();
-    const why = providers.providerMessage(text, secrets);
-    providers.recordProblem(provider, providers.errorKind(res.status), `HTTP ${res.status}${why ? `: ${why}` : ''}`);
-    return { ...stale({ error: `HTTP ${res.status}${why ? `: ${why}` : ''}` }), status: res.status };
-  }
-  breakers.delete(provider);
-  const at = Date.now();
-  kept.set(id, { text, at });
-  // A few hundred answers at most; the oldest go first.
-  if (kept.size > 400) kept.delete(kept.keys().next().value);
-  return { status: res.status, text, at };
-}
+// Credential-scoped cache, deduplication, retries, quotas and provider-body errors are tested
+// independently of Electron in requests.test.ts. Never count HTTP-200 error bodies as success.
+const { createRequester } = require('./requests.cjs');
+const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent, timeoutMs: TIMEOUT_MS });
 
 /** A configured key that passes its check, or why there is none. */
 function usableKey(name, provider) {

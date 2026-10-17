@@ -10,7 +10,8 @@ const TRADING_HOSTS = ['api.alpaca.markets', 'paper-api.alpaca.markets'];
 /** Latest IEX trade, quote and bars for up to 20 US stocks, or null for anything else. */
 function alpacaRequest(kind, symbols) {
   if (kind !== 'snapshots' || typeof symbols !== 'string') return null;
-  const list = symbols.split(',').filter(Boolean);
+  // Canonical ordering lets panels/windows asking for the same set share one cached request.
+  const list = [...new Set(symbols.split(','))].sort();
   if (!list.length || list.length > 20 || !list.every((s) => SYMBOL.test(s))) return null;
   const url = `${DATA}/v2/stocks/snapshots?symbols=${list.map(encodeURIComponent).join(',')}&feed=iex`;
   // Belt and braces: whatever is built here must be the data host.

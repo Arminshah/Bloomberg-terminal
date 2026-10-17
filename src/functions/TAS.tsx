@@ -51,6 +51,9 @@ export function TapeSource({ id, short }: { id: string; short?: boolean }) {
     case 'real': {
       const q = engine.quote(id);
       const provider = q?.provider ?? 'the source';
+      if (/IEX/i.test(provider)) {
+        return <>{short ? 'IEX snapshots only' : `${provider}: snapshots show the latest IEX trade; they do not provide a complete trade tape`}</>;
+      }
       const kraken = engine.get(id)?.cls === 'crypto' && provider === 'Kraken';
       if (engine.get(id)?.cls === 'crypto' && !kraken) {
         return <>{short ? 'no prints' : `${provider} gives crypto volume over a rolling 24 hours, which does not show when trades happened, so there are no prints`}</>;
@@ -90,6 +93,7 @@ export function TAS({ sec }: FnProps) {
   const [minSize, setMinSize] = useState(0);
   useTick(1);
   const trades = engine.trades(s.id);
+  const iex = /IEX/i.test(engine.quote(s.id)?.provider ?? '');
   const vol = trades.reduce((a, t) => a + t.size, 0);
   const vwap = vol ? trades.reduce((a, t) => a + t.px * t.size, 0) / vol : NaN;
   return (
@@ -110,7 +114,7 @@ export function TAS({ sec }: FnProps) {
         <span>
           <span className="amber">Prints</span> {trades.length} <span className="amber">Volume</span> {fmtBig(vol)} <span className="amber">VWAP</span> {fmtNum(vwap, s.dec)}
         </span>
-        <span className="muted">{engine.realOnly ? 'AGG: volume added up between updates · CONS: all venues together · large prints in yellow' : 'I odd lot · F intermarket sweep · large prints in yellow'}</span>
+        <span className="muted">{iex ? 'IEX snapshots do not provide a complete trade tape.' : engine.realOnly ? 'AGG: volume added up between updates · CONS: all venues together · large prints in yellow' : 'I odd lot · F intermarket sweep · large prints in yellow'}</span>
       </div>
       <TradeTape sec={s} minSize={minSize} />
     </div>

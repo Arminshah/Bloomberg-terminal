@@ -16,6 +16,8 @@ For each name, the first of these that has a value wins:
 
 `PROVIDERS` has a box, "Save these keys", that takes a whole list pasted in one go: lines such as `FMP_API_KEY = ...`, or a site name followed by its key (`finnhub.io: ...`, `site.financialmodelingprep.com: ...`, `app.alpaca.markets: ...`), numbered or not. Each key it recognises is saved through the same encrypted store as the Save button next to each field, the box is cleared, and the screen lists the names it saved and the lines it skipped, with the reason, never the values. A key set by the environment or `.env` still wins over a saved one.
 
+The aliases `MARKETAUX_API_KEY`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `APCA_API_KEY_ID`, `APCA_API_SECRET_KEY` and `FINANCIAL_MODELING_PREP_API_KEY` are accepted in imports and environment configuration. The canonical name wins within a source; environment settings take precedence over `.env` and saved keys. Import accepts Markdown contact links and preserves padding in Alpaca secrets. Ambiguous lines are refused with no key echoed.
+
 ## Keys
 
 | Name | What it enables | How to get it | Free plan, as the app uses it |
@@ -41,6 +43,7 @@ For each name, the first of these that has a value wins:
 | `KRAKEN_ENABLED` | on | Kraken's public market data for the ten crypto lines. Off hands them back to Yahoo, if Yahoo is on. |
 | `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` | off | Twelve Data's free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data. |
 | `MARKETWATCH_RSS_ENABLED` | off | MarketWatch's top stories feed on `MARKETNEWS`. Dow Jones's terms bar automated access to its content, RSS feeds included, without written consent; switch it on only if you accept that risk for your own use. |
+| `ALPACA_IEX_PRICES_ENABLED` | off | Use Alpaca IEX-only prices for US equities in watchlists and panels. Both keys and `ALPACA_ENABLED` are required. Reload to apply. Daily history is limited to previous/current IEX bars; intraday history contains snapshots observed while the app is open. Yahoo price history is kept separate. |
 | `FMP_ENABLED`, `FINNHUB_ENABLED`, `MARKETAUX_ENABLED`, `ALPACA_ENABLED`, `TIINGO_ENABLED` | on | Each keyed source added in 2.1.0 is used while its key is set; its switch off stops every request to it. |
 | `DEMO_MODE` | off | Browser build only, set when building: opens straight into the demo, whose every value is simulated and marked DEMO DATA. The desktop app never runs the demo. |
 
@@ -54,6 +57,12 @@ Switch changes take effect after a reload of the window (Ctrl+R).
 - Not covered by any source the app may use: listed option chains, quarterly estimates and earnings surprises, prices and dealer quotes for individual bonds, FX forward points, swap rates, order books beyond the best bid and offer (crypto aside), and consensus forecasts for economic releases. Those screens say so instead of showing numbers.
 
 [data-providers.md](data-providers.md) has each provider's terms, limits and the pages they come from; [limits.md](limits.md) collects the limits in one place.
+
+## Cloud development credentials
+
+Enter credentials securely in environment settings using the canonical names above, then save and publish the environment configuration. Chat text does not populate the running process. The cloud draft declares the required API hosts and names, never key values. Alpaca credentials are scoped to `data.alpaca.markets`; trading hosts are not needed.
+
+A proxy `CONNECT 403` means the cloud network policy blocked the connection before the provider could validate a key. Keep that separate from a provider's HTTP 401/402/403 response. Saving a draft alone does not apply it to the current runtime or prove that the keys work.
 
 ## The provider screen
 

@@ -15,6 +15,7 @@ import { Splitters } from './components/Splitters';
 import { startBackground } from './terminal/background';
 import { DemoBanner } from './components/NoDataSource';
 import { demoMode } from './data/demo';
+import { startIexPrices } from './data/live/iex-engine';
 
 function MobileTabs() {
   const s = terminal.use((x) => x);
@@ -73,6 +74,7 @@ export function App() {
     return () => engine.stop();
   }, [tickMs]);
 
+  useEffect(() => startIexPrices(), []);
   useEffect(() => startBackground(), []);
 
   const activeRoute = terminal.use((s) => currentRoute(s, s.active));

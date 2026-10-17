@@ -1,6 +1,6 @@
 import { resolveSecurity, searchSecurities, YELLOW_KEYS, CLASS_LABEL } from '../data/registry';
 import type { SecurityDef } from '../data/types';
-import { FUNCTIONS } from './registry';
+import { FUNCTIONS, lookupFn } from './registry';
 import type { FnDef } from './types';
 import { lookupSource, normalizeTicker } from '../data/live/lookup';
 
@@ -63,6 +63,9 @@ export function suggest(input: string): Suggestion[] {
   const tokens = raw.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return [];
   if (/^\d+$/.test(tokens[0])) return [];
+  if (tokens[0].toUpperCase() === 'HELP' && (tokens.length > 1 || trailing)) {
+    return matchFns(tokens.slice(1).join(' '), undefined, false, 12).map((f) => fnSuggestion(f, 'HELP'));
+  }
 
   // Security with a yellow key typed: suggest its functions.
   const ykAt = tokens.findIndex((t, i) => i > 0 && YELLOW_KEYS[t.toUpperCase()]);
@@ -74,7 +77,9 @@ export function suggest(input: string): Suggestion[] {
   }
 
   // "AAPL G" -> functions for AAPL starting with G; "AAPL " -> all its functions.
-  for (let j = tokens.length - (trailing ? 0 : 1); j >= 1; j--) {
+  // A bare function remains a function even when its alias is a loaded ticker.
+  const bareFunction = tokens.length === 1 && !!lookupFn(tokens[0]);
+  for (let j = bareFunction ? 0 : tokens.length - (trailing ? 0 : 1); j >= 1; j--) {
     const sec = resolveSecurity(tokens.slice(0, j).join(' '));
     if (!sec) continue;
     const partial = tokens.slice(j).join(' ');
@@ -87,12 +92,12 @@ export function suggest(input: string): Suggestion[] {
   const q = tokens.join(' ');
   const fns = matchFns(q, undefined, false, 6).map((f) => fnSuggestion(f, ''));
   const secs = searchSecurities(q, 9).map((h) => secSuggestion(h.def));
-  const exactFn = fns.length && fns[0].primary === q.toUpperCase();
+  const exactFn = !!lookupFn(q);
   const out = exactFn ? [...fns, ...secs] : [...secs.slice(0, 1), ...fns, ...secs.slice(1)];
   // A ticker that is not built in can be loaded online.
   const ticker = tokens.length === 1 ? normalizeTicker(tokens[0]) : null;
   const source = ticker && !resolveSecurity(ticker) ? lookupSource() : null;
-  if (ticker && source) {
+  if (ticker && source && !exactFn) {
     out.unshift({ kind: 'sec', key: `online:${ticker}`, primary: `${ticker} US Equity`, secondary: `Load from ${source === 'yahoo' ? 'Yahoo Finance' : 'Finnhub'}`, tag: 'Online', execute: `${ticker} US EQUITY` });
   }
   return out;

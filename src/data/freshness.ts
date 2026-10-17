@@ -49,7 +49,7 @@ export const DAILY_STALE_AFTER = 5 * DAY;
 
 /** Official publishers: their once-a-day values are reference values. */
 export function isOfficialProvider(provider: string | undefined): boolean {
-  return !!provider && !/yahoo|coingecko|binance|kraken|massive|twelve|financial modeling|alpha vantage/i.test(provider);
+  return !!provider && !/yahoo|coingecko|binance|kraken|alpaca|iex|massive|twelve|financial modeling|alpha vantage/i.test(provider);
 }
 
 function age(ms: number): string {
@@ -65,6 +65,9 @@ const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 /** The label for a quote at `now`; null when there is no value at all. */
 export function freshnessOf(q: Pick<Quote, 'src' | 'time' | 'delay' | 'sourceName' | 'provider' | 'dayOnly'>, def: Pick<SecurityDef, 'cls'> | undefined, now: number): FreshnessInfo | null {
   const old = now - q.time;
+  if (/IEX only/i.test(q.provider ?? '') && q.src !== 'NONE' && q.src !== 'SIM' && (!Number.isFinite(old) || old > MIN || old < -5_000)) {
+    return { label: 'STALE', why: 'The latest IEX trade is more than 60 seconds old or has an invalid timestamp; a recent HTTP response does not make it a recent trade' };
+  }
   switch (q.src) {
     case 'SIM':
       return { label: 'DEMO DATA', why: 'Simulated by the demo: not a market price' };
@@ -77,7 +80,7 @@ export function freshnessOf(q: Pick<Quote, 'src' | 'time' | 'delay' | 'sourceNam
         : { label: 'END OF DAY', why: `End-of-day value as of ${isoDay(q.time)}` };
     }
     case 'STALE':
-      return { label: 'STALE', why: 'The source has stopped answering: this is the last value received' };
+      return { label: 'STALE', why: 'The latest price is out of date or the source has stopped answering: this is the last value received' };
     case 'CLOSE':
       return { label: 'END OF DAY', why: `Market closed: the last price of its latest session${Number.isFinite(q.time) ? ` (${isoDay(q.time)})` : ''}` };
     case 'LIVE':

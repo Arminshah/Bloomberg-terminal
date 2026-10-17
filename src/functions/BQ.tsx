@@ -16,7 +16,7 @@ import { keyStats, nextEarnings } from '../data/fundamentals';
 import { news } from '../data/news';
 import { execute } from '../terminal/exec';
 import { requestCompanyNews } from '../data/live/feeds';
-import { useIex, type IexState } from '../data/live/alpaca';
+import { iexFreshness, useIex, type IexState } from '../data/live/alpaca';
 import { companyFeeds, companyStories, marketNews, useCompanyNews } from '../data/live/marketnews';
 import { secTicker } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
@@ -254,6 +254,7 @@ function IexPanel({ st, sec, q }: { st: IexState; sec: SecurityDef; q: Quote }) 
   }
   const d = st.data;
   const dec = sec.dec;
+  const freshness = iexFreshness(d, engine.now());
   const diff = Number.isFinite(q.last) ? d.last - q.last : NaN;
   const side = (px: number, size: number) => (px > 0 ? `${fmtNum(px, dec)} × ${fmtBig(size, 0)}` : '--');
   return (
@@ -263,18 +264,19 @@ function IexPanel({ st, sec, q }: { st: IexState; sec: SecurityDef; q: Quote }) 
           [
             'Last trade on IEX',
             <span key="l">
-              <span className="white b">{fmtNum(d.last, dec)}</span> <span className="muted">× {fmtBig(d.lastSize, 0)} at {fmtStamp(d.lastAt, engine.now())}</span>
+              <span className="white b">{fmtNum(d.last, dec)}</span>{Number.isFinite(d.lastAt) ? <span className="muted"> × {fmtBig(d.lastSize, 0)} at {fmtStamp(d.lastAt, engine.now())}{freshness.tradeStale ? ' (not current)' : ''}</span> : null}
             </span>,
           ],
           ['vs the quote above', Number.isFinite(diff) ? <span key="d" className={diff > 0 ? 'up' : diff < 0 ? 'dn' : 'muted'}>{`${diff > 0 ? '+' : ''}${fmtNum(diff, dec)}`}</span> : '--'],
           ['IEX bid / ask (IEX only)', `${side(d.bid, d.bidSize)} / ${side(d.ask, d.askSize)}`],
+          ['IEX quote time', Number.isFinite(d.quoteAt) ? `${fmtStamp(d.quoteAt, engine.now())}${freshness.quoteStale ? ' (not current)' : ''}` : '--'],
           [`IEX volume ${fmtDay(d.dayAt)} (IEX only)`, Number.isFinite(d.volume) ? fmtBig(d.volume) : '--'],
           ['IEX day range (IEX only)', d.low > 0 ? `${fmtNum(d.low, dec)} - ${fmtNum(d.high, dec)}` : '--'],
-          ['Received', st.at ? fmtTime(st.at) : '--'],
+          ['Response fetched', st.at ? fmtStamp(st.at, engine.now()) : '--'],
         ]}
       />
       <div className="note">
-        IEX only: trades and quotes on one exchange, not the whole US market. The bid and ask are IEX&apos;s own, not the national best; volume and range count IEX trades alone.{st.stale && st.message ? ` Latest request: ${st.message}` : ''}
+        IEX only: trades and quotes on one exchange, not the whole US market. The bid and ask are IEX&apos;s own, not the national best; volume and range count IEX trades alone. A recently fetched response can contain older trades or quotes, including when IEX is quiet or closed.{st.stale && st.message ? ` Latest request: ${st.message}` : ''}
       </div>
     </>
   );

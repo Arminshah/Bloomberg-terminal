@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { fmtNum } from '../core/format';
-import { engine } from '../data/market';
+import { engine, useInterval, useQuote } from '../data/market';
 import { secTicker } from '../data/live/sec';
-import { compareCloses, diffBp, EOD_PROVIDERS, eodAvailable, loadEod, type EodBar, type EodProvider, type EodResult } from '../data/live/eod';
+import { compareCloses, diffBp, EOD_PROVIDERS, eodAvailable, eodRange, loadEod, type EodBar, type EodProvider, type EodResult } from '../data/live/eod';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -31,6 +31,10 @@ export function CROSSCHECK({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
   const ticker = secTicker(s);
+  const quote = useQuote(s.id);
+  const provider = quote?.provider ?? 'the active price source';
+  useInterval(60_000);
+  const latest = eodRange().to;
   const [results, setResults] = useState<Partial<Record<EodProvider, EodResult>>>({});
   useEffect(() => {
     if (!ticker || !eodAvailable()) return;
@@ -43,14 +47,13 @@ export function CROSSCHECK({ sec }: FnProps) {
     return () => {
       live = false;
     };
-  }, [ticker]);
+  }, [ticker, latest]);
 
   const daily = engine.daily(s.id);
   const app: { date: string; c: number }[] = [];
   for (let i = Math.max(0, daily.length - 30); i < daily.length; i++) app.push({ date: new Date(daily.t[i]).toISOString().slice(0, 10), c: daily.c[i] });
-  // The latest bar can be today's session in progress: only finished sessions are compared.
-  const today = new Date().toISOString().slice(0, 10);
-  const finished = app.filter((r) => r.date < today);
+  // Use the same New York session cutoff as the provider requests, including early closes.
+  const finished = app.filter((r) => r.date <= latest);
   const others: Partial<Record<EodProvider, EodBar[]>> = {};
   for (const p of EOD_PROVIDERS) {
     const r = results[p.id];
@@ -84,9 +87,9 @@ export function CROSSCHECK({ sec }: FnProps) {
         {EOD_PROVIDERS.map((p) => {
           const r = results[p.id];
           return (
-            <span key={p.id} title={r && !r.ok ? r.message : undefined}>
+            <span key={p.id} title={r?.ok ? `Answer received ${new Date(r.at).toLocaleString()}${r.stale ? '; the latest request failed' : ''}` : r?.message}>
               <span className="lbl">{p.name}</span>{' '}
-              {!r ? <span className="muted">asking…</span> : r.ok ? <span className="up">{r.bars.length} sessions ({p.basis})</span> : <span className="amber">{r.reason === 'needs-key' ? 'no key' : r.reason === 'gated' ? 'display rights not confirmed' : r.reason === 'budget' ? 'budget spent' : 'error'}</span>}
+              {!r ? <span className="muted">asking…</span> : r.ok ? <span className={r.stale ? 'amber' : 'up'}>{r.stale ? 'STALE · ' : ''}{r.bars.length} sessions ({p.basis})</span> : <span className="amber">{r.reason === 'needs-key' ? 'no key' : r.reason === 'gated' ? 'display rights not confirmed' : r.reason === 'budget' ? 'budget spent' : 'error'}</span>}
             </span>
           );
         })}
@@ -101,7 +104,7 @@ export function CROSSCHECK({ sec }: FnProps) {
           <thead>
             <tr>
               <th>Session</th>
-              <th className="num">App close</th>
+              <th className="num" title={provider}>App close</th>
               {active.map((p) => (
                 <th key={p.id} className="num" colSpan={2}>
                   {p.name}
@@ -133,7 +136,7 @@ export function CROSSCHECK({ sec }: FnProps) {
       )}
       <div className="note">
         Finished sessions only. Gaps over {FLAG_BP} bp are marked. Massive&apos;s closes are split-adjusted, Alpha Vantage&apos;s and Tiingo&apos;s are as traded (a split in the window shows as a large gap), and Twelve Data is asked only once you confirm your plan
-        allows displaying its data. The app&apos;s own closes come from Yahoo Finance. No source here is adjusted for dividends.
+        allows displaying its data. The app&apos;s own closes come from {provider}. {/IEX/i.test(provider) ? 'IEX covers one exchange; its closes can differ from market-wide closing prices. ' : ''}No source here is adjusted for dividends.
       </div>
     </div>
   );

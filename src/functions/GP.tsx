@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
+import { IexHistoryNotice } from '../components/IexHistoryNotice';
 import { ChartView } from '../components/chart/ChartView';
 import { COMPARE_COLORS, type ChartOptions, type ChartType, type LowerKind, type Overlay } from '../components/chart/PriceChart';
 import { createStore } from '../core/store';
 import { fmtDay, fmtTime } from '../core/format';
-import { engine, useHistoryVersion, useTick } from '../data/market';
+import { engine, useHistoryVersion, useQuote, useTick } from '../data/market';
+import { IEX_PROVIDER } from '../data/live/iex-engine';
 import { resolveSecurity, searchSecurities } from '../data/registry';
 import { aggregate, barsSince, type Periodicity, type Series } from '../data/series';
 import { horizonStart, type Horizon } from '../data/analytics';
@@ -110,6 +112,7 @@ function CompareBox({ sec, list, setList }: { sec: SecurityDef; list: string[]; 
 
 function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intraday: boolean; initialPeriod?: string }) {
   const panel = usePanelId();
+  const iex = useQuote(sec.id)?.provider === IEX_PROVIDER;
   const store = intraday ? intradayPrefs : prefs;
   const p = store.use((s) => s);
   const [period, setPeriod] = useState(initialPeriod ?? '1Y');
@@ -162,7 +165,7 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
   const toggleLower = (k: LowerKind) =>
     store.set((s) => ({ ...s, lower: s.lower.includes(k) ? s.lower.filter((x) => x !== k) : [...s.lower, k] }));
 
-  const tabs = intraday ? undefined : PERIODS.map((x) => ({ n: x.n, label: x.label }));
+  const tabs = intraday || iex ? undefined : PERIODS.map((x) => ({ n: x.n, label: x.label }));
   const currentTab = PERIODS.find((x) => x.id === period)?.n;
   return (
     <div className="fn-fill">
@@ -179,12 +182,14 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
           else setPeriod(per.id);
         }}
         actions={[
+          ...(iex && !intraday ? [{ n: 94, label: 'Intraday', onClick: () => execute(panel, `${sec.id} INTRADAY`) }] : []),
           ...(intraday ? [{ n: 95, label: 'Daily', onClick: () => execute(panel, `${sec.id} CHART`) }] : []),
           { n: 96, label: 'Table', onClick: () => execute(panel, `${sec.id} HISTORY`) },
           { n: 97, label: 'Compare', onClick: () => execute(panel, `${sec.id} RETURNS`) },
         ]}
       />
       <QuoteStrip sec={sec} />
+      {iex && <IexHistoryNotice intraday={intraday} />}
       <div className="chart-tools">
         <span className="seg" role="group" aria-label="Chart type">
           {TYPES.map((t) => (

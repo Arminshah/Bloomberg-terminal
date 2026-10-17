@@ -565,7 +565,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'alpaca',
     name: 'Alpaca Market Data (IEX)',
-    serves: 'IEX last trade, best bid and offer, and volume for a US stock on QUOTE, labelled IEX only',
+    serves: 'IEX last trade, best bid and offer on QUOTE; optional IEX-only US equity prices across panels and watchlists',
     dataClass: 'Real time, IEX only: one exchange, not the whole US market',
     policy: 'needs-credential',
     credential: 'ALPACA_API_KEY_ID',
@@ -644,7 +644,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'TIINGO_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED';
 
 export interface SettingState {
   label: string;

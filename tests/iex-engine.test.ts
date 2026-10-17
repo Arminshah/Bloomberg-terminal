@@ -1,0 +1,153 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { dayNum } from '../src/data/calendar';
+import { MarketEngine } from '../src/data/engine';
+import { engine } from '../src/data/market';
+import { rangeStats } from '../src/data/analytics';
+import { freshnessOf, isOfficialProvider } from '../src/data/freshness';
+import { iex, type IexSnapshot, type IexState } from '../src/data/live/alpaca';
+import { IEX_PROVIDER, iexDay, iexOwns, iexPricesEnabled, iexReading, startIexPrices } from '../src/data/live/iex-engine';
+import { adoptYahooHistory, realDividends, startYahooData, trailingDividendYield, yahooSymbolFor } from '../src/data/live/yahoo';
+
+const NOW = Date.parse('2026-10-14T15:00:00Z');
+const ID = 'AAPL US Equity';
+const day = dayNum(NOW);
+const snapshot = (over: Partial<IexSnapshot> = {}): IexSnapshot => ({
+  last: 101, lastSize: 20, lastAt: NOW - 1_000,
+  bid: 100.99, bidSize: 30, ask: 101.01, askSize: 40, quoteAt: NOW - 500,
+  open: 100, high: 102, low: 99, close: 100.9, volume: 2400, dayAt: Date.parse('2026-10-14T04:00:00Z'),
+  prevOpen: 98, prevHigh: 100, prevLow: 97, prevClose: 99, prevVolume: 1800, prevDayAt: Date.parse('2026-10-13T04:00:00Z'),
+  ...over,
+});
+const state = (over: Partial<IexSnapshot> = {}): IexState => ({ state: 'ok', data: snapshot(over), at: NOW });
+const stops: (() => void)[] = [];
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(NOW);
+  vi.stubGlobal('window', { arminDesktop: { alpaca: vi.fn(async () => ({ status: 200, text: '{}' })), settings: { ALPACA_IEX_PRICES_ENABLED: true } } });
+});
+
+afterEach(() => {
+  for (const stop of stops.splice(0)) stop();
+  iex.set((s) => ({ v: s.v + 1, by: {} }));
+  realDividends.delete(ID);
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+describe('explicit IEX price selection', () => {
+  it('requires the source switch and leaves non-US equities with their normal providers', () => {
+    expect(iexPricesEnabled()).toBe(true);
+    expect(iexOwns(ID)).toBe(true);
+    expect(iexOwns('ASML NA Equity')).toBe(false);
+    expect(iexOwns('SPX Index')).toBe(false);
+    window.arminDesktop!.settings!.ALPACA_IEX_PRICES_ENABLED = false;
+    expect(iexOwns(ID)).toBe(false);
+    window.arminDesktop!.settings!.ALPACA_IEX_PRICES_ENABLED = true;
+    window.arminDesktop!.settings!.ALPACA_ENABLED = false;
+    expect(iexPricesEnabled()).toBe(false);
+  });
+
+  it('keeps symbol lookup available for Yahoo company fundamentals', () => {
+    expect(yahooSymbolFor(engine.get(ID)!)).toBe('AAPL');
+    const dynamic = { ...engine.get(ID)!, yahoo: undefined, dynamic: { source: 'yahoo' as const, symbol: 'CUSTOM', loaded: NOW, anchors: [] } };
+    expect(yahooSymbolFor(dynamic)).toBe('CUSTOM');
+  });
+
+  it('dates trades and venue daily bars by New York, including daylight saving time', () => {
+    expect(iexDay(Date.parse('2026-10-14T03:59:00Z'))).toBe(day - 1);
+    expect(iexDay(Date.parse('2026-10-14T04:00:00Z'))).toBe(day);
+    expect(iexDay(Date.parse('2026-12-14T04:59:00Z'))).toBe(dayNum(Date.parse('2026-12-13')));
+    expect(iexDay(Date.parse('2026-12-14T05:00:00Z'))).toBe(dayNum(Date.parse('2026-12-14')));
+  });
+});
+
+describe('IEX snapshot provenance and event time', () => {
+  it('uses only IEX previous close, ranges and volumes and never claims a market session', () => {
+    const reading = iexReading(state(), NOW)!;
+    expect(reading.bars).toEqual([
+      { day: day - 1, o: 98, h: 100, l: 97, c: 99, v: 1800 },
+      { day, o: 100, h: 102, l: 99, c: 100.9, v: 2400 },
+    ]);
+    expect(reading.quote).toMatchObject({ last: 101, prevClose: 99, volume: 2400, time: NOW - 1000, fetched: NOW, sessionKnown: false, aggregateTrades: false });
+    expect(reading.stale).toBe(false);
+  });
+
+  it('keeps absent or mismatched-session daily data missing instead of borrowing another day', () => {
+    const reading = iexReading(state({ dayAt: NOW - 86_400_000, prevDayAt: NOW, quoteAt: NOW - 61_000 }), NOW)!;
+    expect(reading.bars).toHaveLength(1);
+    expect(reading.quote.open).toBeNaN();
+    expect(reading.quote.high).toBeNaN();
+    expect(reading.quote.volume).toBeNaN();
+    expect(reading.quote.prevClose).toBeNaN();
+    expect(reading.quote.bid).toBeNaN();
+    expect(reading.quote.ask).toBeNaN();
+  });
+
+  it('does not let receipt time upgrade old or cached data to real time', () => {
+    expect(iexReading(state({ lastAt: NOW - 61_000 }), NOW)!.stale).toBe(true);
+    expect(iexReading({ ...state(), stale: true }, NOW)!.stale).toBe(true);
+    expect(iexReading(state({ lastAt: NOW + 60_000 }), NOW)).toBeNull();
+    expect(iexReading(state({ last: NaN, lastAt: NaN }), NOW)).toBeNull();
+    expect(freshnessOf({ src: 'LIVE', time: NOW - 61_000, provider: IEX_PROVIDER }, { cls: 'equity' }, NOW)?.label).toBe('STALE');
+    expect(isOfficialProvider(IEX_PROVIDER)).toBe(false);
+  });
+});
+
+describe('IEX lines in the market engine', () => {
+  it('resets old-provider quotes, history, extended hours and tape on a venue change', () => {
+    const e = new MarketEngine(() => NOW);
+    e.setExternalDaily(ID, [{ day: day - 1, o: 500, h: 600, l: 400, c: 550, v: 10_000_000 }, { day, o: 550, h: 650, l: 500, c: 600, v: 20_000_000 }], { provider: 'Yahoo Finance' });
+    e.setExternalQuote(ID, { last: 600, time: NOW, volume: 20_000_100, bid: 599, ask: 601, marketOpen: true, timing: 'delayed', delay: 15 });
+    e.setExtended(ID, { price: 601, time: NOW, session: 'post' });
+    expect(e.trades(ID)).toHaveLength(1);
+    const reading = iexReading(state(), NOW)!;
+    e.setExternalDaily(ID, reading.bars, { provider: IEX_PROVIDER });
+    expect(e.quote(ID)).toMatchObject({ provider: IEX_PROVIDER, src: 'UNCONFIRMED' });
+    expect(e.quote(ID)?.bid).toBeNaN();
+    expect(e.quote(ID)?.extended).toBeUndefined();
+    expect(e.quote(ID)?.delay).toBeUndefined();
+    e.setExternalQuote(ID, reading.quote);
+    const q = e.quote(ID)!;
+    expect(q).toMatchObject({ last: 101, high: 102, low: 99, prevClose: 99, volume: 2400, chg: 2, chgCheck: 'verified', src: 'LIVE' });
+    expect(q.session).toBeUndefined();
+    expect(e.trades(ID)).toHaveLength(0);
+    expect(Array.from(e.daily(ID).c).slice(0, e.daily(ID).length)).toEqual([99, 101]);
+  });
+
+  it('publishes app-wide prices and observed samples, ages them out, and rejects Yahoo adoption', async () => {
+    const yahoo = vi.fn(async (_path: string) => ({ status: 200, data: null }));
+    window.arminDesktop!.yahoo = yahoo;
+    vi.stubGlobal('WebSocket', class { constructor() { throw new Error('disabled in this test'); } });
+    stops.push(startIexPrices());
+    const update = (value: IexState) => iex.set((s) => ({ v: s.v + 1, by: { ...s.by, AAPL: value } }));
+    update(state());
+    expect(engine.quote(ID)).toMatchObject({ provider: IEX_PROVIDER, last: 101, src: 'LIVE', chgCheck: 'verified' });
+    expect(engine.intraday(ID).length).toBe(1);
+    expect(engine.intraday(ID).t[0]).toBe(NOW - 1000);
+    vi.setSystemTime(NOW + 30_000);
+    update({ ...state({ last: 101.5, lastAt: NOW + 29_000, quoteAt: NOW + 29_000 }), at: NOW + 30_000 });
+    expect(engine.intraday(ID).length).toBe(2);
+    expect(engine.intraday(ID).t[1]).toBe(NOW + 29_000);
+    expect(engine.intraday(ID).v[1]).toBeNaN();
+    expect(engine.trades(ID)).toHaveLength(0);
+    expect(rangeStats(ID).hi52).toBeNaN();
+    expect(rangeStats(ID).avgVol30).toBeNaN();
+    expect(trailingDividendYield(ID)).toBeNaN();
+
+    stops.push(startYahooData());
+    adoptYahooHistory(ID, 'AAPL', [{ day, o: 999, h: 999, l: 999, c: 999, v: 9e9 }]);
+    await Promise.resolve();
+    expect(engine.quote(ID)?.provider).toBe(IEX_PROVIDER);
+    expect(engine.quote(ID)?.last).toBe(101.5);
+    expect(yahoo.mock.calls.some((args) => String(args[0]).includes('/chart/AAPL?'))).toBe(false);
+
+    // The shared transport can keep answering, but the trade's own time ages independently.
+    vi.setSystemTime(NOW + 95_000);
+    update({ ...state({ last: 101.5, lastAt: NOW + 29_000, quoteAt: NOW + 29_000 }), at: NOW + 95_000 });
+    expect(engine.quote(ID)?.src).toBe('STALE');
+    expect(engine.quote(ID)?.bid).toBeNaN();
+    expect(engine.quote(ID)?.time).toBe(NOW + 29_000);
+  });
+});

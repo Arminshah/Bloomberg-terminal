@@ -33,7 +33,7 @@ declare global {
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
-      eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<{ status: number; text: string; missing?: string; gated?: string; refused?: string; budget?: boolean }>;
+      eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<KeyedAnswer>;
       analysts?(kind: import('./analysts').AnalystKind, symbol: string): Promise<KeyedAnswer>;
       news?(source: import('./marketnews').NewsSource, arg?: string): Promise<KeyedAnswer>;
       alpaca?(kind: 'snapshots', symbols: string): Promise<KeyedAnswer>;
@@ -58,6 +58,8 @@ declare global {
  * usable key is configured; `budget` when the app's daily allowance for the provider is spent.
  */
 export interface KeyedAnswer {
+  /** Earliest retry time after a provider throttle or circuit breaker. */
+  retryAt?: number;
   status: number;
   text: string;
   at?: number;

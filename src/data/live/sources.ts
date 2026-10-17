@@ -5,12 +5,14 @@ import { TREASURY_IDS, treasuryAvailable } from './ust';
 import { OFFICIAL_YIELD_IDS } from './govyields';
 import { krakenOwns } from './kraken';
 import { officialAvailable } from './official';
+import { iexOwns } from './iex-engine';
 
 /**
  * Which securities the desktop app has a real source for. Everything else is
  * left out of its lists: the desktop app shows real data or nothing.
  */
 export function hasRealSource(d: SecurityDef): boolean {
+  if (iexOwns(d.id)) return true;
   if (krakenOwns(d.id)) return true;
   if (yahooSymbolFor(d)) return true;
   if (treasuryAvailable() && TREASURY_IDS.has(d.id)) return true;

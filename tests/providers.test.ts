@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PROVIDERS, providerState, type ProviderReport } from '../src/data/providers';
 import { timingOf } from '../src/data/live/yahoo';
 // The main-process module; outside Electron the functions tested here do not touch electron.
 import * as providers from '../electron/providers.cjs';
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe('provider credentials', () => {
   it('accepts only well-formed keys and a real SEC contact', () => {
@@ -62,6 +64,96 @@ describe('provider credentials', () => {
   it('reads KEY=VALUE lines from a .env file', () => {
     expect(providers.parseDotEnv('# comment\nFRED_API_KEY=abc\nSEC_USER_AGENT="My App me@mail.org"\n\nBAD LINE\n')).toEqual({ FRED_API_KEY: 'abc', SEC_USER_AGENT: 'My App me@mail.org' });
   });
+
+  it('preserves base64 padding and accepts dashboard aliases and a Markdown SEC contact', () => {
+    const secret = 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEf+/==';
+    const { found, skipped } = providers.parseCredentialList([
+      '1. MARKETAUX_API_KEY: AbCdEfGhIjKlMnOpQrStUvWxYz012345',
+      '2. ALPACA_API_KEY=PKABCDEFGHIJKLMNOPQRSTUV12',
+      `3. ALPACA_SECRET_KEY=${secret}`,
+      '4. SEC_USER_AGENT: Name: Ann Example e-mail: [ann@mail.org](mailto:ann@mail.org)',
+    ].join('\n'));
+    expect(Object.fromEntries(found.map(({ name, value }) => [name, value]))).toEqual({
+      MARKETAUX_API_TOKEN: 'AbCdEfGhIjKlMnOpQrStUvWxYz012345',
+      ALPACA_API_KEY_ID: 'PKABCDEFGHIJKLMNOPQRSTUV12',
+      ALPACA_API_SECRET_KEY: secret,
+      SEC_USER_AGENT: 'Ann Example ann@mail.org',
+    });
+    expect(skipped).toEqual([]);
+  });
+
+  it('uses environment aliases and gives the canonical variable priority', () => {
+    vi.stubEnv('MARKETAUX_API_TOKEN', '');
+    vi.stubEnv('MARKETAUX_API_KEY', 'AbCdEfGhIjKlMnOpQrStUvWxYz012345');
+    vi.stubEnv('ALPACA_API_KEY_ID', '');
+    vi.stubEnv('ALPACA_API_KEY', 'PKABCDEFGHIJKLMNOPQRSTUV12');
+    vi.stubEnv('ALPACA_API_SECRET_KEY', '');
+    vi.stubEnv('ALPACA_SECRET_KEY', 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEf+/==');
+    expect(providers.credential('MARKETAUX_API_TOKEN')).toEqual({ value: 'AbCdEfGhIjKlMnOpQrStUvWxYz012345', source: 'environment' });
+    expect(providers.credential('ALPACA_API_KEY_ID').value).toBe('PKABCDEFGHIJKLMNOPQRSTUV12');
+    expect(providers.credential('ALPACA_API_SECRET_KEY').value).toBe('AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCdEf+/==');
+    vi.stubEnv('MARKETAUX_API_TOKEN', 'CanonicalValue1234567890');
+    expect(providers.credential('MARKETAUX_API_TOKEN').value).toBe('CanonicalValue1234567890');
+    vi.stubEnv('SEC_USER_AGENT', 'Name: Ann Example e-mail: [ann@mail.org](mailto:ann@mail.org)');
+    expect(providers.credential('SEC_USER_AGENT').value).toBe('Ann Example ann@mail.org');
+  });
+
+  it('reads exported variables, comments and literal quoted values from .env', () => {
+    expect(providers.parseDotEnv([
+      'export ALPACA_SECRET_KEY=AbCdEf0123456789AbCdEf0123456789+/== # account key',
+      'SEC_USER_AGENT="My App me@mail.org" # SEC contact',
+      "QUOTED='literal # content'",
+      'BROKEN="unterminated',
+    ].join('\n'))).toEqual({
+      ALPACA_SECRET_KEY: 'AbCdEf0123456789AbCdEf0123456789+/==',
+      SEC_USER_AGENT: 'My App me@mail.org',
+      QUOTED: 'literal # content',
+    });
+  });
+});
+
+describe('provider refusals returned as HTTP 200', () => {
+  it.each([
+    ['alphavantage', { Note: 'Our standard API call frequency is 5 calls per minute.' }, 'rate-limited'],
+    ['alphavantage', { Information: 'Our standard API rate limit is 25 requests per day.' }, 'rate-limited'],
+    ['alphavantage', { 'Error Message': 'Invalid API call. Please retry with a valid symbol.' }, 'no-data'],
+    ['twelvedata', { status: 'error', code: 429, message: 'API credits exhausted.' }, 'rate-limited'],
+    ['twelvedata', { status: 'error', code: 401, message: 'The API key is invalid.' }, 'not-entitled'],
+    ['fmp', { 'Error Message': 'Invalid API KEY.' }, 'not-entitled'],
+    ['fmp', 'Premium Query Parameter: not available under your current subscription.', 'not-entitled'],
+    ['finnhub', { error: "You don't have access to this resource." }, 'not-entitled'],
+    ['marketaux', { error: { code: 'usage_limit_reached', message: 'Your allowance is spent.' } }, 'rate-limited'],
+    ['marketaux', { error: { code: 'invalid_api_token', message: 'The supplied token is incorrect.' } }, 'not-entitled'],
+    ['alpaca', { code: 42910000, message: 'Rate limit exceeded.' }, 'rate-limited'],
+    ['fred', { error_code: 400, error_message: 'The value for variable api_key is not registered.' }, 'not-entitled'],
+    ['coingecko', { status: { error_code: 10002, error_message: 'API Key Missing' } }, 'not-entitled'],
+    ['tiingo', { detail: 'Invalid token.' }, 'not-entitled'],
+    ['massive', { status: 'NOT_AUTHORIZED', message: 'Your plan does not include access to this endpoint.' }, 'not-entitled'],
+  ])('recognizes %s errors before they are cached as data', (provider, body, kind) => {
+    expect(providers.providerPayloadProblem(String(provider), JSON.stringify(body))?.kind).toBe(kind);
+  });
+
+  it('removes secrets and URLs from payload error explanations', () => {
+    const key = 'MadeUpKey1234567890';
+    const problem = providers.providerPayloadProblem('finnhub', JSON.stringify({ error: `Invalid API key ${key}. See https://site.invalid/help?token=${key} for details.` }), [key]);
+    expect(problem).toEqual({ kind: 'not-entitled', message: 'Invalid API key <key>.' });
+    expect(JSON.stringify(problem)).not.toContain(key);
+  });
+
+  it.each([
+    ['finnhub', { message: 'An earnings announcement', data: [{ message: 'News item' }] }],
+    ['marketaux', { meta: { found: 1 }, data: [{ title: 'Markets rise', message: 'Commentary' }] }],
+    ['alpaca', { quotes: { AAPL: { ap: 200, bp: 199 } } }],
+    ['twelvedata', { status: 'ok', values: [{ close: '200' }] }],
+    ['alphavantage', { 'Time Series (Daily)': { '2026-10-16': { '4. close': '200' } } }],
+    ['fmp', [{ symbol: 'AAPL', message: 'Estimate updated' }]],
+  ])('leaves valid %s data alone', (provider, body) => {
+    expect(providers.providerPayloadProblem(String(provider), JSON.stringify(body))).toBeNull();
+  });
+
+  it('leaves malformed JSON for the adapter to diagnose', () => {
+    expect(providers.providerPayloadProblem('twelvedata', '<html>Service unavailable</html>')).toBeNull();
+  });
 });
 
 describe('provider accounting', () => {
@@ -81,6 +173,15 @@ describe('provider accounting', () => {
     expect(s.lastErrorKind).toBe('network');
     expect(s.lastError).not.toContain('SECRET');
     expect(s.lastError).toContain('<url>');
+  });
+
+  it('redacts configured keys repeated outside URLs before reporting errors', () => {
+    const key = '0123456789abcdef0123456789abcdef';
+    vi.stubEnv('FRED_API_KEY', key);
+    providers.recordResult('secret-error-test', 0, new Error(`Rejected API key ${key}`));
+    expect(providers.providerStats()['secret-error-test'].lastError).toBe('Rejected API key <key>');
+    providers.recordProblem('secret-error-test', 'not-entitled', `Invalid token: ${key}`);
+    expect(providers.providerStats()['secret-error-test'].lastError).toBe('Invalid token: <key>');
   });
 
   it('keeps the provider\'s own explanation of a failure, without the key or links', () => {
@@ -195,6 +296,7 @@ describe('daily allowances and refusals of the keyed sources', () => {
   it('has a switch for each new source, on by default', () => {
     for (const name of ['FMP_ENABLED', 'FINNHUB_ENABLED', 'MARKETAUX_ENABLED', 'ALPACA_ENABLED', 'TIINGO_ENABLED'] as const) expect(providers.SETTINGS[name].default).toBe(true);
     expect(providers.SETTINGS.MARKETWATCH_RSS_ENABLED.default).toBe(false);
+    expect(providers.SETTINGS.ALPACA_IEX_PRICES_ENABLED.default).toBe(false);
   });
 
   it("reads each provider's refusal, without the key or links", () => {
@@ -233,6 +335,16 @@ describe('pasted keys with labels around them', () => {
     const { found, skipped } = providers.parseCredentialList('Alpha Vantage: personal password');
     expect(found).toEqual([]);
     expect(skipped).toEqual([{ line: 1, name: 'ALPHA_VANTAGE_API_KEY', reason: 'more than one word could be the key; paste it into its own field' }]);
+  });
+
+  it('does not guess between two distinct keys or reveal them in the report', () => {
+    const first = 'AbCdEfGh12345678';
+    const second = 'IjKlMnOp9876543210';
+    const { found, skipped } = providers.parseCredentialList(`Alpha Vantage: ${first} ${second}`);
+    expect(found).toEqual([]);
+    expect(skipped).toEqual([{ line: 1, name: 'ALPHA_VANTAGE_API_KEY', reason: 'more than one word could be the key; paste it into its own field' }]);
+    expect(JSON.stringify(skipped)).not.toContain(first);
+    expect(JSON.stringify(skipped)).not.toContain(second);
   });
 
   it('counts a 402 as a plan refusal, not an outage', () => {

@@ -50,7 +50,7 @@ On narrower windows the Hong Kong, Tokyo and London clocks, and then some layout
 
 ## Commands
 
-**"DES was renamed PROFILE".** The command names changed in version 2.0.0. Type the new name, or `HELP` for the list. Saved layouts and settings are carried over by themselves.
+**Mnemonic commands.** From version 2.2.0, `DES`, `GP`, `FA`, `ANR`, `BQ`, `WEI`, `W`, `PORT` and the other existing mnemonic mappings execute their corresponding functions. `HELP GP` or `GP?` explains the chart function. The descriptive command names still work. An alias provides access to the implemented function; its data coverage is listed in the feature matrix.
 
 **"Unknown function".** `HELP` lists every function; `CHART?` explains one.
 

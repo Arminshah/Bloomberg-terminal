@@ -76,6 +76,8 @@ interface ExtData {
   session: number;
   /** Market currently in its regular session. */
   open: boolean;
+  /** False when a feed carries trades but no exchange session status. */
+  sessionKnown?: boolean;
   /** Outside the regular session: which part of the day the source says it is, when it says. */
   state?: 'pre' | 'post' | 'closed';
   /** The exchange's time zone (IANA name), for showing times as the exchange keeps them. */
@@ -135,6 +137,10 @@ export interface ExtQuote {
   ask?: number;
   /** The market is in its regular session. */
   marketOpen: boolean;
+  /** False when the source does not publish whether the exchange is open. */
+  sessionKnown?: boolean;
+  /** False for snapshots that cannot supply a complete trade tape. */
+  aggregateTrades?: boolean;
   /** Outside the regular session: pre-market, after hours or closed, as the source states it. */
   state?: 'pre' | 'post' | 'closed';
   /** The exchange's time zone (IANA name). */
@@ -1225,7 +1231,7 @@ export class MarketEngine {
     if (st.ext?.tz) q.tz = st.ext.tz;
     if (st.ext?.volumeUnit) q.volumeUnit = st.ext.volumeUnit;
     // The trading session apart from the data's freshness: unknown for end-of-day series and before the first quote.
-    if (st.ext && !st.ext.eod && !st.ext.dayOnly) q.session = st.ext.open ? 'open' : (st.ext.state ?? st.ext.extended?.session ?? 'closed');
+    if (st.ext && !st.ext.eod && !st.ext.dayOnly && st.ext.sessionKnown !== false) q.session = st.ext.open ? 'open' : (st.ext.state ?? st.ext.extended?.session ?? 'closed');
     this.quotes.set(st.def.id, q);
   }
 
@@ -1554,7 +1560,9 @@ export class MarketEngine {
     });
     s.length = bars.length;
     const last = bars[bars.length - 1];
-    const prev = st.ext;
+    // Another provider starts with its own history, touch, timing and tape. Keeping any of the
+    // old provider's metadata would relabel values from a different venue as this one's.
+    const prev = opts.provider !== undefined && opts.provider !== st.ext?.provider ? undefined : st.ext;
     const flat = makeSeries(512, MINUTE_MS);
     flat.t[0] = dayStart(last.day);
     flat.o[0] = flat.h[0] = flat.l[0] = flat.c[0] = last.c;
@@ -1564,6 +1572,9 @@ export class MarketEngine {
       intra: prev && prev.session === last.day ? prev.intra : flat,
       session: last.day,
       open: prev?.open ?? false,
+      sessionKnown: prev?.sessionKnown,
+      tz: prev?.tz,
+      volumeUnit: prev?.volumeUnit,
       bid: prev?.bid ?? NaN,
       ask: prev?.ask ?? NaN,
       seq: (prev?.seq ?? 0) + 1,
@@ -1657,7 +1668,7 @@ export class MarketEngine {
     // volume counts the UTC day, so it rises only with trades; Yahoo's crypto volume is a rolling 24 hours,
     // which also falls as old trades drop out, so it gives no prints.
     const krakenCrypto = st.def.cls === 'crypto' && ext.provider === 'Kraken';
-    if (dv > 0 && !newSession && (st.def.cls === 'equity' || st.def.cls === 'future' || st.def.cls === 'commodity' || krakenCrypto)) {
+    if (q.aggregateTrades !== false && dv > 0 && !newSession && (st.def.cls === 'equity' || st.def.cls === 'future' || st.def.cls === 'commodity' || krakenCrypto)) {
       this.pushTrade(st, { t: q.time, px: q.last, size: dv, side: q.last > st.last ? 1 : q.last < st.last ? -1 : 0, venue: krakenCrypto ? 'KRAKEN' : 'CONS', cond: 'AGG' });
     }
     st.last = q.last;
@@ -1686,6 +1697,7 @@ export class MarketEngine {
     if (q.sourceName !== undefined) ext.sourceName = q.sourceName;
     ext.fetched = q.fetched ?? Date.now();
     ext.open = q.marketOpen;
+    if (q.sessionKnown !== undefined) ext.sessionKnown = q.sessionKnown;
     if (q.marketOpen) ext.state = undefined;
     else if (q.state) ext.state = q.state;
     if (q.tz) ext.tz = q.tz;

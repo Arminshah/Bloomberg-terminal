@@ -1,3 +1,7 @@
+import { zonedToUtc } from '../../core/format';
+import { DAY_MS } from '../calendar';
+import { localDate, marketDay, US_MARKET } from '../exchanges';
+
 /**
  * Daily bars from the optional end-of-day providers, for checking the closes
  * the app shows against other sources (CROSSCHECK). Each provider is asked
@@ -107,7 +111,7 @@ export function parseTiingo(text: string): EodParsed {
 
 const PARSERS: Record<EodProvider, (t: string) => EodParsed> = { massive: parseMassive, alphavantage: parseAlphaVantage, tiingo: parseTiingo, twelvedata: parseTwelveData };
 
-export type EodResult = { ok: true; bars: EodBar[]; at: number } | { ok: false; reason: 'desktop-only' | 'needs-key' | 'gated' | 'budget' | 'error'; message: string };
+export type EodResult = { ok: true; bars: EodBar[]; at: number; stale?: boolean } | { ok: false; reason: 'desktop-only' | 'needs-key' | 'gated' | 'budget' | 'error'; message: string };
 
 export function eodAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.eod === 'function';
@@ -115,14 +119,31 @@ export function eodAvailable(): boolean {
 
 const kept = new Map<string, { at: number; result: EodResult }>();
 
-/** One provider's daily bars for a US ticker over the last `days` calendar days, kept for an hour. */
+/** A calendar-day range ending with the latest completed NYSE session, including early closes. */
+export function eodRange(now = Date.now(), days = 45): { from: string; to: string } {
+  const today = localDate(US_MARKET, now);
+  let day = Date.parse(`${today}T00:00:00Z`);
+  for (;;) {
+    const date = new Date(day);
+    const to = date.toISOString().slice(0, 10);
+    const special = marketDay(US_MARKET, to);
+    const weekday = date.getUTCDay();
+    if (weekday !== 0 && weekday !== 6 && (!special || special.close)) {
+      const [hour, minute] = (special?.close ?? US_MARKET.close).split(':').map(Number);
+      const close = zonedToUtc(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), hour, minute, US_MARKET.tz);
+      if (now >= close) return { from: new Date(day - days * DAY_MS).toISOString().slice(0, 10), to };
+    }
+    day -= DAY_MS;
+  }
+}
+
+/** One provider's completed daily bars for a US ticker over `days` calendar days, kept for an hour. */
 export async function loadEod(provider: EodProvider, ticker: string, days = 45): Promise<EodResult> {
   if (!eodAvailable()) return { ok: false, reason: 'desktop-only', message: 'Other sources are asked by the desktop app.' };
-  const key = `${provider}:${ticker}`;
+  const { from, to } = eodRange(Date.now(), days);
+  const key = `${provider}:${ticker}:${from}:${to}`;
   const k = kept.get(key);
-  if (k && k.result.ok && Date.now() - k.at < 3600_000) return k.result;
-  const to = new Date().toISOString().slice(0, 10);
-  const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  if (k && k.result.ok && !k.result.stale && Date.now() - k.at < 3600_000) return k.result;
   let res;
   try {
     res = await window.arminDesktop!.eod!(provider, ticker, from, to);
@@ -133,14 +154,16 @@ export async function loadEod(provider: EodProvider, ticker: string, days = 45):
   if (res.missing) result = { ok: false, reason: 'needs-key', message: `Needs ${res.missing} (PROVIDERS).` };
   else if (res.gated)
     result = { ok: false, reason: 'gated', message: res.gated === 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' ? `Off until ${res.gated} is on: the free plan is for internal, non-display use.` : `Switched off (${res.gated} on PROVIDERS).` };
-  else if (res.budget) result = { ok: false, reason: 'budget', message: "Today's request budget for this provider is spent." };
+  else if (res.budget && !res.text) result = { ok: false, reason: 'budget', message: "Today's request budget for this provider is spent." };
   else if (res.refused) result = { ok: false, reason: 'error', message: 'The configured key has the wrong format.' };
-  else if (!res.text) result = { ok: false, reason: 'error', message: `HTTP ${res.status}` };
+  else if (!res.text) result = { ok: false, reason: 'error', message: res.error ?? `HTTP ${res.status}` };
   else {
     const parsed = PARSERS[provider](res.text);
-    result = 'error' in parsed ? { ok: false, reason: 'error', message: parsed.error } : { ok: true, bars: parsed.bars, at: Date.now() };
+    // Alpha Vantage returns its compact history regardless of the requested dates.
+    result = 'error' in parsed ? { ok: false, reason: 'error', message: parsed.error } : { ok: true, bars: parsed.bars.filter((b) => b.date >= from && b.date <= to), at: res.at ?? Date.now(), ...(res.stale ? { stale: true } : {}) };
   }
-  kept.set(key, { at: Date.now(), result });
+  kept.set(key, { at: result.ok ? result.at : Date.now(), result });
+  if (kept.size > 100) kept.delete(kept.keys().next().value!);
   return result;
 }
 

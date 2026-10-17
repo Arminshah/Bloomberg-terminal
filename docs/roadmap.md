@@ -1,5 +1,15 @@
 # Roadmap
 
+## Version 2.2.0 (17 October 2026)
+
+- Optional IEX-only prices throughout US equity panels and watchlists, with source timestamps, source labels, explicit history coverage and no blending with consolidated Yahoo data. Enable `ALPACA_IEX_PRICES_ENABLED` on `PROVIDERS` and reload after setting both Alpaca keys.
+- Alpaca retains quote-only snapshots, rejects invalid prices and timestamps, shares subscriptions and rotates batches so symbols beyond the first twenty are polled.
+- Shared keyed-request broker validates entire response bodies before recording success or caching. HTTP-200 provider refusals show as errors, rate limits honor `Retry-After`, concurrent work respects persisted daily caps, and stale fallback retains its original retrieval time and failure reason. Cached responses are isolated when credentials change.
+- End-of-day comparisons use completed New York sessions, including holidays, early closes and DST. Incomplete bars are excluded and stale cached comparisons are marked.
+- Key imports accept common environment aliases, Markdown contacts and padded secrets; ambiguous entries are refused. Errors redact configured keys even when a provider echoes a value outside a URL. Pure provider tests no longer require Electron's binary.
+- Bloomberg-style mnemonic compatibility is restored for the functions the app implements; canonical descriptive names remain available.
+- See [v2.2.0 validation](release-v2.2.0.md) for the checks and live-data limitations. This release does not provide full Bloomberg feature or dataset parity.
+
 ## Done (14 October 2026, version 2.1.1)
 
 - Pasted keys: a word from the label around a key ("formerly", "personal") is no longer saved in its place.

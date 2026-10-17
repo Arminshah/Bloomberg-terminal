@@ -1,6 +1,5 @@
 import { resolveSecurity, UNCOVERED_KEYS, YELLOW_KEYS } from '../data/registry';
 import type { SecurityDef } from '../data/types';
-import { renamedCode } from './legacy';
 
 export type Parsed =
   | { kind: 'empty' }
@@ -27,10 +26,8 @@ function clean(input: string): string {
     .trim();
 }
 
-/** "Unknown function: DES (now PROFILE)": the old codes were renamed. */
 function unknownFunction(code: string): string {
-  const now = renamedCode(code);
-  return now ? `${code} was renamed ${now}` : `Unknown function: ${code}`;
+  return `Unknown function: ${code}`;
 }
 
 /**
@@ -50,7 +47,10 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
   const s = clean(input);
   if (!s) return { kind: 'empty' };
   if (/^\d{1,3}$/.test(s)) return { kind: 'menu', n: Number(s) };
-  if (s.endsWith('?')) return { kind: 'help', topic: s.slice(0, -1).trim().toUpperCase() };
+  if (s.endsWith('?')) {
+    const topic = s.slice(0, -1).trim().toUpperCase();
+    return { kind: 'help', topic: lookup(topic)?.code ?? topic };
+  }
 
   const raw = s.split(' ');
   const tokens = raw.map((t) => t.toUpperCase());
@@ -63,7 +63,14 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
   }
 
   // A function word first, then the security: "BONDCALC CT10 GOVT", "DEBTPROFILE JPM CORP".
-  const lead = tokens.length > 1 ? lookup(tokens[0]) : undefined;
+  const sectorAt = tokens.findIndex((t, i) => i > 0 && YELLOW_KEYS[t]);
+  const prefix = raw.slice(0, sectorAt).join(' ');
+  // An explicit sector identifies a security even when its ticker is also a
+  // function alias (N, W, GC). Keep that interpretation after online lookup.
+  const securityFirst = sectorAt > 0 && (
+    !!resolveSecurity(prefix, YELLOW_KEYS[tokens[sectorAt]]) || TICKER.test(prefix.toUpperCase().replace(/\s+US$/, ''))
+  );
+  const lead = tokens.length > 1 && !securityFirst ? lookup(tokens[0]) : undefined;
   const from = lead ? 1 : 0;
   const ykAt = tokens.findIndex((t, i) => i > from && YELLOW_KEYS[t]);
   if (ykAt > from) {
@@ -98,6 +105,12 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
   if (head) {
     const rest = raw.slice(1);
     if (!rest.length) return { kind: 'route', fn: head.code };
+    // A help topic is a function first, even if an identically named ticker
+    // has been loaded (HELP N, HELP W or HELP GP).
+    if (head.code === 'HELP' && rest.length === 1) {
+      const topic = lookup(tokens[1]);
+      if (topic) return { kind: 'route', fn: 'HELP', args: topic.code };
+    }
     // The longest run of words after the function that names a security; the words after it are arguments.
     for (let j = rest.length; j >= 1; j--) {
       const sec = resolveSecurity(rest.slice(0, j).join(' '));
@@ -123,10 +136,6 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
     if (!fn) return { kind: 'error', message: unknownFunction(rest[0]) };
     return { kind: 'route', sec, fn: fn.code, args: rest.slice(1).join(' ') || undefined };
   }
-
-  // An old code on its own, or first: say what it is called now.
-  const renamed = renamedCode(tokens[0]);
-  if (renamed && lookup(renamed)) return { kind: 'error', message: `${tokens[0]} was renamed ${renamed}: type ${[renamed, ...raw.slice(1)].join(' ').toUpperCase()}` };
 
   // "APLD", "APLD PROFILE", "APLD US", "APLD US CHART": a ticker that is not built in.
   const rest = tokens[1] === 'US' ? tokens.slice(2) : tokens.slice(1);

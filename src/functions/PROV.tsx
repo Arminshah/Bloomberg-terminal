@@ -210,6 +210,7 @@ const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'FINNHUB_ENABLED', help: 'Market and company news from Finnhub (MARKETNEWS, COMPANYNEWS, QUOTE), while FINNHUB_API_KEY is set.' },
   { name: 'MARKETAUX_ENABLED', help: 'Ticker-tagged news with sentiment from Marketaux, while MARKETAUX_API_TOKEN is set. Its free plan allows 100 requests a day.' },
   { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },
+  { name: 'ALPACA_IEX_PRICES_ENABLED', help: 'Use IEX-only prices for US stocks across watchlists and panels. Requires Alpaca enabled and both keys. Reload to apply. History is limited to the previous/current IEX bars and snapshots observed while the app is open; long Yahoo price history is not combined with this feed. IEX is one exchange, with its own volume and daily changes.' },
   { name: 'TIINGO_ENABLED', help: "Tiingo's end-of-day closes on CROSSCHECK, while TIINGO_API_KEY is set." },
 ];
 

@@ -1,12 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { parseCommand } from '../src/terminal/commands';
 import { FUNCTIONS, lookupFn } from '../src/terminal/registry';
-import { searchSecurities } from '../src/data/registry';
+import { resolveSecurity, searchSecurities } from '../src/data/registry';
+import { engine } from '../src/data/market';
+import * as onlineLookup from '../src/data/live/lookup';
+import { execute } from '../src/terminal/exec';
 import { suggest } from '../src/terminal/suggest';
 import { LEGACY_CODES, migrateRoute } from '../src/terminal/legacy';
-import { renameSavedCodes, defaultTerminal } from '../src/terminal/state';
+import { currentRoute, renameSavedCodes, defaultTerminal, terminal } from '../src/terminal/state';
 
 const parse = (s: string) => parseCommand(s, lookupFn);
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('command parser', () => {
   it('takes the function first, then the security and its arguments', () => {
@@ -102,21 +110,74 @@ describe('command parser', () => {
   });
 });
 
-describe('renamed codes', () => {
-  it('no function keeps a code or alias from the old list', () => {
+describe('mnemonic command aliases', () => {
+  it('maps every mnemonic to the existing canonical function and its help metadata', () => {
     const old = new Set(Object.keys(LEGACY_CODES));
     for (const fn of FUNCTIONS) {
       expect(old.has(fn.code), fn.code).toBe(false);
-      for (const a of fn.aliases ?? []) expect(old.has(a), `${fn.code} alias ${a}`).toBe(false);
     }
-    // Every new name is a function.
-    for (const now of Object.values(LEGACY_CODES)) expect(lookupFn(now)?.code, now).toBe(now);
+    for (const [alias, canonical] of Object.entries(LEGACY_CODES)) {
+      expect(lookupFn(alias), alias).toBe(lookupFn(canonical));
+      expect(lookupFn(canonical)?.aliases, canonical).toContain(alias);
+      expect(parse(alias), alias).toEqual({ kind: 'route', fn: canonical });
+      expect(parse(`${alias} AAPL`), alias).toEqual(parse(`${canonical} AAPL`));
+      expect(parse(`AAPL US EQUITY ${alias}`), alias).toEqual(parse(`AAPL US EQUITY ${canonical}`));
+    }
   });
 
-  it('says what an old code is called now, and runs nothing for it', () => {
-    expect(parse('DES')).toMatchObject({ kind: 'error', message: expect.stringContaining('renamed PROFILE') });
-    expect(parse('GP AAPL')).toMatchObject({ kind: 'error', message: expect.stringContaining('CHART AAPL') });
-    expect(parse('AAPL US EQUITY GP')).toMatchObject({ kind: 'error', message: 'GP was renamed CHART' });
+  it('runs mnemonics with the same arguments and HELP workflows', () => {
+    expect(parse('gp nvda 1d')).toMatchObject({ kind: 'route', fn: 'CHART', args: '1D', sec: { id: 'NVDA US Equity' } });
+    expect(parse('AAPL US <EQUITY> GP 5Y <GO>')).toMatchObject({ kind: 'route', fn: 'CHART', args: '5Y', sec: { id: 'AAPL US Equity' } });
+    expect(parse('W TECH')).toEqual({ kind: 'route', fn: 'WATCHLIST', args: 'TECH' });
+    expect(parse('WEI US')).toEqual({ kind: 'route', fn: 'MARKET', args: 'US' });
+    expect(parse('N AAPL')).toMatchObject({ kind: 'route', fn: 'NEWS', sec: { id: 'AAPL US Equity' } });
+    expect(parse('HELP GP')).toEqual({ kind: 'route', fn: 'HELP', args: 'CHART' });
+    expect(parse('GP?')).toEqual({ kind: 'help', topic: 'CHART' });
+    expect(parse('HELP N')).toEqual({ kind: 'route', fn: 'HELP', args: 'NEWS' });
+  });
+
+  it('keeps explicit securities ahead of colliding mnemonic names before and after lookup', () => {
+    const base = resolveSecurity('AAPL')!;
+    for (const ticker of ['N', 'W']) {
+      const text = `${ticker} US EQUITY`;
+      expect(parse(text)).toMatchObject({ kind: 'error', lookup: ticker });
+      expect(parse(`${ticker} EQUITY GP`)).toMatchObject({ kind: 'error', lookup: ticker });
+      expect(parse(`GP ${text}`)).toMatchObject({ kind: 'error', lookup: ticker });
+      engine.addSecurity({ ...base, id: `${ticker} US Equity`, ticker: `${ticker} US`, name: `${ticker} test equity`, alias: [] });
+      expect(parse(text)).toMatchObject({ kind: 'route', sec: { id: `${ticker} US Equity` } });
+      expect(parse(`${text} GP`)).toMatchObject({ kind: 'route', fn: 'CHART', sec: { id: `${ticker} US Equity` } });
+      expect(parse(`GP ${text}`)).toMatchObject({ kind: 'route', fn: 'CHART', sec: { id: `${ticker} US Equity` } });
+      expect(parse(`HELP ${ticker}`)).toEqual({ kind: 'route', fn: 'HELP', args: LEGACY_CODES[ticker] });
+      expect(parse(ticker)).toEqual({ kind: 'route', fn: LEGACY_CODES[ticker] });
+    }
+    expect(parse('W 1 COMDTY GP')).toMatchObject({ kind: 'route', fn: 'CHART', sec: { id: 'W 1 Comdty' } });
+  });
+
+  it('preserves the requested function and arguments when unknown tickers are registered', () => {
+    const commands = ['GP ZZZQ 1D', 'ZZZQ GP 1D', 'ZZZQ US EQUITY GP 1D'];
+    for (const text of commands) expect(parse(text), text).toMatchObject({ kind: 'error', lookup: 'ZZZQ' });
+    const base = resolveSecurity('AAPL')!;
+    engine.addSecurity({ ...base, id: 'ZZZQ US Equity', ticker: 'ZZZQ US', name: 'Online test equity', alias: [] });
+    for (const text of commands) {
+      expect(parse(text), text).toMatchObject({ kind: 'route', fn: 'CHART', args: '1D', sec: { id: 'ZZZQ US Equity' } });
+    }
+  });
+
+  it('reruns the original mnemonic command after an asynchronous online lookup', async () => {
+    const before = terminal.get();
+    const def = { ...resolveSecurity('AAPL')!, id: 'QZZX US Equity', ticker: 'QZZX US', name: 'Looked up test equity', alias: [] };
+    vi.spyOn(onlineLookup, 'lookupSource').mockReturnValue('yahoo');
+    const lookup = vi.spyOn(onlineLookup, 'lookupSecurity').mockImplementation(async () => {
+      engine.addSecurity(def);
+      return { ok: true, def };
+    });
+    try {
+      expect(execute(0, 'GP QZZX 1D')).toBe(true);
+      await vi.waitFor(() => expect(currentRoute(terminal.get(), 0)).toEqual({ fn: 'CHART', sec: 'QZZX US Equity', args: '1D' }));
+      expect(lookup).toHaveBeenCalledWith('QZZX');
+    } finally {
+      terminal.set(before);
+    }
   });
 
   it('carries saved panels and recent functions over to the new names', () => {
@@ -148,5 +209,18 @@ describe('search and autocomplete', () => {
   it('mixes securities and functions for free text', () => {
     const s = suggest('CHART');
     expect(s[0]).toMatchObject({ kind: 'fn', primary: 'CHART' });
+  });
+
+  it('completes mnemonic aliases to canonical functions and ranks exact aliases first', () => {
+    // An online ticker source must not steal exact function mnemonics.
+    vi.stubGlobal('window', { arminDesktop: { yahoo: vi.fn() } });
+    for (const [alias, canonical] of Object.entries(LEGACY_CODES)) {
+      expect(suggest(alias)[0], alias).toMatchObject({ kind: 'fn', primary: canonical, execute: canonical });
+      expect(suggest(`${alias} `)[0], alias).toMatchObject({ kind: 'fn', primary: canonical, execute: canonical });
+    }
+    expect(suggest('HELP GP')[0]).toMatchObject({ kind: 'fn', primary: 'CHART', execute: 'HELP CHART' });
+    expect(suggest('AAPL US EQUITY GP')[0]).toMatchObject({ kind: 'fn', primary: 'CHART', execute: 'AAPL US Equity CHART' });
+    expect(suggest('EURUSD CRNCY FA')).toEqual([]);
+    expect(suggest('ZZZX')[0]).toMatchObject({ kind: 'sec', key: 'online:ZZZX', execute: 'ZZZX US EQUITY' });
   });
 });

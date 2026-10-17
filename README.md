@@ -1,5 +1,7 @@
 # Armin Terminal
 
+Version **2.2.0** focuses on API failure handling and quote accuracy, including an optional IEX-only US equity price mode. See [release details and validation](docs/release-v2.2.0.md). Free IEX data covers one exchange; consolidated real-time prices, licensed research, full option chains and other Bloomberg datasets require additional sources and entitlements.
+
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
 The desktop app shows real data only, from free public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, the Kraken exchange, and Yahoo Finance for market prices and company data, for personal use. With your own free keys it adds analyst price targets and estimates (Financial Modeling Prep), market and company news (Finnhub, Marketaux), IEX quotes (Alpaca) and more sources for checking closes. Every price carries a label saying how fresh it is. What no permitted free source covers, such as option chains or bond prices, is left out and the screen says so; nothing is filled in with invented numbers. The browser build has no data source and runs a demo, marked DEMO DATA throughout, only when you choose it.
@@ -62,7 +64,7 @@ Enter runs a command, Esc clears the line, and Backspace on an empty line goes b
 
 The top bar starts with two market timers, Euronext then NYSE: the time until each opens or closes its regular session (09:00 to 17:30 Brussels time, 09:30 to 16:00 New York time). They follow each exchange's holidays and early closes, turn green while the market is open, and open the holiday calendar when clicked. Clocks for Brussels, New York, London, Tokyo and Hong Kong follow.
 
-Command names changed in version 2.0.0. An old code such as `GP` or `DES` says what it is called now, and saved layouts and settings carry over.
+Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES` are supported as aliases for the corresponding implemented functions; saved layouts and settings carry over.
 
 ## Functions
 

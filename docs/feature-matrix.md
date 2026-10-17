@@ -11,6 +11,12 @@ Status:
 
 Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, STALE, UNKNOWN FRESHNESS); [data-dictionary.md](data-dictionary.md) defines the labels.
 
+## Version 2.2.0 additions
+
+The original source coverage table below remains subject to each provider's access and entitlement. Version 2.2.0 adds an explicit `ALPACA_IEX_PRICES_ENABLED` setting for US equity prices throughout panels and watchlists. It supplies IEX-only trades, quotes and daily bars, with source timestamps and a 60-second freshness threshold. This is one exchange's data, not consolidated US prices, NBBO or market-wide volume. With this mode selected, Yahoo price writes are excluded. Long price history, 52-week statistics and long-horizon analytics are unavailable from the snapshot feed; intraday charts contain samples observed since this process started. Company fundamentals remain a separate source.
+
+The default retains Yahoo prices and history alongside the separate IEX box on `QUOTE`. The new mode is opt-in so existing long-history workflows keep their source unless the owner changes it. Bloomberg-style command mnemonics map to the app's existing functions; aliases do not add missing datasets. [Release validation](release-v2.2.0.md) distinguishes deterministic tests from live-provider access.
+
 ## Equity
 
 | Function | What it shows | Source | Status |

@@ -123,6 +123,19 @@ test('bad commands explain themselves', async ({ page }) => {
   await expect(page.locator('.cmd-msg.error')).toContainText('the desktop app looks up any US stock');
 });
 
+test('mnemonic commands run the implemented functions and open their help', async ({ page }) => {
+  const errors = await boot(page, '1');
+  for (const [cmd, code] of [['GP AAPL', 'CHART'], ['AAPL US EQUITY DES', 'PROFILE'], ['FA AAPL', 'FINANCIALS'], ['BQ AAPL', 'QUOTE'], ['WEI', 'MARKET'], ['W', 'WATCHLIST']]) {
+    await run(page, cmd);
+    await expect(page.locator('.panel').first().locator('.fnh-code').first(), cmd).toHaveText(code);
+  }
+  await run(page, 'HELP GP');
+  await expect(page.locator('.panel').first()).toContainText('CHART');
+  await run(page, 'DES?');
+  await expect(page.locator('.panel').first()).toContainText('PROFILE');
+  expect(errors).toEqual([]);
+});
+
 test('watchlist add and alert creation persist', async ({ page }) => {
   await boot(page, '1');
   await run(page, 'WATCHLIST');

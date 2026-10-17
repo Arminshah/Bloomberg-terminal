@@ -4,7 +4,9 @@
 // value back. Values come from the environment first, then a .env file next
 // to the app when running from source, then the encrypted store in the user's
 // app data folder.
-const { app, safeStorage } = require('electron');
+// Pure provider utilities also run in Node tests and setup scripts. Requiring
+// Electron there would unnecessarily require its downloaded desktop binary.
+const { app, safeStorage } = process.versions.electron ? require('electron') : {};
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -36,11 +38,35 @@ const CREDENTIALS = {
   },
 };
 
-const STORE = () => path.join(app.getPath('userData'), 'provider-credentials.json');
+const STORE = () => {
+  if (!app?.getPath) throw new Error('Credential storage is only available in the desktop app');
+  return path.join(app.getPath('userData'), 'provider-credentials.json');
+};
+
+// Common names used by provider dashboards and SDKs. Status reports always
+// use the canonical name, while the environment and imports accept aliases.
+const CREDENTIAL_ALIASES = {
+  MARKETAUX_API_KEY: 'MARKETAUX_API_TOKEN',
+  ALPACA_API_KEY: 'ALPACA_API_KEY_ID',
+  ALPACA_SECRET_KEY: 'ALPACA_API_SECRET_KEY',
+  APCA_API_KEY_ID: 'ALPACA_API_KEY_ID',
+  APCA_API_SECRET_KEY: 'ALPACA_API_SECRET_KEY',
+  POLYGON_API_KEY: 'MASSIVE_API_KEY',
+};
+
+function credentialNames(name) {
+  return [name, ...Object.keys(CREDENTIAL_ALIASES).filter((alias) => CREDENTIAL_ALIASES[alias] === name)];
+}
+
+function normalizeCredential(name, value) {
+  const text = String(value ?? '').trim();
+  return name === 'SEC_USER_AGENT' ? secAgentFrom(text) : text;
+}
 
 function readStore() {
   try {
-    return JSON.parse(fs.readFileSync(STORE(), 'utf8'));
+    const data = JSON.parse(fs.readFileSync(STORE(), 'utf8'));
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : {};
   } catch {
     return {};
   }
@@ -55,16 +81,18 @@ function writeStore(data) {
 function parseDotEnv(text) {
   const out = {};
   for (const line of text.split(/\r?\n/)) {
-    const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
+    const m = /^\s*(?:export\s+)?([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
     if (!m || line.trim().startsWith('#')) continue;
-    out[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+    const quoted = /^(['"])(.*?)\1\s*(?:#.*)?$/.exec(m[2]);
+    if (/^['"]/.test(m[2]) && !quoted) continue;
+    out[m[1]] = quoted ? quoted[2] : m[2].replace(/\s+#.*$/, '').trim();
   }
   return out;
 }
 
 let dotEnv = null;
 function fromDotEnv(name) {
-  if (app.isPackaged) return '';
+  if (!app?.getAppPath || app.isPackaged) return '';
   if (!dotEnv) {
     try {
       dotEnv = parseDotEnv(fs.readFileSync(path.join(app.getAppPath(), '.env'), 'utf8'));
@@ -81,13 +109,13 @@ function fromDotEnv(name) {
  * declines to save keys there.
  */
 function canEncrypt() {
-  if (!safeStorage.isEncryptionAvailable()) return false;
+  if (!safeStorage?.isEncryptionAvailable()) return false;
   return !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text');
 }
 
 function fromStore(name) {
   const enc = readStore()[name];
-  if (typeof enc !== 'string' || !safeStorage.isEncryptionAvailable()) return '';
+  if (typeof enc !== 'string' || !safeStorage?.isEncryptionAvailable()) return '';
   try {
     return safeStorage.decryptString(Buffer.from(enc, 'base64')).trim();
   } catch {
@@ -97,13 +125,17 @@ function fromStore(name) {
 
 /** A credential's value and where it came from, for use inside this process only. */
 function credential(name) {
-  if (!CREDENTIALS[name]) return { value: '', source: null };
-  const env = (process.env[name] ?? '').trim();
-  if (env) return { value: env, source: 'environment' };
-  const file = fromDotEnv(name);
-  if (file) return { value: file, source: '.env file' };
+  if (!Object.hasOwn(CREDENTIALS, name)) return { value: '', source: null };
+  for (const candidate of credentialNames(name)) {
+    const env = normalizeCredential(name, process.env[candidate]);
+    if (env) return { value: env, source: 'environment' };
+  }
+  for (const candidate of credentialNames(name)) {
+    const file = normalizeCredential(name, fromDotEnv(candidate));
+    if (file) return { value: file, source: '.env file' };
+  }
   const saved = fromStore(name);
-  if (saved) return { value: saved, source: 'saved in this app' };
+  if (saved) return { value: normalizeCredential(name, saved), source: 'saved in this app' };
   return { value: '', source: null };
 }
 
@@ -128,6 +160,7 @@ const SETTINGS = {
   FINNHUB_ENABLED: { label: 'Finnhub market and company news', default: true },
   MARKETAUX_ENABLED: { label: 'Marketaux news and sentiment', default: true },
   ALPACA_ENABLED: { label: 'Alpaca IEX quotes (market data only)', default: true },
+  ALPACA_IEX_PRICES_ENABLED: { label: 'Use Alpaca IEX only prices for US equities', default: false },
   TIINGO_ENABLED: { label: 'Tiingo end-of-day closes', default: true },
 };
 
@@ -181,9 +214,9 @@ function credentialStatus() {
 }
 
 function saveCredential(name, value) {
-  const def = CREDENTIALS[name];
+  const def = Object.hasOwn(CREDENTIALS, name) ? CREDENTIALS[name] : null;
   if (!def) throw new Error('unknown credential');
-  const v = typeof value === 'string' ? value.trim() : '';
+  const v = typeof value === 'string' ? normalizeCredential(name, value) : '';
   if (!def.valid(v)) throw new Error(`${def.label} does not look right`);
   if (!canEncrypt()) throw new Error('This system cannot encrypt saved keys; set the environment variable instead');
   writeStore({ ...readStore(), [name]: safeStorage.encryptString(v).toString('base64') });
@@ -212,7 +245,11 @@ const ALIASES = [
 /** The SEC contact from a line such as "SEC_USER_AGENT: Name: Ann Example e-mail: ann@mail.org". */
 function secAgentFrom(line) {
   const rest = line.replace(/^.*?sec[\s_-]*user[\s_-]*agent\s*[:=]?\s*/i, '');
-  return rest.replace(/\b(name|e-?mail|contact)\s*:\s*/gi, '').replace(/\s+/g, ' ').trim();
+  return rest
+    .replace(/\[[^\]]*\]\(\s*mailto:([^\s)]+)\s*\)/gi, (_match, email) => email.replace(/[?#].*$/, ''))
+    .replace(/\b(name|e-?mail|contact)\s*:\s*/gi, '')
+    .replace(/\bmailto:/gi, '')
+    .replace(/\s+/g, ' ').trim();
 }
 
 /**
@@ -220,7 +257,8 @@ function secAgentFrom(line) {
  * recognised with the value that passes that credential's check. Values never leave the main process.
  */
 function parseCredentialList(text) {
-  const names = new Set(Object.keys(CREDENTIALS).map((n) => n.toLowerCase()));
+  const allNames = [...Object.keys(CREDENTIALS), ...Object.keys(CREDENTIAL_ALIASES)];
+  const names = new Set(allNames.map((n) => n.toLowerCase()));
   const found = [];
   const skipped = [];
   String(text)
@@ -228,9 +266,9 @@ function parseCredentialList(text) {
     .forEach((raw, i) => {
       const line = raw.trim();
       if (!line || line.startsWith('#')) return;
-      const explicit = Object.keys(CREDENTIALS).find((n) => new RegExp(`\\b${n}\\b`, 'i').test(line));
+      const explicit = allNames.find((n) => new RegExp(`\\b${n}\\b`, 'i').test(line));
       const alias = ALIASES.find(([re]) => re.test(line));
-      const name = explicit ?? (alias ? (typeof alias[1] === 'function' ? alias[1](line) : alias[1]) : undefined);
+      const name = explicit ? (CREDENTIAL_ALIASES[explicit] ?? explicit) : (alias ? (typeof alias[1] === 'function' ? alias[1](line) : alias[1]) : undefined);
       if (!name) {
         skipped.push({ line: i + 1, reason: 'no provider named' });
         return;
@@ -241,14 +279,16 @@ function parseCredentialList(text) {
         const agent = secAgentFrom(line);
         value = def.valid(agent) ? agent : undefined;
       } else {
-        // Candidate tokens: anything between spaces, brackets, quotes, colons or equals signs, except the names.
-        // Words from a label ("Massive (formerly Polygon.io)", "personal key") can pass a loose key check, so a
-        // token with both letters and digits wins, the longest if several; a line with several plain words and
+        // Candidate tokens: anything between spaces, brackets, quotes or colons, except the names.
+        // Words from a label ("Massive (formerly Polygon.io)", "personal key") can pass a loose key check, so
+        // a single token with both letters and digits wins; a line with several possible keys or plain words and
         // no such token is skipped rather than guessed.
-        const tokens = line.split(/[\s[\]()<>"'`,;|:=]+/).filter((t) => t && !names.has(t.toLowerCase()));
+        const withoutAssignment = line.replace(new RegExp(`\\b(?:${allNames.join('|')})\\s*=\\s*`, 'gi'), ' ');
+        // '=' is part of a base64 secret (Alpaca), including its trailing padding.
+        const tokens = withoutAssignment.split(/[\s[\]()<>"'`,;|:]+/).filter((t) => t && !names.has(t.toLowerCase()));
         const passing = [...new Set(tokens.filter((t) => def.valid(t)))];
         const keyish = passing.filter((t) => /\d/.test(t) && /[a-z]/i.test(t));
-        value = keyish.length ? keyish.reduce((a, b) => (b.length > a.length ? b : a)) : passing.length === 1 ? passing[0] : undefined;
+        value = keyish.length === 1 ? keyish[0] : !keyish.length && passing.length === 1 ? passing[0] : undefined;
         if (!value && passing.length > 1) {
           skipped.push({ line: i + 1, name, reason: 'more than one word could be the key; paste it into its own field' });
           return;
@@ -283,7 +323,7 @@ function importCredentials(text) {
 }
 
 function clearCredential(name) {
-  if (!CREDENTIALS[name]) throw new Error('unknown credential');
+  if (!Object.hasOwn(CREDENTIALS, name)) throw new Error('unknown credential');
   const data = readStore();
   delete data[name];
   writeStore(data);
@@ -400,7 +440,17 @@ function recordResult(provider, status, err, startedAt) {
   }
   s.lastErrorAt = Date.now();
   s.lastErrorKind = errorKind(status, err);
-  s.lastError = err ? String(err.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) : `HTTP ${status}`;
+  s.lastError = err ? statusMessage(err.message ?? err) : `HTTP ${status}`;
+}
+
+/** Error messages cross into the renderer; URLs alone are not the only way a key can appear. */
+function statusMessage(message) {
+  let text = String(message);
+  for (const name of Object.keys(CREDENTIALS)) {
+    const { value } = credential(name);
+    if (value) text = text.split(value).join('<key>');
+  }
+  return text.replace(/https?:\/\/\S+/g, '<url>').slice(0, 160);
 }
 
 /** Records a problem found after the response arrived (no data, changed format). */
@@ -408,7 +458,7 @@ function recordProblem(provider, kind, message) {
   const s = entry(provider);
   s.lastErrorAt = Date.now();
   s.lastErrorKind = kind;
-  s.lastError = String(message).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160);
+  s.lastError = statusMessage(message);
 }
 
 /**
@@ -422,7 +472,7 @@ function providerMessage(text, secrets = []) {
     const j = JSON.parse(text);
     // Each provider words it its own way: {"error_message"}, {"message"}, {"Error Message"} (FMP),
     // {"error": "..."} (Finnhub), {"error": {"message"}} (Marketaux), {"detail"} (Tiingo) or a bare string.
-    const first = [j?.error_message, j?.message, j?.['Error Message'], j?.error, j?.error?.message, j?.detail, j].find((x) => typeof x === 'string');
+    const first = [j?.error_message, j?.message, j?.['Error Message'], j?.Information, j?.Note, j?.error, j?.error?.message, j?.detail, j].find((x) => typeof x === 'string');
     msg = first ?? '';
   } catch {
     const t = String(text).trim();
@@ -433,6 +483,81 @@ function providerMessage(text, secrets = []) {
   // "Read <url> for more information." says nothing once the link is gone.
   const sentences = msg.split(/(?<=\.) /).filter((x) => !x.includes('<url>'));
   return (sentences.length ? sentences.join(' ') : msg).slice(0, 160);
+}
+
+/**
+ * Some APIs return a refusal as HTTP 200. Match each API's error envelope,
+ * rather than treating a normal article or quote's `message` as a failure.
+ * This is pure so callers can reject the response before caching its body.
+ */
+function providerPayloadProblem(provider, text, secrets = []) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  let message;
+  let code;
+  switch (provider) {
+    case 'alphavantage':
+      message = data?.['Error Message'] ?? data?.Information ?? data?.Note;
+      break;
+    case 'twelvedata':
+      if (data?.status === 'error') {
+        message = data.message ?? 'Twelve Data refused this request.';
+        code = data.code;
+      }
+      break;
+    case 'fmp':
+      message = data?.['Error Message'] ?? (typeof data?.error === 'string' ? data.error : data?.error?.message);
+      // FMP also uses a JSON string for subscription refusals.
+      if (typeof data === 'string' && /premium|subscription|invalid api key/i.test(data)) message = data;
+      break;
+    case 'finnhub':
+      message = typeof data?.error === 'string' ? data.error : data?.error?.message;
+      break;
+    case 'marketaux':
+      if (data?.error) {
+        message = typeof data.error === 'string' ? data.error : data.error.message;
+        code = data.error.code;
+      }
+      break;
+    case 'alpaca':
+      if (typeof data?.message === 'string' && Number(data.code) >= 400) {
+        message = data.message;
+        code = Number(data.code) > 999 ? Number(String(data.code).slice(0, 3)) : Number(data.code);
+      }
+      break;
+    case 'fred':
+      if (data?.error_code) {
+        message = data.error_message;
+        code = data.error_code;
+      }
+      break;
+    case 'coingecko':
+      if (data?.status?.error_code) {
+        message = data.status.error_message;
+        code = data.status.error_code;
+      }
+      break;
+    case 'tiingo':
+      message = data?.detail;
+      break;
+    case 'massive':
+      if (/^(ERROR|NOT_AUTHORIZED)$/i.test(data?.status ?? '')) message = data.error ?? data.message;
+      break;
+    default:
+      return null;
+  }
+  if (typeof message !== 'string' || !message.trim()) return null;
+  const terms = `${code ?? ''} ${message}`;
+  const status = Number(code);
+  let kind = 'provider-error';
+  if (status === 429 || /rate[\s_-]*limit|too many requests|quota|usage[\s_-]*limit|call frequency|requests? per (?:minute|day)|(?:daily|monthly) limit|limit.*(?:reached|exceeded)/i.test(terms)) kind = 'rate-limited';
+  else if ([401, 402, 403].includes(status) || /(?:invalid|missing|incorrect|unregistered)[\s_-]*(?:api[\s_-]*)?(?:key|token)|(?:key|token).*(?:invalid|missing|incorrect|not registered|not set)|unauthori[sz]ed|forbidden|access denied|(?:no|not|don't|do not|does not|doesn't)\b.*\baccess|subscription|premium|entitle/i.test(terms)) kind = 'not-entitled';
+  else if (status === 404 || /invalid (?:api call|symbol|ticker)|unknown (?:symbol|ticker)|no (?:data|prices?)|not found|symbol.*(?:invalid|not supported)/i.test(terms)) kind = 'no-data';
+  return { kind, message: providerMessage(JSON.stringify({ message }), secrets) };
 }
 
 function providerStats() {
@@ -481,4 +606,4 @@ function slot(provider, max, windowMs) {
   return next;
 }
 
-module.exports = { CREDENTIALS, SETTINGS, DAILY, credential, credentialStatus, saveCredential, clearCredential, parseCredentialList, importCredentials, setting, settingStatus, saveSetting, parseSwitch, recordRequest, recordResult, recordProblem, providerMessage, providerStats, slot, usedToday, withinDailyCap, parseDotEnv, errorKind };
+module.exports = { CREDENTIALS, SETTINGS, DAILY, credential, credentialStatus, saveCredential, clearCredential, parseCredentialList, importCredentials, setting, settingStatus, saveSetting, parseSwitch, recordRequest, recordResult, recordProblem, providerMessage, providerPayloadProblem, providerStats, slot, usedToday, withinDailyCap, parseDotEnv, errorKind };

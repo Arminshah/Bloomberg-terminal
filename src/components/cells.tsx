@@ -103,9 +103,10 @@ export function LivePx({ id, dec }: { id: string; dec?: number }) {
   const px = <Flash value={q.last}>{fmtNum(q.last, dec ?? def.dec)}</Flash>;
   const f = freshnessOf(q, def, Date.now());
   const cls = f ? MARK_CLASS[f.label] : undefined;
-  if (!f || !cls) return f ? <span title={f.why}>{px}</span> : px;
+  const provenance = q.provider ? `${q.provider}. ` : '';
+  if (!f || !cls) return f ? <span title={`${provenance}${f.why}`}>{px}</span> : px;
   return (
-    <span className={cls} title={`${f.label}: ${f.why}`}>
+    <span className={cls} title={`${provenance}${f.label}: ${f.why}`}>
       {px}
     </span>
   );

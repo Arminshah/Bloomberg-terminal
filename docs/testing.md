@@ -6,11 +6,12 @@
 | --- | --- |
 | `npm run lint` | ESLint over the whole project, the Electron main process included |
 | `npm run typecheck` | The TypeScript project build (`tsc -b`) |
-| `npm test` | Unit tests (Vitest), about 220 in 19 files |
+| `npm test` | Unit tests (Vitest), including provider transport and IEX ownership regressions |
 | `npm run e2e` | Browser tests (Playwright, Chromium) against the browser build |
+| `npm run e2e:desktop` | Real Electron preload/IPC/UI tests with deterministic provider transport fixtures; Linux needs Xvfb or a display |
 | `npm run build` | Type check and production build of the renderer |
 
-CI (`.github/workflows/ci.yml`) runs lint, type check, unit tests and browser tests on every push, then builds the Windows and Linux packages. Run the same four before pushing. The browser tests need Chromium: `npx playwright install chromium` once.
+CI (`.github/workflows/ci.yml`) runs lint, type check, unit tests and browser tests on every push, then builds the Windows and Linux packages. Run those checks and the desktop integration suite before publishing a release. Both CI and tag releases gate publication on the checks. The browser tests need Chromium: `npx playwright install chromium` once.
 
 ## What the unit tests cover
 
@@ -41,6 +42,16 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 ## What the browser tests cover
 
 `e2e/terminal.spec.ts` runs the browser build, which has no data source: the first test checks that it opens on the no-data page and that the demo, once chosen, says DEMO DATA. The rest use the demo to check that every function renders without errors, that typing goes to the command line with autocomplete, that numbered menus and back navigation work, that bad commands explain themselves, that watchlists and alerts persist, and that the phone layout shows one panel without horizontal scrolling.
+
+## Deterministic desktop integration
+
+`npm run e2e:desktop` builds the app, then launches the pinned Electron version with its real main process and preload bridge. The tests supply fake credentials in a disposable profile, replace the main-process transport with fixed provider answers, and verify provider errors and IEX prices through IPC and the UI. They do not validate live providers or real API keys.
+
+On Linux use `xvfb-run -a npm run e2e:desktop`, or set `DISPLAY` to an existing display. The test process uses `--no-sandbox` where the isolated cloud cannot configure Chromium user namespaces; installed desktop startup is unchanged.
+
+For a preinstalled Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium` when running browser tests; otherwise install Playwright's browser with `npx playwright install chromium`.
+
+`scripts/cloud-setup.sh` reproduces dependencies in the existing `/workspace/Bloomberg-terminal` checkout. It preserves the npm lockfile and Electron checksum validation and supplies a user-local Xvfb from signed Debian repositories when needed. It does not install keys or create another Git worktree.
 
 ## Checking the desktop app
 

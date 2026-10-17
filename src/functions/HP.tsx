@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
+import { IexHistoryNotice } from '../components/IexHistoryNotice';
 import { Chg } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtDay, fmtNum, fmtPct } from '../core/format';
-import { engine, useTick } from '../data/market';
+import { engine, useQuote, useTick } from '../data/market';
+import { IEX_PROVIDER } from '../data/live/iex-engine';
 import { aggregate, type Periodicity } from '../data/series';
 import { freshnessOf } from '../data/freshness';
 import { usePanelId } from '../terminal/panel';
@@ -22,6 +24,8 @@ const RANGES = [
 
 export function HP({ sec }: FnProps) {
   const s = sec!;
+  const q = useQuote(s.id);
+  const iex = q?.provider === IEX_PROVIDER;
   const panel = usePanelId();
   const [range, setRange] = useState(2);
   const [per, setPer] = useState<Periodicity>('D');
@@ -34,12 +38,12 @@ export function HP({ sec }: FnProps) {
     const out: { t: number; o: number; h: number; l: number; c: number; v: number; chg: number; pct: number }[] = [];
     for (let i = series.length - 1; i >= 0; i--) {
       if (series.t[i] < from) break;
-      const prev = i > 0 ? series.c[i - 1] : series.o[i];
+      const prev = i > 0 ? series.c[i - 1] : iex ? NaN : series.o[i];
       out.push({ t: series.t[i], o: series.o[i], h: series.h[i], l: series.l[i], c: series.c[i], v: series.v[i], chg: series.c[i] - prev, pct: (series.c[i] / prev - 1) * 100 });
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.id, range, per, tick]);
+  }, [s.id, range, per, tick, iex]);
   const hi = Math.max(...rows.map((r) => r.h));
   const lo = Math.min(...rows.map((r) => r.l));
   const avg = rows.reduce((a, r) => a + r.c, 0) / Math.max(1, rows.length);
@@ -48,7 +52,6 @@ export function HP({ sec }: FnProps) {
   const totalChg = last && first ? last.c - (first.c - first.chg) : NaN;
   const hasVol = rows.some((r) => r.v > 0);
   // The newest row is still moving only while the source streams the session.
-  const q = engine.quote(s.id);
   const fresh = q ? freshnessOf(q, s, Date.now()) : null;
   const liveSession = !!fresh && (fresh.label === 'REAL-TIME' || fresh.label === 'DELAYED' || fresh.label === 'DEMO DATA');
   const csv = () => [
@@ -61,12 +64,13 @@ export function HP({ sec }: FnProps) {
         code="HISTORY"
         title="Historical Price Table"
         sec={s}
-        tabs={RANGES.map((r) => ({ n: r.n, label: r.id }))}
+        tabs={iex ? undefined : RANGES.map((r) => ({ n: r.n, label: r.id }))}
         tab={range}
         onTab={setRange}
         actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_${per}.csv`, csv)}
       />
       <QuoteStrip sec={s} />
+      {iex && <IexHistoryNotice />}
       <div className="chart-tools">
         <span className="seg" role="group" aria-label="Periodicity">
           {(['D', 'W', 'M', 'Q', 'Y'] as Periodicity[]).map((p) => (

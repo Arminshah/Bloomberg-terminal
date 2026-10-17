@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as eodMain from '../electron/eod.cjs';
-import { compareCloses, diffBp, parseAlphaVantage, parseMassive, parseTiingo, parseTwelveData } from '../src/data/live/eod';
+import { compareCloses, diffBp, eodRange, parseAlphaVantage, parseMassive, parseTiingo, parseTwelveData } from '../src/data/live/eod';
 
 // Answers in the layouts the providers document: Massive's custom-bars sample,
 // and the shapes of Alpha Vantage's and Twelve Data's documented demo answers.
@@ -98,5 +98,74 @@ describe('Tiingo end-of-day', () => {
       ],
     });
     expect(parseTiingo('{"detail":"Invalid token."}')).toEqual({ error: 'Invalid token.' });
+  });
+});
+
+describe('completed end-of-day history', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it.each([
+    ['2026-10-19T14:00:00Z', '2026-10-16'], // Monday morning: Friday's close.
+    ['2026-10-19T20:00:00Z', '2026-10-19'], // 16:00 EDT.
+    ['2026-10-20T01:00:00Z', '2026-10-19'], // UTC has advanced; New York has not.
+    ['2026-04-03T22:00:00Z', '2026-04-02'], // Good Friday.
+    ['2026-11-27T17:59:00Z', '2026-11-25'], // Before the Thanksgiving Friday early close.
+    ['2026-11-27T18:00:00Z', '2026-11-27'], // 13:00 EST.
+    ['2026-11-02T20:59:00Z', '2026-10-30'], // Winter regular close is 21:00 UTC.
+    ['2026-11-02T21:00:00Z', '2026-11-02'],
+  ])('ends the requested range at a completed US session at %s', (now, to) => {
+    expect(eodRange(Date.parse(now), 7)).toEqual({ from: new Date(Date.parse(`${to}T00:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10), to });
+  });
+
+  it('caches the actual date range and refreshes when a new session completes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-16T19:30:00Z'));
+    const eod = vi.fn(async () => ({ status: 200, text: '[]' }));
+    vi.stubGlobal('window', { arminDesktop: { eod } });
+    const { loadEod } = await import('../src/data/live/eod');
+
+    await loadEod('tiingo', 'RANGE', 7);
+    await loadEod('tiingo', 'RANGE', 7);
+    expect(eod).toHaveBeenCalledTimes(1);
+    expect(eod).toHaveBeenLastCalledWith('tiingo', 'RANGE', '2026-10-08', '2026-10-15');
+    await loadEod('tiingo', 'RANGE', 45);
+    expect(eod).toHaveBeenCalledTimes(2);
+    expect(eod).toHaveBeenLastCalledWith('tiingo', 'RANGE', '2026-08-31', '2026-10-15');
+
+    vi.setSystemTime(new Date('2026-10-16T20:00:00Z'));
+    await loadEod('tiingo', 'RANGE', 7);
+    expect(eod).toHaveBeenCalledTimes(3);
+    expect(eod).toHaveBeenLastCalledWith('tiingo', 'RANGE', '2026-10-09', '2026-10-16');
+  });
+
+  it('removes compact-history rows outside the requested range and the unfinished session', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-16T19:00:00Z'));
+    const row = { '1. open': '100', '2. high': '102', '3. low': '99', '4. close': '101', '5. volume': '1000' };
+    const text = JSON.stringify({ 'Time Series (Daily)': { '2026-10-01': row, '2026-10-15': row, '2026-10-16': row } });
+    const eod = vi.fn(async () => ({ status: 200, text }));
+    vi.stubGlobal('window', { arminDesktop: { eod } });
+    const { loadEod } = await import('../src/data/live/eod');
+    const result = await loadEod('alphavantage', 'FILTER', 7);
+    expect(result.ok && result.bars.map((b) => b.date)).toEqual(['2026-10-15']);
+  });
+
+  it('keeps the broker refusal explanation and source time for a stale fallback', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-16T19:00:00Z'));
+    const at = Date.parse('2026-10-16T17:00:00Z');
+    const eod = vi.fn()
+      .mockResolvedValueOnce({ status: 403, text: '', error: 'HTTP 403: Your plan does not include this timeframe.' })
+      .mockResolvedValue({ status: 0, text: '[]', at, stale: true, budget: true, error: "Today's budget is spent." });
+    vi.stubGlobal('window', { arminDesktop: { eod } });
+    const { loadEod } = await import('../src/data/live/eod');
+    expect(await loadEod('tiingo', 'STALE')).toEqual({ ok: false, reason: 'error', message: 'HTTP 403: Your plan does not include this timeframe.' });
+    expect(await loadEod('tiingo', 'STALE')).toEqual({ ok: true, bars: [], at, stale: true });
+    await loadEod('tiingo', 'STALE');
+    expect(eod).toHaveBeenCalledTimes(3); // An old fallback is never kept as a fresh one-hour answer.
   });
 });
