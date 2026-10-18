@@ -1,3 +1,4 @@
+import { isMarketCode, parseListing } from '../data/listings';
 import { resolveSecurity, UNCOVERED_KEYS, YELLOW_KEYS } from '../data/registry';
 import type { SecurityDef } from '../data/types';
 
@@ -13,8 +14,9 @@ export interface FnLookup {
   (code: string): { code: string; needsSec?: boolean } | undefined;
 }
 
-/** Ticker shapes worth looking up online: APLD, BRK/B, BRK.B. */
+/** Ticker shapes worth looking up online: APLD, BRK/B, BRK.B; European listings are ABI BB or ABI.BR. */
 const TICKER = /^[A-Z][A-Z0-9]{0,5}([./-][A-Z]{1,2})?$/;
+const lookupable = (t: string) => TICKER.test(t) || !!parseListing(t);
 
 /** Strips keyboard-style tokens ("<EQUITY>", "<GO>") and cashtags ("$APLD"). */
 function clean(input: string): string {
@@ -68,7 +70,7 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
   // An explicit sector identifies a security even when its ticker is also a
   // function alias (N, W, GC). Keep that interpretation after online lookup.
   const securityFirst = sectorAt > 0 && (
-    !!resolveSecurity(prefix, YELLOW_KEYS[tokens[sectorAt]]) || TICKER.test(prefix.toUpperCase().replace(/\s+US$/, ''))
+    !!resolveSecurity(prefix, YELLOW_KEYS[tokens[sectorAt]]) || lookupable(prefix.toUpperCase().replace(/\s+US$/, ''))
   );
   const lead = tokens.length > 1 && !securityFirst ? lookup(tokens[0]) : undefined;
   const from = lead ? 1 : 0;
@@ -92,7 +94,7 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
     const sec = resolveSecurity(secText, yk);
     if (!sec) {
       const root = secText.toUpperCase().replace(/\s+US$/, '');
-      return { kind: 'error', message: `Unknown security: ${secText.toUpperCase()} ${yk}`, lookup: yk === 'Equity' && TICKER.test(root) ? root : undefined };
+      return { kind: 'error', message: `Unknown security: ${secText.toUpperCase()} ${yk}`, lookup: yk === 'Equity' && lookupable(root) ? root : undefined };
     }
     if (lead) return { kind: 'route', sec, fn: lead.code, args: after.join(' ') || undefined };
     if (after.length === 0) return { kind: 'route', sec };
@@ -119,8 +121,12 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
       return { kind: 'route', fn: head.code, sec, ...(args ? { args } : {}) };
     }
     // A function that needs a security, followed by a ticker that is not built in: look it up online.
+    // "COMPANYNEWS ABI BB" names a European listing with its market code.
     if (head.needsSec) {
-      const t = tokens[1] === '$' ? tokens[2] : tokens[1];
+      const at = tokens[1] === '$' ? 2 : 1;
+      const t = tokens[at];
+      const listed = tokens[at + 1] && isMarketCode(tokens[at + 1]) ? `${t} ${tokens[at + 1]}` : undefined;
+      if (listed && parseListing(listed)) return { kind: 'error', message: `Unknown security: ${listed}`, lookup: listed };
       if (TICKER.test(t)) return { kind: 'error', message: `Unknown security: ${t}`, lookup: t };
     }
     return { kind: 'route', fn: head.code, args: rest.join(' ').toUpperCase() };
@@ -137,8 +143,10 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
     return { kind: 'route', sec, fn: fn.code, args: rest.slice(1).join(' ') || undefined };
   }
 
-  // "APLD", "APLD PROFILE", "APLD US", "APLD US CHART": a ticker that is not built in.
-  const rest = tokens[1] === 'US' ? tokens.slice(2) : tokens.slice(1);
-  const lookupTicker = TICKER.test(tokens[0]) && (rest.length === 0 || !!lookup(rest[0])) ? tokens[0] : undefined;
+  // "APLD", "APLD PROFILE", "APLD US", "APLD US CHART", "ABI BB CHART": a ticker that is not built in.
+  const listed = tokens[1] && isMarketCode(tokens[1]) && parseListing(`${tokens[0]} ${tokens[1]}`) ? `${tokens[0]} ${tokens[1]}` : undefined;
+  const rest = tokens[1] === 'US' || listed ? tokens.slice(2) : tokens.slice(1);
+  const name = listed ?? tokens[0];
+  const lookupTicker = (listed || TICKER.test(tokens[0])) && (rest.length === 0 || !!lookup(rest[0])) ? name : undefined;
   return { kind: 'error', message: `Unknown command: ${s.toUpperCase()}. Type HELP for functions.`, lookup: lookupTicker };
 }

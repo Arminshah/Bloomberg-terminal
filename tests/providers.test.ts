@@ -361,27 +361,59 @@ describe('pasted keys with labels around them', () => {
   });
 });
 
-describe('pasted key list with a split Alpaca entry and a doubled Finnhub key', () => {
-  it('reads the secret on the line after the Alpaca key, and keeps the Finnhub API key alone', () => {
-    // Made-up values in the owner's layout of 18 October 2026.
-    const text = [
-      '7: Finnhub.io: abcd1234efgh5678ij90abcd1234efgh5678kl12',
-      '',
-      '10: app.alpaca.markets : key: PKABCDEFGHIJKLMNOPQRSTUV12',
-      'secret key: AbCdEfGh1jKlMnOpQrStUvWxYz0123456789AbCdEfG',
-      '',
-      '11: site.financialmodelingprep.com: AbCdEfGhIjKlMnOpQrStUvWxYz012345 (with API Calls / Day 0/250)',
-    ].join('\n');
-    const { found, skipped, notes } = providers.parseCredentialList(text);
+describe('pasted key list in the layout of the owner\'s list', () => {
+  // Made-up values in the layout of the owner's list of 18 October 2026: numbered lines, provider sites,
+  // Finnhub's 40-character key followed by its webhook block, Alpaca's secret on its own line, notes after
+  // values, and TipRanks' instructions with placeholder keys.
+  const text = [
+    'Here are the new api\'s',
+    '1: ALPHA_VANTAGE_API_KEY:  ABCD1234EFGH5678',
+    '2: TWELVE_DATA_API_KEY: 0a1b2c3d4e5f60718293a4b5c6d7e8f9',
+    '3: COINGECKO_API_KEY: CG-AbCdEf1234567890GhIjKlMn',
+    '4: FRED_API_KEY: 0123456789abcdef0123456789abcdef',
+    '5: MASSIVE_API_KEY: AbCdEf1234567890GhIjKlMnOpQrStUv',
+    '6: SEC_USER_AGENT: Name: Ann Example e-mail: ann.example@mail.org',
+    '7: Finnhub.io:  key :c0abcdefgh1jklmnop2gc0abcdefgh1jklmnop30',
+    'Webhook',
+    'URL:',
+    'Secret:',
+    'c0abcdefgh1jklmnop40',
+    'All requests\' header made from our server will contain field "X-Finnhub-Secret": "c0abcdefgh1jklmnop40" for authentication.',
+    '8: Tiingo.Com: 0a1b2c3d4e5f60718293a4b5c6d7e8f901234567',
+    '9: marketaux.com:  AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCd',
+    '10: app.alpaca.markets : key: PKABCDEFGHIJKLMNOPQRSTUV12',
+    'secret key: AbCdEfGh1jKlMnOpQrStUvWxYz0123456789AbCdEfG',
+    '11: site.financialmodelingprep.com: AbCdEfGhIjKlMnOpQrStUvWxYz012345 (with API Calls / Day 0/250)',
+    '12: tipranks.com : (Use it as ?apikey=<key> on the MCP URL, or as Authorization: Bearer <key>.)  tr_live_AbCdEfGhIjKlMnOpQrStUvWx Authorization: Bearer tr_live_xxxxxxxx',
+    'GET https://mcp.tipranks.com/mcp/?apikey=tr_live_xxxxxxxx',
+    '13: equibles.com : eq_0123456789abcdef0123456789abcdef01234567',
+  ].join('\n');
+
+  it('reads every key once, keeps the 40-character Finnhub key whole and leaves the webhook secret out', () => {
+    const { found, notes } = providers.parseCredentialList(text);
     expect(Object.fromEntries(found.map((f: { name: string; value: string }) => [f.name, f.value]))).toEqual({
-      FINNHUB_API_KEY: 'abcd1234efgh5678ij90',
+      ALPHA_VANTAGE_API_KEY: 'ABCD1234EFGH5678',
+      TWELVE_DATA_API_KEY: '0a1b2c3d4e5f60718293a4b5c6d7e8f9',
+      COINGECKO_API_KEY: 'CG-AbCdEf1234567890GhIjKlMn',
+      FRED_API_KEY: '0123456789abcdef0123456789abcdef',
+      MASSIVE_API_KEY: 'AbCdEf1234567890GhIjKlMnOpQrStUv',
+      SEC_USER_AGENT: 'Ann Example ann.example@mail.org',
+      FINNHUB_API_KEY: 'c0abcdefgh1jklmnop2gc0abcdefgh1jklmnop30',
+      TIINGO_API_KEY: '0a1b2c3d4e5f60718293a4b5c6d7e8f901234567',
+      MARKETAUX_API_TOKEN: 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AbCd',
       ALPACA_API_KEY_ID: 'PKABCDEFGHIJKLMNOPQRSTUV12',
       ALPACA_API_SECRET_KEY: 'AbCdEfGh1jKlMnOpQrStUvWxYz0123456789AbCdEfG',
       FMP_API_KEY: 'AbCdEfGhIjKlMnOpQrStUvWxYz012345',
+      TIPRANKS_API_KEY: 'tr_live_AbCdEfGhIjKlMnOpQrStUvWx',
+      EQUIBLES_API_KEY: 'eq_0123456789abcdef0123456789abcdef01234567',
     });
-    expect(skipped).toEqual([]);
-    expect(notes.map((n: { name: string }) => n.name)).toEqual(['FINNHUB_API_KEY']);
-    expect(JSON.stringify(notes)).not.toContain('abcd1234');
+    expect(notes).toEqual([]);
+  });
+
+  it('reports skipped lines without their values', () => {
+    const { skipped } = providers.parseCredentialList(text);
+    expect(JSON.stringify(skipped)).not.toMatch(/c0abcdefgh1jklmnop40|tr_live_x/);
+    expect(skipped.find((x: { line?: number }) => x.line === 13)?.reason).toMatch(/webhook secret/);
   });
 
   it('reads both Alpaca values from one line', () => {
@@ -389,13 +421,12 @@ describe('pasted key list with a split Alpaca entry and a doubled Finnhub key', 
     expect(found.map((f: { name: string }) => f.name)).toEqual(['ALPACA_API_KEY_ID', 'ALPACA_API_SECRET_KEY']);
   });
 
-  it('fixes a doubled Finnhub key that was saved before', () => {
-    // A 40-character value from an earlier paste reads as its first half; a real 40-character key that is not
-    // a pair stays as it is.
+  it('saves the same 20-character Finnhub key pasted twice once, and any other 40-character key whole', () => {
+    const twice = providers.parseCredentialList('Finnhub: abcd1234efgh5678ij90abcd1234efgh5678ij90');
+    expect(twice.found).toEqual([{ name: 'FINNHUB_API_KEY', value: 'abcd1234efgh5678ij90' }]);
+    expect(twice.notes.map((n: { name: string }) => n.name)).toEqual(['FINNHUB_API_KEY']);
     vi.stubEnv('FINNHUB_API_KEY', 'abcd1234efgh5678ij90abcd1234efgh5678kl12');
-    expect(providers.credential('FINNHUB_API_KEY').value).toBe('abcd1234efgh5678ij90');
-    vi.stubEnv('FINNHUB_API_KEY', 'zyxw9876vuts5432rq10abcd1234efgh5678kl12');
-    expect(providers.credential('FINNHUB_API_KEY').value).toBe('zyxw9876vuts5432rq10abcd1234efgh5678kl12');
+    expect(providers.credential('FINNHUB_API_KEY').value).toBe('abcd1234efgh5678ij90abcd1234efgh5678kl12');
     vi.unstubAllEnvs();
   });
 });

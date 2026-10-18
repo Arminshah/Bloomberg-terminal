@@ -13,7 +13,7 @@ const runSeq = new Map<number, number>();
 function lookupThenRun(panel: number, text: string, ticker: string, message: string): boolean {
   const source = lookupSource();
   if (!source) {
-    flash(panel, `${message.replace(/\.? Type HELP for functions\.$/, '')}. ${ticker} is not built in; the desktop app looks up any US stock.`, 'error');
+    flash(panel, `${message.replace(/\.? Type HELP for functions\.$/, '')}. ${ticker} is not built in; the desktop app looks up any US stock and stocks on the main European exchanges.`, 'error');
     return false;
   }
   const seq = runSeq.get(panel);

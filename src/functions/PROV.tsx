@@ -293,9 +293,20 @@ function ImportKeys({ onChange }: { onChange: () => void }) {
       const res = await window.arminDesktop!.providersImport!(text);
       if (!res.ok) setResult(res.error ?? 'Nothing was saved.');
       else {
-        const skipped = res.skipped.map((x) => `${x.line ? `line ${x.line}` : x.name}: ${x.reason}`);
+        // Lines that name no provider (headings, instructions, a webhook URL) are counted, not listed.
+        const unnamed = res.skipped.filter((x) => !x.name && x.reason === 'no provider named').length;
+        const skipped = res.skipped.filter((x) => x.name || x.reason !== 'no provider named').map((x) => `${x.line ? `line ${x.line}${x.name ? ` (${x.name})` : ''}` : x.name}: ${x.reason}`);
         const notes = (res.notes ?? []).map((x) => `${x.name}: ${x.note}`);
-        setResult(`${res.saved.length ? `Saved ${res.saved.join(', ')}.` : 'Nothing was saved.'}${notes.length ? ` Note: ${notes.join('; ')}.` : ''}${skipped.length ? ` Not saved: ${skipped.join('; ')}.` : ''}`);
+        setResult(
+          [
+            res.saved.length ? `Saved ${res.saved.length}: ${res.saved.join(', ')}.` : 'Nothing was saved.',
+            ...notes.map((n) => `Note: ${n}.`),
+            ...skipped.map((n) => `Not saved, ${n}.`),
+            unnamed ? `${unnamed} other line${unnamed === 1 ? '' : 's'} named no provider and ${unnamed === 1 ? 'was' : 'were'} ignored.` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        );
         if (res.saved.includes('FRED_API_KEY')) reloadFred();
       }
     } catch {
@@ -326,7 +337,11 @@ function ImportKeys({ onChange }: { onChange: () => void }) {
       <button type="button" className="btn primary" disabled={!text.trim()} onClick={() => void run()}>
         Save these keys
       </button>
-      {result ? <div className="muted">{result}</div> : null}
+      {result ? (
+        <div className="muted" style={{ whiteSpace: 'pre-line' }}>
+          {result}
+        </div>
+      ) : null}
     </div>
   );
 }

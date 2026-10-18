@@ -60,12 +60,12 @@ function credentialNames(name) {
 }
 
 /**
- * Finnhub's dashboard shows the API key (20 characters) next to a webhook secret of the same form, and copying
- * both gives one 40-character string that Finnhub refuses. Two 20-character halves that start alike are that
- * pair: the first is the API key.
+ * Finnhub's API keys are 20 characters on older accounts and 40 on newer ones (two 20-character halves that
+ * start alike); the webhook secret next to the key is a separate 20-character value. Only the same 20
+ * characters pasted twice are cut to one.
  */
 function finnhubKeyFrom(text) {
-  return /^[a-z0-9]{40}$/.test(text) && text.slice(0, 12) === text.slice(20, 32) ? text.slice(0, 20) : text;
+  return /^[a-z0-9]{40}$/.test(text) && text.slice(0, 20) === text.slice(20) ? text.slice(0, 20) : text;
 }
 
 function normalizeCredential(name, value) {
@@ -344,7 +344,7 @@ function parseCredentialList(text) {
         return;
       }
       const kept = normalizeCredential(name, value);
-      if (kept !== value && name === 'FINNHUB_API_KEY') notes.push({ line: i + 1, name, note: 'the value was two 20-character keys run together (the API key and the webhook secret on Finnhub\'s page); the first, the API key, was kept' });
+      if (kept !== value && name === 'FINNHUB_API_KEY') notes.push({ line: i + 1, name, note: 'the same 20-character key was pasted twice; it was saved once' });
       found.push({ name, value: kept });
     });
   return { found, skipped, notes };
