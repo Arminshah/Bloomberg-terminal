@@ -6,6 +6,7 @@ import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { analystData, analystsAvailable, analystSymbol, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
 import { EquiblesResearch } from '../components/EquiblesResearch';
+import { TipRanksResearch } from '../components/TipRanksResearch';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -70,7 +71,8 @@ export function ANR({ sec }: FnProps) {
       <div>
         {header}
         <QuoteStrip sec={s} />
-        <div className="empty">Analyst research here covers US-listed stocks; {s.ticker} is not one.</div>
+        <div className="empty">FMP, Finnhub and Equibles research here covers US-listed stocks; {s.ticker} is not one. TipRanks covers some other markets:</div>
+        {s.cls === 'equity' ? <TipRanksResearch key={s.id} def={s} /> : null}
       </div>
     );
   }
@@ -253,6 +255,7 @@ export function ANR({ sec }: FnProps) {
         <EstimatesTable part={estimates} />
       </Section>
       <EquiblesResearch key={`${symbol}:${researchGeneration}`} symbol={symbol} autoLoad={!!estimates && estimates.state !== 'loading' && !estimates.data?.length} />
+      <TipRanksResearch key={s.id} def={s} />
       <div className="note">
         Targets, ratings and estimates are provider consensus and analyst opinions, not forecasts calculated by this app. Each dataset keeps its own source, fiscal/per-share basis and retrieval time. Yahoo fallback has no equivalent to FMP&apos;s period-average target history, so that dataset remains unavailable when FMP denies it. Finnhub supplies recommendation counts, not price targets. Equibles reports preserve the provider&apos;s original coverage and accounting qualifications. Research is cached for hours; opening this screen does not poll it continuously.
       </div>

@@ -16,8 +16,9 @@ app.getAppPath = () => profile;
 const researchTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-research.json'), 'utf8'));
 const currencyTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/sec-currency-change.json'), 'utf8'));
 const chartTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-sofi-chart.json'), 'utf8'));
+const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/tipranks-tools.json'), 'utf8')).tools;
 const fullFinnhubKey = 'abcd1234efgh5678ij90abcd1234efgh5678kl12';
-const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], finnhub: [], equibles: [], yahoo: [] } };
+const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], finnhub: [], equibles: [], yahoo: [], tipranks: [] } };
 globalThis.__desktopFixtures = fixtures;
 net.fetch = async (input, init) => {
   const url = new URL(String(input));
@@ -69,6 +70,19 @@ net.fetch = async (input, init) => {
     fixtures.calls.finnhub.push(url.href);
     if (new Headers(init?.headers).get('X-Finnhub-Token') !== fullFinnhubKey) return new Response(JSON.stringify({ error: 'Invalid API key' }), { status: 401 });
     return json([{ symbol: url.searchParams.get('symbol'), period: '2026-10-01', strongBuy: 2, buy: 4, hold: 1, sell: 0, strongSell: 0 }]);
+  }
+  if (url.hostname === 'mcp.tipranks.com') {
+    const body = JSON.parse(init.body);
+    fixtures.calls.tipranks.push({ method: body.method, name: body.params?.name, keyed: url.searchParams.has('apikey') });
+    const sse = (reply) => new Response(`event: message\ndata: ${JSON.stringify(reply)}\n\n`, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+    if (body.method === 'initialize') return sse({ jsonrpc: '2.0', id: body.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} } } });
+    if (body.method === 'notifications/initialized') return new Response(null, { status: 202 });
+    if (body.method === 'tools/list') return sse({ jsonrpc: '2.0', id: body.id, result: { tools: tipranksTools } });
+    const name = body.params.name;
+    const data = name === 'get_my_usage' ? { used: 3, limit: 50, remaining: 47 }
+      : name === 'get_assets_data' ? { assetsData: [{ ticker: body.params.arguments.tickers, companyName: 'Synthetic TipRanks fixture', url: 'https://www.tipranks.com/stocks/aapl', price: 200, smartScore: 8, analystConsensus: 'Moderate Buy', bestAnalystConsensus: 'Strong Buy', priceTarget: 240, priceTargetUpside: 0.2 }] }
+      : [{ recommendationDate: '10/14/2026', analystName: 'Synthetic Analyst', firm: 'Fixture Securities', rating: 'Buy', action: 'reiterated', priceTarget: 250, numOfStars: 4.5 }];
+    return sse({ jsonrpc: '2.0', id: body.id, result: { content: [{ type: 'text', text: JSON.stringify(data) }] } });
   }
   if (url.hostname === 'mcp.equibles.com') {
     const body = JSON.parse(init.body);

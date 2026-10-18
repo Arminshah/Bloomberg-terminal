@@ -30,7 +30,7 @@ const CREDENTIALS = {
   // Financial Modeling Prep: analyst price targets, ratings and estimates.
   FMP_API_KEY: { label: 'Financial Modeling Prep API key', valid: (v) => /^[A-Za-z0-9]{20,64}$/.test(v) },
   EQUIBLES_API_KEY: { label: 'Equibles API key', valid: (v) => /^eq_[A-Za-z0-9]{24,128}$/.test(v) },
-  // TipRanks: kept for a later adapter; nothing is sent to TipRanks yet.
+  // TipRanks: analyst consensus, price targets and rating actions on ANALYSTS, on request (electron/tipranks.cjs).
   TIPRANKS_API_KEY: { label: 'TipRanks API key', valid: (v) => /^tr_(live|test)_[A-Za-z0-9]{16,80}$/.test(v) && !/^tr_(live|test)_x+$/i.test(v) },
   // The SEC asks for an application name and a contact email it can reach.
   SEC_USER_AGENT: {
@@ -164,6 +164,7 @@ const SETTINGS = {
   // The keyed sources added in 2.1.0, each on while its key is set; off stops every request to it.
   FMP_ENABLED: { label: 'Financial Modeling Prep analyst research', default: true },
   EQUIBLES_ENABLED: { label: 'Equibles company research (read only)', default: true },
+  TIPRANKS_ENABLED: { label: 'TipRanks analyst consensus, targets and rating actions (on request)', default: true },
   FINNHUB_ENABLED: { label: 'Finnhub company data, recommendations and news', default: true },
   MARKETAUX_ENABLED: { label: 'Marketaux news and sentiment', default: true },
   ALPACA_ENABLED: { label: 'Alpaca IEX stocks and indicative options (market data only)', default: true },

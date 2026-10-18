@@ -1,0 +1,96 @@
+{
+ "checked": "2026-10-18",
+ "source": "https://mcp.tipranks.com/mcp/ tools/list (no key, not metered)",
+ "tools": [
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true,
+    "readOnlyHint": true,
+    "title": "List your authorized portfolios"
+   },
+   "description": "List the portfolios you authorized this connector to access.\n\n    Returns the portfolios that were on your TipRanks account at the time\n    you signed in, each with its id and name. If you've added or renamed\n    portfolios since, re-authorize to refresh.\n    ",
+   "inputSchema": {
+    "properties": {},
+    "type": "object",
+    "title": "list_my_portfoliosArguments"
+   },
+   "name": "list_my_portfolios"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true,
+    "readOnlyHint": true,
+    "title": "Get stock data for tickers"
+   },
+   "description": "Returns key TipRanks stock data for one or more tickers.\n\n    Args:\n        tickers: Ticker symbols \u2014 a comma-separated string (\"AAPL,MSFT,C\") or a\n            JSON array ([\"AAPL\",\"MSFT\",\"C\"]). Both are accepted.\n\n    Returns JSON {\"assetsData\": [...one compact entry per ticker...]}. This is a\n    headline summary tuned to stay small enough for a whole portfolio to fit in a\n    single response. Fields per entry:\n      - ticker, companyName, sector, stockType, marketCap\n      - url: canonical TipRanks page for the stock \u2014 use as the citation source.\n      - price: latest close.\n      - smartScore: TipRanks composite 1-10 (combines the 8 datasets \u2014 analyst,\n          blogger, news, hedge-fund, insider, etc.).\n      - analystConsensus / bestAnalystConsensus: rating label from ALL covering\n          analysts vs. the top-performing ones (\"Strong Buy\"..\"Strong Sell\"); a\n          divergence between the two is itself a signal.\n      - priceTarget: average 12-month target. priceTargetUpside: decimal vs.\n          current price (0.05 = +5%).\n      - peRatio, dividendYield (decimal).\n      - newsSentiment, hedgeFundsScore, insiderScore: 0-1 sentiment signals.\n      - ytdGainPct, yearlyGainPct: price performance as a percent (12.5 = +12.5%,\n          3944 = +3944%).\n      - nextEarningsDate, and daysUntilEarnings (whole days from today \u2014 quote this\n          rather than computing the gap from the date yourself).\n    Floats are rounded and dates are day-resolution. For deeper per-ticker detail\n    (full price history, 13F / insider breakdowns, blogger counts, financials)\n    use the dedicated tools (get_stock_prices, get_hedge_fund_holdings,\n    get_insider_transactions, get_financials, ...).\n    ",
+   "inputSchema": {
+    "properties": {
+     "tickers": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      ],
+      "title": "Tickers"
+     }
+    },
+    "required": [
+     "tickers"
+    ],
+    "type": "object",
+    "title": "get_assets_dataArguments"
+   },
+   "name": "get_assets_data"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true,
+    "readOnlyHint": true,
+    "title": "Get recent analyst ratings"
+   },
+   "description": "Recent Wall Street analyst rating actions on a single stock, covering the\n    trailing 12 months (newest first).\n\n    Each row carries the analyst's name and firm, the rating (Buy/Hold/Sell),\n    the action (initiated/upgraded/downgraded/reiterated/maintained), the price\n    target, and the analyst's TipRanks credibility (numOfStars 0-5, rank,\n    success rate, average return) plus the source article title/quote.\n\n    For the aggregate consensus and average/best price target, use\n    get_assets_data instead.\n\n    Args:\n        ticker: Stock ticker (e.g. 'NVDA', 'AAPL').\n\n    Returns: a list of rating actions. recommendationDate is a 'MM/DD/YYYY'\n             string; numOfStars is the analyst's 0-5 TipRanks star rating.\n    ",
+   "inputSchema": {
+    "properties": {
+     "ticker": {
+      "title": "Ticker",
+      "type": "string"
+     }
+    },
+    "required": [
+     "ticker"
+    ],
+    "type": "object",
+    "title": "get_recent_analyst_ratingsArguments"
+   },
+   "name": "get_recent_analyst_ratings"
+  },
+  {
+   "annotations": {
+    "destructiveHint": false,
+    "idempotentHint": true,
+    "openWorldHint": true,
+    "readOnlyHint": true,
+    "title": "Get my MCP usage"
+   },
+   "description": "Your current TipRanks MCP usage against the monthly tool-call quota.\n\n    Reports calls used this calendar month, your limit, how many remain, your\n    plan tier, and when the quota resets (UTC). Handy to check before running a\n    large batch of calls. This call is free \u2014 it never counts against the quota.\n\n    What counts: every tool call is metered once whether or not it returns data,\n    so an unrecognised ticker or an invalid argument costs the same as a\n    successful call. The connection handshake (initialize, tools/list and the\n    other discovery calls) is never metered, and neither is this tool.\n\n    Calls refused for being over the limit are refunded on both ladders, so\n    `used` settles at the cap rather than climbing while a client retries. It\n    can still read higher than `limit` when the ceiling FELL mid-month \u2014 a\n    complimentary grant expiring or being revoked, or a paid MCP subscription\n    lapsing \u2014 and there it is the count of calls genuinely served before the\n    cap dropped.\n    ",
+   "inputSchema": {
+    "properties": {},
+    "type": "object",
+    "title": "get_my_usageArguments"
+   },
+   "name": "get_my_usage"
+  }
+ ]
+}

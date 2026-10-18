@@ -631,16 +631,18 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'tipranks',
     name: 'TipRanks',
-    serves: 'Nothing yet: not connected',
-    dataClass: 'None',
-    policy: 'planned',
+    serves: 'Analyst consensus, average price target, Smart Score and recent rating actions with each analyst\'s record (ANALYSTS), on request, US and some other markets',
+    dataClass: 'Analyst opinions as TipRanks aggregates them; Data by TipRanks',
+    policy: 'needs-credential',
     credential: 'TIPRANKS_API_KEY',
-    terms: 'An MCP server (JSON-RPC over HTTP) with tools such as get_assets_data (consensus, price target, Smart Score) and get_recent_analyst_ratings. API-key free plan: 10 requests a minute and 50 a month per account, every tool call counted. Terms (1 June 2026): use "solely to build and operate your own applications", credit "Data by TipRanks", no storage beyond transient caching. Not connected yet: its tools\' inputs and answers are only visible with a key, and this build could not check them. Analyst price targets come from Financial Modeling Prep meanwhile.',
+    setting: 'TIPRANKS_ENABLED',
+    limit: '8',
+    terms: 'Hosted MCP server (JSON-RPC over HTTP). Checked 18 October 2026: the handshake and tool list answer without a key and are not metered; every tool call counts against the monthly allowance (50 on the free API-key plan, 10 a minute), whether or not it returns data, and get_my_usage is free. The key goes in the documented ?apikey= parameter from the main process only. Terms (1 June 2026): use "solely to build and operate your own applications", credit "Data by TipRanks", no storage beyond transient caching; the app keeps answers in memory for an hour, never on disk, calls only get_assets_data and get_recent_analyst_ratings on your click, and stops at 45 calls a month.',
     docs: [
-      { label: 'MCP docs', url: 'https://mcp.tipranks.com/docs' },
+      { label: 'MCP docs', url: 'https://mcp.tipranks.com/' },
       { label: 'MCP terms', url: 'https://mcp.tipranks.com/terms' },
     ],
-    checked: '2026-10-14',
+    checked: '2026-10-18',
     desktop: true,
   },
   {
@@ -691,7 +693,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED';
 
 export interface SettingState {
   label: string;

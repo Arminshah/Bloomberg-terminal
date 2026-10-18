@@ -41,7 +41,7 @@ In the desktop app, every request below goes out from the Electron main process 
 | Marketaux | News tagged with tickers, with sentiment (`MARKETNEWS`, `COMPANYNEWS`) | REST API | `MARKETAUX_API_TOKEN` | Enabled once the token is set, switch `MARKETAUX_ENABLED` |
 | MarketWatch | Top stories headlines (`MARKETNEWS`) | RSS | None | Off until `MARKETWATCH_RSS_ENABLED` is on (Dow Jones terms) |
 | Alpaca Market Data | IEX stocks and indicative listed equity option snapshots (`OPTIONS`) | Market Data API v2 / v1beta1 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | Enabled with both keys and account access, switch `ALPACA_ENABLED`; read-only data host |
-| TipRanks | | MCP server | `TIPRANKS_API_KEY` | Not connected (see below) |
+| TipRanks | Analyst consensus, average price target, Smart Score and recent rating actions (`ANALYSTS`), on request | MCP server | `TIPRANKS_API_KEY` | On request only, 45 calls a month at most, switch `TIPRANKS_ENABLED` |
 | Binance | | Spot REST API | | Evaluated, not connected (see below) |
 | CNBC | | RSS | | Not used: its feeds refuse programs and its owner's terms bar it |
 | Coinbase Exchange, Frankfurter | Former browser-build feeds | | | Disabled |
@@ -341,9 +341,16 @@ Added 18 October 2026: `electron/option-chain.cjs` builds only `https://data.alp
 
 Refresh is manual, up to five sequential 1,000-record pages. Repeated tokens and failed next pages stop with explicit partial status. A previously cached response can be stale; its original retrieval time remains. Tables paginate 100 rows after sorting the filtered set; CSV includes all filtered records and provenance. Data stays in memory, uses the same credential-scoped broker and shares the 120/min app pacing with stocks. Cache lifetime is 15 seconds for option pages.
 
-## TipRanks (not connected)
+## TipRanks
 
-TipRanks offers an MCP server (JSON-RPC over HTTP) with tools such as `get_assets_data` (consensus, price target, Smart Score) and `get_recent_analyst_ratings`. The API-key free plan allows 10 requests a minute and 50 a month per account, every tool call counted. Its terms (1 June 2026) allow use "solely to build and operate your own applications", with "Data by TipRanks" credited and no storage beyond transient caching. It is not connected: the tools' inputs and answers are only visible with a key, and this build could not check them. `TIPRANKS_API_KEY` can be saved for a later version; nothing uses it yet.
+Checked 18 October 2026. TipRanks runs a hosted MCP server at `https://mcp.tipranks.com/mcp/` (JSON-RPC over HTTP, answering with server-sent events). Its handshake (`initialize`, `tools/list`) answers without a key and is not metered; the app reads the published input schemas from `tools/list` before calling a tool, and refuses a tool whose schema changed. Every `tools/call` is metered against the account's monthly allowance, whether or not it returns data: 50 calls a month and 10 a minute on the free API-key plan. `get_my_usage` is free. Over the allowance the server answers HTTP 429. The key goes in the documented `?apikey=` query parameter, from the main process only; the URL is never shown or logged.
+
+`ANALYSTS` has a TipRanks panel. Opening it runs the free usage check; nothing else is asked until you click:
+
+- "Consensus and price target" calls `get_assets_data`: the consensus of all covering analysts and of the top-performing ones, the average 12-month price target and its upside, the Smart Score, news, hedge fund and insider signals, and the next earnings date.
+- "Analyst rating actions" calls `get_recent_analyst_ratings`: the last 12 months of rating actions with analyst, firm, rating, action, price target and the analyst's TipRanks star rating.
+
+The ticker is TipRanks' own: US tickers as they are, London as `GB:`, Xetra as `DE:` and Paris as `FR:`. Other markets are filled in by hand, as TipRanks writes them (AB InBev is `IT:1ABI` there). [Terms](https://mcp.tipranks.com/terms) (1 June 2026): use "solely to build and operate your own applications", credit "Data by TipRanks" where the data is shown, no storage beyond transient caching. The panel links "Data by TipRanks" to the stock's TipRanks page, keeps answers in memory for an hour and never on disk, and the app stops at 45 calls a month (the count restarts on the 1st, UTC). Portfolio tools are never called. Switch: `TIPRANKS_ENABLED`.
 
 ## Disabled and not reviewed
 

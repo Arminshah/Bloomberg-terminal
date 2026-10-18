@@ -45,15 +45,17 @@ function OptionCalculator({ sec, route }: FnProps) {
   const [volOverride, setVolOverride] = useState(parts[3] ?? '');
   const spot = spotOverride.trim() ? inputNumber(spotOverride) : spotLive;
   const strike = strikeText.trim() ? inputNumber(strikeText) : Math.round(spot / strikeStep(spot)) * strikeStep(spot);
-  // Time to expiry moves by the minute: the lattice and its scenario grids are not recomputed on every render.
-  const minute = Math.floor(engine.now() / 60_000) * 60_000;
-  const t = daysOverride.trim() ? inputNumber(daysOverride) / 365 : Math.max((expiry - minute) / (365 * DAY_MS), 0);
   // A rate you type replaces the published one, which some currencies lack.
   const [rateOverride, setRateOverride] = useState('');
   const [dividendOverride, setDividendOverride] = useState('');
   const [multiplier, setMultiplier] = useState('100');
   const [solve, setSolve] = useState('value');
   const [premium, setPremium] = useState('');
+  // Time to expiry is taken when an input changes, and at least once a minute: exact when you price, without
+  // recomputing the lattice and its scenario grids on every render.
+  const minute = Math.floor(engine.now() / 60_000);
+  const pricedAt = useMemo(() => engine.now(), [minute, spot, strikeText, expiry, daysOverride, rateOverride, dividendOverride, volOverride, premium, solve, exercise, steps, type]); // eslint-disable-line react-hooks/exhaustive-deps
+  const t = daysOverride.trim() ? inputNumber(daysOverride) / 365 : Math.max((expiry - pricedAt) / (365 * DAY_MS), 0);
   const published = riskFreeRate(s);
   const typedRate = rateOverride.trim() !== '';
   const r = typedRate ? inputNumber(rateOverride) / 100 : published.r;

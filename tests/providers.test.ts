@@ -242,7 +242,7 @@ describe('provider status', () => {
     expect(providerState(def('sec'), report)).toBe('not-configured');
     expect(providerState(def('massive'), report)).toBe('not-configured');
     expect(providerState(def('fmp'), report)).toBe('not-configured');
-    expect(providerState(def('tipranks'), report)).toBe('planned');
+    expect(providerState(def('tipranks'), report)).toBe('not-configured');
     // Alpaca needs both its key ID and its secret, and has its own switch.
     const one = { label: 'Alpaca', configured: true, valid: true, source: 'saved in this app' };
     expect(providerState(def('alpaca'), { ...report, credentials: { ALPACA_API_KEY_ID: one } })).toBe('not-configured');

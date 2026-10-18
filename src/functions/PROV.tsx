@@ -226,6 +226,7 @@ const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'MARKETWATCH_RSS_ENABLED', help: "MarketWatch's top stories feed on MARKETNEWS. Dow Jones's terms bar automated access to its content, RSS feeds included, without written consent: switch it on only if you accept that risk for your own use." },
   { name: 'FMP_ENABLED', help: 'Analyst price targets, ratings and estimates from Financial Modeling Prep (ANALYSTS, EARNINGS), while FMP_API_KEY is set. Off stops every request to FMP.' },
   { name: 'FINNHUB_ENABLED', help: 'Finnhub profiles/ratios fallback, monthly recommendations, quarterly EPS comparisons, next-report calendar and news. Use the REST API key, not the webhook secret.' },
+  { name: 'TIPRANKS_ENABLED', help: 'TipRanks analyst consensus, average price target and rating actions on ANALYSTS, only when you click. Free plan: 50 calls a month for the whole account; the app stops at 45. Answers stay in memory for an hour, as TipRanks\' terms allow. Data by TipRanks.' },
   { name: 'EQUIBLES_ENABLED', help: 'Read-only Equibles company research on ANALYSTS. One estimate report can load as a fallback; other datasets are manual. Free account: 100 calls/day shared with REST/MCP clients. No trading or portfolio writes.' },
   { name: 'MARKETAUX_ENABLED', help: 'Ticker-tagged news with sentiment from Marketaux, while MARKETAUX_API_TOKEN is set. Its free plan allows 100 requests a day.' },
   { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },
@@ -294,7 +295,7 @@ const CREDENTIALS: { name: Credential; help: string; secret: boolean; placeholde
   { name: 'MARKETAUX_API_TOKEN', help: 'Token from your Marketaux account: news tagged with tickers and sentiment. Free plan: 100 requests a day.', secret: true, placeholder: 'API token' },
   { name: 'ALPACA_API_KEY_ID', help: 'Key ID from your Alpaca account (paper keys start with PK): IEX quotes on QUOTE. Used for market data only, never for trading.', secret: true, placeholder: 'Key ID' },
   { name: 'ALPACA_API_SECRET_KEY', help: 'The secret that goes with the Alpaca key ID.', secret: true, placeholder: 'Secret key' },
-  { name: 'TIPRANKS_API_KEY', help: 'Kept for a later TipRanks adapter; nothing is sent to TipRanks yet.', secret: true, placeholder: 'tr_live_…' },
+  { name: 'TIPRANKS_API_KEY', help: 'TipRanks MCP key (tr_live_…) for analyst consensus, targets and rating actions on ANALYSTS. Each click costs one of the account\'s monthly calls (50 on the free plan).', secret: true, placeholder: 'tr_live_…' },
 ];
 
 /** A list of keys pasted at once, in the form you keep them ("FINNHUB_API_KEY: …", "Tiingo.com: …"). */

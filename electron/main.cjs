@@ -541,6 +541,16 @@ ipcMain.handle('equibles', async (event, kind, symbol) => {
   return equiblesClient.research(kind, symbol, key.value);
 });
 
+const tipranks = require('./tipranks.cjs');
+const tipranksClient = tipranks.createTipRanksClient({ providers, fetch: (url, init) => net.fetch(url, init), monthFile: () => path.join(app.getPath('userData'), 'tipranks-month.json') });
+ipcMain.handle('tipranks', async (event, kind, ticker) => {
+  if (!fromApp(event) || !tipranks.validRequest(kind, ticker)) throw new Error('not allowed');
+  if (!providers.setting('TIPRANKS_ENABLED').value) return { status: 0, text: '', gated: 'TIPRANKS_ENABLED' };
+  const key = usableKey('TIPRANKS_API_KEY', 'tipranks');
+  if (!key.value) return { status: 0, text: '', ...key };
+  return tipranksClient.research(kind, ticker, key.value);
+});
+
 const finnhub = require('./finnhub.cjs');
 
 // Finnhub company data for US-listed stocks (electron/finnhub.cjs), sharing Finnhub's pace with its news.

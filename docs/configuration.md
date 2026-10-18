@@ -34,7 +34,7 @@ The aliases `MARKETAUX_API_KEY`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `APCA_AP
 | `FINNHUB_API_KEY` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`); US company ratios, recommendation trends, EPS surprises and the next report (`PROFILE`, `ANALYSTS`, `EARNINGS`) | Free account at [finnhub.io](https://finnhub.io). The API key is 20 characters on older accounts and 40 on newer ones; the webhook secret shown under it is not an API key | 60 a minute, personal use; the app keeps to 30, asks every 5 to 15 minutes while a screen shows news and keeps company data 6 to 24 hours |
 | `MARKETAUX_API_TOKEN` | News tagged with tickers, with sentiment (`MARKETNEWS`, `COMPANYNEWS`) | Free account at [marketaux.com](https://www.marketaux.com/pricing) | 100 requests a day, 3 articles each; the app keeps to 90, one request for the whole watchlist an hour |
 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option snapshots on `OPTIONS` | Own [Alpaca account](https://alpaca.markets/data), subject to dataset entitlement | Read-only data host; IEX stock polling, option refresh manual with up to 5 pages, 15-second option cache; no paid OPRA selection |
-| `TIPRANKS_API_KEY` | Nothing yet: saved for a later version | [mcp.tipranks.com](https://mcp.tipranks.com/docs) | 50 requests a month on the free plan |
+| `TIPRANKS_API_KEY` | Analyst consensus, average price target and rating actions on `ANALYSTS`, US and some other markets, when you click | Key beginning `tr_live_` from [mcp.tipranks.com](https://mcp.tipranks.com/) | 50 calls a month and 10 a minute on the free plan, every call counted; the app stops at 45 a month and keeps answers in memory for an hour |
 
 ## Switches
 
@@ -46,6 +46,7 @@ The aliases `MARKETAUX_API_KEY`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `APCA_AP
 | `KRAKEN_ENABLED` | on | Kraken's public market data for the ten crypto lines. Off hands them back to Yahoo, if Yahoo is on. |
 | `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` | off | Twelve Data's free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data. |
 | `MARKETWATCH_RSS_ENABLED` | off | MarketWatch's top stories feed on `MARKETNEWS`. Dow Jones's terms bar automated access to its content, RSS feeds included, without written consent; switch it on only if you accept that risk for your own use. |
+| `TIPRANKS_ENABLED` | on | TipRanks on `ANALYSTS`, only when you click; the usage check is free. |
 | `YAHOO_RSS_ENABLED` | on | Yahoo Finance's headline feed for the stock on screen (`COMPANYNEWS`, `QUOTE`), any market Yahoo lists. |
 | `EURONEXT_RSS_ENABLED` | on | Euronext's feed of the latest company press releases on `MARKETNEWS`. |
 | `ALPACA_IEX_PRICES_ENABLED` | off | Use Alpaca IEX-only prices for US equities in watchlists and panels. Both keys and `ALPACA_ENABLED` are required. Reload to apply. Daily history is limited to previous/current IEX bars; intraday history contains snapshots observed while the app is open. Yahoo price history is kept separate. |

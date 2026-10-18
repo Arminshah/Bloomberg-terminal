@@ -23,7 +23,7 @@ interface Fixtures {
   profileMissing: boolean;
   mixedEstimateCurrencies: boolean;
   equiblesRefusal: boolean;
-  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[] };
+  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -65,6 +65,7 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
           FMP_API_KEY: 'DesktopFixtureKey1234567890',
           FINNHUB_API_KEY: 'abcd1234efgh5678ij90abcd1234efgh5678kl12',
           EQUIBLES_API_KEY: 'eq_DesktopFixtureEquibles1234567890',
+          TIPRANKS_API_KEY: 'tr_live_DesktopFixtureTipRanks0001',
           MARKETAUX_API_TOKEN: 'DesktopFixtureToken1234567890',
           ALPACA_API_KEY_ID: 'PKFIXTURE0000000000',
           ALPACA_API_SECRET_KEY: 'DesktopFixtureSecret0000000000000000',
@@ -404,6 +405,27 @@ test('Equibles tool refusals stay visible and can recover without caching the re
   await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
   await expect(page.getByTestId('equibles-report')).toContainText('GetAnalystEstimates');
   expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(2);
+});
+
+test('TipRanks answers only on request, shows the free usage check and its credit, and never shows the key', async ({ desktop: { app, page } }) => {
+  await command(page, 'AAPL ANALYSTS');
+  await expect(page.getByText('TipRanks reports 3 of 50 calls used this month, 47 left')).toBeVisible();
+  expect((await calls(app)).tipranks.filter((c) => c.method === 'tools/call').map((c) => c.name)).toEqual(['get_my_usage']);
+  await expect(page.getByLabel('TipRanks ticker')).toHaveValue('AAPL');
+  await page.getByRole('button', { name: 'Consensus and price target · 1 call', exact: true }).click();
+  await expect(page.getByText('Moderate Buy', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Data by TipRanks' }).first()).toHaveAttribute('href', 'https://www.tipranks.com/stocks/aapl');
+  await page.getByRole('button', { name: 'Analyst rating actions · 1 call', exact: true }).click();
+  await expect(page.getByRole('cell', { name: 'Fixture Securities', exact: true })).toBeVisible();
+  // Asked again within the hour: kept in memory, no further call.
+  await page.getByRole('button', { name: 'Consensus and price target · 1 call', exact: true }).click();
+  await expect(page.getByText('kept from an earlier request')).toBeVisible();
+  const tipranks = (await calls(app)).tipranks;
+  expect(tipranks.filter((c) => c.method === 'tools/call').map((c) => c.name)).toEqual(['get_my_usage', 'get_assets_data', 'get_recent_analyst_ratings']);
+  expect(tipranks.every((c) => c.keyed)).toBe(true);
+  expect(await page.content()).not.toContain('DesktopFixtureTipRanks');
+  await command(page, 'SHEL LN ANALYSTS');
+  await expect(page.getByLabel('TipRanks ticker')).toHaveValue('GB:SHEL');
 });
 
 test('provider research checks report access for each APLD endpoint instead of a blanket success', async ({ desktop: { app, page } }) => {

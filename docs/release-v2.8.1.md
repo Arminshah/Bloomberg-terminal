@@ -1,6 +1,11 @@
-# Armin Terminal 2.8.0
+# Armin Terminal 2.8.1
 
-This release merges the 2.7.1 and 2.7.2 work with fixes for keys, European stocks, portfolio currency and the heatmap.
+This release merges the 2.7.1 and 2.7.2 work with fixes for keys, European stocks, portfolio currency and the heatmap, and connects TipRanks. 2.8.0 was tagged but never published: its build stopped on an option calculator test (see the last section).
+
+## TipRanks
+
+- `ANALYSTS` has a TipRanks panel: the analyst consensus (all analysts and the top performers), the average 12-month price target with its upside, the Smart Score, and the last 12 months of rating actions with each analyst's firm, target and star rating. It works for US stocks and for the other markets TipRanks lists; London, Xetra and Paris tickers are filled in, others are typed as TipRanks writes them (AB InBev is `IT:1ABI`).
+- Nothing is asked until you click, and each click says it costs one call. The free plan allows 50 calls a month for the whole account; the panel shows how many are left (that check is free), and the app stops at 45. Answers stay in memory for an hour and are never written to disk, as TipRanks' terms require, and every view credits "Data by TipRanks" with a link to the stock's page. Switch: `TIPRANKS_ENABLED`.
 
 ## Keys
 
@@ -27,7 +32,7 @@ This release merges the 2.7.1 and 2.7.2 work with fixes for keys, European stock
 
 - Portfolio risk: a crypto holding's weekend prices no longer drop every Friday-to-Monday stock interval from VaR and volatility.
 - Equibles: an expired session is renewed even when an older report is kept; kept reports survive a renewed session; the "Daily call limit exceeded" answer counts as a rate limit, not a report.
-- `OPTIONCALC` no longer recomputes the American lattice on every screen refresh.
+- `OPTIONCALC` no longer recomputes the American lattice on every screen refresh: the time to expiry is taken when an input changes, and at least once a minute, so prices stay exact to the second.
 - `ANALYSTS` asks again when the screen reopens after a network error, 429 or server error.
 - A linked `OPTIONCALC` panel drops the previous stock's strike and volatility when the group changes stock.
 - The self-test shows the provider's reason for a refusal.
@@ -36,6 +41,10 @@ This release merges the 2.7.1 and 2.7.2 work with fixes for keys, European stock
 
 FMP's free plan covers a fixed sample of about 87 symbols; other symbols answer HTTP 402 ("not available under your current subscription"). That is the plan's limit, not a key problem. `ANALYSTS` and `EARNINGS` fall back to Finnhub recommendation trends, Yahoo's analyst research (switch `YAHOO_RESEARCH_ENABLED`; in the EU it needs Yahoo's cookie consent, via "Open Yahoo to accept") and an Equibles estimate report.
 
+## Why 2.8.0 was not published
+
+The first fix for `OPTIONCALC` rounded the time to expiry down to the minute. That made a value up to a minute off, and the release check that solves for a 20% implied volatility read 19.9997%. 2.8.1 takes the time when an input changes instead. All checks pass: lint, types, 570 unit tests, 17 browser workflows and 21 desktop workflows, including a new one for TipRanks with synthetic answers.
+
 ## Downloads
 
-Windows: `Armin-Terminal-Setup-2.8.0.exe`, `Armin-Terminal-2.8.0-Portable.exe`. Linux: `Armin-Terminal-2.8.0-x86_64.AppImage`, `armin-terminal_2.8.0_amd64.deb`. Each package has a SHA256 sidecar. Settings and saved keys are kept on upgrade.
+Windows: `Armin-Terminal-Setup-2.8.1.exe`, `Armin-Terminal-2.8.1-Portable.exe`. Linux: `Armin-Terminal-2.8.1-x86_64.AppImage`, `armin-terminal_2.8.1_amd64.deb`. Each package has a SHA256 sidecar. Settings and saved keys are kept on upgrade.
