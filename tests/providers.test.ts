@@ -130,6 +130,7 @@ describe('provider refusals returned as HTTP 200', () => {
     ['finnhub', { error: "You don't have access to this resource." }, 'not-entitled'],
     ['equibles', { jsonrpc: '2.0', error: { code: -32000, message: 'Missing API key' } }, 'not-entitled'],
     ['equibles', { result: { isError: true, content: [{ type: 'text', text: 'Daily quota exceeded' }] } }, 'rate-limited'],
+    ['equibles', { jsonrpc: '2.0', id: 'tools/call:x', result: { content: [{ type: 'text', text: 'Daily call limit exceeded. Upgrade for more calls.' }] } }, 'rate-limited'],
     ['marketaux', { error: { code: 'usage_limit_reached', message: 'Your allowance is spent.' } }, 'rate-limited'],
     ['marketaux', { error: { code: 'invalid_api_token', message: 'The supplied token is incorrect.' } }, 'not-entitled'],
     ['alpaca', { code: 42910000, message: 'Rate limit exceeded.' }, 'rate-limited'],

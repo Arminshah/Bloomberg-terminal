@@ -85,10 +85,21 @@ export function alignPortfolio(positions: RiskPosition[], cash: number, cutoff: 
   const fxLevels = fx.map((path) => dates.map((date) => path?.get(date) ?? 1));
   const nav = dates.map((_, t) => cash + positions.reduce((sum, p, i) => sum + positionValue(p, priceLevels[i][t], fxLevels[i][t]), 0));
   if (!nav.every(Number.isFinite)) return fail('Historical portfolio values exceed the numerical range.');
-  const union = [...new Set(paths.flatMap((path) => [...path.keys()].filter((date) => date >= dates[0] && date <= dates.at(-1)!)))].sort((a, b) => a - b);
-  const ranks = new Map(union.map((date, i) => [date, i]));
-  const links = dates.slice(1).map((date, i) => ranks.get(date)! === ranks.get(dates[i])! + 1);
-  return { ok: true, value: { dates, prices: priceLevels, fx: fxLevels, nav, links, omittedDates: union.length - dates.length } };
+  const inWindow = (date: number) => date >= dates[0] && date <= dates.at(-1)!;
+  const weekend = (date: number) => { const d = new Date(date).getUTCDay(); return d === 0 || d === 6; };
+  // A weekend date of a seven-day series (crypto) is not a session a stock is missing: Friday to Monday still
+  // joins adjacent stock sessions. A weekend date missing from another seven-day series is a gap.
+  const sevenDay = paths.map((path) => [...path.keys()].some((date) => inWindow(date) && weekend(date)));
+  const shared = new Set(dates);
+  const missing = [...new Set(paths.flatMap((path) => [...path.keys()].filter(inWindow)))]
+    .filter((date) => !shared.has(date) && (!weekend(date) || paths.some((path, i) => sevenDay[i] && !path.has(date))))
+    .sort((a, b) => a - b);
+  let m = 0;
+  const links = dates.slice(1).map((date, i) => {
+    while (m < missing.length && missing[m] <= dates[i]) m++;
+    return !(m < missing.length && missing[m] < date);
+  });
+  return { ok: true, value: { dates, prices: priceLevels, fx: fxLevels, nav, links, omittedDates: missing.length } };
 }
 
 /** Exact repricing of linear positions, including FX on futures' unrealised value rather than notional. */

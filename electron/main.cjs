@@ -736,7 +736,11 @@ ipcMain.handle('providers:selftest', async (event) => {
       const text = await res.text().catch(() => '');
       const ms = Date.now() - t0;
       if (!res.ok) {
-        results.push({ ...base, state: 'fail', status: res.status, ms, detail: providers.providerMessage(JSON.stringify({ message: res.statusText }), secrets) || providers.providerMessage(text, secrets) || 'refused' });
+        // A direct answer's body says why (statusText is only "Forbidden"); a paced answer's reason is in its error,
+        // and its text may be an older kept answer.
+        const said = [JSON.stringify({ message: res.statusText }), text];
+        if (!SELFTEST_PACE[t.provider]) said.reverse();
+        results.push({ ...base, state: 'fail', status: res.status, ms, detail: said.map((m) => providers.providerMessage(m, secrets)).find(Boolean) || 'refused' });
         continue;
       }
       try {

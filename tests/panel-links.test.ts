@@ -26,6 +26,15 @@ describe('panel security groups', () => {
     expect(linkGroupOf(terminal.get().panels[0])).toBe(1);
   });
 
+  it("drops an option calculator's strike and volatility when a linked panel changes the stock", () => {
+    applyPreset([{ fn: 'CHART', sec: AAPL, args: '1Y' }, { fn: 'OPTIONCALC', sec: AAPL, args: 'C 230 2026-11-20 25' }], '2', [1, 1]);
+    navigate(0, { fn: 'CHART', sec: MSFT });
+    expect(route(1)).toEqual({ fn: 'OPTIONCALC', sec: MSFT });
+    // Back to the same stock: the calculator opens without the old arguments either way.
+    navigate(0, { fn: 'CHART', sec: AAPL });
+    expect(route(1)).toEqual({ fn: 'OPTIONCALC', sec: AAPL });
+  });
+
   it('skips incompatible and hidden screens and leaves unlinked panels independent', () => {
     setLayout('4');
     navigate(0, { fn: 'CHART', sec: EUR });

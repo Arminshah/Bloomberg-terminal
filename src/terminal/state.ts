@@ -125,6 +125,9 @@ function withRoute(p: PanelState, route: Route, replace = false): PanelState {
   return { ...p, history, idx: history.length - 1 };
 }
 
+/** Functions whose arguments describe one security (OPTIONCALC's strike and volatility): a follower drops them. */
+const ARGS_PER_SECURITY = new Set(['OPTIONCALC']);
+
 /** Only visible members follow; functions and their arguments stay local to each panel. */
 function followers(s: TerminalState, panels: PanelState[], source: number, id: string): PanelState[] {
   const group = linkGroupOf(panels[source]);
@@ -132,7 +135,12 @@ function followers(s: TerminalState, panels: PanelState[], source: number, id: s
   return panels.map((p, i) => {
     if (i === source || i >= LAYOUT_PANELS[s.layout] || linkGroupOf(p) !== group) return p;
     const r = p.history[p.idx];
-    return r && acceptsSecurity(r, id) ? withRoute(p, { ...r, sec: id }) : p;
+    if (!r || !acceptsSecurity(r, id)) return p;
+    if (ARGS_PER_SECURITY.has(r.fn) && r.sec !== id) {
+      const { args: _args, ...rest } = r;
+      return withRoute(p, { ...rest, sec: id });
+    }
+    return withRoute(p, { ...r, sec: id });
   });
 }
 

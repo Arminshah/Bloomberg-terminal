@@ -19,10 +19,17 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
   const breakers = new Map();
   const limitedUntil = new Map();
   const safe = (text, secrets) => providers.providerMessage(String(text), secrets);
-  const cacheId = (provider, url, headers, secrets, userAgent, transport) => `${provider}:${createHash('sha256').update(JSON.stringify([url, headers, secrets, userAgent, transport])).digest('hex')}`;
+  // A caller can scope kept answers itself (cacheScope, e.g. a hash of the account key) when a header such as a
+  // session ID changes without changing what the answer is about.
+  const cacheId = (provider, url, headers, secrets, userAgent, transport) => {
+    const { cacheScope, ...rest } = transport ?? {};
+    const parts = cacheScope ? [url, cacheScope, userAgent, rest] : [url, headers, secrets, userAgent, transport];
+    return `${provider}:${createHash('sha256').update(JSON.stringify(parts)).digest('hex')}`;
+  };
 
-  async function request(provider, url, headers, ttl, pace, secrets = [], userAgent, transport) {
-    const id = cacheId(provider, url, headers, secrets, userAgent, transport);
+  async function request(provider, url, headers, ttl, pace, secrets = [], userAgent, scopedTransport) {
+    const id = cacheId(provider, url, headers, secrets, userAgent, scopedTransport);
+    const { cacheScope: _scope, ...transport } = scopedTransport ?? {};
     const old = kept.get(id);
     if (old && now() - old.at < ttl) return { status: 200, text: old.text, at: old.at, cached: true };
     if (inflight.has(id)) return inflight.get(id);

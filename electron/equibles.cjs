@@ -118,6 +118,8 @@ function createEquiblesAccount({ providers, fetch, agent, now = Date.now, sleep,
     ...(method !== 'initialize' ? { 'MCP-Protocol-Version': protocol } : {}),
   }, ttl, [10, 60_000], [key, session].filter(Boolean), undefined, {
     method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', ...(method.startsWith('notifications/') ? {} : { id }), method, params }),
+    // Kept reports belong to the account, not to the MCP session: a renewed session reuses them.
+    cacheScope: createHash('sha256').update(key).digest('hex'),
   });
   };
 
@@ -171,7 +173,8 @@ function createEquiblesAccount({ providers, fetch, agent, now = Date.now, sleep,
     if (!args) return fail(`Equibles does not expose a compatible ${TOOLS[kind]} tool for this account.`, 'no-data');
     const answer = await rpc(key, 'tools/call', { name: tool.name, arguments: args }, 6 * 3_600_000);
     // Expired stateful sessions must be initialized again, at most once per user query.
-    if (answer.status === 404 && session && !answer.text && !recovered) {
+    // The broker hands back an older cached report with the 404, so the text is not a sign of success here.
+    if (answer.status === 404 && session && !recovered) {
       session = ''; initialized = undefined; toolsPromise = undefined;
       return research(kind, symbol, key, true);
     }

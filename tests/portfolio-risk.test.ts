@@ -107,6 +107,26 @@ describe('exact portfolio history and historical FX', () => {
     expect(cutoffHistory.value.dates.at(-1)).toBe(cutoff - DAY);
   });
 
+  it('joins a stock across weekends next to a seven-day crypto series, but not across a weekday holiday', () => {
+    const crypto = holding({ id: 'BTC' });
+    const weekday = (d: DailyLevel) => ![0, 6].includes(new Date(d.date).getUTCDay());
+    const stock = holding({ id: 'STOCK', prices: path(returns).filter(weekday) });
+    const history = aligned([stock, crypto]);
+    // Every shared date is a weekday and every interval joins adjacent stock sessions.
+    expect(history.dates.every((date) => ![0, 6].includes(new Date(date).getUTCDay()))).toBe(true);
+    expect(history.links.every(Boolean)).toBe(true);
+    expect(history.omittedDates).toBe(0);
+    // A weekday the stock is missing (Monday 19 January) still breaks the interval across it.
+    const holiday = START + 18 * DAY;
+    const closed = holding({ id: 'STOCK', prices: path(returns).filter((d) => weekday(d) && d.date !== holiday) });
+    const gap = aligned([closed, crypto]);
+    expect(gap.omittedDates).toBe(1);
+    expect(gap.links.filter((l) => !l)).toHaveLength(1);
+    // A weekend day missing from one of two seven-day series is a gap.
+    const btc2 = holding({ id: 'ETH', prices: path(returns).filter((d) => d.date !== START + 10 * DAY) });
+    expect(aligned([crypto, btc2]).omittedDates).toBe(1);
+  });
+
   it('rejects unknown and yield-only positions and requires a foreign FX history in the real-data adapter', () => {
     const market = new MarketEngine(() => CUTOFF);
     market.realOnly = true;

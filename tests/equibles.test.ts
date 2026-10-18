@@ -160,3 +160,56 @@ describe('read-only Equibles discovery and transport', () => {
     expect(h.fetch).toHaveBeenCalledTimes(5);
   });
 });
+
+describe('expired Equibles sessions', () => {
+  // A server that issues a new session ID on every initialize and answers 404 for a session it has dropped.
+  function expiring() {
+    let time = START;
+    let generation = 0;
+    let live = '';
+    const providers = {
+      providerMessage: providerRules.providerMessage, providerPayloadProblem: providerRules.providerPayloadProblem, errorKind: providerRules.errorKind,
+      withinDailyCap: vi.fn(() => true), slot: vi.fn(async () => undefined), recordRequest: vi.fn(() => time), recordResult: vi.fn(), recordProblem: vi.fn(),
+    };
+    const calls: { method: string; ticker?: unknown }[] = [];
+    const fetch = vi.fn(async (_url: string, init: RequestInit) => {
+      const rpc = JSON.parse(init.body as string) as Rpc;
+      const session = new Headers(init.headers).get('mcp-session-id');
+      calls.push({ method: rpc.method, ticker: rpc.params.arguments?.ticker });
+      if (rpc.method === 'initialize') {
+        live = `session-${++generation}`;
+        return new Response(JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} } } }), { headers: { 'mcp-session-id': live } });
+      }
+      if (session !== live) return new Response(JSON.stringify({ message: 'Session not found' }), { status: 404 });
+      if (rpc.method === 'notifications/initialized') return new Response(null, { status: 202 });
+      if (rpc.method === 'tools/list') return new Response(JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result: { tools: tools.tools } }));
+      return new Response(JSON.stringify({ jsonrpc: '2.0', id: rpc.id, result: { content: [{ type: 'text', text: `Report for ${rpc.params.arguments?.ticker} at ${time}` }] } }));
+    });
+    const client = createEquiblesClient({ providers, fetch, agent: () => 'Test/1', now: () => time, sleep: async () => undefined, random: () => 0 });
+    return { client, calls, advance: (ms: number) => { time += ms; }, expire: () => { live = ''; } };
+  }
+
+  it('starts a new session when the server dropped the old one, even with an older report kept', async () => {
+    const h = expiring();
+    await h.client.research('estimates', 'AAPL', KEY);
+    h.advance(7 * 3_600_000);
+    h.expire();
+    const again = await h.client.research('estimates', 'AAPL', KEY);
+    expect(again.stale).toBeFalsy();
+    expect(parseResearch(again.text)).toMatchObject({ report: `Report for AAPL at ${START + 7 * 3_600_000}` });
+    expect(h.calls.filter((c) => c.method === 'initialize')).toHaveLength(2);
+  });
+
+  it('keeps reports across a renewed session instead of asking again', async () => {
+    const h = expiring();
+    await h.client.research('estimates', 'AAPL', KEY);
+    h.advance(60_000);
+    h.expire();
+    // MSFT renews the session; AAPL's report from the old session is still within its six hours.
+    await h.client.research('estimates', 'MSFT', KEY);
+    h.advance(3_600_000);
+    const aapl = await h.client.research('estimates', 'AAPL', KEY);
+    expect(aapl).toMatchObject({ cached: true, at: START });
+    expect(h.calls.filter((c) => c.method === 'tools/call' && c.ticker === 'AAPL')).toHaveLength(1);
+  });
+});

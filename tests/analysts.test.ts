@@ -111,6 +111,14 @@ describe('research fallback and section isolation', () => {
     analysts.mockResolvedValueOnce({ status: 200, text: '[{"date":"2027-05-31","epsAvg":1}]', error: '' });
     expect(await loadAnalystPart('estimates', 'APLD', { analysts, finnhubResearch })).toMatchObject({ state: 'ok', data: [{ date: '2027-05-31', epsAvg: 1 }] });
   });
+  it('marks failures on the way as worth asking again, and refusals as not', async () => {
+    const analysts = vi.fn(async () => ({ status: 503, text: '', error: 'HTTP 503' }));
+    expect(await loadAnalystPart('estimates', 'APLD', { analysts })).toMatchObject({ state: 'error', transient: true });
+    analysts.mockResolvedValueOnce({ status: 0, text: '', error: 'Network request failed' });
+    expect(await loadAnalystPart('estimates', 'APLD', { analysts })).toMatchObject({ transient: true });
+    analysts.mockResolvedValueOnce({ status: 402, text: '', error: 'HTTP 402' });
+    expect(await loadAnalystPart('estimates', 'APLD', { analysts })).not.toHaveProperty('transient');
+  });
   it('keeps valid FMP ratings without spending fallback calls; shows both failures when neither works', async () => {
     const finnhubResearch = vi.fn(async () => ({ status: 401, text: '', error: 'HTTP 401' }));
     const analysts = vi.fn(async () => ({ status: 200, text: JSON.stringify([counts]) }));

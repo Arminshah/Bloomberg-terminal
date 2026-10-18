@@ -176,6 +176,8 @@ export interface AnalystPart<T = unknown> {
   /** A newer request failed; this is the last answer that arrived. */
   stale?: boolean;
   source?: 'FMP' | 'Finnhub';
+  /** The request failed on the way (no answer, rate limit, server error): opening the screen again retries. */
+  transient?: boolean;
 }
 
 type ByKind = Partial<Record<AnalystKind, AnalystPart>>;
@@ -220,7 +222,7 @@ export function parseFinnhubRatings(text: string, symbol: string): Parsed<Rating
 function responsePart(res: KeyedAnswer, kind: AnalystKind, symbol: string, source: 'FMP' | 'Finnhub'): AnalystPart {
   if (res.gated) return { state: 'off', source, message: `${source} is switched off (${res.gated} on PROVIDERS).` };
   if (res.missing || res.refused) return { state: 'needs-key', source, message: res.refused ? `${source}'s configured key has the wrong format.` : `Needs ${source === 'FMP' ? 'FMP_API_KEY' : 'FINNHUB_API_KEY'} on PROVIDERS.` };
-  if (!res.text) return { state: res.budget ? 'budget' : 'error', source, message: res.budget ? `Today's ${source} allowance in this app is spent; it resets at midnight UTC.` : source === 'FMP' ? fmpProblem(res.status, symbol, res.error) : `Finnhub: ${res.error ?? (res.status ? `HTTP ${res.status}` : 'did not answer')}. HTTP 401 means the REST key was rejected; the webhook secret cannot authenticate data requests.` };
+  if (!res.text) return { state: res.budget ? 'budget' : 'error', source, ...(!res.budget && (!res.status || res.status === 429 || res.status >= 500) ? { transient: true } : {}), message: res.budget ? `Today's ${source} allowance in this app is spent; it resets at midnight UTC.` : source === 'FMP' ? fmpProblem(res.status, symbol, res.error) : `Finnhub: ${res.error ?? (res.status ? `HTTP ${res.status}` : 'did not answer')}. HTTP 401 means the REST key was rejected; the webhook secret cannot authenticate data requests.` };
   const parsed = source === 'Finnhub' ? parseFinnhubRatings(res.text, symbol) : PARSE[kind](res.text);
   if ('error' in parsed) return { state: 'error', source, message: parsed.error, at: res.at };
   return { state: 'ok', source, data: parsed.data, at: res.at, stale: res.stale, message: res.stale ? res.error ?? 'The latest refresh failed; showing the earlier answer.' : undefined };
@@ -256,7 +258,7 @@ async function load(symbol: string, kind: AnalystKind) {
   try {
     const part = await loadAnalystPart(kind, symbol, { analysts: window.arminDesktop!.analysts!, finnhubResearch: window.arminDesktop!.finnhubResearch });
     if (generation !== analystData.get().retry) return;
-    if (part.state === 'needs-key' || part.state === 'off') asked.delete(key);
+    if (part.state === 'needs-key' || part.state === 'off' || part.transient) asked.delete(key);
     put(symbol, kind, part);
   } catch (err) {
     if (generation !== analystData.get().retry) return;

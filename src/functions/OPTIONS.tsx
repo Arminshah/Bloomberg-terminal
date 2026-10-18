@@ -45,7 +45,9 @@ function OptionCalculator({ sec, route }: FnProps) {
   const [volOverride, setVolOverride] = useState(parts[3] ?? '');
   const spot = spotOverride.trim() ? inputNumber(spotOverride) : spotLive;
   const strike = strikeText.trim() ? inputNumber(strikeText) : Math.round(spot / strikeStep(spot)) * strikeStep(spot);
-  const t = daysOverride.trim() ? inputNumber(daysOverride) / 365 : Math.max((expiry - engine.now()) / (365 * DAY_MS), 0);
+  // Time to expiry moves by the minute: the lattice and its scenario grids are not recomputed on every render.
+  const minute = Math.floor(engine.now() / 60_000) * 60_000;
+  const t = daysOverride.trim() ? inputNumber(daysOverride) / 365 : Math.max((expiry - minute) / (365 * DAY_MS), 0);
   // A rate you type replaces the published one, which some currencies lack.
   const [rateOverride, setRateOverride] = useState('');
   const [dividendOverride, setDividendOverride] = useState('');

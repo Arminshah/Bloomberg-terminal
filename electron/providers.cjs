@@ -569,6 +569,10 @@ function providerPayloadProblem(provider, text, secrets = []) {
         code = data.error.code;
       } else if (data?.result?.isError === true) {
         message = Array.isArray(data.result.content) ? data.result.content.filter((block) => block?.type === 'text').map((block) => block.text).join(' ') : 'Equibles refused the research query.';
+      } else if (Array.isArray(data?.result?.content)) {
+        // Over the daily allowance, Equibles' MCP server answers with an ordinary tool result that says so.
+        const over = data.result.content.find((block) => block?.type === 'text' && typeof block.text === 'string' && /^\s*daily call limit exceeded/i.test(block.text));
+        if (over) message = over.text;
       }
       break;
     case 'marketaux':
