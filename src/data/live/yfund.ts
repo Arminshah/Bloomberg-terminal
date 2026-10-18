@@ -444,13 +444,16 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false)
     const now = Date.now();
     try {
       const enc = encodeURIComponent(symbol);
+      // The company summary needs Yahoo's session cookie; the statements do not. When Yahoo refuses the session
+      // (EU cookies not accepted), the statements still load and the summary's parts stay empty.
       const [summary, annual, quarterly, trailing] = await Promise.all([
-        yahooGet(`/v10/finance/quoteSummary/${enc}?modules=assetProfile,summaryDetail,defaultKeyStatistics,financialData,earnings,calendarEvents,institutionOwnership,fundOwnership,majorHoldersBreakdown`),
+        yahooGet(`/v10/finance/quoteSummary/${enc}?modules=assetProfile,summaryDetail,defaultKeyStatistics,financialData,earnings,calendarEvents,institutionOwnership,fundOwnership,majorHoldersBreakdown`).catch(() => null),
         yahooGet(timeseriesPath(symbol, 'annual', [...INCOME, ...BALANCE, ...CASH], now)).catch(() => null),
         yahooGet(timeseriesPath(symbol, 'quarterly', [...INCOME, ...BALANCE, ...CASH], now)).catch(() => null),
         yahooGet(timeseriesPath(symbol, 'trailing', [...INCOME, ...CASH], now)).catch(() => null),
       ]);
-      if (!summary?.quoteSummary?.result?.[0]) throw new Error('no data');
+      const hasStatements = [annual, quarterly].some((x) => (x?.timeseries?.result ?? []).some((r: Json) => Object.keys(r ?? {}).some((k) => k !== 'meta' && k !== 'timestamp' && Array.isArray(r[k]) && r[k].length)));
+      if (!summary?.quoteSummary?.result?.[0] && !hasStatements) throw new Error('no data');
       const fund = buildRealFund(def, summary, annual, quarterly, trailing, now);
       realFund.set(def.id, fund);
       applyProfile(def, summary, fund);

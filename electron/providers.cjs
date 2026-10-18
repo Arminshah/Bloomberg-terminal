@@ -59,9 +59,20 @@ function credentialNames(name) {
   return [name, ...Object.keys(CREDENTIAL_ALIASES).filter((alias) => CREDENTIAL_ALIASES[alias] === name)];
 }
 
+/**
+ * Finnhub's dashboard shows the API key (20 characters) next to a webhook secret of the same form, and copying
+ * both gives one 40-character string that Finnhub refuses. Two 20-character halves that start alike are that
+ * pair: the first is the API key.
+ */
+function finnhubKeyFrom(text) {
+  return /^[a-z0-9]{40}$/.test(text) && text.slice(0, 12) === text.slice(20, 32) ? text.slice(0, 20) : text;
+}
+
 function normalizeCredential(name, value) {
   const text = String(value ?? '').trim();
-  return name === 'SEC_USER_AGENT' ? secAgentFrom(text) : text;
+  if (name === 'SEC_USER_AGENT') return secAgentFrom(text);
+  if (name === 'FINNHUB_API_KEY') return finnhubKeyFrom(text);
+  return text;
 }
 
 function readStore() {
@@ -264,6 +275,9 @@ function parseCredentialList(text) {
   const names = new Set(allNames.map((n) => n.toLowerCase()));
   const found = [];
   const skipped = [];
+  const notes = [];
+  // The provider of the line before: "secret key: ..." on its own line belongs to the Alpaca line above it.
+  let previous;
   String(text)
     .split(/\r?\n/)
     .forEach((raw, i) => {
@@ -271,13 +285,30 @@ function parseCredentialList(text) {
       if (!line || line.startsWith('#')) return;
       const explicit = allNames.find((n) => new RegExp(`\\b${n}\\b`, 'i').test(line));
       const alias = ALIASES.find(([re]) => re.test(line));
-      const name = explicit ? (CREDENTIAL_ALIASES[explicit] ?? explicit) : (alias ? (typeof alias[1] === 'function' ? alias[1](line) : alias[1]) : undefined);
+      let name = explicit ? (CREDENTIAL_ALIASES[explicit] ?? explicit) : (alias ? (typeof alias[1] === 'function' ? alias[1](line) : alias[1]) : undefined);
+      if (!name && /secret/i.test(line) && (previous === 'ALPACA_API_KEY_ID' || previous === 'ALPACA_API_SECRET_KEY')) name = 'ALPACA_API_SECRET_KEY';
+      previous = name;
       if (!name) {
         skipped.push({ line: i + 1, reason: 'no provider named' });
         return;
       }
       if (name === 'FINNHUB_API_KEY' && /webhook|x-finnhub-secret/i.test(line)) {
         skipped.push({ line: i + 1, name, reason: 'a Finnhub webhook secret is not a REST API key' });
+        return;
+      }
+      // One Alpaca line named by its site can hold both the key ID and the secret ("key: PK... secret key: ...").
+      if (!explicit && name.startsWith('ALPACA_')) {
+        const tokens = line.split(/[\s[\]()<>"'`,;|:]+/).filter(Boolean);
+        const id = tokens.find((t) => CREDENTIALS.ALPACA_API_KEY_ID.valid(t));
+        const secret = tokens.find((t) => t !== id && CREDENTIALS.ALPACA_API_SECRET_KEY.valid(t) && /\d/.test(t) && /[a-z]/.test(t));
+        let any = false;
+        for (const [n, v] of [['ALPACA_API_KEY_ID', id], ['ALPACA_API_SECRET_KEY', secret]]) {
+          if (!v) continue;
+          any = true;
+          if (found.some((f) => f.name === n)) skipped.push({ line: i + 1, name: n, reason: 'already given on an earlier line' });
+          else found.push({ name: n, value: v });
+        }
+        if (!any) skipped.push({ line: i + 1, name, reason: `no value that looks like an ${CREDENTIALS[name].label}` });
         return;
       }
       const def = CREDENTIALS[name];
@@ -309,14 +340,16 @@ function parseCredentialList(text) {
         skipped.push({ line: i + 1, name, reason: 'already given on an earlier line' });
         return;
       }
-      found.push({ name, value });
+      const kept = normalizeCredential(name, value);
+      if (kept !== value && name === 'FINNHUB_API_KEY') notes.push({ line: i + 1, name, note: 'the value was two 20-character keys run together (the API key and the webhook secret on Finnhub\'s page); the first, the API key, was kept' });
+      found.push({ name, value: kept });
     });
-  return { found, skipped };
+  return { found, skipped, notes };
 }
 
 /** Saves every key recognised in pasted text; reports names and reasons only, never values. */
 function importCredentials(text) {
-  const { found, skipped } = parseCredentialList(text);
+  const { found, skipped, notes } = parseCredentialList(text);
   const saved = [];
   for (const { name, value } of found) {
     try {
@@ -326,7 +359,7 @@ function importCredentials(text) {
       skipped.push({ name, reason: String(err.message ?? err) });
     }
   }
-  return { saved, skipped };
+  return { saved, skipped, notes };
 }
 
 function clearCredential(name) {

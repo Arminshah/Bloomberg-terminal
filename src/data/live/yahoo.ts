@@ -1,4 +1,5 @@
 import { engine } from '../market';
+import { createStore } from '../../core/store';
 import { DAY_MS, dayNum } from '../calendar';
 import type { ExtBar, ExtendedPrice, ExtQuote, Timing } from '../engine';
 import type { SecurityDef } from '../types';
@@ -36,9 +37,20 @@ export class YahooDisabled extends Error {
   }
 }
 
+/**
+ * Whether Yahoo refuses this computer's session for its quote and company endpoints (no cookie it accepts,
+ * as in the EU until its cookies are accepted). Charts, history, statements and search work either way.
+ */
+export const yahooSession = createStore({ refused: false, at: 0 });
+
 export async function yahooGet(path: string): Promise<Json> {
   const res = await window.arminDesktop!.yahoo(path);
   if (res.disabled) throw new YahooDisabled();
+  if (res.session === false) {
+    if (!yahooSession.get().refused) yahooSession.set({ refused: true, at: Date.now() });
+    throw new Error('Yahoo refused the session');
+  }
+  if (res.status === 200 && yahooSession.get().refused && (path.startsWith('/v7/') || path.startsWith('/v10/'))) yahooSession.set({ refused: false, at: Date.now() });
   if (res.status === 404) return null;
   if (res.status === 429) throw new Error('Yahoo rate limit');
   if (res.status !== 200) throw new Error(`Yahoo ${res.status}`);
@@ -254,6 +266,39 @@ export function marketStateOf(q: Json): { state?: 'pre' | 'post' | 'closed' } {
   return {};
 }
 
+/**
+ * Quotes from Yahoo's chart summaries (/v8/finance/spark), which need no session cookie: for each symbol the
+ * latest one-minute close and its time, and the previous close. No bid, offer, day range or volume, and no
+ * statement of delay, so these quotes are not full and their timing is unknown.
+ */
+export function sparkToQuotes(data: Json): Json[] {
+  const out: Json[] = [];
+  // The current answer is keyed by symbol; an older layout wrapped charts in spark.result[].response[].
+  const entries: [string, Json][] = data?.spark?.result
+    ? (data.spark.result as Json[]).map((r) => [String(r?.symbol), { ...(r?.response?.[0]?.meta ?? {}), timestamp: r?.response?.[0]?.timestamp, close: r?.response?.[0]?.indicators?.quote?.[0]?.close }])
+    : Object.entries(data ?? {});
+  for (const [symbol, x] of entries) {
+    const ts: number[] = Array.isArray(x?.timestamp) ? x.timestamp : [];
+    const close: (number | null)[] = Array.isArray(x?.close) ? x.close : [];
+    let i = Math.min(ts.length, close.length) - 1;
+    while (i >= 0 && !(Number.isFinite(close[i]) && (close[i] as number) > 0)) i--;
+    if (i < 0) continue;
+    const prev = Number(x.previousClose ?? x.chartPreviousClose);
+    out.push({ symbol: x.symbol ?? symbol, regularMarketPrice: close[i], regularMarketTime: ts[i], ...(prev > 0 ? { regularMarketPreviousClose: prev } : {}), sparkOnly: true });
+  }
+  return out;
+}
+
+async function sparkQuotes(symbols: string[]): Promise<Json[]> {
+  const out: Json[] = [];
+  for (let i = 0; i < symbols.length; i += 20) {
+    const batch = symbols.slice(i, i + 20);
+    const data = await yahooGet(`/v8/finance/spark?symbols=${batch.map((b) => encodeURIComponent(b)).join(',')}&range=1d&interval=1m`).catch(() => null);
+    out.push(...sparkToQuotes(data));
+  }
+  return out;
+}
+
 export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | null {
   const last = Number(q.regularMarketPrice);
   const t = Number(q.regularMarketTime);
@@ -269,7 +314,8 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
     prevClose: n(q.regularMarketPreviousClose),
     // The engine checks the two readings against the daily bars (choosePrevClose): either can be off.
     prevCloseAlt: Number.isFinite(change) && q.regularMarketChange != null ? n(last - change) : undefined,
-    full: true,
+    // A chart summary has no bid, offer or day range: it does not replace them.
+    full: !q.sparkOnly,
     open: n(q.regularMarketOpen),
     high: n(q.regularMarketDayHigh),
     low: n(q.regularMarketDayLow),
@@ -279,7 +325,10 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
     // A full quote without a bid or offer means there is none now.
     bid: n(q.bid) ?? NaN,
     ask: n(q.ask) ?? NaN,
-    marketOpen: q.marketState === 'REGULAR',
+    // A chart summary does not say whether the market is open: a price from the last half hour counts as
+    // trading (delays included), an older one as closed, and the session is marked as not known.
+    marketOpen: q.sparkOnly ? Date.now() - t * 1000 < 30 * 60_000 : q.marketState === 'REGULAR',
+    ...(q.sparkOnly ? { sessionKnown: false } : {}),
     ...marketStateOf(q),
     ...(typeof q.exchangeTimezoneName === 'string' && q.exchangeTimezoneName ? { tz: q.exchangeTimezoneName } : {}),
     // Yahoo gives crypto volume in dollars, not coins.
@@ -602,8 +651,17 @@ class YahooData {
       const batch = all.slice(i, i + 50);
       const extra = i === 0 ? ETFS.filter((x) => !this.bySymbol.has(x)) : [];
       try {
-        const res = await yahooGet(`/v7/finance/quote?symbols=${[...batch.map((b) => encodeURIComponent(b)), ...extra].join(',')}`);
-        for (const q of (res?.quoteResponse?.result ?? []) as Json[]) {
+        let list: Json[];
+        try {
+          const res = await yahooGet(`/v7/finance/quote?symbols=${[...batch.map((b) => encodeURIComponent(b)), ...extra].join(',')}`);
+          list = (res?.quoteResponse?.result ?? []) as Json[];
+        } catch (err) {
+          // Yahoo refuses the session for full quotes (EU cookies not accepted): prices come from its chart
+          // summaries instead, which need no cookie. They carry the price, its time and the previous close.
+          if (!yahooSession.get().refused) throw err;
+          list = await sparkQuotes(batch);
+        }
+        for (const q of list) {
           if (ETFS.includes(q.symbol)) etfQuotes.set(q.symbol, q);
           const lines = this.bySymbol.get(q.symbol) ?? [];
           if (lines.length) ok++;

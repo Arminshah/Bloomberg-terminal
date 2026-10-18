@@ -138,6 +138,8 @@ function yahooEnabled() {
   return providers.setting('YAHOO_PRICES_ENABLED').value;
 }
 let crumb = null;
+/** When Yahoo last refused to give a crumb. */
+let crumbFailedAt = 0;
 
 // Every data request revalidates with the server, so a refresh never shows a cached copy.
 async function yahooFetch(url, json = true) {
@@ -151,7 +153,11 @@ async function getCrumb(force) {
   await net.fetch('https://fc.yahoo.com/', { headers: { 'User-Agent': browserAgent() }, credentials: 'include', cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) }).catch(() => undefined);
   const res = await yahooFetch(`${YAHOO}/v1/test/getcrumb`, false);
   if (!res.ok) throw new Error(`crumb ${res.status}`);
-  crumb = (await res.text()).trim();
+  const text = (await res.text()).trim();
+  // A consent or error page instead of the short crumb string is a refusal too.
+  if (!text || text.length > 64 || /[<{\s]/.test(text)) throw new Error('no crumb in the answer');
+  crumb = text;
+  crumbFailedAt = 0;
   return crumb;
 }
 
@@ -162,15 +168,34 @@ ipcMain.handle('yahoo', async (event, asked) => {
   const path = yahooRequest(asked);
   // Quotes, options and company data need the session crumb; charts, search and statements do not.
   const needsCrumb = path.startsWith('/v10/') || path.startsWith('/v7/');
+  // While Yahoo refuses the session (no cookie it accepts, as in the EU before its cookies are accepted), the
+  // crumb is asked for again at most every two minutes, and the page is told why (`session: false`).
+  if (needsCrumb && !crumb && Date.now() - crumbFailedAt < 120_000) return { status: 401, data: null, session: false };
   for (let attempt = 0; attempt < 2; attempt++) {
     let url = YAHOO + path;
-    if (needsCrumb) url += `&crumb=${encodeURIComponent(await getCrumb(attempt > 0))}`;
+    if (needsCrumb) {
+      try {
+        url += `&crumb=${encodeURIComponent(await getCrumb(attempt > 0))}`;
+      } catch (err) {
+        crumb = null;
+        crumbFailedAt = Date.now();
+        providers.recordProblem('yahoo', 'not-entitled', `Yahoo refused the session cookie (${String(err?.message ?? err).slice(0, 60)}): quotes and company data cannot load. In the EU, accept Yahoo's cookies once on PROVIDERS.`);
+        return { status: 401, data: null, session: false };
+      }
+    }
     const res = await yahooFetch(url);
     if (needsCrumb && attempt === 0 && (res.status === 401 || res.status === 403)) continue;
-    if (!res.ok) return { status: res.status, data: null };
+    if (!res.ok) {
+      if (needsCrumb && (res.status === 401 || res.status === 403)) {
+        crumb = null;
+        crumbFailedAt = Date.now();
+        return { status: res.status, data: null, session: false };
+      }
+      return { status: res.status, data: null };
+    }
     return { status: res.status, data: withoutRestricted(path, await res.json()) };
   }
-  return { status: 401, data: null };
+  return { status: 401, data: null, session: false };
 });
 
 // ----------------------------------------------------------- US Treasury
@@ -546,6 +571,166 @@ ipcMain.handle('option-chain', async (event, arg) => {
   const secret = usableKey('ALPACA_API_SECRET_KEY', 'alpaca');
   if (!secret.value) return { status: 0, text: '', ...secret };
   return keyedGet('alpaca', url, alpaca.alpacaHeaders(id.value, secret.value), 15_000, [120, 60_000], [id.value, secret.value]);
+});
+
+// ------------------------------------------------- Yahoo cookie consent
+// Yahoo's quote and company endpoints need a session cookie and "crumb". In the EU, Yahoo first asks the
+// visitor to accept its cookies, so a program gets no usable cookie and those endpoints refuse it. This opens
+// Yahoo in a plain window of the app's own session: the owner accepts (or not) on Yahoo's own page, the cookie
+// is kept in the app's session, and the crumb is fetched again. Only yahoo.com pages may load in the window.
+let consentWin = null;
+const yahooHost = (u) => {
+  try {
+    const h = new URL(u).hostname;
+    return h === 'yahoo.com' || h.endsWith('.yahoo.com');
+  } catch {
+    return false;
+  }
+};
+
+ipcMain.handle('yahoo:consent', async (event) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  if (!yahooEnabled()) return { ok: false, detail: 'Yahoo Finance is switched off (YAHOO_PRICES_ENABLED).' };
+  if (consentWin && !consentWin.isDestroyed()) {
+    consentWin.focus();
+    return { ok: false, detail: 'The Yahoo window is already open.' };
+  }
+  await new Promise((resolve) => {
+    consentWin = new BrowserWindow({
+      width: 1100,
+      height: 800,
+      parent: BrowserWindow.fromWebContents(event.sender) ?? undefined,
+      title: 'Yahoo Finance: accept its cookies, then close this window',
+      autoHideMenuBar: true,
+      webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, spellcheck: false },
+    });
+    consentWin.setMenu(null);
+    consentWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    consentWin.webContents.on('will-navigate', (e, u) => {
+      if (!yahooHost(u)) e.preventDefault();
+    });
+    consentWin.webContents.on('will-redirect', (e, u) => {
+      if (!yahooHost(u)) e.preventDefault();
+    });
+    consentWin.on('closed', () => {
+      consentWin = null;
+      resolve();
+    });
+    void consentWin.loadURL('https://finance.yahoo.com/');
+  });
+  crumb = null;
+  crumbFailedAt = 0;
+  try {
+    await getCrumb(true);
+    return { ok: true, detail: 'Yahoo accepted the session: quotes and company data can load again.' };
+  } catch (err) {
+    return { ok: false, detail: `Yahoo still refuses the session (${String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 80)}).` };
+  }
+});
+
+// ------------------------------------------------------------- Self-test
+// One small request to each source, on the owner's own network and with the owner's keys (electron/selftest.cjs).
+// The page gets names, states, statuses, timings and short samples; never a key or a URL.
+const selftest = require('./selftest.cjs');
+
+/** Yahoo's own checks: the cookie and crumb the quote and company endpoints need, and the ones that need neither. */
+async function yahooSelfTest() {
+  const out = [];
+  const step = async (id, label, run) => {
+    const t0 = Date.now();
+    try {
+      const { status, detail } = await run();
+      out.push({ id, label, state: status >= 200 && status < 300 ? 'pass' : 'fail', status, ms: Date.now() - t0, detail });
+    } catch (err) {
+      out.push({ id, label, state: 'fail', status: 0, ms: Date.now() - t0, detail: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) });
+    }
+  };
+  if (!yahooEnabled()) return [{ id: 'yahoo', label: 'Yahoo Finance', state: 'off', detail: 'switched off (YAHOO_PRICES_ENABLED)' }];
+  const read = async (res) => {
+    const text = await res.text().catch(() => '');
+    let j;
+    try {
+      j = JSON.parse(text);
+    } catch {
+      j = undefined;
+    }
+    return { text, j };
+  };
+  await step('yahoo-chart', 'Yahoo chart, no crumb needed (AB InBev, Brussels)', async () => {
+    const res = await yahooFetch(`${YAHOO}/v8/finance/chart/ABI.BR?range=5d&interval=1d`);
+    const { j, text } = await read(res);
+    const m = j?.chart?.result?.[0]?.meta;
+    return { status: res.status, detail: m ? `ABI.BR ${m.regularMarketPrice} ${m.currency}` : providers.providerMessage(text) || 'no chart in the answer' };
+  });
+  let crumbOk = false;
+  await step('yahoo-crumb', 'Yahoo cookie and crumb (needed for quotes and company data)', async () => {
+    const c = await getCrumb(true);
+    crumbOk = !!c && c.length < 64 && !/[<{\s]/.test(c);
+    return { status: crumbOk ? 200 : 0, detail: crumbOk ? 'crumb received' : `unexpected answer instead of a crumb (${c.slice(0, 40).replace(/\s+/g, ' ')})` };
+  });
+  await step('yahoo-quote', 'Yahoo quotes (Apple, S&P 500, EUR/USD)', async () => {
+    const res = await yahooFetch(`${YAHOO}/v7/finance/quote?symbols=AAPL,%5EGSPC,EURUSD%3DX&crumb=${encodeURIComponent(crumb ?? '')}`);
+    const { j, text } = await read(res);
+    const list = j?.quoteResponse?.result ?? [];
+    return { status: res.status, detail: list.length ? list.map((q) => `${q.symbol} ${q.regularMarketPrice}`).join(', ') : providers.providerMessage(text) || 'no quotes in the answer' };
+  });
+  await step('yahoo-summary', 'Yahoo company data (Apple profile and statistics)', async () => {
+    const res = await yahooFetch(`${YAHOO}/v10/finance/quoteSummary/AAPL?modules=assetProfile,summaryDetail&crumb=${encodeURIComponent(crumb ?? '')}`);
+    const { j, text } = await read(res);
+    const r = j?.quoteSummary?.result?.[0];
+    return { status: res.status, detail: r ? `${r.assetProfile?.industry ?? '?'}, P/E ${r.summaryDetail?.trailingPE?.raw ?? r.summaryDetail?.trailingPE ?? '?'}` : providers.providerMessage(text) || 'no company data in the answer' };
+  });
+  return out;
+}
+
+ipcMain.handle('providers:selftest', async (event) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const results = await yahooSelfTest();
+  const now = Date.now();
+  for (const t of selftest.TESTS) {
+    const base = { id: t.id, label: t.cost ? `${t.label} (${t.cost})` : t.label };
+    if (t.setting && !providers.setting(t.setting).value) {
+      results.push({ ...base, state: 'off', detail: `switched off (${t.setting})` });
+      continue;
+    }
+    const keys = (t.credentials ?? []).map((name) => [name, providers.credential(name).value]);
+    const missing = keys.find(([, v]) => !v);
+    if (missing) {
+      results.push({ ...base, state: 'skip', detail: `no ${missing[0]} set` });
+      continue;
+    }
+    const wrong = keys.find(([name, v]) => !providers.CREDENTIALS[name].valid(v));
+    if (wrong) {
+      results.push({ ...base, state: 'fail', detail: `${wrong[0]} has the wrong format, so it was not sent` });
+      continue;
+    }
+    const secrets = keys.map(([, v]) => v);
+    const req = t.request(secrets, now);
+    const t0 = Date.now();
+    try {
+      const res = await tracked(t.provider, req.url, {
+        headers: { 'User-Agent': t.agent ? secrets[0] : clientAgent(), Accept: req.accept ?? 'application/json', ...(req.headers ?? {}) },
+        cache: 'no-cache',
+        signal: AbortSignal.timeout(15_000),
+      });
+      const text = await res.text().catch(() => '');
+      const ms = Date.now() - t0;
+      if (!res.ok) {
+        results.push({ ...base, state: 'fail', status: res.status, ms, detail: providers.providerMessage(text, secrets) || res.statusText || 'refused' });
+        continue;
+      }
+      try {
+        results.push({ ...base, state: 'pass', status: res.status, ms, detail: t.read(text) });
+      } catch (err) {
+        results.push({ ...base, state: 'fail', status: res.status, ms, detail: providers.providerMessage(JSON.stringify({ message: String(err?.message ?? err) }), secrets) });
+      }
+    } catch (err) {
+      const why = err?.name === 'TimeoutError' ? 'no answer within 15 seconds' : String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>');
+      results.push({ ...base, state: 'fail', status: 0, ms: Date.now() - t0, detail: why.slice(0, 160) });
+    }
+  }
+  const run = { at: now, version: app.getVersion(), platform: `${process.platform} ${process.arch}, Electron ${process.versions.electron}`, results };
+  return { ...run, report: selftest.reportText(run) };
 });
 
 // ------------------------------------------------------------------ Stream

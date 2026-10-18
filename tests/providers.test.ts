@@ -360,3 +360,42 @@ describe('pasted keys with labels around them', () => {
     expect(providers.errorKind(500)).toBe('provider-error');
   });
 });
+
+describe('pasted key list with a split Alpaca entry and a doubled Finnhub key', () => {
+  it('reads the secret on the line after the Alpaca key, and keeps the Finnhub API key alone', () => {
+    // Made-up values in the owner's layout of 18 October 2026.
+    const text = [
+      '7: Finnhub.io: abcd1234efgh5678ij90abcd1234efgh5678kl12',
+      '',
+      '10: app.alpaca.markets : key: PKABCDEFGHIJKLMNOPQRSTUV12',
+      'secret key: AbCdEfGh1jKlMnOpQrStUvWxYz0123456789AbCdEfG',
+      '',
+      '11: site.financialmodelingprep.com: AbCdEfGhIjKlMnOpQrStUvWxYz012345 (with API Calls / Day 0/250)',
+    ].join('\n');
+    const { found, skipped, notes } = providers.parseCredentialList(text);
+    expect(Object.fromEntries(found.map((f: { name: string; value: string }) => [f.name, f.value]))).toEqual({
+      FINNHUB_API_KEY: 'abcd1234efgh5678ij90',
+      ALPACA_API_KEY_ID: 'PKABCDEFGHIJKLMNOPQRSTUV12',
+      ALPACA_API_SECRET_KEY: 'AbCdEfGh1jKlMnOpQrStUvWxYz0123456789AbCdEfG',
+      FMP_API_KEY: 'AbCdEfGhIjKlMnOpQrStUvWxYz012345',
+    });
+    expect(skipped).toEqual([]);
+    expect(notes.map((n: { name: string }) => n.name)).toEqual(['FINNHUB_API_KEY']);
+    expect(JSON.stringify(notes)).not.toContain('abcd1234');
+  });
+
+  it('reads both Alpaca values from one line', () => {
+    const { found } = providers.parseCredentialList('Alpaca key: PKABCDEFGHIJKLMNOPQRSTUV12 secret: AbCdEfGh1jKlMnOpQrStUvWxYz0123456789AbCdEfG');
+    expect(found.map((f: { name: string }) => f.name)).toEqual(['ALPACA_API_KEY_ID', 'ALPACA_API_SECRET_KEY']);
+  });
+
+  it('fixes a doubled Finnhub key that was saved before', () => {
+    // A 40-character value from an earlier paste reads as its first half; a real 40-character key that is not
+    // a pair stays as it is.
+    vi.stubEnv('FINNHUB_API_KEY', 'abcd1234efgh5678ij90abcd1234efgh5678kl12');
+    expect(providers.credential('FINNHUB_API_KEY').value).toBe('abcd1234efgh5678ij90');
+    vi.stubEnv('FINNHUB_API_KEY', 'zyxw9876vuts5432rq10abcd1234efgh5678kl12');
+    expect(providers.credential('FINNHUB_API_KEY').value).toBe('zyxw9876vuts5432rq10abcd1234efgh5678kl12');
+    vi.unstubAllEnvs();
+  });
+});

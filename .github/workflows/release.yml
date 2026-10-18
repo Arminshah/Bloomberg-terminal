@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing version tag to build and publish (for example v2.3.0)
+        description: Version tag to build and publish (for example v2.3.0). If it does not exist yet, it is created on the commit this run starts from, which must carry that version in package.json.
         required: true
         type: string
 
@@ -24,7 +24,33 @@ env:
   GH_REPO: ${{ github.repository }}
 
 jobs:
+  # A manual run may name a tag that does not exist yet (sessions that can push branches but not tags): it is
+  # created here on the commit the run starts from, only when that commit's package.json has the same version.
+  tag:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Create the version tag if it is missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$RELEASE_TAG" == "v$(node -p "require('./package.json').version")" ]]
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null; then
+            echo "Tag $RELEASE_TAG exists."
+          else
+            git tag "$RELEASE_TAG" "$(git rev-parse HEAD)"
+            git push origin "refs/tags/$RELEASE_TAG"
+          fi
+
   verify:
+    needs: tag
+    # Runs after the tag job, or without it for a pushed tag.
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
