@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isMarketCode, parseListing, yahooListingSymbol } from '../src/data/listings';
-import { defFromYahoo } from '../src/data/live/lookup';
+import { defFromYahoo, latestReportedShares } from '../src/data/live/lookup';
 import { parseCommand } from '../src/terminal/commands';
 import { lookupFn } from '../src/terminal/registry';
 
@@ -60,6 +60,33 @@ describe('European listings', () => {
     if ('error' in built) throw new Error(built.error);
     expect(built.def.eq!.shares).toBeNaN();
     expect(built.bars.length).toBeGreaterThan(5);
+  });
+
+  it('takes the share count from the reported balance sheet when the summary leaves it out', () => {
+    // Yahoo's summary for KBC.BR on 18 October 2026: sharesOutstanding and marketCap empty.
+    const summary = clone(sofiSummary);
+    const r = summary.quoteSummary.result[0];
+    r.defaultKeyStatistics.sharesOutstanding = {};
+    r.price.marketCap = {};
+    r.summaryDetail.marketCap = {};
+    const series = {
+      timeseries: {
+        result: [
+          { meta: { type: ['annualOrdinarySharesNumber'] }, annualOrdinarySharesNumber: [{ asOfDate: '2025-12-31', reportedValue: { raw: 396_000_000 } }] },
+          { meta: { type: ['quarterlyOrdinarySharesNumber'] }, quarterlyOrdinarySharesNumber: [{ asOfDate: '2026-03-31', reportedValue: { raw: 397_000_000 } }, { asOfDate: '2026-06-30', reportedValue: { raw: 396_681_919 } }, null] },
+        ],
+      },
+    };
+    const shares = latestReportedShares(series);
+    expect(shares).toBe(396_681_919);
+    expect(latestReportedShares(null)).toBeUndefined();
+    const built = defFromYahoo('KBC BB', brusselsChart(), summary, parseListing('KBC BB')!, shares);
+    if ('error' in built) throw new Error(built.error);
+    expect(built.def.eq!.shares).toBeCloseTo(396.681919, 6);
+    // Without any count the stock still loads, with the count unknown.
+    const none = defFromYahoo('KBC BB', brusselsChart(), summary, parseListing('KBC BB')!);
+    if ('error' in none) throw new Error(none.error);
+    expect(none.def.eq!.shares).toBeNaN();
   });
 
   it('refuses a listing on another exchange than the one typed', () => {

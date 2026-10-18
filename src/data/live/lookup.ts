@@ -255,7 +255,7 @@ const raw = (o: Json, k: string): number | undefined => {
 };
 
 /** Builds a security from Yahoo chart (daily, multi-year) and quoteSummary responses. */
-export function defFromYahoo(ticker: string, chart: Json, summary: Json, listed?: { root: string; listing: Listing }): { def: SecurityDef; bars: Bar[] } | { error: string } {
+export function defFromYahoo(ticker: string, chart: Json, summary: Json, listed?: { root: string; listing: Listing }, reportedShares?: number): { def: SecurityDef; bars: Bar[] } | { error: string } {
   const meta = chart?.chart?.result?.[0]?.meta;
   if (!meta) return { error: `No data for ${ticker}` };
   if (meta.instrumentType && meta.instrumentType !== 'EQUITY') {
@@ -276,10 +276,9 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json, listed?
   const pr = r.price ?? {};
   const last = bars[bars.length - 1].c;
   const mcap = raw(pr, 'marketCap') ?? raw(sd, 'marketCap');
-  const shares = (raw(ks, 'sharesOutstanding') ?? (mcap ? mcap / last : 0)) / 1e6;
-  // Yahoo's company summary needs its session cookie; without it (EU cookies not accepted) the stock still
-  // loads from its price history, and the share count stays unknown until the company data arrives.
-  if (!(shares > 0) && summary?.quoteSummary?.result?.[0]) return { error: `No company profile for ${ticker}` };
+  // Yahoo's summary leaves the share count out for many European stocks, and needs its session cookie (EU
+  // cookies not accepted); the count from the last reported balance sheet fills in, else it stays unknown.
+  const shares = (raw(ks, 'sharesOutstanding') ?? (mcap ? mcap / last : undefined) ?? reportedShares ?? NaN) / 1e6;
   // A figure the source does not give stays missing (NaN), never a default or an estimate.
   const opt = (v: number | undefined) => (v == null ? NaN : v);
   const rev = opt(raw(fd, 'totalRevenue')) / 1e6;
@@ -327,12 +326,37 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json, listed?
   return { def, bars };
 }
 
+/** Shares outstanding from the last reported balance sheet (Yahoo's fundamentals series, no cookie needed). */
+async function reportedSharesOf(sym: string): Promise<number | undefined> {
+  const now = Math.floor(Date.now() / 1000);
+  const res = await yahooGet(`/ws/fundamentals-timeseries/v1/finance/timeseries/${sym}?symbol=${sym}&type=quarterlyOrdinarySharesNumber,annualOrdinarySharesNumber&period1=${now - 2 * 365 * 86_400}&period2=${now}`).catch(() => null);
+  return latestReportedShares(res);
+}
+
+/** The newest share count in a fundamentals-series answer. */
+export function latestReportedShares(res: Json): number | undefined {
+  let best: { at: string; v: number } | undefined;
+  for (const r of (res?.timeseries?.result ?? []) as Json[]) {
+    const type = r?.meta?.type?.[0];
+    for (const p of (type ? r[type] : null) ?? []) {
+      const v = p?.reportedValue?.raw;
+      if (typeof v === 'number' && v > 0 && typeof p.asOfDate === 'string' && (!best || p.asOfDate > best.at)) best = { at: p.asOfDate, v };
+    }
+  }
+  return best?.v;
+}
+
+const hasShares = (summary: Json) => {
+  const r = summary?.quoteSummary?.result?.[0];
+  return raw(r?.defaultKeyStatistics, 'sharesOutstanding') != null || raw(r?.price, 'marketCap') != null || raw(r?.summaryDetail, 'marketCap') != null;
+};
+
 async function loadYahoo(ticker: string): Promise<LookupResult & { bars?: Bar[]; dividends?: Dividend[] }> {
   const sym = encodeURIComponent(yahooSymbol(ticker));
   const chart = await yahooGet(`/v8/finance/chart/${sym}?range=10y&interval=1d&events=div%2Csplit&includePrePost=false`);
   if (!chart?.chart?.result?.[0]) return { ok: false, reason: `${ticker} was not found` };
   const summary = await yahooGet(`/v10/finance/quoteSummary/${sym}?modules=assetProfile,defaultKeyStatistics,financialData,summaryDetail,price,calendarEvents`).catch(() => null);
-  const built = defFromYahoo(ticker, chart, summary);
+  const built = defFromYahoo(ticker, chart, summary, undefined, hasShares(summary) ? undefined : await reportedSharesOf(sym));
   if ('error' in built) return { ok: false, reason: built.error };
   return { ok: true, def: built.def, bars: built.bars, dividends: barsFromChart(chart).dividends };
 }
@@ -476,7 +500,7 @@ function lookupListing(listed: { root: string; listing: Listing }): Promise<Look
       const chart = await yahooGet(`/v8/finance/chart/${sym}?range=10y&interval=1d&events=div%2Csplit&includePrePost=false`);
       if (!chart?.chart?.result?.[0]) return { ok: false, reason: `${name} was not found on ${listed.listing.exch}` };
       const summary = await yahooGet(`/v10/finance/quoteSummary/${sym}?modules=assetProfile,defaultKeyStatistics,financialData,summaryDetail,price,calendarEvents`).catch(() => null);
-      const built = defFromYahoo(name, chart, summary, listed);
+      const built = defFromYahoo(name, chart, summary, listed, hasShares(summary) ? undefined : await reportedSharesOf(sym));
       if ('error' in built) return { ok: false, reason: built.error };
       engine.addSecurity(built.def, { bars: built.bars });
       persist(built.def);
