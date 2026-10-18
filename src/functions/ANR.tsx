@@ -16,7 +16,7 @@ import { finnhubAvailable, finnhubSymbol, retryFinnhub, useFinnhub, type Finnhub
 /**
  * Analyst research for a US-listed stock from Financial Modeling Prep (the owner's key): the price target
  * consensus against the live price, how targets moved over the last month, quarter and year, the tally of
- * broker ratings, recent rating actions and annual estimates. Yahoo's analyst data stays off.
+ * broker ratings, recent rating actions and annual estimates, with source-aware fallbacks.
  */
 export function ANR({ sec }: FnProps) {
   const s = sec!;
@@ -25,9 +25,13 @@ export function ANR({ sec }: FnProps) {
   const symbol = analystSymbol(s);
   const parts = useAnalysts(s, ['consensus', 'ratings', 'summary', 'grades', 'estimates']);
   const researchGeneration = analystData.use((data) => data.retry);
-  const fhOn = finnhubAvailable() && !!finnhubSymbol(s);
+  const fhOn = finnhubAvailable() && !!finnhubSymbol(s) && parts.ratings?.state === 'ok' && !!parts.ratings.data && parts.ratings.source === 'FMP';
   const fh = useFinnhub(fhOn ? s : undefined, ['recommendation']).recommendation as FinnhubPart<RecommendationMonth[]> | undefined;
-  const recs = fh?.data ?? [];
+  const bundledRecs = parts.ratings?.recommendations;
+  const recs = bundledRecs?.length ? bundledRecs : fh?.data ?? [];
+  const recSource = bundledRecs?.length ? parts.ratings?.source : 'Finnhub';
+  const recAt = bundledRecs?.length ? parts.ratings?.at : fh?.at;
+  const recStale = bundledRecs?.length ? parts.ratings?.stale : fh?.stale;
   if (!analystsAvailable()) {
     return (
       <div>
@@ -35,7 +39,7 @@ export function ANR({ sec }: FnProps) {
         <QuoteStrip sec={s} />
         <NotConnected
           what="This screen shows analyst price targets, the tally of broker ratings, recent rating actions and estimates."
-          why="The desktop app reads FMP research, Finnhub recommendation counts and on-request Equibles company research; the browser has no connected research source."
+          why="The desktop app reads FMP, Finnhub and Yahoo research with Equibles company reports; the browser has no connected research source."
           needs="the desktop app with the relevant provider keys set on PROVIDERS."
         />
       </div>
@@ -55,7 +59,7 @@ export function ANR({ sec }: FnProps) {
       sec={s}
       sub={
         <>
-          FMP research · Finnhub ratings fallback · Equibles company research{at ? ` · last response ${fmtDay(at)} ${fmtTime(at, false)}` : ''}
+          Source-labelled research · FMP, Finnhub, Yahoo Finance and Equibles{at ? ` · last response ${fmtDay(at)} ${fmtTime(at, false)}` : ''}
           {all.some((p) => p?.stale) ? <span className="badge sim"> STALE</span> : null}
         </>
       }
@@ -75,6 +79,8 @@ export function ANR({ sec }: FnProps) {
   const c = consensus?.data ?? null;
   const r = ratings?.data ?? null;
   const sum = summary?.data ?? null;
+  const targetCurrency = consensus?.currency ?? (consensus?.source === 'Yahoo Finance' ? undefined : s.ccy);
+  const comparableTarget = targetCurrency === s.ccy;
   const upside = (t: number) => (Number.isFinite(t) && last > 0 ? (t / last - 1) * 100 : NaN);
   const loading = (p: AnalystPart | undefined) => !p || p.state === 'loading';
   const vs = (t: number) => <span className={upside(t) >= 0 ? 'up' : 'dn'}>{fmtPct(upside(t), 1)}</span>;
@@ -86,13 +92,15 @@ export function ANR({ sec }: FnProps) {
         <button type="button" className="btn" onClick={() => { retryAnalysts(); retryFinnhub(); }}>Retry analyst research</button>
         <button type="button" className="btn" onClick={() => execute(panel, 'PROVIDERS')}>Open the provider screen</button>
       </div>
-      <EquiblesResearch key={`${symbol}:${researchGeneration}`} symbol={symbol} />
+      <ResearchCoverage parts={[
+        ['Price targets', consensus], ['Ratings', ratings], ['Target-history averages', summary], ['Rating actions', grades], ['Annual estimates', estimates],
+      ]} />
       <div className="cols">
-        <Section title="Price target" right={s.ccy}>
+        <Section title="Price target" right={targetCurrency ?? 'currency not supplied'}>
           {loading(consensus) ? (
-            <div className="empty">Loading price targets from FMP…</div>
+            <div className="empty">Loading price targets…</div>
           ) : !c ? (
-            <div className="empty">{consensus?.message ?? `FMP has no price targets for ${symbol}.`}</div>
+            <div className="empty">No price-target coverage for {symbol}. See research source availability.</div>
           ) : (
             <>
               <KV
@@ -101,45 +109,45 @@ export function ANR({ sec }: FnProps) {
                   [
                     'Consensus (average)',
                     <span key="m" className="white b">
-                      {fmtNum(c.mean, 2)} {vs(c.mean)}
+                      {fmtNum(c.mean, 2)} {comparableTarget ? vs(c.mean) : null}
                     </span>,
                   ],
                   [
                     'Median',
                     <span key="md">
-                      {fmtNum(c.median, 2)} {vs(c.median)}
+                      {fmtNum(c.median, 2)} {comparableTarget ? vs(c.median) : null}
                     </span>,
                   ],
                   [
                     'High',
                     <span key="h">
-                      {fmtNum(c.high, 2)} <span className="muted">{fmtPct(upside(c.high), 1)}</span>
+                      {fmtNum(c.high, 2)} {comparableTarget ? <span className="muted">{fmtPct(upside(c.high), 1)}</span> : null}
                     </span>,
                   ],
                   [
                     'Low',
                     <span key="l">
-                      {fmtNum(c.low, 2)} <span className="muted">{fmtPct(upside(c.low), 1)}</span>
+                      {fmtNum(c.low, 2)} {comparableTarget ? <span className="muted">{fmtPct(upside(c.low), 1)}</span> : null}
                     </span>,
                   ],
                 ]}
               />
-              <TargetRange c={c} last={last} />
+              <TargetRange c={c} last={comparableTarget ? last : NaN} />
             </>
           )}
           <ResearchSource part={consensus} />
         </Section>
         <Section title="Ratings" right={r?.consensus ? `consensus: ${r.consensus}` : undefined}>
-          {loading(ratings) ? <div className="empty">Loading ratings…</div> : !r ? <div className="empty">{ratings?.message ?? `No ratings available for ${symbol}.`}</div> : <Tally r={r} />}
+          {loading(ratings) ? <div className="empty">Loading ratings…</div> : !r ? <div className="empty">No rating-count coverage for {symbol}. See research source availability.</div> : <Tally r={r} />}
           <ResearchSource part={ratings} />
         </Section>
       </div>
-      {fhOn ? (
-        <Section title="Recommendation trends (Finnhub)" right="analysts counted each month">
-          {!fh || fh.state === 'loading' ? (
-            <div className="empty">Loading from Finnhub…</div>
+      {fhOn || recs.length ? (
+        <Section title={`Recommendation snapshots (${recSource})`} right="provider periods; relative months stay relative">
+          {!recs.length && (!fh || fh.state === 'loading') ? (
+            <div className="empty">Loading recommendation history…</div>
           ) : !recs.length ? (
-            <div className="empty">{fh.message ?? `Finnhub has no recommendations for ${symbol}.`}</div>
+            <div className="note">Recommendation history is unavailable.{fh?.message ? <details><summary>Source details</summary>{fh.message}</details> : null}</div>
           ) : (
             <table className="tbl zebra">
               <thead>
@@ -154,11 +162,11 @@ export function ANR({ sec }: FnProps) {
                 </tr>
               </thead>
               <tbody>
-                {recs.slice(0, 4).map((m) => {
+                {recs.slice(0, 4).map((m, i) => {
                   const total = m.strongBuy + m.buy + m.hold + m.sell + m.strongSell;
                   return (
-                    <tr key={m.period}>
-                      <td className="amber">{fmtDay(Date.parse(`${m.period}T00:00:00Z`))}</td>
+                    <tr key={m.period ?? i}>
+                      <td className="amber">{recommendationPeriod(m.period)}</td>
                       <td className="num up">{m.strongBuy}</td>
                       <td className="num up">{m.buy}</td>
                       <td className="num">{m.hold}</td>
@@ -171,14 +179,14 @@ export function ANR({ sec }: FnProps) {
               </tbody>
             </table>
           )}
-          {fh?.at && <div className="note">Finnhub monthly series · received {fmtDay(fh.at)} {fmtTime(fh.at, false)}{fh.stale ? ' · STALE' : ''}{fh.message ? ` · ${fh.message}` : ''}</div>}
+          {recAt ? <div className="note">Source: {recSource} · received {fmtDay(recAt)} {fmtTime(recAt, false)}{recStale ? ' · STALE' : ''}</div> : null}
         </Section>
       ) : null}
-      <Section title="How price targets moved" right="average of the targets published in each period">
+      {loading(summary) || sum ? <Section title="How price targets moved" right="average of the targets published in each period">
         {loading(summary) ? (
           <div className="empty">Loading…</div>
         ) : !sum ? (
-            <div className="empty">{summary?.message ?? 'No history of targets from FMP.'}</div>
+            <div className="note">Target-history averages are unavailable. Today's target is not a substitute for historical averages.</div>
         ) : (
           <>
             <table className="tbl">
@@ -212,12 +220,12 @@ export function ANR({ sec }: FnProps) {
             <ResearchSource part={summary} />
           </>
         )}
-      </Section>
-      <Section title="Recent rating actions">
+      </Section> : null}
+      {loading(grades) || grades?.data?.length ? <Section title="Recent rating actions">
         {loading(grades) ? (
           <div className="empty">Loading…</div>
         ) : !grades?.data?.length ? (
-          <div className="empty">{grades?.message ?? 'No rating actions from FMP.'}</div>
+          <div className="note">No rating-action coverage. See research source availability.</div>
         ) : (
           <><table className="tbl">
             <thead>
@@ -240,22 +248,45 @@ export function ANR({ sec }: FnProps) {
             </tbody>
           </table><ResearchSource part={grades} /></>
         )}
-      </Section>
-      <Section title="Estimates, by fiscal year" right={estimateUnit(s)}>
+      </Section> : null}
+      <Section title="Estimates, by fiscal year" right={estimateUnit(s, estimates)}>
         <EstimatesTable part={estimates} />
       </Section>
+      <EquiblesResearch key={`${symbol}:${researchGeneration}`} symbol={symbol} autoLoad={!!estimates && estimates.state !== 'loading' && !estimates.data?.length} />
       <div className="note">
-        Price targets and ratings as Financial Modeling Prep collects them from published analyst notes and news; its consensus is the average of the targets it holds. These are analysts&apos; opinions, not a forecast by this app,
-        and not investment advice. Availability depends on symbol and endpoint permissions: a valid key and remaining quota do not unlock premium requests. Finnhub fallback supplies monthly recommendation counts, not price targets. Equibles reports its own analyst-estimate coverage and distinguishes it from company guidance. FMP answers are kept for six hours (estimates for a day), with an app cap of 220 requests/day.
+        Targets, ratings and estimates are provider consensus and analyst opinions, not forecasts calculated by this app. Each dataset keeps its own source, fiscal/per-share basis and retrieval time. Yahoo fallback has no equivalent to FMP&apos;s period-average target history, so that dataset remains unavailable when FMP denies it. Finnhub supplies recommendation counts, not price targets. Equibles reports preserve the provider&apos;s original coverage and accounting qualifications. Research is cached for hours; opening this screen does not poll it continuously.
       </div>
     </div>
   );
 }
 
+const hasResearch = (part: AnalystPart | undefined) => part?.state === 'ok' && (Array.isArray(part.data) ? part.data.length > 0 : !!part.data);
+
+function ResearchCoverage({ parts }: { parts: [string, AnalystPart | undefined][] }) {
+  const available = parts.filter(([, part]) => hasResearch(part)).length;
+  const loading = parts.some(([, part]) => !part || part.state === 'loading');
+  return <div className="pad-s" data-testid="research-coverage">
+    <span className="amber">Research coverage</span> · {available}/{parts.length} datasets loaded{loading ? ' · checking remaining sources…' : ''}
+    <details open={!loading && available === 0}>
+      <summary style={{ cursor: 'pointer' }}>Research source availability</summary>
+      <table className="tbl"><thead><tr><th>Dataset</th><th>Source</th><th>Status</th><th>Details</th></tr></thead><tbody>
+        {parts.map(([label, part]) => <tr key={label}><td>{label}</td><td>{part?.source ?? '--'}</td><td>{hasResearch(part) ? part?.stale ? 'STALE' : 'Available' : !part || part.state === 'loading' ? 'Loading' : 'Unavailable'}</td><td className="muted">{(part?.problems?.length ? part.problems : part?.message ? [part.message] : []).join(' ')}</td></tr>)}
+      </tbody></table>
+    </details>
+  </div>;
+}
+
+function recommendationPeriod(period: string | undefined): string {
+  if (period === '0m') return 'Current snapshot';
+  const relative = /^-(\d+)m$/.exec(period ?? '');
+  if (relative) return `${relative[1]} month(s) before snapshot`;
+  return period && /^\d{4}-\d{2}-\d{2}$/.test(period) ? fmtDay(Date.parse(`${period}T00:00:00Z`)) : period ?? '--';
+}
+
 function ResearchSource({ part }: { part: AnalystPart | undefined }) {
   if (part?.state !== 'ok' || !part.data) return null;
   const rating = part.data as RatingTally;
-  return <div className="note">Source: {part.source ?? 'FMP'}{rating.period ? ` · recommendation period ${rating.period}` : ''}{part.at ? ` · received ${fmtDay(part.at)} ${fmtTime(part.at, false)}` : ''}{part.stale ? ' · STALE' : ''}{part.message ? ` · ${part.message}` : ''}</div>;
+  return <div className="note">Source: {part.source ?? 'FMP'}{rating.period ? ` · recommendation period ${rating.period}` : ''}{part.currency ? ` · ${part.currency}` : ''}{part.at ? ` · received ${fmtDay(part.at)} ${fmtTime(part.at, false)}` : ''}{part.stale ? ' · STALE' : ''}{part.message ? ` · ${part.message}` : ''}</div>;
 }
 
 /** The targets' range as a line, with the median, the consensus and the last price marked on it. */
@@ -321,15 +352,16 @@ function Tally({ r }: { r: RatingTally }) {
 }
 
 /** FMP does not say which currency its estimates are in; for a company that reports and trades in dollars it is plain. */
-export function estimateUnit(s: SecurityDef): string {
+export function estimateUnit(s: SecurityDef, part?: AnalystPart): string {
+  if (part?.source === 'Yahoo Finance') return 'Currencies shown per row · provider fiscal/per-share basis';
   return reportCcy(s) === 'USD' && s.ccy === 'USD' ? 'USD, averages with the range' : 'averages with the range; FMP does not state the currency';
 }
 
 /** FMP's annual estimates from the current fiscal year on: revenue and EPS with their ranges and analyst counts. */
 export function EstimatesTable({ part, rows = 5 }: { part: AnalystPart<Estimate[]> | undefined; rows?: number }) {
-  if (!part || part.state === 'loading') return <div className="empty">Loading estimates from FMP…</div>;
+  if (!part || part.state === 'loading') return <div className="empty">Loading annual estimates…</div>;
   const list = (part.data ?? []).filter((e) => Date.parse(`${e.date}T00:00:00Z`) > Date.now() - 365 * 86_400_000).slice(0, rows);
-  if (!list.length) return <div className="empty">{part.state === 'ok' ? 'No estimates from FMP.' : (part.message ?? 'No estimates from FMP.')}</div>;
+  if (!list.length) return <div className="note">No structured annual-estimate coverage. Equibles company research may provide a separate report.</div>;
   return (
     <><table className="tbl">
       <thead>
@@ -346,11 +378,11 @@ export function EstimatesTable({ part, rows = 5 }: { part: AnalystPart<Estimate[
         {list.map((e) => (
           <tr key={e.date}>
             <td className="amber">{fmtDay(Date.parse(`${e.date}T00:00:00Z`))}</td>
-            <td className="num white">{fmtBig(e.revenueAvg)}</td>
+            <td className="num white">{fmtBig(e.revenueAvg)}{part.source === 'Yahoo Finance' ? ` ${e.currency ?? '(currency not supplied)'}` : ''}</td>
             <td className="num hide-m muted">
               {fmtBig(e.revenueLow)} - {fmtBig(e.revenueHigh)}
             </td>
-            <td className="num white">{fmtNum(e.epsAvg, 2)}</td>
+            <td className="num white">{fmtNum(e.epsAvg, 2)}{part.source === 'Yahoo Finance' ? ` ${e.epsCurrency ?? '(currency not supplied)'}` : ''}</td>
             <td className="num hide-m muted">
               {fmtNum(e.epsLow, 2)} - {fmtNum(e.epsHigh, 2)}
             </td>

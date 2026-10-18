@@ -54,17 +54,17 @@ export function EE({ sec }: FnProps) {
             [
               'EPS estimate, fiscal year',
               !fmp
-                ? 'US-listed stocks in the desktop app, with FMP_API_KEY'
+                ? 'US-listed stocks in the desktop app with enabled research sources'
                 : ahead
-                  ? `${fmtNum(ahead.epsAvg, 2)} for the year to ${fmtEarnDate({ date: Date.parse(`${ahead.date}T00:00:00Z`) }, false)} (${fmtNum(ahead.epsLow, 2)} - ${fmtNum(ahead.epsHigh, 2)}${Number.isFinite(ahead.analystsEps) ? `, ${ahead.analystsEps} analysts` : ''})`
-                  : (est?.message ?? (est?.state === 'ok' ? 'None from FMP' : 'Loading…')),
+                  ? `${fmtNum(ahead.epsAvg, 2)} for the year to ${fmtEarnDate({ date: Date.parse(`${ahead.date}T00:00:00Z`) }, false)} (${fmtNum(ahead.epsLow, 2)} - ${fmtNum(ahead.epsHigh, 2)}${Number.isFinite(ahead.analystsEps) ? `, ${ahead.analystsEps} analysts` : ''}) · ${est?.source ?? 'FMP'}`
+                  : est && est.state !== 'loading' ? 'No structured annual estimate; see ANALYSTS for source availability and company research.' : 'Loading…',
             ],
           ]}
         />
       </Section>
       {fmp ? (
         <Section
-          title="Analyst estimates, by fiscal year (Financial Modeling Prep)"
+          title={`Analyst estimates, by fiscal year${est?.source ? ` (${est.source})` : ''}`}
           right={
             <button type="button" className="act" onClick={() => execute(panel, `${s.id} ANALYSTS`)}>
               ANALYSTS ›
@@ -72,7 +72,7 @@ export function EE({ sec }: FnProps) {
           }
         >
           <EstimatesTable part={est} rows={4} />
-          <div className="note">Annual consensus as FMP gathers it ({estimateUnit(s)}); analysts&apos; estimates, not a forecast by this app. Quarterly estimates and surprises come from Finnhub, above.</div>
+          <div className="note">Annual provider consensus ({estimateUnit(s, est)}); analysts&apos; estimates, not a forecast by this app. Quarterly estimates and surprises come from Finnhub.</div>
         </Section>
       ) : null}
       {fh ? (

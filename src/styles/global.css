@@ -477,6 +477,19 @@ button { cursor: pointer; }
 .tbl td.idx { color: var(--amber); width: 1%; }
 .tbl.zebra tbody tr:nth-child(even) td { background: #0b0b0b; }
 .tbl-wrap { overflow: auto; min-height: 0; }
+.provider-table-scroll { overflow: auto; max-height: 68vh; isolation: isolate; }
+.provider-table { border-collapse: separate; border-spacing: 0; }
+.provider-table th:nth-child(-n+2), .provider-table td:nth-child(-n+2) { position: sticky; z-index: 3; background: var(--bg-1); }
+.provider-table th:first-child, .provider-table td:first-child { left: 0; width: 215px; min-width: 215px; max-width: 215px; white-space: normal; }
+.provider-table th:nth-child(2), .provider-table td:nth-child(2) { left: 215px; min-width: 105px; border-right: 1px solid var(--line-2); }
+.provider-table thead th { z-index: 4; }
+.provider-table thead th:nth-child(-n+2) { z-index: 5; background: var(--hdr); }
+.provider-table td { padding-top: 4px; padding-bottom: 4px; vertical-align: top; }
+.provider-table td.provider-description { min-width: 230px; max-width: 330px; white-space: normal; overflow-wrap: anywhere; }
+.provider-table td.provider-problem { min-width: 260px; }
+.provider-terms { min-width: 170px; max-width: 350px; white-space: normal; }
+.provider-terms summary { color: var(--amber); cursor: pointer; white-space: nowrap; }
+.provider-terms a { display: inline-block; }
 .sec-link { color: var(--yellow); cursor: pointer; border: 0; background: none; padding: 0; text-align: left; }
 .sec-link:hover { text-decoration: underline; }
 

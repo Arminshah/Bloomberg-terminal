@@ -216,6 +216,16 @@ describe('provider status', () => {
   const report: ProviderReport = { credentials: { FRED_API_KEY: { label: 'FRED', configured: false, valid: true, source: null } }, providers: { yahoo: { lastMinute: 3, total: 9, lastSuccessAt: 2000, lastErrorAt: 1000, lastError: 'HTTP 429', lastErrorKind: 'rate-limited' } } };
   const def = (id: string) => PROVIDERS.find((p) => p.id === id)!;
 
+  it('tracks the actual price socket even when the main HTTP ledger has no streaming requests', () => {
+    expect(providerState(def('yahoo-stream'), report, 'live')).toBe('live');
+    expect(providerState(def('yahoo-stream'), report, 'connecting')).toBe('connecting');
+    expect(providerState(def('yahoo-stream'), report, 'error')).toBe('error');
+    expect(providerState(def('yahoo-stream'), report, 'off')).toBe('idle');
+    expect(providerState(def('yahoo-stream'), { ...report, settings: { YAHOO_PRICES_ENABLED: { label: 'Yahoo', value: false, source: 'saved in this app' } } }, 'live')).toBe('switched-off');
+    expect(providerState(def('treasury'), { ...report, providers: { treasury: { ...report.providers.yahoo, lastSuccessAt: Date.now() } } }, 'error')).toBe('error');
+    expect(providerState(def('treasury'), { ...report, providers: { treasury: { ...report.providers.yahoo, lastErrorAt: 3000 } } }, 'live')).toBe('live');
+  });
+
   it('says what each provider is doing from its policy, key and last requests', () => {
     // Times in this report are a few seconds after the epoch; `now` is set to match.
     const now = 3500;
@@ -361,8 +371,8 @@ describe('pasted keys with labels around them', () => {
   });
 });
 
-describe('pasted key list with a split Alpaca entry and a doubled Finnhub key', () => {
-  it('reads the secret on the line after the Alpaca key, and keeps the Finnhub API key alone', () => {
+describe('pasted key list with a split Alpaca entry and a full Finnhub key', () => {
+  it('reads the Alpaca secret and preserves a Finnhub key with repeated segments', () => {
     // Made-up values in the owner's layout of 18 October 2026.
     const text = [
       '7: Finnhub.io: abcd1234efgh5678ij90abcd1234efgh5678kl12',
@@ -374,13 +384,13 @@ describe('pasted key list with a split Alpaca entry and a doubled Finnhub key', 
     ].join('\n');
     const { found, skipped, notes } = providers.parseCredentialList(text);
     expect(Object.fromEntries(found.map((f: { name: string; value: string }) => [f.name, f.value]))).toEqual({
-      FINNHUB_API_KEY: 'abcd1234efgh5678ij90',
+      FINNHUB_API_KEY: 'abcd1234efgh5678ij90abcd1234efgh5678kl12',
       ALPACA_API_KEY_ID: 'PKABCDEFGHIJKLMNOPQRSTUV12',
       ALPACA_API_SECRET_KEY: 'AbCdEfGh1jKlMnOpQrStUvWxYz0123456789AbCdEfG',
       FMP_API_KEY: 'AbCdEfGhIjKlMnOpQrStUvWxYz012345',
     });
     expect(skipped).toEqual([]);
-    expect(notes.map((n: { name: string }) => n.name)).toEqual(['FINNHUB_API_KEY']);
+    expect(notes).toEqual([]);
     expect(JSON.stringify(notes)).not.toContain('abcd1234');
   });
 
@@ -389,11 +399,9 @@ describe('pasted key list with a split Alpaca entry and a doubled Finnhub key', 
     expect(found.map((f: { name: string }) => f.name)).toEqual(['ALPACA_API_KEY_ID', 'ALPACA_API_SECRET_KEY']);
   });
 
-  it('fixes a doubled Finnhub key that was saved before', () => {
-    // A 40-character value from an earlier paste reads as its first half; a real 40-character key that is not
-    // a pair stays as it is.
+  it('never truncates a credential read from the environment, regardless of repeated prefixes', () => {
     vi.stubEnv('FINNHUB_API_KEY', 'abcd1234efgh5678ij90abcd1234efgh5678kl12');
-    expect(providers.credential('FINNHUB_API_KEY').value).toBe('abcd1234efgh5678ij90');
+    expect(providers.credential('FINNHUB_API_KEY').value).toBe('abcd1234efgh5678ij90abcd1234efgh5678kl12');
     vi.stubEnv('FINNHUB_API_KEY', 'zyxw9876vuts5432rq10abcd1234efgh5678kl12');
     expect(providers.credential('FINNHUB_API_KEY').value).toBe('zyxw9876vuts5432rq10abcd1234efgh5678kl12');
     vi.unstubAllEnvs();

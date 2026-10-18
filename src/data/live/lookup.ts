@@ -5,7 +5,8 @@ import { DAY_MS, dayNum, dayToIso, isBusinessDay, isoToDay, prevBusinessDay } fr
 import type { EquityInfo, SecurityDef } from '../types';
 import { settings } from '../../terminal/settings';
 import { trackFinnhubSymbol } from './feeds';
-import { adoptYahooHistory, barsFromChart, yahooGet, type Dividend } from './yahoo';
+import { adoptYahooHistory, barsFromChart, yahooGet, YahooDisabled, type Dividend } from './yahoo';
+import { loadSecCompanies, searchCompanies } from './sec';
 
 /**
  * Securities that are not built in are looked up online when someone types
@@ -28,7 +29,7 @@ declare global {
       platform: string;
       yahoo(path: string): Promise<{ status: number; data: unknown; disabled?: boolean; session?: boolean }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
-      official(source: OfficialSource, since: string): Promise<{ status: number; text: string }>;
+      official(source: OfficialSource, since: string): Promise<{ status: number; text: string; sourceLabel?: string }>;
       fred?(kind: 'release-dates' | 'observations' | 'first-release', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
@@ -237,7 +238,7 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
   }
   if (meta.currency !== 'USD' || !YAHOO_EXCH[meta.exchangeName]) return { error: `${ticker} is not listed on a US exchange` };
   const bars = barsFromChart(chart).bars;
-  if (bars.length < 5) return { error: `Not enough price history for ${ticker}` };
+  if (!bars.length) return { error: `No usable price history for ${ticker}` };
   const r = summary?.quoteSummary?.result?.[0] ?? {};
   const ap = r.assetProfile ?? {};
   const ks = r.defaultKeyStatistics ?? {};
@@ -245,9 +246,7 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
   const sd = r.summaryDetail ?? {};
   const pr = r.price ?? {};
   const last = bars[bars.length - 1].c;
-  const mcap = raw(pr, 'marketCap') ?? raw(sd, 'marketCap');
-  const shares = (raw(ks, 'sharesOutstanding') ?? (mcap ? mcap / last : 0)) / 1e6;
-  if (!(shares > 0)) return { error: `No company profile for ${ticker}` };
+  const shares = (raw(ks, 'sharesOutstanding') ?? raw(meta, 'sharesOutstanding') ?? NaN) / 1e6;
   // A figure the source does not give stays missing (NaN), never a default or an estimate.
   const opt = (v: number | undefined) => (v == null ? NaN : v);
   const rev = opt(raw(fd, 'totalRevenue')) / 1e6;
@@ -262,7 +261,7 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
     lag = Math.round(Math.min(75, Math.max(15, (nextEarn * 1000 - nextQ) / DAY_MS)));
   }
   const ceo = (ap.companyOfficers ?? []).find((o: Json) => /chief executive|ceo/i.test(o?.title ?? ''));
-  const sector = YAHOO_SECTOR[ap.sector] ?? sectorFromIndustry(ap.industry ?? '');
+  const sector = YAHOO_SECTOR[ap.sector] ?? (ap.industry ? sectorFromIndustry(ap.industry) : '--');
   const book = opt(raw(ks, 'bookValue')) * shares;
   const debt = raw(fd, 'totalDebt');
   const cash = raw(fd, 'totalCash');
@@ -431,10 +430,28 @@ export async function searchOnline(q: string): Promise<OnlineHit[]> {
   const source = lookupSource();
   if (!source || !q.trim()) return [];
   if (source === 'yahoo') {
-    const res = await yahooGet(`/v1/finance/search?q=${encodeURIComponent(q.trim())}&quotesCount=12&newsCount=0`);
-    return ((res?.quotes ?? []) as Json[])
-      .filter((x) => x.quoteType === 'EQUITY' && YAHOO_EXCH[x.exchange])
-      .map((x) => ({ symbol: String(x.symbol).replace('-', '/'), name: x.longname ?? x.shortname ?? x.symbol, exchange: YAHOO_EXCH[x.exchange] }));
+    let problem: unknown;
+    try {
+      const res = await yahooGet(`/v1/finance/search?q=${encodeURIComponent(q.trim())}&quotesCount=12&newsCount=0`);
+      const hits = ((res?.quotes ?? []) as Json[])
+        .filter((x) => x.quoteType === 'EQUITY' && YAHOO_EXCH[x.exchange])
+        .map((x) => ({ symbol: String(x.symbol).replace('-', '/'), name: x.longname ?? x.shortname ?? x.symbol, exchange: YAHOO_EXCH[x.exchange] }));
+      if (hits.length) return hits;
+    } catch (error) {
+      if (error instanceof YahooDisabled) throw error;
+      problem = error;
+    }
+    // EDGAR is a company directory, not a price feed. The chart request still
+    // validates the exchange, currency and instrument before registering it.
+    if (window.arminDesktop?.sec) {
+      const companies = await loadSecCompanies();
+      if (companies.ok) {
+        const hits = searchCompanies(companies.data, q, 12).filter((c) => normalizeTicker(c.ticker));
+        if (hits.length) return hits.map((c) => ({ symbol: c.ticker.replace('-', '/'), name: c.title, exchange: 'SEC directory · listing checked on open' }));
+      }
+    }
+    if (problem) throw problem;
+    return [];
   }
   const res = await finnhubGet(`/search?q=${encodeURIComponent(q.trim())}&exchange=US`);
   return ((res?.result ?? []) as Json[])

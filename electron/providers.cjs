@@ -59,19 +59,12 @@ function credentialNames(name) {
   return [name, ...Object.keys(CREDENTIAL_ALIASES).filter((alias) => CREDENTIAL_ALIASES[alias] === name)];
 }
 
-/**
- * Finnhub's dashboard shows the API key (20 characters) next to a webhook secret of the same form, and copying
- * both gives one 40-character string that Finnhub refuses. Two 20-character halves that start alike are that
- * pair: the first is the API key.
- */
-function finnhubKeyFrom(text) {
-  return /^[a-z0-9]{40}$/.test(text) && text.slice(0, 12) === text.slice(20, 32) ? text.slice(0, 20) : text;
-}
-
 function normalizeCredential(name, value) {
   const text = String(value ?? '').trim();
   if (name === 'SEC_USER_AGENT') return secAgentFrom(text);
-  if (name === 'FINNHUB_API_KEY') return finnhubKeyFrom(text);
+  // API keys can contain repeated segments. Never infer a webhook secret from
+  // their shape or discard characters; explicitly labelled webhook lines are
+  // rejected separately by the importer.
   return text;
 }
 
@@ -159,6 +152,7 @@ const SETTINGS = {
   // Yahoo Finance prices are an unofficial, personal-use source the owner chose to keep. Off stops every
   // Yahoo request and the streaming socket.
   YAHOO_PRICES_ENABLED: { label: 'Yahoo Finance prices (unofficial, personal use)', default: true },
+  YAHOO_RESEARCH_ENABLED: { label: 'Yahoo Finance analyst research fallback (unofficial, personal use)', default: true },
   // Kraken's public market data for the crypto lines. Off hands them back to Yahoo, when Yahoo is on.
   KRAKEN_ENABLED: { label: 'Kraken exchange prices for crypto (public market data)', default: true },
   // Twelve Data's free plan is for internal, non-display use. Only the owner can say a plan allows showing its
@@ -341,7 +335,6 @@ function parseCredentialList(text) {
         return;
       }
       const kept = normalizeCredential(name, value);
-      if (kept !== value && name === 'FINNHUB_API_KEY') notes.push({ line: i + 1, name, note: 'the value was two 20-character keys run together (the API key and the webhook secret on Finnhub\'s page); the first, the API key, was kept' });
       found.push({ name, value: kept });
     });
   return { found, skipped, notes };

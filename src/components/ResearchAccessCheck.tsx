@@ -20,7 +20,7 @@ export function ResearchAccessCheck() {
   };
   return <Section title="Research access check" right="per symbol and endpoint">
     <div className="pad-s">
-      <p className="muted">Tests FMP targets/ratings/estimates, Finnhub recommendation counts and Equibles estimates for this ticker. Uses your saved keys and the normal caches and limits. A provider answering one endpoint does not establish access to its other endpoints or symbols.</p>
+      <p className="muted">Tests FMP targets/ratings/estimates, Finnhub recommendation counts, Equibles estimates and the Yahoo research fallback for this ticker. Uses your saved keys and the normal caches and limits. A provider answering one endpoint does not establish access to its other endpoints or symbols.</p>
       <label>US ticker <input aria-label="Research test ticker" value={symbol} onChange={(event) => setSymbol(event.target.value)} disabled={busy} style={{ width: 100 }} /></label>{' '}
       <button type="button" className="btn primary" disabled={busy} onClick={() => void run()}>{busy ? 'Checking research…' : 'Test research access'}</button>
       {error && <p className="amber" role="status">{error}</p>}

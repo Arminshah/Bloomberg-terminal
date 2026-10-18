@@ -13,13 +13,52 @@ app.setPath('sessionData', sessionData);
 // Provider .env discovery is the sole production caller. Assets/preload still resolve from main's __dirname.
 app.getAppPath = () => profile;
 
-const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, equiblesRefusal: false, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], finnhub: [], equibles: [] } };
+const researchTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-research.json'), 'utf8'));
+const currencyTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/sec-currency-change.json'), 'utf8'));
+const chartTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-sofi-chart.json'), 'utf8'));
+const fullFinnhubKey = 'abcd1234efgh5678ij90abcd1234efgh5678kl12';
+const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], finnhub: [], equibles: [], yahoo: [] } };
 globalThis.__desktopFixtures = fixtures;
 net.fetch = async (input, init) => {
   const url = new URL(String(input));
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  if (url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Synthetic currency-switch fixture' } });
+  if (url.hostname === 'data.sec.gov') {
+    if (url.pathname.includes('/companyfacts/')) return json(currencyTemplate);
+    return json({ cik: 1513845, name: 'Synthetic currency-switch fixture', tickers: ['NBIS'], exchanges: ['Nasdaq'], fiscalYearEnd: '1231', filings: { recent: {
+      accessionNumber: ['0001513845-26-000002', '0001513845-26-000001'], form: ['6-K', '20-F'], filingDate: ['2026-10-01', '2026-04-30'], reportDate: ['2026-10-01', '2025-12-31'], primaryDocument: ['synthetic-current.htm', 'synthetic-annual.htm'],
+    }, files: [] } });
+  }
+  if (url.hostname === 'fc.yahoo.com') return new Response(null, { status: 404 });
+  if (url.hostname === 'query2.finance.yahoo.com') {
+    fixtures.calls.yahoo.push(url.pathname + url.search.replace(/([?&]crumb=)[^&]*/g, '$1<session>'));
+    if (url.pathname === '/v1/test/getcrumb') return new Response('synthetic-session-crumb', { headers: { 'Content-Type': 'text/plain' } });
+    if (url.pathname === '/v1/finance/search') return json({ quotes: [{ symbol: 'APLD', quoteType: 'EQUITY', exchange: 'NMS', longname: 'Synthetic APLD fixture' }] });
+    if (url.pathname.startsWith('/v10/finance/quoteSummary/')) {
+      const symbol = decodeURIComponent(url.pathname.split('/').at(-1));
+      if ((url.searchParams.get('modules') ?? '').includes('earningsTrend')) {
+        const research = structuredClone(researchTemplate);
+        research.quoteSummary.result[0].price.symbol = symbol;
+        if (fixtures.mixedEstimateCurrencies) for (const row of research.quoteSummary.result[0].earningsTrend.trend) {
+          if (row.revenueEstimate) row.revenueEstimate.revenueCurrency = 'JPY';
+          if (row.earningsEstimate) row.earningsEstimate.earningsCurrency = 'USD';
+        }
+        return json(research);
+      }
+      return json({ quoteSummary: { result: [fixtures.profileMissing ? {} : { assetProfile: { industry: 'Synthetic fixture industry' }, summaryDetail: { trailingPE: { raw: 20 } } }], error: null } });
+    }
+    if (url.pathname.startsWith('/v8/finance/chart/')) {
+      const chart = structuredClone(chartTemplate);
+      const symbol = decodeURIComponent(url.pathname.split('/').at(-1));
+      const meta = chart.chart.result[0].meta;
+      Object.assign(meta, { symbol, currency: 'USD', exchangeName: 'NMS', instrumentType: 'EQUITY', longName: `Synthetic ${symbol} fixture`, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000) });
+      return json(chart);
+    }
+    if (url.pathname === '/v7/finance/quote') return json({ quoteResponse: { result: (url.searchParams.get('symbols') ?? '').split(',').map((symbol) => ({ symbol, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000), currency: 'USD', quoteSourceName: 'Synthetic Real Time Price', exchangeDataDelayedBy: 0 })) } });
+  }
   if (url.hostname === 'financialmodelingprep.com') {
     fixtures.calls.fmp++;
+    if (fixtures.researchBlocked) return new Response(JSON.stringify({ 'Error Message': 'Premium subscription required for this symbol.' }), { status: 402 });
     if (fixtures.researchPartial) {
       if (url.pathname.endsWith('/analyst-estimates')) return json([{ date: '2027-12-31', revenueAvg: 500000000, epsAvg: 1.25, numAnalystsEps: 7 }]);
       return new Response(JSON.stringify({ 'Error Message': 'Premium subscription required for this symbol.' }), { status: 402 });
@@ -28,6 +67,7 @@ net.fetch = async (input, init) => {
   }
   if (url.hostname === 'finnhub.io') {
     fixtures.calls.finnhub.push(url.href);
+    if (new Headers(init?.headers).get('X-Finnhub-Token') !== fullFinnhubKey) return new Response(JSON.stringify({ error: 'Invalid API key' }), { status: 401 });
     return json([{ symbol: url.searchParams.get('symbol'), period: '2026-10-01', strongBuy: 2, buy: 4, hold: 1, sell: 0, strongSell: 0 }]);
   }
   if (url.hostname === 'mcp.equibles.com') {

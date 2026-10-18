@@ -42,6 +42,30 @@ function harness(validate?: (provider: string, url: string, text: string) => Pro
 }
 
 describe('provider GET transport', () => {
+  it('pauses a rejected credential across endpoints and immediately accepts a replacement key', async () => {
+    const h = harness();
+    h.fetch.mockResolvedValueOnce(response('{"error":"Invalid API key"}', 401));
+    expect(await h.ask(URL, 'old-fixture-key', 'finnhub')).toMatchObject({ status: 401 });
+    expect(await h.ask(`${URL}&endpoint=metric`, 'old-fixture-key', 'finnhub')).toMatchObject({ status: 401, retryAt: START + 300_000 });
+    expect(h.fetch).toHaveBeenCalledTimes(1);
+    expect(await h.ask(`${URL}&endpoint=metric`, 'replacement-fixture-key', 'finnhub')).toMatchObject({ status: 200 });
+    expect(h.fetch).toHaveBeenCalledTimes(2);
+    h.advance(300_001);
+    expect(await h.ask(URL, 'old-fixture-key', 'finnhub')).toMatchObject({ status: 200 });
+  });
+
+  it('caches a symbol entitlement denial briefly without disabling other symbols', async () => {
+    const h = harness();
+    h.fetch.mockResolvedValueOnce(response('{"error":"Premium subscription required"}', 402));
+    expect(await h.ask()).toMatchObject({ status: 402 });
+    expect(await h.ask()).toMatchObject({ status: 402, retryAt: START + 60_000 });
+    expect(h.fetch).toHaveBeenCalledTimes(1);
+    expect(await h.ask('https://data.example.test/quotes?symbol=OTHER')).toMatchObject({ status: 200 });
+    expect(h.fetch).toHaveBeenCalledTimes(2);
+    h.advance(60_001);
+    expect(await h.ask()).toMatchObject({ status: 200 });
+  });
+
   it('checks endpoint schemas before recording success or caching a valid JSON body', async () => {
     const validate = vi.fn().mockReturnValueOnce({ kind: 'schema-changed', message: 'Missing option map.' }).mockReturnValue(null);
     const h = harness(validate);

@@ -15,6 +15,8 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
   const inflight = new Map();
   const breakers = new Map();
   const limitedUntil = new Map();
+  const rejectedKeys = new Map();
+  const deniedRequests = new Map();
   const safe = (text, secrets) => providers.providerMessage(String(text), secrets);
   const cacheId = (provider, url, headers, secrets, userAgent, transport) => `${provider}:${createHash('sha256').update(JSON.stringify([url, headers, secrets, userAgent, transport])).digest('hex')}`;
 
@@ -33,12 +35,16 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
   }
 
   async function send(provider, url, headers, pace, secrets, userAgent, id, old, transport) {
+    const credentialId = cacheId(provider, '', headers, secrets, userAgent);
     const stale = (extra) => ({ status: 0, text: old?.text ?? '', ...(old ? { at: old.at, stale: true } : {}), ...extra });
     const budget = () => {
       providers.recordProblem(provider, 'rate-limited', "The app's daily budget for this provider is spent; it asks again after midnight UTC.");
       return stale({ budget: true });
     };
     const paused = () => {
+      const rejected = rejectedKeys.get(credentialId);
+      const denial = rejected?.retryAt > now() ? rejected : deniedRequests.get(id);
+      if (denial?.retryAt > now()) return { ...stale({ error: denial.error, retryAt: denial.retryAt }), status: denial.status };
       const retryAt = limitedUntil.get(provider) ?? 0;
       if (retryAt > now()) return stale({ error: 'Provider rate limit: waiting before the next request.', retryAt });
       const b = breakers.get(provider);
@@ -91,6 +97,16 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
         const why = safe(text, secrets);
         const message = `HTTP ${res.status}${why ? `: ${why}` : ''}`;
         providers.recordProblem(provider, providers.errorKind(res.status), message);
+        if (res.status === 401 || res.status === 402 || res.status === 403) {
+          // A 401 applies to this credential, while a plan/endpoint refusal is
+          // scoped to this exact request. Replacing a key immediately gets its
+          // own scope; one denied ticker cannot disable working tickers.
+          const rejected = res.status === 401 ? rejectedKeys : deniedRequests;
+          const retryAt = now() + (res.status === 401 ? 5 * 60_000 : 60_000);
+          rejected.set(res.status === 401 ? credentialId : id, { status: res.status, error: message, retryAt });
+          if (rejected.size > 400) rejected.delete(rejected.keys().next().value);
+          return { ...stale({ error: message, retryAt }), status: res.status };
+        }
         if (res.status === 429) {
           // Never hammer a provider or sleep for a long Retry-After inside an IPC request.
           const retryAt = now() + Math.max(60_000, retryAfter(res.headers?.get('retry-after'), now()));
@@ -124,6 +140,8 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
       }
 
       providers.recordResult(provider, res.status, undefined, started);
+      rejectedKeys.delete(credentialId);
+      deniedRequests.delete(id);
       breakers.delete(provider);
       limitedUntil.delete(provider);
       const at = now();

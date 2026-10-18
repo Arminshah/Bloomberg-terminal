@@ -124,9 +124,9 @@ function FeedChip() {
     // Desktop app: real data only. The chip says whether prices are streaming, loading or cut off.
     const lost = f.market === 'error';
     // The chip reports the connection; how fresh each quote is shows beside the quote itself.
-    const label = lost ? 'CONNECTION LOST' : f.market === 'live' ? (/streaming/.test(f.detail.market ?? '') ? 'CONNECTED · STREAMING' : 'CONNECTED · POLLING') : 'LOADING DATA';
+    const label = lost ? 'PRICE CONNECTION LOST' : f.market === 'off' ? 'YAHOO PRICES OFF' : f.market === 'live' ? (f.stream === 'live' ? 'PRICES · STREAMING' : 'PRICES · POLLING') : 'LOADING PRICES';
     return (
-      <button type="button" className={`status-chip${lost ? ' down' : ' live'}`} onClick={() => execute(terminal.get().active, 'PROVIDERS')} title={`${f.detail.market ?? 'Data providers'} · PROVIDERS for every provider's state`}>
+      <button type="button" className={`status-chip${lost ? ' down' : f.market === 'live' ? ' live' : ''}`} onClick={() => execute(terminal.get().active, 'PROVIDERS')} title={`${f.detail.market ?? 'Price connection'} · This describes Yahoo price transport. Open PROVIDERS for IEX prices, research, news and each provider's access checks.`}>
         <span className="dot" />
         {label}
       </button>

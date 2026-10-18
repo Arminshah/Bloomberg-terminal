@@ -1,7 +1,6 @@
-// Yahoo Finance serves this app only as an unofficial, personal-use price source. Its option chains, its
-// news and its analyst data (ratings, recommendations, price targets and estimates) stay off whatever the
-// page asks for: the options path is not on the allowlist, search asks for no news, and analyst modules and
-// fields are removed from every answer before the page sees it. Kept free of Electron so tests can load it.
+// Unofficial, personal-use Yahoo data. Options and news remain outside this adapter.
+// The independent research switch controls analyst modules and fields. Kept free
+// of Electron so both settings can be verified without a running desktop.
 
 const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=%-]+\?|v8\/finance\/spark\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=%-]+\?|v7\/finance\/quote\?|ws\/fundamentals-timeseries\/v1\/finance\/timeseries\/[A-Za-z0-9.^=%-]+\?)/;
 const ANALYST_MODULES = ['earningsTrend', 'recommendationTrend', 'upgradeDowngradeHistory', 'earningsHistory', 'indexTrend', 'industryTrend', 'sectorTrend'];
@@ -13,20 +12,20 @@ const ANALYST_FIELDS = {
 const QUOTE_ANALYST_FIELDS = ['averageAnalystRating', 'forwardPE', 'epsForward', 'epsCurrentYear', 'priceEpsCurrentYear', 'epsNextQuarter'];
 
 /** The page's request with news switched off and analyst modules dropped. */
-function yahooRequest(path) {
+function yahooRequest(path, research = false) {
   if (path.startsWith('/v1/finance/search?')) {
     return /[?&]newsCount=/.test(path) ? path.replace(/([?&])newsCount=\d*/, '$1newsCount=0') : `${path}&newsCount=0`;
   }
-  if (path.startsWith('/v10/finance/quoteSummary/')) {
+  if (path.startsWith('/v10/finance/quoteSummary/') && !research) {
     return path.replace(/([?&]modules=)([^&]*)/, (_m, key, list) => key + decodeURIComponent(list).split(',').filter((m) => !ANALYST_MODULES.includes(m)).join(','));
   }
   return path;
 }
 
 /** Removes news and analyst data from a Yahoo answer. */
-function withoutRestricted(path, data) {
+function withoutRestricted(path, data, research = false) {
   if (!data || typeof data !== 'object') return data;
-  if (path.startsWith('/v10/finance/quoteSummary/')) {
+  if (path.startsWith('/v10/finance/quoteSummary/') && !research) {
     for (const r of data.quoteSummary?.result ?? []) {
       if (!r || typeof r !== 'object') continue;
       for (const m of ANALYST_MODULES) delete r[m];
@@ -39,7 +38,7 @@ function withoutRestricted(path, data) {
         for (const q of chart.quarterly ?? []) if (q) for (const f of ['actual', 'estimate', 'difference', 'surprisePct']) delete q[f];
       }
     }
-  } else if (path.startsWith('/v7/finance/quote?')) {
+  } else if (path.startsWith('/v7/finance/quote?') && !research) {
     for (const q of data.quoteResponse?.result ?? []) if (q) for (const f of QUOTE_ANALYST_FIELDS) delete q[f];
   } else if (path.startsWith('/v1/finance/search?')) {
     delete data.news;

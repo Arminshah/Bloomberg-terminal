@@ -5,6 +5,16 @@ import * as selftest from '../electron/selftest.cjs';
 const test = (id: string) => selftest.TESTS.find((t) => t.id === id)!;
 
 describe('provider self-test', () => {
+  it('requests ECB CSV explicitly and rejects missing or nonnumeric observations', () => {
+    expect(test('ecb').request([], 0).accept).toBe('text/csv');
+    for (const body of ['{"dataSets":[]}', 'TIME_PERIOD,OBS_VALUE\n2026-10-16,\n', 'TIME_PERIOD,OBS_VALUE\n2026-10-16,NaN\n']) expect(() => test('ecb').read(body)).toThrow();
+  });
+
+  it('selects a percentage rate instead of displaying the SOFR index as an unknown percent', () => {
+    expect(test('nyfed').read('{"refRates":[{"type":"SOFRAI","effectiveDate":"2026-10-16","index":123.45},{"type":"EFFR","effectiveDate":"2026-10-16","percentRate":3.88}]}')).toBe('EFFR 3.88% on 2026-10-16');
+    expect(() => test('nyfed').read('{"refRates":[{"type":"SOFRAI","effectiveDate":"2026-10-16","index":123.45}]}')).toThrow('no usable percentage rates');
+  });
+
   it('reads each kind of answer into a short sample', () => {
     expect(test('nyfed').read('{"refRates":[{"effectiveDate":"2026-10-16","type":"EFFR","percentRate":3.58}]}')).toBe('EFFR 3.58% on 2026-10-16');
     expect(test('ecb').read('KEY,FREQ,TIME_PERIOD,OBS_VALUE\nFM.D,D,2026-10-16,2.00\n')).toBe('2.00% on 2026-10-16');

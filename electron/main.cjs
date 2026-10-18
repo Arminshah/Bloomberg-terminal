@@ -165,7 +165,8 @@ ipcMain.handle('yahoo', async (event, asked) => {
   if (!fromApp(event)) throw new Error('not allowed');
   if (typeof asked !== 'string' || asked.length > 4000 || !ALLOWED.test(asked)) throw new Error('not allowed');
   if (!yahooEnabled()) return { status: 0, data: null, disabled: true };
-  const path = yahooRequest(asked);
+  const research = providers.setting('YAHOO_RESEARCH_ENABLED').value;
+  const path = yahooRequest(asked, research);
   // Quotes, options and company data need the session crumb; charts, search and statements do not.
   const needsCrumb = path.startsWith('/v10/') || path.startsWith('/v7/');
   // While Yahoo refuses the session (no cookie it accepts, as in the EU before its cookies are accepted), the
@@ -193,7 +194,7 @@ ipcMain.handle('yahoo', async (event, asked) => {
       }
       return { status: res.status, data: null };
     }
-    return { status: res.status, data: withoutRestricted(path, await res.json()) };
+    return { status: res.status, data: withoutRestricted(path, await res.json(), research) };
   }
   return { status: 401, data: null, session: false };
 });
@@ -206,7 +207,8 @@ ipcMain.handle('treasury', async (event, year) => {
   if (!fromApp(event)) throw new Error('not allowed');
   const y = Number(year);
   if (!Number.isInteger(y) || y < 1990 || y > 2100) throw new Error('not allowed');
-  const res = await tracked('treasury', `${TREASURY}/${y}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${y}&page&_format=csv`, { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+  // This official annual export can take longer than the quote services.
+  const res = await tracked('treasury', `${TREASURY}/${y}/all?type=daily_treasury_yield_curve&field_tdr_date_value=${y}&page&_format=csv`, { headers: { 'User-Agent': clientAgent(), Accept: 'text/csv' }, cache: 'no-cache', signal: AbortSignal.timeout(35_000) });
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 
@@ -215,6 +217,7 @@ ipcMain.handle('treasury', async (event, year) => {
 // from central banks and finance ministries (public services, no keys). Each
 // source is a fixed URL; the page only picks which one and a start date.
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const { fetchFedPress } = require('./official-feeds.cjs');
 
 const EUROSTAT = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data';
 // The euro area under its current and possible future aggregate codes, and the largest members.
@@ -286,8 +289,13 @@ ipcMain.handle('official', async (event, source, since) => {
   if (!Object.prototype.hasOwnProperty.call(OFFICIAL, source)) throw new Error('not allowed');
   if (typeof since !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(since)) throw new Error('not allowed');
   const url = OFFICIAL[source](since, new Date().toISOString().slice(0, 10));
+  if (source === 'newsFed') {
+    const answer = await fetchFedPress((url, init) => tracked('fedboard', url, init), { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (answer.error) providers.recordProblem('fedboard', 'schema-changed', answer.error);
+    return answer;
+  }
   // Some statistics services answer large requests slowly; a stalled one still ends.
-  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 
@@ -652,8 +660,8 @@ async function yahooSelfTest() {
   const step = async (id, label, run) => {
     const t0 = Date.now();
     try {
-      const { status, detail } = await run();
-      out.push({ id, label, state: status >= 200 && status < 300 ? 'pass' : 'fail', status, ms: Date.now() - t0, detail });
+      const { status, detail, valid = true } = await run();
+      out.push({ id, label, state: status >= 200 && status < 300 && valid ? 'pass' : 'fail', status, ms: Date.now() - t0, detail });
     } catch (err) {
       out.push({ id, label, state: 'fail', status: 0, ms: Date.now() - t0, detail: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) });
     }
@@ -673,25 +681,45 @@ async function yahooSelfTest() {
     const res = await yahooFetch(`${YAHOO}/v8/finance/chart/ABI.BR?range=5d&interval=1d`);
     const { j, text } = await read(res);
     const m = j?.chart?.result?.[0]?.meta;
-    return { status: res.status, detail: m ? `ABI.BR ${m.regularMarketPrice} ${m.currency}` : providers.providerMessage(text) || 'no chart in the answer' };
+    return { status: res.status, valid: Number.isFinite(m?.regularMarketPrice) && m.regularMarketPrice > 0, detail: m ? `ABI.BR ${m.regularMarketPrice} ${m.currency}` : providers.providerMessage(text) || 'no chart in the answer' };
   });
   let crumbOk = false;
   await step('yahoo-crumb', 'Yahoo cookie and crumb (needed for quotes and company data)', async () => {
     const c = await getCrumb(true);
-    crumbOk = !!c && c.length < 64 && !/[<{\s]/.test(c);
-    return { status: crumbOk ? 200 : 0, detail: crumbOk ? 'crumb received' : `unexpected answer instead of a crumb (${c.slice(0, 40).replace(/\s+/g, ' ')})` };
+    crumbOk = !!c && c.length <= 64 && !/[<{\s]/.test(c);
+    return { status: crumbOk ? 200 : 0, detail: crumbOk ? 'crumb received' : 'no valid session crumb received' };
   });
   await step('yahoo-quote', 'Yahoo quotes (Apple, S&P 500, EUR/USD)', async () => {
     const res = await yahooFetch(`${YAHOO}/v7/finance/quote?symbols=AAPL,%5EGSPC,EURUSD%3DX&crumb=${encodeURIComponent(crumb ?? '')}`);
     const { j, text } = await read(res);
     const list = j?.quoteResponse?.result ?? [];
-    return { status: res.status, detail: list.length ? list.map((q) => `${q.symbol} ${q.regularMarketPrice}`).join(', ') : providers.providerMessage(text) || 'no quotes in the answer' };
+    const valid = ['AAPL', '^GSPC', 'EURUSD=X'].every((symbol) => list.some((q) => q.symbol === symbol && Number.isFinite(q.regularMarketPrice) && q.regularMarketPrice > 0));
+    return { status: res.status, valid, detail: valid ? list.map((q) => `${q.symbol} ${q.regularMarketPrice}`).join(', ') : providers.providerMessage(text) || 'missing or invalid quote data' };
   });
   await step('yahoo-summary', 'Yahoo company data (Apple profile and statistics)', async () => {
     const res = await yahooFetch(`${YAHOO}/v10/finance/quoteSummary/AAPL?modules=assetProfile,summaryDetail&crumb=${encodeURIComponent(crumb ?? '')}`);
     const { j, text } = await read(res);
     const r = j?.quoteSummary?.result?.[0];
-    return { status: res.status, detail: r ? `${r.assetProfile?.industry ?? '?'}, P/E ${r.summaryDetail?.trailingPE?.raw ?? r.summaryDetail?.trailingPE ?? '?'}` : providers.providerMessage(text) || 'no company data in the answer' };
+    return { status: res.status, valid: !!r && (!!r.assetProfile?.industry || Number.isFinite(r.summaryDetail?.trailingPE?.raw ?? r.summaryDetail?.trailingPE)), detail: r ? `${r.assetProfile?.industry ?? '?'}, P/E ${r.summaryDetail?.trailingPE?.raw ?? r.summaryDetail?.trailingPE ?? '?'}` : providers.providerMessage(text) || 'no company data in the answer' };
+  });
+  await step('yahoo-search', 'Yahoo stock search (APLD)', async () => {
+    const res = await yahooFetch(`${YAHOO}/v1/finance/search?q=APLD&quotesCount=8&newsCount=0`);
+    const { j } = await read(res);
+    const hit = j?.quotes?.find((q) => q.symbol === 'APLD' && q.quoteType === 'EQUITY');
+    return { status: res.status, valid: !!hit, detail: hit ? `${hit.symbol}: ${hit.longname ?? hit.shortname ?? 'equity'} (${hit.exchange ?? 'exchange not supplied'})` : 'APLD equity was not returned by stock search' };
+  });
+  if (!providers.setting('YAHOO_RESEARCH_ENABLED').value) out.push({ id: 'yahoo-research', label: 'Yahoo analyst research (APLD)', state: 'off', detail: 'switched off (YAHOO_RESEARCH_ENABLED)' });
+  else await step('yahoo-research', 'Yahoo analyst research (APLD; coverage varies by dataset)', async () => {
+    const res = await yahooFetch(`${YAHOO}/v10/finance/quoteSummary/APLD?modules=price,financialData,recommendationTrend,upgradeDowngradeHistory,earningsTrend&crumb=${encodeURIComponent(crumb ?? '')}`);
+    const { j } = await read(res);
+    const r = j?.quoteSummary?.result?.[0];
+    const target = r?.financialData?.targetMeanPrice?.raw ?? r?.financialData?.targetMeanPrice;
+    const trends = r?.recommendationTrend?.trend;
+    const periods = Array.isArray(trends) ? trends.filter((t) => /^(0|-\d+)m$/.test(t?.period ?? '') && ['strongBuy', 'buy', 'hold', 'sell', 'strongSell'].every((k) => Number.isInteger(t[k]) && t[k] >= 0) && ['strongBuy', 'buy', 'hold', 'sell', 'strongSell'].reduce((sum, k) => sum + t[k], 0) > 0).length : 0;
+    const estimates = r?.earningsTrend?.trend;
+    const annual = Array.isArray(estimates) ? estimates.filter((t) => ['0y', '+1y'].includes(t?.period) && /^\d{4}-\d{2}-\d{2}$/.test(t.endDate ?? '') && (Number.isFinite(t.earningsEstimate?.avg?.raw ?? t.earningsEstimate?.avg) || Number.isFinite(t.revenueEstimate?.avg?.raw ?? t.revenueEstimate?.avg))).length : 0;
+    const valid = !!r && !j?.quoteSummary?.error && (r.price?.symbol === undefined || r.price.symbol === 'APLD') && ((Number.isFinite(target) && target > 0) || periods > 0 || annual > 0);
+    return { status: res.status, valid, detail: valid ? `APLD: target ${Number.isFinite(target) ? target : 'not supplied'}, ${periods} recommendation periods, ${annual} annual estimate periods` : 'no usable APLD research in the answer' };
   });
   return out;
 }
@@ -724,7 +752,13 @@ ipcMain.handle('providers:selftest', async (event) => {
       // A diagnostic spends the same account allowance as an ordinary request.
       // Never bypass pacing, daily caps or HTTP-200 refusal detection.
       let res;
-      if (SELFTEST_PACE[t.provider]) {
+      let sourceLabel = '';
+      if (t.id === 'fed-rss') {
+        const answer = await fetchFedPress((url, init) => tracked('fedboard', url, init), { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(15_000) });
+        if (answer.error) providers.recordProblem('fedboard', 'schema-changed', answer.error);
+        sourceLabel = answer.fallback ? `${answer.sourceLabel}: ` : '';
+        res = { status: answer.status, ok: !!answer.text, statusText: answer.error, text: async () => answer.text };
+      } else if (SELFTEST_PACE[t.provider]) {
         const answer = await keyedGet(t.provider, req.url, req.headers ?? {}, 0, SELFTEST_PACE[t.provider], t.agent ? [] : secrets, t.agent ? secrets[0] : undefined);
         res = { status: answer.status, ok: answer.status >= 200 && answer.status < 300 && !answer.stale && !!answer.text,
           statusText: answer.budget ? 'Daily request cap reached; resets at midnight UTC.' : answer.error ?? 'No fresh answer.', text: async () => answer.text };
@@ -740,7 +774,7 @@ ipcMain.handle('providers:selftest', async (event) => {
         continue;
       }
       try {
-        results.push({ ...base, state: 'pass', status: res.status, ms, detail: t.read(text) });
+        results.push({ ...base, state: 'pass', status: res.status, ms, detail: sourceLabel + t.read(text) });
       } catch (err) {
         providers.recordProblem(t.provider, 'schema-changed', providers.providerMessage(JSON.stringify({ message: String(err?.message ?? err) }), secrets));
         results.push({ ...base, state: 'fail', status: res.status, ms, detail: providers.providerMessage(JSON.stringify({ message: String(err?.message ?? err) }), secrets) });

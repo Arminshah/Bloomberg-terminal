@@ -9,6 +9,8 @@ export interface FeedStatus {
   news: FeedState;
   /** Real quotes, history and company data (desktop app, Yahoo Finance). */
   market: FeedState;
+  /** The Yahoo price socket, independent of the HTTP quote service. */
+  stream: FeedState;
   /** US Treasury par yields (desktop app). */
   rates: FeedState;
   /** Central bank policy rates from the banks' own data services (desktop app). */
@@ -24,13 +26,13 @@ export interface FeedStatus {
 
 export type FeedName = keyof Omit<FeedStatus, 'detail' | 'updatedAt'>;
 
-export const feedStatus = createStore<FeedStatus>({ crypto: 'off', fx: 'off', equities: 'off', news: 'off', market: 'off', rates: 'off', policy: 'off', yields: 'off', eco: 'off', detail: {}, updatedAt: {} });
+export const feedStatus = createStore<FeedStatus>({ crypto: 'off', fx: 'off', equities: 'off', news: 'off', market: 'off', stream: 'off', rates: 'off', policy: 'off', yields: 'off', eco: 'off', detail: {}, updatedAt: {} });
 
-export function setFeed(name: FeedName, state: FeedState, detail?: string) {
+export function setFeed(name: FeedName, state: FeedState, detail?: string, options: { delivered?: boolean } = {}) {
   feedStatus.set((s) => ({
     ...s,
     [name]: state,
     detail: detail ? { ...s.detail, [name]: detail } : s.detail,
-    updatedAt: state === 'live' ? { ...s.updatedAt, [name]: Date.now() } : s.updatedAt,
+    updatedAt: state === 'live' && options.delivered !== false ? { ...s.updatedAt, [name]: Date.now() } : s.updatedAt,
   }));
 }

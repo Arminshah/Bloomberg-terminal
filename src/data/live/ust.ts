@@ -49,10 +49,12 @@ export function parseTreasuryCsv(text: string): Map<string, Map<number, number>>
   const head = lines[0].split(',').map((h) => h.replace(/"/g, '').trim());
   const cols = head.map((h) => COLUMNS[h]);
   for (const line of lines.slice(1)) {
-    const cells = line.split(',');
+    const cells = line.split(',').map((c) => c.trim().replace(/^"|"$/g, '').trim());
     const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(cells[0]?.trim() ?? '');
     if (!m) continue;
-    const day = dayNum(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2])));
+    const date = new Date(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2])));
+    if (date.getUTCFullYear() !== Number(m[3]) || date.getUTCMonth() !== Number(m[1]) - 1 || date.getUTCDate() !== Number(m[2])) continue;
+    const day = dayNum(date.getTime());
     cells.forEach((c, i) => {
       const id = cols[i];
       const v = Number(c);
@@ -108,10 +110,10 @@ function keepYear(year: number, parsed: Map<string, Map<number, number>>) {
   saveJson(CACHE_KEY, { v: 1, years });
 }
 
-async function loadYear(year: number, keep: boolean): Promise<boolean> {
+async function loadYear(year: number, keep: boolean, active: () => boolean): Promise<boolean> {
   try {
     const res = await window.arminDesktop!.treasury(year);
-    if (res.status !== 200 || !res.text) return false;
+    if (!active() || res.status !== 200 || !res.text) return false;
     const parsed = parseTreasuryCsv(res.text);
     if (!parsed.size) return false;
     merge(parsed);
@@ -122,11 +124,15 @@ async function loadYear(year: number, keep: boolean): Promise<boolean> {
   }
 }
 
-/** Loads the curve (this year first, then nine back) and refreshes it every 30 minutes. */
+/** Loads one consistent par curve; transient failures retry after 1, 2, then at most 5 minutes. */
 export function startTreasury(): () => void {
   if (!treasuryAvailable()) return () => undefined;
   let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let failures = 0;
+  const active = () => !stopped;
   const year = new Date().getUTCFullYear();
+  setFeed('rates', 'connecting', 'Loading the official US Treasury daily par yield curve');
   // Years kept from earlier sessions go on screen at once, as history.
   const kept = cachedYears();
   for (const [y, lines] of Object.entries(kept)) {
@@ -134,31 +140,36 @@ export function startTreasury(): () => void {
     merge(new Map(Object.entries(lines).map(([id, days]) => [id, new Map(days)])));
   }
   if (history.size) apply();
+  const refreshCurrent = async () => {
+    const current = await loadYear(new Date().getUTCFullYear(), false, active);
+    if (stopped) return;
+    if (current && apply().length) {
+      failures = 0;
+      setFeed('rates', 'live', 'US Treasury par yields, end of day');
+    } else {
+      failures++;
+      setFeed('rates', 'error', history.size ? 'The US Treasury did not answer for this year; earlier observations remain shown; retrying automatically' : 'US Treasury yields unavailable right now; retrying automatically');
+    }
+    timer = setTimeout(() => void refreshCurrent(), failures ? Math.min(5, 2 ** (failures - 1)) * 60_000 : 30 * 60_000);
+  };
   void (async () => {
     // The current year puts today's levels on screen; last year next, for year-to-date and one-year changes.
-    const current = await loadYear(year, false);
+    await refreshCurrent();
     if (stopped) return;
-    if (current && apply().length) setFeed('rates', 'live', 'US Treasury par yields, end of day');
     const missing = Array.from({ length: 9 }, (_, i) => year - 1 - i).filter((y) => !kept[y]);
     if (missing[0] === year - 1) {
-      await loadYear(year - 1, true);
+      await loadYear(year - 1, true, active);
       if (!stopped) apply();
       missing.shift();
     }
     // The rest three at a time, so ten years take a minute rather than three.
     for (let i = 0; i < missing.length && !stopped; i += 3) {
-      await Promise.all(missing.slice(i, i + 3).map((y) => loadYear(y, true)));
+      await Promise.all(missing.slice(i, i + 3).map((y) => loadYear(y, true, active)));
       if (!stopped) apply();
     }
-    if (stopped) return;
-    if (current) setFeed('rates', 'live', 'US Treasury par yields, end of day');
-    else setFeed('rates', 'error', history.size ? 'The US Treasury did not answer for this year; earlier years shown' : 'US Treasury yields unavailable right now');
   })();
-  const timer = setInterval(() => {
-    void loadYear(new Date().getUTCFullYear(), false).then((ok) => ok && apply());
-  }, 30 * 60_000);
   return () => {
     stopped = true;
-    clearInterval(timer);
+    clearTimeout(timer);
   };
 }

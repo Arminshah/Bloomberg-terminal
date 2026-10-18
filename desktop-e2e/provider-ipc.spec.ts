@@ -19,8 +19,11 @@ interface Fixtures {
   optionMalformed: boolean;
   optionContractCount: number;
   researchPartial: boolean;
+  researchBlocked: boolean;
+  profileMissing: boolean;
+  mixedEstimateCurrencies: boolean;
   equiblesRefusal: boolean;
-  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; finnhub: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[] };
+  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -56,10 +59,11 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
           APPDATA: profile,
           LOCALAPPDATA: profile,
           YAHOO_PRICES_ENABLED: 'false', KRAKEN_ENABLED: 'false',
+          YAHOO_RESEARCH_ENABLED: 'true',
           FINNHUB_ENABLED: 'false', MARKETWATCH_RSS_ENABLED: 'false',
           FMP_ENABLED: 'true', EQUIBLES_ENABLED: 'true', MARKETAUX_ENABLED: 'true', ALPACA_ENABLED: 'true',
           FMP_API_KEY: 'DesktopFixtureKey1234567890',
-          FINNHUB_API_KEY: 'DesktopFixtureFinnhub1234567890',
+          FINNHUB_API_KEY: 'abcd1234efgh5678ij90abcd1234efgh5678kl12',
           EQUIBLES_API_KEY: 'eq_DesktopFixtureEquibles1234567890',
           MARKETAUX_API_TOKEN: 'DesktopFixtureToken1234567890',
           ALPACA_API_KEY_ID: 'PKFIXTURE0000000000',
@@ -75,6 +79,10 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
       page.on('pageerror', (error) => errors.push(error.message));
       // Block any direct renderer connection as well. Desktop provider traffic uses the mocked net.fetch.
       await app.context().route(/^https?:/, (route) => route.abort());
+      // firstWindow can return while it is still about:blank, whose storage
+      // is unavailable. Wait for the real document before resetting state.
+      await expect(page).toHaveURL(/^file:/);
+      await expect(page.locator('#cmd-0')).toBeVisible();
       await page.evaluate(() => {
         localStorage.clear();
         localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: '1' } }));
@@ -261,8 +269,9 @@ test('HTTP 200 provider refusals cross desktop IPC as errors and are never cache
 test('research remains usable across FMP 402s, Finnhub fallback and manual Equibles reports', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.researchPartial = true; process.env.FINNHUB_ENABLED = 'true'; });
   await command(page, 'AAPL ANALYSTS');
+  await page.getByText('Research source availability', { exact: true }).click();
   await expect(page.getByText('Your FMP subscription does not include this request for AAPL (HTTP 402)', { exact: false }).first()).toBeVisible();
-  await expect(page.getByText('Source: Finnhub', { exact: false })).toContainText('recommendation period 2026-10-01');
+  await expect(page.getByText('Source: Finnhub', { exact: false }).first()).toContainText('recommendation period 2026-10-01');
   await expect(page.getByRole('cell', { name: '1.25', exact: true })).toBeVisible();
   expect((await calls(app)).finnhub.some((url) => new URL(url).pathname === '/api/v1/stock/recommendation')).toBe(true);
   expect((await calls(app)).equibles).toHaveLength(0);
@@ -289,10 +298,104 @@ test('research remains usable across FMP 402s, Finnhub fallback and manual Equib
   expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(2);
 });
 
+test('APLD research recovers from both reported provider refusals and lookup survives missing company profiles', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.researchBlocked = true;
+    fixtures.profileMissing = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+    process.env.FINNHUB_ENABLED = 'true';
+    process.env.FINNHUB_API_KEY = 'abcd1234efgh5678ij90'; // Simulates a key shortened by the old build.
+  });
+  await page.reload();
+  await command(page, 'WXYZ PROFILE');
+  await expect(page.locator('.fnh')).toContainText('WXYZ');
+  await command(page, 'APLD ANALYSTS');
+  await expect(page.getByTestId('research-coverage')).toContainText('4/5 datasets loaded');
+  await expect(page.getByText('Source: Yahoo Finance', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('Current snapshot', { exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '-0.25 USD', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '0.00 USD', exact: true }).first()).toBeVisible();
+  expect((await calls(app)).equibles).toHaveLength(0);
+  const bundle = (await calls(app)).yahoo.filter((path) => path.startsWith('/v10/finance/quoteSummary/APLD?') && path.includes('earningsTrend'));
+  expect(bundle).toHaveLength(1);
+  await expect(page.getByTestId('research-coverage').locator('details')).not.toHaveAttribute('open');
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-v272-apld-research-fixture.png') });
+  await page.getByText('Research source availability', { exact: true }).click();
+  await expect(page.getByTestId('research-coverage')).toContainText('HTTP 402');
+  await expect(page.getByTestId('research-coverage')).toContainText('HTTP 401');
+  await app.evaluate(() => { process.env.FINNHUB_API_KEY = 'abcd1234efgh5678ij90abcd1234efgh5678kl12'; });
+  // A replaced complete key must work immediately, even while the previous key's 401 is cooling down.
+  const recovered = await page.evaluate(() => window.arminDesktop!.finnhubResearch!('ratings', 'APLD'));
+  expect(recovered.status).toBe(200);
+  expect(JSON.parse(recovered.text)[0].buy).toBe(4);
+  const checks = await page.evaluate(() => window.arminDesktop!.providersSelfTest!());
+  expect(checks.results.find((r) => r.id === 'yahoo-summary')).toMatchObject({ state: 'fail', status: 200 });
+  expect(checks.results.find((r) => r.id === 'yahoo-search')).toMatchObject({ state: 'pass' });
+  expect(checks.results.find((r) => r.id === 'yahoo-research')).toMatchObject({ state: 'pass' });
+  expect(checks.report).not.toContain('abcd1234');
+  await command(page, 'PROVIDERS');
+  const stream = page.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Yahoo Finance streaming', exact: true }) });
+  await expect(stream).toContainText('ERROR'); // Direct and relay sockets are deliberately blocked in this test.
+  await expect(stream).toContainText('Socket events');
+  const scroller = page.getByRole('region', { name: 'Provider status and diagnostics' });
+  await scroller.evaluate((node) => { node.scrollLeft = node.scrollWidth; });
+  const label = stream.getByRole('cell', { name: 'Yahoo Finance streaming', exact: true });
+  const bounds = await label.boundingBox();
+  const frame = await scroller.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(frame!.x - 1);
+  expect(bounds!.x).toBeLessThan(frame!.x + 10);
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await scroller.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-v272-provider-scroll-fixture.png') });
+});
+
+test('SEC reported figures default to the latest reporting currency and expose actual coverage', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid'; });
+  await command(page, 'FILINGS NBIS', 'FILINGS');
+  await page.getByRole('button', { name: /8\) Reported figures/ }).click();
+  await expect(page.getByLabel('SEC reporting currency')).toHaveValue('USD');
+  await expect(page.getByTestId('sec-coverage')).toContainText('latest annual period 2025-12-31');
+  await expect(page.getByRole('link', { name: '600.0', exact: true }).first()).toBeVisible();
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-v272-sec-currency-fixture.png') });
+  await page.getByLabel('SEC reporting currency').selectOption('RUB');
+  await expect(page.getByTestId('sec-coverage')).toContainText('Historical currency selected');
+  await expect(page.getByTestId('sec-coverage')).toContainText('latest annual period 2023-12-31');
+  await expect(page.getByRole('columnheader').filter({ hasText: 'FY2025' })).toHaveCount(0);
+  await page.getByLabel('SEC reporting currency').selectOption('USD');
+  await page.getByRole('button', { name: 'Quarterly', exact: true }).click();
+  await expect(page.getByTestId('sec-coverage')).toContainText('latest standalone quarter not available');
+  await expect(page.getByRole('link', { name: 'Latest current report: 6-K filed 2026-10-01', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: '600.0', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'View current reports', exact: true }).click();
+  await expect(page.getByRole('row').filter({ hasText: '6-K' }).getByRole('link', { name: 'Document', exact: true })).toHaveAttribute('href', /synthetic-current\.htm$/);
+});
+
+test('foreign issuer research retains separate local revenue and dollar EPS units', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.researchBlocked = true;
+    fixtures.mixedEstimateCurrencies = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'TM ANALYSTS');
+  await expect(page.getByTestId('research-coverage')).toContainText('4/5 datasets loaded');
+  await expect(page.getByRole('cell', { name: '600.00M JPY', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '-0.25 USD', exact: true })).toBeVisible();
+});
+
+test('Equibles automatically loads one estimate report when structured research has no coverage', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.researchBlocked = true; });
+  await command(page, 'APLD ANALYSTS');
+  await expect(page.getByTestId('equibles-report')).toContainText('APLD · GetAnalystEstimates');
+  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(1);
+  await page.getByRole('button', { name: 'Retry analyst research', exact: true }).click();
+  await expect(page.getByTestId('equibles-report')).toContainText('APLD · GetAnalystEstimates');
+  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(1);
+});
+
 test('Equibles tool refusals stay visible and can recover without caching the refusal', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.equiblesRefusal = true; });
   await command(page, 'AAPL ANALYSTS');
-  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
   await expect(page.getByRole('status')).toContainText('Subscription does not include this research.');
   await expect(page.getByTestId('equibles-report')).toHaveCount(0);
   const report = await page.evaluate(() => window.arminDesktop!.providersStatus!());
@@ -309,7 +412,7 @@ test('provider research checks report access for each APLD endpoint instead of a
   await expect(page.getByRole('textbox', { name: 'Research test ticker' })).toHaveValue('APLD');
   await page.getByRole('button', { name: 'Test research access', exact: true }).click();
   const results = page.getByRole('table', { name: 'Research access results for APLD' });
-  await expect(results.getByRole('row')).toHaveCount(6);
+  await expect(results.getByRole('row')).toHaveCount(7);
   await expect(results.getByRole('row').filter({ hasText: 'FMP price targets' })).toContainText('Denied');
   await expect(results.getByRole('row').filter({ hasText: 'FMP annual estimates' })).toContainText('Answered');
   await expect(results.getByRole('row').filter({ hasText: 'Finnhub recommendation counts' })).toContainText('Answered');

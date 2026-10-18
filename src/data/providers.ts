@@ -74,7 +74,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'yahoo',
     name: 'Yahoo Finance',
-    serves: 'Quotes, price history, company profiles and statements, holders, symbol search; crypto when Kraken is switched off or does not answer. Options chains, news and analyst data are switched off.',
+    serves: 'Quotes, history, company profiles/statements, holders and symbol search; optional analyst research fallback. Crypto when Kraken does not answer. Options chains and news are switched off.',
     dataClass: 'Yahoo Finance quote: live or delayed as Yahoo labels each exchange; history end of day',
     policy: 'enabled',
     setting: 'YAHOO_PRICES_ENABLED',
@@ -129,6 +129,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'yahoo-stream',
     name: 'Yahoo Finance streaming',
+    feed: 'stream',
     serves: 'Price updates pushed as trades print, for the securities on screen',
     dataClass: 'Yahoo Finance quote (streamed)',
     policy: 'enabled',
@@ -661,7 +662,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED';
 
 export interface SettingState {
   label: string;
@@ -702,7 +703,7 @@ export function useProviderReport(refreshMs = 3000): [ProviderReport | null, () 
   return [report, () => setN((x) => x + 1)];
 }
 
-export type ProviderState = 'live' | 'ok' | 'idle' | 'error' | 'stale' | 'not-configured' | 'switched-off' | 'planned' | 'disabled';
+export type ProviderState = 'live' | 'connecting' | 'ok' | 'idle' | 'error' | 'stale' | 'not-configured' | 'switched-off' | 'planned' | 'disabled';
 
 /** One word for a provider's state from its policy, switch, credential and recent requests. */
 export function providerState(def: ProviderDef, report: ProviderReport | null, feed?: string, now = Date.now()): ProviderState {
@@ -711,6 +712,15 @@ export function providerState(def: ProviderDef, report: ProviderReport | null, f
   if (def.setting && report?.settings?.[def.setting]?.value === false) return 'switched-off';
   if (def.credential && !report?.credentials[def.credential]?.configured) return 'not-configured';
   if (def.credential2 && !report?.credentials[def.credential2]?.configured) return 'not-configured';
+  // A direct renderer socket has no HTTP request in the main-process ledger.
+  if (def.feed === 'stream') {
+    if (feed === 'live') return 'live';
+    if (feed === 'connecting') return 'connecting';
+    if (feed === 'error') return 'error';
+    return 'idle';
+  }
+  // Historical-year downloads must not conceal a failed current-year curve.
+  if (def.id === 'treasury' && (feed === 'live' || feed === 'error' || feed === 'connecting')) return feed;
   const s = report?.providers[def.id];
   // "No data" for one symbol or series is an answer, not a failure of the provider.
   if (s?.lastErrorAt && s.lastErrorKind !== 'no-data' && (!s.lastSuccessAt || s.lastErrorAt > s.lastSuccessAt)) return 'error';

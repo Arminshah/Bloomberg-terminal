@@ -24,7 +24,7 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 | `prevclose.test.ts` | Daily changes against the previous close that matches the daily bars, across sessions and time zones |
 | `freshness.test.ts` | The freshness labels and the market session, kept apart |
 | `realdata.test.ts` | Company data from Yahoo answers, quote hygiene, streaming quotes, figures that sit side by side agreeing, gaps left empty rather than filled |
-| `yahooscope.test.ts` | The main process keeping Yahoo's option chains, news and analyst data out |
+| `yahooscope.test.ts` | The main process blocking Yahoo option chains/news and independently gating analyst data |
 | `official.test.ts` | Treasury, central bank and statistics office parsers, the FOMC calendar, the fed funds futures path, FRED releases |
 | `fredloop.test.ts` | FRED's refresh loop, refused keys and rate limits |
 | `macro.test.ts` | The macro dashboard's figures and FRED's first releases (ALFRED) |
@@ -62,6 +62,8 @@ Calculator checks use explicit inputs and independent expected values: bond pric
 The shared `e2e/workspace-checks.ts` workflow runs in Chromium and Electron: linked monitor selections, function preservation, currency/financial compatibility, back/forward, named-layout/top-menu restoration, reload persistence and the linked research preset. Browser tests also verify mnemonic preference persistence and field-search CSV contents. Desktop field checks start with no source price, then use a five-minute-old IEX fixture to verify stale trade provenance and unavailable bid/ask event time. No test data is presented as a live provider validation.
 
 `npm run e2e:desktop` launches the pinned Electron version with real main/preload/IPC. Fake keys and fixed transport responses in disposable profiles verify provider refusals, IEX price ownership, option-chain pagination, adjusted roots, sorting across display pages, old source times, partial entitlement failures and invalid IPC rejection. They do not validate live providers or real API keys.
+
+Version 2.7.2 additionally exercises simultaneous FMP 402/Finnhub 401 recovery through Yahoo, full repeated-prefix Finnhub keys and immediate replacement-key recovery, missing-profile lookup, automatic Equibles fallback/cache reuse, live socket status without HTTP ledger entries, sticky provider names, Treasury timeout recovery SEC reporting-currency changes, quarterly trailing totals versus fiscal years, ended quarterly tagging and mixed revenue/EPS currencies for foreign issuers. These use explicitly synthetic fixtures.
 
 Research regressions exercise a denied FMP target alongside working annual estimates and Finnhub counts, explicit Equibles queries and cache reuse, literal HTML in report text, denied arbitrary MCP tools, refusal recovery, and APLD-specific access checks. The published 2.4.1 Yahoo session/chart fallback and key-import regressions are retained.
 

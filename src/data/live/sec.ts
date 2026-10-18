@@ -430,7 +430,7 @@ export function parseCompanyFacts(text: string): CompanyFacts | null {
       for (const [unit, rows] of Object.entries(def.units as Record<string, any[]>)) {
         const list: XbrlFact[] = [];
         for (const r of Array.isArray(rows) ? rows : []) {
-          const val = Number(r?.val);
+          const val = typeof r?.val === 'number' ? r.val : NaN;
           const end = str(r?.end);
           const filed = str(r?.filed);
           const accn = str(r?.accn);
@@ -473,17 +473,41 @@ export function periodDays(start: string, end: string): number {
   return days(start, end) + 1;
 }
 
-/** The currency most of the money lines are reported in (USD for nearly every US filer). */
-export function reportingCurrency(facts: FactTable): string {
-  const count = new Map<string, number>();
+export interface ReportingCurrency {
+  currency: string;
+  latestPeriod: string;
+  latestFiled: string;
+  lines: number;
+}
+
+/** Latest monetary reporting period first; archive size must not favor an obsolete currency. */
+export function reportingCurrencies(facts: FactTable): ReportingCurrency[] {
+  const units = new Map<string, { latestPeriod: string; latestFiled: string; lines: Set<string> }>();
   for (const line of FACT_LINES) {
     if (line.measure !== 'money') continue;
-    for (const c of line.concepts) for (const [u, rows] of Object.entries(facts[c] ?? {})) if (/^[A-Z]{3}$/.test(u)) count.set(u, (count.get(u) ?? 0) + rows.length);
+    for (const c of line.concepts) for (const [u, rows] of Object.entries(facts[c] ?? {})) {
+      if (!/^[A-Z]{3}$/.test(u)) continue;
+      for (const r of rows) {
+        const unit = units.get(u) ?? { latestPeriod: '', latestFiled: '', lines: new Set<string>() };
+        if (r.end > unit.latestPeriod) {
+          unit.latestPeriod = r.end;
+          unit.latestFiled = r.filed;
+          unit.lines.clear();
+        }
+        if (r.end === unit.latestPeriod) {
+          unit.latestFiled = r.filed > unit.latestFiled ? r.filed : unit.latestFiled;
+          unit.lines.add(line.key);
+        }
+        units.set(u, unit);
+      }
+    }
   }
-  let best = 'USD';
-  let n = -1;
-  for (const [u, k] of count) if (k > n) [best, n] = [u, k];
-  return best;
+  return [...units].map(([currency, unit]) => ({ currency, latestPeriod: unit.latestPeriod, latestFiled: unit.latestFiled, lines: unit.lines.size }))
+    .sort((a, b) => b.latestPeriod.localeCompare(a.latestPeriod) || b.latestFiled.localeCompare(a.latestFiled) || b.lines - a.lines || a.currency.localeCompare(b.currency));
+}
+
+export function reportingCurrency(facts: FactTable): string {
+  return reportingCurrencies(facts)[0]?.currency ?? 'USD';
 }
 
 export interface Reported {
@@ -537,6 +561,10 @@ export function lineValues(facts: FactTable, line: FactLine, ccy: string, kind: 
       else groups.set(k, [r]);
     }
     for (const g of groups.values()) {
+      // Twelve-month figures inside a 10-Q can be trailing totals rather than
+      // fiscal years. Require an annual filing or explicit FY classification
+      // for this exact start/end period before treating it as an annual column.
+      if (line.kind === 'flow' && kind === 'annual' && !g.some((r) => r.fp === 'FY' || /^(?:10-K(?:405|T)?|20-F|40-F)(?:\/A)?$/.test(r.form))) continue;
       const rep = reported(concept, unit, g);
       // A period one concept already gave keeps it: the preferred concept wins.
       if (!out.has(rep.end)) out.set(rep.end, rep);
@@ -583,10 +611,14 @@ export function fiscalLabel(rep: Reported, kind: PeriodKind, ownEnd: Record<stri
  */
 export function periodColumns(cf: CompanyFacts, ccy: string, kind: PeriodKind, max: number): PeriodColumn[] {
   const cols = new Map<string, PeriodColumn>();
+  let annualThrough: string | undefined;
   const consider = (k: PeriodKind) => {
     for (const line of FACT_LINES) {
-      if (line.kind !== 'flow' || line.section !== 'income') continue;
+      // Share counts carry no currency and must not create empty modern columns
+      // while viewing a discontinued reporting currency.
+      if (line.kind !== 'flow' || line.section !== 'income' || line.measure === 'shares') continue;
       for (const rep of lineValues(cf.facts, line, ccy, k).values()) {
+        if (annualThrough && k === 'annual' && rep.end > annualThrough) continue;
         if (cols.has(rep.end)) continue;
         const label = fiscalLabel(rep, k, cf.ownEnd);
         cols.set(rep.end, { end: rep.end, ...(rep.start ? { start: rep.start } : {}), kind: k, ...(label ? { label } : {}) });
@@ -594,7 +626,13 @@ export function periodColumns(cf: CompanyFacts, ccy: string, kind: PeriodKind, m
     }
   };
   consider(kind);
-  if (kind === 'quarter') consider('annual');
+  if (kind === 'quarter' && cols.size) {
+    // Include the following fiscal year-end balance sheet, but never years of
+    // empty annual columns after quarterly tagging stopped.
+    const lastQuarter = [...cols.keys()].sort().at(-1)!;
+    annualThrough = new Date(Date.parse(lastQuarter) + 120 * DAY).toISOString().slice(0, 10);
+    consider('annual');
+  }
   return [...cols.values()].sort((a, b) => a.end.localeCompare(b.end)).slice(-max);
 }
 

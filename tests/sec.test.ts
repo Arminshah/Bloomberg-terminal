@@ -20,6 +20,7 @@ import {
   secTickerKey,
 } from '../src/data/live/sec';
 import type { SecurityDef } from '../src/data/types';
+import currencyChange from './fixtures/sec-currency-change.json';
 
 // The SEC files below are synthetic: made-up companies and numbers laid out in
 // the structure the SEC documents (field names as in data.sec.gov submissions
@@ -196,6 +197,23 @@ describe('SEC filing history', () => {
 });
 
 describe('SEC reported figures', () => {
+  it('keeps quarterly trailing totals out of fiscal-year columns and does not extend ceased quarterly coverage with empty future years', () => {
+    const cf = parseCompanyFacts(JSON.stringify(currencyChange))!;
+    const revenues = cf.facts['us-gaap:Revenues'].USD;
+    const base = revenues.at(-1)!;
+    revenues.push({ ...base, start: '2025-07-01', end: '2026-06-30', form: '10-Q', fp: 'Q2', fy: 2026, filed: '2026-07-31', accn: '0001513845-26-000003' });
+    expect(periodColumns(cf, 'USD', 'annual', 6).at(-1)?.end).toBe('2025-12-31');
+    revenues.push({ ...base, start: '2020-10-01', end: '2020-12-31', form: '10-Q', fp: 'Q3', fy: 2021, filed: '2021-02-01', accn: '0001513845-21-000001' });
+    expect(periodColumns(cf, 'USD', 'quarter', 8).map((c) => c.end)).toEqual(['2020-12-31']);
+  });
+  it('selects current reporting currency after a change instead of the largest historical archive', () => {
+    const cf = parseCompanyFacts(JSON.stringify(currencyChange))!;
+    expect(reportingCurrency(cf.facts)).toBe('USD');
+    expect(periodColumns(cf, 'USD', 'annual', 6).at(-1)?.end).toBe('2025-12-31');
+    expect(lineValues(cf.facts, line('revenue'), 'USD', 'annual').get('2025-12-31')?.val).toBe(600000000);
+    expect(periodColumns(cf, 'RUB', 'annual', 6).at(-1)?.end).toBe('2023-12-31');
+    expect(periodColumns(cf, 'USD', 'quarter', 8)).toEqual([]);
+  });
   // Fiscal years end on the last Saturday of September; Q4 is not filed as its own quarter.
   const usd = (start: string | undefined, end: string, val: number, accn: string, fy: number, fp: string, form: string, filed: string) => ({ ...(start ? { start } : {}), end, val, accn, fy, fp, form, filed });
   const K23 = ['0001111111-23-000100', 2023, 'FY', '10-K', '2023-11-03'] as const;

@@ -48,7 +48,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `FILINGS` | SEC filings with links, and figures from XBRL statements | SEC EDGAR (needs `SEC_USER_AGENT`) | Real |
 | `CROSSCHECK` | A US stock's closes beside other end-of-day sources | Massive, Alpha Vantage, Tiingo, Twelve Data (your keys) | Real |
 | `WACC` | Cost of equity and debt, weights, perpetuity check | Yahoo Finance statements and prices; official 10-year yields | Calculated, inputs named. Blank where the app has no official 10-year yield for the currency |
-| `ANALYSTS` | Price targets (consensus, median, high, low) against the live price, how targets moved, the ratings tally, rating actions, annual estimates | Financial Modeling Prep (your key) | Real, as FMP collects it; US-listed stocks its free plan covers |
+| `ANALYSTS` | Price targets (consensus, median, high, low) against the live price, how targets moved, the ratings tally, rating actions, annual estimates | FMP, Finnhub, Yahoo Finance and Equibles | Source-labelled fallbacks; US-listed issuer/endpoint coverage varies; no invented target-history averages |
 
 ## Charts
 
