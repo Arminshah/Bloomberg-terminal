@@ -22,7 +22,7 @@ interface Group {
 const EQUITY: Group[] = [
   { title: 'Company', entries: ['PROFILE', 'COMPANYNEWS', 'FINANCIALS', 'EARNINGS', 'ANALYSTS', 'DIVIDENDS', 'HOLDERS', 'PEERS', 'WACC', 'EVENTS'] },
   { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'FUNDCHART', 'VOLATILITY', 'BETA', 'SPREAD'] },
-  { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP', 'OPTIONS', 'OPTIONCALC'] },
+  { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP', 'OPTIONS', 'OPTIONCALC', 'OPTIONSTRATEGY'] },
   { title: 'Credit', entries: ['BONDSEARCH', 'DEBTPROFILE'] },
   { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION', 'CROSSCHECK'] },
 ];
@@ -32,7 +32,7 @@ const MENUS: Record<AssetClass, Group[]> = {
   index: [
     { title: 'Index', entries: ['PROFILE', 'CONTRIB', 'HEATMAP', 'MARKET', 'INDEXFUTURES', 'COMPANYNEWS'] },
     { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'VOLATILITY', 'SPREAD'] },
-    { title: 'Derivatives', entries: ['OPTIONS', 'OPTIONCALC'] },
+    { title: 'Derivatives', entries: ['OPTIONS', 'OPTIONCALC', 'OPTIONSTRATEGY'] },
     { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION'] },
   ],
   future: [

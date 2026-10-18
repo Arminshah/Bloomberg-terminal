@@ -24,13 +24,13 @@ The keyed sources added in 2.1.0 share one way of asking: a request times out af
 | Finnhub | Free key | 60 a minute | At most 30 a minute; market news every 5 minutes, a company's news every 15, while a screen shows them | As each publisher posts | Personal use only; no sharing; delete the data when the subscription ends |
 | Marketaux | Free token | 100 a day, 3 articles a request | At most 90 a day and 10 a minute; the watchlist in one request an hour; a company once an hour; backs off after failures | As each publisher posts | Personal, non-commercial use; snippets and links only |
 | MarketWatch (RSS) | No key; off by default | None published | Every 10 minutes when switched on | As posted | Dow Jones's terms bar automated access without written consent |
-| Alpaca | Free key ID and secret | 200 historical calls a minute | Up to 20 symbols per request every 5 seconds, with fair foreground/background rotation; visible quote panels have priority, and a quiet set of up to 20 slows to once a minute; kept 4 seconds | Real time, IEX only; polling is not a complete trade stream | Personal, non-commercial use |
+| Alpaca | Own key ID/secret and dataset access | 200 historical calls/min; app pace 120/min shared | Stocks: 20 symbols/request, fair foreground/background polling, 4-second cache. Options: manual refresh, max 5 × 1,000-record pages, 15-second memory cache | Stocks: IEX only. Options: indicative quotes/delayed trades, never real-time OPRA | Personal, non-commercial use; account entitlement applies |
 
 ## What no free source here covers
 
 Each of these screens says so instead of showing a number:
 
-- listed option chains, their quotes and implied volatilities (OPRA data, licensed);
+- real-time consolidated OPRA option chains; the connected Alpaca feed provides indicative quotes/delayed trades only, without open interest/daily volume/index options;
 - quarterly consensus estimates and earnings surprises (annual estimates, price targets and ratings come from Financial Modeling Prep, for US-listed stocks the free plan covers);
 - market-wide (consolidated) real-time bid, offer and volume from an official feed (Alpaca's free feed is IEX alone);
 - prices and dealer quotes for individual bonds, CDS and structured credit;

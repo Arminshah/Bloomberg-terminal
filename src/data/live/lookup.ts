@@ -37,6 +37,7 @@ declare global {
       analysts?(kind: import('./analysts').AnalystKind, symbol: string): Promise<KeyedAnswer>;
       news?(source: import('./marketnews').NewsSource, arg?: string): Promise<KeyedAnswer>;
       alpaca?(kind: 'snapshots', symbols: string): Promise<KeyedAnswer>;
+      optionChain?(arg: { symbol: string; expiry?: string; pageToken?: string }): Promise<KeyedAnswer>;
       /** Provider switches as they were when the page loaded. */
       settings?: Record<string, boolean>;
       providersStatus?(): Promise<import('../providers').ProviderReport>;

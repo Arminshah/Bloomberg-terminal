@@ -16,7 +16,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function harness() {
+function harness(validate?: (provider: string, url: string, text: string) => ProviderProblem | null) {
   let time = START;
   const providers = {
     // Sanitization is injected; these tests check that the transport uses it for returned and logged errors.
@@ -36,12 +36,22 @@ function harness() {
   };
   const fetch = vi.fn<(_url: string, _init: RequestInit) => Promise<RequesterResponse>>().mockResolvedValue(response());
   const sleep = vi.fn(async (_ms: number) => undefined);
-  const request = createRequester({ providers, fetch, agent: () => 'TestTerminal/1', now: () => time, sleep, random: () => 0 });
+  const request = createRequester({ providers, fetch, agent: () => 'TestTerminal/1', validate, now: () => time, sleep, random: () => 0 });
   const ask = (url = URL, credential = SECRET, provider = 'fmp', pace: RequestPace = [30, 60_000]) => request(provider, url, { Authorization: `Bearer ${credential}` }, 1_000, pace, [credential]);
   return { providers, fetch, sleep, request, ask, advance: (ms: number) => { time += ms; } };
 }
 
 describe('provider GET transport', () => {
+  it('checks endpoint schemas before recording success or caching a valid JSON body', async () => {
+    const validate = vi.fn().mockReturnValueOnce({ kind: 'schema-changed', message: 'Missing option map.' }).mockReturnValue(null);
+    const h = harness(validate);
+    expect(await h.ask()).toMatchObject({ status: 0, text: '', error: 'Missing option map.' });
+    expect(h.providers.recordResult).not.toHaveBeenCalled();
+    expect(h.providers.recordProblem).toHaveBeenCalledWith('fmp', 'schema-changed', 'Missing option map.');
+    expect(validate).toHaveBeenCalledWith('fmp', URL, DATA);
+    expect(await h.ask()).toMatchObject({ status: 200, text: DATA });
+    expect(h.fetch).toHaveBeenCalledTimes(2);
+  });
   it('caches complete answers with their original arrival time', async () => {
     const h = harness();
     expect(await h.ask()).toEqual({ status: 200, text: DATA, at: START });

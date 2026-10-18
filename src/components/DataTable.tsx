@@ -25,10 +25,12 @@ interface Props<T> {
   numbered?: boolean;
   empty?: ReactNode;
   footer?: ReactNode;
+  /** Optional display page; sorting still covers the entire filtered row set. */
+  page?: { index: number; size: number };
 }
 
 /** Sortable, groupable data table with sticky headers. */
-export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, groupBy, selected, className, numbered, empty, footer }: Props<T>) {
+export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, groupBy, selected, className, numbered, empty, footer, page }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(defaultSort ?? null);
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -70,17 +72,22 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
 
   let lastGroup: string | null = null;
   const span = columns.length + (numbered ? 1 : 0);
+  const offset = page ? Math.max(0, page.index) * page.size : 0;
+  const visible = page ? sorted.slice(offset, offset + page.size) : sorted;
   return (
     <table className={`tbl ${className ?? ''}`}>
       <thead>
         <tr>
-          {numbered && <th className="num">#</th>}
+          {numbered && <th scope="col" className="num">#</th>}
           {columns.map((c) => (
             <th
               key={c.key}
+              scope="col"
               className={`${c.num ? 'num ' : ''}${c.sort ? 'sortable ' : ''}${c.hideM ? 'hide-m' : ''}`}
               style={c.width ? { width: c.width } : undefined}
               onClick={() => toggle(c)}
+              tabIndex={c.sort ? 0 : undefined}
+              onKeyDown={c.sort ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(c); } } : undefined}
               title={c.title ?? (c.sort ? 'Sort' : undefined)}
               aria-sort={sort?.key === c.key ? (sort.dir === 1 ? 'ascending' : 'descending') : undefined}
             >
@@ -98,7 +105,8 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
             </td>
           </tr>
         )}
-        {sorted.map((r, i) => {
+        {visible.map((r, index) => {
+          const i = offset + index;
           const key = rowKey(r, i);
           const g = groupBy?.(r);
           const header =

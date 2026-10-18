@@ -444,6 +444,7 @@ button { cursor: pointer; }
 .tbl th.num { text-align: right; }
 .tbl th.sortable { cursor: pointer; }
 .tbl th.sortable:hover { color: var(--amber); }
+.tbl th.sortable:focus-visible { outline: 1px solid var(--amber); outline-offset: -2px; }
 .tbl th .sort { color: var(--amber); margin-left: 3px; }
 .tbl td { padding: 0 6px; height: var(--row); white-space: nowrap; border-bottom: 1px solid #141414; }
 .tbl tbody tr:hover td { background: #151515; }

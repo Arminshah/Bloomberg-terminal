@@ -37,7 +37,7 @@ In the desktop app, every request below goes out from the Electron main process 
 | Finnhub | Market news and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) | REST API | `FINNHUB_API_KEY` | Enabled once the key is set, switch `FINNHUB_ENABLED` |
 | Marketaux | News tagged with tickers, with sentiment (`MARKETNEWS`, `COMPANYNEWS`) | REST API | `MARKETAUX_API_TOKEN` | Enabled once the token is set, switch `MARKETAUX_ENABLED` |
 | MarketWatch | Top stories headlines (`MARKETNEWS`) | RSS | None | Off until `MARKETWATCH_RSS_ENABLED` is on (Dow Jones terms) |
-| Alpaca Market Data | IEX last trade, bid and offer, volume for US stocks, labelled IEX only (`QUOTE`) | Market Data API v2 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | Enabled once both are set, switch `ALPACA_ENABLED`; market data only |
+| Alpaca Market Data | IEX stocks and indicative listed equity option snapshots (`OPTIONS`) | Market Data API v2 / v1beta1 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | Enabled with both keys and account access, switch `ALPACA_ENABLED`; read-only data host |
 | TipRanks | | MCP server | `TIPRANKS_API_KEY` | Not connected (see below) |
 | Binance | | Spot REST API | | Evaluated, not connected (see below) |
 | CNBC | | RSS | | Not used: its feeds refuse programs and its owner's terms bar it |
@@ -298,13 +298,19 @@ CNBC's www feeds answered HTTP 403 to programs, and its owner's terms bar using 
 
 See [SEC EDGAR](#sec-edgar).
 
-## Alpaca Market Data (IEX)
+## Alpaca Market Data (IEX stocks, indicative options)
 
 Read on 14 October 2026. On the Basic (free) plan, [Alpaca](https://alpaca.markets/data) gives "Real-time market coverage IEX": the trades and quotes of one exchange, IEX, not the whole US market. Consolidated (SIP) data is delayed 15 minutes on that plan, and the latest-quote and snapshot endpoints need a subscription for SIP, so the app asks for `feed=iex`. Historical calls are limited to 200 a minute. Use "solely for your own personal and non-commercial purposes".
 
-- The app calls one endpoint, [snapshots](https://docs.alpaca.markets/reference/stocksnapshots-1) (`https://data.alpaca.markets/v2/stocks/snapshots?symbols=&feed=iex`), with the key ID and secret in the `APCA-API-KEY-ID` and `APCA-API-SECRET-KEY` headers. The answer is a map by symbol with `latestTrade`, `latestQuote`, `minuteBar`, `dailyBar` and `prevDailyBar`, as the reference page shows. `electron/alpaca.cjs` builds nothing else: no trading, order, account or position endpoint, and never the trading hosts `api.alpaca.markets` or `paper-api.alpaca.markets` (the owner's keys are paper-account keys; they are used for market data only).
-- `QUOTE` shows, for a US stock, IEX's last trade with its size and time, the difference from the quote above it, IEX's own bid and offer with sizes, and IEX's volume and range for the session, each labelled IEX only. IEX's volume, range and bid and offer are never shown as market-wide; the main price on every screen stays Yahoo Finance's.
+- Stock snapshots use `https://data.alpaca.markets/v2/stocks/snapshots?symbols=&feed=iex`, with key ID/secret in `APCA-API-KEY-ID` and `APCA-API-SECRET-KEY`. The answer is a symbol map with trade, quote and bars. The stock builder accepts only this request; account/order/trading hosts are never called.
+- `QUOTE` labels IEX's trade, BBO, sizes and session bars separately. The optional `ALPACA_IEX_PRICES_ENABLED` setting uses IEX prices throughout US equity panels/watchlists and excludes Yahoo price blending; long history is unavailable in that mode. IEX volume and BBO are never called market-wide.
 - One request covers every stock a screen shows (up to 20), every 5 seconds while IEX trades and once a minute when nothing new has printed for five minutes; answers are kept 4 seconds. Not live-tested: the request and parser follow the reference page and are tested on an answer in its layout (`tests/alpaca.test.ts`).
+
+Added 18 October 2026: `electron/option-chain.cjs` builds only `https://data.alpaca.markets/v1beta1/options/snapshots/{underlying}?feed=indicative&limit=1000`, optional exact expiry and encoded pagination token. It always selects indicative, never paid OPRA. Alpaca's official SDK documents this endpoint/feed and the `snapshots`, `latestQuote`, `latestTrade`, `impliedVolatility`, `greeks` and `next_page_token` schema; source references/blob IDs are in the [workflow audit](bloomberg-parity.md). The docs website was network-blocked during this audit; account access remains unverified. Existing personal-use terms above still apply.
+
+`OPTIONS` / `OMON` displays indicative bid/ask, delayed trades, provider IV/Greeks and separate source times. Missing fields stay blank. No open interest, daily volume, index contracts, multiplier or adjusted deliverable is invented. The compact OCC symbol supplies root, expiry, call/put and strike. Adjusted roots remain separate. A source event older than 20 minutes is marked stale independently of HTTP retrieval. All option prices stay labelled indicative/delayed even with recent timestamps.
+
+Refresh is manual, up to five sequential 1,000-record pages. Repeated tokens and failed next pages stop with explicit partial status. A previously cached response can be stale; its original retrieval time remains. Tables paginate 100 rows after sorting the filtered set; CSV includes all filtered records and provenance. Data stays in memory, uses the same credential-scoped broker and shares the 120/min app pacing with stocks. Cache lifetime is 15 seconds for option pages.
 
 ## TipRanks (not connected)
 

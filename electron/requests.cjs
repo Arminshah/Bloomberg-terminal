@@ -10,7 +10,7 @@ function retryAfter(value, now) {
   return Number.isFinite(until) ? Math.max(0, until - now) : 0;
 }
 
-function createRequester({ providers, fetch, agent, timeoutMs = 20_000, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random = Math.random }) {
+function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random = Math.random }) {
   const kept = new Map();
   const inflight = new Map();
   const breakers = new Map();
@@ -114,6 +114,7 @@ function createRequester({ providers, fetch, agent, timeoutMs = 20_000, now = Da
           problem = { kind: 'provider-error', message: 'The provider returned an empty or invalid JSON response.' };
         }
       }
+      if (!problem && validate) problem = validate(provider, url, text);
       if (problem) {
         providers.recordProblem(provider, problem.kind, problem.message);
         if (problem.kind === 'rate-limited') limitedUntil.set(provider, now() + 60_000);

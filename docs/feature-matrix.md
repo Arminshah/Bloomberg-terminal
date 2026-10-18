@@ -1,6 +1,6 @@
 # Feature and data coverage
 
-What each function shows in the desktop app, where its data comes from, and what is missing. Checked screen by screen on 14 October 2026 (version 2.1.0; the screens added in 2.1.0 were checked without keys, see below). The browser build has no data source; its demo shows simulated figures marked DEMO DATA and is not covered here.
+What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.4.0); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 70 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
 
 Status:
 
@@ -10,6 +10,10 @@ Status:
 - **Not available**: no permitted free source; the screen explains why and shows no figures.
 
 Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, STALE, UNKNOWN FRESHNESS); [data-dictionary.md](data-dictionary.md) defines the labels.
+
+## Version 2.4.0 additions
+
+`OPTIONS` / `OMON` now uses Alpaca's explicit indicative feed for listed US equity contracts: indicative bids/asks, delayed trades, provider IV/Greeks, expiry filters, source times and CSV. Both keys/account access are required; live keyed access remains unverified here. Pagination failures remain visibly partial. No OPRA, index options, open interest or daily volume is claimed. `OPTIONSTRATEGY` / `OSA` calculates common-expiry multi-leg/stock risk and scenarios offline. `OPTIONCALC` / `OVME` solves European implied volatility from a manual premium. `BONDCALC` / `YAS` adds benchmark G-spread and zero-curve Z-spread, Z01 and spread scenarios. See [conventions](calculators.md).
 
 ## Version 2.3.0 additions
 
@@ -91,7 +95,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `MONEYMARKET` | Fed funds and reference rates, bills, spreads, SOFR futures | New York Fed, US Treasury, Fed Board, Yahoo Finance (CME) | Real |
 | `RATEPROBS` | Fed moves priced meeting by meeting | CBOT fed funds futures via Yahoo Finance, New York Fed, Fed Board | Calculated (CME FedWatch method). Fed only |
 | `CENTRALBANKS` | Policy rates, last moves, next decisions | Fed, ECB, Bank of England, Bank of Canada, RBA, SNB, Banco Central do Brasil | Real. Meeting dates other than the Fed's entered from published calendars |
-| `BONDCALC` | Price/yield, accrued, duration, convexity, DV01, scenarios and cash flows | User coupon, maturity, settlement, frequency, price/yield and face | Calculated regular fixed-rate bullet, Actual/Actual ICMA, unadjusted dates; no observed market price or spread |
+| `BONDCALC` | Price/yield, accrued, duration, convexity, DV01, G/Z-spread, Z01, scenarios and cash flows | User terms, price/yield, optional benchmark yield and continuous zero curve | Calculated regular bullet; no observed price/curve, OAS or callable bond model |
 | `SWAPCALC` | Par coupon, NPV, projected cash flows, curve/coupon bump P&L | User contract and separate discount/projection zero curves | Calculated forward-start fixed/float model; no dealer curve, fixing history or OIS conventions |
 | `BONDSEARCH`, `DEBTPROFILE`, `DEALERQUOTES` | | none | Not available: individual bond/dealer datasets have no connected free source |
 
@@ -109,8 +113,9 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
-| `OPTIONCALC` | Black-Scholes-Merton value, Greeks, scenarios, configurable multiplier | Source spot/dividend/reference rate/realised volatility or manual overrides | Calculated European model, including zero volatility. Expiries are a calendar of Fridays, not listed contracts or American exercise |
-| `OPTIONS` | | none | Not available: listed option quotes are licensed |
+| `OPTIONCALC` | European value or implied volatility from premium, Greeks and scenarios | Manual inputs or named source references | European BSM; calendar expiries, no American exercise or implied surface |
+| `OPTIONS` | Listed US equity contracts, indicative bids/asks, delayed trades, provider IV/Greeks and source times | Alpaca indicative snapshots, own keys/account entitlement | Partial; no OPRA, index contracts, open interest, daily volume or assumed deliverables |
+| `OPTIONSTRATEGY` | Up to 12 common-expiry option legs + stock; exact expiry payoff/risk/breakevens, model Greeks and scenarios | Explicit positions, entry premiums, rates and per-leg volatility; optional source spot | European model; no calendars, American exercise, assignment, margin or execution |
 | `WATCHLIST` | Your lists with prices and changes | Each line's source | Real |
 | `PORTFOLIO` | Holdings you enter, performance and risk | Each line's source; Yahoo Finance FX and S&P 500; Treasury 3-month yield | Calculated |
 | `ALERTS` | Price, percent-change and keyword alerts while the app is open | Each line's source; official announcements | Real |

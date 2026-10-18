@@ -1,5 +1,14 @@
 # Roadmap
 
+## Version 2.4.0
+
+- Audit of all 70 registered workflows and wider product gaps: [Bloomberg workflow audit](bloomberg-parity.md). No exact function/data/visual parity claim.
+- `OPTIONS` / `OMON`: actual listed US equity snapshots via Alpaca's explicit indicative feed, calls/puts, expiry filtering, provider IV/Greeks, source times, bounded pagination, partial failures and CSV. Access remains account-dependent; no OPRA, open interest, daily option volume or index options.
+- `OPTIONSTRATEGY` / `OSA`: common-expiry multi-leg + stock valuation/Greeks, exact expiry breakevens/extrema with unlimited tails, scenario analysis and CSV; five labelled examples.
+- `OPTIONCALC` / `OVME`: implied volatility from entered premium with European no-arbitrage bounds.
+- `BONDCALC` / `YAS`: manual benchmark G-spread and continuous zero-curve Z-spread, Z01/spread duration and spread scenarios.
+- [Release verification](release-v2.4.0.md) distinguishes deterministic provider/desktop checks from unverified live keyed access.
+
 ## Version 2.3.1
 
 - Constant-time coupon annuity repricing with log1p/expm1 stability near zero yield, checked against explicit discounted cash flows across coupon frequencies, negative and high yields.
@@ -108,4 +117,4 @@
 
 ## Blocked until a licensed source is approved
 
-These datasets remain unavailable until a suitable provider is connected: prices and dealer quotes for individual bonds, CDS and structured credit; dealer FX-forward points and swap curves; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; listed option chains (OPRA); quarterly estimates and earnings surprises; consolidated real-time quotes from an official feed; full-text licensed news, transcripts and broker research; trading through a broker. User-input bond, forward and swap calculations are available separately. Paper trading is switched off.
+These datasets remain unavailable until a suitable provider is connected: prices and dealer quotes for individual bonds, CDS and structured credit; dealer FX-forward points and swap curves; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; real-time OPRA option chains (indicative Alpaca snapshots are available); quarterly estimates and earnings surprises; consolidated real-time quotes from an official feed; full-text licensed news, transcripts and broker research; trading through a broker. User-input bond, forward and swap calculations are available separately. Paper trading is switched off.

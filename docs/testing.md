@@ -38,17 +38,19 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 | `providers.test.ts` | Credentials and pasted key lists, request accounting, daily allowances, providers' refusals, switches, limits and provider states |
 | `finance.test.ts` | Black-Scholes, Treasury math, indicators and statistics |
 | `contracts.test.ts` | Independent bond yield/price and finite-difference risk checks, zero-volatility option limits, covered interest parity, dual-curve swap PV/par/coupon/curve risk, date/curve/input boundaries |
+| `option-chain.test.ts` | Indicative-only read-only request boundary, OCC decoding, missing fields, event ages, sequential pagination, repeated tokens, page limits, partial failures and credentials/entitlements |
+| `strategy-spreads.test.ts` | Independent common-expiry strategy payoffs, unlimited tails, breakevens, aggregate Greeks/scenarios, and bond Z-spreads against zero-coupon and explicit nonflat-curve cash flows |
 | `data.test.ts`, `layout.test.ts`, `lookup.test.ts`, `portfolio.test.ts` | Heat map layout, calendars, fundamentals, workspace layouts, ticker lookup, the portfolio without paper trading |
 
 ## What the browser tests cover
 
 `e2e/terminal.spec.ts` runs the browser build, which has no data source: the first test checks that it opens on the no-data page and that the demo, once chosen, says DEMO DATA. The rest use the demo to check that every function renders without errors, that typing goes to the command line with autocomplete, that numbered menus and back navigation work, that bad commands explain themselves, that watchlists and alerts persist, and that the phone layout shows one panel without horizontal scrolling.
 
-Calculator checks use explicit inputs and closed-form expected values rather than importing the implementation. They exercise bond price/yield back-solving, numbered CSV export including inputs, FX carry/PV, swap pay/receive direction and curve coverage, zero-volatility equity/FX options and invalid-input clearing. The same flows run in Electron real-data mode with provider requests blocked, so a working demo cannot conceal a desktop-only calculator gap.
+Calculator checks use explicit inputs and independent expected values: bond price/yield/Z-spread, FX carry/PV, swap direction/coverage, zero-volatility equity/FX options, premium-to-IV via a separate normal-density integration, multi-leg payoff/breakevens and invalid-input clearing. CSV checks include inputs and results. The same calculator flows run in Electron real-data mode with provider prices/rates blocked. The rendering test verifies that its command list covers every registered function.
 
 ## Deterministic desktop integration
 
-`npm run e2e:desktop` builds the app, then launches the pinned Electron version with its real main process and preload bridge. The tests supply fake credentials in a disposable profile, replace the main-process transport with fixed provider answers, and verify provider errors and IEX prices through IPC and the UI. They do not validate live providers or real API keys.
+`npm run e2e:desktop` launches the pinned Electron version with real main/preload/IPC. Fake keys and fixed transport responses in disposable profiles verify provider refusals, IEX price ownership, option-chain pagination, adjusted roots, sorting across display pages, old source times, partial entitlement failures and invalid IPC rejection. They do not validate live providers or real API keys.
 
 On Linux use `xvfb-run -a npm run e2e:desktop`, or set `DISPLAY` to an existing display. The test process uses `--no-sandbox` where the isolated cloud cannot configure Chromium user namespaces; installed desktop startup is unchanged.
 

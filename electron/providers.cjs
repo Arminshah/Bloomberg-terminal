@@ -159,7 +159,7 @@ const SETTINGS = {
   FMP_ENABLED: { label: 'Financial Modeling Prep analyst research', default: true },
   FINNHUB_ENABLED: { label: 'Finnhub market and company news', default: true },
   MARKETAUX_ENABLED: { label: 'Marketaux news and sentiment', default: true },
-  ALPACA_ENABLED: { label: 'Alpaca IEX quotes (market data only)', default: true },
+  ALPACA_ENABLED: { label: 'Alpaca IEX stocks and indicative options (market data only)', default: true },
   ALPACA_IEX_PRICES_ENABLED: { label: 'Use Alpaca IEX only prices for US equities', default: false },
   TIINGO_ENABLED: { label: 'Tiingo end-of-day closes', default: true },
 };

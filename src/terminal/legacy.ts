@@ -54,6 +54,7 @@ export const LEGACY_CODES: Record<string, string> = {
   CDR: 'HOLIDAYS',
   OMON: 'OPTIONS',
   OVME: 'OPTIONCALC',
+  OSA: 'OPTIONSTRATEGY',
   W: 'WATCHLIST',
   PORT: 'PORTFOLIO',
   ALRT: 'ALERTS',

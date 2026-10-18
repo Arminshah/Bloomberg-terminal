@@ -20,6 +20,18 @@ export async function checkBond(page: Page, run: RunCommand) {
   await expect(page.locator('.panel').first().getByRole('status')).toContainText('positive clean price');
   await expect(page.getByTestId('bond-clean')).toHaveCount(0);
   await page.getByLabel('Clean price per 100').fill(String(expected));
+  await page.getByLabel('Coupon %', { exact: true }).fill('0');
+  const years = (Date.parse('2030-01-01') - Date.parse('2025-01-01')) / 86_400_000 / 365;
+  await page.getByLabel('Clean price per 100').fill(String(100 * Math.exp(-0.05 * years)));
+  await page.getByLabel('Benchmark nominal yield %').fill('3');
+  const y = await displayed(page, 'bond-yield');
+  await expect.poll(() => displayed(page, 'bond-g-spread')).toBeCloseTo((y - 3) * 100, 2);
+  await page.getByLabel('Bond zero curve').fill('1,3\n10,3');
+  await expect.poll(() => displayed(page, 'bond-z-spread')).toBeCloseTo(200, 4);
+  await page.getByLabel('Bond zero curve').fill('1,3');
+  await expect(page.getByTestId('bond-z-spread')).toHaveCount(0);
+  await expect(page.getByTestId('bond-clean')).toHaveCount(1);
+  await page.getByLabel('Bond zero curve').fill('1,3\n10,3');
 }
 
 export async function checkForward(page: Page, run: RunCommand) {
@@ -71,6 +83,21 @@ export async function checkOptions(page: Page, run: RunCommand) {
   await expect(page.locator('.panel').first().getByRole('status')).toContainText('nonnegative volatility');
   await expect(page.getByTestId('option-value')).toHaveCount(0);
   await page.getByLabel('Volatility override').fill('0');
+  // At zero rates and ATM, C/S = 2*N(vol*sqrt(T)/2)-1. Numerically
+  // integrate the normal density independently to supply a 20% IV premium.
+  await page.getByLabel('Rate override', { exact: true }).fill('0');
+  await page.getByLabel('Dividend yield override').fill('0');
+  await page.getByLabel('Option solve mode').selectOption('iv');
+  const z = 0.2 * Math.sqrt(years) / 2;
+  const n = 1000;
+  const h = z / n;
+  let integral = 0;
+  for (let k = 0; k <= n; k++) integral += (k === 0 || k === n ? 1 : k % 2 === 0 ? 2 : 4) * Math.exp(-((k * h) ** 2) / 2) / Math.sqrt(2 * Math.PI);
+  await page.getByLabel('Option premium per share').fill(String(200 * integral * h / 3));
+  await expect(page.getByTestId('option-iv')).toContainText('20.0000%');
+  await page.getByLabel('Option premium per share').fill('101');
+  await expect(page.getByTestId('option-value')).toHaveCount(0);
+  await page.getByLabel('Option solve mode').selectOption('value');
   await page.getByLabel('Spot override').fill('0');
   await expect(page.locator('.panel').first().getByRole('status')).toContainText('positive spot');
   await expect(page.getByTestId('option-value')).toHaveCount(0);
@@ -85,4 +112,25 @@ export async function checkOptions(page: Page, run: RunCommand) {
   await page.getByLabel('Notional', { exact: true }).fill('-1');
   await expect(page.locator('.panel').first().getByRole('status')).toContainText('positive base-currency notional');
   await expect(page.getByTestId('fx-option-value')).toHaveCount(0);
+}
+
+export async function checkStrategy(page: Page, run: RunCommand) {
+  await run('OSA', 'OPTIONSTRATEGY');
+  await expect(page.getByTestId('strategy-debit')).toHaveCount(0);
+  await page.getByLabel('Strategy spot').fill('100');
+  await page.getByLabel('Continuous rate %', { exact: true }).fill('5');
+  await page.getByLabel('Continuous dividend %', { exact: true }).fill('0');
+  await page.getByLabel('Option strategy legs').fill('C,100,1,8,25\nC,110,-1,4,25');
+  await expect.poll(() => displayed(page, 'strategy-debit')).toBe(400);
+  await expect.poll(() => displayed(page, 'strategy-max-loss')).toBe(400);
+  await expect.poll(() => displayed(page, 'strategy-max-profit')).toBe(600);
+  await expect.poll(() => displayed(page, 'strategy-breakevens')).toBe(104);
+  await page.getByLabel('Scenario days forward').fill('90');
+  await page.getByLabel('Scenario log spot move %').fill(String(Math.log(1.05) * 100));
+  await expect.poll(() => displayed(page, 'strategy-scenario-pnl')).toBe(100);
+  await page.getByLabel('Option strategy legs').fill('C,100,-1,5,25');
+  await expect(page.getByTestId('strategy-max-loss')).toHaveText('Unlimited');
+  await page.getByLabel('Option strategy legs').fill('C,100,-1,,25');
+  await expect(page.getByTestId('strategy-debit')).toHaveCount(0);
+  await page.getByLabel('Option strategy legs').fill('C,100,1,8,25\nC,110,-1,4,25');
 }

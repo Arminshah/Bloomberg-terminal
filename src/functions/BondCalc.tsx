@@ -8,16 +8,18 @@ import { fmtDay, fmtNum } from '../core/format';
 import { engine } from '../data/market';
 import { analytics, cleanFromYield, couponSchedule, to32nds, yieldFromClean, type BondAnalytics } from '../finance/bonds';
 import { contractDate, inputNumber } from '../finance/contracts';
+import { parseZeroCurve } from '../finance/contracts';
+import { bondSpreadValue } from '../finance/bond-spreads';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
-type Form = { coupon: string; maturity: string; settle: string; frequency: string; mode: string; value: string; face: string };
-const EXAMPLE: Form = { coupon: '5', maturity: '2030-01-01', settle: '2025-01-01', frequency: '2', mode: 'yield', value: '4', face: '1000000' };
+type Form = { coupon: string; maturity: string; settle: string; frequency: string; mode: string; value: string; face: string; benchmark: string; curve: string };
+const EXAMPLE: Form = { coupon: '5', maturity: '2030-01-01', settle: '2025-01-01', frequency: '2', mode: 'yield', value: '4', face: '1000000', benchmark: '3', curve: '1,3\n5,3\n10,3' };
 
 /** Regular fixed-rate bullet analytics, available without a bond quote or subscription. */
 export function BondCalc({ sec }: FnProps) {
   const panel = usePanelId();
-  const [form, setForm] = useState<Form>({ coupon: '', maturity: '', settle: new Date(engine.now()).toISOString().slice(0, 10), frequency: '2', mode: 'yield', value: '', face: '1000000' });
+  const [form, setForm] = useState<Form>({ coupon: '', maturity: '', settle: new Date(engine.now()).toISOString().slice(0, 10), frequency: '2', mode: 'yield', value: '', face: '1000000', benchmark: '', curve: '' });
   const [example, setExample] = useState(false);
   const set = (key: keyof Form, value: string) => { setForm((f) => ({ ...f, [key]: value })); setExample(false); };
   const terms = { coupon: inputNumber(form.coupon), maturity: contractDate(form.maturity), freq: Number(form.frequency) };
@@ -41,6 +43,14 @@ export function BondCalc({ sec }: FnProps) {
     }
   }
   const r = result;
+  const benchmark = inputNumber(form.benchmark);
+  const gSpread = r && Number.isFinite(benchmark) && benchmark > -100 * terms.freq ? (r.yield - benchmark) * 100 : NaN;
+  let spread: ReturnType<typeof bondSpreadValue> | undefined;
+  let spreadError = '';
+  if (r && form.curve.trim()) {
+    try { spread = bondSpreadValue(terms, settle, r.clean, parseZeroCurve(form.curve)); }
+    catch (e) { spreadError = (e as Error).message; }
+  }
   const cash = r ? couponSchedule(terms, settle).slice(1).map((date, index, dates) => {
     const amount = terms.coupon / terms.freq + (index === dates.length - 1 ? 100 : 0);
     const fraction = (r.nextCoupon.getTime() - settle.getTime()) / (r.nextCoupon.getTime() - r.prevCoupon.getTime());
@@ -56,12 +66,15 @@ export function BondCalc({ sec }: FnProps) {
     ['Convention', 'Regular fixed-rate bullet; Actual/Actual ICMA; unadjusted dates'],
     ['Coupon %', terms.coupon], ['Maturity', form.maturity], ['Settlement', form.settle], ['Frequency', terms.freq], ['Face', face],
     ['Yield %', r?.yield], ['Clean / 100', r?.clean], ['Dirty / 100', r?.dirty], ['DV01 / 100', r?.dv01],
+    ['Benchmark nominal yield %', form.benchmark], ['G-spread bp (matching nominal compounding)', gSpread],
+    ['Settlement-relative zero curve: years, continuous zero %, optional projection ignored', form.curve],
+    ['Z-spread bp (continuous ACT/365F)', spread?.spreadBp], ['Z01 per 100', spread?.z01], ['Spread duration', spread?.spreadDuration], ['Zero-spread clean price', spread?.zeroSpreadClean], ['Spread input error', spreadError],
     ['Payment date', 'Cash flow / 100', 'PV / 100'], ...cash.map((c) => [c.date.toISOString().slice(0, 10), c.amount, c.pv]),
   ];
   return <div>
     <FnHeader code="BONDCALC" title="Yield & Spread Analysis" sec={sec} sub="Regular fixed-rate bullet · Actual/Actual ICMA"
       actions={[{ n: 1, label: 'Example', onClick: () => { setForm(EXAMPLE); setExample(true); } }, ...(r ? exportActions(panel, 'bond-calculation.csv', rows) : [])]} />
-    <CalcSource>{example ? 'Example inputs. ' : 'Your contract terms and price/yield. '}Calculated price and risk; no market bond quote, credit spread or issue terms are inferred.</CalcSource>
+    <CalcSource>{example ? 'Example inputs. ' : 'Your contract terms and price/yield. '}Calculated price, yield risk and optional benchmark/Z-spreads. Supply the benchmark or zero curve; no market quote, curve or issue terms are inferred.</CalcSource>
     <div className="chart-tools">
       <CalcInput label="Coupon %" value={form.coupon} onChange={(v) => set('coupon', v)} />
       <CalcInput label="Maturity" type="date" value={form.maturity} onChange={(v) => set('maturity', v)} />
@@ -85,6 +98,21 @@ export function BondCalc({ sec }: FnProps) {
         ]} /></Section>
         <Section title="Price / yield"><XYChart height={210} series={[{ label: 'Clean price / 100', color: '#ffb547', points }]} xFormat={(v) => `${fmtNum(v, 2)}%`} yFormat={(v) => fmtNum(v, 2)} /></Section>
       </div>
+      <Section title="Benchmark and zero-curve spreads">
+        <div className="chart-tools"><CalcInput label="Benchmark nominal yield %" value={form.benchmark} onChange={(v) => set('benchmark', v)} /></div>
+        <p className="pad-s muted">G-spread compares your bond yield with the entered benchmark yield. Use matching nominal compounding and a suitable government benchmark maturity.</p>
+        {form.benchmark.trim() && !Number.isFinite(gSpread) ? <p className="pad-s amber" role="status">Enter a finite benchmark yield above the compounding lower bound.</p> : <p className="pad-s">G-spread bp: <span className="white" data-testid="bond-g-spread">{fmtNum(gSpread, 4)}</span></p>}
+        <div className="pad-s"><label className="fld" style={{ display: 'block', whiteSpace: 'normal' }}>Zero curve: years from settlement, continuous zero %<textarea className="inp" aria-label="Bond zero curve" rows={4} value={form.curve} onChange={(e) => set('curve', e.target.value)} placeholder={'1,3\n5,3\n10,3'} spellCheck={false} style={{ width: 'min(100%, 500px)', display: 'block' }} /></label></div>
+        <p className="pad-s muted">ACT/365F cash-flow times; log-linear discount factors from settlement, no extrapolation. A constant continuous spread is added at every payment date. Treasury par yields must be bootstrapped into zero rates before use.</p>
+        {spreadError ? <div className="pad-s amber" role="status">{spreadError}</div> : spread ? <>
+          <KV items={[
+            ['Z-spread bp', <span key="z" data-testid="bond-z-spread">{fmtNum(spread.spreadBp, 6)}</span>],
+            ['Zero-spread clean price / 100', fmtNum(spread.zeroSpreadClean, 6)], ['Spread duration (years)', fmtNum(spread.spreadDuration, 6)],
+            ['Z01 per 100 face', fmtNum(spread.z01, 6)], ['Z01 for face amount', fmtNum(spread.z01 * face / 100, 2)],
+          ]} />
+          <table className="tbl"><thead><tr><th>Z-spread shift bp</th><th className="num">Clean / 100</th><th className="num">P&L for face amount</th></tr></thead><tbody>{spread.scenarios.map((s) => <tr key={s.bp}><td>{s.bp}</td><td className="num">{fmtNum(s.clean, 6)}</td><td className="num">{fmtNum((s.clean - r.clean) * face / 100, 2)}</td></tr>)}</tbody></table>
+        </> : <p className="pad-s muted">Enter a zero curve to solve Z-spread. This is an option-free spread, not an option-adjusted spread.</p>}
+      </Section>
       <div className="cols"><Section title="Parallel yield scenarios"><table className="tbl"><thead><tr><th>Shift bp</th><th className="num">Clean / 100</th><th className="num">Price change</th><th className="num">P&L</th></tr></thead>
         <tbody>{scenarios.map((s) => <tr key={s.bp}><td>{s.bp > 0 ? '+' : ''}{s.bp}</td><td className="num">{fmtNum(s.price, 6)}</td><td className="num">{fmtNum(s.change, 6)}</td><td className="num">{fmtNum(s.pnl, 2)}</td></tr>)}</tbody></table></Section>
         <Section title="Cash flows" right={`${cash.length} payments`}><div style={{ maxHeight: 300, overflow: 'auto' }}><table className="tbl"><thead><tr><th>Payment date</th><th className="num">Cash flow / 100</th><th className="num">PV / 100</th></tr></thead>

@@ -39,6 +39,7 @@ export function createRequester(dependencies: {
   providers: RequesterProviders;
   fetch(url: string, init: RequestInit): Promise<RequesterResponse>;
   agent(): string;
+  validate?(provider: string, url: string, text: string): ProviderProblem | null;
   timeoutMs?: number;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;

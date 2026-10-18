@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { KeyedAnswer } from '../src/data/live/lookup';
-import { checkBond, checkForward, checkOptions, checkSwap } from '../e2e/calculator-checks';
+import { checkBond, checkForward, checkOptions, checkStrategy, checkSwap } from '../e2e/calculator-checks';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 const FMP_ERROR = 'Invalid API key. Deterministic FMP refusal.';
@@ -14,7 +14,10 @@ const PRICE = '123.45';
 
 interface Fixtures {
   tradeAgeMs: number;
-  calls: { fmp: number; marketaux: number; alpaca: string[] };
+  optionPageFailure: boolean;
+  optionMalformed: boolean;
+  optionContractCount: number;
+  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -117,6 +120,69 @@ test('manual analytics work in real-data desktop mode without any provider price
   await checkForward(page, (text, code) => command(page, text, code));
   await checkSwap(page, (text, code) => command(page, text, code));
   await checkOptions(page, (text, code) => command(page, text, code));
+  await checkStrategy(page, (text, code) => command(page, text, code));
+});
+
+test('indicative option chains cross real IPC, paginate and keep adjusted roots and old timestamps explicit', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.optionContractCount = 101; });
+  await command(page, 'AAPL OMON', 'OPTIONS');
+  await expect(page.getByTestId('option-chain').getByRole('row')).toHaveCount(101); // header + 100 displayed rows
+  await expect(page.getByText('INDICATIVE', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Next rows', exact: true }).click();
+  await expect(page.getByTestId('option-chain').getByRole('row')).toHaveCount(3);
+  await expect(page.getByTestId('option-chain')).toContainText('AAPL1');
+  await page.getByRole('button', { name: 'Previous rows', exact: true }).click();
+  const strikeHeader = page.getByTestId('option-chain').getByRole('columnheader', { name: /^Strike/ });
+  await strikeHeader.click();
+  // Sorting includes the 200 strike originally beyond the first displayed page.
+  await expect(page.getByTestId('option-chain').getByRole('row').nth(1).getByRole('cell').nth(6)).toHaveText('200.000');
+  await strikeHeader.focus();
+  await strikeHeader.press('Enter');
+  await expect(strikeHeader).toHaveAttribute('aria-sort', 'ascending');
+  await expect(page.getByTestId('option-chain').getByRole('row').nth(1).getByRole('cell').nth(6)).toHaveText('100.000');
+  await expect(page.getByTestId('option-chain')).toContainText('5.20');
+  await command(page, '2', 'OPTIONS');
+  await expect(page.getByTestId('option-chain')).toContainText('STALE · 30m ago');
+  await expect(page.getByTestId('option-chain')).toContainText('25.00');
+  expect((await calls(app)).options).toHaveLength(2);
+  for (const value of (await calls(app)).options) {
+    const url = new URL(value);
+    expect(url.host).toBe('data.alpaca.markets');
+    expect(url.searchParams.get('feed')).toBe('indicative');
+  }
+  const rejected = await page.evaluate(async () => {
+    try { await window.arminDesktop!.optionChain!({ symbol: 'AAPL', feed: 'opra' } as { symbol: string }); return false; }
+    catch { return true; }
+  });
+  expect(rejected).toBe(true);
+  expect((await calls(app)).options).toHaveLength(2);
+});
+
+test('a refused next option page leaves a visibly partial stale chain', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.optionPageFailure = true; });
+  await command(page, 'AAPL OMON', 'OPTIONS');
+  await expect(page.getByTestId('option-chain').getByRole('row')).toHaveCount(2);
+  await expect(page.getByRole('status').filter({ hasText: 'PARTIAL CHAIN' })).toContainText('STALE RESPONSE');
+  await expect(page.getByRole('status').filter({ hasText: 'PARTIAL CHAIN' })).toContainText('Deterministic option entitlement refusal');
+  const report = await page.evaluate(() => window.arminDesktop!.providersStatus!());
+  expect(report.providers.alpaca.lastErrorKind).toBe('not-entitled');
+});
+
+test('malformed option schemas are not cached or reported as successful and recover on retry', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.optionMalformed = true; });
+  for (let k = 0; k < 2; k++) {
+    const answer = await page.evaluate(() => window.arminDesktop!.optionChain!({ symbol: 'AAPL' }));
+    expect(answer).toMatchObject({ status: 0, text: '', error: 'Alpaca returned no option snapshot map.' });
+    expect(answer.cached).toBeUndefined();
+  }
+  expect((await calls(app)).options).toHaveLength(2);
+  const report = await page.evaluate(() => window.arminDesktop!.providersStatus!());
+  expect(report.providers.alpaca.lastSuccessAt).toBeNull();
+  expect(report.providers.alpaca.lastErrorKind).toBe('schema-changed');
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.optionMalformed = false; });
+  await command(page, 'AAPL OMON', 'OPTIONS');
+  await expect(page.getByTestId('option-chain').getByRole('row')).toHaveCount(3);
+  expect((await calls(app)).options).toHaveLength(4);
 });
 
 test('HTTP 200 provider refusals cross desktop IPC as errors and are never cached as successes', async ({ desktop: { app, page } }) => {

@@ -10,7 +10,11 @@ Nominal annual yield is compounded at coupon frequency. Clean price is discounte
 
 Macaulay and modified duration are in years; convexity is the second dirty-price derivative divided by dirty price. DV01 is positive modified duration times dirty price times 0.0001, per 100 face; the face-amount figure scales it. Scenarios reprice the bond rather than applying only duration. The 32nds display rounds to 1/64; decimal values retain greater precision. Invoice and risk scale by your face amount.
 
-This model does not price irregular coupons, ex-dividend periods, calls/puts, floating coupons, defaults, taxes, inflation linkage or credit/benchmark spreads. Enter the actual terms from the issue documents; a selected ticker does not supply assumed terms. CSV exports include inputs, convention and discounted cash flows.
+Optional G-spread is `(bond nominal yield % - benchmark nominal yield %) × 100` bp. Supply a suitable maturity benchmark with matching nominal compounding; the app does not interpolate or fetch the benchmark.
+
+For Z-spread enter continuously compounded zero rates at ACT/365F years **from settlement**. Log-linear discount factors use DF(0)=1, require coverage through every payment and do not extrapolate. The solver finds constant decimal `z` such that `sum(CF × baseDF × exp(-z × actualDays/365)) = clean + accrued`. Quoted Z-spread is `z × 10000` bp. Z01 is half the dirty PV difference under z−1bp and z+1bp, per 100 face; spread duration is Z01 / dirty / 0.0001. Spread scenarios hold the base curve fixed. A third projection-rate column, if present, is ignored. Published Treasury **par** yields are not zero rates and must be bootstrapped before use.
+
+Irregular coupons, ex-dividend periods, calls/puts, floating coupons, defaults, taxes and inflation linkage are excluded. Z-spread is option-free, not OAS. Enter actual terms from issue documents; selecting a ticker supplies no assumed terms. CSV includes contract, benchmark/curve inputs, spread results and yield-discounted cash flows. The cash-flow PV table remains discounted by nominal yield, independently of the spread curve.
 
 ## FX forwards: FXFORWARD / FRD
 
@@ -40,4 +44,18 @@ Black-Scholes-Merton uses continuous dividend yield; Garman-Kohlhagen uses the b
 
 Manual inputs work without connected data. Equity options also accept a dividend-yield override and contract multiplier (default 100, which must be confirmed). Source volatility is realised, not implied. Missing source dividend yield is explicitly treated as zero. Reference policy/Treasury rates are flat model approximations; enter appropriate continuous term zero rates for the contract. FX point size is selectable and not inferred from spot magnitude.
 
-Equity expiry choices are Friday calendar dates, not a verified list of exchange contracts; FX tenors are calendar days without settlement adjustments. These are European models and do not value American early exercise. Expiry P&L subtracts upfront premium without financing. No implied surface, licensed option chain or executable quote is supplied.
+Equity expiry choices are Friday calendar dates, not a verified list of exchange contracts; FX tenors are calendar days without settlement adjustments. These European models do not value American early exercise. Expiry P&L subtracts upfront premium without financing. No implied surface or executable quote is supplied by these calculators; `OPTIONS` separately displays provider indicative snapshots.
+
+`OPTIONCALC` also solves implied volatility from a manual premium per share. The premium must lie within European no-arbitrage bounds using the entered spot, strike, rate, dividend yield and unexpired time. The lower bound gives zero volatility, the upper bound has no finite solution; impossible premiums clear the valuation. The result is model-implied from that premium, not a sourced market IV or an American-option IV.
+
+## Multi-leg options: OPTIONSTRATEGY / OSA
+
+Enter 1–12 legs as `C/P, strike, signed integer contracts, nonnegative entry premium per share, volatility %`, one per line. Positive quantity buys; negative quantity sells. Every leg uses the same expiry (days/365) and entered multiplier. Add positive/negative stock shares and their entry price if needed. Rates and dividend yield are continuous decimals internally; all are explicit inputs. The optional source spot is used only when its input is blank. Examples are labelled calculations, never market quotes.
+
+Entry debit = shares × stock entry price + sum(contracts × multiplier × premium); a negative debit is credit received. Model value = shares × spot + sum(signed units × European BSM value). P&L subtracts entry debit. Aggregate delta includes stock shares; gamma, theta, vega and rho sum signed model Greeks times units. Vega/rho are per percentage point and theta per calendar day. Undefined boundary Greeks stay blank.
+
+Expiry P&L is piecewise linear for terminal spot ≥ 0. The algorithm evaluates zero and every strike, solves roots on every segment and checks the infinite right-tail slope. Thus risk extrema are not limited to the displayed chart. A negative tail slope gives unlimited loss; a positive slope gives unlimited profit. Completely flat zero-P&L segments are reported as intervals. Maximum profit/loss magnitudes are floored at zero when no profit/loss is possible.
+
+Scenarios advance time by 0 through the remaining days, shift spot by `spot × exp(logMovePercent/100)` and add the entered volatility-point shift to every leg. They report P&L vs entry and change from today's model. The table uses the same chosen time/volatility shift. CSV includes inputs, positions, results and scenarios.
+
+Different expiries, American exercise/assignment, discrete cash dividends, premium financing, fees, margin and adjusted option deliverables are excluded. These are theoretical valuations, not order routing or a broker margin calculation.

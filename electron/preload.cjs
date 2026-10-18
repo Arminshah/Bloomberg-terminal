@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   analysts: (kind, symbol) => ipcRenderer.invoke('analysts', String(kind), String(symbol)),
   news: (source, arg) => ipcRenderer.invoke('news', String(source), String(arg ?? '')),
   alpaca: (kind, symbols) => ipcRenderer.invoke('alpaca', String(kind), String(symbols)),
+  optionChain: (arg) => ipcRenderer.invoke('option-chain', arg),
   // The provider switches as they were when this page loaded (YAHOO_PRICES_ENABLED, KRAKEN_ENABLED).
   settings: ipcRenderer.sendSync('providers:settings-sync'),
   // Provider status and credentials: values can be saved or cleared, never read back.

@@ -1,10 +1,10 @@
 # Armin Terminal
 
-Version **2.3.1** adds working bond, FX-forward and swap calculators, fixes option valuation boundaries, prioritises visible IEX quote panels and speeds up bond repricing. See [release details and validation](docs/release-v2.3.1.md) and [calculator conventions](docs/calculators.md). Free IEX data covers one exchange; consolidated real-time prices, licensed research, full option chains and other Bloomberg datasets require additional sources and entitlements.
+Version **2.4.0** adds indicative option-chain monitoring, multi-leg option strategy analysis, premium-to-implied-volatility solving and bond G/Z-spreads. The [Bloomberg workflow audit](docs/bloomberg-parity.md) covers all 70 registered commands and records the remaining gaps. See [release validation](docs/release-v2.4.0.md) and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
-The desktop app shows real data only, from free public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, the Kraken exchange, and Yahoo Finance for market prices and company data, for personal use. With your own free keys it adds analyst price targets and estimates (Financial Modeling Prep), market and company news (Finnhub, Marketaux), IEX quotes (Alpaca) and more sources for checking closes. Every price carries a label saying how fresh it is. What no permitted free source covers, such as option chains or bond prices, is left out and the screen says so; nothing is filled in with invented numbers. The browser build has no data source and runs a demo, marked DEMO DATA throughout, only when you choose it.
+The desktop app uses public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, Kraken, and Yahoo Finance for personal-use prices/company data. With your own keys it adds analyst research (Financial Modeling Prep), news (Finnhub, Marketaux), IEX stocks and indicative option snapshots (Alpaca), plus sources for checking closes. Data labels distinguish source prices, indicative/delayed option fields and calculated model results. Unavailable datasets such as dealer bond quotes remain empty. The browser build has no data source and opens a clearly marked demo only when chosen.
 
 This is an independent project, not affiliated with Bloomberg L.P. It does not have the data coverage of a professional terminal; [docs/feature-matrix.md](docs/feature-matrix.md) says what is covered and what is not.
 
@@ -35,7 +35,7 @@ Prices, charts, yields, central bank rates, official statistics, official announ
 | `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TIINGO_API_KEY`, `TWELVE_DATA_API_KEY` | Second sources for US stock closes (`CROSSCHECK`) |
 | `FMP_API_KEY` | Analyst price targets, ratings and estimates (`ANALYSTS`, `EARNINGS`) |
 | `FINNHUB_API_KEY`, `MARKETAUX_API_TOKEN` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) |
-| `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX quotes for US stocks on `QUOTE`, labelled IEX only; market data only |
+| `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option contracts on `OPTIONS`; read-only market data, subject to account entitlement |
 
 To add several at once, paste your whole list into "Save these keys" on `PROVIDERS`: it recognises each key, saves it encrypted and tells you which names it saved. Environment variables of the same names work too and take precedence. [docs/configuration.md](docs/configuration.md) covers every key and switch.
 
@@ -55,7 +55,10 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 | `MARKET US` | World equity indices, Americas |
 | `MACRO CPI` | The macro dashboard, on inflation |
 | `CRYPTO BTC` | Bitcoin on the crypto monitor |
-| `YAS` / `BONDCALC` | Bond price/yield, accrued interest, duration, convexity, DV01 and cash flows from your contract inputs |
+| `YAS` / `BONDCALC` | Bond price/yield, cash flows, DV01, benchmark G-spread and zero-curve Z-spread from explicit inputs |
+| `AAPL OMON` / `OPTIONS AAPL` | Indicative listed equity option chain, provider IV/Greeks and source times with Alpaca keys |
+| `AAPL OVME` / `OPTIONCALC AAPL` | European value from volatility or implied volatility from an entered premium |
+| `OSA` / `OPTIONSTRATEGY` | Multi-leg option/stock payoff, breakevens, aggregate Greeks and scenarios |
 | `EURUSD FRD` / `FXFORWARD EURUSD` | Covered-interest-parity forwards and contract PV from your spot and term rates |
 | `SWPM` / `SWAPCALC` | Fixed/float swap NPV, par coupon, cash flows and bump risk from your zero curves |
 | `AAPL` | The functions menu for Apple |
@@ -81,7 +84,7 @@ Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES`
 | Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` still need bond/dealer datasets |
 | Commodities | `COMMODITIES` |
 | Economics | `MACRO` dashboard with first-release revisions, `RELEASES` calendar, `ECONSTATS` world statistics, `HOLIDAYS` exchange calendars |
-| Derivatives | `OPTIONCALC` option calculator; `OPTIONS` (not available: listed option quotes are licensed) |
+| Derivatives | `OPTIONS` indicative listed US equity snapshots with Alpaca; `OPTIONCALC` European value/IV; `OPTIONSTRATEGY` common-expiry multi-leg/stock risk and scenarios |
 | Portfolio and tools | `WATCHLIST`, `PORTFOLIO` holdings you enter, with performance and risk, `ALERTS`, `CORRELATION`, `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` |
 | System | `HELP`, `MENU`, `PROVIDERS` data providers and keys, `SETTINGS`, `MESSAGES` help-desk bot |
 

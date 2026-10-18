@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { checkBond, checkForward, checkOptions, checkSwap } from './calculator-checks';
+import { checkBond, checkForward, checkOptions, checkStrategy, checkSwap } from './calculator-checks';
 
 // Keep runs deterministic: no live network feeds.
 async function boot(page: Page, layout?: string) {
@@ -41,6 +41,7 @@ async function run(page: Page, cmd: string, panel = 0) {
 }
 
 const COMMANDS: [string, string][] = [
+  ['FILINGS MSFT', 'FILINGS'], ['CROSSCHECK AAPL', 'CROSSCHECK'], ['MARKETNEWS NVDA', 'MARKETNEWS'], ['MACRO CPI', 'MACRO'],
   ['AAPL US EQUITY PROFILE', 'PROFILE'], ['AAPL CHART', 'CHART'], ['AAPL INTRADAY', 'INTRADAY'], ['AAPL HISTORY', 'HISTORY'], ['AAPL FINANCIALS', 'FINANCIALS'], ['AAPL ANALYSTS', 'ANALYSTS'],
   ['AAPL EARNINGS', 'EARNINGS'], ['AAPL DIVIDENDS', 'DIVIDENDS'], ['AAPL HOLDERS', 'HOLDERS'], ['AAPL PEERS', 'PEERS'], ['EVENTS', 'EVENTS'], ['AAPL WACC', 'WACC'],
   ['AAPL RETURNS', 'RETURNS'], ['AAPL BETA', 'BETA'], ['CORRELATION', 'CORRELATION'], ['TSLA QUOTE', 'QUOTE'], ['TSLA TRADES', 'TRADES'], ['TSLA DEPTH', 'DEPTH'],
@@ -56,6 +57,7 @@ const COMMANDS: [string, string][] = [
   ['ES1 INDEX DEPTH', 'DEPTH'], ['INDEXFUTURES', 'INDEXFUTURES'], ['SPX INDEX CONTRIB', 'CONTRIB'], ['INDU INDEX CONTRIB', 'CONTRIB'], ['AAPL TOTALRETURN', 'TOTALRETURN'], ['SPX INDEX TOTALRETURN', 'TOTALRETURN'],
   ['AAPL FUNDCHART', 'FUNDCHART'], ['AAPL VOLATILITY', 'VOLATILITY'], ['USGG10YR INDEX VOLATILITY', 'VOLATILITY'], ['AAPL VWAP', 'VWAP'], ['EURUSD CRNCY FXFORWARD', 'FXFORWARD'], ['USDJPY CRNCY FXOPTION', 'FXOPTION'],
   ['SWAPCALC', 'SWAPCALC'], ['HOLIDAYS', 'HOLIDAYS'], ['CENTRALBANKS', 'CENTRALBANKS'], ['HELP HELP', 'MESSAGES'],
+  ['OSA', 'OPTIONSTRATEGY'],
   ['$APLD', 'MENU'], ['APLD US EQUITY PROFILE', 'PROFILE'], ['$APLD CHART', 'CHART'], ['APLD FINANCIALS', 'FINANCIALS'],
 ];
 
@@ -78,6 +80,10 @@ test('default workspace renders four live panels and the watchlist column', asyn
 
 test('every function renders without errors', async ({ page }) => {
   test.setTimeout(180_000);
+  const registry = await readFile(new URL('../src/terminal/registry.ts', import.meta.url), 'utf8');
+  const registered = [...registry.matchAll(/\{ code: '([^']+)'/g)].map((m) => m[1]);
+  const tested = new Set(COMMANDS.map(([, code]) => code));
+  expect(registered.filter((code) => !tested.has(code)), 'Every registered function needs a rendering check').toEqual([]);
   const errors = await boot(page, '1');
   for (const [cmd, code] of COMMANDS) {
     await run(page, cmd);
@@ -195,5 +201,19 @@ test('swap and option calculators respect curve coverage, contract direction and
   };
   await checkSwap(page, execute);
   await checkOptions(page, execute);
+  expect(errors).toEqual([]);
+});
+
+test('multi-leg option strategies expose exact expiry risk and export their entered positions', async ({ page }) => {
+  const errors = await boot(page, '1');
+  await checkStrategy(page, async (text, code) => { await run(page, text); await expect(page.locator('.fnh-code').first()).toHaveText(code); });
+  const saving = page.waitForEvent('download');
+  await run(page, '99');
+  const download = await saving;
+  expect(download.suggestedFilename()).toBe('option-strategy.csv');
+  const csv = await readFile((await download.path())!, 'utf8');
+  expect(csv).toContain('European Black-Scholes-Merton');
+  expect(csv).toContain('C,100,1,8,25');
+  expect(csv).toContain('Max expiry loss,400');
   expect(errors).toEqual([]);
 });

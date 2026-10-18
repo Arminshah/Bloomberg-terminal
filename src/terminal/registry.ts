@@ -33,6 +33,7 @@ import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
 import { ECO, ECST } from '../functions/ECO';
 import { MACRO } from '../functions/MACRO';
 import { OMON, OVME } from '../functions/OPTIONS';
+import { OptionStrategy } from '../functions/OptionStrategy';
 import { W } from '../functions/W';
 import { PORT } from '../functions/PORT';
 import { ALRT } from '../functions/ALRT';
@@ -98,7 +99,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'BONDS', name: 'World Bond Markets', category: 'Rates & Credit', desc: 'Government yields by country and tenor with changes, spreads to Treasuries and Bunds, and curve slope.', component: WB, aliases: ['WORLDBONDS'] },
   { code: 'CURVE', name: 'Graph Curves', category: 'Rates & Credit', desc: 'Yield curves (US, Germany, UK, Japan) today versus one week, one month and one year ago.', component: GC, aliases: ['CURVES', 'YIELDS'] },
   { code: 'MONEYMARKET', name: 'Treasury & Money Markets', category: 'Rates & Credit', desc: 'Fed funds target and New York Fed reference rates, bills, curve spreads and SOFR futures.', component: BTMM },
-  { code: 'BONDCALC', name: 'Yield & Spread Analysis', category: 'Rates & Credit', classes: ['bond'], desc: 'Fixed-rate bullet calculator from your contract terms and price/yield: accrued, duration, convexity, DV01, scenarios, cash flows and CSV export. Works without a market-data feed.', component: YAS, example: 'BONDCALC' },
+  { code: 'BONDCALC', name: 'Yield & Spread Analysis', category: 'Rates & Credit', classes: ['bond'], desc: 'Fixed-rate bullet calculator: price/yield, accrued, duration, convexity, DV01, G-spread, zero-curve Z-spread, spread risk, scenarios, cash flows and CSV export. Uses explicit contract, benchmark and curve inputs.', component: YAS, example: 'BONDCALC' },
   { code: 'RATEPROBS', name: 'Rate Probabilities', category: 'Rates & Credit', desc: 'Market-implied Fed moves meeting by meeting, from fed funds futures and the FOMC calendar.', component: WIRP },
   { code: 'SWAPCALC', name: 'Swap Manager', category: 'Rates & Credit', desc: 'Fixed/float swap analytics from user-entered zero curves: par coupon, NPV, separate discount/projection curves, cash flows and curve/coupon bump risk. No market swap curve is inferred.', component: SWPM },
   { code: 'CENTRALBANKS', name: 'Central Bank Monitor', category: 'Rates & Credit', desc: 'Policy rates, last moves and next decision dates for major central banks against 2-year yields.', component: CENB },
@@ -113,8 +114,9 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'ECONSTATS', name: 'World Economic Statistics', category: 'Economics', desc: 'GDP, inflation, unemployment and policy rates by country alongside live yields and markets.', component: ECST },
   { code: 'HOLIDAYS', name: 'Holiday Calendar', category: 'Economics', desc: 'Exchange holiday and early-close calendars for New York, Euronext, London, Frankfurt and Tokyo.', component: CDR, example: 'HOLIDAYS US' },
   // Derivatives
-  { code: 'OPTIONS', name: 'Option Monitor', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'Listed option chains: not available, as option quotes are licensed exchange data.', component: OMON, unavailable: 'listed option quotes are licensed exchange data' },
-  { code: 'OPTIONCALC', name: 'Option Valuation', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'Black-Scholes valuation with realised volatility: greeks, P&L profile and spot scenarios for a single option.', component: OVME },
+  { code: 'OPTIONS', name: 'Option Monitor', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'Listed US equity contracts from Alpaca with your keys: indicative bids/asks, delayed trades, provider IV/Greeks, expiry filters, source timestamps and CSV. No OPRA, index options, open interest or daily volume.', component: OMON },
+  { code: 'OPTIONCALC', name: 'Option Valuation', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'European Black-Scholes-Merton value or implied volatility from an entered premium, Greeks, P&L profile and spot scenarios for a single option.', component: OVME },
+  { code: 'OPTIONSTRATEGY', name: 'Option Strategy Analysis', category: 'Derivatives', classes: ['equity', 'index'], desc: 'Up to 12 common-expiry option legs plus stock: signed positions, entry premiums, aggregate Greeks, exact expiry risk/breakevens, time/spot/volatility scenarios and CSV. Manual European model, with labelled strategy examples.', component: OptionStrategy, aliases: ['STRATEGY'], example: 'OPTIONSTRATEGY' },
   // Portfolio & tools
   { code: 'WATCHLIST', name: 'Watchlists', category: 'Portfolio & Tools', desc: 'Editable watchlists with live prices, changes, volume and intraday sparklines.', component: W, aliases: ['WATCH'], example: 'WATCHLIST TECH' },
   { code: 'PORTFOLIO', name: 'Portfolio & Risk', category: 'Portfolio & Tools', desc: 'Holdings and P&L, performance against a benchmark, VaR, beta, volatility and allocation.', component: PORT },

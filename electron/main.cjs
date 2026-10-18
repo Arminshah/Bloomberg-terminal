@@ -455,11 +455,18 @@ ipcMain.handle('eod', async (event, provider, ticker, from, to) => {
 const fmp = require('./fmp.cjs');
 const news = require('./news.cjs');
 const alpaca = require('./alpaca.cjs');
+const { optionChainRequest, optionChainProblem } = require('./option-chain.cjs');
 
 // Credential-scoped cache, deduplication, retries, quotas and provider-body errors are tested
 // independently of Electron in requests.test.ts. Never count HTTP-200 error bodies as success.
 const { createRequester } = require('./requests.cjs');
-const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent, timeoutMs: TIMEOUT_MS });
+const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent, timeoutMs: TIMEOUT_MS,
+  validate: (provider, url, text) => {
+    if (provider !== 'alpaca' || !new URL(url).pathname.startsWith('/v1beta1/options/snapshots/')) return null;
+    const message = optionChainProblem(text);
+    return message ? { kind: 'schema-changed', message } : null;
+  },
+});
 
 /** A configured key that passes its check, or why there is none. */
 function usableKey(name, provider) {
@@ -508,6 +515,17 @@ ipcMain.handle('alpaca', async (event, kind, symbols) => {
   if (!secret.value) return { status: 0, text: '', ...secret };
   // Alpaca's free plan allows 200 requests a minute; quotes are kept for 4 seconds.
   return keyedGet('alpaca', url, alpaca.alpacaHeaders(id.value, secret.value), 4_000, [120, 60_000], [id.value, secret.value]);
+});
+
+ipcMain.handle('option-chain', async (event, arg) => {
+  const url = optionChainRequest(arg);
+  if (!fromApp(event) || !url) throw new Error('not allowed');
+  if (!providers.setting('ALPACA_ENABLED').value) return { status: 0, text: '', gated: 'ALPACA_ENABLED' };
+  const id = usableKey('ALPACA_API_KEY_ID', 'alpaca');
+  if (!id.value) return { status: 0, text: '', ...id };
+  const secret = usableKey('ALPACA_API_SECRET_KEY', 'alpaca');
+  if (!secret.value) return { status: 0, text: '', ...secret };
+  return keyedGet('alpaca', url, alpaca.alpacaHeaders(id.value, secret.value), 15_000, [120, 60_000], [id.value, secret.value]);
 });
 
 // ------------------------------------------------------------------ Stream
