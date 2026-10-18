@@ -11,6 +11,7 @@ import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 import type { SecurityDef } from '../data/types';
 import { reportCcy } from '../data/fundamentals';
+import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type RecommendationMonth } from '../data/live/finnhub';
 
 /**
  * Analyst research for a US-listed stock from Financial Modeling Prep (the owner's key): the price target
@@ -24,6 +25,9 @@ export function ANR({ sec }: FnProps) {
   const symbol = analystSymbol(s);
   const parts = useAnalysts(s, ['consensus', 'ratings', 'summary', 'grades', 'estimates']);
   const researchGeneration = analystData.use((data) => data.retry);
+  const fhOn = finnhubAvailable() && !!finnhubSymbol(s);
+  const fh = useFinnhub(fhOn ? s : undefined, ['recommendation']).recommendation as FinnhubPart<RecommendationMonth[]> | undefined;
+  const recs = fh?.data ?? [];
   if (!analystsAvailable()) {
     return (
       <div>
@@ -130,6 +134,45 @@ export function ANR({ sec }: FnProps) {
           <ResearchSource part={ratings} />
         </Section>
       </div>
+      {fhOn ? (
+        <Section title="Recommendation trends (Finnhub)" right="analysts counted each month">
+          {!fh || fh.state === 'loading' ? (
+            <div className="empty">Loading from Finnhub…</div>
+          ) : !recs.length ? (
+            <div className="empty">{fh.message ?? `Finnhub has no recommendations for ${symbol}.`}</div>
+          ) : (
+            <table className="tbl zebra">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th className="num">Strong buy</th>
+                  <th className="num">Buy</th>
+                  <th className="num">Hold</th>
+                  <th className="num">Sell</th>
+                  <th className="num">Strong sell</th>
+                  <th className="num">Buy share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recs.slice(0, 4).map((m) => {
+                  const total = m.strongBuy + m.buy + m.hold + m.sell + m.strongSell;
+                  return (
+                    <tr key={m.period}>
+                      <td className="amber">{fmtDay(Date.parse(`${m.period}T00:00:00Z`))}</td>
+                      <td className="num up">{m.strongBuy}</td>
+                      <td className="num up">{m.buy}</td>
+                      <td className="num">{m.hold}</td>
+                      <td className="num dn">{m.sell}</td>
+                      <td className="num dn">{m.strongSell}</td>
+                      <td className="num white">{total > 0 ? `${fmtNum(((m.strongBuy + m.buy) / total) * 100, 0)}%` : '--'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </Section>
+      ) : null}
       <Section title="How price targets moved" right="average of the targets published in each period">
         {loading(summary) ? (
           <div className="empty">Loading…</div>

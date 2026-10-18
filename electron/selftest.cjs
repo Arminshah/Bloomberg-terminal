@@ -139,6 +139,33 @@ const TESTS = [
     },
   },
   {
+    id: 'finnhub-metric',
+    provider: 'finnhub',
+    label: 'Finnhub key ratios (Apple)',
+    credentials: ['FINNHUB_API_KEY'],
+    setting: 'FINNHUB_ENABLED',
+    request: ([key]) => ({ url: 'https://finnhub.io/api/v1/stock/metric?symbol=AAPL&metric=all', headers: { 'X-Finnhub-Token': key } }),
+    read: (text) => {
+      const m = json(text)?.metric;
+      if (!m || !Object.keys(m).length) throw new Error('no ratios in the answer');
+      return `P/E ${n(m.peTTM ?? m.peBasicExclExtraTTM)}, beta ${n(m.beta)}, ${Object.keys(m).length} fields`;
+    },
+  },
+  {
+    id: 'finnhub-earnings',
+    provider: 'finnhub',
+    label: 'Finnhub EPS surprises and recommendations (Apple)',
+    credentials: ['FINNHUB_API_KEY'],
+    setting: 'FINNHUB_ENABLED',
+    request: ([key]) => ({ url: 'https://finnhub.io/api/v1/stock/earnings?symbol=AAPL', headers: { 'X-Finnhub-Token': key } }),
+    read: (text) => {
+      const j = json(text);
+      if (!Array.isArray(j)) throw new Error('no list in the answer');
+      const q = j[0];
+      return q ? `${j.length} quarters, latest ${q.period}: actual ${n(q.actual)} vs estimate ${n(q.estimate)}` : 'no quarters';
+    },
+  },
+  {
     id: 'finnhub-news',
     provider: 'finnhub',
     label: 'Finnhub market news',

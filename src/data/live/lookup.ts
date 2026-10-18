@@ -37,6 +37,7 @@ declare global {
       analysts?(kind: import('./analysts').AnalystKind, symbol: string): Promise<KeyedAnswer>;
       finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
       equibles?(kind: import('./equibles').ResearchKind, symbol: string): Promise<KeyedAnswer>;
+      finnhub?(kind: 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'quote', symbol: string): Promise<KeyedAnswer>;
       news?(source: import('./marketnews').NewsSource, arg?: string): Promise<KeyedAnswer>;
       alpaca?(kind: 'snapshots', symbols: string): Promise<KeyedAnswer>;
       optionChain?(arg: { symbol: string; expiry?: string; pageToken?: string }): Promise<KeyedAnswer>;

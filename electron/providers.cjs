@@ -170,7 +170,7 @@ const SETTINGS = {
   // The keyed sources added in 2.1.0, each on while its key is set; off stops every request to it.
   FMP_ENABLED: { label: 'Financial Modeling Prep analyst research', default: true },
   EQUIBLES_ENABLED: { label: 'Equibles company research (read only)', default: true },
-  FINNHUB_ENABLED: { label: 'Finnhub news and analyst recommendation trends', default: true },
+  FINNHUB_ENABLED: { label: 'Finnhub company data, recommendations and news', default: true },
   MARKETAUX_ENABLED: { label: 'Marketaux news and sentiment', default: true },
   ALPACA_ENABLED: { label: 'Alpaca IEX stocks and indicative options (market data only)', default: true },
   ALPACA_IEX_PRICES_ENABLED: { label: 'Use Alpaca IEX only prices for US equities', default: false },
