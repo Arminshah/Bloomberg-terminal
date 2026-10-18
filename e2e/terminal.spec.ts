@@ -186,14 +186,37 @@ test('bad commands explain themselves', async ({ page }) => {
 
 test('mnemonic commands run the implemented functions and open their help', async ({ page }) => {
   const errors = await boot(page, '1');
-  for (const [cmd, code] of [['GP AAPL', 'CHART'], ['AAPL US EQUITY DES', 'PROFILE'], ['FA AAPL', 'FINANCIALS'], ['BQ AAPL', 'QUOTE'], ['WEI', 'MARKET'], ['W', 'WATCHLIST']]) {
+  for (const [cmd, code] of [['GP AAPL', 'CHART'], ['AAPL US EQUITY DES', 'PROFILE'], ['FA AAPL', 'FINANCIALS'], ['BQ AAPL', 'QUOTE'], ['WEI', 'MARKET'], ['W', 'WATCHLIST'], ['TOP', 'MARKETNEWS']]) {
     await run(page, cmd);
     await expect(page.locator('.panel').first().locator('.fnh-code').first(), cmd).toHaveText(code);
   }
+  // TOP is the market news; its numbered Official item opens the official announcements.
+  await run(page, '4');
+  await expect(page.locator('.panel').first().locator('.fnh-code').first()).toHaveText('HEADLINES');
   await run(page, 'HELP GP');
   await expect(page.locator('.panel').first()).toContainText('CHART');
   await run(page, 'DES?');
   await expect(page.locator('.panel').first()).toContainText('PROFILE');
+  expect(errors).toEqual([]);
+});
+
+test('the events calendar covers the watchlist first, then every stock or the portfolio', async ({ page }) => {
+  const errors = await boot(page, '1');
+  await run(page, 'EVTS');
+  const header = page.locator('.panel').first().locator('.fnh');
+  await expect(header.locator('.fnh-code')).toHaveText('EVENTS');
+  // The default watchlist holds stocks, so the calendar starts on them.
+  await expect(header.getByRole('button', { name: '12) Watchlist' })).toHaveClass(/\bon\b/);
+  await expect(header.locator('.fnh-sub')).toContainText('watchlist Core:');
+  await run(page, '11');
+  await expect(header.getByRole('button', { name: '11) All' })).toHaveClass(/\bon\b/);
+  await expect(header.locator('.fnh-sub')).toContainText('all stocks');
+  await run(page, '13');
+  await expect(header.getByRole('button', { name: '13) Portfolio' })).toHaveClass(/\bon\b/);
+  await expect(page.locator('.panel').first().locator('.empty')).toContainText('Your portfolio holds no stocks');
+  // One company's calendar has no list to pick.
+  await run(page, 'AAPL EVENTS');
+  await expect(header.getByRole('button', { name: '12) Watchlist' })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

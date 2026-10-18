@@ -8,6 +8,8 @@ import { desktopData, yahooQuotes } from '../data/live/yahoo';
 import { engine, useTick } from '../data/market';
 import { DAY_MS } from '../data/calendar';
 import { dividends, earningsEvents } from '../data/fundamentals';
+import type { SecurityDef } from '../data/types';
+import { portfolio, watchlists } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
 
 interface Ev {
@@ -22,11 +24,29 @@ interface Ev {
   sim?: boolean;
 }
 
+/** The stocks the calendar covers when no security is loaded. */
+const SCOPES = [
+  { n: 11, label: 'All', title: 'Every stock in the app' },
+  { n: 12, label: 'Watchlist', title: "Your active watchlist's stocks (WATCHLIST)" },
+  { n: 13, label: 'Portfolio', title: 'The stocks you hold (PORTFOLIO)' },
+];
+
+/** The stocks among some securities, each once; one not loaded yet is left out. */
+const equitiesOf = (ids: string[]) => [...new Set(ids)].map((id) => engine.get(id)).filter((d): d is SecurityDef => d?.cls === 'equity');
+
 export function EVTS({ sec }: FnProps) {
   const [range, setRange] = useState(2);
   // Re-reads the calendar as real dates arrive.
   useTick(10);
   const now = engine.now();
+  const wl = watchlists.use((w) => w.lists[w.active] ?? w.lists[0]);
+  const held = portfolio.use((p) => p.positions);
+  // Looked-up stocks load after the lists do, so the lists are read again as time moves.
+  const watched = useMemo(() => equitiesOf(wl?.ids ?? []), [wl, now]); // eslint-disable-line react-hooks/exhaustive-deps
+  const holdings = useMemo(() => equitiesOf(held.map((p) => p.id)), [held, now]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Your watchlist's stocks when it has any, every stock otherwise, until you pick.
+  const [picked, setPicked] = useState<number | null>(null);
+  const scope = picked ?? (watched.length ? 12 : 11);
   const spans = [
     { n: 1, label: 'This week', from: -3, to: 7 },
     { n: 2, label: '±2 weeks', from: -14, to: 14 },
@@ -38,7 +58,7 @@ export function EVTS({ sec }: FnProps) {
     const from = now + span.from * DAY_MS;
     const to = now + span.to * DAY_MS;
     const list: Ev[] = [];
-    const secs = sec ? [sec] : engine.securities.filter((d) => d.cls === 'equity');
+    const secs = sec ? [sec] : scope === 12 ? watched : scope === 13 ? holdings : engine.securities.filter((d) => d.cls === 'equity');
     for (const d of secs) {
       const realEarnings = !!getRealFund(d.id) || yahooQuotes.has(d.id) || engine.isExternal(d.id);
       for (const e of earningsEvents(d)) {
@@ -57,12 +77,21 @@ export function EVTS({ sec }: FnProps) {
       }
     }
     return list.sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
-  }, [sec, span.from, span.to, now]);
+  }, [sec, scope, watched, holdings, span.from, span.to, now]);
+  const stocks = (n: number) => `${n} ${n === 1 ? 'stock' : 'stocks'}`;
+  const covered = sec ? '' : scope === 12 ? `watchlist ${wl?.name ?? ''}: ${stocks(watched.length)} · ` : scope === 13 ? `portfolio: ${stocks(holdings.length)} · ` : 'all stocks · ';
+  const none =
+    !sec && scope === 12 && !watched.length
+      ? `Your active watchlist${wl ? ` (${wl.name})` : ''} has no stocks: add some on WATCHLIST, or pick 11) All.`
+      : !sec && scope === 13 && !holdings.length
+        ? 'Your portfolio holds no stocks: enter your holdings on PORTFOLIO, or pick 11) All.'
+        : 'No events in this window.';
   let lastDay = '';
   return (
     <div>
       <FnHeader code="EVENTS" title={sec ? 'Corporate Events' : 'Corporate Events Calendar'} sec={sec} sub={
           <>
+            {covered}
             {events.length} {events.length === 1 ? 'event' : 'events'} · earnings and ex-dividend dates ·{' '}
             {events.some((e) => e.sim) ? (
               <>
@@ -74,7 +103,8 @@ export function EVTS({ sec }: FnProps) {
               </>
             )}
           </>
-        } tabs={spans.map((s) => ({ n: s.n, label: s.label }))} tab={range} onTab={setRange} />
+        } tabs={spans.map((s) => ({ n: s.n, label: s.label }))} tab={range} onTab={setRange}
+        actions={sec ? [] : SCOPES.map((x) => ({ n: x.n, label: x.label, title: `${x.title} · type ${x.n} and press Enter`, on: x.n === scope, onClick: () => setPicked(x.n) }))} />
       <table className="tbl">
         <thead>
           <tr>
@@ -90,7 +120,7 @@ export function EVTS({ sec }: FnProps) {
           {events.length === 0 && (
             <tr>
               <td colSpan={6} className="empty">
-                No events in this window.
+                {none}
               </td>
             </tr>
           )}

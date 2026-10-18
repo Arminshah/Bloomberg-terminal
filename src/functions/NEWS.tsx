@@ -100,7 +100,8 @@ function NewsScreen({ code, title, initialTopic, query }: { code: string; title:
   );
 }
 
-export function TOP({ route }: FnProps) {
+/** HEADLINES: the official announcements. TOP opens the market news (MARKETNEWS), as on a Bloomberg terminal. */
+export function HEADLINES({ route }: FnProps) {
   const arg = route.args?.toUpperCase();
   const topic = arg && NEWS_TOPICS.some((t) => t.code === arg) ? arg : 'ALL';
   return <NewsScreen code="HEADLINES" title="Official Announcements" initialTopic={topic} />;

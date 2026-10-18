@@ -44,7 +44,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `DIVIDENDS` | Ex-dates and amounts over ten years, frequency, 12-month yield, next ex-date | Yahoo Finance | Partial: declared and record dates not given |
 | `HOLDERS` | Largest institutional and fund holders, ownership breakdown | Yahoo Finance (13F and fund filings) | Real, as of each filing |
 | `PEERS` | Valuation, profitability and returns against peers | Yahoo Finance | Calculated. Peers chosen from the app's own industry labels |
-| `EVENTS` | Earnings and ex-dividend calendar | Yahoo Finance | Real; ~ marks a date the source calls expected |
+| `EVENTS` | Earnings and ex-dividend calendar for one company, the active watchlist (the default when it holds stocks), the portfolio or every stock | Yahoo Finance | Real; ~ marks a date the source calls expected |
 | `FILINGS` | SEC filings with links, and figures from XBRL statements | SEC EDGAR (needs `SEC_USER_AGENT`) | Real |
 | `CROSSCHECK` | A US stock's closes beside other end-of-day sources | Massive, Alpha Vantage, Tiingo, Twelve Data (your keys) | Real |
 | `WACC` | Cost of equity and debt, weights, perpetuity check | Yahoo Finance statements and prices; official 10-year yields | Calculated, inputs named. Blank where the app has no official 10-year yield for the currency |
@@ -66,8 +66,8 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
 | `HEADLINES`, `NEWS` | Press releases, newest first, by topic or keyword | Federal Reserve Board, ECB, Bank of England, Bank of Canada, RBA, BEA, ESMA (RSS) | Real. Not a market news wire |
-| `MARKETNEWS` | Market news merged without duplicates, with the latest 8-K filings; ticker and keyword filters | Finnhub, Marketaux (with sentiment), SEC EDGAR; MarketWatch if switched on | Real: headlines, summaries and links, not article text |
-| `COMPANYNEWS` | A US company's news from the last week, with sentiment where Marketaux gives it | Finnhub, Marketaux (your keys) | Real: headlines and links |
+| `MARKETNEWS` (`TOP`) | Market news merged without duplicates, with the latest 8-K filings and Euronext press releases; ticker and keyword filters; 4) Official opens `HEADLINES` | Finnhub, Marketaux (with sentiment), SEC EDGAR, Euronext; MarketWatch if switched on | Real: headlines, summaries and links, not article text |
+| `COMPANYNEWS` | A US company's news from the last week, with sentiment where Marketaux gives it; any stock's Yahoo headlines; a Euronext-listed company's press releases among Euronext's latest | Finnhub, Marketaux (your keys); Yahoo Finance; Euronext | Real: headlines and links |
 
 ## Markets
 

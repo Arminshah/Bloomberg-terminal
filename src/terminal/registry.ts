@@ -24,7 +24,7 @@ import { CORR } from '../functions/CORR';
 import { DEPTH } from '../functions/DEPTH';
 import { TAS } from '../functions/TAS';
 import { BQ } from '../functions/BQ';
-import { CN, N, TOP } from '../functions/NEWS';
+import { CN, HEADLINES, N } from '../functions/NEWS';
 import { MNEWS } from '../functions/MNEWS';
 import { WEI, WEIF } from '../functions/WEI';
 import { IMAP } from '../functions/IMAP';
@@ -63,7 +63,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'DIVIDENDS', name: 'Dividend History', category: 'Equity', needsSec: true, classes: EQ, desc: 'Cash dividends over ten years by ex-date, with amounts, frequency, 12-month yield and the next expected ex-date.', component: DVD, aliases: ['DIVS'] },
   { code: 'HOLDERS', name: 'Holders', category: 'Equity', needsSec: true, classes: EQ, desc: 'Largest institutional and fund holders with position, percent outstanding and change, and the ownership breakdown.', component: HDS, aliases: ['OWNERSHIP'] },
   { code: 'PEERS', name: 'Relative Valuation', category: 'Equity', needsSec: true, classes: EQ, desc: 'Peer comparison of valuation multiples, profitability and returns with peer medians.', component: RV, aliases: ['COMPS'] },
-  { code: 'EVENTS', name: 'Corporate Events', category: 'Equity', classes: EQ, desc: 'Calendar of earnings releases and ex-dividend dates, for one company or the whole universe.', component: EVTS, aliases: ['CORPCAL'] },
+  { code: 'EVENTS', name: 'Corporate Events', category: 'Equity', classes: EQ, desc: 'Calendar of earnings releases and ex-dividend dates, for one company, your active watchlist, your portfolio or every built-in stock.', component: EVTS, aliases: ['CORPCAL'] },
   { code: 'FILINGS', name: 'Company Filings', category: 'Equity', classes: EQ, desc: 'SEC EDGAR: a company\'s filings (annual and quarterly reports, current reports, ownership, proxies, offerings) with links to the documents on sec.gov, and the figures it reported in its XBRL financial statements. Finds any SEC filer by ticker, name or CIK.', component: FILINGS, aliases: ['EDGAR'], example: 'FILINGS MSFT' },
   { code: 'CROSSCHECK', name: 'Close Cross-Check', category: 'Equity', needsSec: true, classes: EQ, desc: "A US stock's daily closes in the app beside other end-of-day sources (Massive, Alpha Vantage, Tiingo, Twelve Data, with your keys), with the gaps in basis points.", component: CROSSCHECK, aliases: ['VERIFY'], example: 'CROSSCHECK AAPL' },
   { code: 'WACC', name: 'Cost of Capital', category: 'Equity', needsSec: true, classes: EQ, desc: 'Weighted average cost of capital from CAPM and after-tax cost of debt, with a perpetuity value check.', component: WACC },
@@ -78,10 +78,10 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'BETA', name: 'Historical Beta', category: 'Charts', needsSec: true, classes: ['equity', 'index', 'crypto', 'commodity', 'fx'], desc: 'Regression of returns against an index: raw and adjusted beta, alpha, R², with scatter plot.', component: BETA },
   { code: 'VOLATILITY', name: 'Historical Volatility', category: 'Charts', needsSec: true, desc: 'Realised volatility over 10 to 260 days with percentiles and a rolling chart. Implied volatility is not available (option quotes are licensed).', component: HVT },
   // News
-  { code: 'HEADLINES', name: 'Official Announcements', category: 'News', desc: 'Press releases from central banks, the BEA and ESMA, newest first, with topic tabs and a reader.', component: TOP, aliases: ['ANNOUNCEMENTS'] },
+  { code: 'HEADLINES', name: 'Official Announcements', category: 'News', desc: 'Press releases from central banks, the BEA and ESMA, newest first, with topic tabs and a reader. TOP opens the market news (MARKETNEWS).', component: HEADLINES, aliases: ['ANNOUNCEMENTS'] },
   { code: 'NEWS', name: 'News Search', category: 'News', desc: 'Keyword search of the official announcements, or a topic: NEWS CB (central banks), NEWS REG (regulators), NEWS STATS (statistics). With a security it opens COMPANYNEWS.', component: N, example: 'NEWS CB' },
-  { code: 'MARKETNEWS', name: 'Market News', category: 'News', desc: 'Market news from Finnhub, MarketWatch and Marketaux (your watchlist, with sentiment), with the SEC\'s latest 8-K filings, merged without duplicates; filter by ticker or keyword.', component: MNEWS, aliases: ['MNEWS', 'WIRE'], example: 'MARKETNEWS NVDA' },
-  { code: 'COMPANYNEWS', name: 'Company News', category: 'News', needsSec: true, desc: "A US company's news from the last week (Finnhub) and Marketaux's latest stories tagged with it, with sentiment, and a way to its SEC filings.", component: CN, example: 'COMPANYNEWS AAPL' },
+  { code: 'MARKETNEWS', name: 'Market News', category: 'News', desc: 'Top market news from Finnhub, MarketWatch and Marketaux (your watchlist, with sentiment), with the SEC\'s latest 8-K filings and Euronext\'s latest press releases, merged without duplicates; filter by ticker or keyword. 4) Official opens HEADLINES.', component: MNEWS, aliases: ['MNEWS', 'WIRE'], example: 'MARKETNEWS NVDA' },
+  { code: 'COMPANYNEWS', name: 'Company News', category: 'News', needsSec: true, desc: "A company's news: for a US company the last week from Finnhub and Marketaux's latest stories tagged with it, with sentiment, and a way to its SEC filings; Yahoo Finance headlines for any stock; for a stock listed on Euronext, its press releases among Euronext's latest.", component: CN, example: 'COMPANYNEWS AAPL' },
   // Markets
   { code: 'MARKET', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI, aliases: ['INDICES'], example: 'MARKET US' },
   { code: 'INDEXFUTURES', name: 'World Index Futures', category: 'Markets', desc: 'Front equity index futures with basis, fair value and premium or discount to fair value.', component: WEIF },

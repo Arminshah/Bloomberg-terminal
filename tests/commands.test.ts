@@ -136,6 +136,16 @@ describe('mnemonic command aliases', () => {
     expect(parse('HELP N')).toEqual({ kind: 'route', fn: 'HELP', args: 'NEWS' });
   });
 
+  it('opens the top market news on TOP and keeps the official announcements under their own name', () => {
+    expect(parse('TOP')).toEqual({ kind: 'route', fn: 'MARKETNEWS' });
+    expect(parse('TOP <GO>')).toEqual({ kind: 'route', fn: 'MARKETNEWS' });
+    expect(parse('HELP TOP')).toEqual({ kind: 'route', fn: 'HELP', args: 'MARKETNEWS' });
+    expect(lookupFn('MARKETNEWS')?.aliases).toContain('TOP');
+    expect(lookupFn('HEADLINES')?.aliases).not.toContain('TOP');
+    expect(parse('HEADLINES')).toEqual({ kind: 'route', fn: 'HEADLINES' });
+    expect(parse('ANNOUNCEMENTS')).toEqual({ kind: 'route', fn: 'HEADLINES' });
+  });
+
   it('keeps explicit securities ahead of colliding mnemonic names before and after lookup', () => {
     const base = resolveSecurity('AAPL')!;
     for (const ticker of ['N', 'W']) {
@@ -188,6 +198,14 @@ describe('mnemonic command aliases', () => {
     expect(s.panels[0].history).toEqual([{ fn: 'MARKET' }, { fn: 'PROFILE', sec: 'NVDA US Equity' }]);
     expect(s.recentFns).toEqual(['CHART', 'PROFILE']);
     expect(renameSavedCodes(defaultTerminal())).toEqual(defaultTerminal());
+  });
+
+  it('keeps a screen saved as TOP on the official announcements it showed', () => {
+    expect(migrateRoute({ fn: 'TOP', args: 'CB' })).toEqual({ fn: 'HEADLINES', args: 'CB' });
+    const old = { ...defaultTerminal(), panels: [{ history: [{ fn: 'TOP' }], idx: 0 }], recentFns: ['TOP', 'MARKETNEWS'] };
+    const s = renameSavedCodes(old);
+    expect(s.panels[0].history).toEqual([{ fn: 'HEADLINES' }]);
+    expect(s.recentFns).toEqual(['HEADLINES', 'MARKETNEWS']);
   });
 });
 

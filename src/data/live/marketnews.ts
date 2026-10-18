@@ -5,7 +5,8 @@ import { parseFeed } from './officialnews';
 /**
  * Market and company news, apart from the official announcements: Finnhub (market news and a company's
  * news, with the owner's key), Marketaux (ticker-tagged news with sentiment, with the owner's token),
- * MarketWatch's top stories (RSS, no key) and the SEC's latest 8-K filings (Atom, with SEC_USER_AGENT).
+ * MarketWatch's top stories (RSS, no key), the SEC's latest 8-K filings (Atom, with SEC_USER_AGENT), Yahoo
+ * Finance's headlines for one ticker and Euronext's latest company press releases (RSS, no key).
  * The desktop app's main process asks each source within its limits and keeps answers (electron/news.cjs);
  * here the answers become one list without duplicates. Only headlines, publishers, times, short summaries
  * and links are shown; no article text is fetched.
@@ -34,6 +35,8 @@ export interface MarketStory {
   sentiment?: { symbol: string; score: number }[];
   /** An SEC filing rather than an article. */
   filing?: boolean;
+  /** A press release's issuer, where its title names it ("COMPANY : HEADLINE"). */
+  issuer?: string;
 }
 
 const TICKER = /^[A-Z][A-Z0-9.-]{0,9}$/;
@@ -179,7 +182,69 @@ export function parseEuronextPr(text: string): MarketStory[] {
       time: it.published,
       tickers: [],
       filing: false,
+      ...(m ? { issuer: m[1].trim() } : {}),
     };
+  });
+}
+
+/** Countries whose stock exchange is Euronext's: Brussels, Paris, Amsterdam, Lisbon and Dublin. */
+const EURONEXT_COUNTRIES = new Set(['BE', 'FR', 'NL', 'PT', 'IE']);
+
+/** A stock listed on a Euronext market, whose own press releases can be in Euronext's feed. */
+export function onEuronext(d: { cls: string; country: string; exch?: string }): boolean {
+  return d.cls === 'equity' && (EURONEXT_COUNTRIES.has(d.country) || /^EN /.test(d.exch ?? ''));
+}
+
+/** Legal forms, written without their dots: "N.V." is nv, "S.A." is sa, "SA/NV" is two of them. */
+const LEGAL_FORMS = new Set(['sa', 'nv', 'plc', 'ag', 'se', 'spa', 'sgps', 'bv', 'asa', 'sca', 'cva', 'ltd', 'limited', 'inc', 'corp', 'co']);
+const LEGAL_PAIRS = new Set(['societe anonyme', 'naamloze vennootschap', 'sociedade anonima', 'comm va']);
+
+/**
+ * A company's name as words without case, accents, punctuation or legal forms: "Anheuser-Busch InBev SA/NV" is
+ * anheuser busch inbev, "L’ORÉAL" and "L'Oreal SA" are both loreal, "NV Bekaert SA" is bekaert.
+ */
+export function companyWords(name: string): string[] {
+  const w = name
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[.'’`]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  // A legal form ends the name (at times two of them), or starts it; a name that is only one word keeps it.
+  for (;;) {
+    if (w.length > 2 && LEGAL_PAIRS.has(w.slice(-2).join(' '))) w.splice(-2);
+    else if (w.length > 1 && LEGAL_FORMS.has(w[w.length - 1])) w.pop();
+    else if (w.length > 1 && LEGAL_FORMS.has(w[0])) w.shift();
+    else return w;
+  }
+}
+
+/**
+ * Whether two names are one company's: the same words (see companyWords), or one name the first words of the
+ * other ("LVMH" and "LVMH Moet Hennessy Louis Vuitton SE"). A first word of three letters or fewer is not
+ * enough alone: "KBC" begins both "KBC Groep NV" and "KBC Ancora", which are two companies.
+ */
+export function sameCompany(a: string, b: string): boolean {
+  const x = companyWords(a);
+  const y = companyWords(b);
+  if (!x.length || !y.length) return false;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  if (!short.every((w, i) => long[i] === w)) return false;
+  return short.length === long.length || short.length >= 2 || short[0].length > 3;
+}
+
+/**
+ * The Euronext press releases of one company: those whose issuer is the company and, for a title that does
+ * not name its issuer ("Mercialys Appoints ..."), those whose title starts with the company's name.
+ */
+export function releasesOf(company: string, stories: MarketStory[]): MarketStory[] {
+  const own = companyWords(company);
+  const distinct = own.length >= 2 || (own.length === 1 && own[0].length > 3);
+  return stories.filter((s) => {
+    if (s.issuer) return sameCompany(s.issuer, company);
+    const t = companyWords(s.title);
+    return distinct && own.every((w, i) => t[i] === w);
   });
 }
 
@@ -371,6 +436,25 @@ export function yahooHeadlines(yahooSymbol: string | null | undefined): { storie
   const key = `yahoo-rss:${yahooSymbol.toUpperCase()}`;
   const s = marketNews.get();
   return { stories: s.lists[key] ?? [], feed: s.feeds[key] };
+}
+
+/** Euronext's latest press releases while a screen shows a stock listed there, every 10 minutes as on MARKETNEWS. */
+export function useEuronextReleases(on: boolean) {
+  const v = marketNews.use((x) => x.v);
+  useEffect(() => {
+    if (!on || !newsAvailable()) return;
+    const tick = () => void loadNews('euronext-pr', '', 10 * 60_000);
+    tick();
+    const t = setInterval(tick, 60_000);
+    return () => clearInterval(t);
+  }, [on]);
+  return v;
+}
+
+/** One company's releases among Euronext's latest, and the state of that request. */
+export function euronextReleases(company: string): { stories: MarketStory[]; feed?: FeedState } {
+  const s = marketNews.get();
+  return { stories: releasesOf(company, s.lists['euronext-pr'] ?? []), feed: s.feeds['euronext-pr'] };
 }
 
 /** The stories of the requests whose keys start with one of `prefixes`, merged. */

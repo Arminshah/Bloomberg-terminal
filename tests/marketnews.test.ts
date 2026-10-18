@@ -186,8 +186,82 @@ describe('Yahoo headlines and Euronext press releases', () => {
     const xml = '<rss><channel><item><title>EXAMPLE SA : CHIFFRE D’AFFAIRES À 9 MOIS</title><link>https://live.euronext.com/fr/products/equities/company-news/2026-10-15-example</link><description>&lt;span class="field__item"&gt; Stocks &lt;/span&gt; FR0000000000</description><pubDate>Thu, 15 Oct 2026 16:06:02 +0000</pubDate><dc:creator>master_of_puppets</dc:creator><guid>12916650 at https://live.euronext.com</guid></item></channel></rss>';
     const [st] = parseEuronextPr(xml);
     expect(st.publisher).toBe('EXAMPLE SA (press release)');
+    expect(st.issuer).toBe('EXAMPLE SA');
     expect(st.time).toBe(Date.parse('2026-10-15T16:06:02Z'));
     expect(st.summary).toBeUndefined();
     expect(st.feeds).toEqual(['Euronext']);
+  });
+});
+
+describe("a Euronext-listed company's press releases", () => {
+  it('knows the stocks listed on a Euronext market', async () => {
+    const { onEuronext } = await import('../src/data/live/marketnews');
+    expect(onEuronext({ cls: 'equity', country: 'BE', exch: 'EN Brussels' })).toBe(true);
+    expect(onEuronext({ cls: 'equity', country: 'IE' })).toBe(true);
+    // Euronext's markets outside the five countries, as the app names them.
+    expect(onEuronext({ cls: 'equity', country: 'IT', exch: 'EN Milan' })).toBe(true);
+    expect(onEuronext({ cls: 'equity', country: 'US', exch: 'NASDAQ' })).toBe(false);
+    expect(onEuronext({ cls: 'equity', country: 'DE', exch: 'Xetra' })).toBe(false);
+    expect(onEuronext({ cls: 'index', country: 'FR', exch: 'EN Paris' })).toBe(false);
+  });
+
+  it('reads a name without case, accents, punctuation or legal forms', async () => {
+    const { companyWords } = await import('../src/data/live/marketnews');
+    expect(companyWords('Anheuser-Busch InBev SA/NV')).toEqual(['anheuser', 'busch', 'inbev']);
+    expect(companyWords("L'Oreal SA")).toEqual(['loreal']);
+    expect(companyWords('L’ORÉAL')).toEqual(['loreal']);
+    expect(companyWords('Koninklijke Philips N.V.')).toEqual(['koninklijke', 'philips']);
+    expect(companyWords('NV Bekaert SA')).toEqual(['bekaert']);
+    expect(companyWords('Jerónimo Martins, SGPS, S.A.')).toEqual(['jeronimo', 'martins']);
+    expect(companyWords('Sofina Société Anonyme')).toEqual(['sofina']);
+    // A name that is only a legal form keeps it.
+    expect(companyWords('SE')).toEqual(['se']);
+  });
+
+  it('matches an issuer to the company, not to another company that shares its first word', async () => {
+    const { sameCompany } = await import('../src/data/live/marketnews');
+    // Yahoo's names for the listings beside the names Euronext's feed gives the issuers.
+    expect(sameCompany('AGEAS', 'Ageas SA/NV')).toBe(true);
+    expect(sameCompany('ANHEUSER-BUSCH INBEV', 'Anheuser-Busch InBev SA/NV')).toBe(true);
+    expect(sameCompany('L’ORÉAL', "L'Oreal SA")).toBe(true);
+    expect(sameCompany('UCB', 'UCB SA')).toBe(true);
+    expect(sameCompany('ASML HOLDING N.V.', 'ASML Holding NV')).toBe(true);
+    expect(sameCompany('LVMH', 'LVMH Moet Hennessy Louis Vuitton SE')).toBe(true);
+    expect(sameCompany('COLRUYT', 'Colruyt Group N.V.')).toBe(true);
+    expect(sameCompany('KBC GROEP', 'KBC Groep NV')).toBe(true);
+    // KBC Ancora holds KBC shares but is another company; "KBC" alone is too short to name either.
+    expect(sameCompany('KBC ANCORA', 'KBC Groep NV')).toBe(false);
+    expect(sameCompany('KBC', 'KBC Ancora')).toBe(false);
+    expect(sameCompany('KBC', 'KBC Groep NV')).toBe(false);
+    expect(sameCompany('EDP RENOVAVEIS', 'EDP - Energias de Portugal, S.A.')).toBe(false);
+    expect(sameCompany('AIR FRANCE-KLM', 'Air Liquide SA')).toBe(false);
+    expect(sameCompany('SPINEWAY', 'ASML Holding NV')).toBe(false);
+    expect(sameCompany('', 'ASML Holding NV')).toBe(false);
+  });
+
+  it("keeps a company's releases from Euronext's feed, by issuer or by a title that starts with its name", async () => {
+    const { parseEuronextPr, releasesOf } = await import('../src/data/live/marketnews');
+    // Titles in the shapes the feed carried on 18 October 2026, with made-up links.
+    const item = (title: string, n: number) => `<item><title>${title}</title><link>https://live.euronext.com/en/products/equities/company-news/2026-10-1${n}-x</link><pubDate>Thu, 1${n} Oct 2026 16:06:02 +0000</pubDate></item>`;
+    const xml = `<rss><channel>${[
+      'SPINEWAY : CHIFFRE D’AFFAIRES À 9 MOIS',
+      'KBC Groep NV : KBC Group third-quarter 2026 results',
+      'KBC ANCORA : Interim financial information',
+      'Mercialys Appoints a Lead Independent Director',
+      'ROCTOOL: INFORMATION MENSUELLE RELATIVE AU NOMBRE TOTAL DE DROITS DE VOTE',
+      'UCB announces a dividend',
+    ].map(item).join('')}</channel></rss>`;
+    const all = parseEuronextPr(xml);
+    // Newest first: the last item is the latest.
+    expect(all.map((s) => s.issuer)).toEqual([undefined, undefined, undefined, 'KBC ANCORA', 'KBC Groep NV', 'SPINEWAY']);
+    const titles = (company: string) => releasesOf(company, all).map((s) => s.title);
+    expect(titles('KBC Groep NV')).toEqual(['KBC Groep NV : KBC Group third-quarter 2026 results']);
+    expect(titles('KBC Ancora')).toEqual(['KBC ANCORA : Interim financial information']);
+    expect(titles('Spineway SA')).toEqual(['SPINEWAY : CHIFFRE D’AFFAIRES À 9 MOIS']);
+    expect(titles('Mercialys SA')).toEqual(['Mercialys Appoints a Lead Independent Director']);
+    expect(titles('Roctool SA')).toEqual(['ROCTOOL: INFORMATION MENSUELLE RELATIVE AU NOMBRE TOTAL DE DROITS DE VOTE']);
+    // A title is not matched on a short first word alone.
+    expect(titles('UCB SA')).toEqual([]);
+    expect(titles('ASML Holding NV')).toEqual([]);
   });
 });

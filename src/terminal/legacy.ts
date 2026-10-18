@@ -23,7 +23,7 @@ export const LEGACY_CODES: Record<string, string> = {
   TRA: 'TOTALRETURN',
   HS: 'SPREAD',
   HVT: 'VOLATILITY',
-  TOP: 'HEADLINES',
+  TOP: 'MARKETNEWS',
   N: 'NEWS',
   CN: 'COMPANYNEWS',
   WEI: 'MARKET',
@@ -69,12 +69,20 @@ export const LEGACY_CODES: Record<string, string> = {
   PDFU: 'SETTINGS',
 };
 
+/**
+ * Mnemonics that now open another screen than the one saved under them. TOP opened the official announcements
+ * (HEADLINES) before it became the top market news, so a panel, recent function or layout saved as TOP keeps
+ * the screen it showed.
+ */
+const SAVED_CODES: Record<string, string> = { TOP: 'HEADLINES' };
+
 const MNEMONICS = new Map(Object.entries(LEGACY_CODES).map(([alias, code]) => [code, alias]));
 /** Familiar short command for a descriptive canonical function; stored routes stay canonical. */
 export const primaryMnemonic = (code: string): string => MNEMONICS.get(code.toUpperCase()) ?? code;
 
-/** The current name for an old code, if it is one. */
+/** The current name for an old code saved in a panel, layout or recent list, if it is one. */
 export function renamedCode(code: string): string | undefined {
+  if (Object.prototype.hasOwnProperty.call(SAVED_CODES, code)) return SAVED_CODES[code];
   return Object.prototype.hasOwnProperty.call(LEGACY_CODES, code) ? LEGACY_CODES[code] : undefined;
 }
 

@@ -47,6 +47,7 @@ const EXAMPLES: [string, string][] = [
   ['SOFI', 'Any US stock: looked up online if not built in'],
   ['AAPL CHART', 'Security first, then the function, also works'],
   ['CURVE', 'Yield curves'],
+  ['TOP', 'Top market news (MARKETNEWS); HEADLINES has the official announcements'],
   ['NEWS CB', 'Central bank announcements'],
 ];
 
