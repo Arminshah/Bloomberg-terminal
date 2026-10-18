@@ -52,8 +52,12 @@ export function businessDaysBetween(from: number, to: number): number {
 }
 
 export function addMonths(date: Date, months: number): Date {
-  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + months, 1));
-  const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  // Date.UTC treats years 0..99 as 1900..1999. setUTCFullYear preserves the actual year.
+  const d = new Date(0);
+  d.setUTCFullYear(date.getUTCFullYear(), date.getUTCMonth() + months, 1);
+  const end = new Date(d);
+  end.setUTCMonth(d.getUTCMonth() + 1, 0);
+  const lastDay = end.getUTCDate();
   d.setUTCDate(Math.min(date.getUTCDate(), lastDay));
   return d;
 }

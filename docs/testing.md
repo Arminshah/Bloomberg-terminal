@@ -11,7 +11,7 @@
 | `npm run e2e:desktop` | Real Electron preload/IPC/UI tests with deterministic provider transport fixtures; Linux needs Xvfb or a display |
 | `npm run build` | Type check and production build of the renderer |
 
-CI (`.github/workflows/ci.yml`) runs lint, type check, unit tests and browser tests on every push, then builds the Windows and Linux packages. Run those checks and the desktop integration suite before publishing a release. Both CI and tag releases gate publication on the checks. The browser tests need Chromium: `npx playwright install chromium` once.
+CI (`.github/workflows/ci.yml`) runs lint, type check, unit tests, browser and Linux desktop tests on branch pushes and pull requests, then builds Windows/Linux packages and runs native Windows desktop tests. Tag releases run the same checks, upload packages and SHA256 files directly to a draft GitHub Release, and publish only after both platform jobs and uploaded-asset checks pass. They do not depend on Actions artifact storage. The browser tests need Chromium: `npx playwright install chromium` once. Validate workflow changes with actionlint.
 
 ## What the unit tests cover
 
@@ -37,11 +37,14 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 | `exchanges.test.ts` | NYSE and Euronext holidays and early closes against the exchanges' own tables, and the market timers' sessions |
 | `providers.test.ts` | Credentials and pasted key lists, request accounting, daily allowances, providers' refusals, switches, limits and provider states |
 | `finance.test.ts` | Black-Scholes, Treasury math, indicators and statistics |
+| `contracts.test.ts` | Independent bond yield/price and finite-difference risk checks, zero-volatility option limits, covered interest parity, dual-curve swap PV/par/coupon/curve risk, date/curve/input boundaries |
 | `data.test.ts`, `layout.test.ts`, `lookup.test.ts`, `portfolio.test.ts` | Heat map layout, calendars, fundamentals, workspace layouts, ticker lookup, the portfolio without paper trading |
 
 ## What the browser tests cover
 
 `e2e/terminal.spec.ts` runs the browser build, which has no data source: the first test checks that it opens on the no-data page and that the demo, once chosen, says DEMO DATA. The rest use the demo to check that every function renders without errors, that typing goes to the command line with autocomplete, that numbered menus and back navigation work, that bad commands explain themselves, that watchlists and alerts persist, and that the phone layout shows one panel without horizontal scrolling.
+
+Calculator checks use explicit inputs and closed-form expected values rather than importing the implementation. They exercise bond price/yield back-solving, numbered CSV export including inputs, FX carry/PV, swap pay/receive direction and curve coverage, zero-volatility equity/FX options and invalid-input clearing. The same flows run in Electron real-data mode with provider requests blocked, so a working demo cannot conceal a desktop-only calculator gap.
 
 ## Deterministic desktop integration
 

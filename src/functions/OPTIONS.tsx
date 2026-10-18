@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
+import { CalcSource } from '../components/CalcInputs';
 import { NotConnected } from '../components/NotConnected';
 import { XYChart } from '../components/chart/XYChart';
 import { KV, Section } from '../components/cells';
@@ -9,6 +10,7 @@ import { engine, useTick } from '../data/market';
 import { DAY_MS } from '../data/calendar';
 import { dividendYield, expiries, expiryLabel, riskFreeRate, strikeStep } from '../data/options';
 import { blackScholes, type OptType } from '../finance/options';
+import { inputNumber } from '../finance/contracts';
 import type { FnProps } from '../terminal/types';
 import { rangeStats } from '../data/analytics';
 
@@ -44,34 +46,43 @@ export function OVME({ sec, route }: FnProps) {
   const exps = expiries(engine.now());
   const spotLive = engine.quote(s.id)!.last;
   const [type, setType] = useState<OptType>(parts[0] === 'P' ? 'P' : 'C');
-  const [strike, setStrike] = useState(() => (Number(parts[1]) > 0 ? Number(parts[1]) : Math.round(spotLive / strikeStep(spotLive)) * strikeStep(spotLive)));
+  const [strikeText, setStrike] = useState(parts[1] ?? '');
   const [expiry, setExpiry] = useState(() => {
     const p = parts[2] ? Date.parse(`${parts[2]}T20:00:00Z`) : NaN;
     return Number.isFinite(p) ? p : exps[Math.min(3, exps.length - 1)];
   });
   const [spotOverride, setSpotOverride] = useState('');
   // A fourth argument is a volatility you give, in percent.
-  const [volOverride, setVolOverride] = useState(() => (Number(parts[3]) > 0 ? parts[3] : ''));
-  const spot = spotOverride && Number(spotOverride) > 0 ? Number(spotOverride) : spotLive;
-  const t = Math.max((expiry - engine.now()) / (365 * DAY_MS), 1 / (365 * 24));
+  const [volOverride, setVolOverride] = useState(parts[3] ?? '');
+  const spot = spotOverride.trim() ? inputNumber(spotOverride) : spotLive;
+  const strike = strikeText.trim() ? inputNumber(strikeText) : Math.round(spot / strikeStep(spot)) * strikeStep(spot);
+  const t = Math.max((expiry - engine.now()) / (365 * DAY_MS), 0);
   // A rate you type replaces the published one, which some currencies lack.
   const [rateOverride, setRateOverride] = useState('');
+  const [dividendOverride, setDividendOverride] = useState('');
+  const [multiplier, setMultiplier] = useState('100');
   const published = riskFreeRate(s);
-  const typedRate = rateOverride.trim() !== '' && Number.isFinite(Number(rateOverride));
-  const r = typedRate ? Number(rateOverride) / 100 : published.r;
+  const typedRate = rateOverride.trim() !== '';
+  const r = typedRate ? inputNumber(rateOverride) / 100 : published.r;
   const rateName = typedRate ? 'your input' : published.name;
   // On real data an unknown dividend yield counts as zero (and says so). The default volatility is the
   // 30-day realised volatility of the price history: a reference, not an implied volatility, which needs
   // option quotes the app does not have.
   const qSource = dividendYield(s);
-  const q = engine.realOnly && !Number.isFinite(qSource) ? 0 : qSource;
+  const q = dividendOverride.trim() ? inputNumber(dividendOverride) / 100 : engine.realOnly && !Number.isFinite(qSource) ? 0 : qSource;
   const fwd = spot * Math.exp((r - q) * t);
   const realised = rangeStats(s.id).vol30;
   const volDefault = realised / 100;
-  const volSource = volOverride && Number(volOverride) > 0 ? 'your input' : '30D realised (not implied)';
-  const vol = volOverride && Number(volOverride) > 0 ? Number(volOverride) / 100 : volDefault;
+  const volSource = volOverride.trim() ? 'your input' : '30D realised (not implied)';
+  const vol = volOverride.trim() ? inputNumber(volOverride) / 100 : volDefault;
   const g = blackScholes(type, spot, strike, t, r, q, vol);
-  const contract = s.cls === 'index' ? 100 : 100;
+  const contract = inputNumber(multiplier);
+  const error = !Number.isFinite(spot) || spot <= 0 ? 'Enter a positive spot or wait for a source price.'
+    : !Number.isFinite(strike) || strike <= 0 ? 'Enter a positive strike.'
+    : !Number.isFinite(vol) || vol < 0 ? 'Enter a nonnegative volatility or wait for realised volatility.'
+    : !Number.isFinite(r) || !Number.isFinite(q) ? 'Enter finite rate and dividend yield inputs.'
+    : !Number.isFinite(contract) || contract <= 0 ? 'Enter a positive contract multiplier.'
+    : !Number.isFinite(g.price) || !Number.isFinite(g.price * contract) ? 'These inputs exceed the calculator’s numerical range.' : '';
   const scen = [-20, -10, -5, -2, 0, 2, 5, 10, 20].map((pct) => {
     const sp = spot * (1 + pct / 100);
     const v = blackScholes(type, sp, strike, t, r, q, vol).price;
@@ -90,7 +101,8 @@ export function OVME({ sec, route }: FnProps) {
   );
   return (
     <div>
-      <FnHeader code="OPTIONCALC" title="Option Valuation" sec={s} sub={engine.realOnly ? `Theoretical value, Black-Scholes-Merton with continuous dividend yield · rate: ${rateName} · dividend from the source` : 'Black-Scholes-Merton with continuous dividend yield'} />
+      <FnHeader code="OPTIONCALC" title="Option Valuation" sec={s} sub="European Black-Scholes-Merton model · continuous rate and dividend yield" />
+      <CalcSource>Source inputs or your overrides. European exercise, flat continuous rate, dividend yield and volatility; confirm the multiplier. No listed option quote or American early-exercise value is supplied.</CalcSource>
       <QuoteStrip sec={s} />
       {engine.realOnly && !Number.isFinite(r) && (
         <div className="note amber">There is {rateName} (the central bank has no free daily source here), so the option is valued only once you enter a rate.</div>
@@ -105,7 +117,7 @@ export function OVME({ sec, route }: FnProps) {
         </span>
         <label className="fld">
           Strike
-          <input className="inp" style={{ width: 90, textAlign: 'right' }} aria-label="Strike" value={strike} onChange={(e) => setStrike(Number(e.target.value) || 0)} inputMode="decimal" />
+          <input className="inp" style={{ width: 90, textAlign: 'right' }} aria-label="Strike" placeholder={fmtNum(strike, s.dec)} value={strikeText} onChange={(e) => setStrike(e.target.value)} inputMode="decimal" />
         </label>
         <label className="fld">
           Expiry
@@ -120,18 +132,20 @@ export function OVME({ sec, route }: FnProps) {
         <label className="fld">Spot {numInput(spotOverride, setSpotOverride, 'Spot override', fmtNum(spotLive, s.dec))}</label>
         <label className="fld">Vol % {numInput(volOverride, setVolOverride, 'Volatility override', fmtNum(vol * 100, 2))}</label>
         <label className="fld">Rate % {numInput(rateOverride, setRateOverride, 'Rate override', Number.isFinite(published.r) ? fmtNum(published.r * 100, 2) : '')}</label>
+        <label className="fld">Dividend % {numInput(dividendOverride, setDividendOverride, 'Dividend yield override', fmtNum(q * 100, 2))}</label>
+        <label className="fld">Multiplier {numInput(multiplier, setMultiplier, 'Contract multiplier', '100')}</label>
       </div>
-      <div className="cols">
+      {error ? <div className="pad amber" role="status">{error}</div> : <><div className="cols">
         <Section title="Valuation">
           <KV
             items={[
-              ['Theoretical value', <span key="v" className="white b" style={{ fontSize: 'var(--fs-xl)' }}>{fmtNum(g.price, 4)}</span>],
-              ['Per contract (x100)', fmtNum(g.price * contract, 2)],
+              ['Theoretical value', <span key="v" data-testid="option-value" className="white b" style={{ fontSize: 'var(--fs-xl)' }}>{fmtNum(g.price, 4)}</span>],
+              [`Per contract (x${contract})`, fmtNum(g.price * contract, 2)],
               ['Underlying', fmtNum(spot, s.dec)],
               ['Forward', fmtNum(fwd, s.dec)],
               ['Volatility', `${fmtNum(vol * 100, 2)}% (${volSource})`],
               ['Time to expiry', `${fmtNum(t * 365, 1)} days`],
-              [engine.realOnly ? `Rate (${rateName}) / dividend` : 'Rate / dividend', `${fmtNum(r * 100, 2)}% / ${engine.realOnly && !Number.isFinite(qSource) ? 'unknown, 0% used' : `${fmtNum(q * 100, 2)}%`}`],
+              [`Rate (${rateName}) / dividend`, `${fmtNum(r * 100, 2)}% / ${dividendOverride.trim() ? `${fmtNum(q * 100, 2)}% (your input)` : engine.realOnly && !Number.isFinite(qSource) ? 'unknown, 0% used' : `${fmtNum(q * 100, 2)}%`}`],
               ['Intrinsic / time value', `${fmtNum(Math.max(0, type === 'C' ? spot - strike : strike - spot), 4)} / ${fmtNum(g.price - Math.max(0, type === 'C' ? spot - strike : strike - spot), 4)}`],
             ]}
           />
@@ -185,6 +199,7 @@ export function OVME({ sec, route }: FnProps) {
           </tbody>
         </table>
       </Section>
+      </>}
       {engine.realOnly && (
         <div className="note">
           The expiry list is a calendar of Fridays (the next five weeks, third-Friday months and January long-dated), not the contracts actually listed: the option chain is licensed data. The rate is held flat to expiry and the volatility is realised, not implied.

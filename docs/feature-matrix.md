@@ -11,6 +11,10 @@ Status:
 
 Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, STALE, UNKNOWN FRESHNESS); [data-dictionary.md](data-dictionary.md) defines the labels.
 
+## Version 2.3.0 additions
+
+`BONDCALC` (`YAS`), `FXFORWARD` (`FRD`) and `SWAPCALC` (`SWPM`) now calculate from explicit user inputs in desktop and browser builds. They do not require licensed bond prices or dealer curves to perform the calculation. Inputs begin blank; numbered example actions are labelled examples. Bond/forward/swap CSV exports include their inputs and assumptions. [Calculator conventions](calculators.md) define their scope. Equity and FX option calculators accept manual inputs, reject invalid overrides and support zero volatility; visible IEX quote panels receive polling priority without starving background subscriptions.
+
 ## Version 2.2.0 additions
 
 The original source coverage table below remains subject to each provider's access and entitlement. Version 2.2.0 adds an explicit `ALPACA_IEX_PRICES_ENABLED` setting for US equity prices throughout panels and watchlists. It supplies IEX-only trades, quotes and daily bars, with source timestamps and a 60-second freshness threshold. This is one exchange's data, not consolidated US prices, NBBO or market-wide volume. With this mode selected, Yahoo price writes are excluded. Long price history, 52-week statistics and long-horizon analytics are unavailable from the snapshot feed; intraday charts contain samples observed since this process started. Company fundamentals remain a separate source.
@@ -75,8 +79,8 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `FXMATRIX` | Cross rates | Yahoo Finance rates against the dollar | Calculated: crosses derived, not quoted |
 | `FXRANK` | Currencies ranked against the dollar | Yahoo Finance | Calculated |
 | `CRYPTO` | Ten coins: price, range, volume, market value, returns | Kraken (Yahoo Finance for the session if Kraken does not answer); CoinGecko (key) | Real |
-| `FXFORWARD` | Spot only | Yahoo Finance | Partial: forward points not available |
-| `FXOPTION` | Garman-Kohlhagen option value | Yahoo Finance spot, central bank rates, realised volatility | Calculated. Needs a published rate for both currencies or one you enter |
+| `FXFORWARD` | Outright, points, contract PV, tenor scenarios | User deposit rates, day bases, point size, notional and input/source spot | Calculated covered interest parity; no dealer quotes or cross-currency basis |
+| `FXOPTION` | Garman-Kohlhagen option value, Greeks and expiry P&L | Source spot/reference rates/realised volatility or manual overrides | Calculated European model. All inputs can be supplied offline; rates are continuous model rates |
 
 ## Rates
 
@@ -87,7 +91,9 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `MONEYMARKET` | Fed funds and reference rates, bills, spreads, SOFR futures | New York Fed, US Treasury, Fed Board, Yahoo Finance (CME) | Real |
 | `RATEPROBS` | Fed moves priced meeting by meeting | CBOT fed funds futures via Yahoo Finance, New York Fed, Fed Board | Calculated (CME FedWatch method). Fed only |
 | `CENTRALBANKS` | Policy rates, last moves, next decisions | Fed, ECB, Bank of England, Bank of Canada, RBA, SNB, Banco Central do Brasil | Real. Meeting dates other than the Fed's entered from published calendars |
-| `BONDCALC`, `BONDSEARCH`, `DEBTPROFILE`, `DEALERQUOTES`, `SWAPCALC` | | none | Not available: bond prices, dealer quotes and swap rates have no free source |
+| `BONDCALC` | Price/yield, accrued, duration, convexity, DV01, scenarios and cash flows | User coupon, maturity, settlement, frequency, price/yield and face | Calculated regular fixed-rate bullet, Actual/Actual ICMA, unadjusted dates; no observed market price or spread |
+| `SWAPCALC` | Par coupon, NPV, projected cash flows, curve/coupon bump P&L | User contract and separate discount/projection zero curves | Calculated forward-start fixed/float model; no dealer curve, fixing history or OIS conventions |
+| `BONDSEARCH`, `DEBTPROFILE`, `DEALERQUOTES` | | none | Not available: individual bond/dealer datasets have no connected free source |
 
 ## Commodities and economics
 
@@ -103,7 +109,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
-| `OPTIONCALC` | Black-Scholes-Merton value of one option | Yahoo Finance price and dividends; Treasury 3-month yield or the central bank rate | Calculated, realised volatility. Expiries are a calendar of Fridays, not listed contracts |
+| `OPTIONCALC` | Black-Scholes-Merton value, Greeks, scenarios, configurable multiplier | Source spot/dividend/reference rate/realised volatility or manual overrides | Calculated European model, including zero volatility. Expiries are a calendar of Fridays, not listed contracts or American exercise |
 | `OPTIONS` | | none | Not available: listed option quotes are licensed |
 | `WATCHLIST` | Your lists with prices and changes | Each line's source | Real |
 | `PORTFOLIO` | Holdings you enter, performance and risk | Each line's source; Yahoo Finance FX and S&P 500; Treasury 3-month yield | Calculated |

@@ -142,6 +142,8 @@ export function alpacaAvailable(): boolean {
 
 /** How many screens want each symbol. */
 const wanted = new Map<string, number>();
+/** Visible quote panels take precedence over the engine's background subscriptions. */
+const foreground = new Map<string, number>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 let inflight = false;
 /** A screen asked for a symbol while a request was out: ask again as soon as it returns. */
@@ -150,6 +152,12 @@ let added = false;
 let halted = false;
 /** Rotate batches so opening more than twenty symbols never starves the later ones. */
 let cursor = 0;
+let foregroundCursor = 0;
+
+function rotate(symbols: string[], start: number, count: number) {
+  const at = start % Math.max(1, symbols.length);
+  return [...symbols.slice(at), ...symbols.slice(0, at)].slice(0, count);
+}
 
 function schedule(ms: number) {
   if (timer) clearTimeout(timer);
@@ -164,7 +172,7 @@ function setAll(symbols: string[], f: (old: IexState | undefined) => IexState) {
   });
 }
 
-/** One request for every symbol a screen shows (up to 20), every 5 seconds while IEX trades. */
+/** At most twenty symbols per request; reserve five slots for background progress when needed. */
 async function poll() {
   timer = null;
   if (inflight) {
@@ -172,9 +180,13 @@ async function poll() {
     return;
   }
   const all = [...wanted.keys()];
-  const start = cursor % Math.max(1, all.length);
-  const symbols = [...all.slice(start), ...all.slice(0, start)].slice(0, 20);
-  cursor = (start + symbols.length) % Math.max(1, all.length);
+  const visible = all.filter((symbol) => foreground.has(symbol));
+  const background = all.filter((symbol) => !foreground.has(symbol));
+  const preferred = rotate(visible, foregroundCursor, background.length ? 15 : 20);
+  const remaining = rotate(background, cursor, 20 - preferred.length);
+  const symbols = [...preferred, ...remaining];
+  foregroundCursor = (foregroundCursor + preferred.length) % Math.max(1, visible.length);
+  cursor = (cursor + remaining.length) % Math.max(1, background.length);
   if (!symbols.length || halted) return;
   inflight = true;
   added = false;
@@ -226,9 +238,10 @@ export function retryIex() {
 }
 
 /** Keep a stock's IEX snapshot current while a screen or a quote consumer needs it. */
-export function acquireIex(symbol: string): () => void {
+export function acquireIex(symbol: string, visible = false): () => void {
   if (!SYMBOL.test(symbol) || !alpacaAvailable()) return () => {};
   wanted.set(symbol, (wanted.get(symbol) ?? 0) + 1);
+  if (visible) foreground.set(symbol, (foreground.get(symbol) ?? 0) + 1);
   if (!iex.get().by[symbol]) setAll([symbol], () => ({ state: 'loading' }));
   halted = false;
   if (inflight) added = true;
@@ -240,6 +253,11 @@ export function acquireIex(symbol: string): () => void {
     const n = (wanted.get(symbol) ?? 1) - 1;
     if (n > 0) wanted.set(symbol, n);
     else wanted.delete(symbol);
+    if (visible) {
+      const count = (foreground.get(symbol) ?? 1) - 1;
+      if (count > 0) foreground.set(symbol, count);
+      else foreground.delete(symbol);
+    }
     if (!wanted.size && timer) {
       clearTimeout(timer);
       timer = null;
@@ -252,7 +270,7 @@ export function useIex(def: SecurityDef | undefined): IexState | null {
   const symbol = alpacaSymbol(def);
   const st = iex.use((s) => (symbol ? s.by[symbol] : undefined));
   useEffect(() => {
-    if (symbol) return acquireIex(symbol);
+    if (symbol) return acquireIex(symbol, true);
   }, [symbol]);
   if (!symbol || !alpacaAvailable()) return null;
   return st ?? { state: 'loading' };

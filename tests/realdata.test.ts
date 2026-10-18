@@ -147,7 +147,9 @@ describe('second audit round (15 stocks)', () => {
 
   it('takes the 52-week high and low from the last 365 days, not the last 252 sessions', () => {
     const id = 'TSLA US Equity';
-    const today = engine.today;
+    // A fixed Monday makes this a completed-session window, independent of the run's weekday.
+    // On a Sunday, the last real bar is Friday and has a different 365-day cutoff.
+    const today = dayNum(NOW);
     // The high on the first weekday more than a year back (HOOD's was 367 days back).
     let hiDay = today - 366;
     while ([0, 6].includes(new Date(hiDay * DAY_MS).getUTCDay())) hiDay--;

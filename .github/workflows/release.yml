@@ -1,45 +1,85 @@
 name: Release desktop app
 
-# Pushing a version tag (v1.0.0, v1.1.0, ...) builds the Windows installer and
-# portable .exe and the Linux AppImage and .deb, and attaches them to a GitHub
-# Release for that tag. Running the workflow by hand builds the same files as
-# workflow artifacts, and also publishes a Release when a tag is given.
+# Tests gate the draft. Native builders upload directly to that draft, avoiding
+# Actions artifact-storage quotas. Only the complete, verified draft is published.
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: Publish a GitHub Release with this tag (for example v1.0.0). Leave empty to build only.
-        required: false
-        default: ''
+        description: Existing version tag to build and publish (for example v2.3.0)
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
 
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  GH_REPO: ${{ github.repository }}
+
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm test
+      - run: npm test -- --maxWorkers=2
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
       - run: xvfb-run -a npm run e2e:desktop
 
-  windows:
-    runs-on: windows-latest
+  draft:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Prepare version-matched draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$RELEASE_TAG" == "v$(node -p "require('./package.json').version")" ]]
+          release_commit=$(git rev-parse HEAD)
+          release_notes="docs/release-$RELEASE_TAG.md"
+          test -f "$release_notes"
+          if release_state=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            [[ "$release_state" == true ]] || { echo 'This version is already published.'; exit 1; }
+            gh release edit "$RELEASE_TAG" --notes-file "$release_notes"
+          else
+            gh release create "$RELEASE_TAG" --draft --verify-tag --target "$release_commit" --title "Armin Terminal $RELEASE_TAG" --notes-file "$release_notes"
+          fi
+
+  windows:
+    needs: draft
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      manifest: ${{ steps.assets.outputs.manifest }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
@@ -48,64 +88,62 @@ jobs:
         run: npm run desktop:build
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: armin-terminal-windows
-          path: release/*.exe
-          if-no-files-found: error
+      - name: Verify native Windows Electron workflows
+        run: npx playwright test --config playwright.desktop.config.ts
+      - name: Check packages and calculate SHA256
+        id: assets
+        run: node scripts/release-assets.mjs checksums windows
+      - name: Upload Windows files to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem release -File | Where-Object { $_.Extension -in '.exe', '.sha256' } | ForEach-Object { $_.FullName }
+          gh release upload $env:RELEASE_TAG @assets --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   linux:
-    runs-on: ubuntu-latest
+    needs: draft
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      manifest: ${{ steps.assets.outputs.manifest }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Build Linux AppImage and .deb
+      - name: Build Linux AppImage and deb
         run: npm run desktop:build:linux
-      - uses: actions/upload-artifact@v4
-        with:
-          name: armin-terminal-linux
-          path: |
-            release/*.AppImage
-            release/*.deb
-          if-no-files-found: error
+      - name: Check packages and calculate SHA256
+        id: assets
+        run: node scripts/release-assets.mjs checksums linux
+      - name: Upload Linux files to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" release/*.AppImage release/*.deb release/*.sha256 --clobber
 
   publish:
-    needs: [verify, windows, linux]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
-    runs-on: ubuntu-latest
+    needs: [windows, linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          name: armin-terminal-windows
-          path: release
-      - uses: actions/download-artifact@v4
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: actions/setup-node@v7.1.0
         with:
-          name: armin-terminal-linux
-          path: release
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          target_commitish: ${{ github.sha }}
-          name: Armin Terminal ${{ inputs.tag || github.ref_name }}
-          files: |
-            release/*.exe
-            release/*.AppImage
-            release/*.deb
-          fail_on_unmatched_files: true
-          body: |
-            Desktop builds of Armin Terminal for Windows and Linux (64-bit).
-
-            Windows:
-            - `Armin-Terminal-Setup-*.exe` installs the app with Start menu and desktop shortcuts.
-            - `Armin-Terminal-*-Portable.exe` runs without installing.
-
-            The executables are not code-signed, so Windows SmartScreen may show "Windows protected your PC" on first launch. Choose "More info", then "Run anyway".
-
-            Linux:
-            - `armin-terminal_*_amd64.deb` installs the app on Debian and Ubuntu (`sudo apt install ./armin-terminal_*_amd64.deb`), with a menu entry and Chromium's sandbox set up.
-            - `Armin-Terminal-*-x86_64.AppImage` runs without installing: make it executable (`chmod +x`) and start it. AppImages need FUSE 2 (`libfuse2`, on Ubuntu 24.04 `libfuse2t64`). On Ubuntu 24.04 and later an Electron AppImage cannot start Chromium's sandbox, so use the .deb there.
+          node-version: 22
+      - name: Verify all uploaded assets and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WINDOWS_MANIFEST: ${{ needs.windows.outputs.manifest }}
+          LINUX_MANIFEST: ${{ needs.linux.outputs.manifest }}
+        run: |
+          set -euo pipefail
+          node scripts/release-assets.mjs validate
+          gh release edit "$RELEASE_TAG" --draft=false --latest

@@ -33,6 +33,8 @@ Freshness. Each price carries one label, worked out from the source's own statem
 
 ## Calculated figures
 
+User-input bond, FX-forward, fixed/float swap and European-option conventions are defined in [calculator conventions](calculators.md), including units, curve interpolation, risk bump definitions and excluded contract features.
+
 | Figure | Formula and inputs | Where |
 | --- | --- | --- |
 | Dividend yield 12M | Dividends with ex-dates in the past 365 days, divided by the live price, both in the unit the line is quoted in. Source: Yahoo's dividend history and quote. | `PROFILE`, `QUOTE`, `DIVIDENDS`, `SCREEN`, `PEERS` |

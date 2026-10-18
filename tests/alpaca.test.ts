@@ -175,6 +175,51 @@ describe('Alpaca subscriptions and polling', () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
+  it('refreshes visible quotes every batch while making progress through background symbols', async () => {
+    for (let i = 0; i < 60; i++) release.push(feed.acquireIex(`T${i}`));
+    release.push(feed.acquireIex('T59', true), feed.acquireIex('AAPL', true));
+    await vi.advanceTimersByTimeAsync(50);
+    await vi.advanceTimersByTimeAsync(15_000);
+    const batches = request.mock.calls.map((call) => call[1].split(','));
+    expect(batches).toHaveLength(4);
+    for (const batch of batches) {
+      expect(batch).toContain('T59');
+      expect(batch).toContain('AAPL');
+      expect(batch).toHaveLength(20);
+      expect(new Set(batch).size).toBe(20);
+    }
+    expect(new Set(batches.flat()).size).toBe(61);
+  });
+
+  it('rotates excess visible panels fairly and releases foreground priority independently', async () => {
+    for (let i = 0; i < 40; i++) release.push(feed.acquireIex(`T${i}`));
+    for (let i = 0; i < 25; i++) release.push(feed.acquireIex(`F${i}`, true));
+    const stopVisible = feed.acquireIex('T39', true);
+    release.push(stopVisible);
+    await vi.advanceTimersByTimeAsync(50);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(new Set(request.mock.calls.flatMap((call) => call[1].split(',').filter((s) => s.startsWith('F')))).size).toBe(25);
+    expect(request.mock.calls.every((call) => call[1].split(',').some((s) => s.startsWith('T') && s !== 'T39'))).toBe(true);
+    stopVisible();
+    stopVisible();
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(feed.iex.get().by.T39.state).toBe('ok'); // Background owner remains after the panel closes.
+    expect(new Set(request.mock.calls.flatMap((call) => call[1].split(','))).size).toBe(65);
+  });
+
+  it('returns a closed quote panel to background rotation without removing its engine subscription', async () => {
+    for (let i = 0; i < 40; i++) release.push(feed.acquireIex(`T${i}`));
+    const stopVisible = feed.acquireIex('T39', true);
+    release.push(stopVisible);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(request.mock.calls[0][1].split(',')).toContain('T39');
+    stopVisible();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(request.mock.calls[1][1].split(',')).not.toContain('T39');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(request.mock.calls[2][1].split(',')).toContain('T39');
+  });
+
   it('keeps the cached-response failure reason and backs off refreshes', async () => {
     request.mockImplementation(async (_kind, symbols) => ({ ...response(symbols), stale: true, error: 'HTTP 429: too many requests' }));
     release.push(feed.acquireIex('AAPL'));

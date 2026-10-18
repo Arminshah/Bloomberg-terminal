@@ -28,13 +28,16 @@ export interface BondAnalytics {
 /** Coupon schedule from maturity back to just before `settle`. */
 export function couponSchedule(terms: BondTerms, settle: Date): Date[] {
   const freq = terms.freq ?? 2;
+  if (![1, 2, 4, 12].includes(freq) || !Number.isFinite(terms.coupon) || terms.coupon < 0 ||
+      !Number.isFinite(settle.getTime()) || !Number.isFinite(terms.maturity.getTime()) ||
+      terms.maturity.getTime() <= settle.getTime() || terms.maturity.getTime() - settle.getTime() > 200 * 366 * DAY_MS) return [];
   const step = 12 / freq;
   const eom = isEndOfMonth(terms.maturity);
   const dates: Date[] = [];
   let k = 0;
   for (;;) {
-    let d = addMonths(terms.maturity, -step * k);
-    if (eom) d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+    const d = addMonths(terms.maturity, -step * k);
+    if (eom) d.setUTCMonth(d.getUTCMonth() + 1, 0);
     dates.unshift(d);
     if (d.getTime() <= settle.getTime()) break;
     k++;
@@ -44,6 +47,7 @@ export function couponSchedule(terms: BondTerms, settle: Date): Date[] {
 
 function periodInfo(terms: BondTerms, settle: Date) {
   const sched = couponSchedule(terms, settle);
+  if (sched.length < 2) return { prev: new Date(NaN), next: new Date(NaN), remaining: 0, period: NaN, accruedDays: NaN, w: NaN };
   const prev = sched[0];
   const next = sched[1];
   const remaining = sched.length - 1;
@@ -62,11 +66,13 @@ export function accruedInterest(terms: BondTerms, settle: Date): number {
 /** Dirty price per 100 face for a yield in percent. */
 export function dirtyFromYield(terms: BondTerms, settle: Date, yieldPct: number): number {
   const freq = terms.freq ?? 2;
+  if (!Number.isFinite(yieldPct) || yieldPct <= -100 * freq) return NaN;
   const { remaining, w } = periodInfo(terms, settle);
+  if (!remaining) return NaN;
   const cpn = terms.coupon / freq;
   const v = 1 / (1 + yieldPct / 100 / freq);
   let pv = 0;
-  for (let k = 0; k < remaining; k++) pv += cpn * v ** (w + k);
+  if (cpn !== 0) for (let k = 0; k < remaining; k++) pv += cpn * v ** (w + k);
   pv += 100 * v ** (w + remaining - 1);
   return pv;
 }
@@ -82,11 +88,12 @@ export function cleanPricer(terms: BondTerms, settle: Date): (yieldPct: number) 
   const cpn = terms.coupon / freq;
   const accrued = cpn * (accruedDays / period);
   return (yieldPct) => {
+    if (!remaining || !Number.isFinite(yieldPct) || yieldPct <= -100 * freq) return NaN;
     const v = 1 / (1 + yieldPct / 100 / freq);
     let pv = 0;
     let vk = v ** w;
     for (let k = 0; k < remaining; k++) {
-      pv += cpn * vk;
+      if (cpn !== 0) pv += cpn * vk;
       vk *= v;
     }
     pv += 100 * v ** (w + remaining - 1);
@@ -94,17 +101,21 @@ export function cleanPricer(terms: BondTerms, settle: Date): (yieldPct: number) 
   };
 }
 
-/** Solves for yield (percent) given a clean price, by bisection then Newton polish. */
+/** Solves a positive clean price across the admissible nominal-yield domain; no arbitrary -5..60% clamp. */
 export function yieldFromClean(terms: BondTerms, settle: Date, clean: number): number {
-  const target = clean + accruedInterest(terms, settle);
-  let lo = -5;
-  let hi = 60;
+  if (!Number.isFinite(clean) || clean <= 0 || !couponSchedule(terms, settle).length) return NaN;
+  const price = cleanPricer(terms, settle);
+  const freq = terms.freq ?? 2;
+  let lo = -100 * freq + 1e-8;
+  let hi = Math.max(10, terms.coupon + 10);
+  for (let i = 0; i < 60 && price(hi) > clean; i++) hi = hi * 2 + 10;
+  if (!(price(lo) >= clean) || !(price(hi) <= clean)) return NaN;
   for (let i = 0; i < 200; i++) {
     const mid = (lo + hi) / 2;
-    const p = dirtyFromYield(terms, settle, mid);
-    if (p > target) lo = mid;
+    const p = price(mid);
+    if (p > clean) lo = mid;
     else hi = mid;
-    if (hi - lo < 1e-10) break;
+    if (hi - lo < 1e-11 * Math.max(1, Math.abs(mid))) break;
   }
   return (lo + hi) / 2;
 }
@@ -113,7 +124,7 @@ export function analytics(terms: BondTerms, settle: Date, yieldPct: number): Bon
   const freq = terms.freq ?? 2;
   const info = periodInfo(terms, settle);
   const cpn = terms.coupon / freq;
-  const y = yieldPct / 100 / freq;
+  const y = Number.isFinite(yieldPct) && yieldPct > -100 * freq ? yieldPct / 100 / freq : NaN;
   const v = 1 / (1 + y);
   let dirty = 0;
   let tw = 0;
@@ -168,15 +179,9 @@ export function couponFraction(c: number): string {
   return `${whole} ${map[eighths]}`;
 }
 
-/** Treasury price in 32nds, e.g. 99.515625 -> "99-16+". */
+/** Treasury price rounded to 1/64, e.g. 99.515625 -> "99-16+"; carries across a whole point. */
 export function to32nds(price: number): string {
-  const whole = Math.floor(price);
-  const frac = (price - whole) * 32;
-  let ticks = Math.floor(frac + 1e-9);
-  let half = frac - ticks >= 0.5 - 1e-9;
-  if (Math.abs(frac - ticks - 1) < 1e-9) {
-    ticks += 1;
-    half = false;
-  }
-  return `${whole}-${String(ticks).padStart(2, '0')}${half ? '+' : ''}`;
+  if (!Number.isFinite(price) || price < 0) return '--';
+  const units = Math.round(price * 64);
+  return `${Math.floor(units / 64)}-${String(Math.floor((units % 64) / 2)).padStart(2, '0')}${units % 2 ? '+' : ''}`;
 }

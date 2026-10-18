@@ -1,5 +1,14 @@
 # Roadmap
 
+## Version 2.3.0
+
+- Bond, FX-forward and fixed/float swap calculators now work from explicit contract inputs; labelled examples, CSV inputs/results and documented conventions.
+- Bond yield solving supports valid negative and high yields; invalid schedules terminate. Treasury 64ths carry correctly, including end-of-month/date edge cases.
+- European options discount deterministic payoffs at zero volatility, reject impossible implied-volatility targets and invalid inputs, and accept manual spot/rate/dividend/volatility/multiplier inputs.
+- FX options accept rate overrides for currencies without a connected source, plus spot, volatility, strike, notional and point-size inputs.
+- Open IEX quote panels receive polling priority; excess foreground and background subscriptions still rotate fairly.
+- [Release verification and limits](release-v2.3.0.md). Bloomberg datasets, dealer curves and consolidated exchange coverage remain separate source gaps.
+
 ## Version 2.2.0 (17 October 2026)
 
 - Optional IEX-only prices throughout US equity panels and watchlists, with source timestamps, source labels, explicit history coverage and no blending with consolidated Yahoo data. Enable `ALPACA_IEX_PRICES_ENABLED` on `PROVIDERS` and reload after setting both Alpaca keys.
@@ -93,4 +102,4 @@
 
 ## Blocked until a licensed source is approved
 
-These stay out of the app, or show "not available", until a provider with suitable terms is chosen and approved: prices and dealer quotes for individual bonds, CDS and structured credit; FX forward points and swap rates; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; listed option chains (OPRA); quarterly estimates and earnings surprises; consolidated real-time quotes from an official feed; full-text licensed news, transcripts and broker research; trading through a broker. Paper trading is switched off.
+These datasets remain unavailable until a suitable provider is connected: prices and dealer quotes for individual bonds, CDS and structured credit; dealer FX-forward points and swap curves; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; listed option chains (OPRA); quarterly estimates and earnings surprises; consolidated real-time quotes from an official feed; full-text licensed news, transcripts and broker research; trading through a broker. User-input bond, forward and swap calculations are available separately. Paper trading is switched off.

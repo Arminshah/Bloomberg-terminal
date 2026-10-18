@@ -1,10 +1,11 @@
 /// <reference types="vite/client" />
 import { _electron, expect, test as base, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtemp, open, rm, unlink, type FileHandle } from 'node:fs/promises';
+import { mkdtemp, open, realpath, rm, unlink, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { KeyedAnswer } from '../src/data/live/lookup';
+import { checkBond, checkForward, checkOptions, checkSwap } from '../e2e/calculator-checks';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 const FMP_ERROR = 'Invalid API key. Deterministic FMP refusal.';
@@ -57,8 +58,10 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
           ALPACA_API_SECRET_KEY: 'DesktopFixtureSecret0000000000000000',
         },
       });
-      expect(await app.evaluate(({ app }) => app.getAppPath())).toBe(profile);
-      expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(profile);
+      // Windows may expand the runner's short TEMP path; compare actual filesystem locations.
+      const canonicalProfile = await realpath(profile);
+      expect(await realpath(await app.evaluate(({ app }) => app.getAppPath()))).toBe(canonicalProfile);
+      expect(await realpath(await app.evaluate(({ app }) => app.getPath('userData')))).toBe(canonicalProfile);
       const page = await app.firstWindow();
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
@@ -80,7 +83,7 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
           await sourceFile.close();
           await unlink(sourceFilePath);
         }
-        await rm(profile, { recursive: true, force: true });
+        await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
       }
     }
   },
@@ -108,6 +111,13 @@ async function enableIex(page: Page) {
 async function calls(app: ElectronApplication) {
   return app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls);
 }
+
+test('manual analytics work in real-data desktop mode without any provider prices or rates', async ({ desktop: { page } }) => {
+  await checkBond(page, (text, code) => command(page, text, code));
+  await checkForward(page, (text, code) => command(page, text, code));
+  await checkSwap(page, (text, code) => command(page, text, code));
+  await checkOptions(page, (text, code) => command(page, text, code));
+});
 
 test('HTTP 200 provider refusals cross desktop IPC as errors and are never cached as successes', async ({ desktop: { app, page } }) => {
   await command(page, 'AAPL ANALYSTS');

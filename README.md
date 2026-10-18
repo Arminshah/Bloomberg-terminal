@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.2.0** focuses on API failure handling and quote accuracy, including an optional IEX-only US equity price mode. See [release details and validation](docs/release-v2.2.0.md). Free IEX data covers one exchange; consolidated real-time prices, licensed research, full option chains and other Bloomberg datasets require additional sources and entitlements.
+Version **2.3.0** adds working bond, FX-forward and swap calculators, fixes option valuation boundaries, and prioritises visible IEX quote panels. See [release details and validation](docs/release-v2.3.0.md) and [calculator conventions](docs/calculators.md). Free IEX data covers one exchange; consolidated real-time prices, licensed research, full option chains and other Bloomberg datasets require additional sources and entitlements.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
@@ -55,6 +55,9 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 | `MARKET US` | World equity indices, Americas |
 | `MACRO CPI` | The macro dashboard, on inflation |
 | `CRYPTO BTC` | Bitcoin on the crypto monitor |
+| `YAS` / `BONDCALC` | Bond price/yield, accrued interest, duration, convexity, DV01 and cash flows from your contract inputs |
+| `EURUSD FRD` / `FXFORWARD EURUSD` | Covered-interest-parity forwards and contract PV from your spot and term rates |
+| `SWPM` / `SWAPCALC` | Fixed/float swap NPV, par coupon, cash flows and bump risk from your zero curves |
 | `AAPL` | The functions menu for Apple |
 | `SOFI`, `$APLD` | Any US-listed stock, looked up online if it is not built in |
 | `3` | Pick item 3) on the current screen |
@@ -74,8 +77,8 @@ Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES`
 | Charts | `CHART` with studies and comparisons, `INTRADAY`, `HISTORY`, `RETURNS`, `TOTALRETURN`, `SPREAD`, `BETA`, `VOLATILITY` |
 | Markets | `MARKET` world indices, `INDEXFUTURES`, `CONTRIB` index movers, `HEATMAP`, `MOVERS`, `SCREEN` stock screener, `QUOTE`, `TRADES`, `DEPTH` (order book for crypto, best bid and offer otherwise), `VWAP` |
 | News | `MARKETNEWS` market news and the latest 8-K filings, `COMPANYNEWS` a company's news; `HEADLINES` and `NEWS`: press releases from central banks, the BEA and ESMA |
-| FX and crypto | `FXMATRIX` cross rates, `FXRANK`, `CRYPTO`, `FXOPTION` option pricer, `FXFORWARD` (spot only: forward points have no free source) |
-| Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `SWAPCALC`, `BONDCALC`, `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` say why they have no data (swap rates and bond prices have no free source) |
+| FX and crypto | `FXMATRIX` cross rates, `FXRANK`, `CRYPTO`, `FXOPTION` European option pricer with overrides, `FXFORWARD` calculated forwards and contract PV from your term rates |
+| Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` still need bond/dealer datasets |
 | Commodities | `COMMODITIES` |
 | Economics | `MACRO` dashboard with first-release revisions, `RELEASES` calendar, `ECONSTATS` world statistics, `HOLIDAYS` exchange calendars |
 | Derivatives | `OPTIONCALC` option calculator; `OPTIONS` (not available: listed option quotes are licensed) |

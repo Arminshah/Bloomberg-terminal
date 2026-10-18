@@ -55,10 +55,26 @@ export const normPdf = (x: number): number => Math.exp(-0.5 * x * x) / Math.sqrt
  * @param S spot, K strike, T years, r rate (decimal), q dividend yield (decimal), v vol (decimal)
  */
 export function blackScholes(type: OptType, S: number, K: number, T: number, r: number, q: number, v: number): Greeks {
-  if (T <= 0 || v <= 0) {
+  const missing = { price: NaN, delta: NaN, gamma: NaN, vega: NaN, theta: NaN, rho: NaN };
+  if (!['C', 'P'].includes(type) || ![S, K, T, r, q, v].every(Number.isFinite) || S <= 0 || K <= 0 || T < 0 || v < 0) return missing;
+  if (T === 0) {
     const intrinsic = type === 'C' ? Math.max(S - K, 0) : Math.max(K - S, 0);
-    const itm = intrinsic > 0 ? 1 : 0;
-    return { price: intrinsic, delta: type === 'C' ? itm : -itm, gamma: 0, vega: 0, theta: 0, rho: 0 };
+    const itm = S === K ? 0.5 : intrinsic > 0 ? 1 : 0;
+    return { price: intrinsic, delta: type === 'C' ? itm : -itm, gamma: S === K ? NaN : 0, vega: 0, theta: NaN, rho: 0 };
+  }
+  if (v === 0) {
+    const a = S * Math.exp(-q * T);
+    const b = K * Math.exp(-r * T);
+    const diff = type === 'C' ? a - b : b - a;
+    const weight = Math.abs(a - b) < 1e-12 * Math.max(a, b) ? 0.5 : diff > 0 ? 1 : 0;
+    const sign = type === 'C' ? 1 : -1;
+    return {
+      price: Math.max(0, diff), delta: sign * Math.exp(-q * T) * weight,
+      gamma: weight === 0.5 ? NaN : 0,
+      vega: weight === 0.5 ? a * normPdf(0) * Math.sqrt(T) / 100 : 0,
+      theta: sign * (q * a - r * b) * weight / 365,
+      rho: sign * K * T * Math.exp(-r * T) * weight / 100,
+    };
   }
   const sq = Math.sqrt(T);
   const d1 = (Math.log(S / K) + (r - q + 0.5 * v * v) * T) / (v * sq);
@@ -80,10 +96,15 @@ export function blackScholes(type: OptType, S: number, K: number, T: number, r: 
 
 /** Implied volatility by bisection; returns NaN when the price is outside no-arbitrage bounds. */
 export function impliedVol(type: OptType, price: number, S: number, K: number, T: number, r: number, q: number): number {
+  if (!['C', 'P'].includes(type) || ![price, S, K, T, r, q].every(Number.isFinite) || price < 0 || S <= 0 || K <= 0 || T <= 0) return NaN;
   const lower = type === 'C' ? Math.max(S * Math.exp(-q * T) - K * Math.exp(-r * T), 0) : Math.max(K * Math.exp(-r * T) - S * Math.exp(-q * T), 0);
-  if (price < lower - 1e-9) return NaN;
-  let lo = 1e-4;
-  let hi = 5;
+  const upper = type === 'C' ? S * Math.exp(-q * T) : K * Math.exp(-r * T);
+  const eps = 1e-10 * Math.max(1, upper);
+  if (price < lower - eps || price >= upper) return NaN;
+  if (Math.abs(price - lower) <= eps) return 0;
+  let lo = 0;
+  let hi = 1;
+  while (hi < 64 && blackScholes(type, S, K, T, r, q, hi).price < price) hi *= 2;
   if (blackScholes(type, S, K, T, r, q, hi).price < price) return NaN;
   for (let i = 0; i < 100; i++) {
     const mid = (lo + hi) / 2;

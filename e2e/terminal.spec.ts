@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { checkBond, checkForward, checkOptions, checkSwap } from './calculator-checks';
 
 // Keep runs deterministic: no live network feeds.
 async function boot(page: Page, layout?: string) {
@@ -162,4 +164,36 @@ test('phone layout shows one panel without horizontal scroll', async ({ page }) 
   expect(sw).toBeLessThanOrEqual(iw);
   await page.locator('.mobile-tabs button').nth(1).click();
   await expect(page.locator('.panel:visible .fnh-code').first()).toHaveText('CHART');
+});
+
+test('bond and FX forward calculators solve independent examples, reject invalid inputs and export inputs with results', async ({ page }) => {
+  const errors = await boot(page, '1');
+  const execute = async (text: string, code: string) => {
+    await run(page, text);
+    await expect(page.locator('.fnh-code').first()).toHaveText(code);
+  };
+  await checkBond(page, execute);
+  const saving = page.waitForEvent('download');
+  await run(page, '99');
+  const download = await saving;
+  expect(download.suggestedFilename()).toBe('bond-calculation.csv');
+  const path = await download.path();
+  expect(path).toBeTruthy();
+  const csv = await readFile(path!, 'utf8');
+  expect(csv).toContain('Actual/Actual ICMA');
+  expect(csv).toContain('2030-01-01');
+  expect(csv).toContain('User-entered contract terms');
+  await checkForward(page, execute);
+  expect(errors).toEqual([]);
+});
+
+test('swap and option calculators respect curve coverage, contract direction and zero volatility', async ({ page }) => {
+  const errors = await boot(page, '1');
+  const execute = async (text: string, code: string) => {
+    await run(page, text);
+    await expect(page.locator('.fnh-code').first()).toHaveText(code);
+  };
+  await checkSwap(page, execute);
+  await checkOptions(page, execute);
+  expect(errors).toEqual([]);
 });

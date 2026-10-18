@@ -1,23 +1,24 @@
 import { Credits } from '../components/Credits';
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { CalcInput, CalcSelect, CalcSource } from '../components/CalcInputs';
 import { XYChart } from '../components/chart/XYChart';
 import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { fmtDay, fmtInt, fmtNum, MONTHS, WEEKDAYS, zonedParts } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { DAY_MS, addMonths, dayNum, isBusinessDay } from '../data/calendar';
+import { DAY_MS } from '../data/calendar';
 import { EXCHANGES, fmtCountdown, localDate, marketDay, sessionAt, type Exchange } from '../data/exchanges';
 import { centralBanks, COUNTRY_NAMES, newYorkDate } from '../data/eco';
 import { curveMembers } from '../data/curves';
 import { rangeStats } from '../data/analytics';
 import { resolveSecurity } from '../data/registry';
-import { bootstrap, depoRate, fxForward, pipSize, policyRate, swapRate } from '../data/rates';
+import { depoRate, policyRate } from '../data/rates';
 import { levelOn, policyRates } from '../data/live/policy';
 import type { SecurityDef } from '../data/types';
 import { blackScholes, type OptType } from '../finance/options';
+import { inputNumber } from '../finance/contracts';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
-import { SimBadge } from '../components/Source';
 import type { FnProps } from '../terminal/types';
 
 function pairFor(sec: SecurityDef | undefined, args: string | undefined): SecurityDef {
@@ -26,163 +27,7 @@ function pairFor(sec: SecurityDef | undefined, args: string | undefined): Securi
   return r?.fx ? r : engine.get('EURUSD Curncy')!;
 }
 
-/** Spot date: T+2 business days (T+1 for USD-CAD). */
-function spotDay(pair: SecurityDef, today = engine.today): number {
-  const n = pair.fx!.base === 'CAD' || pair.fx!.quote === 'CAD' ? 1 : 2;
-  let d = today;
-  for (let k = 0; k < n; ) {
-    d++;
-    if (isBusinessDay(d)) k++;
-  }
-  return d;
-}
-
-function rollBiz(day: number): number {
-  let d = day;
-  while (!isBusinessDay(d)) d++;
-  return d;
-}
-
-const TENORS: { label: string; days?: number; months?: number }[] = [
-  { label: '1W', days: 7 }, { label: '2W', days: 14 }, { label: '1M', months: 1 }, { label: '2M', months: 2 }, { label: '3M', months: 3 },
-  { label: '6M', months: 6 }, { label: '9M', months: 9 }, { label: '1Y', months: 12 }, { label: '18M', months: 18 }, { label: '2Y', months: 24 },
-  { label: '3Y', months: 36 }, { label: '5Y', months: 60 },
-];
-
-function valueDay(spot: number, t: { days?: number; months?: number }): number {
-  if (t.days) return rollBiz(spot + t.days);
-  return rollBiz(dayNum(addMonths(new Date(spot * DAY_MS), t.months!).getTime()));
-}
-
-// ------------------------------------------------------------------- FRD
-
-/** FRD: FX forward points and outrights by tenor. */
-export function FRD(props: FnProps) {
-  if (engine.realOnly) return <FRDReal {...props} />;
-  return <FRDSim {...props} />;
-}
-
-/** Forward points are dealer quotes with no free source: the desktop app shows the real spot rate only. */
-function FRDReal({ sec, route }: FnProps) {
-  useTick(2);
-  const panel = usePanelId();
-  const pair = pairFor(sec, route.args);
-  const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx).slice(0, 23);
-  return (
-    <div>
-      <FnHeader code="FXFORWARD" title="Forward Rates" sec={pair} sub="Forward points need dealer quotes, which have no free source" />
-      <div className="chart-tools">
-        <span className="muted">Pair</span>
-        <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FXFORWARD`)}>
-          {pairs.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.ticker}
-            </option>
-          ))}
-        </select>
-        <span>
-          <span className="lbl">Spot</span> <LivePx id={pair.id} />
-        </span>
-      </div>
-      <div className="empty">FX forward points are quoted by dealers and have no free public source, so the desktop app does not show forward points or outrights. The spot rate above is the source's latest; hover it for how fresh it is.</div>
-    </div>
-  );
-}
-
-function FRDSim({ sec, route }: FnProps) {
-  useTick(2);
-  const panel = usePanelId();
-  const pair = pairFor(sec, route.args);
-  const { base, quote } = pair.fx!;
-  const q = engine.quote(pair.id)!;
-  const spot = q.last;
-  const pip = pipSize(spot);
-  const sd = spotDay(pair);
-  const halfSpread = (Number.isFinite(q.ask - q.bid) ? q.ask - q.bid : pip) / 2;
-  const rows = TENORS.map((t) => {
-    const vd = valueDay(sd, t);
-    const days = vd - sd;
-    const fwd = fxForward(spot, base, quote, days);
-    const pts = (fwd - spot) / pip;
-    const widen = 1 + days / 120;
-    return { t, vd, days, fwd, pts, bid: pts - (halfSpread / pip) * widen * 0.5, ask: pts + (halfSpread / pip) * widen * 0.5, rb: depoRate(base, days / 365), rq: depoRate(quote, days / 365) };
-  });
-  const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx).slice(0, 23);
-  return (
-    <div>
-      <FnHeader code="FXFORWARD" title="Forward Rates" sec={pair} sub={
-          <>
-            Spot {fmtDay(sd * DAY_MS)} · points in {pip === 1 ? 'units' : pip === 0.01 ? 'hundredths' : 'pips'} · <SimBadge /> modelled by covered interest parity from policy rates, not dealer points
-          </>
-        }
-      />
-      <div className="chart-tools">
-        <span className="muted">Pair</span>
-        <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FXFORWARD`)}>
-          {pairs.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.ticker}
-            </option>
-          ))}
-        </select>
-        <span>
-          <span className="lbl">Spot</span> <LivePx id={pair.id} />
-        </span>
-      </div>
-      <div className="cols">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>Tenor</th>
-              <th className="hide-m">Value date</th>
-              <th className="num hide-m">Days</th>
-              <th className="num">Bid pts</th>
-              <th className="num">Ask pts</th>
-              <th className="num">Outright</th>
-              <th className="num hide-m">{base} depo</th>
-              <th className="num hide-m">{quote} depo</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="amber">SP</td>
-              <td className="hide-m">{fmtDay(sd * DAY_MS)}</td>
-              <td className="num hide-m">0</td>
-              <td className="num">--</td>
-              <td className="num">--</td>
-              <td className="num white">{fmtNum(spot, pair.dec)}</td>
-              <td className="num hide-m">--</td>
-              <td className="num hide-m">--</td>
-            </tr>
-            {rows.map((r) => (
-              <tr key={r.t.label}>
-                <td className="amber">{r.t.label}</td>
-                <td className="hide-m">{fmtDay(r.vd * DAY_MS)}</td>
-                <td className="num hide-m">{r.days}</td>
-                <td className="num">{fmtNum(r.bid, 2)}</td>
-                <td className="num">{fmtNum(r.ask, 2)}</td>
-                <td className="num white">{fmtNum(r.fwd, pair.dec + 1)}</td>
-                <td className="num hide-m">{fmtNum(r.rb, 3)}</td>
-                <td className="num hide-m">{fmtNum(r.rq, 3)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Section title="Forward points curve">
-          <XYChart
-            series={[{ label: 'Mid points', color: '#ffb547', markers: true, points: rows.map((r) => ({ x: r.days, y: r.pts })) }]}
-            height={260}
-            xScale="sqrt"
-            xTicks={rows.filter((_, i) => i % 2 === 0 || i === rows.length - 1).map((r) => ({ v: r.days, label: r.t.label }))}
-            yFormat={(v) => fmtNum(v, 1)}
-            refLines={[{ y: 0, color: '#444' }]}
-          />
-        </Section>
-      </div>
-      <p className="pad-s muted">Deposit rates are indicative: policy rates blended into government curves. Forward points are simulated from them, not dealer quotes.</p>
-    </div>
-  );
-}
+export { ForwardCalc as FRD } from './ForwardCalc';
 
 // ------------------------------------------------------------------ OVML
 
@@ -205,35 +50,41 @@ export function OVML({ sec, route }: FnProps) {
   const panel = usePanelId();
   const pair = pairFor(sec, route.args);
   const { base, quote } = pair.fx!;
-  const spot = engine.quote(pair.id)!.last;
+  const sourceSpot = engine.quote(pair.id)!.last;
+  const [spotText, setSpotText] = useState('');
+  const spot = spotText.trim() ? inputNumber(spotText) : sourceSpot;
   const [type, setType] = useState<OptType>('C');
   const [exp, setExp] = useState(4);
   const [strikeText, setStrikeText] = useState('');
   const [volText, setVolText] = useState('');
   const [notionalText, setNotionalText] = useState('1000000');
+  const [quoteRate, setQuoteRate] = useState('');
+  const [baseRate, setBaseRate] = useState('');
+  const [pointText, setPointText] = useState(quote === 'JPY' ? '0.01' : '0.0001');
   const days = EXPIRIES[exp][1];
   const T = days / 365;
   // On real data the rates are the central banks' published rates held flat (effective fed funds
   // for USD) and the default vol is 90-day realised: no modelled curve or vol premium.
   const real = engine.realOnly;
   const flatRate = (ccy: string) => (ccy === 'USD' ? (policyRates.get().effr?.last ?? NaN) : policyRate(ccy));
-  const rd = (real ? flatRate(quote) : depoRate(quote, T)) / 100;
-  const rf = (real ? flatRate(base) : depoRate(base, T)) / 100;
+  const rd = (quoteRate.trim() ? inputNumber(quoteRate) : real ? flatRate(quote) : depoRate(quote, T)) / 100;
+  const rf = (baseRate.trim() ? inputNumber(baseRate) : real ? flatRate(base) : depoRate(base, T)) / 100;
   const fwd = spot * Math.exp((rd - rf) * T);
   const rs = rangeStats(pair.id);
   const defVol = real ? rs.vol90 / 100 : Math.max(0.03, ((Number.isFinite(rs.vol90) ? rs.vol90 : pair.vol * 100) / 100) * 1.05 * (1 + 0.08 * Math.exp(-T * 4)));
   const K = strikeText.trim() ? Number(strikeText) : Number(fwd.toFixed(pair.dec));
   const vol = volText.trim() ? Number(volText) / 100 : defVol;
-  const notional = Number(notionalText) || 0;
+  const notional = inputNumber(notionalText);
+  const point = inputNumber(pointText);
   const g = blackScholes(type, spot, K, T, rd, rf, vol);
-  const pips = g.price / pipSize(spot);
+  const pips = g.price / point;
   const premQuote = g.price * notional;
   const premPctBase = (g.price / spot) * 100;
   const be = type === 'C' ? K + g.price : K - g.price;
   const payoff = useMemo(() => {
     const pts: { x: number; y: number }[] = [];
     for (let k = -40; k <= 40; k++) {
-      const s = spot * (1 + (k / 40) * Math.max(0.03, vol * Math.sqrt(T) * 2.5));
+      const s = spot * Math.exp((k / 40) * Math.max(0.03, vol * Math.sqrt(T) * 2.5));
       const intrinsic = type === 'C' ? Math.max(s - K, 0) : Math.max(K - s, 0);
       pts.push({ x: s, y: (intrinsic - g.price) * notional });
     }
@@ -241,15 +92,26 @@ export function OVML({ sec, route }: FnProps) {
   }, [spot, K, type, g.price, notional, vol, T]);
   const pairs = engine.securities.filter((d) => d.cls === 'fx' && d.fx);
   const noRate = [quote, base].filter((_, i) => !Number.isFinite(i === 0 ? rd : rf));
+  const error = !Number.isFinite(spot) || spot <= 0 ? 'Enter a positive spot or wait for a source price.'
+    : !Number.isFinite(K) || K <= 0 ? 'Enter a positive strike.'
+    : !Number.isFinite(vol) || vol < 0 ? 'Enter a nonnegative volatility or wait for realised volatility.'
+    : !Number.isFinite(rd) || !Number.isFinite(rf) ? 'Enter finite rates for both currencies.'
+    : !Number.isFinite(notional) || notional <= 0 ? 'Enter a positive base-currency notional.'
+    : ![g.price, premQuote, pips, premPctBase, be].every(Number.isFinite) ? 'These inputs exceed the calculator’s numerical range.' : '';
   return (
     <div>
       <FnHeader code="FXOPTION" title="FX Option Valuation" sec={pair} sub={`Vanilla European · Garman-Kohlhagen theoretical value · notional in ${base}`} />
+      <CalcSource>Source spot and reference inputs or your overrides. Flat continuous rates and volatility; calculated European option value, without dealer quotes.</CalcSource>
       {real && noRate.length > 0 && (
         <div className="note amber">
-          No published short-term rate for {noRate.join(' or ')} in this app (its central bank has no free daily source here), so the forward and the option are not valued.
+          No usable rate for {noRate.join(' or ')}. Enter continuous rate overrides to calculate the forward and option.
         </div>
       )}
       <div className="chart-tools">
+        <CalcInput label="Spot override" value={spotText} onChange={setSpotText} placeholder={fmtNum(sourceSpot, pair.dec)} />
+        <CalcInput label={`${base} rate override %`} value={baseRate} onChange={setBaseRate} placeholder="Source" />
+        <CalcInput label={`${quote} rate override %`} value={quoteRate} onChange={setQuoteRate} placeholder="Source" />
+        <CalcSelect label="Point size" value={pointText} onChange={setPointText}>{['0.0001', '0.01', '1'].map((p) => <option key={p}>{p}</option>)}</CalcSelect>
         <select className="inp" aria-label="Currency pair" value={pair.id} onChange={(e) => execute(panel, `${e.target.value} FXOPTION`)}>
           {pairs.map((d) => (
             <option key={d.id} value={d.id}>
@@ -270,37 +132,38 @@ export function OVML({ sec, route }: FnProps) {
         </select>
         <label className="fld">
           Strike
-          <input className="inp" style={{ width: 84 }} placeholder={Number.isFinite(fwd) ? fwd.toFixed(pair.dec) : ''} inputMode="decimal" value={strikeText} onChange={(e) => setStrikeText(e.target.value)} />
+          <input className="inp" aria-label="Strike" style={{ width: 84 }} placeholder={Number.isFinite(fwd) ? fwd.toFixed(pair.dec) : ''} inputMode="decimal" value={strikeText} onChange={(e) => setStrikeText(e.target.value)} />
         </label>
         <label className="fld">
           Vol %
-          <input className="inp" style={{ width: 56 }} placeholder={Number.isFinite(defVol) ? (defVol * 100).toFixed(2) : ''} inputMode="decimal" value={volText} onChange={(e) => setVolText(e.target.value)} />
+          <input className="inp" aria-label="Volatility override" style={{ width: 56 }} placeholder={Number.isFinite(defVol) ? (defVol * 100).toFixed(2) : ''} inputMode="decimal" value={volText} onChange={(e) => setVolText(e.target.value)} />
         </label>
         <label className="fld">
           Notional
-          <input className="inp" style={{ width: 100 }} inputMode="decimal" value={notionalText} onChange={(e) => setNotionalText(e.target.value)} />
+          <input className="inp" aria-label="Notional" style={{ width: 100 }} inputMode="decimal" value={notionalText} onChange={(e) => setNotionalText(e.target.value)} />
         </label>
       </div>
-      <div className="cols">
+      {error ? <div className="pad amber" role="status">{error}</div> : <><div className="cols">
         <Section title="Market data">
           <KV
             items={[
-              ['Spot', <LivePx key="s" id={pair.id} />],
+              ['Source spot', <LivePx key="s" id={pair.id} />],
+              ['Spot used', `${fmtNum(spot, pair.dec)}${spotText.trim() ? ' (your input)' : ''}`],
               ['Forward', fmtNum(fwd, pair.dec + 1)],
-              ['Strike', `${fmtNum(K, pair.dec)}${strikeText.trim() ? '' : ' (ATMF)'}`],
+              ['Strike', `${fmtNum(K, pair.dec)}${strikeText.trim() ? '' : ' (rounded forward)'}`],
               ['Expiry', `${EXPIRIES[exp][0]} · ${fmtDay((engine.today + days) * DAY_MS)}`],
               ['Volatility', `${fmtNum(vol * 100, 2)}%${volText.trim() ? '' : real ? ' (90D realised)' : ' (realised + premium)'}`],
-              [`${quote} rate${real ? ` (${RATE_NAME[quote] ?? 'none published'}, flat)` : ''}`, `${fmtNum(rd * 100, 3)}%`],
-              [`${base} rate${real ? ` (${RATE_NAME[base] ?? 'none published'}, flat)` : ''}`, `${fmtNum(rf * 100, 3)}%`],
+              [`${quote} rate${quoteRate.trim() ? ' (your input)' : real ? ` (${RATE_NAME[quote] ?? 'none published'}, flat)` : ''}`, `${fmtNum(rd * 100, 3)}%`],
+              [`${base} rate${baseRate.trim() ? ' (your input)' : real ? ` (${RATE_NAME[base] ?? 'none published'}, flat)` : ''}`, `${fmtNum(rf * 100, 3)}%`],
             ]}
           />
         </Section>
         <Section title="Results">
           <KV
             items={[
-              [`Premium (${quote} pips)`, fmtNum(pips, 1)],
+              [`Premium (${quote} points, unit ${pointText})`, fmtNum(pips, 1)],
               [`Premium (% ${base})`, `${fmtNum(premPctBase, 4)}%`],
-              [`Premium (${quote})`, fmtNum(premQuote, 0)],
+              [`Premium (${quote})`, <span key="p" data-testid="fx-option-value">{fmtNum(premQuote, 2)}</span>],
               ['Delta (spot)', `${fmtNum(g.delta * 100, 2)}%`],
               [`Delta hedge (${base})`, fmtInt(-g.delta * notional)],
               ['Gamma (per 1% spot)', `${fmtNum(g.gamma * spot * 0.01 * 100, 3)}%`],
@@ -313,160 +176,24 @@ export function OVML({ sec, route }: FnProps) {
       </div>
       <Section title={`P&L at expiry (${quote})`}>
         <XYChart
-          series={[{ label: 'P&L', color: '#ffb547', points: payoff }]}
+          series={[{ label: 'P&L', color: '#ffb547', points: payoff.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)) }]}
           height={220}
           xFormat={(v) => fmtNum(v, pair.dec)}
           yFormat={(v) => fmtNum(v, 0)}
           refLines={[{ y: 0, color: '#444' }, { x: spot, color: '#5aa7ff', label: 'Spot' }, { x: K, color: '#d77bff', label: 'Strike' }]}
         />
       </Section>
+      </>}
       {real && (
         <div className="note">
-          Expiry is the stated number of calendar days from today, without FX settlement conventions. Both rates are the latest published values held flat to expiry, and the volatility is realised, not implied: FX option quotes have no free source.
+          Expiry uses calendar days without FX settlement adjustments. Source policy rates are used as flat continuous model approximations; enter appropriate continuous term rates. Volatility defaults to realised, not implied. Confirm point size and other contract inputs. The expiry P&L deducts the upfront premium without financing.
         </div>
       )}
     </div>
   );
 }
 
-// ------------------------------------------------------------------ SWPM
-
-/** SWPM: USD SOFR interest rate swap valuation. */
-export function SWPM(props: FnProps) {
-  if (engine.realOnly) {
-    return (
-      <div>
-        <FnHeader code="SWAPCALC" title="Swap Manager" sub="USD SOFR OIS" />
-        <div className="empty">
-          Pricing a swap needs a market swap curve. Swap rates are dealer quotes with no free public source, so the swap manager is not available on real data. SOFR futures (MONEYMARKET) and the fed funds path (RATEPROBS) show what the market prices for the next few years.
-        </div>
-      </div>
-    );
-  }
-  return <SWPMSim {...props} />;
-}
-
-function SWPMSim(_: FnProps) {
-  useTick(3);
-  const [tenor, setTenor] = useState(5);
-  const [notionalText, setNotionalText] = useState('10000000');
-  const [fixedText, setFixedText] = useState('');
-  const [payFixed, setPayFixed] = useState(true);
-  const notional = Number(notionalText) || 0;
-  const df = bootstrap(30);
-  const annuity = df.slice(1, tenor + 1).reduce((a, b) => a + b, 0);
-  const par = ((1 - df[tenor]) / annuity) * 100;
-  const fixed = fixedText.trim() ? Number(fixedText) : par;
-  // Value to the fixed payer: float leg minus fixed leg.
-  const npvPayer = notional * ((par - fixed) / 100) * annuity;
-  const npv = payFixed ? npvPayer : -npvPayer;
-  const dv01 = notional * annuity * 0.0001 * (payFixed ? 1 : -1);
-  const start = new Date(engine.today * DAY_MS);
-  const flows = Array.from({ length: tenor }, (_, i) => {
-    const k = i + 1;
-    const fwd = (df[k - 1] / df[k] - 1) * 100;
-    const fixedCf = (notional * fixed) / 100;
-    const floatCf = (notional * fwd) / 100;
-    const net = payFixed ? floatCf - fixedCf : fixedCf - floatCf;
-    return { k, date: addMonths(start, 12 * k).getTime(), fwd, fixedCf, floatCf, df: df[k], pv: net * df[k] };
-  });
-  const curve = [1, 2, 3, 5, 7, 10, 15, 20, 30].map((t) => ({ x: t, y: swapRate(t) }));
-  const fwdCurve = Array.from({ length: 30 }, (_, i) => ({ x: i + 1, y: (df[i] / df[i + 1] - 1) * 100 }));
-  return (
-    <div>
-      <FnHeader
-        code="SWAPCALC"
-        title="Swap Manager"
-        sub={
-          <>
-            USD SOFR OIS · annual fixed vs compounded SOFR · <SimBadge /> curve bootstrapped from modelled par rates
-          </>
-        }
-      />
-      <div className="chart-tools">
-        <label className="fld">
-          Side
-          <select className="inp" value={payFixed ? 'pay' : 'rec'} onChange={(e) => setPayFixed(e.target.value === 'pay')}>
-            <option value="pay">Pay fixed</option>
-            <option value="rec">Receive fixed</option>
-          </select>
-        </label>
-        <label className="fld">
-          Tenor
-          <select className="inp" value={tenor} onChange={(e) => setTenor(Number(e.target.value))}>
-            {[1, 2, 3, 4, 5, 7, 10, 12, 15, 20, 25, 30].map((t) => (
-              <option key={t} value={t}>
-                {t}Y
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="fld">
-          Notional USD
-          <input className="inp" style={{ width: 110 }} inputMode="decimal" value={notionalText} onChange={(e) => setNotionalText(e.target.value)} />
-        </label>
-        <label className="fld">
-          Fixed %
-          <input className="inp" style={{ width: 70 }} placeholder={par.toFixed(4)} inputMode="decimal" value={fixedText} onChange={(e) => setFixedText(e.target.value)} />
-        </label>
-      </div>
-      <div className="cols">
-        <Section title="Valuation">
-          <KV
-            items={[
-              ['Par swap rate', `${fmtNum(par, 4)}%`],
-              ['Fixed rate', `${fmtNum(fixed, 4)}%`],
-              ['Spread to par', `${fmtNum((fixed - par) * 100, 2)} bp`],
-              ['NPV (USD)', <Chg key="n" v={npv} dec={0} />],
-              ['DV01 (USD per bp)', fmtNum(dv01, 0)],
-              ['Annuity (PV01 per unit)', fmtNum(annuity, 4)],
-              ['Premium', `${fmtNum((npv / notional) * 100, 4)}% of notional`],
-            ]}
-          />
-        </Section>
-        <Section title="Par and 1Y forward curves">
-          <XYChart
-            series={[
-              { label: 'Par swap', color: '#ffb547', markers: true, points: curve },
-              { label: '1Y forward', color: '#5aa7ff', points: fwdCurve },
-            ]}
-            height={230}
-            legend
-            xScale="sqrt"
-            xTicks={[1, 2, 5, 10, 20, 30].map((v) => ({ v, label: `${v}Y` }))}
-            yFormat={(v) => fmtNum(v, 2)}
-          />
-        </Section>
-      </div>
-      <table className="tbl">
-        <thead>
-          <tr>
-            <th>Period</th>
-            <th>Pay date</th>
-            <th className="num">Fixed CF</th>
-            <th className="num">Fwd SOFR %</th>
-            <th className="num">Float CF</th>
-            <th className="num hide-m">Discount</th>
-            <th className="num">PV net</th>
-          </tr>
-        </thead>
-        <tbody>
-          {flows.map((f) => (
-            <tr key={f.k}>
-              <td className="amber">{f.k}</td>
-              <td>{fmtDay(f.date)}</td>
-              <td className="num">{fmtNum(payFixed ? -f.fixedCf : f.fixedCf, 0)}</td>
-              <td className="num">{fmtNum(f.fwd, 4)}</td>
-              <td className="num">{fmtNum(payFixed ? f.floatCf : -f.floatCf, 0)}</td>
-              <td className="num hide-m">{fmtNum(f.df, 6)}</td>
-              <td className="num white">{fmtNum(f.pv, 0)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+export { SwapCalc as SWPM } from './SwapCalc';
 
 // ------------------------------------------------------------------ CENB
 
