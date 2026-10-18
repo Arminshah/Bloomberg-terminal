@@ -8,7 +8,9 @@ In the desktop app, every request below goes out from the Electron main process 
 
 | Provider | Used for | Access | Credential | State in the app |
 | --- | --- | --- | --- | --- |
-| Yahoo Finance | Quotes, streaming prices, history, company profiles and statements, holders, symbol search; crypto when Kraken does not answer | Undocumented web endpoints, personal use | None | Enabled (desktop), switch `YAHOO_PRICES_ENABLED`; options, news and analyst data off |
+| Yahoo Finance | Quotes, streaming prices, history, company profiles and statements, holders, symbol search, US stocks and stocks on 15 European exchanges; crypto when Kraken does not answer | Undocumented web endpoints, personal use | None | Enabled (desktop), switch `YAHOO_PRICES_ENABLED`; options and analyst data off |
+| Yahoo Finance headlines | Headlines for the stock on screen, any market Yahoo lists (`COMPANYNEWS`, `QUOTE`) | RSS | None | Enabled (desktop), switch `YAHOO_RSS_ENABLED` |
+| Euronext | The latest company press releases filed through Euronext (`MARKETNEWS`) | RSS | None | Enabled (desktop), switch `EURONEXT_RSS_ENABLED` |
 | US Treasury | Daily par yield curve | CSV download | None | Enabled |
 | Federal Reserve Bank of New York | EFFR, SOFR and the other reference rates | Markets data API | None | Enabled |
 | Federal Reserve Board | FOMC meeting calendar | Web page | None | Enabled |
@@ -35,7 +37,7 @@ In the desktop app, every request below goes out from the Electron main process 
 | Tiingo | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `TIINGO_API_KEY` | Enabled once the key is set, switch `TIINGO_ENABLED` |
 | Financial Modeling Prep | Analyst price targets, ratings, rating actions and annual estimates (`ANALYSTS`, `EARNINGS`) | Stable REST API | `FMP_API_KEY` | Enabled once the key is set, switch `FMP_ENABLED` |
 | Equibles | Analyst-estimate reports, guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news (`ANALYSTS`) | Read-only MCP Streamable HTTP | `EQUIBLES_API_KEY` | Manual requests only, switch `EQUIBLES_ENABLED` |
-| Finnhub | Market news and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) | REST API | `FINNHUB_API_KEY` | Enabled once the key is set, switch `FINNHUB_ENABLED` |
+| Finnhub | Market news and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`); US company profiles and ratios when Yahoo's summary is refused (`PROFILE`), recommendation trends (`ANALYSTS`), EPS surprises and the next report (`EARNINGS`) | REST API | `FINNHUB_API_KEY` | Enabled once the key is set, switch `FINNHUB_ENABLED` |
 | Marketaux | News tagged with tickers, with sentiment (`MARKETNEWS`, `COMPANYNEWS`) | REST API | `MARKETAUX_API_TOKEN` | Enabled once the token is set, switch `MARKETAUX_ENABLED` |
 | MarketWatch | Top stories headlines (`MARKETNEWS`) | RSS | None | Off until `MARKETWATCH_RSS_ENABLED` is on (Dow Jones terms) |
 | Alpaca Market Data | IEX stocks and indicative listed equity option snapshots (`OPTIONS`) | Market Data API v2 / v1beta1 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | Enabled with both keys and account access, switch `ALPACA_ENABLED`; read-only data host |
@@ -54,6 +56,8 @@ What Yahoo's pages say:
 - [Terms of service](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html), among the things users may not do: "access or collect data, or attempt to access or collect data, from our Services using any automated means, devices, programs, algorithms or methodologies, including but not limited to robots, spiders, scrapers, data mining tools, or data gathering or extraction tools, for any purpose without our express, prior permission." This app collects data that way. The project brief keeps Yahoo for private personal use and accepts this risk. Yahoo can block the app at any time.
 - [API terms](https://legal.yahoo.com/us/en/yahoo/terms/product-atos/apitnc/index.html) cover Yahoo's official APIs used with Yahoo API credentials. The app uses no credentials. The same terms bar using "any automated means other than the Yahoo APIs, including agents, robots, scripts or spiders, to access, query or otherwise collect Yahoo-related information".
 - The [yfinance repository](https://github.com/ranaroussi/yfinance) refused this check (HTTP 403), so its disclaimer is not quoted here.
+
+European stocks are looked up the same way as US ones, typed with the market code (`ABI BB`, `KBC BB Equity`, `ASML NA`, `VOLV/B SS`) or Yahoo's symbol (`ABI.BR`). The codes cover Brussels (BB), Paris (FP), Amsterdam (NA), Lisbon (PL), Dublin (ID), Xetra (GY), London (LN), Milan (IM), Madrid (SM), SIX Swiss (SW), Stockholm (SS), Copenhagen (DC), Helsinki (FH), Oslo (NO) and Vienna (AV); Yahoo's exchange codes for them were checked against its chart answers on 18 October 2026. Yahoo's summary leaves the share count out for many European stocks; the count then comes from the last reported balance sheet in Yahoo's fundamentals series (`quarterlyOrdinarySharesNumber`), and stays unknown if that is missing too. London prices are in pence.
 
 Delays listed on Yahoo's page, for the markets this app covers: Nasdaq, S&P indices, Dow Jones indexes, currencies, crypto (Coinbase, CoinMarketCap) and the Toronto Stock Exchange are real time; CBOT and CME 10 minutes; NYMEX, COMEX and ICE Futures US 30 minutes; Cboe indices, NYSE indices, OPRA (options) and OTC Markets 15 minutes; London Stock Exchange 20 minutes; Xetra, Euronext Paris, Euronext Amsterdam and Hong Kong 15 minutes; SIX Swiss Exchange 30 minutes; Tokyo 20 minutes; ASX 20 minutes; FTSE indices 15 minutes; Nikkei indices 30 minutes. NYSE-listed stocks have no row of their own; Yahoo quotes them as "Nasdaq Real Time Price".
 
@@ -275,7 +279,7 @@ The app asks only from `CROSSCHECK`: at most one request a minute, 40 an hour an
 
 ### Finnhub recommendation fallback
 
-If FMP ratings fail, are missing, empty or stale, the app tries Finnhub's documented `/stock/recommendation?symbol=` endpoint with `X-Finnhub-Token`. Its official schema was read on October 18, 2026; unlike Finnhub price targets, upgrades and EPS estimates, this endpoint has no premium marker. Counts must be nonnegative integers for the requested symbol and a valid monthly period. The original period and source are shown; the app does not invent a consensus word or price target from the counts. Both providers' failures are retained if neither answers. This still requires a working Finnhub REST key: its webhook secret cannot authenticate data requests. The 2.4.1 import normalization for concatenated API-key/webhook-secret pairs is preserved.
+If FMP ratings fail, are missing, empty or stale, the app tries Finnhub's documented `/stock/recommendation?symbol=` endpoint with `X-Finnhub-Token`. Its official schema was read on October 18, 2026; unlike Finnhub price targets, upgrades and EPS estimates, this endpoint has no premium marker. Counts must be nonnegative integers for the requested symbol and a valid monthly period. The original period and source are shown; the app does not invent a consensus word or price target from the counts. Both providers' failures are retained if neither answers. This still requires a working Finnhub REST key: its webhook secret cannot authenticate data requests. Finnhub's newer API keys are 40 characters (two 20-character halves that start alike) and are kept whole; 2.4.1 wrongly cut them to 20 characters, so a Finnhub key saved with 2.4.1 to 2.7.0 should be pasted again.
 
 ### Equibles research
 
@@ -291,7 +295,7 @@ An unauthenticated APLD estimates call returned HTTP 401 (missing key). Public s
 
 ## Market and company news
 
-`MARKETNEWS` (also `MNEWS`, `WIRE`) merges market news from these sources into one list, newest first, apart from the official announcements on `HEADLINES`. A story carried twice (the same link once tracking parameters are removed, or the same title) shows once, with every source that carried it. You can filter by ticker or keyword. `COMPANYNEWS` shows one US company's news from Finnhub (the last seven days) and the Marketaux stories tagged with its ticker; `QUOTE` shows its latest Finnhub headlines. Only the headline, publisher, publication time, a short summary where the source gives one, and a link out are shown; no article text is fetched. Requests go out from `electron/news.cjs`; the parsers are in `src/data/live/marketnews.ts`.
+`MARKETNEWS` (also `MNEWS`, `WIRE`) merges market news from these sources into one list, newest first, apart from the official announcements on `HEADLINES`. A story carried twice (the same link once tracking parameters are removed, or the same title) shows once, with every source that carried it. You can filter by ticker or keyword. `COMPANYNEWS` shows a company's news: for a US company, Finnhub (the last seven days) and the Marketaux stories tagged with its ticker; for any stock, Yahoo Finance's headline feed for its symbol. `QUOTE` shows its latest headlines from the same sources. `MARKETNEWS` also lists Euronext's latest company press releases. Only the headline, publisher, publication time, a short summary where the source gives one, and a link out are shown; no article text is fetched. Requests go out from `electron/news.cjs`; the parsers are in `src/data/live/marketnews.ts`.
 
 ### Finnhub
 
@@ -302,6 +306,14 @@ Read on 14 October 2026. [Market news](https://finnhub.io/docs/api/market-news) 
 Read on 14 October 2026. [Pricing](https://www.marketaux.com/pricing), free plan: "100 requests daily" (reset at midnight UTC), "3 articles / news request". [Documentation](https://www.marketaux.com/documentation): `/v1/news/all` with `symbols`, `filter_entities`, `language`, `limit` and `api_token`; each article lists the companies it mentions with a `sentiment_score` from -1 to 1. [Terms](https://www.marketaux.com/terms): personal, non-commercial use; "We only provide a short snippet of articles along with their links."
 
 The free plan's three articles a request decide how the app asks: one request for the whole active watchlist (up to 20 tickers) at most once an hour from `MARKETNEWS`, and one for a company the first time `COMPANYNEWS` opens it, each kept an hour. The app stops at 90 requests a day, shows "N of 90 requests today" on `MARKETNEWS`, and after a failure waits 1, 2, 4, 8 minutes and so on (never more than the source's usual interval) before asking again, so an outage does not spend the allowance. Sentiment is shown only where Marketaux gives it, labelled as Marketaux's. Not live-tested; tested on answers in the documented layout.
+
+### Yahoo Finance headlines
+
+Yahoo publishes an RSS feed of headlines per symbol (`https://feeds.finance.yahoo.com/rss/2.0/headline?s=ABI.BR&region=US&lang=en-US`), for US and European listings alike. Its RSS terms say "you are only permitted to display the content that is provided in the feed, without modification, and you must provide attribution to our source website and link to the full article." The screens show the headline, the short description and the publisher, with the link, and ask for a stock's feed at most every 15 minutes while a screen shows it, 20 requests a minute at most. The feed refuses a browser-like user agent, so the main process sends its own. Switch: `YAHOO_RSS_ENABLED`.
+
+### Euronext press releases
+
+Euronext links an RSS feed of the latest company press releases (`https://live.euronext.com/en/rss/company-pr-release`) from its [press release pages](https://live.euronext.com/en/listview/company-press-release). It holds the 10 most recent releases from Euronext issuers, in the language the issuer published (French, Dutch and English on 18 October 2026). `MARKETNEWS` reads it every 10 minutes while open and shows the title, the issuer and the link; the release itself is on Euronext's site. Euronext's terms of use were not reviewed for this feed. Switch: `EURONEXT_RSS_ENABLED`.
 
 ### MarketWatch (switched off by default)
 
