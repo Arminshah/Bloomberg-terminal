@@ -1,5 +1,7 @@
 # Armin Terminal 2.5.0
 
+This build was stopped before publication during final concurrency review. Use [2.5.1](release-v2.5.1.md), which gives distinct simultaneous Equibles queries distinct request IDs. The v2.5.0 tag remains intact.
+
 FMP denying APLD price targets with HTTP 402 used to hide the analyst screen. Research sections now remain independent, monthly recommendation counts can fall back to Finnhub, and Equibles company research is available alongside them. This release includes the published 2.4.1 Yahoo consent/session, chart fallback and key-import fixes.
 
 ## Research

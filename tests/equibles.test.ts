@@ -84,6 +84,16 @@ describe('read-only Equibles discovery and transport', () => {
     expect(h.requests.filter((r) => r.key === second)).toHaveLength(4);
   });
 
+  it('gives concurrent distinct reports unique request IDs while retaining cache reuse', async () => {
+    const h = harness();
+    await Promise.all([h.client.research('guidance', 'APLD', KEY), h.client.research('insiders', 'APLD', KEY)]);
+    const calls = h.requests.filter((request) => request.rpc.method === 'tools/call');
+    expect(calls).toHaveLength(2);
+    expect(new Set(calls.map((request) => request.rpc.id)).size).toBe(2);
+    expect(await h.client.research('guidance', 'APLD', KEY)).toMatchObject({ cached: true });
+    expect(h.requests.filter((request) => request.rpc.method === 'tools/call')).toHaveLength(2);
+  });
+
   it.each([
     { isError: true, content: [{ type: 'text', text: 'Premium subscription required' }] },
     { content: [] },
@@ -131,7 +141,7 @@ describe('read-only Equibles discovery and transport', () => {
     // The remaining fixtures accept the negotiated session (the test's fake server tracks its init).
     h.fetch.mockImplementationOnce(async () => new Response(null, { status: 202 }));
     h.fetch.mockImplementationOnce(async () => new Response(JSON.stringify({ jsonrpc: '2.0', id: 'tools/list', result: { tools: tools.tools } })));
-    h.fetch.mockImplementationOnce(async () => new Response(JSON.stringify({ jsonrpc: '2.0', id: 'tools/call', result: { content: [{ type: 'text', text: 'Stream initialized' }] } })));
+    h.fetch.mockImplementationOnce(async (_url, init) => new Response(JSON.stringify({ jsonrpc: '2.0', id: JSON.parse(init.body as string).id, result: { content: [{ type: 'text', text: 'Stream initialized' }] } })));
     expect(parseResearch((await h.client.research('guidance', 'APLD', KEY)).text)?.report).toBe('Stream initialized');
     expect(cancel).toHaveBeenCalledOnce();
   });

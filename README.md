@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.5.0** adds read-only Equibles research, a Finnhub recommendation fallback and per-symbol research access checks. Failed FMP sections no longer hide working research. It preserves 2.4.1's Yahoo consent/session handling, chart fallback and key-import fixes. See [release validation and limits](docs/release-v2.5.0.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 70 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
+Version **2.5.1** adds read-only Equibles research, a Finnhub recommendation fallback and per-symbol research access checks. Failed FMP sections no longer hide working research. It preserves 2.4.1's Yahoo consent/session handling, chart fallback and key-import fixes. See [release validation and limits](docs/release-v2.5.1.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 70 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 

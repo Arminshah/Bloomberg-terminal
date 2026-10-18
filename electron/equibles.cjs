@@ -72,7 +72,7 @@ function toolArguments(tool, symbol) {
 function rpcProblem(_provider, _url, text) {
   const reply = JSON.parse(text);
   if (reply?.jsonrpc !== '2.0' || !Object.hasOwn(reply, 'result') || !reply.result || typeof reply.result !== 'object') return { kind: 'schema-changed', message: 'Equibles returned an invalid research response.' };
-  if (reply.id === 'tools/call' && (!Array.isArray(reply.result.content) || !reply.result.content.some((block) => block?.type === 'text' && typeof block.text === 'string' && block.text.trim()))) return { kind: 'schema-changed', message: 'Equibles research has no readable text content.' };
+  if (String(reply.id).startsWith('tools/call') && (!Array.isArray(reply.result.content) || !reply.result.content.some((block) => block?.type === 'text' && typeof block.text === 'string' && block.text.trim()))) return { kind: 'schema-changed', message: 'Equibles research has no readable text content.' };
   return null;
 }
 
@@ -108,13 +108,18 @@ function createEquiblesAccount({ providers, fetch, agent, now = Date.now, sleep,
       return { ok: true, status: 200, headers: response.headers, text: async () => JSON.stringify(decoded) };
     },
   });
-  const rpc = (key, method, params, ttl = 0) => broker('equibles', ENDPOINT, {
+  const rpc = (key, method, params, ttl = 0) => {
+    // Distinct in-flight tool calls need distinct JSON-RPC IDs in a shared MCP
+    // session. Stable argument hashes also preserve cache identity and deduplication.
+    const id = method === 'tools/call' ? `${method}:${createHash('sha256').update(JSON.stringify(params)).digest('hex')}` : method;
+    return broker('equibles', ENDPOINT, {
     Authorization: `Bearer ${key}`, Accept: 'application/json, text/event-stream', 'Content-Type': 'application/json',
     ...(session ? { 'Mcp-Session-Id': session } : {}),
     ...(method !== 'initialize' ? { 'MCP-Protocol-Version': protocol } : {}),
   }, ttl, [10, 60_000], [key, session].filter(Boolean), undefined, {
-    method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', ...(method.startsWith('notifications/') ? {} : { id: method }), method, params }),
+    method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', ...(method.startsWith('notifications/') ? {} : { id }), method, params }),
   });
+  };
 
   async function initialize(key) {
     const answer = await rpc(key, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'Armin Terminal', version: require('../package.json').version } });
