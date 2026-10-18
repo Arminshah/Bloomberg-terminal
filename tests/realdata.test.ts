@@ -223,6 +223,9 @@ describe('external lines in the engine', () => {
 });
 
 describe('official rates', () => {
+  it('does not turn empty ECB observations into a zero policy rate', () => {
+    expect(parseEcbCsv('"TIME_PERIOD","OBS_VALUE"\n"2026-10-15",""\n"2026-10-16","0"')).toEqual([['2026-10-16', 0]]);
+  });
   it('parses the Treasury par yield curve by tenor', () => {
     const curve = parseTreasuryCsv(treasuryCsv);
     const d = dayNum(Date.UTC(2026, 9, 9));

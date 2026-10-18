@@ -1,6 +1,6 @@
 import { addRealStories, type Story } from '../news';
 import { setFeed } from './status';
-import { officialAvailable, official } from './official';
+import { officialAvailable } from './official';
 import type { OfficialSource } from './lookup';
 
 /**
@@ -111,11 +111,12 @@ export function startOfficialNews(): (() => void) | null {
     await Promise.all(
       OFFICIAL_FEEDS.map(async (feed) => {
         try {
-          const text = await official(feed.source, since);
+          const answer = await window.arminDesktop!.official(feed.source, since);
+          const text = answer.status === 200 ? answer.text : '';
           const list = text ? parseFeed(text) : [];
           if (!list.length) throw new Error('no items');
           if (stopped) return;
-          addRealStories(storiesFrom(feed, list, Date.now()));
+          addRealStories(storiesFrom(answer.sourceLabel ? { ...feed, publisher: answer.sourceLabel } : feed, list, Date.now()));
           ok++;
           items += list.length;
         } catch {

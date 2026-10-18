@@ -29,8 +29,10 @@ const TESTS = [
     label: 'New York Fed reference rates',
     request: () => ({ url: 'https://markets.newyorkfed.org/api/rates/all/latest.json' }),
     read: (text) => {
-      const r = json(text)?.refRates?.[0];
-      if (!r) throw new Error('no rates in the answer');
+      const rows = json(text)?.refRates;
+      const valid = Array.isArray(rows) ? rows.filter((r) => r && Number.isFinite(r.percentRate) && /^\d{4}-\d{2}-\d{2}$/.test(r.effectiveDate)) : [];
+      const r = valid.find((r) => r.type === 'EFFR') ?? valid[0];
+      if (!r) throw new Error('no usable percentage rates in the answer');
       return `${r.type} ${n(r.percentRate)}% on ${r.effectiveDate}`;
     },
   },
@@ -38,18 +40,21 @@ const TESTS = [
     id: 'ecb',
     provider: 'ecb',
     label: 'ECB deposit facility rate',
-    request: () => ({ url: 'https://data-api.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.DFR.LEV?format=csvdata&lastNObservations=1' }),
+    request: () => ({ url: 'https://data-api.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.DFR.LEV?format=csvdata&lastNObservations=1', accept: 'text/csv' }),
     read: (text) => {
       const lines = String(text).trim().split(/\r?\n/);
       if (lines.length < 2) throw new Error('no observation in the answer');
-      const head = lines[0].split(',');
+      const head = lines[0].replace(/^\uFEFF/, '').split(',').map((s) => s.replace(/^"|"$/g, '').trim());
       const row = lines[lines.length - 1].split(',');
-      return `${row[head.indexOf('OBS_VALUE')] ?? '?'}% on ${row[head.indexOf('TIME_PERIOD')] ?? '?'}`;
+      const value = row[head.indexOf('OBS_VALUE')]?.replace(/^"|"$/g, '').trim();
+      const date = row[head.indexOf('TIME_PERIOD')]?.replace(/^"|"$/g, '').trim();
+      if (!value || !Number.isFinite(Number(value)) || !/^\d{4}-\d{2}-\d{2}$/.test(date ?? '')) throw new Error('no usable rate observation in the answer');
+      return `${value}% on ${date}`;
     },
   },
   {
     id: 'fed-rss',
-    provider: 'official',
+    provider: 'fedboard',
     label: 'Federal Reserve press releases (RSS)',
     request: () => ({ url: 'https://www.federalreserve.gov/feeds/press_all.xml', accept: 'application/rss+xml, application/xml' }),
     read: (text) => {

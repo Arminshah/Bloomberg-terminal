@@ -217,6 +217,16 @@ describe('provider status', () => {
   const report: ProviderReport = { credentials: { FRED_API_KEY: { label: 'FRED', configured: false, valid: true, source: null } }, providers: { yahoo: { lastMinute: 3, total: 9, lastSuccessAt: 2000, lastErrorAt: 1000, lastError: 'HTTP 429', lastErrorKind: 'rate-limited' } } };
   const def = (id: string) => PROVIDERS.find((p) => p.id === id)!;
 
+  it('tracks the actual price socket even when the main HTTP ledger has no streaming requests', () => {
+    expect(providerState(def('yahoo-stream'), report, 'live')).toBe('live');
+    expect(providerState(def('yahoo-stream'), report, 'connecting')).toBe('connecting');
+    expect(providerState(def('yahoo-stream'), report, 'error')).toBe('error');
+    expect(providerState(def('yahoo-stream'), report, 'off')).toBe('idle');
+    expect(providerState(def('yahoo-stream'), { ...report, settings: { YAHOO_PRICES_ENABLED: { label: 'Yahoo', value: false, source: 'saved in this app' } } }, 'live')).toBe('switched-off');
+    expect(providerState(def('treasury'), { ...report, providers: { treasury: { ...report.providers.yahoo, lastSuccessAt: Date.now() } } }, 'error')).toBe('error');
+    expect(providerState(def('treasury'), { ...report, providers: { treasury: { ...report.providers.yahoo, lastErrorAt: 3000 } } }, 'live')).toBe('live');
+  });
+
   it('says what each provider is doing from its policy, key and last requests', () => {
     // Times in this report are a few seconds after the epoch; `now` is set to match.
     const now = 3500;
@@ -422,12 +432,11 @@ describe('pasted key list in the layout of the owner\'s list', () => {
     expect(found.map((f: { name: string }) => f.name)).toEqual(['ALPACA_API_KEY_ID', 'ALPACA_API_SECRET_KEY']);
   });
 
-  it('saves the same 20-character Finnhub key pasted twice once, and any other 40-character key whole', () => {
-    const twice = providers.parseCredentialList('Finnhub: abcd1234efgh5678ij90abcd1234efgh5678ij90');
-    expect(twice.found).toEqual([{ name: 'FINNHUB_API_KEY', value: 'abcd1234efgh5678ij90' }]);
-    expect(twice.notes.map((n: { name: string }) => n.name)).toEqual(['FINNHUB_API_KEY']);
+  it('never truncates a credential read from the environment, regardless of repeated prefixes', () => {
     vi.stubEnv('FINNHUB_API_KEY', 'abcd1234efgh5678ij90abcd1234efgh5678kl12');
     expect(providers.credential('FINNHUB_API_KEY').value).toBe('abcd1234efgh5678ij90abcd1234efgh5678kl12');
+    vi.stubEnv('FINNHUB_API_KEY', 'zyxw9876vuts5432rq10abcd1234efgh5678kl12');
+    expect(providers.credential('FINNHUB_API_KEY').value).toBe('zyxw9876vuts5432rq10abcd1234efgh5678kl12');
     vi.unstubAllEnvs();
   });
 });

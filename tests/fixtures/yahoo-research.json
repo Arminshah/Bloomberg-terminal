@@ -1,0 +1,128 @@
+{
+  "fixture": "Synthetic research values; never live market data",
+  "quoteSummary": {
+    "result": [
+      {
+        "price": {
+          "symbol": "APLD",
+          "currency": "USD"
+        },
+        "financialData": {
+          "targetMeanPrice": {
+            "raw": 25
+          },
+          "targetMedianPrice": {
+            "raw": 24
+          },
+          "targetHighPrice": {
+            "raw": 32
+          },
+          "targetLowPrice": {
+            "raw": 18
+          },
+          "recommendationKey": "buy",
+          "financialCurrency": "USD"
+        },
+        "recommendationTrend": {
+          "trend": [
+            {
+              "period": "-1m",
+              "strongBuy": 1,
+              "buy": 3,
+              "hold": 2,
+              "sell": 0,
+              "strongSell": 0
+            },
+            {
+              "period": "0m",
+              "strongBuy": 2,
+              "buy": 4,
+              "hold": 1,
+              "sell": 0,
+              "strongSell": 0
+            }
+          ]
+        },
+        "upgradeDowngradeHistory": {
+          "history": [
+            {
+              "epochGradeDate": 1790812800,
+              "firm": "Synthetic Research Firm",
+              "fromGrade": "Hold",
+              "toGrade": "Buy",
+              "action": "up"
+            }
+          ]
+        },
+        "earningsTrend": {
+          "trend": [
+            {
+              "period": "0q",
+              "endDate": "2026-11-30",
+              "earningsEstimate": {
+                "avg": {
+                  "raw": 99
+                },
+                "earningsCurrency": "USD"
+              }
+            },
+            {
+              "period": "0y",
+              "endDate": "2027-05-31",
+              "earningsEstimate": {
+                "avg": {
+                  "raw": -0.25
+                },
+                "low": {
+                  "raw": -0.4
+                },
+                "high": {
+                  "raw": 0
+                },
+                "numberOfAnalysts": {
+                  "raw": 7
+                },
+                "earningsCurrency": "USD"
+              },
+              "revenueEstimate": {
+                "avg": {
+                  "raw": 600000000
+                },
+                "low": {
+                  "raw": 500000000
+                },
+                "high": {
+                  "raw": 700000000
+                },
+                "numberOfAnalysts": {
+                  "raw": 6
+                },
+                "revenueCurrency": "USD"
+              }
+            },
+            {
+              "period": "+1y",
+              "endDate": "2028-05-31",
+              "earningsEstimate": {
+                "avg": {
+                  "raw": 0
+                },
+                "numberOfAnalysts": {
+                  "raw": 5
+                },
+                "earningsCurrency": "USD"
+              },
+              "revenueEstimate": {
+                "avg": {
+                  "raw": 900000000
+                },
+                "revenueCurrency": "USD"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "error": null
+  }
+}

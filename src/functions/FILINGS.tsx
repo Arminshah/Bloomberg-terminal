@@ -20,6 +20,7 @@ import {
   periodColumns,
   periodDays,
   reportingCurrency,
+  reportingCurrencies,
   resolveFiler,
   searchCompanies,
   secAvailable,
@@ -241,7 +242,7 @@ function Filer({ sec, ticker, cik: cikArg }: { sec?: SecurityDef; ticker: string
     <div className="fn-fill">
       {head()}
       {tab === FACTS_TAB ? (
-        <ReportedFigures cik={f.cik} />
+        <ReportedFigures cik={f.cik} security={sec?.id ?? (ticker || f.tickers[0])} filings={f.filings} onCurrentReports={() => setTab(3)} />
       ) : (
         <>
           <div className="cols">
@@ -348,18 +349,24 @@ const SECTIONS: { key: FactLine['section']; label: string }[] = [
   { key: 'balance', label: 'Balance sheet' },
 ];
 
-function ReportedFigures({ cik }: { cik: number }) {
+function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: number; security?: string; filings: Filing[]; onCurrentReports: () => void }) {
+  const panel = usePanelId();
   const facts = useSecLoad(`facts:${cik}`, (force) => loadCompanyFacts(cik, force));
   const [kind, setKind] = useState<PeriodKind>('annual');
+  const [selectedCurrency, setSelectedCurrency] = useState<string>();
   const view = useMemo(() => {
     if (!facts.result?.ok) return null;
     const table = facts.result.data.facts;
-    const ccy = reportingCurrency(table);
+    const currencies = reportingCurrencies(table);
+    const latestCurrency = reportingCurrency(table);
+    const ccy = currencies.some((c) => c.currency === selectedCurrency) ? selectedCurrency! : latestCurrency;
     const cols = periodColumns(facts.result.data, ccy, kind, kind === 'annual' ? 6 : 8);
     const rows = FACT_LINES.map((line) => ({ line, values: lineValues(table, line, ccy, kind) })).filter((r) => cols.some((c) => r.values.has(c.end)));
     const biggest = Math.max(0, ...rows.filter((r) => r.line.measure === 'money').flatMap((r) => cols.map((c) => Math.abs(r.values.get(c.end)?.val ?? 0))));
-    return { ccy, cols, rows, moneyDec: biggest >= 1e10 ? 0 : 1, shares: coverShares(table) };
-  }, [facts.result, kind]);
+    const latestAnnual = periodColumns(facts.result.data, ccy, 'annual', 1).at(-1)?.end;
+    const latestQuarter = periodColumns(facts.result.data, ccy, 'quarter', 20).filter((c) => c.kind === 'quarter').at(-1)?.end;
+    return { ccy, currencies, latestCurrency, latestAnnual, latestQuarter, cols, rows, moneyDec: biggest >= 1e10 ? 0 : 1, shares: coverShares(table) };
+  }, [facts.result, kind, selectedCurrency]);
 
   if (!facts.result) return <div className="empty">Loading reported figures from SEC EDGAR…</div>;
   if (!facts.result.ok) {
@@ -370,6 +377,9 @@ function ReportedFigures({ cik }: { cik: number }) {
     );
   }
   const v = view!;
+  const latestShown = kind === 'annual' ? v.latestAnnual : v.latestQuarter;
+  const olderCoverage = !!latestShown && Date.now() - isoMs(latestShown) > (kind === 'annual' ? 550 : 200) * 86_400_000;
+  const latestCurrent = filings.filter((f) => formGroup(f.form) === 'current').sort((a, b) => b.filed.localeCompare(a.filed))[0];
   const fmt = (line: FactLine, r: Reported) => (line.measure === 'perShare' ? fmtNum(r.val, 2) : fmtNum(r.val / 1e6, line.measure === 'money' ? v.moneyDec : 1));
   return (
     <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -383,6 +393,20 @@ function ReportedFigures({ cik }: { cik: number }) {
         <span className="muted">
           {v.ccy} millions, per-share figures in {v.ccy} · <Fetched at={facts.result.at} stale={facts.result.stale} what="Company facts" />
         </span>
+        {v.currencies.length > 1 && <label className="muted">Reporting currency{' '}
+          <select className="inp" aria-label="SEC reporting currency" value={v.ccy} onChange={(e) => setSelectedCurrency(e.target.value)}>
+            {v.currencies.map((c) => <option key={c.currency} value={c.currency}>{c.currency} · through {c.latestPeriod}{c.currency === v.latestCurrency ? ' · latest' : ''}</option>)}
+          </select>
+        </label>}
+      </div>
+      <div className="note" role="status" data-testid="sec-coverage">
+        {olderCoverage && <span className="amber">OLDER COVERAGE · {kind === 'annual' ? 'Annual' : 'Standalone quarterly'} SEC figures shown here end at {latestShown}. </span>}
+        {v.ccy !== v.latestCurrency && <span className="amber">Historical currency selected. The latest monetary reporting is in {v.latestCurrency}. </span>}
+        SEC tagged income figures in {v.ccy}: latest annual period {v.latestAnnual ?? 'not available'}; latest standalone quarter {v.latestQuarter ?? 'not available'}.
+        {!v.latestQuarter && <> Foreign filers can publish interim results in 6-K documents without standalone quarterly figures in this SEC dataset.</>}{' '}
+        {latestCurrent && <><a className="amber" href={filingLinks(cik, latestCurrent).doc ?? filingLinks(cik, latestCurrent).index} target="_blank" rel="noreferrer">Latest current report: {latestCurrent.form} filed {latestCurrent.filed}</a>. </>}
+        <button type="button" className="btn" onClick={onCurrentReports}>View current reports</button>
+        {security && <> <button type="button" className="btn" title="Open financial analysis from company-data providers; its coverage and source can differ from SEC company facts" onClick={() => execute(panel, `${security} FINANCIALS`)}>Other source: financial analysis</button></>}
       </div>
       {v.shares && (
         <div className="note">

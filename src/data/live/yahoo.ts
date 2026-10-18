@@ -386,6 +386,7 @@ class YahooData {
   /** A big jump waits for a second tick to confirm it before it is shown. */
   private suspect = new Map<string, Tick>();
   private lastPollOk = Date.now();
+  private lastStreamDelivered = 0;
   private staleTimer: ReturnType<typeof setInterval> | null = null;
   private etfTimer: ReturnType<typeof setInterval> | null = null;
   private stale = false;
@@ -406,6 +407,7 @@ class YahooData {
 
   start() {
     setFeed('market', 'connecting', 'Yahoo Finance: loading history');
+    setFeed('stream', 'connecting', 'Connecting to the Yahoo price socket');
     this.offDemand = engine.onDemand((id) => this.wantIntraday(id));
     // When Kraken does not answer, its crypto lines come here for the rest of the session.
     whenKrakenHandsBack(() => {
@@ -414,7 +416,11 @@ class YahooData {
     });
     this.stream = new YahooStream(
       (t) => this.applyTick(t),
-      (up) => this.status(up),
+      (up) => {
+        if (this.stopped) return;
+        setFeed('stream', up ? 'live' : 'error', up ? 'Yahoo price socket connected; updates arrive when trades print' : 'Yahoo price socket disconnected; HTTP quotes continue polling', { delivered: false });
+        this.status(up);
+      },
     );
     this.stream.start();
     this.sync();
@@ -465,7 +471,13 @@ class YahooData {
 
   /** Applies one streamed price to every line its symbol feeds. */
   private applyTick(tick: Tick) {
-    for (const t of this.bySymbol.get(tick.id) ?? []) this.applyTickTo(t, tick);
+    if (this.stopped) return;
+    const targets = this.bySymbol.get(tick.id) ?? [];
+    if (targets.length && Date.now() - this.lastStreamDelivered > 1000) {
+      this.lastStreamDelivered = Date.now();
+      setFeed('stream', 'live', 'Yahoo price socket: a trade update reached the terminal');
+    }
+    for (const t of targets) this.applyTickTo(t, tick);
   }
 
   /** Applies one streamed price to one line, after the bad-tick check. */
@@ -538,6 +550,7 @@ class YahooData {
 
   stop() {
     this.stopped = true;
+    setFeed('stream', 'off', 'Yahoo price socket stopped');
     this.unsubTerminal?.();
     this.stream?.stop();
     if (this.quoteTimer) clearTimeout(this.quoteTimer);
@@ -795,7 +808,7 @@ export function startYahooData(): () => void {
     void report
       .then((r) => {
         if (r.settings?.YAHOO_PRICES_ENABLED?.value === false) {
-          setFeed('market', 'off', `Yahoo Finance prices are switched off (YAHOO_PRICES_ENABLED, ${r.settings.YAHOO_PRICES_ENABLED.source}): no market prices until a source is on`);
+          setFeed('market', 'off', `Yahoo Finance prices are switched off (YAHOO_PRICES_ENABLED, ${r.settings.YAHOO_PRICES_ENABLED.source})`);
           return;
         }
         begin();

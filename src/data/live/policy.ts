@@ -108,13 +108,15 @@ export function parseValet(text: string, series: string): Obs {
 /** ECB Data Portal csvdata: a header row naming TIME_PERIOD and OBS_VALUE. */
 export function parseEcbCsv(text: string): Obs {
   const lines = text.trim().split(/\r?\n/);
-  const head = (lines[0] ?? '').split(',');
+  const cells = (line: string) => line.split(',').map((c) => c.trim().replace(/^"|"$/g, '').trim());
+  const head = cells(lines[0] ?? '');
   const ti = head.indexOf('TIME_PERIOD');
   const vi = head.indexOf('OBS_VALUE');
   if (ti < 0 || vi < 0) return [];
   return lines
     .slice(1)
-    .map((l) => l.split(','))
+    .map(cells)
+    .filter((c) => c[vi] !== undefined && c[vi] !== '')
     .map((c) => [c[ti], Number(c[vi])] as [string, number])
     .filter(([d, v]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(v));
 }

@@ -13,6 +13,7 @@ import type { FnProps } from '../terminal/types';
 
 const STATE_LABEL: Record<ProviderState, string> = {
   live: 'LIVE',
+  connecting: 'CONNECTING',
   ok: 'ANSWERING',
   idle: 'NOT ASKED YET',
   error: 'ERROR',
@@ -25,6 +26,7 @@ const STATE_LABEL: Record<ProviderState, string> = {
 
 const STATE_CLASS: Record<ProviderState, string> = {
   live: 'live',
+  connecting: 'sim',
   ok: 'live',
   idle: 'sim',
   error: 'hot',
@@ -114,9 +116,11 @@ export function PROV(_: FnProps) {
         </div>
       )}
       {desktop && <SelfTest onDone={refresh} />}
+      {report?.providers.finnhub?.lastErrorKind === 'not-entitled' && /401|invalid.*key/i.test(report.providers.finnhub.lastError ?? '') && <div className="note amber" role="status">Finnhub rejected its configured API key. Older builds could shorten some 40-character keys. Paste the complete REST API key from the Finnhub dashboard into its credential field again, then retry. Use the source shown here if an environment variable overrides the saved field.</div>}
       {desktop && <ResearchAccessCheck />}
       <Section title="Providers">
-        <table className="tbl zebra">
+        <div className="provider-table-scroll" tabIndex={0} role="region" aria-label="Provider status and diagnostics">
+        <table className="tbl zebra provider-table">
           <thead>
             <tr>
               <th>Provider</th>
@@ -149,21 +153,26 @@ export function PROV(_: FnProps) {
                   <td className="hide-m">
                     <Requirement p={p} report={report} />
                   </td>
-                  <td>{p.serves}</td>
-                  <td className="hide-m muted">{p.dataClass}</td>
-                  <td title={s?.lastAttemptAt ? new Date(s.lastAttemptAt).toISOString() : undefined}>{ago(s?.lastAttemptAt, now)}</td>
-                  <td title={s?.lastSuccessAt ? new Date(s.lastSuccessAt).toISOString() : undefined}>
-                    {ago(s?.lastSuccessAt, now)}
+                  <td className="provider-description">{p.serves}</td>
+                  <td className="hide-m muted provider-description">{p.dataClass}</td>
+                  <td title={p.feed === 'stream' ? 'Direct WebSocket connection: state comes from socket events, not an HTTP request' : s?.lastAttemptAt ? new Date(s.lastAttemptAt).toISOString() : undefined}>{p.feed === 'stream' ? 'Socket events' : ago(s?.lastAttemptAt, now)}</td>
+                  <td title={p.feed === 'stream' ? feeds.detail.stream : s?.lastSuccessAt ? new Date(s.lastSuccessAt).toISOString() : undefined}>
+                    {p.feed === 'stream' ? (feed === 'live' ? 'Connected' : '--') : ago(s?.lastSuccessAt, now)}
                     {s?.lastLatencyMs != null && s.lastSuccessAt ? <span className="muted"> · {s.lastLatencyMs} ms</span> : null}
                   </td>
                   <td className="hide-m" title={p.feed ? feeds.detail[p.feed] : undefined}>
                     {updated ? ago(updated, now) : '--'}
                   </td>
-                  <td title={s?.lastErrorAt ? new Date(s.lastErrorAt).toISOString() : undefined}>
+                  <td className="provider-description provider-problem" title={s?.lastErrorAt ? new Date(s.lastErrorAt).toISOString() : undefined}>
                     {state === 'stale' && !errorIsLatest ? (
                       <>Stale data: no answer for {ago(s?.lastSuccessAt, now).replace(' ago', '')}</>
+                    ) : p.feed === 'stream' && feed === 'error' ? (
+                      feeds.detail.stream
+                    ) : p.id === 'treasury' && feed === 'error' ? (
+                      feeds.detail.rates
                     ) : s?.lastErrorAt ? (
                       <>
+                        {!errorIsLatest && <span className="faint">Previous problem · </span>}
                         {KIND_LABEL[s.lastErrorKind ?? ''] ?? s.lastErrorKind}: <span className="muted">{s.lastError}</span> ({ago(s.lastErrorAt, now)})
                       </>
                     ) : state === 'not-configured' ? (
@@ -181,6 +190,7 @@ export function PROV(_: FnProps) {
                     {s?.dayCap ? <span className={s.today != null && s.today >= s.dayCap * 0.9 ? 'dn' : 'muted'}> / {s.dayCap}</span> : null}
                   </td>
                   <td className="hide-m">
+                    <details className="provider-terms"><summary>Terms &amp; source links</summary>
                     <span className="muted">{p.terms}</span>{' '}
                     {p.docs.map((d) => (
                       <a key={d.url} href={d.url} target="_blank" rel="noreferrer" className="amber" style={{ marginRight: 6 }}>
@@ -188,17 +198,19 @@ export function PROV(_: FnProps) {
                       </a>
                     ))}
                     <span className="faint">checked {p.checked}</span>
+                    </details>
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        </div>
       </Section>
       {desktop && <Switches report={report} onChange={changed} />}
       {desktop && <Credentials report={report} onChange={changed} />}
       <div className="note">
-        States: LIVE and ANSWERING mean the provider answered its last request; STALE means a provider the app asks continually has not answered for several rounds; NOT ASKED YET means no screen has needed it since the app started; NOT
+        States: LIVE and ANSWERING mean the provider answered its last request; the streaming row uses the actual socket connection, and its data time changes only when a trade update arrives. CONNECTING means a connection or initial load is pending. STALE means a provider the app asks continually has not answered for several rounds; NOT ASKED YET means no screen has needed it since the app started; NOT
         CONFIGURED means it needs a key; SWITCHED OFF means its switch is off; NOT CONNECTED means the adapter is planned but not built; DISABLED means it is switched off by policy. A configured key is not proof that a provider works: the
         state comes from the answers to real requests. An error is shown until the next successful answer.
       </div>
@@ -208,12 +220,13 @@ export function PROV(_: FnProps) {
 
 const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'YAHOO_PRICES_ENABLED', help: 'Yahoo Finance prices, history and company data, for personal use. Off stops every request to Yahoo and its streaming socket.' },
+  { name: 'YAHOO_RESEARCH_ENABLED', help: 'Use Yahoo price targets, recommendation counts, rating actions and annual estimates when the primary research provider cannot supply them. Requires Yahoo enabled. Sources, retrieval times and unavailable fields stay explicit; target-history averages are not invented.' },
   { name: 'KRAKEN_ENABLED', help: "Kraken's public market data for the crypto lines. Off hands them back to Yahoo, when Yahoo is on." },
   { name: 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED', help: 'Twelve Data\'s free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data.' },
   { name: 'MARKETWATCH_RSS_ENABLED', help: "MarketWatch's top stories feed on MARKETNEWS. Dow Jones's terms bar automated access to its content, RSS feeds included, without written consent: switch it on only if you accept that risk for your own use." },
   { name: 'FMP_ENABLED', help: 'Analyst price targets, ratings and estimates from Financial Modeling Prep (ANALYSTS, EARNINGS), while FMP_API_KEY is set. Off stops every request to FMP.' },
   { name: 'FINNHUB_ENABLED', help: 'Finnhub profiles/ratios fallback, monthly recommendations, quarterly EPS comparisons, next-report calendar and news. Use the REST API key, not the webhook secret.' },
-  { name: 'EQUIBLES_ENABLED', help: 'Read-only Equibles company research on ANALYSTS, requested manually. Free account: 100 calls/day shared with REST/MCP clients. No trading or portfolio writes.' },
+  { name: 'EQUIBLES_ENABLED', help: 'Read-only Equibles company research on ANALYSTS. One estimate report can load as a fallback; other datasets are manual. Free account: 100 calls/day shared with REST/MCP clients. No trading or portfolio writes.' },
   { name: 'MARKETAUX_ENABLED', help: 'Ticker-tagged news with sentiment from Marketaux, while MARKETAUX_API_TOKEN is set. Its free plan allows 100 requests a day.' },
   { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },
   { name: 'ALPACA_IEX_PRICES_ENABLED', help: 'Use IEX-only prices for US stocks across watchlists and panels. Requires Alpaca enabled and both keys. Reload to apply. History is limited to the previous/current IEX bars and snapshots observed while the app is open; long Yahoo price history is not combined with this feed. IEX is one exchange, with its own volume and daily changes.' },
@@ -276,7 +289,7 @@ const CREDENTIALS: { name: Credential; help: string; secret: boolean; placeholde
   { name: 'TWELVE_DATA_API_KEY', help: 'Key from your Twelve Data account (CROSSCHECK); nothing is sent until the TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED switch is on.', secret: true, placeholder: 'API key' },
   { name: 'TIINGO_API_KEY', help: 'Token from your Tiingo account: end-of-day closes for CROSSCHECK.', secret: true, placeholder: 'API token' },
   { name: 'FMP_API_KEY', help: 'FMP research key. A remaining daily quota does not unlock premium endpoints or all symbols; HTTP 402 means the request needs a different entitlement.', secret: true, placeholder: 'API key' },
-  { name: 'FINNHUB_API_KEY', help: 'Finnhub REST API key for news and recommendation trends. The X-Finnhub-Secret webhook signing secret cannot be used here.', secret: true, placeholder: 'REST API key' },
+  { name: 'FINNHUB_API_KEY', help: 'Paste the complete Finnhub REST API key. Older builds could shorten some 40-character keys: if requests return HTTP 401, save the full dashboard key again. The X-Finnhub-Secret webhook signing secret is separate.', secret: true, placeholder: 'Complete REST API key' },
   { name: 'EQUIBLES_API_KEY', help: 'Equibles dashboard API key for manual company research on ANALYSTS. Stored in the main process; no key is bundled in the app.', secret: true, placeholder: 'eq_…' },
   { name: 'MARKETAUX_API_TOKEN', help: 'Token from your Marketaux account: news tagged with tickers and sentiment. Free plan: 100 requests a day.', secret: true, placeholder: 'API token' },
   { name: 'ALPACA_API_KEY_ID', help: 'Key ID from your Alpaca account (paper keys start with PK): IEX quotes on QUOTE. Used for market data only, never for trading.', secret: true, placeholder: 'Key ID' },

@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.7.0** adds colored security-linked panels, a linked research workspace, familiar mnemonic/`<GO>` display, and `FLDS` field inspection with values, units, definitions, sources, freshness and CSV. Portfolio calculations and exports now capture mark provenance together, and invalid/future source timestamps cannot claim real-time freshness. Earlier American options, portfolio risk, Equibles/Finnhub research and provider diagnostics remain available. See [release validation and limits](docs/release-v2.7.0.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 71 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
+Version **2.7.2** fixes Finnhub key truncation and stock lookup without a company profile, adds Yahoo research fallback for FMP/Finnhub refusals and automatic Equibles estimate fallback, and selects the latest SEC reporting currency so currency changes do not hide current financial figures. Provider status follows the actual price socket; Treasury refreshes recover automatically. The orange exchange timers and city clocks, linked panels, field inspection and earlier analytics remain available. See [release validation](docs/release-v2.7.2.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 71 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
@@ -34,7 +34,7 @@ Prices, charts, yields, central bank rates, official statistics, official announ
 | `COINGECKO_API_KEY` | Market value and supply of the listed coins |
 | `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TIINGO_API_KEY`, `TWELVE_DATA_API_KEY` | Second sources for US stock closes (`CROSSCHECK`) |
 | `FMP_API_KEY` | Analyst price targets, ratings and estimates (`ANALYSTS`, `EARNINGS`) |
-| `EQUIBLES_API_KEY` | Manual analyst-estimate reports, guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news on `ANALYSTS` |
+| `EQUIBLES_API_KEY` | Estimate report fallback, plus on-request guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news on `ANALYSTS` |
 | `FINNHUB_API_KEY`, `MARKETAUX_API_TOKEN` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) |
 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option contracts on `OPTIONS`; read-only market data, subject to account entitlement |
 
@@ -42,7 +42,11 @@ To add several at once, paste your whole list into "Save these keys" on `PROVIDE
 
 Finnhub also supplies company-profile/ratio fallbacks, monthly recommendation history, quarterly EPS comparisons and the next-report calendar. These use the REST key; the webhook signing secret is a different credential.
 
-For the APLD research problem: open `PROVIDERS`, save your Equibles key, and use **Test research access** with `APLD`. The five endpoint results distinguish denial, missing keys, no data, cached answers and errors. Then open `APLD ANALYSTS` and load the Equibles **Analyst estimates** report. Coverage still depends on the provider and issuer; remaining FMP daily quota does not unlock a request denied with HTTP 402. Equibles' free 100/day allowance is shared across REST/MCP clients and is unsuitable for continually polling stock prices, so the IEX stock source is retained.
+After upgrading, re-save the complete Finnhub REST API key on `PROVIDERS` if it was rejected: older builds could shorten valid 40-character keys. A shortened saved value cannot be reconstructed. Environment variables take precedence over saved keys.
+
+For APLD research, `ANALYSTS` falls back to Yahoo targets, recommendations, rating actions and annual estimates when the primary providers cannot answer; `YAHOO_RESEARCH_ENABLED` controls this separately. If structured annual estimates are unavailable, one Equibles estimate report loads automatically. Other reports remain on request. **Research source availability** retains the exact provider failures; **Test research access** on `PROVIDERS` checks six datasets for the selected issuer. Coverage depends on source and issuer: quota does not unlock a denied endpoint. Equibles' shared 100/day allowance is unsuitable for polling stock prices.
+
+`FILINGS` → **Reported figures** defaults to the currency with the latest monetary reporting period. Older currencies remain selectable with their coverage dates. Standalone quarters absent from SEC company facts are identified explicitly, with access to newer 6-K/8-K documents; they are not inferred from annual figures.
 
 ## Using the terminal
 
@@ -74,7 +78,7 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 
 Enter runs a command, Esc clears the line, and Backspace on an empty line goes back a screen. F1 opens `HELP`, the function directory. Alt+1 to Alt+6 switch panels and Alt+Left and Alt+Right move through a panel's history. The buttons in the top bar switch between one and six panels, and the dividers between panels can be dragged; `LAYOUTS` saves and restores workspaces.
 
-The top bar starts with two market timers, Euronext then NYSE: the time until each opens or closes its regular session (09:00 to 17:30 Brussels time, 09:30 to 16:00 New York time). They follow each exchange's holidays and early closes, turn green while the market is open, and open the holiday calendar when clicked. Clocks for Brussels, New York, London, Tokyo and Hong Kong follow.
+The top bar starts with two compact market timers, Euronext then NYSE. Each shows the exchange, the scheduled weekday/time in that exchange's local time, and an aligned OPENS IN/CLOSES IN countdown. They cover the regular session (09:00 to 17:30 Brussels time, 09:30 to 16:00 New York time), follow holidays and early closes, and open the exchange calendar when clicked. Open sessions have a green marker and countdown. Clocks for Brussels, New York, London, Tokyo and Hong Kong follow, with orange city names above aligned white local times. Exchange names use the same original orange.
 
 Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES` are supported as aliases for the corresponding implemented functions; saved layouts and settings carry over.
 

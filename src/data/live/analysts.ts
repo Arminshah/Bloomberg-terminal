@@ -3,6 +3,7 @@ import { createStore } from '../../core/store';
 import type { SecurityDef } from '../types';
 import { secTicker } from './sec';
 import type { KeyedAnswer } from './lookup';
+import { loadYahooAnalysts, retryYahooAnalysts } from './yahoo-research';
 
 /**
  * Analyst research from Financial Modeling Prep, asked by the desktop app's main process with the owner's
@@ -71,6 +72,9 @@ export interface Estimate {
   netIncomeAvg: number;
   analystsRevenue: number;
   analystsEps: number;
+  currency?: string;
+  /** EPS can use a different currency from revenue, especially for ADRs. */
+  epsCurrency?: string;
 }
 
 type Parsed<T> = { data: T } | { error: string };
@@ -175,7 +179,11 @@ export interface AnalystPart<T = unknown> {
   at?: number;
   /** A newer request failed; this is the last answer that arrived. */
   stale?: boolean;
-  source?: 'FMP' | 'Finnhub';
+  source?: 'FMP' | 'Finnhub' | 'Yahoo Finance';
+  currency?: string;
+  recommendations?: RatingTally[];
+  /** Source-specific failures retained for the expandable coverage details. */
+  problems?: string[];
   /** The request failed on the way (no answer, rate limit, server error): opening the screen again retries. */
   transient?: boolean;
 }
@@ -187,6 +195,7 @@ export const analystData = createStore<{ v: number; by: Record<string, ByKind>; 
 /** After keys or switches change on PROVIDERS: open screens ask again for what needed a key. */
 export function retryAnalysts() {
   asked.clear();
+  retryYahooAnalysts();
   analystData.set((s) => ({ ...s, by: {}, retry: s.retry + 1 }));
 }
 const asked = new Map<string, number>();
@@ -210,13 +219,17 @@ export function fmpProblem(status: number, symbol: string, error?: string): stri
 
 /** Finnhub's latest valid monthly count. No target/consensus word is invented. */
 export function parseFinnhubRatings(text: string, symbol: string): Parsed<RatingTally | null> {
+  const parsed = parseFinnhubRecommendations(text, symbol);
+  return 'error' in parsed ? parsed : { data: parsed.data[0] ?? null };
+}
+
+export function parseFinnhubRecommendations(text: string, symbol: string): Parsed<RatingTally[]> {
   const rows = list(text);
   if (!Array.isArray(rows)) return rows;
   const fields = ['strongBuy', 'buy', 'hold', 'sell', 'strongSell'] as const;
-  const row = rows.filter((r) => r && String(r.symbol).replace(/\./g, '-') === symbol.replace(/\./g, '-') && /^\d{4}-\d{2}-\d{2}$/.test(r.period) && Number.isFinite(Date.parse(`${r.period}T00:00:00Z`)) && new Date(`${r.period}T00:00:00Z`).toISOString().slice(0, 10) === r.period && fields.every((k) => Number.isInteger(r[k]) && r[k] >= 0))
-    .sort((a, b) => b.period.localeCompare(a.period))[0];
-  if (!row || fields.reduce((sum, k) => sum + row[k], 0) <= 0) return { data: null };
-  return { data: { strongBuy: row.strongBuy, buy: row.buy, hold: row.hold, sell: row.sell, strongSell: row.strongSell, consensus: '', period: row.period } };
+  const valid = rows.filter((r) => r && String(r.symbol).replace(/\./g, '-') === symbol.replace(/\./g, '-') && /^\d{4}-\d{2}-\d{2}$/.test(r.period) && Number.isFinite(Date.parse(`${r.period}T00:00:00Z`)) && new Date(`${r.period}T00:00:00Z`).toISOString().slice(0, 10) === r.period && fields.every((k) => Number.isInteger(r[k]) && r[k] >= 0) && fields.reduce((sum, k) => sum + r[k], 0) > 0)
+    .sort((a, b) => b.period.localeCompare(a.period));
+  return { data: valid.map((r) => ({ strongBuy: r.strongBuy, buy: r.buy, hold: r.hold, sell: r.sell, strongSell: r.strongSell, consensus: '', period: r.period })) };
 }
 
 function responsePart(res: KeyedAnswer, kind: AnalystKind, symbol: string, source: 'FMP' | 'Finnhub'): AnalystPart {
@@ -225,23 +238,41 @@ function responsePart(res: KeyedAnswer, kind: AnalystKind, symbol: string, sourc
   if (!res.text) return { state: res.budget ? 'budget' : 'error', source, ...(!res.budget && (!res.status || res.status === 429 || res.status >= 500) ? { transient: true } : {}), message: res.budget ? `Today's ${source} allowance in this app is spent; it resets at midnight UTC.` : source === 'FMP' ? fmpProblem(res.status, symbol, res.error) : `Finnhub: ${res.error ?? (res.status ? `HTTP ${res.status}` : 'did not answer')}. HTTP 401 means the REST key was rejected; the webhook secret cannot authenticate data requests.` };
   const parsed = source === 'Finnhub' ? parseFinnhubRatings(res.text, symbol) : PARSE[kind](res.text);
   if ('error' in parsed) return { state: 'error', source, message: parsed.error, at: res.at };
-  return { state: 'ok', source, data: parsed.data, at: res.at, stale: res.stale, message: res.stale ? res.error ?? 'The latest refresh failed; showing the earlier answer.' : undefined };
+  const months = source === 'Finnhub' ? parseFinnhubRecommendations(res.text, symbol) : undefined;
+  return { state: 'ok', source, data: parsed.data, at: res.at, stale: res.stale, message: res.stale ? res.error ?? 'The latest refresh failed; showing the earlier answer.' : undefined, ...(months && 'data' in months ? { recommendations: months.data } : {}) };
 }
 
 /** Independent requests allow one research section to fail without hiding the others. */
 export async function loadAnalystPart(kind: AnalystKind, symbol: string, api: {
   analysts(kind: AnalystKind, symbol: string): Promise<KeyedAnswer>;
   finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
+  yahooResearch?(kind: AnalystKind, symbol: string): Promise<AnalystPart>;
 }): Promise<AnalystPart> {
   const safe = async (request: () => Promise<KeyedAnswer>) => {
     try { return await request(); } catch { return { status: 0, text: '', error: 'The research request could not be completed.' }; }
   };
   const primary = responsePart(await safe(() => api.analysts(kind, symbol)), kind, symbol, 'FMP');
-  if (kind !== 'ratings' || !api.finnhubResearch || (primary.state === 'ok' && primary.data && !primary.stale)) return primary;
-  const fallback = responsePart(await safe(() => api.finnhubResearch!('ratings', symbol)), kind, symbol, 'Finnhub');
-  if (fallback.state === 'ok' && fallback.data && (!fallback.stale || primary.state !== 'ok' || !primary.data)) return { ...fallback, message: `FMP ratings unavailable; showing Finnhub recommendation counts${fallback.message ? `. ${fallback.message}` : '.'}` };
-  if (primary.state === 'ok' && primary.data) return primary;
-  return { ...primary, message: `${primary.message ?? 'FMP has no ratings for this symbol.'} ${fallback.message ?? 'Finnhub has no recommendation counts for this symbol.'}` };
+  const usable = (part: AnalystPart) => part.state === 'ok' && (Array.isArray(part.data) ? part.data.length > 0 : !!part.data);
+  if (usable(primary) && !primary.stale) return primary;
+  const problems = [primary.message ?? `FMP has no ${kind} for this symbol.`];
+  let retained = usable(primary) ? primary : undefined;
+  if (kind === 'ratings' && api.finnhubResearch) {
+    const fallback = responsePart(await safe(() => api.finnhubResearch!('ratings', symbol)), kind, symbol, 'Finnhub');
+    if (usable(fallback) && !fallback.stale) return { ...fallback, problems, message: 'Showing Finnhub recommendation counts.' };
+    if (usable(fallback) && !retained) retained = fallback;
+    problems.push(fallback.message ?? 'Finnhub has no recommendation counts for this symbol.');
+  }
+  // Yahoo does not supply the same period-average target-history dataset. Never
+  // substitute today's target or rating history for those historical averages.
+  if (kind !== 'summary' && api.yahooResearch) {
+    let fallback: AnalystPart;
+    try { fallback = await api.yahooResearch(kind, symbol); }
+    catch { fallback = { state: 'error', message: 'Yahoo research could not be loaded.' }; }
+    if (usable(fallback) && (!fallback.stale || !retained)) return { ...fallback, problems };
+    problems.push(fallback.message ?? `Yahoo has no ${kind} for this symbol.`);
+  }
+  if (retained) return { ...retained, problems };
+  return { ...primary, problems, message: problems.join(' ') };
 }
 
 function put(symbol: string, kind: AnalystKind, part: AnalystPart) {
@@ -256,7 +287,7 @@ async function load(symbol: string, kind: AnalystKind) {
   const generation = analystData.get().retry;
   if (!analystData.get().by[symbol]?.[kind]) put(symbol, kind, { state: 'loading' });
   try {
-    const part = await loadAnalystPart(kind, symbol, { analysts: window.arminDesktop!.analysts!, finnhubResearch: window.arminDesktop!.finnhubResearch });
+    const part = await loadAnalystPart(kind, symbol, { analysts: window.arminDesktop!.analysts!, finnhubResearch: window.arminDesktop!.finnhubResearch, yahooResearch: loadYahooAnalysts });
     if (generation !== analystData.get().retry) return;
     if (part.state === 'needs-key' || part.state === 'off' || part.transient) asked.delete(key);
     put(symbol, kind, part);

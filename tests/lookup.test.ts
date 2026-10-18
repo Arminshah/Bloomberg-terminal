@@ -1,11 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { parseCommand } from '../src/terminal/commands';
 import { lookupFn } from '../src/terminal/registry';
 import { engine } from '../src/data/market';
 import { resolveSecurity } from '../src/data/registry';
 import { keyStats } from '../src/data/fundamentals';
 import { dayNum } from '../src/data/calendar';
-import { anchorsFromBars, defFromFinnhub, defFromYahoo, lookupSecurity, normalizeTicker, sectorFromIndustry } from '../src/data/live/lookup';
+import { anchorsFromBars, defFromFinnhub, defFromYahoo, lookupSecurity, normalizeTicker, searchOnline, sectorFromIndustry } from '../src/data/live/lookup';
 
 import sofiChart from './fixtures/yahoo-sofi-chart.json';
 import sofiSummary from './fixtures/yahoo-sofi-summary.json';
@@ -16,6 +16,15 @@ const fixture = (name: string): any => structuredClone(FIXTURES[name]);
 const parse = (s: string) => parseCommand(s, lookupFn);
 
 describe('ticker input', () => {
+  it('can find a company through EDGAR when Yahoo symbol search fails', async () => {
+    const sec = vi.fn(async () => ({ status: 200, text: JSON.stringify({ '0': { cik_str: 1144879, ticker: 'APLD', title: 'APPLIED DIGITAL CORP.' } }) }));
+    vi.stubGlobal('window', { arminDesktop: { yahoo: async () => { throw new TypeError('Synthetic search outage'); }, sec } });
+    try {
+      expect(await searchOnline('APPLIED DIGITAL')).toEqual([{ symbol: 'APLD', name: 'APPLIED DIGITAL CORP.', exchange: 'SEC directory · listing checked on open' }]);
+      expect(sec).toHaveBeenCalledWith('tickers', '');
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it('accepts cashtags and resolves built-in APLD', () => {
     for (const s of ['APLD', '$APLD', '$apld PROFILE', 'APLD US <EQUITY> CHART <GO>']) {
       const p = parse(s);
@@ -47,6 +56,28 @@ describe('ticker input', () => {
 });
 
 describe('securities from Yahoo Finance', () => {
+  it('keeps a real price history usable when company-profile data is missing', () => {
+    const built = defFromYahoo('SOFI', fixture('yahoo-sofi-chart.json'), null);
+    if ('error' in built) throw new Error(built.error);
+    expect(built.bars.length).toBeGreaterThan(0);
+    expect(built.def.dynamic?.symbol).toBe('SOFI');
+    expect(built.def.eq?.sector).toBe('--');
+    expect(built.def.eq?.shares).toBeNaN();
+    expect(built.def.eq?.rev).toBeNaN();
+    expect(built.def.eq?.book).toBeNaN();
+  });
+
+  it('accepts a newly listed stock with one valid bar instead of requiring five sessions', () => {
+    const chart = fixture('yahoo-sofi-chart.json');
+    const r = chart.chart.result[0];
+    r.timestamp = r.timestamp.slice(-1);
+    for (const key of Object.keys(r.indicators.quote[0])) r.indicators.quote[0][key] = r.indicators.quote[0][key].slice(-1);
+    if (r.indicators.adjclose) r.indicators.adjclose[0].adjclose = r.indicators.adjclose[0].adjclose.slice(-1);
+    const built = defFromYahoo('SOFI', chart, null);
+    if ('error' in built) throw new Error(built.error);
+    expect(built.bars).toHaveLength(1);
+  });
+
   it('builds a calibrated equity from chart and profile data', () => {
     const built = defFromYahoo('SOFI', fixture('yahoo-sofi-chart.json'), fixture('yahoo-sofi-summary.json'));
     if ('error' in built) throw new Error(built.error);

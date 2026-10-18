@@ -59,19 +59,12 @@ function credentialNames(name) {
   return [name, ...Object.keys(CREDENTIAL_ALIASES).filter((alias) => CREDENTIAL_ALIASES[alias] === name)];
 }
 
-/**
- * Finnhub's API keys are 20 characters on older accounts and 40 on newer ones (two 20-character halves that
- * start alike); the webhook secret next to the key is a separate 20-character value. Only the same 20
- * characters pasted twice are cut to one.
- */
-function finnhubKeyFrom(text) {
-  return /^[a-z0-9]{40}$/.test(text) && text.slice(0, 20) === text.slice(20) ? text.slice(0, 20) : text;
-}
-
 function normalizeCredential(name, value) {
   const text = String(value ?? '').trim();
   if (name === 'SEC_USER_AGENT') return secAgentFrom(text);
-  if (name === 'FINNHUB_API_KEY') return finnhubKeyFrom(text);
+  // API keys can contain repeated segments. Never infer a webhook secret from
+  // their shape or discard characters; explicitly labelled webhook lines are
+  // rejected separately by the importer.
   return text;
 }
 
@@ -159,6 +152,7 @@ const SETTINGS = {
   // Yahoo Finance prices are an unofficial, personal-use source the owner chose to keep. Off stops every
   // Yahoo request and the streaming socket.
   YAHOO_PRICES_ENABLED: { label: 'Yahoo Finance prices (unofficial, personal use)', default: true },
+  YAHOO_RESEARCH_ENABLED: { label: 'Yahoo Finance analyst research fallback (unofficial, personal use)', default: true },
   // Kraken's public market data for the crypto lines. Off hands them back to Yahoo, when Yahoo is on.
   KRAKEN_ENABLED: { label: 'Kraken exchange prices for crypto (public market data)', default: true },
   // Twelve Data's free plan is for internal, non-display use. Only the owner can say a plan allows showing its
@@ -344,7 +338,6 @@ function parseCredentialList(text) {
         return;
       }
       const kept = normalizeCredential(name, value);
-      if (kept !== value && name === 'FINNHUB_API_KEY') notes.push({ line: i + 1, name, note: 'the same 20-character key was pasted twice; it was saved once' });
       found.push({ name, value: kept });
     });
   return { found, skipped, notes };

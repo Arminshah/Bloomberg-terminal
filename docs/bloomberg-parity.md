@@ -30,7 +30,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | --- | --- | --- | --- |
 | `PROFILE` | DES security description | Partial: asset-specific profile and fundamentals | Global instrument master, identifiers, issue terms and vendor fields are incomplete |
 | `FINANCIALS` | FA financial analysis | Partial: reported annual/quarterly statements and ratios | No Bloomberg-standardised global history, restatement database or complete line-item mapping |
-| `ANALYSTS` | ANR analyst research | Partial: independent FMP sections, Finnhub recommendation fallback, eight manual Equibles datasets including consensus estimates | Account/issuer coverage limits; no verified broker-target replacement, broker research documents or complete consensus universe |
+| `ANALYSTS` | ANR analyst research | Partial: independent FMP sections, Finnhub/Yahoo research fallbacks, eight Equibles datasets with automatic estimate fallback | Account/issuer coverage limits; no verified broker-target replacement, broker research documents or complete consensus universe |
 | `EARNINGS` | EE earnings estimates | Partial: reported EPS/revenue and annual estimates | No quarterly consensus, surprise history, estimate contributors or revisions surface |
 | `DIVIDENDS` | DVD dividend analysis | Partial: ex-date cash history and derived yield | Missing declaration/record/payment dates and comprehensive forecasts/actions |
 | `HOLDERS` | HDS ownership | Partial: institution/fund filing snapshots | No complete ownership intelligence, beneficial ownership history or all asset classes |

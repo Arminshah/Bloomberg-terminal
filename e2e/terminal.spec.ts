@@ -120,9 +120,9 @@ test('default workspace renders four live panels and the watchlist column', asyn
   await expect(page.locator('.fnh-code').first()).toHaveText('MARKET');
   await expect(page.locator('.panel').nth(4).locator('.fnh-code')).toHaveText('WATCHLIST');
   // The market timers come first in the row, Euronext then NYSE, before the Brussels clock.
-  await expect(page.locator('.clock.mkt').first()).toContainText(/Euronext (opens|closes) in/i);
-  await expect(page.locator('.clock.mkt').nth(1)).toContainText(/NYSE (opens|closes) in/i);
-  await expect(page.locator('.clock:not(.mkt)').first()).toContainText('BRUSSELS');
+  await expect(page.locator('.market-timer').first()).toHaveAccessibleName(/Euronext: regular session (open|closed), (opens|closes) in .*Open market calendar/);
+  await expect(page.locator('.market-timer').nth(1)).toHaveAccessibleName(/NYSE: regular session (open|closed), (opens|closes) in .*Open market calendar/);
+  await expect(page.locator('.clock').first()).toContainText('BRUSSELS');
   const first = await page.locator('.panel').nth(1).locator('.qstrip .px').textContent();
   await page.waitForTimeout(2500);
   const later = await page.locator('.panel').nth(1).locator('.qstrip .px').textContent();

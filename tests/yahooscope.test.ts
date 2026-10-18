@@ -2,9 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { ALLOWED, ANALYST_MODULES, withoutRestricted, yahooRequest } from '../electron/yahoo-scope.cjs';
 import summary from './fixtures/yahoo-apld-summary.json';
 
-// Yahoo is a personal-use price source here: whatever the page asks for, the main process lets no option
-// chain, news item or analyst figure through.
+// Options and news remain outside the adapter. Research has its own switch.
 describe('Yahoo scope in the main process', () => {
+  it('permits analyst fields only when research is explicitly enabled, keeping news and options blocked', () => {
+    const path = '/v10/finance/quoteSummary/APLD?modules=financialData,earningsTrend,recommendationTrend,price';
+    expect(yahooRequest(path, true)).toBe(path);
+    const allowed = withoutRestricted(path, structuredClone(summary), true);
+    expect(allowed.quoteSummary.result[0].financialData.targetMeanPrice).toBeDefined();
+    expect(withoutRestricted('/v1/finance/search?q=APLD', { news: [{}], quotes: [] }, true)).not.toHaveProperty('news');
+    expect(ALLOWED.test('/v7/finance/options/APLD?x=1')).toBe(false);
+  });
+
   it('does not allow the option chain path', () => {
     expect(ALLOWED.test('/v7/finance/options/AAPL?date=1792022400')).toBe(false);
     expect(ALLOWED.test('/v7/finance/quote?symbols=AAPL')).toBe(true);
