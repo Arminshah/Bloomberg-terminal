@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { KeyedAnswer } from '../src/data/live/lookup';
 import { checkAmericanOption, checkBond, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from '../e2e/calculator-checks';
+import { checkLinkedPanels } from '../e2e/workspace-checks';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 const FMP_ERROR = 'Invalid API key. Deterministic FMP refusal.';
@@ -96,14 +97,36 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
   },
 });
 
-async function command(page: Page, text: string, code = text.split(' ').at(-1)!) {
-  const input = page.locator('#cmd-0');
+async function command(page: Page, text: string, code = text.split(' ').at(-1)!, panel = 0) {
+  const input = page.locator(`#cmd-${panel}`);
   await input.click();
   await input.press('Escape');
   await input.fill(text);
   await input.press('Enter');
-  await expect(page.locator('.panel').first().locator('.fnh-code').first()).toHaveText(code);
+  await expect(page.locator('.panel').nth(panel).locator('.fnh-code').first()).toHaveText(code);
 }
+
+test('linked panels preserve functions and saved groups in the real desktop renderer', async ({ desktop: { page } }) => {
+  await checkLinkedPanels(page, (text, code, panel) => command(page, text, code, panel));
+});
+
+test('field inspection distinguishes missing data, IEX trade freshness, and unknown bid/ask time', async ({ desktop: { app, page } }) => {
+  await command(page, 'AAPL FLDS PX_LAST', 'FIELDS');
+  await expect(page.getByTestId('field-value')).toContainText('--');
+  await expect(page.locator('.field-definition')).toContainText('UNAVAILABLE');
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.tradeAgeMs = 5 * 60_000; });
+  await enableIex(page);
+  await command(page, 'AAPL FLDS PX_LAST', 'FIELDS');
+  await expect(page.getByTestId('field-value')).toHaveText('123.4500 · USD');
+  await expect(page.locator('.field-definition')).toContainText('STALE');
+  await expect(page.locator('.field-definition')).toContainText('Alpaca · IEX only');
+  await page.getByLabel('Search data fields').fill('BID');
+  await page.getByRole('button', { name: 'Inspect BID', exact: true }).click();
+  await expect(page.getByTestId('field-value')).toHaveText('123.4000 · USD');
+  await expect(page.locator('.field-definition')).toContainText('TIMESTAMP UNAVAILABLE');
+  await expect(page.locator('.field-definition')).toContainText('SOURCE STALE');
+  await expect(page.locator('.field-definition')).toContainText('The last trade timestamp does not verify bid/ask freshness');
+});
 
 async function enableIex(page: Page) {
   await command(page, 'PROVIDERS');

@@ -98,6 +98,14 @@ export function createStore<T extends object>(initial: T, persist?: string, vers
     });
   }
   let timer: ReturnType<typeof setTimeout> | null = null;
+  const flush = () => {
+    if (!timer) return;
+    clearTimeout(timer);
+    timer = null;
+    saveJson(key, { v: version, s: state });
+  };
+  // A reload/close can happen before the debounced write. Persist the last visible state.
+  if (key && typeof window !== 'undefined') window.addEventListener('pagehide', flush);
   const store: Store<T> = {
     get: () => state,
     set(next) {
@@ -106,7 +114,7 @@ export function createStore<T extends object>(initial: T, persist?: string, vers
       state = value;
       if (key) {
         if (timer) clearTimeout(timer);
-        timer = setTimeout(() => saveJson(key, { v: version, s: state }), 150);
+        timer = setTimeout(flush, 150);
       }
       for (const fn of listeners) fn();
     },

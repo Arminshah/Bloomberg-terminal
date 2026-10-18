@@ -1,6 +1,8 @@
 import type { AssetClass } from '../data/types';
 import type { FnDef } from './types';
 import { LEGACY_CODES } from './legacy';
+import { engine } from '../data/market';
+import { configureSecurityLinks } from './state';
 import { HELP } from '../functions/HELP';
 import { GIP, GP } from '../functions/GP';
 import { DES } from '../functions/DES';
@@ -14,6 +16,7 @@ import { RV } from '../functions/RV';
 import { EVTS } from '../functions/EVTS';
 import { FILINGS } from '../functions/FILINGS';
 import { CROSSCHECK } from '../functions/CROSSCHECK';
+import { FIELDS } from '../functions/FIELDS';
 import { WACC } from '../functions/WACC';
 import { COMP } from '../functions/COMP';
 import { BETA } from '../functions/BETA';
@@ -52,6 +55,7 @@ const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
 
 export const FUNCTIONS: FnDef[] = [
   // Equity research
+  { code: 'FIELDS', name: 'Field Search & Inspection', category: 'Portfolio & Tools', needsSec: true, desc: 'Search local quote, identity, calculated and provenance fields for a security. Inspect values, units, definitions, sources, freshness, missing data and timestamp limits; copy/export filtered fields. No Bloomberg field/API compatibility is implied.', component: FIELDS, example: 'FLDS AAPL' },
   { code: 'PROFILE', name: 'Profile', category: 'Equity', needsSec: true, desc: 'Security description: business profile, price and valuation snapshot, ownership. Adapts to indices, currencies, commodities, yields, crypto and index futures.', component: DES, aliases: ['DESCRIBE'], example: 'PROFILE NVDA' },
   { code: 'FINANCIALS', name: 'Financial Analysis', category: 'Equity', needsSec: true, classes: EQ, desc: 'Income statement, balance sheet, cash flow and ratios, annual and quarterly, with growth and trend.', component: FA, aliases: ['STATEMENTS'] },
   { code: 'ANALYSTS', name: 'Analyst Research', category: 'Equity', needsSec: true, classes: EQ, desc: 'FMP targets, ratings and estimates with independent section errors; Finnhub recommendation fallback; manual Equibles guidance, KPIs, events, insider trades, short interest, 13F holders and IR news. Own keys and endpoint access required. US-listed stocks.', component: ANR, aliases: ['TARGETS'], example: 'ANALYSTS AAPL' },
@@ -148,3 +152,9 @@ for (const f of FUNCTIONS) for (const a of f.aliases ?? []) if (!BY_CODE.has(a))
 export function lookupFn(code: string): FnDef | undefined {
   return BY_CODE.get(code.toUpperCase());
 }
+
+configureSecurityLinks((route, id) => {
+  const fn = lookupFn(route.fn);
+  const sec = engine.get(id);
+  return !!fn && !!sec && !!(fn.needsSec || fn.code === 'MENU' || (route.sec && fn.code === 'BONDCALC')) && (!fn.classes || fn.classes.includes(sec.cls));
+});

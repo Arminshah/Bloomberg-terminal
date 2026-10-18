@@ -17,9 +17,10 @@ function lookupThenRun(panel: number, text: string, ticker: string, message: str
     return false;
   }
   const seq = runSeq.get(panel);
+  const pendingPanel = terminal.get().panels[panel];
   flash(panel, `Loading ${ticker} from ${source === 'yahoo' ? 'Yahoo Finance' : 'Finnhub'}…`, 'info');
   void lookupSecurity(ticker).then((r) => {
-    if (runSeq.get(panel) !== seq) return;
+    if (runSeq.get(panel) !== seq || terminal.get().panels[panel] !== pendingPanel) return;
     if (!r.ok) {
       flash(panel, r.reason, 'error');
       return;

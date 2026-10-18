@@ -41,6 +41,10 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 | `providers.test.ts` | Credentials and pasted key lists, request accounting, daily allowances, providers' refusals, switches, limits and provider states |
 | `american-options.test.ts` | Ten independent QuantLib finite-difference prices, PDE Greeks, deterministic interior exercise, no-early-exercise bounds, American IV ambiguity, invalid grids and NY expiry DST |
 | `portfolio-risk.test.ts` | Historical FX/futures NAV, no omitted positions or filled prices, missing-session gap exclusions, fractional/tied ES, additive signed covariance/ES risk, observed multi-interval shocks, benchmark endpoint alignment and manual cost adjustment |
+| `fields.test.ts` | Source/receipt separation, missing/nonfinite values, crossed/locked BBO, stale IEX trades, previous-close verification, yield/minor units and filtered raw CSV provenance |
+| `panel-links.test.ts` | Real command/registry compatibility, monitor publishing, separate groups, hidden/incompatible panels, back/forward cursors, bounded histories, preset restoration and aliases |
+| `navigation-race.test.ts` | A pending online ticker lookup cannot overwrite a newer linked-panel security selection |
+| `store.test.ts` | Immediate reload/close flushes pending state so the latest screen and groups survive without waiting for the debounce |
 | `finance.test.ts` | Black-Scholes, Treasury math, indicators and statistics |
 | `contracts.test.ts` | Independent bond yield/price and finite-difference risk checks, zero-volatility option limits, covered interest parity, dual-curve swap PV/par/coupon/curve risk, date/curve/input boundaries |
 | `option-chain.test.ts` | Indicative-only read-only request boundary, OCC decoding, missing fields, event ages, sequential pagination, repeated tokens, page limits, partial failures and credentials/entitlements |
@@ -54,6 +58,8 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 Calculator checks use explicit inputs and independent expected values: bond price/yield/Z-spread, FX carry/PV, swap direction/coverage, zero-volatility equity/FX options, premium-to-IV via a separate normal-density integration, multi-leg payoff/breakevens and invalid-input clearing. American checks invert an independent QuantLib PDE premium and reject ambiguous exercise-floor IV. Portfolio checks verify reduced-position cost retention, historical risk controls, independent price-shock P&L and CSV provenance. CSV checks include inputs and results. The same calculator flows run in Electron real-data mode with provider prices/rates blocked. The rendering test verifies that its command list covers every registered function.
 
 ## Deterministic desktop integration
+
+The shared `e2e/workspace-checks.ts` workflow runs in Chromium and Electron: linked monitor selections, function preservation, currency/financial compatibility, back/forward, named-layout/top-menu restoration, reload persistence and the linked research preset. Browser tests also verify mnemonic preference persistence and field-search CSV contents. Desktop field checks start with no source price, then use a five-minute-old IEX fixture to verify stale trade provenance and unavailable bid/ask event time. No test data is presented as a live provider validation.
 
 `npm run e2e:desktop` launches the pinned Electron version with real main/preload/IPC. Fake keys and fixed transport responses in disposable profiles verify provider refusals, IEX price ownership, option-chain pagination, adjusted roots, sorting across display pages, old source times, partial entitlement failures and invalid IPC rejection. They do not validate live providers or real API keys.
 

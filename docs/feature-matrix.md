@@ -1,6 +1,6 @@
 # Feature and data coverage
 
-What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.6.1); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 70 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
+What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.7.0); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 71 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
 
 Status:
 
@@ -10,6 +10,12 @@ Status:
 - **Not available**: no permitted free source; the screen explains why and shows no figures.
 
 Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, STALE, UNKNOWN FRESHNESS); [data-dictionary.md](data-dictionary.md) defines the labels.
+
+## Linked workflows and inspection: version 2.7
+
+`FIELDS` / `FLDS` searches 29 currently held local identity/quote/calculation/source fields, with value, units, definitions, provider, freshness, timestamp basis, unavailable states and filtered raw CSV. It adds no provider calls or entitlement. Real bid/ask event times remain unavailable in this engine, independently of last-trade age. Invalid/future source times cannot establish real-time freshness. Portfolio risk calculations/CSV now use captured prices and captured source metadata together, with CNY/CNH conversion disclosed.
+
+Colored link groups share security changes across visible compatible panels, preserving their functions. Linked monitors keep their lists open; named layouts include groups; the Linked Security Research preset and optional mnemonic display make these workflows directly accessible. See [workspace behavior](linked-workspaces.md). These are local tools, not Bloomberg integration or licensed field coverage.
 
 ## Calculations and derivatives: versions 2.4–2.6
 

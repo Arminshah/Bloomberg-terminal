@@ -5,7 +5,7 @@ import { DAY_MS } from '../data/calendar';
 import type { Quote } from '../data/types';
 import { freshnessOf, type FreshnessLabel } from '../data/freshness';
 import { defaultFnFor, usePanelId } from '../terminal/panel';
-import { LAYOUT_PANELS, navigate, terminal } from '../terminal/state';
+import { broadcastSecurity, LAYOUT_PANELS, navigate, terminal } from '../terminal/state';
 import { settings } from '../terminal/settings';
 import { Flash } from './Flash';
 
@@ -13,6 +13,7 @@ import { Flash } from './Flash';
 export function openSecurity(panel: number, id: string, e?: MouseEvent, fn?: string) {
   const def = engine.get(id);
   if (!def) return;
+  if (!fn && !e?.shiftKey && broadcastSecurity(panel, id)) return;
   const pref = settings.get().clickAction;
   const code = fn ?? (pref === 'auto' ? defaultFnFor(def) : def.cls === 'bond' && pref !== 'PROFILE' ? 'BONDCALC' : pref);
   let target = panel;

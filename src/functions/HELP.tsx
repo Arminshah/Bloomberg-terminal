@@ -6,6 +6,7 @@ import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { FUNCTIONS, lookupFn } from '../terminal/registry';
 import type { FnCategory, FnProps } from '../terminal/types';
+import { primaryMnemonic } from '../terminal/legacy';
 
 const ORDER: FnCategory[] = [
   'Equity', 'Charts', 'News', 'Markets', 'FX & Crypto', 'Rates & Credit', 'Commodities', 'Economics', 'Derivatives',
@@ -28,6 +29,7 @@ const SHORTCUTS: [string, string][] = [
   ['↑ ↓ Tab', 'Move through and complete suggestions'],
   ['3', 'Pick numbered item 3) on the screen'],
   ['CHART?', 'Help on a function'],
+  ['Colored panel selector', 'Match colors to share a security across compatible visible panels; monitors keep their lists'],
 ];
 
 const EXAMPLES: [string, string][] = [
@@ -35,6 +37,7 @@ const EXAMPLES: [string, string][] = [
   ['CHART NVDA', 'Price chart for Nvidia'],
   ['CHART NVDA 1D', "Today's intraday chart"],
   ['PROFILE MSFT', 'Company profile'],
+  ['FLDS AAPL', 'Search available data fields, sources and timestamps'],
   ['FILINGS MSFT', 'SEC filings and reported figures'],
   ['WATCHLIST TECH', 'Open the watchlist named Tech'],
   ['MARKET US', 'World equity indices, Americas'],
@@ -72,6 +75,7 @@ function Directory({ filter }: { filter: string }) {
                 <tr key={fn.code} className="click" onClick={() => execute(panel, fn.needsSec ? `HELP ${fn.code}` : fn.code)}>
                   <td style={{ width: 64 }}>
                     <span className="amber b">{fn.code}</span>
+                    {primaryMnemonic(fn.code) !== fn.code && <small className="muted"> · {primaryMnemonic(fn.code)}</small>}
                   </td>
                   <td className={engine.realOnly && fn.unavailable ? 'muted' : 'white'} title={engine.realOnly && fn.unavailable ? `Not available: ${fn.unavailable}` : undefined}>
                     {fn.name}

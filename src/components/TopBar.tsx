@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { engine, useInterval } from '../data/market';
 import { feedStatus } from '../data/live/status';
 import { execute } from '../terminal/exec';
-import { applyPreset, LAYOUT_PANELS, setLayout, setSplit, terminal } from '../terminal/state';
+import { applyPreset, LAYOUT_PANELS, setLayout, setSplit, terminal, type LinkGroup } from '../terminal/state';
 import { alerts, chats, savedLayouts } from '../terminal/userdata';
 import { contacts } from '../data/chat';
 import { MONTHS, WEEKDAYS, zonedParts } from '../core/format';
@@ -20,8 +20,9 @@ const LAYOUTS: { id: LayoutId; cols: number; rows: number; label: string; fold?:
   { id: '6', cols: 3, rows: 2, label: 'Six panels', fold: 1180 },
 ];
 
-export const PRESETS: { name: string; layout: LayoutId; routes: Route[] }[] = [
+export const PRESETS: { name: string; layout: LayoutId; routes: Route[]; linkGroups?: LinkGroup[] }[] = [
   { name: 'Market Overview', layout: '5', routes: [{ fn: 'MARKET' }, { fn: 'CHART', sec: 'SPX Index' }, { fn: 'HEADLINES' }, { fn: 'HEATMAP' }, { fn: 'WATCHLIST' }] },
+  { name: 'Linked Security Research', layout: '5', routes: [{ fn: 'PROFILE', sec: 'AAPL US Equity' }, { fn: 'CHART', sec: 'AAPL US Equity' }, { fn: 'FINANCIALS', sec: 'AAPL US Equity' }, { fn: 'FIELDS', sec: 'AAPL US Equity' }, { fn: 'WATCHLIST' }], linkGroups: [1, 1, 1, 1, 1] },
   { name: 'Equity Research', layout: '4', routes: [{ fn: 'PROFILE', sec: 'NVDA US Equity' }, { fn: 'CHART', sec: 'NVDA US Equity' }, { fn: 'FINANCIALS', sec: 'NVDA US Equity' }, { fn: 'EARNINGS', sec: 'NVDA US Equity' }] },
   { name: 'Trading Desk', layout: '6', routes: [{ fn: 'WATCHLIST' }, { fn: 'QUOTE', sec: 'TSLA US Equity' }, { fn: 'INTRADAY', sec: 'TSLA US Equity' }, { fn: 'MOVERS' }, { fn: 'TRADES', sec: 'TSLA US Equity' }, { fn: 'DEPTH', sec: 'TSLA US Equity' }] },
   { name: 'Macro & Rates', layout: '4', routes: [{ fn: 'RELEASES' }, { fn: 'CURVE' }, { fn: 'RATEPROBS' }, { fn: 'BONDS' }] },
@@ -173,7 +174,7 @@ export function TopBar() {
                 style={{ gridTemplateColumns: '24px 1fr auto' }}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  applyPreset(l.routes, l.layout);
+                  applyPreset(l.routes, l.layout, l.linkGroups);
                   setSplit(l.layout, l.split);
                   setPresetOpen(false);
                 }}
@@ -192,7 +193,7 @@ export function TopBar() {
                 style={{ gridTemplateColumns: '24px 1fr auto' }}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  applyPreset(p.routes, p.layout);
+                  applyPreset(p.routes, p.layout, p.linkGroups);
                   setPresetOpen(false);
                 }}
               >

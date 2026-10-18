@@ -5,7 +5,22 @@ import { migrateRoute, renamedCode } from './legacy';
 export interface PanelState {
   history: Route[];
   idx: number;
+  linkGroup?: LinkGroup;
 }
+
+export type LinkGroup = 0 | 1 | 2 | 3 | 4;
+export const LINK_GROUPS: { id: LinkGroup; name: string; color: string }[] = [
+  { id: 0, name: 'Unlinked', color: '#888888' },
+  { id: 1, name: 'Red', color: '#ff6767' },
+  { id: 2, name: 'Green', color: '#5cdb90' },
+  { id: 3, name: 'Blue', color: '#65b9ff' },
+  { id: 4, name: 'Yellow', color: '#ffd45c' },
+];
+
+/** The function registry supplies eligibility without making this store depend on React screens. */
+let acceptsSecurity: (route: Route, id: string) => boolean = () => false;
+export function configureSecurityLinks(accepts: typeof acceptsSecurity) { acceptsSecurity = accepts; }
+export const linkGroupOf = (p: PanelState | undefined): LinkGroup => LINK_GROUPS.find((g) => g.id === p?.linkGroup)?.id ?? 0;
 
 export interface Split {
   cols: number[];
@@ -98,20 +113,53 @@ export function currentRoute(s: TerminalState, panel: number): Route {
 
 const MAX_HISTORY = 50;
 
+function withRoute(p: PanelState, route: Route, replace = false): PanelState {
+  const cur = p.history[p.idx];
+  if (cur && cur.fn === route.fn && cur.sec === route.sec && (cur.args ?? '') === (route.args ?? '')) return p;
+  if (replace) {
+    const history = [...p.history];
+    history[p.idx] = route;
+    return { ...p, history };
+  }
+  const history = [...p.history.slice(0, p.idx + 1), route].slice(-MAX_HISTORY);
+  return { ...p, history, idx: history.length - 1 };
+}
+
+/** Only visible members follow; functions and their arguments stay local to each panel. */
+function followers(s: TerminalState, panels: PanelState[], source: number, id: string): PanelState[] {
+  const group = linkGroupOf(panels[source]);
+  if (!group || source >= LAYOUT_PANELS[s.layout]) return panels;
+  return panels.map((p, i) => {
+    if (i === source || i >= LAYOUT_PANELS[s.layout] || linkGroupOf(p) !== group) return p;
+    const r = p.history[p.idx];
+    return r && acceptsSecurity(r, id) ? withRoute(p, { ...r, sec: id }) : p;
+  });
+}
+
+/** A linked monitor can publish a row selection while keeping its list on screen. */
+export function broadcastSecurity(panel: number, id: string): boolean {
+  const s = terminal.get();
+  const r = s.panels[panel]?.history[s.panels[panel].idx];
+  if (!r || acceptsSecurity(r, id)) return false;
+  const group = linkGroupOf(s.panels[panel]);
+  const hasFollower = !!group && s.panels.some((p, i) => i !== panel && i < LAYOUT_PANELS[s.layout] && linkGroupOf(p) === group && acceptsSecurity(p.history[p.idx], id));
+  if (!hasFollower) return false;
+  const panels = followers(s, s.panels, panel, id);
+  terminal.set({ ...s, panels, recentSecs: [id, ...s.recentSecs.filter((x) => x !== id)].slice(0, 30), active: panel });
+  return true;
+}
+
+export function setLinkGroup(panel: number, group: LinkGroup) {
+  if (!LINK_GROUPS.some((g) => g.id === group)) return;
+  terminal.set((s) => ({ ...s, panels: s.panels.map((p, i) => i === panel ? { ...p, linkGroup: group } : p) }));
+}
+
 export function navigate(panel: number, route: Route, replace = false) {
   terminal.set((s) => {
-    const panels = s.panels.map((p, i) => {
-      if (i !== panel) return p;
-      const cur = p.history[p.idx];
-      if (cur && cur.fn === route.fn && cur.sec === route.sec && (cur.args ?? '') === (route.args ?? '')) return p;
-      if (replace) {
-        const history = [...p.history];
-        history[p.idx] = route;
-        return { history, idx: p.idx };
-      }
-      const history = [...p.history.slice(0, p.idx + 1), route].slice(-MAX_HISTORY);
-      return { history, idx: history.length - 1 };
-    });
+    if (!s.panels[panel]) return s;
+    const previous = currentRoute(s, panel);
+    let panels = s.panels.map((p, i) => i === panel ? withRoute(p, route, replace) : p);
+    if (route.sec && route.sec !== previous.sec) panels = followers(s, panels, panel, route.sec);
     const recentSecs = route.sec ? [route.sec, ...s.recentSecs.filter((x) => x !== route.sec)].slice(0, 30) : s.recentSecs;
     const recentFns = [route.fn, ...s.recentFns.filter((x) => x !== route.fn)].slice(0, 30);
     return { ...s, panels, recentSecs, recentFns, active: panel };
@@ -119,17 +167,22 @@ export function navigate(panel: number, route: Route, replace = false) {
 }
 
 export function back(panel: number) {
-  terminal.set((s) => ({
-    ...s,
-    panels: s.panels.map((p, i) => (i === panel && p.idx > 0 ? { ...p, idx: p.idx - 1 } : p)),
-  }));
+  moveHistory(panel, -1);
 }
 
 export function forward(panel: number) {
-  terminal.set((s) => ({
-    ...s,
-    panels: s.panels.map((p, i) => (i === panel && p.idx < p.history.length - 1 ? { ...p, idx: p.idx + 1 } : p)),
-  }));
+  moveHistory(panel, 1);
+}
+
+function moveHistory(panel: number, delta: -1 | 1) {
+  terminal.set((s) => {
+    const p = s.panels[panel];
+    if (!p || p.idx + delta < 0 || p.idx + delta >= p.history.length) return s;
+    const r = p.history[p.idx + delta];
+    let panels = s.panels.map((v, i) => i === panel ? { ...v, idx: v.idx + delta } : v);
+    if (r.sec && r.sec !== p.history[p.idx]?.sec) panels = followers(s, panels, panel, r.sec);
+    return { ...s, panels };
+  });
 }
 
 export function setActive(panel: number) {
@@ -140,16 +193,15 @@ export function setLayout(layout: LayoutId) {
   terminal.set((s) => ({ ...s, layout, active: Math.min(s.active, LAYOUT_PANELS[layout] - 1) }));
 }
 
-export function applyPreset(routes: Route[], layout: LayoutId) {
+export function applyPreset(routes: Route[], layout: LayoutId, groups?: LinkGroup[]) {
   terminal.set((s) => ({
     ...s,
     layout,
     active: 0,
     panels: s.panels.map((p, i) => {
       const r = routes[i];
-      if (!r) return p;
-      const history = [...p.history.slice(0, p.idx + 1), r].slice(-MAX_HISTORY);
-      return { history, idx: history.length - 1 };
+      const linked = { ...p, linkGroup: groups?.[i] ?? 0 };
+      return r ? withRoute(linked, migrateRoute(r)) : linked;
     }),
   }));
 }

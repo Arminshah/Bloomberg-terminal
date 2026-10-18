@@ -212,7 +212,7 @@ function useMenuItems(owner: string, groups: { lines: Line[] }[], extra: MenuIte
 }
 
 function SecurityMenu({ sec }: { sec: SecurityDef }) {
-  const groups = useMemo(() => linesFor(MENUS[sec.cls], sec), [sec]);
+  const groups = useMemo(() => linesFor([...MENUS[sec.cls], { title: 'Data definitions', entries: ['FIELDS'] }], sec), [sec]);
   useMenuItems('menu', groups);
   return (
     <div>

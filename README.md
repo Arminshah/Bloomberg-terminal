@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.6.1** adds American single-option valuation/IV and deeper portfolio risk: exact session-date joins, historical FX, expected shortfall, hedge contributions, benchmark tracking error, stress tests and CSV exports. It retains 2.5.1's Equibles research, Finnhub fallbacks and provider diagnostics. See [release validation and limits](docs/release-v2.6.1.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 70 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
+Version **2.7.0** adds colored security-linked panels, a linked research workspace, familiar mnemonic/`<GO>` display, and `FLDS` field inspection with values, units, definitions, sources, freshness and CSV. Portfolio calculations and exports now capture mark provenance together, and invalid/future source timestamps cannot claim real-time freshness. Earlier American options, portfolio risk, Equibles/Finnhub research and provider diagnostics remain available. See [release validation and limits](docs/release-v2.7.0.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 71 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
@@ -55,6 +55,7 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 | `MARKETNEWS NVDA` | Market news, filtered to Nvidia |
 | `CHART NVDA` | Price chart; `CHART NVDA 1D` for today's intraday chart |
 | `PROFILE MSFT` | Company profile |
+| `FLDS AAPL` / `FIELDS AAPL PX_LAST` | Search current local fields and inspect value, units, definition, source, freshness and UTC time; copy/export filtered fields |
 | `FILINGS MSFT` | SEC filings and the figures Microsoft reported |
 | `WATCHLIST TECH` | The watchlist named Tech |
 | `MARKET US` | World equity indices, Americas |

@@ -22,6 +22,40 @@ function aligned(ps: RiskPosition[], cash = 0) {
 }
 
 describe('exact portfolio history and historical FX', () => {
+  it('freezes source state and timestamps with the exact price/FX marks used in calculations', () => {
+    const market = new MarketEngine(() => CUTOFF);
+    const d = market.defs.find((s) => s.cls === 'equity' && s.ccy === 'EUR')!;
+    const set = (id: string, last: number, provider: string, time: number) => {
+      market.setExternalDaily(id, [{ day: CUTOFF / DAY - 1, o: last, h: last, l: last, c: last, v: 1 }], { provider });
+      market.setExternalQuote(id, { last, time, fetched: CUTOFF, marketOpen: true, timing: 'realtime' });
+    };
+    set(d.id, 100, 'Old price source', CUTOFF - 30_000);
+    set('CCY:EUR', 1.2, 'Old FX source', CUTOFF - 20_000);
+    const result = portfolioSnapshot([{ id: d.id, qty: 10, cost: 90 }], 1000, 252, market);
+    if (!result.ok) throw new Error(result.error);
+    const p = result.value.positions[0];
+    expect(p.price).toBe(100);
+    expect(p.fx).toBe(1.2);
+    expect(p.priceMark).toMatchObject({ provider: 'Old price source', time: CUTOFF - 30_000, received: CUTOFF, freshness: 'REAL-TIME' });
+    expect(p.fxMark).toMatchObject({ provider: 'Old FX source', time: CUTOFF - 20_000 });
+    set(d.id, 200, 'New price source', CUTOFF);
+    set('CCY:EUR', 1.4, 'New FX source', CUTOFF);
+    expect(p.price).toBe(100);
+    expect(p.fx).toBe(1.2);
+    expect(p.priceMark.provider).toBe('Old price source');
+    expect(p.fxMark.provider).toBe('Old FX source');
+    expect(portfolioValue([p], 1000)).toBe(2200);
+    expect(result.value.capturedAt).toBe(CUTOFF);
+  });
+
+  it('labels the CNY/CNH conversion proxy explicitly and keeps its actual FX identity', () => {
+    const market = new MarketEngine(() => CUTOFF);
+    const d = { ...market.get('AAPL US Equity')!, id: 'CNY FIXTURE Equity', ticker: 'CNY FIXTURE', ccy: 'CNY' };
+    expect(market.addSecurity(d)).toBe(true);
+    const result = portfolioSnapshot([{ id: d.id, qty: 1, cost: 1 }], 1000, 20, market);
+    if (!result.ok) throw new Error(result.error);
+    expect(result.value.positions[0]).toMatchObject({ quoteCurrency: 'CNY', fxCurrency: 'CNH', fxId: 'CCY:CNH', fxProxyNote: expect.stringContaining('offshore CNH') });
+  });
   it('allows the correlation universe to become empty without accessing a missing date spine', () => {
     expect(alignedReturns([], 252)).toEqual({ dates: [], rets: [] });
   });

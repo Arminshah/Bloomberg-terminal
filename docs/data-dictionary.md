@@ -2,6 +2,18 @@
 
 Definitions of the figures the desktop app shows, the units and dates they carry, and the formulas behind the calculated ones.
 
+## Field search
+
+`FLDS AAPL` / `FIELDS AAPL` inspects 29 local fields: instrument identity, current quote/session values, bid/ask calculations and source metadata. An optional argument such as `AAPL FLDS PX_LAST` starts a search. Search matches every typed term against ID, name and definition; categories and an available-only filter refine it. Click a field for its definition, value/unit, provider, status and timestamp basis. Copy/export includes only the current filtered rows, raw numeric values and inspection time.
+
+Familiar IDs such as `PX_LAST`, `BID`, `ASK`, `PX_VOLUME` and `CRNCY` are defined by this project. Project-specific calculated/source IDs use `ARMIN_`. `ID_LOCAL` is the app's identifier. These do not implement Bloomberg field contracts, BDP/BDH/BDS/BQL or an exhaustive field universe. The screen reads existing engine values and makes no additional provider request.
+
+Absent/nonfinite values display `--` with `UNAVAILABLE`. Zero volume and a locked zero bid/ask spread remain legitimate values. A crossed quote cannot produce a midpoint/spread result. Quote currency preserves minor units; a reference yield uses percent and its net change uses percentage points. Instrument metadata has a separate reference source and is not labelled live.
+
+Source time and receipt time are different fields. Last-price freshness uses the source timestamp, not receipt time; missing/invalid timestamps or more than five seconds of future skew cannot establish real-time freshness. A previous close uses its verified daily date when available, and unverified change bases stay labelled alongside source freshness. The engine does not expose independent bid/ask event times, so real BBO-derived fields show `TIMESTAMP UNAVAILABLE`, prefixed with `SOURCE STALE` when the engine marks the line stale. They never borrow a last-trade timestamp or imply consolidated NBBO. A demo always remains marked as simulated data.
+
+Portfolio risk snapshots capture current marks, currencies, providers, source/receipt timestamps and freshness together. Display and CSV use those captured inputs, even if the engine advances before a control redraw or export. USD identity conversion has no market timestamp; CNY holdings explicitly disclose offshore CNH as the conversion proxy. Snapshot freshness is evaluated at capture time.
+
 ## Quotes
 
 | Field | Meaning |
