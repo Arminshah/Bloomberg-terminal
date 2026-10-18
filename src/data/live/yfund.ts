@@ -5,6 +5,7 @@ import { DAY_MS } from '../calendar';
 import type { EarningsEvent, FinPeriod, Holder } from '../fundamentals';
 import type { SecurityDef } from '../types';
 import { desktopData, impliedShares, realDividends, yahooGet, yahooSymbolFor } from './yahoo';
+import { finnhubAvailable, finnhubSymbol, loadFinnhub, type FinnhubMetric, type FinnhubProfile } from './finnhub';
 
 /**
  * Company data for the desktop app from Yahoo Finance (personal
@@ -28,6 +29,8 @@ export interface RealFund {
   breakdown: { insiders: number; institutions: number; institutionsFloat: number; count: number } | null;
   stats: Partial<Record<'pe' | 'pb' | 'ps' | 'evEbitda' | 'ev' | 'divYld' | 'payout' | 'roe' | 'roa' | 'opMargin' | 'netMargin' | 'grossMargin' | 'de' | 'beta' | 'revGrowth' | 'epsGrowth' | 'shares', number>>;
   nextDividend: { ex: number; pay: number; rate: number } | null;
+  /** Where the ratios and profile came from when Yahoo's company summary was refused. */
+  statsFrom?: 'Finnhub';
 }
 
 export const realFund = new Map<string, RealFund>();
@@ -384,6 +387,45 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   eq.dps = Number.isFinite(dr) ? (def.minor ? dr * 100 : dr) : NaN;
 }
 
+/**
+ * Finnhub's profile and basic financials in the shape of Yahoo's company summary, so the same code reads them.
+ * Finnhub gives percentages in percent and debt to equity as a ratio; the summary has fractions and percent.
+ */
+export function summaryFromFinnhub(profile: FinnhubProfile | null, metric: FinnhubMetric | null): Json | null {
+  if (!profile && !metric) return null;
+  const m = metric;
+  const frac = (v: number | undefined) => (v != null && Number.isFinite(v) ? v / 100 : undefined);
+  const val = (v: number | undefined) => (v != null && Number.isFinite(v) ? v : undefined);
+  return {
+    quoteSummary: {
+      result: [
+        {
+          assetProfile: profile ? { industry: profile.industry || undefined, website: profile.website || undefined } : {},
+          summaryDetail: { trailingPE: val(m?.pe), priceToSalesTrailing12Months: val(m?.ps), payoutRatio: frac(m?.payout), beta: val(m?.beta), marketCap: profile && Number.isFinite(profile.marketCap) ? profile.marketCap * 1e6 : undefined },
+          defaultKeyStatistics: { priceToBook: val(m?.pb), sharesOutstanding: profile && Number.isFinite(profile.sharesOutstanding) ? profile.sharesOutstanding * 1e6 : undefined },
+          financialData: {
+            returnOnEquity: frac(m?.roe),
+            returnOnAssets: frac(m?.roa),
+            operatingMargins: frac(m?.opMargin),
+            profitMargins: frac(m?.netMargin),
+            grossMargins: frac(m?.grossMargin),
+            debtToEquity: m && Number.isFinite(m.debtToEquity) ? m.debtToEquity * 100 : undefined,
+            revenueGrowth: frac(m?.revGrowth),
+            earningsGrowth: frac(m?.epsGrowth),
+          },
+        },
+      ],
+    },
+  };
+}
+
+async function finnhubSummary(def: SecurityDef): Promise<Json | null> {
+  const symbol = finnhubSymbol(def);
+  if (!symbol || !finnhubAvailable()) return null;
+  const [p, m] = await Promise.all([loadFinnhub(symbol, 'profile'), loadFinnhub(symbol, 'metric')]);
+  return summaryFromFinnhub((p?.data as FinnhubProfile | null) ?? null, (m?.data as FinnhubMetric | null) ?? null);
+}
+
 function timeseriesPath(symbol: string, prefix: string, types: string[], now: number): string {
   const t = types.map((x) => `${prefix}${x}`).join(',');
   return `/ws/fundamentals-timeseries/v1/finance/timeseries/${encodeURIComponent(symbol)}?symbol=${encodeURIComponent(symbol)}&type=${t}&period1=${Math.floor(now / 1000) - 7 * 365 * 86_400}&period2=${Math.floor(now / 1000)}`;
@@ -452,11 +494,22 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false)
         yahooGet(timeseriesPath(symbol, 'quarterly', [...INCOME, ...BALANCE, ...CASH], now)).catch(() => null),
         yahooGet(timeseriesPath(symbol, 'trailing', [...INCOME, ...CASH], now)).catch(() => null),
       ]);
+      // Without Yahoo's summary, a US-listed company's profile and ratios come from Finnhub (the owner's key).
+      let used = summary;
+      let statsFrom: RealFund['statsFrom'];
+      if (!summary?.quoteSummary?.result?.[0]) {
+        const sub = await finnhubSummary(def).catch(() => null);
+        if (sub) {
+          used = sub;
+          statsFrom = 'Finnhub';
+        }
+      }
       const hasStatements = [annual, quarterly].some((x) => (x?.timeseries?.result ?? []).some((r: Json) => Object.keys(r ?? {}).some((k) => k !== 'meta' && k !== 'timestamp' && Array.isArray(r[k]) && r[k].length)));
-      if (!summary?.quoteSummary?.result?.[0] && !hasStatements) throw new Error('no data');
-      const fund = buildRealFund(def, summary, annual, quarterly, trailing, now);
+      if (!used?.quoteSummary?.result?.[0] && !hasStatements) throw new Error('no data');
+      const fund = buildRealFund(def, used, annual, quarterly, trailing, now);
+      if (statsFrom) fund.statsFrom = statsFrom;
       realFund.set(def.id, fund);
-      applyProfile(def, summary, fund);
+      applyProfile(def, used, fund);
       setStatus('ok');
       engine.flush([def.id]);
     } catch {

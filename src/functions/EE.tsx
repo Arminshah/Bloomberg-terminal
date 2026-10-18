@@ -11,11 +11,13 @@ import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type E
 import { EstimatesTable, estimateUnit } from './ANR';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
+import { finnhubAvailable, finnhubSymbol, useFinnhub, type EpsSurprise, type FinnhubPart, type NextReport } from '../data/live/finnhub';
+import { fmtDay } from '../core/format';
 
 /**
- * Earnings: report dates and the reported figures (diluted EPS and revenue as the statements give them), with
- * analysts' annual estimates from Financial Modeling Prep for US-listed stocks in the desktop app. No quarterly
- * consensus or surprises: FMP's free plan is asked for annual estimates only, and none is generated.
+ * Earnings: report dates and the reported figures (diluted EPS and revenue as the statements give them). For
+ * US-listed stocks in the desktop app, also the last four quarters' EPS against the analysts' estimate and the
+ * next report's estimates from Finnhub, and annual estimates from Financial Modeling Prep. Nothing is generated.
  */
 export function EE({ sec }: FnProps) {
   const s = sec!;
@@ -28,6 +30,12 @@ export function EE({ sec }: FnProps) {
   const fmp = analystsAvailable() && !!analystSymbol(s);
   const est = useAnalysts(fmp ? s : undefined, ['estimates']).estimates as AnalystPart<Estimate[]> | undefined;
   const ahead = (est?.data ?? []).find((e) => Date.parse(`${e.date}T00:00:00Z`) > Date.now());
+  const fh = finnhubAvailable() && !!finnhubSymbol(s);
+  const fparts = useFinnhub(fh ? s : undefined, ['earnings', 'calendar']);
+  const surprises = fparts.earnings as FinnhubPart<EpsSurprise[]> | undefined;
+  const cal = fparts.calendar as FinnhubPart<NextReport | null> | undefined;
+  const nextFh = cal?.data ?? null;
+  const when = (h: string) => (h === 'bmo' ? 'before the open' : h === 'amc' ? 'after the close' : h === 'dmh' ? 'during the session' : '');
   return (
     <div>
       <FnHeader code="EARNINGS" title="Earnings History" sec={s} sub={<>{ccy} · reported figures · {sourceLabel(status, 'demo figures; real data needs the desktop app')}</>} />
@@ -35,8 +43,14 @@ export function EE({ sec }: FnProps) {
       <Section title="Next report">
         <KV
           items={[
-            ['Period', next?.period ?? '--'],
-            ['Date', next ? fmtEarnDate(next) : '--'],
+            ['Period', nextFh ? `Q${nextFh.quarter} ${nextFh.year}` : (next?.period ?? '--')],
+            ['Date', nextFh ? `${fmtDay(Date.parse(`${nextFh.date}T00:00:00Z`))}${when(nextFh.hour) ? `, ${when(nextFh.hour)}` : ''} (Finnhub)` : next ? fmtEarnDate(next) : '--'],
+            ...(nextFh
+              ? ([
+                  ['EPS estimate, quarter', Number.isFinite(nextFh.epsEstimate) ? `${fmtNum(nextFh.epsEstimate, 2)} (Finnhub)` : '--'],
+                  ['Revenue estimate, quarter', Number.isFinite(nextFh.revenueEstimate) ? `${fmtMln(nextFh.revenueEstimate / 1e6)} (Finnhub)` : '--'],
+                ] as [string, string][])
+              : []),
             [
               'EPS estimate, fiscal year',
               !fmp
@@ -58,7 +72,42 @@ export function EE({ sec }: FnProps) {
           }
         >
           <EstimatesTable part={est} rows={4} />
-          <div className="note">Annual consensus as FMP gathers it ({estimateUnit(s)}); analysts&apos; estimates, not a forecast by this app. Quarterly estimates and surprises are not shown.</div>
+          <div className="note">Annual consensus as FMP gathers it ({estimateUnit(s)}); analysts&apos; estimates, not a forecast by this app. Quarterly estimates and surprises come from Finnhub, above.</div>
+        </Section>
+      ) : null}
+      {fh ? (
+        <Section title="EPS against the analysts' estimate (Finnhub)" right="last four quarters">
+          {!surprises || surprises.state === 'loading' ? (
+            <div className="empty">Loading from Finnhub…</div>
+          ) : !surprises.data?.length ? (
+            <div className="empty">{surprises.message ?? 'No quarters from Finnhub.'}</div>
+          ) : (
+            <table className="tbl zebra">
+              <thead>
+                <tr>
+                  <th>Quarter</th>
+                  <th>Period end</th>
+                  <th className="num">Actual EPS</th>
+                  <th className="num">Estimate</th>
+                  <th className="num">Surprise</th>
+                  <th className="num">Surprise %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {surprises.data.slice(0, 4).map((q) => (
+                  <tr key={q.period}>
+                    <td className="amber">{`Q${q.quarter} ${q.year}`}</td>
+                    <td>{fmtDay(Date.parse(`${q.period}T00:00:00Z`))}</td>
+                    <td className="num white">{fmtNum(q.actual, 2)}</td>
+                    <td className="num">{fmtNum(q.estimate, 2)}</td>
+                    <td className={`num ${q.surprise > 0 ? 'up' : q.surprise < 0 ? 'dn' : ''}`}>{Number.isFinite(q.surprise) ? `${q.surprise > 0 ? '+' : ''}${fmtNum(q.surprise, 2)}` : '--'}</td>
+                    <td className={`num ${q.surprisePct > 0 ? 'up' : q.surprisePct < 0 ? 'dn' : ''}`}>{Number.isFinite(q.surprisePct) ? `${q.surprisePct > 0 ? '+' : ''}${fmtNum(q.surprisePct, 1)}%` : '--'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <div className="note">Quarters as Finnhub labels them; EPS on Finnhub&apos;s basis, which can differ from the diluted EPS in the statements below.</div>
         </Section>
       ) : null}
       <Section title="Reported diluted EPS by quarter">

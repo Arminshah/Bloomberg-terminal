@@ -4,6 +4,7 @@ import { NotConnected } from '../components/NotConnected';
 import { HBar, KV, LivePx, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
+import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type RecommendationMonth } from '../data/live/finnhub';
 import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
@@ -14,7 +15,8 @@ import { reportCcy } from '../data/fundamentals';
 /**
  * Analyst research for a US-listed stock from Financial Modeling Prep (the owner's key): the price target
  * consensus against the live price, how targets moved over the last month, quarter and year, the tally of
- * broker ratings, recent rating actions and annual estimates. Yahoo's analyst data stays off.
+ * broker ratings, recent rating actions and annual estimates. FMP's free plan covers only some large US
+ * companies; Finnhub's monthly recommendation counts (free, US-listed stocks) fill the ratings when FMP has none.
  */
 export function ANR({ sec }: FnProps) {
   const s = sec!;
@@ -22,6 +24,9 @@ export function ANR({ sec }: FnProps) {
   const panel = usePanelId();
   const symbol = analystSymbol(s);
   const parts = useAnalysts(s, ['consensus', 'ratings', 'summary', 'grades', 'estimates']);
+  const fhOn = finnhubAvailable() && !!finnhubSymbol(s);
+  const fh = useFinnhub(fhOn ? s : undefined, ['recommendation']).recommendation as FinnhubPart<RecommendationMonth[]> | undefined;
+  const recs = fh?.data ?? [];
   if (!analystsAvailable()) {
     return (
       <div>
@@ -65,7 +70,8 @@ export function ANR({ sec }: FnProps) {
     );
   }
   const first = consensus ?? ratings;
-  if (first && (first.state === 'needs-key' || first.state === 'off' || first.state === 'budget' || (first.state === 'error' && !consensus?.data && !ratings?.data))) {
+  const fmpDown = !!first && (first.state === 'needs-key' || first.state === 'off' || first.state === 'budget' || (first.state === 'error' && !consensus?.data && !ratings?.data));
+  if (fmpDown && !recs.length) {
     return (
       <div>
         {header}
@@ -84,7 +90,9 @@ export function ANR({ sec }: FnProps) {
   const q = engine.quote(s.id);
   const last = q?.last ?? NaN;
   const c = consensus?.data ?? null;
-  const r = ratings?.data ?? null;
+  // FMP's tally when it has one; otherwise Finnhub's latest month of recommendation counts.
+  const r: RatingTally | null = ratings?.data ?? (recs[0] ? { ...recs[0], consensus: '' } : null);
+  const rFrom = ratings?.data ? 'FMP' : recs[0] ? `Finnhub, ${fmtDay(Date.parse(`${recs[0].period}T00:00:00Z`))}` : '';
   const sum = summary?.data ?? null;
   const upside = (t: number) => (Number.isFinite(t) && last > 0 ? (t / last - 1) * 100 : NaN);
   const loading = (p: AnalystPart | undefined) => !p || p.state === 'loading';
@@ -93,6 +101,16 @@ export function ANR({ sec }: FnProps) {
     <div>
       {header}
       <QuoteStrip sec={s} />
+      {fmpDown ? (
+        <div className="note">
+          Financial Modeling Prep: {first?.message} Ratings below are Finnhub&apos;s.{' '}
+          {first?.state === 'needs-key' || first?.state === 'off' ? (
+            <button type="button" className="act" onClick={() => execute(panel, 'PROVIDERS')}>
+              PROVIDERS ›
+            </button>
+          ) : null}
+        </div>
+      ) : null}
       <div className="cols">
         <Section title="Price target" right={s.ccy}>
           {loading(consensus) ? (
@@ -134,10 +152,49 @@ export function ANR({ sec }: FnProps) {
             </>
           )}
         </Section>
-        <Section title="Ratings" right={r?.consensus ? `consensus: ${r.consensus}` : undefined}>
-          {loading(ratings) ? <div className="empty">Loading ratings from FMP…</div> : !r ? <div className="empty">{ratings?.state === 'error' ? ratings.message : `FMP has no ratings for ${symbol}.`}</div> : <Tally r={r} />}
+        <Section title="Ratings" right={r ? `${rFrom}${r.consensus ? `, consensus: ${r.consensus}` : ''}` : undefined}>
+          {r ? <Tally r={r} /> : loading(ratings) ? <div className="empty">Loading ratings…</div> : <div className="empty">{ratings?.state === 'error' ? ratings.message : `No ratings for ${symbol} from FMP or Finnhub.`}</div>}
         </Section>
       </div>
+      {fhOn ? (
+        <Section title="Recommendation trends (Finnhub)" right="analysts counted each month">
+          {!fh || fh.state === 'loading' ? (
+            <div className="empty">Loading from Finnhub…</div>
+          ) : !recs.length ? (
+            <div className="empty">{fh.message ?? `Finnhub has no recommendations for ${symbol}.`}</div>
+          ) : (
+            <table className="tbl zebra">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th className="num">Strong buy</th>
+                  <th className="num">Buy</th>
+                  <th className="num">Hold</th>
+                  <th className="num">Sell</th>
+                  <th className="num">Strong sell</th>
+                  <th className="num">Buy share</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recs.slice(0, 4).map((m) => {
+                  const total = m.strongBuy + m.buy + m.hold + m.sell + m.strongSell;
+                  return (
+                    <tr key={m.period}>
+                      <td className="amber">{fmtDay(Date.parse(`${m.period}T00:00:00Z`))}</td>
+                      <td className="num up">{m.strongBuy}</td>
+                      <td className="num up">{m.buy}</td>
+                      <td className="num">{m.hold}</td>
+                      <td className="num dn">{m.sell}</td>
+                      <td className="num dn">{m.strongSell}</td>
+                      <td className="num white">{total > 0 ? `${fmtNum(((m.strongBuy + m.buy) / total) * 100, 0)}%` : '--'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </Section>
+      ) : null}
       <Section title="How price targets moved" right="average of the targets published in each period">
         {loading(summary) ? (
           <div className="empty">Loading…</div>

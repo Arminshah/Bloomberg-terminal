@@ -151,7 +151,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
           />
           <Returns id={sec.id} />
         </Section>
-        <Section title="Valuation and earnings">
+        <Section title="Valuation and earnings" right={real?.statsFrom ? `ratios from ${real.statsFrom}` : undefined}>
           <KV
             items={[
               ['P/E (LTM)', fmtNum(ks.pe, 1)],

@@ -513,6 +513,18 @@ ipcMain.handle('analysts', async (event, kind, symbol) => {
   return keyedGet('fmp', req.url, {}, req.ttl, [30, 60_000], [key.value]);
 });
 
+const finnhub = require('./finnhub.cjs');
+
+// Finnhub company data for US-listed stocks (electron/finnhub.cjs), sharing Finnhub's pace with its news.
+ipcMain.handle('finnhub', async (event, kind, symbol) => {
+  if (!fromApp(event) || !finnhub.finnhubRequest(kind, symbol)) throw new Error('not allowed');
+  if (!providers.setting('FINNHUB_ENABLED').value) return { status: 0, text: '', gated: 'FINNHUB_ENABLED' };
+  const key = usableKey('FINNHUB_API_KEY', 'finnhub');
+  if (!key.value) return { status: 0, text: '', ...key };
+  const req = finnhub.finnhubRequest(kind, symbol);
+  return keyedGet('finnhub', req.url, finnhub.finnhubHeaders(key.value), req.ttl, [30, 60_000], [key.value]);
+});
+
 const NEWS_PACE = { finnhub: [30, 60_000], marketaux: [10, 60_000], marketwatch: [6, 60_000], sec: [sec.PER_SECOND, 1000] };
 
 ipcMain.handle('news', async (event, source, arg) => {

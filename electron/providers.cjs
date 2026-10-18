@@ -168,7 +168,7 @@ const SETTINGS = {
   MARKETWATCH_RSS_ENABLED: { label: 'MarketWatch top stories RSS (Dow Jones terms restrict automated access)', default: false },
   // The keyed sources added in 2.1.0, each on while its key is set; off stops every request to it.
   FMP_ENABLED: { label: 'Financial Modeling Prep analyst research', default: true },
-  FINNHUB_ENABLED: { label: 'Finnhub market and company news', default: true },
+  FINNHUB_ENABLED: { label: 'Finnhub company data and news', default: true },
   MARKETAUX_ENABLED: { label: 'Marketaux news and sentiment', default: true },
   ALPACA_ENABLED: { label: 'Alpaca IEX stocks and indicative options (market data only)', default: true },
   ALPACA_IEX_PRICES_ENABLED: { label: 'Use Alpaca IEX only prices for US equities', default: false },
