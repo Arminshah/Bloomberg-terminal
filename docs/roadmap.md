@@ -1,5 +1,11 @@
 # Roadmap
 
+## Version 2.3.1
+
+- Constant-time coupon annuity repricing with log1p/expm1 stability near zero yield, checked against explicit discounted cash flows across coupon frequencies, negative and high yields.
+- CI uses the locally validated Node 24 toolchain and serial unit workers, preserving the existing 600-ms startup gate. The v2.3.0 GitHub runner exceeded that gate with parallel workers; no release was published from that failed run.
+- Includes the v2.3.0 analytical workflows and repaired draft-release delivery below. [Patch validation](release-v2.3.1.md).
+
 ## Version 2.3.0
 
 - Bond, FX-forward and fixed/float swap calculators now work from explicit contract inputs; labelled examples, CSV inputs/results and documented conventions.

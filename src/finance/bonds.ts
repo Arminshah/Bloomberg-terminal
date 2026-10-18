@@ -89,15 +89,11 @@ export function cleanPricer(terms: BondTerms, settle: Date): (yieldPct: number) 
   const accrued = cpn * (accruedDays / period);
   return (yieldPct) => {
     if (!remaining || !Number.isFinite(yieldPct) || yieldPct <= -100 * freq) return NaN;
-    const v = 1 / (1 + yieldPct / 100 / freq);
-    let pv = 0;
-    let vk = v ** w;
-    for (let k = 0; k < remaining; k++) {
-      if (cpn !== 0) pv += cpn * vk;
-      vk *= v;
-    }
-    pv += 100 * v ** (w + remaining - 1);
-    return pv - accrued;
+    // A geometric annuity avoids summing every coupon for every intraday reprice.
+    // log1p/expm1 retain precision around zero yield, where 1-v^n would cancel.
+    const logV = -Math.log1p(yieldPct / 100 / freq);
+    const coupons = cpn === 0 ? 0 : cpn * Math.exp(w * logV) * (logV === 0 ? remaining : Math.expm1(remaining * logV) / Math.expm1(logV));
+    return coupons + 100 * Math.exp((w + remaining - 1) * logV) - accrued;
   };
 }
 

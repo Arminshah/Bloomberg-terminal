@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analytics, cleanFromYield, couponSchedule, to32nds, yieldFromClean } from '../src/finance/bonds';
+import { analytics, cleanFromYield, cleanPricer, couponSchedule, to32nds, yieldFromClean } from '../src/finance/bonds';
 import { blackScholes, impliedVol } from '../src/finance/options';
 import { contractDate, discountAt, forwardValue, parseZeroCurve, swapValue, type ForwardInputs, type SwapInputs } from '../src/finance/contracts';
 import { addMonths } from '../src/data/calendar';
@@ -45,6 +45,19 @@ describe('bond calculations across the full yield domain', () => {
     expect(addMonths(date('0099-01-31'), 1).toISOString().slice(0, 10)).toBe('0099-02-28');
     const schedule = couponSchedule({ coupon: 5, maturity: date('0099-12-31'), freq: 2 }, date('0098-12-31'));
     expect(schedule.map((d) => d.toISOString().slice(0, 10))).toEqual(['0098-12-31', '0099-06-30', '0099-12-31']);
+  });
+  it.each([1, 2, 4, 12])('matches explicit discounted cash flows with the fast %s-coupon annuity', (freq) => {
+    const settle = date('2026-10-14');
+    for (const coupon of [0, 4.125]) {
+      const terms = { coupon, maturity: date('2056-08-31'), freq };
+      const price = cleanPricer(terms, settle);
+      for (const yieldPct of [-95, -8, -1e-8, 0, 1e-8, 4.2, 60, 500]) {
+        // cleanFromYield independently discounts each cash flow rather than the annuity formula.
+        const explicit = cleanFromYield(terms, settle, yieldPct);
+        const fast = price(yieldPct);
+        expect(Math.abs(fast - explicit) / Math.max(1, Math.abs(explicit))).toBeLessThan(1e-11);
+      }
+    }
   });
 });
 

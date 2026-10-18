@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.3.0** adds working bond, FX-forward and swap calculators, fixes option valuation boundaries, and prioritises visible IEX quote panels. See [release details and validation](docs/release-v2.3.0.md) and [calculator conventions](docs/calculators.md). Free IEX data covers one exchange; consolidated real-time prices, licensed research, full option chains and other Bloomberg datasets require additional sources and entitlements.
+Version **2.3.1** adds working bond, FX-forward and swap calculators, fixes option valuation boundaries, prioritises visible IEX quote panels and speeds up bond repricing. See [release details and validation](docs/release-v2.3.1.md) and [calculator conventions](docs/calculators.md). Free IEX data covers one exchange; consolidated real-time prices, licensed research, full option chains and other Bloomberg datasets require additional sources and entitlements.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
@@ -123,7 +123,7 @@ Some figures are calculated from the real data, and the screens say so: the Fed 
 
 ## Development
 
-You need Node.js 22.
+Use Node.js 24, as used by CI. Node.js 22 can also run the project.
 
 | Command | Purpose |
 | --- | --- |
