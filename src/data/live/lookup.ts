@@ -26,7 +26,7 @@ declare global {
   interface Window {
     arminDesktop?: {
       platform: string;
-      yahoo(path: string): Promise<{ status: number; data: unknown; disabled?: boolean }>;
+      yahoo(path: string): Promise<{ status: number; data: unknown; disabled?: boolean; session?: boolean }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string }>;
       fred?(kind: 'release-dates' | 'observations' | 'first-release', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
@@ -43,6 +43,8 @@ declare global {
       providersStatus?(): Promise<import('../providers').ProviderReport>;
       providersSet?(name: string, value: string): Promise<{ ok: boolean; error?: string; credentials: import('../providers').ProviderReport['credentials'] }>;
       providersClear?(name: string): Promise<{ ok: boolean; credentials: import('../providers').ProviderReport['credentials'] }>;
+      yahooConsent?(): Promise<{ ok: boolean; detail: string }>;
+      providersSelfTest?(): Promise<{ at: number; version: string; platform: string; report: string; results: { id: string; label: string; state: 'pass' | 'fail' | 'skip' | 'off'; status?: number; ms?: number; detail: string }[] }>;
       providersImport?(text: string): Promise<{ ok: boolean; error?: string; saved: string[]; skipped: { line?: number; name?: string; reason: string }[]; credentials: import('../providers').ProviderReport['credentials'] }>;
       providersSetting?(name: string, value: boolean): Promise<{ ok: boolean; error?: string; settings: import('../providers').ProviderReport['settings'] }>;
       streamOpen?(): Promise<void>;

@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   providersSet: (name, value) => ipcRenderer.invoke('providers:set', String(name), String(value)),
   providersClear: (name) => ipcRenderer.invoke('providers:clear', String(name)),
   providersImport: (text) => ipcRenderer.invoke('providers:import', String(text)),
+  providersSelfTest: () => ipcRenderer.invoke('providers:selftest'),
+  yahooConsent: () => ipcRenderer.invoke('yahoo:consent'),
   providersSetting: (name, value) => ipcRenderer.invoke('providers:setting', String(name), value === true),
   streamOpen: () => ipcRenderer.invoke('stream:open'),
   streamSend: (msg) => ipcRenderer.invoke('stream:send', String(msg)),

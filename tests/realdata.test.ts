@@ -452,3 +452,25 @@ describe('dividend amounts', () => {
     expect(fmtAmount(NaN)).toBe('--');
   });
 });
+
+describe('quotes without a Yahoo session', () => {
+  it('reads chart summaries into partial quotes', async () => {
+    const { sparkToQuotes, extQuote } = await import('../src/data/live/yahoo');
+    // The current layout, keyed by symbol (shape as the endpoint answered on 18 October 2026).
+    const qs = sparkToQuotes({
+      AAPL: { timestamp: [1792180680, 1792180740], close: [343.4, 343.46], previousClose: 342, chartPreviousClose: 342, symbol: 'AAPL' },
+      'ABI.BR': { timestamp: [1792164840, 1792164900], close: [73.9, null], previousClose: 72.92, symbol: 'ABI.BR' },
+      EMPTY: { timestamp: [], close: [] },
+    });
+    expect(qs).toEqual([
+      { symbol: 'AAPL', regularMarketPrice: 343.46, regularMarketTime: 1792180740, regularMarketPreviousClose: 342, sparkOnly: true },
+      { symbol: 'ABI.BR', regularMarketPrice: 73.9, regularMarketTime: 1792164840, regularMarketPreviousClose: 72.92, sparkOnly: true },
+    ]);
+    const q = extQuote(qs[0], false)!;
+    // Not a full quote: no bid, offer or day range is claimed, and the session is marked as not known.
+    expect(q.full).toBe(false);
+    expect(q.sessionKnown).toBe(false);
+    expect(q.timing).toBe('unknown');
+    expect(q.prevClose).toBe(342);
+  });
+});

@@ -3,7 +3,7 @@
 // page asks for: the options path is not on the allowlist, search asks for no news, and analyst modules and
 // fields are removed from every answer before the page sees it. Kept free of Electron so tests can load it.
 
-const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=%-]+\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=%-]+\?|v7\/finance\/quote\?|ws\/fundamentals-timeseries\/v1\/finance\/timeseries\/[A-Za-z0-9.^=%-]+\?)/;
+const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=%-]+\?|v8\/finance\/spark\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=%-]+\?|v7\/finance\/quote\?|ws\/fundamentals-timeseries\/v1\/finance\/timeseries\/[A-Za-z0-9.^=%-]+\?)/;
 const ANALYST_MODULES = ['earningsTrend', 'recommendationTrend', 'upgradeDowngradeHistory', 'earningsHistory', 'indexTrend', 'industryTrend', 'sectorTrend'];
 const ANALYST_FIELDS = {
   financialData: ['targetHighPrice', 'targetLowPrice', 'targetMeanPrice', 'targetMedianPrice', 'recommendationMean', 'recommendationKey', 'numberOfAnalystOpinions'],

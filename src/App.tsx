@@ -4,6 +4,7 @@ import { Panel } from './components/Panel';
 import { TickerTape } from './components/TickerTape';
 import { Toasts } from './components/Toasts';
 import { TopBar } from './components/TopBar';
+import { YahooSessionBanner } from './components/YahooSessionBanner';
 import { clearPanelInput, focusPanelInput, pagePanel, typeInto, FKEY_TEXT } from './components/CommandLine';
 import { engine } from './data/market';
 import { setTimeZone } from './core/format';
@@ -148,6 +149,7 @@ export function App() {
   return (
     <div className={`app${demoMode() ? ' demo' : ''}`}>
       {demoMode() ? <DemoBanner /> : null}
+      {demoMode() ? null : <YahooSessionBanner />}
       <TopBar />
       <MobileTabs />
       <main className="workspace" data-layout={layout} style={mobile ? undefined : { gridTemplateColumns: split.cols.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: split.rows.map((r) => `minmax(0, ${r}fr)`).join(' ') }}>

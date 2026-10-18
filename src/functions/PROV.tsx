@@ -110,6 +110,7 @@ export function PROV(_: FnProps) {
           The browser build cannot reach market data providers: their terms and browser security rules rule it out. Every provider request in the desktop app goes out from its main process, which also keeps the keys. The list below is what the desktop app uses.
         </div>
       )}
+      {desktop && <SelfTest onDone={refresh} />}
       <Section title="Providers">
         <table className="tbl zebra">
           <thead>
@@ -390,6 +391,81 @@ function Credentials({ report, onChange }: { report: ProviderReport | null; onCh
           })}
         </tbody>
       </table>
+    </Section>
+  );
+}
+
+type SelfTestRun = Awaited<ReturnType<NonNullable<NonNullable<Window['arminDesktop']>['providersSelfTest']>>>;
+
+/**
+ * Tries every source once, from this computer and with the saved keys, and shows what each answered. The
+ * report can be copied and sent to whoever looks into a problem: it holds no key and no URL.
+ */
+function SelfTest({ onDone }: { onDone: () => void }) {
+  const [run, setRun] = useState<SelfTestRun | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState('');
+  const go = async () => {
+    setBusy(true);
+    setCopied('');
+    try {
+      setRun(await window.arminDesktop!.providersSelfTest!());
+    } finally {
+      setBusy(false);
+      onDone();
+    }
+  };
+  const copy = async () => {
+    if (!run) return;
+    try {
+      await navigator.clipboard.writeText(run.report);
+      setCopied('Copied.');
+    } catch {
+      setCopied('Could not copy: select the text below instead.');
+    }
+  };
+  const passed = run?.results.filter((r) => r.state === 'pass').length ?? 0;
+  const failed = run?.results.filter((r) => r.state === 'fail').length ?? 0;
+  return (
+    <Section title="Self-test" right={run ? `${passed} passed, ${failed} failed` : undefined}>
+      <div className="pad">
+        <button type="button" className="btn primary" disabled={busy || !window.arminDesktop?.providersSelfTest} onClick={() => void go()}>
+          {busy ? 'Testing every source…' : 'Test every source'}
+        </button>{' '}
+        {run ? (
+          <button type="button" className="btn" onClick={() => void copy()}>
+            Copy report
+          </button>
+        ) : null}{' '}
+        <span className="muted">{copied || 'One small request to each source with your keys, from this computer. Takes up to a minute. The report has no keys in it.'}</span>
+      </div>
+      {run ? (
+        <>
+          <table className="tbl zebra">
+            <thead>
+              <tr>
+                <th>Test</th>
+                <th>Result</th>
+                <th className="num">HTTP</th>
+                <th className="num">ms</th>
+                <th>Answer</th>
+              </tr>
+            </thead>
+            <tbody>
+              {run.results.map((r) => (
+                <tr key={r.id}>
+                  <td className="white">{r.label}</td>
+                  <td className={r.state === 'pass' ? 'up' : r.state === 'fail' ? 'dn' : 'muted'}>{r.state === 'pass' ? 'PASS' : r.state === 'fail' ? 'FAIL' : r.state === 'off' ? 'OFF' : 'SKIPPED'}</td>
+                  <td className="num">{r.status || ''}</td>
+                  <td className="num">{r.ms ?? ''}</td>
+                  <td>{r.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <textarea className="inp" readOnly aria-label="Self-test report" rows={6} style={{ width: '100%', fontFamily: 'inherit' }} value={run.report} onKeyDown={(e) => e.stopPropagation()} />
+        </>
+      ) : null}
     </Section>
   );
 }
