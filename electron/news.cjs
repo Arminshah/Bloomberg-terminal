@@ -10,9 +10,17 @@
 //   programs (HTTP 403), and its owner's terms bar using software to gather its content.
 // - SEC EDGAR's latest 8-K filings (Atom), with the owner's SEC_USER_AGENT, under the SEC's 10 requests a
 //   second (the app keeps to 5 with its other EDGAR requests).
+// - Yahoo Finance headlines RSS for one ticker (any market Yahoo lists, Brussels and Paris included), no key,
+//   while YAHOO_RSS_ENABLED is on. Yahoo's RSS terms: "you are only permitted to display the content that is
+//   provided in the feed, without modification, and you must provide attribution to our source website and
+//   link to the full article", which is what the screens do. Asked with the app's own User-Agent (Yahoo's feed
+//   refuses browser-like ones with HTTP 429).
+// - Euronext's company press releases RSS (the latest 10), no key, while EURONEXT_RSS_ENABLED is on.
 // Only headlines, sources, times, short summaries and links are shown; no article text is fetched.
 
 const SYMBOL = /^[A-Z][A-Z0-9.-]{0,9}$/;
+// A Yahoo symbol: ABI.BR, MC.PA, BRK-B, ^GSPC, EURUSD=X.
+const YAHOO_SYMBOL = /^[A-Z0-9^][A-Z0-9.=^-]{0,19}$/;
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const MIN = 60_000;
 
@@ -56,6 +64,20 @@ const SOURCES = {
     ttl: 10 * MIN,
     gate: 'MARKETWATCH_RSS_ENABLED',
     url: () => 'https://feeds.content.dowjones.io/public/rss/mw_topstories',
+    headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
+  },
+  'yahoo-rss': {
+    provider: 'yahoo-rss',
+    gate: 'YAHOO_RSS_ENABLED',
+    ttl: 15 * MIN,
+    url: (arg) => (YAHOO_SYMBOL.test(String(arg)) ? `https://feeds.finance.yahoo.com/rss/2.0/headline?s=${encodeURIComponent(arg)}&region=US&lang=en-US` : null),
+    headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
+  },
+  'euronext-pr': {
+    provider: 'euronext',
+    gate: 'EURONEXT_RSS_ENABLED',
+    ttl: 10 * MIN,
+    url: () => 'https://live.euronext.com/en/rss/company-pr-release',
     headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
   },
   'edgar-8k': {

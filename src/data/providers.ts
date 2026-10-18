@@ -563,6 +563,35 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'yahoo-rss',
+    name: 'Yahoo Finance headlines (RSS)',
+    serves: 'Headlines for one stock at a time, any market Yahoo lists, Brussels and Paris included (COMPANYNEWS, QUOTE)',
+    dataClass: 'News headlines with time, publisher and link',
+    policy: 'enabled',
+    setting: 'YAHOO_RSS_ENABLED',
+    limit: '20',
+    terms: 'Yahoo\'s RSS terms: "you are only permitted to display the content that is provided in the feed, without modification, and you must provide attribution to our source website and link to the full article." The screens show the headline, a short description and the publisher, with a link to the article. Each stock\'s feed is asked at most every 15 minutes while a screen shows it.',
+    docs: [
+      { label: 'Example feed (AB InBev)', url: 'https://feeds.finance.yahoo.com/rss/2.0/headline?s=ABI.BR&region=US&lang=en-US' },
+      { label: 'Yahoo terms', url: 'https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html' },
+    ],
+    checked: '2026-10-18',
+    desktop: true,
+  },
+  {
+    id: 'euronext',
+    name: 'Euronext press releases (RSS)',
+    serves: 'The latest company press releases filed through Euronext (MARKETNEWS)',
+    dataClass: 'Issuer announcements with time and link',
+    policy: 'enabled',
+    setting: 'EURONEXT_RSS_ENABLED',
+    limit: '6',
+    terms: 'The public RSS feed Euronext links from its press release pages; it holds the 10 latest releases. Asked every 10 minutes while MARKETNEWS is open; headlines and links only. Euronext\'s terms of use were not reviewed for this feed.',
+    docs: [{ label: 'Company press releases', url: 'https://live.euronext.com/en/listview/company-press-release' }],
+    checked: '2026-10-18',
+    desktop: true,
+  },
+  {
     id: 'alpaca',
     name: 'Alpaca Market Data',
     serves: 'IEX stock quotes; optional IEX-only US equity prices across panels; indicative option chains on OPTIONS',
@@ -645,7 +674,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED';
 
 export interface SettingState {
   label: string;

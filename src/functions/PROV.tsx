@@ -213,6 +213,8 @@ const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },
   { name: 'ALPACA_IEX_PRICES_ENABLED', help: 'Use IEX-only prices for US stocks across watchlists and panels. Requires Alpaca enabled and both keys. Reload to apply. History is limited to the previous/current IEX bars and snapshots observed while the app is open; long Yahoo price history is not combined with this feed. IEX is one exchange, with its own volume and daily changes.' },
   { name: 'TIINGO_ENABLED', help: "Tiingo's end-of-day closes on CROSSCHECK, while TIINGO_API_KEY is set." },
+  { name: 'YAHOO_RSS_ENABLED', help: "Yahoo Finance's headline feed for the stock on screen (COMPANYNEWS, QUOTE), any market Yahoo lists. No key. Yahoo's RSS terms allow showing the feed as given, with attribution and a link." },
+  { name: 'EURONEXT_RSS_ENABLED', help: "Euronext's feed of the latest company press releases on MARKETNEWS. No key." },
 ];
 
 function Switches({ report, onChange }: { report: ProviderReport | null; onChange: () => void }) {

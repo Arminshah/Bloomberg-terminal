@@ -159,3 +159,35 @@ describe('8-K items and class shares', () => {
     expect(watchSymbols(['AAPL', 'BRK-B', 'AAPL', 'bad ticker'])).toBe('AAPL,BRK-B,BRK.B');
   });
 });
+
+describe('Yahoo headlines and Euronext press releases', () => {
+  it('builds the feed requests', async () => {
+    const newsMain = await import('../electron/news.cjs');
+    expect(newsMain.newsRequest('yahoo-rss', 'ABI.BR', '')!.url).toBe('https://feeds.finance.yahoo.com/rss/2.0/headline?s=ABI.BR&region=US&lang=en-US');
+    expect(newsMain.newsRequest('yahoo-rss', '^GSPC', '')!.url).toContain('s=%5EGSPC&');
+    expect(newsMain.newsRequest('yahoo-rss', 'abi.br', '')).toBeNull();
+    expect(newsMain.newsRequest('yahoo-rss', 'ABI.BR&x=1', '')).toBeNull();
+    expect(newsMain.SOURCES['yahoo-rss'].gate).toBe('YAHOO_RSS_ENABLED');
+    expect(newsMain.newsRequest('euronext-pr', '', '')!.url).toBe('https://live.euronext.com/en/rss/company-pr-release');
+    expect(newsMain.SOURCES['euronext-pr'].gate).toBe('EURONEXT_RSS_ENABLED');
+  });
+
+  it("reads Yahoo's feed, tagged with the ticker and the article's site as publisher", async () => {
+    const { parseYahooRss } = await import('../src/data/live/marketnews');
+    // Item layout as the feed answered on 18 October 2026, with a made-up story.
+    const xml = '<rss><channel><item><description>Shares rose after results.</description><guid isPermaLink="false">4ad7c862</guid><link>https://www.fool.com/investing/2026/10/17/story/?.tsrc=rss</link><pubDate>Sat, 17 Oct 2026 20:07:00 +0000</pubDate><title>A brewer beats estimates</title></item></channel></rss>';
+    expect(parseYahooRss(xml, 'ABI.BR')).toEqual([
+      { id: 'fool.com/investing/2026/10/17/story?.tsrc=rss', title: 'A brewer beats estimates', url: 'https://www.fool.com/investing/2026/10/17/story/?.tsrc=rss', publisher: 'fool.com', feeds: ['Yahoo Finance'], time: Date.parse('2026-10-17T20:07:00Z'), summary: 'Shares rose after results.', tickers: ['ABI.BR'] },
+    ]);
+  });
+
+  it("reads Euronext's feed with the company as publisher and no page markup", async () => {
+    const { parseEuronextPr } = await import('../src/data/live/marketnews');
+    const xml = '<rss><channel><item><title>EXAMPLE SA : CHIFFRE D’AFFAIRES À 9 MOIS</title><link>https://live.euronext.com/fr/products/equities/company-news/2026-10-15-example</link><description>&lt;span class="field__item"&gt; Stocks &lt;/span&gt; FR0000000000</description><pubDate>Thu, 15 Oct 2026 16:06:02 +0000</pubDate><dc:creator>master_of_puppets</dc:creator><guid>12916650 at https://live.euronext.com</guid></item></channel></rss>';
+    const [st] = parseEuronextPr(xml);
+    expect(st.publisher).toBe('EXAMPLE SA (press release)');
+    expect(st.time).toBe(Date.parse('2026-10-15T16:06:02Z'));
+    expect(st.summary).toBeUndefined();
+    expect(st.feeds).toEqual(['Euronext']);
+  });
+});

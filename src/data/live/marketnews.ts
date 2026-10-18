@@ -13,8 +13,8 @@ import { parseFeed } from './officialnews';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type NewsSource = 'finnhub-market' | 'finnhub-company' | 'marketaux' | 'marketwatch' | 'edgar-8k';
-export type NewsFeed = 'Finnhub' | 'Marketaux' | 'MarketWatch' | 'SEC EDGAR';
+export type NewsSource = 'finnhub-market' | 'finnhub-company' | 'marketaux' | 'marketwatch' | 'edgar-8k' | 'yahoo-rss' | 'euronext-pr';
+export type NewsFeed = 'Finnhub' | 'Marketaux' | 'MarketWatch' | 'SEC EDGAR' | 'Yahoo Finance' | 'Euronext';
 
 export interface MarketStory {
   /** The canonical link, which also identifies the story. */
@@ -137,6 +137,52 @@ export function parseMarketWatch(text: string): MarketStory[] {
   return parseFeed(text).map((it) => ({ id: canonicalUrl(it.link), title: it.title, url: it.link, publisher: 'MarketWatch', feeds: ['MarketWatch'] as NewsFeed[], time: it.published, ...(it.summary ? { summary: it.summary.slice(0, 400) } : {}), tickers: [] }));
 }
 
+/** A publisher's name from an article link: "www.fool.com" is fool.com. */
+export function publisherOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^(www|finance|news|m)\./, '');
+  } catch {
+    return 'Yahoo Finance';
+  }
+}
+
+/**
+ * Yahoo Finance's headlines RSS for one ticker: items with title, link (the original article), pubDate and a
+ * short description. Every story is tagged with the ticker asked for; the publisher is the article's site.
+ */
+export function parseYahooRss(text: string, symbol: string): MarketStory[] {
+  return parseFeed(text).map((it) => ({
+    id: canonicalUrl(it.link),
+    title: it.title,
+    url: it.link,
+    publisher: publisherOf(it.link),
+    feeds: ['Yahoo Finance'] as NewsFeed[],
+    time: it.published,
+    ...(it.summary ? { summary: it.summary.slice(0, 400) } : {}),
+    tickers: [symbol.toUpperCase()],
+  }));
+}
+
+/**
+ * Euronext's company press releases RSS (the latest 10). A title reads "COMPANY : HEADLINE"; the company becomes
+ * the publisher. The item description is page markup and the full text, so it is not shown.
+ */
+export function parseEuronextPr(text: string): MarketStory[] {
+  return parseFeed(text).map((it) => {
+    const m = /^(.{2,80}?)\s+:\s+(.+)$/.exec(it.title);
+    return {
+      id: canonicalUrl(it.link),
+      title: it.title,
+      url: it.link,
+      publisher: `${m ? m[1].trim() : 'Euronext issuer'} (press release)`,
+      feeds: ['Euronext'] as NewsFeed[],
+      time: it.published,
+      tickers: [],
+      filing: false,
+    };
+  });
+}
+
 /**
  * The SEC's latest 8-K filings (Atom). An entry's title is "8-K - COMPANY NAME (CIK) (Filer)" and its summary
  * gives the filing date, accession number and the 8-K items ("Item 2.02: Results of Operations ...").
@@ -208,7 +254,9 @@ export function newsAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.news === 'function';
 }
 
-const PARSE: Record<NewsSource, (t: string) => MarketStory[] | { error: string }> = {
+const PARSE: Record<NewsSource, (t: string, arg: string) => MarketStory[] | { error: string }> = {
+  'yahoo-rss': (t, arg) => parseYahooRss(t, arg),
+  'euronext-pr': (t) => parseEuronextPr(t),
   'finnhub-market': parseFinnhubNews,
   'finnhub-company': parseFinnhubNews,
   marketaux: parseMarketaux,
@@ -236,7 +284,7 @@ export async function loadNews(source: NewsSource, arg = '', minMs = 60_000): Pr
       if (!res.budget) retryLater(key, minMs);
       return set({ state: res.budget ? 'budget' : 'error', message: res.budget ? "Today's allowance for this source is spent; it resets at midnight UTC." : res.error ?? `HTTP ${res.status}` });
     }
-    const parsed = PARSE[source](res.text);
+    const parsed = PARSE[source](res.text, arg);
     if (!Array.isArray(parsed)) return set({ state: 'error', message: parsed.error, at: res.at });
     // A stale answer means the newest request failed: keep backing off, but show what arrived before.
     if (res.stale) retryLater(key, minMs);
@@ -273,6 +321,7 @@ export function useMarketNews(watch: string[]) {
       void loadNews('finnhub-market', '', 5 * 60_000);
       void loadNews('marketwatch', '', 10 * 60_000);
       void loadNews('edgar-8k', '', 10 * 60_000);
+      void loadNews('euronext-pr', '', 10 * 60_000);
       // Marketaux: one request for the whole list, at most once an hour (the main process keeps it an hour).
       if (symbols) void loadNews('marketaux', symbols, 60 * 60_000);
     };
@@ -301,6 +350,27 @@ export function useCompanyNews(symbol: string | null, marketaux = true) {
     return () => clearInterval(t);
   }, [symbol, marketaux]);
   return v;
+}
+
+/** Yahoo Finance's headlines for one Yahoo symbol (any market it lists) while a screen shows them. */
+export function useYahooHeadlines(yahooSymbol: string | null | undefined) {
+  const v = marketNews.use((x) => x.v);
+  useEffect(() => {
+    if (!yahooSymbol || !newsAvailable()) return;
+    const tick = () => void loadNews('yahoo-rss', yahooSymbol.toUpperCase(), 15 * 60_000);
+    tick();
+    const t = setInterval(tick, 5 * 60_000);
+    return () => clearInterval(t);
+  }, [yahooSymbol]);
+  return v;
+}
+
+/** Yahoo's headlines for a symbol, and the state of that request. */
+export function yahooHeadlines(yahooSymbol: string | null | undefined): { stories: MarketStory[]; feed?: FeedState } {
+  if (!yahooSymbol) return { stories: [] };
+  const key = `yahoo-rss:${yahooSymbol.toUpperCase()}`;
+  const s = marketNews.get();
+  return { stories: s.lists[key] ?? [], feed: s.feeds[key] };
 }
 
 /** The stories of the requests whose keys start with one of `prefixes`, merged. */

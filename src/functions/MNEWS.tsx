@@ -4,7 +4,8 @@ import { fmtDate, fmtStamp, fmtTime } from '../core/format';
 import { engine } from '../data/market';
 import { useProviderReport } from '../data/providers';
 import { secTicker } from '../data/live/sec';
-import { companyFeeds, companyStories, marketNews, newsAvailable, sameTicker, storiesFor, useCompanyNews, useMarketNews, watchSymbols, type FeedState, type MarketStory } from '../data/live/marketnews';
+import { companyFeeds, companyStories, marketNews, mergeStories, newsAvailable, sameTicker, storiesFor, useCompanyNews, useMarketNews, useYahooHeadlines, watchSymbols, yahooHeadlines, type FeedState, type MarketStory } from '../data/live/marketnews';
+import { yahooSymbolFor } from '../data/live/yahoo';
 import { watchlists } from '../terminal/userdata';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
@@ -126,7 +127,7 @@ export function MNEWS({ route, sec }: FnProps) {
   const feeds = marketNews.use((s) => s.feeds);
   const [report] = useProviderReport(5000);
   const used = report?.providers.marketaux?.today;
-  const all = useMemo(() => storiesFor(['finnhub-market', 'marketwatch', 'edgar-8k', 'marketaux']), [v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const all = useMemo(() => storiesFor(['finnhub-market', 'marketwatch', 'edgar-8k', 'marketaux', 'euronext-pr']), [v]); // eslint-disable-line react-hooks/exhaustive-deps
   const t = ticker.replace(/^\$/, '');
   const list = all.filter((s) => TABS[tab - 1].test(s) && (!t || s.tickers.some((x) => sameTicker(x, t)) || s.title.toUpperCase().includes(t)) && (!q.trim() || `${s.title} ${s.summary ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()))).slice(0, 300);
   const mk = watch.length ? feeds[`marketaux:${watchSymbols(watch)}`] : undefined;
@@ -135,6 +136,7 @@ export function MNEWS({ route, sec }: FnProps) {
     feedWord('Finnhub', feeds['finnhub-market']),
     feedWord('MarketWatch', feeds.marketwatch),
     feedWord('SEC 8-K', feeds['edgar-8k']),
+    feedWord('Euronext', feeds['euronext-pr']),
     feedWord('Marketaux', mk, used != null ? ` · ${used} of 90 requests today` : ''),
   ].join(' · ');
   return (
@@ -172,34 +174,42 @@ export function CompanyNews({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
   const symbol = secTicker(s);
+  // Yahoo's headlines cover any market Yahoo lists (Brussels, Paris, Amsterdam...), with or without keys.
+  const ysym = s.cls === 'equity' ? (yahooSymbolFor(s) ?? s.yahoo ?? null) : null;
   const v = useCompanyNews(symbol);
+  const vy = useYahooHeadlines(ysym);
   const feeds = marketNews.use((x) => x.feeds);
-  const stories = useMemo(() => (symbol ? companyStories(symbol) : []), [symbol, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const yh = yahooHeadlines(ysym);
+  const stories = useMemo(() => mergeStories([symbol ? companyStories(symbol) : [], yh.stories]), [symbol, ysym, v, vy]); // eslint-disable-line react-hooks/exhaustive-deps
   const { finnhub: fin, marketaux: mk } = symbol ? companyFeeds(feeds, symbol) : {};
+  const states = [...(symbol ? [fin, mk] : []), ...(ysym ? [yh.feed] : [])];
+  const status = [...(symbol ? [feedWord('Finnhub', fin), feedWord('Marketaux', mk)] : []), ...(ysym ? [feedWord('Yahoo Finance', yh.feed)] : [])].join(' · ');
   return (
     <div className="fn-fill">
-      <FnHeader code="COMPANYNEWS" title="Company News" sec={s} sub={symbol ? `${stories.length} stories · ${feedWord('Finnhub', fin)} · ${feedWord('Marketaux', mk)}` : 'US-listed stocks'} />
+      <FnHeader code="COMPANYNEWS" title="Company News" sec={s} sub={symbol || ysym ? `${stories.length} stories · ${status}` : 'Stocks'} />
       <div className="chart-tools">
-        <button type="button" className="btn" onClick={() => execute(panel, `${s.id} FILINGS`)}>
-          Its SEC filings
-        </button>
-        <span className="muted hide-m">News from the last week (Finnhub) and Marketaux&apos;s latest stories tagged {symbol ?? 'with the ticker'}, newest first.</span>
+        {symbol ? (
+          <button type="button" className="btn" onClick={() => execute(panel, `${s.id} FILINGS`)}>
+            Its SEC filings
+          </button>
+        ) : null}
+        <span className="muted hide-m">{symbol ? 'News from the last week (Finnhub), Marketaux\'s latest stories and Yahoo Finance headlines' : 'Yahoo Finance headlines'} for {s.ticker}, newest first.</span>
       </div>
-      {!symbol ? (
-        <div className="empty">Company news here covers US-listed stocks; {s.ticker} is not one.</div>
+      {!symbol && !ysym ? (
+        <div className="empty">Company news covers stocks; {s.ticker} is not one.</div>
       ) : !newsAvailable() ? (
         <div className="empty">Company news is read by the desktop app; the browser build has no data source.</div>
       ) : (
         <StoryList
           stories={stories}
           empty={
-            fin?.state === 'loading' || mk?.state === 'loading' || (!fin && !mk)
+            states.some((f) => !f || f.state === 'loading')
               ? 'Loading company news…'
-              : (fin?.state === 'needs-key' || fin?.state === 'off') && (mk?.state === 'needs-key' || mk?.state === 'off')
-                ? 'Company news needs your Finnhub key or Marketaux token, with their switches on (PROVIDERS).'
-                : `No stories for ${symbol} from the sources in the last week: the line above says what each returned.`
+              : states.every((f) => f?.state === 'needs-key' || f?.state === 'off')
+                ? 'Company news needs a source switched on with its key (PROVIDERS).'
+                : `No recent stories for ${s.ticker} from the sources: the line above says what each returned.`
           }
-          symbol={symbol}
+          symbol={symbol ?? ysym ?? undefined}
         />
       )}
     </div>

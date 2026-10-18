@@ -17,7 +17,8 @@ import { news } from '../data/news';
 import { execute } from '../terminal/exec';
 import { requestCompanyNews } from '../data/live/feeds';
 import { iexFreshness, useIex, type IexState } from '../data/live/alpaca';
-import { companyFeeds, companyStories, marketNews, useCompanyNews } from '../data/live/marketnews';
+import { companyFeeds, companyStories, marketNews, mergeStories, useCompanyNews, useYahooHeadlines, yahooHeadlines } from '../data/live/marketnews';
+import { yahooSymbolFor } from '../data/live/yahoo';
 import { secTicker } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
 import type { Quote, SecurityDef } from '../data/types';
@@ -39,8 +40,11 @@ export function BQ({ sec }: FnProps) {
   const iexState = useIex(usStock ? s : undefined);
   const nv = useCompanyNews(usStock, false);
   const feeds = marketNews.use((x) => x.feeds);
-  const companyNews = useMemo(() => (usStock ? companyStories(usStock).slice(0, 8) : []), [usStock, nv]); // eslint-disable-line react-hooks/exhaustive-deps
-  const newsFeed = usStock ? companyFeeds(feeds, usStock).finnhub : undefined;
+  // Yahoo's headlines also cover stocks listed outside the US (Brussels, Paris, Amsterdam...).
+  const ysym = engine.realOnly && s.cls === 'equity' ? (yahooSymbolFor(s) ?? s.yahoo ?? null) : null;
+  const yv = useYahooHeadlines(ysym);
+  const companyNews = useMemo(() => mergeStories([usStock ? companyStories(usStock) : [], yahooHeadlines(ysym).stories]).slice(0, 8), [usStock, ysym, nv, yv]); // eslint-disable-line react-hooks/exhaustive-deps
+  const newsFeed = usStock ? companyFeeds(feeds, usStock).finnhub : yahooHeadlines(ysym).feed;
   let vwap = NaN;
   {
     let pv = 0;
@@ -166,7 +170,7 @@ export function BQ({ sec }: FnProps) {
         </Section>
       </div>
       {engine.realOnly ? (
-        usStock ? (
+        usStock || ysym ? (
           <div className="cols">
             {iexState ? (
               <Section
@@ -204,14 +208,18 @@ export function BQ({ sec }: FnProps) {
                   {newsFeed?.state === 'needs-key' || newsFeed?.state === 'off'
                     ? `Company news: ${newsFeed.message}`
                     : newsFeed?.state === 'error'
-                      ? `Finnhub: ${newsFeed.message}`
+                      ? `${usStock ? 'Finnhub' : 'Yahoo Finance'}: ${newsFeed.message}`
                       : newsFeed?.state === 'ok'
-                        ? 'No stories in the last week from Finnhub.'
+                        ? 'No recent stories from the sources.'
                         : 'Loading company news…'}{' '}
-                  A company&apos;s own announcements are its filings:{' '}
-                  <button type="button" className="act" onClick={() => execute(panel, `${s.id} FILINGS`)}>
-                    FILINGS ›
-                  </button>
+                  {usStock ? (
+                    <>
+                      A company&apos;s own announcements are its filings:{' '}
+                      <button type="button" className="act" onClick={() => execute(panel, `${s.id} FILINGS`)}>
+                        FILINGS ›
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               )}
             </Section>

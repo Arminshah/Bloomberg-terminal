@@ -525,7 +525,7 @@ ipcMain.handle('finnhub', async (event, kind, symbol) => {
   return keyedGet('finnhub', req.url, finnhub.finnhubHeaders(key.value), req.ttl, [30, 60_000], [key.value]);
 });
 
-const NEWS_PACE = { finnhub: [30, 60_000], marketaux: [10, 60_000], marketwatch: [6, 60_000], sec: [sec.PER_SECOND, 1000] };
+const NEWS_PACE = { finnhub: [30, 60_000], marketaux: [10, 60_000], marketwatch: [6, 60_000], sec: [sec.PER_SECOND, 1000], 'yahoo-rss': [20, 60_000], euronext: [6, 60_000] };
 
 ipcMain.handle('news', async (event, source, arg) => {
   if (!fromApp(event) || !news.newsRequest(source, arg, 'x')) throw new Error('not allowed');

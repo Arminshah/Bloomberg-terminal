@@ -173,6 +173,9 @@ const SETTINGS = {
   ALPACA_ENABLED: { label: 'Alpaca IEX stocks and indicative options (market data only)', default: true },
   ALPACA_IEX_PRICES_ENABLED: { label: 'Use Alpaca IEX only prices for US equities', default: false },
   TIINGO_ENABLED: { label: 'Tiingo end-of-day closes', default: true },
+  // Yahoo's RSS terms allow displaying the feed as given, with attribution and a link to the article.
+  YAHOO_RSS_ENABLED: { label: 'Yahoo Finance headlines RSS per ticker', default: true },
+  EURONEXT_RSS_ENABLED: { label: 'Euronext company press releases RSS', default: true },
 };
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'provider-settings.json');

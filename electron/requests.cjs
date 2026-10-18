@@ -10,6 +10,9 @@ function retryAfter(value, now) {
   return Number.isFinite(until) ? Math.max(0, until - now) : 0;
 }
 
+/** Providers whose answers are RSS or Atom feeds rather than JSON. */
+const XML_PROVIDERS = new Set(['marketwatch', 'sec', 'yahoo-rss', 'euronext']);
+
 function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random = Math.random }) {
   const kept = new Map();
   const inflight = new Map();
@@ -109,7 +112,7 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
         try {
           if (!text.trim()) throw new Error('empty body');
           // News feeds can be XML; every other keyed endpoint speaks JSON.
-          if (provider !== 'marketwatch' && provider !== 'sec') JSON.parse(text);
+          if (!XML_PROVIDERS.has(provider)) JSON.parse(text);
         } catch {
           problem = { kind: 'provider-error', message: 'The provider returned an empty or invalid JSON response.' };
         }

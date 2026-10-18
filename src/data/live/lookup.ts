@@ -1,3 +1,4 @@
+import { EU_EXCHANGES, parseListing, yahooListingSymbol, type Listing } from '../listings';
 import { BROWSER_FEEDS_ENABLED } from '../providers';
 import { createStore } from '../../core/store';
 import { engine } from '../market';
@@ -215,6 +216,32 @@ function baseDef(ticker: string, name: string, exch: string, px: number, vol: nu
   };
 }
 
+/** A stock listed in Europe, named the app's way (ABI BB), in the currency its exchange quotes it in. */
+function listingDef(root: string, l: Listing, name: string, ccy: string, px: number, vol: number, adv: number, eq: EquityInfo, symbol: string, anchors: [string, number][]): SecurityDef {
+  // London quotes most shares in pence.
+  const minor = ccy === 'GBp' || ccy === 'GBX';
+  return {
+    id: `${root} ${l.code} Equity`,
+    ticker: `${root} ${l.code}`,
+    yk: 'Equity',
+    name,
+    cls: 'equity',
+    ccy: minor ? 'GBp' : ccy,
+    country: l.country,
+    region: 'EMEA',
+    exch: l.exch,
+    px,
+    vol,
+    dec: minor ? 1 : px < 1 ? 4 : 2,
+    adv,
+    quote: 'price',
+    eq,
+    ...(minor ? { minor: true } : {}),
+    alias: [symbol],
+    dynamic: { source: 'yahoo', symbol, loaded: Date.now(), anchors },
+  };
+}
+
 // ------------------------------------------------------------------- Yahoo
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -226,14 +253,17 @@ const raw = (o: Json, k: string): number | undefined => {
 };
 
 /** Builds a security from Yahoo chart (daily, multi-year) and quoteSummary responses. */
-export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def: SecurityDef; bars: Bar[] } | { error: string } {
+export function defFromYahoo(ticker: string, chart: Json, summary: Json, listed?: { root: string; listing: Listing }): { def: SecurityDef; bars: Bar[] } | { error: string } {
   const meta = chart?.chart?.result?.[0]?.meta;
   if (!meta) return { error: `No data for ${ticker}` };
   if (meta.instrumentType && meta.instrumentType !== 'EQUITY') {
     const kind: Record<string, string> = { ETF: 'an ETF', MUTUALFUND: 'a mutual fund', INDEX: 'an index', CRYPTOCURRENCY: 'a cryptocurrency', CURRENCY: 'a currency', FUTURE: 'a future', OPTION: 'an option' };
     return { error: `${ticker} is ${kind[meta.instrumentType] ?? 'not a stock'}; only stocks can be looked up` };
   }
-  if (meta.currency !== 'USD' || !YAHOO_EXCH[meta.exchangeName]) return { error: `${ticker} is not listed on a US exchange` };
+  if (listed) {
+    if (EU_EXCHANGES[meta.exchangeName] !== listed.listing) return { error: `${ticker} is not listed on ${listed.listing.exch}` };
+  } else if (meta.currency !== 'USD' || !YAHOO_EXCH[meta.exchangeName]) return { error: `${ticker} is not listed on a US exchange` };
+  const exchName = listed ? listed.listing.exch : YAHOO_EXCH[meta.exchangeName];
   const bars = barsFromChart(chart).bars;
   if (bars.length < 5) return { error: `Not enough price history for ${ticker}` };
   const r = summary?.quoteSummary?.result?.[0] ?? {};
@@ -245,7 +275,9 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
   const last = bars[bars.length - 1].c;
   const mcap = raw(pr, 'marketCap') ?? raw(sd, 'marketCap');
   const shares = (raw(ks, 'sharesOutstanding') ?? (mcap ? mcap / last : 0)) / 1e6;
-  if (!(shares > 0)) return { error: `No company profile for ${ticker}` };
+  // Yahoo's company summary needs its session cookie; without it (EU cookies not accepted) the stock still
+  // loads from its price history, and the share count stays unknown until the company data arrives.
+  if (!(shares > 0) && summary?.quoteSummary?.result?.[0]) return { error: `No company profile for ${ticker}` };
   // A figure the source does not give stays missing (NaN), never a default or an estimate.
   const opt = (v: number | undefined) => (v == null ? NaN : v);
   const rev = opt(raw(fd, 'totalRevenue')) / 1e6;
@@ -269,7 +301,7 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
   const eq: EquityInfo = {
     sector,
     industry: ap.industry ?? sector,
-    shares,
+    shares: shares > 0 ? shares : NaN,
     beta: opt(raw(ks, 'beta')),
     rev,
     ni,
@@ -281,13 +313,15 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json): { def:
     fye,
     netDebt: debt != null && cash != null ? (debt - cash) / 1e6 : NaN,
     book,
-    desc: shortDesc(ap.longBusinessSummary, `${name} is listed on ${YAHOO_EXCH[meta.exchangeName]}.`),
+    desc: shortDesc(ap.longBusinessSummary, `${name} is listed on ${exchName}.`),
     lag,
   };
   const recent = bars.slice(-63).filter((b) => b.v > 0);
   const adv = recent.length ? Math.round(recent.reduce((a, b) => a + b.v, 0) / recent.length) : 0;
   const hist = bars.filter((b) => b.day < engine.today);
-  const def = baseDef(ticker, name, YAHOO_EXCH[meta.exchangeName], last, realisedVol(bars), adv, eq, 'yahoo', yahooSymbol(ticker), anchorsFromBars(hist));
+  const def = listed
+    ? listingDef(listed.root, listed.listing, name, String(meta.currency ?? ''), last, realisedVol(bars), adv, eq, yahooListingSymbol(listed.root, listed.listing), anchorsFromBars(hist))
+    : baseDef(ticker, name, exchName, last, realisedVol(bars), adv, eq, 'yahoo', yahooSymbol(ticker), anchorsFromBars(hist));
   return { def, bars };
 }
 
@@ -388,6 +422,8 @@ function persist(def: SecurityDef) {
 
 /** Looks a ticker up online and registers it. Resolves once the security can be used. */
 export function lookupSecurity(input: string): Promise<LookupResult> {
+  const listed = parseListing(input);
+  if (listed) return lookupListing(listed);
   const ticker = normalizeTicker(input);
   if (!ticker) return Promise.resolve({ ok: false, reason: `${input.toUpperCase()} is not a valid ticker` });
   const existing = engine.get(`${ticker} US Equity`);
@@ -424,6 +460,36 @@ export function lookupSecurity(input: string): Promise<LookupResult> {
   return job;
 }
 
+/** A stock listed on a European exchange (ABI BB, ABI.BR), from Yahoo Finance in the desktop app. */
+function lookupListing(listed: { root: string; listing: Listing }): Promise<LookupResult> {
+  const name = `${listed.root} ${listed.listing.code}`;
+  const existing = engine.get(`${name} Equity`);
+  if (existing) return Promise.resolve({ ok: true, def: existing });
+  if (lookupSource() !== 'yahoo') return Promise.resolve({ ok: false, reason: `${name} is not in the built-in list. The desktop app looks up stocks on European exchanges` });
+  const pending = inflight.get(name);
+  if (pending) return pending;
+  const job = (async (): Promise<LookupResult> => {
+    try {
+      const sym = encodeURIComponent(yahooListingSymbol(listed.root, listed.listing));
+      const chart = await yahooGet(`/v8/finance/chart/${sym}?range=10y&interval=1d&events=div%2Csplit&includePrePost=false`);
+      if (!chart?.chart?.result?.[0]) return { ok: false, reason: `${name} was not found on ${listed.listing.exch}` };
+      const summary = await yahooGet(`/v10/finance/quoteSummary/${sym}?modules=assetProfile,defaultKeyStatistics,financialData,summaryDetail,price,calendarEvents`).catch(() => null);
+      const built = defFromYahoo(name, chart, summary, listed);
+      if ('error' in built) return { ok: false, reason: built.error };
+      engine.addSecurity(built.def, { bars: built.bars });
+      persist(built.def);
+      adoptYahooHistory(built.def.id, built.def.dynamic!.symbol, built.bars, barsFromChart(chart).dividends);
+      return { ok: true, def: built.def };
+    } catch (err) {
+      return { ok: false, reason: err instanceof TypeError ? 'Could not reach Yahoo Finance (offline?)' : err instanceof Error ? err.message : String(err) };
+    } finally {
+      inflight.delete(name);
+    }
+  })();
+  inflight.set(name, job);
+  return job;
+}
+
 /** Online search by ticker or company name (US-listed stocks). */
 export async function searchOnline(q: string): Promise<OnlineHit[]> {
   const source = lookupSource();
@@ -431,8 +497,13 @@ export async function searchOnline(q: string): Promise<OnlineHit[]> {
   if (source === 'yahoo') {
     const res = await yahooGet(`/v1/finance/search?q=${encodeURIComponent(q.trim())}&quotesCount=12&newsCount=0`);
     return ((res?.quotes ?? []) as Json[])
-      .filter((x) => x.quoteType === 'EQUITY' && YAHOO_EXCH[x.exchange])
-      .map((x) => ({ symbol: String(x.symbol).replace('-', '/'), name: x.longname ?? x.shortname ?? x.symbol, exchange: YAHOO_EXCH[x.exchange] }));
+      .filter((x) => x.quoteType === 'EQUITY' && (YAHOO_EXCH[x.exchange] || EU_EXCHANGES[x.exchange]))
+      .map((x) => {
+        const eu = EU_EXCHANGES[x.exchange];
+        // A European listing is named the app's way: KBC.BR is KBC BB.
+        const symbol = eu ? `${String(x.symbol).replace(/\.[A-Z]+$/, '').replace('-', '/')} ${eu.code}` : String(x.symbol).replace('-', '/');
+        return { symbol, name: x.longname ?? x.shortname ?? x.symbol, exchange: eu ? eu.exch : YAHOO_EXCH[x.exchange] };
+      });
   }
   const res = await finnhubGet(`/search?q=${encodeURIComponent(q.trim())}&exchange=US`);
   return ((res?.result ?? []) as Json[])
