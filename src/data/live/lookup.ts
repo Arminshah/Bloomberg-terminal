@@ -45,7 +45,7 @@ declare global {
       providersClear?(name: string): Promise<{ ok: boolean; credentials: import('../providers').ProviderReport['credentials'] }>;
       yahooConsent?(): Promise<{ ok: boolean; detail: string }>;
       providersSelfTest?(): Promise<{ at: number; version: string; platform: string; report: string; results: { id: string; label: string; state: 'pass' | 'fail' | 'skip' | 'off'; status?: number; ms?: number; detail: string }[] }>;
-      providersImport?(text: string): Promise<{ ok: boolean; error?: string; saved: string[]; skipped: { line?: number; name?: string; reason: string }[]; credentials: import('../providers').ProviderReport['credentials'] }>;
+      providersImport?(text: string): Promise<{ ok: boolean; error?: string; saved: string[]; skipped: { line?: number; name?: string; reason: string }[]; notes?: { line: number; name: string; note: string }[]; credentials: import('../providers').ProviderReport['credentials'] }>;
       providersSetting?(name: string, value: boolean): Promise<{ ok: boolean; error?: string; settings: import('../providers').ProviderReport['settings'] }>;
       streamOpen?(): Promise<void>;
       streamSend?(msg: string): Promise<void>;

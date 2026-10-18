@@ -4,8 +4,8 @@ export type CredentialName =
   | 'FINNHUB_API_KEY' | 'MARKETAUX_API_TOKEN' | 'TIINGO_API_KEY' | 'ALPACA_API_KEY_ID' | 'ALPACA_API_SECRET_KEY' | 'FMP_API_KEY' | 'TIPRANKS_API_KEY';
 export const CREDENTIALS: Record<CredentialName, { label: string; valid: (v: string) => boolean }>;
 export const DAILY: Record<string, { limit: number; cap: number }>;
-export function parseCredentialList(text: string): { found: { name: CredentialName; value: string }[]; skipped: { line?: number; name?: string; reason: string }[] };
-export function importCredentials(text: string): { saved: string[]; skipped: { line?: number; name?: string; reason: string }[] };
+export function parseCredentialList(text: string): { found: { name: CredentialName; value: string }[]; skipped: { line?: number; name?: string; reason: string }[]; notes: { line: number; name: string; note: string }[] };
+export function importCredentials(text: string): { saved: string[]; skipped: { line?: number; name?: string; reason: string }[]; notes: { line: number; name: string; note: string }[] };
 export function usedToday(provider: string): number;
 export function withinDailyCap(provider: string): boolean;
 export function credential(name: string): { value: string; source: string | null };

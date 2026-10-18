@@ -286,7 +286,8 @@ function ImportKeys({ onChange }: { onChange: () => void }) {
       if (!res.ok) setResult(res.error ?? 'Nothing was saved.');
       else {
         const skipped = res.skipped.map((x) => `${x.line ? `line ${x.line}` : x.name}: ${x.reason}`);
-        setResult(`${res.saved.length ? `Saved ${res.saved.join(', ')}.` : 'Nothing was saved.'}${skipped.length ? ` Not saved: ${skipped.join('; ')}.` : ''}`);
+        const notes = (res.notes ?? []).map((x) => `${x.name}: ${x.note}`);
+        setResult(`${res.saved.length ? `Saved ${res.saved.join(', ')}.` : 'Nothing was saved.'}${notes.length ? ` Note: ${notes.join('; ')}.` : ''}${skipped.length ? ` Not saved: ${skipped.join('; ')}.` : ''}`);
         if (res.saved.includes('FRED_API_KEY')) reloadFred();
       }
     } catch {
