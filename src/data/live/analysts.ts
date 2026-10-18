@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { createStore } from '../../core/store';
 import type { SecurityDef } from '../types';
 import { secTicker } from './sec';
+import type { KeyedAnswer } from './lookup';
 
 /**
  * Analyst research from Financial Modeling Prep, asked by the desktop app's main process with the owner's
@@ -44,6 +45,8 @@ export interface RatingTally {
   strongSell: number;
   /** FMP's own word for the balance: Strong Buy, Buy, Hold, Sell or Strong Sell. */
   consensus: string;
+  /** Finnhub reports a monthly recommendation period, distinct from retrieval time. */
+  period?: string;
 }
 
 export interface RatingAction {
@@ -172,6 +175,7 @@ export interface AnalystPart<T = unknown> {
   at?: number;
   /** A newer request failed; this is the last answer that arrived. */
   stale?: boolean;
+  source?: 'FMP' | 'Finnhub';
 }
 
 type ByKind = Partial<Record<AnalystKind, AnalystPart>>;
@@ -180,7 +184,8 @@ export const analystData = createStore<{ v: number; by: Record<string, ByKind>; 
 
 /** After keys or switches change on PROVIDERS: open screens ask again for what needed a key. */
 export function retryAnalysts() {
-  analystData.set((s) => ({ ...s, retry: s.retry + 1 }));
+  asked.clear();
+  analystData.set((s) => ({ ...s, by: {}, retry: s.retry + 1 }));
 }
 const asked = new Map<string, number>();
 
@@ -193,12 +198,48 @@ export function analystSymbol(def: SecurityDef | undefined): string | null {
   return secTicker(def);
 }
 
-/** FMP's refusal in words; 402 is how it says a plan does not include something. */
+/** A refusal describes this request/account, not an assumption about the user's plan. */
 export function fmpProblem(status: number, symbol: string, error?: string): string {
   const said = error?.replace(/^HTTP \d+:?\s*/, '');
-  if (status === 402) return `FMP's free plan does not include this for ${symbol} (HTTP 402, payment required)${said ? `: ${said}` : '.'}`;
-  if (status === 401 || status === 403) return `FMP refused the key (HTTP ${status})${said ? `: ${said}` : '.'} Check FMP_API_KEY on PROVIDERS.`;
+  if (status === 402) return `Your FMP subscription does not include this request for ${symbol} (HTTP 402)${said ? `: ${said}` : '.'}`;
+  if (status === 401 || status === 403) return `FMP denied access (HTTP ${status})${said ? `: ${said}` : '.'} Check the key and endpoint permissions on PROVIDERS.`;
   return error ?? (status ? `FMP answered HTTP ${status}` : 'FMP did not answer');
+}
+
+/** Finnhub's latest valid monthly count. No target/consensus word is invented. */
+export function parseFinnhubRatings(text: string, symbol: string): Parsed<RatingTally | null> {
+  const rows = list(text);
+  if (!Array.isArray(rows)) return rows;
+  const fields = ['strongBuy', 'buy', 'hold', 'sell', 'strongSell'] as const;
+  const row = rows.filter((r) => r && String(r.symbol).replace(/\./g, '-') === symbol.replace(/\./g, '-') && /^\d{4}-\d{2}-\d{2}$/.test(r.period) && Number.isFinite(Date.parse(`${r.period}T00:00:00Z`)) && new Date(`${r.period}T00:00:00Z`).toISOString().slice(0, 10) === r.period && fields.every((k) => Number.isInteger(r[k]) && r[k] >= 0))
+    .sort((a, b) => b.period.localeCompare(a.period))[0];
+  if (!row || fields.reduce((sum, k) => sum + row[k], 0) <= 0) return { data: null };
+  return { data: { strongBuy: row.strongBuy, buy: row.buy, hold: row.hold, sell: row.sell, strongSell: row.strongSell, consensus: '', period: row.period } };
+}
+
+function responsePart(res: KeyedAnswer, kind: AnalystKind, symbol: string, source: 'FMP' | 'Finnhub'): AnalystPart {
+  if (res.gated) return { state: 'off', source, message: `${source} is switched off (${res.gated} on PROVIDERS).` };
+  if (res.missing || res.refused) return { state: 'needs-key', source, message: res.refused ? `${source}'s configured key has the wrong format.` : `Needs ${source === 'FMP' ? 'FMP_API_KEY' : 'FINNHUB_API_KEY'} on PROVIDERS.` };
+  if (!res.text) return { state: res.budget ? 'budget' : 'error', source, message: res.budget ? `Today's ${source} allowance in this app is spent; it resets at midnight UTC.` : source === 'FMP' ? fmpProblem(res.status, symbol, res.error) : `Finnhub: ${res.error ?? (res.status ? `HTTP ${res.status}` : 'did not answer')}. HTTP 401 means the REST key was rejected; the webhook secret cannot authenticate data requests.` };
+  const parsed = source === 'Finnhub' ? parseFinnhubRatings(res.text, symbol) : PARSE[kind](res.text);
+  if ('error' in parsed) return { state: 'error', source, message: parsed.error, at: res.at };
+  return { state: 'ok', source, data: parsed.data, at: res.at, stale: res.stale, message: res.stale ? res.error ?? 'The latest refresh failed; showing the earlier answer.' : undefined };
+}
+
+/** Independent requests allow one research section to fail without hiding the others. */
+export async function loadAnalystPart(kind: AnalystKind, symbol: string, api: {
+  analysts(kind: AnalystKind, symbol: string): Promise<KeyedAnswer>;
+  finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
+}): Promise<AnalystPart> {
+  const safe = async (request: () => Promise<KeyedAnswer>) => {
+    try { return await request(); } catch { return { status: 0, text: '', error: 'The research request could not be completed.' }; }
+  };
+  const primary = responsePart(await safe(() => api.analysts(kind, symbol)), kind, symbol, 'FMP');
+  if (kind !== 'ratings' || !api.finnhubResearch || (primary.state === 'ok' && primary.data && !primary.stale)) return primary;
+  const fallback = responsePart(await safe(() => api.finnhubResearch!('ratings', symbol)), kind, symbol, 'Finnhub');
+  if (fallback.state === 'ok' && fallback.data && (!fallback.stale || primary.state !== 'ok' || !primary.data)) return { ...fallback, message: `FMP ratings unavailable; showing Finnhub recommendation counts${fallback.message ? `. ${fallback.message}` : '.'}` };
+  if (primary.state === 'ok' && primary.data) return primary;
+  return { ...primary, message: `${primary.message ?? 'FMP has no ratings for this symbol.'} ${fallback.message ?? 'Finnhub has no recommendation counts for this symbol.'}` };
 }
 
 function put(symbol: string, kind: AnalystKind, part: AnalystPart) {
@@ -210,21 +251,13 @@ async function load(symbol: string, kind: AnalystKind) {
   // The main process keeps answers for hours; asking again within ten minutes only repeats that.
   if (Date.now() - (asked.get(key) ?? 0) < 10 * 60_000) return;
   asked.set(key, Date.now());
+  const generation = analystData.get().retry;
   if (!analystData.get().by[symbol]?.[kind]) put(symbol, kind, { state: 'loading' });
   try {
-    const res = await window.arminDesktop!.analysts!(kind, symbol);
-    // No key or the switch off costs no request: the next screen asks again, in case they were set meanwhile.
-    if (res.gated || res.missing || res.refused) asked.delete(key);
-    if (res.gated) return put(symbol, kind, { state: 'off', message: `Financial Modeling Prep is switched off (${res.gated} on PROVIDERS).` });
-    if (res.missing || res.refused) return put(symbol, kind, { state: 'needs-key', message: res.refused ? 'The configured FMP_API_KEY has the wrong format.' : 'Needs FMP_API_KEY (PROVIDERS).' });
-    if (!res.text) {
-      // A refusal (4xx) stands for the ten minutes; a network failure, a server error or a rate limit may pass.
-      if (!(res.status >= 400 && res.status < 500 && res.status !== 429)) asked.delete(key);
-      return put(symbol, kind, { state: res.budget ? 'budget' : 'error', message: res.budget ? "Today's FMP allowance in this app is spent; it resets at midnight UTC." : fmpProblem(res.status, symbol, res.error) });
-    }
-    const parsed = PARSE[kind](res.text);
-    if ('error' in parsed) return put(symbol, kind, { state: 'error', message: parsed.error, at: res.at });
-    put(symbol, kind, { state: 'ok', data: parsed.data, at: res.at, stale: res.stale });
+    const part = await loadAnalystPart(kind, symbol, { analysts: window.arminDesktop!.analysts!, finnhubResearch: window.arminDesktop!.finnhubResearch });
+    if (generation !== analystData.get().retry) return;
+    if (part.state === 'needs-key' || part.state === 'off') asked.delete(key);
+    put(symbol, kind, part);
   } catch (err) {
     asked.delete(key);
     put(symbol, kind, { state: 'error', message: String((err as Error)?.message ?? err) });

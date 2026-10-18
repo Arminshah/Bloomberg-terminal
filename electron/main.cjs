@@ -456,6 +456,9 @@ const fmp = require('./fmp.cjs');
 const news = require('./news.cjs');
 const alpaca = require('./alpaca.cjs');
 const { optionChainRequest, optionChainProblem } = require('./option-chain.cjs');
+const equibles = require('./equibles.cjs');
+const { finnhubResearchRequest } = require('./finnhub-research.cjs');
+const equiblesClient = equibles.createEquiblesClient({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent });
 
 // Credential-scoped cache, deduplication, retries, quotas and provider-body errors are tested
 // independently of Electron in requests.test.ts. Never count HTTP-200 error bodies as success.
@@ -486,6 +489,23 @@ ipcMain.handle('analysts', async (event, kind, symbol) => {
   if (!key.value) return { status: 0, text: '', ...key };
   const req = fmp.fmpRequest(kind, symbol, key.value);
   return keyedGet('fmp', req.url, {}, req.ttl, [30, 60_000], [key.value]);
+});
+
+ipcMain.handle('finnhub-research', async (event, kind, symbol) => {
+  const url = finnhubResearchRequest(kind, symbol);
+  if (!fromApp(event) || !url) throw new Error('not allowed');
+  if (!providers.setting('FINNHUB_ENABLED').value) return { status: 0, text: '', gated: 'FINNHUB_ENABLED' };
+  const key = usableKey('FINNHUB_API_KEY', 'finnhub');
+  if (!key.value) return { status: 0, text: '', ...key };
+  return keyedGet('finnhub', url, { 'X-Finnhub-Token': key.value }, 6 * 3_600_000, [30, 60_000], [key.value]);
+});
+
+ipcMain.handle('equibles', async (event, kind, symbol) => {
+  if (!fromApp(event) || !equibles.validRequest(kind, symbol)) throw new Error('not allowed');
+  if (!providers.setting('EQUIBLES_ENABLED').value) return { status: 0, text: '', gated: 'EQUIBLES_ENABLED' };
+  const key = usableKey('EQUIBLES_API_KEY', 'equibles');
+  if (!key.value) return { status: 0, text: '', ...key };
+  return equiblesClient.research(kind, symbol, key.value);
 });
 
 const NEWS_PACE = { finnhub: [30, 60_000], marketaux: [10, 60_000], marketwatch: [6, 60_000], sec: [sec.PER_SECOND, 1000] };

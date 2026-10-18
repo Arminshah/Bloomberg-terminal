@@ -4,7 +4,8 @@ import { NotConnected } from '../components/NotConnected';
 import { HBar, KV, LivePx, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
+import { analystsAvailable, analystSymbol, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
+import { EquiblesResearch } from '../components/EquiblesResearch';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -29,8 +30,8 @@ export function ANR({ sec }: FnProps) {
         <QuoteStrip sec={s} />
         <NotConnected
           what="This screen shows analyst price targets, the tally of broker ratings, recent rating actions and estimates."
-          why="It reads them from Financial Modeling Prep through the desktop app, with your own key; the browser build has no data source."
-          needs="the desktop app with FMP_API_KEY set on the provider screen."
+          why="The desktop app reads FMP research, Finnhub recommendation counts and on-request Equibles company research; the browser has no connected research source."
+          needs="the desktop app with the relevant provider keys set on PROVIDERS."
         />
       </div>
     );
@@ -49,7 +50,7 @@ export function ANR({ sec }: FnProps) {
       sec={s}
       sub={
         <>
-          Price targets, ratings and estimates · Financial Modeling Prep{at ? ` · received ${fmtDay(at)} ${fmtTime(at, false)}` : ''}
+          FMP research · Finnhub ratings fallback · Equibles company research{at ? ` · last response ${fmtDay(at)} ${fmtTime(at, false)}` : ''}
           {all.some((p) => p?.stale) ? <span className="badge sim"> STALE</span> : null}
         </>
       }
@@ -61,23 +62,6 @@ export function ANR({ sec }: FnProps) {
         {header}
         <QuoteStrip sec={s} />
         <div className="empty">Analyst research here covers US-listed stocks; {s.ticker} is not one.</div>
-      </div>
-    );
-  }
-  const first = consensus ?? ratings;
-  if (first && (first.state === 'needs-key' || first.state === 'off' || first.state === 'budget' || (first.state === 'error' && !consensus?.data && !ratings?.data))) {
-    return (
-      <div>
-        {header}
-        <QuoteStrip sec={s} />
-        <div className="pad">
-          <p className="amber">{first.message}</p>
-          {(first.state === 'needs-key' || first.state === 'off') && (
-            <button type="button" className="btn primary" onClick={() => execute(panel, 'PROVIDERS')}>
-              Open the provider screen
-            </button>
-          )}
-        </div>
       </div>
     );
   }
@@ -93,12 +77,17 @@ export function ANR({ sec }: FnProps) {
     <div>
       {header}
       <QuoteStrip sec={s} />
+      <div className="pad-s" style={{ display: 'flex', gap: 8 }}>
+        <button type="button" className="btn" onClick={() => retryAnalysts()}>Retry analyst research</button>
+        <button type="button" className="btn" onClick={() => execute(panel, 'PROVIDERS')}>Open the provider screen</button>
+      </div>
+      <EquiblesResearch key={symbol} symbol={symbol} />
       <div className="cols">
         <Section title="Price target" right={s.ccy}>
           {loading(consensus) ? (
             <div className="empty">Loading price targets from FMP…</div>
           ) : !c ? (
-            <div className="empty">{consensus?.state === 'error' ? consensus.message : `FMP has no price targets for ${symbol}.`}</div>
+            <div className="empty">{consensus?.message ?? `FMP has no price targets for ${symbol}.`}</div>
           ) : (
             <>
               <KV
@@ -135,14 +124,15 @@ export function ANR({ sec }: FnProps) {
           )}
         </Section>
         <Section title="Ratings" right={r?.consensus ? `consensus: ${r.consensus}` : undefined}>
-          {loading(ratings) ? <div className="empty">Loading ratings from FMP…</div> : !r ? <div className="empty">{ratings?.state === 'error' ? ratings.message : `FMP has no ratings for ${symbol}.`}</div> : <Tally r={r} />}
+          {loading(ratings) ? <div className="empty">Loading ratings…</div> : !r ? <div className="empty">{ratings?.message ?? `No ratings available for ${symbol}.`}</div> : <Tally r={r} />}
+          <ResearchSource part={ratings} />
         </Section>
       </div>
       <Section title="How price targets moved" right="average of the targets published in each period">
         {loading(summary) ? (
           <div className="empty">Loading…</div>
         ) : !sum ? (
-          <div className="empty">{summary?.state === 'error' ? summary.message : 'No history of targets from FMP.'}</div>
+            <div className="empty">{summary?.message ?? 'No history of targets from FMP.'}</div>
         ) : (
           <>
             <table className="tbl">
@@ -180,7 +170,7 @@ export function ANR({ sec }: FnProps) {
         {loading(grades) ? (
           <div className="empty">Loading…</div>
         ) : !grades?.data?.length ? (
-          <div className="empty">{grades?.state === 'error' ? grades.message : 'No rating actions from FMP.'}</div>
+          <div className="empty">{grades?.message ?? 'No rating actions from FMP.'}</div>
         ) : (
           <table className="tbl">
             <thead>
@@ -209,14 +199,21 @@ export function ANR({ sec }: FnProps) {
       </Section>
       <div className="note">
         Price targets and ratings as Financial Modeling Prep collects them from published analyst notes and news; its consensus is the average of the targets it holds. These are analysts&apos; opinions, not a forecast by this app,
-        and not investment advice. Answers are kept for six hours (estimates for a day): FMP&apos;s free plan allows 250 requests a day, and this app keeps to 220.
+        and not investment advice. Availability depends on symbol and endpoint permissions: a valid key and remaining quota do not unlock premium requests. Finnhub fallback supplies monthly recommendation counts, not price targets. Equibles reports its own analyst-estimate coverage and distinguishes it from company guidance. FMP answers are kept for six hours (estimates for a day), with an app cap of 220 requests/day.
       </div>
     </div>
   );
 }
 
+function ResearchSource({ part }: { part: AnalystPart | undefined }) {
+  if (part?.state !== 'ok' || !part.data) return null;
+  const rating = part.data as RatingTally;
+  return <div className="note">Source: {part.source ?? 'FMP'}{rating.period ? ` · recommendation period ${rating.period}` : ''}{part.at ? ` · received ${fmtDay(part.at)} ${fmtTime(part.at, false)}` : ''}{part.stale ? ' · STALE' : ''}{part.message ? ` · ${part.message}` : ''}</div>;
+}
+
 /** The targets' range as a line, with the median, the consensus and the last price marked on it. */
 function TargetRange({ c, last }: { c: TargetConsensus; last: number }) {
+  if (!Number.isFinite(c.low) || !Number.isFinite(c.high) || c.low > c.high) return null;
   const lo = Math.min(c.low, Number.isFinite(last) ? last : c.low);
   const hi = Math.max(c.high, Number.isFinite(last) ? last : c.high);
   const x = (v: number) => (hi > lo ? ((v - lo) / (hi - lo)) * 100 : 50);

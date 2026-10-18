@@ -22,6 +22,7 @@ export type Credential =
   | 'ALPACA_API_KEY_ID'
   | 'ALPACA_API_SECRET_KEY'
   | 'FMP_API_KEY'
+  | 'EQUIBLES_API_KEY'
   | 'TIPRANKS_API_KEY';
 
 /**
@@ -504,20 +505,34 @@ export const PROVIDERS: ProviderDef[] = [
     credential: 'FMP_API_KEY',
     setting: 'FMP_ENABLED',
     limit: '30',
-    terms: "Free plan with your own key: 250 requests a day (as your account page states). The app keeps to 220, asks only for the company on screen, and keeps answers six hours (estimates a day). Checked live on 14 October 2026: price targets, ratings and rating actions answered for AAPL.",
+    terms: "The account's request quota does not unlock premium endpoints or every symbol. The supplied report shows HTTP 402 for APLD; availability for AAPL does not imply access to APLD. This app caps requests at 220/day and keeps answers six hours (estimates a day). A failed section remains separate from working research; recommendation counts can fall back to Finnhub.",
     docs: [
       { label: 'Pricing', url: 'https://site.financialmodelingprep.com/pricing-plans' },
       { label: 'Price target API', url: 'https://site.financialmodelingprep.com/developer/docs/stable/price-target-consensus' },
       { label: 'Terms', url: 'https://site.financialmodelingprep.com/terms-of-service' },
     ],
-    checked: '2026-10-14',
+    checked: '2026-10-18',
     desktop: true,
+  },
+  {
+    id: 'equibles',
+    name: 'Equibles',
+    serves: 'On-request analyst consensus estimates, guidance, KPIs, investor events, insider trades, FINRA short interest, 13F holders and IR news on ANALYSTS',
+    dataClass: 'Filed/reported research and provider analysis, as labelled in each report; distinct from broker consensus',
+    policy: 'needs-credential', credential: 'EQUIBLES_API_KEY', setting: 'EQUIBLES_ENABLED', limit: '10',
+    terms: 'Hosted free tier: 100 requests/day shared across REST, MCP and other clients, resetting at midnight UTC. This app caps all MCP transport requests at 90/day, discovers server schemas, sends only read-only research queries, and caches answers in memory for six hours. Public live tool discovery was verified on 18 October 2026, including analyst estimates; authenticated account coverage remains unverified. No portfolio writes or automatic polling. Hosted service terms apply.',
+    docs: [
+      { label: 'API documentation', url: 'https://equibles.com/docs/api' },
+      { label: 'Hosted tools and limits', url: 'https://github.com/daniel3303/stock-market-mcp-server' },
+      { label: 'Service terms', url: 'https://equibles.com/legal/terms' },
+    ],
+    checked: '2026-10-18', desktop: true,
   },
   {
     id: 'finnhub',
     name: 'Finnhub',
-    serves: 'Market news and company news (MARKETNEWS, COMPANYNEWS); not prices or history',
-    dataClass: 'News headlines with publisher, time and link',
+    serves: 'Market/company news and a fallback for monthly analyst recommendation counts (ANALYSTS); not prices or price targets',
+    dataClass: 'News headlines; monthly analyst recommendation counts with period',
     policy: 'needs-credential',
     credential: 'FINNHUB_API_KEY',
     setting: 'FINNHUB_ENABLED',
@@ -526,6 +541,7 @@ export const PROVIDERS: ProviderDef[] = [
     docs: [
       { label: 'Market news', url: 'https://finnhub.io/docs/api/market-news' },
       { label: 'Company news', url: 'https://finnhub.io/docs/api/company-news' },
+      { label: 'Recommendation trends', url: 'https://finnhub.io/docs/api/recommendation-trends' },
       { label: 'Terms of service', url: 'https://finnhub.io/terms-of-service' },
     ],
     checked: '2026-10-14',
@@ -645,7 +661,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED';
 
 export interface SettingState {
   label: string;

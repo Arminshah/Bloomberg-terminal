@@ -13,14 +13,33 @@ app.setPath('sessionData', sessionData);
 // Provider .env discovery is the sole production caller. Assets/preload still resolve from main's __dirname.
 app.getAppPath = () => profile;
 
-const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [] } };
+const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, equiblesRefusal: false, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], finnhub: [], equibles: [] } };
 globalThis.__desktopFixtures = fixtures;
-net.fetch = async (input) => {
+net.fetch = async (input, init) => {
   const url = new URL(String(input));
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
   if (url.hostname === 'financialmodelingprep.com') {
     fixtures.calls.fmp++;
+    if (fixtures.researchPartial) {
+      if (url.pathname.endsWith('/analyst-estimates')) return json([{ date: '2027-12-31', revenueAvg: 500000000, epsAvg: 1.25, numAnalystsEps: 7 }]);
+      return new Response(JSON.stringify({ 'Error Message': 'Premium subscription required for this symbol.' }), { status: 402 });
+    }
     return json({ 'Error Message': 'Invalid API key. Deterministic FMP refusal.' });
+  }
+  if (url.hostname === 'finnhub.io') {
+    fixtures.calls.finnhub.push(url.href);
+    return json([{ symbol: url.searchParams.get('symbol'), period: '2026-10-01', strongBuy: 2, buy: 4, hold: 1, sell: 0, strongSell: 0 }]);
+  }
+  if (url.hostname === 'mcp.equibles.com') {
+    const body = JSON.parse(init.body);
+    fixtures.calls.equibles.push(body);
+    if (body.method === 'initialize') return json({ jsonrpc: '2.0', id: body.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} } } });
+    if (body.method === 'notifications/initialized') return new Response(null, { status: 202 });
+    if (body.method === 'tools/list') return json({ jsonrpc: '2.0', id: body.id, result: { tools: [
+      { name: 'GetAnalystEstimates', annotations: { readOnlyHint: true }, inputSchema: { type: 'object', properties: { ticker: { type: 'string' }, limit: { type: 'integer' } }, required: ['ticker'] } },
+      { name: 'GetInsiderTransactions', annotations: { readOnlyHint: true }, inputSchema: { type: 'object', properties: { ticker: { type: 'string' }, maxResults: { type: 'integer' } }, required: ['ticker'] } },
+    ] } });
+    return json({ jsonrpc: '2.0', id: body.id, result: fixtures.equiblesRefusal ? { isError: true, content: [{ type: 'text', text: 'Subscription does not include this research.' }] } : { content: [{ type: 'text', text: `${body.params.arguments.ticker} · ${body.params.name}\nSYNTHETIC TEST REPORT · reported source date 2026-10-01 · USD\nProvider coverage and accounting qualifications retained. <script>throw new Error('Do not execute')</script>` }] } });
   }
   if (url.hostname === 'api.marketaux.com') {
     fixtures.calls.marketaux++;

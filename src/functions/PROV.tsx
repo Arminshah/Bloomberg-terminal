@@ -7,6 +7,7 @@ import { PROVIDERS, providersAvailable, providerState, useProviderReport, type C
 import { reloadFred } from '../data/live/fred';
 import { retryAnalysts } from '../data/live/analysts';
 import { retryIex } from '../data/live/alpaca';
+import { ResearchAccessCheck } from '../components/ResearchAccessCheck';
 import type { FnProps } from '../terminal/types';
 
 const STATE_LABEL: Record<ProviderState, string> = {
@@ -110,6 +111,7 @@ export function PROV(_: FnProps) {
           The browser build cannot reach market data providers: their terms and browser security rules rule it out. Every provider request in the desktop app goes out from its main process, which also keeps the keys. The list below is what the desktop app uses.
         </div>
       )}
+      {desktop && <ResearchAccessCheck />}
       <Section title="Providers">
         <table className="tbl zebra">
           <thead>
@@ -207,7 +209,8 @@ const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED', help: 'Twelve Data\'s free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data.' },
   { name: 'MARKETWATCH_RSS_ENABLED', help: "MarketWatch's top stories feed on MARKETNEWS. Dow Jones's terms bar automated access to its content, RSS feeds included, without written consent: switch it on only if you accept that risk for your own use." },
   { name: 'FMP_ENABLED', help: 'Analyst price targets, ratings and estimates from Financial Modeling Prep (ANALYSTS, EARNINGS), while FMP_API_KEY is set. Off stops every request to FMP.' },
-  { name: 'FINNHUB_ENABLED', help: 'Market and company news from Finnhub (MARKETNEWS, COMPANYNEWS, QUOTE), while FINNHUB_API_KEY is set.' },
+  { name: 'FINNHUB_ENABLED', help: 'Market/company news and monthly analyst recommendation counts from Finnhub, while FINNHUB_API_KEY is set. Use the REST key, not the webhook secret.' },
+  { name: 'EQUIBLES_ENABLED', help: 'Read-only Equibles company research on ANALYSTS, requested manually. Free account: 100 calls/day shared with REST/MCP clients. No trading or portfolio writes.' },
   { name: 'MARKETAUX_ENABLED', help: 'Ticker-tagged news with sentiment from Marketaux, while MARKETAUX_API_TOKEN is set. Its free plan allows 100 requests a day.' },
   { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },
   { name: 'ALPACA_IEX_PRICES_ENABLED', help: 'Use IEX-only prices for US stocks across watchlists and panels. Requires Alpaca enabled and both keys. Reload to apply. History is limited to the previous/current IEX bars and snapshots observed while the app is open; long Yahoo price history is not combined with this feed. IEX is one exchange, with its own volume and daily changes.' },
@@ -267,8 +270,9 @@ const CREDENTIALS: { name: Credential; help: string; secret: boolean; placeholde
   { name: 'ALPHA_VANTAGE_API_KEY', help: 'Free key from alphavantage.co: 25 requests a day, personal non-commercial use (CROSSCHECK).', secret: true, placeholder: 'API key' },
   { name: 'TWELVE_DATA_API_KEY', help: 'Key from your Twelve Data account (CROSSCHECK); nothing is sent until the TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED switch is on.', secret: true, placeholder: 'API key' },
   { name: 'TIINGO_API_KEY', help: 'Token from your Tiingo account: end-of-day closes for CROSSCHECK.', secret: true, placeholder: 'API token' },
-  { name: 'FMP_API_KEY', help: 'Key from your Financial Modeling Prep account: analyst price targets, ratings and estimates (ANALYSTS). Free plan: 250 requests a day.', secret: true, placeholder: 'API key' },
-  { name: 'FINNHUB_API_KEY', help: 'Key from your Finnhub account: market and company news (MARKETNEWS, COMPANYNEWS).', secret: true, placeholder: 'API key' },
+  { name: 'FMP_API_KEY', help: 'FMP research key. A remaining daily quota does not unlock premium endpoints or all symbols; HTTP 402 means the request needs a different entitlement.', secret: true, placeholder: 'API key' },
+  { name: 'FINNHUB_API_KEY', help: 'Finnhub REST API key for news and recommendation trends. The X-Finnhub-Secret webhook signing secret cannot be used here.', secret: true, placeholder: 'REST API key' },
+  { name: 'EQUIBLES_API_KEY', help: 'Equibles dashboard API key for manual company research on ANALYSTS. Stored in the main process; no key is bundled in the app.', secret: true, placeholder: 'eq_…' },
   { name: 'MARKETAUX_API_TOKEN', help: 'Token from your Marketaux account: news tagged with tickers and sentiment. Free plan: 100 requests a day.', secret: true, placeholder: 'API token' },
   { name: 'ALPACA_API_KEY_ID', help: 'Key ID from your Alpaca account (paper keys start with PK): IEX quotes on QUOTE. Used for market data only, never for trading.', secret: true, placeholder: 'Key ID' },
   { name: 'ALPACA_API_SECRET_KEY', help: 'The secret that goes with the Alpaca key ID.', secret: true, placeholder: 'Secret key' },
