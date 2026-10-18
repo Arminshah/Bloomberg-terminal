@@ -46,8 +46,34 @@ function captureMark(q: Quote | undefined, d: SecurityDef | undefined, now: numb
 }
 export const capturedTime = (m: CapturedMark): string => m.time === null ? '' : new Date(m.time).toISOString().slice(0, m.dateOnly ? 10 : undefined);
 
+/**
+ * Daily base-currency units per unit of a currency: the currency's USD series, divided by the base's USD
+ * series on the dates both have. Undefined for the base itself.
+ */
+export function baseFxLevels(ccy: string, base: string, cutoff: number, market: MarketEngine = engine): DailyLevel[] | undefined {
+  if (ccy === base) return undefined;
+  const usd = (c: string) => dailyLevels(market.daily(`CCY:${c}`), cutoff);
+  if (base === 'USD') return usd(ccy);
+  const den = new Map(usd(base).map((r) => [r.date, r.value]));
+  if (ccy === 'USD') return [...den].flatMap(([date, v]) => (v > 0 ? [{ date, value: 1 / v }] : []));
+  return usd(ccy).flatMap((r) => {
+    const v = den.get(r.date);
+    return v !== undefined && v > 0 ? [{ date: r.date, value: r.value / v }] : [];
+  });
+}
+
+/** The FX mark behind a conversion to the base: one currency's quote, or the older of the two for a cross. */
+function fxMarkFor(ccy: string, base: string, market: MarketEngine, at: number): CapturedMark {
+  if (ccy === base) return { provider: `${base} identity`, state: 'IDENTITY', time: null, received: null, dateOnly: false, freshness: 'REFERENCE' };
+  const marks = [ccy, base].filter((c) => c !== 'USD').map((c) => captureMark(market.quote(`CCY:${c}`), market.get(`CCY:${c}`), at));
+  if (marks.length === 1) return marks[0];
+  const [a, b] = marks;
+  const older = (a.time ?? -Infinity) <= (b.time ?? -Infinity) ? a : b;
+  return { ...older, provider: a.provider === b.provider ? a.provider : `${a.provider} / ${b.provider}` };
+}
+
 /** Freeze the current UTC date out of history for every market; no exchange close is inferred. */
-export function portfolioSnapshot(positions: Position[], cash: number, observations: number, market: MarketEngine = engine): Checked<PortfolioSnapshot> {
+export function portfolioSnapshot(positions: Position[], cash: number, observations: number, market: MarketEngine = engine, base = 'USD'): Checked<PortfolioSnapshot> {
   const capturedAt = market.now();
   const cutoff = Math.floor(capturedAt / DAY_MS) * DAY_MS;
   const out: SourcedRiskPosition[] = [];
@@ -57,23 +83,25 @@ export function portfolioSnapshot(positions: Position[], cash: number, observati
     if (d.quote === 'yield') return { ok: false, error: `${d.ticker} is a yield reference, not a priced instrument. Use a priced bond or fund for portfolio valuation.` };
     const ccy = majorCurrency(d.ccy);
     const priceQuote = market.quote(p.id);
-    const fxId = `CCY:${ccy}`;
+    const fxId = base === 'USD' ? `CCY:${ccy}` : `${ccy}${base}`;
+    const fxHistory = baseFxLevels(ccy, base, cutoff, market);
     out.push({ id: p.id, quantity: p.qty, cost: p.cost, multiplier: multiplier(d) * (d.minor ? 0.01 : 1),
-      margined: d.cls === 'future' || d.cls === 'commodity', price: priceQuote?.last ?? NaN, fx: market.usdValue(ccy),
+      margined: d.cls === 'future' || d.cls === 'commodity', price: priceQuote?.last ?? NaN,
+      fx: ccy === base ? 1 : market.usdValue(ccy) / market.usdValue(base),
       priceMark: captureMark(priceQuote, d, capturedAt),
-      fxMark: ccy === 'USD' ? { provider: 'USD identity', state: 'IDENTITY', time: null, received: null, dateOnly: false, freshness: 'REFERENCE' } : captureMark(market.quote(fxId), market.get(fxId), capturedAt),
+      fxMark: fxMarkFor(ccy, base, market, capturedAt),
       quoteCurrency: d.ccy, fxCurrency: ccy, fxProxyNote: d.ccy === 'CNY' ? 'CNY translated using offshore CNH as a proxy; onshore/offshore basis is not modelled.' : '',
-      prices: dailyLevels(market.daily(p.id), cutoff), ...(ccy === 'USD' ? {} : { fxId, fxHistory: dailyLevels(market.daily(fxId), cutoff) }) });
+      prices: dailyLevels(market.daily(p.id), cutoff), ...(fxHistory ? { fxId, fxHistory } : {}) });
   }
   return { ok: true, value: { positions: out, cutoff, capturedAt, history: alignPortfolio(out, cash, cutoff, observations) } };
 }
 
-/** Benchmark translated to USD on exactly the dates both its price and currency have observations. */
-export function benchmarkLevels(id: string, cutoff: number, market: MarketEngine = engine): DailyLevel[] {
+/** Benchmark translated to the base currency on exactly the dates both its price and currency have observations. */
+export function benchmarkLevels(id: string, cutoff: number, market: MarketEngine = engine, base = 'USD'): DailyLevel[] {
   const d = market.get(id);
   if (!d || d.quote !== 'price') return [];
-  const ccy = majorCurrency(d.ccy);
-  const fx = ccy === 'USD' ? undefined : new Map(dailyLevels(market.daily(`CCY:${ccy}`), cutoff).map((r) => [r.date, r.value]));
+  const levels = baseFxLevels(majorCurrency(d.ccy), base, cutoff, market);
+  const fx = levels ? new Map(levels.map((r) => [r.date, r.value])) : undefined;
   return dailyLevels(market.daily(id), cutoff).flatMap((r) => {
     const value = r.value * (fx ? fx.get(r.date) ?? NaN : 1) * (d.minor ? 0.01 : 1);
     return Number.isFinite(value) && value > 0 ? [{ date: r.date, value }] : [];

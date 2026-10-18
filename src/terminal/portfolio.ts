@@ -20,11 +20,26 @@ export function multiplier(d: SecurityDef): number {
   return 1;
 }
 
+/** Currencies the portfolio can be valued in. */
+export const BASE_CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'JPY'] as const;
+
+/** The currency a security's price is quoted in, in major units (pence are pounds). */
+export const priceCurrency = (d: SecurityDef) => (d.ccy === 'GBp' ? 'GBP' : d.ccy === 'USd' ? 'USD' : d.ccy);
+
 /** USD value of one unit of price for one unit of quantity. */
 export function usdPerPrice(d: SecurityDef): number {
-  const ccy = d.ccy === 'GBp' ? 'GBP' : d.ccy === 'USd' ? 'USD' : d.ccy;
   const minor = d.minor ? 0.01 : 1;
-  return engine.usdValue(ccy) * minor * multiplier(d);
+  return engine.usdValue(priceCurrency(d)) * minor * multiplier(d);
+}
+
+/** Base-currency units per unit of a currency, at the current FX marks. */
+export function baseFx(ccy: string, base: string): number {
+  return ccy === base ? 1 : engine.usdValue(ccy) / engine.usdValue(base);
+}
+
+/** Base-currency value of one unit of price for one unit of quantity. */
+export function basePerPrice(d: SecurityDef, base: string): number {
+  return baseFx(priceCurrency(d), base) * (d.minor ? 0.01 : 1) * multiplier(d);
 }
 
 /** Futures (index and commodity generics) are margined: only P&L counts toward value. */
@@ -32,39 +47,59 @@ export function isMargined(d: SecurityDef): boolean {
   return d.cls === 'future' || d.cls === 'commodity';
 }
 
-/** A position's contribution to net asset value in USD. */
-export function navValue(d: SecurityDef, qty: number, px: number, cost: number): number {
-  const k = usdPerPrice(d);
+/** A position's contribution to net asset value in the base currency (USD unless given). */
+export function navValue(d: SecurityDef, qty: number, px: number, cost: number, base = 'USD'): number {
+  const k = basePerPrice(d, base);
   return isMargined(d) ? qty * (px - cost) * k : qty * px * k;
 }
 
-/** Net asset value in USD: the cash you entered, securities at market and futures at unrealised P&L. */
+/** Net asset value in the base currency: your cash, securities at market and futures at unrealised P&L. */
 export function netAssetValue(): number {
   const st = portfolio.get();
   let v = st.cash;
   for (const p of st.positions) {
     const d = engine.get(p.id);
     const q = engine.quote(p.id);
-    if (d && q) v += navValue(d, p.qty, q.last, p.cost);
+    if (d && q) v += navValue(d, p.qty, q.last, p.cost, st.base);
   }
   return v;
 }
 
-/** Sum of absolute position exposures in USD (futures at full notional). */
+/** Sum of absolute position exposures in the base currency (futures at full notional). */
 export function grossExposure(): number {
+  const st = portfolio.get();
   let g = 0;
-  for (const p of portfolio.get().positions) {
+  for (const p of st.positions) {
     const d = engine.get(p.id);
     const q = engine.quote(p.id);
-    if (d && q) g += Math.abs(p.qty * q.last * usdPerPrice(d));
+    if (d && q) g += Math.abs(p.qty * q.last * basePerPrice(d, st.base));
   }
   return g;
 }
 
-/** Manual quantity adjustment, not a trade ledger. Reductions retain cost; crossing zero resets it. */
-export function adjustPosition(existing: Position | undefined, id: string, quantity: number, cost: number): Position | null {
+/**
+ * A holding's unrealised P&L in the base currency, split into the local price move valued at today's FX and
+ * the FX move on the entry value. The FX part is unknown (NaN) without an entry rate in the same base, and
+ * for futures, whose value is only their P&L.
+ */
+export function pnlSplit(d: SecurityDef, p: Position, last: number, base: string): { price: number; fx: number; total: number } {
+  const k = basePerPrice(d, base);
+  const price = p.qty * (last - p.cost) * k;
+  if (isMargined(d) || p.entryBase !== base || !(p.entryFx! > 0)) return { price, fx: NaN, total: NaN };
+  const kEntry = p.entryFx! * (d.minor ? 0.01 : 1) * multiplier(d);
+  const fx = p.qty * p.cost * (k - kEntry);
+  return { price, fx, total: price + fx };
+}
+
+/**
+ * Manual quantity adjustment, not a trade ledger. Reductions retain cost; crossing zero resets it. With an
+ * entry FX rate, adding on the same side averages it by the local cost of each lot; a rate in another base,
+ * or a lot without one, leaves the average unknown.
+ */
+export function adjustPosition(existing: Position | undefined, id: string, quantity: number, cost: number, entry?: { fx: number; base: string }): Position | null {
   if (!id || ![quantity, cost].every(Number.isFinite) || quantity === 0 || (existing && (existing.id !== id || ![existing.qty, existing.cost].every(Number.isFinite)))) throw new Error('Invalid position adjustment.');
-  if (!existing || existing.qty === 0) return { id, qty: quantity, cost };
+  const fresh = entry && entry.fx > 0 ? { entryFx: entry.fx, entryBase: entry.base } : {};
+  if (!existing || existing.qty === 0) return { id, qty: quantity, cost, ...fresh };
   const qty = existing.qty + quantity;
   if (!Number.isFinite(qty)) throw new Error('Position quantity exceeds the numerical range.');
   if (qty === 0) return null;
@@ -72,5 +107,12 @@ export function adjustPosition(existing: Position | undefined, id: string, quant
   const newCost = sameSide ? existing.cost + (cost - existing.cost) * (Math.abs(quantity) / Math.abs(qty))
     : Math.sign(qty) === Math.sign(existing.qty) ? existing.cost : cost;
   if (!Number.isFinite(newCost)) throw new Error('Position cost exceeds the numerical range.');
-  return { id, qty, cost: newCost };
+  const kept = existing.entryFx !== undefined ? { entryFx: existing.entryFx, entryBase: existing.entryBase } : {};
+  if (!sameSide) return { id, qty, cost: newCost, ...(Math.sign(qty) === Math.sign(existing.qty) ? kept : fresh) };
+  // Same side: the entry rate averaged by each lot's local cost (quantity times cost).
+  const a = Math.abs(existing.qty * existing.cost);
+  const b = Math.abs(quantity * cost);
+  const averaged = existing.entryFx! > 0 && entry && entry.fx > 0 && existing.entryBase === entry.base && a + b > 0
+    ? { entryFx: (existing.entryFx! * a + entry.fx * b) / (a + b), entryBase: entry.base } : {};
+  return { id, qty, cost: newCost, ...averaged };
 }

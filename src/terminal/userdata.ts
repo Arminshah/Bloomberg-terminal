@@ -41,6 +41,12 @@ export interface Position {
   id: string;
   qty: number;
   cost: number;
+  /**
+   * Units of the portfolio's base currency per unit of the position's currency when it was entered, and that
+   * base. Positions entered before 2.8.0 have none: their FX gain or loss since entry is unknown.
+   */
+  entryFx?: number;
+  entryBase?: string;
 }
 
 /**
@@ -59,12 +65,14 @@ export interface Position {
   removeKey('armin:orders');
 })();
 
-export const portfolio = createStore<{ name: string; positions: Position[]; benchmark: string; cash: number }>(
+/** Cash is held in the base currency; a portfolio saved before 2.8.0 is in USD. */
+export const portfolio = createStore<{ name: string; positions: Position[]; benchmark: string; cash: number; base: string }>(
   {
     name: 'My portfolio',
     benchmark: 'SPX Index',
     cash: 0,
     positions: [],
+    base: 'USD',
   },
   'portfolio',
   2,
