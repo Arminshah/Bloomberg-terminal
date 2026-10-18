@@ -3,6 +3,8 @@ import { useMemo } from 'react';
 import { useMenu } from '../terminal/panel';
 import type { SecurityDef } from '../data/types';
 import type { MenuItem } from '../terminal/types';
+import { primaryMnemonic } from '../terminal/legacy';
+import { settings } from '../terminal/settings';
 
 export interface Action {
   n: number;
@@ -32,6 +34,8 @@ interface Props {
 
 /** Function title strip: mnemonic, security, title, numbered actions and tabs. */
 export function FnHeader({ code, title, sec, sub, actions = [], tabs, tab, onTab, right, children }: Props) {
+  const mnemonic = primaryMnemonic(code);
+  const showMnemonic = settings.use((s) => s.mnemonics) && mnemonic !== code;
   const items: MenuItem[] = useMemo(
     () => [
       ...(tabs ?? []).map((t) => ({ n: t.n, label: t.label, run: () => onTab?.(t.n) })),
@@ -43,6 +47,7 @@ export function FnHeader({ code, title, sec, sub, actions = [], tabs, tab, onTab
   return (
     <header className="fnh">
       <div className="fnh-row">
+        {showMnemonic && <span className="fnh-mnemonic" title={`${mnemonic} <GO> opens ${code}`}>{mnemonic}<small> &lt;GO&gt;</small></span>}
         <span className="fnh-code">{code}</span>
         {sec && <span className="fnh-sec">{sec.id}</span>}
         <span className="fnh-title">{title}</span>

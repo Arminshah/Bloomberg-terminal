@@ -1,0 +1,320 @@
+{
+  "source": "Public unauthenticated tools/list at https://mcp.equibles.com/mcp, 2026-10-18; metadata only, no account data",
+  "tools": [
+    {
+      "name": "GetShortInterest",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "description": "Listed security ticker (e.g., AAPL, VOO, GME)",
+            "type": "string"
+          },
+          "startDate": {
+            "description": "Start date in YYYY-MM-DD format (defaults to 1 year ago)",
+            "type": "string",
+            "default": null
+          },
+          "endDate": {
+            "description": "End date in YYYY-MM-DD format (defaults to latest available)",
+            "type": "string",
+            "default": null
+          },
+          "maxResults": {
+            "description": "Maximum number of records to return \u2014 keeps the most recent N settlements in the range, displayed oldest to newest (default: 24, max: 500)",
+            "type": "integer",
+            "default": 24
+          }
+        },
+        "required": [
+          "ticker"
+        ]
+      },
+      "annotations": {
+        "title": "Short Interest History",
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "ListInvestorEvents",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "description": "Company ticker symbol (e.g., AAPL, MSFT), or MIC:TICKER (e.g., XPAR:AIR) for a listing outside the US.",
+            "type": "string"
+          },
+          "limit": {
+            "description": "Maximum number of events to return (default 25, max 100; values outside 1-100 are clamped)",
+            "type": "integer",
+            "default": 25
+          },
+          "eventType": {
+            "description": "Optional event type to filter on: EarningsCall, CapitalMarketsDay, InvestorUpdate, AGM, Conference, FiresideChat, or MAndA (default: all types)",
+            "type": "string",
+            "default": null
+          },
+          "offset": {
+            "description": "Number of matching events to skip before returning rows (default 0)",
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "required": [
+          "ticker"
+        ]
+      },
+      "annotations": {
+        "title": "Browse Investor Events",
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "GetTopHolders",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "description": "Listed security ticker (e.g., AAPL, VOO)",
+            "type": "string"
+          },
+          "reportDate": {
+            "description": "Quarter-end 13F report date in YYYY-MM-DD format, e.g. 2026-03-31 (defaults to the latest available; an off-quarter date snaps to the nearest report on or before it)",
+            "type": "string",
+            "default": null
+          },
+          "maxResults": {
+            "description": "Maximum number of holding rows to return (default: 20, clamped to 1-500)",
+            "type": "integer",
+            "default": 20
+          },
+          "offset": {
+            "description": "Number of ranked holding rows to skip before returning results (default: 0)",
+            "type": "integer",
+            "default": 0
+          },
+          "holderTypes": {
+            "description": "Holder types to keep, as an array of tokens: adv (registered investment adviser), era (exempt reporting adviser), ia (other adviser), bank, ins (insurer), bd (broker-dealer), fund (registered fund), plan (benefit plan), nonus (non-US institution), unk (no deciding record yet), e.g. [\"bank\", \"ins\"]. Types come from Form ADV, SEC filer profiles, 13D/13G and N-CEN, never from names. Omit for all.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": null
+          }
+        },
+        "required": [
+          "ticker"
+        ]
+      },
+      "annotations": {
+        "title": "Top Institutional Holders",
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "GetInvestorRelationsNews",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "description": "Company ticker symbol (e.g., NVDA), or MIC:TICKER (e.g., XPAR:AIR) for a listing outside the US.",
+            "type": "string"
+          },
+          "maxResults": {
+            "description": "Maximum number of news items to return (default: 20, max: 500)",
+            "type": "integer",
+            "default": 20
+          },
+          "since": {
+            "description": "Optional earliest publish date, strict yyyy-MM-dd (UTC). Only items published on or after this date are returned.",
+            "type": "string",
+            "default": null
+          },
+          "offset": {
+            "description": "Number of matching news items to skip before returning rows (default: 0).",
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "required": [
+          "ticker"
+        ]
+      },
+      "annotations": {
+        "title": "Investor Relations News",
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "GetAnalystEstimates",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "description": "Stock ticker symbol (e.g., SAP), or MIC:TICKER (e.g., XETR:SAP) for a listing outside the US.",
+            "type": "string"
+          },
+          "metric": {
+            "description": "Exact source metric label; omit to read all metrics.",
+            "type": "string",
+            "default": null
+          },
+          "period": {
+            "description": "Exact source forecast-period label; omit for all periods.",
+            "type": "string",
+            "default": null
+          },
+          "dimensions": {
+            "description": "Exact source dimension label; omit for all products and segments.",
+            "type": "string",
+            "default": null
+          },
+          "snapshotId": {
+            "description": "Snapshot identifier from a previous response; omit for latest verified capture.",
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "default": null
+          },
+          "asOf": {
+            "description": "ISO-8601 UTC cutoff for a snapshot verified at or before this instant.",
+            "type": "string",
+            "default": null
+          },
+          "snapshotOffset": {
+            "description": "Zero-based snapshot history offset; history is returned in pages of 10.",
+            "type": "integer",
+            "default": 0
+          },
+          "limit": {
+            "description": "Maximum observations, default 25, range 1\u2013100.",
+            "type": "integer",
+            "default": 25
+          },
+          "offset": {
+            "description": "Zero-based observation offset, default 0, maximum 100000.",
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "required": [
+          "ticker"
+        ]
+      },
+      "annotations": {
+        "title": "Analyst Consensus Estimates",
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "GetGuidance",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "description": "Stock ticker symbol (e.g., AAPL, MSFT), or MIC:TICKER (e.g., XPAR:AIR) for a listing outside the US.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticker"
+        ]
+      },
+      "annotations": {
+        "title": "Company Guidance",
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "GetInsiderTransactions",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "description": "Company ticker symbol (e.g., AAPL, MSFT)",
+            "type": "string"
+          },
+          "maxResults": {
+            "description": "Maximum number of transactions to return (default: 50, max: 500; values outside 1-500 are clamped)",
+            "type": "integer",
+            "default": 50
+          },
+          "fromDate": {
+            "description": "Only include transactions on or after this date, format yyyy-MM-dd (optional)",
+            "type": "string",
+            "default": null
+          },
+          "toDate": {
+            "description": "Only include transactions on or before this date, format yyyy-MM-dd (optional)",
+            "type": "string",
+            "default": null
+          },
+          "transactionType": {
+            "description": "Only include one transaction type: Buy, Sell, Award, Conversion, Exercise, TaxPayment, Expiration, Gift, Inheritance, Discretionary or Other (optional)",
+            "type": "string",
+            "default": null
+          },
+          "insiderName": {
+            "description": "Only include transactions by insiders whose SEC-filed name contains every word of this value, case-insensitive (e.g. 'Huang') (optional)",
+            "type": "string",
+            "default": null
+          },
+          "offset": {
+            "description": "Number of matching transactions to skip before returning rows (default: 0)",
+            "type": "integer",
+            "default": 0
+          }
+        },
+        "required": [
+          "ticker"
+        ]
+      },
+      "annotations": {
+        "title": "Insider Transactions (Forms 4/5)",
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "GetCompanyKpis",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "ticker": {
+            "description": "Stock ticker symbol (e.g., AAPL, MSFT).",
+            "type": "string"
+          },
+          "metric": {
+            "description": "Optional metric name to expand into its full history (e.g., 'subscribers', 'Adjusted EBITDA'). Matches the company's own metric labels case-insensitively; when the name matches several metrics the tool lists those candidates. Omit for the overview of every metric's latest reading.",
+            "type": "string",
+            "default": null
+          }
+        },
+        "required": [
+          "ticker"
+        ]
+      },
+      "annotations": {
+        "title": "Company KPIs",
+        "destructiveHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      }
+    }
+  ]
+}

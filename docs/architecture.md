@@ -61,6 +61,12 @@ With `YAHOO_PRICES_ENABLED` off, the app's network session also cancels every re
 
 ## Which source owns a line
 
+Panel security groups are a single atomic state update in `src/terminal/state.ts`. The function registry supplies eligibility after registration, keeping screen imports out of the store. Propagation visits only visible same-group peers and validates asset classes; it preserves their functions/arguments and does not recursively call navigation or take focus. Saved layouts contain optional group arrays, so older layouts retain unlinked behavior. Slow ticker lookups also verify that their source panel state is still current before applying a result.
+
+`src/data/fields.ts` defines the bounded local field catalogue and raw CSV provenance. It reads a supplied security/quote and inspection time without network access. Identity metadata has its own reference provenance; missing values and unavailable BBO timestamps stay separate from last-price freshness. `portfolio-history.ts` captures primitive mark metadata alongside prices/FX, avoiding references back to a mutable engine quote at export time.
+
+Persistent stores coalesce normal writes, then synchronously flush pending state on `pagehide`. Closing or reloading immediately after restoring a workspace retains its last route/groups, even before the ordinary debounce expires. LocalStorage errors remain contained and state stays usable in memory.
+
 Each instrument line has one owner, decided once at start-up from the switches, so two providers never write into the same series:
 
 - US Treasury yields, every tenor: the US Treasury's daily par curve. The Cboe 5, 10 and 30-year yield indices are separate lines, from Yahoo.

@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as fmpMain from '../electron/fmp.cjs';
-import { fmpProblem, parseConsensus, parseEstimates, parseGrades, parseRatings, parseSummary } from '../src/data/live/analysts';
+import { fmpProblem, loadAnalystPart, parseConsensus, parseEstimates, parseFinnhubRatings, parseGrades, parseRatings, parseSummary } from '../src/data/live/analysts';
+import { finnhubResearchRequest } from '../electron/finnhub-research.cjs';
 
 // Made-up answers in the layouts of FMP's stable API; no request leaves the test.
 
@@ -83,9 +84,40 @@ describe('FMP answers', () => {
   });
 
   it('says what a refusal means', () => {
-    expect(fmpProblem(402, 'XYZ', 'HTTP 402: Premium Query Parameter')).toBe("FMP's free plan does not include this for XYZ (HTTP 402, payment required): Premium Query Parameter");
-    expect(fmpProblem(401, 'XYZ', 'HTTP 401: Invalid API KEY.')).toBe('FMP refused the key (HTTP 401): Invalid API KEY. Check FMP_API_KEY on PROVIDERS.');
+    expect(fmpProblem(402, 'XYZ', 'HTTP 402: Premium Query Parameter')).toBe('Your FMP subscription does not include this request for XYZ (HTTP 402): Premium Query Parameter');
+    expect(fmpProblem(401, 'XYZ', 'HTTP 401: Invalid API KEY.')).toBe('FMP denied access (HTTP 401): Invalid API KEY. Check the key and endpoint permissions on PROVIDERS.');
     expect(fmpProblem(500, 'XYZ')).toBe('FMP answered HTTP 500');
     expect(fmpProblem(0, 'XYZ')).toBe('FMP did not answer');
+  });
+});
+
+describe('research fallback and section isolation', () => {
+  const counts = { symbol: 'APLD', period: '2026-10-01', strongBuy: 2, buy: 4, hold: 1, sell: 0, strongSell: 0 };
+  it('uses only the free recommendation endpoint and preserves the monthly period', () => {
+    expect(finnhubResearchRequest('ratings', 'BRK-B')).toBe('https://finnhub.io/api/v1/stock/recommendation?symbol=BRK.B');
+    expect(finnhubResearchRequest('consensus', 'APLD')).toBeNull();
+    expect(finnhubResearchRequest('ratings', 'APLD&x=1')).toBeNull();
+    expect(parseFinnhubRatings(JSON.stringify([{ ...counts, period: '2026-09-01', buy: 2 }, counts]), 'APLD')).toEqual({ data: { strongBuy: 2, buy: 4, hold: 1, sell: 0, strongSell: 0, period: '2026-10-01', consensus: '' } });
+  });
+  it('does not turn absent/malformed counts into zeros or choose another symbol', () => {
+    expect(parseFinnhubRatings(JSON.stringify([{ ...counts, symbol: 'AAPL' }, { ...counts, strongBuy: null }, { ...counts, period: '2026-02-30' }]), 'APLD')).toEqual({ data: null });
+  });
+  it('falls back on an FMP 402 without hiding successful estimates or inventing targets', async () => {
+    const analysts = vi.fn(async () => ({ status: 402, text: '', error: 'HTTP 402: Premium Query Parameter' }));
+    const finnhubResearch = vi.fn(async () => ({ status: 200, text: JSON.stringify([counts]), at: 1000 }));
+    expect(await loadAnalystPart('ratings', 'APLD', { analysts, finnhubResearch })).toMatchObject({ state: 'ok', source: 'Finnhub', data: { buy: 4, period: '2026-10-01' }, at: 1000 });
+    expect(await loadAnalystPart('consensus', 'APLD', { analysts, finnhubResearch })).toMatchObject({ state: 'error', source: 'FMP', message: expect.stringContaining('HTTP 402') });
+    expect(finnhubResearch).toHaveBeenCalledTimes(1);
+    analysts.mockResolvedValueOnce({ status: 200, text: '[{"date":"2027-05-31","epsAvg":1}]', error: '' });
+    expect(await loadAnalystPart('estimates', 'APLD', { analysts, finnhubResearch })).toMatchObject({ state: 'ok', data: [{ date: '2027-05-31', epsAvg: 1 }] });
+  });
+  it('keeps valid FMP ratings without spending fallback calls; shows both failures when neither works', async () => {
+    const finnhubResearch = vi.fn(async () => ({ status: 401, text: '', error: 'HTTP 401' }));
+    const analysts = vi.fn(async () => ({ status: 200, text: JSON.stringify([counts]) }));
+    expect(await loadAnalystPart('ratings', 'APLD', { analysts, finnhubResearch })).toMatchObject({ state: 'ok', source: 'FMP' });
+    expect(finnhubResearch).not.toHaveBeenCalled();
+    analysts.mockResolvedValueOnce({ status: 402, text: '' });
+    const failed = await loadAnalystPart('ratings', 'APLD', { analysts, finnhubResearch });
+    expect(failed.message).toContain('HTTP 402'); expect(failed.message).toContain('HTTP 401');
   });
 });

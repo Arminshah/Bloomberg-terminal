@@ -246,6 +246,9 @@ button { cursor: pointer; }
   font-size: var(--fs-s);
 }
 .panel.active .cmd-num { background: var(--amber); }
+.cmd-link { width: 68px; flex: none; padding: 0 1px; border: 0; border-right: 1px solid var(--line); background: #101010; font-size: var(--fs-s); cursor: pointer; }
+.cmd-link option { background: #101010; color: var(--text); }
+.cmd-link:focus-visible { outline: 1px solid var(--amber); outline-offset: -1px; }
 .cmd-nav { display: flex; flex: none; }
 .cmd-nav button {
   width: 20px;
@@ -372,6 +375,12 @@ button { cursor: pointer; }
   letter-spacing: 0.04em;
 }
 .fnh-sec { color: var(--yellow); font-weight: 500; white-space: nowrap; }
+.fnh-mnemonic { flex: none; padding: 0 5px; background: var(--amber); color: #000; font-weight: 600; white-space: nowrap; }
+.fnh-mnemonic small { font-size: 9px; font-weight: 400; }
+.fnh-mnemonic + .fnh-code { padding: 0; background: transparent; color: var(--muted); font-size: var(--fs-s); }
+.chart-tools .fields-search { flex: 1 1 230px; min-width: 160px; }
+.field-definition { border-left: 3px solid var(--amber); }
+.field-definition .kv > dd { min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; text-align: left; }
 .fnh-title { color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .fnh-sub { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .fnh-actions { margin-left: auto; display: flex; gap: 2px; flex: none; }

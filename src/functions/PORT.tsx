@@ -1,20 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { ChartView } from '../components/chart/ChartView';
-import type { ChartOptions } from '../components/chart/PriceChart';
-import { Chg, HBar, KV, LivePx, SecLink, Section } from '../components/cells';
+import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
-import { fmtDay, fmtNum, fmtPct } from '../core/format';
+import { fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { alignedReturns, closeAt } from '../data/analytics';
 import { CLASS_LABEL, resolveSecurity } from '../data/registry';
-import { makeSeries } from '../data/series';
 import type { SecurityDef } from '../data/types';
-import { maxDrawdown, percentile, regress, stdev } from '../finance/stats';
 import { flash, usePanelId } from '../terminal/panel';
 import { portfolio, type Position } from '../terminal/userdata';
-import { isMargined, navValue, usdPerPrice } from '../terminal/portfolio';
+import { adjustPosition, isMargined, navValue, usdPerPrice } from '../terminal/portfolio';
 import type { FnProps } from '../terminal/types';
+import { PortfolioPerformance, PortfolioRisk } from './PortfolioRisk';
 
 export { multiplier } from '../terminal/portfolio';
 
@@ -48,15 +44,16 @@ function Holdings() {
   useTick(1);
   const st = portfolio.use((s) => s);
   const ls = lines(st.positions);
-  const mv = ls.reduce((a, l) => a + l.mv, 0);
+  const unresolved = st.positions.filter((p) => !engine.get(p.id));
+  const mv = unresolved.length ? NaN : ls.reduce((a, l) => a + l.mv, 0);
   const day = ls.reduce((a, l) => a + l.day, 0);
   const tot = ls.reduce((a, l) => a + l.total, 0);
-  const cost = ls.reduce((a, l) => a + l.cost, 0);
-  const nav = st.cash + ls.reduce((a, l) => a + l.nav, 0);
+  const grossCost = ls.reduce((a, l) => a + Math.abs(l.cost), 0);
+  const nav = unresolved.length ? NaN : st.cash + ls.reduce((a, l) => a + l.nav, 0);
   const futNotional = ls.filter((l) => isMargined(l.d)).reduce((a, l) => a + l.mv, 0);
   // A day's P&L counts only changes against a previous close confirmed for the right session.
   const unconfirmed = (l: Line) => !Number.isFinite(l.day) || engine.quote(l.p.id)?.chgCheck === 'unverified';
-  const pending = ls.filter(unconfirmed).map((l) => l.d.ticker);
+  const pending = [...ls.filter(unconfirmed).map((l) => l.d.ticker), ...unresolved.map((p) => p.id)];
   const waiting = (key: string) => (
     <span key={key} className="muted" title={`Waiting for a confirmed previous close: ${pending.join(', ')}`}>
       --
@@ -68,7 +65,7 @@ function Holdings() {
   const [cash, setCash] = useState('');
   const saveCash = () => {
     const c = Number(cash.replace(/,/g, ''));
-    if (!Number.isFinite(c)) return flash(panel, 'Enter the cash amount in USD', 'error');
+    if (!cash.trim() || !Number.isFinite(c)) return flash(panel, 'Enter the cash amount in USD', 'error');
     portfolio.set((s) => ({ ...s, cash: c }));
     setCash('');
     flash(panel, `Cash set to ${fmtNum(c, 0)} USD`, 'info');
@@ -76,16 +73,15 @@ function Holdings() {
   const add = () => {
     const d = resolveSecurity(sec);
     if (!d) return flash(panel, `Unknown security: ${sec}`, 'error');
+    if (d.quote === 'yield') return flash(panel, 'A yield reference is not a priced portfolio instrument', 'error');
     const q = Number(qty);
     if (!Number.isFinite(q) || q === 0) return flash(panel, 'Enter a non-zero quantity', 'error');
     const c = px.trim() ? Number(px) : engine.quote(d.id)!.last;
-    portfolio.set((s) => {
-      const existing = s.positions.find((p) => p.id === d.id);
-      const positions = existing
-        ? s.positions.map((p) => (p.id === d.id ? { ...p, qty: p.qty + q, cost: (p.cost * p.qty + c * q) / (p.qty + q || 1) } : p)).filter((p) => p.qty !== 0)
-        : [...s.positions, { id: d.id, qty: q, cost: c }];
-      return { ...s, positions };
-    });
+    if (!Number.isFinite(c) || (!isMargined(d) && c < 0)) return flash(panel, 'Enter a valid cost price or wait for a market price', 'error');
+    try {
+      const adjusted = adjustPosition(st.positions.find((p) => p.id === d.id), d.id, q, c);
+      portfolio.set((s) => ({ ...s, positions: [...s.positions.filter((p) => p.id !== d.id), ...(adjusted ? [adjusted] : [])] }));
+    } catch { return flash(panel, 'Position quantity or cost is outside the valid range', 'error'); }
     setSec('');
     setQty('');
     setPx('');
@@ -93,6 +89,7 @@ function Holdings() {
   };
   return (
     <>
+      {unresolved.length > 0 && <div className="note amber" role="status">Some saved holdings are not in the security directory. Resolve or remove them to calculate total NAV: {unresolved.map((p) => <span key={p.id}>{p.id} <button type="button" className="btn" aria-label={`Remove unresolved ${p.id}`} onClick={() => portfolio.set((s) => ({ ...s, positions: s.positions.filter((r) => r.id !== p.id) }))}>Remove</button> </span>)}</div>}
       <div className="cols">
         <Section title="Summary (USD)">
           <KV
@@ -102,9 +99,9 @@ function Holdings() {
               ['Futures notional', fmtNum(futNotional, 0)],
               ['Cash', fmtNum(st.cash, 0)],
               ['Day P&L', pending.length ? waiting('d') : <Chg key="d" v={day} dec={0} />],
-              ['Day return', pending.length ? waiting('dr') : <Chg key="dr" v={(day / (nav - day)) * 100} pct />],
-              ['Unrealised P&L', <Chg key="u" v={tot} dec={0} />],
-              ['Return on cost', <Chg key="rc" v={(tot / cost) * 100} pct />],
+              ['Day return', pending.length ? waiting('dr') : <Chg key="dr" v={nav - day > 0 ? (day / (nav - day)) * 100 : NaN} pct />],
+              ['Unrealised local-price P&L', <Chg key="u" v={unresolved.length ? NaN : tot} dec={0} />],
+              ['Return on absolute cost', <Chg key="rc" v={unresolved.length || grossCost === 0 ? NaN : (tot / grossCost) * 100} pct />],
             ]}
           />
         </Section>
@@ -125,7 +122,7 @@ function Holdings() {
           </div>
           <div className="note">
             The portfolio holds only the positions and cash you enter here: there is no order entry and no simulated trading. Futures quantities are contracts and count toward NAV at unrealised P&L; Treasury quantities are face value. A
-            blank price records today&apos;s market price as your cost.
+            blank price records today&apos;s market price as your cost. Adding on the same side averages cost; reducing retains the remaining cost; reversing uses the entered cost for the new side. Cash is adjusted separately.
           </div>
         </Section>
       </div>
@@ -160,7 +157,7 @@ function Holdings() {
                   <LivePx id={l.p.id} />
                 </td>
                 <td className="num">{fmtNum(l.mv, 0)}</td>
-                <td className="num">{fmtNum((l.mv / nav) * 100, 1)}%</td>
+                <td className="num">{fmtNum(nav > 0 ? (l.mv / nav) * 100 : NaN, 1)}%</td>
                 <td className="num">
                   {unconfirmed(l) ? (
                     <span className="muted" title="Waiting for a confirmed previous close">
@@ -189,127 +186,11 @@ function Holdings() {
   );
 }
 
-/** Daily NAV of today's holdings and cash replayed over history (static weights). */
-function navHistory(positions: Position[], bars: number, cash = portfolio.get().cash) {
-  const ids = positions.map((p) => p.id).filter((id) => engine.get(id));
-  const spine = engine.daily('SPX Index');
-  const n = spine.length;
-  const from = Math.max(0, n - bars);
-  const out = makeSeries(n - from, spine.span);
-  let w = 0;
-  for (let i = from; i < n; i++) {
-    const t = spine.t[i];
-    let v = cash;
-    for (const id of ids) {
-      const d = engine.get(id)!;
-      const p = positions.find((x) => x.id === id)!;
-      const px = i === n - 1 ? engine.quote(id)!.last : closeAt(engine.daily(id), t + 43_200_000);
-      if (!Number.isFinite(px)) continue;
-      v += navValue(d, p.qty, px, p.cost);
-    }
-    out.t[w] = t;
-    out.o[w] = out.h[w] = out.l[w] = out.c[w] = v;
-    out.v[w] = 0;
-    w++;
-  }
-  out.length = w;
-  return out;
-}
-
-function Performance() {
-  const st = portfolio.use((s) => s);
-  const tick = useTick(15);
-  const nav = useMemo(() => navHistory(st.positions, 520), [st.positions, tick]); // eslint-disable-line react-hooks/exhaustive-deps
-  const bench = engine.daily(st.benchmark);
-  const options: ChartOptions = useMemo(
-    () => ({ type: 'mountain', dec: 0, label: 'Portfolio', intraday: false, overlays: [], lower: [], compare: [{ label: engine.get(st.benchmark)!.ticker, series: bench, color: '#45d3e6' }], percent: true, annotate: false, initialBars: 252, dateLabel: (t) => fmtDay(t) }),
-    [bench, st.benchmark],
-  );
-  return (
-    <div className="fn-fill" style={{ height: 420 }}>
-      <ChartView series={nav} options={options} resetKey={`port|${st.positions.length}`} />
-      <div className="note">Current holdings replayed over history (no trading), rebased at the first visible date.</div>
-    </div>
-  );
-}
-
-function Risk() {
-  const st = portfolio.use((s) => s);
-  const tick = useTick(15);
-  const r = useMemo(() => {
-    const nav = navHistory(st.positions, 253);
-    const rets: number[] = [];
-    for (let i = 1; i < nav.length; i++) rets.push(nav.c[i] / nav.c[i - 1] - 1);
-    const { rets: br } = alignedReturns([st.benchmark], 252);
-    const n = Math.min(rets.length, br[0].length);
-    const reg = regress(br[0].slice(-n), rets.slice(-n));
-    const vol = stdev(rets) * Math.sqrt(252);
-    const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
-    const rf = (engine.quote('USGG3M Index')!.last / 100) / 252;
-    const total = nav.c[nav.length - 1];
-    const var95 = -percentile(rets, 0.05) * total;
-    const tail = rets.filter((x) => x <= percentile(rets, 0.05));
-    const cvar = (-tail.reduce((a, b) => a + b, 0) / Math.max(1, tail.length)) * total;
-    return { reg, vol, sharpe: ((mean - rf) / stdev(rets)) * Math.sqrt(252), var95, cvar, mdd: maxDrawdown(nav.c.subarray(0, nav.length)), total, ret1y: (nav.c[nav.length - 1] / nav.c[0] - 1) * 100 };
-  }, [st.positions, st.benchmark, tick]); // eslint-disable-line react-hooks/exhaustive-deps
-  const ls = lines(st.positions);
-  const mv = ls.reduce((a, l) => a + l.mv, 0);
-  const groups = (key: (l: Line) => string) => {
-    const m = new Map<string, number>();
-    for (const l of ls) m.set(key(l), (m.get(key(l)) ?? 0) + l.mv);
-    return [...m.entries()].map(([k, v]) => ({ k, w: (v / mv) * 100 })).sort((a, b) => b.w - a.w);
-  };
-  const alloc = [
-    { title: 'Asset class', rows: groups((l) => CLASS_LABEL[l.d.cls]) },
-    { title: 'Sector (equities)', rows: groups((l) => l.d.eq?.sector ?? 'Non-equity') },
-    { title: 'Region', rows: groups((l) => l.d.region) },
-  ];
-  return (
-    <>
-      <div className="cols">
-        <Section title="Risk (1Y daily, USD)">
-          <KV
-            items={[
-              ['Annualised volatility', fmtPct(r.vol * 100, 2, false)],
-              [`Beta vs ${engine.get(st.benchmark)!.ticker}`, fmtNum(r.reg.beta, 2)],
-              ['Correlation', fmtNum(r.reg.corr, 2)],
-              ['Sharpe ratio', fmtNum(r.sharpe, 2)],
-              ['1-day VaR 95% (historical)', fmtNum(r.var95, 0)],
-              ['1-day CVaR 95%', fmtNum(r.cvar, 0)],
-              ['Max drawdown', fmtPct(r.mdd * 100, 1)],
-              ['1Y return (static holdings)', <Chg key="r" v={r.ret1y} pct />],
-            ]}
-          />
-        </Section>
-        {alloc.map((a) => (
-          <Section key={a.title} title={a.title}>
-            <table className="tbl">
-              <tbody>
-                {a.rows.map((x) => (
-                  <tr key={x.k}>
-                    <td style={{ width: '42%' }}>{x.k}</td>
-                    <td>
-                      <HBar value={x.w} max={a.rows[0].w} color="var(--amber)" />
-                    </td>
-                    <td className="num" style={{ width: 60 }}>
-                      {fmtNum(x.w, 1)}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Section>
-        ))}
-      </div>
-    </>
-  );
-}
-
 export function PORT(_: FnProps) {
   const panel = usePanelId();
   const [tab, setTab] = useState(1);
   const st = portfolio.use((s) => s);
-  const csv = () => [['Security', 'Quantity', 'Cost', 'Last', 'Market value USD'], ...lines(st.positions).map((l) => [l.p.id, l.p.qty, l.p.cost, l.px, Math.round(l.mv)])];
+  const csv = () => [['Security', 'Quantity', 'Cost', 'Last', 'Exposure USD'], ...st.positions.map((p) => { const d = engine.get(p.id); const last = engine.quote(p.id)?.last; return [p.id, p.qty, p.cost, d ? last : 'Unknown security', d && last !== undefined ? p.qty * last * usdPerPrice(d) : undefined]; })];
   return (
     <div>
       <FnHeader
@@ -323,10 +204,10 @@ export function PORT(_: FnProps) {
         ]}
         tab={tab}
         onTab={setTab}
-        actions={exportActions(panel, 'portfolio.csv', csv)}
+        actions={exportActions(panel, 'portfolio.csv', csv).map((a) => ({ ...a, label: `${a.label} holdings` }))}
       />
-      {tab === 1 ? <Holdings /> : tab === 2 ? <Performance /> : <Risk />}
-      <div className="note">Values in USD at live FX rates. Holdings are stored {engine.realOnly ? 'on this computer' : 'in this browser'} only.</div>
+      {tab === 1 ? <Holdings /> : tab === 2 ? <PortfolioPerformance /> : <PortfolioRisk />}
+      <div className="note">Current values use source FX marks, which may be delayed or stale. Holdings day/cost P&L translates local price changes at current FX; entry-date FX is not recorded. Holdings are stored {engine.realOnly ? 'on this computer' : 'in this browser'} only.</div>
     </div>
   );
 }

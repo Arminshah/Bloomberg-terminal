@@ -36,6 +36,8 @@ declare global {
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<KeyedAnswer>;
       analysts?(kind: import('./analysts').AnalystKind, symbol: string): Promise<KeyedAnswer>;
+      finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
+      equibles?(kind: import('./equibles').ResearchKind, symbol: string): Promise<KeyedAnswer>;
       finnhub?(kind: 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'quote', symbol: string): Promise<KeyedAnswer>;
       news?(source: import('./marketnews').NewsSource, arg?: string): Promise<KeyedAnswer>;
       alpaca?(kind: 'snapshots', symbols: string): Promise<KeyedAnswer>;

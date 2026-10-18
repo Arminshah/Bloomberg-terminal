@@ -29,6 +29,7 @@ const CREDENTIALS = {
   ALPACA_API_SECRET_KEY: { label: 'Alpaca API secret key', valid: (v) => /^[A-Za-z0-9/+=_-]{30,80}$/.test(v) },
   // Financial Modeling Prep: analyst price targets, ratings and estimates.
   FMP_API_KEY: { label: 'Financial Modeling Prep API key', valid: (v) => /^[A-Za-z0-9]{20,64}$/.test(v) },
+  EQUIBLES_API_KEY: { label: 'Equibles API key', valid: (v) => /^eq_[A-Za-z0-9]{24,128}$/.test(v) },
   // TipRanks: kept for a later adapter; nothing is sent to TipRanks yet.
   TIPRANKS_API_KEY: { label: 'TipRanks API key', valid: (v) => /^tr_(live|test)_[A-Za-z0-9]{16,80}$/.test(v) && !/^tr_(live|test)_x+$/i.test(v) },
   // The SEC asks for an application name and a contact email it can reach.
@@ -168,7 +169,8 @@ const SETTINGS = {
   MARKETWATCH_RSS_ENABLED: { label: 'MarketWatch top stories RSS (Dow Jones terms restrict automated access)', default: false },
   // The keyed sources added in 2.1.0, each on while its key is set; off stops every request to it.
   FMP_ENABLED: { label: 'Financial Modeling Prep analyst research', default: true },
-  FINNHUB_ENABLED: { label: 'Finnhub company data and news', default: true },
+  EQUIBLES_ENABLED: { label: 'Equibles company research (read only)', default: true },
+  FINNHUB_ENABLED: { label: 'Finnhub company data, recommendations and news', default: true },
   MARKETAUX_ENABLED: { label: 'Marketaux news and sentiment', default: true },
   ALPACA_ENABLED: { label: 'Alpaca IEX stocks and indicative options (market data only)', default: true },
   ALPACA_IEX_PRICES_ENABLED: { label: 'Use Alpaca IEX only prices for US equities', default: false },
@@ -254,6 +256,7 @@ const ALIASES = [
   [/marketaux/i, 'MARKETAUX_API_TOKEN'],
   [/financial[\s_-]*modeling[\s_-]*prep|\bfmp\b|fmp_api_key/i, 'FMP_API_KEY'],
   [/tipranks/i, 'TIPRANKS_API_KEY'],
+  [/equibles/i, 'EQUIBLES_API_KEY'],
 ];
 
 /** The SEC contact from a line such as "SEC_USER_AGENT: Name: Ann Example e-mail: ann@mail.org". */
@@ -290,6 +293,10 @@ function parseCredentialList(text) {
       previous = name;
       if (!name) {
         skipped.push({ line: i + 1, reason: 'no provider named' });
+        return;
+      }
+      if (name === 'FINNHUB_API_KEY' && /webhook|x-finnhub-secret/i.test(line)) {
+        skipped.push({ line: i + 1, name, reason: 'a Finnhub webhook secret is not a REST API key' });
         return;
       }
       // One Alpaca line named by its site can hold both the key ID and the secret ("key: PK... secret key: ...").
@@ -380,6 +387,8 @@ const DAILY = {
   alphavantage: { limit: 25, cap: 20 },
   twelvedata: { limit: 800, cap: 600 },
   fmp: { limit: 250, cap: 220 },
+  // Hosted REST and MCP share the free account's allowance. Other clients can spend it too.
+  equibles: { limit: 100, cap: 90 },
   marketaux: { limit: 100, cap: 90 },
   tiingo: { limit: 1000, cap: 500 },
 };
@@ -508,7 +517,7 @@ function providerMessage(text, secrets = []) {
     const j = JSON.parse(text);
     // Each provider words it its own way: {"error_message"}, {"message"}, {"Error Message"} (FMP),
     // {"error": "..."} (Finnhub), {"error": {"message"}} (Marketaux), {"detail"} (Tiingo) or a bare string.
-    const first = [j?.error_message, j?.message, j?.['Error Message'], j?.Information, j?.Note, j?.error, j?.error?.message, j?.detail, j].find((x) => typeof x === 'string');
+    const first = [j?.error_message, j?.message, j?.['Error Message'], j?.Error, j?.Information, j?.Note, j?.error, j?.error?.message, j?.detail, j].find((x) => typeof x === 'string');
     msg = first ?? '';
   } catch {
     const t = String(text).trim();
@@ -552,6 +561,15 @@ function providerPayloadProblem(provider, text, secrets = []) {
       break;
     case 'finnhub':
       message = typeof data?.error === 'string' ? data.error : data?.error?.message;
+      break;
+    case 'equibles':
+      if (typeof data?.Error === 'string') message = data.Error;
+      else if (data?.error) {
+        message = typeof data.error === 'string' ? data.error : data.error.message;
+        code = data.error.code;
+      } else if (data?.result?.isError === true) {
+        message = Array.isArray(data.result.content) ? data.result.content.filter((block) => block?.type === 'text').map((block) => block.text).join(' ') : 'Equibles refused the research query.';
+      }
       break;
     case 'marketaux':
       if (data?.error) {

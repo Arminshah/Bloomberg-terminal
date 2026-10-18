@@ -1,7 +1,32 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as finnhubMain from '../electron/finnhub.cjs';
-import { parseCalendar, parseEarnings, parseMetric, parseProfile, parseRecommendation } from '../src/data/live/finnhub';
+import { finnhubData, loadFinnhub, parseCalendar, parseEarnings, parseMetric, parseProfile, parseRecommendation, retryFinnhub } from '../src/data/live/finnhub';
+import type { KeyedAnswer } from '../src/data/live/lookup';
 import { summaryFromFinnhub } from '../src/data/live/yfund';
+
+afterEach(() => { vi.unstubAllGlobals(); retryFinnhub(); });
+
+it('does not show invalid counts/dates or another company in a recommendation trend', () => {
+  const row = { symbol: 'APLD', period: '2026-10-01', buy: 4, strongBuy: 1, hold: 2, sell: 0, strongSell: 0 };
+  const result = parseRecommendation(JSON.stringify([row, { ...row, symbol: 'AAPL' }, { ...row, buy: -1 }, { ...row, period: '2026-02-30' }]), 'APLD');
+  expect(result).toMatchObject({ data: [{ buy: 4, period: '2026-10-01' }] });
+  expect('data' in result && result.data).toHaveLength(1);
+});
+
+it('uses a replaced Finnhub credential immediately and ignores a late old-account result', async () => {
+  let resolve!: (value: KeyedAnswer) => void;
+  const old = new Promise<KeyedAnswer>((done) => { resolve = done; });
+  const request = vi.fn().mockReturnValueOnce(old).mockResolvedValueOnce({ status: 200, text: '{"name":"New account answer"}' });
+  vi.stubGlobal('window', { arminDesktop: { finnhub: request } });
+  retryFinnhub();
+  const pending = loadFinnhub('APLD', 'profile');
+  retryFinnhub();
+  expect(await loadFinnhub('APLD', 'profile')).toMatchObject({ state: 'ok', data: { name: 'New account answer' } });
+  resolve({ status: 200, text: '{"name":"Old account answer"}' });
+  expect(await pending).toBeUndefined();
+  expect(finnhubData.get().by.APLD.profile?.data).toMatchObject({ name: 'New account answer' });
+  expect(request).toHaveBeenCalledTimes(2);
+});
 
 // Made-up answers in the layouts of Finnhub's documented examples; no request leaves the test.
 

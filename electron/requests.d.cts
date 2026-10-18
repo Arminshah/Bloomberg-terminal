@@ -18,6 +18,7 @@ export interface RequesterResponse {
   status: number;
   ok: boolean;
   headers?: { get(name: string): string | null };
+  body?: ReadableStream<Uint8Array> | null;
   text(): Promise<string>;
 }
 
@@ -33,7 +34,7 @@ export interface RequestResult {
 }
 
 export type RequestPace = [perWindow: number, windowMs: number, perHour?: number];
-export type Requester = (provider: string, url: string, headers: Record<string, string>, ttl: number, pace: RequestPace, secrets?: string[], userAgent?: string) => Promise<RequestResult>;
+export type Requester = (provider: string, url: string, headers: Record<string, string>, ttl: number, pace: RequestPace, secrets?: string[], userAgent?: string, transport?: { method: 'POST'; body: string }) => Promise<RequestResult>;
 
 export function createRequester(dependencies: {
   providers: RequesterProviders;

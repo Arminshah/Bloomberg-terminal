@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { checkBond, checkForward, checkOptions, checkStrategy, checkSwap } from './calculator-checks';
+import { checkAmericanOption, checkBond, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from './calculator-checks';
+import { checkLinkedPanels } from './workspace-checks';
 
 // Keep runs deterministic: no live network feeds.
 async function boot(page: Page, layout?: string) {
@@ -12,8 +13,8 @@ async function boot(page: Page, layout?: string) {
   await page.addInitScript((lay) => {
     // The browser build only runs the demo once it has been opened.
     localStorage.setItem('armin:demo', '1');
-    localStorage.setItem('armin:settings', JSON.stringify({ v: 1, s: { liveCrypto: false, liveFx: false, newsFlashes: false } }));
-    if (lay) localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: lay } }));
+    if (!localStorage.getItem('armin:settings')) localStorage.setItem('armin:settings', JSON.stringify({ v: 1, s: { liveCrypto: false, liveFx: false, newsFlashes: false } }));
+    if (lay && !localStorage.getItem('armin:terminal')) localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: lay } }));
   }, layout ?? '');
   await page.goto('/');
   await expect(page.locator('.panel').first()).toBeVisible();
@@ -40,7 +41,59 @@ async function run(page: Page, cmd: string, panel = 0) {
   await input.press('Enter');
 }
 
+test('linked security groups preserve functions, skip incompatible screens, and restore saved workspaces', async ({ page }) => {
+  const errors = await boot(page, '4');
+  await checkLinkedPanels(page, async (text, code, panel = 0) => {
+    await run(page, text, panel);
+    await expect(page.locator('.panel').nth(panel).locator('.fnh-code').first()).toHaveText(code);
+  });
+  expect(errors).toEqual([]);
+});
+
+test('field search inspects values and exports only filtered fields with provenance', async ({ page }) => {
+  const errors = await boot(page, '1');
+  await run(page, 'AAPL FLDS PX_LAST');
+  await expect(page.locator('.fnh-code').first()).toHaveText('FIELDS');
+  await expect(page.getByLabel('Search data fields')).toHaveValue('PX_LAST');
+  await expect(page.getByTestId('field-value')).not.toContainText('--');
+  await expect(page.locator('.field-definition')).toContainText('DEMO DATA');
+  await page.getByLabel('Search data fields').fill('ARMIN_BID_ASK');
+  await expect(page.locator('.tbl tbody tr')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Inspect ARMIN_BID_ASK_SPREAD', exact: true }).click();
+  await expect(page.locator('.field-definition')).toContainText('does not expose a separate bid/ask event timestamp');
+  const pending = page.waitForEvent('download');
+  await page.getByRole('button', { name: /Export fields/ }).click();
+  const download = await pending;
+  const csv = await readFile((await download.path())!, 'utf8');
+  expect(csv).toContain('ARMIN_BID_ASK_SPREAD,Bid/ask spread,Calculated,');
+  expect(csv).toContain('ARMIN_BID_ASK_MID,Bid/ask midpoint,Calculated,');
+  expect(csv).toContain('DEMO DATA');
+  expect(csv).not.toContain('\nPX_LAST,');
+  await page.getByLabel('Search data fields').fill('no_such_field');
+  await expect(page.getByText('No fields match this search and category.')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('mnemonic display can be changed and stays saved without changing command behavior', async ({ page }) => {
+  const errors = await boot(page, '1');
+  await run(page, 'AAPL GP');
+  await expect(page.locator('.fnh-mnemonic')).toContainText('GP');
+  await expect(page.locator('#cmd-0')).toHaveAttribute('placeholder', /AAPL US Equity GP/);
+  await run(page, 'SETTINGS');
+  await page.getByRole('checkbox', { name: 'Show short function mnemonics and <GO> cues' }).uncheck();
+  await run(page, 'AAPL GP');
+  await expect(page.locator('.fnh-mnemonic')).toHaveCount(0);
+  await expect(page.locator('.fnh-code')).toHaveText('CHART');
+  await expect(page.locator('#cmd-0')).toHaveAttribute('placeholder', /AAPL US Equity CHART/);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('armin:settings') ?? 'null')?.s?.mnemonics)).toBe(false);
+  await page.reload();
+  await expect(page.locator('.fnh-code')).toHaveText('CHART');
+  await expect(page.locator('.fnh-mnemonic')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 const COMMANDS: [string, string][] = [
+  ['AAPL FLDS', 'FIELDS'],
   ['FILINGS MSFT', 'FILINGS'], ['CROSSCHECK AAPL', 'CROSSCHECK'], ['MARKETNEWS NVDA', 'MARKETNEWS'], ['MACRO CPI', 'MACRO'],
   ['AAPL US EQUITY PROFILE', 'PROFILE'], ['AAPL CHART', 'CHART'], ['AAPL INTRADAY', 'INTRADAY'], ['AAPL HISTORY', 'HISTORY'], ['AAPL FINANCIALS', 'FINANCIALS'], ['AAPL ANALYSTS', 'ANALYSTS'],
   ['AAPL EARNINGS', 'EARNINGS'], ['AAPL DIVIDENDS', 'DIVIDENDS'], ['AAPL HOLDERS', 'HOLDERS'], ['AAPL PEERS', 'PEERS'], ['EVENTS', 'EVENTS'], ['AAPL WACC', 'WACC'],
@@ -151,7 +204,7 @@ test('watchlist add and alert creation persist', async ({ page }) => {
   await page.getByLabel('Add security to monitor').press('Enter');
   await expect(page.locator('table.tbl')).toContainText('ORCL US');
   await run(page, 'ALERTS');
-  await page.getByLabel('Security').fill('AAPL US Equity');
+  await page.getByLabel('Security', { exact: true }).fill('AAPL US Equity');
   await page.getByLabel('Trigger value').fill('1');
   await page.getByRole('button', { name: 'Create alert' }).click();
   // A price alert at 1 or above fires immediately.
@@ -215,5 +268,50 @@ test('multi-leg option strategies expose exact expiry risk and export their ente
   expect(csv).toContain('European Black-Scholes-Merton');
   expect(csv).toContain('C,100,1,8,25');
   expect(csv).toContain('Max expiry loss,400');
+  expect(errors).toEqual([]);
+});
+
+test('American option valuation, independent PDE premium inversion and calculation export', async ({ page }) => {
+  const errors = await boot(page, '1');
+  await checkAmericanOption(page, async (cmd, code) => { await run(page, cmd); await expect(page.locator('.fnh-code').first()).toHaveText(code); });
+  const saving = page.waitForEvent('download');
+  await run(page, '99');
+  const download = await saving;
+  expect(download.suggestedFilename()).toBe('option-calculation.csv');
+  const csv = await readFile((await download.path())!, 'utf8');
+  expect(csv).toContain('American Tian binomial');
+  expect(csv).toContain('Tenor calendar days,365');
+  expect(csv).toContain('Early exercise premium,');
+  expect(errors).toEqual([]);
+});
+
+test('portfolio date-aligned risk, independent stress P&L and coverage-labelled exports', async ({ page }) => {
+  // Fixed marks keep the independent stress calculation stable while actual UI timers run.
+  await page.clock.setFixedTime(new Date('2026-10-16T15:00:00Z'));
+  const errors = await boot(page, '1');
+  await checkPortfolioPositions(page, async (cmd, code) => { await run(page, cmd); await expect(page.locator('.fnh-code').first()).toHaveText(code); });
+  await expect(page.getByTestId('risk-samples')).toHaveText('252');
+  const nav = Number((await page.getByTestId('risk-nav').innerText()).replace(/,/g, ''));
+  await page.getByRole('button', { name: 'All prices −10%', exact: true }).click();
+  const pnl = Number((await page.getByTestId('stress-pnl').innerText()).replace(/,/g, ''));
+  expect(pnl).toBeCloseTo(-0.1 * (nav - 10_000), 1);
+  await page.getByLabel('Risk confidence').selectOption('0.975');
+  await page.getByLabel('Risk horizon').selectOption('5');
+  await expect(page.getByTestId('risk-samples')).toHaveText('248');
+  const saving = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export risk CSV', exact: true }).click();
+  const download = await saving;
+  const csv = await readFile((await download.path())!, 'utf8');
+  expect(csv).toContain('Confidence,0.975');
+  expect(csv).toContain('Horizon shared intervals,5');
+  expect(csv).toContain('Expected shortfall contribution USD');
+  expect(csv).toContain('AAPL US Equity,5,90,1,false');
+  expect(csv).toContain('Historical session,Replay NAV USD,AAPL US Equity local price,AAPL US Equity USD per currency unit');
+  await run(page, '2');
+  await expect(page.getByText('Fixed holdings replay (USD)', { exact: true })).toBeVisible();
+  await expect(page.getByText('Historical NAV', { exact: true })).toBeVisible();
+  await run(page, 'CORR');
+  while (await page.getByRole('button', { name: /^Remove / }).count()) await page.getByRole('button', { name: /^Remove / }).first().click();
+  await expect(page.getByText('Add securities to compare their daily returns.', { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });

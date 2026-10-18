@@ -1,6 +1,7 @@
 import { engine } from '../data/market';
 import type { SecurityDef } from '../data/types';
 import { portfolio } from './userdata';
+import type { Position } from './userdata';
 
 /**
  * Valuation helpers for the portfolio monitor. The portfolio holds only the
@@ -58,4 +59,18 @@ export function grossExposure(): number {
     if (d && q) g += Math.abs(p.qty * q.last * usdPerPrice(d));
   }
   return g;
+}
+
+/** Manual quantity adjustment, not a trade ledger. Reductions retain cost; crossing zero resets it. */
+export function adjustPosition(existing: Position | undefined, id: string, quantity: number, cost: number): Position | null {
+  if (!id || ![quantity, cost].every(Number.isFinite) || quantity === 0 || (existing && (existing.id !== id || ![existing.qty, existing.cost].every(Number.isFinite)))) throw new Error('Invalid position adjustment.');
+  if (!existing || existing.qty === 0) return { id, qty: quantity, cost };
+  const qty = existing.qty + quantity;
+  if (!Number.isFinite(qty)) throw new Error('Position quantity exceeds the numerical range.');
+  if (qty === 0) return null;
+  const sameSide = Math.sign(existing.qty) === Math.sign(quantity);
+  const newCost = sameSide ? existing.cost + (cost - existing.cost) * (Math.abs(quantity) / Math.abs(qty))
+    : Math.sign(qty) === Math.sign(existing.qty) ? existing.cost : cost;
+  if (!Number.isFinite(newCost)) throw new Error('Position cost exceeds the numerical range.');
+  return { id, qty, cost: newCost };
 }

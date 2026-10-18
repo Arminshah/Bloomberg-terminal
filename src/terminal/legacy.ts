@@ -6,6 +6,7 @@ import type { Route } from './types';
  * also carries saved panels, layouts and settings to canonical names.
  */
 export const LEGACY_CODES: Record<string, string> = {
+  FLDS: 'FIELDS',
   DES: 'PROFILE',
   FA: 'FINANCIALS',
   ANR: 'ANALYSTS',
@@ -67,6 +68,10 @@ export const LEGACY_CODES: Record<string, string> = {
   PROV: 'PROVIDERS',
   PDFU: 'SETTINGS',
 };
+
+const MNEMONICS = new Map(Object.entries(LEGACY_CODES).map(([alias, code]) => [code, alias]));
+/** Familiar short command for a descriptive canonical function; stored routes stay canonical. */
+export const primaryMnemonic = (code: string): string => MNEMONICS.get(code.toUpperCase()) ?? code;
 
 /** The current name for an old code, if it is one. */
 export function renamedCode(code: string): string | undefined {

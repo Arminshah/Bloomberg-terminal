@@ -148,13 +148,14 @@ export function parseMetric(text: string): Parsed<FinnhubMetric | null> {
 }
 
 /** /stock/recommendation: [{period, strongBuy, buy, hold, sell, strongSell, symbol}], newest first after sorting. */
-export function parseRecommendation(text: string): Parsed<RecommendationMonth[]> {
+export function parseRecommendation(text: string, symbol?: string): Parsed<RecommendationMonth[]> {
   const j = json(text);
   if (j === undefined) return { error: 'The answer was not JSON' };
   if (!Array.isArray(j)) return { error: refusal(j) ?? 'No list in the answer' };
   const rows = j
+    .filter((r: any) => !symbol || String(r?.symbol).replace(/-/g, '.') === symbol.replace(/-/g, '.'))
     .map((r: any) => ({ period: String(r?.period ?? '').slice(0, 10), strongBuy: num(r?.strongBuy), buy: num(r?.buy), hold: num(r?.hold), sell: num(r?.sell), strongSell: num(r?.strongSell) }))
-    .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.period) && [r.strongBuy, r.buy, r.hold, r.sell, r.strongSell].every(Number.isFinite))
+    .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.period) && Number.isFinite(Date.parse(`${r.period}T00:00:00Z`)) && new Date(`${r.period}T00:00:00Z`).toISOString().slice(0, 10) === r.period && [r.strongBuy, r.buy, r.hold, r.sell, r.strongSell].every((n) => Number.isInteger(n) && n >= 0))
     .sort((a, b) => b.period.localeCompare(a.period));
   return { data: rows };
 }
@@ -194,7 +195,7 @@ export interface FinnhubPart<T = unknown> {
 }
 
 type ByKind = Partial<Record<FinnhubKind, FinnhubPart>>;
-export const finnhubData = createStore<{ v: number; by: Record<string, ByKind> }>({ v: 0, by: {} });
+export const finnhubData = createStore<{ v: number; by: Record<string, ByKind>; retry: number }>({ v: 0, by: {}, retry: 0 });
 const asked = new Map<string, number>();
 
 export function finnhubAvailable(): boolean {
@@ -207,7 +208,13 @@ export function finnhubSymbol(def: SecurityDef | undefined): string | null {
 }
 
 function put(symbol: string, kind: FinnhubKind, part: FinnhubPart) {
-  finnhubData.set((s) => ({ v: s.v + 1, by: { ...s.by, [symbol]: { ...s.by[symbol], [kind]: part } } }));
+  finnhubData.set((s) => ({ ...s, v: s.v + 1, by: { ...s.by, [symbol]: { ...s.by[symbol], [kind]: part } } }));
+}
+
+/** A replaced key must take effect immediately and invalidate in-flight old-account updates. */
+export function retryFinnhub() {
+  asked.clear();
+  finnhubData.set((s) => ({ ...s, by: {}, retry: s.retry + 1 }));
 }
 
 /** Asks for one kind of data at most every ten minutes per company (the main process keeps answers for hours). */
@@ -216,6 +223,7 @@ export async function loadFinnhub(symbol: string, kind: FinnhubKind): Promise<Fi
   if (!finnhubAvailable()) return undefined;
   if (Date.now() - (asked.get(key) ?? 0) < 10 * 60_000) return finnhubData.get().by[symbol]?.[kind];
   asked.set(key, Date.now());
+  const generation = finnhubData.get().retry;
   if (!finnhubData.get().by[symbol]?.[kind]) put(symbol, kind, { state: 'loading' });
   let part: FinnhubPart;
   try {
@@ -227,13 +235,14 @@ export async function loadFinnhub(symbol: string, kind: FinnhubKind): Promise<Fi
       if (!(res.status >= 400 && res.status < 500 && res.status !== 429)) asked.delete(key);
       part = { state: res.budget ? 'budget' : 'error', message: res.error ?? (res.status ? `Finnhub answered HTTP ${res.status}` : 'Finnhub did not answer') };
     } else {
-      const parsed = PARSE[kind](res.text);
-      part = 'error' in parsed ? { state: 'error', message: parsed.error, at: res.at } : { state: 'ok', data: parsed.data, at: res.at, stale: res.stale };
+      const parsed = kind === 'recommendation' ? parseRecommendation(res.text, symbol) : PARSE[kind](res.text);
+      part = 'error' in parsed ? { state: 'error', message: parsed.error, at: res.at } : { state: 'ok', data: parsed.data, at: res.at, stale: res.stale, message: res.stale ? res.error : undefined };
     }
   } catch (err) {
     asked.delete(key);
     part = { state: 'error', message: String((err as Error)?.message ?? err) };
   }
+  if (generation !== finnhubData.get().retry) return undefined;
   put(symbol, kind, part);
   return part;
 }
@@ -242,10 +251,11 @@ export async function loadFinnhub(symbol: string, kind: FinnhubKind): Promise<Fi
 export function useFinnhub(def: SecurityDef | undefined, kinds: FinnhubKind[]): ByKind {
   const symbol = finnhubSymbol(def);
   const parts = finnhubData.use((s) => (symbol ? s.by[symbol] : undefined));
+  const retry = finnhubData.use((s) => s.retry);
   const want = kinds.join(',');
   useEffect(() => {
     if (!symbol || !finnhubAvailable()) return;
     for (const k of want.split(',') as FinnhubKind[]) void loadFinnhub(symbol, k);
-  }, [symbol, want]);
+  }, [symbol, want, retry]);
   return parts ?? {};
 }

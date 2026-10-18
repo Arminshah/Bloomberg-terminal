@@ -19,14 +19,14 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
   const breakers = new Map();
   const limitedUntil = new Map();
   const safe = (text, secrets) => providers.providerMessage(String(text), secrets);
-  const cacheId = (provider, url, headers, secrets, userAgent) => `${provider}:${createHash('sha256').update(JSON.stringify([url, headers, secrets, userAgent])).digest('hex')}`;
+  const cacheId = (provider, url, headers, secrets, userAgent, transport) => `${provider}:${createHash('sha256').update(JSON.stringify([url, headers, secrets, userAgent, transport])).digest('hex')}`;
 
-  async function request(provider, url, headers, ttl, pace, secrets = [], userAgent) {
-    const id = cacheId(provider, url, headers, secrets, userAgent);
+  async function request(provider, url, headers, ttl, pace, secrets = [], userAgent, transport) {
+    const id = cacheId(provider, url, headers, secrets, userAgent, transport);
     const old = kept.get(id);
     if (old && now() - old.at < ttl) return { status: 200, text: old.text, at: old.at, cached: true };
     if (inflight.has(id)) return inflight.get(id);
-    const pending = send(provider, url, headers, pace, secrets, userAgent, id, old);
+    const pending = send(provider, url, headers, pace, secrets, userAgent, id, old, transport);
     inflight.set(id, pending);
     try {
       return await pending;
@@ -35,7 +35,7 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
     }
   }
 
-  async function send(provider, url, headers, pace, secrets, userAgent, id, old) {
+  async function send(provider, url, headers, pace, secrets, userAgent, id, old, transport) {
     const stale = (extra) => ({ status: 0, text: old?.text ?? '', ...(old ? { at: old.at, stale: true } : {}), ...extra });
     const budget = () => {
       providers.recordProblem(provider, 'rate-limited', "The app's daily budget for this provider is spent; it asks again after midnight UTC.");
@@ -70,6 +70,7 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
       let text;
       try {
         res = await fetch(url, {
+          ...transport,
           headers: { 'User-Agent': userAgent ?? agent(), Accept: 'application/json', ...headers },
           cache: 'no-cache',
           signal: AbortSignal.timeout(timeoutMs),

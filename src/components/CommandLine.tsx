@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { execute } from '../terminal/exec';
 import { panelMessages, clearFlash } from '../terminal/panel';
-import { back, forward, terminal } from '../terminal/state';
+import { back, forward, LINK_GROUPS, linkGroupOf, setLinkGroup, terminal, type LinkGroup } from '../terminal/state';
+import { primaryMnemonic } from '../terminal/legacy';
+import { settings } from '../terminal/settings';
 import { suggest, type Suggestion } from '../terminal/suggest';
 import type { Route } from '../terminal/types';
 import { lookupFn } from '../terminal/registry';
@@ -67,8 +69,8 @@ export function clearPanelInput(panel: number) {
   commandApis.get(panel)?.clear();
 }
 
-function routeText(r: Route): string {
-  const parts = [r.sec, r.fn, r.args].filter(Boolean);
+function routeText(r: Route, mnemonics: boolean): string {
+  const parts = [r.sec, mnemonics ? primaryMnemonic(r.fn) : r.fn, r.args].filter(Boolean);
   return parts.join(' ');
 }
 
@@ -81,6 +83,8 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   const msg = panelMessages.use((m) => m[panel]);
   const canBack = terminal.use((s) => s.panels[panel].idx > 0);
   const canFwd = terminal.use((s) => s.panels[panel].idx < s.panels[panel].history.length - 1);
+  const group = terminal.use((s) => linkGroupOf(s.panels[panel]));
+  const mnemonics = settings.use((s) => s.mnemonics);
 
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -211,6 +215,16 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       <span className="cmd-num" title={`Panel ${panel + 1}`}>
         {panel + 1}
       </span>
+      <select
+        className="cmd-link"
+        aria-label={`Panel ${panel + 1} security link group`}
+        title="Security link group: matching colors share selections across visible compatible panels. A linked monitor keeps its list open."
+        value={group}
+        style={{ color: LINK_GROUPS[group].color }}
+        onChange={(e) => setLinkGroup(panel, Number(e.target.value) as LinkGroup)}
+      >
+        {LINK_GROUPS.map((g) => <option key={g.id} value={g.id}>{g.id ? `${g.id} ${g.name}` : 'Unlinked'}</option>)}
+      </select>
       <span className="cmd-nav">
         <button type="button" aria-label="Back" title="Back (Backspace on empty line)" disabled={!canBack} onClick={() => back(panel)}>
           ‹
@@ -228,7 +242,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         autoComplete="off"
         autoCapitalize="characters"
         aria-label={`Panel ${panel + 1} command line`}
-        placeholder={`${routeText(route)}${fnDef ? `  ·  ${fnDef.name}` : ''}`}
+        placeholder={`${routeText(route, mnemonics)}${fnDef ? `  ·  ${fnDef.name}` : ''}`}
         onChange={(e) => {
           setValue(e.target.value);
           setOpen(true);

@@ -7,6 +7,12 @@ import * as providers from '../electron/providers.cjs';
 afterEach(() => vi.unstubAllEnvs());
 
 describe('provider credentials', () => {
+  it('imports Equibles labels and excludes Finnhub webhook secrets', () => {
+    const result = providers.parseCredentialList('13: equibles.com: eq_Fixture012345678901234567890\nFinnhub webhook secret: Fixture012345678901234567890');
+    expect(result.found).toEqual([{ name: 'EQUIBLES_API_KEY', value: 'eq_Fixture012345678901234567890' }]);
+    expect(result.skipped[0].reason).toContain('webhook secret');
+    expect(providers.CREDENTIALS.EQUIBLES_API_KEY.valid('eq_short')).toBe(false);
+  });
   it('accepts only well-formed keys and a real SEC contact', () => {
     const { FRED_API_KEY, MASSIVE_API_KEY, SEC_USER_AGENT } = providers.CREDENTIALS;
     expect(FRED_API_KEY.valid('abcdefghijklmnopqrstuvwxyz123456')).toBe(true);
@@ -122,6 +128,8 @@ describe('provider refusals returned as HTTP 200', () => {
     ['fmp', { 'Error Message': 'Invalid API KEY.' }, 'not-entitled'],
     ['fmp', 'Premium Query Parameter: not available under your current subscription.', 'not-entitled'],
     ['finnhub', { error: "You don't have access to this resource." }, 'not-entitled'],
+    ['equibles', { jsonrpc: '2.0', error: { code: -32000, message: 'Missing API key' } }, 'not-entitled'],
+    ['equibles', { result: { isError: true, content: [{ type: 'text', text: 'Daily quota exceeded' }] } }, 'rate-limited'],
     ['marketaux', { error: { code: 'usage_limit_reached', message: 'Your allowance is spent.' } }, 'rate-limited'],
     ['marketaux', { error: { code: 'invalid_api_token', message: 'The supplied token is incorrect.' } }, 'not-entitled'],
     ['alpaca', { code: 42910000, message: 'Rate limit exceeded.' }, 'rate-limited'],

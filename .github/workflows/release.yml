@@ -24,10 +24,10 @@ env:
   GH_REPO: ${{ github.repository }}
 
 jobs:
-  # A manual run may name a tag that does not exist yet (sessions that can push branches but not tags): it is
-  # created here on the commit the run starts from, only when that commit's package.json has the same version.
+  # Run for both triggers: a skipped ancestor causes downstream jobs to skip,
+  # even when verify overrides that skip. Pushed tags are validated; manual
+  # runs can create a missing tag only when package.json has the same version.
   tag:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

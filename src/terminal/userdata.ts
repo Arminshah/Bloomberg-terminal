@@ -1,5 +1,6 @@
 import { createStore, loadJson, removeKey, saveJson } from '../core/store';
 import type { LayoutId, Route } from './types';
+import type { LinkGroup } from './state';
 
 export interface Watchlist {
   name: string;
@@ -130,6 +131,7 @@ export interface SavedLayout {
   layout: LayoutId;
   routes: Route[];
   split?: { cols: number[]; rows: number[] };
+  linkGroups?: LinkGroup[];
   saved: number;
 }
 

@@ -3,6 +3,14 @@ import { engine } from './market';
 import { centralBanks } from './eco';
 import { etfDividendYield, trailingDividendYield } from './live/yahoo';
 import type { SecurityDef } from './types';
+import { zonedToUtc } from '../core/format';
+import { contractDate } from '../finance/contracts';
+
+/** Manual 16:00 New York date with DST; does not assert that an option is listed. */
+export function equityExpiryTimestamp(iso: string): number {
+  const d = contractDate(iso);
+  return Number.isFinite(d.getTime()) ? zonedToUtc(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 16, 0, 'America/New_York') : NaN;
+}
 
 /** Expiry timestamps (16:00 New York ~ 20:00/21:00 UTC). */
 export function expiries(now = engine.now()): number[] {
@@ -13,17 +21,17 @@ export function expiries(now = engine.now()): number[] {
   for (let k = 0; k < 40 && out.size < 5; k++) {
     const x = new Date(day.getTime() + k * DAY_MS);
     if (x.getUTCDay() === 5) {
-      const t = x.getTime() + 20 * 3600_000;
+      const t = equityExpiryTimestamp(x.toISOString().slice(0, 10));
       if (t > now) out.add(t);
     }
   }
   // Monthlies (third Friday) for the next nine months.
   for (let m = 0; m < 10; m++) {
-    const tf = thirdFriday(d.getUTCFullYear(), d.getUTCMonth() + m).getTime() + 20 * 3600_000;
+    const tf = equityExpiryTimestamp(thirdFriday(d.getUTCFullYear(), d.getUTCMonth() + m).toISOString().slice(0, 10));
     if (tf > now) out.add(tf);
   }
   // LEAPS: January of the next two years.
-  for (let y = 1; y <= 2; y++) out.add(thirdFriday(d.getUTCFullYear() + y, 0).getTime() + 20 * 3600_000);
+  for (let y = 1; y <= 2; y++) out.add(equityExpiryTimestamp(thirdFriday(d.getUTCFullYear() + y, 0).toISOString().slice(0, 10)));
   return [...out].sort((a, b) => a - b);
 }
 

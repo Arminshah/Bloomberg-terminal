@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   coingecko: () => ipcRenderer.invoke('coingecko'),
   eod: (provider, ticker, from, to) => ipcRenderer.invoke('eod', String(provider), String(ticker), String(from), String(to)),
   analysts: (kind, symbol) => ipcRenderer.invoke('analysts', String(kind), String(symbol)),
+  finnhubResearch: (kind, symbol) => ipcRenderer.invoke('finnhub-research', String(kind), String(symbol)),
+  equibles: (kind, symbol) => ipcRenderer.invoke('equibles', String(kind), String(symbol)),
   finnhub: (kind, symbol) => ipcRenderer.invoke('finnhub', String(kind), String(symbol)),
   news: (source, arg) => ipcRenderer.invoke('news', String(source), String(arg ?? '')),
   alpaca: (kind, symbols) => ipcRenderer.invoke('alpaca', String(kind), String(symbols)),

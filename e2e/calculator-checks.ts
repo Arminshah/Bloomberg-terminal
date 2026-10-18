@@ -134,3 +134,54 @@ export async function checkStrategy(page: Page, run: RunCommand) {
   await expect(page.getByTestId('strategy-debit')).toHaveCount(0);
   await page.getByLabel('Option strategy legs').fill('C,100,1,8,25\nC,110,-1,4,25');
 }
+
+/** Independent QuantLib PDE price, manual tenor and ambiguous exercise-floor IV, on both platforms. */
+export async function checkAmericanOption(page: Page, run: RunCommand) {
+  await run('OVME AAPL P 100 2027-01-15 20', 'OPTIONCALC');
+  await expect(page.getByLabel('Strike', { exact: true })).toHaveValue('100');
+  await run('OVME AAPL C 110 2027-01-15 15', 'OPTIONCALC');
+  await expect(page.getByLabel('Strike', { exact: true })).toHaveValue('110');
+  await expect(page.getByLabel('Volatility override')).toHaveValue('15');
+  await run('AAPL OVME', 'OPTIONCALC');
+  await page.getByLabel('Spot override').fill('100');
+  await page.getByLabel('Strike', { exact: true }).fill('100');
+  await page.getByLabel('Rate override', { exact: true }).fill('5');
+  await page.getByLabel('Dividend yield override').fill('0');
+  await page.getByLabel('Volatility override').fill('20');
+  await page.getByLabel('Days to expiry override').fill('365');
+  await page.getByRole('button', { name: 'Put', exact: true }).click();
+  const european = await displayed(page, 'option-value');
+  await page.getByLabel('Option exercise style').selectOption('A');
+  await expect.poll(async () => Math.abs(await displayed(page, 'option-value') - 6.0900467967)).toBeLessThan(0.025);
+  expect(await displayed(page, 'option-value')).toBeGreaterThan(european);
+  expect(await displayed(page, 'option-exercise-premium')).toBeGreaterThan(0.4);
+  await page.getByLabel('Option solve mode').selectOption('iv');
+  await page.getByLabel('Option premium per share').fill('6.0900467967');
+  await expect.poll(async () => Math.abs(Number.parseFloat(await page.getByTestId('option-iv').innerText()) - 20)).toBeLessThan(0.05);
+  await page.getByLabel('Spot override').fill('50');
+  await page.getByLabel('Option premium per share').fill('50');
+  await expect(page.getByTestId('option-value')).toHaveCount(0);
+  await expect(page.locator('.panel').first().getByRole('status')).toContainText('No unique finite American implied volatility');
+  await page.getByLabel('Option solve mode').selectOption('value');
+  await expect.poll(() => displayed(page, 'option-value')).toBe(50);
+  await page.getByLabel('Spot override').fill('100');
+}
+
+export async function checkPortfolioPositions(page: Page, run: RunCommand) {
+  await run('PORT', 'PORTFOLIO');
+  await page.getByLabel('Cash in USD').fill('10000');
+  await page.getByRole('button', { name: 'Set cash', exact: true }).click();
+  await page.getByLabel('Security', { exact: true }).fill('AAPL');
+  await page.getByLabel('Quantity', { exact: true }).fill('10');
+  await page.getByLabel('Price', { exact: true }).fill('90');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByLabel('Security', { exact: true }).fill('AAPL');
+  await page.getByLabel('Quantity', { exact: true }).fill('-5');
+  await page.getByLabel('Price', { exact: true }).fill('200');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  const holding = page.getByRole('row').filter({ has: page.getByRole('button', { name: 'Remove AAPL US Equity', exact: true }) });
+  await expect(holding.locator('td').nth(2)).toHaveText('5');
+  // Reducing the position must retain its 90 average cost, even with a 200 adjustment price.
+  await expect(holding.locator('td').nth(3)).toHaveText('90.00');
+  await run('3', 'PORTFOLIO');
+}

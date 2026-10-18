@@ -1,10 +1,10 @@
 # Armin Terminal
 
-Version **2.4.0** adds indicative option-chain monitoring, multi-leg option strategy analysis, premium-to-implied-volatility solving and bond G/Z-spreads. The [Bloomberg workflow audit](docs/bloomberg-parity.md) covers all 70 registered commands and records the remaining gaps. See [release validation](docs/release-v2.4.0.md) and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
+Version **2.7.0** adds colored security-linked panels, a linked research workspace, familiar mnemonic/`<GO>` display, and `FLDS` field inspection with values, units, definitions, sources, freshness and CSV. Portfolio calculations and exports now capture mark provenance together, and invalid/future source timestamps cannot claim real-time freshness. Earlier American options, portfolio risk, Equibles/Finnhub research and provider diagnostics remain available. See [release validation and limits](docs/release-v2.7.0.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 71 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
-The desktop app uses public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, Kraken, and Yahoo Finance for personal-use prices/company data. With your own keys it adds analyst research (Financial Modeling Prep), news (Finnhub, Marketaux), IEX stocks and indicative option snapshots (Alpaca), plus sources for checking closes. Data labels distinguish source prices, indicative/delayed option fields and calculated model results. Unavailable datasets such as dealer bond quotes remain empty. The browser build has no data source and opens a clearly marked demo only when chosen.
+The desktop app uses public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, Kraken, and Yahoo Finance for personal-use prices/company data. With your own keys it adds research (FMP, Finnhub recommendations and Equibles), news (Finnhub, Marketaux), IEX stocks and indicative option snapshots (Alpaca), plus sources for checking closes. Sources, timestamps, subscription refusals and missing coverage stay explicit. The browser build has no data source and opens a marked demo only when chosen.
 
 This is an independent project, not affiliated with Bloomberg L.P. It does not have the data coverage of a professional terminal; [docs/feature-matrix.md](docs/feature-matrix.md) says what is covered and what is not.
 
@@ -34,10 +34,15 @@ Prices, charts, yields, central bank rates, official statistics, official announ
 | `COINGECKO_API_KEY` | Market value and supply of the listed coins |
 | `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TIINGO_API_KEY`, `TWELVE_DATA_API_KEY` | Second sources for US stock closes (`CROSSCHECK`) |
 | `FMP_API_KEY` | Analyst price targets, ratings and estimates (`ANALYSTS`, `EARNINGS`) |
+| `EQUIBLES_API_KEY` | Manual analyst-estimate reports, guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news on `ANALYSTS` |
 | `FINNHUB_API_KEY`, `MARKETAUX_API_TOKEN` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) |
 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option contracts on `OPTIONS`; read-only market data, subject to account entitlement |
 
 To add several at once, paste your whole list into "Save these keys" on `PROVIDERS`: it recognises each key, saves it encrypted and tells you which names it saved. Environment variables of the same names work too and take precedence. [docs/configuration.md](docs/configuration.md) covers every key and switch.
+
+Finnhub also supplies company-profile/ratio fallbacks, monthly recommendation history, quarterly EPS comparisons and the next-report calendar. These use the REST key; the webhook signing secret is a different credential.
+
+For the APLD research problem: open `PROVIDERS`, save your Equibles key, and use **Test research access** with `APLD`. The five endpoint results distinguish denial, missing keys, no data, cached answers and errors. Then open `APLD ANALYSTS` and load the Equibles **Analyst estimates** report. Coverage still depends on the provider and issuer; remaining FMP daily quota does not unlock a request denied with HTTP 402. Equibles' free 100/day allowance is shared across REST/MCP clients and is unsuitable for continually polling stock prices, so the IEX stock source is retained.
 
 ## Using the terminal
 
@@ -50,6 +55,7 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 | `MARKETNEWS NVDA` | Market news, filtered to Nvidia |
 | `CHART NVDA` | Price chart; `CHART NVDA 1D` for today's intraday chart |
 | `PROFILE MSFT` | Company profile |
+| `FLDS AAPL` / `FIELDS AAPL PX_LAST` | Search current local fields and inspect value, units, definition, source, freshness and UTC time; copy/export filtered fields |
 | `FILINGS MSFT` | SEC filings and the figures Microsoft reported |
 | `WATCHLIST TECH` | The watchlist named Tech |
 | `MARKET US` | World equity indices, Americas |
@@ -57,7 +63,7 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 | `CRYPTO BTC` | Bitcoin on the crypto monitor |
 | `YAS` / `BONDCALC` | Bond price/yield, cash flows, DV01, benchmark G-spread and zero-curve Z-spread from explicit inputs |
 | `AAPL OMON` / `OPTIONS AAPL` | Indicative listed equity option chain, provider IV/Greeks and source times with Alpaca keys |
-| `AAPL OVME` / `OPTIONCALC AAPL` | European value from volatility or implied volatility from an entered premium |
+| `AAPL OVME` / `OPTIONCALC AAPL` | European/American value or implied volatility from premium, exercise premium and CSV |
 | `OSA` / `OPTIONSTRATEGY` | Multi-leg option/stock payoff, breakevens, aggregate Greeks and scenarios |
 | `EURUSD FRD` / `FXFORWARD EURUSD` | Covered-interest-parity forwards and contract PV from your spot and term rates |
 | `SWPM` / `SWAPCALC` | Fixed/float swap NPV, par coupon, cash flows and bump risk from your zero curves |
@@ -84,8 +90,8 @@ Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES`
 | Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` still need bond/dealer datasets |
 | Commodities | `COMMODITIES` |
 | Economics | `MACRO` dashboard with first-release revisions, `RELEASES` calendar, `ECONSTATS` world statistics, `HOLIDAYS` exchange calendars |
-| Derivatives | `OPTIONS` indicative listed US equity snapshots with Alpaca; `OPTIONCALC` European value/IV; `OPTIONSTRATEGY` common-expiry multi-leg/stock risk and scenarios |
-| Portfolio and tools | `WATCHLIST`, `PORTFOLIO` holdings you enter, with performance and risk, `ALERTS`, `CORRELATION`, `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` |
+| Derivatives | `OPTIONS` indicative listed US equity snapshots with Alpaca; `OPTIONCALC` European/American value/IV; `OPTIONSTRATEGY` common-expiry multi-leg/stock risk and scenarios |
+| Portfolio and tools | `WATCHLIST`, `PORTFOLIO` manual holdings, historical-FX replay, VaR/ES, risk contributions and price/FX stress, `ALERTS`, `CORRELATION`, `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` |
 | System | `HELP`, `MENU`, `PROVIDERS` data providers and keys, `SETTINGS`, `MESSAGES` help-desk bot |
 
 Tables can be copied or exported as CSV. Watchlists, the portfolio, alerts, notes, layouts and settings are kept on your computer. Paper trading is switched off: the portfolio holds only what you enter.

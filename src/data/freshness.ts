@@ -68,6 +68,9 @@ export function freshnessOf(q: Pick<Quote, 'src' | 'time' | 'delay' | 'sourceNam
   if (/IEX only/i.test(q.provider ?? '') && q.src !== 'NONE' && q.src !== 'SIM' && (!Number.isFinite(old) || old > MIN || old < -5_000)) {
     return { label: 'STALE', why: 'The latest IEX trade is more than 60 seconds old or has an invalid timestamp; a recent HTTP response does not make it a recent trade' };
   }
+  if (q.src !== 'NONE' && q.src !== 'SIM' && q.src !== 'STALE' && (!Number.isFinite(q.time) || q.time <= 0 || !Number.isFinite(now) || old < -5_000)) {
+    return { label: 'UNKNOWN FRESHNESS', why: 'The source price timestamp is missing, invalid or in the future; receipt time cannot establish market freshness' };
+  }
   switch (q.src) {
     case 'SIM':
       return { label: 'DEMO DATA', why: 'Simulated by the demo: not a market price' };

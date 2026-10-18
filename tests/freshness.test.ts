@@ -13,6 +13,13 @@ const quote = (over: Partial<Quote>): Quote => ({ id: 'X', last: 1, bid: NaN, as
 const label = (q: Partial<Quote>, def: { cls: 'equity' | 'index' | 'crypto' } = equity, now = NOW) => freshnessOf(quote(q), def, now)?.label ?? null;
 
 describe('freshness labels', () => {
+  it('does not infer market freshness from missing, invalid, or future source timestamps', () => {
+    for (const src of ['LIVE', 'DELAYED', 'UNCONFIRMED', 'EOD', 'CLOSE'] as const) {
+      for (const time of [NaN, Infinity, 0, NOW + 5_001]) expect(label({ src, time, fetched: NOW })).toBe('UNKNOWN FRESHNESS');
+    }
+    expect(label({ src: 'LIVE', time: NOW + 4_000 })).toBe('REAL-TIME');
+    expect(label({ src: 'LIVE', provider: 'Alpaca · IEX only', time: NOW + 5_001 })).toBe('STALE');
+  });
   it('calls a price real time only when the source labels it so and its timestamp is recent', () => {
     expect(label({ src: 'LIVE', time: NOW - 20_000 })).toBe('REAL-TIME');
     // Fetching often does not make an old price real time.

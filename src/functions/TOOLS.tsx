@@ -15,7 +15,7 @@ import { lookupSource, searchOnline, type OnlineHit } from '../data/live/lookup'
 import { lookupFn } from '../terminal/registry';
 import { flash, usePanelId } from '../terminal/panel';
 import { settings, type ClickAction } from '../terminal/settings';
-import { applyPreset, defaultTerminal, LAYOUT_PANELS, setSplit, terminal } from '../terminal/state';
+import { applyPreset, defaultTerminal, LAYOUT_PANELS, linkGroupOf, setSplit, terminal } from '../terminal/state';
 import { savedLayouts, type SavedLayout } from '../terminal/userdata';
 import { PRESETS } from '../components/TopBar';
 import type { SecurityDef } from '../data/types';
@@ -183,13 +183,14 @@ export function LPAD(_: FnProps) {
     if (!n) return flash(panel, 'Name the layout first', 'error');
     const { layout, routes } = currentRoutes();
     const split = terminal.get().sizes?.[layout];
+    const linkGroups = terminal.get().panels.slice(0, LAYOUT_PANELS[layout]).map(linkGroupOf);
     // Saving under a name you used before replaces that layout.
-    savedLayouts.set((s) => ({ list: [{ name: n, layout, routes, ...(split ? { split } : {}), saved: Date.now() }, ...s.list.filter((x) => x.name.toUpperCase() !== n.toUpperCase())] }));
+    savedLayouts.set((s) => ({ list: [{ name: n, layout, routes, linkGroups, ...(split ? { split } : {}), saved: Date.now() }, ...s.list.filter((x) => x.name.toUpperCase() !== n.toUpperCase())] }));
     setName('');
     flash(panel, `Saved the panels as "${n}"`, 'info');
   };
   const apply = (l: SavedLayout) => {
-    applyPreset(l.routes, l.layout);
+    applyPreset(l.routes, l.layout, l.linkGroups);
     setSplit(l.layout, l.split);
   };
   return (
@@ -237,7 +238,7 @@ export function LPAD(_: FnProps) {
         <table className="tbl">
           <tbody>
             {PRESETS.map((p, i) => (
-              <tr key={p.name} className="click" onClick={() => applyPreset(p.routes, p.layout)}>
+              <tr key={p.name} className="click" onClick={() => applyPreset(p.routes, p.layout, p.linkGroups)}>
                 <td className="amber" style={{ width: 40 }}>
                   {i + 1})
                 </td>
@@ -248,7 +249,7 @@ export function LPAD(_: FnProps) {
           </tbody>
         </table>
       </Section>
-      <div className="note">The panels you have open are kept between sessions anyway; saved layouts are for switching between workspaces. They are stored {engine.realOnly ? 'on this computer' : 'in this browser'}.</div>
+      <div className="note">Saved layouts include panel screens, divider positions and security link groups. Choose matching colors beside the panel number to share security selections across visible compatible panels. Linked monitors keep their lists open. Unlinked panels stay independent. Layouts are stored {engine.realOnly ? 'on this computer' : 'in this browser'}.</div>
     </div>
   );
 }
@@ -317,6 +318,7 @@ export function PDFU(_: FnProps) {
             {(
               [
                 ['flash', 'Flash prices on every tick'],
+                ['mnemonics', 'Show short function mnemonics and <GO> cues'],
                 ['tape', 'Show the ticker tape'],
                 ['newsFlashes', 'Pop up flash headlines'],
                 ['sound', 'Beep on alerts'],

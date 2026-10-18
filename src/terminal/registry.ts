@@ -1,6 +1,8 @@
 import type { AssetClass } from '../data/types';
 import type { FnDef } from './types';
 import { LEGACY_CODES } from './legacy';
+import { engine } from '../data/market';
+import { configureSecurityLinks } from './state';
 import { HELP } from '../functions/HELP';
 import { GIP, GP } from '../functions/GP';
 import { DES } from '../functions/DES';
@@ -14,6 +16,7 @@ import { RV } from '../functions/RV';
 import { EVTS } from '../functions/EVTS';
 import { FILINGS } from '../functions/FILINGS';
 import { CROSSCHECK } from '../functions/CROSSCHECK';
+import { FIELDS } from '../functions/FIELDS';
 import { WACC } from '../functions/WACC';
 import { COMP } from '../functions/COMP';
 import { BETA } from '../functions/BETA';
@@ -52,10 +55,11 @@ const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
 
 export const FUNCTIONS: FnDef[] = [
   // Equity research
+  { code: 'FIELDS', name: 'Field Search & Inspection', category: 'Portfolio & Tools', needsSec: true, desc: 'Search local quote, identity, calculated and provenance fields for a security. Inspect values, units, definitions, sources, freshness, missing data and timestamp limits; copy/export filtered fields. No Bloomberg field/API compatibility is implied.', component: FIELDS, example: 'FLDS AAPL' },
   { code: 'PROFILE', name: 'Profile', category: 'Equity', needsSec: true, desc: 'Security description: business profile, price and valuation snapshot, ownership. Adapts to indices, currencies, commodities, yields, crypto and index futures.', component: DES, aliases: ['DESCRIBE'], example: 'PROFILE NVDA' },
   { code: 'FINANCIALS', name: 'Financial Analysis', category: 'Equity', needsSec: true, classes: EQ, desc: 'Income statement, balance sheet, cash flow and ratios, annual and quarterly, with growth and trend.', component: FA, aliases: ['STATEMENTS'] },
-  { code: 'ANALYSTS', name: 'Analyst Research', category: 'Equity', needsSec: true, classes: EQ, desc: 'Analyst price targets (consensus, median, high, low) against the live price, how targets moved, the tally of broker ratings, recent rating actions and annual estimates, from Financial Modeling Prep with your key. US-listed stocks.', component: ANR, aliases: ['TARGETS'], example: 'ANALYSTS AAPL' },
-  { code: 'EARNINGS', name: 'Earnings', category: 'Equity', needsSec: true, classes: EQ, desc: 'Reported diluted EPS and revenue by quarter, report dates and the next report date, with annual analyst estimates from Financial Modeling Prep (your key).', component: EE },
+  { code: 'ANALYSTS', name: 'Analyst Research', category: 'Equity', needsSec: true, classes: EQ, desc: 'FMP targets, ratings and estimates with independent section errors; Finnhub recommendation fallback; manual Equibles guidance, KPIs, events, insider trades, short interest, 13F holders and IR news. Own keys and endpoint access required. US-listed stocks.', component: ANR, aliases: ['TARGETS'], example: 'ANALYSTS AAPL' },
+  { code: 'EARNINGS', name: 'Earnings', category: 'Equity', needsSec: true, classes: EQ, desc: 'Reported diluted EPS/revenue by quarter; Finnhub quarterly EPS comparisons and next-report calendar; annual analyst estimates from FMP. Provider figures and reporting bases remain labelled; own keys required.', component: EE },
   { code: 'DIVIDENDS', name: 'Dividend History', category: 'Equity', needsSec: true, classes: EQ, desc: 'Cash dividends over ten years by ex-date, with amounts, frequency, 12-month yield and the next expected ex-date.', component: DVD, aliases: ['DIVS'] },
   { code: 'HOLDERS', name: 'Holders', category: 'Equity', needsSec: true, classes: EQ, desc: 'Largest institutional and fund holders with position, percent outstanding and change, and the ownership breakdown.', component: HDS, aliases: ['OWNERSHIP'] },
   { code: 'PEERS', name: 'Relative Valuation', category: 'Equity', needsSec: true, classes: EQ, desc: 'Peer comparison of valuation multiples, profitability and returns with peer medians.', component: RV, aliases: ['COMPS'] },
@@ -115,11 +119,11 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'HOLIDAYS', name: 'Holiday Calendar', category: 'Economics', desc: 'Exchange holiday and early-close calendars for New York, Euronext, London, Frankfurt and Tokyo.', component: CDR, example: 'HOLIDAYS US' },
   // Derivatives
   { code: 'OPTIONS', name: 'Option Monitor', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'Listed US equity contracts from Alpaca with your keys: indicative bids/asks, delayed trades, provider IV/Greeks, expiry filters, source timestamps and CSV. No OPRA, index options, open interest or daily volume.', component: OMON },
-  { code: 'OPTIONCALC', name: 'Option Valuation', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'European Black-Scholes-Merton value or implied volatility from an entered premium, Greeks, P&L profile and spot scenarios for a single option.', component: OVME },
+  { code: 'OPTIONCALC', name: 'Option Valuation', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'European BSM or American Tian binomial value/IV, early-exercise premium, Greeks, grid diagnostic, manual tenor, scenarios and CSV for a single option; continuous dividends.', component: OVME },
   { code: 'OPTIONSTRATEGY', name: 'Option Strategy Analysis', category: 'Derivatives', classes: ['equity', 'index'], desc: 'Up to 12 common-expiry option legs plus stock: signed positions, entry premiums, aggregate Greeks, exact expiry risk/breakevens, time/spot/volatility scenarios and CSV. Manual European model, with labelled strategy examples.', component: OptionStrategy, aliases: ['STRATEGY'], example: 'OPTIONSTRATEGY' },
   // Portfolio & tools
   { code: 'WATCHLIST', name: 'Watchlists', category: 'Portfolio & Tools', desc: 'Editable watchlists with live prices, changes, volume and intraday sparklines.', component: W, aliases: ['WATCH'], example: 'WATCHLIST TECH' },
-  { code: 'PORTFOLIO', name: 'Portfolio & Risk', category: 'Portfolio & Tools', desc: 'Holdings and P&L, performance against a benchmark, VaR, beta, volatility and allocation.', component: PORT },
+  { code: 'PORTFOLIO', name: 'Portfolio & Risk', category: 'Portfolio & Tools', desc: 'Manual holdings/cash, historical-FX replay, date-aligned VaR/ES, signed risk contributions, benchmark tracking error, allocation, price/FX stress and CSV. Complete history required.', component: PORT },
   { code: 'ALERTS', name: 'Alerts', category: 'Portfolio & Tools', desc: 'Price, percent-change and keyword alerts that pop up wherever you are while the app is open.', component: ALRT, aliases: ['ALERT'] },
   { code: 'CORRELATION', name: 'Correlation Matrix', category: 'Portfolio & Tools', desc: 'Correlation of daily returns across any set of securities and periods.', component: CORR },
   { code: 'SEARCH', name: 'Security Finder', category: 'Portfolio & Tools', desc: 'Search every security by ticker, name or alias, filtered by asset class.', component: SECF, aliases: ['FIND'] },
@@ -148,3 +152,9 @@ for (const f of FUNCTIONS) for (const a of f.aliases ?? []) if (!BY_CODE.has(a))
 export function lookupFn(code: string): FnDef | undefined {
   return BY_CODE.get(code.toUpperCase());
 }
+
+configureSecurityLinks((route, id) => {
+  const fn = lookupFn(route.fn);
+  const sec = engine.get(id);
+  return !!fn && !!sec && !!(fn.needsSec || fn.code === 'MENU' || (route.sec && fn.code === 'BONDCALC')) && (!fn.classes || fn.classes.includes(sec.cls));
+});

@@ -123,6 +123,7 @@ export function rangeStats(id: string): RangeStats {
 
 /** Daily returns aligned by date for a set of securities over the last `bars` days. */
 export function alignedReturns(ids: string[], bars: number): { dates: number[]; rets: number[][] } {
+  if (!ids.length || !Number.isInteger(bars) || bars < 1) return { dates: [], rets: ids.map(() => []) };
   const series = ids.map((id) => engine.daily(id));
   const isYield = ids.map((id) => engine.get(id)?.quote === 'yield');
   // Use the first business-calendar series as the date spine.
@@ -134,7 +135,7 @@ export function alignedReturns(ids: string[], bars: number): { dates: number[]; 
   for (let i = Math.max(0, n - bars - 1); i < n; i++) {
     const t = spine.t[i];
     const vals = series.map((s) => closeAt(s, t + 12 * 3600_000));
-    if (vals.some((v) => !Number.isFinite(v))) continue;
+    if (vals.some((v, k) => !Number.isFinite(v) || (!isYield[k] && v <= 0))) continue;
     dates.push(t);
     vals.forEach((v, k) => levels[k].push(v));
   }

@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { KeyedAnswer } from '../src/data/live/lookup';
-import { checkBond, checkForward, checkOptions, checkStrategy, checkSwap } from '../e2e/calculator-checks';
+import { checkAmericanOption, checkBond, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from '../e2e/calculator-checks';
+import { checkLinkedPanels } from '../e2e/workspace-checks';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 const FMP_ERROR = 'Invalid API key. Deterministic FMP refusal.';
@@ -17,7 +18,9 @@ interface Fixtures {
   optionPageFailure: boolean;
   optionMalformed: boolean;
   optionContractCount: number;
-  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[] };
+  researchPartial: boolean;
+  equiblesRefusal: boolean;
+  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; finnhub: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -54,8 +57,10 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
           LOCALAPPDATA: profile,
           YAHOO_PRICES_ENABLED: 'false', KRAKEN_ENABLED: 'false',
           FINNHUB_ENABLED: 'false', MARKETWATCH_RSS_ENABLED: 'false',
-          FMP_ENABLED: 'true', MARKETAUX_ENABLED: 'true', ALPACA_ENABLED: 'true',
+          FMP_ENABLED: 'true', EQUIBLES_ENABLED: 'true', MARKETAUX_ENABLED: 'true', ALPACA_ENABLED: 'true',
           FMP_API_KEY: 'DesktopFixtureKey1234567890',
+          FINNHUB_API_KEY: 'DesktopFixtureFinnhub1234567890',
+          EQUIBLES_API_KEY: 'eq_DesktopFixtureEquibles1234567890',
           MARKETAUX_API_TOKEN: 'DesktopFixtureToken1234567890',
           ALPACA_API_KEY_ID: 'PKFIXTURE0000000000',
           ALPACA_API_SECRET_KEY: 'DesktopFixtureSecret0000000000000000',
@@ -92,14 +97,36 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
   },
 });
 
-async function command(page: Page, text: string, code = text.split(' ').at(-1)!) {
-  const input = page.locator('#cmd-0');
+async function command(page: Page, text: string, code = text.split(' ').at(-1)!, panel = 0) {
+  const input = page.locator(`#cmd-${panel}`);
   await input.click();
   await input.press('Escape');
   await input.fill(text);
   await input.press('Enter');
-  await expect(page.locator('.panel').first().locator('.fnh-code').first()).toHaveText(code);
+  await expect(page.locator('.panel').nth(panel).locator('.fnh-code').first()).toHaveText(code);
 }
+
+test('linked panels preserve functions and saved groups in the real desktop renderer', async ({ desktop: { page } }) => {
+  await checkLinkedPanels(page, (text, code, panel) => command(page, text, code, panel));
+});
+
+test('field inspection distinguishes missing data, IEX trade freshness, and unknown bid/ask time', async ({ desktop: { app, page } }) => {
+  await command(page, 'AAPL FLDS PX_LAST', 'FIELDS');
+  await expect(page.getByTestId('field-value')).toContainText('--');
+  await expect(page.locator('.field-definition')).toContainText('UNAVAILABLE');
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.tradeAgeMs = 5 * 60_000; });
+  await enableIex(page);
+  await command(page, 'AAPL FLDS PX_LAST', 'FIELDS');
+  await expect(page.getByTestId('field-value')).toHaveText('123.4500 · USD');
+  await expect(page.locator('.field-definition')).toContainText('STALE');
+  await expect(page.locator('.field-definition')).toContainText('Alpaca · IEX only');
+  await page.getByLabel('Search data fields').fill('BID');
+  await page.getByRole('button', { name: 'Inspect BID', exact: true }).click();
+  await expect(page.getByTestId('field-value')).toHaveText('123.4000 · USD');
+  await expect(page.locator('.field-definition')).toContainText('TIMESTAMP UNAVAILABLE');
+  await expect(page.locator('.field-definition')).toContainText('SOURCE STALE');
+  await expect(page.locator('.field-definition')).toContainText('The last trade timestamp does not verify bid/ask freshness');
+});
 
 async function enableIex(page: Page) {
   await command(page, 'PROVIDERS');
@@ -121,6 +148,20 @@ test('manual analytics work in real-data desktop mode without any provider price
   await checkSwap(page, (text, code) => command(page, text, code));
   await checkOptions(page, (text, code) => command(page, text, code));
   await checkStrategy(page, (text, code) => command(page, text, code));
+});
+
+test('American exercise and independent premium inversion work without provider data', async ({ desktop: { page } }) => {
+  await checkAmericanOption(page, (text, code) => command(page, text, code));
+});
+
+test('portfolio adjustments retain cost and unavailable real histories never produce fabricated risk', async ({ desktop: { page } }) => {
+  await checkPortfolioPositions(page, (text, code) => command(page, text, code));
+  await expect(page.getByTestId('risk-nav')).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Missing completed price or FX history' })).toBeVisible();
+  await expect(page.getByTestId('stress-pnl')).toHaveText('--');
+  await expect(page.getByRole('button', { name: 'Export risk CSV', exact: true })).toBeDisabled();
+  await command(page, 'CORR', 'CORRELATION');
+  await expect(page.locator('table.tbl tbody tr').first().locator('td.num').first()).toHaveText('--');
 });
 
 test('indicative option chains cross real IPC, paginate and keep adjusted roots and old timestamps explicit', async ({ desktop: { app, page } }) => {
@@ -187,7 +228,7 @@ test('malformed option schemas are not cached or reported as successful and reco
 
 test('HTTP 200 provider refusals cross desktop IPC as errors and are never cached as successes', async ({ desktop: { app, page } }) => {
   await command(page, 'AAPL ANALYSTS');
-  await expect(page.locator('.panel').first().locator('.pad .amber')).toContainText(FMP_ERROR);
+  await expect(page.locator('.panel').first().getByText(FMP_ERROR, { exact: false }).first()).toBeVisible();
   await expect.poll(async () => (await calls(app)).fmp).toBe(5);
   const beforeFmp = (await calls(app)).fmp;
   const fmp: KeyedAnswer = await page.evaluate(() => window.arminDesktop!.analysts!('consensus', 'AAPL'));
@@ -215,6 +256,74 @@ test('HTTP 200 provider refusals cross desktop IPC as errors and are never cache
     await expect(row.locator('.badge')).toHaveText('ERROR');
     await expect(row).toContainText(message);
   }
+});
+
+test('research remains usable across FMP 402s, Finnhub fallback and manual Equibles reports', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.researchPartial = true; process.env.FINNHUB_ENABLED = 'true'; });
+  await command(page, 'AAPL ANALYSTS');
+  await expect(page.getByText('Your FMP subscription does not include this request for AAPL (HTTP 402)', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('Source: Finnhub', { exact: false })).toContainText('recommendation period 2026-10-01');
+  await expect(page.getByRole('cell', { name: '1.25', exact: true })).toBeVisible();
+  expect((await calls(app)).finnhub.some((url) => new URL(url).pathname === '/api/v1/stock/recommendation')).toBe(true);
+  expect((await calls(app)).equibles).toHaveLength(0);
+  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
+  await expect(page.getByTestId('equibles-report')).toContainText('AAPL · GetAnalystEstimates');
+  await expect(page.getByTestId('equibles-report')).toContainText('<script>');
+  await expect(page.getByText('Source: Equibles', { exact: false })).toBeVisible();
+  expect((await calls(app)).equibles.map((r) => r.method)).toEqual(['initialize', 'notifications/initialized', 'tools/list', 'tools/call']);
+  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true })).toBeEnabled();
+  expect((await calls(app)).equibles).toHaveLength(4); // The valid answer is reused, with its original timestamp.
+  await page.getByRole('button', { name: 'Insider trades', exact: true }).click();
+  await page.getByRole('button', { name: 'Load Insider trades for AAPL', exact: true }).click();
+  await expect(page.getByTestId('equibles-report')).toContainText('GetInsiderTransactions');
+  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call').map((r) => r.params.name)).toEqual(['GetAnalystEstimates', 'GetInsiderTransactions']);
+  const rejected = await page.evaluate(async () => {
+    try { await window.arminDesktop!.equibles!('DeletePortfolio' as 'estimates', 'AAPL'); return false; } catch { return true; }
+  });
+  expect(rejected).toBe(true);
+  await page.getByRole('button', { name: 'Retry analyst research', exact: true }).click();
+  await expect(page.getByTestId('equibles-report')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
+  await expect(page.getByTestId('equibles-report')).toContainText('GetAnalystEstimates');
+  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(2);
+});
+
+test('Equibles tool refusals stay visible and can recover without caching the refusal', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.equiblesRefusal = true; });
+  await command(page, 'AAPL ANALYSTS');
+  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Subscription does not include this research.');
+  await expect(page.getByTestId('equibles-report')).toHaveCount(0);
+  const report = await page.evaluate(() => window.arminDesktop!.providersStatus!());
+  expect(report.providers.equibles.lastErrorKind).toBe('not-entitled');
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.equiblesRefusal = false; });
+  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
+  await expect(page.getByTestId('equibles-report')).toContainText('GetAnalystEstimates');
+  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(2);
+});
+
+test('provider research checks report access for each APLD endpoint instead of a blanket success', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.researchPartial = true; process.env.FINNHUB_ENABLED = 'true'; });
+  await command(page, 'PROVIDERS');
+  await expect(page.getByRole('textbox', { name: 'Research test ticker' })).toHaveValue('APLD');
+  await page.getByRole('button', { name: 'Test research access', exact: true }).click();
+  const results = page.getByRole('table', { name: 'Research access results for APLD' });
+  await expect(results.getByRole('row')).toHaveCount(6);
+  await expect(results.getByRole('row').filter({ hasText: 'FMP price targets' })).toContainText('Denied');
+  await expect(results.getByRole('row').filter({ hasText: 'FMP annual estimates' })).toContainText('Answered');
+  await expect(results.getByRole('row').filter({ hasText: 'Finnhub recommendation counts' })).toContainText('Answered');
+  await expect(results.getByRole('row').filter({ hasText: 'Equibles analyst estimates' })).toContainText('Answered');
+  expect((await calls(app)).equibles.find((r) => r.method === 'tools/call')?.params.arguments?.ticker).toBe('APLD');
+});
+
+test('the inherited all-source self-test includes Equibles, detects refusals and keeps reports free of keys', async ({ desktop: { app, page } }) => {
+  const report = await page.evaluate(() => window.arminDesktop!.providersSelfTest!());
+  expect(report.results.find((r) => r.id === 'fmp')).toMatchObject({ state: 'fail', detail: expect.stringContaining(FMP_ERROR) });
+  expect(report.results.find((r) => r.id === 'equibles-estimates')).toMatchObject({ state: 'pass', detail: expect.stringContaining('Research report received') });
+  expect(report.report).not.toContain('DesktopFixture');
+  expect(report.report).not.toContain('https://');
+  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(1);
 });
 
 test('the explicit IEX source switch supplies watchlist and quote prices with one-venue labels', async ({ desktop: { app, page } }) => {

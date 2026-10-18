@@ -15,6 +15,7 @@ export interface Settings {
   clickAction: ClickAction;
   tape: boolean;
   userName: string;
+  mnemonics: boolean;
 }
 
 /** The single-file build runs where network requests are blocked; feeds start off there. */
@@ -34,6 +35,7 @@ export const settings = createStore<Settings>(
     clickAction: 'auto',
     tape: true,
     userName: 'TRADER',
+    mnemonics: true,
   },
   'settings',
   1,

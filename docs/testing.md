@@ -32,10 +32,19 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 | `kraken.test.ts` | Kraken requests, answers and lines in the engine; CoinGecko market values |
 | `eod.test.ts` | Requests, budgets and answers of Massive, Alpha Vantage, Tiingo and Twelve Data, and the close comparison |
 | `analysts.test.ts` | Financial Modeling Prep requests, price targets, the ratings tally, rating actions, estimates under both field namings, and refusals in words |
+| `equibles.test.ts` | Actual public tool schemas, read-only allowlist, JSON/SSE framing and cancellation, session/account isolation, distinct POST body caches, refusals, redaction, stale answers, discovery and quotas |
+| `research-check.test.ts` | Per-symbol endpoint diagnostics, no-data versus denial, cached responses, stale reports, missing keys and transport failures |
+| `finnhub.test.ts` | Preserved profile/ratio, EPS-surprise and next-report readers; recommendation date/count/symbol validation and replaced-key race regression |
 | `marketnews.test.ts` | News requests and switches, canonical links, Finnhub, Marketaux, MarketWatch and SEC 8-K answers, and duplicates merged |
 | `alpaca.test.ts` | Alpaca requests limited to the market data host and IEX, snapshots, times with nanoseconds, symbols |
 | `exchanges.test.ts` | NYSE and Euronext holidays and early closes against the exchanges' own tables, and the market timers' sessions |
 | `providers.test.ts` | Credentials and pasted key lists, request accounting, daily allowances, providers' refusals, switches, limits and provider states |
+| `american-options.test.ts` | Ten independent QuantLib finite-difference prices, PDE Greeks, deterministic interior exercise, no-early-exercise bounds, American IV ambiguity, invalid grids and NY expiry DST |
+| `portfolio-risk.test.ts` | Historical FX/futures NAV, no omitted positions or filled prices, missing-session gap exclusions, fractional/tied ES, additive signed covariance/ES risk, observed multi-interval shocks, benchmark endpoint alignment and manual cost adjustment |
+| `fields.test.ts` | Source/receipt separation, missing/nonfinite values, crossed/locked BBO, stale IEX trades, previous-close verification, yield/minor units and filtered raw CSV provenance |
+| `panel-links.test.ts` | Real command/registry compatibility, monitor publishing, separate groups, hidden/incompatible panels, back/forward cursors, bounded histories, preset restoration and aliases |
+| `navigation-race.test.ts` | A pending online ticker lookup cannot overwrite a newer linked-panel security selection |
+| `store.test.ts` | Immediate reload/close flushes pending state so the latest screen and groups survive without waiting for the debounce |
 | `finance.test.ts` | Black-Scholes, Treasury math, indicators and statistics |
 | `contracts.test.ts` | Independent bond yield/price and finite-difference risk checks, zero-volatility option limits, covered interest parity, dual-curve swap PV/par/coupon/curve risk, date/curve/input boundaries |
 | `option-chain.test.ts` | Indicative-only read-only request boundary, OCC decoding, missing fields, event ages, sequential pagination, repeated tokens, page limits, partial failures and credentials/entitlements |
@@ -46,11 +55,15 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 
 `e2e/terminal.spec.ts` runs the browser build, which has no data source: the first test checks that it opens on the no-data page and that the demo, once chosen, says DEMO DATA. The rest use the demo to check that every function renders without errors, that typing goes to the command line with autocomplete, that numbered menus and back navigation work, that bad commands explain themselves, that watchlists and alerts persist, and that the phone layout shows one panel without horizontal scrolling.
 
-Calculator checks use explicit inputs and independent expected values: bond price/yield/Z-spread, FX carry/PV, swap direction/coverage, zero-volatility equity/FX options, premium-to-IV via a separate normal-density integration, multi-leg payoff/breakevens and invalid-input clearing. CSV checks include inputs and results. The same calculator flows run in Electron real-data mode with provider prices/rates blocked. The rendering test verifies that its command list covers every registered function.
+Calculator checks use explicit inputs and independent expected values: bond price/yield/Z-spread, FX carry/PV, swap direction/coverage, zero-volatility equity/FX options, premium-to-IV via a separate normal-density integration, multi-leg payoff/breakevens and invalid-input clearing. American checks invert an independent QuantLib PDE premium and reject ambiguous exercise-floor IV. Portfolio checks verify reduced-position cost retention, historical risk controls, independent price-shock P&L and CSV provenance. CSV checks include inputs and results. The same calculator flows run in Electron real-data mode with provider prices/rates blocked. The rendering test verifies that its command list covers every registered function.
 
 ## Deterministic desktop integration
 
+The shared `e2e/workspace-checks.ts` workflow runs in Chromium and Electron: linked monitor selections, function preservation, currency/financial compatibility, back/forward, named-layout/top-menu restoration, reload persistence and the linked research preset. Browser tests also verify mnemonic preference persistence and field-search CSV contents. Desktop field checks start with no source price, then use a five-minute-old IEX fixture to verify stale trade provenance and unavailable bid/ask event time. No test data is presented as a live provider validation.
+
 `npm run e2e:desktop` launches the pinned Electron version with real main/preload/IPC. Fake keys and fixed transport responses in disposable profiles verify provider refusals, IEX price ownership, option-chain pagination, adjusted roots, sorting across display pages, old source times, partial entitlement failures and invalid IPC rejection. They do not validate live providers or real API keys.
+
+Research regressions exercise a denied FMP target alongside working annual estimates and Finnhub counts, explicit Equibles queries and cache reuse, literal HTML in report text, denied arbitrary MCP tools, refusal recovery, and APLD-specific access checks. The published 2.4.1 Yahoo session/chart fallback and key-import regressions are retained.
 
 On Linux use `xvfb-run -a npm run e2e:desktop`, or set `DISPLAY` to an existing display. The test process uses `--no-sandbox` where the isolated cloud cannot configure Chromium user namespaces; installed desktop startup is unchanged.
 
@@ -68,3 +81,5 @@ The browser tests never see real data. To check the desktop app against the real
 4. With the keys set: `MACRO`, `RELEASES`, `FILINGS MSFT`, `CROSSCHECK AAPL`.
 
 On Linux without a display, `xvfb-run -a npm run desktop` works. Playwright can drive the desktop app as well (`_electron.launch` from `@playwright/test`), which is how the screens were checked during development.
+
+Independent American option references are stored in `tests/fixtures/american-options.json`. Optional `scripts/option-reference.py` regenerates them using QuantLib 1.40 in a separate Python environment; QuantLib is not shipped and is not required for ordinary tests. Keep timing-sensitive unit checks separate from builds/browser suites; the existing 600-ms engine construction limit is unchanged.
