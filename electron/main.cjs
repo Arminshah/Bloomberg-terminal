@@ -632,6 +632,7 @@ ipcMain.handle('yahoo:consent', async (event) => {
 // One small request to each source, on the owner's own network and with the owner's keys (electron/selftest.cjs).
 // The page gets names, states, statuses, timings and short samples; never a key or a URL.
 const selftest = require('./selftest.cjs');
+const SELFTEST_PACE = { fmp: [30, 60_000], finnhub: [30, 60_000], marketaux: [10, 60_000], alpaca: [120, 60_000], tiingo: [1, 60_000, 40], massive: [5, 60_000], alphavantage: [1, 60_000], twelvedata: [6, 60_000], fred: [60, 60_000], sec: [sec.PER_SECOND, 1000], coingecko: [10, 60_000], kraken: [60, 60_000] };
 
 /** Yahoo's own checks: the cookie and crumb the quote and company endpoints need, and the ones that need neither. */
 async function yahooSelfTest() {
@@ -708,7 +709,14 @@ ipcMain.handle('providers:selftest', async (event) => {
     const req = t.request(secrets, now);
     const t0 = Date.now();
     try {
-      const res = await tracked(t.provider, req.url, {
+      // A diagnostic spends the same account allowance as an ordinary request.
+      // Never bypass pacing, daily caps or HTTP-200 refusal detection.
+      let res;
+      if (SELFTEST_PACE[t.provider]) {
+        const answer = await keyedGet(t.provider, req.url, req.headers ?? {}, 0, SELFTEST_PACE[t.provider], t.agent ? [] : secrets, t.agent ? secrets[0] : undefined);
+        res = { status: answer.status, ok: answer.status >= 200 && answer.status < 300 && !answer.stale && !!answer.text,
+          statusText: answer.budget ? 'Daily request cap reached; resets at midnight UTC.' : answer.error ?? 'No fresh answer.', text: async () => answer.text };
+      } else res = await tracked(t.provider, req.url, {
         headers: { 'User-Agent': t.agent ? secrets[0] : clientAgent(), Accept: req.accept ?? 'application/json', ...(req.headers ?? {}) },
         cache: 'no-cache',
         signal: AbortSignal.timeout(15_000),
@@ -716,17 +724,33 @@ ipcMain.handle('providers:selftest', async (event) => {
       const text = await res.text().catch(() => '');
       const ms = Date.now() - t0;
       if (!res.ok) {
-        results.push({ ...base, state: 'fail', status: res.status, ms, detail: providers.providerMessage(text, secrets) || res.statusText || 'refused' });
+        results.push({ ...base, state: 'fail', status: res.status, ms, detail: providers.providerMessage(JSON.stringify({ message: res.statusText }), secrets) || providers.providerMessage(text, secrets) || 'refused' });
         continue;
       }
       try {
         results.push({ ...base, state: 'pass', status: res.status, ms, detail: t.read(text) });
       } catch (err) {
+        providers.recordProblem(t.provider, 'schema-changed', providers.providerMessage(JSON.stringify({ message: String(err?.message ?? err) }), secrets));
         results.push({ ...base, state: 'fail', status: res.status, ms, detail: providers.providerMessage(JSON.stringify({ message: String(err?.message ?? err) }), secrets) });
       }
     } catch (err) {
       const why = err?.name === 'TimeoutError' ? 'no answer within 15 seconds' : String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>');
       results.push({ ...base, state: 'fail', status: 0, ms: Date.now() - t0, detail: why.slice(0, 160) });
+    }
+  }
+  const eqBase = { id: 'equibles-estimates', label: 'Equibles analyst estimates (Apple; coverage varies by issuer)' };
+  if (!providers.setting('EQUIBLES_ENABLED').value) results.push({ ...eqBase, state: 'off', detail: 'switched off (EQUIBLES_ENABLED)' });
+  else {
+    const key = usableKey('EQUIBLES_API_KEY', 'equibles');
+    if (!key.value) results.push({ ...eqBase, state: key.missing ? 'skip' : 'fail', detail: key.missing ? 'no EQUIBLES_API_KEY set' : 'EQUIBLES_API_KEY has the wrong format' });
+    else {
+      const start = Date.now();
+      try {
+        const answer = await equiblesClient.research('estimates', 'AAPL', key.value);
+        const pass = !!answer.text && !answer.stale;
+        results.push({ ...eqBase, state: pass ? 'pass' : 'fail', status: answer.status, ms: Date.now() - start,
+          detail: pass ? `Research report received${answer.cached ? ' from cache; no new account-access check' : ''}; inspect ANALYSTS for coverage and source dates.` : providers.providerMessage(JSON.stringify({ message: answer.budget ? 'Daily request cap reached.' : answer.error ?? 'No research report received.' }), [key.value]) });
+      } catch { results.push({ ...eqBase, state: 'fail', status: 0, ms: Date.now() - start, detail: 'Equibles research request could not be completed.' }); }
     }
   }
   const run = { at: now, version: app.getVersion(), platform: `${process.platform} ${process.arch}, Electron ${process.versions.electron}`, results };

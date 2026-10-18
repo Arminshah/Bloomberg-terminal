@@ -1,7 +1,7 @@
 {
   "name": "armin-terminal",
   "private": true,
-  "version": "2.4.1",
+  "version": "2.5.0",
   "description": "A keyboard-driven market terminal for private use: a desktop app for Windows and Linux on data from free public and official sources, with a command line, panels, charts and about 70 functions, plus an opt-in browser demo.",
   "desktopName": "armin-terminal.desktop",
   "author": "Armin",

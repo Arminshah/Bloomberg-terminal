@@ -30,6 +30,7 @@ The aliases `MARKETAUX_API_KEY`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `APCA_AP
 | `TWELVE_DATA_API_KEY` | A fourth source for US stock closes (`CROSSCHECK`), only with the switch below | Account at [twelvedata.com](https://twelvedata.com/pricing) | Basic: 8 a minute, 800 a day, for internal, non-display use; the app keeps to 6 and 600 |
 | `TIINGO_API_KEY` | Another source for US stock closes (`CROSSCHECK`) | Free Starter account at [tiingo.com](https://www.tiingo.com/about/pricing) | 50 an hour, 1,000 a day, internal use only, no storage on disk; the app keeps to 1 a minute, 40 an hour and 500 a day, in memory |
 | `FMP_API_KEY` | Analyst price targets, ratings, rating actions and estimates (`ANALYSTS`, `EARNINGS`) | Free account at [financialmodelingprep.com](https://site.financialmodelingprep.com/pricing-plans) | 250 requests a day; the app keeps to 220 and keeps answers 6 to 24 hours |
+| `EQUIBLES_API_KEY` | Eight manual read-only research datasets on `ANALYSTS`, including analyst estimates | Key beginning `eq_` from the [Equibles dashboard](https://equibles.com/dashboard/apikeys) | 100/day shared with REST/MCP/other clients; app caps all transport requests at 90/day, caches reports six hours |
 | `FINNHUB_API_KEY` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) | Free account at [finnhub.io](https://finnhub.io) | 60 a minute, personal use; the app keeps to 30 and asks every 5 to 15 minutes while a screen shows news |
 | `MARKETAUX_API_TOKEN` | News tagged with tickers, with sentiment (`MARKETNEWS`, `COMPANYNEWS`) | Free account at [marketaux.com](https://www.marketaux.com/pricing) | 100 requests a day, 3 articles each; the app keeps to 90, one request for the whole watchlist an hour |
 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option snapshots on `OPTIONS` | Own [Alpaca account](https://alpaca.markets/data), subject to dataset entitlement | Read-only data host; IEX stock polling, option refresh manual with up to 5 pages, 15-second option cache; no paid OPRA selection |
@@ -39,6 +40,7 @@ The aliases `MARKETAUX_API_KEY`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `APCA_AP
 
 | Name | Default | What it does |
 | --- | --- | --- |
+| `EQUIBLES_ENABLED` | on | Allows explicit company research requests on ANALYSTS and in diagnostics; no polling, trading or portfolio writes |
 | `YAHOO_PRICES_ENABLED` | on | Yahoo Finance prices, history, company profiles and statements, holders and symbol search, from undocumented endpoints, used here for private personal use. Off stops every request to Yahoo, its streaming socket included; the lines Yahoo feeds then show no data. |
 | `KRAKEN_ENABLED` | on | Kraken's public market data for the ten crypto lines. Off hands them back to Yahoo, if Yahoo is on. |
 | `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` | off | Twelve Data's free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data. |

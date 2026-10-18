@@ -56,7 +56,7 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
           LOCALAPPDATA: profile,
           YAHOO_PRICES_ENABLED: 'false', KRAKEN_ENABLED: 'false',
           FINNHUB_ENABLED: 'false', MARKETWATCH_RSS_ENABLED: 'false',
-          FMP_ENABLED: 'true', MARKETAUX_ENABLED: 'true', ALPACA_ENABLED: 'true',
+          FMP_ENABLED: 'true', EQUIBLES_ENABLED: 'true', MARKETAUX_ENABLED: 'true', ALPACA_ENABLED: 'true',
           FMP_API_KEY: 'DesktopFixtureKey1234567890',
           FINNHUB_API_KEY: 'DesktopFixtureFinnhub1234567890',
           EQUIBLES_API_KEY: 'eq_DesktopFixtureEquibles1234567890',
@@ -245,6 +245,11 @@ test('research remains usable across FMP 402s, Finnhub fallback and manual Equib
     try { await window.arminDesktop!.equibles!('DeletePortfolio' as 'estimates', 'AAPL'); return false; } catch { return true; }
   });
   expect(rejected).toBe(true);
+  await page.getByRole('button', { name: 'Retry analyst research', exact: true }).click();
+  await expect(page.getByTestId('equibles-report')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
+  await expect(page.getByTestId('equibles-report')).toContainText('GetAnalystEstimates');
+  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(2);
 });
 
 test('Equibles tool refusals stay visible and can recover without caching the refusal', async ({ desktop: { app, page } }) => {
@@ -273,6 +278,15 @@ test('provider research checks report access for each APLD endpoint instead of a
   await expect(results.getByRole('row').filter({ hasText: 'Finnhub recommendation counts' })).toContainText('Answered');
   await expect(results.getByRole('row').filter({ hasText: 'Equibles analyst estimates' })).toContainText('Answered');
   expect((await calls(app)).equibles.find((r) => r.method === 'tools/call')?.params.arguments?.ticker).toBe('APLD');
+});
+
+test('the inherited all-source self-test includes Equibles, detects refusals and keeps reports free of keys', async ({ desktop: { app, page } }) => {
+  const report = await page.evaluate(() => window.arminDesktop!.providersSelfTest!());
+  expect(report.results.find((r) => r.id === 'fmp')).toMatchObject({ state: 'fail', detail: expect.stringContaining(FMP_ERROR) });
+  expect(report.results.find((r) => r.id === 'equibles-estimates')).toMatchObject({ state: 'pass', detail: expect.stringContaining('Research report received') });
+  expect(report.report).not.toContain('DesktopFixture');
+  expect(report.report).not.toContain('https://');
+  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(1);
 });
 
 test('the explicit IEX source switch supplies watchlist and quote prices with one-venue labels', async ({ desktop: { app, page } }) => {

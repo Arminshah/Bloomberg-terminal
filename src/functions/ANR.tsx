@@ -4,7 +4,7 @@ import { NotConnected } from '../components/NotConnected';
 import { HBar, KV, LivePx, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { analystsAvailable, analystSymbol, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
+import { analystData, analystsAvailable, analystSymbol, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
 import { EquiblesResearch } from '../components/EquiblesResearch';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
@@ -23,6 +23,7 @@ export function ANR({ sec }: FnProps) {
   const panel = usePanelId();
   const symbol = analystSymbol(s);
   const parts = useAnalysts(s, ['consensus', 'ratings', 'summary', 'grades', 'estimates']);
+  const researchGeneration = analystData.use((data) => data.retry);
   if (!analystsAvailable()) {
     return (
       <div>
@@ -81,7 +82,7 @@ export function ANR({ sec }: FnProps) {
         <button type="button" className="btn" onClick={() => retryAnalysts()}>Retry analyst research</button>
         <button type="button" className="btn" onClick={() => execute(panel, 'PROVIDERS')}>Open the provider screen</button>
       </div>
-      <EquiblesResearch key={symbol} symbol={symbol} />
+      <EquiblesResearch key={`${symbol}:${researchGeneration}`} symbol={symbol} />
       <div className="cols">
         <Section title="Price target" right={s.ccy}>
           {loading(consensus) ? (
@@ -122,6 +123,7 @@ export function ANR({ sec }: FnProps) {
               <TargetRange c={c} last={last} />
             </>
           )}
+          <ResearchSource part={consensus} />
         </Section>
         <Section title="Ratings" right={r?.consensus ? `consensus: ${r.consensus}` : undefined}>
           {loading(ratings) ? <div className="empty">Loading ratings…</div> : !r ? <div className="empty">{ratings?.message ?? `No ratings available for ${symbol}.`}</div> : <Tally r={r} />}
@@ -163,6 +165,7 @@ export function ANR({ sec }: FnProps) {
               </tbody>
             </table>
             {sum.publishers.length > 0 && <div className="note">Targets gathered by FMP from: {sum.publishers.join(', ')}.</div>}
+            <ResearchSource part={summary} />
           </>
         )}
       </Section>
@@ -172,7 +175,7 @@ export function ANR({ sec }: FnProps) {
         ) : !grades?.data?.length ? (
           <div className="empty">{grades?.message ?? 'No rating actions from FMP.'}</div>
         ) : (
-          <table className="tbl">
+          <><table className="tbl">
             <thead>
               <tr>
                 <th>Date</th>
@@ -191,7 +194,7 @@ export function ANR({ sec }: FnProps) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table><ResearchSource part={grades} /></>
         )}
       </Section>
       <Section title="Estimates, by fiscal year" right={estimateUnit(s)}>
@@ -284,7 +287,7 @@ export function EstimatesTable({ part, rows = 5 }: { part: AnalystPart<Estimate[
   const list = (part.data ?? []).filter((e) => Date.parse(`${e.date}T00:00:00Z`) > Date.now() - 365 * 86_400_000).slice(0, rows);
   if (!list.length) return <div className="empty">{part.state === 'ok' ? 'No estimates from FMP.' : (part.message ?? 'No estimates from FMP.')}</div>;
   return (
-    <table className="tbl">
+    <><table className="tbl">
       <thead>
         <tr>
           <th>Fiscal year end</th>
@@ -311,6 +314,6 @@ export function EstimatesTable({ part, rows = 5 }: { part: AnalystPart<Estimate[
           </tr>
         ))}
       </tbody>
-    </table>
+    </table><ResearchSource part={part} /></>
   );
 }

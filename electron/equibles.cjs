@@ -99,7 +99,9 @@ function createEquiblesAccount({ providers, fetch, agent, now = Date.now, sleep,
         decoded = body.id === undefined && [202, 204].includes(response.status)
           ? { jsonrpc: '2.0', result: {} }
           : await readReply(response, body.id);
-      } catch {
+      } catch (err) {
+        // Transport timeouts/body failures are retryable network failures, not schema changes.
+        if (err?.name === 'AbortError' || err?.name === 'TimeoutError' || err instanceof TypeError) throw err;
         // Invalid replies reach the broker's validator and are never cached.
         decoded = {};
       }

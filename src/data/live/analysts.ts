@@ -259,8 +259,9 @@ async function load(symbol: string, kind: AnalystKind) {
     if (part.state === 'needs-key' || part.state === 'off') asked.delete(key);
     put(symbol, kind, part);
   } catch (err) {
+    if (generation !== analystData.get().retry) return;
     asked.delete(key);
-    put(symbol, kind, { state: 'error', message: String((err as Error)?.message ?? err) });
+    put(symbol, kind, { state: 'error', message: err instanceof Error ? 'The research request could not be completed.' : 'Research unavailable.' });
   }
 }
 

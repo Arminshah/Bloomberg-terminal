@@ -1,5 +1,13 @@
 # Roadmap
 
+## Version 2.5.0
+
+- Eight manual, read-only Equibles research datasets on ANALYSTS, including its live-catalogue analyst-consensus tool. Actual MCP schemas, JSON/SSE replies and sessions are handled without inventing REST paths or executing provider text.
+- FMP section failures remain independent; recommendation counts can fall back to Finnhub with the source and monthly period retained. A 402 remains an account entitlement refusal rather than a whole-screen failure.
+- Per-symbol five-endpoint research diagnostics on PROVIDERS; the inherited all-source self-test now includes Equibles and shares ordinary broker quotas/pacing/refusal handling.
+- Preserves published 2.4.1 Yahoo consent, session/statement/chart fallback and Finnhub/Alpaca import fixes. Adds Equibles credential import and explicit webhook-secret rejection.
+- Public Equibles discovery verified, authenticated account/issuer coverage unverified. [Validation and limits](release-v2.5.0.md).
+
 ## Version 2.4.0
 
 - Audit of all 70 registered workflows and wider product gaps: [Bloomberg workflow audit](bloomberg-parity.md). No exact function/data/visual parity claim.

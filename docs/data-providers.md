@@ -34,6 +34,7 @@ In the desktop app, every request below goes out from the Electron main process 
 | Twelve Data | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `TWELVE_DATA_API_KEY` | Off until the key is set and `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` is on |
 | Tiingo | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `TIINGO_API_KEY` | Enabled once the key is set, switch `TIINGO_ENABLED` |
 | Financial Modeling Prep | Analyst price targets, ratings, rating actions and annual estimates (`ANALYSTS`, `EARNINGS`) | Stable REST API | `FMP_API_KEY` | Enabled once the key is set, switch `FMP_ENABLED` |
+| Equibles | Analyst-estimate reports, guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news (`ANALYSTS`) | Read-only MCP Streamable HTTP | `EQUIBLES_API_KEY` | Manual requests only, switch `EQUIBLES_ENABLED` |
 | Finnhub | Market news and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) | REST API | `FINNHUB_API_KEY` | Enabled once the key is set, switch `FINNHUB_ENABLED` |
 | Marketaux | News tagged with tickers, with sentiment (`MARKETNEWS`, `COMPANYNEWS`) | REST API | `MARKETAUX_API_TOKEN` | Enabled once the token is set, switch `MARKETAUX_ENABLED` |
 | MarketWatch | Top stories headlines (`MARKETNEWS`) | RSS | None | Off until `MARKETWATCH_RSS_ENABLED` is on (Dow Jones terms) |
@@ -269,8 +270,24 @@ The app asks only from `CROSSCHECK`: at most one request a minute, 40 an hour an
 
 - The free plan allows 250 requests a day, as the owner's account page states. The app stops at 220 a day (the count restarts at midnight UTC and survives a restart), asks only for the company on screen, and asks for a kind of research again at most every ten minutes. Opening `ANALYSTS` for a new company costs five requests; `EARNINGS` costs one.
 - Its documentation answers HTTP 403 to automated reading, so the endpoints were checked another way: on 14 October 2026 the price target consensus, the summary, the ratings tally and the rating actions answered for AAPL with the owner's free key, in the layouts the parsers read. The estimates' field names (`revenueAvg`, `epsAvg`, `numAnalystsEps` and so on) come from published examples of the stable API, not from a live answer; the parser also reads the older v3 names, and a field that is missing shows as `--`.
-- When the plan does not cover a request, FMP answers HTTP 402 ("payment required"); the screen says the free plan does not include it for that company, with FMP's own words. Which companies the free plan covers was not checked beyond AAPL.
+- The supplied October 18 report shows FMP denying APLD research with HTTP 402. Remaining request quota does not grant endpoint/symbol entitlements. The screen identifies the subscription denial per section and preserves working sections; the old whole-screen early return was removed. AAPL answering does not establish APLD access.
 - Price targets and ratings are analysts' opinions as FMP collects them from published notes and news, not a forecast by the app. FMP does not say which currency its estimates are in; the app names it only for companies that report and trade in dollars.
+
+### Finnhub recommendation fallback
+
+If FMP ratings fail, are missing, empty or stale, the app tries Finnhub's documented `/stock/recommendation?symbol=` endpoint with `X-Finnhub-Token`. Its official schema was read on October 18, 2026; unlike Finnhub price targets, upgrades and EPS estimates, this endpoint has no premium marker. Counts must be nonnegative integers for the requested symbol and a valid monthly period. The original period and source are shown; the app does not invent a consensus word or price target from the counts. Both providers' failures are retained if neither answers. This still requires a working Finnhub REST key: its webhook secret cannot authenticate data requests. The 2.4.1 import normalization for concatenated API-key/webhook-secret pairs is preserved.
+
+### Equibles research
+
+The live public MCP `initialize` and `tools/list` responses at `https://mcp.equibles.com/mcp` were verified on October 18, 2026. The public catalogue includes `GetAnalystEstimates`, a newer tool absent from the earlier README. It prefers company-published consensus and can fall back to compiled consensus; original source labels, units, accounting basis and snapshot dates remain in the report. There is no verified broker price-target replacement in this integration.
+
+Eight explicitly selected read-only tools are available on `ANALYSTS`: `GetAnalystEstimates`, `GetGuidance`, `GetCompanyKpis`, `ListInvestorEvents`, `GetInsiderTransactions`, `GetShortInterest`, `GetTopHolders` and `GetInvestorRelationsNews`. The adapter discovers the actual argument schema before calling a tool, validates a single ticker, and refuses missing/ambiguous schemas or any other tool name. The page cannot supply URLs or arbitrary MCP methods. Quotes/options and portfolio writes are not added through Equibles.
+
+The main process handles JSON/SSE responses, matching JSON-RPC replies, stateful sessions, bounded discovery, concurrent deduplication, account-scoped caches, rate limits and stale results. It cancels an SSE reader once the reply arrives; a persistent stream does not hold up the screen. Report text is shown as text: HTML and remote instructions never execute. Model/AI qualifications and as-filed versus restated figures stay verbatim. Each request shows the first available page, up to 20 rows where supported; the UI does not claim full history or transcript text.
+
+The [hosted documentation](https://github.com/daniel3303/stock-market-mcp-server#pricing--rate-limits) advertises a free 100-request/day allowance shared by REST, MCP and other clients, resetting at midnight UTC. This app conservatively counts **all** MCP transport requests, including initialization/discovery, against a persisted 90/day cap. Queries are manual, with six-hour in-memory caching and ten transport requests/minute. Limits and refusals remain visible. The user's secret is not bundled or copied from chat into files.
+
+An unauthenticated APLD estimates call returned HTTP 401 (missing key). Public schema discovery proves protocol reachability, not this user's account entitlement or APLD coverage; authenticated live account validation remains outstanding. Securely configure the key in cloud settings for cloud checks, or save it on desktop `PROVIDERS`. The research access check tests five endpoints for the requested ticker; a cached response is explicitly distinguished from a fresh access check. The all-source self-test also includes Equibles and shares the ordinary keyed broker's caps, pacing and refusal handling.
 
 ## Market and company news
 

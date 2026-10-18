@@ -141,4 +141,12 @@ describe('read-only Equibles discovery and transport', () => {
     expect(() => decodeReply('{"jsonrpc":"2.0","id":"other","result":{}}', 'application/json', 'x')).toThrow('matching');
     expect(parseResearch('{"tool":"GetGuidance","report":""}')).toBeNull();
   });
+
+  it('classifies an aborted SSE body as a transport failure and retries initialization', async () => {
+    const h = harness();
+    h.fetch.mockImplementationOnce(async () => new Response(new ReadableStream<Uint8Array>({ start(controller) { controller.error(new DOMException('Body interrupted', 'AbortError')); } }), { headers: { 'content-type': 'text/event-stream' } }));
+    expect(parseResearch((await h.client.research('guidance', 'APLD', KEY)).text)?.tool).toBe('GetGuidance');
+    expect(h.providers.recordResult).toHaveBeenCalledWith('equibles', 0, expect.objectContaining({ name: 'AbortError' }), START);
+    expect(h.fetch).toHaveBeenCalledTimes(5);
+  });
 });
