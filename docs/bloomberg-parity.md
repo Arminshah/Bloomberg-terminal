@@ -35,7 +35,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `DIVIDENDS` | DVD dividend analysis | Partial: ex-date cash history and derived yield | Missing declaration/record/payment dates and comprehensive forecasts/actions |
 | `HOLDERS` | HDS ownership | Partial: institution/fund filing snapshots | No complete ownership intelligence, beneficial ownership history or all asset classes |
 | `PEERS` | RV relative valuation | Partial: multiples and profitability comparison | Local peer selection; no global comparison/template/data-field universe |
-| `EVENTS` | EVTS corporate calendar | Partial: earnings/ex-dividend events | No comprehensive corporate actions, conferences or transcript workflow |
+| `EVENTS` | EVTS corporate calendar | Partial: earnings/ex-dividend events for one company, the active watchlist, the portfolio's stocks or every stock in the app | No comprehensive corporate actions, conferences or transcript workflow |
 | `FILINGS` | Company filing/document search | Partial: SEC submissions and XBRL reported figures | SEC only; no global document library, translations or transcripts |
 | `CROSSCHECK` | Multiple-source data validation | Project tool: completed-session EOD price comparisons | Not an exchange reconciliation or Bloomberg data-quality service; keys/entitlements required |
 | `FIELDS` | FLDS field search | Local tool: 29 current identity/quote/calculated/provenance fields, definitions, units, source times, status and CSV | No exhaustive Bloomberg field catalogue, identifiers, compatible field contracts, historical field requests or BDP/BDH/BDS/BQL API |
@@ -49,10 +49,10 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `SPREAD` | HS relative history | Model: spreads/ratios and distribution statistics | Not a credit spread database or universal relative-value engine |
 | `BETA` | BETA regression | Model: daily-return raw/adjusted beta, alpha and R² | Limited benchmark, frequency and data history coverage |
 | `VOLATILITY` | HVT volatility | Model: realised rolling volatility and percentiles | No market implied surface, skew/term structure or volatility cube |
-| `HEADLINES` | TOP headlines | Partial: official central-bank/statistics/regulator announcements | No Bloomberg News wire or full-text newsroom/archive |
+| `HEADLINES` | Official/government announcements (`TOP` opens `MARKETNEWS`) | Partial: official central-bank/statistics/regulator announcements, also 4) Official on `MARKETNEWS` | No Bloomberg News wire or full-text newsroom/archive |
 | `NEWS` | N news search | Partial: keyword/topic search of fetched announcements | No global licensed archive, advanced news classification or full-text search |
-| `MARKETNEWS` | Market news feed | Partial: Finnhub/Marketaux/SEC headlines and links | Provider coverage/quota limits; no Bloomberg real-time news service |
-| `COMPANYNEWS` | CN company news | Partial: ticker-tagged external headlines and sentiment | Limited lookback/tagging; no transcripts or proprietary Bloomberg reporting |
+| `MARKETNEWS` | TOP top news headlines | Partial: Finnhub/Marketaux/SEC/Euronext headlines and links, merged; `TOP` opens it | Provider coverage/quota limits; no Bloomberg editors' ranking of top stories or real-time news service |
+| `COMPANYNEWS` | CN company news | Partial: ticker-tagged external headlines and sentiment; Yahoo headlines; a Euronext-listed company's press releases matched by issuer name | Limited lookback/tagging; Euronext's feed holds only its 10 latest releases; no transcripts or proprietary Bloomberg reporting |
 | `MARKET` | WEI global index monitor | Partial: major index prices and currency-adjusted YTD | Coverage/freshness depend on public feeds; no exchange-wide terminal universe |
 | `INDEXFUTURES` | WEIF index futures | Partial: US index futures and model fair value | No global futures/depth/settlement/roll coverage |
 | `CONTRIB` | MOV index contribution | Partial: Dow point contribution; local-universe proxies elsewhere | No full licensed constituent/weight/history dataset for other indices |

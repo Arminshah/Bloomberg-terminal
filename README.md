@@ -89,7 +89,7 @@ Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES`
 | Equity | `PROFILE` description and key figures, `FINANCIALS` statements and ratios, `FUNDCHART` fundamentals over time, `EARNINGS` reported results, `DIVIDENDS`, `HOLDERS`, `PEERS` relative valuation, `EVENTS` earnings and dividend calendar, `FILINGS` SEC filings and reported figures, `CROSSCHECK` closes against other sources, `WACC` cost of capital, `ANALYSTS` price targets, ratings and estimates |
 | Charts | `CHART` with studies and comparisons, `INTRADAY`, `HISTORY`, `RETURNS`, `TOTALRETURN`, `SPREAD`, `BETA`, `VOLATILITY` |
 | Markets | `MARKET` world indices, `INDEXFUTURES`, `CONTRIB` index movers, `HEATMAP`, `MOVERS`, `SCREEN` stock screener, `QUOTE`, `TRADES`, `DEPTH` (order book for crypto, best bid and offer otherwise), `VWAP` |
-| News | `MARKETNEWS` market news and the latest 8-K filings, `COMPANYNEWS` a company's news; `HEADLINES` and `NEWS`: press releases from central banks, the BEA and ESMA |
+| News | `MARKETNEWS` (`TOP`) market news, the latest 8-K filings and Euronext press releases, `COMPANYNEWS` a company's news, with its Euronext press releases for a stock listed there; `HEADLINES` and `NEWS`: press releases from central banks, the BEA and ESMA |
 | FX and crypto | `FXMATRIX` cross rates, `FXRANK`, `CRYPTO`, `FXOPTION` European option pricer with overrides, `FXFORWARD` calculated forwards and contract PV from your term rates |
 | Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` still need bond/dealer datasets |
 | Commodities | `COMMODITIES` |

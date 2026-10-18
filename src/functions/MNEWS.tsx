@@ -4,7 +4,7 @@ import { fmtDate, fmtStamp, fmtTime } from '../core/format';
 import { engine } from '../data/market';
 import { useProviderReport } from '../data/providers';
 import { secTicker } from '../data/live/sec';
-import { companyFeeds, companyStories, marketNews, mergeStories, newsAvailable, sameTicker, storiesFor, useCompanyNews, useMarketNews, useYahooHeadlines, watchSymbols, yahooHeadlines, type FeedState, type MarketStory } from '../data/live/marketnews';
+import { companyFeeds, companyStories, euronextReleases, marketNews, mergeStories, newsAvailable, onEuronext, sameTicker, storiesFor, useCompanyNews, useEuronextReleases, useMarketNews, useYahooHeadlines, watchSymbols, yahooHeadlines, type FeedState, type MarketStory } from '../data/live/marketnews';
 import { yahooSymbolFor } from '../data/live/yahoo';
 import { watchlists } from '../terminal/userdata';
 import { execute } from '../terminal/exec';
@@ -112,8 +112,9 @@ const TABS = [
 ];
 
 /**
- * MARKETNEWS: market news merged from Finnhub, MarketWatch and Marketaux (your active watchlist, one request
- * an hour), with the SEC's latest 8-K filings, without duplicates. Filter by ticker or keyword.
+ * MARKETNEWS (TOP): market news merged from Finnhub, MarketWatch and Marketaux (your active watchlist, one
+ * request an hour), with the SEC's latest 8-K filings and Euronext's latest press releases, without duplicates.
+ * Filter by ticker or keyword; 4) opens the official announcements (HEADLINES).
  */
 export function MNEWS({ route, sec }: FnProps) {
   const panel = usePanelId();
@@ -141,7 +142,15 @@ export function MNEWS({ route, sec }: FnProps) {
   ].join(' · ');
   return (
     <div className="fn-fill">
-      <FnHeader code="MARKETNEWS" title="Market News" sub={`${list.length} stories · ${status}`} tabs={TABS.map((x) => ({ n: x.n, label: x.label }))} tab={tab} onTab={setTab} />
+      <FnHeader
+        code="MARKETNEWS"
+        title="Market News"
+        sub={`${list.length} stories · ${status}`}
+        tabs={TABS.map((x) => ({ n: x.n, label: x.label }))}
+        tab={tab}
+        onTab={setTab}
+        actions={[{ n: TABS.length + 1, label: 'Official', onClick: () => execute(panel, 'HEADLINES'), title: 'Official announcements from central banks, the BEA and ESMA (HEADLINES)' }]}
+      />
       <div className="chart-tools">
         <label className="fld" htmlFor={`mn-t-${panel}`}>
           Ticker
@@ -151,7 +160,7 @@ export function MNEWS({ route, sec }: FnProps) {
           Search
         </label>
         <input id={`mn-q-${panel}`} className="inp" style={{ width: 200 }} value={q} placeholder="keyword…" onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
-        <span className="muted hide-m">Marketaux covers your watchlist{wl ? ` (${wl.name})` : ''}: 3 stories an hour on its free plan. Official announcements: HEADLINES.</span>
+        <span className="muted hide-m">Marketaux covers your watchlist{wl ? ` (${wl.name})` : ''}: 3 stories an hour on its free plan. Official announcements: {TABS.length + 1}) or HEADLINES.</span>
       </div>
       {!newsAvailable() ? (
         <div className="empty">Market news is read by the desktop app; the browser build has no data source.</div>
@@ -169,33 +178,45 @@ export function MNEWS({ route, sec }: FnProps) {
   );
 }
 
-/** COMPANYNEWS: a company's news from Finnhub (the last week) and Marketaux, with a way to its SEC filings. */
+/**
+ * COMPANYNEWS: a company's news from Finnhub (the last week) and Marketaux, with a way to its SEC filings;
+ * Yahoo Finance's headlines for any stock; and for a stock listed on Euronext, its press releases among
+ * Euronext's latest.
+ */
 export function CompanyNews({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
   const symbol = secTicker(s);
   // Yahoo's headlines cover any market Yahoo lists (Brussels, Paris, Amsterdam...), with or without keys.
   const ysym = s.cls === 'equity' ? (yahooSymbolFor(s) ?? s.yahoo ?? null) : null;
+  // Euronext's feed holds its issuers' latest releases; a stock listed there gets those its company issued.
+  const euronext = onEuronext(s);
   const v = useCompanyNews(symbol);
   const vy = useYahooHeadlines(ysym);
+  const ve = useEuronextReleases(euronext);
   const feeds = marketNews.use((x) => x.feeds);
   const yh = yahooHeadlines(ysym);
-  const stories = useMemo(() => mergeStories([symbol ? companyStories(symbol) : [], yh.stories]), [symbol, ysym, v, vy]); // eslint-disable-line react-hooks/exhaustive-deps
+  const en = euronext ? euronextReleases(s.name) : { stories: [] };
+  const stories = useMemo(() => mergeStories([symbol ? companyStories(symbol) : [], yh.stories, en.stories]), [symbol, ysym, euronext, s.name, v, vy, ve]); // eslint-disable-line react-hooks/exhaustive-deps
   const { finnhub: fin, marketaux: mk } = symbol ? companyFeeds(feeds, symbol) : {};
-  const states = [...(symbol ? [fin, mk] : []), ...(ysym ? [yh.feed] : [])];
-  const status = [...(symbol ? [feedWord('Finnhub', fin), feedWord('Marketaux', mk)] : []), ...(ysym ? [feedWord('Yahoo Finance', yh.feed)] : [])].join(' · ');
+  const states = [...(symbol ? [fin, mk] : []), ...(ysym ? [yh.feed] : []), ...(euronext ? [en.feed] : [])];
+  const enWord = en.feed?.state === 'ok' ? feedWord('Euronext', { ...en.feed, count: en.stories.length }, ` among its latest ${en.feed.count ?? 0}`) : feedWord('Euronext', en.feed);
+  const status = [...(symbol ? [feedWord('Finnhub', fin), feedWord('Marketaux', mk)] : []), ...(ysym ? [feedWord('Yahoo Finance', yh.feed)] : []), ...(euronext ? [enWord] : [])].join(' · ');
   return (
     <div className="fn-fill">
-      <FnHeader code="COMPANYNEWS" title="Company News" sec={s} sub={symbol || ysym ? `${stories.length} stories · ${status}` : 'Stocks'} />
+      <FnHeader code="COMPANYNEWS" title="Company News" sec={s} sub={symbol || ysym || euronext ? `${stories.length} stories · ${status}` : 'Stocks'} />
       <div className="chart-tools">
         {symbol ? (
           <button type="button" className="btn" onClick={() => execute(panel, `${s.id} FILINGS`)}>
             Its SEC filings
           </button>
         ) : null}
-        <span className="muted hide-m">{symbol ? 'News from the last week (Finnhub), Marketaux\'s latest stories and Yahoo Finance headlines' : 'Yahoo Finance headlines'} for {s.ticker}, newest first.</span>
+        <span className="muted hide-m">
+          {symbol ? 'News from the last week (Finnhub), Marketaux\'s latest stories and Yahoo Finance headlines' : 'Yahoo Finance headlines'} for {s.ticker}, newest first
+          {euronext ? `, with ${s.name}'s press releases among Euronext's latest (matched by the issuer's name)` : ''}.
+        </span>
       </div>
-      {!symbol && !ysym ? (
+      {!symbol && !ysym && !euronext ? (
         <div className="empty">Company news covers stocks; {s.ticker} is not one.</div>
       ) : !newsAvailable() ? (
         <div className="empty">Company news is read by the desktop app; the browser build has no data source.</div>
