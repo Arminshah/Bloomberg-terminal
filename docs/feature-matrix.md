@@ -1,6 +1,6 @@
 # Feature and data coverage
 
-What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.4.0); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 70 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
+What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.6.0); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 70 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
 
 Status:
 
@@ -11,9 +11,11 @@ Status:
 
 Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, STALE, UNKNOWN FRESHNESS); [data-dictionary.md](data-dictionary.md) defines the labels.
 
-## Version 2.4.0 additions
+## Calculations and derivatives: versions 2.4–2.6
 
-`OPTIONS` / `OMON` now uses Alpaca's explicit indicative feed for listed US equity contracts: indicative bids/asks, delayed trades, provider IV/Greeks, expiry filters, source times and CSV. Both keys/account access are required; live keyed access remains unverified here. Pagination failures remain visibly partial. No OPRA, index options, open interest or daily volume is claimed. `OPTIONSTRATEGY` / `OSA` calculates common-expiry multi-leg/stock risk and scenarios offline. `OPTIONCALC` / `OVME` solves European implied volatility from a manual premium. `BONDCALC` / `YAS` adds benchmark G-spread and zero-curve Z-spread, Z01 and spread scenarios. See [conventions](calculators.md).
+`OPTIONS` / `OMON` now uses Alpaca's explicit indicative feed for listed US equity contracts: indicative bids/asks, delayed trades, provider IV/Greeks, expiry filters, source times and CSV. Both keys/account access are required; live keyed access remains unverified here. Pagination failures remain visibly partial. No OPRA, index options, open interest or daily volume is claimed. `OPTIONSTRATEGY` / `OSA` calculates common-expiry multi-leg/stock risk and scenarios offline. `OPTIONCALC` / `OVME` values European and American exercise, solves model IV from a manual premium and exports its inputs/scenarios. `BONDCALC` / `YAS` adds benchmark G-spread and zero-curve Z-spread, Z01 and spread scenarios. See [conventions](calculators.md).
+
+`PORTFOLIO` replays fixed quantities with historical FX and complete shared dates. Historical current-exposure shocks support multi-interval VaR/ES, signed volatility/ES contributions, matched benchmark tracking error and per-position price/FX stress. Minimum samples, source marks, overlapping windows and annualisation assumptions are visible. Missing histories do not produce partial or fabricated risk. This is not realised performance or an institutional transaction/factor system.
 
 ## Version 2.3.0 additions
 
@@ -113,11 +115,11 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
-| `OPTIONCALC` | European value or implied volatility from premium, Greeks and scenarios | Manual inputs or named source references | European BSM; calendar expiries, no American exercise or implied surface |
+| `OPTIONCALC` | European BSM or American Tian lattice value/IV, exercise premium, bump Greeks, convergence diagnostic, scenarios and CSV | Manual inputs or named source references | Continuous yields, manual tenor or Friday calendar, finite-grid error; no discrete dividends or fitted market surface |
 | `OPTIONS` | Listed US equity contracts, indicative bids/asks, delayed trades, provider IV/Greeks and source times | Alpaca indicative snapshots, own keys/account entitlement | Partial; no OPRA, index contracts, open interest, daily volume or assumed deliverables |
 | `OPTIONSTRATEGY` | Up to 12 common-expiry option legs + stock; exact expiry payoff/risk/breakevens, model Greeks and scenarios | Explicit positions, entry premiums, rates and per-leg volatility; optional source spot | European model; no calendars, American exercise, assignment, margin or execution |
 | `WATCHLIST` | Your lists with prices and changes | Each line's source | Real |
-| `PORTFOLIO` | Holdings you enter, performance and risk | Each line's source; Yahoo Finance FX and S&P 500; Treasury 3-month yield | Calculated |
+| `PORTFOLIO` | Manual holdings/cash, historical-FX replay, empirical VaR/ES, additive signed contributions, matched benchmark risk, per-line stress and CSV | Every holding's prior-date price/FX history and current marks; selectable benchmark | Requires complete shared dates and ≥20 scenarios; no transaction ledger, dividend cash flows, corporate-action reconciliation or factor model |
 | `ALERTS` | Price, percent-change and keyword alerts while the app is open | Each line's source; official announcements | Real |
 | `CORRELATION` | Correlation of daily returns | Daily closes | Calculated |
 | `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` | Finding securities, history, notes, saved workspaces | Yahoo Finance search for stocks not built in | Tools |

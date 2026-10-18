@@ -39,6 +39,8 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 | `alpaca.test.ts` | Alpaca requests limited to the market data host and IEX, snapshots, times with nanoseconds, symbols |
 | `exchanges.test.ts` | NYSE and Euronext holidays and early closes against the exchanges' own tables, and the market timers' sessions |
 | `providers.test.ts` | Credentials and pasted key lists, request accounting, daily allowances, providers' refusals, switches, limits and provider states |
+| `american-options.test.ts` | Ten independent QuantLib finite-difference prices, PDE Greeks, deterministic interior exercise, no-early-exercise bounds, American IV ambiguity, invalid grids and NY expiry DST |
+| `portfolio-risk.test.ts` | Historical FX/futures NAV, no omitted positions or filled prices, missing-session gap exclusions, fractional/tied ES, additive signed covariance/ES risk, observed multi-interval shocks, benchmark endpoint alignment and manual cost adjustment |
 | `finance.test.ts` | Black-Scholes, Treasury math, indicators and statistics |
 | `contracts.test.ts` | Independent bond yield/price and finite-difference risk checks, zero-volatility option limits, covered interest parity, dual-curve swap PV/par/coupon/curve risk, date/curve/input boundaries |
 | `option-chain.test.ts` | Indicative-only read-only request boundary, OCC decoding, missing fields, event ages, sequential pagination, repeated tokens, page limits, partial failures and credentials/entitlements |
@@ -49,7 +51,7 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 
 `e2e/terminal.spec.ts` runs the browser build, which has no data source: the first test checks that it opens on the no-data page and that the demo, once chosen, says DEMO DATA. The rest use the demo to check that every function renders without errors, that typing goes to the command line with autocomplete, that numbered menus and back navigation work, that bad commands explain themselves, that watchlists and alerts persist, and that the phone layout shows one panel without horizontal scrolling.
 
-Calculator checks use explicit inputs and independent expected values: bond price/yield/Z-spread, FX carry/PV, swap direction/coverage, zero-volatility equity/FX options, premium-to-IV via a separate normal-density integration, multi-leg payoff/breakevens and invalid-input clearing. CSV checks include inputs and results. The same calculator flows run in Electron real-data mode with provider prices/rates blocked. The rendering test verifies that its command list covers every registered function.
+Calculator checks use explicit inputs and independent expected values: bond price/yield/Z-spread, FX carry/PV, swap direction/coverage, zero-volatility equity/FX options, premium-to-IV via a separate normal-density integration, multi-leg payoff/breakevens and invalid-input clearing. American checks invert an independent QuantLib PDE premium and reject ambiguous exercise-floor IV. Portfolio checks verify reduced-position cost retention, historical risk controls, independent price-shock P&L and CSV provenance. CSV checks include inputs and results. The same calculator flows run in Electron real-data mode with provider prices/rates blocked. The rendering test verifies that its command list covers every registered function.
 
 ## Deterministic desktop integration
 
@@ -73,3 +75,5 @@ The browser tests never see real data. To check the desktop app against the real
 4. With the keys set: `MACRO`, `RELEASES`, `FILINGS MSFT`, `CROSSCHECK AAPL`.
 
 On Linux without a display, `xvfb-run -a npm run desktop` works. Playwright can drive the desktop app as well (`_electron.launch` from `@playwright/test`), which is how the screens were checked during development.
+
+Independent American option references are stored in `tests/fixtures/american-options.json`. Optional `scripts/option-reference.py` regenerates them using QuantLib 1.40 in a separate Python environment; QuantLib is not shipped and is not required for ordinary tests. Keep timing-sensitive unit checks separate from builds/browser suites; the existing 600-ms engine construction limit is unchanged.

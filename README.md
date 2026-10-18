@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.5.1** adds read-only Equibles research, a Finnhub recommendation fallback and per-symbol research access checks. Failed FMP sections no longer hide working research. It preserves 2.4.1's Yahoo consent/session handling and key-import fixes, plus the later Finnhub profiles, earnings and recommendation-history work. See [release validation and limits](docs/release-v2.5.1.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 70 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
+Version **2.6.0** adds American single-option valuation/IV and deeper portfolio risk: exact session-date joins, historical FX, expected shortfall, hedge contributions, benchmark tracking error, stress tests and CSV exports. It retains 2.5.1's Equibles research, Finnhub fallbacks and provider diagnostics. See [release validation and limits](docs/release-v2.6.0.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 70 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
@@ -62,7 +62,7 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 | `CRYPTO BTC` | Bitcoin on the crypto monitor |
 | `YAS` / `BONDCALC` | Bond price/yield, cash flows, DV01, benchmark G-spread and zero-curve Z-spread from explicit inputs |
 | `AAPL OMON` / `OPTIONS AAPL` | Indicative listed equity option chain, provider IV/Greeks and source times with Alpaca keys |
-| `AAPL OVME` / `OPTIONCALC AAPL` | European value from volatility or implied volatility from an entered premium |
+| `AAPL OVME` / `OPTIONCALC AAPL` | European/American value or implied volatility from premium, exercise premium and CSV |
 | `OSA` / `OPTIONSTRATEGY` | Multi-leg option/stock payoff, breakevens, aggregate Greeks and scenarios |
 | `EURUSD FRD` / `FXFORWARD EURUSD` | Covered-interest-parity forwards and contract PV from your spot and term rates |
 | `SWPM` / `SWAPCALC` | Fixed/float swap NPV, par coupon, cash flows and bump risk from your zero curves |
@@ -89,8 +89,8 @@ Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES`
 | Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` still need bond/dealer datasets |
 | Commodities | `COMMODITIES` |
 | Economics | `MACRO` dashboard with first-release revisions, `RELEASES` calendar, `ECONSTATS` world statistics, `HOLIDAYS` exchange calendars |
-| Derivatives | `OPTIONS` indicative listed US equity snapshots with Alpaca; `OPTIONCALC` European value/IV; `OPTIONSTRATEGY` common-expiry multi-leg/stock risk and scenarios |
-| Portfolio and tools | `WATCHLIST`, `PORTFOLIO` holdings you enter, with performance and risk, `ALERTS`, `CORRELATION`, `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` |
+| Derivatives | `OPTIONS` indicative listed US equity snapshots with Alpaca; `OPTIONCALC` European/American value/IV; `OPTIONSTRATEGY` common-expiry multi-leg/stock risk and scenarios |
+| Portfolio and tools | `WATCHLIST`, `PORTFOLIO` manual holdings, historical-FX replay, VaR/ES, risk contributions and price/FX stress, `ALERTS`, `CORRELATION`, `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` |
 | System | `HELP`, `MENU`, `PROVIDERS` data providers and keys, `SETTINGS`, `MESSAGES` help-desk bot |
 
 Tables can be copied or exported as CSV. Watchlists, the portfolio, alerts, notes, layouts and settings are kept on your computer. Paper trading is switched off: the portfolio holds only what you enter.

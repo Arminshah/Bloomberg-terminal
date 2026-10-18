@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { KeyedAnswer } from '../src/data/live/lookup';
-import { checkBond, checkForward, checkOptions, checkStrategy, checkSwap } from '../e2e/calculator-checks';
+import { checkAmericanOption, checkBond, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from '../e2e/calculator-checks';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 const FMP_ERROR = 'Invalid API key. Deterministic FMP refusal.';
@@ -125,6 +125,20 @@ test('manual analytics work in real-data desktop mode without any provider price
   await checkSwap(page, (text, code) => command(page, text, code));
   await checkOptions(page, (text, code) => command(page, text, code));
   await checkStrategy(page, (text, code) => command(page, text, code));
+});
+
+test('American exercise and independent premium inversion work without provider data', async ({ desktop: { page } }) => {
+  await checkAmericanOption(page, (text, code) => command(page, text, code));
+});
+
+test('portfolio adjustments retain cost and unavailable real histories never produce fabricated risk', async ({ desktop: { page } }) => {
+  await checkPortfolioPositions(page, (text, code) => command(page, text, code));
+  await expect(page.getByTestId('risk-nav')).toHaveCount(0);
+  await expect(page.getByRole('status').filter({ hasText: 'Missing completed price or FX history' })).toBeVisible();
+  await expect(page.getByTestId('stress-pnl')).toHaveText('--');
+  await expect(page.getByRole('button', { name: 'Export risk CSV', exact: true })).toBeDisabled();
+  await command(page, 'CORR', 'CORRELATION');
+  await expect(page.locator('table.tbl tbody tr').first().locator('td.num').first()).toHaveText('--');
 });
 
 test('indicative option chains cross real IPC, paginate and keep adjusted roots and old timestamps explicit', async ({ desktop: { app, page } }) => {

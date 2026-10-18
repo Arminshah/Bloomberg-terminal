@@ -1,5 +1,12 @@
 # Roadmap
 
+## Version 2.6.0
+
+- European/American single-option valuation and model IV, continuous dividends/negative rates, early-exercise premium, bump Greeks, grid diagnostic, manual tenor, DST-correct Friday dates and CSV. Independent QuantLib PDE references cover ten cases.
+- Portfolio risk: every holding and historical FX required, exact-date joins, missing-session gap exclusions, current-exposure historical multi-interval shocks, 95/97.5/99% VaR/ES, signed covariance/ES contributions, benchmark tracking error and per-line stress. Historical replay is explicitly hypothetical.
+- Corrected cost retention on reductions/reversals, missing holdings/marks, zero-net long/short allocation and empty/insufficient correlation samples. No Sharpe ratio inferred from unavailable or mismatched funding data.
+- [Release verification and limits](release-v2.6.0.md). Licensed Bloomberg data/features remain separate coverage gaps.
+
 ## Version 2.5.1
 
 - Eight manual, read-only Equibles research datasets on ANALYSTS, including its live-catalogue analyst-consensus tool. Actual MCP schemas, JSON/SSE replies and sessions are handled without inventing REST paths or executing provider text.
@@ -115,7 +122,7 @@
 ## Next
 
 1. Finish the data audit: rates against each central bank's file (`BONDS`, `CURVE`, `MONEYMARKET`, `RATEPROBS`, `CENTRALBANKS`) and the market screens (`MARKET`, `FXMATRIX`, `COMMODITIES`, `CRYPTO`, `MOVERS`). NBIS, the 15-stock sample and the economic screens are done.
-2. Live-test the 2.1.0 sources with the owner's keys: Finnhub, Marketaux, Alpaca, Tiingo, and FMP's estimates and its coverage beyond AAPL.
+2. Validate current providers with securely configured owner keys: especially Equibles APLD coverage, Finnhub research, Alpaca IEX/indicative options, and FMP symbol/endpoint entitlements. Run PROVIDERS research diagnostics; a remaining quota does not grant a premium entitlement.
 3. Japan's unemployment from the Statistics Bureau (the OECD series runs a month behind) and its CPI, which needs an e-Stat key.
 4. Release times for US economic data from the agencies' own schedules, if their terms allow automated reading.
 5. Holiday calendars for London, Xetra and Tokyo beyond 2027 (NYSE and Euronext follow their rules for any year).
@@ -125,4 +132,4 @@
 
 ## Blocked until a licensed source is approved
 
-These datasets remain unavailable until a suitable provider is connected: prices and dealer quotes for individual bonds, CDS and structured credit; dealer FX-forward points and swap curves; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; real-time OPRA option chains (indicative Alpaca snapshots are available); quarterly estimates and earnings surprises; consolidated real-time quotes from an official feed; full-text licensed news, transcripts and broker research; trading through a broker. User-input bond, forward and swap calculations are available separately. Paper trading is switched off.
+These datasets remain unavailable until a suitable provider is connected: prices and dealer quotes for individual bonds, CDS and structured credit; dealer FX-forward points and swap curves; market depth beyond the best bid and offer; index futures outside the US; consensus economic forecasts; real-time OPRA option chains (indicative Alpaca snapshots are available); complete quarterly consensus estimates (Finnhub EPS surprise comparisons are connected); consolidated real-time quotes from an official feed; full-text licensed news, transcripts and broker research; trading through a broker. User-input bond, forward and swap calculations are available separately. Paper trading is switched off.

@@ -33,7 +33,7 @@ Freshness. Each price carries one label, worked out from the source's own statem
 
 ## Calculated figures
 
-User-input bond, FX-forward, fixed/float swap and European-option conventions are defined in [calculator conventions](calculators.md), including units, curve interpolation, risk bump definitions and excluded contract features.
+User-input bond, FX-forward, fixed/float swap and European/American single-option conventions are defined in [calculator conventions](calculators.md), including units, curve interpolation, risk bump definitions and excluded contract features.
 
 | Figure | Formula and inputs | Where |
 | --- | --- | --- |
@@ -58,7 +58,7 @@ User-input bond, FX-forward, fixed/float swap and European-option conventions ar
 | Year-on-year and month-on-month rates for US releases | From the published index levels, (level / level a year or a month earlier − 1) × 100, rounded to the decimals the agency publishes. | `RELEASES`, `ECONSTATS` |
 | GDP growth for Japan, Canada, Australia | Real GDP level against the same quarter a year earlier: Japan's Cabinet Office series and the IMF's International Financial Statistics for Canada and Australia, on FRED. Marked * on screen. | `ECONSTATS` |
 | Canada inflation | 12-month change of Statistics Canada's all-items CPI, from the published index as StatCan works it out. | `ECONSTATS` |
-| Option value and Greeks | European Black-Scholes-Merton with explicit/manual or named reference inputs. Volatility is manual, realised history, or solved from a manual premium in IV mode; those sources remain distinct. See calculator conventions for units and bounds. | `OPTIONCALC` |
+| Option value and Greeks | European BSM or American Tian binomial with explicit/manual or named reference inputs; American finite-bump Greeks and grid diagnostics are approximate. Volatility is manual, realised history, or solved from a manual premium in IV mode; those sources remain distinct. See calculator conventions for units and bounds. | `OPTIONCALC` |
 | Strategy expiry P&L | Signed stock/option intrinsic payoffs less entry premiums/cost; extrema and breakevens cover the entire nonnegative spot domain, including unlimited tails. Model Greeks/scenarios use European BSM. | `OPTIONSTRATEGY` |
 | Bond Z-spread | Constant continuous spread added to an entered zero curve so discounted cash flows match dirty price; Z01 bumps that spread, holding the curve fixed. G-spread compares matching-compounding nominal yields. | `BONDCALC` |
 | Indicative option fields | Alpaca provider bids/asks, delayed trades, IV and Greeks, with independent source event times. Not OPRA or executable prices; no missing open interest/volume/deliverable is inferred. | `OPTIONS` |
@@ -76,3 +76,5 @@ Published rates are shown as published, not recalculated: Eurostat's HICP annual
 ## Missing values
 
 A value the source does not give is shown as "--". The app does not fill gaps with defaults, estimates or simulated values. Examples: a company without a beta from the source shows no beta; a past earnings report without a date from the source shows "--" and stays off the `EVENTS` calendar.
+
+Portfolio replay, exact-date price/FX alignment, signed historical VaR/expected shortfall, component covariance risk, benchmark risk comparisons and stress conventions are defined in [calculator conventions](calculators.md#portfolio-performance-and-risk-portfolio--port). An interval counts shared historical observations, not a guaranteed exchange business day; replay is not realised performance.

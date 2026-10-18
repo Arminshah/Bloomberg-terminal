@@ -30,7 +30,7 @@ export function CORR({ sec }: FnProps) {
   const history = useHistoryVersion();
   const { matrix, dates } = useMemo(() => {
     const { dates, rets } = alignedReturns(ids, PERIODS[tab - 1].bars);
-    return { dates, matrix: ids.map((_, i) => ids.map((__, j) => (i === j ? 1 : correlation(rets[i], rets[j])))) };
+    return { dates, matrix: ids.map((_, i) => ids.map((__, j) => correlation(rets[i], rets[j]))) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ids, tab, history]);
   const spine = ids.find((id) => engine.get(id)?.cls !== 'crypto') ?? ids[0];
@@ -88,8 +88,8 @@ export function CORR({ sec }: FnProps) {
       </div>
       <div className="note">
         {dates.length > 1
-          ? `${dates.length - 1} daily returns from ${fmtDay(dates[0])} to ${fmtDay(dates[dates.length - 1])}, on the trading days of ${engine.get(spine)?.ticker ?? spine}: each line's close on or before each day, so a market closed that day counts as unchanged. Pearson correlation; rates use yield changes.`
-          : 'Waiting for daily history from the sources.'}
+          ? `${dates.length} daily return intervals ending ${fmtDay(dates[0])} through ${fmtDay(dates[dates.length - 1])}, on the trading days of ${engine.get(spine)?.ticker ?? spine}: each line's close on or before each day, so a market closed that day counts as unchanged. Pearson correlation needs at least three observations and nonzero variance; rates use yield changes.`
+          : ids.length ? 'Waiting for daily history from the sources.' : 'Add securities to compare their daily returns.'}
         {providers.length ? ` Daily closes from ${providers.join(', ')}.` : ''}
       </div>
     </div>

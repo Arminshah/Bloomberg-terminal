@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { checkBond, checkForward, checkOptions, checkStrategy, checkSwap } from './calculator-checks';
+import { checkAmericanOption, checkBond, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from './calculator-checks';
 
 // Keep runs deterministic: no live network feeds.
 async function boot(page: Page, layout?: string) {
@@ -215,5 +215,50 @@ test('multi-leg option strategies expose exact expiry risk and export their ente
   expect(csv).toContain('European Black-Scholes-Merton');
   expect(csv).toContain('C,100,1,8,25');
   expect(csv).toContain('Max expiry loss,400');
+  expect(errors).toEqual([]);
+});
+
+test('American option valuation, independent PDE premium inversion and calculation export', async ({ page }) => {
+  const errors = await boot(page, '1');
+  await checkAmericanOption(page, async (cmd, code) => { await run(page, cmd); await expect(page.locator('.fnh-code').first()).toHaveText(code); });
+  const saving = page.waitForEvent('download');
+  await run(page, '99');
+  const download = await saving;
+  expect(download.suggestedFilename()).toBe('option-calculation.csv');
+  const csv = await readFile((await download.path())!, 'utf8');
+  expect(csv).toContain('American Tian binomial');
+  expect(csv).toContain('Tenor calendar days,365');
+  expect(csv).toContain('Early exercise premium,');
+  expect(errors).toEqual([]);
+});
+
+test('portfolio date-aligned risk, independent stress P&L and coverage-labelled exports', async ({ page }) => {
+  // Fixed marks keep the independent stress calculation stable while actual UI timers run.
+  await page.clock.setFixedTime(new Date('2026-10-16T15:00:00Z'));
+  const errors = await boot(page, '1');
+  await checkPortfolioPositions(page, async (cmd, code) => { await run(page, cmd); await expect(page.locator('.fnh-code').first()).toHaveText(code); });
+  await expect(page.getByTestId('risk-samples')).toHaveText('252');
+  const nav = Number((await page.getByTestId('risk-nav').innerText()).replace(/,/g, ''));
+  await page.getByRole('button', { name: 'All prices −10%', exact: true }).click();
+  const pnl = Number((await page.getByTestId('stress-pnl').innerText()).replace(/,/g, ''));
+  expect(pnl).toBeCloseTo(-0.1 * (nav - 10_000), 1);
+  await page.getByLabel('Risk confidence').selectOption('0.975');
+  await page.getByLabel('Risk horizon').selectOption('5');
+  await expect(page.getByTestId('risk-samples')).toHaveText('248');
+  const saving = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export risk CSV', exact: true }).click();
+  const download = await saving;
+  const csv = await readFile((await download.path())!, 'utf8');
+  expect(csv).toContain('Confidence,0.975');
+  expect(csv).toContain('Horizon shared intervals,5');
+  expect(csv).toContain('Expected shortfall contribution USD');
+  expect(csv).toContain('AAPL US Equity,5,90,1,false');
+  expect(csv).toContain('Historical session,Replay NAV USD,AAPL US Equity local price,AAPL US Equity USD per currency unit');
+  await run(page, '2');
+  await expect(page.getByText('Fixed holdings replay (USD)', { exact: true })).toBeVisible();
+  await expect(page.getByText('Historical NAV', { exact: true })).toBeVisible();
+  await run(page, 'CORR');
+  while (await page.getByRole('button', { name: /^Remove / }).count()) await page.getByRole('button', { name: /^Remove / }).first().click();
+  await expect(page.getByText('Add securities to compare their daily returns.', { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });

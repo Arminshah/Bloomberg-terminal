@@ -1,4 +1,4 @@
-# Bloomberg workflow audit — Armin Terminal 2.4.0
+# Bloomberg workflow audit — Armin Terminal 2.6.0
 
 Audited 18 October 2026 against the registered commands, screen implementations, source adapters and calculation models. **Armin Terminal is not a 1:1 Bloomberg Terminal replacement.** This inventory covers all 70 commands in this release; it is not an inventory of every function in Bloomberg's proprietary product. Matching a mnemonic or opening a screen does not establish functional, visual or dataset parity.
 
@@ -7,7 +7,9 @@ Bloomberg's product overview is at <https://www.bloomberg.com/professional/produ
 ## Findings addressed in this release
 
 - `OPTIONS` / `OMON` previously showed only an unavailable screen. It now requests actual listed US equity contract snapshots using Alpaca's **indicative** feed, with calls/puts, expiry filters, provider IV/Greeks, separate quote/trade timestamps, partial pagination status and CSV. It does not supply real-time OPRA quotes, open interest, daily option volume, index options or adjusted deliverables.
-- `OPTIONCALC` / `OVME` can now solve European implied volatility from an entered premium, with no-arbitrage validation. This does not turn realised volatility into market implied volatility or value American early exercise.
+- `OPTIONCALC` / `OVME` now supports European BSM and American Tian-lattice value/IV, early-exercise premium, manual tenor, grid diagnostics, bump Greeks and CSV. Ten independent QuantLib PDE references validate defined cases; continuous yields do not reproduce discrete cash-dividend conventions.
+- `PORTFOLIO` now joins exact prior-date histories for every holding and FX currency, excludes intervals bridging missing sessions, reprices historical current-exposure shocks, computes empirical VaR/ES and additive signed risk contributions, and provides matched benchmark tracking error and per-position price/FX stress. This does not create a transaction ledger or realised track record.
+- `CORRELATION` no longer displays a guaranteed diagonal 1 without sufficient variable data; removing the final security is safe and observation counts are corrected.
 - `OPTIONSTRATEGY` / `OSA` adds up to twelve signed common-expiry option legs plus stock, premiums, aggregate European-model Greeks, exact piecewise-linear expiry breakevens and risk including unlimited tails, time/spot/volatility scenarios, five labelled examples and CSV.
 - `BONDCALC` / `YAS` previously had “Spread” in its title without spread analytics. It now computes a manual matching-compounding benchmark G-spread and solves continuous ACT/365F Z-spread against an entered zero curve, with spread duration, Z01 and spread scenarios. It does not claim option-adjusted spread or obtain issue terms/market curves.
 
@@ -74,10 +76,10 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `ECONSTATS` | ECST world economics | Partial: selected countries/official statistics | Coverage/frequencies/revisions incomplete; Japan CPI not connected |
 | `HOLIDAYS` | CDR market calendars | Partial: selected exchanges and early closes | No global settlement/calendar engine; some tables stop at 2027 and unscheduled closures are unknown |
 | `OPTIONS` | OMON option monitor | Partial: Alpaca indicative US equity snapshots | No real-time OPRA, index options, open interest/daily volume, exercise/deliverable reference data or surface history |
-| `OPTIONCALC` | OVME option valuation | Model: European value/IV, Greeks, P&L and scenarios | No American exercise, exotics, discrete dividends, fitted market surface or exchange convention engine |
+| `OPTIONCALC` | OVME option valuation | Model: European/American value/IV, exercise premium, Greeks, grid diagnostics, scenarios and CSV | No exotics, discrete cash dividends, fitted market surface, margin/assignment or complete exchange conventions |
 | `OPTIONSTRATEGY` | OSA option strategy | Model: common-expiry multi-leg + stock risk/scenarios | No different-expiry calendars, American exercise/assignment, margin, funding or live strategy execution |
 | `WATCHLIST` | W/Launchpad monitors | Local tool: editable lists and source prices | No shared enterprise monitors or arbitrary Bloomberg data columns |
-| `PORTFOLIO` | PORT portfolio analytics | Partial: manually entered positions/cash, P&L and statistical risk | No institutional position/corporate-action reconciliation, full transaction ledger, factor attribution, multi-asset derivatives or enterprise risk |
+| `PORTFOLIO` | PORT portfolio analytics | Partial: manual holdings/cash, historical-FX replay, exact-date VaR/ES, signed hedge contributions, tracking error, per-line stress and CSV | No institutional position/corporate-action reconciliation, full transaction ledger, factor attribution, multi-asset derivatives or enterprise risk |
 | `ALERTS` | ALRT alerts | Local tool: prices, changes and announcement keywords while open | No server-side alerts when closed, mobile push or enterprise notification service |
 | `CORRELATION` | CORR correlation | Model: daily-return correlation matrix | No factor model, covariance service, optimisation or full data universe |
 | `SEARCH` | SECF security lookup | Partial: local universe and online equity search | No universal instrument/identifier/issue master |
@@ -100,4 +102,4 @@ The optional Alpaca stock feed is **IEX only**, one US exchange. It is not conso
 
 ## Verification boundary
 
-Unit tests check model mathematics against independent cash flows/payoffs, pagination and refusals. Browser checks cover each registered command and calculator interactions. Electron tests exercise the actual preload, IPC validators, broker and UI with deterministic provider responses; they are not live-feed validation. See [release-v2.5.1.md](release-v2.5.1.md) for the current build/test record and remaining environment restrictions.
+Unit tests check model mathematics against independent cash flows/payoffs, pagination and refusals. Browser checks cover each registered command and calculator interactions. Electron tests exercise the actual preload, IPC validators, broker and UI with deterministic provider responses; they are not live-feed validation. See [release-v2.6.0.md](release-v2.6.0.md) for the current build/test record and remaining environment restrictions.
