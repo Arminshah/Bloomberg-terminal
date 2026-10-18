@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { _electron, expect, test as base, type ElectronApplication, type Page } from '@playwright/test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, open, rm, unlink, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,19 +18,32 @@ interface Fixtures {
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
 
-const test = base.extend<{ desktop: Desktop }>({
-  desktop: async ({ playwright: _playwright }, runFixture) => {
+const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
+  sourceDotEnv: [false, { option: true }],
+  desktop: async ({ playwright: _playwright, sourceDotEnv }, runFixture) => {
     if (process.platform === 'linux' && !process.env.DISPLAY) throw new Error('Desktop tests need an X display. Run with xvfb-run or set DISPLAY to a running Xvfb server.');
     const profile = await mkdtemp(join(tmpdir(), 'armin-desktop-test-'));
     // Do not inherit provider credentials. These syntactically valid strings are test fixtures only.
     const inherited = Object.fromEntries(Object.entries(process.env).filter(([name, value]) => value !== undefined && !/(?:API_(?:KEY|TOKEN|SECRET)|ALPACA|APCA|MARKETAUX|FINNHUB|POLYGON|SEC_USER_AGENT|ELECTRON_RUN_AS_NODE)/i.test(name))) as Record<string, string>;
     let app: ElectronApplication | undefined;
+    let sourceFile: FileHandle | undefined;
+    const sourceFilePath = join(repository, '.env');
     try {
+      if (sourceDotEnv) {
+        // Regression for a copied .env.example. Exclusive creation never reads or overwrites user keys.
+        try {
+          sourceFile = await open(sourceFilePath, 'wx', 0o600);
+          await sourceFile.writeFile('ALPACA_IEX_PRICES_ENABLED=false\nCOINGECKO_API_KEY=SourceFileFixtureKey1234567890\n');
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        }
+      }
       app = await _electron.launch({
-        args: ['.', '--no-sandbox'], // Only this test process: the cloud cannot create Chromium user namespaces.
+        args: [join(repository, 'desktop-e2e', 'bootstrap.cjs'), '--no-sandbox'], // Test only: the cloud cannot create Chromium user namespaces.
         cwd: repository,
         env: {
           ...inherited,
+          ARMIN_DESKTOP_TEST_PROFILE: profile,
           XDG_CONFIG_HOME: profile,
           XDG_CACHE_HOME: join(profile, 'cache'),
           APPDATA: profile,
@@ -44,38 +57,8 @@ const test = base.extend<{ desktop: Desktop }>({
           ALPACA_API_SECRET_KEY: 'DesktopFixtureSecret0000000000000000',
         },
       });
-      // Replace the transport, not IPC or renderer data. Every later main-process request is local;
-      // unneeded background providers receive an empty fixture and never call the real transport.
-      await app.evaluate(({ net }) => {
-        const fixtures: Fixtures = { tradeAgeMs: 0, calls: { fmp: 0, marketaux: 0, alpaca: [] } };
-        (globalThis as FixtureGlobal).__desktopFixtures = fixtures;
-        net.fetch = async (input) => {
-          const url = new URL(String(input));
-          const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
-          if (url.hostname === 'financialmodelingprep.com') {
-            fixtures.calls.fmp++;
-            return json({ 'Error Message': 'Invalid API key. Deterministic FMP refusal.' });
-          }
-          if (url.hostname === 'api.marketaux.com') {
-            fixtures.calls.marketaux++;
-            return json({ error: { code: 'invalid_api_token', message: 'Invalid API token. Deterministic Marketaux refusal.' } });
-          }
-          if (url.hostname === 'data.alpaca.markets') {
-            fixtures.calls.alpaca.push(url.href);
-            const now = Date.now();
-            const tradeAt = now - fixtures.tradeAgeMs;
-            const date = new Date(tradeAt).toISOString().slice(0, 10);
-            const previous = new Date(tradeAt - 86_400_000).toISOString().slice(0, 10);
-            return json(Object.fromEntries((url.searchParams.get('symbols') ?? '').split(',').filter(Boolean).map((symbol) => [symbol, {
-              latestTrade: { t: new Date(tradeAt).toISOString(), p: 123.45, s: 10, x: 'V' },
-              latestQuote: { t: new Date(now).toISOString(), bp: 123.4, bs: 2, ap: 123.5, as: 3, bx: 'V', ax: 'V' },
-              dailyBar: { t: `${date}T04:00:00Z`, o: 120, h: 125, l: 119, c: 123.45, v: 1000 },
-              prevDailyBar: { t: `${previous}T04:00:00Z`, o: 118, h: 121, l: 117, c: 120, v: 900 },
-            }])));
-          }
-          return json([]);
-        };
-      });
+      expect(await app.evaluate(({ app }) => app.getAppPath())).toBe(profile);
+      expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(profile);
       const page = await app.firstWindow();
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
@@ -90,8 +73,15 @@ const test = base.extend<{ desktop: Desktop }>({
       await runFixture({ app, page, errors });
       expect(errors).toEqual([]);
     } finally {
-      await app?.close();
-      await rm(profile, { recursive: true, force: true });
+      try {
+        await app?.close();
+      } finally {
+        if (sourceFile) {
+          await sourceFile.close();
+          await unlink(sourceFilePath);
+        }
+        await rm(profile, { recursive: true, force: true });
+      }
     }
   },
 });
@@ -188,4 +178,20 @@ test('a newly fetched IEX snapshot keeps an old trade stale on the main quote an
   const row = page.locator('.panel').first().getByRole('row').filter({ has: page.getByRole('button', { name: 'AAPL US', exact: true }) });
   await expect(row.getByRole('cell').nth(2)).toHaveText(PRICE);
   await expect(row.locator('.stale-px')).toHaveAttribute('title', /STALE:.*IEX/i);
+});
+
+test.describe('source configuration isolation', () => {
+  test.use({ sourceDotEnv: true });
+
+  test('ignores source .env settings and credentials before the real application starts', async ({ desktop: { page } }) => {
+    const report = await page.evaluate(() => window.arminDesktop!.providersStatus!());
+    expect(report.settings?.ALPACA_IEX_PRICES_ENABLED).toMatchObject({ value: false, source: 'default' });
+    expect(report.credentials.COINGECKO_API_KEY).toMatchObject({ configured: false, source: null });
+    await enableIex(page);
+    const updated = await page.evaluate(() => window.arminDesktop!.providersStatus!());
+    expect(updated.settings?.ALPACA_IEX_PRICES_ENABLED).toMatchObject({ value: true, source: 'saved in this app' });
+    expect(updated.credentials.COINGECKO_API_KEY?.configured).toBe(false);
+    await command(page, 'AAPL QUOTE');
+    await expect(page.locator('.panel').first().getByText('Alpaca · IEX only', { exact: false }).first()).toBeVisible();
+  });
 });

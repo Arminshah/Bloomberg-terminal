@@ -43,17 +43,14 @@ Components: main
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 SOURCES
   APT_CONFIG="$task_apt/apt.conf" /usr/bin/apt-get update
+  task_download_dir=$(mktemp -d /workspace/.cache/armin-xvfb-download.XXXXXX)
   (
-    cd /workspace/.cache/xvfb
+    cd "$task_download_dir"
     APT_CONFIG="$task_apt/apt.conf" /usr/bin/apt-get download xvfb
-    # Pick the package with the greatest Debian version, not filename ordering.
-    selected=''
-    for package in xvfb_*.deb; do
-      if [[ -z "$selected" ]] || dpkg --compare-versions "$(dpkg-deb -f "$package" Version)" gt "$(dpkg-deb -f "$selected" Version)"; then
-        selected="$package"
-      fi
-    done
-    dpkg-deb -x "$selected" /workspace/.cache/xvfb
+    # A fresh directory contains only the package this verified APT request downloaded.
+    task_packages=(xvfb_*.deb)
+    [[ ${#task_packages[@]} -eq 1 && -f "${task_packages[0]}" ]]
+    dpkg-deb -x "${task_packages[0]}" /workspace/.cache/xvfb
   )
 fi
 

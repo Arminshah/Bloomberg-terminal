@@ -24,7 +24,7 @@ This release fixes provider reliability and adds an explicit IEX-only US equity 
 | TypeScript build | Passed |
 | Unit suite | 349 passed in 25 files |
 | Browser suite, system Chromium | 9 passed, including every implemented function, mnemonic commands, keyboard navigation and mobile layout |
-| Native Electron IPC/UI suite | 3 passed using disposable profiles, fake credentials and controlled main-process provider responses |
+| Native Electron IPC/UI suite | 4 passed using disposable profiles, fake credentials, pre-main controlled provider transport and source .env isolation |
 | Linux unpacked application | Built with pinned, verified Electron distribution; packaged startup, GP alias, provider screen and preload IPC smoke check passed with network disabled |
 | Live provider credentials and endpoints | Unverified: required credentials absent from the process and proxy `CONNECT 403` before the provider is reached |
 | Windows installer / Linux AppImage and `.deb` | Built by GitHub's workflows after pushing the version tag; local unpacked validation is distinct from those outputs |
