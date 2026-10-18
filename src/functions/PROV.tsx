@@ -8,6 +8,7 @@ import { reloadFred } from '../data/live/fred';
 import { retryAnalysts } from '../data/live/analysts';
 import { retryIex } from '../data/live/alpaca';
 import { ResearchAccessCheck } from '../components/ResearchAccessCheck';
+import { retryFinnhub } from '../data/live/finnhub';
 import type { FnProps } from '../terminal/types';
 
 const STATE_LABEL: Record<ProviderState, string> = {
@@ -98,6 +99,7 @@ export function PROV(_: FnProps) {
   const changed = () => {
     refresh();
     retryAnalysts();
+    retryFinnhub();
     retryIex();
   };
   const feeds = feedStatus.use((f) => f);
@@ -210,7 +212,7 @@ const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED', help: 'Twelve Data\'s free plan is for internal, non-display use. Switch this on only if your Twelve Data plan allows displaying its data; until then nothing is sent to Twelve Data.' },
   { name: 'MARKETWATCH_RSS_ENABLED', help: "MarketWatch's top stories feed on MARKETNEWS. Dow Jones's terms bar automated access to its content, RSS feeds included, without written consent: switch it on only if you accept that risk for your own use." },
   { name: 'FMP_ENABLED', help: 'Analyst price targets, ratings and estimates from Financial Modeling Prep (ANALYSTS, EARNINGS), while FMP_API_KEY is set. Off stops every request to FMP.' },
-  { name: 'FINNHUB_ENABLED', help: 'Market/company news and monthly analyst recommendation counts from Finnhub, while FINNHUB_API_KEY is set. Use the REST key, not the webhook secret.' },
+  { name: 'FINNHUB_ENABLED', help: 'Finnhub profiles/ratios fallback, monthly recommendations, quarterly EPS comparisons, next-report calendar and news. Use the REST API key, not the webhook secret.' },
   { name: 'EQUIBLES_ENABLED', help: 'Read-only Equibles company research on ANALYSTS, requested manually. Free account: 100 calls/day shared with REST/MCP clients. No trading or portfolio writes.' },
   { name: 'MARKETAUX_ENABLED', help: 'Ticker-tagged news with sentiment from Marketaux, while MARKETAUX_API_TOKEN is set. Its free plan allows 100 requests a day.' },
   { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },

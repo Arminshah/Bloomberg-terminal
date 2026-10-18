@@ -34,6 +34,7 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 | `analysts.test.ts` | Financial Modeling Prep requests, price targets, the ratings tally, rating actions, estimates under both field namings, and refusals in words |
 | `equibles.test.ts` | Actual public tool schemas, read-only allowlist, JSON/SSE framing and cancellation, session/account isolation, distinct POST body caches, refusals, redaction, stale answers, discovery and quotas |
 | `research-check.test.ts` | Per-symbol endpoint diagnostics, no-data versus denial, cached responses, stale reports, missing keys and transport failures |
+| `finnhub.test.ts` | Preserved profile/ratio, EPS-surprise and next-report readers; recommendation date/count/symbol validation and replaced-key race regression |
 | `marketnews.test.ts` | News requests and switches, canonical links, Finnhub, Marketaux, MarketWatch and SEC 8-K answers, and duplicates merged |
 | `alpaca.test.ts` | Alpaca requests limited to the market data host and IEX, snapshots, times with nanoseconds, symbols |
 | `exchanges.test.ts` | NYSE and Euronext holidays and early closes against the exchanges' own tables, and the market timers' sessions |

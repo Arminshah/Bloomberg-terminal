@@ -1,10 +1,12 @@
 # Armin Terminal 2.5.1
 
-FMP denying APLD price targets with HTTP 402 used to hide the analyst screen. Research sections now remain independent, monthly recommendation counts can fall back to Finnhub, and Equibles company research is available alongside them. This release includes the published 2.4.1 Yahoo consent/session, chart fallback and key-import fixes.
+FMP denying APLD price targets with HTTP 402 used to hide the analyst screen. Research sections now remain independent, monthly recommendation counts can fall back to Finnhub, and Equibles company research is available alongside them. This release includes the published 2.4.1 Yahoo consent/session, chart fallback and key-import fixes, plus the later Finnhub company-data work from `claude/data-sources` (d24f5c6).
 
 The unpublished v2.5.0 build was stopped during final review. Distinct concurrent Equibles reports now use distinct JSON-RPC request IDs while identical queries still deduplicate and reuse their cache. Existing version tags were preserved.
 
 ## Research
+
+- Preserves the latest Finnhub company-profile/ratio fallback, quarterly EPS comparisons, next-report calendar and monthly recommendation trends. Replacing a key invalidates old pending results immediately; trend counts reject invalid dates, negative counts and other symbols.
 
 - `ANALYSTS`: manual Equibles reports for analyst consensus estimates, company guidance, KPIs, investor events, insider transactions, FINRA short interest, 13F holders and IR news. Original units, dates, accounting labels and provider qualifications stay in the report. Up to 20 rows where supported; investor events list records rather than downloading full transcripts.
 - The adapter verifies actual MCP tool schemas, accepts only eight read-only datasets and one ticker, handles JSON/SSE and stateful sessions, isolates account caches, deduplicates requests and preserves stale timestamps/errors. Remote HTML and instructions display as text. No trading or portfolio-write endpoint is exposed.
@@ -17,7 +19,7 @@ The unpublished v2.5.0 build was stopped during final review. Distinct concurren
 
 Public live Equibles initialization and tool discovery were verified on October 18, 2026, including `GetAnalystEstimates`. An unauthenticated APLD data query correctly returned HTTP 401. This verifies the protocol and schemas, **not** this user's key, subscription or APLD coverage. No user secrets were copied from chat into the cloud or packages. Authenticated live coverage remains unverified; securely configure the key in cloud settings or on desktop PROVIDERS to check it.
 
-Local validation: **460 unit tests in 31 files**, **12 browser tests**, **12 Electron tests**, lint/type/build. Native Windows workflows are release gates. Deterministic Electron tests cover a failed FMP target alongside working estimates/Finnhub counts, manual Equibles requests/cache/refusal recovery, inert HTML, invalid tool rejection, APLD endpoint diagnostics and the all-source report. These tests use fake credentials and transport fixtures, not real provider accounts.
+Local validation: **466 unit tests in 32 files**, **12 browser tests**, **12 Electron tests**, lint/type/build. Native Windows workflows are release gates. Deterministic Electron tests cover a failed FMP target alongside working estimates/Finnhub counts, manual Equibles requests/cache/refusal recovery, inert HTML, invalid tool rejection, APLD endpoint diagnostics and the all-source report. These tests use fake credentials and transport fixtures, not real provider accounts.
 
 The cloud Electron trust restriction recorded in earlier releases remains unresolved; no certificate verification was disabled and no user-wide CA import was retried. The public Equibles checks used the environment's existing Python/OS HTTPS trust. Windows native CI validates app workflows and builds NSIS/portable files; an installer is not interactively installed here. Full Bloomberg feature/data parity remains incomplete; premium requests cannot be unlocked by a remaining daily quota.
 

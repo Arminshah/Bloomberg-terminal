@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.5.1** adds read-only Equibles research, a Finnhub recommendation fallback and per-symbol research access checks. Failed FMP sections no longer hide working research. It preserves 2.4.1's Yahoo consent/session handling, chart fallback and key-import fixes. See [release validation and limits](docs/release-v2.5.1.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 70 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
+Version **2.5.1** adds read-only Equibles research, a Finnhub recommendation fallback and per-symbol research access checks. Failed FMP sections no longer hide working research. It preserves 2.4.1's Yahoo consent/session handling and key-import fixes, plus the later Finnhub profiles, earnings and recommendation-history work. See [release validation and limits](docs/release-v2.5.1.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 70 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
@@ -39,6 +39,8 @@ Prices, charts, yields, central bank rates, official statistics, official announ
 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option contracts on `OPTIONS`; read-only market data, subject to account entitlement |
 
 To add several at once, paste your whole list into "Save these keys" on `PROVIDERS`: it recognises each key, saves it encrypted and tells you which names it saved. Environment variables of the same names work too and take precedence. [docs/configuration.md](docs/configuration.md) covers every key and switch.
+
+Finnhub also supplies company-profile/ratio fallbacks, monthly recommendation history, quarterly EPS comparisons and the next-report calendar. These use the REST key; the webhook signing secret is a different credential.
 
 For the APLD research problem: open `PROVIDERS`, save your Equibles key, and use **Test research access** with `APLD`. The five endpoint results distinguish denial, missing keys, no data, cached answers and errors. Then open `APLD ANALYSTS` and load the Equibles **Analyst estimates** report. Coverage still depends on the provider and issuer; remaining FMP daily quota does not unlock a request denied with HTTP 402. Equibles' free 100/day allowance is shared across REST/MCP clients and is unsuitable for continually polling stock prices, so the IEX stock source is retained.
 

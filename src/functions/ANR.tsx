@@ -11,7 +11,7 @@ import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 import type { SecurityDef } from '../data/types';
 import { reportCcy } from '../data/fundamentals';
-import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type RecommendationMonth } from '../data/live/finnhub';
+import { finnhubAvailable, finnhubSymbol, retryFinnhub, useFinnhub, type FinnhubPart, type RecommendationMonth } from '../data/live/finnhub';
 
 /**
  * Analyst research for a US-listed stock from Financial Modeling Prep (the owner's key): the price target
@@ -83,7 +83,7 @@ export function ANR({ sec }: FnProps) {
       {header}
       <QuoteStrip sec={s} />
       <div className="pad-s" style={{ display: 'flex', gap: 8 }}>
-        <button type="button" className="btn" onClick={() => retryAnalysts()}>Retry analyst research</button>
+        <button type="button" className="btn" onClick={() => { retryAnalysts(); retryFinnhub(); }}>Retry analyst research</button>
         <button type="button" className="btn" onClick={() => execute(panel, 'PROVIDERS')}>Open the provider screen</button>
       </div>
       <EquiblesResearch key={`${symbol}:${researchGeneration}`} symbol={symbol} />
@@ -171,6 +171,7 @@ export function ANR({ sec }: FnProps) {
               </tbody>
             </table>
           )}
+          {fh?.at && <div className="note">Finnhub monthly series · received {fmtDay(fh.at)} {fmtTime(fh.at, false)}{fh.stale ? ' · STALE' : ''}{fh.message ? ` · ${fh.message}` : ''}</div>}
         </Section>
       ) : null}
       <Section title="How price targets moved" right="average of the targets published in each period">

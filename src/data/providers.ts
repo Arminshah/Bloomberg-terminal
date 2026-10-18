@@ -531,8 +531,8 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'finnhub',
     name: 'Finnhub',
-    serves: 'Market/company news and a fallback for monthly analyst recommendation counts (ANALYSTS); not prices or price targets',
-    dataClass: 'News headlines; monthly analyst recommendation counts with period',
+    serves: 'Company profile/ratios fallback, monthly analyst recommendations, quarterly EPS comparisons, next-report calendar, and market/company news; price targets remain separate',
+    dataClass: 'Company reference data and ratios; monthly recommendations; provider-basis EPS comparisons and calendar; news headlines',
     policy: 'needs-credential',
     credential: 'FINNHUB_API_KEY',
     setting: 'FINNHUB_ENABLED',
