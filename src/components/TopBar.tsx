@@ -58,10 +58,10 @@ function Clock({ tz, label, fold }: { tz: string; label: string; fold?: number }
   const pad = (n: number) => String(n).padStart(2, '0');
   return (
     <span className={`clock${fold ? ` fold-${fold}` : ''}`}>
-      <b>
+      <span className="clock-label">{label}</span>
+      <b className="clock-value">
         {pad(p.h)}:{pad(p.mi)}:{pad(p.s)}
       </b>
-      <span>{label}</span>
     </span>
   );
 }
@@ -80,6 +80,11 @@ const dayName = (ms: number, tz: string) => {
 function MarketTimer({ ex }: { ex: Exchange }) {
   const now = Date.now();
   const s = sessionAt(ex, now);
+  const known = Number.isFinite(s.at);
+  const countdown = fmtCountdown(s.at - now);
+  const state = known ? s.open ? 'OPEN' : 'CLOSED' : 'UNKNOWN';
+  const transition = known ? s.open ? 'CLOSES IN' : 'OPENS IN' : 'NO SESSION';
+  const schedule = known ? `${dayName(s.at, ex.tz).slice(0, 3).toUpperCase()} ${hhmm(s.at, ex.tz)}` : '--';
   const local = Number.isFinite(s.at) ? ` (${hhmm(s.at, 'local')} on this computer)` : '';
   const title = [
     `${ex.name}: regular session ${ex.open} to ${ex.close} ${ex.city} time.`,
@@ -94,10 +99,20 @@ function MarketTimer({ ex }: { ex: Exchange }) {
     .filter(Boolean)
     .join('\n');
   return (
-    <button type="button" className={`clock mkt hide-m${s.open ? ' open' : ''}`} title={title} onClick={() => execute(terminal.get().active, `HOLIDAYS ${ex.id}`)}>
-      <b>{fmtCountdown(s.at - now)}</b>
-      <span>
-        {ex.label} {s.open ? 'closes' : 'opens'} in
+    <button
+      type="button"
+      className={`market-timer hide-m${s.open ? ' is-open' : ''}`}
+      aria-label={`${ex.label}: regular session ${state.toLowerCase()}${known ? `, ${s.open ? 'closes' : 'opens'} in ${countdown}, ${dayName(s.at, ex.tz)} at ${hhmm(s.at, ex.tz)} ${ex.city} time` : ', schedule unavailable'}. Open market calendar`}
+      title={title}
+      onClick={() => execute(terminal.get().active, `HOLIDAYS ${ex.id}`)}
+    >
+      <span className="market-timer-header" aria-hidden="true">
+        <span className="market-timer-name">{ex.label}</span>
+        <span className="market-timer-schedule">{schedule}</span>
+      </span>
+      <span className="market-timer-countdown" aria-hidden="true">
+        <span className="market-timer-action">{transition}</span>
+        <b className="market-timer-value">{countdown}</b>
       </span>
     </button>
   );
@@ -232,7 +247,6 @@ export function TopBar() {
       <span className="tb-spacer" />
       <MarketTimer ex={EU_MARKET} />
       <MarketTimer ex={US_MARKET} />
-      <span className="tb-sep hide-m" />
       {CLOCKS.map((c) => (
         <Clock key={c.tz} {...c} />
       ))}
