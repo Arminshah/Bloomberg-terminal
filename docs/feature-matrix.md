@@ -1,6 +1,6 @@
 # Feature and data coverage
 
-What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.6.0); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 70 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
+What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.6.1); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 70 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
 
 Status:
 

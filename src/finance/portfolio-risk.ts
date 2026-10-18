@@ -33,7 +33,7 @@ const fail = (error: string): Checked<never> => ({ ok: false, error });
 const validTerms = (p: RiskPosition) => p.id && [p.quantity, p.cost, p.multiplier].every(Number.isFinite) && p.quantity !== 0 && p.multiplier > 0;
 const validMarks = (p: RiskPosition) => [p.price, p.fx].every((n) => Number.isFinite(n) && n > 0);
 
-function levels(rows: DailyLevel[], cutoff: number): Map<number, number> | null {
+function levels(rows: DailyLevel[], cutoff: number, requirePositive = true): Map<number, number> | null {
   if (rows.length > 25_000) return null;
   const out = new Map<number, number>();
   let previous = -Infinity;
@@ -41,7 +41,7 @@ function levels(rows: DailyLevel[], cutoff: number): Map<number, number> | null 
     if (!Number.isFinite(row.date) || row.date % DAY !== 0 || row.date <= previous) return null;
     previous = row.date;
     if (row.date >= cutoff) continue;
-    if (!Number.isFinite(row.value) || row.value <= 0) return null;
+    if (!Number.isFinite(row.value) || (requirePositive && row.value <= 0)) return null;
     out.set(row.date, row.value);
   }
   return out;
@@ -65,7 +65,10 @@ export function alignPortfolio(positions: RiskPosition[], cash: number, cutoff: 
   const fx: (Map<number, number> | undefined)[] = [];
   for (const p of positions) {
     if (!validTerms(p)) return fail(`Invalid quantity, cost or contract multiplier for ${p.id}.`);
-    const price = levels(p.prices, cutoff);
+    // Futures can have nonpositive observations in older history. Validate the
+    // relative-shock price domain after selecting shared dates, not across an
+    // unused ten-year source archive (for example WTI's negative April 2020 close).
+    const price = levels(p.prices, cutoff, false);
     const currency = p.fxHistory === undefined ? undefined : levels(p.fxHistory, cutoff);
     if (!price || currency === null) return fail(`Invalid or duplicate daily history for ${p.id}.`);
     if (price.size < 2 || currency?.size === 0) return fail(`Missing completed price or FX history for ${p.id}. Every holding must be covered.`);
@@ -78,6 +81,7 @@ export function alignPortfolio(positions: RiskPosition[], cash: number, cutoff: 
   const dates = [...shortest.keys()].filter((date) => paths.every((p) => p.has(date))).sort((a, b) => a - b).slice(-observations - 1);
   if (dates.length < 2) return fail('Fewer than two shared completed session dates. Missing prices and FX are never filled or omitted.');
   const priceLevels = prices.map((path) => dates.map((date) => path.get(date)!));
+  if (priceLevels.some((path) => path.some((v) => v <= 0))) return fail('The selected history window contains a nonpositive price. Relative price shocks require positive prices; choose a different window or a suitable priced instrument.');
   const fxLevels = fx.map((path) => dates.map((date) => path?.get(date) ?? 1));
   const nav = dates.map((_, t) => cash + positions.reduce((sum, p, i) => sum + positionValue(p, priceLevels[i][t], fxLevels[i][t]), 0));
   if (!nav.every(Number.isFinite)) return fail('Historical portfolio values exceed the numerical range.');

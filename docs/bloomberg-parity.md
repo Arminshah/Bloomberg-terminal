@@ -1,4 +1,4 @@
-# Bloomberg workflow audit — Armin Terminal 2.6.0
+# Bloomberg workflow audit — Armin Terminal 2.6.1
 
 Audited 18 October 2026 against the registered commands, screen implementations, source adapters and calculation models. **Armin Terminal is not a 1:1 Bloomberg Terminal replacement.** This inventory covers all 70 commands in this release; it is not an inventory of every function in Bloomberg's proprietary product. Matching a mnemonic or opening a screen does not establish functional, visual or dataset parity.
 
@@ -102,4 +102,4 @@ The optional Alpaca stock feed is **IEX only**, one US exchange. It is not conso
 
 ## Verification boundary
 
-Unit tests check model mathematics against independent cash flows/payoffs, pagination and refusals. Browser checks cover each registered command and calculator interactions. Electron tests exercise the actual preload, IPC validators, broker and UI with deterministic provider responses; they are not live-feed validation. See [release-v2.6.0.md](release-v2.6.0.md) for the current build/test record and remaining environment restrictions.
+Unit tests check model mathematics against independent cash flows/payoffs, pagination and refusals. Browser checks cover each registered command and calculator interactions. Electron tests exercise the actual preload, IPC validators, broker and UI with deterministic provider responses; they are not live-feed validation. See [release-v2.6.1.md](release-v2.6.1.md) for the current build/test record and remaining environment restrictions.

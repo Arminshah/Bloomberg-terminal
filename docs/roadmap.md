@@ -1,11 +1,13 @@
 # Roadmap
 
-## Version 2.6.0
+## Version 2.6.1
+
+- Final history review: old nonpositive futures prices outside the selected shared window no longer block recent risk. Such prices inside the selected window remain explicitly unsupported by the relative-shock model. Version 2.6.1 replaces the preserved 2.6.0 release.
 
 - European/American single-option valuation and model IV, continuous dividends/negative rates, early-exercise premium, bump Greeks, grid diagnostic, manual tenor, DST-correct Friday dates and CSV. Independent QuantLib PDE references cover ten cases.
 - Portfolio risk: every holding and historical FX required, exact-date joins, missing-session gap exclusions, current-exposure historical multi-interval shocks, 95/97.5/99% VaR/ES, signed covariance/ES contributions, benchmark tracking error and per-line stress. Historical replay is explicitly hypothetical.
 - Corrected cost retention on reductions/reversals, missing holdings/marks, zero-net long/short allocation and empty/insufficient correlation samples. No Sharpe ratio inferred from unavailable or mismatched funding data.
-- [Release verification and limits](release-v2.6.0.md). Licensed Bloomberg data/features remain separate coverage gaps.
+- [Release verification and limits](release-v2.6.1.md). Licensed Bloomberg data/features remain separate coverage gaps.
 
 ## Version 2.5.1
 

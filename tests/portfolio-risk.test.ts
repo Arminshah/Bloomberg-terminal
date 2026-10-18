@@ -44,6 +44,18 @@ describe('exact portfolio history and historical FX', () => {
     expect(alignPortfolio([holding(), holding()], 0, CUTOFF)).toMatchObject({ ok: false });
   });
 
+  it('ignores nonpositive futures prices outside the selected shared window, but refuses them inside it', () => {
+    const f = holding({ id: 'FUTURE', margined: true, prices: path(returns) });
+    f.prices[0] = { ...f.prices[0], value: -37.63 };
+    const recent = alignPortfolio([f], 10_000, CUTOFF, 20);
+    if (!recent.ok) throw new Error(recent.error);
+    expect(recent.value.dates).toHaveLength(21);
+    expect(historicalRisk([f], 10_000, recent.value)).toMatchObject({ ok: true });
+    expect(alignPortfolio([f], 10_000, CUTOFF, 252)).toMatchObject({ ok: false, error: expect.stringContaining('selected history window') });
+    // The original source data, including the negative historical observation, is retained.
+    expect(f.prices[0].value).toBe(-37.63);
+  });
+
   it('excludes the forming UTC date and refuses to bridge missing sessions in risk', () => {
     const a = holding();
     const b = holding({ id: 'B', prices: a.prices.filter((_, i) => i !== 15) });

@@ -1,5 +1,7 @@
 # Armin Terminal 2.6.0
 
+**Replaced by [2.6.1](release-v2.6.1.md).** Final review found that older negative futures prices outside the selected risk window could block valid recent analysis. Publication completed while cancellation was being processed; this released tag and its packages are preserved. Version 2.6.1 corrects the window validation.
+
 This release deepens option valuation and portfolio risk. It also fixes portfolio history/date alignment, cost-basis handling and correlation edge cases. The previous Equibles research, Finnhub fallback, provider diagnostics and Yahoo session fixes are retained.
 
 ## American option valuation

@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.6.0** adds American single-option valuation/IV and deeper portfolio risk: exact session-date joins, historical FX, expected shortfall, hedge contributions, benchmark tracking error, stress tests and CSV exports. It retains 2.5.1's Equibles research, Finnhub fallbacks and provider diagnostics. See [release validation and limits](docs/release-v2.6.0.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 70 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
+Version **2.6.1** adds American single-option valuation/IV and deeper portfolio risk: exact session-date joins, historical FX, expected shortfall, hedge contributions, benchmark tracking error, stress tests and CSV exports. It retains 2.5.1's Equibles research, Finnhub fallbacks and provider diagnostics. See [release validation and limits](docs/release-v2.6.1.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 70 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature/data parity remains incomplete.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
