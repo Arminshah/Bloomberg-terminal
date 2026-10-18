@@ -15,6 +15,8 @@ CI uses the same Node 24 toolchain validated locally, with serial unit workers s
 - Electron checks cover real main/preload/IPC behavior and the same manual calculations without provider prices or rates. They use disposable profiles and synthetic transport fixtures.
 - Tag releases require verification, native Windows and Linux packaging, native Windows Electron checks, four uploaded packages and four SHA256 files before publishing the draft. Direct uploads avoid the account's exhausted Actions artifact-storage quota. A failed draft is not published.
 
+For this build, GitHub's verification job and both native platform jobs passed, including five Windows Electron tests. The original publication attempt hit a 404 because the REST tag endpoint returns published releases only. The corrected helper resolves the draft's numeric release API URL and was run against all four native packages and downloaded SHA256 manifests; every reported server digest matched. Publication follows that successful check. The original failed lookup remains visible in the workflow history; the delivery-helper fix is also committed on the source branch for future tags.
+
 Windows assets: `Armin-Terminal-Setup-2.3.1.exe` and `Armin-Terminal-2.3.1-Portable.exe`. Linux assets: `Armin-Terminal-2.3.1-x86_64.AppImage` and `armin-terminal_2.3.1_amd64.deb`. All include SHA256 files. The Windows executables are unsigned; [installation instructions](install.md) describe first launch and updates.
 
 ## Data checks and remaining limits

@@ -37,7 +37,12 @@ if (process.argv[2] === 'checksums') {
   const tag = process.env.RELEASE_TAG;
   const repository = process.env.GH_REPO;
   if (tag !== `v${version}` || !/^[\w.-]+\/[\w.-]+$/.test(repository ?? '')) throw new Error('Version/tag/repository mismatch.');
-  const release = JSON.parse(execFileSync('gh', ['api', `repos/${repository}/releases/tags/${tag}`], { encoding: 'utf8' }));
+  // The REST tag endpoint returns published releases only. gh release view also
+  // finds drafts; use its numeric API URL to retain the server's asset digests.
+  const metadata = JSON.parse(execFileSync('gh', ['release', 'view', tag, '--repo', repository, '--json', 'apiUrl'], { encoding: 'utf8' }));
+  const prefix = `https://api.github.com/repos/${repository}/releases/`;
+  if (!metadata.apiUrl?.startsWith(prefix) || !/^\d+$/.test(metadata.apiUrl.slice(prefix.length))) throw new Error('Unexpected release API location.');
+  const release = JSON.parse(execFileSync('gh', ['api', metadata.apiUrl], { encoding: 'utf8' }));
   if (!release.draft) throw new Error('Only a draft release may be published by this workflow.');
   const manifest = { ...JSON.parse(process.env.WINDOWS_MANIFEST ?? '{}'), ...JSON.parse(process.env.LINUX_MANIFEST ?? '{}') };
   for (const name of [...files.windows, ...files.linux]) {
