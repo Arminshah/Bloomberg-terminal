@@ -79,7 +79,8 @@ export function BQ({ sec }: FnProps) {
           ...(!engine.realOnly || s.cls === 'equity' ? [{ n: 3, label: 'News', onClick: () => execute(panel, `${s.id} COMPANYNEWS`) }] : []),
           ...(engine.realOnly && s.cls === 'equity'
             ? [
-                { n: 4, label: 'Filings', onClick: () => execute(panel, `${s.id} FILINGS`) },
+                // SEC filings exist for US-listed companies only.
+                ...(usStock ? [{ n: 4, label: 'Filings', onClick: () => execute(panel, `${s.id} FILINGS`) }] : []),
                 { n: 5, label: 'Analysts', onClick: () => execute(panel, `${s.id} ANALYSTS`) },
               ]
             : []),
