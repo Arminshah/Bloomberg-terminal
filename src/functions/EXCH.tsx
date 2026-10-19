@@ -56,9 +56,9 @@ export function EXCH(_: FnProps) {
             const session = `${ex.open}-${s.earlyClose && s.state === 'OPEN' ? s.earlyClose : ex.close}`;
             return (
               <tr key={ex.id} className="click" onClick={() => open(ex)} title={`${ex.name}: ${ex.source}. Click, or type ${nums[i]} and GO, for the holiday calendar.`}>
-                <td>
+                <td title={ex.name}>
                   <RowNo n={nums[i]} />
-                  <span className="amber">{ex.label}</span> <span className="hide-m">{ex.name}</span>
+                  <span className="amber">{ex.label}</span>
                 </td>
                 <td className="hide-m">{ex.city}</td>
                 <td className="num white" title={dayOf(s.localDate)}>

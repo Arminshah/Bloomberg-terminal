@@ -3,7 +3,7 @@ import { execute } from '../terminal/exec';
 import { panelMessages, clearFlash, flash } from '../terminal/panel';
 import { turnPage, typedPageCount } from '../terminal/paging';
 import { back, forward, LINK_GROUPS, linkGroupOf, setLinkGroup, terminal, type LinkGroup } from '../terminal/state';
-import { styledMnemonic } from '../terminal/legacy';
+import { CHART_STYLES, primaryMnemonic, styledMnemonic } from '../terminal/legacy';
 import { settings } from '../terminal/settings';
 import { startSuggestions, suggest, type Suggestion } from '../terminal/suggest';
 import { favourites } from '../terminal/userdata';
@@ -70,6 +70,12 @@ export function clearPanelInput(panel: number) {
 /** Cycle past entries without executing them, like the terminal's Cmd History key. */
 export function recallPanelCommand(panel: number, direction: -1 | 1 = -1) {
   commandApis.get(panel)?.recall(direction);
+}
+
+/** The mnemonic a function suggestion is listed under, as the terminal lists DES rather than PROFILE; GPC stays GPC. */
+function suggestedMnemonic(s: Suggestion): string {
+  const typed = s.execute?.split(' ').at(-1) ?? '';
+  return CHART_STYLES[typed] ? typed : primaryMnemonic(s.primary);
 }
 
 function routeText(r: Route, mnemonics: boolean): string {
@@ -333,7 +339,9 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
                   choose(s);
                 }}
               >
-                <span className={s.kind === 'fn' ? 'fn' : s.kind === 'fav' ? 'k fav' : 'k'}>{s.primary}</span>
+                <span className={s.kind === 'fn' ? 'fn' : s.kind === 'fav' ? 'k fav' : 'k'} title={s.kind === 'fn' ? `${s.primary}: ${s.secondary}` : undefined}>
+                  {s.kind === 'fn' && mnemonics ? suggestedMnemonic(s) : s.primary}
+                </span>
                 <span>{s.secondary}</span>
                 <span className="tag">{s.tag}</span>
               </div>,

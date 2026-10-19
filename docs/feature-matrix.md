@@ -11,6 +11,10 @@ Status:
 
 Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, STALE, UNKNOWN FRESHNESS); [data-dictionary.md](data-dictionary.md) defines the labels.
 
+## Terminal workflow after 2.12.0
+
+Screens page with PgUp/PgDn and show `Page n/m`; monitor rows (WEI, WEIF, GLCO, CRYP, WB, MOST, EQS) and news headlines are numbered and open with their number and GO. `EXCH` lists exchange hours from the existing calendars. New mnemonics ERN, CF, NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC open existing screens; they add no data. See [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).
+
 ## Coverage additions in versions 2.8–2.9
 
 European equity lookup covers fifteen exchanges and familiar market-code input. `MARKET` adds BEL 20, OMX Stockholm 30, ATX, PSI and ISEQ; `ECONSTATS` adds Belgium; currency monitors add selected Nordic and Central European currencies. `ANALYSTS` includes optional, manually requested TipRanks data under its own account coverage, attribution and monthly budget. None of this creates a universal security master or Bloomberg consensus feed.
@@ -84,6 +88,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | --- | --- | --- | --- |
 | `MARKET` | World equity indices with changes and YTD in local currency and USD | Yahoo Finance | Real; USD YTD calculated |
 | `INDEXFUTURES` | US index futures with basis and fair value | Yahoo Finance (CME, delay as Yahoo states it) | Real; fair value a stated model. Non-US futures not available |
+| `EXCHANGES` (`EXCH`) | NYSE, Euronext, London, Xetra and Tokyo: local time, open/closed/holiday/weekend, early closes, next open or close | NYSE and Euronext rules; LSE, Xetra and JPX tables through 2027 | Real (published calendars). Regular sessions only; unscheduled closures not known |
 | `CONTRIB` | What moved an index | Yahoo Finance | Calculated. Index points for the Dow only (its membership is public); other indices by the app's stocks in that market |
 | `HEATMAP` | Stocks by sector, sized by market value, coloured by change | Yahoo Finance | Calculated |
 | `MOVERS` | Most active, gainers, losers, value traded, unusual volume | Yahoo Finance | Real; value traded and relative volume estimated |

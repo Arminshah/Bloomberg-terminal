@@ -22,13 +22,17 @@ const RANGES = [
   { n: 7, id: '10Y', days: 3660 },
 ];
 
-export function HP({ sec }: FnProps) {
+/** Periodicity words HP accepts after the security: HP AAPL 1Y W is a year of weekly bars. */
+const PERIOD_WORDS: Record<string, Periodicity> = { D: 'D', DAILY: 'D', W: 'W', WEEKLY: 'W', M: 'M', MONTHLY: 'M', Q: 'Q', QUARTERLY: 'Q', Y: 'Y', YEARLY: 'Y' };
+
+export function HP({ sec, route }: FnProps) {
   const s = sec!;
   const q = useQuote(s.id);
   const iex = q?.provider === IEX_PROVIDER;
   const panel = usePanelId();
-  const [range, setRange] = useState(2);
-  const [per, setPer] = useState<Periodicity>('D');
+  const words = route.args?.toUpperCase().split(/\s+/).filter(Boolean) ?? [];
+  const [range, setRange] = useState(RANGES.find((r) => words.includes(r.id))?.n ?? 2);
+  const [per, setPer] = useState<Periodicity>(words.map((w) => PERIOD_WORDS[w]).find(Boolean) ?? 'D');
   const tick = useTick(per === 'D' ? 3 : 10);
   const yld = s.quote === 'yield';
   const rows = useMemo(() => {

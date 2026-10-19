@@ -1,8 +1,9 @@
 import { Credits, type CreditId } from '../components/Credits';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type MouseEvent } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { XYChart } from '../components/chart/XYChart';
-import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
+import { Chg, KV, LivePx, SecLink, Section, openSecurity } from '../components/cells';
+import { RowNo } from '../components/Numbered';
 import { fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
@@ -11,6 +12,7 @@ import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { DAY_MS } from '../data/calendar';
 import { to32nds } from '../finance/bonds';
 import type { FnProps } from '../terminal/types';
+import { useNumberedRows, usePanelId } from '../terminal/panel';
 import { RatesSource, RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { policyRates } from '../data/live/policy';
@@ -43,6 +45,14 @@ export function WB(_: FnProps) {
   // The desktop app lists only countries with an official source, and only their published tenors.
   const has = (id?: string) => !!id && engine.hasSource(id);
   const rows = WB_ROWS.filter((r) => Object.values(r.ids).some(has));
+  const panel = usePanelId();
+  // A country's line opens its 10-year yield chart, or its longest published tenor where there is no 10-year.
+  const benchmark = (r: (typeof rows)[number]) => (has(r.ids[10]) ? r.ids[10] : [30, 5, 2].map((t) => r.ids[t]).find(has));
+  const open = (r: (typeof rows)[number], e?: MouseEvent) => {
+    const id = benchmark(r);
+    if (id) openSecurity(panel, id, e, 'CHART');
+  };
+  const nums = useNumberedRows('wb-rows', rows, 1, (r) => open(r), (r) => COUNTRY_NAMES[r.c]);
   return (
     <div>
       <FnHeader
@@ -72,13 +82,16 @@ export function WB(_: FnProps) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => {
+          {rows.map((r, i) => {
             const ten = r.ids[10];
             const q10 = engine.quote(ten)!;
             const two = has(r.ids[2]) ? engine.quote(r.ids[2])!.last : NaN;
             return (
-              <tr key={r.c}>
-                <td className="amber">{COUNTRY_NAMES[r.c]}</td>
+              <tr key={r.c} className="click" onClick={(e) => open(r, e)} title={`${COUNTRY_NAMES[r.c]}: click, or type ${nums[i]} and GO, for the ${has(ten) ? '10-year' : 'benchmark'} yield chart`}>
+                <td className="amber">
+                  <RowNo n={nums[i]} />
+                  {COUNTRY_NAMES[r.c]}
+                </td>
                 {[2, 5, 10, 30].map((t) => (
                   <td key={t} className="num white">
                     {has(r.ids[t]) ? (
