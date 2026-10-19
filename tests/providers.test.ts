@@ -243,6 +243,9 @@ describe('provider status', () => {
     expect(providerState(def('massive'), report)).toBe('not-configured');
     expect(providerState(def('fmp'), report)).toBe('not-configured');
     expect(providerState(def('tipranks'), report)).toBe('not-configured');
+    // Google News needs no key, only its switch.
+    expect(providerState(def('google-news'), report)).toBe('idle');
+    expect(providerState(def('google-news'), { ...report, settings: { GOOGLE_NEWS_RSS_ENABLED: { label: 'Google News', value: false, source: 'saved in this app' } } })).toBe('switched-off');
     // Alpaca needs both its key ID and its secret, and has its own switch.
     const one = { label: 'Alpaca', configured: true, valid: true, source: 'saved in this app' };
     expect(providerState(def('alpaca'), { ...report, credentials: { ALPACA_API_KEY_ID: one } })).toBe('not-configured');
@@ -314,6 +317,8 @@ describe('daily allowances and refusals of the keyed sources', () => {
 
   it('has a switch for each new source, on by default', () => {
     for (const name of ['FMP_ENABLED', 'FINNHUB_ENABLED', 'MARKETAUX_ENABLED', 'ALPACA_ENABLED', 'TIINGO_ENABLED'] as const) expect(providers.SETTINGS[name].default).toBe(true);
+    expect(providers.SETTINGS.GOOGLE_NEWS_RSS_ENABLED.default).toBe(true);
+    expect(providers.SETTINGS.MASSIVE_NEWS_ENABLED.default).toBe(true);
     expect(providers.SETTINGS.MARKETWATCH_RSS_ENABLED.default).toBe(false);
     expect(providers.SETTINGS.ALPACA_IEX_PRICES_ENABLED.default).toBe(false);
   });

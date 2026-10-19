@@ -429,20 +429,21 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'massive',
     name: 'Massive (formerly Polygon.io)',
-    serves: 'US stock daily bars for checking the closes the app shows (CROSSCHECK)',
-    dataClass: 'End of day, split-adjusted',
+    serves: 'US stock daily bars for checking the closes the app shows (CROSSCHECK); market and ticker news (MARKETNEWS, COMPANYNEWS) while MASSIVE_NEWS_ENABLED is on',
+    dataClass: 'End of day, split-adjusted; news headlines with publisher, time, tickers and link',
     policy: 'needs-credential',
     credential: 'MASSIVE_API_KEY',
     limit: '5',
-    terms: 'Personal, non-commercial, non-business use as a non-professional; no redistribution or display to anyone else, derived works included. Stocks Basic: "$0 /month", "5 API Calls / Minute", "2 Years Historical Data", "End of Day Data". The app asks at most 5 times a minute, only from CROSSCHECK.',
+    terms: 'Personal, non-commercial, non-business use as a non-professional; no redistribution or display to anyone else, derived works included. Stocks Basic: "$0 /month", "5 API Calls / Minute", "2 Years Historical Data", "End of Day Data". Ticker news is "Included in all Stocks plans", "Updated hourly". The app asks at most 5 times a minute in all, CROSSCHECK and news together: market news every 15 minutes while MARKETNEWS is open, a company\'s every 30 while COMPANYNEWS shows it.',
     docs: [
+      { label: 'Ticker news', url: 'https://massive.com/docs/rest/stocks/news' },
       { label: 'Stocks pricing', url: 'https://massive.com/pricing?product=stocks' },
       { label: 'REST quickstart (keys)', url: 'https://massive.com/docs/rest/quickstart' },
       { label: 'Custom bars', url: 'https://www.massive.com/docs/rest/stocks/aggregates/custom-bars' },
       { label: 'Individual terms', url: 'https://www.massive.com/legal/individuals-terms-of-service' },
       { label: 'Market data terms', url: 'https://massive.com/legal/market-data-terms-of-service' },
     ],
-    checked: '2026-10-14',
+    checked: '2026-10-19',
     desktop: true,
   },
   {
@@ -532,13 +533,13 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'finnhub',
     name: 'Finnhub',
-    serves: 'Company profile/ratios fallback, monthly analyst recommendations, quarterly EPS comparisons, next-report calendar, and market/company news; price targets remain separate',
+    serves: 'Company profile/ratios fallback, monthly analyst recommendations, quarterly EPS comparisons, next-report calendar, and market, merger and company news; price targets remain separate',
     dataClass: 'Company reference data and ratios; monthly recommendations; provider-basis EPS comparisons and calendar; news headlines',
     policy: 'needs-credential',
     credential: 'FINNHUB_API_KEY',
     setting: 'FINNHUB_ENABLED',
     limit: '30',
-    terms: 'Free plan: "Personal Use", "60 API calls/minute". Market news and company news are on it (company news: North American companies, a year of history); price targets are not ("Premium required"). Terms: plans are "strictly for personal use", data is to be deleted when a subscription ends, no sharing. The app asks for market news every 5 minutes and a company\'s news every 15 while a screen shows it, and shows headlines with links, not article text.',
+    terms: 'Free plan: "Personal Use", "60 API calls/minute". Market news and company news are on it (company news: North American companies, a year of history); price targets are not ("Premium required"). Terms: plans are "strictly for personal use", data is to be deleted when a subscription ends, no sharing. The app asks for market news and merger news every 5 minutes and a company\'s news every 15 while a screen shows it, and shows headlines with links, not article text.',
     docs: [
       { label: 'Market news', url: 'https://finnhub.io/docs/api/market-news' },
       { label: 'Company news', url: 'https://finnhub.io/docs/api/company-news' },
@@ -609,23 +610,41 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'google-news',
+    name: 'Google News (RSS)',
+    serves: "A search for the day's market news, US and UK editions (MARKETNEWS); a search for the stock on screen in its market's languages, Dutch, French and English for Brussels (COMPANYNEWS, QUOTE)",
+    dataClass: 'News headlines with time, publisher and link, from many publishers',
+    policy: 'enabled',
+    setting: 'GOOGLE_NEWS_RSS_ENABLED',
+    limit: '10',
+    terms: 'Each feed\'s copyright notice: "This XML feed is made available solely for the purpose of rendering Google News results within a personal feed reader for personal, non-commercial use. Any other use of the feed is expressly prohibited." This private terminal shows the headline, the publisher Google names and Google\'s link to the article. The market search is asked every 10 minutes while MARKETNEWS is open, each company search every 15 while a screen shows it.',
+    docs: [
+      { label: 'Market search feed (US)', url: 'https://news.google.com/rss/search?q=(stocks%20OR%20%22stock%20market%22%20OR%20%22Wall%20Street%22%20OR%20earnings%20OR%20bonds%20OR%20%22central%20bank%22)%20when%3A1d&hl=en-US&gl=US&ceid=US:en' },
+      { label: 'Google terms of service', url: 'https://policies.google.com/terms' },
+    ],
+    checked: '2026-10-19',
+    desktop: true,
+  },
+  {
     id: 'alpaca',
     name: 'Alpaca Market Data',
-    serves: 'IEX stock quotes; optional IEX-only US equity prices across panels; indicative option chains on OPTIONS',
-    dataClass: 'Stocks: real time, IEX only. Options: indicative quotes and delayed trades; not consolidated OPRA',
+    serves: 'IEX stock quotes; optional IEX-only US equity prices across panels; indicative option chains on OPTIONS; Benzinga news (MARKETNEWS, COMPANYNEWS, QUOTE)',
+    dataClass: 'Stocks: real time, IEX only. Options: indicative quotes and delayed trades; not consolidated OPRA. News: Benzinga headlines and summaries, 15 minutes after publication on Basic',
     policy: 'needs-credential',
     credential: 'ALPACA_API_KEY_ID',
     credential2: 'ALPACA_API_SECRET_KEY',
     setting: 'ALPACA_ENABLED',
     limit: '120',
-    terms: 'Personal, non-commercial market-data use with your own account. The app explicitly selects IEX for stocks and indicative for options; it never silently selects paid SIP/OPRA. Indicative option quotes are not executable prices; option trades are delayed. Access depends on account entitlement. Only data.alpaca.markets is called, never an account/order endpoint. In-memory cache: 4 seconds stocks, 15 seconds options.',
+    terms: 'Personal, non-commercial market-data use with your own account. The app explicitly selects IEX for stocks and indicative for options; it never silently selects paid SIP/OPRA. Indicative option quotes are not executable prices; option trades are delayed. Access depends on account entitlement. Only data.alpaca.markets is called, never an account/order endpoint. In-memory cache: 4 seconds stocks, 15 seconds options. News: "All news data is currently provided directly by Benzinga"; Basic\'s historical data starts 15 minutes back, so stories arrive 15 minutes late. The latest 50 market stories every 5 minutes while MARKETNEWS is open, a company\'s latest 50 every 10 while a screen shows it, within the same 120 requests a minute.',
     docs: [
       { label: 'Market data API', url: 'https://docs.alpaca.markets/docs/about-market-data-api' },
+      { label: 'News', url: 'https://docs.alpaca.markets/reference/news-3' },
+      { label: 'Historical news data', url: 'https://docs.alpaca.markets/docs/historical-news-data' },
       { label: 'Snapshots', url: 'https://docs.alpaca.markets/reference/stocksnapshots-1' },
       { label: 'Option chain SDK request and feed', url: 'https://github.com/alpacahq/alpaca-py/blob/master/alpaca/data/requests.py#L442' },
       { label: 'Pricing', url: 'https://alpaca.markets/data' },
     ],
-    checked: '2026-10-18',
+    checked: '2026-10-19',
     desktop: true,
   },
   {
@@ -693,7 +712,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED' | 'GOOGLE_NEWS_RSS_ENABLED' | 'MASSIVE_NEWS_ENABLED';
 
 export interface SettingState {
   label: string;

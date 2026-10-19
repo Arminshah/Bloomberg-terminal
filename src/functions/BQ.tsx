@@ -18,7 +18,7 @@ import { news } from '../data/news';
 import { execute } from '../terminal/exec';
 import { requestCompanyNews } from '../data/live/feeds';
 import { iexFreshness, useIex, type IexState } from '../data/live/alpaca';
-import { companyFeeds, companyStories, marketNews, mergeStories, useCompanyNews, useYahooHeadlines, yahooHeadlines } from '../data/live/marketnews';
+import { companyFeeds, companyStories, googleNews, marketNews, mergeStories, useCompanyNews, useGoogleNews, useYahooHeadlines, yahooHeadlines, type FeedState } from '../data/live/marketnews';
 import { yahooSymbolFor } from '../data/live/yahoo';
 import { secTicker } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
@@ -36,16 +36,29 @@ export function BQ({ sec }: FnProps) {
   const intra = engine.intraday(s.id);
   const stories = news.use((n) => n.stories);
   const related = stories.filter((x) => x.tickers.includes(s.id)).slice(0, 8);
-  // On real data: IEX quotes from Alpaca and the company's news from Finnhub, for US-listed stocks.
+  // On real data: IEX quotes from Alpaca and the company's news from Finnhub and Alpaca, for US-listed stocks
+  // (Massive's 5 calls a minute and Marketaux's daily allowance are left to COMPANYNEWS).
   const usStock = engine.realOnly ? secTicker(s) : null;
   const iexState = useIex(usStock ? s : undefined);
-  const nv = useCompanyNews(usStock, false);
+  const nv = useCompanyNews(usStock, { marketaux: false, massive: false });
   const feeds = marketNews.use((x) => x.feeds);
-  // Yahoo's headlines also cover stocks listed outside the US (Brussels, Paris, Amsterdam...).
+  // Yahoo's headlines and Google News's search also cover stocks listed outside the US (Brussels, Paris...).
   const ysym = engine.realOnly && s.cls === 'equity' ? (yahooSymbolFor(s) ?? s.yahoo ?? null) : null;
+  const gsec = engine.realOnly && s.cls === 'equity' ? s : null;
   const yv = useYahooHeadlines(ysym);
-  const companyNews = useMemo(() => mergeStories([usStock ? companyStories(usStock) : [], yahooHeadlines(ysym).stories]).slice(0, 8), [usStock, ysym, nv, yv]); // eslint-disable-line react-hooks/exhaustive-deps
-  const newsFeed = usStock ? companyFeeds(feeds, usStock).finnhub : yahooHeadlines(ysym).feed;
+  const gv = useGoogleNews(gsec);
+  const companyNews = useMemo(() => mergeStories([usStock ? companyStories(usStock) : [], yahooHeadlines(ysym).stories, googleNews(gsec).stories]).slice(0, 8), [usStock, ysym, gsec, nv, yv, gv]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cf = usStock ? companyFeeds(feeds, usStock) : {};
+  const newsStates: [string, FeedState | undefined][] = [
+    ...(usStock ? ([['Finnhub', cf.finnhub], ['Alpaca', cf.alpaca]] as [string, FeedState | undefined][]) : []),
+    ...(ysym ? ([['Yahoo Finance', yahooHeadlines(ysym).feed]] as [string, FeedState | undefined][]) : []),
+    ...(gsec ? ([['Google News', googleNews(gsec).feed]] as [string, FeedState | undefined][]) : []),
+  ];
+  const newsNote = newsStates.some(([, f]) => f?.state === 'ok')
+    ? 'No recent stories from the sources.'
+    : newsStates.some(([, f]) => !f || f.state === 'loading')
+      ? 'Loading company news…'
+      : newsStates.map(([n, f]) => `${n}: ${f?.message ?? 'no answer'}`).join(' · ');
   let vwap = NaN;
   {
     let pv = 0;
@@ -215,13 +228,7 @@ export function BQ({ sec }: FnProps) {
                 ))
               ) : (
                 <div className="note">
-                  {newsFeed?.state === 'needs-key' || newsFeed?.state === 'off'
-                    ? `Company news: ${newsFeed.message}`
-                    : newsFeed?.state === 'error'
-                      ? `${usStock ? 'Finnhub' : 'Yahoo Finance'}: ${newsFeed.message}`
-                      : newsFeed?.state === 'ok'
-                        ? 'No recent stories from the sources.'
-                        : 'Loading company news…'}{' '}
+                  {newsNote}{' '}
                   {usStock ? (
                     <>
                       A company&apos;s own announcements are its filings:{' '}

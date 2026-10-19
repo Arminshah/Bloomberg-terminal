@@ -18,7 +18,7 @@ const currencyTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tes
 const chartTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-sofi-chart.json'), 'utf8'));
 const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/tipranks-tools.json'), 'utf8')).tools;
 const fullFinnhubKey = 'abcd1234efgh5678ij90abcd1234efgh5678kl12';
-const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], finnhub: [], equibles: [], yahoo: [], tipranks: [] } };
+const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, newsStories: false, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], alpacaNews: [], google: [], finnhub: [], equibles: [], yahoo: [], tipranks: [] } };
 globalThis.__desktopFixtures = fixtures;
 net.fetch = async (input, init) => {
   const url = new URL(String(input));
@@ -99,7 +99,17 @@ net.fetch = async (input, init) => {
     fixtures.calls.marketaux++;
     return json({ error: { code: 'invalid_api_token', message: 'Invalid API token. Deterministic Marketaux refusal.' } });
   }
+  if (url.hostname === 'news.google.com') {
+    fixtures.calls.google.push(url.href);
+    const item = '<item><title>Synthetic Google story about the company - Reuters</title><link>https://news.google.com/rss/articles/SYNTHETIC?oc=5</link><pubDate>' + new Date(Date.now() - 2 * 3_600_000).toUTCString() + '</pubDate><description>Synthetic Google story about the company Reuters</description><source url="https://www.reuters.com">Reuters</source></item>';
+    return new Response(`<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Google News</title>${fixtures.newsStories ? item : ''}</channel></rss>`, { status: 200, headers: { 'Content-Type': 'application/rss+xml' } });
+  }
   if (url.hostname === 'data.alpaca.markets') {
+    if (url.pathname === '/v1beta1/news') {
+      fixtures.calls.alpacaNews.push(url.href);
+      const at = new Date(Date.now() - 3_600_000).toISOString();
+      return json({ news: fixtures.newsStories ? [{ id: 1, headline: 'Synthetic Benzinga story about the company', author: 'Fixture', created_at: at, updated_at: at, summary: 'A synthetic summary.', content: '', images: [], symbols: (url.searchParams.get('symbols') ?? 'AAPL').split(','), source: 'benzinga', url: 'https://www.benzinga.com/synthetic-story' }] : [], next_page_token: null });
+    }
     if (url.pathname.startsWith('/v1beta1/options/snapshots/')) {
       fixtures.calls.options.push(url.href);
       if (fixtures.optionMalformed) return json({ snapshots: [] });

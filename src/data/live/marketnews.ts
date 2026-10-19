@@ -1,12 +1,16 @@
 import { useEffect } from 'react';
 import { createStore } from '../../core/store';
-import { parseFeed } from './officialnews';
+import { shortName } from '../news';
+import type { SecurityDef } from '../types';
+import { feedText, parseFeed } from './officialnews';
 
 /**
- * Market and company news, apart from the official announcements: Finnhub (market news and a company's
- * news, with the owner's key), Marketaux (ticker-tagged news with sentiment, with the owner's token),
+ * Market and company news, apart from the official announcements: Finnhub (market news, mergers and a
+ * company's news, with the owner's key), Alpaca (Benzinga's wire, with the owner's Alpaca keys), Massive
+ * (ticker news, with the owner's key), Marketaux (ticker-tagged news with sentiment, with the owner's token),
  * MarketWatch's top stories (RSS, no key), the SEC's latest 8-K filings (Atom, with SEC_USER_AGENT), Yahoo
- * Finance's headlines for one ticker and Euronext's latest company press releases (RSS, no key).
+ * Finance's headlines for one ticker, Euronext's latest company press releases, and Google News's market and
+ * company searches (RSS, no key).
  * The desktop app's main process asks each source within its limits and keeps answers (electron/news.cjs);
  * here the answers become one list without duplicates. Only headlines, publishers, times, short summaries
  * and links are shown; no article text is fetched.
@@ -14,8 +18,21 @@ import { parseFeed } from './officialnews';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type NewsSource = 'finnhub-market' | 'finnhub-company' | 'marketaux' | 'marketwatch' | 'edgar-8k' | 'yahoo-rss' | 'euronext-pr';
-export type NewsFeed = 'Finnhub' | 'Marketaux' | 'MarketWatch' | 'SEC EDGAR' | 'Yahoo Finance' | 'Euronext';
+export type NewsSource =
+  | 'finnhub-market'
+  | 'finnhub-company'
+  | 'marketaux'
+  | 'marketwatch'
+  | 'edgar-8k'
+  | 'yahoo-rss'
+  | 'euronext-pr'
+  | 'alpaca-market'
+  | 'alpaca-company'
+  | 'massive-market'
+  | 'massive-company'
+  | 'google-news-market'
+  | 'google-news-company';
+export type NewsFeed = 'Finnhub' | 'Marketaux' | 'MarketWatch' | 'SEC EDGAR' | 'Yahoo Finance' | 'Euronext' | 'Alpaca' | 'Massive' | 'Google News';
 
 export interface MarketStory {
   /** The canonical link, which also identifies the story. */
@@ -133,6 +150,104 @@ export function parseMarketaux(text: string): MarketStory[] | { error: string } 
       };
     })
     .filter((s: MarketStory) => s.title && /^https?:\/\//.test(s.url) && Number.isFinite(s.time));
+}
+
+const usable = (s: MarketStory) => !!s.title && /^https?:\/\//.test(s.url) && Number.isFinite(s.time);
+
+/** The US tickers in a list a source gives, upper case, once each. */
+const tickersIn = (list: unknown) => [...new Set((Array.isArray(list) ? list : []).map((t) => String(t).trim().toUpperCase()).filter((t) => TICKER.test(t)))];
+
+/**
+ * Alpaca's news, Benzinga's wire: {news: [{id, headline, author, created_at, updated_at, summary, content, images,
+ * symbols, source, url}], next_page_token}; errors as {code, message}. A story without a link is left out.
+ */
+export function parseAlpacaNews(text: string): MarketStory[] | { error: string } {
+  let j: any;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    return { error: 'The answer was not JSON' };
+  }
+  if (!Array.isArray(j?.news)) return { error: String(j?.message ?? 'No news list in the answer').slice(0, 200) };
+  return j.news
+    .map((r: any) => {
+      const url = String(r?.url ?? '');
+      const summary = feedText(String(r?.summary ?? ''));
+      // Alpaca writes its source in lower case: "benzinga".
+      const source = String(r?.source ?? '').trim();
+      return {
+        id: canonicalUrl(url),
+        title: feedText(String(r?.headline ?? '')),
+        url,
+        publisher: source ? source.charAt(0).toUpperCase() + source.slice(1) : 'Benzinga',
+        feeds: ['Alpaca'] as NewsFeed[],
+        time: Date.parse(String(r?.created_at ?? '')),
+        ...(summary ? { summary: summary.slice(0, 400) } : {}),
+        tickers: tickersIn(r?.symbols),
+      };
+    })
+    .filter(usable);
+}
+
+/**
+ * Massive's ticker news: {status: "OK", results: [{id, publisher: {name, homepage_url}, title, author, published_utc,
+ * article_url, tickers, description, keywords, insights}], next_url}; errors as {status: "ERROR", error}.
+ */
+export function parseMassiveNews(text: string): MarketStory[] | { error: string } {
+  let j: any;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    return { error: 'The answer was not JSON' };
+  }
+  if (!Array.isArray(j?.results)) return j?.status === 'OK' ? [] : { error: String(j?.error ?? j?.message ?? 'No results in the answer').slice(0, 200) };
+  return j.results
+    .map((r: any) => {
+      const url = String(r?.article_url ?? '');
+      const summary = String(r?.description ?? '').trim();
+      return {
+        id: canonicalUrl(url),
+        title: String(r?.title ?? '').trim(),
+        url,
+        publisher: String(r?.publisher?.name ?? '').trim() || publisherOf(url),
+        feeds: ['Massive'] as NewsFeed[],
+        time: Date.parse(String(r?.published_utc ?? '')),
+        ...(summary ? { summary: summary.slice(0, 400) } : {}),
+        tickers: tickersIn(r?.tickers),
+      };
+    })
+    .filter(usable);
+}
+
+/**
+ * Pages about a stock that Google lists among stories: "ABI.BR Stock Price, News, Quote & History - Yahoo Finance",
+ * and MarketScreener's and Zonebourse's, whose titles end with the ISIN ("Graphique de cours | KBC | BE0003565737").
+ */
+const QUOTE_PAGE = /(?:stock|share) price,? news,? quote|latest stock news and headlines|stock forum & discussion|stock forecast & (?:analyst )?predictions|\|\s*[A-Z]{2}[A-Z0-9]{9}\d\b/i;
+
+/**
+ * Google News RSS: each item's title ends with " - Publisher", the publisher is also its <source>, and its link goes
+ * through news.google.com to the article. The description only repeats the title and publisher, so it is not
+ * shown. A company search's stories are tagged with the ticker it was for; quote pages are left out.
+ */
+export function parseGoogleNews(text: string, ticker?: string): MarketStory[] | { error: string } {
+  // Outside the feed (a consent or error page) Google answers with a web page.
+  if (!/<rss\b/i.test(text)) return { error: 'Google answered with a web page, not the feed' };
+  return parseFeed(text)
+    .map((it) => {
+      const publisher = it.source?.trim() || 'Google News';
+      const tail = ` - ${publisher}`;
+      return {
+        id: canonicalUrl(it.link),
+        title: it.source && it.title.endsWith(tail) ? it.title.slice(0, -tail.length).trim() : it.title,
+        url: it.link,
+        publisher,
+        feeds: ['Google News'] as NewsFeed[],
+        time: it.published,
+        tickers: ticker ? [ticker] : [],
+      };
+    })
+    .filter((s) => usable(s) && !QUOTE_PAGE.test(s.title));
 }
 
 /** MarketWatch's RSS feed as stories. */
@@ -327,6 +442,13 @@ const PARSE: Record<NewsSource, (t: string, arg: string) => MarketStory[] | { er
   marketaux: parseMarketaux,
   marketwatch: parseMarketWatch,
   'edgar-8k': parseEdgar8k,
+  'alpaca-market': parseAlpacaNews,
+  'alpaca-company': parseAlpacaNews,
+  'massive-market': parseMassiveNews,
+  'massive-company': parseMassiveNews,
+  'google-news-market': (t) => parseGoogleNews(t),
+  // arg: "BE:nl|KBC|KBC", the ticker last.
+  'google-news-company': (t, arg) => parseGoogleNews(t, arg.split('|')[2] || undefined),
 };
 
 const lastAsked = new Map<string, number>();
@@ -376,7 +498,16 @@ function retryLater(key: string, minMs: number) {
 
 const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
 
-/** Keeps the market news sources fresh while a screen shows them: Finnhub every 5 minutes, the feeds every 10. */
+/** Google News editions MARKETNEWS searches for the day's market news. */
+export const MARKET_EDITIONS = ['US:en', 'GB:en'];
+
+/** The market news requests, in the order their stories are merged (see storiesFor). */
+export const MARKET_SOURCES = ['finnhub-market', 'alpaca-market', 'massive-market', 'marketwatch', 'edgar-8k', 'marketaux', 'euronext-pr', 'google-news-market'];
+
+/**
+ * Keeps the market news sources fresh while a screen shows them: Finnhub (general news and mergers) and Alpaca
+ * every 5 minutes, the feeds every 10, Massive every 15 (5 calls a minute, shared with CROSSCHECK).
+ */
 export function useMarketNews(watch: string[]) {
   const v = marketNews.use((s) => s.v);
   const symbols = watchSymbols(watch);
@@ -384,6 +515,10 @@ export function useMarketNews(watch: string[]) {
     if (!newsAvailable()) return;
     const tick = () => {
       void loadNews('finnhub-market', '', 5 * 60_000);
+      void loadNews('finnhub-market', 'merger', 5 * 60_000);
+      void loadNews('alpaca-market', '', 5 * 60_000);
+      void loadNews('massive-market', '', 15 * 60_000);
+      for (const e of MARKET_EDITIONS) void loadNews('google-news-market', e, 10 * 60_000);
       void loadNews('marketwatch', '', 10 * 60_000);
       void loadNews('edgar-8k', '', 10 * 60_000);
       void loadNews('euronext-pr', '', 10 * 60_000);
@@ -398,23 +533,110 @@ export function useMarketNews(watch: string[]) {
 }
 
 /**
- * A company's news while a screen shows it: Finnhub for the last week and, unless `marketaux` is false
- * (QUOTE, to spare its small daily allowance), Marketaux for the ticker.
+ * A US company's news while a screen shows it: Finnhub for the last week, Alpaca's latest 50 stories of the last
+ * month and, unless switched off here, Massive's latest 50 (QUOTE spares its 5 calls a minute) and Marketaux for
+ * the ticker (QUOTE spares its small daily allowance).
  */
-export function useCompanyNews(symbol: string | null, marketaux = true) {
+export function useCompanyNews(symbol: string | null, { marketaux = true, massive = true } = {}) {
   const v = marketNews.use((s) => s.v);
   useEffect(() => {
     if (!symbol || !newsAvailable()) return;
     const tick = () => {
       const now = Date.now();
       void loadNews('finnhub-company', `${finnhubSymbol(symbol)}|${isoDay(now - 7 * 86_400_000)}|${isoDay(now)}`, 15 * 60_000);
+      void loadNews('alpaca-company', finnhubSymbol(symbol), 10 * 60_000);
+      if (massive) void loadNews('massive-company', finnhubSymbol(symbol), 30 * 60_000);
       if (marketaux) void loadNews('marketaux', marketauxSymbols(symbol).join(','), 60 * 60_000);
     };
     tick();
     const t = setInterval(tick, 5 * 60_000);
     return () => clearInterval(t);
-  }, [symbol, marketaux]);
+  }, [symbol, marketaux, massive]);
   return v;
+}
+
+/**
+ * Google News editions for a listing's country: each of its languages, and the UK's English edition outside
+ * English-speaking markets, where the local press has most of a company's news (KBC: 26 Dutch stories in a week
+ * against 2 in English) and the English one adds the international wires. Anywhere else, the US edition.
+ */
+const GOOGLE_EDITIONS: Record<string, string[]> = {
+  US: ['US:en'],
+  CA: ['CA:en'],
+  GB: ['GB:en'],
+  IE: ['IE:en'],
+  BE: ['BE:nl', 'BE:fr', 'GB:en'],
+  NL: ['NL:nl', 'GB:en'],
+  FR: ['FR:fr', 'GB:en'],
+  DE: ['DE:de', 'GB:en'],
+  AT: ['AT:de', 'GB:en'],
+  CH: ['CH:de', 'CH:fr', 'GB:en'],
+  IT: ['IT:it', 'GB:en'],
+  ES: ['ES:es', 'GB:en'],
+  PT: ['PT:pt-150', 'GB:en'],
+  SE: ['SE:sv', 'GB:en'],
+  DK: ['DK:da', 'GB:en'],
+  FI: ['FI:fi', 'GB:en'],
+  NO: ['NO:no', 'GB:en'],
+};
+
+/**
+ * The Google News searches for a stock, "edition|name|ticker" for each edition: the name as the press writes it
+ * (shortName: "KBC Groep NV" is KBC) and the ticker when it starts with a letter, and in the English edition of a
+ * stock listed on the continent, "|BE" for its country. None for anything that is not a stock.
+ */
+export function googleSearches(def: Pick<SecurityDef, 'id' | 'name' | 'cls' | 'ticker' | 'country'>): string[] {
+  if (def.cls !== 'equity') return [];
+  const name = shortName(def as SecurityDef)
+    .normalize('NFC')
+    // Swedish companies are "(publ)": a remark in brackets is not part of the name the press writes.
+    .replace(/\s*\([^)]*\)/g, '')
+    .replace(/[^\p{L}\p{N}&'’. -]+/gu, ' ')
+    .replace(/^[^\p{L}\p{N}]+/u, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 60)
+    .trim();
+  if (name.length < 2) return [];
+  const ticker = /^[A-Z][A-Z0-9]{1,9}/.exec(def.ticker.split(' ')[0].toUpperCase())?.[0] ?? '';
+  const own = GOOGLE_EDITIONS[def.country];
+  // The UK edition for a stock listed on the continent: the main process adds that country's words to the search.
+  return (own ?? ['US:en']).map((e) => (e === 'GB:en' && def.country !== 'GB' ? `${e}|${name}|${ticker}|${def.country}` : `${e}|${name}|${ticker}`));
+}
+
+/** Google News's stories on a stock while a screen shows it, from each of its editions every 15 minutes. */
+export function useGoogleNews(def: SecurityDef | null | undefined) {
+  const v = marketNews.use((x) => x.v);
+  const searches = def ? googleSearches(def).join('\n') : '';
+  useEffect(() => {
+    if (!searches || !newsAvailable()) return;
+    const tick = () => {
+      for (const a of searches.split('\n')) void loadNews('google-news-company', a, 15 * 60_000);
+    };
+    tick();
+    const t = setInterval(tick, 5 * 60_000);
+    return () => clearInterval(t);
+  }, [searches]);
+  return v;
+}
+
+/** Several requests to one source as one state: once any has answered, the stories they returned together. */
+export function combinedFeed(states: (FeedState | undefined)[]): FeedState | undefined {
+  const known = states.filter((f): f is FeedState => !!f);
+  const ok = known.filter((f) => f.state === 'ok');
+  if (!ok.length) return known.find((f) => f.state !== 'loading') ?? known[0];
+  const at = Math.max(...ok.map((f) => f.at ?? 0));
+  return { state: 'ok', count: ok.reduce((n, f) => n + (f.count ?? 0), 0), stale: ok.some((f) => f.stale), ...(at > 0 ? { at } : {}) };
+}
+
+/** Google News's stories on a stock from all its editions, once each, and the state of those requests. */
+export function googleNews(def: SecurityDef | null | undefined): { stories: MarketStory[]; feed?: FeedState } {
+  const keys = def ? googleSearches(def).map((a) => `google-news-company:${a}`) : [];
+  if (!keys.length) return { stories: [] };
+  const s = marketNews.get();
+  const stories = mergeStories(keys.map((k) => s.lists[k] ?? []));
+  const feed = combinedFeed(keys.map((k) => s.feeds[k]));
+  // A story found in two editions counts once.
+  return { stories, feed: feed?.state === 'ok' ? { ...feed, count: stories.length } : feed };
 }
 
 /** Yahoo Finance's headlines for one Yahoo symbol (any market it lists) while a screen shows them. */
@@ -457,23 +679,42 @@ export function euronextReleases(company: string): { stories: MarketStory[]; fee
   return { stories: releasesOf(company, s.lists['euronext-pr'] ?? []), feed: s.feeds['euronext-pr'] };
 }
 
-/** The stories of the requests whose keys start with one of `prefixes`, merged. */
+const ofSource = (k: string, p: string) => k === p || k.startsWith(`${p}:`);
+
+/**
+ * The stories of the requests whose keys start with one of `prefixes`, merged in the order of `prefixes`: a story
+ * two sources carry keeps the first one's link and publisher, so a direct link wins over Google's redirect.
+ */
 export function storiesFor(prefixes: string[]): MarketStory[] {
-  const lists = marketNews.get().lists;
-  return mergeStories(Object.entries(lists).filter(([k]) => prefixes.some((p) => k === p || k.startsWith(`${p}:`))).map(([, l]) => l));
+  const lists = Object.entries(marketNews.get().lists);
+  return mergeStories(prefixes.flatMap((p) => lists.filter(([k]) => ofSource(k, p)).map(([, l]) => l)));
 }
 
-/** A company's stories: its Finnhub news and every Marketaux story tagged with its ticker. */
+/**
+ * A company's stories: its Finnhub, Alpaca and Massive news, and every story tagged with its ticker in Marketaux's
+ * answers and the market news lists.
+ */
 export function companyStories(symbol: string): MarketStory[] {
   const lists = marketNews.get().lists;
-  const own = Object.entries(lists).filter(([k]) => k.startsWith(`finnhub-company:${finnhubSymbol(symbol)}|`)).map(([, l]) => l);
+  const fs = finnhubSymbol(symbol);
+  const own = Object.entries(lists).filter(([k]) => k.startsWith(`finnhub-company:${fs}|`)).map(([, l]) => l);
+  const direct = [lists[`alpaca-company:${fs}`], lists[`massive-company:${fs}`]].filter((l): l is MarketStory[] => !!l);
   const tagged = Object.entries(lists)
-    .filter(([k]) => k.startsWith('marketaux:'))
+    .filter(([k]) => k.startsWith('marketaux:') || ['finnhub-market', 'alpaca-market', 'massive-market'].some((p) => ofSource(k, p)))
     .map(([, l]) => l.filter((s) => s.tickers.some((t) => sameTicker(t, symbol))));
-  return mergeStories([...own, ...tagged]);
+  return mergeStories([...own, ...direct, ...tagged]);
 }
 
-/** The state of a company's two news requests, for the screens' status lines. */
-export function companyFeeds(feeds: Record<string, FeedState>, symbol: string): { finnhub?: FeedState; marketaux?: FeedState } {
-  return { finnhub: Object.entries(feeds).find(([k]) => k.startsWith(`finnhub-company:${finnhubSymbol(symbol)}|`))?.[1], marketaux: feeds[`marketaux:${marketauxSymbols(symbol).join(',')}`] };
+/** The state of a company's news requests, for the screens' status lines. */
+export function companyFeeds(feeds: Record<string, FeedState>, symbol: string): { finnhub?: FeedState; marketaux?: FeedState; alpaca?: FeedState; massive?: FeedState } {
+  const fs = finnhubSymbol(symbol);
+  return {
+    // Its request names the dates, so after midnight UTC the day before's is also there: the last is today's.
+    finnhub: Object.entries(feeds)
+      .filter(([k]) => k.startsWith(`finnhub-company:${fs}|`))
+      .pop()?.[1],
+    marketaux: feeds[`marketaux:${marketauxSymbols(symbol).join(',')}`],
+    alpaca: feeds[`alpaca-company:${fs}`],
+    massive: feeds[`massive-company:${fs}`],
+  };
 }

@@ -22,7 +22,8 @@ What each provider asks for when its data is shown, and where the app shows it. 
 | Yahoo Finance | No redistribution; informational use | Quote strips and company screens name it as "Yahoo Finance", with "for personal use" on hover; `PROVIDERS` says what it serves and the terms |
 | Massive, Alpha Vantage, Tiingo, Twelve Data | Personal, non-commercial or internal use; no display to others | Named per column on `CROSSCHECK` |
 | Financial Modeling Prep | Terms not quoted: its pages refuse automated reading | `ANALYSTS` and `EARNINGS` name FMP on every figure, with the publishers FMP gathers targets from |
-| Finnhub, Marketaux, MarketWatch | Personal use; headlines and snippets with links | Every story names its publisher and the feeds that carried it, and links to the original; Marketaux's sentiment is labelled as Marketaux's |
+| Finnhub, Marketaux, MarketWatch, Alpaca (Benzinga), Massive | Personal use; headlines and snippets with links | Every story names its publisher and the feeds that carried it, and links to the original; Marketaux's sentiment is labelled as Marketaux's |
+| Google News | Its feeds are for a personal feed reader, for personal, non-commercial use | Every story names the publisher Google gives and "via Google News", with Google's link to the article |
 | Alpaca | Personal, non-commercial use | Labelled "IEX (Alpaca)" and IEX ONLY on `QUOTE` |
 
 Nothing the app shows may be passed on: screenshots and exports are for your own use, as the providers' terms say.

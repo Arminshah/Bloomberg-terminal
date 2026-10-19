@@ -23,7 +23,8 @@ interface Fixtures {
   profileMissing: boolean;
   mixedEstimateCurrencies: boolean;
   equiblesRefusal: boolean;
-  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  newsStories: boolean;
+  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -449,6 +450,26 @@ test('the inherited all-source self-test includes Equibles, detects refusals and
   expect(report.report).not.toContain('DesktopFixture');
   expect(report.report).not.toContain('https://');
   expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(1);
+});
+
+test("company news merges Benzinga's stories through Alpaca with Google News's search, keys in headers only", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.newsStories = true; });
+  await command(page, 'AAPL COMPANYNEWS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.news-item')).toHaveCount(2);
+  // Newest first: Alpaca's story is an hour old, Google's two hours. Google's title loses its " - Reuters".
+  await expect(panel.locator('.news-item').nth(0)).toContainText('Synthetic Benzinga story about the company');
+  await expect(panel.locator('.news-item').nth(0).locator('.src')).toHaveText('Benzinga');
+  await expect(panel.locator('.news-item').nth(1).locator('.hl')).toHaveText('Synthetic Google story about the company · AAPL');
+  await expect(panel.locator('.news-item').nth(1).locator('.src')).toHaveText('Reuters');
+  await expect(panel.locator('.fnh-sub')).toContainText('Alpaca: 1');
+  await expect(panel.locator('.fnh-sub')).toContainText('Google News: 1');
+  // Massive has no key here; it says so rather than failing silently.
+  await expect(panel.locator('.fnh-sub')).toContainText('Massive: Needs MASSIVE_API_KEY');
+  const { alpacaNews, google } = await calls(app);
+  expect(alpacaNews.some((u) => new URL(u).searchParams.get('symbols') === 'AAPL')).toBe(true);
+  for (const u of alpacaNews) expect(u).not.toMatch(/PKFIXTURE|DesktopFixtureSecret/);
+  expect(google.map((u) => new URL(u).searchParams.get('q'))).toContain('"Apple" (stock OR shares OR earnings OR AAPL) when:7d');
 });
 
 test('the explicit IEX source switch supplies watchlist and quote prices with one-venue labels', async ({ desktop: { app, page } }) => {

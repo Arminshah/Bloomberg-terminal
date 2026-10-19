@@ -16,6 +16,16 @@
 //   link to the full article", which is what the screens do. Asked with the app's own User-Agent (Yahoo's feed
 //   refuses browser-like ones with HTTP 429).
 // - Euronext's company press releases RSS (the latest 10), no key, while EURONEXT_RSS_ENABLED is on.
+// - Alpaca's news API (Benzinga's wire), with the owner's Alpaca market data keys, while ALPACA_ENABLED is on:
+//   the latest 50 stories, or a ticker's (docs.alpaca.markets/reference/news-3). The free Basic plan has
+//   historical data from 15 minutes back, so its stories arrive 15 minutes after publication.
+// - Massive's ticker news (formerly Polygon.io), with the owner's MASSIVE_API_KEY, while MASSIVE_NEWS_ENABLED is
+//   on. Stocks Basic allows 5 calls a minute, shared with CROSSCHECK's daily bars, and updates news hourly.
+// - Google News RSS, no key, while GOOGLE_NEWS_RSS_ENABLED is on: a search for the day's market news in an
+//   English edition, and a search for a company in the editions of its market's languages. Each feed says it "is
+//   made available solely for the purpose of rendering Google News results within a personal feed reader for
+//   personal, non-commercial use", which is what this private terminal does with it: headlines, publishers, times
+//   and links.
 // Only headlines, sources, times, short summaries and links are shown; no article text is fetched.
 
 const SYMBOL = /^[A-Z][A-Z0-9.-]{0,9}$/;
@@ -23,6 +33,101 @@ const SYMBOL = /^[A-Z][A-Z0-9.-]{0,9}$/;
 const YAHOO_SYMBOL = /^[A-Z0-9^][A-Z0-9.=^-]{0,19}$/;
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const MIN = 60_000;
+const DAY = 86_400_000;
+const isoDay = (t) => new Date(t).toISOString().slice(0, 10);
+
+/** Finnhub's market news categories the app reads: general news, and mergers and acquisitions. */
+const FINNHUB_CATEGORIES = new Set(['general', 'merger']);
+
+/**
+ * Google News editions, by the ceid Google gives them: the interface language (hl) and the language whose words
+ * keep a company search to its business and its shares. Each was checked to answer on 19 October 2026.
+ */
+const EDITIONS = {
+  'US:en': { hl: 'en-US', lang: 'en' },
+  'GB:en': { hl: 'en-GB', lang: 'en' },
+  'IE:en': { hl: 'en-IE', lang: 'en' },
+  'CA:en': { hl: 'en-CA', lang: 'en' },
+  'BE:nl': { hl: 'nl', lang: 'nl' },
+  'BE:fr': { hl: 'fr', lang: 'fr' },
+  'NL:nl': { hl: 'nl', lang: 'nl' },
+  'FR:fr': { hl: 'fr', lang: 'fr' },
+  'DE:de': { hl: 'de', lang: 'de' },
+  'AT:de': { hl: 'de', lang: 'de' },
+  'CH:de': { hl: 'de', lang: 'de' },
+  'CH:fr': { hl: 'fr', lang: 'fr' },
+  'IT:it': { hl: 'it', lang: 'it' },
+  'ES:es': { hl: 'es', lang: 'es' },
+  'PT:pt-150': { hl: 'pt-PT', lang: 'pt' },
+  'SE:sv': { hl: 'sv', lang: 'sv' },
+  'DK:da': { hl: 'da', lang: 'da' },
+  'FI:fi': { hl: 'fi', lang: 'fi' },
+  'NO:no': { hl: 'no', lang: 'no' },
+};
+
+/**
+ * A company's name alone finds its sponsorships, sports teams and namesakes ("Target" finds ICE raids); one of
+ * these words beside it keeps the search to its shares and results.
+ */
+const FINANCE_WORDS = {
+  en: ['stock', 'shares', 'earnings'],
+  nl: ['aandeel', 'aandelen', 'beurs', 'winst', 'omzet', 'resultaten'],
+  fr: ['action', 'actions', 'bourse', 'bénéfice', 'résultats'],
+  de: ['Aktie', 'Aktien', 'Börse', 'Gewinn', 'Umsatz'],
+  it: ['azioni', 'borsa', 'utile', 'ricavi'],
+  es: ['acciones', 'bolsa', 'beneficio', 'ingresos'],
+  pt: ['ações', 'bolsa', 'lucro', 'receitas'],
+  sv: ['aktie', 'aktien', 'börsen', 'vinst', 'omsättning'],
+  da: ['aktie', 'aktier', 'børsen', 'overskud', 'omsætning'],
+  fi: ['osake', 'osakkeet', 'pörssi', 'tulos', 'liikevaihto'],
+  no: ['aksje', 'aksjer', 'børs', 'resultat', 'omsetning'],
+};
+
+/**
+ * In an English edition, a company listed abroad is searched with its country as well: "KBC" alone finds an Indian
+ * quiz show and fund pages (47 stories in a week, mostly those), "KBC" with Belgium finds KBC Group's (9 of 9).
+ */
+const COUNTRY_WORDS = {
+  BE: ['Belgium', 'Belgian', 'Brussels'],
+  NL: ['Netherlands', 'Dutch', 'Amsterdam'],
+  FR: ['France', 'French', 'Paris'],
+  DE: ['Germany', 'German', 'Frankfurt'],
+  AT: ['Austria', 'Austrian', 'Vienna'],
+  CH: ['Switzerland', 'Swiss', 'Zurich'],
+  IT: ['Italy', 'Italian', 'Milan'],
+  ES: ['Spain', 'Spanish', 'Madrid'],
+  PT: ['Portugal', 'Portuguese', 'Lisbon'],
+  SE: ['Sweden', 'Swedish', 'Stockholm'],
+  DK: ['Denmark', 'Danish', 'Copenhagen'],
+  FI: ['Finland', 'Finnish', 'Helsinki'],
+  NO: ['Norway', 'Norwegian', 'Oslo'],
+};
+
+/**
+ * The day's market news. Google's Business section mixes in shopping and recalls ("Halloween Candy Price Check");
+ * this search returned 100 stories of the last day on 19 October 2026, from Reuters, the WSJ, Bloomberg and CNBC.
+ */
+const MARKETS_SEARCH = '(stocks OR "stock market" OR "Wall Street" OR earnings OR bonds OR "central bank") when:1d';
+// A company name as the app shortens it: letters in any script, digits, spaces, & ' ’ . and -.
+const COMPANY = /^[\p{L}\p{N}][\p{L}\p{N}&'’. -]{1,59}$/u;
+const GOOGLE_TICKER = /^[A-Z][A-Z0-9]{1,9}$/;
+
+function editionQuery(ceid) {
+  const e = EDITIONS[ceid];
+  return `hl=${e.hl}&gl=${ceid.split(':')[0]}&ceid=${ceid}`;
+}
+
+/**
+ * The search for a company's news of the last week in one edition: "name" (finance words OR ticker), with its
+ * country's words for a company listed abroad, when:7d. A ticker that is one of Google's operators (L'Oréal's OR)
+ * or the name itself (KBC) adds nothing and is left out.
+ */
+function companySearch(ceid, name, ticker, country) {
+  const own = ticker && !/^(OR|AND|NOT)$/.test(ticker) && ticker.toLowerCase() !== name.toLowerCase();
+  const words = [...FINANCE_WORDS[EDITIONS[ceid].lang], ...(own ? [ticker] : [])];
+  const where = country ? ` (${COUNTRY_WORDS[country].join(' OR ')})` : '';
+  return `"${name}" (${words.join(' OR ')})${where} when:7d`;
+}
 
 const SOURCES = {
   'finnhub-market': {
@@ -30,7 +135,11 @@ const SOURCES = {
     credential: 'FINNHUB_API_KEY',
     gate: 'FINNHUB_ENABLED',
     ttl: 5 * MIN,
-    url: () => 'https://finnhub.io/api/v1/news?category=general',
+    // arg: '' (general) or 'merger'
+    url: (arg) => {
+      const category = String(arg) || 'general';
+      return FINNHUB_CATEGORIES.has(category) ? `https://finnhub.io/api/v1/news?category=${category}` : null;
+    },
     headers: (key) => ({ 'X-Finnhub-Token': key }),
   },
   'finnhub-company': {
@@ -80,6 +189,66 @@ const SOURCES = {
     url: () => 'https://live.euronext.com/en/rss/company-pr-release',
     headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
   },
+  'alpaca-market': {
+    provider: 'alpaca',
+    credential: 'ALPACA_API_KEY_ID',
+    credential2: 'ALPACA_API_SECRET_KEY',
+    gate: 'ALPACA_ENABLED',
+    ttl: 5 * MIN,
+    // The latest 50 stories of the last three days; without a start Alpaca gives only today's, none early on a Monday.
+    url: (arg, _key, now) => (arg === '' ? `https://data.alpaca.markets/v1beta1/news?start=${isoDay(now - 3 * DAY)}&sort=desc&limit=50` : null),
+    headers: (id, secret) => ({ 'APCA-API-KEY-ID': id, 'APCA-API-SECRET-KEY': secret }),
+  },
+  'alpaca-company': {
+    provider: 'alpaca',
+    credential: 'ALPACA_API_KEY_ID',
+    credential2: 'ALPACA_API_SECRET_KEY',
+    gate: 'ALPACA_ENABLED',
+    ttl: 10 * MIN,
+    // arg: "AAPL" (class shares with a dot, BRK.B): its latest 50 stories of the last 30 days.
+    url: (arg, _key, now) => (SYMBOL.test(String(arg)) ? `https://data.alpaca.markets/v1beta1/news?symbols=${encodeURIComponent(arg)}&start=${isoDay(now - 30 * DAY)}&sort=desc&limit=50` : null),
+    headers: (id, secret) => ({ 'APCA-API-KEY-ID': id, 'APCA-API-SECRET-KEY': secret }),
+  },
+  'massive-market': {
+    provider: 'massive',
+    credential: 'MASSIVE_API_KEY',
+    gate: 'MASSIVE_NEWS_ENABLED',
+    ttl: 15 * MIN,
+    url: (arg) => (arg === '' ? 'https://api.massive.com/v2/reference/news?order=desc&sort=published_utc&limit=100' : null),
+    // The Bearer header keeps the key out of the URL, as for CROSSCHECK's bars.
+    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+  },
+  'massive-company': {
+    provider: 'massive',
+    credential: 'MASSIVE_API_KEY',
+    gate: 'MASSIVE_NEWS_ENABLED',
+    ttl: 30 * MIN,
+    // arg: "AAPL" (class shares with a dot, BRK.B)
+    url: (arg) => (SYMBOL.test(String(arg)) ? `https://api.massive.com/v2/reference/news?ticker=${encodeURIComponent(arg)}&order=desc&sort=published_utc&limit=50` : null),
+    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+  },
+  'google-news-market': {
+    provider: 'google-news',
+    gate: 'GOOGLE_NEWS_RSS_ENABLED',
+    ttl: 10 * MIN,
+    // arg: an English edition, "US:en"
+    url: (arg) => (Object.prototype.hasOwnProperty.call(EDITIONS, String(arg)) && EDITIONS[arg].lang === 'en' ? `https://news.google.com/rss/search?q=${encodeURIComponent(MARKETS_SEARCH)}&${editionQuery(arg)}` : null),
+    headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
+  },
+  'google-news-company': {
+    provider: 'google-news',
+    gate: 'GOOGLE_NEWS_RSS_ENABLED',
+    ttl: 15 * MIN,
+    // arg: "BE:nl|KBC|KBC" or "GB:en|KBC|KBC|BE": an edition, the company's short name, its ticker (or nothing)
+    // and, in an edition abroad, the country it is listed in.
+    url: (arg) => {
+      const [ceid, name, ticker = '', country = '', ...rest] = String(arg).split('|');
+      if (rest.length || !Object.prototype.hasOwnProperty.call(EDITIONS, ceid ?? '') || !COMPANY.test(name ?? '') || (ticker && !GOOGLE_TICKER.test(ticker))) return null;
+      if (country && !Object.prototype.hasOwnProperty.call(COUNTRY_WORDS, country)) return null;
+      return `https://news.google.com/rss/search?q=${encodeURIComponent(companySearch(ceid, name, ticker, country))}&${editionQuery(ceid)}`;
+    },
+    headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
+  },
   'edgar-8k': {
     provider: 'sec',
     credential: 'SEC_USER_AGENT',
@@ -91,12 +260,12 @@ const SOURCES = {
   },
 };
 
-/** The request for a news source, or null when it is not one the app makes. */
-function newsRequest(source, arg, key) {
+/** The request for a news source, or null when it is not one the app makes. `key2` is a second credential (Alpaca's secret). */
+function newsRequest(source, arg, key, key2 = '', now = Date.now()) {
   if (typeof source !== 'string' || !Object.prototype.hasOwnProperty.call(SOURCES, source)) return null;
   const s = SOURCES[source];
-  const url = s.url(arg ?? '', key ?? '');
-  return url ? { url, headers: s.headers(key ?? ''), ttl: s.ttl, provider: s.provider } : null;
+  const url = s.url(arg ?? '', key ?? '', now);
+  return url ? { url, headers: s.headers(key ?? '', key2 ?? ''), ttl: s.ttl, provider: s.provider } : null;
 }
 
-module.exports = { SOURCES, newsRequest };
+module.exports = { SOURCES, EDITIONS, FINANCE_WORDS, COUNTRY_WORDS, newsRequest };

@@ -11,7 +11,7 @@ function retryAfter(value, now) {
 }
 
 /** Providers whose answers are RSS or Atom feeds rather than JSON. */
-const XML_PROVIDERS = new Set(['marketwatch', 'sec', 'yahoo-rss', 'euronext']);
+const XML_PROVIDERS = new Set(['marketwatch', 'sec', 'yahoo-rss', 'euronext', 'google-news']);
 
 function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random = Math.random }) {
   const kept = new Map();

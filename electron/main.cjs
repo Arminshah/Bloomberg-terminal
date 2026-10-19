@@ -500,6 +500,8 @@ const equiblesClient = equibles.createEquiblesClient({ providers, fetch: (url, i
 const { createRequester } = require('./requests.cjs');
 const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent, timeoutMs: TIMEOUT_MS,
   validate: (provider, url, text) => {
+    // A consent or error page instead of the feed is a failure, not an answer to keep for 15 minutes.
+    if (provider === 'google-news') return /<rss\b/i.test(text) ? null : { kind: 'schema-changed', message: 'Google answered with a web page, not the feed.' };
     if (provider !== 'alpaca' || !new URL(url).pathname.startsWith('/v1beta1/options/snapshots/')) return null;
     const message = optionChainProblem(text);
     return message ? { kind: 'schema-changed', message } : null;
@@ -565,20 +567,23 @@ ipcMain.handle('finnhub', async (event, kind, symbol) => {
   return keyedGet('finnhub', req.url, finnhub.finnhubHeaders(key.value), req.ttl, [30, 60_000], [key.value]);
 });
 
-const NEWS_PACE = { finnhub: [30, 60_000], marketaux: [10, 60_000], marketwatch: [6, 60_000], sec: [sec.PER_SECOND, 1000], 'yahoo-rss': [20, 60_000], euronext: [6, 60_000] };
+// Alpaca's and Massive's paces are the same slots their quotes and CROSSCHECK bars wait in, so news never
+// pushes either provider over its limit.
+const NEWS_PACE = { finnhub: [30, 60_000], marketaux: [10, 60_000], marketwatch: [6, 60_000], sec: [sec.PER_SECOND, 1000], 'yahoo-rss': [20, 60_000], euronext: [6, 60_000], alpaca: [120, 60_000], massive: [5, 60_000], 'google-news': [10, 60_000] };
 
 ipcMain.handle('news', async (event, source, arg) => {
   if (!fromApp(event) || !news.newsRequest(source, arg, 'x')) throw new Error('not allowed');
   const def = news.SOURCES[source];
   if (def.gate && !providers.setting(def.gate).value) return { status: 0, text: '', gated: def.gate };
-  let key = '';
-  if (def.credential) {
-    const k = usableKey(def.credential, def.provider);
+  const keys = [];
+  for (const name of [def.credential, def.credential2].filter(Boolean)) {
+    const k = usableKey(name, def.provider);
     if (!k.value) return { status: 0, text: '', ...k };
-    key = k.value;
+    keys.push(k.value);
   }
-  const req = news.newsRequest(source, arg, key);
-  return keyedGet(def.provider, req.url, req.headers, req.ttl, NEWS_PACE[def.provider], def.agent ? [] : [key], def.agent ? key : undefined);
+  const [key = '', key2 = ''] = keys;
+  const req = news.newsRequest(source, arg, key, key2);
+  return keyedGet(def.provider, req.url, req.headers, req.ttl, NEWS_PACE[def.provider], def.agent ? [] : keys, def.agent ? key : undefined);
 });
 
 ipcMain.handle('alpaca', async (event, kind, symbols) => {
