@@ -15,7 +15,8 @@ import { CURRENCY_INFO } from '../data/universe';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
-const MATRIX = ['USD', 'EUR', 'JPY', 'GBP', 'CHF', 'CAD', 'AUD', 'NZD', 'CNH', 'HKD', 'SGD'];
+/** FXMATRIX's currencies, in the order of its rows and columns. */
+export const FX_MATRIX = ['USD', 'EUR', 'JPY', 'GBP', 'CHF', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'CNH', 'HKD', 'SGD'];
 
 function rateDec(v: number): number {
   if (v >= 100) return 2;
@@ -31,8 +32,8 @@ function usdPair(c: string): string | undefined {
 export function FXC(_: FnProps) {
   useTick(1);
   // Currencies without a real rate are left out of the matrix in the desktop app.
-  const ccys = MATRIX.filter((c) => !engine.realOnly || Number.isFinite(engine.usdValue(c)));
-  const missing = engine.realOnly ? MATRIX.filter((c) => !ccys.includes(c)) : [];
+  const ccys = FX_MATRIX.filter((c) => !engine.realOnly || Number.isFinite(engine.usdValue(c)));
+  const missing = engine.realOnly ? FX_MATRIX.filter((c) => !ccys.includes(c)) : [];
   const pairs = ccys.map(usdPair).filter((id): id is string => !!id);
   const times = pairs.map((id) => engine.quote(id)?.time ?? NaN).filter(Number.isFinite);
   const providers = [...new Set(pairs.map((id) => engine.quote(id)?.provider).filter(Boolean))];
@@ -104,7 +105,7 @@ export function WCRS(_: FnProps) {
   useTick(3);
   const [tab, setTab] = useState(1);
   const h = RANK_H[tab - 1].h;
-  const codes = ['EUR', 'JPY', 'GBP', 'CHF', 'AUD', 'CAD', 'NZD', 'SEK', 'NOK', 'CNH', 'HKD', 'SGD', 'INR', 'KRW', 'MXN', 'BRL', 'ZAR', 'TRY'];
+  const codes = ['EUR', 'JPY', 'GBP', 'CHF', 'AUD', 'CAD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'CNH', 'HKD', 'SGD', 'INR', 'KRW', 'MXN', 'BRL', 'ZAR', 'TRY'];
   const all = codes.map((c) => ({ c, ...ccyVsUsd(c, h) }));
   const rows = all.filter((r) => !engine.realOnly || (r.id && engine.hasSource(r.id) && Number.isFinite(r.pct))).sort((a, b) => b.pct - a.pct);
   const missing = all.filter((r) => !rows.includes(r)).map((r) => r.c);

@@ -99,11 +99,15 @@ export const COUNTRY_STATS: Record<string, { gdp?: [string, Freq, Calc?]; cpi?: 
   IT: { gdp: ['ESTAT:GDP:IT', 'q', 'level'], cpi: ['ESTAT:HICP:IT', 'm', 'level'], un: ['ESTAT:UN:IT', 'm'] },
   ES: { gdp: ['ESTAT:GDP:ES', 'q', 'level'], cpi: ['ESTAT:HICP:ES', 'm', 'level'], un: ['ESTAT:UN:ES', 'm'] },
   NL: { gdp: ['ESTAT:GDP:NL', 'q', 'level'], cpi: ['ESTAT:HICP:NL', 'm', 'level'], un: ['ESTAT:UN:NL', 'm'] },
+  BE: { gdp: ['ESTAT:GDP:BE', 'q', 'level'], cpi: ['ESTAT:HICP:BE', 'm', 'level'], un: ['ESTAT:UN:BE', 'm'] },
   GB: { gdp: ['ONS:IHYR', 'q', 'level'], cpi: ['ONS:D7G7', 'm', 'level'], un: ['ONS:MGSX', 'm'] },
   JP: { gdp: ['JPNRGDPEXP', 'q'], un: ['LRHUTTTTJPM156S', 'm'] },
   CA: { gdp: ['NGDPRSAXDCCAQ', 'q'], cpi: ['STATCAN:CPI', 'm'], un: ['STATCAN:UN', 'm'] },
   AU: { gdp: ['NGDPRSAXDCAUQ', 'q'], cpi: ['ABS:CPI', 'm', 'level'], un: ['ABS:UN', 'm'] },
 };
+
+/** Euro area members ECST lists with Eurostat's figures: the geo codes the desktop app asks Eurostat for besides the euro area's. */
+export const EUROSTAT_MEMBERS = ['DE', 'FR', 'IT', 'ES', 'NL', 'BE'];
 
 /** Countries whose growth figure is worked out here rather than published as a rate. */
 export const COMPUTED_GROWTH = new Set(['JP', 'CA', 'AU']);
@@ -324,7 +328,7 @@ async function loadOfficialStats(series: Record<string, Obs>) {
     const flags = new Map<string, string>();
     const m = parseJsonStat(text, flags);
     const ea = euroAreaCode(m);
-    for (const [g, as] of [...(ea ? [[ea, 'EA']] : []), ...['DE', 'FR', 'IT', 'ES', 'NL'].map((x) => [x, x])]) {
+    for (const [g, as] of [...(ea ? [[ea, 'EA']] : []), ...EUROSTAT_MEMBERS.map((x) => [x, x])]) {
       const id = `ESTAT:${kind}:${as}`;
       put(id, m.get(g));
       for (const [d] of m.get(g) ?? []) {
