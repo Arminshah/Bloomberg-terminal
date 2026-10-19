@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Section } from './cells';
+import { Markdown } from './Markdown';
 import { RESEARCH, parseResearch, type ResearchKind } from '../data/live/equibles';
 import type { KeyedAnswer } from '../data/live/lookup';
 
@@ -48,7 +49,7 @@ export function EquiblesResearch({ symbol, autoLoad = false }: { symbol: string;
   return (
     <Section title="Equibles company research" right="estimates, reported data and provider analysis">
       <div className="pad-s">
-        <div className="note" style={{ padding: '0 0 8px' }}>Analyst estimates and company research; broker price targets are a separate dataset. One estimate report loads automatically if structured estimates are unavailable; select other reports as needed. The free account allows 100 requests/day shared with other Equibles clients. Research is kept for six hours; this app caps transport requests at 90/day. Each report shows the first available page (up to 20 rows where supported).</div>
+        <div className="note" style={{ padding: '0 0 8px' }}>Pick a report, then load it. Each load is one of the free account&apos;s 100 requests a day (the app stops at 90); a report is kept for six hours.</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {RESEARCH.map((item) => <button type="button" className={`btn ${selected === item.kind ? 'primary' : ''}`} aria-pressed={selected === item.kind} key={item.kind} onClick={() => setSelected(item.kind)}>{item.label}</button>)}
         </div>
@@ -57,8 +58,10 @@ export function EquiblesResearch({ symbol, autoLoad = false }: { symbol: string;
         {!window.arminDesktop?.equibles && <p className="muted">Equibles research requires the desktop app.</p>}
         {error && <p className="amber" role="status">{error}</p>}
         {result?.report && <>
-          <div className="note" style={{ paddingLeft: 0 }}>Source: Equibles · {result.report.tool}{answer?.at ? ` · received ${new Date(answer.at).toLocaleString()}` : ''}{answer?.cached ? ' · cached' : ''}{answer?.stale ? ' · STALE, earlier answer retained' : ''}. Reporting dates and any model/AI labels appear in the provider text below.</div>
-          <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', font: 'inherit', lineHeight: 1.6, maxHeight: 600, overflow: 'auto' }} data-testid="equibles-report">{result.report.report}</pre>
+          <div className="note" style={{ paddingLeft: 0 }}>Source: Equibles ({result.report.tool}){answer?.at ? ` · received ${new Date(answer.at).toLocaleString()}` : ''}{answer?.cached ? ' · cached' : ''}{answer?.stale ? ' · STALE, earlier answer retained' : ''}</div>
+          <div style={{ maxHeight: 600, overflow: 'auto' }}>
+            <Markdown text={result.report.report} testId="equibles-report" />
+          </div>
         </>}
       </div>
     </Section>
