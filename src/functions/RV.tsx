@@ -1,4 +1,6 @@
 import { useMemo } from 'react';
+import { engine } from '../data/market';
+import { usePeers } from '../data/live/peers';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { DataTable, type Column } from '../components/DataTable';
@@ -33,7 +35,14 @@ export function RV({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
   const tick = useTick(5);
-  const group = useMemo(() => [s, ...peers(s, 12)], [s]);
+  // The desktop app finds real peers (Finnhub, Yahoo); the browser build takes the built-in list's industry.
+  const found = usePeers(desktopData() ? s : undefined);
+  const ids = found?.ids.join(',') ?? '';
+  const group = useMemo(
+    () => (desktopData() ? [s, ...(found?.ids ?? []).map((id) => engine.get(id)).filter((d): d is SecurityDef => !!d && d.id !== s.id)] : [s, ...peers(s, 12)]),
+    [s, ids], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const basis = new Map((found?.group?.picks ?? []).map((p) => [p.symbol.replace('-', '/'), p.basis]));
   const { loaded, failed } = useFundamentalsFor(group);
   const rows: Row[] = useMemo(
     () =>
@@ -52,7 +61,20 @@ export function RV({ sec }: FnProps) {
     render: (r) => (pct ? <Chg v={r[key] as number} pct dec={dec} /> : fmtNum(r[key] as number, dec)),
   });
   const cols: Column<Row>[] = [
-    { key: 't', label: 'Name', render: (r) => <SecLink id={r.d.id}>{r.d.ticker}</SecLink>, sort: (r) => r.d.ticker },
+    {
+      key: 't',
+      label: 'Name',
+      render: (r) => {
+        const b = basis.get(r.d.ticker.split(' ')[0]);
+        return (
+          <>
+            <SecLink id={r.d.id}>{r.d.ticker}</SecLink>
+            {b === 'similar' ? <span className="muted" title="Another industry: a stock Yahoo Finance links to this one repeatedly, used because few companies share its industry"> ·similar</span> : b === 'sub-industry' ? <span className="muted" title="Finnhub puts it in the same sub-industry"> ·sub-ind</span> : null}
+          </>
+        );
+      },
+      sort: (r) => r.d.ticker,
+    },
     { key: 'n', label: '', render: (r) => <span className="muted ellipsis" style={{ display: 'inline-block', maxWidth: 170 }}>{r.d.name}</span>, hideM: true },
     { key: 'px', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
     { key: 'mcap', label: 'Mkt cap USD', num: true, render: (r) => fmtBig(r.mcap), sort: (r) => r.mcap },
@@ -80,7 +102,19 @@ export function RV({ sec }: FnProps) {
     <div>
       <FnHeader code="PEERS" title="Relative Valuation" sec={s} sub={
           <>
-            Peers from the built-in list: {s.eq!.industry}, then {s.eq!.sector} ·{' '}
+            {desktopData() ? (
+              found?.group ? (
+                <>
+                  {found.group.picks.length} peers in {found.group.industry || found.group.sector} ({found.group.sources.join(', ') || 'no source answered'}){found.state === 'loading' ? ', loading their data' : ''} ·{' '}
+                </>
+              ) : found?.state === 'error' ? (
+                <>No peers: {found.message} · </>
+              ) : (
+                <>Finding peers… · </>
+              )
+            ) : (
+              <>Peers from the built-in list: {s.eq!.industry}, then {s.eq!.sector} · </>
+            )}
             {desktopData() ? (
               loaded + failed < group.length ? (
                 `Loading real data, ${loaded} of ${group.length} companies…`
@@ -115,7 +149,12 @@ export function RV({ sec }: FnProps) {
           </>
         }
       />
-      <div className="note">Highlighted row is the loaded security. Click a ticker to open it; shift-click opens it in the next panel.</div>
+      <div className="note">
+        {desktopData()
+          ? `Peers: companies in ${s.name}'s own industry as Yahoo Finance's company profiles name it, from Finnhub's sub-industry (with FINNHUB_API_KEY), the app's own stocks and the stocks Yahoo finds similar, largest first. When fewer than four share the industry, ·similar marks stocks Yahoo links to it repeatedly. `
+          : ''}
+        Highlighted row is the loaded security. Click a ticker to open it; shift-click opens it in the next panel.
+      </div>
     </div>
   );
 }

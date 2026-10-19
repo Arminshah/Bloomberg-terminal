@@ -21,6 +21,8 @@ const KINDS = {
   // The reports of the last 13 months with the estimates and reported figures, revenue included.
   history: { path: (s, now) => `/calendar/earnings?from=${iso(now - 400 * 24 * HOUR)}&to=${iso(now)}&symbol=${s}`, ttl: 6 * HOUR },
   quote: { path: (s) => `/quote?symbol=${s}`, ttl: 15_000 },
+  // Companies in the same sub-industry (GICS-style), for PEERS.
+  peers: { path: (s) => `/stock/peers?symbol=${s}&grouping=subIndustry`, ttl: 24 * HOUR },
 };
 
 /** The request for a kind of company data and a ticker, or null when it is not one the app makes. */

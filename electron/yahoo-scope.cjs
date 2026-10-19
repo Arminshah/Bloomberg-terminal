@@ -2,7 +2,7 @@
 // The independent research switch controls analyst modules and fields. Kept free
 // of Electron so both settings can be verified without a running desktop.
 
-const ALLOWED = /^\/(v8\/finance\/chart\/[A-Za-z0-9.^=%-]+\?|v8\/finance\/spark\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=%-]+\?|v7\/finance\/quote\?|ws\/fundamentals-timeseries\/v1\/finance\/timeseries\/[A-Za-z0-9.^=%-]+\?)/;
+const ALLOWED = /^\/(v6\/finance\/recommendationsbysymbol\/[A-Za-z0-9.^=%-]+$|v8\/finance\/chart\/[A-Za-z0-9.^=%-]+\?|v8\/finance\/spark\?|v1\/finance\/search\?|v10\/finance\/quoteSummary\/[A-Za-z0-9.^=%-]+\?|v7\/finance\/quote\?|ws\/fundamentals-timeseries\/v1\/finance\/timeseries\/[A-Za-z0-9.^=%-]+\?)/;
 const ANALYST_MODULES = ['earningsTrend', 'recommendationTrend', 'upgradeDowngradeHistory', 'earningsHistory', 'indexTrend', 'industryTrend', 'sectorTrend'];
 const ANALYST_FIELDS = {
   financialData: ['targetHighPrice', 'targetLowPrice', 'targetMeanPrice', 'targetMedianPrice', 'recommendationMean', 'recommendationKey', 'numberOfAnalystOpinions'],

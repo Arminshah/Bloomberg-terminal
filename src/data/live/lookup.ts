@@ -8,6 +8,7 @@ import { settings } from '../../terminal/settings';
 import { trackFinnhubSymbol } from './feeds';
 import { adoptYahooHistory, barsFromChart, yahooGet, YahooDisabled, type Dividend, type Split } from './yahoo';
 import { loadSecCompanies, searchCompanies } from './sec';
+import { favourites, portfolio, watchlists } from '../../terminal/userdata';
 
 /**
  * Securities that are not built in are looked up online when someone types
@@ -42,7 +43,7 @@ declare global {
       equibles?(kind: import('./equibles').ResearchKind, symbol: string): Promise<KeyedAnswer>;
       tipranks?(kind: 'consensus' | 'ratings' | 'usage', ticker: string): Promise<KeyedAnswer>;
       assistant?(messages: unknown[]): Promise<import('../assistant/types').AssistantAnswer>;
-      finnhub?(kind: 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'history' | 'quote', symbol: string): Promise<KeyedAnswer>;
+      finnhub?(kind: 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'history' | 'quote' | 'peers', symbol: string): Promise<KeyedAnswer>;
       news?(source: import('./marketnews').NewsSource, arg?: string): Promise<KeyedAnswer>;
       alpaca?(kind: 'snapshots', symbols: string): Promise<KeyedAnswer>;
       optionChain?(arg: { symbol: string; expiry?: string; pageToken?: string }): Promise<KeyedAnswer>;
@@ -446,12 +447,42 @@ async function loadFinnhub(ticker: string): Promise<LookupResult & { anchors?: [
 
 const inflight = new Map<string, Promise<LookupResult>>();
 
-function persist(def: SecurityDef) {
-  customSecurities.set((s) => ({ defs: [...s.defs.filter((d) => d.id !== def.id), def].slice(-MAX_SAVED) }));
+/** The securities your watchlists, favourites and portfolio name. */
+function listedIds(): Set<string> {
+  return new Set([...watchlists.get().lists.flatMap((l) => l.ids), ...favourites.get().ids, ...portfolio.get().positions.map((p) => p.id)]);
 }
 
-/** Looks a ticker up online and registers it. Resolves once the security can be used. */
-export function lookupSecurity(input: string): Promise<LookupResult> {
+/** Saves a looked-up security; past the limit the oldest one no list names goes first. */
+function persist(def: SecurityDef) {
+  customSecurities.set((s) => {
+    const defs = [...s.defs.filter((d) => d.id !== def.id), def];
+    if (defs.length <= MAX_SAVED) return { defs };
+    const listed = listedIds();
+    while (defs.length > MAX_SAVED) {
+      const i = defs.findIndex((d) => !listed.has(d.id));
+      defs.splice(i >= 0 && i < defs.length - 1 ? i : 0, 1);
+    }
+    return { defs };
+  });
+}
+
+/** A security looked up for a screen only (PEERS) is saved once a list names it. */
+function keepListed() {
+  const saved = new Set(customSecurities.get().defs.map((d) => d.id));
+  for (const id of listedIds()) {
+    const d = engine.get(id);
+    if (d?.dynamic && !saved.has(id)) persist(d);
+  }
+}
+watchlists.subscribe(keepListed);
+favourites.subscribe(keepListed);
+portfolio.subscribe(keepListed);
+
+/**
+ * Looks a ticker up online and registers it. Resolves once the security can be used. `keep` false registers it for
+ * this session only (a screen's peers), until a watchlist, favourites or the portfolio names it.
+ */
+export function lookupSecurity(input: string, keep = true): Promise<LookupResult> {
   const listed = parseListing(input);
   if (listed) return lookupListing(listed);
   const ticker = normalizeTicker(input);
@@ -461,14 +492,21 @@ export function lookupSecurity(input: string): Promise<LookupResult> {
   const source = lookupSource();
   if (!source) return Promise.resolve({ ok: false, reason: `${ticker} is not in the built-in list. The desktop app looks up any US stock` });
   const pending = inflight.get(ticker);
-  if (pending) return pending;
+  if (pending) {
+    return keep
+      ? pending.then((r) => {
+          if (r.ok) persist(r.def);
+          return r;
+        })
+      : pending;
+  }
   const job = (async (): Promise<LookupResult> => {
     try {
       if (source === 'yahoo') {
         const r = await loadYahoo(ticker);
         if (!r.ok) return r;
         engine.addSecurity(r.def, { bars: r.bars });
-        persist(r.def);
+        if (keep) persist(r.def);
         // The real-data service takes the line over: real history now, real quotes from the next poll.
         adoptYahooHistory(r.def.id, r.def.dynamic!.symbol, r.bars!, r.dividends, r.splits);
         return { ok: true, def: r.def };
@@ -476,7 +514,7 @@ export function lookupSecurity(input: string): Promise<LookupResult> {
       const r = await loadFinnhub(ticker);
       if (!r.ok) return r;
       engine.addSecurity(r.def, { anchors: r.anchors });
-      persist(r.def);
+      if (keep) persist(r.def);
       trackFinnhubSymbol(r.def.dynamic!.symbol, r.def.id);
       return { ok: true, def: r.def };
     } catch (err) {

@@ -11,7 +11,7 @@ import { secTicker } from './sec';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type FinnhubKind = 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'history';
+export type FinnhubKind = 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'history' | 'peers';
 
 export interface FinnhubProfile {
   name: string;
@@ -208,7 +208,15 @@ export function parseCalendarHistory(text: string): Parsed<PastReport[]> {
   return { data: rows };
 }
 
-const PARSE: Record<FinnhubKind, (t: string) => Parsed<unknown>> = { profile: parseProfile, metric: parseMetric, recommendation: parseRecommendation, earnings: parseEarnings, calendar: (t) => parseCalendar(t), history: parseCalendarHistory };
+/** /stock/peers: the tickers in the same sub-industry, the company's own among them. */
+export function parsePeers(text: string): Parsed<string[]> {
+  const j = json(text);
+  if (j === undefined) return { error: 'The answer was not JSON' };
+  if (!Array.isArray(j)) return { error: refusal(j) ?? 'No list in the answer' };
+  return { data: j.filter((x: unknown): x is string => typeof x === 'string' && /^[A-Z][A-Z0-9.]{0,9}$/.test(x)) };
+}
+
+const PARSE: Record<FinnhubKind, (t: string) => Parsed<unknown>> = { profile: parseProfile, metric: parseMetric, recommendation: parseRecommendation, earnings: parseEarnings, calendar: (t) => parseCalendar(t), history: parseCalendarHistory, peers: parsePeers };
 
 export interface FinnhubPart<T = unknown> {
   state: 'loading' | 'ok' | 'error' | 'needs-key' | 'budget' | 'off';
