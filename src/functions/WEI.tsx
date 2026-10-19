@@ -56,8 +56,8 @@ export function WEI({ route }: FnProps) {
         <thead>
           <tr>
             <th>Index</th>
-            <th className="hide-m">Name</th>
-            <th className="hide-m">Intraday</th>
+            <th className="hide-m hide-n">Name</th>
+            <th className="hide-m hide-n">Intraday</th>
             <th className="num">Value</th>
             <th className="num">Net Chg</th>
             <th className="num">%Chg</th>
@@ -83,8 +83,8 @@ export function WEI({ route }: FnProps) {
                         {d.ticker}
                       </SecLink>
                     </td>
-                    <td className="hide-m">{d.name}</td>
-                    <td className="hide-m">
+                    <td className="hide-m hide-n">{d.name}</td>
+                    <td className="hide-m hide-n">
                       <Sparkline values={intra.c.subarray(0, intra.length)} width={90} height={14} />
                     </td>
                     <td className="num white">
