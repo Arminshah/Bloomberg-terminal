@@ -47,7 +47,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `RETURNS` | COMP comparison | Partial: rebased price returns | No comprehensive total-return/currency/hedging framework |
 | `TOTALRETURN` | TRA total return | Partial: paid-dividend reinvestment and benchmarks | Some indices are price-only; no complete corporate-action treatment |
 | `SPREAD` | HS relative history | Model: spreads/ratios and distribution statistics | Not a credit spread database or universal relative-value engine |
-| `BETA` | BETA regression | Model: daily-return raw/adjusted beta, alpha and R² | Limited benchmark, frequency and data history coverage |
+| `BETA` | BETA regression | Model: 2Y weekly (Friday-ending weeks) raw/adjusted beta, alpha, R² and standard error against the country's index; daily/monthly and 6M-5Y selectable | No BEL20 line yet (Belgium uses the STOXX Europe 600); limited data history coverage |
 | `VOLATILITY` | HVT volatility | Model: realised rolling volatility and percentiles | No market implied surface, skew/term structure or volatility cube |
 | `HEADLINES` | TOP headlines | Partial: official central-bank/statistics/regulator announcements | No Bloomberg News wire or full-text newsroom/archive |
 | `NEWS` | N news search | Partial: keyword/topic search of fetched announcements | No global licensed archive, advanced news classification or full-text search |

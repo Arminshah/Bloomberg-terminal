@@ -70,3 +70,29 @@ export function fedPath(months: FedMonth[], meetings: string[], current: number,
   }
   return out;
 }
+
+/** One policy move as WIRP counts it, in bp. */
+export const MOVE_BP = 25;
+
+export interface MeetingMoves {
+  /** Implied change from today's rate to the rate after the meeting, bp. */
+  cumBp: number;
+  /** #Hikes/Cuts: 25 bp moves priced from today's rate to after the meeting. */
+  cumMoves: number;
+  /** Cumulative %Hike/Cut: cumulative change ÷ 25 bp in percent, uncapped (140% = 35 bp); positive hikes, negative cuts. */
+  cumPct: number;
+  /** Change priced at this meeting alone, from the rate going into it, bp. */
+  stepBp: number;
+  /** % probability of a move at this meeting alone: |step| ÷ 25 bp, capped at 100%. */
+  stepProb: number;
+}
+
+/**
+ * WIRP columns for a meeting from the expected rates going into it (`start`) and after it (`end`) and today's rate,
+ * all in percent. Cumulative figures run from today's rate; the probability is the meeting's own step.
+ */
+export function meetingMoves(start: number, end: number, current: number, moveBp = MOVE_BP): MeetingMoves {
+  const cumBp = (end - current) * 100;
+  const stepBp = (end - start) * 100;
+  return { cumBp, cumMoves: cumBp / moveBp, cumPct: (cumBp / moveBp) * 100, stepBp, stepProb: Math.min(100, (Math.abs(stepBp) / moveBp) * 100) };
+}

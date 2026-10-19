@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { euroAreaCode, parseAbsCsv, parseBoeColumns, parseBubaCsv, parseJsonStat, parseMofCsv, parseOnsCsv, parseOnsMonths, parseRbaTable, parseSgs, parseSnbCube, parseStatcanVectors, parseValetGroup } from '../src/data/live/official';
 import { parseFomcCalendar, parseNyFedLatest } from '../src/data/live/policy';
 import { obsToBars, OFFICIAL_LINES, parseSource } from '../src/data/live/govyields';
-import { fedPath } from '../src/data/fedpath';
+import { fedPath, meetingMoves } from '../src/data/fedpath';
 import { centralBanks, releaseDays } from '../src/data/eco';
 import { isoToDay } from '../src/data/calendar';
 
@@ -218,6 +218,33 @@ describe('fed funds futures path', () => {
   it('needs a current rate and a calendar', () => {
     expect(fedPath(months, meetings, NaN, now)).toEqual([]);
     expect(fedPath(months, [], 3.88, now)).toEqual([]);
+  });
+
+  it('counts WIRP moves cumulatively from today and the probability per meeting', () => {
+    const [oct, dec, jan] = path.map((p) => meetingMoves(p.start, p.end, 3.88));
+    // October: 3.88 -> 3.93 (November's average), +5 bp = 0.2 moves = 20%, all of it at this meeting.
+    expect(oct.cumBp).toBeCloseTo(5, 9);
+    expect(oct.cumMoves).toBeCloseTo(0.2, 9);
+    expect(oct.cumPct).toBeCloseTo(20, 9);
+    expect(oct.stepProb).toBeCloseTo(20, 9);
+    // December: after = (4.07 × 31 - 3.93 × 9) / 22 = 4.127273; +24.73 bp from today = 98.91%, +19.73 bp at the meeting = 78.91%.
+    expect(dec.cumBp).toBeCloseTo((90.8 / 22 - 3.88) * 100, 9);
+    expect(dec.cumPct).toBeCloseTo(98.909091, 5);
+    expect(dec.stepProb).toBeCloseTo(78.909091, 5);
+    // January: after = February's average 4.23; +35 bp from today = 1.4 moves = 140%, above 100%,
+    // while this meeting alone prices 4.23 - 4.127273 = 10.27 bp = 41.09%.
+    expect(jan.cumBp).toBeCloseTo(35, 9);
+    expect(jan.cumMoves).toBeCloseTo(1.4, 9);
+    expect(jan.cumPct).toBeCloseTo(140, 9);
+    expect(jan.stepProb).toBeCloseTo(41.090909, 5);
+  });
+
+  it('signs cuts negative and caps only the per-meeting probability', () => {
+    // From 4.33%: 37.5 bp of cuts at the first meeting, 12.5 bp more at the second.
+    const first = meetingMoves(4.33, 3.955, 4.33);
+    expect([first.cumBp, first.cumMoves, first.cumPct, first.stepBp, first.stepProb].map((v) => +v.toFixed(9))).toEqual([-37.5, -1.5, -150, -37.5, 100]);
+    const second = meetingMoves(3.955, 3.83, 4.33);
+    expect([second.cumBp, second.cumPct, second.stepBp, second.stepProb].map((v) => +v.toFixed(9))).toEqual([-50, -200, -12.5, 50]);
   });
 });
 

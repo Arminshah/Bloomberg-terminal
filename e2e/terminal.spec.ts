@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { checkAmericanOption, checkBond, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from './calculator-checks';
+import { checkAmericanOption, checkBond, checkBondConventions, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from './calculator-checks';
 import { checkLinkedPanels } from './workspace-checks';
 
 // Keep runs deterministic: no live network feeds.
@@ -242,6 +242,7 @@ test('bond and FX forward calculators solve independent examples, reject invalid
   expect(csv).toContain('Actual/Actual ICMA');
   expect(csv).toContain('2030-01-01');
   expect(csv).toContain('User-entered contract terms');
+  await checkBondConventions(page, execute);
   await checkForward(page, execute);
   expect(errors).toEqual([]);
 });

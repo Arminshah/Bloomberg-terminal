@@ -4,9 +4,27 @@ These screens perform calculations from your inputs. They do not obtain executab
 
 ## Bonds: BONDCALC / YAS
 
-Regular fixed-rate bullet, face value 100 for quoted prices, nonnegative annual coupon, 1/2/4/12 coupons per year, unadjusted payment dates and Actual/Actual ICMA accrual between regular coupon dates. Enter the contractual settlement date; no business-day or settlement lag is inferred. Maturity anchors the schedule and preserves end-of-month dates. Maturities up to 200 years are supported.
+Regular fixed-rate bullet, face value 100 for quoted prices, nonnegative annual coupon, 1/2/4/12 coupons per year and unadjusted payment dates. Maturity anchors the schedule and preserves end-of-month dates; a maturity on a month end makes it an end-of-month bond. Maturities up to 200 years are supported.
 
-Nominal annual yield is compounded at coupon frequency. Clean price is discounted cash flows less accrued interest; dirty price includes accrued. Solving from a positive clean price searches the admissible yield domain above minus 100 times the frequency in percent, without the previous -5%/60% clamp. Extreme inputs outside numerical range are rejected.
+**Day count.** Choose Actual/Actual ICMA (the default), 30/360 US, 30E/360, Actual/360 or Actual/365 Fixed. A is the days from the previous coupon to settlement, E the days in the coupon period and DSC the days from settlement to the next coupon, counted as the SIA Standard Securities Calculation Methods and Excel's PRICE, YIELD and COUPDAYS functions count them:
+
+| Basis | A | E | DSC |
+|---|---|---|---|
+| Actual/Actual ICMA | actual days | actual days in the regular period | actual days |
+| 30/360 US | 30/360 with the SIA end-of-month rules | 360 / frequency | E − A |
+| 30E/360 (Eurobond basis) | 30E/360 | 360 / frequency | E − A |
+| Actual/360 | actual days | 360 / frequency | actual days |
+| Actual/365 Fixed | actual days | 365 / frequency | actual days |
+
+Accrued interest is `coupon / frequency × A / E`. The dirty price discounts the first cash flow DSC/E periods and each later one a whole period more; clean price is dirty less accrued. Price, yield, accrued interest, duration, scenarios, the cash-flow PVs and the Z-spread target (clean + accrued) all use the chosen basis, so the accrued fraction and the fractional exponent always agree.
+
+30/360 US applies, in order: (1) an end-of-month bond with both dates on the last day of February: D2 = 30; (2) an end-of-month bond with D1 on the last day of February: D1 = 30; (3) D2 = 31 and D1 = 30 or 31: D2 = 30; (4) D1 = 31: D1 = 30. Days = 360 × (Y2 − Y1) + 30 × (M2 − M1) + (D2 − D1). Rules 3 and 4 alone are ISDA 2006 section 4.16(f), "Bond Basis". 30E/360 (ISDA 2006 section 4.16(g)) turns a 31st on either date into the 30th and has no February rule. Actual/360 and Actual/365 Fixed accrue the coupon rate × actual days / 360 or 365, so a full period can accrue slightly more or less than coupon / frequency and a coupon-date price at yield = coupon is not exactly par. Actual/Actual ICMA (ICMA Rule 251) on a regular period accrues coupon / frequency × actual days accrued / actual days in the period; unlike Actual/Actual ISDA it does not split the period at a year end.
+
+Tests reproduce Microsoft's published Excel examples (30/360: PRICE 94.63, YIELD 6.5%, ACCRINT 16.666667; actual/actual: COUPDAYBS 71, COUPDAYS 181, COUPDAYSNC 110), the 30/360 Bond Basis and 30E/360 tables of ISDA's "30/360 Day Count Conventions" (2008), the matching 30/360 US table with the SIA rules, and ISDA's 1998 Actual/Actual ICMA-versus-ISDA example.
+
+**Settlement.** Settlement is the trade date plus a lag of business days: T+1 (US Treasuries, and US corporates since the SEC's T+1 rule of 28 May 2024) by default, T+2 for European government bonds, corporates and Eurobonds, or T+0/T+3. A selected bond from a non-US country defaults to T+2. UK gilts and JGBs settle T+1: choose it. The lag skips weekends only; no exchange or national holiday calendar is applied, so check a holiday in the window yourself. Typing a settlement date switches to a manual date; changing the trade date returns to the lag.
+
+Nominal annual yield is compounded at coupon frequency. Clean price is discounted cash flows less accrued interest; dirty price includes accrued. Solving from a positive clean price searches the admissible yield domain above minus 100 times the frequency in percent, without the previous -5%/60% clamp. Extreme inputs outside numerical range are rejected. In the final coupon period the price still compounds over the fractional period; the SIA simple-interest convention for that last period is not applied.
 
 Macaulay and modified duration are in years; convexity is the second dirty-price derivative divided by dirty price. DV01 is positive modified duration times dirty price times 0.0001, per 100 face; the face-amount figure scales it. Scenarios reprice the bond rather than applying only duration. The 32nds display rounds to 1/64; decimal values retain greater precision. Invoice and risk scale by your face amount.
 
@@ -85,3 +103,13 @@ Annual dollar volatility uses sample covariance. Position contribution is `Cov(p
 Benchmark beta/correlation, tracking error and information ratio pair identical start **and** end dates. Portfolio returns here are historical current-exposure shock P&L divided by current NAV; benchmark returns use historical USD price ratios. These are risk comparisons, not realised active-manager performance. At least 20 matched observations are required. Sharpe is not inferred from a mismatched Treasury series or unknown financing rate.
 
 Stress tests fully reprice linear positions under independent local-price and USD-per-currency shocks, including the price×FX cross term; cash stays fixed. FX moves must exceed −100%, price moves must be at least −100%. Options and yield-curve repricing, corporate actions, financing, margin calls and transaction costs are not modelled. Exposure allocation uses **absolute gross notional**, so long/short hedges do not cause allocation weights to divide by zero. Risk/history CSVs record methods, dates, inputs, current sources and scenarios.
+
+## Historical beta: BETA
+
+The default is Bloomberg's: two years of **weekly** returns against the security's local index, with 6M, 1Y, 2Y and 5Y ranges and daily, weekly or monthly returns selectable (actions 11, 12 and 13), and any relative index typed in. The default index follows the security's country: US SPX, Belgium BEL20 (the STOXX Europe 600 while the app has no BEL20 line), Germany DAX, France CAC, Netherlands AEX, UK UKX, Switzerland SMI, Spain IBEX, Italy FTSEMIB, Japan NKY and Hong Kong HSI. Other countries keep the regional rule (Americas SPX, EMEA STOXX Europe 600, Asia-Pacific NKY); an index is never regressed on itself (SPX uses the Dow).
+
+The range runs back the chosen number of calendar months from the earlier of the two lines' last bars. Weeks run Saturday to Friday: each week's return is from the last available close of one week to the last of the next, so a week whose Friday is a holiday ends on its last session, and weekend bars belong to the following week. Months end on their last session; daily returns use the sessions both lines share. A period counts only when both lines have a close in it, and each return spans the same interval for both. Returns are simple price returns (yield changes for rates); the current period counts with its latest close. Raw beta, alpha (per period), R², correlation and the standard error of beta come from OLS of security on index returns; adjusted beta is `0.67 × raw + 0.33`.
+
+## Rate probabilities: RATEPROBS / WIRP
+
+`#Hikes/Cuts` is cumulative: the implied rate after a meeting minus today's rate, divided by 25 bp. `Cum. %Hike/Cut` is the same cumulative change ÷ 25 bp in percent, uncapped and signed (+140% is 35 bp of hikes priced by that meeting, −100% one full cut). `% Prob of move (this mtg)` is the move priced at that meeting alone, from the rate going into it, ÷ 25 bp and capped at 100%. `Cum. Δ bp` is the cumulative implied change in basis points.
