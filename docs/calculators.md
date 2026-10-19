@@ -112,4 +112,4 @@ The range runs back the chosen number of calendar months from the earlier of the
 
 ## Rate probabilities: RATEPROBS / WIRP
 
-`#Hikes/Cuts` is cumulative: the implied rate after a meeting minus today's rate, divided by 25 bp. `Cum. %Hike/Cut` is the same cumulative change ÷ 25 bp in percent, uncapped and signed (+140% is 35 bp of hikes priced by that meeting, −100% one full cut). `% Prob of move (this mtg)` is the move priced at that meeting alone, from the rate going into it, ÷ 25 bp and capped at 100%. `Cum. Δ bp` is the cumulative implied change in basis points.
+The columns follow Bloomberg's WIRP. `#Hikes/Cuts` is cumulative: the implied rate after a meeting minus today's rate, divided by 25 bp. `%Hike/Cut` is the move priced at that meeting alone, from the rate going into it, ÷ 25 bp in percent, signed and uncapped (+140% is one hike fully priced and a 40% chance of a second at that meeting, −100% one full cut). `Imp. rate Δ bp` is the cumulative implied change in basis points.

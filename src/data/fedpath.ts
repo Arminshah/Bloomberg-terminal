@@ -79,11 +79,16 @@ export interface MeetingMoves {
   cumBp: number;
   /** #Hikes/Cuts: 25 bp moves priced from today's rate to after the meeting. */
   cumMoves: number;
-  /** Cumulative %Hike/Cut: cumulative change ÷ 25 bp in percent, uncapped (140% = 35 bp); positive hikes, negative cuts. */
+  /** Cumulative change ÷ 25 bp in percent (#Hikes/Cuts × 100), uncapped; positive hikes, negative cuts. */
   cumPct: number;
   /** Change priced at this meeting alone, from the rate going into it, bp. */
   stepBp: number;
-  /** % probability of a move at this meeting alone: |step| ÷ 25 bp, capped at 100%. */
+  /**
+   * %Hike/Cut as Bloomberg's WIRP shows it: this meeting's own priced move ÷ 25 bp in percent, signed and uncapped,
+   * so -116% is a full cut priced and a 16% chance of a second one at that meeting.
+   */
+  stepPct: number;
+  /** The same move as a probability of one 25 bp move at this meeting, capped at 100%. */
   stepProb: number;
 }
 
@@ -94,5 +99,5 @@ export interface MeetingMoves {
 export function meetingMoves(start: number, end: number, current: number, moveBp = MOVE_BP): MeetingMoves {
   const cumBp = (end - current) * 100;
   const stepBp = (end - start) * 100;
-  return { cumBp, cumMoves: cumBp / moveBp, cumPct: (cumBp / moveBp) * 100, stepBp, stepProb: Math.min(100, (Math.abs(stepBp) / moveBp) * 100) };
+  return { cumBp, cumMoves: cumBp / moveBp, cumPct: (cumBp / moveBp) * 100, stepBp, stepPct: (stepBp / moveBp) * 100, stepProb: Math.min(100, (Math.abs(stepBp) / moveBp) * 100) };
 }

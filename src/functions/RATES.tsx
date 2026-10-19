@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { XYChart } from '../components/chart/XYChart';
 import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
-import { fmtDay, fmtNum, fmtPct } from '../core/format';
+import { fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
 import { CURVES, curveAt, curveMembers, interp, tenorLabel } from '../data/curves';
@@ -529,7 +529,7 @@ const WIRP_BANKS = [
 ];
 
 const WIRP_NOTE =
-  '#Hikes/Cuts and Cum. %Hike/Cut count 25 bp moves from today’s rate to the implied rate after each meeting: Cum. %Hike/Cut is the cumulative change ÷ 25 bp, so +140% is 35 bp of hikes (one move and 40% of a second) and -100% one full cut. % Prob of move is the move priced at that meeting alone, capped at 100%. Cum. Δ bp is the implied rate after the meeting minus today’s rate.';
+  'As on Bloomberg’s WIRP: #Hikes/Cuts counts the 25 bp moves priced from today’s rate to after each meeting (cumulative); %Hike/Cut is the move priced at that meeting alone ÷ 25 bp, signed and uncapped, so +140% is one hike fully priced and a 40% chance of a second at that meeting, and -100% one full cut. Imp. rate Δ is the implied rate after the meeting minus today’s rate.';
 
 /** Column headers shared by the real and simulated WIRP tables. */
 function WirpHead() {
@@ -538,10 +538,9 @@ function WirpHead() {
       <tr>
         <th>Meeting</th>
         <th className="num" title="Cumulative: 25 bp moves priced from today's rate to after the meeting">#Hikes/Cuts</th>
-        <th className="num" title="Cumulative implied change ÷ 25 bp; can exceed 100%; + hike, - cut">Cum. %Hike/Cut</th>
-        <th className="num" title="This meeting alone: its own priced move ÷ 25 bp, capped at 100%">% Prob of move (this mtg)</th>
+        <th className="num" title="This meeting alone: its own priced move ÷ 25 bp, signed and uncapped (+ hike, - cut)">%Hike/Cut</th>
         <th className="num">Imp. rate</th>
-        <th className="num" title="Cumulative: implied rate after the meeting minus today's rate, bp">Cum. Δ bp</th>
+        <th className="num" title="Cumulative: implied rate after the meeting minus today's rate, bp">Imp. rate Δ bp</th>
       </tr>
     </thead>
   );
@@ -554,10 +553,7 @@ function WirpCells({ m }: { m: MeetingMoves }) {
         <Chg v={m.cumMoves} dec={2} />
       </td>
       <td className="num">
-        <Chg v={m.cumPct} dec={1} pct />
-      </td>
-      <td className="num">
-        <span className={m.stepBp >= 0 ? 'up' : 'dn'}>{fmtPct(m.stepProb, 1, false)}</span> {m.stepBp >= 0 ? 'hike' : 'cut'}
+        <Chg v={m.stepPct} dec={1} pct />
       </td>
     </>
   );

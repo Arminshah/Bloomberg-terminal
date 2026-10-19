@@ -237,6 +237,8 @@ describe('fed funds futures path', () => {
     expect(jan.cumMoves).toBeCloseTo(1.4, 9);
     expect(jan.cumPct).toBeCloseTo(140, 9);
     expect(jan.stepProb).toBeCloseTo(41.090909, 5);
+    // Bloomberg's %Hike/Cut: this meeting's own move, signed and uncapped.
+    expect(jan.stepPct).toBeCloseTo(41.090909, 5);
   });
 
   it('signs cuts negative and caps only the per-meeting probability', () => {
@@ -245,6 +247,8 @@ describe('fed funds futures path', () => {
     expect([first.cumBp, first.cumMoves, first.cumPct, first.stepBp, first.stepProb].map((v) => +v.toFixed(9))).toEqual([-37.5, -1.5, -150, -37.5, 100]);
     const second = meetingMoves(3.955, 3.83, 4.33);
     expect([second.cumBp, second.cumPct, second.stepBp, second.stepProb].map((v) => +v.toFixed(9))).toEqual([-50, -200, -12.5, 50]);
+    expect(+first.stepPct.toFixed(9)).toBe(-150);
+    expect(+second.stepPct.toFixed(9)).toBe(-50);
   });
 });
 
