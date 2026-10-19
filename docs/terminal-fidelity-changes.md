@@ -23,6 +23,17 @@ Both images use the visibly labelled simulated browser demo. They demonstrate pr
 
 ## Verification
 
-Validation results are recorded in the pull request. Checks include lint, TypeScript, the full unit suite, browser workflows for every registered function and the new interactions, and a production build. Visual inspection covers 1600×1000, 1280×800 and 390×800; at the two narrower sizes the page has no horizontal overflow and footer GO remains visible.
+Completed local verification on 19 October 2026:
+
+| Check | Result |
+| --- | --- |
+| ESLint and TypeScript | Pass |
+| Production Vite build | Pass |
+| Unit suite | 689 tests across 52 files pass |
+| Chromium browser workflows | 27 pass, including rendering every registered function |
+| Linux Electron workflows | 22 pass through the real desktop renderer and IPC boundary |
+| Visual inspection | 1600×1000, 1280×800 and 390×800; no page horizontal overflow at the two narrower sizes and footer GO remains visible |
+
+The desktop suite uses synthetic provider responses and disposable profiles. It establishes application behavior, not live entitlement or native Windows installation. Browser and desktop runs were completed separately so a browser build could not remove files while Electron was launching.
 
 No licensed Bloomberg session or owner provider credentials were available for a side-by-side data comparison. Bloomberg reporting, exchange entitlements, economic consensus, dealer quotes, messaging counterparties, execution and spreadsheet services remain separate gaps. The audit distinguishes connected data, local models and unavailable workflows; a mnemonic alias does not establish service equivalence. Existing released installers are unchanged by this source update.

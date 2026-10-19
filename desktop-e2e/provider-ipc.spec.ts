@@ -480,7 +480,8 @@ test('the explicit IEX source switch supplies watchlist and quote prices with on
   await expect(row.getByRole('cell').nth(2)).toHaveText(PRICE);
   await expect(row.getByRole('cell').nth(5)).toHaveText('123.40');
   await expect(row.getByRole('cell').nth(6)).toHaveText('123.50');
-  await expect(row.getByRole('cell').nth(2).locator('[title]')).toHaveAttribute('title', /IEX/i);
+  // The selected-field wrapper and live price both carry provenance; inspect the cell's field wrapper.
+  await expect(row.getByRole('cell').nth(2).locator(':scope > span[title]')).toHaveAttribute('title', /IEX/i);
   await expect(row.locator('.stale-px')).toHaveCount(0);
   await command(page, 'AAPL QUOTE');
   const quote = page.locator('.panel').first();
