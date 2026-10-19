@@ -19,6 +19,12 @@ This release merges the 2.7.1 and 2.7.2 work with fixes for keys, European stock
 - When Yahoo's summary has no share count (KBC, for example), it comes from the last reported balance sheet; the stock loads either way.
 - `COMPANYNEWS` and `QUOTE` show Yahoo Finance's headline feed for any stock, European ones included. `MARKETNEWS` adds Euronext's latest company press releases. Switches: `YAHOO_RSS_ENABLED`, `EURONEXT_RSS_ENABLED`.
 
+## News and events
+
+- `TOP` opens the market news, as on the real terminal. The official central bank, regulator and statistics announcements stay on `HEADLINES`, and `MARKETNEWS` has "4) Official" to reach them. A panel or layout saved on `TOP` before keeps showing the announcements.
+- `COMPANYNEWS` for a stock on a Euronext market (Brussels, Paris, Amsterdam, Lisbon, Dublin) adds that company's press releases from Euronext's feed, matched on the issuer's name without legal forms or accents; a short first word cannot match on its own, so KBC Group does not pick up KBC Ancora's releases. Euronext's feed only holds its 10 latest releases, so most stocks will see few.
+- `EVENTS` has filters: 11) All, 12) Watchlist (the active list's stocks) and 13) Portfolio. It opens on the watchlist when that list has a stock.
+
 ## Heatmap and market caps
 
 - `HEATMAP` showed only the stocks whose profile had been opened (APLD, for example). Share counts came from Yahoo's quote endpoint, which needs the session Yahoo refuses until its EU cookie terms are accepted; without a share count a stock has no market cap and is left off the map. Share counts now also come from Yahoo's fundamentals series, which needs no session: one request per stock, 1.5 seconds apart, starting 15 seconds after launch, kept for a week. The map fills in over the first two minutes after the first start. The quote endpoint's count still wins when it answers.
@@ -43,7 +49,7 @@ FMP's free plan covers a fixed sample of about 87 symbols; other symbols answer 
 
 ## Why 2.8.0 was not published
 
-The first fix for `OPTIONCALC` rounded the time to expiry down to the minute. That made a value up to a minute off, and the release check that solves for a 20% implied volatility read 19.9997%. 2.8.1 takes the time when an input changes instead. All checks pass: lint, types, 570 unit tests, 17 browser workflows and 21 desktop workflows, including a new one for TipRanks with synthetic answers.
+The first fix for `OPTIONCALC` rounded the time to expiry down to the minute. That made a value up to a minute off, and the release check that solves for a 20% implied volatility read 19.9997%. 2.8.1 takes the time when an input changes instead. All checks pass: lint, types, 576 unit tests, 18 browser workflows and 21 desktop workflows, including new ones for TipRanks (synthetic answers) and the events filters.
 
 ## Downloads
 
