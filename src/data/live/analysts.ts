@@ -4,6 +4,7 @@ import type { SecurityDef } from '../types';
 import { secTicker } from './sec';
 import type { KeyedAnswer } from './lookup';
 import { loadYahooAnalysts, retryYahooAnalysts } from './yahoo-research';
+import { createWants, registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
  * Analyst research from Financial Modeling Prep, asked by the desktop app's main process with the owner's
@@ -311,6 +312,27 @@ export async function requestAnalysts(def: SecurityDef | undefined, kinds: Analy
   return (await waitFor(analystData, settled, ms)) ?? parts();
 }
 
+/** The research open screens show, by symbol and kind, for the top bar's REFRESH. */
+const shown = createWants<{ symbol: string; kind: AnalystKind }>();
+
+/**
+ * The top bar's REFRESH: the research on screen is asked for again, keeping what is shown until the answers arrive.
+ * The main process keeps FMP's answers younger than an hour, for its daily allowance; Finnhub and Yahoo are asked.
+ */
+export async function refreshAnalysts(): Promise<RefreshOutcome[]> {
+  asked.clear();
+  retryYahooAnalysts();
+  const list = shown.values();
+  if (!list.length) return [];
+  await Promise.all(list.map((x) => load(x.symbol, x.kind)));
+  const parts = list.map((x) => analystData.get().by[x.symbol]?.[x.kind]);
+  const failed = parts.filter((p) => !p || p.state === 'error' || p.stale).length;
+  const symbols = new Set(list.map((x) => x.symbol)).size;
+  return [{ source: 'Analyst research (FMP, Finnhub, Yahoo)', state: failed === parts.length ? 'failed' : 'asked', detail: `${symbols} ${symbols === 1 ? 'stock' : 'stocks'}, ${parts.length - failed} of ${parts.length} sections current; FMP answers younger than an hour kept` }];
+}
+
+registerRefresh({ source: 'Analyst research (FMP, Finnhub, Yahoo)', available: analystsAvailable, run: refreshAnalysts });
+
 /** Asks for the research a screen shows; parts arrive in analystData. */
 export function useAnalysts(def: SecurityDef | undefined, kinds: AnalystKind[]): ByKind {
   const symbol = analystSymbol(def);
@@ -321,5 +343,10 @@ export function useAnalysts(def: SecurityDef | undefined, kinds: AnalystKind[]):
     if (!symbol || !analystsAvailable()) return;
     for (const k of want.split(',') as AnalystKind[]) void load(symbol, k);
   }, [symbol, want, retry]);
+  useEffect(() => {
+    if (!symbol) return;
+    const offs = (want.split(',') as AnalystKind[]).map((kind) => shown.add(`${symbol}:${kind}`, { symbol, kind }));
+    return () => offs.forEach((off) => off());
+  }, [symbol, want]);
   return parts ?? {};
 }

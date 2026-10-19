@@ -25,6 +25,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+Tab / Ctrl+Shift+Tab', 'Next / previous panel'],
   ['Alt+← / Alt+→', 'Back / forward'],
   ['F1 / HELP', 'Help for the current function; press twice for the local help assistant'],
+  ['Alt+R / ↻ REFRESH', 'Ask every source the open screens and the background use for fresh data now (desktop app)'],
   ['F2 F3 F4 F5 F6 F7', 'GOVT CORP MTGE M-MKT MUNI PFD market sector keys'],
   ['F8 F9 F10 F11 F12', 'EQUITY CMDTY INDEX CRNCY PORT market sector keys'],
   ['PgUp / PgDn', 'PAGE BACK / PAGE FWD'],

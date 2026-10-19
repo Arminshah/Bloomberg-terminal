@@ -45,6 +45,8 @@ The data readers are tested on saved provider answers (`tests/fixtures/`) or on 
 | `panel-links.test.ts` | Real command/registry compatibility, monitor publishing, separate groups, hidden/incompatible panels, back/forward cursors, bounded histories, preset restoration and aliases |
 | `navigation-race.test.ts` | A pending online ticker lookup cannot overwrite a newer linked-panel security selection |
 | `store.test.ts` | Immediate reload/close flushes pending state so the latest screen and groups survive without waiting for the debounce |
+| `refresh.test.ts` | The REFRESH registry (every source at once, the main process first, a second click ignored, slow and failing sources reported), the main process treating kept answers from before a click as expired while keeping young answers of sources with a daily allowance and its caps and pacing, and news requests in use asked again |
+| `favalerts.test.ts` | Favourite pop-ups: once per story by link and title, newest on top, dismissing one or all, the caps, kept across a restart, and which stories count as about a favourite |
 | `finance.test.ts` | Black-Scholes, Treasury math, indicators and statistics |
 | `contracts.test.ts` | Independent bond yield/price and finite-difference risk checks, zero-volatility option limits, covered interest parity, dual-curve swap PV/par/coupon/curve risk, date/curve/input boundaries |
 | `option-chain.test.ts` | Indicative-only read-only request boundary, OCC decoding, missing fields, event ages, sequential pagination, repeated tokens, page limits, partial failures and credentials/entitlements |
@@ -64,6 +66,8 @@ The shared `e2e/workspace-checks.ts` workflow runs in Chromium and Electron: lin
 `npm run e2e:desktop` launches the pinned Electron version with real main/preload/IPC. Fake keys and fixed transport responses in disposable profiles verify provider refusals, IEX price ownership, option-chain pagination, adjusted roots, sorting across display pages, old source times, partial entitlement failures and invalid IPC rejection. They do not validate live providers or real API keys.
 
 Version 2.7.2 additionally exercises simultaneous FMP 402/Finnhub 401 recovery through Yahoo, full repeated-prefix Finnhub keys and immediate replacement-key recovery, missing-profile lookup, automatic Equibles fallback/cache reuse, live socket status without HTTP ledger entries, sticky provider names, Treasury timeout recovery SEC reporting-currency changes, quarterly trailing totals versus fiscal years, ended quarterly tagging and mixed revenue/EPS currencies for foreign issuers. These use explicitly synthetic fixtures.
+
+REFRESH and favourite pop-ups: the button asks Alpaca's company news again although the main process holds it for ten minutes, Alt+R does the same, and its tooltip names what was left to the daily allowances; a story about a favourite published while the app was closed pops up, stays through a reload, is listed on `BREAKING FAV`, and does not come back once dismissed.
 
 Research regressions exercise a denied FMP target alongside working annual estimates and Finnhub counts, explicit Equibles queries and cache reuse, literal HTML in report text, denied arbitrary MCP tools, refusal recovery, and APLD-specific access checks. The published 2.4.1 Yahoo session/chart fallback and key-import regressions are retained.
 

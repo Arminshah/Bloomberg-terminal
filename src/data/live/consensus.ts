@@ -6,6 +6,7 @@ import type { SecurityDef } from '../types';
 import { finnhubAvailable, finnhubData, finnhubSymbol, loadFinnhub, type EpsSurprise, type FinnhubPart, type NextReport, type PastReport } from './finnhub';
 import { desktopData, yahooGet, yahooSymbolFor } from './yahoo';
 import { getRealFund } from './yfund';
+import { createWants, registerRefresh } from '../../terminal/refresh';
 
 /**
  * What analysts expected of a company's quarterly reports, against what it reported: EPS and revenue, for the last
@@ -365,9 +366,10 @@ function due(e: Entry | undefined, now: number): boolean {
 
 /**
  * Loads a stock's earnings expectations (desktop app); `front` puts it ahead of the queue. A calendar of many stocks
- * leaves out Finnhub (`finnhub` false), whose 30 requests a minute are shared with the news.
+ * leaves out Finnhub (`finnhub` false), whose 30 requests a minute are shared with the news. `force` (the top bar's
+ * REFRESH) asks Yahoo again whether due or not.
  */
-export function requestConsensus(def: SecurityDef | undefined, front = false, finnhub = true) {
+export function requestConsensus(def: SecurityDef | undefined, front = false, finnhub = true, force = false) {
   if (!def?.eq || !desktopData()) return;
   const fs = finnhubSymbol(def);
   if (finnhub && fs && finnhubAvailable()) {
@@ -377,7 +379,7 @@ export function requestConsensus(def: SecurityDef | undefined, front = false, fi
   }
   const now = Date.now();
   const have = consensusData.get().by[def.id];
-  if (!due(have, now)) return;
+  if (have?.state === 'loading' || (!force && !due(have, now))) return;
   const symbol = yahooSymbolFor(def) ?? def.yahoo;
   if (!symbol) return;
   if (queue.some((j) => j.id === def.id)) {
@@ -431,6 +433,23 @@ export function consensusFor(def: SecurityDef): Consensus {
   return { ...merged, problems, loading };
 }
 
+/** The stocks open screens show, with whether Finnhub is asked for them, for the top bar's REFRESH. */
+const shown = createWants<{ def: SecurityDef; finnhub: boolean }>();
+
+registerRefresh({
+  source: 'Earnings expectations (Yahoo, Finnhub)',
+  available: desktopData,
+  run: async () => {
+    const list = shown.values().filter((x) => x.def.eq && (yahooSymbolFor(x.def) ?? x.def.yahoo));
+    if (!list.length) return [];
+    for (const x of list) requestConsensus(x.def, false, x.finnhub, true);
+    const by = () => consensusData.get().by;
+    await waitFor(consensusData, () => (list.every((x) => by()[x.def.id]?.state !== 'loading') ? true : undefined), 40_000);
+    const failed = list.filter((x) => by()[x.def.id]?.state === 'error').length;
+    return { source: 'Earnings expectations (Yahoo, Finnhub)', state: failed === list.length ? 'failed' : 'asked', detail: `${list.length - failed} of ${list.length} stocks answered` };
+  },
+});
+
 /** Loads and keeps a stock's expectations fresh while a screen shows them. */
 export function useConsensus(def: SecurityDef | undefined): Consensus | null {
   // Re-renders as Yahoo, Finnhub or a kept estimate arrives.
@@ -440,7 +459,11 @@ export function useConsensus(def: SecurityDef | undefined): Consensus | null {
   useEffect(() => {
     requestConsensus(def, true);
     const t = setInterval(() => requestConsensus(def), 15 * 60_000);
-    return () => clearInterval(t);
+    const off = def ? shown.add(`${def.id}|finnhub`, { def, finnhub: true }) : () => undefined;
+    return () => {
+      clearInterval(t);
+      off();
+    };
   }, [def]);
   return def?.eq ? consensusFor(def) : null;
 }
@@ -451,7 +474,10 @@ export function useConsensusFor(defs: SecurityDef[], max = 60): number {
   const f = finnhubData.use((s) => s.v);
   const key = defs.slice(0, max).map((d) => d.id).join(',');
   useEffect(() => {
-    for (const d of defs.slice(0, max)) requestConsensus(d, false, false);
+    const list = defs.slice(0, max);
+    for (const d of list) requestConsensus(d, false, false);
+    const offs = list.map((d) => shown.add(d.id, { def: d, finnhub: false }));
+    return () => offs.forEach((off) => off());
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return v + f;
 }

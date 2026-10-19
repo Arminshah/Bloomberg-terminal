@@ -124,6 +124,8 @@ test('default workspace renders four live panels and the watchlist column', asyn
   await expect(page.locator('.market-timer').first()).toHaveAccessibleName(/Euronext: regular session (open|closed), (opens|closes) in .*Open market calendar/);
   await expect(page.locator('.market-timer').nth(1)).toHaveAccessibleName(/NYSE: regular session (open|closed), (opens|closes) in .*Open market calendar/);
   await expect(page.locator('.clock').first()).toContainText('BRUSSELS');
+  // The demo has no data source to ask again, so there is no REFRESH button.
+  await expect(page.locator('.tb-refresh')).toHaveCount(0);
   const first = await page.locator('.panel').nth(1).locator('.qstrip .px').textContent();
   await page.waitForTimeout(2500);
   const later = await page.locator('.panel').nth(1).locator('.qstrip .px').textContent();

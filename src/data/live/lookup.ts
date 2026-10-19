@@ -56,6 +56,8 @@ declare global {
       providersSelfTest?(): Promise<{ at: number; version: string; platform: string; report: string; results: { id: string; label: string; state: 'pass' | 'fail' | 'skip' | 'off'; status?: number; ms?: number; detail: string }[] }>;
       providersImport?(text: string): Promise<{ ok: boolean; error?: string; saved: string[]; skipped: { line?: number; name?: string; reason: string }[]; notes?: { line: number; name: string; note: string }[]; credentials: import('../providers').ProviderReport['credentials'] }>;
       providersSetting?(name: string, value: boolean): Promise<{ ok: boolean; error?: string; settings: import('../providers').ProviderReport['settings'] }>;
+      /** The top bar's REFRESH: answers kept from before it count as expired for `windowMs`, except the providers in `kept`. */
+      refresh?(): Promise<{ at: number; windowMs: number; keepMs: number; kept: string[] }>;
       streamOpen?(): Promise<void>;
       streamSend?(msg: string): Promise<void>;
       streamClose?(): Promise<void>;

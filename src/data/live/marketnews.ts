@@ -3,6 +3,7 @@ import { createStore } from '../../core/store';
 import { shortName } from '../news';
 import type { SecurityDef } from '../types';
 import { feedText, parseFeed } from './officialnews';
+import { registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
  * Market and company news, apart from the official announcements: Finnhub (market news, mergers and a
@@ -456,11 +457,17 @@ const PARSE: Record<NewsSource, (t: string, arg: string) => MarketStory[] | { er
 };
 
 const lastAsked = new Map<string, number>();
+/** Each request a screen or the background asked for, with its interval, and when it last asked (throttled or not). */
+const wanted = new Map<string, { source: NewsSource; arg: string; minMs: number; at: number }>();
 
 /** Asks one source; at most once in `minMs` per request, whatever the screens ask for. */
 export async function loadNews(source: NewsSource, arg = '', minMs = 60_000): Promise<void> {
   const key = arg ? `${source}:${arg}` : source;
-  if (!newsAvailable() || Date.now() - (lastAsked.get(key) ?? 0) < minMs) return;
+  if (!newsAvailable()) return;
+  wanted.delete(key);
+  wanted.set(key, { source, arg, minMs, at: Date.now() });
+  if (wanted.size > 400) wanted.delete(wanted.keys().next().value!);
+  if (Date.now() - (lastAsked.get(key) ?? 0) < minMs) return;
   lastAsked.set(key, Date.now());
   const set = (f: FeedState, list?: MarketStory[]) =>
     marketNews.set((s) => ({ v: s.v + 1, feeds: { ...s.feeds, [key]: f }, lists: list ? { ...s.lists, [key]: list } : s.lists }));
@@ -499,6 +506,44 @@ function retryLater(key: string, minMs: number) {
   failures.set(key, n);
   lastAsked.set(key, Date.now() - minMs + Math.min(minMs, 60_000 * 2 ** (n - 1)));
 }
+
+/** Every screen and the background ask for their news at least every five minutes: a request wanted within this is in use. */
+const IN_USE_MS = 6 * 60_000;
+/** The sources about one company; the rest are market news. */
+const COMPANY_SOURCES: NewsSource[] = ['finnhub-company', 'alpaca-company', 'massive-company', 'yahoo-rss', 'google-news-company', 'marketaux'];
+const PROVIDER_WORD: [string, string][] = [
+  ['finnhub', 'Finnhub'], ['alpaca', 'Alpaca'], ['massive', 'Massive'], ['google-news', 'Google News'], ['yahoo-rss', 'Yahoo Finance'],
+  ['euronext', 'Euronext'], ['edgar', 'SEC 8-K'], ['marketwatch', 'MarketWatch'], ['marketaux', 'Marketaux'],
+];
+const providerWord = (source: string) => PROVIDER_WORD.find(([p]) => source.startsWith(p))?.[1] ?? source;
+
+/**
+ * The top bar's REFRESH: every request in use (asked for in the last six minutes by a screen or the background) is
+ * asked again now, whatever its interval, and the report says how many answered. The main process still keeps
+ * Marketaux's answers for an hour, for its daily allowance.
+ */
+export async function refreshNews(now = Date.now()): Promise<RefreshOutcome[]> {
+  const list = [...wanted.entries()].filter(([, w]) => now - w.at < IN_USE_MS);
+  for (const [key] of list) {
+    lastAsked.delete(key);
+    failures.delete(key);
+  }
+  await Promise.all(list.map(([, w]) => loadNews(w.source, w.arg, w.minMs)));
+  const feeds = marketNews.get().feeds;
+  const outcome = (source: string, keys: string[]): RefreshOutcome[] => {
+    if (!keys.length) return [];
+    const failed = keys.filter((k) => feeds[k]?.state === 'error' || feeds[k]?.stale);
+    const off = keys.filter((k) => ['off', 'needs-key', 'budget'].includes(feeds[k]?.state ?? '')).length;
+    const names = [...new Set(failed.map(providerWord))];
+    const asked = `${keys.length - off} asked${off ? `; ${off} not sent (switched off, no key or allowance spent)` : ''}`;
+    return [{ source, state: failed.length ? 'failed' : 'asked', detail: failed.length ? `${asked}; ${failed.length} did not answer (${names.join(', ')})` : asked }];
+  };
+  const company = list.filter(([, w]) => COMPANY_SOURCES.includes(w.source)).map(([k]) => k);
+  const market = list.filter(([, w]) => !COMPANY_SOURCES.includes(w.source)).map(([k]) => k);
+  return [...outcome('Market and breaking news', market), ...outcome('Company news', company)];
+}
+
+registerRefresh({ source: 'News', available: newsAvailable, run: () => refreshNews() });
 
 const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
 

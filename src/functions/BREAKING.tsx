@@ -8,7 +8,9 @@ import type { SecurityDef } from '../data/types';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { favourites, watchlists } from '../terminal/userdata';
+import { dismissAllFavAlerts, dismissFavAlert, favAlerts } from '../terminal/favalerts';
 import type { FnProps } from '../terminal/types';
+import { fmtDate, fmtTime } from '../core/format';
 import { ageText, feedWord, StoryList } from './MNEWS';
 
 const HOUR = 3_600_000;
@@ -41,6 +43,45 @@ function aboutThese(all: MarketStory[], found: MarketStory[], defs: SecurityDef[
   const ids = new Set(found.map((s) => s.id));
   const tickers = defs.map(rootTicker);
   return mergeStories([found, all.filter((s) => !ids.has(s.id) && s.tickers.some((t) => tickers.some((x) => sameTicker(t, x))))]);
+}
+
+/** The pop-ups about favourites not dismissed yet, newest first, with the same actions as the pop-ups themselves. */
+function NotDismissed({ panel, now }: { panel: number; now: number }) {
+  const open = favAlerts.use((s) => s.open);
+  if (!open.length) return null;
+  return (
+    <div className="fav-missed" role="region" aria-label="Pop-ups about your favourites not dismissed">
+      <div className="fav-missed-head">
+        <span>
+          ★ {open.length} pop-up{open.length === 1 ? '' : 's'} not dismissed
+        </span>
+        <button type="button" className="btn" onClick={dismissAllFavAlerts}>
+          Dismiss all
+        </button>
+      </div>
+      {open.map((a) => (
+        <div key={a.id} className="fav-missed-row">
+          <span className="time" title={`Published ${fmtDate(a.time)} ${fmtTime(a.time)}`}>
+            {ageText(now - a.time)}
+          </span>
+          {a.sec ? (
+            <button type="button" className="link" title={`${a.sec}: company news (COMPANYNEWS)`} onClick={() => execute(panel, `${a.sec} COMPANYNEWS`)}>
+              {a.tickers.join(' ')}
+            </button>
+          ) : (
+            <span className="link">{a.tickers.join(' ')}</span>
+          )}
+          <a href={a.url} target="_blank" rel="noreferrer noopener" title={a.title} onClick={() => dismissFavAlert(a.id)}>
+            {a.title}
+          </a>
+          <span className="src">{a.publisher}</span>
+          <button type="button" className="toast-x" aria-label={`Dismiss: ${a.title}`} title="Dismiss" onClick={() => dismissFavAlert(a.id)}>
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -123,6 +164,7 @@ export function BREAKING({ route }: FnProps) {
         <input id={`bn-q-${panel}`} className="inp" style={{ width: 200 }} value={q} placeholder="keyword or ticker…" onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
         <span className="muted hide-m">NEW: published in the last 15 minutes · 2×: carried by two sources · refreshed every 1 to 3 minutes while open</span>
       </div>
+      {scope === 'fav' ? <NotDismissed panel={panel} now={now} /> : null}
       {!newsAvailable() ? (
         <div className="empty">Breaking news is read by the desktop app; the browser build has no data source.</div>
       ) : (
@@ -130,8 +172,8 @@ export function BREAKING({ route }: FnProps) {
       )}
       <div className="note">
         Every market news source (Finnhub, Benzinga through Alpaca, Massive, Google News&apos;s search of the last hour, MarketWatch if switched on, the SEC&apos;s 8-K filings, Euronext), the official announcements and your
-        favourites&apos; news. Alpaca&apos;s free plan delivers stories 15 minutes after publication; Google lists a story when it finds it. New stories on your favourites and central bank announcements pop up while the app is
-        open (SETTINGS: Pop up flash headlines).
+        favourites&apos; news. Alpaca&apos;s free plan delivers stories 15 minutes after publication; Google lists a story when it finds it. New stories on your favourites pop up and stay until you close them (those not
+        dismissed are listed on 4) ★ Favourites); central bank announcements pop up for a few seconds (SETTINGS: Pop up flash headlines).
       </div>
     </div>
   );

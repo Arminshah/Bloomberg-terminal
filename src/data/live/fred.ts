@@ -1,5 +1,6 @@
 import { createStore } from '../../core/store';
 import { setFeed } from './status';
+import { registerRefresh } from '../../terminal/refresh';
 import { euroAreaCode, official, parseAbsCsv, parseJsonStat, parseOnsCsv, parseOnsMonths, parseStatcanVectors } from './official';
 import { FIRST_RELEASE_IDS, MACRO_SERIES } from '../macroseries';
 
@@ -446,11 +447,25 @@ export function startFred(): () => void {
   void first();
   const seriesTimer = setInterval(() => void loadSeries().then(report), 10 * 60_000);
   const calTimer = setInterval(() => void loadCalendars().then(report), 12 * 3600_000);
+  // A refresh asks for the values again; release dates (asked twice a day) only when none have loaded yet.
+  const offRefresh = registerRefresh({
+    source: 'Economic data (FRED, ONS, Eurostat, StatCan, ABS)',
+    run: async () => {
+      const source = 'Economic data (FRED, ONS, Eurostat, StatCan, ABS)';
+      await Promise.all([loadSeries(), Object.keys(fredData.get().releases).length ? Promise.resolve(true) : loadCalendars()]);
+      const fredOk = report();
+      const s = fredData.get();
+      if (fredOk) return { source, state: 'asked' };
+      if (s.needsKey || s.keyRefused) return { source, state: 'asked', detail: `statistics offices asked; FRED ${s.keyRefused ? 'refused the configured key' : 'needs FRED_API_KEY'} (PROVIDERS)` };
+      return { source, state: 'failed', detail: 'FRED did not answer' };
+    },
+  });
   return () => {
     stopped = true;
     reload = null;
     clearInterval(seriesTimer);
     clearInterval(calTimer);
     if (retry) clearTimeout(retry);
+    offRefresh();
   };
 }

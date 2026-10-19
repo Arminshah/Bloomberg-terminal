@@ -1,4 +1,5 @@
 import { createStore } from '../../core/store';
+import { registerRefresh } from '../../terminal/refresh';
 
 /**
  * Market capitalisation and circulating supply for the listed coins from
@@ -90,8 +91,11 @@ export function startCoinGecko(): () => void {
   };
   void load();
   const timer = setInterval(() => void load(), REFRESH_MS);
+  // A refresh leaves these alone: the free plan's calls are counted by the month, and the figures move slowly.
+  const offRefresh = registerRefresh({ source: 'CoinGecko market caps', run: () => ({ source: 'CoinGecko market caps', state: 'skipped', detail: 'asked every 10 minutes (monthly allowance)' }) });
   return () => {
     stopped = true;
     clearInterval(timer);
+    offRefresh();
   };
 }

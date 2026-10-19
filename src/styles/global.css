@@ -151,6 +151,13 @@ button { cursor: pointer; }
 .layout-icon { display: inline-grid; gap: 1px; width: 14px; height: 10px; }
 .layout-icon i { background: currentColor; opacity: 0.85; }
 .tb-spacer { flex: 1; min-width: 8px; }
+/* REFRESH: the arrow turns while the sources are asked; amber when a source failed in the last refresh. */
+.tb-refresh .refresh-icon { display: inline-block; font-size: 13px; line-height: 1; }
+.tb-refresh .refresh-time { font-variant-numeric: tabular-nums; }
+.tb-refresh.busy { color: var(--amber); cursor: progress; }
+.tb-refresh.busy .refresh-icon { animation: spin 0.9s linear infinite; }
+.tb-refresh.warn .refresh-icon { color: var(--amber); }
+@keyframes spin { to { transform: rotate(360deg); } }
 .clock { display: flex; flex-direction: column; justify-content: center; flex: 0 0 auto; gap: 2px; padding: 2px 7px; border-left: 1px solid var(--line); white-space: nowrap; line-height: 1; }
 .clock-label { color: var(--amber); font-size: 9px; font-weight: 500; letter-spacing: 0.04em; }
 .clock-value { color: var(--white); font-size: var(--fs-s); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -530,6 +537,7 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .flash-up, .flash-dn { animation: none; }
   .tape-track { animation: none !important; }
+  .tb-refresh.busy .refresh-icon { animation: none; }
 }
 
 /* ---------------------------------------------------------- generic bits */
@@ -729,6 +737,33 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .toast .tt .time { margin-left: auto; color: var(--muted); }
 .toast .tb { color: var(--white); margin-top: 2px; }
 @keyframes toastIn { from { transform: translateY(-6px); opacity: 0; } }
+/* Pop-ups about favourites stay until closed: the tickers, the story's age, a close button, then the headline. */
+.toast.toast-fav { border-left-color: var(--amber); }
+.toast-fav .tt { align-items: center; }
+.toast-fav .fav-mark { color: var(--amber); }
+.toast-fav .fav-tickers { border: 0; background: transparent; padding: 0; color: var(--yellow); font: inherit; letter-spacing: 0.04em; }
+.toast-fav button.fav-tickers:hover { text-decoration: underline; }
+.toast-fav .tb { display: block; color: var(--white); text-decoration: none; }
+.toast-fav .tb:hover { text-decoration: underline; }
+.toast-fav .fav-pub { color: var(--muted); font-size: var(--fs-s); margin-top: 2px; }
+.toast .toast-x { border: 0; background: transparent; color: var(--muted); padding: 0 2px; font-size: 15px; line-height: 1; }
+.toast .toast-x:hover { color: var(--white); }
+.toast.toast-fav-more { display: flex; justify-content: flex-end; align-items: center; padding: 3px 10px; cursor: default; font-size: var(--fs-s); border-left-color: var(--amber-dim); }
+.toast-fav-more button { border: 0; background: transparent; color: var(--amber); padding: 0; font: inherit; }
+.toast-fav-more button:hover { text-decoration: underline; }
+/* BREAKING's ★ Favourites tab: the pop-ups not dismissed, above the stories. */
+.fav-missed { flex: none; max-height: 34%; overflow-y: auto; border-bottom: 1px solid var(--line); background: var(--bg-1); }
+.fav-missed-head { display: flex; align-items: center; gap: 8px; padding: 3px 8px; color: var(--amber); font-size: var(--fs-s); position: sticky; top: 0; background: var(--bg-2); }
+.fav-missed-head .btn { margin-left: auto; padding: 0 8px; }
+.fav-missed-row { display: grid; grid-template-columns: 64px auto minmax(0, 1fr) auto 18px; gap: 8px; align-items: baseline; padding: 2px 8px; border-top: 1px solid var(--line); }
+.fav-missed-row .time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.fav-missed-row .link { border: 0; background: transparent; padding: 0; color: var(--yellow); font: inherit; }
+.fav-missed-row .link:hover { text-decoration: underline; }
+.fav-missed-row a { color: var(--white); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fav-missed-row a:hover { text-decoration: underline; }
+.fav-missed-row .src { color: var(--muted); font-size: var(--fs-s); white-space: nowrap; }
+.fav-missed-row .toast-x { border: 0; background: transparent; color: var(--muted); padding: 0; font-size: 14px; line-height: 1; }
+.fav-missed-row .toast-x:hover { color: var(--white); }
 
 .overlay {
   position: fixed;

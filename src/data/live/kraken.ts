@@ -2,6 +2,7 @@ import { engine } from '../market';
 import { dayNum } from '../calendar';
 import type { ExtBar } from '../engine';
 import { setFeed } from './status';
+import { registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
  * Kraken's own market data for the crypto lines in the desktop app: the
@@ -224,6 +225,8 @@ const POLL_MS = 5_000;
 
 class KrakenData {
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** The ticker request under way, which a refresh joins rather than doubling. */
+  private polling: Promise<boolean> | null = null;
   private stopped = false;
   /** Per line: the UTC day its daily candles end on, and the close of the day before. */
   private prev = new Map<string, { day: number; close: number }>();
@@ -282,13 +285,33 @@ class KrakenData {
     if (!this.loaded.size) setFeed('crypto', 'error', 'Kraken: no daily candles (PROVIDERS shows why)');
   }
 
-  private async poll() {
-    if (this.stopped) return;
+  /** The top bar's REFRESH: the tickers now rather than at the next five-second poll. */
+  async refreshNow(): Promise<RefreshOutcome> {
+    if (this.stopped) return { source: 'Kraken crypto prices', state: 'skipped', detail: 'Kraken is not answering; Yahoo has the crypto lines' };
+    if (!this.polling && this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    const ok = await this.poll();
+    return { source: 'Kraken crypto prices', state: ok ? 'asked' : 'failed', detail: ok ? `${KRAKEN_PAIRS.length} pairs` : 'Kraken did not answer; prices marked stale' };
+  }
+
+  private poll(): Promise<boolean> {
+    this.polling ??= this.pollOnce().finally(() => {
+      this.polling = null;
+    });
+    return this.polling;
+  }
+
+  /** One ticker request; true when it answered. */
+  private async pollOnce(): Promise<boolean> {
+    if (this.stopped) return false;
+    let ok = false;
     try {
       const res = await ask('ticker', KRAKEN_PAIRS.map((p) => p.pair).join(','));
       if (res.disabled) {
         setFeed('crypto', 'off', 'Kraken is switched off (KRAKEN_ENABLED)');
-        return;
+        return false;
       }
       const tickers = res.text ? parseTicker(res.text) : new Map();
       if (!tickers.size) throw new Error(krakenReason(res));
@@ -327,6 +350,7 @@ class KrakenData {
       engine.flush(KRAKEN_PAIRS.map((p) => p.id));
       this.failures = 0;
       this.answered = true;
+      ok = true;
       const missing = KRAKEN_PAIRS.filter((p) => !this.loaded.has(p.id));
       setFeed('crypto', 'live', `Kraken: ${tickers.size} of ${KRAKEN_PAIRS.length} pairs, snapshot ${new Date(at).toISOString().slice(11, 19)} UTC${missing.length ? `; daily candles missing for ${missing.length}, asked again` : ''}`);
       if (rolled && !this.loading) {
@@ -348,13 +372,18 @@ class KrakenData {
       // With no daily candles either, one failed ticker is enough to tell.
       if (!this.answered && (this.failures >= HAND_BACK_AFTER || this.dailyOk === 0) && takeOver) {
         this.handBack(reason);
-        return;
+        return false;
       }
       engine.setStale(KRAKEN_PAIRS.map((p) => p.id), true);
       setFeed('crypto', 'error', `Kraken did not answer (${reason}); prices marked stale`);
     } finally {
-      if (!this.stopped) this.timer = setTimeout(() => void this.poll(), Math.min(60_000, POLL_MS * 2 ** Math.min(3, this.failures)));
+      if (!this.stopped) {
+        // One timer at a time, whether this poll came from the last one or from a refresh.
+        if (this.timer) clearTimeout(this.timer);
+        this.timer = setTimeout(() => void this.poll(), Math.min(60_000, POLL_MS * 2 ** Math.min(3, this.failures)));
+      }
     }
+    return ok;
   }
 
   /** Gives the crypto lines to another source for the rest of the session. */
@@ -389,7 +418,10 @@ export function startKraken(): () => void {
   if (!krakenAvailable() || !KRAKEN_PAIRS.some((p) => krakenOwns(p.id))) return () => undefined;
   service = new KrakenData();
   service.start();
+  const own = service;
+  const offRefresh = registerRefresh({ source: 'Kraken crypto prices', run: () => own.refreshNow() });
   return () => {
+    offRefresh();
     service?.stop();
     service = null;
   };

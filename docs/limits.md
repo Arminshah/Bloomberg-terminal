@@ -28,6 +28,28 @@ The keyed sources added in 2.1.0 share one way of asking: a request times out af
 | Anthropic | Own API key, billed per token | Rate limits by account tier | One request per step of an answer, 1 to 8 a question, at most 400 a day; only when you ask the help desk | As of each question; figures as the tools read them | Anthropic's commercial terms |
 | Alpaca | Own key ID/secret and dataset access | 200 historical calls/min; app pace 120/min shared | Stocks: 20 symbols/request, fair foreground/background polling, 4-second cache. Options: manual refresh, max 5 × 1,000-record pages, 15-second memory cache | Stocks: IEX only. Options: indicative quotes/delayed trades, never real-time OPRA. News: Benzinga's, 15 minutes after publication on the free plan, every 5 minutes (market) or 10 (a company) within the same pace | Personal, non-commercial use; account entitlement applies |
 
+## The REFRESH button
+
+↻ REFRESH in the top bar (Alt+R; F5 is a market sector key and Ctrl+Shift+R reloads the desktop window) asks again now for what the open screens and the background use, instead of waiting for each source's interval or throttle. It runs only in the desktop app; the browser build has no data source and no button. A second click while it runs does nothing.
+
+Asked again:
+
+- Yahoo quotes for every line (in requests of 50 symbols), today's minute bars for the lines on screen, and daily history that failed to load; the quotes for futures contract months and the rate path on screen;
+- Alpaca's IEX quotes (the next batch of up to 20 symbols) and Kraken's crypto tickers;
+- every news request a screen or the background asked for in the last six minutes: market and breaking news, and company news for your favourites, the watchlist and the securities on screen;
+- the official announcements, central bank rates, government bond yields, the US Treasury curve, and FRED and the statistics offices' values (FRED's release calendars only if none loaded);
+- the fundamentals, earnings expectations, analyst research and Finnhub company data of the companies on screen, and the SEC filings and option chains on screen.
+
+The main process keeps answers for a while (`electron/requests.cjs`, the SEC cache). For two minutes after a click, an answer kept from before it counts as expired there, so these requests reach the sources. Pacing, the pause after repeated failures and the daily ceilings above still apply to each one.
+
+Not asked again:
+
+- Marketaux, Financial Modeling Prep, Equibles, Alpha Vantage, Twelve Data and Tiingo keep answers younger than an hour: their daily allowances are small, and a click must not spend them. An older answer is asked for again, within the daily ceiling;
+- TipRanks is asked only when you ask on `ANALYSTS` (50 calls a month), and CoinGecko's market caps every 10 minutes (10,000 calls a month);
+- what changes rarely or never: daily history already loaded, `CROSSCHECK`'s closes of completed sessions (kept an hour), the SEC's company list and filed documents, peer groups, index members and the index ETFs' dividends.
+
+The button then shows the time the refresh finished; its tooltip lists each source as asked again, failed, still loading (no answer within 45 seconds; it shows when it arrives) or not asked again, with the reason.
+
 ## What no free source here covers
 
 Each of these screens says so instead of showing a number:

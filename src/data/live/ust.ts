@@ -3,6 +3,7 @@ import { dayNum } from '../calendar';
 import type { ExtBar } from '../engine';
 import { setFeed } from './status';
 import { loadJson, saveJson } from '../../core/store';
+import { registerRefresh } from '../../terminal/refresh';
 
 /**
  * Official US Treasury par yields (home.treasury.gov) for the desktop app:
@@ -140,18 +141,29 @@ export function startTreasury(): () => void {
     merge(new Map(Object.entries(lines).map(([id, days]) => [id, new Map(days)])));
   }
   if (history.size) apply();
-  const refreshCurrent = async () => {
-    const current = await loadYear(new Date().getUTCFullYear(), false, active);
-    if (stopped) return;
-    if (current && apply().length) {
-      failures = 0;
-      setFeed('rates', 'live', 'US Treasury par yields, end of day');
-    } else {
-      failures++;
-      setFeed('rates', 'error', history.size ? 'The US Treasury did not answer for this year; earlier observations remain shown; retrying automatically' : 'US Treasury yields unavailable right now; retrying automatically');
-    }
-    timer = setTimeout(() => void refreshCurrent(), failures ? Math.min(5, 2 ** (failures - 1)) * 60_000 : 30 * 60_000);
-  };
+  let running: Promise<boolean> | null = null;
+  const refreshCurrent = (): Promise<boolean> =>
+    (running ??= (async () => {
+      clearTimeout(timer);
+      const current = await loadYear(new Date().getUTCFullYear(), false, active);
+      if (stopped) return false;
+      const ok = !!current && apply().length > 0;
+      if (ok) {
+        failures = 0;
+        setFeed('rates', 'live', 'US Treasury par yields, end of day');
+      } else {
+        failures++;
+        setFeed('rates', 'error', history.size ? 'The US Treasury did not answer for this year; earlier observations remain shown; retrying automatically' : 'US Treasury yields unavailable right now; retrying automatically');
+      }
+      timer = setTimeout(() => void refreshCurrent(), failures ? Math.min(5, 2 ** (failures - 1)) * 60_000 : 30 * 60_000);
+      return ok;
+    })().finally(() => {
+      running = null;
+    }));
+  const offRefresh = registerRefresh({
+    source: 'US Treasury yield curve',
+    run: async () => ((await refreshCurrent()) ? { source: 'US Treasury yield curve', state: 'asked' } : { source: 'US Treasury yield curve', state: 'failed', detail: 'the Treasury did not answer; earlier observations stay' }),
+  });
   void (async () => {
     // The current year puts today's levels on screen; last year next, for year-to-date and one-year changes.
     await refreshCurrent();
@@ -171,5 +183,6 @@ export function startTreasury(): () => void {
   return () => {
     stopped = true;
     clearTimeout(timer);
+    offRefresh();
   };
 }

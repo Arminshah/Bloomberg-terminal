@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { createStore } from '../../core/store';
 import type { SecurityDef } from '../types';
 import { secTicker } from './sec';
+import { createWants, registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
  * Company data from Finnhub's free plan, asked by the desktop app's main process with the owner's key
@@ -279,6 +280,25 @@ export async function loadFinnhub(symbol: string, kind: FinnhubKind): Promise<Fi
   return part;
 }
 
+/** The parts open screens show, by symbol and kind, for the top bar's REFRESH. */
+const shown = createWants<{ symbol: string; kind: FinnhubKind }>();
+
+/**
+ * The top bar's REFRESH: every company's ten-minute wait is lifted (fundamentals and earnings expectations ask
+ * through here too), and the parts on screen are asked for again, keeping what is shown until they arrive.
+ */
+export async function refreshFinnhub(): Promise<RefreshOutcome[]> {
+  asked.clear();
+  const list = shown.values();
+  if (!list.length) return [];
+  const parts = await Promise.all(list.map((x) => loadFinnhub(x.symbol, x.kind)));
+  if (parts.some((p) => p?.state === 'off' || p?.state === 'needs-key')) return [{ source: 'Finnhub company data', state: 'skipped', detail: 'switched off or without a key (PROVIDERS)' }];
+  const failed = parts.filter((p) => !p || p.state === 'error' || p.stale).length;
+  return [{ source: 'Finnhub company data', state: failed === parts.length ? 'failed' : 'asked', detail: `${parts.length - failed} of ${parts.length} requests answered` }];
+}
+
+registerRefresh({ source: 'Finnhub company data', available: finnhubAvailable, run: refreshFinnhub });
+
 /** Asks for the parts a screen shows; they arrive in finnhubData. */
 export function useFinnhub(def: SecurityDef | undefined, kinds: FinnhubKind[]): ByKind {
   const symbol = finnhubSymbol(def);
@@ -289,5 +309,10 @@ export function useFinnhub(def: SecurityDef | undefined, kinds: FinnhubKind[]): 
     if (!symbol || !finnhubAvailable()) return;
     for (const k of want.split(',') as FinnhubKind[]) void loadFinnhub(symbol, k);
   }, [symbol, want, retry]);
+  useEffect(() => {
+    if (!symbol) return;
+    const offs = (want.split(',') as FinnhubKind[]).map((kind) => shown.add(`${symbol}:${kind}`, { symbol, kind }));
+    return () => offs.forEach((off) => off());
+  }, [symbol, want]);
   return parts ?? {};
 }

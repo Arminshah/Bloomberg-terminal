@@ -13,6 +13,7 @@ import { YahooStream, type Tick } from './ystream';
 import { TREASURY_IDS, treasuryAvailable } from './ust';
 import { krakenOwns, whenKrakenHandsBack } from './kraken';
 import { iexOwns } from './iex-engine';
+import { registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
  * Real market data for the desktop app from Yahoo Finance, fetched by the
@@ -474,6 +475,11 @@ class YahooData {
   private intradayActive = 0;
   private offDemand?: () => void;
   private quoteTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The quote request under way, which a refresh joins rather than doubling. */
+  private polling: Promise<{ ok: number; asked: number }> | null = null;
+  /** Lines whose history failed and waits for its next try, and those loading now. */
+  private historyFailed = new Map<string, Target>();
+  private historyLoading = new Set<string>();
   private intradayTimer: ReturnType<typeof setInterval> | null = null;
   private failures = 0;
   private known = 0;
@@ -713,9 +719,11 @@ class YahooData {
   }
 
   private async loadHistory(t: Target) {
+    this.historyLoading.add(t.id);
     try {
       const chart = await yahooGet(`/v8/finance/chart/${encodeURIComponent(t.symbol)}?range=10y&interval=1d&events=div%2Csplit&includePrePost=false`);
       const { bars, dividends, splits, gmtOffset } = barsFromChart(chart, t.invert, t.allDays);
+      this.historyFailed.delete(t.id);
       // Some lines come with no history beyond the current session; the quote still makes them real.
       if (bars.length < 1) return;
       t.gmtOffset = gmtOffset * 1000;
@@ -723,18 +731,23 @@ class YahooData {
     } catch {
       // A network error or rate limit: try again later, waiting longer each time (10 minutes at most).
       const tries = (t.tries ?? 0) + 1;
+      this.historyFailed.set(t.id, { ...t, tries });
       if (!this.stopped) {
         setTimeout(() => {
-          if (this.stopped || this.loaded.has(t.id)) return;
+          // Loaded meanwhile, or already asked again (a refresh): nothing to do.
+          if (this.stopped || this.loaded.has(t.id) || !this.historyFailed.has(t.id) || this.historyQueue.some((x) => x.id === t.id) || this.historyLoading.has(t.id)) return;
           this.historyQueue.push({ ...t, tries });
           this.pumpHistory();
         }, Math.min(600_000, 5_000 * 2 ** tries));
       }
+    } finally {
+      this.historyLoading.delete(t.id);
     }
   }
 
   private applyHistory(t: Target, bars: ExtBar[], dividends: Dividend[], splits: Split[]) {
     if (iexOwns(t.id)) return;
+    this.historyFailed.delete(t.id);
     engine.setExternalDaily(t.id, bars, { provider: YAHOO_PROVIDER });
     realDividends.set(t.id, dividends);
     realSplits.set(t.id, splits);
@@ -752,8 +765,29 @@ class YahooData {
     this.status();
   }
 
-  private async pollQuotes() {
-    if (this.stopped) return;
+  /** Asks for quotes now, or joins the request under way, then schedules the next one. */
+  private async pollQuotes(): Promise<{ ok: number; asked: number }> {
+    if (this.stopped) return { ok: 0, asked: 0 };
+    if (this.quoteTimer) clearTimeout(this.quoteTimer);
+    this.quoteTimer = null;
+    this.polling ??= this.pollOnce().finally(() => {
+      this.polling = null;
+    });
+    const result = await this.polling;
+    if (!this.stopped && !this.quoteTimer) {
+      // The stream carries prices as they change; polling fills in the rest (volume, bid and offer,
+      // market state) every 30 s, or every 10 s while the stream is down. Back off on errors.
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+      const streaming = !!this.stream?.connected;
+      const base = hidden ? 60_000 : streaming ? 30_000 : 10_000;
+      const delay = Math.min(120_000, base * 2 ** Math.min(3, this.failures));
+      this.quoteTimer = setTimeout(() => void this.pollQuotes(), delay);
+    }
+    return result;
+  }
+
+  /** One round of quote requests, 50 symbols each: how many symbols were asked for and how many answered. */
+  private async pollOnce(): Promise<{ ok: number; asked: number }> {
     this.sync();
     const all = [...this.bySymbol.keys()].filter((sym) => this.bySymbol.get(sym)!.length);
     const changed: string[] = [];
@@ -811,13 +845,27 @@ class YahooData {
       this.failures = 0;
       this.lastPollOk = Date.now();
     } else if (!this.loaded.size) setFeed('market', 'error', 'Yahoo Finance unreachable: no prices until it answers');
-    // The stream carries prices as they change; polling fills in the rest (volume, bid and offer,
-    // market state) every 30 s, or every 10 s while the stream is down. Back off on errors.
-    const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
-    const streaming = !!this.stream?.connected;
-    const base = hidden ? 60_000 : streaming ? 30_000 : 10_000;
-    const delay = Math.min(120_000, base * 2 ** Math.min(3, this.failures));
-    this.quoteTimer = setTimeout(() => void this.pollQuotes(), delay);
+    return { ok, asked: all.length };
+  }
+
+  /**
+   * The top bar's REFRESH: quotes now, today's minute bars for the lines on screen, and another try for any history
+   * that failed to load, instead of waiting for their timers.
+   */
+  async refreshNow(): Promise<RefreshOutcome[]> {
+    if (this.stopped) return [];
+    for (const id of this.intradayWanted.keys()) this.intradayAt.delete(id);
+    this.refreshIntraday();
+    const retry = [...this.historyFailed.values()].filter((t) => !this.loaded.has(t.id) && !this.historyLoading.has(t.id) && !this.historyQueue.some((x) => x.id === t.id));
+    if (retry.length) {
+      this.historyQueue.unshift(...retry.map((t) => ({ ...t, tries: 0 })));
+      this.pumpHistory();
+    }
+    const { ok, asked } = await this.pollQuotes();
+    const charts = this.intradayWanted.size ? `; today's minute bars for ${this.intradayWanted.size} on screen` : '';
+    const history = retry.length ? `; history asked again for ${retry.length}` : '';
+    if (!asked) return [];
+    return [{ source: 'Yahoo quotes', state: ok ? 'asked' : 'failed', detail: ok ? `${ok} of ${asked} symbols answered${charts}${history}` : `no answer for ${asked} symbols${charts}${history}` }];
   }
 
   private wantIntraday(id: string) {
@@ -894,11 +942,14 @@ export function startYahooData(): () => void {
   if (!desktopData()) return () => undefined;
   let stopped = false;
   let unsub = () => undefined as void;
+  let offRefresh = () => undefined as void;
   const begin = () => {
     if (stopped) return;
     service = new YahooData();
     service.start();
     unsub = engine.subscribe(() => service?.sync());
+    const own = service;
+    offRefresh = registerRefresh({ source: 'Yahoo quotes', run: () => own.refreshNow() });
   };
   const report = window.arminDesktop?.providersStatus?.();
   if (!report) begin();
@@ -915,6 +966,7 @@ export function startYahooData(): () => void {
   return () => {
     stopped = true;
     unsub();
+    offRefresh();
     service?.stop();
     service = null;
   };

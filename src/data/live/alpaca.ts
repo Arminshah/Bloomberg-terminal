@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { createStore } from '../../core/store';
 import type { SecurityDef } from '../types';
 import { secTicker } from './sec';
+import { registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
  * IEX quotes from Alpaca's market data API, asked by the desktop app's main process with the owner's keys
@@ -230,6 +231,29 @@ async function poll() {
   }
   if (wanted.size && !halted) schedule(added ? 50 : next);
 }
+
+/**
+ * The top bar's REFRESH: the next batch of watched symbols now, instead of in up to a minute. More than twenty
+ * symbols take several requests, which follow every five seconds as usual.
+ */
+async function refreshIex(): Promise<RefreshOutcome[]> {
+  if (!wanted.size) return [];
+  halted = false;
+  if (inflight) {
+    added = true;
+    return [{ source: 'Alpaca IEX quotes', state: 'asked', detail: 'a request was already under way' }];
+  }
+  if (timer) clearTimeout(timer);
+  timer = null;
+  await poll();
+  const states = [...wanted.keys()].map((sym) => iex.get().by[sym]);
+  const ok = states.filter((x) => x?.state === 'ok' && !x.stale).length;
+  const off = states.some((x) => x?.state === 'off' || x?.state === 'needs-key');
+  if (off) return [{ source: 'Alpaca IEX quotes', state: 'skipped', detail: 'switched off or without keys (PROVIDERS)' }];
+  return [{ source: 'Alpaca IEX quotes', state: ok ? 'asked' : 'failed', detail: `${ok} of ${wanted.size} symbols current` }];
+}
+
+registerRefresh({ source: 'Alpaca IEX quotes', available: alpacaAvailable, run: refreshIex });
 
 /** After keys or switches change on PROVIDERS: ask again if a screen is waiting. */
 export function retryIex() {

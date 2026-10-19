@@ -13,7 +13,8 @@ function retryAfter(value, now) {
 /** Providers whose answers are RSS or Atom feeds rather than JSON. */
 const XML_PROVIDERS = new Set(['marketwatch', 'sec', 'yahoo-rss', 'euronext', 'google-news']);
 
-function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random = Math.random }) {
+// `refresh` (electron/refresh.cjs) says when a kept answer is out of date because the owner asked for fresh data.
+function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random = Math.random, refresh }) {
   const kept = new Map();
   const inflight = new Map();
   const breakers = new Map();
@@ -33,7 +34,7 @@ function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000
     const id = cacheId(provider, url, headers, secrets, userAgent, scopedTransport);
     const { cacheScope: _scope, ...transport } = scopedTransport ?? {};
     const old = kept.get(id);
-    if (old && now() - old.at < ttl) return { status: 200, text: old.text, at: old.at, cached: true };
+    if (old && now() - old.at < ttl && !refresh?.expired(provider, old.at)) return { status: 200, text: old.text, at: old.at, cached: true };
     if (inflight.has(id)) return inflight.get(id);
     const pending = send(provider, url, headers, pace, secrets, userAgent, id, old, transport);
     inflight.set(id, pending);

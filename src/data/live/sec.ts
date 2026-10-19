@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { SecurityDef } from '../types';
+import { useRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
  * SEC EDGAR, through the desktop app's main process (electron/sec.cjs): the
@@ -715,6 +716,19 @@ export function useSecLoad<T>(key: string | null, fn: (force: boolean) => Promis
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, nonce]);
   const reload = useCallback(() => setNonce((n) => n + 1), []);
+  // The top bar's REFRESH asks the SEC again (the main process answers again for filing lists and company facts).
+  useRefresh(
+    'SEC EDGAR filings and reported figures',
+    key && secAvailable()
+      ? async (): Promise<RefreshOutcome> => {
+          const result = await fn(true);
+          setState((s) => (s.key === key ? { ...s, result } : s));
+          const source = 'SEC EDGAR filings and reported figures';
+          if (result.ok) return { source, state: result.stale ? 'failed' : 'asked', ...(result.stale ? { detail: 'the SEC did not answer; the earlier copy stays' } : {}) };
+          return { source, state: result.reason === 'needs-agent' ? 'skipped' : 'failed', detail: result.reason === 'needs-agent' ? 'needs SEC_USER_AGENT (PROVIDERS)' : result.message };
+        }
+      : null,
+  );
   const current = state.key === key;
   return { result: current ? state.result : null, loading: !!key && (!current || state.nonce !== nonce), reload };
 }

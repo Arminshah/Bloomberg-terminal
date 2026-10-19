@@ -45,6 +45,7 @@ export function createRequester(dependencies: {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   random?: () => number;
+  refresh?: { expired(provider: string, keptAt: number): boolean };
 }): Requester;
 
 export function retryAfter(value: string | null | undefined, now: number): number;

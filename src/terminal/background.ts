@@ -14,11 +14,12 @@ import { startOfficialNews } from '../data/live/officialnews';
 import { startKraken } from '../data/live/kraken';
 import { startCoinGecko } from '../data/live/coingecko';
 import { alerts, favourites, newsAlerts } from './userdata';
-import { marketNews, newsAvailable, refreshBreaking, sameTicker, storiesFor, BREAKING_SOURCES, type MarketStory } from '../data/live/marketnews';
-import { LIST_REACH, refreshSecuritiesNews, securitiesNews } from '../data/live/secnews';
+import { marketNews, newsAvailable, refreshBreaking, storiesFor, BREAKING_SOURCES } from '../data/live/marketnews';
+import { LIST_REACH, refreshSecuritiesNews, securityNews } from '../data/live/secnews';
 import type { SecurityDef } from '../data/types';
 import { settings } from './settings';
 import { toast } from './toasts';
+import { addFavAlerts, favAlertsFrom, markWatched, watchSince } from './favalerts';
 
 let audio: AudioContext | null = null;
 function beep() {
@@ -113,40 +114,53 @@ function watchNews(): () => void {
 
 /**
  * Breaking pop-ups, while "Pop up flash headlines" is on (SETTINGS) in the desktop app: keeps the fast news sources
- * and your favourites' news fresh, and pops up each story about a favourite and each central bank announcement
- * published while the app is open. Older stories never pop up, and at most three a round do; more say how many.
+ * and your favourites' news fresh. Each story about a favourite pops up once and stays until you close it or click
+ * it (src/terminal/favalerts.ts), including one published while the app was closed, up to an hour before it
+ * opened. Each central bank announcement published while the app is open pops up for a few seconds, at most three
+ * a round; more say how many.
  */
 function watchBreaking(): () => void {
   if (!newsAvailable()) return () => undefined;
-  const since = Date.now();
-  const seen = new Set<string>();
+  const started = Date.now();
+  // Favourites' stories from the last look before a restart; after pop-ups are switched back on, only new ones.
+  let favSince = watchSince(started);
+  let flashes = settings.get().newsFlashes;
+  const seenBanks = new Set<string>();
   const favDefs = () => favourites.get().ids.map((id) => engine.get(id)).filter((d): d is SecurityDef => !!d);
   const refresh = () => {
     if (!settings.get().newsFlashes) return;
     refreshBreaking();
     refreshSecuritiesNews(favDefs(), LIST_REACH);
+    markWatched();
   };
   const check = () => {
     if (!settings.get().newsFlashes) return;
-    const defs = favDefs();
-    const tickers = defs.map((d) => d.ticker.split(' ')[0]);
-    const found = securitiesNews(defs, LIST_REACH);
-    const about = (s: MarketStory) => found.some((f) => f.id === s.id) || s.tickers.some((t) => tickers.some((x) => sameTicker(t, x)));
-    const fresh = [...found, ...storiesFor(BREAKING_SOURCES).filter(about)].filter((s) => s.time >= since && !seen.has(s.id));
-    const banks = news.get().stories.filter((s) => s.topics.includes('CB') && s.time >= since && !seen.has(`official:${s.id}`));
-    fresh.forEach((s) => seen.add(s.id));
-    banks.forEach((s) => seen.add(`official:${s.id}`));
-    const pops = [...fresh.map((s) => ({ title: `★ ${s.tickers[0] ?? 'FAVOURITE'} · ${s.publisher}`, body: s.title, command: 'BREAKING FAV' })), ...banks.map((s) => ({ title: `BREAKING · ${s.source}`, body: s.headline, command: 'BREAKING' }))];
-    pops.slice(0, 3).forEach((p) => toast({ ...p, kind: 'news' }, 12000));
-    if (pops.length > 3) toast({ title: 'BREAKING', body: `${pops.length - 3} more new stories on your favourites and the central banks`, kind: 'news', command: 'BREAKING FAV' }, 12000);
-    if (pops.length && settings.get().sound) beep();
+    const now = Date.now();
+    const found = favDefs()
+      .slice(0, 20)
+      .map((def) => ({ def, stories: securityNews(def, LIST_REACH).stories }));
+    const added = addFavAlerts(favAlertsFrom(found, storiesFor(BREAKING_SOURCES), favSince, now));
+    const banks = news.get().stories.filter((s) => s.topics.includes('CB') && s.time >= started && !seenBanks.has(s.id));
+    banks.forEach((s) => seenBanks.add(s.id));
+    banks.slice(0, 3).forEach((s) => toast({ title: `BREAKING · ${s.source}`, body: s.headline, command: 'BREAKING', kind: 'news' }, 12000));
+    if (banks.length > 3) toast({ title: 'BREAKING', body: `${banks.length - 3} more central bank announcements`, kind: 'news', command: 'BREAKING' }, 12000);
+    if ((added.length || banks.length) && settings.get().sound) beep();
   };
+  const offSettings = settings.subscribe(() => {
+    const on = settings.get().newsFlashes;
+    if (on && !flashes) {
+      favSince = Date.now();
+      refresh();
+    }
+    flashes = on;
+  });
   refresh();
   const timer = setInterval(refresh, 60_000);
   const offMarket = marketNews.subscribe(check);
   const offNews = news.subscribe(check);
   return () => {
     clearInterval(timer);
+    offSettings();
     offMarket();
     offNews();
   };

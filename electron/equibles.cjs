@@ -76,7 +76,7 @@ function rpcProblem(_provider, _url, text) {
   return null;
 }
 
-function createEquiblesAccount({ providers, fetch, agent, now = Date.now, sleep, random }) {
+function createEquiblesAccount({ providers, fetch, agent, now = Date.now, sleep, random, refresh }) {
   // One account at a time. Neither the key nor the session can cross into the renderer.
   let account = '';
   let session = '';
@@ -87,7 +87,7 @@ function createEquiblesAccount({ providers, fetch, agent, now = Date.now, sleep,
     providers.recordProblem('equibles', kind, message);
     return { status: 0, text: '', error: message };
   };
-  const broker = createRequester({ providers, agent, now, sleep, random, validate: rpcProblem,
+  const broker = createRequester({ providers, agent, now, sleep, random, refresh, validate: rpcProblem,
     fetch: async (url, init) => {
       const body = JSON.parse(init.body);
       const response = await fetch(url, { ...init, redirect: 'error' });

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { createStore } from '../../core/store';
 import { fmtStamp } from '../../core/format';
 import { desktopData, timingOf, yahooGet } from './yahoo';
+import { createWants, registerRefresh } from '../../terminal/refresh';
 
 /**
  * Quotes for symbols outside the universe, on demand (desktop app): futures
@@ -15,6 +16,8 @@ type Json = any;
 const cache = new Map<string, { q: Json | null; at: number }>();
 const inflight = new Set<string>();
 export const extraQuotes = createStore({ v: 0 });
+/** The symbols open screens show, for the top bar's REFRESH. */
+const shown = createWants<string[]>();
 
 async function fetchBatch(symbols: string[]) {
   for (const s of symbols) inflight.add(s);
@@ -48,7 +51,11 @@ export function useYahooQuotes(symbols: string[], refreshMs = 60_000): Map<strin
     };
     refresh();
     const timer = setInterval(refresh, Math.min(refreshMs, 60_000));
-    return () => clearInterval(timer);
+    const off = shown.add(key, symbols);
+    return () => {
+      clearInterval(timer);
+      off();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, refreshMs]);
   const out = new Map<string, Json>();
@@ -58,6 +65,19 @@ export function useYahooQuotes(symbols: string[], refreshMs = 60_000): Map<strin
   }
   return out;
 }
+
+registerRefresh({
+  source: 'Yahoo quotes for contract months',
+  available: desktopData,
+  run: async () => {
+    const symbols = [...new Set(shown.values().flat())].filter((s) => !inflight.has(s));
+    if (!symbols.length) return [];
+    const asked = Date.now();
+    await fetchBatch(symbols);
+    const got = symbols.filter((s) => cache.get(s)?.q && cache.get(s)!.at >= asked).length;
+    return { source: 'Yahoo quotes for contract months', state: got ? 'asked' : 'failed', detail: `${got} of ${symbols.length} symbols answered` };
+  },
+});
 
 /**
  * How the source times a table of its quotes, for the table's header: "delayed

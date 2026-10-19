@@ -112,6 +112,19 @@ ipcMain.handle('providers:clear', (event, name) => {
   return { ok: true, credentials: providers.credentialStatus() };
 });
 
+// ---------------------------------------------------------------- Refresh
+// The top bar's REFRESH (electron/refresh.cjs): for two minutes, answers kept here from before the click count as
+// expired, so the page's requests reach the sources again. Sources with a daily allowance (the DAILY table in
+// electron/providers.cjs) and TipRanks' monthly one keep answers younger than an hour; pacing and caps still apply.
+const { createRefresh, WINDOW_MS: REFRESH_WINDOW_MS, KEEP_MS: REFRESH_KEEP_MS } = require('./refresh.cjs');
+const ALLOWANCE_KEPT = [...Object.keys(providers.DAILY).filter((p) => p !== 'anthropic'), 'tipranks'];
+const refresh = createRefresh({ capped: (provider) => ALLOWANCE_KEPT.includes(provider) });
+
+ipcMain.handle('refresh', (event) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  return { at: refresh.mark(), windowMs: REFRESH_WINDOW_MS, keepMs: REFRESH_KEEP_MS, kept: ALLOWANCE_KEPT };
+});
+
 // ------------------------------------------------------------ Yahoo Finance
 // Lets the terminal look up any US-listed stock without an API key. Profile
 // data needs Yahoo's session cookie and crumb, which the default session keeps.
@@ -408,7 +421,9 @@ ipcMain.handle('sec', async (event, kind, arg) => {
   }
   if (kind === 'tickers' && !secCache.get(target.url)) secTickersFromDisk();
   const kept = secCache.get(target.url);
-  if (kept && Date.now() - kept.at < target.ttl) return { status: 200, text: kept.text, at: kept.at, cached: true };
+  // A refresh asks again for filing lists and company facts; the company list and filed documents do not change.
+  const refreshed = (kind === 'submissions' || kind === 'facts') && kept && refresh.expired('sec', kept.at);
+  if (kept && Date.now() - kept.at < target.ttl && !refreshed) return { status: 200, text: kept.text, at: kept.at, cached: true };
   await providers.slot('sec', sec.PER_SECOND, 1000);
   let res;
   try {
@@ -509,12 +524,12 @@ const alpaca = require('./alpaca.cjs');
 const { optionChainRequest, optionChainProblem } = require('./option-chain.cjs');
 const equibles = require('./equibles.cjs');
 const { finnhubResearchRequest } = require('./finnhub-research.cjs');
-const equiblesClient = equibles.createEquiblesClient({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent });
+const equiblesClient = equibles.createEquiblesClient({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent, refresh });
 
 // Credential-scoped cache, deduplication, retries, quotas and provider-body errors are tested
 // independently of Electron in requests.test.ts. Never count HTTP-200 error bodies as success.
 const { createRequester } = require('./requests.cjs');
-const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent, timeoutMs: TIMEOUT_MS,
+const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent, timeoutMs: TIMEOUT_MS, refresh,
   validate: (provider, url, text) => {
     // A consent or error page instead of the feed is a failure, not an answer to keep for 15 minutes.
     if (provider === 'google-news') return /<rss\b/i.test(text) ? null : { kind: 'schema-changed', message: 'Google answered with a web page, not the feed.' };

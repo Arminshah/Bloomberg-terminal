@@ -18,7 +18,7 @@ const currencyTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tes
 const chartTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-sofi-chart.json'), 'utf8'));
 const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/tipranks-tools.json'), 'utf8')).tools;
 const fullFinnhubKey = 'abcd1234efgh5678ij90abcd1234efgh5678kl12';
-const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, newsStories: false, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], alpacaNews: [], google: [], finnhub: [], equibles: [], yahoo: [], tipranks: [] } };
+const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, newsStories: false, newsAgeMs: 3_600_000, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], alpacaNews: [], google: [], finnhub: [], equibles: [], yahoo: [], tipranks: [] } };
 globalThis.__desktopFixtures = fixtures;
 net.fetch = async (input, init) => {
   const url = new URL(String(input));
@@ -107,7 +107,7 @@ net.fetch = async (input, init) => {
   if (url.hostname === 'data.alpaca.markets') {
     if (url.pathname === '/v1beta1/news') {
       fixtures.calls.alpacaNews.push(url.href);
-      const at = new Date(Date.now() - 3_600_000).toISOString();
+      const at = new Date(Date.now() - fixtures.newsAgeMs).toISOString();
       return json({ news: fixtures.newsStories ? [{ id: 1, headline: 'Synthetic Benzinga story about the company', author: 'Fixture', created_at: at, updated_at: at, summary: 'A synthetic summary.', content: '', images: [], symbols: (url.searchParams.get('symbols') ?? 'AAPL').split(','), source: 'benzinga', url: 'https://www.benzinga.com/synthetic-story' }] : [], next_page_token: null });
     }
     if (url.pathname.startsWith('/v1beta1/options/snapshots/')) {

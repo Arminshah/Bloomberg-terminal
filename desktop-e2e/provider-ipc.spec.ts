@@ -24,6 +24,7 @@ interface Fixtures {
   mixedEstimateCurrencies: boolean;
   equiblesRefusal: boolean;
   newsStories: boolean;
+  newsAgeMs: number;
   calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
@@ -524,6 +525,71 @@ test('a newly fetched IEX snapshot keeps an old trade stale on the main quote an
   const row = page.locator('.panel').first().getByRole('row').filter({ has: page.getByRole('button', { name: 'AAPL US', exact: true }) });
   await expect(row.getByRole('cell').nth(2)).toHaveText(PRICE);
   await expect(row.locator('.stale-px')).toHaveAttribute('title', /STALE:.*IEX/i);
+});
+
+test('REFRESH asks the sources the open screens use again, past answers the main process kept, and says what it left alone', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.newsStories = true; });
+  await command(page, 'AAPL COMPANYNEWS');
+  await expect(page.locator('.panel').first().locator('.news-item')).toHaveCount(2);
+  const before = (await calls(app)).alpacaNews.length;
+  // The main process keeps Alpaca's company news for ten minutes: asked again now, it answers from memory.
+  expect(await page.evaluate(() => window.arminDesktop!.news!('alpaca-company', 'AAPL'))).toMatchObject({ cached: true });
+  expect((await calls(app)).alpacaNews).toHaveLength(before);
+  const button = page.locator('.tb-refresh');
+  await expect(button).toHaveAccessibleName('Refresh every source now');
+  await button.click();
+  await expect(button).toHaveAccessibleName(/^Refresh every source again; last refreshed at \d\d:\d\d:\d\d$/);
+  await expect(button).toContainText(/REFRESHED\s*\d\d:\d\d:\d\d/);
+  expect((await calls(app)).alpacaNews.length).toBeGreaterThan(before);
+  const title = await button.getAttribute('title');
+  expect(title).toMatch(/^Refreshed at \d\d:\d\d:\d\d, in \d+ s\./);
+  expect(title).toMatch(/Company news: \d+ asked/);
+  expect(title).toContain('Not asked again:');
+  expect(title).toContain('Marketaux');
+  expect(title).toContain('TipRanks: asked only when you ask on ANALYSTS (monthly allowance)');
+  // Alt+R does the same.
+  const after = (await calls(app)).alpacaNews.length;
+  await page.keyboard.press('Alt+r');
+  await expect.poll(async () => (await calls(app)).alpacaNews.length).toBeGreaterThan(after);
+});
+
+test('a story about a favourite pops up and stays until dismissed, through a reload, and never pops up twice', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { const f = (globalThis as FixtureGlobal).__desktopFixtures; f.newsStories = true; f.newsAgeMs = 60_000; });
+  // AAPL is a favourite and the app last looked at the news ten minutes ago: a story from a minute ago pops up.
+  // Saved before the page's own scripts run, once: the page being left saves its state as it goes.
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('fav-seeded')) return;
+    sessionStorage.setItem('fav-seeded', '1');
+    localStorage.setItem('armin:favourites', JSON.stringify({ v: 1, s: { ids: ['AAPL US Equity'] } }));
+    localStorage.setItem('armin:fav-alerts', JSON.stringify({ v: 1, s: { open: [], seen: [], until: Date.now() - 10 * 60_000 } }));
+  });
+  await page.reload();
+  const pop = page.locator('.toast-fav');
+  await expect(pop).toHaveCount(1);
+  await expect(pop).toContainText('★');
+  await expect(pop.locator('.fav-tickers')).toHaveText('AAPL');
+  await expect(pop.locator('.tb')).toHaveText('Synthetic Benzinga story about the company');
+  await expect(pop.locator('.tb')).toHaveAttribute('href', 'https://www.benzinga.com/synthetic-story');
+  await expect(pop.locator('.fav-pub')).toHaveText('Benzinga');
+  await expect(pop.locator('.time')).toHaveText(/^[12]m ago$/);
+  const count = page.getByRole('button', { name: '1 favourite news pop-up not dismissed', exact: true });
+  await expect(count).toBeVisible();
+  // Still there after a reload, and listed on BREAKING's favourites tab.
+  await page.reload();
+  await expect(page.locator('.toast-fav')).toHaveCount(1);
+  await count.click();
+  await expect(page.locator('.panel').first().locator('.fnh-code').first()).toHaveText('BREAKING');
+  await expect(page.locator('.fav-missed-row')).toHaveCount(1);
+  await expect(page.locator('.fav-missed-row')).toContainText('Synthetic Benzinga story about the company');
+  await page.locator('.toast-fav').getByRole('button', { name: /^Dismiss/ }).click();
+  await expect(page.locator('.toast-fav')).toHaveCount(0);
+  await expect(page.locator('.fav-missed')).toHaveCount(0);
+  await expect(count).toHaveCount(0);
+  // Once the news has loaded again after a reload, the dismissed story does not come back.
+  await page.reload();
+  await command(page, 'AAPL COMPANYNEWS');
+  await expect(page.locator('.panel').first().locator('.news-item')).toHaveCount(2);
+  await expect(page.locator('.toast-fav')).toHaveCount(0);
 });
 
 test.describe('source configuration isolation', () => {

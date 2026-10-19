@@ -1,6 +1,7 @@
 import { createStore } from '../../core/store';
 import { DAY_MS } from '../calendar';
 import { setFeed } from './status';
+import { registerRefresh } from '../../terminal/refresh';
 import { official, officialAvailable, parseRbaTable, parseSgs, parseSnbCube } from './official';
 
 /**
@@ -224,21 +225,32 @@ export function startPolicyRates(): () => void {
   let retry: ReturnType<typeof setTimeout> | null = null;
   let retries = 0;
   const run = () =>
-    void load().then((n) => {
+    load().then((n) => {
       const got = BANKS.filter(([k]) => policyRates.get()[k]).map(([, name]) => name);
       if (n) setFeed('policy', 'live', `${n} of ${BANKS.length} central banks: ${got.join(', ')}`);
       else setFeed('policy', 'error', 'Central bank sources unavailable');
       const p = policyRates.get();
       const missing = n < BANKS.length || !p.funding?.length || !p.fomc?.length;
+      if (retry) clearTimeout(retry);
+      retry = null;
       if (missing && retries < 5) {
         retries++;
-        retry = setTimeout(run, 120_000);
+        retry = setTimeout(() => void run(), 120_000);
       } else if (!missing) retries = 0;
+      return n;
     });
-  run();
-  const timer = setInterval(run, 3600_000);
+  void run();
+  const timer = setInterval(() => void run(), 3600_000);
+  const offRefresh = registerRefresh({
+    source: 'Central bank rates',
+    run: async () => {
+      const n = await run();
+      return { source: 'Central bank rates', state: n ? 'asked' : 'failed', detail: `${n} of ${BANKS.length} central banks answered` };
+    },
+  });
   return () => {
     clearInterval(timer);
     if (retry) clearTimeout(retry);
+    offRefresh();
   };
 }

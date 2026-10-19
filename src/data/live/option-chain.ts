@@ -3,6 +3,7 @@ import { alpacaSymbol, alpacaTime } from './alpaca';
 import { contractDate } from '../../finance/contracts';
 import type { SecurityDef } from '../types';
 import type { KeyedAnswer } from './lookup';
+import { useRefresh } from '../../terminal/refresh';
 
 type Json = Record<string, unknown>;
 const object = (v: unknown): Json | null => v !== null && typeof v === 'object' && !Array.isArray(v) ? v as Json : null;
@@ -142,5 +143,7 @@ export function useOptionChain(def: SecurityDef | undefined, expiry: string) {
     return () => { stopped = true; };
   }, [symbol, expiry, revision, key]);
   const result: ChainResult = state?.key === key ? state.result : { state: 'loading', contracts: [], pages: 0 };
+  // The top bar's REFRESH loads the chain again, as the screen's own refresh does.
+  useRefresh('Alpaca option chains', symbol && typeof window !== 'undefined' && window.arminDesktop?.optionChain ? () => setRevision((v) => v + 1) : null);
   return { symbol, available: typeof window !== 'undefined' && !!window.arminDesktop?.optionChain, result, refresh: () => setRevision((v) => v + 1) };
 }

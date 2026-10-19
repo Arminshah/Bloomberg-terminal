@@ -5,8 +5,10 @@ import { breakingCount, marketNews } from '../data/live/marketnews';
 import { execute } from '../terminal/exec';
 import { applyPreset, LAYOUT_PANELS, setLayout, setSplit, terminal, type LinkGroup } from '../terminal/state';
 import { alerts, chats, savedLayouts } from '../terminal/userdata';
+import { favAlerts } from '../terminal/favalerts';
+import { canRefresh, refreshAll, refreshState, refreshSummary } from '../terminal/refresh';
 import { contacts } from '../data/chat';
-import { MONTHS, WEEKDAYS, zonedParts } from '../core/format';
+import { fmtTime, MONTHS, WEEKDAYS, zonedParts } from '../core/format';
 import { EU_MARKET, fmtCountdown, sessionAt, US_MARKET, type Exchange } from '../data/exchanges';
 import type { LayoutId, Route } from '../terminal/types';
 
@@ -144,10 +146,46 @@ function FeedChip() {
   );
 }
 
+/**
+ * REFRESH (Alt+R): asks every source the open screens and the background use again now. The arrow turns while
+ * they answer; then the button shows when the refresh finished, and its tooltip what was asked, what failed and
+ * what was left alone. Hidden where nothing can be refreshed (the browser build).
+ */
+function RefreshButton() {
+  const { running, last } = refreshState.use((s) => s);
+  if (!canRefresh()) return null;
+  const failed = !!last?.outcomes.some((o) => o.state === 'failed' || o.state === 'waiting');
+  return (
+    <button
+      type="button"
+      className={`tb-btn tb-refresh${running ? ' busy' : failed ? ' warn' : ''}`}
+      aria-busy={running}
+      aria-label={running ? 'Refreshing every source' : last ? `Refresh every source again; last refreshed at ${fmtTime(last.at)}` : 'Refresh every source now'}
+      title={running ? 'Asking every source again; the button shows the time once they have answered.' : refreshSummary(last)}
+      onClick={() => void refreshAll()}
+    >
+      <span className="refresh-icon" aria-hidden="true">
+        ↻
+      </span>
+      {running ? (
+        <span className="fold-820">REFRESHING</span>
+      ) : last ? (
+        <>
+          <span className="fold-1300">REFRESHED</span>
+          <span className="refresh-time fold-820">{fmtTime(last.at)}</span>
+        </>
+      ) : (
+        <span className="fold-820">REFRESH</span>
+      )}
+    </button>
+  );
+}
+
 export function TopBar() {
   useInterval(1000);
   const layout = terminal.use((s) => s.layout);
   const unreadAlerts = alerts.use((a) => a.unseen);
+  const favOpen = favAlerts.use((s) => s.open.length);
   // Stories of the last 15 minutes, counted again when news arrives and every minute as they age.
   const newsVersion = marketNews.use((s) => s.v);
   const minute = useInterval(60_000);
@@ -246,6 +284,11 @@ export function TopBar() {
       <button type="button" className="tb-btn" onClick={() => run('BREAKING')} title="Breaking news: the count is of stories published in the last 15 minutes (BREAKING)">
         BREAKING <span className={`count${breaking ? ' hot' : ' zero'}`}>{breaking}</span>
       </button>
+      {favOpen > 0 && (
+        <button type="button" className="tb-btn" onClick={() => run('BREAKING FAV')} title={`${favOpen} pop-up${favOpen === 1 ? '' : 's'} about your favourites not dismissed (BREAKING FAV)`} aria-label={`${favOpen} favourite news pop-up${favOpen === 1 ? '' : 's'} not dismissed`}>
+          ★ <span className="count hot">{favOpen}</span>
+        </button>
+      )}
       <button type="button" className="tb-btn fold-1180" onClick={() => run('FAVOURITES')} title="Your favourites, with prices and news (FAVOURITES)">
         ★ FAV
       </button>
@@ -265,6 +308,7 @@ export function TopBar() {
       <button type="button" className="tb-btn" onClick={() => run('SETTINGS')} title="Settings (SETTINGS)" aria-label="Settings">
         ⚙
       </button>
+      <RefreshButton />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { addRealStories, type Story } from '../news';
 import { setFeed } from './status';
 import { officialAvailable } from './official';
 import type { OfficialSource } from './lookup';
+import { registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
  * Official announcements for the news screens, from each publisher's own RSS
@@ -108,11 +109,11 @@ export function storiesFrom(feed: OfficialFeed, items: FeedItem[], fetched: numb
 
 const REFRESH_MS = 10 * 60_000;
 
-/** Loads every official feed now and every 10 minutes; a no-op outside the desktop app. */
+/** Loads every official feed now and every 10 minutes, and on the top bar's REFRESH; a no-op outside the desktop app. */
 export function startOfficialNews(): (() => void) | null {
   if (!officialAvailable()) return null;
   let stopped = false;
-  const load = async () => {
+  const load = async (): Promise<RefreshOutcome | undefined> => {
     const since = new Date().toISOString().slice(0, 10);
     let ok = 0;
     let asked = 0;
@@ -140,12 +141,15 @@ export function startOfficialNews(): (() => void) | null {
     if (stopped) return;
     const detail = `Official announcements: ${ok} of ${asked} feeds, ${items} items${failed.length ? ` · not answering: ${failed.join(', ')}` : ''}${asked < OFFICIAL_FEEDS.length ? ' · SEC press releases need SEC_USER_AGENT' : ''}`;
     setFeed('news', ok ? 'live' : 'error', detail);
+    return { source: 'Official announcements', state: failed.length ? 'failed' : 'asked', detail: `${ok} of ${asked} feeds${failed.length ? `; not answering: ${failed.join(', ')}` : ''}` };
   };
   setFeed('news', 'connecting', 'Official announcements: loading');
   void load();
   const timer = setInterval(() => void load(), REFRESH_MS);
+  const offRefresh = registerRefresh({ source: 'Official announcements', run: load });
   return () => {
     stopped = true;
     clearInterval(timer);
+    offRefresh();
   };
 }

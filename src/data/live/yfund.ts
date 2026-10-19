@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { createStore } from '../../core/store';
+import { createStore, waitFor } from '../../core/store';
+import { createWants, registerRefresh } from '../../terminal/refresh';
 import { engine } from '../market';
 import { DAY_MS } from '../calendar';
 import type { EarningsEvent, FinPeriod, Holder } from '../fundamentals';
@@ -542,13 +543,14 @@ export function fundDue(fund: Pick<RealFund, 'fetched' | 'earnings'>, now: numbe
 /**
  * Loads a company's real data (desktop only), and again when it is due (see
  * fundDue); the figures already loaded stay on screen meanwhile. `front` puts
- * it ahead of queued peers, for the security the user is looking at.
+ * it ahead of queued peers, for the security the user is looking at; `force`
+ * (the top bar's REFRESH) loads it again whether due or not.
  */
-export function requestFundamentals(def: SecurityDef | undefined, front = false): void {
+export function requestFundamentals(def: SecurityDef | undefined, front = false, force = false): void {
   if (!def?.eq || !desktopData()) return;
   const have = realFund.get(def.id);
-  if (have && !fundDue(have, Date.now())) return;
-  if (Date.now() - (failedAt.get(def.id) ?? -Infinity) < 10 * 60_000) return;
+  if (!force && have && !fundDue(have, Date.now())) return;
+  if (!force && Date.now() - (failedAt.get(def.id) ?? -Infinity) < 10 * 60_000) return;
   if (loading.has(def.id)) {
     // Already queued: move it up if the user opened it.
     const i = queue.findIndex((j) => j.id === def.id);
@@ -602,13 +604,34 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false)
   pump();
 }
 
+/** The companies open screens show, for the top bar's REFRESH. */
+const shown = createWants<SecurityDef>();
+
+registerRefresh({
+  source: 'Company fundamentals (Yahoo)',
+  available: desktopData,
+  run: async () => {
+    const defs = shown.values().filter((d) => d.eq && (yahooSymbolFor(d) ?? d.yahoo));
+    if (!defs.length) return [];
+    for (const d of defs) requestFundamentals(d, false, true);
+    const status = () => fundVersion.get().status;
+    await waitFor(fundVersion, () => (defs.every((d) => status()[d.id] !== 'loading') ? true : undefined), 40_000);
+    const failed = defs.filter((d) => status()[d.id] === 'error').length;
+    return { source: 'Company fundamentals (Yahoo)', state: failed === defs.length ? 'failed' : 'asked', detail: `${defs.length - failed} of ${defs.length} companies answered` };
+  },
+});
+
 /** Loads a company's real data, re-renders when it arrives, and reloads it while the screen stays open (see fundDue). */
 export function useFundamentals(def: SecurityDef | undefined): { real: RealFund | undefined; status: 'loading' | 'ok' | 'error' | 'sim' } {
   const status = fundVersion.use((x) => (def ? x.status[def.id] : undefined));
   useEffect(() => {
     requestFundamentals(def, true);
     const timer = setInterval(() => requestFundamentals(def, true), 15 * 60_000);
-    return () => clearInterval(timer);
+    const off = def ? shown.add(def.id, def) : () => undefined;
+    return () => {
+      clearInterval(timer);
+      off();
+    };
   }, [def]);
   const real = def ? realFund.get(def.id) : undefined;
   return { real, status: real ? 'ok' : (status ?? (desktopData() && def?.eq ? 'loading' : 'sim')) };
@@ -624,7 +647,11 @@ export function useFundamentalsFor(defs: SecurityDef[]): { loaded: number; faile
     };
     load();
     const timer = setInterval(load, 15 * 60_000);
-    return () => clearInterval(timer);
+    const offs = defs.map((d) => shown.add(d.id, d));
+    return () => {
+      clearInterval(timer);
+      offs.forEach((off) => off());
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   const loaded = defs.filter((d) => realFund.has(d.id)).length;

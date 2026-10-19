@@ -4,6 +4,7 @@ import type { ExtBar } from '../engine';
 import { setFeed } from './status';
 import { official, officialAvailable, parseBoeColumns, parseBubaCsv, parseMofCsv, parseRbaTable, parseValetGroup, type Obs } from './official';
 import type { OfficialSource } from './lookup';
+import { registerRefresh } from '../../terminal/refresh';
 
 /**
  * Official government bond yields for the desktop app, end of day, from each
@@ -145,28 +146,43 @@ export function startGovYields(): () => void {
     if (ok.length) setFeed('yields', 'live', `Official end-of-day yields: ${ok.map((s) => NAMES[s]).join(', ')}`);
     else setFeed('yields', 'error', 'Official government yield sources unavailable');
   };
-  // A source already loaded only needs its latest weeks; one that is not gets ten years.
-  const fetchAll = async (sources: OfficialSource[]) => {
+  // A source already loaded only needs its latest weeks; one that is not gets ten years. Returns those that answered.
+  const fetchAll = async (sources: OfficialSource[]): Promise<OfficialSource[]> => {
+    const answered: OfficialSource[] = [];
     const jobs = sources.map(async (s) => {
-      if (await load(s, since(loaded.has(s) ? 0.1 : 10))) loaded.add(s);
+      if (await load(s, since(loaded.has(s) ? 0.1 : 10))) {
+        loaded.add(s);
+        answered.push(s);
+      }
     });
     // The Japanese history file holds every month before the current one.
     if (sources.includes('jgb') && !loaded.has('jgbHistory')) jobs.push(load('jgbHistory', since(10)).then((ok) => void (ok && loaded.add('jgbHistory'))));
     await Promise.all(jobs);
-    if (stopped) return;
+    if (stopped) return answered;
     apply();
     report();
     const missing = SOURCES.filter((s) => !loaded.has(s));
     if (missing.length && retries < 5) {
       retries++;
+      if (retry) clearTimeout(retry);
       retry = setTimeout(() => void fetchAll(missing), 120_000);
     }
+    return answered;
   };
   void fetchAll(SOURCES);
   const timer = setInterval(() => void fetchAll(SOURCES), 3600_000);
+  const offRefresh = registerRefresh({
+    source: 'Government bond yields',
+    run: async () => {
+      const ok = await fetchAll(SOURCES);
+      const missing = SOURCES.filter((s) => !ok.includes(s)).map((s) => NAMES[s]);
+      return { source: 'Government bond yields', state: missing.length ? 'failed' : 'asked', detail: `${ok.length} of ${SOURCES.length} sources answered${missing.length ? `; not answering: ${missing.join(', ')}` : ''}` };
+    },
+  });
   return () => {
     stopped = true;
     clearInterval(timer);
     if (retry) clearTimeout(retry);
+    offRefresh();
   };
 }

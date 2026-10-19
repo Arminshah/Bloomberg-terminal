@@ -17,6 +17,7 @@ import { DemoBanner } from './components/NoDataSource';
 import { demoMode } from './data/demo';
 import { startIexPrices } from './data/live/iex-engine';
 import { showPanelHelp, showPanelMenu } from './terminal/actions';
+import { canRefresh, refreshAll } from './terminal/refresh';
 
 function MobileTabs() {
   const s = terminal.use((x) => x);
@@ -91,6 +92,12 @@ export function App() {
       if (e.key === 'F1') {
         e.preventDefault();
         showPanelHelp(active);
+        return;
+      }
+      // Alt+R: the top bar's REFRESH. F5 is a market sector key and Ctrl+Shift+R reloads the desktop window.
+      if (e.altKey && !e.ctrlKey && !e.metaKey && (e.code === 'KeyR' || e.key.toLowerCase() === 'r') && canRefresh()) {
+        e.preventDefault();
+        void refreshAll();
         return;
       }
       if (e.altKey && e.key === 'End') {
