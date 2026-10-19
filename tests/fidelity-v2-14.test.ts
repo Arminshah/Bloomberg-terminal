@@ -5,6 +5,7 @@ import { blockGeometry, blockPages, weekday, weekSlots, type Slot } from '../src
 import { sourceCode } from '../src/data/sourcecode';
 import { matchQuarter, surpriseStats } from '../src/data/ern';
 import { ratingSummary } from '../src/data/anr';
+import { fomcRows, fomcYears } from '../src/data/fomc';
 import { equityRatios } from '../src/data/ratios';
 import { emptyPeriod, type FinPeriod } from '../src/data/fundamentals';
 
@@ -153,6 +154,36 @@ describe('ERN table', () => {
     expect(st.avgAbsMove).toBeCloseTo(3);
     expect(st.moves).toBe(2);
     expect(surpriseStats([], []).avgSurprise).toBeNaN();
+  });
+});
+
+describe('FOMC table', () => {
+  // The upper bound: 4.50 until a cut taking effect on 2026-09-17, then 4.25; the series reaches 2026-10-16.
+  const upper = { changes: [['2025-01-02', 4.5], ['2026-09-17', 4.25]] as [string, number][], last: 4.25, asOf: '2026-10-16' };
+  const lower = { changes: [['2025-01-02', 4.25], ['2026-09-17', 4.0]] as [string, number][], last: 4.0, asOf: '2026-10-16' };
+
+  it('reads each decision from the range in effect the day after it', () => {
+    const rows = fomcRows(['2026-07-29', '2026-09-16', '2026-10-28', '2026-09-16'], lower, upper, '2026-10-19');
+    expect(rows.map((r) => r.date)).toEqual(['2026-07-29', '2026-09-16', '2026-10-28']);
+    expect(rows[0]).toMatchObject({ status: 'decided', lower: 4.25, upper: 4.5, changeBp: 0 });
+    expect(rows[1]).toMatchObject({ status: 'decided', lower: 4.0, upper: 4.25, changeBp: -25 });
+    expect(rows[2]).toMatchObject({ status: 'scheduled' });
+    expect(rows[2].upper).toBeNaN();
+  });
+
+  it('leaves a decision the series does not reach unknown, and marks today', () => {
+    const rows = fomcRows(['2024-12-18', '2026-10-16', '2026-10-19'], lower, upper, '2026-10-19');
+    // Before the series starts.
+    expect(rows[0].upper).toBeNaN();
+    expect(rows[0].changeBp).toBeNaN();
+    // The day after is past the series' last day.
+    expect(rows[1].upper).toBeNaN();
+    expect(rows[2].status).toBe('today');
+    expect(fomcRows(['2026-01-28'], undefined, undefined, '2026-10-19')[0].upper).toBeNaN();
+  });
+
+  it('lists the years the calendar covers', () => {
+    expect(fomcYears(['2027-01-27', '2026-01-28', '2026-03-18'])).toEqual([2026, 2027]);
   });
 });
 

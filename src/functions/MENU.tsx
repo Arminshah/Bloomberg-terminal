@@ -80,7 +80,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   GOVT: {
     title: 'Government Securities',
     groups: [
-      { title: 'Monitors', entries: ['MONEYMARKET', 'BONDS', 'CURVE', 'RATEPROBS', 'CENTRALBANKS', 'MACRO'] },
+      { title: 'Monitors', entries: ['MONEYMARKET', 'BONDS', 'CURVE', 'RATEPROBS', 'FEDMEETINGS', 'CENTRALBANKS', 'MACRO'] },
       { title: 'Analysis', entries: [{ code: 'BONDSEARCH', label: 'Treasury search', cmd: 'T GOVT' }, 'SWAPCALC', 'HOLIDAYS'] },
     ],
     list: (d) => d.yk === 'Govt',
@@ -117,7 +117,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
     list: (d) => d.cls === 'fx' || d.id === 'DXY Curncy',
   },
   MTGE: { title: 'Mortgages', groups: [{ title: 'Related', entries: ['CURVE', 'MONEYMARKET', 'SWAPCALC'] }], note: 'Mortgage-backed securities are not covered by Armin Terminal. The screens below cover the rates that drive them.' },
-  'M-MKT': { title: 'Money Markets', groups: [{ title: 'Related', entries: ['MONEYMARKET', 'RATEPROBS', 'CENTRALBANKS', 'FXFORWARD'] }], note: 'Individual money market instruments are not covered. MONEYMARKET shows bills, SOFR and fed funds.' },
+  'M-MKT': { title: 'Money Markets', groups: [{ title: 'Related', entries: ['MONEYMARKET', 'RATEPROBS', 'FEDMEETINGS', 'CENTRALBANKS', 'FXFORWARD'] }], note: 'Individual money market instruments are not covered. MONEYMARKET shows bills, SOFR and fed funds.' },
   MUNI: { title: 'Municipals', groups: [{ title: 'Related', entries: ['CURVE', 'MONEYMARKET', 'BONDSEARCH'] }], note: 'Municipal bonds are not covered by Armin Terminal.' },
   PFD: { title: 'Preferreds', groups: [{ title: 'Related', entries: ['BONDSEARCH', 'DIVIDENDS', 'SCREEN'] }], note: 'Preferred shares are not covered by Armin Terminal.' },
   NEWS: {
@@ -125,7 +125,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
     groups: [
       { title: 'News', entries: ['MARKETNEWS', 'BREAKING', 'NEWS', 'HEADLINES'] },
       { title: 'Company research', entries: ['SEARCH', 'SCREEN', 'FILINGS', 'EVENTS'] },
-      { title: 'Economics', entries: ['RELEASES', 'ECONSTATS', 'MACRO', 'CENTRALBANKS'] },
+      { title: 'Economics', entries: ['RELEASES', 'ECONSTATS', 'MACRO', 'CENTRALBANKS', 'FEDMEETINGS'] },
     ],
   },
   TOOLS: {

@@ -87,6 +87,8 @@ button { cursor: pointer; }
 .num { text-align: right; white-space: nowrap; }
 .nowrap { white-space: nowrap; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* An inline-block that clips its text takes its bottom edge as baseline, which lifts the text above its row; align it to the top instead. */
+span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .sans { font-family: var(--sans); }
 .b { font-weight: 600; }
 

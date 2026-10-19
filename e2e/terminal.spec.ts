@@ -114,6 +114,7 @@ const COMMANDS: [string, string][] = [
   ['BREAKING', 'BREAKING'], ['FIRST FAV', 'BREAKING'], ['FAVOURITES', 'FAVOURITES'], ['FAV NEWS', 'FAVOURITES'], ['NEWS SPEECH', 'NEWS'], ['GC1 COMDTY COMPANYNEWS', 'COMPANYNEWS'],
   ['$APLD', 'MENU'], ['APLD US EQUITY PROFILE', 'PROFILE'], ['$APLD CHART', 'CHART'], ['APLD FINANCIALS', 'FINANCIALS'],
   ['EXCH', 'EXCHANGES'], ['GPC AAPL', 'CHART'], ['AAPL GPO', 'CHART'], ['CF MSFT', 'FILINGS'], ['AAPL ERN', 'EARNINGS'], ['QR TSLA', 'TRADES'], ['PDF', 'SETTINGS'],
+  ['FOMC', 'FEDMEETINGS'], ['EVT', 'EVENTS'], ['ECMX', 'ECONSTATS'], ['AAPL RSI', 'CHART'], ['MACD AAPL', 'CHART'], ['BOLL AAPL', 'CHART'], ['AAPL HP OHLC', 'HISTORY'], ['FA AAPL BS', 'FINANCIALS'],
 ];
 
 test('default workspace renders four live panels and the watchlist column', async ({ page }) => {
@@ -306,6 +307,24 @@ test('DES pages and numbered boxes, the security in the red bar and typed chart 
   await expect(start).toHaveClass(/\bbad\b/);
   await run(page, '6');
   await expect(panel.locator('.tab.on')).toHaveText('6) 1Y');
+  // RSI <GO> is a chart with the RSI study added for that chart, shown under its own mnemonic.
+  await run(page, 'AAPL RSI');
+  await expect(panel.locator('.fnh-mnemonic')).toContainText('RSI');
+  await expect(panel.getByRole('button', { name: 'RSI', exact: true })).toHaveClass(/\bon\b/);
+  await run(page, 'AAPL GP');
+  await expect(panel.getByRole('button', { name: 'RSI', exact: true })).not.toHaveClass(/\bon\b/);
+  // FA opens a page by name; MOST lists the stocks nearest their 52-week highs.
+  await run(page, 'FA AAPL BS');
+  await expect(panel.locator('.tab.on')).toHaveText('3) B/S');
+  await run(page, 'MOST');
+  await run(page, '6');
+  await expect(panel.locator('thead th', { hasText: 'vs High' })).toBeVisible();
+  // FOMC lists the year's meetings with the related functions numbered from 21.
+  await run(page, 'FOMC');
+  await expect(panel.locator('.fnh-title')).toHaveText('FOMC Announcement Dates');
+  await expect(panel.locator('tbody tr').first()).toContainText('14:00 ET');
+  await run(page, '21');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('RATEPROBS');
   expect(errors).toEqual([]);
 });
 

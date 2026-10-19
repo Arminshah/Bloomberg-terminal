@@ -20,6 +20,7 @@ export const LEGACY_CODES: Record<string, string> = {
   RV: 'PEERS',
   EQRV: 'PEERS',
   EVTS: 'EVENTS',
+  EVT: 'EVENTS',
   CF: 'FILINGS',
   GF: 'FUNDCHART',
   GP: 'CHART',
@@ -56,12 +57,14 @@ export const LEGACY_CODES: Record<string, string> = {
   WIRP: 'RATEPROBS',
   SWPM: 'SWAPCALC',
   CENB: 'CENTRALBANKS',
+  FOMC: 'FEDMEETINGS',
   SRCH: 'BONDSEARCH',
   DDIS: 'DEBTPROFILE',
   ALLQ: 'DEALERQUOTES',
   GLCO: 'COMMODITIES',
   ECO: 'RELEASES',
   ECST: 'ECONSTATS',
+  ECMX: 'ECONSTATS',
   CDR: 'HOLIDAYS',
   OMON: 'OPTIONS',
   OVME: 'OPTIONCALC',
@@ -82,9 +85,10 @@ export const LEGACY_CODES: Record<string, string> = {
 
 /**
  * Chart mnemonics that open CHART drawn a particular way: GPO as open-high-low-close bars, GPC as
- * candlesticks. The style travels as CHART's first argument, so a saved panel reopens the same way.
+ * candlesticks, and the study commands RSI, MACD and BOLL with that study added, as the terminal's TECH list
+ * runs them. The word travels as CHART's first argument, so a saved panel reopens the same way.
  */
-export const CHART_STYLES: Record<string, string> = { GPO: 'BAR', GPC: 'CANDLE' };
+export const CHART_STYLES: Record<string, string> = { GPO: 'BAR', GPC: 'CANDLE', RSI: 'RSI', MACD: 'MACD', BOLL: 'BOLL' };
 
 /** The arguments a function word brings with it, ahead of any typed after it: GPC AAPL 3M is CHART AAPL CANDLE 3M. */
 export function argsWith(word: string, typed?: string): string | undefined {
