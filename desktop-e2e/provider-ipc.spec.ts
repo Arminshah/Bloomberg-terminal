@@ -85,7 +85,8 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
       // firstWindow can return while it is still about:blank, whose storage
       // is unavailable. Wait for the real document before resetting state.
       await expect(page).toHaveURL(/^file:/);
-      await expect(page.locator('#cmd-0')).toBeVisible();
+      // The first launch on a cold CI runner can take longer than the default 15 seconds to render.
+      await expect(page.locator('#cmd-0')).toBeVisible({ timeout: 45_000 });
       await page.evaluate(() => {
         localStorage.clear();
         localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: '1' } }));
