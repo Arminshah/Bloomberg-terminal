@@ -9,6 +9,9 @@ import type { AssetClass, SecurityDef } from '../data/types';
 import { execute } from '../terminal/exec';
 import { useMenu, usePanelId } from '../terminal/panel';
 import { lookupFn } from '../terminal/registry';
+import { primaryMnemonic } from '../terminal/legacy';
+import { settings } from '../terminal/settings';
+import { navigate } from '../terminal/state';
 import type { FnProps, MenuItem } from '../terminal/types';
 
 /** One menu line: a function code, optionally with its own label and command. */
@@ -20,7 +23,7 @@ interface Group {
 }
 
 const EQUITY: Group[] = [
-  { title: 'Company', entries: ['PROFILE', 'COMPANYNEWS', 'FINANCIALS', 'EARNINGS', 'ANALYSTS', 'DIVIDENDS', 'HOLDERS', 'MANAGEMENT', 'PEERS', 'WACC', 'EVENTS'] },
+  { title: 'Company analysis', entries: ['PROFILE', 'COMPANYNEWS', 'FINANCIALS', 'EARNINGS', 'ANALYSTS', 'DIVIDENDS', 'HOLDERS', 'MANAGEMENT', 'PEERS', 'WACC', 'EVENTS', 'FILINGS'] },
   { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'FUNDCHART', 'VOLATILITY', 'BETA', 'SPREAD'] },
   { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP', 'OPTIONS', 'OPTIONCALC', 'OPTIONSTRATEGY'] },
   { title: 'Credit', entries: ['BONDSEARCH', 'DEBTPROFILE'] },
@@ -117,6 +120,22 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   'M-MKT': { title: 'Money Markets', groups: [{ title: 'Related', entries: ['MONEYMARKET', 'RATEPROBS', 'CENTRALBANKS', 'FXFORWARD'] }], note: 'Individual money market instruments are not covered. MONEYMARKET shows bills, SOFR and fed funds.' },
   MUNI: { title: 'Municipals', groups: [{ title: 'Related', entries: ['CURVE', 'MONEYMARKET', 'BONDSEARCH'] }], note: 'Municipal bonds are not covered by Armin Terminal.' },
   PFD: { title: 'Preferreds', groups: [{ title: 'Related', entries: ['BONDSEARCH', 'DIVIDENDS', 'SCREEN'] }], note: 'Preferred shares are not covered by Armin Terminal.' },
+  NEWS: {
+    title: 'News & Research',
+    groups: [
+      { title: 'News', entries: ['MARKETNEWS', 'NEWS', 'HEADLINES'] },
+      { title: 'Company research', entries: ['SEARCH', 'SCREEN', 'FILINGS', 'EVENTS'] },
+      { title: 'Economics', entries: ['RELEASES', 'ECONSTATS', 'MACRO', 'CENTRALBANKS'] },
+    ],
+  },
+  TOOLS: {
+    title: 'Portfolio & Tools',
+    groups: [
+      { title: 'Portfolio and monitors', entries: ['WATCHLIST', 'PORTFOLIO', 'ALERTS', 'CORRELATION'] },
+      { title: 'Workspace', entries: ['SEARCH', 'RECENT', 'LAYOUTS', 'NOTES'] },
+      { title: 'Help and preferences', entries: ['HELP', 'PROVIDERS', 'SETTINGS', 'MESSAGES'] },
+    ],
+  },
 };
 
 const MAIN: { key: string; label: string }[] = [
@@ -132,6 +151,33 @@ const MAIN: { key: string; label: string }[] = [
   { key: 'CRNCY', label: 'Currencies (F11)' },
   { key: 'CLIENT', label: 'Portfolio (F12)' },
 ];
+
+const WORKFLOWS = [
+  { n: 12, label: 'News & Research', cmd: 'MENU NEWS' },
+  { n: 13, label: 'Portfolio & Tools', cmd: 'MENU TOOLS' },
+  { n: 14, label: 'Function directory', cmd: 'HELP' },
+];
+
+function MenuPath({ sector, sec }: { sector?: string; sec?: SecurityDef }) {
+  const panel = usePanelId();
+  const rawSector = sector ?? (sec ? sec.yk.toUpperCase() : undefined);
+  const sectorKey = rawSector === 'COMDTY' ? 'CMDTY' : rawSector;
+  const sectorMenu = sectorKey ? SECTORS[sectorKey] : undefined;
+  return (
+    <nav className="pad-s row" aria-label="Menu path" style={{ borderBottom: '1px solid var(--line)' }}>
+      <button type="button" className="btn" onClick={() => navigate(panel, { fn: 'MENU' })}>Main Menu</button>
+      {sectorMenu && (
+        <>
+          <span className="muted" aria-hidden="true">›</span>
+          {sec ? (
+            <button type="button" className="btn" onClick={() => navigate(panel, { fn: 'MENU', args: sectorKey })}>{sectorMenu.title}</button>
+          ) : <span className="white" aria-current="page">{sectorMenu.title}</span>}
+        </>
+      )}
+      {sec && <><span className="muted" aria-hidden="true">›</span><span className="yellow" aria-current="page">Analyze {sec.id}</span></>}
+    </nav>
+  );
+}
 
 interface Line {
   n: number;
@@ -174,6 +220,7 @@ function linesFor(groups: Group[], sec: SecurityDef | undefined, start = 1): { t
 
 function MenuGrid({ groups }: { groups: { title: string; lines: Line[] }[] }) {
   const panel = usePanelId();
+  const mnemonics = settings.use((s) => s.mnemonics);
   return (
     <div className="cols" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))' }}>
       {groups.map((g) => (
@@ -181,12 +228,12 @@ function MenuGrid({ groups }: { groups: { title: string; lines: Line[] }[] }) {
           <table className="tbl menu-tbl">
             <tbody>
               {g.lines.map((l) => (
-                <tr key={l.n} className="click" onClick={() => execute(panel, l.cmd)}>
+                <tr key={l.n} className="click" title={`${l.cmd} <GO>`} onClick={() => execute(panel, l.cmd)}>
                   <td className="num yellow b" style={{ width: 34 }}>
                     {l.n})
                   </td>
-                  <td className="amber b" style={{ width: 58 }}>
-                    {l.code}
+                  <td className="amber b" style={{ width: 58 }} title={l.code}>
+                    {mnemonics ? primaryMnemonic(l.code) : l.code}
                   </td>
                   <td className={l.none ? 'muted' : 'white'} title={l.none ? `Not available: ${l.none}` : undefined}>
                     {l.label}
@@ -217,8 +264,9 @@ function SecurityMenu({ sec }: { sec: SecurityDef }) {
   return (
     <div>
       <FnHeader code="MENU" title="Related Functions Menu" sec={sec} sub={`${sec.name} · ${CLASS_LABEL[sec.cls]}`} />
+      <MenuPath sec={sec} />
       <QuoteStrip sec={sec} />
-      <p className="pad-s muted">Type a number and press GO, or type a function mnemonic. The security stays loaded for every function.</p>
+      <p className="pad-s muted">Enter a number and press GO, or type a function mnemonic such as {primaryMnemonic('PROFILE')}. Analysis functions use the loaded security.</p>
       <MenuGrid groups={groups} />
     </div>
   );
@@ -240,7 +288,8 @@ function SectorMenu({ yk }: { yk: string }) {
   useMenuItems(`sector:${yk}`, groups, extra);
   return (
     <div>
-      <FnHeader code={yk === 'CURNCY' ? 'CRNCY' : yk} title={sector.title} sub="Market sector menu" />
+      <FnHeader code={['NEWS', 'TOOLS'].includes(yk) ? 'MENU' : yk === 'CURNCY' ? 'CRNCY' : yk} title={sector.title} sub={['NEWS', 'TOOLS'].includes(yk) ? 'Functions menu' : 'Market sector menu'} />
+      <MenuPath sector={yk} />
       {sector.note && <p className="pad-s amber">{sector.note}</p>}
       <MenuGrid groups={groups} />
       {list.length > 0 && (
@@ -278,11 +327,14 @@ function SectorMenu({ yk }: { yk: string }) {
 
 function MainMenu() {
   const panel = usePanelId();
-  const items = useMemo(() => MAIN.map((m, i) => ({ n: i + 1, label: m.label, run: () => execute(panel, m.key) })), [panel]);
+  const items = useMemo(() => [
+    ...MAIN.map((m, i) => ({ n: i + 1, label: m.label, run: () => execute(panel, m.key) })),
+    ...WORKFLOWS.map((m) => ({ n: m.n, label: m.label, run: () => execute(panel, m.cmd) })),
+  ], [panel]);
   useMenu('main-menu', items);
   return (
     <div>
-      <FnHeader code="MENU" title="Main Menu" sub="Market sectors" />
+      <FnHeader code="MENU" title="Main Menu" sub="Markets, news and analysis" />
       <div className="cols" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))' }}>
         <Section title="Market sectors">
           <table className="tbl menu-tbl">
@@ -301,11 +353,23 @@ function MainMenu() {
             </tbody>
           </table>
         </Section>
+        <Section title="News, research and tools">
+          <table className="tbl menu-tbl">
+            <tbody>
+              {WORKFLOWS.map((m) => (
+                <tr key={m.n} className="click" onClick={() => execute(panel, m.cmd)} title={`${m.cmd} <GO>`}>
+                  <td className="num yellow b" style={{ width: 34 }}>{m.n})</td>
+                  <td className="white">{m.label} <span className="muted">›</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
         <Section title="Getting started">
           <p className="prose">
-            Type a ticker, for example <span className="yellow">IBM</span>, to see every function that applies to it, or a function and a ticker, such as{' '}
-            <span className="yellow">CHART IBM</span>. Type{' '}
-            <span className="yellow">HELP</span> for the full function directory or <span className="yellow">HELP HELP</span> to message the help desk.
+            Type a ticker, for example <span className="yellow">IBM</span>, to explore its analysis functions, or a function and a ticker, such as{' '}
+            <span className="yellow">IBM US EQUITY GP</span>. Type{' '}
+            <span className="yellow">HELP</span> for the full function directory or <span className="yellow">HELP HELP</span> to open the local help assistant.
           </p>
         </Section>
       </div>
@@ -315,7 +379,8 @@ function MainMenu() {
 
 export function MENU({ route, sec }: FnProps) {
   if (sec) return <SecurityMenu sec={sec} />;
-  const yk = route.args?.toUpperCase();
+  const rawSector = route.args?.toUpperCase();
+  const yk = rawSector === 'COMDTY' ? 'CMDTY' : rawSector;
   if (yk && SECTORS[yk]) return <SectorMenu yk={yk} />;
   return <MainMenu />;
 }

@@ -1,6 +1,6 @@
-import type { AssetClass } from '../data/types';
+import type { AssetClass, SecurityDef } from '../data/types';
 import type { FnDef } from './types';
-import { LEGACY_CODES } from './legacy';
+import { LEGACY_CODES, primaryMnemonic } from './legacy';
 import { engine } from '../data/market';
 import { configureSecurityLinks } from './state';
 import { HELP } from '../functions/HELP';
@@ -124,7 +124,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'OPTIONCALC', name: 'Option Valuation', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'European BSM or American Tian binomial value/IV, early-exercise premium, Greeks, grid diagnostic, manual tenor, scenarios and CSV for a single option; continuous dividends.', component: OVME },
   { code: 'OPTIONSTRATEGY', name: 'Option Strategy Analysis', category: 'Derivatives', classes: ['equity', 'index'], desc: 'Up to 12 common-expiry option legs plus stock: signed positions, entry premiums, aggregate Greeks, exact expiry risk/breakevens, time/spot/volatility scenarios and CSV. Manual European model, with labelled strategy examples.', component: OptionStrategy, aliases: ['STRATEGY'], example: 'OPTIONSTRATEGY' },
   // Portfolio & tools
-  { code: 'WATCHLIST', name: 'Watchlists', category: 'Portfolio & Tools', desc: 'Editable watchlists with live prices, changes, volume and intraday sparklines.', component: W, aliases: ['WATCH'], example: 'WATCHLIST TECH' },
+  { code: 'WATCHLIST', name: 'Watchlists', category: 'Portfolio & Tools', desc: 'Editable watchlists with saved field columns, quote/source presets, sorting, filtering, intraday sparklines and CSV with field provenance.', component: W, aliases: ['WATCH'], example: 'WATCHLIST TECH' },
   { code: 'PORTFOLIO', name: 'Portfolio & Risk', category: 'Portfolio & Tools', desc: 'Manual holdings/cash, historical-FX replay, date-aligned VaR/ES, signed risk contributions, benchmark tracking error, allocation, price/FX stress and CSV. Complete history required.', component: PORT },
   { code: 'ALERTS', name: 'Alerts', category: 'Portfolio & Tools', desc: 'Price, percent-change and keyword alerts that pop up wherever you are while the app is open.', component: ALRT, aliases: ['ALERT'] },
   { code: 'CORRELATION', name: 'Correlation Matrix', category: 'Portfolio & Tools', desc: 'Correlation of daily returns across any set of securities and periods.', component: CORR },
@@ -136,7 +136,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'MESSAGES', name: 'Help Desk Messages', category: 'Communication', desc: 'Chat with the help desk bot (quotes, news, calendar); the browser version adds simulated trading desks.', component: IB, aliases: ['CHAT'] },
   // System
   { code: 'HELP', name: 'Function Directory', category: 'System', desc: 'Searchable list of every function, command syntax and keyboard shortcuts.', component: HELP },
-  { code: 'MENU', name: 'Related Functions Menu', category: 'System', desc: 'Numbered menu of every function for the loaded security, a market sector menu for a sector word (EQUITY), or the main menu.', component: MENU, example: 'IBM US EQUITY' },
+  { code: 'MENU', name: 'Related Functions Menu', category: 'System', desc: 'Numbered analysis functions for the loaded security, market sector menus, news and research, or portfolio tools. Use the menu path to return to a sector or the main menu.', component: MENU, example: 'IBM US EQUITY' },
   { code: 'PROVIDERS', name: 'Data Providers & Status', category: 'System', desc: 'Every data provider: what it serves, its state, last answer and error, requests per minute, the terms that apply, and credentials (desktop).', component: PROV, aliases: ['STATUS', 'SOURCES'] },
   { code: 'SETTINGS', name: 'Settings & Data Sources', category: 'System', desc: 'Display preferences, time zone, live data connections and workspace reset.', component: PDFU, aliases: ['PREFS'] },
 ];
@@ -153,6 +153,23 @@ for (const f of FUNCTIONS) for (const a of f.aliases ?? []) if (!BY_CODE.has(a))
 
 export function lookupFn(code: string): FnDef | undefined {
   return BY_CODE.get(code.toUpperCase());
+}
+
+/** A runnable example, using the loaded security only when the function accepts it. */
+export function exampleCommand(fn: FnDef, sec?: SecurityDef, mnemonics = true): string {
+  const code = mnemonics ? primaryMnemonic(fn.code) : fn.code;
+  if (sec && (!fn.classes || fn.classes.includes(sec.cls)) &&
+      (fn.needsSec || fn.classes || ['MENU', 'ALERTS', 'NOTES', 'CORRELATION'].includes(fn.code))) {
+    return `${sec.id} ${code}`;
+  }
+  if (fn.example) {
+    const [head, ...rest] = fn.example.split(' ');
+    return lookupFn(head)?.code === fn.code ? [code, ...rest].join(' ') : fn.example;
+  }
+  if (!fn.needsSec) return code;
+  const fallback = [engine.get('AAPL US Equity'), ...engine.securities]
+    .find((d) => d && (!fn.classes || fn.classes.includes(d.cls)));
+  return fallback ? `${fallback.id} ${code}` : code;
 }
 
 configureSecurityLinks((route, id) => {

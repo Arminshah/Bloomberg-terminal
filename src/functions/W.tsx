@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
@@ -7,10 +7,32 @@ import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtBp, fmtNum, fmtPct, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
+import { fieldTime } from '../data/fields';
+import { sortWatchlistRows, WATCHLIST_COLUMNS, WATCHLIST_PRESETS, watchlistColumns, watchlistExport, watchlistRow, type WatchlistColumn, type WatchlistRow, type WatchlistSort } from '../data/watchlist-columns';
 import { resolveSecurity, searchSecurities } from '../data/registry';
+import type { Quote, SecurityDef } from '../data/types';
 import { flash, usePanelId } from '../terminal/panel';
-import { watchlists } from '../terminal/userdata';
+import { watchlists, type Watchlist } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
+
+function FieldCell({ column, row, sec, quote, now }: { column: WatchlistColumn; row: WatchlistRow; sec?: SecurityDef; quote?: Quote; now: number }) {
+  const f = row.fields.get(column.id);
+  if (sec?.quote === 'yield' && column.id === 'CHG_PCT_1D') return <span title={f?.note} />;
+  if (!f || f.value === null || !sec) return <span className="muted" title={f?.note ?? 'No field value is available.'}>--</span>;
+  const y = sec.quote === 'yield';
+  let value: ReactNode = typeof f.value === 'number' ? fmtNum(f.value, column.id === 'ARMIN_SPREAD_PCT' ? 3 : sec.dec) : f.value;
+  switch (column.id) {
+    case 'PX_LAST': value = <LivePx id={row.id} />; break;
+    case 'CHG_NET_1D': value = quote ? <DayChg q={quote} bp={y} unit={y ? 'bp' : ''} dec={sec.dec} /> : '--'; break;
+    case 'CHG_PCT_1D': value = y ? '' : quote ? <DayChg q={quote} pct /> : '--'; break;
+    case 'PX_VOLUME': value = `${fmtBig(Number(f.value))}${quote?.volumeUnit && quote.volumeUnit !== 'USD' ? ` ${quote.volumeUnit}` : ''}`; break;
+    case 'ARMIN_YTD': value = y ? fmtBp(Number(f.value), 0) : <span className={Number(f.value) >= 0 ? 'up' : 'dn'}>{fmtPct(Number(f.value), 1)}</span>; break;
+    case 'ARMIN_SOURCE_TIME': value = f.dateOnly ? fieldTime(f) : quote ? fmtStamp(quote.time, now) : '--'; break;
+    case 'ARMIN_TODAY': value = <Sparkline values={row.today} width={80} height={14} />; break;
+    case 'ARMIN_RECEIVED_AT': value = f.asOf === null ? '--' : fieldTime(f); break;
+  }
+  return <span title={`${f.name} (${f.unit}) · ${f.source} · ${f.status}\n${f.timeBasis}\n${f.note}`}>{value}</span>;
+}
 
 export function W({ route }: FnProps) {
   const panel = usePanelId();
@@ -28,8 +50,34 @@ export function W({ route }: FnProps) {
   const list = st.lists[active];
   const [text, setText] = useState('');
   const [renaming, setRenaming] = useState(false);
+  const [editingColumns, setEditingColumns] = useState(false);
+  const [filter, setFilter] = useState('');
   const hits = text.trim() ? searchSecurities(text, 6) : [];
   const now = engine.now();
+  const columns = watchlistColumns(list.columns);
+  const selected = new Set(columns.map((c) => c.id));
+  const updateList = (patch: Partial<Watchlist>) => watchlists.set((s) => ({ ...s, lists: s.lists.map((l, i) => i === active ? { ...l, ...patch } : l) }));
+  const setColumns = (ids: string[]) => updateList({ columns: ids, ...(!ids.includes(list.sort?.column ?? '') ? { sort: undefined } : {}) });
+  const changeSort = (column: string) => {
+    const previous = list.sort;
+    const sort: WatchlistSort | undefined = previous?.column !== column ? { column, direction: 'asc' } : previous.direction === 'asc' ? { column, direction: 'desc' } : undefined;
+    updateList({ sort });
+  };
+  const moveColumn = (index: number, offset: number) => {
+    const ids = columns.map((c) => c.id);
+    const target = index + offset;
+    if (target < 0 || target >= ids.length) return;
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    setColumns(ids);
+  };
+  const query = filter.trim().toLowerCase();
+  const rows = sortWatchlistRows(list.ids.filter((id) => !query || `${id} ${engine.get(id)?.name ?? ''}`.toLowerCase().includes(query)).map((id) => {
+    const intra = selected.has('ARMIN_TODAY') ? engine.intraday(id) : undefined;
+    return watchlistRow(id, engine.get(id), engine.quote(id), now, {
+      ytd: selected.has('ARMIN_YTD') ? periodChange(id, 'YTD') : NaN,
+      today: intra ? Array.from(intra.c.subarray(0, intra.length)) : [], intradayTime: intra?.length ? intra.t[intra.length - 1] : undefined,
+    });
+  }), list.sort, columns);
 
   const update = (ids: string[]) => watchlists.set((s) => ({ ...s, lists: s.lists.map((l, i) => (i === active ? { ...l, ids } : l)) }));
   const add = (id: string) => {
@@ -44,22 +92,16 @@ export function W({ route }: FnProps) {
     [ids[i], ids[j]] = [ids[j], ids[i]];
     update(ids);
   };
-  const csv = () => [
-    ['Ticker', 'Name', 'Last', 'Net chg', '% chg', 'Bid', 'Ask', 'High', 'Low', 'Volume'],
-    ...list.ids.map((id) => {
-      const q = engine.quote(id)!;
-      return [id, engine.get(id)!.name, q.last, q.chg, q.pct.toFixed(3), q.bid, q.ask, q.high, q.low, q.volume];
-    }),
-  ];
+  const csv = () => watchlistExport(rows, columns, now);
   return (
     <div>
       <FnHeader
         code="WATCHLIST"
         title="Watchlists"
-        sub={`${list.ids.length} securities`}
+        sub={`${rows.length}${rows.length !== list.ids.length ? ` of ${list.ids.length}` : ''} securities`}
         tabs={st.lists.map((l, i) => ({ n: i + 1, label: l.name }))}
         tab={active + 1}
-        onTab={(n) => watchlists.set((s) => ({ ...s, active: n - 1 }))}
+        onTab={(n) => { watchlists.set((s) => ({ ...s, active: n - 1 })); setFilter(''); }}
         actions={[
           {
             n: 91,
@@ -75,9 +117,33 @@ export function W({ route }: FnProps) {
               watchlists.set((s) => ({ ...s, lists: s.lists.filter((_, i) => i !== active), active: 0 }));
             },
           },
+          { n: 94, label: 'Columns', on: editingColumns, onClick: () => setEditingColumns((v) => !v) },
+          ...(list.sort ? [{ n: 95, label: 'Manual order', onClick: () => updateList({ sort: undefined }) }] : []),
           ...exportActions(panel, `${list.name.replace(/\W+/g, '_')}.csv`, csv),
         ]}
       />
+      {editingColumns && <section className="sect" aria-label="Watchlist columns">
+        <div className="sect-h">Local field columns <span className="right">Saved with {list.name}</span></div>
+        <div className="chart-tools">
+          <span className="fld">Presets</span>
+          {WATCHLIST_PRESETS.map((preset) => <button key={preset.name} type="button" className="btn" onClick={() => setColumns([...preset.columns])}>{preset.name}</button>)}
+          <button type="button" className="btn" onClick={() => setEditingColumns(false)}>Done</button>
+        </div>
+        <div className="pad-s row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          {WATCHLIST_COLUMNS.map((c) => <label key={c.id} className="nowrap" title={c.id}>
+            <input type="checkbox" checked={selected.has(c.id)} disabled={selected.has(c.id) && columns.length === 1} onChange={(e) => setColumns(e.target.checked ? [...columns.map((x) => x.id), c.id] : columns.filter((x) => x.id !== c.id).map((x) => x.id))} /> {c.label}
+          </label>)}
+        </div>
+        <div className="chart-tools" style={{ flexWrap: 'wrap' }}>
+          <span className="fld">Column order</span>
+          {columns.map((c, i) => <span key={c.id} className="nowrap">
+            <button type="button" className="act" aria-label={`Move ${c.label} column left`} disabled={i === 0} onClick={() => moveColumn(i, -1)}>◀</button>
+            <span>{c.label}</span>
+            <button type="button" className="act" aria-label={`Move ${c.label} column right`} disabled={i === columns.length - 1} onClick={() => moveColumn(i, 1)}>▶</button>
+          </span>)}
+        </div>
+        <div className="note">Columns use fields already held by this app; no extra provider calls. Hover a value for units, source and limits. Copy/export follows the selected columns and filtered order, with raw values and per-field provenance below the table. Bid/ask event times remain unavailable.</div>
+      </section>}
       <div className="chart-tools">
         {renaming ? (
           <input
@@ -124,65 +190,44 @@ export function W({ route }: FnProps) {
             )}
           </span>
         )}
+        <input className="inp" aria-label="Filter watchlist" placeholder="Filter this list" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 145 }} />
         <span className="muted hide-m">Click to open · shift-click opens in the next panel · ▲▼ reorder</span>
       </div>
+      <div className="tbl-wrap">
       <table className="tbl">
         <thead>
           <tr>
             <th>Security</th>
-            <th className="hide-m">Name</th>
-            <th className="num">Last</th>
-            <th className="num">Net Chg</th>
-            <th className="num">%Chg</th>
-            <th className="num hide-m">Bid</th>
-            <th className="num hide-m">Ask</th>
-            <th className="num hide-m">Volume</th>
-            <th className="num hide-m">YTD</th>
-            <th className="num hide-m">Time</th>
-            <th className="hide-m">Today</th>
+            {columns.map((c) => <th key={c.id} className={`${c.numeric ? 'num' : ''}${c.compact || list.columns ? '' : ' hide-m'}`} aria-sort={list.sort?.column === c.id ? list.sort.direction === 'asc' ? 'ascending' : 'descending' : undefined}>
+              {c.id === 'ARMIN_TODAY' ? c.label : <button type="button" className="act" title={`${c.id} · sort ascending, descending, then manual order`} onClick={() => changeSort(c.id)}>{c.label}{list.sort?.column === c.id ? list.sort.direction === 'asc' ? ' ▲' : ' ▼' : ''}</button>}
+            </th>)}
             <th />
           </tr>
         </thead>
         <tbody>
-          {list.ids.length === 0 && (
+          {rows.length === 0 && (
             <tr>
-              <td colSpan={12} className="empty">
-                This list is empty. Add a security above.
+              <td colSpan={columns.length + 2} className="empty">
+                {list.ids.length ? 'No securities match this filter.' : 'This list is empty. Add a security above.'}
               </td>
             </tr>
           )}
-          {list.ids.map((id, i) => {
+          {rows.map((row) => {
+            const id = row.id;
+            const i = list.ids.indexOf(id);
             const d = engine.get(id);
             const q = engine.quote(id);
-            if (!d || !q) return null;
-            const y = d.quote === 'yield';
-            const intra = engine.intraday(id);
             return (
               <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e)}>
                 <td>
-                  <SecLink id={id}>{d.ticker}</SecLink>
+                  {d ? <SecLink id={id}>{d.ticker}</SecLink> : <span title="Security definition is unavailable; remove or reload this line.">{id}</span>}
                 </td>
-                <td className="hide-m ellipsis" style={{ maxWidth: 200 }}>
-                  {d.name}
-                </td>
-                <td className="num white">
-                  <LivePx id={id} />
-                </td>
-                <td className="num">{y ? <DayChg q={q} bp unit="bp" /> : <DayChg q={q} dec={d.dec} />}</td>
-                <td className="num">{y ? '' : <DayChg q={q} pct />}</td>
-                <td className="num hide-m">{fmtNum(q.bid, d.dec)}</td>
-                <td className="num hide-m">{fmtNum(q.ask, d.dec)}</td>
-                <td className="num hide-m" title={q.volumeUnit ? `Volume in ${q.volumeUnit}` : undefined}>{q.volume ? `${fmtBig(q.volume)}${q.volumeUnit && q.volumeUnit !== 'USD' ? ` ${q.volumeUnit}` : ''}` : ''}</td>
-                <td className="num hide-m">{y ? `${fmtBp(periodChange(id, 'YTD'), 0)}` : <span className={periodChange(id, 'YTD') >= 0 ? 'up' : 'dn'}>{fmtPct(periodChange(id, 'YTD'), 1)}</span>}</td>
-                <td className="num muted hide-m">{fmtStamp(q.time, now)}</td>
-                <td className="hide-m">
-                  <Sparkline values={intra.c.subarray(0, intra.length)} width={80} height={14} />
-                </td>
+                {columns.map((c) => <td key={c.id} className={`${c.numeric ? 'num' : 'ellipsis'}${c.compact || list.columns ? '' : ' hide-m'}${c.id === 'PX_LAST' ? ' white' : ''}`} style={c.numeric || c.id === 'ARMIN_TODAY' ? undefined : { maxWidth: 240 }}><FieldCell column={c} row={row} sec={d} quote={q} now={now} /></td>)}
                 <td className="nowrap" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" className="act" aria-label="Move up" onClick={() => move(i, -1)}>
+                  <button type="button" className="act" aria-label="Move up" disabled={!!list.sort || i === 0} title={list.sort ? 'Use 95) Manual order before reordering' : undefined} onClick={() => move(i, -1)}>
                     ▲
                   </button>
-                  <button type="button" className="act" aria-label="Move down" onClick={() => move(i, 1)}>
+                  <button type="button" className="act" aria-label="Move down" disabled={!!list.sort || i === list.ids.length - 1} title={list.sort ? 'Use 95) Manual order before reordering' : undefined} onClick={() => move(i, 1)}>
                     ▼
                   </button>
                   <button type="button" className="act" aria-label={`Remove ${id}`} onClick={() => update(list.ids.filter((x) => x !== id))}>
@@ -194,6 +239,7 @@ export function W({ route }: FnProps) {
           })}
         </tbody>
       </table>
+      </div>
       <FreshnessLegend />
     </div>
   );

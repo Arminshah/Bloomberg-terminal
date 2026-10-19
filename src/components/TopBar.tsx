@@ -235,14 +235,14 @@ export function TopBar() {
         )}
       </span>
       <span className="tb-sep" />
-      <button type="button" className="tb-btn fold-820" onClick={() => run('MESSAGES')} title="Help desk messages (MESSAGES)">
-        MSG <span className={`count${unreadMsgs ? '' : ' zero'}`}>{unreadMsgs}</span>
+      <button type="button" className="tb-btn fold-820" onClick={() => run('MESSAGES')} title="Local help assistant (MESSAGES)">
+        BOT <span className={`count${unreadMsgs ? '' : ' zero'}`}>{unreadMsgs}</span>
       </button>
       <button type="button" className="tb-btn" onClick={() => run('ALERTS')} title="Price and news alerts (ALERTS)">
         ALERTS <span className={`count${unreadAlerts ? '' : ' zero'}`}>{unreadAlerts}</span>
       </button>
-      <button type="button" className="tb-btn hide-m fold-1180" onClick={() => run('HELP')} title="Function directory (F1)">
-        HELP
+      <button type="button" className="tb-btn hide-m fold-1180" onClick={() => run('HELP')} title="Browse the function directory (HELP)">
+        FUNCTIONS
       </button>
       <span className="tb-spacer" />
       <MarketTimer ex={EU_MARKET} />

@@ -1,6 +1,6 @@
 # Feature and data coverage
 
-What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.7.0); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 72 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
+What each function shows, its source and missing data. Coverage reviewed against version 2.9.0 on 19 October 2026; live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 72 registered commands; the [terminal fidelity audit](terminal-fidelity-audit.md) adds primary Bloomberg references and priorities. Browser demo figures are simulated and excluded from real-data coverage.
 
 Status:
 
@@ -10,6 +10,12 @@ Status:
 - **Not available**: no permitted free source; the screen explains why and shows no figures.
 
 Freshness is shown on every price (REAL-TIME, DELAYED, END OF DAY, REFERENCE, STALE, UNKNOWN FRESHNESS); [data-dictionary.md](data-dictionary.md) defines the labels.
+
+## Coverage additions in versions 2.8–2.9
+
+European equity lookup covers fifteen exchanges and familiar market-code input. `MARKET` adds BEL 20, OMX Stockholm 30, ATX, PSI and ISEQ; `ECONSTATS` adds Belgium; currency monitors add selected Nordic and Central European currencies. `ANALYSTS` includes optional, manually requested TipRanks data under its own account coverage, attribution and monthly budget. None of this creates a universal security master or Bloomberg consensus feed.
+
+`BETA` defaults to two years of Friday-ending weekly observations against a local benchmark, including BEL 20 for Belgium. `BONDCALC` supports five day counts and explicit or T+0–T+3 settlement, with weekends skipped but no holiday calendar. `RATEPROBS` distinguishes cumulative expected moves from the signed meeting-specific move. `PORTFOLIO` supports USD/EUR/GBP/CHF/JPY base valuation, entry-FX metadata for newer positions and separate local-price/FX P&L where known. The [2.9.0](release-v2.9.0.md) and [2.8.1](release-v2.8.1.md) notes retain the validation and limitations for these changes.
 
 ## Linked workflows and inspection: version 2.7
 
@@ -49,7 +55,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `FILINGS` | SEC filings with links, and figures from XBRL statements | SEC EDGAR (needs `SEC_USER_AGENT`) | Real |
 | `CROSSCHECK` | A US stock's closes beside other end-of-day sources | Massive, Alpha Vantage, Tiingo, Twelve Data (your keys) | Real |
 | `WACC` | Cost of equity and debt, weights, perpetuity check | Yahoo Finance statements and prices; official 10-year yields | Calculated, inputs named. Blank where the app has no official 10-year yield for the currency |
-| `ANALYSTS` | Price targets (consensus, median, high, low) against the live price, how targets moved, the ratings tally, rating actions, annual estimates | FMP, Finnhub, Yahoo Finance and Equibles | Source-labelled fallbacks; US-listed issuer/endpoint coverage varies; no invented target-history averages |
+| `ANALYSTS` | Price targets (consensus, median, high, low) against the current source price, target changes, ratings tally/actions, annual estimates; optional TipRanks consensus, Smart Score and actions | FMP, Finnhub, Yahoo Finance, Equibles; on-demand TipRanks | Source-labelled fallbacks; issuer/endpoint/market coverage and quotas vary; no invented target-history averages or Bloomberg consensus |
 
 ## Charts
 
@@ -104,7 +110,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `MONEYMARKET` | Fed funds and reference rates, bills, spreads, SOFR futures | New York Fed, US Treasury, Fed Board, Yahoo Finance (CME) | Real |
 | `RATEPROBS` | Fed moves priced meeting by meeting | CBOT fed funds futures via Yahoo Finance, New York Fed, Fed Board | Calculated (CME FedWatch method). Fed only |
 | `CENTRALBANKS` | Policy rates, last moves, next decisions | Fed, ECB, Bank of England, Bank of Canada, RBA, SNB, Banco Central do Brasil | Real. Meeting dates other than the Fed's entered from published calendars |
-| `BONDCALC` | Price/yield, accrued, duration, convexity, DV01, G/Z-spread, Z01, scenarios and cash flows | User terms, price/yield, optional benchmark yield and continuous zero curve | Calculated regular bullet; no observed price/curve, OAS or callable bond model |
+| `BONDCALC` | Price/yield, accrued, duration, convexity, DV01, G/Z-spread, Z01, scenarios and cash flows; five day counts and explicit/lagged settlement | User terms, price/yield, optional benchmark yield and continuous zero curve | Calculated regular bullet; settlement skips weekends only; no observed price/curve, OAS or callable bond model |
 | `SWAPCALC` | Par coupon, NPV, projected cash flows, curve/coupon bump P&L | User contract and separate discount/projection zero curves | Calculated forward-start fixed/float model; no dealer curve, fixing history or OIS conventions |
 | `BONDSEARCH`, `DEBTPROFILE`, `DEALERQUOTES` | | none | Not available: individual bond/dealer datasets have no connected free source |
 
@@ -126,7 +132,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `OPTIONS` | Listed US equity contracts, indicative bids/asks, delayed trades, provider IV/Greeks and source times | Alpaca indicative snapshots, own keys/account entitlement | Partial; no OPRA, index contracts, open interest, daily volume or assumed deliverables |
 | `OPTIONSTRATEGY` | Up to 12 common-expiry option legs + stock; exact expiry payoff/risk/breakevens, model Greeks and scenarios | Explicit positions, entry premiums, rates and per-leg volatility; optional source spot | European model; no calendars, American exercise, assignment, margin or execution |
 | `WATCHLIST` | Your lists with prices and changes | Each line's source | Real |
-| `PORTFOLIO` | Manual holdings/cash, historical-FX replay, empirical VaR/ES, additive signed contributions, matched benchmark risk, per-line stress and CSV | Every holding's prior-date price/FX history and current marks; selectable benchmark | Requires complete shared dates and ≥20 scenarios; no transaction ledger, dividend cash flows, corporate-action reconciliation or factor model |
+| `PORTFOLIO` | Manual holdings/cash, five base currencies, entry-FX metadata where recorded, historical-FX replay, empirical VaR/ES, additive signed contributions, matched benchmark risk, per-line stress and CSV | Every holding's prior-date price/FX history and current marks; selectable benchmark | Requires complete shared dates and ≥20 scenarios; no transaction ledger, dividend cash flows, corporate-action reconciliation or factor model |
 | `ALERTS` | Price, percent-change and keyword alerts while the app is open | Each line's source; official announcements | Real |
 | `CORRELATION` | Correlation of daily returns | Daily closes | Calculated |
 | `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` | Finding securities, history, notes, saved workspaces | Yahoo Finance search for stocks not built in | Tools |

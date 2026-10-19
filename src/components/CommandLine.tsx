@@ -14,6 +14,7 @@ interface CommandApi {
   append: (token: string) => void;
   submit: () => void;
   clear: () => void;
+  recall: (direction: -1 | 1) => void;
 }
 export const commandApis = new Map<number, CommandApi>();
 
@@ -69,6 +70,11 @@ export function clearPanelInput(panel: number) {
   commandApis.get(panel)?.clear();
 }
 
+/** Cycle past entries without executing them, like the terminal's Cmd History key. */
+export function recallPanelCommand(panel: number, direction: -1 | 1 = -1) {
+  commandApis.get(panel)?.recall(direction);
+}
+
 function routeText(r: Route, mnemonics: boolean): string {
   const parts = [r.sec, mnemonics ? primaryMnemonic(r.fn) : r.fn, r.args].filter(Boolean);
   return parts.join(' ');
@@ -80,6 +86,9 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   const [sel, setSel] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const entries = useRef<string[]>([]);
+  const recallIndex = useRef(-1);
+  const draft = useRef('');
   const msg = panelMessages.use((m) => m[panel]);
   const canBack = terminal.use((s) => s.panels[panel].idx > 0);
   const canFwd = terminal.use((s) => s.panels[panel].idx < s.panels[panel].history.length - 1);
@@ -88,7 +97,23 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
 
   const valueRef = useRef(value);
   valueRef.current = value;
-  const runRef = useRef<(text: string) => void>(() => undefined);
+  const submitRef = useRef<() => void>(() => undefined);
+
+  const recall = (direction: -1 | 1) => {
+    if (!entries.current.length || (direction === 1 && recallIndex.current < 0)) return;
+    if (recallIndex.current < 0) {
+      draft.current = valueRef.current;
+      recallIndex.current = entries.current.length;
+    }
+    const next = Math.max(0, recallIndex.current + direction);
+    recallIndex.current = next >= entries.current.length ? -1 : next;
+    setValue(recallIndex.current < 0 ? draft.current : entries.current[recallIndex.current]);
+    setOpen(false);
+    setSel(-1);
+    inputRef.current?.focus();
+  };
+  const recallRef = useRef(recall);
+  recallRef.current = recall;
 
   useEffect(() => {
     const el = inputRef.current;
@@ -98,17 +123,20 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       append: (token) => {
         const cur = valueRef.current.trimEnd();
         setValue(`${cur}${cur ? ' ' : ''}${token} `);
+        recallIndex.current = -1;
         setOpen(true);
         setSel(-1);
         el.focus();
       },
-      submit: () => runRef.current(valueRef.current),
+      submit: () => submitRef.current(),
       clear: () => {
         setValue('');
         setOpen(false);
         setSel(-1);
+        recallIndex.current = -1;
         clearFlash(panel);
       },
+      recall: (direction) => recallRef.current(direction),
     };
     commandApis.set(panel, api);
     return () => {
@@ -133,6 +161,9 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
 
   const run = (text: string) => {
     if (!text.trim()) return;
+    const entry = text.trim();
+    if (entries.current.at(-1) !== entry) entries.current = [...entries.current, entry].slice(-50);
+    recallIndex.current = -1;
     const ok = execute(panel, text);
     if (ok) {
       setValue('');
@@ -141,19 +172,26 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
     }
   };
 
-  runRef.current = run;
-
   const choose = (s: Suggestion) => {
     if (s.execute) run(s.execute);
     else if (s.fill) {
       setValue(s.fill);
+      recallIndex.current = -1;
       setSel(-1);
       setOpen(true);
       inputRef.current?.focus();
     }
   };
 
+  const submit = () => sel >= 0 && items[sel] ? choose(items[sel]) : run(valueRef.current);
+  submitRef.current = submit;
+
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault();
+      recall(e.key === 'ArrowUp' ? -1 : 1);
+      return;
+    }
     if (e.key in FKEY_TEXT) {
       e.preventDefault();
       typeInto(panel, FKEY_TEXT[e.key]);
@@ -164,13 +202,13 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         if (items.length) {
           e.preventDefault();
           setSel((i) => (i + 1) % items.length);
-        }
+        } else { e.preventDefault(); recall(1); }
         break;
       case 'ArrowUp':
         if (items.length) {
           e.preventDefault();
           setSel((i) => (i <= 0 ? items.length - 1 : i - 1));
-        }
+        } else { e.preventDefault(); recall(-1); }
         break;
       case 'Tab':
         if (items.length) {
@@ -182,14 +220,14 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         break;
       case 'Enter':
         e.preventDefault();
-        if (sel >= 0 && items[sel]) choose(items[sel]);
-        else run(value);
+        submit();
         break;
       case 'Escape':
         e.preventDefault();
         if (open && items.length) setOpen(false);
         else {
           setValue('');
+          recallIndex.current = -1;
           clearFlash(panel);
         }
         setSel(-1);
@@ -241,10 +279,17 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         spellCheck={false}
         autoComplete="off"
         autoCapitalize="characters"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={open && items.length > 0}
+        aria-controls={open && items.length > 0 ? `cmd-suggestions-${panel}` : undefined}
+        aria-activedescendant={open && sel >= 0 && items[sel] ? `cmd-option-${panel}-${sel}` : undefined}
         aria-label={`Panel ${panel + 1} command line`}
+        title="Enter / GO runs a command. Up / Down recalls commands when suggestions are closed; Ctrl+Up / Down always recalls."
         placeholder={`${routeText(route, mnemonics)}${fnDef ? `  ·  ${fnDef.name}` : ''}`}
         onChange={(e) => {
           setValue(e.target.value);
+          recallIndex.current = -1;
           setOpen(true);
           setSel(-1);
         }}
@@ -256,11 +301,11 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       <button type="button" className="cmd-help" title="Help for this function" onClick={() => run(`HELP ${route.fn}`)}>
         ?
       </button>
-      <button type="button" className="cmd-go" onMouseDown={(e) => e.preventDefault()} onClick={() => (sel >= 0 && items[sel] ? choose(items[sel]) : run(value))}>
+      <button type="button" className="cmd-go" onMouseDown={(e) => e.preventDefault()} onClick={submit}>
         GO
       </button>
       {open && items.length > 0 && (
-        <div className="ac" ref={listRef} role="listbox">
+        <div className="ac" id={`cmd-suggestions-${panel}`} ref={listRef} role="listbox" aria-label="Suggested functions and securities">
           {items.map((s, i) => {
             const head = i === 0 || items[i - 1].kind !== s.kind;
             return [
@@ -271,6 +316,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
               ) : null,
               <div
                 key={s.key}
+                id={`cmd-option-${panel}-${i}`}
                 data-i={i}
                 role="option"
                 aria-selected={i === sel}

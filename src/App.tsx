@@ -8,7 +8,6 @@ import { YahooSessionBanner } from './components/YahooSessionBanner';
 import { clearPanelInput, focusPanelInput, pagePanel, typeInto, FKEY_TEXT } from './components/CommandLine';
 import { engine } from './data/market';
 import { setTimeZone } from './core/format';
-import { execute } from './terminal/exec';
 import { lookupFn } from './terminal/registry';
 import { settings } from './terminal/settings';
 import { back, currentRoute, forward, LAYOUT_PANELS, setActive, splitFor, terminal } from './terminal/state';
@@ -17,6 +16,7 @@ import { startBackground } from './terminal/background';
 import { DemoBanner } from './components/NoDataSource';
 import { demoMode } from './data/demo';
 import { startIexPrices } from './data/live/iex-engine';
+import { showPanelHelp, showPanelMenu } from './terminal/actions';
 
 function MobileTabs() {
   const s = terminal.use((x) => x);
@@ -85,16 +85,30 @@ export function App() {
   }, [activeRoute]);
 
   useEffect(() => {
-    let lastHelp = 0;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const active = terminal.get().active;
       if (e.key === 'F1') {
         e.preventDefault();
-        // HELP twice in quick succession reaches the help desk, as on the real keyboard.
-        const now = Date.now();
-        execute(active, now - lastHelp < 1500 ? 'HELP HELP' : 'HELP');
-        lastHelp = now;
+        showPanelHelp(active);
+        return;
+      }
+      if (e.altKey && e.key === 'End') {
+        e.preventDefault();
+        showPanelMenu(active);
+        return;
+      }
+      if (e.ctrlKey && e.key === 'Tab') {
+        e.preventDefault();
+        const n = window.innerWidth <= 760 ? Math.max(LAYOUT_PANELS[terminal.get().layout], 4) : LAYOUT_PANELS[terminal.get().layout];
+        const next = (active + (e.shiftKey ? n - 1 : 1)) % n;
+        setActive(next);
+        focusPanelInput(next);
+        return;
+      }
+      if (e.key === 'Home' && !isTyping(e.target)) {
+        e.preventDefault();
+        focusPanelInput(active);
         return;
       }
       if (e.key === 'PageUp' || e.key === 'PageDown') {

@@ -4,7 +4,7 @@ import { CLASS_LABEL } from '../data/registry';
 import { parseCommand } from './commands';
 import { flash, clearFlash, menuItem } from './panel';
 import { lookupFn } from './registry';
-import { currentRoute, navigate, terminal } from './state';
+import { loadedSecurity, navigate, terminal } from './state';
 
 /** Bumped per panel on every command, so a slow online lookup never overrides a newer command. */
 const runSeq = new Map<number, number>();
@@ -51,7 +51,7 @@ export function execute(panel: number, text: string): boolean {
     }
     case 'help':
       clearFlash(panel);
-      navigate(panel, { fn: 'HELP', args: parsed.topic || undefined });
+      navigate(panel, { fn: 'HELP', args: parsed.topic || undefined, sec: loadedSecurity(terminal.get(), panel) });
       return true;
     case 'error':
       if (parsed.lookup) return lookupThenRun(panel, text, parsed.lookup, parsed.message);
@@ -64,13 +64,13 @@ export function execute(panel: number, text: string): boolean {
         navigate(panel, { fn: 'MESSAGES', args: 'HELP' });
         return true;
       }
-      const cur = currentRoute(terminal.get(), panel);
+      const loadedSec = loadedSecurity(terminal.get(), panel);
       const fnCode = parsed.fn ?? defaultFunction(parsed.sec?.cls);
       const def = lookupFn(fnCode)!;
       let secId = parsed.sec?.id;
-      if (def.needsSec && !secId) secId = cur.sec;
+      if ((def.needsSec || def.code === 'HELP') && !secId) secId = loadedSec;
       // MENU <GO> on its own returns to the loaded security's menu.
-      if (def.code === 'MENU' && !secId && !parsed.args) secId = cur.sec;
+      if (def.code === 'MENU' && !secId && !parsed.args) secId = loadedSec;
       if (def.needsSec && !secId) {
         flash(panel, `${def.code} needs a security, e.g. ${def.code} AAPL`, 'error');
         return false;

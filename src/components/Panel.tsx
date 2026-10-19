@@ -6,6 +6,7 @@ import { lookupFn } from '../terminal/registry';
 import { currentRoute, setActive, terminal } from '../terminal/state';
 import { CommandLine } from './CommandLine';
 import { ErrorBoundary } from './ErrorBoundary';
+import { PanelToolbar } from './PanelToolbar';
 
 export function Panel({ index }: { index: number }) {
   const route = terminal.use((s) => currentRoute(s, index));
@@ -20,9 +21,11 @@ export function Panel({ index }: { index: number }) {
     <section
       className={`panel${active ? ' active' : ''}`}
       onMouseDownCapture={() => setActive(index)}
+      onFocusCapture={() => setActive(index)}
       aria-label={`Panel ${index + 1}: ${def.name}`}
     >
       <PanelContext.Provider value={index}>
+        <PanelToolbar panel={index} />
         <CommandLine panel={index} route={route} />
         <div className="panel-body" id={`panel-body-${index}`}>
           {route.sec && !sec ? (

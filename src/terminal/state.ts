@@ -6,6 +6,8 @@ export interface PanelState {
   history: Route[];
   idx: number;
   linkGroup?: LinkGroup;
+  /** The loaded security survives non-security functions and bounded screen history. */
+  loadedSec?: string;
 }
 
 export type LinkGroup = 0 | 1 | 2 | 3 | 4;
@@ -111,6 +113,20 @@ export function currentRoute(s: TerminalState, panel: number): Route {
   return p.history[p.idx] ?? { fn: 'HELP' };
 }
 
+function panelSecurity(p: PanelState | undefined): string | undefined {
+  if (!p) return undefined;
+  if (p.history[p.idx]?.sec) return p.history[p.idx].sec;
+  if (p.loadedSec) return p.loadedSec;
+  // Older workspaces saved the security only on individual routes.
+  for (let i = p.idx - 1; i >= 0; i--) if (p.history[i]?.sec) return p.history[i].sec;
+  return undefined;
+}
+
+/** A panel keeps its loaded security until another security is loaded. */
+export function loadedSecurity(s: TerminalState, panel: number): string | undefined {
+  return panelSecurity(s.panels[panel]);
+}
+
 const MAX_HISTORY = 50;
 
 function withRoute(p: PanelState, route: Route, replace = false): PanelState {
@@ -119,10 +135,10 @@ function withRoute(p: PanelState, route: Route, replace = false): PanelState {
   if (replace) {
     const history = [...p.history];
     history[p.idx] = route;
-    return { ...p, history };
+    return { ...p, history, loadedSec: route.sec ?? panelSecurity(p) };
   }
   const history = [...p.history.slice(0, p.idx + 1), route].slice(-MAX_HISTORY);
-  return { ...p, history, idx: history.length - 1 };
+  return { ...p, history, idx: history.length - 1, loadedSec: route.sec ?? panelSecurity(p) };
 }
 
 /** Functions whose arguments describe one security (OPTIONCALC's strike and volatility): a follower drops them. */
@@ -152,7 +168,7 @@ export function broadcastSecurity(panel: number, id: string): boolean {
   const group = linkGroupOf(s.panels[panel]);
   const hasFollower = !!group && s.panels.some((p, i) => i !== panel && i < LAYOUT_PANELS[s.layout] && linkGroupOf(p) === group && acceptsSecurity(p.history[p.idx], id));
   if (!hasFollower) return false;
-  const panels = followers(s, s.panels, panel, id);
+  const panels = followers(s, s.panels, panel, id).map((p, i) => i === panel ? { ...p, loadedSec: id } : p);
   terminal.set({ ...s, panels, recentSecs: [id, ...s.recentSecs.filter((x) => x !== id)].slice(0, 30), active: panel });
   return true;
 }
@@ -187,7 +203,7 @@ function moveHistory(panel: number, delta: -1 | 1) {
     const p = s.panels[panel];
     if (!p || p.idx + delta < 0 || p.idx + delta >= p.history.length) return s;
     const r = p.history[p.idx + delta];
-    let panels = s.panels.map((v, i) => i === panel ? { ...v, idx: v.idx + delta } : v);
+    let panels = s.panels.map((v, i) => i === panel ? { ...v, idx: v.idx + delta, loadedSec: r.sec ?? panelSecurity(v) } : v);
     if (r.sec && r.sec !== p.history[p.idx]?.sec) panels = followers(s, panels, panel, r.sec);
     return { ...s, panels };
   });
