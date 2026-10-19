@@ -9,6 +9,7 @@ import { fmtBig, fmtBp, fmtNum, fmtPct, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
 import { fieldTime } from '../data/fields';
+import { extendedSessions } from '../data/live/yahoo';
 import { sortWatchlistRows, WATCHLIST_COLUMNS, WATCHLIST_PRESETS, watchlistColumns, watchlistExport, watchlistRow, type WatchlistColumn, type WatchlistRow, type WatchlistSort } from '../data/watchlist-columns';
 import { resolveSecurity, searchSecurities } from '../data/registry';
 import type { Quote, SecurityDef } from '../data/types';
@@ -32,6 +33,18 @@ export function FieldCell({ column, row, sec, quote, now }: { column: WatchlistC
     case 'ARMIN_SOURCE_TIME': value = f.dateOnly ? fieldTime(f) : quote ? fmtStamp(quote.time, now) : '--'; break;
     case 'ARMIN_TODAY': value = <Sparkline values={row.today} width={80} height={14} />; break;
     case 'ARMIN_RECEIVED_AT': value = f.asOf === null ? '--' : fieldTime(f); break;
+    case 'ARMIN_PRE_MARKET':
+    case 'ARMIN_AFTER_HOURS': {
+      // The session's price with its change against the regular close.
+      const px = row.fields.get(column.id === 'ARMIN_PRE_MARKET' ? 'ARMIN_PRE_PX' : 'ARMIN_POST_PX')?.value;
+      const pct = Number(f.value);
+      value = (
+        <>
+          {typeof px === 'number' ? fmtNum(px, sec.dec) : ''} <span className={pct >= 0 ? 'up' : 'dn'}>{fmtPct(pct)}</span>
+        </>
+      );
+      return <span title={`${f.name} at ${f.asOf ? fmtStamp(f.asOf, now) : '--'} · ${f.source}\n${f.definition}\n${f.note}`}>{value}</span>;
+    }
   }
   return <span title={`${f.name} (${f.unit}) · ${f.source} · ${f.status}\n${f.timeBasis}\n${f.note}`}>{value}</span>;
 }
@@ -78,6 +91,7 @@ export function W({ route }: FnProps) {
     return watchlistRow(id, engine.get(id), engine.quote(id), now, {
       ytd: selected.has('ARMIN_YTD') ? periodChange(id, 'YTD') : NaN,
       today: intra ? Array.from(intra.c.subarray(0, intra.length)) : [], intradayTime: intra?.length ? intra.t[intra.length - 1] : undefined,
+      extended: extendedSessions(id, now),
     });
   }), list.sort, columns);
 

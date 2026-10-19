@@ -490,8 +490,10 @@ test('the explicit IEX source switch supplies watchlist and quote prices with on
   await command(page, 'WATCHLIST');
   const row = page.locator('.panel').first().getByRole('row').filter({ has: page.getByRole('button', { name: 'AAPL US', exact: true }) });
   await expect(row.getByRole('cell').nth(2)).toHaveText(PRICE);
-  await expect(row.getByRole('cell').nth(5)).toHaveText('123.40');
-  await expect(row.getByRole('cell').nth(6)).toHaveText('123.50');
+  // Bid and ask by their headers: the default columns include the extended sessions before them.
+  const headers = await page.locator('.panel').first().locator('thead th').allTextContents();
+  await expect(row.getByRole('cell').nth(headers.findIndex((h) => h.trim() === 'Bid'))).toHaveText('123.40');
+  await expect(row.getByRole('cell').nth(headers.findIndex((h) => h.trim() === 'Ask'))).toHaveText('123.50');
   // The selected-field wrapper and live price both carry provenance; inspect the cell's field wrapper.
   await expect(row.getByRole('cell').nth(2).locator(':scope > span[title]')).toHaveAttribute('title', /IEX/i);
   await expect(row.locator('.stale-px')).toHaveCount(0);

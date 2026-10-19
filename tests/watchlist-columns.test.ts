@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { toCsv } from '../src/core/csv';
-import { DEFAULT_WATCHLIST_COLUMNS, sortWatchlistRows, watchlistColumns, watchlistExport, watchlistRow } from '../src/data/watchlist-columns';
+import { DEFAULT_WATCHLIST_COLUMNS, sortWatchlistRows, watchlistColumns, watchlistExport, watchlistRow, withExtendedColumns } from '../src/data/watchlist-columns';
+import { extendedSessions, lastPostTrade, yahooQuotes } from '../src/data/live/yahoo';
 import type { Quote, SecurityDef } from '../src/data/types';
 
 const NOW = Date.parse('2026-10-16T15:00:00Z');
@@ -54,5 +55,47 @@ describe('custom watchlist fields', () => {
     expect(r.fields.get('ARMIN_YTD')).toMatchObject({ value: 0.1, unit: 'percentage points', asOf: NOW - 5_000, status: 'DEMO DATA' });
     expect(r.fields.get('ARMIN_TODAY')).toMatchObject({ value: '4.1;4.2', asOf: NOW - 60_000, status: 'DEMO DATA' });
     expect(row().today).toEqual([100, 101]);
+  });
+});
+
+describe('pre-market and after-hours columns', () => {
+  it('shows each session with its change against the regular close, and nothing for a session the source does not give', () => {
+    const r = watchlistRow(sec.id, sec, quote(), NOW, { ytd: 1, today: [], extended: { pre: { price: 106.5, pct: 1.43, time: NOW - 3_600_000, source: 'Fixture extended' } } });
+    expect(r.fields.get('ARMIN_PRE_MARKET')).toMatchObject({ value: 1.43, unit: '%', status: 'EXTENDED HOURS', asOf: NOW - 3_600_000, source: 'Fixture extended' });
+    expect(r.fields.get('ARMIN_PRE_PX')).toMatchObject({ value: 106.5, unit: 'USD' });
+    expect(r.fields.get('ARMIN_AFTER_HOURS')).toMatchObject({ value: null, status: 'UNAVAILABLE' });
+  });
+
+  it('are on by default and join lists saved with their own columns after %Chg, once', () => {
+    expect(DEFAULT_WATCHLIST_COLUMNS.slice(3, 6)).toEqual(['CHG_PCT_1D', 'ARMIN_PRE_MARKET', 'ARMIN_AFTER_HOURS']);
+    expect(withExtendedColumns(['NAME', 'PX_LAST', 'CHG_PCT_1D', 'BID'])).toEqual(['NAME', 'PX_LAST', 'CHG_PCT_1D', 'ARMIN_PRE_MARKET', 'ARMIN_AFTER_HOURS', 'BID']);
+    expect(withExtendedColumns(['PX_LAST'])).toEqual(['PX_LAST', 'ARMIN_PRE_MARKET', 'ARMIN_AFTER_HOURS']);
+    // A list that already chose one of them (or removed the other) is left as it is.
+    expect(withExtendedColumns(['PX_LAST', 'ARMIN_AFTER_HOURS'])).toEqual(['PX_LAST', 'ARMIN_AFTER_HOURS']);
+  });
+
+  it("reads today's pre-market and the after-hours session after the latest close from Yahoo's quote", () => {
+    const at = (iso: string) => Date.parse(iso) / 1000;
+    const now = Date.parse('2026-10-19T08:31:00Z');
+    yahooQuotes.set('AAPL US Equity', {
+      marketState: 'PRE', regularMarketPrice: 343.46, regularMarketTime: at('2026-10-16T20:00:00Z'),
+      preMarketPrice: 343.25, preMarketChangePercent: -0.0611, preMarketTime: at('2026-10-19T08:30:00Z'),
+      postMarketPrice: 344.1, postMarketChangePercent: 0.1863, postMarketTime: at('2026-10-16T23:59:00Z'),
+    });
+    const x = extendedSessions('AAPL US Equity', now);
+    expect(x.pre).toMatchObject({ price: 343.25, pct: -0.0611 });
+    expect(x.post).toMatchObject({ price: 344.1, pct: 0.1863 });
+    // Once the regular session has traded again, the earlier after-hours price is gone; a stale pre-market too.
+    yahooQuotes.set('AAPL US Equity', { ...yahooQuotes.get('AAPL US Equity'), marketState: 'REGULAR', regularMarketTime: at('2026-10-19T14:00:00Z') });
+    expect(extendedSessions('AAPL US Equity', Date.parse('2026-10-20T08:00:00Z'))).toEqual({});
+    yahooQuotes.delete('AAPL US Equity');
+  });
+
+  it("takes the evening's last after-hours trade from the chart: after the close, within the four-hour session", () => {
+    const close = Date.parse('2026-10-16T20:00:00Z');
+    const t = (iso: string) => Date.parse(iso) / 1000;
+    const bars = { t: [t('2026-10-16T19:45:00Z'), t('2026-10-16T21:00:00Z'), t('2026-10-16T23:45:00Z'), t('2026-10-19T08:00:00Z')], c: [342, 342.4, 342.62, 343.7] };
+    expect(lastPostTrade(bars, close)).toEqual({ price: 342.62, time: Date.parse('2026-10-16T23:45:00Z') });
+    expect(lastPostTrade({ t: bars.t, c: [342, null, null, 343.7] }, close)).toBeNull();
   });
 });

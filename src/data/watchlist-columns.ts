@@ -1,6 +1,16 @@
 import { fieldTime, securityFields, type FieldValue } from './fields';
 import type { Quote, SecurityDef } from './types';
 
+/** A stock's price in one extended session and its change against the regular session's close. */
+export interface SessionPrice {
+  price: number;
+  /** Percent change against the last regular-session close. */
+  pct: number;
+  /** When the price was traded (ms). */
+  time: number;
+  source: string;
+}
+
 export interface WatchlistColumn {
   id: string;
   label: string;
@@ -14,6 +24,8 @@ export const WATCHLIST_COLUMNS: readonly WatchlistColumn[] = [
   { id: 'PX_LAST', label: 'Last', numeric: true, compact: true },
   { id: 'CHG_NET_1D', label: 'Net Chg', numeric: true, compact: true },
   { id: 'CHG_PCT_1D', label: '%Chg', numeric: true, compact: true },
+  { id: 'ARMIN_PRE_MARKET', label: 'Pre-mkt', numeric: true },
+  { id: 'ARMIN_AFTER_HOURS', label: 'After hrs', numeric: true },
   { id: 'BID', label: 'Bid', numeric: true },
   { id: 'ASK', label: 'Ask', numeric: true },
   { id: 'PX_VOLUME', label: 'Volume', numeric: true },
@@ -37,9 +49,20 @@ export const WATCHLIST_COLUMNS: readonly WatchlistColumn[] = [
   { id: 'ARMIN_RECEIVED_AT', label: 'Received UTC' },
   { id: 'ARMIN_SESSION', label: 'Session' },
   { id: 'ARMIN_VOLUME_UNIT', label: 'Volume Unit' },
+  { id: 'ARMIN_PRE_PX', label: 'Pre-mkt Px', numeric: true },
+  { id: 'ARMIN_POST_PX', label: 'After hrs Px', numeric: true },
 ];
 
-export const DEFAULT_WATCHLIST_COLUMNS = WATCHLIST_COLUMNS.slice(0, 10).map((c) => c.id);
+/** The extended-session columns, which lists saved before they existed receive after %Chg. */
+export const EXTENDED_COLUMNS = ['ARMIN_PRE_MARKET', 'ARMIN_AFTER_HOURS'];
+export const DEFAULT_WATCHLIST_COLUMNS = ['NAME', 'PX_LAST', 'CHG_NET_1D', 'CHG_PCT_1D', ...EXTENDED_COLUMNS, 'BID', 'ASK', 'PX_VOLUME', 'ARMIN_YTD', 'ARMIN_SOURCE_TIME', 'ARMIN_TODAY'];
+
+/** A saved column list with the extended-session columns added after %Chg (or at the end), once. */
+export function withExtendedColumns(ids: string[]): string[] {
+  if (EXTENDED_COLUMNS.some((c) => ids.includes(c))) return ids;
+  const at = ids.indexOf('CHG_PCT_1D');
+  return at < 0 ? [...ids, ...EXTENDED_COLUMNS] : [...ids.slice(0, at + 1), ...EXTENDED_COLUMNS, ...ids.slice(at + 1)];
+}
 export const WATCHLIST_PRESETS = [
   { name: 'Default', columns: DEFAULT_WATCHLIST_COLUMNS },
   { name: 'Quote detail', columns: ['NAME', 'PX_LAST', 'CHG_NET_1D', 'CHG_PCT_1D', 'PX_OPEN', 'PX_HIGH', 'PX_LOW', 'PX_PREV_CLOSE', 'BID', 'ASK', 'ARMIN_BID_ASK_SPREAD', 'PX_VOLUME'] },
@@ -68,7 +91,7 @@ export interface WatchlistRow {
 /** Captures exactly the local values and provenance used by the monitor and its export. */
 export function watchlistRow(
   id: string, sec: SecurityDef | undefined, q: Quote | undefined, now: number,
-  history: { ytd: number; today: readonly number[]; intradayTime?: number },
+  history: { ytd: number; today: readonly number[]; intradayTime?: number; extended?: { pre?: SessionPrice; post?: SessionPrice } },
 ): WatchlistRow {
   const fields = new Map((sec ? securityFields(sec, q, now) : []).map((f) => [f.id, f]));
   const today = history.today.filter(Number.isFinite);
@@ -89,6 +112,15 @@ export function watchlistRow(
         note: 'Local history coverage; a current quote does not verify this history or its adjustment conventions.',
       });
     };
+    // Pre-market and after-hours trading (stocks): the change against the regular close, and the price.
+    const session = (pctId: string, pxId: string, name: string, s: SessionPrice | undefined) => {
+      const base = { category: 'Calculated' as const, source: s?.source ?? 'Extended-hours quote', dateOnly: false, timeBasis: 'Time of the last trade in the session, as the source gives it.', note: sec.cls === 'equity' ? 'Shown while the session is the latest one: after hours until the next regular session opens. US stocks only at the source.' : 'Extended sessions apply to stocks.' };
+      const valid = !!s && Number.isFinite(s.price) && s.price > 0;
+      fields.set(pctId, { ...base, id: pctId, name: `${name} change`, definition: `${name} price against the last regular-session close.`, value: valid && Number.isFinite(s!.pct) ? s!.pct : null, unit: '%', status: valid ? 'EXTENDED HOURS' : 'UNAVAILABLE', asOf: valid ? s!.time : null });
+      fields.set(pxId, { ...base, id: pxId, name: `${name} price`, definition: `Last ${name.toLowerCase()} trade.`, value: valid ? s!.price : null, unit: sec.ccy, status: valid ? 'EXTENDED HOURS' : 'UNAVAILABLE', asOf: valid ? s!.time : null });
+    };
+    session('ARMIN_PRE_MARKET', 'ARMIN_PRE_PX', 'Pre-market', history.extended?.pre);
+    session('ARMIN_AFTER_HOURS', 'ARMIN_POST_PX', 'After-hours', history.extended?.post);
     extra('ARMIN_YTD', 'Year-to-date change', history.ytd, sec.quote === 'yield' ? 'percentage points' : '%', q?.time, 'Current source price against the available year-end daily close; price return for prices, percentage-point change for yield references.');
     extra('ARMIN_TODAY', 'Intraday close samples', today.length ? today.join(';') : null, sec.quote === 'yield' ? 'yield % samples' : `${sec.ccy} samples`, history.intradayTime, 'Available intraday close observations in chart order, separated by semicolons in CSV; not a transaction tape.');
   }

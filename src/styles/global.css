@@ -860,6 +860,16 @@ a.news-item { color: inherit; text-decoration: none; }
 .msg .who { font-size: var(--fs-s); color: var(--amber); }
 .msg .who time { color: var(--muted); margin-left: 6px; }
 .msg .txt { font-family: var(--sans); font-size: var(--fs-l); background: #131313; border: 1px solid var(--line); padding: 4px 8px; color: var(--text); white-space: pre-wrap; }
+.md { line-height: 1.55; overflow-wrap: anywhere; }
+.md-h1 { color: var(--amber); font-weight: 700; margin: 10px 0 4px; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+.md-h2 { color: var(--amber); margin: 8px 0 2px; }
+.md-p { margin: 4px 0; }
+.md-list { margin: 4px 0; padding-left: 18px; }
+.md-table { margin: 4px 0 8px; }
+.md-table td, .md-table th { white-space: normal; }
+.md-rule { border: 0; border-top: 1px solid var(--line); margin: 8px 0; }
+.md-code { white-space: pre-wrap; background: #131313; padding: 4px 6px; margin: 4px 0; font: inherit; }
+.md code { background: #131313; padding: 0 3px; }
 .earn-growth { margin-top: 6px; line-height: 1.6; }
 .earn-growth .up, .earn-growth .dn { font-weight: 600; }
 .msg-links { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; white-space: normal; font-size: var(--fs-s); }

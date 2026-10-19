@@ -8,6 +8,7 @@ import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
 import { watchlistColumns, watchlistExport, watchlistRow } from '../data/watchlist-columns';
 import { newsAvailable } from '../data/live/marketnews';
+import { extendedSessions } from '../data/live/yahoo';
 import { LIST_REACH, securitiesNews, useSecuritiesNews } from '../data/live/secnews';
 import { resolveSecurity, searchSecurities } from '../data/registry';
 import type { SecurityDef } from '../data/types';
@@ -30,6 +31,7 @@ function favouriteRows(ids: string[]) {
       ytd: periodChange(id, 'YTD'),
       today: intra ? Array.from(intra.c.subarray(0, intra.length)) : [],
       intradayTime: intra?.length ? intra.t[intra.length - 1] : undefined,
+      extended: extendedSessions(id, now),
     });
   });
   return { now, columns, rows };

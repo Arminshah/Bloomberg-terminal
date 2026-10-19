@@ -1,7 +1,7 @@
 import { createStore, loadJson, removeKey, saveJson } from '../core/store';
 import type { LayoutId, Route } from './types';
 import type { LinkGroup } from './state';
-import type { WatchlistSort } from '../data/watchlist-columns';
+import { withExtendedColumns, type WatchlistSort } from '../data/watchlist-columns';
 
 export interface Watchlist {
   name: string;
@@ -40,6 +40,12 @@ export const watchlists = createStore<{ lists: Watchlist[]; active: number }>(
   'watchlists',
   1,
 );
+
+// Once per installation: lists saved with their own columns receive the pre-market and after-hours columns.
+if (typeof localStorage !== 'undefined' && !loadJson('armin:ext-hours-columns')) {
+  watchlists.set((s) => ({ ...s, lists: s.lists.map((l) => (l.columns?.length ? { ...l, columns: withExtendedColumns(l.columns) } : l)) }));
+  saveJson('armin:ext-hours-columns', 1);
+}
 
 export interface Position {
   id: string;
