@@ -48,12 +48,6 @@ export function FnHeader({ code, title, sec, sub, actions = [], tabs, tab, onTab
   return (
     <header className="fnh">
       <div className="fnh-row">
-        {showMnemonic && <span className="fnh-mnemonic" title={`${mnemonic} <GO> opens ${code}`}>{mnemonic}<small> &lt;GO&gt;</small></span>}
-        <span className="fnh-code">{code}</span>
-        {sec && <span className="fnh-sec">{sec.id}</span>}
-        {sec && <FavStar id={sec.id} />}
-        <span className="fnh-title">{title}</span>
-        {sub && <span className="fnh-sub hide-m">{sub}</span>}
         <span className="fnh-actions">
           {right}
           {actions.map((a) => (
@@ -62,11 +56,21 @@ export function FnHeader({ code, title, sec, sub, actions = [], tabs, tab, onTab
             </button>
           ))}
         </span>
+        <span className="fnh-caption">
+          {showMnemonic && <span className="fnh-mnemonic" title={`${mnemonic} <GO> opens ${code}`}>{mnemonic}<small> &lt;GO&gt;</small></span>}
+          <span className="fnh-code">{code}</span>
+          <span className="fnh-title">{title}</span>
+        </span>
       </div>
+      {(sec || sub) && <div className="fnh-context">
+        {sec && <span className="fnh-sec">{sec.id}</span>}
+        {sec && <FavStar id={sec.id} />}
+        {sub && <span className="fnh-sub">{sub}</span>}
+      </div>}
       {tabs && (
         <nav className="tabs" aria-label={`${code} views`}>
           {tabs.map((t) => (
-            <button key={t.n} type="button" className={`tab${t.n === tab ? ' on' : ''}`} onClick={() => onTab?.(t.n)}>
+            <button key={t.n} type="button" className={`tab${t.n === tab ? ' on' : ''}`} aria-current={t.n === tab ? 'page' : undefined} onClick={() => onTab?.(t.n)}>
               <b>{t.n})</b> {t.label}
             </button>
           ))}

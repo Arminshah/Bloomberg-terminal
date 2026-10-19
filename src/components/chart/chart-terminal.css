@@ -1,0 +1,36 @@
+.terminal-chart {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  background: #000;
+}
+
+.chart-observation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 15px;
+  padding: 3px 8px;
+  border-bottom: 1px solid #343434;
+  color: #b8b8b8;
+  font-size: var(--fs-s);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-observation > span { white-space: nowrap; }
+.chart-observation b { color: #f2f2f2; font-weight: 500; }
+.chart-observation-date { color: #ffb547; }
+.chart-observation-kind { margin-right: 8px; color: #b8b8b8; }
+
+.chart-scale-info {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding: 2px 8px;
+  border-top: 1px solid #343434;
+  color: #b8b8b8;
+  font-size: var(--fs-s);
+  font-variant-numeric: tabular-nums;
+}

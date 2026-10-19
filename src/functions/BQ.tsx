@@ -23,6 +23,7 @@ import { secTicker } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
 import type { Quote, SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
+import '../styles/quote-terminal.css';
 
 const QUOTE_REACH: NewsReach = { massive: false, marketaux: false };
 
@@ -70,7 +71,7 @@ export function BQ({ sec }: FnProps) {
   const analysts = useAnalystSnapshot(s);
   const tradable = s.cls === 'equity' || s.cls === 'crypto' || s.cls === 'commodity' || s.cls === 'future';
   return (
-    <div>
+    <div className="quote-terminal">
       <FnHeader
         code="QUOTE"
         title="Quote"
@@ -89,7 +90,7 @@ export function BQ({ sec }: FnProps) {
             : []),
         ]}
       />
-      <div className="cols">
+      <div className="cols quote-overview">
         <Section
           title="Quote"
           right={
@@ -99,36 +100,51 @@ export function BQ({ sec }: FnProps) {
             </>
           }
         >
-          <div className="pad row" style={{ alignItems: 'baseline', gap: 14 }}>
-            <Flash value={q.last} className={`white ${q.tick > 0 ? 'arrow-up' : q.tick < 0 ? 'arrow-dn' : ''}`}>
-              <span style={{ fontSize: 30, fontWeight: 600 }}>{fmtNum(q.last, s.dec)}</span>
-            </Flash>
-            <span style={{ fontSize: 'var(--fs-xl)' }}>
-              {y ? (
-                <DayChg q={q} bp unit=" bp" />
-              ) : (
-                <>
-                  <DayChg q={q} dec={s.dec} />{'  '}
-                  <DayChg q={q} pct />
-                </>
-              )}
-            </span>
+          <div className="quote-identity">
+            <span className="quote-security">{s.id}</span>
+            <span className="quote-venue">{[s.exch ?? s.cmd?.exch ?? s.fut?.exch, y ? 'Yield %' : s.ccy].filter(Boolean).join(' · ')}</span>
           </div>
-          <KV
-            items={[
-              // Outside the regular session the source's bid and offer are extended-hours quotes.
-              [q.src === 'CLOSE' ? 'Bid / Ask (outside session)' : 'Bid / Ask', Number.isFinite(q.bid) ? `${fmtNum(q.bid, s.dec)} / ${fmtNum(q.ask, s.dec)}` : '--'],
-              ['Open', fmtNum(q.open, s.dec)],
-              ['Day high / low', `${fmtNum(q.high, s.dec)} / ${fmtNum(q.low, s.dec)}`],
-              ['Previous close', fmtNum(q.prevClose, s.dec)],
-              ...(q.volume > 0 ? ([['Volume', fmtBig(q.volume)], ['VWAP', fmtNum(vwap, s.dec)], ['Avg vol 30D', fmtBig(rs.avgVol30)]] as [string, string][]) : []),
-              ['52-week range', `${fmtNum(rs.lo52, s.dec)} - ${fmtNum(rs.hi52, s.dec)}`],
-              ['Last update', q.src === 'EOD' || q.dayOnly ? `as of ${fmtDay(q.time)}` : fmtStamp(q.time)],
-            ]}
-          />
+          <dl className={`quote-summary${y ? ' quote-summary-yield' : ''}`}>
+            <div className="quote-last">
+              <dt>{y ? 'Last yield (%)' : 'Last price'}</dt>
+              <dd>
+                <Flash value={q.last} className={`white ${q.tick > 0 ? 'arrow-up' : q.tick < 0 ? 'arrow-dn' : ''}`}>
+                  {fmtNum(q.last, s.dec)}
+                </Flash>
+              </dd>
+            </div>
+            <div>
+              <dt>{y ? 'Net change (bp)' : 'Net change'}</dt>
+              <dd><DayChg q={q} bp={y} dec={s.dec} /></dd>
+            </div>
+            {!y ? <div><dt>% change</dt><dd><DayChg q={q} pct /></dd></div> : null}
+          </dl>
+          <dl className="quote-inside">
+            <div><dt>{y ? 'Bid yield (%)' : 'Bid'}</dt><dd>{fmtNum(q.bid, s.dec)}</dd></div>
+            <div><dt>{y ? 'Ask yield (%)' : 'Ask'}</dt><dd>{fmtNum(q.ask, s.dec)}</dd></div>
+          </dl>
+          {/* Outside the regular session the source's bid and offer are extended-hours quotes. */}
+          {q.src === 'CLOSE' ? <div className="quote-session-note">Bid / ask outside the regular session</div> : null}
+          <div className="quote-session-stats">
+            <KV
+              items={[
+                ['Open', fmtNum(q.open, s.dec)],
+                ['Day high', fmtNum(q.high, s.dec)],
+                ['Day low', fmtNum(q.low, s.dec)],
+                ['Previous close', fmtNum(q.prevClose, s.dec)],
+              ]}
+            />
+            <KV
+              items={[
+                ...(q.volume > 0 ? ([[q.volumeUnit ? `Volume (${q.volumeUnit})` : 'Volume', fmtBig(q.volume)], ['VWAP', fmtNum(vwap, s.dec)], ['Avg vol 30D', fmtBig(rs.avgVol30)]] as [string, string][]) : []),
+                ['52-week range', `${fmtNum(rs.lo52, s.dec)} – ${fmtNum(rs.hi52, s.dec)}`],
+              ]}
+            />
+          </div>
+          <div className="quote-update"><span>Last update</span><span>{q.src === 'EOD' || q.dayOnly ? `as of ${fmtDay(q.time)}` : fmtStamp(q.time)}</span></div>
         </Section>
-        <Section title="Intraday" right={`prev ${fmtNum(q.prevClose, s.dec)}`}>
-          <div style={{ height: 250, display: 'flex' }}>
+        <Section title="Intraday" right={`prev ${fmtNum(q.prevClose, s.dec)}`} className="quote-intraday">
+          <div className="quote-chart">
             <ChartView series={intra} options={options} resetKey={s.id} />
           </div>
         </Section>

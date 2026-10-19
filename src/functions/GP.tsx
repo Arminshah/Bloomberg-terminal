@@ -233,7 +233,12 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
         </span>
         <CompareBox sec={sec} list={compare} setList={setCompare} />
       </div>
-      <ChartView series={series} options={options} resetKey={`${sec.id}|${period}|${freq}|${intraday}`} />
+      <ChartView
+        series={series}
+        options={options}
+        resetKey={`${sec.id}|${period}|${freq}|${intraday}`}
+        readout={{ unit: sec.quote === 'yield' ? 'yield %' : sec.ccy, periodicity: intraday ? 'Intraday' : freq === 'D' ? 'Daily' : freq === 'W' ? 'Weekly' : 'Monthly' }}
+      />
     </div>
   );
 }

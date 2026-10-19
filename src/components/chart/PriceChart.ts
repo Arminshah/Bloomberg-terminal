@@ -36,6 +36,19 @@ export interface ChartOptions {
   dateLabel?: (ms: number) => string;
 }
 
+/** A snapshot of the inspected bar, so the DOM readout also updates on live ticks. */
+export interface ChartObservation {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  from: number;
+  to: number;
+  hovered: boolean;
+}
+
 export const CHART_THEME = {
   bg: '#000000',
   grid: '#1b1b1b',
@@ -105,6 +118,7 @@ export class PriceChart {
   } = { overlays: [], cmp: [] };
   private indKey = '';
   onHover?: (index: number | null) => void;
+  onObservation?: (observation: ChartObservation | null) => void;
 
   constructor(private host: HTMLElement) {
     this.canvas = document.createElement('canvas');
@@ -370,6 +384,7 @@ export class PriceChart {
       ctx.fillStyle = T.axis;
       ctx.font = T.font;
       ctx.fillText('No price history from the source yet (PROVIDERS shows its status)', 10, 20);
+      this.onObservation?.(null);
       return;
     }
     this.computeIndicators();
@@ -652,50 +667,55 @@ export class PriceChart {
     }
     ctx.restore();
 
-    // Lower panes.
-    for (const p of panes.slice(1)) this.drawLower(p, i0, i1, bw);
+    const inPlot = this.hover && this.hover.x >= LEFT && this.hover.x <= plotRight && this.hover.y >= TOP && this.hover.y <= this.h - AXIS_H;
+    const candidate = inPlot ? Math.round(this.indexAt(this.hover!.x) - 0.5) : -1;
+    const hoverIndex = candidate >= i0 && candidate <= i1 ? candidate : null;
+    const inspected = hoverIndex ?? i1;
+
+    // Studies and the readout always describe the same inspected observation.
+    for (const p of panes.slice(1)) this.drawLower(p, i0, i1, bw, inspected);
 
     // Axis tags: average, reference, comparisons, last.
     if (opt.annotate && !pct) this.axisTag(yAt(avg), fmtNum(avg, opt.dec), '#3a2a10', T.amber, main);
     if (opt.refLine && !pct && Number.isFinite(opt.refLine.value)) this.axisTag(yAt(opt.refLine.value), fmtNum(opt.refLine.value, opt.dec), '#2a2a2a', T.axisText, main);
     for (const c of cmpLast) this.axisTag(c.y, `${fmtNum(c.v, 2)}%`, c.color, '#000', main);
-    const lastV = tr(s.c[n - 1]);
-    this.axisTag(yAt(lastV), pct ? `${fmtNum(lastV, 2)}%` : fmtNum(s.c[n - 1], opt.dec), color, '#000', main, true);
+    const lastV = tr(s.c[i1]);
+    this.axisTag(yAt(lastV), pct ? `${fmtNum(lastV, 2)}%` : fmtNum(s.c[i1], opt.dec), color, '#000', main, true);
 
     // Crosshair.
-    let hoverIndex: number | null = null;
-    if (this.hover && this.hover.x >= LEFT && this.hover.x <= plotRight && this.hover.y >= TOP && this.hover.y <= this.h - AXIS_H) {
-      const idx = Math.round(this.indexAt(this.hover.x) - 0.5);
-      if (idx >= i0 && idx <= i1) {
-        hoverIndex = idx;
-        const x = Math.round(this.xAt(idx)) + 0.5;
-        const y = Math.round(this.hover.y) + 0.5;
-        ctx.strokeStyle = T.cross;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.moveTo(x, TOP);
-        ctx.lineTo(x, this.h - AXIS_H);
-        ctx.moveTo(LEFT, y);
-        ctx.lineTo(plotRight, y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        if (this.hover.y <= main.top + main.h) {
-          const v = hi - ((this.hover.y - main.top) / main.h) * (hi - lo);
-          this.axisTag(this.hover.y, pct ? `${fmtNum(v, 2)}%` : fmtNum(v, opt.dec), '#e8e8e8', '#000', main);
-        }
-        const label = opt.intraday ? this.timeText(s.t[idx], true) : this.dateText(s.t[idx], true);
-        ctx.font = T.font;
-        const tw = ctx.measureText(label).width + 10;
-        const tx = Math.min(Math.max(LEFT, x - tw / 2), plotRight - tw);
-        ctx.fillStyle = '#e8e8e8';
-        ctx.fillRect(tx, this.h - AXIS_H + 1, tw, AXIS_H - 2);
-        ctx.fillStyle = '#000';
-        ctx.textAlign = 'left';
-        ctx.fillText(label, tx + 5, this.h - AXIS_H / 2);
+    if (this.hover && hoverIndex != null) {
+      const idx = hoverIndex;
+      const x = Math.round(this.xAt(idx)) + 0.5;
+      const y = Math.round(this.hover.y) + 0.5;
+      ctx.strokeStyle = T.cross;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, TOP);
+      ctx.lineTo(x, this.h - AXIS_H);
+      ctx.moveTo(LEFT, y);
+      ctx.lineTo(plotRight, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      if (this.hover.y <= main.top + main.h) {
+        const v = hi - ((this.hover.y - main.top) / main.h) * (hi - lo);
+        this.axisTag(this.hover.y, pct ? `${fmtNum(v, 2)}%` : fmtNum(v, opt.dec), '#e8e8e8', '#000', main);
       }
+      const label = opt.intraday ? `${this.dateText(s.t[idx], true)} ${this.timeText(s.t[idx], true)}` : this.dateText(s.t[idx], true);
+      ctx.font = T.font;
+      const tw = ctx.measureText(label).width + 10;
+      const tx = Math.min(Math.max(LEFT, x - tw / 2), plotRight - tw);
+      ctx.fillStyle = '#e8e8e8';
+      ctx.fillRect(tx, this.h - AXIS_H + 1, tw, AXIS_H - 2);
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'left';
+      ctx.fillText(label, tx + 5, this.h - AXIS_H / 2);
     }
-    this.drawLegend(hoverIndex, { hiI, loI, hiV, loV, avg, pct, i0 });
+    this.drawLegend(hoverIndex, { hiI, loI, hiV, loV, avg, pct, i0, i1 });
     this.onHover?.(hoverIndex);
+    this.onObservation?.({
+      time: s.t[inspected], open: s.o[inspected], high: s.h[inspected], low: s.l[inspected],
+      close: s.c[inspected], volume: s.v[inspected], from: s.t[i0], to: s.t[i1], hovered: hoverIndex != null,
+    });
   }
 
   private marker(x: number, y: number, top: boolean, text: string) {
@@ -832,7 +852,7 @@ export class PriceChart {
     void panes;
   }
 
-  private drawLower(p: Pane, i0: number, i1: number, bw: number) {
+  private drawLower(p: Pane, i0: number, i1: number, bw: number, inspected: number) {
     const ctx = this.ctx;
     const T = CHART_THEME;
     const s = this.s!;
@@ -861,7 +881,7 @@ export class PriceChart {
         ctx.fillStyle = s.c[i] >= s.o[i] ? T.upFill : T.dnFill;
         ctx.fillRect(Math.round(this.xAt(i) - w / 2), p.top + p.h - hgt, Math.max(1, Math.round(w)), hgt);
       }
-      label(`Volume ${fmtBig(s.v[i1])}`);
+      label(`Volume ${fmtBig(s.v[inspected])}`);
       ctx.restore();
       this.lowerAxis(p, [[0, '0'], [max, fmtBig(max)]], 0, max);
       return;
@@ -891,7 +911,7 @@ export class PriceChart {
         } else ctx.lineTo(x, y(r[i]));
       }
       ctx.stroke();
-      label(`RSI(14) ${fmtNum(r[i1], 2)}`, '#d77bff');
+      label(`RSI(14) ${fmtNum(r[inspected], 2)}`, '#d77bff');
       ctx.restore();
       this.lowerAxis(p, [[30, '30'], [70, '70']], 0, 100, true);
       return;
@@ -928,7 +948,7 @@ export class PriceChart {
         }
         ctx.stroke();
       }
-      label(`MACD(12,26,9) ${fmtNum(m.macd[i1], 3)}  Sig ${fmtNum(m.signal[i1], 3)}`, '#45d3e6');
+      label(`MACD(12,26,9) ${fmtNum(m.macd[inspected], 3)}  Sig ${fmtNum(m.signal[inspected], 3)}`, '#45d3e6');
       ctx.restore();
       this.lowerAxis(p, [[0, '0']], -ext, ext);
       return;
@@ -949,12 +969,11 @@ export class PriceChart {
     }
   }
 
-  private drawLegend(idx: number | null, a: { hiI: number; loI: number; hiV: number; loV: number; avg: number; pct: boolean; i0: number }) {
+  private drawLegend(idx: number | null, a: { hiI: number; loI: number; hiV: number; loV: number; avg: number; pct: boolean; i0: number; i1: number }) {
     const ctx = this.ctx;
     const T = CHART_THEME;
     const s = this.s!;
     const opt = this.opt!;
-    const n = s.length;
     const color = opt.color ?? T.line;
     const rows: { k: string; v: string; c: string }[] = [];
     const dt = (t: number) => (opt.intraday ? this.timeText(t, true) : this.dateText(t, true));
@@ -968,24 +987,24 @@ export class PriceChart {
       rows.push({ k: 'C', v: `${fmtNum(s.c[idx], opt.dec)} ${chg >= 0 ? '+' : ''}${fmtNum((chg / prev) * 100, 2)}%`, c: chg >= 0 ? T.up : T.dn });
       if (s.v[idx] > 0) rows.push({ k: 'Vol', v: fmtBig(s.v[idx]), c: T.text });
     } else {
-      rows.push({ k: opt.label, v: fmtNum(s.c[n - 1], opt.dec), c: color });
+      rows.push({ k: opt.label, v: fmtNum(s.c[a.i1], opt.dec), c: color });
       if (opt.annotate && !a.pct) {
         rows.push({ k: `High on ${dt(s.t[a.hiI])}`, v: fmtNum(a.hiV, opt.dec), c: T.up });
         rows.push({ k: 'Average', v: fmtNum(a.avg, opt.dec), c: T.amber });
         rows.push({ k: `Low on ${dt(s.t[a.loI])}`, v: fmtNum(a.loV, opt.dec), c: T.dn });
       }
     }
-    const legendIdx = idx ?? n - 1;
+    const legendIdx = idx ?? a.i1;
     for (const ov of this.ind.overlays) {
       const v = ov.a[legendIdx];
       rows.push({ k: ov.o.kind === 'BOLL' ? `BOLL(${ov.o.n},2)` : `${ov.o.kind}(${ov.o.n})`, v: fmtNum(v, opt.dec), c: ov.o.color });
     }
     this.ind.cmp.forEach((arr, k) => {
-      const b0 = firstFinite(arr, a.i0, n - 1);
+      const b0 = firstFinite(arr, a.i0, a.i1);
       const v = arr[legendIdx];
       rows.push({ k: opt.compare[k].label, v: Number.isFinite(v) && Number.isFinite(b0) ? `${fmtNum((v / b0 - 1) * 100, 2)}%` : '--', c: opt.compare[k].color });
     });
-    if (a.pct && opt.compare.length && idx == null) {
+    if (a.pct && idx == null) {
       const b0 = s.c[a.i0];
       rows[0] = { k: opt.label, v: `${fmtNum((s.c[legendIdx] / b0 - 1) * 100, 2)}%`, c: color };
     }

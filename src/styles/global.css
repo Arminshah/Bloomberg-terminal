@@ -25,8 +25,8 @@
   --blue: #5aa7ff;
   --cyan: #45d3e6;
   --magenta: #d77bff;
-  --hdr: #141a22;
-  --hdr-text: #c9d3df;
+  --hdr: #292b2e;
+  --hdr-text: #eeeeee;
   --function-bar: #851414;
   --sel: #ff9e1b;
   --sel-text: #000000;
@@ -233,15 +233,16 @@ button { cursor: pointer; }
 .panel-body.fill { overflow: hidden; display: flex; flex-direction: column; }
 
 /* Independent panel toolbar: related menu, retained security and active function. */
-.panel-toolbar { display: flex; align-items: stretch; gap: 3px; height: 25px; flex: none; padding: 2px 3px; background: #242424; border-bottom: 1px solid #454545; }
+.panel-toolbar { display: flex; align-items: stretch; gap: 3px; height: 25px; flex: none; padding: 2px 3px; background: #25292e; border-bottom: 1px solid #454b52; font-family: var(--sans); }
 .panel-menu, .panel-tool { flex: none; border: 1px solid #727272; padding: 0 7px; background: #171717; color: var(--white); font-size: var(--fs-s); line-height: 1; }
-.panel-menu { background: #681212; border-color: #b75151; }
+.panel-menu { background: #353b42; border-color: #818891; }
 .panel-menu span { margin-left: 7px; }
 .panel-menu:hover, .panel-tool:hover { border-color: var(--white); background: #424242; }
-.loaded-security { width: 210px; flex: 1 1 80px; min-width: 35px; max-width: 380px; border: 1px solid #a66d22; border-radius: 0; padding: 0 4px; color: #000; background: var(--amber); font-size: var(--fs-s); }
+.loaded-security { width: 210px; flex: 1 1 80px; min-width: 35px; max-width: 380px; border: 1px solid #aeb7c2; border-radius: 0; padding: 0 4px; color: #101318; background: #d5dbe2; font-size: var(--fs-s); }
 .loaded-security option { color: var(--white); background: #151515; }
-.panel-function { min-width: 0; margin-left: auto; padding: 1px 4px; color: #ededed; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-s); }
-.panel.active .panel-function { color: var(--yellow); }
+.panel-function { flex: 0 1 84px; min-width: 48px; width: 84px; margin-left: auto; padding: 0 2px; border: 1px solid #aeb7c2; border-radius: 0; color: #101318; background: #d5dbe2; font-size: var(--fs-s); }
+.panel-function option, .panel-function optgroup { color: var(--text); background: #151515; }
+.panel-function option:disabled { color: #888; }
 
 /* ---------------------------------------------------------- command line */
 .cmd {
@@ -292,7 +293,7 @@ button { cursor: pointer; }
   letter-spacing: 0.02em;
 }
 .cmd-input::placeholder { color: #8a6326; text-transform: none; font-weight: 400; }
-.cmd-input:focus { background: #130e05; box-shadow: inset 0 -1px 0 var(--amber); }
+.cmd-input:focus { background: #101824; box-shadow: inset 0 0 0 1px #4d81cf; }
 .cmd-msg {
   position: absolute;
   right: 74px;
@@ -385,7 +386,10 @@ button { cursor: pointer; }
   padding: 2px 6px;
   overflow: hidden;
   background: var(--function-bar);
+  font-family: var(--sans);
 }
+.fnh-caption { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; min-width: 0; max-width: 100%; }
+.fnh-context { display: flex; align-items: center; gap: 7px; min-height: 21px; padding: 1px 7px; background: #080a0d; border-bottom: 1px solid var(--line); }
 .fnh-code {
   flex: none;
   padding: 0 6px;
@@ -406,8 +410,12 @@ button { cursor: pointer; }
 .field-definition { border-left: 3px solid var(--amber); }
 .field-definition .kv > dd { min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; text-align: left; }
 .fnh-title { color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.fnh-sub { color: #edb8b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.fnh-actions { margin-left: auto; display: flex; gap: 2px; flex: none; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.fnh-sub { color: #bdc4cd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.fnh-actions { display: flex; gap: 0; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.fnh-actions .act { flex: none; border: 0; border-right: 1px solid #b36262; background: transparent; padding: 1px 9px; color: #fff; font-size: var(--fs); }
+.fnh-actions .act b { color: #fff; }
+.fnh-actions .act:hover { background: #a32929; outline: 1px solid #fff; outline-offset: -1px; }
+.fnh-actions .act.on { background: #263e77; }
 .act {
   border: 1px solid #7e7e7e;
   background: #181818;
@@ -428,6 +436,7 @@ button { cursor: pointer; }
   background: var(--bg-2);
   overflow-x: auto;
   scrollbar-width: none;
+  font-family: var(--sans);
 }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
@@ -441,7 +450,7 @@ button { cursor: pointer; }
   font-size: var(--fs-s);
 }
 .tab:hover { background: var(--bg-4); }
-.tab.on { background: #562b00; border-top-color: var(--amber); color: var(--white); }
+.tab.on { background: #253f77; border-top-color: #b5d2ff; color: var(--white); }
 
 .qstrip {
   display: flex;
@@ -481,7 +490,10 @@ button { cursor: pointer; }
 .tbl th .sort { color: var(--amber); margin-left: 3px; }
 .tbl td { padding: 0 6px; height: var(--row); white-space: nowrap; border-bottom: 1px solid #141414; }
 .tbl tbody tr:hover td { background: #151515; }
-.tbl tr.sel td { background: #2a1a05; }
+.tbl tr.sel td { background: #203c75; }
+.tbl tr.click:hover td { background: #182232; box-shadow: inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
+.tbl tr.click:hover td:first-child { box-shadow: inset 1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
+.tbl tr.click:hover td:last-child { box-shadow: inset -1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
 .tbl tr.group td {
   color: var(--amber);
   background: var(--bg-2);
@@ -902,6 +914,9 @@ a.news-item { color: inherit; text-decoration: none; }
   .hide-m { display: none !important; }
   .kv-cols { grid-template-columns: 1fr; }
   .cmd-msg { right: 44px; max-width: 70%; }
+}
+@container panel (max-width: 240px) {
+  .panel-tool { display: none; }
 }
 
 /* Browser build: no data source until the demo is opened; the demo says so on every screen. */

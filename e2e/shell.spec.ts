@@ -59,3 +59,19 @@ test('F1 opens contextual help and panel cycling keeps command focus local', asy
   await page.keyboard.press('Control+Shift+Tab');
   await expect(page.locator('#cmd-0')).toBeFocused();
 });
+
+test('toolbar function picker uses retained securities and disables incompatible analysis', async ({ page }) => {
+  await boot(page);
+  const picker = page.getByLabel('Panel 1 function', { exact: true });
+  await expect(picker.locator('option[value="FINANCIALS"]')).toBeDisabled();
+  await run(page, 'AAPL DES');
+  await picker.selectOption('CHART');
+  await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('CHART');
+  await expect(page.locator('.panel').first().locator('.fnh-sec')).toHaveText('AAPL US Equity');
+  await picker.selectOption('MARKET');
+  await picker.selectOption('FINANCIALS');
+  await expect(page.locator('.panel').first().locator('.fnh-sec')).toHaveText('AAPL US Equity');
+  await run(page, 'EURUSD CRNCY DES');
+  await expect(picker.locator('option[value="FINANCIALS"]')).toBeDisabled();
+  await expect(picker).toHaveValue('PROFILE');
+});
