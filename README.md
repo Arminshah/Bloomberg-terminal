@@ -1,5 +1,7 @@
 # Armin Terminal
 
+The terminal-fidelity source update adds independent panel toolbars with retained securities, contextual Help, hierarchical Menu navigation, per-panel command recall, complete sector keys and configurable watchlist fields with sorting and source-aware exports. Presentation follows Bloomberg's publicly documented screen conventions. See the [implementation and checks](docs/terminal-fidelity-changes.md), [sourced feature audit](docs/terminal-fidelity-audit.md) and [watchlist guide](docs/watchlist-fields.md). This work is on the source branch; the published download remains 2.9.0 until a new release is built.
+
 Version **2.9.0** adds Belgian and other European markets (BEL 20, OMX Stockholm 30, ATX, PSI, ISEQ, Belgium on ECONSTATS, Nordic and Central European currencies), stocks on 15 European exchanges (`ABI BB`, `KBC.BR`), TipRanks analyst data on request, Bloomberg's beta defaults, bond day counts and settlement, WIRP columns as Bloomberg shows them, analyst figures and short interest on PROFILE and QUOTE, MANAGEMENT, splits and dividend growth, the price reaction to earnings, a portfolio in euros, and a complete heatmap without Yahoo's EU session. See the [2.9.0 notes](docs/release-v2.9.0.md) and [2.8.1 notes](docs/release-v2.8.1.md), the [Bloomberg workflow audit](docs/bloomberg-parity.md) of all 72 commands, and [calculator conventions](docs/calculators.md). IEX covers one exchange; indicative options are not real-time OPRA. Full Bloomberg feature and data parity remains incomplete.
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
@@ -8,7 +10,7 @@ The desktop app uses public and official sources: the US Treasury, the Fed and o
 
 This is an independent project, not affiliated with Bloomberg L.P. It does not have the data coverage of a professional terminal; [docs/feature-matrix.md](docs/feature-matrix.md) says what is covered and what is not.
 
-![Market Overview workspace: world equity indices, an S&P 500 chart, official announcements, a sector heat map and a watchlist](docs/workspace.png)
+![Terminal-fidelity workspace in explicitly labelled demo mode: world equity indices, price chart, official announcements, heatmap and configurable watchlist](docs/terminal-fidelity-overview.png)
 
 ## Download
 
@@ -76,7 +78,7 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 | `3` | Pick item 3) on the current screen |
 | `CHART?` | Help on a function |
 
-Enter runs a command, Esc clears the line, and Backspace on an empty line goes back a screen. F1 opens `HELP`, the function directory. Alt+1 to Alt+6 switch panels and Alt+Left and Alt+Right move through a panel's history. The buttons in the top bar switch between one and six panels, and the dividers between panels can be dragged; `LAYOUTS` saves and restores workspaces.
+Enter runs a command, Esc clears the line, and Backspace on an empty line goes back a screen. F1 opens help for the current function; press it twice for the local help assistant. `HELP` opens the function directory. Menu (Alt+End) opens related functions, then moves up to the sector and main menus. Up/Down recalls this panel's commands when suggestions are closed; Ctrl+Up/Down also recalls with suggestions open. Alt+1 to Alt+6 select a panel, Ctrl+Tab cycles panels, and Alt+Left/Right moves through screen history. The loaded security stays visible in each panel toolbar, including on global market screens; choose another recent security from its dropdown. The buttons in the top bar switch between one and six panels, and the dividers between panels can be dragged; `LAYOUTS` saves and restores workspaces.
 
 The top bar starts with two compact market timers, Euronext then NYSE. Each shows the exchange, the scheduled weekday/time in that exchange's local time, and an aligned OPENS IN/CLOSES IN countdown. They cover the regular session (09:00 to 17:30 Brussels time, 09:30 to 16:00 New York time), follow holidays and early closes, and open the exchange calendar when clicked. Open sessions have a green marker and countdown. Clocks for Brussels, New York, London, Tokyo and Hong Kong follow, with orange city names above aligned white local times. Exchange names use the same original orange.
 

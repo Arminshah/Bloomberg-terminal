@@ -21,6 +21,7 @@ export function Panel({ index }: { index: number }) {
     <section
       className={`panel${active ? ' active' : ''}`}
       onMouseDownCapture={() => setActive(index)}
+      onFocusCapture={() => setActive(index)}
       aria-label={`Panel ${index + 1}: ${def.name}`}
     >
       <PanelContext.Provider value={index}>
