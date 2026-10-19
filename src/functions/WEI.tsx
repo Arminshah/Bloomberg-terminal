@@ -8,7 +8,7 @@ import { Flash } from '../components/Flash';
 import { fmtNum, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
-import { useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
+import { useGroupedRows, useMenu, usePanelId } from '../terminal/panel';
 import { openSecurity } from '../components/cells';
 import { realFutureContract } from '../data/realfut';
 import type { FnProps } from '../terminal/types';
@@ -43,12 +43,12 @@ export function WEI({ route }: FnProps) {
   const region = REGION_ARGS[route.args?.trim().toUpperCase() ?? ''];
   const groups = region ? INDEX_GROUPS.filter((g) => g.name === region) : INDEX_GROUPS;
   const [collapsed, toggle] = useCollapsed();
-  // The desktop app lists only indices it has a real source for; a collapsed region lists none.
-  const shown = groups.map((g) => (collapsed.includes(g.name) ? [] : g.ids.filter((id) => engine.hasSource(id))));
+  // The desktop app lists only indices it has a real source for. Each region numbers its rows from its own ten,
+  // as the terminal's WEI does, and a collapsed region keeps its numbers for when it opens again.
+  const lists = groups.map((g) => g.ids.filter((id) => engine.hasSource(id)));
   const open = (id: string) => openSecurity(panel, id, undefined, 'CHART');
-  const nums = useNumberedRows('wei-rows', shown.flat(), 11, open, (id) => engine.get(id)?.name ?? id);
+  const nums = useGroupedRows('wei-rows', lists, groups.map((g) => !collapsed.includes(g.name)), open, (id) => engine.get(id)?.name ?? id);
   useMenu('wei-regions', groups.map((g, gi) => ({ n: gi + 1, label: g.name, run: () => toggle(g.name) })));
-  let at = 0;
   return (
     <div>
       <FnHeader code="MARKET" title="World Equity Indices" sub={`${region ?? 'Standard view'} · values in local currency${route.args && !region ? ` · no region "${route.args}": try US, EUROPE or ASIA` : ''}`} />
@@ -57,21 +57,21 @@ export function WEI({ route }: FnProps) {
           <tr>
             <th>Index</th>
             <th className="hide-m">Name</th>
+            <th className="hide-m">Intraday</th>
             <th className="num">Value</th>
             <th className="num">Net Chg</th>
             <th className="num">%Chg</th>
             <th className="num hide-m">Time</th>
             <th className="num">%Ytd</th>
             <th className="num hide-m">%YtdCur</th>
-            <th className="hide-m">Intraday</th>
           </tr>
         </thead>
         <tbody>
           {groups.map((g, gi) => (
             <Fragment key={g.name}>
               <GroupRow n={gi + 1} name={g.name} span={9} open={!collapsed.includes(g.name)} onToggle={() => toggle(g.name)} />
-              {shown[gi].map((id) => {
-                const n = nums[at++];
+              {(collapsed.includes(g.name) ? [] : lists[gi]).map((id, i) => {
+                const n = nums[gi][i];
                 const d = engine.get(id)!;
                 const q = engine.quote(id)!;
                 const intra = engine.intraday(id);
@@ -84,6 +84,9 @@ export function WEI({ route }: FnProps) {
                       </SecLink>
                     </td>
                     <td className="hide-m">{d.name}</td>
+                    <td className="hide-m">
+                      <Sparkline values={intra.c.subarray(0, intra.length)} width={90} height={14} />
+                    </td>
                     <td className="num white">
                       <LivePx id={id} />
                     </td>
@@ -101,9 +104,6 @@ export function WEI({ route }: FnProps) {
                     </td>
                     <td className="num hide-m">
                       <Chg v={ytdUsd(id)} pct />
-                    </td>
-                    <td className="hide-m">
-                      <Sparkline values={intra.c.subarray(0, intra.length)} width={90} height={14} />
                     </td>
                   </tr>
                 );
@@ -129,10 +129,9 @@ export function WEIF(_: FnProps) {
   const panel = usePanelId();
   const [collapsed, toggle] = useCollapsed();
   const groups = FUT_GROUPS.filter((g) => g.ids.some((id) => engine.hasSource(id)));
-  const shown = groups.map((g) => (collapsed.includes(g.name) ? [] : g.ids.filter((id) => !!engine.get(id) && engine.hasSource(id))));
-  const nums = useNumberedRows('weif-rows', shown.flat(), 11, (id) => openSecurity(panel, id, undefined, 'INTRADAY'), (id) => engine.get(id)?.name ?? id);
+  const lists = groups.map((g) => g.ids.filter((id) => !!engine.get(id) && engine.hasSource(id)));
+  const nums = useGroupedRows('weif-rows', lists, groups.map((g) => !collapsed.includes(g.name)), (id) => openSecurity(panel, id, undefined, 'INTRADAY'), (id) => engine.get(id)?.name ?? id);
   useMenu('weif-regions', groups.map((g, gi) => ({ n: gi + 1, label: g.name, run: () => toggle(g.name) })));
-  let at = 0;
   // The delay Yahoo states for the contracts, rather than an assumption about the exchange.
   const delays = FUT_GROUPS.flatMap((g) => g.ids)
     .filter((id) => engine.hasSource(id))
@@ -165,8 +164,8 @@ export function WEIF(_: FnProps) {
           {groups.map((g, gi) => (
             <Fragment key={g.name}>
               <GroupRow n={gi + 1} name={g.name} span={14} open={!collapsed.includes(g.name)} onToggle={() => toggle(g.name)} />
-              {shown[gi].map((id) => {
-                const n = nums[at++];
+              {(collapsed.includes(g.name) ? [] : lists[gi]).map((id, i) => {
+                const n = nums[gi][i];
                 const d = engine.get(id)!;
                 const q = engine.quote(id)!;
                 const u = engine.quote(d.fut!.underlying)!;

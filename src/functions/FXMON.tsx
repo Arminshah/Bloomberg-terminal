@@ -12,7 +12,7 @@ import { fmtBig, fmtDay, fmtNum, fmtStamp, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { horizonStart, periodChange, type Horizon } from '../data/analytics';
 import { CURRENCY_INFO } from '../data/universe';
-import { useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
+import { useGroupedRows, useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
 import { GroupRow, RowNo, useCollapsed } from '../components/Numbered';
 import type { FnProps } from '../terminal/types';
 
@@ -286,10 +286,10 @@ export function GLCO(_: FnProps) {
   useTick(1);
   const now = engine.now();
   const [collapsed, toggle] = useCollapsed();
-  const shown = GROUPS.map((g) => (collapsed.includes(g) ? [] : engine.securities.filter((d) => d.cls === 'commodity' && d.cmd!.group === g)));
-  const nums = useNumberedRows('glco-rows', shown.flat(), 11, (d) => openSecurity(panel, d.id, undefined, 'CHART'), (d) => d.name);
+  // Each group numbers its contracts from its own ten, as the terminal's GLCO does; a collapsed group keeps them.
+  const lists = GROUPS.map((g) => engine.securities.filter((d) => d.cls === 'commodity' && d.cmd!.group === g));
+  const nums = useGroupedRows('glco-rows', lists, GROUPS.map((g) => !collapsed.includes(g)), (d) => openSecurity(panel, d.id, undefined, 'CHART'), (d) => d.name);
   useMenu('glco-groups', GROUPS.map((g, gi) => ({ n: gi + 1, label: g, run: () => toggle(g) })));
-  let at = 0;
   return (
     <div>
       <FnHeader code="COMMODITIES" title="Global Commodities" sub="Generic front-month futures" />
@@ -313,9 +313,9 @@ export function GLCO(_: FnProps) {
         <tbody>
           {GROUPS.map((g, gi) => [
             <GroupRow key={g} n={gi + 1} name={g} span={12} open={!collapsed.includes(g)} onToggle={() => toggle(g)} />,
-            ...shown[gi]
-              .map((d) => {
-                const n = nums[at++];
+            ...(collapsed.includes(g) ? [] : lists[gi])
+              .map((d, i) => {
+                const n = nums[gi][i];
                 const q = engine.quote(d.id)!;
                 const intra = engine.intraday(d.id);
                 return (

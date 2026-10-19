@@ -3,7 +3,7 @@ import type { MenuItem, Route } from './types';
 import { navigate } from './state';
 import { createStore } from '../core/store';
 import type { SecurityDef } from '../data/types';
-import { rowNumbers } from './numbering';
+import { groupedRowNumbers, rowNumbers } from './numbering';
 
 export const PanelContext = createContext(0);
 
@@ -78,4 +78,18 @@ export function useOpen() {
 /** Default function when a security is clicked in a list. */
 export function defaultFnFor(def: SecurityDef): string {
   return def.cls === 'equity' ? 'PROFILE' : def.cls === 'bond' ? 'BONDCALC' : 'CHART';
+}
+
+/**
+ * Numbers a grouped monitor's rows by `groupedRowNumbers` and registers the rows of the groups shown, so `n <GO>`
+ * opens row n as a click on it would. Returns each group's numbers, in the order given.
+ */
+export function useGroupedRows<T>(owner: string, groups: T[][], shown: boolean[], open: (row: T) => void, label: (row: T) => string): number[][] {
+  const nums = groupedRowNumbers(groups.map((g) => g.length));
+  const items: MenuItem[] = [];
+  groups.forEach((g, gi) => {
+    if (shown[gi]) g.forEach((row, i) => items.push({ n: nums[gi][i], label: label(row), run: () => open(row) }));
+  });
+  useMenu(owner, items);
+  return nums;
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fmtFieldDate, parseFieldDate, windowBars } from '../src/terminal/daterange';
+import { groupedRowNumbers } from '../src/terminal/numbering';
+import { blockGeometry, blockPages, weekday, weekSlots, type Slot } from '../src/terminal/pricetable';
 import { equityRatios } from '../src/data/ratios';
 import { emptyPeriod, type FinPeriod } from '../src/data/fundamentals';
 
@@ -96,5 +98,52 @@ describe('DES ratios page', () => {
     expect(r.epsGrowth).toBeNaN();
     expect(r.retention).toBeNaN();
     expect(equityRatios(ltm, latest, undefined, 3000).revGrowth).toBeNaN();
+  });
+});
+
+describe('HP price table', () => {
+  // Trading days newest first: Tue 10/20, Mon 10/19, Fri 10/16, Thu 10/15, then Fri 10/02 after a skipped week.
+  const days = [D(2026, 10, 20), D(2026, 10, 19), D(2026, 10, 16), D(2026, 10, 15), D(2026, 10, 2)].map((t) => ({ t }));
+  const shape = (slots: Slot<{ t: number }>[]) => slots.map((s) => ('gap' in s ? '-' : weekday(s.row.t))).join(' ');
+
+  it('puts a blank line between weeks of daily prices, and none between other periods', () => {
+    expect(shape(weekSlots(days, true))).toBe('Tu Mo - Fr Th - Fr');
+    expect(shape(weekSlots(days, false))).toBe('Tu Mo Fr Th Fr');
+  });
+
+  it('fills each page column by column and never starts or ends a block on a gap', () => {
+    // Three lines a block: "Tu Mo -" and "Fr Th -" drop their closing gap, and the last Friday opens page 2.
+    const pages = blockPages(weekSlots(days, true), 2, 3);
+    expect(pages.map((p) => p.map((c) => shape(c)))).toEqual([['Tu Mo', 'Fr Th'], ['Fr']]);
+    // A gap that would open a block is left out.
+    expect(blockPages(weekSlots(days, true), 1, 2).map((p) => shape(p[0]))).toEqual(['Tu Mo', 'Fr Th', 'Fr']);
+    const many = blockPages(weekSlots(days, false), 2, 2);
+    expect(many.map((p) => p.map((c) => shape(c)))).toEqual([['Tu Mo', 'Fr Th'], ['Fr']]);
+  });
+
+  it('fits as many blocks across as the width allows', () => {
+    expect(blockGeometry(1200, 600, 20)).toEqual({ cols: 4, perCol: 30 });
+    expect(blockGeometry(500, 600, 20).cols).toBe(1);
+    expect(blockGeometry(2400, 100, 20)).toEqual({ cols: 4, perCol: 8 });
+  });
+});
+
+describe('grouped monitor numbers (WEI, GLCO, WB)', () => {
+  it('starts each group on its own ten', () => {
+    expect(groupedRowNumbers([8, 6, 3])).toEqual([[11, 12, 13, 14, 15, 16, 17, 18], [21, 22, 23, 24, 25, 26], [31, 32, 33]]);
+  });
+
+  it('moves the next group past a group longer than nine rows', () => {
+    const [, emea, asia] = groupedRowNumbers([8, 14, 10]);
+    expect(emea[0]).toBe(21);
+    expect(emea[13]).toBe(34);
+    expect(asia[0]).toBe(41);
+    expect(asia[9]).toBe(50);
+  });
+
+  it('keeps a ten for an empty group and skips the function bar numbers', () => {
+    expect(groupedRowNumbers([2, 0, 1])).toEqual([[11, 12], [], [31]]);
+    const big = groupedRowNumbers([9, 9, 9, 9, 9, 9, 9, 9, 9]);
+    expect(big[8]).toEqual([91, 92, 93, 94, 95, 100, 101, 102, 103]);
   });
 });

@@ -192,9 +192,14 @@ test('numbered rows open by number, as on terminal monitors', async ({ page }) =
   await run(page, '1');
   await expect(panel.locator('tr.group').first()).toHaveAttribute('aria-expanded', 'false');
   await expect(rows).toHaveCount(all - 8);
-  // The rows still shown are numbered from 11, starting with EMEA.
-  await expect(rows.first().locator('.row-no')).toHaveText('11)');
+  // Each region numbers from its own ten, as WEI does, so EMEA keeps 21) with the Americas folded.
+  await expect(rows.first().locator('.row-no')).toHaveText('21)');
   await expect(rows.first()).toContainText('SX5E');
+  await run(page, '21');
+  await expect(panel.locator('.fnh-sec')).toHaveText('SX5E Index');
+  await run(page, 'WEI');
+  await run(page, '1');
+  await expect(rows).toHaveCount(all - 8);
   await run(page, '1');
   await expect(rows).toHaveCount(all);
   // MOVERS rows start after its tabs and regions.
@@ -218,7 +223,12 @@ test('screens page with PgUp and PgDn, a typed count moves that many pages, and 
   await page.setViewportSize({ width: 1280, height: 640 });
   const errors = await boot(page, '1');
   const panel = page.locator('.panel').first();
+  // HP's own view is the terminal's price table: weekday-dated last prices and volume in blocks across the screen.
   await run(page, 'AAPL HP');
+  await expect(panel.locator('table.hp-blocks').first().locator('thead th').first()).toHaveText('Date');
+  await expect(panel.locator('table.hp-blocks .hp-wd').first()).toHaveText(/^(Mo|Tu|We|Th|Fr)$/);
+  await expect(panel.getByLabel('Range summary')).toContainText('High');
+  await run(page, 'AAPL HP OHLC');
   const indicator = panel.getByTestId('page-indicator');
   await expect(indicator).toHaveText(/^Page 1\/\d+$/);
   const pages = Number((await indicator.innerText()).split('/')[1]);
