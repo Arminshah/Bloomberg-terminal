@@ -11,7 +11,7 @@ import { secTicker } from './sec';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type FinnhubKind = 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar';
+export type FinnhubKind = 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'history';
 
 export interface FinnhubProfile {
   name: string;
@@ -184,7 +184,31 @@ export function parseCalendar(text: string, today = new Date().toISOString().sli
   return { data: rows[0] ?? null };
 }
 
-const PARSE: Record<FinnhubKind, (t: string) => Parsed<unknown>> = { profile: parseProfile, metric: parseMetric, recommendation: parseRecommendation, earnings: parseEarnings, calendar: (t) => parseCalendar(t) };
+/** A past report in Finnhub's calendar: the estimates and the reported figures (non-GAAP EPS, as Finnhub gives them). */
+export interface PastReport {
+  date: string;
+  hour: string;
+  quarter: number;
+  year: number;
+  epsEstimate: number;
+  epsActual: number;
+  revenueEstimate: number;
+  revenueActual: number;
+}
+
+/** /calendar/earnings over the past months: the reports with a reported EPS or revenue, newest first. */
+export function parseCalendarHistory(text: string): Parsed<PastReport[]> {
+  const j = json(text);
+  if (j === undefined) return { error: 'The answer was not JSON' };
+  if (refusal(j)) return { error: refusal(j)! };
+  const rows = (Array.isArray(j?.earningsCalendar) ? j.earningsCalendar : [])
+    .map((r: any) => ({ date: String(r?.date ?? '').slice(0, 10), hour: String(r?.hour ?? ''), quarter: num(r?.quarter), year: num(r?.year), epsEstimate: num(r?.epsEstimate), epsActual: num(r?.epsActual), revenueEstimate: num(r?.revenueEstimate), revenueActual: num(r?.revenueActual) }))
+    .filter((r: PastReport) => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && (Number.isFinite(r.epsActual) || Number.isFinite(r.revenueActual)))
+    .sort((a: PastReport, b: PastReport) => b.date.localeCompare(a.date));
+  return { data: rows };
+}
+
+const PARSE: Record<FinnhubKind, (t: string) => Parsed<unknown>> = { profile: parseProfile, metric: parseMetric, recommendation: parseRecommendation, earnings: parseEarnings, calendar: (t) => parseCalendar(t), history: parseCalendarHistory };
 
 export interface FinnhubPart<T = unknown> {
   state: 'loading' | 'ok' | 'error' | 'needs-key' | 'budget' | 'off';

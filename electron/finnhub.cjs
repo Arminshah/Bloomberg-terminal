@@ -1,6 +1,7 @@
 // Company data from Finnhub's free plan with the owner's key (finnhub.io/docs/api), for US-listed stocks: the
 // profile, key ratios ("basic financials"), analysts' recommendation counts by month, the last four quarters'
-// EPS against the estimate, and the next report date with its estimates. The free plan allows 60 requests a
+// EPS against the estimate, the next report date with its estimates, and the past year's reports with expected and
+// reported EPS and revenue. The free plan allows 60 requests a
 // minute; the app shares 30 a minute between these and Finnhub news, and keeps answers for hours. Price
 // targets, candles, dividends and splits are premium on Finnhub and are not asked for.
 
@@ -17,6 +18,8 @@ const KINDS = {
   earnings: { path: (s) => `/stock/earnings?symbol=${s}`, ttl: 6 * HOUR },
   // The next report within about three months, with its estimates.
   calendar: { path: (s, now) => `/calendar/earnings?from=${iso(now)}&to=${iso(now + 100 * 24 * HOUR)}&symbol=${s}`, ttl: 6 * HOUR },
+  // The reports of the last 13 months with the estimates and reported figures, revenue included.
+  history: { path: (s, now) => `/calendar/earnings?from=${iso(now - 400 * 24 * HOUR)}&to=${iso(now)}&symbol=${s}`, ttl: 6 * HOUR },
   quote: { path: (s) => `/quote?symbol=${s}`, ttl: 15_000 },
 };
 

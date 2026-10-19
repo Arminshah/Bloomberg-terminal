@@ -10,7 +10,7 @@ import { news } from '../news';
 import { CLASS_LABEL } from '../registry';
 import { analystsAvailable, analystSymbol, requestAnalysts, type AnalystPart, type RatingAction, type RatingTally, type TargetConsensus } from '../live/analysts';
 import { ratingsLine, targetLine } from '../live/analyst-snapshot';
-import { finnhubAvailable, finnhubData, finnhubSymbol, loadFinnhub, type EpsSurprise, type FinnhubKind, type FinnhubPart, type NextReport } from '../live/finnhub';
+import { growth, growthSeries, loadConsensus, surprisePct, type Expectation } from '../live/consensus';
 import { BREAKING_SOURCES, loadNews, MARKET_SOURCES, marketNews, mergeStories, newsAvailable, officialStories, refreshBreaking, SEARCHABLE, storiesFor, type MarketStory } from '../live/marketnews';
 import { refreshSecuritiesNews, securityNews, type NewsReach } from '../live/secnews';
 import { EIGHT_K_ITEMS, filingLinks, formGroup, loadFiler, resolveFiler, secAvailable, secTicker, type Filing } from '../live/sec';
@@ -40,6 +40,7 @@ export function longDay(ms: number, tz?: string): string {
   return new Date(day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const isoDay = (iso: string) => longDay(Date.parse(`${iso}T00:00:00Z`));
 
 /** "3 min ago", "5 h ago", "2 days ago". */
@@ -55,18 +56,6 @@ async function fundamentals(def: SecurityDef) {
   requestFundamentals(def, true);
   await waitFor(fundVersion, () => (fundVersion.get().status[def.id] === 'loading' ? undefined : true), 15_000);
   return getRealFund(def.id);
-}
-
-/** One kind of Finnhub data for a US stock, once it has arrived; undefined where Finnhub cannot be asked. */
-async function finnhub<T>(def: SecurityDef, kind: FinnhubKind): Promise<FinnhubPart<T> | undefined> {
-  const symbol = finnhubSymbol(def);
-  if (!symbol || !finnhubAvailable()) return undefined;
-  const read = () => {
-    const p = finnhubData.get().by[symbol]?.[kind];
-    return p && p.state !== 'loading' ? p : undefined;
-  };
-  const part = await loadFinnhub(symbol, kind);
-  return ((part && part.state !== 'loading' ? part : await waitFor(finnhubData, read, 12_000)) ?? finnhubData.get().by[symbol]?.[kind]) as FinnhubPart<T> | undefined;
 }
 
 const notCompany = (def: SecurityDef, what: string): Reply => ({ text: `${def.name} is ${/^[aeiou]/i.test(CLASS_LABEL[def.cls]) ? 'an' : 'a'} ${CLASS_LABEL[def.cls].toLowerCase()}, not a company: ${what} apply to companies.` });
@@ -131,7 +120,6 @@ export function ecoReply(): Reply {
 // --------------------------------------------------------------- earnings
 
 const TIMING: Record<string, string> = { 'Bef-mkt': 'before the open', 'Aft-mkt': 'after the close' };
-const HOUR: Record<string, string> = { bmo: 'before the open', amc: 'after the close', dmh: 'during the session' };
 const BASIS: Record<EarningsReaction['basis'], string> = {
   'before-open': 'report-day close against the previous close',
   'after-close': 'next session against the report-day close',
@@ -159,57 +147,83 @@ function reactionLine(def: SecurityDef, e: EarningsEvent): string {
   return ok(r.pct) ? `The shares moved ${fmtPct(r.pct, 1)} on the report (${BASIS[r.basis]}).` : '';
 }
 
+const pctText = (pct: number) => `${fmtNum(Math.abs(pct), Math.abs(pct) < 9.95 ? 1 : 0)}%`;
+
+/** "beat by 1.7%" / "missed by 2.3%" / "in line with"; empty without both figures. */
+function beatText(e: Expectation): string {
+  const pct = surprisePct(e);
+  if (!ok(pct)) return '';
+  return Math.abs(pct) < 0.05 ? 'in line' : pct > 0 ? `beat by ${pctText(pct)}` : `missed by ${pctText(pct)}`;
+}
+
+const estRange = (e: Expectation, fmt: (v: number) => string) =>
+  `${fmt(e.est)}${e.ccy ? ` ${e.ccy}` : ''}${ok(e.low) && ok(e.high) && e.low !== e.high ? ` (${fmt(e.low)} to ${fmt(e.high)}${ok(e.analysts) ? `, ${e.analysts} analysts` : ''})` : ok(e.analysts) ? ` (${e.analysts} analysts)` : ''}`;
+
 export async function nextEarningsReply(def: SecurityDef): Promise<Reply> {
   if (!def.eq) return notCompany(def, 'earnings reports');
-  const [, cal] = await Promise.all([fundamentals(def), finnhub<NextReport | null>(def, 'calendar')]);
+  const [, c] = await Promise.all([fundamentals(def), loadConsensus(def)]);
   const lines: string[] = [];
   const next = nextEarnings(def);
+  const q = c.next;
   if (next && !next.dateUnknown) {
-    lines.push(`${name(def)} reports next on ${longDay(next.date, tzOf(def))}${TIMING[next.timing] ? `, ${TIMING[next.timing]}` : ''}${next.approx ? '. The date is the source\'s estimate; the company has not confirmed it' : ''} (Yahoo Finance).`);
+    lines.push(`${name(def)} reports next on ${longDay(next.date, tzOf(def))}${TIMING[next.timing] ? `, ${TIMING[next.timing]}` : ''}${next.approx ? ". The date is the source's estimate; the company has not confirmed it" : ''} (Yahoo Finance).`);
+  } else if (q?.date) {
+    lines.push(`${name(def)} reports next on ${longDay(q.date, tzOf(def))}${q.dateEstimated ? " (the source's estimate)" : ''} (${q.eps.estFrom ?? q.rev.estFrom ?? 'Finnhub'}).`);
   }
-  const n = cal?.state === 'ok' ? cal.data : null;
-  if (n) {
-    const est = [ok(n.epsEstimate) ? `EPS estimate ${fmtNum(n.epsEstimate, 2)}` : '', ok(n.revenueEstimate) ? `revenue estimate ${fmtBig(n.revenueEstimate)}` : ''].filter(Boolean).join(', ');
-    lines.push(`Finnhub's calendar: ${isoDay(n.date)}${HOUR[n.hour] ? ` ${HOUR[n.hour]}` : ''}${ok(n.quarter) && ok(n.year) ? ` for Q${n.quarter} ${n.year}` : ''}${est ? `; ${est}` : ''}.`);
+  if (q && (ok(q.eps.est) || ok(q.rev.est))) {
+    const parts = [ok(q.eps.est) ? `EPS of ${estRange(q.eps, (v) => fmtNum(v, 2))}` : '', ok(q.rev.est) ? `revenue of ${estRange(q.rev, (v) => fmtBig(v))}` : ''].filter(Boolean);
+    const ago = ok(q.eps.est) && ok(q.yearAgoEps) && q.yearAgoEps > 0 ? ` That is ${q.eps.est >= q.yearAgoEps ? 'up' : 'down'} ${pctText((q.eps.est / q.yearAgoEps - 1) * 100)} on the year's EPS of ${fmtNum(q.yearAgoEps, 2)}.` : '';
+    lines.push(`Analysts expect ${parts.join(' and ')} for the quarter${ISO_DAY.test(q.end) ? ` ending ${isoDay(q.end)}` : ''} (${q.eps.estFrom ?? q.rev.estFrom}).${ago}`);
   }
   if (!lines.length) {
-    const why = cal && cal.state !== 'ok' ? ` Finnhub: ${cal.message ?? cal.state}.` : '';
-    lines.push(engine.realOnly && !getRealFund(def.id) ? `The sources gave no data for ${def.ticker} yet, so no next report date.${why}` : `No source lists ${def.ticker}'s next report date yet: companies usually announce it two to four weeks ahead.${why}`);
+    lines.push(engine.realOnly && !getRealFund(def.id) ? `The sources gave no data for ${def.ticker} yet, so no next report date.` : `No source lists ${def.ticker}'s next report date yet: companies usually announce it two to four weeks ahead.`);
+    if (c.problems.length) lines.push(c.problems.join(' '));
   }
-  const last = lastReported(def);
-  if (last) lines.push(reportedLine(def, last, reportCcy(def)));
+  const last = c.past.find((x) => ok(x.eps.actual));
+  const v = last ? beatText(last.eps) : '';
+  if (last && v) lines.push(`Last quarter (${last.label}): EPS ${fmtNum(last.eps.actual, 2)} against ${fmtNum(last.eps.est, 2)} expected (${v}).`);
+  else {
+    const rep = lastReported(def);
+    if (rep) lines.push(reportedLine(def, rep, reportCcy(def)));
+  }
   return { text: lines.join(' '), commands: [cmd(def, 'EARNINGS', 'Earnings'), cmd(def, 'EVENTS', 'Events')] };
 }
 
 export async function resultsReply(def: SecurityDef): Promise<Reply> {
   if (!def.eq) return notCompany(def, 'earnings reports');
-  const [, part] = await Promise.all([fundamentals(def), finnhub<EpsSurprise[]>(def, 'earnings')]);
+  const [fund, c] = await Promise.all([fundamentals(def), loadConsensus(def)]);
   const lines: string[] = [];
-  const list = part?.state === 'ok' ? (part.data ?? []).filter((q) => ok(q.actual) && ok(q.estimate)) : [];
-  const q = list[0];
+  const q = c.past.find((x) => ok(x.eps.actual) || ok(x.rev.actual));
   if (q) {
-    const verdict = q.actual > q.estimate ? 'Yes, it beat' : q.actual < q.estimate ? 'No, it missed' : 'It matched';
-    const diff = q.actual - q.estimate;
-    const pct = ok(q.surprisePct) ? ` (${q.surprisePct > 0 ? '+' : ''}${fmtNum(q.surprisePct, 1)}%)` : '';
-    lines.push(`${verdict} the analysts' EPS estimate: for Q${q.quarter} ${q.year} (quarter ended ${isoDay(q.period)}), ${def.ticker.split(' ')[0]} reported ${fmtNum(q.actual, 2)} against ${fmtNum(q.estimate, 2)}, a surprise of ${diff > 0 ? '+' : ''}${fmtNum(diff, 2)}${pct} (Finnhub).`);
-    const before = list.slice(1, 4).map((x) => `Q${x.quarter} ${x.year} ${x.actual > x.estimate ? 'beat' : x.actual < x.estimate ? 'missed' : 'matched'} (${fmtNum(x.actual, 2)} vs ${fmtNum(x.estimate, 2)})`);
-    if (before.length) lines.push(`Before that: ${before.join(', ')}.`);
+    const head = `${q.label} (quarter ended ${isoDay(q.end)}${q.date ? `, reported ${longDay(q.date, tzOf(def))}` : ''})`;
+    const ve = beatText(q.eps);
+    const vr = beatText(q.rev);
+    const verdict = ve.startsWith('beat') && (!vr || vr.startsWith('beat')) ? 'Yes, it beat' : ve.startsWith('missed') && (!vr || vr.startsWith('missed')) ? 'No, it missed' : ve || vr ? 'Mixed' : '';
+    const epsLine = ok(q.eps.actual)
+      ? `EPS ${fmtNum(q.eps.actual, 2)}${q.eps.ccy ? ` ${q.eps.ccy}` : ''}${ok(q.eps.est) ? ` against ${fmtNum(q.eps.est, 2)} expected, ${ve}` : ', no estimate from the sources'} (${[q.eps.estFrom, q.eps.actualFrom].filter((x, i, a) => x && a.indexOf(x) === i).join(' / ')})`
+      : '';
+    const revLine = ok(q.rev.actual) ? `revenue ${fmtBig(q.rev.actual)}${q.rev.ccy ? ` ${q.rev.ccy}` : ''}${ok(q.rev.est) ? ` against ${fmtBig(q.rev.est)} expected, ${vr}` : ', no revenue estimate from the sources'} (${q.rev.actualFrom})` : ok(q.rev.est) ? `revenue estimate ${fmtBig(q.rev.est)}${q.rev.ccy ? ` ${q.rev.ccy}` : ''}, reported figure not in the sources yet` : '';
+    lines.push(`${name(def)}: ${verdict ? `${verdict}. ` : ''}${head}: ${[epsLine, revLine].filter(Boolean).join('; ')}.`);
+    const series = growthSeries(c, fund?.quarterly ?? [], { eps: q.eps.actualFrom, rev: q.rev.actualFrom });
+    const ge = growth(q.end, series.eps);
+    const gr = growth(q.end, series.rev);
+    const g = [
+      ok(ge.yoy) ? `EPS ${ge.yoy >= 0 ? 'up' : 'down'} ${pctText(ge.yoy)} on the year` : '',
+      ok(gr.yoy) ? `revenue ${gr.yoy >= 0 ? 'up' : 'down'} ${pctText(gr.yoy)} on the year` : '',
+      ok(ge.qoq) ? `EPS ${ge.qoq >= 0 ? 'up' : 'down'} ${pctText(ge.qoq)} on the quarter` : '',
+      ok(gr.qoq) ? `revenue ${gr.qoq >= 0 ? 'up' : 'down'} ${pctText(gr.qoq)} on the quarter` : '',
+    ].filter(Boolean);
+    if (g.length) lines.push(`${g.join(', ')}.`.replace(/^./, (x) => x.toUpperCase()));
+    const before = c.past.filter((x) => x !== q && ok(x.eps.actual) && ok(x.eps.est)).slice(0, 3).map((x) => `${x.label} ${beatText(x.eps)}`);
+    if (before.length) lines.push(`EPS before that: ${before.join(', ')}.`);
   } else {
-    const why = !finnhubSymbol(def)
-      ? `The analysts' quarterly estimates come from Finnhub, which covers US-listed stocks; ${def.ticker} is not one.`
-      : !finnhubAvailable()
-        ? 'The analysts\' quarterly estimates come from Finnhub in the desktop app.'
-        : part && part.state !== 'ok'
-          ? `Whether it beat needs the analysts' estimate, from Finnhub: ${part.message ?? part.state}.`
-          : 'Finnhub has no quarterly estimate for it.';
-    lines.push(why);
+    lines.push(c.problems.length ? `No source compares ${def.ticker}'s reports with the analysts' estimates: ${c.problems.join(' ')}` : `No source compares ${def.ticker}'s reports with the analysts' estimates.`);
+    const rep = lastReported(def);
+    if (rep) lines.push(reportedLine(def, rep, reportCcy(def)));
   }
-  const last = lastReported(def);
-  if (last) {
-    lines.push(reportedLine(def, last, reportCcy(def)));
-    const move = reactionLine(def, last);
-    if (move) lines.push(move);
-  }
+  const rep = lastReported(def);
+  const move = rep ? reactionLine(def, rep) : '';
+  if (move) lines.push(move);
   return { text: lines.join(' '), commands: [cmd(def, 'EARNINGS', 'Earnings'), cmd(def, 'ANALYSTS', 'Analysts')] };
 }
 

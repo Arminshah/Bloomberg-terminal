@@ -472,6 +472,18 @@ test("company news merges Benzinga's stories through Alpaca with Google News's s
   expect(google.map((u) => new URL(u).searchParams.get('q'))).toContain('"Apple" (stock OR shares OR earnings OR AAPL) when:7d');
 });
 
+test('without an Anthropic key nothing goes to Anthropic and the built-in assistant answers', async ({ desktop: { page } }) => {
+  // No ANTHROPIC_API_KEY: the main process says so and sends nothing; the built-in assistant answers.
+  expect(await page.evaluate(() => window.arminDesktop!.assistant!([{ role: 'user', content: 'hi' }]))).toEqual({ missing: 'ANTHROPIC_API_KEY' });
+  await command(page, 'MESSAGES');
+  const box = page.getByRole('textbox', { name: 'Message' });
+  await box.fill('how do I set a price alert?');
+  await box.press('Enter');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.msg').last()).toContainText('Alerts');
+  await expect(panel.locator('.msg').last().locator('.msg-cmds button').first()).toBeVisible();
+});
+
 test('the explicit IEX source switch supplies watchlist and quote prices with one-venue labels', async ({ desktop: { app, page } }) => {
   expect((await calls(app)).alpaca).toHaveLength(0);
   await enableIex(page);

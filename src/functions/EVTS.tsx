@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { SecLink } from '../components/cells';
-import { fmtDay, fmtNum, WEEKDAYS } from '../core/format';
+import { fmtBig, fmtDay, fmtNum, WEEKDAYS } from '../core/format';
 import { SimBadge } from '../components/Source';
 import { getRealFund } from '../data/live/yfund';
+import { consensusFor, quarterAt, useConsensusFor } from '../data/live/consensus';
+import { verdict } from '../components/EarningsExpectations';
 import { desktopData, yahooQuotes } from '../data/live/yahoo';
 import { engine, useTick } from '../data/market';
 import { DAY_MS } from '../data/calendar';
@@ -78,6 +80,12 @@ export function EVTS({ sec }: FnProps) {
     }
     return list.sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
   }, [sec, scope, watched, holdings, span.from, span.to, now]);
+  // The analysts' expectations for the reports in view, nearest to today first (desktop app).
+  const reporting = useMemo(() => {
+    const byDistance = events.filter((e) => e.kind === 'Earnings' && !e.sim).sort((a, b) => Math.abs(a.date - now) - Math.abs(b.date - now));
+    return [...new Set(byDistance.map((e) => e.id))].map((id) => engine.get(id)).filter((d): d is SecurityDef => !!d);
+  }, [events]); // eslint-disable-line react-hooks/exhaustive-deps
+  useConsensusFor(desktopData() ? reporting : []);
   const stocks = (n: number) => `${n} ${n === 1 ? 'stock' : 'stocks'}`;
   const covered = sec ? '' : scope === 12 ? `watchlist ${wl?.name ?? ''}: ${stocks(watched.length)} · ` : scope === 13 ? `portfolio: ${stocks(holdings.length)} · ` : 'all stocks · ';
   const none =
@@ -113,13 +121,16 @@ export function EVTS({ sec }: FnProps) {
             <th className="hide-m">Name</th>
             <th>Event</th>
             <th>Detail</th>
-            <th className="num" title="Diluted EPS as reported">EPS reported</th>
+            <th className="num" title="The analysts' average EPS estimate for the quarter (Yahoo Finance, Finnhub)">EPS expected</th>
+            <th className="num" title="EPS as reported, on the analysts' basis where a source compares it, else diluted EPS from the statements">EPS reported</th>
+            <th className="num hide-m" title="Reported EPS against the estimate">Beat / miss</th>
+            <th className="num hide-m" title="The analysts' average revenue estimate for the quarter">Revenue expected</th>
           </tr>
         </thead>
         <tbody>
           {events.length === 0 && (
             <tr>
-              <td colSpan={6} className="empty">
+              <td colSpan={9} className="empty">
                 {none}
               </td>
             </tr>
@@ -130,10 +141,13 @@ export function EVTS({ sec }: FnProps) {
             lastDay = day;
             const d = engine.get(e.id)!;
             const past = e.date < now - DAY_MS;
+            const q = e.kind === 'Earnings' && !e.sim && desktopData() ? quarterAt(consensusFor(d), e.date) : null;
+            const v = q ? verdict(q.eps) : { text: '', cls: '' };
+            const reported = q && Number.isFinite(q.eps.actual) ? q.eps.actual : e.act;
             return [
               head ? (
                 <tr key={`h${i}`} className="group">
-                  <td colSpan={6}>
+                  <td colSpan={9}>
                     {WEEKDAYS[new Date(e.date).getUTCDay()]} {day}
                     {Math.floor(e.date / DAY_MS) === Math.floor(now / DAY_MS) ? '  · TODAY' : ''}
                   </td>
@@ -155,7 +169,14 @@ export function EVTS({ sec }: FnProps) {
                   {e.detail}
                   {e.sim ? <span className="muted"> SIM</span> : null}
                 </td>
-                <td className="num white">{e.act != null ? fmtNum(e.act, 2) : e.kind === 'Earnings' ? <span className="muted">{e.date > now ? 'pending' : '--'}</span> : ''}</td>
+                <td className="num" title={q?.eps.estFrom ? `${q.eps.estFrom}${Number.isFinite(q.eps.analysts) ? `, ${q.eps.analysts} analysts` : ''}` : undefined}>
+                  {q && Number.isFinite(q.eps.est) ? fmtNum(q.eps.est, 2) : ''}
+                </td>
+                <td className="num white">{reported != null && Number.isFinite(reported) ? fmtNum(reported, 2) : e.kind === 'Earnings' ? <span className="muted">{e.date > now ? 'pending' : '--'}</span> : ''}</td>
+                <td className={`num hide-m ${v.cls}`}>{v.text}</td>
+                <td className="num hide-m" title={q?.rev.estFrom ? `${q.rev.estFrom}${q.rev.ccy ? `, ${q.rev.ccy}` : ''}` : undefined}>
+                  {q && Number.isFinite(q.rev.est) ? `${fmtBig(q.rev.est)}${q.rev.ccy && q.rev.ccy !== d.ccy ? ` ${q.rev.ccy}` : ''}` : ''}
+                </td>
               </tr>,
             ];
           })}
