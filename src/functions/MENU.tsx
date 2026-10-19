@@ -164,7 +164,7 @@ function MenuPath({ sector, sec }: { sector?: string; sec?: SecurityDef }) {
   const sectorKey = rawSector === 'COMDTY' ? 'CMDTY' : rawSector;
   const sectorMenu = sectorKey ? SECTORS[sectorKey] : undefined;
   return (
-    <nav className="pad-s row" aria-label="Menu path" style={{ borderBottom: '1px solid var(--line)' }}>
+    <nav className="pad-s row menu-path" aria-label="Menu path" style={{ borderBottom: '1px solid var(--line)' }}>
       <button type="button" className="btn" onClick={() => navigate(panel, { fn: 'MENU' })}>Main Menu</button>
       {sectorMenu && (
         <>
@@ -174,7 +174,7 @@ function MenuPath({ sector, sec }: { sector?: string; sec?: SecurityDef }) {
           ) : <span className="white" aria-current="page">{sectorMenu.title}</span>}
         </>
       )}
-      {sec && <><span className="muted" aria-hidden="true">›</span><span className="yellow" aria-current="page">Analyze {sec.id}</span></>}
+      {sec && <><span className="muted" aria-hidden="true">›</span><span className="white" aria-current="page">Analyze {sec.id}</span></>}
     </nav>
   );
 }
@@ -229,13 +229,13 @@ function MenuGrid({ groups }: { groups: { title: string; lines: Line[] }[] }) {
             <tbody>
               {g.lines.map((l) => (
                 <tr key={l.n} className="click" title={`${l.cmd} <GO>`} onClick={() => execute(panel, l.cmd)}>
-                  <td className="num yellow b" style={{ width: 34 }}>
+                  <td className="num white" style={{ width: 34 }}>
                     {l.n})
                   </td>
-                  <td className="amber b" style={{ width: 58 }} title={l.code}>
+                  <td className="white" style={{ width: 58 }} title={l.code}>
                     {mnemonics ? primaryMnemonic(l.code) : l.code}
                   </td>
-                  <td className={l.none ? 'muted' : 'white'} title={l.none ? `Not available: ${l.none}` : undefined}>
+                  <td className={l.none ? 'muted' : 'amber'} title={l.none ? `Not available: ${l.none}` : undefined}>
                     {l.label}
                     {l.none ? ' (not available)' : ''}
                   </td>
@@ -298,7 +298,7 @@ function SectorMenu({ yk }: { yk: string }) {
             <tbody>
               {list.map((d, i) => (
                 <tr key={d.id}>
-                  <td className="num yellow b" style={{ width: 34 }}>
+                  <td className="num white" style={{ width: 34 }}>
                     {start + i})
                   </td>
                   <td>
@@ -341,7 +341,7 @@ function MainMenu() {
             <tbody>
               {MAIN.map((m, i) => (
                 <tr key={m.key} className="click" onClick={() => execute(panel, m.key)}>
-                  <td className="num yellow b" style={{ width: 34 }}>
+                  <td className="num white" style={{ width: 34 }}>
                     {i + 1})
                   </td>
                   <td>
@@ -358,7 +358,7 @@ function MainMenu() {
             <tbody>
               {WORKFLOWS.map((m) => (
                 <tr key={m.n} className="click" onClick={() => execute(panel, m.cmd)} title={`${m.cmd} <GO>`}>
-                  <td className="num yellow b" style={{ width: 34 }}>{m.n})</td>
+                  <td className="num white" style={{ width: 34 }}>{m.n})</td>
                   <td className="white">{m.label} <span className="muted">›</span></td>
                 </tr>
               ))}

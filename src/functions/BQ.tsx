@@ -23,6 +23,7 @@ import { secTicker } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
 import type { Quote, SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
+import { sourceCode } from '../data/sourcecode';
 import '../styles/quote-terminal.css';
 
 const QUOTE_REACH: NewsReach = { massive: false, marketaux: false };
@@ -228,7 +229,7 @@ export function BQ({ sec }: FnProps) {
                   <a key={st.id} className="news-item real" href={st.url} target="_blank" rel="noreferrer noopener" title={st.title}>
                     <span className="time">{fmtStamp(st.time, engine.now())}</span>
                     <span className="hl">{st.title}</span>
-                    <span className="src">{st.publisher.replace(/ \(company filing\)$/, '')}</span>
+                    <span className="src" title={st.publisher}>{sourceCode(st.publisher)}</span>
                   </a>
                 ))
               ) : (
@@ -256,7 +257,7 @@ export function BQ({ sec }: FnProps) {
               <div key={st.id} className={`news-item${st.hot ? ' hot' : ''}`} onClick={() => execute(panel, `${s.id} COMPANYNEWS`)}>
                 <span className="time">{fmtStamp(st.time, engine.now())}</span>
                 <span className="hl">{st.headline}</span>
-                <span className="src">{st.source}</span>
+                <span className="src" title={st.source}>{sourceCode(st.source)}</span>
               </div>
             ))
           )}

@@ -1,7 +1,7 @@
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { NotConnected } from '../components/NotConnected';
-import { HBar, KV, LivePx, Section } from '../components/cells';
+import { Chg, HBar, KV, LivePx, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { analystData, analystsAvailable, analystSymbol, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
@@ -12,6 +12,8 @@ import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 import type { SecurityDef } from '../data/types';
 import { reportCcy } from '../data/fundamentals';
+import { periodChange } from '../data/analytics';
+import { ratingSummary } from '../data/anr';
 import { finnhubAvailable, finnhubSymbol, retryFinnhub, useFinnhub, type FinnhubPart, type RecommendationMonth } from '../data/live/finnhub';
 
 /**
@@ -36,7 +38,7 @@ export function ANR({ sec }: FnProps) {
   if (!analystsAvailable()) {
     return (
       <div>
-        <FnHeader code="ANALYSTS" title="Analyst Research" sec={s} sub="Price targets, ratings and estimates" />
+        <FnHeader code="ANALYSTS" title="Analyst Recommendations" sec={s} sub="Price targets, ratings and estimates" />
         <QuoteStrip sec={s} />
         <NotConnected
           what="This screen shows analyst price targets, the tally of broker ratings, recent rating actions and estimates."
@@ -56,7 +58,7 @@ export function ANR({ sec }: FnProps) {
   const header = (
     <FnHeader
       code="ANALYSTS"
-      title="Analyst Research"
+      title="Analyst Recommendations"
       sec={s}
       sub={
         <>
@@ -97,6 +99,7 @@ export function ANR({ sec }: FnProps) {
       <ResearchCoverage parts={[
         ['Price targets', consensus], ['Ratings', ratings], ['Target-history averages', summary], ['Rating actions', grades], ['Annual estimates', estimates],
       ]} />
+      <AnrSnapshot sec={s} c={comparableTarget ? c : null} r={r} />
       <div className="cols">
         <Section title="Price target" right={targetCurrency ?? 'currency not supplied'}>
           {loading(consensus) ? (
@@ -311,6 +314,38 @@ function TargetRange({ c, last }: { c: TargetConsensus; last: number }) {
       <div className="note" style={{ padding: 0 }}>
         Line: lowest to highest target. Marks: <span className="amber">consensus</span>, <span style={{ color: '#45d3e6' }}>median</span>, <span className="white">last price</span>.
       </div>
+    </div>
+  );
+}
+
+/**
+ * ANR's left-hand summary as the terminal shows it above the chart: the rating score and the shares of buys, holds and
+ * sells, the average target against the last price, and the past year's return. Each line is worked out from the
+ * figures the sections below show with their sources; nothing is added.
+ */
+function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | null; r: RatingTally | null }) {
+  const rs = r ? ratingSummary(r) : null;
+  const last = engine.quote(sec.id)?.last ?? NaN;
+  const potential = c && Number.isFinite(c.mean) && last > 0 ? (c.mean / last - 1) * 100 : NaN;
+  const share = (pct: number, count: number) => (Number.isFinite(pct) ? `${fmtNum(pct, 1)}%  ${count}` : '--');
+  return (
+    <div className="anr-snap">
+      <KV
+        items={[
+          [<span key="s" title="Average of the ratings counted: strong buy 5, buy 4, hold 3, sell 2, strong sell 1">Rating score (5 buy, 1 sell)</span>, rs ? fmtNum(rs.score, 2) : '--'],
+          [<span key="b" className="up">Buys</span>, rs ? share(rs.buyPct, rs.buys) : '--'],
+          [<span key="h">Holds</span>, rs ? share(rs.holdPct, rs.holds) : '--'],
+          [<span key="x" className="dn">Sells</span>, rs ? share(rs.sellPct, rs.sells) : '--'],
+        ]}
+      />
+      <KV
+        items={[
+          ['Average target', c ? fmtNum(c.mean, 2) : '--'],
+          ['Last price', <LivePx key="p" id={sec.id} />],
+          ['Return potential', <Chg key="r" v={potential} pct dec={1} />],
+          ['LTM return', <Chg key="l" v={periodChange(sec.id, '1Y')} pct dec={1} />],
+        ]}
+      />
     </div>
   );
 }

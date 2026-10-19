@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { fmtFieldDate, parseFieldDate, windowBars } from '../src/terminal/daterange';
 import { groupedRowNumbers } from '../src/terminal/numbering';
 import { blockGeometry, blockPages, weekday, weekSlots, type Slot } from '../src/terminal/pricetable';
+import { sourceCode } from '../src/data/sourcecode';
+import { matchQuarter, surpriseStats } from '../src/data/ern';
+import { ratingSummary } from '../src/data/anr';
 import { equityRatios } from '../src/data/ratios';
 import { emptyPeriod, type FinPeriod } from '../src/data/fundamentals';
 
@@ -125,6 +128,67 @@ describe('HP price table', () => {
     expect(blockGeometry(1200, 600, 20)).toEqual({ cols: 4, perCol: 30 });
     expect(blockGeometry(500, 600, 20).cols).toBe(1);
     expect(blockGeometry(2400, 100, 20)).toEqual({ cols: 4, perCol: 8 });
+  });
+});
+
+describe('ERN table', () => {
+  const quarter = (end: string, date: number | undefined, est: number, actual: number) => ({
+    end, label: end, date, eps: { est, low: NaN, high: NaN, analysts: NaN, actual }, rev: { est: NaN, low: NaN, high: NaN, analysts: NaN, actual: NaN },
+  });
+  const past = [quarter('2026-06-27', D(2026, 7, 30), 1.5, 1.6), quarter('2026-03-28', undefined, 1.4, 1.3), quarter('2025-12-27', D(2026, 1, 29), 2.3, 2.4)];
+
+  it('finds the quarter reported on a date: by report date, else the last quarter ended before it', () => {
+    expect(matchQuarter(D(2026, 7, 31), past)?.end).toBe('2026-06-27');
+    expect(matchQuarter(D(2026, 4, 30), past)?.end).toBe('2026-03-28');
+    expect(matchQuarter(D(2026, 1, 30), past)?.end).toBe('2025-12-27');
+    // Nothing ended in the four months before.
+    expect(matchQuarter(D(2025, 6, 1), past)).toBeUndefined();
+  });
+
+  it('averages surprises and price moves over the reports that have them', () => {
+    const st = surpriseStats([5, -3, NaN, 1], [2, -4, NaN]);
+    expect(st.avgSurprise).toBeCloseTo(1);
+    expect(st.avgAbsSurprise).toBeCloseTo(3);
+    expect(st.surprises).toBe(3);
+    expect(st.avgAbsMove).toBeCloseTo(3);
+    expect(st.moves).toBe(2);
+    expect(surpriseStats([], []).avgSurprise).toBeNaN();
+  });
+});
+
+describe('ANR summary', () => {
+  it('shares out buys, holds and sells and scores them from 1 (sell) to 5 (buy)', () => {
+    const r = ratingSummary({ strongBuy: 2, buy: 4, hold: 3, sell: 1, strongSell: 0, consensus: 'Buy' });
+    expect(r).toMatchObject({ buys: 6, holds: 3, sells: 1, total: 10 });
+    expect(r.buyPct).toBeCloseTo(60);
+    expect(r.sellPct).toBeCloseTo(10);
+    expect(r.score).toBeCloseTo((10 + 16 + 9 + 2) / 10);
+  });
+
+  it('gives no score without ratings and ignores missing counts', () => {
+    expect(ratingSummary({ strongBuy: 0, buy: 0, hold: 0, sell: 0, strongSell: 0, consensus: '' }).score).toBeNaN();
+    expect(ratingSummary({ strongBuy: NaN, buy: 1, hold: NaN, sell: 0, strongSell: 0, consensus: '' }).score).toBe(4);
+  });
+});
+
+describe('headline source codes', () => {
+  it('gives well-known publishers their usual short names', () => {
+    expect(sourceCode('Reuters')).toBe('RTRS');
+    expect(sourceCode('Benzinga')).toBe('BZ');
+    expect(sourceCode('The Wall Street Journal')).toBe('WSJ');
+    expect(sourceCode('SEC EDGAR (company filing)')).toBe('SEC');
+    expect(sourceCode('Yahoo Finance')).toBe('YHOO');
+  });
+
+  it('abbreviates any other name from its words or its site', () => {
+    expect(sourceCode('Kiplinger Personal Finance')).toBe('KPF');
+    expect(sourceCode('Investopedia')).toBe('INVE');
+    // A short name in capitals stays whole; a longer one is cut to four letters.
+    expect(sourceCode('MSN')).toBe('MSN');
+    expect(sourceCode('NASDAQ')).toBe('NASD');
+    expect(sourceCode('www.reuters.com')).toBe('RTRS');
+    expect(sourceCode('example.com')).toBe('EXAM');
+    expect(sourceCode('  ')).toBe('--');
   });
 });
 
