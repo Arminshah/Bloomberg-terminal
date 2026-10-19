@@ -25,7 +25,7 @@ export interface SecAnswer {
   error?: string;
 }
 
-export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts';
+export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl';
 
 export type SecResult<T> =
   | { ok: true; data: T; at: number; stale?: boolean }
@@ -672,6 +672,21 @@ export const loadSecCompanies = (force = false) => load('tickers', '', 24 * 3600
 export const loadFiler = (cik: number, force = false) => load('submissions', cik10(cik), 5 * 60_000, parseSubmissions, force);
 export const loadFilingPage = (name: string) => load('submissions-page', name, 24 * 3600_000, parseFilingPage);
 export const loadCompanyFacts = (cik: number, force = false) => load('facts', cik10(cik), 3600_000, parseCompanyFacts, force);
+
+/** The file names in a filing's folder (EDGAR's index.json: {directory: {item: [{name, ...}]}}). */
+export function parseFilingIndex(text: string): string[] | null {
+  try {
+    const items = JSON.parse(text)?.directory?.item;
+    return Array.isArray(items) ? items.map((x: any) => String(x?.name ?? '')).filter(Boolean) : null;
+  } catch {
+    return null;
+  }
+}
+
+const folder = (cik: number, accession: string) => `${cik}/${accession.replace(/-/g, '')}`;
+export const loadFilingIndex = (cik: number, accession: string) => load('filing-index', folder(cik, accession), 24 * 3600_000, parseFilingIndex);
+/** A filing's XBRL instance as text (the SEC extracts it from inline XBRL as name_htm.xml). */
+export const loadFilingXbrl = (cik: number, accession: string, file: string) => load('filing-xbrl', `${folder(cik, accession)}/${file}`, 7 * 24 * 3600_000, (t) => (t.includes('<') ? t : null));
 
 /** Which SEC filer a security is: by its US ticker in the SEC's company list. */
 export async function resolveFiler(ticker: string, force = false): Promise<SecResult<SecCompany>> {

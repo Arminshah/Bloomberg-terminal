@@ -1,7 +1,8 @@
 // SEC EDGAR for the main process: the SEC's list of companies with their
 // tickers, each company's filing history and the financial facts tagged in its
-// XBRL filings, from the SEC's own JSON files. The page names what it wants
-// (a kind and a CIK); the URL is built here from fixed patterns.
+// XBRL filings, from the SEC's own JSON files, and a proxy statement's XBRL
+// for executive pay. The page names what it wants (a kind and a CIK or a
+// filing); the URL is built here from fixed patterns.
 //
 // The SEC's fair-access rules (sec.gov "Accessing EDGAR Data" and the
 // Webmaster FAQ): automated clients declare a User-Agent naming themselves and
@@ -11,6 +12,11 @@
 
 const TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
 const DATA = 'https://data.sec.gov';
+const ARCHIVES = 'https://www.sec.gov/Archives/edgar/data';
+// A filing's folder: the filer's CIK without leading zeros and the accession number without dashes.
+const FOLDER = /^([1-9]\d{0,9})\/(\d{18})$/;
+// The XBRL instance EDGAR extracts from an inline XBRL document (name_htm.xml).
+const INSTANCE = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}_htm\.xml)$/;
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -45,12 +51,16 @@ const KINDS = {
     },
     ttl: HOUR,
   },
+  // A filing's list of files, and its XBRL instance: for the pay-versus-performance table of a proxy statement
+  // (DEF 14A), which company facts do not include. A filing never changes once made.
+  'filing-index': { url: (arg) => (FOLDER.test(arg) ? `${ARCHIVES}/${arg}/index.json` : null), ttl: 24 * HOUR },
+  'filing-xbrl': { url: (arg) => (INSTANCE.test(arg) ? `${ARCHIVES}/${arg}` : null), ttl: 7 * 24 * HOUR },
 };
 
 /** The URL and keep time for a request from the page, or null when it is not one the app makes. */
 function secRequest(kind, arg) {
   if (typeof kind !== 'string' || !Object.prototype.hasOwnProperty.call(KINDS, kind)) return null;
-  if (arg != null && (typeof arg !== 'string' || arg.length > 64)) return null;
+  if (arg != null && (typeof arg !== 'string' || arg.length > 200)) return null;
   const url = KINDS[kind].url(arg ?? '');
   return url ? { url, ttl: KINDS[kind].ttl } : null;
 }

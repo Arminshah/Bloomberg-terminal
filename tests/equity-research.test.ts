@@ -43,7 +43,7 @@ describe('company officers (Yahoo company profile)', () => {
   it('lists every officer in the source order with age, birth year, pay and fiscal year', () => {
     const list = officersFrom(live.AAPL.quoteSummary.result[0].assetProfile);
     expect(list).toHaveLength(10);
-    expect(list[0]).toEqual({ name: 'Timothy D. Cook', title: 'Executive Chairman of the Board', age: 64, yearBorn: 1961, totalPay: 16_759_518, fiscalYear: 2025 });
+    expect(list[0]).toEqual({ name: 'Timothy D. Cook', title: 'Executive Chairman of the Board', age: 64, yearBorn: 1961, totalPay: 16_759_518, exercised: NaN, fiscalYear: 2025 });
     // Doubled spaces collapse; degrees after the name stay.
     expect(list[1].name).toBe('Kevan Parekh');
     expect(list.map((o) => o.name)).toContain('Jennifer G. Newstead J.D.');
@@ -58,7 +58,7 @@ describe('company officers (Yahoo company profile)', () => {
   it('cleans names the way the profile CEO is cleaned, and skips unnamed rows', () => {
     expect(cleanOfficerName('Prof. William J.  Dally Ph.D.')).toBe('William J. Dally Ph.D.');
     expect(cleanOfficerName('Mrs Jane Doe')).toBe('Jane Doe');
-    expect(officersFrom({ companyOfficers: [{ title: 'CFO' }, { name: '  ', title: 'x' }, { name: 'Ann Lee', totalPay: { raw: 0 } }] })).toEqual([{ name: 'Ann Lee', title: '', age: NaN, yearBorn: NaN, totalPay: NaN, fiscalYear: NaN }]);
+    expect(officersFrom({ companyOfficers: [{ title: 'CFO' }, { name: '  ', title: 'x' }, { name: 'Ann Lee', totalPay: { raw: 0 } }] })).toEqual([{ name: 'Ann Lee', title: '', age: NaN, yearBorn: NaN, totalPay: NaN, exercised: NaN, fiscalYear: NaN }]);
     expect(officersFrom({})).toEqual([]);
   });
 

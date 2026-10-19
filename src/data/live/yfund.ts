@@ -63,8 +63,13 @@ export interface Officer {
   /** Age and year of birth as the source gives them; NaN when it gives none. */
   age: number;
   yearBorn: number;
-  /** Total pay for `fiscalYear` in the company's filings, as the source gives it (no currency stated). */
+  /**
+   * Yahoo's "Pay" for `fiscalYear`: salary, bonus and other cash, without stock and option awards (Yahoo's own
+   * footnote: "Pay is salary, bonuses, etc."). No currency is stated.
+   */
   totalPay: number;
+  /** The value of options exercised in the fiscal year, as Yahoo gives it. */
+  exercised: number;
   fiscalYear: number;
 }
 
@@ -110,6 +115,7 @@ export function officersFrom(ap: Json): Officer[] {
       age: num(o?.age) > 0 ? num(o.age) : NaN,
       yearBorn: num(o?.yearBorn) > 0 ? num(o.yearBorn) : NaN,
       totalPay: num(o?.totalPay) > 0 ? num(o.totalPay) : NaN,
+      exercised: num(o?.exercisedValue) > 0 ? num(o.exercisedValue) : NaN,
       fiscalYear: num(o?.fiscalYear) > 0 ? num(o.fiscalYear) : NaN,
     }))
     .filter((o) => o.name);
