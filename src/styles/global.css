@@ -392,7 +392,7 @@ button { cursor: pointer; }
   min-height: 24px;
   padding: 2px 6px;
   overflow: hidden;
-  background: var(--function-bar);
+  background: linear-gradient(180deg, #a11d1d 0%, var(--function-bar) 55%, #6f0f0f 100%);
   font-family: var(--sans);
 }
 .fnh-caption { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; min-width: 0; max-width: 100%; }
@@ -405,7 +405,10 @@ button { cursor: pointer; }
   font-weight: 600;
   letter-spacing: 0.04em;
 }
-.fnh-sec { color: var(--yellow); font-weight: 500; white-space: nowrap; }
+/* The loaded security sits in an amber field at the left end of the red bar, as on the terminal's function screens. */
+.fnh-sec { flex: none; align-self: stretch; display: inline-flex; align-items: center; margin: -2px 0 -2px -6px; padding: 0 8px; background: var(--amber); color: #000; font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+.fnh-name { color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0 !important; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* "Page 2/5" sits on the function bar beside the title, as the terminal shows multi-page screens. */
 .fnh-page { flex: none; border: 0; padding: 0 6px; background: transparent; color: var(--white); font-size: var(--fs-s); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .fnh-page:hover { outline: 1px solid var(--white); outline-offset: -1px; }
@@ -413,9 +416,8 @@ button { cursor: pointer; }
 .fav-star:hover { color: var(--amber); }
 .fav-star.on { color: var(--yellow); }
 .ac-item .fav { color: var(--yellow); }
-.fnh-mnemonic { flex: none; padding: 0 5px; background: #250707; color: var(--yellow); font-weight: 600; white-space: nowrap; }
+.fnh-mnemonic { flex: none; padding: 0 5px; background: #250707; color: var(--yellow); font-family: var(--mono); font-weight: 600; white-space: nowrap; }
 .fnh-mnemonic small { font-size: 9px; font-weight: 400; }
-.fnh-mnemonic + .fnh-code { padding: 0; background: transparent; color: #edb8b8; font-size: var(--fs-s); }
 .chart-tools .fields-search { flex: 1 1 230px; min-width: 160px; }
 .field-definition { border-left: 3px solid var(--amber); }
 .field-definition .kv > dd { min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; text-align: left; }
@@ -425,7 +427,9 @@ button { cursor: pointer; }
 .fnh-actions .act { flex: none; border: 0; border-right: 1px solid #b36262; background: transparent; padding: 1px 9px; color: #fff; font-size: var(--fs); }
 .fnh-actions .act b { color: #fff; }
 .fnh-actions .act:hover { background: #a32929; outline: 1px solid #fff; outline-offset: -1px; }
-.fnh-actions .act.on { background: #263e77; }
+/* A chosen view in the red bar is a lit field: white on dark blue, readable against the red. */
+.fnh-actions .act.on, .fnh-actions .act.on b { background: #1d3f80; color: #fff; }
+.fnh-actions .act.on { box-shadow: inset 0 -2px #b5d2ff; }
 .act {
   border: 1px solid #7e7e7e;
   background: #181818;
@@ -561,20 +565,46 @@ button { cursor: pointer; }
 }
 .cols > * { background: var(--bg-1); min-width: 0; }
 .sect { min-width: 0; }
+/* Section headings are the terminal's grey strips with white titles (DES boxes, monitor regions). */
 .sect-h {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 8px;
-  color: var(--amber);
-  border-bottom: 1px solid var(--amber-dim);
+  padding: 2px 8px;
+  color: var(--white);
+  border-top: 1px solid #4b5158;
+  border-bottom: 1px solid #15171a;
+  font-family: var(--sans);
   font-weight: 500;
-  letter-spacing: 0.04em;
   white-space: nowrap;
-  background: var(--bg-2);
+  background: linear-gradient(180deg, #3d4248 0%, #2a2e33 100%);
 }
-.sect-h .right { margin-left: auto; color: var(--muted); font-weight: 400; }
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 0 12px; padding: 4px 8px; }
+.sect-h .right { margin-left: auto; color: #b9c0c8; font-weight: 400; }
+
+/* DES: name and classification, the description, then three columns of numbered boxes. */
+.des-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 4px 8px 0; }
+.des-name { color: var(--white); font-weight: 600; letter-spacing: 0.02em; }
+.des-class { margin-left: auto; color: var(--amber); }
+.des-desc { margin: 0; padding: 4px 8px 6px; color: var(--amber); font-family: var(--sans); font-size: var(--fs); line-height: 1.45; }
+.des-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.des-col { background: var(--bg-1); min-width: 0; }
+.des-box { min-width: 0; }
+.des-link { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; white-space: nowrap; }
+.des-link:hover { color: var(--amber-2); text-decoration: underline; }
+.des-n { color: inherit; font-weight: 500; }
+.sect-h .des-fn { color: #c9d4e0; }
+.des-people { list-style: none; margin: 0; padding: 3px 8px; }
+.des-people li { padding: 1px 0; }
+.des-title { padding-left: 3.2em; font-size: var(--fs-s); }
+.des-links { border-top: 1px solid var(--line); }
+.des-links dt .des-link { color: var(--amber); }
+.des-related { display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 5px 8px; border-top: 1px solid var(--line); }
+.des-related .des-link { color: var(--amber); }
+.des-related .des-n { color: var(--white); }
+.des-fy { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 20px; padding-right: 8px; }
+.des-fy .kv { flex: 0 1 420px; }
+.des-fy-links { display: flex; flex-direction: column; padding: 4px 8px; color: var(--amber); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 0 12px; margin: 0; padding: 4px 8px; }
 .kv > dt { color: var(--amber); white-space: nowrap; }
 .kv > dd { margin: 0; text-align: right; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kv-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
@@ -610,6 +640,10 @@ button { cursor: pointer; }
 .inp:not(textarea):focus, .sel-inp:focus { border-color: var(--white); outline: 1px solid var(--white); outline-offset: -1px; }
 .inp option, .sel-inp option { background: #151515; color: var(--text); }
 .inp.wide { width: 100%; }
+/* GP and HP: amber "start - end" boxes. */
+.range-fields { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.range-date { width: 11ch; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.range-date.bad { outline: 1px solid var(--dn); outline-offset: -1px; }
 label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--amber); white-space: nowrap; }
 .chip {
   display: inline-block;
@@ -952,7 +986,7 @@ a.news-item { color: inherit; text-decoration: none; }
   .fnh-row { flex-wrap: wrap; row-gap: 0; padding-top: 2px; padding-bottom: 2px; }
   .fnh-sub { display: none; }
   /* With the subtitle hidden, a strip without a security would be an empty line. */
-  .fnh-context:not(:has(.fnh-sec)) { display: none; }
+  .fnh-context:not(:has(.fnh-name)) { display: none; }
   .fnh-actions { margin-left: 0; flex-wrap: wrap; width: 100%; }
   .act { padding: 1px 5px; }
   .qstrip { gap: 2px 10px; }

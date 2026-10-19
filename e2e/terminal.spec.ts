@@ -267,6 +267,38 @@ test('chart style mnemonics, intraday period and help on a typed mnemonic', asyn
   expect(errors).toEqual([]);
 });
 
+test('DES pages and numbered boxes, the security in the red bar and typed chart ranges', async ({ page }) => {
+  const errors = await boot(page, '1');
+  const panel = page.locator('.panel').first();
+  await run(page, 'AAPL DES');
+  // The loaded security sits in the amber field of the red bar; the title reads as the terminal's.
+  await expect(panel.locator('.fnh-row .fnh-sec')).toHaveText('AAPL US Equity');
+  await expect(panel.locator('.fnh-title')).toHaveText('Security Description: Equity');
+  await expect(panel.locator('.tab')).toHaveText(['1) Profile', '2) Issue Info', '3) Ratios', '4) Revenue & EPS', '5) Industry Info']);
+  await expect(panel.locator('.des-name')).toHaveText('APPLE INC');
+  await expect(panel.getByRole('button', { name: /11\) Price Chart/ })).toBeVisible();
+  await run(page, '3');
+  await expect(panel.locator('.tab.on')).toHaveText('3) Ratios');
+  await expect(panel.locator('.sect-h', { hasText: 'Per Share Data' })).toBeVisible();
+  await run(page, '1');
+  await run(page, '12');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('EARNINGS');
+  // GP's amber range boxes take a typed start date; the period tabs then show none chosen.
+  await run(page, 'AAPL GP');
+  const start = panel.getByLabel('Start date');
+  await expect(start).toHaveValue(/^\d{2}\/\d{2}\/\d{4}$/);
+  await start.fill('01/02/2026');
+  await start.press('Enter');
+  await expect(panel.locator('.tab.on')).toHaveCount(0);
+  await expect(start).toHaveValue('01/02/2026');
+  await start.fill('13/45/2026');
+  await start.press('Enter');
+  await expect(start).toHaveClass(/\bbad\b/);
+  await run(page, '6');
+  await expect(panel.locator('.tab.on')).toHaveText('6) 1Y');
+  expect(errors).toEqual([]);
+});
+
 test('bad commands explain themselves', async ({ page }) => {
   await boot(page, '1');
   await run(page, 'ZZZZ CHART');

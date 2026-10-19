@@ -30,6 +30,8 @@ export interface ChartOptions {
   refLine?: { value: number; label: string };
   /** Number of bars visible when the view is reset. */
   initialBars: number;
+  /** Bars left out after the visible window when the view is reset (a typed end date before the latest bar). */
+  initialEnd?: number;
   color?: string;
   /** Formats times in the user's display zone (intraday labels). */
   timeLabel?: (ms: number) => string;
@@ -51,13 +53,17 @@ export interface ChartObservation {
 
 export const CHART_THEME = {
   bg: '#000000',
-  grid: '#1b1b1b',
-  gridStrong: '#2a2a2a',
+  // The terminal's charts draw a dotted grey grid that stays visible on black.
+  grid: '#333a42',
+  gridStrong: '#4a525c',
   axis: '#8f8f8f',
-  axisText: '#b8b8b8',
+  axisText: '#c8c8c8',
   text: '#e8e8e8',
   amber: '#ff9e1b',
-  line: '#ffb547',
+  // GP's default: a white last-price line over a blue mountain, with the last value tagged in white.
+  line: '#f4f4f4',
+  mountainTop: 'rgba(54,124,184,0.78)',
+  mountainBottom: 'rgba(10,32,58,0.30)',
   up: '#2fd36b',
   dn: '#ff4d4f',
   upFill: 'rgba(47,211,107,0.55)',
@@ -179,10 +185,11 @@ export class PriceChart {
   resetView() {
     if (!this.s || !this.opt) return;
     const n = this.s.length;
-    const count = Math.min(n, Math.max(5, this.opt.initialBars));
+    const end = n - Math.min(Math.max(0, this.opt.initialEnd ?? 0), Math.max(0, n - 5));
+    const count = Math.min(end, Math.max(5, this.opt.initialBars));
     const pad = Math.max(1, count * 0.02);
-    this.v1 = n + pad;
-    this.v0 = n - count;
+    this.v1 = end + pad;
+    this.v0 = end - count;
     this.schedule();
   }
 
@@ -565,8 +572,9 @@ export class PriceChart {
       }
       if (opt.type === 'mountain') {
         const grad = ctx.createLinearGradient(0, main.top, 0, main.top + main.h);
-        grad.addColorStop(0, hexAlpha(color, 0.38));
-        grad.addColorStop(1, hexAlpha(color, 0.02));
+        // The default series fills in the terminal's blue; a series given its own colour fills in that colour.
+        grad.addColorStop(0, opt.color ? hexAlpha(color, 0.38) : T.mountainTop);
+        grad.addColorStop(1, opt.color ? hexAlpha(color, 0.02) : T.mountainBottom);
         ctx.save();
         ctx.lineTo(this.xAt(i1), main.top + main.h);
         ctx.lineTo(this.xAt(i0), main.top + main.h);

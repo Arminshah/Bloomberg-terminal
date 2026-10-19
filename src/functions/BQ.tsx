@@ -76,7 +76,6 @@ export function BQ({ sec }: FnProps) {
         code="QUOTE"
         title="Quote"
         sec={s}
-        sub={s.name}
         actions={[
           { n: 1, label: 'Chart', onClick: () => execute(panel, `${s.id} CHART`) },
           { n: 2, label: 'Profile', onClick: () => execute(panel, `${s.id} PROFILE`) },

@@ -1,5 +1,11 @@
-/** Tiny inline line chart; colour follows first-to-last direction. */
-export function Sparkline({ values, width = 80, height = 16, color, fluid }: { values: ArrayLike<number>; width?: number; height?: number; color?: string; fluid?: boolean }) {
+import { useId } from 'react';
+
+/**
+ * Tiny inline line chart; colour follows first-to-last direction. `mountain` draws it as GP does by default, a white
+ * line over a blue fill.
+ */
+export function Sparkline({ values, width = 80, height = 16, color, fluid, mountain }: { values: ArrayLike<number>; width?: number; height?: number; color?: string; fluid?: boolean; mountain?: boolean }) {
+  const gradient = useId();
   const n = values.length;
   if (n < 2) return <svg width={width} height={height} aria-hidden="true" />;
   let lo = Infinity;
@@ -20,7 +26,7 @@ export function Sparkline({ values, width = 80, height = 16, color, fluid }: { v
   }
   const lastY = height - 1 - ((values[n - 1] - lo) / span) * (height - 2);
   d += `L${width - 1},${lastY.toFixed(1)}`;
-  const stroke = color ?? (values[n - 1] >= values[0] ? 'var(--up)' : 'var(--dn)');
+  const stroke = mountain ? '#f4f4f4' : color ?? (values[n - 1] >= values[0] ? 'var(--up)' : 'var(--dn)');
   return (
     <svg
       width={fluid ? '100%' : width}
@@ -30,7 +36,15 @@ export function Sparkline({ values, width = 80, height = 16, color, fluid }: { v
       aria-hidden="true"
       style={{ display: 'block' }}
     >
-      {fluid && <path d={`${d}L${width - 1},${height}L1,${height}Z`} fill={stroke} opacity="0.12" />}
+      {mountain && (
+        <defs>
+          <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="rgb(54,124,184)" stopOpacity="0.8" />
+            <stop offset="1" stopColor="rgb(10,32,58)" stopOpacity="0.3" />
+          </linearGradient>
+        </defs>
+      )}
+      {fluid && <path d={`${d}L${width - 1},${height}L1,${height}Z`} fill={mountain ? `url(#${gradient})` : stroke} opacity={mountain ? 1 : 0.12} />}
       <path d={d} fill="none" stroke={stroke} strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
       {!fluid && <circle cx={width - 1} cy={lastY} r="1.6" fill={stroke} />}
     </svg>

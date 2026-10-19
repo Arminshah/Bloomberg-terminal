@@ -16,6 +16,8 @@ import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 import { styledMnemonic } from '../terminal/legacy';
+import { DateRangeFields } from '../components/DateRange';
+import { windowBars } from '../terminal/daterange';
 
 interface ChartPrefs {
   type: ChartType;
@@ -121,6 +123,8 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
   const p = useMemo(() => (ownType ? { ...saved, type: ownType } : saved), [ownType, saved]);
   const setType = (type: ChartType) => (ownType ? setOwnType(type) : store.set((s) => ({ ...s, type })));
   const [period, setPeriod] = useState(initialPeriod ?? '1Y');
+  // Dates typed in the amber range boxes replace the period tab until a tab is chosen again.
+  const [custom, setCustom] = useState<{ from: number; to: number } | null>(null);
   const [freq, setFreq] = useState<Periodicity>('D');
   const [compare, setCompare] = useState<string[]>([]);
   const tick = useTick(intraday ? 1 : freq === 'D' ? 1_000_000 : 5);
@@ -158,11 +162,12 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
       percent: compareSeries.length > 0,
       annotate: true,
       refLine: intraday ? { value: engine.prevClose(sec.id), label: 'Prev' } : undefined,
-      initialBars: intraday ? 100000 : barsFor(period, freq, daily),
+      initialBars: intraday ? 100000 : custom ? Math.max(5, windowBars(series.t, custom.from, custom.to).count) : barsFor(period, freq, daily),
+      initialEnd: !intraday && custom ? windowBars(series.t, custom.from, custom.to).after : undefined,
       timeLabel: (t) => fmtTime(t, false),
       dateLabel: (t) => fmtDay(t),
     }),
-    [p, sec, intraday, compareSeries, period, freq, daily, series],
+    [p, sec, intraday, compareSeries, period, freq, daily, series, custom],
   );
 
   const toggleStudy = (id: string) =>
@@ -171,7 +176,15 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
     store.set((s) => ({ ...s, lower: s.lower.includes(k) ? s.lower.filter((x) => x !== k) : [...s.lower, k] }));
 
   const tabs = intraday || iex ? undefined : PERIODS.map((x) => ({ n: x.n, label: x.label }));
-  const currentTab = PERIODS.find((x) => x.id === period)?.n;
+  const currentTab = custom ? undefined : PERIODS.find((x) => x.id === period)?.n;
+  // The range the boxes show: the typed dates, or the period's first bar to the latest one.
+  const shownRange = useMemo(() => {
+    if (custom) return custom;
+    const n = series.length;
+    if (!n) return null;
+    const bars = Math.min(n, barsFor(period, freq, daily));
+    return { from: series.t[n - bars], to: series.t[n - 1] };
+  }, [custom, series, period, freq, daily]);
   return (
     <div className="fn-fill">
       <FnHeader
@@ -179,13 +192,15 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
         mnemonic={mnemonic}
         title={intraday ? 'Intraday Chart' : 'Price Chart'}
         sec={sec}
-        sub={sec.name}
         tabs={tabs}
         tab={currentTab}
         onTab={(n) => {
           const per = PERIODS.find((x) => x.n === n)!;
           if (per.id === '1D') execute(panel, `${sec.id} INTRADAY`);
-          else setPeriod(per.id);
+          else {
+            setCustom(null);
+            setPeriod(per.id);
+          }
         }}
         actions={[
           ...(iex && !intraday ? [{ n: 94, label: 'Intraday', onClick: () => execute(panel, `${sec.id} INTRADAY`) }] : []),
@@ -197,6 +212,7 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
       <QuoteStrip sec={sec} />
       {iex && <IexHistoryNotice intraday={intraday} />}
       <div className="chart-tools">
+        {!intraday && shownRange && <DateRangeFields from={shownRange.from} to={shownRange.to} onChange={(from, to) => setCustom({ from, to })} />}
         <span className="seg" role="group" aria-label="Chart type">
           {TYPES.map((t) => (
             <button key={t.id} type="button" className={p.type === t.id ? 'on' : ''} onClick={() => setType(t.id)}>
@@ -242,7 +258,7 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
       <ChartView
         series={series}
         options={options}
-        resetKey={`${sec.id}|${period}|${freq}|${intraday}`}
+        resetKey={`${sec.id}|${period}|${freq}|${intraday}|${custom ? `${custom.from}-${custom.to}` : ''}`}
         readout={{ unit: sec.quote === 'yield' ? 'yield %' : sec.ccy, periodicity: intraday ? 'Intraday' : freq === 'D' ? 'Daily' : freq === 'W' ? 'Weekly' : 'Monthly' }}
       />
     </div>

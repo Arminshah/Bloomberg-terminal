@@ -263,7 +263,7 @@ function SecurityMenu({ sec }: { sec: SecurityDef }) {
   useMenuItems('menu', groups);
   return (
     <div>
-      <FnHeader code="MENU" title="Related Functions Menu" sec={sec} sub={`${sec.name} · ${CLASS_LABEL[sec.cls]}`} />
+      <FnHeader code="MENU" title="Related Functions Menu" sec={sec} sub={CLASS_LABEL[sec.cls]} />
       <MenuPath sec={sec} />
       <QuoteStrip sec={sec} />
       <p className="pad-s muted">Enter a number and press GO, or type a function mnemonic such as {primaryMnemonic('PROFILE')}. Analysis functions use the loaded security.</p>

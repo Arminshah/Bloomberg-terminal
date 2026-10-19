@@ -5,12 +5,11 @@ import { krakenOwns, krakenPairFor } from '../data/live/kraken';
 import { COINGECKO_ATTRIBUTION, coinGecko } from '../data/live/coingecko';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { Sparkline } from '../components/Sparkline';
-import { Chg, HBar, KV, LivePx, SecLink, Section } from '../components/cells';
+import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
-import { fmtBig, fmtDay, fmtEarnDate, fmtInt, fmtMln, fmtNum, fmtPct } from '../core/format';
+import { fmtBig, fmtDay, fmtInt, fmtNum, fmtPct } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { marketCapUsd, periodChange, rangeStats } from '../data/analytics';
-import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings, reportCcy, revenueMix } from '../data/fundamentals';
 import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { CURRENCY_INFO } from '../data/universe';
 import { analytics as bondAnalytics, settlementDate } from '../finance/bonds';
@@ -19,15 +18,14 @@ import { execute } from '../terminal/exec';
 import { useMenu, usePanelId } from '../terminal/panel';
 import type { FnProps, MenuItem } from '../terminal/types';
 import { CLASS_LABEL } from '../data/registry';
-import { fundVersion, getRealFund, useFundamentals } from '../data/live/yfund';
+import { useFundamentals } from '../data/live/yfund';
 import { contractSymbols, useYahooQuotes } from '../data/live/yquotes';
 import { yahooQuotes } from '../data/live/yahoo';
 import { DAY_MS } from '../data/calendar';
 import { NoBondNotice, sourceLabel } from '../components/Source';
 import { realFutureContract } from '../data/realfut';
-import { AnalystSummary, lineValue, MissingNotes, useAnalystSnapshot, useNextQuarterEstimate } from '../components/AnalystSummary';
-import type { RealFund } from '../data/live/yfund';
 import { yieldMethod } from '../data/live/govyields';
+import { EQUITY_DES_TABS, EquityDES } from './DESEquity';
 import { usYieldMethod } from '../data/live/ust';
 
 function RelatedMenu({ sec, fns }: { sec: SecurityDef; fns: [string, string][] }) {
@@ -104,257 +102,6 @@ function Returns({ id }: { id: string }) {
         </tr>
       </tbody>
     </table>
-  );
-}
-
-function EquityProfile({ sec }: { sec: SecurityDef }) {
-  useTick(5);
-  const eq = sec.eq!;
-  const ks = keyStats(sec);
-  const rs = rangeStats(sec.id);
-  const ne = nextEarnings(sec);
-  const nextDiv = dividends(sec).filter((d) => d.ex >= engine.today * 86_400_000).pop();
-  const real = getRealFund(sec.id);
-  const mix = real ? [] : revenueMix(sec);
-  const ccy = reportCcy(sec);
-  const analysts = useAnalystSnapshot(sec);
-  return (
-    <>
-      <div className="cols">
-        <Section title="Company">
-          <p className="prose">{eq.desc || (engine.realOnly ? 'Loading the company profile…' : '')}</p>
-          <KV
-            items={[
-              ['Sector', eq.sector],
-              ['Industry', eq.industry],
-              ['Headquarters', eq.hq || '--'],
-              ['Chief executive', eq.ceo ?? '--'],
-              // No source gives the founding year in the desktop app, so the row is left out there.
-              ...(eq.founded || !engine.realOnly ? [['Founded', eq.founded ? String(eq.founded) : '--'] as [string, string]] : []),
-              ['Employees', eq.emp > 0 ? fmtInt(eq.emp) : '--'],
-              ['Fiscal year end', ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][eq.fye - 1] ?? '--'],
-              ['Primary exchange', sec.exch ?? '--'],
-            ]}
-          />
-        </Section>
-        <Section title="Price" right={sec.ccy}>
-          <Range52 sec={sec} />
-          <KV
-            items={[
-              ['Last', <LivePx key="l" id={sec.id} />],
-              ['52W high', `${fmtNum(rs.hi52, sec.dec)}  ${fmtDay(rs.hi52t)}`],
-              ['52W low', `${fmtNum(rs.lo52, sec.dec)}  ${fmtDay(rs.lo52t)}`],
-              ['Market cap', `${fmtMln(ks.mcap)} ${ks.tradeCcy}`],
-              ['Mkt cap (USD)', fmtBig(marketCapUsd(sec.id))],
-              ['Enterprise value', Number.isFinite(ks.ev) ? `${fmtMln(ks.ev)} ${ks.ccy}` : '--'],
-              ['Shares out', fmtMln(eq.shares)],
-              ['Avg volume 30D', fmtBig(rs.avgVol30)],
-              ['Beta (source, 5Y monthly)', fmtNum(eq.beta, 2)],
-              ['Volatility 30D / 260D', `${fmtNum(rs.vol30, 1)}% / ${fmtNum(rs.vol260, 1)}%`],
-            ]}
-          />
-          <Returns id={sec.id} />
-        </Section>
-        <Section title="Valuation and earnings" right={real?.statsFrom ? `ratios from ${real.statsFrom}` : undefined}>
-          <KV
-            items={[
-              ['P/E (LTM)', fmtNum(ks.pe, 1)],
-              ['Price / book', fmtNum(ks.pb, 2)],
-              ['Price / sales', fmtNum(ks.ps, 2)],
-              ['EV / EBITDA', fmtNum(ks.evEbitda, 1)],
-              ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
-              ['Payout ratio', fmtPct(ks.payout, 1, false)],
-              ['Next ex-dividend', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : nextDiv.type === 'Expected' ? 'expected' : 'decl.'})` : sec.eq!.dps === 0 ? 'None' : '--'],
-              ['EPS LTM', `${fmtNum(ks.epsLtm, 2)} ${ccy}${financials(sec).ltm?.epsComputed ? ' (computed)' : ''}`],
-              ['Next earnings', ne ? fmtEarnDate(ne) : '--'],
-              ['ROE', fmtPct(ks.roe, 1, false)],
-              ['Net margin', fmtPct(ks.netMargin, 1, false)],
-            ]}
-          />
-          <div className="pad-s amber">Analyst consensus</div>
-          <AnalystSummary sec={sec} snap={analysts} />
-        </Section>
-      </div>
-      <div className="cols">
-        <Section title="1-year price" right="CHART for the full chart">
-          <PriceChartMini sec={sec} />
-        </Section>
-        {real || engine.realOnly ? (
-          <Section title="Ownership" right="HOLDERS for holders">
-            {!real && <p className="pad-s muted">{fundVersion.get().status[sec.id] === 'error' ? 'No ownership data from Yahoo Finance for this company.' : 'Loading ownership from Yahoo Finance…'}</p>}
-            {real && (
-            <KV
-              items={[
-                ['Insiders', fmtPct(real.breakdown?.insiders, 2, false)],
-                ['Institutions', fmtPct(real.breakdown?.institutions, 2, false)],
-                ['Institutions, % of float', fmtPct(real.breakdown?.institutionsFloat, 2, false)],
-                ['Institutional holders', fmtInt(real.breakdown?.count)],
-                // Percent of the shares outstanding now, as on HDS (the source's own figure uses an older share count).
-                ['Largest holder', real.holders[0] ? `${real.holders[0].name} (${fmtNum(Number.isFinite(real.stats.shares) && real.stats.shares! > 0 ? (real.holders[0].shares / (real.stats.shares! * 1e6)) * 100 : real.holders[0].pct, 2)}%)` : '--'],
-                ...floatItems(real, eq.shares),
-              ]}
-            />
-            )}
-            {real && <FloatNote real={real} />}
-          </Section>
-        ) : (
-        <Section title="Revenue by region" right={<span className="badge sim">DEMO DATA</span>}>
-          <table className="tbl">
-            <tbody>
-              {mix.map((m) => (
-                <tr key={m.region}>
-                  <td style={{ width: 90 }}>{m.region}</td>
-                  <td>
-                    <HBar value={m.pct} max={100} color="var(--amber)" />
-                  </td>
-                  <td className="num" style={{ width: 60 }}>
-                    {fmtNum(m.pct, 1)}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Section>
-        )}
-      </div>
-      <RelatedMenu
-        sec={sec}
-        fns={[
-          ['CHART', 'Price graph'], ['INTRADAY', 'Intraday'], ['FINANCIALS', 'Financials'], ['ANALYSTS', 'Analysts'], ['EARNINGS', 'Earnings'], ['DIVIDENDS', 'Dividends'],
-          ['HOLDERS', 'Holders'], ['PEERS', 'Relative value'], ['COMPANYNEWS', 'Company news'], ['OPTIONS', 'Options'], ['QUOTE', 'Quote'], ['HISTORY', 'Price table'],
-          ['MANAGEMENT', 'Management'],
-        ]}
-      />
-    </>
-  );
-}
-
-/**
- * Float and short interest from Yahoo's key statistics: '--' for any figure it does not give (most listings
- * outside the US have a float but no short interest). `sharesOut` in millions.
- */
-function floatItems(real: RealFund, sharesOut: number): [string, string][] {
-  const f = real.float;
-  const pctOut = f.float > 0 && sharesOut > 0 ? (f.float / (sharesOut * 1e6)) * 100 : NaN;
-  const change = f.short > 0 && f.shortPrior > 0 ? (f.short / f.shortPrior - 1) * 100 : NaN;
-  return [
-    ['Float', `${fmtBig(f.float)}${Number.isFinite(pctOut) ? ` (${fmtNum(pctOut, 1)}% of shares out)` : ''}`],
-    ['Short interest', fmtBig(f.short)],
-    ['Short interest, % of float', fmtPct(f.shortPctFloat, 2, false)],
-    ['Days to cover', fmtNum(f.daysToCover, 2)],
-    ['Short interest as of', fmtDay(f.asOf)],
-    ['Change vs prior month', Number.isFinite(change) ? `${fmtPct(change, 1)} (${fmtBig(f.shortPrior)} on ${fmtDay(f.priorAsOf)})` : '--'],
-  ];
-}
-
-function FloatNote({ real }: { real: RealFund }) {
-  if (real.statsFrom === 'Finnhub') return <div className="note">Float and short interest come from Yahoo&apos;s key statistics, which Yahoo refused this time; Finnhub&apos;s profile does not give them.</div>;
-  return <div className="note">Float and short interest from Yahoo Finance&apos;s key statistics; the short interest is the exchanges&apos; count on the settlement date shown, and days to cover is Yahoo&apos;s own ratio to average daily volume.</div>;
-}
-
-function EquityFinSummary({ sec }: { sec: SecurityDef }) {
-  const f = financials(sec);
-  const rows: [string, (p: ReturnType<typeof financials>['ltm']) => number, number?][] = [
-    ['Revenue', (p) => p.rev], ['Gross profit', (p) => p.gp], ['Operating income', (p) => p.opInc], ['EBITDA', (p) => p.ebitda],
-    ['Net income', (p) => p.ni], ['Diluted EPS', (p) => p.eps, 2], ['Free cash flow', (p) => p.fcf], ['Total debt', (p) => p.debt],
-    ['Shareholders equity', (p) => p.equity],
-  ];
-  const cols = [...f.annual.slice(-4), f.ltm];
-  return (
-    <Section title={`Financial summary (${reportCcy(sec)} millions)`} right="FINANCIALS for full statements">
-      <div className="tbl-wrap">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th />
-              {cols.map((c) => (
-                <th key={c.label} className="num">
-                  {c.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([label, get, dec]) => (
-              <tr key={label}>
-                <td className="amber">{label}</td>
-                {cols.map((c) => (
-                  <td key={c.label} className="num">
-                    {fmtNum(get(c), dec ?? 0)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </Section>
-  );
-}
-
-function EquityEarnings({ sec }: { sec: SecurityDef }) {
-  const hist = earningsHistory(sec).filter((x) => x.actual != null || x.revAct != null).slice(-4);
-  const next = nextEarnings(sec);
-  const estimate = useNextQuarterEstimate(sec);
-  return (
-    <div className="cols">
-      <Section title="Reported earnings" right="EARNINGS for history">
-        <table className="tbl">
-          <thead>
-            <tr>
-              <th>Period</th>
-              <th>Date</th>
-              <th className="num">Diluted EPS</th>
-              <th className="num">Revenue</th>
-            </tr>
-          </thead>
-          <tbody>
-            {hist.map((x) => (
-              <tr key={`${x.period}:${x.date}`}>
-                <td className="amber">{x.period}</td>
-                <td>{fmtEarnDate(x, false)}</td>
-                <td className="num white">{x.actual != null ? fmtNum(x.actual, 2) : '--'}</td>
-                <td className="num">{x.revAct != null ? fmtMln(x.revAct) : '--'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Section>
-      <Section title="Next report">
-        <KV items={[['Date', next ? fmtEarnDate(next) : '--'], [estimate.label, lineValue(estimate)]]} />
-        <MissingNotes lines={[estimate]} />
-      </Section>
-    </div>
-  );
-}
-
-function EquityOwnership({ sec }: { sec: SecurityDef }) {
-  // Fund filings overlap with their managers' 13F positions, so the summary counts managers only.
-  const h = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 10);
-  const inst = h.reduce((s, x) => s + x.pct, 0);
-  const real = getRealFund(sec.id);
-  return (
-    <>
-      {real && (
-        <Section title="Float and short interest">
-          <KV items={floatItems(real, sec.eq!.shares)} />
-          <FloatNote real={real} />
-        </Section>
-      )}
-      <Section title="Top institutional holders" right={`Top 10 hold ${fmtNum(inst, 1)}%`}>
-        <DataTable
-          rows={h}
-          rowKey={(r) => r.name}
-          numbered
-          columns={[
-            { key: 'n', label: 'Holder', render: (r) => r.name },
-            { key: 'p', label: '% Out', num: true, render: (r) => fmtNum(r.pct, 2) },
-            { key: 's', label: 'Position', num: true, render: (r) => fmtBig(r.shares) },
-            { key: 'c', label: 'Change', num: true, render: (r) => <Chg v={r.change / 1e6} dec={2} /> },
-          ]}
-        />
-      </Section>
-    </>
   );
 }
 
@@ -882,11 +629,11 @@ export function DES({ sec }: FnProps) {
   const s = sec!;
   const [tab, setTab] = useState(1);
   const { status } = useFundamentals(s.cls === 'equity' ? s : undefined);
-  const tabs = s.cls === 'equity' ? [{ n: 1, label: 'Profile' }, { n: 2, label: 'Financials' }, { n: 3, label: 'Earnings' }, { n: 4, label: 'Ownership' }] : undefined;
+  const tabs = s.cls === 'equity' ? EQUITY_DES_TABS : undefined;
   let body: ReactNode;
   switch (s.cls) {
     case 'equity':
-      body = tab === 1 ? <EquityProfile sec={s} /> : tab === 2 ? <EquityFinSummary sec={s} /> : tab === 3 ? <EquityEarnings sec={s} /> : <EquityOwnership sec={s} />;
+      body = <EquityDES sec={s} tab={tab} />;
       break;
     case 'index':
       body = <IndexDES sec={s} />;
@@ -915,15 +662,15 @@ export function DES({ sec }: FnProps) {
     <div>
       <FnHeader
         code="PROFILE"
-        title="Description"
+        title={`Security Description: ${CLASS_LABEL[s.cls]}`}
         sec={s}
         sub={
           s.cls === 'equity' ? (
             <>
-              {s.name} · {CLASS_LABEL[s.cls]} · {sourceLabel(status, 'company data generated from the profile; real data needs the desktop app')}
+              {CLASS_LABEL[s.cls]} · {sourceLabel(status, 'company data generated from the profile; real data needs the desktop app')}
             </>
           ) : (
-            `${s.name} · ${CLASS_LABEL[s.cls]}`
+            CLASS_LABEL[s.cls]
           )
         }
         tabs={tabs}
