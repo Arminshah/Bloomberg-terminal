@@ -229,11 +229,13 @@ const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'TIPRANKS_ENABLED', help: 'TipRanks analyst consensus, average price target and rating actions on ANALYSTS, only when you click. Free plan: 50 calls a month for the whole account; the app stops at 45. Answers stay in memory for an hour, as TipRanks\' terms allow. Data by TipRanks.' },
   { name: 'EQUIBLES_ENABLED', help: 'Read-only Equibles company research on ANALYSTS. One estimate report can load as a fallback; other datasets are manual. Free account: 100 calls/day shared with REST/MCP clients. No trading or portfolio writes.' },
   { name: 'MARKETAUX_ENABLED', help: 'Ticker-tagged news with sentiment from Marketaux, while MARKETAUX_API_TOKEN is set. Its free plan allows 100 requests a day.' },
-  { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },
+  { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, and Benzinga's news through Alpaca on MARKETNEWS, COMPANYNEWS and QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },
   { name: 'ALPACA_IEX_PRICES_ENABLED', help: 'Use IEX-only prices for US stocks across watchlists and panels. Requires Alpaca enabled and both keys. Reload to apply. History is limited to the previous/current IEX bars and snapshots observed while the app is open; long Yahoo price history is not combined with this feed. IEX is one exchange, with its own volume and daily changes.' },
   { name: 'TIINGO_ENABLED', help: "Tiingo's end-of-day closes on CROSSCHECK, while TIINGO_API_KEY is set." },
   { name: 'YAHOO_RSS_ENABLED', help: "Yahoo Finance's headline feed for the stock on screen (COMPANYNEWS, QUOTE), any market Yahoo lists. No key. Yahoo's RSS terms allow showing the feed as given, with attribution and a link." },
   { name: 'EURONEXT_RSS_ENABLED', help: "Euronext's feed of the latest company press releases on MARKETNEWS. No key." },
+  { name: 'GOOGLE_NEWS_RSS_ENABLED', help: "Google News's search for the day's market news (US and UK editions) on MARKETNEWS, and a search for the company on screen in its market's languages (COMPANYNEWS, QUOTE). No key. Google's feeds are for a personal feed reader, for personal, non-commercial use." },
+  { name: 'MASSIVE_NEWS_ENABLED', help: "Massive's market and ticker news on MARKETNEWS and COMPANYNEWS, while MASSIVE_API_KEY is set. Its free plan's 5 calls a minute are shared with CROSSCHECK; switch this off to keep them for the closes." },
 ];
 
 function Switches({ report, onChange }: { report: ProviderReport | null; onChange: () => void }) {

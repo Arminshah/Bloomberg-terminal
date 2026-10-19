@@ -198,6 +198,45 @@ const TESTS = [
     },
   },
   {
+    id: 'alpaca-news',
+    provider: 'alpaca',
+    label: 'Alpaca news, Benzinga (Apple)',
+    credentials: ['ALPACA_API_KEY_ID', 'ALPACA_API_SECRET_KEY'],
+    setting: 'ALPACA_ENABLED',
+    request: ([id, secret], now) => ({ url: `https://data.alpaca.markets/v1beta1/news?symbols=AAPL&start=${daysAgo(now, 7)}&sort=desc&limit=5`, headers: { 'APCA-API-KEY-ID': id, 'APCA-API-SECRET-KEY': secret } }),
+    read: (text) => {
+      const list = json(text)?.news;
+      if (!Array.isArray(list)) throw new Error('no news list in the answer');
+      return list.length ? `${list.length} stories, latest at ${String(list[0].created_at).slice(0, 16).replace('T', ' ')} UTC` : 'no stories this week';
+    },
+  },
+  {
+    id: 'massive-news',
+    provider: 'massive',
+    label: 'Massive ticker news (Apple)',
+    credentials: ['MASSIVE_API_KEY'],
+    setting: 'MASSIVE_NEWS_ENABLED',
+    request: ([key]) => ({ url: 'https://api.massive.com/v2/reference/news?ticker=AAPL&order=desc&sort=published_utc&limit=5', headers: { Authorization: `Bearer ${key}` } }),
+    read: (text) => {
+      const list = json(text)?.results;
+      if (!Array.isArray(list)) throw new Error('no results in the answer');
+      return list.length ? `${list.length} stories, latest at ${String(list[0].published_utc).slice(0, 16).replace('T', ' ')} UTC` : 'no stories';
+    },
+  },
+  {
+    id: 'google-news',
+    provider: 'google-news',
+    label: 'Google News market search (RSS)',
+    setting: 'GOOGLE_NEWS_RSS_ENABLED',
+    request: () => ({ url: 'https://news.google.com/rss/search?q=(stocks%20OR%20%22stock%20market%22%20OR%20%22Wall%20Street%22%20OR%20earnings%20OR%20bonds%20OR%20%22central%20bank%22)%20when%3A1d&hl=en-US&gl=US&ceid=US:en', accept: 'application/rss+xml, application/xml' }),
+    read: (text) => {
+      if (!/<rss\b/i.test(String(text))) throw new Error('Google answered with a web page, not the feed');
+      const items = (String(text).match(/<item\b/gi) ?? []).length;
+      if (!items) throw new Error('no items in the feed');
+      return `${items} items`;
+    },
+  },
+  {
     id: 'alpaca',
     provider: 'alpaca',
     label: 'Alpaca IEX snapshot (Apple)',

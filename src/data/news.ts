@@ -52,7 +52,15 @@ const NAME_OVERRIDES: Record<string, string> = {
   'ABBV US Equity': 'AbbVie', 'AVGO US Equity': 'Broadcom', 'CAT US Equity': 'Caterpillar', 'BA US Equity': 'Boeing', 'MS US Equity': 'Morgan Stanley',
   'LIN US Equity': 'Linde', 'PLD US Equity': 'Prologis', 'GE US Equity': 'GE Aerospace', 'NFLX US Equity': 'Netflix', 'TSLA US Equity': 'Tesla',
   'AMZN US Equity': 'Amazon', 'AAPL US Equity': 'Apple', 'MSFT US Equity': 'Microsoft', 'NVDA US Equity': 'Nvidia', 'JNJ US Equity': 'Johnson & Johnson',
+  // The press writes AB InBev: a Google News search for "Anheuser-Busch InBev" found 2 Dutch stories in a week, against 35.
+  'ABI BB Equity': 'AB InBev', 'BUD US Equity': 'AB InBev',
 };
+
+/**
+ * A legal form or "Group" and whatever follows it: Inc., Corporation, SA/NV, S.p.A., A/S, Oyj, Groep. Something
+ * must come before it, so "Groupe Bruxelles Lambert" keeps its first word.
+ */
+const LEGAL_TAIL = /^(.+?)[\s,]+(?:Inc|Incorporated|Corp|Corporation|Co\/The|Company|PLC|Ltd|Limited|Group|Groep|Groupe|Holdings?|SA|S\.A|AG|NV|N\.V|SE|S\.p\.A|SpA|ASA|AB|A\/S|Oyj|Abp)\.?(?=$|[\s,/(])/i;
 
 const INDEX_NAMES: Record<string, string> = {
   SPX: 'S&P 500', INDU: 'Dow Jones Industrial Average', CCMP: 'Nasdaq Composite', NDX: 'Nasdaq 100', RTY: 'Russell 2000', VIX: 'Cboe Volatility Index',
@@ -72,7 +80,7 @@ export function shortName(def: SecurityDef): string {
   if (def.cls === 'index') return INDEX_NAMES[def.ticker] ?? def.name;
   if (def.cls === 'commodity') return CMD_NAMES[def.ticker] ?? def.name;
   if (def.cls === 'crypto') return def.name.split(' / ')[0];
-  return def.name.replace(/\s*(Inc|Corp|Co\/The|PLC|SA|AG|NV|SE|Ltd|Group|Holdings?)\b.*$/i, '').trim();
+  return (LEGAL_TAIL.exec(def.name)?.[1] ?? def.name).replace(/[\s,.]+$/, '').trim();
 }
 
 

@@ -18,6 +18,8 @@ export interface FeedItem {
   published: number;
   summary?: string;
   category?: string;
+  /** An RSS item's <source>: the publisher, in a feed that gathers several (Google News). */
+  source?: string;
 }
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -51,13 +53,15 @@ export function parseFeed(xml: string): FeedItem[] {
   const atom = blocks.length ? [] : [...xml.matchAll(/<entry\b[^>]*>([\s\S]*?)<\/entry>/gi)].map((m) => m[1]);
   for (const b of [...blocks, ...atom]) {
     const title = field(b, 'title');
+    // An Atom entry's <source> holds a whole feed's metadata, not a name.
+    const source = atom.length ? undefined : field(b, 'source');
     const link = field(b, 'link') || /<link\b[^>]*href="([^"]+)"/i.exec(b)?.[1] || '';
     const when = field(b, 'pubDate') ?? field(b, 'dc:date') ?? field(b, 'published') ?? field(b, 'updated');
     const published = when ? Date.parse(when) : NaN;
     if (!title || !/^https?:\/\//.test(link) || !Number.isFinite(published)) continue;
     const summary = field(b, 'description') ?? field(b, 'summary');
     const category = field(b, 'category');
-    out.push({ title, link, published, ...(summary && summary !== title ? { summary } : {}), ...(category ? { category } : {}) });
+    out.push({ title, link, published, ...(summary && summary !== title ? { summary } : {}), ...(category ? { category } : {}), ...(source ? { source } : {}) });
   }
   return out.sort((a, b) => b.published - a.published);
 }

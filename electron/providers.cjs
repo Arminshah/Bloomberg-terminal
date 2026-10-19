@@ -173,6 +173,10 @@ const SETTINGS = {
   // Yahoo's RSS terms allow displaying the feed as given, with attribution and a link to the article.
   YAHOO_RSS_ENABLED: { label: 'Yahoo Finance headlines RSS per ticker', default: true },
   EURONEXT_RSS_ENABLED: { label: 'Euronext company press releases RSS', default: true },
+  // Google's feeds are for "a personal feed reader for personal, non-commercial use"; this terminal is one.
+  GOOGLE_NEWS_RSS_ENABLED: { label: 'Google News RSS: market and company searches', default: true },
+  // Massive's 5 calls a minute are shared with CROSSCHECK; off keeps them all for the closes.
+  MASSIVE_NEWS_ENABLED: { label: 'Massive ticker news (shares the 5 calls a minute with CROSSCHECK)', default: true },
 };
 
 const SETTINGS_FILE = () => path.join(app.getPath('userData'), 'provider-settings.json');

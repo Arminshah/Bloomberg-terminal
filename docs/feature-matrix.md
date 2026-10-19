@@ -67,8 +67,8 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
 | `HEADLINES`, `NEWS` | Press releases, newest first, by topic or keyword | Federal Reserve Board, ECB, Bank of England, Bank of Canada, RBA, BEA, ESMA (RSS) | Real. Not a market news wire |
-| `MARKETNEWS` (`TOP`) | Market news merged without duplicates, with the latest 8-K filings and Euronext press releases; ticker and keyword filters; 4) Official opens `HEADLINES` | Finnhub, Marketaux (with sentiment), SEC EDGAR, Euronext; MarketWatch if switched on | Real: headlines, summaries and links, not article text |
-| `COMPANYNEWS` | A US company's news from the last week, with sentiment where Marketaux gives it; any stock's Yahoo headlines; a Euronext-listed company's press releases among Euronext's latest | Finnhub, Marketaux (your keys); Yahoo Finance; Euronext | Real: headlines and links |
+| `MARKETNEWS` (`TOP`) | Market and merger news merged without duplicates, with the latest 8-K filings and Euronext press releases; ticker and keyword filters; 4) Official opens `HEADLINES` | Finnhub, Alpaca (Benzinga), Massive, Marketaux (with sentiment), with your keys; Google News's market search, SEC EDGAR, Euronext; MarketWatch if switched on | Real: headlines, summaries and links, not article text |
+| `COMPANYNEWS` | A US company's news from Finnhub (the last week), Alpaca and Massive, with sentiment where Marketaux gives it; for any stock, Yahoo headlines and Google News's search in its market's languages (Dutch, French and English for Brussels); a Euronext-listed company's press releases among Euronext's latest | Finnhub, Alpaca, Massive, Marketaux (your keys); Yahoo Finance; Google News; Euronext | Real: headlines and links |
 
 ## Markets
 
@@ -80,7 +80,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `HEATMAP` | Stocks by sector, sized by market value, coloured by change | Yahoo Finance | Calculated |
 | `MOVERS` | Most active, gainers, losers, value traded, unusual volume | Yahoo Finance | Real; value traded and relative volume estimated |
 | `SCREEN` | Stock screener | Yahoo Finance | Real and calculated; ROE and beta once a company's data has loaded |
-| `QUOTE` | Price, intraday chart, best bid and offer, recent updates, key statistics; for US stocks the analyst consensus as on `PROFILE`, IEX's last trade, bid and offer, and the latest company news | Yahoo Finance, Kraken, official sources; Alpaca (IEX only) and Finnhub with your keys | Real. IEX figures are one exchange's, labelled IEX only |
+| `QUOTE` | Price, intraday chart, best bid and offer, recent updates, key statistics; for US stocks the analyst consensus as on `PROFILE`, IEX's last trade, bid and offer, and the latest company news | Yahoo Finance, Kraken, official sources; Alpaca (IEX only, and Benzinga news) and Finnhub with your keys; Yahoo and Google News headlines | Real. IEX figures are one exchange's, labelled IEX only |
 | `TRADES` | Volume added up between price updates | Yahoo Finance, Kraken | Partial: not single trades or venues |
 | `DEPTH` | Order book for crypto; best bid and offer for the rest | Kraken; Yahoo Finance | Partial: no free order book for stocks |
 | `VWAP` | VWAP, TWAP and 30-minute buckets for the latest session | Intraday bars | Calculated |

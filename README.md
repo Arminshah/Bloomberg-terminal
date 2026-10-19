@@ -4,7 +4,7 @@ Version **2.9.0** adds Belgian and other European markets (BEL 20, OMX Stockholm
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
-The desktop app uses public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, Kraken, and Yahoo Finance for personal-use prices/company data. With your own keys it adds research (FMP, Finnhub recommendations and Equibles), news (Finnhub, Marketaux), IEX stocks and indicative option snapshots (Alpaca), plus sources for checking closes. Sources, timestamps, subscription refusals and missing coverage stay explicit. The browser build has no data source and opens a marked demo only when chosen.
+The desktop app uses public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, Kraken, and Yahoo Finance for personal-use prices/company data. News comes from Google News and Yahoo Finance without a key; with your own keys it adds research (FMP, Finnhub recommendations and Equibles), news (Finnhub, Benzinga through Alpaca, Massive, Marketaux), IEX stocks and indicative option snapshots (Alpaca), plus sources for checking closes. Sources, timestamps, subscription refusals and missing coverage stay explicit. The browser build has no data source and opens a marked demo only when chosen.
 
 This is an independent project, not affiliated with Bloomberg L.P. It does not have the data coverage of a professional terminal; [docs/feature-matrix.md](docs/feature-matrix.md) says what is covered and what is not.
 
@@ -25,18 +25,18 @@ The Windows files are not code-signed, so SmartScreen may warn on first launch (
 
 ## First start
 
-Prices, charts, yields, central bank rates, official statistics, official announcements and crypto prices work at once, with no key. A few sources need a free key or your contact details; add them on the `PROVIDERS` screen, where they are encrypted with your system's key store and never shown again:
+Prices, charts, yields, central bank rates, official statistics, official announcements, market and company news, and crypto prices work at once, with no key. A few sources need a free key or your contact details; add them on the `PROVIDERS` screen, where they are encrypted with your system's key store and never shown again:
 
 | Setting | Enables |
 | --- | --- |
 | `FRED_API_KEY` | US economic releases (`RELEASES`), the macro dashboard (`MACRO`), FRED's international series |
 | `SEC_USER_AGENT` | SEC filings and reported figures (`FILINGS`): an application name and your own email, as the SEC requires |
 | `COINGECKO_API_KEY` | Market value and supply of the listed coins |
-| `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TIINGO_API_KEY`, `TWELVE_DATA_API_KEY` | Second sources for US stock closes (`CROSSCHECK`) |
+| `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TIINGO_API_KEY`, `TWELVE_DATA_API_KEY` | Second sources for US stock closes (`CROSSCHECK`); Massive also adds market and ticker news |
 | `FMP_API_KEY` | Analyst price targets, ratings and estimates (`ANALYSTS`, `EARNINGS`) |
 | `EQUIBLES_API_KEY` | Estimate report fallback, plus on-request guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news on `ANALYSTS` |
 | `FINNHUB_API_KEY`, `MARKETAUX_API_TOKEN` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) |
-| `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option contracts on `OPTIONS`; read-only market data, subject to account entitlement |
+| `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option contracts on `OPTIONS`, and Benzinga's news on the news screens; read-only market data, subject to account entitlement |
 
 To add several at once, paste your whole list into "Save these keys" on `PROVIDERS`: it recognises each key, saves it encrypted and tells you which names it saved. Environment variables of the same names work too and take precedence. [docs/configuration.md](docs/configuration.md) covers every key and switch.
 
@@ -89,7 +89,7 @@ Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES`
 | Equity | `PROFILE` description and key figures, `FINANCIALS` statements and ratios, `FUNDCHART` fundamentals over time, `EARNINGS` reported results, `DIVIDENDS`, `HOLDERS`, `MANAGEMENT` company officers, `PEERS` relative valuation, `EVENTS` earnings and dividend calendar, `FILINGS` SEC filings and reported figures, `CROSSCHECK` closes against other sources, `WACC` cost of capital, `ANALYSTS` price targets, ratings and estimates |
 | Charts | `CHART` with studies and comparisons, `INTRADAY`, `HISTORY`, `RETURNS`, `TOTALRETURN`, `SPREAD`, `BETA`, `VOLATILITY` |
 | Markets | `MARKET` world indices, `INDEXFUTURES`, `CONTRIB` index movers, `HEATMAP`, `MOVERS`, `SCREEN` stock screener, `QUOTE`, `TRADES`, `DEPTH` (order book for crypto, best bid and offer otherwise), `VWAP` |
-| News | `MARKETNEWS` (`TOP`) market news, the latest 8-K filings and Euronext press releases, `COMPANYNEWS` a company's news, with its Euronext press releases for a stock listed there; `HEADLINES` and `NEWS`: press releases from central banks, the BEA and ESMA |
+| News | `MARKETNEWS` (`TOP`) market and merger news, the latest 8-K filings and Euronext press releases, `COMPANYNEWS` a company's news, from the local press in its market's languages and, for a stock listed there, its Euronext press releases; `HEADLINES` and `NEWS`: press releases from central banks, the BEA and ESMA |
 | FX and crypto | `FXMATRIX` cross rates, `FXRANK`, `CRYPTO`, `FXOPTION` European option pricer with overrides, `FXFORWARD` calculated forwards and contract PV from your term rates |
 | Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` still need bond/dealer datasets |
 | Commodities | `COMMODITIES` |

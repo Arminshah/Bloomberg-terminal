@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as newsMain from '../electron/news.cjs';
 import { canonicalUrl, finnhubSymbol, mergeStories, parseEdgar8k, parseFinnhubNews, parseMarketaux, parseMarketWatch, sameTicker, titleKey, watchSymbols } from '../src/data/live/marketnews';
+import googleKbcNl from './fixtures/google-news-kbc-nl.xml?raw';
 
 // Made-up answers in the layouts each source documents; no request leaves the test.
 
@@ -263,5 +264,212 @@ describe("a Euronext-listed company's press releases", () => {
     // A title is not matched on a short first word alone.
     expect(titles('UCB SA')).toEqual([]);
     expect(titles('ASML Holding NV')).toEqual([]);
+  });
+});
+
+describe('Alpaca, Massive and Google News requests (main process)', () => {
+  const now = Date.parse('2026-10-19T04:00:00Z');
+
+  it('reads mergers from Finnhub besides its general news, and no other category', () => {
+    expect(newsMain.newsRequest('finnhub-market', 'merger', 'k')!.url).toBe('https://finnhub.io/api/v1/news?category=merger');
+    expect(newsMain.newsRequest('finnhub-market', 'crypto', 'k')).toBeNull();
+  });
+
+  it("asks Alpaca with both keys in headers, for the last three days' or a ticker's last month", () => {
+    const market = newsMain.newsRequest('alpaca-market', '', 'PKID', 'SECRET', now)!;
+    expect(market.url).toBe('https://data.alpaca.markets/v1beta1/news?start=2026-10-16&sort=desc&limit=50');
+    expect(market.headers).toEqual({ 'APCA-API-KEY-ID': 'PKID', 'APCA-API-SECRET-KEY': 'SECRET' });
+    expect(market.provider).toBe('alpaca');
+    expect(newsMain.newsRequest('alpaca-market', 'AAPL', 'PKID', 'SECRET', now)).toBeNull();
+    expect(newsMain.newsRequest('alpaca-company', 'BRK.B', 'PKID', 'SECRET', now)!.url).toBe('https://data.alpaca.markets/v1beta1/news?symbols=BRK.B&start=2026-09-19&sort=desc&limit=50');
+    expect(newsMain.newsRequest('alpaca-company', 'aapl', 'PKID', 'SECRET', now)).toBeNull();
+    expect(newsMain.SOURCES['alpaca-company']).toMatchObject({ credential: 'ALPACA_API_KEY_ID', credential2: 'ALPACA_API_SECRET_KEY', gate: 'ALPACA_ENABLED' });
+  });
+
+  it("asks Massive with its key in the Bearer header, never in the URL", () => {
+    const market = newsMain.newsRequest('massive-market', '', 'mkey')!;
+    expect(market.url).toBe('https://api.massive.com/v2/reference/news?order=desc&sort=published_utc&limit=100');
+    expect(market.headers).toEqual({ Authorization: 'Bearer mkey' });
+    const company = newsMain.newsRequest('massive-company', 'AAPL', 'mkey')!;
+    expect(company.url).toBe('https://api.massive.com/v2/reference/news?ticker=AAPL&order=desc&sort=published_utc&limit=50');
+    expect(company.url).not.toContain('mkey');
+    expect(newsMain.newsRequest('massive-company', 'AAPL&apiKey=x', 'mkey')).toBeNull();
+    // Its own switch, so CROSSCHECK can keep Massive's 5 calls a minute.
+    expect(newsMain.SOURCES['massive-company'].gate).toBe('MASSIVE_NEWS_ENABLED');
+  });
+
+  it("searches Google News for the day's market news in an English edition", () => {
+    const market = newsMain.newsRequest('google-news-market', 'US:en', '')!;
+    expect(market.url).toMatch(/^https:\/\/news\.google\.com\/rss\/search\?q=.+&hl=en-US&gl=US&ceid=US:en$/);
+    expect(new URL(market.url).searchParams.get('q')).toBe('(stocks OR "stock market" OR "Wall Street" OR earnings OR bonds OR "central bank") when:1d');
+    expect(newsMain.newsRequest('google-news-market', 'GB:en', '')!.url).toContain('&hl=en-GB&gl=GB&ceid=GB:en');
+    // Its words are English.
+    expect(newsMain.newsRequest('google-news-market', 'BE:nl', '')).toBeNull();
+    expect(newsMain.newsRequest('google-news-market', 'XX:en', '')).toBeNull();
+    expect(newsMain.SOURCES['google-news-market'].gate).toBe('GOOGLE_NEWS_RSS_ENABLED');
+  });
+
+  it('searches a company by name with words about its shares, in the edition asked', () => {
+    const query = (arg: string) => {
+      const r = newsMain.newsRequest('google-news-company', arg, '');
+      return r ? decodeURIComponent(new URL(r.url).searchParams.get('q')!) : null;
+    };
+    expect(query('US:en|Apple|AAPL')).toBe('"Apple" (stock OR shares OR earnings OR AAPL) when:7d');
+    expect(newsMain.newsRequest('google-news-company', 'BE:nl|KBC|KBC', '')!.url).toContain('&hl=nl&gl=BE&ceid=BE:nl');
+    // A ticker that is the name adds nothing; one that is Google's operator would break the search.
+    expect(query('BE:nl|KBC|KBC')).toBe('"KBC" (aandeel OR aandelen OR beurs OR winst OR omzet OR resultaten) when:7d');
+    expect(query('FR:fr|L’Oréal|OR')).toBe('"L’Oréal" (action OR actions OR bourse OR bénéfice OR résultats) when:7d');
+    expect(query('BE:fr|AB InBev|ABI')).toBe('"AB InBev" (action OR actions OR bourse OR bénéfice OR résultats OR ABI) when:7d');
+    expect(query('PT:pt-150|Jeronimo Martins|')).toBe('"Jeronimo Martins" (ações OR bolsa OR lucro OR receitas) when:7d');
+    // Abroad, the country it is listed in: "KBC" alone in English finds an Indian quiz show.
+    expect(query('GB:en|KBC|KBC|BE')).toBe('"KBC" (stock OR shares OR earnings) (Belgium OR Belgian OR Brussels) when:7d');
+    expect(query('GB:en|KBC|KBC|XX')).toBeNull();
+    expect(query('GB:en|KBC|KBC|BE|x')).toBeNull();
+    // Only a name, never search syntax, from the page.
+    expect(query('US:en|Apple" OR "x|AAPL')).toBeNull();
+    expect(query('US:en|Apple) site:x.com (|AAPL')).toBeNull();
+    expect(query('US:en|Apple|aapl')).toBeNull();
+    expect(query('BE:de|KBC|KBC')).toBeNull();
+    expect(query('US:en||AAPL')).toBeNull();
+  });
+
+  it('has words for every edition language', () => {
+    for (const e of Object.values(newsMain.EDITIONS)) expect(newsMain.FINANCE_WORDS[e.lang]?.length).toBeGreaterThan(2);
+    // And for every country whose stocks are also searched in the UK edition.
+    for (const ceid of Object.keys(newsMain.EDITIONS)) {
+      const country = ceid.split(':')[0];
+      if (!['US', 'GB', 'IE', 'CA'].includes(country)) expect(newsMain.COUNTRY_WORDS[country], country).toHaveLength(3);
+    }
+  });
+});
+
+describe("a stock's Google News searches", () => {
+  it('asks the editions of its market in the name the press uses', async () => {
+    const { googleSearches } = await import('../src/data/live/marketnews');
+    const stock = (id: string, name: string, country: string) => ({ id, name, cls: 'equity' as const, ticker: id.replace(/ Equity$/, ''), country });
+    expect(googleSearches(stock('KBC BB Equity', 'KBC Groep NV', 'BE'))).toEqual(['BE:nl|KBC|KBC', 'BE:fr|KBC|KBC', 'GB:en|KBC|KBC|BE']);
+    expect(googleSearches(stock('ABI BB Equity', 'Anheuser-Busch InBev SA/NV', 'BE'))).toEqual(['BE:nl|AB InBev|ABI', 'BE:fr|AB InBev|ABI', 'GB:en|AB InBev|ABI|BE']);
+    expect(googleSearches(stock('SHEL LN Equity', 'Shell plc', 'GB'))).toEqual(['GB:en|Shell|SHEL']);
+    expect(googleSearches(stock('AAPL US Equity', 'Apple Inc.', 'US'))).toEqual(['US:en|Apple|AAPL']);
+    expect(googleSearches(stock('SOFI US Equity', 'SoFi Technologies, Inc.', 'US'))).toEqual(['US:en|SoFi Technologies|SOFI']);
+    expect(googleSearches(stock('VOLV/B SS Equity', 'AB Volvo (publ)', 'SE'))).toEqual(['SE:sv|AB Volvo|VOLV', 'GB:en|AB Volvo|VOLV|SE']);
+    // A ticker that is a number is left out; a market without its own edition reads the US one.
+    expect(googleSearches(stock('7203 JT Equity', 'Toyota Motor Corp', 'JP'))).toEqual(['US:en|Toyota|']);
+    expect(googleSearches({ id: 'SPX Index', name: 'S&P 500', cls: 'index', ticker: 'SPX', country: 'US' })).toEqual([]);
+  });
+
+  it('only asks searches the main process accepts', async () => {
+    const { googleSearches } = await import('../src/data/live/marketnews');
+    for (const country of ['US', 'CA', 'GB', 'IE', 'BE', 'NL', 'FR', 'DE', 'AT', 'CH', 'IT', 'ES', 'PT', 'SE', 'DK', 'FI', 'NO', 'JP', 'HK']) {
+      const searches = googleSearches({ id: 'EXM XX Equity', name: 'Société Exemple & Fils N.V.', cls: 'equity', ticker: 'EXM XX', country });
+      expect(searches.length).toBeGreaterThan(0);
+      for (const a of searches) expect(newsMain.newsRequest('google-news-company', a, ''), a).not.toBeNull();
+    }
+  });
+
+  it('shortens names to the words the press uses', async () => {
+    const { shortName } = await import('../src/data/news');
+    const name = (n: string) => shortName({ id: 'X', name: n, cls: 'equity' } as never);
+    expect(name('Anheuser-Busch InBev SA/NV')).toBe('Anheuser-Busch InBev');
+    expect(name('KBC Groep NV')).toBe('KBC');
+    expect(name('Banco Santander, S.A.')).toBe('Banco Santander');
+    expect(name('Novo Nordisk A/S')).toBe('Novo Nordisk');
+    expect(name('Eni S.p.A.')).toBe('Eni');
+    expect(name('Koninklijke Philips N.V.')).toBe('Koninklijke Philips');
+    expect(name('NVIDIA Corporation')).toBe('NVIDIA');
+    expect(name('Coca-Cola Co/The')).toBe('Coca-Cola');
+    // A name that starts with "Groupe" keeps it.
+    expect(name('Groupe Bruxelles Lambert SA')).toBe('Groupe Bruxelles Lambert');
+  });
+});
+
+describe('Alpaca, Massive and Google News answers', () => {
+  it("reads Alpaca's news, with Benzinga as publisher and no story without a link", async () => {
+    const { parseAlpacaNews } = await import('../src/data/live/marketnews');
+    // The layout of Alpaca's documented example, with made-up stories.
+    const text = JSON.stringify({
+      news: [
+        { id: 24843171, headline: 'Chipmaker &amp; partner sign a supply deal', author: 'A Writer', created_at: '2026-10-19T02:10:00Z', updated_at: '2026-10-19T02:12:00Z', summary: '<p>Shares rose.</p>', content: '<p>Long text</p>', images: [], symbols: ['ABC', 'xyz', 'BTCUSD'], source: 'benzinga', url: 'https://www.benzinga.com/news/26/10/1/chipmaker' },
+        { id: 2, headline: 'No link', author: '', created_at: '2026-10-19T02:00:00Z', updated_at: '2026-10-19T02:00:00Z', summary: '', content: '', images: [], symbols: [], source: 'benzinga', url: null },
+      ],
+      next_page_token: null,
+    });
+    expect(parseAlpacaNews(text)).toEqual([
+      { id: 'benzinga.com/news/26/10/1/chipmaker', title: 'Chipmaker & partner sign a supply deal', url: 'https://www.benzinga.com/news/26/10/1/chipmaker', publisher: 'Benzinga', feeds: ['Alpaca'], time: Date.parse('2026-10-19T02:10:00Z'), summary: 'Shares rose.', tickers: ['ABC', 'XYZ', 'BTCUSD'] },
+    ]);
+    expect(parseAlpacaNews('{"message":"forbidden."}')).toEqual({ error: 'forbidden.' });
+  });
+
+  it("reads Massive's ticker news, and its refusal", async () => {
+    const { parseMassiveNews } = await import('../src/data/live/marketnews');
+    const text = JSON.stringify({
+      results: [
+        { id: 'x1', publisher: { name: 'Investing.com', homepage_url: 'https://www.investing.com/' }, title: 'Brewer beats estimates', author: 'A Writer', published_utc: '2026-10-18T13:00:00Z', article_url: 'https://www.investing.com/news/brewer-beats', tickers: ['BUD', 'TAP'], description: 'Volumes held up.', keywords: ['beer'], insights: [{ ticker: 'BUD', sentiment: 'positive', sentiment_reasoning: 'Beat.' }] },
+        { id: 'x2', publisher: {}, title: 'No date', article_url: 'https://example.com/a', tickers: [] },
+      ],
+      status: 'OK',
+      request_id: 'r',
+      count: 2,
+    });
+    expect(parseMassiveNews(text)).toEqual([
+      { id: 'investing.com/news/brewer-beats', title: 'Brewer beats estimates', url: 'https://www.investing.com/news/brewer-beats', publisher: 'Investing.com', feeds: ['Massive'], time: Date.parse('2026-10-18T13:00:00Z'), summary: 'Volumes held up.', tickers: ['BUD', 'TAP'] },
+    ]);
+    expect(parseMassiveNews('{"status":"OK","request_id":"r","count":0}')).toEqual([]);
+    // As Massive answered without a key on 19 October 2026 (HTTP 401).
+    expect(parseMassiveNews('{"status":"ERROR","request_id":"5907aef7","error":"API Key was not provided"}')).toEqual({ error: 'API Key was not provided' });
+  });
+
+  it("reads Google News's feed with the publisher out of the title, tagged with the ticker searched", async () => {
+    const { parseGoogleNews } = await import('../src/data/live/marketnews');
+    // A real answer to the Dutch search for KBC on 19 October 2026, cut to three items.
+    const r = parseGoogleNews(googleKbcNl, 'KBC');
+    expect(Array.isArray(r)).toBe(true);
+    const stories = r as Exclude<typeof r, { error: string }>;
+    expect(stories.map((s) => [s.title, s.publisher])).toEqual([
+      ['KBC ziet recordinteresse om start-up op te richten, maar velen springen niet voluit', 'De Standaard'],
+      ['De 5 favoriete aandelen: ‘Orderboek van dit Belgisch medtechbedrijf staat op record’', 'De Tijd'],
+      ['Grootbanken boeken tot 53% meer winst, maar aandelen stijgen niet: hoe komt dat en wat verwacht onze geldexpert voor KBC en co?', 'HLN'],
+    ]);
+    expect(stories[0]).toMatchObject({ feeds: ['Google News'], tickers: ['KBC'], time: Date.parse('2026-10-16T19:30:00Z') });
+    expect(stories[0].url).toMatch(/^https:\/\/news\.google\.com\/rss\/articles\//);
+    // The description only repeats the title and the publisher.
+    expect(stories[0].summary).toBeUndefined();
+    expect(parseGoogleNews('<!doctype html><html><body>Before you continue to Google</body></html>')).toEqual({ error: 'Google answered with a web page, not the feed' });
+    // Quote pages Google lists among stories, as the English search for KBC returned them on 19 October 2026.
+    const page = (title: string) => `<rss><channel><item><title>${title}</title><link>https://news.google.com/rss/articles/x</link><pubDate>Sat, 17 Oct 2026 10:00:00 GMT</pubDate><source url="https://uk.finance.yahoo.com">Yahoo Finance UK</source></item></channel></rss>`;
+    expect(parseGoogleNews(page('KBC Groupe NV (KDB.HM) Stock Price, News, Quote &amp; History - Yahoo Finance UK'))).toEqual([]);
+    expect(parseGoogleNews(page('KBC Eq Fd North America Classic USD Dis (0P00000GSL) latest stock news and headlines - Yahoo Finance UK'))).toEqual([]);
+    expect(parseGoogleNews(page('KBC Groupe NV: Graphique de cours statique | KBC | BE0003565737 - Yahoo Finance UK'))).toEqual([]);
+    expect(parseGoogleNews(page('KBC GROU0.75MTN23: Bond Price | BE0002266352 - Yahoo Finance UK'))).toEqual([]);
+    expect(parseGoogleNews(page('KBC Group raises guidance and plans EUR 1 dividend - Yahoo Finance UK'))).toHaveLength(1);
+  });
+});
+
+describe('the news lists together', () => {
+  it("keeps a direct link over Google's redirect for a story both carry", async () => {
+    const { marketNews, storiesFor, MARKET_SOURCES } = await import('../src/data/live/marketnews');
+    const story = (feed: 'Alpaca' | 'Google News', url: string) => ({ id: url, title: 'Chipmaker beats third-quarter estimates', url, publisher: feed === 'Alpaca' ? 'Benzinga' : 'Reuters', feeds: [feed], time: 1760450000000, tickers: [] });
+    // Google's list arrived first; the order of MARKET_SOURCES decides, not the order of arrival.
+    marketNews.set({ v: 1, feeds: {}, lists: { 'google-news-market:US:en': [story('Google News', 'https://news.google.com/rss/articles/abc')], 'alpaca-market': [story('Alpaca', 'https://www.benzinga.com/x')] } });
+    const [s] = storiesFor(MARKET_SOURCES);
+    expect(s.url).toBe('https://www.benzinga.com/x');
+    expect(s.feeds).toEqual(['Alpaca', 'Google News']);
+    marketNews.set({ v: 2, feeds: {}, lists: {} });
+  });
+
+  it("puts a company's own news and the market stories tagged with it together", async () => {
+    const { marketNews, companyStories } = await import('../src/data/live/marketnews');
+    const story = (id: string, tickers: string[]) => ({ id, title: `Story ${id} about a chipmaker`, url: `https://news.example/${id}`, publisher: 'Wire', feeds: ['Alpaca' as const], time: 1760450000000 + id.length, tickers });
+    marketNews.set({ v: 1, feeds: {}, lists: { 'alpaca-company:BRK.B': [story('own', ['BRK.B'])], 'massive-market': [story('tagged', ['BRK.B']), story('other', ['ABC'])] } });
+    expect(companyStories('BRK-B').map((s) => s.id).sort()).toEqual(['own', 'tagged']);
+    marketNews.set({ v: 2, feeds: {}, lists: {} });
+  });
+
+  it('counts several requests to one source as one state', async () => {
+    const { combinedFeed } = await import('../src/data/live/marketnews');
+    expect(combinedFeed([{ state: 'ok', count: 70, at: 1000 }, { state: 'ok', count: 30, at: 2000, stale: true }])).toEqual({ state: 'ok', count: 100, at: 2000, stale: true });
+    expect(combinedFeed([{ state: 'loading' }, { state: 'ok', count: 5, at: 1000 }])).toMatchObject({ state: 'ok', count: 5 });
+    expect(combinedFeed([{ state: 'loading' }, { state: 'error', message: 'HTTP 503' }])).toEqual({ state: 'error', message: 'HTTP 503' });
+    expect(combinedFeed([undefined, undefined])).toBeUndefined();
   });
 });
