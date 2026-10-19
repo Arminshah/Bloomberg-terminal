@@ -24,6 +24,8 @@ import { yahooQuotes } from '../data/live/yahoo';
 import { DAY_MS } from '../data/calendar';
 import { NoBondNotice, sourceLabel } from '../components/Source';
 import { realFutureContract } from '../data/realfut';
+import { AnalystSummary, lineValue, MissingNotes, useAnalystSnapshot, useNextQuarterEstimate } from '../components/AnalystSummary';
+import type { RealFund } from '../data/live/yfund';
 import { yieldMethod } from '../data/live/govyields';
 import { usYieldMethod } from '../data/live/ust';
 
@@ -114,6 +116,7 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
   const real = getRealFund(sec.id);
   const mix = real ? [] : revenueMix(sec);
   const ccy = reportCcy(sec);
+  const analysts = useAnalystSnapshot(sec);
   return (
     <>
       <div className="cols">
@@ -167,7 +170,8 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
               ['Net margin', fmtPct(ks.netMargin, 1, false)],
             ]}
           />
-          <p className="pad-s muted">Analyst ratings, price targets and estimates: not connected (no permitted source).</p>
+          <div className="pad-s amber">Analyst consensus</div>
+          <AnalystSummary sec={sec} snap={analysts} />
         </Section>
       </div>
       <div className="cols">
@@ -186,9 +190,11 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
                 ['Institutional holders', fmtInt(real.breakdown?.count)],
                 // Percent of the shares outstanding now, as on HDS (the source's own figure uses an older share count).
                 ['Largest holder', real.holders[0] ? `${real.holders[0].name} (${fmtNum(Number.isFinite(real.stats.shares) && real.stats.shares! > 0 ? (real.holders[0].shares / (real.stats.shares! * 1e6)) * 100 : real.holders[0].pct, 2)}%)` : '--'],
+                ...floatItems(real, eq.shares),
               ]}
             />
             )}
+            {real && <FloatNote real={real} />}
           </Section>
         ) : (
         <Section title="Revenue by region" right={<span className="badge sim">DEMO DATA</span>}>
@@ -215,10 +221,34 @@ function EquityProfile({ sec }: { sec: SecurityDef }) {
         fns={[
           ['CHART', 'Price graph'], ['INTRADAY', 'Intraday'], ['FINANCIALS', 'Financials'], ['ANALYSTS', 'Analysts'], ['EARNINGS', 'Earnings'], ['DIVIDENDS', 'Dividends'],
           ['HOLDERS', 'Holders'], ['PEERS', 'Relative value'], ['COMPANYNEWS', 'Company news'], ['OPTIONS', 'Options'], ['QUOTE', 'Quote'], ['HISTORY', 'Price table'],
+          ['MANAGEMENT', 'Management'],
         ]}
       />
     </>
   );
+}
+
+/**
+ * Float and short interest from Yahoo's key statistics: '--' for any figure it does not give (most listings
+ * outside the US have a float but no short interest). `sharesOut` in millions.
+ */
+function floatItems(real: RealFund, sharesOut: number): [string, string][] {
+  const f = real.float;
+  const pctOut = f.float > 0 && sharesOut > 0 ? (f.float / (sharesOut * 1e6)) * 100 : NaN;
+  const change = f.short > 0 && f.shortPrior > 0 ? (f.short / f.shortPrior - 1) * 100 : NaN;
+  return [
+    ['Float', `${fmtBig(f.float)}${Number.isFinite(pctOut) ? ` (${fmtNum(pctOut, 1)}% of shares out)` : ''}`],
+    ['Short interest', fmtBig(f.short)],
+    ['Short interest, % of float', fmtPct(f.shortPctFloat, 2, false)],
+    ['Days to cover', fmtNum(f.daysToCover, 2)],
+    ['Short interest as of', fmtDay(f.asOf)],
+    ['Change vs prior month', Number.isFinite(change) ? `${fmtPct(change, 1)} (${fmtBig(f.shortPrior)} on ${fmtDay(f.priorAsOf)})` : '--'],
+  ];
+}
+
+function FloatNote({ real }: { real: RealFund }) {
+  if (real.statsFrom === 'Finnhub') return <div className="note">Float and short interest come from Yahoo&apos;s key statistics, which Yahoo refused this time; Finnhub&apos;s profile does not give them.</div>;
+  return <div className="note">Float and short interest from Yahoo Finance&apos;s key statistics; the short interest is the exchanges&apos; count on the settlement date shown, and days to cover is Yahoo&apos;s own ratio to average daily volume.</div>;
 }
 
 function EquityFinSummary({ sec }: { sec: SecurityDef }) {
@@ -264,6 +294,7 @@ function EquityFinSummary({ sec }: { sec: SecurityDef }) {
 function EquityEarnings({ sec }: { sec: SecurityDef }) {
   const hist = earningsHistory(sec).filter((x) => x.actual != null || x.revAct != null).slice(-4);
   const next = nextEarnings(sec);
+  const estimate = useNextQuarterEstimate(sec);
   return (
     <div className="cols">
       <Section title="Reported earnings" right="EARNINGS for history">
@@ -289,7 +320,8 @@ function EquityEarnings({ sec }: { sec: SecurityDef }) {
         </table>
       </Section>
       <Section title="Next report">
-        <KV items={[['Date', next ? fmtEarnDate(next) : '--'], ['Estimates', 'Not connected: no permitted source']]} />
+        <KV items={[['Date', next ? fmtEarnDate(next) : '--'], [estimate.label, lineValue(estimate)]]} />
+        <MissingNotes lines={[estimate]} />
       </Section>
     </div>
   );
@@ -299,20 +331,29 @@ function EquityOwnership({ sec }: { sec: SecurityDef }) {
   // Fund filings overlap with their managers' 13F positions, so the summary counts managers only.
   const h = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 10);
   const inst = h.reduce((s, x) => s + x.pct, 0);
+  const real = getRealFund(sec.id);
   return (
-    <Section title="Top institutional holders" right={`Top 10 hold ${fmtNum(inst, 1)}%`}>
-      <DataTable
-        rows={h}
-        rowKey={(r) => r.name}
-        numbered
-        columns={[
-          { key: 'n', label: 'Holder', render: (r) => r.name },
-          { key: 'p', label: '% Out', num: true, render: (r) => fmtNum(r.pct, 2) },
-          { key: 's', label: 'Position', num: true, render: (r) => fmtBig(r.shares) },
-          { key: 'c', label: 'Change', num: true, render: (r) => <Chg v={r.change / 1e6} dec={2} /> },
-        ]}
-      />
-    </Section>
+    <>
+      {real && (
+        <Section title="Float and short interest">
+          <KV items={floatItems(real, sec.eq!.shares)} />
+          <FloatNote real={real} />
+        </Section>
+      )}
+      <Section title="Top institutional holders" right={`Top 10 hold ${fmtNum(inst, 1)}%`}>
+        <DataTable
+          rows={h}
+          rowKey={(r) => r.name}
+          numbered
+          columns={[
+            { key: 'n', label: 'Holder', render: (r) => r.name },
+            { key: 'p', label: '% Out', num: true, render: (r) => fmtNum(r.pct, 2) },
+            { key: 's', label: 'Position', num: true, render: (r) => fmtBig(r.shares) },
+            { key: 'c', label: 'Change', num: true, render: (r) => <Chg v={r.change / 1e6} dec={2} /> },
+          ]}
+        />
+      </Section>
+    </>
   );
 }
 

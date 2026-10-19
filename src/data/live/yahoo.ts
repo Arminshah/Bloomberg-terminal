@@ -156,8 +156,17 @@ export interface Dividend {
   amount: number;
 }
 
+/** A share split as the source's history records it: `numerator` new shares for every `denominator` old ones. */
+export interface Split {
+  day: number;
+  numerator: number;
+  denominator: number;
+}
+
 /** Real dividends per security, from the history request. */
 export const realDividends = new Map<string, Dividend[]>();
+/** Real splits per security, from the same history request. */
+export const realSplits = new Map<string, Split[]>();
 /** Latest raw Yahoo quote per security (ratios, market cap, earnings date). */
 export const yahooQuotes = new Map<string, Json>();
 /** Quotes of the ETFs that track the main indices, for index dividend yields. */
@@ -204,10 +213,10 @@ export function cleanBar(c: number, o: unknown, h: unknown, l: unknown): [number
   return [c, oo, Math.max(ok(h) ? h : c, oo, c), Math.min(ok(l) ? l : c, oo, c)];
 }
 
-export function barsFromChart(chart: Json, invert = false, allDays = false): { bars: ExtBar[]; dividends: Dividend[]; gmtOffset: number } {
+export function barsFromChart(chart: Json, invert = false, allDays = false): { bars: ExtBar[]; dividends: Dividend[]; splits: Split[]; gmtOffset: number } {
   const r = chart?.chart?.result?.[0];
   const gmtOffset = Number(r?.meta?.gmtoffset ?? 0);
-  if (!r?.timestamp) return { bars: [], dividends: [], gmtOffset };
+  if (!r?.timestamp) return { bars: [], dividends: [], splits: [], gmtOffset };
   const q = r.indicators?.quote?.[0] ?? {};
   const bars: ExtBar[] = [];
   r.timestamp.forEach((ts: number, i: number) => {
@@ -236,7 +245,21 @@ export function barsFromChart(chart: Json, invert = false, allDays = false): { b
     .map((x: Json) => ({ day: localDay(x.date, gmtOffset), amount: Number(x.amount) }))
     .filter((x) => x.amount > 0)
     .sort((a, b) => a.day - b.day);
-  return { bars, dividends, gmtOffset };
+  return { bars, dividends, splits: splitsFromChart(chart), gmtOffset };
+}
+
+/**
+ * Splits from a chart's events ({date, numerator, denominator, splitRatio}), oldest first, dated in the
+ * exchange's own day. Only the two counts are read: a split without both, or with one at zero, is left out.
+ * Yahoo also records some spin-offs this way, as fractional ratios (GE HealthCare in 2023: 1281:1000).
+ */
+export function splitsFromChart(chart: Json): Split[] {
+  const r = chart?.chart?.result?.[0];
+  const gmtOffset = Number(r?.meta?.gmtoffset ?? 0);
+  return Object.values(r?.events?.splits ?? {})
+    .map((x: Json) => ({ day: localDay(Number(x?.date), gmtOffset), numerator: Number(x?.numerator), denominator: Number(x?.denominator) }))
+    .filter((x) => Number.isFinite(x.day) && x.numerator > 0 && x.denominator > 0 && Number.isFinite(x.numerator) && Number.isFinite(x.denominator))
+    .sort((a, b) => a.day - b.day);
 }
 
 /**
@@ -590,15 +613,16 @@ class YahooData {
   }
 
   /** History already fetched elsewhere (an online lookup) can be adopted directly. */
-  adopt(id: string, symbol: string, bars: ExtBar[], dividends: Dividend[]) {
+  adopt(id: string, symbol: string, bars: ExtBar[], dividends: Dividend[], splits: Split[] = []) {
     // Company/dividend data can be shared; the selected venue owns all price history.
     realDividends.set(id, dividends);
+    realSplits.set(id, splits);
     if (iexOwns(id)) return;
     const t: Target = { id, symbol, invert: false, allDays: engine.get(id)?.cls === 'crypto' };
     this.register(t);
     this.stream?.subscribe([symbol]);
     this.historyQueue = this.historyQueue.filter((x) => x.id !== id);
-    this.applyHistory(t, bars, dividends);
+    this.applyHistory(t, bars, dividends, splits);
     this.known = engine.securities.length;
   }
 
@@ -618,11 +642,11 @@ class YahooData {
   private async loadHistory(t: Target) {
     try {
       const chart = await yahooGet(`/v8/finance/chart/${encodeURIComponent(t.symbol)}?range=10y&interval=1d&events=div%2Csplit&includePrePost=false`);
-      const { bars, dividends, gmtOffset } = barsFromChart(chart, t.invert, t.allDays);
+      const { bars, dividends, splits, gmtOffset } = barsFromChart(chart, t.invert, t.allDays);
       // Some lines come with no history beyond the current session; the quote still makes them real.
       if (bars.length < 1) return;
       t.gmtOffset = gmtOffset * 1000;
-      this.applyHistory(t, bars, dividends);
+      this.applyHistory(t, bars, dividends, splits);
     } catch {
       // A network error or rate limit: try again later, waiting longer each time (10 minutes at most).
       const tries = (t.tries ?? 0) + 1;
@@ -636,10 +660,11 @@ class YahooData {
     }
   }
 
-  private applyHistory(t: Target, bars: ExtBar[], dividends: Dividend[]) {
+  private applyHistory(t: Target, bars: ExtBar[], dividends: Dividend[], splits: Split[]) {
     if (iexOwns(t.id)) return;
     engine.setExternalDaily(t.id, bars, { provider: YAHOO_PROVIDER });
     realDividends.set(t.id, dividends);
+    realSplits.set(t.id, splits);
     this.loaded.add(t.id);
     const q = this.pendingQuote.get(t.id);
     if (q) {
@@ -823,7 +848,7 @@ export function startYahooData(): () => void {
 }
 
 /** Hands a looked-up security's history straight to the real-data service. */
-export function adoptYahooHistory(id: string, symbol: string, bars: ExtBar[], dividends: Dividend[] = []) {
-  service?.adopt(id, symbol, bars, dividends);
+export function adoptYahooHistory(id: string, symbol: string, bars: ExtBar[], dividends: Dividend[] = [], splits: Split[] = []) {
+  service?.adopt(id, symbol, bars, dividends, splits);
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */

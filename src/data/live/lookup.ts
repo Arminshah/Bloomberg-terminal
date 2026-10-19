@@ -6,7 +6,7 @@ import { DAY_MS, dayNum, dayToIso, isBusinessDay, isoToDay, prevBusinessDay } fr
 import type { EquityInfo, SecurityDef } from '../types';
 import { settings } from '../../terminal/settings';
 import { trackFinnhubSymbol } from './feeds';
-import { adoptYahooHistory, barsFromChart, yahooGet, YahooDisabled, type Dividend } from './yahoo';
+import { adoptYahooHistory, barsFromChart, yahooGet, YahooDisabled, type Dividend, type Split } from './yahoo';
 import { loadSecCompanies, searchCompanies } from './sec';
 
 /**
@@ -352,14 +352,15 @@ const hasShares = (summary: Json) => {
   return raw(r?.defaultKeyStatistics, 'sharesOutstanding') != null;
 };
 
-async function loadYahoo(ticker: string): Promise<LookupResult & { bars?: Bar[]; dividends?: Dividend[] }> {
+async function loadYahoo(ticker: string): Promise<LookupResult & { bars?: Bar[]; dividends?: Dividend[]; splits?: Split[] }> {
   const sym = encodeURIComponent(yahooSymbol(ticker));
   const chart = await yahooGet(`/v8/finance/chart/${sym}?range=10y&interval=1d&events=div%2Csplit&includePrePost=false`);
   if (!chart?.chart?.result?.[0]) return { ok: false, reason: `${ticker} was not found` };
   const summary = await yahooGet(`/v10/finance/quoteSummary/${sym}?modules=assetProfile,defaultKeyStatistics,financialData,summaryDetail,price,calendarEvents`).catch(() => null);
   const built = defFromYahoo(ticker, chart, summary, undefined, hasShares(summary) ? undefined : await reportedSharesOf(sym));
   if ('error' in built) return { ok: false, reason: built.error };
-  return { ok: true, def: built.def, bars: built.bars, dividends: barsFromChart(chart).dividends };
+  const { dividends, splits } = barsFromChart(chart);
+  return { ok: true, def: built.def, bars: built.bars, dividends, splits };
 }
 
 // ----------------------------------------------------------------- Finnhub
@@ -467,7 +468,7 @@ export function lookupSecurity(input: string): Promise<LookupResult> {
         engine.addSecurity(r.def, { bars: r.bars });
         persist(r.def);
         // The real-data service takes the line over: real history now, real quotes from the next poll.
-        adoptYahooHistory(r.def.id, r.def.dynamic!.symbol, r.bars!, r.dividends);
+        adoptYahooHistory(r.def.id, r.def.dynamic!.symbol, r.bars!, r.dividends, r.splits);
         return { ok: true, def: r.def };
       }
       const r = await loadFinnhub(ticker);
@@ -505,7 +506,8 @@ function lookupListing(listed: { root: string; listing: Listing }): Promise<Look
       if ('error' in built) return { ok: false, reason: built.error };
       engine.addSecurity(built.def, { bars: built.bars });
       persist(built.def);
-      adoptYahooHistory(built.def.id, built.def.dynamic!.symbol, built.bars, barsFromChart(chart).dividends);
+      const { dividends, splits } = barsFromChart(chart);
+      adoptYahooHistory(built.def.id, built.def.dynamic!.symbol, built.bars, dividends, splits);
       return { ok: true, def: built.def };
     } catch (err) {
       return { ok: false, reason: err instanceof TypeError ? 'Could not reach Yahoo Finance (offline?)' : err instanceof Error ? err.message : String(err) };

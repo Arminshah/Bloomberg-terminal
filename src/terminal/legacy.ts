@@ -13,6 +13,7 @@ export const LEGACY_CODES: Record<string, string> = {
   EE: 'EARNINGS',
   DVD: 'DIVIDENDS',
   HDS: 'HOLDERS',
+  MGMT: 'MANAGEMENT',
   RV: 'PEERS',
   EVTS: 'EVENTS',
   GF: 'FUNDCHART',

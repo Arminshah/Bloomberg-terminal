@@ -1,6 +1,6 @@
 # Bloomberg workflow audit — Armin Terminal 2.7.0
 
-Audited 18 October 2026 against the registered commands, screen implementations, source adapters and calculation models. **Armin Terminal is not a 1:1 Bloomberg Terminal replacement.** This inventory covers all 71 commands in this release; it is not an inventory of every function in Bloomberg's proprietary product. Matching a mnemonic or opening a screen does not establish functional, visual or dataset parity.
+Audited 18 October 2026 against the registered commands, screen implementations, source adapters and calculation models. **Armin Terminal is not a 1:1 Bloomberg Terminal replacement.** This inventory covers all 72 commands in this release; it is not an inventory of every function in Bloomberg's proprietary product. Matching a mnemonic or opening a screen does not establish functional, visual or dataset parity.
 
 Bloomberg's product overview is at <https://www.bloomberg.com/professional/products/bloomberg-terminal/>. Its website was blocked by this cloud's network policy during this audit. No licensed Bloomberg session, reference outputs, complete function specification or pixel-by-pixel comparison was available. The comparisons below concern the named workflows and their known data/convention requirements, not a certified comparison to a particular Bloomberg software version. Browser demo figures are excluded from real-data coverage.
 
@@ -28,12 +28,13 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 
 | Command | Comparable workflow | Working scope | Remaining gap |
 | --- | --- | --- | --- |
-| `PROFILE` | DES security description | Partial: asset-specific profile and fundamentals | Global instrument master, identifiers, issue terms and vendor fields are incomplete |
+| `PROFILE` | DES security description | Partial: asset-specific profile and fundamentals, float and short interest, source-labelled analyst consensus for US stocks | Global instrument master, identifiers, issue terms and vendor fields are incomplete; no BEst consensus |
 | `FINANCIALS` | FA financial analysis | Partial: reported annual/quarterly statements and ratios | No Bloomberg-standardised global history, restatement database or complete line-item mapping |
 | `ANALYSTS` | ANR analyst research | Partial: independent FMP sections, Finnhub/Yahoo research fallbacks, eight Equibles datasets with automatic estimate fallback | Account/issuer coverage limits; no verified broker-target replacement, broker research documents or complete consensus universe |
-| `EARNINGS` | EE earnings estimates | Partial: reported EPS/revenue and annual estimates | No quarterly consensus, surprise history, estimate contributors or revisions surface |
-| `DIVIDENDS` | DVD dividend analysis | Partial: ex-date cash history and derived yield | Missing declaration/record/payment dates and comprehensive forecasts/actions |
+| `EARNINGS` | EE earnings estimates | Partial: reported EPS/revenue, close-to-close price reaction per report, Finnhub quarterly EPS comparisons and annual estimates | No full quarterly consensus history, estimate contributors or revisions surface |
+| `DIVIDENDS` | DVD dividend analysis | Partial: ex-date cash history with splits, derived yield and 5-year growth | Missing declaration/record/payment dates and comprehensive forecasts/actions |
 | `HOLDERS` | HDS ownership | Partial: institution/fund filing snapshots | No complete ownership intelligence, beneficial ownership history or all asset classes |
+| `MANAGEMENT` | MGMT management | Partial: officers, titles, ages and total pay as Yahoo's company profile lists them | No board, tenure, biographies, compensation breakdown or history |
 | `PEERS` | RV relative valuation | Partial: multiples and profitability comparison | Local peer selection; no global comparison/template/data-field universe |
 | `EVENTS` | EVTS corporate calendar | Partial: earnings/ex-dividend events for one company, the active watchlist, the portfolio's stocks or every stock in the app | No comprehensive corporate actions, conferences or transcript workflow |
 | `FILINGS` | Company filing/document search | Partial: SEC submissions and XBRL reported figures | SEC only; no global document library, translations or transcripts |

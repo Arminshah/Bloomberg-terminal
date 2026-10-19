@@ -114,6 +114,9 @@ export function createYahooResearchLoader(get: YahooResearchApi, now = Date.now)
 
 const desktop = createYahooResearchLoader((path) => window.arminDesktop!.yahoo(path));
 export const retryYahooAnalysts = () => desktop.clear();
+/** The desktop app with Yahoo research switched on (YAHOO_RESEARCH_ENABLED, and Yahoo itself not off): a source that needs no key. */
+export const yahooResearchAvailable = (): boolean =>
+  typeof window !== 'undefined' && !!window.arminDesktop?.yahoo && window.arminDesktop.settings?.YAHOO_RESEARCH_ENABLED !== false && window.arminDesktop.settings?.YAHOO_PRICES_ENABLED !== false;
 export const loadYahooAnalysts = (kind: AnalystKind, symbol: string): Promise<AnalystPart> => {
   if (!window.arminDesktop?.yahoo || window.arminDesktop.settings?.YAHOO_RESEARCH_ENABLED === false) return Promise.resolve({ state: 'off', source: 'Yahoo Finance', message: 'Yahoo research is switched off on PROVIDERS.' });
   return desktop.load(kind, symbol);

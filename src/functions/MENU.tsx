@@ -20,7 +20,7 @@ interface Group {
 }
 
 const EQUITY: Group[] = [
-  { title: 'Company', entries: ['PROFILE', 'COMPANYNEWS', 'FINANCIALS', 'EARNINGS', 'ANALYSTS', 'DIVIDENDS', 'HOLDERS', 'PEERS', 'WACC', 'EVENTS'] },
+  { title: 'Company', entries: ['PROFILE', 'COMPANYNEWS', 'FINANCIALS', 'EARNINGS', 'ANALYSTS', 'DIVIDENDS', 'HOLDERS', 'MANAGEMENT', 'PEERS', 'WACC', 'EVENTS'] },
   { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'FUNDCHART', 'VOLATILITY', 'BETA', 'SPREAD'] },
   { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP', 'OPTIONS', 'OPTIONCALC', 'OPTIONSTRATEGY'] },
   { title: 'Credit', entries: ['BONDSEARCH', 'DEBTPROFILE'] },

@@ -8,6 +8,7 @@ import { DayChg, KV, Section } from '../components/cells';
 import { TopOfBook, BookTable } from './DEPTH';
 import { TapeSource, TradeTape } from './TAS';
 import { SimBadge } from '../components/Source';
+import { AnalystSummary, useAnalystSnapshot } from '../components/AnalystSummary';
 import { useFundamentals } from '../data/live/yfund';
 import { fmtBig, fmtDay, fmtEarnDate, fmtMln, fmtNum, fmtPct, fmtStamp, fmtTime } from '../core/format';
 import { engine, useQuote, useTick } from '../data/market';
@@ -62,6 +63,8 @@ export function BQ({ sec }: FnProps) {
   const y = s.quote === 'yield';
   const ks = s.eq ? keyStats(s) : undefined;
   const ne = s.eq ? nextEarnings(s) : undefined;
+  // Price target, ratings and the next quarter's estimate from the parts ANALYSTS and EARNINGS load.
+  const analysts = useAnalystSnapshot(s);
   const tradable = s.cls === 'equity' || s.cls === 'crypto' || s.cls === 'commodity' || s.cls === 'future';
   return (
     <div>
@@ -167,6 +170,12 @@ export function BQ({ sec }: FnProps) {
               ]}
             />
           )}
+          {s.cls === 'equity' ? (
+            <>
+              <div className="pad-s amber">Analyst consensus</div>
+              <AnalystSummary sec={s} snap={analysts} />
+            </>
+          ) : null}
         </Section>
       </div>
       {engine.realOnly ? (

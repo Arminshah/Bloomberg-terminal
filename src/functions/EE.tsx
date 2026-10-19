@@ -1,9 +1,10 @@
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
-import { Section, KV } from '../components/cells';
+import { Chg, Section, KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtEarnDate, fmtMln, fmtNum } from '../core/format';
-import { earningsHistory, reportCcy } from '../data/fundamentals';
+import { earningsHistory, earningsReaction, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
+import { engine, useHistoryVersion } from '../data/market';
 import type { FnProps } from '../terminal/types';
 import { useFundamentals } from '../data/live/yfund';
 import { sourceLabel } from '../components/Source';
@@ -13,16 +14,34 @@ import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { finnhubAvailable, finnhubSymbol, useFinnhub, type EpsSurprise, type FinnhubPart, type NextReport } from '../data/live/finnhub';
 import { fmtDay } from '../core/format';
+import { DAY_MS } from '../data/calendar';
+
+/** What each reaction compares, in the column beside it. */
+const BASIS: Record<EarningsReaction['basis'], string> = {
+  'before-open': 'before the open: report day vs prior close',
+  'after-close': 'after the close: next session vs report day',
+  unknown: 'time not known: report day vs prior close',
+  'no-session': 'no session that day: next session vs prior close',
+};
 
 /**
- * Earnings: report dates and the reported figures (diluted EPS and revenue as the statements give them). For
- * US-listed stocks in the desktop app, also the last four quarters' EPS against the analysts' estimate and the
- * next report's estimates from Finnhub, and annual estimates from Financial Modeling Prep. Nothing is generated.
+ * Earnings: report dates and the reported figures (diluted EPS and revenue as the statements give them), with
+ * the share price's close-to-close reaction to each past report from the daily history. For US-listed stocks in
+ * the desktop app, also the last four quarters' EPS against the analysts' estimate and the next report's
+ * estimates from Finnhub, and annual estimates from Financial Modeling Prep. Nothing is generated.
  */
 export function EE({ sec }: FnProps) {
   const s = sec!;
   const { status } = useFundamentals(s);
+  useHistoryVersion();
   const hist = earningsHistory(s);
+  const daily = engine.daily(s.id);
+  const q = engine.quote(s.id);
+  // Today's bar is final once the market has closed; while it trades (or the line is simulated) it is still forming.
+  const lastFinal = q?.src === 'CLOSE' || q?.src === 'EOD' ? engine.today : engine.today - 1;
+  // A report's day where the shares trade: the exchange's time zone from the quote, else New York for US stocks.
+  const tz = q?.tz ?? (s.country === 'US' ? 'America/New_York' : undefined);
+  const reaction = (h: EarningsEvent) => (h.dateUnknown || (h.actual == null && h.revAct == null) ? null : earningsReaction(daily, reportSessionDay(h.date, tz), h.timing, lastFinal));
   const done = hist.filter((h) => h.actual != null || h.revAct != null);
   const next = hist.find((h) => h.actual == null && h.revAct == null);
   const ccy = reportCcy(s);
@@ -130,21 +149,36 @@ export function EE({ sec }: FnProps) {
                 Diluted EPS
               </th>
               <th className="num">Revenue</th>
+              <th className="num" title="Close-to-close change in the share price around the report, from the daily history">
+                Price reaction
+              </th>
+              <th className="hide-m">Reaction measured</th>
             </tr>
           </thead>
           <tbody>
-            {[...hist].reverse().map((h) => (
-              <tr key={`${h.period}:${h.date}`}>
-                <td className="amber">{h.period}</td>
-                <td>{fmtEarnDate(h, false)}</td>
-                <td className="muted">{h.timing}</td>
-                <td className="num white">{h.actual != null ? fmtNum(h.actual, 2) : h.revAct != null ? '--' : 'Pending'}</td>
-                <td className="num">{h.revAct != null ? fmtMln(h.revAct) : '--'}</td>
-              </tr>
-            ))}
+            {[...hist].reverse().map((h) => {
+              const r = reaction(h);
+              return (
+                <tr key={`${h.period}:${h.date}`}>
+                  <td className="amber">{h.period}</td>
+                  <td>{fmtEarnDate(h, false)}</td>
+                  <td className="muted">{h.timing}</td>
+                  <td className="num white">{h.actual != null ? fmtNum(h.actual, 2) : h.revAct != null ? '--' : 'Pending'}</td>
+                  <td className="num">{h.revAct != null ? fmtMln(h.revAct) : '--'}</td>
+                  <td className="num" title={r && Number.isFinite(r.pct) ? `Close of ${fmtDay(r.to * DAY_MS)} against close of ${fmtDay(r.from * DAY_MS)}` : undefined}>
+                    {r ? <Chg v={r.pct} pct dec={1} /> : '--'}
+                  </td>
+                  <td className="muted hide-m">{r ? BASIS[r.basis] : h.dateUnknown ? 'report date not given' : ''}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-        <div className="note">Reported figures from the company&apos;s statements.</div>
+        <div className="note">
+          Reported figures from the company&apos;s statements. Price reaction: the share price&apos;s close-to-close change around each past report, from the daily closes (split-adjusted, dividends not added back). A
+          report before the open is measured on the report day against the previous close, one after the close on the next session against the report day&apos;s close; where the time is not known, the report day
+          against the previous close is used and the row says so. -- until both closes are final.
+        </div>
       </Section>
     </div>
   );

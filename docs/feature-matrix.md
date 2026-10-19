@@ -1,6 +1,6 @@
 # Feature and data coverage
 
-What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.7.0); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 71 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
+What each function shows, its source and missing data. Coverage reviewed against the code on 18 October 2026 (version 2.7.0); live-provider checks are described separately below and in the release notes. The [Bloomberg workflow audit](bloomberg-parity.md) records gaps for all 72 registered commands. Browser demo figures are simulated and excluded from real-data coverage.
 
 Status:
 
@@ -37,12 +37,13 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
-| `PROFILE` | Business description, key figures, ownership; one page per asset class | Yahoo Finance; CoinGecko for coin supply and market value; official sources for yields | Real, ratios calculated. No founding year or analyst figures |
+| `PROFILE` | Business description, key figures, ownership with float and short interest (shares, % of float, days to cover, settlement date, change on the prior month); for US stocks the analyst consensus (price target, buy/hold/sell tally, next quarter's EPS estimate and report date); one page per asset class | Yahoo Finance; CoinGecko for coin supply and market value; official sources for yields; FMP, Finnhub and Yahoo research for the consensus, each figure labelled with its source | Real, ratios calculated. No founding year; short interest only where Yahoo gives it (US listings) |
 | `FINANCIALS` | Income statement, balance sheet, cash flow, ratios; annual and quarterly | Yahoo Finance (as companies report) | Real, ratios calculated |
 | `FUNDCHART` | Revenue, EPS, margins, P/E at each year end, cash flow | Yahoo Finance | Calculated. P/E only where trading and reporting currencies match |
-| `EARNINGS` | Reported EPS and revenue, report dates, next date; annual EPS and revenue estimates | Yahoo Finance; Financial Modeling Prep (your key) for estimates | Partial: no quarterly estimates or surprises |
-| `DIVIDENDS` | Ex-dates and amounts over ten years, frequency, 12-month yield, next ex-date | Yahoo Finance | Partial: declared and record dates not given |
+| `EARNINGS` | Reported EPS and revenue, report dates, next date, the close-to-close price reaction to each past report; annual EPS and revenue estimates | Yahoo Finance; Financial Modeling Prep (your key) for estimates | Partial: reaction timing only where the report time is known |
+| `DIVIDENDS` | Ex-dates and amounts over ten years with splits as their own rows, frequency, 12-month yield, 5-year dividend growth, next ex-date | Yahoo Finance | Partial: declared and record dates not given; Yahoo records some spin-offs as fractional splits |
 | `HOLDERS` | Largest institutional and fund holders, ownership breakdown | Yahoo Finance (13F and fund filings) | Real, as of each filing |
+| `MANAGEMENT` | Company officers: name, title, age, year of birth, total pay and its fiscal year | Yahoo Finance (company profile) | Real. Yahoo gives no pay currency: USD is named only for companies that report and trade in dollars |
 | `PEERS` | Valuation, profitability and returns against peers | Yahoo Finance | Calculated. Peers chosen from the app's own industry labels |
 | `EVENTS` | Earnings and ex-dividend calendar for one company, the active watchlist (the default when it holds stocks), the portfolio or every stock | Yahoo Finance | Real; ~ marks a date the source calls expected |
 | `FILINGS` | SEC filings with links, and figures from XBRL statements | SEC EDGAR (needs `SEC_USER_AGENT`) | Real |
@@ -79,7 +80,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `HEATMAP` | Stocks by sector, sized by market value, coloured by change | Yahoo Finance | Calculated |
 | `MOVERS` | Most active, gainers, losers, value traded, unusual volume | Yahoo Finance | Real; value traded and relative volume estimated |
 | `SCREEN` | Stock screener | Yahoo Finance | Real and calculated; ROE and beta once a company's data has loaded |
-| `QUOTE` | Price, intraday chart, best bid and offer, recent updates, key statistics; for US stocks IEX's last trade, bid and offer, and the latest company news | Yahoo Finance, Kraken, official sources; Alpaca (IEX only) and Finnhub with your keys | Real. IEX figures are one exchange's, labelled IEX only |
+| `QUOTE` | Price, intraday chart, best bid and offer, recent updates, key statistics; for US stocks the analyst consensus as on `PROFILE`, IEX's last trade, bid and offer, and the latest company news | Yahoo Finance, Kraken, official sources; Alpaca (IEX only) and Finnhub with your keys | Real. IEX figures are one exchange's, labelled IEX only |
 | `TRADES` | Volume added up between price updates | Yahoo Finance, Kraken | Partial: not single trades or venues |
 | `DEPTH` | Order book for crypto; best bid and offer for the rest | Kraken; Yahoo Finance | Partial: no free order book for stocks |
 | `VWAP` | VWAP, TWAP and 30-minute buckets for the latest session | Intraday bars | Calculated |

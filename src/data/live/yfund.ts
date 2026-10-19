@@ -29,8 +29,43 @@ export interface RealFund {
   breakdown: { insiders: number; institutions: number; institutionsFloat: number; count: number } | null;
   stats: Partial<Record<'pe' | 'pb' | 'ps' | 'evEbitda' | 'ev' | 'divYld' | 'payout' | 'roe' | 'roa' | 'opMargin' | 'netMargin' | 'grossMargin' | 'de' | 'beta' | 'revGrowth' | 'epsGrowth' | 'shares', number>>;
   nextDividend: { ex: number; pay: number; rate: number } | null;
+  /** The float and short interest from Yahoo's key statistics; NaN wherever the source gives none. */
+  float: FloatStats;
+  /** The company's officers as Yahoo's company profile lists them, in its order. */
+  officers: Officer[];
   /** Where the ratios and profile came from when Yahoo's company summary was refused. */
   statsFrom?: 'Finnhub';
+}
+
+/**
+ * Float and short interest as Yahoo's key statistics give them (US exchanges report short interest twice a
+ * month; Yahoo gives none for most other markets). Counts in shares, percentages in percent, dates in ms.
+ */
+export interface FloatStats {
+  /** floatShares: shares available to trade. */
+  float: number;
+  /** sharesShort: shares sold short on the settlement date `asOf`. */
+  short: number;
+  /** shortPercentOfFloat, in percent. */
+  shortPctFloat: number;
+  /** shortRatio: days to cover, the short interest over average daily volume, as the source works it out. */
+  daysToCover: number;
+  /** dateShortInterest: the settlement date of the short interest. */
+  asOf: number;
+  /** sharesShortPriorMonth: the short interest a month before, on `priorAsOf` (sharesShortPreviousMonthDate). */
+  shortPrior: number;
+  priorAsOf: number;
+}
+
+export interface Officer {
+  name: string;
+  title: string;
+  /** Age and year of birth as the source gives them; NaN when it gives none. */
+  age: number;
+  yearBorn: number;
+  /** Total pay for `fiscalYear` in the company's filings, as the source gives it (no currency stated). */
+  totalPay: number;
+  fiscalYear: number;
 }
 
 export const realFund = new Map<string, RealFund>();
@@ -42,6 +77,43 @@ const num = (v: Json): number => {
   const x = typeof v === 'object' && v !== null ? v.raw : v;
   return typeof x === 'number' && Number.isFinite(x) ? x : NaN;
 };
+
+/**
+ * The float and short interest from defaultKeyStatistics. Yahoo answers {} for a field it has no figure for
+ * (European listings have a float but no short interest); that, and a count of zero or less, stays NaN, never 0.
+ */
+export function floatStats(ks: Json): FloatStats {
+  const pos = (v: Json) => (num(v) > 0 ? num(v) : NaN);
+  const date = (v: Json) => (num(v) > 0 ? num(v) * 1000 : NaN);
+  return {
+    float: pos(ks?.floatShares),
+    short: pos(ks?.sharesShort),
+    shortPctFloat: pos(ks?.shortPercentOfFloat) * 100,
+    daysToCover: pos(ks?.shortRatio),
+    asOf: date(ks?.dateShortInterest),
+    shortPrior: pos(ks?.sharesShortPriorMonth),
+    priorAsOf: date(ks?.sharesShortPreviousMonthDate),
+  };
+}
+
+/** A name as the source writes it, without its doubled spaces or a leading Mr, Ms, Dr or Prof. */
+export function cleanOfficerName(name: unknown): string {
+  return String(name ?? '').replace(/\s+/g, ' ').replace(/^(Mr|Ms|Mrs|Miss|Dr|Prof)\.?\s+/i, '').trim();
+}
+
+/** assetProfile.companyOfficers: [{name, title, age, yearBorn, fiscalYear, totalPay: {raw}}], in the source's order. */
+export function officersFrom(ap: Json): Officer[] {
+  return ((Array.isArray(ap?.companyOfficers) ? ap.companyOfficers : []) as Json[])
+    .map((o) => ({
+      name: cleanOfficerName(o?.name),
+      title: String(o?.title ?? '').replace(/\s+/g, ' ').trim(),
+      age: num(o?.age) > 0 ? num(o.age) : NaN,
+      yearBorn: num(o?.yearBorn) > 0 ? num(o.yearBorn) : NaN,
+      totalPay: num(o?.totalPay) > 0 ? num(o.totalPay) : NaN,
+      fiscalYear: num(o?.fiscalYear) > 0 ? num(o.fiscalYear) : NaN,
+    }))
+    .filter((o) => o.name);
+}
 
 /** Before or after the US session, from a report time; '--' when the time is not known. */
 export function usTiming(ms: number): EarningsEvent['timing'] {
@@ -354,7 +426,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const exDiv = num(r.calendarEvents?.exDividendDate) * 1000;
   const payDiv = num(r.calendarEvents?.dividendDate) * 1000;
   const nextDividend = Number.isFinite(exDiv) ? { ex: exDiv, pay: payDiv, rate: num(sd.dividendRate) } : null;
-  return { fetched: now, annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend };
+  return { fetched: now, annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend, float: floatStats(ks), officers: officersFrom(r.assetProfile) };
 }
 
 /** Writes the real profile into the security so DES, market cap and the model inputs use it. */
@@ -367,8 +439,8 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   if (ap.industry) eq.industry = ap.industry;
   if (num(ap.fullTimeEmployees) > 0) eq.emp = num(ap.fullTimeEmployees);
   if (ap.city) eq.hq = `${ap.city}, ${ap.state ?? ap.country ?? ''}`.replace(/, $/, '');
-  const ceo = (ap.companyOfficers ?? []).find((o: Json) => /chief executive|ceo/i.test(o?.title ?? ''));
-  if (ceo?.name) eq.ceo = String(ceo.name).replace(/\s+/g, ' ').replace(/^(Mr|Ms|Mrs|Dr)\.?\s+/i, '').trim();
+  const ceo = fund.officers.find((o) => /chief executive|ceo/i.test(o.title));
+  if (ceo) eq.ceo = ceo.name;
   if (ap.longBusinessSummary) eq.desc = String(ap.longBusinessSummary);
   const fyeRaw = num(ks.lastFiscalYearEnd);
   if (Number.isFinite(fyeRaw)) eq.fye = new Date(fyeRaw * 1000).getUTCMonth() + 1;

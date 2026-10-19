@@ -1,10 +1,11 @@
 import { hashString, seeded, gaussian } from '../core/rng';
-import { DAY_MS, rollForward } from './calendar';
+import { DAY_MS, dayNum, rollForward } from './calendar';
+import { zonedParts } from '../core/format';
 import { engine } from './market';
 import { marketCap } from './analytics';
 import type { SecurityDef } from './types';
 import { getRealFund, usTiming } from './live/yfund';
-import { realDividends, trailingDividendYield, yahooQuotes } from './live/yahoo';
+import { realDividends, realSplits, trailingDividendYield, yahooQuotes } from './live/yahoo';
 
 /** All money values in millions of the reporting currency (GBP for pence lines). */
 export interface FinPeriod {
@@ -427,6 +428,47 @@ export function earningsEvents(def: SecurityDef): EarningsEvent[] {
   return out;
 }
 
+/**
+ * The session day a report belongs to: its date in the exchange's time zone (`tz`), or the date itself when
+ * the source gives a date without a time (a stamp at midnight UTC) or no time zone is known.
+ */
+export function reportSessionDay(ms: number, tz: string | undefined): number {
+  if (!Number.isFinite(ms)) return NaN;
+  if (ms % DAY_MS === 0 || !tz) return dayNum(ms);
+  const p = zonedParts(ms, tz);
+  return dayNum(Date.UTC(p.y, p.mo - 1, p.d));
+}
+
+export interface EarningsReaction {
+  /** Close-to-close change in percent; NaN until both closes are in the history and final. */
+  pct: number;
+  /**
+   * Which closes: before the open, the report day's against the previous session's; after the close, the next
+   * session's against the report day's; time not known, the report day's against the previous session's; a
+   * report on a day without a session, the first session after it against the last one before.
+   */
+  basis: 'before-open' | 'after-close' | 'unknown' | 'no-session';
+  /** Day numbers of the two sessions compared (NaN where the history has none). */
+  from: number;
+  to: number;
+}
+
+/**
+ * The share price's reaction to a report from the daily closes, as on Bloomberg's earnings screen: see
+ * EarningsReaction for which two closes. `lastFinal` is the last day whose close is final: today's bar is still
+ * forming while the market trades.
+ */
+export function earningsReaction(s: { t: ArrayLike<number>; c: ArrayLike<number>; length: number }, day: number, timing: EarningsEvent['timing'], lastFinal: number): EarningsReaction {
+  let i = 0;
+  while (i < s.length && dayNum(s.t[i]) < day) i++;
+  const onDay = i < s.length && dayNum(s.t[i]) === day;
+  const basis: EarningsReaction['basis'] = !onDay ? 'no-session' : timing === 'Aft-mkt' ? 'after-close' : timing === 'Bef-mkt' ? 'before-open' : 'unknown';
+  const [a, b] = basis === 'after-close' ? [i, i + 1] : [i - 1, i];
+  const at = (k: number) => (k >= 0 && k < s.length ? dayNum(s.t[k]) : NaN);
+  const final = (k: number) => at(k) <= lastFinal && s.c[k] > 0;
+  return { pct: Number.isFinite(day) && final(a) && final(b) ? (s.c[b] / s.c[a] - 1) * 100 : NaN, basis, from: at(a), to: at(b) };
+}
+
 export function nextEarnings(def: SecurityDef): EarningsEvent | undefined {
   const today = engine.today * DAY_MS;
   return earningsEvents(def).find((e) => e.date >= today && e.actual == null);
@@ -559,6 +601,55 @@ function realDividendList(def: SecurityDef): Dividend[] {
     if (row) row.pay = next.pay;
   }
   return out.sort((a, b) => b.ex - a.ex);
+}
+
+/** A share split: `numerator` new shares for every `denominator` held, effective on `date` (ms). */
+export interface StockSplit {
+  date: number;
+  numerator: number;
+  denominator: number;
+}
+
+/** Splits from the exchange record (the same Yahoo history as the dividends), newest first; none are generated. */
+export function splits(def: SecurityDef): StockSplit[] {
+  return (realSplits.get(def.id) ?? []).map((x) => ({ date: x.day * DAY_MS, numerator: x.numerator, denominator: x.denominator })).sort((a, b) => b.date - a.date);
+}
+
+/** A split ratio as the record gives it (4:1, 1:8, 1281:1000). */
+export function splitRatio(x: Pick<StockSplit, 'numerator' | 'denominator'>): string {
+  const n = (v: number) => String(Number(v.toPrecision(6)));
+  return `${n(x.numerator)}:${n(x.denominator)}`;
+}
+
+/** More shares after it than before is a split; fewer, a reverse split (consolidation). */
+export const splitType = (x: Pick<StockSplit, 'numerator' | 'denominator'>): string => (x.numerator >= x.denominator ? 'Stock split' : 'Reverse split');
+
+/** The same date `years` calendar years earlier. */
+function yearsBefore(ms: number, years: number): number {
+  const d = new Date(ms);
+  d.setUTCFullYear(d.getUTCFullYear() - years);
+  return d.getTime();
+}
+
+/**
+ * Compound annual growth, in percent, of the 12-month dividend over `years` years: the dividends that went
+ * ex in the year to `asOf` against those in the year that ended `years` years earlier. NaN unless the
+ * history covers that earlier year in full: it starts (`since`, the first day of the price history the
+ * record comes with) before that year, a dividend went ex before it (so it is not a first, partial year of
+ * payments), and both years have dividends. Amounts as the record gives them: Yahoo's are adjusted for
+ * later splits, and specials are not told apart from regular dividends.
+ */
+export function dividendGrowth(list: { ex: number; amount: number }[], asOf: number, since: number, years = 5): number {
+  const thenEnd = yearsBefore(asOf, years);
+  const thenStart = yearsBefore(thenEnd, 1);
+  if (!(since <= thenStart) || !list.some((d) => d.ex <= thenStart && d.amount > 0)) return NaN;
+  const paid = (to: number) => {
+    const from = yearsBefore(to, 1);
+    return list.reduce((sum, d) => (d.ex > from && d.ex <= to && Number.isFinite(d.amount) ? sum + d.amount : sum), 0);
+  };
+  const now = paid(asOf);
+  const then = paid(thenEnd);
+  return now > 0 && then > 0 ? ((now / then) ** (1 / years) - 1) * 100 : NaN;
 }
 
 // ------------------------------------------------------------------ peers

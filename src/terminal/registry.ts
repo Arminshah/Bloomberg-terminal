@@ -12,6 +12,7 @@ import { ANR } from '../functions/ANR';
 import { EE } from '../functions/EE';
 import { DVD } from '../functions/DVD';
 import { HDS } from '../functions/HDS';
+import { MGMT } from '../functions/MGMT';
 import { RV } from '../functions/RV';
 import { EVTS } from '../functions/EVTS';
 import { FILINGS } from '../functions/FILINGS';
@@ -62,6 +63,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'EARNINGS', name: 'Earnings', category: 'Equity', needsSec: true, classes: EQ, desc: 'Reported diluted EPS/revenue by quarter; Finnhub quarterly EPS comparisons and next-report calendar; annual analyst estimates from FMP. Provider figures and reporting bases remain labelled; own keys required.', component: EE },
   { code: 'DIVIDENDS', name: 'Dividend History', category: 'Equity', needsSec: true, classes: EQ, desc: 'Cash dividends over ten years by ex-date, with amounts, frequency, 12-month yield and the next expected ex-date.', component: DVD, aliases: ['DIVS'] },
   { code: 'HOLDERS', name: 'Holders', category: 'Equity', needsSec: true, classes: EQ, desc: 'Largest institutional and fund holders with position, percent outstanding and change, and the ownership breakdown.', component: HDS, aliases: ['OWNERSHIP'] },
+  { code: 'MANAGEMENT', name: 'Management', category: 'Equity', needsSec: true, classes: EQ, desc: "The company's officers from Yahoo Finance's company profile: name, title, age, year of birth and total pay for the fiscal year the source gives (desktop app).", component: MGMT, aliases: ['OFFICERS'], example: 'MANAGEMENT AAPL' },
   { code: 'PEERS', name: 'Relative Valuation', category: 'Equity', needsSec: true, classes: EQ, desc: 'Peer comparison of valuation multiples, profitability and returns with peer medians.', component: RV, aliases: ['COMPS'] },
   { code: 'EVENTS', name: 'Corporate Events', category: 'Equity', classes: EQ, desc: 'Calendar of earnings releases and ex-dividend dates, for one company, your active watchlist, your portfolio or every built-in stock.', component: EVTS, aliases: ['CORPCAL'] },
   { code: 'FILINGS', name: 'Company Filings', category: 'Equity', classes: EQ, desc: 'SEC EDGAR: a company\'s filings (annual and quarterly reports, current reports, ownership, proxies, offerings) with links to the documents on sec.gov, and the figures it reported in its XBRL financial statements. Finds any SEC filer by ticker, name or CIK.', component: FILINGS, aliases: ['EDGAR'], example: 'FILINGS MSFT' },
