@@ -155,13 +155,13 @@ button { cursor: pointer; }
 .clock-label { color: var(--amber); font-size: 9px; font-weight: 500; letter-spacing: 0.04em; }
 .clock-value { color: var(--white); font-size: var(--fs-s); font-weight: 500; font-variant-numeric: tabular-nums; }
 /* Market session controls have their own hierarchy, separate from city clocks. */
-.market-timer { display: flex; flex-direction: column; justify-content: center; flex: 0 0 132px; gap: 2px; padding: 2px 8px; border: 0; border-left: 1px solid var(--line); background: transparent; text-align: left; line-height: 1; }
+.market-timer { display: flex; flex-direction: column; justify-content: center; flex: 0 0 148px; gap: 2px; padding: 2px 8px; border: 0; border-left: 1px solid var(--line); background: transparent; text-align: left; line-height: 1; }
 .market-timer:hover { background: var(--bg-4); }
 .market-timer-header, .market-timer-countdown { display: flex; align-items: center; justify-content: space-between; gap: 4px; white-space: nowrap; }
 .market-timer-name { display: inline-flex; align-items: center; gap: 4px; color: var(--amber); font-size: 9px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
 .market-timer-name::before { content: ''; width: 4px; height: 4px; background: var(--muted); }
-.market-timer-schedule { color: var(--muted); font-size: 9px; font-variant-numeric: tabular-nums; }
-.market-timer-action { color: var(--muted); font-size: 8px; letter-spacing: 0.04em; }
+.market-timer-schedule { color: var(--white); font-size: 10px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.market-timer-action { color: var(--text); font-size: 10px; font-weight: 500; letter-spacing: 0.04em; }
 .market-timer-value { color: var(--white); font-size: var(--fs-s); font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: 0; }
 .market-timer.is-open .market-timer-value { color: var(--up); }
 .market-timer.is-open .market-timer-name::before { background: var(--up); }
