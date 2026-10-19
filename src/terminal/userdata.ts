@@ -1,10 +1,14 @@
 import { createStore, loadJson, removeKey, saveJson } from '../core/store';
 import type { LayoutId, Route } from './types';
 import type { LinkGroup } from './state';
+import type { WatchlistSort } from '../data/watchlist-columns';
 
 export interface Watchlist {
   name: string;
   ids: string[];
+  /** Local field IDs in display order. Older lists retain the default columns. */
+  columns?: string[];
+  sort?: WatchlistSort;
 }
 
 export const watchlists = createStore<{ lists: Watchlist[]; active: number }>(

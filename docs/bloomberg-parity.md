@@ -1,8 +1,8 @@
-# Bloomberg workflow audit — Armin Terminal 2.7.0
+# Bloomberg workflow audit — Armin Terminal 2.9.0
 
-Audited 18 October 2026 against the registered commands, screen implementations, source adapters and calculation models. **Armin Terminal is not a 1:1 Bloomberg Terminal replacement.** This inventory covers all 72 commands in this release; it is not an inventory of every function in Bloomberg's proprietary product. Matching a mnemonic or opening a screen does not establish functional, visual or dataset parity.
+Reviewed 19 October 2026 against the registered commands, screen implementations, source adapters and calculation models. **Armin Terminal is not a 1:1 Bloomberg Terminal replacement.** This inventory covers all 72 commands in version 2.9.0; it is not an inventory of every function in Bloomberg's proprietary product. Matching a mnemonic or opening a screen does not establish functional, visual or dataset parity.
 
-Bloomberg's product overview is at <https://www.bloomberg.com/professional/products/bloomberg-terminal/>. Its website was blocked by this cloud's network policy during this audit. No licensed Bloomberg session, reference outputs, complete function specification or pixel-by-pixel comparison was available. The comparisons below concern the named workflows and their known data/convention requirements, not a certified comparison to a particular Bloomberg software version. Browser demo figures are excluded from real-data coverage.
+Bloomberg's [current product overview](https://professional.bloomberg.com/products/bloomberg-terminal/), [getting-started guide](https://data.bloomberglp.com/professional/sites/10/Getting-Started-Guide-for-Students-English.pdf) and public product documentation were accessible during the 19 October review. The [terminal fidelity audit](terminal-fidelity-audit.md) records primary references, presentation conventions, wider capability gaps and implementation priorities. No licensed Bloomberg session, reference outputs, complete function specification or pixel-by-pixel comparison was available. The comparisons below concern the named workflows and their known data/convention requirements, not a certified comparison to a particular Bloomberg software version. Browser demo figures are excluded from real-data coverage.
 
 ## Findings addressed in this release
 
@@ -30,7 +30,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | --- | --- | --- | --- |
 | `PROFILE` | DES security description | Partial: asset-specific profile and fundamentals, float and short interest, source-labelled analyst consensus for US stocks | Global instrument master, identifiers, issue terms and vendor fields are incomplete; no BEst consensus |
 | `FINANCIALS` | FA financial analysis | Partial: reported annual/quarterly statements and ratios | No Bloomberg-standardised global history, restatement database or complete line-item mapping |
-| `ANALYSTS` | ANR analyst research | Partial: independent FMP sections, Finnhub/Yahoo research fallbacks, eight Equibles datasets with automatic estimate fallback | Account/issuer coverage limits; no verified broker-target replacement, broker research documents or complete consensus universe |
+| `ANALYSTS` | ANR analyst research | Partial: independent FMP sections, Finnhub/Yahoo research fallbacks, eight Equibles datasets with automatic estimate fallback, optional on-demand TipRanks consensus/actions | Account/issuer coverage and quota limits; no verified broker-target replacement, broker research documents or complete consensus universe |
 | `EARNINGS` | EE earnings estimates | Partial: reported EPS/revenue, close-to-close price reaction per report, Finnhub quarterly EPS comparisons and annual estimates | No full quarterly consensus history, estimate contributors or revisions surface |
 | `DIVIDENDS` | DVD dividend analysis | Partial: ex-date cash history with splits, derived yield and 5-year growth | Missing declaration/record/payment dates and comprehensive forecasts/actions |
 | `HOLDERS` | HDS ownership | Partial: institution/fund filing snapshots | No complete ownership intelligence, beneficial ownership history or all asset classes |
@@ -48,7 +48,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `RETURNS` | COMP comparison | Partial: rebased price returns | No comprehensive total-return/currency/hedging framework |
 | `TOTALRETURN` | TRA total return | Partial: paid-dividend reinvestment and benchmarks | Some indices are price-only; no complete corporate-action treatment |
 | `SPREAD` | HS relative history | Model: spreads/ratios and distribution statistics | Not a credit spread database or universal relative-value engine |
-| `BETA` | BETA regression | Model: 2Y weekly (Friday-ending weeks) raw/adjusted beta, alpha, R² and standard error against the country's index; daily/monthly and 6M-5Y selectable | No BEL20 line yet (Belgium uses the STOXX Europe 600); limited data history coverage |
+| `BETA` | BETA regression | Model: 2Y weekly (Friday-ending weeks) raw/adjusted beta, alpha, R² and standard error against the country's index, including BEL 20; daily/monthly and 6M-5Y selectable | Limited data history, benchmark and adjustment coverage; no licensed reference-output comparison |
 | `VOLATILITY` | HVT volatility | Model: realised rolling volatility and percentiles | No market implied surface, skew/term structure or volatility cube |
 | `HEADLINES` | Official/government announcements (`TOP` opens `MARKETNEWS`) | Partial: official central-bank/statistics/regulator announcements, also 4) Official on `MARKETNEWS` | No Bloomberg News wire or full-text newsroom/archive |
 | `NEWS` | N news search | Partial: keyword/topic search of fetched announcements | No global licensed archive, advanced news classification or full-text search |
@@ -72,7 +72,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `BONDS` | WB bond-market monitor | Partial: selected official government par yields | No complete country/credit markets or tradable individual bond prices |
 | `CURVE` | GC yield curves | Partial: selected official par-curve history | No full curve builder/bootstrap/instrument/contributor framework |
 | `MONEYMARKET` | BTMM money markets | Partial: Fed/NYFed/bills/SOFR futures | No global cash/deposit/CD/CP instrument/dealer universe |
-| `BONDCALC` | YAS yield/spread analysis | Model: regular bullet price/yield/risk, G/Z-spread and scenarios | No OAS, calls/puts, stubs, defaults, inflation/floating conventions or observed issue/dealer data |
+| `BONDCALC` | YAS yield/spread analysis | Model: regular bullet price/yield/risk, five day counts, manual or lagged settlement, G/Z-spread and scenarios | Settlement skips weekends only; no OAS, calls/puts, stubs, defaults, inflation/floating conventions or observed issue/dealer data |
 | `RATEPROBS` | WIRP policy expectations | Model: Fed path inferred from futures | Fed only; not all central banks or a probability guarantee |
 | `SWAPCALC` | SWPM swap valuation | Model: dual-curve forward-start common-frequency fixed/float | No past fixings, OIS compounding, calendars, leg-specific schedules, collateral/XVA or live dealer curves |
 | `CENTRALBANKS` | CENB central-bank monitor | Partial: selected official rates/calendars | Limited countries; some calendar dates maintained manually |
@@ -88,7 +88,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `OPTIONCALC` | OVME option valuation | Model: European/American value/IV, exercise premium, Greeks, grid diagnostics, scenarios and CSV | No exotics, discrete cash dividends, fitted market surface, margin/assignment or complete exchange conventions |
 | `OPTIONSTRATEGY` | OSA option strategy | Model: common-expiry multi-leg + stock risk/scenarios | No different-expiry calendars, American exercise/assignment, margin, funding or live strategy execution |
 | `WATCHLIST` | W/Launchpad monitors | Local tool: editable lists and source prices | No shared enterprise monitors or arbitrary Bloomberg data columns |
-| `PORTFOLIO` | PORT portfolio analytics | Partial: manual holdings/cash, historical-FX replay, exact-date VaR/ES, signed hedge contributions, tracking error, per-line stress and CSV | No institutional position/corporate-action reconciliation, full transaction ledger, factor attribution, multi-asset derivatives or enterprise risk |
+| `PORTFOLIO` | PORT portfolio analytics | Partial: manual holdings/cash, five base currencies, entry-FX metadata, historical-FX replay, exact-date VaR/ES, signed hedge contributions, tracking error, per-line stress and CSV | No institutional position/corporate-action reconciliation, full transaction ledger, factor attribution, multi-asset derivatives or enterprise risk |
 | `ALERTS` | ALRT alerts | Local tool: prices, changes and announcement keywords while open | No server-side alerts when closed, mobile push or enterprise notification service |
 | `CORRELATION` | CORR correlation | Model: daily-return correlation matrix | No factor model, covariance service, optimisation or full data universe |
 | `SEARCH` | SECF security lookup | Partial: local universe and online equity search | No universal instrument/identifier/issue master |
@@ -111,4 +111,4 @@ The optional Alpaca stock feed is **IEX only**, one US exchange. It is not conso
 
 ## Verification boundary
 
-Unit tests check model mathematics against independent cash flows/payoffs, pagination, refusals, linking history/compatibility and field/snapshot provenance. Browser checks cover each registered command, calculator interactions, linked layout persistence and field CSV. Electron tests exercise the actual preload, IPC validators, broker and UI with deterministic provider responses, including linking and stale/missing field data; they are not live-feed validation. See [release-v2.7.0.md](release-v2.7.0.md) for the current build/test record and remaining environment restrictions.
+Unit tests check model mathematics against independent cash flows/payoffs, pagination, refusals, linking history/compatibility and field/snapshot provenance. Browser checks cover each registered command, calculator interactions, linked layout persistence and field CSV. Electron tests exercise the actual preload, IPC validators, broker and UI with deterministic provider responses, including linking and stale/missing field data; they are not live-feed validation. See [release-v2.9.0.md](release-v2.9.0.md) and [release-v2.8.1.md](release-v2.8.1.md) for those releases' build/test records. This documentation review does not independently repeat or upgrade those verification claims.
