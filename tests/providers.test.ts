@@ -302,7 +302,9 @@ describe('provider accounting for the status page', () => {
 
 describe('daily allowances and refusals of the keyed sources', () => {
   it('keeps every daily allowance below the free plan, and counts requests', () => {
-    for (const d of Object.values(providers.DAILY)) expect(d.cap).toBeLessThan(d.limit);
+    // A provider without a daily limit (Anthropic bills per use) still has the app's own ceiling.
+    for (const d of Object.values(providers.DAILY)) if (d.limit != null) expect(d.cap).toBeLessThan(d.limit);
+    expect(providers.DAILY.anthropic).toEqual({ limit: null, cap: 400 });
     expect(providers.DAILY.fmp).toEqual({ limit: 250, cap: 220 });
     expect(providers.DAILY.marketaux).toEqual({ limit: 100, cap: 90 });
     const before = providers.usedToday('marketaux');

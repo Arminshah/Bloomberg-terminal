@@ -32,6 +32,8 @@ const CREDENTIALS = {
   EQUIBLES_API_KEY: { label: 'Equibles API key', valid: (v) => /^eq_[A-Za-z0-9]{24,128}$/.test(v) },
   // TipRanks: analyst consensus, price targets and rating actions on ANALYSTS, on request (electron/tipranks.cjs).
   TIPRANKS_API_KEY: { label: 'TipRanks API key', valid: (v) => /^tr_(live|test)_[A-Za-z0-9]{16,80}$/.test(v) && !/^tr_(live|test)_x+$/i.test(v) },
+  // Anthropic: Claude answers the help desk's questions (MESSAGES) with the app's data as tools.
+  ANTHROPIC_API_KEY: { label: 'Anthropic API key (Claude help desk)', valid: (v) => /^sk-ant-[A-Za-z0-9_-]{20,250}$/.test(v) && !/^sk-ant-x+$/i.test(v) },
   // The SEC asks for an application name and a contact email it can reach.
   SEC_USER_AGENT: {
     label: 'SEC User-Agent (application name and your contact email)',
@@ -165,6 +167,7 @@ const SETTINGS = {
   FMP_ENABLED: { label: 'Financial Modeling Prep analyst research', default: true },
   EQUIBLES_ENABLED: { label: 'Equibles company research (read only)', default: true },
   TIPRANKS_ENABLED: { label: 'TipRanks analyst consensus, targets and rating actions (on request)', default: true },
+  CLAUDE_HELPDESK_ENABLED: { label: 'Claude answers help desk questions (sends them to Anthropic)', default: true },
   FINNHUB_ENABLED: { label: 'Finnhub company data, recommendations and news', default: true },
   MARKETAUX_ENABLED: { label: 'Marketaux news and sentiment', default: true },
   ALPACA_ENABLED: { label: 'Alpaca IEX stocks and indicative options (market data only)', default: true },
@@ -256,6 +259,7 @@ const ALIASES = [
   [/financial[\s_-]*modeling[\s_-]*prep|\bfmp\b|fmp_api_key/i, 'FMP_API_KEY'],
   [/tipranks/i, 'TIPRANKS_API_KEY'],
   [/equibles/i, 'EQUIBLES_API_KEY'],
+  [/anthropic|claude/i, 'ANTHROPIC_API_KEY'],
 ];
 
 /** The SEC contact from a line such as "SEC_USER_AGENT: Name: Ann Example e-mail: ann@mail.org". */
@@ -389,6 +393,8 @@ const DAILY = {
   equibles: { limit: 100, cap: 90 },
   marketaux: { limit: 100, cap: 90 },
   tiingo: { limit: 1000, cap: 500 },
+  // Anthropic bills by use rather than limiting requests: the app's ceiling bounds a day's cost (a question takes 1 to 8).
+  anthropic: { limit: null, cap: 400 },
 };
 
 const TODAY_FILE = () => (app?.getPath ? path.join(app.getPath('userData'), 'provider-requests-today.json') : null);

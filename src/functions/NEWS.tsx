@@ -9,11 +9,10 @@ import { desktopData } from '../data/live/yahoo';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 import { CompanyNews, feedWord, StoryList } from './MNEWS';
-import { loadNews, MARKET_SOURCES, marketNews, mergeStories, newsAvailable, officialStories, storiesFor, useMarketNews } from '../data/live/marketnews';
+import { loadNews, MARKET_SOURCES, marketNews, mergeStories, newsAvailable, officialStories, SEARCHABLE, storiesFor, useMarketNews } from '../data/live/marketnews';
 import { execute } from '../terminal/exec';
 
 // The searches Google is asked for (the main process checks them again): words, digits, quotes, $, %, & and the like.
-const SEARCHABLE = /^["\p{L}\p{N}$][\p{L}\p{N} &'’".:$%/+-]{1,79}$/u;
 
 /**
  * NEWS <words>: every story the app holds whose headline or summary has all the words (market news from each

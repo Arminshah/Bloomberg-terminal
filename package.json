@@ -126,5 +126,8 @@
     "deb": {
       "artifactName": "armin-terminal_${version}_amd64.${ext}"
     }
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.131.0"
   }
 }

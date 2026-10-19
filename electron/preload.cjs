@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   finnhubResearch: (kind, symbol) => ipcRenderer.invoke('finnhub-research', String(kind), String(symbol)),
   equibles: (kind, symbol) => ipcRenderer.invoke('equibles', String(kind), String(symbol)),
   tipranks: (kind, ticker) => ipcRenderer.invoke('tipranks', String(kind), String(ticker)),
+  assistant: (messages) => ipcRenderer.invoke('assistant', messages),
   finnhub: (kind, symbol) => ipcRenderer.invoke('finnhub', String(kind), String(symbol)),
   news: (source, arg) => ipcRenderer.invoke('news', String(source), String(arg ?? '')),
   alpaca: (kind, symbols) => ipcRenderer.invoke('alpaca', String(kind), String(symbols)),

@@ -502,6 +502,9 @@ function retryLater(key: string, minMs: number) {
 
 const isoDay = (t: number) => new Date(t).toISOString().slice(0, 10);
 
+/** Words Google News's search accepts from NEWS and the help desk (the main process checks them again). */
+export const SEARCHABLE = /^["\p{L}\p{N}$][\p{L}\p{N} &'’".:$%/+-]{1,79}$/u;
+
 /** Google News editions MARKETNEWS searches for the day's market news. */
 export const MARKET_EDITIONS = ['US:en', 'GB:en'];
 

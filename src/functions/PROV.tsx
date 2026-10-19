@@ -228,6 +228,7 @@ const SWITCHES: { name: SettingName; help: string }[] = [
   { name: 'FINNHUB_ENABLED', help: 'Finnhub profiles/ratios fallback, monthly recommendations, quarterly EPS comparisons, next-report calendar and news. Use the REST API key, not the webhook secret.' },
   { name: 'TIPRANKS_ENABLED', help: 'TipRanks analyst consensus, average price target and rating actions on ANALYSTS, only when you click. Free plan: 50 calls a month for the whole account; the app stops at 45. Answers stay in memory for an hour, as TipRanks\' terms allow. Data by TipRanks.' },
   { name: 'EQUIBLES_ENABLED', help: 'Read-only Equibles company research on ANALYSTS. One estimate report can load as a fallback; other datasets are manual. Free account: 100 calls/day shared with REST/MCP clients. No trading or portfolio writes.' },
+  { name: 'CLAUDE_HELPDESK_ENABLED', help: 'With ANTHROPIC_API_KEY set, Claude answers the help desk\'s questions (MESSAGES), reading prices, earnings, filings, analysts and news through the app\'s own sources. Your questions and the figures it looks up go to Anthropic. Off, or without the key, the built-in assistant answers.' },
   { name: 'MARKETAUX_ENABLED', help: 'Ticker-tagged news with sentiment from Marketaux, while MARKETAUX_API_TOKEN is set. Its free plan allows 100 requests a day.' },
   { name: 'ALPACA_ENABLED', help: "Alpaca's IEX quotes on QUOTE, and Benzinga's news through Alpaca on MARKETNEWS, COMPANYNEWS and QUOTE, while both Alpaca keys are set. Market data only: the app never calls a trading endpoint." },
   { name: 'ALPACA_IEX_PRICES_ENABLED', help: 'Use IEX-only prices for US stocks across watchlists and panels. Requires Alpaca enabled and both keys. Reload to apply. History is limited to the previous/current IEX bars and snapshots observed while the app is open; long Yahoo price history is not combined with this feed. IEX is one exchange, with its own volume and daily changes.' },
@@ -297,6 +298,7 @@ const CREDENTIALS: { name: Credential; help: string; secret: boolean; placeholde
   { name: 'MARKETAUX_API_TOKEN', help: 'Token from your Marketaux account: news tagged with tickers and sentiment. Free plan: 100 requests a day.', secret: true, placeholder: 'API token' },
   { name: 'ALPACA_API_KEY_ID', help: 'Key ID from your Alpaca account (paper keys start with PK): IEX quotes on QUOTE. Used for market data only, never for trading.', secret: true, placeholder: 'Key ID' },
   { name: 'ALPACA_API_SECRET_KEY', help: 'The secret that goes with the Alpaca key ID.', secret: true, placeholder: 'Secret key' },
+  { name: 'ANTHROPIC_API_KEY', help: 'API key from console.anthropic.com for the Claude help desk (MESSAGES). Billed by Anthropic per use: a question costs about 1 to 8 requests to Claude Opus 5.5 ($4 per million tokens in, $20 out); the app stops at 400 requests a day.', secret: true, placeholder: 'sk-ant-…' },
   { name: 'TIPRANKS_API_KEY', help: 'TipRanks MCP key (tr_live_…) for analyst consensus, targets and rating actions on ANALYSTS. Each click costs one of the account\'s monthly calls (50 on the free plan).', secret: true, placeholder: 'tr_live_…' },
 ];
 

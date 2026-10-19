@@ -41,6 +41,7 @@ declare global {
       finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
       equibles?(kind: import('./equibles').ResearchKind, symbol: string): Promise<KeyedAnswer>;
       tipranks?(kind: 'consensus' | 'ratings' | 'usage', ticker: string): Promise<KeyedAnswer>;
+      assistant?(messages: unknown[]): Promise<import('../assistant/types').AssistantAnswer>;
       finnhub?(kind: 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'quote', symbol: string): Promise<KeyedAnswer>;
       news?(source: import('./marketnews').NewsSource, arg?: string): Promise<KeyedAnswer>;
       alpaca?(kind: 'snapshots', symbols: string): Promise<KeyedAnswer>;

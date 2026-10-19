@@ -23,7 +23,8 @@ export type Credential =
   | 'ALPACA_API_SECRET_KEY'
   | 'FMP_API_KEY'
   | 'EQUIBLES_API_KEY'
-  | 'TIPRANKS_API_KEY';
+  | 'TIPRANKS_API_KEY'
+  | 'ANTHROPIC_API_KEY';
 
 /**
  * enabled: in use; needs-credential: in use once its key is configured;
@@ -713,6 +714,24 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'anthropic',
+    name: 'Anthropic (Claude help desk)',
+    serves: 'Answers to open questions on MESSAGES: Claude reads prices, earnings, filings, analysts and news through the app\'s own sources as tools',
+    dataClass: 'Generated answers from the figures the app looked up, each with its source',
+    policy: 'needs-credential',
+    credential: 'ANTHROPIC_API_KEY',
+    setting: 'CLAUDE_HELPDESK_ENABLED',
+    limit: '400/day',
+    terms: 'Messages API with your own key, billed by Anthropic per token (Claude Opus 5.5: $4 per million input tokens, $20 per million output; the instructions and tools are cached after the first question). Your questions and the figures the tools return are sent to Anthropic; the key stays in the main process. The request names a server-side fallback, so an overloaded model is replaced by another rather than failing. The app stops at 400 requests a day; a question takes 1 to 8.',
+    docs: [
+      { label: 'Messages API', url: 'https://docs.claude.com/en/api/messages' },
+      { label: 'Pricing', url: 'https://www.anthropic.com/pricing#api' },
+      { label: 'Commercial terms', url: 'https://www.anthropic.com/legal/commercial-terms' },
+    ],
+    checked: '2026-10-19',
+    desktop: true,
+  },
+  {
     id: 'coinbase',
     name: 'Coinbase Exchange (browser build)',
     serves: 'Nothing: switched off',
@@ -760,7 +779,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED' | 'GOOGLE_NEWS_RSS_ENABLED' | 'MASSIVE_NEWS_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED' | 'GOOGLE_NEWS_RSS_ENABLED' | 'MASSIVE_NEWS_ENABLED' | 'CLAUDE_HELPDESK_ENABLED';
 
 export interface SettingState {
   label: string;

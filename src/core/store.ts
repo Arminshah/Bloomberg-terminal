@@ -141,3 +141,28 @@ export function clearPersisted() {
     /* ignore */
   }
 }
+
+/**
+ * Resolves with `read()`'s value once it gives one, checking again each time the store changes, or with whatever
+ * it gives after `ms`: for code that asks for data and needs the answer, not a re-render.
+ */
+export function waitFor<T>(store: Pick<Store<unknown>, 'subscribe'>, read: () => T | undefined, ms = 8000): Promise<T | undefined> {
+  const first = read();
+  if (first !== undefined) return Promise.resolve(first);
+  return new Promise((resolve) => {
+    let done = false;
+    let off = () => {};
+    const finish = (v: T | undefined) => {
+      if (done) return;
+      done = true;
+      off();
+      clearTimeout(timer);
+      resolve(v);
+    };
+    const timer = setTimeout(() => finish(read()), ms);
+    off = store.subscribe(() => {
+      const v = read();
+      if (v !== undefined) finish(v);
+    });
+  });
+}

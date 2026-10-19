@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createStore } from '../../core/store';
+import { createStore, waitFor } from '../../core/store';
 import type { SecurityDef } from '../types';
 import { secTicker } from './sec';
 import type { KeyedAnswer } from './lookup';
@@ -296,6 +296,19 @@ async function load(symbol: string, kind: AnalystKind) {
     asked.delete(key);
     put(symbol, kind, { state: 'error', message: err instanceof Error ? 'The research request could not be completed.' : 'Research unavailable.' });
   }
+}
+
+/**
+ * Asks for some research and resolves once every part has an answer, or after `ms` with what has arrived: for the
+ * help desk, which answers with the figures rather than re-rendering.
+ */
+export async function requestAnalysts(def: SecurityDef | undefined, kinds: AnalystKind[], ms = 12_000): Promise<ByKind> {
+  const symbol = analystSymbol(def);
+  if (!symbol || !analystsAvailable()) return {};
+  for (const k of kinds) void load(symbol, k);
+  const parts = () => analystData.get().by[symbol] ?? {};
+  const settled = () => (kinds.every((k) => parts()[k] && parts()[k]!.state !== 'loading') ? parts() : undefined);
+  return (await waitFor(analystData, settled, ms)) ?? parts();
 }
 
 /** Asks for the research a screen shows; parts arrive in analystData. */

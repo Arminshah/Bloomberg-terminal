@@ -860,6 +860,9 @@ a.news-item { color: inherit; text-decoration: none; }
 .msg .who { font-size: var(--fs-s); color: var(--amber); }
 .msg .who time { color: var(--muted); margin-left: 6px; }
 .msg .txt { font-family: var(--sans); font-size: var(--fs-l); background: #131313; border: 1px solid var(--line); padding: 4px 8px; color: var(--text); white-space: pre-wrap; }
+.msg-links { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; white-space: normal; font-size: var(--fs-s); }
+.msg-links a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-cmds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; white-space: normal; }
 .msg.me { align-self: flex-end; }
 .msg.me .txt { background: #2a1a05; border-color: var(--amber-dim); }
 .chat-input { display: flex; gap: 6px; padding: 6px; border-top: 1px solid var(--line); }

@@ -132,6 +132,10 @@ export interface ChatMessage {
   from: string;
   text: string;
   at: number;
+  /** Screens the help desk offers with its answer, as terminal commands. */
+  commands?: { label: string; command: string }[];
+  /** Documents and stories the answer cites. */
+  links?: { label: string; url: string }[];
 }
 
 export interface ChatRoom {

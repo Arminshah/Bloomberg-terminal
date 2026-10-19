@@ -626,6 +626,28 @@ ipcMain.handle('option-chain', async (event, arg) => {
   return keyedGet('alpaca', url, alpaca.alpacaHeaders(id.value, secret.value), 15_000, [120, 60_000], [id.value, secret.value]);
 });
 
+// The help desk's Claude mode (electron/assistant.cjs): one request per call; the page runs the tools between calls.
+const assistant = require('./assistant.cjs');
+let claude = null;
+ipcMain.handle('assistant', async (event, messages) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  if (!providers.setting('CLAUDE_HELPDESK_ENABLED').value) return { gated: 'CLAUDE_HELPDESK_ENABLED' };
+  const key = usableKey('ANTHROPIC_API_KEY', 'anthropic');
+  if (!key.value) return key;
+  const problem = assistant.checkMessages(messages);
+  if (problem) return { error: problem };
+  if (!providers.withinDailyCap('anthropic')) return { budget: true };
+  if (claude?.key !== key.value) {
+    const { Anthropic } = require('@anthropic-ai/sdk');
+    claude = { key: key.value, client: new Anthropic({ apiKey: key.value, fetch: (url, init) => tracked('anthropic', url, init), maxRetries: 2, timeout: 120_000 }) };
+  }
+  try {
+    return await assistant.ask(claude.client, messages);
+  } catch (err) {
+    return { error: assistant.errorText(err, key.value) };
+  }
+});
+
 // ------------------------------------------------- Yahoo cookie consent
 // Yahoo's quote and company endpoints need a session cookie and "crumb". In the EU, Yahoo first asks the
 // visitor to accept its cookies, so a program gets no usable cookie and those endpoints refuse it. This opens
