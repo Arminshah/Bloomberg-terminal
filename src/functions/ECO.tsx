@@ -15,7 +15,7 @@ import { FRED_NOTICE, FRED_TERMS_URL } from '../data/macroseries';
 import { RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { levelOn, policyRates } from '../data/live/policy';
-import { COMPUTED_GROWTH, COUNTRY_STATS, figurePeriod, figureStatus, fredData, US_EVENTS, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
+import { COMPUTED_GROWTH, COUNTRY_STATS, EUROSTAT_MEMBERS, figurePeriod, figureStatus, fredData, US_EVENTS, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
 
 const COUNTRIES = ['US', 'EZ', 'DE', 'GB', 'JP', 'CN', 'CA', 'AU'];
 /** The desktop app's calendar: US releases from FRED and the central banks with their own data. */
@@ -215,6 +215,7 @@ export function ECO(_: FnProps) {
 /** Market lines for countries only the desktop app's ECST lists. */
 const EXTRA_MARKETS: Record<string, { y10?: string; idx?: string; ccy?: string }> = {
   NL: { idx: 'AEX Index', ccy: 'EURUSD Curncy' },
+  BE: { idx: 'BEL20 Index', ccy: 'EURUSD Curncy' },
 };
 
 const STATS: Record<string, { gdp: number; cpi: number; un: number; y10?: string; idx?: string; ccy?: string }> = {
@@ -276,7 +277,7 @@ function ECSTReal() {
   const needsKey = fredData.use((x) => x.needsKey);
   const keyRefused = fredData.use((x) => x.keyRefused);
   const cbs = centralBanks();
-  const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES', 'NL'].includes(c) ? 'EZ' : c))?.rate;
+  const policy = (c: string) => cbs.find((b) => b.country === (EUROSTAT_MEMBERS.includes(c) ? 'EZ' : c))?.rate;
   const market = (id?: string) => (id && engine.hasSource(id) ? id : undefined);
   // The Fed sets a target range: shown whole, with the real rate worked out from its upper limit.
   const fed = policyRates.get().fedLower;
@@ -368,7 +369,7 @@ function ECSTReal() {
 function ECSTSim(_: FnProps) {
   useInterval(2000);
   const cbs = centralBanks();
-  const policy = (c: string) => cbs.find((b) => b.country === (['DE', 'FR', 'IT', 'ES', 'NL'].includes(c) ? 'EZ' : c))?.rate;
+  const policy = (c: string) => cbs.find((b) => b.country === (EUROSTAT_MEMBERS.includes(c) ? 'EZ' : c))?.rate;
   const rows = Object.entries(STATS).map(([c, s]) => ({ c, ...s, rate: policy(c) }));
   return (
     <div>

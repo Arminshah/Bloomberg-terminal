@@ -406,7 +406,8 @@ export const COUNTRY_NAMES: Record<string, string> = {
   US: 'United States', EZ: 'Eurozone', DE: 'Germany', GB: 'United Kingdom', JP: 'Japan', CN: 'China', CA: 'Canada', AU: 'Australia',
   FR: 'France', IT: 'Italy', ES: 'Spain', CH: 'Switzerland', IN: 'India', BR: 'Brazil', MX: 'Mexico', KR: 'South Korea', HK: 'Hong Kong',
   TW: 'Taiwan', NL: 'Netherlands', DK: 'Denmark', SG: 'Singapore', EU: 'Euro Area', ZA: 'South Africa', TR: 'Turkey', SE: 'Sweden',
-  NO: 'Norway', NZ: 'New Zealand', XX: 'Global',
+  NO: 'Norway', NZ: 'New Zealand', BE: 'Belgium', PT: 'Portugal', AT: 'Austria', IE: 'Ireland', PL: 'Poland', CZ: 'Czechia',
+  XX: 'Global',
 };
 
 /** Releases due in the next `ms` window (for flash headlines). */

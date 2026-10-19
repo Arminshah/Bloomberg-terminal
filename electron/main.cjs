@@ -220,8 +220,10 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const { fetchFedPress } = require('./official-feeds.cjs');
 
 const EUROSTAT = 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data';
-// The euro area under its current and possible future aggregate codes, and the largest members.
-const EUROSTAT_GEO = ['EA', 'EA21', 'EA22', 'EA23', 'DE', 'FR', 'IT', 'ES', 'NL'].map((g) => `geo=${g}`).join('&');
+// The euro area under its current and possible future aggregate codes, the largest members, and Belgium. With geo=BE
+// all three requests below answered on 18 Oct 2026 with Belgium's figures: HICP 4.5% for Sep 2026, unemployment
+// 5.9% for Aug 2026, GDP growth 0.5% for 2026 Q2 (flagged provisional).
+const EUROSTAT_GEO = ['EA', 'EA21', 'EA22', 'EA23', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE'].map((g) => `geo=${g}`).join('&');
 
 function boeSeries(codes, since) {
   const [y, m, d] = since.split('-');

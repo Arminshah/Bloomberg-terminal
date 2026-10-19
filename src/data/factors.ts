@@ -92,7 +92,7 @@ export function factorLoadings(def: SecurityDef, risk = 0): Loadings {
       break;
     case 'fx': {
       // Currency USD values: a stronger dollar lowers every other currency.
-      const bloc = ['EUR', 'CHF', 'SEK', 'NOK', 'GBP'].includes(def.ticker) ? 0.45 : 0;
+      const bloc = ['EUR', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'GBP'].includes(def.ticker) ? 0.45 : 0;
       const usd = def.ticker === 'HKD' ? -0.05 : -0.62;
       raw = [['USD', usd], ['G', risk * 0.5], ['FX:EUROPE', bloc]];
       break;

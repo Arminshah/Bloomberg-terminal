@@ -12,9 +12,10 @@ import { openSecurity } from '../components/cells';
 import { realFutureContract } from '../data/realfut';
 import type { FnProps } from '../terminal/types';
 
-const GROUPS: { name: string; ids: string[] }[] = [
+/** MARKET's regions and their indices, in the order shown. */
+export const INDEX_GROUPS: { name: string; ids: string[] }[] = [
   { name: 'Americas', ids: ['INDU Index', 'SPX Index', 'CCMP Index', 'NDX Index', 'RTY Index', 'SPTSX Index', 'MEXBOL Index', 'IBOV Index'] },
-  { name: 'EMEA', ids: ['SX5E Index', 'SXXP Index', 'UKX Index', 'DAX Index', 'CAC Index', 'SMI Index', 'IBEX Index', 'FTSEMIB Index', 'AEX Index'] },
+  { name: 'EMEA', ids: ['SX5E Index', 'SXXP Index', 'UKX Index', 'DAX Index', 'CAC Index', 'SMI Index', 'IBEX Index', 'FTSEMIB Index', 'AEX Index', 'BEL20 Index', 'OMX Index', 'ATX Index', 'PSI20 Index', 'ISEQ Index'] },
   { name: 'Asia/Pacific', ids: ['NKY Index', 'HSI Index', 'SHCOMP Index', 'SHSZ300 Index', 'KOSPI Index', 'TWSE Index', 'AS51 Index', 'SENSEX Index', 'NIFTY Index', 'STI Index'] },
 ];
 
@@ -39,7 +40,7 @@ export function WEI({ route }: FnProps) {
   const panel = usePanelId();
   const now = engine.now();
   const region = REGION_ARGS[route.args?.trim().toUpperCase() ?? ''];
-  const groups = region ? GROUPS.filter((g) => g.name === region) : GROUPS;
+  const groups = region ? INDEX_GROUPS.filter((g) => g.name === region) : INDEX_GROUPS;
   return (
     <div>
       <FnHeader code="MARKET" title="World Equity Indices" sub={`${region ?? 'Standard view'} · values in local currency${route.args && !region ? ` · no region "${route.args}": try US, EUROPE or ASIA` : ''}`} />

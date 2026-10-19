@@ -28,6 +28,16 @@ export const INDICES: SecurityDef[] = [
   idx('IBEX', 'IBEX 35 INDEX', 'ES', 'EMEA', 'EUR', 15000, 0.17, '^IBEX', 'Benchmark index of the 35 most liquid Spanish stocks.'),
   idx('FTSEMIB', 'FTSE MIB INDEX', 'IT', 'EMEA', 'EUR', 42000, 0.19, 'FTSEMIB.MI', 'Benchmark index of the 40 most traded stocks on Borsa Italiana.'),
   idx('AEX', 'AEX-Index', 'NL', 'EMEA', 'EUR', 920, 0.16, '^AEX', 'Index of the 25 most actively traded companies on Euronext Amsterdam.'),
+  // Each Yahoo symbol below answered its chart endpoint with the index, its currency and exchange, and five years
+  // of daily closes on 18 Oct 2026: ^BFX "BEL 20" 5,586.04 EUR (Brussels), ^OMX "OMX Stockholm 30 Index" 3,296.84
+  // SEK (Stockholm), PSI20.LS "PSI" 9,468.47 EUR (Lisbon), ^ATX "ATX" 6,557.32 EUR (Vienna) and ^ISEQ "ISEQ All
+  // Share" 14,187.83 EUR (Irish), closes of 16 Oct. Oslo's OBX (OBX.OL) is left out: Yahoo gave its price but no
+  // daily history (one bar at any range), so it would have no YTD, no chart and no calibration.
+  idx('BEL20', 'BEL 20 INDEX', 'BE', 'EMEA', 'EUR', 5600, 0.15, '^BFX', 'Index of the 20 largest and most liquid companies on Euronext Brussels.'),
+  idx('OMX', 'OMX STOCKHOLM 30 INDEX', 'SE', 'EMEA', 'SEK', 3300, 0.17, '^OMX', 'Market-capitalisation-weighted index of the 30 most actively traded stocks on Nasdaq Stockholm.'),
+  idx('ATX', 'AUSTRIAN TRADED ATX INDX', 'AT', 'EMEA', 'EUR', 6600, 0.19, '^ATX', 'Capitalisation-weighted index of the 20 most traded stocks on the Vienna Stock Exchange.'),
+  idx('PSI20', 'PSI INDEX', 'PT', 'EMEA', 'EUR', 9500, 0.14, 'PSI20.LS', 'Benchmark index of the largest and most liquid companies listed on Euronext Lisbon.'),
+  idx('ISEQ', 'ISEQ ALL SHARE INDEX', 'IE', 'EMEA', 'EUR', 14200, 0.19, '^ISEQ', 'Capitalisation-weighted index of the shares listed on Euronext Dublin.'),
   idx('NKY', 'NIKKEI 225', 'JP', 'APAC', 'JPY', 45000, 0.22, '^N225', 'Price-weighted index of 225 large companies on the Tokyo Stock Exchange Prime market.'),
   idx('HSI', 'HANG SENG INDEX', 'HK', 'APAC', 'HKD', 26000, 0.24, '^HSI', 'Free-float capitalisation-weighted index of the largest companies listed in Hong Kong.'),
   idx('SHCOMP', 'SHANGHAI SE COMPOSITE', 'CN', 'APAC', 'CNY', 3900, 0.18, '000001.SS', 'All A-shares and B-shares listed on the Shanghai Stock Exchange.'),
@@ -77,6 +87,9 @@ export const CURRENCIES: CurrencyDef[] = [
   { code: 'ZAR', name: 'South African Rand', country: 'ZA', region: 'EMEA', perUsd: 17.5, vol: 0.14, risk: 0.55, bank: 'South African Reserve Bank' },
   { code: 'TRY', name: 'Turkish Lira', country: 'TR', region: 'EMEA', perUsd: 44, vol: 0.10, risk: 0.2, bank: 'Central Bank of the Republic of Turkey' },
   { code: 'DKK', name: 'Danish Krone', country: 'DK', region: 'EMEA', perUsd: 6.664, vol: 0.07, risk: 0.1, bank: 'Danmarks Nationalbank' },
+  // PLN=X (USD/PLN 3.8852) and CZK=X (USD/CZK 21.626) answered Yahoo's chart endpoint on 18 Oct 2026.
+  { code: 'PLN', name: 'Polish Zloty', country: 'PL', region: 'EMEA', perUsd: 3.885, vol: 0.11, risk: 0.35, bank: 'Narodowy Bank Polski' },
+  { code: 'CZK', name: 'Czech Koruna', country: 'CZ', region: 'EMEA', perUsd: 21.63, vol: 0.09, risk: 0.25, bank: 'Czech National Bank' },
   { code: 'TWD', name: 'Taiwan Dollar', country: 'TW', region: 'APAC', perUsd: 30.6, vol: 0.05, risk: 0.25, bank: 'Central Bank of the Republic of China (Taiwan)' },
 ];
 
@@ -85,6 +98,11 @@ const FX_PAIRS: [string, string][] = [
   ['EUR', 'GBP'], ['EUR', 'JPY'], ['EUR', 'CHF'], ['GBP', 'JPY'], ['AUD', 'JPY'], ['USD', 'CNH'], ['USD', 'HKD'],
   ['USD', 'SGD'], ['USD', 'INR'], ['USD', 'KRW'], ['USD', 'MXN'], ['USD', 'BRL'], ['USD', 'ZAR'], ['USD', 'TRY'],
   ['USD', 'SEK'], ['USD', 'NOK'], ['USD', 'CNY'], ['USD', 'TWD'],
+  // The Nordic and central European currencies against the dollar and as Europe quotes them, against the euro.
+  // DKK=X, PLN=X, CZK=X, EURSEK=X (11.1393), EURNOK=X (10.5946), EURDKK=X (7.4749), EURPLN=X (4.3679) and
+  // EURCZK=X (24.309) answered Yahoo's chart endpoint on 18 Oct 2026.
+  ['USD', 'DKK'], ['USD', 'PLN'], ['USD', 'CZK'],
+  ['EUR', 'SEK'], ['EUR', 'NOK'], ['EUR', 'DKK'], ['EUR', 'PLN'], ['EUR', 'CZK'],
 ];
 
 const CCY = new Map(CURRENCIES.map((c) => [c.code, c]));
