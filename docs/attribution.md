@@ -15,12 +15,14 @@ What each provider asks for when its data is shown, and where the app shows it. 
 | Reserve Bank of Australia | CC BY 4.0 with the RBA attributed | Credit lines on `CENTRALBANKS`, `BONDS` and `CURVE` |
 | Federal Reserve Board | Cite the Board as the source | Credit lines on `CENTRALBANKS` and `RATEPROBS` |
 | New York Fed, US Treasury, Ministry of Finance Japan, Swiss National Bank, Banco Central do Brasil | Terms not fully reviewed (see data-providers.md); named as the source | Credit lines on the rates screens; `RatesSource` names the publisher in each screen's header |
-| Official announcements (Fed Board, ECB, Bank of England, Bank of Canada, RBA, BEA, ESMA) | The source acknowledged | Every headline names its publisher and links to the original |
-| SEC EDGAR | Public filings, free to reuse | `FILINGS` names EDGAR and links every filing to sec.gov |
+| Official announcements (Fed Board, ECB, Bank of England, Bank of Canada, RBA, Bank of Japan, BEA, ESMA, SEC, BIS) | The source acknowledged; the Bank of Japan's content unaltered and not for commercial use; BIS material for non-commercial purposes without implying its endorsement | Every headline names its publisher and links to the original; nothing is rewritten |
+| SEC EDGAR | Public filings, free to reuse | `FILINGS` names EDGAR and links every filing to sec.gov; `MANAGEMENT` links the proxy statement its pay table comes from |
 | CoinGecko | "Powered by CoinGecko" wherever its data appears | Beside the market values on `CRYPTO` and `PROFILE` |
 | Kraken | Its pricing data for your own benefit only | Every crypto price is labelled Kraken's, one exchange's market |
 | Yahoo Finance | No redistribution; informational use | Quote strips and company screens name it as "Yahoo Finance", with "for personal use" on hover; `PROVIDERS` says what it serves and the terms |
 | Massive, Alpha Vantage, Tiingo, Twelve Data | Personal, non-commercial or internal use; no display to others | Named per column on `CROSSCHECK` |
+| Yahoo Finance research (expected EPS and revenue, similar stocks) | As for Yahoo Finance | `EARNINGS`, `EVENTS` and the help desk name Yahoo Finance (or Finnhub) on each expectation; `PEERS` names the sources that chose the peers |
+| Anthropic (Claude) | Commercial terms for API use | The help desk says when Claude answers; each figure keeps the name of the source a tool read it from |
 | Financial Modeling Prep | Terms not quoted: its pages refuse automated reading | `ANALYSTS` and `EARNINGS` name FMP on every figure, with the publishers FMP gathers targets from |
 | Finnhub, Marketaux, MarketWatch, Alpaca (Benzinga), Massive | Personal use; headlines and snippets with links | Every story names its publisher and the feeds that carried it, and links to the original; Marketaux's sentiment is labelled as Marketaux's |
 | Google News | Its feeds are for a personal feed reader, for personal, non-commercial use | Every story names the publisher Google gives and "via Google News", with Google's link to the article |

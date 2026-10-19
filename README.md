@@ -59,6 +59,10 @@ Type anywhere: the text goes to the active panel's command line, with suggestion
 | `QUOTE AAPL` | Quote for Apple |
 | `ANALYSTS AAPL` | Analyst price targets, ratings and estimates (also `TARGETS AAPL`) |
 | `MARKETNEWS NVDA` | Market news, filtered to Nvidia |
+| `BREAKING` / `FIRST` | The last hour's news from every source, your favourites' stories and official announcements |
+| `FAV` | Your starred securities with prices and news; ☆ beside any security's name stars it |
+| `EARNINGS NBIS` | The last report against the analysts' expected EPS and revenue, and the next quarter's expectations |
+| `MESSAGES` | Ask the help desk: "when does NVDA report?", "did APLD beat?", "SEC filings for TSLA" |
 | `CHART NVDA` | Price chart; `CHART NVDA 1D` for today's intraday chart |
 | `PROFILE MSFT` | Company profile |
 | `FLDS AAPL` / `FIELDS AAPL PX_LAST` | Search current local fields and inspect value, units, definition, source, freshness and UTC time; copy/export filtered fields |
@@ -88,17 +92,17 @@ Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES`
 
 | Area | Functions |
 | --- | --- |
-| Equity | `PROFILE` description and key figures, `FINANCIALS` statements and ratios, `FUNDCHART` fundamentals over time, `EARNINGS` reported results, `DIVIDENDS`, `HOLDERS`, `MANAGEMENT` company officers, `PEERS` relative valuation, `EVENTS` earnings and dividend calendar, `FILINGS` SEC filings and reported figures, `CROSSCHECK` closes against other sources, `WACC` cost of capital, `ANALYSTS` price targets, ratings and estimates |
+| Equity | `PROFILE` description and key figures, `FINANCIALS` statements and ratios, `FUNDCHART` fundamentals over time, `EARNINGS` reported results against the analysts' expectations, `DIVIDENDS`, `HOLDERS`, `MANAGEMENT` officers and executive pay from proxy statements, `PEERS` relative valuation against companies in the same industry, `EVENTS` earnings (with expected EPS and revenue) and dividend calendar, `FILINGS` SEC filings and reported figures, `CROSSCHECK` closes against other sources, `WACC` cost of capital, `ANALYSTS` price targets, ratings and estimates |
 | Charts | `CHART` with studies and comparisons, `INTRADAY`, `HISTORY`, `RETURNS`, `TOTALRETURN`, `SPREAD`, `BETA`, `VOLATILITY` |
 | Markets | `MARKET` world indices, `INDEXFUTURES`, `CONTRIB` index movers, `HEATMAP`, `MOVERS`, `SCREEN` stock screener, `QUOTE`, `TRADES`, `DEPTH` (order book for crypto, best bid and offer otherwise), `VWAP` |
-| News | `MARKETNEWS` (`TOP`) market and merger news, the latest 8-K filings and Euronext press releases, `COMPANYNEWS` a company's news, from the local press in its market's languages and, for a stock listed there, its Euronext press releases; `HEADLINES` and `NEWS`: press releases from central banks, the BEA and ESMA |
+| News | `BREAKING` (`FIRST`) the newest stories from every source with pop-ups for your favourites, `MARKETNEWS` (`TOP`) market and merger news, the latest 8-K filings and Euronext press releases, `COMPANYNEWS` any security's news, from the local press in its market's languages and, for a stock listed there, its Euronext press releases; `NEWS` searches every story; `HEADLINES` press releases and speeches from central banks, the BIS, BEA, ESMA and SEC |
 | FX and crypto | `FXMATRIX` cross rates, `FXRANK`, `CRYPTO`, `FXOPTION` European option pricer with overrides, `FXFORWARD` calculated forwards and contract PV from your term rates |
 | Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` still need bond/dealer datasets |
 | Commodities | `COMMODITIES` |
 | Economics | `MACRO` dashboard with first-release revisions, `RELEASES` calendar, `ECONSTATS` world statistics, `HOLIDAYS` exchange calendars |
 | Derivatives | `OPTIONS` indicative listed US equity snapshots with Alpaca; `OPTIONCALC` European/American value/IV; `OPTIONSTRATEGY` common-expiry multi-leg/stock risk and scenarios |
-| Portfolio and tools | `WATCHLIST`, `PORTFOLIO` manual holdings, historical-FX replay, VaR/ES, risk contributions and price/FX stress, `ALERTS`, `CORRELATION`, `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` |
-| System | `HELP`, `MENU`, `PROVIDERS` data providers and keys, `SETTINGS`, `MESSAGES` help-desk bot |
+| Portfolio and tools | `WATCHLIST` with pre-market and after-hours prices, `FAVOURITES` (`FAV`), `PORTFOLIO` manual holdings, historical-FX replay, VaR/ES, risk contributions and price/FX stress, `ALERTS`, `CORRELATION`, `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` |
+| System | `HELP`, `MENU`, `PROVIDERS` data providers and keys, `SETTINGS`, `MESSAGES` help desk that answers questions from the app's data (Claude with your Anthropic key) |
 
 Tables can be copied or exported as CSV. Watchlists, the portfolio, alerts, notes, layouts and settings are kept on your computer. Paper trading is switched off: the portfolio holds only what you enter.
 
@@ -115,9 +119,12 @@ Tables can be copied or exported as CSV. Watchlists, the portfolio, alerts, note
 | Government yields | Bundesbank, Bank of England, Ministry of Finance Japan, Bank of Canada, RBA | End of day |
 | Economic statistics | ONS, Eurostat, Statistics Canada, ABS; FRED (key) for US releases and other countries | As published |
 | Filings and reported financial figures | SEC EDGAR (your contact) | As filed |
-| Press releases | Central banks, BEA, ESMA (RSS) | As published |
+| Press releases and speeches | Central banks, BIS, BEA, ESMA, SEC (RSS) | As published |
+| Analysts' expected EPS and revenue against the reports; similar stocks | Yahoo Finance research; Finnhub (key) for past revenue estimates and sub-industry peers | Kept 6 hours, hourly after a report |
+| Executive pay | SEC EDGAR proxy statements (your contact) | As filed |
 | Analyst price targets, ratings, rating actions, annual estimates | Financial Modeling Prep (key) | As of each answer, kept 6 to 24 hours |
-| Market and company news | Finnhub and Marketaux (keys), SEC EDGAR 8-K filings; MarketWatch if you switch it on | As each publisher posts |
+| Market and company news | Finnhub, Alpaca (Benzinga), Massive and Marketaux (keys), Google News, Yahoo Finance headlines, Euronext, SEC EDGAR 8-K filings; MarketWatch if you switch it on | As each publisher posts |
+| Help desk answers (optional) | Anthropic Claude (key), reading the sources above | As of each question |
 | IEX last trade, bid and offer for US stocks | Alpaca (keys) | Real time, IEX only (one exchange) |
 
 Each price shows one of these labels: REAL-TIME, DELAYED, END OF DAY, REFERENCE (an official value published once a day), STALE, UNKNOWN FRESHNESS, or DEMO DATA in the browser demo. Hover a price for the reason, the source's own time and the time it arrived. A day's change is shown only against a previous close confirmed for the right session.
