@@ -1,6 +1,6 @@
 # Terminal fidelity source update
 
-This update starts from the v2.9.0 release and includes the subsequent news-provider work on `claude/data-sources`. It improves the shared terminal and everyday analysis workflows. The [research audit](terminal-fidelity-audit.md) records the primary references, the 72-function inventory, missing capabilities and their dependencies. These changes are not a published release or a claim of exact Bloomberg parity.
+Introduced in v2.10.0, this update starts from the v2.9.0 release and includes the subsequent news-provider work on `claude/data-sources`. It improves the shared terminal and everyday analysis workflows. The [research audit](terminal-fidelity-audit.md) records the primary references, the 72-function inventory, missing capabilities and their dependencies. These changes do not establish exact Bloomberg parity.
 
 ## Implemented
 
@@ -10,7 +10,7 @@ This update starts from the v2.9.0 release and includes the subsequent news-prov
 - F1 opens help for the current function; a second press opens the explicitly local assistant. Help examples retain compatible securities and choose a bond for bond-only functions.
 - Per-panel command recall with draft restoration, keyboard-accessible autocomplete and consistent GO handling for Enter, inline GO and the footer key.
 - All F2–F12 sector buttons, a blue PANEL key, Ctrl+Tab panel cycling and Alt+End Menu. GO and CANCEL stay visible when the other keys scroll on narrow windows.
-- Red function bars, amber editable fields, outlined action controls and blue active-panel/focus cues. Shared headers wrap and scroll actions in narrow panels.
+- Red function bars, amber editable fields, outlined action controls and blue active-panel/focus cues. Shared headers wrap and scroll actions in narrow panels. Market-timer day/time and OPENS IN/CLOSES IN labels use brighter, larger text; wider timers fit weekend countdowns at large text size.
 - Saved per-watchlist field selection/order, presets, sorting, filtering and exports that follow the displayed selection. CSV retains raw units and per-field sources, times and missing-data reasons. Date-only values retain their calendar date. See [watchlist fields](watchlist-fields.md).
 
 ## Review images
@@ -36,4 +36,4 @@ Completed local verification on 19 October 2026:
 
 The desktop suite uses synthetic provider responses and disposable profiles. It establishes application behavior, not live entitlement or native Windows installation. Browser and desktop runs were completed separately so a browser build could not remove files while Electron was launching.
 
-No licensed Bloomberg session or owner provider credentials were available for a side-by-side data comparison. Bloomberg reporting, exchange entitlements, economic consensus, dealer quotes, messaging counterparties, execution and spreadsheet services remain separate gaps. The audit distinguishes connected data, local models and unavailable workflows; a mnemonic alias does not establish service equivalence. Existing released installers are unchanged by this source update.
+No licensed Bloomberg session or owner provider credentials were available for a side-by-side data comparison. Bloomberg reporting, exchange entitlements, economic consensus, dealer quotes, messaging counterparties, execution and spreadsheet services remain separate gaps. The audit distinguishes connected data, local models and unavailable workflows; a mnemonic alias does not establish service equivalence. The [v2.10.0 notes](release-v2.10.0.md) describe the new installers and upgrade behavior.
