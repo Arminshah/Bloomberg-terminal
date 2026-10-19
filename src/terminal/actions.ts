@@ -1,15 +1,26 @@
 import { engine } from '../data/market';
+import { commandApis } from '../components/CommandLine';
 import { execute } from './exec';
 import { lookupFn } from './registry';
 import { currentRoute, loadedSecurity, navigate, terminal } from './state';
 
 const helpTimes = new Map<number, number>();
 
-/** HELP is contextual; a second press opens the explicitly local assistant. */
+/**
+ * HELP is contextual; a second press opens the explicitly local assistant. A mnemonic or words typed first ask
+ * for help on them, as "DES <HELP>" does on the terminal: a function's help page, or a search of the functions
+ * and securities.
+ */
 export function showPanelHelp(panel: number) {
   const now = Date.now();
   const previous = helpTimes.get(panel);
   helpTimes.set(panel, now);
+  const typed = commandApis.get(panel)?.input.value.replace(/<\s*GO\s*>/gi, ' ').trim() ?? '';
+  if (typed && !/^\d+$/.test(typed)) {
+    commandApis.get(panel)?.clear();
+    execute(panel, `HELP ${typed}`);
+    return;
+  }
   if (previous !== undefined && now - previous < 1500) {
     execute(panel, 'HELP HELP');
     return;

@@ -1,6 +1,7 @@
 import { isMarketCode, parseListing } from '../data/listings';
 import { resolveSecurity, UNCOVERED_KEYS, YELLOW_KEYS } from '../data/registry';
 import type { SecurityDef } from '../data/types';
+import { argsWith } from './legacy';
 
 export type Parsed =
   | { kind: 'empty' }
@@ -96,17 +97,18 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
       const root = secText.toUpperCase().replace(/\s+US$/, '');
       return { kind: 'error', message: `Unknown security: ${secText.toUpperCase()} ${yk}`, lookup: yk === 'Equity' && lookupable(root) ? root : undefined };
     }
-    if (lead) return { kind: 'route', sec, fn: lead.code, args: after.join(' ') || undefined };
+    if (lead) return { kind: 'route', sec, fn: lead.code, args: argsWith(tokens[0], after.join(' ')) };
     if (after.length === 0) return { kind: 'route', sec };
     const fn = lookup(after[0]);
     if (!fn) return { kind: 'error', message: unknownFunction(after[0]) };
-    return { kind: 'route', sec, fn: fn.code, args: after.slice(1).join(' ') || undefined };
+    return { kind: 'route', sec, fn: fn.code, args: argsWith(after[0], after.slice(1).join(' ')) };
   }
 
   const head = lookup(tokens[0]);
   if (head) {
     const rest = raw.slice(1);
-    if (!rest.length) return { kind: 'route', fn: head.code };
+    const preset = argsWith(tokens[0]);
+    if (!rest.length) return { kind: 'route', fn: head.code, ...(preset ? { args: preset } : {}) };
     // A help topic is a function first, even if an identically named ticker
     // has been loaded (HELP N, HELP W or HELP GP).
     if (head.code === 'HELP' && rest.length === 1) {
@@ -117,7 +119,7 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
     for (let j = rest.length; j >= 1; j--) {
       const sec = resolveSecurity(rest.slice(0, j).join(' '));
       if (!sec) continue;
-      const args = rest.slice(j).join(' ').toUpperCase();
+      const args = argsWith(tokens[0], rest.slice(j).join(' ').toUpperCase());
       return { kind: 'route', fn: head.code, sec, ...(args ? { args } : {}) };
     }
     // A function that needs a security, followed by a ticker that is not built in: look it up online.
@@ -129,7 +131,7 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
       if (listed && parseListing(listed)) return { kind: 'error', message: `Unknown security: ${listed}`, lookup: listed };
       if (TICKER.test(t)) return { kind: 'error', message: `Unknown security: ${t}`, lookup: t };
     }
-    return { kind: 'route', fn: head.code, args: rest.join(' ').toUpperCase() };
+    return { kind: 'route', fn: head.code, args: argsWith(tokens[0], rest.join(' ').toUpperCase()) };
   }
 
   // Longest prefix that names a security, then an optional function.
@@ -140,7 +142,7 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
     if (rest.length === 0) return { kind: 'route', sec };
     const fn = lookup(rest[0]);
     if (!fn) return { kind: 'error', message: unknownFunction(rest[0]) };
-    return { kind: 'route', sec, fn: fn.code, args: rest.slice(1).join(' ') || undefined };
+    return { kind: 'route', sec, fn: fn.code, args: argsWith(rest[0], rest.slice(1).join(' ')) };
   }
 
   // "APLD", "APLD PROFILE", "APLD US", "APLD US CHART", "ABI BB CHART": a ticker that is not built in.

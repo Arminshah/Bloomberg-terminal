@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { easter, EU_MARKET, euronextDays, fmtCountdown, nyseDays, sessionAt, US_MARKET } from '../src/data/exchanges';
+import { easter, EU_MARKET, euronextDays, exchangeStatus, fmtCountdown, JPX_MARKET, LSE_MARKET, nyseDays, sessionAt, US_MARKET } from '../src/data/exchanges';
 
 const dates = (days: { date: string; close?: string }[], early: boolean) => days.filter((d) => !!d.close === early).map((d) => d.date);
 
@@ -76,5 +76,31 @@ describe('market sessions', () => {
     expect(fmtCountdown(600)).toBe('0:00:01');
     expect(fmtCountdown(((2 * 24 + 17) * 60 + 5) * 60_000)).toBe('2d 17h 05m');
     expect(fmtCountdown(NaN)).toBe('--');
+  });
+});
+
+describe('exchange status (EXCH)', () => {
+  const at = (iso: string) => Date.parse(iso);
+
+  it('gives the local time, whether the session is open and when that changes', () => {
+    // Wednesday 14 October 2026, 14:00 UTC: 10:00 in New York, 16:00 in Brussels, 23:00 in Tokyo.
+    const now = at('2026-10-14T14:00:00Z');
+    expect(exchangeStatus(US_MARKET, now)).toEqual({ state: 'OPEN', localDate: '2026-10-14', localTime: '10:00', nextAt: at('2026-10-14T20:00:00Z'), uncovered: false });
+    expect(exchangeStatus(EU_MARKET, now)).toMatchObject({ state: 'OPEN', localTime: '16:00', nextAt: at('2026-10-14T15:30:00Z') });
+    expect(exchangeStatus(JPX_MARKET, now)).toMatchObject({ state: 'CLOSED', localDate: '2026-10-14', localTime: '23:00', nextAt: at('2026-10-15T00:00:00Z') });
+  });
+
+  it('tells a holiday from the weekend and keeps an early close', () => {
+    expect(exchangeStatus(US_MARKET, at('2026-11-26T15:00:00Z'))).toMatchObject({ state: 'HOLIDAY', today: { name: 'Thanksgiving Day' }, earlyClose: '13:00' });
+    expect(exchangeStatus(US_MARKET, at('2026-10-17T15:00:00Z'))).toMatchObject({ state: 'WEEKEND', nextAt: at('2026-10-19T13:30:00Z') });
+    expect(exchangeStatus(LSE_MARKET, at('2026-12-24T10:00:00Z'))).toMatchObject({ state: 'OPEN', earlyClose: '12:30', nextAt: at('2026-12-24T12:30:00Z') });
+  });
+
+  it('says when a published holiday table no longer covers the next session', () => {
+    expect(exchangeStatus(LSE_MARKET, at('2027-06-01T10:00:00Z')).uncovered).toBe(false);
+    // The London table ends in 2027: from New Year's Eve 2027 the next session is in 2028.
+    expect(exchangeStatus(LSE_MARKET, at('2027-12-31T15:00:00Z')).uncovered).toBe(true);
+    // Rule-based calendars have no end.
+    expect(exchangeStatus(US_MARKET, at('2031-03-03T15:00:00Z')).uncovered).toBe(false);
   });
 });

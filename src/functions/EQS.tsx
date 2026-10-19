@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { DataTable } from '../components/DataTable';
-import { Chg, LivePx, SecLink } from '../components/cells';
+import { Chg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
@@ -125,6 +125,7 @@ export function EQS(_: FnProps) {
         rows={rows}
         rowKey={(r) => r.d.id}
         numbered
+        onRowClick={(r, e) => openSecurity(panel, r.d.id, e)}
         defaultSort={{ key: 'cap', dir: -1 }}
         empty="No securities match. Loosen a criterion."
         columns={[

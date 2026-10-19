@@ -15,6 +15,7 @@ import type { SecurityDef } from '../data/types';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
+import { styledMnemonic } from '../terminal/legacy';
 
 interface ChartPrefs {
   type: ChartType;
@@ -110,11 +111,15 @@ function CompareBox({ sec, list, setList }: { sec: SecurityDef; list: string[]; 
   );
 }
 
-function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intraday: boolean; initialPeriod?: string }) {
+function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: SecurityDef; intraday: boolean; initialPeriod?: string; style?: ChartType; mnemonic?: string }) {
   const panel = usePanelId();
   const iex = useQuote(sec.id)?.provider === IEX_PROVIDER;
   const store = intraday ? intradayPrefs : prefs;
-  const p = store.use((s) => s);
+  const saved = store.use((s) => s);
+  // GPO and GPC draw this chart as bars or candles without changing the style other charts open with.
+  const [ownType, setOwnType] = useState<ChartType | undefined>(style);
+  const p = useMemo(() => (ownType ? { ...saved, type: ownType } : saved), [ownType, saved]);
+  const setType = (type: ChartType) => (ownType ? setOwnType(type) : store.set((s) => ({ ...s, type })));
   const [period, setPeriod] = useState(initialPeriod ?? '1Y');
   const [freq, setFreq] = useState<Periodicity>('D');
   const [compare, setCompare] = useState<string[]>([]);
@@ -171,6 +176,7 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
     <div className="fn-fill">
       <FnHeader
         code={intraday ? 'INTRADAY' : 'CHART'}
+        mnemonic={mnemonic}
         title={intraday ? 'Intraday Chart' : 'Price Chart'}
         sec={sec}
         sub={sec.name}
@@ -193,7 +199,7 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
       <div className="chart-tools">
         <span className="seg" role="group" aria-label="Chart type">
           {TYPES.map((t) => (
-            <button key={t.id} type="button" className={p.type === t.id ? 'on' : ''} onClick={() => store.set((s) => ({ ...s, type: t.id }))}>
+            <button key={t.id} type="button" className={p.type === t.id ? 'on' : ''} onClick={() => setType(t.id)}>
               {t.label}
             </button>
           ))}
@@ -243,10 +249,17 @@ function ChartScreen({ sec, intraday, initialPeriod }: { sec: SecurityDef; intra
   );
 }
 
+/** Style words CHART accepts: BAR (GPO) and CANDLE (GPC), with LINE and MOUNTAIN for completeness. */
+const STYLE_WORDS: Record<string, ChartType> = { BAR: 'bar', OHLC: 'bar', CANDLE: 'candle', LINE: 'line', MOUNTAIN: 'mountain' };
+
 export function GP({ sec, route }: FnProps) {
-  const arg = route.args?.toUpperCase();
-  const initial = PERIODS.find((p) => p.id === arg)?.id;
-  return <ChartScreen key={sec!.id} sec={sec!} intraday={false} initialPeriod={initial} />;
+  const words = route.args?.toUpperCase().split(/\s+/).filter(Boolean) ?? [];
+  // CHART AAPL 1D is today's intraday chart, the screen the 1) 1D tab opens.
+  if (words.includes('1D')) return <ChartScreen key={sec!.id} sec={sec!} intraday />;
+  const initial = PERIODS.find((p) => words.includes(p.id))?.id;
+  const style = words.map((w) => STYLE_WORDS[w]).find(Boolean);
+  const { mnemonic } = styledMnemonic('CHART', route.args);
+  return <ChartScreen key={`${sec!.id}|${style ?? ''}`} sec={sec!} intraday={false} initialPeriod={initial} style={style} mnemonic={style === 'bar' || style === 'candle' ? mnemonic : undefined} />;
 }
 
 export function GIP({ sec }: FnProps) {

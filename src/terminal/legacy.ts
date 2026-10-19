@@ -3,7 +3,8 @@ import type { Route } from './types';
 /**
  * Familiar function mnemonics accepted as aliases for the app's descriptive
  * names. They select the same app workflows and data sources. This mapping
- * also carries saved panels, layouts and settings to canonical names.
+ * also carries saved panels, layouts and settings to canonical names. The
+ * first mnemonic listed for a function is the one its header shows.
  */
 export const LEGACY_CODES: Record<string, string> = {
   FLDS: 'FIELDS',
@@ -11,11 +12,15 @@ export const LEGACY_CODES: Record<string, string> = {
   FA: 'FINANCIALS',
   ANR: 'ANALYSTS',
   EE: 'EARNINGS',
+  ERN: 'EARNINGS',
   DVD: 'DIVIDENDS',
   HDS: 'HOLDERS',
+  OWN: 'HOLDERS',
   MGMT: 'MANAGEMENT',
   RV: 'PEERS',
+  EQRV: 'PEERS',
   EVTS: 'EVENTS',
+  CF: 'FILINGS',
   GF: 'FUNDCHART',
   GP: 'CHART',
   GIP: 'INTRADAY',
@@ -24,17 +29,21 @@ export const LEGACY_CODES: Record<string, string> = {
   TRA: 'TOTALRETURN',
   HS: 'SPREAD',
   HVT: 'VOLATILITY',
+  HVG: 'VOLATILITY',
   TOP: 'MARKETNEWS',
   N: 'NEWS',
+  NSE: 'NEWS',
   CN: 'COMPANYNEWS',
   WEI: 'MARKET',
   WEIF: 'INDEXFUTURES',
   MOV: 'CONTRIB',
   IMAP: 'HEATMAP',
   MOST: 'MOVERS',
+  EXCH: 'EXCHANGES',
   EQS: 'SCREEN',
   BQ: 'QUOTE',
   TAS: 'TRADES',
+  QR: 'TRADES',
   FXC: 'FXMATRIX',
   WCRS: 'FXRANK',
   CRYP: 'CRYPTO',
@@ -67,8 +76,31 @@ export const LEGACY_CODES: Record<string, string> = {
   LPAD: 'LAYOUTS',
   IB: 'MESSAGES',
   PROV: 'PROVIDERS',
+  PDF: 'SETTINGS',
   PDFU: 'SETTINGS',
 };
+
+/**
+ * Chart mnemonics that open CHART drawn a particular way: GPO as open-high-low-close bars, GPC as
+ * candlesticks. The style travels as CHART's first argument, so a saved panel reopens the same way.
+ */
+export const CHART_STYLES: Record<string, string> = { GPO: 'BAR', GPC: 'CANDLE' };
+
+/** The arguments a function word brings with it, ahead of any typed after it: GPC AAPL 3M is CHART AAPL CANDLE 3M. */
+export function argsWith(word: string, typed?: string): string | undefined {
+  const text = [CHART_STYLES[word.toUpperCase()], typed?.trim()].filter(Boolean).join(' ');
+  return text || undefined;
+}
+
+/** The mnemonic and remaining arguments a chart route is shown with: CHART with CANDLE shows as GPC. */
+export function styledMnemonic(code: string, args?: string): { mnemonic: string; args?: string } {
+  if (code === 'CHART' && args) {
+    const [head, ...rest] = args.trim().split(/\s+/);
+    const style = Object.entries(CHART_STYLES).find(([, a]) => a === head.toUpperCase());
+    if (style) return { mnemonic: style[0], ...(rest.length ? { args: rest.join(' ') } : {}) };
+  }
+  return { mnemonic: primaryMnemonic(code), ...(args ? { args } : {}) };
+}
 
 /**
  * Mnemonics that now open another screen than the one saved under them. TOP opened the official announcements
@@ -77,7 +109,14 @@ export const LEGACY_CODES: Record<string, string> = {
  */
 const SAVED_CODES: Record<string, string> = { TOP: 'HEADLINES' };
 
-const MNEMONICS = new Map(Object.entries(LEGACY_CODES).map(([alias, code]) => [code, alias]));
+/**
+ * Mnemonics accepted when typed but not shown as the screen's name, because the screen covers less than the
+ * terminal function: CF searches filings in many markets, FILINGS reads SEC EDGAR only.
+ */
+const TYPED_ONLY = new Set(['CF']);
+
+const MNEMONICS = new Map<string, string>();
+for (const [alias, code] of Object.entries(LEGACY_CODES)) if (!MNEMONICS.has(code) && !TYPED_ONLY.has(alias)) MNEMONICS.set(code, alias);
 /** Familiar short command for a descriptive canonical function; stored routes stay canonical. */
 export const primaryMnemonic = (code: string): string => MNEMONICS.get(code.toUpperCase()) ?? code;
 

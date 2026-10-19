@@ -6,7 +6,7 @@ import { engine } from '../src/data/market';
 import * as onlineLookup from '../src/data/live/lookup';
 import { execute } from '../src/terminal/exec';
 import { suggest } from '../src/terminal/suggest';
-import { LEGACY_CODES, migrateRoute } from '../src/terminal/legacy';
+import { argsWith, LEGACY_CODES, migrateRoute, primaryMnemonic, styledMnemonic } from '../src/terminal/legacy';
 import { currentRoute, renameSavedCodes, defaultTerminal, terminal } from '../src/terminal/state';
 
 const parse = (s: string) => parseCommand(s, lookupFn);
@@ -240,5 +240,53 @@ describe('search and autocomplete', () => {
     expect(suggest('AAPL US EQUITY GP')[0]).toMatchObject({ kind: 'fn', primary: 'CHART', execute: 'AAPL US Equity CHART' });
     expect(suggest('EURUSD CRNCY FA')).toEqual([]);
     expect(suggest('ZZZX')[0]).toMatchObject({ kind: 'sec', key: 'online:ZZZX', execute: 'ZZZX US EQUITY' });
+  });
+});
+
+describe('terminal mnemonics added in 2.13', () => {
+  it('opens the existing workflows under their terminal mnemonics', () => {
+    const cases: [string, string][] = [
+      ['CF', 'FILINGS'], ['ERN', 'EARNINGS'], ['NSE', 'NEWS'], ['EQRV', 'PEERS'], ['OWN', 'HOLDERS'],
+      ['QR', 'TRADES'], ['HVG', 'VOLATILITY'], ['PDF', 'SETTINGS'], ['EXCH', 'EXCHANGES'],
+    ];
+    for (const [alias, code] of cases) {
+      expect(LEGACY_CODES[alias], alias).toBe(code);
+      expect(parse(alias), alias).toEqual({ kind: 'route', fn: code });
+    }
+    expect(parse('CF MSFT')).toMatchObject({ kind: 'route', fn: 'FILINGS', sec: { id: 'MSFT US Equity' } });
+    expect(parse('AAPL US EQUITY ERN')).toMatchObject({ kind: 'route', fn: 'EARNINGS', sec: { id: 'AAPL US Equity' } });
+  });
+
+  it('keeps the first mnemonic of a function as the one its header shows', () => {
+    expect(primaryMnemonic('EARNINGS')).toBe('EE');
+    expect(primaryMnemonic('HOLDERS')).toBe('HDS');
+    expect(primaryMnemonic('TRADES')).toBe('TAS');
+    expect(primaryMnemonic('CHART')).toBe('GP');
+    // CF is typed for FILINGS, but the SEC-only screen keeps its own name.
+    expect(primaryMnemonic('FILINGS')).toBe('FILINGS');
+    expect(primaryMnemonic('SETTINGS')).toBe('PDF');
+    expect(primaryMnemonic('EXCHANGES')).toBe('EXCH');
+  });
+
+  it('opens GPO as a bar chart and GPC as a candlestick chart, with any typed period after the style', () => {
+    expect(parse('GPC')).toEqual({ kind: 'route', fn: 'CHART', args: 'CANDLE' });
+    expect(parse('GPO AAPL')).toMatchObject({ kind: 'route', fn: 'CHART', args: 'BAR', sec: { id: 'AAPL US Equity' } });
+    expect(parse('GPC AAPL 3M')).toMatchObject({ kind: 'route', fn: 'CHART', args: 'CANDLE 3M', sec: { id: 'AAPL US Equity' } });
+    expect(parse('AAPL GPC 5Y')).toMatchObject({ kind: 'route', fn: 'CHART', args: 'CANDLE 5Y', sec: { id: 'AAPL US Equity' } });
+    expect(parse('AAPL US EQUITY GPO')).toMatchObject({ kind: 'route', fn: 'CHART', args: 'BAR', sec: { id: 'AAPL US Equity' } });
+    expect(parse('GP AAPL 5Y')).toMatchObject({ kind: 'route', fn: 'CHART', args: '5Y' });
+    expect(parse('HELP GPC')).toEqual({ kind: 'route', fn: 'HELP', args: 'CHART' });
+    // Choosing GPC from the suggestions keeps the candles.
+    expect(suggest('GPC')[0]).toMatchObject({ kind: 'fn', primary: 'CHART', execute: 'GPC' });
+    expect(suggest('AAPL US EQUITY GPO')[0]).toMatchObject({ kind: 'fn', primary: 'CHART', execute: 'AAPL US Equity GPO' });
+  });
+
+  it('shows a styled chart under its own mnemonic', () => {
+    expect(styledMnemonic('CHART', 'CANDLE 3M')).toEqual({ mnemonic: 'GPC', args: '3M' });
+    expect(styledMnemonic('CHART', 'BAR')).toEqual({ mnemonic: 'GPO' });
+    expect(styledMnemonic('CHART', '5Y')).toEqual({ mnemonic: 'GP', args: '5Y' });
+    expect(styledMnemonic('PROFILE')).toEqual({ mnemonic: 'DES' });
+    expect(argsWith('GPC', '1Y')).toBe('CANDLE 1Y');
+    expect(argsWith('GP', '')).toBeUndefined();
   });
 });

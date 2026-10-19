@@ -6,7 +6,8 @@ import { news, NEWS_TOPICS, storyMatches, type Story } from '../data/news';
 import { OFFICIAL_FEEDS } from '../data/live/officialnews';
 import { feedStatus } from '../data/live/status';
 import { desktopData } from '../data/live/yahoo';
-import { usePanelId } from '../terminal/panel';
+import { useNumberedRows, usePanelId } from '../terminal/panel';
+import { firstRowNumber } from '../terminal/numbering';
 import type { FnProps } from '../terminal/types';
 import { CompanyNews, feedWord, StoryList } from './MNEWS';
 import { loadNews, MARKET_SOURCES, marketNews, mergeStories, newsAvailable, officialStories, SEARCHABLE, storiesFor, useMarketNews } from '../data/live/marketnews';
@@ -76,7 +77,7 @@ function NewsSearch({ query }: { query?: string }) {
       {!newsAvailable() ? (
         <div className="empty">News is read by the desktop app; the browser build has no data source.</div>
       ) : (
-        <StoryList stories={stories} empty={asked ? `Searching for "${asked}"…` : 'Loading the latest news…'} />
+        <StoryList stories={stories} first={firstRowNumber([1, 2, 3])} empty={asked ? `Searching for "${asked}"…` : 'Loading the latest news…'} />
       )}
     </div>
   );
@@ -126,6 +127,8 @@ function NewsScreen({ code, title, initialTopic, query }: { code: string; title:
   const tabN = topic === 'ALL' ? 1 : NEWS_TOPICS.findIndex((t) => t.code === topic) + 2;
   const list = useMemo(() => stories.filter((s) => storyMatches(s, topic, undefined, q.trim() || undefined)).slice(0, 300), [stories, topic, q]);
   const current = list.find((s) => s.id === sel) ?? (sel ? stories.find((s) => s.id === sel) : undefined) ?? list[0];
+  // Announcements are numbered clear of the topic tabs; typing a number and GO opens that announcement.
+  const nums = useNumberedRows('announcements', list, firstRowNumber(tabs.map((t) => t.n)), (s) => setSel(s.id), (s) => s.headline);
   const empty = !desktopData()
     ? 'The browser demo has no news: headlines come only from official publishers, in the desktop app. Nothing is generated.'
     : feed === 'connecting'
@@ -156,8 +159,9 @@ function NewsScreen({ code, title, initialTopic, query }: { code: string; title:
       <div className={`news${sel ? ' reading' : ''}`} style={{ flex: 1, minHeight: 0 }}>
         <div className="news-list" role="list">
           {list.length === 0 && <div className="empty">{empty}</div>}
-          {list.map((s) => (
-            <div key={s.id} role="listitem" className={`news-item real${current?.id === s.id ? ' sel' : ''}`} onClick={() => setSel(s.id)}>
+          {list.map((s, i) => (
+            <div key={s.id} role="listitem" className={`news-item numbered real${current?.id === s.id ? ' sel' : ''}`} onClick={() => setSel(s.id)}>
+              <span className="news-n">{nums[i] !== undefined ? `${nums[i]})` : ''}</span>
               <span className="time" title="Publication time">
                 {fmtStamp(s.time, engine.now())}
               </span>

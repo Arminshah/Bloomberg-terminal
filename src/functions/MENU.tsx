@@ -94,7 +94,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   EQUITY: {
     title: 'Equity',
     groups: [
-      { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'MOVERS', 'CONTRIB', 'SCREEN', 'EVENTS'] },
+      { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'MOVERS', 'CONTRIB', 'SCREEN', 'EVENTS', 'EXCHANGES'] },
       { title: 'News and research', entries: ['MARKETNEWS', 'BREAKING', 'HEADLINES', 'NEWS', 'FILINGS', 'RELEASES', 'MACRO'] },
       { title: 'Portfolio and monitors', entries: ['PORTFOLIO', 'WATCHLIST', 'FAVOURITES', 'ALERTS'] },
     ],
@@ -108,7 +108,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   },
   INDEX: {
     title: 'Indices',
-    groups: [{ title: 'Markets', entries: ['MARKET', 'INDEXFUTURES', 'HEATMAP', 'CONTRIB', 'CURVE', 'ECONSTATS', 'MACRO'] }],
+    groups: [{ title: 'Markets', entries: ['MARKET', 'INDEXFUTURES', 'HEATMAP', 'CONTRIB', 'EXCHANGES', 'CURVE', 'ECONSTATS', 'MACRO'] }],
     list: (d) => (d.cls === 'index' && d.ticker !== 'VIX') || d.cls === 'future',
   },
   CURNCY: {

@@ -113,6 +113,7 @@ const COMMANDS: [string, string][] = [
   ['OSA', 'OPTIONSTRATEGY'],
   ['BREAKING', 'BREAKING'], ['FIRST FAV', 'BREAKING'], ['FAVOURITES', 'FAVOURITES'], ['FAV NEWS', 'FAVOURITES'], ['NEWS SPEECH', 'NEWS'], ['GC1 COMDTY COMPANYNEWS', 'COMPANYNEWS'],
   ['$APLD', 'MENU'], ['APLD US EQUITY PROFILE', 'PROFILE'], ['$APLD CHART', 'CHART'], ['APLD FINANCIALS', 'FINANCIALS'],
+  ['EXCH', 'EXCHANGES'], ['GPC AAPL', 'CHART'], ['AAPL GPO', 'CHART'], ['CF MSFT', 'FILINGS'], ['AAPL ERN', 'EARNINGS'], ['QR TSLA', 'TRADES'], ['PDF', 'SETTINGS'],
 ];
 
 test('default workspace renders four live panels and the watchlist column', async ({ page }) => {
@@ -172,6 +173,96 @@ test('numbered menu items and back navigation work', async ({ page }) => {
   await page.locator('#cmd-0').click();
   await page.keyboard.press('Backspace');
   await expect(page.locator('.fnh-code').first()).toHaveText('CHART');
+});
+
+test('numbered rows open by number, as on terminal monitors', async ({ page }) => {
+  const errors = await boot(page, '1');
+  const panel = page.locator('.panel').first();
+  await run(page, 'WEI');
+  await expect(panel.locator('tbody tr').nth(1).locator('.row-no')).toHaveText('11)');
+  await run(page, '12');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('CHART');
+  await expect(panel.locator('.fnh-sec')).toHaveText('SPX Index');
+  // Region headings collapse and expand by their numbers.
+  await run(page, 'WEI');
+  const rows = panel.locator('tbody tr.click:not(.group)');
+  const all = await rows.count();
+  await run(page, '1');
+  await expect(panel.locator('tr.group').first()).toHaveAttribute('aria-expanded', 'false');
+  await expect(rows).toHaveCount(all - 8);
+  // The rows still shown are numbered from 11, starting with EMEA.
+  await expect(rows.first().locator('.row-no')).toHaveText('11)');
+  await expect(rows.first()).toContainText('SX5E');
+  await run(page, '1');
+  await expect(rows).toHaveCount(all);
+  // MOVERS rows start after its tabs and regions.
+  await run(page, 'MOST');
+  await expect(panel.locator('td.idx').first()).toHaveText('21)');
+  const first = (await panel.locator('tbody tr').first().locator('.sec-link').innerText()).trim();
+  await run(page, '21');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('PROFILE');
+  await expect(panel.locator('.fnh-sec')).toHaveText(`${first} Equity`);
+  // EXCH lists the exchange calendars; a row number opens that exchange's holidays.
+  await run(page, 'EXCH');
+  await expect(panel.locator('tbody tr')).toHaveCount(5);
+  await expect(panel.locator('tbody tr').first()).toContainText(/OPEN|CLOSED|HOLIDAY|WEEKEND/);
+  await run(page, '2');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('HOLIDAYS');
+  await expect(panel.locator('.tab.on')).toHaveText('2) EU');
+  expect(errors).toEqual([]);
+});
+
+test('screens page with PgUp and PgDn, a typed count moves that many pages, and headings stay in view', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 640 });
+  const errors = await boot(page, '1');
+  const panel = page.locator('.panel').first();
+  await run(page, 'AAPL HP');
+  const indicator = panel.getByTestId('page-indicator');
+  await expect(indicator).toHaveText(/^Page 1\/\d+$/);
+  const pages = Number((await indicator.innerText()).split('/')[1]);
+  expect(pages).toBeGreaterThan(2);
+  await page.locator('#cmd-0').click();
+  await page.keyboard.press('PageDown');
+  await expect(indicator).toHaveText(`Page 2/${pages}`);
+  // Column names stay below the pinned function bar on every page.
+  const bar = await panel.locator('.fnh').boundingBox();
+  const heading = await panel.locator('thead th').first().boundingBox();
+  expect(heading!.y).toBeGreaterThanOrEqual(bar!.y + bar!.height - 1);
+  await page.keyboard.type('5');
+  await page.keyboard.press('PageDown');
+  await expect(indicator).toHaveText(`Page ${pages}/${pages}`);
+  await expect(page.locator('#cmd-0')).toHaveValue('');
+  await page.keyboard.press('PageUp');
+  await expect(indicator).toHaveText(`Page ${pages - 1}/${pages}`);
+  await page.getByRole('button', { name: 'PG BK' }).click();
+  await expect(indicator).toHaveText(`Page ${pages - 2}/${pages}`);
+  expect(errors).toEqual([]);
+});
+
+test('chart style mnemonics, intraday period and help on a typed mnemonic', async ({ page }) => {
+  const errors = await boot(page, '1');
+  const panel = page.locator('.panel').first();
+  await run(page, 'GPC AAPL');
+  await expect(panel.locator('.fnh-mnemonic')).toContainText('GPC');
+  await expect(panel.getByRole('group', { name: 'Chart type' }).locator('button.on')).toHaveText('Candle');
+  await expect(page.locator('#cmd-0')).toHaveAttribute('placeholder', /AAPL US Equity GPC/);
+  await run(page, 'AAPL GPO 3M');
+  await expect(panel.getByRole('group', { name: 'Chart type' }).locator('button.on')).toHaveText('Bar');
+  await expect(panel.locator('.tab.on')).toHaveText('3) 3M');
+  // The style belongs to that chart; a plain GP keeps the saved style.
+  await run(page, 'AAPL GP');
+  await expect(panel.locator('.fnh-mnemonic')).toContainText('GP');
+  await expect(panel.getByRole('group', { name: 'Chart type' }).locator('button.on')).toHaveText('Mountain');
+  await run(page, 'CHART AAPL 1D');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('INTRADAY');
+  // DES <HELP>: a mnemonic typed before HELP opens its help page.
+  await page.locator('#cmd-0').click();
+  await page.keyboard.type('DES');
+  await page.keyboard.press('F1');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('HELP');
+  await expect(panel.locator('.fnh-title')).toHaveText('Help: Profile');
+  await expect(page.locator('#cmd-0')).toHaveValue('');
+  expect(errors).toEqual([]);
 });
 
 test('bad commands explain themselves', async ({ page }) => {

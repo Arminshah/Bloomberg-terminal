@@ -1,4 +1,6 @@
-import { useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import { useId, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import { useMenu } from '../terminal/panel';
+import { rowNumbers } from '../terminal/numbering';
 
 export interface Column<T> {
   key: string;
@@ -17,12 +19,17 @@ interface Props<T> {
   columns: Column<T>[];
   rows: T[];
   rowKey: (row: T, i: number) => string;
-  onRowClick?: (row: T, e: MouseEvent) => void;
+  /** A click on a row; a typed row number runs it without an event. */
+  onRowClick?: (row: T, e?: MouseEvent) => void;
   defaultSort?: { key: string; dir: 1 | -1 };
   groupBy?: (row: T) => string;
   selected?: string;
   className?: string;
-  numbered?: boolean;
+  /**
+   * Number the rows: true from 1, or from the given number so they clear the screen's numbered tabs and actions.
+   * With `onRowClick`, typing a row's number and GO opens that row.
+   */
+  numbered?: boolean | number;
   empty?: ReactNode;
   footer?: ReactNode;
   /** Optional display page; sorting still covers the entire filtered row set. */
@@ -74,6 +81,11 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
   const span = columns.length + (numbered ? 1 : 0);
   const offset = page ? Math.max(0, page.index) * page.size : 0;
   const visible = page ? sorted.slice(offset, offset + page.size) : sorted;
+  const owner = useId();
+  // Numbers follow the displayed order across display pages, around the function bar's 96 to 99.
+  const nums = numbered ? rowNumbers(numbered === true ? 1 : numbered, offset + visible.length).slice(offset) : [];
+  // Only rows that open something are typed by number; the others are numbered for reading.
+  useMenu(`table:${owner}`, onRowClick ? nums.map((n, k) => ({ n, label: rowKey(visible[k], offset + k), run: () => onRowClick(visible[k]) })) : []);
   return (
     <table className={`tbl ${className ?? ''}`}>
       <thead>
@@ -123,7 +135,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
               className={`${onRowClick ? 'click ' : ''}${selected === key ? 'sel' : ''}`}
               onClick={onRowClick ? (e) => onRowClick(r, e) : undefined}
             >
-              {numbered && <td className="idx num">{i + 1})</td>}
+              {numbered && <td className="idx num">{nums[index] !== undefined ? `${nums[index]})` : ''}</td>}
               {columns.map((c) => (
                 <td key={c.key} className={`${c.num ? 'num ' : ''}${c.cls?.(r) ?? ''} ${c.hideM ? 'hide-m' : ''}`}>
                   {c.render(r, i)}
