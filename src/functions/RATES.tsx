@@ -15,7 +15,7 @@ import { RatesSource, RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { policyRates } from '../data/live/policy';
 import { contractSymbols, quotesTiming, useYahooQuotes } from '../data/live/yquotes';
-import { fedPath } from '../data/fedpath';
+import { fedPath, meetingMoves, type MeetingMoves } from '../data/fedpath';
 
 // ------------------------------------------------------------------- WB
 
@@ -528,6 +528,41 @@ const WIRP_BANKS = [
   { n: 4, code: 'BOJ', curve: [['GJGB2 Index', 2]] as [string, number][], basis: 0.0, step: 0.25 },
 ];
 
+const WIRP_NOTE =
+  '#Hikes/Cuts and Cum. %Hike/Cut count 25 bp moves from today’s rate to the implied rate after each meeting: Cum. %Hike/Cut is the cumulative change ÷ 25 bp, so +140% is 35 bp of hikes (one move and 40% of a second) and -100% one full cut. % Prob of move is the move priced at that meeting alone, capped at 100%. Cum. Δ bp is the implied rate after the meeting minus today’s rate.';
+
+/** Column headers shared by the real and simulated WIRP tables. */
+function WirpHead() {
+  return (
+    <thead>
+      <tr>
+        <th>Meeting</th>
+        <th className="num" title="Cumulative: 25 bp moves priced from today's rate to after the meeting">#Hikes/Cuts</th>
+        <th className="num" title="Cumulative implied change ÷ 25 bp; can exceed 100%; + hike, - cut">Cum. %Hike/Cut</th>
+        <th className="num" title="This meeting alone: its own priced move ÷ 25 bp, capped at 100%">% Prob of move (this mtg)</th>
+        <th className="num">Imp. rate</th>
+        <th className="num" title="Cumulative: implied rate after the meeting minus today's rate, bp">Cum. Δ bp</th>
+      </tr>
+    </thead>
+  );
+}
+
+function WirpCells({ m }: { m: MeetingMoves }) {
+  return (
+    <>
+      <td className="num">
+        <Chg v={m.cumMoves} dec={2} />
+      </td>
+      <td className="num">
+        <Chg v={m.cumPct} dec={1} pct />
+      </td>
+      <td className="num">
+        <span className={m.stepBp >= 0 ? 'up' : 'dn'}>{fmtPct(m.stepProb, 1, false)}</span> {m.stepBp >= 0 ? 'hike' : 'cut'}
+      </td>
+    </>
+  );
+}
+
 export function WIRP(props: FnProps) {
   if (engine.realOnly) return <WIRPReal />;
   return <WIRPSim {...props} />;
@@ -587,31 +622,17 @@ function WIRPReal() {
         <div className="cols" style={{ gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)' }}>
           <Section title="Meeting by meeting">
             <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Meeting</th>
-                  <th className="num">#Hikes/Cuts</th>
-                  <th className="num">% Prob of move</th>
-                  <th className="num">Imp. rate</th>
-                  <th className="num">Δ bp</th>
-                </tr>
-              </thead>
+              <WirpHead />
               <tbody>
                 {path.map((r) => {
-                  const move = r.end - r.start;
-                  const prob = Math.min(100, (Math.abs(move) / step) * 100);
+                  const m = meetingMoves(r.start, r.end, current, step * 100);
                   return (
                     <tr key={r.date}>
                       <td className="amber">{fmtDay(Date.parse(`${r.date}T00:00:00Z`))}</td>
-                      <td className="num">
-                        <Chg v={(r.end - current) / step} dec={2} />
-                      </td>
-                      <td className="num">
-                        <span className={move >= 0 ? 'up' : 'dn'}>{fmtPct(prob, 1, false)}</span> {move >= 0 ? 'hike' : 'cut'}
-                      </td>
+                      <WirpCells m={m} />
                       <td className="num white">{fmtNum(r.end, 3)}</td>
                       <td className="num">
-                        <Chg v={(r.end - current) * 100} dec={1} />
+                        <Chg v={m.cumBp} dec={1} />
                       </td>
                     </tr>
                   );
@@ -660,7 +681,7 @@ function WIRPReal() {
         </table>
       </Section>
       <div className="note">
-        Method as CME FedWatch: each contract settles on its month's average effective rate. A month without a decision fixes the rate after the meeting before it; in a decision month the average splits into the days before and after the decision. One move = 25 bp. Futures settle on the effective rate, which trades inside the target range, so implied rates sit near the middle of the range. Only the Fed is covered: the ECB, Bank of England and Bank of Japan have no free futures source here.
+        Method as CME FedWatch: each contract settles on its month's average effective rate. A month without a decision fixes the rate after the meeting before it; in a decision month the average splits into the days before and after the decision. {WIRP_NOTE} Futures settle on the effective rate, which trades inside the target range, so implied rates sit near the middle of the range. Only the Fed is covered: the ECB, Bank of England and Bank of Japan have no free futures source here.
       </div>
       <Credits ids={['fedboard', 'nyfed']} />
     </div>
@@ -687,7 +708,7 @@ function WIRPSim(_: FnProps) {
       const implied = Math.max(-0.5, fwd);
       const step = implied - prev;
       prev = implied;
-      return { t, implied, step, cum: implied - current, hikes: (implied - current) / cfg.step };
+      return { t, implied, step };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pts.map((p) => p.y).join(), meetings.join(), current]);
@@ -719,30 +740,17 @@ function WIRPSim(_: FnProps) {
         <div className="cols" style={{ gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)' }}>
           <Section title="Meeting by meeting">
             <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Meeting</th>
-                  <th className="num">#Hikes/Cuts</th>
-                  <th className="num">% Prob of move</th>
-                  <th className="num">Imp. rate</th>
-                  <th className="num">Δ bp</th>
-                </tr>
-              </thead>
+              <WirpHead />
               <tbody>
                 {rows.map((r) => {
-                  const prob = Math.min(100, (Math.abs(r.step) / cfg.step) * 100);
+                  const m = meetingMoves(r.implied - r.step, r.implied, current, cfg.step * 100);
                   return (
                     <tr key={r.t}>
                       <td className="amber">{fmtDay(r.t)}</td>
-                      <td className="num">
-                        <Chg v={r.hikes} dec={2} />
-                      </td>
-                      <td className="num">
-                        <span className={r.step >= 0 ? 'up' : 'dn'}>{fmtPct(prob, 1, false)}</span> {r.step >= 0 ? 'hike' : 'cut'}
-                      </td>
+                      <WirpCells m={m} />
                       <td className="num white">{fmtNum(r.implied, 3)}</td>
                       <td className="num">
-                        <Chg v={r.cum * 100} dec={1} />
+                        <Chg v={m.cumBp} dec={1} />
                       </td>
                     </tr>
                   );
@@ -761,7 +769,7 @@ function WIRPSim(_: FnProps) {
           </Section>
         </div>
       )}
-      <div className="note">Bars use forward rates between meeting dates; one move = 25 bp.</div>
+      <div className="note">Bars use forward rates between meeting dates. {WIRP_NOTE}</div>
     </div>
   );
 }

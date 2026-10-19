@@ -34,6 +34,26 @@ export async function checkBond(page: Page, run: RunCommand) {
   await page.getByLabel('Bond zero curve').fill('1,3\n10,3');
 }
 
+/** Excel's published 30/360 PRICE example through the day-count control, then a settlement lag from a trade date. */
+export async function checkBondConventions(page: Page, run: RunCommand) {
+  await run('YAS', 'BONDCALC');
+  await page.getByLabel('Day count').selectOption('30/360');
+  await page.getByLabel('Coupons per year').selectOption('2');
+  await page.getByLabel('Coupon %', { exact: true }).fill('5.75');
+  await page.getByLabel('Settlement', { exact: true }).fill('2008-02-15');
+  await page.getByLabel('Maturity', { exact: true }).fill('2017-11-15');
+  await page.getByLabel('Solve from').selectOption('yield');
+  await page.getByLabel('Yield %', { exact: true }).fill('6.5');
+  // Microsoft's PRICE documentation: 5.75% semiannual, 15 Feb 2008 to 15 Nov 2017, 6.50%, basis 0 -> 94.63 (94.63436162).
+  await expect.poll(() => displayed(page, 'bond-clean')).toBeCloseTo(94.63436162, 5);
+  await expect(page.getByTestId('bond-accrued-days')).toHaveText('90 of 180');
+  // A trade date settles on the lag again: T+1 by default, T+2 when chosen; Thursday 15 Oct 2026 + 2 weekdays is Monday.
+  await page.getByLabel('Trade date').fill('2026-10-15');
+  await expect(page.getByLabel('Settlement', { exact: true })).toHaveValue('2026-10-16');
+  await page.getByLabel('Settlement lag').selectOption('2');
+  await expect(page.getByLabel('Settlement', { exact: true })).toHaveValue('2026-10-19');
+}
+
 export async function checkForward(page: Page, run: RunCommand) {
   await run('EURUSD Curncy FRD', 'FXFORWARD');
   await page.getByLabel('Spot override').fill('1.1');

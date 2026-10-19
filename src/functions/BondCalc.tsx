@@ -6,29 +6,52 @@ import { KV, Section } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtDay, fmtNum } from '../core/format';
 import { engine } from '../data/market';
-import { analytics, cleanFromYield, couponSchedule, to32nds, yieldFromClean, type BondAnalytics } from '../finance/bonds';
+import { analytics, cleanFromYield, couponSchedule, DAY_COUNTS, defaultSettlementLag, settlementDate, to32nds, yieldFromClean, type BondAnalytics, type BondTerms, type DayCount } from '../finance/bonds';
 import { contractDate, inputNumber } from '../finance/contracts';
 import { parseZeroCurve } from '../finance/contracts';
 import { bondSpreadValue } from '../finance/bond-spreads';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
-type Form = { coupon: string; maturity: string; settle: string; frequency: string; mode: string; value: string; face: string; benchmark: string; curve: string };
-const EXAMPLE: Form = { coupon: '5', maturity: '2030-01-01', settle: '2025-01-01', frequency: '2', mode: 'yield', value: '4', face: '1000000', benchmark: '3', curve: '1,3\n5,3\n10,3' };
+type Form = {
+  coupon: string; maturity: string; trade: string; lag: string; settle: string; frequency: string; basis: DayCount; mode: string; value: string; face: string;
+  benchmark: string; curve: string;
+};
+const EXAMPLE: Form = {
+  coupon: '5', maturity: '2030-01-01', trade: '2025-01-01', lag: 'manual', settle: '2025-01-01', frequency: '2', basis: 'ACT/ACT ICMA', mode: 'yield', value: '4',
+  face: '1000000', benchmark: '3', curve: '1,3\n5,3\n10,3',
+};
+const LAGS: { value: string; label: string }[] = [
+  { value: '0', label: 'T+0' }, { value: '1', label: 'T+1 (US Treasuries)' }, { value: '2', label: 'T+2 (European govts, corporates)' },
+  { value: '3', label: 'T+3' }, { value: 'manual', label: 'Manual date' },
+];
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Regular fixed-rate bullet analytics, available without a bond quote or subscription. */
 export function BondCalc({ sec }: FnProps) {
   const panel = usePanelId();
-  const [form, setForm] = useState<Form>({ coupon: '', maturity: '', settle: new Date(engine.now()).toISOString().slice(0, 10), frequency: '2', mode: 'yield', value: '', face: '1000000', benchmark: '', curve: '' });
+  const [form, setForm] = useState<Form>(() => {
+    const today = isoDay(new Date(engine.now()));
+    return { coupon: '', maturity: '', trade: today, lag: String(defaultSettlementLag(sec?.cls === 'bond' ? sec : undefined)), settle: '', frequency: '2',
+      basis: 'ACT/ACT ICMA', mode: 'yield', value: '', face: '1000000', benchmark: '', curve: '' };
+  });
   const [example, setExample] = useState(false);
-  const set = (key: keyof Form, value: string) => { setForm((f) => ({ ...f, [key]: value })); setExample(false); };
-  const terms = { coupon: inputNumber(form.coupon), maturity: contractDate(form.maturity), freq: Number(form.frequency) };
-  const settle = contractDate(form.settle);
+  const update = (fn: (f: Form) => Form) => { setForm(fn); setExample(false); };
+  const set = (key: keyof Form, value: string) => update((f) => ({ ...f, [key]: value }));
+  const marketLag = String(defaultSettlementLag(sec?.cls === 'bond' ? sec : undefined));
+  const trade = contractDate(form.trade);
+  // A lag counts business days from the trade date (weekends only, no holiday calendar); typing a date overrides it.
+  const settleText = form.lag === 'manual' ? form.settle : Number.isFinite(trade.getTime()) ? isoDay(settlementDate(trade, Number(form.lag))) : '';
+  const basisLabel = DAY_COUNTS.find((d) => d.id === form.basis)?.label ?? form.basis;
+  const lagLabel = LAGS.find((l) => l.value === form.lag)?.label ?? form.lag;
+  const terms: BondTerms & { freq: number } = { coupon: inputNumber(form.coupon), maturity: contractDate(form.maturity), freq: Number(form.frequency), basis: form.basis };
+  const settle = contractDate(settleText);
   const face = inputNumber(form.face);
   const input = inputNumber(form.value);
   let error = '';
   let result: BondAnalytics | undefined;
   if (!Number.isFinite(terms.coupon) || terms.coupon < 0) error = 'Enter a nonnegative annual coupon.';
+  else if (form.lag !== 'manual' && !Number.isFinite(trade.getTime())) error = 'Enter a valid trade date, or type the settlement date.';
   else if (!Number.isFinite(settle.getTime()) || !Number.isFinite(terms.maturity.getTime()) || terms.maturity <= settle) error = 'Enter a valid settlement date and a later maturity date.';
   else if (!couponSchedule(terms, settle).length) error = 'Use a supported frequency and a maturity within 200 years.';
   else if (!Number.isFinite(face) || face <= 0) error = 'Enter a positive face amount.';
@@ -53,8 +76,8 @@ export function BondCalc({ sec }: FnProps) {
   }
   const cash = r ? couponSchedule(terms, settle).slice(1).map((date, index, dates) => {
     const amount = terms.coupon / terms.freq + (index === dates.length - 1 ? 100 : 0);
-    const fraction = (r.nextCoupon.getTime() - settle.getTime()) / (r.nextCoupon.getTime() - r.prevCoupon.getTime());
-    return { date, amount, pv: amount / (1 + r.yield / 100 / terms.freq) ** (fraction + index) };
+    // The first flow is discounted DSC/E periods on the bond's day count, each later one a whole period more.
+    return { date, amount, pv: amount / (1 + r.yield / 100 / terms.freq) ** (r.fraction + index) };
   }) : [];
   const scenarios = r ? [-100, -50, -25, -10, 10, 25, 50, 100].map((bp) => {
     const price = cleanFromYield(terms, settle, r.yield + bp / 100);
@@ -63,23 +86,29 @@ export function BondCalc({ sec }: FnProps) {
   const points = r ? Array.from({ length: 41 }, (_, k) => ({ x: r.yield - 2 + k / 10, y: cleanFromYield(terms, settle, r.yield - 2 + k / 10) })).filter((p) => Number.isFinite(p.y)) : [];
   const rows = () => [
     ['Source', example ? 'Calculation example, not market data' : 'User-entered contract terms and price/yield'],
-    ['Convention', 'Regular fixed-rate bullet; Actual/Actual ICMA; unadjusted dates'],
-    ['Coupon %', terms.coupon], ['Maturity', form.maturity], ['Settlement', form.settle], ['Frequency', terms.freq], ['Face', face],
-    ['Yield %', r?.yield], ['Clean / 100', r?.clean], ['Dirty / 100', r?.dirty], ['DV01 / 100', r?.dv01],
+    ['Convention', `Regular fixed-rate bullet; ${basisLabel}; unadjusted dates`],
+    ['Day count', form.basis], ['Trade date', form.lag === 'manual' ? '' : form.trade], ['Settlement lag', lagLabel],
+    ['Coupon %', terms.coupon], ['Maturity', form.maturity], ['Settlement', settleText], ['Frequency', terms.freq], ['Face', face],
+    ['Yield %', r?.yield], ['Clean / 100', r?.clean], ['Accrued / 100', r?.accrued], ['Accrued days', r?.accruedDays], ['Days in coupon period', r?.periodDays],
+    ['Periods to next coupon (DSC/E)', r?.fraction], ['Dirty / 100', r?.dirty], ['DV01 / 100', r?.dv01],
     ['Benchmark nominal yield %', form.benchmark], ['G-spread bp (matching nominal compounding)', gSpread],
     ['Settlement-relative zero curve: years, continuous zero %, optional projection ignored', form.curve],
     ['Z-spread bp (continuous ACT/365F)', spread?.spreadBp], ['Z01 per 100', spread?.z01], ['Spread duration', spread?.spreadDuration], ['Zero-spread clean price', spread?.zeroSpreadClean], ['Spread input error', spreadError],
     ['Payment date', 'Cash flow / 100', 'PV / 100'], ...cash.map((c) => [c.date.toISOString().slice(0, 10), c.amount, c.pv]),
   ];
   return <div>
-    <FnHeader code="BONDCALC" title="Yield & Spread Analysis" sec={sec} sub="Regular fixed-rate bullet · Actual/Actual ICMA"
+    <FnHeader code="BONDCALC" title="Yield & Spread Analysis" sec={sec} sub={`Regular fixed-rate bullet · ${basisLabel} · ${form.lag === 'manual' ? 'manual settlement' : lagLabel.replace(/ \(.*\)$/, '')}`}
       actions={[{ n: 1, label: 'Example', onClick: () => { setForm(EXAMPLE); setExample(true); } }, ...(r ? exportActions(panel, 'bond-calculation.csv', rows) : [])]} />
     <CalcSource>{example ? 'Example inputs. ' : 'Your contract terms and price/yield. '}Calculated price, yield risk and optional benchmark/Z-spreads. Supply the benchmark or zero curve; no market quote, curve or issue terms are inferred.</CalcSource>
     <div className="chart-tools">
       <CalcInput label="Coupon %" value={form.coupon} onChange={(v) => set('coupon', v)} />
       <CalcInput label="Maturity" type="date" value={form.maturity} onChange={(v) => set('maturity', v)} />
-      <CalcInput label="Settlement" type="date" value={form.settle} onChange={(v) => set('settle', v)} />
+      {/* A new trade date settles on the lag again; typing a settlement date switches to a manual date. */}
+      <CalcInput label="Trade date" type="date" value={form.trade} onChange={(v) => update((f) => ({ ...f, trade: v, lag: f.lag === 'manual' ? marketLag : f.lag }))} />
+      <CalcSelect label="Settlement lag" value={form.lag} onChange={(v) => update((f) => ({ ...f, lag: v, settle: settleText || f.settle }))}>{LAGS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}</CalcSelect>
+      <CalcInput label="Settlement" type="date" value={settleText} onChange={(v) => update((f) => ({ ...f, settle: v, lag: 'manual' }))} />
       <CalcSelect label="Coupons per year" value={form.frequency} onChange={(v) => set('frequency', v)}>{[1, 2, 4, 12].map((f) => <option key={f} value={f}>{f}</option>)}</CalcSelect>
+      <CalcSelect label="Day count" value={form.basis} onChange={(v) => set('basis', v)}>{DAY_COUNTS.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}</CalcSelect>
       <CalcSelect label="Solve from" value={form.mode} onChange={(v) => { set('mode', v); set('value', ''); }}><option value="yield">Yield</option><option value="price">Clean price</option></CalcSelect>
       <CalcInput label={form.mode === 'price' ? 'Clean price per 100' : 'Yield %'} value={form.value} onChange={(v) => set('value', v)} />
       <CalcInput label="Face amount" value={form.face} onChange={(v) => set('face', v)} />
@@ -89,8 +118,11 @@ export function BondCalc({ sec }: FnProps) {
         <Section title="Price and yield"><KV items={[
           ['Clean price / 100', <span key="p" data-testid="bond-clean" className="white b">{fmtNum(r.clean, 6)}</span>],
           ['Price in 32nds (rounded to 1/64)', to32nds(r.clean)], ['Yield %', <span key="y" data-testid="bond-yield">{fmtNum(r.yield, 6)}</span>],
-          ['Accrued interest / 100', fmtNum(r.accrued, 6)], ['Accrued days', String(r.accruedDays)], ['Dirty price / 100', fmtNum(r.dirty, 6)],
-          ['Invoice amount', fmtNum(r.dirty / 100 * face, 2)], ['Previous / next coupon', `${fmtDay(r.prevCoupon.getTime(), true)} / ${fmtDay(r.nextCoupon.getTime(), true)}`],
+          ['Accrued interest / 100', <span key="a" data-testid="bond-accrued">{fmtNum(r.accrued, 6)}</span>],
+          [`Accrued days of period (${r.basis})`, <span key="d" data-testid="bond-accrued-days">{`${r.accruedDays} of ${fmtNum(r.periodDays, Number.isInteger(r.periodDays) ? 0 : 1)}`}</span>],
+          ['Periods to next coupon (DSC/E)', fmtNum(r.fraction, 6)], ['Dirty price / 100', fmtNum(r.dirty, 6)],
+          ['Invoice amount', fmtNum(r.dirty / 100 * face, 2)], ['Settlement', `${fmtDay(settle.getTime(), true)}${form.lag === 'manual' ? ' (entered)' : ` (${lagLabel.replace(/ \(.*\)$/, '')} from ${fmtDay(trade.getTime(), true)})`}`],
+          ['Previous / next coupon', `${fmtDay(r.prevCoupon.getTime(), true)} / ${fmtDay(r.nextCoupon.getTime(), true)}`],
         ]} /></Section>
         <Section title="Risk"><KV items={[
           ['Macaulay duration (years)', fmtNum(r.macaulay, 6)], ['Modified duration', fmtNum(r.modified, 6)], ['Convexity', fmtNum(r.convexity, 6)],
@@ -118,6 +150,6 @@ export function BondCalc({ sec }: FnProps) {
         <Section title="Cash flows" right={`${cash.length} payments`}><div style={{ maxHeight: 300, overflow: 'auto' }}><table className="tbl"><thead><tr><th>Payment date</th><th className="num">Cash flow / 100</th><th className="num">PV / 100</th></tr></thead>
           <tbody>{cash.map((c) => <tr key={c.date.getTime()}><td>{fmtDay(c.date.getTime(), true)}</td><td className="num">{fmtNum(c.amount, 6)}</td><td className="num">{fmtNum(c.pv, 6)}</td></tr>)}</tbody></table></div></Section></div>
     </>}
-    <p className="pad-s muted">Regular fixed-rate bullet, nominal yield compounded at coupon frequency, Actual/Actual ICMA. Dates are unadjusted. Confirm contractual settlement and coupon schedule; stubs, calls, defaults and taxes are outside this model.</p>
+    <p className="pad-s muted">Regular fixed-rate bullet, nominal yield compounded at coupon frequency. {basisLabel}: accrued interest is coupon/frequency × accrued days / period days and the first cash flow is discounted DSC/E periods, both on that day count. Settlement lags count weekdays only, with no holiday calendar. Dates are unadjusted. Confirm contractual settlement, day count and coupon schedule; stubs, calls, defaults and taxes are outside this model.</p>
   </div>;
 }
