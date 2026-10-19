@@ -4,7 +4,8 @@ import { panelMessages, clearFlash } from '../terminal/panel';
 import { back, forward, LINK_GROUPS, linkGroupOf, setLinkGroup, terminal, type LinkGroup } from '../terminal/state';
 import { primaryMnemonic } from '../terminal/legacy';
 import { settings } from '../terminal/settings';
-import { suggest, type Suggestion } from '../terminal/suggest';
+import { startSuggestions, suggest, type Suggestion } from '../terminal/suggest';
+import { favourites } from '../terminal/userdata';
 import type { Route } from '../terminal/types';
 import { lookupFn } from '../terminal/registry';
 
@@ -94,6 +95,8 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   const canFwd = terminal.use((s) => s.panels[panel].idx < s.panels[panel].history.length - 1);
   const group = terminal.use((s) => linkGroupOf(s.panels[panel]));
   const mnemonics = settings.use((s) => s.mnemonics);
+  const favIds = favourites.use((s) => s.ids);
+  const recentSecs = terminal.use((s) => s.recentSecs);
 
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -151,7 +154,8 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
     return () => clearTimeout(id);
   }, [msg, panel]);
 
-  const items = useMemo(() => (open && value.trim() ? suggest(value) : []), [value, open]);
+  // Before anything is typed: favourites and recent securities, as soon as the line is clicked.
+  const items = useMemo(() => (!open ? [] : value.trim() ? suggest(value) : startSuggestions(favIds, recentSecs)), [value, open, favIds, recentSecs]);
 
   useEffect(() => {
     if (sel < 0 || !listRef.current) return;
@@ -205,13 +209,18 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         } else { e.preventDefault(); recall(1); }
         break;
       case 'ArrowUp':
-        if (items.length) {
+        // On an empty line Up still recalls the last command; Down goes into the favourites listed below.
+        if (!value.trim() && sel < 0) {
+          e.preventDefault();
+          recall(-1);
+        } else if (items.length) {
           e.preventDefault();
           setSel((i) => (i <= 0 ? items.length - 1 : i - 1));
         } else { e.preventDefault(); recall(-1); }
         break;
       case 'Tab':
-        if (items.length) {
+        // Ctrl+Tab and Ctrl+Shift+Tab move between panels; only a plain Tab completes.
+        if (items.length && !e.ctrlKey && !e.metaKey && !e.altKey) {
           e.preventDefault();
           const s = items[Math.max(0, sel)];
           if (s.fill) choose(s);
@@ -285,7 +294,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         aria-controls={open && items.length > 0 ? `cmd-suggestions-${panel}` : undefined}
         aria-activedescendant={open && sel >= 0 && items[sel] ? `cmd-option-${panel}-${sel}` : undefined}
         aria-label={`Panel ${panel + 1} command line`}
-        title="Enter / GO runs a command. Up / Down recalls commands when suggestions are closed; Ctrl+Up / Down always recalls."
+        title="Enter / GO runs a command. Clicking an empty line lists your favourites: Down goes into the list, Up recalls the last command. Up / Down recall commands when suggestions are closed; Ctrl+Up / Down always recall."
         placeholder={`${routeText(route, mnemonics)}${fnDef ? `  ·  ${fnDef.name}` : ''}`}
         onChange={(e) => {
           setValue(e.target.value);
@@ -311,7 +320,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
             return [
               head ? (
                 <div key={`h${i}`} className="ac-head">
-                  {s.kind === 'fn' ? 'Functions' : 'Securities'}
+                  {s.kind === 'fn' ? 'Functions' : s.kind === 'fav' ? '★ Favourites' : s.kind === 'recent' ? 'Recent securities' : 'Securities'}
                 </div>
               ) : null,
               <div
@@ -326,13 +335,15 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
                   choose(s);
                 }}
               >
-                <span className={s.kind === 'fn' ? 'fn' : 'k'}>{s.primary}</span>
+                <span className={s.kind === 'fn' ? 'fn' : s.kind === 'fav' ? 'k fav' : 'k'}>{s.primary}</span>
                 <span>{s.secondary}</span>
                 <span className="tag">{s.tag}</span>
               </div>,
             ];
           })}
-          <div className="ac-foot">↑↓ select · Enter run · Tab complete · Esc close</div>
+          <div className="ac-foot">
+            {value.trim() || favIds.length ? '↑↓ select · Enter run · Tab complete · Esc close' : '☆ next to a security\'s name makes it a favourite: it shows here first'}
+          </div>
         </div>
       )}
     </div>

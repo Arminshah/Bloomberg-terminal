@@ -7,7 +7,7 @@ import googleKbcNl from './fixtures/google-news-kbc-nl.xml?raw';
 
 describe('news requests (main process)', () => {
   it('builds only the requests the app makes', () => {
-    expect(newsMain.newsRequest('finnhub-market', '', 'k')).toEqual({ url: 'https://finnhub.io/api/v1/news?category=general', headers: { 'X-Finnhub-Token': 'k' }, ttl: 5 * 60_000, provider: 'finnhub' });
+    expect(newsMain.newsRequest('finnhub-market', '', 'k')).toEqual({ url: 'https://finnhub.io/api/v1/news?category=general', headers: { 'X-Finnhub-Token': 'k' }, ttl: 2 * 60_000, provider: 'finnhub' });
     // Finnhub's key goes in a header, never in the URL.
     const company = newsMain.newsRequest('finnhub-company', 'AAPL|2026-10-07|2026-10-14', 'k')!;
     expect(company.url).toBe('https://finnhub.io/api/v1/company-news?symbol=AAPL&from=2026-10-07&to=2026-10-14');
@@ -279,7 +279,8 @@ describe('Alpaca, Massive and Google News requests (main process)', () => {
     const market = newsMain.newsRequest('alpaca-market', '', 'PKID', 'SECRET', now)!;
     expect(market.url).toBe('https://data.alpaca.markets/v1beta1/news?start=2026-10-16&sort=desc&limit=50');
     expect(market.headers).toEqual({ 'APCA-API-KEY-ID': 'PKID', 'APCA-API-SECRET-KEY': 'SECRET' });
-    expect(market.provider).toBe('alpaca');
+    // Counted apart from Alpaca's quotes and options.
+    expect(market.provider).toBe('alpaca-news');
     expect(newsMain.newsRequest('alpaca-market', 'AAPL', 'PKID', 'SECRET', now)).toBeNull();
     expect(newsMain.newsRequest('alpaca-company', 'BRK.B', 'PKID', 'SECRET', now)!.url).toBe('https://data.alpaca.markets/v1beta1/news?symbols=BRK.B&start=2026-09-19&sort=desc&limit=50');
     expect(newsMain.newsRequest('alpaca-company', 'aapl', 'PKID', 'SECRET', now)).toBeNull();
@@ -333,6 +334,37 @@ describe('Alpaca, Massive and Google News requests (main process)', () => {
     expect(query('US:en||AAPL')).toBeNull();
   });
 
+  it('searches a security that is not a company with words about its price, in English only', () => {
+    const query = (arg: string) => {
+      const r = newsMain.newsRequest('google-news-company', arg, '');
+      return r ? new URL(r.url).searchParams.get('q') : null;
+    };
+    expect(query('US:en|Gold|||commodity')).toBe('"Gold" (price OR prices OR futures) when:7d');
+    expect(query('US:en|EUR/USD|||fx')).toBe('"EUR/USD" (currency OR forex OR "exchange rate") when:7d');
+    expect(query('US:en|Bitcoin|||crypto')).toBe('"Bitcoin" (price OR crypto OR ETF) when:7d');
+    expect(query('BE:nl|Goud|||commodity')).toBeNull();
+    expect(query('US:en|Gold|||bonds')).toBeNull();
+  });
+
+  it("searches the last hour's market news for BREAKING, and your own words for NEWS", () => {
+    const breaking = newsMain.newsRequest('google-news-breaking', 'US:en', '')!;
+    expect(new URL(breaking.url).searchParams.get('q')).toBe('(stocks OR "stock market" OR "Wall Street" OR earnings OR bonds OR "central bank") when:1h');
+    expect(breaking.ttl).toBe(3 * 60_000);
+    expect(newsMain.newsRequest('google-news-breaking', 'BE:nl', '')).toBeNull();
+    const search = (arg: string) => {
+      const r = newsMain.newsRequest('google-news-search', arg, '');
+      return r ? new URL(r.url).searchParams.get('q') : null;
+    };
+    expect(search('US:en|fed rate cut')).toBe('fed rate cut when:7d');
+    expect(search('US:en|"AB InBev" earnings')).toBe('"AB InBev" earnings when:7d');
+    expect(search('US:en|$APLD')).toBe('$APLD when:7d');
+    // One letter, a second field, a non-English edition or characters outside a search are refused.
+    expect(search('US:en|x')).toBeNull();
+    expect(search('US:en|a|b')).toBeNull();
+    expect(search('BE:nl|KBC bank')).toBeNull();
+    expect(search('US:en|a\nb')).toBeNull();
+  });
+
   it('has words for every edition language', () => {
     for (const e of Object.values(newsMain.EDITIONS)) expect(newsMain.FINANCE_WORDS[e.lang]?.length).toBeGreaterThan(2);
     // And for every country whose stocks are also searched in the UK edition.
@@ -355,7 +387,13 @@ describe("a stock's Google News searches", () => {
     expect(googleSearches(stock('VOLV/B SS Equity', 'AB Volvo (publ)', 'SE'))).toEqual(['SE:sv|AB Volvo|VOLV', 'GB:en|AB Volvo|VOLV|SE']);
     // A ticker that is a number is left out; a market without its own edition reads the US one.
     expect(googleSearches(stock('7203 JT Equity', 'Toyota Motor Corp', 'JP'))).toEqual(['US:en|Toyota|']);
-    expect(googleSearches({ id: 'SPX Index', name: 'S&P 500', cls: 'index', ticker: 'SPX', country: 'US' })).toEqual([]);
+    // An index is searched by the name the press uses; a currency pair, a commodity or a coin with words about prices.
+    expect(googleSearches({ id: 'SPX Index', name: 'S&P 500 INDEX', cls: 'index', ticker: 'SPX', country: 'US' })).toEqual(['US:en|S&P 500|']);
+    expect(googleSearches({ id: 'EURUSD Curncy', name: 'Euro / US Dollar', cls: 'fx', ticker: 'EURUSD', country: 'EU', fx: { base: 'EUR', quote: 'USD' } })).toEqual(['US:en|EUR/USD|||fx']);
+    expect(googleSearches({ id: 'GC1 Comdty', name: 'Gold futures', cls: 'commodity', ticker: 'GC1', country: 'US' })).toEqual(['US:en|Gold|||commodity']);
+    expect(googleSearches({ id: 'XBTUSD Curncy', name: 'Bitcoin / US Dollar', cls: 'crypto', ticker: 'XBTUSD', country: 'US' })).toEqual(['US:en|Bitcoin|||crypto']);
+    expect(googleSearches({ id: 'USGG10YR Index', name: 'US 10Y', cls: 'rate', ticker: 'USGG10YR', country: 'US' })).toEqual([]);
+    for (const a of ['US:en|EUR/USD|||fx', 'US:en|Gold|||commodity', 'US:en|Bitcoin|||crypto', 'US:en|S&P 500|']) expect(newsMain.newsRequest('google-news-company', a, ''), a).not.toBeNull();
   });
 
   it('only asks searches the main process accepts', async () => {
@@ -471,5 +509,18 @@ describe('the news lists together', () => {
     expect(combinedFeed([{ state: 'loading' }, { state: 'ok', count: 5, at: 1000 }])).toMatchObject({ state: 'ok', count: 5 });
     expect(combinedFeed([{ state: 'loading' }, { state: 'error', message: 'HTTP 503' }])).toEqual({ state: 'error', message: 'HTTP 503' });
     expect(combinedFeed([undefined, undefined])).toBeUndefined();
+  });
+});
+
+describe('official announcements beside market news', () => {
+  it('reads them as stories, keeping only those with a link', async () => {
+    const { officialStories } = await import('../src/data/live/marketnews');
+    const list = officialStories([
+      { id: 'newsFed:x', time: 1760450000000, headline: 'Federal Reserve issues FOMC statement', body: ['The Committee decided...'], source: 'Federal Reserve Board', url: 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20261028a.htm', tickers: [] },
+      { id: 'newsEcb:y', time: 1760450000000, headline: 'No link', body: [], source: 'European Central Bank', tickers: [] },
+    ]);
+    expect(list).toEqual([
+      { id: 'federalreserve.gov/newsevents/pressreleases/monetary20261028a.htm', title: 'Federal Reserve issues FOMC statement', url: 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20261028a.htm', publisher: 'Federal Reserve Board', feeds: ['Official'], time: 1760450000000, summary: 'The Committee decided...', tickers: [] },
+    ]);
   });
 });

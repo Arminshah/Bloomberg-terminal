@@ -31,8 +31,10 @@ export type NewsSource =
   | 'massive-market'
   | 'massive-company'
   | 'google-news-market'
+  | 'google-news-breaking'
+  | 'google-news-search'
   | 'google-news-company';
-export type NewsFeed = 'Finnhub' | 'Marketaux' | 'MarketWatch' | 'SEC EDGAR' | 'Yahoo Finance' | 'Euronext' | 'Alpaca' | 'Massive' | 'Google News';
+export type NewsFeed = 'Finnhub' | 'Marketaux' | 'MarketWatch' | 'SEC EDGAR' | 'Yahoo Finance' | 'Euronext' | 'Alpaca' | 'Massive' | 'Google News' | 'Official';
 
 export interface MarketStory {
   /** The canonical link, which also identifies the story. */
@@ -223,7 +225,7 @@ export function parseMassiveNews(text: string): MarketStory[] | { error: string 
  * Pages about a stock that Google lists among stories: "ABI.BR Stock Price, News, Quote & History - Yahoo Finance",
  * and MarketScreener's and Zonebourse's, whose titles end with the ISIN ("Graphique de cours | KBC | BE0003565737").
  */
-const QUOTE_PAGE = /(?:stock|share) price,? news,? quote|latest stock news and headlines|stock forum & discussion|stock forecast & (?:analyst )?predictions|\|\s*[A-Z]{2}[A-Z0-9]{9}\d\b/i;
+const QUOTE_PAGE = /(?:stock|share) price,? news,? quote|latest stock news and headlines|stock forum & discussion|stock forecast & (?:analyst )?predictions|exchange rate chart|\|\s*[A-Z]{2}[A-Z0-9]{9}\d\b/i;
 
 /**
  * Google News RSS: each item's title ends with " - Publisher", the publisher is also its <source>, and its link goes
@@ -447,6 +449,8 @@ const PARSE: Record<NewsSource, (t: string, arg: string) => MarketStory[] | { er
   'massive-market': parseMassiveNews,
   'massive-company': parseMassiveNews,
   'google-news-market': (t) => parseGoogleNews(t),
+  'google-news-breaking': (t) => parseGoogleNews(t),
+  'google-news-search': (t) => parseGoogleNews(t),
   // arg: "BE:nl|KBC|KBC", the ticker last.
   'google-news-company': (t, arg) => parseGoogleNews(t, arg.split('|')[2] || undefined),
 };
@@ -503,6 +507,50 @@ export const MARKET_EDITIONS = ['US:en', 'GB:en'];
 
 /** The market news requests, in the order their stories are merged (see storiesFor). */
 export const MARKET_SOURCES = ['finnhub-market', 'alpaca-market', 'massive-market', 'marketwatch', 'edgar-8k', 'marketaux', 'euronext-pr', 'google-news-market'];
+
+/** BREAKING reads the market sources and Google's search of the last hour. */
+export const BREAKING_SOURCES = [...MARKET_SOURCES, 'google-news-breaking'];
+
+/**
+ * Keeps the fast market sources fresh for BREAKING and the breaking pop-ups: Finnhub (general and mergers), Alpaca,
+ * Google's last-hour search every 2 to 3 minutes; MarketWatch, SEC and Euronext every 10; Massive every 15. Marketaux
+ * is left to MARKETNEWS, for its daily allowance.
+ */
+export function refreshBreaking() {
+  if (!newsAvailable()) return;
+  void loadNews('finnhub-market', '', 2 * 60_000);
+  void loadNews('finnhub-market', 'merger', 2 * 60_000);
+  void loadNews('alpaca-market', '', 2 * 60_000);
+  for (const e of MARKET_EDITIONS) void loadNews('google-news-breaking', e, 3 * 60_000);
+  for (const e of MARKET_EDITIONS) void loadNews('google-news-market', e, 10 * 60_000);
+  void loadNews('marketwatch', '', 10 * 60_000);
+  void loadNews('edgar-8k', '', 10 * 60_000);
+  void loadNews('euronext-pr', '', 10 * 60_000);
+  void loadNews('massive-market', '', 15 * 60_000);
+}
+
+/** Refreshes the breaking sources every minute while a screen shows them (each within its own interval). */
+export function useBreakingNews() {
+  const v = marketNews.use((s) => s.v);
+  useEffect(() => {
+    refreshBreaking();
+    const t = setInterval(refreshBreaking, 60_000);
+    return () => clearInterval(t);
+  }, []);
+  return v;
+}
+
+/** Stories published in the last 15 minutes among the breaking sources, for the top bar. */
+export function breakingCount(now = Date.now()): number {
+  return storiesFor(BREAKING_SOURCES).filter((s) => now - s.time < 15 * 60_000 && s.time <= now + 5 * 60_000).length;
+}
+
+/** Official announcements (HEADLINES) as stories beside the market's, for BREAKING. */
+export function officialStories(list: { id: string; time: number; headline: string; body: string[]; source: string; url?: string; tickers: string[] }[]): MarketStory[] {
+  return list
+    .filter((s) => s.url && /^https?:\/\//.test(s.url))
+    .map((s) => ({ id: canonicalUrl(s.url!), title: s.headline, url: s.url!, publisher: s.source, feeds: ['Official'] as NewsFeed[], time: s.time, ...(s.body[0] ? { summary: s.body[0].slice(0, 400) } : {}), tickers: [] }));
+}
 
 /**
  * Keeps the market news sources fresh while a screen shows them: Finnhub (general news and mergers) and Alpaca
@@ -581,23 +629,28 @@ const GOOGLE_EDITIONS: Record<string, string[]> = {
 };
 
 /**
- * The Google News searches for a stock, "edition|name|ticker" for each edition: the name as the press writes it
- * (shortName: "KBC Groep NV" is KBC) and the ticker when it starts with a letter, and in the English edition of a
- * stock listed on the continent, "|BE" for its country. None for anything that is not a stock.
+ * The Google News searches for a security, "edition|name|ticker" for each edition. A stock or an index: the name as
+ * the press writes it (shortName: "KBC Groep NV" is KBC, SPX is S&P 500), a stock's ticker when it starts with a
+ * letter, and in the English edition of one listed on the continent, "|BE" for its country. A currency pair, a
+ * commodity or index future and a coin: "US:en|EUR/USD|||fx", searched with words about prices. Bonds and rates
+ * have none.
  */
-export function googleSearches(def: Pick<SecurityDef, 'id' | 'name' | 'cls' | 'ticker' | 'country'>): string[] {
-  if (def.cls !== 'equity') return [];
-  const name = shortName(def as SecurityDef)
+export function googleSearches(def: Pick<SecurityDef, 'id' | 'name' | 'cls' | 'ticker' | 'country' | 'fx'>): string[] {
+  const kind = def.cls === 'fx' ? 'fx' : def.cls === 'commodity' || def.cls === 'future' ? 'commodity' : def.cls === 'crypto' ? 'crypto' : '';
+  if (!kind && def.cls !== 'equity' && def.cls !== 'index') return [];
+  const full = def.cls === 'fx' && def.fx ? `${def.fx.base}/${def.fx.quote}` : shortName(def as SecurityDef);
+  const name = full
     .normalize('NFC')
     // Swedish companies are "(publ)": a remark in brackets is not part of the name the press writes.
     .replace(/\s*\([^)]*\)/g, '')
-    .replace(/[^\p{L}\p{N}&'’. -]+/gu, ' ')
+    .replace(/[^\p{L}\p{N}&'’. /-]+/gu, ' ')
     .replace(/^[^\p{L}\p{N}]+/u, '')
     .replace(/\s+/g, ' ')
     .slice(0, 60)
     .trim();
   if (name.length < 2) return [];
-  const ticker = /^[A-Z][A-Z0-9]{1,9}/.exec(def.ticker.split(' ')[0].toUpperCase())?.[0] ?? '';
+  if (kind) return [`US:en|${name}|||${kind}`];
+  const ticker = def.cls === 'equity' ? (/^[A-Z][A-Z0-9]{1,9}/.exec(def.ticker.split(' ')[0].toUpperCase())?.[0] ?? '') : '';
   const own = GOOGLE_EDITIONS[def.country];
   // The UK edition for a stock listed on the continent: the main process adds that country's words to the search.
   return (own ?? ['US:en']).map((e) => (e === 'GB:en' && def.country !== 'GB' ? `${e}|${name}|${ticker}|${def.country}` : `${e}|${name}|${ticker}`));

@@ -3,6 +3,7 @@ import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { FreshnessLegend } from '../components/Freshness';
+import { FavStar } from '../components/FavStar';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtBp, fmtNum, fmtPct, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
@@ -15,7 +16,8 @@ import { flash, usePanelId } from '../terminal/panel';
 import { watchlists, type Watchlist } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
 
-function FieldCell({ column, row, sec, quote, now }: { column: WatchlistColumn; row: WatchlistRow; sec?: SecurityDef; quote?: Quote; now: number }) {
+/** One field of a watchlist row, as WATCHLIST and FAVOURITES show it, with its unit, source and limits on hover. */
+export function FieldCell({ column, row, sec, quote, now }: { column: WatchlistColumn; row: WatchlistRow; sec?: SecurityDef; quote?: Quote; now: number }) {
   const f = row.fields.get(column.id);
   if (sec?.quote === 'yield' && column.id === 'CHG_PCT_1D') return <span title={f?.note} />;
   if (!f || f.value === null || !sec) return <span className="muted" title={f?.note ?? 'No field value is available.'}>--</span>;
@@ -219,7 +221,8 @@ export function W({ route }: FnProps) {
             const q = engine.quote(id);
             return (
               <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e)}>
-                <td>
+                <td className="nowrap">
+                  <FavStar id={id} />
                   {d ? <SecLink id={id}>{d.ticker}</SecLink> : <span title="Security definition is unavailable; remove or reload this line.">{id}</span>}
                 </td>
                 {columns.map((c) => <td key={c.id} className={`${c.numeric ? 'num' : 'ellipsis'}${c.compact || list.columns ? '' : ' hide-m'}${c.id === 'PX_LAST' ? ' white' : ''}`} style={c.numeric || c.id === 'ARMIN_TODAY' ? undefined : { maxWidth: 240 }}><FieldCell column={c} row={row} sec={d} quote={q} now={now} /></td>)}

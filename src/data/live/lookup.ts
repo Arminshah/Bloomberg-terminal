@@ -22,7 +22,8 @@ export type OfficialSource =
   | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb'
   | 'ukcpi' | 'ukgdp' | 'ukunemp' | 'estatHicp' | 'estatUnemp' | 'estatGdp'
   | 'statcan' | 'absUnemp' | 'absCpi'
-  | 'newsFed' | 'newsEcb' | 'newsBoe' | 'newsBoc' | 'newsRba' | 'newsBea' | 'newsEsma';
+  | 'newsFed' | 'newsEcb' | 'newsBoe' | 'newsBoc' | 'newsRba' | 'newsBea' | 'newsEsma'
+  | 'newsFedSpeeches' | 'newsEcbBlog' | 'newsBoj' | 'newsBis' | 'newsSec';
 
 declare global {
   interface Window {
@@ -30,7 +31,7 @@ declare global {
       platform: string;
       yahoo(path: string): Promise<{ status: number; data: unknown; disabled?: boolean; session?: boolean }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
-      official(source: OfficialSource, since: string): Promise<{ status: number; text: string; sourceLabel?: string }>;
+      official(source: OfficialSource, since: string): Promise<{ status: number; text: string; sourceLabel?: string; missing?: string }>;
       fred?(kind: 'release-dates' | 'observations' | 'first-release', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;

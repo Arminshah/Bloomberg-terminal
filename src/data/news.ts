@@ -31,6 +31,7 @@ export const NEWS_TOPICS: { code: string; label: string }[] = [
   { code: 'CB', label: 'Central Banks' },
   { code: 'REG', label: 'Regulators' },
   { code: 'STATS', label: 'Statistics' },
+  { code: 'SPEECH', label: 'Speeches' },
 ];
 
 const NAME_OVERRIDES: Record<string, string> = {

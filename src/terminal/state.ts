@@ -43,7 +43,7 @@ export const PANEL_COUNT = 6;
 const DEFAULT_ROUTES: Route[] = [
   { fn: 'MARKET' },
   { fn: 'CHART', sec: 'AAPL US Equity' },
-  { fn: 'HEADLINES' },
+  { fn: 'MARKETNEWS' },
   { fn: 'HEATMAP' },
   { fn: 'WATCHLIST' },
   { fn: 'FXMATRIX' },
@@ -56,7 +56,7 @@ export const defaultTerminal = (): TerminalState => ({
   active: 0,
   panels: DEFAULT_ROUTES.map((r) => ({ history: [r], idx: 0 })),
   recentSecs: ['AAPL US Equity', 'SPX Index', 'EURUSD Curncy', 'XBTUSD Curncy'],
-  recentFns: ['CHART', 'PROFILE', 'HEADLINES', 'MARKET'],
+  recentFns: ['CHART', 'PROFILE', 'MARKETNEWS', 'MARKET'],
 });
 
 /**
@@ -104,6 +104,23 @@ export function renameSavedCodes(s: TerminalState): TerminalState {
   const before = terminal.get();
   const after = renameSavedCodes(before);
   if (after !== before) terminal.set(after);
+}
+
+/**
+ * The front page's news panel showed the official announcements (HEADLINES) until 2.10; it shows the market news
+ * now. A panel still on that untouched default (HEADLINES its only screen, without arguments) moves to MARKETNEWS;
+ * a panel where HEADLINES was opened, or that went elsewhere since, keeps what it has.
+ */
+export function frontPageNews(s: TerminalState): TerminalState {
+  const panels = s.panels.map((p) => (p.history.length === 1 && p.history[0].fn === 'HEADLINES' && !p.history[0].args && !p.history[0].sec ? { ...p, history: [{ fn: 'MARKETNEWS' }], idx: 0 } : p));
+  return panels.some((p, i) => p !== s.panels[i]) ? { ...s, panels } : s;
+}
+// Once per installation, so a panel set to HEADLINES afterwards stays there.
+if (typeof localStorage !== 'undefined' && !loadJson('armin:front-page-news')) {
+  const before = terminal.get();
+  const after = frontPageNews(before);
+  if (after !== before) terminal.set(after);
+  saveJson('armin:front-page-news', 1);
 }
 
 export const LAYOUT_PANELS: Record<LayoutId, number> = { '1': 1, '2': 2, '2v': 2, '3': 3, '4': 4, '5': 5, '6': 6 };

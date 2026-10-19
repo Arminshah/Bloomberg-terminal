@@ -70,7 +70,7 @@ export interface OfficialFeed {
   source: OfficialSource;
   publisher: string;
   /** News topic code (see NEWS_TOPICS). */
-  topic: 'CB' | 'REG' | 'STATS';
+  topic: 'CB' | 'REG' | 'STATS' | 'SPEECH';
   /** Terms, briefly, for the provider screen and the docs. */
   terms: string;
 }
@@ -83,6 +83,11 @@ export const OFFICIAL_FEEDS: OfficialFeed[] = [
   { source: 'newsRba', publisher: 'Reserve Bank of Australia', topic: 'CB', terms: 'CC BY 4.0 with attribution to the RBA.' },
   { source: 'newsBea', publisher: 'US Bureau of Economic Analysis', topic: 'STATS', terms: 'US federal government work.' },
   { source: 'newsEsma', publisher: 'ESMA', topic: 'REG', terms: 'Reproduction allowed with the source acknowledged.' },
+  { source: 'newsBoj', publisher: 'Bank of Japan', topic: 'CB', terms: 'Copying allowed with the Bank of Japan named as the source, except for commercial use.' },
+  { source: 'newsSec', publisher: 'US Securities and Exchange Commission', topic: 'REG', terms: 'Public information; may be copied with the SEC cited. Asked with SEC_USER_AGENT.' },
+  { source: 'newsFedSpeeches', publisher: 'Federal Reserve Board (speeches)', topic: 'SPEECH', terms: 'Public domain; cite the Board as the source.' },
+  { source: 'newsEcbBlog', publisher: 'European Central Bank (blog)', topic: 'SPEECH', terms: 'Free use with the ECB cited as the source.' },
+  { source: 'newsBis', publisher: "BIS central bankers' speeches", topic: 'SPEECH', terms: 'Display for non-commercial purposes; BIS cited.' },
 ];
 
 /** A feed's items as stories, with the publisher, its link and both times. */
@@ -110,12 +115,16 @@ export function startOfficialNews(): (() => void) | null {
   const load = async () => {
     const since = new Date().toISOString().slice(0, 10);
     let ok = 0;
+    let asked = 0;
     let items = 0;
     const failed: string[] = [];
     await Promise.all(
       OFFICIAL_FEEDS.map(async (feed) => {
         try {
           const answer = await window.arminDesktop!.official(feed.source, since);
+          // A feed that needs your SEC contact is not asked without it, and is not a failure.
+          if (answer.missing) return;
+          asked++;
           const text = answer.status === 200 ? answer.text : '';
           const list = text ? parseFeed(text) : [];
           if (!list.length) throw new Error('no items');
@@ -129,7 +138,7 @@ export function startOfficialNews(): (() => void) | null {
       }),
     );
     if (stopped) return;
-    const detail = `Official announcements: ${ok} of ${OFFICIAL_FEEDS.length} publishers, ${items} items${failed.length ? ` · not answering: ${failed.join(', ')}` : ''}`;
+    const detail = `Official announcements: ${ok} of ${asked} feeds, ${items} items${failed.length ? ` · not answering: ${failed.join(', ')}` : ''}${asked < OFFICIAL_FEEDS.length ? ' · SEC press releases need SEC_USER_AGENT' : ''}`;
     setFeed('news', ok ? 'live' : 'error', detail);
   };
   setFeed('news', 'connecting', 'Official announcements: loading');

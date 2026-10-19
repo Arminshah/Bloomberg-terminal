@@ -82,6 +82,19 @@ export const portfolio = createStore<{ name: string; positions: Position[]; benc
   2,
 );
 
+/**
+ * Starred securities, in the order they were starred: the command line offers them as soon as it is clicked,
+ * FAVOURITES lists them with their prices and news, and BREAKING can keep to their stories.
+ */
+export const favourites = createStore<{ ids: string[] }>({ ids: [] }, 'favourites', 1);
+
+/** Stars a security, or takes its star off; true when it is now a favourite. */
+export function toggleFavourite(id: string): boolean {
+  const on = !favourites.get().ids.includes(id);
+  favourites.set((s) => ({ ids: on ? [...s.ids.filter((x) => x !== id), id] : s.ids.filter((x) => x !== id) }));
+  return on;
+}
+
 export type AlertCond = 'above' | 'below' | 'pctUp' | 'pctDn';
 
 export interface PriceAlert {

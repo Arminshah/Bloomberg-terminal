@@ -104,13 +104,28 @@ const COUNTRY_WORDS = {
 };
 
 /**
+ * Words for a security that is not a company, in English editions only: a currency pair, a commodity or an index
+ * future, a coin. "Gold" (price OR prices OR futures) found Reuters, Kitco and Fortune on gold on 19 October 2026.
+ */
+const KIND_WORDS = {
+  fx: ['currency', 'forex', '"exchange rate"'],
+  commodity: ['price', 'prices', 'futures'],
+  crypto: ['price', 'crypto', 'ETF'],
+};
+
+/**
  * The day's market news. Google's Business section mixes in shopping and recalls ("Halloween Candy Price Check");
  * this search returned 100 stories of the last day on 19 October 2026, from Reuters, the WSJ, Bloomberg and CNBC.
  */
-const MARKETS_SEARCH = '(stocks OR "stock market" OR "Wall Street" OR earnings OR bonds OR "central bank") when:1d';
-// A company name as the app shortens it: letters in any script, digits, spaces, & ' ’ . and -.
-const COMPANY = /^[\p{L}\p{N}][\p{L}\p{N}&'’. -]{1,59}$/u;
+const MARKETS_WORDS = '(stocks OR "stock market" OR "Wall Street" OR earnings OR bonds OR "central bank")';
+const MARKETS_SEARCH = `${MARKETS_WORDS} when:1d`;
+// The same search over the last hour, for BREAKING: Google ranks a day's 100 stories by relevance, not time.
+const BREAKING_SEARCH = `${MARKETS_WORDS} when:1h`;
+// A name as the app shortens it: letters in any script, digits, spaces, & ' ’ . - and / (EUR/USD).
+const COMPANY = /^[\p{L}\p{N}][\p{L}\p{N}&'’. /-]{1,59}$/u;
 const GOOGLE_TICKER = /^[A-Z][A-Z0-9]{1,9}$/;
+// Your own search on NEWS: words, digits, quotes and the punctuation of tickers and prices; 2 to 80 characters.
+const SEARCH_WORDS = /^["\p{L}\p{N}$][\p{L}\p{N} &'’".:$%/+-]{1,79}$/u;
 
 function editionQuery(ceid) {
   const e = EDITIONS[ceid];
@@ -122,9 +137,9 @@ function editionQuery(ceid) {
  * country's words for a company listed abroad, when:7d. A ticker that is one of Google's operators (L'Oréal's OR)
  * or the name itself (KBC) adds nothing and is left out.
  */
-function companySearch(ceid, name, ticker, country) {
+function companySearch(ceid, name, ticker, country, kind) {
   const own = ticker && !/^(OR|AND|NOT)$/.test(ticker) && ticker.toLowerCase() !== name.toLowerCase();
-  const words = [...FINANCE_WORDS[EDITIONS[ceid].lang], ...(own ? [ticker] : [])];
+  const words = [...(kind ? KIND_WORDS[kind] : FINANCE_WORDS[EDITIONS[ceid].lang]), ...(own ? [ticker] : [])];
   const where = country ? ` (${COUNTRY_WORDS[country].join(' OR ')})` : '';
   return `"${name}" (${words.join(' OR ')})${where} when:7d`;
 }
@@ -134,7 +149,8 @@ const SOURCES = {
     provider: 'finnhub',
     credential: 'FINNHUB_API_KEY',
     gate: 'FINNHUB_ENABLED',
-    ttl: 5 * MIN,
+    // BREAKING asks every 2 minutes, MARKETNEWS every 5.
+    ttl: 2 * MIN,
     // arg: '' (general) or 'merger'
     url: (arg) => {
       const category = String(arg) || 'general';
@@ -190,17 +206,19 @@ const SOURCES = {
     headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
   },
   'alpaca-market': {
-    provider: 'alpaca',
+    // Counted apart from Alpaca's quotes and options, so a news answer never makes a broken option chain look healthy.
+    provider: 'alpaca-news',
     credential: 'ALPACA_API_KEY_ID',
     credential2: 'ALPACA_API_SECRET_KEY',
     gate: 'ALPACA_ENABLED',
-    ttl: 5 * MIN,
+    ttl: 2 * MIN,
     // The latest 50 stories of the last three days; without a start Alpaca gives only today's, none early on a Monday.
     url: (arg, _key, now) => (arg === '' ? `https://data.alpaca.markets/v1beta1/news?start=${isoDay(now - 3 * DAY)}&sort=desc&limit=50` : null),
     headers: (id, secret) => ({ 'APCA-API-KEY-ID': id, 'APCA-API-SECRET-KEY': secret }),
   },
   'alpaca-company': {
-    provider: 'alpaca',
+    // Counted apart from Alpaca's quotes and options, so a news answer never makes a broken option chain look healthy.
+    provider: 'alpaca-news',
     credential: 'ALPACA_API_KEY_ID',
     credential2: 'ALPACA_API_SECRET_KEY',
     gate: 'ALPACA_ENABLED',
@@ -235,17 +253,39 @@ const SOURCES = {
     url: (arg) => (Object.prototype.hasOwnProperty.call(EDITIONS, String(arg)) && EDITIONS[arg].lang === 'en' ? `https://news.google.com/rss/search?q=${encodeURIComponent(MARKETS_SEARCH)}&${editionQuery(arg)}` : null),
     headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
   },
+  'google-news-breaking': {
+    provider: 'google-news',
+    gate: 'GOOGLE_NEWS_RSS_ENABLED',
+    ttl: 3 * MIN,
+    // arg: an English edition, "US:en"
+    url: (arg) => (Object.prototype.hasOwnProperty.call(EDITIONS, String(arg)) && EDITIONS[arg].lang === 'en' ? `https://news.google.com/rss/search?q=${encodeURIComponent(BREAKING_SEARCH)}&${editionQuery(arg)}` : null),
+    headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
+  },
+  'google-news-search': {
+    provider: 'google-news',
+    gate: 'GOOGLE_NEWS_RSS_ENABLED',
+    ttl: 10 * MIN,
+    // arg: "US:en|fed rate cut": an English edition and your own search, over the last week (NEWS <words>).
+    url: (arg) => {
+      const [ceid, words = '', ...rest] = String(arg).split('|');
+      if (rest.length || !Object.prototype.hasOwnProperty.call(EDITIONS, ceid ?? '') || EDITIONS[ceid].lang !== 'en' || !SEARCH_WORDS.test(words)) return null;
+      return `https://news.google.com/rss/search?q=${encodeURIComponent(`${words} when:7d`)}&${editionQuery(ceid)}`;
+    },
+    headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
+  },
   'google-news-company': {
     provider: 'google-news',
     gate: 'GOOGLE_NEWS_RSS_ENABLED',
     ttl: 15 * MIN,
     // arg: "BE:nl|KBC|KBC" or "GB:en|KBC|KBC|BE": an edition, the company's short name, its ticker (or nothing)
-    // and, in an edition abroad, the country it is listed in.
+    // and, in an edition abroad, the country it is listed in; "US:en|Gold|||commodity" for a security that is not
+    // a company (fx, commodity, crypto), in an English edition. An index is searched as a company is.
     url: (arg) => {
-      const [ceid, name, ticker = '', country = '', ...rest] = String(arg).split('|');
+      const [ceid, name, ticker = '', country = '', kind = '', ...rest] = String(arg).split('|');
       if (rest.length || !Object.prototype.hasOwnProperty.call(EDITIONS, ceid ?? '') || !COMPANY.test(name ?? '') || (ticker && !GOOGLE_TICKER.test(ticker))) return null;
       if (country && !Object.prototype.hasOwnProperty.call(COUNTRY_WORDS, country)) return null;
-      return `https://news.google.com/rss/search?q=${encodeURIComponent(companySearch(ceid, name, ticker, country))}&${editionQuery(ceid)}`;
+      if (kind && (!Object.prototype.hasOwnProperty.call(KIND_WORDS, kind) || EDITIONS[ceid].lang !== 'en')) return null;
+      return `https://news.google.com/rss/search?q=${encodeURIComponent(companySearch(ceid, name, ticker, country, kind))}&${editionQuery(ceid)}`;
     },
     headers: () => ({ Accept: 'application/rss+xml, application/xml' }),
   },
@@ -268,4 +308,4 @@ function newsRequest(source, arg, key, key2 = '', now = Date.now()) {
   return url ? { url, headers: s.headers(key ?? '', key2 ?? ''), ttl: s.ttl, provider: s.provider } : null;
 }
 
-module.exports = { SOURCES, EDITIONS, FINANCE_WORDS, COUNTRY_WORDS, newsRequest };
+module.exports = { SOURCES, EDITIONS, FINANCE_WORDS, COUNTRY_WORDS, KIND_WORDS, newsRequest };

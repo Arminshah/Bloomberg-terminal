@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { engine, useInterval } from '../data/market';
 import { feedStatus } from '../data/live/status';
+import { breakingCount, marketNews } from '../data/live/marketnews';
 import { execute } from '../terminal/exec';
 import { applyPreset, LAYOUT_PANELS, setLayout, setSplit, terminal, type LinkGroup } from '../terminal/state';
 import { alerts, chats, savedLayouts } from '../terminal/userdata';
@@ -147,6 +148,10 @@ export function TopBar() {
   useInterval(1000);
   const layout = terminal.use((s) => s.layout);
   const unreadAlerts = alerts.use((a) => a.unseen);
+  // Stories of the last 15 minutes, counted again when news arrives and every minute as they age.
+  const newsVersion = marketNews.use((s) => s.v);
+  const minute = useInterval(60_000);
+  const breaking = useMemo(() => breakingCount(), [newsVersion, minute]); // eslint-disable-line react-hooks/exhaustive-deps
   const unreadMsgs = chats.use((c) => {
     const allowed = new Set(contacts().map((x) => x.id));
     return c.rooms.reduce((n, r) => n + (allowed.has(r.id) ? r.unread : 0), 0);
@@ -237,6 +242,12 @@ export function TopBar() {
       <span className="tb-sep" />
       <button type="button" className="tb-btn fold-820" onClick={() => run('MESSAGES')} title="Local help assistant (MESSAGES)">
         BOT <span className={`count${unreadMsgs ? '' : ' zero'}`}>{unreadMsgs}</span>
+      </button>
+      <button type="button" className="tb-btn" onClick={() => run('BREAKING')} title="Breaking news: the count is of stories published in the last 15 minutes (BREAKING)">
+        BREAKING <span className={`count${breaking ? ' hot' : ' zero'}`}>{breaking}</span>
+      </button>
+      <button type="button" className="tb-btn fold-1180" onClick={() => run('FAVOURITES')} title="Your favourites, with prices and news (FAVOURITES)">
+        ★ FAV
       </button>
       <button type="button" className="tb-btn" onClick={() => run('ALERTS')} title="Price and news alerts (ALERTS)">
         ALERTS <span className={`count${unreadAlerts ? '' : ' zero'}`}>{unreadAlerts}</span>

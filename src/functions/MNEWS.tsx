@@ -4,31 +4,8 @@ import { fmtDate, fmtStamp, fmtTime } from '../core/format';
 import { engine } from '../data/market';
 import { useProviderReport } from '../data/providers';
 import { secTicker } from '../data/live/sec';
-import {
-  combinedFeed,
-  companyFeeds,
-  companyStories,
-  euronextReleases,
-  googleNews,
-  MARKET_EDITIONS,
-  MARKET_SOURCES,
-  marketNews,
-  mergeStories,
-  newsAvailable,
-  onEuronext,
-  sameTicker,
-  storiesFor,
-  useCompanyNews,
-  useEuronextReleases,
-  useGoogleNews,
-  useMarketNews,
-  useYahooHeadlines,
-  watchSymbols,
-  yahooHeadlines,
-  type FeedState,
-  type MarketStory,
-} from '../data/live/marketnews';
-import { yahooSymbolFor } from '../data/live/yahoo';
+import { combinedFeed, MARKET_EDITIONS, MARKET_SOURCES, marketNews, newsAvailable, sameTicker, storiesFor, useMarketNews, watchSymbols, type FeedState, type MarketStory } from '../data/live/marketnews';
+import { securityNews, useSecuritiesNews } from '../data/live/secnews';
 import { watchlists } from '../terminal/userdata';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
@@ -83,19 +60,26 @@ function Reader({ story, symbol, onBack }: { story: MarketStory; symbol?: string
   );
 }
 
-function StoryList({ stories, empty, symbol }: { stories: MarketStory[]; empty: string; symbol?: string }) {
+/**
+ * Headlines on the left, the selected story on the right. With `fresh`, stories published less than that many
+ * milliseconds ago are marked NEW, and each line shows its age.
+ */
+export function StoryList({ stories, empty, symbol, fresh }: { stories: MarketStory[]; empty: string; symbol?: string; fresh?: number }) {
   const [sel, setSel] = useState<string | null>(null);
   const current = stories.find((s) => s.id === sel) ?? stories[0];
+  const now = engine.now();
   return (
     <div className={`news${sel ? ' reading' : ''}`} style={{ flex: 1, minHeight: 0 }}>
       <div className="news-list" role="list">
         {stories.length === 0 && <div className="empty">{empty}</div>}
         {stories.map((s) => (
-          <div key={s.id} role="listitem" className={`news-item real${current?.id === s.id ? ' sel' : ''}`} onClick={() => setSel(s.id)}>
-            <span className="time" title="Publication time">
-              {fmtStamp(s.time, engine.now())}
+          <div key={s.id} role="listitem" className={`news-item real${current?.id === s.id ? ' sel' : ''}${fresh && now - s.time < fresh ? ' fresh' : ''}`} onClick={() => setSel(s.id)}>
+            <span className="time" title={`Published ${fmtDate(s.time)} ${fmtTime(s.time)}`}>
+              {fresh ? ageText(now - s.time) : fmtStamp(s.time, now)}
             </span>
             <span className="hl">
+              {fresh && now - s.time < fresh ? <span className="badge new">NEW</span> : null}
+              {fresh && s.feeds.length > 1 ? <span className="badge src-n" title={`Carried by ${s.feeds.join(', ')}`}>{s.feeds.length}×</span> : null}
               {s.title}
               {s.tickers.length ? <span className="muted"> · {s.tickers.slice(0, 4).join(' ')}</span> : null}
               <Sentiment story={s} symbol={symbol} />
@@ -109,12 +93,22 @@ function StoryList({ stories, empty, symbol }: { stories: MarketStory[]; empty: 
   );
 }
 
+/** How long ago, in the units a reader scans: 4m, 2h 05m, 3d. */
+export function ageText(ms: number): string {
+  const m = Math.max(0, Math.floor(ms / 60_000));
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${String(m % 60).padStart(2, '0')}m ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 /** One source's state in a few words. */
-function feedWord(name: string, f: FeedState | undefined, extra = ''): string {
+export function feedWord(name: string, f: FeedState | undefined, extra = ''): string {
   if (!f) return `${name}: not asked yet`;
   switch (f.state) {
     case 'ok':
-      return `${name}: ${f.count ?? 0}${f.stale ? ' (stale)' : ''}${f.at ? ` at ${fmtTime(f.at, false)}` : ''}${extra}`;
+      // An answer's message says what its count is of ("among its latest 10").
+      return `${name}: ${f.count ?? 0}${f.stale ? ' (stale)' : ''}${f.at ? ` at ${fmtTime(f.at, false)}` : ''}${extra || (f.message ? ` ${f.message}` : '')}`;
     case 'loading':
       return `${name}: loading`;
     case 'needs-key':
@@ -214,34 +208,15 @@ export function CompanyNews({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
   const symbol = secTicker(s);
-  // Yahoo's headlines cover any market Yahoo lists (Brussels, Paris, Amsterdam...), with or without keys.
-  const ysym = s.cls === 'equity' ? (yahooSymbolFor(s) ?? s.yahoo ?? null) : null;
-  // Euronext's feed holds its issuers' latest releases; a stock listed there gets those its company issued.
-  const euronext = onEuronext(s);
-  // Google News searches the company's name in the languages of its market (Dutch, French and English for Brussels).
-  const gsec = s.cls === 'equity' ? s : null;
-  const v = useCompanyNews(symbol);
-  const vy = useYahooHeadlines(ysym);
-  const vg = useGoogleNews(gsec);
-  const ve = useEuronextReleases(euronext);
-  const feeds = marketNews.use((x) => x.feeds);
-  const yh = yahooHeadlines(ysym);
-  const gn = googleNews(gsec);
-  const en = euronext ? euronextReleases(s.name) : { stories: [] };
-  // Google's links go through news.google.com, so it comes last: a story another source carries keeps that link.
-  const stories = useMemo(() => mergeStories([symbol ? companyStories(symbol) : [], yh.stories, en.stories, gn.stories]), [symbol, ysym, gsec, euronext, s.name, v, vy, vg, ve]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { finnhub: fin, marketaux: mk, alpaca: al, massive: ms } = symbol ? companyFeeds(feeds, symbol) : {};
-  const states = [...(symbol ? [fin, al, ms, mk] : []), ...(ysym ? [yh.feed] : []), ...(gsec ? [gn.feed] : []), ...(euronext ? [en.feed] : [])];
-  const enWord = en.feed?.state === 'ok' ? feedWord('Euronext', { ...en.feed, count: en.stories.length }, ` among its latest ${en.feed.count ?? 0}`) : feedWord('Euronext', en.feed);
-  const status = [
-    ...(symbol ? [feedWord('Finnhub', fin), feedWord('Alpaca', al), feedWord('Massive', ms), feedWord('Marketaux', mk)] : []),
-    ...(ysym ? [feedWord('Yahoo Finance', yh.feed)] : []),
-    ...(gsec ? [feedWord('Google News', gn.feed)] : []),
-    ...(euronext ? [enWord] : []),
-  ].join(' · ');
+  // Every source that covers the security: Finnhub, Alpaca, Massive and Marketaux for a US stock, Yahoo's headlines
+  // for anything Yahoo quotes, Google News in the languages of its market, Euronext's releases for a stock listed there.
+  const v = useSecuritiesNews([s]);
+  const { stories, states } = useMemo(() => securityNews(s), [s, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const status = states.map(([n, f]) => feedWord(n, f)).join(' · ');
+  const names = states.map(([n]) => n).filter((n) => n !== 'Euronext');
   return (
     <div className="fn-fill">
-      <FnHeader code="COMPANYNEWS" title="Company News" sec={s} sub={symbol || ysym || gsec || euronext ? `${stories.length} stories · ${status}` : 'Stocks'} />
+      <FnHeader code="COMPANYNEWS" title={s.cls === 'equity' ? 'Company News' : 'News'} sec={s} sub={states.length ? `${stories.length} stories · ${status}` : 'No news source'} />
       <div className="chart-tools">
         {symbol ? (
           <button type="button" className="btn" onClick={() => execute(panel, `${s.id} FILINGS`)}>
@@ -249,25 +224,25 @@ export function CompanyNews({ sec }: FnProps) {
           </button>
         ) : null}
         <span className="muted hide-m">
-          {symbol ? "News from Finnhub (the last week), Alpaca, Massive and Marketaux, Yahoo Finance headlines and Google News" : 'Yahoo Finance headlines and Google News'} for {s.ticker}, newest first
-          {euronext ? `, with ${s.name}'s press releases among Euronext's latest (matched by the issuer's name)` : ''}.
+          {names.length ? `${names.join(', ').replace(/, ([^,]*)$/, ' and $1')} for ${s.ticker}, newest first` : ''}
+          {states.some(([n]) => n === 'Euronext') ? `, with ${s.name}'s press releases among Euronext's latest (matched by the issuer's name)` : ''}.
         </span>
       </div>
-      {!symbol && !ysym && !gsec && !euronext ? (
-        <div className="empty">Company news covers stocks; {s.ticker} is not one.</div>
+      {!states.length ? (
+        <div className="empty">No news source covers {s.ticker}: news covers stocks, indices, currencies, commodities and coins.</div>
       ) : !newsAvailable() ? (
-        <div className="empty">Company news is read by the desktop app; the browser build has no data source.</div>
+        <div className="empty">News is read by the desktop app; the browser build has no data source.</div>
       ) : (
         <StoryList
           stories={stories}
           empty={
-            states.some((f) => !f || f.state === 'loading')
-              ? 'Loading company news…'
-              : states.every((f) => f?.state === 'needs-key' || f?.state === 'off')
-                ? 'Company news needs a source switched on with its key (PROVIDERS).'
+            states.some(([, f]) => !f || f.state === 'loading')
+              ? 'Loading news…'
+              : states.every(([, f]) => f?.state === 'needs-key' || f?.state === 'off')
+                ? 'News needs a source switched on with its key (PROVIDERS).'
                 : `No recent stories for ${s.ticker} from the sources: the line above says what each returned.`
           }
-          symbol={symbol ?? ysym ?? undefined}
+          symbol={symbol ?? undefined}
         />
       )}
     </div>

@@ -201,7 +201,7 @@ function NewsAlerts() {
             <tr>
               <td className="empty">
                 {engine.realOnly
-                  ? 'No news alerts. New official announcements (central banks, the BEA, ESMA) that contain the word pop up as alerts while the app is open.'
+                  ? 'No news alerts. New headlines that contain the word or name the ticker pop up as alerts while the app is open: market news from every source the app has loaded, and the official announcements.'
                   : 'No news alerts. New headlines that contain the word or name the ticker pop up as alerts.'}
               </td>
             </tr>

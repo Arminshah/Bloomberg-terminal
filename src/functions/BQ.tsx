@@ -18,12 +18,13 @@ import { news } from '../data/news';
 import { execute } from '../terminal/exec';
 import { requestCompanyNews } from '../data/live/feeds';
 import { iexFreshness, useIex, type IexState } from '../data/live/alpaca';
-import { companyFeeds, companyStories, googleNews, marketNews, mergeStories, useCompanyNews, useGoogleNews, useYahooHeadlines, yahooHeadlines, type FeedState } from '../data/live/marketnews';
-import { yahooSymbolFor } from '../data/live/yahoo';
+import { securityNews, useSecuritiesNews, type NewsReach } from '../data/live/secnews';
 import { secTicker } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
 import type { Quote, SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
+
+const QUOTE_REACH: NewsReach = { massive: false, marketaux: false };
 
 export function BQ({ sec }: FnProps) {
   const s = sec!;
@@ -36,24 +37,13 @@ export function BQ({ sec }: FnProps) {
   const intra = engine.intraday(s.id);
   const stories = news.use((n) => n.stories);
   const related = stories.filter((x) => x.tickers.includes(s.id)).slice(0, 8);
-  // On real data: IEX quotes from Alpaca and the company's news from Finnhub and Alpaca, for US-listed stocks
-  // (Massive's 5 calls a minute and Marketaux's daily allowance are left to COMPANYNEWS).
+  // On real data: IEX quotes from Alpaca for US-listed stocks, and the latest news of any security from every source
+  // that covers it (Massive's 5 calls a minute and Marketaux's daily allowance are left to COMPANYNEWS).
   const usStock = engine.realOnly ? secTicker(s) : null;
   const iexState = useIex(usStock ? s : undefined);
-  const nv = useCompanyNews(usStock, { marketaux: false, massive: false });
-  const feeds = marketNews.use((x) => x.feeds);
-  // Yahoo's headlines and Google News's search also cover stocks listed outside the US (Brussels, Paris...).
-  const ysym = engine.realOnly && s.cls === 'equity' ? (yahooSymbolFor(s) ?? s.yahoo ?? null) : null;
-  const gsec = engine.realOnly && s.cls === 'equity' ? s : null;
-  const yv = useYahooHeadlines(ysym);
-  const gv = useGoogleNews(gsec);
-  const companyNews = useMemo(() => mergeStories([usStock ? companyStories(usStock) : [], yahooHeadlines(ysym).stories, googleNews(gsec).stories]).slice(0, 8), [usStock, ysym, gsec, nv, yv, gv]); // eslint-disable-line react-hooks/exhaustive-deps
-  const cf = usStock ? companyFeeds(feeds, usStock) : {};
-  const newsStates: [string, FeedState | undefined][] = [
-    ...(usStock ? ([['Finnhub', cf.finnhub], ['Alpaca', cf.alpaca]] as [string, FeedState | undefined][]) : []),
-    ...(ysym ? ([['Yahoo Finance', yahooHeadlines(ysym).feed]] as [string, FeedState | undefined][]) : []),
-    ...(gsec ? ([['Google News', googleNews(gsec).feed]] as [string, FeedState | undefined][]) : []),
-  ];
+  const nv = useSecuritiesNews([engine.realOnly ? s : null], QUOTE_REACH);
+  const { stories: allNews, states: newsStates } = useMemo(() => (engine.realOnly ? securityNews(s, QUOTE_REACH) : { stories: [], states: [] }), [s, nv]); // eslint-disable-line react-hooks/exhaustive-deps
+  const companyNews = allNews.slice(0, 8);
   const newsNote = newsStates.some(([, f]) => f?.state === 'ok')
     ? 'No recent stories from the sources.'
     : newsStates.some(([, f]) => !f || f.state === 'loading')
@@ -193,7 +183,7 @@ export function BQ({ sec }: FnProps) {
         </Section>
       </div>
       {engine.realOnly ? (
-        usStock || ysym ? (
+        usStock || newsStates.length ? (
           <div className="cols">
             {iexState ? (
               <Section
@@ -211,7 +201,7 @@ export function BQ({ sec }: FnProps) {
               </Section>
             ) : null}
             <Section
-              title="Company news"
+              title={s.cls === 'equity' ? 'Company news' : 'Latest news'}
               right={
                 <button type="button" className="act" onClick={() => execute(panel, `${s.id} COMPANYNEWS`)}>
                   All news ›

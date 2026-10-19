@@ -95,8 +95,8 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
     title: 'Equity',
     groups: [
       { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'MOVERS', 'CONTRIB', 'SCREEN', 'EVENTS'] },
-      { title: 'News and research', entries: ['HEADLINES', 'NEWS', 'FILINGS', 'RELEASES', 'MACRO'] },
-      { title: 'Portfolio and monitors', entries: ['PORTFOLIO', 'WATCHLIST', 'ALERTS'] },
+      { title: 'News and research', entries: ['MARKETNEWS', 'BREAKING', 'HEADLINES', 'NEWS', 'FILINGS', 'RELEASES', 'MACRO'] },
+      { title: 'Portfolio and monitors', entries: ['PORTFOLIO', 'WATCHLIST', 'FAVOURITES', 'ALERTS'] },
     ],
     list: (d) => d.cls === 'equity',
     rank: (d) => marketCapUsd(d.id),
@@ -123,7 +123,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   NEWS: {
     title: 'News & Research',
     groups: [
-      { title: 'News', entries: ['MARKETNEWS', 'NEWS', 'HEADLINES'] },
+      { title: 'News', entries: ['MARKETNEWS', 'BREAKING', 'NEWS', 'HEADLINES'] },
       { title: 'Company research', entries: ['SEARCH', 'SCREEN', 'FILINGS', 'EVENTS'] },
       { title: 'Economics', entries: ['RELEASES', 'ECONSTATS', 'MACRO', 'CENTRALBANKS'] },
     ],
@@ -131,7 +131,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   TOOLS: {
     title: 'Portfolio & Tools',
     groups: [
-      { title: 'Portfolio and monitors', entries: ['WATCHLIST', 'PORTFOLIO', 'ALERTS', 'CORRELATION'] },
+      { title: 'Portfolio and monitors', entries: ['WATCHLIST', 'FAVOURITES', 'PORTFOLIO', 'ALERTS', 'CORRELATION'] },
       { title: 'Workspace', entries: ['SEARCH', 'RECENT', 'LAYOUTS', 'NOTES'] },
       { title: 'Help and preferences', entries: ['HELP', 'PROVIDERS', 'SETTINGS', 'MESSAGES'] },
     ],

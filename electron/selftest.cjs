@@ -199,7 +199,7 @@ const TESTS = [
   },
   {
     id: 'alpaca-news',
-    provider: 'alpaca',
+    provider: 'alpaca-news',
     label: 'Alpaca news, Benzinga (Apple)',
     credentials: ['ALPACA_API_KEY_ID', 'ALPACA_API_SECRET_KEY'],
     setting: 'ALPACA_ENABLED',

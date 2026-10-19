@@ -3,9 +3,13 @@ import type { SecurityDef } from '../data/types';
 import { FUNCTIONS, lookupFn } from './registry';
 import type { FnDef } from './types';
 import { lookupSource, normalizeTicker } from '../data/live/lookup';
+import { engine } from '../data/market';
+import { fmtNum, fmtPct } from '../core/format';
+import { favourites } from './userdata';
 
 export interface Suggestion {
-  kind: 'fn' | 'sec';
+  /** fav and recent: the list the command line shows before anything is typed. */
+  kind: 'fn' | 'sec' | 'fav' | 'recent';
   key: string;
   primary: string;
   secondary: string;
@@ -46,15 +50,38 @@ function fnSuggestion(f: FnDef, prefix: string): Suggestion {
   };
 }
 
-function secSuggestion(d: SecurityDef): Suggestion {
+function secSuggestion(d: SecurityDef, star = false): Suggestion {
   return {
     kind: 'sec',
     key: `sec:${d.id}`,
-    primary: d.id,
+    primary: star ? `★ ${d.id}` : d.id,
     secondary: d.name,
     tag: CLASS_LABEL[d.cls],
     fill: `${d.id.toUpperCase()} `,
   };
+}
+
+/** The last price and day's change of a security, for the list shown before anything is typed. */
+function priceTag(d: SecurityDef): string {
+  const q = engine.quote(d.id);
+  if (!q || !Number.isFinite(q.last) || !q.last) return CLASS_LABEL[d.cls];
+  return d.quote === 'yield' ? `${fmtNum(q.last, d.dec)}` : `${fmtNum(q.last, d.dec)} ${q.pct >= 0 ? '+' : ''}${fmtPct(q.pct, 2)}`;
+}
+
+/**
+ * What the command line offers as soon as it is clicked, before anything is typed: your favourites, then the
+ * securities you opened last that are not among them. Choosing one fills it in, ready for a function.
+ */
+export function startSuggestions(favs: string[], recent: string[], recentMax = 5): Suggestion[] {
+  const at = (id: string) => engine.get(id) ?? resolveSecurity(id);
+  const fav = favs.map(at).filter((d): d is SecurityDef => !!d);
+  const seen = new Set(fav.map((d) => d.id));
+  const rec = recent
+    .map(at)
+    .filter((d): d is SecurityDef => !!d && !seen.has(d.id))
+    .slice(0, recentMax);
+  const item = (kind: 'fav' | 'recent') => (d: SecurityDef): Suggestion => ({ kind, key: `${kind}:${d.id}`, primary: d.id, secondary: d.name, tag: priceTag(d), fill: `${d.id.toUpperCase()} ` });
+  return [...fav.map(item('fav')), ...rec.map(item('recent'))];
 }
 
 export function suggest(input: string): Suggestion[] {
@@ -91,7 +118,10 @@ export function suggest(input: string): Suggestion[] {
 
   const q = tokens.join(' ');
   const fns = matchFns(q, undefined, false, 6).map((f) => fnSuggestion(f, ''));
-  const secs = searchSecurities(q, 9).map((h) => secSuggestion(h.def));
+  // Favourites that match come first among the securities, starred.
+  const favs = new Set(favourites.get().ids);
+  const found = searchSecurities(q, 30).map((h) => h.def);
+  const secs = [...found.filter((d) => favs.has(d.id)), ...found.filter((d) => !favs.has(d.id))].slice(0, 9).map((d) => secSuggestion(d, favs.has(d.id)));
   const exactFn = !!lookupFn(q);
   const out = exactFn ? [...fns, ...secs] : [...secs.slice(0, 1), ...fns, ...secs.slice(1)];
   // A ticker that is not built in can be loaded online.

@@ -580,6 +580,7 @@ function providerPayloadProblem(provider, text, secrets = []) {
       }
       break;
     case 'alpaca':
+    case 'alpaca-news':
       if (typeof data?.message === 'string' && Number(data.code) >= 400) {
         message = data.message;
         code = Number(data.code) > 999 ? Number(String(data.code).slice(0, 3)) : Number(data.code);

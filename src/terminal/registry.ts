@@ -27,6 +27,7 @@ import { TAS } from '../functions/TAS';
 import { BQ } from '../functions/BQ';
 import { CN, HEADLINES, N } from '../functions/NEWS';
 import { MNEWS } from '../functions/MNEWS';
+import { BREAKING } from '../functions/BREAKING';
 import { WEI, WEIF } from '../functions/WEI';
 import { IMAP } from '../functions/IMAP';
 import { MOST } from '../functions/MOST';
@@ -39,6 +40,7 @@ import { MACRO } from '../functions/MACRO';
 import { OMON, OVME } from '../functions/OPTIONS';
 import { OptionStrategy } from '../functions/OptionStrategy';
 import { W } from '../functions/W';
+import { FAV } from '../functions/FAV';
 import { PORT } from '../functions/PORT';
 import { ALRT } from '../functions/ALRT';
 import { LAST, LPAD, PDFU, SECF } from '../functions/TOOLS';
@@ -80,10 +82,11 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'BETA', name: 'Historical Beta', category: 'Charts', needsSec: true, classes: ['equity', 'index', 'crypto', 'commodity', 'fx'], desc: 'Regression of returns against an index: raw and adjusted beta, alpha, R², with scatter plot.', component: BETA },
   { code: 'VOLATILITY', name: 'Historical Volatility', category: 'Charts', needsSec: true, desc: 'Realised volatility over 10 to 260 days with percentiles and a rolling chart. Implied volatility is not available (option quotes are licensed).', component: HVT },
   // News
-  { code: 'HEADLINES', name: 'Official Announcements', category: 'News', desc: 'Press releases from central banks, the BEA and ESMA, newest first, with topic tabs and a reader. TOP opens the market news (MARKETNEWS).', component: HEADLINES, aliases: ['ANNOUNCEMENTS'] },
-  { code: 'NEWS', name: 'News Search', category: 'News', desc: 'Keyword search of the official announcements, or a topic: NEWS CB (central banks), NEWS REG (regulators), NEWS STATS (statistics). With a security it opens COMPANYNEWS.', component: N, example: 'NEWS CB' },
-  { code: 'MARKETNEWS', name: 'Market News', category: 'News', desc: 'Top market news from Finnhub, MarketWatch and Marketaux (your watchlist, with sentiment), with the SEC\'s latest 8-K filings and Euronext\'s latest press releases, merged without duplicates; filter by ticker or keyword. 4) Official opens HEADLINES.', component: MNEWS, aliases: ['MNEWS', 'WIRE'], example: 'MARKETNEWS NVDA' },
-  { code: 'COMPANYNEWS', name: 'Company News', category: 'News', needsSec: true, desc: "A company's news: for a US company the last week from Finnhub and Marketaux's latest stories tagged with it, with sentiment, and a way to its SEC filings; Yahoo Finance headlines for any stock; for a stock listed on Euronext, its press releases among Euronext's latest.", component: CN, example: 'COMPANYNEWS AAPL' },
+  { code: 'HEADLINES', name: 'Official Announcements', category: 'News', desc: 'Official announcements, newest first, by topic: central banks (Fed, ECB, Bank of England, Bank of Canada, RBA, Bank of Japan), regulators (ESMA, SEC), statistics (BEA) and speeches (Fed, ECB blog, BIS). TOP opens the market news (MARKETNEWS).', component: HEADLINES, aliases: ['ANNOUNCEMENTS'] },
+  { code: 'NEWS', name: 'News Search', category: 'News', desc: 'Search all news: NEWS <words> finds every story the app holds with those words (market news from each source, official announcements) and asks Google News for the last week. NEWS CB, REG, STATS or SPEECH lists official announcements on that topic; with a security it opens COMPANYNEWS.', component: N, example: 'NEWS CB' },
+  { code: 'MARKETNEWS', name: 'Market News', category: 'News', desc: 'Top market news merged without duplicates: Finnhub (general and mergers), Benzinga through Alpaca, Massive, Google News, Marketaux (your watchlist, with sentiment), the SEC\'s latest 8-K filings and Euronext\'s press releases; filter by ticker or keyword. 4) Official opens HEADLINES.', component: MNEWS, aliases: ['MNEWS', 'WIRE'], example: 'MARKETNEWS NVDA' },
+  { code: 'COMPANYNEWS', name: 'Company News', category: 'News', needsSec: true, desc: "Any security's news: for a US stock Finnhub, Alpaca, Massive and Marketaux, with a way to its SEC filings; for anything Yahoo quotes, its headlines (indices, currencies, commodities, coins); Google News in its market's languages; for a stock listed on Euronext, its press releases.", component: CN, example: 'COMPANYNEWS AAPL' },
+  { code: 'BREAKING', name: 'Breaking News', category: 'News', desc: 'The newest stories from every news source, the official announcements and your favourites\' news, with their age: last hour, 4 hours, 24 hours, favourites or watchlist. NEW marks the last 15 minutes; refreshed every 1 to 3 minutes while open.', component: BREAKING, aliases: ['FIRST', 'BN', 'BREAK'], example: 'BREAKING FAV' },
   // Markets
   { code: 'MARKET', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI, aliases: ['INDICES'], example: 'MARKET US' },
   { code: 'INDEXFUTURES', name: 'World Index Futures', category: 'Markets', desc: 'Front equity index futures with basis, fair value and premium or discount to fair value.', component: WEIF },
@@ -125,6 +128,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'OPTIONSTRATEGY', name: 'Option Strategy Analysis', category: 'Derivatives', classes: ['equity', 'index'], desc: 'Up to 12 common-expiry option legs plus stock: signed positions, entry premiums, aggregate Greeks, exact expiry risk/breakevens, time/spot/volatility scenarios and CSV. Manual European model, with labelled strategy examples.', component: OptionStrategy, aliases: ['STRATEGY'], example: 'OPTIONSTRATEGY' },
   // Portfolio & tools
   { code: 'WATCHLIST', name: 'Watchlists', category: 'Portfolio & Tools', desc: 'Editable watchlists with saved field columns, quote/source presets, sorting, filtering, intraday sparklines and CSV with field provenance.', component: W, aliases: ['WATCH'], example: 'WATCHLIST TECH' },
+  { code: 'FAVOURITES', name: 'Favourites', category: 'Portfolio & Tools', desc: 'The securities you starred (☆ beside a security\'s name, anywhere): 1) live prices and changes, 2) their news merged from every source. The command line offers them as soon as you click it.', component: FAV, aliases: ['FAV', 'FAVORITES', 'FAVS'], example: 'FAVOURITES NEWS' },
   { code: 'PORTFOLIO', name: 'Portfolio & Risk', category: 'Portfolio & Tools', desc: 'Manual holdings/cash, historical-FX replay, date-aligned VaR/ES, signed risk contributions, benchmark tracking error, allocation, price/FX stress and CSV. Complete history required.', component: PORT },
   { code: 'ALERTS', name: 'Alerts', category: 'Portfolio & Tools', desc: 'Price, percent-change and keyword alerts that pop up wherever you are while the app is open.', component: ALRT, aliases: ['ALERT'] },
   { code: 'CORRELATION', name: 'Correlation Matrix', category: 'Portfolio & Tools', desc: 'Correlation of daily returns across any set of securities and periods.', component: CORR },

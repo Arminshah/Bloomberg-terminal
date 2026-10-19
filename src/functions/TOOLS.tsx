@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { FavStar } from '../components/FavStar';
 import { Chg, LivePx, SecLink, Section, KV } from '../components/cells';
 import { DataTable } from '../components/DataTable';
 import { clearPersisted } from '../core/store';
@@ -102,7 +103,7 @@ export function SECF({ route }: FnProps) {
         rows={rows}
         rowKey={(d) => d.id}
         columns={[
-          { key: 'id', label: 'Security', render: (d) => <SecLink id={d.id}>{d.id}</SecLink>, sort: (d) => d.id },
+          { key: 'id', label: 'Security', render: (d) => <span className="nowrap"><FavStar id={d.id} /><SecLink id={d.id}>{d.id}</SecLink></span>, sort: (d) => d.id },
           { key: 'n', label: 'Name', render: (d) => d.name, sort: (d) => d.name },
           { key: 'c', label: 'Class', render: (d) => <span className="muted">{CLASS_LABEL[d.cls]}</span>, sort: (d) => d.cls, hideM: true },
           { key: 'ct', label: 'Country', render: (d) => <span className="muted">{COUNTRY_NAMES[d.country] ?? d.country}</span>, sort: (d) => d.country, hideM: true },

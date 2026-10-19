@@ -5,6 +5,7 @@ import type { SecurityDef } from '../data/types';
 import type { MenuItem } from '../terminal/types';
 import { primaryMnemonic } from '../terminal/legacy';
 import { settings } from '../terminal/settings';
+import { FavStar } from './FavStar';
 
 export interface Action {
   n: number;
@@ -50,6 +51,7 @@ export function FnHeader({ code, title, sec, sub, actions = [], tabs, tab, onTab
         {showMnemonic && <span className="fnh-mnemonic" title={`${mnemonic} <GO> opens ${code}`}>{mnemonic}<small> &lt;GO&gt;</small></span>}
         <span className="fnh-code">{code}</span>
         {sec && <span className="fnh-sec">{sec.id}</span>}
+        {sec && <FavStar id={sec.id} />}
         <span className="fnh-title">{title}</span>
         {sub && <span className="fnh-sub hide-m">{sub}</span>}
         <span className="fnh-actions">

@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { LatestNews } from '../components/LatestNews';
 import { krakenOwns, krakenPairFor } from '../data/live/kraken';
 import { COINGECKO_ATTRIBUTION, coinGecko } from '../data/live/coingecko';
 import { QuoteStrip } from '../components/QuoteStrip';
@@ -931,6 +932,7 @@ export function DES({ sec }: FnProps) {
       />
       <QuoteStrip sec={s} />
       {body}
+      {engine.realOnly && (s.cls !== 'equity' || tab === 1) ? <LatestNews sec={s} /> : null}
     </div>
   );
 }

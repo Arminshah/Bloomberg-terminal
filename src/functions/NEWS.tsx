@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { fmtDate, fmtStamp, fmtTime } from '../core/format';
 import { engine } from '../data/market';
@@ -8,7 +8,80 @@ import { feedStatus } from '../data/live/status';
 import { desktopData } from '../data/live/yahoo';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
-import { CompanyNews } from './MNEWS';
+import { CompanyNews, feedWord, StoryList } from './MNEWS';
+import { loadNews, MARKET_SOURCES, marketNews, mergeStories, newsAvailable, officialStories, storiesFor, useMarketNews } from '../data/live/marketnews';
+import { execute } from '../terminal/exec';
+
+// The searches Google is asked for (the main process checks them again): words, digits, quotes, $, %, & and the like.
+const SEARCHABLE = /^["\p{L}\p{N}$][\p{L}\p{N} &'’".:$%/+-]{1,79}$/u;
+
+/**
+ * NEWS <words>: every story the app holds whose headline or summary has all the words (market news from each
+ * source, the official announcements), with Google News's search for them over the last week. Bare NEWS lists
+ * the newest of everything.
+ */
+function NewsSearch({ query }: { query?: string }) {
+  const panel = usePanelId();
+  const [text, setText] = useState(query ?? '');
+  const [asked, setAsked] = useState((query ?? '').trim());
+  const v = useMarketNews([]);
+  const official = news.use((n) => n.stories);
+  const feeds = marketNews.use((s) => s.feeds);
+  const arg = asked && SEARCHABLE.test(asked) ? `US:en|${asked}` : '';
+  useEffect(() => {
+    if (!arg || !newsAvailable()) return;
+    void loadNews('google-news-search', arg, 10 * 60_000);
+    const t = setInterval(() => void loadNews('google-news-search', arg, 10 * 60_000), 5 * 60_000);
+    return () => clearInterval(t);
+  }, [arg]);
+  const stories = useMemo(() => {
+    const words = asked.toLowerCase().replace(/"/g, ' ').split(/\s+/).filter(Boolean);
+    const google = arg ? (marketNews.get().lists[`google-news-search:${arg}`] ?? []) : [];
+    const local = mergeStories([storiesFor(MARKET_SOURCES), officialStories(official)]).filter((s) => words.every((w) => `${s.title} ${s.summary ?? ''} ${s.tickers.join(' ')}`.toLowerCase().includes(w)));
+    return mergeStories([local, google]).slice(0, 500);
+  }, [asked, arg, official, v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const google = arg ? feedWord('Google News search', feeds[`google-news-search:${arg}`]) : '';
+  return (
+    <div className="fn-fill">
+      <FnHeader
+        code="NEWS"
+        title="News Search"
+        sub={`${stories.length} stories${asked ? ` for "${asked}"` : ''} · market news, official announcements${google ? ` · ${google}` : ''}`}
+        actions={[
+          { n: 1, label: 'Breaking', onClick: () => execute(panel, 'BREAKING'), title: 'The last hour from every source (BREAKING)' },
+          { n: 2, label: 'Market news', onClick: () => execute(panel, 'MARKETNEWS') },
+          { n: 3, label: 'Official', onClick: () => execute(panel, 'HEADLINES'), title: 'Official announcements by topic (HEADLINES)' },
+        ]}
+      />
+      <div className="chart-tools">
+        <label className="fld" htmlFor={`news-s-${panel}`}>
+          Search
+        </label>
+        <input
+          id={`news-s-${panel}`}
+          className="inp"
+          style={{ width: 260 }}
+          value={text}
+          placeholder="words, a ticker, a company…"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') setAsked(text.trim());
+          }}
+        />
+        <button type="button" className="btn" onClick={() => setAsked(text.trim())}>
+          Search
+        </button>
+        <span className="muted hide-m">Enter searches the stories the app holds and Google News for the last week</span>
+      </div>
+      {!newsAvailable() ? (
+        <div className="empty">News is read by the desktop app; the browser build has no data source.</div>
+      ) : (
+        <StoryList stories={stories} empty={asked ? `Searching for "${asked}"…` : 'Loading the latest news…'} />
+      )}
+    </div>
+  );
+}
 
 const PUBLISHERS = OFFICIAL_FEEDS.map((f) => f.publisher).join(', ');
 
@@ -112,7 +185,9 @@ export function N(props: FnProps) {
   const arg = route.args?.toUpperCase();
   const topic = arg && NEWS_TOPICS.some((t) => t.code === arg) ? arg : undefined;
   if (sec) return <CN {...props} />;
-  return <NewsScreen code="NEWS" title="News Search" initialTopic={topic} query={topic ? undefined : route.args} />;
+  // NEWS CB, NEWS SPEECH: the official announcements on that topic; anything else searches all news.
+  if (topic) return <NewsScreen code="NEWS" title="Official Announcements" initialTopic={topic} />;
+  return <NewsSearch query={route.args} />;
 }
 
 /** Company news: Finnhub and Marketaux through the desktop app (functions/MNEWS.tsx). */

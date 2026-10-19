@@ -13,7 +13,10 @@ import { startFred } from '../data/live/fred';
 import { startOfficialNews } from '../data/live/officialnews';
 import { startKraken } from '../data/live/kraken';
 import { startCoinGecko } from '../data/live/coingecko';
-import { alerts, newsAlerts } from './userdata';
+import { alerts, favourites, newsAlerts } from './userdata';
+import { marketNews, newsAvailable, refreshBreaking, sameTicker, storiesFor, BREAKING_SOURCES, type MarketStory } from '../data/live/marketnews';
+import { LIST_REACH, refreshSecuritiesNews, securitiesNews } from '../data/live/secnews';
+import type { SecurityDef } from '../data/types';
 import { settings } from './settings';
 import { toast } from './toasts';
 
@@ -56,16 +59,33 @@ function checkAlerts() {
   }
 }
 
-/** Keyword news alerts: any new headline or ticker containing a watched word. */
+/**
+ * Keyword news alerts: any new headline or ticker containing a watched word, among the official announcements and
+ * the market news the app has loaded (MARKETNEWS, BREAKING, company screens, the breaking watch). Stories the app
+ * held when it started, or before an alert's sources first answered, do not alert.
+ */
 function watchNews(): () => void {
   const seen = new Set(news.get().stories.map((s) => s.id));
-  return news.subscribe(() => {
-    const fresh: Story[] = [];
-    for (const s of news.get().stories) {
-      if (seen.has(s.id)) continue;
-      seen.add(s.id);
-      fresh.push(s);
+  const seenMarket = new Set<string>();
+  const since = Date.now() - 10 * 60_000;
+  const marketFresh = (): Story[] => {
+    const out: Story[] = [];
+    for (const s of storiesFor(BREAKING_SOURCES)) {
+      if (seenMarket.has(s.id)) continue;
+      seenMarket.add(s.id);
+      if (s.time >= since) out.push({ id: s.id, time: s.time, headline: s.title, body: s.summary ? [s.summary] : [], tickers: s.tickers.map((t) => `${t} US Equity`), topics: [], source: s.publisher, url: s.url });
     }
+    return out;
+  };
+  const check = (fromMarket: boolean) => {
+    const fresh: Story[] = [];
+    if (fromMarket) fresh.push(...marketFresh());
+    else
+      for (const s of news.get().stories) {
+        if (seen.has(s.id)) continue;
+        seen.add(s.id);
+        fresh.push(s);
+      }
     const st = newsAlerts.get();
     if (!fresh.length || !st.list.some((a) => a.active)) return;
     let changed = false;
@@ -82,7 +102,54 @@ function watchNews(): () => void {
       newsAlerts.set((x) => ({ ...x, list }));
       if (settings.get().sound) beep();
     }
-  });
+  };
+  const offNews = news.subscribe(() => check(false));
+  const offMarket = marketNews.subscribe(() => check(true));
+  return () => {
+    offNews();
+    offMarket();
+  };
+}
+
+/**
+ * Breaking pop-ups, while "Pop up flash headlines" is on (SETTINGS) in the desktop app: keeps the fast news sources
+ * and your favourites' news fresh, and pops up each story about a favourite and each central bank announcement
+ * published while the app is open. Older stories never pop up, and at most three a round do; more say how many.
+ */
+function watchBreaking(): () => void {
+  if (!newsAvailable()) return () => undefined;
+  const since = Date.now();
+  const seen = new Set<string>();
+  const favDefs = () => favourites.get().ids.map((id) => engine.get(id)).filter((d): d is SecurityDef => !!d);
+  const refresh = () => {
+    if (!settings.get().newsFlashes) return;
+    refreshBreaking();
+    refreshSecuritiesNews(favDefs(), LIST_REACH);
+  };
+  const check = () => {
+    if (!settings.get().newsFlashes) return;
+    const defs = favDefs();
+    const tickers = defs.map((d) => d.ticker.split(' ')[0]);
+    const found = securitiesNews(defs, LIST_REACH);
+    const about = (s: MarketStory) => found.some((f) => f.id === s.id) || s.tickers.some((t) => tickers.some((x) => sameTicker(t, x)));
+    const fresh = [...found, ...storiesFor(BREAKING_SOURCES).filter(about)].filter((s) => s.time >= since && !seen.has(s.id));
+    const banks = news.get().stories.filter((s) => s.topics.includes('CB') && s.time >= since && !seen.has(`official:${s.id}`));
+    fresh.forEach((s) => seen.add(s.id));
+    banks.forEach((s) => seen.add(`official:${s.id}`));
+    const pops = [...fresh.map((s) => ({ title: `★ ${s.tickers[0] ?? 'FAVOURITE'} · ${s.publisher}`, body: s.title, command: 'BREAKING FAV' })), ...banks.map((s) => ({ title: `BREAKING · ${s.source}`, body: s.headline, command: 'BREAKING' }))];
+    pops.slice(0, 3).forEach((p) => toast({ ...p, kind: 'news' }, 12000));
+    if (pops.length > 3) toast({ title: 'BREAKING', body: `${pops.length - 3} more new stories on your favourites and the central banks`, kind: 'news', command: 'BREAKING FAV' }, 12000);
+    if (pops.length && settings.get().sound) beep();
+  };
+  refresh();
+  const timer = setInterval(refresh, 60_000);
+  const offMarket = marketNews.subscribe(check);
+  const offNews = news.subscribe(check);
+  return () => {
+    clearInterval(timer);
+    offMarket();
+    offNews();
+  };
 }
 
 /** Starts app-wide background services; returns a cleanup function. */
@@ -94,6 +161,7 @@ export function startBackground(): () => void {
   ensureRooms();
   stops.push(engine.subscribe(() => checkAlerts()));
   stops.push(watchNews());
+  stops.push(watchBreaking());
   const chatTimer = setInterval(chatTick, 20_000);
   stops.push(() => clearInterval(chatTimer));
   stops.push(startLiveFeeds());

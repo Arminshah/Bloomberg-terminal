@@ -53,6 +53,8 @@ const EXAMPLES: [string, string][] = [
   ['CHART AAPL', 'Descriptive names and function-first commands also work'],
   ['GC', 'Yield curves'],
   ['TOP', 'Top market news (MARKETNEWS); HEADLINES has the official announcements'],
+  ['FIRST', 'Breaking news: the last hour from every source (BREAKING); FIRST FAV for your favourites'],
+  ['FAV', 'Your favourites with prices and news; ☆ beside a name stars it'],
   ['N CB', 'Central bank announcements'],
 ];
 

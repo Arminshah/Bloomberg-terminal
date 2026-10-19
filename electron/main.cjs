@@ -275,6 +275,13 @@ const OFFICIAL = {
   newsRba: () => 'https://www.rba.gov.au/rss/rss-cb-media-releases.xml',
   newsBea: () => 'https://apps.bea.gov/rss/rss.xml',
   newsEsma: () => 'https://www.esma.europa.eu/rss.xml',
+  // Speeches and blog posts, the Bank of Japan's announcements, central bankers' speeches the BIS gathers, and the
+  // SEC's press releases (asked with SEC_USER_AGENT, as the SEC requires).
+  newsFedSpeeches: () => 'https://www.federalreserve.gov/feeds/speeches.xml',
+  newsEcbBlog: () => 'https://www.ecb.europa.eu/rss/blog.html',
+  newsBoj: () => 'https://www.boj.or.jp/en/rss/whatsnew.xml',
+  newsBis: () => 'https://www.bis.org/doclist/cbspeeches.rss',
+  newsSec: () => 'https://www.sec.gov/news/pressreleases.rss',
 };
 
 /** Which provider publishes each official source, for the status screen. */
@@ -284,6 +291,7 @@ const OFFICIAL_PROVIDER = {
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs',
   newsFed: 'fedboard', newsEcb: 'ecb', newsBoe: 'boe', newsBoc: 'boc', newsRba: 'rba', newsBea: 'bea', newsEsma: 'esma',
+  newsFedSpeeches: 'fedboard', newsEcbBlog: 'ecb', newsBoj: 'boj', newsBis: 'bis', newsSec: 'sec',
 };
 
 ipcMain.handle('official', async (event, source, since) => {
@@ -295,6 +303,14 @@ ipcMain.handle('official', async (event, source, since) => {
     const answer = await fetchFedPress((url, init) => tracked('fedboard', url, init), { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (answer.error) providers.recordProblem('fedboard', 'schema-changed', answer.error);
     return answer;
+  }
+  if (source === 'newsSec') {
+    // The SEC wants every automated client to name itself and a contact: without SEC_USER_AGENT nothing is sent.
+    const agent = providers.credential('SEC_USER_AGENT').value;
+    if (!agent || !providers.CREDENTIALS.SEC_USER_AGENT.valid(agent)) return { status: 0, text: '', missing: 'SEC_USER_AGENT' };
+    await providers.slot('sec', sec.PER_SECOND, 1000);
+    const res = await tracked('sec', url, { headers: { 'User-Agent': agent, Accept: 'application/rss+xml, application/xml' }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+    return { status: res.status, text: res.ok ? await res.text() : '' };
   }
   // Some statistics services answer large requests slowly; a stalled one still ends.
   const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
@@ -567,9 +583,9 @@ ipcMain.handle('finnhub', async (event, kind, symbol) => {
   return keyedGet('finnhub', req.url, finnhub.finnhubHeaders(key.value), req.ttl, [30, 60_000], [key.value]);
 });
 
-// Alpaca's and Massive's paces are the same slots their quotes and CROSSCHECK bars wait in, so news never
-// pushes either provider over its limit.
-const NEWS_PACE = { finnhub: [30, 60_000], marketaux: [10, 60_000], marketwatch: [6, 60_000], sec: [sec.PER_SECOND, 1000], 'yahoo-rss': [20, 60_000], euronext: [6, 60_000], alpaca: [120, 60_000], massive: [5, 60_000], 'google-news': [10, 60_000] };
+// Massive's pace is the same slot CROSSCHECK's bars wait in, so news never pushes it over 5 calls a minute. Alpaca's
+// news has its own 30 a minute, which with the 120 kept for quotes and options stays under the plan's 200.
+const NEWS_PACE = { finnhub: [30, 60_000], marketaux: [10, 60_000], marketwatch: [6, 60_000], sec: [sec.PER_SECOND, 1000], 'yahoo-rss': [20, 60_000], euronext: [6, 60_000], 'alpaca-news': [30, 60_000], massive: [5, 60_000], 'google-news': [10, 60_000] };
 
 ipcMain.handle('news', async (event, source, arg) => {
   if (!fromApp(event) || !news.newsRequest(source, arg, 'x')) throw new Error('not allowed');
@@ -669,7 +685,7 @@ ipcMain.handle('yahoo:consent', async (event) => {
 // One small request to each source, on the owner's own network and with the owner's keys (electron/selftest.cjs).
 // The page gets names, states, statuses, timings and short samples; never a key or a URL.
 const selftest = require('./selftest.cjs');
-const SELFTEST_PACE = { fmp: [30, 60_000], finnhub: [30, 60_000], marketaux: [10, 60_000], alpaca: [120, 60_000], tiingo: [1, 60_000, 40], massive: [5, 60_000], alphavantage: [1, 60_000], twelvedata: [6, 60_000], fred: [60, 60_000], sec: [sec.PER_SECOND, 1000], coingecko: [10, 60_000], kraken: [60, 60_000] };
+const SELFTEST_PACE = { fmp: [30, 60_000], finnhub: [30, 60_000], marketaux: [10, 60_000], alpaca: [120, 60_000], 'alpaca-news': [30, 60_000], tiingo: [1, 60_000, 40], massive: [5, 60_000], alphavantage: [1, 60_000], twelvedata: [6, 60_000], fred: [60, 60_000], sec: [sec.PER_SECOND, 1000], coingecko: [10, 60_000], kraken: [60, 60_000] };
 
 /** Yahoo's own checks: the cookie and crumb the quote and company endpoints need, and the ones that need neither. */
 async function yahooSelfTest() {
