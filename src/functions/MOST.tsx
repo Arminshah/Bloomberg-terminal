@@ -8,6 +8,7 @@ import { engine, useTick } from '../data/market';
 import { rangeStats, toUsd } from '../data/analytics';
 import type { SecurityDef } from '../data/types';
 import { usePanelId } from '../terminal/panel';
+import { firstRowNumber } from '../terminal/numbering';
 import type { FnProps } from '../terminal/types';
 
 const VIEWS = [
@@ -68,7 +69,7 @@ export function MOST(_: FnProps) {
       <DataTable
         rows={sorted.slice(0, 40)}
         rowKey={(r) => r.d.id}
-        numbered
+        numbered={firstRowNumber([...VIEWS.map((v) => v.n), ...REGIONS.map((r) => r.n)])}
         onRowClick={(r, e) => openSecurity(panel, r.d.id, e)}
         columns={[
           { key: 't', label: 'Ticker', render: (r) => <SecLink id={r.d.id}>{r.d.ticker}</SecLink> },

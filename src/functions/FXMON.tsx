@@ -12,7 +12,8 @@ import { fmtBig, fmtDay, fmtNum, fmtStamp, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { horizonStart, periodChange, type Horizon } from '../data/analytics';
 import { CURRENCY_INFO } from '../data/universe';
-import { usePanelId } from '../terminal/panel';
+import { useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
+import { GroupRow, RowNo, useCollapsed } from '../components/Numbered';
 import type { FnProps } from '../terminal/types';
 
 /** FXMATRIX's currencies, in the order of its rows and columns. */
@@ -182,6 +183,7 @@ export function CRYP({ sec }: FnProps) {
     const q = engine.quote(d.id)!;
     return q.volumeUnit === 'USD' ? q.volume : q.volume * q.last;
   };
+  const nums = useNumberedRows('cryp-rows', list, 1, (d) => openSecurity(panel, d.id, undefined, 'CHART'), (d) => d.name);
   return (
     <div>
       <FnHeader
@@ -220,6 +222,7 @@ export function CRYP({ sec }: FnProps) {
             return (
               <tr key={d.id} className={`click${focus?.id === d.id ? ' sel' : ''}`} onClick={(e) => openSecurity(panel, d.id, e, 'CHART')}>
                 <td>
+                  <RowNo n={nums[i]} />
                   <SecLink id={d.id} fn="CHART">
                     {d.ticker}
                   </SecLink>{' '}
@@ -282,6 +285,11 @@ export function GLCO(_: FnProps) {
   const panel = usePanelId();
   useTick(1);
   const now = engine.now();
+  const [collapsed, toggle] = useCollapsed();
+  const shown = GROUPS.map((g) => (collapsed.includes(g) ? [] : engine.securities.filter((d) => d.cls === 'commodity' && d.cmd!.group === g)));
+  const nums = useNumberedRows('glco-rows', shown.flat(), 11, (d) => openSecurity(panel, d.id, undefined, 'CHART'), (d) => d.name);
+  useMenu('glco-groups', GROUPS.map((g, gi) => ({ n: gi + 1, label: g, run: () => toggle(g) })));
+  let at = 0;
   return (
     <div>
       <FnHeader code="COMMODITIES" title="Global Commodities" sub="Generic front-month futures" />
@@ -304,19 +312,16 @@ export function GLCO(_: FnProps) {
         </thead>
         <tbody>
           {GROUPS.map((g, gi) => [
-            <tr key={g} className="group">
-              <td colSpan={12}>
-                {gi + 1}) {g}
-              </td>
-            </tr>,
-            ...engine.securities
-              .filter((d) => d.cls === 'commodity' && d.cmd!.group === g)
+            <GroupRow key={g} n={gi + 1} name={g} span={12} open={!collapsed.includes(g)} onToggle={() => toggle(g)} />,
+            ...shown[gi]
               .map((d) => {
+                const n = nums[at++];
                 const q = engine.quote(d.id)!;
                 const intra = engine.intraday(d.id);
                 return (
                   <tr key={d.id} className="click" onClick={(e) => openSecurity(panel, d.id, e, 'CHART')}>
                     <td>
+                      <RowNo n={n} />
                       <SecLink id={d.id} fn="CHART">
                         {d.ticker}
                       </SecLink>

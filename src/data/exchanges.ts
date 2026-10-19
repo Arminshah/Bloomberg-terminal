@@ -311,3 +311,39 @@ export function fmtCountdown(ms: number): string {
   const m = Math.floor((s % 3600) / 60);
   return d > 0 ? `${d}d ${h}h ${pad(m)}m` : `${h}:${pad(m)}:${pad(s % 60)}`;
 }
+
+/** Where an exchange's regular session stands now, by its own calendar. */
+export type ExchangeState = 'OPEN' | 'CLOSED' | 'HOLIDAY' | 'WEEKEND';
+
+export interface ExchangeStatus {
+  state: ExchangeState;
+  /** The exchange's own date (YYYY-MM-DD) and time (HH:MM) now. */
+  localDate: string;
+  localTime: string;
+  /** Today's holiday or early close, if any. */
+  today?: MarketDay;
+  /** The next close while open, the next open while closed; NaN with no session in the next three weeks. */
+  nextAt: number;
+  /** The early closing time of the session that is open or opens next. */
+  earlyClose?: string;
+  /** The exchange's published holiday table ends before the next session, so a holiday there is not known. */
+  uncovered: boolean;
+}
+
+/** The status EXCH lists for an exchange: open, closed, a holiday or the weekend, and when that changes. */
+export function exchangeStatus(ex: Exchange, now: number): ExchangeStatus {
+  const s = sessionAt(ex, now);
+  const p = zonedParts(now, ex.tz);
+  const wd = weekdayOf(p.y, p.mo - 1, p.d);
+  const state: ExchangeState = s.open ? 'OPEN' : wd === 0 || wd === 6 ? 'WEEKEND' : s.today && !s.today.close ? 'HOLIDAY' : 'CLOSED';
+  const nextYear = Number.isFinite(s.at) ? zonedParts(s.at, ex.tz).y : p.y;
+  return {
+    state,
+    localDate: isoOf(p.y, p.mo - 1, p.d),
+    localTime: `${pad(p.h)}:${pad(p.mi)}`,
+    ...(s.today ? { today: s.today } : {}),
+    nextAt: s.at,
+    ...(s.earlyClose ? { earlyClose: s.earlyClose } : {}),
+    uncovered: ex.through !== undefined && Math.max(p.y, nextYear) > ex.through,
+  };
+}

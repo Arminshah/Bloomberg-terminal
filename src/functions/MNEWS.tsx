@@ -8,7 +8,8 @@ import { combinedFeed, MARKET_EDITIONS, MARKET_SOURCES, marketNews, newsAvailabl
 import { securityNews, useSecuritiesNews } from '../data/live/secnews';
 import { watchlists } from '../terminal/userdata';
 import { execute } from '../terminal/exec';
-import { usePanelId } from '../terminal/panel';
+import { useNumberedRows, usePanelId } from '../terminal/panel';
+import { firstRowNumber } from '../terminal/numbering';
 import type { FnProps } from '../terminal/types';
 
 /** A story's sentiment from Marketaux, for one ticker or all it tags. */
@@ -61,19 +62,22 @@ function Reader({ story, symbol, onBack }: { story: MarketStory; symbol?: string
 }
 
 /**
- * Headlines on the left, the selected story on the right. With `fresh`, stories published less than that many
- * milliseconds ago are marked NEW, and each line shows its age.
+ * Headlines on the left, the selected story on the right. Headlines are numbered from `first`, clear of the
+ * screen's own tabs and actions, and typing a headline's number and GO opens it. With `fresh`, stories published
+ * less than that many milliseconds ago are marked NEW, and each line shows its age.
  */
-export function StoryList({ stories, empty, symbol, fresh }: { stories: MarketStory[]; empty: string; symbol?: string; fresh?: number }) {
+export function StoryList({ stories, empty, symbol, fresh, first = 1 }: { stories: MarketStory[]; empty: string; symbol?: string; fresh?: number; first?: number }) {
   const [sel, setSel] = useState<string | null>(null);
   const current = stories.find((s) => s.id === sel) ?? stories[0];
   const now = engine.now();
+  const nums = useNumberedRows('story-list', stories, first, (s) => setSel(s.id), (s) => s.title);
   return (
     <div className={`news${sel ? ' reading' : ''}`} style={{ flex: 1, minHeight: 0 }}>
       <div className="news-list" role="list">
         {stories.length === 0 && <div className="empty">{empty}</div>}
-        {stories.map((s) => (
-          <div key={s.id} role="listitem" className={`news-item real${current?.id === s.id ? ' sel' : ''}${fresh && now - s.time < fresh ? ' fresh' : ''}`} onClick={() => setSel(s.id)}>
+        {stories.map((s, i) => (
+          <div key={s.id} role="listitem" className={`news-item numbered real${current?.id === s.id ? ' sel' : ''}${fresh && now - s.time < fresh ? ' fresh' : ''}`} onClick={() => setSel(s.id)}>
+            <span className="news-n">{nums[i] !== undefined ? `${nums[i]})` : ''}</span>
             <span className="time" title={`Published ${fmtDate(s.time)} ${fmtTime(s.time)}`}>
               {fresh ? ageText(now - s.time) : fmtStamp(s.time, now)}
             </span>
@@ -186,7 +190,7 @@ export function MNEWS({ route, sec }: FnProps) {
       {!newsAvailable() ? (
         <div className="empty">Market news is read by the desktop app; the browser build has no data source.</div>
       ) : (
-        <StoryList stories={list} empty={t || q.trim() ? `No story matches in what the sources returned.` : waiting ? 'Loading market news…' : 'No source has returned stories: the line above says why for each; keys and switches are on PROVIDERS.'} symbol={t || undefined} />
+        <StoryList stories={list} first={firstRowNumber([...TABS.map((x) => x.n), TABS.length + 1])} empty={t || q.trim() ? `No story matches in what the sources returned.` : waiting ? 'Loading market news…' : 'No source has returned stories: the line above says why for each; keys and switches are on PROVIDERS.'} symbol={t || undefined} />
       )}
       <div className="note">
         Sources: Finnhub, Benzinga through Alpaca (15 minutes late on its free plan), Massive, Marketaux, Google News, the SEC&apos;s 8-K filings, Euronext and, if switched on, MarketWatch. A story carried by two

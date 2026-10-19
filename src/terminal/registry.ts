@@ -31,6 +31,7 @@ import { BREAKING } from '../functions/BREAKING';
 import { WEI, WEIF } from '../functions/WEI';
 import { IMAP } from '../functions/IMAP';
 import { MOST } from '../functions/MOST';
+import { EXCH } from '../functions/EXCH';
 import { EQS } from '../functions/EQS';
 import { BTMM, GC, WB, WIRP } from '../functions/RATES';
 import { YAS } from '../functions/YAS';
@@ -73,9 +74,9 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'WACC', name: 'Cost of Capital', category: 'Equity', needsSec: true, classes: EQ, desc: 'Weighted average cost of capital from CAPM and after-tax cost of debt, with a perpetuity value check.', component: WACC },
   { code: 'FUNDCHART', name: 'Graph Fundamentals', category: 'Equity', needsSec: true, classes: EQ, desc: 'Charts of revenue, EPS, margins, P/E and cash flow across fiscal years and quarters.', component: GF },
   // Charts
-  { code: 'CHART', name: 'Price Chart', category: 'Charts', needsSec: true, desc: 'Historical chart with line, mountain, candle and bar styles, daily/weekly/monthly frequency, SMA/EMA, Bollinger bands, volume, RSI, MACD and comparison overlays. Scroll to zoom, drag to pan.', component: GP, aliases: ['GRAPH'], example: 'CHART AAPL' },
+  { code: 'CHART', name: 'Price Chart', category: 'Charts', needsSec: true, desc: 'Historical chart with line, mountain, candle and bar styles, daily/weekly/monthly frequency, SMA/EMA, Bollinger bands, volume, RSI, MACD and comparison overlays. Scroll to zoom, drag to pan. GPO opens it as open-high-low-close bars, GPC as candlesticks.', component: GP, aliases: ['GRAPH', 'GPO', 'GPC'], example: 'CHART AAPL' },
   { code: 'INTRADAY', name: 'Intraday Chart', category: 'Charts', needsSec: true, desc: "The latest session's intraday chart against the previous close, updating as prices arrive.", component: GIP, example: 'CHART EURUSD 1D' },
-  { code: 'HISTORY', name: 'Historical Prices', category: 'Charts', needsSec: true, desc: 'Daily, weekly, monthly, quarterly or yearly price table with changes and volume; copy or export to CSV.', component: HP, aliases: ['PRICES'] },
+  { code: 'HISTORY', name: 'Historical Prices', category: 'Charts', needsSec: true, desc: 'Daily, weekly, monthly, quarterly or yearly price table with changes and volume; copy or export to CSV. A range and periodicity can follow the security: HP AAPL 1Y W.', component: HP, aliases: ['PRICES'], example: 'HP AAPL 1Y W' },
   { code: 'RETURNS', name: 'Comparative Returns', category: 'Charts', needsSec: true, desc: 'Rebased performance of a security against benchmarks and peers over a chosen period.', component: COMP, aliases: ['COMPARE'] },
   { code: 'TOTALRETURN', name: 'Total Return Analysis', category: 'Charts', needsSec: true, classes: ['equity', 'index', 'commodity', 'crypto', 'fx', 'future'], desc: 'Price and total return with dividends reinvested against a benchmark: annualised return, volatility and drawdown.', component: TRA },
   { code: 'SPREAD', name: 'Historical Spread', category: 'Charts', needsSec: true, desc: 'Spread or ratio between two securities with mean, standard deviation, z-score and percentile (2s10s, Brent-WTI, gold/silver).', component: HS, aliases: ['RATIO'], example: 'SPREAD USGG10YR' },
@@ -93,6 +94,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'CONTRIB', name: 'Index Movers', category: 'Markets', desc: 'What moved an index today: members in index points for the Dow, and for other indices the app\'s stocks in that market by change in market value, with advancers and decliners.', component: MOV, example: 'CONTRIB SPX' },
   { code: 'HEATMAP', name: 'Intraday Market Map', category: 'Markets', desc: 'Heat map of stocks by sector sized by market cap and coloured by performance.', component: IMAP },
   { code: 'MOVERS', name: 'Most Active', category: 'Markets', desc: 'Most active, top gainers, losers, value traded and unusual volume by region.', component: MOST, aliases: ['ACTIVE'] },
+  { code: 'EXCHANGES', name: 'Exchange Hours', category: 'Markets', desc: "Each exchange the app keeps a calendar for (NYSE, Euronext, London, Xetra, Tokyo): its local time, whether its regular session is open, today's holiday or early close, and when it next opens or closes, with a countdown. Numbered rows open the exchange's holiday calendar.", component: EXCH, example: 'EXCHANGES' },
   { code: 'SCREEN', name: 'Equity Screening', category: 'Markets', desc: 'Screen stocks by region, sector, size, valuation, yield, quality and momentum.', component: EQS, aliases: ['SCREENER'] },
   { code: 'QUOTE', name: 'Quote', category: 'Markets', needsSec: true, desc: "One-screen quote: price, intraday chart, best bid and offer, recent updates and key statistics; for US stocks also IEX's last trade and bid and offer from Alpaca (labelled IEX only) and the company's latest news from Finnhub, with your keys.", component: BQ, example: 'QUOTE AAPL' },
   { code: 'TRADES', name: 'Time and Sales', category: 'Markets', needsSec: true, classes: TRADABLE, desc: 'Tape of the price and volume updates the source reports (not single trades) with a VWAP and volume summary; the browser version models single trades.', component: TAS, aliases: ['TAPE'] },

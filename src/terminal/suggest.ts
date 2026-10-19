@@ -6,6 +6,7 @@ import { lookupSource, normalizeTicker } from '../data/live/lookup';
 import { engine } from '../data/market';
 import { fmtNum, fmtPct } from '../core/format';
 import { favourites } from './userdata';
+import { CHART_STYLES } from './legacy';
 
 export interface Suggestion {
   /** fav and recent: the list the command line shows before anything is typed. */
@@ -39,14 +40,20 @@ function matchFns(partial: string, sec: SecurityDef | undefined, onlySec: boolea
   return scored.sort((a, b) => b[1] - a[1]).slice(0, limit).map(([f]) => f);
 }
 
-function fnSuggestion(f: FnDef, prefix: string): Suggestion {
+/** A chart style mnemonic (GPO, GPC) typed in full keeps its style when the suggestion is chosen. */
+const STYLE_NAMES: Record<string, string> = { BAR: 'open-high-low-close bars', CANDLE: 'candlesticks' };
+
+function fnSuggestion(f: FnDef, prefix: string, typed = ''): Suggestion {
+  const word = typed.trim().toUpperCase();
+  const style = f.code === 'CHART' ? CHART_STYLES[word] : undefined;
+  const code = style ? word : f.code;
   return {
     kind: 'fn',
     key: `fn:${f.code}`,
     primary: f.code,
-    secondary: f.name,
+    secondary: style ? `${f.name}, ${STYLE_NAMES[style]}` : f.name,
     tag: f.category,
-    execute: prefix ? `${prefix} ${f.code}` : f.code,
+    execute: prefix ? `${prefix} ${code}` : code,
   };
 }
 
@@ -100,7 +107,7 @@ export function suggest(input: string): Suggestion[] {
     const sec = resolveSecurity(tokens.slice(0, ykAt).join(' '), YELLOW_KEYS[tokens[ykAt].toUpperCase()]);
     if (!sec) return [];
     const partial = tokens.slice(ykAt + 1).join(' ');
-    return matchFns(partial, sec, true, 14).map((f) => fnSuggestion(f, sec.id));
+    return matchFns(partial, sec, true, 14).map((f) => fnSuggestion(f, sec.id, partial));
   }
 
   // "AAPL G" -> functions for AAPL starting with G; "AAPL " -> all its functions.
@@ -111,13 +118,13 @@ export function suggest(input: string): Suggestion[] {
     if (!sec) continue;
     const partial = tokens.slice(j).join(' ');
     if (!partial && !trailing) break;
-    const fns = matchFns(partial, sec, true, 12).map((f) => fnSuggestion(f, sec.id));
+    const fns = matchFns(partial, sec, true, 12).map((f) => fnSuggestion(f, sec.id, partial));
     if (fns.length) return fns;
     break;
   }
 
   const q = tokens.join(' ');
-  const fns = matchFns(q, undefined, false, 6).map((f) => fnSuggestion(f, ''));
+  const fns = matchFns(q, undefined, false, 6).map((f) => fnSuggestion(f, '', q));
   // Favourites that match come first among the securities, starred.
   const favs = new Set(favourites.get().ids);
   const found = searchSecurities(q, 30).map((h) => h.def);

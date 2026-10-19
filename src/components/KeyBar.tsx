@@ -64,11 +64,11 @@ export function KeyBar() {
         </button>
       ))}
       <span className="gap" />
-      <button type="button" className="key gray hide-m" title="Page back (PgUp)" onMouseDown={(e) => e.preventDefault()} onClick={() => pagePanel(active, -1)}>
+      <button type="button" className="key gray hide-m" title="Page back (PgUp); a number typed first moves that many pages" onMouseDown={(e) => e.preventDefault()} onClick={() => pagePanel(active, -1)}>
         PG BK
         <small>PGUP</small>
       </button>
-      <button type="button" className="key gray hide-m" title="Page forward (PgDn)" onMouseDown={(e) => e.preventDefault()} onClick={() => pagePanel(active, 1)}>
+      <button type="button" className="key gray hide-m" title="Page forward (PgDn); a number typed first moves that many pages" onMouseDown={(e) => e.preventDefault()} onClick={() => pagePanel(active, 1)}>
         PG FWD
         <small>PGDN</small>
       </button>

@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { GroupRow, RowNo, useCollapsed } from '../components/Numbered';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { Chg, DayChg, LivePx, SecLink } from '../components/cells';
@@ -7,7 +8,7 @@ import { Flash } from '../components/Flash';
 import { fmtNum, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
-import { usePanelId } from '../terminal/panel';
+import { useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
 import { openSecurity } from '../components/cells';
 import { realFutureContract } from '../data/realfut';
 import type { FnProps } from '../terminal/types';
@@ -41,6 +42,13 @@ export function WEI({ route }: FnProps) {
   const now = engine.now();
   const region = REGION_ARGS[route.args?.trim().toUpperCase() ?? ''];
   const groups = region ? INDEX_GROUPS.filter((g) => g.name === region) : INDEX_GROUPS;
+  const [collapsed, toggle] = useCollapsed();
+  // The desktop app lists only indices it has a real source for; a collapsed region lists none.
+  const shown = groups.map((g) => (collapsed.includes(g.name) ? [] : g.ids.filter((id) => engine.hasSource(id))));
+  const open = (id: string) => openSecurity(panel, id, undefined, 'CHART');
+  const nums = useNumberedRows('wei-rows', shown.flat(), 11, open, (id) => engine.get(id)?.name ?? id);
+  useMenu('wei-regions', groups.map((g, gi) => ({ n: gi + 1, label: g.name, run: () => toggle(g.name) })));
+  let at = 0;
   return (
     <div>
       <FnHeader code="MARKET" title="World Equity Indices" sub={`${region ?? 'Standard view'} · values in local currency${route.args && !region ? ` · no region "${route.args}": try US, EUROPE or ASIA` : ''}`} />
@@ -61,20 +69,16 @@ export function WEI({ route }: FnProps) {
         <tbody>
           {groups.map((g, gi) => (
             <Fragment key={g.name}>
-              <tr className="group">
-                <td colSpan={9}>
-                  {gi + 1}) {g.name}
-                </td>
-              </tr>
-              {g.ids.map((id) => {
-                // The desktop app lists only indices it has a real source for.
-                if (!engine.hasSource(id)) return null;
+              <GroupRow n={gi + 1} name={g.name} span={9} open={!collapsed.includes(g.name)} onToggle={() => toggle(g.name)} />
+              {shown[gi].map((id) => {
+                const n = nums[at++];
                 const d = engine.get(id)!;
                 const q = engine.quote(id)!;
                 const intra = engine.intraday(id);
                 return (
                   <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e, 'CHART')}>
                     <td>
+                      <RowNo n={n} />
                       <SecLink id={id} fn="CHART">
                         {d.ticker}
                       </SecLink>
@@ -123,6 +127,12 @@ const FUT_GROUPS: { name: string; ids: string[] }[] = [
 export function WEIF(_: FnProps) {
   useTick(1);
   const panel = usePanelId();
+  const [collapsed, toggle] = useCollapsed();
+  const groups = FUT_GROUPS.filter((g) => g.ids.some((id) => engine.hasSource(id)));
+  const shown = groups.map((g) => (collapsed.includes(g.name) ? [] : g.ids.filter((id) => !!engine.get(id) && engine.hasSource(id))));
+  const nums = useNumberedRows('weif-rows', shown.flat(), 11, (id) => openSecurity(panel, id, undefined, 'INTRADAY'), (id) => engine.get(id)?.name ?? id);
+  useMenu('weif-regions', groups.map((g, gi) => ({ n: gi + 1, label: g.name, run: () => toggle(g.name) })));
+  let at = 0;
   // The delay Yahoo states for the contracts, rather than an assumption about the exchange.
   const delays = FUT_GROUPS.flatMap((g) => g.ids)
     .filter((id) => engine.hasSource(id))
@@ -152,16 +162,12 @@ export function WEIF(_: FnProps) {
           </tr>
         </thead>
         <tbody>
-          {FUT_GROUPS.filter((g) => g.ids.some((id) => engine.hasSource(id))).map((g, gi) => (
+          {groups.map((g, gi) => (
             <Fragment key={g.name}>
-              <tr className="group">
-                <td colSpan={14}>
-                  {gi + 1}) {g.name}
-                </td>
-              </tr>
-              {g.ids.map((id) => {
-                const d = engine.get(id);
-                if (!d || !engine.hasSource(id)) return null;
+              <GroupRow n={gi + 1} name={g.name} span={14} open={!collapsed.includes(g.name)} onToggle={() => toggle(g.name)} />
+              {shown[gi].map((id) => {
+                const n = nums[at++];
+                const d = engine.get(id)!;
                 const q = engine.quote(id)!;
                 const u = engine.quote(d.fut!.underlying)!;
                 const c = engine.realOnly ? realFutureContract(d) : engine.futureContract(id)!;
@@ -169,6 +175,7 @@ export function WEIF(_: FnProps) {
                 return (
                   <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e, 'INTRADAY')}>
                     <td>
+                      <RowNo n={n} />
                       <SecLink id={id} fn="MENU">
                         {d.ticker}
                       </SecLink>

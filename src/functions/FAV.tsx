@@ -17,6 +17,7 @@ import { favourites, toggleFavourite } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
 import { FieldCell } from './W';
 import { StoryList } from './MNEWS';
+import { firstRowNumber } from '../terminal/numbering';
 
 /** News is read for the first 20 favourites, so a long list cannot exceed the sources' limits. */
 const NEWS_MAX = 20;
@@ -188,6 +189,7 @@ export function FAV({ route }: FnProps) {
       ) : (
         <StoryList
           stories={stories}
+          first={firstRowNumber([1, 2])}
           empty={defs.length ? 'Loading the news of your favourites…' : 'No favourites yet: star a security with ☆ beside its name.'}
         />
       )}

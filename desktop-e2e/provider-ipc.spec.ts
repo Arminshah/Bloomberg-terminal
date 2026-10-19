@@ -463,6 +463,13 @@ test("company news merges Benzinga's stories through Alpaca with Google News's s
   await expect(panel.locator('.news-item').nth(0).locator('.src')).toHaveText('Benzinga');
   await expect(panel.locator('.news-item').nth(1).locator('.hl')).toHaveText('Synthetic Google story about the company · AAPL');
   await expect(panel.locator('.news-item').nth(1).locator('.src')).toHaveText('Reuters');
+  // Headlines are numbered; typing a headline's number and GO opens it in the reader.
+  await expect(panel.locator('.news-item .news-n')).toHaveText(['1)', '2)']);
+  await expect(panel.locator('.story h2')).toHaveText('Synthetic Benzinga story about the company');
+  await page.locator('#cmd-0').fill('2');
+  await page.locator('#cmd-0').press('Enter');
+  await expect(panel.locator('.story h2')).toHaveText('Synthetic Google story about the company');
+  await expect(panel.locator('.news-item.sel .news-n')).toHaveText('2)');
   await expect(panel.locator('.fnh-sub')).toContainText('Alpaca: 1');
   await expect(panel.locator('.fnh-sub')).toContainText('Google News: 1');
   // Massive has no key here; it says so rather than failing silently.

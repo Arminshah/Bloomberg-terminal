@@ -7,6 +7,7 @@ import { LIST_REACH, securitiesNews, useSecuritiesNews } from '../data/live/secn
 import type { SecurityDef } from '../data/types';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
+import { firstRowNumber } from '../terminal/numbering';
 import { favourites, watchlists } from '../terminal/userdata';
 import { dismissAllFavAlerts, dismissFavAlert, favAlerts } from '../terminal/favalerts';
 import type { FnProps } from '../terminal/types';
@@ -168,7 +169,7 @@ export function BREAKING({ route }: FnProps) {
       {!newsAvailable() ? (
         <div className="empty">Breaking news is read by the desktop app; the browser build has no data source.</div>
       ) : (
-        <StoryList stories={list} fresh={FRESH} empty={empty} />
+        <StoryList stories={list} fresh={FRESH} first={firstRowNumber([...TABS.map((t) => t.n), 6, 7])} empty={empty} />
       )}
       <div className="note">
         Every market news source (Finnhub, Benzinga through Alpaca, Massive, Google News&apos;s search of the last hour, MarketWatch if switched on, the SEC&apos;s 8-K filings, Euronext), the official announcements and your

@@ -3,6 +3,7 @@ import type { MenuItem, Route } from './types';
 import { navigate } from './state';
 import { createStore } from '../core/store';
 import type { SecurityDef } from '../data/types';
+import { rowNumbers } from './numbering';
 
 export const PanelContext = createContext(0);
 
@@ -30,6 +31,16 @@ export function useMenu(owner: string, items: MenuItem[]) {
       panelMenus.get(panel)?.delete(owner);
     };
   }, [panel, owner, items.length, items.map((i) => i.n).join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/**
+ * Numbers a list's rows from `first` (skipping 96 to 99) and registers them, so `n <GO>` opens row n as a click
+ * on it would. Returns each row's number, in the order given; rows past 999 have none.
+ */
+export function useNumberedRows<T>(owner: string, rows: T[], first: number, open: (row: T) => void, label: (row: T) => string): number[] {
+  const nums = rowNumbers(first, rows.length);
+  useMenu(owner, nums.map((n, i) => ({ n, label: label(rows[i]), run: () => open(rows[i]) })));
+  return nums;
 }
 
 export function menuItem(panel: number, n: number): MenuItem | undefined {
