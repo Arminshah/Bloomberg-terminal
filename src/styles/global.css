@@ -87,6 +87,8 @@ button { cursor: pointer; }
 .num { text-align: right; white-space: nowrap; }
 .nowrap { white-space: nowrap; }
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* An inline-block that clips its text takes its bottom edge as baseline, which lifts the text above its row; align it to the top instead. */
+span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .sans { font-family: var(--sans); }
 .b { font-weight: 600; }
 
@@ -392,7 +394,7 @@ button { cursor: pointer; }
   min-height: 24px;
   padding: 2px 6px;
   overflow: hidden;
-  background: var(--function-bar);
+  background: linear-gradient(180deg, #a11d1d 0%, var(--function-bar) 55%, #6f0f0f 100%);
   font-family: var(--sans);
 }
 .fnh-caption { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; min-width: 0; max-width: 100%; }
@@ -405,7 +407,10 @@ button { cursor: pointer; }
   font-weight: 600;
   letter-spacing: 0.04em;
 }
-.fnh-sec { color: var(--yellow); font-weight: 500; white-space: nowrap; }
+/* The loaded security sits in an amber field at the left end of the red bar, as on the terminal's function screens. */
+.fnh-sec { flex: none; align-self: stretch; display: inline-flex; align-items: center; margin: -2px 0 -2px -6px; padding: 0 8px; background: var(--amber); color: #000; font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+.fnh-name { color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 0 auto; max-width: 45%; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0 !important; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* "Page 2/5" sits on the function bar beside the title, as the terminal shows multi-page screens. */
 .fnh-page { flex: none; border: 0; padding: 0 6px; background: transparent; color: var(--white); font-size: var(--fs-s); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .fnh-page:hover { outline: 1px solid var(--white); outline-offset: -1px; }
@@ -413,9 +418,8 @@ button { cursor: pointer; }
 .fav-star:hover { color: var(--amber); }
 .fav-star.on { color: var(--yellow); }
 .ac-item .fav { color: var(--yellow); }
-.fnh-mnemonic { flex: none; padding: 0 5px; background: #250707; color: var(--yellow); font-weight: 600; white-space: nowrap; }
+.fnh-mnemonic { flex: none; padding: 0 5px; background: #250707; color: var(--yellow); font-family: var(--mono); font-weight: 600; white-space: nowrap; }
 .fnh-mnemonic small { font-size: 9px; font-weight: 400; }
-.fnh-mnemonic + .fnh-code { padding: 0; background: transparent; color: #edb8b8; font-size: var(--fs-s); }
 .chart-tools .fields-search { flex: 1 1 230px; min-width: 160px; }
 .field-definition { border-left: 3px solid var(--amber); }
 .field-definition .kv > dd { min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; text-align: left; }
@@ -425,7 +429,9 @@ button { cursor: pointer; }
 .fnh-actions .act { flex: none; border: 0; border-right: 1px solid #b36262; background: transparent; padding: 1px 9px; color: #fff; font-size: var(--fs); }
 .fnh-actions .act b { color: #fff; }
 .fnh-actions .act:hover { background: #a32929; outline: 1px solid #fff; outline-offset: -1px; }
-.fnh-actions .act.on { background: #263e77; }
+/* A chosen view in the red bar is a lit field: white on dark blue, readable against the red. */
+.fnh-actions .act.on, .fnh-actions .act.on b { background: #1d3f80; color: #fff; }
+.fnh-actions .act.on { box-shadow: inset 0 -2px #b5d2ff; }
 .act {
   border: 1px solid #7e7e7e;
   background: #181818;
@@ -506,13 +512,15 @@ button { cursor: pointer; }
 .tbl tr.click:hover td { background: #182232; box-shadow: inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
 .tbl tr.click:hover td:first-child { box-shadow: inset 1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
 .tbl tr.click:hover td:last-child { box-shadow: inset -1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
+/* Group lines ("1) Americas", a date) are grey strips with white titles, as monitor regions are on the terminal. */
 .tbl tr.group td {
-  color: var(--amber);
-  background: var(--bg-2);
+  color: var(--white);
+  background: linear-gradient(180deg, #353a40 0%, #26292e 100%);
   font-weight: 500;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--line-2);
+  border-top: 1px solid #454b52;
+  border-bottom: 1px solid #15171a;
 }
+.tbl tr.group .group-toggle { color: #b9c0c8; }
 .tbl tr.click { cursor: pointer; }
 /* Numbered rows: "12) SPX", typed as 12 <GO>. The number column keeps tickers aligned. */
 .row-no { display: inline-block; min-width: 3.2em; padding-right: 0.5em; color: var(--amber); text-align: right; font-variant-numeric: tabular-nums; }
@@ -561,20 +569,63 @@ button { cursor: pointer; }
 }
 .cols > * { background: var(--bg-1); min-width: 0; }
 .sect { min-width: 0; }
+/* Section headings are the terminal's grey strips with white titles (DES boxes, monitor regions). */
 .sect-h {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 8px;
-  color: var(--amber);
-  border-bottom: 1px solid var(--amber-dim);
+  padding: 2px 8px;
+  color: var(--white);
+  border-top: 1px solid #4b5158;
+  border-bottom: 1px solid #15171a;
+  font-family: var(--sans);
   font-weight: 500;
-  letter-spacing: 0.04em;
   white-space: nowrap;
-  background: var(--bg-2);
+  background: linear-gradient(180deg, #3d4248 0%, #2a2e33 100%);
 }
-.sect-h .right { margin-left: auto; color: var(--muted); font-weight: 400; }
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 0 12px; padding: 4px 8px; }
+.sect-h .right { margin-left: auto; color: #b9c0c8; font-weight: 400; }
+
+/* MENU: the path reads as the terminal's blue, italic breadcrumb; lines show the mnemonic in white, the name in amber. */
+.menu-path { font-style: italic; }
+.menu-path .btn { border: 0; background: transparent; padding: 0 2px; color: #6cb4ff; font-style: italic; }
+.menu-path .btn:hover { color: var(--white); text-decoration: underline; background: transparent; }
+
+/* FA: the "12 Months Ending" line under the period headings. */
+.tbl tr.fa-ending th { position: static; color: #b9c0c8; font-weight: 400; background: #1e2125; }
+
+/* ECO agenda: days alternate in shade, and releases still to come read in amber, as on the terminal. */
+.tbl.eco tr.eco-band td { background: #10141a; }
+.tbl.eco tr.eco-ahead td { color: var(--amber-2); }
+.tbl.eco tr.eco-ahead td.num.b { color: var(--amber-2); }
+.tbl.eco .eco-date { color: inherit; font-variant-numeric: tabular-nums; }
+
+/* ANR: the consensus summary above the sections, two short columns. */
+.anr-snap { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 360px)); gap: 0 24px; border-bottom: 1px solid var(--line); background: var(--bg-1); }
+
+/* DES: name and classification, the description, then three columns of numbered boxes. */
+.des-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 4px 8px 0; }
+.des-name { color: var(--white); font-weight: 600; letter-spacing: 0.02em; }
+.des-class { margin-left: auto; color: var(--amber); }
+.des-desc { margin: 0; padding: 4px 8px 6px; color: var(--amber); font-family: var(--sans); font-size: var(--fs); line-height: 1.45; }
+.des-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.des-col { background: var(--bg-1); min-width: 0; }
+.des-box { min-width: 0; }
+.des-link { border: 0; padding: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; white-space: nowrap; }
+.des-link:hover { color: var(--amber-2); text-decoration: underline; }
+.des-n { color: inherit; font-weight: 500; }
+.sect-h .des-fn { color: #c9d4e0; }
+.des-people { list-style: none; margin: 0; padding: 3px 8px; }
+.des-people li { padding: 1px 0; }
+.des-title { padding-left: 3.2em; font-size: var(--fs-s); }
+.des-links { border-top: 1px solid var(--line); }
+.des-links dt .des-link { color: var(--amber); }
+.des-related { display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 5px 8px; border-top: 1px solid var(--line); }
+.des-related .des-link { color: var(--amber); }
+.des-related .des-n { color: var(--white); }
+.des-fy { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 20px; padding-right: 8px; }
+.des-fy .kv { flex: 0 1 420px; }
+.des-fy-links { display: flex; flex-direction: column; padding: 4px 8px; color: var(--amber); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 0 12px; margin: 0; padding: 4px 8px; }
 .kv > dt { color: var(--amber); white-space: nowrap; }
 .kv > dd { margin: 0; text-align: right; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kv-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
@@ -610,6 +661,18 @@ button { cursor: pointer; }
 .inp:not(textarea):focus, .sel-inp:focus { border-color: var(--white); outline: 1px solid var(--white); outline-offset: -1px; }
 .inp option, .sel-inp option { background: #151515; color: var(--text); }
 .inp.wide { width: 100%; }
+/* HP: the range summary at the right of the controls, and the price table's blocks across the screen. */
+.hp-summary { display: grid; grid-template-columns: auto auto auto auto; gap: 0 8px; margin: 0 0 0 auto; font-variant-numeric: tabular-nums; }
+.hp-summary dt { color: var(--amber); }
+.hp-summary dd { margin: 0; color: var(--white); text-align: right; white-space: nowrap; }
+.hp-blocks td, .hp-blocks th { font-variant-numeric: tabular-nums; }
+.hp-blocks .blk { border-left: 1px solid var(--line-2); padding-left: 12px; }
+.hp-blocks tbody tr:hover td { background: transparent; }
+.hp-wd { display: inline-block; width: 2.4em; color: var(--muted); }
+/* GP and HP: amber "start - end" boxes. */
+.range-fields { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.range-date { width: 12.5ch; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.range-date.bad { outline: 1px solid var(--dn); outline-offset: -1px; }
 label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--amber); white-space: nowrap; }
 .chip {
   display: inline-block;
@@ -862,31 +925,36 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .news { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); height: 100%; min-height: 0; }
 .news.single { grid-template-columns: 1fr; }
 .news-list { overflow: auto; min-height: 0; border-right: 1px solid var(--line); }
+/*
+ * Headline lines read as the terminal's: "1) Headline ... RTRS 10:15", the number in white, the headline in amber,
+ * then the source's code and the time at the right. The time comes first in the markup for screen readers.
+ */
 .news-item {
   display: grid;
-  grid-template-columns: 4.6em 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(4.6em, auto);
   gap: 8px;
   align-items: baseline;
-  padding: 3px 8px;
+  padding: 2px 8px;
   border-bottom: 1px solid #141414;
   cursor: pointer;
 }
 .news-item:hover { background: #151515; }
 /* Numbered headlines: typing a headline's number and GO opens it, as on the terminal's news lists. */
-.news-item.numbered { grid-template-columns: 3em 4.6em minmax(0, 1fr) auto; }
-.news-item .news-n { color: var(--amber); text-align: right; font-variant-numeric: tabular-nums; }
+.news-item.numbered { grid-template-columns: 2.8em minmax(0, 1fr) auto minmax(4.6em, auto); }
+.news-item .news-n { order: 0; color: var(--white); text-align: right; font-variant-numeric: tabular-nums; }
 a.news-item { color: inherit; text-decoration: none; }
-.news-item.sel { background: #2a1a05; }
-.news-item .time { color: var(--muted); }
-.news-item .hl { color: var(--white); overflow: hidden; text-overflow: ellipsis; }
+.news-item.sel { background: #1d3f80; }
+.news-item.sel .hl { color: var(--white); }
+.news-item .hl { order: 1; color: var(--amber-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.news-item .src { order: 2; }
+.news-item .time { order: 3; color: var(--white); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .news-item.hot .hl { color: #ff6b6b; font-weight: 500; }
-.news-item.real .hl { color: #cfe3ff; }
 /* BREAKING: a story published in the last minutes, and how many sources carried it. */
 .news-item.fresh .hl { color: #fff; font-weight: 500; }
 .news-item.fresh .time { color: var(--amber); }
 .badge.new { background: var(--dn); color: #fff; margin-right: 5px; }
 .badge.src-n { background: var(--bg-4); color: var(--amber); margin-right: 5px; }
-.news-item .src { color: var(--amber); font-size: 10px; letter-spacing: 0.06em; white-space: nowrap; }
+.news-item .src { color: #d9d9d9; font-size: var(--fs-s); letter-spacing: 0.04em; white-space: nowrap; }
 .news-item .tk { color: var(--yellow); font-size: var(--fs-s); }
 .story { overflow: auto; min-height: 0; padding: 10px 14px 24px; }
 .story h2 { font-family: var(--sans); font-size: 19px; line-height: 1.3; color: var(--white); margin: 6px 0 8px; font-weight: 600; text-wrap: balance; }
@@ -952,7 +1020,7 @@ a.news-item { color: inherit; text-decoration: none; }
   .fnh-row { flex-wrap: wrap; row-gap: 0; padding-top: 2px; padding-bottom: 2px; }
   .fnh-sub { display: none; }
   /* With the subtitle hidden, a strip without a security would be an empty line. */
-  .fnh-context:not(:has(.fnh-sec)) { display: none; }
+  .fnh-context:not(:has(.fnh-name)) { display: none; }
   .fnh-actions { margin-left: 0; flex-wrap: wrap; width: 100%; }
   .act { padding: 1px 5px; }
   .qstrip { gap: 2px 10px; }

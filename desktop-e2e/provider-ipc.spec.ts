@@ -461,9 +461,11 @@ test("company news merges Benzinga's stories through Alpaca with Google News's s
   await expect(panel.locator('.news-item')).toHaveCount(2);
   // Newest first: Alpaca's story is an hour old, Google's two hours. Google's title loses its " - Reuters".
   await expect(panel.locator('.news-item').nth(0)).toContainText('Synthetic Benzinga story about the company');
-  await expect(panel.locator('.news-item').nth(0).locator('.src')).toHaveText('Benzinga');
+  // The source shows as a short code beside the time, the publisher's name on hover.
+  await expect(panel.locator('.news-item').nth(0).locator('.src')).toHaveText('BZ');
+  await expect(panel.locator('.news-item').nth(0).locator('.src')).toHaveAttribute('title', 'Benzinga');
   await expect(panel.locator('.news-item').nth(1).locator('.hl')).toHaveText('Synthetic Google story about the company · AAPL');
-  await expect(panel.locator('.news-item').nth(1).locator('.src')).toHaveText('Reuters');
+  await expect(panel.locator('.news-item').nth(1).locator('.src')).toHaveText('RTRS');
   // Headlines are numbered; typing a headline's number and GO opens it in the reader.
   await expect(panel.locator('.news-item .news-n')).toHaveText(['1)', '2)']);
   await expect(panel.locator('.story h2')).toHaveText('Synthetic Benzinga story about the company');

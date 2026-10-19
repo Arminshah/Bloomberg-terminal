@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { fmtStamp } from '../core/format';
 import { engine } from '../data/market';
+import { sourceCode } from '../data/sourcecode';
 import { securityNews, useSecuritiesNews, type NewsReach } from '../data/live/secnews';
 import type { SecurityDef } from '../data/types';
 import { execute } from '../terminal/exec';
@@ -31,7 +32,7 @@ export function LatestNews({ sec, max = 6 }: { sec: SecurityDef; max?: number })
           <a key={st.id} className="news-item real" href={st.url} target="_blank" rel="noreferrer noopener" title={st.title}>
             <span className="time">{fmtStamp(st.time, engine.now())}</span>
             <span className="hl">{st.title}</span>
-            <span className="src">{st.publisher.replace(/ \(company filing\)$/, '')}</span>
+            <span className="src" title={st.publisher}>{sourceCode(st.publisher)}</span>
           </a>
         ))
       ) : (

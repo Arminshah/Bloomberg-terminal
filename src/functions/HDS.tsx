@@ -58,15 +58,16 @@ export function HDS({ sec }: FnProps) {
           numbered
           defaultSort={{ key: 'p', dir: -1 }}
           columns={[
-            { key: 'n', label: 'Holder name', render: (h) => h.name, sort: (h) => h.name },
-            { key: 'ty', label: 'Type', render: (h) => <span className="muted">{h.type}</span>, hideM: true },
-            { key: 'p', label: '% Out', num: true, render: (h) => fmtNum(pctOf(h), 2), sort: (h) => pctOf(h) },
-            { key: 'b', label: '', render: (h) => <HBar value={pctOf(h)} max={max} color="var(--amber)" />, width: 120, hideM: true },
-            { key: 'pos', label: 'Position', num: true, render: (h) => fmtBig(h.shares), sort: (h) => h.shares },
-            { key: 'mv', label: `Mkt val ${s.ccy === 'GBp' ? 'GBP' : s.ccy}`, num: true, render: (h) => fmtBig(h.shares * px), sort: (h) => h.shares, hideM: true },
-            { key: 'c', label: 'Pos chg', num: true, render: (h) => (h.newOrDoubled ? <span className="up">new or 2x</span> : <Chg v={h.change / 1e6} dec={2} />), sort: (h) => (h.newOrDoubled ? Infinity : h.change) },
-            { key: 'f', label: 'As of', render: (h) => fmtDay(h.filed), hideM: true },
+            // The terminal's HDS order: holder, source, position and its change, % out, value, date and type.
+            { key: 'n', label: 'Holder Name', render: (h) => h.name, sort: (h) => h.name },
             { key: 'src', label: 'Source', render: (h) => <span className="muted">{h.source}</span>, hideM: true },
+            { key: 'pos', label: 'Position', num: true, render: (h) => fmtBig(h.shares), sort: (h) => h.shares },
+            { key: 'c', label: 'Pos Chg', num: true, render: (h) => (h.newOrDoubled ? <span className="up">new or 2x</span> : <Chg v={h.change / 1e6} dec={2} />), sort: (h) => (h.newOrDoubled ? Infinity : h.change) },
+            { key: 'p', label: '% Out', num: true, render: (h) => fmtNum(pctOf(h), 2), sort: (h) => pctOf(h) },
+            { key: 'b', label: '', render: (h) => <HBar value={pctOf(h)} max={max} color="var(--amber)" />, width: 110, hideM: true },
+            { key: 'mv', label: `Curr MV ${s.ccy === 'GBp' ? 'GBP' : s.ccy}`, num: true, render: (h) => fmtBig(h.shares * px), sort: (h) => h.shares, hideM: true },
+            { key: 'f', label: 'As of', title: 'The date of the holding, not of the filing', render: (h) => fmtDay(h.filed), hideM: true },
+            { key: 'ty', label: 'Inst Type', render: (h) => <span className="muted">{h.type}</span>, hideM: true },
           ]}
         />
       </Section>

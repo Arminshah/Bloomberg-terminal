@@ -64,9 +64,13 @@ export function FnHeader({ code, mnemonic: shown, title, sec, sub, actions = [],
       body.style.removeProperty('--fnh-h');
     };
   }, []);
+  // The red bar reads as the terminal's: the loaded security in its amber field at the left, the numbered actions
+  // beside it, and the page count, title and mnemonic at the right. With mnemonics shown, the descriptive function
+  // name stays available to screen readers only; with them switched off it is shown in the mnemonic's place.
   return (
     <header className="fnh" ref={ref}>
       <div className="fnh-row">
+        {sec && <span className="fnh-sec" title={sec.name}>{sec.id}</span>}
         <span className="fnh-actions">
           {right}
           {actions.map((a) => (
@@ -77,13 +81,13 @@ export function FnHeader({ code, mnemonic: shown, title, sec, sub, actions = [],
         </span>
         <span className="fnh-caption">
           <PageIndicator />
-          {showMnemonic && <span className="fnh-mnemonic" title={`${mnemonic} <GO> opens ${code}`}>{mnemonic}<small> &lt;GO&gt;</small></span>}
-          <span className="fnh-code">{code}</span>
           <span className="fnh-title">{title}</span>
+          {showMnemonic && <span className="fnh-mnemonic" title={`${mnemonic} <GO> opens ${code}`}>{mnemonic}<small> &lt;GO&gt;</small></span>}
+          <span className={showMnemonic ? 'fnh-code sr-only' : 'fnh-code'}>{code}</span>
         </span>
       </div>
       {(sec || sub) && <div className="fnh-context">
-        {sec && <span className="fnh-sec">{sec.id}</span>}
+        {sec && <span className="fnh-name">{sec.name}</span>}
         {sec && <FavStar id={sec.id} />}
         {sub && <span className="fnh-sub">{sub}</span>}
       </div>}

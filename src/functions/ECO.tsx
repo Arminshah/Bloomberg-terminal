@@ -58,7 +58,9 @@ export function ECO(_: FnProps) {
   const all = useMemo(() => ecoEvents(start, start + 7 * DAY_MS, now), [start, Math.floor(now / 30_000)]); // eslint-disable-line react-hooks/exhaustive-deps
   const events = all.filter((e) => ctry.includes(e.country) && e.relevance >= minRel);
   const next = ecoEvents(now - DAY_MS, now + 14 * DAY_MS, now).find((e) => e.relevance >= 3 && (e.date ? e.date > today || (e.date === today && e.actual == null) : e.time > now));
+  // As on the terminal's agenda, each line carries its own date; days alternate in shade instead of heading groups.
   let lastDay = '';
+  let band = 0;
   return (
     <div>
       <FnHeader
@@ -116,14 +118,14 @@ export function ECO(_: FnProps) {
           </span>
         )}
       </div>
-      <table className="tbl">
+      <table className="tbl eco">
         <thead>
           <tr>
-            <th>Time</th>
-            <th>Ctry</th>
+            <th>Date Time</th>
+            <th title="Country">C</th>
             <th>Event</th>
             <th>Period</th>
-            {real ? null : <th className="num">Survey</th>}
+            {real ? null : <th className="num" title="Survey: the median forecast">Surv(M)</th>}
             <th className="num" title={real ? 'The published value for the period, including any revisions since' : undefined}>
               Actual
             </th>
@@ -131,7 +133,7 @@ export function ECO(_: FnProps) {
               Prior
             </th>
             {real ? null : <th className="num hide-m">Revised</th>}
-            <th className="hide-m">Relevance</th>
+            <th className="hide-m" title="Relevance">R</th>
           </tr>
         </thead>
         <tbody>
@@ -148,27 +150,21 @@ export function ECO(_: FnProps) {
               </td>
             </tr>
           )}
-          {events.map((e, i) => {
+          {events.map((e) => {
             // A date-only event belongs to its own date, whatever the display time zone.
             const p = e.date ? { y: Number(e.date.slice(0, 4)), mo: Number(e.date.slice(5, 7)), d: Number(e.date.slice(8, 10)) } : zonedParts(e.time);
             const dayKey = `${p.y}-${p.mo}-${p.d}`;
-            const head = dayKey !== lastDay;
+            if (dayKey !== lastDay) band++;
             lastDay = dayKey;
+            const md = `${String(p.mo).padStart(2, '0')}/${String(p.d).padStart(2, '0')}`;
             const diff = e.actual != null && e.survey != null ? e.actual - e.survey : 0;
             const released = e.date ? e.actual != null || e.date < today : real ? e.time <= now : e.actual != null;
             const dueToday = !released && e.date === today;
             const soon = !e.date && !released && e.time - now < 3600_000 && e.time > now;
-            return [
-              head ? (
-                <tr key={`h${i}`} className="group">
-                  <td colSpan={real ? 7 : 9}>
-                    {WEEKDAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]} {String(p.mo).padStart(2, '0')}/{String(p.d).padStart(2, '0')}/{String(p.y).slice(2)}
-                  </td>
-                </tr>
-              ) : null,
-              <tr key={e.id} style={!released && e.time < now + 7 * DAY_MS ? undefined : { opacity: 0.92 }}>
-                <td className={soon ? 'yellow b' : 'muted'} title={e.date ? 'FRED gives the release date, not the time' : undefined}>
-                  {e.date ? '--' : fmtTime(e.time, false)}
+            return (
+              <tr key={e.id} className={`${band % 2 ? 'eco-band' : ''}${released ? '' : ' eco-ahead'}`}>
+                <td className={soon ? 'yellow b' : undefined} title={e.date ? 'FRED gives the release date, not the time' : `${WEEKDAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]} ${md}`}>
+                  <span className="eco-date">{md}</span> {e.date ? '--:--' : fmtTime(e.time, false)}
                 </td>
                 <td className="amber">{e.country}</td>
                 <td className={e.relevance >= 3 ? 'white b' : ''}>
@@ -202,8 +198,8 @@ export function ECO(_: FnProps) {
                   {'●'.repeat(e.relevance)}
                   <span className="faint">{'●'.repeat(3 - e.relevance)}</span>
                 </td>
-              </tr>,
-            ];
+              </tr>
+            );
           })}
         </tbody>
       </table>

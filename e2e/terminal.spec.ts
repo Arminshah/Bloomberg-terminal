@@ -114,6 +114,7 @@ const COMMANDS: [string, string][] = [
   ['BREAKING', 'BREAKING'], ['FIRST FAV', 'BREAKING'], ['FAVOURITES', 'FAVOURITES'], ['FAV NEWS', 'FAVOURITES'], ['NEWS SPEECH', 'NEWS'], ['GC1 COMDTY COMPANYNEWS', 'COMPANYNEWS'],
   ['$APLD', 'MENU'], ['APLD US EQUITY PROFILE', 'PROFILE'], ['$APLD CHART', 'CHART'], ['APLD FINANCIALS', 'FINANCIALS'],
   ['EXCH', 'EXCHANGES'], ['GPC AAPL', 'CHART'], ['AAPL GPO', 'CHART'], ['CF MSFT', 'FILINGS'], ['AAPL ERN', 'EARNINGS'], ['QR TSLA', 'TRADES'], ['PDF', 'SETTINGS'],
+  ['FOMC', 'FEDMEETINGS'], ['EVT', 'EVENTS'], ['ECMX', 'ECONSTATS'], ['AAPL RSI', 'CHART'], ['MACD AAPL', 'CHART'], ['BOLL AAPL', 'CHART'], ['AAPL HP OHLC', 'HISTORY'], ['FA AAPL BS', 'FINANCIALS'],
 ];
 
 test('default workspace renders four live panels and the watchlist column', async ({ page }) => {
@@ -192,9 +193,14 @@ test('numbered rows open by number, as on terminal monitors', async ({ page }) =
   await run(page, '1');
   await expect(panel.locator('tr.group').first()).toHaveAttribute('aria-expanded', 'false');
   await expect(rows).toHaveCount(all - 8);
-  // The rows still shown are numbered from 11, starting with EMEA.
-  await expect(rows.first().locator('.row-no')).toHaveText('11)');
+  // Each region numbers from its own ten, as WEI does, so EMEA keeps 21) with the Americas folded.
+  await expect(rows.first().locator('.row-no')).toHaveText('21)');
   await expect(rows.first()).toContainText('SX5E');
+  await run(page, '21');
+  await expect(panel.locator('.fnh-sec')).toHaveText('SX5E Index');
+  await run(page, 'WEI');
+  await run(page, '1');
+  await expect(rows).toHaveCount(all - 8);
   await run(page, '1');
   await expect(rows).toHaveCount(all);
   // MOVERS rows start after its tabs and regions.
@@ -218,7 +224,12 @@ test('screens page with PgUp and PgDn, a typed count moves that many pages, and 
   await page.setViewportSize({ width: 1280, height: 640 });
   const errors = await boot(page, '1');
   const panel = page.locator('.panel').first();
+  // HP's own view is the terminal's price table: weekday-dated last prices and volume in blocks across the screen.
   await run(page, 'AAPL HP');
+  await expect(panel.locator('table.hp-blocks').first().locator('thead th').first()).toHaveText('Date');
+  await expect(panel.locator('table.hp-blocks .hp-wd').first()).toHaveText(/^(Mo|Tu|We|Th|Fr)$/);
+  await expect(panel.getByLabel('Range summary')).toContainText('High');
+  await run(page, 'AAPL HP OHLC');
   const indicator = panel.getByTestId('page-indicator');
   await expect(indicator).toHaveText(/^Page 1\/\d+$/);
   const pages = Number((await indicator.innerText()).split('/')[1]);
@@ -264,6 +275,56 @@ test('chart style mnemonics, intraday period and help on a typed mnemonic', asyn
   await expect(panel.locator('.fnh-code').first()).toHaveText('HELP');
   await expect(panel.locator('.fnh-title')).toHaveText('Help: Profile');
   await expect(page.locator('#cmd-0')).toHaveValue('');
+  expect(errors).toEqual([]);
+});
+
+test('DES pages and numbered boxes, the security in the red bar and typed chart ranges', async ({ page }) => {
+  const errors = await boot(page, '1');
+  const panel = page.locator('.panel').first();
+  await run(page, 'AAPL DES');
+  // The loaded security sits in the amber field of the red bar; the title reads as the terminal's.
+  await expect(panel.locator('.fnh-row .fnh-sec')).toHaveText('AAPL US Equity');
+  await expect(panel.locator('.fnh-title')).toHaveText('Security Description: Equity');
+  await expect(panel.locator('.tab')).toHaveText(['1) Profile', '2) Issue Info', '3) Ratios', '4) Revenue & EPS', '5) Industry Info']);
+  await expect(panel.locator('.des-name')).toHaveText('APPLE INC');
+  await expect(panel.getByRole('button', { name: /11\) Price Chart/ })).toBeVisible();
+  await run(page, '3');
+  await expect(panel.locator('.tab.on')).toHaveText('3) Ratios');
+  await expect(panel.locator('.sect-h', { hasText: 'Per Share Data' })).toBeVisible();
+  await run(page, '1');
+  await run(page, '12');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('EARNINGS');
+  // GP's amber range boxes take a typed start date; the period tabs then show none chosen.
+  await run(page, 'AAPL GP');
+  const start = panel.getByLabel('Start date');
+  await expect(start).toHaveValue(/^\d{2}\/\d{2}\/\d{4}$/);
+  await start.fill('01/02/2026');
+  await start.press('Enter');
+  await expect(panel.locator('.tab.on')).toHaveCount(0);
+  await expect(start).toHaveValue('01/02/2026');
+  await start.fill('13/45/2026');
+  await start.press('Enter');
+  await expect(start).toHaveClass(/\bbad\b/);
+  await run(page, '6');
+  await expect(panel.locator('.tab.on')).toHaveText('6) 1Y');
+  // RSI <GO> is a chart with the RSI study added for that chart, shown under its own mnemonic.
+  await run(page, 'AAPL RSI');
+  await expect(panel.locator('.fnh-mnemonic')).toContainText('RSI');
+  await expect(panel.getByRole('button', { name: 'RSI', exact: true })).toHaveClass(/\bon\b/);
+  await run(page, 'AAPL GP');
+  await expect(panel.getByRole('button', { name: 'RSI', exact: true })).not.toHaveClass(/\bon\b/);
+  // FA opens a page by name; MOST lists the stocks nearest their 52-week highs.
+  await run(page, 'FA AAPL BS');
+  await expect(panel.locator('.tab.on')).toHaveText('3) B/S');
+  await run(page, 'MOST');
+  await run(page, '6');
+  await expect(panel.locator('thead th', { hasText: 'vs High' })).toBeVisible();
+  // FOMC lists the year's meetings with the related functions numbered from 21.
+  await run(page, 'FOMC');
+  await expect(panel.locator('.fnh-title')).toHaveText('FOMC Announcement Dates');
+  await expect(panel.locator('tbody tr').first()).toContainText('14:00 ET');
+  await run(page, '21');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('RATEPROBS');
   expect(errors).toEqual([]);
 });
 

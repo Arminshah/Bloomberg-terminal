@@ -9,6 +9,7 @@ import { desktopData } from '../data/live/yahoo';
 import { useNumberedRows, usePanelId } from '../terminal/panel';
 import { firstRowNumber } from '../terminal/numbering';
 import type { FnProps } from '../terminal/types';
+import { sourceCode } from '../data/sourcecode';
 import { CompanyNews, feedWord, StoryList } from './MNEWS';
 import { loadNews, MARKET_SOURCES, marketNews, mergeStories, newsAvailable, officialStories, SEARCHABLE, storiesFor, useMarketNews } from '../data/live/marketnews';
 import { execute } from '../terminal/exec';
@@ -166,7 +167,7 @@ function NewsScreen({ code, title, initialTopic, query }: { code: string; title:
                 {fmtStamp(s.time, engine.now())}
               </span>
               <span className="hl">{s.headline}</span>
-              <span className="src">{s.source}</span>
+              <span className="src" title={s.source}>{sourceCode(s.source)}</span>
             </div>
           ))}
         </div>

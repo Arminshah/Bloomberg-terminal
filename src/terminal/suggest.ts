@@ -40,8 +40,8 @@ function matchFns(partial: string, sec: SecurityDef | undefined, onlySec: boolea
   return scored.sort((a, b) => b[1] - a[1]).slice(0, limit).map(([f]) => f);
 }
 
-/** A chart style mnemonic (GPO, GPC) typed in full keeps its style when the suggestion is chosen. */
-const STYLE_NAMES: Record<string, string> = { BAR: 'open-high-low-close bars', CANDLE: 'candlesticks' };
+/** A chart style or study mnemonic (GPO, GPC, RSI) typed in full keeps its style when the suggestion is chosen. */
+const STYLE_NAMES: Record<string, string> = { BAR: 'open-high-low-close bars', CANDLE: 'candlesticks', RSI: 'with the relative strength index', MACD: 'with MACD', BOLL: 'with Bollinger bands' };
 
 function fnSuggestion(f: FnDef, prefix: string, typed = ''): Suggestion {
   const word = typed.trim().toUpperCase();

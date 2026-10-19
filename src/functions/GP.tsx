@@ -16,6 +16,8 @@ import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 import { styledMnemonic } from '../terminal/legacy';
+import { DateRangeFields } from '../components/DateRange';
+import { windowBars } from '../terminal/daterange';
 
 interface ChartPrefs {
   type: ChartType;
@@ -111,16 +113,29 @@ function CompareBox({ sec, list, setList }: { sec: SecurityDef; list: string[]; 
   );
 }
 
-function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: SecurityDef; intraday: boolean; initialPeriod?: string; style?: ChartType; mnemonic?: string }) {
+function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: addStudies = [], lower: addLower = [] }: { sec: SecurityDef; intraday: boolean; initialPeriod?: string; style?: ChartType; mnemonic?: string; studies?: string[]; lower?: LowerKind[] }) {
   const panel = usePanelId();
   const iex = useQuote(sec.id)?.provider === IEX_PROVIDER;
   const store = intraday ? intradayPrefs : prefs;
   const saved = store.use((s) => s);
   // GPO and GPC draw this chart as bars or candles without changing the style other charts open with.
   const [ownType, setOwnType] = useState<ChartType | undefined>(style);
-  const p = useMemo(() => (ownType ? { ...saved, type: ownType } : saved), [ownType, saved]);
+  // RSI, MACD and BOLL add their study to this chart only; the saved studies stay as they are.
+  const [ownStudies, setOwnStudies] = useState<string[]>(addStudies);
+  const [ownLower, setOwnLower] = useState<LowerKind[]>(addLower);
+  const p = useMemo(
+    () => ({
+      ...saved,
+      type: ownType ?? saved.type,
+      studies: [...new Set([...saved.studies, ...ownStudies])],
+      lower: [...new Set([...saved.lower, ...ownLower])],
+    }),
+    [ownType, saved, ownStudies, ownLower],
+  );
   const setType = (type: ChartType) => (ownType ? setOwnType(type) : store.set((s) => ({ ...s, type })));
   const [period, setPeriod] = useState(initialPeriod ?? '1Y');
+  // Dates typed in the amber range boxes replace the period tab until a tab is chosen again.
+  const [custom, setCustom] = useState<{ from: number; to: number } | null>(null);
   const [freq, setFreq] = useState<Periodicity>('D');
   const [compare, setCompare] = useState<string[]>([]);
   const tick = useTick(intraday ? 1 : freq === 'D' ? 1_000_000 : 5);
@@ -158,20 +173,35 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
       percent: compareSeries.length > 0,
       annotate: true,
       refLine: intraday ? { value: engine.prevClose(sec.id), label: 'Prev' } : undefined,
-      initialBars: intraday ? 100000 : barsFor(period, freq, daily),
+      initialBars: intraday ? 100000 : custom ? Math.max(5, windowBars(series.t, custom.from, custom.to).count) : barsFor(period, freq, daily),
+      initialEnd: !intraday && custom ? windowBars(series.t, custom.from, custom.to).after : undefined,
       timeLabel: (t) => fmtTime(t, false),
       dateLabel: (t) => fmtDay(t),
     }),
-    [p, sec, intraday, compareSeries, period, freq, daily, series],
+    [p, sec, intraday, compareSeries, period, freq, daily, series, custom],
   );
 
-  const toggleStudy = (id: string) =>
+  const toggleStudy = (id: string) => {
+    if (ownStudies.includes(id)) setOwnStudies(ownStudies.filter((x) => x !== id));
+    if (ownStudies.includes(id) && !saved.studies.includes(id)) return;
     store.set((s) => ({ ...s, studies: s.studies.includes(id) ? s.studies.filter((x) => x !== id) : [...s.studies, id] }));
-  const toggleLower = (k: LowerKind) =>
+  };
+  const toggleLower = (k: LowerKind) => {
+    if (ownLower.includes(k)) setOwnLower(ownLower.filter((x) => x !== k));
+    if (ownLower.includes(k) && !saved.lower.includes(k)) return;
     store.set((s) => ({ ...s, lower: s.lower.includes(k) ? s.lower.filter((x) => x !== k) : [...s.lower, k] }));
+  };
 
   const tabs = intraday || iex ? undefined : PERIODS.map((x) => ({ n: x.n, label: x.label }));
-  const currentTab = PERIODS.find((x) => x.id === period)?.n;
+  const currentTab = custom ? undefined : PERIODS.find((x) => x.id === period)?.n;
+  // The range the boxes show: the typed dates, or the period's first bar to the latest one.
+  const shownRange = useMemo(() => {
+    if (custom) return custom;
+    const n = series.length;
+    if (!n) return null;
+    const bars = Math.min(n, barsFor(period, freq, daily));
+    return { from: series.t[n - bars], to: series.t[n - 1] };
+  }, [custom, series, period, freq, daily]);
   return (
     <div className="fn-fill">
       <FnHeader
@@ -179,13 +209,15 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
         mnemonic={mnemonic}
         title={intraday ? 'Intraday Chart' : 'Price Chart'}
         sec={sec}
-        sub={sec.name}
         tabs={tabs}
         tab={currentTab}
         onTab={(n) => {
           const per = PERIODS.find((x) => x.n === n)!;
           if (per.id === '1D') execute(panel, `${sec.id} INTRADAY`);
-          else setPeriod(per.id);
+          else {
+            setCustom(null);
+            setPeriod(per.id);
+          }
         }}
         actions={[
           ...(iex && !intraday ? [{ n: 94, label: 'Intraday', onClick: () => execute(panel, `${sec.id} INTRADAY`) }] : []),
@@ -197,6 +229,7 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
       <QuoteStrip sec={sec} />
       {iex && <IexHistoryNotice intraday={intraday} />}
       <div className="chart-tools">
+        {!intraday && shownRange && <DateRangeFields from={shownRange.from} to={shownRange.to} onChange={(from, to) => setCustom({ from, to })} />}
         <span className="seg" role="group" aria-label="Chart type">
           {TYPES.map((t) => (
             <button key={t.id} type="button" className={p.type === t.id ? 'on' : ''} onClick={() => setType(t.id)}>
@@ -242,7 +275,7 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
       <ChartView
         series={series}
         options={options}
-        resetKey={`${sec.id}|${period}|${freq}|${intraday}`}
+        resetKey={`${sec.id}|${period}|${freq}|${intraday}|${custom ? `${custom.from}-${custom.to}` : ''}`}
         readout={{ unit: sec.quote === 'yield' ? 'yield %' : sec.ccy, periodicity: intraday ? 'Intraday' : freq === 'D' ? 'Daily' : freq === 'W' ? 'Weekly' : 'Monthly' }}
       />
     </div>
@@ -252,14 +285,32 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic }: { sec: S
 /** Style words CHART accepts: BAR (GPO) and CANDLE (GPC), with LINE and MOUNTAIN for completeness. */
 const STYLE_WORDS: Record<string, ChartType> = { BAR: 'bar', OHLC: 'bar', CANDLE: 'candle', LINE: 'line', MOUNTAIN: 'mountain' };
 
+/** Study words CHART accepts, as the terminal runs RSI, MACD and BOLL: each adds its study to the chart. */
+const STUDY_WORDS: Record<string, { study?: string; lower?: LowerKind }> = { RSI: { lower: 'RSI' }, MACD: { lower: 'MACD' }, BOLL: { study: 'BOLL' } };
+
 export function GP({ sec, route }: FnProps) {
   const words = route.args?.toUpperCase().split(/\s+/).filter(Boolean) ?? [];
   // CHART AAPL 1D is today's intraday chart, the screen the 1) 1D tab opens.
   if (words.includes('1D')) return <ChartScreen key={sec!.id} sec={sec!} intraday />;
   const initial = PERIODS.find((p) => words.includes(p.id))?.id;
   const style = words.map((w) => STYLE_WORDS[w]).find(Boolean);
+  const studyWords = words.filter((w) => STUDY_WORDS[w]);
+  const studies = studyWords.map((w) => STUDY_WORDS[w].study).filter((x): x is string => !!x);
+  const lower = studyWords.map((w) => STUDY_WORDS[w].lower).filter((x): x is LowerKind => !!x);
   const { mnemonic } = styledMnemonic('CHART', route.args);
-  return <ChartScreen key={`${sec!.id}|${style ?? ''}`} sec={sec!} intraday={false} initialPeriod={initial} style={style} mnemonic={style === 'bar' || style === 'candle' ? mnemonic : undefined} />;
+  const named = style === 'bar' || style === 'candle' || studyWords.length > 0;
+  return (
+    <ChartScreen
+      key={`${sec!.id}|${style ?? ''}|${studyWords.join(',')}`}
+      sec={sec!}
+      intraday={false}
+      initialPeriod={initial}
+      style={style}
+      mnemonic={named ? mnemonic : undefined}
+      studies={studies}
+      lower={lower}
+    />
+  );
 }
 
 export function GIP({ sec }: FnProps) {

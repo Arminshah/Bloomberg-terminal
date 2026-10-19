@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { DataTable } from '../components/DataTable';
-import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
+import { Chg, DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { FreshnessLegend } from '../components/Freshness';
 import { fmtBig, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
@@ -11,12 +11,19 @@ import { usePanelId } from '../terminal/panel';
 import { firstRowNumber } from '../terminal/numbering';
 import type { FnProps } from '../terminal/types';
 
+/**
+ * MOST's pages under the terminal's names. Rel Volume stands where the terminal has its volume-at-time measure: it
+ * is today's volume over the 30-session average, not adjusted for the time of day, so it keeps its own name. The
+ * 52-week pages list the stocks nearest their 52-week high or low from the daily history.
+ */
 const VIEWS = [
-  { n: 1, label: 'Most Active' },
-  { n: 2, label: 'Gainers' },
-  { n: 3, label: 'Losers' },
-  { n: 4, label: 'Value Traded' },
-  { n: 5, label: 'Unusual Volume' },
+  { n: 1, label: 'Volume' },
+  { n: 2, label: 'Chg Up' },
+  { n: 3, label: 'Chg Down' },
+  { n: 4, label: 'Value' },
+  { n: 5, label: 'Rel Volume' },
+  { n: 6, label: '52Wk Highs' },
+  { n: 7, label: '52Wk Lows' },
 ];
 const REGIONS: { n: number; label: string; f: (d: SecurityDef) => boolean }[] = [
   { n: 11, label: 'US', f: (d) => d.country === 'US' },
@@ -37,7 +44,18 @@ export function MOST(_: FnProps) {
       const q = engine.quote(d.id)!;
       const rs = rangeStats(d.id);
       const px = d.minor ? q.last / 100 : q.last;
-      return { d, q, value: toUsd(px * q.volume, d.ccy === 'GBp' ? 'GBP' : d.ccy), rel: rs.avgVol30 > 0 ? q.volume / rs.avgVol30 : NaN };
+      // Distance from the 52-week extremes in percent, from the high and low of the daily bars and today's price.
+      const hi = Math.max(rs.hi52, q.high, q.last);
+      const lo = Math.min(rs.lo52, q.low > 0 ? q.low : Infinity, q.last);
+      return {
+        d, q, rs,
+        value: toUsd(px * q.volume, d.ccy === 'GBp' ? 'GBP' : d.ccy),
+        rel: rs.avgVol30 > 0 ? q.volume / rs.avgVol30 : NaN,
+        fromHi: Number.isFinite(hi) && hi > 0 ? (q.last / hi - 1) * 100 : NaN,
+        fromLo: Number.isFinite(lo) && lo > 0 ? (q.last / lo - 1) * 100 : NaN,
+        hi,
+        lo,
+      };
     });
   // Highest first (lowest for dir -1), with lines that have no figure last.
   const rank = (x: number, y: number, dir = 1) => (Number.isFinite(x) ? (Number.isFinite(y) ? dir * (y - x) : -1) : Number.isFinite(y) ? 1 : 0);
@@ -51,6 +69,10 @@ export function MOST(_: FnProps) {
         return rank(a.value, b.value);
       case 5:
         return rank(a.rel, b.rel);
+      case 6:
+        return rank(a.fromHi, b.fromHi);
+      case 7:
+        return rank(a.fromLo, b.fromLo, -1);
       default:
         return rank(a.q.volume, b.q.volume);
     }
@@ -60,7 +82,7 @@ export function MOST(_: FnProps) {
       <FnHeader
         code="MOVERS"
         title="Most Active Securities"
-        sub="Equities in the Armin universe · value traded is estimated as last price × volume"
+        sub={view >= 6 ? 'Equities in the Armin universe · nearest their 52-week extremes, from the daily history' : 'Equities in the Armin universe · value traded is estimated as last price × volume'}
         tabs={VIEWS.map((v) => ({ n: v.n, label: v.label }))}
         tab={view}
         onTab={setView}
@@ -79,6 +101,17 @@ export function MOST(_: FnProps) {
           { key: 'p', label: '%Chg', num: true, render: (r) => <DayChg q={r.q} pct /> },
           { key: 'v', label: 'Volume', num: true, render: (r) => fmtBig(r.q.volume) },
           { key: 'r', label: 'Rel Vol', num: true, render: (r) => <span className={r.rel > 1.5 ? 'yellow' : ''} title="Today's volume so far over the average of the last 30 sessions, not adjusted for the time of day">{fmtNum(r.rel, 2)}x</span> },
+          ...(view === 6
+            ? [
+                { key: 'h', label: '52Wk High', num: true, render: (r: (typeof rows)[number]) => fmtNum(r.hi, r.d.dec) },
+                { key: 'hd', label: 'vs High', num: true, title: 'Last price against the 52-week high, in percent', render: (r: (typeof rows)[number]) => <Chg v={r.fromHi} pct dec={1} /> },
+              ]
+            : view === 7
+              ? [
+                  { key: 'lo', label: '52Wk Low', num: true, render: (r: (typeof rows)[number]) => fmtNum(r.lo, r.d.dec) },
+                  { key: 'ld', label: 'vs Low', num: true, title: 'Last price against the 52-week low, in percent', render: (r: (typeof rows)[number]) => <Chg v={r.fromLo} pct dec={1} /> },
+                ]
+              : []),
           { key: 'val', label: 'Value USD', title: 'Estimated value traded: last price × volume', num: true, render: (r) => `≈${fmtBig(r.value)}`, hideM: true },
           { key: 'x', label: 'Exch', render: (r) => <span className="muted">{r.d.exch}</span>, hideM: true },
         ]}

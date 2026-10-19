@@ -1,9 +1,9 @@
 import { Credits, type CreditId } from '../components/Credits';
-import { useMemo, useState, type MouseEvent } from 'react';
+import { Fragment, useMemo, useState, type MouseEvent } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { XYChart } from '../components/chart/XYChart';
 import { Chg, KV, LivePx, SecLink, Section, openSecurity } from '../components/cells';
-import { RowNo } from '../components/Numbered';
+import { GroupRow, RowNo, useCollapsed } from '../components/Numbered';
 import { fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
@@ -12,7 +12,7 @@ import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { DAY_MS } from '../data/calendar';
 import { to32nds } from '../finance/bonds';
 import type { FnProps } from '../terminal/types';
-import { useNumberedRows, usePanelId } from '../terminal/panel';
+import { useGroupedRows, useMenu, usePanelId } from '../terminal/panel';
 import { RatesSource, RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { policyRates } from '../data/live/policy';
@@ -38,6 +38,13 @@ const WB_ROWS: { c: string; ids: Record<number, string> }[] = [
   { c: 'MX', ids: { 10: 'GMXN10YR Index' } },
 ];
 
+/** WB's regions, as the terminal's World Bond Markets groups its countries. */
+const WB_REGIONS: { name: string; countries: string[] }[] = [
+  { name: 'Americas', countries: ['US', 'CA', 'BR', 'MX'] },
+  { name: 'EMEA', countries: ['DE', 'GB', 'FR', 'IT', 'ES', 'CH'] },
+  { name: 'Asia/Pacific', countries: ['JP', 'AU', 'CN', 'IN'] },
+];
+
 export function WB(_: FnProps) {
   useTick(2);
   const ust = engine.quote('USGG10YR Index')!.last;
@@ -52,7 +59,12 @@ export function WB(_: FnProps) {
     const id = benchmark(r);
     if (id) openSecurity(panel, id, e, 'CHART');
   };
-  const nums = useNumberedRows('wb-rows', rows, 1, (r) => open(r), (r) => COUNTRY_NAMES[r.c]);
+  // Regions 1) to 3) fold and unfold; each numbers its countries from its own ten, so the numbers stay put.
+  const [collapsed, toggle] = useCollapsed();
+  const lists = WB_REGIONS.map((g) => g.countries.map((c) => rows.find((r) => r.c === c)).filter((r): r is (typeof rows)[number] => !!r));
+  const regions = WB_REGIONS.map((g, gi) => ({ ...g, rows: lists[gi], gi })).filter((g) => g.rows.length > 0);
+  const nums = useGroupedRows('wb-rows', lists, WB_REGIONS.map((g) => !collapsed.includes(g.name)), (r) => open(r), (r) => COUNTRY_NAMES[r.c]);
+  useMenu('wb-regions', WB_REGIONS.map((g, gi) => ({ n: gi + 1, label: g.name, run: () => toggle(g.name) })));
   return (
     <div>
       <FnHeader
@@ -82,14 +94,18 @@ export function WB(_: FnProps) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => {
+          {regions.map((g) => (
+            <Fragment key={g.name}>
+              <GroupRow n={g.gi + 1} name={g.name} span={11} open={!collapsed.includes(g.name)} onToggle={() => toggle(g.name)} />
+          {(collapsed.includes(g.name) ? [] : g.rows).map((r, i) => {
             const ten = r.ids[10];
             const q10 = engine.quote(ten)!;
             const two = has(r.ids[2]) ? engine.quote(r.ids[2])!.last : NaN;
+            const n = nums[g.gi][i];
             return (
-              <tr key={r.c} className="click" onClick={(e) => open(r, e)} title={`${COUNTRY_NAMES[r.c]}: click, or type ${nums[i]} and GO, for the ${has(ten) ? '10-year' : 'benchmark'} yield chart`}>
+              <tr key={r.c} className="click" onClick={(e) => open(r, e)} title={`${COUNTRY_NAMES[r.c]}: click, or type ${n} and GO, for the ${has(ten) ? '10-year' : 'benchmark'} yield chart`}>
                 <td className="amber">
-                  <RowNo n={nums[i]} />
+                  <RowNo n={n} />
                   {COUNTRY_NAMES[r.c]}
                 </td>
                 {[2, 5, 10, 30].map((t) => (
@@ -118,6 +134,8 @@ export function WB(_: FnProps) {
               </tr>
             );
           })}
+            </Fragment>
+          ))}
         </tbody>
       </table>
       <div className="note">

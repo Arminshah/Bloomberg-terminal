@@ -32,12 +32,14 @@ interface Props<T> {
   numbered?: boolean | number;
   empty?: ReactNode;
   footer?: ReactNode;
+  /** Summary lines shown above the rows, as the terminal's RV puts its Average line first. */
+  summary?: ReactNode;
   /** Optional display page; sorting still covers the entire filtered row set. */
   page?: { index: number; size: number };
 }
 
 /** Sortable, groupable data table with sticky headers. */
-export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, groupBy, selected, className, numbered, empty, footer, page }: Props<T>) {
+export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, groupBy, selected, className, numbered, empty, footer, summary, page }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(defaultSort ?? null);
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -109,6 +111,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
           ))}
         </tr>
       </thead>
+      {summary && <tbody className="tbl-summary">{summary}</tbody>}
       <tbody>
         {sorted.length === 0 && (
           <tr>

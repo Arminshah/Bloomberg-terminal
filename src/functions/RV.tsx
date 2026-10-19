@@ -142,10 +142,10 @@ export function RV({ sec }: FnProps) {
         rowKey={(r) => r.d.id}
         selected={s.id}
         columns={cols}
-        footer={
+        summary={
           <>
+            {stat((xs) => xs.reduce((a, b) => a + b, 0) / xs.length, 'Peer average (excl. subject)')}
             {stat(median, 'Peer median (excl. subject)')}
-            {stat((xs) => xs.reduce((a, b) => a + b, 0) / xs.length, 'Peer average')}
           </>
         }
       />

@@ -10,6 +10,7 @@ import { watchlists } from '../terminal/userdata';
 import { execute } from '../terminal/exec';
 import { useNumberedRows, usePanelId } from '../terminal/panel';
 import { firstRowNumber } from '../terminal/numbering';
+import { sourceCode } from '../data/sourcecode';
 import type { FnProps } from '../terminal/types';
 
 /** A story's sentiment from Marketaux, for one ticker or all it tags. */
@@ -88,7 +89,7 @@ export function StoryList({ stories, empty, symbol, fresh, first = 1 }: { storie
               {s.tickers.length ? <span className="muted"> · {s.tickers.slice(0, 4).join(' ')}</span> : null}
               <Sentiment story={s} symbol={symbol} />
             </span>
-            <span className="src">{s.publisher.replace(/ \(company filing\)$/, '')}</span>
+            <span className="src" title={s.publisher}>{sourceCode(s.publisher)}</span>
           </div>
         ))}
       </div>

@@ -3,7 +3,7 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, Section, KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtEarnDate, fmtMln, fmtNum } from '../core/format';
-import { earningsHistory, earningsReaction, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
+import { earningsHistory, earningsReaction, keyStats, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
 import { engine, useHistoryVersion } from '../data/market';
 import type { FnProps } from '../terminal/types';
 import { useFundamentals } from '../data/live/yfund';
@@ -13,7 +13,8 @@ import { EstimatesTable, estimateUnit } from './ANR';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type NextReport } from '../data/live/finnhub';
-import { useConsensus } from '../data/live/consensus';
+import { surprisePct, useConsensus } from '../data/live/consensus';
+import { matchQuarter, surpriseStats } from '../data/ern';
 import { desktopData } from '../data/live/yahoo';
 import { ExpectationsTable, LatestReport, nextRows } from '../components/EarningsExpectations';
 import { fmtDay } from '../core/format';
@@ -59,6 +60,17 @@ export function EE({ sec }: FnProps) {
   const cal = fparts.calendar as FinnhubPart<NextReport | null> | undefined;
   const nextFh = cal?.data ?? null;
   const when = (h: string) => (h === 'bmo' ? 'before the open' : h === 'amc' ? 'after the close' : h === 'dmh' ? 'during the session' : '');
+  // ERN's table: each report with its reaction and, where the analysts' figures cover it, the comparable EPS (on the
+  // estimate's basis), the estimate and the surprise.
+  const table = [...hist].reverse().map((h) => {
+    const done = h.actual != null || h.revAct != null;
+    const cq = consensus && done && !h.dateUnknown ? matchQuarter(h.date, consensus.past) : undefined;
+    return { h, r: reaction(h), cq, surp: cq ? surprisePct(cq.eps) : NaN };
+  });
+  const recent = table.filter((x) => x.h.actual != null || x.h.revAct != null).slice(0, 8);
+  const stats = surpriseStats(recent.map((x) => x.surp), recent.map((x) => x.r?.pct ?? NaN));
+  const prior = done[done.length - 1];
+  const pe = keyStats(s).pe;
   return (
     <div>
       <FnHeader code="EARNINGS" title="Earnings History" sec={s} sub={<>{ccy} · reported figures · {sourceLabel(status, 'demo figures; real data needs the desktop app')}</>} />
@@ -68,10 +80,15 @@ export function EE({ sec }: FnProps) {
           <LatestReport c={consensus} statements={real?.quarterly ?? []} />
         </Section>
       ) : null}
-      <Section title="Next report">
+      <Section title="Earnings/Surprise Snapshot">
         <KV
           items={[
-            ['Period', nextFh ? `Q${nextFh.quarter} ${nextFh.year}` : (next?.period ?? '--')],
+            ['Prior announcement', prior ? `${fmtEarnDate(prior)}${prior.period ? ` (${prior.period})` : ''}` : '--'],
+            ['P/E', fmtNum(pe, 2)],
+            ['Average surprise', stats.surprises ? `${fmtNum(stats.avgSurprise, 2)}% (${stats.surprises} reports)` : consensus ? '--' : 'Needs the analysts\' estimates (desktop app)'],
+            ['Average abs. surprise', stats.surprises ? `${fmtNum(stats.avgAbsSurprise, 2)}%` : '--'],
+            ['Average abs. price move', stats.moves ? `${fmtNum(stats.avgAbsMove, 2)}% (${stats.moves} reports)` : '--'],
+            ['Next period', nextFh ? `Q${nextFh.quarter} ${nextFh.year}` : (next?.period ?? '--')],
             ['Date', nextFh ? `${fmtDay(Date.parse(`${nextFh.date}T00:00:00Z`))}${when(nextFh.hour) ? `, ${when(nextFh.hour)}` : ''} (Finnhub)` : next ? fmtEarnDate(next) : '--'],
             ...(consensus && nextRows(consensus.next).length
               ? nextRows(consensus.next)
@@ -123,46 +140,60 @@ export function EE({ sec }: FnProps) {
           yFormat={(v) => fmtNum(v, 2)}
         />
       </Section>
-      <Section title="Earnings history" right={hist.some((h) => h.approx) ? '~ date the source marks as expected' : hist.some((h) => h.dateUnknown) ? '-- report date not given by the source' : undefined}>
+      <Section title="Earnings History &amp; Price Reaction" right={hist.some((h) => h.approx) ? '~ date the source marks as expected' : hist.some((h) => h.dateUnknown) ? '-- report date not given by the source' : undefined}>
         <table className="tbl zebra">
           <thead>
             <tr>
-              <th>Period</th>
-              <th>Date</th>
-              <th>Time</th>
+              <th>Ann Date</th>
+              <th>Per</th>
+              <th className="hide-m">Time</th>
               <th className="num" title="Diluted EPS as reported in the statements">
-                Diluted EPS
+                Reported
               </th>
-              <th className="num">Revenue</th>
+              <th className="num" title="EPS on the analysts' basis (usually adjusted), as the source reporting the estimate gives it">
+                Comp
+              </th>
+              <th className="num" title="The analysts' average EPS estimate before the report">
+                Estimate
+              </th>
+              <th className="num" title="Comparable EPS against the estimate">
+                %Surp
+              </th>
               <th className="num" title="Close-to-close change in the share price around the report, from the daily history">
-                Price reaction
+                %Px Chg
               </th>
-              <th className="hide-m">Reaction measured</th>
+              <th className="num hide-m">Revenue</th>
             </tr>
           </thead>
           <tbody>
-            {[...hist].reverse().map((h) => {
-              const r = reaction(h);
+            {table.map(({ h, r, cq, surp }) => {
+              const from = [cq?.eps.estFrom && `estimate: ${cq.eps.estFrom}`, cq?.eps.actualFrom && `comparable: ${cq.eps.actualFrom}`].filter(Boolean).join('; ');
               return (
                 <tr key={`${h.period}:${h.date}`}>
-                  <td className="amber">{h.period}</td>
                   <td>{fmtEarnDate(h, false)}</td>
-                  <td className="muted">{h.timing}</td>
+                  <td className="amber">{h.period}</td>
+                  <td className="muted hide-m">{h.timing}</td>
                   <td className="num white">{h.actual != null ? fmtNum(h.actual, 2) : h.revAct != null ? '--' : 'Pending'}</td>
-                  <td className="num">{h.revAct != null ? fmtMln(h.revAct) : '--'}</td>
-                  <td className="num" title={r && Number.isFinite(r.pct) ? `Close of ${fmtDay(r.to * DAY_MS)} against close of ${fmtDay(r.from * DAY_MS)}` : undefined}>
+                  <td className="num" title={from || undefined}>{cq && Number.isFinite(cq.eps.actual) ? fmtNum(cq.eps.actual, 2) : '--'}</td>
+                  <td className="num" title={from || undefined}>{cq && Number.isFinite(cq.eps.est) ? fmtNum(cq.eps.est, 2) : '--'}</td>
+                  <td className="num">{Number.isFinite(surp) ? <Chg v={surp} pct dec={1} /> : '--'}</td>
+                  <td
+                    className="num"
+                    title={r && Number.isFinite(r.pct) ? `${BASIS[r.basis]}: close of ${fmtDay(r.to * DAY_MS)} against close of ${fmtDay(r.from * DAY_MS)}` : r ? BASIS[r.basis] : h.dateUnknown ? 'Report date not given' : undefined}
+                  >
                     {r ? <Chg v={r.pct} pct dec={1} /> : '--'}
                   </td>
-                  <td className="muted hide-m">{r ? BASIS[r.basis] : h.dateUnknown ? 'report date not given' : ''}</td>
+                  <td className="num hide-m">{h.revAct != null ? fmtMln(h.revAct) : '--'}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
         <div className="note">
-          Reported figures from the company&apos;s statements. Price reaction: the share price&apos;s close-to-close change around each past report, from the daily closes (split-adjusted, dividends not added back). A
-          report before the open is measured on the report day against the previous close, one after the close on the next session against the report day&apos;s close; where the time is not known, the report day
-          against the previous close is used and the row says so. -- until both closes are final.
+          Reported: diluted EPS from the company&apos;s statements. Comp and Estimate: EPS on the analysts&apos; basis and their average estimate, from the source that compares them (desktop app); %Surp sets
+          one against the other. %Px Chg: the share price&apos;s close-to-close change around each past report, from the daily closes (split-adjusted, dividends not added back). A report before the open is
+          measured on the report day against the previous close, one after the close on the next session against the report day&apos;s close; where the time is not known, the report day against the
+          previous close is used, as the cell&apos;s tooltip says. -- until both closes are final.
         </div>
       </Section>
     </div>

@@ -80,7 +80,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   GOVT: {
     title: 'Government Securities',
     groups: [
-      { title: 'Monitors', entries: ['MONEYMARKET', 'BONDS', 'CURVE', 'RATEPROBS', 'CENTRALBANKS', 'MACRO'] },
+      { title: 'Monitors', entries: ['MONEYMARKET', 'BONDS', 'CURVE', 'RATEPROBS', 'FEDMEETINGS', 'CENTRALBANKS', 'MACRO'] },
       { title: 'Analysis', entries: [{ code: 'BONDSEARCH', label: 'Treasury search', cmd: 'T GOVT' }, 'SWAPCALC', 'HOLIDAYS'] },
     ],
     list: (d) => d.yk === 'Govt',
@@ -117,7 +117,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
     list: (d) => d.cls === 'fx' || d.id === 'DXY Curncy',
   },
   MTGE: { title: 'Mortgages', groups: [{ title: 'Related', entries: ['CURVE', 'MONEYMARKET', 'SWAPCALC'] }], note: 'Mortgage-backed securities are not covered by Armin Terminal. The screens below cover the rates that drive them.' },
-  'M-MKT': { title: 'Money Markets', groups: [{ title: 'Related', entries: ['MONEYMARKET', 'RATEPROBS', 'CENTRALBANKS', 'FXFORWARD'] }], note: 'Individual money market instruments are not covered. MONEYMARKET shows bills, SOFR and fed funds.' },
+  'M-MKT': { title: 'Money Markets', groups: [{ title: 'Related', entries: ['MONEYMARKET', 'RATEPROBS', 'FEDMEETINGS', 'CENTRALBANKS', 'FXFORWARD'] }], note: 'Individual money market instruments are not covered. MONEYMARKET shows bills, SOFR and fed funds.' },
   MUNI: { title: 'Municipals', groups: [{ title: 'Related', entries: ['CURVE', 'MONEYMARKET', 'BONDSEARCH'] }], note: 'Municipal bonds are not covered by Armin Terminal.' },
   PFD: { title: 'Preferreds', groups: [{ title: 'Related', entries: ['BONDSEARCH', 'DIVIDENDS', 'SCREEN'] }], note: 'Preferred shares are not covered by Armin Terminal.' },
   NEWS: {
@@ -125,7 +125,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
     groups: [
       { title: 'News', entries: ['MARKETNEWS', 'BREAKING', 'NEWS', 'HEADLINES'] },
       { title: 'Company research', entries: ['SEARCH', 'SCREEN', 'FILINGS', 'EVENTS'] },
-      { title: 'Economics', entries: ['RELEASES', 'ECONSTATS', 'MACRO', 'CENTRALBANKS'] },
+      { title: 'Economics', entries: ['RELEASES', 'ECONSTATS', 'MACRO', 'CENTRALBANKS', 'FEDMEETINGS'] },
     ],
   },
   TOOLS: {
@@ -164,7 +164,7 @@ function MenuPath({ sector, sec }: { sector?: string; sec?: SecurityDef }) {
   const sectorKey = rawSector === 'COMDTY' ? 'CMDTY' : rawSector;
   const sectorMenu = sectorKey ? SECTORS[sectorKey] : undefined;
   return (
-    <nav className="pad-s row" aria-label="Menu path" style={{ borderBottom: '1px solid var(--line)' }}>
+    <nav className="pad-s row menu-path" aria-label="Menu path" style={{ borderBottom: '1px solid var(--line)' }}>
       <button type="button" className="btn" onClick={() => navigate(panel, { fn: 'MENU' })}>Main Menu</button>
       {sectorMenu && (
         <>
@@ -174,7 +174,7 @@ function MenuPath({ sector, sec }: { sector?: string; sec?: SecurityDef }) {
           ) : <span className="white" aria-current="page">{sectorMenu.title}</span>}
         </>
       )}
-      {sec && <><span className="muted" aria-hidden="true">›</span><span className="yellow" aria-current="page">Analyze {sec.id}</span></>}
+      {sec && <><span className="muted" aria-hidden="true">›</span><span className="white" aria-current="page">Analyze {sec.id}</span></>}
     </nav>
   );
 }
@@ -229,13 +229,13 @@ function MenuGrid({ groups }: { groups: { title: string; lines: Line[] }[] }) {
             <tbody>
               {g.lines.map((l) => (
                 <tr key={l.n} className="click" title={`${l.cmd} <GO>`} onClick={() => execute(panel, l.cmd)}>
-                  <td className="num yellow b" style={{ width: 34 }}>
+                  <td className="num white" style={{ width: 34 }}>
                     {l.n})
                   </td>
-                  <td className="amber b" style={{ width: 58 }} title={l.code}>
+                  <td className="white" style={{ width: 58 }} title={l.code}>
                     {mnemonics ? primaryMnemonic(l.code) : l.code}
                   </td>
-                  <td className={l.none ? 'muted' : 'white'} title={l.none ? `Not available: ${l.none}` : undefined}>
+                  <td className={l.none ? 'muted' : 'amber'} title={l.none ? `Not available: ${l.none}` : undefined}>
                     {l.label}
                     {l.none ? ' (not available)' : ''}
                   </td>
@@ -263,7 +263,7 @@ function SecurityMenu({ sec }: { sec: SecurityDef }) {
   useMenuItems('menu', groups);
   return (
     <div>
-      <FnHeader code="MENU" title="Related Functions Menu" sec={sec} sub={`${sec.name} · ${CLASS_LABEL[sec.cls]}`} />
+      <FnHeader code="MENU" title="Related Functions Menu" sec={sec} sub={CLASS_LABEL[sec.cls]} />
       <MenuPath sec={sec} />
       <QuoteStrip sec={sec} />
       <p className="pad-s muted">Enter a number and press GO, or type a function mnemonic such as {primaryMnemonic('PROFILE')}. Analysis functions use the loaded security.</p>
@@ -298,7 +298,7 @@ function SectorMenu({ yk }: { yk: string }) {
             <tbody>
               {list.map((d, i) => (
                 <tr key={d.id}>
-                  <td className="num yellow b" style={{ width: 34 }}>
+                  <td className="num white" style={{ width: 34 }}>
                     {start + i})
                   </td>
                   <td>
@@ -341,7 +341,7 @@ function MainMenu() {
             <tbody>
               {MAIN.map((m, i) => (
                 <tr key={m.key} className="click" onClick={() => execute(panel, m.key)}>
-                  <td className="num yellow b" style={{ width: 34 }}>
+                  <td className="num white" style={{ width: 34 }}>
                     {i + 1})
                   </td>
                   <td>
@@ -358,7 +358,7 @@ function MainMenu() {
             <tbody>
               {WORKFLOWS.map((m) => (
                 <tr key={m.n} className="click" onClick={() => execute(panel, m.cmd)} title={`${m.cmd} <GO>`}>
-                  <td className="num yellow b" style={{ width: 34 }}>{m.n})</td>
+                  <td className="num white" style={{ width: 34 }}>{m.n})</td>
                   <td className="white">{m.label} <span className="muted">›</span></td>
                 </tr>
               ))}

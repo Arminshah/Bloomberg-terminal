@@ -53,6 +53,7 @@ import { MENU } from '../functions/MENU';
 import { ALLQ, DDIS, SRCH } from '../functions/CREDIT';
 import { GF, HVT, MOV, TRA, VWAP } from '../functions/ANALYSIS';
 import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
+import { FOMC } from '../functions/FOMC';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -74,7 +75,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'WACC', name: 'Cost of Capital', category: 'Equity', needsSec: true, classes: EQ, desc: 'Weighted average cost of capital from CAPM and after-tax cost of debt, with a perpetuity value check.', component: WACC },
   { code: 'FUNDCHART', name: 'Graph Fundamentals', category: 'Equity', needsSec: true, classes: EQ, desc: 'Charts of revenue, EPS, margins, P/E and cash flow across fiscal years and quarters.', component: GF },
   // Charts
-  { code: 'CHART', name: 'Price Chart', category: 'Charts', needsSec: true, desc: 'Historical chart with line, mountain, candle and bar styles, daily/weekly/monthly frequency, SMA/EMA, Bollinger bands, volume, RSI, MACD and comparison overlays. Scroll to zoom, drag to pan. GPO opens it as open-high-low-close bars, GPC as candlesticks.', component: GP, aliases: ['GRAPH', 'GPO', 'GPC'], example: 'CHART AAPL' },
+  { code: 'CHART', name: 'Price Chart', category: 'Charts', needsSec: true, desc: 'Historical chart with line, mountain, candle and bar styles, daily/weekly/monthly frequency, SMA/EMA, Bollinger bands, volume, RSI, MACD and comparison overlays. Scroll to zoom, drag to pan. GPO opens it as open-high-low-close bars, GPC as candlesticks; RSI, MACD and BOLL open it with that study added.', component: GP, aliases: ['GRAPH', 'GPO', 'GPC', 'RSI', 'MACD', 'BOLL'], example: 'CHART AAPL' },
   { code: 'INTRADAY', name: 'Intraday Chart', category: 'Charts', needsSec: true, desc: "The latest session's intraday chart against the previous close, updating as prices arrive.", component: GIP, example: 'CHART EURUSD 1D' },
   { code: 'HISTORY', name: 'Historical Prices', category: 'Charts', needsSec: true, desc: 'Daily, weekly, monthly, quarterly or yearly price table with changes and volume; copy or export to CSV. A range and periodicity can follow the security: HP AAPL 1Y W.', component: HP, aliases: ['PRICES'], example: 'HP AAPL 1Y W' },
   { code: 'RETURNS', name: 'Comparative Returns', category: 'Charts', needsSec: true, desc: 'Rebased performance of a security against benchmarks and peers over a chosen period.', component: COMP, aliases: ['COMPARE'] },
@@ -113,6 +114,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'BONDCALC', name: 'Yield & Spread Analysis', category: 'Rates & Credit', classes: ['bond'], desc: 'Fixed-rate bullet calculator: price/yield, accrued, duration, convexity, DV01, G-spread, zero-curve Z-spread, spread risk, scenarios, cash flows and CSV export. Uses explicit contract, benchmark and curve inputs.', component: YAS, example: 'BONDCALC' },
   { code: 'RATEPROBS', name: 'Rate Probabilities', category: 'Rates & Credit', desc: 'Market-implied Fed moves meeting by meeting, from fed funds futures and the FOMC calendar.', component: WIRP },
   { code: 'SWAPCALC', name: 'Swap Manager', category: 'Rates & Credit', desc: 'Fixed/float swap analytics from user-entered zero curves: par coupon, NPV, separate discount/projection curves, cash flows and curve/coupon bump risk. No market swap curve is inferred.', component: SWPM },
+  { code: 'FEDMEETINGS', name: 'FOMC Meetings', category: 'Rates & Credit', desc: "The year's scheduled FOMC announcement days from the Federal Reserve Board's calendar, each decided one with the target range that took effect and the move in basis points, from the New York Fed's daily series; numbered links to the Fed path, central banks and money markets.", component: FOMC, example: 'FOMC' },
   { code: 'CENTRALBANKS', name: 'Central Bank Monitor', category: 'Rates & Credit', desc: 'Policy rates, last moves and next decision dates for major central banks against 2-year yields.', component: CENB },
   { code: 'BONDSEARCH', name: 'Fixed Income Search', category: 'Rates & Credit', desc: 'Search Treasuries and corporate bonds by issuer, rating, maturity and coupon with yields and spreads (browser model; bond prices have no free source).', component: SRCH, example: 'AAPL CORP', unavailable: 'bond prices have no free source' },
   { code: 'DEBTPROFILE', name: 'Debt Distribution', category: 'Rates & Credit', desc: "An issuer's bonds by maturity: amounts outstanding, weighted coupon, life and spread (browser model).", component: DDIS, example: 'DEBTPROFILE JPM CORP', unavailable: 'bond data has no free source' },

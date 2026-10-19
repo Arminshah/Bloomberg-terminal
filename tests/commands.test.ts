@@ -289,4 +289,22 @@ describe('terminal mnemonics added in 2.13', () => {
     expect(argsWith('GPC', '1Y')).toBe('CANDLE 1Y');
     expect(argsWith('GP', '')).toBeUndefined();
   });
+
+  it('runs RSI, MACD and BOLL as charts with that study, as the terminal does', () => {
+    expect(parse('AAPL RSI')).toMatchObject({ kind: 'route', fn: 'CHART', args: 'RSI', sec: { id: 'AAPL US Equity' } });
+    expect(parse('MACD AAPL 6M')).toMatchObject({ kind: 'route', fn: 'CHART', args: 'MACD 6M', sec: { id: 'AAPL US Equity' } });
+    expect(parse('BOLL')).toEqual({ kind: 'route', fn: 'CHART', args: 'BOLL' });
+    expect(styledMnemonic('CHART', 'RSI 1Y')).toEqual({ mnemonic: 'RSI', args: '1Y' });
+    expect(suggest('BOLL')[0]).toMatchObject({ kind: 'fn', primary: 'CHART', execute: 'BOLL' });
+  });
+
+  it('accepts EVT, ECMX and FOMC', () => {
+    expect(parse('EVT')).toEqual({ kind: 'route', fn: 'EVENTS' });
+    expect(parse('ECMX')).toEqual({ kind: 'route', fn: 'ECONSTATS' });
+    expect(parse('FOMC')).toEqual({ kind: 'route', fn: 'FEDMEETINGS' });
+    // Headers keep the mnemonic the terminal's menus list first.
+    expect(primaryMnemonic('EVENTS')).toBe('EVTS');
+    expect(primaryMnemonic('ECONSTATS')).toBe('ECST');
+    expect(primaryMnemonic('FEDMEETINGS')).toBe('FOMC');
+  });
 });
