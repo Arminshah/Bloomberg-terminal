@@ -60,3 +60,29 @@ describe('index members without a key', () => {
     expect(main.nasdaqQuotesRequest('../x')).toBeNull();
   });
 });
+
+describe('peers without Yahoo', () => {
+  it("takes an S&P 500 member's GICS sub-industry, else Nasdaq's industry, largest first", async () => {
+    const { classifiedPeers } = await import('../src/data/live/peers');
+    const sp = [
+      { symbol: 'AAPL', name: 'Apple', sector: 'Information Technology', industry: 'Technology Hardware, Storage & Peripherals' },
+      { symbol: 'DELL', name: 'Dell', sector: 'Information Technology', industry: 'Technology Hardware, Storage & Peripherals' },
+      { symbol: 'HPQ', name: 'HP', sector: 'Information Technology', industry: 'Technology Hardware, Storage & Peripherals' },
+      { symbol: 'MSFT', name: 'Microsoft', sector: 'Information Technology', industry: 'Systems Software' },
+    ];
+    const listings = new Map([
+      ['AAPL', { cap: 5e12, name: 'Apple Inc. Common Stock', country: 'United States', sector: 'Technology', industry: 'Computer Manufacturing' }],
+      ['DELL', { cap: 3e11, name: 'Dell', country: 'United States', sector: 'Technology', industry: 'Computer Manufacturing' }],
+      ['HPQ', { cap: 3e10, name: 'HP', country: 'United States', sector: 'Technology', industry: 'Computer Manufacturing' }],
+      ['MSFT', { cap: 4e12, name: 'Microsoft', country: 'United States', sector: 'Technology', industry: 'Software' }],
+      ['APLD', { cap: 6e9, name: 'Applied Digital Corporation Common Stock', country: 'United States', sector: 'Technology', industry: 'EDP Services' }],
+      ['XYZ', { cap: 1e9, name: 'XYZ Corp Common Stock', country: 'United States', sector: 'Technology', industry: 'EDP Services' }],
+    ]);
+    const a = classifiedPeers('AAPL', sp, listings)!;
+    expect(a.industry).toBe('Technology Hardware, Storage & Peripherals');
+    expect(a.picks.map((p) => p.symbol)).toEqual(['MSFT', 'DELL', 'HPQ']); // widened to the sector, largest first
+    const b = classifiedPeers('APLD', sp, listings)!;
+    expect(b.picks.map((p) => [p.symbol, p.name])).toEqual([['XYZ', 'XYZ Corp']]);
+    expect(classifiedPeers('NONE', sp, listings)).toBeNull();
+  });
+});

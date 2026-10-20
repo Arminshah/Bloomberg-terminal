@@ -6,6 +6,8 @@ import type { SecurityDef } from '../types';
 import { finnhubAvailable, finnhubSymbol, loadFinnhub } from './finnhub';
 import { lookupSecurity, normalizeTicker } from './lookup';
 import { desktopData, yahooGet, yahooSymbolFor } from './yahoo';
+import { parseSp500, type MemberInfo } from './index-members';
+import { parseNasdaqListings, tickerKey, type Listing } from './earnings-calendar';
 
 /**
  * A stock's peers for PEERS: companies in the same line of business, not the same broad sector. First the
@@ -141,11 +143,47 @@ function ownInIndustry(def: SecurityDef, industry: string): PeerPick[] {
 }
 
 /** Finds a stock's peers (desktop app). */
+/**
+ * Peers without Yahoo's company profiles (it refuses some sessions): an S&P 500 member's companies in the same GICS
+ * sub-industry (the index's member list), else US-listed companies in the same industry as Nasdaq's stock list names
+ * it, largest first.
+ */
+export function classifiedPeers(symbol: string, sp500: MemberInfo[], listings: Map<string, Listing>, max = 10): PeerGroup | null {
+  const key = tickerKey(symbol);
+  const cap = (s: string) => listings.get(s)?.cap ?? NaN;
+  const byCap = (a: { symbol: string }, b: { symbol: string }) => (Number.isFinite(cap(b.symbol)) ? cap(b.symbol) : -1) - (Number.isFinite(cap(a.symbol)) ? cap(a.symbol) : -1);
+  const pick = (s: string, name: string, industry: string): PeerPick => ({ symbol: s.replace('.', '-'), name, industry, marketCap: cap(s), basis: 'industry' });
+  const member = sp500.find((m) => m.symbol === key);
+  if (member?.industry) {
+    let same = sp500.filter((m) => m.symbol !== key && m.industry === member.industry);
+    // A sub-industry of few companies is widened to its sector.
+    if (same.length < 4) same = [...same, ...sp500.filter((m) => m.symbol !== key && m.sector === member.sector && !same.includes(m)).sort(byCap)].slice(0, max);
+    return { industry: member.industry, sector: member.sector, picks: same.sort(byCap).slice(0, max).map((m) => pick(m.symbol, m.name, m.industry)), sources: ['S&P 500 member list (GICS sub-industry)', "Nasdaq's market values"], at: Date.now() };
+  }
+  const me = listings.get(key);
+  if (!me?.industry) return null;
+  const same = [...listings.entries()]
+    .filter(([s, l]) => s !== key && l.industry === me.industry && l.country === me.country && Number.isFinite(l.cap) && l.cap > 0 && !/\.(W|U|R)$|[.](WS|RT)$/.test(s))
+    .map(([s, l]) => ({ symbol: s, name: l.name.replace(/\s+(Common Stock|Class [A-C] Common Stock|Ordinary Shares|American Depositary Shares).*$/i, '').trim(), l }))
+    .sort(byCap)
+    .slice(0, max);
+  return same.length ? { industry: me.industry, sector: me.sector, picks: same.map((x) => pick(x.symbol, x.name, me.industry ?? '')), sources: ["Nasdaq's stock list (industry)"], at: Date.now() } : null;
+}
+
+async function keylessPeers(symbol: string, max: number): Promise<PeerGroup | null> {
+  const api = window.arminDesktop;
+  if (!api?.indexMembers || !api.earningsCalendar) return null;
+  const [sp, list] = await Promise.all([api.indexMembers('sp500').catch(() => null), api.earningsCalendar('nasdaq-caps', '', '').catch(() => null)]);
+  const members = sp?.text ? parseSp500(sp.text) : null;
+  const listings = list?.text ? parseNasdaqListings(list.text) : null;
+  return classifiedPeers(symbol, members && 'data' in members ? members.data : [], listings && 'data' in listings ? listings.data : new Map(), max);
+}
+
 export async function findPeers(def: SecurityDef, max = 10): Promise<PeerGroup | null> {
   const symbol = yahooSymbolFor(def) ?? def.yahoo;
   if (!symbol || !def.eq) return null;
   const me = await profileOf(symbol);
-  if (!me) return null;
+  if (!me) return def.country === 'US' ? keylessPeers(symbol, max) : null;
   const sources: string[] = [];
   const candidates = new Map<string, Candidate>();
   const add = (s: string, c: Partial<Candidate>) => {
@@ -236,7 +274,7 @@ export function requestPeers(def: SecurityDef | undefined) {
       const kept = keptGroups.get().by[def.id];
       const group = kept && Date.now() - kept.at < DAY ? kept : await findPeers(def);
       if (!group) {
-        put(def.id, { state: 'error', ids: [], message: 'Yahoo Finance has no company profile for this stock, so its industry is not known.' });
+        put(def.id, { state: 'error', ids: [], message: 'Neither Yahoo Finance nor the S&P 500 and Nasdaq lists classify this stock, so its industry is not known.' });
         return;
       }
       if (group !== kept) keptGroups.set((s) => ({ by: { ...Object.fromEntries(Object.entries(s.by).filter(([, g]) => Date.now() - g.at < DAY)), [def.id]: group } }));

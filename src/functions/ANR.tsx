@@ -11,6 +11,8 @@ import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 import type { SecurityDef } from '../data/types';
+import { XYChart } from '../components/chart/XYChart';
+import { DAY_MS } from '../data/calendar';
 import { reportCcy } from '../data/fundamentals';
 import { periodChange } from '../data/analytics';
 import { ratingSummary } from '../data/anr';
@@ -345,6 +347,34 @@ function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | nul
           ['Return potential', <Chg key="r" v={potential} pct dec={1} />],
           ['LTM return', <Chg key="l" v={periodChange(sec.id, '1Y')} pct dec={1} />],
         ]}
+      />
+      <TargetChart sec={sec} c={c} />
+    </div>
+  );
+}
+
+/** A year of closes with the consensus target and the range of targets, as ANR's chart beside its summary. */
+function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }) {
+  const daily = engine.daily(sec.id);
+  const from = engine.today * DAY_MS - 365 * DAY_MS;
+  const points: { x: number; y: number; label: string }[] = [];
+  for (let i = 0; i < daily.length; i++) if (daily.t[i] >= from) points.push({ x: daily.t[i], y: sec.ccy === 'GBp' ? daily.c[i] / 100 : daily.c[i], label: fmtDay(daily.t[i]) });
+  if (points.length < 2) return null;
+  const refLines = c
+    ? [
+        ...(Number.isFinite(c.mean) ? [{ y: c.mean, color: '#ff9e1b', label: `12M Tgt Px ${fmtNum(c.mean, 2)}` }] : []),
+        ...(Number.isFinite(c.high) ? [{ y: c.high, color: '#2fd36b', label: `High ${fmtNum(c.high, 2)}` }] : []),
+        ...(Number.isFinite(c.low) ? [{ y: c.low, color: '#ff4d4f', label: `Low ${fmtNum(c.low, 2)}` }] : []),
+      ]
+    : [];
+  return (
+    <div className="anr-chart">
+      <XYChart
+        height={150}
+        series={[{ label: 'Price', color: '#e8e8e8', points }]}
+        refLines={refLines}
+        xFormat={(v) => fmtDay(v)}
+        yFormat={(v) => fmtNum(v, 0)}
       />
     </div>
   );

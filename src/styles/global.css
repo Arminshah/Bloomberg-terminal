@@ -625,7 +625,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .tbl.eco .eco-date { color: inherit; font-variant-numeric: tabular-nums; }
 
 /* ANR: the consensus summary above the sections, two short columns. */
-.anr-snap { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 360px)); gap: 0 24px; border-bottom: 1px solid var(--line); background: var(--bg-1); }
+.anr-snap { display: grid; grid-template-columns: minmax(220px, 300px) minmax(220px, 300px) 1fr; gap: 0 24px; border-bottom: 1px solid var(--line); background: var(--bg-1); }
 
 /* DES: name and classification, the description, then three columns of numbered boxes. */
 .des-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 4px 8px 0; }
@@ -1195,3 +1195,5 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .ern-tbl tr.ern-avg td { background: #1b1d21; font-weight: 600; }
 .ern-tbl tr.ern-future td { color: #c9c9c9; }
 @media (max-width: 900px) { .ern-top { grid-template-columns: 1fr; } }
+.anr-chart { min-width: 0; padding: 2px 0; }
+@media (max-width: 900px) { .anr-snap { grid-template-columns: 1fr; } }

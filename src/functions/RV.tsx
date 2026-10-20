@@ -151,7 +151,7 @@ export function RV({ sec }: FnProps) {
       />
       <div className="note">
         {desktopData()
-          ? `Peers: companies in ${s.name}'s own industry as Yahoo Finance's company profiles name it, from Finnhub's sub-industry (with FINNHUB_API_KEY), the app's own stocks and the stocks Yahoo finds similar, largest first. When fewer than four share the industry, ·similar marks stocks Yahoo links to it repeatedly. `
+          ? `Peers: companies in ${s.name}'s own industry as Yahoo Finance's company profiles name it, from Finnhub's sub-industry (with FINNHUB_API_KEY), the app's own stocks and the stocks Yahoo finds similar, largest first. When fewer than four share the industry, ·similar marks stocks Yahoo links to it repeatedly. Without Yahoo's company profiles, an S&P 500 member's peers share its GICS sub-industry (the index's member list), other US stocks Nasdaq's industry. `
           : ''}
         Highlighted row is the loaded security. Click a ticker to open it; shift-click opens it in the next panel.
       </div>
