@@ -538,6 +538,9 @@ const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(ur
   validate: (provider, url, text) => {
     // A consent or error page instead of the feed is a failure, not an answer to keep for 15 minutes.
     if (provider === 'google-news') return /<rss\b/i.test(text) ? null : { kind: 'schema-changed', message: 'Google answered with a web page, not the feed.' };
+    if (provider === 'datasets') {
+      return /^\uFEFF?Symbol,Security,GICS Sector,GICS Sub-Industry/.test(text) ? null : { kind: 'schema-changed', message: 'The S&P 500 member list changed its format.' };
+    }
     if (provider === 'nasdaq') {
       const message = require('./nasdaq.cjs').nasdaqProblem(text);
       return message ? { kind: 'schema-changed', message } : null;
@@ -639,6 +642,15 @@ ipcMain.handle('earnings-calendar', async (event, source, from, to) => {
     return keyedGet('fmp', req.url, {}, req.ttl, [30, 60_000], [key.value]);
   }
   throw new Error('not allowed');
+});
+
+// Index memberships and member volumes without a key (electron/index-members.cjs), for the index monitors.
+const indexMembers = require('./index-members.cjs');
+ipcMain.handle('index-members', async (event, kind, arg) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const req = kind === 'nasdaq-quotes' ? indexMembers.nasdaqQuotesRequest(arg) : indexMembers.membersRequest(kind);
+  if (!req) throw new Error('not allowed');
+  return keyedGet(req.provider, req.url, req.headers, req.ttl, req.provider === 'nasdaq' ? [60, 60_000] : [10, 60_000], [], nasdaqAgent());
 });
 
 // One company's figures from Nasdaq's quote and company pages, without a key (electron/nasdaq.cjs): they fill what

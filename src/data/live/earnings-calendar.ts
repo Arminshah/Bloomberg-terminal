@@ -56,6 +56,7 @@ export interface Listing {
   name: string;
   country: string;
   sector: string;
+  industry?: string;
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -139,7 +140,7 @@ export function parseNasdaqListings(text: string): { data: Map<string, Listing> 
   for (const r of rows) {
     const symbol = tickerKey(r?.symbol);
     if (!/^[A-Z][A-Z0-9.]{0,9}$/.test(symbol)) continue;
-    out.set(symbol, { cap: nasdaqNumber(r?.marketCap), name: String(r?.name ?? '').trim(), country: String(r?.country ?? ''), sector: String(r?.sector ?? '') });
+    out.set(symbol, { cap: nasdaqNumber(r?.marketCap), name: String(r?.name ?? '').trim(), country: String(r?.country ?? ''), sector: String(r?.sector ?? ''), industry: String(r?.industry ?? '') });
   }
   return { data: out };
 }
@@ -457,6 +458,11 @@ async function askWindow(source: 'finnhub' | 'fmp', from: string, to: string) {
   if (part.state === 'needs-key' || part.state === 'off' || part.state === 'error') asked.delete(key);
   const kept = earningsCalendar.get().windows[key];
   bump((s) => ({ windows: { ...s.windows, [key]: part.state === 'ok' || !kept?.data ? part : { ...kept, message: part.message } } }));
+}
+
+/** Every US-listed stock's market value and sector from Nasdaq's stock list, loaded once every six hours. */
+export function requestListings() {
+  if (calendarAvailable()) void askListings();
 }
 
 async function askListings() {

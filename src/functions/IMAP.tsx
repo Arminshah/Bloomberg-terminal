@@ -9,6 +9,8 @@ import { usePanelId } from '../terminal/panel';
 import { useSize } from '../components/useSize';
 import type { SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
+import { BoardMap, hasBoard } from './IndexBoards';
+import { membersAvailable } from '../data/live/index-members';
 
 interface Rect {
   x: number;
@@ -67,7 +69,16 @@ const MEASURES: { n: number; h: Horizon; scale: number }[] = [
   { n: 15, h: '1Y', scale: 40 },
 ];
 
-export function IMAP(_: FnProps) {
+export function IMAP(props: FnProps) {
+  const { sec, route } = props;
+  const ix = sec?.cls === 'index' ? sec : route.args ? engine.get(`${route.args.trim().toUpperCase()} Index`) : engine.get('SPX Index');
+  // The whole membership of the index as a sunburst, where the app can load it (desktop app: SPX, NDX, the Dow).
+  if (engine.realOnly && membersAvailable() && ix && hasBoard(ix.id)) return <BoardMap ix={ix} />;
+  return <UniverseMap />;
+}
+
+/** The app's own stocks by sector as a treemap (the browser demo, and indices without their membership here). */
+function UniverseMap() {
   const panel = usePanelId();
   const tick = useTick(2);
   const [region, setRegion] = useState(1);

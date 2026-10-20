@@ -38,6 +38,8 @@ export const LEGACY_CODES: Record<string, string> = {
   WEI: 'MARKET',
   WEIF: 'INDEXFUTURES',
   MOV: 'CONTRIB',
+  MEMB: 'MEMBERS',
+  MRR: 'RANKEDRETURNS',
   IMAP: 'HEATMAP',
   MOST: 'MOVERS',
   EXCH: 'EXCHANGES',

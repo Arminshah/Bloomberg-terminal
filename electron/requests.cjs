@@ -10,8 +10,8 @@ function retryAfter(value, now) {
   return Number.isFinite(until) ? Math.max(0, until - now) : 0;
 }
 
-/** Providers whose answers are RSS or Atom feeds rather than JSON. */
-const XML_PROVIDERS = new Set(['marketwatch', 'sec', 'yahoo-rss', 'euronext', 'google-news']);
+/** Providers whose answers are RSS or Atom feeds (or, for the index member list, CSV) rather than JSON. */
+const XML_PROVIDERS = new Set(['marketwatch', 'sec', 'yahoo-rss', 'euronext', 'google-news', 'datasets']);
 
 // `refresh` (electron/refresh.cjs) says when a kept answer is out of date because the owner asked for fresh data.
 function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random = Math.random, refresh }) {

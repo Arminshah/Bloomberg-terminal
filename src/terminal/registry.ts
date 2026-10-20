@@ -51,7 +51,7 @@ import { HS } from '../functions/HS';
 import { NOTE } from '../functions/NOTE';
 import { MENU } from '../functions/MENU';
 import { ALLQ, DDIS, SRCH } from '../functions/CREDIT';
-import { GF, HVT, MOV, TRA, VWAP } from '../functions/ANALYSIS';
+import { GF, HVT, MEMB, MOV, MRR, TRA, VWAP } from '../functions/ANALYSIS';
 import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
 import { FOMC } from '../functions/FOMC';
 
@@ -93,6 +93,8 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'MARKET', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI, aliases: ['INDICES'], example: 'MARKET US' },
   { code: 'INDEXFUTURES', name: 'World Index Futures', category: 'Markets', desc: 'Front equity index futures with basis, fair value and premium or discount to fair value.', component: WEIF },
   { code: 'CONTRIB', name: 'Index Movers', category: 'Markets', desc: 'What moved an index today: members in index points for the Dow, and for other indices the app\'s stocks in that market by change in market value, with advancers and decliners.', component: MOV, example: 'CONTRIB SPX' },
+  { code: 'MEMBERS', name: 'Index Members', category: 'Markets', desc: "An index's members with their weights, shares, price, change and market value: the S&P 500, the Nasdaq-100 and the Dow (desktop app). Weights of cap-weighted indices are estimated from market values.", component: MEMB, example: 'SPX INDEX MEMBERS' },
+  { code: 'RANKEDRETURNS', name: 'Member Ranked Returns', category: 'Markets', desc: "An index's best and worst members by price return over a day, a week, a month, three or six months, the year to date or a year (S&P 500, Nasdaq-100, Dow; desktop app).", component: MRR, example: 'NDX INDEX RANKEDRETURNS' },
   { code: 'HEATMAP', name: 'Intraday Market Map', category: 'Markets', desc: 'Heat map of stocks by sector sized by market cap and coloured by performance.', component: IMAP },
   { code: 'MOVERS', name: 'Most Active', category: 'Markets', desc: 'Most active, top gainers, losers, value traded and unusual volume by region.', component: MOST, aliases: ['ACTIVE'] },
   { code: 'EXCHANGES', name: 'Exchange Hours', category: 'Markets', desc: "Each exchange the app keeps a calendar for (NYSE, Euronext, London, Xetra, Tokyo): its local time, whether its regular session is open, today's holiday or early close, and when it next opens or closes, with a countdown. Numbered rows open the exchange's holiday calendar.", component: EXCH, example: 'EXCHANGES' },

@@ -16,6 +16,8 @@ import { indexAtOrBefore, type Series } from '../data/series';
 import type { SecurityDef } from '../data/types';
 import { maxDrawdown, percentile, stdev } from '../finance/stats';
 import type { FnProps } from '../terminal/types';
+import { BoardMembers, BoardMovers, BoardRanked, hasBoard, IndexPicker } from './IndexBoards';
+import { membersAvailable } from '../data/live/index-members';
 
 const H: { n: number; h: Horizon }[] = [
   { n: 1, h: '1M' },
@@ -521,8 +523,46 @@ function indexMembers(ix: SecurityDef): SecurityDef[] {
 export function MOV(props: FnProps) {
   const { sec, route } = props;
   const ix = sec?.cls === 'index' ? sec : engine.get(route.args ? `${route.args} Index` : 'SPX Index') ?? engine.get('SPX Index')!;
+  // The whole membership with prices and volumes, where the app can load it (desktop app: SPX, NDX, the Dow).
+  if (engine.realOnly && membersAvailable() && hasBoard(ix.id)) return <BoardMovers ix={ix} />;
   if (engine.realOnly && ix.ticker === 'INDU') return <DowMovers ix={ix} />;
   return <IndexMovers {...props} />;
+}
+
+/** The index a members screen opens on: the loaded index, else the one typed after the function, else the S&P 500. */
+function boardIndex({ sec, route }: FnProps): SecurityDef {
+  return sec?.cls === 'index' ? sec : engine.get(route.args ? `${route.args.trim().toUpperCase()} Index` : 'SPX Index') ?? engine.get('SPX Index')!;
+}
+
+/** MEMB: index members and weights. */
+export function MEMB(props: FnProps) {
+  const ix = boardIndex(props);
+  if (!membersAvailable()) return <BoardUnavailable ix={ix} what="Index members" />;
+  if (!hasBoard(ix.id)) return <BoardUnavailable ix={ix} what="Index members" />;
+  return <BoardMembers ix={ix} />;
+}
+
+/** MRR: members ranked by return. */
+export function MRR(props: FnProps) {
+  const ix = boardIndex(props);
+  if (!membersAvailable() || !hasBoard(ix.id)) return <BoardUnavailable ix={ix} what="Member ranked returns" />;
+  return <BoardRanked ix={ix} />;
+}
+
+function BoardUnavailable({ ix, what }: { ix: SecurityDef; what: string }) {
+  return (
+    <div>
+      <FnHeader code={what === 'Index members' ? 'MEMBERS' : 'RANKEDRETURNS'} title={what === 'Index members' ? 'Index Members' : 'Member Ranked Returns'} sec={ix} />
+      <div className="chart-tools">
+        <IndexPicker ix={ix} fn={what === 'Index members' ? 'MEMBERS' : 'RANKEDRETURNS'} />
+      </div>
+      <div className="empty">
+        {membersAvailable()
+          ? `${what} are available for the S&P 500 (SPX), the Nasdaq-100 (NDX) and the Dow (INDU): the full membership of ${ix.id} has no free source.`
+          : `${what} need the desktop app, which loads each index's full membership.`}
+      </div>
+    </div>
+  );
 }
 
 interface DowRow {
