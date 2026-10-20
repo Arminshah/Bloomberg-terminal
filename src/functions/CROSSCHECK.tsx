@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
-import { fmtNum } from '../core/format';
+import { fmtDateTime, fmtNum } from '../core/format';
 import { engine, useInterval, useQuote } from '../data/market';
 import { secTicker } from '../data/live/sec';
 import { compareCloses, diffBp, EOD_PROVIDERS, eodAvailable, eodRange, loadEod, type EodBar, type EodProvider, type EodResult } from '../data/live/eod';
@@ -87,7 +87,7 @@ export function CROSSCHECK({ sec }: FnProps) {
         {EOD_PROVIDERS.map((p) => {
           const r = results[p.id];
           return (
-            <span key={p.id} title={r?.ok ? `Answer received ${new Date(r.at).toLocaleString()}${r.stale ? '; the latest request failed' : ''}` : r?.message}>
+            <span key={p.id} title={r?.ok ? `Answer received ${fmtDateTime(r.at)}${r.stale ? '; the latest request failed' : ''}` : r?.message}>
               <span className="lbl">{p.name}</span>{' '}
               {!r ? <span className="muted">asking…</span> : r.ok ? <span className={r.stale ? 'amber' : 'up'}>{r.stale ? 'STALE · ' : ''}{r.bars.length} sessions ({p.basis})</span> : <span className="amber">{r.reason === 'needs-key' ? 'no key' : r.reason === 'gated' ? 'display rights not confirmed' : r.reason === 'budget' ? 'budget spent' : 'error'}</span>}
             </span>

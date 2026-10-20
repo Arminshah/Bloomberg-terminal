@@ -1,7 +1,9 @@
 /**
- * Date fields as the terminal's amber range boxes take them (GP, HP): MM/DD/YYYY, MM/DD/YY, M/D/YY, YYYY-MM-DD or
- * YYYYMMDD. Dates are UTC midnights, the convention of daily bars.
+ * Date fields as the terminal's amber range boxes take them (GP, HP): DD/MM/YYYY, DD/MM/YY or D/M/YY in the European
+ * date order (MM/DD/YYYY and so on in the US order), YYYY-MM-DD or YYYYMMDD. Dates are UTC midnights, the convention
+ * of daily bars.
  */
+import { fmtDay, getDateOrder } from '../core/format';
 
 const DAY_MS = 86_400_000;
 
@@ -20,19 +22,22 @@ export function parseFieldDate(text: string): number | undefined {
   if (m) {
     const yy = Number(m[3]);
     const y = m[3].length === 2 ? (yy <= 69 ? 2000 + yy : 1900 + yy) : yy;
-    return utc(y, Number(m[1]), Number(m[2]));
+    const [month, day] = getDateOrder() === 'DMY' ? [m[2], m[1]] : [m[1], m[2]];
+    return utc(y, Number(month), Number(day));
   }
   m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s) ?? /^(\d{4})(\d{2})(\d{2})$/.exec(s);
   if (m) return utc(Number(m[1]), Number(m[2]), Number(m[3]));
   return undefined;
 }
 
-/** MM/DD/YYYY, the form the range fields show. */
+/** DD/MM/YYYY or MM/DD/YYYY, the form the range fields show. */
 export function fmtFieldDate(ms: number): string {
   if (!Number.isFinite(ms)) return '';
-  const d = new Date(ms);
-  return `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}/${d.getUTCFullYear()}`;
+  return fmtDay(ms, true);
 }
+
+/** The typed form the range fields expect, for their hints. */
+export const fieldDatePattern = () => (getDateOrder() === 'DMY' ? 'DD/MM/YYYY' : 'MM/DD/YYYY');
 
 /**
  * Bars from `from` to `to` (both inclusive, by bar time) in times sorted ascending: the count to show and how many

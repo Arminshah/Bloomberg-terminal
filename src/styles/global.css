@@ -249,7 +249,17 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .panel-menu:hover, .panel-tool:hover { border-color: var(--white); background: #424242; }
 .loaded-security { width: 210px; flex: 1 1 80px; min-width: 35px; max-width: 380px; border: 1px solid #aeb7c2; border-radius: 0; padding: 0 4px; color: #101318; background: #d5dbe2; font-size: var(--fs-s); }
 .loaded-security option { color: var(--white); background: #151515; }
-.panel-function { flex: 0 1 84px; min-width: 48px; width: 84px; margin-left: auto; padding: 0 2px; border: 1px solid #aeb7c2; border-radius: 0; color: #101318; background: #d5dbe2; font-size: var(--fs-s); }
+.panel-function { flex: 0 1 128px; min-width: 56px; width: 128px; margin-left: auto; padding: 0 2px; border: 1px solid #aeb7c2; border-radius: 0; color: #101318; background: #d5dbe2; font-size: var(--fs-s); }
+/* The arrow sits in its own space at the right, so a long function or security name is cut before it rather than under it. */
+.loaded-security, .panel-function {
+  appearance: none;
+  padding-right: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%23101318'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 5px center;
+}
 .panel-function option, .panel-function optgroup { color: var(--text); background: #151515; }
 .panel-function option:disabled { color: #888; }
 

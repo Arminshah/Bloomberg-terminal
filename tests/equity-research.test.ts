@@ -177,12 +177,12 @@ describe('analyst consensus on PROFILE and QUOTE', () => {
   const base: SnapshotInput = { desktop: true, symbol: 'AAPL', ticker: 'AAPL US', yahooResearch: true, last: 200, ccy: 'USD' };
 
   it('labels each figure with its source', () => {
-    expect(targetLine(fmpTarget, 200, 'USD')).toEqual({ label: 'Price target (consensus)', value: '250.00 USD (+25.0% vs last)', source: 'FMP, received 10/18/26' });
+    expect(targetLine(fmpTarget, 200, 'USD')).toEqual({ label: 'Price target (consensus)', value: '250.00 USD (+25.0% vs last)', source: 'FMP, received 18/10/26' });
     // Yahoo names a currency; one other than the quote's is not compared with the price.
-    expect(targetLine({ ...fmpTarget, source: 'Yahoo Finance', currency: 'EUR', stale: true }, 200, 'USD')).toMatchObject({ value: '250.00 EUR', source: 'Yahoo Finance, received 10/18/26, STALE' });
+    expect(targetLine({ ...fmpTarget, source: 'Yahoo Finance', currency: 'EUR', stale: true }, 200, 'USD')).toMatchObject({ value: '250.00 EUR', source: 'Yahoo Finance, received 18/10/26, STALE' });
     const fmp: AnalystPart<RatingTally | null> = { state: 'ok', source: 'FMP', data: { strongBuy: 1, buy: 20, hold: 10, sell: 2, strongSell: 0, consensus: 'Buy' } };
     expect(ratingsLine(fmp)).toMatchObject({ value: '21 / 10 / 2 (Buy)', source: 'FMP' });
-    expect(nextQuarterLine(report)).toEqual({ label: 'EPS estimate, next quarter', value: '1.78 for Q4 2026, report 10/29/26 after the close', source: 'Finnhub, received 10/18/26' });
+    expect(nextQuarterLine(report)).toEqual({ label: 'EPS estimate, next quarter', value: '1.78 for Q4 2026, report 29/10/26 after the close', source: 'Finnhub, received 18/10/26' });
   });
 
   it("names a tally's month as its source dates it", () => {

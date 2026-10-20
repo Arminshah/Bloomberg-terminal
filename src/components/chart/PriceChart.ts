@@ -1,6 +1,6 @@
 import { bollinger, ema, macd, rsi, sma } from '../../finance/indicators';
 import type { Series } from '../../data/series';
-import { fmtBig, fmtNum, MONTHS } from '../../core/format';
+import { fmtBig, fmtDay, fmtMonthDayNum, fmtNum, MONTHS } from '../../core/format';
 
 export type ChartType = 'line' | 'mountain' | 'candle' | 'bar';
 export type LowerKind = 'VOL' | 'RSI' | 'MACD';
@@ -774,8 +774,7 @@ export class PriceChart {
 
   private dateText(t: number, full: boolean): string {
     if (full && this.opt?.dateLabel) return this.opt.dateLabel(t);
-    const d = new Date(t);
-    return `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCFullYear()).slice(2)}`;
+    return fmtDay(t);
   }
 
   private drawTimeAxis(i0: number, i1: number, panes: Pane[]) {
@@ -831,7 +830,7 @@ export class PriceChart {
         const y = d.getUTCFullYear();
         const m = d.getUTCMonth();
         let label: string;
-        if (unit === 'week') label = `${String(m + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}`;
+        if (unit === 'week') label = fmtMonthDayNum(m + 1, d.getUTCDate());
         else if (unit === 'month' || unit === 'quarter') label = m === 0 ? String(y) : `${MONTHS[m]}`;
         else label = String(y);
         ticks.push({ i, label, strong: m === 0 && unit !== 'week' });

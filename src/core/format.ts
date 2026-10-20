@@ -107,19 +107,36 @@ export function zonedToUtc(y: number, m0: number, d: number, hh: number, mm: num
   return guess;
 }
 
-/** MM/DD/YY in the display time zone. */
+/** Day before month (DD/MM/YY, the European order) or month before day (MM/DD/YY, the US order). */
+export type DateOrder = 'DMY' | 'MDY';
+
+let dateOrder: DateOrder = 'DMY';
+export function setDateOrder(order: DateOrder) {
+  dateOrder = order;
+}
+export function getDateOrder(): DateOrder {
+  return dateOrder;
+}
+
+/** "20/10" or "10/20": a day of a month in the display order. */
+export function fmtMonthDayNum(month: number, day: number): string {
+  return dateOrder === 'DMY' ? `${pad(day)}/${pad(month)}` : `${pad(month)}/${pad(day)}`;
+}
+
+const dayMonthYear = (y: number, month: number, day: number, long: boolean) => `${fmtMonthDayNum(month, day)}/${long ? String(y) : String(y).slice(2)}`;
+
+/** DD/MM/YY (or MM/DD/YY) in the display time zone. */
 export function fmtDate(ms: number, tz: TzMode = tzMode): string {
   if (!Number.isFinite(ms)) return DASH;
   const p = zonedParts(ms, tz);
-  return `${pad(p.mo)}/${pad(p.d)}/${String(p.y).slice(2)}`;
+  return dayMonthYear(p.y, p.mo, p.d, false);
 }
 
-/** MM/DD/YYYY for UTC-dated bars (daily history). */
+/** DD/MM/YY (or MM/DD/YY) for UTC-dated bars (daily history); `long` gives the four-digit year. */
 export function fmtDay(ms: number, long = false): string {
   if (!Number.isFinite(ms)) return DASH;
   const d = new Date(ms);
-  const y = long ? String(d.getUTCFullYear()) : String(d.getUTCFullYear()).slice(2);
-  return `${pad(d.getUTCMonth() + 1)}/${pad(d.getUTCDate())}/${y}`;
+  return dayMonthYear(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), long);
 }
 
 /** Earnings report date. "~" marks a date the source calls an estimate; an unknown date or time of day is left out. */
@@ -141,6 +158,12 @@ export function fmtStamp(ms: number, now = Date.now()): string {
   const a = zonedParts(ms);
   const b = zonedParts(now);
   return a.y === b.y && a.mo === b.mo && a.d === b.d ? fmtTime(ms, false) : fmtDate(ms);
+}
+
+/** Date and time to the minute in the display time zone, for "received" notes. */
+export function fmtDateTime(ms: number): string {
+  if (!Number.isFinite(ms)) return DASH;
+  return `${fmtDate(ms)} ${fmtTime(ms, false)}`;
 }
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

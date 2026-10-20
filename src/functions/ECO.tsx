@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Chg, LivePx, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
-import { fmtDay, fmtNum, fmtTime, WEEKDAYS, zonedParts } from '../core/format';
+import { fmtDay, fmtMonthDayNum, fmtNum, fmtTime, WEEKDAYS, zonedParts } from '../core/format';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { engine, useInterval } from '../data/market';
@@ -109,7 +109,7 @@ export function ECO(_: FnProps) {
           <span>
             <span className="amber">Next key release</span> {next.country} {next.name}{' '}
             {next.date ? (
-              <span className="white b">{next.date === today ? 'today' : `on ${WEEKDAYS[new Date(`${next.date}T12:00:00Z`).getUTCDay()]} ${next.date.slice(5, 7)}/${next.date.slice(8, 10)}`}</span>
+              <span className="white b">{next.date === today ? 'today' : `on ${WEEKDAYS[new Date(`${next.date}T12:00:00Z`).getUTCDay()]} ${fmtMonthDayNum(Number(next.date.slice(5, 7)), Number(next.date.slice(8, 10)))}`}</span>
             ) : (
               <>
                 in <span className="white b">{countdown(next.time - now)}</span>
@@ -156,7 +156,7 @@ export function ECO(_: FnProps) {
             const dayKey = `${p.y}-${p.mo}-${p.d}`;
             if (dayKey !== lastDay) band++;
             lastDay = dayKey;
-            const md = `${String(p.mo).padStart(2, '0')}/${String(p.d).padStart(2, '0')}`;
+            const md = fmtMonthDayNum(p.mo, p.d);
             const diff = e.actual != null && e.survey != null ? e.actual - e.survey : 0;
             const released = e.date ? e.actual != null || e.date < today : real ? e.time <= now : e.actual != null;
             const dueToday = !released && e.date === today;

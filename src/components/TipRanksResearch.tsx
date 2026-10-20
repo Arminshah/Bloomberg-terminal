@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { KV, Section } from './cells';
-import { fmtNum, fmtPct } from '../core/format';
+import { fmtDateTime, fmtNum, fmtPct } from '../core/format';
 import type { KeyedAnswer } from '../data/live/lookup';
 import { parseAsset, parseRatings, parseUsage, rawText, tipranksTicker, type TipRanksKind } from '../data/live/tipranks';
 import type { SecurityDef } from '../data/types';
@@ -107,7 +107,7 @@ export function TipRanksResearch({ def }: { def: SecurityDef }) {
               ['Smart Score (1-10)', fmtNum(asset.smartScore, 0)],
               ['News / hedge fund / insider signals (0-1)', [asset.newsSentiment, asset.hedgeFundsScore, asset.insiderScore].map((v) => fmtNum(v, 2)).join(' / ')],
               ['Next earnings', asset.nextEarningsDate ? `${asset.nextEarningsDate}${asset.daysUntilEarnings !== undefined ? ` (in ${asset.daysUntilEarnings} days)` : ''}` : '--'],
-              ['Received', answers.consensus?.at ? `${new Date(answers.consensus.at).toLocaleString()}${answers.consensus.cached ? ' · kept from an earlier request' : ''}` : '--'],
+              ['Received', answers.consensus?.at ? `${fmtDateTime(answers.consensus.at)}${answers.consensus.cached ? ' · kept from an earlier request' : ''}` : '--'],
             ]}
           />
         ) : answers.consensus?.text ? (

@@ -1,3 +1,4 @@
+import { fmtMonthDayNum } from '../../core/format';
 import { createStore } from '../../core/store';
 import { setFeed } from './status';
 import { registerRefresh } from '../../terminal/refresh';
@@ -242,11 +243,11 @@ export function valueAt(obs: Obs | undefined, p: string, calc: Calc, freq: Freq,
 
 const SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** "Sep 2026", "2Q 2026" or "Wk 10/03". */
+/** "Sep 2026", "2Q 2026" or "Wk 03/10" (week ending 3 October, in the display date order). */
 export function periodLabel(p: string, freq: Freq): string {
   const [y, m, d] = p.split('-').map(Number);
   if (freq === 'q') return `${Math.floor((m - 1) / 3) + 1}Q ${y}`;
-  if (freq === 'w') return `Wk ${String(m).padStart(2, '0')}/${String(d).padStart(2, '0')}`;
+  if (freq === 'w') return `Wk ${fmtMonthDayNum(m, d)}`;
   return `${SHORT[m - 1]} ${y}`;
 }
 

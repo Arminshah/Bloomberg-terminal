@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Section } from './cells';
 import { Markdown } from './Markdown';
+import { fmtDateTime } from '../core/format';
 import { RESEARCH, parseResearch, type ResearchKind } from '../data/live/equibles';
 import type { KeyedAnswer } from '../data/live/lookup';
 
@@ -58,7 +59,7 @@ export function EquiblesResearch({ symbol, autoLoad = false }: { symbol: string;
         {!window.arminDesktop?.equibles && <p className="muted">Equibles research requires the desktop app.</p>}
         {error && <p className="amber" role="status">{error}</p>}
         {result?.report && <>
-          <div className="note" style={{ paddingLeft: 0 }}>Source: Equibles ({result.report.tool}){answer?.at ? ` · received ${new Date(answer.at).toLocaleString()}` : ''}{answer?.cached ? ' · cached' : ''}{answer?.stale ? ' · STALE, earlier answer retained' : ''}</div>
+          <div className="note" style={{ paddingLeft: 0 }}>Source: Equibles ({result.report.tool}){answer?.at ? ` · received ${fmtDateTime(answer.at)}` : ''}{answer?.cached ? ' · cached' : ''}{answer?.stale ? ' · STALE, earlier answer retained' : ''}</div>
           <div style={{ maxHeight: 600, overflow: 'auto' }}>
             <Markdown text={result.report.report} testId="equibles-report" />
           </div>

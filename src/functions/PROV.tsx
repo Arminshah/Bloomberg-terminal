@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Section } from '../components/cells';
+import { fmtDateTime } from '../core/format';
 import { useInterval } from '../data/market';
 import { feedStatus } from '../data/live/status';
 import { PROVIDERS, providersAvailable, providerState, useProviderReport, type Credential, type ProviderDef, type ProviderReport, type ProviderState, type SettingName } from '../data/providers';
@@ -59,7 +60,7 @@ function ago(t: number | null | undefined, now: number): string {
   const s = Math.max(0, Math.round((now - t) / 1000));
   if (s < 60) return `${s} s ago`;
   if (s < 3600) return `${Math.round(s / 60)} min ago`;
-  return new Date(t).toLocaleString();
+  return fmtDateTime(t);
 }
 
 /** The switch and key a provider depends on, and where their values come from. */

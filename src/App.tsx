@@ -57,6 +57,8 @@ export function App() {
   const layout = terminal.use((s) => s.layout);
   const size = settings.use((s) => s.size);
   const tz = settings.use((s) => s.tz);
+  // Changing the date order redraws every screen; settings applies the order itself.
+  settings.use((s) => s.dateOrder);
   const tickMs = settings.use((s) => s.tickMs);
   const tape = settings.use((s) => s.tape);
   const mobile = useMediaQuery('(max-width: 760px)');

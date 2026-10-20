@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { fmtDate, fmtDay, fmtMonthDayNum, setDateOrder } from '../src/core/format';
 import { fmtFieldDate, parseFieldDate, windowBars } from '../src/terminal/daterange';
 import { groupedRowNumbers } from '../src/terminal/numbering';
 import { blockGeometry, blockPages, weekday, weekSlots, type Slot } from '../src/terminal/pricetable';
@@ -12,23 +13,42 @@ import { emptyPeriod, type FinPeriod } from '../src/data/fundamentals';
 const D = (y: number, m: number, d: number) => Date.UTC(y, m - 1, d);
 
 describe('range boxes (GP, HP)', () => {
-  it('reads the date forms the terminal fields take', () => {
-    expect(parseFieldDate('10/19/2026')).toBe(D(2026, 10, 19));
-    expect(parseFieldDate('10/19/26')).toBe(D(2026, 10, 19));
-    expect(parseFieldDate('1/2/26')).toBe(D(2026, 1, 2));
+  afterEach(() => setDateOrder('DMY'));
+
+  it('reads the date forms the terminal fields take, day first by default', () => {
+    expect(parseFieldDate('19/10/2026')).toBe(D(2026, 10, 19));
+    expect(parseFieldDate('19/10/26')).toBe(D(2026, 10, 19));
+    expect(parseFieldDate('2/1/26')).toBe(D(2026, 1, 2));
+    expect(parseFieldDate('19.10.2026')).toBe(D(2026, 10, 19));
     expect(parseFieldDate('2026-10-19')).toBe(D(2026, 10, 19));
     expect(parseFieldDate('20261019')).toBe(D(2026, 10, 19));
     // Two-digit years from 70 are the 1900s, as on a ten-year history they would be.
+    expect(parseFieldDate('31/12/99')).toBe(D(1999, 12, 31));
+    setDateOrder('MDY');
+    expect(parseFieldDate('10/19/2026')).toBe(D(2026, 10, 19));
+    expect(parseFieldDate('1/2/26')).toBe(D(2026, 1, 2));
     expect(parseFieldDate('12/31/99')).toBe(D(1999, 12, 31));
+    expect(parseFieldDate('2026-10-19')).toBe(D(2026, 10, 19));
   });
 
   it('refuses what is not a calendar date', () => {
-    for (const bad of ['', 'today', '13/01/2026', '02/30/2026', '2026-02-29', '1/2', '10/19/202']) expect(parseFieldDate(bad), bad).toBeUndefined();
+    for (const bad of ['', 'today', '01/13/2026', '30/02/2026', '2026-02-29', '1/2', '19/10/202']) expect(parseFieldDate(bad), bad).toBeUndefined();
+    expect(parseFieldDate('29/02/2028')).toBe(D(2028, 2, 29));
+    setDateOrder('MDY');
+    for (const bad of ['13/01/2026', '02/30/2026']) expect(parseFieldDate(bad), bad).toBeUndefined();
     expect(parseFieldDate('02/29/2028')).toBe(D(2028, 2, 29));
   });
 
-  it('shows dates as MM/DD/YYYY and nothing for no date', () => {
+  it('shows dates as DD/MM/YYYY, or MM/DD/YYYY in the US order, and nothing for no date', () => {
+    expect(fmtFieldDate(D(2026, 3, 5))).toBe('05/03/2026');
+    expect(fmtDay(D(2026, 3, 5))).toBe('05/03/26');
+    expect(fmtDate(D(2026, 3, 5), 'UTC')).toBe('05/03/26');
+    expect(fmtMonthDayNum(3, 5)).toBe('05/03');
+    setDateOrder('MDY');
     expect(fmtFieldDate(D(2026, 3, 5))).toBe('03/05/2026');
+    expect(fmtDay(D(2026, 3, 5), true)).toBe('03/05/2026');
+    expect(fmtDate(D(2026, 3, 5), 'UTC')).toBe('03/05/26');
+    expect(fmtMonthDayNum(3, 5)).toBe('03/05');
     expect(fmtFieldDate(NaN)).toBe('');
   });
 

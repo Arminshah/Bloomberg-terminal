@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Section } from './cells';
+import { fmtDateTime } from '../core/format';
 import { checkResearchAccess, type ResearchCheck } from '../data/live/research-check';
 
 export function ResearchAccessCheck() {
@@ -26,7 +27,7 @@ export function ResearchAccessCheck() {
       {error && <p className="amber" role="status">{error}</p>}
     </div>
     {!!checks.length && <table className="tbl" aria-label={`Research access results for ${checkedSymbol}`}><thead><tr><th scope="col">Dataset · {checkedSymbol}</th><th scope="col">Result</th><th scope="col">Details</th><th scope="col">Response received</th></tr></thead><tbody>
-      {checks.map((check) => <tr key={check.dataset}><td className="white">{check.dataset}</td><td className={check.state === 'Answered' ? 'up' : 'amber'}>{check.state}</td><td>{check.detail}</td><td>{check.at ? new Date(check.at).toLocaleString() : '--'}</td></tr>)}
+      {checks.map((check) => <tr key={check.dataset}><td className="white">{check.dataset}</td><td className={check.state === 'Answered' ? 'up' : 'amber'}>{check.state}</td><td>{check.detail}</td><td>{check.at ? fmtDateTime(check.at) : '--'}</td></tr>)}
     </tbody></table>}
   </Section>;
 }

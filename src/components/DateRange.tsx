@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fmtFieldDate, parseFieldDate } from '../terminal/daterange';
+import { fieldDatePattern, fmtFieldDate, parseFieldDate } from '../terminal/daterange';
 
 function DateField({ value, label, onCommit }: { value: number; label: string; onCommit: (ms: number) => void }) {
   const shown = fmtFieldDate(value);
@@ -23,7 +23,7 @@ function DateField({ value, label, onCommit }: { value: number; label: string; o
     <input
       className={`inp range-date${bad ? ' bad' : ''}`}
       aria-label={label}
-      title={bad ? 'Type a date as MM/DD/YYYY' : `${label}: type a date and press Enter`}
+      title={bad ? `Type a date as ${fieldDatePattern()}` : `${label}: type a date as ${fieldDatePattern()} and press Enter`}
       value={text}
       size={10}
       onChange={(e) => setText(e.target.value)}

@@ -1,3 +1,4 @@
+import { setDateOrder, type DateOrder } from '../core/format';
 import { createStore } from '../core/store';
 
 export type ClickAction = 'auto' | 'PROFILE' | 'CHART' | 'QUOTE';
@@ -16,6 +17,8 @@ export interface Settings {
   tape: boolean;
   userName: string;
   mnemonics: boolean;
+  /** DD/MM/YYYY (European, the default) or MM/DD/YYYY, for every date shown or typed. */
+  dateOrder: DateOrder;
 }
 
 /** The single-file build runs where network requests are blocked; feeds start off there. */
@@ -36,10 +39,15 @@ export const settings = createStore<Settings>(
     tape: true,
     userName: 'TRADER',
     mnemonics: true,
+    dateOrder: 'DMY',
   },
   'settings',
   1,
 );
+
+// Dates follow the chosen order before anything renders with it.
+setDateOrder(settings.get().dateOrder === 'MDY' ? 'MDY' : 'DMY');
+settings.subscribe(() => setDateOrder(settings.get().dateOrder === 'MDY' ? 'MDY' : 'DMY'));
 
 // The click action saved by an earlier version names an old code.
 {
