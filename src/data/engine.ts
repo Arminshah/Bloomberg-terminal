@@ -60,6 +60,8 @@ interface State {
   prevCloseDay?: number;
   /** Real lines: whether the daily bars confirm `prevClose` (verified) or nothing has checked it yet (unverified). */
   chgCheck?: 'verified' | 'unverified';
+  /** `prevClose` is a futures settlement taken from the quote, not the daily bar's close. */
+  prevSettle?: boolean;
   volume: number;
   pair?: { base: string; quote: string };
   bond?: { terms: BondTerms; legs: { id: string; w: number }[]; spread: number; issueDay: number; issuer?: string; issuerRef?: number };
@@ -162,6 +164,8 @@ export interface PrevCloseReading {
   value: number;
   /** It matches the close of the previous daily bar (within 0.1%), so that bar's date is the session it closed. */
   verified: boolean;
+  /** A futures settlement: the exchange's price for the previous session, which the daily bar's last trade need not match. */
+  settlement?: boolean;
 }
 
 /**
@@ -176,7 +180,7 @@ export interface PrevCloseReading {
  * previous bar to check against, readings that agree are kept as unverified.
  * Undefined means the quote carried neither reading.
  */
-export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number, sessionOpen?: number): PrevCloseReading | undefined {
+export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number, sessionOpen?: number, futures?: { before: number }): PrevCloseReading | undefined {
   const ok = (x: number | undefined): x is number => x !== undefined && Number.isFinite(x) && x !== 0;
   const c = [field, implied].filter(ok);
   if (!c.length) return undefined;
@@ -184,6 +188,14 @@ export function resolvePrevClose(field: number | undefined, implied: number | un
   if (ok(histPrev)) {
     const best = c.length > 1 && rel(c[1], histPrev) < rel(c[0], histPrev) ? c[1] : c[0];
     if (rel(best, histPrev) <= 1e-3) return { value: best, verified: true };
+    // A future's previous close is the exchange's settlement, set at a fixed time, while the daily bar ends on
+    // the session's last trade (COMEX silver on 19 Oct 2026: settled 57.273, last bar close 56.974). After a roll
+    // the quote and its settlement are the new contract's while the bar is still the old one (WTI on 20 Oct 2026:
+    // December settled 98.54, the November bar 103.66). A settlement is used when the quote's readings agree,
+    // it is not the close of the session before (a lagging field), and it is within 20% of the bar.
+    if (futures && (c.length === 1 || rel(c[0], c[1]) <= 2e-4) && rel(c[0], histPrev) <= 0.2 && !(ok(futures.before) && rel(c[0], futures.before) <= 1e-4)) {
+      return { value: c[0], verified: true, settlement: true };
+    }
     // A market that trades through the change of day (currencies) opens where it closed, so the session's
     // open confirms readings that agree with each other when the daily bar cannot: Yahoo's currency bars
     // carry the close of the day before (EURUSD's bar for 13 Oct 2026 closed at 1.1160, its price at the
@@ -1224,6 +1236,7 @@ export class MarketEngine {
     if (st.ext) {
       if (st.prevCloseDay !== undefined) q.prevCloseDay = st.prevCloseDay;
       if (st.chgCheck) q.chgCheck = st.chgCheck;
+      if (st.prevSettle) q.prevSettle = true;
     }
     if (st.ext) q.fetched = st.ext.fetched;
     if (st.ext?.extended) q.extended = st.ext.extended;
@@ -1598,10 +1611,12 @@ export class MarketEngine {
     // for this session stays when the reloaded bar agrees.
     const before = bars.length > 1 ? bars[bars.length - 2] : undefined;
     // A currency's check rests on the session's open, not on the bar (see resolvePrevClose).
-    const kept = prev?.session === last.day && st.chgCheck === 'verified' && before !== undefined && (st.def.cls === 'fx' || Math.abs(st.prevClose / before.c - 1) <= 1e-3);
-    if (!(kept && st.def.cls === 'fx')) {
+    // So does a settlement the quote gave for the same session.
+    const kept = prev?.session === last.day && st.chgCheck === 'verified' && before !== undefined && (st.def.cls === 'fx' || !!st.prevSettle || Math.abs(st.prevClose / before.c - 1) <= 1e-3);
+    if (!(kept && (st.def.cls === 'fx' || st.prevSettle))) {
       st.prevClose = before ? before.c : NaN;
       st.prevCloseDay = before?.day;
+      st.prevSettle = false;
     }
     // A once-a-day official series has no quote to check against: its change is between two values the same
     // publisher gave for consecutive dates, which is what the change means.
@@ -1676,15 +1691,18 @@ export class MarketEngine {
     // leaves what it does not carry as it was, and does not undo a check already made for this session.
     const histPrev = n > 0 ? s.c[n - 1] : NaN;
     const histDay = n > 0 ? dayNum(s.t[n - 1]) : undefined;
-    const reading = resolvePrevClose(q.prevClose, q.prevCloseAlt, histPrev, st.def.cls === 'fx' ? q.open : undefined);
+    const futures = st.def.cls === 'future' || st.def.cls === 'commodity' ? { before: n > 1 ? s.c[n - 2] : NaN } : undefined;
+    const reading = resolvePrevClose(q.prevClose, q.prevCloseAlt, histPrev, st.def.cls === 'fx' ? q.open : undefined, futures);
     if (reading && (reading.verified || q.full || newSession || st.chgCheck !== 'verified')) {
       st.prevClose = reading.value;
       st.prevCloseDay = reading.verified ? histDay : undefined;
       st.chgCheck = reading.verified ? 'verified' : 'unverified';
+      st.prevSettle = !!reading.settlement;
     } else if (!reading && newSession) {
       st.prevClose = histPrev;
       st.prevCloseDay = histDay;
       st.chgCheck = 'unverified';
+      st.prevSettle = false;
     }
     st.dayOpen = s.o[n];
     st.dayHigh = s.h[n];

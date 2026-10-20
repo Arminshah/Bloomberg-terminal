@@ -15,6 +15,7 @@ import { CURRENCY_INFO } from '../data/universe';
 import { useGroupedRows, useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
 import { GroupRow, RowNo, useCollapsed } from '../components/Numbered';
 import type { FnProps } from '../terminal/types';
+import type { SecurityDef } from '../data/types';
 
 /** FXMATRIX's currencies, in the order of its rows and columns. */
 export const FX_MATRIX = ['USD', 'EUR', 'JPY', 'GBP', 'CHF', 'CAD', 'AUD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'CNH', 'HKD', 'SGD'];
@@ -281,6 +282,15 @@ export function CRYP({ sec }: FnProps) {
 
 const GROUPS = ['Energy', 'Precious Metals', 'Base Metals', 'Grains', 'Softs', 'Livestock'];
 
+/** Each generic contract's commodity, as the monitor names it. */
+const GLCO_NAMES: Record<string, string> = {
+  CL1: 'WTI Crude', CO1: 'Brent Crude', NG1: 'Natural Gas', HO1: 'Heating Oil', XB1: 'RBOB Gasoline',
+  GC1: 'Gold', SI1: 'Silver', PL1: 'Platinum', PA1: 'Palladium', HG1: 'Copper',
+  'W 1': 'Wheat', 'C 1': 'Corn', 'S 1': 'Soybeans', KC1: 'Coffee', SB1: 'Sugar No. 11', CC1: 'Cocoa', CT1: 'Cotton',
+  LC1: 'Live Cattle', LH1: 'Lean Hogs', FC1: 'Feeder Cattle',
+};
+const glcoName = (d: SecurityDef) => GLCO_NAMES[d.ticker] ?? (d.alias?.[0] ? d.alias[0].charAt(0) + d.alias[0].slice(1).toLowerCase() : d.name);
+
 export function GLCO(_: FnProps) {
   const panel = usePanelId();
   useTick(1);
@@ -326,7 +336,7 @@ export function GLCO(_: FnProps) {
                         {d.ticker}
                       </SecLink>
                     </td>
-                    <td className="hide-m">{d.alias?.[0] ? d.alias[0].charAt(0) + d.alias[0].slice(1).toLowerCase() : d.name}</td>
+                    <td className="hide-m">{glcoName(d)}</td>
                     <td className="num white">
                       <LivePx id={d.id} />
                     </td>

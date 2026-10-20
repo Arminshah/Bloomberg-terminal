@@ -6,7 +6,7 @@ import {
   parseFinraShort, parseNasdaqHoldings, parseNasdaqRatings, parseNasdaqShort, parseNasdaqSummary, parseNasdaqTarget,
 } from '../src/data/live/nasdaq-company';
 import { parseAvEstimates, parseAvReports } from '../src/data/live/alphavantage';
-import { datedHistory, fiscalLabel, mergeConsensus } from '../src/data/live/consensus';
+import { datedHistory, fiscalLabel, mergeConsensus, missingRevenueHint } from '../src/data/live/consensus';
 import { earningsReleases, type Filing } from '../src/data/live/sec';
 import { lastFiscalYearEnd } from '../src/data/live/yfund';
 import nasdaq from './fixtures/nasdaq-aapl.json';
@@ -136,6 +136,21 @@ describe("Alpha Vantage's earnings and estimates (the owner's key)", () => {
     expect(c.next).toMatchObject({ end: '2026-09-30', label: 'Q3 2026' });
     expect(c.next!.rev.est).toBeCloseTo(16842959380, -3);
     expect(c.following?.end).toBe('2026-12-31');
+  });
+
+  it("keeps the estimate for a fast grower whose revenue came in far above it", () => {
+    // 2.5 times the estimate (a small company's surprise) is still the same basis; ten times is not.
+    const statements = (x: number) => [{ end: day('2026-06-30'), rev: (17178737000 * x) / 1e6 }] as never;
+    const beat = mergeConsensus({ av: { reports, estimates }, statements: statements(2.5), statementCcy: 'USD', fye: 12, now: day('2026-10-20') });
+    expect(beat.past.find((q) => q.end === '2026-06-30')!.rev.estFrom).toBe('Alpha Vantage');
+    const other = mergeConsensus({ av: { reports, estimates }, statements: statements(10), statementCcy: 'USD', fye: 12, now: day('2026-10-20') });
+    expect(other.past.find((q) => q.end === '2026-06-30')!.rev.est).toBeNaN();
+  });
+
+  it('says which key fills past quarters without an expected revenue', () => {
+    const q = (est: number) => ({ end: '2026-06-30', label: 'Q2 2026', eps: { est: NaN, low: NaN, high: NaN, analysts: NaN, actual: NaN }, rev: { est, low: NaN, high: NaN, analysts: NaN, actual: 5e7 } });
+    expect(missingRevenueHint([q(NaN), q(4e7)], undefined)).toMatch(/1 of 2 reported quarters.*ALPHA_VANTAGE_API_KEY/);
+    expect(missingRevenueHint([q(4e7)], undefined)).toBeUndefined();
   });
 
   it('leaves revenue estimates out for a company reporting in another currency', () => {

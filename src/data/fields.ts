@@ -68,10 +68,14 @@ export function securityFields(sec: SecurityDef, q: Quote | undefined, now: numb
   market('PX_HIGH', 'Session high', 'High of the source session; the time shown belongs to the source snapshot, not the high event.', q?.high);
   market('PX_LOW', 'Session low', 'Low of the source session; the time shown belongs to the source snapshot, not the low event.', q?.low);
   market('PX_PREV_CLOSE', 'Previous close', 'Source previous close, checked against a prior daily bar when available. Unverified bases remain labelled.', q?.prevClose, {
-    status: q?.src === 'SIM' ? 'DEMO DATA' : q?.chgCheck === 'verified' ? 'VERIFIED CLOSE' : 'UNVERIFIED BASE',
+    status: q?.src === 'SIM' ? 'DEMO DATA' : q?.chgCheck === 'verified' ? (q.prevSettle ? 'SETTLEMENT' : 'VERIFIED CLOSE') : 'UNVERIFIED BASE',
     asOf: timestamp(q?.prevCloseDay === undefined ? undefined : q.prevCloseDay * DAY_MS), dateOnly: true,
     timeBasis: 'Date of the previous daily close, if verified by the engine.',
-    note: q?.chgCheck === 'verified' ? 'The source previous close agrees with the prior daily bar.' : 'A matching prior daily close has not been established.',
+    note: q?.chgCheck === 'verified'
+      ? q.prevSettle
+        ? "The exchange's settlement for the previous session, as the quote gives it; the daily bar ends on the last trade (or, after a roll, the previous contract) and can differ."
+        : 'The source previous close agrees with the prior daily bar.'
+      : 'A matching prior daily close has not been established.',
   });
   const change: Partial<FieldValue> = q?.src !== 'SIM' && q?.chgCheck !== 'verified' ? { status: `${status} · UNVERIFIED BASE`, note: `${base.note} The source previous close has not been verified against a daily bar; this change is provisional.` } : {};
   market('CHG_NET_1D', 'Day net change', 'Last minus previous close in price units; yield references use percentage points, not basis points.', q?.chg, { unit: sec.quote === 'yield' ? 'percentage points' : sec.ccy, ...change });

@@ -13,7 +13,7 @@ import { setFeed } from './status';
 import { YahooStream, type Tick } from './ystream';
 import { TREASURY_IDS, treasuryAvailable } from './ust';
 import { krakenOwns, whenKrakenHandsBack } from './kraken';
-import { iexOwns } from './iex-engine';
+import { iexOwns, setIexBackfill } from './iex-engine';
 import { registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
@@ -102,7 +102,7 @@ export function yahooSymbolFor(d: SecurityDef): string | undefined {
 function targets(): Target[] {
   const out: Target[] = [];
   for (const d of engine.securities) {
-    if (iexOwns(d.id)) continue;
+    // IEX-owned stocks are listed too: their daily history before IEX's own bars comes from here.
     const symbol = yahooSymbolFor(d);
     if (symbol) out.push({ id: d.id, symbol, invert: false, allDays: d.cls === 'crypto' });
   }
@@ -660,7 +660,7 @@ class YahooData {
       this.register(t);
       fresh.push(t);
     }
-    this.stream?.subscribe([...new Set(fresh.map((t) => t.symbol))]);
+    this.stream?.subscribe([...new Set(fresh.filter((t) => !iexOwns(t.id)).map((t) => t.symbol))]);
     // Lines on screen first, then watchlists, then everything else.
     const shown = new Set<string>();
     for (const p of terminal.get().panels) for (const r of p.history) if (r.sec) shown.add(r.sec);
@@ -684,7 +684,10 @@ class YahooData {
     // Company/dividend data can be shared; the selected venue owns all price history.
     realDividends.set(id, dividends);
     realSplits.set(id, splits);
-    if (iexOwns(id)) return;
+    if (iexOwns(id)) {
+      setIexBackfill(id, bars);
+      return;
+    }
     const t: Target = { id, symbol, invert: false, allDays: engine.get(id)?.cls === 'crypto' };
     this.register(t);
     this.stream?.subscribe([symbol]);
@@ -734,8 +737,16 @@ class YahooData {
   }
 
   private applyHistory(t: Target, bars: ExtBar[], dividends: Dividend[], splits: Split[]) {
-    if (iexOwns(t.id)) return;
     this.historyFailed.delete(t.id);
+    if (iexOwns(t.id)) {
+      // Earlier days only: IEX keeps the last price, the previous close and today's bar.
+      realDividends.set(t.id, dividends);
+      realSplits.set(t.id, splits);
+      this.loaded.add(t.id);
+      setIexBackfill(t.id, bars);
+      this.status();
+      return;
+    }
     engine.setExternalDaily(t.id, bars, { provider: YAHOO_PROVIDER });
     realDividends.set(t.id, dividends);
     realSplits.set(t.id, splits);
@@ -777,7 +788,7 @@ class YahooData {
   /** One round of quote requests, 50 symbols each: how many symbols were asked for and how many answered. */
   private async pollOnce(): Promise<{ ok: number; asked: number }> {
     this.sync();
-    const all = [...this.bySymbol.keys()].filter((sym) => this.bySymbol.get(sym)!.length);
+    const all = [...this.bySymbol.keys()].filter((sym) => this.bySymbol.get(sym)!.some((t) => !iexOwns(t.id)));
     const changed: string[] = [];
     let ok = 0;
     for (let i = 0; i < all.length; i += 50) {

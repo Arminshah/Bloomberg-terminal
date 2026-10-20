@@ -171,6 +171,8 @@ export interface Quote {
    * makes `chg` and `pct` NaN.
    */
   chgCheck?: 'verified' | 'unverified';
+  /** `prevClose` is the exchange's settlement for a future (from the quote), which the daily bar's close need not match. */
+  prevSettle?: boolean;
   /** The market's session as the source states it, apart from how fresh the data is; unset when not known. */
   session?: 'open' | 'pre' | 'post' | 'overnight' | 'closed';
   /** The exchange's time zone (IANA name), when the source gives it. */

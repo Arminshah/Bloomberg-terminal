@@ -132,7 +132,7 @@ export function ExpectationsTable({ c }: { c: Consensus }) {
                 <td className={`num ${ve.cls}`}>{ve.text || '--'}</td>
                 {hasRev ? (
                   <>
-                    <td className="num">{rev(q.rev.est)}</td>
+                    <td className="num" title={ok(q.rev.est) ? q.rev.estFrom : ok(q.rev.actual) ? c.revenueHint : undefined}>{rev(q.rev.est)}</td>
                     <td className="num white">{rev(q.rev.actual)}</td>
                     <td className={`num ${vr.cls}`}>{vr.text || '--'}</td>
                   </>
@@ -142,6 +142,7 @@ export function ExpectationsTable({ c }: { c: Consensus }) {
           })}
         </tbody>
       </table>
+      {hasRev && c.revenueHint ? <div className="note amber">{c.revenueHint}</div> : null}
       {c.past.some((q) => q.alternativeEps) ? (
         <details className="note">
           <summary>Other provider EPS comparisons (reporting bases can differ)</summary>

@@ -31,9 +31,30 @@ const nonnegative = (n: number) => Number.isFinite(n) && n >= 0;
 const known = (n: number) => positive(n) ? n : NaN;
 
 /**
- * The snapshot supplies only its previous/current daily bars. We deliberately give up Yahoo's
- * long history in this mode: putting an IEX last over consolidated OHLCV or previous close
- * would make both the chart and day change describe two different markets.
+ * Consolidated daily bars (Yahoo) for the days before IEX's own bars. Without them a chart, the
+ * 52-week range and period returns would rest on two sessions. The last price, the previous close
+ * and the day's change stay IEX's: only days IEX's snapshot does not cover are taken from here.
+ */
+const backfill = new Map<string, ExtBar[]>();
+const backfillListeners = new Set<() => void>();
+
+export function setIexBackfill(id: string, bars: ExtBar[]) {
+  if (!bars.length) return;
+  backfill.set(id, bars);
+  for (const fn of backfillListeners) fn();
+}
+
+/** Earlier days from `earlier`, strictly before IEX's first bar; IEX's own bars unchanged. */
+export function withBackfill(earlier: readonly ExtBar[] | undefined, own: ExtBar[]): ExtBar[] {
+  if (!earlier?.length || !own.length) return own;
+  const first = own[0].day;
+  const before = earlier.filter((b) => b.day < first && Number.isFinite(b.c) && b.c > 0);
+  return before.length ? [...before, ...own] : own;
+}
+
+/**
+ * The snapshot supplies only its previous/current daily bars; earlier days come from
+ * withBackfill. Neither the previous close nor today's bar is ever taken from another venue.
  */
 export function iexReading(state: IexState, now = Date.now()): { bars: ExtBar[]; quote: ExtQuote; stale: boolean } | null {
   const d = state.data;
@@ -107,14 +128,15 @@ export function startIexPrices(): () => void {
       }
       received++;
       if (!reading.stale) recent++;
-      const key = `${reading.stale}:${Number.isFinite(reading.quote.bid)}:${Number.isFinite(reading.quote.ask)}`;
+      const earlier = backfill.get(id);
+      const key = `${reading.stale}:${Number.isFinite(reading.quote.bid)}:${Number.isFinite(reading.quote.ask)}:${earlier?.length ?? 0}`;
       if (seen.get(id) === state && freshness.get(id) === key) continue;
       seen.set(id, state);
       freshness.set(id, key);
       const old = engine.quote(id);
       // Cached or out-of-order answers cannot move the last trade backwards.
       if (old?.provider === IEX_PROVIDER && old.time > reading.quote.time) continue;
-      engine.setExternalDaily(id, reading.bars, { provider: IEX_PROVIDER });
+      engine.setExternalDaily(id, withBackfill(earlier, reading.bars), { provider: IEX_PROVIDER });
       engine.setExternalQuote(id, reading.quote);
       engine.setStale([id], reading.stale);
       const day = reading.quote.day!;
@@ -149,6 +171,7 @@ export function startIexPrices(): () => void {
   };
   const offIex = iex.subscribe(apply);
   const offEngine = engine.subscribe(sync);
+  backfillListeners.add(apply);
   sync();
   apply();
   // Reevaluate event age even when requests stop, so recent data never stays labelled real time.
@@ -158,6 +181,7 @@ export function startIexPrices(): () => void {
     clearInterval(timer);
     offIex();
     offEngine();
+    backfillListeners.delete(apply);
     for (const release of releases.values()) release();
   };
 }

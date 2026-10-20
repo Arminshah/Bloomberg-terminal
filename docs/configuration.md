@@ -53,7 +53,7 @@ The aliases `MARKETAUX_API_KEY`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `APCA_AP
 | `EURONEXT_RSS_ENABLED` | on | Euronext's feed of the latest company press releases on `MARKETNEWS`. |
 | `GOOGLE_NEWS_RSS_ENABLED` | on | Google News's search for the day's market news on `MARKETNEWS` (US and UK editions), and for the stock on screen in its market's languages on `COMPANYNEWS` and `QUOTE`. No key. Google's feeds are for a personal feed reader, for personal, non-commercial use. |
 | `MASSIVE_NEWS_ENABLED` | on | Massive's market and ticker news, while `MASSIVE_API_KEY` is set. Off leaves Massive's 5 calls a minute to `CROSSCHECK`. |
-| `ALPACA_IEX_PRICES_ENABLED` | off | Use Alpaca IEX-only prices for US equities in watchlists and panels. Both keys and `ALPACA_ENABLED` are required. Reload to apply. Daily history is limited to previous/current IEX bars; intraday history contains snapshots observed while the app is open. Yahoo price history is kept separate. |
+| `ALPACA_IEX_PRICES_ENABLED` | off | Use Alpaca IEX-only prices for US equities in watchlists and panels. Both keys and `ALPACA_ENABLED` are required. Reload to apply. The last price, previous close and the latest two daily bars are IEX's; earlier days on charts and in 52-week or period figures are consolidated daily bars from Yahoo. Intraday history contains snapshots observed while the app is open. |
 | `FMP_ENABLED`, `FINNHUB_ENABLED`, `MARKETAUX_ENABLED`, `ALPACA_ENABLED`, `TIINGO_ENABLED` | on | Each keyed source added in 2.1.0 is used while its key is set; its switch off stops every request to it. |
 | `DEMO_MODE` | off | Browser build only, set when building: opens straight into the demo, whose every value is simulated and marked DEMO DATA. The desktop app never runs the demo. |
 

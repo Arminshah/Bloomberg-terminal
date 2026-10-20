@@ -72,6 +72,8 @@ export interface Consensus {
   loading: boolean;
   /** The company's earnings releases filed with the SEC (8-K item 2.02), newest first, when loaded. */
   releases?: EarningsRelease[];
+  /** Why reported quarters have no expected revenue, when a source could give it. */
+  revenueHint?: string;
 }
 
 const NONE: Expectation = { est: NaN, low: NaN, high: NaN, analysts: NaN, actual: NaN };
@@ -395,7 +397,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     // Alpha Vantage's estimate of the quarter's revenue (US listings reporting in dollars), when it is of the same
     // order as the reported figure: a wider gap means another basis or currency.
     const ae = avQuarter(i.av, q.end);
-    if (ae && !ok(q.rev.est) && ok(ae.revEst) && avRevenue && (!ok(q.rev.actual) || (q.rev.actual / ae.revEst > 0.5 && q.rev.actual / ae.revEst < 2))) {
+    if (ae && !ok(q.rev.est) && ok(ae.revEst) && avRevenue && (!ok(q.rev.actual) || (q.rev.actual / ae.revEst > 0.25 && q.rev.actual / ae.revEst < 4))) {
       q.rev = { ...q.rev, est: ae.revEst, low: ae.revLow, high: ae.revHigh, analysts: ae.revAnalysts, estFrom: 'Alpha Vantage' };
     }
     // The report date and session from the company's own 8-K (results of operations), the first one filed in the
@@ -715,7 +717,23 @@ export function consensusFor(def: SecurityDef): Consensus {
   }
   const loading = !e || e.state === 'loading' || ['earnings', 'history'].some((k) => fparts?.[k as 'earnings']?.state === 'loading');
   const releases = secReleaseData.get().by[secTicker(def) ?? ''];
-  return { ...merged, problems, loading, ...(releases ? { releases } : {}) };
+  const revenueHint = missingRevenueHint(merged.past, avSymbol(def) ? alphaVantageData.get().by[avSymbol(def)!] : undefined);
+  return { ...merged, problems, loading, ...(releases ? { releases } : {}), ...(revenueHint ? { revenueHint } : {}) };
+}
+
+/**
+ * Yahoo drops a quarter's revenue estimate once the quarter is reported, and no source without a key keeps
+ * earlier ones. Says which key fills them, or what Alpha Vantage answered.
+ */
+export function missingRevenueHint(past: QuarterView[], av: { state: string; message?: string } | undefined): string | undefined {
+  const shown = past.slice(0, 8);
+  const missing = shown.filter((q) => ok(q.rev.actual) && !ok(q.rev.est)).length;
+  if (!missing) return undefined;
+  const quarters = `${missing} of ${shown.length} reported quarters have no expected revenue`;
+  if (!alphaVantageAvailable() || !av || av.state === 'needs-key') return `${quarters}: Yahoo drops a quarter's revenue estimate once it is reported. Set ALPHA_VANTAGE_API_KEY (free) on PROVIDERS to fill past quarters' expected revenue.`;
+  if (av.state === 'loading') return undefined;
+  if (av.state === 'error') return `${quarters}. Alpha Vantage: ${av.message ?? 'no answer'}`;
+  return `${quarters}: Alpha Vantage gives no estimate for them.`;
 }
 
 /** The stocks open screens show, with whether Finnhub is asked for them, for the top bar's REFRESH. */

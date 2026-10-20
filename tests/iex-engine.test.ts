@@ -5,7 +5,7 @@ import { engine } from '../src/data/market';
 import { rangeStats } from '../src/data/analytics';
 import { freshnessOf, isOfficialProvider } from '../src/data/freshness';
 import { iex, type IexSnapshot, type IexState } from '../src/data/live/alpaca';
-import { IEX_PROVIDER, iexDay, iexOwns, iexPricesEnabled, iexReading, startIexPrices } from '../src/data/live/iex-engine';
+import { IEX_PROVIDER, iexDay, iexOwns, iexPricesEnabled, iexReading, startIexPrices, withBackfill } from '../src/data/live/iex-engine';
 import { adoptYahooHistory, realDividends, startYahooData, trailingDividendYield, yahooSymbolFor } from '../src/data/live/yahoo';
 
 const NOW = Date.parse('2026-10-14T15:00:00Z');
@@ -116,7 +116,7 @@ describe('IEX lines in the market engine', () => {
     expect(Array.from(e.daily(ID).c).slice(0, e.daily(ID).length)).toEqual([99, 101]);
   });
 
-  it('publishes app-wide prices and observed samples, ages them out, and rejects Yahoo adoption', async () => {
+  it('publishes app-wide prices and observed samples, ages them out, and takes only earlier days from Yahoo', async () => {
     const yahoo = vi.fn(async (_path: string) => ({ status: 200, data: null }));
     window.arminDesktop!.yahoo = yahoo;
     vi.stubGlobal('WebSocket', class { constructor() { throw new Error('disabled in this test'); } });
@@ -137,11 +137,19 @@ describe('IEX lines in the market engine', () => {
     expect(trailingDividendYield(ID)).toBeNaN();
 
     stops.push(startYahooData());
-    adoptYahooHistory(ID, 'AAPL', [{ day, o: 999, h: 999, l: 999, c: 999, v: 9e9 }]);
+    // Yahoo's bars for IEX's own sessions (yesterday and today) are ignored; earlier days fill the history.
+    adoptYahooHistory(ID, 'AAPL', [
+      { day: day - 3, o: 90, h: 120, l: 85, c: 95, v: 9e7 },
+      { day: day - 1, o: 999, h: 999, l: 999, c: 999, v: 9e9 },
+      { day, o: 999, h: 999, l: 999, c: 999, v: 9e9 },
+    ]);
     await Promise.resolve();
     expect(engine.quote(ID)?.provider).toBe(IEX_PROVIDER);
     expect(engine.quote(ID)?.last).toBe(101.5);
-    expect(yahoo.mock.calls.some((args) => String(args[0]).includes('/chart/AAPL?'))).toBe(false);
+    expect(engine.quote(ID)?.prevClose).toBe(99);
+    const daily = engine.daily(ID);
+    expect(Array.from(daily.c).slice(0, daily.length)).toEqual([95, 99, 101.5]);
+    expect(rangeStats(ID).hi52).toBe(120);
 
     // The shared transport can keep answering, but the trade's own time ages independently.
     vi.setSystemTime(NOW + 95_000);
@@ -149,5 +157,19 @@ describe('IEX lines in the market engine', () => {
     expect(engine.quote(ID)?.src).toBe('STALE');
     expect(engine.quote(ID)?.bid).toBeNaN();
     expect(engine.quote(ID)?.time).toBe(NOW + 29_000);
+  });
+});
+
+describe('IEX history backfill', () => {
+  it('keeps IEX bars and takes only strictly earlier, positive consolidated days', () => {
+    const own = [{ day: 10, o: 1, h: 1, l: 1, c: 1, v: 1 }, { day: 11, o: 2, h: 2, l: 2, c: 2, v: 2 }];
+    const earlier = [
+      { day: 7, o: 5, h: 5, l: 5, c: 0, v: 5 },
+      { day: 8, o: 5, h: 5, l: 5, c: 5, v: 5 },
+      { day: 10, o: 9, h: 9, l: 9, c: 9, v: 9 },
+    ];
+    expect(withBackfill(earlier, own).map((b) => [b.day, b.c])).toEqual([[8, 5], [10, 1], [11, 2]]);
+    expect(withBackfill(undefined, own)).toBe(own);
+    expect(withBackfill(earlier, [])).toEqual([]);
   });
 });

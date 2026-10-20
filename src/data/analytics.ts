@@ -70,8 +70,9 @@ export interface RangeStats {
 const statsCache = new Map<string, { key: string; v: RangeStats }>();
 
 export function rangeStats(id: string): RangeStats {
-  // The opt-in IEX snapshot source has two daily bars, not a 30/90/260-day or 52-week record.
-  if (engine.quote(id)?.provider === IEX_PROVIDER) {
+  // The opt-in IEX snapshot source has two daily bars of its own; without earlier consolidated days
+  // there is no 30/90/260-day or 52-week record.
+  if (engine.quote(id)?.provider === IEX_PROVIDER && engine.daily(id).length < 3) {
     return { hi52: NaN, lo52: NaN, hi52t: NaN, lo52t: NaN, avgVol30: NaN, vol30: NaN, vol90: NaN, vol260: NaN };
   }
   const s = engine.daily(id);

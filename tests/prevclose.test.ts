@@ -34,6 +34,18 @@ describe('previous close: Yahoo field against the change it implies', () => {
     expect(resolvePrevClose(0, NaN, 100)).toBeUndefined();
   });
 
+  it("takes a future's settlement over the bar's last trade, and the new contract's after a roll", () => {
+    // COMEX silver on 20 Oct 2026: settled 57.273 on the 19th; Yahoo's bar for the 19th closed at 56.974.
+    expect(resolvePrevClose(57.273, undefined, 56.974, undefined, { before: 56.995 })).toEqual({ value: 57.273, verified: true, settlement: true });
+    // WTI after the roll: December settled 98.54; the bar for the 19th is November's 103.66.
+    expect(resolvePrevClose(98.54, undefined, 103.66, undefined, { before: 101.41 })?.value).toBe(98.54);
+    // A field that lags a session (it is the close before the previous one) is not a settlement.
+    expect(resolvePrevClose(101.41, undefined, 103.66, undefined, { before: 101.41 })?.value).toBeNaN();
+    // Readings that disagree with each other still give none (lean hogs after the roll), and nor does a far one.
+    expect(resolvePrevClose(68.375, 68.35 - 0.5250015, 75.05, undefined, { before: 74 })?.value).toBeNaN();
+    expect(resolvePrevClose(50, undefined, 103.66, undefined, { before: 101.41 })?.value).toBeNaN();
+  });
+
   it('gives no previous close when the bars contradict every reading, however many agree', () => {
     expect(choosePrevClose(100, 100.01, 90)).toBeNaN();
     // A single stale reading (two sessions old) is not used against the bar.

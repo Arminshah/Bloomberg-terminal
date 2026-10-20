@@ -53,7 +53,7 @@ const NO_PREV = "No verified previous close: the source's readings disagree with
 function prevTitle(q: Quote, dec: number): string | undefined {
   if (q.chgCheck !== 'verified' || !Number.isFinite(q.prevClose)) return undefined;
   const on = q.prevCloseDay !== undefined ? ` of ${fmtDay(q.prevCloseDay * DAY_MS)}` : '';
-  return `Against the close${on}: ${fmtNum(q.prevClose, dec)}`;
+  return `Against the ${q.prevSettle ? 'settlement' : 'close'}${on}: ${fmtNum(q.prevClose, dec)}`;
 }
 
 /**
