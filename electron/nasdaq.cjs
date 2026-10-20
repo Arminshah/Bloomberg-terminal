@@ -19,6 +19,20 @@ function nasdaqCalendarRequest(date, now = Date.now()) {
   return { url: `https://api.nasdaq.com/api/calendar/earnings?date=${date}`, ttl, headers: { Accept: 'application/json, text/plain, */*' } };
 }
 
+/**
+ * One day's economic calendar from Nasdaq's site (no key): every country's releases with the time (GMT), the actual
+ * value, the consensus and the previous value, as Nasdaq's partner publishes them.
+ */
+function nasdaqEconomicRequest(date, now = Date.now()) {
+  if (typeof date !== 'string' || !ISO.test(date)) return null;
+  const t = Date.parse(`${date}T00:00:00Z`);
+  if (!Number.isFinite(t) || new Date(t).toISOString().slice(0, 10) !== date) return null;
+  if (t < now - 120 * DAY || t > now + 60 * DAY) return null;
+  // Settled days are kept a week; today and the days around it a quarter of an hour, as values arrive.
+  const ttl = t < now - 3 * DAY ? 7 * DAY : t > now + 2 * DAY ? 6 * HOUR : 15 * 60_000;
+  return { url: `https://api.nasdaq.com/api/calendar/economicevents?date=${date}`, ttl, headers: { Accept: 'application/json, text/plain, */*' } };
+}
+
 /** Every US-listed stock with its market value, sector and country: the stock screener's full list, kept a day. */
 function nasdaqScreenerRequest() {
   return { url: 'https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=10000&offset=0&download=true', ttl: 24 * HOUR, headers: { Accept: 'application/json, text/plain, */*' } };
@@ -84,4 +98,4 @@ function finraShortRequest(symbol, now = Date.now()) {
   return { url: 'https://api.finra.org/data/group/otcMarket/name/consolidatedShortInterest', ttl: 12 * HOUR, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body };
 }
 
-module.exports = { finraShortRequest, nasdaqCalendarRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };
+module.exports = { finraShortRequest, nasdaqCalendarRequest, nasdaqEconomicRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };

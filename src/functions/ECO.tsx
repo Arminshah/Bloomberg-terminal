@@ -15,6 +15,7 @@ import { FRED_NOTICE, FRED_TERMS_URL } from '../data/macroseries';
 import { RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { levelOn, policyRates } from '../data/live/policy';
+import { ecoNumber, nasdaqEcoAvailable, useNasdaqEco } from '../data/live/nasdaq-eco';
 import { COMPUTED_GROWTH, COUNTRY_STATS, EUROSTAT_MEMBERS, figurePeriod, figureStatus, fredData, US_EVENTS, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
 
 const COUNTRIES = ['US', 'EZ', 'DE', 'GB', 'JP', 'CN', 'CA', 'AU'];
@@ -58,6 +59,11 @@ export function ECO(_: FnProps) {
   const all = useMemo(() => ecoEvents(start, start + 7 * DAY_MS, now), [start, Math.floor(now / 30_000)]); // eslint-disable-line react-hooks/exhaustive-deps
   const events = all.filter((e) => ctry.includes(e.country) && e.relevance >= minRel);
   const next = ecoEvents(now - DAY_MS, now + 14 * DAY_MS, now).find((e) => e.relevance >= 3 && (e.date ? e.date > today || (e.date === today && e.actual == null) : e.time > now));
+  // The desktop app's calendar comes from Nasdaq's (every country, times, consensus); FRED's when Nasdaq has nothing.
+  const nq = useNasdaqEco(start, 7, now);
+  if (real && desktopData() && nasdaqEcoAvailable() && (nq.any || nq.loading)) {
+    return <NasdaqEcoCalendar week={week} setWeek={setWeek} nq={nq} now={now} minRel={minRel} setMinRel={setMinRel} />;
+  }
   // As on the terminal's agenda, each line carries its own date; days alternate in shade instead of heading groups.
   let lastDay = '';
   let band = 0;
@@ -204,6 +210,107 @@ export function ECO(_: FnProps) {
         </tbody>
       </table>
       {real ? <FredNotice /> : null}
+    </div>
+  );
+}
+
+const ECO_COUNTRIES = ['US', 'EZ', 'DE', 'FR', 'IT', 'GB', 'JP', 'CN', 'CA', 'AU', 'CH'];
+
+/** ECO on Nasdaq's calendar: every country's releases with the time, the consensus, the actual and the prior value. */
+function NasdaqEcoCalendar({ week, setWeek, nq, now, minRel, setMinRel }: { week: number; setWeek: (n: number) => void; nq: ReturnType<typeof useNasdaqEco>; now: number; minRel: number; setMinRel: (n: number) => void }) {
+  const [ctry, setCtry] = useState<string[]>(ECO_COUNTRIES);
+  const [others, setOthers] = useState(false);
+  const events = nq.events.filter((e) => (ctry.includes(e.country) || (others && !ECO_COUNTRIES.includes(e.country))) && e.relevance >= minRel);
+  const next = nq.events.find((e) => e.relevance >= 3 && e.time > now && (ctry.includes(e.country) || others));
+  let lastDay = '';
+  let band = 0;
+  return (
+    <div>
+      <FnHeader
+        code="RELEASES"
+        title="Economic Calendar"
+        sub={<>Times in your display time zone · <RealBadge /> releases, consensus (Surv), actual and prior values from Nasdaq&apos;s economic calendar</>}
+        tabs={[
+          { n: 1, label: 'Last week' },
+          { n: 2, label: 'This week' },
+          { n: 3, label: 'Next week' },
+        ]}
+        tab={week}
+        onTab={setWeek}
+      />
+      <div className="chart-tools">
+        {ECO_COUNTRIES.map((c) => (
+          <button key={c} type="button" className={`chip-btn${ctry.includes(c) ? ' on' : ''}`} style={ctry.includes(c) ? { background: 'var(--amber)' } : undefined} onClick={() => setCtry(ctry.includes(c) ? ctry.filter((x) => x !== c) : [...ctry, c])}>
+            {c}
+          </button>
+        ))}
+        <button type="button" className={`chip-btn${others ? ' on' : ''}`} style={others ? { background: 'var(--amber)' } : undefined} onClick={() => setOthers(!others)} title="Every other country Nasdaq lists">
+          Other
+        </button>
+        <span className="seg" role="group" aria-label="Relevance">
+          {[1, 2, 3].map((r) => (
+            <button key={r} type="button" className={minRel === r ? 'on' : ''} onClick={() => setMinRel(r)}>
+              {'●'.repeat(r)}+
+            </button>
+          ))}
+        </span>
+        {next && (
+          <span>
+            <span className="amber">Next key release</span> {next.country} {next.name} in <span className="white b">{countdown(next.time - now)}</span>
+          </span>
+        )}
+        {nq.loading ? <span className="amber">loading…</span> : null}
+      </div>
+      <table className="tbl eco">
+        <thead>
+          <tr>
+            <th>Date Time</th>
+            <th title="Country">C</th>
+            <th>Event</th>
+            <th className="num" title="Survey: the consensus forecast">Surv(M)</th>
+            <th className="num">Actual</th>
+            <th className="num">Prior</th>
+            <th className="hide-m" title="Relevance, from the kind of release">R</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.length === 0 && (
+            <tr>
+              <td colSpan={7} className="empty">{nq.loading ? "Loading Nasdaq's economic calendar…" : 'No events for the selected filters.'}</td>
+            </tr>
+          )}
+          {events.map((e) => {
+            const p = zonedParts(e.time);
+            const dayKey = `${p.y}-${p.mo}-${p.d}`;
+            if (dayKey !== lastDay) band++;
+            lastDay = dayKey;
+            const a = ecoNumber(e.actual);
+            const c = ecoNumber(e.consensus);
+            const diff = Number.isFinite(a) && Number.isFinite(c) ? a - c : 0;
+            const ahead = e.time > now && !e.actual;
+            const soon = ahead && e.time - now < 3600_000;
+            return (
+              <tr key={e.id} className={`${band % 2 ? 'eco-band' : ''}${ahead ? ' eco-ahead' : ''}`} title={e.description || undefined}>
+                <td className={soon ? 'yellow b' : undefined}>
+                  <span className="eco-date">{fmtMonthDayNum(p.mo, p.d)}</span> {fmtTime(e.time, false)}
+                </td>
+                <td className="amber" title={e.countryName}>{e.country}</td>
+                <td className={e.relevance >= 3 ? 'white b' : ''}>{e.name}</td>
+                <td className="num">{e.consensus}</td>
+                <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`}>{e.actual || (soon ? <span className="yellow">{countdown(e.time - now)}</span> : '')}</td>
+                <td className="num">{e.previous}</td>
+                <td className="hide-m amber" title={`Relevance ${e.relevance}/3`}>
+                  {'●'.repeat(e.relevance)}
+                  <span className="faint">{'●'.repeat(3 - e.relevance)}</span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="pad-s muted">
+        Release times, consensus, actual and prior values as Nasdaq&apos;s economic calendar publishes them; actual green above the consensus, red below. Relevance is the app&apos;s reading of the kind of release (rate decisions, payrolls, inflation and growth first), not the source&apos;s.
+      </p>
     </div>
   );
 }
