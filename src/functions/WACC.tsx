@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { KV, Section } from '../components/cells';
-import { fmtMln, fmtNum, fmtPct } from '../core/format';
+import { fmtDay, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { engine } from '../data/market';
 import { betaTo } from '../data/analytics';
-import { financials, keyStats, reportCcy } from '../data/fundamentals';
+import { financials, keyStats, latestDebtPeriod, reportCcy } from '../data/fundamentals';
 import { riskFree } from '../data/options';
 import type { FnProps } from '../terminal/types';
 import { sourceLabel } from '../components/Source';
@@ -25,11 +25,13 @@ const TEN_YEAR: Record<string, { id: string; name: string }> = {
 
 export function WACC({ sec }: FnProps) {
   const s = sec!;
-  const { status } = useFundamentals(s);
+  const { real, status } = useFundamentals(s);
   const ks = keyStats(s);
   const f = financials(s);
   const beta = betaTo(s.id, BENCH[s.region], 504);
-  const adjBeta = 0.67 * beta.beta + 0.33;
+  const betaFromHistory = Number.isFinite(beta.beta);
+  const rawBeta = betaFromHistory ? beta.beta : ks.beta;
+  const adjBeta = 0.67 * rawBeta + 0.33;
   const [erp, setErp] = useState(5.5);
   const [growth, setGrowth] = useState(2.5);
   const ccy = reportCcy(s);
@@ -41,8 +43,10 @@ export function WACC({ sec }: FnProps) {
   const fx = ccy === tradeCcy ? 1 : engine.usdValue(tradeCcy) / engine.usdValue(ccy);
   const ke = rf + adjBeta * erp;
   const ltm = f.ltm;
+  const balance = latestDebtPeriod([...f.quarterly, ...f.annual, ltm, ...(real?.balance ? [real.balance] : [])]);
+  const debt = balance?.debt ?? NaN;
   // The company's effective rate: LTM interest expense over total debt. Without one, the risk-free rate, labelled as assumed.
-  const effective = ltm.debt > 0 && Number.isFinite(ltm.interest) ? (Math.abs(ltm.interest) / ltm.debt) * 100 : NaN;
+  const effective = debt > 0 && Number.isFinite(ltm.interest) ? (Math.abs(ltm.interest) / debt) * 100 : NaN;
   const kdKnown = effective > 0;
   const kdPre = kdKnown ? effective : rf;
   // The effective tax rate from the statements; with no pretax profit, the US federal 21%, labelled as assumed.
@@ -50,23 +54,23 @@ export function WACC({ sec }: FnProps) {
   const taxRate = taxKnown ? ltm.tax / ltm.pretax : 0.21;
   const kd = kdPre * (1 - taxRate);
   const E = ks.mcap * fx;
-  const D = ltm.debt;
+  const D = debt;
   const wE = E / (E + D);
   const wD = D / (E + D);
-  const wacc = wE * ke + wD * kd;
+  const wacc = D === 0 && E > 0 ? ke : wE * ke + wD * kd;
   const fcf = ltm.fcf;
   const tv = (fcf * (1 + growth / 100)) / ((wacc - growth) / 100);
-  const implied = (tv - (ltm.debt - ltm.cash)) / ltm.shares;
+  const implied = (tv - (D - (balance?.cash ?? NaN))) / ks.shares;
   return (
     <div>
-      <FnHeader code="WACC" title="Weighted Average Cost of Capital" sec={s} sub={<>CAPM cost of equity, after-tax cost of debt · {sourceLabel(status, 'balance sheet generated; real data needs the desktop app')}</>} />
+      <FnHeader code="WACC" title="Weighted Average Cost of Capital" sec={s} sub={<>CAPM cost of equity, after-tax cost of debt · {status === 'ok' && real?.statementsFrom === 'SEC EDGAR' ? <><span className="badge live">REAL</span> SEC EDGAR statements</> : sourceLabel(status, 'balance sheet generated; real data needs the desktop app')}</>} />
       <QuoteStrip sec={s} />
       <div className="cols">
         <Section title="Cost of equity">
           <KV
             items={[
               [rfLine ? `Risk-free rate (${rfLine.name})` : 'Risk-free rate', Number.isFinite(rf) ? `${fmtNum(rf, 3)}%` : `-- (no official 10-year ${ccy} yield in this app)`],
-              ['Raw beta (2Y daily)', fmtNum(beta.beta, 3)],
+              [betaFromHistory ? 'Raw beta (2Y daily)' : `Provider beta (${real?.statsFrom ?? 'Yahoo'} historical basis)`, fmtNum(rawBeta, 3)],
               ['Adjusted beta', fmtNum(adjBeta, 3)],
               [
                 'Equity risk premium',
@@ -82,7 +86,7 @@ export function WACC({ sec }: FnProps) {
               ['Pre-tax cost of debt', `${fmtNum(kdPre, 2)}% ${kdKnown ? '(LTM interest / debt)' : '(assumed: risk-free)'}`],
               [taxKnown ? 'Effective tax rate' : 'Tax rate (assumed)', fmtPct(taxRate * 100, 1, false)],
               ['After-tax cost of debt', <span key="kd" className="white b">{fmtNum(kd, 2)}%</span>],
-              ['Total debt', `${fmtMln(D)} ${ccy}`],
+              [balance ? `Total debt (as of ${fmtDay(balance.end)})` : 'Total debt', `${fmtMln(D)} ${ccy}`],
             ]}
           />
         </Section>
@@ -105,12 +109,18 @@ export function WACC({ sec }: FnProps) {
               'Terminal growth',
               <input key="g" type="number" step="0.25" className="inp" style={{ width: 80, textAlign: 'right' }} value={growth} onChange={(e) => setGrowth(Number(e.target.value) || 0)} aria-label="Terminal growth" />,
             ],
-            ['Enterprise value', !(fcf > 0) ? 'n.m. (free cash flow is negative)' : wacc > growth ? `${fmtMln(tv)} ${ccy}` : 'Growth must be below WACC'],
+            ['Enterprise value', !Number.isFinite(fcf) ? '-- (LTM free cash flow unavailable)' : !(fcf > 0) ? 'n.m. (free cash flow is not positive)' : !Number.isFinite(wacc) ? '-- (WACC inputs unavailable)' : wacc > growth ? `${fmtMln(tv)} ${ccy}` : 'Growth must be below WACC'],
             ['Implied value per share', fcf > 0 && wacc > growth ? `${fmtNum(implied, 2)} ${ccy}` : '--'],
             ['Current price', `${fmtNum(ks.price * fx, 2)} ${ccy}${fx !== 1 ? ` (converted from ${tradeCcy})` : ''}`],
           ]}
         />
       </Section>
+      <div className="note">
+        Equity risk premium and terminal growth are model assumptions. The default assumed tax rate is 21%; it is not a reported rate.
+        {Number.isFinite(ltm.end) ? ` LTM cash flows end ${fmtDay(ltm.end)}.` : ''}
+        {balance?.supplements?.length ? ` Balance supplements: ${balance.supplements.join('; ')}.` : ''}
+        {!betaFromHistory && Number.isFinite(rawBeta) ? ' Provider beta is used because the app has insufficient matched daily history for its own two-year regression.' : ''}
+      </div>
     </div>
   );
 }

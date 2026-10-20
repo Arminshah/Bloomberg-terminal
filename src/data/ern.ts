@@ -19,6 +19,7 @@ export function matchQuarter(reportDate: number, past: QuarterView[]): QuarterVi
   let best: QuarterView | undefined;
   let bestEnd = -Infinity;
   for (const q of past) {
+    if (q.date != null) continue;
     const end = Date.parse(`${q.end}T00:00:00Z`);
     if (!Number.isFinite(end) || end > reportDate || reportDate - end > 120 * DAY_MS) continue;
     if (end > bestEnd) {

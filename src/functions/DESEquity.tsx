@@ -86,7 +86,7 @@ export function floatItems(real: RealFund, sharesOut: number): [string, string][
   return [
     ['Float', `${fmtBig(f.float)}${Number.isFinite(pctOut) ? ` (${fmtNum(pctOut, 1)}% of shares out)` : ''}`],
     ['Short interest', fmtBig(f.short)],
-    ['Short interest, % of float', fmtPct(f.shortPctFloat, 2, false)],
+    [`Short interest, % of float${f.shortPctFloatCalculated ? ' (calculated)' : ''}`, fmtPct(f.shortPctFloat, 2, false)],
     ['Days to cover', fmtNum(f.daysToCover, 2)],
     ['Short interest as of', fmtDay(f.asOf)],
     ['Change vs prior month', Number.isFinite(change) ? `${fmtPct(change, 1)} (${fmtBig(f.shortPrior)} on ${fmtDay(f.priorAsOf)})` : '--'],
@@ -95,7 +95,7 @@ export function floatItems(real: RealFund, sharesOut: number): [string, string][
 
 function FloatNote({ real }: { real: RealFund }) {
   if (real.statsFrom === 'Finnhub') return <div className="note">Float and short interest come from Yahoo&apos;s key statistics, which Yahoo refused this time; Finnhub&apos;s profile does not give them.</div>;
-  return <div className="note">Float and short interest from Yahoo Finance&apos;s key statistics; the short interest is the exchanges&apos; count on the settlement date shown, and days to cover is Yahoo&apos;s own ratio to average daily volume.</div>;
+  return <div className="note">Float and short interest from Yahoo Finance&apos;s key statistics; the short interest is the exchanges&apos; count on the settlement date shown, and days to cover is Yahoo&apos;s own ratio to average daily volume.{real.float.shortPctFloatCalculated ? ' The calculated short float percentage is shares short divided by the latest available float; the float date may differ from the short-interest settlement date.' : ''}</div>;
 }
 
 /** The statements' figures beside the market value, in the statements' currency (millions). */
@@ -175,7 +175,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               [`Mkt Cap (${ks.tradeCcy})`, fmtMln(ks.mcap)],
               ...(ks.tradeCcy === 'USD' ? [] : [['Mkt Cap (USD)', fmtBig(marketCapUsd(sec.id))] as [string, string]]),
               ['Shrs Out/Float', pair(fmtMln(eq.shares), f ? fmtBig(f.float) : '--')],
-              ['SI/% of Float', pair(f ? fmtBig(f.short) : '--', f ? fmtPct(f.shortPctFloat, 2, false) : '--')],
+              ['SI/% of Float', pair(f ? fmtBig(f.short) : '--', f ? <span title={f.shortPctFloatCalculated ? 'Calculated: reported shares short / latest available float. Float date may differ from the short-interest settlement date.' : 'Yahoo reported short interest as a percentage of float'}>{fmtPct(f.shortPctFloat, 2, false)}{f.shortPctFloatCalculated ? '*' : ''}</span> : '--')],
               ['Days to Cover', f ? fmtNum(f.daysToCover, 2) : '--'],
             ]}
           />

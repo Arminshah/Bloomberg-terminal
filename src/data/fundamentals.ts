@@ -12,7 +12,9 @@ export interface FinPeriod {
   label: string;
   end: number;
   /** LTM only: from the source's trailing figures, or the sum of the last four quarters. */
-  basis?: 'trailing' | 'quarters';
+  basis?: 'trailing' | 'quarters' | 'annual';
+  /** Dates and sources for supplemental statement cells; these never change the period's length. */
+  supplements?: string[];
   /** LTM only: EPS worked out as net income over diluted shares (a quarter's EPS was missing). */
   epsComputed?: boolean;
   rev: number;
@@ -95,6 +97,8 @@ export function emptyPeriod(label = 'LTM', end = NaN): FinPeriod {
  * reports in dollars though it trades in pence) when known, else the trading one.
  */
 export function reportCcy(def: SecurityDef): string {
+  const statement = getRealFund(def.id)?.currency;
+  if (statement) return statement;
   const fc = yahooQuotes.get(def.id)?.financialCurrency;
   if (typeof fc === 'string' && /^[A-Z]{3}$/.test(fc)) return fc;
   return def.ccy === 'GBp' ? 'GBP' : def.ccy;
@@ -169,14 +173,28 @@ function buildPeriod(def: SecurityDef, label: string, end: number, scale: number
 
 const finCache = new Map<string, { annual: FinPeriod[]; quarterly: FinPeriod[]; ltm: FinPeriod }>();
 
+/** A missing statement must not turn a six-month or two-year gap into quarterly/annual growth. */
+export function priorStatementPeriod(periods: FinPeriod[], current: FinPeriod, cadence: 'year' | 'quarter'): FinPeriod | undefined {
+  const target = cadence === 'year' ? 365.25 : 91.25;
+  const tolerance = cadence === 'year' ? 25 : 22;
+  return periods.filter((p) => Math.abs((current.end - p.end) / DAY_MS - target) <= tolerance)
+    .sort((a, b) => Math.abs((current.end - a.end) / DAY_MS - target) - Math.abs((current.end - b.end) / DAY_MS - target))[0];
+}
+
+/** Most recent debt observation, without treating a missing current balance as zero. */
+export function latestDebtPeriod(periods: FinPeriod[]): FinPeriod | undefined {
+  return periods.filter((p) => Number.isFinite(p.end) && Number.isFinite(p.debt) && p.debt >= 0).sort((a, b) => b.end - a.end)[0];
+}
+
 /** Real statements when loaded (desktop app), otherwise the generated ones. */
 export function financials(def: SecurityDef): { annual: FinPeriod[]; quarterly: FinPeriod[]; ltm: FinPeriod } {
   const real = getRealFund(def.id);
   if (real && (real.annual.length || real.quarterly.length)) {
-    // A recent listing may have filed only quarters so far; the filings are shown as they are.
-    const annual = real.annual.length ? real.annual : real.quarterly;
-    const quarterly = real.quarterly.length ? real.quarterly : real.annual;
-    return { annual, quarterly, ltm: real.ltm ?? annual[annual.length - 1] };
+    // A year cannot stand in for a three-month statement, or a quarter for a year.
+    // A complete latest fiscal year is a twelve-month observation when no newer LTM exists.
+    const latestYear = real.annual.at(-1);
+    const ltm = real.ltm ?? (latestYear ? { ...latestYear, label: 'LTM', basis: 'annual' as const } : emptyPeriod());
+    return { annual: real.annual, quarterly: real.quarterly, ltm };
   }
   // The desktop app never shows generated statements: nothing until the filings arrive.
   if (engine.realOnly) return { annual: [], quarterly: [], ltm: emptyPeriod() };

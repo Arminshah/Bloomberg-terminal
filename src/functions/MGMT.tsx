@@ -4,22 +4,13 @@ import { Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
 import { exportActions } from '../components/ExportActions';
 import { sourceLabel } from '../components/Source';
-import { fmtBig, fmtInt } from '../core/format';
-import { reportCcy } from '../data/fundamentals';
-import type { SecurityDef } from '../data/types';
+import { fmtBig, fmtDay, fmtInt } from '../core/format';
 import { useFundamentals } from '../data/live/yfund';
+import { yahooSymbolFor } from '../data/live/yahoo';
 import { secAvailable, secTicker, useSecLoad } from '../data/live/sec';
 import { loadProxyPay, type PayYear, type ProxyPay } from '../data/live/proxypay';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
-
-/**
- * Yahoo gives officers' pay without a currency. For a company that reports and trades in dollars it is
- * plain; otherwise none is named rather than guessed (as for FMP's estimates on ANALYSTS).
- */
-export function payCurrency(s: SecurityDef): string | undefined {
-  return reportCcy(s) === 'USD' && s.ccy === 'USD' ? 'USD' : undefined;
-}
 
 const money = (v: number) => (Number.isFinite(v) ? fmtBig(v) : '--');
 
@@ -60,7 +51,7 @@ function ProxyPayTable({ pay }: { pay: ProxyPay }) {
 
 /**
  * Management: the company's officers as Yahoo Finance's company profile lists them (desktop app), with title, age,
- * year of birth and Yahoo's "Pay" (salary and bonus; no stock awards), and, for a US-listed company, the executives'
+ * year of birth and Yahoo's "Pay", and, for a US-listed company, the executives'
  * total compensation from its latest proxy statement. Nothing is generated in the browser.
  */
 export function MGMT({ sec }: FnProps) {
@@ -68,10 +59,9 @@ export function MGMT({ sec }: FnProps) {
   const panel = usePanelId();
   const { real, status } = useFundamentals(s);
   const officers = real?.officers ?? [];
-  const cur = payCurrency(s);
-  const payLabel = `Salary & bonus${cur ? ` (${cur})` : ''}`;
+  const symbol = yahooSymbolFor(s);
   const proxy = useSecLoad(secAvailable() && secTicker(s) ? `proxypay:${s.id}` : null, () => loadProxyPay(s));
-  const csv = () => [['Name', 'Title', 'Age', 'Year born', 'Salary and bonus (Yahoo "Pay", no stock awards)', 'Options exercised', 'Pay currency', 'Fiscal year'], ...officers.map((o) => [o.name, o.title, num(o.age), num(o.yearBorn), num(o.totalPay), num(o.exercised), cur ?? 'not stated by the source', num(o.fiscalYear)])];
+  const csv = () => [['Name', 'Source-reported title', 'Source-reported age', 'Year born', 'Yahoo reported Pay (not SEC total compensation)', 'Options exercised', 'Pay currency', 'Pay fiscal year', 'Profile received UTC'], ...officers.map((o) => [o.name, o.title, num(o.age), num(o.yearBorn), num(o.totalPay), num(o.exercised), 'not stated by Yahoo', num(o.fiscalYear), real ? new Date(real.fetched).toISOString() : ''])];
   let body;
   if (status === 'sim') {
     body = (
@@ -86,26 +76,26 @@ export function MGMT({ sec }: FnProps) {
   } else {
     body = (
       <>
-        <Section title="Company officers" right={`${officers.length} listed by the source, in its order`}>
+        <Section title="Company officers, as reported by Yahoo" right={`${officers.length} listed · profile received ${fmtDay(real.fetched)}`}>
           <DataTable
             rows={officers}
             rowKey={(o, i) => `${o.name}:${i}`}
             numbered
             columns={[
               { key: 'n', label: 'Name', render: (o) => <span className="white">{o.name}</span>, sort: (o) => o.name },
-              { key: 't', label: 'Title', render: (o) => o.title || '--', sort: (o) => o.title },
-              { key: 'a', label: 'Age', num: true, render: (o) => fmtInt(o.age), sort: (o) => o.age },
+              { key: 't', label: 'Reported title', render: (o) => o.title || '--', sort: (o) => o.title },
+              { key: 'a', label: 'Reported age', num: true, render: (o) => fmtInt(o.age), sort: (o) => o.age },
               { key: 'b', label: 'Born', num: true, render: (o) => (Number.isFinite(o.yearBorn) ? String(o.yearBorn) : '--'), sort: (o) => o.yearBorn, hideM: true },
-              { key: 'p', label: payLabel, num: true, render: (o) => fmtInt(o.totalPay), sort: (o) => o.totalPay },
+              { key: 'p', label: 'Yahoo Pay', title: 'Yahoo reported Pay; currency is not supplied. This is not the SEC total compensation figure below.', num: true, render: (o) => fmtInt(o.totalPay), sort: (o) => o.totalPay },
               { key: 'x', label: 'Options exercised', num: true, render: (o) => fmtInt(o.exercised), sort: (o) => o.exercised, hideM: true },
-              { key: 'y', label: 'Fiscal year', num: true, render: (o) => (Number.isFinite(o.fiscalYear) ? String(o.fiscalYear) : '--'), sort: (o) => o.fiscalYear, hideM: true },
+              { key: 'y', label: 'Pay fiscal year', num: true, render: (o) => (Number.isFinite(o.fiscalYear) ? String(o.fiscalYear) : '--'), sort: (o) => o.fiscalYear },
             ]}
           />
         </Section>
         <div className="note">
-          Names, titles, ages and pay as Yahoo Finance&apos;s company profile gives them; -- where it gives none. Salary &amp; bonus is Yahoo&apos;s &quot;Pay&quot;: salary, bonus, cash incentives and other cash for the fiscal year shown,
-          without stock and option awards, which are usually most of an executive&apos;s pay; the total from the proxy statement is below. Options exercised: the value of options exercised in the year
-          {cur ? '. In US dollars: Yahoo does not name the currency, and the company reports and trades in dollars.' : '. Yahoo does not name the currency.'}
+          Yahoo&apos;s company profile can lag appointments and departures. Titles and ages are source-reported; the received date is when the app fetched the profile, not when those facts became effective. The fiscal year applies to pay, not to the title or age.
+          Yahoo calls Pay &quot;salary, bonuses, etc.&quot; and does not supply its currency. It must not be read as the SEC total compensation figure, which includes equity awards and appears below when available. Options exercised is the value exercised in the pay fiscal year. A reported zero remains zero; -- means absent.
+          {symbol ? <> <a className="blue" href={`https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/profile/`} target="_blank" rel="noreferrer noopener">View the source profile ›</a></> : null}
         </div>
       </>
     );

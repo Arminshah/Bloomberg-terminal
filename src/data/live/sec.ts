@@ -383,9 +383,11 @@ export const FACT_LINES: FactLine[] = [
   { key: 'pretax', label: 'Income before income taxes', section: 'income', kind: 'flow', measure: 'money', concepts: ['us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest', 'us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments', 'ifrs-full:ProfitLossBeforeTax'] },
   { key: 'tax', label: 'Income tax expense', section: 'income', kind: 'flow', measure: 'money', concepts: ['us-gaap:IncomeTaxExpenseBenefit', 'ifrs-full:IncomeTaxExpenseContinuingOperations'] },
   { key: 'netInc', label: 'Net income (to the company\'s shareholders)', section: 'income', kind: 'flow', measure: 'money', concepts: ['us-gaap:NetIncomeLoss', 'ifrs-full:ProfitLossAttributableToOwnersOfParent'] },
-  { key: 'epsBasic', label: 'EPS, basic', section: 'income', kind: 'flow', measure: 'perShare', concepts: ['us-gaap:EarningsPerShareBasic', 'ifrs-full:BasicEarningsLossPerShare'] },
+  { key: 'netCommon', label: 'Net income available to common shareholders', section: 'income', kind: 'flow', measure: 'money', concepts: ['us-gaap:NetIncomeLossAvailableToCommonStockholdersBasic'] },
+  { key: 'epsBasic', label: 'EPS, basic', section: 'income', kind: 'flow', measure: 'perShare', concepts: ['us-gaap:EarningsPerShareBasic', 'us-gaap:EarningsPerShareBasicAndDiluted', 'ifrs-full:BasicEarningsLossPerShare'] },
   { key: 'epsDil', label: 'EPS, diluted', section: 'income', kind: 'flow', measure: 'perShare', concepts: ['us-gaap:EarningsPerShareDiluted', 'us-gaap:EarningsPerShareBasicAndDiluted', 'ifrs-full:DilutedEarningsLossPerShare'] },
   { key: 'dilShares', label: 'Diluted weighted shares', section: 'income', kind: 'flow', measure: 'shares', concepts: ['us-gaap:WeightedAverageNumberOfDilutedSharesOutstanding', 'ifrs-full:AdjustedWeightedAverageShares'] },
+  { key: 'da', label: 'Depreciation, depletion and amortization', section: 'cash', kind: 'flow', measure: 'money', concepts: ['us-gaap:DepreciationDepletionAndAmortization'] },
   { key: 'cfo', label: 'Cash from operating activities', section: 'cash', kind: 'flow', measure: 'money', concepts: ['us-gaap:NetCashProvidedByUsedInOperatingActivities', 'ifrs-full:CashFlowsFromUsedInOperatingActivities'] },
   { key: 'capex', label: 'Purchases of property and equipment', section: 'cash', kind: 'flow', measure: 'money', concepts: ['us-gaap:PaymentsToAcquirePropertyPlantAndEquipment', 'ifrs-full:PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities'] },
   { key: 'cfi', label: 'Cash from investing activities', section: 'cash', kind: 'flow', measure: 'money', concepts: ['us-gaap:NetCashProvidedByUsedInInvestingActivities', 'ifrs-full:CashFlowsFromUsedInInvestingActivities'] },
@@ -394,10 +396,16 @@ export const FACT_LINES: FactLine[] = [
   { key: 'buyback', label: 'Repurchases of common stock', section: 'cash', kind: 'flow', measure: 'money', concepts: ['us-gaap:PaymentsForRepurchaseOfCommonStock'] },
   { key: 'sbc', label: 'Share-based compensation', section: 'cash', kind: 'flow', measure: 'money', concepts: ['us-gaap:ShareBasedCompensation', 'us-gaap:AllocatedShareBasedCompensationExpense'] },
   { key: 'cash', label: 'Cash and cash equivalents', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:CashAndCashEquivalentsAtCarryingValue', 'ifrs-full:CashAndCashEquivalents'] },
+  { key: 'recv', label: 'Accounts receivable, net', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:AccountsReceivableNetCurrent'] },
+  { key: 'inv', label: 'Inventories, net', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:InventoryNet', 'ifrs-full:Inventories'] },
+  { key: 'ppe', label: 'Property, plant and equipment, net', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:PropertyPlantAndEquipmentNet', 'ifrs-full:PropertyPlantAndEquipment'] },
   { key: 'curAssets', label: 'Current assets', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:AssetsCurrent', 'ifrs-full:CurrentAssets'] },
   { key: 'assets', label: 'Total assets', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:Assets', 'ifrs-full:Assets'] },
   { key: 'curLiab', label: 'Current liabilities', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:LiabilitiesCurrent', 'ifrs-full:CurrentLiabilities'] },
   { key: 'liab', label: 'Total liabilities', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:Liabilities', 'ifrs-full:Liabilities'] },
+  { key: 'debtCurrent', label: 'Total debt, current', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:DebtCurrent'] },
+  { key: 'ltDebtCurrent', label: 'Current portion of long-term debt', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:LongTermDebtCurrent'] },
+  { key: 'shortBorrowings', label: 'Short-term borrowings', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:ShortTermBorrowings'] },
   { key: 'ltDebt', label: 'Long-term debt, non-current', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:LongTermDebtNoncurrent'] },
   { key: 'equity', label: 'Shareholders\' equity', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:StockholdersEquity', 'ifrs-full:EquityAttributableToOwnersOfParent'] },
 ];
@@ -525,6 +533,8 @@ export interface Reported {
   orig: { val: number; form: string; filed: string; accn: string; fy?: number; fp?: string };
   /** A later filing changed the figure (restated or reclassified). */
   restated: boolean;
+  /** Additive quarterly money flow calculated from two cumulative disclosures. */
+  derived?: { method: 'difference'; current: XbrlFact; previous: XbrlFact };
 }
 
 /** Facts for one period, reduced to the latest figure and the original one. */
@@ -574,6 +584,36 @@ export function lineValues(facts: FactTable, line: FactLine, ccy: string, kind: 
   return out;
 }
 
+/**
+ * A standalone quarter from aligned cumulative disclosures. Only monetary
+ * flows are additive: EPS and weighted share counts must never be subtracted.
+ * Prefer the two disclosures in one filing, otherwise use the latest earlier
+ * disclosure available when the cumulative total was filed. Preserve both
+ * inputs so a calculated value can never be mistaken for a reported fact.
+ */
+export function standaloneQuarterValues(facts: FactTable, line: FactLine, ccy: string): Map<string, Reported> {
+  const out = lineValues(facts, line, ccy, 'quarter');
+  if (line.kind !== 'flow' || line.measure !== 'money') return out;
+  for (const concept of line.concepts) {
+    const rows = facts[concept]?.[ccy] ?? [];
+    const cumulative = rows.filter((r) => r.start && days(r.start, r.end) >= 160 && days(r.start, r.end) <= 380);
+    // Latest cumulative report at each end; a directly reported quarter always wins.
+    cumulative.sort((a, b) => b.filed.localeCompare(a.filed) || b.accn.localeCompare(a.accn));
+    for (const current of cumulative) {
+      if (out.has(current.end)) continue;
+      const prior = rows.filter((r) => r.start === current.start && r.start != null && days(r.start, r.end) >= 80 && r.end < current.end && periodKind(new Date(Date.parse(r.end) + DAY).toISOString().slice(0, 10), current.end) === 'quarter' && r.filed <= current.filed)
+        .sort((a, b) => Number(b.accn === current.accn) - Number(a.accn === current.accn) || b.filed.localeCompare(a.filed) || b.accn.localeCompare(a.accn))[0];
+      if (!prior) continue;
+      const start = new Date(Date.parse(prior.end) + DAY).toISOString().slice(0, 10);
+      const val = current.val - prior.val;
+      if (!Number.isFinite(val)) continue;
+      const rep = reported(concept, ccy, [current]);
+      out.set(current.end, { ...rep, start, val, derived: { method: 'difference', current, previous: prior } });
+    }
+  }
+  return out;
+}
+
 export interface PeriodColumn {
   end: string;
   start?: string;
@@ -608,17 +648,18 @@ export function fiscalLabel(rep: Reported, kind: PeriodKind, ownEnd: Record<stri
  * The periods to show, oldest first: the ends of reported income statement
  * figures of the chosen length. For quarters, fiscal year ends are added
  * (their balance sheets are in the annual report, and most companies file no
- * separate fourth-quarter figures).
+ * separate fourth-quarter figures). With deriveQuarters enabled, cash-flow
+ * disclosures also establish real period ends even if income tags are absent.
  */
-export function periodColumns(cf: CompanyFacts, ccy: string, kind: PeriodKind, max: number): PeriodColumn[] {
+export function periodColumns(cf: CompanyFacts, ccy: string, kind: PeriodKind, max: number, deriveQuarters = false): PeriodColumn[] {
   const cols = new Map<string, PeriodColumn>();
   let annualThrough: string | undefined;
   const consider = (k: PeriodKind) => {
     for (const line of FACT_LINES) {
       // Share counts carry no currency and must not create empty modern columns
       // while viewing a discontinued reporting currency.
-      if (line.kind !== 'flow' || line.section !== 'income' || line.measure === 'shares') continue;
-      for (const rep of lineValues(cf.facts, line, ccy, k).values()) {
+      if (line.kind !== 'flow' || (line.section !== 'income' && !(deriveQuarters && line.section === 'cash')) || line.measure === 'shares') continue;
+      for (const rep of (deriveQuarters && k === 'quarter' ? standaloneQuarterValues(cf.facts, line, ccy) : lineValues(cf.facts, line, ccy, k)).values()) {
         if (annualThrough && k === 'annual' && rep.end > annualThrough) continue;
         if (cols.has(rep.end)) continue;
         const label = fiscalLabel(rep, k, cf.ownEnd);

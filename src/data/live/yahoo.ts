@@ -1,4 +1,5 @@
 import { engine } from '../market';
+import { zonedParts } from '../../core/format';
 import { createStore } from '../../core/store';
 import { DAY_MS, dayNum } from '../calendar';
 import type { ExtBar, ExtendedPrice, ExtQuote, Timing } from '../engine';
@@ -379,13 +380,6 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
 
 const SESSION_SOURCE = 'Yahoo Finance extended-hours quote';
 
-/**
- * The last after-hours trade of the session that closed at `close` (ms), from Yahoo's chart with extended hours:
- * Yahoo's quote stops giving the after-hours price once the next pre-market opens. Asked once per stock and session.
- */
-const postFromChart = new Map<string, { close: number; price: number; time: number } | null>();
-const postAsked = new Map<string, number>();
-
 export function lastPostTrade(bars: { t: number[]; c: (number | null)[] }, close: number): { price: number; time: number } | null {
   let hit: { price: number; time: number } | null = null;
   for (let i = 0; i < bars.t.length; i++) {
@@ -395,24 +389,6 @@ export function lastPostTrade(bars: { t: number[]; c: (number | null)[] }, close
     if (t > close && t <= close + 4 * 3_600_000 + 60_000 && typeof c === 'number' && c > 0) hit = { price: c, time: t };
   }
   return hit;
-}
-
-function askPostSession(id: string, close: number) {
-  const key = `${id}:${close}`;
-  if (postFromChart.has(key) || Date.now() - (postAsked.get(key) ?? 0) < 10 * 60_000) return;
-  const def = engine.get(id);
-  const symbol = def ? yahooSymbolFor(def) : undefined;
-  if (!symbol) return;
-  postAsked.set(key, Date.now());
-  void yahooGet(`/v8/finance/chart/${encodeURIComponent(symbol)}?range=5d&interval=15m&includePrePost=true`)
-    .then((res) => {
-      const r = res?.chart?.result?.[0];
-      const bars = { t: (r?.timestamp ?? []) as number[], c: (r?.indicators?.quote?.[0]?.close ?? []) as (number | null)[] };
-      const hit = lastPostTrade(bars, close);
-      postFromChart.set(key, hit ? { close, ...hit } : null);
-      if (postFromChart.size > 300) postFromChart.delete(postFromChart.keys().next().value!);
-    })
-    .catch(() => undefined);
 }
 
 /**
@@ -426,24 +402,36 @@ export function extendedSessions(id: string, now = Date.now()): { pre?: SessionP
   const close = Number(q.regularMarketPrice);
   const regularAt = Number(q.regularMarketTime) * 1000;
   const out: { pre?: SessionPrice; post?: SessionPrice } = {};
-  const pct = (price: number, given: unknown) => (Number.isFinite(Number(given)) && given != null ? Number(given) : close > 0 ? (price / close - 1) * 100 : NaN);
+  const pct = (price: number, given: unknown, base = close) => {
+    const supplied = typeof given === 'number' || (typeof given === 'string' && given.trim() !== '');
+    return supplied && Number.isFinite(Number(given)) ? Number(given) : base > 0 ? (price / base - 1) * 100 : NaN;
+  };
+  const today = (at: number) => {
+    if (!(at > 0) || !Number.isFinite(at)) return false;
+    try {
+      const a = zonedParts(at, q.exchangeTimezoneName || 'America/New_York');
+      const b = zonedParts(now, q.exchangeTimezoneName || 'America/New_York');
+      return a.y === b.y && a.mo === b.mo && a.d === b.d;
+    } catch { return false; }
+  };
+  const regularTrading = q.marketState === 'REGULAR';
   const pre = Number(q.preMarketPrice);
   const preAt = Number(q.preMarketTime) * 1000;
-  if (pre > 0 && preAt > 0 && now - preAt < 20 * 3_600_000) out.pre = { price: pre, pct: pct(pre, q.preMarketChangePercent), time: preAt, source: SESSION_SOURCE };
+  // During the regular session the morning's pre-market change still uses the preceding close.
+  const preBase = preAt < regularAt ? Number(q.regularMarketPreviousClose ?? q.previousClose) : close;
+  if (pre > 0 && today(preAt) && preAt <= now && now - preAt < 20 * 3_600_000) out.pre = { price: pre, pct: pct(pre, q.preMarketChangePercent, preBase), time: preAt, source: SESSION_SOURCE };
   const post = Number(q.postMarketPrice);
   const postAt = Number(q.postMarketTime) * 1000;
-  if (post > 0 && postAt > 0 && postAt >= regularAt - 60_000 && now - postAt < 4 * 86_400_000) out.post = { price: post, pct: pct(post, q.postMarketChangePercent), time: postAt, source: SESSION_SOURCE };
-  else if (q.hasPrePostMarketData && /^PRE/.test(String(q.marketState ?? '')) && regularAt > 0 && close > 0 && now - regularAt < 4 * 86_400_000) {
-    // In the pre-market Yahoo's quote no longer gives the evening's after-hours price; its chart still has the trades.
-    const kept = postFromChart.get(`${id}:${regularAt}`);
-    if (kept) out.post = { price: kept.price, pct: (kept.price / close - 1) * 100, time: kept.time, source: 'Yahoo Finance chart, extended hours' };
-    else if (kept === undefined) askPostSession(id, regularAt);
+  if (!regularTrading && post > 0 && postAt > 0 && postAt <= now && postAt >= regularAt - 60_000 && now - postAt < 4 * 86_400_000) out.post = { price: post, pct: pct(post, q.postMarketChangePercent), time: postAt, source: SESSION_SOURCE };
+  for (const key of ['pre', 'post'] as const) {
+    const chart = q.arminSessionChart?.[key] as SessionPrice | undefined;
+    if (chart && (key === 'pre' ? today(chart.time) : !regularTrading) && chart.time > (out[key]?.time ?? 0) && chart.time <= now && now - chart.time < (key === 'pre' ? 20 * 3_600_000 : 4 * 86_400_000) && (key === 'pre' || chart.time >= regularAt - 60_000)) out[key] = chart;
   }
   const streamed = engine.quote(id)?.extended;
   if (streamed && streamed.price > 0) {
     const key = streamed.session === 'pre' ? 'pre' : streamed.session === 'post' ? 'post' : null;
-    if (key && streamed.time > (out[key]?.time ?? 0) && now - streamed.time < 20 * 3_600_000 && (key === 'pre' || streamed.time >= regularAt - 60_000)) {
-      out[key] = { price: streamed.price, pct: close > 0 ? (streamed.price / close - 1) * 100 : NaN, time: streamed.time, source: 'Yahoo Finance streaming' };
+    if (key && (key === 'pre' ? today(streamed.time) : !regularTrading) && streamed.time <= now && streamed.time > (out[key]?.time ?? 0) && now - streamed.time < 20 * 3_600_000 && (key === 'pre' || streamed.time >= regularAt - 60_000)) {
+      out[key] = { price: streamed.price, pct: pct(streamed.price, undefined, key === 'pre' && streamed.time < regularAt ? Number(q.regularMarketPreviousClose ?? q.previousClose) : close), time: streamed.time, source: 'Yahoo Finance streaming' };
     }
   }
   return out;

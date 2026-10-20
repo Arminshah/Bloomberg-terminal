@@ -13,7 +13,7 @@ import { EstimatesTable, estimateUnit } from './ANR';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type NextReport } from '../data/live/finnhub';
-import { surprisePct, useConsensus } from '../data/live/consensus';
+import { surprisePct, timingLabel, useConsensus } from '../data/live/consensus';
 import { matchQuarter, surpriseStats } from '../data/ern';
 import { desktopData } from '../data/live/yahoo';
 import { ExpectationsTable, LatestReport, nextRows } from '../components/EarningsExpectations';
@@ -59,6 +59,7 @@ export function EE({ sec }: FnProps) {
   const fparts = useFinnhub(fh ? s : undefined, ['calendar']);
   const cal = fparts.calendar as FinnhubPart<NextReport | null> | undefined;
   const nextFh = cal?.data ?? null;
+  const nextConsensus = consensus?.next;
   const when = (h: string) => (h === 'bmo' ? 'before the open' : h === 'amc' ? 'after the close' : h === 'dmh' ? 'during the session' : '');
   // ERN's table: each report with its reaction and, where the analysts' figures cover it, the comparable EPS (on the
   // estimate's basis), the estimate and the surprise.
@@ -88,8 +89,8 @@ export function EE({ sec }: FnProps) {
             ['Average surprise', stats.surprises ? `${fmtNum(stats.avgSurprise, 2)}% (${stats.surprises} reports)` : consensus ? '--' : 'Needs the analysts\' estimates (desktop app)'],
             ['Average abs. surprise', stats.surprises ? `${fmtNum(stats.avgAbsSurprise, 2)}%` : '--'],
             ['Average abs. price move', stats.moves ? `${fmtNum(stats.avgAbsMove, 2)}% (${stats.moves} reports)` : '--'],
-            ['Next period', nextFh ? `Q${nextFh.quarter} ${nextFh.year}` : (next?.period ?? '--')],
-            ['Date', nextFh ? `${fmtDay(Date.parse(`${nextFh.date}T00:00:00Z`))}${when(nextFh.hour) ? `, ${when(nextFh.hour)}` : ''} (Finnhub)` : next ? fmtEarnDate(next) : '--'],
+            ['Next period', nextConsensus?.label ?? (nextFh ? `Q${nextFh.quarter} ${nextFh.year}` : (next?.period ?? '--'))],
+            ['Date', nextConsensus?.date ? `${nextConsensus.dateEstimated ? '~' : ''}${fmtDay(nextConsensus.date)} · ${timingLabel(nextConsensus.timing)}` : nextFh ? `${fmtDay(Date.parse(`${nextFh.date}T00:00:00Z`))}${when(nextFh.hour) ? `, ${when(nextFh.hour)}` : ''} (Finnhub)` : next ? fmtEarnDate(next) : '--'],
             ...(consensus && nextRows(consensus.next).length
               ? nextRows(consensus.next)
               : nextFh
@@ -127,7 +128,7 @@ export function EE({ sec }: FnProps) {
           <ExpectationsTable c={consensus} />
           <div className="note">
             Expected: the analysts&apos; average estimate before the report. EPS on the analysts&apos; basis (usually adjusted), as Yahoo Finance or Finnhub reports it, which can differ from the diluted EPS in the statements
-            below. Yahoo drops a quarter&apos;s revenue estimate once it is reported: the app keeps the last one it read before the report, and Finnhub (FINNHUB_API_KEY) gives the past year&apos;s.
+            below. Quarter labels name fiscal quarters: Q1 2027 is the first quarter of the company&apos;s fiscal year 2027, which can end during calendar 2026. Each fiscal quarter appears once. Yahoo drops a quarter&apos;s revenue estimate once it is reported: the app keeps the last one it read before the report, and Finnhub (FINNHUB_API_KEY) gives the past year&apos;s.
           </div>
         </Section>
       ) : null}
@@ -172,7 +173,7 @@ export function EE({ sec }: FnProps) {
                 <tr key={`${h.period}:${h.date}`}>
                   <td>{fmtEarnDate(h, false)}</td>
                   <td className="amber">{h.period}</td>
-                  <td className="muted hide-m">{h.timing}</td>
+                  <td className="muted hide-m">{timingLabel(cq?.timing ?? h.timing)}</td>
                   <td className="num white">{h.actual != null ? fmtNum(h.actual, 2) : h.revAct != null ? '--' : 'Pending'}</td>
                   <td className="num" title={from || undefined}>{cq && Number.isFinite(cq.eps.actual) ? fmtNum(cq.eps.actual, 2) : '--'}</td>
                   <td className="num" title={from || undefined}>{cq && Number.isFinite(cq.eps.est) ? fmtNum(cq.eps.est, 2) : '--'}</td>

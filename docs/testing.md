@@ -17,6 +17,8 @@ CI (`.github/workflows/ci.yml`) runs lint, type check, unit tests, browser and L
 
 The data readers are tested on saved provider answers (`tests/fixtures/`) or on answers laid out as each provider documents them, never on live requests, so the tests pass offline and do not depend on today's market.
 
+The 2.15 data-accuracy regressions are in `earnings-accuracy.test.ts`, `financial-completeness.test.ts`, `sec-quarters.test.ts`, `extended-hours.test.ts`, and `ownership-accuracy.test.ts`. They cover fiscal/calendar matching and separate EPS bases, currency/period compatibility, cumulative monetary quarter calculations, sparse trailing fields, debt snapshots, source timestamps, and holder-date filtering. `desktop-e2e/provider-ipc.spec.ts` also exercises NBIS-style missing SEC quarters through online lookup and provider fallback, supplementary session quotes alongside IEX, holder sorting/filtering, short float, management zero pay, and header/value alignment. These synthetic fixtures verify application behavior; they do not establish current live-provider coverage or current officer appointments.
+
 | File | Covers |
 | --- | --- |
 | `commands.test.ts` | The command parser, old command names and what they are called now, search and autocomplete |

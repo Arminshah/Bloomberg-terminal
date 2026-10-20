@@ -5,7 +5,7 @@ import { Sparkline } from '../components/Sparkline';
 import { Chg } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtDay, fmtNum } from '../core/format';
-import { financials, hasRealStatements, reportCcy, type FinPeriod } from '../data/fundamentals';
+import { financials, hasRealStatements, priorStatementPeriod, reportCcy, type FinPeriod } from '../data/fundamentals';
 import { usePanelId } from '../terminal/panel';
 import { useFundamentals } from '../data/live/yfund';
 import { sourceLabel } from '../components/Source';
@@ -125,10 +125,11 @@ export function FA({ sec, route }: FnProps) {
   const words = route.args?.toUpperCase().split(/\s+/).filter(Boolean) ?? [];
   const [tab, setTab] = useState(words.map((w) => PAGE_WORDS[w]).find(Boolean) ?? 1);
   const [quarterly, setQuarterly] = useState(false);
-  const { status: fundStatus } = useFundamentals(s);
+  const { real, status: fundStatus } = useFundamentals(s);
   const status = fundStatus === 'ok' && !hasRealStatements(s) ? 'error' : fundStatus;
   const f = financials(s);
-  const cols = quarterly ? f.quarterly : [...f.annual, f.ltm];
+  const cols = quarterly ? f.quarterly : [...f.annual, ...(Number.isFinite(f.ltm.end) ? [f.ltm] : [])];
+  const supplementSources = [...new Set(cols.flatMap((p) => p.supplements ?? []))];
   const ccy = reportCcy(s);
   // Dividends come in the unit the shares trade in (Shell: pence) while the statements are in the reporting
   // currency (dollars): the row says its unit, and no payout ratio divides one by the other.
@@ -138,7 +139,7 @@ export function FA({ sec, route }: FnProps) {
   );
   // Growth lines compare a year with the one before and a quarter with the same quarter a year earlier; the LTM
   // column overlaps the latest year, so it has no growth of its own.
-  const prevOf = (i: number) => (quarterly ? cols[i - 4] : i === cols.length - 1 ? undefined : cols[i - 1]);
+  const prevOf = (i: number) => (!quarterly && cols[i].label === 'LTM' ? undefined : priorStatementPeriod(cols, cols[i], 'year'));
   const value = (r: Row, i: number) => r.get(cols[i], prevOf(i));
   const csv = () => [['Item', ...cols.map((c) => c.label)], ...rows.map((r) => [r.label, ...cols.map((_, i) => value(r, i).toFixed(r.dec ?? 1))])];
   const months = quarterly ? '3 Months Ending' : '12 Months Ending';
@@ -148,7 +149,7 @@ export function FA({ sec, route }: FnProps) {
         code="FINANCIALS"
         title="Financial Analysis"
         sec={s}
-        sub={<>{ccy} millions except per share · {sourceLabel(status, 'statements generated from the company profile; real data needs the desktop app')}</>}
+        sub={<>{ccy} millions except per share · {status === 'ok' && real?.statementsFrom === 'SEC EDGAR' ? <><span className="badge live">REAL</span> SEC EDGAR</> : sourceLabel(status, 'statements generated from the company profile; real data needs the desktop app')}{real?.statementsFrom !== 'SEC EDGAR' && supplementSources.some((x) => x.startsWith('SEC')) ? ' + SEC EDGAR supplements' : ''}</>}
         tabs={TABS.map((t) => ({ n: t.n, label: t.label }))}
         tab={tab}
         onTab={setTab}
@@ -165,8 +166,9 @@ export function FA({ sec, route }: FnProps) {
             <tr>
               <th>In Millions of {ccy} except Per Share</th>
               {cols.map((c) => (
-                <th key={c.label} className="num">
+                <th key={c.label} className="num" title={c.supplements?.join('; ')}>
                   {c.label === 'LTM' ? 'Current/LTM' : c.label}
+                  {c.supplements?.length ? ' *' : ''}
                 </th>
               ))}
               <th className="num">{quarterly ? 'QoQ' : 'YoY'}</th>
@@ -187,7 +189,9 @@ export function FA({ sec, route }: FnProps) {
             {rows.map((r, ri) => {
               const vals = cols.map((_, i) => value(r, i));
               const last = vals[quarterly ? vals.length - 1 : vals.length - 2];
-              const prev = vals[quarterly ? vals.length - 2 : vals.length - 3];
+              const latestPeriod = cols[quarterly ? vals.length - 1 : vals.length - 2];
+              const previousPeriod = latestPeriod ? priorStatementPeriod(cols, latestPeriod, quarterly ? 'quarter' : 'year') : undefined;
+              const prev = previousPeriod ? r.get(previousPeriod) : NaN;
               // Growth of magnitude; for cost lines (negative values) a rise is shown as a negative.
               // From a loss to a profit, or back, a percentage means nothing: shown as --.
               const cost = prev < 0 && last < 0;
@@ -217,9 +221,10 @@ export function FA({ sec, route }: FnProps) {
       {cols.length === 0 ? <div className="empty">{status === 'loading' ? 'Loading statements…' : 'No statements from the source for this security.'}</div> : null}
       <div className="note">
         {status === 'ok'
-          ? `Reported figures from the company filings as published by Yahoo Finance; LTM ${f.ltm?.basis === 'trailing' ? "is the source's trailing twelve months" : 'sums the last four reported quarters'}${f.ltm?.epsComputed ? ', with EPS as net income over diluted shares (a quarter has no EPS in the source)' : ''}.`
+          ? `Figures from ${real?.statementsFrom === 'SEC EDGAR' ? 'SEC EDGAR' : 'Yahoo Finance, supplemented from compatible SEC EDGAR observations where available'}; LTM ${f.ltm?.basis === 'annual' ? 'is the latest complete fiscal year, dated above' : f.ltm?.basis === 'trailing' ? "is the source's trailing twelve months" : 'sums four consecutive reported quarters'}${f.ltm?.epsComputed ? ', with EPS as net income over diluted shares (a quarter has no EPS in the source)' : ''}. Missing values have no supported observation; they are not zero.`
           : status === 'sim' ? "Statements are simulated from each company's scale and sector profile; they are not reported figures." : ''}
       </div>
+      {supplementSources.length ? <details className="note"><summary>* Supplemental observations (hover a period heading for its sources)</summary>{supplementSources.map((source) => <div key={source}>{source}</div>)}</details> : null}
     </div>
   );
 }

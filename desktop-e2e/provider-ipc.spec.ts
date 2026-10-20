@@ -14,6 +14,8 @@ const MARKETAUX_ERROR = 'Invalid API token. Deterministic Marketaux refusal.';
 const PRICE = '123.45';
 
 interface Fixtures {
+  dataAccuracy: boolean;
+  extendedHours: boolean;
   tradeAgeMs: number;
   optionPageFailure: boolean;
   optionMalformed: boolean;
@@ -153,6 +155,46 @@ async function enableIex(page: Page) {
 async function calls(app: ElectronApplication) {
   return app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls);
 }
+
+test('holders sort and filter by reported period, and short float is calculated from reported share counts', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.dataAccuracy = true; process.env.YAHOO_PRICES_ENABLED = 'true'; });
+  await page.reload();
+  await command(page, 'AAPL HOLDERS');
+  const positions = page.locator('table.tbl tbody tr').filter({ hasText: 'Synthetic Holder' });
+  await expect(positions).toHaveCount(2);
+  await expect(positions.first()).toContainText('Recent Synthetic Holder');
+  await page.getByRole('columnheader', { name: /As of/ }).click();
+  await expect(positions.first()).toContainText('Older Synthetic Holder');
+  await page.getByLabel('Holdings as of').selectOption('latest');
+  await expect(positions).toHaveCount(1);
+  await expect(positions.first()).toContainText('Recent Synthetic Holder');
+  await command(page, 'AAPL DES', 'PROFILE');
+  await page.getByRole('button', { name: /2\) Issue Info/ }).click();
+  const shortFloat = page.locator('dt').filter({ hasText: 'Short interest, % of float' });
+  await expect(shortFloat.locator('+ dd')).toHaveText('15.00%');
+  await expect(shortFloat).toContainText('calculated');
+  await command(page, 'AAPL MANAGEMENT');
+  await expect(page.getByRole('row').filter({ hasText: 'Synthetic Chief' })).toContainText('Chief Executive Officer');
+  await expect(page.getByRole('row').filter({ hasText: 'Synthetic Chief' }).getByRole('cell', { name: '0', exact: true })).toBeVisible();
+});
+
+test('watchlist loads supplementary pre-market and after-hours quotes while IEX owns the regular price', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.extendedHours = true; process.env.YAHOO_PRICES_ENABLED = 'true'; });
+  await page.reload();
+  await enableIex(page);
+  await page.clock.install({ time: new Date('2026-10-20T12:00:00Z') });
+  // MarketEngine captures Date.now on construction, so install the clock before its next load.
+  await page.reload();
+  await command(page, 'W', 'WATCHLIST');
+  const row = page.getByRole('row').filter({ hasText: 'Apple Inc' }).first();
+  await expect(row).toContainText('123.45');
+  await expect(row).toContainText('1.26%');
+  await expect(row).toContainText('0.45%');
+  expect((await calls(app)).yahoo.some((path) => path.startsWith('/v7/finance/quote?') && path.includes('AAPL'))).toBe(true);
+  await command(page, 'AAPL FLDS PX_LAST', 'FIELDS');
+  await expect(page.getByTestId('field-value')).toHaveText('123.4500 · USD');
+  await expect(page.locator('.field-definition')).toContainText('Alpaca · IEX only');
+});
 
 test('manual analytics work in real-data desktop mode without any provider prices or rates', async ({ desktop: { page } }) => {
   await checkBond(page, (text, code) => command(page, text, code));
@@ -359,6 +401,12 @@ test('SEC reported figures default to the latest reporting currency and expose a
   await expect(page.getByLabel('SEC reporting currency')).toHaveValue('USD');
   await expect(page.getByTestId('sec-coverage')).toContainText('latest annual period 2025-12-31');
   await expect(page.getByRole('link', { name: '600.0', exact: true }).first()).toBeVisible();
+  const columnAlignment = await page.getByRole('table', { name: 'SEC reported figures' }).evaluate((table) => {
+    const header = table.querySelector('th.num')!;
+    const value = table.querySelector('td.num')!;
+    return Math.abs(header.getBoundingClientRect().right - value.getBoundingClientRect().right);
+  });
+  expect(columnAlignment).toBeLessThan(1);
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-v272-sec-currency-fixture.png') });
   await page.getByLabel('SEC reporting currency').selectOption('RUB');
   await expect(page.getByTestId('sec-coverage')).toContainText('Historical currency selected');
@@ -366,11 +414,29 @@ test('SEC reported figures default to the latest reporting currency and expose a
   await expect(page.getByRole('columnheader').filter({ hasText: 'FY2025' })).toHaveCount(0);
   await page.getByLabel('SEC reporting currency').selectOption('USD');
   await page.getByRole('button', { name: 'Quarterly', exact: true }).click();
-  await expect(page.getByTestId('sec-coverage')).toContainText('latest standalone quarter not available');
+  await expect(page.getByTestId('sec-coverage')).toContainText('latest standalone or calculated quarter not available');
   await expect(page.getByRole('link', { name: 'Latest current report: 6-K filed 2026-10-01', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: '600.0', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'View current reports', exact: true }).click();
   await expect(page.getByRole('row').filter({ hasText: '6-K' }).getByRole('link', { name: 'Document', exact: true })).toHaveAttribute('href', /synthetic-current\.htm$/);
+});
+
+test('NBIS quarterly filings show distinct provider coverage when SEC has only annual facts', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.dataAccuracy = true;
+    process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid';
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'FILINGS NBIS', 'FILINGS');
+  await page.getByRole('button', { name: /8\) Reported figures/ }).click();
+  await page.getByRole('button', { name: 'Quarterly', exact: true }).click();
+  await expect(page.getByTestId('sec-coverage')).toContainText('latest standalone or calculated quarter not available');
+  const table = page.getByRole('table', { name: 'Provider quarterly statements', exact: true });
+  await expect(table.getByRole('row').filter({ hasText: 'Revenue' })).toContainText('250.0');
+  await expect(table.getByRole('row').filter({ hasText: 'Diluted EPS' })).toContainText('-0.50');
+  await expect(page.getByText('they are not SEC reported facts', { exact: false })).toBeVisible();
+  await expect(page.getByRole('table', { name: 'SEC reported figures', exact: true })).toHaveCount(0);
 });
 
 test('foreign issuer research retains separate local revenue and dollar EPS units', async ({ desktop: { app, page } }) => {

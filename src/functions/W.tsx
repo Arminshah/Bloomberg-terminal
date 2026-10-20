@@ -10,6 +10,7 @@ import { engine, useTick } from '../data/market';
 import { periodChange } from '../data/analytics';
 import { fieldTime } from '../data/fields';
 import { extendedSessions } from '../data/live/yahoo';
+import { hasSessionColumns, useExtendedSessionQuotes } from '../data/live/extended-hours';
 import { sortWatchlistRows, WATCHLIST_COLUMNS, WATCHLIST_PRESETS, watchlistColumns, watchlistExport, watchlistRow, type WatchlistColumn, type WatchlistRow, type WatchlistSort } from '../data/watchlist-columns';
 import { resolveSecurity, searchSecurities } from '../data/registry';
 import type { Quote, SecurityDef } from '../data/types';
@@ -71,6 +72,7 @@ export function W({ route }: FnProps) {
   const now = engine.now();
   const columns = watchlistColumns(list.columns);
   const selected = new Set(columns.map((c) => c.id));
+  useExtendedSessionQuotes(hasSessionColumns(columns.map((c) => c.id)) ? list.ids : []);
   const updateList = (patch: Partial<Watchlist>) => watchlists.set((s) => ({ ...s, lists: s.lists.map((l, i) => i === active ? { ...l, ...patch } : l) }));
   const setColumns = (ids: string[]) => updateList({ columns: ids, ...(!ids.includes(list.sort?.column ?? '') ? { sort: undefined } : {}) });
   const changeSort = (column: string) => {
@@ -158,7 +160,7 @@ export function W({ route }: FnProps) {
             <button type="button" className="act" aria-label={`Move ${c.label} column right`} disabled={i === columns.length - 1} onClick={() => moveColumn(i, 1)}>▶</button>
           </span>)}
         </div>
-        <div className="note">Columns use fields already held by this app; no extra provider calls. Hover a value for units, source and limits. Copy/export follows the selected columns and filtered order, with raw values and per-field provenance below the table. Bid/ask event times remain unavailable.</div>
+        <div className="note">Extended-session columns refresh Yahoo quotes independently of the regular-session price source; other columns use fields already held by this app. Hover a value for units, source and limits. Copy/export follows the selected columns and filtered order, with raw values and per-field provenance below the table. Bid/ask event times remain unavailable.</div>
       </section>}
       <div className="chart-tools">
         {renaming ? (

@@ -20,6 +20,8 @@ const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/
 const fullFinnhubKey = 'abcd1234efgh5678ij90abcd1234efgh5678kl12';
 const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, newsStories: false, newsAgeMs: 3_600_000, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], alpacaNews: [], google: [], finnhub: [], equibles: [], yahoo: [], tipranks: [] } };
 globalThis.__desktopFixtures = fixtures;
+fixtures.dataAccuracy = false;
+fixtures.extendedHours = false;
 net.fetch = async (input, init) => {
   const url = new URL(String(input));
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -34,7 +36,15 @@ net.fetch = async (input, init) => {
   if (url.hostname === 'query2.finance.yahoo.com') {
     fixtures.calls.yahoo.push(url.pathname + url.search.replace(/([?&]crumb=)[^&]*/g, '$1<session>'));
     if (url.pathname === '/v1/test/getcrumb') return new Response('synthetic-session-crumb', { headers: { 'Content-Type': 'text/plain' } });
-    if (url.pathname === '/v1/finance/search') return json({ quotes: [{ symbol: 'APLD', quoteType: 'EQUITY', exchange: 'NMS', longname: 'Synthetic APLD fixture' }] });
+    if (url.pathname === '/v1/finance/search') {
+      const symbol = fixtures.dataAccuracy && url.searchParams.get('q') === 'NBIS' ? 'NBIS' : 'APLD';
+      return json({ quotes: [{ symbol, quoteType: 'EQUITY', exchange: 'NMS', longname: `Synthetic ${symbol} fixture` }] });
+    }
+    if (fixtures.dataAccuracy && url.pathname.startsWith('/ws/fundamentals-timeseries/') && url.searchParams.get('type')?.startsWith('quarterly')) {
+      return json({ timeseries: { result: [
+        ['TotalRevenue', 250000000], ['NetIncomeCommonStockholders', -50000000], ['DilutedEPS', -0.5], ['TotalDebt', 150000000],
+      ].map(([key, value]) => ({ meta: { type: [`quarterly${key}`] }, [`quarterly${key}`]: [{ asOfDate: '2026-06-30', periodType: '3M', currencyCode: 'USD', reportedValue: { raw: value } }] })) } });
+    }
     if (url.pathname.startsWith('/v10/finance/quoteSummary/')) {
       const symbol = decodeURIComponent(url.pathname.split('/').at(-1));
       if ((url.searchParams.get('modules') ?? '').includes('earningsTrend')) {
@@ -46,6 +56,16 @@ net.fetch = async (input, init) => {
         }
         return json(research);
       }
+      if (fixtures.dataAccuracy) return json({ quoteSummary: { result: [{
+        assetProfile: { industry: 'Synthetic fixture industry', companyOfficers: [
+          { name: 'Dr. Synthetic Chief', title: 'Chief Executive Officer', age: 50, fiscalYear: 2025, totalPay: { raw: 0 } },
+        ] },
+        defaultKeyStatistics: { sharesOutstanding: { raw: 100000000 }, floatShares: { raw: 80000000 }, sharesShort: { raw: 12000000 }, dateShortInterest: { raw: 1790899200 } },
+        institutionOwnership: { ownershipList: [
+          { organization: 'Older Synthetic Holder', position: { raw: 1000000 }, pctHeld: { raw: 0.01 }, pctChange: { raw: 0.1 }, reportDate: { raw: 1743379200 } },
+          { organization: 'Recent Synthetic Holder', position: { raw: 2000000 }, pctHeld: { raw: 0.02 }, pctChange: { raw: 0.1 }, reportDate: { raw: 1751241600 } },
+        ] },
+      }], error: null } });
       return json({ quoteSummary: { result: [fixtures.profileMissing ? {} : { assetProfile: { industry: 'Synthetic fixture industry' }, summaryDetail: { trailingPE: { raw: 20 } } }], error: null } });
     }
     if (url.pathname.startsWith('/v8/finance/chart/')) {
@@ -55,7 +75,16 @@ net.fetch = async (input, init) => {
       Object.assign(meta, { symbol, currency: 'USD', exchangeName: 'NMS', instrumentType: 'EQUITY', longName: `Synthetic ${symbol} fixture`, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000) });
       return json(chart);
     }
-    if (url.pathname === '/v7/finance/quote') return json({ quoteResponse: { result: (url.searchParams.get('symbols') ?? '').split(',').map((symbol) => ({ symbol, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000), currency: 'USD', quoteSourceName: 'Synthetic Real Time Price', exchangeDataDelayedBy: 0 })) } });
+    if (url.pathname === '/v7/finance/quote') return json({ quoteResponse: { result: (url.searchParams.get('symbols') ?? '').split(',').map((symbol) => ({ symbol, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000), currency: 'USD', quoteSourceName: 'Synthetic Real Time Price', exchangeDataDelayedBy: 0,
+      ...(fixtures.extendedHours ? {
+        regularMarketPrice: 123.45, regularMarketTime: Date.parse('2026-10-19T20:00:00Z') / 1000,
+        preMarketPrice: 125, preMarketTime: Date.parse('2026-10-20T11:55:00Z') / 1000,
+        preMarketChangePercent: (125 / 123.45 - 1) * 100,
+        postMarketPrice: 124, postMarketTime: Date.parse('2026-10-19T21:00:00Z') / 1000,
+        postMarketChangePercent: (124 / 123.45 - 1) * 100,
+        hasPrePostMarketData: true, marketState: 'PRE', exchangeTimezoneName: 'America/New_York',
+      } : {}),
+    })) } });
   }
   if (url.hostname === 'financialmodelingprep.com') {
     fixtures.calls.fmp++;

@@ -7,6 +7,8 @@ import type { EarningsEvent, FinPeriod, Holder } from '../fundamentals';
 import type { SecurityDef } from '../types';
 import { desktopData, impliedShares, realDividends, yahooGet, yahooSymbolFor } from './yahoo';
 import { finnhubAvailable, finnhubSymbol, loadFinnhub, type FinnhubMetric, type FinnhubProfile } from './finnhub';
+import { loadCompanyFacts, reportingCurrency, resolveFiler, secAvailable, secTicker, type CompanyFacts } from './sec';
+import { secStatementRows } from './statement-supplements';
 
 /**
  * Company data for the desktop app from Yahoo Finance (personal
@@ -22,6 +24,11 @@ type Json = any;
 
 export interface RealFund {
   fetched: number;
+  /** The statement provider's reporting currency, independent of the share's trading currency. */
+  currency?: string;
+  statementsFrom?: 'Yahoo Finance' | 'SEC EDGAR';
+  /** Latest separately observed balance, even when no income statement exists for that date. */
+  balance?: FinPeriod;
   annual: FinPeriod[];
   quarterly: FinPeriod[];
   ltm: FinPeriod | null;
@@ -49,6 +56,8 @@ export interface FloatStats {
   short: number;
   /** shortPercentOfFloat, in percent. */
   shortPctFloat: number;
+  /** True when the ratio is computed from sharesShort / floatShares rather than supplied by Yahoo. */
+  shortPctFloatCalculated?: boolean;
   /** shortRatio: days to cover, the short interest over average daily volume, as the source works it out. */
   daysToCover: number;
   /** dateShortInterest: the settlement date of the short interest. */
@@ -91,10 +100,15 @@ const num = (v: Json): number => {
 export function floatStats(ks: Json): FloatStats {
   const pos = (v: Json) => (num(v) > 0 ? num(v) : NaN);
   const date = (v: Json) => (num(v) > 0 ? num(v) * 1000 : NaN);
+  const float = pos(ks?.floatShares);
+  const short = pos(ks?.sharesShort);
+  const reportedPct = pos(ks?.shortPercentOfFloat) * 100;
+  const calculated = !Number.isFinite(reportedPct) && Number.isFinite(short) && Number.isFinite(float);
   return {
-    float: pos(ks?.floatShares),
-    short: pos(ks?.sharesShort),
-    shortPctFloat: pos(ks?.shortPercentOfFloat) * 100,
+    float,
+    short,
+    shortPctFloat: calculated ? (short / float) * 100 : reportedPct,
+    ...(calculated ? { shortPctFloatCalculated: true } : {}),
     daysToCover: pos(ks?.shortRatio),
     asOf: date(ks?.dateShortInterest),
     shortPrior: pos(ks?.sharesShortPriorMonth),
@@ -104,20 +118,23 @@ export function floatStats(ks: Json): FloatStats {
 
 /** A name as the source writes it, without its doubled spaces or a leading Mr, Ms, Dr or Prof. */
 export function cleanOfficerName(name: unknown): string {
-  return String(name ?? '').replace(/\s+/g, ' ').replace(/^(Mr|Ms|Mrs|Miss|Dr|Prof)\.?\s+/i, '').trim();
+  return (typeof name === 'string' ? name : '').replace(/\s+/g, ' ').trim().replace(/^(Mr|Ms|Mrs|Miss|Dr|Prof)\.?\s+/i, '');
 }
 
 /** assetProfile.companyOfficers: [{name, title, age, yearBorn, fiscalYear, totalPay: {raw}}], in the source's order. */
 export function officersFrom(ap: Json): Officer[] {
+  // Zero pay/exercises is a reported zero, not an absent value. Ages and years need plausible integer values.
+  const integer = (v: Json, lo: number, hi: number) => Number.isInteger(num(v)) && num(v) >= lo && num(v) <= hi ? num(v) : NaN;
+  const nonnegative = (v: Json) => num(v) >= 0 ? num(v) : NaN;
   return ((Array.isArray(ap?.companyOfficers) ? ap.companyOfficers : []) as Json[])
     .map((o) => ({
       name: cleanOfficerName(o?.name),
-      title: String(o?.title ?? '').replace(/\s+/g, ' ').trim(),
-      age: num(o?.age) > 0 ? num(o.age) : NaN,
-      yearBorn: num(o?.yearBorn) > 0 ? num(o.yearBorn) : NaN,
-      totalPay: num(o?.totalPay) > 0 ? num(o.totalPay) : NaN,
-      exercised: num(o?.exercisedValue) > 0 ? num(o.exercisedValue) : NaN,
-      fiscalYear: num(o?.fiscalYear) > 0 ? num(o.fiscalYear) : NaN,
+      title: (typeof o?.title === 'string' ? o.title : '').replace(/\s+/g, ' ').trim(),
+      age: integer(o?.age, 18, 125),
+      yearBorn: integer(o?.yearBorn, 1850, 2100),
+      totalPay: nonnegative(o?.totalPay),
+      exercised: nonnegative(o?.exercisedValue),
+      fiscalYear: integer(o?.fiscalYear, 1900, 2100),
     }))
     .filter((o) => o.name);
 }
@@ -134,24 +151,30 @@ export function usTiming(ms: number): EarningsEvent['timing'] {
 
 // ------------------------------------------------------------------ statements
 
-const INCOME = ['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'ReconciledDepreciation', 'EBITDA', 'InterestExpense', 'PretaxIncome', 'TaxProvision', 'NetIncomeCommonStockholders', 'DilutedAverageShares', 'DilutedEPS'];
-const BALANCE = ['CashAndCashEquivalents', 'AccountsReceivable', 'Inventory', 'CurrentAssets', 'NetPPE', 'GoodwillAndOtherIntangibleAssets', 'TotalAssets', 'CurrentLiabilities', 'TotalDebt', 'TotalLiabilitiesNetMinorityInterest', 'StockholdersEquity'];
+const INCOME = ['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'ReconciledDepreciation', 'DepreciationAndAmortizationInIncomeStatement', 'EBITDA', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision', 'NetIncomeCommonStockholders', 'DilutedAverageShares', 'DilutedEPS'];
+const BALANCE = ['CashAndCashEquivalents', 'AccountsReceivable', 'Inventory', 'CurrentAssets', 'NetPPE', 'GoodwillAndOtherIntangibleAssets', 'TotalAssets', 'CurrentLiabilities', 'TotalDebt', 'CurrentDebtAndCapitalLeaseObligation', 'LongTermDebtAndCapitalLeaseObligation', 'TotalLiabilitiesNetMinorityInterest', 'StockholdersEquity'];
 const CASH = ['OperatingCashFlow', 'CapitalExpenditure', 'FreeCashFlow', 'CashDividendsPaid', 'RepurchaseOfCapitalStock'];
 
 type Row = Map<string, number>;
 
 /** Groups a timeseries response by period end: {end -> {type -> value}}. */
-export function seriesByPeriod(res: Json, prefix: string): Map<number, Row> {
+export function seriesByPeriod(res: Json, prefix: string, currency?: string): Map<number, Row> {
   const out = new Map<number, Row>();
   for (const r of (res?.timeseries?.result ?? []) as Json[]) {
     const type: string = r?.meta?.type?.[0] ?? '';
     if (!type.startsWith(prefix)) continue;
     const key = type.slice(prefix.length);
     for (const v of (r[type] ?? []) as Json[]) {
-      if (!v?.asOfDate) continue;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(v?.asOfDate ?? '')) continue;
       const end = Date.parse(`${v.asOfDate}T00:00:00Z`);
+      if (!Number.isFinite(end)) continue;
+      if (currency && typeof v.currencyCode === 'string' && v.currencyCode !== currency) continue;
+      const expected = prefix === 'quarterly' ? ['3M'] : prefix === 'trailing' ? ['TTM', '12M'] : ['12M'];
+      if (v.periodType && !expected.includes(v.periodType)) continue;
       const row = out.get(end) ?? new Map<string, number>();
-      row.set(key, num(v.reportedValue));
+      // An empty duplicate must not erase a valid reported observation.
+      const value = num(v.reportedValue);
+      if (Number.isFinite(value)) row.set(key, value);
       out.set(end, row);
     }
   }
@@ -168,19 +191,27 @@ const BALANCE_SET = new Set(BALANCE);
  * lines only (a trailing period has no balance sheet of its own).
  */
 export function periodFrom(label: string, end: number, row: Row, balance?: Row, dps = NaN): FinPeriod {
-  const g = (k: string) => row.get(k) ?? (BALANCE_SET.has(k) ? balance?.get(k) : undefined);
+  const g = (k: string): number => {
+    const own = row.get(k);
+    if (Number.isFinite(own)) return own!;
+    const bs = BALANCE_SET.has(k) ? balance?.get(k) : undefined;
+    return Number.isFinite(bs) ? bs! : NaN;
+  };
   // A negative revenue figure is a data error in the feed, not a real quarter.
   const revRaw = M(g('TotalRevenue'));
   const rev = revRaw < 0 ? NaN : revRaw;
   const cogs = M(g('CostOfRevenue'));
   const opInc = M(g('OperatingIncome'));
-  const da = M(g('ReconciledDepreciation'));
+  const da = M(Number.isFinite(g('ReconciledDepreciation')) ? g('ReconciledDepreciation') : g('DepreciationAndAmortizationInIncomeStatement'));
   const capex = Math.abs(M(g('CapitalExpenditure')));
   const cfo = M(g('OperatingCashFlow'));
   const fcfRaw = M(g('FreeCashFlow'));
   // Operating income plus depreciation and amortisation. The feed's own EBITDA starts from pretax income,
   // so it carries non-operating gains such as revaluations of investments.
   const ebitdaFeed = M(g('EBITDA'));
+  const debtReported = M(g('TotalDebt'));
+  const debtCurrent = M(g('CurrentDebtAndCapitalLeaseObligation'));
+  const debtNoncurrent = M(g('LongTermDebtAndCapitalLeaseObligation'));
   return {
     label,
     end,
@@ -192,7 +223,7 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
     opInc,
     da,
     ebitda: Number.isFinite(opInc) && Number.isFinite(da) ? opInc + da : ebitdaFeed,
-    interest: M(g('InterestExpense')),
+    interest: M(Number.isFinite(g('InterestExpense')) ? g('InterestExpense') : g('InterestExpenseNonOperating')),
     pretax: M(g('PretaxIncome')),
     tax: M(g('TaxProvision')),
     ni: M(g('NetIncomeCommonStockholders')),
@@ -207,7 +238,8 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
     intang: M(g('GoodwillAndOtherIntangibleAssets')),
     totAssets: M(g('TotalAssets')),
     curLiab: M(g('CurrentLiabilities')),
-    debt: M(g('TotalDebt')),
+    // Both components are required: one missing component never means zero debt.
+    debt: Number.isFinite(debtReported) ? debtReported : debtCurrent + debtNoncurrent,
     totLiab: M(g('TotalLiabilitiesNetMinorityInterest')),
     equity: M(g('StockholdersEquity')),
     cfo,
@@ -229,6 +261,8 @@ export function sumQuarters(q4: FinPeriod[], dps = NaN): FinPeriod {
     out[k] = xs.every(Number.isFinite) ? xs.reduce((a, b) => a + b, 0) : NaN;
   }
   out.shares = last.shares;
+  const supplements = q4.flatMap((p) => p.supplements ?? []);
+  if (supplements.length) out.supplements = [...new Set(supplements)];
   return out;
 }
 
@@ -242,7 +276,8 @@ function fiscalQuarter(end: number, fye: number): string {
 }
 
 function dividendsIn(id: string, from: number, to: number): number {
-  const list = realDividends.get(id) ?? [];
+  const list = realDividends.get(id);
+  if (!list) return NaN;
   let sum = 0;
   for (const x of list) {
     const t = x.day * DAY_MS;
@@ -253,22 +288,82 @@ function dividendsIn(id: string, from: number, to: number): number {
 
 // -------------------------------------------------------------------- build
 
-export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, quarterlyRes: Json, trailingRes: Json, now: number): RealFund {
+export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, quarterlyRes: Json, trailingRes: Json, now: number, secFacts?: CompanyFacts): RealFund {
   const r = summary?.quoteSummary?.result?.[0] ?? {};
-  const fye = def.eq?.fye ?? 12;
-  const annualRows = seriesByPeriod(annualRes, 'annual');
-  const quarterlyRows = seriesByPeriod(quarterlyRes, 'quarterly');
-  const trailingRows = seriesByPeriod(trailingRes, 'trailing');
+  const fiscalEnd = num(r.defaultKeyStatistics?.lastFiscalYearEnd);
+  const fye = Number.isFinite(fiscalEnd) ? new Date(fiscalEnd * 1000).getUTCMonth() + 1 : def.eq?.fye ?? 12;
+  const reportedCurrency = r.financialData?.financialCurrency;
+  const seriesCurrency = [quarterlyRes, annualRes].flatMap((x) => (x?.timeseries?.result ?? []) as Json[])
+    .flatMap((x) => (x[x?.meta?.type?.[0]] ?? []) as Json[])
+    .filter((x) => /^[A-Z]{3}$/.test(x?.currencyCode ?? '') && /^\d{4}-\d{2}-\d{2}$/.test(x?.asOfDate ?? ''))
+    .sort((a, b) => b.asOfDate.localeCompare(a.asOfDate))[0]?.currencyCode;
+  const currency: string | undefined = typeof reportedCurrency === 'string' && /^[A-Z]{3}$/.test(reportedCurrency) ? reportedCurrency : seriesCurrency ?? (secFacts ? reportingCurrency(secFacts.facts) : undefined);
+  const annualRows = seriesByPeriod(annualRes, 'annual', currency);
+  const quarterlyRows = seriesByPeriod(quarterlyRes, 'quarterly', currency);
+  const trailingRows = seriesByPeriod(trailingRes, 'trailing', currency);
+  const statementsFrom = annualRows.size || quarterlyRows.size || trailingRows.size ? 'Yahoo Finance' : secFacts ? 'SEC EDGAR' : undefined;
+  const supplements = new Map<number, Set<string>>();
+  const mostRecentQuarter = num(r.defaultKeyStatistics?.mostRecentQuarter) * 1000;
+  const snapshotDebt = num(r.financialData?.totalDebt);
+  if (Number.isFinite(mostRecentQuarter) && mostRecentQuarter <= now && snapshotDebt >= 0) {
+    const row = quarterlyRows.get(mostRecentQuarter) ?? new Map<string, number>();
+    if (!Number.isFinite(row.get('TotalDebt'))) {
+      row.set('TotalDebt', snapshotDebt);
+      quarterlyRows.set(mostRecentQuarter, row);
+      supplements.set(mostRecentQuarter, new Set([`Yahoo Finance debt snapshot as of ${new Date(mostRecentQuarter).toISOString().slice(0, 10)}`]));
+    }
+  }
+  if (secFacts && currency) {
+    for (const [kind, rows] of [['annual', annualRows], ['quarter', quarterlyRows]] as const) {
+      for (const [end, extra] of secStatementRows(secFacts, currency, kind)) {
+        const row = rows.get(end) ?? new Map<string, number>();
+        // Different restatement/continuing-operation bases must not create a hybrid income statement.
+        const conflict = ['TotalRevenue', 'NetIncomeCommonStockholders', 'OperatingIncome', 'GrossProfit'].some((key) => {
+          const primary = row.get(key);
+          const official = extra.row.get(key);
+          if (primary == null || !Number.isFinite(primary) || official == null || (key === 'TotalRevenue' && primary < 0)) return false;
+          return Math.abs(primary - official) > 0.01 * Math.max(Math.abs(primary), Math.abs(official), 1);
+        });
+        for (const [key, value] of extra.row) {
+          if (conflict && !BALANCE_SET.has(key)) continue;
+          if (Number.isFinite(row.get(key)) && !(key === 'TotalRevenue' && row.get(key)! < 0)) continue;
+          row.set(key, value);
+          const evidence = supplements.get(end) ?? new Set<string>();
+          evidence.add(extra.sources.get(key)!);
+          supplements.set(end, evidence);
+        }
+        rows.set(end, row);
+      }
+    }
+  }
+  // Annual and quarterly balance sheets refer to the same instant at fiscal year end.
+  // Reuse only those exact-date observations, never a prior quarter's stocks.
+  for (const [end, row] of quarterlyRows) {
+    const year = annualRows.get(end);
+    if (!year) continue;
+    for (const key of BALANCE_SET) if (!Number.isFinite(row.get(key)) && Number.isFinite(year.get(key))) row.set(key, year.get(key)!);
+  }
+  const fromRow = (label: string, end: number, row: Row, dps: number) => {
+    const period = periodFrom(label, end, row, undefined, dps);
+    const sources = supplements.get(end);
+    if (sources?.size) period.supplements = [...sources];
+    return period;
+  };
+  const balanceRow = [...annualRows, ...quarterlyRows]
+    .filter(([, row]) => [...BALANCE_SET].some((key) => Number.isFinite(row.get(key))))
+    .sort((a, b) => b[0] - a[0])[0];
+  const balance = balanceRow ? periodFrom('Balance', balanceRow[0], new Map(), balanceRow[1]) : undefined;
+  if (balance && supplements.has(balance.end)) balance.supplements = [...supplements.get(balance.end)!];
   const annual = [...annualRows.entries()]
     .sort((a, b) => a[0] - b[0])
     .filter(([, row]) => Number.isFinite(row.get('TotalRevenue') ?? NaN) || Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN))
     .slice(-5)
-    .map(([end, row]) => periodFrom(`FY ${new Date(end).getUTCFullYear()}`, end, row, undefined, dividendsIn(def.id, end - 365 * DAY_MS, end)));
+    .map(([end, row]) => fromRow(`FY ${new Date(end).getUTCFullYear()}`, end, row, dividendsIn(def.id, end - 365 * DAY_MS, end)));
   let quarterly = [...quarterlyRows.entries()]
     .sort((a, b) => a[0] - b[0])
     .filter(([, row]) => Number.isFinite(row.get('TotalRevenue') ?? NaN) || Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN))
     .slice(-8)
-    .map(([end, row]) => periodFrom(fiscalQuarter(end, fye), end, row, undefined, dividendsIn(def.id, end - 91 * DAY_MS, end)));
+    .map(([end, row]) => fromRow(fiscalQuarter(end, fye), end, row, dividendsIn(def.id, end - 91 * DAY_MS, end)));
   // The statements feed can lag a quarter; the earnings module already has the newest quarter's revenue and profit.
   const fq = (r.earnings?.financialsChart?.quarterly ?? []) as Json[];
   // The source labels quarters its own way ("2Q2026" for NVIDIA's July quarter): its earnings chart pairs each
@@ -287,11 +382,15 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     if (!fin) continue;
     const row: Row = new Map();
     row.set('TotalRevenue', num(fin.revenue));
-    row.set('NetIncomeCommonStockholders', num(fin.earnings));
+    // The earnings chart's profit is not identified as attributable to common shareholders. It cannot
+    // replace NetIncomeCommonStockholders or be divided by diluted shares to manufacture reported EPS.
     // No EPS until the statements have the quarter: the earnings module's EPS is the adjusted one, and net
     // income over the previous quarter's share count is not the reported figure.
     row.set('DilutedEPS', NaN);
-    quarterly = [...quarterly, periodFrom(fiscalQuarter(end, fye), end, row)].slice(-8);
+    const newPeriod = periodFrom(fiscalQuarter(end, fye), end, row, quarterlyRows.get(end));
+    const sources = supplements.get(end);
+    if (sources?.size) newPeriod.supplements = [...sources];
+    quarterly = [...quarterly, newPeriod].slice(-8);
   }
   // Revenue as the company reports it. The statements feed adds investment and derivative gains to some
   // companies' revenue (Berkshire 2025: 410,522 against the 371,444 it reports); where its latest yearly
@@ -311,7 +410,6 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
       if (Number.isFinite(v)) p.rev = v;
     }
   }
-  const lastQ = [...quarterlyRows.entries()].sort((a, b) => b[0] - a[0])[0];
   const trailing = [...trailingRows.entries()].sort((a, b) => b[0] - a[0])[0];
   const ltmDividends = dividendsIn(def.id, now - 365 * DAY_MS, now);
   // Trailing twelve months: the feed's own figure when current, else the sum of the last four quarters.
@@ -319,17 +417,32 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   // match ASML's releases), the quarters win.
   const q4 = quarterly.slice(-4);
   const consecutive = q4.length === 4 && q4.every((p, i) => i === 0 || Math.abs(p.end - q4[i - 1].end - 91 * DAY_MS) <= 12 * DAY_MS);
-  const fromTrailing = trailing && (!consecutive || trailing[0] >= q4[3].end - 5 * DAY_MS) ? periodFrom('LTM', trailing[0], trailing[1], lastQ?.[1], ltmDividends) : null;
+  const currentEnd = quarterly.at(-1)?.end ?? annual.at(-1)?.end ?? -Infinity;
+  const fromTrailing = trailing && trailing[0] >= currentEnd - 5 * DAY_MS
+    ? periodFrom('LTM', trailing[0], trailing[1], quarterlyRows.get(trailing[0]) ?? annualRows.get(trailing[0]), ltmDividends)
+    : null;
   const summed = consecutive ? sumQuarters(q4, ltmDividends) : null;
   const agrees = (a: number, b: number) => !Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) <= 0.005 * Math.max(Math.abs(a), Math.abs(b));
-  const ltm = fromTrailing && (!summed || (agrees(fromTrailing.ni, summed.ni) && agrees(fromTrailing.rev, summed.rev) && agrees(fromTrailing.opInc, summed.opInc))) ? fromTrailing : (summed ?? fromTrailing);
+  const compatible = !!fromTrailing && !!summed && fromTrailing.end === summed.end && agrees(fromTrailing.ni, summed.ni) && agrees(fromTrailing.rev, summed.rev) && agrees(fromTrailing.opInc, summed.opInc);
+  const ltm = fromTrailing && (!summed || compatible) ? fromTrailing : (summed ?? fromTrailing);
+  // Sources often omit different lines from the same twelve-month observation. Fill individual gaps
+  // only when their period ends and overlapping income figures agree.
+  if (ltm && compatible) {
+    const other = ltm === fromTrailing ? summed! : fromTrailing!;
+    for (const key of FLOWS) if (!Number.isFinite(ltm[key]) && Number.isFinite(other[key])) ltm[key] = other[key];
+    if (summed!.supplements) ltm.supplements = [...new Set([...(ltm.supplements ?? []), ...summed!.supplements])];
+  }
   // A quarter without its EPS in the feed (ASML's Q3 2025) leaves the sum without one: LTM net income over the
   // latest diluted share count instead, marked as worked out here.
   if (ltm && ltm === summed && !Number.isFinite(ltm.eps) && Number.isFinite(ltm.ni) && ltm.shares > 0) {
     ltm.eps = ltm.ni / ltm.shares;
     ltm.epsComputed = true;
   }
-  if (ltm) ltm.basis = ltm === summed ? 'quarters' : 'trailing';
+  if (ltm) {
+    ltm.basis = ltm === summed ? 'quarters' : 'trailing';
+    const sameEndSources = supplements.get(ltm.end);
+    if (sameEndSources) ltm.supplements = [...new Set([...(ltm.supplements ?? []), ...sameEndSources])];
+  }
 
   // Earnings: the last four reports from the statements (reported diluted EPS and revenue), with the
   // report dates the source's earnings chart gives; a report without one keeps an unknown date (never a
@@ -353,15 +466,9 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     };
   });
   const cal = r.calendarEvents?.earnings ?? {};
-  // The latest report's real date and time come from its earnings call.
+  // A call may take place after publication in a different trading session; it does not establish the
+  // report's publication time. Keep an unknown report date unknown unless the report chart supplies it.
   const callDate = num(cal.earningsCallDate?.[0]) * 1000;
-  const latest = earnings[earnings.length - 1];
-  const latestEnd = quarterly.length ? quarterly[quarterly.length - 1].end : NaN;
-  if (latest?.dateUnknown && callDate > latestEnd && callDate - latestEnd < 120 * DAY_MS) {
-    latest.date = callDate;
-    latest.dateUnknown = false;
-    latest.timing = def.country === 'US' ? usTiming(callDate) : '--';
-  }
   const nextDate = num(cal.earningsDate?.[0]) * 1000;
   if (Number.isFinite(nextDate)) {
     // Confirmed only when the source says so and has the earnings call on that date; the source
@@ -391,8 +498,8 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         pct: num(o.pctHeld) * 100,
         shares,
         // +100% is what the source reports for a new position as well as a doubled one: no share count from it.
-        change: Number.isFinite(ch) && ch > -1 && ch < 1 ? shares - shares / (1 + ch) : ch >= 1 ? NaN : 0,
-        newOrDoubled: ch >= 1,
+        change: Number.isFinite(ch) && ch > -1 && ch !== 1 ? shares - shares / (1 + ch) : NaN,
+        newOrDoubled: ch === 1,
         filed: num(o.reportDate) * 1000,
         source,
       };
@@ -401,7 +508,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     ...holdersOf(r.institutionOwnership?.ownershipList ?? [], 'Institution', '13F'),
     ...holdersOf(r.fundOwnership?.ownershipList ?? [], 'Fund', 'Fund filing'),
   ]
-    .filter((h) => h.name && Number.isFinite(h.pct))
+    .filter((h) => h.name && (Number.isFinite(h.pct) || Number.isFinite(h.shares)))
     .sort((a, b) => b.pct - a.pct);
   const mh = r.majorHoldersBreakdown;
   const breakdown = mh
@@ -433,7 +540,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const exDiv = num(r.calendarEvents?.exDividendDate) * 1000;
   const payDiv = num(r.calendarEvents?.dividendDate) * 1000;
   const nextDividend = Number.isFinite(exDiv) ? { ex: exDiv, pay: payDiv, rate: num(sd.dividendRate) } : null;
-  return { fetched: now, annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend, float: floatStats(ks), officers: officersFrom(r.assetProfile) };
+  return { fetched: now, ...(currency ? { currency } : {}), ...(statementsFrom ? { statementsFrom } : {}), ...(balance ? { balance } : {}), annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend, float: floatStats(ks), officers: officersFrom(r.assetProfile) };
 }
 
 /** Writes the real profile into the security so DES, market cap and the model inputs use it. */
@@ -446,7 +553,7 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   if (ap.industry) eq.industry = ap.industry;
   if (num(ap.fullTimeEmployees) > 0) eq.emp = num(ap.fullTimeEmployees);
   if (ap.city) eq.hq = `${ap.city}, ${ap.state ?? ap.country ?? ''}`.replace(/, $/, '');
-  const ceo = fund.officers.find((o) => /chief executive|ceo/i.test(o.title));
+  const ceo = fund.officers.find((o) => !/\b(?:former|retired|emeritus)\b/i.test(o.title) && /\b(?:chief executive(?: officer)?|ceo)\b/i.test(o.title));
   if (ceo) eq.ceo = ceo.name;
   if (ap.longBusinessSummary) eq.desc = String(ap.longBusinessSummary);
   const fyeRaw = num(ks.lastFiscalYearEnd);
@@ -460,7 +567,9 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   const lastBs = fund.quarterly.length ? fund.quarterly[fund.quarterly.length - 1] : fund.annual[fund.annual.length - 1];
   const bsSource = [...fund.quarterly].reverse().find((p) => Number.isFinite(p.equity)) ?? lastBs;
   if (bsSource && Number.isFinite(bsSource.equity)) eq.book = bsSource.equity;
-  if (bsSource && Number.isFinite(bsSource.debt)) eq.netDebt = bsSource.debt - (Number.isFinite(bsSource.cash) ? bsSource.cash : 0);
+  const debtSource = [...fund.quarterly, ...fund.annual, ...(fund.balance ? [fund.balance] : [])]
+    .filter((p) => Number.isFinite(p.debt)).sort((a, b) => b.end - a.end)[0];
+  eq.netDebt = debtSource && Number.isFinite(debtSource.cash) ? debtSource.debt - debtSource.cash : NaN;
   // The source gives the annual rate in the main unit (pounds), while the line is quoted in pence.
   const dr = num(r.summaryDetail?.dividendRate);
   eq.dps = Number.isFinite(dr) ? (def.minor ? dr * 100 : dr) : NaN;
@@ -529,6 +638,15 @@ function pump() {
 /** Company data older than this is loaded again the next time a screen asks for it. */
 export const FUND_TTL = 6 * 3600_000;
 
+async function statementFacts(def: SecurityDef, force: boolean): Promise<CompanyFacts | undefined> {
+  const ticker = secTicker(def);
+  if (!secAvailable() || !ticker) return undefined;
+  const filer = await resolveFiler(ticker, force);
+  if (!filer.ok) return undefined;
+  const facts = await loadCompanyFacts(filer.data.cik, force);
+  return facts.ok ? facts.data : undefined;
+}
+
 /**
  * True when a company's data should be loaded again: after 6 hours, or every
  * hour once a report it was waiting for is due (statements, EPS, estimates and
@@ -565,6 +683,8 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false,
   const run = async () => {
     const now = Date.now();
     try {
+      // Independent official fallback; missing SEC identification never blocks the Yahoo path.
+      const factsPromise = statementFacts(def, force).catch(() => undefined);
       const enc = encodeURIComponent(symbol);
       // The company summary needs Yahoo's session cookie; the statements do not. When Yahoo refuses the session
       // (EU cookies not accepted), the statements still load and the summary's parts stay empty.
@@ -585,13 +705,26 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false,
         }
       }
       const hasStatements = [annual, quarterly].some((x) => (x?.timeseries?.result ?? []).some((r: Json) => Object.keys(r ?? {}).some((k) => k !== 'meta' && k !== 'timestamp' && Array.isArray(r[k]) && r[k].length)));
-      if (!used?.quoteSummary?.result?.[0] && !hasStatements) throw new Error('no data');
-      const fund = buildRealFund(def, used, annual, quarterly, trailing, now);
+      const noProviderData = !used?.quoteSummary?.result?.[0] && !hasStatements;
+      const initialFacts = noProviderData ? await factsPromise : undefined;
+      if (noProviderData && !initialFacts) throw new Error('no data');
+      const fund = buildRealFund(def, used, annual, quarterly, trailing, now, initialFacts);
       if (statsFrom) fund.statsFrom = statsFrom;
       realFund.set(def.id, fund);
       applyProfile(def, used, fund);
       setStatus('ok');
       engine.flush([def.id]);
+      if (!initialFacts) {
+        const facts = await factsPromise;
+        if (facts) {
+          const supplemented = buildRealFund(def, used, annual, quarterly, trailing, now, facts);
+          if (statsFrom) supplemented.statsFrom = statsFrom;
+          realFund.set(def.id, supplemented);
+          applyProfile(def, used, supplemented);
+          setStatus('ok');
+          engine.flush([def.id]);
+        }
+      }
     } catch {
       failedAt.set(def.id, Date.now());
       setStatus('error');

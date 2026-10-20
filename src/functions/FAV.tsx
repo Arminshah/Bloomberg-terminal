@@ -9,6 +9,7 @@ import { periodChange } from '../data/analytics';
 import { watchlistColumns, watchlistExport, watchlistRow } from '../data/watchlist-columns';
 import { newsAvailable } from '../data/live/marketnews';
 import { extendedSessions } from '../data/live/yahoo';
+import { useExtendedSessionQuotes } from '../data/live/extended-hours';
 import { LIST_REACH, securitiesNews, useSecuritiesNews } from '../data/live/secnews';
 import { resolveSecurity, searchSecurities } from '../data/registry';
 import type { SecurityDef } from '../data/types';
@@ -42,6 +43,7 @@ function favouriteRows(ids: string[]) {
 function FavouriteQuotes({ ids, onMove }: { ids: string[]; onMove: (i: number, d: -1 | 1) => void }) {
   const panel = usePanelId();
   useTick(1);
+  useExtendedSessionQuotes(ids);
   const { now, columns, rows } = favouriteRows(ids);
   return (
     <div className="tbl-wrap">

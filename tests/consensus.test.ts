@@ -16,7 +16,7 @@ describe("the analysts' expectations against the reports", () => {
   it("reads Yahoo's last four quarters, EPS expected against reported (TSMC's third quarter of 2026)", () => {
     expect(yahoo.past).toHaveLength(4);
     const q = yahoo.past[0];
-    expect(q).toMatchObject({ end: '2026-09-30', label: '3Q2026', epsActual: 4.6, epsCcy: 'USD' });
+    expect(q).toMatchObject({ end: '2026-09-30', label: 'Q3 2026', epsActual: 4.6, epsCcy: 'USD' });
     expect(q.epsEst).toBeCloseTo(4.52449, 5);
     expect(new Date(q.date!).toISOString().slice(0, 10)).toBe('2026-10-15');
     expect(yahoo.revCcy).toBe('TWD');

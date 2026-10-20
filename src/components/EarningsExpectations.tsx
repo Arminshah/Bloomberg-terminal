@@ -1,5 +1,5 @@
 import { fmtBig, fmtDay, fmtNum } from '../core/format';
-import { growth, growthSeries, surprisePct, type Consensus, type Expectation, type QuarterView } from '../data/live/consensus';
+import { growth, growthSeries, surprisePct, timingLabel, type Consensus, type Expectation, type QuarterView } from '../data/live/consensus';
 import type { FinPeriod } from '../data/fundamentals';
 
 /**
@@ -56,7 +56,7 @@ export function LatestReport({ c, statements }: { c: Consensus; statements: FinP
   return (
     <div>
       <div className="muted" style={{ marginBottom: 4 }}>
-        {q.label} (quarter ended {day(q.end)}){q.date ? `, reported ${fmtDay(q.date)}` : ''}
+        {q.label}{q.end ? ` (fiscal quarter ended ${day(q.end)})` : ' (period end not provided)'}{q.date ? `, reported ${fmtDay(q.date)} · ${timingLabel(q.timing)}` : ''}
       </div>
       <table className="tbl">
         <thead>
@@ -99,45 +99,59 @@ export function ExpectationsTable({ c }: { c: Consensus }) {
   if (!c.past.length) return <div className="empty">{c.loading ? 'Loading…' : c.problems.join(' ') || 'No quarters from the sources.'}</div>;
   const hasRev = c.past.some((q) => ok(q.rev.est) || ok(q.rev.actual));
   return (
-    <table className="tbl zebra">
-      <thead>
-        <tr>
-          <th>Quarter</th>
-          <th className="hide-m">Reported</th>
-          <th className="num">EPS expected</th>
-          <th className="num">EPS reported</th>
-          <th className="num">EPS surprise</th>
-          {hasRev ? (
-            <>
-              <th className="num">Revenue expected</th>
-              <th className="num">Revenue reported</th>
-              <th className="num">Revenue surprise</th>
-            </>
-          ) : null}
-        </tr>
-      </thead>
-      <tbody>
-        {c.past.slice(0, 8).map((q) => {
-          const ve = verdict(q.eps);
-          const vr = verdict(q.rev);
-          return (
-            <tr key={q.end} title={[q.eps.estFrom && `EPS: ${q.eps.estFrom}`, q.rev.estFrom && `revenue: ${q.rev.estFrom}`].filter(Boolean).join('; ') || undefined}>
-              <td className="amber">{q.label}</td>
-              <td className="hide-m">{q.date ? fmtDay(q.date) : `ended ${day(q.end)}`}</td>
-              <td className="num">{eps(q.eps.est)}</td>
-              <td className="num white">{eps(q.eps.actual)}</td>
-              <td className={`num ${ve.cls}`}>{ve.text || '--'}</td>
-              {hasRev ? (
-                <>
-                  <td className="num">{rev(q.rev.est)}</td>
-                  <td className="num white">{rev(q.rev.actual)}</td>
-                  <td className={`num ${vr.cls}`}>{vr.text || '--'}</td>
-                </>
-              ) : null}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div>
+      <table className="tbl zebra">
+        <thead>
+          <tr>
+            <th>Quarter</th>
+            <th className="hide-m">Reported</th>
+            <th className="hide-m">Session</th>
+            <th className="num">EPS expected</th>
+            <th className="num">EPS reported</th>
+            <th className="num">EPS surprise</th>
+            {hasRev ? (
+              <>
+                <th className="num">Revenue expected</th>
+                <th className="num">Revenue reported</th>
+                <th className="num">Revenue surprise</th>
+              </>
+            ) : null}
+          </tr>
+        </thead>
+        <tbody>
+          {c.past.slice(0, 8).map((q) => {
+            const ve = verdict(q.eps);
+            const vr = verdict(q.rev);
+            return (
+              <tr key={`${q.label}:${q.end}`} title={[q.eps.estFrom && `EPS: ${q.eps.estFrom}`, q.rev.estFrom && `revenue: ${q.rev.estFrom}`].filter(Boolean).join('; ') || undefined}>
+                <td className="amber">{q.label}</td>
+                <td className="hide-m">{q.date ? fmtDay(q.date) : `ended ${day(q.end)}`}</td>
+                <td className="hide-m muted">{timingLabel(q.timing)}</td>
+                <td className="num" title={q.eps.estFrom}>{eps(q.eps.est)}</td>
+                <td className="num white">{eps(q.eps.actual)}</td>
+                <td className={`num ${ve.cls}`}>{ve.text || '--'}</td>
+                {hasRev ? (
+                  <>
+                    <td className="num">{rev(q.rev.est)}</td>
+                    <td className="num white">{rev(q.rev.actual)}</td>
+                    <td className={`num ${vr.cls}`}>{vr.text || '--'}</td>
+                  </>
+                ) : null}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {c.past.some((q) => q.alternativeEps) ? (
+        <details className="note">
+          <summary>Other provider EPS comparisons (reporting bases can differ)</summary>
+          {c.past.filter((q) => q.alternativeEps).map((q) => (
+            <div key={`${q.label}:${q.end}`}>
+              {q.label}: {q.eps.estFrom} expected {eps(q.eps.est)}, reported {eps(q.eps.actual)}; {q.alternativeEps!.estFrom} expected {eps(q.alternativeEps!.est)}, reported {eps(q.alternativeEps!.actual)}. Each comparison keeps its own source and basis.
+            </div>
+          ))}
+        </details>
+      ) : null}
+    </div>
   );
 }

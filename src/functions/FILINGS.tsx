@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import './filings.css';
 import { FnHeader } from '../components/FnHeader';
 import { Freshness } from '../components/Freshness';
 import { KV, Section } from '../components/cells';
@@ -25,6 +26,7 @@ import {
   searchCompanies,
   secAvailable,
   secTicker,
+  standaloneQuarterValues,
   useSecLoad,
   type Filing,
   type FactLine,
@@ -33,6 +35,10 @@ import {
   type SecResult,
 } from '../data/live/sec';
 import type { SecurityDef } from '../data/types';
+import { reportCcy, type FinPeriod } from '../data/fundamentals';
+import { resolveSecurity } from '../data/registry';
+import { lookupSecurity, type LookupResult } from '../data/live/lookup';
+import { useFundamentals } from '../data/live/yfund';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -360,18 +366,21 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
     const currencies = reportingCurrencies(table);
     const latestCurrency = reportingCurrency(table);
     const ccy = currencies.some((c) => c.currency === selectedCurrency) ? selectedCurrency! : latestCurrency;
-    const cols = periodColumns(facts.result.data, ccy, kind, kind === 'annual' ? 6 : 8);
-    const rows = FACT_LINES.map((line) => ({ line, values: lineValues(table, line, ccy, kind) })).filter((r) => cols.some((c) => r.values.has(c.end)));
+    const cols = periodColumns(facts.result.data, ccy, kind, kind === 'annual' ? 6 : 8, true);
+    const rows = FACT_LINES.map((line) => ({ line, values: kind === 'quarter' ? standaloneQuarterValues(table, line, ccy) : lineValues(table, line, ccy, kind) })).filter((r) => cols.some((c) => r.values.has(c.end)));
     const biggest = Math.max(0, ...rows.filter((r) => r.line.measure === 'money').flatMap((r) => cols.map((c) => Math.abs(r.values.get(c.end)?.val ?? 0))));
     const latestAnnual = periodColumns(facts.result.data, ccy, 'annual', 1).at(-1)?.end;
-    const latestQuarter = periodColumns(facts.result.data, ccy, 'quarter', 20).filter((c) => c.kind === 'quarter').at(-1)?.end;
+    const latestQuarter = periodColumns(facts.result.data, ccy, 'quarter', 20, true).filter((c) => c.kind === 'quarter').at(-1)?.end;
     return { ccy, currencies, latestCurrency, latestAnnual, latestQuarter, cols, rows, moneyDec: biggest >= 1e10 ? 0 : 1, shares: coverShares(table) };
   }, [facts.result, kind, selectedCurrency]);
 
   if (!facts.result) return <div className="empty">Loading reported figures from SEC EDGAR…</div>;
   if (!facts.result.ok) {
     return facts.result.reason === 'not-found' ? (
-      <div className="pad muted">The SEC has no XBRL financial data for this filer. Companies that file financial statements tag them in XBRL; funds, trusts and some foreign filers do not.</div>
+      <>
+        <div className="pad muted">The SEC has no XBRL financial data for this filer. Companies that file financial statements tag them in XBRL; funds, trusts and some foreign filers do not.</div>
+        {security && <ProviderQuarters security={security} />}
+      </>
     ) : (
       <Problem result={facts.result} />
     );
@@ -402,7 +411,7 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
       <div className="note" role="status" data-testid="sec-coverage">
         {olderCoverage && <span className="amber">OLDER COVERAGE · {kind === 'annual' ? 'Annual' : 'Standalone quarterly'} SEC figures shown here end at {latestShown}. </span>}
         {v.ccy !== v.latestCurrency && <span className="amber">Historical currency selected. The latest monetary reporting is in {v.latestCurrency}. </span>}
-        SEC tagged income figures in {v.ccy}: latest annual period {v.latestAnnual ?? 'not available'}; latest standalone quarter {v.latestQuarter ?? 'not available'}.
+        SEC statement coverage in {v.ccy}: latest annual period {v.latestAnnual ?? 'not available'}; latest standalone or calculated quarter {v.latestQuarter ?? 'not available'}.
         {!v.latestQuarter && <> Foreign filers can publish interim results in 6-K documents without standalone quarterly figures in this SEC dataset.</>}{' '}
         {latestCurrent && <><a className="amber" href={filingLinks(cik, latestCurrent).doc ?? filingLinks(cik, latestCurrent).index} target="_blank" rel="noreferrer">Latest current report: {latestCurrent.form} filed {latestCurrent.filed}</a>. </>}
         <button type="button" className="btn" onClick={onCurrentReports}>View current reports</button>
@@ -414,12 +423,13 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
         </div>
       )}
       {v.cols.length === 0 ? (
-        <div className="empty">No {kind === 'annual' ? 'annual' : 'quarterly'} income statement figures in this filer&apos;s XBRL data.</div>
+        <div className="empty">No {kind === 'annual' ? 'annual' : 'quarterly'} statement figures in this filer&apos;s XBRL data.</div>
       ) : (
-        <table className="tbl zebra">
+        <table className="tbl zebra sec-figures" aria-label="SEC reported figures">
+          <colgroup><col style={{ width: '32%' }} />{v.cols.map((c) => <col key={c.end} />)}</colgroup>
           <thead>
             <tr>
-              <th />
+              <th scope="col">Reported item</th>
               {v.cols.map((c) => (
                 <th key={c.end} className="num" title={c.start ? `${c.start} to ${c.end} (${periodDays(c.start, c.end)} days)` : `At ${c.end}`}>
                   {c.label ?? (c.kind === 'annual' ? 'Year' : 'Quarter')}
@@ -457,6 +467,8 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
                         `${r.concept} (${r.unit})`,
                         r.start ? `${r.start} to ${r.end}` : `At ${r.end}`,
                         `${r.form} filed ${r.filed}, accession ${r.accn}`,
+                        r.derived ? `Calculated quarter: cumulative ${r.derived.current.start} to ${r.derived.current.end} (${fmtNum(r.derived.current.val, 2)} ${r.unit}, filed ${r.derived.current.filed}, accession ${r.derived.current.accn}) minus cumulative ${r.derived.previous.start} to ${r.derived.previous.end} (${fmtNum(r.derived.previous.val, 2)} ${r.unit}, filed ${r.derived.previous.filed}, accession ${r.derived.previous.accn}).` : '',
+                        r.derived && r.derived.current.accn !== r.derived.previous.accn ? 'Inputs are from different filings; a restatement or reclassification can affect comparability.' : '',
                         r.restated ? `First reported as ${fmt(line, { ...r, val: r.orig.val })} in the ${r.orig.form} filed ${r.orig.filed} (accession ${r.orig.accn})` : '',
                       ]
                         .filter(Boolean)
@@ -466,7 +478,7 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
                           <a href={`https://www.sec.gov/Archives/edgar/data/${cik}/${r.accn}-index.html`} target="_blank" rel="noreferrer noopener" className="fact-link">
                             {fmt(line, r)}
                           </a>
-                          {r.restated ? <sup className="amber"> r</sup> : null}
+                          {r.derived ? <sup className="sec-fact-mark amber" aria-label="Calculated from cumulative disclosures"> c</sup> : r.restated ? <sup className="sec-fact-mark amber" aria-label="Restated"> r</sup> : null}
                         </td>
                       );
                     })}
@@ -477,11 +489,51 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
           </tbody>
         </table>
       )}
+      {kind === 'quarter' && !v.latestQuarter && security && <ProviderQuarters security={security} />}
       <div className="note">
         Figures as the company tagged them in its XBRL filings: audited in annual reports, unaudited in quarterly ones. Each period shows the figure from the most recent filing that reports it; r marks a period a later filing
-        changed (restated or reclassified), with the first figure in its tooltip. Payments are positive numbers and net cash flows carry their sign, as filed. Most companies file no separate fourth-quarter figures. Nothing here is
-        estimated or calculated. Source: SEC EDGAR company facts.
+        changed (restated or reclassified), with the first figure in its tooltip. c marks an additive quarter calculated as one cumulative monetary flow minus the earlier cumulative flow with the same fiscal start, concept and currency; both inputs and filings are in its tooltip. Inputs from different filings can be affected by restatements or reclassifications. Directly reported quarters take precedence. EPS and weighted shares are never subtracted. Payments are positive numbers and net cash flows carry their sign, as filed. Source: SEC EDGAR company facts.
       </div>
     </div>
   );
+}
+
+
+/** Keep provider coverage distinct from SEC facts, especially for 6-K foreign issuers. */
+function ProviderQuarters({ security }: { security: string }) {
+  const existing = resolveSecurity(security);
+  const [lookup, setLookup] = useState<{ security: string; result: LookupResult }>();
+  useEffect(() => {
+    if (existing) return;
+    let active = true;
+    // SEC search accepts raw tickers and CIKs without registering a market
+    // security. Resolve the filer's ticker for this session only; do not change
+    // the route or add it to the user's saved lists.
+    void lookupSecurity(security, false).then((result) => {
+      if (active) setLookup({ security, result });
+    });
+    return () => { active = false; };
+  }, [security, existing]);
+  const lookedUp = lookup?.security === security ? lookup.result : undefined;
+  const def = existing ?? (lookedUp?.ok ? lookedUp.def : undefined);
+  const { real, status } = useFundamentals(def);
+  if (!def) return <Section title="Other source: quarterly statements" right="Yahoo Finance / financial analysis">
+    <div className="note muted">{lookedUp && !lookedUp.ok ? `Provider lookup unavailable: ${lookedUp.reason}. Open the current reports above for original interim statements.` : `Looking up ${security} for provider quarterly coverage…`}</div>
+  </Section>;
+  const periods = (real?.quarterly ?? []).slice(-8);
+  const fields: { label: string; key: keyof FinPeriod; dec?: number }[] = [
+    { label: 'Revenue', key: 'rev' }, { label: 'Gross profit', key: 'gp' },
+    { label: 'Operating income', key: 'opInc' }, { label: 'Net income available to common shareholders', key: 'ni' },
+    { label: 'Diluted EPS', key: 'eps', dec: 2 }, { label: 'Cash from operating activities', key: 'cfo' },
+    { label: 'Capital expenditures (outflow)', key: 'capex' }, { label: 'Free cash flow', key: 'fcf' },
+    { label: 'Total assets', key: 'totAssets' }, { label: 'Total debt', key: 'debt' }, { label: 'Shareholders’ equity', key: 'equity' },
+  ];
+  return <Section title="Other source: quarterly statements" right="Yahoo Finance / financial analysis">
+    <div className="note">SEC company facts has no standalone quarters for this filer. The separate provider figures below are in {reportCcy(def)} millions except EPS; they are not SEC reported facts. Check the period dates and the company’s current reports for original statements.</div>
+    {periods.length ? <table className="tbl zebra sec-figures" aria-label="Provider quarterly statements">
+      <colgroup><col style={{ width: '32%' }} />{periods.map((p) => <col key={p.end} />)}</colgroup>
+      <thead><tr><th scope="col">Provider item</th>{periods.map((p) => <th key={p.end} className="num">{p.label}<br /><span className="muted">{fmtDay(p.end)}</span></th>)}</tr></thead>
+      <tbody>{fields.filter((f) => periods.some((p) => Number.isFinite(p[f.key]))).map((f) => <tr key={f.key}><td>{f.label}</td>{periods.map((p) => <td key={p.end} className="num white">{fmtNum(p[f.key] as number, f.dec ?? 1)}</td>)}</tr>)}</tbody>
+    </table> : <div className="note muted">{status === 'loading' ? 'Loading provider quarterly coverage…' : 'The financial-analysis providers have not supplied quarterly figures. Open the current 6-K reports above to read the original interim statements.'}</div>}
+  </Section>;
 }
