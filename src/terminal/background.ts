@@ -41,8 +41,13 @@ function checkAlerts() {
   const st = alerts.get();
   if (!st.list.some((a) => a.active)) return;
   let fired = 0;
+  let lapsed = 0;
   const list = st.list.map((a) => {
     if (!a.active) return a;
+    if (a.expires && Date.now() > a.expires) {
+      lapsed++;
+      return { ...a, active: false, expired: true };
+    }
     const q = engine.quote(a.sec);
     const d = engine.get(a.sec);
     if (!q || !d) return a;
@@ -54,9 +59,9 @@ function checkAlerts() {
     toast({ title: 'ALERT', body: `${d.ticker} ${describe(a.cond, a.value, d.dec)} · last ${q.last.toFixed(d.dec)}`, kind: 'alert', command: `${d.id} CHART` }, 12000);
     return { ...a, active: false, triggered: engine.now(), triggeredPx: q.last };
   });
-  if (fired) {
+  if (fired || lapsed) {
     alerts.set((s) => ({ ...s, list, unseen: s.unseen + fired }));
-    if (settings.get().sound) beep();
+    if (fired && settings.get().sound) beep();
   }
 }
 

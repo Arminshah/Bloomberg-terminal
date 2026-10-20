@@ -36,6 +36,8 @@ export function ALRT({ sec }: FnProps) {
   const [text, setText] = useState(sec?.id ?? '');
   const [cond, setCond] = useState<AlertCond>('above');
   const [value, setValue] = useState('');
+  const [days, setDays] = useState('365');
+  const [note, setNote] = useState('');
   const hits = text.trim() && !resolveSecurity(text) ? searchSecurities(text, 5) : [];
   useEffect(() => {
     if (st.unseen) alerts.set((s) => ({ ...s, unseen: 0 }));
@@ -45,8 +47,11 @@ export function ALRT({ sec }: FnProps) {
     if (!d) return flash(panel, `Unknown security: ${text}`, 'error');
     const v = Number(value);
     if (!Number.isFinite(v) || value.trim() === '') return flash(panel, 'Enter a trigger value', 'error');
-    alerts.set((s) => ({ ...s, seq: s.seq + 1, list: [{ id: s.seq, sec: d.id, cond, value: v, active: true, created: engine.now() }, ...s.list] }));
+    const n = Number(days);
+    const expires = Number.isFinite(n) && n > 0 ? Date.now() + n * 86_400_000 : undefined;
+    alerts.set((s) => ({ ...s, seq: s.seq + 1, list: [{ id: s.seq, sec: d.id, cond, value: v, active: true, created: engine.now(), ...(expires ? { expires } : {}), ...(note.trim() ? { note: note.trim() } : {}) }, ...s.list] }));
     setValue('');
+    setNote('');
     flash(panel, `Alert set on ${d.ticker} ${describe(cond, v, d.dec)}`, 'info');
   };
   const preset = () => {
@@ -59,8 +64,8 @@ export function ALRT({ sec }: FnProps) {
   const fired = st.list.filter((a) => !a.active);
   return (
     <div>
-      <FnHeader code="ALERTS" title="Alert Manager" sub={`${active.length} active · ${fired.length} triggered`} />
-      <Section title="New price alert">
+      <FnHeader code="ALERTS" title="Market Alerts" sub={`${active.length} active · ${fired.length} triggered or expired`} />
+      <Section title="New Limit Alert">
         <div className="pad row" style={{ gap: 8 }}>
           <span style={{ position: 'relative' }}>
             <input className="inp" placeholder="Security" aria-label="Security" value={text} onChange={(e) => setText(e.target.value)} />
@@ -84,9 +89,16 @@ export function ALRT({ sec }: FnProps) {
             ))}
           </select>
           <input className="inp" style={{ width: 110 }} placeholder="Value" aria-label="Trigger value" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create()} />
+          <span className="muted">
+            Current Price <span className="white">{resolveSecurity(text) ? fmtNum(engine.quote(resolveSecurity(text)!.id)?.last ?? NaN, resolveSecurity(text)!.dec) : '--'}</span>
+          </span>
           <button type="button" className="btn" onClick={preset} title="Fill a value near the market">
             Near market
           </button>
+          <span className="amber">Expiration</span>
+          <input className="inp" style={{ width: 54 }} aria-label="Expiration in days" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ''))} />
+          <span className="muted">Days</span>
+          <input className="inp" style={{ width: 180 }} placeholder="<Note>" aria-label="Note" value={note} onChange={(e) => setNote(e.target.value)} />
           <button type="button" className="btn primary" onClick={create}>
             Create alert
           </button>
@@ -97,18 +109,20 @@ export function ALRT({ sec }: FnProps) {
         <table className="tbl">
           <thead>
             <tr>
-              <th>Security</th>
-              <th>Condition</th>
               <th className="num">Last</th>
+              <th>Securities</th>
+              <th>Alert Conditions</th>
               <th className="num">Distance</th>
-              <th>Created</th>
+              <th>Notes</th>
+              <th className="hide-m">Expires</th>
+              <th className="hide-m">Created</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {active.length === 0 && (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={8} className="empty">
                   No active alerts.
                 </td>
               </tr>
@@ -119,18 +133,20 @@ export function ALRT({ sec }: FnProps) {
               const dist = a.cond === 'above' || a.cond === 'below' ? ((a.value / q.last - 1) * 100) : a.cond === 'pctUp' ? a.value - q.pct : -a.value - q.pct;
               return (
                 <tr key={a.id}>
-                  <td>
-                    <SecLink id={a.sec}>{d.ticker}</SecLink>
-                  </td>
-                  <td>{describe(a.cond, a.value, d.dec)}</td>
                   <td className="num white">
                     <LivePx id={a.sec} />
                   </td>
+                  <td>
+                    <SecLink id={a.sec}>{d.id}</SecLink>
+                  </td>
+                  <td className="amber">Last Trade {describe(a.cond, a.value, d.dec)}</td>
                   <td className="num" title={a.cond === 'above' || a.cond === 'below' ? 'Distance from the last price to the level' : "Gap between today's change and the trigger, in percentage points"}>
                     {fmtNum(dist, 2)}
                     {a.cond === 'above' || a.cond === 'below' ? '%' : ' pp'}
                   </td>
-                  <td className="muted">{fmtDate(a.created)} {fmtTime(a.created, false)}</td>
+                  <td className="muted">{a.note ?? ''}</td>
+                  <td className="muted hide-m">{a.expires ? fmtDate(a.expires) : ''}</td>
+                  <td className="muted hide-m">{fmtDate(a.created)} {fmtTime(a.created, false)}</td>
                   <td>
                     <button type="button" className="act" aria-label="Delete alert" onClick={() => alerts.set((s) => ({ ...s, list: s.list.filter((x) => x.id !== a.id) }))}>
                       ×
@@ -159,10 +175,11 @@ export function ALRT({ sec }: FnProps) {
                     <SecLink id={a.sec}>{d.ticker}</SecLink>
                   </td>
                   <td>{describe(a.cond, a.value, d.dec)}</td>
-                  <td className="num yellow">{a.triggeredPx != null ? fmtNum(a.triggeredPx, d.dec) : ''}</td>
-                  <td className="muted">{a.triggered ? `${fmtDate(a.triggered)} ${fmtTime(a.triggered)}` : ''}</td>
+                  <td className="num yellow">{a.triggeredPx != null ? fmtNum(a.triggeredPx, d.dec) : a.expired ? 'Expired' : ''}</td>
+                  <td className="muted">{a.triggered ? `${fmtDate(a.triggered)} ${fmtTime(a.triggered)}` : a.expires ? fmtDate(a.expires) : ''}</td>
+                  <td className="muted">{a.note ?? ''}</td>
                   <td>
-                    <button type="button" className="act" onClick={() => alerts.set((s) => ({ ...s, list: s.list.map((x) => (x.id === a.id ? { ...x, active: true, triggered: undefined } : x)) }))}>
+                    <button type="button" className="act" onClick={() => alerts.set((s) => ({ ...s, list: s.list.map((x) => (x.id === a.id ? { ...x, active: true, triggered: undefined, expired: undefined, ...(x.expired ? { expires: undefined } : {}) } : x)) }))}>
                       Re-arm
                     </button>
                   </td>

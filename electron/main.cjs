@@ -668,7 +668,8 @@ ipcMain.handle('nasdaq', async (event, kind, symbol) => {
 
 // FINRA's consolidated short interest for one US-listed stock (no key), where Nasdaq's page has none.
 ipcMain.handle('finra', async (event, kind, symbol) => {
-  const req = kind === 'short-interest' ? nasdaq.finraShortRequest(symbol) : null;
+  // The latest settlements (75 days), or two years of them for the short interest screen (SI).
+  const req = kind === 'short-interest' ? nasdaq.finraShortRequest(symbol) : kind === 'short-history' ? nasdaq.finraShortRequest(symbol, Date.now(), 760, 60) : null;
   if (!fromApp(event) || !req) throw new Error('not allowed');
   return keyedGet('finra', req.url, req.headers, req.ttl, [20, 60_000], [], undefined, { method: 'POST', body: req.body });
 });

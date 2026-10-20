@@ -11,10 +11,10 @@ import type { FnProps } from '../terminal/types';
 import { sourceLabel } from '../components/Source';
 import { useFundamentals } from '../data/live/yfund';
 
-const BENCH: Record<string, string> = { Americas: 'SPX Index', EMEA: 'SXXP Index', APAC: 'NKY Index' };
+export const BENCH: Record<string, string> = { Americas: 'SPX Index', EMEA: 'SXXP Index', APAC: 'NKY Index' };
 
 /** The 10-year government yield the app has from an official source, per currency. */
-const TEN_YEAR: Record<string, { id: string; name: string }> = {
+export const TEN_YEAR: Record<string, { id: string; name: string }> = {
   USD: { id: 'USGG10YR Index', name: 'US 10-year Treasury' },
   EUR: { id: 'GDBR10 Index', name: 'German 10-year Bund' },
   GBP: { id: 'GUKG10 Index', name: 'UK 10-year gilt' },

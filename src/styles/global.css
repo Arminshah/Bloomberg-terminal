@@ -1204,3 +1204,12 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .evts-mkt .evts-desc.up { color: var(--up); }
 .evts-mkt .evts-desc.dn { color: var(--dn); }
 .news-head { color: var(--white); background: var(--hdr); font-weight: 600; padding: 1px 8px; }
+.si-top { display: grid; grid-template-columns: minmax(280px, 380px) 1fr; gap: 10px; padding: 4px 8px; align-items: start; }
+@media (max-width: 760px) { .si-top { grid-template-columns: 1fr; } }
+
+/* EQRP: the two data boxes with amber inputs. */
+.eqrp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 4px 8px; }
+.eqrp-rows { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 6px 8px; align-items: center; }
+.eqrp-in { width: 80px; text-align: right; }
+.eqrp-name { margin-left: auto; }
+@media (max-width: 760px) { .eqrp-grid { grid-template-columns: 1fr; } }

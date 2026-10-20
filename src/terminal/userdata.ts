@@ -113,6 +113,10 @@ export interface PriceAlert {
   triggered?: number;
   triggeredPx?: number;
   note?: string;
+  /** When the alert lapses unfired (epoch ms); none means it stays until it fires. */
+  expires?: number;
+  /** It lapsed at `expires` without firing. */
+  expired?: boolean;
 }
 
 export const alerts = createStore<{ list: PriceAlert[]; seq: number; unseen: number }>(

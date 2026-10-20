@@ -87,13 +87,13 @@ function nasdaqProblem(text) {
 
 // FINRA's consolidated short interest (no key), for every US-listed stock: Nasdaq's page has it for Nasdaq listings
 // only. A POST to FINRA's Query API for one symbol's settlements of the last 75 days; FINRA publishes twice a month.
-function finraShortRequest(symbol, now = Date.now()) {
+function finraShortRequest(symbol, now = Date.now(), days = 75, limit = 12) {
   if (typeof symbol !== 'string' || !COMPANY.test(symbol)) return null;
   const day = (t) => new Date(t).toISOString().slice(0, 10);
   const body = JSON.stringify({
-    limit: 12,
+    limit,
     compareFilters: [{ compareType: 'EQUAL', fieldName: 'symbolCode', fieldValue: symbol }],
-    dateRangeFilters: [{ fieldName: 'settlementDate', startDate: day(now - 75 * DAY), endDate: day(now) }],
+    dateRangeFilters: [{ fieldName: 'settlementDate', startDate: day(now - days * DAY), endDate: day(now) }],
   });
   return { url: 'https://api.finra.org/data/group/otcMarket/name/consolidatedShortInterest', ttl: 12 * HOUR, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body };
 }
