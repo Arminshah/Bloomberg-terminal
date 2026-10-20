@@ -75,11 +75,12 @@ describe('management source accuracy', () => {
   it('preserves reported zero pay and exercised options and rejects malformed identity/demographics', () => {
     const officers = officersFrom({ companyOfficers: [
       { name: { raw: 'Fake name' }, title: 'CEO' },
-      { name: ' Dr.  Ann  Lee ', title: { raw: 'CEO' }, age: 500, yearBorn: -1, fiscalYear: 3, totalPay: { raw: 0 }, exercisedValue: { raw: 0 } },
-      { name: 'Pat Chen', age: 55.5, totalPay: -5, exercisedValue: {} },
+      { name: ' Dr.  Ann  Lee ', title: { raw: 'CEO' }, age: 500, yearBorn: -1, fiscalYear: 3, totalPay: { raw: 0 }, exercisedValue: { raw: 0 }, unexercisedValue: { raw: 1_250_000 } },
+      { name: 'Pat Chen', age: 55.5, totalPay: -5, exercisedValue: {}, unexercisedValue: { raw: -1 } },
     ] });
     expect(officers).toHaveLength(2);
-    expect(officers[0]).toEqual({ name: 'Ann Lee', title: '', age: NaN, yearBorn: NaN, fiscalYear: NaN, totalPay: 0, exercised: 0 });
+    expect(officers[0]).toEqual({ name: 'Ann Lee', title: '', age: NaN, yearBorn: NaN, fiscalYear: NaN, totalPay: 0, exercised: 0, unexercised: 1_250_000 });
+    expect(officers[1].unexercised).toBeNaN();
     expect(officers[1].age).toBeNaN();
     expect(officers[1].totalPay).toBeNaN();
   });
