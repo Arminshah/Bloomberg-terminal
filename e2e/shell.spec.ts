@@ -37,7 +37,7 @@ test('MENU climbs the security, sector and main menu hierarchy independently of 
   await run(page, 'AAPL GP');
   const menu = page.locator('.panel').first().getByRole('button', { name: 'Menu', exact: false }).first();
   await menu.click();
-  await expect(page.getByRole('navigation', { name: 'Menu path' })).toContainText('Analyze AAPL US Equity');
+  await expect(page.getByRole('navigation', { name: 'Menu path' })).toContainText('Analyze APPLE INC Equity');
   await menu.click();
   await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('EQUITY');
   await menu.click();

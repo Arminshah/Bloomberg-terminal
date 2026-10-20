@@ -19,11 +19,6 @@ export const LEGACY_CODES: Record<string, string> = {
   CACS: 'CORPACTIONS',
   SI: 'SHORTINTEREST',
   EQRP: 'RISKPREMIUM',
-  MLRT: 'ALERTS',
-  GV: 'VOLATILITY',
-  NI: 'NEWS',
-  NH: 'NEWS',
-  G: 'CHART',
   HDS: 'HOLDERS',
   OWN: 'HOLDERS',
   MGMT: 'MANAGEMENT',
@@ -93,6 +88,12 @@ export const LEGACY_CODES: Record<string, string> = {
   PROV: 'PROVIDERS',
   PDF: 'SETTINGS',
   PDFU: 'SETTINGS',
+  // Other names the terminal has for these screens; listed last, so the names above stay the ones shown.
+  MLRT: 'ALERTS',
+  GV: 'VOLATILITY',
+  NI: 'NEWS',
+  NH: 'NEWS',
+  G: 'CHART',
 };
 
 /**

@@ -115,6 +115,8 @@ const COMMANDS: [string, string][] = [
   ['$APLD', 'MENU'], ['APLD US EQUITY PROFILE', 'PROFILE'], ['$APLD CHART', 'CHART'], ['APLD FINANCIALS', 'FINANCIALS'],
   ['EXCH', 'EXCHANGES'], ['GPC AAPL', 'CHART'], ['AAPL GPO', 'CHART'], ['CF MSFT', 'FILINGS'], ['AAPL ERN', 'EARNINGS'], ['QR TSLA', 'TRADES'], ['PDF', 'SETTINGS'],
   ['FOMC', 'FEDMEETINGS'], ['EVT', 'EVENTS'], ['ECMX', 'ECONSTATS'], ['AAPL RSI', 'CHART'], ['MACD AAPL', 'CHART'], ['BOLL AAPL', 'CHART'], ['AAPL HP OHLC', 'HISTORY'], ['FA AAPL BS', 'FINANCIALS'],
+  ['AAPL EEO', 'ESTIMATES'], ['AAPL CACS', 'CORPACTIONS'], ['AAPL SI', 'SHORTINTEREST'], ['AAPL EQRP', 'RISKPREMIUM'], ['SPX INDEX MEMB', 'MEMBERS'], ['NDX INDEX MRR', 'RANKEDRETURNS'],
+  ['MLRT', 'ALERTS'], ['AAPL GV', 'VOLATILITY'],
 ];
 
 test('default workspace renders four live panels and the watchlist column', async ({ page }) => {
