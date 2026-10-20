@@ -313,16 +313,20 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const mostRecentQuarter = num(r.defaultKeyStatistics?.mostRecentQuarter) * 1000;
   const snapshotDebt = num(r.financialData?.totalDebt);
   if (Number.isFinite(mostRecentQuarter) && mostRecentQuarter <= now && snapshotDebt >= 0) {
-    const row = quarterlyRows.get(mostRecentQuarter) ?? new Map<string, number>();
+    const at = quarterlyRows.has(mostRecentQuarter) ? mostRecentQuarter : [...quarterlyRows.keys()].find((e) => Math.abs(e - mostRecentQuarter) <= 10 * DAY_MS) ?? mostRecentQuarter;
+    const row = quarterlyRows.get(at) ?? new Map<string, number>();
     if (!Number.isFinite(row.get('TotalDebt'))) {
       row.set('TotalDebt', snapshotDebt);
-      quarterlyRows.set(mostRecentQuarter, row);
-      supplements.set(mostRecentQuarter, new Set([`Yahoo Finance debt snapshot as of ${fmtDay(mostRecentQuarter, true)}`]));
+      quarterlyRows.set(at, row);
+      supplements.set(at, new Set([`Yahoo Finance debt snapshot as of ${fmtDay(mostRecentQuarter, true)}`]));
     }
   }
   if (secFacts && currency) {
     for (const [kind, rows] of [['annual', annualRows], ['quarter', quarterlyRows]] as const) {
-      for (const [end, extra] of secStatementRows(secFacts, currency, kind)) {
+      for (const [secEnd, extra] of secStatementRows(secFacts, currency, kind)) {
+        // The same period can end a few days apart in the two sources (NVIDIA's quarter: the last Sunday of July
+        // in its filings, the month end in Yahoo's feed): it is one period, kept under the date already listed.
+        const end = rows.has(secEnd) ? secEnd : [...rows.keys()].find((e) => Math.abs(e - secEnd) <= 10 * DAY_MS) ?? secEnd;
         const row = rows.get(end) ?? new Map<string, number>();
         // Different restatement/continuing-operation bases must not create a hybrid income statement.
         const conflict = ['TotalRevenue', 'NetIncomeCommonStockholders', 'OperatingIncome', 'GrossProfit'].some((key) => {

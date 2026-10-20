@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, Section, KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
-import { fmtEarnDate, fmtMln, fmtNum } from '../core/format';
-import { earningsHistory, earningsReaction, keyStats, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
+import { fmtEarnDate, fmtIso, fmtMln, fmtNum, fmtPct } from '../core/format';
+import { earningsHistory, earningsReaction, financials, keyStats, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
+import { fiscalAdjEps } from './EEO';
 import { engine, useHistoryVersion } from '../data/market';
 import type { FnProps } from '../terminal/types';
 import { useFundamentals } from '../data/live/yfund';
@@ -13,10 +15,11 @@ import { EstimatesTable, estimateUnit } from './ANR';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type NextReport } from '../data/live/finnhub';
-import { datedHistory, surprisePct, timingLabel, useConsensus } from '../data/live/consensus';
+import { exportActions } from '../components/ExportActions';
+import { datedHistory, fiscalLabel, useConsensus } from '../data/live/consensus';
 import { matchQuarter, surpriseStats } from '../data/ern';
 import { desktopData } from '../data/live/yahoo';
-import { ExpectationsTable, LatestReport, nextRows } from '../components/EarningsExpectations';
+import { ExpectationsTable, LatestReport } from '../components/EarningsExpectations';
 import { fmtDay } from '../core/format';
 import { DAY_MS } from '../data/calendar';
 import { peText } from './DESEquity';
@@ -35,12 +38,57 @@ const BASIS: Record<EarningsReaction['basis'], string> = {
  * the desktop app, also the last four quarters' EPS against the analysts' estimate and the next report's
  * estimates from Finnhub, and annual estimates from Financial Modeling Prep. Nothing is generated.
  */
+type Measure = 'eps' | 'rev';
+
+/** Pearson correlation of paired values; NaN under three pairs. */
+function correlation(xs: number[], ys: number[]): number {
+  const pairs = xs.map((x, i) => [x, ys[i]]).filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+  if (pairs.length < 3) return NaN;
+  const mx = pairs.reduce((a, [x]) => a + x, 0) / pairs.length;
+  const my = pairs.reduce((a, [, y]) => a + y, 0) / pairs.length;
+  let sxy = 0;
+  let sxx = 0;
+  let syy = 0;
+  for (const [x, y] of pairs) {
+    sxy += (x - mx) * (y - my);
+    sxx += (x - mx) ** 2;
+    syy += (y - my) ** 2;
+  }
+  return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : NaN;
+}
+
+/** One line of ERN's table: a past report, or a coming one with its estimate. */
+interface ErnRow {
+  key: string;
+  ann: string;
+  per: string;
+  perEnd: string;
+  confirmed: boolean;
+  reported: number;
+  comp: number;
+  est: number;
+  surp: number;
+  px: number;
+  pxTitle?: string;
+  pe: number;
+  future: boolean;
+  from?: string;
+}
+
+/**
+ * Earnings history (ERN): the snapshot of surprises and price reactions beside a chart of the comparable figure
+ * against the estimate, then each report with its reported and comparable figure, the estimate, the surprise,
+ * the price reaction and the P/E, coming periods' estimates on top. For US-listed stocks in the desktop app the
+ * analysts' figures come from Yahoo Finance, Finnhub, FMP or Alpha Vantage; nothing is generated.
+ */
 export function EE({ sec }: FnProps) {
   const s = sec!;
   const { status, real } = useFundamentals(s);
   // The analysts' expectations against the reports (Yahoo research, Finnhub), desktop app only.
   const consensus = useConsensus(desktopData() ? s : undefined);
   useHistoryVersion();
+  const [annual, setAnnual] = useState(false);
+  const [measure, setMeasure] = useState<Measure>('eps');
   // Report dates and sessions the statements leave out come from the expectation sources (Alpha Vantage, the SEC's 8-Ks).
   const hist = datedHistory(earningsHistory(s), consensus);
   const daily = engine.daily(s.id);
@@ -50,68 +98,310 @@ export function EE({ sec }: FnProps) {
   // A report's day where the shares trade: the exchange's time zone from the quote, else New York for US stocks.
   const tz = q?.tz ?? (s.country === 'US' ? 'America/New_York' : undefined);
   const reaction = (h: EarningsEvent) => (h.dateUnknown || (h.actual == null && h.revAct == null) ? null : earningsReaction(daily, reportSessionDay(h.date, tz), h.timing, lastFinal));
-  const done = hist.filter((h) => h.actual != null || h.revAct != null);
-  const next = hist.find((h) => h.actual == null && h.revAct == null);
+  // A quarter can come twice, once from the statements without a report date and once dated: the dated one stays.
+  const done = hist.filter((h) => (h.actual != null || h.revAct != null) && !(h.dateUnknown && hist.some((o) => o !== h && o.period === h.period && !o.dateUnknown)));
   const ccy = reportCcy(s);
   const panel = usePanelId();
   const fmp = analystsAvailable() && !!analystSymbol(s);
   const est = useAnalysts(fmp ? s : undefined, ['estimates']).estimates as AnalystPart<Estimate[]> | undefined;
-  const ahead = (est?.data ?? []).find((e) => Date.parse(`${e.date}T00:00:00Z`) > Date.now());
   const fh = finnhubAvailable() && !!finnhubSymbol(s);
   const fparts = useFinnhub(fh ? s : undefined, ['calendar']);
   const cal = fparts.calendar as FinnhubPart<NextReport | null> | undefined;
   const nextFh = cal?.data ?? null;
   const nextConsensus = consensus?.next;
-  const when = (h: string) => (h === 'bmo' ? 'before the open' : h === 'amc' ? 'after the close' : h === 'dmh' ? 'during the session' : '');
-  // ERN's table: each report with its reaction and, where the analysts' figures cover it, the comparable EPS (on the
-  // estimate's basis), the estimate and the surprise.
-  const table = [...hist].reverse().map((h) => {
-    const done = h.actual != null || h.revAct != null;
-    const cq = consensus && done && !h.dateUnknown ? matchQuarter(h.date, consensus.past) : undefined;
-    return { h, r: reaction(h), cq, surp: cq ? surprisePct(cq.eps) : NaN };
-  });
-  const recent = table.filter((x) => x.h.actual != null || x.h.revAct != null).slice(0, 8);
-  const stats = surpriseStats(recent.map((x) => x.surp), recent.map((x) => x.r?.pct ?? NaN));
-  const prior = done[done.length - 1];
+  const next = hist.find((h) => h.actual == null && h.revAct == null);
   const { pe, epsLtm } = keyStats(s);
+  const f = financials(s);
+  // Each past report with its consensus quarter, newest first: the analysts' quarters (with the statements' diluted
+  // EPS where a statement quarter matches), then older reports the statements alone give. One line per quarter.
+  const used = new Set<EarningsEvent>();
+  const statementEps = (end: string) => {
+    const t = Date.parse(`${end}T00:00:00Z`);
+    const p = (real?.quarterly ?? []).find((x) => Number.isFinite(x.end) && Math.abs(x.end - t) <= 20 * DAY_MS);
+    return p && Number.isFinite(p.eps) ? p.eps : null;
+  };
+  const fromConsensus = (consensus?.past ?? [])
+    .filter((cq) => cq.date != null)
+    .map((cq) => {
+      const h = done.find((x) => !used.has(x) && !x.dateUnknown && Math.abs(x.date - cq.date!) <= 7 * DAY_MS);
+      if (h) used.add(h);
+      const ev: EarningsEvent = h ?? {
+        period: cq.label,
+        date: cq.date!,
+        actual: statementEps(cq.end),
+        timing: cq.timing === 'Bef-mkt' || cq.timing === 'Aft-mkt' ? cq.timing : '--',
+        revAct: Number.isFinite(cq.rev.actual) ? cq.rev.actual / 1e6 : null,
+      };
+      const r = earningsReaction(daily, reportSessionDay(ev.date, tz), ev.timing, lastFinal);
+      return { h: ev, r, cq };
+    });
+  const seen = new Set<string>();
+  const reports = [...fromConsensus, ...[...done].reverse().filter((h) => !used.has(h)).map((h) => ({ h, r: reaction(h), cq: consensus && !h.dateUnknown ? matchQuarter(h.date, consensus.past) : undefined }))]
+    .sort((a, b) => b.h.date - a.h.date)
+    .filter((x) => {
+      // The same report under two names (Q2 27 from the statements, Q2 2027 from the analysts) or twice from the statements.
+      const k = x.cq ? `${x.cq.end}` : `${x.h.period}:${x.h.date}`;
+      const day = `d:${Math.round(x.h.date / DAY_MS)}`;
+      if (seen.has(k) || (!x.h.dateUnknown && seen.has(day))) return false;
+      seen.add(k);
+      if (!x.h.dateUnknown) seen.add(day);
+      return true;
+    });
+  // The P/E on a report day: the close against the four quarters' EPS to that report (comparable when all four
+  // are known, else reported).
+  const peAt = (i: number) => {
+    const four = reports.slice(i, i + 4);
+    if (four.length < 4 || !reports[i].r) return NaN;
+    const comp = four.map((x) => x.cq?.eps.actual ?? NaN);
+    const gaap = four.map((x) => x.h.actual ?? NaN);
+    const eps = comp.every(Number.isFinite) ? comp.reduce((a, b) => a + b, 0) : gaap.every(Number.isFinite) ? gaap.reduce((a, b) => a + b, 0) : NaN;
+    const d = reports[i].r!;
+    const k = d.to;
+    let close = NaN;
+    for (let j = daily.length - 1; j >= 0; j--) if (Math.floor(daily.t[j] / DAY_MS) <= k) { close = daily.c[j]; break; }
+    return eps > 0 ? (s.ccy === 'GBp' ? close / 100 : close) / eps : NaN;
+  };
+  const quarterRows: ErnRow[] = reports.map(({ h, r, cq }, i) => {
+    const e = measure === 'eps' ? cq?.eps : cq?.rev;
+    const reported = measure === 'eps' ? h.actual ?? NaN : h.revAct ?? NaN;
+    const comp = measure === 'eps' ? e?.actual ?? NaN : NaN;
+    const estimate = measure === 'eps' ? e?.est ?? NaN : Number.isFinite(e?.est ?? NaN) ? e!.est / 1e6 : NaN;
+    const base = measure === 'eps' ? comp : reported;
+    return {
+      key: `${h.period}:${h.date}`,
+      ann: h.dateUnknown ? '--' : fmtEarnDate(h, false),
+      per: h.period,
+      perEnd: cq?.end ? fmtIso(cq.end) : '',
+      confirmed: true,
+      reported,
+      comp,
+      est: estimate,
+      surp: Number.isFinite(base) && Number.isFinite(estimate) && estimate !== 0 ? ((base - estimate) / Math.abs(estimate)) * 100 : NaN,
+      px: r?.pct ?? NaN,
+      pxTitle: r && Number.isFinite(r.pct) ? `${BASIS[r.basis]}: close of ${fmtDay(r.to * DAY_MS)} against close of ${fmtDay(r.from * DAY_MS)}` : r ? BASIS[r.basis] : h.dateUnknown ? 'Report date not given' : undefined,
+      pe: peAt(i),
+      future: false,
+      from: [e?.estFrom && `estimate: ${e.estFrom}`, e?.actualFrom && `comparable: ${e.actualFrom}`].filter(Boolean).join('; ') || undefined,
+    };
+  });
+  // Fiscal years: the year's reported EPS or revenue, its four quarters' comparable EPS, and the Q4 report's reaction.
+  const yearRows: ErnRow[] = [...f.annual].reverse().map((y) => {
+    const q4 = reports.find((x) => x.cq && Math.abs(Date.parse(`${x.cq.end}T00:00:00Z`) - y.end) <= 10 * DAY_MS) ?? reports.find((x) => x.h.date > y.end && x.h.date - y.end < 100 * DAY_MS);
+    const comp = measure === 'eps' ? fiscalAdjEps(consensus, y.end) : NaN;
+    const reported = measure === 'eps' ? y.eps : y.rev;
+    return {
+      key: `FY:${y.end}`,
+      ann: q4 ? fmtEarnDate(q4.h, false) : '',
+      per: `FY ${new Date(y.end).getUTCFullYear().toString().slice(2)}`,
+      perEnd: fmtDay(y.end),
+      confirmed: true,
+      reported,
+      comp,
+      est: NaN,
+      surp: NaN,
+      px: q4?.r?.pct ?? NaN,
+      pe: NaN,
+      future: false,
+    };
+  });
+  // Coming periods' estimates, nearest last (just above the reported ones).
+  const coming: ErnRow[] = [];
+  if (annual) {
+    const today = new Date().toISOString().slice(0, 10);
+    for (const e of (est?.state === 'ok' ? est.data ?? [] : []).filter((x) => x.date >= today).slice(0, 4).reverse()) {
+      const v = measure === 'eps' ? e.epsAvg : e.revenueAvg / 1e6;
+      if (!Number.isFinite(v)) continue;
+      coming.push({ key: `est:${e.date}`, ann: '', per: `FY ${e.date.slice(2, 4)}`, perEnd: fmtIso(e.date), confirmed: false, reported: NaN, comp: NaN, est: v, surp: NaN, px: NaN, pe: measure === 'eps' && q && e.epsAvg > 0 ? (s.ccy === 'GBp' ? q.last / 100 : q.last) / e.epsAvg : NaN, future: true, from: est?.source });
+    }
+  } else {
+    for (const v of [consensus?.following, consensus?.next].filter((x): x is NonNullable<typeof x> => !!x)) {
+      const e = measure === 'eps' ? v.eps : v.rev;
+      const value = measure === 'eps' ? e.est : e.est / 1e6;
+      const label = /^\d{4}-\d{2}-\d{2}$/.test(v.label) && v.end ? fiscalLabel(v.end, s.eq?.fye) ?? fmtIso(v.label) : v.label;
+      coming.push({ key: `next:${v.label}`, ann: v.date ? `${v.dateEstimated ? '~' : ''}${fmtDay(v.date)}` : '', per: label, perEnd: v.end ? fmtIso(v.end) : '', confirmed: !!v.date && !v.dateEstimated, reported: NaN, comp: NaN, est: value, surp: NaN, px: NaN, pe: NaN, future: true, from: e.estFrom });
+    }
+  }
+  const pastRows = annual ? yearRows : quarterRows;
+  const rows = [...coming, ...pastRows];
+  const recent = quarterRows.slice(0, 8);
+  const stats = surpriseStats(recent.map((x) => x.surp), recent.map((x) => x.px));
+  const corr = correlation(recent.map((x) => x.surp), recent.map((x) => x.px));
+  const absAvg = (xs: number[]) => {
+    const v = xs.filter(Number.isFinite);
+    return v.length ? v.reduce((a, b) => a + Math.abs(b), 0) / v.length : NaN;
+  };
+  const prior = [...done].reverse().find((h) => !h.dateUnknown);
+  // Five-year growth of reported EPS, from the fiscal years the statements give (fewer years when that is all).
+  const years = f.annual.filter((y) => Number.isFinite(y.eps));
+  const first = years[Math.max(0, years.length - 6)];
+  const lastY = years[years.length - 1];
+  const span = first && lastY ? Math.round((lastY.end - first.end) / (365.25 * DAY_MS)) : 0;
+  const growth5 = first && lastY && span > 0 && first.eps > 0 && lastY.eps > 0 ? ((lastY.eps / first.eps) ** (1 / span) - 1) * 100 : NaN;
+  const nextEst = nextConsensus ? (measure === 'eps' ? nextConsensus.eps.est : nextConsensus.rev.est / 1e6) : nextFh ? (measure === 'eps' ? nextFh.epsEstimate : nextFh.revenueEstimate / 1e6) : NaN;
+  const nextDate = nextConsensus?.date ? `${nextConsensus.dateEstimated ? '' : '(C) '}${fmtDay(nextConsensus.date)}` : nextFh ? fmtDay(Date.parse(`${nextFh.date}T00:00:00Z`)) : next ? fmtEarnDate(next) : '--';
+  const dec = measure === 'eps' ? 3 : 1;
+  const fmtV = (v: number) => (!Number.isFinite(v) ? '' : measure === 'eps' ? fmtNum(v, dec) : fmtMln(v));
+  // The chart: comparable (or reported revenue) against the estimate, oldest first, coming periods' estimates after.
+  const chartRows = [...rows].reverse();
+  const csv = () => [
+    ['Ann Date', 'Per', 'Per End', 'Reported', 'Comp', 'Estimate', '%Surp', '%Px Chg', 'P/E'],
+    ...rows.map((r) => [r.ann, r.per, r.perEnd, r.reported, r.comp, r.est, r.surp, r.px, r.pe]),
+  ];
+  const sorted = { estimate: chartRows.map((r, i) => ({ x: i, y: r.est, label: r.per })), comp: chartRows.map((r, i) => ({ x: i, y: measure === 'eps' ? r.comp : r.reported, label: r.per })) };
   return (
     <div>
-      <FnHeader code="EARNINGS" title="Earnings History" sec={s} sub={<>{ccy} · reported figures · {sourceLabel(status, 'demo figures; real data needs the desktop app')}</>} />
+      <FnHeader
+        code="EARNINGS"
+        title="Earnings History"
+        sec={s}
+        actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_ERN.csv`, csv)}
+        controls={
+          <>
+            <div className="chart-tools">
+              <span className="cyan">{s.name}</span>
+              <label className="fld">
+                Periodicity
+                <select className="sel-inp" aria-label="Periodicity" value={annual ? 'A' : 'Q'} onChange={(e) => setAnnual(e.target.value === 'A')}>
+                  <option value="Q">Quarterly</option>
+                  <option value="A">Annuals</option>
+                </select>
+              </label>
+              <label className="fld">
+                Source
+                <select className="sel-inp" aria-label="Source" value="std" disabled>
+                  <option value="std">Standard</option>
+                </select>
+              </label>
+              <label className="fld">
+                Cur
+                <select className="sel-inp" aria-label="Currency" value={ccy} disabled>
+                  <option>{ccy}</option>
+                </select>
+              </label>
+              <span className="muted">{sourceLabel(status, 'demo figures; real data needs the desktop app')}</span>
+            </div>
+            <div className="chart-tools ern-links">
+              <button type="button" className="link" onClick={() => execute(panel, `${s.id} ESTIMATES`)}>1) Consensus overview | EEO »</button>
+              <button type="button" className="link" onClick={() => document.getElementById(`ern-quarters-${panel}`)?.scrollIntoView({ block: 'start' })}>2) Expected and reported, revenue included »</button>
+            </div>
+            <div className="chart-tools">
+              <label className="fld">
+                Measure
+                <select className="sel-inp" aria-label="Measure" value={measure} onChange={(e) => setMeasure(e.target.value as Measure)}>
+                  <option value="eps">EPS, Adj+</option>
+                  <option value="rev">Revenue</option>
+                </select>
+              </label>
+              <label className="fld">
+                Px Chg Window
+                <select className="sel-inp" aria-label="Price change window" value="1" disabled>
+                  <option value="1">One Day After</option>
+                </select>
+              </label>
+              <label className="fld">
+                Chart Type
+                <select className="sel-inp" aria-label="Chart type" value="cve" disabled>
+                  <option value="cve">{measure === 'eps' ? 'Comparable vs Estimate' : 'Reported vs Estimate'}</option>
+                </select>
+              </label>
+            </div>
+          </>
+        }
+      />
       <QuoteStrip sec={s} />
+      <div className="ern-top">
+        <div>
+          <div className="mov-title">Earnings/Surprise Snapshot</div>
+          <div className="ern-snap">
+            <KV
+              items={[
+                ['Industry', s.eq?.industry || '--'],
+                ['Next Announcement', nextDate],
+                ['Prior Announcement', prior ? fmtEarnDate(prior, false) : '--'],
+                ['P/E Actual', peText(pe, epsLtm)],
+                [`${span && span < 5 ? `${span} Year` : '5 Year'} Growth`, fmtPct(growth5, 2)],
+              ]}
+            />
+            <KV
+              items={[
+                ['Exp. for Next Period', fmtV(nextEst) || '--'],
+                ['Average Surprise', stats.surprises ? fmtPct(stats.avgSurprise, 2) : consensus ? '--' : "Needs the analysts' estimates (desktop app)"],
+                ['Average Abs. Surp', stats.surprises ? `${fmtNum(stats.avgAbsSurprise, 2)}%` : '--'],
+                ['Surp/Px Chg Corr.', fmtNum(corr, 2)],
+                ['Average Abs. Px Chg', stats.moves ? `${fmtNum(stats.avgAbsMove, 2)}%` : '--'],
+              ]}
+            />
+          </div>
+        </div>
+        <XYChart
+          height={150}
+          series={[
+            { label: 'Estimate', color: '#e8e8e8', points: sorted.estimate },
+            { label: measure === 'eps' ? 'Comparable' : 'Reported', color: '#ff9e1b', points: sorted.comp, markers: true },
+          ]}
+          xTicks={chartRows.map((r, i) => ({ v: i, label: r.per.replace(/^Q(\d) (\d{2})?(\d{2})$/, 'Q$1 $3') }))}
+          yFormat={(v) => (measure === 'eps' ? fmtNum(v, 2) : fmtMln(v))}
+        />
+      </div>
+      <table className="tbl zebra ern-tbl">
+        <thead>
+          <tr>
+            <th>Ann Date</th>
+            <th>Per</th>
+            <th className="hide-m">Per End</th>
+            <th className="hide-m">C</th>
+            <th className="num">Reported</th>
+            {measure === 'eps' && <th className="num" title="EPS on the analysts' basis (usually adjusted), as the source reporting the estimate gives it">Comp</th>}
+            <th className="num" title="The analysts' average estimate before the report">Estimate</th>
+            <th className="num">%Surp</th>
+            <th className="num" title="Close-to-close change in the share price around the report, from the daily history">%Px Chg</th>
+            <th className="num hide-m" title="The price on the report day over the four quarters' EPS to that report; for coming years, today's price over the estimate">P/E</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="ern-avg">
+            <td colSpan={2} className="white">Average of Absolute Values</td>
+            <td className="hide-m" />
+            <td className="hide-m" />
+            <td />
+            {measure === 'eps' && <td />}
+            <td />
+            <td className="num white">{Number.isFinite(absAvg(pastRows.map((r) => r.surp))) ? `${fmtNum(absAvg(pastRows.map((r) => r.surp)), 2)}%` : ''}</td>
+            <td className="num white">{Number.isFinite(absAvg(pastRows.map((r) => r.px))) ? `${fmtNum(absAvg(pastRows.map((r) => r.px)), 2)}%` : ''}</td>
+            <td className="hide-m" />
+          </tr>
+          {rows.map((r) => (
+            <tr key={r.key} className={r.future ? 'ern-future' : undefined} title={r.from}>
+              <td>{r.ann}</td>
+              <td className="amber">{r.per}</td>
+              <td className="hide-m muted">{r.perEnd}</td>
+              <td className="hide-m muted">{r.future && r.confirmed ? 'C' : ''}</td>
+              <td className="num white">{r.future ? '' : fmtV(r.reported) || '--'}</td>
+              {measure === 'eps' && <td className="num cyan">{fmtV(r.comp)}</td>}
+              <td className="num">{fmtV(r.est)}</td>
+              <td className="num">{Number.isFinite(r.surp) ? <Chg v={r.surp} pct dec={2} /> : ''}</td>
+              <td className="num" title={r.pxTitle}>{Number.isFinite(r.px) ? <Chg v={r.px} pct dec={2} /> : ''}</td>
+              <td className="num hide-m">{Number.isFinite(r.pe) ? fmtNum(r.pe, 2) : ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {!rows.length ? <div className="empty">{status === 'loading' ? 'Loading the earnings history…' : 'No reports from the source for this security.'}</div> : null}
+      <div className="note">
+        Reported: {measure === 'eps' ? 'diluted EPS' : 'revenue (millions)'} from the company&apos;s statements. {measure === 'eps' ? "Comp: EPS on the analysts' basis (usually adjusted), from the source that compares it with the estimate; %Surp sets Comp against the estimate. " : "%Surp sets reported revenue against the analysts' estimate. "}
+        %Px Chg: the share price&apos;s close-to-close change around each report (before the open: the report day against the previous close; after the close: the next session against the report day). C marks a confirmed date; ~ an expected one.
+        {annual ? " Annual view: the fiscal year's figures, its four quarters' comparable EPS added up, and the fourth-quarter report's price change; coming years show the analysts' consensus." : ''}
+      </div>
       {consensus ? (
-        <Section title="Latest report against expectations" right="analysts' consensus">
+        <Section title="Expected and reported, by quarter" right={consensus.problems.length && !consensus.past.length ? consensus.problems.join(' ') : consensus.problems.length ? <span className="muted" title={consensus.problems.join(' ')}>some sources unavailable</span> : undefined}>
+          <div id={`ern-quarters-${panel}`} />
           <LatestReport c={consensus} statements={real?.quarterly ?? []} />
+          <ExpectationsTable c={consensus} />
+          <div className="note">
+            Expected: the analysts&apos; average estimate before the report. EPS on the analysts&apos; basis (usually adjusted), as Yahoo Finance or Finnhub reports it, which can differ from the diluted EPS in the statements. Quarter labels name fiscal quarters: Q1 2027 is the first quarter of the company&apos;s fiscal year 2027, which can end during calendar 2026. Yahoo drops a quarter&apos;s revenue estimate once it is reported: the app keeps the last one it read before the report; Finnhub (FINNHUB_API_KEY), FMP (FMP_API_KEY) and Alpha Vantage (ALPHA_VANTAGE_API_KEY) give earlier quarters&apos;. Without Yahoo, report dates come from Alpha Vantage or the company&apos;s 8-K filings, and the coming quarters&apos; EPS estimates from Nasdaq.
+          </div>
         </Section>
       ) : null}
-      <Section title="Earnings/Surprise Snapshot">
-        <KV
-          items={[
-            ['Prior announcement', prior ? `${fmtEarnDate(prior)}${prior.period ? ` (${prior.period})` : ''}` : '--'],
-            ['P/E', peText(pe, epsLtm)],
-            ['Average surprise', stats.surprises ? `${fmtNum(stats.avgSurprise, 2)}% (${stats.surprises} reports)` : consensus ? '--' : 'Needs the analysts\' estimates (desktop app)'],
-            ['Average abs. surprise', stats.surprises ? `${fmtNum(stats.avgAbsSurprise, 2)}%` : '--'],
-            ['Average abs. price move', stats.moves ? `${fmtNum(stats.avgAbsMove, 2)}% (${stats.moves} reports)` : '--'],
-            ['Next period', nextConsensus?.label ?? (nextFh ? `Q${nextFh.quarter} ${nextFh.year}` : (next?.period ?? '--'))],
-            ['Date', nextConsensus?.date ? `${nextConsensus.dateEstimated ? '~' : ''}${fmtDay(nextConsensus.date)} · ${timingLabel(nextConsensus.timing)}` : nextFh ? `${fmtDay(Date.parse(`${nextFh.date}T00:00:00Z`))}${when(nextFh.hour) ? `, ${when(nextFh.hour)}` : ''} (Finnhub)` : next ? fmtEarnDate(next) : '--'],
-            ...(consensus && nextRows(consensus.next).length
-              ? nextRows(consensus.next)
-              : nextFh
-                ? ([
-                    ['EPS estimate, quarter', Number.isFinite(nextFh.epsEstimate) ? `${fmtNum(nextFh.epsEstimate, 2)} (Finnhub)` : '--'],
-                    ['Revenue estimate, quarter', Number.isFinite(nextFh.revenueEstimate) ? `${fmtMln(nextFh.revenueEstimate / 1e6)} (Finnhub)` : '--'],
-                  ] as [string, string][])
-                : []),
-            [
-              'EPS estimate, fiscal year',
-              !fmp
-                ? 'US-listed stocks in the desktop app with enabled research sources'
-                : ahead
-                  ? `${fmtNum(ahead.epsAvg, 2)} for the year to ${fmtEarnDate({ date: Date.parse(`${ahead.date}T00:00:00Z`) }, false)} (${fmtNum(ahead.epsLow, 2)} - ${fmtNum(ahead.epsHigh, 2)}${Number.isFinite(ahead.analystsEps) ? `, ${ahead.analystsEps} analysts` : ''}) · ${est?.source ?? 'FMP'}`
-                  : est && est.state !== 'loading' ? 'No structured annual estimate; see ANALYSTS for source availability and company research.' : 'Loading…',
-            ],
-          ]}
-        />
-      </Section>
       {fmp ? (
         <Section
           title={`Analyst estimates, by fiscal year${est?.source ? ` (${est.source})` : ''}`}
@@ -122,83 +412,9 @@ export function EE({ sec }: FnProps) {
           }
         >
           <EstimatesTable part={est} rows={4} />
-          <div className="note">Annual provider consensus ({estimateUnit(s, est)}); analysts&apos; estimates, not a forecast by this app. Quarterly estimates against the reports are under Expected and reported, by quarter.</div>
+          <div className="note">Annual provider consensus ({estimateUnit(s, est)}); analysts&apos; estimates, not a forecast by this app.</div>
         </Section>
       ) : null}
-      {consensus ? (
-        <Section title="Expected and reported, by quarter" right={consensus.problems.length && !consensus.past.length ? consensus.problems.join(' ') : consensus.problems.length ? <span className="muted" title={consensus.problems.join(' ')}>some sources unavailable</span> : undefined}>
-          <ExpectationsTable c={consensus} />
-          <div className="note">
-            Expected: the analysts&apos; average estimate before the report. EPS on the analysts&apos; basis (usually adjusted), as Yahoo Finance or Finnhub reports it, which can differ from the diluted EPS in the statements
-            below. Quarter labels name fiscal quarters: Q1 2027 is the first quarter of the company&apos;s fiscal year 2027, which can end during calendar 2026. Each fiscal quarter appears once. Yahoo drops a quarter&apos;s revenue estimate once it is reported: the app keeps the last one it read before the report; Finnhub (FINNHUB_API_KEY), FMP (FMP_API_KEY) and Alpha Vantage (ALPHA_VANTAGE_API_KEY) give earlier quarters&apos;. Without Yahoo, report dates come from Alpha Vantage or the company&apos;s 8-K filings, and the coming quarters&apos; EPS estimates from Nasdaq.
-          </div>
-        </Section>
-      ) : null}
-      <Section title="Reported diluted EPS by quarter">
-        <XYChart
-          height={190}
-          series={[{ label: 'Diluted EPS', color: '#ff9e1b', kind: 'bar', points: done.filter((h) => h.actual != null).map((h) => ({ x: hist.indexOf(h), y: h.actual!, label: h.period })) }]}
-          xTicks={hist.map((h, i) => ({ v: i, label: h.period }))}
-          yZero
-          yFormat={(v) => fmtNum(v, 2)}
-        />
-      </Section>
-      <Section title="Earnings History &amp; Price Reaction" right={hist.some((h) => h.approx) ? '~ date the source marks as expected' : hist.some((h) => h.dateUnknown) ? '-- report date not given by the source' : undefined}>
-        <table className="tbl zebra">
-          <thead>
-            <tr>
-              <th>Ann Date</th>
-              <th>Per</th>
-              <th className="hide-m">Time</th>
-              <th className="num" title="Diluted EPS as reported in the statements">
-                Reported
-              </th>
-              <th className="num" title="EPS on the analysts' basis (usually adjusted), as the source reporting the estimate gives it">
-                Comp
-              </th>
-              <th className="num" title="The analysts' average EPS estimate before the report">
-                Estimate
-              </th>
-              <th className="num" title="Comparable EPS against the estimate">
-                %Surp
-              </th>
-              <th className="num" title="Close-to-close change in the share price around the report, from the daily history">
-                %Px Chg
-              </th>
-              <th className="num hide-m">Revenue</th>
-            </tr>
-          </thead>
-          <tbody>
-            {table.map(({ h, r, cq, surp }) => {
-              const from = [cq?.eps.estFrom && `estimate: ${cq.eps.estFrom}`, cq?.eps.actualFrom && `comparable: ${cq.eps.actualFrom}`].filter(Boolean).join('; ');
-              return (
-                <tr key={`${h.period}:${h.date}`}>
-                  <td>{fmtEarnDate(h, false)}</td>
-                  <td className="amber">{h.period}</td>
-                  <td className="muted hide-m">{timingLabel(cq?.timing ?? h.timing)}</td>
-                  <td className="num white">{h.actual != null ? fmtNum(h.actual, 2) : h.revAct != null ? '--' : 'Pending'}</td>
-                  <td className="num" title={from || undefined}>{cq && Number.isFinite(cq.eps.actual) ? fmtNum(cq.eps.actual, 2) : '--'}</td>
-                  <td className="num" title={from || undefined}>{cq && Number.isFinite(cq.eps.est) ? fmtNum(cq.eps.est, 2) : '--'}</td>
-                  <td className="num">{Number.isFinite(surp) ? <Chg v={surp} pct dec={1} /> : '--'}</td>
-                  <td
-                    className="num"
-                    title={r && Number.isFinite(r.pct) ? `${BASIS[r.basis]}: close of ${fmtDay(r.to * DAY_MS)} against close of ${fmtDay(r.from * DAY_MS)}` : r ? BASIS[r.basis] : h.dateUnknown ? 'Report date not given' : undefined}
-                  >
-                    {r ? <Chg v={r.pct} pct dec={1} /> : '--'}
-                  </td>
-                  <td className="num hide-m">{h.revAct != null ? fmtMln(h.revAct) : '--'}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div className="note">
-          Reported: diluted EPS from the company&apos;s statements. Comp and Estimate: EPS on the analysts&apos; basis and their average estimate, from the source that compares them (desktop app); %Surp sets
-          one against the other. %Px Chg: the share price&apos;s close-to-close change around each past report, from the daily closes (split-adjusted, dividends not added back). A report before the open is
-          measured on the report day against the previous close, one after the close on the next session against the report day&apos;s close; where the time is not known, the report day against the
-          previous close is used, as the cell&apos;s tooltip says. -- until both closes are final.
-        </div>
-      </Section>
     </div>
   );
 }

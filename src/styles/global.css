@@ -1187,3 +1187,11 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .hds-stats .lbl { color: var(--amber); }
 .eeo-tbl .eeo-n { width: 34px; color: var(--muted); }
 .cacs-count { margin-left: auto; }
+
+/* ERN: the snapshot's two columns beside the chart, the averages row and coming periods. */
+.ern-top { display: grid; grid-template-columns: minmax(420px, 1.25fr) 1fr; gap: 8px; align-items: start; padding: 0 4px 4px; }
+.ern-snap { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; padding: 2px 4px; }
+.ern-links .link { color: var(--cyan); background: none; border: 0; padding: 0; cursor: pointer; }
+.ern-tbl tr.ern-avg td { background: #1b1d21; font-weight: 600; }
+.ern-tbl tr.ern-future td { color: #c9c9c9; }
+@media (max-width: 900px) { .ern-top { grid-template-columns: 1fr; } }
