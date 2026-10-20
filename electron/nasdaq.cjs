@@ -24,6 +24,37 @@ function nasdaqScreenerRequest() {
   return { url: 'https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=10000&offset=0&download=true', ttl: 24 * HOUR, headers: { Accept: 'application/json, text/plain, */*' } };
 }
 
+// One company's figures from nasdaq.com's quote and company pages (no key), for US-listed stocks: they fill what
+// Yahoo leaves empty, above all when Yahoo refuses the session (EU cookies, or its rate limit). Each kind is one
+// page's data; the answers are kept for hours.
+const COMPANY = /^[A-Z][A-Z0-9]{0,6}(?:\.[A-Z]{1,2})?$/;
+const COMPANY_KINDS = {
+  // Market value, sector and industry, the one-year target, the annual dividend and its dates.
+  summary: { path: (s) => `/quote/${s}/summary?assetclass=stocks`, ttl: 2 * HOUR },
+  // Every cash dividend with its declaration, record and payment dates.
+  dividends: { path: (s) => `/quote/${s}/dividends?assetclass=stocks`, ttl: 12 * HOUR },
+  // Short interest twice a month, with the average daily volume and the days to cover.
+  'short-interest': { path: (s) => `/quote/${s}/short-interest?assetClass=stocks`, ttl: 12 * HOUR },
+  // Institutional ownership: the share of the company held, shares outstanding and the largest holders.
+  holdings: { path: (s) => `/company/${s}/institutional-holdings?limit=15&type=TOTAL&sortColumn=marketValue&sortOrder=DESC`, ttl: 24 * HOUR },
+  // The analysts' consensus price target with its range, and the count of buy, hold and sell ratings.
+  target: { path: (s) => `/analyst/${s}/targetprice`, ttl: 6 * HOUR },
+  // The analysts' mean rating word.
+  ratings: { path: (s) => `/analyst/${s}/ratings`, ttl: 6 * HOUR },
+  // The consensus EPS of the coming quarters and fiscal years, with the range and the number of estimates.
+  forecast: { path: (s) => `/analyst/${s}/earnings-forecast`, ttl: 6 * HOUR },
+  // The next report's date and session, as Nasdaq's page words it.
+  'earnings-date': { path: (s) => `/analyst/${s}/earnings-date`, ttl: 6 * HOUR },
+};
+
+/** The request for one kind of company data, or null when the kind or the ticker (Nasdaq's style: BRK.B) is not one the app asks for. */
+function nasdaqCompanyRequest(kind, symbol) {
+  if (typeof kind !== 'string' || !Object.prototype.hasOwnProperty.call(COMPANY_KINDS, kind)) return null;
+  if (typeof symbol !== 'string' || !COMPANY.test(symbol)) return null;
+  const k = COMPANY_KINDS[kind];
+  return { url: `https://api.nasdaq.com/api${k.path(symbol)}`, ttl: k.ttl, headers: { Accept: 'application/json, text/plain, */*' } };
+}
+
 /** Nasdaq answers HTTP 200 with {status: {rCode, bCodeMessage}} when it refuses; a day without reports has no rows. */
 function nasdaqProblem(text) {
   let j;
@@ -38,4 +69,4 @@ function nasdaqProblem(text) {
   return null;
 }
 
-module.exports = { nasdaqCalendarRequest, nasdaqScreenerRequest, nasdaqProblem };
+module.exports = { nasdaqCalendarRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };
