@@ -533,6 +533,10 @@ const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(ur
   validate: (provider, url, text) => {
     // A consent or error page instead of the feed is a failure, not an answer to keep for 15 minutes.
     if (provider === 'google-news') return /<rss\b/i.test(text) ? null : { kind: 'schema-changed', message: 'Google answered with a web page, not the feed.' };
+    if (provider === 'nasdaq') {
+      const message = require('./nasdaq.cjs').nasdaqProblem(text);
+      return message ? { kind: 'schema-changed', message } : null;
+    }
     if (provider !== 'alpaca' || !new URL(url).pathname.startsWith('/v1beta1/options/snapshots/')) return null;
     const message = optionChainProblem(text);
     return message ? { kind: 'schema-changed', message } : null;
@@ -596,6 +600,40 @@ ipcMain.handle('finnhub', async (event, kind, symbol) => {
   if (!key.value) return { status: 0, text: '', ...key };
   const req = finnhub.finnhubRequest(kind, symbol);
   return keyedGet('finnhub', req.url, finnhub.finnhubHeaders(key.value), req.ttl, [30, 60_000], [key.value]);
+});
+
+// Every company's reports by date, for EVENTS: Nasdaq's calendar one day at a time without a key (electron/nasdaq.cjs:
+// EPS expected and reported, market value), and Finnhub's and FMP's for a window with the owner's keys (EPS and revenue).
+const nasdaq = require('./nasdaq.cjs');
+
+ipcMain.handle('earnings-calendar', async (event, source, from, to) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  if (source === 'nasdaq') {
+    const req = from === to ? nasdaq.nasdaqCalendarRequest(from) : null;
+    if (!req) throw new Error('not allowed');
+    return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000]);
+  }
+  if (source === 'nasdaq-caps') {
+    const req = nasdaq.nasdaqScreenerRequest();
+    return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000]);
+  }
+  if (source === 'finnhub') {
+    const req = finnhub.finnhubCalendarRequest(from, to);
+    if (!req) throw new Error('not allowed');
+    if (!providers.setting('FINNHUB_ENABLED').value) return { status: 0, text: '', gated: 'FINNHUB_ENABLED' };
+    const key = usableKey('FINNHUB_API_KEY', 'finnhub');
+    if (!key.value) return { status: 0, text: '', ...key };
+    return keyedGet('finnhub', req.url, finnhub.finnhubHeaders(key.value), req.ttl, [30, 60_000], [key.value]);
+  }
+  if (source === 'fmp') {
+    if (!fmp.fmpCalendarRequest(from, to, 'x')) throw new Error('not allowed');
+    if (!providers.setting('FMP_ENABLED').value) return { status: 0, text: '', gated: 'FMP_ENABLED' };
+    const key = usableKey('FMP_API_KEY', 'fmp');
+    if (!key.value) return { status: 0, text: '', ...key };
+    const req = fmp.fmpCalendarRequest(from, to, key.value);
+    return keyedGet('fmp', req.url, {}, req.ttl, [30, 60_000], [key.value]);
+  }
+  throw new Error('not allowed');
 });
 
 // Massive's pace is the same slot CROSSCHECK's bars wait in, so news never pushes it over 5 calls a minute. Alpaca's

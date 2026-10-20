@@ -27,6 +27,7 @@ interface Fixtures {
   equiblesRefusal: boolean;
   newsStories: boolean;
   newsAgeMs: number;
+  marketCalendar?: boolean;
   calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
@@ -119,6 +120,37 @@ async function command(page: Page, text: string, code = text.split(' ').at(-1)!,
   await input.press('Enter');
   await expect(page.locator('.panel').nth(panel).locator('.fnh-code').first()).toHaveText(code);
 }
+
+test('EVENTS covers the whole market above $2B with expected and reported EPS and revenue, growth and an earnings card', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.marketCalendar = true; process.env.FINNHUB_ENABLED = 'true'; });
+  await command(page, 'EVENTS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.getByRole('button', { name: '14) Market', exact: true })).toHaveClass(/\bon\b/);
+  const mmm = panel.locator('tbody tr.click', { hasText: 'MMM US' });
+  // EPS from Nasdaq, revenue from FMP; growth against the same source's year- and quarter-earlier reports.
+  await expect(mmm.locator('td')).toHaveText(['Bef-mkt', 'MMM US', '3M Company', '83.55B', /Q\d \d{4}/, '2.38', '2.50', '+5.0%', '+14.2%', '+4.2%', '6.61B', '6.58B', '-0.4%', '+4.0%', '+1.0%'], { timeout: 30_000 });
+  // A company only Finnhub lists takes its market value from Nasdaq's stock list; one below $2B is left out.
+  await expect(panel.locator('tbody tr.click', { hasText: 'XYZW US' })).toContainText('4.10B');
+  await expect(panel.locator('tbody tr.click', { hasText: 'TINY US' })).toHaveCount(0);
+  await expect(panel.locator('tbody tr.click', { hasText: 'META US' })).toContainText('pending');
+  await expect(panel.locator('tbody tr.click', { hasText: 'META US' })).toContainText('-9.8%');
+  await panel.getByRole('button', { name: 'any', exact: true }).click();
+  await expect(panel.locator('tbody tr.click', { hasText: 'TINY US' })).toHaveCount(1);
+  await panel.getByRole('button', { name: '$2B', exact: true }).click();
+  // The earnings card: expected against reported, beat or miss, and the growth, as an earnings correspondent shows it.
+  await mmm.locator('td').nth(5).click();
+  const card = panel.locator('.earn-card');
+  await expect(card).toContainText('3M Company');
+  await expect(card.locator('tr', { hasText: 'Earnings per share' })).toContainText('Beat by 5.0%');
+  await expect(card.locator('tr', { hasText: 'Revenue' })).toContainText('Missed by 0.4%');
+  await expect(card).toContainText('EPS up 14% year over year');
+  await expect(card).toContainText('Revenue up 4.0% year over year');
+  await expect(card).toContainText('EPS up 4.2% quarter over quarter');
+  await expect(card).toContainText('Revenue up 1.0% quarter over quarter');
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-events-market-fixture.png') });
+  await panel.getByLabel('Filter the calendar').fill('meta');
+  await expect(panel.locator('tbody tr.click')).toHaveCount(1);
+});
 
 test('linked panels preserve functions and saved groups in the real desktop renderer', async ({ desktop: { page } }) => {
   await checkLinkedPanels(page, (text, code, panel) => command(page, text, code, panel));

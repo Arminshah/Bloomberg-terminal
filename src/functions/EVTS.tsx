@@ -13,6 +13,8 @@ import { dividends, earningsEvents } from '../data/fundamentals';
 import type { SecurityDef } from '../data/types';
 import { portfolio, watchlists } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
+import { calendarAvailable, isoDay, useMarketCalendar } from '../data/live/earnings-calendar';
+import { MarketEarnings } from './EVTSMarket';
 
 interface Ev {
   date: number;
@@ -31,6 +33,16 @@ const SCOPES = [
   { n: 11, label: 'All', title: 'Every stock in the app' },
   { n: 12, label: 'Watchlist', title: "Your active watchlist's stocks (WATCHLIST)" },
   { n: 13, label: 'Portfolio', title: 'The stocks you hold (PORTFOLIO)' },
+  { n: 14, label: 'Market', title: 'Every US-listed company reporting, above the market value chosen (desktop app)' },
+];
+
+/** Market values the market calendar can start from, in US dollars. */
+const CAPS = [
+  { v: 2e9, label: '$2B' },
+  { v: 10e9, label: '$10B' },
+  { v: 50e9, label: '$50B' },
+  { v: 200e9, label: '$200B' },
+  { v: 0, label: 'any' },
 ];
 
 /** The stocks among some securities, each once; one not loaded yet is left out. */
@@ -46,9 +58,11 @@ export function EVTS({ sec }: FnProps) {
   // Looked-up stocks load after the lists do, so the lists are read again as time moves.
   const watched = useMemo(() => equitiesOf(wl?.ids ?? []), [wl, now]); // eslint-disable-line react-hooks/exhaustive-deps
   const holdings = useMemo(() => equitiesOf(held.map((p) => p.id)), [held, now]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Your watchlist's stocks when it has any, every stock otherwise, until you pick.
+  // The whole market in the desktop app; elsewhere your watchlist's stocks when it has any, every stock otherwise, until you pick.
   const [picked, setPicked] = useState<number | null>(null);
-  const scope = picked ?? (watched.length ? 12 : 11);
+  const market = calendarAvailable();
+  const scope = picked ?? (market ? 14 : watched.length ? 12 : 11);
+  const [minCap, setMinCap] = useState(2e9);
   const spans = [
     { n: 1, label: 'This week', from: -3, to: 7 },
     { n: 2, label: '±2 weeks', from: -14, to: 14 },
@@ -56,10 +70,17 @@ export function EVTS({ sec }: FnProps) {
     { n: 4, label: 'Past 90 days', from: -90, to: 0 },
   ];
   const span = spans[range - 1];
+  const showMarket = !sec && scope === 14 && market;
+  // Whole days around today; the year- and quarter-earlier calendars only for windows up to a month.
+  const fromIso = isoDay(now + span.from * DAY_MS);
+  const toIso = isoDay(now + span.to * DAY_MS);
+  const cal = useMarketCalendar(fromIso, toIso, span.to - span.from <= 31, showMarket);
+  const above = cal.reports.filter((r) => minCap <= 0 || (Number.isFinite(r.marketCap) && r.marketCap >= minCap));
   const events = useMemo(() => {
     const from = now + span.from * DAY_MS;
     const to = now + span.to * DAY_MS;
     const list: Ev[] = [];
+    if (showMarket) return list;
     const secs = sec ? [sec] : scope === 12 ? watched : scope === 13 ? holdings : engine.securities.filter((d) => d.cls === 'equity');
     for (const d of secs) {
       const realEarnings = !!getRealFund(d.id) || yahooQuotes.has(d.id) || engine.isExternal(d.id);
@@ -79,7 +100,7 @@ export function EVTS({ sec }: FnProps) {
       }
     }
     return list.sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
-  }, [sec, scope, watched, holdings, span.from, span.to, now]);
+  }, [sec, scope, watched, holdings, span.from, span.to, now, showMarket]);
   // The analysts' expectations for the reports in view, nearest to today first (desktop app).
   const reporting = useMemo(() => {
     const byDistance = events.filter((e) => e.kind === 'Earnings' && !e.sim).sort((a, b) => Math.abs(a.date - now) - Math.abs(b.date - now));
@@ -88,6 +109,13 @@ export function EVTS({ sec }: FnProps) {
   useConsensusFor(desktopData() ? reporting : []);
   const stocks = (n: number) => `${n} ${n === 1 ? 'stock' : 'stocks'}`;
   const covered = sec ? '' : scope === 12 ? `watchlist ${wl?.name ?? ''}: ${stocks(watched.length)} · ` : scope === 13 ? `portfolio: ${stocks(holdings.length)} · ` : 'all stocks · ';
+  const capLabel = CAPS.find((c) => c.v === minCap)?.label ?? '';
+  const marketSub = (
+    <>
+      {above.length} {above.length === 1 ? 'report' : 'reports'}{minCap > 0 ? ` above ${capLabel} market value` : ''} · {cal.reports.length} in all · EPS: Nasdaq
+      {cal.revenueFrom.length ? `, revenue: ${cal.revenueFrom.join(', ')}` : ''} · <span className="badge live">REAL</span>
+    </>
+  );
   const none =
     !sec && scope === 12 && !watched.length
       ? `Your active watchlist${wl ? ` (${wl.name})` : ''} has no stocks: add some on WATCHLIST, or pick 11) All.`
@@ -97,7 +125,7 @@ export function EVTS({ sec }: FnProps) {
   let lastDay = '';
   return (
     <div>
-      <FnHeader code="EVENTS" title={sec ? 'Corporate Events' : 'Corporate Events Calendar'} sec={sec} sub={
+      <FnHeader code="EVENTS" title={sec ? 'Corporate Events' : 'Corporate Events Calendar'} sec={sec} sub={showMarket ? marketSub :
           <>
             {covered}
             {events.length} {events.length === 1 ? 'event' : 'events'} · earnings and ex-dividend dates ·{' '}
@@ -112,7 +140,10 @@ export function EVTS({ sec }: FnProps) {
             )}
           </>
         } tabs={spans.map((s) => ({ n: s.n, label: s.label }))} tab={range} onTab={setRange}
-        actions={sec ? [] : SCOPES.map((x) => ({ n: x.n, label: x.label, title: `${x.title} · type ${x.n} and press Enter`, on: x.n === scope, onClick: () => setPicked(x.n) }))} />
+        actions={sec ? [] : SCOPES.filter((x) => x.n !== 14 || market).map((x) => ({ n: x.n, label: x.label, title: `${x.title} · type ${x.n} and press Enter`, on: x.n === scope, onClick: () => setPicked(x.n) }))} />
+      {showMarket ? (
+        <MarketEarnings cal={cal} minCap={minCap} caps={CAPS} onCap={setMinCap} now={Date.now()} />
+      ) : (
       <table className="tbl">
         <thead>
           <tr>
@@ -182,6 +213,7 @@ export function EVTS({ sec }: FnProps) {
           })}
         </tbody>
       </table>
+      )}
     </div>
   );
 }

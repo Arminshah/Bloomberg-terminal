@@ -3,3 +3,4 @@ export type FinnhubKind = 'profile' | 'metric' | 'recommendation' | 'earnings' |
 export const KINDS: Record<FinnhubKind, { path: (symbol: string, now: number) => string; ttl: number }>;
 export function finnhubRequest(kind: unknown, symbol: unknown, now?: number): { url: string; ttl: number } | null;
 export function finnhubHeaders(key: string): Record<string, string>;
+export function finnhubCalendarRequest(from: unknown, to: unknown, now?: number): { url: string; ttl: number } | null;

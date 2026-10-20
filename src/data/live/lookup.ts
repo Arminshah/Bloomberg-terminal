@@ -38,7 +38,8 @@ declare global {
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<KeyedAnswer>;
-      analysts?(kind: import('./analysts').AnalystKind, symbol: string): Promise<KeyedAnswer>;
+      analysts?(kind: import('./analysts').AnalystKind | 'earnings', symbol: string): Promise<KeyedAnswer>;
+      earningsCalendar?(source: 'nasdaq' | 'nasdaq-caps' | 'finnhub' | 'fmp', from: string, to: string): Promise<KeyedAnswer>;
       finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
       equibles?(kind: import('./equibles').ResearchKind, symbol: string): Promise<KeyedAnswer>;
       tipranks?(kind: 'consensus' | 'ratings' | 'usage', ticker: string): Promise<KeyedAnswer>;

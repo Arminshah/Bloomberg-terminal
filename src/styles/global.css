@@ -1013,6 +1013,14 @@ a.news-item { color: inherit; text-decoration: none; }
 .md code { background: #131313; padding: 0 3px; }
 .earn-growth { margin-top: 6px; line-height: 1.6; }
 .earn-growth .up, .earn-growth .dn { font-weight: 600; }
+/* An earnings card opened under its line on EVENTS: the report as expected and as reported, and its growth. */
+.tbl tr.earn-card-row > td { height: auto; padding: 6px 10px 10px 26px; background: #0d1117; border-bottom: 1px solid #2c3540; white-space: normal; }
+.tbl tr.earn-card-row:hover > td { background: #0d1117; box-shadow: none; }
+.earn-card { max-width: 760px; }
+.earn-card-h { display: flex; flex-wrap: wrap; gap: 0 6px; align-items: baseline; margin-bottom: 4px; }
+.earn-card-h .right { margin-left: auto; }
+.earn-card-tbl { width: auto; min-width: 520px; }
+.earn-card-tbl td:first-child { min-width: 190px; }
 .msg-links { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; white-space: normal; font-size: var(--fs-s); }
 .msg-links a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .msg-cmds { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; white-space: normal; }
@@ -1031,6 +1039,10 @@ a.news-item { color: inherit; text-decoration: none; }
 
 /* ------------------------------------------- narrow panels (container queries) */
 .panel { container-type: inline-size; container-name: panel; }
+/* Wide tables drop their least needed columns first, in a half-width panel. */
+@container panel (max-width: 900px) {
+  .hide-w { display: none !important; }
+}
 @container panel (max-width: 620px) {
   .fnh-row { flex-wrap: wrap; row-gap: 0; padding-top: 2px; padding-bottom: 2px; }
   .fnh-sub { display: none; }

@@ -35,4 +35,16 @@ function finnhubRequest(kind, symbol, now = Date.now()) {
 
 const finnhubHeaders = (key) => ({ 'X-Finnhub-Token': key });
 
-module.exports = { KINDS, finnhubRequest, finnhubHeaders };
+/**
+ * Every company's reports between two dates (no symbol): expected and reported EPS and revenue. The free plan
+ * covers the coming reports and about a month of past ones.
+ */
+function finnhubCalendarRequest(from, to, now = Date.now()) {
+  const { dateWindow } = require('./fmp.cjs');
+  const w = dateWindow(from, to, 45);
+  if (!w) return null;
+  const ttl = w.b < now - 3 * 24 * HOUR ? 24 * HOUR : 2 * HOUR;
+  return { url: `${BASE}/calendar/earnings?from=${from}&to=${to}`, ttl };
+}
+
+module.exports = { KINDS, finnhubRequest, finnhubHeaders, finnhubCalendarRequest };

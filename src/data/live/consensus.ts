@@ -4,6 +4,8 @@ import { DAY_MS } from '../calendar';
 import { reportCcy, type FinPeriod } from '../fundamentals';
 import type { SecurityDef } from '../types';
 import { finnhubAvailable, finnhubData, finnhubSymbol, loadFinnhub, type EpsSurprise, type FinnhubPart, type NextReport, type PastReport } from './finnhub';
+import { companyReports, earningsCalendar, requestCompanyEarnings, type WindowReport } from './earnings-calendar';
+import { secTicker } from './sec';
 import { desktopData, yahooGet, yahooSymbolFor } from './yahoo';
 import { fundVersion, getRealFund, usTiming } from './yfund';
 import { createWants, registerRefresh } from '../../terminal/refresh';
@@ -217,6 +219,8 @@ export interface ConsensusInput {
   finnhubPast?: PastReport[];
   finnhubNext?: NextReport | null;
   kept?: Record<string, KeptEstimate>;
+  /** FMP's reports (expected and reported EPS and revenue), newest first. */
+  fmpReports?: WindowReport[];
   /** The company's quarterly statements (revenue in millions) and their currency. */
   statements?: FinPeriod[];
   statementCcy?: string;
@@ -244,6 +248,14 @@ function finnhubReport(rows: PastReport[], q: QuarterView, used: Set<PastReport>
   }
   // A date-only fallback without a quarter identity can bind an adjacent quarter's announcement.
   return candidates.filter((r) => label && reportLabel(r) === label).sort((a, b) => a.date.localeCompare(b.date))[0];
+}
+
+/** FMP's report of a quarter: on its report date, else the first report in the four months after its end. FMP names no fiscal quarter. */
+function fmpReport(rows: WindowReport[], q: QuarterView, used: Set<WindowReport>): WindowReport | undefined {
+  const free = rows.filter((r) => !used.has(r) && (ok(r.epsActual) || ok(r.revActual)));
+  if (q.date) return free.find((r) => Math.abs(ms(r.date) - q.date!) <= 7 * DAY_MS);
+  if (!ISO.test(q.end)) return undefined;
+  return free.filter((r) => r.date > q.end && ms(r.date) - ms(q.end) <= 120 * DAY_MS).sort((a, b) => a.date.localeCompare(b.date))[0];
 }
 
 /** Expected against reported for each quarter, from every source, each figure with its source. */
@@ -291,6 +303,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
   quarters.sort((a, b) => ok(fiscalOrder(a)) && ok(fiscalOrder(b)) ? fiscalOrder(b) - fiscalOrder(a) : b.end.localeCompare(a.end));
   const statements = i.statements ?? [];
   const usedReports = new Set<PastReport>();
+  const usedFmp = new Set<WindowReport>();
   for (const q of quarters) {
     const f = finnhubReport(i.finnhubPast ?? [], q, usedReports);
     if (f) {
@@ -319,6 +332,19 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     }
     // A kept EPS estimate fills a quarter no source compares, against Yahoo's reported EPS.
     if (!ok(q.eps.est) && k && ok(k.epsEst) && yq && ok(yq.epsActual) && (!k.epsCcy || !yq.epsCcy || k.epsCcy === yq.epsCcy)) q.eps = { ...NONE, est: k.epsEst, actual: yq.epsActual, ccy: k.epsCcy, estFrom: 'Yahoo Finance (kept)', actualFrom: 'Yahoo Finance' };
+    // FMP's history fills what is still without an estimate: its revenue estimate with its own reported revenue when
+    // it gives one (one basis for the surprise), else against the reported revenue already shown.
+    const p = fmpReport(i.fmpReports ?? [], q, usedFmp);
+    if (p) {
+      usedFmp.add(p);
+      if (!q.date) q.date = ms(p.date);
+      if ((!ok(q.eps.est) || !ok(q.eps.actual)) && ok(p.epsEst) && ok(p.epsActual)) q.eps = { ...NONE, est: p.epsEst, actual: p.epsActual, estFrom: 'FMP', actualFrom: 'FMP' };
+      if (!ok(q.rev.est) && ok(p.revEst)) {
+        q.rev = ok(p.revActual)
+          ? { ...NONE, est: p.revEst, actual: p.revActual, estFrom: 'FMP', actualFrom: 'FMP' }
+          : { ...q.rev, est: p.revEst, estFrom: 'FMP' };
+      }
+    }
   }
   const view = (a: YahooAhead | null | undefined): QuarterView | null =>
     a ? { end: a.end, label: a.label ?? a.end, ...(a.date ? { date: a.date, dateEstimated: a.dateEstimated } : {}), eps: a.eps, rev: a.rev, yearAgoEps: a.yearAgoEps, yearAgoRev: a.yearAgoRev } : null;
@@ -342,6 +368,15 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
       if (!ok(next.eps.est) && ok(fn.epsEstimate)) next.eps = fromFinnhub.eps;
       if (!ok(next.rev.est) && ok(fn.revenueEstimate)) next.rev = fromFinnhub.rev;
     }
+  }
+  // FMP's coming report, for an estimate the others leave out.
+  const ahead = (i.fmpReports ?? []).filter((r) => !ok(r.epsActual) && !ok(r.revActual) && (ok(r.epsEst) || ok(r.revEst)) && (!quarters[0]?.date || ms(r.date) > quarters[0].date + 20 * DAY_MS)).sort((a, b) => a.date.localeCompare(b.date))[0];
+  if (ahead && next && (!next.date || Math.abs(ms(ahead.date) - next.date) <= 10 * DAY_MS)) {
+    if (!next.date) next.date = ms(ahead.date);
+    if (!ok(next.eps.est) && ok(ahead.epsEst)) next.eps = { ...NONE, est: ahead.epsEst, estFrom: 'FMP' };
+    if (!ok(next.rev.est) && ok(ahead.revEst)) next.rev = { ...NONE, est: ahead.revEst, estFrom: 'FMP' };
+  } else if (ahead && !next) {
+    next = { end: '', label: ahead.date, date: ms(ahead.date), eps: { ...NONE, est: ahead.epsEst, estFrom: ok(ahead.epsEst) ? 'FMP' : undefined }, rev: { ...NONE, est: ahead.revEst, estFrom: ok(ahead.revEst) ? 'FMP' : undefined } };
   }
   return { past: quarters, next, following: view(y?.following) };
 }
@@ -444,6 +479,8 @@ export function requestConsensus(def: SecurityDef | undefined, front = false, fi
     void loadFinnhub(fs, 'calendar');
     void loadFinnhub(fs, 'history');
   }
+  // FMP's history, for one company's screens only: its daily allowance is too small for a calendar's rows.
+  if (finnhub) requestCompanyEarnings(secTicker(def));
   const now = Date.now();
   const have = consensusData.get().by[def.id];
   if (have?.state === 'loading' || (!force && !due(have, now))) return;
@@ -481,11 +518,16 @@ export function consensusFor(def: SecurityDef): Consensus {
   const fs = finnhubSymbol(def);
   const fparts = fs ? finnhubData.get().by[fs] : undefined;
   const real = getRealFund(def.id);
+  // The market calendars' lines for this company count as its own reports (the latest ones, with revenue).
+  const calendars = companyReports(secTicker(def));
+  const history = partData<PastReport[]>(fparts?.history) ?? [];
+  const finnhubPast = [...history, ...calendars.finnhub.filter((r) => !history.some((h) => h.date === r.date))].sort((a, b) => b.date.localeCompare(a.date));
   const merged = mergeConsensus({
     yahoo: e?.yahoo,
     finnhubEps: partData<EpsSurprise[]>(fparts?.earnings),
-    finnhubPast: partData<PastReport[]>(fparts?.history),
+    finnhubPast,
     finnhubNext: partData<NextReport | null>(fparts?.calendar),
+    fmpReports: calendars.fmp,
     kept: keptEstimates.get().by[def.id],
     statements: real?.quarterly,
     statementCcy: reportCcy(def),
@@ -529,6 +571,7 @@ export function useConsensus(def: SecurityDef | undefined): Consensus | null {
   consensusData.use((s) => s.v);
   fundVersion.use((s) => s.v);
   finnhubData.use((s) => s.v);
+  earningsCalendar.use((s) => s.v);
   keptEstimates.use((s) => (def ? s.by[def.id] : undefined));
   useEffect(() => {
     requestConsensus(def, true);

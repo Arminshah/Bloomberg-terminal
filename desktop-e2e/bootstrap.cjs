@@ -86,6 +86,45 @@ net.fetch = async (input, init) => {
       } : {}),
     })) } });
   }
+  // The market earnings calendar (fixtures.marketCalendar): 3M reported yesterday, as on an earnings card, with its
+  // year- and quarter-earlier reports; a small company below $2B; Meta reports tomorrow; a company only Finnhub lists.
+  const shift = (days) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+  const quarterEnd = (back) => {
+    const d = new Date();
+    const t = d.getUTCFullYear() * 4 + Math.floor(d.getUTCMonth() / 3) - 1 - back;
+    return { label: `${['Mar', 'Jun', 'Sep', 'Dec'][t % 4]}/${Math.floor(t / 4)}`, q: (t % 4) + 1, y: Math.floor(t / 4) };
+  };
+  if (url.hostname === 'api.nasdaq.com') {
+    fixtures.calls.nasdaq = (fixtures.calls.nasdaq ?? 0) + 1;
+    if (url.pathname === '/api/screener/stocks') return json({ data: { rows: [{ symbol: 'MMM', name: '3M Company', marketCap: '83552188778.00', country: 'United States', sector: 'Industrials' }, { symbol: 'XYZW', name: 'Synthetic Finnhub-only Co', marketCap: '4100000000.00', country: 'United States', sector: 'Technology' }] }, status: { rCode: 200 } });
+    const date = url.searchParams.get('date');
+    const mmm = (back, eps) => ({ eps, surprise: '5.04', time: 'time-pre-market', symbol: 'MMM', name: '3M Company', marketCap: '$83,552,188,778', fiscalQuarterEnding: quarterEnd(back).label, epsForecast: '$2.38', noOfEsts: '6' });
+    const rows = !fixtures.marketCalendar ? null
+      : date === shift(-1) ? [mmm(0, '$2.50'), { eps: '($0.17)', surprise: 'N/A', time: 'time-not-supplied', symbol: 'TINY', name: 'Tiny Synthetic Corp', marketCap: '$410,000,000', fiscalQuarterEnding: quarterEnd(0).label, epsForecast: '', noOfEsts: 'N/A' }]
+        : date === shift(1) ? [{ lastYearRptDt: '10/29/2025', lastYearEPS: '$7.25', time: 'time-after-hours', symbol: 'META', name: 'Meta Platforms, Inc.', marketCap: '$1,807,009,840,000', fiscalQuarterEnding: quarterEnd(0).label, epsForecast: '$6.54', noOfEsts: '11' }]
+          : date === shift(-365) ? [mmm(4, '$2.19')]
+            : date === shift(-92) ? [mmm(1, '$2.40')]
+              : null;
+    return json(rows ? { data: { rows }, status: { rCode: 200 } } : { data: null, message: null, status: { rCode: 200, bCodeMessage: [{ code: 1002, errorMessage: 'Earnings Calendar: No record found.' }] } });
+  }
+  if (fixtures.marketCalendar && url.hostname === 'financialmodelingprep.com' && url.pathname === '/stable/earnings-calendar') {
+    fixtures.calls.fmp++;
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    return json([
+      { symbol: 'MMM', date: shift(-1), epsActual: 2.5, epsEstimated: 2.38, revenueActual: 6.584e9, revenueEstimated: 6.61e9 },
+      { symbol: 'MMM', date: shift(-365), epsActual: 2.19, epsEstimated: 2.1, revenueActual: 6.33e9, revenueEstimated: 6.3e9 },
+      { symbol: 'MMM', date: shift(-92), epsActual: 2.4, epsEstimated: 2.3, revenueActual: 6.52e9, revenueEstimated: 6.4e9 },
+    ].filter((r) => r.date >= from && r.date <= to));
+  }
+  if (fixtures.marketCalendar && url.hostname === 'finnhub.io' && url.pathname === '/api/v1/calendar/earnings' && !url.searchParams.has('symbol')) {
+    fixtures.calls.finnhub.push(url.href);
+    const q = quarterEnd(0);
+    return json({ earningsCalendar: [
+      { symbol: 'MMM', date: shift(-1), hour: 'bmo', quarter: q.q, year: q.y, epsEstimate: 2.38, epsActual: 2.5, revenueEstimate: 6.6e9, revenueActual: 6.584e9 },
+      { symbol: 'XYZW', date: shift(-2), hour: 'amc', quarter: q.q, year: q.y, epsEstimate: 0.5, epsActual: 0.6, revenueEstimate: 1e9, revenueActual: 1.1e9 },
+    ].filter((r) => r.date >= url.searchParams.get('from') && r.date <= url.searchParams.get('to')) });
+  }
   if (url.hostname === 'financialmodelingprep.com') {
     fixtures.calls.fmp++;
     if (fixtures.researchBlocked) return new Response(JSON.stringify({ 'Error Message': 'Premium subscription required for this symbol.' }), { status: 402 });
