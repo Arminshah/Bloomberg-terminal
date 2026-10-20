@@ -129,12 +129,16 @@ test('EVENTS covers the whole market above $5B with expected and reported EPS an
   await expect(panel.getByRole('button', { name: '14) Market', exact: true })).toHaveClass(/\bon\b/);
   const mmm = panel.locator('tbody tr.click', { hasText: 'MMM US' });
   // EPS from Nasdaq, revenue from FMP; growth against the same source's year- and quarter-earlier reports.
-  await expect(mmm.locator('td')).toHaveText(['Bef-mkt', 'MMM US', '3M Company', '83.55B', /Q\d \d{4}/, '2.38', '2.50', '+5.0%', '+14.2%', '+4.2%', '6.61B', '6.58B', '-0.4%', '+4.0%', '+1.0%'], { timeout: 30_000 });
+  // One line as the terminal's EVTS writes it: company, event, description (A reported, E expected, S surprise), date, time.
+  await expect(mmm.locator('td').nth(2)).toHaveText(/^Q\d \d{4} A:2\.50 E:2\.38 S:\+5\.0% Rev:6\.58B Rev E:6\.61B YoY:\+14\.2%$/, { timeout: 30_000 });
+  await expect(mmm.locator('td').nth(0)).toContainText('3M Company');
+  await expect(mmm.locator('td').nth(3)).toHaveText('83.55B');
+  await expect(mmm.locator('td').nth(5)).toHaveText('Bef-mkt');
   // A company only Finnhub lists takes its market value from Nasdaq's stock list; one below $5B is left out.
   await expect(panel.locator('tbody tr.click', { hasText: 'XYZW US' })).toContainText('6.10B');
   await expect(panel.locator('tbody tr.click', { hasText: 'TINY US' })).toHaveCount(0);
-  await expect(panel.locator('tbody tr.click', { hasText: 'META US' })).toContainText('pending');
-  await expect(panel.locator('tbody tr.click', { hasText: 'META US' })).toContainText('-9.8%');
+  await expect(panel.locator('tbody tr.click', { hasText: 'META US' }).locator('td').nth(2)).toHaveClass(/amber/);
+  await expect(panel.locator('tbody tr.click', { hasText: 'META US' })).toContainText('YoY:-9.8%');
   await expect(panel.getByRole('button', { name: '$5B', exact: true })).toHaveClass(/\bon\b/);
   await expect(panel.getByRole('button', { name: 'any', exact: true })).toHaveCount(0);
   // The earnings card: expected against reported, beat or miss, and the growth, as an earnings correspondent shows it.

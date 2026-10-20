@@ -39,20 +39,6 @@ const eps = (v: number) => (ok(v) ? fmtNum(v, 2) : '--');
 const big = (v: number) => (ok(v) ? fmtBig(v) : '--');
 const from = (f: CalendarFigure) => [f.estFrom && `expected: ${f.estFrom}${ok(f.analysts) ? `, ${f.analysts} analysts` : ''}`, f.actualFrom && `reported: ${f.actualFrom}`].filter(Boolean).join('; ') || undefined;
 
-function Surprise({ f }: { f: CalendarFigure }) {
-  // Only a comparison within one source is a surprise.
-  if (!ok(f.est) || !ok(f.actual) || f.estFrom !== f.actualFrom || f.est === 0) return <span className="muted">{ok(f.actual) || !ok(f.est) ? '--' : ''}</span>;
-  const pct = ((f.actual - f.est) / Math.abs(f.est)) * 100;
-  return <span className={Math.abs(pct) < 0.05 ? '' : pct > 0 ? 'up' : 'dn'}>{pct > 0 ? '+' : ''}{fmtNum(pct, 1)}%</span>;
-}
-
-function Growth({ now, before, what }: { now: number; before: number; what: string }) {
-  if (!ok(now) || !ok(before)) return <span className="muted">--</span>;
-  const pct = growthPct(now, before);
-  if (!ok(pct)) return <span className="muted" title={`${what}: growth is not meaningful to or from a loss`}>NM</span>;
-  return <span className={pct >= 0 ? 'up' : 'dn'} title={`${what}: ${fmtNum(now, 2)} against ${fmtNum(before, 2)}`}>{pct >= 0 ? '+' : ''}{fmtNum(pct, Math.abs(pct) < 99.95 ? 1 : 0)}%</span>;
-}
-
 /** The ticker, opening the security (looked up first when the app does not hold it yet). */
 function Ticker({ symbol }: { symbol: string }) {
   const panel = usePanelId();
@@ -186,26 +172,41 @@ interface RowProps {
   onToggle: (key: string) => void;
 }
 
+/** The terminal's one-line description of a report: "Q3 2026 A:2.34 E:2.29 S:+2.2%", with revenue when a source gives it. */
+export function describe(r: CalendarReport, today: string): { text: string; tone: 'up' | 'dn' | 'pending' | '' } {
+  const parts = [period(r)];
+  const num = (v: number) => fmtNum(v, Math.abs(v) >= 100 ? 1 : Math.abs(v) >= 1 ? 2 : 3);
+  if (ok(r.eps.actual)) parts.push(`A:${num(r.eps.actual)}`);
+  if (ok(r.eps.est)) parts.push(`E:${num(r.eps.est)}`);
+  let tone: 'up' | 'dn' | 'pending' | '' = '';
+  if (ok(r.eps.actual) && ok(r.eps.est) && r.eps.est !== 0 && r.eps.estFrom === r.eps.actualFrom) {
+    const pct = ((r.eps.actual - r.eps.est) / Math.abs(r.eps.est)) * 100;
+    parts.push(`S:${pct > 0 ? '+' : ''}${fmtNum(pct, 1)}%`);
+    tone = Math.abs(pct) < 0.05 ? '' : pct > 0 ? 'up' : 'dn';
+  } else if (!ok(r.eps.actual) && ms(r.date) >= ms(today)) tone = 'pending';
+  if (ok(r.rev.actual)) parts.push(`Rev:${fmtBig(r.rev.actual)}`);
+  if (ok(r.rev.est)) parts.push(`Rev E:${fmtBig(r.rev.est)}`);
+  // Growth on the year when the calendars give the year-earlier figure.
+  // Growth on the year when the calendars give the year-earlier figure; for a coming report, the estimate's.
+  const yoy = ok(r.eps.actual) ? growthPct(r.eps.actual, r.epsYearAgo) : ok(r.eps.est) ? growthPct(r.eps.est, r.epsYearAgo) : NaN;
+  if (ok(yoy)) parts.push(`YoY:${yoy > 0 ? '+' : ''}${fmtNum(yoy, Math.abs(yoy) < 99.95 ? 1 : 0)}%`);
+  else if (!ok(r.eps.actual) && ok(r.epsYearAgo)) parts.push(`YA:${num(r.epsYearAgo)}`);
+  return { text: parts.filter(Boolean).join(' '), tone };
+}
+
 const MarketRow = memo(
   function MarketRow({ r, rowKey, open, today, onToggle }: RowProps) {
-    const reported = ok(r.eps.actual) || ok(r.rev.actual);
+    const d = describe(r, today);
     return (
-      <tr className={`click${open ? ' sel' : ''}`} onClick={() => onToggle(rowKey)} title="Click for the earnings card">
+      <tr className={`click${open ? ' sel' : ''}`} onClick={() => onToggle(rowKey)} title={[from(r.eps), from(r.rev)].filter(Boolean).join(' · ') || 'Click for the earnings card'}>
+        <td className="ellipsis evts-co">
+          <Ticker symbol={r.symbol} /> <span className="evts-name">{r.name}</span>
+        </td>
+        <td className="evts-icon" aria-label="Earnings release">E</td>
+        <td className={`ellipsis evts-desc ${d.tone === 'pending' ? 'amber' : d.tone}`}>{d.text}</td>
+        <td className="num hide-n muted">{big(r.marketCap)}</td>
+        <td className="muted">{fmtDay(ms(r.date))}</td>
         <td className="muted">{TIMING[r.timing]}</td>
-        <td className="nowrap"><Ticker symbol={r.symbol} /></td>
-        <td className="ellipsis hide-w" style={{ maxWidth: 220 }}>{r.name}</td>
-        <td className="num hide-n">{big(r.marketCap)}</td>
-        <td className="hide-w amber">{period(r)}</td>
-        <td className="num" title={from(r.eps)}>{eps(r.eps.est)}</td>
-        <td className="num white" title={from(r.eps)}>{ok(r.eps.actual) ? eps(r.eps.actual) : <span className="muted">{ms(r.date) >= ms(today) ? 'pending' : '--'}</span>}</td>
-        <td className="num"><Surprise f={r.eps} /></td>
-        <td className="num hide-n">{reported ? <Growth now={r.eps.actual} before={r.epsYearAgo} what="EPS, year over year" /> : <Growth now={r.eps.est} before={r.epsYearAgo} what="Expected EPS against the year-earlier EPS" />}</td>
-        <td className="num hide-w"><Growth now={r.eps.actual} before={r.epsQuarterAgo} what="EPS, quarter over quarter" /></td>
-        <td className="num hide-m" title={from(r.rev)}>{big(r.rev.est)}</td>
-        <td className="num white hide-m" title={from(r.rev)}>{big(r.rev.actual)}</td>
-        <td className="num hide-m"><Surprise f={r.rev} /></td>
-        <td className="num hide-n"><Growth now={r.rev.actual} before={r.revYearAgo} what="Revenue, year over year" /></td>
-        <td className="num hide-w"><Growth now={r.rev.actual} before={r.revQuarterAgo} what="Revenue, quarter over quarter" /></td>
       </tr>
     );
   },
@@ -260,7 +261,7 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
     [cal.reports, minCap, q],
   );
   const today = isoDay(now);
-  const cols = 15;
+  const cols = 6;
   const toggle = useCallback((key: string) => setOpen((o) => (o === key ? null : key)), []);
   // One flat list of day headings and lines; only the lines in view (and a margin) are drawn, the rest is spacer.
   const flat = useMemo(() => {
@@ -320,39 +321,21 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
       <div className="tbl-wrap">
         <table className="tbl evts-mkt">
           <colgroup>
+            <col style={{ width: '30%' }} />
+            <col style={{ width: 22 }} />
+            <col />
+            <col className="hide-n" style={{ width: 76 }} />
+            <col style={{ width: 70 }} />
             <col style={{ width: 62 }} />
-            <col style={{ width: 92 }} />
-            <col className="hide-w" style={{ width: '18%' }} />
-            <col className="hide-n" style={{ width: 70 }} />
-            <col className="hide-w" style={{ width: 72 }} />
-            <col style={{ width: 62 }} />
-            <col style={{ width: 66 }} />
-            <col style={{ width: 66 }} />
-            <col className="hide-n" style={{ width: 64 }} />
-            <col className="hide-w" style={{ width: 64 }} />
-            <col className="hide-m" style={{ width: 72 }} />
-            <col className="hide-m" style={{ width: 72 }} />
-            <col className="hide-m" style={{ width: 66 }} />
-            <col className="hide-n" style={{ width: 64 }} />
-            <col className="hide-w" style={{ width: 64 }} />
           </colgroup>
           <thead>
             <tr>
-              <th>Time</th>
-              <th>Security</th>
-              <th className="hide-w">Name</th>
+              <th>Company</th>
+              <th aria-label="Event type" />
+              <th title="A: EPS reported (analysts' basis); E: the analysts' estimate; S: the surprise; Rev: revenue; YoY: EPS against the year-earlier quarter; YA: the year-earlier EPS">Description</th>
               <th className="num hide-n" title="Market value, US dollars (Nasdaq)">Mkt Cap</th>
-              <th className="hide-w" title="Fiscal quarter reported">Period</th>
-              <th className="num" title="The analysts' average EPS estimate for the quarter">EPS Est</th>
-              <th className="num" title="EPS as reported, on the analysts' basis (usually adjusted)">EPS Act</th>
-              <th className="num" title="Reported EPS against the estimate of the same source">EPS Surp</th>
-              <th className="num hide-n" title="EPS against the same quarter a year earlier; for a coming report, the estimate against it">EPS YoY</th>
-              <th className="num hide-w" title="EPS against the quarter before">EPS QoQ</th>
-              <th className="num hide-m" title="The analysts' average revenue estimate (Finnhub, FMP)">Rev Est</th>
-              <th className="num hide-m" title="Revenue as reported (Finnhub, FMP)">Rev Act</th>
-              <th className="num hide-m" title="Reported revenue against the estimate of the same source">Rev Surp</th>
-              <th className="num hide-n" title="Revenue against the same quarter a year earlier (FMP)">Rev YoY</th>
-              <th className="num hide-w" title="Revenue against the quarter before (FMP)">Rev QoQ</th>
+              <th>Date</th>
+              <th>Time</th>
             </tr>
           </thead>
           <tbody ref={bodyRef}>
@@ -366,8 +349,8 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
       </div>
       <div className="note">
         Every US-listed company reporting in the window, from Nasdaq&apos;s earnings calendar (EPS expected and reported, market value, time of the report) and, with your keys, Finnhub&apos;s and FMP&apos;s
-        (revenue expected and reported, companies Nasdaq leaves out). EPS is on the analysts&apos; basis, usually adjusted, and is compared only within one source. YoY and QoQ set a report against the
-        same quarter a year earlier and the quarter before, from the same source&apos;s earlier calendars; NM: not meaningful to or from a loss. Hover a figure for its source.
+        (revenue expected and reported, companies Nasdaq leaves out). Description: A the EPS reported (analysts&apos; basis, usually adjusted), E the estimate, S the surprise (within one source), Rev the
+        revenue, YoY the EPS (for a coming report, its estimate) against the same quarter a year earlier, YA the year-earlier EPS. Green beat, red missed, amber still to report. Hover a line for its sources.
         {cal.revenueFrom.length ? ` Revenue from ${cal.revenueFrom.join(' and ')}.` : ' Revenue needs FINNHUB_API_KEY or FMP_API_KEY on PROVIDERS.'}
         {cal.problems.length ? ` ${cal.problems.slice(0, 3).join(' ')}` : ''}
       </div>

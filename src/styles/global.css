@@ -1197,3 +1197,9 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 @media (max-width: 900px) { .ern-top { grid-template-columns: 1fr; } }
 .anr-chart { min-width: 0; padding: 2px 0; }
 @media (max-width: 900px) { .anr-snap { grid-template-columns: 1fr; } }
+
+/* EVTS market list: Company, event icon, Description, Date, Time. */
+.evts-mkt .evts-co .evts-name { color: #c8c8c8; margin-left: 4px; }
+.evts-mkt .evts-icon { color: #000; background: #c9c9c9; font-weight: 700; text-align: center; font-size: 10px; padding: 0; width: 14px; }
+.evts-mkt .evts-desc.up { color: var(--up); }
+.evts-mkt .evts-desc.dn { color: var(--dn); }
