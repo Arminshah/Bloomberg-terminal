@@ -16,6 +16,8 @@ export interface XYSeries {
   dash?: number[];
   width?: number;
   markers?: boolean;
+  /** Plot against a second scale whose labels are at the left (a yield beside a dividend, say). */
+  axis?: 'left';
 }
 
 interface Props {
@@ -31,6 +33,8 @@ interface Props {
   height?: number | string;
   legend?: boolean;
   xLabel?: string;
+  /** Labels of the second (left) scale. */
+  y2Format?: (v: number) => string;
 }
 
 const AXIS_W = 62;
@@ -75,8 +79,22 @@ export function XYChart(props: Props) {
         x0 = Math.min(x0, tx(t.v));
         x1 = Math.max(x1, tx(t.v));
       }
-      let y0 = Math.min(...pts.map((q) => q.y), ...(p.refLines ?? []).filter((l) => l.y != null).map((l) => l.y!));
-      let y1 = Math.max(...pts.map((q) => q.y), ...(p.refLines ?? []).filter((l) => l.y != null).map((l) => l.y!));
+      const second = p.series.filter((s) => s.axis === 'left');
+      const firstPts = p.series.filter((s) => s.axis !== 'left').flatMap((s) => s.points);
+      const yPts = firstPts.length ? firstPts : pts;
+      let y0 = Math.min(...yPts.map((q) => q.y), ...(p.refLines ?? []).filter((l) => l.y != null).map((l) => l.y!));
+      let y1 = Math.max(...yPts.map((q) => q.y), ...(p.refLines ?? []).filter((l) => l.y != null).map((l) => l.y!));
+      // The second scale: its own range, padded the same way.
+      const secondPts = second.flatMap((s) => s.points);
+      let b0 = secondPts.length ? Math.min(...secondPts.map((q) => q.y)) : 0;
+      let b1 = secondPts.length ? Math.max(...secondPts.map((q) => q.y)) : 1;
+      if (b1 - b0 < 1e-9) {
+        b1 += 1;
+        b0 -= 1;
+      }
+      const pb = (b1 - b0) * 0.08;
+      b0 -= pb;
+      b1 += pb;
       if (p.yZero) {
         y0 = Math.min(0, y0);
         y1 = Math.max(0, y1);
@@ -97,12 +115,14 @@ export function XYChart(props: Props) {
       const px = (x1 - x0) * (isBar ? 0.06 : 0.03) || 1;
       x0 -= px;
       x1 += px;
-      const L = 8;
+      const L = second.length ? AXIS_W : 8;
       const R = w - AXIS_W;
       const top = p.legend === false ? 8 : 22;
       const bottom = h - AXIS_H;
       const X = (x: number) => L + ((tx(x) - x0) / (x1 - x0)) * (R - L);
-      const Y = (y: number) => top + ((y1 - y) / (y1 - y0)) * (bottom - top);
+      const Y1 = (y: number) => top + ((y1 - y) / (y1 - y0)) * (bottom - top);
+      const Y2 = (y: number) => top + ((b1 - y) / (b1 - b0)) * (bottom - top);
+      let Y = Y1;
       ctx.font = T.font;
       ctx.textBaseline = 'middle';
       // y grid
@@ -122,6 +142,20 @@ export function XYChart(props: Props) {
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.fillText(p.yFormat ? p.yFormat(v) : fmtNum(v, step < 0.1 ? 2 : step < 1 ? 1 : 0), R + 6, y);
+      }
+      if (second.length) {
+        const raw2 = (b1 - b0) / Math.max(3, Math.floor((bottom - top) / 40));
+        const mag2 = 10 ** Math.floor(Math.log10(raw2));
+        const f2 = raw2 / mag2;
+        const step2 = (f2 < 1.5 ? 1 : f2 < 3 ? 2 : f2 < 7 ? 5 : 10) * mag2;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = second[0].color;
+        for (let v = Math.ceil(b0 / step2) * step2; v <= b1; v += step2) ctx.fillText(p.y2Format ? p.y2Format(v) : fmtNum(v, step2 < 0.1 ? 2 : step2 < 1 ? 1 : 0), L - 6, Math.round(Y2(v)) + 0.5);
+        ctx.strokeStyle = T.gridStrong;
+        ctx.beginPath();
+        ctx.moveTo(L - 0.5, top);
+        ctx.lineTo(L - 0.5, bottom);
+        ctx.stroke();
       }
       // x ticks
       const ticks = p.xTicks ?? (() => {
@@ -180,6 +214,7 @@ export function XYChart(props: Props) {
       // series
       const barSeries = p.series.filter((s) => s.kind === 'bar');
       p.series.forEach((s) => {
+        Y = s.axis === 'left' ? Y2 : Y1;
         ctx.strokeStyle = s.color;
         ctx.fillStyle = s.color;
         ctx.lineWidth = s.width ?? 1.6;
@@ -249,9 +284,10 @@ export function XYChart(props: Props) {
           for (const q of s.points) if (Math.abs(X(q.x) - hv.x) < Math.abs(X(best.x) - hv.x)) best = q;
           ctx.fillStyle = s.color;
           ctx.beginPath();
-          ctx.arc(X(best.x), Y(best.y), 3.5, 0, Math.PI * 2);
+          ctx.arc(X(best.x), (s.axis === 'left' ? Y2 : Y1)(best.y), 3.5, 0, Math.PI * 2);
           ctx.fill();
-          lines.push({ c: s.color, t: `${s.label ? s.label + ': ' : ''}${best.label ?? (p.xFormat ? p.xFormat(best.x) : fmtNum(best.x, 2))}  ${p.yFormat ? p.yFormat(best.y) : fmtNum(best.y, 3)}` });
+          const fy = s.axis === 'left' ? p.y2Format : p.yFormat;
+          lines.push({ c: s.color, t: `${s.label ? s.label + ': ' : ''}${best.label ?? (p.xFormat ? p.xFormat(best.x) : fmtNum(best.x, 2))}  ${fy ? fy(best.y) : fmtNum(best.y, 3)}` });
         }
         if (lines.length) {
           const bw = Math.max(...lines.map((l) => ctx.measureText(l.t).width)) + 16;

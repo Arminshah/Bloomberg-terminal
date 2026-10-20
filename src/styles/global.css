@@ -1182,3 +1182,5 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .fa-bottom > button:disabled { color: var(--faint); }
 .fa-bottom .fa-next { margin-left: 12px; color: var(--amber); display: inline-flex; gap: 6px; align-items: center; }
 .fa-bottom .link, .link-btn { background: none; border: 0; color: var(--cyan); padding: 0; cursor: pointer; }
+.dvd-top { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 10px; padding: 4px 8px; align-items: start; }
+@media (max-width: 760px) { .dvd-top { grid-template-columns: 1fr; } }
