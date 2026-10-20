@@ -1,4 +1,4 @@
-﻿# Armin Terminal 2.16.0
+# Armin Terminal 2.16.0
 
 This release covers the whole market's earnings on EVENTS, fills the revenue estimates of reported quarters, adds every insider's Form 4 trades to MANAGEMENT, switches dates to DD/MM/YYYY by default, and makes watchlists reorderable by drag and drop.
 
