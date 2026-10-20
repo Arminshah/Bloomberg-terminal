@@ -640,9 +640,13 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .des-fy { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 20px; padding-right: 8px; }
 .des-fy .kv { flex: 0 1 420px; }
 .des-fy-links { display: flex; flex-direction: column; padding: 4px 8px; color: var(--amber); }
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 0 12px; margin: 0; padding: 4px 8px; }
+/* Label and value lines. In a wide panel the list keeps to a readable width, and a faint dotted leader carries the eye
+   from each label to its value. */
+.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 8px; margin: 0; padding: 4px 8px; max-width: 900px; }
 .kv > dt { color: var(--amber); white-space: nowrap; }
-.kv > dd { margin: 0; text-align: right; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kv > dd { display: flex; align-items: baseline; justify-content: flex-end; min-width: 0; margin: 0; overflow: hidden; color: var(--white); white-space: nowrap; }
+.kv > dd::before { content: ''; flex: 1 1 auto; min-width: 10px; margin-right: 6px; border-bottom: 1px dotted #353a41; transform: translateY(-3px); }
+.kv > dd > .kv-v, .kv > dd > :only-child { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: right; }
 .kv-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
 .prose { font-family: var(--sans); font-size: var(--fs-l); line-height: 1.55; color: #d6d6d6; max-width: 78ch; padding: 6px 10px; }
 .note { color: var(--muted); font-size: var(--fs-s); padding: 4px 8px; }

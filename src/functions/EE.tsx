@@ -19,6 +19,7 @@ import { desktopData } from '../data/live/yahoo';
 import { ExpectationsTable, LatestReport, nextRows } from '../components/EarningsExpectations';
 import { fmtDay } from '../core/format';
 import { DAY_MS } from '../data/calendar';
+import { peText } from './DESEquity';
 
 /** What each reaction compares, in the column beside it. */
 const BASIS: Record<EarningsReaction['basis'], string> = {
@@ -71,7 +72,7 @@ export function EE({ sec }: FnProps) {
   const recent = table.filter((x) => x.h.actual != null || x.h.revAct != null).slice(0, 8);
   const stats = surpriseStats(recent.map((x) => x.surp), recent.map((x) => x.r?.pct ?? NaN));
   const prior = done[done.length - 1];
-  const pe = keyStats(s).pe;
+  const { pe, epsLtm } = keyStats(s);
   return (
     <div>
       <FnHeader code="EARNINGS" title="Earnings History" sec={s} sub={<>{ccy} · reported figures · {sourceLabel(status, 'demo figures; real data needs the desktop app')}</>} />
@@ -85,7 +86,7 @@ export function EE({ sec }: FnProps) {
         <KV
           items={[
             ['Prior announcement', prior ? `${fmtEarnDate(prior)}${prior.period ? ` (${prior.period})` : ''}` : '--'],
-            ['P/E', fmtNum(pe, 2)],
+            ['P/E', peText(pe, epsLtm)],
             ['Average surprise', stats.surprises ? `${fmtNum(stats.avgSurprise, 2)}% (${stats.surprises} reports)` : consensus ? '--' : 'Needs the analysts\' estimates (desktop app)'],
             ['Average abs. surprise', stats.surprises ? `${fmtNum(stats.avgAbsSurprise, 2)}%` : '--'],
             ['Average abs. price move', stats.moves ? `${fmtNum(stats.avgAbsMove, 2)}% (${stats.moves} reports)` : '--'],

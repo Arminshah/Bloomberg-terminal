@@ -67,6 +67,12 @@ function Box({ n, title, fn, sec, right, children }: { n?: number; title: string
   );
 }
 
+/** P/E, or NM (not meaningful) on a trailing loss, as the terminal writes it. */
+export function peText(pe: number, eps: number): ReactNode {
+  if (Number.isFinite(pe) && pe > 0) return fmtNum(pe, 2);
+  return Number.isFinite(eps) && eps <= 0 ? <span title="Not meaningful: trailing 12-month EPS is a loss">NM</span> : '--';
+}
+
 /** Two figures in one cell, as "Px/Chg 1D" and "Shrs Out/Float" read on the terminal. */
 function pair(a: ReactNode, b: ReactNode): ReactNode {
   return (
@@ -185,7 +191,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
             <KV
               items={[
                 ['Next report', ne ? fmtEarnDate(ne) : '--'],
-                ['P/E', fmtNum(ks.pe, 2)],
+                ['P/E', peText(ks.pe, ks.epsLtm)],
                 [`T12M EPS (${ccy})`, `${fmtNum(ks.epsLtm, 2)}${financials(sec).ltm?.epsComputed ? ' (computed)' : ''}`],
                 ['Est EPS, next quarter', lineValue(estimate)],
                 ['ROE', fmtPct(ks.roe, 1, false)],
@@ -195,15 +201,25 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
             <MissingNotes lines={[estimate]} />
           </Box>
           <Box n={13} title="Dividend" fn="DIVIDENDS" sec={sec}>
-            <KV
-              items={[
-                ['12M Yield', fmtPct(ks.divYld, 2, false)],
-                ['Payout ratio', fmtPct(ks.payout, 1, false)],
-                ['5Y Growth (annual rate)', fmtPct(growth5, 1)],
-                [lastDiv ? `Cash ${fmtDay(lastDiv.ex)}` : 'Last cash', lastDiv ? fmtNum(lastDiv.amount, 4) : eq.dps === 0 ? 'None' : '--'],
-                ['Next ex-date', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : nextDiv.type === 'Expected' ? 'expected' : 'decl.'})` : '--'],
-              ]}
-            />
+            {!lastDiv && !nextDiv && !(ks.divYld > 0) && (eq.dps === 0 || engine.realOnly) ? (
+              // A company that pays none says so once, instead of a line of dashes per figure.
+              <KV
+                items={[
+                  ['12M Yield', Number.isFinite(ks.divYld) ? fmtPct(ks.divYld, 2, false) : '0.00%'],
+                  ['Dividend', daily.length ? 'None paid in the price history' : 'None paid'],
+                ]}
+              />
+            ) : (
+              <KV
+                items={[
+                  ['12M Yield', fmtPct(ks.divYld, 2, false)],
+                  ['Payout ratio', fmtPct(ks.payout, 1, false)],
+                  ['5Y Growth (annual rate)', fmtPct(growth5, 1)],
+                  [lastDiv ? `Cash ${fmtDay(lastDiv.ex)}` : 'Last cash', lastDiv ? fmtNum(lastDiv.amount, 4) : eq.dps === 0 ? 'None' : '--'],
+                  ['Next ex-date', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : nextDiv.type === 'Expected' ? 'expected' : 'decl.'})` : 'None announced'],
+                ]}
+              />
+            )}
           </Box>
           <Box n={14} title="Analyst Ratings" fn="ANALYSTS" sec={sec}>
             <AnalystSummary sec={sec} snap={analysts} />

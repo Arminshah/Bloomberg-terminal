@@ -133,12 +133,15 @@ export function Section({ title, right, children, className }: { title: ReactNod
   );
 }
 
+/** Label and value lines; a dotted leader joins each label to its value, so wide panels stay readable. */
 export function KV({ items }: { items: [ReactNode, ReactNode][] }) {
   return (
     <dl className="kv">
       {items.map(([k, v], i) => [
         <dt key={`k${i}`}>{k}</dt>,
-        <dd key={`v${i}`}>{v}</dd>,
+        <dd key={`v${i}`} title={typeof v === 'string' && v.length > 40 ? v : undefined}>
+          <span className="kv-v">{v}</span>
+        </dd>,
       ])}
     </dl>
   );
