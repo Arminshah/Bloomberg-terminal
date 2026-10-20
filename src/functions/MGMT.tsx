@@ -38,7 +38,7 @@ export function matchOfficer(o: Officer, people: Person[]): Person | undefined {
   return hits.length === 1 ? hits[0] : undefined;
 }
 
-function InsiderSection({ report }: { report: InsiderReport }) {
+export function InsiderSection({ report }: { report: InsiderReport }) {
   const [all, setAll] = useState(false);
   const { people, all: total } = useMemo(() => summarize(report.trades), [report]);
   const trades = all ? report.trades : report.trades.slice(0, 40);

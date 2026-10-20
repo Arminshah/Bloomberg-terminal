@@ -10,7 +10,10 @@ test('holders date sorting works by mouse and keyboard and the latest-period fil
   const command = page.locator('#cmd-0');
   await command.fill('AAPL HOLDERS');
   await command.press('Enter');
-  const date = page.getByRole('columnheader', { name: /^As of/ });
+  // Sorted by position, as the terminal's HDS; the holding date sorts newest first, then oldest.
+  await expect(page.getByRole('columnheader', { name: /^Position/ })).toHaveAttribute('aria-sort', 'descending');
+  const date = page.getByRole('columnheader', { name: /^File Dt/ });
+  await date.click();
   await expect(date).toHaveAttribute('aria-sort', 'descending');
   await date.click();
   await expect(date).toHaveAttribute('aria-sort', 'ascending');
@@ -23,7 +26,7 @@ test('holders date sorting works by mouse and keyboard and the latest-period fil
   await filter.selectOption('latest');
   await expect(filter).toHaveValue('latest');
   await expect(page.locator('.tbl tbody tr').first()).not.toContainText('No data');
-  await expect(page.getByText('As of is the date of the holding, not of the filing.', { exact: false })).toBeVisible();
+  await expect(page.getByText('File Dt is the date of the holding, not of the filing.', { exact: false })).toBeVisible();
   await filter.selectOption('all');
   await expect(filter).toHaveValue('all');
 });

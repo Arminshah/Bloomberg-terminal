@@ -225,7 +225,10 @@ test('holders sort and filter by reported period, and short float is calculated 
   const positions = page.locator('table.tbl tbody tr').filter({ hasText: 'Synthetic Holder' });
   await expect(positions).toHaveCount(2);
   await expect(positions.first()).toContainText('Recent Synthetic Holder');
-  await page.getByRole('columnheader', { name: /As of/ }).click();
+  // Newest holdings first, then oldest first.
+  await page.getByRole('columnheader', { name: /File Dt/ }).click();
+  await expect(positions.first()).toContainText('Recent Synthetic Holder');
+  await page.getByRole('columnheader', { name: /File Dt/ }).click();
   await expect(positions.first()).toContainText('Older Synthetic Holder');
   await page.getByLabel('Holdings as of').selectOption('latest');
   await expect(positions).toHaveCount(1);
