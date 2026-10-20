@@ -39,6 +39,9 @@ declare global {
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<KeyedAnswer>;
       analysts?(kind: import('./analysts').AnalystKind | 'earnings', symbol: string): Promise<KeyedAnswer>;
+      nasdaq?(kind: import('./nasdaq-company').NasdaqKind, symbol: string): Promise<KeyedAnswer>;
+      finra?(kind: 'short-interest', symbol: string): Promise<KeyedAnswer>;
+      alphavantage?(kind: 'earnings' | 'estimates', symbol: string): Promise<KeyedAnswer>;
       earningsCalendar?(source: 'nasdaq' | 'nasdaq-caps' | 'finnhub' | 'fmp', from: string, to: string): Promise<KeyedAnswer>;
       finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
       equibles?(kind: import('./equibles').ResearchKind, symbol: string): Promise<KeyedAnswer>;

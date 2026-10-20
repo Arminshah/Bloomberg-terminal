@@ -95,6 +95,8 @@ export interface SnapshotInput {
   yahooResearch: boolean;
   last: number;
   ccy: string;
+  /** The next quarter's EPS estimate from every expectation source (EARNINGS'), used when it has a figure. */
+  next?: SnapshotLine;
 }
 
 export function analystSnapshot(i: SnapshotInput): AnalystSnapshot {
@@ -106,7 +108,7 @@ export function analystSnapshot(i: SnapshotInput): AnalystSnapshot {
     };
   }
   if (!i.symbol) return { lines: [], note: `Analyst research here covers US-listed stocks; ${i.ticker} is not one.` };
-  const lines = [targetLine(i.consensus, i.last, i.ccy), ratingsLine(i.ratings), nextQuarterLine(i.calendar)];
+  const lines = [targetLine(i.consensus, i.last, i.ccy), ratingsLine(i.ratings), i.next && i.next.value !== '--' && i.next.value !== 'Loading…' ? i.next : nextQuarterLine(i.calendar)];
   // Not connected only when every source is unset or switched off; a source that answers without coverage is
   // not the same thing, and its own words stay on the line.
   const parts = [i.consensus, i.ratings, i.calendar];

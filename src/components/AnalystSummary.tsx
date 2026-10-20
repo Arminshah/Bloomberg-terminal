@@ -6,6 +6,9 @@ import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type R
 import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type NextReport } from '../data/live/finnhub';
 import { yahooResearchAvailable } from '../data/live/yahoo-research';
 import { analystSnapshot, nextQuarterLine, type AnalystSnapshot, type SnapshotLine } from '../data/live/analyst-snapshot';
+import { canonicalQuarter, timingLabel, useConsensus } from '../data/live/consensus';
+import { desktopData } from '../data/live/yahoo';
+import { fmtDay, fmtNum } from '../core/format';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 
@@ -18,6 +21,7 @@ export function useAnalystSnapshot(sec: SecurityDef): AnalystSnapshot {
   const symbol = desktop ? analystSymbol(sec) : null;
   const parts = useAnalysts(symbol ? sec : undefined, ['consensus', 'ratings']);
   const calendar = useFinnhub(symbol && finnhubAvailable() && finnhubSymbol(sec) ? sec : undefined, ['calendar']).calendar as FinnhubPart<NextReport | null> | undefined;
+  const next = useNextQuarterEstimate(sec);
   return analystSnapshot({
     desktop,
     symbol,
@@ -28,6 +32,7 @@ export function useAnalystSnapshot(sec: SecurityDef): AnalystSnapshot {
     yahooResearch: yahooResearchAvailable(),
     last: engine.quote(sec.id)?.last ?? NaN,
     ccy: sec.ccy,
+    next,
   });
 }
 
@@ -36,7 +41,15 @@ export function useNextQuarterEstimate(sec: SecurityDef): SnapshotLine {
   const desktop = finnhubAvailable();
   const symbol = desktop ? finnhubSymbol(sec) : null;
   const calendar = useFinnhub(symbol ? sec : undefined, ['calendar']).calendar as FinnhubPart<NextReport | null> | undefined;
+  // Every expectation source together (Yahoo, Finnhub, FMP, Alpha Vantage, Nasdaq), as EARNINGS shows them.
+  const c = useConsensus(desktopData() && sec.eq ? sec : undefined);
   const label = 'EPS estimate, next quarter';
+  const n = c?.next;
+  if (n && Number.isFinite(n.eps.est)) {
+    const quarter = canonicalQuarter(n.label) ? ` for ${n.label}` : '';
+    const when = n.date ? `, report ${n.dateEstimated ? '~' : ''}${fmtDay(n.date)}${n.timing && n.timing !== '--' ? ` ${timingLabel(n.timing).toLowerCase()}` : ''}` : '';
+    return { label, value: `${fmtNum(n.eps.est, 2)}${quarter}${when}`, source: n.eps.estFrom };
+  }
   if (!desktop) return { label, value: 'Not connected in the browser: the desktop app reads it from Finnhub with FINNHUB_API_KEY' };
   if (!symbol) return { label, value: '--', missing: `Finnhub's estimates cover US-listed stocks; ${sec.ticker} is not one.` };
   return nextQuarterLine(calendar);

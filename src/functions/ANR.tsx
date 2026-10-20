@@ -2,7 +2,7 @@ import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { NotConnected } from '../components/NotConnected';
 import { Chg, HBar, KV, LivePx, Section } from '../components/cells';
-import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
+import { fmtBig, fmtDay, fmtIso, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { analystData, analystsAvailable, analystSymbol, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
 import { EquiblesResearch } from '../components/EquiblesResearch';
@@ -292,7 +292,7 @@ function recommendationPeriod(period: string | undefined): string {
 function ResearchSource({ part }: { part: AnalystPart | undefined }) {
   if (part?.state !== 'ok' || !part.data) return null;
   const rating = part.data as RatingTally;
-  return <div className="note">Source: {part.source ?? 'FMP'}{rating.period ? ` · recommendation period ${rating.period}` : ''}{part.currency ? ` · ${part.currency}` : ''}{part.at ? ` · received ${fmtDay(part.at)} ${fmtTime(part.at, false)}` : ''}{part.stale ? ' · STALE' : ''}{part.message ? ` · ${part.message}` : ''}</div>;
+  return <div className="note">Source: {part.source ?? 'FMP'}{rating.period ? ` · recommendation period ${fmtIso(rating.period, true)}` : ''}{part.currency ? ` · ${part.currency}` : ''}{part.at ? ` · received ${fmtDay(part.at)} ${fmtTime(part.at, false)}` : ''}{part.stale ? ' · STALE' : ''}{part.message ? ` · ${part.message}` : ''}</div>;
 }
 
 /** The targets' range as a line, with the median, the consensus and the last price marked on it. */
@@ -400,13 +400,15 @@ export function EstimatesTable({ part, rows = 5 }: { part: AnalystPart<Estimate[
   if (!part || part.state === 'loading') return <div className="empty">Loading annual estimates…</div>;
   const list = (part.data ?? []).filter((e) => Date.parse(`${e.date}T00:00:00Z`) > Date.now() - 365 * 86_400_000).slice(0, rows);
   if (!list.length) return <div className="note">No structured annual-estimate coverage. Equibles company research may provide a separate report.</div>;
+  // A source with EPS estimates only (Nasdaq) shows no revenue columns.
+  const hasRev = list.some((e) => Number.isFinite(e.revenueAvg));
   return (
     <><table className="tbl">
       <thead>
         <tr>
           <th>Fiscal year end</th>
-          <th className="num">Revenue</th>
-          <th className="num hide-m">Range</th>
+          {hasRev ? <th className="num">Revenue</th> : null}
+          {hasRev ? <th className="num hide-m">Range</th> : null}
           <th className="num">EPS</th>
           <th className="num hide-m">Range</th>
           <th className="num">Analysts (EPS)</th>
@@ -416,13 +418,15 @@ export function EstimatesTable({ part, rows = 5 }: { part: AnalystPart<Estimate[
         {list.map((e) => (
           <tr key={e.date}>
             <td className="amber">{fmtDay(Date.parse(`${e.date}T00:00:00Z`))}</td>
-            <td className="num white">{fmtBig(e.revenueAvg)}{part.source === 'Yahoo Finance' ? ` ${e.currency ?? '(currency not supplied)'}` : ''}</td>
-            <td className="num hide-m muted">
-              {fmtBig(e.revenueLow)} - {fmtBig(e.revenueHigh)}
-            </td>
+            {hasRev ? <td className="num white">{fmtBig(e.revenueAvg)}{part.source === 'Yahoo Finance' ? ` ${e.currency ?? '(currency not supplied)'}` : ''}</td> : null}
+            {hasRev ? (
+              <td className="num hide-m muted">
+                {Number.isFinite(e.revenueLow) && Number.isFinite(e.revenueHigh) ? `${fmtBig(e.revenueLow)} - ${fmtBig(e.revenueHigh)}` : ''}
+              </td>
+            ) : null}
             <td className="num white">{fmtNum(e.epsAvg, 2)}{part.source === 'Yahoo Finance' ? ` ${e.epsCurrency ?? '(currency not supplied)'}` : ''}</td>
             <td className="num hide-m muted">
-              {fmtNum(e.epsLow, 2)} - {fmtNum(e.epsHigh, 2)}
+              {Number.isFinite(e.epsLow) && Number.isFinite(e.epsHigh) ? `${fmtNum(e.epsLow, 2)} - ${fmtNum(e.epsHigh, 2)}` : ''}
             </td>
             <td className="num">{Number.isFinite(e.analystsEps) ? e.analystsEps : '--'}</td>
           </tr>

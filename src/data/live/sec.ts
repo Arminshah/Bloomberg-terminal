@@ -176,6 +176,8 @@ export interface SecFiler {
   /** Fiscal year end as MMDD. */
   fiscalYearEnd?: string;
   stateOfIncorporation?: string;
+  /** The business address's city and state (or country), as EDGAR gives them. */
+  address?: { city: string; region?: string };
   formerNames: { name: string; from?: string; to?: string }[];
   /** Recent filings, newest first. */
   filings: Filing[];
@@ -243,12 +245,49 @@ export function parseSubmissions(text: string): SecFiler | null {
     ...(str(json.entityType) ? { entityType: str(json.entityType) } : {}),
     ...(str(json.fiscalYearEnd) && /^\d{4}$/.test(json.fiscalYearEnd) ? { fiscalYearEnd: json.fiscalYearEnd } : {}),
     ...(str(json.stateOfIncorporation) ? { stateOfIncorporation: str(json.stateOfIncorporation) } : {}),
+    ...(str(json.addresses?.business?.city) ? { address: { city: str(json.addresses.business.city)!, ...(str(json.addresses.business.stateOrCountryDescription ?? json.addresses.business.stateOrCountry) ? { region: str(json.addresses.business.stateOrCountryDescription ?? json.addresses.business.stateOrCountry) } : {}) } } : {}),
     formerNames: (Array.isArray(json.formerNames) ? json.formerNames : [])
       .map((n: any) => ({ name: str(n?.name) ?? '', from: str(n?.from)?.slice(0, 10), to: str(n?.to)?.slice(0, 10) }))
       .filter((n: { name: string }) => n.name),
     filings: parseFilingColumns(json.filings.recent),
     pages,
   };
+}
+
+/** An earnings release as the company filed it: an 8-K with item 2.02 (results of operations). */
+export interface EarningsRelease {
+  /** Filing date, YYYY-MM-DD (the SEC's date, US Eastern). */
+  date: string;
+  /** EDGAR's acceptance time (ms), when given. */
+  at?: number;
+  /** Before the open or after the close, from the acceptance time; '--' during the session or without a time. */
+  timing: 'Bef-mkt' | 'Aft-mkt' | '--';
+  accession: string;
+}
+
+/** The New York hour (with minutes as a fraction) of an instant. */
+function newYorkHour(ms: number): number {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date(ms));
+  return Number(parts.find((p) => p.type === 'hour')?.value) + Number(parts.find((p) => p.type === 'minute')?.value) / 60;
+}
+
+/**
+ * The company's earnings releases (8-K item 2.02), newest first. The 8-K can follow the press release by hours, so its
+ * acceptance time proves only an earlier release: accepted before 9:30 New York time means a release before the open;
+ * accepted from 16:00 on is counted after the close; one accepted during the session leaves the session unknown.
+ */
+export function earningsReleases(filings: Filing[]): EarningsRelease[] {
+  return filings
+    .filter((f) => /^8-K$/.test(f.form) && f.items?.includes('2.02'))
+    .map((f) => {
+      const at = f.accepted ? Date.parse(f.accepted) : NaN;
+      const h = Number.isFinite(at) ? newYorkHour(at) : NaN;
+      // The day of the release is the New York day of the acceptance (EDGAR can date an evening filing the next day).
+      const day = Number.isFinite(at) ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date(at)) : f.filed;
+      const timing: EarningsRelease['timing'] = !Number.isFinite(h) ? '--' : h < 9.5 ? 'Bef-mkt' : h >= 16 ? 'Aft-mkt' : '--';
+      return { date: /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : f.filed, ...(Number.isFinite(at) ? { at } : {}), timing, accession: f.accession };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 /** An extra submissions file: the same columns at the top level. */

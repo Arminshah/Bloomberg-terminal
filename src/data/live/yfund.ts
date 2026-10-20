@@ -7,8 +7,10 @@ import type { EarningsEvent, FinPeriod, Holder } from '../fundamentals';
 import type { SecurityDef } from '../types';
 import { desktopData, impliedShares, realDividends, yahooGet, yahooSymbolFor } from './yahoo';
 import { finnhubAvailable, finnhubSymbol, loadFinnhub, type FinnhubMetric, type FinnhubProfile } from './finnhub';
-import { loadCompanyFacts, reportingCurrency, resolveFiler, secAvailable, secTicker, type CompanyFacts } from './sec';
+import { loadCompanyFacts, loadFiler, reportingCurrency, resolveFiler, secAvailable, secTicker, type CompanyFacts, type SecFiler } from './sec';
+import { fillSummary, loadFinraShort, loadNasdaq, nasdaqAvailable, nasdaqSummaryPatch, nasdaqSymbol, type NasdaqHoldings, type NasdaqKind, type NasdaqProfile, type NasdaqShort, type NasdaqSummary } from './nasdaq-company';
 import { secStatementRows } from './statement-supplements';
+import { fmtDay } from '../../core/format';
 
 /**
  * Company data for the desktop app from Yahoo Finance (personal
@@ -43,6 +45,8 @@ export interface RealFund {
   officers: Officer[];
   /** Where the ratios and profile came from when Yahoo's company summary was refused. */
   statsFrom?: 'Finnhub';
+  /** Sources that filled fields Yahoo's company summary left empty (Nasdaq, SEC EDGAR). */
+  filledFrom?: string[];
 }
 
 /**
@@ -313,7 +317,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     if (!Number.isFinite(row.get('TotalDebt'))) {
       row.set('TotalDebt', snapshotDebt);
       quarterlyRows.set(mostRecentQuarter, row);
-      supplements.set(mostRecentQuarter, new Set([`Yahoo Finance debt snapshot as of ${new Date(mostRecentQuarter).toISOString().slice(0, 10)}`]));
+      supplements.set(mostRecentQuarter, new Set([`Yahoo Finance debt snapshot as of ${fmtDay(mostRecentQuarter, true)}`]));
     }
   }
   if (secFacts && currency) {
@@ -650,6 +654,74 @@ async function statementFacts(def: SecurityDef, force: boolean): Promise<Company
   return facts.ok ? facts.data : undefined;
 }
 
+const hasNum = (v: Json) => Number.isFinite(num(v));
+const titleCase = (t: string) => (t === t.toUpperCase() ? t.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()) : t);
+
+/** The latest past date with the SEC's fiscal year end (MMDD), in seconds, as Yahoo's lastFiscalYearEnd. */
+export function lastFiscalYearEnd(mmdd: string, now: number): number {
+  const m = Number(mmdd.slice(0, 2));
+  const d = Number(mmdd.slice(2));
+  if (!(m >= 1 && m <= 12 && d >= 1 && d <= 31)) return NaN;
+  const y = new Date(now).getUTCFullYear();
+  const t = Date.UTC(y, m - 1, Math.min(d, new Date(Date.UTC(y, m, 0)).getUTCDate()));
+  return Math.floor((t <= now ? t : Date.UTC(y - 1, m - 1, Math.min(d, new Date(Date.UTC(y - 1, m, 0)).getUTCDate()))) / 1000);
+}
+
+/**
+ * Fills the gaps in a US-listed stock's company summary from Nasdaq (market value, dividend, industry, short interest,
+ * institutional ownership) and the SEC's company record (headquarters, fiscal year end). Only what is missing is
+ * asked for; the stock on screen (`front`) also asks for short interest, holders and the dividend record, peers only
+ * for the market value. Never throws.
+ */
+async function fillGaps(def: SecurityDef, summary: Json, front: boolean): Promise<{ summary: Json; from: string[] }> {
+  const from: string[] = [];
+  let out = summary;
+  try {
+    const r0 = summary?.quoteSummary?.result?.[0] ?? {};
+    const ns = nasdaqSymbol(def);
+    const secPromise: Promise<SecFiler | null> =
+      front && secAvailable() && secTicker(def) && (!r0.assetProfile?.city || !hasNum(r0.defaultKeyStatistics?.lastFiscalYearEnd))
+        ? resolveFiler(secTicker(def)!).then(async (c) => (c.ok ? ((await loadFiler(c.data.cik)) as { ok: boolean; data?: SecFiler }) : null)).then((f) => (f?.ok ? f.data ?? null : null)).catch(() => null)
+        : Promise.resolve(null);
+    if (ns && nasdaqAvailable()) {
+      const kinds: NasdaqKind[] = [];
+      if (!hasNum(r0.summaryDetail?.marketCap ?? r0.price?.marketCap) || !r0.assetProfile?.industry || (front && !hasNum(r0.summaryDetail?.dividendRate))) kinds.push('summary');
+      if (front && !hasNum(r0.defaultKeyStatistics?.sharesShort)) kinds.push('short-interest');
+      if (front && (!hasNum(r0.majorHoldersBreakdown?.institutionsPercentHeld) || !r0.institutionOwnership?.ownershipList?.length || !hasNum(r0.defaultKeyStatistics?.sharesOutstanding))) kinds.push('holdings');
+      // The dividend record's declaration, record and payment dates, which Yahoo's price history does not give.
+      if (front) kinds.push('dividends');
+      if (front && !r0.assetProfile?.longBusinessSummary) kinds.push('profile');
+      const got = await Promise.all(kinds.map((k) => loadNasdaq(ns, k)));
+      const pick = <T,>(k: NasdaqKind): T | null => {
+        const p = got[kinds.indexOf(k)];
+        return p?.state === 'ok' ? ((p.data as T) ?? null) : null;
+      };
+      // Nasdaq's page has short interest for Nasdaq listings only; FINRA's covers every US-listed stock.
+      const short = pick<NasdaqShort[]>('short-interest') ?? (kinds.includes('short-interest') ? await loadFinraShort(ns) : null);
+      const filled = fillSummary(out, nasdaqSummaryPatch({ summary: pick<NasdaqSummary>('summary'), short, holdings: pick<NasdaqHoldings>('holdings'), profile: pick<NasdaqProfile>('profile') }));
+      if (filled.filled.length) {
+        out = filled.summary;
+        from.push('Nasdaq');
+        if (short && !pick<NasdaqShort[]>('short-interest')) from.push('FINRA');
+      }
+    }
+    const filer = await secPromise;
+    if (filer) {
+      const patch: Json = {};
+      if (filer.address) patch.assetProfile = { city: titleCase(filer.address.city), ...(filer.address.region ? { state: filer.address.region } : {}) };
+      if (filer.fiscalYearEnd) patch.defaultKeyStatistics = { lastFiscalYearEnd: lastFiscalYearEnd(filer.fiscalYearEnd, Date.now()) };
+      const filled = fillSummary(out, patch);
+      if (filled.filled.length) {
+        out = filled.summary;
+        from.push('SEC EDGAR');
+      }
+    }
+  } catch {
+    /* the summary as it was */
+  }
+  return { summary: out, from };
+}
+
 /**
  * True when a company's data should be loaded again: after 6 hours, or every
  * hour once a report it was waiting for is due (statements, EPS, estimates and
@@ -667,10 +739,16 @@ export function fundDue(fund: Pick<RealFund, 'fetched' | 'earnings'>, now: numbe
  * it ahead of queued peers, for the security the user is looking at; `force`
  * (the top bar's REFRESH) loads it again whether due or not.
  */
+/** Stocks a screen opened (not only as a peer), and those whose data was loaded as such. */
+const shownFront = new Set<string>();
+const loadedFront = new Set<string>();
+
 export function requestFundamentals(def: SecurityDef | undefined, front = false, force = false): void {
   if (!def?.eq || !desktopData()) return;
   const have = realFund.get(def.id);
-  if (!force && have && !fundDue(have, Date.now())) return;
+  if (front) shownFront.add(def.id);
+  // A stock first loaded as a peer is loaded again when opened, for the figures only the opened stock asks for.
+  if (!force && have && !fundDue(have, Date.now()) && (!front || loadedFront.has(def.id))) return;
   if (!force && Date.now() - (failedAt.get(def.id) ?? -Infinity) < 10 * 60_000) return;
   if (loading.has(def.id)) {
     // Already queued: move it up if the user opened it.
@@ -707,12 +785,19 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false,
           statsFrom = 'Finnhub';
         }
       }
+      // What Yahoo's summary leaves empty (all of it when Yahoo refuses its session) comes from Nasdaq's quote and
+      // company pages and the SEC's company record, for US-listed stocks. Yahoo's own figures are kept.
+      const isFront = shownFront.has(def.id);
+      const gaps = await fillGaps(def, used, isFront);
+      if (isFront) loadedFront.add(def.id);
+      used = gaps.summary;
       const hasStatements = [annual, quarterly].some((x) => (x?.timeseries?.result ?? []).some((r: Json) => Object.keys(r ?? {}).some((k) => k !== 'meta' && k !== 'timestamp' && Array.isArray(r[k]) && r[k].length)));
       const noProviderData = !used?.quoteSummary?.result?.[0] && !hasStatements;
       const initialFacts = noProviderData ? await factsPromise : undefined;
       if (noProviderData && !initialFacts) throw new Error('no data');
       const fund = buildRealFund(def, used, annual, quarterly, trailing, now, initialFacts);
       if (statsFrom) fund.statsFrom = statsFrom;
+      if (gaps.from.length) fund.filledFrom = gaps.from;
       realFund.set(def.id, fund);
       applyProfile(def, used, fund);
       setStatus('ok');
@@ -722,6 +807,7 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false,
         if (facts) {
           const supplemented = buildRealFund(def, used, annual, quarterly, trailing, now, facts);
           if (statsFrom) supplemented.statsFrom = statsFrom;
+          if (gaps.from.length) supplemented.filledFrom = gaps.from;
           realFund.set(def.id, supplemented);
           applyProfile(def, used, supplemented);
           setStatus('ok');

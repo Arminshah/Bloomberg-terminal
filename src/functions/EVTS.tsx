@@ -15,6 +15,7 @@ import { portfolio, watchlists } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
 import { calendarAvailable, isoDay, useMarketCalendar } from '../data/live/earnings-calendar';
 import { MarketEarnings } from './EVTSMarket';
+import { useNasdaq } from '../data/live/nasdaq-company';
 
 interface Ev {
   date: number;
@@ -75,6 +76,8 @@ export function EVTS({ sec }: FnProps) {
   const fromIso = isoDay(now + span.from * DAY_MS);
   const toIso = isoDay(now + span.to * DAY_MS);
   const cal = useMarketCalendar(fromIso, toIso, span.to - span.from <= 31, showMarket);
+  // One stock's next report date from Nasdaq, for when the quote and company data give none.
+  const nasdaqParts = useNasdaq(sec?.eq ? sec : undefined, ['earnings-date']);
   const above = cal.reports.filter((r) => minCap <= 0 || (Number.isFinite(r.marketCap) && r.marketCap >= minCap));
   const events = useMemo(() => {
     const from = now + span.from * DAY_MS;
@@ -100,7 +103,7 @@ export function EVTS({ sec }: FnProps) {
       }
     }
     return list.sort((a, b) => a.date - b.date || a.id.localeCompare(b.id));
-  }, [sec, scope, watched, holdings, span.from, span.to, now, showMarket]);
+  }, [sec, scope, watched, holdings, span.from, span.to, now, showMarket, nasdaqParts]); // eslint-disable-line react-hooks/exhaustive-deps
   // The analysts' expectations for the reports in view, nearest to today first (desktop app).
   const reporting = useMemo(() => {
     const byDistance = events.filter((e) => e.kind === 'Earnings' && !e.sim).sort((a, b) => Math.abs(a.date - now) - Math.abs(b.date - now));

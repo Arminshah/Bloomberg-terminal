@@ -5,6 +5,7 @@ import { addRealStories, type Story } from '../news';
 import { settings } from '../../terminal/settings';
 import { setFeed } from './status';
 import { CURRENCIES } from '../universe/markets';
+import { fmtIso } from '../../core/format';
 
 const COINBASE_REST = 'https://api.exchange.coinbase.com';
 const COINBASE_WS = 'wss://ws-feed.exchange.coinbase.com';
@@ -194,7 +195,7 @@ async function loadFx(signal: AbortSignal) {
       }
     }
     engine.flush([]);
-    setFeed('fx', 'live', `ECB fixings to ${dates[dates.length - 1]} · ${n} currencies`);
+    setFeed('fx', 'live', `ECB fixings to ${fmtIso(dates[dates.length - 1], true)} · ${n} currencies`);
   } catch (err) {
     if (signal.aborted) return;
     setFeed('fx', isBlocked(err) ? 'blocked' : 'error', isBlocked(err) ? 'Network blocked here; using simulator' : String(err));

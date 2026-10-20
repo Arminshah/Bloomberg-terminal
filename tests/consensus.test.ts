@@ -45,7 +45,7 @@ describe("the analysts' expectations against the reports", () => {
     const kept = { '2026-09-30': { epsEst: 4.5, revEst: 1.0e12, revCcy: 'TWD', revAnalysts: 20, epsCcy: 'USD', at: day('2026-10-10') } };
     const q = mergeConsensus({ yahoo: withRevenue, kept }).past[0];
     expect(q.rev).toMatchObject({ est: 1.0e12, actual: 1.1e12, ccy: 'TWD', actualFrom: 'Yahoo Finance' });
-    expect(q.rev.estFrom).toMatch(/read 2026-10-10/);
+    expect(q.rev.estFrom).toMatch(/read 10\/10\/2026/);
     // An estimate in another currency is not compared.
     const other = mergeConsensus({ yahoo: withRevenue, kept: { '2026-09-30': { ...kept['2026-09-30'], revCcy: 'USD' } } }).past[0];
     expect(other.rev.est).toBeNaN();

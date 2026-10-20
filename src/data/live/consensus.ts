@@ -1,14 +1,17 @@
 import { useEffect } from 'react';
 import { createStore, waitFor } from '../../core/store';
 import { DAY_MS } from '../calendar';
-import { reportCcy, type FinPeriod } from '../fundamentals';
+import { reportCcy, type EarningsEvent, type FinPeriod } from '../fundamentals';
 import type { SecurityDef } from '../types';
 import { finnhubAvailable, finnhubData, finnhubSymbol, loadFinnhub, type EpsSurprise, type FinnhubPart, type NextReport, type PastReport } from './finnhub';
 import { companyReports, earningsCalendar, requestCompanyEarnings, type WindowReport } from './earnings-calendar';
-import { secTicker } from './sec';
+import { earningsReleases, loadFiler, resolveFiler, secAvailable, secTicker, type EarningsRelease } from './sec';
+import { alphaVantageAvailable, alphaVantageData, alphaVantageFor, avSymbol, loadAlphaVantage, type AvEarnings } from './alphavantage';
+import { loadNasdaq, nasdaqAvailable, nasdaqData, nasdaqPart, nasdaqSymbol, type NasdaqForecast, type NasdaqNextReport } from './nasdaq-company';
 import { desktopData, yahooGet, yahooSymbolFor } from './yahoo';
 import { fundVersion, getRealFund, usTiming } from './yfund';
 import { createWants, registerRefresh } from '../../terminal/refresh';
+import { fmtDay } from '../../core/format';
 
 /**
  * What analysts expected of a company's quarterly reports, against what it reported: EPS and revenue, for the last
@@ -67,6 +70,8 @@ export interface Consensus {
   problems: string[];
   /** A source has not answered yet. */
   loading: boolean;
+  /** The company's earnings releases filed with the SEC (8-K item 2.02), newest first, when loaded. */
+  releases?: EarningsRelease[];
 }
 
 const NONE: Expectation = { est: NaN, low: NaN, high: NaN, analysts: NaN, actual: NaN };
@@ -224,6 +229,32 @@ export interface ConsensusInput {
   /** The company's quarterly statements (revenue in millions) and their currency. */
   statements?: FinPeriod[];
   statementCcy?: string;
+  /** Alpha Vantage's reports and estimates (US listings, the owner's key). */
+  av?: AvEarnings;
+  /** Nasdaq's consensus EPS of the coming quarters, and its next report date. */
+  nasdaqForecast?: NasdaqForecast | null;
+  nasdaqNext?: NasdaqNextReport | null;
+  /** The company's earnings releases filed with the SEC (8-K item 2.02), newest first. */
+  secReleases?: EarningsRelease[];
+  /** The fiscal year's last month (1-12), for naming quarters only Alpha Vantage or Nasdaq give. */
+  fye?: number;
+  /** The clock (ms), for the tests. */
+  now?: number;
+}
+
+/**
+ * The fiscal quarter a period end falls in ("Q1 2026" for Apple's December quarter), named by the year the fiscal year
+ * ends. An end in a month's first week (52/53-week years) counts in the month before.
+ */
+export function fiscalLabel(end: string, fye: number | undefined): string | undefined {
+  if (!ISO.test(end) || !(fye != null && fye >= 1 && fye <= 12)) return undefined;
+  const d = new Date(ms(end) - (Number(end.slice(8)) <= 7 ? 8 * DAY_MS : 0));
+  const m = d.getUTCMonth() + 1;
+  const offset = (m - fye + 12) % 12;
+  if (offset % 3 !== 0) return undefined;
+  const q = offset === 0 ? 4 : offset / 3;
+  const fy = m > fye ? d.getUTCFullYear() + 1 : d.getUTCFullYear();
+  return `Q${q} ${fy}`;
 }
 
 /** A single spelling for a fiscal quarter, regardless of a provider's label style. */
@@ -296,6 +327,19 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     }
     quarters.push({ end: '', label, date: ms(f.date), eps: { ...NONE, est: f.epsEstimate, actual: f.epsActual, estFrom: ok(f.epsEstimate) ? 'Finnhub' : undefined, actualFrom: ok(f.epsActual) ? 'Finnhub' : undefined }, rev: { ...NONE } });
   }
+  // Alpha Vantage's reports: quarters the others leave out, and the report date, session and EPS comparison of
+  // those they give without one (its expected and reported EPS are one basis).
+  for (const r of (i.av?.reports ?? []).slice(0, 12)) {
+    const eps: Expectation = { ...NONE, est: r.epsEst, actual: r.epsActual, estFrom: ok(r.epsEst) ? 'Alpha Vantage' : undefined, actualFrom: ok(r.epsActual) ? 'Alpha Vantage' : undefined };
+    const q = at(r.end);
+    if (!q) {
+      quarters.push({ end: r.end, label: fiscalLabel(r.end, i.fye) ?? r.end, date: ms(r.date), ...(r.timing !== '--' ? { timing: r.timing } : {}), eps, rev: { ...NONE } });
+      continue;
+    }
+    if (!q.date && r.date > q.end) q.date = ms(r.date);
+    if ((!q.timing || q.timing === '--') && r.timing !== '--' && q.date && Math.abs(q.date - ms(r.date)) <= 2 * DAY_MS) q.timing = r.timing;
+    if ((!ok(q.eps.est) || !ok(q.eps.actual)) && ok(r.epsEst) && ok(r.epsActual)) q.eps = eps;
+  }
   const fiscalOrder = (q: QuarterView) => {
     const label = canonicalQuarter(q.label);
     return label ? Number(label.slice(3)) * 4 + Number(label[1]) : NaN;
@@ -304,6 +348,9 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
   const statements = i.statements ?? [];
   const usedReports = new Set<PastReport>();
   const usedFmp = new Set<WindowReport>();
+  const usedReleases = new Set<EarningsRelease>();
+  // Alpha Vantage names no currency: its revenue estimates are used for companies reporting in dollars.
+  const avRevenue = !i.statementCcy || i.statementCcy === 'USD';
   for (const q of quarters) {
     const f = finnhubReport(i.finnhubPast ?? [], q, usedReports);
     if (f) {
@@ -325,7 +372,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     if (!ok(q.rev.est)) {
       q.rev = {
         ...NONE,
-        ...(estOk ? { est: k!.revEst, analysts: k!.revAnalysts, estFrom: `Yahoo Finance, read ${new Date(k!.at).toISOString().slice(0, 10)}` } : {}),
+        ...(estOk ? { est: k!.revEst, analysts: k!.revAnalysts, estFrom: `Yahoo Finance, read ${fmtDay(k!.at, true)}` } : {}),
         ...(actual ? { actual: actual.v, actualFrom: actual.from } : {}),
         ccy: (estOk ? k!.revCcy : undefined) ?? actual?.ccy,
       };
@@ -345,10 +392,26 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
           : { ...q.rev, est: p.revEst, estFrom: 'FMP' };
       }
     }
+    // Alpha Vantage's estimate of the quarter's revenue (US listings reporting in dollars), when it is of the same
+    // order as the reported figure: a wider gap means another basis or currency.
+    const ae = avQuarter(i.av, q.end);
+    if (ae && !ok(q.rev.est) && ok(ae.revEst) && avRevenue && (!ok(q.rev.actual) || (q.rev.actual / ae.revEst > 0.5 && q.rev.actual / ae.revEst < 2))) {
+      q.rev = { ...q.rev, est: ae.revEst, low: ae.revLow, high: ae.revHigh, analysts: ae.revAnalysts, estFrom: 'Alpha Vantage' };
+    }
+    // The report date and session from the company's own 8-K (results of operations), the first one filed in the
+    // four months after the quarter ended.
+    if (!q.date && ISO.test(q.end)) {
+      const rel = (i.secReleases ?? []).filter((x) => !usedReleases.has(x) && x.date > q.end && ms(x.date) - ms(q.end) <= 120 * DAY_MS).sort((a, b) => a.date.localeCompare(b.date))[0];
+      if (rel) {
+        usedReleases.add(rel);
+        q.date = ms(rel.date);
+        if (!q.timing || q.timing === '--') q.timing = rel.timing;
+      }
+    }
   }
   const view = (a: YahooAhead | null | undefined): QuarterView | null =>
     a ? { end: a.end, label: a.label ?? a.end, ...(a.date ? { date: a.date, dateEstimated: a.dateEstimated } : {}), eps: a.eps, rev: a.rev, yearAgoEps: a.yearAgoEps, yearAgoRev: a.yearAgoRev } : null;
-  let next = view(y?.next);
+  let next: QuarterView | null = view(y?.next);
   const fn = i.finnhubNext;
   if (fn) {
     const fromFinnhub: QuarterView = {
@@ -378,7 +441,76 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
   } else if (ahead && !next) {
     next = { end: '', label: ahead.date, date: ms(ahead.date), eps: { ...NONE, est: ahead.epsEst, estFrom: ok(ahead.epsEst) ? 'FMP' : undefined }, rev: { ...NONE, est: ahead.revEst, estFrom: ok(ahead.revEst) ? 'FMP' : undefined } };
   }
-  return { past: quarters, next, following: view(y?.following) };
+  let following = view(y?.following);
+  // Alpha Vantage's and Nasdaq's estimates of the coming quarters: they fill what the others leave out, and name the
+  // coming quarters when no other source does.
+  // Without a reported quarter, the coming ones are those ending from about a quarter ago.
+  const lastEnd = quarters.find((q) => ISO.test(q.end))?.end ?? new Date((i.now ?? Date.now()) - 100 * DAY_MS).toISOString().slice(0, 10);
+  const lastDate = Math.max(0, ...quarters.map((q) => q.date ?? 0));
+  const comingAv = (i.av?.estimates ?? []).filter((e) => e.period === 'quarter' && e.end > lastEnd);
+  const comingNq = (i.nasdaqForecast?.quarterly ?? []).filter((e) => e.end > lastEnd && (!lastEnd || daysApart(e.end, lastEnd) > 45));
+  const fill = (v: QuarterView | null, k: 0 | 1): QuarterView | null => {
+    const anchor = v?.end || comingAv[k]?.end || comingNq[k]?.end;
+    if (!anchor) return v;
+    const a = comingAv.find((e) => daysApart(e.end, anchor) <= 20);
+    const n = comingNq.find((e) => daysApart(e.end, anchor) <= 20);
+    if (!a && !n) return v;
+    const out: QuarterView = v ?? { end: anchor, label: fiscalLabel(anchor, i.fye) ?? anchor, eps: { ...NONE }, rev: { ...NONE } };
+    if (!ok(out.eps.est)) {
+      if (a && ok(a.epsEst)) out.eps = { ...NONE, est: a.epsEst, low: a.epsLow, high: a.epsHigh, analysts: a.epsAnalysts, estFrom: 'Alpha Vantage' };
+      else if (n) out.eps = { ...NONE, est: n.est, low: n.low, high: n.high, analysts: n.analysts, estFrom: 'Nasdaq (Zacks)' };
+    }
+    if (!ok(out.rev.est) && a && ok(a.revEst) && avRevenue) out.rev = { ...NONE, est: a.revEst, low: a.revLow, high: a.revHigh, analysts: a.revAnalysts, estFrom: 'Alpha Vantage' };
+    // The same quarter a year earlier, for the growth the estimates imply.
+    const ago = quarters.find((q) => ISO.test(q.end) && daysApart(q.end, anchor) >= 340 && daysApart(q.end, anchor) <= 390);
+    if (ago && !ok(out.yearAgoEps) && ok(ago.eps.actual) && out.eps.estFrom === ago.eps.actualFrom) out.yearAgoEps = ago.eps.actual;
+    return out;
+  };
+  next = fill(next, 0);
+  following = fill(following, 1);
+  if (following && next && following.end && next.end && following.end <= next.end) following = null;
+  // Nasdaq's next report date, when no other source names one: for the quarter it names, or the next one.
+  const nn = i.nasdaqNext;
+  if (next && !next.date && nn && nn.date > lastDate && (!nn.end || !next.end || daysApart(nn.end, next.end) <= 20)) {
+    next.date = nn.date;
+    next.dateEstimated = nn.estimated;
+    if (!next.timing || next.timing === '--') next.timing = nn.timing;
+  }
+  return { past: quarters, next, following };
+}
+
+/** Alpha Vantage's estimate for the fiscal quarter ending near `end`. */
+function avQuarter(av: AvEarnings | undefined, end: string) {
+  return ISO.test(end) ? (av?.estimates ?? []).find((e) => e.period === 'quarter' && daysApart(e.end, end) <= 20) : undefined;
+}
+
+/**
+ * The statements' list of reports with the report dates and sessions the expectation sources give for quarters the
+ * statements leave undated, and the next report when the list has none.
+ */
+export function datedHistory(hist: EarningsEvent[], c: Pick<Consensus, 'past' | 'next' | 'releases'> | null): EarningsEvent[] {
+  if (!c) return hist;
+  const used = new Set<QuarterView>();
+  const usedReleases = new Set<EarningsRelease>();
+  const session = (t: ReportTiming | undefined): EarningsEvent['timing'] => (t === 'Bef-mkt' || t === 'Aft-mkt' ? t : '--');
+  const out = hist.map((h) => {
+    if (!h.dateUnknown) return h;
+    const q = c.past.find((x) => !used.has(x) && x.date && ISO.test(x.end) && Math.abs(ms(x.end) - h.date) <= 20 * DAY_MS);
+    if (!q) {
+      // No source lists the quarter: the company's own results 8-K, the first filed in the four months after its end.
+      const rel = (c.releases ?? []).filter((x) => !usedReleases.has(x) && ms(x.date) > h.date && ms(x.date) - h.date <= 120 * DAY_MS).sort((a, b) => a.date.localeCompare(b.date))[0];
+      if (!rel) return h;
+      usedReleases.add(rel);
+      return { ...h, date: ms(rel.date), dateUnknown: false, timing: rel.timing };
+    }
+    used.add(q);
+    return { ...h, date: q.date!, dateUnknown: false, timing: session(q.timing) !== '--' ? session(q.timing) : h.timing };
+  });
+  const latest = Math.max(0, ...out.map((h) => h.date));
+  if (!out.some((h) => h.actual == null && h.revAct == null) && c.next?.date && c.next.date > latest) {
+    out.push({ period: 'Next', date: c.next.date, ...(c.next.dateEstimated ? { approx: true } : {}), actual: null, timing: session(c.next.timing), revAct: null });
+  }
+  return out;
 }
 
 /** The quarter a report on `date` belongs to: by report date, else the quarter that ended in the four months before. */
@@ -479,8 +611,19 @@ export function requestConsensus(def: SecurityDef | undefined, front = false, fi
     void loadFinnhub(fs, 'calendar');
     void loadFinnhub(fs, 'history');
   }
-  // FMP's history, for one company's screens only: its daily allowance is too small for a calendar's rows.
-  if (finnhub) requestCompanyEarnings(secTicker(def));
+  // FMP's history, for one company's screens only: its daily allowance is too small for a calendar's rows. The same
+  // goes for Alpha Vantage (25 requests a day), Nasdaq's forecast and report date, and the SEC's 8-K dates.
+  if (finnhub) {
+    requestCompanyEarnings(secTicker(def));
+    const av = avSymbol(def);
+    if (av && alphaVantageAvailable()) void loadAlphaVantage(av);
+    const ns = nasdaqSymbol(def);
+    if (ns && nasdaqAvailable()) {
+      void loadNasdaq(ns, 'forecast');
+      void loadNasdaq(ns, 'earnings-date');
+    }
+    void loadSecReleases(def);
+  }
   const now = Date.now();
   const have = consensusData.get().by[def.id];
   if (have?.state === 'loading' || (!force && !due(have, now))) return;
@@ -512,6 +655,27 @@ export function requestConsensus(def: SecurityDef | undefined, front = false, fi
 
 const partData = <T,>(p: FinnhubPart | undefined): T | undefined => (p?.state === 'ok' ? (p.data as T) : undefined);
 
+/** Each US-listed company's earnings releases filed with the SEC (8-K item 2.02), by ticker. */
+export const secReleaseData = createStore<{ v: number; by: Record<string, EarningsRelease[]> }>({ v: 0, by: {} });
+const releasesAsked = new Map<string, number>();
+
+/** Loads a company's earnings releases from its SEC filings (needs SEC_USER_AGENT); a quiet no-op otherwise. */
+async function loadSecReleases(def: SecurityDef) {
+  const ticker = secTicker(def);
+  if (!ticker || !secAvailable() || Date.now() - (releasesAsked.get(ticker) ?? 0) < 3_600_000) return;
+  releasesAsked.set(ticker, Date.now());
+  try {
+    const c = await resolveFiler(ticker);
+    if (!c.ok) return;
+    const f = await loadFiler(c.data.cik);
+    if (!f.ok) return;
+    const list = earningsReleases(f.data.filings);
+    secReleaseData.set((s) => ({ v: s.v + 1, by: { ...s.by, [ticker]: list } }));
+  } catch {
+    releasesAsked.delete(ticker);
+  }
+}
+
 /** A stock's expectations from what has arrived (no request). */
 export function consensusFor(def: SecurityDef): Consensus {
   const e = consensusData.get().by[def.id];
@@ -531,6 +695,11 @@ export function consensusFor(def: SecurityDef): Consensus {
     kept: keptEstimates.get().by[def.id],
     statements: real?.quarterly,
     statementCcy: reportCcy(def),
+    av: alphaVantageFor(avSymbol(def)),
+    nasdaqForecast: nasdaqPart<NasdaqForecast>(nasdaqSymbol(def), 'forecast'),
+    nasdaqNext: nasdaqPart<NasdaqNextReport>(nasdaqSymbol(def), 'earnings-date'),
+    secReleases: secReleaseData.get().by[secTicker(def) ?? ''],
+    fye: def.eq?.fye,
   });
   // Yahoo timestamps have session meaning only for US-listed securities.
   if (def.id.endsWith(' US Equity')) {
@@ -545,7 +714,8 @@ export function consensusFor(def: SecurityDef): Consensus {
     if (p && p.state !== 'ok' && p.state !== 'loading' && p.message && !problems.includes(`Finnhub: ${p.message}`)) problems.push(`Finnhub: ${p.message}`);
   }
   const loading = !e || e.state === 'loading' || ['earnings', 'history'].some((k) => fparts?.[k as 'earnings']?.state === 'loading');
-  return { ...merged, problems, loading };
+  const releases = secReleaseData.get().by[secTicker(def) ?? ''];
+  return { ...merged, problems, loading, ...(releases ? { releases } : {}) };
 }
 
 /** The stocks open screens show, with whether Finnhub is asked for them, for the top bar's REFRESH. */
@@ -572,6 +742,9 @@ export function useConsensus(def: SecurityDef | undefined): Consensus | null {
   fundVersion.use((s) => s.v);
   finnhubData.use((s) => s.v);
   earningsCalendar.use((s) => s.v);
+  alphaVantageData.use((s) => s.v);
+  nasdaqData.use((s) => s.v);
+  secReleaseData.use((s) => s.v);
   keptEstimates.use((s) => (def ? s.by[def.id] : undefined));
   useEffect(() => {
     requestConsensus(def, true);

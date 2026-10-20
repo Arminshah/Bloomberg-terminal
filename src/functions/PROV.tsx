@@ -290,7 +290,7 @@ const CREDENTIALS: { name: Credential; help: string; secret: boolean; placeholde
   { name: 'SEC_USER_AGENT', help: 'The SEC asks every client to name itself and give a contact email it can reach, for example: Armin Terminal your-address@your-domain', secret: false, placeholder: 'Application name and your email' },
   { name: 'COINGECKO_API_KEY', help: "Free Demo key from your CoinGecko developer account: market value and supply of the listed coins, aggregated, with CoinGecko's attribution.", secret: true, placeholder: 'Demo API key' },
   { name: 'MASSIVE_API_KEY', help: 'Key from your Massive account; the free Stocks Basic plan gives end-of-day US data (CROSSCHECK).', secret: true, placeholder: 'API key' },
-  { name: 'ALPHA_VANTAGE_API_KEY', help: 'Free key from alphavantage.co: 25 requests a day, personal non-commercial use (CROSSCHECK).', secret: true, placeholder: 'API key' },
+  { name: 'ALPHA_VANTAGE_API_KEY', help: 'Free key from alphavantage.co: 25 requests a day, personal non-commercial use. Fills past quarters\' expected revenue and EPS on EARNINGS (kept three days per company) and checks closes on CROSSCHECK.', secret: true, placeholder: 'API key' },
   { name: 'TWELVE_DATA_API_KEY', help: 'Key from your Twelve Data account (CROSSCHECK); nothing is sent until the TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED switch is on.', secret: true, placeholder: 'API key' },
   { name: 'TIINGO_API_KEY', help: 'Token from your Tiingo account: end-of-day closes for CROSSCHECK.', secret: true, placeholder: 'API token' },
   { name: 'FMP_API_KEY', help: 'FMP research key. A remaining daily quota does not unlock premium endpoints or all symbols; HTTP 402 means the request needs a different entitlement.', secret: true, placeholder: 'API key' },

@@ -1,4 +1,5 @@
 import type { Quote, SecurityDef } from './types';
+import { fmtDay } from '../core/format';
 
 /**
  * The freshness label every price carries, from what the source states and
@@ -60,7 +61,7 @@ function age(ms: number): string {
   return h < 48 ? `${h} h` : `${Math.round(h / 24)} days`;
 }
 
-const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const isoDay = (ms: number) => fmtDay(ms, true);
 
 /** The label for a quote at `now`; null when there is no value at all. */
 export function freshnessOf(q: Pick<Quote, 'src' | 'time' | 'delay' | 'sourceName' | 'provider' | 'dayOnly'>, def: Pick<SecurityDef, 'cls'> | undefined, now: number): FreshnessInfo | null {

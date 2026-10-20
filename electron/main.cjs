@@ -141,6 +141,11 @@ const TIMEOUT_MS = 20_000;
 function browserAgent() {
   return session.defaultSession.getUserAgent();
 }
+// Nasdaq's servers drop a request whose User-Agent names a web address (as clientAgent does) or Electron (as the
+// browser's does): checked 20 October 2026, they reset the connection or never answer. A plain name and version passes.
+function nasdaqAgent() {
+  return `ArminTerminal/${app.getVersion()}`;
+}
 function clientAgent() {
   return `ArminTerminal/${app.getVersion()} (+https://github.com/arminshah/bloomberg-terminal)`;
 }
@@ -611,11 +616,11 @@ ipcMain.handle('earnings-calendar', async (event, source, from, to) => {
   if (source === 'nasdaq') {
     const req = from === to ? nasdaq.nasdaqCalendarRequest(from) : null;
     if (!req) throw new Error('not allowed');
-    return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000]);
+    return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
   }
   if (source === 'nasdaq-caps') {
     const req = nasdaq.nasdaqScreenerRequest();
-    return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000]);
+    return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
   }
   if (source === 'finnhub') {
     const req = finnhub.finnhubCalendarRequest(from, to);
@@ -634,6 +639,40 @@ ipcMain.handle('earnings-calendar', async (event, source, from, to) => {
     return keyedGet('fmp', req.url, {}, req.ttl, [30, 60_000], [key.value]);
   }
   throw new Error('not allowed');
+});
+
+// One company's figures from Nasdaq's quote and company pages, without a key (electron/nasdaq.cjs): they fill what
+// Yahoo leaves empty. Shares the calendar's pace of 60 requests a minute.
+ipcMain.handle('nasdaq', async (event, kind, symbol) => {
+  const req = nasdaq.nasdaqCompanyRequest(kind, symbol);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
+});
+
+// FINRA's consolidated short interest for one US-listed stock (no key), where Nasdaq's page has none.
+ipcMain.handle('finra', async (event, kind, symbol) => {
+  const req = kind === 'short-interest' ? nasdaq.finraShortRequest(symbol) : null;
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  return keyedGet('finra', req.url, req.headers, req.ttl, [20, 60_000], [], undefined, { method: 'POST', body: req.body });
+});
+
+// Alpha Vantage's earnings and estimates with the owner's key (electron/alphavantage.cjs), kept on disk for three days
+// because the free key allows 25 requests a day. A refresh asks again only for an answer older than an hour.
+const alphavantage = require('./alphavantage.cjs');
+const avCache = alphavantage.createDiskCache(() => path.join(app.getPath('userData'), 'alphavantage-earnings.json'));
+ipcMain.handle('alphavantage', async (event, kind, symbol) => {
+  if (!fromApp(event) || !alphavantage.avEarningsRequest(kind, symbol, 'x')) throw new Error('not allowed');
+  const key = usableKey('ALPHA_VANTAGE_API_KEY', 'alphavantage');
+  if (!key.value) return { status: 0, text: '', ...key };
+  const id = alphavantage.cacheId(kind, symbol, key.value);
+  const kept = avCache.get(id);
+  if (kept && Date.now() - kept.at < alphavantage.TTL && !refresh.expired('alphavantage', kept.at)) return { status: 200, text: kept.text, at: kept.at, cached: true };
+  const req = alphavantage.avEarningsRequest(kind, symbol, key.value);
+  const answer = await keyedGet('alphavantage', req.url, {}, req.ttl, [2, 60_000], [key.value]);
+  if (answer.status === 200 && answer.text && !answer.stale && !answer.cached) avCache.set(id, answer.text, answer.at ?? Date.now());
+  // A refusal or a spent allowance keeps showing the last answer, marked stale.
+  if (!answer.text && kept) return { ...answer, text: kept.text, at: kept.at, stale: true };
+  return answer;
 });
 
 // Massive's pace is the same slot CROSSCHECK's bars wait in, so news never pushes it over 5 calls a minute. Alpaca's

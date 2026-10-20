@@ -387,7 +387,7 @@ test('research remains usable across FMP 402s, Finnhub fallback and manual Equib
   await command(page, 'AAPL ANALYSTS');
   await page.getByText('Research source availability', { exact: true }).click();
   await expect(page.getByText('Your FMP subscription does not include this request for AAPL (HTTP 402)', { exact: false }).first()).toBeVisible();
-  await expect(page.getByText('Source: Finnhub', { exact: false }).first()).toContainText('recommendation period 2026-10-01');
+  await expect(page.getByText('Source: Finnhub', { exact: false }).first()).toContainText('recommendation period 01/10/2026');
   await expect(page.getByRole('cell', { name: '1.25', exact: true })).toBeVisible();
   expect((await calls(app)).finnhub.some((url) => new URL(url).pathname === '/api/v1/stock/recommendation')).toBe(true);
   expect((await calls(app)).equibles).toHaveLength(0);
@@ -469,7 +469,7 @@ test('SEC reported figures default to the latest reporting currency and expose a
   await command(page, 'FILINGS NBIS', 'FILINGS');
   await page.getByRole('button', { name: /8\) Reported figures/ }).click();
   await expect(page.getByLabel('SEC reporting currency')).toHaveValue('USD');
-  await expect(page.getByTestId('sec-coverage')).toContainText('latest annual period 2025-12-31');
+  await expect(page.getByTestId('sec-coverage')).toContainText('latest annual period 31/12/2025');
   await expect(page.getByRole('link', { name: '600.0', exact: true }).first()).toBeVisible();
   const columnAlignment = await page.getByRole('table', { name: 'SEC reported figures' }).evaluate((table) => {
     const header = table.querySelector('th.num')!;
@@ -480,12 +480,12 @@ test('SEC reported figures default to the latest reporting currency and expose a
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-v272-sec-currency-fixture.png') });
   await page.getByLabel('SEC reporting currency').selectOption('RUB');
   await expect(page.getByTestId('sec-coverage')).toContainText('Historical currency selected');
-  await expect(page.getByTestId('sec-coverage')).toContainText('latest annual period 2023-12-31');
+  await expect(page.getByTestId('sec-coverage')).toContainText('latest annual period 31/12/2023');
   await expect(page.getByRole('columnheader').filter({ hasText: 'FY2025' })).toHaveCount(0);
   await page.getByLabel('SEC reporting currency').selectOption('USD');
   await page.getByRole('button', { name: 'Quarterly', exact: true }).click();
   await expect(page.getByTestId('sec-coverage')).toContainText('latest standalone or calculated quarter not available');
-  await expect(page.getByRole('link', { name: 'Latest current report: 6-K filed 2026-10-01', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Latest current report: 6-K filed 01/10/2026', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: '600.0', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'View current reports', exact: true }).click();
   await expect(page.getByRole('row').filter({ hasText: '6-K' }).getByRole('link', { name: 'Document', exact: true })).toHaveAttribute('href', /synthetic-current\.htm$/);

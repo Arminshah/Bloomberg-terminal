@@ -13,7 +13,7 @@ import { EstimatesTable, estimateUnit } from './ANR';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type NextReport } from '../data/live/finnhub';
-import { surprisePct, timingLabel, useConsensus } from '../data/live/consensus';
+import { datedHistory, surprisePct, timingLabel, useConsensus } from '../data/live/consensus';
 import { matchQuarter, surpriseStats } from '../data/ern';
 import { desktopData } from '../data/live/yahoo';
 import { ExpectationsTable, LatestReport, nextRows } from '../components/EarningsExpectations';
@@ -41,7 +41,8 @@ export function EE({ sec }: FnProps) {
   // The analysts' expectations against the reports (Yahoo research, Finnhub), desktop app only.
   const consensus = useConsensus(desktopData() ? s : undefined);
   useHistoryVersion();
-  const hist = earningsHistory(s);
+  // Report dates and sessions the statements leave out come from the expectation sources (Alpha Vantage, the SEC's 8-Ks).
+  const hist = datedHistory(earningsHistory(s), consensus);
   const daily = engine.daily(s.id);
   const q = engine.quote(s.id);
   // Today's bar is final once the market has closed; while it trades (or the line is simulated) it is still forming.
@@ -125,11 +126,11 @@ export function EE({ sec }: FnProps) {
         </Section>
       ) : null}
       {consensus ? (
-        <Section title="Expected and reported, by quarter" right={consensus.problems.length ? consensus.problems.join(' ') : undefined}>
+        <Section title="Expected and reported, by quarter" right={consensus.problems.length && !consensus.past.length ? consensus.problems.join(' ') : consensus.problems.length ? <span className="muted" title={consensus.problems.join(' ')}>some sources unavailable</span> : undefined}>
           <ExpectationsTable c={consensus} />
           <div className="note">
             Expected: the analysts&apos; average estimate before the report. EPS on the analysts&apos; basis (usually adjusted), as Yahoo Finance or Finnhub reports it, which can differ from the diluted EPS in the statements
-            below. Quarter labels name fiscal quarters: Q1 2027 is the first quarter of the company&apos;s fiscal year 2027, which can end during calendar 2026. Each fiscal quarter appears once. Yahoo drops a quarter&apos;s revenue estimate once it is reported: the app keeps the last one it read before the report, and Finnhub (FINNHUB_API_KEY) gives the past year&apos;s.
+            below. Quarter labels name fiscal quarters: Q1 2027 is the first quarter of the company&apos;s fiscal year 2027, which can end during calendar 2026. Each fiscal quarter appears once. Yahoo drops a quarter&apos;s revenue estimate once it is reported: the app keeps the last one it read before the report; Finnhub (FINNHUB_API_KEY), FMP (FMP_API_KEY) and Alpha Vantage (ALPHA_VANTAGE_API_KEY) give earlier quarters&apos;. Without Yahoo, report dates come from Alpha Vantage or the company&apos;s 8-K filings, and the coming quarters&apos; EPS estimates from Nasdaq.
           </div>
         </Section>
       ) : null}

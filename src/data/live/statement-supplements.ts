@@ -1,4 +1,5 @@
 import { FACT_LINES, lineValues, periodColumns, standaloneQuarterValues, type CompanyFacts, type PeriodKind } from './sec';
+import { fmtIso } from '../../core/format';
 
 /** SEC observations in the Yahoo statement reader's field names and raw units. */
 const FIELD: Record<string, string> = {
@@ -34,7 +35,7 @@ export function secStatementRows(cf: CompanyFacts, currency: string, kind: Perio
       const end = Date.parse(`${date}T00:00:00Z`);
       const item = out.get(end) ?? { row: new Map<string, number>(), sources: new Map<string, string>() };
       item.row.set(key, fact.val);
-      item.sources.set(key, `SEC EDGAR ${fact.form}, filed ${fact.filed}${fact.derived ? ' (calculated from aligned reported totals)' : ''}`);
+      item.sources.set(key, `SEC EDGAR ${fact.form}, filed ${fmtIso(fact.filed, true)}${fact.derived ? ' (calculated from aligned reported totals)' : ''}`);
       out.set(end, item);
     }
   }

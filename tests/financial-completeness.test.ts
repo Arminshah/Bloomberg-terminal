@@ -76,7 +76,7 @@ describe('financial statement completeness without invented periods', () => {
     const f = fund(null, series('quarterly', [['TotalRevenue', '2026-05-31', 20e6], ['TotalRevenue', '2026-08-31', 50e6]]), null, company);
     expect(f.quarterly[0].debt).toBeNaN();
     expect(f.quarterly[1].debt).toBe(200);
-    expect(f.quarterly[1].supplements?.[0]).toContain('2026-08-31');
+    expect(f.quarterly[1].supplements?.[0]).toContain('31/08/2026');
     const noIncome = fund(null, null, null, company);
     expect(noIncome.quarterly).toEqual([]);
     expect(noIncome.balance).toMatchObject({ debt: 200, end: date('2026-08-31') });
@@ -100,7 +100,7 @@ describe('SEC statement supplements', () => {
     const f = buildRealFund(def, { quoteSummary: { result: [{ financialData: { financialCurrency: 'USD' } }] } }, null,
       series('quarterly', [['TotalRevenue', '2026-08-31', 100e6]]), null, NOW, cf());
     expect(f.quarterly[0]).toMatchObject({ rev: 100, gp: 40, eps: -0.82, ni: -60 });
-    expect(f.quarterly[0].supplements?.join()).toContain('SEC EDGAR 10-Q, filed 2026-10-07');
+    expect(f.quarterly[0].supplements?.join()).toContain('SEC EDGAR 10-Q, filed 07/10/2026');
   });
 
   it('does not blend income statement bases when the primary revenue conflicts', () => {

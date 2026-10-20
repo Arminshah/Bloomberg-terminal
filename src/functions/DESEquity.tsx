@@ -9,6 +9,8 @@ import { marketCapUsd, periodChange, rangeStats } from '../data/analytics';
 import { dividendGrowth, dividends, earningsHistory, financials, holders, keyStats, nextEarnings, peers, reportCcy, revenueMix } from '../data/fundamentals';
 import { desktopData } from '../data/live/yahoo';
 import { fundVersion, getRealFund, useFundamentalsFor, type RealFund } from '../data/live/yfund';
+import { secAvailable, secTicker, useSecLoad } from '../data/live/sec';
+import { loadInsiders, summarize } from '../data/live/insiders';
 import { usePeers } from '../data/live/peers';
 import { engine, useTick } from '../data/market';
 import { equityRatios } from '../data/ratios';
@@ -100,6 +102,7 @@ export function floatItems(real: RealFund, sharesOut: number): [string, string][
 }
 
 function FloatNote({ real }: { real: RealFund }) {
+  if (real.filledFrom?.includes('Nasdaq') && Number.isFinite(real.float.short) && !Number.isFinite(real.float.float)) return <div className="note">Short interest and days to cover from {real.filledFrom.includes('FINRA') ? 'FINRA' : 'Nasdaq'} (the count on the settlement date shown); Yahoo&apos;s key statistics, which give the float, did not answer this time.</div>;
   if (real.statsFrom === 'Finnhub') return <div className="note">Float and short interest come from Yahoo&apos;s key statistics, which Yahoo refused this time; Finnhub&apos;s profile does not give them.</div>;
   return <div className="note">Float and short interest from Yahoo Finance&apos;s key statistics; the short interest is the exchanges&apos; count on the settlement date shown, and days to cover is Yahoo&apos;s own ratio to average daily volume.{real.float.shortPctFloatCalculated ? ' The calculated short float percentage is shares short divided by the latest available float; the float date may differ from the short-interest settlement date.' : ''}</div>;
 }
@@ -134,7 +137,19 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const growth5 = dividendGrowth(divs.filter((d) => d.ex <= today), today, daily.length ? daily.t[0] : NaN);
   const ytd = periodChange(sec.id, 'YTD');
   const ytdAbs = q && Number.isFinite(ytd) ? q.last - q.last / (1 + ytd / 100) : NaN;
-  const officers = real?.officers.length ? real.officers.slice(0, 3) : eq.ceo ? [{ name: eq.ceo, title: 'Chief Executive Officer' }] : [];
+  // Without Yahoo's officer list, the officers who filed Form 4s with the SEC in the past year, chief executive first.
+  const fundStatus = fundVersion.use((x) => x.status[sec.id]);
+  const needInsiders = engine.realOnly && fundStatus === 'ok' && !real?.officers.length && !eq.ceo && secAvailable() && !!secTicker(sec);
+  const insiders = useSecLoad(needInsiders ? `insiders:${sec.id}` : null, () => loadInsiders(sec));
+  const filers = useMemo(() => {
+    if (!insiders.result?.ok) return [];
+    const rank = (t: string) => (/chief executive|\bceo\b/i.test(t) ? 0 : /chief financial|\bcfo\b/i.test(t) ? 1 : /president|chief operating|\bcoo\b/i.test(t) ? 2 : /chief|general counsel/i.test(t) ? 3 : 4);
+    return summarize(insiders.result.data.trades).people
+      .filter((p) => p.owner.officer)
+      .sort((a, b) => rank(a.owner.title) - rank(b.owner.title))
+      .map((p) => ({ name: p.owner.name, title: p.owner.title || 'Officer' }));
+  }, [insiders.result]);
+  const officers = real?.officers.length ? real.officers.slice(0, 3) : eq.ceo ? [{ name: eq.ceo, title: 'Chief Executive Officer' }] : filers.slice(0, 3);
   const f = real?.float;
   const mix = real ? [] : revenueMix(sec);
   const hs = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 3);
@@ -241,7 +256,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
           </Box>
           <Box n={15} title="Management" fn="MANAGEMENT" sec={sec}>
             {officers.length === 0 ? (
-              <p className="pad-s muted">{engine.realOnly ? 'Loading the officers from Yahoo Finance…' : '--'}</p>
+              <p className="pad-s muted">{!engine.realOnly ? '--' : fundStatus === 'loading' || insiders.loading ? 'Loading the officers…' : 'No officer list from the sources for this company.'}</p>
             ) : (
               <ol className="des-people">
                 {officers.map((o, i) => (

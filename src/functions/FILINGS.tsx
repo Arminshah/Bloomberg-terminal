@@ -55,6 +55,8 @@ const TITLE = 'Company Filings';
 
 const isoMs = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
 const day = (iso?: string) => (iso ? fmtDay(isoMs(iso)) : '--');
+/** The same with the four-digit year, for sentences and tooltips. */
+const longDay = (iso?: string) => (iso ? fmtDay(isoMs(iso), true) : '--');
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /** Fiscal year end as the SEC gives it (MMDD), in words. */
@@ -409,11 +411,11 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
         </label>}
       </div>
       <div className="note" role="status" data-testid="sec-coverage">
-        {olderCoverage && <span className="amber">OLDER COVERAGE · {kind === 'annual' ? 'Annual' : 'Standalone quarterly'} SEC figures shown here end at {latestShown}. </span>}
+        {olderCoverage && <span className="amber">OLDER COVERAGE · {kind === 'annual' ? 'Annual' : 'Standalone quarterly'} SEC figures shown here end at {longDay(latestShown)}. </span>}
         {v.ccy !== v.latestCurrency && <span className="amber">Historical currency selected. The latest monetary reporting is in {v.latestCurrency}. </span>}
-        SEC statement coverage in {v.ccy}: latest annual period {v.latestAnnual ?? 'not available'}; latest standalone or calculated quarter {v.latestQuarter ?? 'not available'}.
+        SEC statement coverage in {v.ccy}: latest annual period {v.latestAnnual ? longDay(v.latestAnnual) : 'not available'}; latest standalone or calculated quarter {v.latestQuarter ? longDay(v.latestQuarter) : 'not available'}.
         {!v.latestQuarter && <> Foreign filers can publish interim results in 6-K documents without standalone quarterly figures in this SEC dataset.</>}{' '}
-        {latestCurrent && <><a className="amber" href={filingLinks(cik, latestCurrent).doc ?? filingLinks(cik, latestCurrent).index} target="_blank" rel="noreferrer">Latest current report: {latestCurrent.form} filed {latestCurrent.filed}</a>. </>}
+        {latestCurrent && <><a className="amber" href={filingLinks(cik, latestCurrent).doc ?? filingLinks(cik, latestCurrent).index} target="_blank" rel="noreferrer">Latest current report: {latestCurrent.form} filed {longDay(latestCurrent.filed)}</a>. </>}
         <button type="button" className="btn" onClick={onCurrentReports}>View current reports</button>
         {security && <> <button type="button" className="btn" title="Open financial analysis from company-data providers; its coverage and source can differ from SEC company facts" onClick={() => execute(panel, `${security} FINANCIALS`)}>Other source: financial analysis</button></>}
       </div>
@@ -431,7 +433,7 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
             <tr>
               <th scope="col">Reported item</th>
               {v.cols.map((c) => (
-                <th key={c.end} className="num" title={c.start ? `${c.start} to ${c.end} (${periodDays(c.start, c.end)} days)` : `At ${c.end}`}>
+                <th key={c.end} className="num" title={c.start ? `${longDay(c.start)} to ${longDay(c.end)} (${periodDays(c.start, c.end)} days)` : `At ${longDay(c.end)}`}>
                   {c.label ?? (c.kind === 'annual' ? 'Year' : 'Quarter')}
                   <br />
                   <span className="muted">{day(c.end)}</span>
@@ -465,11 +467,11 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
                       }
                       const title = [
                         `${r.concept} (${r.unit})`,
-                        r.start ? `${r.start} to ${r.end}` : `At ${r.end}`,
-                        `${r.form} filed ${r.filed}, accession ${r.accn}`,
-                        r.derived ? `Calculated quarter: cumulative ${r.derived.current.start} to ${r.derived.current.end} (${fmtNum(r.derived.current.val, 2)} ${r.unit}, filed ${r.derived.current.filed}, accession ${r.derived.current.accn}) minus cumulative ${r.derived.previous.start} to ${r.derived.previous.end} (${fmtNum(r.derived.previous.val, 2)} ${r.unit}, filed ${r.derived.previous.filed}, accession ${r.derived.previous.accn}).` : '',
+                        r.start ? `${longDay(r.start)} to ${longDay(r.end)}` : `At ${longDay(r.end)}`,
+                        `${r.form} filed ${longDay(r.filed)}, accession ${r.accn}`,
+                        r.derived ? `Calculated quarter: cumulative ${longDay(r.derived.current.start)} to ${longDay(r.derived.current.end)} (${fmtNum(r.derived.current.val, 2)} ${r.unit}, filed ${longDay(r.derived.current.filed)}, accession ${r.derived.current.accn}) minus cumulative ${longDay(r.derived.previous.start)} to ${longDay(r.derived.previous.end)} (${fmtNum(r.derived.previous.val, 2)} ${r.unit}, filed ${longDay(r.derived.previous.filed)}, accession ${r.derived.previous.accn}).` : '',
                         r.derived && r.derived.current.accn !== r.derived.previous.accn ? 'Inputs are from different filings; a restatement or reclassification can affect comparability.' : '',
-                        r.restated ? `First reported as ${fmt(line, { ...r, val: r.orig.val })} in the ${r.orig.form} filed ${r.orig.filed} (accession ${r.orig.accn})` : '',
+                        r.restated ? `First reported as ${fmt(line, { ...r, val: r.orig.val })} in the ${r.orig.form} filed ${longDay(r.orig.filed)} (accession ${r.orig.accn})` : '',
                       ]
                         .filter(Boolean)
                         .join('\n');

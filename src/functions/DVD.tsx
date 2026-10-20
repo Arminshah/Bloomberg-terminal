@@ -95,22 +95,22 @@ export function DVD({ sec }: FnProps) {
               {rows.map((r) =>
                 r.kind === 'split' ? (
                   <tr key={`split:${r.ex}`}>
-                    <td>--</td>
+                    <td />
                     <td className="amber">{fmtDay(r.ex)}</td>
-                    <td>--</td>
-                    <td>--</td>
+                    <td />
+                    <td />
                     <td className="num white" title={`${r.x.numerator} new shares for every ${r.x.denominator}`}>
                       {splitRatio(r.x)}
                     </td>
-                    <td>--</td>
+                    <td />
                     <td className="cyan">{splitType(r.x)}</td>
                   </tr>
                 ) : (
                   <tr key={r.ex}>
-                    <td>{Number.isFinite(r.d.declared) ? fmtDay(r.d.declared) : '--'}</td>
+                    <td>{Number.isFinite(r.d.declared) ? fmtDay(r.d.declared) : ''}</td>
                     <td className="amber">{fmtDay(r.d.ex)}</td>
-                    <td>{fmtDay(r.d.record)}</td>
-                    <td>{fmtDay(r.d.pay)}</td>
+                    <td>{Number.isFinite(r.d.record) ? fmtDay(r.d.record) : ''}</td>
+                    <td>{Number.isFinite(r.d.pay) ? fmtDay(r.d.pay) : ''}</td>
                     <td className="num white">{fmtAmount(r.d.amount)}</td>
                     <td>{r.d.freq}</td>
                     <td className={r.d.type === 'Projected' || r.d.type === 'Expected' ? 'yellow' : ''}>{r.d.type}</td>
@@ -121,6 +121,7 @@ export function DVD({ sec }: FnProps) {
           </table>
           <div className="note">
             Dividend growth 5Y: the compound annual rate from the dividends that went ex in the 12 months to this date five years ago to those in the past 12 months; -- unless the record covers that earlier year in full, with dividends paid before it began and in both years.
+            {list.some((d) => !Number.isFinite(d.record)) ? ' Declared, record and payable dates come from Nasdaq\'s dividend record, which covers Nasdaq-listed stocks; the price history gives the ex-date and amount only, so a blank cell is a date no source gives.' : ''}
             {sp.length ? ' Splits as Yahoo\'s price history records them, on their effective date; it records some spin-offs as fractional splits too. Dividend amounts are on the current share basis (adjusted for later splits).' : ''}
           </div>
         </>

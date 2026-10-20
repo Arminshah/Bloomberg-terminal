@@ -1,6 +1,8 @@
 # Armin Terminal (web): plan
 
-Status: **step 1 done** (research, [FEATURES.md](FEATURES.md), [COMMANDS.md](COMMANDS.md), design tokens in
+Status: **shelved on 20 October 2026.** The owner chose to keep the desktop app's terminal look (closer to the real thing) instead of a separate app with its own identity; this plan and its research stay for reference.
+
+Earlier status: **step 1 done** (research, [FEATURES.md](FEATURES.md), [COMMANDS.md](COMMANDS.md), design tokens in
 [../src/styles/tokens.css](../src/styles/tokens.css), logo in [../public/logo.svg](../public/logo.svg)).
 Waiting for review before step 2. Choices and their reasons are in [DECISIONS.md](DECISIONS.md).
 

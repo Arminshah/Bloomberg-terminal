@@ -6,6 +6,7 @@ import { marketCap } from './analytics';
 import type { SecurityDef } from './types';
 import { getRealFund, usTiming } from './live/yfund';
 import { realDividends, realSplits, trailingDividendYield, yahooQuotes } from './live/yahoo';
+import { nasdaqPart, nasdaqSymbol, type NasdaqDividend, type NasdaqNextReport } from './live/nasdaq-company';
 
 /** All money values in millions of the reporting currency (GBP for pence lines). */
 export interface FinPeriod {
@@ -428,6 +429,15 @@ export function earningsHistory(def: SecurityDef): EarningsEvent[] {
  * otherwise, for a simulated line, the generated schedule.
  */
 export function earningsEvents(def: SecurityDef): EarningsEvent[] {
+  const list = quoteEarningsEvents(def);
+  // Nasdaq's next report date (US listings), when the other sources name none.
+  const now = engine.now();
+  if (list.some((e) => e.actual == null && e.date >= now - DAY_MS)) return list;
+  const n = nasdaqPart<NasdaqNextReport>(nasdaqSymbol(def), 'earnings-date');
+  return n && n.date >= engine.today * DAY_MS ? [...list, { period: 'Next', date: n.date, ...(n.estimated ? { approx: true } : {}), actual: null, timing: n.timing, revAct: null }] : list;
+}
+
+function quoteEarningsEvents(def: SecurityDef): EarningsEvent[] {
   const real = getRealFund(def.id);
   if (real && real.earnings.length) return real.earnings;
   const yq = yahooQuotes.get(def.id);
@@ -617,6 +627,21 @@ function realDividendList(def: SecurityDef): Dividend[] {
     // The dividend already went ex: its payable date belongs to that row.
     const row = out.find((d) => Math.abs(d.ex - next.ex) < DAY_MS);
     if (row) row.pay = next.pay;
+  }
+  // Nasdaq's dividend record (US listings) gives each payment's declaration, record and payment dates, and a
+  // declared dividend before it goes ex. Its amounts are as paid at the time, so the price history's split-adjusted
+  // amounts are kept; a declared dividend still to go ex takes Nasdaq's amount, which is on today's share basis.
+  const declared = nasdaqPart<NasdaqDividend[]>(nasdaqSymbol(def), 'dividends') ?? [];
+  for (const n of declared) {
+    const row = out.find((d) => Math.abs(d.ex - n.ex) < 1.5 * DAY_MS);
+    if (row) {
+      if (!Number.isFinite(row.declared)) row.declared = n.declared;
+      if (!Number.isFinite(row.record)) row.record = n.record;
+      if (!Number.isFinite(row.pay)) row.pay = n.pay;
+      if (row.type === 'Expected' && Number.isFinite(n.declared)) Object.assign(row, { type: 'Declared', amount: Number.isFinite(row.amount) ? row.amount : n.amount });
+    } else if (n.ex > engine.now() - DAY_MS && Number.isFinite(n.amount) && /cash/i.test(n.type)) {
+      out.push({ declared: n.declared, ex: n.ex, record: n.record, pay: n.pay, amount: n.amount, freq: FREQ_LABEL[freq], type: Number.isFinite(n.declared) ? 'Declared' : 'Expected' });
+    }
   }
   return out.sort((a, b) => b.ex - a.ex);
 }

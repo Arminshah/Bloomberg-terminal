@@ -139,6 +139,12 @@ export function fmtDay(ms: number, long = false): string {
   return dayMonthYear(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(), long);
 }
 
+/** A YYYY-MM-DD date in the display order (DD/MM/YYYY with `long`); other text is returned as it is. */
+export function fmtIso(iso: string | undefined, long = false): string {
+  if (!iso) return DASH;
+  return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? fmtDay(Date.parse(`${iso}T00:00:00Z`), long) : iso;
+}
+
 /** Earnings report date. "~" marks a date the source calls an estimate; an unknown date or time of day is left out. */
 export function fmtEarnDate(e: { date: number; approx?: boolean; dateUnknown?: boolean; timing?: string }, withTiming = true): string {
   if (e.dateUnknown) return '--';

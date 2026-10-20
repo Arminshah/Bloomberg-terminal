@@ -4,6 +4,8 @@ import type { SecurityDef } from '../types';
 import { secTicker } from './sec';
 import type { KeyedAnswer } from './lookup';
 import { loadYahooAnalysts, retryYahooAnalysts } from './yahoo-research';
+import { loadNasdaq, nasdaqAvailable, type NasdaqForecast, type NasdaqRatings, type NasdaqTarget } from './nasdaq-company';
+import { alphaVantageAvailable, loadAlphaVantage } from './alphavantage';
 import { createWants, registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
@@ -180,7 +182,7 @@ export interface AnalystPart<T = unknown> {
   at?: number;
   /** A newer request failed; this is the last answer that arrived. */
   stale?: boolean;
-  source?: 'FMP' | 'Finnhub' | 'Yahoo Finance';
+  source?: 'FMP' | 'Finnhub' | 'Yahoo Finance' | 'Nasdaq' | 'Alpha Vantage';
   currency?: string;
   recommendations?: RatingTally[];
   /** Source-specific failures retained for the expandable coverage details. */
@@ -248,6 +250,8 @@ export async function loadAnalystPart(kind: AnalystKind, symbol: string, api: {
   analysts(kind: AnalystKind, symbol: string): Promise<KeyedAnswer>;
   finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
   yahooResearch?(kind: AnalystKind, symbol: string): Promise<AnalystPart>;
+  /** Keyless last resort: Nasdaq's price target, rating counts and EPS forecasts; Alpha Vantage's annual estimates. */
+  fallback?(kind: AnalystKind, symbol: string): Promise<AnalystPart | null>;
 }): Promise<AnalystPart> {
   const safe = async (request: () => Promise<KeyedAnswer>) => {
     try { return await request(); } catch { return { status: 0, text: '', error: 'The research request could not be completed.' }; }
@@ -272,8 +276,56 @@ export async function loadAnalystPart(kind: AnalystKind, symbol: string, api: {
     if (usable(fallback) && (!fallback.stale || !retained)) return { ...fallback, problems };
     problems.push(fallback.message ?? `Yahoo has no ${kind} for this symbol.`);
   }
+  if (!retained && api.fallback) {
+    let last: AnalystPart | null = null;
+    try { last = await api.fallback(kind, symbol); }
+    catch { last = null; }
+    if (last && usable(last)) return { ...last, problems };
+  }
   if (retained) return { ...retained, problems };
   return { ...primary, problems, message: problems.join(' ') };
+}
+
+/**
+ * The research no keyed source gave, from sources without a key or with the owner's Alpha Vantage key: Nasdaq's
+ * consensus price target (mean, low, high) and its buy/hold/sell count with Nasdaq's mean rating, and the annual
+ * estimates (Alpha Vantage's EPS and revenue, else Nasdaq's EPS). Null when none applies.
+ */
+export async function keylessAnalystPart(kind: AnalystKind, symbol: string): Promise<AnalystPart | null> {
+  const ns = symbol.replace(/-/g, '.');
+  if ((kind === 'consensus' || kind === 'ratings') && nasdaqAvailable()) {
+    const t = await loadNasdaq<NasdaqTarget>(ns, 'target');
+    const c = t.state === 'ok' ? t.data : null;
+    if (kind === 'consensus') return c && c.mean > 0 ? { state: 'ok', source: 'Nasdaq', currency: 'USD', at: t.at, data: { mean: c.mean, low: c.low, high: c.high, median: NaN } satisfies TargetConsensus } : null;
+    if (!c || !(c.buy + c.hold + c.sell > 0)) return null;
+    const r = await loadNasdaq<NasdaqRatings>(ns, 'ratings');
+    const word = r.state === 'ok' ? r.data?.mean ?? '' : '';
+    return { state: 'ok', source: 'Nasdaq', at: t.at, data: { strongBuy: 0, buy: c.buy, hold: c.hold, sell: c.sell, strongSell: 0, consensus: word } satisfies RatingTally };
+  }
+  if (kind === 'estimates') {
+    const now = new Date().toISOString().slice(0, 10);
+    if (alphaVantageAvailable()) {
+      const av = await loadAlphaVantage(symbol);
+      const years = (av.state === 'ok' ? av.data?.estimates ?? [] : []).filter((e) => e.period === 'year');
+      if (years.some((y) => y.end >= now)) {
+        return {
+          state: 'ok', source: 'Alpha Vantage', currency: 'USD', at: av.at,
+          data: years.map((y) => ({ date: y.end, revenueAvg: y.revEst, revenueLow: y.revLow, revenueHigh: y.revHigh, epsAvg: y.epsEst, epsLow: y.epsLow, epsHigh: y.epsHigh, netIncomeAvg: NaN, analystsRevenue: y.revAnalysts, analystsEps: y.epsAnalysts })) satisfies Estimate[],
+        };
+      }
+    }
+    if (nasdaqAvailable()) {
+      const f = await loadNasdaq<NasdaqForecast>(ns, 'forecast');
+      const years = f.state === 'ok' ? f.data?.yearly ?? [] : [];
+      if (years.length) {
+        return {
+          state: 'ok', source: 'Nasdaq', currency: 'USD', at: f.at,
+          data: years.map((y) => ({ date: y.end, revenueAvg: NaN, revenueLow: NaN, revenueHigh: NaN, epsAvg: y.est, epsLow: y.low, epsHigh: y.high, netIncomeAvg: NaN, analystsRevenue: NaN, analystsEps: y.analysts })) satisfies Estimate[],
+        };
+      }
+    }
+  }
+  return null;
 }
 
 function put(symbol: string, kind: AnalystKind, part: AnalystPart) {
@@ -288,7 +340,7 @@ async function load(symbol: string, kind: AnalystKind) {
   const generation = analystData.get().retry;
   if (!analystData.get().by[symbol]?.[kind]) put(symbol, kind, { state: 'loading' });
   try {
-    const part = await loadAnalystPart(kind, symbol, { analysts: window.arminDesktop!.analysts!, finnhubResearch: window.arminDesktop!.finnhubResearch, yahooResearch: loadYahooAnalysts });
+    const part = await loadAnalystPart(kind, symbol, { analysts: window.arminDesktop!.analysts!, finnhubResearch: window.arminDesktop!.finnhubResearch, yahooResearch: loadYahooAnalysts, fallback: keylessAnalystPart });
     if (generation !== analystData.get().retry) return;
     if (part.state === 'needs-key' || part.state === 'off' || part.transient) asked.delete(key);
     put(symbol, kind, part);
