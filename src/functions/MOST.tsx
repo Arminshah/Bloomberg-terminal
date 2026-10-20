@@ -10,6 +10,8 @@ import type { SecurityDef } from '../data/types';
 import { usePanelId } from '../terminal/panel';
 import { firstRowNumber } from '../terminal/numbering';
 import type { FnProps } from '../terminal/types';
+import { BoardMost, hasBoard } from './IndexBoards';
+import { membersAvailable } from '../data/live/index-members';
 
 /**
  * MOST's pages under the terminal's names. Rel Volume stands where the terminal has its volume-at-time measure: it
@@ -32,7 +34,16 @@ const REGIONS: { n: number; label: string; f: (d: SecurityDef) => boolean }[] = 
   { n: 14, label: 'All', f: () => true },
 ];
 
-export function MOST(_: FnProps) {
+export function MOST(props: FnProps) {
+  const { sec, route } = props;
+  // The whole membership of an index (the S&P 500 unless another is loaded or typed), where the app can load it.
+  const ix = sec?.cls === 'index' ? sec : engine.get(route.args ? `${route.args.trim().toUpperCase()} Index` : 'SPX Index');
+  if (engine.realOnly && membersAvailable() && ix && hasBoard(ix.id)) return <BoardMost ix={ix} />;
+  return <UniverseMost />;
+}
+
+/** The app's own stocks by region (the browser demo, and regions without an index membership here). */
+function UniverseMost() {
   const panel = usePanelId();
   useTick(2);
   const [view, setView] = useState(1);

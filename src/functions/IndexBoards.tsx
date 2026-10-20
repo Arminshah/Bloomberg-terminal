@@ -1,10 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { exportActions } from '../components/ExportActions';
 import { LivePx, openSecurity } from '../components/cells';
 import { fmtBig, fmtNum, fmtPct, fmtSigned, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { BOARD_INDICES, memberReturn, useIndexMembers, type Board, type Member } from '../data/live/index-members';
+import { BOARD_INDICES, indexData, memberReturn, useIndexMembers, type Board, type Member } from '../data/live/index-members';
+import { loadNews, marketNews, newsAvailable, type MarketStory } from '../data/live/marketnews';
 import type { SecurityDef } from '../data/types';
 import { execute } from '../terminal/exec';
 import { useNumberedRows, usePanelId } from '../terminal/panel';
@@ -636,6 +637,206 @@ export function BoardMap({ ix }: { ix: SecurityDef }) {
       <p className="pad-s muted">
         Segments sized by estimated index weight and coloured by today&apos;s change (full colour at ±3%). Prices from Yahoo; sectors from{' '}
         {board.index.key === 'SPX' ? 'the GICS classification in the S&P 500 member list' : "Nasdaq's stock list"}; countries from Nasdaq.
+      </p>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------- MOST
+
+const MOST_TABS = ['Volume', 'Chg Up', 'Chg Down', 'Value', '52Wk Highs', '52Wk Lows'] as const;
+type MostTab = (typeof MOST_TABS)[number];
+
+/** The highest and lowest daily close of the past year, with today's price. */
+function yearRange(m: Member): { hi: number; lo: number } {
+  const h = indexData.get().history[m.yahoo];
+  if (!h?.c.length) return { hi: NaN, lo: NaN };
+  const from = h.t[h.t.length - 1] - 365 * 86_400_000;
+  let hi = Number.isFinite(m.last) ? m.last : -Infinity;
+  let lo = Number.isFinite(m.last) ? m.last : Infinity;
+  for (let i = 0; i < h.t.length; i++) {
+    if (h.t[i] < from) continue;
+    hi = Math.max(hi, h.c[i]);
+    lo = Math.min(lo, h.c[i]);
+  }
+  return { hi, lo };
+}
+
+/** The newest headline Yahoo's feed has for a stock, asked for at most every 15 minutes. */
+function useHeadlines(symbols: string[]): Map<string, MarketStory> {
+  marketNews.use((s) => s.v);
+  const key = symbols.join(',');
+  useEffect(() => {
+    if (!newsAvailable()) return;
+    for (const s of symbols) void loadNews('yahoo-rss', s, 15 * 60_000);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const out = new Map<string, MarketStory>();
+  for (const s of symbols) {
+    const list = marketNews.get().lists[`yahoo-rss:${s}`];
+    const top = list?.length ? [...list].sort((a, b) => b.time - a.time)[0] : undefined;
+    if (top) out.set(s, top);
+  }
+  return out;
+}
+
+/** MOST on an index's whole membership: the options rail, the activity tabs and each stock's latest headline. */
+export function BoardMost({ ix }: { ix: SecurityDef }) {
+  useTick(2);
+  const panel = usePanelId();
+  const [tab, setTab] = useState<MostTab>('Volume');
+  const board = useIndexMembers(ix.id, { history: tab === '52Wk Highs' || tab === '52Wk Lows' })!;
+  const [rail, setRail] = useState(true);
+  const [sector, setSector] = useState('');
+  const [capMin, setCapMin] = useState('');
+  const [capMax, setCapMax] = useState('');
+  const [display, setDisplay] = useState<'name' | 'ticker'>('name');
+  const [chg, setChg] = useState<'pct' | 'net'>('pct');
+  const sectors = [...new Set(board.members.map((m) => m.sector).filter(Boolean))].sort();
+  const lo = Number(capMin) * 1e9 || 0;
+  const hi = Number(capMax) * 1e9 || Infinity;
+  const pool = board.members.filter((m) => (!sector || m.sector === sector) && (!Number.isFinite(m.cap) || (m.cap >= lo && m.cap <= hi)));
+  const value = (m: Member) => (Number.isFinite(m.volume) && Number.isFinite(m.last) ? m.volume * m.last : NaN);
+  const ranges = new Map(pool.map((m) => [m.symbol, tab === '52Wk Highs' || tab === '52Wk Lows' ? yearRange(m) : { hi: NaN, lo: NaN }]));
+  const score = (m: Member): number => {
+    switch (tab) {
+      case 'Chg Up':
+        return m.pct;
+      case 'Chg Down':
+        return -m.pct;
+      case 'Value':
+        return value(m);
+      case '52Wk Highs': {
+        const r = ranges.get(m.symbol)!;
+        return r.hi > 0 ? (m.last / r.hi - 1) * 100 : NaN;
+      }
+      case '52Wk Lows': {
+        const r = ranges.get(m.symbol)!;
+        return r.lo > 0 ? -(m.last / r.lo - 1) * 100 : NaN;
+      }
+      default:
+        return m.volume;
+    }
+  };
+  const list = pool
+    .filter((m) => Number.isFinite(score(m)))
+    .sort((a, b) => score(b) - score(a))
+    .slice(0, 40);
+  const numbered = useNumberedRows('most-rows', list, 1, (m) => openMember(panel, m), (m) => m.name);
+  const news = useHeadlines(list.slice(0, 20).map((m) => m.yahoo));
+  const maxVol = Math.max(1, ...list.map((m) => (Number.isFinite(m.volume) ? m.volume : 0)));
+  const newsAt = Math.max(0, ...[...news.values()].map((s) => s.time));
+  const csv = () => [['Security', 'Ticker', 'Last', '%Chg', 'Net Chg', 'Volume', 'Value USD'], ...list.map((m) => [m.name, m.symbol, m.last, m.pct, m.chg, m.volume, value(m)])];
+  const radio = (name: string, on: boolean, set: () => void, label: string) => (
+    <label className="chk">
+      <input type="radio" name={`${name}-${panel}`} checked={on} onChange={set} /> {label}
+    </label>
+  );
+  return (
+    <div>
+      <FnHeader code="MOVERS" title="Most Active Securities" sec={ix} actions={exportActions(panel, `${ix.ticker}_most_active.csv`, csv)} />
+      <div className="chart-tools">
+        <IndexPicker ix={ix} fn="MOVERS" />
+        <button type="button" className="btn-grey" onClick={() => execute(panel, `${ix.id} CN`)}>News</button>
+        <button type="button" className="btn-grey" onClick={() => execute(panel, `${ix.id} RANKEDRETURNS`)}>Historical Performance</button>
+      </div>
+      <div className={`most-wrap${rail ? '' : ' no-rail'}`}>
+        {rail ? (
+          <aside className="most-rail" aria-label="Options">
+            <button type="button" className="btn-grey most-hide" onClick={() => setRail(false)}>Hide Options «</button>
+            <div className="rail-h">Sector</div>
+            <select className="sel-inp" aria-label="Sector" value={sector} onChange={(e) => setSector(e.target.value)}>
+              <option value="">All Sectors</option>
+              {sectors.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+            <div className="rail-h">Market Cap (USD bn)</div>
+            <div className="rail-row">
+              <input className="inp" aria-label="Minimum market cap" placeholder="0" value={capMin} onChange={(e) => setCapMin(e.target.value.replace(/[^\d.]/g, ''))} />
+              <span>-</span>
+              <input className="inp" aria-label="Maximum market cap" placeholder="Unlim." value={capMax} onChange={(e) => setCapMax(e.target.value.replace(/[^\d.]/g, ''))} />
+            </div>
+            <div className="rail-h">Security Display</div>
+            <div className="rail-row">
+              {radio('most-disp', display === 'name', () => setDisplay('name'), 'Name')}
+              {radio('most-disp', display === 'ticker', () => setDisplay('ticker'), 'Ticker')}
+            </div>
+            <div className="rail-h">Price Change</div>
+            <div className="rail-row">
+              {radio('most-chg', chg === 'pct', () => setChg('pct'), 'Percent')}
+              {radio('most-chg', chg === 'net', () => setChg('net'), 'Net')}
+            </div>
+          </aside>
+        ) : (
+          <button type="button" className="btn-grey most-show" onClick={() => setRail(true)}>»</button>
+        )}
+        <div className="most-main">
+          <nav className="tabs" aria-label="Activity">
+            {MOST_TABS.map((t) => (
+              <button key={t} type="button" className={`tab${tab === t ? ' on' : ''}`} onClick={() => setTab(t)}>
+                {t}
+              </button>
+            ))}
+          </nav>
+          {boardStatus(board) ?? (
+            <table className="tbl most-tbl">
+              <colgroup>
+                <col style={{ width: '24%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '12%' }} />
+                {tab === 'Value' || tab === '52Wk Highs' || tab === '52Wk Lows' ? <col style={{ width: '9%' }} /> : null}
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Security</th>
+                  <th className="num">Last</th>
+                  <th className="num">{chg === 'pct' ? '%Chg' : 'Net Chg'}</th>
+                  <th className="num">Volume</th>
+                  {tab === 'Value' && <th className="num">Value</th>}
+                  {tab === '52Wk Highs' && <th className="num">52Wk High</th>}
+                  {tab === '52Wk Lows' && <th className="num">52Wk Low</th>}
+                  <th className="hide-m">News{newsAt ? ` (As of ${fmtStamp(newsAt)})` : ''}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((m, i) => {
+                  const story = news.get(m.yahoo);
+                  const r = ranges.get(m.symbol)!;
+                  return (
+                    <tr key={m.symbol} className="click" onClick={() => openMember(panel, m)}>
+                      <td className="most-sec">
+                        <span className="row-no">{numbered[i]})</span> <span className="amber">{display === 'name' ? m.name : `${m.symbol} US`}</span>
+                      </td>
+                      <td className="num white">{fmtNum(m.last, 2)}</td>
+                      <td className={`num ${sign(m.pct)}`}>{chg === 'pct' ? fmtPct(m.pct, 2) : fmtSigned(m.chg, 2)}</td>
+                      <td className="num most-vol">
+                        {Number.isFinite(m.volume) && <span className="most-volbar" style={{ width: `${(m.volume / maxVol) * 100}%` }} />}
+                        <span className="most-volnum">{Number.isFinite(m.volume) ? fmtBig(m.volume, 2) : ''}</span>
+                      </td>
+                      {tab === 'Value' && <td className="num">{fmtBig(value(m), 2)}</td>}
+                      {tab === '52Wk Highs' && <td className="num">{fmtNum(r.hi, 2)}</td>}
+                      {tab === '52Wk Lows' && <td className="num">{fmtNum(r.lo, 2)}</td>}
+                      <td className="hide-m most-news">
+                        {story ? (
+                          <a href={story.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} title={`${story.publisher} · ${fmtStamp(story.time)}`}>
+                            {story.title}
+                          </a>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+      <p className="pad-s muted">
+        Prices from Yahoo, volumes from Nasdaq, headlines from Yahoo Finance for the first 20 rows. Value = volume × last price.
+        {tab === '52Wk Highs' || tab === '52Wk Lows' ? ' 52-week extremes from daily closes; the stocks nearest them first.' : ''} Members from {board.index.from}.
       </p>
     </div>
   );
