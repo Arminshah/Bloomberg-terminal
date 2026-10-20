@@ -19,7 +19,14 @@ export interface Suggestion {
   execute?: string;
   /** Or replace the input with this text and keep typing. */
   fill?: string;
+  /** A function offered for a security: shown after it ("AAPL US Equity DES"). */
+  scope?: string;
 }
+
+/** What a security's own functions are offered first when its ticker is typed alone, as the terminal lists them. */
+const FIRST_FOR: Record<string, string[]> = {
+  equity: ['PROFILE', 'COMPANYNEWS', 'CHART', 'EARNINGS'],
+};
 
 const applies = (f: FnDef, sec?: SecurityDef) => !sec || !f.classes || f.classes.includes(sec.cls);
 
@@ -130,7 +137,16 @@ export function suggest(input: string): Suggestion[] {
   const found = searchSecurities(q, 30).map((h) => h.def);
   const secs = [...found.filter((d) => favs.has(d.id)), ...found.filter((d) => !favs.has(d.id))].slice(0, 9).map((d) => secSuggestion(d, favs.has(d.id)));
   const exactFn = !!lookupFn(q);
-  const out = exactFn ? [...fns, ...secs] : [...secs.slice(0, 1), ...fns, ...secs.slice(1)];
+  // A ticker typed alone lists that security's main functions first ("AAPL US Equity DES"), then the other
+  // functions and the securities, as the terminal's autocomplete does.
+  const exactSec = !exactFn && tokens.length <= 3 ? resolveSecurity(q) : undefined;
+  const own = exactSec
+    ? (FIRST_FOR[exactSec.cls] ?? ['CHART', 'QUOTE'])
+        .map((code) => FUNCTIONS.find((f) => f.code === code))
+        .filter((f): f is FnDef => !!f && applies(f, exactSec))
+        .map((f) => ({ ...fnSuggestion(f, exactSec.id), key: `own:${f.code}`, scope: exactSec.id }))
+    : [];
+  const out = [...own, ...fns.filter((f) => !own.some((o) => o.primary === f.primary)), ...secs];
   // A ticker that is not built in can be loaded online.
   const ticker = tokens.length === 1 ? normalizeTicker(tokens[0]) : null;
   const source = ticker && !resolveSecurity(ticker) ? lookupSource() : null;

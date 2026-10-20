@@ -1,12 +1,13 @@
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { AnalystSummary, lineValue, MissingNotes, useAnalystSnapshot, useNextQuarterEstimate } from '../components/AnalystSummary';
+import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
 import { Chg, HBar, KV, LiveChg, LivePx, SecLink, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
 import { Sparkline } from '../components/Sparkline';
 import { fmtBig, fmtDay, fmtEarnDate, fmtInt, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { DAY_MS } from '../data/calendar';
-import { marketCapUsd, periodChange, rangeStats } from '../data/analytics';
-import { dividendGrowth, dividends, earningsHistory, financials, holders, keyStats, nextEarnings, peers, reportCcy, revenueMix } from '../data/fundamentals';
+import { closeAt, marketCapUsd, periodChange, rangeStats } from '../data/analytics';
+import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings, peers, reportCcy, revenueMix } from '../data/fundamentals';
 import { desktopData } from '../data/live/yahoo';
 import { fundVersion, getRealFund, useFundamentalsFor, type RealFund } from '../data/live/yfund';
 import { secAvailable, secTicker, useSecLoad } from '../data/live/sec';
@@ -49,7 +50,7 @@ function Box({ n, title, fn, sec, right, children }: { n?: number; title: string
   const head = (
     <>
       {n != null && <b className="des-n">{n})</b>} {title}
-      {fn && <span className="des-fn"> ({name(fn)})</span>}
+      {fn && <span className="des-fn"> | {name(fn)} »</span>}
     </>
   );
   return (
@@ -116,10 +117,30 @@ function marketValueRep(sec: SecurityDef): number {
 
 // ---------------------------------------------------------------- 1) Profile
 
+/** Total return over the past year: the price change with the dividends that went ex in it, in percent. */
+export function totalReturn1Y(sec: SecurityDef): number {
+  const q = engine.quote(sec.id);
+  const s = engine.daily(sec.id);
+  if (!q || !Number.isFinite(q.last) || !s.length) return NaN;
+  const today = engine.today * DAY_MS;
+  const from = Date.UTC(new Date(today).getUTCFullYear() - 1, new Date(today).getUTCMonth(), new Date(today).getUTCDate());
+  if (s.t[0] > from) return NaN;
+  const base = closeAt(s, from);
+  if (!Number.isFinite(base) || base <= 0) return NaN;
+  const paid = dividends(sec).filter((d) => d.ex > from && d.ex <= today && Number.isFinite(d.amount)).reduce((a, d) => a + d.amount, 0);
+  return ((q.last + paid) / base - 1) * 100;
+}
+
+/** The current and next fiscal years' EPS estimates (the first two estimate years from today), for Est P/E and PEG. */
+function fiscalEstimates(part: AnalystPart<Estimate[]> | undefined): { fy?: Estimate; next?: Estimate; from?: string } {
+  const today = new Date(engine.today * DAY_MS).toISOString().slice(0, 10);
+  const years = (part?.state === 'ok' ? part.data ?? [] : []).filter((e) => e.date >= today && Number.isFinite(e.epsAvg));
+  return { fy: years[0], next: years[1], from: part?.source };
+}
+
 function ProfilePage({ sec }: { sec: SecurityDef }) {
   useTick(5);
   const panel = usePanelId();
-  const name = useFnName();
   const eq = sec.eq!;
   const q = engine.quote(sec.id);
   const ks = keyStats(sec);
@@ -127,16 +148,21 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const ne = nextEarnings(sec);
   const real = getRealFund(sec.id);
   const ccy = reportCcy(sec);
+  const est = useAnalysts(analystsAvailable() && analystSymbol(sec) ? sec : undefined, ['estimates', 'consensus', 'ratings']);
   const analysts = useAnalystSnapshot(sec);
-  const estimate = useNextQuarterEstimate(sec);
+  const { fy, next } = fiscalEstimates(est.estimates as AnalystPart<Estimate[]> | undefined);
+  const estPe = fy && q && fy.epsAvg > 0 ? q.last / fy.epsAvg : NaN;
+  const growth = fy && next && fy.epsAvg > 0 && next.epsAvg > 0 ? (next.epsAvg / fy.epsAvg - 1) * 100 : NaN;
+  const estPeg = Number.isFinite(estPe) && growth > 0 ? estPe / growth : NaN;
   const today = engine.today * DAY_MS;
   const divs = dividends(sec);
   const lastDiv = divs.find((d) => d.ex <= today && Number.isFinite(d.amount));
   const nextDiv = divs.filter((d) => d.ex > today).sort((a, b) => a.ex - b.ex)[0];
   const daily = engine.daily(sec.id);
-  const growth5 = dividendGrowth(divs.filter((d) => d.ex <= today), today, daily.length ? daily.t[0] : NaN);
   const ytd = periodChange(sec.id, 'YTD');
   const ytdAbs = q && Number.isFinite(ytd) ? q.last - q.last / (1 + ytd / 100) : NaN;
+  const totRet = totalReturn1Y(sec);
+  const [more, setMore] = useState(false);
   // Without Yahoo's officer list, the officers who filed Form 4s with the SEC in the past year, chief executive first.
   const fundStatus = fundVersion.use((x) => x.status[sec.id]);
   const needInsiders = engine.realOnly && fundStatus === 'ok' && !real?.officers.length && !eq.ceo && secAvailable() && !!secTicker(sec);
@@ -153,36 +179,50 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const f = real?.float;
   const mix = real ? [] : revenueMix(sec);
   const hs = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 3);
-  // Headings and named lines take their numbers in reading order, then the related functions from 41.
+  // The boxes take the numbers the terminal's description page gives them; a number typed with GO opens the box.
   const items: MenuItem[] = useMemo(() => {
     const go = (fn: string) => () => execute(panel, `${sec.id} ${fn}`);
     const list: MenuItem[] = [
-      { n: 11, label: 'Price Chart', run: go('CHART') },
-      { n: 12, label: 'Earnings', run: go('EARNINGS') },
-      { n: 13, label: 'Dividend', run: go('DIVIDENDS') },
-      { n: 14, label: 'Analyst Ratings', run: go('ANALYSTS') },
+      { n: 8, label: 'Price Chart', run: go('CHART') },
+      { n: 9, label: 'Estimates', run: go('EARNINGS') },
+      { n: 10, label: 'Analyst Ratings', run: go('ANALYSTS') },
+      { n: 12, label: 'Dividend', run: go('DIVIDENDS') },
       { n: 15, label: 'Management', run: go('MANAGEMENT') },
-      { n: 19, label: '12M Price Return', run: go('TOTALRETURN') },
+      { n: 19, label: '12M Total Return', run: go('TOTALRETURN') },
       { n: 20, label: 'Beta', run: go('BETA') },
       { n: 21, label: 'Ownership', run: go('HOLDERS') },
     ];
+    if (eq.web) list.push({ n: 14, label: 'Website', run: () => window.open(eq.web, '_blank', 'noopener') });
     officers.forEach((_, i) => list.push({ n: 16 + i, label: 'Management', run: go('MANAGEMENT') }));
     return list;
-  }, [panel, sec.id, officers.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [panel, sec.id, officers.length, eq.web]); // eslint-disable-line react-hooks/exhaustive-deps
   useMenu('des-boxes', items);
+  const city = eq.hq ? `${eq.hq}${sec.country && !eq.hq.endsWith(sec.country) ? `, ${sec.country}` : ''}` : '';
+  const idx = BETA_INDEX[sec.country] ?? 'index';
   return (
     <>
       <div className="des-head">
         <span className="des-name">{sec.name.toUpperCase()}</span>
         <span className="des-class">
-          {eq.industry}
-          {eq.sector && eq.sector !== eq.industry ? <span className="muted"> · {eq.sector}</span> : null}
+          <span className="amber">Classification</span> <span className="white">{eq.industry || eq.sector || '--'}</span>
         </span>
       </div>
-      <p className="des-desc">{eq.desc || (engine.realOnly ? 'Loading the company profile…' : '')}</p>
+      {eq.desc ? (
+        <p className={`des-desc${more ? '' : ' clamp'}`}>
+          {eq.desc}
+          {!more && eq.desc.length > 240 ? null : null}
+        </p>
+      ) : (
+        <p className="des-desc">{engine.realOnly ? 'Loading the company profile…' : ''}</p>
+      )}
+      {eq.desc && eq.desc.length > 240 && (
+        <button type="button" className="des-more" onClick={() => setMore(!more)}>
+          {more ? 'Less' : '… More'}
+        </button>
+      )}
       <div className="des-grid">
         <div className="des-col">
-          <Box n={11} title="Price Chart" fn="CHART" sec={sec} right="1Y">
+          <Box n={8} title="Price Chart" fn="CHART" sec={sec}>
             <div className="pad-s">
               <Sparkline values={daily.c.subarray(Math.max(0, daily.length - 252), daily.length)} width={600} height={104} fluid mountain />
             </div>
@@ -195,64 +235,54 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               ['YTD Change/%', pair(<Chg key="a" v={ytdAbs} dec={sec.dec} />, <Chg key="p" v={ytd} pct />)],
               [`Mkt Cap (${ks.tradeCcy})`, fmtMln(ks.mcap)],
               ...(ks.tradeCcy === 'USD' ? [] : [['Mkt Cap (USD)', fmtBig(marketCapUsd(sec.id))] as [string, string]]),
-              ['Shrs Out/Float', pair(fmtMln(eq.shares), f ? fmtBig(f.float) : '--')],
-              ['SI/% of Float', pair(f ? fmtBig(f.short) : '--', f ? <span title={f.shortPctFloatCalculated ? 'Calculated: reported shares short / latest available float. Float date may differ from the short-interest settlement date.' : 'Yahoo reported short interest as a percentage of float'}>{fmtPct(f.shortPctFloat, 2, false)}{f.shortPctFloatCalculated ? '*' : ''}</span> : '--')],
-              ['Days to Cover', f ? fmtNum(f.daysToCover, 2) : '--'],
+              ['Shrs Out/Float', pair(fmtMln(eq.shares), f && Number.isFinite(f.float) ? fmtBig(f.float) : '--')],
+              ['SI/% of Float', pair(f && Number.isFinite(f.short) ? fmtBig(f.short) : '--', f && Number.isFinite(f.shortPctFloat) ? <span title={f.shortPctFloatCalculated ? 'Calculated: reported shares short / latest available float. Float date may differ from the short-interest settlement date.' : 'Short interest as a percentage of float, as the source reports it'}>{fmtPct(f.shortPctFloat, 2, false)}{f.shortPctFloatCalculated ? '*' : ''}</span> : '--')],
+              ['Days to Cover', f && Number.isFinite(f.daysToCover) ? fmtNum(f.daysToCover, 1) : '--'],
             ]}
           />
         </div>
         <div className="des-col">
-          <Box n={12} title="Earnings" fn="EARNINGS" sec={sec}>
+          <Box n={9} title="Estimates" fn="EARNINGS" sec={sec}>
             <KV
               items={[
-                ['Next report', ne ? fmtEarnDate(ne) : '--'],
+                ['Date', ne ? <span key="d">{ne.approx ? <span className="muted">(E) </span> : <span className="muted">(C) </span>}{fmtEarnDate(ne)}</span> : '--'],
                 ['P/E', peText(ks.pe, ks.epsLtm)],
+                [`Est P/E${fy ? ` ${fyLabel(fy.date)}` : ''}`, fmtNum(estPe, 2)],
                 [`T12M EPS (${ccy})`, `${fmtNum(ks.epsLtm, 2)}${financials(sec).ltm?.epsComputed ? ' (computed)' : ''}`],
-                ['Est EPS, next quarter', lineValue(estimate)],
-                ['ROE', fmtPct(ks.roe, 1, false)],
-                ['Net margin', fmtPct(ks.netMargin, 1, false)],
+                [`Est EPS${fy ? ` ${fyLabel(fy.date)}` : ''}`, fy ? fmtNum(fy.epsAvg, 2) : '--'],
+                ['Est PEG', fmtNum(estPeg, 2)],
               ]}
             />
-            <MissingNotes lines={[estimate]} />
           </Box>
-          <Box n={13} title="Dividend" fn="DIVIDENDS" sec={sec}>
+          <Box n={12} title="Dividend" fn="DIVIDENDS" sec={sec}>
             {!lastDiv && !nextDiv && !(ks.divYld > 0) && (eq.dps === 0 || engine.realOnly) ? (
               // A company that pays none says so once, instead of a line of dashes per figure.
-              <KV
-                items={[
-                  ['12M Yield', Number.isFinite(ks.divYld) ? fmtPct(ks.divYld, 2, false) : '0.00%'],
-                  ['Dividend', daily.length ? 'None paid in the price history' : 'None paid'],
-                ]}
-              />
+              <KV items={[['Ind Gross Yield', Number.isFinite(ks.divYld) ? fmtPct(ks.divYld, 2, false) : '0.00%'], ['Dividend', daily.length ? 'None paid' : 'None paid']]} />
             ) : (
               <KV
                 items={[
-                  ['12M Yield', fmtPct(ks.divYld, 2, false)],
-                  ['Payout ratio', fmtPct(ks.payout, 1, false)],
-                  ['5Y Growth (annual rate)', fmtPct(growth5, 1)],
-                  [lastDiv ? `Cash ${fmtDay(lastDiv.ex)}` : 'Last cash', lastDiv ? fmtNum(lastDiv.amount, 4) : eq.dps === 0 ? 'None' : '--'],
-                  ['Next ex-date', nextDiv ? `${fmtDay(nextDiv.ex)} (${nextDiv.type === 'Projected' ? 'proj.' : nextDiv.type === 'Expected' ? 'expected' : 'decl.'})` : 'None announced'],
+                  ['Ind Gross Yield', fmtPct(eq.dps > 0 && q?.last ? (eq.dps / q.last) * 100 : ks.divYld, 2, false)],
+                  [lastDiv ? `Cash ${fmtDay(lastDiv.ex)}` : 'Last cash', lastDiv ? fmtNum(lastDiv.amount, 2) : '--'],
+                  ...(nextDiv ? [[`Next ex ${fmtDay(nextDiv.ex)}`, Number.isFinite(nextDiv.amount) ? fmtNum(nextDiv.amount, 2) : nextDiv.type] as [string, string]] : []),
                 ]}
               />
             )}
           </Box>
-          <Box n={14} title="Analyst Ratings" fn="ANALYSTS" sec={sec}>
+          <Box n={10} title="Analyst Ratings" fn="ANALYSTS" sec={sec}>
             <AnalystSummary sec={sec} snap={analysts} />
           </Box>
         </div>
         <div className="des-col">
-          <Box title="Corporate Info" sec={sec}>
-            <KV
-              items={[
-                ['Headquarters', eq.hq || '--'],
-                ['Employees', eq.emp > 0 ? fmtInt(eq.emp) : '--'],
-                ['Fiscal year end', MONTHS[eq.fye - 1] ?? '--'],
-                ['Primary exchange', sec.exch ?? '--'],
-                ['Country', COUNTRY_NAMES[sec.country] ?? sec.country],
-                // No source gives the founding year in the desktop app, so the line is left out there.
-                ...(eq.founded || !engine.realOnly ? [['Founded', eq.founded ? String(eq.founded) : '--'] as [string, string]] : []),
-              ]}
-            />
+          <Box n={13} title="Corporate Info" sec={sec}>
+            <div className="des-corp">
+              {eq.web && (
+                <button type="button" className="des-link blue" onClick={() => window.open(eq.web, '_blank', 'noopener')}>
+                  <b className="des-n">14)</b> {eq.web.replace(/^https?:\/\/(www\.)?/, 'www.').replace(/\/$/, '')}
+                </button>
+              )}
+              <div className="amber">{city || (engine.realOnly ? '' : '--')}</div>
+              <KV items={[['Empls', eq.emp > 0 ? fmtInt(eq.emp) : '--'], ['Fiscal Year End', MONTHS[eq.fye - 1] ?? '--'], ['Exchange', sec.exch ?? '--']]} />
+            </div>
           </Box>
           <Box n={15} title="Management" fn="MANAGEMENT" sec={sec}>
             {officers.length === 0 ? (
@@ -262,7 +292,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
                 {officers.map((o, i) => (
                   <li key={o.name}>
                     <button type="button" className="des-link" onClick={() => execute(panel, `${sec.id} MANAGEMENT`)}>
-                      <b className="des-n">{16 + i})</b> <span className="white">{o.name}</span>
+                      <b className="des-n">{16 + i})</b> <span className="amber">{o.name}</span>
                     </button>
                     <div className="muted des-title">{o.title}</div>
                   </li>
@@ -273,15 +303,15 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
           <dl className="kv des-links">
             <dt>
               <button type="button" className="des-link" onClick={() => execute(panel, `${sec.id} TOTALRETURN`)}>
-                <b className="des-n">19)</b> 12M Px Return ({name('TOTALRETURN')})
+                <b className="des-n">19)</b> 12M Tot Ret
               </button>
             </dt>
-            <dd>
-              <Chg v={periodChange(sec.id, '1Y')} pct />
+            <dd title="Price change with the dividends that went ex in the past 12 months">
+              <Chg v={totRet} pct />
             </dd>
             <dt>
               <button type="button" className="des-link" onClick={() => execute(panel, `${sec.id} BETA`)}>
-                <b className="des-n">20)</b> Beta ({name('BETA')})
+                <b className="des-n">20)</b> Beta vs {idx}
               </button>
             </dt>
             <dd title="The source's beta, 5 years of monthly returns; BETA works it out against the local index">{fmtNum(eq.beta, 2)}</dd>
@@ -290,13 +320,13 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
             {real ? (
               <KV
                 items={[
-                  ['Insiders', fmtPct(real.breakdown?.insiders, 2, false)],
                   ['Institutions', fmtPct(real.breakdown?.institutions, 2, false)],
-                  ['Institutional holders', fmtInt(real.breakdown?.count)],
+                  ['Insiders', fmtPct(real.breakdown?.insiders, 2, false)],
+                  ['Inst. holders', fmtInt(real.breakdown?.count)],
                 ]}
               />
             ) : engine.realOnly ? (
-              <p className="pad-s muted">{fundVersion.get().status[sec.id] === 'error' ? 'No ownership data from Yahoo Finance for this company.' : 'Loading ownership from Yahoo Finance…'}</p>
+              <p className="pad-s muted">{fundVersion.get().status[sec.id] === 'error' ? 'No ownership data from the sources for this company.' : 'Loading ownership…'}</p>
             ) : (
               <KV items={hs.map((h) => [h.name, `${fmtNum(h.pct, 2)}%`] as [string, string])} />
             )}
@@ -322,30 +352,16 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
           )}
         </div>
       </div>
-      <RelatedRow
-        sec={sec}
-        fns={['FINANCIALS', 'COMPANYNEWS', 'QUOTE', 'HISTORY', 'INTRADAY', 'OPTIONS', 'PEERS', 'EVENTS', 'FILINGS']}
-      />
     </>
   );
 }
 
-/** The other everyday functions for the security, numbered from 41 as one line. */
-function RelatedRow({ sec, fns }: { sec: SecurityDef; fns: string[] }) {
-  const panel = usePanelId();
-  const name = useFnName();
-  const items: MenuItem[] = useMemo(() => fns.map((code, i) => ({ n: 41 + i, label: code, run: () => execute(panel, `${sec.id} ${code}`) })), [fns, panel, sec.id]);
-  useMenu('des-related', items);
-  return (
-    <div className="des-related">
-      <span className="muted">Related functions</span>
-      {fns.map((code, i) => (
-        <button key={code} type="button" className="des-link" onClick={() => execute(panel, `${sec.id} ${code}`)}>
-          <b className="des-n">{41 + i})</b> {name(code)}
-        </button>
-      ))}
-    </div>
-  );
+/** The index a stock's beta is quoted against on the page, by listing country. */
+const BETA_INDEX: Record<string, string> = { US: 'SPX', GB: 'UKX', DE: 'DAX', FR: 'CAC', JP: 'NKY', HK: 'HSI', CA: 'SPTSX', BE: 'BEL20', NL: 'AEX', CH: 'SMI', AU: 'AS51' };
+
+/** "12/26": the fiscal year an estimate is for, by its year-end month. */
+function fyLabel(iso: string): string {
+  return `${iso.slice(5, 7)}/${iso.slice(2, 4)}`;
 }
 
 // ---------------------------------------------------------------- 2) Issue Info

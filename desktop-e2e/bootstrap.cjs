@@ -109,7 +109,7 @@ net.fetch = async (input, init) => {
   };
   if (url.hostname === 'api.nasdaq.com') {
     fixtures.calls.nasdaq = (fixtures.calls.nasdaq ?? 0) + 1;
-    if (url.pathname === '/api/screener/stocks') return json({ data: { rows: [{ symbol: 'MMM', name: '3M Company', marketCap: '83552188778.00', country: 'United States', sector: 'Industrials' }, { symbol: 'XYZW', name: 'Synthetic Finnhub-only Co', marketCap: '4100000000.00', country: 'United States', sector: 'Technology' }] }, status: { rCode: 200 } });
+    if (url.pathname === '/api/screener/stocks') return json({ data: { rows: [{ symbol: 'MMM', name: '3M Company', marketCap: '83552188778.00', country: 'United States', sector: 'Industrials' }, { symbol: 'XYZW', name: 'Synthetic Finnhub-only Co', marketCap: '6100000000.00', country: 'United States', sector: 'Technology' }] }, status: { rCode: 200 } });
     const date = url.searchParams.get('date');
     const mmm = (back, eps) => ({ eps, surprise: '5.04', time: 'time-pre-market', symbol: 'MMM', name: '3M Company', marketCap: '$83,552,188,778', fiscalQuarterEnding: quarterEnd(back).label, epsForecast: '$2.38', noOfEsts: '6' });
     const rows = !fixtures.marketCalendar ? null

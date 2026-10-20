@@ -310,6 +310,9 @@ export function PDFU(_: FnProps) {
             <label className="fld" style={{ color: 'var(--text)' }}>
               <input type="checkbox" checked={s.dateOrder !== 'MDY'} onChange={(e) => set('dateOrder', e.target.checked ? 'DMY' : 'MDY')} /> European dates, DD/MM/YYYY (off: MM/DD/YYYY)
             </label>
+            <label className="fld" style={{ color: 'var(--text)' }}>
+              <input type="checkbox" checked={s.font !== 'mono'} onChange={(e) => set('font', e.target.checked ? 'terminal' : 'mono')} /> Terminal typeface, proportional with even-width figures (off: monospaced)
+            </label>
             <label className="fld" htmlFor="pdfu-click">
               Clicking a security opens
               <select id="pdfu-click" className="sel-inp" value={s.clickAction} onChange={(e) => set('clickAction', e.target.value as ClickAction)}>

@@ -563,6 +563,7 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   const ceo = fund.officers.find((o) => !/\b(?:former|retired|emeritus)\b/i.test(o.title) && /\b(?:chief executive(?: officer)?|ceo)\b/i.test(o.title));
   if (ceo) eq.ceo = ceo.name;
   if (ap.longBusinessSummary) eq.desc = String(ap.longBusinessSummary);
+  if (typeof ap.website === 'string' && /^https?:\/\/[^\s]+$/i.test(ap.website)) eq.web = ap.website;
   const fyeRaw = num(ks.lastFiscalYearEnd);
   if (Number.isFinite(fyeRaw)) eq.fye = new Date(fyeRaw * 1000).getUTCMonth() + 1;
   const shares = impliedShares(def, num(r.summaryDetail?.marketCap ?? r.price?.marketCap), num(r.financialData?.currentPrice ?? r.summaryDetail?.previousClose));

@@ -112,6 +112,7 @@ export interface NasdaqNextReport {
 
 export interface NasdaqProfile {
   description?: string;
+  url?: string;
   sector?: string;
   industry?: string;
 }
@@ -275,7 +276,8 @@ export function parseNasdaqProfile(t: string): Parsed<NasdaqProfile> {
   if ('error' in e) return e;
   const d = e.data;
   const description = text(value(d?.CompanyDescription));
-  return { data: description ? { description, sector: text(value(d?.Sector)), industry: text(value(d?.Industry)) } : null };
+  const url = text(value(d?.CompanyUrl));
+  return { data: description ? { description, sector: text(value(d?.Sector)), industry: text(value(d?.Industry)), ...(url && /^https?:\/\//i.test(url) ? { url } : {}) } : null };
 }
 
 /** FINRA's consolidated short interest: [{settlementDate, currentShortPositionQuantity, averageDailyVolumeQuantity, daysToCoverQuantity}]. */
@@ -415,7 +417,7 @@ export function nasdaqSummaryPatch(p: { summary?: NasdaqSummary | null; short?: 
       sharesShortPriorMonth: pos(prior?.shares),
       sharesShortPreviousMonthDate: sec(prior?.date),
     },
-    assetProfile: { industry: s?.industry ?? p.profile?.industry, sector: s?.sector ?? p.profile?.sector, longBusinessSummary: p.profile?.description },
+    assetProfile: { industry: s?.industry ?? p.profile?.industry, sector: s?.sector ?? p.profile?.sector, longBusinessSummary: p.profile?.description, website: p.profile?.url },
     calendarEvents: { exDividendDate: sec(s?.exDividend), dividendDate: sec(s?.payDate) },
   };
   if (h) {

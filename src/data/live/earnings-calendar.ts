@@ -380,7 +380,21 @@ function answerPart<T>(res: KeyedAnswer, source: CalendarSource, parse: (text: s
   return 'error' in parsed ? { state: 'error', message: `${source}: ${parsed.error}`, at: res.at } : { state: 'ok', data: parsed.data, at: res.at };
 }
 
-const bump = (patch: (s: ReturnType<typeof earningsCalendar.get>) => Partial<ReturnType<typeof earningsCalendar.get>>) => earningsCalendar.set((s) => ({ ...s, ...patch(s), v: s.v + 1 }));
+/**
+ * Answers are stored as they arrive, but the screens are told (the version bumped) at most every 600 ms: a window
+ * of Nasdaq days arrives one day at a time, and redrawing a thousand-line calendar for each froze the app.
+ */
+const NOTIFY_MS = 600;
+let notifyPending = false;
+const bump = (patch: (s: ReturnType<typeof earningsCalendar.get>) => Partial<ReturnType<typeof earningsCalendar.get>>) => {
+  earningsCalendar.set((s) => ({ ...s, ...patch(s) }));
+  if (notifyPending) return;
+  notifyPending = true;
+  setTimeout(() => {
+    notifyPending = false;
+    earningsCalendar.set((s) => ({ ...s, v: s.v + 1 }));
+  }, NOTIFY_MS);
+};
 
 // Nasdaq's days go one after another, nearest first; a day near today is asked again after half an hour.
 const queue: { key: string; run: () => Promise<void> }[] = [];

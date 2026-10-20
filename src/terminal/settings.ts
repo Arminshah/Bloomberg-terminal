@@ -19,6 +19,8 @@ export interface Settings {
   mnemonics: boolean;
   /** DD/MM/YYYY (European, the default) or MM/DD/YYYY, for every date shown or typed. */
   dateOrder: DateOrder;
+  /** The terminal's proportional typeface with even-width figures (the default), or a monospaced one. */
+  font: 'terminal' | 'mono';
 }
 
 /** The single-file build runs where network requests are blocked; feeds start off there. */
@@ -40,6 +42,7 @@ export const settings = createStore<Settings>(
     userName: 'TRADER',
     mnemonics: true,
     dateOrder: 'DMY',
+    font: 'terminal',
   },
   'settings',
   1,

@@ -23,11 +23,18 @@ interface Group {
 }
 
 const EQUITY: Group[] = [
-  { title: 'Company analysis', entries: ['PROFILE', 'COMPANYNEWS', 'FINANCIALS', 'EARNINGS', 'ANALYSTS', 'DIVIDENDS', 'HOLDERS', 'MANAGEMENT', 'PEERS', 'WACC', 'EVENTS', 'FILINGS'] },
-  { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'FUNDCHART', 'VOLATILITY', 'BETA', 'SPREAD'] },
-  { title: 'Quotes and trading data', entries: ['QUOTE', 'TRADES', 'DEPTH', 'VWAP', 'OPTIONS', 'OPTIONCALC', 'OPTIONSTRATEGY'] },
+  // The terminal's own grouping when a stock is loaded: overview, analysis, research, comparison, charts,
+  // surveillance, trading data and derivatives.
+  { title: 'Company Overview', entries: ['PROFILE', 'COMPANYNEWS', 'MANAGEMENT'] },
+  { title: 'Company Analysis', entries: ['FINANCIALS', 'HOLDERS', 'DIVIDENDS', 'WACC'] },
+  { title: 'Research & Estimates', entries: ['EARNINGS', 'ANALYSTS', 'FILINGS'] },
+  { title: 'Comparative Analytics', entries: ['PEERS'] },
+  { title: 'Charting & Reporting', entries: ['CHART', 'FUNDCHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'SPREAD', 'BETA', 'VOLATILITY'] },
+  { title: 'Security Surveillance', entries: ['EVENTS', 'QUOTE', 'ALERTS'] },
+  { title: 'Trade Analytics', entries: ['TRADES', 'DEPTH', 'VWAP'] },
+  { title: 'Derivatives', entries: ['OPTIONS', 'OPTIONCALC', 'OPTIONSTRATEGY'] },
   { title: 'Credit', entries: ['BONDSEARCH', 'DEBTPROFILE'] },
-  { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION', 'CROSSCHECK'] },
+  { title: 'Tools', entries: ['NOTES', 'CORRELATION', 'CROSSCHECK'] },
 ];
 
 const MENUS: Record<AssetClass, Group[]> = {
@@ -174,7 +181,7 @@ function MenuPath({ sector, sec }: { sector?: string; sec?: SecurityDef }) {
           ) : <span className="white" aria-current="page">{sectorMenu.title}</span>}
         </>
       )}
-      {sec && <><span className="muted" aria-hidden="true">›</span><span className="white" aria-current="page">Analyze {sec.id}</span></>}
+      {sec && <><span className="muted" aria-hidden="true">›</span><span className="white" aria-current="page">Analyze {sec.name.toUpperCase()} {sec.yk}</span></>}
     </nav>
   );
 }

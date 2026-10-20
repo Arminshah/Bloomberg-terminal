@@ -75,7 +75,9 @@ export function pageTarget(panel: number): HTMLElement | undefined {
   if (!body) return undefined;
   let target: HTMLElement = body;
   let best = body.scrollHeight - body.clientHeight;
-  for (const el of body.querySelectorAll<HTMLElement>('*')) {
+  // Scrolling regions are block containers outside tables (lists, table wrappers, story panes). Looking only at those
+  // keeps this cheap on a thousand-line table, whose cells would otherwise each be measured every time.
+  for (const el of body.querySelectorAll<HTMLElement>('div:not(table div), section:not(table section), ul:not(table ul), ol:not(table ol), pre:not(table pre)')) {
     const room = el.scrollHeight - el.clientHeight;
     if (room > best + 8 && el.clientHeight > 80) {
       const oy = getComputedStyle(el).overflowY;

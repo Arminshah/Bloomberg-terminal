@@ -39,11 +39,10 @@ const SCOPES = [
 
 /** Market values the market calendar can start from, in US dollars. */
 const CAPS = [
-  { v: 2e9, label: '$2B' },
+  { v: 5e9, label: '$5B' },
   { v: 10e9, label: '$10B' },
   { v: 50e9, label: '$50B' },
   { v: 200e9, label: '$200B' },
-  { v: 0, label: 'any' },
 ];
 
 /** The stocks among some securities, each once; one not loaded yet is left out. */
@@ -63,7 +62,7 @@ export function EVTS({ sec }: FnProps) {
   const [picked, setPicked] = useState<number | null>(null);
   const market = calendarAvailable();
   const scope = picked ?? (market ? 14 : watched.length ? 12 : 11);
-  const [minCap, setMinCap] = useState(2e9);
+  const [minCap, setMinCap] = useState(5e9);
   const spans = [
     { n: 1, label: 'This week', from: -3, to: 7 },
     { n: 2, label: '±2 weeks', from: -14, to: 14 },

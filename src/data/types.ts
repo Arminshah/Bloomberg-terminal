@@ -16,6 +16,8 @@ export interface EquityInfo {
   emp: number;
   hq: string;
   ceo?: string;
+  /** The company's website, as its profile gives it. */
+  web?: string;
   founded?: number;
   /** Fiscal year end month, 1-12. */
   fye: number;

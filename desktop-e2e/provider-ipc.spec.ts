@@ -122,7 +122,7 @@ async function command(page: Page, text: string, code = text.split(' ').at(-1)!,
   await expect(page.locator('.panel').nth(panel).locator('.fnh-code').first()).toHaveText(code);
 }
 
-test('EVENTS covers the whole market above $2B with expected and reported EPS and revenue, growth and an earnings card', async ({ desktop: { app, page } }) => {
+test('EVENTS covers the whole market above $5B with expected and reported EPS and revenue, growth and an earnings card', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.marketCalendar = true; process.env.FINNHUB_ENABLED = 'true'; });
   await command(page, 'EVENTS');
   const panel = page.locator('.panel').first();
@@ -130,14 +130,13 @@ test('EVENTS covers the whole market above $2B with expected and reported EPS an
   const mmm = panel.locator('tbody tr.click', { hasText: 'MMM US' });
   // EPS from Nasdaq, revenue from FMP; growth against the same source's year- and quarter-earlier reports.
   await expect(mmm.locator('td')).toHaveText(['Bef-mkt', 'MMM US', '3M Company', '83.55B', /Q\d \d{4}/, '2.38', '2.50', '+5.0%', '+14.2%', '+4.2%', '6.61B', '6.58B', '-0.4%', '+4.0%', '+1.0%'], { timeout: 30_000 });
-  // A company only Finnhub lists takes its market value from Nasdaq's stock list; one below $2B is left out.
-  await expect(panel.locator('tbody tr.click', { hasText: 'XYZW US' })).toContainText('4.10B');
+  // A company only Finnhub lists takes its market value from Nasdaq's stock list; one below $5B is left out.
+  await expect(panel.locator('tbody tr.click', { hasText: 'XYZW US' })).toContainText('6.10B');
   await expect(panel.locator('tbody tr.click', { hasText: 'TINY US' })).toHaveCount(0);
   await expect(panel.locator('tbody tr.click', { hasText: 'META US' })).toContainText('pending');
   await expect(panel.locator('tbody tr.click', { hasText: 'META US' })).toContainText('-9.8%');
-  await panel.getByRole('button', { name: 'any', exact: true }).click();
-  await expect(panel.locator('tbody tr.click', { hasText: 'TINY US' })).toHaveCount(1);
-  await panel.getByRole('button', { name: '$2B', exact: true }).click();
+  await expect(panel.getByRole('button', { name: '$5B', exact: true })).toHaveClass(/\bon\b/);
+  await expect(panel.getByRole('button', { name: 'any', exact: true })).toHaveCount(0);
   // The earnings card: expected against reported, beat or miss, and the growth, as an earnings correspondent shows it.
   await mmm.locator('td').nth(5).click();
   const card = panel.locator('.earn-card');

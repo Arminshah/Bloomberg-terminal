@@ -81,9 +81,15 @@ export function FnHeader({ code, mnemonic: shown, title, sec, sub, actions = [],
         </span>
         <span className="fnh-caption">
           <PageIndicator />
-          <span className="fnh-title">{title}</span>
-          {showMnemonic && <span className="fnh-mnemonic" title={`${mnemonic} <GO> opens ${code}`}>{mnemonic}<small> &lt;GO&gt;</small></span>}
-          <span className={showMnemonic ? 'fnh-code sr-only' : 'fnh-code'}>{code}</span>
+          <svg className="fnh-launch" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M1.5 3.5v7h7V7.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M6 1.5h4.5V6M10.5 1.5 5 7" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          </svg>
+          <span className="fnh-title" title={showMnemonic ? `${mnemonic} <GO> opens ${title}` : undefined}>{title}</span>
+          {/* The mnemonic shows in the panel's toolbar and command line, not on the red bar; here it is named for
+              screen readers. */}
+          {showMnemonic && <span className="fnh-mnemonic sr-only">{mnemonic} &lt;GO&gt;</span>}
+          <span className="fnh-code sr-only">{code}</span>
         </span>
       </div>
       {(sec || sub) && <div className="fnh-context">

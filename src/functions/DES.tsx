@@ -679,7 +679,7 @@ export function DES({ sec }: FnProps) {
       />
       <QuoteStrip sec={s} />
       {body}
-      {engine.realOnly && (s.cls !== 'equity' || tab === 1) ? <LatestNews sec={s} /> : null}
+      {engine.realOnly && s.cls !== 'equity' ? <LatestNews sec={s} /> : null}
     </div>
   );
 }

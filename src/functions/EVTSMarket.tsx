@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { openSecurity } from '../components/cells';
 import { verdict } from '../components/EarningsExpectations';
 import { fmtBig, fmtDay, fmtNum, MONTHS, WEEKDAYS } from '../core/format';
@@ -171,37 +171,26 @@ function EarningsCard({ r }: { r: CalendarReport }) {
   );
 }
 
-export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketCalendar; minCap: number; caps: { v: number; label: string }[]; onCap: (v: number) => void; now: number }) {
-  const [filter, setFilter] = useState('');
-  const [open, setOpen] = useState<string | null>(null);
-  const q = filter.trim().toLowerCase();
-  const rows = useMemo(
-    () =>
-      cal.reports
-        .filter((r) => (minCap <= 0 || (ok(r.marketCap) && r.marketCap >= minCap)) && (!q || `${r.symbol} ${r.name}`.toLowerCase().includes(q)))
-        .sort((a, b) => a.date.localeCompare(b.date) || ORDER[a.timing] - ORDER[b.timing] || (ok(b.marketCap) ? b.marketCap : 0) - (ok(a.marketCap) ? a.marketCap : 0)),
-    [cal.reports, minCap, q],
-  );
-  const today = isoDay(now);
-  const cols = 15;
-  let lastDay = '';
-  const out: ReactNode[] = [];
-  for (const r of rows) {
-    if (r.date !== lastDay) {
-      lastDay = r.date;
-      out.push(
-        <tr key={`h${r.date}`} className="group">
-          <td colSpan={cols}>
-            {WEEKDAYS[new Date(ms(r.date)).getUTCDay()]} {fmtDay(ms(r.date))}
-            {r.date === today ? '  · TODAY' : ''}
-          </td>
-        </tr>,
-      );
-    }
-    const key = `${r.symbol}|${r.date}`;
+/** What a calendar line shows: a line whose figures have not changed is not drawn again when more days arrive. */
+function signature(r: CalendarReport): string {
+  const f = (x: CalendarFigure) => `${x.est}/${x.actual}/${x.estFrom ?? ''}/${x.actualFrom ?? ''}/${x.analysts ?? ''}`;
+  return [r.symbol, r.date, r.timing, r.marketCap, r.name, r.label ?? '', r.fiscalEnd, f(r.eps), f(r.rev), r.epsYearAgo, r.epsQuarterAgo, r.revYearAgo, r.revQuarterAgo].join('|');
+}
+
+interface RowProps {
+  r: CalendarReport;
+  sig: string;
+  rowKey: string;
+  open: boolean;
+  today: string;
+  onToggle: (key: string) => void;
+}
+
+const MarketRow = memo(
+  function MarketRow({ r, rowKey, open, today, onToggle }: RowProps) {
     const reported = ok(r.eps.actual) || ok(r.rev.actual);
-    out.push(
-      <tr key={key} className={`click${open === key ? ' sel' : ''}`} onClick={() => setOpen(open === key ? null : key)} title="Click for the earnings card">
+    return (
+      <tr className={`click${open ? ' sel' : ''}`} onClick={() => onToggle(rowKey)} title="Click for the earnings card">
         <td className="muted">{TIMING[r.timing]}</td>
         <td className="nowrap"><Ticker symbol={r.symbol} /></td>
         <td className="ellipsis hide-w" style={{ maxWidth: 220 }}>{r.name}</td>
@@ -217,18 +206,95 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
         <td className="num hide-m"><Surprise f={r.rev} /></td>
         <td className="num hide-n"><Growth now={r.rev.actual} before={r.revYearAgo} what="Revenue, year over year" /></td>
         <td className="num hide-w"><Growth now={r.rev.actual} before={r.revQuarterAgo} what="Revenue, quarter over quarter" /></td>
-      </tr>,
+      </tr>
     );
-    if (open === key) {
+  },
+  (a, b) => a.sig === b.sig && a.open === b.open && a.today === b.today && a.onToggle === b.onToggle,
+);
+
+/**
+ * The slice of a long list of equal-height table lines that is in view in its scrolling ancestor, with a margin, so a
+ * thousand-line calendar draws a few dozen lines. The line height is measured from a drawn line.
+ */
+function useVisibleRange(ref: RefObject<HTMLTableSectionElement | null>, count: number): { start: number; end: number; rowH: number } {
+  const [view, setView] = useState({ start: 0, end: Math.min(count, 80), rowH: 20 });
+  useEffect(() => {
+    const body = ref.current;
+    if (!body) return;
+    // The panel body scrolls the screen; a table wrapper scrolls only sideways and grows with its table.
+    let scroller: HTMLElement | null = body.closest<HTMLElement>('.panel-body');
+    if (!scroller) {
+      scroller = body.parentElement;
+      while (scroller && !(/(auto|scroll)/.test(getComputedStyle(scroller).overflowY) && scroller.clientHeight < scroller.scrollHeight)) scroller = scroller.parentElement;
+    }
+    const host = scroller ?? document.documentElement;
+    const update = () => {
+      const line = body.querySelector<HTMLElement>('tr.click, tr.group');
+      const rowH = Math.max(14, line?.offsetHeight || 20);
+      const top = body.getBoundingClientRect().top - host.getBoundingClientRect().top;
+      const margin = 30;
+      const start = Math.max(0, Math.min(count, Math.floor(-top / rowH) - margin));
+      const end = Math.max(start, Math.min(count, Math.ceil((host.clientHeight - top) / rowH) + margin));
+      setView((v) => (v.start === start && v.end === end && v.rowH === rowH ? v : { start, end, rowH }));
+    };
+    update();
+    host.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      host.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [ref, count]);
+  return { ...view, end: Math.min(view.end, count) };
+}
+
+export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketCalendar; minCap: number; caps: { v: number; label: string }[]; onCap: (v: number) => void; now: number }) {
+  const [filter, setFilter] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
+  const q = filter.trim().toLowerCase();
+  const rows = useMemo(
+    () =>
+      cal.reports
+        .filter((r) => (minCap <= 0 || (ok(r.marketCap) && r.marketCap >= minCap)) && (!q || `${r.symbol} ${r.name}`.toLowerCase().includes(q)))
+        .sort((a, b) => a.date.localeCompare(b.date) || ORDER[a.timing] - ORDER[b.timing] || (ok(b.marketCap) ? b.marketCap : 0) - (ok(a.marketCap) ? a.marketCap : 0)),
+    [cal.reports, minCap, q],
+  );
+  const today = isoDay(now);
+  const cols = 15;
+  const toggle = useCallback((key: string) => setOpen((o) => (o === key ? null : key)), []);
+  // One flat list of day headings and lines; only the lines in view (and a margin) are drawn, the rest is spacer.
+  const flat = useMemo(() => {
+    const list: ({ kind: 'day'; date: string } | { kind: 'row'; r: CalendarReport; key: string; sig: string })[] = [];
+    let lastDay = '';
+    for (const r of rows) {
+      if (r.date !== lastDay) {
+        lastDay = r.date;
+        list.push({ kind: 'day', date: r.date });
+      }
+      list.push({ kind: 'row', r, key: `${r.symbol}|${r.date}`, sig: signature(r) });
+    }
+    return list;
+  }, [rows]);
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const view = useVisibleRange(bodyRef, flat.length);
+  const chosen = open ? rows.find((r) => `${r.symbol}|${r.date}` === open) : undefined;
+  const out: ReactNode[] = [];
+  if (view.start > 0) out.push(<tr key="pad-top" aria-hidden="true" style={{ height: view.start * view.rowH }} />);
+  for (const item of flat.slice(view.start, view.end)) {
+    if (item.kind === 'day') {
       out.push(
-        <tr key={`${key}:card`} className="earn-card-row">
-          <td colSpan={cols} onClick={(e) => e.stopPropagation()}>
-            <EarningsCard r={r} />
+        <tr key={`h${item.date}`} className="group">
+          <td colSpan={cols}>
+            {WEEKDAYS[new Date(ms(item.date)).getUTCDay()]} {fmtDay(ms(item.date))}
+            {item.date === today ? '  · TODAY' : ''}
           </td>
         </tr>,
       );
+    } else {
+      out.push(<MarketRow key={item.key} r={item.r} sig={item.sig} rowKey={item.key} open={open === item.key} today={today} onToggle={toggle} />);
     }
   }
+  if (view.end < flat.length) out.push(<tr key="pad-bottom" aria-hidden="true" style={{ height: (flat.length - view.end) * view.rowH }} />);
   const empty = cal.loading && !cal.reports.length ? 'Loading the earnings calendar…' : cal.problems.length && !cal.reports.length ? cal.problems.join(' ') : 'No reports in this window above this market value.';
   return (
     <div>
@@ -245,8 +311,31 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
         <span className="muted hide-m">Click a line for its earnings card · the ticker opens the company</span>
         {cal.loading ? <span className="amber">loading {cal.days - cal.loading} of {cal.days} days…</span> : null}
       </div>
+      {chosen ? (
+        <div className="earn-card-pane">
+          <button type="button" className="act" onClick={() => setOpen(null)}>Close</button>
+          <EarningsCard r={chosen} />
+        </div>
+      ) : null}
       <div className="tbl-wrap">
         <table className="tbl evts-mkt">
+          <colgroup>
+            <col style={{ width: 62 }} />
+            <col style={{ width: 92 }} />
+            <col className="hide-w" style={{ width: '18%' }} />
+            <col className="hide-n" style={{ width: 70 }} />
+            <col className="hide-w" style={{ width: 72 }} />
+            <col style={{ width: 62 }} />
+            <col style={{ width: 66 }} />
+            <col style={{ width: 66 }} />
+            <col className="hide-n" style={{ width: 64 }} />
+            <col className="hide-w" style={{ width: 64 }} />
+            <col className="hide-m" style={{ width: 72 }} />
+            <col className="hide-m" style={{ width: 72 }} />
+            <col className="hide-m" style={{ width: 66 }} />
+            <col className="hide-n" style={{ width: 64 }} />
+            <col className="hide-w" style={{ width: 64 }} />
+          </colgroup>
           <thead>
             <tr>
               <th>Time</th>
@@ -266,7 +355,7 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
               <th className="num hide-w" title="Revenue against the quarter before (FMP)">Rev QoQ</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody ref={bodyRef}>
             {rows.length ? out : (
               <tr>
                 <td colSpan={cols} className="empty">{empty}</td>

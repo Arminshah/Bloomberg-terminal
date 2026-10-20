@@ -56,6 +56,7 @@ function isTyping(el: EventTarget | null): boolean {
 export function App() {
   const layout = terminal.use((s) => s.layout);
   const size = settings.use((s) => s.size);
+  const font = settings.use((s) => s.font);
   const tz = settings.use((s) => s.tz);
   // Changing the date order redraws every screen; settings applies the order itself.
   settings.use((s) => s.dateOrder);
@@ -68,6 +69,10 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.size = size;
   }, [size]);
+
+  useEffect(() => {
+    document.documentElement.dataset.font = font === 'mono' ? 'mono' : 'terminal';
+  }, [font]);
 
   useEffect(() => {
     setTimeZone(tz);

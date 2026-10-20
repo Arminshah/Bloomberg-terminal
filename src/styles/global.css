@@ -27,7 +27,7 @@
   --magenta: #d77bff;
   --hdr: #292b2e;
   --hdr-text: #eeeeee;
-  --function-bar: #851414;
+  --function-bar: #870f1e;
   --sel: #ff9e1b;
   --sel-text: #000000;
   --flash-up: rgba(47, 211, 107, 0.42);
@@ -47,6 +47,14 @@
   --row: 20px;
   --gutter: 6px;
 }
+
+/* The terminal's look: one proportional typeface with even-width figures for labels, figures and the command line,
+   slightly bold. SETTINGS can switch back to the monospaced face. */
+html[data-font='terminal'] {
+  --mono: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+html[data-font='terminal'] body { font-weight: 500; letter-spacing: 0.01em; }
+html[data-font='terminal'] b, html[data-font='terminal'] strong, html[data-font='terminal'] th { font-weight: 600; }
 
 html[data-size='S'] { --fs: 11px; --fs-s: 10px; --fs-l: 12px; --row: 18px; }
 html[data-size='L'] { --fs: 13.5px; --fs-s: 12px; --fs-l: 15px; --fs-xl: 18px; --row: 23px; }
@@ -404,7 +412,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   min-height: 24px;
   padding: 2px 6px;
   overflow: hidden;
-  background: linear-gradient(180deg, #a11d1d 0%, var(--function-bar) 55%, #6f0f0f 100%);
+  background: var(--function-bar);
   font-family: var(--sans);
 }
 .fnh-caption { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; min-width: 0; max-width: 100%; }
@@ -433,10 +441,12 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .chart-tools .fields-search { flex: 1 1 230px; min-width: 160px; }
 .field-definition { border-left: 3px solid var(--amber); }
 .field-definition .kv > dd { min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; text-align: left; }
-.fnh-title { color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.fnh-title { color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-size: var(--fs-l); }
+/* The small launch mark before the title, as the terminal draws it beside a function's name. */
+.fnh-launch { flex: none; width: 12px; height: 12px; color: var(--white); opacity: 0.95; }
 .fnh-sub { color: #bdc4cd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .fnh-actions { display: flex; gap: 0; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
-.fnh-actions .act { flex: none; border: 0; border-right: 1px solid #b36262; background: transparent; padding: 1px 9px; color: #fff; font-size: var(--fs); }
+.fnh-actions .act { flex: none; border: 0; border-right: 2px solid var(--function-bar); background: #6c0b17; padding: 1px 9px; color: #fff; font-size: var(--fs); }
 .fnh-actions .act b { color: #fff; }
 .fnh-actions .act:hover { background: #a32929; outline: 1px solid #fff; outline-offset: -1px; }
 /* A chosen view in the red bar is a lit field: white on dark blue, readable against the red. */
@@ -619,9 +629,16 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 
 /* DES: name and classification, the description, then three columns of numbered boxes. */
 .des-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 4px 8px 0; }
-.des-name { color: var(--white); font-weight: 600; letter-spacing: 0.02em; }
+.des-name { color: var(--cyan); font-weight: 600; letter-spacing: 0.02em; }
 .des-class { margin-left: auto; color: var(--amber); }
 .des-desc { margin: 0; padding: 4px 8px 6px; color: var(--amber); font-family: var(--sans); font-size: var(--fs); line-height: 1.45; }
+/* The terminal shows three lines of the description, then "… More". */
+.des-desc.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; padding-bottom: 0; }
+.des-more { display: block; margin: 0 8px 6px auto; border: 0; padding: 0; background: none; color: #9aa3ad; font: inherit; cursor: pointer; }
+.des-more:hover { color: var(--white); text-decoration: underline; }
+.des-corp { padding: 3px 0 0; }
+.des-corp > .des-link, .des-corp > .amber { display: block; padding: 0 8px; }
+.des-link.blue { color: var(--blue); }
 .des-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr)); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
 .des-col { background: var(--bg-1); min-width: 0; }
 .des-box { min-width: 0; }
@@ -645,7 +662,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 8px; margin: 0; padding: 4px 8px; max-width: 900px; }
 .kv > dt { color: var(--amber); white-space: nowrap; }
 .kv > dd { display: flex; align-items: baseline; justify-content: flex-end; min-width: 0; margin: 0; overflow: hidden; color: var(--white); white-space: nowrap; }
-.kv > dd::before { content: ''; flex: 1 1 auto; min-width: 10px; margin-right: 6px; border-bottom: 1px dotted #353a41; transform: translateY(-3px); }
+.kv > dd::before { content: ''; flex: 1 1 auto; min-width: 10px; margin-right: 6px; }
 .kv > dd > .kv-v, .kv > dd > :only-child { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: right; }
 .kv-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
 .prose { font-family: var(--sans); font-size: var(--fs-l); line-height: 1.55; color: #d6d6d6; max-width: 78ch; padding: 6px 10px; }
@@ -1079,3 +1096,10 @@ a.news-item { color: inherit; text-decoration: none; }
 .nodata-box p { margin: 0 0 10px; }
 .demo-banner { display: flex; align-items: center; gap: 10px; padding: 3px 8px; background: #3a2a0a; color: var(--amber); font-size: var(--fs-s); border-bottom: 1px solid var(--amber); }
 .demo-banner .btn { margin-left: auto; padding: 0 6px; }
+
+/* EVENTS' market calendar can hold a thousand lines: a fixed table layout keeps a change in one line from
+   re-measuring every column of every line. */
+.tbl.evts-mkt { table-layout: fixed; width: 100%; }
+.tbl.evts-mkt td, .tbl.evts-mkt th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.earn-card-pane { position: relative; border-bottom: 1px solid var(--line); }
+.earn-card-pane > .act { position: absolute; right: 8px; top: 4px; z-index: 1; }

@@ -287,12 +287,12 @@ test('DES pages and numbered boxes, the security in the red bar and typed chart 
   await expect(panel.locator('.fnh-title')).toHaveText('Security Description: Equity');
   await expect(panel.locator('.tab')).toHaveText(['1) Profile', '2) Issue Info', '3) Ratios', '4) Revenue & EPS', '5) Industry Info']);
   await expect(panel.locator('.des-name')).toHaveText('APPLE INC');
-  await expect(panel.getByRole('button', { name: /11\) Price Chart/ })).toBeVisible();
+  await expect(panel.getByRole('button', { name: /8\) Price Chart/ })).toBeVisible();
   await run(page, '3');
   await expect(panel.locator('.tab.on')).toHaveText('3) Ratios');
   await expect(panel.locator('.sect-h', { hasText: 'Per Share Data' })).toBeVisible();
   await run(page, '1');
-  await run(page, '12');
+  await run(page, '9');
   await expect(panel.locator('.fnh-code').first()).toHaveText('EARNINGS');
   // GP's amber range boxes take a typed start date; the period tabs then show none chosen.
   await run(page, 'AAPL GP');

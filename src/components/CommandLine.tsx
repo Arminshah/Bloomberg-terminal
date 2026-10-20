@@ -324,7 +324,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
             return [
               head ? (
                 <div key={`h${i}`} className="ac-head">
-                  {s.kind === 'fn' ? 'Functions' : s.kind === 'fav' ? '★ Favourites' : s.kind === 'recent' ? 'Recent securities' : 'Securities'}
+                  {s.kind === 'fn' ? 'FUNCTIONS' : s.kind === 'fav' ? '★ FAVOURITES' : s.kind === 'recent' ? 'RECENT SECURITIES' : 'SECURITIES'}
                 </div>
               ) : null,
               <div
@@ -340,6 +340,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
                 }}
               >
                 <span className={s.kind === 'fn' ? 'fn' : s.kind === 'fav' ? 'k fav' : 'k'} title={s.kind === 'fn' ? `${s.primary}: ${s.secondary}` : undefined}>
+                  {s.kind === 'fn' && s.scope ? `${s.scope} ` : ''}
                   {s.kind === 'fn' && mnemonics ? suggestedMnemonic(s) : s.primary}
                 </span>
                 <span>{s.secondary}</span>
