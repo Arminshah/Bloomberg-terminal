@@ -242,7 +242,14 @@ test('holders sort and filter by reported period, and short float is calculated 
 });
 
 test('watchlist loads supplementary pre-market and after-hours quotes while IEX owns the regular price', async ({ desktop: { app, page } }) => {
-  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.extendedHours = true; process.env.YAHOO_PRICES_ENABLED = 'true'; });
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.extendedHours = true;
+    // The IEX trade a minute before the page's clock below, whenever the test runs: a trade timed after the page's
+    // present is refused as a bad timestamp.
+    fixtures.tradeAgeMs = Date.now() - Date.parse('2026-10-20T11:59:00Z');
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
   await page.reload();
   await enableIex(page);
   await page.clock.install({ time: new Date('2026-10-20T12:00:00Z') });
