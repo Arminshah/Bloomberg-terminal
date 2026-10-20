@@ -195,7 +195,7 @@ test('numbered rows open by number, as on terminal monitors', async ({ page }) =
   await expect(rows).toHaveCount(all - 8);
   // Each region numbers from its own ten, as WEI does, so EMEA keeps 21) with the Americas folded.
   await expect(rows.first().locator('.row-no')).toHaveText('21)');
-  await expect(rows.first()).toContainText('SX5E');
+  await expect(rows.first()).toContainText('EURO STOXX 50');
   await run(page, '21');
   await expect(panel.locator('.fnh-sec')).toHaveText('SX5E Index');
   await run(page, 'WEI');

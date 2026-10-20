@@ -36,14 +36,23 @@ describe('previous close: Yahoo field against the change it implies', () => {
 
   it("takes a future's settlement over the bar's last trade, and the new contract's after a roll", () => {
     // COMEX silver on 20 Oct 2026: settled 57.273 on the 19th; Yahoo's bar for the 19th closed at 56.974.
-    expect(resolvePrevClose(57.273, undefined, 56.974, undefined, { before: 56.995 })).toEqual({ value: 57.273, verified: true, settlement: true });
+    expect(resolvePrevClose(57.273, undefined, 56.974, undefined, { before: 56.995, futures: true })).toEqual({ value: 57.273, verified: true, settlement: true });
     // WTI after the roll: December settled 98.54; the bar for the 19th is November's 103.66.
-    expect(resolvePrevClose(98.54, undefined, 103.66, undefined, { before: 101.41 })?.value).toBe(98.54);
-    // A field that lags a session (it is the close before the previous one) is not a settlement.
-    expect(resolvePrevClose(101.41, undefined, 103.66, undefined, { before: 101.41 })?.value).toBeNaN();
+    expect(resolvePrevClose(98.54, undefined, 103.66, undefined, { before: 101.41, futures: true })?.value).toBe(98.54);
+    // A field that lags a session (it is the close before the previous one) is not a settlement: the bar is used.
+    expect(resolvePrevClose(101.41, undefined, 103.66, undefined, { before: 101.41, futures: true })).toEqual({ value: 103.66, verified: true });
     // Readings that disagree with each other still give none (lean hogs after the roll), and nor does a far one.
-    expect(resolvePrevClose(68.375, 68.35 - 0.5250015, 75.05, undefined, { before: 74 })?.value).toBeNaN();
-    expect(resolvePrevClose(50, undefined, 103.66, undefined, { before: 101.41 })?.value).toBeNaN();
+    expect(resolvePrevClose(68.375, 68.35 - 0.5250015, 75.05, undefined, { before: 74, futures: true })?.value).toBeNaN();
+    expect(resolvePrevClose(50, undefined, 103.66, undefined, { before: 101.41, futures: true })?.value).toBeNaN();
+    // Not a future: no settlement is assumed.
+    expect(resolvePrevClose(57.273, undefined, 56.974, undefined, { before: 56.995 })?.value).toBeNaN();
+  });
+
+  it("uses the previous bar when the source's field lags a session", () => {
+    // Shanghai Composite on 20 Oct 2026: the field 3,716.28 is 16 Oct's close; 19 Oct closed at 3,730.92.
+    expect(resolvePrevClose(3716.28, undefined, 3730.919921875, undefined, { before: 3716.283935546875 })).toEqual({ value: 3730.919921875, verified: true });
+    // Without the bar before, nothing says the field lags.
+    expect(resolvePrevClose(3716.28, undefined, 3730.919921875)?.value).toBeNaN();
   });
 
   it('gives no previous close when the bars contradict every reading, however many agree', () => {
@@ -202,14 +211,22 @@ describe('previous close across sessions', () => {
     expect(q.chgCheck).toBe('verified');
   });
 
-  it('a stale source field alone, contradicted by the bars, gives no change rather than a wrong one', () => {
+  it('a source field a session behind the bars gives the change against the previous bar', () => {
     const id = 'SHCOMP Index';
     engine.setExternalDaily(id, [bar('2026-10-09', 3813.791015625), bar('2026-10-12', 3797.241943359375)]);
     // Only the field, and it is 9 Oct's close: the bars say 12 Oct closed at 3797.24.
     poll(id, yq({ price: 3800.8645, change: null, prev: 3813.79, time: '2026-10-13T07:00:00Z', off: 8, state: 'POSTPOST' }));
     const q = engine.quote(id)!;
-    expect(q.chg).toBeNaN();
-    expect(q.pct).toBeNaN();
+    expect(q.chg).toBeCloseTo(3.6226, 3);
+    expect(q.chgCheck).toBe('verified');
+    expect(q.prevCloseDay).toBe(day('2026-10-12'));
+  });
+
+  it('a stale field that matches no bar gives no change rather than a wrong one', () => {
+    const id = 'SHCOMP Index';
+    engine.setExternalDaily(id, [bar('2026-10-09', 3813.791015625), bar('2026-10-12', 3797.241943359375)]);
+    poll(id, yq({ price: 3800.8645, change: null, prev: 3750.1, time: '2026-10-13T07:00:00Z', off: 8, state: 'POSTPOST' }));
+    expect(engine.quote(id)!.chg).toBeNaN();
   });
 
   it('missing previous-close data gives no change', () => {
