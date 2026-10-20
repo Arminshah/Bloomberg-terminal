@@ -33,11 +33,13 @@ interface Props {
   tab?: number;
   onTab?: (n: number) => void;
   right?: ReactNode;
+  /** A row of inputs (amber fields, periodicity, currency) between the context line and the tabs. */
+  controls?: ReactNode;
   children?: ReactNode;
 }
 
 /** Function title strip: mnemonic, security, title, numbered actions and tabs. */
-export function FnHeader({ code, mnemonic: shown, title, sec, sub, actions = [], tabs, tab, onTab, right, children }: Props) {
+export function FnHeader({ code, mnemonic: shown, title, sec, sub, actions = [], tabs, tab, onTab, right, controls, children }: Props) {
   const mnemonic = shown ?? primaryMnemonic(code);
   const showMnemonic = settings.use((s) => s.mnemonics) && mnemonic !== code;
   const items: MenuItem[] = useMemo(
@@ -97,6 +99,7 @@ export function FnHeader({ code, mnemonic: shown, title, sec, sub, actions = [],
         {sec && <FavStar id={sec.id} />}
         {sub && <span className="fnh-sub">{sub}</span>}
       </div>}
+      {controls}
       {tabs && (
         <nav className="tabs" aria-label={`${code} views`}>
           {tabs.map((t) => (

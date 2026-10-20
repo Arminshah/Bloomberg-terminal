@@ -1169,3 +1169,16 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 @media (max-width: 760px) { .most-wrap { grid-template-columns: 1fr; } .most-rail { border-right: 0; } }
 .most-tbl { table-layout: fixed; width: 100%; }
 .most-tbl td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* FA: controls in the header, estimate columns, graph icons and the paging bar. */
+.fa-tools { border-bottom: 0; background: transparent; padding: 3px 7px; }
+.fa-tools .fa-src { margin-left: auto; }
+.fa-tbl th.fa-est, .fa-tbl td.fa-est { background: rgba(255, 158, 27, 0.06); color: #ffd28a; }
+.fa-graph { background: none; border: 0; color: #6f8fb5; width: 14px; height: 12px; padding: 0; margin-right: 5px; vertical-align: -1px; cursor: pointer; }
+.fa-graph svg { width: 10px; height: 10px; }
+.fa-graph:hover { color: var(--white); }
+.fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid var(--line); background: var(--bg-1); }
+.fa-bottom > button { background: #2b2b2b; border: 1px solid #444; color: var(--white); padding: 0 6px; }
+.fa-bottom > button:disabled { color: var(--faint); }
+.fa-bottom .fa-next { margin-left: 12px; color: var(--amber); display: inline-flex; gap: 6px; align-items: center; }
+.fa-bottom .link, .link-btn { background: none; border: 0; color: var(--cyan); padding: 0; cursor: pointer; }
