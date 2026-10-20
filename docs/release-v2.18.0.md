@@ -1,6 +1,6 @@
 # Armin Terminal 2.18.0
 
-This release rebuilds the main screens on the owner's reference documentation (the equities workflow guide, getting-started and training guides and their screen images), adds eight functions, and fixes the screens reported broken: the APLD profile chart with IEX prices, its blank past revenue estimates, GLCO's missing changes and the EVENTS freeze. The app keeps its own name; it shows no login and needs none.
+This release rebuilds the main screens on the owner's reference documentation (the equities workflow guide, getting-started and training guides and their screen images), adds six functions, and fixes the screens reported broken: the APLD profile chart with IEX prices, its blank past revenue estimates, GLCO's missing changes and the EVENTS freeze. The app keeps its own name; it shows no login and needs none.
 
 ## Screens rebuilt on the reference
 
