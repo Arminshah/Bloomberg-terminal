@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { toCsv } from '../src/core/csv';
-import { DEFAULT_WATCHLIST_COLUMNS, sortWatchlistRows, watchlistColumns, watchlistExport, watchlistRow, withExtendedColumns } from '../src/data/watchlist-columns';
+import { DEFAULT_WATCHLIST_COLUMNS, placeInOrder, sortWatchlistRows, watchlistColumns, watchlistExport, watchlistRow, withExtendedColumns } from '../src/data/watchlist-columns';
 import { extendedSessions, lastPostTrade, yahooQuotes } from '../src/data/live/yahoo';
 import type { Quote, SecurityDef } from '../src/data/types';
 
@@ -24,6 +24,17 @@ describe('custom watchlist fields', () => {
     expect(rows.map((r) => r.id)).toEqual(['A', 'B', 'C', 'D']);
     const changes = [row('unverified', { pct: 999, chgCheck: 'unverified' }), row('verified', { pct: 1 })];
     expect(sortWatchlistRows(changes, { column: 'CHG_PCT_1D', direction: 'desc' }, watchlistColumns(['CHG_PCT_1D'])).map((r) => r.id)).toEqual(['verified', 'unverified']);
+  });
+
+  it('places a moved line directly before or after its target, in either direction', () => {
+    const order = ['A', 'B', 'C', 'D'];
+    expect(placeInOrder(order, 'D', 'A', false)).toEqual(['D', 'A', 'B', 'C']);
+    expect(placeInOrder(order, 'A', 'C', true)).toEqual(['B', 'C', 'A', 'D']);
+    expect(placeInOrder(order, 'A', 'C', false)).toEqual(['B', 'A', 'C', 'D']);
+    expect(placeInOrder(order, 'C', 'B', false)).toEqual(['A', 'C', 'B', 'D']);
+    expect(placeInOrder(order, 'B', 'D', true)).toEqual(['A', 'C', 'D', 'B']);
+    for (const [id, target] of [['B', 'B'], ['X', 'B'], ['B', 'X']]) expect(placeInOrder(order, id, target, true)).toEqual(order);
+    expect(order).toEqual(['A', 'B', 'C', 'D']);
   });
 
   it('exports selected columns and row order, preserving zeros and independent bid/ask timestamp limits', () => {

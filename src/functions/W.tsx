@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type DragEvent, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
@@ -11,7 +11,7 @@ import { periodChange } from '../data/analytics';
 import { fieldTime } from '../data/fields';
 import { extendedSessions } from '../data/live/yahoo';
 import { hasSessionColumns, useExtendedSessionQuotes } from '../data/live/extended-hours';
-import { sortWatchlistRows, WATCHLIST_COLUMNS, WATCHLIST_PRESETS, watchlistColumns, watchlistExport, watchlistRow, type WatchlistColumn, type WatchlistRow, type WatchlistSort } from '../data/watchlist-columns';
+import { placeInOrder, sortWatchlistRows, WATCHLIST_COLUMNS, WATCHLIST_PRESETS, watchlistColumns, watchlistExport, watchlistRow, type WatchlistColumn, type WatchlistRow, type WatchlistSort } from '../data/watchlist-columns';
 import { resolveSecurity, searchSecurities } from '../data/registry';
 import type { Quote, SecurityDef } from '../data/types';
 import { flash, usePanelId } from '../terminal/panel';
@@ -50,6 +50,15 @@ export function FieldCell({ column, row, sec, quote, now }: { column: WatchlistC
   return <span title={`${f.name} (${f.unit}) · ${f.source} · ${f.status}\n${f.timeBasis}\n${f.note}`}>{value}</span>;
 }
 
+/** A dragged watchlist line carries its security under its own type, so inputs and other screens ignore it. */
+const LINE_TYPE = 'application/x-armin-watchlist-line';
+
+/** A line dropped on the lower half of another lands after it, on the upper half before it. */
+const dropsAfter = (e: DragEvent<HTMLElement>) => {
+  const r = e.currentTarget.getBoundingClientRect();
+  return e.clientY > r.top + r.height / 2;
+};
+
 export function W({ route }: FnProps) {
   const panel = usePanelId();
   useTick(1);
@@ -68,6 +77,7 @@ export function W({ route }: FnProps) {
   const [renaming, setRenaming] = useState(false);
   const [editingColumns, setEditingColumns] = useState(false);
   const [filter, setFilter] = useState('');
+  const [drag, setDrag] = useState<{ id: string; over?: string; after?: boolean } | null>(null);
   const hits = text.trim() ? searchSecurities(text, 6) : [];
   const now = engine.now();
   const columns = watchlistColumns(list.columns);
@@ -88,7 +98,8 @@ export function W({ route }: FnProps) {
     setColumns(ids);
   };
   const query = filter.trim().toLowerCase();
-  const rows = sortWatchlistRows(list.ids.filter((id) => !query || `${id} ${engine.get(id)?.name ?? ''}`.toLowerCase().includes(query)).map((id) => {
+  // Every line in the order on screen (the chosen sort, else the manual order); the filter then hides some.
+  const ordered = sortWatchlistRows(list.ids.map((id) => {
     const intra = selected.has('ARMIN_TODAY') ? engine.intraday(id) : undefined;
     return watchlistRow(id, engine.get(id), engine.quote(id), now, {
       ytd: selected.has('ARMIN_YTD') ? periodChange(id, 'YTD') : NaN,
@@ -96,6 +107,7 @@ export function W({ route }: FnProps) {
       extended: extendedSessions(id, now),
     });
   }), list.sort, columns);
+  const rows = query ? ordered.filter((r) => `${r.id} ${engine.get(r.id)?.name ?? ''}`.toLowerCase().includes(query)) : ordered;
 
   const update = (ids: string[]) => watchlists.set((s) => ({ ...s, lists: s.lists.map((l, i) => (i === active ? { ...l, ids } : l)) }));
   const add = (id: string) => {
@@ -103,13 +115,8 @@ export function W({ route }: FnProps) {
     else update([...list.ids, id]);
     setText('');
   };
-  const move = (i: number, d: -1 | 1) => {
-    const ids = [...list.ids];
-    const j = i + d;
-    if (j < 0 || j >= ids.length) return;
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    update(ids);
-  };
+  // Moving a line keeps the order on screen: a sort becomes the manual order, then the line goes before or after another.
+  const place = (id: string, target: string, after: boolean) => updateList({ ids: placeInOrder(ordered.map((r) => r.id), id, target, after), sort: undefined });
   const csv = () => watchlistExport(rows, columns, now);
   return (
     <div>
@@ -209,7 +216,7 @@ export function W({ route }: FnProps) {
           </span>
         )}
         <input className="inp" aria-label="Filter watchlist" placeholder="Filter this list" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 145 }} />
-        <span className="muted hide-m">Click to open · shift-click opens in the next panel · ▲▼ reorder</span>
+        <span className="muted hide-m">Click to open · shift-click opens in the next panel · drag a line or ▲▼ to reorder</span>
       </div>
       <div className="tbl-wrap">
       <table className="tbl">
@@ -230,23 +237,49 @@ export function W({ route }: FnProps) {
               </td>
             </tr>
           )}
-          {rows.map((row) => {
+          {rows.map((row, k) => {
             const id = row.id;
-            const i = list.ids.indexOf(id);
             const d = engine.get(id);
             const q = engine.quote(id);
+            const landing = drag?.over === id && drag.id !== id ? drag.after ? ' drop-after' : ' drop-before' : '';
             return (
-              <tr key={id} className="click" onClick={(e) => openSecurity(panel, id, e)}>
+              <tr
+                key={id}
+                className={`click${drag?.id === id ? ' dragging' : ''}${landing}`}
+                draggable
+                onClick={(e) => openSecurity(panel, id, e)}
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData(LINE_TYPE, id);
+                  // A sorted list keeps its current order while the line moves, as the manual order.
+                  if (list.sort) updateList({ ids: ordered.map((r) => r.id), sort: undefined });
+                  setDrag({ id });
+                }}
+                onDragOver={(e) => {
+                  if (!drag) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  const after = dropsAfter(e);
+                  if (drag.over !== id || drag.after !== after) setDrag({ ...drag, over: id, after });
+                }}
+                onDrop={(e) => {
+                  if (!drag) return;
+                  e.preventDefault();
+                  place(drag.id, id, dropsAfter(e));
+                  setDrag(null);
+                }}
+                onDragEnd={() => setDrag(null)}
+              >
                 <td className="nowrap">
                   <FavStar id={id} />
                   {d ? <SecLink id={id}>{d.ticker}</SecLink> : <span title="Security definition is unavailable; remove or reload this line.">{id}</span>}
                 </td>
                 {columns.map((c) => <td key={c.id} className={`${c.numeric ? 'num' : 'ellipsis'}${c.compact || list.columns ? '' : ' hide-m'}${c.id === 'PX_LAST' ? ' white' : ''}`} style={c.numeric || c.id === 'ARMIN_TODAY' ? undefined : { maxWidth: 240 }}><FieldCell column={c} row={row} sec={d} quote={q} now={now} /></td>)}
                 <td className="nowrap" onClick={(e) => e.stopPropagation()}>
-                  <button type="button" className="act" aria-label="Move up" disabled={!!list.sort || i === 0} title={list.sort ? 'Use 95) Manual order before reordering' : undefined} onClick={() => move(i, -1)}>
+                  <button type="button" className="act" aria-label="Move up" disabled={k === 0} title={list.sort ? 'Keeps this sorted order as the manual order' : undefined} onClick={() => place(id, rows[k - 1].id, false)}>
                     ▲
                   </button>
-                  <button type="button" className="act" aria-label="Move down" disabled={!!list.sort || i === list.ids.length - 1} title={list.sort ? 'Use 95) Manual order before reordering' : undefined} onClick={() => move(i, 1)}>
+                  <button type="button" className="act" aria-label="Move down" disabled={k === rows.length - 1} title={list.sort ? 'Keeps this sorted order as the manual order' : undefined} onClick={() => place(id, rows[k + 1].id, true)}>
                     ▼
                   </button>
                   <button type="button" className="act" aria-label={`Remove ${id}`} onClick={() => update(list.ids.filter((x) => x !== id))}>

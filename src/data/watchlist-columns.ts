@@ -141,6 +141,14 @@ export function sortWatchlistRows(rows: readonly WatchlistRow[], sort: Watchlist
   });
 }
 
+/** The order with `id` moved directly before or after `target`; an unknown line or target leaves it unchanged. */
+export function placeInOrder(order: readonly string[], id: string, target: string, after: boolean): string[] {
+  if (id === target || !order.includes(id) || !order.includes(target)) return [...order];
+  const ids = order.filter((x) => x !== id);
+  ids.splice(ids.indexOf(target) + (after ? 1 : 0), 0, id);
+  return ids;
+}
+
 /** Selected columns and displayed row order, followed by explicit per-cell units/source/timing. */
 export function watchlistExport(rows: readonly WatchlistRow[], columns: readonly WatchlistColumn[], now: number): (string | number | null)[][] {
   return [
