@@ -1203,3 +1203,4 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .evts-mkt .evts-icon { color: #000; background: #c9c9c9; font-weight: 700; text-align: center; font-size: 10px; padding: 0; width: 14px; }
 .evts-mkt .evts-desc.up { color: var(--up); }
 .evts-mkt .evts-desc.dn { color: var(--dn); }
+.news-head { color: var(--white); background: var(--hdr); font-weight: 600; padding: 1px 8px; }

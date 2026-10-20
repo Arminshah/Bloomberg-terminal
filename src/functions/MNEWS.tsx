@@ -67,16 +67,33 @@ function Reader({ story, symbol, onBack }: { story: MarketStory; symbol?: string
  * screen's own tabs and actions, and typing a headline's number and GO opens it. With `fresh`, stories published
  * less than that many milliseconds ago are marked NEW, and each line shows its age.
  */
-export function StoryList({ stories, empty, symbol, fresh, first = 1 }: { stories: MarketStory[]; empty: string; symbol?: string; fresh?: number; first?: number }) {
+/**
+ * The terminal's Top Ranked News: of the last day's stories, those most sources carry, then those tagged with the
+ * company, newest first among equals. Stories carried once and untagged are not ranked.
+ */
+export function rankStories(stories: MarketStory[], now: number, symbol?: string, n = 3): MarketStory[] {
+  const score = (s: MarketStory) => (s.feeds.length - 1) * 3 + (symbol && s.tickers.includes(symbol) ? 1 : 0) + (s.filing ? -2 : 0);
+  return stories
+    .filter((s) => now - s.time < 24 * 3_600_000 && s.feeds.length > 1 && !s.filing)
+    .sort((a, b) => score(b) - score(a) || b.time - a.time)
+    .slice(0, n);
+}
+
+export function StoryList({ stories: given, empty, symbol, fresh, first = 1, ranked = 0 }: { stories: MarketStory[]; empty: string; symbol?: string; fresh?: number; first?: number; ranked?: number }) {
   const [sel, setSel] = useState<string | null>(null);
-  const current = stories.find((s) => s.id === sel) ?? stories[0];
   const now = engine.now();
+  // With `ranked`, the top stories head the list under Top Ranked News; the rest follow under Time Ordered News.
+  const top = ranked ? rankStories(given, now, symbol, ranked) : [];
+  const stories = top.length ? [...top, ...given.filter((s) => !top.includes(s))] : given;
+  const current = stories.find((s) => s.id === sel) ?? stories[0];
   const nums = useNumberedRows('story-list', stories, first, (s) => setSel(s.id), (s) => s.title);
   return (
     <div className={`news${sel ? ' reading' : ''}`} style={{ flex: 1, minHeight: 0 }}>
       <div className="news-list" role="list">
         {stories.length === 0 && <div className="empty">{empty}</div>}
-        {stories.map((s, i) => (
+        {stories.map((s, i) => [
+          top.length && i === 0 ? <div key="h-top" className="news-head" role="presentation">Top Ranked News</div> : null,
+          top.length && i === top.length ? <div key="h-time" className="news-head" role="presentation">Time Ordered News</div> : null,
           <div key={s.id} role="listitem" className={`news-item numbered real${current?.id === s.id ? ' sel' : ''}${fresh && now - s.time < fresh ? ' fresh' : ''}`} onClick={() => setSel(s.id)}>
             <span className="news-n">{nums[i] !== undefined ? `${nums[i]})` : ''}</span>
             <span className="time" title={`Published ${fmtDate(s.time)} ${fmtTime(s.time)}`}>
@@ -90,8 +107,8 @@ export function StoryList({ stories, empty, symbol, fresh, first = 1 }: { storie
               <Sentiment story={s} symbol={symbol} />
             </span>
             <span className="src" title={s.publisher}>{sourceCode(s.publisher)}</span>
-          </div>
-        ))}
+          </div>,
+        ])}
       </div>
       {current ? <Reader story={current} symbol={symbol} onBack={() => setSel(null)} /> : <div className="empty">Select a headline.</div>}
     </div>
@@ -191,7 +208,7 @@ export function MNEWS({ route, sec }: FnProps) {
       {!newsAvailable() ? (
         <div className="empty">Market news is read by the desktop app; the browser build has no data source.</div>
       ) : (
-        <StoryList stories={list} first={firstRowNumber([...TABS.map((x) => x.n), TABS.length + 1])} empty={t || q.trim() ? `No story matches in what the sources returned.` : waiting ? 'Loading market news…' : 'No source has returned stories: the line above says why for each; keys and switches are on PROVIDERS.'} symbol={t || undefined} />
+        <StoryList stories={list} first={firstRowNumber([...TABS.map((x) => x.n), TABS.length + 1])} empty={t || q.trim() ? `No story matches in what the sources returned.` : waiting ? 'Loading market news…' : 'No source has returned stories: the line above says why for each; keys and switches are on PROVIDERS.'} symbol={t || undefined} ranked={t || q.trim() ? 0 : 4} />
       )}
       <div className="note">
         Sources: Finnhub, Benzinga through Alpaca (15 minutes late on its free plan), Massive, Marketaux, Google News, the SEC&apos;s 8-K filings, Euronext and, if switched on, MarketWatch. A story carried by two
@@ -248,6 +265,7 @@ export function CompanyNews({ sec }: FnProps) {
                 : `No recent stories for ${s.ticker} from the sources: the line above says what each returned.`
           }
           symbol={symbol ?? undefined}
+          ranked={3}
         />
       )}
     </div>
