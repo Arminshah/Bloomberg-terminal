@@ -26,8 +26,8 @@ const EQUITY: Group[] = [
   // The terminal's own grouping when a stock is loaded: overview, analysis, research, comparison, charts,
   // surveillance, trading data and derivatives.
   { title: 'Company Overview', entries: ['PROFILE', 'COMPANYNEWS', 'MANAGEMENT'] },
-  { title: 'Company Analysis', entries: ['FINANCIALS', 'HOLDERS', 'DIVIDENDS', 'WACC'] },
-  { title: 'Research & Estimates', entries: ['EARNINGS', 'ANALYSTS', 'FILINGS'] },
+  { title: 'Company Analysis', entries: ['FINANCIALS', 'HOLDERS', 'DIVIDENDS', 'CORPACTIONS', 'WACC'] },
+  { title: 'Research & Estimates', entries: ['ESTIMATES', 'EARNINGS', 'ANALYSTS', 'FILINGS'] },
   { title: 'Comparative Analytics', entries: ['PEERS'] },
   { title: 'Charting & Reporting', entries: ['CHART', 'FUNDCHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'SPREAD', 'BETA', 'VOLATILITY'] },
   { title: 'Security Surveillance', entries: ['EVENTS', 'QUOTE', 'ALERTS'] },
@@ -40,7 +40,7 @@ const EQUITY: Group[] = [
 const MENUS: Record<AssetClass, Group[]> = {
   equity: EQUITY,
   index: [
-    { title: 'Index', entries: ['PROFILE', 'CONTRIB', 'HEATMAP', 'MARKET', 'INDEXFUTURES', 'COMPANYNEWS'] },
+    { title: 'Index', entries: ['PROFILE', 'CONTRIB', 'MEMBERS', 'MOVERS', 'RANKEDRETURNS', 'HEATMAP', 'MARKET', 'INDEXFUTURES', 'COMPANYNEWS'] },
     { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'VOLATILITY', 'SPREAD'] },
     { title: 'Derivatives', entries: ['OPTIONS', 'OPTIONCALC', 'OPTIONSTRATEGY'] },
     { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION'] },

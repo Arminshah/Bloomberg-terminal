@@ -1185,3 +1185,5 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .dvd-top { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 10px; padding: 4px 8px; align-items: start; }
 @media (max-width: 760px) { .dvd-top { grid-template-columns: 1fr; } }
 .hds-stats .lbl { color: var(--amber); }
+.eeo-tbl .eeo-n { width: 34px; color: var(--muted); }
+.cacs-count { margin-left: auto; }

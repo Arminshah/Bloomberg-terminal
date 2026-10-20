@@ -73,6 +73,9 @@ export interface Estimate {
   epsLow: number;
   epsHigh: number;
   netIncomeAvg: number;
+  /** FMP only: EBITDA and EBIT estimates. */
+  ebitdaAvg?: number;
+  ebitAvg?: number;
   analystsRevenue: number;
   analystsEps: number;
   currency?: string;
@@ -164,6 +167,8 @@ export function parseEstimates(text: string): Parsed<Estimate[]> {
       epsLow: num(r?.epsLow ?? r?.estimatedEpsLow),
       epsHigh: num(r?.epsHigh ?? r?.estimatedEpsHigh),
       netIncomeAvg: num(r?.netIncomeAvg ?? r?.estimatedNetIncomeAvg),
+      ebitdaAvg: num(r?.ebitdaAvg ?? r?.estimatedEbitdaAvg),
+      ebitAvg: num(r?.ebitAvg ?? r?.estimatedEbitAvg),
       analystsRevenue: num(r?.numAnalystsRevenue ?? r?.numberAnalystEstimatedRevenue),
       analystsEps: num(r?.numAnalystsEps ?? r?.numberAnalystsEstimatedEps),
     }))

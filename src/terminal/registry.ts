@@ -52,6 +52,8 @@ import { NOTE } from '../functions/NOTE';
 import { MENU } from '../functions/MENU';
 import { ALLQ, DDIS, SRCH } from '../functions/CREDIT';
 import { GF, HVT, MEMB, MOV, MRR, TRA, VWAP } from '../functions/ANALYSIS';
+import { EEO } from '../functions/EEO';
+import { CACS } from '../functions/CACS';
 import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
 import { FOMC } from '../functions/FOMC';
 
@@ -65,6 +67,8 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'FINANCIALS', name: 'Financial Analysis', category: 'Equity', needsSec: true, classes: EQ, desc: 'Income statement, balance sheet, cash flow and ratios, annual and quarterly, with growth and trend.', component: FA, aliases: ['STATEMENTS'] },
   { code: 'ANALYSTS', name: 'Analyst Research', category: 'Equity', needsSec: true, classes: EQ, desc: 'FMP targets, ratings and estimates with independent section errors; Finnhub recommendation fallback; manual Equibles guidance, KPIs, events, insider trades, short interest, 13F holders and IR news. Own keys and endpoint access required. US-listed stocks.', component: ANR, aliases: ['TARGETS'], example: 'ANALYSTS AAPL' },
   { code: 'EARNINGS', name: 'Earnings', category: 'Equity', needsSec: true, classes: EQ, desc: 'Reported diluted EPS/revenue by quarter; Finnhub quarterly EPS comparisons and next-report calendar; annual analyst estimates from FMP. Provider figures and reporting bases remain labelled; own keys required.', component: EE },
+  { code: 'ESTIMATES', name: 'Consensus Overview', category: 'Equity', needsSec: true, classes: EQ, desc: "The last reported fiscal year against the analysts' consensus for the next ones, line by line (EPS, revenue, operating profit, EBITDA, net income) with the number of estimates and their growth, and the multiples at today's price: P/E, P/B, P/CF, EV/Revenue, EV/EBITDA, EV/EBIT and dividend yield.", component: EEO, example: 'ESTIMATES NVDA' },
+  { code: 'CORPACTIONS', name: 'Corporate Actions', category: 'Equity', needsSec: true, classes: EQ, desc: "A company's corporate actions by announcement or effective date: cash dividends and splits, and from its SEC filings acquisitions completed, merger and tender offer documents, offerings registered, listing changes and shareholder meetings.", component: CACS, example: 'CORPACTIONS AAPL' },
   { code: 'DIVIDENDS', name: 'Dividend History', category: 'Equity', needsSec: true, classes: EQ, desc: 'Cash dividends over ten years by ex-date, with amounts, frequency, 12-month yield and the next expected ex-date.', component: DVD, aliases: ['DIVS'] },
   { code: 'HOLDERS', name: 'Holders', category: 'Equity', needsSec: true, classes: EQ, desc: 'Largest institutional and fund holders with position, percent outstanding and change, and the ownership breakdown.', component: HDS, aliases: ['OWNERSHIP'] },
   { code: 'MANAGEMENT', name: 'Management', category: 'Equity', needsSec: true, classes: EQ, desc: "The company's officers from Yahoo Finance's company profile (name, title, age, pay, options exercised and unexercised), each insider's Form 4 purchases, sales, awards, exercises and holdings of the last 12 months from SEC EDGAR, and the proxy statement's total compensation (desktop app).", component: MGMT, aliases: ['OFFICERS'], example: 'MANAGEMENT AAPL' },
