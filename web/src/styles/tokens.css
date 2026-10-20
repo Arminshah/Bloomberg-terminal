@@ -1,0 +1,175 @@
+/*
+ * Armin Terminal design tokens. Every colour, size and spacing in the app comes from these variables.
+ * Dark graphite is the default; [data-theme="light"] on <html> switches to the light theme.
+ * Green and red (--move-up, --move-down) are reserved for price moves. Errors use --status-error (pink).
+ * Contrast (WCAG): --text-1 and --text-2 are at least 7:1 on every background, --text-3, accents, moves and
+ * status colours at least 4.5:1 on --bg-0 to --bg-2 in both themes.
+ */
+
+:root {
+  /* Type */
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-num: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 24px;
+  --leading-tight: 1.25;
+  --leading-normal: 1.45;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  /* Tabular figures keep columns of numbers aligned. */
+  --num-features: 'tnum' 1, 'zero' 1;
+
+  /* Spacing (4px grid, with 2px for dense tables) */
+  --space-0: 0;
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 24px;
+  --space-8: 32px;
+
+  /* Density: row heights for tables and lists */
+  --row-compact: 20px;
+  --row-normal: 24px;
+  --row-comfy: 30px;
+  --row: var(--row-normal);
+
+  /* Shape */
+  --radius-1: 2px;
+  --radius-2: 4px;
+  --radius-3: 8px;
+  --border-width: 1px;
+  --focus-width: 2px;
+
+  /* Layout */
+  --pane-gap: 2px;
+  --pane-header: 28px;
+  --command-bar: 36px;
+  --splitter: 4px;
+
+  /* Motion */
+  --dur-fast: 90ms;
+  --dur-normal: 160ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  /* How long a changed number keeps its tick background. */
+  --tick-flash: 700ms;
+
+  /* Layers */
+  --z-pane: 1;
+  --z-splitter: 5;
+  --z-popover: 20;
+  --z-command: 30;
+  --z-toast: 40;
+  --z-modal: 50;
+
+  color-scheme: dark;
+
+  /* Dark graphite surfaces, from the app base up to hovered rows */
+  --bg-0: #0e1114;
+  --bg-1: #14181c;
+  --bg-2: #1b2026;
+  --bg-3: #232a31;
+  --border: #2b333b;
+  --border-strong: #3a444e;
+
+  /* Text */
+  --text-1: #e7ebee;
+  --text-2: #a9b3bc;
+  --text-3: #86919b;
+  --text-on-accent: #04201d;
+
+  /* Signature accent: cool teal (focus, selection, active pane, primary actions) */
+  --accent: #2ec4b6;
+  --accent-strong: #5fe0d3;
+  --accent-soft: rgba(46, 196, 182, 0.14);
+
+  /* Secondary highlight: violet (editable fields, the command bar caret, secondary actions, info) */
+  --accent-2: #a78bfa;
+  --accent-2-soft: rgba(167, 139, 250, 0.14);
+
+  /* Price moves only */
+  --move-up: #3fcf7f;
+  --move-down: #ff6b6b;
+  --move-flat: var(--text-2);
+  --move-up-soft: rgba(63, 207, 127, 0.16);
+  --move-down-soft: rgba(255, 107, 107, 0.16);
+
+  /* Status (never green or red) */
+  --status-info: var(--accent-2);
+  --status-warn: #f0c45c;
+  --status-error: #f472b6;
+  --status-ok: var(--accent);
+
+  /* Charts */
+  --chart-bg: var(--bg-1);
+  --chart-grid: #20262d;
+  --chart-axis: var(--text-3);
+  --chart-crosshair: #5b6772;
+  --chart-volume: rgba(169, 179, 188, 0.28);
+  --series-1: #2ec4b6;
+  --series-2: #a78bfa;
+  --series-3: #f0c45c;
+  --series-4: #6cb6ff;
+  --series-5: #f472b6;
+  --series-6: #c8d1d9;
+
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-0: #f3f5f7;
+  --bg-1: #ffffff;
+  --bg-2: #eef1f4;
+  --bg-3: #e3e8ed;
+  --border: #d5dbe1;
+  --border-strong: #b9c2cb;
+
+  --text-1: #12171c;
+  --text-2: #46525d;
+  --text-3: #5f6b76;
+  --text-on-accent: #ffffff;
+
+  --accent: #076b63;
+  --accent-strong: #04554e;
+  --accent-soft: rgba(7, 107, 99, 0.1);
+
+  --accent-2: #6747d1;
+  --accent-2-soft: rgba(103, 71, 209, 0.1);
+
+  --move-up: #11743f;
+  --move-down: #c42a35;
+  --move-up-soft: rgba(17, 116, 63, 0.12);
+  --move-down-soft: rgba(196, 42, 53, 0.12);
+
+  --status-warn: #7d5c00;
+  --status-error: #a8236f;
+
+  --chart-grid: #e6eaee;
+  --chart-crosshair: #8994a0;
+  --chart-volume: rgba(70, 82, 93, 0.22);
+  --series-1: #076b63;
+  --series-2: #6747d1;
+  --series-3: #8a6500;
+  --series-4: #1f6fbf;
+  --series-5: #a8236f;
+  --series-6: #46525d;
+
+  --shadow-popover: 0 8px 24px rgba(18, 23, 28, 0.16);
+}
+
+:root[data-density='compact'] {
+  --row: var(--row-compact);
+}
+
+:root[data-density='comfy'] {
+  --row: var(--row-comfy);
+}
