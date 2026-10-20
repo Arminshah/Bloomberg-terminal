@@ -28,9 +28,22 @@ net.fetch = async (input, init) => {
   if (url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Synthetic currency-switch fixture' } });
   if (url.hostname === 'data.sec.gov') {
     if (url.pathname.includes('/companyfacts/')) return json(currencyTemplate);
+    // With fixtures.insiders, two Form 4 filings of the last weeks (electron/sec.cjs ownership-xml).
+    const recent = (days) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+    const four = fixtures.insiders ? { accessionNumber: ['0001513845-26-000011', '0001513845-26-000010'], form: ['4', '4'], filingDate: [recent(3), recent(20)], reportDate: [recent(5), recent(22)], primaryDocument: ['xslF345X05/form4-sale.xml', 'xslF345X05/form4-award.xml'] } : { accessionNumber: [], form: [], filingDate: [], reportDate: [], primaryDocument: [] };
     return json({ cik: 1513845, name: 'Synthetic currency-switch fixture', tickers: ['NBIS'], exchanges: ['Nasdaq'], fiscalYearEnd: '1231', filings: { recent: {
-      accessionNumber: ['0001513845-26-000002', '0001513845-26-000001'], form: ['6-K', '20-F'], filingDate: ['2026-10-01', '2026-04-30'], reportDate: ['2026-10-01', '2025-12-31'], primaryDocument: ['synthetic-current.htm', 'synthetic-annual.htm'],
+      accessionNumber: [...four.accessionNumber, '0001513845-26-000002', '0001513845-26-000001'], form: [...four.form, '6-K', '20-F'], filingDate: [...four.filingDate, '2026-10-01', '2026-04-30'], reportDate: [...four.reportDate, '2026-10-01', '2025-12-31'], primaryDocument: [...four.primaryDocument, 'synthetic-current.htm', 'synthetic-annual.htm'],
     }, files: [] } });
+  }
+  if (fixtures.insiders && url.hostname === 'www.sec.gov' && /^\/Archives\/edgar\/data\/1513845\/\d{18}\/form4-(sale|award)\.xml$/.test(url.pathname)) {
+    const day = (days) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+    const line = (date, code, shares, price, ad, after) => `<nonDerivativeTransaction><securityTitle><value>Class A Ordinary Shares</value></securityTitle><transactionDate><value>${date}</value></transactionDate><transactionCoding><transactionFormType>4</transactionFormType><transactionCode>${code}</transactionCode></transactionCoding><transactionAmounts><transactionShares><value>${shares}</value></transactionShares><transactionPricePerShare>${price === null ? '<footnoteId id="F1"/>' : `<value>${price}</value>`}</transactionPricePerShare><transactionAcquiredDisposedCode><value>${ad}</value></transactionAcquiredDisposedCode></transactionAmounts><postTransactionAmounts><sharesOwnedFollowingTransaction><value>${after}</value></sharesOwnedFollowingTransaction></postTransactionAmounts><ownershipNature><directOrIndirectOwnership><value>D</value></directOrIndirectOwnership></ownershipNature></nonDerivativeTransaction>`;
+    const owner = (cik, name, title) => `<reportingOwner><reportingOwnerId><rptOwnerCik>${cik}</rptOwnerCik><rptOwnerName>${name}</rptOwnerName></reportingOwnerId><reportingOwnerRelationship><isOfficer>1</isOfficer><officerTitle>${title}</officerTitle></reportingOwnerRelationship></reportingOwner>`;
+    const sale = url.pathname.endsWith('sale.xml');
+    const body = sale
+      ? `<aff10b5One>1</aff10b5One>${owner('0001900002', 'VOLOZH ARKADY', 'Chief Executive Officer')}<nonDerivativeTable>${line(day(6), 'S', 25000, 160.4, 'D', 1475000)}${line(day(5), 'P', 1000, 158, 'A', 1476000)}</nonDerivativeTable>`
+      : `${owner('0001900003', 'BOYNTON OPHIR', 'Chief Financial Officer')}<nonDerivativeTable>${line(day(22), 'A', 12000, null, 'A', 212000)}</nonDerivativeTable>`;
+    return new Response(`<?xml version="1.0"?><ownershipDocument><schemaVersion>X0508</schemaVersion><documentType>4</documentType>${body}</ownershipDocument>`, { status: 200, headers: { 'Content-Type': 'text/xml' } });
   }
   if (url.hostname === 'fc.yahoo.com') return new Response(null, { status: 404 });
   if (url.hostname === 'query2.finance.yahoo.com') {

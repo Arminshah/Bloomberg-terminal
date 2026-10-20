@@ -26,7 +26,7 @@ export interface SecAnswer {
   error?: string;
 }
 
-export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl';
+export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl' | 'ownership-xml';
 
 export type SecResult<T> =
   | { ok: true; data: T; at: number; stale?: boolean }
@@ -729,6 +729,8 @@ const folder = (cik: number, accession: string) => `${cik}/${accession.replace(/
 export const loadFilingIndex = (cik: number, accession: string) => load('filing-index', folder(cik, accession), 24 * 3600_000, parseFilingIndex);
 /** A filing's XBRL instance as text (the SEC extracts it from inline XBRL as name_htm.xml). */
 export const loadFilingXbrl = (cik: number, accession: string, file: string) => load('filing-xbrl', `${folder(cik, accession)}/${file}`, 7 * 24 * 3600_000, (t) => (t.includes('<') ? t : null));
+/** An ownership filing's XML (Form 4): `file` is its primary document without EDGAR's style-sheet folder. */
+export const loadOwnershipXml = (cik: number, accession: string, file: string) => load('ownership-xml', `${folder(cik, accession)}/${file}`, 7 * 24 * 3600_000, (t) => (t.includes('<ownershipDocument') ? t : null));
 
 /** Which SEC filer a security is: by its US ticker in the SEC's company list. */
 export async function resolveFiler(ticker: string, force = false): Promise<SecResult<SecCompany>> {

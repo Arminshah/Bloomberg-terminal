@@ -28,6 +28,7 @@ interface Fixtures {
   newsStories: boolean;
   newsAgeMs: number;
   marketCalendar?: boolean;
+  insiders?: boolean;
   calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
@@ -150,6 +151,36 @@ test('EVENTS covers the whole market above $2B with expected and reported EPS an
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-events-market-fixture.png') });
   await panel.getByLabel('Filter the calendar').fill('meta');
   await expect(panel.locator('tbody tr.click')).toHaveCount(1);
+});
+
+test("MANAGEMENT totals each insider's Form 4 purchases, sales and awards, and lists every transaction with its filing", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.insiders = true;
+    // NBIS is looked up on Yahoo (the fixture's search answers it).
+    fixtures.dataAccuracy = true;
+    process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid';
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'NBIS', 'MENU');
+  await command(page, 'MANAGEMENT', 'MANAGEMENT');
+  const section = page.locator('.sect', { hasText: 'Insider transactions, last 12 months' });
+  await expect(section).toContainText('2 of 2 Form 4 filings read', { timeout: 30_000 });
+  await expect(section.locator('.insider-total')).toContainText('1 buyer bought 1,000 shares');
+  await expect(section.locator('.insider-total')).toContainText('1 seller sold 25,000 shares (4.01M)');
+  await expect(section.locator('.insider-total')).toContainText('awarded 12,000 shares');
+  const arkady = section.locator('tbody tr', { hasText: 'Arkady Volozh' }).first();
+  await expect(arkady).toContainText('Chief Executive Officer');
+  await expect(arkady).toContainText('25,000');
+  await expect(arkady).toContainText('-24,000');
+  await expect(arkady).toContainText('1,476,000');
+  await expect(section.locator('tbody tr', { hasText: 'Ophir Boynton' }).first()).toContainText('12,000');
+  const sale = section.locator('tbody tr', { hasText: 'Sale · 10b5-1' });
+  await expect(sale).toContainText('160.40');
+  await expect(sale.getByRole('link', { name: 'Form 4 ›' })).toHaveAttribute('href', /^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/1513845\/000151384526000011\/xslF345X05\/form4-sale\.xml$/);
+  await expect(section.locator('tbody tr', { hasText: 'Grant or award' })).toContainText('+12,000');
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-management-insiders-fixture.png') });
 });
 
 test('linked panels preserve functions and saved groups in the real desktop renderer', async ({ desktop: { page } }) => {

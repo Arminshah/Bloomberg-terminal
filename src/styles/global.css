@@ -1013,6 +1013,8 @@ a.news-item { color: inherit; text-decoration: none; }
 .md code { background: #131313; padding: 0 3px; }
 .earn-growth { margin-top: 6px; line-height: 1.6; }
 .earn-growth .up, .earn-growth .dn { font-weight: 600; }
+/* MANAGEMENT's insider totals: one line of figures, wrapping in a narrow panel. */
+.insider-total { display: flex; flex-wrap: wrap; gap: 2px 18px; line-height: 1.6; }
 /* An earnings card opened under its line on EVENTS: the report as expected and as reported, and its growth. */
 .tbl tr.earn-card-row > td { height: auto; padding: 6px 10px 10px 26px; background: #0d1117; border-bottom: 1px solid #2c3540; white-space: normal; }
 .tbl tr.earn-card-row:hover > td { background: #0d1117; box-shadow: none; }

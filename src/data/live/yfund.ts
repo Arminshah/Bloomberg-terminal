@@ -80,6 +80,8 @@ export interface Officer {
   totalPay: number;
   /** The value of options exercised in the fiscal year, as Yahoo gives it. */
   exercised: number;
+  /** The value of the options held and not exercised, as Yahoo gives it. */
+  unexercised: number;
   fiscalYear: number;
 }
 
@@ -134,6 +136,7 @@ export function officersFrom(ap: Json): Officer[] {
       yearBorn: integer(o?.yearBorn, 1850, 2100),
       totalPay: nonnegative(o?.totalPay),
       exercised: nonnegative(o?.exercisedValue),
+      unexercised: nonnegative(o?.unexercisedValue),
       fiscalYear: integer(o?.fiscalYear, 1900, 2100),
     }))
     .filter((o) => o.name);

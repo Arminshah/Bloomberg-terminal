@@ -13,7 +13,12 @@ export interface Column<T> {
   title?: string;
   /** Hidden on narrow screens. */
   hideM?: boolean;
+  /** Hidden in panels up to 620px wide, or up to 900px (a half-width panel). */
+  hideN?: boolean;
+  hideW?: boolean;
 }
+
+const hiding = <T,>(c: Column<T>) => `${c.hideM ? ' hide-m' : ''}${c.hideN ? ' hide-n' : ''}${c.hideW ? ' hide-w' : ''}`;
 
 interface Props<T> {
   columns: Column<T>[];
@@ -97,7 +102,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
             <th
               key={c.key}
               scope="col"
-              className={`${c.num ? 'num ' : ''}${c.sort ? 'sortable ' : ''}${c.hideM ? 'hide-m' : ''}`}
+              className={`${c.num ? 'num ' : ''}${c.sort ? 'sortable ' : ''}${hiding(c)}`}
               style={c.width ? { width: c.width } : undefined}
               onClick={() => toggle(c)}
               tabIndex={c.sort ? 0 : undefined}
@@ -140,7 +145,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
             >
               {numbered && <td className="idx num">{nums[index] !== undefined ? `${nums[index]})` : ''}</td>}
               {columns.map((c) => (
-                <td key={c.key} className={`${c.num ? 'num ' : ''}${c.cls?.(r) ?? ''} ${c.hideM ? 'hide-m' : ''}`}>
+                <td key={c.key} className={`${c.num ? 'num ' : ''}${c.cls?.(r) ?? ''}${hiding(c)}`}>
                   {c.render(r, i)}
                 </td>
               ))}
