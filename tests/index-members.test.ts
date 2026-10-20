@@ -12,7 +12,7 @@ const sp500 = [
 describe('index members without a key', () => {
   it('reads the S&P 500 list with quoted fields, class shares and GICS sectors', () => {
     expect(csvFields('MMM,3M,"Saint Paul, Minnesota","say ""hi"""')).toEqual(['MMM', '3M', 'Saint Paul, Minnesota', 'say "hi"']);
-    const r = parseSp500(`﻿${sp500}`);
+    const r = parseSp500(`\uFEFF${sp500}`);
     if ('error' in r) throw new Error(r.error);
     expect(r.data[0]).toEqual({ symbol: 'MMM', name: '3M', sector: 'Industrials', industry: 'Industrial Conglomerates' });
     expect(r.data[1].symbol).toBe('BRK.B');
