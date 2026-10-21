@@ -329,3 +329,30 @@ describe('SPLC: what the second review found', () => {
     expect(role('Our business is highly dependent on Ford.', ['Ford'])).toBeNull();
   });
 });
+
+describe('SPLC: what the third review found', () => {
+  const T = (names: string[]) => targetPattern(names);
+  const role = (sentence: string, names: string[]) => classify(sentence, T(names))?.role ?? null;
+
+  it('reads who acts for whom', () => {
+    expect(role('Lilly manufactures and distributes Adcirca on our behalf.', ['Lilly'])).toBe('customer');
+    expect(role('Under the agreement, Microsoft has committed to pay the Group approximately $17.4 billion over five years.', ['Microsoft'])).toBe('supplier');
+    expect(role('Our accelerators are being deployed by leading cloud providers including Oracle and Microsoft.', ['Oracle'])).toBe('supplier');
+    expect(role('Upon transfer of the license to Pfizer, we recognized revenue.', ['Pfizer'])).toBe('partner');
+  });
+
+  it('leaves out plans, exhibits, other parties\' ventures, generic lists and contracts without a direction', () => {
+    expect(role('We plan to rely on another major supplier, AMD, for future GPUs.', ['AMD'])).toBeNull();
+    expect(role('Changzhou Almaden Co., Ltd. (we refer to it as "AMD") supplied 95% of our panels in 2019.', ['AMD'])).toBeNull();
+    expect(role('Master Supply Agreement with Microsoft Corporation (incorporated by reference to Exhibit 10.1 to our Form 8-K).', ['Microsoft'])).toBeNull();
+    expect(role('Customers can choose cloud providers, such as Microsoft, Amazon and Google, to host the software.', ['Microsoft'])).toBeNull();
+    expect(role('Azule is a joint venture between BP and Eni, and ExxonMobil is our other major client.', ['ExxonMobil'])).not.toBe('partner');
+    expect(role('In 2025, we entered into an equipment supply contract with Caterpillar for $801 million.', ['Caterpillar'])).toBeNull();
+  });
+
+  it('skips parents, former names and architectures in a list of names', () => {
+    const d = buildDirectory([{ cik: 1, ticker: 'SHI', title: 'Shandong Heavy Industry Group' }, { cik: 2, ticker: 'ARM', title: 'Arm Holdings plc' }]);
+    expect(findCompanies('Shantui Construction Machinery Co., Ltd. (part of Shandong Heavy Industry Group)', d).map((f) => f.ticker ?? f.name)).toEqual(['Shantui Construction Machinery']);
+    expect(findCompanies('competitors using alternative computing architectures, such as Arm', d)).toEqual([]);
+  });
+});

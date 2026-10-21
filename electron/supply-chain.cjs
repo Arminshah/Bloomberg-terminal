@@ -178,7 +178,11 @@ function namePattern(names) {
   const words = (alts, flags) => (alts.length ? new RegExp(`(?<![A-Za-z0-9])(?:${alts.join('|')})(?![A-Za-z0-9])`, flags) : null);
   const e = words(exact, '');
   const b = words(blind, 'i');
-  return { test: (s) => !!(e?.test(s) || b?.test(s)) };
+  const index = (s) => Math.min(...[e, b].filter(Boolean).map((r) => {
+    const m = r.exec(s);
+    return m ? m.index : Infinity;
+  }));
+  return { test: (s) => !!(e?.test(s) || b?.test(s)), index: (s) => { const i = index(s); return Number.isFinite(i) ? i : 0; } };
 }
 
 /** Valid names from the page: up to eight, each a plausible company name. */
@@ -196,14 +200,16 @@ function mentionSentences(text, names, max = 80) {
   const out = [];
   for (const s of splitSentences(text)) {
     if (s.length < 25 || !/[a-z]{3}/.test(s) || !pattern.test(s)) continue;
-    out.push(s.slice(0, MAX_SENTENCE));
+    // A long sentence keeps the part around the first mention of the company, so the name is never cut off.
+    const at = s.length > MAX_SENTENCE ? pattern.index(s) : 0;
+    out.push(at > MAX_SENTENCE / 2 ? s.slice(at - MAX_SENTENCE / 2, at + MAX_SENTENCE / 2) : s.slice(0, MAX_SENTENCE));
     if (out.length >= max) break;
   }
   return out;
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 2;
+const EXTRACTION = 3;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;

@@ -55,8 +55,8 @@ export function shareLabel(r: Relation): string {
     const e = latestEvidence(r);
     if (!e) return '';
     const src = sourceLabel(e);
-    const who = r.side === 'both' ? 'Both' : r.side === 'own' ? 'Its' : 'Their';
-    return `${who} ${src === 'Press release' || src === 'Agreement' ? src.toLowerCase() : src} · ${monthYear(e.date)}`;
+    if (r.side === 'both') return `Both name it · ${monthYear(e.date)}`;
+    return `${r.side === 'own' ? 'Its' : 'Their'} ${src === 'Press release' || src === 'Agreement' ? src.toLowerCase() : src} · ${monthYear(e.date)}`;
   }
   const v = `${r.qualifier === '>' ? '≥' : r.qualifier === '<' ? '<' : ''}${fmtNum(r.share, r.share % 1 ? 1 : 0)}%`;
   const period = sharePeriod(r.evidence[0]?.sentence ?? '');

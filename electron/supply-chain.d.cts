@@ -7,7 +7,7 @@ export function searchUrl(arg: unknown): string | null;
 export function docUrl(path: unknown): string | null;
 export function htmlToText(html: string): string;
 export function splitSentences(text: string): string[];
-export function namePattern(names: string[]): { test(s: string): boolean };
+export function namePattern(names: string[]): { test(s: string): boolean; index(s: string): number };
 export function cleanNames(names: unknown): string[] | null;
 export function mentionSentences(text: string, names: string[], max?: number): string[];
 export function ownSentences(text: string, max?: number): string[];
