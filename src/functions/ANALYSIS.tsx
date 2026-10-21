@@ -16,7 +16,7 @@ import { indexAtOrBefore, type Series } from '../data/series';
 import type { SecurityDef } from '../data/types';
 import { maxDrawdown, percentile, stdev } from '../finance/stats';
 import type { FnProps } from '../terminal/types';
-import { BoardMembers, BoardMovers, BoardRanked, hasBoard, IndexPicker } from './IndexBoards';
+import { BoardMembers, BoardMovers, BoardRanked, BoardGroups, hasBoard, IndexPicker } from './IndexBoards';
 import { membersAvailable } from '../data/live/index-members';
 
 const H: { n: number; h: Horizon }[] = [
@@ -549,12 +549,26 @@ export function MRR(props: FnProps) {
   return <BoardRanked ix={ix} />;
 }
 
+/** GRR: industry groups ranked by return. */
+export function GRR(props: FnProps) {
+  const ix = boardIndex(props);
+  if (!membersAvailable() || !hasBoard(ix.id)) return <BoardUnavailable ix={ix} what="Group ranked returns" />;
+  return <BoardGroups ix={ix} />;
+}
+
+const UNAVAILABLE: Record<string, { code: string; title: string }> = {
+  'Index members': { code: 'MEMBERS', title: 'Index Members' },
+  'Member ranked returns': { code: 'RANKEDRETURNS', title: 'Member Ranked Returns' },
+  'Group ranked returns': { code: 'GROUPRETURNS', title: 'Group Ranked Returns' },
+};
+
 function BoardUnavailable({ ix, what }: { ix: SecurityDef; what: string }) {
+  const { code, title } = UNAVAILABLE[what];
   return (
     <div>
-      <FnHeader code={what === 'Index members' ? 'MEMBERS' : 'RANKEDRETURNS'} title={what === 'Index members' ? 'Index Members' : 'Member Ranked Returns'} sec={ix} />
+      <FnHeader code={code} title={title} sec={ix} />
       <div className="chart-tools">
-        <IndexPicker ix={ix} fn={what === 'Index members' ? 'MEMBERS' : 'RANKEDRETURNS'} />
+        <IndexPicker ix={ix} fn={code} />
       </div>
       <div className="empty">
         {membersAvailable()

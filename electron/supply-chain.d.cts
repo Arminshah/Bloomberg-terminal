@@ -1,6 +1,7 @@
 // Types for supply-chain.cjs, for the tests that import it.
 export const TERMS: string[];
 export function ftsUrl(arg: unknown, now?: number): string | null;
+export function searchUrl(arg: unknown): string | null;
 export function docUrl(path: unknown): string | null;
 export function htmlToText(html: string): string;
 export function splitSentences(text: string): string[];

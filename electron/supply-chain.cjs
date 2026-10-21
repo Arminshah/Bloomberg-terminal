@@ -35,6 +35,53 @@ function ftsUrl(arg, now = Date.now()) {
   return `https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(q)}&forms=10-K,20-F,40-F&dateRange=custom&startdt=${day(now - 548 * DAY)}&enddt=${day(now)}`;
 }
 
+/**
+ * DS, document search: the full-text search with the page's words and filters, each checked (words of up to 120
+ * characters without markup, form names, CIKs, ISO dates, a page offset). `arg` is a query string; null when a part
+ * is not one the app sends.
+ */
+function searchUrl(arg) {
+  if (typeof arg !== 'string' || arg.length > 400) return null;
+  let p;
+  try {
+    p = new URLSearchParams(arg);
+  } catch {
+    return null;
+  }
+  const out = new URLSearchParams();
+  for (const key of p.keys()) if (!['q', 'forms', 'ciks', 'startdt', 'enddt', 'from'].includes(key)) return null;
+  const q = (p.get('q') ?? '').trim();
+  if (q.length < 2 || q.length > 120 || /[\u0000-\u001f<>{}\\^`|~]/.test(q)) return null;
+  out.set('q', q);
+  const forms = p.get('forms');
+  if (forms) {
+    const list = forms.split(',');
+    if (list.length > 16 || !list.every((f) => /^[A-Z0-9][A-Z0-9 /-]{0,11}$/.test(f))) return null;
+    out.set('forms', forms);
+  }
+  const ciks = p.get('ciks');
+  if (ciks) {
+    const list = ciks.split(',');
+    if (list.length > 5 || !list.every((c) => /^\d{10}$/.test(c))) return null;
+    out.set('ciks', ciks);
+  }
+  const iso = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(`${v}T00:00:00Z`));
+  const start = p.get('startdt');
+  const end = p.get('enddt');
+  if (start || end) {
+    if (!start || !end || !iso(start) || !iso(end)) return null;
+    out.set('dateRange', 'custom');
+    out.set('startdt', start);
+    out.set('enddt', end);
+  }
+  const from = p.get('from');
+  if (from) {
+    if (!/^\d{1,4}$/.test(from) || Number(from) % 100 !== 0 || Number(from) > 9900) return null;
+    out.set('from', from);
+  }
+  return `https://efts.sec.gov/LATEST/search-index?${out.toString().replace(/\+/g, '%20')}`;
+}
+
 /** The URL of a filed document, or null when the path is not one. */
 function docUrl(path) {
   return typeof path === 'string' && DOC.test(path) ? `https://www.sec.gov/Archives/edgar/data/${path}` : null;
@@ -201,4 +248,4 @@ class SentenceStore {
   }
 }
 
-module.exports = { TERMS, ftsUrl, docUrl, htmlToText, splitSentences, namePattern, cleanNames, mentionSentences, ownSentences, SentenceStore };
+module.exports = { TERMS, ftsUrl, searchUrl, docUrl, htmlToText, splitSentences, namePattern, cleanNames, mentionSentences, ownSentences, SentenceStore };

@@ -68,7 +68,7 @@ source; built only as far as data allows, or left out).
   pre-market / regular / post-market, period trailing/today/previous day, display name or ticker, change in
   percent or net); tabs Volume, Chg Up, Chg Down, Value, ΔAVAT, 52Wk Highs, 52Wk Lows; columns Security, Last,
   %Chg, Volume with a bar, Vol 5', and the latest News headline per stock.
-- **MRR / GRR, member / group ranked returns** (new): members or industry groups ranked by return over a period.
+- **MRR / GRR, member / group ranked returns** (have RANKEDRETURNS, GROUPRETURNS): members or industry groups ranked by return over a period.
 - **FTW, TLTS factors** (no data: needs factor models).
 - **PORT** (have PORTFOLIO): workspace with tabs Intraday, Aggregate, Trend, TEV, VaR, ESG, Attribution; a
   topline summary (Market Value, Div Yld, P/E, P/CF, P/B, Debt/Equity, Current Ratio, ROE) for portfolio vs
@@ -95,7 +95,7 @@ source; built only as far as data allows, or left out).
   Browse, clock; date range; "Economic Releases ▾", "All Economic Releases ▾"; View Agenda / Weekly; columns Date
   Time, A (alert), M (market-moving), R (relevance bars), Event, Period, Surv(M), Actual, Prior, Revised, C
   (country); numbered rows.
-- **DS, document search** (new: SEC full-text search can serve filings).
+- **DS, document search** (have DOCSEARCH): the SEC's full-text search of filings and exhibits since 2001, by company, form and dates, with the sentences where each document matches.
 
 ## Financials and earnings
 
@@ -119,7 +119,7 @@ source; built only as far as data allows, or left out).
   Declared, Gross, Frank %, Type (Final, Interim, Special, rights).
 - **CACS, corporate actions** (new): Actions for Company ▾, Announced/Effective date range, Filter Actions
   (Dividends, Splits, M&A, IPO/ADDL, Listings), count; table Effective Date, Action Type, Ticker, Summary.
-- **BBK, buybacks** (new where data allows: repurchases from the cash-flow statement).
+- **BBK, buybacks** (have BUYBACKS): repurchases from the cash-flow statement, shares bought back, average price, authorization, yields.
 - **HDS** (have HOLDERS): tabs Current, Historical, Matrix, Ownership Summary, Insider Transactions, Options,
   Issuer Debt; search/filters; Shrs Out, % Out, Float/Shrs Out, SI % Out; table Holder Name, Position, % Out,
   File Dt, Est. Holding Period, Portfolio Name, Source (13F, ULT-AGG), Opt, Latest Chg.
@@ -165,7 +165,7 @@ source; built only as far as data allows, or left out).
 - **EQRP, equity risk premium** (new): Period ▾ with date, currency; Country/Region data (Expected Market
   Return, Risk Free Rate, Country Risk Premium) and Equity data (Beta, Equity Risk Premium); historical graph.
 - **WACC** (have): cost of equity (risk-free, beta, premium), cost of debt (pre/after tax), weights and WACC.
-- **MA, IPO** (new: IPO calendar from public listings data; M&A not available).
+- **IPO** (have IPOS): offerings priced, expected, filed and withdrawn by period, money raised against a year earlier, first-day and since-offer returns, best and worst. **MA** (no data: deal terms are licensed).
 
 ## Research and valuation
 

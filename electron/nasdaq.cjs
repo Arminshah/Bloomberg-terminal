@@ -33,6 +33,19 @@ function nasdaqEconomicRequest(date, now = Date.now()) {
   return { url: `https://api.nasdaq.com/api/calendar/economicevents?date=${date}`, ttl, headers: { Accept: 'application/json, text/plain, */*' } };
 }
 
+/**
+ * One month of Nasdaq's IPO calendar (no key): offerings priced (with price, shares and amount), expected, filed and
+ * withdrawn. `month` is YYYY-MM, from five years back to three months ahead; past months are kept a day.
+ */
+function nasdaqIpoRequest(month, now = Date.now()) {
+  if (typeof month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return null;
+  const t = Date.parse(`${month}-01T00:00:00Z`);
+  if (t < now - 5 * 366 * DAY || t > now + 92 * DAY) return null;
+  const current = new Date(now).toISOString().slice(0, 7);
+  const ttl = month < current ? 24 * HOUR : 30 * 60_000;
+  return { url: `https://api.nasdaq.com/api/ipo/calendar?date=${month}`, ttl, headers: { Accept: 'application/json, text/plain, */*' } };
+}
+
 /** Every US-listed stock with its market value, sector and country: the stock screener's full list, kept a day. */
 function nasdaqScreenerRequest() {
   return { url: 'https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=10000&offset=0&download=true', ttl: 24 * HOUR, headers: { Accept: 'application/json, text/plain, */*' } };
@@ -98,4 +111,4 @@ function finraShortRequest(symbol, now = Date.now(), days = 75, limit = 12) {
   return { url: 'https://api.finra.org/data/group/otcMarket/name/consolidatedShortInterest', ttl: 12 * HOUR, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body };
 }
 
-module.exports = { finraShortRequest, nasdaqCalendarRequest, nasdaqEconomicRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };
+module.exports = { finraShortRequest, nasdaqCalendarRequest, nasdaqEconomicRequest, nasdaqIpoRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };

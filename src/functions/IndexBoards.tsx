@@ -353,6 +353,159 @@ export function BoardRanked({ ix }: { ix: SecurityDef }) {
   );
 }
 
+export interface GroupRow {
+  name: string;
+  members: Member[];
+  cap: number;
+  /** Return by period, cap-weighted on the members' values at the start of the period. */
+  ret: Record<Period, number>;
+  up: number;
+}
+
+/**
+ * A group's price return over a period: the change in its members' combined market value, each member's value at
+ * the start taken back from its own return (shares held constant), or the members' average when equal-weighted.
+ */
+export function groupReturn(rs: { cap: number; r: number }[], equal = false): number {
+  const ok = rs.filter((x) => Number.isFinite(x.r) && x.r > -100 && (equal || (Number.isFinite(x.cap) && x.cap > 0)));
+  if (!ok.length) return NaN;
+  if (equal) return ok.reduce((a, x) => a + x.r, 0) / ok.length;
+  const now = ok.reduce((a, x) => a + x.cap, 0);
+  const then = ok.reduce((a, x) => a + x.cap / (1 + x.r / 100), 0);
+  return (now / then - 1) * 100;
+}
+
+/** GRR: the index's industry groups (GICS sectors or sub-industries) ranked by return, each with its best and worst members. */
+export function BoardGroups({ ix }: { ix: SecurityDef }) {
+  useTick(5);
+  const panel = usePanelId();
+  const board = useIndexMembers(ix.id, { history: true })!;
+  const [period, setPeriod] = useState<Period>('YTD');
+  const [level, setLevel] = useState<'sector' | 'industry'>('sector');
+  const [equal, setEqual] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+  const by = new Map<string, Member[]>();
+  for (const m of board.members) {
+    const g = (level === 'sector' ? m.sector : m.industry || m.sector) || 'Unclassified';
+    by.set(g, [...(by.get(g) ?? []), m]);
+  }
+  const rows: GroupRow[] = [...by.entries()].map(([name, members]) => {
+    const ret = Object.fromEntries(PERIODS.map((p) => [p, groupReturn(members.map((m) => ({ cap: m.cap, r: memberReturn(board.index.key, m, p) })), equal)])) as Record<Period, number>;
+    return { name, members, cap: members.reduce((a, m) => a + (Number.isFinite(m.cap) ? m.cap : 0), 0), ret, up: members.filter((m) => memberReturn(board.index.key, m, period) > 0).length };
+  });
+  rows.sort((a, b) => (Number.isFinite(b.ret[period]) ? b.ret[period] : -Infinity) - (Number.isFinite(a.ret[period]) ? a.ret[period] : -Infinity));
+  const whole = groupReturn(board.members.map((m) => ({ cap: m.cap, r: memberReturn(board.index.key, m, period) })), equal);
+  const maxAbs = Math.max(1e-9, ...rows.map((r) => Math.abs(r.ret[period])).filter(Number.isFinite));
+  const numbered = useNumberedRows('grr-rows', rows, 1, (r) => setOpen((o) => (o === r.name ? null : r.name)), (r) => r.name);
+  const csv = () => [['Rank', level === 'sector' ? 'Sector' : 'Industry', 'Members', 'Market Value', ...PERIODS.map((p) => `Return ${p} %`)], ...rows.map((r, i) => [i + 1, r.name, r.members.length, r.cap, ...PERIODS.map((p) => r.ret[p])])];
+  const ranked = (g: GroupRow) => g.members.map((m) => ({ m, r: memberReturn(board.index.key, m, period) })).filter((x) => Number.isFinite(x.r)).sort((a, b) => b.r - a.r);
+  const loaded = rows.some((r) => Number.isFinite(r.ret[period]));
+  return (
+    <div>
+      <FnHeader code="GROUPRETURNS" title="Group Ranked Returns" sec={ix} actions={exportActions(panel, `${ix.ticker}_groups_${period}.csv`, csv)} />
+      <div className="chart-tools">
+        <IndexPicker ix={ix} fn="GROUPRETURNS" />
+        <label className="fld">
+          Groups
+          <select className="sel-inp" aria-label="Groups" value={level} onChange={(e) => setLevel(e.target.value as 'sector' | 'industry')}>
+            <option value="sector">Sectors</option>
+            <option value="industry">Industries</option>
+          </select>
+        </label>
+        <label className="fld">
+          Period
+          <select className="sel-inp" aria-label="Period" value={period} onChange={(e) => setPeriod(e.target.value as Period)}>
+            {PERIODS.map((p) => (
+              <option key={p}>{p}</option>
+            ))}
+          </select>
+        </label>
+        <label className="fld">
+          Weighting
+          <select className="sel-inp" aria-label="Weighting" value={equal ? 'equal' : 'cap'} onChange={(e) => setEqual(e.target.value === 'equal')}>
+            <option value="cap">Market Cap</option>
+            <option value="equal">Equal</option>
+          </select>
+        </label>
+        <span className="muted">
+          {loaded ? (
+            <>
+              {rows.length} groups · {ix.ticker.replace(/ Index$/, '')} members together <span className={sign(whole)}>{fmtPct(whole, 2)}</span>
+            </>
+          ) : null}
+        </span>
+      </div>
+      {boardStatus(board) ??
+        (loaded ? (
+          <table className="tbl grr-tbl">
+            <thead>
+              <tr>
+                <th>{level === 'sector' ? 'Sector' : 'Industry'}</th>
+                <th className="num">#</th>
+                <th className="num hide-m">Mkt Val</th>
+                <th className="grr-bar-h">{period}</th>
+                {PERIODS.filter((p) => p !== period).map((p) => (
+                  <th key={p} className="num hide-m">
+                    {p}
+                  </th>
+                ))}
+                <th className="hide-m">Best</th>
+                <th className="hide-m">Worst</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((g, i) => {
+                const list = ranked(g);
+                const best = list[0];
+                const worst = list[list.length - 1];
+                const r = g.ret[period];
+                return [
+                  <tr key={g.name} className="click" onClick={() => setOpen((o) => (o === g.name ? null : g.name))} title="Show the members">
+                    <td>
+                      <span className="row-no">{numbered[i]})</span> <span className="amber">{g.name}</span> <span className="muted">{open === g.name ? '▾' : '▸'}</span>
+                    </td>
+                    <td className="num">{g.members.length}</td>
+                    <td className="num hide-m">{fmtBig(g.cap, 1)}</td>
+                    <td className="grr-bar-cell">
+                      <span className={`num ${sign(r)}`}>{fmtPct(r, 2)}</span>
+                      <span className="grr-bar">
+                        <span className={r >= 0 ? 'up-bg' : 'dn-bg'} style={{ width: `${Number.isFinite(r) ? (Math.abs(r) / maxAbs) * 50 : 0}%`, [r >= 0 ? 'left' : 'right']: '50%' }} />
+                      </span>
+                    </td>
+                    {PERIODS.filter((p) => p !== period).map((p) => (
+                      <td key={p} className={`num hide-m ${sign(g.ret[p])}`}>
+                        {fmtPct(g.ret[p], 1)}
+                      </td>
+                    ))}
+                    <td className="hide-m">{best ? <>{best.m.symbol} <span className={sign(best.r)}>{fmtPct(best.r, 1)}</span></> : ''}</td>
+                    <td className="hide-m">{worst && list.length > 1 ? <>{worst.m.symbol} <span className={sign(worst.r)}>{fmtPct(worst.r, 1)}</span></> : ''}</td>
+                  </tr>,
+                  open === g.name ? (
+                    <tr key={`${g.name}:members`} className="grr-members">
+                      <td colSpan={5 + PERIODS.length + 1}>
+                        {list.map((x) => (
+                          <span key={x.m.symbol} className="grr-member click" onClick={() => openMember(panel, x.m)} title={x.m.name}>
+                            <span className="amber">{x.m.symbol}</span> <span className={sign(x.r)}>{fmtPct(x.r, 1)}</span>
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  ) : null,
+                ];
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <div className="empty">Loading a year of daily closes for the members…</div>
+        ))}
+      <p className="pad-s muted">
+        Price returns from Yahoo&apos;s daily closes to the latest price, dividends not added back; a group&apos;s return is the change in its members&apos; combined
+        market value (shares held constant){equal ? ', here the members’ average' : ''}. Groups are {board.index.key === 'SPX' ? 'GICS sectors and sub-industries from the S&P 500 member list' : 'the sectors and industries of Nasdaq’s stock list'}. Members from {board.index.from}.
+      </p>
+    </div>
+  );
+}
+
 /** For the functions that fall back to the app's universe: whether this index has its whole membership here. */
 export function hasBoard(id: string | undefined): boolean {
   return !!id && !!BOARD_INDICES[id];

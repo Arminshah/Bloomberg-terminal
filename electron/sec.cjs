@@ -20,7 +20,7 @@ const INSTANCE = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}_h
 // An ownership filing's own XML (Forms 3, 4 and 5), at the top of its folder.
 const OWNERSHIP = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}\.xml)$/;
 
-const { ftsUrl } = require('./supply-chain.cjs');
+const { ftsUrl, searchUrl } = require('./supply-chain.cjs');
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -64,12 +64,14 @@ const KINDS = {
   // The full-text search (efts.sec.gov): annual reports of the last 18 months naming a company beside a term
   // ("accounted for", "suppliers"...), for SPLC. Arg "term|name"; see electron/supply-chain.cjs.
   fts: { url: (arg) => ftsUrl(arg), ttl: 12 * HOUR },
+  // DS: the full-text search with the words and filters typed (see searchUrl).
+  search: { url: (arg) => searchUrl(arg), ttl: HOUR },
 };
 
 /** The URL and keep time for a request from the page, or null when it is not one the app makes. */
 function secRequest(kind, arg) {
   if (typeof kind !== 'string' || !Object.prototype.hasOwnProperty.call(KINDS, kind)) return null;
-  if (arg != null && (typeof arg !== 'string' || arg.length > 200)) return null;
+  if (arg != null && (typeof arg !== 'string' || arg.length > 400)) return null;
   const url = KINDS[kind].url(arg ?? '');
   return url ? { url, ttl: KINDS[kind].ttl } : null;
 }

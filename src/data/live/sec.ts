@@ -26,7 +26,7 @@ export interface SecAnswer {
   error?: string;
 }
 
-export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl' | 'ownership-xml' | 'fts';
+export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl' | 'ownership-xml' | 'fts' | 'search';
 
 export type SecResult<T> =
   | { ok: true; data: T; at: number; stale?: boolean }
@@ -452,7 +452,18 @@ export const FACT_LINES: FactLine[] = [
 /** Shares outstanding as given on each filing's cover page (dei), for the header. */
 export const COVER_SHARES = 'dei:EntityCommonStockSharesOutstanding';
 
-const WANTED = new Set([...FACT_LINES.flatMap((l) => l.concepts), COVER_SHARES]);
+/**
+ * BBK's extra figures: shares bought back (from the equity statement) and the repurchase program's authorization
+ * and remaining amount. Not in FACT_LINES, so the financial statements do not change.
+ */
+export const BUYBACK_LINES: FactLine[] = [
+  { key: 'bbShares', label: 'Shares repurchased', section: 'cash', kind: 'flow', measure: 'shares', concepts: ['us-gaap:StockRepurchasedDuringPeriodShares', 'us-gaap:StockRepurchasedAndRetiredDuringPeriodShares', 'us-gaap:TreasuryStockSharesAcquired'] },
+  { key: 'bbValue', label: 'Repurchases in the equity statement', section: 'cash', kind: 'flow', measure: 'money', concepts: ['us-gaap:StockRepurchasedDuringPeriodValue', 'us-gaap:StockRepurchasedAndRetiredDuringPeriodValue', 'us-gaap:TreasuryStockValueAcquiredCostMethod'] },
+  { key: 'bbAuth', label: 'Repurchase program authorized', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:StockRepurchaseProgramAuthorizedAmount1', 'us-gaap:StockRepurchaseProgramAuthorizedAmount'] },
+  { key: 'bbRemain', label: 'Authorization remaining', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:StockRepurchaseProgramRemainingAuthorizedRepurchaseAmount1', 'us-gaap:StockRepurchaseProgramRemainingAuthorizedRepurchaseAmount'] },
+];
+
+const WANTED = new Set([...FACT_LINES.flatMap((l) => l.concepts), ...BUYBACK_LINES.flatMap((l) => l.concepts), COVER_SHARES]);
 
 /**
  * data.sec.gov/api/xbrl/companyfacts/CIK##########.json:

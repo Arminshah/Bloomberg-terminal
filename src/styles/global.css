@@ -1244,3 +1244,36 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .splc-ticks { display: inline-flex; justify-content: space-between; width: 160px; margin-left: -168px; margin-top: 22px; color: var(--muted); }
 .splc-filter { width: 220px; }
 .splc-tbl .splc-quote { max-width: 520px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+
+/* GRR: groups ranked by return with a bar for the chosen period; a group opens onto its members. */
+.grr-tbl .grr-bar-h { min-width: 170px; }
+.grr-bar-cell { display: flex; align-items: center; gap: 8px; min-width: 170px; }
+.grr-bar-cell .num { min-width: 64px; }
+.grr-bar { position: relative; flex: 1; height: 9px; background: #161616; border-left: 1px solid transparent; }
+.grr-bar span { position: absolute; top: 0; bottom: 0; }
+.grr-bar .up-bg { background: var(--up); }
+.grr-bar .dn-bg { background: var(--dn); }
+.grr-members td { padding: 4px 10px 6px 28px; background: #0c0c0c; }
+.grr-member { display: inline-block; margin: 2px 14px 2px 0; white-space: nowrap; }
+
+/* BBK: three summary blocks above the chart. */
+.bbk-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 4px 8px; }
+@media (max-width: 900px) { .bbk-top { grid-template-columns: 1fr; } }
+
+/* IPO: the period's totals, and bars for the best and worst since the offer. */
+.ipo-summary { display: flex; flex-wrap: wrap; gap: 6px 22px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.ipo-bar-cell { width: 120px; }
+.ipo-bar { display: block; position: relative; height: 8px; background: #161616; }
+.ipo-bar span { position: absolute; left: 0; top: 0; bottom: 0; }
+.ipo-bar .up-bg { background: var(--up); }
+.ipo-bar .dn-bg { background: var(--dn); }
+
+/* DS: the search line, form facets, and the sentences where a document matches. */
+.ds-words { flex: 1 1 420px; }
+.ds-words .inp { flex: 1; min-width: 220px; }
+.ds-facets { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.ds-facets .chip { cursor: pointer; background: transparent; font: inherit; font-size: var(--fs-s); }
+.ds-match td { background: #0c0c0c; padding: 4px 12px 8px 24px; }
+.ds-sentence { margin: 4px 0; color: var(--text); line-height: 1.45; }
+.ds-sentence mark { background: #5a3d00; color: #fff; padding: 0 1px; }
+.ds-pager { display: flex; align-items: center; gap: 12px; padding: 6px 10px; }
