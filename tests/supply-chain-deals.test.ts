@@ -356,3 +356,41 @@ describe('SPLC: what the third review found', () => {
     expect(findCompanies('competitors using alternative computing architectures, such as Arm', d)).toEqual([]);
   });
 });
+
+describe('SPLC: what the fourth check found', () => {
+  const share = (sentence: string, names: string[]) => {
+    const c = classify(sentence, targetPattern(names));
+    return c ? [c.role, c.share ?? null] : null;
+  };
+
+  it('gives no share from a figure several companies make up together', () => {
+    expect(share("Our largest customers, Walmart (which includes its affiliates, including Sam's Club), Costco and Amazon, accounted for approximately 74.0% of our net sales in our year ended September 30, 2025.", ['Costco'])).toEqual(['supplier', null]);
+    expect(share("Together with Costco, Lowe's and Amazon these major retailers represented approximately 54% of total net sales in fiscal 2025 and 2024.", ['Costco'])).toEqual(['supplier', null]);
+    expect(share("Costco, Lowe's and Amazon are also significant customers, and together with Walmart and Home Depot, accounted for approximately 54% of our net sales in fiscal 2025 and 2024.", ['Costco'])).toEqual(['supplier', null]);
+    // One company's own figure still counts.
+    expect(share('During the years ended December 31, 2025, 2024 and 2023, sales to Costco accounted for 11% of consolidated net sales, respectively.', ['Costco'])).toEqual(['supplier', 11]);
+  });
+
+  it('reads no share from a range or from the sales of a product', () => {
+    const c = classify('The 2018 Amendment also provided the Group rights to promote Elunate in provinces that represent 30% to 40% of the sales of Elunate in China upon the occurrence of certain commercial milestones by Lilly.', targetPattern(['Eli Lilly', 'Lilly']));
+    expect(c?.share).toBeUndefined();
+  });
+
+  it('reads "the U.S.-McKesson Corporation" as McKesson', () => {
+    const d = buildDirectory([{ cik: 927653, ticker: 'MCK', title: 'MCKESSON CORP' }, { cik: 1140859, ticker: 'COR', title: 'Cencora, Inc.' }, { cik: 36104, ticker: 'USB', title: 'US BANCORP \\DE\\' }]);
+    const found = findCompanies('three wholesale distributors in the U.S.-McKesson Corporation, Cencora, Inc., and Cardinal Health, Inc.-each accounted for a significant percentage', d);
+    expect(found.map((f) => f.ticker ?? f.name)).toEqual(['MCK', 'COR', 'CAH']);
+    expect(findCompanies('a credit facility with U.S. Bancorp', d).map((f) => f.ticker)).toEqual(['USB']);
+  });
+});
+
+describe('SPLC: fees and consent', () => {
+  const role = (sentence: string, names: string[]) => classify(sentence, targetPattern(names));
+  it('reads platform fees as paid to the company, a group with affiliates as a group, and consent as no licence', () => {
+    expect(role('Platform providers, such as Apple, Google, and Amazon, charge transactional payment processing fees, which generally represent approximately 30% of our revenue, for accepting payments from players.', ['Apple'])).toEqual({ role: 'customer' });
+    expect(role("Our largest customers, Walmart and its affiliates (which includes Sam's Club), Costco and Amazon, accounted for approximately 74.0% of our net sales in our year ended September 30, 2025.", ['Costco'])?.share).toBeUndefined();
+    expect(role("Walmart Inc. and its affiliates together accounted for approximately 13% of our consolidated net sales.", ['Walmart'])?.share).toBe(13);
+    expect(role('We expect to deliver the opt-in package for the PCSK9 program to Lilly in the second half of 2025.', ['Lilly'])?.role).toBe('partner');
+    expect(role("In April 2021, Apple started implementing its application tracking transparency framework that requires users' opt-in consent for certain types of tracking.", ['Apple'])).toBeNull();
+  });
+});

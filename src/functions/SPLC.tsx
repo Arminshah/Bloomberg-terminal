@@ -164,7 +164,7 @@ function trunc(s: string, n: number): string {
 
 /** "CISCO SYSTEMS, INC." as "Cisco Systems Inc": the SEC's list writes many names in capitals. */
 export function displayName(name: string): string {
-  const clean = name.replace(/\s*\/[A-Za-z]{2,3}\/?\s*$/, '').replace(/\s+/g, ' ').trim();
+  const clean = name.replace(/\s*[/\\][A-Za-z]{2,3}[/\\]?\s*$/, '').replace(/\s+/g, ' ').trim();
   if (/[a-z]/.test(clean)) return clean;
   return clean
     .split(' ')

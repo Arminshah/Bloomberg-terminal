@@ -72,7 +72,7 @@ export interface Relation {
 // ------------------------------------------------------------------ names
 
 const SUFFIX = /(?:,?\s+(?:Inc|Incorporated|Corp|Corporation|Co|Company|Cos|Ltd|Limited|LLC|L\.L\.C|plc|N\.V|NV|S\.A|SA|AG|SE|SpA|S\.p\.A|GmbH|LP|L\.P|Holdings?|Group|Hldgs|Bhd|Pty)\.?)+$/i;
-const STATE_TAG = /\s*\/[A-Za-z]{2,3}\/?\s*$/;
+const STATE_TAG = /\s*[/\\][A-Za-z]{2,3}[/\\]?\s*$/;
 
 /** A company name without its legal form, punctuation or case: "Cisco Systems, Inc." → "cisco systems". */
 export function normalizeName(name: string): string {
@@ -86,7 +86,9 @@ export function normalizeName(name: string): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\b(class [abc]|common stock|ordinary shares|ads|adr)\b/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim()
+    // Initials read the same with or without stops: "U.S. Bancorp" and "US BANCORP", "J.M. Smucker" and "J M SMUCKER".
+    .replace(/\b([a-z0-9])\s(?=[a-z0-9]\b)/g, '$1');
 }
 
 const titleWord = (w: string) => (/^[A-Z][A-Z'-]+$/.test(w) && w.length > 3 ? w[0] + w.slice(1).toLowerCase() : w);
@@ -600,7 +602,7 @@ const INTENT = /\b(?:plans?|planned|planning|aims?|intends?|intended|seeks?|seek
 const TAKEOVER = /\b(?:Merger Sub|merger agreement|notice and waiver|waiver (?:under|of)|CVR|contingent value right|Agreement and Plan of Merger|plan of merger|Effective Time|tender offer|business combination|acquisition of (?:all|substantially all)|acquired by|to be acquired|would acquire|asset purchase agreement|purchase and sale agreement|sold (?:its|our|the|certain) [^.;]{0,60}\b(?:program|business|assets?|division|unit|portfolio|rights)\b|acquired certain assets|transition services?)\b/i;
 const HEDGED_COMPETITION = /\b(?:may|might|could|would|can)\s+(?:also\s+|potentially\s+|in the future\s+|eventually\s+)?(?:include|compete|face|become|enter|move)\b|\bif (?:they|it|we|any)\b|\bpotential(?:ly)? (?:compet|entrant)/i;
 /** Licences, royalties and research collaborations: partnerships, whichever way the money flows. */
-const LICENSING = /\b(?:royalt(?:y|ies)|milestone payments?|upfront payments?|collaboration (?:agreement|revenue|and license|and supply)|clinical (?:trial )?collaboration|license and collaboration|co-develop\w*|co-commerciali[sz]\w*|research (?:and development )?collaboration|option and license|in-licens\w*|out-licens\w*|sublicens\w*|exclusive (?:[\w.-]+\s+){0,3}licen[cs]e|licen[cs]ed (?:to|from)|licen[cs]e (?:agreements?|granted) (?:with|to|from)|(?:concluded|determined) that [^.;]{0,40}\b(?:is|was) a customer|ASC 606|contract with a customer|performance obligations?|stand[- ]ready obligation|transfer of the licen[cs]e|licens(?:ee|or)|know-how|opt-in|research (?:and development )?services|clinical (?:trial )?supply|compounds? transferred)\b/i;
+const LICENSING = /\b(?:royalt(?:y|ies)|milestone payments?|upfront payments?|collaboration (?:agreement|revenue|and license|and supply)|clinical (?:trial )?collaboration|license and collaboration|co-develop\w*|co-commerciali[sz]\w*|research (?:and development )?collaboration|option and license|in-licens\w*|out-licens\w*|sublicens\w*|exclusive (?:[\w.-]+\s+){0,3}licen[cs]e|licen[cs]ed (?:to|from)|licen[cs]e (?:agreements?|granted) (?:with|to|from)|(?:concluded|determined) that [^.;]{0,40}\b(?:is|was) a customer|ASC 606|contract with a customer|performance obligations?|stand[- ]ready obligation|transfer of the licen[cs]e|licens(?:ee|or)|know-how|opt-in (?:rights?|options?|payments?|packages?|decisions?|licen[cs]es?)|research (?:and development )?services|clinical (?:trial )?supply|compounds? transferred)\b/i;
 /** Oil, gas and mineral royalties are no licence. */
 const MINERAL = /\b(?:oil|natural gas|NGLs?|minerals?|acreage|acres|wells?|royalty (?:trusts?|interests?)|overriding royalt\w*|net profits interests?|operator)\b/i;
 /** Customers and suppliers of a third company named in the sentence ("Pegatron's customers include Tesla"). */
@@ -652,9 +654,14 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
     ? [{ run: pairRun.run, revenue: !pairRun.purchases, purchases: pairRun.purchases }]
     : stated
       ? allRuns
+          // A range ("provinces that represent 30% to 40% of the sales") is no one company's share.
+          .filter((run) => !/\d\s*(?:%|percent)?\s*(?:to|-|–|—)\s*$/i.test(s.slice(Math.max(0, run[0].index - 14), run[0].index)) && !/^\s*(?:to|-|–|—)\s*\d/.test(s.slice(run[run.length - 1].end, run[run.length - 1].end + 14)))
           .map((run) => {
             const tail = s.slice(run[run.length - 1].end, run[run.length - 1].end + 140);
-            const revenue = OF_REVENUE.test(tail);
+            // "of the sales of Elunate": the sales of a product, not of the filer.
+            const rev = OF_REVENUE.exec(tail);
+            const owner = rev ? /^\s+of\s+(?:the\s+)?(?!(?:Company|Group|Registrant|Partnership)\b)([A-Z][^.;,]{0,40})/.exec(tail.slice(rev[0].length)) : null;
+            const revenue = !!rev && (!owner || byFiler(owner[1]));
             return { run, revenue, purchases: !revenue && OF_PURCHASES.test(tail) };
           })
           .filter((x) => x.revenue || x.purchases)
@@ -664,6 +671,9 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
   const ofWhich = s.search(/\bof which\b/i);
   const total = shareRuns.find((x) => x.run[0].index < ofWhich);
   if (ofWhich >= 0 && total) for (const run of allRuns) if (run[0].index > ofWhich && !shareRuns.some((x) => x.run === run)) shareRuns.push({ run, revenue: total.revenue, purchases: total.purchases });
+  // "Platform providers, such as Apple, ... charge ... fees, which represent approximately 30% of our revenue": the
+  // filer pays the company; the figure is its fees, not sales to it.
+  if (company.some((c) => /^[^.;]{0,80}?\b(?:charges?|charged|collects?|collected|retains?|withholds?)\b[^.;]{0,60}\b(?:fees?|commissions?)\b/i.test(s.slice(c.end)))) return { role: 'customer' };
   const anchor = company.length ? company : ms;
   // The run the target's name goes with: "Costco accounted for approximately 11%" (name, verb, figure) or "13% ...
   // were to Boeing" (figure, then the name); else the nearest.
@@ -680,7 +690,17 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
     const prev = allRuns.filter((r) => r[r.length - 1].end <= run[0].index).pop();
     const clause = s.slice(prev ? prev[prev.length - 1].end : 0, run[0].index);
     const near = s.slice(Math.max(0, run[0].index - 60), run[run.length - 1].end + 60).replace(/\(collectively[^)]*\)/gi, ' ');
-    if (found.how !== 'company' && (GROUP.test(clause) || /\bcollectively\b|\btogether\b|\bcombined\b/i.test(near)) && !/\beach\b/i.test(clause) && !/\b(?:and|with) (?:its|their) (?:affiliates|subsidiaries)\b/i.test(clause)) {
+    // "Our largest customers, Walmart, Costco and Amazon, accounted for approximately 74.0%": one figure for the companies
+    // named before the verb together.
+    const verbAt = [...clause.matchAll(new RegExp(VERB.source, 'gi'))].pop()?.index ?? -1;
+    const subjectList = run.length === 1 && verbAt > 0 ? subjectNames(clause.slice(0, verbAt).replace(/^.*[.;:]\s+/, '')) : [];
+    const several = subjectList.length > 1 && subjectList.some((n) => {
+      pattern.lastIndex = 0;
+      return pattern.test(n);
+    });
+    // "Walmart and its affiliates ... accounted for": one company with its own units, unless others are named with it.
+    const together = GROUP.test(clause) || /\bcollectively\b|\btogether\b|\bcombined\b|\baltogether\b/i.test(near) || /\b(?:collectively|together|combined|altogether)\b/i.test(clause);
+    if (found.how !== 'company' && !/\beach\b/i.test(clause) && (several || (together && !/\b(?:and|with) (?:its|their) (?:affiliates|subsidiaries)\b/i.test(clause)))) {
       share = undefined;
       qualifier = undefined;
     }
@@ -908,21 +928,33 @@ export function findCompanies(input: string, dir: Directory, loose = false, whol
     raw = raw.replace(/^(?:The|Our|Such as|Including|And|Or)\s+/, '');
     if (!raw || NOT_COMPANY.test(raw)) continue;
     // Try the whole phrase, then its leading words ("Arista Networks" in "Arista Networks Broadcom").
-    const words = raw.split(/\s+/);
-    let hit: Found | undefined;
-    for (let n = words.length; n >= (whole ? words.length : 1) && !hit; n--) {
-      const phrase = words.slice(0, n).join(' ');
-      const key = normalizeName(phrase);
-      if (!key) continue;
-      const single = !key.includes(' ');
-      const entry = dir.byName.get(key);
-      // A first word alone stands for a company only when it is a well-known one or written like a brand ("NVIDIA
-      // Blackwell", "CoreWeave Compute"); "Polaris Forge 1" is not Polaris Inc.
-      const prefixOk = n === words.length || !single || KNOWN[key] || BRAND.test(words[0]);
-      // "ESG rating systems", "CSP/hyperscalers": a short word in capitals alone is a company only when well known.
-      if (single && n === 1 && /^[A-Z]{2,4}$/.test(words[0]) && !KNOWN[key] && !HAS_FORM.test(raw)) continue;
-      if (entry && prefixOk && (!single || !COMMON.has(key) || KNOWN[key] || HAS_FORM.test(phrase))) hit = { ...entry, index: m.index };
+    const listed = (phraseText: string): Found | undefined => {
+      const ws = phraseText.split(/\s+/);
+      for (let n = ws.length; n >= (whole ? ws.length : 1); n--) {
+        const phrase = ws.slice(0, n).join(' ');
+        const key = normalizeName(phrase);
+        if (!key) continue;
+        const single = !key.includes(' ');
+        const entry = dir.byName.get(key);
+        // A first word alone stands for a company only when it is a well-known one or written like a brand ("NVIDIA
+        // Blackwell", "CoreWeave Compute"); "Polaris Forge 1" is not Polaris Inc.
+        const prefixOk = n === ws.length || !single || KNOWN[key] || BRAND.test(ws[0]);
+        // "ESG rating systems", "CSP/hyperscalers": a short word in capitals alone is a company only when well known.
+        if (single && n === 1 && /^[A-Z]{2,4}$/.test(ws[0]) && !KNOWN[key] && !HAS_FORM.test(phraseText)) continue;
+        if (entry && prefixOk && (!single || !COMMON.has(key) || KNOWN[key] || HAS_FORM.test(phrase))) return { ...entry, index: m!.index };
+      }
+      return undefined;
+    };
+    let hit = listed(raw);
+    // "the U.S.-McKesson Corporation": the country before a name is not part of it, unless the name is listed with it
+    // ("U.S. Bancorp", "U.S. Steel").
+    const country = /^U\.S\.\s+(?=[A-Z])/.exec(raw);
+    if (country && !hit) {
+      const rest = raw.slice(country[0].length);
+      hit = listed(rest);
+      if (hit) raw = rest;
     }
+    const words = raw.split(/\s+/);
     // Not listed: a name written with its legal form ("Huawei Technologies Co. Ltd.") is still a company.
     if (!hit && words.length >= 3 && (BRAND.test(words[0]) || KNOWN[normalizeName(words[0])]) && /\b(?:Inc|Corp|Corporation|Co|Company|Ltd|Limited|LLC|L\.?P|plc|B\.?V|GmbH)\b/.test(raw)) {
       const parent = dir.byName.get(normalizeName(words[0]));
