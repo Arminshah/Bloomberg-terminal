@@ -28,7 +28,7 @@ const EQUITY: Group[] = [
   { title: 'Company Overview', entries: ['PROFILE', 'COMPANYNEWS', 'MANAGEMENT'] },
   { title: 'Company Analysis', entries: ['FINANCIALS', 'HOLDERS', 'DIVIDENDS', 'CORPACTIONS', 'WACC'] },
   { title: 'Research & Estimates', entries: ['ESTIMATES', 'EARNINGS', 'ANALYSTS', 'FILINGS'] },
-  { title: 'Comparative Analytics', entries: ['PEERS'] },
+  { title: 'Comparative Analytics', entries: ['PEERS', 'SUPPLYCHAIN'] },
   { title: 'Charting & Reporting', entries: ['CHART', 'FUNDCHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'SPREAD', 'BETA', 'VOLATILITY'] },
   { title: 'Security Surveillance', entries: ['EVENTS', 'QUOTE', 'ALERTS'] },
   { title: 'Trade Analytics', entries: ['TRADES', 'DEPTH', 'VWAP'] },

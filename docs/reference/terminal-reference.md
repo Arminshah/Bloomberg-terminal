@@ -136,8 +136,12 @@ source; built only as far as data allows, or left out).
   Abs. Px Chg, Implied 1 Day Move; a chart of comparable vs estimate; table Ann Date, Per, Per End, C, Reported,
   Comp, Estimate, %Surp, Guidance, %Guid Surp, %Px Chg, P/E, with an "Average of Absolute Values" first row and
   future periods' estimates above the reported ones.
-- **EEG, GUID, MODL, KPIC, ALTD, SPLC** (no data or partial: no free contributor history, guidance, models,
-  KPIs, alternative data or supply chains).
+- **SPLC** (have SUPPLYCHAIN): Suppliers/Customers, Summary tab with suppliers at the left, customers at the right
+  and company-reported competitors below, each box with Rev/COGS/CAPEX shares and an info mark; the company in the
+  middle with revenue and costs quantified; Source, Filter By, Sort By (Company Exposure), Color Coding (Latest
+  Sales Surprise %), Peers. Built from SEC filings: the shares companies disclose, not estimated COGS or capex.
+- **EEG, GUID, MODL, KPIC, ALTD** (no data or partial: no free contributor history, guidance, models, KPIs or
+  alternative data).
 - **EQS** (have SCREEN): bar "Formula Actions ▾ Backtest"; As Of date; left My Recent Screens and Popular
   Screens (numbered); Screening Criteria categories (Exchanges, Sectors, Country, Indices, Portfolios, Equity
   Screens); Add Criteria amber box with Fields; Selected Screening Criteria with Matches per step and remove

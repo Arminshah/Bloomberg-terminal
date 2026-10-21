@@ -35,6 +35,7 @@ declare global {
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string; sourceLabel?: string; missing?: string }>;
       fred?(kind: 'release-dates' | 'observations' | 'first-release', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
+      secText?(kind: 'mentions' | 'own', path: string, names?: string[]): Promise<{ status: number; sentences: string[]; at?: number; cached?: boolean; error?: string; missing?: string; refused?: string }>;
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<KeyedAnswer>;

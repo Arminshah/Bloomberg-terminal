@@ -26,7 +26,7 @@ export interface SecAnswer {
   error?: string;
 }
 
-export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl' | 'ownership-xml';
+export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl' | 'ownership-xml' | 'fts';
 
 export type SecResult<T> =
   | { ok: true; data: T; at: number; stale?: boolean }

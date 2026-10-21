@@ -55,6 +55,7 @@ import { GF, HVT, MEMB, MOV, MRR, TRA, VWAP } from '../functions/ANALYSIS';
 import { EEO } from '../functions/EEO';
 import { CACS } from '../functions/CACS';
 import { SI } from '../functions/SI';
+import { SPLC } from '../functions/SPLC';
 import { EQRP } from '../functions/EQRP';
 import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
 import { FOMC } from '../functions/FOMC';
@@ -72,6 +73,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'ESTIMATES', name: 'Consensus Overview', category: 'Equity', needsSec: true, classes: EQ, desc: "The last reported fiscal year against the analysts' consensus for the next ones, line by line (EPS, revenue, operating profit, EBITDA, net income) with the number of estimates and their growth, and the multiples at today's price: P/E, P/B, P/CF, EV/Revenue, EV/EBITDA, EV/EBIT and dividend yield.", component: EEO, example: 'ESTIMATES NVDA' },
   { code: 'CORPACTIONS', name: 'Corporate Actions', category: 'Equity', needsSec: true, classes: EQ, desc: "A company's corporate actions by announcement or effective date: cash dividends and splits, and from its SEC filings acquisitions completed, merger and tender offer documents, offerings registered, listing changes and shareholder meetings.", component: CACS, example: 'CORPACTIONS AAPL' },
   { code: 'SHORTINTEREST', name: 'Short Interest', category: 'Equity', needsSec: true, classes: EQ, desc: "Shares sold short at each settlement over six months to two years from FINRA's consolidated record (every US listing, no key), with the short interest ratio (days to cover), the share of the float and of the shares outstanding, the average daily volume and their changes, beside the price.", component: SI, example: 'SHORTINTEREST TSLA' },
+  { code: 'SUPPLYCHAIN', name: 'Supply Chain Analysis', category: 'Equity', needsSec: true, classes: EQ, desc: "A company's suppliers, customers and competitors as annual reports filed with the SEC state them: suppliers that say how much of their revenue it brings, customers that resell or buy its products, the unnamed customers behind its own revenue, and the competitors it names, each with the statement and filing behind it, coloured by the day's change (desktop app, SEC_USER_AGENT).", component: SPLC, example: 'SUPPLYCHAIN NVDA' },
   { code: 'RISKPREMIUM', name: 'Equity Risk Premium', category: 'Equity', needsSec: true, classes: EQ, desc: "The market's expected return, the risk-free 10-year yield and the country risk premium between them, and the stock's equity risk premium through its beta, with their history; each input can be changed.", component: EQRP, example: 'RISKPREMIUM AAPL' },
   { code: 'DIVIDENDS', name: 'Dividend History', category: 'Equity', needsSec: true, classes: EQ, desc: 'Cash dividends over ten years by ex-date, with amounts, frequency, 12-month yield and the next expected ex-date.', component: DVD, aliases: ['DIVS'] },
   { code: 'HOLDERS', name: 'Holders', category: 'Equity', needsSec: true, classes: EQ, desc: 'Largest institutional and fund holders with position, percent outstanding and change, and the ownership breakdown.', component: HDS, aliases: ['OWNERSHIP'] },

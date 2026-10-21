@@ -456,6 +456,68 @@ ipcMain.handle('sec', async (event, kind, arg) => {
   return kept ? { status: res.status, text: kept.text, at: kept.at, stale: true } : { status: res.status, text: '' };
 });
 
+// SPLC: the sentences of an annual report that name a company ('mentions'), or that name the filer's own
+// customers, suppliers and competitors ('own'). The document is read here and only the sentences go to the
+// page; they are kept a month on disk (a filed document never changes).
+const supply = require('./supply-chain.cjs');
+const supplyStore = new supply.SentenceStore();
+const SUPPLY_FILE = () => path.join(app.getPath('userData'), 'supply-chain-sentences.json');
+let supplyLoaded = false;
+let supplySave = null;
+
+function supplyFromDisk() {
+  if (supplyLoaded) return;
+  supplyLoaded = true;
+  try {
+    supplyStore.load(JSON.parse(fs.readFileSync(SUPPLY_FILE(), 'utf8')));
+  } catch {
+    /* nothing saved yet */
+  }
+}
+
+function supplyToDisk() {
+  if (supplySave) return;
+  supplySave = setTimeout(() => {
+    supplySave = null;
+    try {
+      fs.writeFileSync(SUPPLY_FILE(), JSON.stringify(supplyStore));
+    } catch {
+      /* kept in memory only */
+    }
+  }, 5000);
+}
+
+ipcMain.handle('sec-text', async (event, kind, docPath, names) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const url = supply.docUrl(docPath);
+  const clean = kind === 'mentions' ? supply.cleanNames(names) : [];
+  if ((kind !== 'mentions' && kind !== 'own') || !url || !clean) throw new Error('not allowed');
+  const ua = providers.credential('SEC_USER_AGENT').value;
+  if (!ua) return { status: 0, sentences: [], missing: 'SEC_USER_AGENT' };
+  if (!providers.CREDENTIALS.SEC_USER_AGENT.valid(ua)) return { status: 0, sentences: [], refused: 'The configured SEC User-Agent does not give an application name and a contact email, so nothing was sent.' };
+  supplyFromDisk();
+  const key = supplyStore.key(kind, docPath, clean);
+  const kept = supplyStore.get(key);
+  if (kept) return { status: 200, sentences: kept.sentences, at: kept.at, cached: true };
+  await providers.slot('sec', sec.PER_SECOND, 1000);
+  let res;
+  try {
+    res = await tracked('sec', url, { headers: { 'User-Agent': ua, Accept: 'text/html' }, cache: 'no-cache', signal: AbortSignal.timeout(3 * TIMEOUT_MS) });
+  } catch (err) {
+    return { status: 0, sentences: [], error: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) };
+  }
+  if (!res.ok) {
+    if (res.status === 403 || res.status === 429) providers.recordProblem('sec', providers.errorKind(res.status), sec.refusalReason(res.status));
+    return { status: res.status, sentences: [] };
+  }
+  const text = supply.htmlToText(await res.text());
+  const sentences = kind === 'own' ? supply.ownSentences(text) : supply.mentionSentences(text, clean);
+  const at = Date.now();
+  supplyStore.set(key, { at, sentences });
+  supplyToDisk();
+  return { status: res.status, sentences, at };
+});
+
 // ----------------------------------------------------------------- Kraken
 // Exchange-native crypto prices, candles and order books (electron/kraken.cjs).
 // The page names a kind and a pair from a fixed list; the URL is built here.

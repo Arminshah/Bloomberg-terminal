@@ -29,7 +29,8 @@ interface Fixtures {
   newsAgeMs: number;
   marketCalendar?: boolean;
   insiders?: boolean;
-  calls: { fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  supplyChain?: boolean;
+  calls: { fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -184,6 +185,42 @@ test("MANAGEMENT totals each insider's Form 4 purchases, sales and awards, and l
   await expect(sale.getByRole('link', { name: 'Form 4 ›' })).toHaveAttribute('href', /^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/1513845\/000151384526000011\/xslF345X05\/form4-sale\.xml$/);
   await expect(section.locator('tbody tr', { hasText: 'Grant or award' })).toContainText('+12,000');
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-management-insiders-fixture.png') });
+});
+
+test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.supplyChain = true;
+    fixtures.dataAccuracy = true;
+    process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid';
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'NBIS', 'MENU');
+  await command(page, 'SPLC', 'SUPPLYCHAIN');
+  const panel = page.locator('.panel').first();
+  // Fabrinet's report: Nebius brought 12.5% of its revenue, in the place Nebius has in its list of three.
+  const fabrinet = panel.locator('.splc-box', { hasText: 'Fabrinet' });
+  await expect(fabrinet).toContainText('Rev: 12.5%', { timeout: 30_000 });
+  await expect(panel.locator('.splc-center')).toContainText('Rev. quantified 12.0% (1 customer)');
+  await expect(panel.locator('.splc-center')).toContainText('3 annual reports read');
+  await panel.getByRole('button', { name: '2) Suppliers' }).click();
+  await expect(panel.locator('tbody tr').first()).toContainText('NBIS US brought 12.5% of its revenue');
+  const row = (name: string) => panel.locator('tbody tr', { has: page.locator('td:nth-child(2)', { hasText: name }) });
+  await expect(row('NVIDIA')).toContainText('Named by NBIS US as a supplier');
+  await expect(row('NVIDIA')).toContainText('NVDA');
+  await expect(row('Dell Technologies')).toContainText('DELL');
+  await panel.getByRole('button', { name: '3) Customers' }).click();
+  await expect(panel.locator('tbody tr').first()).toContainText('12% of NBIS US');
+  await expect(row('Example Cloud')).toContainText('Names NBIS US as a supplier');
+  await expect(row('Example Cloud').getByRole('link', { name: /10-K/ })).toHaveAttribute('href', 'https://www.sec.gov/Archives/edgar/data/2222222/000222222226000004/excl-20251231.htm');
+  await panel.getByRole('button', { name: '4) Competitors' }).click();
+  await expect(row('Microsoft')).toContainText('Named by NBIS US as a competitor');
+  await expect(row('CoreWeave')).toHaveCount(1);
+  const searched = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.fts ?? []);
+  expect(searched).toContain('"Nebius Group N.V." "accounted for"');
+  expect(searched).toContain('"Nebius Group N.V." suppliers');
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-splc-fixture.png') });
 });
 
 test('linked panels preserve functions and saved groups in the real desktop renderer', async ({ desktop: { page } }) => {

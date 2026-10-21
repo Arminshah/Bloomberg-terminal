@@ -25,6 +25,22 @@ fixtures.extendedHours = false;
 net.fetch = async (input, init) => {
   const url = new URL(String(input));
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  // With fixtures.supplyChain, SPLC's full-text search and three annual reports (electron/supply-chain.cjs).
+  if (fixtures.supplyChain && url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Nebius Group N.V.' } });
+  if (fixtures.supplyChain && url.hostname === 'efts.sec.gov') {
+    fixtures.calls.fts = [...(fixtures.calls.fts ?? []), url.searchParams.get('q')];
+    const hit = (cik, adsh, file, display, date) => ({ _id: `${adsh}:${file}`, _score: 5, _source: { ciks: [cik], display_names: [display], form: '10-K', file_date: date } });
+    return json({ hits: { total: { value: 2 }, hits: [hit('0001408710', '0001408710-26-000028', 'fn-20260626.htm', 'Fabrinet  (FN)  (CIK 0001408710)', '2026-08-18'), hit('0002222222', '0002222222-26-000004', 'excl-20251231.htm', 'Example Cloud Inc.  (EXCL)  (CIK 0002222222)', '2026-03-02')] } });
+  }
+  if (fixtures.supplyChain && url.hostname === 'www.sec.gov' && url.pathname.startsWith('/Archives/edgar/data/')) {
+    const docs = {
+      '/Archives/edgar/data/1408710/000140871026000028/fn-20260626.htm': '<p>During fiscal year 2026, Cisco Systems, Inc., Nebius Group N.V. and Amazon.com, Inc. contributed 19.9%, 12.5% and 10.5%, respectively, of our revenues.</p>',
+      '/Archives/edgar/data/2222222/000222222226000004/excl-20251231.htm': '<p>We currently rely on Nebius for the GPU capacity we rent to our customers.</p>',
+      '/Archives/edgar/data/1513845/000151384526000001/synthetic-annual.htm': '<p>Our key suppliers include NVIDIA Corporation and Dell Technologies Inc. for servers.</p><p>Our competitors include Microsoft Corporation and CoreWeave, Inc. in AI cloud services.</p><p>For fiscal year 2025, sales to one customer represented 12% of total revenue.</p>',
+    };
+    const body = docs[url.pathname];
+    if (body) return new Response(`<html><body>${body}</body></html>`, { status: 200, headers: { 'Content-Type': 'text/html' } });
+  }
   if (url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Synthetic currency-switch fixture' } });
   if (url.hostname === 'data.sec.gov') {
     if (url.pathname.includes('/companyfacts/')) return json(currencyTemplate);

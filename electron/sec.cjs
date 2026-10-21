@@ -20,6 +20,8 @@ const INSTANCE = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}_h
 // An ownership filing's own XML (Forms 3, 4 and 5), at the top of its folder.
 const OWNERSHIP = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}\.xml)$/;
 
+const { ftsUrl } = require('./supply-chain.cjs');
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
@@ -59,6 +61,9 @@ const KINDS = {
   'filing-xbrl': { url: (arg) => (INSTANCE.test(arg) ? `${ARCHIVES}/${arg}` : null), ttl: 7 * 24 * HOUR },
   // An insider's Form 4: the shares bought, sold, received and exercised, and the holdings after.
   'ownership-xml': { url: (arg) => (OWNERSHIP.test(arg) ? `${ARCHIVES}/${arg}` : null), ttl: 7 * 24 * HOUR },
+  // The full-text search (efts.sec.gov): annual reports of the last 18 months naming a company beside a term
+  // ("accounted for", "suppliers"...), for SPLC. Arg "term|name"; see electron/supply-chain.cjs.
+  fts: { url: (arg) => ftsUrl(arg), ttl: 12 * HOUR },
 };
 
 /** The URL and keep time for a request from the page, or null when it is not one the app makes. */

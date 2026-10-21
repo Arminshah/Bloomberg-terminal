@@ -1213,3 +1213,34 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .eqrp-in { width: 80px; text-align: right; }
 .eqrp-name { margin-left: auto; }
 @media (max-width: 760px) { .eqrp-grid { grid-template-columns: 1fr; } }
+
+/* SPLC: suppliers left, customers right, the company in the middle, competitors below. */
+.splc-svg { display: block; width: 100%; max-width: 1180px; height: auto; margin: 4px auto 0; font-family: inherit; }
+.splc-title { fill: var(--white); font-size: 15px; font-weight: 600; }
+.splc-sub { fill: var(--text); font-size: 11.5px; }
+.splc-hub-label { fill: var(--white); font-size: 12.5px; }
+.splc-hub { fill: #3a3a3a; stroke: #6a6a6a; }
+.splc-edge { stroke: #4f8f8a; stroke-width: 1; opacity: 0.75; }
+.splc-box rect { stroke: rgba(255, 255, 255, 0.28); stroke-width: 1; }
+.splc-box.link { cursor: pointer; }
+.splc-box.link:hover rect { stroke: var(--amber); stroke-width: 1.5; }
+.splc-name { fill: #fff; font-size: 13px; font-weight: 600; }
+.splc-metric { fill: #e8e8e8; font-size: 11.5px; }
+.splc-info { fill: none; stroke: #fff; stroke-width: 1.2; }
+.splc-i { fill: #fff; font-size: 10px; font-weight: 700; }
+.splc-center rect { stroke: rgba(255, 255, 255, 0.45); stroke-width: 1.2; }
+.splc-center-name { fill: #fff; font-size: 15px; font-weight: 700; }
+.splc-center-tk { fill: #fff; font-size: 11.5px; font-weight: 600; }
+.splc-center-line { fill: #f0f0f0; font-size: 11.5px; }
+.splc-center-foot { fill: #d8d8d8; font-size: 10.5px; }
+.splc-pager text { font-size: 12px; fill: var(--muted); user-select: none; }
+.splc-pager .link { fill: var(--amber); cursor: pointer; }
+.splc-pager .off { fill: #555; }
+.splc-pg { fill: var(--text); }
+.splc-legend { display: flex; align-items: center; gap: 8px; padding: 2px 10px 6px; font-size: var(--fs-s); flex-wrap: wrap; }
+.splc-grad { display: inline-block; width: 160px; height: 8px; }
+.splc-grad.change { background: linear-gradient(90deg, rgb(168, 34, 34), rgb(72, 24, 24) 49%, rgb(22, 58, 26) 51%, rgb(38, 140, 48)); }
+.splc-grad.share { background: linear-gradient(90deg, rgb(20, 50, 90), rgb(40, 120, 200)); }
+.splc-ticks { display: inline-flex; justify-content: space-between; width: 160px; margin-left: -168px; margin-top: 22px; color: var(--muted); }
+.splc-filter { width: 220px; }
+.splc-tbl .splc-quote { max-width: 520px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }

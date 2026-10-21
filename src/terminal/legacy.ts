@@ -19,6 +19,7 @@ export const LEGACY_CODES: Record<string, string> = {
   CACS: 'CORPACTIONS',
   SI: 'SHORTINTEREST',
   EQRP: 'RISKPREMIUM',
+  SPLC: 'SUPPLYCHAIN',
   HDS: 'HOLDERS',
   OWN: 'HOLDERS',
   MGMT: 'MANAGEMENT',
