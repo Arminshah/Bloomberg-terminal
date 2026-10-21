@@ -831,6 +831,26 @@ ipcMain.handle('estimate-history', async (event, kind, symbol) => {
   return { status: 200, text: JSON.stringify(got.map((g) => g.history)), at: Math.min(...got.map((g) => g.at)) };
 });
 
+// Analysts' rating actions with their price targets, from MarketBeat's forecast page (electron/analyst-actions.cjs),
+// for ANALYSTS; kept six hours per stock.
+const analystActions = require('./analyst-actions.cjs');
+const actionsKept = new Map();
+ipcMain.handle('analyst-actions', async (event, symbol) => {
+  const url = analystActions.forecastUrl(symbol);
+  if (!fromApp(event) || !url) throw new Error('not allowed');
+  const kept = actionsKept.get(symbol);
+  if (kept && Date.now() - kept.at < 6 * 3_600_000 && !refresh.expired('marketbeat', kept.at)) return { status: 200, text: kept.text, at: kept.at, cached: true };
+  await providers.slot('marketbeat:earnings', 4, 10_000);
+  const page = await historyPage('marketbeat', url, nasdaqAgent());
+  const rows = analystActions.parseRatings(page.html);
+  if (!rows) return kept ? { status: page.status, text: kept.text, at: kept.at, stale: true } : { status: page.status === 200 ? 404 : page.status, text: '', error: page.error || (page.status === 200 ? 'MarketBeat lists no rating actions for this stock.' : undefined) };
+  const text = JSON.stringify(rows);
+  const at = Date.now();
+  actionsKept.set(symbol, { at, text });
+  if (actionsKept.size > 200) actionsKept.delete(actionsKept.keys().next().value);
+  return { status: 200, text, at };
+});
+
 // The companies Finviz lists as a stock's peers, from the same quote page (kept with its history).
 ipcMain.handle('finviz-peers', async (event, symbol) => {
   if (!fromApp(event) || !estimateHistory.finvizUrl(symbol)) throw new Error('not allowed');

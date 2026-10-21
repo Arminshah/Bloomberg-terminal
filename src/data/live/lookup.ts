@@ -45,6 +45,7 @@ declare global {
       finra?(kind: 'short-interest' | 'short-history', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;
       finvizPeers?(symbol: string): Promise<KeyedAnswer>;
+      analystActions?(symbol: string): Promise<KeyedAnswer>;
       indexMembers?(kind: 'sp500' | 'nasdaq100' | 'nasdaq-quotes', arg?: string): Promise<KeyedAnswer>;
       alphavantage?(kind: 'earnings' | 'estimates', symbol: string): Promise<KeyedAnswer>;
       earningsCalendar?(source: 'nasdaq' | 'nasdaq-caps' | 'nasdaq-eco' | 'nasdaq-ipo' | 'finnhub' | 'fmp', from: string, to: string): Promise<KeyedAnswer>;

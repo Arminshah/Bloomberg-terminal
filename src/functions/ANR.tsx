@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { actionLabel, position, useAnalystActions, type AnalystAction, type Position } from '../data/live/analyst-actions';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { NotConnected } from '../components/NotConnected';
 import { Chg, HBar, KV, LivePx, Section } from '../components/cells';
@@ -29,6 +31,7 @@ export function ANR({ sec }: FnProps) {
   const panel = usePanelId();
   const symbol = analystSymbol(s);
   const parts = useAnalysts(s, ['consensus', 'ratings', 'summary', 'grades', 'estimates']);
+  const actions = useAnalystActions(s);
   const researchGeneration = analystData.use((data) => data.retry);
   const fhOn = finnhubAvailable() && !!finnhubSymbol(s) && parts.ratings?.state === 'ok' && !!parts.ratings.data && parts.ratings.source === 'FMP';
   const fh = useFinnhub(fhOn ? s : undefined, ['recommendation']).recommendation as FinnhubPart<RecommendationMonth[]> | undefined;
@@ -228,7 +231,11 @@ export function ANR({ sec }: FnProps) {
           </>
         )}
       </Section> : null}
-      {loading(grades) || grades?.data?.length ? <Section title="Recent rating actions">
+      {actions?.rows?.length ? (
+        <Section title="Recent rating actions" right={`${actions.rows.length} actions · MarketBeat · received ${fmtDay(actions.at)}`}>
+          <RatingActions rows={actions.rows} last={engine.quote(s.id)?.last ?? NaN} />
+        </Section>
+      ) : loading(grades) || grades?.data?.length ? <Section title="Recent rating actions">
         {loading(grades) ? (
           <div className="empty">Loading…</div>
         ) : !grades?.data?.length ? (
@@ -265,6 +272,75 @@ export function ANR({ sec }: FnProps) {
         Targets, ratings and estimates are provider consensus and analyst opinions, not forecasts calculated by this app. Each dataset keeps its own source, fiscal/per-share basis and retrieval time. Yahoo fallback has no equivalent to FMP&apos;s period-average target history, so that dataset remains unavailable when FMP denies it. Finnhub supplies recommendation counts, not price targets. Equibles reports preserve the provider&apos;s original coverage and accounting qualifications. Research is cached for hours; opening this screen does not poll it continuously.
       </div>
     </div>
+  );
+}
+
+const POSITION_CLASS: Record<Position, string> = { BUY: 'up', HOLD: 'amber', SELL: 'dn', '': 'muted' };
+
+/**
+ * Analysts' rating actions as research services list them: analyst and firm, the price target before and after (green
+ * raised, red lowered), the rating as buy, hold or sell, the upside to the new target from the last price, the action.
+ */
+function RatingActions({ rows, last }: { rows: AnalystAction[]; last: number }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, 15);
+  const money = (v: number) => `$${fmtNum(v, v >= 100 || Number.isInteger(v) ? 0 : 2)}`;
+  return (
+    <>
+      <table className="tbl anr-actions">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Analyst</th>
+            <th>Firm</th>
+            <th className="num">Price target</th>
+            <th>Position</th>
+            <th className="num" title="To the new price target from the last price">Upside / downside</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {shown.map((r, i) => {
+            const pos = position(r.rating);
+            const up = Number.isFinite(r.to) && last > 0 ? (r.to / last - 1) * 100 : NaN;
+            const moved = Number.isFinite(r.from) && Number.isFinite(r.to) && r.from !== r.to;
+            const act = actionLabel(r);
+            return (
+              <tr key={`${r.date}:${r.firm}:${i}`}>
+                <td>{fmtDay(Date.parse(`${r.date}T00:00:00Z`))}</td>
+                <td className="white">{r.analyst}</td>
+                <td>{r.firm}</td>
+                <td className="num">
+                  {moved ? (
+                    <>
+                      <span className="muted">{money(r.from)}</span> → <span className={r.to > r.from ? 'up' : 'dn'}>{money(r.to)}</span>
+                    </>
+                  ) : Number.isFinite(r.to) ? (
+                    <span className="white">{money(r.to)}</span>
+                  ) : null}
+                </td>
+                <td className={POSITION_CLASS[pos]} title={r.rating}>
+                  {pos || r.rating}
+                </td>
+                <td className={`num ${up >= 0 ? 'up' : up < 0 ? 'dn' : ''}`}>{Number.isFinite(up) ? `${fmtNum(Math.abs(up), 2)}% ${up >= 0 ? 'upside' : 'downside'}` : ''}</td>
+                <td className={/^Upgraded|^Raised/.test(act) ? 'up' : /^Downgraded|^Lowered/.test(act) ? 'dn' : ''} title={r.action}>
+                  {act}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="note">
+        As MarketBeat&apos;s forecast page lists them (rating services that are not analysts&apos; research left out). Position is the firm&apos;s rating read as buy, hold or sell; hover it for the firm&apos;s own words. Upside is to the
+        new target from the last price.{' '}
+        {rows.length > 15 ? (
+          <button type="button" className="act" onClick={() => setAll(!all)}>
+            {all ? 'Latest 15' : `All ${rows.length}`}
+          </button>
+        ) : null}
+      </div>
+    </>
   );
 }
 
