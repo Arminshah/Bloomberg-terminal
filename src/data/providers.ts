@@ -75,7 +75,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'yahoo',
     name: 'Yahoo Finance',
-    serves: 'Quotes, history, company profiles/statements, holders and symbol search; optional analyst research fallback. Crypto when Kraken does not answer. Options chains and news are switched off.',
+    serves: 'Quotes, history, company profiles/statements, holders and symbol and company-name search; optional analyst research fallback. Crypto when Kraken does not answer. Options chains and news are switched off.',
     dataClass: 'Yahoo Finance quote: live or delayed as Yahoo labels each exchange; history end of day',
     policy: 'enabled',
     setting: 'YAHOO_PRICES_ENABLED',
@@ -442,12 +442,12 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'sec',
     name: 'SEC EDGAR',
-    serves: 'Company search (ticker to CIK), filing histories with links to the documents, figures reported in XBRL financial statements, the latest 8-K filings for MARKETNEWS, and press releases for HEADLINES',
+    serves: 'Company search (ticker to CIK), filing histories with links to the documents, figures reported in XBRL financial statements, the latest 8-K filings for MARKETNEWS, press releases for HEADLINES, and full-text search of filings with the sentences that name a company (SPLC supply chain, DS)',
     dataClass: 'Reference: filed documents and as-filed figures',
     policy: 'needs-credential',
     credential: 'SEC_USER_AGENT',
     limit: '300',
-    terms: 'Free to access and reuse (SEC Webmaster FAQ). Automated clients must declare a User-Agent with a name and contact email and stay under 10 requests a second; the app sends at most 5 a second and keeps answers (filing lists 5 minutes, company facts an hour, the company list a day).',
+    terms: 'Free to access and reuse (SEC Webmaster FAQ). Automated clients must declare a User-Agent with a name and contact email and stay under 10 requests a second; the app sends at most 5 a second and keeps answers (filing lists 5 minutes, company facts an hour, the company list a day, the sentences SPLC reads from a filing a month).',
     docs: [
       { label: 'Accessing EDGAR data', url: 'https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data' },
       { label: 'EDGAR APIs', url: 'https://www.sec.gov/search-filings/edgar-application-programming-interfaces' },
