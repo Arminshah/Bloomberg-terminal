@@ -24,6 +24,7 @@ const SHORTCUTS: [string, string][] = [
   ['Alt+1 … Alt+6', 'Switch panel'],
   ['Ctrl+Tab / Ctrl+Shift+Tab', 'Next / previous panel'],
   ['Alt+← / Alt+→', 'Back / forward'],
+  ['Mouse back / forward buttons', 'Back / forward in the panel under the pointer, as in a browser'],
   ['F1 / HELP', 'Help for the current function; press twice for the local help assistant'],
   ['Alt+R / ↻ REFRESH', 'Ask every source the open screens and the background use for fresh data now (desktop app)'],
   ['DES F1', 'Help on the mnemonic typed first; words typed first search the help'],

@@ -72,6 +72,8 @@ declare global {
       streamSend?(msg: string): Promise<void>;
       streamClose?(): Promise<void>;
       onStream?(cb: (kind: string, data?: string) => void): () => void;
+      /** The window's back and forward commands (a mouse's side buttons on Windows). */
+      onHistory?(cb: (dir: string) => void): () => void;
     };
   }
 }

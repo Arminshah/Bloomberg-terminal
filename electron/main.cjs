@@ -1297,6 +1297,13 @@ function createWindow(id = nextId()) {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => saveState(id, win), 400);
   };
+  // A mouse's side buttons and a keyboard's browser keys on Windows: one screen back or forward in the panel, as in a
+  // browser. The page never navigates itself.
+  win.on('app-command', (e, cmd) => {
+    if (cmd !== 'browser-backward' && cmd !== 'browser-forward') return;
+    e.preventDefault();
+    win.webContents.send('history', cmd === 'browser-forward' ? 'forward' : 'back');
+  });
   win.on('resize', queueSave);
   win.on('move', queueSave);
   win.on('close', () => saveState(id, win));

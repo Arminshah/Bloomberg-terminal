@@ -58,4 +58,10 @@ contextBridge.exposeInMainWorld('arminDesktop', {
     ipcRenderer.on('stream', handler);
     return () => ipcRenderer.removeListener('stream', handler);
   },
+  // The window's back and forward commands: a mouse's side buttons and a keyboard's browser keys on Windows.
+  onHistory: (cb) => {
+    const handler = (_event, dir) => cb(dir === 'forward' ? 'forward' : 'back');
+    ipcRenderer.on('history', handler);
+    return () => ipcRenderer.removeListener('history', handler);
+  },
 });

@@ -831,3 +831,23 @@ test.describe('source configuration isolation', () => {
     await expect(page.locator('.panel').first().getByText('Alpaca · IEX only', { exact: false }).first()).toBeVisible();
   });
 });
+
+test('the mouse back and forward buttons and the window\'s back command step through a panel\'s screens once per press', async ({ desktop: { app, page } }) => {
+  await command(page, 'WEI', 'MARKET');
+  await command(page, 'TOPMOVERS');
+  const panel = page.locator('.panel').first();
+  const box = (await panel.locator('.panel-body').boundingBox())!;
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...at, button: 'back', clickCount: 1 });
+  await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...at, button: 'back', clickCount: 1 });
+  await expect(panel.locator('.fnh-code').first()).toHaveText('MARKET');
+  // Windows also reports the press as the window's "browser-backward" command: the same press is not a second step.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].emit('app-command', { preventDefault() {} }, 'browser-backward'));
+  await page.waitForTimeout(150);
+  await expect(panel.locator('.fnh-code').first()).toHaveText('MARKET');
+  // A keyboard's Browser Forward key later is a step of its own.
+  await page.waitForTimeout(450);
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].emit('app-command', { preventDefault() {} }, 'browser-forward'));
+  await expect(panel.locator('.fnh-code').first()).toHaveText('TOPMOVERS');
+});

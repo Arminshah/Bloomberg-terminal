@@ -17,6 +17,7 @@ import { DemoBanner } from './components/NoDataSource';
 import { demoMode } from './data/demo';
 import { startIexPrices } from './data/live/iex-engine';
 import { showPanelHelp, showPanelMenu } from './terminal/actions';
+import { startHistoryButtons } from './terminal/mouse-nav';
 import { canRefresh, refreshAll } from './terminal/refresh';
 
 function MobileTabs() {
@@ -85,6 +86,7 @@ export function App() {
 
   useEffect(() => startIexPrices(), []);
   useEffect(() => startBackground(), []);
+  useEffect(() => startHistoryButtons(), []);
 
   const activeRoute = terminal.use((s) => currentRoute(s, s.active));
   useEffect(() => {

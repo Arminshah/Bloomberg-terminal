@@ -180,6 +180,33 @@ test('numbered menu items and back navigation work', async ({ page }) => {
   await expect(page.locator('.fnh-code').first()).toHaveText('CHART');
 });
 
+test('the mouse back and forward buttons move through the screens of the panel under the pointer', async ({ page }) => {
+  const errors = await boot(page, '2');
+  await run(page, 'MSFT CHART', 1);
+  await run(page, 'MSFT PROFILE', 1);
+  await run(page, 'WEI', 0);
+  const right = page.locator('.panel').nth(1);
+  const left = page.locator('.panel').first();
+  await expect(right.locator('.fnh-code').first()).toHaveText('PROFILE');
+  const leftCode = await left.locator('.fnh-code').first().textContent();
+  // Press the side buttons as a mouse does, over the right panel's body.
+  const box = (await right.locator('.panel-body').boundingBox())!;
+  const cdp = await page.context().newCDPSession(page);
+  const press = async (button: 'back' | 'forward') => {
+    const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...at, button, clickCount: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...at, button, clickCount: 1 });
+  };
+  await press('back');
+  await expect(right.locator('.fnh-code').first()).toHaveText('CHART');
+  await press('forward');
+  await expect(right.locator('.fnh-code').first()).toHaveText('PROFILE');
+  // The other panel stays where it was, and the page itself never navigates.
+  await expect(left.locator('.fnh-code').first()).toHaveText(leftCode!);
+  expect(page.url()).toMatch(/\/$/);
+  expect(errors).toEqual([]);
+});
+
 test('numbered rows open by number, as on terminal monitors', async ({ page }) => {
   const errors = await boot(page, '1');
   const panel = page.locator('.panel').first();
