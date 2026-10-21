@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Section } from './cells';
 import { Markdown } from './Markdown';
-import { fmtDateTime } from '../core/format';
-import { RESEARCH, parseResearch, type ResearchKind } from '../data/live/equibles';
+import { fmtBig, fmtDateTime, fmtDay, fmtNum } from '../core/format';
+import { RESEARCH, estimateTable, guidanceStatus, parseEstimateObservations, parseResearch, type ResearchKind } from '../data/live/equibles';
 import type { KeyedAnswer } from '../data/live/lookup';
 
 type Result = { answer: KeyedAnswer; report?: { tool: string; report: string } };
@@ -60,11 +60,83 @@ export function EquiblesResearch({ symbol, autoLoad = false }: { symbol: string;
         {error && <p className="amber" role="status">{error}</p>}
         {result?.report && <>
           <div className="note" style={{ paddingLeft: 0 }}>Source: Equibles ({result.report.tool}){answer?.at ? ` · received ${fmtDateTime(answer.at)}` : ''}{answer?.cached ? ' · cached' : ''}{answer?.stale ? ' · STALE, earlier answer retained' : ''}</div>
-          <div style={{ maxHeight: 600, overflow: 'auto' }}>
-            <Markdown text={result.report.report} testId="equibles-report" />
-          </div>
+          <ReportView kind={selected} report={result.report.report} />
         </>}
       </div>
     </Section>
+  );
+}
+
+const day = (iso: string) => fmtDay(Date.parse(`${iso}T00:00:00Z`));
+
+/** A figure in the report's unit: amounts in K/M/B, per-share figures to the cent. */
+function figure(v: number): string {
+  if (!Number.isFinite(v)) return '';
+  return Math.abs(v) >= 1e5 ? fmtBig(v) : fmtNum(v, Math.abs(v) < 10 ? 2 : 1);
+}
+
+/** Equibles' analyst estimates as a table by period; any other report as the provider wrote it. */
+function ReportView({ kind, report }: { kind: ResearchKind; report: string }) {
+  const rows = kind === 'estimates' ? estimateTable(parseEstimateObservations(report)) : [];
+  const status = kind === 'guidance' ? guidanceStatus(report) : null;
+  if (rows.length >= 2) {
+    const captured = /captured (\d{4}-\d{2}-\d{2})/.exec(report)?.[1];
+    return (
+      <>
+        <table className="tbl zebra" data-testid="equibles-estimates">
+          <thead>
+            <tr>
+              <th>Period ending</th>
+              <th>Metric</th>
+              <th className="num">Average</th>
+              <th className="num">Low</th>
+              <th className="num">High</th>
+              <th className="num">Analysts</th>
+              <th className="num" title="The average 30 days earlier">30 days ago</th>
+              <th className="num" title="Change of the average over 30 days">Change</th>
+              <th className="num" title="Analysts who raised and lowered their estimate in the last 30 days">Revisions 30d</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const chg = Number.isFinite(r.avg30) && r.avg30 !== 0 ? ((r.avg - r.avg30) / Math.abs(r.avg30)) * 100 : NaN;
+              return (
+                <tr key={`${r.metric}|${r.dimension}|${r.end}`}>
+                  <td className="amber">{day(r.end)}</td>
+                  <td className="white">
+                    {r.metric}
+                    {r.dimension ? <span className="muted"> · {r.dimension}</span> : null}
+                    {r.unit ? <span className="muted"> ({r.unit})</span> : null}
+                  </td>
+                  <td className="num white">{figure(r.avg)}</td>
+                  <td className="num">{figure(r.low)}</td>
+                  <td className="num">{figure(r.high)}</td>
+                  <td className="num">{Number.isFinite(r.analysts) ? fmtNum(r.analysts, 0) : ''}</td>
+                  <td className="num">{figure(r.avg30)}</td>
+                  <td className={`num ${chg > 0 ? 'up' : chg < 0 ? 'dn' : ''}`}>{Number.isFinite(chg) ? `${chg > 0 ? '+' : ''}${fmtNum(chg, 1)}%` : ''}</td>
+                  <td className="num">
+                    {Number.isFinite(r.raised30) && r.raised30 > 0 ? <span className="up">▲{r.raised30} </span> : null}
+                    {Number.isFinite(r.lowered30) && r.lowered30 > 0 ? <span className="dn">▼{r.lowered30}</span> : null}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <div className="note">The analysts&apos; consensus as Equibles compiles it{captured ? `, captured ${day(captured)}` : ''}: averages are means; Low and High are the lowest and highest estimates.</div>
+      </>
+    );
+  }
+  return (
+    <>
+      {status ? (
+        <p className="amber" data-testid="equibles-guidance-status">
+          No newer guidance: the company&apos;s last guidance was filed {day(status.last)}; its filings and calls through {day(status.checked)} give none. The rows below are what it said then, not its current outlook.
+        </p>
+      ) : null}
+      <div style={{ maxHeight: 600, overflow: 'auto' }}>
+        <Markdown text={report} testId="equibles-report" />
+      </div>
+    </>
   );
 }

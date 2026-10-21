@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEquiblesClient, decodeReply, ENDPOINT, toolArguments, validRequest } from '../electron/equibles.cjs';
 import * as providerRules from '../electron/providers.cjs';
 import tools from './fixtures/equibles-tools.json';
-import { parseResearch } from '../src/data/live/equibles';
+import { estimateTable, guidanceStatus, parseEstimateObservations, parseResearch } from '../src/data/live/equibles';
 
 // Public server schemas, fake account data. Tests never contact a data service.
 const KEY = 'eq_TestOnlyAccount0000000000000001';
@@ -66,7 +66,7 @@ describe('read-only Equibles discovery and transport', () => {
     const first = await h.client.research('estimates', 'APLD', KEY);
     expect(parseResearch(first.text)).toMatchObject({ tool: 'GetAnalystEstimates' });
     expect(h.requests.map((r) => r.rpc.method)).toEqual(['initialize', 'notifications/initialized', 'tools/list', 'tools/call']);
-    expect(h.requests[3].rpc.params.arguments).toEqual({ ticker: 'APLD', limit: 20 });
+    expect(h.requests[3].rpc.params.arguments).toEqual({ ticker: 'APLD', limit: 100 });
     expect(await h.client.research('estimates', 'APLD', KEY)).toMatchObject({ cached: true, at: START });
     await h.client.research('insiders', 'APLD', KEY);
     expect(h.requests).toHaveLength(5);
@@ -211,5 +211,35 @@ describe('expired Equibles sessions', () => {
     const aapl = await h.client.research('estimates', 'AAPL', KEY);
     expect(aapl).toMatchObject({ cached: true, at: START });
     expect(h.calls.filter((c) => c.method === 'tools/call' && c.ticker === 'AAPL')).toHaveLength(1);
+  });
+});
+
+describe('Equibles reports, readable', () => {
+  // The analyst-estimates report's lines (APLD, captured 17 October 2026).
+  const REPORT = `APLD — Analyst estimates: Available. Snapshot 9d91e683; captured 2026-10-17T19:22:17.0322520Z; publication: not stated.
+Revenue | | Q ending 2026-11-30 | Average | : 157746570 USD () Publication: not stated
+Revenue | | Q ending 2026-11-30 | Low | : 118750000 USD () Publication: not stated
+Revenue | | Q ending 2026-11-30 | High | : 183900000 USD () Publication: not stated
+Revenue | | Q ending 2026-11-30 | Analyst count | : 7 analysts () Publication: not stated
+EPS | | Q ending 2026-11-30 | Average | : -0.16956 USD () Publication: not stated
+EPS | | Q ending 2026-11-30 | Average, 30 days ago | : -0.33 USD () Publication: not stated
+EPS | | Q ending 2026-11-30 | Estimates raised, last 30 days | : 1 analysts () Publication: not stated
+EPS | | Q ending 2026-11-30 | Estimates lowered, last 30 days | : 0 analysts () Publication: not stated
+Revenue | | Q ending 2027-02-28 | Average | : 211909710 USD () Publication: not stated
+Returned 9 of 9 observations; hasMore=False.`;
+
+  it('turns the analyst-estimates lines into one row per metric and period', () => {
+    const obs = parseEstimateObservations(REPORT);
+    expect(obs).toHaveLength(9);
+    expect(obs[0]).toEqual({ metric: 'Revenue', dimension: '', period: 'Q ending 2026-11-30', end: '2026-11-30', statistic: 'Average', value: 157_746_570, unit: 'USD' });
+    const rows = estimateTable(obs);
+    expect(rows.map((r) => `${r.end} ${r.metric}`)).toEqual(['2026-11-30 EPS', '2026-11-30 Revenue', '2027-02-28 Revenue']);
+    expect(rows[1]).toMatchObject({ avg: 157_746_570, low: 118_750_000, high: 183_900_000, analysts: 7 });
+    expect(rows[0]).toMatchObject({ avg: -0.16956, avg30: -0.33, raised30: 1, lowered30: 0 });
+  });
+
+  it("states when a company's newest guidance is old", () => {
+    expect(guidanceStatus('Note: The newest guidance on record was filed 2024-01-16; documents through 2026-10-07 have been examined and state no newer guidance.')).toEqual({ last: '2024-01-16', checked: '2026-10-07' });
+    expect(guidanceStatus('6 release(s) on file')).toBeNull();
   });
 });

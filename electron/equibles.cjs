@@ -50,7 +50,10 @@ function decodeReply(text, contentType, id) {
 }
 
 /** Refuse changed/ambiguous schemas instead of sending an unscoped query. */
-function toolArguments(tool, symbol) {
+/** Analyst estimates come in one request (every metric and period, up to 100 observations); the other reports 20. */
+const WANT = { estimates: 100 };
+
+function toolArguments(tool, symbol, want = 20) {
   if (!tool || tool.annotations?.readOnlyHint === false) return null;
   const schema = tool.inputSchema;
   const props = schema?.properties;
@@ -63,7 +66,7 @@ function toolArguments(tool, symbol) {
     const min = props[limitKey].minimum ?? 1;
     const max = props[limitKey].maximum ?? 500;
     if (!Number.isInteger(min) || !Number.isInteger(max) || min < 0 || min > max || min > 50) return null;
-    args[limitKey] = Math.min(max, Math.max(min, 20));
+    args[limitKey] = Math.min(max, Math.max(min, want));
   }
   if (schema.required !== undefined && (!Array.isArray(schema.required) || schema.required.some((key) => !Object.hasOwn(args, key)))) return null;
   return args;
@@ -169,7 +172,7 @@ function createEquiblesAccount({ providers, fetch, agent, now = Date.now, sleep,
     }
     const matches = discovery.tools.filter((tool) => normalize(tool?.name) === normalize(TOOLS[kind]));
     const tool = matches.length === 1 ? matches[0] : null;
-    const args = toolArguments(tool, symbol);
+    const args = toolArguments(tool, symbol, WANT[kind]);
     if (!args) return fail(`Equibles does not expose a compatible ${TOOLS[kind]} tool for this account.`, 'no-data');
     const answer = await rpc(key, 'tools/call', { name: tool.name, arguments: args }, 6 * 3_600_000);
     // Expired stateful sessions must be initialized again, at most once per user query.
