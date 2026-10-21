@@ -124,7 +124,13 @@ export function COMP({ sec }: FnProps) {
                   <td className="num">{fmtNum(s0, d.dec)}</td>
                   <td className="num">{fmtNum(last, d.dec)}</td>
                   <td className="num">{d.quote === 'yield' ? <><Chg v={ret} dec={0} /> bp</> : <Chg v={ret} pct />}</td>
-                  <td className="num">{i === 0 || d.quote === 'yield' ? '--' : <Chg v={ret - baseRet} pct />}</td>
+                  <td className="num">
+                    {i === 0 ? null : d.quote === 'yield' ? (
+                      <span className="muted" title="Not meaningful: a yield's change in basis points is not a return">NM</span>
+                    ) : (
+                      <Chg v={ret - baseRet} pct />
+                    )}
+                  </td>
                 </tr>
               );
             })}

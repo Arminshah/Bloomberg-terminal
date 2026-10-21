@@ -59,7 +59,7 @@ export function FXC(_: FnProps) {
               <tr key={row}>
                 <td className="amber b">{row}</td>
                 {ccys.map((col) => {
-                  if (row === col) return <td key={col} className="num faint">--</td>;
+                  if (row === col) return <td key={col} className="num faint fx-same" title="The same currency" />;
                   const v = engine.usdValue(row) / engine.usdValue(col);
                   return (
                     <td key={col} className="num white">

@@ -147,7 +147,7 @@ export function DVD({ sec }: FnProps) {
       {all.length > 0 && (
         <div className="dvd-top">
           <KV
-            items={[
+            items={([
               ['12 Month Yield - Gross', fmtPct(ks.divYld, 2, false)],
               ['Indicated Yield', fmtPct(indicated, 2, false)],
               ['1 Yr Dividend Growth', fmtPct(growth(1), 2)],
@@ -157,9 +157,10 @@ export function DVD({ sec }: FnProps) {
               ['Payment Frequency', last?.freq ?? all[0].freq],
               ['Indicated Annual', Number.isFinite(indicatedAnnual) ? `${fmtAmount(indicatedAnnual)} ${ccy}${Number.isFinite(s.eq!.dps) ? '' : ' (latest × frequency)'}` : '--'],
               ['Payout Ratio', fmtPct(ks.payout, 1, false)],
-              ['Next Ex Date', next ? `${fmtDay(next.ex)} (${next.type})` : '--'],
-              ['Last Split', sp[0] ? `${fmtDay(sp[0].date)} · ${splitRatio(sp[0])}` : engine.realOnly || engine.isExternal(s.id) ? 'None in the record' : '--'],
-            ]}
+              ['Next Ex Date', next ? `${fmtDay(next.ex)} (${next.type})` : 'None announced'],
+              ['Last Split', sp[0] ? `${fmtDay(sp[0].date)} · ${splitRatio(sp[0])}` : 'None in the record'],
+              // A figure the record cannot give (a growth rate over more years than it covers) is left out, not dashed.
+            ] as [string, string][]).filter(([, v]) => !/(^|\s)--(\s|$)/.test(v))}
           />
           <XYChart
             height={190}
@@ -234,7 +235,7 @@ export function DVD({ sec }: FnProps) {
             </tbody>
           </table>
           <div className="note">
-            Dividend growth: the compound annual rate from the dividends that went ex in the 12 months to this date one, three or five years ago to those in the past 12 months; -- unless the record covers that earlier year in full. Yield: the 12-month dividend over the price at each month end.
+            Dividend growth: the compound annual rate from the dividends that went ex in the 12 months to this date one, three or five years ago to those in the past 12 months, shown only when the record covers that earlier year in full. Yield: the 12-month dividend over the price at each month end.
             {list.some((d) => !Number.isFinite(d.record)) ? ' Declaration, record and payable dates come from Nasdaq\'s dividend record, which covers Nasdaq-listed stocks; the price history gives the ex-date and amount only, so a blank cell is a date no source gives.' : ''}
             {sp.length ? ` Splits as Yahoo's price history records them, on their effective date; it records some spin-offs as fractional splits too. ${adjusted ? 'Dividend amounts are on the current share basis (adjusted for later splits).' : 'Dividend amounts as paid at the time (not adjusted for later splits).'}` : ''}
           </div>
