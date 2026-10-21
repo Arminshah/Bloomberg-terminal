@@ -609,6 +609,23 @@ const MINERAL = /\b(?:oil|natural gas|NGLs?|minerals?|acreage|acres|wells?|royal
 const OTHER_POSSESSIVE = /([A-Z][\w&.-]+(?:\s+[A-Z][\w&.-]+){0,2})(?:'s|’s)\s+(?:[\w-]+\s+){0,3}(?:customers?|suppliers?|vendors?|business|operations|products|partners?)\b[^.;]*$/;
 
 /**
+ * A sentence that gives the target's short name to another company: "Changzhou Almaden Co., Ltd. (we refer to it as
+ * "AMD")", "a related party that we refer to in this annual report as AMD". Every mention in that filing is the other.
+ */
+export function definesOther(s: string, pattern: RegExp): boolean {
+  const re = /(?:\(\s*(?:the\s+)?["“]([A-Z][\w&.-]{1,20})["”]\s*\)|\b(?:refer(?:red|s)?|referred) to (?:it |them )?(?:[^.;"“]{0,40}?\s)?as\s+(?:the\s+)?["“]?([A-Z][\w&.-]{1,20})\b["”]?)/g;
+  for (const d of s.matchAll(re)) {
+    const term = d[1] ?? d[2];
+    pattern.lastIndex = 0;
+    if (!pattern.test(term)) continue;
+    const lead = s.slice(Math.max(0, (d.index ?? 0) - 120), d.index ?? 0);
+    pattern.lastIndex = 0;
+    if (!pattern.test(lead)) return true;
+  }
+  return false;
+}
+
+/**
  * What a sentence in another company's filing says about the target: that the filer supplies it (with the share of
  * the filer's revenue), buys from it or resells its products, competes with it, partners with it, lends to it, holds
  * a stake in it or took its investment; null when it says none of these clearly. Precision first: a sentence that is
@@ -635,13 +652,7 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
   if (company.some((c) => NEGATED.test(s.slice(Math.max(0, c.index - 120), c.end + 60)))) return null;
   if (TAKEOVER.test(s) || ENDED.test(s) || NOT_STATEMENT.test(s)) return null;
   // Another company defined by the target's short name: "Changzhou Almaden Co., Ltd. (we refer to it as "AMD")".
-  for (const d of s.matchAll(/(?:\(|refer(?:red)? to (?:it |them )?as\s+)(?:the\s+)?["“]([A-Z][\w&.-]{1,20})["”]\)?/g)) {
-    pattern.lastIndex = 0;
-    if (!pattern.test(d[1])) continue;
-    const lead = s.slice(Math.max(0, (d.index ?? 0) - 90), d.index ?? 0);
-    pattern.lastIndex = 0;
-    if (!pattern.test(lead)) return null;
-  }
+  if (definesOther(s, pattern)) return null;
   // A technical fit is no trade: "powered by Palantir", "compatible with Microsoft", "certifications from Microsoft".
   if (company.length && company.every((c) => /\b(?:powered by|built on|based on|running on|runs on|compatible with|integrat\w* with|works? with|support(?:s|ed)? for|certifi\w* (?:by|from)|certifications? from|on top of|alongside|in conjunction with|sub-?tier (?:suppliers?|vendors?) (?:of|to)|tier[- ](?:2|3|two|three) (?:suppliers?|vendors?) (?:of|to))\s+(?:[^.;]{0,30})$/i.test(before(c)))) return null;
 
@@ -1166,8 +1177,13 @@ export function dealClause(before: string): string {
   return out.slice(-160);
 }
 
-export function dealRole(before: string, after: string, sentence: string): Role | null {
+export function dealRole(before: string, after: string, sentence: string, self?: RegExp): Role | null {
   const b = dealClause(before);
+  // "a product purchase agreement with OpenAI to deploy 6 gigawatts of AMD GPUs": the party buys the filer's products.
+  if (/\b(?:product |master |supply and )?purchase agreements?\b/i.test(b) && self) {
+    const own = new RegExp(String.raw`^(?:'s)?,?[^.;]{0,60}?\b(?:to (?:deploy|purchase|buy|acquire|use)|for (?:the )?(?:purchase|deployment) of)\b[^.;]{0,60}?(?:\bour\b|${self.source})`, 'i');
+    if (own.test(after)) return 'customer';
+  }
   if (AGENT_PARTY.test(after)) return null;
   if (/\b(?:securities purchase|subscription|investment agreement|investment from|invest(?:s|ed|ing)? (?:up to )?\$|private placement|preferred (?:equity|stock|units)|equity (?:investment|financing)|strategic investment)\b/i.test(b)) return 'investor';
   if (LOAN.test(b)) return 'lender';
@@ -1241,14 +1257,14 @@ export function ownStatements(sentence: string, dir: Directory, self?: RegExp): 
       if (otherSubject(s.slice(0, m.index), dir, self)) continue;
       const u = unnamedParty(rest);
       if (u) {
-        role = dealRole(before, rest.slice(u.end), s);
+        role = dealRole(before, rest.slice(u.end), s, self);
         if (role) push(role, { name: u.label, unnamed: true, key: u.key });
         continue;
       }
       loose = LOAN.test(clause) || /\bpartner|collaborat|alliance|joint venture/i.test(clause);
       const parties = partiesAt(rest, dir, loose);
       if (!parties.length) continue;
-      role = dealRole(before, rest.slice(parties[parties.length - 1].index), s);
+      role = dealRole(before, rest.slice(parties[parties.length - 1].index), s, self);
       if (role) for (const p of parties) push(role, p);
       continue;
     }
@@ -1705,10 +1721,16 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     if (sentences) {
       const listed = dir.byTicker.get(f.tickers[0] ?? '');
       const filer = targetPattern(targetNames(f.tickers[0], f.name).names);
-      for (const sentence of sentences) {
+      // A filing that calls another company by the target's name speaks of that company throughout.
+      const other = sentences.some((s) => definesOther(s, pattern));
+      const filedYear = Number(f.date.slice(0, 4));
+      for (const sentence of other ? [] : sentences) {
         if (exclude?.test(sentence)) continue;
         const c = classify(sentence, pattern, filer);
         if (!c) continue;
+        // "95% of our China revenue in 2019" in a 2026 report: a figure for a long-past year is no current relation.
+        const years = (sentence.match(/\b(?:19|20)\d{2}\b/g) ?? []).map(Number).filter((y) => y <= filedYear + 1);
+        if (/\d\s*(?:%|percent)/i.test(sentence) && years.length && Math.max(...years) < filedYear - 2) continue;
         found++;
         relations.push({ key: `cik:${f.cik}`, name: knownName(f.tickers[0]) ?? listed?.title ?? f.name, ticker: f.tickers[0], cik: f.cik, role: c.role, share: c.share, qualifier: c.qualifier, basis: c.basis, side: 'theirs', evidence: [evidence(f, sentence)] });
       }

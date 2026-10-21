@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  buildDirectory, classify, currentDocs, dealClause, findCompanies, mergeRelations, ownRelations, ownStatements, rankFilers, runChain, searchNames,
+  buildDirectory, classify, currentDocs, dealClause, definesOther, findCompanies, mergeRelations, ownRelations, ownStatements, rankFilers, runChain, searchNames,
   targetNames, targetPattern, unnamedParty, type Chain, type ChainIO, type FtsHit, type Relation,
 } from '../src/data/live/supply-chain';
 import type { SecCompany } from '../src/data/live/sec';
@@ -392,5 +392,21 @@ describe('SPLC: fees and consent', () => {
     expect(role("Walmart Inc. and its affiliates together accounted for approximately 13% of our consolidated net sales.", ['Walmart'])?.share).toBe(13);
     expect(role('We expect to deliver the opt-in package for the PCSK9 program to Lilly in the second half of 2025.', ['Lilly'])?.role).toBe('partner');
     expect(role("In April 2021, Apple started implementing its application tracking transparency framework that requires users' opt-in consent for certain types of tracking.", ['Apple'])).toBeNull();
+  });
+});
+
+describe('SPLC: purchases of the filer\'s products, names defined as another company, past years', () => {
+  it('reads a purchase agreement for the filer\'s own products as a sale to the party', () => {
+    const d = buildDirectory([{ cik: 2488, ticker: 'AMD', title: 'ADVANCED MICRO DEVICES INC' }]);
+    const amd = targetPattern(['AMD', 'Advanced Micro Devices']);
+    const got = ownStatements('In October 2025, we entered into a product purchase agreement with OpenAI OpCo, LLC, (OpenAI) to deploy 6 gigawatts of AMD GPUs, with the first gigawatt powered by our AMD Instinct MI450 series products.', d, amd);
+    expect(got.map((x) => [x.role, x.party.name])).toEqual([['customer', 'OpenAI']]);
+  });
+
+  it('knows a sentence that gives the target\'s name to another company', () => {
+    const amd = targetPattern(['AMD', 'Advanced Micro Devices']);
+    expect(definesOther('Approximately 95% of our China revenue in 2019 was generated from Changzhou Almaden Co., Ltd., which was a related party that we refer to in this annual report as AMD.', amd)).toBe(true);
+    expect(definesOther('Changzhou Almaden Co., Ltd. (we refer to it as "AMD") supplied our panels.', amd)).toBe(true);
+    expect(definesOther('Advanced Micro Devices, Inc. ("AMD") is our largest customer.', amd)).toBe(false);
   });
 });
