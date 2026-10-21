@@ -5,6 +5,7 @@ import { parseCommand } from './commands';
 import { flash, clearFlash, menuItem } from './panel';
 import { lookupFn } from './registry';
 import { loadedSecurity, navigate, terminal } from './state';
+import { commandForName, nameQuery } from './name-search';
 
 /** Bumped per panel on every command, so a slow online lookup never overrides a newer command. */
 const runSeq = new Map<number, number>();
@@ -22,12 +23,35 @@ function lookupThenRun(panel: number, text: string, ticker: string, message: str
   void lookupSecurity(ticker).then((r) => {
     if (runSeq.get(panel) !== seq || terminal.get().panels[panel] !== pendingPanel) return;
     if (!r.ok) {
-      flash(panel, r.reason, 'error');
+      // "apple", "walmart": a company's name that is not a ticker.
+      if (nameQuery(text)) nameThenRun(panel, text, r.reason);
+      else flash(panel, r.reason, 'error');
       return;
     }
     const again = parseCommand(text, lookupFn);
     if (again.kind === 'route') execute(panel, text);
     else execute(panel, r.def.id);
+  });
+  return true;
+}
+
+/** Finds the stock a company name names online ("applied digital SPLC"), then runs the command for it. */
+function nameThenRun(panel: number, text: string, message: string): boolean {
+  const q = nameQuery(text);
+  if (!q || !lookupSource()) {
+    flash(panel, message, 'error');
+    return false;
+  }
+  const seq = runSeq.get(panel);
+  const pendingPanel = terminal.get().panels[panel];
+  flash(panel, `Searching for "${q.name}"…`, 'info');
+  void commandForName(text).then((command) => {
+    if (runSeq.get(panel) !== seq || terminal.get().panels[panel] !== pendingPanel) return;
+    if (!command) {
+      flash(panel, `No stock found named "${q.name}". ${message.replace(/^Unknown command: [^.]*\.\s*/, '')}`.trim(), 'error');
+      return;
+    }
+    execute(panel, command);
   });
   return true;
 }
@@ -55,6 +79,7 @@ export function execute(panel: number, text: string): boolean {
       return true;
     case 'error':
       if (parsed.lookup) return lookupThenRun(panel, text, parsed.lookup, parsed.message);
+      if (lookupSource() && nameQuery(text)) return nameThenRun(panel, text, parsed.message);
       flash(panel, parsed.message, 'error');
       return false;
     case 'route': {

@@ -462,6 +462,25 @@ test('research remains usable across FMP 402s, Finnhub fallback and manual Equib
   expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(2);
 });
 
+test('a company typed by its name is found and opened, with the function typed after it', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  const input = page.locator('#cmd-0');
+  await input.click();
+  await input.fill('acme widgets');
+  // The online search's stock shows among the suggestions while typing.
+  const list = page.locator('#cmd-suggestions-0');
+  await expect(list).toContainText('WXYZ US Equity', { timeout: 15_000 });
+  await expect(list).toContainText('Acme Widgets Inc.');
+  await input.press('Escape');
+  // Run without choosing a suggestion: the name is looked up and the function opens for the stock.
+  await command(page, 'acme widgets profile', 'PROFILE');
+  await expect(page.locator('.fnh')).toContainText('WXYZ');
+  expect((await calls(app)).yahoo.some((path) => path.startsWith('/v1/finance/search?q=acme'))).toBe(true);
+});
+
 test('APLD research recovers from both reported provider refusals and lookup survives missing company profiles', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;

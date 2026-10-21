@@ -47,6 +47,9 @@ describe('SPLC: names', () => {
     expect(targetNames('XYZ', 'Fabrinet')).toEqual({ legal: ['Fabrinet'], names: ['Fabrinet'] });
     expect(targetNames('NBIS', 'Nebius Group N.V.')).toEqual({ legal: ['Nebius Group N.V.'], names: ['Nebius'] });
     expect(targetNames('BA', 'BOEING CO').names).toEqual(['Boeing']);
+    // "Eli Lilly and Company" is searched as "Eli Lilly", not "Eli Lilly and"; the legal name keeps its "&".
+    expect(targetNames('LLY', 'ELI LILLY & Co').names).not.toContain('Eli Lilly and');
+    expect(targetNames('ZZZZ', 'ACME & Co')).toEqual({ legal: ['Acme & Company'], names: ['Acme'] });
     expect(targetPattern(targetNames('KO', 'COCA COLA CO').names).test('The Coca-Cola Company and Coca Cola bottlers')).toBe(true);
   });
 

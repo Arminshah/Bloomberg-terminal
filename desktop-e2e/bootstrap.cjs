@@ -67,6 +67,8 @@ net.fetch = async (input, init) => {
     if (url.pathname === '/v1/test/getcrumb') return new Response('synthetic-session-crumb', { headers: { 'Content-Type': 'text/plain' } });
     if (url.pathname === '/v1/finance/search') {
       const symbol = fixtures.dataAccuracy && url.searchParams.get('q') === 'NBIS' ? 'NBIS' : 'APLD';
+      // A company's name typed in the command line: the search answers with the company of that name.
+      if (/acme\s+widgets/i.test(url.searchParams.get('q') ?? '')) return json({ quotes: [{ symbol: 'WXYZ', quoteType: 'EQUITY', exchange: 'NMS', longname: 'Acme Widgets Inc.' }] });
       return json({ quotes: [{ symbol, quoteType: 'EQUITY', exchange: 'NMS', longname: `Synthetic ${symbol} fixture` }] });
     }
     if (fixtures.dataAccuracy && url.pathname.startsWith('/ws/fundamentals-timeseries/') && url.searchParams.get('type')?.startsWith('quarterly')) {

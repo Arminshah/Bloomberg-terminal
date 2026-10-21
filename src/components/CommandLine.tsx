@@ -6,6 +6,7 @@ import { back, forward, LINK_GROUPS, linkGroupOf, setLinkGroup, terminal, type L
 import { CHART_STYLES, primaryMnemonic, styledMnemonic } from '../terminal/legacy';
 import { settings } from '../terminal/settings';
 import { startSuggestions, suggest, type Suggestion } from '../terminal/suggest';
+import { nameSuggestions } from '../terminal/name-search';
 import { favourites } from '../terminal/userdata';
 import type { Route } from '../terminal/types';
 import { lookupFn } from '../terminal/registry';
@@ -159,7 +160,28 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   }, [msg, panel]);
 
   // Before anything is typed: favourites and recent securities, as soon as the line is clicked.
-  const items = useMemo(() => (!open ? [] : value.trim() ? suggest(value) : startSuggestions(favIds, recentSecs)), [value, open, favIds, recentSecs]);
+  const local = useMemo(() => (!open ? [] : value.trim() ? suggest(value) : startSuggestions(favIds, recentSecs)), [value, open, favIds, recentSecs]);
+  // A company's name typed: the stocks the online search finds for it, after the app's own matches.
+  const [named, setNamed] = useState<{ text: string; items: Suggestion[] }>({ text: '', items: [] });
+  useEffect(() => {
+    const text = value.trim();
+    if (!open || text.length < 3) return;
+    let live = true;
+    const id = setTimeout(() => {
+      void nameSuggestions(text).then((found) => {
+        if (live) setNamed({ text, items: found });
+      });
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(id);
+    };
+  }, [value, open]);
+  const items = useMemo(() => {
+    if (!open || named.text !== value.trim() || !named.items.length) return local;
+    const have = new Set(local.map((s) => s.primary));
+    return [...local, ...named.items.filter((s) => !have.has(s.primary))];
+  }, [local, named, value, open]);
 
   useEffect(() => {
     if (sel < 0 || !listRef.current) return;

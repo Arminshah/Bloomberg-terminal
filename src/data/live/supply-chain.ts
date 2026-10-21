@@ -372,7 +372,9 @@ export interface TargetNames {
 /** How other reports name a company: its legal name for the search, its short names for reading. */
 export function targetNames(ticker: string | undefined, title: string): TargetNames {
   const alias = ticker ? ALIASES[ticker.toUpperCase()] : undefined;
-  if (alias) return { legal: alias.legal, names: [...new Set([...alias.names, ...alias.legal.map((l) => l.replace(SUFFIX, '').replace(/^The\s+/, '').trim())])], ...(alias.exclude ? { exclude: alias.exclude } : {}) };
+  // "Eli Lilly and Company" without its legal form is "Eli Lilly", not "Eli Lilly and".
+  const bare = (l: string) => l.replace(SUFFIX, '').replace(/^The\s+/, '').trim().replace(/[\s,]+(?:and|&)$/i, '').trim();
+  if (alias) return { legal: alias.legal, names: [...new Set([...alias.names, ...alias.legal.map(bare)])], ...(alias.exclude ? { exclude: alias.exclude } : {}) };
   const clean = title.replace(STATE_TAG, '').replace(/\s+/g, ' ').trim();
   const words = clean.replace(/,/g, ' ').split(' ').filter(Boolean);
   const tail: string[] = [];
@@ -380,7 +382,7 @@ export function targetNames(ticker: string | undefined, title: string): TargetNa
   const base = words.map(titleWord).join(' ').replace(/ Com$/, '.com');
   const legalSuffix = tail.length ? suffixWord(tail[0]) : '';
   const legal = legalSuffix ? `${base} ${legalSuffix}` : base;
-  const names = [base];
+  const names = [base.replace(/\s+(?:and|&)$/i, '')];
   const first = words[0] ? titleWord(words[0]) : '';
   if (words.length > 1 && first.length >= 4 && !COMMON.has(first.toLowerCase()) && !/^(Advanced|Applied|Super|Texas|Western|Eastern|Southern|Northern|Royal|Natural|Universal|Pacific|Atlantic|Integrated|Consolidated)$/i.test(first)) names.push(first);
   return { legal: [legal.replace(/[^A-Za-z0-9 .,&'()-]/g, '').slice(0, 59)], names: [...new Set(names.filter((n) => n.length >= 2).map((n) => n.replace(/[^A-Za-z0-9 .,&'-]/g, '').slice(0, 59)))] };
