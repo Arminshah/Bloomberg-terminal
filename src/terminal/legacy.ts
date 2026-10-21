@@ -109,9 +109,13 @@ export const LEGACY_CODES: Record<string, string> = {
  */
 export const CHART_STYLES: Record<string, string> = { GPO: 'BAR', GPC: 'CANDLE', RSI: 'RSI', MACD: 'MACD', BOLL: 'BOLL' };
 
+/** Words that open TOPMOVERS on one of its lists: GAINERS is TOPMOVERS GAINERS. */
+export const MOVER_WORDS: Record<string, string> = { GAINERS: 'GAINERS', LOSERS: 'LOSERS', TRENDING: 'TRENDING' };
+
 /** The arguments a function word brings with it, ahead of any typed after it: GPC AAPL 3M is CHART AAPL CANDLE 3M. */
 export function argsWith(word: string, typed?: string): string | undefined {
-  const text = [CHART_STYLES[word.toUpperCase()], typed?.trim()].filter(Boolean).join(' ');
+  const w = word.toUpperCase();
+  const text = [CHART_STYLES[w] ?? MOVER_WORDS[w], typed?.trim()].filter(Boolean).join(' ');
   return text || undefined;
 }
 

@@ -101,7 +101,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   EQUITY: {
     title: 'Equity',
     groups: [
-      { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'MOVERS', 'CONTRIB', 'SCREEN', 'EVENTS', 'IPOS', 'EXCHANGES'] },
+      { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'MOVERS', 'TOPMOVERS', 'CONTRIB', 'SCREEN', 'EVENTS', 'IPOS', 'EXCHANGES'] },
       { title: 'News and research', entries: ['MARKETNEWS', 'BREAKING', 'HEADLINES', 'NEWS', 'FILINGS', 'RELEASES', 'MACRO'] },
       { title: 'Portfolio and monitors', entries: ['PORTFOLIO', 'WATCHLIST', 'FAVOURITES', 'ALERTS'] },
     ],

@@ -1283,3 +1283,10 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .tbl-wrap.evts-wrap { overflow-x: clip; overflow-y: visible; }
 .evts-mkt thead th { top: var(--evts-head-top, 0px); z-index: 4; }
 .evts-mkt td.num, .evts-mkt th.num { font-variant-numeric: tabular-nums; }
+
+/* TOPMOVERS: names and the 52-week range bar */
+.mv-table .mv-name { display: inline-block; max-width: 230px; vertical-align: bottom; }
+.mv-range { display: inline-grid; grid-template-columns: auto auto; width: 110px; font-size: 10px; color: var(--muted, #8a8a8a); }
+.mv-range-bar { grid-column: 1 / 3; position: relative; height: 4px; margin: 3px 0 1px; background: #3a3a3a; border-radius: 2px; }
+.mv-range-dot { position: absolute; top: -3px; width: 2px; height: 10px; margin-left: -1px; background: var(--amber); }
+.mv-range-hi { text-align: right; }

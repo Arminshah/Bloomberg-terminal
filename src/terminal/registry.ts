@@ -31,6 +31,7 @@ import { BREAKING } from '../functions/BREAKING';
 import { WEI, WEIF } from '../functions/WEI';
 import { IMAP } from '../functions/IMAP';
 import { MOST } from '../functions/MOST';
+import { TOPMOVERS } from '../functions/TOPMOVERS';
 import { EXCH } from '../functions/EXCH';
 import { EQS } from '../functions/EQS';
 import { BTMM, GC, WB, WIRP } from '../functions/RATES';
@@ -112,6 +113,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'MEMBERS', name: 'Index Members', category: 'Markets', desc: "An index's members with their weights, shares, price, change and market value: the S&P 500, the Nasdaq-100 and the Dow (desktop app). Weights of cap-weighted indices are estimated from market values.", component: MEMB, example: 'SPX INDEX MEMBERS' },
   { code: 'RANKEDRETURNS', name: 'Member Ranked Returns', category: 'Markets', desc: "An index's best and worst members by price return over a day, a week, a month, three or six months, the year to date or a year (S&P 500, Nasdaq-100, Dow; desktop app).", component: MRR, example: 'NDX INDEX RANKEDRETURNS' },
   { code: 'GROUPRETURNS', name: 'Group Ranked Returns', category: 'Markets', desc: "An index's industry groups ranked by price return over a day, a week, one, three or six months, the year to date or a year: GICS sectors or sub-industries of the S&P 500, sectors and industries of the Nasdaq-100 and the Dow, cap-weighted or equal-weighted, each with its best and worst members (desktop app).", component: GRR, example: 'SPX INDEX GROUPRETURNS' },
+  { code: 'TOPMOVERS', name: 'Stock Movers', category: 'Markets', desc: "US stocks as Yahoo Finance's markets pages list them: most active, trending now, the day's top gainers and losers, and the 52-week gainers and losers, with the day's price path, change, volume against the three-month average, market value, P/E and the 52-week change and range (desktop app). GAINERS, LOSERS and TRENDING open those lists.", component: TOPMOVERS, aliases: ['GAINERS', 'LOSERS', 'TRENDING'], example: 'TOPMOVERS GAINERS' },
   { code: 'IPOS', name: 'Capital Raisings: IPOs', category: 'Markets', desc: "US initial public offerings priced, expected, filed and withdrawn in a period (Nasdaq's IPO calendar, all US exchanges, no key), the money raised against the same months a year earlier, and each new listing's first-day and since-offer returns with the best and worst performers; SPACs left out unless included (desktop app).", component: IPO, example: 'IPOS' },
   { code: 'HEATMAP', name: 'Intraday Market Map', category: 'Markets', desc: 'Heat map of stocks by sector sized by market cap and coloured by performance.', component: IMAP },
   { code: 'MOVERS', name: 'Most Active', category: 'Markets', desc: 'Most active, top gainers, losers, value traded and unusual volume by region.', component: MOST, aliases: ['ACTIVE'] },
