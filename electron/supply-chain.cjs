@@ -10,8 +10,17 @@
 
 const DAY = 86_400_000;
 
-/** The words searched beside a company's name: concentration disclosures, supplier and customer statements. */
-const TERMS = ['accounted for', 'revenues', 'suppliers', 'supplier', 'customer', 'sole source'];
+/**
+ * The words searched beside a company's name: concentration disclosures, supplier and customer statements, purchases
+ * from it, its distributors and the companies naming it a competitor.
+ */
+const TERMS = ['accounted for', 'revenues', 'suppliers', 'supplier', 'customer', 'sole source', 'purchase', 'distributor', 'competitors'];
+
+/** The filings searched: annual and quarterly reports of the last 18 months, or the IPO prospectuses of the last three years. */
+const SETS = {
+  reports: { forms: '10-K,20-F,40-F,10-Q', days: 548 },
+  prospectus: { forms: 'S-1,F-1,424B4', days: 1096 },
+};
 
 /** A company name as the page may search it: letters, digits and the punctuation of legal names. */
 const NAME = /^[A-Za-z0-9][A-Za-z0-9 .,&'()-]{1,59}$/;
@@ -20,19 +29,19 @@ const NAME = /^[A-Za-z0-9][A-Za-z0-9 .,&'()-]{1,59}$/;
 const DOC = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}\.html?)$/i;
 
 /**
- * The full-text search for annual reports (10-K, 20-F, 40-F) of the last 18 months that contain the name and
- * the term. `arg` is "term|name"; null when it is not a search the app makes.
+ * The full-text search for the reports (annual and quarterly, 18 months) or IPO prospectuses (three years) that
+ * contain the name and the term, a page of 100 hits (`from` 0 or 100). `arg` is "term|name", optionally followed by
+ * "|prospectus" and "|100"; null when it is not a search the app makes.
  */
 function ftsUrl(arg, now = Date.now()) {
-  if (typeof arg !== 'string' || arg.length > 200) return null;
-  const bar = arg.indexOf('|');
-  if (bar < 0) return null;
-  const term = arg.slice(0, bar);
-  const name = arg.slice(bar + 1).trim();
-  if (!TERMS.includes(term) || !NAME.test(name)) return null;
+  if (typeof arg !== 'string' || arg.length > 220) return null;
+  const [term, rawName, set = 'reports', from = '0', ...rest] = arg.split('|');
+  const name = (rawName ?? '').trim();
+  if (rest.length || !TERMS.includes(term) || !NAME.test(name) || !Object.hasOwn(SETS, set) || !['0', '100'].includes(from)) return null;
   const q = `"${name}" ${term.includes(' ') ? `"${term}"` : term}`;
   const day = (t) => new Date(t).toISOString().slice(0, 10);
-  return `https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(q)}&forms=10-K,20-F,40-F&dateRange=custom&startdt=${day(now - 548 * DAY)}&enddt=${day(now)}`;
+  const { forms, days } = SETS[set];
+  return `https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(q)}&forms=${forms}&dateRange=custom&startdt=${day(now - days * DAY)}&enddt=${day(now)}${from === '100' ? '&from=100' : ''}`;
 }
 
 /**
@@ -180,7 +189,7 @@ function mentionSentences(text, names, max = 80) {
 }
 
 // In a company's own report: who it names as customers, suppliers and competitors.
-const OWN = /\b(competitors?|compete[sd]?|competing|competition (?:from|with|comes|includes)|foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|limited[- ]source|customers? (?:include|including|such as|are|is)|largest customers?|end customers?|Customer [A-Z]\b|accounted for|(?:represented|contributed|comprised) (?:approximately |about )?\d|\d%[^.]{0,60}\bof (?:our |its |the Company's )?(?:total |net |consolidated )*(?:revenue|revenues|net sales|sales)\b|(?:revenue|revenues|sales) (?:from|to) [A-Z])/;
+const OWN = /\b(competitors?|compete[sd]?|competing|competition (?:from|with|comes|includes)|foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|limited[- ]source|customers? (?:include|including|such as|are|is)|largest customers?|end customers?|Customer [A-Z]\b|accounted for|accounting for|(?:represented|representing|contributed|comprised) (?:approximately |about )?\d|\d{1,3}(?:\.\d+)?\s?%[^.]{0,60}\bof (?:our |its |the Company's )?(?:total |net |consolidated )*(?:revenue|revenues|net sales|sales)\b|(?:revenue|revenues|sales) (?:from|to) [A-Z]|(?:lease|leases|hosting agreement|colocation agreement|capacity agreement|services agreement)\b[^;]{0,120}\bwith [A-Z][^;]{0,200}\bto (?:host|serve|support)\b)/;
 // A sentence that introduces a list of competitors on the lines that follow.
 const LIST_INTRO = /\b(competitors (?:include|are|consist)|compete (?:with|against)|competition (?:comes from|includes|from))\b[^.]*:?\s*$/i;
 

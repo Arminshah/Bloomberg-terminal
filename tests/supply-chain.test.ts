@@ -25,6 +25,7 @@ const COMPANIES: SecCompany[] = [
   { cik: 1652044, ticker: 'GOOGL', title: 'Alphabet Inc.' },
   { cik: 789019, ticker: 'MSFT', title: 'MICROSOFT CORP' },
   { cik: 1318605, ticker: 'TSLA', title: 'Tesla, Inc.' },
+  { cik: 1769628, ticker: 'CRWV', title: 'CoreWeave, Inc.' },
 ];
 const dir = buildDirectory(COMPANIES);
 const nvda = targetPattern(targetNames('NVDA', 'NVIDIA CORP').names);
@@ -75,6 +76,8 @@ describe('SPLC: shares', () => {
       { count: 2, kind: 'direct', share: 11 },
     ]);
     expect(unnamedShares('Three direct customers accounted for 25%, 18%, and 13% of our accounts receivable balance as of January 25, 2026.')).toEqual([]);
+    // Applied Digital's wording (10-K for fiscal 2026).
+    expect(unnamedShares('During fiscal year 2026, this business segment was comprised of one customer accounting for 59% of our total revenue from continuing operations.')).toEqual([{ count: 1, kind: '', share: 59 }]);
   });
 
   it('takes the year a statement speaks of', () => {
@@ -89,6 +92,13 @@ describe("SPLC: what another company's report says", () => {
     expect(c('During fiscal year 2026, Cisco Systems, Inc., NVIDIA Corporation, Nokia Corporation and Amazon.com, Inc. contributed 19.9%, 16.3%, 10.7% and 10.5%, respectively, of our revenues.')).toEqual({ role: 'supplier', share: 16.3, qualifier: undefined, basis: 'their-revenue' });
     expect(c('Sales attributable to Apple, our largest end customer accounted for approximately 17%, 22%, and 21% of our revenue for the years ended December 31, 2025, 2024, and 2023, respectively.', apple)).toMatchObject({ role: 'supplier', share: 17 });
     expect(c('In fiscal 2025, revenue (in descending order) from Samsung, Apple, and vivo each comprised 10% or more of our consolidated revenue.', apple)).toMatchObject({ role: 'supplier', share: 10, qualifier: '>' });
+  });
+
+  it('a contractor building for it is a supplier; a stake it took is apart (Babcock & Wilcox, Applied Digital)', () => {
+    const apld = targetPattern(['Applied Digital', 'Applied Digital Corporation']);
+    expect(classify('On November 4, 2025, we entered into a limited notice to proceed ("LNTP") with Applied Digital for a project to design and install four 300-megawatt natural gas-fired power plants consisting of boilers and associated steam turbines to deliver power for an AI factory.', apld)).toEqual({ role: 'supplier' });
+    // The counterparty is another company, only backed by the target: no relation read.
+    expect(classify('Effective February 26, 2026, we entered into an agreement with Base Electron, an IPP backed by Applied Digital, to complete the design and installation of four 300-megawatt natural gas-fired power plants.', apld)).toBeNull();
   });
 
   it('a reseller of its products is a customer', () => {
@@ -142,6 +152,24 @@ describe("SPLC: the company's own report", () => {
     expect(rel.filter((r) => r.role === 'customer').map((r) => [r.name, r.share])).toEqual([
       ['Unnamed direct customer 1', 22],
       ['Unnamed direct customer 2', 14],
+    ]);
+  });
+
+  it('the tenants of its leases and its unnamed customers (Applied Digital)', () => {
+    const rel = ownRelations(
+      [
+        'During fiscal year 2026, this business segment was comprised of one customer accounting for 59% of our total revenue from continuing operations.',
+        'During fiscal year 2026, this business segment was comprised of one customer accounting for 25% of our revenue from continuing operations.',
+        'On May 28, 2025, our subsidiaries APLD ELN-02 LLC and APLD ELN-03 LLC each entered into a data center lease (the "ELN-02 Lease" and the "ELN-03 Lease") with CoreWeave, Inc. ("CoreWeave") to deliver an aggregate of 250 MW of capacity to host CoreWeave\'s HPC operations at Polaris Forge 1.',
+      ],
+      dir,
+      { cik: 1144879, names: ['Applied Digital'] },
+      { ...ev, filer: 'Applied Digital Corp.' },
+    );
+    expect(rel.map((r) => [r.role, r.ticker ?? r.name, r.share])).toEqual([
+      ['customer', 'Unnamed customer 1', 59],
+      ['customer', 'Unnamed customer 2', 25],
+      ['customer', 'CRWV', undefined],
     ]);
   });
 
@@ -204,8 +232,14 @@ describe('SPLC: the search', () => {
 describe('SPLC: the main process', () => {
   it('builds only the searches and documents the app makes', () => {
     expect(main.ftsUrl('accounted for|NVIDIA Corporation', Date.parse('2026-10-20T12:00:00Z'))).toBe(
-      'https://efts.sec.gov/LATEST/search-index?q=%22NVIDIA%20Corporation%22%20%22accounted%20for%22&forms=10-K,20-F,40-F&dateRange=custom&startdt=2025-04-20&enddt=2026-10-20',
+      'https://efts.sec.gov/LATEST/search-index?q=%22NVIDIA%20Corporation%22%20%22accounted%20for%22&forms=10-K,20-F,40-F,10-Q&dateRange=custom&startdt=2025-04-20&enddt=2026-10-20',
     );
+    // IPO prospectuses over three years, and the second page of hits.
+    expect(main.ftsUrl('customer|NVIDIA Corporation|prospectus|100', Date.parse('2026-10-20T12:00:00Z'))).toBe(
+      'https://efts.sec.gov/LATEST/search-index?q=%22NVIDIA%20Corporation%22%20customer&forms=S-1,F-1,424B4&dateRange=custom&startdt=2023-10-20&enddt=2026-10-20&from=100',
+    );
+    expect(main.ftsUrl('customer|NVIDIA Corporation|other')).toBeNull();
+    expect(main.ftsUrl('customer|NVIDIA Corporation|reports|200')).toBeNull();
     expect(main.ftsUrl('suppliers|Apple Inc', Date.parse('2026-10-20'))).toContain('q=%22Apple%20Inc%22%20suppliers');
     expect(main.ftsUrl('anything|NVIDIA')).toBeNull();
     expect(main.ftsUrl('suppliers|"NVIDIA" OR x')).toBeNull();
@@ -224,6 +258,19 @@ describe('SPLC: the main process', () => {
     expect(sentences[1]).toBe('We sell in the U.S. and Europe.');
     expect(main.mentionSentences(text, ['NVIDIA'])).toEqual([sentences[0]]);
     expect(main.mentionSentences(text, ['Apple'])).toEqual(["Apple Pay is mentioned here, and our competitors include Apple's products."]);
+  });
+
+  it("keeps a report's concentration sentences with two-digit shares and its tenants' leases", () => {
+    const text = [
+      'HPC Hosting Business',
+      'During fiscal year 2026, this business segment was comprised of one customer accounting for 59% of our total revenue from continuing operations. No other customers accounted for more than 10% of revenue.',
+      'On May 28, 2025, our subsidiaries APLD ELN-02 LLC and APLD ELN-03 LLC each entered into a data center lease with CoreWeave, Inc. ("CoreWeave") to deliver an aggregate of 250 MW of capacity to host CoreWeave\'s HPC operations at Polaris Forge 1.',
+      'We lease our headquarters in Dallas.',
+    ].join('\n');
+    const own = main.ownSentences(text);
+    expect(own.some((x) => x.includes('accounting for 59%'))).toBe(true);
+    expect(own.some((x) => x.includes('lease with CoreWeave'))).toBe(true);
+    expect(own.some((x) => x.includes('headquarters'))).toBe(false);
   });
 
   it("collects a report's list of competitors", () => {

@@ -266,7 +266,9 @@ function Summary({ chain, t, suppliers, customers, competitors, fillOf, onOpen }
           {t}
         </text>
         <text x={cx + 10} y={cy + 60} className="splc-center-line">
-          Rev. quantified {quantified.length ? `${fmtNum(revQ, 1)}%` : '--'} ({quantified.length} customer{quantified.length === 1 ? '' : 's'})
+          {quantified.length
+            ? `Rev. quantified ${fmtNum(revQ, 1)}% (${quantified.length} customer${quantified.length === 1 ? '' : 's'})`
+            : 'No customer above 10% of revenue disclosed'}
         </text>
         <text x={cx + 10} y={cy + 77} className="splc-center-line">
           Suppliers {suppliers.length} · {suppliers.filter((r) => r.share != null).length} with a share
@@ -278,7 +280,7 @@ function Summary({ chain, t, suppliers, customers, competitors, fillOf, onOpen }
           Competitors {competitors.length}
         </text>
         <text x={cx + 10} y={cy + 135} className="splc-center-foot">
-          {chain.state === 'loading' ? `Reading filings ${read} of ${total || '…'}` : `${read} annual reports read`}
+          {chain.state === 'loading' ? `Reading filings ${read} of ${total || '…'}` : `${read} filings read`}
         </text>
       </g>
       {/* Competitors */}
@@ -481,7 +483,7 @@ export function SPLC({ sec }: FnProps) {
             {tab === 5 && <RelationTable rows={others} t={t} changes={changes} onOpen={onOpen} role="other" capOf={capOf} />}
             {tab === 6 && <FilingsRead chain={chain} />}
             <p className="pad-s muted">
-              From annual reports (10-K, 20-F, 40-F) filed with the SEC in the last 18 months: the company&apos;s own and those of companies that name it
+              From SEC filings: the company&apos;s own annual report, and the annual and quarterly reports (10-K, 20-F, 40-F, 10-Q) of the last 18 months and the IPO prospectuses (S-1, F-1, 424B4) of the last three years of companies that name it
               {chain.names ? ` (${chain.names.legal.concat(chain.names.names).filter((v, i, a) => a.indexOf(v) === i).join(', ')})` : ''}. Shares are as the
               reports state them, for the latest year they give: a supplier&apos;s share is of its own revenue, a customer&apos;s of {t}&apos;s revenue (or of its
               own sales or purchases). Companies a report names without a share are listed after. Each box links to the statement and filing behind it.

@@ -456,6 +456,10 @@ export function classify(sentence: string, pattern: RegExp): Classified | null {
       gapListy(b, /\b(?:end|largest|major|key|significant|principal|anchor|top) customers?,?\s+([^.;]{0,20})$/i) ||
       /\b(?:sell|sells|sold|selling|supply|supplies|supplied|supplying|ship|ships|shipped|shipping|provide|provides|provided|providing|deliver|delivers|delivered|license|licenses|licensed)\b[^.;]{0,80}?(?<!similar|compared|relative|due|according|prior|related|subject|access|close|equal|comparable|addition|respect|reference|available|attributable|applicable|exposure)\s+to\s+(?:(?:our|the|its)\s+(?:\w+\s+){0,2}customers?,?\s+)?$/i.test(b) ||
       /\b(?:customer|offtake|supply|master supply|cloud services|services|sales|license) (?:agreements?|arrangements?|contracts?) with\s+(?:[^.;]{0,30})$/i.test(b) ||
+      // A contract to build or supply something for the target: "we entered into a limited notice to proceed with
+      // Applied Digital for a project to design and install four power plants".
+      (/\b(?:entered into|signed|executed|awarded|received|won|was awarded)\b[^.;]{0,100}?\b(?:agreements?|contracts?|orders?|purchase orders?|notice to proceed|LNTP|awards?|engagement)\b[^.;]{0,60}?\bwith\s+(?:[^.;]{0,30})$/i.test(b) &&
+        after(s, m, /^(?:'s)?,?[^.;]{0,40}?\b(?:for (?:a|the) (?:project|contract) to|to)\s+(?:design|build|install|construct|supply|deliver|provide|manufacture|engineer|develop|fabricate)\b/i)) ||
       after(s, m, /^[^.;]{0,40}\((?:the|our) "?Customer"?\)/) ||
       after(s, m, /^(?:'s)?,?\s+(?:is|was|remains|has been|became) (?:our|a|the|an) (?:\w+\s+){0,3}customers?\b/i) ||
       after(s, m, /^(?:Corporation|Corp\.?|Inc\.?)?,\s+(?:our|a|the) (?:\w+\s+){0,3}customers?\b/i)
@@ -560,6 +564,12 @@ export function findCompanies(text: string, dir: Directory): Found[] {
 const OWN_COMPETITOR = /^\[competitors\]|\b(?:competitors?\b[^.]{0,40}\b(?:include|includes|including|are|such as)|compete[sd]? (?:primarily |directly |principally )?(?:with|against)|competition (?:comes |primarily )?from|principal competitors?|primary competitors?|main competitors?|significant competition from)/i;
 const OWN_SUPPLIER = /\b(?:foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|assembly and test)\b[^.]{0,120}?\b(?:such as|including|include|includes|namely|like|primarily|principally|:)/i;
 const OWN_CUSTOMER = /\b(?:customers?\b[^.]{0,40}\b(?:include|includes|including|such as|are)|largest customers?|end customers?|direct customers?)\b/i;
+/**
+ * A tenant or hosting client the report names: a lease, hosting or capacity agreement with a company to host its
+ * operations ("a data center lease with CoreWeave, Inc. to deliver 250 MW of capacity to host CoreWeave's HPC
+ * operations"). The company is the landlord or host, so the counterparty is its customer.
+ */
+const OWN_TENANT = /\b(?:lease|leases|lease agreement|hosting agreement|colocation agreement|capacity agreement|services agreement)\b[^;]{0,120}?\bwith\s+[A-Z][^;]{0,200}?\bto (?:host|serve|support)\b/;
 const ANONYMOUS = /\b(?:Customer|Direct Customer|Indirect Customer) ([A-H])\b/g;
 
 /**
@@ -624,6 +634,13 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
     if (OWN_CUSTOMER.test(s)) {
       const at = s.search(/\b(?:include|includes|including|such as|are)\b/i);
       for (const f of findCompanies(at >= 0 ? s.slice(at) : s, dir)) add(f, 'customer', raw);
+      continue;
+    }
+    if (OWN_TENANT.test(s)) {
+      // The counterparty: the first company named after "with".
+      const at = s.search(/\bwith\s+[A-Z]/);
+      const f = findCompanies(s.slice(at), dir)[0];
+      if (f) add(f, 'customer', raw);
     }
   }
   return out;
@@ -634,7 +651,7 @@ const COUNT: Record<string, number> = { one: 1, another: 1, a: 1, 'a single': 1,
 /** "sales to one direct customer represented 22% of total revenue", "two direct customers each represented 11%". */
 export function unnamedShares(sentence: string): { count: number; kind: string; share: number }[] {
   const out: { count: number; kind: string; share: number }[] = [];
-  const re = /\b(one|another|a single|two|three|four|five)\s+(?:(direct|indirect|end|individual|major|significant|large)\s+)?customers?\b(\s+each)?[^.;%]{0,40}?\b(?:represented|accounted for|comprised|contributed)\s+(?:approximately\s+|about\s+)?(\d{1,3}(?:\.\d{1,2})?)\s*(?:%|percent)\s+of\s+(?:our\s+|the Company's\s+|its\s+)?(?:total\s+|net\s+|consolidated\s+)*(?:revenue|revenues|net sales|sales)\b/gi;
+  const re = /\b(one|another|a single|two|three|four|five)\s+(?:(direct|indirect|end|individual|major|significant|large)\s+)?customers?\b(\s+each)?[^.;%]{0,40}?\b(?:represented|representing|accounted for|accounting for|comprised|comprising|contributed|contributing)\s+(?:approximately\s+|about\s+)?(\d{1,3}(?:\.\d{1,2})?)\s*(?:%|percent)\s+of\s+(?:our\s+|the Company's\s+|its\s+)?(?:total\s+|net\s+|consolidated\s+)*(?:revenue|revenues|net sales|sales)\b/gi;
   for (const m of sentence.matchAll(re)) {
     const count = COUNT[m[1].toLowerCase()] ?? 1;
     if (count > 1 && !m[3]) continue; // "two customers represented 30%" together: no share each
@@ -735,7 +752,12 @@ export interface Filer extends FtsHit {
   found?: number;
 }
 
-/** One filing per company (its latest), most often found and best scored first. */
+const ANNUAL = /^(10-K|20-F|40-F)\b/;
+
+/**
+ * One filing per company, most often found and best scored first: its latest annual report when the searches found
+ * one (it states the year's concentrations), else its latest quarterly report or prospectus.
+ */
 export function rankFilers(results: FtsHit[][], selfCik: number | undefined, max: number): Filer[] {
   const by = new Map<number, Filer & { seen: Set<number> }>();
   results.forEach((hits, qi) => {
@@ -745,7 +767,9 @@ export function rankFilers(results: FtsHit[][], selfCik: number | undefined, max
       if (!have) by.set(h.cik, { ...h, terms: 0, state: 'waiting', seen: new Set([qi]) });
       else {
         have.seen.add(qi);
-        if (h.date > have.date) Object.assign(have, { form: h.form, date: h.date, path: h.path });
+        const a = ANNUAL.test(h.form);
+        const b = ANNUAL.test(have.form);
+        if ((a && !b) || (a === b && h.date > have.date)) Object.assign(have, { form: h.form, date: h.date, path: h.path });
         have.score = Math.max(have.score, h.score);
       }
     }
@@ -774,8 +798,10 @@ export interface Chain {
 
 export const supplyChains = createStore<{ v: number; chains: Record<string, Chain> }>({ v: 0, chains: {} });
 
-const MAX_FILINGS = 45;
+const MAX_FILINGS = 80;
 const running = new Set<string>();
+/** The words searched beside the company's legal names (electron/supply-chain.cjs TERMS). */
+const SEARCH_TERMS = ['accounted for', 'revenues', 'suppliers', 'supplier', 'customer', 'purchase', 'distributor', 'competitors'];
 
 function setChain(key: string, f: (c: Chain) => Chain) {
   supplyChains.set((s) => ({ v: s.v + 1, chains: { ...s.chains, [key]: f(s.chains[key] ?? { state: 'loading', filers: [], relations: [], changes: {} }) } }));
@@ -785,8 +811,8 @@ export function supplyChainAvailable(): boolean {
   return secAvailable() && typeof window !== 'undefined' && typeof window.arminDesktop?.secText === 'function';
 }
 
-async function fts(term: string, name: string): Promise<FtsHit[]> {
-  const res = await window.arminDesktop!.sec!('fts', `${term}|${name}`);
+async function fts(arg: string): Promise<FtsHit[]> {
+  const res = await window.arminDesktop!.sec!('fts', arg);
   if (!res.text) {
     if ((res as any).missing) throw new Error('missing-agent');
     return [];
@@ -831,12 +857,19 @@ async function build(key: string, def: SecurityDef) {
     }
     setChain(key, (c) => ({ ...c, own }));
 
-    // The searches: each legal name with each term; then the short names for the sole-source statements.
-    const searches: [string, string][] = [];
-    for (const legal of names.legal.slice(0, 2)) for (const term of ['accounted for', 'revenues', 'suppliers', 'supplier', 'customer']) searches.push([term, legal]);
-    for (const n of names.names.slice(0, 1)) if (!names.legal.includes(n)) searches.push(['sole source', n]);
+    // The searches: each legal name with each term in the annual and quarterly reports; the first legal name in the IPO
+    // prospectuses; the short name for sole-source statements. A full page of hits brings the next one.
+    const searches: string[] = [];
+    for (const legal of names.legal.slice(0, 2)) for (const term of SEARCH_TERMS) searches.push(`${term}|${legal}`);
+    if (names.legal[0]) for (const term of ['customer', 'supplier', 'accounted for']) searches.push(`${term}|${names.legal[0]}|prospectus`);
+    for (const n of names.names.slice(0, 1)) if (!names.legal.includes(n)) searches.push(`sole source|${n}`);
     const results: FtsHit[][] = [];
-    for (const [term, name] of searches) results.push(await fts(term, name).catch((e) => (e?.message === 'missing-agent' ? Promise.reject(e) : [])));
+    const ask = (arg: string) => fts(arg).catch((e) => (e?.message === 'missing-agent' ? Promise.reject(e) : ([] as FtsHit[])));
+    for (const arg of searches) {
+      const hits = await ask(arg);
+      results.push(hits);
+      if (hits.length >= 100) results.push(await ask(`${arg}${arg.split('|').length === 2 ? '|reports' : ''}|100`));
+    }
     const filers = rankFilers(results, company?.cik, MAX_FILINGS);
     setChain(key, (c) => ({ ...c, filers }));
 

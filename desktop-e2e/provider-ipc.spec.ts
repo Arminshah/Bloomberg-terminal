@@ -206,7 +206,7 @@ test('SPLC reads suppliers, customers and competitors from the SEC filings that 
   const fabrinet = panel.locator('.splc-box', { hasText: 'Fabrinet' });
   await expect(fabrinet).toContainText('Rev: 12.5%', { timeout: 30_000 });
   await expect(panel.locator('.splc-center')).toContainText('Rev. quantified 12.0% (1 customer)');
-  await expect(panel.locator('.splc-center')).toContainText('3 annual reports read');
+  await expect(panel.locator('.splc-center')).toContainText('3 filings read');
   await panel.getByRole('button', { name: '2) Suppliers' }).click();
   await expect(panel.locator('tbody tr').first()).toContainText('NBIS US brought 12.5% of its revenue');
   const row = (name: string) => panel.locator('tbody tr', { has: page.locator('td:nth-child(2)', { hasText: name }) });
