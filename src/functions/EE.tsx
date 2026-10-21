@@ -16,7 +16,7 @@ import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type NextReport } from '../data/live/finnhub';
 import { exportActions } from '../components/ExportActions';
-import { datedHistory, fiscalLabel, useConsensus } from '../data/live/consensus';
+import { canonicalQuarter, datedHistory, fiscalLabel, useConsensus } from '../data/live/consensus';
 import { matchQuarter, surpriseStats } from '../data/ern';
 import { desktopData } from '../data/live/yahoo';
 import { ExpectationsTable, LatestReport } from '../components/EarningsExpectations';
@@ -163,14 +163,16 @@ export function EE({ sec }: FnProps) {
   };
   const quarterRows: ErnRow[] = reports.map(({ h, r, cq }, i) => {
     const e = measure === 'eps' ? cq?.eps : cq?.rev;
-    const reported = measure === 'eps' ? h.actual ?? NaN : h.revAct ?? NaN;
+    // The statements' diluted EPS; for a quarter the filings do not tag (most fourth quarters), as an earnings history gives it.
+    const gaapFrom = measure === 'eps' && h.actual == null && cq?.gaapEps ? cq.gaapEps.from : undefined;
+    const reported = measure === 'eps' ? h.actual ?? cq?.gaapEps?.v ?? NaN : h.revAct ?? NaN;
     const comp = measure === 'eps' ? e?.actual ?? NaN : NaN;
     const estimate = measure === 'eps' ? e?.est ?? NaN : Number.isFinite(e?.est ?? NaN) ? e!.est / 1e6 : NaN;
     const base = measure === 'eps' ? comp : reported;
     return {
       key: `${h.period}:${h.date}`,
       ann: h.dateUnknown ? '--' : fmtEarnDate(h, false),
-      per: h.period,
+      per: cq && canonicalQuarter(cq.label) ? cq.label : h.period.replace(/^Q([1-4]) (\d{2})$/, 'Q$1 20$2'),
       perEnd: cq?.end ? fmtIso(cq.end) : '',
       confirmed: true,
       reported,
@@ -181,7 +183,7 @@ export function EE({ sec }: FnProps) {
       pxTitle: r && Number.isFinite(r.pct) ? `${BASIS[r.basis]}: close of ${fmtDay(r.to * DAY_MS)} against close of ${fmtDay(r.from * DAY_MS)}` : r ? BASIS[r.basis] : h.dateUnknown ? 'Report date not given' : undefined,
       pe: peAt(i),
       future: false,
-      from: [e?.estFrom && `estimate: ${e.estFrom}`, e?.actualFrom && `comparable: ${e.actualFrom}`].filter(Boolean).join('; ') || undefined,
+      from: [e?.estFrom && `estimate: ${e.estFrom}`, e?.actualFrom && `comparable: ${e.actualFrom}`, gaapFrom && `reported: ${gaapFrom}`].filter(Boolean).join('; ') || undefined,
     };
   });
   // Fiscal years: the year's reported EPS or revenue, its four quarters' comparable EPS, and the Q4 report's reaction.

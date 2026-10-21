@@ -129,21 +129,24 @@ test('EVENTS covers the whole market above $5B with expected and reported EPS an
   const panel = page.locator('.panel').first();
   await expect(panel.getByRole('button', { name: '14) Market', exact: true })).toHaveClass(/\bon\b/);
   const mmm = panel.locator('tbody tr.click', { hasText: 'MMM US' });
-  // EPS from Nasdaq, revenue from FMP; growth against the same source's year- and quarter-earlier reports.
-  // One line as the terminal's EVTS writes it: company, event, description (A reported, E expected, S surprise), date, time.
-  await expect(mmm.locator('td').nth(2)).toHaveText(/^Q\d \d{4} A:2\.50 E:2\.38 S:\+5\.0% Rev:6\.58B Rev E:6\.61B YoY:\+14\.2%$/, { timeout: 30_000 });
-  await expect(mmm.locator('td').nth(0)).toContainText('3M Company');
-  await expect(mmm.locator('td').nth(3)).toHaveText('83.55B');
-  await expect(mmm.locator('td').nth(5)).toHaveText('Bef-mkt');
+  // EPS from Nasdaq, revenue from FMP, one figure per column: period, EPS expected, reported and surprise, the same
+  // for revenue, market value and time.
+  const cells = mmm.locator('td');
+  await expect(cells.nth(1)).toHaveText(/^Q\d \d{4}$/, { timeout: 30_000 });
+  await expect(cells.nth(0)).toContainText('3M Company');
+  for (const [i, text] of ['2.38', '2.50', '+5.0%', '6.61B', '6.58B', '-0.4%', '83.55B', 'Bef-mkt'].entries()) await expect(cells.nth(i + 2)).toHaveText(text);
   // A company only Finnhub lists takes its market value from Nasdaq's stock list; one below $5B is left out.
   await expect(panel.locator('tbody tr.click', { hasText: 'XYZW US' })).toContainText('6.10B');
   await expect(panel.locator('tbody tr.click', { hasText: 'TINY US' })).toHaveCount(0);
-  await expect(panel.locator('tbody tr.click', { hasText: 'META US' }).locator('td').nth(2)).toHaveClass(/amber/);
-  await expect(panel.locator('tbody tr.click', { hasText: 'META US' })).toContainText('YoY:-9.8%');
+  // A report still to come: its EPS estimate, and "due" where the reported figure will be.
+  const meta = panel.locator('tbody tr.click', { hasText: 'META US' }).locator('td');
+  await expect(meta.nth(2)).toHaveText('6.54');
+  await expect(meta.nth(3)).toHaveText('due');
+  await expect(panel.locator('tbody td.empty')).toHaveCount(0);
   await expect(panel.getByRole('button', { name: '$5B', exact: true })).toHaveClass(/\bon\b/);
   await expect(panel.getByRole('button', { name: 'any', exact: true })).toHaveCount(0);
   // The earnings card: expected against reported, beat or miss, and the growth, as an earnings correspondent shows it.
-  await mmm.locator('td').nth(5).click();
+  await cells.nth(1).click();
   const card = panel.locator('.earn-card');
   await expect(card).toContainText('3M Company');
   await expect(card.locator('tr', { hasText: 'Earnings per share' })).toContainText('Beat by 5.0%');

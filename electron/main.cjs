@@ -733,6 +733,70 @@ ipcMain.handle('nasdaq', async (event, kind, symbol) => {
   return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
 });
 
+// ------------------------------------------------------- Estimate history
+// One stock's reported quarters with the consensus EPS and revenue estimate before each report
+// (electron/estimate-history.cjs): the expected revenue of past quarters that the keyless sources do not keep.
+// Finviz's quote page first (two years, exact quarter ends, the coming quarter's revenue estimate); for EARNINGS also
+// the older quarters from Zacks (Electron's own User-Agent, as for Yahoo), or from MarketBeat when Zacks does not
+// answer with its tables (its bot protection, an error, an unknown ticker), and Zacks then rests for half an hour.
+// The app never tries to get past a site's bot protection. A history is kept on disk until the company's next report
+// (electron/estimate-history.cjs historyFresh); only the figures reach the page.
+const estimateHistory = require('./estimate-history.cjs');
+// Two lanes, so the stock on screen (EARNINGS, an earnings card) never waits behind EVENTS' lines: EVENTS' requests
+// go one at a time, evenly spaced (Finviz every 2.5 s); the stock on screen up to four in 10 s.
+const HISTORY = {
+  finviz: { url: estimateHistory.finvizUrl, parse: estimateHistory.parseFinviz, pace: { calendar: [1, 2_500], earnings: [4, 10_000] } },
+  zacks: { url: estimateHistory.zacksUrl, parse: estimateHistory.parseZacks, pace: { calendar: [6, 60_000], earnings: [6, 60_000] } },
+  marketbeat: { url: estimateHistory.marketbeatUrl, parse: estimateHistory.parseMarketBeat, pace: { calendar: [1, 6_000], earnings: [4, 10_000] } },
+};
+// Kept on disk: past reports do not change, so a history holds until the company's next report.
+const historyKept = estimateHistory.createHistoryStore(() => path.join(app.getPath('userData'), 'estimate-history.json'));
+app.on('before-quit', () => historyKept.flush());
+let zacksRestUntil = 0;
+
+async function historyPage(provider, url, agent) {
+  try {
+    const res = await tracked(provider, url, { headers: { 'User-Agent': agent, Accept: 'text/html' }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+    return { status: res.status, html: res.ok ? await res.text() : '' };
+  } catch (err) {
+    return { status: 0, html: '', error: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) };
+  }
+}
+
+/** One source's history of a stock: { at, history (null without one), status, error }. */
+async function historyOf(provider, symbol, lane) {
+  const key = `${provider}|${symbol}`;
+  const kept = historyKept.get(key);
+  // REFRESH asks again only for a history older than an hour: the past reports in it do not change.
+  if (estimateHistory.historyFresh(kept) && (Date.now() - kept.at < 3_600_000 || !refresh.expired(provider, kept.at))) return kept;
+  if (provider === 'zacks' && Date.now() < zacksRestUntil) return kept?.history ? kept : { at: Date.now(), history: null, status: 0, error: '' };
+  const src = HISTORY[provider];
+  await providers.slot(provider === 'zacks' ? 'zacks' : `${provider}:${lane}`, ...src.pace[lane]);
+  const page = await historyPage(provider, src.url(symbol), provider === 'zacks' ? browserAgent() : nasdaqAgent());
+  const history = src.parse(page.html);
+  if (!history && provider === 'zacks') zacksRestUntil = Date.now() + 30 * 60_000;
+  if (!history && kept?.history) return { ...kept, stale: true };
+  const entry = { at: Date.now(), history, status: page.status, error: page.error };
+  // A page that could not be had (network, refusal) is asked again next time; one without figures after 30 minutes.
+  if (history || page.status === 200 || page.status === 404) historyKept.set(key, { at: entry.at, history });
+  return entry;
+}
+
+ipcMain.handle('estimate-history', async (event, kind, symbol) => {
+  if (!fromApp(event) || (kind !== 'earnings' && kind !== 'calendar') || !estimateHistory.finvizUrl(symbol)) throw new Error('not allowed');
+  const got = [];
+  const first = await historyOf('finviz', symbol, kind);
+  if (first.history) got.push(first);
+  // EVENTS' lines need the reports around their dates: Finviz's two years do, unless Finviz has none.
+  if (kind === 'earnings' || !first.history) {
+    const zacks = await historyOf('zacks', symbol, kind);
+    const older = zacks.history ? zacks : await historyOf('marketbeat', symbol, kind);
+    if (older.history) got.push(older);
+  }
+  if (!got.length) return { status: first.status ? (first.status === 200 ? 404 : first.status) : 404, text: '', error: first.error || 'No earnings history was found for this ticker.' };
+  return { status: 200, text: JSON.stringify(got.map((g) => g.history)), at: Math.min(...got.map((g) => g.at)) };
+});
+
 // FINRA's consolidated short interest for one US-listed stock (no key), where Nasdaq's page has none.
 ipcMain.handle('finra', async (event, kind, symbol) => {
   // The latest settlements (75 days), or two years of them for the short interest screen (SI).

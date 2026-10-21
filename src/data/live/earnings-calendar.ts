@@ -106,8 +106,20 @@ function json(text: string): any {
   }
 }
 
+/**
+ * Whether a past line's EPS is the one reported. Nasdaq writes a report's EPS with its surprise; until it has them,
+ * the field holds the year-earlier EPS (checked 21 October 2026: each of the 53 reports of the day before showed its
+ * Q3 2025 EPS, GE 1.66, Netflix 0.59, surprise "N/A"). An EPS equal to the estimate is a surprise of zero, which
+ * Nasdaq also writes "N/A". Days older than SETTLED_AFTER are taken as they are: Nasdaq has filled them by then.
+ */
+function nasdaqReported(r: any, date: string, now: number): boolean {
+  if (ms(date) < now - SETTLED_AFTER) return true;
+  const eps = nasdaqNumber(r?.eps);
+  return Number.isFinite(nasdaqNumber(r?.surprise)) || (Number.isFinite(eps) && eps === nasdaqNumber(r?.epsForecast));
+}
+
 /** One day of Nasdaq's calendar; a day without reports is an empty list. */
-export function parseNasdaqDay(text: string, date: string): { data: NasdaqReport[] } | { error: string } {
+export function parseNasdaqDay(text: string, date: string, now = Date.now()): { data: NasdaqReport[] } | { error: string } {
   const j = json(text);
   if (j === undefined) return { error: 'Nasdaq returned a page that is not JSON.' };
   const rows: any[] = Array.isArray(j?.data?.rows) ? j.data.rows : [];
@@ -122,7 +134,7 @@ export function parseNasdaqDay(text: string, date: string): { data: NasdaqReport
         marketCap: nasdaqNumber(r?.marketCap),
         fiscalEnd: fiscalMonth(r?.fiscalQuarterEnding),
         epsEst: nasdaqNumber(r?.epsForecast),
-        epsActual: nasdaqNumber(r?.eps),
+        epsActual: nasdaqReported(r, date, now) ? nasdaqNumber(r?.eps) : NaN,
         analysts: nasdaqNumber(r?.noOfEsts),
         yearAgoEps: nasdaqNumber(r?.lastYearEPS),
         ...(usDate(r?.lastYearRptDt) ? { yearAgoDate: usDate(r?.lastYearRptDt) } : {}),
@@ -194,8 +206,9 @@ export function parseFmpEarnings(text: string): { data: WindowReport[] } | { err
 export interface CalendarFigure {
   est: number;
   actual: number;
-  estFrom?: CalendarSource;
-  actualFrom?: CalendarSource;
+  /** The calendar that gave the figure, or (completed for one company) the source of its own history. */
+  estFrom?: CalendarSource | string;
+  actualFrom?: CalendarSource | string;
   analysts?: number;
 }
 

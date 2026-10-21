@@ -12,6 +12,7 @@ import { desktopData, yahooGet, yahooSymbolFor } from './yahoo';
 import { fundVersion, getRealFund, usTiming } from './yfund';
 import { createWants, registerRefresh } from '../../terminal/refresh';
 import { fmtDay } from '../../core/format';
+import { historyData, historyFor, loadHistory, periodMonth, type EstimateHistory, type HistoryQuarter } from './estimate-history';
 
 /**
  * What analysts expected of a company's quarterly reports, against what it reported: EPS and revenue, for the last
@@ -58,6 +59,8 @@ export interface QuarterView {
   /** For a quarter not reported yet, the same quarter a year earlier, as the source gives it. */
   yearAgoEps?: number;
   yearAgoRev?: number;
+  /** The diluted EPS in the company's statements as an earnings history gives it, for a quarter the filings do not tag. */
+  gaapEps?: { v: number; from: string };
 }
 
 export interface Consensus {
@@ -238,6 +241,11 @@ export interface ConsensusInput {
   nasdaqNext?: NasdaqNextReport | null;
   /** The company's earnings releases filed with the SEC (8-K item 2.02), newest first. */
   secReleases?: EarningsRelease[];
+  /**
+   * Finviz's, Zacks' or MarketBeat's history of reports with the consensus before each (EPS, revenue in dollars), in
+   * the order they are used.
+   */
+  history?: EstimateHistory[];
   /** The fiscal year's last month (1-12), for naming quarters only Alpha Vantage or Nasdaq give. */
   fye?: number;
   /** The clock (ms), for the tests. */
@@ -342,6 +350,42 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     if ((!q.timing || q.timing === '--') && r.timing !== '--' && q.date && Math.abs(q.date - ms(r.date)) <= 2 * DAY_MS) q.timing = r.timing;
     if ((!ok(q.eps.est) || !ok(q.eps.actual)) && ok(r.epsEst) && ok(r.epsActual)) q.eps = eps;
   }
+  // The histories' reported quarters that no other source gives (Finviz reaches back two years, Zacks about five,
+  // MarketBeat two). Finviz and Zacks name a quarter by the month it ends in, MarketBeat by its fiscal quarter.
+  const now = i.now ?? Date.now();
+  for (const hs of i.history ?? []) {
+    const keyOf = (r: HistoryQuarter) => r.period || r.label || '';
+    const keys = [...new Set([...hs.sales, ...hs.eps].map(keyOf).filter(Boolean))];
+    const picked = keys
+      .map((k) => {
+        const s = hs.sales.find((r) => keyOf(r) === k);
+        const e = hs.eps.find((r) => keyOf(r) === k);
+        return { s, e, row: (s ?? e)! };
+      })
+      .sort((a, b) => b.row.date.localeCompare(a.row.date))
+      .slice(0, 16);
+    for (const { s, e, row } of picked) {
+      // Reported quarters only: the coming report has estimates only.
+      if (!(ok(s?.actual) || ok(e?.actual)) || ms(row.date) > now) continue;
+      const end = row.end ?? (row.period ? monthEnd(row.period) : labelEnd(row.label, i.fye));
+      // A fiscal quarter is reported in the four months after it ends: a label that does not fit the company's fiscal
+      // year is another basis and is not used. Without the fiscal year the quarter keeps the source's name only.
+      const endOk = !!end && row.date > end && ms(row.date) - ms(end) <= 120 * DAY_MS;
+      if (!endOk && (row.period || i.fye != null)) continue;
+      const probe: QuarterView = { end: endOk ? end! : '', label: row.label ?? '', date: ms(row.date), eps: { ...NONE }, rev: { ...NONE } };
+      if (quarters.some((q) => historyRow([row], q))) continue;
+      const label = (endOk ? fiscalLabel(probe.end, i.fye) : undefined) ?? row.label;
+      if (!label && !probe.end) continue;
+      // A quarter already listed under its name is not listed twice.
+      if (label && quarters.some((q) => canonicalQuarter(q.label) === label)) continue;
+      quarters.push({
+        ...probe,
+        label: label ?? probe.end,
+        ...(row.timing ? { timing: row.timing } : {}),
+        eps: e && ok(e.est) && ok(e.actual) ? { ...NONE, est: e.est, actual: e.actual, estFrom: hs.source, actualFrom: hs.source } : { ...NONE },
+      });
+    }
+  }
   const fiscalOrder = (q: QuarterView) => {
     const label = canonicalQuarter(q.label);
     return label ? Number(label.slice(3)) * 4 + Number(label[1]) : NaN;
@@ -399,6 +443,25 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     const ae = avQuarter(i.av, q.end);
     if (ae && !ok(q.rev.est) && ok(ae.revEst) && avRevenue && (!ok(q.rev.actual) || (q.rev.actual / ae.revEst > 0.25 && q.rev.actual / ae.revEst < 4))) {
       q.rev = { ...q.rev, est: ae.revEst, low: ae.revLow, high: ae.revHigh, analysts: ae.revAnalysts, estFrom: 'Alpha Vantage' };
+    }
+    // The history's consensus before the report: the expected revenue Yahoo drops once a quarter is reported (dollars,
+    // for companies reporting in dollars, and only when it is of the same order as the reported revenue), and the EPS
+    // comparison or report date the other sources leave out.
+    for (const h of i.history ?? []) {
+      const zs = historyRow(h.sales, q);
+      const ze = historyRow(h.eps, q);
+      if (zs && avRevenue && !ok(q.rev.est) && ok(zs.est)) {
+        const actual = ok(q.rev.actual) ? q.rev.actual : zs.actual;
+        if (!ok(actual) || (actual / zs.est > 0.2 && actual / zs.est < 5)) {
+          q.rev = ok(q.rev.actual) ? { ...q.rev, est: zs.est, estFrom: h.source } : { ...NONE, est: zs.est, actual: zs.actual, ccy: 'USD', estFrom: h.source, actualFrom: ok(zs.actual) ? h.source : undefined };
+        }
+      }
+      if (ze && (!ok(q.eps.est) || !ok(q.eps.actual)) && ok(ze.est) && ok(ze.actual)) q.eps = { ...NONE, est: ze.est, actual: ze.actual, estFrom: h.source, actualFrom: h.source };
+      const zg = q.gaapEps ? undefined : historyRow(h.gaap, q);
+      if (zg && ok(zg.actual)) q.gaapEps = { v: zg.actual, from: h.source };
+      const zd = zs ?? ze;
+      if (zd && !q.date) q.date = ms(zd.date);
+      if (zd?.timing && (!q.timing || q.timing === '--') && q.date && Math.abs(q.date - ms(zd.date)) <= 2 * DAY_MS) q.timing = zd.timing;
     }
     // The report date and session from the company's own 8-K (results of operations), the first one filed in the
     // four months after the quarter ended.
@@ -470,6 +533,16 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
   };
   next = fill(next, 0);
   following = fill(following, 1);
+  // The coming quarter's revenue estimate from the histories (Finviz gives the next report's), when no other source
+  // gives one; and the coming quarter itself when no source names it.
+  const coming = (h: EstimateHistory) => h.sales.filter((r) => !ok(r.actual) && ok(r.est) && ms(r.date) >= now - DAY_MS && (!lastDate || ms(r.date) > lastDate + 20 * DAY_MS)).sort((a, b) => a.date.localeCompare(b.date))[0];
+  for (const h of avRevenue ? i.history ?? [] : []) {
+    const r = coming(h);
+    if (!r) continue;
+    const end = r.end ?? (r.period ? monthEnd(r.period) : labelEnd(r.label, i.fye));
+    if (!next && end) next = { end, label: fiscalLabel(end, i.fye) ?? r.label ?? end, date: ms(r.date), dateEstimated: true, eps: { ...NONE }, rev: { ...NONE } };
+    if (next && !ok(next.rev.est) && historyRow([r], next)) next.rev = { ...NONE, est: r.est, ccy: 'USD', estFrom: h.source };
+  }
   if (following && next && following.end && next.end && following.end <= next.end) following = null;
   // Nasdaq's next report date, when no other source names one: for the quarter it names, or the next one.
   const nn = i.nasdaqNext;
@@ -479,6 +552,47 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     if (!next.timing || next.timing === '--') next.timing = nn.timing;
   }
   return { past: quarters, next, following };
+}
+
+/** The last day of a month given as YYYY-MM. */
+function monthEnd(m: string): string {
+  const [y, mo] = m.split('-').map(Number);
+  return new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10);
+}
+
+/** The last day of fiscal quarter "Qn YYYY" for a fiscal year ending in month `fye` (1-12). */
+function labelEnd(label: string | undefined, fye: number | undefined): string | undefined {
+  const m = /^Q([1-4]) (\d{4})$/.exec(label ?? '');
+  if (!m || !(fye != null && fye >= 1 && fye <= 12)) return undefined;
+  const month = ((fye + 3 * Number(m[1]) - 1) % 12) + 1;
+  const year = month > fye ? Number(m[2]) - 1 : Number(m[2]);
+  return monthEnd(`${year}-${String(month).padStart(2, '0')}`);
+}
+
+/**
+ * The history's row for a quarter: by the month the quarter ends in (Zacks), else by a report date within a week,
+ * else by the fiscal quarter's name (MarketBeat) when the dates agree.
+ */
+function historyRow(rows: HistoryQuarter[] | undefined, q: QuarterView): HistoryQuarter | undefined {
+  if (!rows?.length) return undefined;
+  if (ISO.test(q.end)) {
+    const m = periodMonth(q.end);
+    const hit = rows.find((r) => r.period === m);
+    if (hit) return hit;
+  }
+  if (q.date) {
+    const hit = rows.find((r) => Math.abs(ms(r.date) - q.date!) <= 7 * DAY_MS);
+    if (hit) return hit;
+  }
+  const label = canonicalQuarter(q.label);
+  if (!label) return undefined;
+  return rows.find(
+    (r) =>
+      !r.period &&
+      r.label === label &&
+      (!q.date || Math.abs(ms(r.date) - q.date) <= 30 * DAY_MS) &&
+      (!ISO.test(q.end) || (r.date > q.end && ms(r.date) - ms(q.end) <= 120 * DAY_MS)),
+  );
 }
 
 /** Alpha Vantage's estimate for the fiscal quarter ending near `end`. */
@@ -625,6 +739,7 @@ export function requestConsensus(def: SecurityDef | undefined, front = false, fi
       void loadNasdaq(ns, 'earnings-date');
     }
     void loadSecReleases(def);
+    void loadHistory(secTicker(def));
   }
   const now = Date.now();
   const have = consensusData.get().by[def.id];
@@ -701,6 +816,7 @@ export function consensusFor(def: SecurityDef): Consensus {
     nasdaqForecast: nasdaqPart<NasdaqForecast>(nasdaqSymbol(def), 'forecast'),
     nasdaqNext: nasdaqPart<NasdaqNextReport>(nasdaqSymbol(def), 'earnings-date'),
     secReleases: secReleaseData.get().by[secTicker(def) ?? ''],
+    history: historyFor(secTicker(def)),
     fye: def.eq?.fye,
   });
   // Yahoo timestamps have session meaning only for US-listed securities.
@@ -763,6 +879,7 @@ export function useConsensus(def: SecurityDef | undefined): Consensus | null {
   alphaVantageData.use((s) => s.v);
   nasdaqData.use((s) => s.v);
   secReleaseData.use((s) => s.v);
+  historyData.use((s) => s.v);
   keptEstimates.use((s) => (def ? s.by[def.id] : undefined));
   useEffect(() => {
     requestConsensus(def, true);

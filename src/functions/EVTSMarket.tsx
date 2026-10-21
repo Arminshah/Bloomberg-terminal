@@ -5,6 +5,8 @@ import { fmtBig, fmtDay, fmtNum, MONTHS, WEEKDAYS } from '../core/format';
 import { growthPct, isoDay, type CalendarFigure, type CalendarReport, type CalendarTiming, type MarketCalendar } from '../data/live/earnings-calendar';
 import { lookupSecurity } from '../data/live/lookup';
 import { useFundamentals } from '../data/live/yfund';
+import { useConsensus, type Consensus } from '../data/live/consensus';
+import { historyData, historyFor, loadHistory, wantHistories } from '../data/live/estimate-history';
 import { engine } from '../data/market';
 import { DAY_MS } from '../data/calendar';
 import type { FinPeriod } from '../data/fundamentals';
@@ -38,6 +40,44 @@ function period(r: CalendarReport): string {
 const eps = (v: number) => (ok(v) ? fmtNum(v, 2) : '--');
 const big = (v: number) => (ok(v) ? fmtBig(v) : '--');
 const from = (f: CalendarFigure) => [f.estFrom && `expected: ${f.estFrom}${ok(f.analysts) ? `, ${f.analysts} analysts` : ''}`, f.actualFrom && `reported: ${f.actualFrom}`].filter(Boolean).join('; ') || undefined;
+
+/**
+ * A report with what the calendars leave out filled from the company's earnings history (Zacks or MarketBeat): the
+ * consensus before the report and the revenue reported, for a line on the report date (within a week); and, for the
+ * open card, the company's merged expectations (Yahoo, Finnhub, FMP, Alpha Vantage, the history and its statements).
+ */
+export function completeReport(r: CalendarReport, c?: Consensus | null): CalendarReport {
+  let out = r;
+  const day = ms(r.date);
+  for (const h of historyFor(r.symbol) ?? []) {
+    const zs = h.sales.find((x) => Math.abs(ms(x.date) - day) <= 7 * DAY_MS);
+    const ze = h.eps.find((x) => Math.abs(ms(x.date) - day) <= 7 * DAY_MS);
+    // One source for both figures, so the surprise compares like with like; a coming report gets the estimate.
+    if (zs && (!ok(out.rev.est) || (!ok(out.rev.actual) && ok(zs.actual))) && (ok(zs.est) || ok(zs.actual))) out = { ...out, rev: { est: zs.est, actual: zs.actual, estFrom: ok(zs.est) ? h.source : undefined, actualFrom: ok(zs.actual) ? h.source : undefined } };
+    if (ze && ((!ok(out.eps.actual) && ok(ze.actual)) || (!ok(out.eps.est) && !ok(out.eps.actual) && ok(ze.est)))) out = { ...out, eps: { est: ze.est, actual: ze.actual, estFrom: ok(ze.est) ? h.source : undefined, actualFrom: ok(ze.actual) ? h.source : undefined } };
+    // The session, when the calendar gives none: the history's, for a report on the same day.
+    const t = [zs, ze].find((x) => x?.timing && x.date === r.date)?.timing;
+    if (out.timing === '--' && t) out = { ...out, timing: t };
+  }
+  if (c) {
+    const q = [...c.past, c.next, c.following].find((x) => x?.date && Math.abs(x.date - day) <= 7 * DAY_MS);
+    if (q) {
+      // A reported figure the line lacks comes with its own source's estimate, so the surprise compares like with like.
+      const take = (have: CalendarFigure, f: { est: number; actual: number; estFrom?: string; actualFrom?: string }): CalendarFigure => {
+        if (!ok(have.actual) && ok(f.actual)) return ok(f.est) ? { est: f.est, actual: f.actual, estFrom: f.estFrom, actualFrom: f.actualFrom } : { ...have, actual: f.actual, actualFrom: f.actualFrom };
+        if (!ok(have.est) && ok(f.est)) return { ...have, est: f.est, estFrom: f.estFrom };
+        return have;
+      };
+      out = { ...out, eps: take(out.eps, q.eps), rev: take(out.rev, q.rev) };
+    }
+  }
+  return out;
+}
+
+/** The surprise of reported against expected, in percent of the estimate; NaN without both. */
+export function surprise(f: CalendarFigure): number {
+  return ok(f.actual) && ok(f.est) && f.est !== 0 ? ((f.actual - f.est) / Math.abs(f.est)) * 100 : NaN;
+}
 
 /** The ticker, opening the security (looked up first when the app does not hold it yet). */
 function Ticker({ symbol }: { symbol: string }) {
@@ -94,17 +134,21 @@ function GrowthLine({ what, pct, span, note }: { what: string; pct: number; span
 }
 
 /** One report as an earnings card: expected against reported, beat or miss, and the growth. */
-function EarningsCard({ r }: { r: CalendarReport }) {
+function EarningsCard({ r: line }: { r: CalendarReport }) {
   const panel = usePanelId();
-  const [def, setDef] = useState<SecurityDef | undefined>(() => engine.get(appId(r.symbol)));
+  const [def, setDef] = useState<SecurityDef | undefined>(() => engine.get(appId(line.symbol)));
   useEffect(() => {
     if (def) return;
     let live = true;
-    void lookupSecurity(r.symbol, false).then((x) => live && x.ok && setDef(x.def));
+    void lookupSecurity(line.symbol, false).then((x) => live && x.ok && setDef(x.def));
     return () => {
       live = false;
     };
-  }, [r.symbol, def]);
+  }, [line.symbol, def]);
+  historyData.use((s) => s.v);
+  useEffect(() => void loadHistory(line.symbol), [line.symbol]);
+  const c = useConsensus(def);
+  const r = completeReport(line, c);
   const { real } = useFundamentals(def);
   const st = statementGrowth(r, real?.quarterly ?? []);
   const revYoy = ok(growthPct(r.rev.actual, r.revYearAgo)) ? growthPct(r.rev.actual, r.revYearAgo) : st.yoy;
@@ -118,7 +162,7 @@ function EarningsCard({ r }: { r: CalendarReport }) {
         <td className="amber">{label}</td>
         <td className="num">{fmt(f.est)}</td>
         <td className="num white">{fmt(f.actual)}</td>
-        <td className={`num ${v.cls}`}>{v.text || (ok(f.actual) ? (ok(f.est) ? 'sources differ' : 'no estimate') : ok(f.est) ? 'not reported yet' : '--')}</td>
+        <td className={`num ${v.cls}`}>{v.text || (ok(f.actual) ? (ok(f.est) ? 'sources differ' : 'no estimate given') : ok(f.est) ? 'not reported yet' : 'not given')}</td>
       </tr>
     );
   };
@@ -172,40 +216,31 @@ interface RowProps {
   onToggle: (key: string) => void;
 }
 
-/** The terminal's one-line description of a report: "Q3 2026 A:2.34 E:2.29 S:+2.2%", with revenue when a source gives it. */
-export function describe(r: CalendarReport, today: string): { text: string; tone: 'up' | 'dn' | 'pending' | '' } {
-  const parts = [period(r)];
-  const num = (v: number) => fmtNum(v, Math.abs(v) >= 100 ? 1 : Math.abs(v) >= 1 ? 2 : 3);
-  if (ok(r.eps.actual)) parts.push(`A:${num(r.eps.actual)}`);
-  if (ok(r.eps.est)) parts.push(`E:${num(r.eps.est)}`);
-  let tone: 'up' | 'dn' | 'pending' | '' = '';
-  if (ok(r.eps.actual) && ok(r.eps.est) && r.eps.est !== 0 && r.eps.estFrom === r.eps.actualFrom) {
-    const pct = ((r.eps.actual - r.eps.est) / Math.abs(r.eps.est)) * 100;
-    parts.push(`S:${pct > 0 ? '+' : ''}${fmtNum(pct, 1)}%`);
-    tone = Math.abs(pct) < 0.05 ? '' : pct > 0 ? 'up' : 'dn';
-  } else if (!ok(r.eps.actual) && ms(r.date) >= ms(today)) tone = 'pending';
-  if (ok(r.rev.actual)) parts.push(`Rev:${fmtBig(r.rev.actual)}`);
-  if (ok(r.rev.est)) parts.push(`Rev E:${fmtBig(r.rev.est)}`);
-  // Growth on the year when the calendars give the year-earlier figure.
-  // Growth on the year when the calendars give the year-earlier figure; for a coming report, the estimate's.
-  const yoy = ok(r.eps.actual) ? growthPct(r.eps.actual, r.epsYearAgo) : ok(r.eps.est) ? growthPct(r.eps.est, r.epsYearAgo) : NaN;
-  if (ok(yoy)) parts.push(`YoY:${yoy > 0 ? '+' : ''}${fmtNum(yoy, Math.abs(yoy) < 99.95 ? 1 : 0)}%`);
-  else if (!ok(r.eps.actual) && ok(r.epsYearAgo)) parts.push(`YA:${num(r.epsYearAgo)}`);
-  return { text: parts.filter(Boolean).join(' '), tone };
-}
+const SIGN = (v: number) => (v > 0.05 ? 'up' : v < -0.05 ? 'dn' : '');
+const pctText = (v: number) => (ok(v) ? `${v > 0 ? '+' : ''}${fmtNum(v, Math.abs(v) < 99.95 ? 1 : 0)}%` : '');
+const epsText = (v: number) => (ok(v) ? fmtNum(v, Math.abs(v) >= 100 ? 1 : 2) : '');
+const revText = (v: number) => (ok(v) ? fmtBig(v) : '');
 
 const MarketRow = memo(
   function MarketRow({ r, rowKey, open, today, onToggle }: RowProps) {
-    const d = describe(r, today);
+    const es = r.eps.estFrom === r.eps.actualFrom ? surprise(r.eps) : NaN;
+    const rs = r.rev.estFrom === r.rev.actualFrom ? surprise(r.rev) : NaN;
+    const pending = !ok(r.eps.actual) && !ok(r.rev.actual) && ms(r.date) >= ms(today);
+    // Reported in the last days, but the sources have no figures yet.
+    const awaiting = !pending && !ok(r.eps.actual) && ms(today) - ms(r.date) <= 5 * DAY_MS;
     return (
-      <tr className={`click${open ? ' sel' : ''}`} onClick={() => onToggle(rowKey)} title={[from(r.eps), from(r.rev)].filter(Boolean).join(' · ') || 'Click for the earnings card'}>
+      <tr className={`click${open ? ' sel' : ''}`} onClick={() => onToggle(rowKey)} title={[from(r.eps) && `EPS ${from(r.eps)}`, from(r.rev) && `Revenue ${from(r.rev)}`].filter(Boolean).join(' · ') || 'Click for the earnings card'}>
         <td className="ellipsis evts-co">
           <Ticker symbol={r.symbol} /> <span className="evts-name">{r.name}</span>
         </td>
-        <td className="evts-icon" aria-label="Earnings release">E</td>
-        <td className={`ellipsis evts-desc ${d.tone === 'pending' ? 'amber' : d.tone}`}>{d.text}</td>
-        <td className="num hide-n muted">{big(r.marketCap)}</td>
-        <td className="muted">{fmtDay(ms(r.date))}</td>
+        <td className="evts-per">{period(r)}</td>
+        <td className="num">{epsText(r.eps.est)}</td>
+        <td className={`num ${pending ? '' : SIGN(es) || 'white'}`}>{pending ? <span className="amber">due</span> : awaiting ? <span className="muted" title="Reported; the sources have not published the figures yet">awaiting</span> : epsText(r.eps.actual)}</td>
+        <td className={`num ${SIGN(es)}`}>{pctText(es)}</td>
+        <td className="num hide-m">{revText(r.rev.est)}</td>
+        <td className={`num hide-m ${SIGN(rs) || 'white'}`}>{revText(r.rev.actual)}</td>
+        <td className={`num hide-m ${SIGN(rs)}`}>{pctText(rs)}</td>
+        <td className="num hide-n muted">{revText(r.marketCap)}</td>
         <td className="muted">{TIMING[r.timing]}</td>
       </tr>
     );
@@ -217,8 +252,8 @@ const MarketRow = memo(
  * The slice of a long list of equal-height table lines that is in view in its scrolling ancestor, with a margin, so a
  * thousand-line calendar draws a few dozen lines. The line height is measured from a drawn line.
  */
-function useVisibleRange(ref: RefObject<HTMLTableSectionElement | null>, count: number): { start: number; end: number; rowH: number } {
-  const [view, setView] = useState({ start: 0, end: Math.min(count, 80), rowH: 20 });
+function useVisibleRange(ref: RefObject<HTMLTableSectionElement | null>, count: number): { start: number; end: number; rowH: number; first: number; last: number } {
+  const [view, setView] = useState({ start: 0, end: Math.min(count, 80), rowH: 20, first: 0, last: Math.min(count, 50) });
   useEffect(() => {
     const body = ref.current;
     if (!body) return;
@@ -234,9 +269,12 @@ function useVisibleRange(ref: RefObject<HTMLTableSectionElement | null>, count: 
       const rowH = Math.max(14, line?.offsetHeight || 20);
       const top = body.getBoundingClientRect().top - host.getBoundingClientRect().top;
       const margin = 30;
-      const start = Math.max(0, Math.min(count, Math.floor(-top / rowH) - margin));
-      const end = Math.max(start, Math.min(count, Math.ceil((host.clientHeight - top) / rowH) + margin));
-      setView((v) => (v.start === start && v.end === end && v.rowH === rowH ? v : { start, end, rowH }));
+      // The lines on screen, and those drawn around them.
+      const first = Math.max(0, Math.min(count, Math.floor(-top / rowH)));
+      const last = Math.max(first, Math.min(count, Math.ceil((host.clientHeight - top) / rowH)));
+      const start = Math.max(0, first - margin);
+      const end = Math.min(count, last + margin);
+      setView((v) => (v.start === start && v.end === end && v.rowH === rowH && v.first === first && v.last === last ? v : { start, end, rowH, first, last }));
     };
     update();
     host.addEventListener('scroll', update, { passive: true });
@@ -246,22 +284,26 @@ function useVisibleRange(ref: RefObject<HTMLTableSectionElement | null>, count: 
       window.removeEventListener('resize', update);
     };
   }, [ref, count]);
-  return { ...view, end: Math.min(view.end, count) };
+  return { ...view, end: Math.min(view.end, count), last: Math.min(view.last, count) };
 }
 
 export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketCalendar; minCap: number; caps: { v: number; label: string }[]; onCap: (v: number) => void; now: number }) {
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const q = filter.trim().toLowerCase();
+  // Earnings histories arrive for the lines in view; the lines are completed from them.
+  const zv = historyData.use((s) => s.v);
   const rows = useMemo(
     () =>
       cal.reports
         .filter((r) => (minCap <= 0 || (ok(r.marketCap) && r.marketCap >= minCap)) && (!q || `${r.symbol} ${r.name}`.toLowerCase().includes(q)))
+        .map((r) => completeReport(r))
         .sort((a, b) => a.date.localeCompare(b.date) || ORDER[a.timing] - ORDER[b.timing] || (ok(b.marketCap) ? b.marketCap : 0) - (ok(a.marketCap) ? a.marketCap : 0)),
-    [cal.reports, minCap, q],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cal.reports, minCap, q, zv],
   );
   const today = isoDay(now);
-  const cols = 6;
+  const cols = 10;
   const toggle = useCallback((key: string) => setOpen((o) => (o === key ? null : key)), []);
   // One flat list of day headings and lines; only the lines in view (and a margin) are drawn, the rest is spacer.
   const flat = useMemo(() => {
@@ -278,7 +320,46 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
   }, [rows]);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const view = useVisibleRange(bodyRef, flat.length);
+  // The column headings stay in view under the function's header while the calendar scrolls.
+  const [headTop, setHeadTop] = useState(0);
+  useEffect(() => {
+    const fnh = bodyRef.current?.closest<HTMLElement>('.panel-body')?.querySelector<HTMLElement>('.fnh');
+    if (!fnh) return;
+    const measure = () => setHeadTop(fnh.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(fnh);
+    return () => ro.disconnect();
+  }, []);
+  // The calendar opens at today (or the next day with reports) once its days have loaded, as the terminal's does;
+  // once per window, so scrolling afterwards is left alone.
+  const opened = useRef('');
+  const windowKey = `${cal.days}|${cal.reports[0]?.date ?? ''}`;
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body || cal.loading || !flat.length || q || opened.current === windowKey) return;
+    opened.current = windowKey;
+    const idx = flat.findIndex((x) => x.kind === 'day' && x.date >= today);
+    const host = body.closest<HTMLElement>('.panel-body');
+    if (idx <= 0 || !host) return;
+    const sticky = host.querySelector<HTMLElement>('.fnh')?.offsetHeight ?? 0;
+    const head = body.parentElement?.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+    host.scrollTop += body.getBoundingClientRect().top - host.getBoundingClientRect().top + idx * view.rowH - sticky - head;
+  }, [cal.loading, flat, q, today, view.rowH, windowKey]);
   const chosen = open ? rows.find((r) => `${r.symbol}|${r.date}` === open) : undefined;
+  // Lines in view without the revenue expected (or, once reported, the revenue reported): ask for those companies'
+  // earnings histories (Finviz's two years; paced in the main process).
+  // The lines on screen first, then those just above and below; none while the calendar's days are still loading
+  // (the list then opens at today).
+  const lacks = (x: (typeof flat)[number]) => x.kind === 'row' && (!ok(x.r.rev.est) || (ms(x.r.date) <= ms(today) && (!ok(x.r.rev.actual) || !ok(x.r.eps.actual))));
+  const missing = cal.loading
+    ? ''
+    : [...flat.slice(view.first, view.last), ...flat.slice(view.last, view.end), ...flat.slice(view.start, view.first).reverse()]
+        .filter(lacks)
+        .map((x) => (x.kind === 'row' ? x.r.symbol : ''))
+        .join(',');
+  useEffect(() => wantHistories(missing.split(',').filter(Boolean)), [missing]);
+  useEffect(() => () => wantHistories([]), []);
   const out: ReactNode[] = [];
   if (view.start > 0) out.push(<tr key="pad-top" aria-hidden="true" style={{ height: view.start * view.rowH }} />);
   for (const item of flat.slice(view.start, view.end)) {
@@ -318,23 +399,31 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
           <EarningsCard r={chosen} />
         </div>
       ) : null}
-      <div className="tbl-wrap">
+      <div className="tbl-wrap evts-wrap" style={{ ['--evts-head-top' as string]: `${headTop}px` }}>
         <table className="tbl evts-mkt">
           <colgroup>
-            <col style={{ width: '30%' }} />
-            <col style={{ width: 22 }} />
             <col />
-            <col className="hide-n" style={{ width: 76 }} />
+            <col style={{ width: 74 }} />
             <col style={{ width: 70 }} />
+            <col style={{ width: 70 }} />
+            <col style={{ width: 70 }} />
+            <col className="hide-m" style={{ width: 82 }} />
+            <col className="hide-m" style={{ width: 82 }} />
+            <col className="hide-m" style={{ width: 70 }} />
+            <col className="hide-n" style={{ width: 78 }} />
             <col style={{ width: 62 }} />
           </colgroup>
           <thead>
             <tr>
               <th>Company</th>
-              <th aria-label="Event type" />
-              <th title="A: EPS reported (analysts' basis); E: the analysts' estimate; S: the surprise; Rev: revenue; YoY: EPS against the year-earlier quarter; YA: the year-earlier EPS">Description</th>
+              <th title="The fiscal quarter reported (or its last month)">Period</th>
+              <th className="num" title="The analysts' EPS estimate">EPS Est</th>
+              <th className="num" title="EPS reported on the analysts' basis (usually adjusted)">EPS Act</th>
+              <th className="num" title="Reported against the estimate, from one source">Surp</th>
+              <th className="num hide-m" title="The analysts' revenue estimate">Rev Est</th>
+              <th className="num hide-m" title="Revenue reported">Rev Act</th>
+              <th className="num hide-m" title="Reported against the estimate, from one source">Surp</th>
               <th className="num hide-n" title="Market value, US dollars (Nasdaq)">Mkt Cap</th>
-              <th>Date</th>
               <th>Time</th>
             </tr>
           </thead>
@@ -348,10 +437,13 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
         </table>
       </div>
       <div className="note">
-        Every US-listed company reporting in the window, from Nasdaq&apos;s earnings calendar (EPS expected and reported, market value, time of the report) and, with your keys, Finnhub&apos;s and FMP&apos;s
-        (revenue expected and reported, companies Nasdaq leaves out). Description: A the EPS reported (analysts&apos; basis, usually adjusted), E the estimate, S the surprise (within one source), Rev the
-        revenue, YoY the EPS (for a coming report, its estimate) against the same quarter a year earlier, YA the year-earlier EPS. Green beat, red missed, amber still to report. Hover a line for its sources.
-        {cal.revenueFrom.length ? ` Revenue from ${cal.revenueFrom.join(' and ')}.` : ' Revenue needs FINNHUB_API_KEY or FMP_API_KEY on PROVIDERS.'}
+        <div>
+          <span className="amber">Sources</span> Nasdaq earnings calendar: EPS, market value, time · Finviz, Zacks or MarketBeat: revenue and past estimates, read for the lines in view
+          {cal.revenueFrom.length ? ` · ${cal.revenueFrom.join(', ')}: revenue` : ''}
+        </div>
+        <div>
+          <span className="amber">Reading</span> EPS on the analysts&apos; basis (usually adjusted) · Surp: reported against expected, from one source · <span className="up">green</span> beat, <span className="dn">red</span> missed · <span className="amber">due</span>: not reported yet · awaiting: reported, figures not published yet · click a line for its card
+        </div>
         {cal.problems.length ? ` ${cal.problems.slice(0, 3).join(' ')}` : ''}
       </div>
     </div>

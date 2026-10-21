@@ -171,6 +171,15 @@ export const COMMODITIES: SecurityDef[] = [
   cmd('CT1', 'Generic 1st \'CT\' Future', 66, 0.22, 'CT=F', 2, { unit: 'USd/lb.', exch: 'ICE Futures US', size: '50,000 lb', months: 'H,K,N,V,Z', group: 'Softs' }, true),
   cmd('LC1', 'Generic 1st \'LC\' Future', 235, 0.16, 'LE=F', 3, { unit: 'USd/lb.', exch: 'CME', size: '40,000 lb', months: 'G,J,M,Q,V,Z', group: 'Livestock' }, true),
   cmd('LH1', 'Generic 1st \'LH\' Future', 85, 0.25, 'HE=F', 3, { unit: 'USd/lb.', exch: 'CME', size: '40,000 lb', months: 'G,J,K,M,N,Q,V,Z', group: 'Livestock' }, true),
+  // US Treasury and money-market futures (WBF): prices in points of 100 (32nds for the Treasuries).
+  cmd('TU1', 'Generic 1st \'TU\' Future · US 2YR NOTE (CBT)', 102, 0.014, 'ZT=F', 4, { unit: 'Points of 100 (32nds)', exch: 'CBOT', size: '$200,000 face', months: 'H,M,U,Z', group: 'Rates' }),
+  cmd('FV1', 'Generic 1st \'FV\' Future · US 5YR NOTE (CBT)', 104, 0.035, 'ZF=F', 4, { unit: 'Points of 100 (32nds)', exch: 'CBOT', size: '$100,000 face', months: 'H,M,U,Z', group: 'Rates' }),
+  cmd('TY1', 'Generic 1st \'TY\' Future · US 10YR NOTE (CBT)', 105.3, 0.055, 'ZN=F', 4, { unit: 'Points of 100 (32nds)', exch: 'CBOT', size: '$100,000 face', months: 'H,M,U,Z', group: 'Rates' }),
+  cmd('UXY1', 'Generic 1st \'UXY\' Future · US ULTRA 10YR (CBT)', 106.5, 0.07, 'TN=F', 4, { unit: 'Points of 100 (32nds)', exch: 'CBOT', size: '$100,000 face', months: 'H,M,U,Z', group: 'Rates' }),
+  cmd('US1', 'Generic 1st \'US\' Future · US LONG BOND (CBT)', 105.6, 0.1, 'ZB=F', 4, { unit: 'Points of 100 (32nds)', exch: 'CBOT', size: '$100,000 face', months: 'H,M,U,Z', group: 'Rates' }),
+  cmd('WN1', 'Generic 1st \'WN\' Future · US ULTRA BOND (CBT)', 107, 0.13, 'UB=F', 4, { unit: 'Points of 100 (32nds)', exch: 'CBOT', size: '$100,000 face', months: 'H,M,U,Z', group: 'Rates' }),
+  cmd('SFR1', 'Generic 1st \'SFR\' Future · 3M SOFR (CME)', 95.75, 0.004, 'SR3=F', 4, { unit: 'Points (100 less rate)', exch: 'CME', size: '$2,500 per point', months: 'H,M,U,Z', group: 'Rates' }),
+  cmd('FF1', 'Generic 1st \'FF\' Future · 30-DAY FED FUNDS (CBT)', 96.1, 0.003, 'ZQ=F', 4, { unit: 'Points (100 less rate)', exch: 'CBOT', size: '$4,167 per point', months: 'All months', group: 'Rates' }),
 ];
 
 const COMMODITY_ALIASES: Record<string, string[]> = {
@@ -178,6 +187,8 @@ const COMMODITY_ALIASES: Record<string, string[]> = {
   HG1: ['COPPER'], PL1: ['PLATINUM'], PA1: ['PALLADIUM'], 'W 1': ['WHEAT', 'W1'], 'C 1': ['CORN', 'C1'],
   'S 1': ['SOYBEANS', 'SOY', 'S1'], KC1: ['COFFEE'], SB1: ['SUGAR'], CC1: ['COCOA'], CT1: ['COTTON'],
   LC1: ['CATTLE'], LH1: ['HOGS'], HO1: ['HEATING OIL', 'DIESEL'], XB1: ['GASOLINE', 'RBOB'],
+  TU1: ['TU', 'TU1 COMDTY'], FV1: ['FV', 'FV1 COMDTY'], TY1: ['TY', 'TY1 COMDTY', 'TNOTE'], UXY1: ['UXY', 'UXY1 COMDTY'], US1: ['TBOND', 'US1 COMDTY'],
+  WN1: ['WN', 'WN1 COMDTY'], SFR1: ['SFR', 'SOFR FUTURE'], FF1: ['FED FUNDS FUTURE', 'FF1 COMDTY'],
 };
 for (const c of COMMODITIES) c.alias = COMMODITY_ALIASES[c.ticker];
 

@@ -42,6 +42,7 @@ declare global {
       analysts?(kind: import('./analysts').AnalystKind | 'earnings', symbol: string): Promise<KeyedAnswer>;
       nasdaq?(kind: import('./nasdaq-company').NasdaqKind, symbol: string): Promise<KeyedAnswer>;
       finra?(kind: 'short-interest' | 'short-history', symbol: string): Promise<KeyedAnswer>;
+      estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;
       indexMembers?(kind: 'sp500' | 'nasdaq100' | 'nasdaq-quotes', arg?: string): Promise<KeyedAnswer>;
       alphavantage?(kind: 'earnings' | 'estimates', symbol: string): Promise<KeyedAnswer>;
       earningsCalendar?(source: 'nasdaq' | 'nasdaq-caps' | 'nasdaq-eco' | 'nasdaq-ipo' | 'finnhub' | 'fmp', from: string, to: string): Promise<KeyedAnswer>;

@@ -87,7 +87,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   GOVT: {
     title: 'Government Securities',
     groups: [
-      { title: 'Monitors', entries: ['MONEYMARKET', 'BONDS', 'CURVE', 'RATEPROBS', 'FEDMEETINGS', 'CENTRALBANKS', 'MACRO'] },
+      { title: 'Monitors', entries: ['MONEYMARKET', 'BONDS', 'BONDFUTURES', 'CURVE', 'RATEPROBS', 'FEDMEETINGS', 'CENTRALBANKS', 'MACRO'] },
       { title: 'Analysis', entries: [{ code: 'BONDSEARCH', label: 'Treasury search', cmd: 'T GOVT' }, 'SWAPCALC', 'HOLIDAYS'] },
     ],
     list: (d) => d.yk === 'Govt',
@@ -115,7 +115,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   },
   INDEX: {
     title: 'Indices',
-    groups: [{ title: 'Markets', entries: ['MARKET', 'INDEXFUTURES', 'HEATMAP', 'CONTRIB', 'EXCHANGES', 'CURVE', 'ECONSTATS', 'MACRO'] }],
+    groups: [{ title: 'Markets', entries: ['MARKET', 'INDEXFUTURES', 'BONDFUTURES', 'HEATMAP', 'CONTRIB', 'EXCHANGES', 'CURVE', 'ECONSTATS', 'MACRO'] }],
     list: (d) => (d.cls === 'index' && d.ticker !== 'VIX') || d.cls === 'future',
   },
   CURNCY: {

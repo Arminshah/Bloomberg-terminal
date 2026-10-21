@@ -1277,3 +1277,8 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .ds-sentence { margin: 4px 0; color: var(--text); line-height: 1.45; }
 .ds-sentence mark { background: #5a3d00; color: #fff; padding: 0 1px; }
 .ds-pager { display: flex; align-items: center; gap: 12px; padding: 6px 10px; }
+.evts-mkt .evts-per { color: var(--amber); }
+/* The calendar scrolls with the panel: its headings stick under the function header. */
+.tbl-wrap.evts-wrap { overflow-x: clip; overflow-y: visible; }
+.evts-mkt thead th { top: var(--evts-head-top, 0px); z-index: 4; }
+.evts-mkt td.num, .evts-mkt th.num { font-variant-numeric: tabular-nums; }

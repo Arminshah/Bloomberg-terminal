@@ -59,6 +59,7 @@ import { SPLC } from '../functions/SPLC';
 import { BBK } from '../functions/BBK';
 import { IPO } from '../functions/IPO';
 import { DS } from '../functions/DS';
+import { WBF } from '../functions/WBF';
 import { EQRP } from '../functions/EQRP';
 import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
 import { FOMC } from '../functions/FOMC';
@@ -129,6 +130,7 @@ export const FUNCTIONS: FnDef[] = [
   // Rates
   { code: 'BONDS', name: 'World Bond Markets', category: 'Rates & Credit', desc: 'Government yields by country and tenor with changes, spreads to Treasuries and Bunds, and curve slope.', component: WB, aliases: ['WORLDBONDS'] },
   { code: 'CURVE', name: 'Graph Curves', category: 'Rates & Credit', desc: 'Yield curves (US, Germany, UK, Japan) today versus one week, one month and one year ago.', component: GC, aliases: ['CURVES', 'YIELDS'] },
+  { code: 'BONDFUTURES', name: 'World Bond Futures', category: 'Rates & Credit', desc: 'US Treasury futures (2-year to Ultra Bond) in 32nds with change, range and the cash benchmark yield beside each, and SOFR and Fed funds futures with the rate they imply; price or yield view.', component: WBF, example: 'BONDFUTURES' },
   { code: 'MONEYMARKET', name: 'Treasury & Money Markets', category: 'Rates & Credit', desc: 'Fed funds target and New York Fed reference rates, bills, curve spreads and SOFR futures.', component: BTMM },
   { code: 'BONDCALC', name: 'Yield & Spread Analysis', category: 'Rates & Credit', classes: ['bond'], desc: 'Fixed-rate bullet calculator: price/yield, accrued, duration, convexity, DV01, G-spread, zero-curve Z-spread, spread risk, scenarios, cash flows and CSV export. Uses explicit contract, benchmark and curve inputs.', component: YAS, example: 'BONDCALC' },
   { code: 'RATEPROBS', name: 'Rate Probabilities', category: 'Rates & Credit', desc: 'Market-implied Fed moves meeting by meeting, from fed funds futures and the FOMC calendar.', component: WIRP },

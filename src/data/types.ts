@@ -35,7 +35,7 @@ export interface CommodityInfo {
   exch: string;
   size: string;
   months: string;
-  group: 'Energy' | 'Precious Metals' | 'Base Metals' | 'Grains' | 'Softs' | 'Livestock';
+  group: 'Energy' | 'Precious Metals' | 'Base Metals' | 'Grains' | 'Softs' | 'Livestock' | 'Rates';
 }
 
 export interface CryptoInfo {

@@ -124,3 +124,17 @@ describe('BBK: buybacks', () => {
     expect(s.rows[3].sharesOut).toBe(950);
   });
 });
+
+describe('WBF: Treasury futures in 32nds', () => {
+  it('writes prices and changes in 32nds and quarters of a 32nd', async () => {
+    const { futures32, change32 } = await import('../src/functions/WBF');
+    expect(futures32(105.28125)).toBe('105-09');
+    expect(futures32(101.87891)).toBe('101-28¼');
+    expect(futures32(106.484375)).toBe('106-15+');
+    expect(futures32(103.9375)).toBe('103-30');
+    expect(futures32(103.9453125)).toBe('103-30¼');
+    expect(change32(-0.03125)).toBe('-0-01');
+    expect(change32(0.5)).toBe('+0-16');
+    expect(change32(0)).toBe('0-00');
+  });
+});

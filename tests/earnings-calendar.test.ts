@@ -38,11 +38,21 @@ describe('the market earnings calendar', () => {
   });
 
   it("reads a day's reports: timing, fiscal quarter, forecast, reported EPS and a coming report's year-earlier EPS", () => {
-    const [bac, nucl] = parsed(parseNasdaqDay(reportedDay, '2026-10-14'));
+    const [bac, nucl] = parsed(parseNasdaqDay(reportedDay, '2026-10-14', Date.parse('2026-11-30')));
     expect(bac).toMatchObject({ symbol: 'BAC', date: '2026-10-14', timing: 'Bef-mkt', marketCap: 358_238_487_000, fiscalEnd: '2026-09', epsEst: 1.11, epsActual: 1.08, analysts: 7 });
     expect(nucl.epsActual).toBe(-0.17);
     expect(nucl.epsEst).toBeNaN();
     expect(nucl.timing).toBe('--');
+    // In the days after a report Nasdaq's EPS is the reported one only with its surprise (or when it equals the
+    // estimate): until it has the figures the field holds the year-earlier EPS.
+    const fresh = parsed(parseNasdaqDay(JSON.stringify({ data: { rows: [
+      { eps: '$1.66', surprise: 'N/A', time: 'time-pre-market', symbol: 'GE', name: 'GE Aerospace', marketCap: '$322,972,451,000', fiscalQuarterEnding: 'Sep/2026', epsForecast: '$2.02', noOfEsts: '7' },
+      { eps: '$0.43', surprise: 'N/A', time: 'time-pre-market', symbol: 'FNB', name: 'F.N.B.', marketCap: '$5,990,000,000', fiscalQuarterEnding: 'Sep/2026', epsForecast: '$0.43', noOfEsts: '6' },
+    ] } }), '2026-10-20', Date.parse('2026-10-21')));
+    expect(fresh[0].epsActual).toBeNaN();
+    expect(fresh[0].epsEst).toBe(2.02);
+    expect(fresh[1].epsActual).toBe(0.43);
+    expect(parsed(parseNasdaqDay(reportedDay, '2026-10-14', Date.parse('2026-10-21')))[1].epsActual).toBeNaN();
     const [meta, brk] = parsed(parseNasdaqDay(comingDay, '2026-10-28'));
     expect(meta).toMatchObject({ timing: 'Aft-mkt', epsEst: 6.54, yearAgoEps: 7.25, yearAgoDate: '2025-10-29' });
     expect(meta.epsActual).toBeNaN();
@@ -68,7 +78,7 @@ describe('the market earnings calendar', () => {
   });
 
   it('merges the calendars per report: Nasdaq for EPS, the others for revenue, each figure with its source', () => {
-    const nasdaq = parsed(parseNasdaqDay(reportedDay, '2026-10-14'));
+    const nasdaq = parsed(parseNasdaqDay(reportedDay, '2026-10-14', Date.parse('2026-10-21')));
     const finnhub = parsed(parseFinnhubWindow(JSON.stringify({ earningsCalendar: [
       { date: '2026-10-14', hour: 'bmo', quarter: 3, year: 2026, epsEstimate: 1.1, epsActual: 1.09, revenueEstimate: 27.4e9, revenueActual: 27.9e9, symbol: 'BAC' },
       // A company Nasdaq leaves out takes its market value from the stock list.

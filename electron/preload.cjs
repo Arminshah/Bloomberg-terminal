@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   nasdaq: (kind, symbol) => ipcRenderer.invoke('nasdaq', String(kind), String(symbol)),
   indexMembers: (kind, arg) => ipcRenderer.invoke('index-members', String(kind), String(arg ?? '')),
   finra: (kind, symbol) => ipcRenderer.invoke('finra', String(kind), String(symbol)),
+  estimateHistory: (kind, symbol) => ipcRenderer.invoke('estimate-history', String(kind), String(symbol)),
   alphavantage: (kind, symbol) => ipcRenderer.invoke('alphavantage', String(kind), String(symbol)),
   earningsCalendar: (source, from, to) => ipcRenderer.invoke('earnings-calendar', String(source), String(from), String(to)),
   news: (source, arg) => ipcRenderer.invoke('news', String(source), String(arg ?? '')),
