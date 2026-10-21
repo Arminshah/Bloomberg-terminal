@@ -179,6 +179,8 @@ export interface Quote {
   tz?: string;
   /** What the volume counts, when it is not shares or contracts: coins of the base asset, or "USD". */
   volumeUnit?: string;
+  /** Who supplied the bid and ask when it is not the price's source (Nasdaq's real-time quote). */
+  bboSource?: string;
 }
 
 export interface Bar {

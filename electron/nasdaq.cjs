@@ -74,6 +74,8 @@ const COMPANY_KINDS = {
   'earnings-date': { path: (s) => `/analyst/${s}/earnings-date`, ttl: 6 * HOUR },
   // The company description, sector and industry.
   profile: { path: (s) => `/company/${s}/company-profile`, ttl: 24 * HOUR },
+  // The real-time quote (Nasdaq Basic): last sale, bid and ask with their sizes, the day's volume.
+  info: { path: (s) => `/quote/${s}/info?assetclass=stocks`, ttl: 20_000 },
 };
 
 /** The request for one kind of company data, or null when the kind or the ticker (Nasdaq's style: BRK.B) is not one the app asks for. */

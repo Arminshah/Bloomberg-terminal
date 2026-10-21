@@ -30,6 +30,7 @@ export const WATCHLIST_COLUMNS: readonly WatchlistColumn[] = [
   { id: 'ASK', label: 'Ask', numeric: true },
   { id: 'PX_VOLUME', label: 'Volume', numeric: true },
   { id: 'ARMIN_YTD', label: 'YTD', numeric: true },
+  { id: 'ARMIN_1Y', label: '1Y', numeric: true },
   { id: 'ARMIN_SOURCE_TIME', label: 'Time' },
   { id: 'ARMIN_TODAY', label: 'Today' },
   { id: 'PX_OPEN', label: 'Open', numeric: true },
@@ -55,7 +56,7 @@ export const WATCHLIST_COLUMNS: readonly WatchlistColumn[] = [
 
 /** The extended-session columns, which lists saved before they existed receive after %Chg. */
 export const EXTENDED_COLUMNS = ['ARMIN_PRE_MARKET', 'ARMIN_AFTER_HOURS'];
-export const DEFAULT_WATCHLIST_COLUMNS = ['NAME', 'PX_LAST', 'CHG_NET_1D', 'CHG_PCT_1D', ...EXTENDED_COLUMNS, 'BID', 'ASK', 'PX_VOLUME', 'ARMIN_YTD', 'ARMIN_SOURCE_TIME', 'ARMIN_TODAY'];
+export const DEFAULT_WATCHLIST_COLUMNS = ['NAME', 'PX_LAST', 'CHG_NET_1D', 'CHG_PCT_1D', ...EXTENDED_COLUMNS, 'BID', 'ASK', 'PX_VOLUME', 'ARMIN_YTD', 'ARMIN_1Y', 'ARMIN_SOURCE_TIME', 'ARMIN_TODAY'];
 
 /** A saved column list with the extended-session columns added after %Chg (or at the end), once. */
 export function withExtendedColumns(ids: string[]): string[] {
@@ -91,7 +92,7 @@ export interface WatchlistRow {
 /** Captures exactly the local values and provenance used by the monitor and its export. */
 export function watchlistRow(
   id: string, sec: SecurityDef | undefined, q: Quote | undefined, now: number,
-  history: { ytd: number; today: readonly number[]; intradayTime?: number; extended?: { pre?: SessionPrice; post?: SessionPrice } },
+  history: { ytd: number; y1?: number; today: readonly number[]; intradayTime?: number; extended?: { pre?: SessionPrice; post?: SessionPrice } },
 ): WatchlistRow {
   const fields = new Map((sec ? securityFields(sec, q, now) : []).map((f) => [f.id, f]));
   const today = history.today.filter(Number.isFinite);
@@ -101,14 +102,15 @@ export function watchlistRow(
       fields.set(pct.id, { ...pct, value: null, status: 'UNAVAILABLE', asOf: null, note: 'This monitor suppresses relative percent changes for yield references; Net Chg displays the absolute move in basis points.' });
     }
     const extra = (fieldId: string, name: string, value: FieldValue['value'], unit: string, asOf: number | undefined, definition: string) => {
-      const valid = value !== null && !(typeof value === 'number' && !Number.isFinite(value)) && (fieldId !== 'ARMIN_YTD' || fields.get('PX_LAST')?.value != null);
+      const change = fieldId === 'ARMIN_YTD' || fieldId === 'ARMIN_1Y';
+      const valid = value !== null && !(typeof value === 'number' && !Number.isFinite(value)) && (!change || fields.get('PX_LAST')?.value != null);
       fields.set(fieldId, {
         id: fieldId, name, category: 'Calculated', definition, value: valid ? value : null, unit,
-        source: fieldId === 'ARMIN_YTD' ? `Calculated from ${q?.provider ?? 'source'} current price and available year-end daily close` : 'Available intraday history / observed samples',
-        status: valid ? q?.src === 'SIM' ? 'DEMO DATA' : fieldId === 'ARMIN_YTD' ? `CALCULATED · ${fields.get('PX_LAST')?.status ?? 'UNKNOWN FRESHNESS'}` : 'CALCULATED' : 'UNAVAILABLE',
+        source: fieldId === 'ARMIN_YTD' ? `Calculated from ${q?.provider ?? 'source'} current price and available year-end daily close` : fieldId === 'ARMIN_1Y' ? `Calculated from ${q?.provider ?? 'source'} current price and the daily close a year earlier` : 'Available intraday history / observed samples',
+        status: valid ? q?.src === 'SIM' ? 'DEMO DATA' : change ? `CALCULATED · ${fields.get('PX_LAST')?.status ?? 'UNKNOWN FRESHNESS'}` : 'CALCULATED' : 'UNAVAILABLE',
         asOf: valid && Number.isFinite(asOf) && asOf! > 0 ? asOf! : null,
-        dateOnly: fieldId === 'ARMIN_YTD' && (!!q?.dayOnly || q?.src === 'EOD'),
-        timeBasis: fieldId === 'ARMIN_YTD' ? 'Current source-price time; the base is an available year-end daily close.' : 'Last available history observation; not a bid/ask event time.',
+        dateOnly: change && (!!q?.dayOnly || q?.src === 'EOD'),
+        timeBasis: fieldId === 'ARMIN_YTD' ? 'Current source-price time; the base is an available year-end daily close.' : fieldId === 'ARMIN_1Y' ? 'Current source-price time; the base is the daily close a year earlier.' : 'Last available history observation; not a bid/ask event time.',
         note: 'Local history coverage; a current quote does not verify this history or its adjustment conventions.',
       });
     };
@@ -122,6 +124,7 @@ export function watchlistRow(
     session('ARMIN_PRE_MARKET', 'ARMIN_PRE_PX', 'Pre-market', history.extended?.pre);
     session('ARMIN_AFTER_HOURS', 'ARMIN_POST_PX', 'After-hours', history.extended?.post);
     extra('ARMIN_YTD', 'Year-to-date change', history.ytd, sec.quote === 'yield' ? 'percentage points' : '%', q?.time, 'Current source price against the available year-end daily close; price return for prices, percentage-point change for yield references.');
+    extra('ARMIN_1Y', 'One-year change', history.y1 ?? NaN, sec.quote === 'yield' ? 'percentage points' : '%', q?.time, 'Current source price against the daily close a year earlier; price return for prices, percentage-point change for yield references.');
     extra('ARMIN_TODAY', 'Intraday close samples', today.length ? today.join(';') : null, sec.quote === 'yield' ? 'yield % samples' : `${sec.ccy} samples`, history.intradayTime, 'Available intraday close observations in chart order, separated by semicolons in CSV; not a transaction tape.');
   }
   return { id, fields, today };

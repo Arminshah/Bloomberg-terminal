@@ -760,6 +760,9 @@ ipcMain.handle('index-members', async (event, kind, arg) => {
 ipcMain.handle('nasdaq', async (event, kind, symbol) => {
   const req = nasdaq.nasdaqCompanyRequest(kind, symbol);
   if (!fromApp(event) || !req) throw new Error('not allowed');
+  // The watchlist's real-time quotes go in a lane of their own (20 a minute), so they never hold up EVENTS' calendar
+  // days or a company's pages.
+  if (kind === 'info') return keyedGet('nasdaq-quote', req.url, req.headers, req.ttl, [20, 60_000], [], nasdaqAgent());
   return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
 });
 

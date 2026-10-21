@@ -47,6 +47,12 @@ if (typeof localStorage !== 'undefined' && !loadJson('armin:ext-hours-columns'))
   saveJson('armin:ext-hours-columns', 1);
 }
 
+// Once per installation: lists saved with their own columns receive the one-year change beside the year-to-date one.
+if (typeof localStorage !== 'undefined' && !loadJson('armin:1y-column')) {
+  watchlists.set((s) => ({ ...s, lists: s.lists.map((l) => (l.columns?.includes('ARMIN_YTD') && !l.columns.includes('ARMIN_1Y') ? { ...l, columns: l.columns.flatMap((c) => (c === 'ARMIN_YTD' ? [c, 'ARMIN_1Y'] : [c])) } : l)) }));
+  saveJson('armin:1y-column', 1);
+}
+
 export interface Position {
   id: string;
   qty: number;

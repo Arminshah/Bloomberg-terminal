@@ -61,6 +61,7 @@ export function securityFields(sec: SecurityDef, q: Quote | undefined, now: numb
     asOf: null, dateOnly: false, status: q?.src === 'SIM' ? 'DEMO DATA' : `${q?.src === 'STALE' ? 'SOURCE STALE · ' : ''}TIMESTAMP UNAVAILABLE`,
     timeBasis: 'The engine does not expose a separate bid/ask event timestamp.',
     note: 'The last trade timestamp does not verify bid/ask freshness. IEX prices cover one venue; these fields do not establish consolidated NBBO.',
+    ...(q?.bboSource ? { source: q.bboSource, status: 'REAL-TIME QUOTE', note: 'Nasdaq Basic: the best bid and offer on Nasdaq’s venues, read once a minute while the monitor shows the line; not consolidated NBBO.' } : {}),
   };
   market('BID', 'Bid', 'Source bid, when supplied. No size, executable guarantee or consolidated NBBO is inferred.', q?.bid, bbo);
   market('ASK', 'Ask', 'Source offer, when supplied. No size, executable guarantee or consolidated NBBO is inferred.', q?.ask, bbo);

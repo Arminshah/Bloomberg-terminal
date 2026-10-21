@@ -1,4 +1,5 @@
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react';
+import { useBooks, withBook } from '../data/live/nasdaq-book';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
@@ -22,15 +23,18 @@ import type { FnProps } from '../terminal/types';
 export function FieldCell({ column, row, sec, quote, now }: { column: WatchlistColumn; row: WatchlistRow; sec?: SecurityDef; quote?: Quote; now: number }) {
   const f = row.fields.get(column.id);
   if (sec?.quote === 'yield' && column.id === 'CHG_PCT_1D') return <span title={f?.note} />;
-  if (!f || f.value === null || !sec) return <span className="muted" title={f?.note ?? 'No field value is available.'}>--</span>;
+  // Nothing to show is a blank cell, its reason on hover.
+  if (!f || f.value === null || !sec) return <span className="muted" title={f?.note ?? 'No field value is available.'} />;
   const y = sec.quote === 'yield';
   let value: ReactNode = typeof f.value === 'number' ? fmtNum(f.value, column.id === 'ARMIN_SPREAD_PCT' ? 3 : sec.dec) : f.value;
   switch (column.id) {
     case 'PX_LAST': value = <LivePx id={row.id} />; break;
-    case 'CHG_NET_1D': value = quote ? <DayChg q={quote} bp={y} unit={y ? 'bp' : ''} dec={sec.dec} /> : '--'; break;
-    case 'CHG_PCT_1D': value = y ? '' : quote ? <DayChg q={quote} pct /> : '--'; break;
-    case 'PX_VOLUME': value = `${fmtBig(Number(f.value))}${quote?.volumeUnit && quote.volumeUnit !== 'USD' ? ` ${quote.volumeUnit}` : ''}`; break;
-    case 'ARMIN_YTD': value = y ? fmtBp(Number(f.value), 0) : <span className={Number(f.value) >= 0 ? 'up' : 'dn'}>{fmtPct(Number(f.value), 1)}</span>; break;
+    case 'CHG_NET_1D': value = quote ? <DayChg q={quote} bp={y} unit={y ? 'bp' : ''} dec={sec.dec} /> : ''; break;
+    case 'CHG_PCT_1D': value = y ? '' : quote ? <DayChg q={quote} pct /> : ''; break;
+    // Currencies, indices and yields trade no volume of their own: a zero says nothing.
+    case 'PX_VOLUME': value = Number(f.value) > 0 ? `${fmtBig(Number(f.value))}${quote?.volumeUnit && quote.volumeUnit !== 'USD' ? ` ${quote.volumeUnit}` : ''}` : ''; break;
+    case 'ARMIN_YTD':
+    case 'ARMIN_1Y': value = y ? fmtBp(Number(f.value), 0) : <span className={Number(f.value) >= 0 ? 'up' : 'dn'}>{fmtPct(Number(f.value), 1)}</span>; break;
     case 'ARMIN_SOURCE_TIME': value = f.dateOnly ? fieldTime(f) : quote ? fmtStamp(quote.time, now) : '--'; break;
     case 'ARMIN_TODAY': value = <Sparkline values={row.today} width={80} height={14} />; break;
     case 'ARMIN_RECEIVED_AT': value = f.asOf === null ? '--' : fieldTime(f); break;
@@ -83,6 +87,8 @@ export function W({ route }: FnProps) {
   const columns = watchlistColumns(list.columns);
   const selected = new Set(columns.map((c) => c.id));
   useExtendedSessionQuotes(hasSessionColumns(columns.map((c) => c.id)) ? list.ids : []);
+  // Nasdaq's real-time bid and ask for US stocks whose price source gives none.
+  useBooks(selected.has('BID') || selected.has('ASK') || selected.has('PX_VOLUME') ? list.ids : []);
   const updateList = (patch: Partial<Watchlist>) => watchlists.set((s) => ({ ...s, lists: s.lists.map((l, i) => i === active ? { ...l, ...patch } : l) }));
   const setColumns = (ids: string[]) => updateList({ columns: ids, ...(!ids.includes(list.sort?.column ?? '') ? { sort: undefined } : {}) });
   const changeSort = (column: string) => {
@@ -101,8 +107,9 @@ export function W({ route }: FnProps) {
   // Every line in the order on screen (the chosen sort, else the manual order); the filter then hides some.
   const ordered = sortWatchlistRows(list.ids.map((id) => {
     const intra = selected.has('ARMIN_TODAY') ? engine.intraday(id) : undefined;
-    return watchlistRow(id, engine.get(id), engine.quote(id), now, {
+    return watchlistRow(id, engine.get(id), withBook(id, engine.quote(id)), now, {
       ytd: selected.has('ARMIN_YTD') ? periodChange(id, 'YTD') : NaN,
+      y1: selected.has('ARMIN_1Y') ? periodChange(id, '1Y') : NaN,
       today: intra ? Array.from(intra.c.subarray(0, intra.length)) : [], intradayTime: intra?.length ? intra.t[intra.length - 1] : undefined,
       extended: extendedSessions(id, now),
     });
