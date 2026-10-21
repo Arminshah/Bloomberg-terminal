@@ -4,7 +4,7 @@ import { exportActions } from '../components/ExportActions';
 import { openSecurity } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct } from '../core/format';
 import { engine } from '../data/market';
-import { rebuildSupplyChain, supplyChainAvailable, useSupplyChain, type Chain, type Filer, type Relation, type Role } from '../data/live/supply-chain';
+import { rebuildSupplyChain, sharePeriod, supplyChainAvailable, useSupplyChain, type Chain, type Filer, type Relation, type Role } from '../data/live/supply-chain';
 import { secTicker } from '../data/live/sec';
 import { earningsCalendar, requestListings } from '../data/live/earnings-calendar';
 import { execute } from '../terminal/exec';
@@ -59,31 +59,33 @@ export function shareLabel(r: Relation): string {
     return `${who} ${src === 'Press release' || src === 'Agreement' ? src.toLowerCase() : src} · ${monthYear(e.date)}`;
   }
   const v = `${r.qualifier === '>' ? '≥' : r.qualifier === '<' ? '<' : ''}${fmtNum(r.share, r.share % 1 ? 1 : 0)}%`;
+  const period = sharePeriod(r.evidence[0]?.sentence ?? '');
+  const tail = period ? ` · ${period}` : '';
   switch (r.basis) {
     case 'their-revenue':
-      return `Rev: ${v}`;
     case 'target-revenue':
-      return `Rev: ${v}`;
+      return `Rev: ${v}${tail}`;
     case 'their-product-sales':
-      return `Sales: ${v}`;
+      return `Sales: ${v}${tail}`;
     case 'their-purchases':
-      return `Purch: ${v}`;
+      return `Purch: ${v}${tail}`;
     default:
-      return v;
+      return `${v}${tail}`;
   }
 }
 
 /** One line on what the relation is, in the target's terms. */
 export function describe(r: Relation, t: string): string {
+  const period = r.share != null ? sharePeriod(r.evidence[0]?.sentence ?? '') : '';
   const v = r.share != null ? `${r.qualifier === '>' ? 'at least ' : r.qualifier === '<' ? 'less than ' : ''}${fmtNum(r.share, r.share % 1 ? 1 : 0)}%` : '';
   switch (r.role) {
     case 'supplier':
-      if (r.basis === 'their-revenue') return `${t} brought ${v} of its revenue`;
+      if (r.basis === 'their-revenue') return `${t} brought ${v} of its revenue${period ? ` (${period})` : ''}`;
       return r.side === 'theirs' ? `Names ${t} as a customer` : r.side === 'both' ? `Named by ${t}; names it as a customer` : `Named by ${t} as a supplier`;
     case 'customer':
-      if (r.basis === 'target-revenue') return `${v} of ${t}'s revenue`;
-      if (r.basis === 'their-product-sales') return `${v} of its sales are ${t} products`;
-      if (r.basis === 'their-purchases') return `${v} of its purchases are from ${t}`;
+      if (r.basis === 'target-revenue') return `${v} of ${t}'s revenue${period ? ` (${period})` : ''}`;
+      if (r.basis === 'their-product-sales') return `${v} of its sales are ${t} products${period ? ` (${period})` : ''}`;
+      if (r.basis === 'their-purchases') return `${v} of its purchases are from ${t}${period ? ` (${period})` : ''}`;
       return r.side === 'theirs' ? `Names ${t} as a supplier` : r.side === 'both' ? `Named by ${t}; names it as a supplier` : `Named by ${t} as a customer`;
     case 'competitor':
       return r.side === 'theirs' ? `Names ${t} as a competitor` : r.side === 'both' ? `${t} and it name each other as competitors` : `Named by ${t} as a competitor`;
@@ -256,6 +258,7 @@ function Summary({ chain, t, suppliers, customers, competitors, fillOf, onOpen }
   const read = chain.filers.filter((f) => f.state === 'read').length;
   const total = chain.filers.length;
   const newest = chain.relations.reduce((m, r) => (latestDate(r) > m ? latestDate(r) : m), '');
+  const count = (role: Role) => chain.relations.filter((r) => r.role === role).length;
   const company = chain.company?.display ?? displayName(chain.company?.name ?? t);
   const bw = 182;
   const bx0 = 96;
@@ -300,7 +303,7 @@ function Summary({ chain, t, suppliers, customers, competitors, fillOf, onOpen }
       <Pager x={W - 10 - BOX_W + 80} y={rowY(SIDE_ROWS) + 14} page={pc} pages={cp} onPage={(p) => setPages((x) => ({ ...x, c: p }))} vertical />
       {/* The company */}
       <g className="splc-center">
-        <rect x={cx} y={cy} width={256} height={150} rx={4} fill={fillOf({ key: '__self', name: company, role: 'customer', side: 'own', evidence: [] })} />
+        <rect x={cx} y={cy} width={256} height={166} rx={4} fill={fillOf({ key: '__self', name: company, role: 'customer', side: 'own', evidence: [] })} />
         <text x={cx + 10} y={cy + 22} className="splc-center-name">
           {trunc(company, 30)}
         </text>
@@ -321,13 +324,16 @@ function Summary({ chain, t, suppliers, customers, competitors, fillOf, onOpen }
         <text x={cx + 10} y={cy + 111} className="splc-center-line">
           Competitors {competitors.length}
         </text>
-        <text x={cx + 10} y={cy + 135} className="splc-center-foot">
+        <text x={cx + 10} y={cy + 128} className="splc-center-line">
+          Partners {count('partner')} · Investors {count('investor') + count('investment')} · Lenders {count('lender')}
+        </text>
+        <text x={cx + 10} y={cy + 152} className="splc-center-foot">
           {chain.state === 'loading' ? `Reading filings ${read} of ${total || '…'}` : `${read} filings read${newest ? ` · newest ${monthYear(newest)}` : ''}`}
         </text>
       </g>
       {/* Competitors */}
-      <line x1={W / 2} y1={cy + 150} x2={hubB.x} y2={hubB.y - 10} className="splc-edge" />
-      <text x={hubB.x} y={cy + 172} textAnchor="middle" className="splc-hub-label">
+      <line x1={W / 2} y1={cy + 166} x2={hubB.x} y2={hubB.y - 10} className="splc-edge" />
+      <text x={hubB.x} y={cy + 186} textAnchor="middle" className="splc-hub-label">
         {competitors.length} Competitor{competitors.length === 1 ? '' : 's'}
       </text>
       <rect x={hubB.x - 10} y={hubB.y - 10} width={20} height={20} className="splc-hub" />
@@ -386,7 +392,10 @@ function RelationTable({ rows, t, changes, onOpen, role, capOf }: { rows: Relati
               <td>{r.ticker ?? (r.id ? r.id.replace(/ Equity$/, '') : '')}</td>
               {role === 'other' && <td>{relationLabel(r)}</td>}
               <td>{describe(r, t)}</td>
-              <td className="num white">{r.share != null ? `${r.qualifier === '>' ? '≥' : r.qualifier === '<' ? '<' : ''}${fmtNum(r.share, 1)}%` : ''}</td>
+              <td className="num white">
+                {r.share != null ? `${r.qualifier === '>' ? '≥' : r.qualifier === '<' ? '<' : ''}${fmtNum(r.share, 1)}%` : ''}
+                {r.share != null && sharePeriod(ev?.sentence ?? '') ? <span className="muted"> {sharePeriod(ev?.sentence ?? '')}</span> : null}
+              </td>
               <td className="num hide-m">{Number.isFinite(capOf(r)) ? fmtBig(capOf(r), 1) : ''}</td>
               <td className={`num hide-m ${chg > 0 ? 'up' : chg < 0 ? 'dn' : ''}`}>{chg != null && Number.isFinite(chg) ? fmtPct(chg, 2) : ''}</td>
               <td className="hide-m">

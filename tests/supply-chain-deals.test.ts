@@ -196,3 +196,76 @@ describe('SPLC: a whole run', () => {
     expect(chain.relations[1].evidence[0]).toMatchObject({ form: '8-K', type: 'EX-99.1', date: '2026-04-23' });
   });
 });
+
+describe('SPLC: the period of a share', () => {
+  it('reads the quarter, fiscal year or months a share is stated for', async () => {
+    const { sharePeriod } = await import('../src/data/live/supply-chain');
+    expect(sharePeriod('For the second quarter of fiscal year 2027, one direct customer represented 16% of total revenue.')).toBe('Q2 FY2027');
+    expect(sharePeriod('For fiscal year 2026, sales to one direct customer represented 22% of total revenue.')).toBe('FY2026');
+    expect(sharePeriod('For the three months ended August 31, 2026, CoreWeave accounted for 62% of revenue.')).toBe('3M to Aug 2026');
+    expect(sharePeriod('For the years ended December 31, 2025 and 2024, Microsoft accounted for 71% and 62% of revenue.')).toBe('Year to Dec 2025');
+    expect(sharePeriod('During 2025, Apple accounted for 18% of net sales.')).toBe('2025');
+    expect(sharePeriod('Apple accounted for 18% of net sales.')).toBe('');
+  });
+});
+
+describe('SPLC: what the accuracy review found', () => {
+  const T = (names: string[]) => targetPattern(names);
+  const MSFT = T(['Microsoft', 'Microsoft Corporation']);
+  const BA = T(['Boeing', 'The Boeing Company']);
+
+  it('keeps a share to the company it is stated for, never a group figure', () => {
+    expect(classify('Sales to our five largest customers during the fiscal year ended March 31, 2026, accounted for 80.6% of our net revenue, with Apple, Sony, Google, and Microsoft each accounting for more than 10.0% of our net revenue.', MSFT)).toEqual({ role: 'supplier', share: 10, qualifier: '>', basis: 'their-revenue' });
+    expect(classify('For the years ended December 31, 2025 and December 31, 2024, approximately 39% and 40% of our total consolidated sales, respectively, were to Airbus, and its related subcontractors and approximately 13% and 15% of our total consolidated sales, respectively, were to Boeing and its related subcontractors.', BA)).toMatchObject({ role: 'supplier', share: 13 });
+    expect(classify('Revenues from our top 10 customers, including Boeing and RTX, were 61% of total net revenues during 2025.', BA)).toEqual({ role: 'supplier', share: undefined, qualifier: undefined, basis: 'their-revenue' });
+    expect(classify("In the past, we derived most of our revenue from the sale of products made for consoles manufactured by third parties, such as Sony Interactive Entertainment Inc.'s PlayStation and Microsoft Corporation's (\"Microsoft\") Xbox consoles, which comprised approximately 2% and 45% of our total revenue for the years ended December 31, 2025 and 2024, respectively.", MSFT)?.share).toBeUndefined();
+    expect(classify('In 2025, our sales volume represented approximately 12.3% of the total sales volume of the Coca-Cola system in the world.', T(['Coca-Cola']))?.share).toBeUndefined();
+  });
+
+  it('reads who sells to whom', () => {
+    const CRWV = T(['CoreWeave']);
+    expect(classify('We currently depend on a single customer, CoreWeave, for substantially all of our hosting revenue.', CRWV)?.role).toBe('supplier');
+    expect(classify('Air Lease was the launch customer for Boeing on several aircraft programs.', BA)?.role).toBe('customer');
+    expect(classify('In September 2026, we received a purchase order from Boeing for our sensor systems.', BA)?.role).toBe('supplier');
+    expect(classify('Our products are sold through retail partners, including Walmart, Target and Amazon.', T(['Walmart']))?.role).toBe('supplier');
+    expect(classify('Our largest manufacturing partners, ASE, Intel and TSMC, produce our wafers.', T(['Intel']))?.role).toBe('customer');
+    expect(classify('In 2024, we entered into a Supply Agreement with Intel Corporation for the purchase of chips for our miners.', T(['Intel']))?.role).not.toBe('supplier');
+  });
+
+  it('reads licences and research collaborations as partnerships', () => {
+    expect(classify('Lilly granted us an exclusive worldwide license to develop the compound, and we pay Lilly royalties on net sales.', T(['Lilly', 'Eli Lilly']))?.role).toBe('partner');
+  });
+
+  it('leaves out negations, hedges, takeovers, biographies and third parties', () => {
+    const apple = T(['Apple']);
+    expect(classify('We do not compete directly with Apple in the market for refurbished devices.', apple)).toBeNull();
+    expect(classify('Publicly traded competitors may include companies like Core Scientific and Applied Digital.', APLD)).toBeNull();
+    expect(classify('Pursuant to the Merger Agreement, Merger Sub will merge with and into the Company, with the Company surviving as a wholly owned subsidiary of Eli Lilly.', T(['Eli Lilly']))).toBeNull();
+    expect(classify('He served in senior finance roles for Boeing Commercial Airplanes before joining us.', BA)).toBeNull();
+    expect(classify("Pegatron's customers include Tesla, Apple and Microsoft.", T(['Tesla']))).toBeNull();
+    expect(classify('Apple iSports Group operates a sports betting platform.', apple)).toBeNull();
+    expect(classify('The termination of our partnership with Walmart in 2024 reduced our revenue.', T(['Walmart']))).toBeNull();
+  });
+
+  it("knows names that also mean something else", () => {
+    expect(new RegExp(targetNames('AMD', 'ADVANCED MICRO DEVICES INC').exclude!).test('a gene therapy for wet AMD')).toBe(true);
+    expect(new RegExp(targetNames('TSLA', 'Tesla, Inc.').exclude!).test('Ericsson Nikola Tesla d.d.')).toBe(true);
+    expect(new RegExp(targetNames('F', 'FORD MOTOR CO').exclude!).test('our acreage in the Eagle Ford shale')).toBe(true);
+    expect(new RegExp(targetNames('F', 'FORD MOTOR CO').exclude!).test('The Ford Motor Company is our largest customer')).toBe(false);
+  });
+
+  it("reads the company's own top customer share and leaves others' suppliers out", () => {
+    const crwv = buildDirectory([...COMPANIES, { cik: 789019, ticker: 'MSFT', title: 'MICROSOFT CORP' }]);
+    const own = ownRelations(
+      [
+        'We recognized an aggregate of approximately 67% of our revenue from our top customer, Microsoft, for the year ended December 31, 2025.',
+        'For example, NVIDIA relies on suppliers such as Taiwan Semiconductor Manufacturing Company for semiconductor fabrication.',
+        'In addition, global clients often rely on ESG rating systems for bids and buying practices.',
+      ],
+      crwv,
+      { cik: 1769628, names: ['CoreWeave'] },
+      ev,
+    );
+    expect(own.map((r) => [r.role, r.name, r.share])).toEqual([['customer', 'Microsoft', 67]]);
+  });
+});
