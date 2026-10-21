@@ -1,5 +1,7 @@
 // Types for supply-chain.cjs, for the tests that import it.
 export const TERMS: string[];
+export const SETS: Record<'reports' | 'prospectus' | 'current', { forms: string; days: number }>;
+export const EXTRACTION: number;
 export function ftsUrl(arg: unknown, now?: number): string | null;
 export function searchUrl(arg: unknown): string | null;
 export function docUrl(path: unknown): string | null;

@@ -4,7 +4,7 @@ import { exportActions } from '../components/ExportActions';
 import { openSecurity } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct } from '../core/format';
 import { engine } from '../data/market';
-import { rebuildSupplyChain, supplyChainAvailable, useSupplyChain, type Chain, type Relation, type Role } from '../data/live/supply-chain';
+import { rebuildSupplyChain, supplyChainAvailable, useSupplyChain, type Chain, type Filer, type Relation, type Role } from '../data/live/supply-chain';
 import { secTicker } from '../data/live/sec';
 import { earningsCalendar, requestListings } from '../data/live/earnings-calendar';
 import { execute } from '../terminal/exec';
@@ -13,7 +13,7 @@ import type { FnProps } from '../terminal/types';
 
 type SortKey = 'exposure' | 'cap' | 'name' | 'date';
 type ColorKey = 'change' | 'share' | 'none';
-type SourceKey = 'all' | 'quantified' | 'listed';
+type SourceKey = 'all' | 'quantified' | 'listed' | 'recent';
 type PeerKey = 'own' | 'theirs' | 'all';
 
 const TABS = [
@@ -36,9 +36,28 @@ const openable = (r: Relation) => !!(r.ticker || r.id);
 
 const docUrl = (path: string) => `https://www.sec.gov/Archives/edgar/data/${path}`;
 
-/** The figure a box shows: whose share of what. */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "2026-04-23" as "Apr 2026". */
+export function monthYear(iso: string): string {
+  const m = /^(\d{4})-(\d{2})/.exec(iso);
+  return m ? `${MONTHS[Number(m[2]) - 1]} ${m[1]}` : '';
+}
+
+/** The newest statement behind a relation. */
+export function latestEvidence(r: Relation): Relation['evidence'][number] | undefined {
+  return r.evidence.reduce<Relation['evidence'][number] | undefined>((m, e) => (!m || e.date > m.date ? e : m), undefined);
+}
+
+/** The figure a box shows: whose share of what; without a share, who said so last and when ("Its press release · Apr 2026"). */
 export function shareLabel(r: Relation): string {
-  if (r.share == null) return r.side === 'own' ? 'Named in its report' : r.side === 'both' ? 'Named by both' : 'Named in their report';
+  if (r.share == null) {
+    const e = latestEvidence(r);
+    if (!e) return '';
+    const src = sourceLabel(e);
+    const who = r.side === 'both' ? 'Both' : r.side === 'own' ? 'Its' : 'Their';
+    return `${who} ${src === 'Press release' || src === 'Agreement' ? src.toLowerCase() : src} · ${monthYear(e.date)}`;
+  }
   const v = `${r.qualifier === '>' ? '≥' : r.qualifier === '<' ? '<' : ''}${fmtNum(r.share, r.share % 1 ? 1 : 0)}%`;
   switch (r.basis) {
     case 'their-revenue':
@@ -72,11 +91,33 @@ export function describe(r: Relation, t: string): string {
       return `Partnership with ${t}`;
     case 'investment':
       return `${t} took a stake or invested`;
+    case 'investor':
+      return r.side === 'own' ? `Invested in ${t}` : `Holds an investment in ${t}`;
+    case 'lender':
+      return r.side === 'own' ? `Lends to ${t} (credit or loan facility)` : `Lends to ${t}`;
   }
 }
 
+/** The kind of relation in the Partners & Investors table. */
+export function relationLabel(r: Relation): string {
+  return r.role === 'partner' ? 'Partner' : r.role === 'investor' ? 'Investor' : r.role === 'lender' ? 'Lender' : 'Investment';
+}
+
+/** "8-K EX-99.1" as the reader knows it: a press release; an 8-K is a current report. */
+export function sourceLabel(e: { form: string; type?: string }): string {
+  if (e.type && /^EX-99/i.test(e.type)) return 'Press release';
+  if (/^8-K/i.test(e.form)) return e.type && /^EX-10/i.test(e.type) ? 'Agreement' : '8-K';
+  return e.form;
+}
+
 function latestDate(r: Relation): string {
-  return r.evidence.reduce((m, e) => (e.date > m ? e.date : m), '');
+  return latestEvidence(r)?.date ?? '';
+}
+
+/** Stated in a filing of the last twelve months. */
+function recent(r: Relation, now = Date.now()): boolean {
+  const d = Date.parse(`${latestDate(r)}T00:00:00Z`);
+  return Number.isFinite(d) && now - d < 366 * 86_400_000;
 }
 
 /**
@@ -121,7 +162,7 @@ function trunc(s: string, n: number): string {
 
 /** "CISCO SYSTEMS, INC." as "Cisco Systems Inc": the SEC's list writes many names in capitals. */
 export function displayName(name: string): string {
-  const clean = name.replace(/\s*\/[A-Z]{2,3}\/?\s*$/, '').replace(/\s+/g, ' ').trim();
+  const clean = name.replace(/\s*\/[A-Za-z]{2,3}\/?\s*$/, '').replace(/\s+/g, ' ').trim();
   if (/[a-z]/.test(clean)) return clean;
   return clean
     .split(' ')
@@ -212,8 +253,9 @@ function Summary({ chain, t, suppliers, customers, competitors, fillOf, onOpen }
   const cy = 176;
   const quantified = customers.filter((r) => r.basis === 'target-revenue' && r.share != null);
   const revQ = quantified.reduce((a, r) => a + (r.share ?? 0), 0);
-  const read = chain.filers.filter((f) => f.state === 'read').length + (chain.own?.state === 'read' ? 1 : 0);
-  const total = chain.filers.length + (chain.own ? 1 : 0);
+  const read = chain.filers.filter((f) => f.state === 'read').length;
+  const total = chain.filers.length;
+  const newest = chain.relations.reduce((m, r) => (latestDate(r) > m ? latestDate(r) : m), '');
   const company = chain.company?.display ?? displayName(chain.company?.name ?? t);
   const bw = 182;
   const bx0 = 96;
@@ -280,7 +322,7 @@ function Summary({ chain, t, suppliers, customers, competitors, fillOf, onOpen }
           Competitors {competitors.length}
         </text>
         <text x={cx + 10} y={cy + 135} className="splc-center-foot">
-          {chain.state === 'loading' ? `Reading filings ${read} of ${total || '…'}` : `${read} filings read`}
+          {chain.state === 'loading' ? `Reading filings ${read} of ${total || '…'}` : `${read} filings read${newest ? ` · newest ${monthYear(newest)}` : ''}`}
         </text>
       </g>
       {/* Competitors */}
@@ -326,6 +368,8 @@ function RelationTable({ rows, t, changes, onOpen, role, capOf }: { rows: Relati
           <th className="num hide-m">Mkt Cap</th>
           <th className="num hide-m">1D %</th>
           <th className="hide-m">Source</th>
+          <th className="hide-m">Latest</th>
+          <th className="num hide-m" title="How many statements in the filings read name the relation">Stmts</th>
           <th className="hide-m">Statement</th>
         </tr>
       </thead>
@@ -340,19 +384,20 @@ function RelationTable({ rows, t, changes, onOpen, role, capOf }: { rows: Relati
                 {displayName(r.name)}
               </td>
               <td>{r.ticker ?? (r.id ? r.id.replace(/ Equity$/, '') : '')}</td>
-              {role === 'other' && <td>{r.role === 'partner' ? 'Partner' : 'Investment'}</td>}
+              {role === 'other' && <td>{relationLabel(r)}</td>}
               <td>{describe(r, t)}</td>
               <td className="num white">{r.share != null ? `${r.qualifier === '>' ? '≥' : r.qualifier === '<' ? '<' : ''}${fmtNum(r.share, 1)}%` : ''}</td>
               <td className="num hide-m">{Number.isFinite(capOf(r)) ? fmtBig(capOf(r), 1) : ''}</td>
               <td className={`num hide-m ${chg > 0 ? 'up' : chg < 0 ? 'dn' : ''}`}>{chg != null && Number.isFinite(chg) ? fmtPct(chg, 2) : ''}</td>
               <td className="hide-m">
                 {ev && (
-                  <a className="link" href={docUrl(ev.path)} target="_blank" rel="noopener noreferrer" title={`${ev.filer} ${ev.form}`}>
-                    {ev.form} {fmtDay(Date.parse(`${ev.date}T00:00:00Z`))}
+                  <a className="link" href={docUrl(ev.path)} target="_blank" rel="noopener noreferrer" title={`${ev.filer} ${ev.form}${ev.type ? ` ${ev.type}` : ''}`}>
+                    {sourceLabel(ev)} {fmtDay(Date.parse(`${ev.date}T00:00:00Z`))}
                   </a>
                 )}
-                {r.evidence.length > 1 && <span className="muted"> +{r.evidence.length - 1}</span>}
               </td>
+              <td className="hide-m">{latestDate(r) ? fmtDay(Date.parse(`${latestDate(r)}T00:00:00Z`)) : ''}</td>
+              <td className="num hide-m">{r.evidence.length}</td>
               <td className="hide-m splc-quote" title={r.evidence.map((e) => `${e.filer} (${e.form} ${e.date}): ${e.sentence}`).join('\n\n')}>
                 {ev ? trunc(ev.sentence, 160) : ''}
               </td>
@@ -385,13 +430,13 @@ export function SPLC({ sec }: FnProps) {
   const capOf = (r: Relation) => (r.ticker ? listings?.get(r.ticker.replace('-', '.'))?.cap ?? listings?.get(r.ticker)?.cap ?? NaN : NaN);
   const changes = chain?.changes ?? {};
   const keep = (r: Relation) =>
-    (source === 'all' || (source === 'quantified' ? r.share != null : openable(r) || !!r.yahoo)) &&
+    (source === 'all' || (source === 'quantified' ? r.share != null : source === 'recent' ? recent(r) : openable(r) || !!r.yahoo)) &&
     (!filter.trim() || `${r.name} ${r.ticker ?? ''}`.toLowerCase().includes(filter.trim().toLowerCase()));
   const all = chain?.relations ?? [];
   const suppliers = sorted(all.filter((r) => r.role === 'supplier' && keep(r)), sort, capOf);
   const customers = sorted(all.filter((r) => r.role === 'customer' && keep(r)), sort, capOf);
   const competitors = sorted(all.filter((r) => r.role === 'competitor' && keep(r) && (peers === 'all' || (peers === 'own' ? r.side !== 'theirs' : r.side !== 'own'))), sort, capOf);
-  const others = sorted(all.filter((r) => (r.role === 'partner' || r.role === 'investment') && keep(r)), sort, capOf);
+  const others = sorted(all.filter((r) => (r.role === 'partner' || r.role === 'investment' || r.role === 'investor' || r.role === 'lender') && keep(r)), sort, capOf);
   const fillOf = (r: Relation) => (color === 'change' ? changeFill(r.key === '__self' ? selfChange(s.id) : changes[r.key]) : color === 'share' ? shareFill(r.key === '__self' ? undefined : r.share) : '#1d3a22');
   const onOpen = (r: Relation, e: MouseEvent) => openRelated(panel, r, e);
   const csv = () => [
@@ -429,6 +474,7 @@ export function SPLC({ sec }: FnProps) {
                   <option value="all">All Companies</option>
                   <option value="quantified">With a Stated Share</option>
                   <option value="listed">Listed Securities</option>
+                  <option value="recent">Stated in the Last 12 Months</option>
                 </select>
               </label>
               <label className="fld">
@@ -483,10 +529,13 @@ export function SPLC({ sec }: FnProps) {
             {tab === 5 && <RelationTable rows={others} t={t} changes={changes} onOpen={onOpen} role="other" capOf={capOf} />}
             {tab === 6 && <FilingsRead chain={chain} />}
             <p className="pad-s muted">
-              From SEC filings: the company&apos;s own annual report, and the annual and quarterly reports (10-K, 20-F, 40-F, 10-Q) of the last 18 months and the IPO prospectuses (S-1, F-1, 424B4) of the last three years of companies that name it
+              From SEC filings: the company&apos;s own latest annual and quarterly reports and its press releases and agreements (8-K) of the last year; and, from
+              other companies that name it, their annual and quarterly reports (10-K, 20-F, 40-F, 10-Q) of the last 18 months, IPO prospectuses (S-1, F-1, 424B4)
+              of the last three years and press releases of the last year
               {chain.names ? ` (${chain.names.legal.concat(chain.names.names).filter((v, i, a) => a.indexOf(v) === i).join(', ')})` : ''}. Shares are as the
               reports state them, for the latest year they give: a supplier&apos;s share is of its own revenue, a customer&apos;s of {t}&apos;s revenue (or of its
-              own sales or purchases). Companies a report names without a share are listed after. Each box links to the statement and filing behind it.
+              own sales or purchases). Companies a filing names without a share are listed after, with the filing that last named them; unnamed counterparties are
+              shown as the filings describe them. Each box links to the statements and filings behind it.
               {usOnly ? ' The company is not in the SEC’s list, so only other companies’ reports are read.' : ''}
             </p>
           </>
@@ -501,31 +550,32 @@ function selfChange(id: string): number | undefined {
   return q && Number.isFinite(q.pct) ? q.pct : undefined;
 }
 
+const SOURCE: Record<Filer['source'], string> = { own: 'Its own filing', report: 'Report naming it', current: 'Current report naming it' };
+
 function FilingsRead({ chain }: { chain: Chain }) {
-  const rows = [
-    ...(chain.own ? [{ key: 'own', name: `${chain.company?.display ?? displayName(chain.company?.name ?? '')} (its own report)`, form: chain.own.form, date: chain.own.date, path: chain.own.path, state: chain.own.state, found: undefined as number | undefined }] : []),
-    ...chain.filers.map((f) => ({ key: String(f.cik), name: displayName(f.name), form: f.form, date: f.date, path: f.path, state: f.state, found: f.found })),
-  ];
   return (
     <table className="tbl zebra">
       <thead>
         <tr>
           <th>Filer</th>
-          <th>Form</th>
+          <th>Document</th>
+          <th className="hide-m">Read as</th>
           <th>Filed</th>
           <th>State</th>
           <th className="num">Statements</th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((r) => (
-          <tr key={r.key}>
-            <td className="white">{r.name}</td>
+        {chain.filers.map((r) => (
+          <tr key={r.path}>
+            <td className="white">{displayName(r.name)}</td>
             <td>
-              <a className="link" href={docUrl(r.path)} target="_blank" rel="noopener noreferrer">
+              <a className="link" href={docUrl(r.path)} target="_blank" rel="noopener noreferrer" title={`${r.form}${r.type && r.type !== r.form ? ` ${r.type}` : ''}`}>
                 {r.form}
+                {r.type && r.type !== r.form ? ` ${r.type}` : ''}
               </a>
             </td>
+            <td className="hide-m muted">{SOURCE[r.source]}</td>
             <td>{fmtDay(Date.parse(`${r.date}T00:00:00Z`))}</td>
             <td className={r.state === 'failed' ? 'dn' : r.state === 'read' ? '' : 'amber'}>{r.state === 'read' ? 'Read' : r.state === 'failed' ? 'Failed' : r.state === 'reading' ? 'Reading…' : 'Waiting'}</td>
             <td className="num">{r.found ?? ''}</td>

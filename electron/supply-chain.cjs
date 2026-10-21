@@ -12,14 +12,19 @@ const DAY = 86_400_000;
 
 /**
  * The words searched beside a company's name: concentration disclosures, supplier and customer statements, purchases
- * from it, its distributors and the companies naming it a competitor.
+ * from it, its distributors, the companies naming it a competitor, and leases, contracts and agreements with it.
+ * An empty term searches the name alone.
  */
-const TERMS = ['accounted for', 'revenues', 'suppliers', 'supplier', 'customer', 'sole source', 'purchase', 'distributor', 'competitors'];
+const TERMS = ['', 'accounted for', 'largest customer', 'revenues', 'suppliers', 'supplier', 'customer', 'sole source', 'purchase', 'distributor', 'competitors', 'lease', 'contract', 'agreement'];
 
-/** The filings searched: annual and quarterly reports of the last 18 months, or the IPO prospectuses of the last three years. */
+/**
+ * The filings searched: annual and quarterly reports of the last 18 months, the IPO prospectuses of the last three
+ * years, or the current reports (8-K, with their press releases and other exhibits) of the last year.
+ */
 const SETS = {
   reports: { forms: '10-K,20-F,40-F,10-Q', days: 548 },
   prospectus: { forms: 'S-1,F-1,424B4', days: 1096 },
+  current: { forms: '8-K', days: 366 },
 };
 
 /** A company name as the page may search it: letters, digits and the punctuation of legal names. */
@@ -29,19 +34,20 @@ const NAME = /^[A-Za-z0-9][A-Za-z0-9 .,&'()-]{1,59}$/;
 const DOC = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}\.html?)$/i;
 
 /**
- * The full-text search for the reports (annual and quarterly, 18 months) or IPO prospectuses (three years) that
- * contain the name and the term, a page of 100 hits (`from` 0 or 100). `arg` is "term|name", optionally followed by
- * "|prospectus" and "|100"; null when it is not a search the app makes.
+ * The full-text search for the reports (annual and quarterly, 18 months), IPO prospectuses (three years) or current
+ * reports (a year) that contain the name and the term, a page of 100 hits (`from` 0 to 400). `arg` is "term|name",
+ * optionally followed by "|set", "|from" and "|cik" (one filer's documents only); null when it is not a search the
+ * app makes.
  */
 function ftsUrl(arg, now = Date.now()) {
-  if (typeof arg !== 'string' || arg.length > 220) return null;
-  const [term, rawName, set = 'reports', from = '0', ...rest] = arg.split('|');
+  if (typeof arg !== 'string' || arg.length > 240) return null;
+  const [term, rawName, set = 'reports', from = '0', cik = '', ...rest] = arg.split('|');
   const name = (rawName ?? '').trim();
-  if (rest.length || !TERMS.includes(term) || !NAME.test(name) || !Object.hasOwn(SETS, set) || !['0', '100'].includes(from)) return null;
-  const q = `"${name}" ${term.includes(' ') ? `"${term}"` : term}`;
+  if (rest.length || !TERMS.includes(term) || !NAME.test(name) || !Object.hasOwn(SETS, set) || !['0', '100', '200', '300', '400'].includes(from) || (cik && !/^[1-9]\d{0,9}$/.test(cik))) return null;
+  const q = term ? `"${name}" ${term.includes(' ') ? `"${term}"` : term}` : `"${name}"`;
   const day = (t) => new Date(t).toISOString().slice(0, 10);
   const { forms, days } = SETS[set];
-  return `https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(q)}&forms=${forms}&dateRange=custom&startdt=${day(now - days * DAY)}&enddt=${day(now)}${from === '100' ? '&from=100' : ''}`;
+  return `https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(q)}&forms=${forms}&dateRange=custom&startdt=${day(now - days * DAY)}&enddt=${day(now)}${cik ? `&ciks=${cik.padStart(10, '0')}` : ''}${from !== '0' ? `&from=${from}` : ''}`;
 }
 
 /**
@@ -114,6 +120,9 @@ function entity(_, body) {
 /** A filing's HTML as text: one line per paragraph, list item and table cell. */
 function htmlToText(html) {
   return String(html)
+    // Line breaks in the source are spaces: many filings wrap each paragraph's text over several source lines. In
+    // preformatted text a blank line ends a paragraph.
+    .replace(/(<pre\b[\s\S]*?<\/pre>)|[\r\n]+/gi, (m, pre) => (pre ? pre.replace(/\r?\n[ \t]*\r?\n\s*/g, '<br>').replace(/[\r\n]+/g, ' ') : ' '))
     .replace(/<(script|style|ix:header)\b[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<\/(p|div|li|h[1-6]|tr|td|th|table|center)>|<br\s*\/?>/gi, '\n')
     .replace(/<[^>]*>/g, '')
@@ -150,6 +159,11 @@ function escape(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** A name's words joined by a space or a hyphen: "Coca Cola" is also "Coca-Cola". */
+function spaced(pattern) {
+  return pattern.replace(/(?:\\-| )/g, '[ -]');
+}
+
 /**
  * One pattern for the names: a name written in capitals (NVIDIA) matches in any case, others as written or in
  * capitals (Apple, APPLE), each as whole words.
@@ -158,8 +172,8 @@ function namePattern(names) {
   const exact = [];
   const blind = [];
   for (const n of names) {
-    if (/[a-z]/.test(n)) exact.push(escape(n), escape(n.toUpperCase()));
-    else blind.push(escape(n));
+    if (/[a-z]/.test(n)) exact.push(spaced(escape(n)), spaced(escape(n.toUpperCase())));
+    else blind.push(spaced(escape(n)));
   }
   const words = (alts, flags) => (alts.length ? new RegExp(`(?<![A-Za-z0-9])(?:${alts.join('|')})(?![A-Za-z0-9])`, flags) : null);
   const e = words(exact, '');
@@ -188,13 +202,26 @@ function mentionSentences(text, names, max = 80) {
   return out;
 }
 
-// In a company's own report: who it names as customers, suppliers and competitors.
-const OWN = /\b(competitors?|compete[sd]?|competing|competition (?:from|with|comes|includes)|foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|limited[- ]source|customers? (?:include|including|such as|are|is)|largest customers?|end customers?|Customer [A-Z]\b|accounted for|accounting for|(?:represented|representing|contributed|comprised) (?:approximately |about )?\d|\d{1,3}(?:\.\d+)?\s?%[^.]{0,60}\bof (?:our |its |the Company's )?(?:total |net |consolidated )*(?:revenue|revenues|net sales|sales)\b|(?:revenue|revenues|sales) (?:from|to) [A-Z]|(?:lease|leases|hosting agreement|colocation agreement|capacity agreement|services agreement)\b[^;]{0,120}\bwith [A-Z][^;]{0,200}\bto (?:host|serve|support)\b)/;
+/** The version of the sentence extraction, part of the stored sentences' keys. */
+const EXTRACTION = 2;
+
+/** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
+const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;
+
+// In a company's own report: who it names as customers, suppliers and competitors, and the agreements it enters
+// into with other companies (leases, supply and purchase agreements, orders, partnerships, investments, loans).
+const OWN = new RegExp(
+  String.raw`\b(competitors?|compete[sd]?|competing|competition (?:from|with|comes|includes)|foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|limited[- ]source|customers? (?:include|including|such as|are|is)|largest customers?|end customers?|Customer [A-Z]\b|accounted for|accounting for|(?:represented|representing|contributed|comprised) (?:approximately |about )?\d|\d{1,3}(?:\.\d+)?\s?%[^.]{0,60}\bof (?:our |its |the Company's )?(?:total |net |consolidated )*(?:revenue|revenues|net sales|sales)\b|(?:revenue|revenues|sales) (?:from|to) [A-Z]|(?:lease|leases|hosting agreement|colocation agreement|capacity agreement|services agreement)\b[^;]{0,120}\bwith [A-Z][^;]{0,200}\bto (?:host|serve|support)\b` +
+    String.raw`|(?:agreements?|leases?|contracts?|orders?|partnership|collaboration|alliance|joint venture|facility|notice to proceed|LNTP|memorandum of understanding|letter of intent|offtake)\b[^.;]{0,160}?\bwith\s+(?:(?:a|an|the|its)\s+)?(?:new\s+|leading\s+|major\s+|global\s+)?[A-Z]` +
+    String.raw`|(?:agreements?|leases?|contracts?|orders?|partnership|collaboration)\b[^.;]{0,160}?\bwith\s+${UNNAMED_PARTY}` +
+    String.raw`|\b(?:selected|chosen|awarded|engaged)\b[^.;]{0,60}\bby\s+[A-Z]|\b(?:orders?|contracts?|awards?|investments?)\s+from\s+[A-Z]|\bpartner(?:ship|ships|ed|s)?\b[^.;]{0,60}\bwith\s+[A-Z]` +
+    String.raw`|\b(?:purchase[sd]?|purchasing|buy|buys|bought|source[sd]?|sourcing|procure[sd]?|procuring|obtain(?:s|ed)?|license[sd]?)\b[^.;]{0,100}\bfrom\s+[A-Z]|\b(?:rely|relies|relied|depend|depends|depended|dependent|reliant)\b[^.;]{0,40}\bon\s+[A-Z]|\b(?:manufactured|produced|supplied|fabricated|assembled) by\s+[A-Z])`,
+);
 // A sentence that introduces a list of competitors on the lines that follow.
 const LIST_INTRO = /\b(competitors (?:include|are|consist)|compete (?:with|against)|competition (?:comes from|includes|from))\b[^.]*:?\s*$/i;
 
 /** The sentences of a company's own report that name its customers, suppliers and competitors. */
-function ownSentences(text, max = 220) {
+function ownSentences(text, max = 400) {
   const out = [];
   const seen = new Set();
   const add = (s) => {
@@ -235,7 +262,8 @@ class SentenceStore {
     this.map = new Map();
   }
   key(kind, path, names) {
-    return `${kind}|${path}|${(names ?? []).join(',')}`;
+    // The extraction's version: sentences taken by an older reading are read again.
+    return `${EXTRACTION}|${kind}|${path}|${(names ?? []).join(',')}`;
   }
   get(key, now = Date.now()) {
     const v = this.map.get(key);
@@ -257,4 +285,4 @@ class SentenceStore {
   }
 }
 
-module.exports = { TERMS, ftsUrl, searchUrl, docUrl, htmlToText, splitSentences, namePattern, cleanNames, mentionSentences, ownSentences, SentenceStore };
+module.exports = { TERMS, SETS, EXTRACTION, ftsUrl, searchUrl, docUrl, htmlToText, splitSentences, namePattern, cleanNames, mentionSentences, ownSentences, SentenceStore };

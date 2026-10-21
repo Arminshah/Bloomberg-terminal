@@ -45,7 +45,9 @@ describe('SPLC: names', () => {
     expect(targetNames('CSCO', 'CISCO SYSTEMS, INC.').legal).toEqual(['Cisco Systems']);
     expect(targetNames('XYZ', 'ACME WIDGETS CORP')).toEqual({ legal: ['Acme Widgets Corporation'], names: ['Acme Widgets', 'Acme'] });
     expect(targetNames('XYZ', 'Fabrinet')).toEqual({ legal: ['Fabrinet'], names: ['Fabrinet'] });
-    expect(targetNames('NBIS', 'Nebius Group N.V.')).toEqual({ legal: ['Nebius Group N.V.'], names: ['Nebius Group', 'Nebius'] });
+    expect(targetNames('NBIS', 'Nebius Group N.V.')).toEqual({ legal: ['Nebius Group N.V.'], names: ['Nebius'] });
+    expect(targetNames('BA', 'BOEING CO').names).toEqual(['Boeing']);
+    expect(targetPattern(targetNames('KO', 'COCA COLA CO').names).test('The Coca-Cola Company and Coca Cola bottlers')).toBe(true);
   });
 
   it('finds companies a passage names, with or without their legal form', () => {
@@ -239,7 +241,16 @@ describe('SPLC: the main process', () => {
       'https://efts.sec.gov/LATEST/search-index?q=%22NVIDIA%20Corporation%22%20customer&forms=S-1,F-1,424B4&dateRange=custom&startdt=2023-10-20&enddt=2026-10-20&from=100',
     );
     expect(main.ftsUrl('customer|NVIDIA Corporation|other')).toBeNull();
-    expect(main.ftsUrl('customer|NVIDIA Corporation|reports|200')).toBeNull();
+    expect(main.ftsUrl('customer|NVIDIA Corporation|reports|500')).toBeNull();
+    expect(main.ftsUrl('customer|NVIDIA Corporation|reports|150')).toBeNull();
+    // The name alone; a year of current reports (8-K and their exhibits); one filer's documents.
+    expect(main.ftsUrl('|Applied Digital|reports', Date.parse('2026-10-20T12:00:00Z'))).toContain('q=%22Applied%20Digital%22&forms=10-K,20-F,40-F,10-Q&');
+    expect(main.ftsUrl('|Applied Digital|current|0|1144879', Date.parse('2026-10-20T12:00:00Z'))).toBe(
+      'https://efts.sec.gov/LATEST/search-index?q=%22Applied%20Digital%22&forms=8-K&dateRange=custom&startdt=2025-10-19&enddt=2026-10-20&ciks=0001144879',
+    );
+    expect(main.ftsUrl('lease|Applied Digital|current|200', Date.parse('2026-10-20T12:00:00Z'))).toContain('&from=200');
+    expect(main.ftsUrl('|Applied Digital|current|0|0123')).toBeNull();
+    expect(main.ftsUrl('|Applied Digital|current|0|1144879|x')).toBeNull();
     expect(main.ftsUrl('suppliers|Apple Inc', Date.parse('2026-10-20'))).toContain('q=%22Apple%20Inc%22%20suppliers');
     expect(main.ftsUrl('anything|NVIDIA')).toBeNull();
     expect(main.ftsUrl('suppliers|"NVIDIA" OR x')).toBeNull();
@@ -282,7 +293,29 @@ describe('SPLC: the main process', () => {
     ]);
   });
 
-  it('keeps extracted sentences a month', () => {
+  it('reads a paragraph wrapped over several source lines as one', () => {
+    const html = '<P>today announced it has entered into a new long-term lease agreement\nat Delta Forge 2, a purpose-built AI Factory campus. The lease is with a U.S. based high investment-grade\nhyperscaler.</P><pre>First line of a\nwrapped paragraph.\n\nSecond paragraph.</pre>';
+    const sentences = main.splitSentences(main.htmlToText(html));
+    expect(sentences).toContain('The lease is with a U.S. based high investment-grade hyperscaler.');
+    expect(sentences).toContain('First line of a wrapped paragraph.');
+    expect(sentences).toContain('Second paragraph.');
+  });
+
+  it("keeps a company's own agreements, purchases and dependencies", () => {
+    const text = [
+      'On October 22, 2025, we entered into an approximately 15-year lease with a U.S.-based investment-grade hyperscaler for 200 MW of critical IT load at the campus.',
+      'In addition, through our partnership with Base Electron Corporation ("Base Electron"), an independent power producer, we are pursuing the development of approximately 1.2 GW of generation.',
+      'We purchase substantially all of our GPUs from NVIDIA.',
+      'We rely on TSMC to manufacture our wafers.',
+      'We lease our headquarters in Dallas.',
+    ].join('\n');
+    const own = main.ownSentences(text);
+    expect(own).toHaveLength(4);
+    expect(own.some((x) => x.includes('headquarters'))).toBe(false);
+  });
+
+  it('keeps extracted sentences a month, reading them again after the extraction changes', () => {
+    expect(new main.SentenceStore().key('own', 'p')).toBe(`${main.EXTRACTION}|own|p|`);
     const store = new main.SentenceStore(2);
     const now = Date.parse('2026-10-21');
     store.set('a', { at: now, sentences: ['x'] });

@@ -4,7 +4,7 @@ import { engine } from '../market';
 import type { SecurityDef } from '../types';
 import { yahooGet } from './yahoo';
 import { parseSpark } from './index-members';
-import { filingLinks, findByTicker, loadFiler, loadSecCompanies, secAvailable, secTicker, type SecCompany } from './sec';
+import { findByTicker, loadFiler, loadSecCompanies, secAvailable, secTicker, type SecCompany } from './sec';
 
 /**
  * SPLC: a company's suppliers, customers and competitors as annual reports state them. Companies name their large
@@ -17,7 +17,11 @@ import { filingLinks, findByTicker, loadFiler, loadSecCompanies, secAvailable, s
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type Role = 'supplier' | 'customer' | 'competitor' | 'partner' | 'investment';
+/**
+ * What the related company is to the target: its supplier, customer, competitor or partner; a company it invested in
+ * ('investment'); a company invested in it ('investor'); a bank or fund that lends to it ('lender').
+ */
+export type Role = 'supplier' | 'customer' | 'competitor' | 'partner' | 'investment' | 'investor' | 'lender';
 
 /** What a share is a share of. */
 export type Basis =
@@ -39,6 +43,8 @@ export interface Evidence {
   date: string;
   /** cik/accession/file of the document. */
   path: string;
+  /** The document within the filing when it is not the main one: "EX-99.1" (a press release), "EX-10.1". */
+  type?: string;
 }
 
 export interface Relation {
@@ -58,13 +64,15 @@ export interface Relation {
   basis?: Basis;
   /** Who states it: the related company's report, the target's own, or both. */
   side: 'theirs' | 'own' | 'both';
+  /** A counterparty the filings describe without naming it ("a U.S. based investment-grade hyperscaler"). */
+  unnamed?: boolean;
   evidence: Evidence[];
 }
 
 // ------------------------------------------------------------------ names
 
 const SUFFIX = /(?:,?\s+(?:Inc|Incorporated|Corp|Corporation|Co|Company|Cos|Ltd|Limited|LLC|L\.L\.C|plc|N\.V|NV|S\.A|SA|AG|SE|SpA|S\.p\.A|GmbH|LP|L\.P|Holdings?|Group|Hldgs|Bhd|Pty)\.?)+$/i;
-const STATE_TAG = /\s*\/[A-Z]{2,3}\/?\s*$/;
+const STATE_TAG = /\s*\/[A-Za-z]{2,3}\/?\s*$/;
 
 /** A company name without its legal form, punctuation or case: "Cisco Systems, Inc." → "cisco systems". */
 export function normalizeName(name: string): string {
@@ -181,6 +189,9 @@ const KNOWN: Record<string, Known> = {
   oracle: { name: 'Oracle', ticker: 'ORCL' },
   nvidia: { name: 'NVIDIA', ticker: 'NVDA' },
   tesla: { name: 'Tesla', ticker: 'TSLA' },
+  macquarie: { name: 'Macquarie Group', yahoo: 'MQG.AX' },
+  'macquarie group': { name: 'Macquarie Group', yahoo: 'MQG.AX' },
+  'macquarie asset management': { name: 'Macquarie Group', yahoo: 'MQG.AX' },
   walmart: { name: 'Walmart', ticker: 'WMT' },
   costco: { name: 'Costco Wholesale', ticker: 'COST' },
 };
@@ -216,6 +227,62 @@ const ALIASES: Record<string, { legal: string[]; names: string[] }> = {
   BA: { legal: ['The Boeing Company', 'Boeing Company'], names: ['Boeing'] },
   ARM: { legal: ['Arm Holdings', 'Arm Limited'], names: ['Arm Holdings', 'Arm Limited'] },
   BABA: { legal: ['Alibaba Group'], names: ['Alibaba'] },
+  KO: { legal: ['The Coca-Cola Company'], names: ['Coca-Cola'] },
+  PEP: { legal: ['PepsiCo, Inc'], names: ['PepsiCo'] },
+  PG: { legal: ['The Procter & Gamble Company'], names: ['Procter & Gamble', 'P&G'] },
+  JNJ: { legal: ['Johnson & Johnson'], names: ['Johnson & Johnson'] },
+  HD: { legal: ['The Home Depot'], names: ['Home Depot'] },
+  LOW: { legal: ["Lowe's Companies"], names: ["Lowe's"] },
+  MCD: { legal: ["McDonald's Corporation"], names: ["McDonald's"] },
+  DIS: { legal: ['The Walt Disney Company'], names: ['Walt Disney', 'Disney'] },
+  NKE: { legal: ['NIKE, Inc'], names: ['Nike'] },
+  CAT: { legal: ['Caterpillar Inc'], names: ['Caterpillar'] },
+  DE: { legal: ['Deere & Company'], names: ['John Deere', 'Deere'] },
+  GE: { legal: ['General Electric Company', 'GE Aerospace'], names: ['GE Aerospace', 'General Electric'] },
+  GEV: { legal: ['GE Vernova Inc'], names: ['GE Vernova'] },
+  XOM: { legal: ['Exxon Mobil Corporation'], names: ['ExxonMobil', 'Exxon Mobil', 'Exxon'] },
+  CVX: { legal: ['Chevron Corporation'], names: ['Chevron'] },
+  LLY: { legal: ['Eli Lilly and Company'], names: ['Eli Lilly', 'Lilly'] },
+  PFE: { legal: ['Pfizer Inc'], names: ['Pfizer'] },
+  MRK: { legal: ['Merck & Co'], names: ['Merck'] },
+  UNH: { legal: ['UnitedHealth Group'], names: ['UnitedHealth'] },
+  JPM: { legal: ['JPMorgan Chase & Co'], names: ['JPMorgan Chase', 'JPMorgan', 'J.P. Morgan'] },
+  V: { legal: ['Visa Inc'], names: ['Visa Inc'] },
+  MA: { legal: ['Mastercard Incorporated'], names: ['Mastercard'] },
+  NFLX: { legal: ['Netflix, Inc'], names: ['Netflix'] },
+  CRM: { legal: ['Salesforce, Inc'], names: ['Salesforce'] },
+  ADBE: { legal: ['Adobe Inc'], names: ['Adobe'] },
+  PLTR: { legal: ['Palantir Technologies'], names: ['Palantir'] },
+  TXN: { legal: ['Texas Instruments'], names: ['Texas Instruments'] },
+  AMAT: { legal: ['Applied Materials'], names: ['Applied Materials'] },
+  LRCX: { legal: ['Lam Research'], names: ['Lam Research'] },
+  KLAC: { legal: ['KLA Corporation'], names: ['KLA Corporation', 'KLA'] },
+  ASML: { legal: ['ASML Holding'], names: ['ASML'] },
+  ANET: { legal: ['Arista Networks'], names: ['Arista Networks', 'Arista'] },
+  VRT: { legal: ['Vertiv Holdings'], names: ['Vertiv'] },
+  ETN: { legal: ['Eaton Corporation'], names: ['Eaton'] },
+  LMT: { legal: ['Lockheed Martin'], names: ['Lockheed Martin', 'Lockheed'] },
+  RTX: { legal: ['RTX Corporation'], names: ['RTX', 'Raytheon', 'Pratt & Whitney'] },
+  NOC: { legal: ['Northrop Grumman'], names: ['Northrop Grumman', 'Northrop'] },
+  GD: { legal: ['General Dynamics'], names: ['General Dynamics'] },
+  UPS: { legal: ['United Parcel Service'], names: ['United Parcel Service', 'UPS'] },
+  FDX: { legal: ['FedEx Corporation'], names: ['FedEx'] },
+  HON: { legal: ['Honeywell International'], names: ['Honeywell'] },
+  MMM: { legal: ['3M Company'], names: ['3M'] },
+  T: { legal: ['AT&T Inc'], names: ['AT&T'] },
+  VZ: { legal: ['Verizon Communications'], names: ['Verizon'] },
+  TMUS: { legal: ['T-Mobile US'], names: ['T-Mobile'] },
+  CMCSA: { legal: ['Comcast Corporation'], names: ['Comcast'] },
+  SBUX: { legal: ['Starbucks Corporation'], names: ['Starbucks'] },
+  KR: { legal: ['The Kroger Co'], names: ['Kroger'] },
+  CVS: { legal: ['CVS Health'], names: ['CVS Health', 'CVS'] },
+  MDLZ: { legal: ['Mondelez International'], names: ['Mondelez'] },
+  SNOW: { legal: ['Snowflake Inc'], names: ['Snowflake'] },
+  NOW: { legal: ['ServiceNow, Inc'], names: ['ServiceNow'] },
+  UBER: { legal: ['Uber Technologies'], names: ['Uber'] },
+  ABNB: { legal: ['Airbnb, Inc'], names: ['Airbnb'] },
+  SHOP: { legal: ['Shopify Inc'], names: ['Shopify'] },
+  NBIS: { legal: ['Nebius Group N.V.'], names: ['Nebius'] },
 };
 
 const SUFFIX_WORD: Record<string, string> = { CORP: 'Corporation', CORPORATION: 'Corporation', INC: 'Inc', INCORPORATED: 'Incorporated', LTD: 'Ltd', LIMITED: 'Limited', PLC: 'plc', CO: 'Company', LLC: 'LLC', 'N.V.': 'N.V.', NV: 'N.V.', AG: 'AG', SE: 'SE', 'S.A.': 'S.A.', SA: 'S.A.' };
@@ -230,7 +297,7 @@ export interface TargetNames {
 /** How other reports name a company: its legal name for the search, its short names for reading. */
 export function targetNames(ticker: string | undefined, title: string): TargetNames {
   const alias = ticker ? ALIASES[ticker.toUpperCase()] : undefined;
-  if (alias) return { legal: alias.legal, names: [...new Set([...alias.names, ...alias.legal.map((l) => l.replace(SUFFIX, '').trim())])] };
+  if (alias) return { legal: alias.legal, names: [...new Set([...alias.names, ...alias.legal.map((l) => l.replace(SUFFIX, '').replace(/^The\s+/, '').trim())])] };
   const clean = title.replace(STATE_TAG, '').replace(/\s+/g, ' ').trim();
   const words = clean.replace(/,/g, ' ').split(' ').filter(Boolean);
   const tail: string[] = [];
@@ -250,7 +317,9 @@ function escapeRe(s: string): string {
 
 /** A pattern for the target's names in a sentence: names in capitals in any case, others as written or in capitals. */
 export function targetPattern(names: string[]): RegExp {
-  const alts = names.flatMap((n) => (/[a-z]/.test(n) ? [escapeRe(n), escapeRe(n.toUpperCase())] : [n.split('').map((c) => (/[A-Za-z]/.test(c) ? `[${c.toUpperCase()}${c.toLowerCase()}]` : escapeRe(c))).join('')]));
+  // A space or a hyphen between words: "Coca Cola" is also "Coca-Cola".
+  const spaced = (p: string) => p.replace(/(?:\\-| )/g, '[ -]');
+  const alts = names.flatMap((n) => (/[a-z]/.test(n) ? [spaced(escapeRe(n)), spaced(escapeRe(n.toUpperCase()))] : [spaced(n.split('').map((c) => (/[A-Za-z]/.test(c) ? `[${c.toUpperCase()}${c.toLowerCase()}]` : escapeRe(c))).join(''))]));
   alts.sort((a, b) => b.length - a.length);
   return new RegExp(`(?<![A-Za-z0-9])(?:${alts.join('|')})(?![A-Za-z0-9])`, 'g');
 }
@@ -358,7 +427,7 @@ const BIOGRAPHY = /\b(?:served as|serves as|serving as|tenure at|prior to joinin
 /** Lawsuits, patents and trade cases name companies without a commercial relation. */
 const LITIGATION = /\b(?:infring\w*|patents?|litigation|lawsuits?|complaint|court|International Trade Commission|exclusion order|antitrust|alleg\w+|plaintiffs?|defendants?)\b/i;
 /** The filer itself: investments and partnerships count only when they involve it. */
-const FILER = /\b(?:we|us|our|the Company|the Company's|the Group|the Group's|the Registrant)\b/i;
+const FILER = /\b(?:[Ww]e|us|[Oo]urs?|[Tt]he Company(?:'s)?|[Tt]he Group(?:'s)?|[Tt]he Registrant)\b/;
 const INVEST_AFTER = /^(?:'s)?[^.;]{0,120}?\b(?:invest(?:s|ed|ing|ment|ments)?|private placement|purchase agreement|shares|stock|warrants?|stake|shareholder|stockholder)\b/i;
 const INVEST_BEFORE = /\b(?:private placement|securities purchase agreement|stock purchase agreement|subscription agreement|shares|stock|warrants?|depositary)\b[^.;]{0,160}$/i;
 
@@ -385,14 +454,25 @@ function gapListy(b: string, re: RegExp): boolean {
 
 /**
  * What a sentence in another company's report says about the target: that the filer supplies it (with the share of
- * the filer's revenue), buys from it or resells its products, competes with it, partners with it, or took its
- * investment; null when it says none of these. `pattern` matches the target's names.
+ * the filer's revenue), buys from it or resells its products, competes with it, partners with it, lends to it, holds
+ * a stake in it or took its investment; null when it says none of these. `pattern` matches the target's names;
+ * `filer`, the filer's own names, for press releases that speak of it in the third person.
  */
-export function classify(sentence: string, pattern: RegExp): Classified | null {
+export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Classified | null {
   const s = sentence.replace(/^\[competitors\]\s*/, '');
   const ms = mentions(s, pattern);
   const company = ms.filter((m) => !m.product);
   if (!ms.length || BIOGRAPHY.test(s)) return null;
+  const byFiler = (text: string) => {
+    if (FILER.test(text)) return true;
+    if (!filer) return false;
+    filer.lastIndex = 0;
+    return filer.test(text);
+  };
+  const before = (m: Mention) => s.slice(Math.max(0, m.index - 220), m.index);
+  // Tables and slides run together: a "sentence" that is mostly figures says nothing of a relation.
+  const words = s.split(/\s+/);
+  if (words.length > 12 && words.filter((w) => /\d/.test(w)).length / words.length > 0.3) return null;
 
   // Shares: a run of percentages "of our revenues" or "of our purchases".
   for (const run of percentRuns(s)) {
@@ -409,10 +489,17 @@ export function classify(sentence: string, pattern: RegExp): Classified | null {
     if (company.length) return { role: 'supplier', share, qualifier, basis: 'their-revenue' };
   }
 
+  // The filer holds a stake in the target ("our investment in Applied Digital"), or lends to it ("we provided a
+  // $50 million term loan to Applied Digital").
+  if (company.some((c) => /\b(?:we|our|its|the Company's|the Fund's)\b[^.;]{0,60}\b(?:investments?|invested|stake|equity interest|ownership interest)\s+(?:of\s+[^.;]{0,30}\s+)?in\s+(?:the\s+)?$/i.test(before(c)))) return { role: 'investor' };
+  // "the carrying value of our Applied Digital Corporation ("APLD") common stock": the filer holds the target's shares.
+  if (company.some((c) => /\b(?:[Oo]ur|[Ii]ts|[Tt]he Company's|[Tt]he Fund's)\s+(?:holdings? (?:of|in)\s+|shares (?:of|in)\s+|position in\s+)?$/.test(before(c)) && /^(?:'s)?(?:,?\s+(?:Inc|Corp|Corporation|Co)\.?)?\s*(?:\("?[A-Z]{1,5}"?\)\s*)?(?:class [A-C]\s+)?(?:common stock|common shares|shares|stock|warrants|preferred)\b/i.test(s.slice(c.end)))) return { role: 'investor' };
+  if (company.some((c) => /\b(?:loans?|term loan|credit facilit(?:y|ies)|bridge facility|notes|debt financing|financing)\b[^.;]{0,60}\b(?:to|for)\s+$/i.test(before(c)) && /\b(?:provided|extended|made|funded|lent|committed|originated)\b/i.test(before(c)) && byFiler(s))) return { role: 'lender' };
+
   // A stake taken in the filer: "NVIDIA invested $2 billion in the Company's common stock". Share deals that do not
   // name the filer ("shares were delivered to NVIDIA") are no supply relation either.
-  if (!/\b(?:revenue|revenues|net sales)\b/i.test(s) && company.some((c) => INVEST_AFTER.test(s.slice(c.end)) || INVEST_BEFORE.test(s.slice(Math.max(0, c.index - 200), c.index)))) {
-    return FILER.test(s) ? { role: 'investment' } : null;
+  if (!/\b(?:revenue|revenues|net sales)\b/i.test(s) && (s.match(/\([A-Z]{2,5}\)/g)?.length ?? 0) < 3 && company.some((c) => INVEST_AFTER.test(s.slice(c.end)) || INVEST_BEFORE.test(s.slice(Math.max(0, c.index - 200), c.index)))) {
+    return byFiler(s) ? { role: 'investment' } : null;
   }
 
   // Competitors: "our competitors include ... NVIDIA", "Apple, Dell and HP are the main competitors".
@@ -427,14 +514,18 @@ export function classify(sentence: string, pattern: RegExp): Classified | null {
   }
   if (LITIGATION.test(s)) return null;
 
+  // A joint venture or jointly owned company with the target is a partnership, whatever it will build.
+  if (company.length && /\b(?:joint venture|jointly owned|JV)\b/i.test(s) && byFiler(s)) return { role: 'partner' };
+
   // The target buying from its own suppliers ("NVIDIA relies on suppliers such as TSMC") says nothing of the filer.
   if (company.some((c) => /^(?:'s)?\s+(?:\w+\s+){0,2}?(?:relies|depends|uses|utilizes|sources|purchases|buys|procures|engages|outsources)\b/i.test(s.slice(c.end)))) return null;
 
   const named = ms.filter((m) => !m.product || m.goods);
-  const before = (m: Mention) => s.slice(Math.max(0, m.index - 220), m.index);
   // The filer buys from the target: its supplier, vendor or sole source; it relies on it, sources from it.
   for (const m of named) {
     const b = before(m);
+    // "collaboration with data center infrastructure suppliers such as NVIDIA": a partnership, not a purchase.
+    if (/\b(?:collaborat\w*|partner(?:s|ship|ships|ed|ing)?|alliances?)\b[^.;]{0,80}\b(?:suppliers?|vendors?|providers?)\b[^.;]{0,60}\b(?:such as|including|like)\b[^.;]{0,80}$/i.test(b) && byFiler(s)) return { role: 'partner' };
     if (
       gapListy(b, /\b(?:suppliers?|vendors?)\b[^.;]{0,80}?\b(?:include|includes|including|such as|like|namely|notably|primarily|e\.g\.,?|are|is)\b([^.;]*)$/i) ||
       /\b(?:sole|single|limited)[- ](?:source|sourced|supplier|vendor)s?\b[^.;]{0,150}$/i.test(b) ||
@@ -456,6 +547,10 @@ export function classify(sentence: string, pattern: RegExp): Classified | null {
       gapListy(b, /\b(?:end|largest|major|key|significant|principal|anchor|top) customers?,?\s+([^.;]{0,20})$/i) ||
       /\b(?:sell|sells|sold|selling|supply|supplies|supplied|supplying|ship|ships|shipped|shipping|provide|provides|provided|providing|deliver|delivers|delivered|license|licenses|licensed)\b[^.;]{0,80}?(?<!similar|compared|relative|due|according|prior|related|subject|access|close|equal|comparable|addition|respect|reference|available|attributable|applicable|exposure)\s+to\s+(?:(?:our|the|its)\s+(?:\w+\s+){0,2}customers?,?\s+)?$/i.test(b) ||
       /\b(?:customer|offtake|supply|master supply|cloud services|services|sales|license) (?:agreements?|arrangements?|contracts?) with\s+(?:[^.;]{0,30})$/i.test(b) ||
+      // "An electric service agreement to serve an additional 350 MW data center load with Applied Digital".
+      /\b(?:agreements?|contracts?|arrangements?)\s+to\s+(?:serve|supply|provide|deliver|power)\b[^.;]{0,100}?\bwith\s+(?:[^.;]{0,30})$/i.test(b) ||
+      // "began to provide power for Applied Digital's data center", "we manufacture servers for NVIDIA".
+      /\b(?:provide|provides|provided|providing|supply|supplies|supplied|supplying|deliver|delivers|delivered|delivering|build|builds|built|building|construct|constructs|constructed|constructing|install|installs|installed|installing|manufacture|manufactures|manufactured|manufacturing|assemble|assembles|assembled|fabricate|fabricates|fabricated|serve|serves|served|serving)\b[^.;]{0,80}?\bfor\s+(?:(?:our|the|its)\s+(?:\w+\s+){0,2}customers?,?\s+)?$/i.test(b) ||
       // A contract to build or supply something for the target: "we entered into a limited notice to proceed with
       // Applied Digital for a project to design and install four power plants".
       (/\b(?:entered into|signed|executed|awarded|received|won|was awarded)\b[^.;]{0,100}?\b(?:agreements?|contracts?|orders?|purchase orders?|notice to proceed|LNTP|awards?|engagement)\b[^.;]{0,60}?\bwith\s+(?:[^.;]{0,30})$/i.test(b) &&
@@ -467,7 +562,7 @@ export function classify(sentence: string, pattern: RegExp): Classified | null {
       return { role: 'supplier' };
   }
   // Partnerships the filer is in: "our partnership with NVIDIA", "we collaborate with Apple".
-  if (FILER.test(s)) {
+  if (byFiler(s)) {
     const partner = /\b(?:partner(?:s|ship|ships|ed|ing)?|collaborat\w*|alliances?|co-develop\w*|joint development|co-engineer\w*)\b/i;
     if (company.some((c) => partner.test(s.slice(Math.max(0, c.index - 120), c.index)) || partner.test(s.slice(c.end, c.end + 60)))) return { role: 'partner' };
   }
@@ -496,7 +591,7 @@ export function buildDirectory(companies: SecCompany[], securities: SecurityDef[
   for (const c of companies) {
     if (!byTicker.has(c.ticker)) byTicker.set(c.ticker, c);
     const key = normalizeName(c.title);
-    if (key && !byName.has(key)) byName.set(key, { name: knownName(c.ticker) ?? c.title, ticker: c.ticker, cik: c.cik });
+    if (key && !byName.has(key)) byName.set(key, { name: knownName(c.ticker) ?? c.title.replace(STATE_TAG, ''), ticker: c.ticker, cik: c.cik });
   }
   for (const d of securities) {
     if (d.cls !== 'equity' || d.country === 'US') continue;
@@ -520,15 +615,21 @@ export interface Found {
   index: number;
 }
 
-const CANDIDATE = /(?<![A-Za-z0-9])(?:[A-Z][A-Za-z0-9'&.-]*|&)(?:\s+(?:[A-Z][A-Za-z0-9'&.-]*|&|of|de|du|la))*(?:,?\s+(?:Inc|Incorporated|Corp|Corporation|Co|Company|Ltd|Limited|LLC|plc|PLC|N\.V|S\.A|AG|SE|SpA|GmbH)\.?)*/g;
+const CANDIDATE = /(?<![A-Za-z0-9])(?:[A-Z][A-Za-z0-9'&.-]*|&)(?:\s+(?:[A-Z][A-Za-z0-9'&.-]*|\d{1,3}(?![\d.,%])|&|of|de|du|la))*(?:,?\s+(?:Inc|Incorporated|Corp|Corporation|Co|Company|Ltd|Limited|LLC|plc|PLC|N\.V|S\.A|AG|SE|SpA|GmbH)(?![A-Za-z])\.?)*/g;
+/** A name written like a brand: inner capitals or all capitals ("CoreWeave", "NVIDIA", "eBay"). */
+const BRAND = /^(?:[A-Z]{3,}|[A-Za-z][a-z]+[A-Z][A-Za-z]*|[a-z][A-Z]\w+)$/;
 const HAS_FORM = /(?:,?\s+(?:Inc|Incorporated|Corp|Corporation|Co|Company|Ltd|Limited|LLC|plc|PLC|N\.V|S\.A|AG|SE|SpA|GmbH)\.?)$/;
 const NOT_COMPANY = /^(?:The|Our|We|In|For|Such|These|This|Those|Including|Include|And|Or|As|At|By|On|To|Customer [A-Z]|Fiscal|Annual|Report|Form|Item|Part|Note|Notes|Data Center|United States|North America|Europe|Asia|China|Taiwan|Korea|Japan|Israel|India|Middle East)$/;
 
+/** A bank, fund or asset manager written without a legal form: "First National Bank of Omaha", "Macquarie Asset Management". */
+const FINANCIAL_NAME = /\b(?:Bank|Bancorp|Banc|Capital|Partners|Asset Management|Investment Management|Securities|Financial|Credit|Funding|Lending|Trust)(?:\s+of\s+[A-Z][\w.-]*(?:\s+[A-Z][\w.-]*)?)?$/;
+
 /**
  * The companies a passage names: those in the SEC's list or the app's securities, and others written with a legal
- * form ("Huawei Technologies Co. Ltd."). "Advanced Micro Devices, Inc., or AMD" counts once.
+ * form ("Huawei Technologies Co. Ltd."). "Advanced Micro Devices, Inc., or AMD" counts once. `loose` also takes a
+ * bank's or fund's name without a legal form, for the party right after "with" in a loan or partnership.
  */
-export function findCompanies(text: string, dir: Directory): Found[] {
+export function findCompanies(text: string, dir: Directory, loose = false, whole = false): Found[] {
   const out: Found[] = [];
   const seen = new Set<string>();
   CANDIDATE.lastIndex = 0;
@@ -540,16 +641,27 @@ export function findCompanies(text: string, dir: Directory): Found[] {
     // Try the whole phrase, then its leading words ("Arista Networks" in "Arista Networks Broadcom").
     const words = raw.split(/\s+/);
     let hit: Found | undefined;
-    for (let n = words.length; n >= 1 && !hit; n--) {
+    for (let n = words.length; n >= (whole ? words.length : 1) && !hit; n--) {
       const phrase = words.slice(0, n).join(' ');
       const key = normalizeName(phrase);
       if (!key) continue;
       const single = !key.includes(' ');
       const entry = dir.byName.get(key);
-      if (entry && (!single || !COMMON.has(key) || KNOWN[key] || HAS_FORM.test(phrase))) hit = { ...entry, index: m.index };
+      // A first word alone stands for a company only when it is a well-known one or written like a brand ("NVIDIA
+      // Blackwell", "CoreWeave Compute"); "Polaris Forge 1" is not Polaris Inc.
+      const prefixOk = n === words.length || !single || KNOWN[key] || BRAND.test(words[0]);
+      if (entry && prefixOk && (!single || !COMMON.has(key) || KNOWN[key] || HAS_FORM.test(phrase))) hit = { ...entry, index: m.index };
     }
     // Not listed: a name written with its legal form ("Huawei Technologies Co. Ltd.") is still a company.
+    if (!hit && words.length >= 3 && (BRAND.test(words[0]) || KNOWN[normalizeName(words[0])]) && /\b(?:Inc|Corp|Corporation|Co|Company|Ltd|Limited|LLC|L\.?P|plc|B\.?V|GmbH)\b/.test(raw)) {
+      const parent = dir.byName.get(normalizeName(words[0]));
+      if (parent) hit = { ...parent, index: m.index };
+    }
     if (!hit && HAS_FORM.test(raw) && words.length >= 2 && !NOT_COMPANY.test(words[0])) hit = { name: raw.replace(HAS_FORM, '').replace(HAS_FORM, '').replace(/,$/, '').trim(), index: m.index };
+    if (!hit && loose && words.length >= 2 && words.length <= 7 && !NOT_COMPANY.test(words[0]) && FINANCIAL_NAME.test(raw.replace(/,?\s+N\.A\.?$/, ''))) {
+      const group = KNOWN[normalizeName(words[0])] ? dir.byName.get(normalizeName(words[0])) : undefined;
+      hit = group ? { ...group, index: m.index } : { name: raw.replace(/,$/, '').trim(), index: m.index };
+    }
     if (!hit) continue;
     const k = hit.cik ? `cik:${hit.cik}` : hit.yahoo ? `y:${hit.yahoo}` : `n:${normalizeName(hit.name)}`;
     if (seen.has(k)) continue;
@@ -564,12 +676,6 @@ export function findCompanies(text: string, dir: Directory): Found[] {
 const OWN_COMPETITOR = /^\[competitors\]|\b(?:competitors?\b[^.]{0,40}\b(?:include|includes|including|are|such as)|compete[sd]? (?:primarily |directly |principally )?(?:with|against)|competition (?:comes |primarily )?from|principal competitors?|primary competitors?|main competitors?|significant competition from)/i;
 const OWN_SUPPLIER = /\b(?:foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|assembly and test)\b[^.]{0,120}?\b(?:such as|including|include|includes|namely|like|primarily|principally|:)/i;
 const OWN_CUSTOMER = /\b(?:customers?\b[^.]{0,40}\b(?:include|includes|including|such as|are)|largest customers?|end customers?|direct customers?)\b/i;
-/**
- * A tenant or hosting client the report names: a lease, hosting or capacity agreement with a company to host its
- * operations ("a data center lease with CoreWeave, Inc. to deliver 250 MW of capacity to host CoreWeave's HPC
- * operations"). The company is the landlord or host, so the counterparty is its customer.
- */
-const OWN_TENANT = /\b(?:lease|leases|lease agreement|hosting agreement|colocation agreement|capacity agreement|services agreement)\b[^;]{0,120}?\bwith\s+[A-Z][^;]{0,200}?\bto (?:host|serve|support)\b/;
 const ANONYMOUS = /\b(?:Customer|Direct Customer|Indirect Customer) ([A-H])\b/g;
 
 /**
@@ -628,7 +734,10 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
     }
     if (OWN_SUPPLIER.test(s)) {
       const at = s.search(/\b(?:such as|including|include|includes|namely|like)\b/i);
-      for (const f of findCompanies(at >= 0 ? s.slice(at) : s, dir)) add(f, 'supplier', raw);
+      // "the DRIVE ecosystem is expanding to include tier 1 suppliers, automotive integrators and sensor partners
+      // including Bosch, Sony and ZF": partners building on its products, not its suppliers.
+      const role: Role = /\becosystem\b|\bpartners?\b[^.;]{0,40}\b(?:including|include|includes|such as)\b|\btier[- ](?:1|one|2|two)\b|\bcollaborat\w*/i.test(s) ? 'partner' : 'supplier';
+      for (const f of findCompanies(at >= 0 ? s.slice(at) : s, dir)) add(f, role, raw);
       continue;
     }
     if (OWN_CUSTOMER.test(s)) {
@@ -636,11 +745,10 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       for (const f of findCompanies(at >= 0 ? s.slice(at) : s, dir)) add(f, 'customer', raw);
       continue;
     }
-    if (OWN_TENANT.test(s)) {
-      // The counterparty: the first company named after "with".
-      const at = s.search(/\bwith\s+[A-Z]/);
-      const f = findCompanies(s.slice(at), dir)[0];
-      if (f) add(f, 'customer', raw);
+    // Agreements and dealings: leases, supply and purchase agreements, orders, partnerships, investments and loans.
+    for (const st of ownStatements(s, dir, selfPattern)) {
+      if ('unnamed' in st.party) out.push({ key: st.party.key, name: st.party.name, role: st.role, side: 'own', unnamed: true, evidence: [{ ...ev, sentence: raw }] });
+      else add(st.party, st.role, raw);
     }
   }
   return out;
@@ -656,6 +764,174 @@ export function unnamedShares(sentence: string): { count: number; kind: string; 
     const count = COUNT[m[1].toLowerCase()] ?? 1;
     if (count > 1 && !m[3]) continue; // "two customers represented 30%" together: no share each
     out.push({ count, kind: (m[2] ?? '').toLowerCase(), share: Number(m[4]) });
+  }
+  return out;
+}
+
+// ------------------------------------------------- agreements in its own filings
+
+/** A counterparty described without its name (electron/supply-chain.cjs UNNAMED_PARTY). */
+const UNNAMED_PARTY = /^(?:a|an|the same|another|one|its)\s+((?:[\w.,-]+\s+){0,6}?)(hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b/i;
+const QUALIFIER_FILLER = /^(?:new|second|third|fourth|fifth|additional|existing|leading|major|large|largest|single|same|high|certain|prospective|potential|based|global|well-known|key|significant|top)$/i;
+
+/**
+ * "a new U.S. based high investment-grade hyperscaler" → { key: 'unnamed:investment grade hyperscaler', label:
+ * 'Unnamed U.S. investment-grade hyperscaler' }; null for a bare "a customer", which says nothing of who it is.
+ */
+export function unnamedParty(text: string): { key: string; label: string; end: number } | null {
+  const m = UNNAMED_PARTY.exec(text);
+  if (!m) return null;
+  let noun = m[2].toLowerCase().replace(/ies$/, 'y').replace(/(?<=[a-z])s$/, '').replace(/^oem$/, 'OEM');
+  const US = /^U\.?S\.?(?:-based)?$/i;
+  let words = m[1].replace(/,/g, ' ').split(/\s+/).filter((w) => w && !QUALIFIER_FILLER.test(w));
+  // "a hyperscale tenant" is a hyperscaler.
+  if (/^(?:tenant|customer)$/.test(noun) && words[words.length - 1]?.toLowerCase() === 'hyperscale') {
+    noun = 'hyperscaler';
+    words = words.slice(0, -1);
+  }
+  const us = words.some((w) => US.test(w));
+  const quals = words.filter((w) => !US.test(w) && !/^(?:a|an|the|its|our)$/i.test(w));
+  if (!quals.length && /^(?:customer|tenant|operator|carrier|retailer)$/.test(noun)) return null;
+  const core = [...quals.map((w) => (/^[A-Z0-9]{2,}$/.test(w) ? w : w.toLowerCase())), noun].join(' ');
+  return { key: `unnamed:${normalizeName(core)}`, label: `Unnamed ${us ? 'U.S. ' : ''}${core}`, end: m[0].length };
+}
+
+/** The companies listed right after a word ("with", "from", "by"): "TSMC and Samsung", "CoreWeave, Inc. ("CoreWeave")". */
+export function partiesAt(text: string, dir: Directory, loose = false): Found[] {
+  const head = text.slice(0, 220);
+  return findCompanies(head, dir, loose, true).filter((f) => listy(head.slice(0, f.index)));
+}
+
+const LOAN = /\b(?:credit|loans?|term loan|revolving|financing|debt|bridge|borrow\w*|lenders?|promissory)\b/i;
+const NOT_A_DEAL = /\b(?:merger|acquisition|acquire[sd]?|asset purchase|purchase and sale|stock purchase|share purchase|business combination|settlement|separation|transition services|employment|consulting|registration rights|underwriting|equity distribution|at[- ]the[- ]market|sales agreement|indenture|warrants?|voting|lock-up|non-compet\w*|severance|indemnification|confidentiality|tax|plea|consent|license to use|office|headquarters)\b/i;
+const AGENT_PARTY = /^[^;]{0,80}?,?\s+as\s+(?:the\s+)?(?:trustee|underwriters?|representatives?|placement agent|sales agents?|dealer|initial purchasers?|escrow agent|transfer agent|rights agent|warrant agent|exchange agent|paying agent|financial advisor)\b/i;
+const HOST_LEASE = /\b(?:tenant|to host|hosting|critical IT|MW|megawatts?|AI factor(?:y|ies)|hyperscalers?|data center lease|colocation|capacity)\b/i;
+
+/**
+ * What an agreement the company announces makes the party: "a lease with CoreWeave ... to host its operations" →
+ * customer, "a loan facility with Macquarie" → lender, "our partnership with Base Electron" → partner, "a supply
+ * agreement with X to supply X with cells" → customer; null when the kind or the direction is unclear (a services
+ * or license agreement, a merger, an underwriter).
+ */
+const DEAL_WORD = /\b(?:agreements?|leases?|contracts?|orders?|partnership|collaboration|alliance|joint venture|facilit(?:y|ies)|arrangements?|notice to proceed|LNTP|memorandum of understanding|letter of intent|offtake|partnered|collaborat\w*)\b/i;
+
+/**
+ * The words of the agreement a "with" belongs to: the comma-separated stretch nearest it that names an agreement
+ * ("Under the terms of that preferred equity arrangement, upon lease execution with" is about a lease).
+ */
+export function dealClause(before: string): string {
+  const parts = (before.split(';').pop() ?? before).replace(/\([^)]*\)/g, ' ').split(',');
+  let out = '';
+  for (let i = parts.length - 1; i >= 0; i--) {
+    out = `${parts[i]},${out}`;
+    if (DEAL_WORD.test(parts[i])) break;
+  }
+  return out.slice(-160);
+}
+
+export function dealRole(before: string, after: string, sentence: string): Role | null {
+  const b = dealClause(before);
+  if (AGENT_PARTY.test(after)) return null;
+  if (/\b(?:securities purchase|subscription|investment agreement|investment from|invest(?:s|ed|ing)? (?:up to )?\$|private placement|preferred (?:equity|stock|units)|equity (?:investment|financing)|strategic investment)\b/i.test(b)) return 'investor';
+  if (LOAN.test(b)) return 'lender';
+  if (/^[^;]{0,80}?,?\s+as\s+(?:the\s+)?(?:administrative|collateral) agent\b/i.test(after)) return /\bcredit\b/i.test(sentence) ? 'lender' : null;
+  if (NOT_A_DEAL.test(b)) return null;
+  if (/\b(?:partnership|partnered|partners?|collaborat\w*|alliance|joint venture|joint development|co-develop\w*)\b/i.test(b)) return 'partner';
+  if (/\b(?:leases?|leased|lease agreements?|hosting|colocation)\b/i.test(b)) {
+    return HOST_LEASE.test(sentence) && !/\b(?:landlord|lessor|leased from|we lease (?:our|office))\b/i.test(sentence) ? 'customer' : null;
+  }
+  if (/\b(?:power purchase|PPA|purchase agreements?|purchase orders?|placed (?:an |a )?orders?|procurement|supply of (?:power|electricity|energy|natural gas))\b/i.test(b)) return 'supplier';
+  // Who supplies whom, from the words after the party.
+  if (/^(?:'s)?[^;]{0,80}?\b(?:(?:will|shall|agreed to|agrees to|is to)\s+(?:supply|provide|deliver|sell|manufacture|produce)\b[^.;]{0,60}\b(?:us|the Company|to us)|under which [^.;]{0,40}\bwill (?:supply|provide|deliver|sell|manufacture))\b/i.test(after)) return 'supplier';
+  if (/^(?:'s)?,?[^;]{0,80}?\b(?:to (?:supply|provide|deliver|sell|manufacture|build|design|install|construct|develop|power|host|serve)|for the (?:supply|sale|delivery|construction|design) of)\b/i.test(after)) {
+    return /\b(?:offtake|supply|sales?|contracts?|orders?|awards?|engagement|LNTP|notice to proceed|master services|engineering|construction|EPC|agreements?)\b/i.test(b) ? 'customer' : null;
+  }
+  if (/\b(?:offtake|(?:received|secured|won|booked|awarded)\b[^.;]{0,60}\b(?:orders?|contracts?|awards?))\b/i.test(b)) return 'customer';
+  return null;
+}
+
+const BOILERPLATE = /\b(?:forward-looking statements?|risks,? uncertainties|risk factors|could (?:adversely|negatively|materially)|may (?:adversely|negatively|materially)|our ability to|no assurance|there can be no)\b/i;
+
+/**
+ * Another company as the subject of the agreement ("On August 6, 2026, ChronoScale entered into a partnership with
+ * Microsoft"): the company's filing reports another's deal. The company itself, "we" or a subsidiary of it are not.
+ */
+export function otherSubject(head: string, dir: Directory, self?: RegExp): boolean {
+  const m = /(?:^|[.;]\s+|,\s+)(?:On [^,]{3,40},\s*)?([A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,3})(?:,\s+[^,]{3,80},)?\s+(?:has |have |had |also )?(?:entered into|signed|agreed|announced|executed|formed|partnered|closed|amended|extended|expanded)\b[^.;]*$/.exec(head);
+  if (!m) return false;
+  const subject = m[1];
+  if (/^(?:We|The Company|The Registrant|The Group|Our|Each|Both|Such|This|These|Its|In|On|During|As|Under|Pursuant)\b/.test(subject) || /\b(?:subsidiar|LLC|L\.P)\b/.test(subject)) return false;
+  if (self) {
+    self.lastIndex = 0;
+    if (self.test(subject)) return false;
+  }
+  return findCompanies(subject, dir, true).length > 0 || /^[A-Z][a-z]+[A-Z]\w*$/.test(subject);
+}
+
+export interface OwnStatement {
+  role: Role;
+  party: Found | { name: string; unnamed: true; key: string };
+}
+
+/**
+ * The agreements and dealings a company's own filing states, with the party to each: agreements "with" a company
+ * (or an unnamed one), what it buys "from", relies "on" or has "manufactured by", the revenue it earns "from", and
+ * the orders or selections it receives "from" and "by" others.
+ */
+export function ownStatements(sentence: string, dir: Directory, self?: RegExp): OwnStatement[] {
+  const s = sentence.replace(/^\[competitors\]\s*/, '');
+  const out: OwnStatement[] = [];
+  // Forward-looking statements and risk lists name what might happen, not what was agreed.
+  if (BOILERPLATE.test(s)) return out;
+  const seen = new Set<string>();
+  const push = (role: Role, party: OwnStatement['party']) => {
+    const k = `${role}|${'key' in party ? party.key : relationKey(party)}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push({ role, party });
+  };
+  const re = /\b(with|from|by|on)\s+/g;
+  for (let m = re.exec(s); m; m = re.exec(s)) {
+    const word = m[1];
+    const at = m.index + m[0].length;
+    const before = s.slice(Math.max(0, m.index - 200), m.index);
+    const rest = s.slice(at);
+    const clause = before.split(/[;]/).pop() ?? before;
+    let role: Role | null = null;
+    let loose = false;
+    if (word === 'with') {
+      if (!/\b(?:agreements?|leases?|contracts?|orders?|partnership|collaboration|alliance|joint venture|facility|facilities|notice to proceed|LNTP|memorandum of understanding|letter of intent|offtake|partnered|collaborat\w*)\b/i.test(clause)) continue;
+      if (otherSubject(s.slice(0, m.index), dir, self)) continue;
+      const u = unnamedParty(rest);
+      if (u) {
+        role = dealRole(before, rest.slice(u.end), s);
+        if (role) push(role, { name: u.label, unnamed: true, key: u.key });
+        continue;
+      }
+      loose = LOAN.test(clause) || /\bpartner|collaborat|alliance|joint venture/i.test(clause);
+      const parties = partiesAt(rest, dir, loose);
+      if (!parties.length) continue;
+      role = dealRole(before, rest.slice(parties[parties.length - 1].index), s);
+      if (role) for (const p of parties) push(role, p);
+      continue;
+    }
+    if (word === 'from') {
+      if (/\b(?:orders?|contracts?|awards?)\s+$/i.test(before) || (/\b(?:revenue|revenues|sales)\s+(?:(?:generated|earned|derived)\s+)?$/i.test(before) && /\bcustomers?\b/i.test(s) && !/\bexclud\w*/i.test(before))) role = 'customer';
+      else if (/\binvestments?\s+$/i.test(before)) role = 'investor';
+      else if (/\b(?:purchase[sd]?|purchasing|buy|buys|bought|source[sd]?|sourcing|procure[sd]?|procuring|obtain(?:s|ed)?|license[sd]?)\b([^.;]{0,100})$/i.test(clause)) {
+        const object = /\b(?:purchase[sd]?|purchasing|buy|buys|bought|source[sd]?|sourcing|procure[sd]?|procuring|obtain(?:s|ed)?|license[sd]?)\b([^.;]{0,100})$/i.exec(clause)?.[1] ?? '';
+        if (/\b(?:shares?|stock|notes|securities|interests?|units|warrants|assets|business|land|property|properties|subsidiar\w+|entity|acquisition|rights)\b/i.test(object)) continue;
+        role = 'supplier';
+      }
+    } else if (word === 'on') {
+      if (!/\b(?:rely|relies|relied|depend|depends|depended|dependent|reliant)\s+(?:heavily |substantially |significantly |primarily )?$/i.test(before)) continue;
+      role = /^[^.;]{0,80}\bfor (?:a |the )?(?:significant|substantial|large|majority|portion|most|all)[^.;]{0,40}\b(?:revenue|revenues|sales)\b/i.test(rest) ? 'customer' : 'supplier';
+    } else if (word === 'by') {
+      if (/\b(?:manufactured|produced|supplied|fabricated|assembled)\s+$/i.test(before)) role = 'supplier';
+      else if (/\b(?:selected|chosen|awarded|engaged)\b[^.;]{0,60}$/i.test(before)) role = 'customer';
+    }
+    if (!role) continue;
+    for (const p of partiesAt(rest, dir)) push(role, p);
   }
   return out;
 }
@@ -707,6 +983,17 @@ export function mergeRelations(list: Relation[]): Relation[] {
     have.id ??= r.id;
     have.yahoo ??= r.yahoo;
   }
+  // An unnamed party described more loosely elsewhere ("a hyperscaler") is the one described more fully ("an
+  // investment-grade hyperscaler") when there is only one such.
+  const unnamed = [...by.entries()].filter(([, r]) => r.unnamed);
+  for (const [k, r] of unnamed) {
+    const words = r.key.replace(/^unnamed:/, '').split(' ');
+    const wider = unnamed.filter(([k2, r2]) => k2 !== k && r2.role === r.role && by.has(k2) && words.every((w) => r2.key.replace(/^unnamed:/, '').split(' ').includes(w)));
+    if (wider.length !== 1) continue;
+    const into = by.get(wider[0][0])!;
+    for (const e of r.evidence) if (!into.evidence.some((x) => x.sentence === e.sentence)) into.evidence.push(e);
+    by.delete(k);
+  }
   return [...by.values()];
 }
 
@@ -720,6 +1007,20 @@ export interface FtsHit {
   date: string;
   path: string;
   score: number;
+  /** The document within the filing: "10-K", "8-K", "EX-99.1". */
+  type?: string;
+  /** An 8-K's items: "1.01" (a material agreement), "7.01", "8.01". */
+  items?: string[];
+}
+
+/** How many documents the search matched in all (it returns 100 a page). */
+export function ftsTotal(text: string): number {
+  try {
+    const v = JSON.parse(text)?.hits?.total?.value;
+    return typeof v === 'number' ? v : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /** The SEC full-text search's answer: each filing's filer, form, date and primary document. */
@@ -740,7 +1041,9 @@ export function parseFts(text: string): FtsHit[] | null {
     if (!Number.isFinite(cik) || cik <= 0 || !/^\d{10}-\d{2}-\d{6}$/.test(adsh) || !/^[A-Za-z0-9][A-Za-z0-9._-]*\.html?$/i.test(file ?? '')) continue;
     const display = String(src?.display_names?.[0] ?? '');
     const tickers = (/\(([A-Z0-9.,\s-]+)\)\s+\(CIK/.exec(display)?.[1] ?? '').split(',').map((t) => t.trim()).filter(Boolean);
-    out.push({ cik, name: display.replace(/\s+\([^)]*\)\s*\(CIK.*$/, '').replace(/\s+\(CIK.*$/, '').trim(), tickers, form: String(src?.form ?? src?.file_type ?? ''), date: String(src?.file_date ?? ''), path: `${cik}/${adsh.replace(/-/g, '')}/${file}`, score: Number(h?._score) || 0 });
+    const type = typeof src?.file_type === 'string' ? src.file_type : undefined;
+    const items = Array.isArray(src?.items) ? src.items.filter((x: unknown): x is string => typeof x === 'string') : undefined;
+    out.push({ cik, name: display.replace(/\s+\([^)]*\)\s*\(CIK.*$/, '').replace(/\s+\(CIK.*$/, '').trim(), tickers, form: String(src?.form ?? src?.file_type ?? ''), date: String(src?.file_date ?? ''), path: `${cik}/${adsh.replace(/-/g, '')}/${file}`, score: Number(h?._score) || 0, ...(type ? { type } : {}), ...(items?.length ? { items } : {}) });
   }
   return out;
 }
@@ -750,34 +1053,104 @@ export interface Filer extends FtsHit {
   terms: number;
   state: 'waiting' | 'reading' | 'read' | 'failed';
   found?: number;
+  /** Why it is read: the company's own filing, or another company's report, prospectus or current report (8-K). */
+  source: 'own' | 'report' | 'current';
 }
 
 const ANNUAL = /^(10-K|20-F|40-F)\b/;
+const REPORT = /^(10-K|20-F|40-F|10-Q)\b/;
 
 /**
  * One filing per company, most often found and best scored first: its latest annual report when the searches found
  * one (it states the year's concentrations), else its latest quarterly report or prospectus.
  */
-export function rankFilers(results: FtsHit[][], selfCik: number | undefined, max: number): Filer[] {
+export function rankFilers(results: FtsHit[][], selfCik: number | undefined, max: number, weights: number[] = []): Filer[] {
   const by = new Map<number, Filer & { seen: Set<number> }>();
   results.forEach((hits, qi) => {
     for (const h of hits) {
-      if (h.cik === selfCik) continue;
+      if (h.cik === selfCik || /^8-K/.test(h.form)) continue;
       const have = by.get(h.cik);
-      if (!have) by.set(h.cik, { ...h, terms: 0, state: 'waiting', seen: new Set([qi]) });
+      if (!have) by.set(h.cik, { ...h, terms: 0, state: 'waiting', source: 'report', seen: new Set([qi]) });
       else {
         have.seen.add(qi);
         const a = ANNUAL.test(h.form);
         const b = ANNUAL.test(have.form);
-        if ((a && !b) || (a === b && h.date > have.date)) Object.assign(have, { form: h.form, date: h.date, path: h.path });
+        // The main document of the latest annual report, else of the latest report or prospectus.
+        const main = (x: FtsHit) => !x.type || x.type === x.form || REPORT.test(x.type);
+        if ((a && !b) || (a === b && (h.date > have.date || (h.date === have.date && main(h) && !main(have))))) Object.assign(have, { form: h.form, date: h.date, path: h.path, type: h.type });
         have.score = Math.max(have.score, h.score);
       }
     }
   });
   return [...by.values()]
-    .map(({ seen, ...f }) => ({ ...f, terms: seen.size }))
+    .map(({ seen, ...f }) => ({ ...f, terms: [...seen].reduce((a, qi) => a + (weights[qi] ?? 1), 0) }))
     .sort((a, b) => b.terms - a.terms || b.score - a.score)
     .slice(0, max);
+}
+
+/** A newer quarterly report than the annual report chosen for each filer: the latest word on the relation. */
+export function newerReports(results: FtsHit[][], chosen: Filer[]): Filer[] {
+  const out: Filer[] = [];
+  for (const f of chosen) {
+    if (!ANNUAL.test(f.form)) continue;
+    let best: FtsHit | undefined;
+    for (const hits of results) for (const h of hits) if (h.cik === f.cik && /^10-Q/.test(h.form) && (!h.type || REPORT.test(h.type)) && h.date > f.date && (!best || h.date > best.date)) best = h;
+    if (best) out.push({ ...best, terms: f.terms, state: 'waiting', source: 'report' });
+  }
+  return out;
+}
+
+/** Documents of a current report worth reading: its press releases, and the report itself when it announces an agreement or an acquisition. */
+export function readableCurrent(h: FtsHit): boolean {
+  const type = (h.type ?? h.form).toUpperCase();
+  if (/^EX-99/.test(type)) return !/present|slides|deck|overview/i.test(h.path);
+  if (/^8-K/.test(type)) return !h.items || h.items.some((i) => ['1.01', '2.01'].includes(i));
+  return false;
+}
+
+/**
+ * The current reports (8-K) to read, newest first. Another company's: its `per` documents that name the company most
+ * (the announcement before the earnings release that mentions it in passing), at most `max` in all. The company's
+ * own (`own`): its press releases and agreement announcements of the year, at most `max`.
+ */
+export function currentDocs(results: FtsHit[][], selfCik: number | undefined, max: number, per = 2, own = false): Filer[] {
+  const seen = new Set<string>();
+  const all: FtsHit[] = [];
+  for (const hits of results) {
+    for (const h of hits) {
+      if (!/^8-K/.test(h.form) || (own ? h.cik !== selfCik : h.cik === selfCik) || seen.has(h.path) || !readableCurrent(h)) continue;
+      seen.add(h.path);
+      all.push(h);
+    }
+  }
+  const byCik = new Map<number, FtsHit[]>();
+  for (const h of all) byCik.set(h.cik, [...(byCik.get(h.cik) ?? []), h]);
+  const picked: FtsHit[] = [];
+  for (const list of byCik.values()) {
+    // A press release before the report that files it: it holds the announcement.
+    const rank = (h: FtsHit) => (/^EX-99/.test(h.type ?? '') ? 1 : 0);
+    list.sort((a, b) => (own ? b.date.localeCompare(a.date) || rank(b) - rank(a) : b.score - a.score || rank(b) - rank(a) || b.date.localeCompare(a.date)));
+    picked.push(...list.slice(0, per));
+  }
+  picked.sort((a, b) => b.date.localeCompare(a.date) || b.score - a.score);
+  return picked.slice(0, max).map((h) => ({ ...h, terms: 1, state: 'waiting' as const, source: own ? ('own' as const) : ('current' as const) }));
+}
+
+/**
+ * The names searched: the shortest first ("Nebius" also finds "Nebius Group N.V."), then those a shorter one does
+ * not already cover; at most three.
+ */
+export function searchNames(names: TargetNames): string[] {
+  const out: string[] = [];
+  const covered = (n: string) => out.some((o) => new RegExp(`(?:^|\\s)${escapeRe(o)}(?:\\s|,|$)`, 'i').test(n));
+  const all = [...new Set([...names.names, ...names.legal].map((n) => n.trim()))].filter((n) => n.length >= 4 || /^[A-Z0-9]{2,}$/.test(n));
+  for (const n of all.sort((a, b) => a.length - b.length)) {
+    const v = n.trim();
+    if (v.length < 2 || out.includes(v) || covered(v)) continue;
+    out.push(v);
+    if (out.length >= 3) break;
+  }
+  return out;
 }
 
 // -------------------------------------------------------------- the store
@@ -788,7 +1161,7 @@ export interface Chain {
   /** The target as the SEC lists it, and its name in the app. */
   company?: { name: string; display?: string; cik?: number; ticker?: string };
   names?: TargetNames;
-  own?: { form: string; date: string; path: string; state: Filer['state'] };
+  /** Every document read or to read: the company's own filings first. */
   filers: Filer[];
   relations: Relation[];
   /** Day's change in percent, by relation key. */
@@ -798,26 +1171,31 @@ export interface Chain {
 
 export const supplyChains = createStore<{ v: number; chains: Record<string, Chain> }>({ v: 0, chains: {} });
 
-const MAX_FILINGS = 80;
+/** Other companies' reports read (one per company), current reports read (two per company), quarterly updates read. */
+const MAX_REPORTS = 80;
+const MAX_CURRENT = 30;
+const MAX_OWN_CURRENT = 40;
+const MAX_NEWER = 25;
+/** A name found in fewer documents than this is read in full; above, only beside the terms. */
+const NAME_ONLY = 300;
 const running = new Set<string>();
-/** The words searched beside the company's legal names (electron/supply-chain.cjs TERMS). */
-const SEARCH_TERMS = ['accounted for', 'revenues', 'suppliers', 'supplier', 'customer', 'purchase', 'distributor', 'competitors'];
+/** The words searched beside the company's names (electron/supply-chain.cjs TERMS). */
+const REPORT_TERMS = ['accounted for', 'largest customer', 'revenues', 'suppliers', 'supplier', 'customer', 'sole source', 'purchase', 'distributor', 'competitors', 'lease', 'contract', 'agreement'];
+/** Searches that find concentration statements: a document they find weighs more in the ranking. */
+const STRONG_TERMS = new Set(['accounted for', 'largest customer', 'revenues', 'customer', 'supplier', 'sole source']);
+const CURRENT_TERMS = ['agreement', 'customer', 'supplier', 'contract'];
+const PROSPECTUS_TERMS = ['customer', 'supplier', 'accounted for'];
 
-function setChain(key: string, f: (c: Chain) => Chain) {
-  supplyChains.set((s) => ({ v: s.v + 1, chains: { ...s.chains, [key]: f(s.chains[key] ?? { state: 'loading', filers: [], relations: [], changes: {} }) } }));
-}
-
-export function supplyChainAvailable(): boolean {
-  return secAvailable() && typeof window !== 'undefined' && typeof window.arminDesktop?.secText === 'function';
-}
-
-async function fts(arg: string): Promise<FtsHit[]> {
-  const res = await window.arminDesktop!.sec!('fts', arg);
-  if (!res.text) {
-    if ((res as any).missing) throw new Error('missing-agent');
-    return [];
-  }
-  return parseFts(res.text) ?? [];
+/** What SPLC reads through: the app's desktop bridge, or another reader of the same SEC sources (the tests). */
+export interface ChainIO {
+  companies(): Promise<SecCompany[]>;
+  /** A filer's recent filings, newest first. */
+  filings(cik: number): Promise<{ form: string; filed: string; accession: string; doc?: string }[] | null>;
+  /** A full-text search; throws when it fails (Error('missing-agent') without the SEC User-Agent). */
+  fts(arg: string): Promise<{ hits: FtsHit[]; total: number }>;
+  /** The sentences of a document: those naming `names` ('mentions'), or the company's own statements ('own'). */
+  text(kind: 'own' | 'mentions', path: string, names?: string[]): Promise<string[] | null>;
+  securities: SecurityDef[];
 }
 
 async function pool<T>(items: T[], n: number, f: (x: T) => Promise<void>) {
@@ -827,92 +1205,168 @@ async function pool<T>(items: T[], n: number, f: (x: T) => Promise<void>) {
   }));
 }
 
-/** Finds and reads the reports for a company, updating the store as each filing is read. */
+/**
+ * Builds a company's supply chain: finds the documents that name it and its own recent filings, reads them and
+ * classifies their sentences, telling `emit` each step. Throws Error('missing-agent') without the SEC User-Agent.
+ */
+export async function runChain(target: { ticker?: string; name: string }, io: ChainIO, emit: (f: (c: Chain) => Chain) => void): Promise<void> {
+  const companies = await io.companies();
+  const company = target.ticker ? findByTicker(companies, target.ticker) : undefined;
+  const names = targetNames(company?.ticker ?? target.ticker, company?.title ?? target.name);
+  const dir = buildDirectory(companies, io.securities);
+  const title = company?.title ?? target.name;
+  emit((c) => ({ ...c, company: { name: title, display: target.name, cik: company?.cik, ticker: company?.ticker }, names }));
+  const queries = searchNames(names);
+
+  const reports: FtsHit[][] = [];
+  const current: FtsHit[][] = [];
+  // A search's first page; the next pages too while the whole answer stays within `all` documents. A search that
+  // fails is asked once more (the full-text search answers errors at times).
+  const weights: number[] = [];
+  const once = (arg: string) => io.fts(arg).catch((e) => (e?.message === 'missing-agent' ? Promise.reject(e) : null));
+  const ask = async (arg: string) => (await once(arg)) ?? (await once(arg)) ?? { hits: [], total: 0 };
+  const search = async (arg: string, into: FtsHit[][], all: number, weight = 1) => {
+    const first = await ask(arg);
+    into.push(first.hits);
+    if (into === reports) weights.push(weight);
+    if (first.total <= all) {
+      for (let p = 1; p * 100 < first.total && first.hits.length >= 100; p++) {
+        into.push((await ask(`${arg}|${p * 100}`)).hits);
+        if (into === reports) weights.push(weight);
+      }
+    }
+    return first.total;
+  };
+  // The company's own latest annual report, a newer quarterly report, and its current reports of the last year.
+  const own: Filer[] = [];
+  if (company) {
+    const filings = (await io.filings(company.cik)) ?? [];
+    const doc = (f: { form: string; filed: string; accession: string; doc?: string }): Filer | null =>
+      f.doc && /\.html?$/i.test(f.doc) ? { cik: company.cik, name: title, tickers: [company.ticker], form: f.form, date: f.filed, path: `${company.cik}/${f.accession.replace(/-/g, '')}/${f.doc}`, score: 0, terms: 0, state: 'waiting', source: 'own' } : null;
+    const annual = filings.find((f) => /^(10-K|20-F|40-F)$/.test(f.form) && doc(f));
+    if (annual) own.push(doc(annual)!);
+    const quarterly = filings.find((f) => f.form === '10-Q' && doc(f));
+    if (quarterly && (!annual || quarterly.filed > annual.filed)) own.push(doc(quarterly)!);
+    if (queries[0]) {
+      const got = await ask(`|${queries[0]}|current|0|${company.cik}`);
+      own.push(...currentDocs([got.hits], company.cik, MAX_OWN_CURRENT, MAX_OWN_CURRENT, true));
+    }
+  }
+  emit((c) => ({ ...c, filers: own }));
+
+  // Other companies' documents naming it: every report when the name is rare enough, else the reports with a term
+  // beside it; prospectuses; current reports.
+  // A name many filings use ("Apple") is searched beside the terms, with the legal name first: "Apple Inc" with
+  // "accounted for" finds its suppliers' concentration statements, "Apple" alone its app developers.
+  let wide = false;
+  for (const n of queries) if ((await search(`|${n}|reports`, reports, NAME_ONLY)) > NAME_ONLY) wide = true;
+  if (wide) {
+    const legal = names.legal.filter((l) => !queries.includes(l)).slice(0, 2);
+    for (const l of legal) for (const term of REPORT_TERMS) await search(`${term}|${l}|reports`, reports, 200, STRONG_TERMS.has(term) ? 3 : 1);
+    for (const n of queries) for (const term of REPORT_TERMS) await search(`${term}|${n}|reports`, reports, 200, STRONG_TERMS.has(term) ? 2 : 1);
+  }
+  if (queries[0]) {
+    if ((await search(`|${queries[0]}|prospectus`, reports, 200)) > 200) for (const term of PROSPECTUS_TERMS) await search(`${term}|${queries[0]}|prospectus`, reports, 100);
+    if ((await search(`|${queries[0]}|current`, current, 200)) > 200) for (const term of CURRENT_TERMS) await search(`${term}|${queries[0]}|current`, current, 100);
+  }
+  const ranked = rankFilers(reports, company?.cik, MAX_REPORTS, weights);
+  const newer = newerReports(reports, ranked.slice(0, MAX_NEWER));
+  const theirCurrent = currentDocs(current, company?.cik, MAX_CURRENT);
+  // Read order: its own filings, the 40 likeliest reports, the current reports, then the rest.
+  const docs = [...own, ...ranked.slice(0, 40), ...theirCurrent, ...ranked.slice(40), ...newer];
+  emit((c) => ({ ...c, filers: docs }));
+
+  const pattern = targetPattern(names.names.concat(names.legal.map((l) => l.replace(SUFFIX, '').trim())));
+  const relations: Relation[] = [];
+  const publish = () => emit((c) => ({ ...c, relations: mergeRelations(relations), at: Date.now() }));
+  const mark = (f: Filer, state: Filer['state'], found?: number) => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === f.path ? { ...x, state, ...(found != null ? { found } : {}) } : x)) }));
+  const sentenceNames = [...new Set([...names.names, ...names.legal.map((l) => l.replace(SUFFIX, '').trim())])].slice(0, 8);
+  const evidence = (f: Filer, sentence: string): Evidence => ({ sentence, filer: f.name, form: f.form, date: f.date, path: f.path, ...(f.type && f.type !== f.form ? { type: f.type } : {}) });
+
+  // Unnamed customers' shares come from the newest filing that states them (a quarter's are not the year's).
+  const SHARE_ONLY = /^unnamed:\d+$/;
+  let sharesFrom = '';
+  for (const f of own) {
+    mark(f, 'reading');
+    const sentences = await io.text('own', f.path).catch(() => null);
+    let found = 0;
+    if (sentences) {
+      const got = ownRelations(sentences, dir, { cik: company?.cik, names: names.names }, evidence(f, ''));
+      const shares = got.filter((r) => SHARE_ONLY.test(r.key));
+      const keep = shares.length > 0 && f.date > sharesFrom;
+      if (keep) {
+        sharesFrom = f.date;
+        for (let i = relations.length - 1; i >= 0; i--) if (SHARE_ONLY.test(relations[i].key)) relations.splice(i, 1);
+      }
+      const add = got.filter((r) => keep || !SHARE_ONLY.test(r.key));
+      relations.push(...add);
+      found = add.length;
+    }
+    mark(f, sentences ? 'read' : 'failed', found);
+    publish();
+  }
+
+  await pool(docs.slice(own.length), 3, async (f) => {
+    mark(f, 'reading');
+    const sentences = await io.text('mentions', f.path, sentenceNames).catch(() => null);
+    let found = 0;
+    if (sentences) {
+      const listed = dir.byTicker.get(f.tickers[0] ?? '');
+      const filer = targetPattern(targetNames(f.tickers[0], f.name).names);
+      for (const sentence of sentences) {
+        const c = classify(sentence, pattern, filer);
+        if (!c) continue;
+        found++;
+        relations.push({ key: `cik:${f.cik}`, name: knownName(f.tickers[0]) ?? listed?.title ?? f.name, ticker: f.tickers[0], cik: f.cik, role: c.role, share: c.share, qualifier: c.qualifier, basis: c.basis, side: 'theirs', evidence: [evidence(f, sentence)] });
+      }
+    }
+    mark(f, sentences ? 'read' : 'failed', found);
+    publish();
+  });
+}
+
+function setChain(key: string, f: (c: Chain) => Chain) {
+  supplyChains.set((s) => ({ v: s.v + 1, chains: { ...s.chains, [key]: f(s.chains[key] ?? { state: 'loading', filers: [], relations: [], changes: {} }) } }));
+}
+
+export function supplyChainAvailable(): boolean {
+  return secAvailable() && typeof window !== 'undefined' && typeof window.arminDesktop?.secText === 'function';
+}
+
+/** The desktop app's bridge to the SEC, for runChain. */
+function desktopIO(): ChainIO {
+  const bridge = window.arminDesktop!;
+  return {
+    companies: async () => {
+      const list = await loadSecCompanies();
+      if (!list.ok && list.reason === 'needs-agent') throw new Error('missing-agent');
+      return list.ok ? list.data : [];
+    },
+    filings: async (cik) => {
+      const filer = await loadFiler(cik);
+      return filer.ok ? filer.data.filings.map((f) => ({ form: f.form, filed: f.filed, accession: f.accession, doc: f.doc })) : null;
+    },
+    fts: async (arg) => {
+      const res = await bridge.sec!('fts', arg);
+      if ((res as any)?.missing) throw new Error('missing-agent');
+      if (!res?.text) throw new Error(`the full-text search answered ${res?.status ?? 'nothing'}`);
+      return { hits: parseFts(res.text) ?? [], total: ftsTotal(res.text) };
+    },
+    text: async (kind, path, names) => {
+      const res = await bridge.secText!(kind, path, names);
+      return res && res.status === 200 ? res.sentences : null;
+    },
+    securities: engine.securities,
+  };
+}
+
+/** Finds and reads the filings for a company, updating the store as each one is read. */
 async function build(key: string, def: SecurityDef) {
   if (running.has(key)) return;
   running.add(key);
   try {
     setChain(key, () => ({ state: 'loading', filers: [], relations: [], changes: {} }));
-    const list = await loadSecCompanies();
-    if (!list.ok && list.reason === 'needs-agent') throw new Error('missing-agent');
-    const companies = list.ok ? list.data : [];
-    const ticker = secTicker(def);
-    const company = ticker ? findByTicker(companies, ticker) : undefined;
-    const names = targetNames(company?.ticker ?? ticker ?? undefined, company?.title ?? def.name);
-    const dir = buildDirectory(companies, engine.securities);
-    setChain(key, (c) => ({ ...c, company: { name: company?.title ?? def.name, display: def.name, cik: company?.cik, ticker: company?.ticker }, names }));
-
-    // The company's own latest annual report.
-    let own: Chain['own'];
-    if (company) {
-      const filer = await loadFiler(company.cik);
-      if (filer.ok) {
-        const annual = filer.data.filings.find((f) => /^(10-K|20-F|40-F)$/.test(f.form) && !!f.doc && /\.html?$/i.test(f.doc));
-        if (annual) {
-          const doc = filingLinks(company.cik, annual).doc ?? '';
-          const m = /edgar\/data\/(\d+)\/(\d{18})\/([^/?#]+)$/.exec(doc);
-          if (m) own = { form: annual.form, date: annual.filed, path: `${m[1]}/${m[2]}/${m[3]}`, state: 'waiting' };
-        }
-      }
-    }
-    setChain(key, (c) => ({ ...c, own }));
-
-    // The searches: each legal name with each term in the annual and quarterly reports; the first legal name in the IPO
-    // prospectuses; the short name for sole-source statements. A full page of hits brings the next one.
-    const searches: string[] = [];
-    for (const legal of names.legal.slice(0, 2)) for (const term of SEARCH_TERMS) searches.push(`${term}|${legal}`);
-    if (names.legal[0]) for (const term of ['customer', 'supplier', 'accounted for']) searches.push(`${term}|${names.legal[0]}|prospectus`);
-    for (const n of names.names.slice(0, 1)) if (!names.legal.includes(n)) searches.push(`sole source|${n}`);
-    const results: FtsHit[][] = [];
-    const ask = (arg: string) => fts(arg).catch((e) => (e?.message === 'missing-agent' ? Promise.reject(e) : ([] as FtsHit[])));
-    for (const arg of searches) {
-      const hits = await ask(arg);
-      results.push(hits);
-      if (hits.length >= 100) results.push(await ask(`${arg}${arg.split('|').length === 2 ? '|reports' : ''}|100`));
-    }
-    const filers = rankFilers(results, company?.cik, MAX_FILINGS);
-    setChain(key, (c) => ({ ...c, filers }));
-
-    const pattern = targetPattern(names.names.concat(names.legal.map((l) => l.replace(SUFFIX, '').trim())));
-    const relations: Relation[] = [];
-    const publish = () => setChain(key, (c) => ({ ...c, relations: mergeRelations(relations), at: Date.now() }));
-
-    if (own) {
-      const res = await window.arminDesktop!.secText!('own', own.path).catch(() => null);
-      const ok = !!res && res.status === 200;
-      if (ok) relations.push(...ownRelations(res!.sentences, dir, { cik: company?.cik, names: names.names }, { filer: company?.title ?? def.name, form: own.form, date: own.date, path: own.path }));
-      setChain(key, (c) => ({ ...c, own: c.own ? { ...c.own, state: ok ? 'read' : 'failed' } : c.own }));
-      publish();
-    }
-
-    const sentenceNames = [...new Set([...names.names, ...names.legal.map((l) => l.replace(SUFFIX, '').trim())])].slice(0, 8);
-    await pool(filers, 3, async (f) => {
-      setChain(key, (c) => ({ ...c, filers: c.filers.map((x) => (x.cik === f.cik ? { ...x, state: 'reading' } : x)) }));
-      const res = await window.arminDesktop!.secText!('mentions', f.path, sentenceNames).catch(() => null);
-      let found = 0;
-      if (res && res.status === 200) {
-        const listed = dir.byTicker.get(f.tickers[0] ?? '');
-        for (const sentence of res.sentences) {
-          const c = classify(sentence, pattern);
-          if (!c) continue;
-          found++;
-          relations.push({
-            key: `cik:${f.cik}`,
-            name: knownName(f.tickers[0]) ?? listed?.title ?? f.name,
-            ticker: f.tickers[0],
-            cik: f.cik,
-            role: c.role,
-            share: c.share,
-            qualifier: c.qualifier,
-            basis: c.basis,
-            side: 'theirs',
-            evidence: [{ sentence, filer: f.name, form: f.form, date: f.date, path: f.path }],
-          });
-        }
-      }
-      setChain(key, (c) => ({ ...c, filers: c.filers.map((x) => (x.cik === f.cik ? { ...x, state: res && res.status === 200 ? 'read' : 'failed', found } : x)) }));
-      publish();
-    });
+    await runChain({ ticker: secTicker(def) ?? undefined, name: def.name }, desktopIO(), (f) => setChain(key, f));
     setChain(key, (c) => ({ ...c, state: 'ok', at: Date.now() }));
     void refreshChanges(key);
   } catch (e) {

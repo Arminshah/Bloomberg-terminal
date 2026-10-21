@@ -221,8 +221,9 @@ test('SPLC reads suppliers, customers and competitors from the SEC filings that 
   await expect(row('Microsoft')).toContainText('Named by NBIS US as a competitor');
   await expect(row('CoreWeave')).toHaveCount(1);
   const searched = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.fts ?? []);
-  expect(searched).toContain('"Nebius Group N.V." "accounted for"');
-  expect(searched).toContain('"Nebius Group N.V." suppliers');
+  // Few documents name it: they are all read, found by the name alone (the shortest name covers the longer ones).
+  expect(searched).toContain('"Nebius"');
+  expect(searched.some((q) => /Nebius Group/.test(q ?? ''))).toBe(false);
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-splc-fixture.png') });
 });
 
