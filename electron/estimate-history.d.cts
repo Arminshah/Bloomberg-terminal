@@ -1,6 +1,7 @@
 // Types for estimate-history.cjs, for the tests that import it.
 export interface HistoryQuarter { date: string; period: string; end?: string; label?: string; est: number; actual: number; timing?: 'Bef-mkt' | 'Aft-mkt' | 'During-mkt' }
-export interface History { source: 'Finviz' | 'Zacks' | 'MarketBeat'; eps: HistoryQuarter[]; sales: HistoryQuarter[]; gaap?: HistoryQuarter[] }
+export interface History { source: 'Finviz' | 'Zacks' | 'MarketBeat'; eps: HistoryQuarter[]; sales: HistoryQuarter[]; gaap?: HistoryQuarter[]; peers?: string[] }
+export function finvizPeers(html: unknown): string[];
 export function finvizUrl(symbol: unknown): string | null;
 export function zacksUrl(symbol: unknown): string | null;
 export function marketbeatUrl(symbol: unknown): string | null;

@@ -767,8 +767,10 @@ async function historyPage(provider, url, agent) {
 async function historyOf(provider, symbol, lane) {
   const key = `${provider}|${symbol}`;
   const kept = historyKept.get(key);
+  // A Finviz page kept before the app read its peers is read again.
+  const outdated = provider === 'finviz' && !!kept?.history && !Array.isArray(kept.history.peers);
   // REFRESH asks again only for a history older than an hour: the past reports in it do not change.
-  if (estimateHistory.historyFresh(kept) && (Date.now() - kept.at < 3_600_000 || !refresh.expired(provider, kept.at))) return kept;
+  if (!outdated && estimateHistory.historyFresh(kept) && (Date.now() - kept.at < 3_600_000 || !refresh.expired(provider, kept.at))) return kept;
   if (provider === 'zacks' && Date.now() < zacksRestUntil) return kept?.history ? kept : { at: Date.now(), history: null, status: 0, error: '' };
   const src = HISTORY[provider];
   await providers.slot(provider === 'zacks' ? 'zacks' : `${provider}:${lane}`, ...src.pace[lane]);
@@ -782,19 +784,29 @@ async function historyOf(provider, symbol, lane) {
   return entry;
 }
 
+const hasReports = (h) => !!h && (h.sales?.length > 0 || h.eps?.length > 0);
+
 ipcMain.handle('estimate-history', async (event, kind, symbol) => {
   if (!fromApp(event) || (kind !== 'earnings' && kind !== 'calendar') || !estimateHistory.finvizUrl(symbol)) throw new Error('not allowed');
   const got = [];
   const first = await historyOf('finviz', symbol, kind);
-  if (first.history) got.push(first);
+  if (hasReports(first.history)) got.push(first);
   // EVENTS' lines need the reports around their dates: Finviz's two years do, unless Finviz has none.
-  if (kind === 'earnings' || !first.history) {
+  if (kind === 'earnings' || !hasReports(first.history)) {
     const zacks = await historyOf('zacks', symbol, kind);
     const older = zacks.history ? zacks : await historyOf('marketbeat', symbol, kind);
     if (older.history) got.push(older);
   }
   if (!got.length) return { status: first.status ? (first.status === 200 ? 404 : first.status) : 404, text: '', error: first.error || 'No earnings history was found for this ticker.' };
   return { status: 200, text: JSON.stringify(got.map((g) => g.history)), at: Math.min(...got.map((g) => g.at)) };
+});
+
+// The companies Finviz lists as a stock's peers, from the same quote page (kept with its history).
+ipcMain.handle('finviz-peers', async (event, symbol) => {
+  if (!fromApp(event) || !estimateHistory.finvizUrl(symbol)) throw new Error('not allowed');
+  const got = await historyOf('finviz', symbol, 'earnings');
+  const peers = got.history?.peers ?? [];
+  return peers.length ? { status: 200, text: JSON.stringify(peers), at: got.at } : { status: got.status === 200 || !got.status ? 404 : got.status, text: '', error: got.error || 'Finviz lists no peers for this stock.' };
 });
 
 // FINRA's consolidated short interest for one US-listed stock (no key), where Nasdaq's page has none.

@@ -621,7 +621,10 @@ function IndustryPage({ sec }: { sec: SecurityDef }) {
   );
   const { loaded } = useFundamentalsFor(group);
   const rows = useMemo(
-    () => group.map((d) => ({ d, mcap: marketCapUsd(d.id), pe: keyStats(d).pe, ytd: periodChange(d.id, 'YTD'), same: d.eq?.industry === eq.industry })),
+    () => group.map((d) => {
+      const k = keyStats(d);
+      return { d, mcap: marketCapUsd(d.id), pe: k.pe, eps: k.epsLtm, ytd: periodChange(d.id, 'YTD'), same: d.eq?.industry === eq.industry };
+    }),
     [group, tick, loaded], // eslint-disable-line react-hooks/exhaustive-deps
   );
   return (
@@ -629,7 +632,10 @@ function IndustryPage({ sec }: { sec: SecurityDef }) {
       <Section title="Classification">
         <KV items={[['Sector', eq.sector || '--'], ['Industry', eq.industry || '--'], ['Primary exchange', sec.exch ?? '--']]} />
       </Section>
-      <Section title="Companies in the industry" right={desktopData() ? (found ? `${group.length - 1} peers found online; PEERS compares them` : 'Finding peers…') : 'the built-in list; PEERS compares them'}>
+      <Section
+        title="Peers"
+        right={desktopData() ? (found?.group ? `${group.length - 1} peers · ${found.group.sources.join(', ') || 'no source answered'} · PEERS compares them` : found?.state === 'error' ? found.message : 'Finding peers…') : 'the built-in list; PEERS compares them'}
+      >
         <DataTable
           rows={rows}
           rowKey={(r) => r.d.id}
@@ -639,8 +645,8 @@ function IndustryPage({ sec }: { sec: SecurityDef }) {
             { key: 'i', label: 'Industry', render: (r) => <span className={r.same ? '' : 'muted'}>{r.d.eq?.industry ?? '--'}</span> },
             { key: 'l', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
             { key: 'm', label: 'Mkt cap USD', num: true, render: (r) => fmtBig(r.mcap), sort: (r) => r.mcap },
-            { key: 'p', label: 'P/E', num: true, render: (r) => fmtNum(r.pe, 1), sort: (r) => r.pe },
-            { key: 'y', label: '%YTD', num: true, render: (r) => <Chg v={r.ytd} pct />, sort: (r) => r.ytd },
+            { key: 'p', label: 'P/E', num: true, render: (r) => (Number.isFinite(r.pe) ? fmtNum(r.pe, 1) : peText(r.pe, r.eps)), sort: (r) => r.pe },
+            { key: 'y', label: '%YTD', num: true, render: (r) => (Number.isFinite(r.ytd) ? <Chg v={r.ytd} pct /> : ''), sort: (r) => r.ytd },
           ]}
           defaultSort={{ key: 'm', dir: -1 }}
         />

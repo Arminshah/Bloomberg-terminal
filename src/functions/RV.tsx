@@ -9,7 +9,7 @@ import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtNum } from '../core/format';
 import { useTick } from '../data/market';
 import { marketCapUsd, periodChange } from '../data/analytics';
-import { keyStats, peers } from '../data/fundamentals';
+import { financials, keyStats, peers } from '../data/fundamentals';
 import { median } from '../finance/stats';
 import type { SecurityDef } from '../data/types';
 import { usePanelId } from '../terminal/panel';
@@ -29,7 +29,16 @@ interface Row {
   margin: number;
   ytd: number;
   y1: number;
+  /** Not meaningful: P/E on a loss, P/B and ROE on negative equity, EV/EBITDA on negative EBITDA. */
+  nm: Set<keyof Row>;
 }
+
+const NM_WHY: Record<string, string> = {
+  pe: 'Not meaningful: trailing 12-month EPS is a loss',
+  pb: 'Not meaningful: shareholders’ equity is negative',
+  roe: 'Not meaningful: shareholders’ equity is negative',
+  evEbitda: 'Not meaningful: trailing 12-month EBITDA is negative',
+};
 
 export function RV({ sec }: FnProps) {
   const s = sec!;
@@ -48,7 +57,15 @@ export function RV({ sec }: FnProps) {
     () =>
       group.map((d) => {
         const k = keyStats(d);
-        return { d, mcap: marketCapUsd(d.id), pe: k.pe, pb: k.pb, evEbitda: k.evEbitda, dy: k.divYld, roe: k.roe, margin: k.netMargin, ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y') };
+        const ltm = financials(d).ltm;
+        const nm = new Set<keyof Row>();
+        if (!Number.isFinite(k.pe) && Number.isFinite(k.epsLtm) && k.epsLtm <= 0) nm.add('pe');
+        if (!Number.isFinite(k.pb) && Number.isFinite(ltm?.equity) && ltm.equity <= 0) nm.add('pb');
+        if (!Number.isFinite(k.roe) && Number.isFinite(ltm?.equity) && ltm.equity <= 0) nm.add('roe');
+        if (!Number.isFinite(k.evEbitda) && Number.isFinite(ltm?.ebitda) && ltm.ebitda <= 0) nm.add('evEbitda');
+        // A company that paid nothing in the last 12 months has no yield, not a yield of zero.
+        const dy = Number.isFinite(k.divYld) && k.divYld > 0 ? k.divYld : NaN;
+        return { d, mcap: marketCapUsd(d.id), pe: k.pe, pb: k.pb, evEbitda: k.evEbitda, dy, roe: k.roe, margin: k.netMargin, ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y'), nm };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [group, tick, loaded],
@@ -58,7 +75,13 @@ export function RV({ sec }: FnProps) {
     label,
     num: true,
     sort: (r) => r[key] as number,
-    render: (r) => (pct ? <Chg v={r[key] as number} pct dec={dec} /> : fmtNum(r[key] as number, dec)),
+    render: (r) => {
+      const v = r[key] as number;
+      if (Number.isFinite(v)) return pct ? <Chg v={v} pct dec={dec} /> : fmtNum(v, dec);
+      if (r.nm.has(key)) return <span className="muted" title={NM_WHY[key as string]}>NM</span>;
+      if (key === 'dy') return <span className="muted" title="No dividend paid in the last 12 months">none</span>;
+      return '';
+    },
   });
   const cols: Column<Row>[] = [
     {
@@ -69,7 +92,7 @@ export function RV({ sec }: FnProps) {
         return (
           <>
             <SecLink id={r.d.id}>{r.d.ticker}</SecLink>
-            {b === 'similar' ? <span className="muted" title="Another industry: a stock Yahoo Finance links to this one repeatedly, used because few companies share its industry"> ·similar</span> : b === 'sub-industry' ? <span className="muted" title="Finnhub puts it in the same sub-industry"> ·sub-ind</span> : null}
+            {b === 'similar' ? <span className="muted" title="A stock Yahoo Finance links to this one both ways (its similar stocks and theirs)"> ·similar</span> : b === 'sub-industry' ? <span className="muted" title="Finnhub puts it in the same sub-industry"> ·sub-ind</span> : null}
           </>
         );
       },
@@ -81,7 +104,8 @@ export function RV({ sec }: FnProps) {
     num('pe', 'P/E'),
     num('pb', 'P/B', 2),
     num('evEbitda', 'EV/EBITDA'),
-    num('dy', 'Div yld 12M', 2),
+    // Only when a company in the group paid a dividend.
+    ...(rows.some((r) => Number.isFinite(r.dy)) ? [num('dy', 'Div yld 12M', 2)] : []),
     num('roe', 'ROE %'),
     num('margin', 'Net mgn %'),
     num('ytd', 'YTD %', 1, true),
@@ -90,11 +114,14 @@ export function RV({ sec }: FnProps) {
   const stat = (f: (xs: number[]) => number, label: string) => (
     <tr className="group">
       <td colSpan={4}>{label}</td>
-      {(['pe', 'pb', 'evEbitda', 'dy', 'roe', 'margin', 'ytd', 'y1'] as (keyof Row)[]).map((k) => (
-        <td key={k} className="num">
-          {fmtNum(f(rows.slice(1).map((r) => r[k] as number).filter(Number.isFinite)), k === 'pb' || k === 'dy' ? 2 : 1)}
-        </td>
-      ))}
+      {(['pe', 'pb', 'evEbitda', ...(rows.some((r) => Number.isFinite(r.dy)) ? ['dy'] : []), 'roe', 'margin', 'ytd', 'y1'] as (keyof Row)[]).map((k) => {
+        const xs = rows.slice(1).map((r) => r[k] as number).filter(Number.isFinite);
+        return (
+          <td key={k} className="num">
+            {xs.length ? fmtNum(f(xs), k === 'pb' || k === 'dy' ? 2 : 1) : ''}
+          </td>
+        );
+      })}
     </tr>
   );
   const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'P/E', 'P/B', 'EV/EBITDA', 'Div yld 12M', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), r.pe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
@@ -151,7 +178,7 @@ export function RV({ sec }: FnProps) {
       />
       <div className="note">
         {desktopData()
-          ? `Peers: companies in ${s.name}'s own industry as Yahoo Finance's company profiles name it, from Finnhub's sub-industry (with FINNHUB_API_KEY), the app's own stocks and the stocks Yahoo finds similar, largest first. When fewer than four share the industry, ·similar marks stocks Yahoo links to it repeatedly. Without Yahoo's company profiles, an S&P 500 member's peers share its GICS sub-industry (the index's member list), other US stocks Nasdaq's industry. `
+          ? `Peers: for a US-listed stock the companies Finviz lists as its peers, with ·similar the stocks Yahoo Finance links to it both ways; otherwise companies in ${s.name}'s own industry as Yahoo's company profiles name it (Finnhub's sub-industry with FINNHUB_API_KEY, the app's own stocks, Yahoo's similar stocks), largest first. NM: not meaningful (P/E on a loss, P/B and ROE on negative equity, EV/EBITDA on negative EBITDA). Averages and medians leave the loaded security and NM out. `
           : ''}
         Highlighted row is the loaded security. Click a ticker to open it; shift-click opens it in the next panel.
       </div>

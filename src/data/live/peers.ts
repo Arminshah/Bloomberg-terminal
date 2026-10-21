@@ -10,8 +10,10 @@ import { parseSp500, type MemberInfo } from './index-members';
 import { parseNasdaqListings, tickerKey, type Listing } from './earnings-calendar';
 
 /**
- * A stock's peers for PEERS: companies in the same line of business, not the same broad sector. First the
- * companies in its own industry as Yahoo Finance's company profiles name it: Finnhub's companies in the same
+ * A stock's peers for PEERS: companies in the same line of business, not the same broad sector. For a US-listed
+ * stock, first the companies Finviz lists as its peers (APLD: Cipher, Core Scientific, TeraWulf, IREN...), with the
+ * stocks Yahoo links to it both ways; without four of those, the companies in its own industry as Yahoo Finance's
+ * company profiles name it: Finnhub's companies in the same
  * sub-industry (FINNHUB_API_KEY, US-listed stocks), the app's own stocks in that industry, and those among the stocks
  * Yahoo finds similar (followed through the similar stocks that share the industry). Yahoo's industries can split a
  * young niche (AI data-centre operators sit in four), so when fewer than four companies share the industry, the
@@ -28,8 +30,8 @@ export interface PeerPick {
   name: string;
   industry: string;
   marketCap: number;
-  /** Why it is a peer: Finnhub's sub-industry, the same industry, or Yahoo's similar stocks. */
-  basis: 'sub-industry' | 'industry' | 'similar';
+  /** Why it is a peer: Finviz lists it, Finnhub's sub-industry, the same industry, or Yahoo's similar stocks. */
+  basis: 'peer' | 'sub-industry' | 'industry' | 'similar';
 }
 
 export interface PeerGroup {
@@ -52,6 +54,8 @@ export interface Candidate {
   lists: number;
   /** Its own similar stocks name the stock back. */
   mutual: boolean;
+  /** Finviz lists it among the stock's peers, at this place (0 first). */
+  finviz?: number;
 }
 
 export interface Profile {
@@ -71,6 +75,19 @@ export function choosePeers(me: Profile, candidates: Candidate[], profiles: Map<
     return { symbol: c.symbol, name: p.name, industry: p.industry, marketCap: p.marketCap, basis };
   };
   const known = candidates.filter((c) => profiles.get(c.symbol));
+  // Finviz's peers when it lists enough of them, with the stocks Yahoo links to the stock both ways (named by two of
+  // the lists read, and naming it back): the industries' names are too broad to tell a data-centre operator from a
+  // software company.
+  const named = known.filter((c) => c.finviz != null).sort((a, b) => a.finviz! - b.finviz!);
+  if (named.length >= ENOUGH) {
+    const out = named.slice(0, max).map((c) => pick(c, 'peer'));
+    const linked = known
+      .filter((c) => c.finviz == null && c.lists >= 2 && c.mutual)
+      .sort((a, b) => b.lists - a.lists || b.score - a.score)
+      .slice(0, Math.max(0, max + 2 - out.length))
+      .map((c) => pick(c, 'similar'));
+    return [...out, ...linked];
+  }
   const sameIndustry = (c: Candidate) => !!me.industry && profiles.get(c.symbol)!.industry === me.industry;
   const close = known.filter((c) => c.finnhub || sameIndustry(c)).map((c) => pick(c, c.finnhub && !sameIndustry(c) ? 'sub-industry' : 'industry'));
   const symbols = new Set(close.map((p) => p.symbol));
@@ -142,6 +159,9 @@ function ownInIndustry(def: SecurityDef, industry: string): PeerPick[] {
     .map((d) => ({ symbol: d.ticker.split(' ')[0].replace('/', '-'), id: d.id, name: d.name, industry, marketCap: marketCapUsd(d.id), basis: 'industry' as const }));
 }
 
+/** A company's name as Nasdaq's stock list writes it, without the share class ("Common Stock"). */
+const listingName = (name: string) => name.replace(/\s+(Common Stock|Class [A-C] Common Stock|Ordinary Shares|American Depositary Shares).*$/i, '').trim();
+
 /** Finds a stock's peers (desktop app). */
 /**
  * Peers without Yahoo's company profiles (it refuses some sessions): an S&P 500 member's companies in the same GICS
@@ -164,35 +184,64 @@ export function classifiedPeers(symbol: string, sp500: MemberInfo[], listings: M
   if (!me?.industry) return null;
   const same = [...listings.entries()]
     .filter(([s, l]) => s !== key && l.industry === me.industry && l.country === me.country && Number.isFinite(l.cap) && l.cap > 0 && !/\.(W|U|R)$|[.](WS|RT)$/.test(s))
-    .map(([s, l]) => ({ symbol: s, name: l.name.replace(/\s+(Common Stock|Class [A-C] Common Stock|Ordinary Shares|American Depositary Shares).*$/i, '').trim(), l }))
+    .map(([s, l]) => ({ symbol: s, name: listingName(l.name), l }))
     .sort(byCap)
     .slice(0, max);
   return same.length ? { industry: me.industry, sector: me.sector, picks: same.map((x) => pick(x.symbol, x.name, me.industry ?? '')), sources: ["Nasdaq's stock list (industry)"], at: Date.now() } : null;
 }
 
-async function keylessPeers(symbol: string, max: number): Promise<PeerGroup | null> {
+/** The companies Finviz lists as a US-listed stock's peers (desktop app), in Finviz's order; Yahoo's spelling (BRK-B). */
+async function finvizPeers(symbol: string): Promise<string[]> {
+  const api = typeof window !== 'undefined' ? window.arminDesktop : undefined;
+  if (!api?.finvizPeers || !/^[A-Z][A-Z0-9]{0,6}(-[A-Z]{1,2})?$/.test(symbol)) return [];
+  try {
+    const res = await api.finvizPeers(symbol);
+    const list: unknown = res.text ? JSON.parse(res.text) : [];
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string' && /^[A-Z][A-Z0-9]{0,6}([.-][A-Z]{1,2})?$/.test(x)).map((x) => x.replace('.', '-')) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Finviz's peers named and sized from Nasdaq's stock list, when Yahoo's company profiles are not to be had. */
+export function listedPeers(symbol: string, finviz: string[], listings: Map<string, Listing>, max = 10): PeerGroup | null {
+  const me = listings.get(tickerKey(symbol));
+  const picks = finviz
+    .map((t) => ({ t, l: listings.get(tickerKey(t)) }))
+    .filter((x): x is { t: string; l: Listing } => !!x.l)
+    .slice(0, max)
+    .map(({ t, l }): PeerPick => ({ symbol: t, name: listingName(l.name), industry: l.industry ?? '', marketCap: l.cap, basis: 'peer' }));
+  return picks.length >= ENOUGH ? { industry: me?.industry ?? '', sector: me?.sector ?? '', picks, sources: ['Finviz peers', "Nasdaq's stock list"], at: Date.now() } : null;
+}
+
+async function keylessPeers(symbol: string, max: number, finviz: string[] = []): Promise<PeerGroup | null> {
   const api = window.arminDesktop;
   if (!api?.indexMembers || !api.earningsCalendar) return null;
   const [sp, list] = await Promise.all([api.indexMembers('sp500').catch(() => null), api.earningsCalendar('nasdaq-caps', '', '').catch(() => null)]);
   const members = sp?.text ? parseSp500(sp.text) : null;
   const listings = list?.text ? parseNasdaqListings(list.text) : null;
-  return classifiedPeers(symbol, members && 'data' in members ? members.data : [], listings && 'data' in listings ? listings.data : new Map(), max);
+  const map = listings && 'data' in listings ? listings.data : new Map<string, Listing>();
+  return listedPeers(symbol, finviz, map, max) ?? classifiedPeers(symbol, members && 'data' in members ? members.data : [], map, max);
 }
 
 export async function findPeers(def: SecurityDef, max = 10): Promise<PeerGroup | null> {
   const symbol = yahooSymbolFor(def) ?? def.yahoo;
   if (!symbol || !def.eq) return null;
+  const fv = def.country === 'US' ? await finvizPeers(symbol) : [];
   const me = await profileOf(symbol);
-  if (!me) return def.country === 'US' ? keylessPeers(symbol, max) : null;
+  if (!me) return def.country === 'US' ? keylessPeers(symbol, max, fv) : null;
   const sources: string[] = [];
   const candidates = new Map<string, Candidate>();
   const add = (s: string, c: Partial<Candidate>) => {
     if (s === symbol) return;
     const was = candidates.get(s) ?? { symbol: s, finnhub: false, score: 0, lists: 0, mutual: false };
-    candidates.set(s, { ...was, finnhub: was.finnhub || !!c.finnhub, score: Math.max(was.score, c.score ?? 0), lists: was.lists + (c.lists ?? 0), mutual: was.mutual || !!c.mutual });
+    candidates.set(s, { ...was, finnhub: was.finnhub || !!c.finnhub, score: Math.max(was.score, c.score ?? 0), lists: was.lists + (c.lists ?? 0), mutual: was.mutual || !!c.mutual, ...(was.finviz != null || c.finviz != null ? { finviz: was.finviz ?? c.finviz } : {}) });
   };
+  fv.forEach((t, i) => add(t, { finviz: i }));
+  if (fv.length) sources.push('Finviz peers');
   const fs = finnhubSymbol(def);
-  if (fs && finnhubAvailable()) {
+  // Finnhub's sub-industry only when Finviz has too few: it is broad (APLD's held Snowflake and GoDaddy).
+  if (fs && finnhubAvailable() && fv.length < ENOUGH) {
     const part = await loadFinnhub(fs, 'peers');
     const list = part?.state === 'ok' ? (part.data as string[]) : [];
     if (list.length > 1) sources.push('Finnhub sub-industry');
@@ -216,19 +265,19 @@ export async function findPeers(def: SecurityDef, max = 10): Promise<PeerGroup |
   const first = await read(symbol, 1);
   if (first.length) sources.push('Yahoo Finance similar stocks');
   await pool(first, 3, (x) => read(x.symbol, x.score));
-  const ranked = () => [...candidates.values()].sort((a, b) => Number(b.finnhub) - Number(a.finnhub) || b.lists - a.lists || b.score - a.score);
-  await profile(ranked().filter((c) => c.finnhub || c.lists >= 2 || first.some((x) => x.symbol === c.symbol)).map((c) => c.symbol));
+  const ranked = () => [...candidates.values()].sort((a, b) => Number(b.finviz != null) - Number(a.finviz != null) || Number(b.finnhub) - Number(a.finnhub) || b.lists - a.lists || b.score - a.score);
+  await profile(ranked().filter((c) => c.finviz != null || c.finnhub || c.lists >= 2 || first.some((x) => x.symbol === c.symbol)).map((c) => c.symbol));
   // Follow the similar stocks that share the industry, for more companies in it.
   const same = () => ranked().filter((c) => profiles.get(c.symbol)?.industry === me.industry);
   const followed = new Set(first.map((x) => x.symbol));
-  while (lists < MAX_LISTS && same().length < max) {
+  while (fv.length < ENOUGH && lists < MAX_LISTS && same().length < max) {
     const next = same().find((c) => !followed.has(c.symbol));
     if (!next) break;
     followed.add(next.symbol);
     const got = await read(next.symbol, next.score || 0.5);
     await profile(got.map((x) => x.symbol));
   }
-  const own = ownInIndustry(def, me.industry);
+  const own = fv.length >= ENOUGH ? [] : ownInIndustry(def, me.industry);
   if (own.length) sources.push("the app's stocks in the industry");
   return { industry: me.industry, sector: me.sector, picks: choosePeers(me, ranked(), profiles, own, max), sources, at: Date.now() };
 }
@@ -245,7 +294,8 @@ interface Entry {
 
 export const peerData = createStore<{ v: number; by: Record<string, Entry> }>({ v: 0, by: {} });
 /** Peer lists are kept for a day across restarts; the securities are looked up again when PEERS opens. */
-const keptGroups = createStore<{ by: Record<string, PeerGroup> }>({ by: {} }, 'peer-groups', 1);
+// Version 2: Finviz's peers come first; groups kept from before are found again.
+const keptGroups = createStore<{ by: Record<string, PeerGroup> }>({ by: {} }, 'peer-groups', 2);
 const DAY = 86_400_000;
 
 const put = (id: string, e: Entry) => peerData.set((s) => ({ v: s.v + 1, by: { ...s.by, [id]: e } }));

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { isMaterialHeadline } from '../data/live/breaking';
 import { FnHeader } from '../components/FnHeader';
 import { engine } from '../data/market';
 import { news } from '../data/news';
@@ -94,6 +95,8 @@ export function BREAKING({ route }: FnProps) {
   const panel = usePanelId();
   const [tab, setTab] = useState(() => tabFor(route.args));
   const [q, setQ] = useState('');
+  // Only the stories reporting an event that moves a stock (src/data/live/breaking.ts).
+  const [only, setOnly] = useState(false);
   const v = useBreakingNews();
   const favIds = favourites.use((s) => s.ids);
   const wl = watchlists.use((w) => w.lists[w.active] ?? w.lists[0]);
@@ -127,7 +130,7 @@ export function BREAKING({ route }: FnProps) {
   const words = q.trim().toLowerCase();
   const list = (scope === 'fav' ? fav : scope === 'watch' ? watch : all).filter(
     // A time more than five minutes ahead is a source's error, not news from the future.
-    (s) => s.time >= now - window && s.time <= now + 5 * 60_000 && (!words || `${s.title} ${s.summary ?? ''} ${s.tickers.join(' ')}`.toLowerCase().includes(words)),
+    (s) => s.time >= now - window && s.time <= now + 5 * 60_000 && (!words || `${s.title} ${s.summary ?? ''} ${s.tickers.join(' ')}`.toLowerCase().includes(words)) && (!only || isMaterialHeadline(s.title)),
   );
   const fresh = list.filter((s) => now - s.time < FRESH).length;
   const sources = [
@@ -163,13 +166,16 @@ export function BREAKING({ route }: FnProps) {
           Search
         </label>
         <input id={`bn-q-${panel}`} className="inp" style={{ width: 200 }} value={q} placeholder="keyword or ticker…" onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
-        <span className="muted hide-m">NEW: published in the last 15 minutes · 2×: carried by two sources · refreshed every 1 to 3 minutes while open</span>
+        <button type="button" className={`act${only ? ' on' : ''}`} aria-pressed={only} onClick={() => setOnly(!only)} title="Only stories reporting an event that moves a stock: results, guidance, rating changes, deals, approvals, offerings, management changes, legal action, large share moves">
+          Breaking only
+        </button>
+        <span className="muted hide-m">BREAKING: a stock-moving event of the last two hours · NEW: published in the last 15 minutes · 2×: carried by two sources · refreshed every 1 to 3 minutes while open</span>
       </div>
       {scope === 'fav' ? <NotDismissed panel={panel} now={now} /> : null}
       {!newsAvailable() ? (
         <div className="empty">Breaking news is read by the desktop app; the browser build has no data source.</div>
       ) : (
-        <StoryList stories={list} fresh={FRESH} first={firstRowNumber([...TABS.map((t) => t.n), 6, 7])} empty={empty} />
+        <StoryList stories={list} fresh={FRESH} breaking first={firstRowNumber([...TABS.map((t) => t.n), 6, 7])} empty={only && !words ? 'No stock-moving story in this window: switch Breaking only off for every headline.' : empty} />
       )}
       <div className="note">
         Every market news source (Finnhub, Benzinga through Alpaca, Massive, Google News&apos;s search of the last hour, MarketWatch if switched on, the SEC&apos;s 8-K filings, Euronext), the official announcements and your

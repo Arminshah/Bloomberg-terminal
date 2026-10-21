@@ -114,6 +114,18 @@ function parseZacks(html) {
   return { source: 'Zacks', eps: conv(eps, 1), sales: conv(sales, 1e6) };
 }
 
+/**
+ * The companies Finviz lists as the stock's peers (its "Peers" link to the screener, the stock first), in Finviz's
+ * order, without the stock itself: APLD's are CIFR, CORZ, WULF, IREN... (checked 21 October 2026).
+ */
+function finvizPeers(html) {
+  if (typeof html !== 'string') return [];
+  const m = /<a\b[^>]*\bhref="[^"]*[?&](?:amp;)?t=([A-Z0-9.,-]+)[^"]*"[^>]*>\s*Peers\s*<\/a>/.exec(html);
+  if (!m) return [];
+  const list = m[1].split(',').filter((t) => SYMBOL.test(t));
+  return [...new Set(list.slice(1))].slice(0, 15);
+}
+
 // New York's calendar day and clock time of a moment (seconds since 1970).
 const NY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 function newYork(seconds) {
@@ -160,7 +172,8 @@ function parseFinviz(html) {
   sales.sort(newest);
   eps.sort(newest);
   gaap.sort(newest);
-  return sales.length || eps.length ? { source: 'Finviz', eps, sales, gaap } : null;
+  const peers = finvizPeers(html);
+  return sales.length || eps.length || peers.length ? { source: 'Finviz', eps, sales, gaap, peers } : null;
 }
 
 /**
@@ -291,4 +304,4 @@ function createHistoryStore(file, max = 3000) {
   };
 }
 
-module.exports = { finvizUrl, zacksUrl, marketbeatUrl, tableAfter, parseFinviz, parseZacks, parseMarketBeat, money, isoDate, historyFresh, createHistoryStore };
+module.exports = { finvizPeers, finvizUrl, zacksUrl, marketbeatUrl, tableAfter, parseFinviz, parseZacks, parseMarketBeat, money, isoDate, historyFresh, createHistoryStore };

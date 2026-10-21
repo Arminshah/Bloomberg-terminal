@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { isBreakingStory } from '../data/live/breaking';
 import { FnHeader } from '../components/FnHeader';
 import { fmtDate, fmtStamp, fmtTime } from '../core/format';
 import { engine } from '../data/market';
@@ -79,7 +80,7 @@ export function rankStories(stories: MarketStory[], now: number, symbol?: string
     .slice(0, n);
 }
 
-export function StoryList({ stories: given, empty, symbol, fresh, first = 1, ranked = 0 }: { stories: MarketStory[]; empty: string; symbol?: string; fresh?: number; first?: number; ranked?: number }) {
+export function StoryList({ stories: given, empty, symbol, fresh, first = 1, ranked = 0, breaking = false }: { stories: MarketStory[]; empty: string; symbol?: string; fresh?: number; first?: number; ranked?: number; breaking?: boolean }) {
   const [sel, setSel] = useState<string | null>(null);
   const now = engine.now();
   // With `ranked`, the top stories head the list under Top Ranked News; the rest follow under Time Ordered News.
@@ -100,6 +101,7 @@ export function StoryList({ stories: given, empty, symbol, fresh, first = 1, ran
               {fresh ? ageText(now - s.time) : fmtStamp(s.time, now)}
             </span>
             <span className="hl">
+              {breaking && isBreakingStory(s, now) ? <span className="badge brk" title="Breaking: published in the last two hours, reporting an event that moves a stock">BREAKING</span> : null}
               {fresh && now - s.time < fresh ? <span className="badge new">NEW</span> : null}
               {fresh && s.feeds.length > 1 ? <span className="badge src-n" title={`Carried by ${s.feeds.join(', ')}`}>{s.feeds.length}×</span> : null}
               {s.title}

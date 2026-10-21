@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { isBreakingStory } from './breaking';
 import { createStore } from '../../core/store';
 import { shortName } from '../news';
 import type { SecurityDef } from '../types';
@@ -588,9 +589,12 @@ export function useBreakingNews() {
   return v;
 }
 
-/** Stories published in the last 15 minutes among the breaking sources, for the top bar. */
+/**
+ * Breaking stories of the last 15 minutes among the breaking sources, for the top bar: only those reporting an event
+ * that moves a stock (src/data/live/breaking.ts), not every headline.
+ */
 export function breakingCount(now = Date.now()): number {
-  return storiesFor(BREAKING_SOURCES).filter((s) => now - s.time < 15 * 60_000 && s.time <= now + 5 * 60_000).length;
+  return storiesFor(BREAKING_SOURCES).filter((s) => isBreakingStory(s, now, 15 * 60_000)).length;
 }
 
 /** Official announcements (HEADLINES) as stories beside the market's, for BREAKING. */
