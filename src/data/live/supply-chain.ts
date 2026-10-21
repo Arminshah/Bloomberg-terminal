@@ -431,9 +431,9 @@ export function percentRuns(s: string): Pct[][] {
   return runs;
 }
 
-const OF_REVENUE = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?:(?:our|its|their|the Company's|the Group's|Company's|Group's|total|consolidated|net|aggregate|annual|worldwide)\s+)*(?:(?:total|net|consolidated|product|segment|gross)\s+)*(?:revenue|revenues|net sales|sales|turnover)\b(?![ -](?:volumes?|force|tax|taxes|team|agents?|channels?|representatives?|prices?|growth|mix|units?)\b)/i;
-const OF_PURCHASES = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?:(?:our|its|their|the Company's|the Group's|total|consolidated|net|aggregate|annual)\s+)*(?:(?:total|net|consolidated)\s+)*(?:purchases|inventory purchases|component purchases|cost of (?:revenue|revenues|sales|goods sold)|capital expenditures|property and equipment purchases|procurement)\b/i;
-const VERB = /\b(?:contributed|contributing|accounted for|accounting for|represented|representing|comprised|comprising|constituted|amounted to|made up|generated|were to|was to)\b/i;
+const OF_REVENUE = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?:(?:our|its|their|the Company's|the Group's|Company's|Group's|total|consolidated|net|aggregate|annual|worldwide)\s+)*(?:(?:total|net|consolidated|product|segment|gross)\s+)*(?:(?!of\b|from\b|to\b|in\b)[A-Za-z&-]+,?\s+){0,5}?(?:revenue|revenues|net sales|sales|turnover)\b(?![ -](?:volumes?|force|tax|taxes|team|agents?|channels?|representatives?|prices?|growth|mix|units?)\b)/i;
+const OF_PURCHASES = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?:(?:our|its|their|the Company's|the Group's|total|consolidated|net|aggregate|annual)\s+)*(?:(?:total|net|consolidated|merchandise)\s+)*(?:purchases|inventory purchases|merchandise purchases|purchases of (?:merchandise|inventory|products)|component purchases|cost of (?:revenue|revenues|sales|goods sold)|capital expenditures|property and equipment purchases|procurement)\b/i;
+const VERB = /\b(?:contribut(?:ed|es|e|ing)|account(?:ed|s|ing)? for|represent(?:ed|s|ing)?|compris(?:ed|es|e|ing)|constitut(?:ed|es|e)|amounted to|made up|generated|were to|was to)\b/i;
 
 function qualifierOf(s: string, run: Pct[]): '>' | '<' | undefined {
   const before = s.slice(Math.max(0, run[0].index - 26), run[0].index);
@@ -449,7 +449,7 @@ function stripForms(s: string): string {
 }
 
 /** Several customers' figure together. */
-const GROUP = /\b(?:top|largest|biggest|major|principal|ten|five)\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\s+customers?\b|\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\s+(?:largest|biggest|major|principal|top|significant)\s+customers?\b|\bcustomers,?\s+(?:including|such as)\b|\bcombined\b|\bin (?:the )?aggregate\b|\btogether\b/i;
+const GROUP = /\b(?:top|largest|biggest|major|principal|ten|five)\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\s+customers?\b|\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\s+(?:largest|biggest|major|principal|top|significant)\s+customers?\b|\bcustomers,?\s+(?:including|such as)\b|\bin (?:the )?aggregate\b/i;
 const PRONOUN_START = /^(?:we|our|it|its|they|their|this|these|the company|the group|sales|revenue|revenues|which|who)\b/i;
 
 /**
@@ -457,52 +457,99 @@ const PRONOUN_START = /^(?:we|our|it|its|they|their|this|these|the company|the g
  * ("Cisco, NVIDIA, Nokia and Amazon contributed 19.9%, 16.3%, 10.7% and 10.5%, respectively"), else the latest
  * year's when the run gives several years ("91 percent, 89 percent, and 87 percent for fiscal 2026, 2025, 2024").
  */
-export function shareInRun(s: string, run: Pct[], pattern: RegExp): number | undefined {
-  if (run.length === 1) return run[0].value;
+/** The names a subject lists before its verb, in order: "Lockheed Martin, Pilatus, and Boeing", "Target® and Walmart®". */
+export function subjectNames(subject: string): string[] {
+  const s = stripForms(subject)
+    .replace(/[®™]/g, '')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/^.*?\b(?:During|For|In|As of|At)\b[^,]*\d{4}[^,]*,\s*/i, '');
+  return s
+    .split(/\s*,\s*(?:and\s+|or\s+)?|\s+and\s+|\s+or\s+/)
+    .map((p) => /([A-Z][\w&.'-]*(?:\s+(?:[A-Z][\w&.'-]*|of|&|de))*)\s*$/.exec(p.trim())?.[1] ?? '')
+    .filter((p) => p && p.split(/\s+/).length <= 6 && !PRONOUN_START.test(p) && !/^(?:The|Our|Sales|Revenue|Revenues|Net)$/.test(p));
+}
+
+/** How a share was found in a run: alone, by the company's place in a list, by year, or not at all. */
+export type ShareHow = 'single' | 'company' | 'years' | 'none';
+
+/**
+ * Which percentage of a run belongs to the target: the one in its place among the companies named before the verb
+ * ("Cisco, NVIDIA, Nokia and Amazon contributed 19.9%, 16.3%, 10.7% and 10.5%, respectively"), else the latest
+ * year's when the run gives several years ("15%, 16% and 15% ... in fiscal years 2025, 2024 and 2023"). Years for
+ * the target together with another company ("Sony's PlayStation and Microsoft's Xbox ... 2% and 45%") give none.
+ */
+export function shareOf(s: string, run: Pct[], pattern: RegExp): { value: number | undefined; how: ShareHow } {
+  if (run.length === 1) return { value: run[0].value, how: 'single' };
   const head = s.slice(0, run[0].index);
-  const verb = VERB.exec(head);
-  // "Sony's PlayStation and Microsoft's Xbox consoles, which comprised approximately 2% and 45% of our total revenue
-  // for the years ended December 31, 2025 and 2024": the percentages are years, for the two together.
-  const yearsAfter = (s.slice(run[run.length - 1].end, run[run.length - 1].end + 140).match(/\b(?:19|20)\d{2}\b/g) ?? []).filter((y, i, a) => a.indexOf(y) === i);
-  if (yearsAfter.length === run.length) {
-    const names = (stripForms(head).match(/(?:^|[\s,(])([A-Z][\w&.'-]+(?:\s+[A-Z][\w&.'-]+){0,3})/g) ?? []).filter((n) => !PRONOUN_START.test(n.trim()) && !/^[\s,(]*(?:During|For|In|As|At|The|Our|Sales|Revenue)\b/.test(n));
-    if (names.length >= 2 && /\b(?:and|or)\b/.test(head.slice(-200))) return undefined;
-    const years = yearsAfter.map(Number);
-    return run[years.indexOf(Math.max(...years))].value;
-  }
+  const verbs = [...head.matchAll(new RegExp(VERB.source, 'gi'))];
+  const verb = verbs[verbs.length - 1];
   if (verb && /\brespectively\b/i.test(s)) {
-    let subject = stripForms(head.slice(0, verb.index));
-    subject = subject.replace(/^.*?\b(?:During|For|In|As of|At)\b[^,]*\d{4}[^,]*,\s*/i, '').replace(/\([^)]*\)/g, ' ');
-    const pieces = subject
-      .split(/\s*,\s*(?:and\s+)?|\s+and\s+/)
-      .map((p) => p.trim())
-      .filter((p) => /^[A-Z]/.test(p) && p.split(/\s+/).length <= 6 && !PRONOUN_START.test(p));
-    if (pieces.length === run.length) {
-      const i = pieces.findIndex((p) => {
+    // The subject: from the previous percentage (or the sentence start) to the verb.
+    const prev = Math.max(0, head.slice(0, verb.index).search(/\d\s*(?:%|percent)[^%]*$/));
+    const names = subjectNames(head.slice(prev ? prev + 2 : 0, verb.index).replace(/,\s*which\s*$/i, ''));
+    if (names.length === run.length) {
+      const i = names.findIndex((p) => {
         pattern.lastIndex = 0;
         return pattern.test(p);
       });
-      if (i >= 0) return run[i].value;
+      if (i >= 0) return { value: run[i].value, how: 'company' };
     }
   }
-  // The years in the order written are the order of the percentages; the latest year's share is the one shown.
-  const order = (s.match(/\b(?:19|20)\d{2}\b/g) ?? []).map(Number).filter((y, i, a) => a.indexOf(y) === i);
-  if (order.length === run.length) return run[order.indexOf(Math.max(...order))].value;
-  return undefined;
+  const yearsAfter = (s.slice(run[run.length - 1].end, run[run.length - 1].end + 140).match(/\b(?:19|20)\d{2}\b/g) ?? []).filter((y, i, a) => a.indexOf(y) === i);
+  const order = yearsAfter.length === run.length ? yearsAfter : (s.match(/\b(?:19|20)\d{2}\b/g) ?? []).filter((y, i, a) => a.indexOf(y) === i);
+  if (order.length === run.length) {
+    // The target named together with another ("PlayStation and Microsoft's Xbox"): the years are for both.
+    pattern.lastIndex = 0;
+    const at = pattern.exec(head);
+    if (at) {
+      const around = head.slice(Math.max(0, at.index - 50), at.index + at[0].length + 50);
+      const name = at[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (new RegExp(`[A-Z][\\w&.'-]*(?:'s)?(?:\\s+\\([^)]*\\))?(?:\\s+[A-Z][\\w-]*)?\\s+(?:and|or)\\s+(?:[\\w.'-]+\\s+){0,2}${name}|${name}(?:'s)?(?:\\s+\\([^)]*\\))?(?:\\s+[A-Z][\\w-]*)?\\s+(?:and|or)\\s+[A-Z]`).test(around)) return { value: undefined, how: 'none' };
+    }
+    const years = order.map(Number);
+    return { value: run[years.indexOf(Math.max(...years))].value, how: 'years' };
+  }
+  return { value: undefined, how: 'none' };
+}
+
+export function shareInRun(s: string, run: Pct[], pattern: RegExp): number | undefined {
+  return shareOf(s, run, pattern).value;
+}
+
+/** "represented approximately 16% in 2025 and 2024 and 15% in 2023 of our net sales": each figure with its year. */
+export function yearPairRun(s: string): { run: Pct[]; purchases: boolean } | null {
+  const pairs = [...s.matchAll(/(\d{1,3}(?:\.\d{1,2})?)\s*(?:%|percent)\s+(?:in|for|during)\s+(?:(?:fiscal|calendar)\s+(?:years?\s+)?)?((?:19|20)\d{2})(?:\s+and\s+((?:19|20)\d{2}))?/gi)];
+  if (pairs.length < 2) return null;
+  const last = pairs[pairs.length - 1];
+  const tail = s.slice((last.index ?? 0) + last[0].length, (last.index ?? 0) + last[0].length + 140);
+  const revenue = OF_REVENUE.test(tail);
+  const purchases = !revenue && OF_PURCHASES.test(tail);
+  if (!revenue && !purchases) return null;
+  let best = pairs[0];
+  let year = 0;
+  for (const p of pairs) {
+    const y = Math.max(Number(p[2]), Number(p[3] ?? 0));
+    if (y > year) {
+      year = y;
+      best = p;
+    }
+  }
+  const index = best.index ?? 0;
+  return { run: [{ value: Number(best[1]), index, end: index + best[1].length + 1 }], purchases };
 }
 
 // ------------------------------------------------------------ classification
 
 const COMPETITION_NOISE = /\b(?:Competition (?:Authority|Commission|Bureau|Tribunal|Act|Law)|competition (?:law|laws|authorit\w*|regulat\w*)|anti-?competitive|competitive(?:ly|ness)?)\b/g;
 /** Career lines in biographies ("Prior to his tenure at Apple, he served as a partner at McKinsey"). */
-const BIOGRAPHY = /\b(?:served as|serves as|serving as|tenure at|prior to joining|previously (?:served|held|worked|was)|held (?:various|senior|several|a|an|the) |career at|was employed|worked at|joined (?:us|the Company|our company) from|member of the board|board of directors of|(?:served|serves|serving|worked|held)\b[^.;]{0,60}\b(?:as|roles?|positions?)\b[^.;]{0,60}\b(?:at|of|for|with)\b|(?:Mr|Ms|Mrs|Dr)\.\s+[A-Z][a-z]+\b[^.;]{0,80}\b(?:served|joined|worked|held|was|previously|prior)\b|\b(?:he|she) (?:has |had )?(?:served|negotiated|led|founded|joined|held|worked)\b|\bhis (?:career|tenure|role)\b|\bher (?:career|tenure|role)\b)/i;
+const BIOGRAPHY = /\b(?:served as|serves as|serving as|tenure at|prior to joining|previously (?:served|held|worked|was)|held (?:various|senior|several|a|an|the) |career at|was employed|worked at|joined (?:us|the Company|our company) from|member of the board|board of directors of|(?:served|serves|serving|worked|held)\b[^.;]{0,60}\b(?:as|roles?|positions?)\b[^.;]{0,60}\b(?:at|of|for|with)\b|(?:Mr|Ms|Mrs|Dr)\.\s+[A-Z][a-z]+\b[^.;]{0,80}\b(?:served|joined|worked|held|was|previously|prior)\b|\b(?:he|she) (?:has |had )?(?:served|negotiated|led|founded|joined|held|worked)\b|\bhis (?:career|tenure|role)\b|\bher (?:career|tenure|role)\b|\bunder (?:his|her) leadership\b|\bexperience (?:at|with|in)\b[^.;]{0,80}\b(?:including|such as)\b|\bsince joining\b)/i;
 /** Lawsuits, patents and trade cases name companies without a commercial relation. */
 const LITIGATION = /\b(?:infring\w*|patents?|litigation|lawsuits?|complaint|court|International Trade Commission|exclusion order|antitrust|alleg\w+|plaintiffs?|defendants?)\b/i;
 /** The filer itself: investments and partnerships count only when they involve it. */
 const FILER = /\b(?:[Ww]e|us|[Oo]urs?|[Tt]he Company(?:'s)?|[Tt]he Group(?:'s)?|[Tt]he Registrant)\b/;
 /** The target took a stake in the filer: it invested in, bought, holds or was issued the filer's shares. */
-const INVEST_AFTER = /^(?:'s)?[^.;]{0,80}?\b(?:invested|purchased|acquired|subscribed for|holds|held|owns|owned|beneficially owns|received)\b[^.;]{0,80}?\b(?:shares|stock|stake|equity interest|ownership interest|warrants?|preferred|units)\b/i;
-const INVEST_BEFORE = /\b(?:issued|sold|delivered)\b[^.;]{0,120}\b(?:shares|stock|warrants?|preferred|units)\b[^.;]{0,60}\bto\s+(?:the\s+)?$|\b(?:shares|stock|warrants?|units)\b[^.;]{0,60}\b(?:issued|sold|delivered|transferred)\s+to\s+(?:the\s+)?$|\b(?:issued|sold)\s+to\s+$|\b(?:securities purchase|stock purchase|share purchase|subscription|investment) agreement\b[^.;]{0,60}\bwith\s+(?:the\s+)?$|\bprivate placement\b[^.;]{0,100}\bto\s+$/i;
+const INVEST_AFTER = /^(?:'s)?[^.;]{0,80}?\b(?:invested|purchased|acquired|subscribed for|holds|held|owns|owned|beneficially owns)\b[^.;]{0,80}?\b(?:shares|stock|stake|equity interest|ownership interest|preferred|units)\b/i;
+const INVEST_BEFORE = /\b(?:issue|issues|issued|sell|sells|sold|delivered)\b[^.;]{0,120}\b(?:shares|stock|preferred|units)\b[^.;]{0,60}\bto\s+(?:the\s+)?$|\b(?:shares|stock|units)\b[^.;]{0,60}\b(?:issued|sold|delivered|transferred)\s+to\s+(?:the\s+)?$|\b(?:issued|sold)\s+to\s+$|\b(?:securities purchase|stock purchase|share purchase|subscription|investment) agreement\b[^.;]{0,60}\bwith\s+(?:the\s+)?$|\bprivate placement\b[^.;]{0,100}\bto\s+$/i;
 
 export interface Classified {
   role: Role;
@@ -529,11 +576,15 @@ function gapListy(b: string, re: RegExp): boolean {
 const SAFE_HARBOR = /\b(?:forward-looking statements?|safe harbou?r|cautionary (?:note|statement)|factors that could cause|risks,? uncertainties,? and other factors|among these factors|actual results (?:could|may|might) differ)\b/i;
 const PEER_GROUP = /\b(?:peer group|peer companies|comparator group|compensation peers?|performance peers?|benchmark companies)\b/i;
 const NEGATED = /\b(?:not|no|never|neither|nor|without)\b[^.;]{0,40}\b(?:partner\w*|compet\w*|customers?|suppliers?|relationship|affiliat\w*|endorse\w*|sponsor\w*|implies?|imply)\b/i;
-const ENDED = /\b(?:terminat(?:ed|ion|es|ing)|former(?:ly)?|expired|no longer|ceased|wound down|forfeit(?:ed|ure)|cancel(?:l)?ed|discontinued|repurchased all|sold (?:all|its entire))\b/i;
-const TAKEOVER = /\b(?:Merger Sub|merger agreement|Agreement and Plan of Merger|plan of merger|Effective Time|tender offer|business combination|acquisition of (?:all|substantially all)|acquired by|to be acquired|would acquire|asset purchase agreement|purchase and sale agreement|sold (?:its|our|the|certain) [^.;]{0,60}\b(?:program|business|assets?|division|unit|portfolio|rights)\b|acquired certain assets|transition services?)\b/i;
+const ENDED = /\b(?:terminat(?:ed|ion|es|ing)|former(?:ly)?|expired|no longer|ceased|wound down|forfeit(?:ed|ure)|cancel(?:l)?ed|discontinu\w*|repurchased all|sold (?:all|its entire)|sell[- ]down|transfer(?:red)? (?:of )?(?:its|their|all|our) rights|in the past|prior to (?:the|its|our) (?:transfer|sale|spin-?off|separation))\b/i;
+/** A contract's definitions ("'Covered Royalty Payment' means"), a transcript's questions ("Your competitors"). */
+const NOT_STATEMENT = /"[A-Z][^"]{2,60}"\s+(?:means|shall mean|has the meaning)\b|\b(?:you|your)\b/i;
+const TAKEOVER = /\b(?:Merger Sub|merger agreement|notice and waiver|waiver (?:under|of)|CVR|contingent value right|Agreement and Plan of Merger|plan of merger|Effective Time|tender offer|business combination|acquisition of (?:all|substantially all)|acquired by|to be acquired|would acquire|asset purchase agreement|purchase and sale agreement|sold (?:its|our|the|certain) [^.;]{0,60}\b(?:program|business|assets?|division|unit|portfolio|rights)\b|acquired certain assets|transition services?)\b/i;
 const HEDGED_COMPETITION = /\b(?:may|might|could|would|can)\s+(?:also\s+|potentially\s+|in the future\s+|eventually\s+)?(?:include|compete|face|become|enter|move)\b|\bif (?:they|it|we|any)\b|\bpotential(?:ly)? (?:compet|entrant)/i;
 /** Licences, royalties and research collaborations: partnerships, whichever way the money flows. */
-const LICENSING = /\b(?:royalt(?:y|ies)|milestone payments?|upfront payments?|collaboration (?:agreement|revenue|and license)|license and collaboration|co-develop\w*|co-commerciali[sz]\w*|research (?:and development )?collaboration|option and license|in-licens\w*|exclusive (?:worldwide )?licen[cs]e|licen[cs]e (?:agreement|granted) (?:with|to|from))\b/i;
+const LICENSING = /\b(?:royalt(?:y|ies)|milestone payments?|upfront payments?|collaboration (?:agreement|revenue|and license|and supply)|clinical (?:trial )?collaboration|license and collaboration|co-develop\w*|co-commerciali[sz]\w*|research (?:and development )?collaboration|option and license|in-licens\w*|out-licens\w*|sublicens\w*|exclusive (?:[\w.-]+\s+){0,3}licen[cs]e|licen[cs]ed (?:to|from)|licen[cs]e (?:agreements?|granted) (?:with|to|from)|(?:concluded|determined) that [^.;]{0,40}\b(?:is|was) a customer|ASC 606)\b/i;
+/** Oil, gas and mineral royalties are no licence. */
+const MINERAL = /\b(?:oil|natural gas|NGLs?|minerals?|acreage|acres|wells?|royalty (?:trusts?|interests?)|overriding royalt\w*|net profits interests?|operator)\b/i;
 /** Customers and suppliers of a third company named in the sentence ("Pegatron's customers include Tesla"). */
 const OTHER_POSSESSIVE = /([A-Z][\w&.-]+(?:\s+[A-Z][\w&.-]+){0,2})(?:'s|’s)\s+(?:[\w-]+\s+){0,3}(?:customers?|suppliers?|vendors?|business|operations|products|partners?)\b[^.;]*$/;
 
@@ -562,32 +613,48 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
   if ((s.match(/\([A-Z]{2,5}\)/g)?.length ?? 0) >= 3 && !/\bcompet/i.test(s)) return null;
   // "does not imply any partnership", "we do not compete directly with Apple".
   if (company.some((c) => NEGATED.test(s.slice(Math.max(0, c.index - 120), c.end + 60)))) return null;
-  if (TAKEOVER.test(s) || ENDED.test(s)) return null;
+  if (TAKEOVER.test(s) || ENDED.test(s) || NOT_STATEMENT.test(s)) return null;
+  // A technical fit is no trade: "powered by Palantir", "compatible with Microsoft", "certifications from Microsoft".
+  if (company.length && company.every((c) => /\b(?:powered by|built on|based on|running on|runs on|compatible with|integrat\w* with|works? with|support(?:s|ed)? for|certifi\w* (?:by|from)|certifications? from|on top of|alongside|in conjunction with|sub-?tier (?:suppliers?|vendors?) (?:of|to)|tier[- ](?:2|3|two|three) (?:suppliers?|vendors?) (?:of|to))\s+(?:[^.;]{0,30})$/i.test(before(c)))) return null;
 
   // Shares: a run of percentages "of our revenues" or "of our purchases" with a verb that gives it to someone; of
   // several, the one nearest the target's name ("39% ... were to Airbus ... and 13% ... were to Boeing").
   const allRuns = percentRuns(s);
   const stated = VERB.test(s) || /\b(?:sales|revenues?) (?:to|from)\b/i.test(s);
-  const shareRuns = stated
-    ? allRuns
-        .map((run) => {
-          const tail = s.slice(run[run.length - 1].end, run[run.length - 1].end + 140);
-          const revenue = OF_REVENUE.test(tail);
-          return { run, revenue, purchases: !revenue && OF_PURCHASES.test(tail) };
-        })
-        .filter((x) => x.revenue || x.purchases)
-    : [];
+  const pairRun = stated ? yearPairRun(s) : null;
+  const shareRuns = pairRun
+    ? [{ run: pairRun.run, revenue: !pairRun.purchases, purchases: pairRun.purchases }]
+    : stated
+      ? allRuns
+          .map((run) => {
+            const tail = s.slice(run[run.length - 1].end, run[run.length - 1].end + 140);
+            const revenue = OF_REVENUE.test(tail);
+            return { run, revenue, purchases: !revenue && OF_PURCHASES.test(tail) };
+          })
+          .filter((x) => x.revenue || x.purchases)
+      : [];
+  // "77% of net revenues, of which Amazon accounted for approximately 56%, Costco ... 11%": the breakdown's figures
+  // have the total's basis.
+  const ofWhich = s.search(/\bof which\b/i);
+  const total = shareRuns.find((x) => x.run[0].index < ofWhich);
+  if (ofWhich >= 0 && total) for (const run of allRuns) if (run[0].index > ofWhich && !shareRuns.some((x) => x.run === run)) shareRuns.push({ run, revenue: total.revenue, purchases: total.purchases });
   const anchor = company.length ? company : ms;
-  const gap = (run: Pct[]) => Math.min(...anchor.map((c) => (c.index >= run[run.length - 1].end ? c.index - run[run.length - 1].end : c.end <= run[0].index ? run[0].index - c.end : 0)));
+  // The run the target's name goes with: "Costco accounted for approximately 11%" (name, verb, figure) or "13% ...
+  // were to Boeing" (figure, then the name); else the nearest.
+  const tied = (run: Pct[]) =>
+    anchor.some((c) => (c.end <= run[0].index && /^(?:'s)?(?:,?\s+(?:Inc|Corp|Corporation|Co|Company|Ltd|LLC)\.?)?(?:\s*\([^)]*\))?,?\s+(?:\w+\s+){0,2}?(?:account(?:ed|s)? for|represent(?:ed|s)?|contribut(?:ed|es)|compris(?:ed|es)|constitut(?:ed|es)|generated|made up)\s+(?:approximately\s+|about\s+|roughly\s+|over\s+|more than\s+|less than\s+)?$/i.test(s.slice(c.end, run[0].index))) || (c.index >= run[run.length - 1].end && /^[^.;%]{0,90}\b(?:were|was) to\s+(?:the\s+)?$/i.test(s.slice(run[run.length - 1].end, c.index))));
+  const gap = (run: Pct[]) => (tied(run) ? -1 : Math.min(...anchor.map((c) => (c.index >= run[run.length - 1].end ? c.index - run[run.length - 1].end : c.end <= run[0].index ? run[0].index - c.end : 0))));
   shareRuns.sort((a, b) => gap(a.run) - gap(b.run));
   for (const { run, purchases } of shareRuns.slice(0, 1)) {
-    let share = shareInRun(s, run, pattern);
+    const found = shareOf(s, run, pattern);
+    let share = found.value;
     let qualifier = qualifierOf(s, run);
     // A figure for a group ("our five largest customers ... 80.6%", "our top 10 customers, including Boeing and RTX,
-    // were 61%", "three branded suppliers ... collectively") is not the target's.
+    // were 61%", "three branded suppliers ... collectively") is not the target's, unless the run gives each its own.
     const prev = allRuns.filter((r) => r[r.length - 1].end <= run[0].index).pop();
     const clause = s.slice(prev ? prev[prev.length - 1].end : 0, run[0].index);
-    if ((GROUP.test(clause) || /\bcollectively\b/i.test(s.slice(run[0].index - 60, run[run.length - 1].end + 60))) && !/\beach\b/i.test(clause)) {
+    const near = s.slice(Math.max(0, run[0].index - 60), run[run.length - 1].end + 60).replace(/\(collectively[^)]*\)/gi, ' ');
+    if (found.how !== 'company' && (GROUP.test(clause) || /\bcollectively\b|\btogether\b|\bcombined\b/i.test(near)) && !/\beach\b/i.test(clause) && !/\b(?:and|with) (?:its|their) (?:affiliates|subsidiaries)\b/i.test(clause)) {
       share = undefined;
       qualifier = undefined;
     }
@@ -604,7 +671,8 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
   }
 
   // Licences, royalties and research collaborations with the target.
-  if (company.length && LICENSING.test(s)) return { role: 'partner' };
+  if (company.length && LICENSING.test(s) && !MINERAL.test(s)) return { role: 'partner' };
+  if (company.length && MINERAL.test(s) && /\broyalt/i.test(s)) return null;
 
   // The filer holds a stake in the target ("our investment in Applied Digital", "our largest holdings were Apple"),
   // or lends to it ("we provided a $50 million term loan to Applied Digital").
@@ -625,12 +693,15 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
     for (let m = comp.exec(plain); m; m = comp.exec(plain)) {
       const at = m.index + m[0].length;
       const lead = plain.slice(Math.max(0, m.index - 80), m.index);
-      if (!own.test(lead) && !byFiler(lead) && !/^\s+(?:with|against)\s+us\b/i.test(plain.slice(at, at + 12))) continue;
+      if (!own.test(lead) && !byFiler(lead) && !/^\s+(?:with|against)\s+us\b|^\s+(?:of|to|for)\s+(?:our|the Company's)\b/i.test(plain.slice(at, at + 24))) continue;
+      if (/\bcompeting (?:\w+\s+)?brands\b/i.test(plain)) continue;
       if (company.some((c) => c.index > m!.index && (c.index - m!.index < 260 || (c.index - at < 1200 && /\b(?:include|includes|including|such as|are|:)\b/i.test(plain.slice(at, at + 80)))))) return { role: 'competitor' };
     }
     if (company.some((c) => /^[^.]{0,250}?\b(?:is|are|as|remains?|were|was)\s+(?:one of\s+)?(?:our|the Company's)\s+(?:\w+\s+){0,3}competitors?\b/i.test(plain.slice(c.end)))) return { role: 'competitor' };
   }
-  if (LITIGATION.test(s)) return null;
+  // Competition talk that is not the filer's ("fierce competition from major GPU vendors such as AMD") is no relation.
+  if (company.some((c) => /\b(?:competitors?|compet(?:e|es|ed|ing|ition))\b/i.test(plain.slice(Math.max(0, c.index - 160), c.index)))) return null;
+  if (LITIGATION.test(s) || /\b(?:prosecut\w*|intellectual property|disputes?|proceedings?|arbitration)\b/i.test(s)) return null;
 
   // A joint venture or jointly owned company with the target is a partnership; a property leased to it makes the filer
   // its landlord, a supplier.
@@ -655,23 +726,27 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
     // The filer as the target's customer: "a launch customer for Boeing", "one of the largest customers of Airbus and
     // Boeing".
     if (/\bcustomers?\s+(?:of|for)\s+(?:the\s+)?(?:[A-Z][\w&.-]*,?\s+(?:and\s+)?){0,3}$/.test(b) && !/\b(?:our|its)\s+(?:\w+\s+){0,2}customers?\s+(?:of|for)/i.test(b)) return { role: 'customer' };
+    // "a supplier of mission critical systems to major OEMs including Boeing": the filer supplies the target.
+    if (/\b(?:suppliers?|vendors?|providers?)\s+(?:of\s+[^.;]{0,80}\s)?to\s+(?:[\w-]+\s+){0,6}?(?:including\s+|such as\s+|both\s+)?(?:[A-Z][\w&.-]*,?\s+(?:and\s+)?){0,3}$/i.test(b)) return { role: 'supplier' };
     // Partner words with a role: retailers and resellers sell the filer's goods; supplier, vendor and manufacturing
     // partners make or sell goods for it.
     if (gapListy(b, /\b(?:retail(?:er)?s?|retail partners?|channel partners?|distribution partners?|resellers?|distributors?|customers and partners)\b[^.;]{0,60}?\b(?:include|includes|including|such as|like|namely|are|e\.g\.,?)\b([^.;]*)$/i)) return { role: 'supplier' };
-    if (gapListy(b, /\b(?:supplier|vendor|manufacturing|foundry|silicon|technology|hardware|component) partners?\b[^.;]{0,60}?\b(?:include|includes|including|such as|like|namely|are|e\.g\.,?)?\b([^.;]*)$/i)) return { role: 'customer' };
+    if (gapListy(b, /\b(?:supplier|supply|fuel supply|sourcing|vendor|manufacturing|foundry|silicon|technology|hardware|component) partners?\b[^.;]{0,60}?\b(?:include|includes|including|such as|like|namely|are|e\.g\.,?)?\b([^.;]*)$/i)) return { role: 'customer' };
   }
   // The filer buys from the target: its supplier, vendor, provider or sole source; it relies on it for supply, sources
   // from it. Depending on sales to the target, or on its success, is selling to it.
   for (const m of named) {
     const b = before(m);
     const dependence = /\b(?:rely|relies|relying|depend|depends|depending|dependent|reliant)\b[^.;]{0,40}\bon\b([^.;]{0,120})$/i.exec(b);
-    if (dependence && /\b(?:customers?|sales to|revenues? from|business (?:with|from)|success of|demand (?:for|from)|orders? from)\b/i.test(dependence[1])) return { role: 'supplier' };
+    const reason = s.slice(m.end, m.end + 90);
+    if (dependence && (/\b(?:customers?|sales to|revenues? from|business (?:with|from)|success of|demand (?:for|from)|orders? from)\b/i.test(dependence[1]) || /^[^.;]{0,30}\bfor\b[^.;]{0,60}\b(?:success|revenues?|sales|business|demand|growth|(?:significant|substantial|large|majority) (?:portion|share|part))\b/i.test(reason))) return { role: 'supplier' };
+    const forGoods = /^[^.;]{0,30}\b(?:for|to supply|to provide|to manufacture)\b[^.;]{0,60}\b(?:supply|supplies|components?|chips?|GPUs?|CPUs?|processors?|wafers?|products?|materials?|hardware|equipment|parts|manufactur\w*|fabrication|capacity|services?|power|engines?|inventory|concentrate|bottl\w*|license|technology|software|servers?|memory)\b/i.test(reason) || /\b(?:supply|supplies|components?|chips?|GPUs?|wafers?|products?|materials?|hardware|equipment|parts|bottler)\b/i.test(dependence?.[1] ?? '');
     if (
-      gapListy(b, /\b(?:suppliers?|vendors?|providers?|platforms?)\b[^.;]{0,80}?\b(?:include|includes|including|such as|like|namely|notably|primarily|e\.g\.,?|are|is)\b([^.;]*)$/i) && !/\balternative\b/i.test(b) ||
+      (gapListy(b, /\b(?:suppliers?|vendors?|providers?|platforms?)\b[^.;]{0,80}?\b(?:include|includes|including|such as|like|namely|notably|primarily|e\.g\.,?|are|is)\b([^.;]*)$/i) && !/\b(?:alternative|work(?:s|ing)? with|collaborat\w*|partner\w*)\b[^.;]{0,60}\b(?:suppliers?|vendors?|providers?|platforms?)\b/i.test(b) && !third(b)) ||
       /\b(?:sole|single|limited)[- ](?:source|sourced|supplier|vendor)s?\b[^.;]{0,150}$/i.test(b) ||
-      (dependence && !/\b(?:designing|support|compatib\w*|certif\w*|updates?|platforms?|operating systems?|ecosystems?)\b/i.test(dependence[1] + s.slice(m.end, m.end + 60))) ||
-      (gapListy(b, /\b(?:purchase[sd]?|purchasing|source[sd]?|sourcing|procure[sd]?|procuring|buy|buys|bought|obtain(?:ed|s)?)\b[^.;]{0,100}\bfrom\s+([^.;]{0,50})$/i) && !/\b(?:orders?|revenues?|royalt\w*|payments?|received)\b[^.;]{0,40}\bfrom\s+[^.;]{0,50}$/i.test(b)) ||
-      gapListy(b, /\b(?:supplied|produced|manufactured|fabricated) by\s+([^.;]{0,40})$/i) ||
+      (dependence && forGoods && /\b(?:[Ww]e|[Oo]ur|[Tt]he Company|[Ii]t)\b/.test(b.slice(-120))) ||
+      (gapListy(b, /\b(?:purchase[sd]?|purchasing|source[sd]?|sourcing|procure[sd]?|procuring|buy|buys|bought|obtain(?:ed|s)?)\b[^.;]{0,100}\bfrom\s+([^.;]{0,50})$/i) && !/\b(?:orders?|revenues?|royalt\w*|payments?|received)\b[^.;]{0,40}\bfrom\s+[^.;]{0,50}$/i.test(b) && !/\b(?:shares?|stock|securities|warrants?|units|interests?|stake|assets?|business|propert(?:y|ies)|land|rights|acreage|leases?)\b[^.;]{0,80}\bfrom\s+[^.;]{0,50}$/i.test(b)) ||
+      (gapListy(b, /\b(?:supplied|produced|manufactured|fabricated) by\s+([^.;]{0,40})$/i) && /\b(?:[Oo]ur|[Ww]e)\b/.test(b.slice(-90))) ||
       /\b(?:our|the)\s+use of\s+$/i.test(b) ||
       after(s, m, /^(?:'s)?,?[^.;]{0,60}\bas (?:a|an|our|the|its) (?:\w+\s+){0,2}(?:supplier|vendor|source|provider)\b/i) ||
       after(s, m, /^(?:'s)?,?\s+(?:is|was|remains|has been) (?:our|a|the|an) (?:\w+\s+){0,3}(?:supplier|vendor|source)\b/i) ||
@@ -684,6 +759,8 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
   // something for it, or received its order.
   for (const m of company) {
     const b = before(m);
+    // Equity, assets and notices are no sale: "issue and sell shares to", "sold a 40% interest to", "provide updates to".
+    if (/\b(?:sell|sells|sold|selling|issue|issued|transfer\w*|provid\w*|deliver\w*)\b[^.;]{0,100}\b(?:shares?|stock|securities|warrants?|units|interests?|stake|assets?|business|propert(?:y|ies)|land|rights|updates?|reports?|information|notices?|copies|documents?|data|waivers?|guarant\w*)\b[^.;]{0,80}\bto\s+[^.;]{0,30}$/i.test(b)) continue;
     if (
       gapListy(b, /\bcustomers?\b[^.;]{0,60}?\b(?:include|includes|including|such as|like|namely|are|is|was|were)\b([^.;]*)$/i) ||
       gapListy(b, /\b(?:end|largest|major|key|significant|principal|anchor|top|single) customers?,?\s+([^.;]{0,20})$/i) ||
@@ -714,7 +791,11 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
     if (at < 0 && !partner.test(s.slice(c.end, c.end + 60))) continue;
     // The filer's own partnership: "we", "our" or its name before the partnership word.
     const who = at >= 0 ? lead.slice(Math.max(0, at - 80), at + 40) : s.slice(Math.max(0, c.index - 80), c.end + 60);
-    if (byFiler(who)) return { role: 'partner' };
+    if (!byFiler(who)) continue;
+    const around = s.slice(Math.max(0, c.index - 160), c.end + 160);
+    if (/\b(?:stores?|clubs?|warehouses?|doors|shelves|shelf|locations|retail(?:er)?s?|launch(?:ed|ing)?|roll-?out|sold (?:in|at|through)|sales (?:at|through|in)|placement|assortment)\b/i.test(around)) return { role: 'supplier' };
+    if (/\bto (?:deploy|use|adopt|implement|run on)\b|\bdeploy(?:s|ed|ing)? [^.;]{0,30}(?:platform|software|GPUs?|chips?|accelerators?|products?|solutions?)\b/i.test(around)) return { role: 'customer' };
+    return { role: 'partner' };
   }
   return null;
 }
@@ -1295,12 +1376,15 @@ export function rankFilers(results: FtsHit[][], selfCik: number | undefined, max
 /** Filers that issue securities backed by loans or leases: their reports name tenants and obligors, not relations. */
 const SECURITIZATION = /\b(?:Mortgage Trust|Commercial Mortgage|Mortgage Securities|Pass[- ]Through|Receivables|Auto (?:Loan|Lease|Receivables|Owner)|Lease Trust|Master Trust|Credit Card|Securitization|Issuing Entity|Depositor|CMT \d{4}|\d{4}-[A-Z0-9]{2,}|Trust I{1,3}\b|Equipment Trust)\b/i;
 
-/** A filer of the target's own group: its finance or leasing arm ("Ford Motor Credit Company LLC"). */
+/** Blank-check companies: their filings describe the business they will merge with, not their own relations. */
+const BLANK_CHECK = /\b(?:Acquisition Corp(?:oration)?|Acquisition Co|Acquisition Holdings|Capital Corp(?:oration)? [IVX]+|Merger Corp)\b/i;
+
+/** A filer of the target's own group: its finance or leasing arm ("Ford Motor Credit Company LLC"), or itself under another name. */
 export function groupFiler(filerName: string, names: TargetNames): boolean {
   const n = normalizeName(filerName);
   return [...names.names, ...names.legal].some((t) => {
     const k = normalizeName(t);
-    return k.length >= 3 && new RegExp(`^${escapeRe(k)}(?: motor| motors)? (?:credit|financial|finance|capital|funding|receivables|leasing|financial services)\\b`).test(n);
+    return k.length >= 3 && (n === k || new RegExp(`^${escapeRe(k)}(?: motor| motors)? (?:credit|financial|finance|capital|funding|receivables|leasing|financial services|holdings?)\\b`).test(n));
   });
 }
 
@@ -1486,7 +1570,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     if ((await search(`|${queries[0]}|current`, current, 200)) > 200) for (const term of CURRENT_TERMS) await search(`${term}|${queries[0]}|current`, current, 100);
   }
   // Not other companies: the target's own finance arms ("Ford Motor Credit") and securitization trusts.
-  const outside = (h: FtsHit) => !groupFiler(h.name, names) && !SECURITIZATION.test(h.name);
+  const outside = (h: FtsHit) => !groupFiler(h.name, names) && !SECURITIZATION.test(h.name) && !BLANK_CHECK.test(h.name);
   const ranked = rankFilers(reports.map((hits) => hits.filter(outside)), company?.cik, MAX_REPORTS, weights);
   const newer = newerReports(reports, ranked.slice(0, MAX_NEWER));
   const theirCurrent = currentDocs(current.map((hits) => hits.filter(outside)), company?.cik, MAX_CURRENT);

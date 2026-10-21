@@ -269,3 +269,63 @@ describe('SPLC: what the accuracy review found', () => {
     expect(own.map((r) => [r.role, r.name, r.share])).toEqual([['customer', 'Microsoft', 67]]);
   });
 });
+
+describe('SPLC: shares as companies state them', () => {
+  const share = (sentence: string, names: string[]) => {
+    const c = classify(sentence, targetPattern(names));
+    return c ? [c.role, c.share, c.basis] : null;
+  };
+  it('reads each company\'s figure in a list, the latest year, and figures given per year', () => {
+    expect(share('In the fiscal year ended September 30, 2025, our three largest customers, Lockheed Martin, Pilatus, and Boeing accounted for 36%, 8% and 5% of total revenue, respectively.', ['Boeing'])).toEqual(['supplier', 5, 'their-revenue']);
+    expect(share('In fiscal 2026, our three largest customers, General Motors Company, Ford Motor Company and Stellantis, accounted for 27%, 21% and 16%, respectively, of our annual sales.', ['Ford Motor', 'Ford'])).toEqual(['supplier', 21, 'their-revenue']);
+    expect(share('The loss of any large customer, such as Shell Trading (US) Company, Exxon Mobil Corporation and Chevron Corporation, which represent 35%, 23% and 12% of our oil, natural gas and NGL revenues for the year ended December 31, 2025, respectively, could have a material adverse effect on our business.', ['ExxonMobil', 'Exxon Mobil', 'Exxon'])).toEqual(['supplier', 23, 'their-revenue']);
+    expect(share("For the three month period ended September 30, 2025, the Company's three largest customers accounted for approximately 77% of the Company's net revenues, of which Amazon accounted for approximately 56%, Costco accounted for approximately 11% and Variety accounted for approximately 10%.", ['Costco'])).toEqual(['supplier', 11, 'their-revenue']);
+    expect(share('In 2025, our largest distributor by net sales accounted for less than 10% of our net sales and our largest customers, Walmart and Costco, accounted for 25% and 10% of our net sales, respectively.', ['Costco'])).toEqual(['supplier', 10, 'their-revenue']);
+    expect(share('Our largest customer, Walmart Inc., represented approximately 16% in 2025 and 2024 and 15% in 2023 of our net sales from continuing operations.', ['Walmart'])).toEqual(['supplier', 16, 'their-revenue']);
+    expect(share('Walmart Inc., including its subsidiary Sam\'s West, Inc. (collectively "Walmart"), is a customer of our Packaged Meats and Fresh Pork segments and accounted for approximately 15%, 16% and 15% of our consolidated sales in fiscal years 2025, 2024 and 2023, respectively.', ['Walmart'])).toEqual(['supplier', 15, 'their-revenue']);
+    expect(share('Our two largest customers are Target® and Walmart®, which accounted for 26.6% and 26.1%, respectively, of our net sales in 2025.', ['Walmart'])).toEqual(['supplier', 26.1, 'their-revenue']);
+    expect(share('Walmart Inc. and its affiliates together accounted for approximately 13% and 18% of our consolidated net sales for the fiscal years ended June 30, 2026 and 2025, respectively.', ['Walmart'])).toEqual(['supplier', 13, 'their-revenue']);
+    expect(share('Walmart Inc. and subsidiaries ("Walmart"), the Company\'s second largest customer in 2025, accounted for approximately 13%, 14% and 15% of net sales in 2025, 2024 and 2023, respectively.', ['Walmart'])).toEqual(['supplier', 13, 'their-revenue']);
+    expect(share('Our direct sales to Sony and Microsoft represented approximately 39 percent and 16 percent of total net revenue, respectively, in fiscal year 2026.', ['Microsoft'])).toEqual(['supplier', 16, 'their-revenue']);
+    expect(share("During fiscal 2025, we purchased merchandise from approximately 1,500 vendors, with Nike, our largest vendor, representing approximately 31% of our consolidated merchandise purchases within the DICK'S and Foot Locker Businesses.", ['Nike'])).toEqual(['customer', 31, 'their-purchases']);
+  });
+});
+
+describe('SPLC: what the second review found', () => {
+  const T = (names: string[]) => targetPattern(names);
+  const role = (sentence: string, names: string[], filer?: string[]) => classify(sentence, T(names), filer ? T(filer) : undefined)?.role ?? null;
+
+  it('reads clinical supply, licences and accounting "customers" in pharma as partnerships', () => {
+    expect(role('In 2024, we entered into a Clinical Trial Collaboration and Supply Agreement with Pfizer to evaluate our candidate with its drug.', ['Pfizer'])).toBe('partner');
+    expect(role('In 2025, we received from Pfizer an exclusive U.S. license to the compound.', ['Pfizer'])).toBe('partner');
+    expect(role('We concluded that Lilly is a customer for purposes of the research services.', ['Lilly', 'Eli Lilly'])).toBe('partner');
+  });
+
+  it('reads retail partnerships as sales through the retailer, and partnering to deploy as buying', () => {
+    expect(role('Our Costco partnership continues to accelerate, with our products now in over 450 clubs.', ['Costco'])).toBe('supplier');
+    expect(role('We are partnering with Palantir to deploy Palantir\'s Foundry platform across our plants.', ['Palantir'])).toBe('customer');
+  });
+
+  it('leaves out market talk, equity, asset deals, notices and technical fits', () => {
+    expect(role('We face fierce competition from major GPU vendors such as NVIDIA and AMD.', ['AMD'])).toBe('competitor');
+    expect(role('The market sees fierce competition from major GPU vendors such as NVIDIA and AMD.', ['AMD'])).toBeNull();
+    expect(role('In 2026, we agreed to issue and sell 215 million shares of our common stock to NVIDIA.', ['NVIDIA'], ['Intel'])).toBe('investment');
+    expect(role('In 2025, we sold a 40% undivided interest in the pipeline to ExxonMobil.', ['ExxonMobil'])).toBeNull();
+    expect(role('We agreed to provide calendar quarter updates to Pfizer on the program.', ['Pfizer'])).toBeNull();
+    expect(role("Surf Air Mobility's platform, powered by Palantir, will support our operations.", ['Palantir'])).toBeNull();
+    expect(role('Our sales to subtier suppliers of GE Aerospace were 39.3% of net sales.', ['GE Aerospace'])).toBeNull();
+    expect(role('Your competitors that primarily source engines from Caterpillar have higher costs.', ['Caterpillar'])).toBeNull();
+    expect(role('In 2025, we issued a warrant to Walmart to purchase shares of our common stock.', ['Walmart'])).not.toBe('investment');
+  });
+
+  it('reads competitor lists of the filer and suppliers to the company', () => {
+    expect(role('Competitors of our retail assets include large chains such as Exxon and Chevron.', ['Exxon'])).toBe('competitor');
+    expect(role('We are a supplier of mission critical systems to major OEMs including Boeing and Airbus.', ['Boeing'])).toBe('supplier');
+  });
+
+  it('reads dependence by what it is for', () => {
+    expect(role('We are highly dependent on NVIDIA for the success of our campus.', ['NVIDIA'])).toBe('supplier');
+    expect(role('We rely on Micron for the memory in our modules.', ['Micron'])).toBe('customer');
+    expect(role('Our business is highly dependent on Ford.', ['Ford'])).toBeNull();
+  });
+});
