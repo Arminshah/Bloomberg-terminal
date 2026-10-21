@@ -68,7 +68,7 @@ describe('field inspection and provenance', () => {
     const csv = fieldsCsv(SEC.id, fields, NOW);
     expect(csv).toContain('PX_LAST,Last price / yield,Market,105,USD,Fixture feed,REAL-TIME,2026-10-16T14:59:55.000Z');
     expect(csv).not.toContain('PX_VOLUME,');
-    expect(csv).toContain('no Bloomberg field/API compatibility');
+    expect(csv).toContain('no other vendor’s field/API compatibility');
     expect(fieldTime(inspect(quote({ time: NaN })).get('PX_LAST')!)).toBe('--');
     expect(inspect(quote({ prevCloseDay: NaN })).get('ARMIN_PREV_CLOSE_DATE')?.value).toBeNull();
   });

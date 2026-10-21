@@ -47,7 +47,7 @@ export function securityFields(sec: SecurityDef, q: Quote | undefined, now: numb
     timeBasis: sec.dynamic ? 'When the instrument definition was loaded; not a price timestamp.' : 'Local metadata has no independently verified market timestamp.',
     note: 'Instrument metadata; no live market-data or full instrument-master coverage is implied.',
   });
-  identity('ID_LOCAL', 'Local security identifier', 'Canonical identifier used inside Armin Terminal; not a Bloomberg identifier.', sec.id);
+  identity('ID_LOCAL', 'Local security identifier', 'Canonical identifier used inside Armin Terminal; not another vendor’s identifier.', sec.id);
   identity('NAME', 'Security name', 'Instrument name from the local or online-loaded definition.', sec.name);
   identity('SECURITY_TYP', 'Asset class', 'Armin asset class; futures and reference yields remain distinct from equities.', sec.cls);
   identity('CRNCY', 'Quote currency', 'Trading quote currency or minor-unit code. GBp is pence; USd is US cents.', sec.ccy);
@@ -117,7 +117,7 @@ export function filterFields(rows: FieldValue[], query: string, category?: Field
 
 export function fieldsCsv(id: string, fields: FieldValue[], inspectedAt: number): string {
   return toCsv([
-    ['Armin local field catalogue', 'Definitions are local; no Bloomberg field/API compatibility or additional data entitlement is implied.'],
+    ['Armin local field catalogue', 'Definitions are local; no other vendor’s field/API compatibility or additional data entitlement is implied.'],
     ['Security', id], ['Inspected at UTC', new Date(inspectedAt).toISOString()],
     ['Field', 'Name', 'Category', 'Value', 'Unit', 'Source', 'Status', 'Source as of UTC', 'Time basis', 'Definition', 'Note'],
     ...fields.map((f) => [f.id, f.name, f.category, f.value, f.unit, f.source, f.status, f.asOf === null ? '' : fieldTime(f), f.timeBasis, f.definition, f.note]),

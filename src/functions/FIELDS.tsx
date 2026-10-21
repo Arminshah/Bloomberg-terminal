@@ -62,6 +62,6 @@ function FieldSearch({ sec, initialQuery }: { sec: SecurityDef; initialQuery: st
       { key: 'source', label: 'Source', sort: (f) => f.source, render: (f) => f.source, hideM: true },
       { key: 'time', label: 'Source as of UTC', render: fieldTime, hideM: true },
     ]} /></div>
-    <div className="note">This catalogue describes values currently held by Armin Terminal. IDs and definitions are local; familiar names do not imply Bloomberg field/API compatibility. Source coverage, timing, units and missing fields remain explicit. Bid/ask event times are unavailable in this engine and are never borrowed from a trade. No extra provider request is made by this screen.</div>
+    <div className="note">This catalogue describes values currently held by Armin Terminal. IDs and definitions are local; familiar names do not imply compatibility with any other vendor's fields or API. Source coverage, timing, units and missing fields remain explicit. Bid/ask event times are unavailable in this engine and are never borrowed from a trade. No extra provider request is made by this screen.</div>
   </div>;
 }

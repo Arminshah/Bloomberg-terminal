@@ -560,7 +560,7 @@ const WIRP_BANKS = [
 ];
 
 const WIRP_NOTE =
-  'As on Bloomberg’s WIRP: #Hikes/Cuts counts the 25 bp moves priced from today’s rate to after each meeting (cumulative); %Hike/Cut is the move priced at that meeting alone ÷ 25 bp, signed and uncapped, so +140% is one hike fully priced and a 40% chance of a second at that meeting, and -100% one full cut. Imp. rate Δ is the implied rate after the meeting minus today’s rate.';
+  '#Hikes/Cuts counts the 25 bp moves priced from today’s rate to after each meeting (cumulative); %Hike/Cut is the move priced at that meeting alone ÷ 25 bp, signed and uncapped, so +140% is one hike fully priced and a 40% chance of a second at that meeting, and -100% one full cut. Imp. rate Δ is the implied rate after the meeting minus today’s rate.';
 
 /** Column headers shared by the real and simulated WIRP tables. */
 function WirpHead() {
