@@ -284,7 +284,8 @@ test('holders sort and filter by reported period, and short float is calculated 
   await expect(shortFloat).toContainText('calculated');
   await command(page, 'AAPL MANAGEMENT');
   await expect(page.getByRole('row').filter({ hasText: 'Synthetic Chief' })).toContainText('Chief Executive Officer');
-  await expect(page.getByRole('row').filter({ hasText: 'Synthetic Chief' }).getByRole('cell', { name: '0', exact: true })).toBeVisible();
+  // Yahoo's unlabelled "Pay" and its zero option values are not shown; pay comes from the proxy statement only.
+  await expect(page.getByRole('columnheader', { name: /Yahoo Pay|Options exercised/ })).toHaveCount(0);
 });
 
 test('watchlist loads supplementary pre-market and after-hours quotes while IEX owns the regular price', async ({ desktop: { app, page } }) => {

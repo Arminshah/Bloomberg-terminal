@@ -487,6 +487,36 @@ function supplyToDisk() {
   }, 5000);
 }
 
+// The Summary Compensation Table of a proxy statement (electron/proxy-pay.cjs): each named executive's salary and
+// total pay by year. Proxy statements do not change; one is read once a session.
+const proxyPay = require('./proxy-pay.cjs');
+const payKept = new Map();
+ipcMain.handle('sec-pay', async (event, docPath) => {
+  const url = supply.docUrl(docPath);
+  if (!fromApp(event) || !url) throw new Error('not allowed');
+  const ua = providers.credential('SEC_USER_AGENT').value;
+  if (!ua) return { status: 0, executives: [], missing: 'SEC_USER_AGENT' };
+  if (!providers.CREDENTIALS.SEC_USER_AGENT.valid(ua)) return { status: 0, executives: [], refused: 'The configured SEC User-Agent does not give an application name and a contact email, so nothing was sent.' };
+  const kept = payKept.get(docPath);
+  if (kept) return { status: 200, executives: kept.executives, at: kept.at, cached: true };
+  await providers.slot('sec', sec.PER_SECOND, 1000);
+  let res;
+  try {
+    res = await tracked('sec', url, { headers: { 'User-Agent': ua, Accept: 'text/html' }, cache: 'no-cache', signal: AbortSignal.timeout(3 * TIMEOUT_MS) });
+  } catch (err) {
+    return { status: 0, executives: [], error: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) };
+  }
+  if (!res.ok) {
+    if (res.status === 403 || res.status === 429) providers.recordProblem('sec', providers.errorKind(res.status), sec.refusalReason(res.status));
+    return { status: res.status, executives: [] };
+  }
+  const executives = proxyPay.parseSummaryCompensation(await res.text()) ?? [];
+  const at = Date.now();
+  payKept.set(docPath, { at, executives });
+  if (payKept.size > 50) payKept.delete(payKept.keys().next().value);
+  return { status: 200, executives, at };
+});
+
 ipcMain.handle('sec-text', async (event, kind, docPath, names) => {
   if (!fromApp(event)) throw new Error('not allowed');
   const url = supply.docUrl(docPath);

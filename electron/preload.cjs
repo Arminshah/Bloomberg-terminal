@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   official: (source, since) => ipcRenderer.invoke('official', String(source), String(since)),
   fred: (kind, arg, from) => ipcRenderer.invoke('fred', String(kind), String(arg), String(from ?? '')),
   sec: (kind, arg) => ipcRenderer.invoke('sec', String(kind), String(arg ?? '')),
+  secPay: (path) => ipcRenderer.invoke('sec-pay', String(path)),
   secText: (kind, path, names) => ipcRenderer.invoke('sec-text', String(kind), String(path), Array.isArray(names) ? names.map(String) : []),
   kraken: (kind, arg, n) => ipcRenderer.invoke('kraken', String(kind), String(arg ?? ''), Number(n ?? 0)),
   coingecko: () => ipcRenderer.invoke('coingecko'),

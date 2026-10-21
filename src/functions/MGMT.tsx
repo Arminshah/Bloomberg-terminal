@@ -9,33 +9,81 @@ import { fmtBig, fmtDay, fmtInt, fmtNum } from '../core/format';
 import { useFundamentals, type Officer } from '../data/live/yfund';
 import { yahooSymbolFor } from '../data/live/yahoo';
 import { secAvailable, secTicker, useSecLoad } from '../data/live/sec';
-import { loadProxyPay, type PayYear, type ProxyPay } from '../data/live/proxypay';
+import { loadProxyPay, type Executive, type PayYear, type ProxyPay } from '../data/live/proxypay';
 import { CODES, loadInsiders, summarize, type InsiderReport, type Person, type Trade } from '../data/live/insiders';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
-const money = (v: number) => (Number.isFinite(v) ? fmtBig(v) : '--');
+const money = (v: number) => (Number.isFinite(v) ? fmtBig(v) : '');
 const ms = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
 /** Shares as a count: whole up to ten million, then in M/B. */
-const qty = (v: number) => (!Number.isFinite(v) ? '--' : Math.abs(v) >= 1e7 ? fmtBig(v) : fmtInt(v));
-const signed = (v: number) => (Number.isFinite(v) && v !== 0 ? <span className={v > 0 ? 'up' : 'dn'}>{v > 0 ? '+' : '-'}{qty(Math.abs(v))}</span> : <span className="muted">{v === 0 ? '0' : '--'}</span>);
-const nonzero = (v: number, fmt: (x: number) => string) => (v ? fmt(v) : <span className="muted">0</span>);
+const qty = (v: number) => (!Number.isFinite(v) ? '' : Math.abs(v) >= 1e7 ? fmtBig(v) : fmtInt(v));
+const signed = (v: number) => (Number.isFinite(v) && v !== 0 ? <span className={v > 0 ? 'up' : 'dn'}>{v > 0 ? '+' : '-'}{qty(Math.abs(v))}</span> : '');
+/** A count or value of nothing is left blank: a column of zeros says nothing. */
+const nonzero = (v: number, fmt: (x: number) => string) => (v ? fmt(v) : '');
 
 /** "Director", "10% owner" or the officer title the insider filed. */
-const role = (p: Person['owner']) => [p.title, !p.title && p.officer ? 'Officer' : '', p.director ? 'Director' : '', p.tenPercent ? '10% owner' : ''].filter(Boolean).join(' · ') || '--';
+const role = (p: Person['owner']) => [p.title, !p.title && p.officer ? 'Officer' : '', p.director ? 'Director' : '', p.tenPercent ? '10% owner' : ''].filter(Boolean).join(' · ');
 
-/** Yahoo's officer and the Form 4 filer that are the same person: the same last name and one first name the start of the other. */
+const nameWords = (s: string) =>
+  s.toLowerCase().replace(/[^a-z\s-]/g, ' ').split(/\s+/).filter((w) => w.length > 1 && !/^(mr|mrs|ms|dr|jr|sr|ii|iii|iv|phd|md|cpa|esq|cfa)$/.test(w));
+
+/**
+ * The same person under two spellings: the same last name, and a first name the start of the other's
+ * ("Wes"/"Wesley") or found among the other's names ("Saidal Mohmand"/"Mohammad Saidal L. Mohmand").
+ */
+export function sameName(a: string, b: string): boolean {
+  const x = nameWords(a);
+  const y = nameWords(b);
+  if (x.length < 2 || y.length < 2 || x[x.length - 1] !== y[y.length - 1]) return false;
+  const first = (w: string) => NICKNAMES[w] ?? w;
+  const [p, q] = [first(x[0]), first(y[0])];
+  return p.startsWith(q) || q.startsWith(p) || y.slice(0, -1).map(first).includes(p) || x.slice(0, -1).map(first).includes(q);
+}
+
+/** Short forms of first names a proxy statement and a profile spell differently ("Kate Adams", "Katherine L. Adams"). */
+const NICKNAMES: Record<string, string> = {
+  kate: 'katherine', katie: 'katherine', kathy: 'katherine', cathy: 'catherine', bob: 'robert', rob: 'robert', bobby: 'robert', bill: 'william', will: 'william', billy: 'william',
+  jim: 'james', jimmy: 'james', mike: 'michael', mick: 'michael', dick: 'richard', rick: 'richard', rich: 'richard', tom: 'thomas', tony: 'anthony', steve: 'steven',
+  dave: 'david', dan: 'daniel', danny: 'daniel', chuck: 'charles', charlie: 'charles', ted: 'edward', ed: 'edward', ned: 'edward', jack: 'john', johnny: 'john',
+  liz: 'elizabeth', beth: 'elizabeth', betsy: 'elizabeth', peggy: 'margaret', meg: 'margaret', maggie: 'margaret', sue: 'susan', jen: 'jennifer', jenny: 'jennifer',
+  chris: 'christopher', matt: 'matthew', pat: 'patrick', larry: 'lawrence', jerry: 'gerald', greg: 'gregory', joe: 'joseph', ben: 'benjamin', sam: 'samuel',
+  andy: 'andrew', drew: 'andrew', nick: 'nicholas', alex: 'alexander', fred: 'frederick', hank: 'henry', harry: 'henry', jeff: 'jeffrey', doug: 'douglas', ken: 'kenneth',
+  ron: 'ronald', don: 'donald', ray: 'raymond', phil: 'philip', pete: 'peter', stan: 'stanley', vince: 'vincent', walt: 'walter', zach: 'zachary', abby: 'abigail',
+};
+
+/** Yahoo's officer and the Form 4 filer that are the same person (one match only). */
 export function matchOfficer(o: Officer, people: Person[]): Person | undefined {
-  const words = (s: string) => s.toLowerCase().replace(/[^a-z\s-]/g, ' ').split(/\s+/).filter((w) => w.length > 1 && !/^(jr|sr|ii|iii|iv|phd|md|cpa|esq)$/.test(w));
-  const mine = words(o.name);
-  if (mine.length < 2) return undefined;
-  const last = mine[mine.length - 1];
-  const hits = people.filter((p) => {
-    const theirs = words(p.owner.name);
-    if (theirs.length < 2 || theirs[theirs.length - 1] !== last) return false;
-    return theirs[0].startsWith(mine[0]) || mine[0].startsWith(theirs[0]);
-  });
+  const hits = people.filter((p) => sameName(o.name, p.owner.name));
   return hits.length === 1 ? hits[0] : undefined;
+}
+
+/** A company's executive: Yahoo's officer and the proxy statement's named executive, whichever lists them. */
+interface ExecRow {
+  name: string;
+  title: string;
+  age: number;
+  /** The Summary Compensation Table's latest year, salary and total. */
+  pay?: { year: number; salary: number; total: number; previous?: number };
+  person?: Person;
+}
+
+/** The named executives first (largest pay first), then the other officers in Yahoo's order. */
+export function executiveRows(officers: Officer[], executives: Executive[], people: Person[]): ExecRow[] {
+  const used = new Set<Officer>();
+  const rows: ExecRow[] = executives.map((e) => {
+    const o = officers.find((x) => !used.has(x) && sameName(x.name, e.name));
+    if (o) used.add(o);
+    const [y, prev] = e.years;
+    return { name: o?.name ?? e.name, title: o?.title || e.title, age: o?.age ?? NaN, pay: { ...y, ...(prev ? { previous: prev.total } : {}) } };
+  });
+  rows.sort((a, b) => (b.pay?.total ?? 0) - (a.pay?.total ?? 0));
+  for (const o of officers) if (!used.has(o)) rows.push({ name: o.name, title: o.title, age: o.age });
+  for (const r of rows) {
+    const hits = people.filter((p) => sameName(r.name, p.owner.name));
+    if (hits.length === 1) r.person = hits[0];
+  }
+  return rows;
 }
 
 export function InsiderSection({ report }: { report: InsiderReport }) {
@@ -91,8 +139,8 @@ export function InsiderSection({ report }: { report: InsiderReport }) {
           { key: 'r', label: 'Relationship', render: (t) => role(t.owner), hideW: true },
           { key: 'c', label: 'Transaction', render: (t: Trade) => <span className={t.kind === 'buy' ? 'up' : t.kind === 'sell' ? 'dn' : ''} title={`Form 4 code ${t.code}${t.security ? ` · ${t.security}` : ''}${Number.isFinite(t.exercisePrice) ? ` · exercise price ${fmtNum(t.exercisePrice, 2)}` : ''}`}>{CODES[t.code] ?? `Code ${t.code}`}{t.derivative && t.kind !== 'exercise' ? ' (derivative)' : ''}{t.plan && (t.kind === 'sell' || t.kind === 'buy') ? ' · 10b5-1' : ''}</span>, sort: (t) => t.code },
           { key: 's', label: 'Shares', num: true, render: (t) => signed(t.acquired ? t.shares : -t.shares), sort: (t) => (t.acquired ? t.shares : -t.shares) },
-          { key: 'p', label: 'Price', num: true, render: (t) => (Number.isFinite(t.price) && t.price > 0 ? fmtNum(t.price, 2) : <span className="muted">{t.price === 0 ? '0.00' : '--'}</span>), sort: (t) => t.price },
-          { key: 'v', label: 'Value', num: true, render: (t) => (Number.isFinite(t.price) && t.price > 0 && Number.isFinite(t.shares) ? money(t.shares * t.price) : <span className="muted">--</span>), sort: (t) => t.shares * t.price, hideN: true },
+          { key: 'p', label: 'Price', num: true, render: (t) => (Number.isFinite(t.price) && t.price > 0 ? fmtNum(t.price, 2) : ''), sort: (t) => t.price },
+          { key: 'v', label: 'Value', num: true, render: (t) => (Number.isFinite(t.price) && t.price > 0 && Number.isFinite(t.shares) ? money(t.shares * t.price) : ''), sort: (t) => t.shares * t.price, hideN: true },
           { key: 'h', label: 'Held after', num: true, render: (t) => <span title={t.direct ? 'Held directly' : 'Held indirectly'}>{qty(t.after)}{t.direct ? '' : ' (I)'}</span>, sort: (t) => t.after, hideN: true },
           { key: 'f', label: 'Filing', render: (t) => <a className="blue" href={t.link} target="_blank" rel="noreferrer noopener" title={`Filed ${fmtDay(ms(t.filed))}`}>Form 4 ›</a>, hideW: true },
         ]}
@@ -129,7 +177,7 @@ function ProxyPayTable({ pay }: { pay: ProxyPay }) {
         {rows.map((r, i) => (
           <tr key={`${r.y.end}:${i}`}>
             <td className="amber">{r.first ? fmtDay(ms(r.y.end), true) : ''}</td>
-            <td>{r.name || '--'}</td>
+            <td>{r.name}</td>
             <td className="num white">{money(r.total)}</td>
             <td className="num">{money(r.paid)}</td>
             <td className="num hide-m">{r.first ? money(r.y.neoAvgTotal) : ''}</td>
@@ -150,14 +198,16 @@ export function MGMT({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
   const { real, status } = useFundamentals(s);
-  const officers = real?.officers ?? [];
+  const officers = useMemo(() => real?.officers ?? [], [real]);
   const symbol = yahooSymbolFor(s);
   const proxy = useSecLoad(secAvailable() && secTicker(s) ? `proxypay:${s.id}` : null, () => loadProxyPay(s));
   const insiders = useSecLoad(secAvailable() && secTicker(s) ? `insiders:${s.id}` : null, () => loadInsiders(s));
   const people = useMemo(() => (insiders.result?.ok ? summarize(insiders.result.data.trades).people : []), [insiders.result]);
+  const executives = useMemo(() => (proxy.result?.ok ? (proxy.result.data?.executives ?? []) : []), [proxy.result]);
+  const rows = useMemo(() => executiveRows(officers, executives, people), [officers, executives, people]);
   const csv = () => [
-    ['Name', 'Source-reported title', 'Source-reported age', 'Year born', 'Yahoo reported Pay (not SEC total compensation)', 'Options exercised', 'Options unexercised', 'Pay currency', 'Pay fiscal year', 'Profile received UTC'],
-    ...officers.map((o) => [o.name, o.title, num(o.age), num(o.yearBorn), num(o.totalPay), num(o.exercised), num(o.unexercised), 'not stated by Yahoo', num(o.fiscalYear), real ? new Date(real.fetched).toISOString() : '']),
+    ['Name', 'Title', 'Age', 'Total pay (Summary Compensation Table, USD)', 'Salary (USD)', 'Pay fiscal year', 'Prior year total (USD)', 'Shares held (Form 4)', 'Net shares 12M (Form 4)'],
+    ...rows.map((r) => [r.name, r.title, num(r.age), num(r.pay?.total ?? NaN), num(r.pay?.salary ?? NaN), r.pay ? r.pay.year : '', num(r.pay?.previous ?? NaN), num(r.person?.heldAfter ?? NaN), num(r.person?.netShares ?? NaN)]),
     ...(insiders.result?.ok && insiders.result.data.trades.length
       ? [[], ['Form 4 transactions (SEC EDGAR)'], ['Date', 'Insider (as filed)', 'Relationship', 'Code', 'Transaction', 'Shares', 'Acquired or disposed', 'Price', 'Held after', 'Ownership', '10b5-1', 'Filed', 'Filing'],
          ...insiders.result.data.trades.map((t) => [t.date, t.owner.secName, role(t.owner), t.code, CODES[t.code] ?? '', num(t.shares), t.acquired ? 'A' : 'D', num(t.price), num(t.after), t.direct ? 'Direct' : 'Indirect', t.plan ? 'yes' : '', t.filed, t.link])]
@@ -172,37 +222,59 @@ export function MGMT({ sec }: FnProps) {
     );
   } else if (!real) {
     body = <div className="empty">{status === 'error' ? 'No company profile from Yahoo Finance for this company.' : 'Loading the company profile from Yahoo Finance…'}</div>;
-  } else if (!officers.length) {
+  } else if (!officers.length && !executives.length) {
     body = <div className="empty">{real.statsFrom === 'Finnhub' ? "Yahoo refused its company summary this time, and Finnhub's profile lists no officers." : `Yahoo Finance lists no officers for ${s.name}.`}</div>;
   } else {
+    const payYear = rows.find((r) => r.pay)?.pay?.year;
     body = (
       <>
-        <Section title="Company officers, as reported by Yahoo" right={`${officers.length} listed · profile received ${fmtDay(real.fetched)}`}>
+        <Section
+          title="Executives"
+          right={`${rows.length} listed${executives.length ? ` · pay from the ${proxy.result?.ok && proxy.result.data ? `${proxy.result.data.filing.form} filed ${fmtDay(ms(proxy.result.data.filing.filed), true)}` : 'proxy statement'}` : ''} · officers from Yahoo Finance, received ${fmtDay(real.fetched)}`}
+        >
           <DataTable
-            rows={officers}
-            rowKey={(o, i) => `${o.name}:${i}`}
+            rows={rows}
+            rowKey={(r, i) => `${r.name}:${i}`}
             numbered
             columns={[
-              { key: 'n', label: 'Name', render: (o) => <span className="white">{o.name}</span>, sort: (o) => o.name },
-              { key: 't', label: 'Reported title', render: (o) => o.title || '--', sort: (o) => o.title },
-              { key: 'a', label: 'Reported age', num: true, render: (o) => fmtInt(o.age), sort: (o) => o.age },
-              { key: 'b', label: 'Born', num: true, render: (o) => (Number.isFinite(o.yearBorn) ? String(o.yearBorn) : '--'), sort: (o) => o.yearBorn, hideM: true },
-              { key: 'p', label: 'Yahoo Pay', title: 'Yahoo reported Pay; currency is not supplied. This is not the SEC total compensation figure below.', num: true, render: (o) => fmtInt(o.totalPay), sort: (o) => o.totalPay },
-              { key: 'x', label: 'Options exercised', title: 'Value of the options exercised in the pay fiscal year (Yahoo)', num: true, render: (o) => fmtInt(o.exercised), sort: (o) => o.exercised, hideM: true },
-              { key: 'u', label: 'Options unexercised', title: 'Value of the options held and not exercised (Yahoo)', num: true, render: (o) => fmtInt(o.unexercised), sort: (o) => o.unexercised, hideW: true },
-              { key: 'y', label: 'Pay fiscal year', num: true, render: (o) => (Number.isFinite(o.fiscalYear) ? String(o.fiscalYear) : '--'), sort: (o) => o.fiscalYear, hideN: true },
+              { key: 'n', label: 'Name', render: (r) => <span className="white">{r.name}</span>, sort: (r) => r.name },
+              { key: 't', label: 'Title', render: (r) => r.title, sort: (r) => r.title },
+              { key: 'a', label: 'Age', num: true, render: (r) => (Number.isFinite(r.age) ? fmtInt(r.age) : ''), sort: (r) => r.age, hideM: true },
+              ...(executives.length
+                ? [
+                    {
+                      key: 'tc',
+                      label: `Total pay${payYear ? ` FY${String(payYear).slice(2)}` : ''}`,
+                      title: "The proxy statement's Summary Compensation Table total for the fiscal year: salary, bonus, stock and option awards at their grant-date value, incentive pay and other compensation, in US dollars",
+                      num: true,
+                      render: (r: ExecRow) =>
+                        r.pay ? (
+                          <span className="white" title={`Fiscal year ${r.pay.year}${Number.isFinite(r.pay.previous) ? ` · the year before: ${fmtBig(r.pay.previous!)}` : ''}`}>{fmtBig(r.pay.total)}</span>
+                        ) : (
+                          <span className="muted" title="Companies report pay for their named executive officers only">not disclosed</span>
+                        ),
+                      sort: (r: ExecRow) => r.pay?.total ?? NaN,
+                    },
+                    { key: 'sl', label: 'Salary', title: 'Base salary for the same fiscal year', num: true, render: (r: ExecRow) => (r.pay && r.pay.salary > 0 ? fmtBig(r.pay.salary) : ''), sort: (r: ExecRow) => r.pay?.salary ?? NaN, hideM: true },
+                    { key: 'pv', label: 'Prior year', title: 'Total pay the fiscal year before', num: true, render: (r: ExecRow) => (Number.isFinite(r.pay?.previous) ? fmtBig(r.pay!.previous!) : ''), sort: (r: ExecRow) => r.pay?.previous ?? NaN, hideW: true },
+                  ]
+                : []),
               ...(people.length
                 ? [
-                    { key: 'h', label: 'Shares held', title: 'Held directly after the latest Form 4 transaction (SEC EDGAR)', num: true, render: (o: Officer) => { const p = matchOfficer(o, people); return p ? <span title={`${p.owner.secName}, as of ${p.heldAsOf ? fmtDay(ms(p.heldAsOf)) : '--'}`}>{qty(p.heldAfter)}</span> : <span className="muted">--</span>; }, sort: (o: Officer) => matchOfficer(o, people)?.heldAfter ?? NaN, hideN: true },
-                    { key: 'nb', label: 'Net 12M', title: 'Shares acquired less disposed in the Form 4 filings read (options excluded)', num: true, render: (o: Officer) => { const p = matchOfficer(o, people); return p ? signed(p.netShares) : <span className="muted">--</span>; }, sort: (o: Officer) => matchOfficer(o, people)?.netShares ?? NaN, hideW: true },
+                    { key: 'h', label: 'Shares held', title: 'Held directly after the latest Form 4 transaction (SEC EDGAR)', num: true, render: (r: ExecRow) => (r.person ? <span title={`${r.person.owner.secName}${r.person.heldAsOf ? `, as of ${fmtDay(ms(r.person.heldAsOf))}` : ''}`}>{qty(r.person.heldAfter)}</span> : ''), sort: (r: ExecRow) => r.person?.heldAfter ?? NaN, hideN: true },
+                    { key: 'nb', label: 'Net 12M', title: 'Shares acquired less disposed in the Form 4 filings read (options excluded)', num: true, render: (r: ExecRow) => (r.person ? signed(r.person.netShares) : ''), sort: (r: ExecRow) => r.person?.netShares ?? NaN, hideW: true },
                   ]
                 : []),
             ]}
           />
         </Section>
         <div className="note">
-          Yahoo&apos;s company profile can lag appointments and departures. Titles and ages are source-reported; the received date is when the app fetched the profile, not when those facts became effective. The fiscal year applies to pay, not to the title or age.
-          Yahoo calls Pay &quot;salary, bonuses, etc.&quot; and does not supply its currency. It must not be read as the SEC total compensation figure, which includes equity awards and appears below when available. Options exercised is the value exercised in the pay fiscal year. A reported zero remains zero; -- means absent.
+          {executives.length
+            ? 'Total pay: the latest proxy statement’s Summary Compensation Table, which covers the named executive officers (the chief executive, the finance chief and the three other best paid); a company does not report other officers’ pay. '
+            : proxy.loading
+              ? 'Reading the latest proxy statement for each executive’s pay… '
+              : ''}
+          Titles and ages as Yahoo Finance&apos;s company profile gives them; it can lag appointments and departures.
           {symbol ? <> <a className="blue" href={`https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/profile/`} target="_blank" rel="noreferrer noopener">View the source profile ›</a></> : null}
         </div>
       </>
@@ -215,7 +287,7 @@ export function MGMT({ sec }: FnProps) {
         title="Management"
         sec={s}
         sub={<>Company officers · {sourceLabel(status, 'officers come from Yahoo Finance in the desktop app; none are generated')}</>}
-        actions={officers.length ? exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_MGMT.csv`, csv) : undefined}
+        actions={rows.length ? exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_MGMT.csv`, csv) : undefined}
       />
       <QuoteStrip sec={s} />
       {body}
@@ -234,7 +306,7 @@ export function MGMT({ sec }: FnProps) {
       ) : null}
       {secAvailable() && secTicker(s) ? (
         <Section
-          title="Total compensation, from the proxy statement"
+          title="Chief executive's pay against performance (proxy statement)"
           right={proxy.result?.ok && proxy.result.data ? <a href={proxy.result.data.link} target="_blank" rel="noreferrer noopener" className="blue">{proxy.result.data.filing.form} filed {fmtDay(ms(proxy.result.data.filing.filed), true)} ›</a> : 'SEC EDGAR'}
         >
           {proxy.loading || !proxy.result ? (

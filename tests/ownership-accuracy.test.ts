@@ -85,7 +85,7 @@ describe('management source accuracy', () => {
     expect(officers[1].totalPay).toBeNaN();
   });
 
-  it('distinguishes source title and pay year and never guesses the pay currency', () => {
+  it("lists the officers with title and age, without Yahoo's unlabelled pay or columns of zeros", () => {
     const sec = engine.get('AAPL US Equity')!;
     const old = realFund.get(sec.id);
     const fund = buildRealFund(sec, {}, null, null, null, end(10));
@@ -93,13 +93,15 @@ describe('management source accuracy', () => {
     realFund.set(sec.id, fund);
     try {
       const html = renderToStaticMarkup(createElement(MGMT, { sec, route: { fn: 'MANAGEMENT', sec: sec.id } }));
-      expect(html).toContain('Reported title');
-      expect(html).toContain('Reported age');
-      expect(html).toContain('Pay fiscal year');
-      expect(html).toContain('profile received');
-      expect(html).toContain('does not supply its currency');
-      expect(html).toContain('not when those facts became effective');
-      expect(html).not.toContain('Salary &amp; bonus (USD)');
+      expect(html).toContain('Executives');
+      expect(html).toContain('Ann Lee');
+      expect(html).toContain('officers from Yahoo Finance, received');
+      expect(html).toContain('can lag appointments and departures');
+      // Pay comes only from the proxy statement's Summary Compensation Table, in US dollars; Yahoo's "Pay" (no
+      // currency, no definition) and its option values (zeros) are not shown.
+      expect(html).not.toContain('Yahoo Pay');
+      expect(html).not.toContain('Options exercised');
+      expect(html).not.toContain('Options unexercised');
     } finally {
       if (old) realFund.set(sec.id, old);
       else realFund.delete(sec.id);

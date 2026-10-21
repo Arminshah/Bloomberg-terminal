@@ -101,6 +101,14 @@ export function parsePayVsPerformance(xml: string): PayYear[] {
   return [...years.values()].filter((y) => [y.peoTotal, y.peoPaid, y.neoAvgTotal, y.neoAvgPaid].some(Number.isFinite) || y.peos.length).sort((a, b) => b.end.localeCompare(a.end));
 }
 
+/** A named executive officer in the Summary Compensation Table: salary and total compensation by fiscal year. */
+export interface Executive {
+  name: string;
+  title: string;
+  /** Newest first. */
+  years: { year: number; salary: number; total: number }[];
+}
+
 export interface ProxyPay {
   company: string;
   cik: number;
@@ -108,6 +116,20 @@ export interface ProxyPay {
   /** The proxy statement on sec.gov. */
   link: string;
   years: PayYear[];
+  /** The Summary Compensation Table's executives (desktop app), empty when it could not be read. */
+  executives: Executive[];
+}
+
+/** The Summary Compensation Table of a proxy statement, read by the main process (electron/proxy-pay.cjs). */
+async function loadExecutives(cik: number, f: Filing): Promise<Executive[]> {
+  const api = typeof window !== 'undefined' ? window.arminDesktop : undefined;
+  if (!api?.secPay || !f.doc) return [];
+  try {
+    const res = await api.secPay(`${cik}/${f.accession.replace(/-/g, '')}/${f.doc}`);
+    return Array.isArray(res.executives) ? res.executives.filter((e) => typeof e?.name === 'string' && Array.isArray(e.years) && e.years.length) : [];
+  } catch {
+    return [];
+  }
 }
 
 /** The pay table of a company's latest proxy statement with one (the latest two are tried); null when none has it. */
@@ -120,7 +142,10 @@ export async function loadProxyPay(def: SecurityDef): Promise<SecResult<ProxyPay
   if (!sub.ok) return sub;
   const cik = sub.data.cik;
   let problem: SecResult<never> | undefined;
-  for (const f of sub.data.filings.filter((x) => /^DEF 14A$/i.test(x.form.trim())).slice(0, 2)) {
+  const proxies = sub.data.filings.filter((x) => /^DEF 14A$/i.test(x.form.trim())).slice(0, 2);
+  // Every named executive's pay from the latest proxy statement's own table.
+  const executives = proxies[0] ? await loadExecutives(cik, proxies[0]) : [];
+  for (const f of proxies) {
     const index = await loadFilingIndex(cik, f.accession);
     if (!index.ok) {
       problem ??= index;
@@ -135,7 +160,11 @@ export async function loadProxyPay(def: SecurityDef): Promise<SecResult<ProxyPay
     }
     const years = parsePayVsPerformance(xbrl.data);
     const links = filingLinks(cik, f);
-    if (years.length) return { ok: true, data: { company: sub.data.name, cik, filing: f, link: links.doc ?? links.index, years }, at: xbrl.at };
+    if (years.length) return { ok: true, data: { company: sub.data.name, cik, filing: f, link: links.doc ?? links.index, years, executives }, at: xbrl.at };
+  }
+  if (executives.length && proxies[0]) {
+    const links = filingLinks(cik, proxies[0]);
+    return { ok: true, data: { company: sub.data.name, cik, filing: proxies[0], link: links.doc ?? links.index, years: [], executives }, at: Date.now() };
   }
   return problem ?? { ok: true, data: null, at: Date.now() };
 }
