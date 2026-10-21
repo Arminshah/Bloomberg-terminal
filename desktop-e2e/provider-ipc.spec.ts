@@ -745,6 +745,18 @@ test('REFRESH asks the sources the open screens use again, past answers the main
   await expect.poll(async () => (await calls(app)).alpacaNews.length).toBeGreaterThan(after);
 });
 
+test("PROFILE lists the company's six latest stories under its profile, a story of the last hour tagged BREAKING", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { const f = (globalThis as FixtureGlobal).__desktopFixtures; f.newsStories = true; f.newsAgeMs = 20 * 60_000; });
+  await command(page, 'AAPL PROFILE');
+  const box = page.locator('.panel').first().locator('.sect', { hasText: 'Latest news' });
+  await expect(box.locator('.news-item')).toHaveCount(2, { timeout: 30_000 });
+  // Alpaca's story is 20 minutes old: breaking. Google's is two hours old: not.
+  await expect(box.locator('.news-item').nth(0).locator('.badge.brk')).toHaveText('BREAKING');
+  await expect(box.locator('.news-item').nth(0)).toContainText('Synthetic Benzinga story about the company');
+  await expect(box.locator('.news-item').nth(1).locator('.badge.brk')).toHaveCount(0);
+  await expect(box.getByRole('button', { name: 'All news ›' })).toBeVisible();
+});
+
 test('a story about a favourite pops up and stays until dismissed, through a reload, and never pops up twice', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { const f = (globalThis as FixtureGlobal).__desktopFixtures; f.newsStories = true; f.newsAgeMs = 60_000; });
   // AAPL is a favourite and the app last looked at the news ten minutes ago: a story from a minute ago pops up.

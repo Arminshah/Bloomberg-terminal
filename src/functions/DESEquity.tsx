@@ -247,10 +247,10 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               items={[
                 ['Date', ne ? <span key="d">{ne.approx ? <span className="muted">(E) </span> : <span className="muted">(C) </span>}{fmtEarnDate(ne)}</span> : '--'],
                 ['P/E', peText(ks.pe, ks.epsLtm)],
-                [`Est P/E${fy ? ` ${fyLabel(fy.date)}` : ''}`, fmtNum(estPe, 2)],
+                [`Est P/E${fy ? ` ${fyLabel(fy.date)}` : ''}`, fy && Number.isFinite(fy.epsAvg) && fy.epsAvg <= 0 ? <span key="n" title="Not meaningful: the year's EPS estimate is a loss">NM</span> : fmtNum(estPe, 2)],
                 [`T12M EPS (${ccy})`, `${fmtNum(ks.epsLtm, 2)}${financials(sec).ltm?.epsComputed ? ' (computed)' : ''}`],
                 [`Est EPS${fy ? ` ${fyLabel(fy.date)}` : ''}`, fy ? fmtNum(fy.epsAvg, 2) : '--'],
-                ['Est PEG', fmtNum(estPeg, 2)],
+                ['Est PEG', Number.isFinite(estPeg) ? fmtNum(estPeg, 2) : fy && Number.isFinite(fy.epsAvg) ? <span key="n" title="Not meaningful: needs a positive estimated P/E and EPS growth into the next fiscal year">NM</span> : '--'],
               ]}
             />
           </Box>

@@ -679,7 +679,8 @@ export function DES({ sec }: FnProps) {
       />
       <QuoteStrip sec={s} />
       {body}
-      {engine.realOnly && s.cls !== 'equity' ? <LatestNews sec={s} /> : null}
+      {/* The company's six latest stories under its profile (and under every other security's description). */}
+      {engine.realOnly && (s.cls !== 'equity' || tab === 1) ? <LatestNews sec={s} /> : null}
     </div>
   );
 }
