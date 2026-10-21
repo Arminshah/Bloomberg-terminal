@@ -269,8 +269,9 @@ function useVisibleRange(ref: RefObject<HTMLTableSectionElement | null>, count: 
       const rowH = Math.max(14, line?.offsetHeight || 20);
       const top = body.getBoundingClientRect().top - host.getBoundingClientRect().top;
       const margin = 30;
-      // The lines on screen, and those drawn around them.
-      const first = Math.max(0, Math.min(count, Math.floor(-top / rowH)));
+      // The lines on screen (not those under the sticky function header and column headings), and those drawn around them.
+      const inset = (host.querySelector<HTMLElement>('.fnh')?.offsetHeight ?? 0) + (body.parentElement?.querySelector('thead')?.getBoundingClientRect().height ?? 0);
+      const first = Math.max(0, Math.min(count, Math.floor((inset - top) / rowH)));
       const last = Math.max(first, Math.min(count, Math.ceil((host.clientHeight - top) / rowH)));
       const start = Math.max(0, first - margin);
       const end = Math.min(count, last + margin);
