@@ -490,11 +490,11 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'finviz',
     name: 'Finviz (quote page)',
-    serves: "Two years of reports with the revenue expected and reported, each quarter's end date, the report date and session, and the coming report's revenue estimate (EARNINGS, EVENTS)",
+    serves: "Two years of reports with the revenue and EPS expected and reported, each quarter's end date, the report date and session, and the coming report's estimates (EARNINGS, EVENTS); the companies it lists as a US stock's peers (PEERS, PROFILE)",
     dataClass: 'Reference: consensus revenue estimates as Finviz publishes them on its public quote page',
     policy: 'enabled',
-    limit: '12/min',
-    terms: "Finviz's public quote page for one stock (allowed by its robots.txt), for personal use: asked only for the stock on screen and the EVENTS lines in view that lack revenue, kept for 12 hours, figures only. Finviz compares the EPS consensus with GAAP EPS for some companies, so only its revenue is used; reported revenue from the company's own filings wins over the page's.",
+    limit: '36/min',
+    terms: "Finviz's public quote page for one stock (allowed by its robots.txt), for personal use: asked only for the stock on screen and the EVENTS lines in view that lack figures, kept until the company's next report, figures and peer tickers only. Reported revenue from the company's own filings wins over the page's.",
     docs: [
       { label: 'Terms of use', url: 'https://finviz.com/terms' },
       { label: 'robots.txt', url: 'https://finviz.com/robots.txt' },
@@ -517,11 +517,11 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'marketbeat',
     name: 'MarketBeat (earnings page)',
-    serves: "Past quarters' consensus EPS and revenue estimates against reported, by fiscal quarter, when Zacks does not answer",
+    serves: "Past quarters' consensus EPS and revenue estimates against reported, by fiscal quarter, when Zacks does not answer (EARNINGS); analysts' rating actions with the analyst, firm and price target before and after (ANALYSTS)",
     dataClass: 'Reference: consensus estimates as MarketBeat publishes them on its public earnings page',
     policy: 'enabled',
     limit: '6/min',
-    terms: "MarketBeat's public earnings page for one stock, for personal use, only when Zacks has no answer: kept for 12 hours, figures only. Reported revenue from the company's own filings wins over the page's.",
+    terms: "MarketBeat's public earnings page for one stock, for personal use, only when Zacks has no answer, and its forecast page for the stock ANALYSTS shows: kept 12 and 6 hours, figures only. Reported revenue from the company's own filings wins over the page's.",
     docs: [{ label: 'Terms of service', url: 'https://www.marketbeat.com/terms/' }],
     checked: '2026-10-21',
     desktop: true,
