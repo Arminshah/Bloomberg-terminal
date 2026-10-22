@@ -1,4 +1,5 @@
 import { back, forward, terminal } from './state';
+import { stepTab } from './tab-history';
 
 /**
  * The mouse's back and forward buttons move through a panel's screens as they move through a browser tab's pages:
@@ -18,8 +19,14 @@ let last: { dir: Direction; source: Source; at: number } | null = null;
 export function historyStep(dir: Direction, source: Source, panel = terminal.get().active, now = Date.now()): boolean {
   if (last && last.dir === dir && last.source !== source && now - last.at < 400) return false;
   last = { dir, source, at: now };
-  (dir === 'back' ? back : forward)(panel);
+  browserStep(panel, dir);
   return true;
+}
+
+/** As a browser's back and forward: through the screen's tabs first, then to the screen before or after. */
+export function browserStep(panel: number, dir: Direction): void {
+  if (stepTab(panel, dir)) return;
+  (dir === 'back' ? back : forward)(panel);
 }
 
 /** The panel an event happened in, else the active one. */

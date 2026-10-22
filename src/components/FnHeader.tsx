@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
-import { useLayoutEffect, useMemo, useRef } from 'react';
-import { useMenu } from '../terminal/panel';
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useMenu, usePanelId } from '../terminal/panel';
+import { currentRoute, terminal } from '../terminal/state';
+import { leaveTabs, noteTab } from '../terminal/tab-history';
 import type { SecurityDef } from '../data/types';
 import type { MenuItem } from '../terminal/types';
 import { primaryMnemonic } from '../terminal/legacy';
@@ -50,6 +52,17 @@ export function FnHeader({ code, mnemonic: shown, title, sec, sub, actions = [],
     [tabs, actions, onTab],
   );
   useMenu(`hdr:${code}`, items);
+  // The tab shown joins the panel's history, so the mouse's back button steps back through tabs as a browser's
+  // steps back through pages.
+  const panel = usePanelId();
+  const route = terminal.use((s) => currentRoute(s, panel));
+  const fresh = useRef(true);
+  useEffect(() => {
+    if (!tabs?.length || tab == null || !onTab) return;
+    noteTab(panel, route, tab, onTab, fresh.current);
+    fresh.current = false;
+  }, [panel, route, tab, onTab, tabs]);
+  useEffect(() => () => leaveTabs(panel, route), [panel, route]);
   const ref = useRef<HTMLElement>(null);
   // A screen that scrolls as a whole keeps this header pinned at the top; its height lets the table headings pin
   // just below it, so every page keeps its column names.

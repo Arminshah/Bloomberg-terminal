@@ -207,6 +207,38 @@ test('the mouse back and forward buttons move through the screens of the panel u
   expect(errors).toEqual([]);
 });
 
+test("the mouse back button steps back through a screen's tabs before leaving it, as a browser does", async ({ page }) => {
+  const errors = await boot(page, '1');
+  await run(page, 'MSFT CHART');
+  await run(page, 'MSFT PROFILE');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code').first()).toHaveText('PROFILE');
+  const tabs = panel.locator('nav.tabs .tab');
+  await tabs.nth(1).click();
+  await tabs.nth(2).click();
+  await expect(panel.locator('.tab.on')).toContainText('3)');
+  const box = (await panel.locator('.panel-body').boundingBox())!;
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const cdp = await page.context().newCDPSession(page);
+  const press = async (button: 'back' | 'forward') => {
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', ...at, button, clickCount: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...at, button, clickCount: 1 });
+  };
+  await press('back');
+  await expect(panel.locator('.tab.on')).toContainText('2)');
+  await press('back');
+  await expect(panel.locator('.tab.on')).toContainText('1)');
+  await press('back');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('CHART');
+  // Forward returns to the profile on the tab it was left on, then through the tabs again.
+  await press('forward');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('PROFILE');
+  await expect(panel.locator('.tab.on')).toContainText('1)');
+  await press('forward');
+  await expect(panel.locator('.tab.on')).toContainText('2)');
+  expect(errors).toEqual([]);
+});
+
 test('numbered rows open by number, as on terminal monitors', async ({ page }) => {
   const errors = await boot(page, '1');
   const panel = page.locator('.panel').first();

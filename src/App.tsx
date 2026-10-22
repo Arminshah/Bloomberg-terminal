@@ -10,14 +10,14 @@ import { engine } from './data/market';
 import { setTimeZone } from './core/format';
 import { lookupFn } from './terminal/registry';
 import { settings } from './terminal/settings';
-import { back, currentRoute, forward, LAYOUT_PANELS, setActive, splitFor, terminal } from './terminal/state';
+import { back, currentRoute, LAYOUT_PANELS, setActive, splitFor, terminal } from './terminal/state';
 import { Splitters } from './components/Splitters';
 import { startBackground } from './terminal/background';
 import { DemoBanner } from './components/NoDataSource';
 import { demoMode } from './data/demo';
 import { startIexPrices } from './data/live/iex-engine';
 import { showPanelHelp, showPanelMenu } from './terminal/actions';
-import { startHistoryButtons } from './terminal/mouse-nav';
+import { browserStep, startHistoryButtons } from './terminal/mouse-nav';
 import { canRefresh, refreshAll } from './terminal/refresh';
 
 function MobileTabs() {
@@ -147,14 +147,15 @@ export function App() {
         }
         return;
       }
+      // Alt+← / Alt+→ work as a browser's: through the screen's tabs first, then between screens.
       if (e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault();
-        back(active);
+        browserStep(active, 'back');
         return;
       }
       if (e.altKey && e.key === 'ArrowRight') {
         e.preventDefault();
-        forward(active);
+        browserStep(active, 'forward');
         return;
       }
       if (isTyping(e.target)) return;
