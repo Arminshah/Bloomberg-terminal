@@ -233,7 +233,7 @@ test('linked panels preserve functions and saved groups in the real desktop rend
 
 test('field inspection distinguishes missing data, IEX trade freshness, and unknown bid/ask time', async ({ desktop: { app, page } }) => {
   await command(page, 'AAPL FLDS PX_LAST', 'FIELDS');
-  await expect(page.getByTestId('field-value')).toContainText('--');
+  await expect(page.getByTestId('field-value')).toContainText('Not available');
   await expect(page.locator('.field-definition')).toContainText('UNAVAILABLE');
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.tradeAgeMs = 5 * 60_000; });
   await enableIex(page);

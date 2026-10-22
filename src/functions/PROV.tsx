@@ -56,7 +56,7 @@ const KIND_LABEL: Record<string, string> = {
 
 /** "12 s ago", "4 min ago", or the time of day for older events. */
 function ago(t: number | null | undefined, now: number): string {
-  if (!t) return '--';
+  if (!t) return 'Not yet';
   const s = Math.max(0, Math.round((now - t) / 1000));
   if (s < 60) return `${s} s ago`;
   if (s < 3600) return `${Math.round(s / 60)} min ago`;
@@ -158,11 +158,11 @@ export function PROV(_: FnProps) {
                   <td className="hide-m muted provider-description">{p.dataClass}</td>
                   <td title={p.feed === 'stream' ? 'Direct WebSocket connection: state comes from socket events, not an HTTP request' : s?.lastAttemptAt ? new Date(s.lastAttemptAt).toISOString() : undefined}>{p.feed === 'stream' ? 'Socket events' : ago(s?.lastAttemptAt, now)}</td>
                   <td title={p.feed === 'stream' ? feeds.detail.stream : s?.lastSuccessAt ? new Date(s.lastSuccessAt).toISOString() : undefined}>
-                    {p.feed === 'stream' ? (feed === 'live' ? 'Connected' : '--') : ago(s?.lastSuccessAt, now)}
+                    {p.feed === 'stream' ? (feed === 'live' ? 'Connected' : 'Not connected') : ago(s?.lastSuccessAt, now)}
                     {s?.lastLatencyMs != null && s.lastSuccessAt ? <span className="muted"> · {s.lastLatencyMs} ms</span> : null}
                   </td>
                   <td className="hide-m" title={p.feed ? feeds.detail[p.feed] : undefined}>
-                    {updated ? ago(updated, now) : '--'}
+                    {updated ? ago(updated, now) : p.feed ? 'Not yet' : ''}
                   </td>
                   <td className="provider-description provider-problem" title={s?.lastErrorAt ? new Date(s.lastErrorAt).toISOString() : undefined}>
                     {state === 'stale' && !errorIsLatest ? (
@@ -178,16 +178,16 @@ export function PROV(_: FnProps) {
                       </>
                     ) : state === 'not-configured' ? (
                       'Local configuration: no key set'
-                    ) : (
-                      '--'
-                    )}
+                    ) : s?.lastSuccessAt ? (
+                      <span className="muted">None</span>
+                    ) : null}
                   </td>
                   <td className="num hide-m">
-                    {s ? s.lastMinute : '--'}
+                    {s ? s.lastMinute : 0}
                     {p.limit ? <span className="muted"> / {p.limit}</span> : null}
                   </td>
                   <td className="num hide-m" title={s?.dayLimit ? `The provider allows ${s.dayLimit} a day; the app stops at ${s.dayCap}` : undefined}>
-                    {s?.today ?? '--'}
+                    {s?.today ?? 0}
                     {s?.dayCap ? <span className={s.today != null && s.today >= s.dayCap * 0.9 ? 'dn' : 'muted'}> / {s.dayCap}</span> : null}
                   </td>
                   <td className="hide-m">

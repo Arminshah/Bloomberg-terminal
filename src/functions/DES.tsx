@@ -20,7 +20,7 @@ import type { FnProps, MenuItem } from '../terminal/types';
 import { CLASS_LABEL } from '../data/registry';
 import { useFundamentals } from '../data/live/yfund';
 import { contractSymbols, useYahooQuotes } from '../data/live/yquotes';
-import { yahooQuotes } from '../data/live/yahoo';
+import { cryptoReference, yahooQuotes } from '../data/live/yahoo';
 import { DAY_MS } from '../data/calendar';
 import { NoBondNotice, sourceLabel } from '../components/Source';
 import { realFutureContract } from '../data/realfut';
@@ -80,7 +80,10 @@ function Range52({ sec }: { sec: SecurityDef }) {
 
 function Returns({ id }: { id: string }) {
   const y = engine.get(id)?.quote === 'yield';
-  const hs = ['1D', '5D', '1M', '3M', 'YTD', '1Y', '5Y'] as const;
+  // Once the price history is in, a period it does not reach back to is left out (Kraken's daily record covers about
+  // two years, a recent listing less), not shown as "--".
+  const loaded = engine.daily(id).length > 0;
+  const hs = (['1D', '5D', '1M', '3M', 'YTD', '1Y', '5Y'] as const).filter((h) => h === '1D' || !loaded || Number.isFinite(periodChange(id, h)));
   return (
     <table className="tbl">
       <thead>
@@ -445,6 +448,8 @@ function CryptoDES({ sec }: { sec: SecurityDef }) {
   const cr = sec.cry!;
   const kraken = engine.realOnly && krakenOwns(sec.id);
   const gecko = coinGecko.use((c) => c.coins[sec.id]);
+  // Yahoo's quote of the coin (CoinMarketCap's figures), also when Kraken gives the price.
+  const yq = yahooQuotes.get(sec.id) ?? cryptoReference.get(sec.id);
   return (
     <>
       <div className="cols">
@@ -454,14 +459,23 @@ function CryptoDES({ sec }: { sec: SecurityDef }) {
               ['Asset', sec.name.split(' / ')[0]],
               ['Quote currency', 'USD'],
               ['Price', <LivePx key="l" id={sec.id} />],
-              ['Circulating supply', engine.realOnly ? (gecko?.supply ? `${fmtBig(gecko.supply)} (CoinGecko)` : '--') : fmtBig(cr.supply)],
+              [
+                'Circulating supply',
+                engine.realOnly
+                  ? gecko?.supply
+                    ? `${fmtBig(gecko.supply)} (CoinGecko)`
+                    : Number(yq?.circulatingSupply) > 0
+                      ? `${fmtBig(Number(yq!.circulatingSupply))} (Yahoo, CoinMarketCap)`
+                      : '--'
+                  : fmtBig(cr.supply),
+              ],
               [
                 'Market value',
                 engine.realOnly
                   ? gecko?.marketCap
                     ? `${fmtBig(gecko.marketCap)} (CoinGecko, aggregated)`
-                    : Number(yahooQuotes.get(sec.id)?.marketCap) > 0
-                      ? `${fmtBig(Number(yahooQuotes.get(sec.id)!.marketCap))} (Yahoo)`
+                    : Number(yq?.marketCap) > 0
+                      ? `${fmtBig(Number(yq!.marketCap))} (Yahoo, CoinMarketCap)`
                       : '--'
                   : fmtBig(q.last * cr.supply),
               ],

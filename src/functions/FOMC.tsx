@@ -46,7 +46,7 @@ export function FOMC(_: FnProps) {
   const items: MenuItem[] = useMemo(() => RELATED.map(([cmd, label], i) => ({ n: 21 + i, label, run: () => execute(panel, cmd) })), [panel]);
   useMenu('fomc-related', items);
   const real = !!rates.fedUpper;
-  const range = (lo: number, hi: number) => (Number.isFinite(hi) ? (Number.isFinite(lo) && lo !== hi ? `${fmtNum(lo, 2)} - ${fmtNum(hi, 2)}` : fmtNum(hi, 2)) : '--');
+  const range = (lo: number, hi: number) => (Number.isFinite(hi) ? (Number.isFinite(lo) && lo !== hi ? `${fmtNum(lo, 2)} - ${fmtNum(hi, 2)}` : fmtNum(hi, 2)) : '');
   return (
     <div>
       <FnHeader
@@ -99,7 +99,7 @@ export function FOMC(_: FnProps) {
               <td>14:00 ET</td>
               <td className="num white">{range(r.lower, r.upper)}</td>
               <td className="num">
-                {Number.isFinite(r.changeBp) ? <span className={r.changeBp > 0 ? 'up' : r.changeBp < 0 ? 'dn' : ''}>{r.changeBp > 0 ? `+${r.changeBp}` : r.changeBp}</span> : '--'}
+                {Number.isFinite(r.changeBp) ? <span className={r.changeBp > 0 ? 'up' : r.changeBp < 0 ? 'dn' : ''}>{r.changeBp > 0 ? `+${r.changeBp}` : r.changeBp}</span> : null}
               </td>
               <td className={r.status === 'today' ? 'yellow' : 'muted'}>{r.status === 'decided' ? 'Decided' : r.status === 'today' ? 'Today' : 'Scheduled'}</td>
             </tr>

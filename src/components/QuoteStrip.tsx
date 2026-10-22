@@ -26,6 +26,18 @@ export function QuoteStrip({ sec }: { sec: SecurityDef }) {
   if (!q) return null;
   const y = sec.quote === 'yield';
   const ccy = sec.minor ? sec.ccy : sec.cls === 'rate' ? '%' : sec.ccy;
+  // A line with no source has no price, change or range to show: its name and the NO DATA mark only.
+  if (q.src === 'NONE' && !Number.isFinite(q.last)) {
+    return (
+      <div className="qstrip">
+        <span className="yellow b">{sec.ticker}</span>
+        <span className="muted">{ccy}</span>
+        <span className="src">
+          <QuoteFreshness id={sec.id} />
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="qstrip">
       <span className="yellow b">{sec.ticker}</span>

@@ -52,6 +52,9 @@ export function BBK({ sec }: FnProps) {
   const rows = sum?.rows ?? [];
   const desc = [...rows].reverse();
   const asOf = (x?: { end: string }) => (x ? ` (${fmtDay(day(x.end))})` : '');
+  // A program figure counts when it is dated within about a year and a half of the latest period shown.
+  const latestEnd = rows.length ? Math.max(...rows.map((r) => day(r.end))) : NaN;
+  const current = (x?: { end: string }) => !!x && (!Number.isFinite(latestEnd) || latestEnd - day(x.end) <= 550 * 86_400_000);
   const csv = () => [
     ['Period', 'Period End', `Buybacks (${ccy})`, 'Shares Repurchased', 'Average Price', `Dividends (${ccy})`, 'Total Returned', 'Shares Outstanding', 'Calculated'],
     ...desc.map((r) => [periodName(r), r.end, r.buyback ?? '', r.shares ?? '', r.buyback != null && r.shares ? r.buyback / r.shares : '', r.dividends ?? '', (r.buyback ?? 0) + (r.dividends ?? 0), r.sharesOut ?? '', r.derived ? 'yes' : '']),
@@ -130,12 +133,16 @@ export function BBK({ sec }: FnProps) {
                 ]}
               />
               <KV
-                items={[
-                  ['Program Authorized', sum.authorized ? `${fmtBig(sum.authorized.val, 2)}${asOf(sum.authorized)}` : '--'],
-                  ['Authorization Remaining', sum.remaining ? `${fmtBig(sum.remaining.val, 2)}${asOf(sum.remaining)}` : '--'],
-                  ['Remaining / Market Value', sum.remaining && cap > 0 ? `${fmtNum((sum.remaining.val / cap) * 100, 2)}%` : '--'],
-                  ['Market Value', cap > 0 ? `${fmtBig(cap, 2)} ${ccy}` : '--'],
-                ]}
+                // Only what the filings state: a program figure tagged years before the latest report (Apple's
+                // last tagged authorization is from 2021) is not the current program, and is left out.
+                items={(
+                  [
+                    current(sum.authorized) ? ['Program Authorized', `${fmtBig(sum.authorized!.val, 2)}${asOf(sum.authorized)}`] : null,
+                    current(sum.remaining) ? ['Authorization Remaining', `${fmtBig(sum.remaining!.val, 2)}${asOf(sum.remaining)}`] : null,
+                    current(sum.remaining) && cap > 0 ? ['Remaining / Market Value', `${fmtNum((sum.remaining!.val / cap) * 100, 2)}%`] : null,
+                    cap > 0 ? ['Market Value', `${fmtBig(cap, 2)} ${ccy}`] : null,
+                  ] as ([string, string] | null)[]
+                ).filter((x): x is [string, string] => !!x)}
               />
             </div>
             <XYChart

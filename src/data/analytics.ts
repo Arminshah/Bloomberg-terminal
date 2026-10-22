@@ -3,6 +3,7 @@ import { indexAtOrBefore, type Series } from './series';
 import { regress, stdev } from '../finance/stats';
 import { DAY_MS } from './calendar';
 import { IEX_PROVIDER } from './live/iex-engine';
+import { adjustedBeta, defaultBenchmark, lookbackStart, pairedReturns, periodCloses } from '../finance/beta';
 
 export type Horizon = '1D' | '5D' | '1M' | '3M' | '6M' | 'YTD' | '1Y' | '2Y' | '5Y';
 
@@ -152,6 +153,30 @@ export function alignedReturns(ids: string[], bars: number): { dates: number[]; 
 export function betaTo(id: string, bench: string, bars = 252) {
   const { rets } = alignedReturns([bench, id], bars);
   return regress(rets[0], rets[1]);
+}
+
+const betaCache = new Map<string, { key: string; v: number }>();
+
+/**
+ * Adjusted beta as BETA works it out by default: two years of weekly returns against the security's local index.
+ * NaN until both price histories cover a year (52 weeks in common).
+ */
+export function localBeta(id: string): number {
+  const def = engine.get(id);
+  if (!def) return NaN;
+  const bench = defaultBenchmark(def, (x) => !!engine.get(x));
+  const b = engine.daily(bench);
+  const y = engine.daily(id);
+  if (bench === id || !b.length || !y.length) return NaN;
+  const key = `${bench}|${b.length}|${b.t[b.length - 1]}|${y.length}|${y.t[y.length - 1]}`;
+  const hit = betaCache.get(id);
+  if (hit?.key === key) return hit.v;
+  const to = Math.min(b.t[b.length - 1], y.t[y.length - 1]);
+  const from = lookbackStart(to, 24);
+  const r = pairedReturns(periodCloses(b, 'W', from, to), periodCloses(y, 'W', from, to));
+  const v = r.x.length >= 52 ? adjustedBeta(regress(r.x, r.y).beta) : NaN;
+  betaCache.set(id, { key, v: Number.isFinite(v) ? v : NaN });
+  return betaCache.get(id)!.v;
 }
 
 export function marketCap(id: string): number {

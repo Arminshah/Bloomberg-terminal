@@ -366,6 +366,11 @@ export function keyStats(def: SecurityDef): KeyStats {
       put('pe', yq.trailingPE);
       if (fx === 1) put('pb', yq.priceToBook);
       put('epsLtm', yq.epsTrailingTwelveMonths);
+      // Return on equity from the quote's trailing EPS over its latest book value per share, both in the currency the
+      // company reports in, until its statements are loaded.
+      const eps = Number(yq.epsTrailingTwelveMonths);
+      const bvps = Number(yq.bookValue);
+      if (fx === 1 && !Number.isFinite(out.roe) && yq.epsTrailingTwelveMonths != null && Number.isFinite(eps) && bvps > 0) out.roe = (eps / bvps) * 100;
       ks.shares = def.eq!.shares;
     }
   }

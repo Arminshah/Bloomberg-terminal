@@ -5,7 +5,7 @@ import { fmtIso } from '../../core/format';
 const FIELD: Record<string, string> = {
   revenue: 'TotalRevenue', cost: 'CostOfRevenue', gross: 'GrossProfit', rnd: 'ResearchAndDevelopment',
   sga: 'SellingGeneralAndAdministration', opInc: 'OperatingIncome', interest: 'InterestExpense',
-  pretax: 'PretaxIncome', tax: 'TaxProvision', netCommon: 'NetIncomeCommonStockholders',
+  pretax: 'PretaxIncome', tax: 'TaxProvision', netCommon: 'NetIncomeCommonStockholders', netInc: '__NetIncome',
   epsDil: 'DilutedEPS', dilShares: 'DilutedAverageShares', cfo: 'OperatingCashFlow',
   capex: 'CapitalExpenditure', divPaid: 'CashDividendsPaid', buyback: 'RepurchaseOfCapitalStock',
   da: 'ReconciledDepreciation', cash: 'CashAndCashEquivalents', curAssets: 'CurrentAssets',

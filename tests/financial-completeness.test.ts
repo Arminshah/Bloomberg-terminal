@@ -117,6 +117,25 @@ describe('SEC statement supplements', () => {
     expect(f.quarterly[0].gp).toBeNaN();
     expect(f.quarterly[0].eps).toBeNaN();
   });
+
+  it('keeps the reported EPS when revenue was restated but net income to common shareholders agrees', () => {
+    // Revenue restated for discontinued operations (200 against the filing's 100); net income and EPS unchanged.
+    const f = buildRealFund(def, { quoteSummary: { result: [{ financialData: { financialCurrency: 'USD' } }] } }, null,
+      series('quarterly', [['TotalRevenue', '2026-08-31', 200e6], ['NetIncomeCommonStockholders', '2026-08-31', -60e6]]), null, NOW, cf());
+    expect(f.quarterly[0]).toMatchObject({ rev: 200, ni: -60, eps: -0.82 });
+    expect(f.quarterly[0].gp).toBeNaN();
+  });
+
+  it('uses reported net income for the common shareholders only when diluted EPS times shares gives it back', () => {
+    const facts = (ni: number) => parseCompanyFacts(JSON.stringify({ cik: 1, entityName: 'Example', facts: { 'us-gaap': {
+      Revenues: row(100e6), NetIncomeLoss: row(ni), EarningsPerShareDiluted: row(0.5, 'USD/shares'), WeightedAverageNumberOfDilutedSharesOutstanding: row(40e6, 'shares'),
+    } } }))!;
+    const company = { quoteSummary: { result: [{ financialData: { financialCurrency: 'USD' } }] } };
+    const q = series('quarterly', [['TotalRevenue', '2026-08-31', 100e6]]);
+    expect(buildRealFund(def, company, null, q, null, NOW, facts(20e6)).quarterly[0].ni).toBe(20);
+    // 25 million against 0.50 × 40 million shares: something (preferred dividends) comes between them.
+    expect(buildRealFund(def, company, null, q, null, NOW, facts(25e6)).quarterly[0].ni).toBeNaN();
+  });
 });
 
 describe('dated financial comparisons and cost of capital inputs', () => {

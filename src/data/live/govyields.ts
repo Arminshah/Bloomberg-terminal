@@ -13,8 +13,8 @@ import { registerRefresh } from '../../terminal/refresh';
  * - Germany: Deutsche Bundesbank yield curve (Svensson method), zero-coupon yields
  * - United Kingdom: Bank of England nominal par yields (5, 10 and 20 years only)
  * - Japan: Ministry of Finance JGB yields at constant maturities
- * - Canada: Bank of Canada benchmark bond yields
- * - Australia: Reserve Bank of Australia interpolated yields (table F2)
+ * - Canada: Bank of Canada benchmark bond yields (2, 3, 5, 7, 10 years and the long-term benchmark)
+ * - Australia: Reserve Bank of Australia interpolated yields (table F2: 2, 3, 5 and 10 years)
  * Other countries have no free official daily source and stay off the desktop app.
  */
 
@@ -46,8 +46,9 @@ export const OFFICIAL_LINES: Line[] = [
   { id: 'GJGB5 Index', source: 'jgb', key: '5Y', method: MOF_METHOD },
   { id: 'GJGB10 Index', source: 'jgb', key: '10Y', method: MOF_METHOD },
   { id: 'GJGB30 Index', source: 'jgb', key: '30Y', method: MOF_METHOD },
-  { id: 'GCAN10YR Index', source: 'canadas', key: 'BD.CDN.10YR.DQ.YLD', method: BOC_METHOD },
-  { id: 'GACGB10 Index', source: 'acgb', key: 'FCMYGBAG10D', method: RBA_METHOD },
+  ...[2, 3, 5, 7, 10].map((t) => ({ id: `GCAN${t}YR Index`, source: 'canadas' as const, key: `BD.CDN.${t}YR.DQ.YLD`, method: BOC_METHOD })),
+  { id: 'GCAN30YR Index', source: 'canadas', key: 'BD.CDN.LONG.DQ.YLD', method: `${BOC_METHOD} (long-term benchmark, the 30-year bond)` },
+  ...[2, 3, 5, 10].map((t) => ({ id: `GACGB${t} Index`, source: 'acgb' as const, key: `FCMYGBAG${t}D`, method: RBA_METHOD })),
 ];
 
 const BY_ID = new Map(OFFICIAL_LINES.map((l) => [l.id, l]));

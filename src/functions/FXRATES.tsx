@@ -248,17 +248,15 @@ export function CENB(_: FnProps) {
                 </td>
                 <td className="hide-m">{fmtDay(Date.parse(`${b.last}T00:00:00Z`))}</td>
                 <td>{next ? fmtDay(Date.parse(`${next}T00:00:00Z`)) : <span className="muted">{b.code === 'PBOC' ? 'Monthly fixing' : 'Not yet in the app'}</span>}</td>
-                <td className="num">{Number.isFinite(days) ? days : '--'}</td>
+                <td className="num">{Number.isFinite(days) ? days : null}</td>
                 <td className="num hide-m">
                   {y2 ? (
                     <SecLink id={y2}>
                       <LivePx id={y2} dec={3} />
                     </SecLink>
-                  ) : (
-                    '--'
-                  )}
+                  ) : null}
                 </td>
-                <td className="num hide-m">{Number.isFinite(yv) ? <Chg v={(yv - b.rate) * 100} dec={0} /> : '--'}</td>
+                <td className="num hide-m">{Number.isFinite(yv) ? <Chg v={(yv - b.rate) * 100} dec={0} /> : null}</td>
               </tr>
             );
           })}
@@ -266,7 +264,7 @@ export function CENB(_: FnProps) {
       </table>
       <p className="pad-s muted">
         {engine.realOnly
-          ? 'Policy rates and their last moves come from the central banks’ own data, as in force: a decided change shows once it takes effect. The Fed’s meeting dates come from the Board’s calendar page; the other banks’ are their published calendars, entered in the app. Banks without a free daily source are not listed. 2-year yields are end of day: the US Treasury par yield, and for the euro area the Bundesbank’s zero-coupon yield.'
+          ? 'Policy rates and their last moves come from the central banks’ own data, as in force: a decided change shows once it takes effect. The Fed’s meeting dates come from the Board’s calendar page; the other banks’ are their published calendars, entered in the app. Banks without a free daily source are not listed. 2-year yields are end of day: the US Treasury par yield, the Bundesbank’s zero-coupon yield for the euro area, the Bank of Canada’s benchmark yield, the RBA’s interpolated yield and Japan’s Ministry of Finance yield; the Bank of England publishes no 2-year par yield.'
           : banks.some((b) => b.real)
           ? 'Rates without SIM, and their last moves, come from the central banks’ own data. Rates marked SIM are reference settings with no free daily source and may be out of date.'
           : 'Policy rates are reference settings (the Fed range is derived from the 3-month bill) and may be out of date; the desktop app loads the Fed, ECB, Bank of England and Bank of Canada rates from the banks themselves.'}{' '}

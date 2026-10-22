@@ -180,7 +180,7 @@ export interface PrevCloseReading {
  * previous bar to check against, readings that agree are kept as unverified.
  * Undefined means the quote carried neither reading.
  */
-export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number, sessionOpen?: number, opts: { before?: number; futures?: boolean } = {}): PrevCloseReading | undefined {
+export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number, sessionOpen?: number, opts: { before?: number; futures?: boolean; gap?: boolean } = {}): PrevCloseReading | undefined {
   const ok = (x: number | undefined): x is number => x !== undefined && Number.isFinite(x) && x !== 0;
   const c = [field, implied].filter(ok);
   if (!c.length) return undefined;
@@ -206,10 +206,20 @@ export function resolvePrevClose(field: number | undefined, implied: number | un
     // carry the close of the day before (EURUSD's bar for 13 Oct 2026 closed at 1.1160, its price at the
     // start of that day; the quote's 1.1203 matched the end of the day and the next day's open, 1.1202).
     if (ok(sessionOpen) && (c.length === 1 || rel(c[0], c[1]) <= 2e-4) && rel(c[0], sessionOpen) <= 1e-3) return { value: c[0], verified: true };
+    // The bars miss the previous session (Yahoo's currency bars for 21 Oct 2026 had no close), so they cannot check
+    // the reading: it is used, marked unverified, rather than compared with an older day's close.
+    if (opts.gap) return { value: c.length === 1 || rel(c[0], c[1]) <= 2e-4 ? c[0] : NaN, verified: false };
     return { value: NaN, verified: false };
   }
   if (c.length === 1) return { value: c[0], verified: false };
   return { value: rel(c[0], c[1]) <= 2e-4 ? c[0] : NaN, verified: false };
+}
+
+/** The weekday before a day number (day 0, 1 January 1970, was a Thursday). */
+export function previousWeekday(day: number): number {
+  let d = day - 1;
+  while ((d + 4) % 7 === 0 || (d + 4) % 7 === 6) d--;
+  return d;
 }
 
 /** The value part of resolvePrevClose. */
@@ -1699,6 +1709,8 @@ export class MarketEngine {
     const reading = resolvePrevClose(q.prevClose, q.prevCloseAlt, histPrev, st.def.cls === 'fx' ? q.open : undefined, {
       before: n > 1 ? s.c[n - 2] : NaN,
       futures: st.def.cls === 'future' || st.def.cls === 'commodity',
+      // Currencies trade every weekday: a previous bar older than the weekday before is a hole in the history.
+      gap: st.def.cls === 'fx' && histDay !== undefined && histDay < previousWeekday(day),
     });
     if (reading && (reading.verified || q.full || newSession || st.chgCheck !== 'verified')) {
       st.prevClose = reading.value;

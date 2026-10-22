@@ -295,6 +295,9 @@ function dividendsIn(id: string, from: number, to: number): number {
 
 // -------------------------------------------------------------------- build
 
+/** Statement lines worked out per share, from net income to common shareholders. */
+const PER_SHARE = new Set(['DilutedEPS', 'DilutedAverageShares']);
+
 export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, quarterlyRes: Json, trailingRes: Json, now: number, secFacts?: CompanyFacts): RealFund {
   const r = summary?.quoteSummary?.result?.[0] ?? {};
   const fiscalEnd = num(r.defaultKeyStatistics?.lastFiscalYearEnd);
@@ -321,6 +324,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
       supplements.set(at, new Set([`Yahoo Finance debt snapshot as of ${fmtDay(mostRecentQuarter, true)}`]));
     }
   }
+  const netIncome = new Map<string, { value: number; source: string }>();
   if (secFacts && currency) {
     for (const [kind, rows] of [['annual', annualRows], ['quarter', quarterlyRows]] as const) {
       for (const [secEnd, extra] of secStatementRows(secFacts, currency, kind)) {
@@ -335,8 +339,18 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
           if (primary == null || !Number.isFinite(primary) || official == null || (key === 'TotalRevenue' && primary < 0)) return false;
           return Math.abs(primary - official) > 0.01 * Math.max(Math.abs(primary), Math.abs(official), 1);
         });
+        // Per-share figures follow net income to common shareholders, which restating revenue or operating income for
+        // discontinued operations leaves as it was (Applied Digital's FY2025): they still fit when that agrees.
+        const ni = row.get('NetIncomeCommonStockholders');
+        const secNi = extra.row.get('NetIncomeCommonStockholders');
+        const niAgrees = ni != null && secNi != null && Number.isFinite(ni) && Number.isFinite(secNi) && Math.abs(ni - secNi) <= 0.01 * Math.max(Math.abs(ni), Math.abs(secNi), 1);
         for (const [key, value] of extra.row) {
-          if (conflict && !BALANCE_SET.has(key)) continue;
+          if (conflict && !BALANCE_SET.has(key) && !(niAgrees && PER_SHARE.has(key))) continue;
+          // Net income before any preferred dividends: kept aside, used below only where it checks out.
+          if (key === '__NetIncome') {
+            if (!Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN)) netIncome.set(`${kind}:${end}`, { value, source: extra.sources.get(key)! });
+            continue;
+          }
           if (Number.isFinite(row.get(key)) && !(key === 'TotalRevenue' && row.get(key)! < 0)) continue;
           row.set(key, value);
           const evidence = supplements.get(end) ?? new Set<string>();
@@ -345,6 +359,21 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         }
         rows.set(end, row);
       }
+    }
+  }
+  // A filer that reports only its net income (Apple's FY2021: no "available to common shareholders" line) has that
+  // figure as its common shareholders' when diluted EPS times diluted shares gives it back: no preferred dividends
+  // or other claims come between them.
+  for (const [kind, rows] of [['annual', annualRows], ['quarter', quarterlyRows]] as const) {
+    for (const [end, row] of rows) {
+      const ni = netIncome.get(`${kind}:${end}`);
+      if (!ni || Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN)) continue;
+      const fromEps = (row.get('DilutedEPS') ?? NaN) * (row.get('DilutedAverageShares') ?? NaN);
+      if (!Number.isFinite(fromEps) || Math.abs(ni.value - fromEps) > 0.015 * Math.max(Math.abs(ni.value), 1)) continue;
+      row.set('NetIncomeCommonStockholders', ni.value);
+      const evidence = supplements.get(end) ?? new Set<string>();
+      evidence.add(`${ni.source}; net income, which diluted EPS times diluted shares confirms as the common shareholders'`);
+      supplements.set(end, evidence);
     }
   }
   // Annual and quarterly balance sheets refer to the same instant at fiscal year end.

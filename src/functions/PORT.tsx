@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
@@ -121,7 +121,8 @@ function Holdings() {
           }
         >
           <KV
-            items={[
+            // An empty book has no return to show: its return lines are left out until a position is added.
+            items={([
               ['Net asset value', <span key="n" className="white b" style={{ fontSize: 'var(--fs-xl)' }}>{fmtNum(nav, 0)}</span>],
               ['Securities at market', fmtNum(mv - futNotional, 0)],
               ['Futures notional', fmtNum(futNotional, 0)],
@@ -131,7 +132,7 @@ function Holdings() {
               ['Unrealised local-price P&L', <Chg key="u" v={unresolved.length ? NaN : tot} dec={0} />],
               ['Unrealised FX P&L', fxKnown.length ? <Chg key="fx" v={fxPnl} dec={0} /> : '--'],
               ['Return on absolute cost', <Chg key="rc" v={unresolved.length || grossCost === 0 ? NaN : (tot / grossCost) * 100} pct />],
-            ]}
+            ] as [string, ReactNode][]).filter(([k]) => ls.length > 0 || !['Day return', 'Unrealised FX P&L', 'Return on absolute cost'].includes(k))}
           />
         </Section>
         <Section title="Add or adjust a position">
@@ -173,6 +174,13 @@ function Holdings() {
           </tr>
         </thead>
         <tbody>
+          {ls.length === 0 && (
+            <tr>
+              <td colSpan={12} className="empty">
+                No positions yet: enter a security, a quantity and, if you like, your price, then Add.
+              </td>
+            </tr>
+          )}
           {ls
             .sort((a, b) => b.mv - a.mv)
             .map((l) => (

@@ -235,8 +235,10 @@ export const RATES: SecurityDef[] = [
   rate('GBTPGR10', 'Italy Govt BTP 10Y', 'IT', 'EMEA', 'EUR', 'IT', 10, 3.5, 0.8),
   rate('GSPG10YR', 'Spain Govt Bond 10Y', 'ES', 'EMEA', 'EUR', 'ES', 10, 3.2, 0.75),
   rate('GSWISS10', 'Swiss Govt Bond 10Y', 'CH', 'EMEA', 'CHF', 'CH', 10, 0.25, 0.45),
-  rate('GCAN10YR', 'Canada Govt Bond 10Y', 'CA', 'Americas', 'CAD', 'CA', 10, 3.25, 0.8),
-  rate('GACGB10', 'Australia Govt Bond 10Y', 'AU', 'APAC', 'AUD', 'AU', 10, 4.4, 0.85),
+  // The Bank of Canada's benchmark bonds; the long-term benchmark is its 30-year bond.
+  ...curveSet((t) => `GCAN${t}YR`, 'Canada Govt Bond', 'CA', 'Americas', 'CAD', 'CA', [[2, 2.9], [3, 2.95], [5, 3.0], [7, 3.1], [10, 3.25], [30, 3.55]], 0.8),
+  // The Reserve Bank of Australia's interpolated yields (table F2).
+  ...curveSet((t) => `GACGB${t}`, 'Australia Govt Bond', 'AU', 'APAC', 'AUD', 'AU', [[2, 3.7], [3, 3.8], [5, 4.0], [10, 4.4]], 0.85),
   rate('GCNY10YR', 'China Govt Bond 10Y', 'CN', 'APAC', 'CNY', 'CN', 10, 1.8, 0.3),
   rate('GIND10YR', 'India Govt Bond 10Y', 'IN', 'APAC', 'INR', 'IN', 10, 6.45, 0.45),
   rate('GEBR10Y', 'Brazil Govt Bond 10Y', 'BR', 'Americas', 'BRL', 'BR', 10, 13.6, 1.6),

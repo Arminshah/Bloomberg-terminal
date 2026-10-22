@@ -22,11 +22,15 @@ type Row = {
   indent?: boolean;
   /** A growth or margin line: shown in percent, with no trend arrow of its own. */
   ratio?: boolean;
+  /** Both figures are there but the ratio means nothing (growth from a loss): "NM". */
+  nm?: (p: FinPeriod, prev?: FinPeriod) => boolean;
 };
 
 /** Year on year (or quarter on quarter) change, from a positive base only. */
 const growth = (a: number, b: number | undefined) => (b !== undefined && Number.isFinite(a) && Number.isFinite(b) && b > 0 ? (a / b - 1) * 100 : NaN);
 const margin = (a: number, rev: number) => (Number.isFinite(a) && rev > 0 ? (a / rev) * 100 : NaN);
+/** Growth from a loss or zero: both figures known, no meaningful percentage. */
+const growthNm = (a: number, b: number | undefined) => b !== undefined && Number.isFinite(a) && Number.isFinite(b) && b <= 0;
 
 /**
  * FA's first page, as the terminal's Key Stats: the headline figures with their growth and margins under them. The
@@ -35,7 +39,7 @@ const margin = (a: number, rev: number) => (Number.isFinite(a) && rev > 0 ? (a /
  */
 const KEY: Row[] = [
   { label: 'Revenue', get: (p) => p.rev, bold: true },
-  { label: 'Growth %, YoY', get: (p, q) => growth(p.rev, q?.rev), indent: true, ratio: true },
+  { label: 'Growth %, YoY', get: (p, q) => growth(p.rev, q?.rev), nm: (p, q) => growthNm(p.rev, q?.rev), indent: true, ratio: true },
   { label: 'Gross Profit', get: (p) => p.gp, bold: true },
   { label: 'Margin %', get: (p) => margin(p.gp, p.rev), indent: true, ratio: true },
   { label: 'EBITDA', get: (p) => p.ebitda, bold: true },
@@ -43,7 +47,7 @@ const KEY: Row[] = [
   { label: 'Net Income', get: (p) => p.ni, bold: true },
   { label: 'Margin %', get: (p) => margin(p.ni, p.rev), indent: true, ratio: true },
   { label: 'Diluted EPS', get: (p) => p.eps, dec: 2, bold: true },
-  { label: 'Growth %, YoY', get: (p, q) => growth(p.eps, q?.eps), indent: true, ratio: true },
+  { label: 'Growth %, YoY', get: (p, q) => growth(p.eps, q?.eps), nm: (p, q) => growthNm(p.eps, q?.eps), indent: true, ratio: true },
   { label: 'Cash from Operations', get: (p) => p.cfo },
   { label: 'Capital Expenditures', get: (p) => -p.capex },
   { label: 'Free Cash Flow', get: (p) => p.fcf, bold: true },
@@ -98,15 +102,15 @@ const RATIOS: Row[] = [
   { label: 'Operating Margin', get: (p) => (p.opInc / p.rev) * 100, pct: true },
   { label: 'EBITDA Margin', get: (p) => (p.ebitda / p.rev) * 100, pct: true },
   { label: 'Net Margin', get: (p) => (p.ni / p.rev) * 100, pct: true },
-  { label: 'Return on Common Equity', get: (p) => (p.equity > 0 ? (p.ni / p.equity) * 100 : NaN), pct: true },
+  { label: 'Return on Common Equity', get: (p) => (p.equity > 0 ? (p.ni / p.equity) * 100 : NaN), nm: (p) => Number.isFinite(p.ni) && p.equity <= 0, pct: true },
   { label: 'Return on Assets', get: (p) => (p.ni / p.totAssets) * 100, pct: true },
-  { label: 'Effective Tax Rate', get: (p) => (p.pretax > 0 ? (p.tax / p.pretax) * 100 : NaN), pct: true },
+  { label: 'Effective Tax Rate', get: (p) => (p.pretax > 0 ? (p.tax / p.pretax) * 100 : NaN), nm: (p) => Number.isFinite(p.tax) && p.pretax <= 0, pct: true },
   { label: 'Current Ratio', get: (p) => p.curAssets / p.curLiab, dec: 2 },
-  { label: 'Total Debt / Total Equity', get: (p) => (p.equity > 0 ? (p.debt / p.equity) * 100 : NaN), pct: true },
+  { label: 'Total Debt / Total Equity', get: (p) => (p.equity > 0 ? (p.debt / p.equity) * 100 : NaN), nm: (p) => Number.isFinite(p.debt) && p.equity <= 0, pct: true },
   { label: 'Net Debt / EBITDA', get: (p) => (p.debt - p.cash) / p.ebitda, dec: 2 },
-  { label: 'EBIT / Interest Expense', get: (p) => (p.interest > 0 ? p.opInc / p.interest : NaN), dec: 1 },
+  { label: 'EBIT / Interest Expense', get: (p) => (p.interest > 0 ? p.opInc / p.interest : NaN), nm: (p) => Number.isFinite(p.opInc) && p.interest === 0, dec: 1 },
   { label: 'Capex / Revenue', get: (p) => (p.capex / p.rev) * 100, pct: true },
-  { label: 'Dividend Payout Ratio', get: (p) => (p.eps > 0 ? (p.dps / p.eps) * 100 : NaN), pct: true },
+  { label: 'Dividend Payout Ratio', get: (p) => (p.eps > 0 ? (p.dps / p.eps) * 100 : NaN), nm: (p) => p.dps > 0 && p.eps <= 0, pct: true },
 ];
 
 /** FA's pages under the terminal's names. */
@@ -165,7 +169,7 @@ export function FA({ sec, route }: FnProps) {
   // currency (dollars): the row says its unit, and no payout ratio divides one by the other.
   const divUnit = s.ccy !== ccy ? (s.ccy === 'GBp' ? 'pence' : s.ccy) : '';
   const rows = TABS[tab - 1].rows.map((r) =>
-    divUnit && r.label === 'Dividends per Share' ? { ...r, label: `Dividends per Share (${divUnit})` } : divUnit && r.label === 'Dividend Payout Ratio' ? { ...r, get: () => NaN } : r,
+    divUnit && r.label === 'Dividends per Share' ? { ...r, label: `Dividends per Share (${divUnit})` } : divUnit && r.label === 'Dividend Payout Ratio' ? { ...r, get: () => NaN, nm: undefined } : r,
   );
   // Growth lines compare a year with the one before and a quarter with the same quarter a year earlier; the LTM
   // column overlaps the latest year, so it has no growth of its own.
@@ -177,7 +181,9 @@ export function FA({ sec, route }: FnProps) {
     ...rows.map((r) => [r.label, ...cols.map((_, i) => value(r, i).toFixed(r.dec ?? 1)), ...estimates.map((e) => estValue(r, e).toFixed(r.dec ?? 1))]),
   ];
   const months = quarterly ? '3 Months Ending' : '12 Months Ending';
-  const fmtCell = (r: Row, v: number) => (r.ratio ? (Number.isFinite(v) ? fmtNum(v, 1) : '--') : r.pct ? `${fmtNum(v, 1)}%` : fmtNum(v, r.dec ?? (Math.abs(v) >= 100 ? 0 : 1)));
+  // A missing figure is left empty (the note says why); "NM" where both figures are there but a ratio means nothing.
+  const fmtCell = (r: Row, v: number, i?: number) =>
+    !Number.isFinite(v) ? (i != null && r.nm?.(cols[i], prevOf(i)) ? 'NM' : '') : r.ratio ? fmtNum(v, 1) : r.pct ? `${fmtNum(v, 1)}%` : fmtNum(v, r.dec ?? (Math.abs(v) >= 100 ? 0 : 1));
   return (
     <div>
       <FnHeader
@@ -263,7 +269,7 @@ export function FA({ sec, route }: FnProps) {
               const previousPeriod = latestPeriod ? priorStatementPeriod(all, latestPeriod, quarterly ? 'quarter' : 'year') : undefined;
               const prev = previousPeriod ? r.get(previousPeriod) : NaN;
               // Growth of magnitude; for cost lines (negative values) a rise is shown as a negative.
-              // From a loss to a profit, or back, a percentage means nothing: shown as --.
+              // From a loss to a profit, or back, a percentage means nothing: shown as NM.
               const cost = prev < 0 && last < 0;
               const flipped = prev * last < 0;
               const g = r.pct ? last - prev : prev !== 0 && !flipped ? ((Math.abs(last) - Math.abs(prev)) / Math.abs(prev)) * 100 * (cost ? -1 : 1) : NaN;
@@ -280,7 +286,7 @@ export function FA({ sec, route }: FnProps) {
                   </td>
                   {vals.map((v, i) => (
                     <td key={i} className={`num ${r.bold ? 'white' : r.ratio ? 'muted' : ''}`}>
-                      {fmtCell(r, v)}
+                      {fmtCell(r, v, i)}
                     </td>
                   ))}
                   {estimates.map((e) => {
@@ -291,7 +297,9 @@ export function FA({ sec, route }: FnProps) {
                       </td>
                     );
                   })}
-                  <td className="num">{r.ratio ? '' : r.pct ? <Chg v={g} dec={1} /> : <Chg v={g} pct dec={1} />}</td>
+                  <td className="num">
+                    {r.ratio ? '' : Number.isFinite(g) ? r.pct ? <Chg v={g} dec={1} /> : <Chg v={g} pct dec={1} /> : Number.isFinite(last) && Number.isFinite(prev) ? <span className="muted" title="Not meaningful: from a loss to a profit, or back">NM</span> : ''}
+                  </td>
                   <td className="hide-m">
                     {/* A missing period is left out of the trend rather than drawn as zero. */}
                     {r.ratio ? null : <Sparkline values={vals.filter((v) => Number.isFinite(v))} width={70} height={14} color="var(--amber)" />}

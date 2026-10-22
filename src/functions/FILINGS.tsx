@@ -256,22 +256,23 @@ function Filer({ sec, ticker, cik: cikArg }: { sec?: SecurityDef; ticker: string
           <div className="cols">
             <Section title="Filer">
               <KV
-                items={[
+                // Lines the SEC's record has nothing for (a company that never changed its name) are left out.
+                items={known([
                   ['CIK', cik10(f.cik)],
-                  ['Tickers', f.tickers.length ? f.tickers.map((t, i) => `${t}${f.exchanges[i] ? ` (${f.exchanges[i]})` : ''}`).join(', ') : '--'],
-                  ['Industry (SIC)', f.sic ? `${f.sic} ${f.sicDescription ?? ''}`.trim() : '--'],
-                  ['Former name', f.formerNames.length ? `${f.formerNames[0].name}${f.formerNames[0].to ? ` (until ${day(f.formerNames[0].to)})` : ''}` : '--'],
-                ]}
+                  ['Tickers', f.tickers.length ? f.tickers.map((t, i) => `${t}${f.exchanges[i] ? ` (${f.exchanges[i]})` : ''}`).join(', ') : ''],
+                  ['Industry (SIC)', f.sic ? `${f.sic} ${f.sicDescription ?? ''}`.trim() : ''],
+                  ['Former name', f.formerNames.length ? `${f.formerNames[0].name}${f.formerNames[0].to ? ` (until ${day(f.formerNames[0].to)})` : ''}` : ''],
+                ])}
               />
             </Section>
             <Section title="Reporting">
               <KV
-                items={[
-                  ['Filer category', f.category ?? '--'],
+                items={known([
+                  ['Filer category', f.category ?? ''],
                   ['Fiscal year ends', fiscalYearEnd(f.fiscalYearEnd)],
-                  ['Incorporated in', f.stateOfIncorporation ?? '--'],
-                  ['Latest annual report', latestAnnual ? `${latestAnnual.form} filed ${day(latestAnnual.filed)}` : '--'],
-                ]}
+                  ['Incorporated in', f.stateOfIncorporation ?? ''],
+                  ['Latest annual report', latestAnnual ? `${latestAnnual.form} filed ${day(latestAnnual.filed)}` : ''],
+                ])}
               />
             </Section>
           </div>
@@ -321,10 +322,42 @@ function Filer({ sec, ticker, cik: cikArg }: { sec?: SecurityDef; ticker: string
   );
 }
 
+/** Rows with something to show. */
+const known = (rows: [string, string][]) => rows.filter(([, v]) => v && v !== '--');
+
+/** What a form is, as the SEC names it, for filings whose document has no description of its own. */
+const FORM_NAMES: Record<string, string> = {
+  '3': 'Initial statement of beneficial ownership of securities',
+  '4': 'Statement of changes in beneficial ownership of securities',
+  '5': 'Annual statement of changes in beneficial ownership of securities',
+  '144': 'Notice of proposed sale of securities (Rule 144)',
+  PX14A6G: 'Notice of exempt solicitation',
+  PX14A6N: 'Notice of exempt solicitation (non-management)',
+  'DEF 14A': 'Definitive proxy statement',
+  DEFA14A: 'Additional definitive proxy soliciting materials',
+  'SC 13G': 'Beneficial ownership report (passive investor)',
+  'SC 13G/A': 'Beneficial ownership report, amended (passive investor)',
+  'SC 13D': 'Beneficial ownership report (active investor)',
+  'SC 13D/A': 'Beneficial ownership report, amended (active investor)',
+  'S-8': 'Registration of securities for employee benefit plans',
+  'S-3ASR': 'Automatic shelf registration statement',
+  FWP: 'Free writing prospectus',
+  '424B2': 'Prospectus',
+  '424B5': 'Prospectus supplement',
+  '11-K': 'Annual report of an employee stock purchase or savings plan',
+  SD: 'Specialized disclosure report',
+  ARS: 'Annual report to security holders',
+  CORRESP: 'Correspondence with the SEC staff',
+  UPLOAD: 'Letter from the SEC staff',
+  'CERT': 'Certification of listing by an exchange',
+  '8-A12B': 'Registration of a class of securities on an exchange',
+  'IRANNOTICE': 'Notice of disclosure of Iran-related activities',
+};
+
 function FilingRow({ cik, f }: { cik: number; f: Filing }) {
   const links = filingLinks(cik, f);
   const items = f.items?.length ? f.items.map((i) => (EIGHT_K_ITEMS[i] ? `${i} ${EIGHT_K_ITEMS[i]}` : `Item ${i}`)).join('; ') : '';
-  const desc = f.desc && f.desc.toUpperCase() !== f.form.toUpperCase() ? f.desc : '';
+  const desc = f.desc && f.desc.toUpperCase() !== f.form.toUpperCase() ? f.desc : FORM_NAMES[f.form.toUpperCase()] ?? '';
   return (
     <tr>
       <td title={f.accepted ? `EDGAR acceptance time as the submissions file gives it: ${f.accepted.replace('T', ' ').replace(/\.000Z$/, '')}` : undefined}>{day(f.filed)}</td>

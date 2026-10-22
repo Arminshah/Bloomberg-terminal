@@ -177,6 +177,12 @@ export const etfQuotes = new Map<string, Json>();
 /** Dividends those ETFs paid, by symbol. */
 export const etfDividends = new Map<string, Dividend[]>();
 const ETFS = ['SPY', 'QQQ', 'DIA', 'IWM'];
+/**
+ * Yahoo's quotes of the coins whose prices come from Kraken, by line id: for their market value and circulating
+ * supply only (an exchange has neither). Asked along with the first batch of quotes, so they cost no request.
+ */
+export const cryptoReference = new Map<string, Json>();
+const referenceCoins = () => engine.securities.filter((d) => d.cls === 'crypto' && d.yahoo && krakenOwns(d.id)).map((d) => ({ id: d.id, symbol: d.yahoo! }));
 
 /** Dividends that went ex in the year to `today` (a day number), summed, in the units the price is quoted in. */
 export function paidInYear(list: Dividend[] | undefined, today: number): number {
@@ -793,7 +799,8 @@ class YahooData {
     let ok = 0;
     for (let i = 0; i < all.length; i += 50) {
       const batch = all.slice(i, i + 50);
-      const extra = i === 0 ? ETFS.filter((x) => !this.bySymbol.has(x)) : [];
+      const refs = i === 0 ? referenceCoins().filter((r) => !this.bySymbol.has(r.symbol)) : [];
+      const extra = i === 0 ? [...ETFS.filter((x) => !this.bySymbol.has(x)), ...refs.map((r) => encodeURIComponent(r.symbol))] : [];
       try {
         let list: Json[];
         try {
@@ -807,6 +814,7 @@ class YahooData {
         }
         for (const q of list) {
           if (ETFS.includes(q.symbol)) etfQuotes.set(q.symbol, q);
+          for (const r of refs) if (r.symbol === q.symbol) cryptoReference.set(r.id, q);
           const lines = this.bySymbol.get(q.symbol) ?? [];
           if (lines.length) ok++;
           for (const t of lines) {

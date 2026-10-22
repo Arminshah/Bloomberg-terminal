@@ -20,7 +20,7 @@ export interface FieldValue {
 }
 
 const timestamp = (n: number | undefined): number | null => n !== undefined && Number.isFinite(n) && n > 0 && n <= 8.64e15 ? n : null;
-export const fieldTime = (f: Pick<FieldValue, 'asOf' | 'dateOnly'>): string => f.asOf === null ? '--' : new Date(f.asOf).toISOString().slice(0, f.dateOnly ? 10 : undefined);
+export const fieldTime = (f: Pick<FieldValue, 'asOf' | 'dateOnly'>): string => f.asOf === null ? '' : new Date(f.asOf).toISOString().slice(0, f.dateOnly ? 10 : undefined);
 
 /** Local field definitions, not Bloomberg field contracts or a BLP/BDP API. No new network requests. */
 export function securityFields(sec: SecurityDef, q: Quote | undefined, now: number): FieldValue[] {

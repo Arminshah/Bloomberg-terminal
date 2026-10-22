@@ -181,14 +181,15 @@ export function WEI({ route }: FnProps) {
                     <td className="num muted hide-m">{fmtStamp(q.time, now)}</td>
                     {showFut && <td className="num hide-m">{fq ? <LivePx id={f!} /> : ''}</td>}
                     {showFut && <td className="num hide-m">{fq ? <DayChg q={fq} pct /> : ''}</td>}
+                    {/* Yahoo has no history for some indices (the CSI 300: today's bar only): no year-to-date change. */}
                     {ytd && (
-                      <td className="num">
-                        <Chg v={periodChange(id, 'YTD')} pct />
+                      <td className="num" title={Number.isFinite(periodChange(id, 'YTD')) ? undefined : NO_YTD}>
+                        {Number.isFinite(periodChange(id, 'YTD')) ? <Chg v={periodChange(id, 'YTD')} pct /> : null}
                       </td>
                     )}
                     {ytd && (
-                      <td className="num hide-m">
-                        <Chg v={ytdIn(id, ccy)} pct />
+                      <td className="num hide-m" title={Number.isFinite(ytdIn(id, ccy)) ? undefined : NO_YTD}>
+                        {Number.isFinite(ytdIn(id, ccy)) ? <Chg v={ytdIn(id, ccy)} pct /> : null}
                       </td>
                     )}
                   </tr>
@@ -202,6 +203,8 @@ export function WEI({ route }: FnProps) {
     </div>
   );
 }
+
+const NO_YTD = 'No price history from the source back to the start of the year';
 
 const FUT_GROUPS: { name: string; ids: string[] }[] = [
   { name: 'Americas', ids: ['ES1 Index', 'NQ1 Index', 'DM1 Index', 'RTY1 Index'] },

@@ -30,8 +30,8 @@ const WB_ROWS: { c: string; ids: Record<number, string> }[] = [
   { c: 'IT', ids: { 10: 'GBTPGR10 Index' } },
   { c: 'ES', ids: { 10: 'GSPG10YR Index' } },
   { c: 'CH', ids: { 10: 'GSWISS10 Index' } },
-  { c: 'CA', ids: { 10: 'GCAN10YR Index' } },
-  { c: 'AU', ids: { 10: 'GACGB10 Index' } },
+  { c: 'CA', ids: { 2: 'GCAN2YR Index', 5: 'GCAN5YR Index', 10: 'GCAN10YR Index', 30: 'GCAN30YR Index' } },
+  { c: 'AU', ids: { 2: 'GACGB2 Index', 5: 'GACGB5 Index', 10: 'GACGB10 Index' } },
   { c: 'CN', ids: { 10: 'GCNY10YR Index' } },
   { c: 'IN', ids: { 10: 'GIND10YR Index' } },
   { c: 'BR', ids: { 10: 'GEBR10Y Index' } },
@@ -115,7 +115,9 @@ export function WB(_: FnProps) {
                         <LivePx id={r.ids[t]} />
                       </SecLink>
                     ) : (
-                      <span className="faint">--</span>
+                      // A tenor the country's source does not publish (the Bank of England's par yields stop at 5, 10
+                      // and 20 years; the RBA's at 10).
+                      <span className="faint" title="Not published by this country's official source" />
                     )}
                   </td>
                 ))}
@@ -128,8 +130,8 @@ export function WB(_: FnProps) {
                 <td className="num hide-m">
                   <Chg v={periodChange(ten, 'YTD')} bp dec={0} />
                 </td>
-                <td className="num">{r.c === 'US' ? '--' : spread(q10.last, ust)}</td>
-                <td className="num hide-m">{r.c === 'DE' ? '--' : spread(q10.last, bund)}</td>
+                <td className="num">{r.c === 'US' ? '' : spread(q10.last, ust)}</td>
+                <td className="num hide-m">{r.c === 'DE' ? '' : spread(q10.last, bund)}</td>
                 <td className="num hide-m">{spread(q10.last, two)}</td>
               </tr>
             );
@@ -148,9 +150,9 @@ export function WB(_: FnProps) {
   );
 }
 
-/** Difference in basis points, or "--" when either yield is missing. */
+/** Difference in basis points, or nothing when either yield is missing. */
 function spread(a: number, b: number): string {
-  return Number.isFinite(a) && Number.isFinite(b) ? fmtNum((a - b) * 100, 0) : '--';
+  return Number.isFinite(a) && Number.isFinite(b) ? fmtNum((a - b) * 100, 0) : '';
 }
 
 // ------------------------------------------------------------------- GC
@@ -320,7 +322,8 @@ function BTMMReal() {
                     {fmtNum(pr.fedLower.last, 2)} - {fmtNum(pr.fedUpper.last, 2)}
                   </td>
                   <td className="num hide-m muted">since {fmtDay(Date.parse(`${pr.fedUpper.changes[pr.fedUpper.changes.length - 1][0]}T00:00:00Z`))}</td>
-                  <td className="num">--</td>
+                  {/* A target, not a traded rate: no volume. */}
+                  <td className="num" />
                 </tr>
               ) : null}
               {['EFFR', 'OBFR', 'SOFR', 'BGCR', 'TGCR'].map((type) => {

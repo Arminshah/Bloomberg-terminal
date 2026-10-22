@@ -12,7 +12,7 @@ import { flash, usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
 const CATEGORIES: FieldCategory[] = ['Identity', 'Market', 'Calculated', 'Source'];
-const valueText = (f: FieldValue, sec: SecurityDef) => f.value === null ? '--' : typeof f.value === 'number' ? fmtNum(f.value, f.id === 'PX_VOLUME' ? 0 : Math.max(sec.dec, 4)) : f.value;
+const valueText = (f: FieldValue, sec: SecurityDef) => f.value === null ? 'Not available' : typeof f.value === 'number' ? fmtNum(f.value, f.id === 'PX_VOLUME' ? 0 : Math.max(sec.dec, 4)) : f.value;
 
 export function FIELDS({ sec, route }: FnProps) {
   if (!sec) return null;
@@ -47,7 +47,7 @@ function FieldSearch({ sec, initialQuery }: { sec: SecurityDef; initialQuery: st
       <KV items={[
         ['Value / unit', <span key="value" data-testid="field-value">{valueText(field, sec)} · {field.unit}</span>],
         ['Status / provider', `${field.status} · ${field.source}`],
-        ['Source as of UTC', fieldTime(field)],
+        ['Source as of UTC', fieldTime(field) || 'None: see the time basis'],
         ['Time basis', field.timeBasis],
         ['Definition', field.definition],
         ['Availability / convention', field.note],

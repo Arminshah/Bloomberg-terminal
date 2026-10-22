@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
-import { yahooQuotes } from '../data/live/yahoo';
+import { cryptoReference, yahooQuotes } from '../data/live/yahoo';
 import { QuoteFreshness } from '../components/Freshness';
 import { krakenHandedBack, krakenOwns } from '../data/live/kraken';
 import { COINGECKO_ATTRIBUTION, coinGecko } from '../data/live/coingecko';
@@ -172,9 +172,11 @@ export function CRYP({ sec }: FnProps) {
     if (!real) return engine.quote(d.id)!.last * d.cry!.supply;
     const gecko = cg.coins[d.id]?.marketCap;
     if (gecko > 0) return gecko;
-    const mc = Number(yahooQuotes.get(d.id)?.marketCap);
+    const mc = Number((yahooQuotes.get(d.id) ?? cryptoReference.get(d.id))?.marketCap);
     return mc > 0 ? mc : NaN;
   });
+  // Market values from Yahoo (CoinMarketCap's figures) where CoinGecko has none.
+  const fromYahoo = real && list.some((d) => !(cg.coins[d.id]?.marketCap > 0) && Number((yahooQuotes.get(d.id) ?? cryptoReference.get(d.id))?.marketCap) > 0);
   const allCaps = caps.every((c) => Number.isFinite(c));
   const total = caps.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
   const btc = list.findIndex((d) => d.id === 'XBTUSD Curncy');
@@ -205,7 +207,7 @@ export function CRYP({ sec }: FnProps) {
             <th className="num hide-m" title={anyKraken ? 'Kraken volume for the UTC day times the last price: an estimate' : undefined}>
               {anyKraken ? 'Value traded ≈ USD' : real ? 'Volume USD 24h' : 'Volume USD'}
             </th>
-            <th className="num" title={real ? 'Market capitalisation: CoinGecko, aggregated across exchanges' : undefined}>
+            <th className="num" title={real ? `Market capitalisation, aggregated across exchanges: ${fromYahoo ? 'Yahoo Finance (CoinMarketCap)' : 'CoinGecko'}` : undefined}>
               Mkt value
             </th>
             <th className="num hide-m">7D %</th>
@@ -272,6 +274,8 @@ export function CRYP({ sec }: FnProps) {
           <>
             Market value from CoinGecko, aggregated across exchanges, as of {fmtTime(cg.at)}. {COINGECKO_ATTRIBUTION}.
           </>
+        ) : real && fromYahoo ? (
+          'Market value from Yahoo Finance (CoinMarketCap\'s figures, aggregated across exchanges).'
         ) : real && cg.status === 'needs-key' ? (
           'Market value needs a free CoinGecko Demo key (COINGECKO_API_KEY on PROVIDERS); nothing is estimated in its place.'
         ) : null}

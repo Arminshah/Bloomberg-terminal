@@ -58,7 +58,10 @@ export function WACC({ sec }: FnProps) {
   const wE = E / (E + D);
   const wD = D / (E + D);
   const wacc = D === 0 && E > 0 ? ke : wE * ke + wD * kd;
-  const fcf = ltm.fcf;
+  // LTM free cash flow, or the latest fiscal year's when a quarter's capital spending is missing (Applied Digital).
+  const lastYearFcf = [...f.annual].reverse().find((p) => Number.isFinite(p.fcf));
+  const fcfBasis = Number.isFinite(ltm.fcf) ? 'LTM' : lastYearFcf ? `FY ${new Date(lastYearFcf.end).getUTCFullYear()}` : 'LTM';
+  const fcf = Number.isFinite(ltm.fcf) ? ltm.fcf : lastYearFcf?.fcf ?? NaN;
   const tv = (fcf * (1 + growth / 100)) / ((wacc - growth) / 100);
   const implied = (tv - (D - (balance?.cash ?? NaN))) / ks.shares;
   return (
@@ -101,16 +104,16 @@ export function WACC({ sec }: FnProps) {
           />
         </Section>
       </div>
-      <Section title="Perpetuity check (Gordon growth on LTM free cash flow)">
+      <Section title={`Perpetuity check (Gordon growth on ${fcfBasis} free cash flow)`}>
         <KV
           items={[
-            ['LTM free cash flow', `${fmtMln(fcf)} ${ccy}`],
+            [`${fcfBasis} free cash flow`, Number.isFinite(fcf) ? `${fmtMln(fcf)} ${ccy}` : 'Not reported (no cash flow statement from the source)'],
             [
               'Terminal growth',
               <input key="g" type="number" step="0.25" className="inp" style={{ width: 80, textAlign: 'right' }} value={growth} onChange={(e) => setGrowth(Number(e.target.value) || 0)} aria-label="Terminal growth" />,
             ],
-            ['Enterprise value', !Number.isFinite(fcf) ? '-- (LTM free cash flow unavailable)' : !(fcf > 0) ? 'n.m. (free cash flow is not positive)' : !Number.isFinite(wacc) ? '-- (WACC inputs unavailable)' : wacc > growth ? `${fmtMln(tv)} ${ccy}` : 'Growth must be below WACC'],
-            ['Implied value per share', fcf > 0 && wacc > growth ? `${fmtNum(implied, 2)} ${ccy}` : '--'],
+            ['Enterprise value', !Number.isFinite(fcf) ? 'Not available: no free cash flow' : !(fcf > 0) ? 'NM (free cash flow is not positive)' : !Number.isFinite(wacc) ? 'Not available: WACC inputs missing' : wacc > growth ? `${fmtMln(tv)} ${ccy}` : 'Growth must be below WACC'],
+            ['Implied value per share', fcf > 0 && wacc > growth && Number.isFinite(implied) ? `${fmtNum(implied, 2)} ${ccy}` : 'NM'],
             ['Current price', `${fmtNum(ks.price * fx, 2)} ${ccy}${fx !== 1 ? ` (converted from ${tradeCcy})` : ''}`],
           ]}
         />

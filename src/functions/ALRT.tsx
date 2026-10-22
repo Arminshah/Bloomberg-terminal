@@ -89,9 +89,11 @@ export function ALRT({ sec }: FnProps) {
             ))}
           </select>
           <input className="inp" style={{ width: 110 }} placeholder="Value" aria-label="Trigger value" inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create()} />
-          <span className="muted">
-            Current Price <span className="white">{resolveSecurity(text) ? fmtNum(engine.quote(resolveSecurity(text)!.id)?.last ?? NaN, resolveSecurity(text)!.dec) : '--'}</span>
-          </span>
+          {resolveSecurity(text) ? (
+            <span className="muted">
+              Current Price <span className="white">{fmtNum(engine.quote(resolveSecurity(text)!.id)?.last ?? NaN, resolveSecurity(text)!.dec)}</span>
+            </span>
+          ) : null}
           <button type="button" className="btn" onClick={preset} title="Fill a value near the market">
             Near market
           </button>

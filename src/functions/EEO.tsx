@@ -99,14 +99,16 @@ export function EEO({ sec }: FnProps) {
   const w = fy1 ? Math.min(1, Math.max(0, (Date.parse(`${fy1.date}T00:00:00Z`) - today) / (365 * DAY_MS))) : NaN;
   const blend = (get: (e: Estimate) => number) => (fy1 && fy2 ? w * get(fy1) + (1 - w) * get(fy2) : NaN);
   const ratio = (a: number, b: number) => (Number.isFinite(a) && Number.isFinite(b) && b > 0 ? a / b : NaN);
-  const multiples: { label: string; act: number; next: number; fy: number[]; pct?: boolean }[] = [
-    { label: 'Price/EPS Adj+', act: ratio(price, ltmAdj), next: ratio(price, blend((e) => e.epsAvg)), fy: years.map((e) => ratio(price, e.epsAvg)) },
-    { label: 'Price/EPS GAAP', act: ratio(price, ltm.eps), next: NaN, fy: years.map(() => NaN) },
-    { label: 'Price/Book', act: ratio(mcap, ltm.equity), next: NaN, fy: years.map(() => NaN) },
-    { label: 'Price/Cash Flow', act: ratio(mcap, ltm.cfo), next: NaN, fy: years.map(() => NaN) },
-    { label: 'EV/Revenue', act: ratio(ev, ltm.rev), next: ratio(ev, blend((e) => e.revenueAvg / 1e6)), fy: years.map((e) => ratio(ev, e.revenueAvg / 1e6)) },
-    { label: 'EV/EBITDA', act: ratio(ev, ltm.ebitda), next: ratio(ev, blend((e) => (e.ebitdaAvg ?? NaN) / 1e6)), fy: years.map((e) => ratio(ev, (e.ebitdaAvg ?? NaN) / 1e6)) },
-    { label: 'EV/EBIT', act: ratio(ev, ltm.opInc), next: ratio(ev, blend((e) => (e.ebitAvg ?? NaN) / 1e6)), fy: years.map((e) => ratio(ev, (e.ebitAvg ?? NaN) / 1e6)) },
+  // A multiple on a loss or negative book is not meaningful: "NM", not a blank.
+  const nm = (a: number, b: number) => Number.isFinite(a) && a > 0 && Number.isFinite(b) && b <= 0;
+  const multiples: { label: string; act: number; next: number; fy: number[]; pct?: boolean; nmAct?: boolean }[] = [
+    { label: 'Price/EPS Adj+', act: ratio(price, ltmAdj), nmAct: nm(price, ltmAdj), next: ratio(price, blend((e) => e.epsAvg)), fy: years.map((e) => ratio(price, e.epsAvg)) },
+    { label: 'Price/EPS GAAP', act: ratio(price, ltm.eps), nmAct: nm(price, ltm.eps), next: NaN, fy: years.map(() => NaN) },
+    { label: 'Price/Book', act: ratio(mcap, ltm.equity), nmAct: nm(mcap, ltm.equity), next: NaN, fy: years.map(() => NaN) },
+    { label: 'Price/Cash Flow', act: ratio(mcap, ltm.cfo), nmAct: nm(mcap, ltm.cfo), next: NaN, fy: years.map(() => NaN) },
+    { label: 'EV/Revenue', act: ratio(ev, ltm.rev), nmAct: nm(ev, ltm.rev), next: ratio(ev, blend((e) => e.revenueAvg / 1e6)), fy: years.map((e) => ratio(ev, e.revenueAvg / 1e6)) },
+    { label: 'EV/EBITDA', act: ratio(ev, ltm.ebitda), nmAct: nm(ev, ltm.ebitda), next: ratio(ev, blend((e) => (e.ebitdaAvg ?? NaN) / 1e6)), fy: years.map((e) => ratio(ev, (e.ebitdaAvg ?? NaN) / 1e6)) },
+    { label: 'EV/EBIT', act: ratio(ev, ltm.opInc), nmAct: nm(ev, ltm.opInc), next: ratio(ev, blend((e) => (e.ebitAvg ?? NaN) / 1e6)), fy: years.map((e) => ratio(ev, (e.ebitAvg ?? NaN) / 1e6)) },
     { label: 'Dividend Yield', act: Number.isFinite(ltm.dps) && price > 0 ? (ltm.dps / price) * 100 : NaN, next: NaN, fy: years.map(() => NaN), pct: true },
   ];
   const csv = () => [
@@ -225,8 +227,10 @@ export function EEO({ sec }: FnProps) {
               {multiples.map((m) => (
                 <tr key={m.label}>
                   <td className="amber">{m.label}</td>
-                  <td className="num white">{fmtNum(m.act, 2)}</td>
-                  <td className="num">{fmtNum(m.next, 2)}</td>
+                  <td className="num white" title={m.nmAct ? 'Not meaningful: the earnings, cash flow or book value is negative or zero' : undefined}>
+                    {Number.isFinite(m.act) ? fmtNum(m.act, 2) : m.nmAct ? <span className="muted">NM</span> : ''}
+                  </td>
+                  <td className="num">{Number.isFinite(m.next) ? fmtNum(m.next, 2) : ''}</td>
                   {m.fy.map((v, i) => (
                     <td key={years[i].date} className="num">
                       {Number.isFinite(v) ? fmtNum(v, 2) : ''}

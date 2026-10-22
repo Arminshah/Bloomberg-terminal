@@ -321,7 +321,8 @@ export function EE({ sec }: FnProps) {
                 ['Next Announcement', nextDate],
                 ['Prior Announcement', prior ? fmtEarnDate(prior, false) : '--'],
                 ['P/E Actual', peText(pe, epsLtm)],
-                [`${span && span < 5 ? `${span} Year` : '5 Year'} Growth`, fmtPct(growth5, 2)],
+                // Compound growth needs positive EPS at both ends: "NM" for a loss-maker.
+                [`${span && span < 5 ? `${span} Year` : '5 Year'} Growth`, Number.isFinite(growth5) ? fmtPct(growth5, 2) : first && lastY && span > 0 ? 'NM' : 'Not enough years'],
               ]}
             />
             <KV

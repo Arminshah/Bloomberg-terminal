@@ -332,3 +332,18 @@ describe('previous close for currencies', () => {
     expect(out.chgCheck).toBe('verified');
   });
 });
+
+describe('a hole in the daily bars', () => {
+  it('uses the reading unverified when the bars miss the previous session, and still not when readings disagree', () => {
+    // The quote's previous close 5.0177; the bars' last close two sessions back, 5.0600 (the day between empty).
+    expect(resolvePrevClose(5.0177, undefined, 5.06, 5.03, { gap: true })).toEqual({ value: 5.0177, verified: false });
+    expect(resolvePrevClose(5.0177, undefined, 5.06, 5.03)).toEqual({ value: NaN, verified: false });
+    expect(resolvePrevClose(5.0177, 5.1, 5.06, 5.03, { gap: true })?.value).toBeNaN();
+  });
+  it('counts weekdays only', async () => {
+    const { previousWeekday } = await import('../src/data/engine');
+    const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / 86_400_000;
+    expect(previousWeekday(day('2026-10-22'))).toBe(day('2026-10-21'));
+    expect(previousWeekday(day('2026-10-19'))).toBe(day('2026-10-16'));
+  });
+});
