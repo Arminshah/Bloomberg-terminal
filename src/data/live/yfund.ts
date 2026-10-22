@@ -174,7 +174,8 @@ export function usTiming(ms: number): EarningsEvent['timing'] {
 
 const INCOME = ['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'ReconciledDepreciation', 'DepreciationAndAmortizationInIncomeStatement', 'EBITDA', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision', 'NetIncomeCommonStockholders', 'DilutedAverageShares', 'DilutedEPS'];
 const BALANCE = ['CashAndCashEquivalents', 'AccountsReceivable', 'Inventory', 'CurrentAssets', 'NetPPE', 'GoodwillAndOtherIntangibleAssets', 'TotalAssets', 'CurrentLiabilities', 'TotalDebt', 'CurrentDebtAndCapitalLeaseObligation', 'LongTermDebtAndCapitalLeaseObligation', 'TotalLiabilitiesNetMinorityInterest', 'StockholdersEquity'];
-const CASH = ['OperatingCashFlow', 'CapitalExpenditure', 'FreeCashFlow', 'CashDividendsPaid', 'RepurchaseOfCapitalStock'];
+// IFRS filers' operating cash flow comes as CashFlowFromContinuingOperatingActivities (ASML's annual figures).
+const CASH = ['OperatingCashFlow', 'CashFlowFromContinuingOperatingActivities', 'CapitalExpenditure', 'FreeCashFlow', 'CashDividendsPaid', 'RepurchaseOfCapitalStock'];
 
 type Row = Map<string, number>;
 
@@ -225,7 +226,7 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
   const opInc = M(g('OperatingIncome'));
   const da = M(Number.isFinite(g('ReconciledDepreciation')) ? g('ReconciledDepreciation') : g('DepreciationAndAmortizationInIncomeStatement'));
   const capex = Math.abs(M(g('CapitalExpenditure')));
-  const cfo = M(g('OperatingCashFlow'));
+  const cfo = M(Number.isFinite(g('OperatingCashFlow')) ? g('OperatingCashFlow') : g('CashFlowFromContinuingOperatingActivities'));
   const fcfRaw = M(g('FreeCashFlow'));
   // Operating income plus depreciation and amortisation. The feed's own EBITDA starts from pretax income,
   // so it carries non-operating gains such as revaluations of investments.

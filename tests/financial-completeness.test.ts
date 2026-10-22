@@ -25,6 +25,13 @@ describe('financial statement completeness without invented periods', () => {
     expect(seriesByPeriod(series('quarterly', [['TotalRevenue', '2026-08-31', 300, '9M']]), 'quarterly').size).toBe(0);
   });
 
+  it("reads an IFRS filer's operating cash flow (continuing operations) when the plain line is missing", () => {
+    const f = fund(series('annual', [['TotalRevenue', '2025-12-31', 32667e6], ['CashFlowFromContinuingOperatingActivities', '2025-12-31', 12658.5e6], ['CapitalExpenditure', '2025-12-31', -1631.2e6]]), null);
+    expect(f.annual[0].cfo).toBeCloseTo(12658.5, 6);
+    const both = fund(series('annual', [['TotalRevenue', '2025-12-31', 100e6], ['OperatingCashFlow', '2025-12-31', 20e6], ['CashFlowFromContinuingOperatingActivities', '2025-12-31', 19e6]]), null);
+    expect(both.annual[0].cfo).toBe(20);
+  });
+
   it('selects the newest reporting currency and excludes obsolete monetary observations', () => {
     const annual = series('annual', [['TotalRevenue', '2025-05-31', 10e9, undefined, 'RUB'], ['TotalRevenue', '2026-05-31', 100e6]]);
     const f = fund(annual, null);
