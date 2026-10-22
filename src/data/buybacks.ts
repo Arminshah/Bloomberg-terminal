@@ -18,6 +18,8 @@ export interface BuybackRow {
   /** Calculated from year-to-date totals rather than reported for the quarter. */
   derived?: boolean;
   shares?: number;
+  /** The share count is a year-to-date total less the previous one. */
+  sharesDerived?: boolean;
   dividends?: number;
   /** Shares outstanding on the cover of the filing for this period (the date on the cover, soon after the period). */
   sharesOut?: number;
@@ -29,7 +31,17 @@ export interface BuybackRow {
 export interface BuybackSummary {
   rows: BuybackRow[];
   /** The last four quarters (or the last fiscal year when quarters are missing). */
-  ltm: { buyback: number; shares: number; dividends: number; through: string; basis: 'quarters' | 'year' } | null;
+  ltm: {
+    buyback: number;
+    shares: number;
+    dividends: number;
+    through: string;
+    basis: 'quarters' | 'year';
+    /** How far the share count can be off through the filings' rounding (shares). */
+    sharesRounding: number;
+    /** The periods whose share count the filings do not give. */
+    sharesMissing: BuybackRow[];
+  } | null;
   authorized?: { val: number; end: string };
   remaining?: { val: number; end: string };
   sharesNow?: { val: number; end: string };
@@ -96,6 +108,7 @@ function buildRows(cf: CompanyFacts, ccy: string, kind: PeriodKind): BuybackRow[
       ...(b ? { buyback: b.val, form: b.form, accn: b.accn } : {}),
       ...(b?.derived ? { derived: true } : {}),
       ...(s ? { shares: s.val } : {}),
+      ...(s?.derived ? { sharesDerived: true } : {}),
       ...(d ? { dividends: d.val } : {}),
       ...(cover ? { sharesOut: cover.val } : {}),
     };
@@ -112,11 +125,21 @@ export function buybackSummary(cf: CompanyFacts, ccy: string, kind: PeriodKind, 
   const latestQ = quarters.at(-1);
   if (last4.length === 4 && latestQ && last4[3].end === latestQ.end) {
     const span = days(last4[0].end, last4[3].end);
-    if (span > 250 && span < 300) ltm = { buyback: sum(last4.map((r) => r.buyback)), shares: sum(last4.map((r) => r.shares)), dividends: sum(last4.map((r) => r.dividends)), through: last4[3].end, basis: 'quarters' };
+    if (span > 250 && span < 300) {
+      ltm = {
+        buyback: sum(last4.map((r) => r.buyback)), shares: sum(last4.map((r) => r.shares)), dividends: sum(last4.map((r) => r.dividends)), through: last4[3].end, basis: 'quarters',
+        sharesRounding: sum(last4.map((r) => (r.shares != null ? rowRounding(r) : 0))), sharesMissing: last4.filter((r) => r.shares == null),
+      };
+    }
   }
   if (!ltm) {
     const year = (kind === 'annual' ? all : buildRows(cf, ccy, 'annual')).filter((r) => r.buyback != null).at(-1);
-    if (year) ltm = { buyback: year.buyback!, shares: year.shares ?? NaN, dividends: year.dividends ?? NaN, through: year.end, basis: 'year' };
+    if (year) {
+      ltm = {
+        buyback: year.buyback!, shares: year.shares ?? NaN, dividends: year.dividends ?? NaN, through: year.end, basis: 'year',
+        sharesRounding: year.shares != null ? rowRounding(year) : 0, sharesMissing: year.shares == null ? [year] : [],
+      };
+    }
   }
   const covers = coverCounts(cf);
   const sharesNow = covers.at(-1);
@@ -129,6 +152,26 @@ export function buybackSummary(cf: CompanyFacts, ccy: string, kind: PeriodKind, 
     ...(sharesNow ? { sharesNow: { val: sharesNow.val, end: sharesNow.end } } : {}),
     ...(yearAgo ? { sharesYearAgo: { val: yearAgo.val, end: yearAgo.end } } : {}),
   };
+}
+
+/**
+ * The rounding a filed share count shows: the largest power of ten, up to a million, it is a multiple of. A company
+ * that reports in millions (Coca-Cola) files 5,000,000 for anything from 4.5 to 5.5 million shares.
+ */
+export function shareRounding(v: number): number {
+  let p = 1;
+  while (p < 1e6 && v % (p * 10) === 0) p *= 10;
+  return p;
+}
+
+/** How far a row's share count can be off: its rounding, twice over for a difference of two rounded totals. */
+export function rowRounding(r: BuybackRow): number {
+  return r.shares == null ? 0 : shareRounding(r.shares) * (r.sharesDerived ? 2 : 1);
+}
+
+/** Whether a share count is too coarse for an average price: its rounding can move the price by more than 1%. */
+export function tooCoarse(shares: number, rounding: number): boolean {
+  return !(shares > 0) || rounding / shares > 0.01;
 }
 
 function sum(xs: (number | undefined)[]): number {

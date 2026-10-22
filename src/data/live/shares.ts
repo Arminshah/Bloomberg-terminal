@@ -28,33 +28,83 @@ function seriesPath(symbol: string, now: number): string {
   return `/ws/fundamentals-timeseries/v1/finance/timeseries/${s}?symbol=${s}&type=quarterlyOrdinarySharesNumber,annualOrdinarySharesNumber&period1=${t - 2 * 365 * 86_400}&period2=${t}`;
 }
 
+/** Stocks a screen is showing: they go before the rest of the queue. */
+const wanted = new Set<string>();
+const inFlight = new Set<string>();
+let filling = false;
+
+/**
+ * Reads one stock's reported count: 'filled', 'none' when the source gave none, 'skipped' when nothing was asked
+ * (it has a count, or a request for it is under way).
+ */
+async function fetchShares(id: string): Promise<'filled' | 'none' | 'skipped'> {
+  const d = engine.get(id);
+  const eq = d?.eq;
+  const symbol = d && d.cls === 'equity' ? yahooSymbolFor(d) : null;
+  // The quote endpoint may have answered meanwhile.
+  if (!eq || !symbol || eq.shares > 0 || inFlight.has(id)) return 'skipped';
+  inFlight.add(id);
+  try {
+    const kept: Kept = (memory ??= loadJson<Kept>(KEY) ?? {});
+    const k = kept[symbol];
+    if (k && Date.now() - k.at < WEEK && k.shares > 0) {
+      eq.shares = (k.shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6;
+      return 'skipped';
+    }
+    const shares = latestReportedShares(await yahooGet(seriesPath(symbol, Date.now())).catch(() => null));
+    if (!(shares && shares > 0)) return 'none';
+    kept[symbol] = { shares, at: Date.now() };
+    saveJson(KEY, kept);
+    if (!(eq.shares > 0)) eq.shares = (shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6;
+    return 'filled';
+  } finally {
+    inFlight.delete(id);
+  }
+}
+
+/**
+ * A screen shows this stock: its share count is read next (at once when the queue is not running), so a profile or
+ * market value opened before the queue reaches it does not wait for every other stock.
+ */
+export function wantShares(id: string): void {
+  if (!desktopData()) return;
+  const eq = engine.get(id)?.eq;
+  if (!eq || eq.shares > 0) return;
+  if (filling) wanted.add(id);
+  else void fetchShares(id);
+}
+
 /** Fills missing share counts: kept ones at once, the rest one stock at a time, 1.5 seconds apart. */
 export async function fillShareCounts(stopped: () => boolean = () => false, gap = 1500): Promise<number> {
   const kept: Kept = (memory ??= loadJson<Kept>(KEY) ?? {});
   const now = Date.now();
-  const missing: { id: string; symbol: string }[] = [];
+  const missing: string[] = [];
   for (const d of engine.defs) {
     if (d.cls !== 'equity' || !d.eq || d.eq.shares > 0) continue;
     const symbol = yahooSymbolFor(d);
     if (!symbol) continue;
     const k = kept[symbol];
     if (k && now - k.at < WEEK && k.shares > 0) d.eq.shares = (k.shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6;
-    else missing.push({ id: d.id, symbol });
+    else missing.push(d.id);
   }
   let filled = 0;
-  for (const { id, symbol } of missing) {
-    if (stopped()) break;
-    // The quote endpoint may have answered meanwhile.
-    const eq = engine.get(id)?.eq;
-    if (!eq || eq.shares > 0) continue;
-    const shares = latestReportedShares(await yahooGet(seriesPath(symbol, Date.now())).catch(() => null));
-    if (shares && shares > 0) {
-      kept[symbol] = { shares, at: Date.now() };
-      saveJson(KEY, kept);
-      if (!(eq.shares > 0)) eq.shares = (shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6;
-      filled++;
+  filling = true;
+  try {
+    for (;;) {
+      if (stopped()) break;
+      const next = wanted.values().next();
+      const id = next.done ? missing.shift() : next.value;
+      if (id === undefined) break;
+      wanted.delete(id);
+      const got = await fetchShares(id);
+      if (got === 'filled') filled++;
+      if (got !== 'skipped' && gap) await new Promise((r) => setTimeout(r, gap));
     }
-    if (gap) await new Promise((r) => setTimeout(r, gap));
+  } finally {
+    filling = false;
+    // Stocks asked for after the queue stopped are read now.
+    for (const id of wanted) void fetchShares(id);
+    wanted.clear();
   }
   return filled;
 }

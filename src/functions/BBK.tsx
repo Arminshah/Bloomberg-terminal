@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtDay, fmtNum, fmtPct } from '../core/format';
-import { buybackSummary, type BuybackRow } from '../data/buybacks';
+import { buybackSummary, rowRounding, tooCoarse, type BuybackRow } from '../data/buybacks';
 import { engine, useTick } from '../data/market';
 import { loadCompanyFacts, reportingCurrency, resolveFiler, secAvailable, secTicker, SEC_DESKTOP_ONLY, useSecLoad, type CompanyFacts, type PeriodKind } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
@@ -45,7 +45,10 @@ export function BBK({ sec }: FnProps) {
   const sameCcy = s.ccy === ccy;
   const cap = sameCcy && Number.isFinite(price) && sharesNow > 0 ? price * sharesNow : NaN;
   const ltm = sum?.ltm;
-  const avgPaid = ltm && ltm.shares > 0 ? ltm.buyback / ltm.shares : NaN;
+  // No average where the filings round the share count too coarsely for one (Coca-Cola files whole millions).
+  const ltmCoarse = !!ltm && Number.isFinite(ltm.shares) && tooCoarse(ltm.shares, ltm.sharesRounding);
+  const avgPaid = ltm && ltm.shares > 0 && !ltmCoarse ? ltm.buyback / ltm.shares : NaN;
+  const rowAvg = (r: BuybackRow) => (r.buyback != null && r.shares && !tooCoarse(r.shares, rowRounding(r)) ? r.buyback / r.shares : NaN);
   const bbYield = ltm && cap > 0 ? (ltm.buyback / cap) * 100 : NaN;
   const divYield = ltm && cap > 0 && Number.isFinite(ltm.dividends) ? (ltm.dividends / cap) * 100 : NaN;
   const shareChg = sum?.sharesYearAgo && sharesNow > 0 ? (sharesNow / sum.sharesYearAgo.val - 1) * 100 : NaN;
@@ -57,7 +60,7 @@ export function BBK({ sec }: FnProps) {
   const current = (x?: { end: string }) => !!x && (!Number.isFinite(latestEnd) || latestEnd - day(x.end) <= 550 * 86_400_000);
   const csv = () => [
     ['Period', 'Period End', `Buybacks (${ccy})`, 'Shares Repurchased', 'Average Price', `Dividends (${ccy})`, 'Total Returned', 'Shares Outstanding', 'Calculated'],
-    ...desc.map((r) => [periodName(r), r.end, r.buyback ?? '', r.shares ?? '', r.buyback != null && r.shares ? r.buyback / r.shares : '', r.dividends ?? '', (r.buyback ?? 0) + (r.dividends ?? 0), r.sharesOut ?? '', r.derived ? 'yes' : '']),
+    ...desc.map((r) => [periodName(r), r.end, r.buyback ?? '', r.shares ?? '', Number.isFinite(rowAvg(r)) ? rowAvg(r) : '', r.dividends ?? '', (r.buyback ?? 0) + (r.dividends ?? 0), r.sharesOut ?? '', r.derived ? 'yes' : '']),
   ];
   const status = !ticker
     ? 'Buybacks come from SEC filings, which cover US-listed companies.'
@@ -117,9 +120,17 @@ export function BBK({ sec }: FnProps) {
               <KV
                 items={[
                   [`Buybacks, ${ltm.basis === 'quarters' ? 'last 4 quarters' : 'last fiscal year'}`, `${fmtBig(ltm.buyback, 2)} ${ccy}`],
-                  ['Shares Repurchased', Number.isFinite(ltm.shares) ? `${fmtBig(ltm.shares, 2)}${sharesNow > 0 ? ` (${fmtNum((ltm.shares / sharesNow) * 100, 2)}% of shares)` : ''}` : '--'],
-                  ['Average Price Paid', Number.isFinite(avgPaid) ? `${fmtNum(avgPaid, 2)} ${ccy}` : '--'],
-                  ['Last Price vs Average Paid', Number.isFinite(avgPaid) && Number.isFinite(price) && sameCcy ? fmtPct((price / avgPaid - 1) * 100, 1) : '--'],
+                  ...((Number.isFinite(ltm.shares)
+                    ? [
+                        ['Shares Repurchased', `${ltmCoarse ? '~' : ''}${fmtBig(ltm.shares, ltmCoarse ? 0 : 2)}${sharesNow > 0 ? ` (${fmtNum((ltm.shares / sharesNow) * 100, 2)}% of shares)` : ''}`],
+                        ltmCoarse
+                          ? ['Average Price Paid', <span key="c" className="muted" title="The filings round the share count to the nearest million, which could move an average price by more than 1%">not given: shares rounded</span>]
+                          : ['Average Price Paid', `${fmtNum(avgPaid, 2)} ${ccy}`],
+                        ...(Number.isFinite(avgPaid) && Number.isFinite(price) && sameCcy ? [['Last Price vs Average Paid', fmtPct((price / avgPaid - 1) * 100, 1)]] : []),
+                      ]
+                    : [
+                        ['Shares Repurchased', <span key="m" className="muted" title="The XBRL filings give no count of the shares bought back for these periods (no full-year count to take the first three quarters from)">not filed for {ltm.sharesMissing.map(periodName).join(', ')}</span>],
+                      ]) as [string, ReactNode][]),
                   ['Through', fmtDay(day(ltm.through))],
                 ]}
               />
@@ -179,8 +190,12 @@ export function BBK({ sec }: FnProps) {
                       {r.buyback != null ? fmtBig(r.buyback, 2) : ''}
                       {r.derived ? <span className="muted"> ·</span> : null}
                     </td>
-                    <td className="num">{r.shares != null ? fmtBig(r.shares, 2) : ''}</td>
-                    <td className="num">{r.buyback != null && r.shares ? fmtNum(r.buyback / r.shares, 2) : ''}</td>
+                    <td className="num" title={r.shares != null && tooCoarse(r.shares, rowRounding(r)) ? 'As filed, rounded to the nearest million' : undefined}>
+                      {r.shares == null ? '' : tooCoarse(r.shares, rowRounding(r)) ? `~${fmtBig(r.shares, 0)}` : fmtBig(r.shares, 2)}
+                    </td>
+                    <td className="num">
+                      {Number.isFinite(rowAvg(r)) ? fmtNum(rowAvg(r), 2) : r.buyback != null && r.shares ? <span className="muted" title="Not given: the filed share count is rounded too coarsely for an average price">~</span> : ''}
+                    </td>
                     <td className="num hide-m">{r.dividends != null ? fmtBig(r.dividends, 2) : ''}</td>
                     <td className="num hide-m">{r.buyback != null || r.dividends != null ? fmtBig((r.buyback ?? 0) + (r.dividends ?? 0), 2) : ''}</td>
                     <td className="num hide-m">{r.sharesOut != null ? fmtBig(r.sharesOut, 3) : ''}</td>
@@ -191,7 +206,8 @@ export function BBK({ sec }: FnProps) {
             <p className="pad-s muted">
               From {cf!.name}&apos;s SEC filings (XBRL, as filed, in {ccy}): repurchases are the cash paid in the cash-flow statement, shares bought back come from
               the equity statement, and the share count is the one on each report&apos;s cover. Quarters marked · are the year-to-date total less the previous one.
-              Share counts before a stock split are as filed. Yields use today&apos;s price times the latest cover count.
+              Share counts before a stock split are as filed. A share count marked ~ is filed rounded (to the nearest million, as a rule) too coarsely
+              for an average price, which is then not given. Yields use today&apos;s price times the latest cover count.
             </p>
           </>
         )

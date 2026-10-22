@@ -5,7 +5,7 @@ import { docQueryString, highlightTerms, parseDocSearch } from '../src/data/live
 import { isSpac, monthsBetween, parseNasdaqIpo, tradingFrom, usDate } from '../src/data/live/ipo';
 import { periodMonths, sinceOffer } from '../src/functions/IPO';
 import { groupReturn } from '../src/functions/IndexBoards';
-import { buybackSummary } from '../src/data/buybacks';
+import { buybackSummary, rowRounding, shareRounding, tooCoarse } from '../src/data/buybacks';
 import type { CompanyFacts, XbrlFact } from '../src/data/live/sec';
 
 describe('GRR: group returns', () => {
@@ -117,11 +117,48 @@ describe('BBK: buybacks', () => {
       ['2026-03-31', 80, false, 8],
       ['2026-06-30', 150, true, 15],
     ]);
-    expect(s.ltm).toEqual({ buyback: 450, shares: 45, dividends: 82, through: '2026-06-30', basis: 'quarters' });
+    expect(s.ltm).toEqual({ buyback: 450, shares: 45, dividends: 82, through: '2026-06-30', basis: 'quarters', sharesRounding: 13, sharesMissing: [] });
     expect(s.remaining).toEqual({ val: 900, end: '2026-06-30' });
     expect(s.sharesNow).toEqual({ val: 950, end: '2026-07-20' });
     expect(s.sharesYearAgo).toEqual({ val: 1000, end: '2025-07-20' });
     expect(s.rows[3].sharesOut).toBe(950);
+  });
+
+  it('reads how coarsely a share count is filed, and gives no average price where the rounding could move it more than 1%', () => {
+    expect(shareRounding(5_000_000)).toBe(1_000_000);
+    expect(shareRounding(37_450_000)).toBe(10_000);
+    expect(shareRounding(1_234_567)).toBe(1);
+    // Coca-Cola files whole millions: 1,000,000 shares for 102 million dollars is anything from 68 to 204 a share.
+    expect(tooCoarse(1_000_000, shareRounding(1_000_000))).toBe(true);
+    expect(tooCoarse(37_450_000, shareRounding(37_450_000))).toBe(false);
+    // A count derived from two rounded totals can be off by both roundings.
+    expect(rowRounding({ end: '2026-06-30', shares: 3_000_000, sharesDerived: true })).toBe(2_000_000);
+  });
+
+  it("names the quarter whose share count the filings leave out (Coca-Cola's fourth quarter)", () => {
+    const k = (start: string, end: string, val: number, form: string, fp: string): XbrlFact => ({ start, end, val, accn: `k-${end}-${form}`, form, fy: 2025, fp, filed: end.replace(/-\d\d$/, '-28') });
+    const ko: CompanyFacts = {
+      cik: 21344,
+      name: 'Coca-Cola',
+      ownEnd: {},
+      facts: {
+        // Filed as year-to-date cash totals and a full year (Coca-Cola, 2025), in millions of dollars.
+        'us-gaap:PaymentsForRepurchaseOfCommonStock': { USD: [
+          k('2025-01-01', '2025-03-28', 370e6, '10-Q', 'Q1'), k('2025-01-01', '2025-06-27', 472e6, '10-Q', 'Q2'),
+          k('2025-01-01', '2025-09-26', 644e6, '10-Q', 'Q3'), k('2025-01-01', '2025-12-31', 746e6, '10-K', 'FY'),
+          k('2026-01-01', '2026-04-03', 477e6, '10-Q', 'Q1'),
+        ] },
+        // Shares for each quarter, but no full-year count in the annual report.
+        'us-gaap:TreasuryStockSharesAcquired': { shares: [
+          k('2025-01-01', '2025-03-28', 4e6, '10-Q', 'Q1'), k('2025-03-29', '2025-06-27', 1e6, '10-Q', 'Q2'),
+          k('2025-06-28', '2025-09-26', 3e6, '10-Q', 'Q3'), k('2026-01-01', '2026-04-03', 5e6, '10-Q', 'Q1'),
+        ] },
+      },
+    };
+    const s = buybackSummary(ko, 'USD', 'quarter');
+    expect(s.ltm?.buyback).toBe(102e6 + 172e6 + 102e6 + 477e6);
+    expect(s.ltm?.shares).toBeNaN();
+    expect(s.ltm?.sharesMissing.map((r) => r.end)).toEqual(['2025-12-31']);
   });
 });
 

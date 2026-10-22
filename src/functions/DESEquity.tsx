@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CapLink } from '../components/CapLink';
 import { AnalystSummary, lineValue, MissingNotes, useAnalystSnapshot, useNextQuarterEstimate } from '../components/AnalystSummary';
 import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
@@ -7,12 +7,14 @@ import { DataTable } from '../components/DataTable';
 import { Sparkline } from '../components/Sparkline';
 import { fmtBig, fmtDay, fmtEarnDate, fmtInt, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { DAY_MS } from '../data/calendar';
-import { closeAt, marketCapUsd, periodChange, rangeStats } from '../data/analytics';
+import { closeAt, localBeta, marketCapUsd, periodChange, rangeStats } from '../data/analytics';
+import { defaultBenchmark } from '../finance/beta';
 import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings, peers, reportCcy, revenueMix } from '../data/fundamentals';
 import { desktopData } from '../data/live/yahoo';
 import { fundVersion, getRealFund, useFundamentalsFor, type RealFund } from '../data/live/yfund';
 import { secAvailable, secTicker, useSecLoad } from '../data/live/sec';
 import { loadInsiders, summarize } from '../data/live/insiders';
+import { wantShares } from '../data/live/shares';
 import { usePeers } from '../data/live/peers';
 import { engine, useTick } from '../data/market';
 import { equityRatios } from '../data/ratios';
@@ -148,6 +150,8 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const rs = rangeStats(sec.id);
   const ne = nextEarnings(sec);
   const real = getRealFund(sec.id);
+  // Its share count (behind the market value) is read before the other stocks'.
+  useEffect(() => wantShares(sec.id), [sec.id]);
   const ccy = reportCcy(sec);
   const est = useAnalysts(analystsAvailable() && analystSymbol(sec) ? sec : undefined, ['estimates', 'consensus', 'ratings']);
   const analysts = useAnalystSnapshot(sec);
@@ -178,6 +182,8 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   }, [insiders.result]);
   const officers = real?.officers.length ? real.officers.slice(0, 3) : eq.ceo ? [{ name: eq.ceo, title: 'Chief Executive Officer' }] : filers.slice(0, 3);
   const f = real?.float;
+  // Outside the US no short interest is published for the whole market: the rows say so instead of dashes.
+  const noShortData = engine.realOnly && sec.country !== 'US' && !(f && (Number.isFinite(f.short) || Number.isFinite(f.daysToCover)));
   const mix = real ? [] : revenueMix(sec);
   const hs = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 3);
   // The boxes take the numbers the terminal's description page gives them; a number typed with GO opens the box.
@@ -199,7 +205,10 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   }, [panel, sec.id, officers.length, eq.web]); // eslint-disable-line react-hooks/exhaustive-deps
   useMenu('des-boxes', items);
   const city = eq.hq ? `${eq.hq}${sec.country && !eq.hq.endsWith(sec.country) ? `, ${sec.country}` : ''}` : '';
-  const idx = BETA_INDEX[sec.country] ?? 'index';
+  // Without the source's beta, the one BETA works out: two years of weekly returns against the local index.
+  const workedBeta = engine.realOnly && !Number.isFinite(eq.beta) ? localBeta(sec.id) : NaN;
+  const benchId = defaultBenchmark(sec, (x) => !!engine.get(x));
+  const idx = Number.isFinite(workedBeta) ? benchId.replace(/ Index$/, '') : BETA_INDEX[sec.country] ?? 'index';
   return (
     <>
       <div className="des-head">
@@ -237,8 +246,12 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               [`Mkt Cap (${ks.tradeCcy})`, <CapLink key="mc" id={sec.id}>{fmtMln(ks.mcap)}</CapLink>],
               ...(ks.tradeCcy === 'USD' ? [] : [['Mkt Cap (USD)', <CapLink key="mcu" id={sec.id}>{fmtBig(marketCapUsd(sec.id))}</CapLink>] as [string, ReactNode]]),
               ['Shrs Out/Float', pair(fmtMln(eq.shares), f && Number.isFinite(f.float) ? fmtBig(f.float) : '--')],
-              ['SI/% of Float', pair(f && Number.isFinite(f.short) ? fmtBig(f.short) : '--', f && Number.isFinite(f.shortPctFloat) ? <span title={f.shortPctFloatCalculated ? 'Calculated: reported shares short / latest available float. Float date may differ from the short-interest settlement date.' : 'Short interest as a percentage of float, as the source reports it'}>{fmtPct(f.shortPctFloat, 2, false)}{f.shortPctFloatCalculated ? '*' : ''}</span> : '--')],
-              ['Days to Cover', f && Number.isFinite(f.daysToCover) ? fmtNum(f.daysToCover, 1) : '--'],
+              ...(noShortData
+                ? [['SI/Days to Cover', <span key="si" className="muted" title="Short interest is published for US listings (FINRA); exchanges elsewhere publish only large individual short positions, and the sources give none for this listing">US listings only</span>] as [string, ReactNode]]
+                : [
+                    ['SI/% of Float', pair(f && Number.isFinite(f.short) ? fmtBig(f.short) : '--', f && Number.isFinite(f.shortPctFloat) ? <span title={f.shortPctFloatCalculated ? 'Calculated: reported shares short / latest available float. Float date may differ from the short-interest settlement date.' : 'Short interest as a percentage of float, as the source reports it'}>{fmtPct(f.shortPctFloat, 2, false)}{f.shortPctFloatCalculated ? '*' : ''}</span> : '--')] as [string, ReactNode],
+                    ['Days to Cover', f && Number.isFinite(f.daysToCover) ? fmtNum(f.daysToCover, 1) : '--'] as [string, ReactNode],
+                  ]),
             ]}
           />
         </div>
@@ -315,10 +328,16 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
                 <b className="des-n">20)</b> Beta vs {idx}
               </button>
             </dt>
-            <dd title="The source's beta, 5 years of monthly returns; BETA works it out against the local index">{fmtNum(eq.beta, 2)}</dd>
+            {Number.isFinite(workedBeta) ? (
+              <dd title={`Worked out from two years of weekly returns against the ${idx} (adjusted beta), as on BETA: the sources give no beta for this company`}>{fmtNum(workedBeta, 2)}*</dd>
+            ) : (
+              <dd title="The source's beta, 5 years of monthly returns; BETA works it out against the local index">{fmtNum(eq.beta, 2)}</dd>
+            )}
           </dl>
           <Box n={21} title="Ownership" fn="HOLDERS" sec={sec}>
-            {real ? (
+            {real && !Number.isFinite(real.breakdown?.institutions) && !Number.isFinite(real.breakdown?.insiders) && !Number.isFinite(real.breakdown?.count) ? (
+              <p className="pad-s muted">No ownership breakdown from the sources for this company; HOLDERS lists the holders they give.</p>
+            ) : real ? (
               <KV
                 items={[
                   ['Institutions', fmtPct(real.breakdown?.institutions, 2, false)],

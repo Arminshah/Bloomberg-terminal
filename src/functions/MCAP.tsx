@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, Section } from '../components/cells';
@@ -10,6 +10,7 @@ import { engine, useHistoryVersion, useTick } from '../data/market';
 import { capByYear, capSeries, coverShareCounts, type CapPoint } from '../data/marketcap';
 import { COVER_SHARES, loadCompanyFacts, resolveFiler, secAvailable, secTicker, useSecLoad, type CompanyFacts } from '../data/live/sec';
 import { realSplits } from '../data/live/yahoo';
+import { wantShares } from '../data/live/shares';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
@@ -34,6 +35,7 @@ export function MCAP({ sec }: FnProps) {
   const panel = usePanelId();
   const history = useHistoryVersion();
   const [range, setRange] = useState(4);
+  useEffect(() => wantShares(s.id), [s.id]);
   const ticker = secTicker(s);
   const facts = useSecLoad<CompanyFacts>(secAvailable() && ticker ? `facts:${ticker}` : null, async (force) => {
     const c = await resolveFiler(ticker!, force);
