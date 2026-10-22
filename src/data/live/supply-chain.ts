@@ -269,6 +269,38 @@ const KNOWN: Record<string, Known> = {
   'macquarie asset management': { name: 'Macquarie Group', yahoo: 'MQG.AX' },
   walmart: { name: 'Walmart', ticker: 'WMT' },
   costco: { name: 'Costco Wholesale', ticker: 'COST' },
+  // Airlines and lessors that order aircraft, lenders, AI clouds and equipment makers named in filings without a SEC
+  // listing.
+  'korean air': { name: 'Korean Air Lines', yahoo: '003490.KS' },
+  'korean air lines': { name: 'Korean Air Lines', yahoo: '003490.KS' },
+  'smbc aviation capital': { name: 'SMBC Aviation Capital' },
+  'smbc capital': { name: 'SMBC Aviation Capital' },
+  'turkish airlines': { name: 'Turkish Airlines', yahoo: 'THYAO.IS' },
+  lufthansa: { name: 'Deutsche Lufthansa', yahoo: 'LHA.DE' },
+  'lufthansa group': { name: 'Deutsche Lufthansa', yahoo: 'LHA.DE' },
+  'international airlines group': { name: 'International Airlines Group', yahoo: 'IAG.L' },
+  'british airways': { name: 'International Airlines Group', yahoo: 'IAG.L' },
+  'air canada': { name: 'Air Canada', yahoo: 'AC.TO' },
+  qantas: { name: 'Qantas Airways', yahoo: 'QAN.AX' },
+  'singapore airlines': { name: 'Singapore Airlines', yahoo: 'C6L.SI' },
+  'cathay pacific': { name: 'Cathay Pacific Airways', yahoo: '0293.HK' },
+  'japan airlines': { name: 'Japan Airlines', yahoo: '9201.T' },
+  'all nippon airways': { name: 'ANA Holdings', yahoo: '9202.T' },
+  emirates: { name: 'Emirates' },
+  'qatar airways': { name: 'Qatar Airways' },
+  'air india': { name: 'Air India' },
+  avolon: { name: 'Avolon' },
+  citibank: { name: 'Citigroup', ticker: 'C' },
+  deere: { name: 'Deere & Company', ticker: 'DE' },
+  'doosan bobcat': { name: 'Doosan Bobcat', yahoo: '241560.KS' },
+  crusoe: { name: 'Crusoe' },
+  nscale: { name: 'Nscale' },
+  fluidstack: { name: 'Fluidstack' },
+  'together ai': { name: 'Together AI' },
+  vultr: { name: 'Vultr' },
+  gigabyte: { name: 'Gigabyte Technology', yahoo: '2376.TW' },
+  'giga-byte': { name: 'Gigabyte Technology', yahoo: '2376.TW' },
+  athenahealth: { name: 'athenahealth' },
 };
 
 /** The names a company goes by in other companies' reports, by its ticker. */
@@ -650,6 +682,8 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
     if (FILER.test(text) || /\b[Tt]he (?:Corporation|Trust|Partnership|Fund|Bank|Issuer|Firm|Partnerships?)(?:'s)?\b|\b[Bb]oth companies\b/.test(text)) return true;
     // A share of net sales or revenue is the filer's own figure: "these major retailers represented 54% of total net sales".
     if (/\d\s*(?:%|percent)\s+of\s+(?:our\s+|its\s+|the Company's\s+)?(?:total\s+|net\s+|consolidated\s+|annual\s+)*(?:sales|revenues?)\b/i.test(text)) return true;
+    // "the purchase order received from Esso", "revenues arising from": the filer's own orders and revenue.
+    if (/\b(?:orders?|contracts?|awards?)\s+(?:[\w-]+\s+){0,2}received from\b|\brevenues? (?:arising|derived|generated) from\b/i.test(text)) return true;
     // A bullet that starts with the filer's action ("Announced ... a clinical supply agreement with Pfizer"), fees the
     // filer pays ("royalty fees payable to Qualcomm").
     if (/^(?:[-•*]\s*)?(?:Sold|Signed|Announced|Entered|Secured|Launched|Expanded|Completed|Delivered|Won|Shipped|Awarded|Received|Partnered|Closed)\b/.test(text.trim()) || /\b(?:fees?|royalt\w*|amounts?|payments?)\s+(?:payable|paid|owed|due)\s+to\b/i.test(text)) return true;
@@ -969,6 +1003,8 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
       (gapListy(b, /\bcustomers?\b(?:[^.;]{0,40}?)\b(?:include|includes|including|such as|like|namely|are|is|was|were)\b([^.;]*)$/i) && !/\bcustomers?\b[^.;]{0,40}?\b(?:can|may|might|choose|chooses|use|uses|rely|prefer|select|want|need|seek)\b[^.;]*$/i.test(b)) ||
       gapListy(b, /\b(?:end|largest|major|key|significant|principal|anchor|top|single) customers?,?\s+([^.;]{0,20})$/i) ||
       /\b(?:purchase )?orders?\s+(?:\w+\s+){0,3}from\s+(?:the\s+)?$/i.test(b) ||
+      // "the purchase order received from Esso Nederland B.V. ("Esso"), an affiliate of EMTEC and Exxon Mobil".
+      /\borders?\s+(?:received\s+)?from\s+[^;]{0,100}?\b(?:an?\s+)?(?:affiliate|subsidiary) of\s+(?:[^.;]{0,40}\band\s+)?(?:the\s+)?$/i.test(b) ||
       /\b(?:sell|sells|sold|selling|supply|supplies|supplied|supplying|ship|ships|shipped|shipping|provide|provides|provided|providing|deliver|delivers|delivered|license|licenses|licensed)\b[^.;]{0,80}?(?<!similar|compared|relative|due|according|prior|related|subject|access|close|equal|comparable|addition|respect|reference|available|attributable|applicable|exposure)\s+to\s+(?:(?:our|the|its)\s+(?:\w+\s+){0,2}customers?,?\s+)?$/i.test(b) ||
       /\b(?:customer|offtake|sales) (?:agreements?|arrangements?|contracts?) with\s+(?:[^.;]{0,30})$/i.test(b) ||
       // "An electric service agreement to serve an additional 350 MW data center load with Applied Digital".
@@ -1014,7 +1050,7 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     // The filer's product deployed by the target, or the target improving its own operations with it: the filer sells.
     if (filer && (new RegExp(String.raw`\bto (?:deploy|implement|roll out|adopt)\s+(?:the\s+)?(?:${filer.source})`, 'i').test(around) || new RegExp(String.raw`\bwith\s+(?:${filer.source})\s*,\s*$`, 'i').test(lead) && /^(?:'s)?\s+(?:has |have )?(?:enhanced|improved|reduced|increased|achieved|cut|saved|accelerated|streamlined)\b/i.test(tail))) return { role: 'supplier' };
     // Deploying the target's own platform is buying it; a partnership to deploy something together stays a partnership.
-    if (new RegExp(String.raw`\bto (?:deploy|use|adopt|implement|run on)\s+(?:the\s+)?(?:[\w-]+\s+){0,2}?(?:${pattern.source}|its|their)\b`, 'i').test(around)) return { role: 'customer' };
+    if (new RegExp(String.raw`\bto (?:deploy|use|adopt|implement|run on|bring|integrate|incorporate|leverage)\s+(?:the\s+)?(?:[\w-]+\s+){0,2}?(?:${pattern.source}|its|their)\b`, 'i').test(around)) return { role: 'customer' };
     return { role: 'partner' };
   }
   return null;
@@ -1088,6 +1124,8 @@ export function findCompanies(input: string, dir: Directory, loose = false, whol
   const text = input.replace(/\.-(?=[A-Za-z])/g, '. ').replace(/\b(Australia|Trinidad|Antigua|Bosnia) and (?=[A-Z])/g, '$1 AND ');
   const out: Found[] = [];
   const seen = new Set<string>();
+  // Where the last company named ended: a parent in parentheses right after it is that company's.
+  let lastEnd = 0;
   CANDIDATE.lastIndex = 0;
   for (let m = CANDIDATE.exec(text); m; m = CANDIDATE.exec(text)) {
     let raw = m[0].replace(/[.,]+$/, (x) => (/\b(?:Inc|Corp|Co|Ltd|N\.V|S\.A)$/.test(m![0].slice(0, -x.length)) ? x : '')).trim();
@@ -1136,10 +1174,12 @@ export function findCompanies(input: string, dir: Directory, loose = false, whol
     // "(part of Shandong Heavy Industry Group)", "(formerly MAN Energy Solutions SE)", "architectures, such as Arm",
     // "the Arm ecosystem", "ARM-based".
     const lead = text.slice(Math.max(0, m.index - 60), m.index);
-    if (/\((?:both\s+)?(?:part of|a subsidiary of|a unit of|owned by|formerly|previously)\s+$/i.test(lead) || /\barchitectures?,?\s+(?:such as|like|including)\s+(?:[\w&.-]+,?\s+(?:and\s+)?){0,3}$/i.test(lead)) continue;
+    const parentOf = /\((?:both\s+)?(?:part of|a subsidiary of|a unit of|owned by)\s+$/i.test(lead);
+    if ((parentOf && /^[\s,.]*(?:\([^)]*\)\s*)?\((?:both\s+)?(?:part of|a subsidiary of|a unit of|owned by)\s+$/i.test(text.slice(lastEnd, m.index))) || /\((?:formerly|previously)\s+$/i.test(lead) || /\barchitectures?,?\s+(?:such as|like|including)\s+(?:[\w&.-]+,?\s+(?:and\s+)?){0,3}$/i.test(lead)) continue;
     if (/^\s*(?:-based|ecosystem|architecture|cores?|instruction set|ISA)\b/i.test(text.slice(m.index + m[0].length)) && /^(?:arm|risc-v|x86)$/i.test(normalizeName(hit.name))) continue;
     if (/ AND /.test(hit.name)) hit = { ...hit, name: hit.name.replace(/ AND /g, ' and ') };
     const k = hit.cik ? `cik:${hit.cik}` : hit.yahoo ? `y:${hit.yahoo}` : `n:${normalizeName(hit.name)}`;
+    lastEnd = m.index + m[0].length;
     if (seen.has(k)) continue;
     seen.add(k);
     out.push(hit);
@@ -1354,6 +1394,13 @@ export function dealRole(before: string, after: string, sentence: string, self?:
   if (/\b(?:secured|signed|won|awarded|landed)\b[^.;]{0,80}\bcontracts?\b[^.;]{0,60}\bincluding\b[^.;]{0,40}\bpartnership\s*$/i.test(before.slice(-200)) && /\bcustomers?\b/i.test(sentence)) return 'customer';
   if (/^[^;]{0,80}?,?\s+as\s+(?:the\s+)?(?:administrative|collateral) agent\b/i.test(after)) return /\bcredit\b/i.test(sentence) ? 'lender' : null;
   if (NOT_A_DEAL.test(b)) return null;
+  if (/\b(?:partnership|partnered|partners?|collaborat\w*|alliance)\b/i.test(b)) {
+    // "a strategic partnership with Meta ... including the large-scale deployment of NVIDIA CPUs", "collaboration with
+    // Microsoft to deploy AMD Helios racks": the party buys the filer's products.
+    if (self && new RegExp(String.raw`^(?:'s)?,?[^;]{0,160}?\b(?:deploy(?:ment|ing|s)?\s+of|to (?:deploy|use|adopt|run))\s+(?:the\s+)?(?:[\w-]+\s+){0,2}?(?:${self.source})`, 'i').test(after)) return 'customer';
+    // "a new collaboration with Samsung to manufacture advanced semiconductors": the party makes them for the filer.
+    if (/^(?:'s)?,?[^.;]{0,60}?\bto (?:manufacture|produce|fabricate|make)\b/i.test(after)) return 'supplier';
+  }
   if (/\b(?:partnership|partnered|partners?|collaborat\w*|alliance|joint venture|joint development|co-develop\w*)\b/i.test(b)) return 'partner';
   // Licences: "a license agreement with Almirall, under which Almirall licensed the rights", "licensed from OPKO". Data
   // center space licensed to a tenant is a lease.

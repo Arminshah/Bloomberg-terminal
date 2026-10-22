@@ -442,3 +442,24 @@ describe('SPLC: what checking the fifth round for losses found', () => {
     expect(role('In October 2025, we entered into a purchase commitment of $128.7 million, payable in the next 12 months, for the development of HPC data center projects with Vertiv, a large publicly-traded American multinational provider of critical infrastructure and services for data centers.', ['Vertiv'], ['Bitfarms'])).toBe('customer');
   });
 });
+
+describe('SPLC: relations the fifth review found missing', () => {
+  const T = (names: string[]) => targetPattern(names);
+  it("reads the company's own announcements by what the other party does", () => {
+    const d = buildDirectory([{ cik: 1, ticker: 'MSFT', title: 'MICROSOFT CORP' }, { cik: 2, ticker: 'META', title: 'Meta Platforms, Inc.' }]);
+    const of = (sentence: string, self: string[]) => ownStatements(sentence, d, T(self)).map((x) => [x.role, x.party.name]);
+    expect(of('Announced a multiyear, multigenerational strategic partnership with Meta spanning on-premises, cloud and AI infrastructure, including the large-scale deployment of NVIDIA CPUs.', ['NVIDIA'])).toEqual([['customer', 'Meta Platforms']]);
+    expect(of('Expanded collaboration with Microsoft to deploy AMD Helios racks at scale on Azure to power frontier model inference.', ['AMD', 'Advanced Micro Devices'])).toEqual([['customer', 'Microsoft']]);
+    expect(of('We announced a new collaboration with Samsung to manufacture advanced semiconductors for AI inference and training in the U.S.', ['Tesla'])).toEqual([['supplier', 'Samsung Electronics']]);
+    expect(of('Commercial Airplanes booked 246 net orders including orders from Korean Air, Delta Air Lines, and SMBC Capital.', ['Boeing'])).toEqual([['customer', 'Korean Air Lines'], ['customer', 'SMBC Aviation Capital']]);
+  });
+  it('reads a parent in parentheses when the name before it is no company of its own', () => {
+    const d = buildDirectory([{ cik: 315189, ticker: 'DE', title: 'DEERE & CO' }, { cik: 1567094, ticker: 'CNH', title: 'CNH Industrial N.V.' }, { cik: 3, ticker: 'SHI', title: 'Shandong Heavy Industry Group' }]);
+    expect(findCompanies('Examples of global competitors include CASE (part of CNH Industrial N.V.), Deere Construction & Forestry (part of Deere & Company)', d).map((f) => f.ticker ?? f.name)).toEqual(['CNH', 'DE']);
+    expect(findCompanies('Shantui Construction Machinery Co., Ltd. (part of Shandong Heavy Industry Group)', d).map((f) => f.ticker ?? f.name)).toEqual(['Shantui Construction Machinery']);
+  });
+  it('reads chips brought into the filer\'s product and orders from an affiliate', () => {
+    expect(classify("We expanded our strategic collaboration with Qualcomm Technologies, Inc. to bring their industry-leading Snapdragon system-on-a-chip (SoC) to future generations of Specs.", T(['Qualcomm']), T(['Snap']))?.role).toBe('customer');
+    expect(classify('Revenues arising from the purchase order received from Esso Nederland B.V. ("Esso"), an affiliate of EMTEC and Exxon Mobil Corporation, related to the project were recognized.', T(['ExxonMobil', 'Exxon Mobil', 'Exxon']), T(['FuelCell Energy', 'FuelCell']))?.role).toBe('supplier');
+  });
+});
