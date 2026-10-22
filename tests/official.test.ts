@@ -446,3 +446,37 @@ describe('national statistics offices for Canada and Australia', () => {
     expect(parseAbsCsv('nothing,here')).toEqual([]);
   });
 });
+
+describe('BLS public API (no FRED key)', () => {
+  // The layout version 1 answers with (bls.gov/developers/api_signature.htm); values made up for the test.
+  const ok = JSON.stringify({
+    status: 'REQUEST_SUCCEEDED',
+    responseTime: 120,
+    message: [],
+    Results: {
+      series: [
+        {
+          seriesID: 'LNS14000000',
+          data: [
+            { year: '2026', period: 'M09', periodName: 'September', latest: 'true', value: '4.3', footnotes: [{}] },
+            { year: '2026', period: 'M08', periodName: 'August', value: '4.2', footnotes: [{}] },
+            { year: '2025', period: 'M13', periodName: 'Annual', value: '4.1', footnotes: [{}] },
+            { year: '2025', period: 'M12', periodName: 'December', value: '-', footnotes: [{ code: 'P' }] },
+          ],
+        },
+      ],
+    },
+  });
+  it('reads the monthly values in date order, without the annual average or blanks', async () => {
+    const { parseBls } = await import('../src/data/live/fred');
+    expect(parseBls(ok)).toEqual([
+      ['2026-08-01', 4.2],
+      ['2026-09-01', 4.3],
+    ]);
+  });
+  it('gives nothing when the daily allowance is used up or the answer is not JSON', async () => {
+    const { parseBls } = await import('../src/data/live/fred');
+    expect(parseBls(JSON.stringify({ status: 'REQUEST_NOT_PROCESSED', message: ['daily threshold ... has been reached.'], Results: {} }))).toEqual([]);
+    expect(parseBls('<html>')).toEqual([]);
+  });
+});

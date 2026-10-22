@@ -400,6 +400,11 @@ function ECSTReal() {
       ccy: market((STATS[c] ?? EXTRA_MARKETS[c])?.ccy),
     };
   });
+  // What stays blank without FRED: "US GDP", "JP GDP, CPI, unemployment".
+  const blank = rows
+    .map((r) => [r.c, [!r.gdp && 'GDP', !r.cpi && 'CPI', !r.un && 'unemployment'].filter(Boolean).join(', ')] as const)
+    .filter(([, f]) => f)
+    .map(([c, f]) => `${c} ${f}`);
   return (
     <div>
       <FnHeader
@@ -413,7 +418,8 @@ function ECSTReal() {
       />
       {needsKey || keyRefused ? (
         <div className="note amber">
-          {keyRefused ? `FRED did not accept the API key (${keyRefused}), so` : 'FRED needs your free API key (from fredaccount.stlouisfed.org), so until it is added'} the figures for the US and Japan and the GDP of Canada and Australia show "--". The rest come from the statistics offices themselves.{' '}
+          {keyRefused ? `FRED did not accept the API key (${keyRefused}), so` : 'FRED needs your free API key (from fredaccount.stlouisfed.org), so until it is added'} the figures only FRED serves show "--"
+          {blank.length ? ` (${blank.join(', ')})` : ''}. The rest come from the statistics offices themselves{series.CPIAUCNS?.length || series.UNRATE?.length ? ', US inflation and unemployment from the BLS' : ''}.{' '}
           <button type="button" className="btn" onClick={() => execute(panel, 'PROVIDERS')}>
             Open the provider screen
           </button>

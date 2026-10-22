@@ -355,6 +355,35 @@ export function figurePeriod(id: string, date: string, freq: Freq): string {
 const statusFlags = new Map<string, string>();
 const periodNames = new Map<string, string>();
 
+/** BLS answers kept twelve hours: its keyless API allows a few requests a day from each address. */
+let bls: { at: number; cpi: Obs; un: Obs } | null = null;
+
+/** BLS version 1 JSON → observations in date order (monthly; the annual average M13 left out). */
+export function parseBls(text: string): Obs {
+  try {
+    const json = JSON.parse(text) as { status?: string; Results?: { series?: { data?: { year: string; period: string; value: string }[] }[] } };
+    if (json.status !== 'REQUEST_SUCCEEDED') return [];
+    const rows = json.Results?.series?.[0]?.data ?? [];
+    return rows
+      .filter((r) => /^M(0[1-9]|1[0-2])$/.test(r.period) && Number.isFinite(Number(r.value)))
+      .map((r): [string, number] => [`${r.year}-${r.period.slice(1)}-01`, Number(r.value)])
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  } catch {
+    return [];
+  }
+}
+
+async function loadBls(series: Record<string, Obs>) {
+  if (!bls || Date.now() - bls.at > 12 * 3600_000) {
+    const since = new Date(Date.now() - 3 * 365.25 * 86_400_000).toISOString().slice(0, 10);
+    const [cpi, un] = await Promise.all((['blsCpi', 'blsUnemp'] as const).map((k) => official(k, since)));
+    const next = { at: Date.now(), cpi: parseBls(cpi), un: parseBls(un) };
+    if (next.cpi.length || next.un.length) bls = next;
+  }
+  if (bls?.cpi.length && !series.CPIAUCNS?.length) series.CPIAUCNS = bls.cpi;
+  if (bls?.un.length && !series.UNRATE?.length) series.UNRATE = bls.un;
+}
+
 async function loadSeries(): Promise<boolean> {
   const series = { ...fredData.get().series };
   let any = false;
@@ -381,6 +410,8 @@ async function loadSeries(): Promise<boolean> {
     if (rows.length) firstRelease[id] = rows;
   }
   await official;
+  // Without a FRED key, the US CPI and unemployment rate come from the BLS itself, the same series FRED republishes.
+  if (stop && stop.stop !== 'throttled' && (!series.CPIAUCNS?.length || !series.UNRATE?.length)) await loadBls(series);
   any ||= Object.keys(series).some((id) => id.includes(':'));
   fredData.set((s) => ({ ...s, series, firstRelease, loaded: s.loaded || any, ...(any ? { at: Date.now() } : {}), ...keyState(s, stop) }));
   return any;

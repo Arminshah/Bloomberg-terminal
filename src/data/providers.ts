@@ -404,6 +404,21 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'bls',
+    name: 'U.S. Bureau of Labor Statistics',
+    serves: 'US CPI and unemployment rate when no FRED key is set (ECONSTATS, ECO, MACRO)',
+    dataClass: 'Economic release (official)',
+    policy: 'enabled',
+    feed: 'eco',
+    terms: 'US government work in the public domain. The public API, version 1, needs no key and allows a small number of requests a day from each address; the app asks twice a day at most, and only while FRED has no key.',
+    docs: [
+      { label: 'Public Data API', url: 'https://www.bls.gov/developers/' },
+      { label: 'API signatures (version 1)', url: 'https://www.bls.gov/developers/api_signature.htm' },
+    ],
+    checked: CHECKED,
+    desktop: true,
+  },
+  {
     id: 'eurostat',
     name: 'Eurostat',
     serves: 'HICP inflation, GDP growth and unemployment for the euro area and its largest members',

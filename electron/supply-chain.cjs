@@ -209,7 +209,7 @@ function mentionSentences(text, names, max = 80) {
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 3;
+const EXTRACTION = 4;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;
@@ -217,7 +217,7 @@ const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(
 // In a company's own report: who it names as customers, suppliers and competitors, and the agreements it enters
 // into with other companies (leases, supply and purchase agreements, orders, partnerships, investments, loans).
 const OWN = new RegExp(
-  String.raw`\b(competitors?|compete[sd]?|competing|competition (?:from|with|comes|includes)|foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|limited[- ]source|customers? (?:include|including|such as|are|is)|largest customers?|end customers?|Customer [A-Z]\b|accounted for|accounting for|(?:represented|representing|contributed|comprised) (?:approximately |about )?\d|\d{1,3}(?:\.\d+)?\s?%[^.]{0,60}\bof (?:our |its |the Company's )?(?:total |net |consolidated )*(?:revenue|revenues|net sales|sales)\b|(?:revenue|revenues|sales) (?:from|to) [A-Z]|(?:lease|leases|hosting agreement|colocation agreement|capacity agreement|services agreement)\b[^;]{0,120}\bwith [A-Z][^;]{0,200}\bto (?:host|serve|support)\b` +
+  String.raw`\b(competitors?|compete[sd]?|competing|competition\b[^.]{0,80}?\b(?:from|with|comes|includes)|equity[- ]method|(?:own|owns|hold|holds|held|retained)\s+(?:approximately\s+|about\s+|an?\s+)?\d{1,2}(?:\.\d+)?%|foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|limited[- ]source|customers? (?:include|including|such as|are|is)|largest customers?|end customers?|Customer [A-Z]\b|accounted for|accounting for|(?:represented|representing|contributed|comprised) (?:approximately |about )?\d|\d{1,3}(?:\.\d+)?\s?%[^.]{0,60}\bof (?:our |its |the Company's )?(?:total |net |consolidated )*(?:revenue|revenues|net sales|sales)\b|(?:revenue|revenues|sales) (?:from|to) [A-Z]|(?:lease|leases|hosting agreement|colocation agreement|capacity agreement|services agreement)\b[^;]{0,120}\bwith [A-Z][^;]{0,200}\bto (?:host|serve|support)\b` +
     String.raw`|(?:agreements?|leases?|contracts?|orders?|partnership|collaboration|alliance|joint venture|facility|notice to proceed|LNTP|memorandum of understanding|letter of intent|offtake)\b[^.;]{0,160}?\bwith\s+(?:(?:a|an|the|its)\s+)?(?:new\s+|leading\s+|major\s+|global\s+)?[A-Z]` +
     String.raw`|(?:agreements?|leases?|contracts?|orders?|partnership|collaboration)\b[^.;]{0,160}?\bwith\s+${UNNAMED_PARTY}` +
     String.raw`|\b(?:selected|chosen|awarded|engaged)\b[^.;]{0,60}\bby\s+[A-Z]|\b(?:orders?|contracts?|awards?|investments?)\s+from\s+[A-Z]|\bpartner(?:ship|ships|ed|s)?\b[^.;]{0,60}\bwith\s+[A-Z]` +

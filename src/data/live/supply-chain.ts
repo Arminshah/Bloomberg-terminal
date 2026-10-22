@@ -301,6 +301,17 @@ const KNOWN: Record<string, Known> = {
   gigabyte: { name: 'Gigabyte Technology', yahoo: '2376.TW' },
   'giga-byte': { name: 'Gigabyte Technology', yahoo: '2376.TW' },
   athenahealth: { name: 'athenahealth' },
+  lululemon: { name: 'lululemon athletica', ticker: 'LULU' },
+  'lululemon athletica': { name: 'lululemon athletica', ticker: 'LULU' },
+  anta: { name: 'ANTA Sports', yahoo: '2020.HK' },
+  'anta sports': { name: 'ANTA Sports', yahoo: '2020.HK' },
+  'li ning': { name: 'Li Ning', yahoo: '2331.HK' },
+  asics: { name: 'ASICS', yahoo: '7936.T' },
+  altera: { name: 'Altera' },
+  deckers: { name: 'Deckers Brands', ticker: 'DECK' },
+  'deckers brands': { name: 'Deckers Brands', ticker: 'DECK' },
+  'new balance': { name: 'New Balance' },
+  puma: { name: 'PUMA', yahoo: 'PUM.DE' },
 };
 
 /** The names a company goes by in other companies' reports, by its ticker. */
@@ -1102,7 +1113,7 @@ export interface Found {
   index: number;
 }
 
-const CANDIDATE = /(?<![A-Za-z0-9\u00C0-\u024F])(?:[A-Z\u00C0-\u00DE\u0130][A-Za-z0-9\u00C0-\u024F'&.-]*|&)(?:\s+(?:[A-Z\u00C0-\u00DE\u0130][A-Za-z0-9\u00C0-\u024F'&.-]*|\d{1,3}(?![\d.,%])|&|of|de|du|la))*(?:,?\s+(?:Inc|Incorporated|Corp|Corporation|Co|Company|Ltd|Limited|LLC|plc|PLC|N\.V|S\.A|AG|SE|SpA|GmbH|AB|ASA|Oyj|KGaA|B\.V|BV|Pte|Pty|K\.K)(?![A-Za-z])\.?)*/g;
+const CANDIDATE = /(?<![A-Za-z0-9\u00C0-\u024F])(?:[A-Z\u00C0-\u00DE\u0130][A-Za-z0-9\u00C0-\u024F'&.-]*|&)(?:\s+(?:[A-Z\u00C0-\u00DE\u0130][A-Za-z0-9\u00C0-\u024F'&.-]*|\d{1,3}(?![\d.,%])|&|(?:of|de|du|la)(?=\s+[A-Z\u00C0-\u00DE])))*(?:,?\s+(?:Inc|Incorporated|Corp|Corporation|Co|Company|Ltd|Limited|LLC|plc|PLC|N\.V|S\.A|AG|SE|SpA|GmbH|AB|ASA|Oyj|KGaA|B\.V|BV|Pte|Pty|K\.K)(?![A-Za-z])\.?)*/g;
 /** A name written like a brand: inner capitals or all capitals ("CoreWeave", "NVIDIA", "eBay"). */
 const BRAND = /^(?:[A-Z]{3,}|[A-Za-z][a-z]+[A-Z][A-Za-z]*|[a-z][A-Z]\w+)$/;
 const HAS_FORM = /(?:,?\s+(?:Inc|Incorporated|Corp|Corporation|Co|Company|Ltd|Limited|LLC|plc|PLC|N\.V|S\.A|AG|SE|SpA|GmbH|AB|ASA|Oyj|KGaA|B\.V|BV|Pte|Pty|K\.K)\.?)$/;
@@ -1126,12 +1137,23 @@ export function findCompanies(input: string, dir: Directory, loose = false, whol
   const seen = new Set<string>();
   // Where the last company named ended: a parent in parentheses right after it is that company's.
   let lastEnd = 0;
+  for (const low of text.matchAll(/\b(adidas|lululemon(?: athletica)?|athenahealth|SK hynix)\b/g)) {
+    const entry = dir.byName.get(normalizeName(low[1])) ?? dir.byName.get(normalizeName(low[1].split(' ')[0]));
+    const found: Found = entry ? { ...entry, index: low.index ?? 0 } : { name: low[1], index: low.index ?? 0 };
+    const k = found.cik ? `cik:${found.cik}` : found.yahoo ? `y:${found.yahoo}` : `n:${normalizeName(found.name)}`;
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(found);
+    }
+  }
   CANDIDATE.lastIndex = 0;
   for (let m = CANDIDATE.exec(text); m; m = CANDIDATE.exec(text)) {
     let raw = m[0].replace(/[.,]+$/, (x) => (/\b(?:Inc|Corp|Co|Ltd|N\.V|S\.A)$/.test(m![0].slice(0, -x.length)) ? x : '')).trim();
     // A leading word that only starts the sentence: "Our competitors" → skip; "During Cisco" never happens in lists.
     raw = raw.replace(/^(?:The|Our|Such as|Including|And|Or)\s+/, '');
     if (!raw || NOT_COMPANY.test(raw)) continue;
+    // "ASICs", "GPUs", "FPGAs": a plural of capitals is a kind of product, not ASICS the company.
+    if (/^[A-Z]{2,}s$/.test(raw)) continue;
     // Try the whole phrase, then its leading words ("Arista Networks" in "Arista Networks Broadcom").
     const listed = (phraseText: string): Found | undefined => {
       const ws = phraseText.split(/\s+/);
@@ -1189,17 +1211,22 @@ export function findCompanies(input: string, dir: Directory, loose = false, whol
 
 // ---------------------------------------------------------- the own report
 
-const OWN_COMPETITOR = /^\[competitors\]|\b(?:competitors?\b[^.]{0,40}\b(?:include|includes|including|are|such as)|compete[sd]? (?:primarily |directly |principally )?(?:with|against)|competition (?:comes |primarily )?from|principal competitors?|primary competitors?|main competitors?|significant competition from)/i;
+const OWN_COMPETITOR = /^\[competitors\]|\b(?:competitors?\b[^.]{0,40}\b(?:include|includes|including|are|such as)|compete[sd]?\s+(?:\w+ly\s+){0,2}(?:with|against)|competition\b[^.]{0,80}?\bfrom|principal competitors?|primary competitors?|main competitors?|significant competition from)/i;
 const OWN_SUPPLIER = /\b(?:foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|assembly and test)\b[^.]{0,120}?\b(?:such as|including|include|includes|namely|like|primarily|principally|:)/i;
 const OWN_CUSTOMER = /\b(?:customers?\b[^.]{0,40}\b(?:include|includes|including|such as|are)|largest customers?|end customers?|direct customers?)\b/i;
 const ANONYMOUS = /\b(?:Customer|Direct Customer|Indirect Customer) ([A-H])\b/g;
+/** Words that end a stake, before the company it was in. */
+const GONE_STAKE_AT = /\b(?:(?:previous|former|prior)\s+(?:(?:equity|ownership)\s+)?(?:investments?|stakes?|interests?|ownership)\s+in|(?:sale|sold|sell|selling|divest\w*|disposal|disposed of)\s+(?:of\s+)?(?:all\s+of\s+|the remainder of\s+)?(?:our|its|the Company's)\s+(?:remaining\s+|entire\s+|full\s+)?(?:[\w-]+\s+){0,2}(?:interests?|stakes?|investments?|shares|ownership)\s+in|loss of significant influence over|no longer (?:holds?|owns?|has|have)\s+(?:an?\s+|any\s+)?(?:[\w-]+\s+){0,2}(?:interests?|stakes?|investments?)\s+in)\s+/i;
+/** A stake described only in the past: "until its disposition in the first quarter of 2025". */
+const GONE_STAKE = /\buntil (?:its|their|the) (?:disposition|sale|divestiture)\b|\bdiscontinu\w* (?:of )?the equity method\b|\bwhile subject to the equity method\b/i;
 
 /**
  * Relations the company's own report states: customers with the share of its revenue (named, or "Customer A"),
  * suppliers it names ("foundries, such as TSMC and Samsung") and competitors ("our competitors include ...").
  */
-export function ownRelations(sentences: string[], dir: Directory, self: { cik?: number; names: string[] }, ev: Omit<Evidence, 'sentence'>): Relation[] {
+export function ownRelations(sentences: string[], dir: Directory, self: { cik?: number; names: string[] }, ev: Omit<Evidence, 'sentence'>, ended: EndedStakes = { sold: new Set(), subsidiaries: new Set() }): Relation[] {
   const out: Relation[] = [];
+  const { sold: soldStakes, subsidiaries } = ended;
   const selfPattern = targetPattern(self.names);
   const add = (f: Found | { name: string }, role: Role, sentence: string, extra: Partial<Relation> = {}) => {
     const found = f as Found;
@@ -1270,6 +1297,32 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       const head = s.slice(Math.max(0, s.lastIndexOf('.', among.index) + 1), among.index);
       for (const f of findCompanies(head, dir)) add(f, 'competitor', raw);
     }
+    // A stake it no longer holds, named right after the words: "the sale of our ownership interest in Coca-Cola
+    // Consolidated", "our previous investment in Haleon". Selling part of one ("sold a portion of our interest in CCEP")
+    // keeps the rest.
+    const goneAt = GONE_STAKE_AT.exec(s);
+    if (goneAt) for (const f of findCompanies(s.slice(goneAt.index + goneAt[0].length, goneAt.index + goneAt[0].length + 120), dir).filter((f) => f.index <= 6).slice(0, 1)) soldStakes.add(relationKey(f));
+    if (/\bequity[- ]method\b|\b(?:own|owns|owned|hold|holds|held|retained|retains)\s+(?:approximately\s+|about\s+|an?\s+)?\d{1,3}(?:\.\d+)?%/i.test(s) && !/\b(?:not accounted for|do not|does not)\b/i.test(s)) {
+      const stake = /\b(?:(?:investments?|interests?|stake|equity interest|ownership interest)\s+in|equity[- ]method (?:investees?|investments?)\s*,?\s*(?:include|includes|including|such as|are|were|:)|(?:own|owns|owned|hold|holds|held|retained|retains)\s+(?:approximately\s+|about\s+|an?\s+)?\d{1,3}(?:\.\d+)?%(?:\s+(?:equity|ownership|minority|noncontrolling|economic|voting))?(?:\s+(?:interest|stake|investment))?\s+(?:in|of))\s+/i.exec(s);
+      if (stake) {
+        const after = s.slice(stake.index + stake[0].length, stake.index + stake[0].length + 200);
+        const listed = findCompanies(after, dir);
+        const list = /\binclude|including|such as|are|were|:/i.test(stake[0]);
+        // The company the stake is in comes first ("interest in Altera"); a name further on ("97% of the combined
+        // company, which is expected to be listed on the Nasdaq") is not it. A joint venture names its partner after
+        // "with" ("a 15% equity interest in two joint ventures ... with affiliates of Tongfu Microelectronics").
+        const jv = /^(?:a|an|the|two|three|several|its|our)?\s*(?:[\w-]+\s+){0,2}joint ventures?\b[^.;]{0,80}?\bwith\s+(?:(?:affiliates?|subsidiaries|a subsidiary)\s+of\s+)?/i.exec(after);
+        const first = list ? listed : listed.filter((f) => f.index <= 6 || (jv && f.index === jv[0].length)).slice(0, 1);
+        // Above half is a subsidiary, not a relation ("the Company owned approximately 97% of ChronoScale's
+        // outstanding common stock"); a stake held only in the past is not one now.
+        const majority = [...s.matchAll(/\b(?:own|owns|owned|hold|holds|held)\s+(?:approximately\s+|about\s+)?(\d{1,3}(?:\.\d+)?)%/gi)].some((m) => Number(m[1]) > 50);
+        if (majority) for (const f of first) subsidiaries.add(relationKey(f));
+        if (goneAt || GONE_STAKE.test(s)) for (const f of first) soldStakes.add(relationKey(f));
+        if (majority || goneAt || GONE_STAKE.test(s)) continue;
+        for (const f of first) add(f, 'investment', raw);
+        if (first.length) continue;
+      }
+    }
     if (OWN_COMPETITOR.test(raw)) {
       const listStart = raw.startsWith('[competitors]') ? 0 : Math.max(0, s.search(/\b(?:include|includes|including|such as|with|against|from|are)\b/i));
       for (const f of findCompanies(s.slice(listStart), dir)) add(f, 'competitor', raw);
@@ -1299,7 +1352,17 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       else add(st.party, st.role, raw);
     }
   }
-  return out;
+  return out.filter((r) => stillHeld(r, ended));
+}
+
+/** Stakes the company's reports say were sold, and companies it owns more than half of: neither is a relation now. */
+export interface EndedStakes {
+  sold: Set<string>;
+  subsidiaries: Set<string>;
+}
+
+function stillHeld(r: Relation, ended: EndedStakes): boolean {
+  return !ended.subsidiaries.has(r.key) && !(r.role === 'investment' && ended.sold.has(r.key));
 }
 
 const COUNT: Record<string, number> = { one: 1, another: 1, a: 1, 'a single': 1, single: 1, two: 2, three: 3, four: 4, five: 5 };
@@ -1909,7 +1972,9 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
   const pattern = targetPattern(names.names.concat(names.legal.map((l) => l.replace(SUFFIX, '').trim())));
   const exclude = names.exclude ? new RegExp(names.exclude) : null;
   const relations: Relation[] = [];
-  const publish = () => emit((c) => ({ ...c, relations: mergeRelations(relations), at: Date.now() }));
+  // A stake one of its reports says was sold (or a subsidiary) stays out, whichever filing names it.
+  const ended: EndedStakes = { sold: new Set(), subsidiaries: new Set() };
+  const publish = () => emit((c) => ({ ...c, relations: mergeRelations(relations.filter((r) => stillHeld(r, ended))), at: Date.now() }));
   const mark = (f: Filer, state: Filer['state'], found?: number) => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === f.path ? { ...x, state, ...(found != null ? { found } : {}) } : x)) }));
   const sentenceNames = [...new Set([...names.names, ...names.legal.map((l) => l.replace(SUFFIX, '').trim())])].slice(0, 8);
   const evidence = (f: Filer, sentence: string): Evidence => ({ sentence, filer: f.name, form: f.form, date: f.date, path: f.path, ...(f.type && f.type !== f.form ? { type: f.type } : {}) });
@@ -1922,7 +1987,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     const sentences = await io.text('own', f.path).catch(() => null);
     let found = 0;
     if (sentences) {
-      const got = ownRelations(sentences, dir, { cik: company?.cik, names: names.names }, evidence(f, ''));
+      const got = ownRelations(sentences, dir, { cik: company?.cik, names: names.names }, evidence(f, ''), ended);
       const shares = got.filter((r) => SHARE_ONLY.test(r.key));
       const keep = shares.length > 0 && f.date > sharesFrom;
       if (keep) {

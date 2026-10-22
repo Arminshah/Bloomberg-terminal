@@ -285,6 +285,11 @@ const OFFICIAL = {
   // annual change, all groups, Australia.
   absUnemp: (since) => `https://data.api.abs.gov.au/rest/data/ABS,LF,1.0.0/M13.3.1599.20.AUS.M?startPeriod=${since.slice(0, 7)}&format=csv`,
   absCpi: (since) => `https://data.api.abs.gov.au/rest/data/ABS,CPI,2.0.0/3.10001.10.50.M?startPeriod=${since.slice(0, 7)}&format=csv`,
+  // The Bureau of Labor Statistics' public API, version 1 (no key; a small daily allowance per address): CPI for all
+  // urban consumers, not seasonally adjusted (CUUR0000SA0), and the unemployment rate, seasonally adjusted
+  // (LNS14000000) — the series FRED republishes as CPIAUCNS and UNRATE. Asked only when no FRED key is set.
+  blsCpi: () => 'https://api.bls.gov/publicAPI/v1/timeseries/data/CUUR0000SA0',
+  blsUnemp: () => 'https://api.bls.gov/publicAPI/v1/timeseries/data/LNS14000000',
   // Official announcements for the news screens: each publisher's own RSS feed (headline, link, date).
   newsFed: () => 'https://www.federalreserve.gov/feeds/press_all.xml',
   newsEcb: () => 'https://www.ecb.europa.eu/rss/press.html',
@@ -307,7 +312,7 @@ const OFFICIAL_PROVIDER = {
   effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', ecb: 'ecb', boe: 'boe', gilts: 'boe', boc: 'boc', canadas: 'boc',
   rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
-  statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs',
+  statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
   newsFed: 'fedboard', newsEcb: 'ecb', newsBoe: 'boe', newsBoc: 'boc', newsRba: 'rba', newsBea: 'bea', newsEsma: 'esma',
   newsFedSpeeches: 'fedboard', newsEcbBlog: 'ecb', newsBoj: 'boj', newsBis: 'bis', newsSec: 'sec',
 };

@@ -463,3 +463,51 @@ describe('SPLC: relations the fifth review found missing', () => {
     expect(classify('Revenues arising from the purchase order received from Esso Nederland B.V. ("Esso"), an affiliate of EMTEC and Exxon Mobil Corporation, related to the project were recognized.', T(['ExxonMobil', 'Exxon Mobil', 'Exxon']), T(['FuelCell Energy', 'FuelCell']))?.role).toBe('supplier');
   });
 });
+
+describe("SPLC: the company's own report — competitors and stakes", () => {
+  const ev = { filer: 'Own', form: '10-K', date: '2026-07-15', path: 'x' };
+  const d = buildDirectory([{ cik: 1, ticker: 'NKE', title: 'NIKE, Inc.' }, { cik: 2, ticker: 'UAA', title: 'Under Armour, Inc.' }, { cik: 3, ticker: 'LULU', title: 'lululemon athletica inc.' }, { cik: 4, ticker: 'VFC', title: 'V F CORP' }, { cik: 5, ticker: 'INTC', title: 'INTEL CORP' }, { cik: 6, ticker: 'MNST', title: 'Monster Beverage Corp' }]);
+  const own = (sentences: string[], names: string[]) => ownRelations(sentences, d, { names }, ev).map((r) => [r.role, r.ticker ?? r.name]);
+  it('reads competitors after "compete internationally with" and "competition in ... from", lower-case names included', () => {
+    const got = own(['We compete internationally with a significant number of athletic and leisure footwear companies, including adidas, Anta, ASICS, Li Ning, lululemon athletica, New Balance, Puma, Under Armour and V.F. Corporation, among others.'], ['NIKE', 'Nike']);
+    expect(got).toEqual(expect.arrayContaining([['competitor', 'adidas'], ['competitor', 'ANTA Sports'], ['competitor', 'ASICS'], ['competitor', 'Li Ning'], ['competitor', 'LULU'], ['competitor', 'UAA']]));
+    expect(own(['We face intense competition in the semiconductor memory and storage markets from a number of companies, including Kioxia Holdings Corporation, Samsung Electronics Co., Ltd., and SK hynix Inc.'], ['Micron'])).toEqual(expect.arrayContaining([['competitor', 'Kioxia Holdings'], ['competitor', 'Samsung Electronics'], ['competitor', 'SK Hynix']]));
+  });
+  it('reads the companies it holds a stake in', () => {
+    expect(own(['Upon closing the transaction, we retained a 49% minority investment in Altera, which is accounted for under the equity method of accounting.'], ['Intel'])).toEqual([['investment', 'Altera']]);
+    expect(own(['We own approximately 19% of Monster Beverage Corporation, which we account for under the equity method.'], ['Coca-Cola'])).toEqual([['investment', 'MNST']]);
+    expect(own(['The Company holds a 15% equity interest in two joint ventures (collectively, the ATMP JV) with affiliates of Tongfu Microelectronics Co., Ltd, a Chinese joint stock company.'], ['AMD'])).toEqual([['investment', 'Tongfu Microelectronics']]);
+  });
+  it('more competitors by their usual names', () => {
+    expect(own(['We compete internationally with companies including Deckers, New Balance and Puma.'], ['NIKE'])).toEqual([['competitor', 'DECK'], ['competitor', 'New Balance'], ['competitor', 'PUMA']]);
+  });
+  it('"ASICs" and "GPUs" are products, not ASICS the company', () => {
+    expect(own(['We also compete with Intel in the custom ASICs development market.'], ['Broadcom'])).toEqual([['competitor', 'INTC']]);
+    expect(own(['Other competitors include manufacturers of low-cost FPGAs as programmable replacements for ASICs and ASSPs.'], ['AMD'])).toEqual([]);
+  });
+  it('a company it owns more than half of is a subsidiary, and a name further on is not the stake', () => {
+    const d2 = buildDirectory([{ cik: 7, ticker: 'CHRN', title: 'ChronoScale Holdings Corp' }, { cik: 8, ticker: 'NDAQ', title: 'NASDAQ, INC.' }]);
+    const own2 = (s: string[]) => ownRelations(s, d2, { names: ['Applied Digital'] }, ev).map((r) => [r.role, r.ticker ?? r.name]);
+    expect(own2(["As a result of the transaction, at closing, the Company owned approximately 97% of ChronoScale's outstanding common stock, and legacy shareholders retained approximately 3%, which represents a noncontrolling interest in ChronoScale."])).toEqual([]);
+    expect(own2(['Applied Digital is expected to own approximately 97% of the combined company, which is expected to be listed on the Nasdaq upon closing.'])).toEqual([]);
+  });
+  it('a stake it sold, or held only in the past, is no relation now', () => {
+    const d2 = buildDirectory([{ cik: 9, ticker: 'COKE', title: 'Coca-Cola Consolidated, Inc.' }, { cik: 10, ticker: 'CCEP', title: 'COCA-COLA EUROPACIFIC PARTNERS plc' }, { cik: 11, ticker: 'HLN', title: 'Haleon plc' }]);
+    const own2 = (s: string[], names: string[]) => ownRelations(s, d2, { names }, ev).map((r) => [r.role, r.ticker ?? r.name]);
+    expect(own2([
+      'The Company recognized a gain of $1,952 million related to the sale of our ownership interest in Coca-Cola Consolidated, Inc. ("Coke Consolidated"), an equity method investee.',
+      'During 2024, the company recorded a net gain of $338 million related to the sale of a portion of our interest in Coca-Cola Consolidated, Inc., an equity method investee.',
+      'In March 2025, the Company sold a portion of our ownership interest in Coca-Cola Europacific Partners plc ("CCEP"), an equity method investee, for cash proceeds of $741 million.',
+    ], ['Coca-Cola'])).toEqual([['investment', 'CCEP']]);
+    expect(own2([
+      'The following table summarizes the change in the carrying value of our investment in Haleon while subject to the equity method during 2024:',
+      'The final carrying value of our equity-method investment in Haleon was reclassified to Short-term investments, until its disposition in the first quarter of 2025.',
+    ], ['Pfizer'])).toEqual([]);
+  });
+  it('a stake one filing says was sold stays out when another filing names it', () => {
+    const d2 = buildDirectory([{ cik: 9, ticker: 'COKE', title: 'Coca-Cola Consolidated, Inc.' }]);
+    const ended = { sold: new Set<string>(), subsidiaries: new Set<string>() };
+    ownRelations(['The Company recognized a gain related to the sale of our ownership interest in Coca-Cola Consolidated, Inc., an equity method investee.'], d2, { names: ['Coca-Cola'] }, ev, ended);
+    expect(ownRelations(['During 2024 the Company sold a portion of our interest in Coca-Cola Consolidated, Inc., an equity method investee.'], d2, { names: ['Coca-Cola'] }, ev, ended)).toEqual([]);
+  });
+});
