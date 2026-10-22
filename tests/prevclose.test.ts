@@ -347,3 +347,11 @@ describe('a hole in the daily bars', () => {
     expect(previousWeekday(day('2026-10-19'))).toBe(day('2026-10-16'));
   });
 });
+
+describe('a currency without its session open', () => {
+  it("uses the quote's previous close within 1% of the bar's, unverified; not further off, and not for stocks", () => {
+    expect(resolvePrevClose(0.5689, undefined, 0.56778, undefined, { fx: true })).toEqual({ value: 0.5689, verified: false });
+    expect(resolvePrevClose(0.5689, undefined, 0.55, undefined, { fx: true })?.value).toBeNaN();
+    expect(resolvePrevClose(0.5689, undefined, 0.56778)?.value).toBeNaN();
+  });
+});

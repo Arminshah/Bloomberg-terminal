@@ -180,7 +180,7 @@ export interface PrevCloseReading {
  * previous bar to check against, readings that agree are kept as unverified.
  * Undefined means the quote carried neither reading.
  */
-export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number, sessionOpen?: number, opts: { before?: number; futures?: boolean; gap?: boolean } = {}): PrevCloseReading | undefined {
+export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number, sessionOpen?: number, opts: { before?: number; futures?: boolean; gap?: boolean; fx?: boolean } = {}): PrevCloseReading | undefined {
   const ok = (x: number | undefined): x is number => x !== undefined && Number.isFinite(x) && x !== 0;
   const c = [field, implied].filter(ok);
   if (!c.length) return undefined;
@@ -209,6 +209,10 @@ export function resolvePrevClose(field: number | undefined, implied: number | un
     // The bars miss the previous session (Yahoo's currency bars for 21 Oct 2026 had no close), so they cannot check
     // the reading: it is used, marked unverified, rather than compared with an older day's close.
     if (opts.gap) return { value: c.length === 1 || rel(c[0], c[1]) <= 2e-4 ? c[0] : NaN, verified: false };
+    // A currency's quoted previous close and its daily bar's close are taken at different hours (NZD/USD on 22 Oct
+    // 2026: 0.5689 against 0.56778); without the session's open to settle it, a reading within 1% is used, marked
+    // unverified, rather than leaving the change blank.
+    if (opts.fx && (c.length === 1 || rel(c[0], c[1]) <= 2e-4) && rel(c[0], histPrev) <= 0.01) return { value: c[0], verified: false };
     return { value: NaN, verified: false };
   }
   if (c.length === 1) return { value: c[0], verified: false };
@@ -1711,6 +1715,7 @@ export class MarketEngine {
       futures: st.def.cls === 'future' || st.def.cls === 'commodity',
       // Currencies trade every weekday: a previous bar older than the weekday before is a hole in the history.
       gap: st.def.cls === 'fx' && histDay !== undefined && histDay < previousWeekday(day),
+      fx: st.def.cls === 'fx',
     });
     if (reading && (reading.verified || q.full || newSession || st.chgCheck !== 'verified')) {
       st.prevClose = reading.value;
