@@ -127,6 +127,8 @@ export interface ExtQuote {
   /** A full quote (the poll): its open, high and low are the day's, replacing the bar's; a streamed tick only extends them. */
   full?: boolean;
   open?: number;
+  /** A chart summary's first price of the session, when it gives no open (a currency's price at the start of its day). */
+  firstPrice?: number;
   high?: number;
   low?: number;
   volume?: number;
@@ -180,7 +182,7 @@ export interface PrevCloseReading {
  * previous bar to check against, readings that agree are kept as unverified.
  * Undefined means the quote carried neither reading.
  */
-export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number, sessionOpen?: number, opts: { before?: number; futures?: boolean; gap?: boolean; fx?: boolean } = {}): PrevCloseReading | undefined {
+export function resolvePrevClose(field: number | undefined, implied: number | undefined, histPrev: number, sessionOpen?: number, opts: { before?: number; futures?: boolean; gap?: boolean; fx?: boolean; first?: number } = {}): PrevCloseReading | undefined {
   const ok = (x: number | undefined): x is number => x !== undefined && Number.isFinite(x) && x !== 0;
   const c = [field, implied].filter(ok);
   if (!c.length) return undefined;
@@ -210,9 +212,12 @@ export function resolvePrevClose(field: number | undefined, implied: number | un
     // the reading: it is used, marked unverified, rather than compared with an older day's close.
     if (opts.gap) return { value: c.length === 1 || rel(c[0], c[1]) <= 2e-4 ? c[0] : NaN, verified: false };
     // A currency's quoted previous close and its daily bar's close are taken at different hours (NZD/USD on 22 Oct
-    // 2026: 0.5689 against 0.56778); without the session's open to settle it, a reading within 1% is used, marked
-    // unverified, rather than leaving the change blank.
-    if (opts.fx && (c.length === 1 || rel(c[0], c[1]) <= 2e-4) && rel(c[0], histPrev) <= 0.01) return { value: c[0], verified: false };
+    // 2026: 0.5689 against 0.56778). The session's first price in a chart summary settles it: a reading within 0.5%
+    // of it is used, marked unverified (USD/MXN on 22 Oct 2026: 18.6632, first price 18.6995, while the bar had
+    // 18.4244 after the peso fell 1.5% on the 21st). Without one, a reading within 1% of the bar is used, unverified.
+    const agree = c.length === 1 || rel(c[0], c[1]) <= 2e-4;
+    if (opts.fx && agree && ok(opts.first)) return { value: rel(c[0], opts.first) <= 5e-3 ? c[0] : NaN, verified: false };
+    if (opts.fx && agree && rel(c[0], histPrev) <= 0.01) return { value: c[0], verified: false };
     return { value: NaN, verified: false };
   }
   if (c.length === 1) return { value: c[0], verified: false };
@@ -1716,6 +1721,7 @@ export class MarketEngine {
       // Currencies trade every weekday: a previous bar older than the weekday before is a hole in the history.
       gap: st.def.cls === 'fx' && histDay !== undefined && histDay < previousWeekday(day),
       fx: st.def.cls === 'fx',
+      first: st.def.cls === 'fx' ? q.firstPrice : undefined,
     });
     if (reading && (reading.verified || q.full || newSession || st.chgCheck !== 'verified')) {
       st.prevClose = reading.value;

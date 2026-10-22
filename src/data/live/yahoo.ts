@@ -316,7 +316,8 @@ export function sparkToQuotes(data: Json): Json[] {
     while (i >= 0 && !(Number.isFinite(close[i]) && (close[i] as number) > 0)) i--;
     if (i < 0) continue;
     const prev = Number(x.previousClose ?? x.chartPreviousClose);
-    out.push({ symbol: x.symbol ?? symbol, regularMarketPrice: close[i], regularMarketTime: ts[i], ...(prev > 0 ? { regularMarketPreviousClose: prev } : {}), sparkOnly: true });
+    const first = close.find((v) => Number.isFinite(v) && (v as number) > 0);
+    out.push({ symbol: x.symbol ?? symbol, regularMarketPrice: close[i], regularMarketTime: ts[i], ...(prev > 0 ? { regularMarketPreviousClose: prev } : {}), sparkFirst: first, sparkOnly: true });
   }
   return out;
 }
@@ -349,6 +350,7 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
     // A chart summary has no bid, offer or day range: it does not replace them.
     full: !q.sparkOnly,
     open: n(q.regularMarketOpen),
+    ...(q.sparkOnly && n(q.sparkFirst) ? { firstPrice: n(q.sparkFirst) } : {}),
     high: n(q.regularMarketDayHigh),
     low: n(q.regularMarketDayLow),
     volume: Number.isFinite(Number(q.regularMarketVolume)) ? Number(q.regularMarketVolume) : undefined,
@@ -376,6 +378,7 @@ export function extQuote(q: Json, invert: boolean, allDays = false): ExtQuote | 
     prevClose: base.prevClose && inv(base.prevClose),
     prevCloseAlt: base.prevCloseAlt && inv(base.prevCloseAlt),
     open: base.open && inv(base.open),
+    ...(base.firstPrice ? { firstPrice: inv(base.firstPrice) } : {}),
     high: base.low && inv(base.low),
     low: base.high && inv(base.high),
     bid: base.ask !== undefined ? inv(base.ask) : undefined,

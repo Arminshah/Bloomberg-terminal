@@ -466,8 +466,8 @@ describe('quotes without a Yahoo session', () => {
       EMPTY: { timestamp: [], close: [] },
     });
     expect(qs).toEqual([
-      { symbol: 'AAPL', regularMarketPrice: 343.46, regularMarketTime: 1792180740, regularMarketPreviousClose: 342, sparkOnly: true },
-      { symbol: 'ABI.BR', regularMarketPrice: 73.9, regularMarketTime: 1792164840, regularMarketPreviousClose: 72.92, sparkOnly: true },
+      { symbol: 'AAPL', regularMarketPrice: 343.46, regularMarketTime: 1792180740, regularMarketPreviousClose: 342, sparkFirst: 343.4, sparkOnly: true },
+      { symbol: 'ABI.BR', regularMarketPrice: 73.9, regularMarketTime: 1792164840, regularMarketPreviousClose: 72.92, sparkFirst: 73.9, sparkOnly: true },
     ]);
     const q = extQuote(qs[0], false)!;
     // Not a full quote: no bid, offer or day range is claimed, and the session is marked as not known.
@@ -475,5 +475,16 @@ describe('quotes without a Yahoo session', () => {
     expect(q.sessionKnown).toBe(false);
     expect(q.timing).toBe('unknown');
     expect(q.prevClose).toBe(342);
+    // The session's first price is kept apart from the open, which a chart summary does not give.
+    expect(q.open).toBeUndefined();
+    expect(q.firstPrice).toBe(343.4);
+  });
+
+  it("inverts a currency's first price with its other prices", async () => {
+    const { sparkToQuotes, extQuote } = await import('../src/data/live/yahoo');
+    const [raw] = sparkToQuotes({ 'MXN=X': { timestamp: [1792623600, 1792671464], close: [18.6995, 18.7347], previousClose: 18.6632, symbol: 'MXN=X' } });
+    const q = extQuote(raw, true)!;
+    expect(q.firstPrice).toBeCloseTo(1 / 18.6995, 10);
+    expect(q.prevClose).toBeCloseTo(1 / 18.6632, 10);
   });
 });

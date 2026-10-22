@@ -354,4 +354,13 @@ describe('a currency without its session open', () => {
     expect(resolvePrevClose(0.5689, undefined, 0.55, undefined, { fx: true })?.value).toBeNaN();
     expect(resolvePrevClose(0.5689, undefined, 0.56778)?.value).toBeNaN();
   });
+
+  it("is settled by the session's first price when a chart summary gives one (USD/MXN, 22 Oct 2026)", () => {
+    // The bar (18.4244) is from before the peso's 1.5% fall on the 21st; the first price, 18.6995, agrees with 18.6632.
+    expect(resolvePrevClose(18.6632, undefined, 18.4244, undefined, { fx: true, first: 18.6995 })).toEqual({ value: 18.6632, verified: false });
+    // A first price more than 0.5% away rejects the reading, even one the bar would let through.
+    expect(resolvePrevClose(0.5689, undefined, 0.56778, undefined, { fx: true, first: 0.5600 })?.value).toBeNaN();
+    // The session's open still verifies within 0.1%.
+    expect(resolvePrevClose(18.6632, undefined, 18.4244, 18.665, { fx: true, first: 18.6995 })).toEqual({ value: 18.6632, verified: true });
+  });
 });
