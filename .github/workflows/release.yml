@@ -1,7 +1,10 @@
 name: Release desktop app
 
-# Tests gate the draft. Native builders upload directly to that draft, avoiding
+# Tests gate the draft. The Windows builder uploads directly to that draft, avoiding
 # Actions artifact-storage quotas. Only the complete, verified draft is published.
+# Windows only: the app is released for Windows. Without Actions minutes, the
+# portable app can be built locally with `npm run desktop:build:portable` and
+# attached to a draft release by hand.
 on:
   push:
     tags: ['v*']
@@ -67,7 +70,7 @@ jobs:
       - run: npm test -- --maxWorkers=1
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
-      - run: xvfb-run -a npm run e2e:desktop
+      # The desktop tests run on Windows itself, in the windows job.
 
   draft:
     needs: verify
@@ -128,33 +131,8 @@ jobs:
           gh release upload $env:RELEASE_TAG @assets --clobber
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-  linux:
-    needs: draft
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    outputs:
-      manifest: ${{ steps.assets.outputs.manifest }}
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: ${{ inputs.tag || github.ref }}
-      - uses: actions/setup-node@v7.1.0
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - name: Build Linux AppImage and deb
-        run: npm run desktop:build:linux
-      - name: Check packages and calculate SHA256
-        id: assets
-        run: node scripts/release-assets.mjs checksums linux
-      - name: Upload Linux files to the draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$RELEASE_TAG" release/*.AppImage release/*.deb release/*.sha256 --clobber
-
   publish:
-    needs: [windows, linux]
+    needs: windows
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -168,7 +146,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           WINDOWS_MANIFEST: ${{ needs.windows.outputs.manifest }}
-          LINUX_MANIFEST: ${{ needs.linux.outputs.manifest }}
         run: |
           set -euo pipefail
           node scripts/release-assets.mjs validate

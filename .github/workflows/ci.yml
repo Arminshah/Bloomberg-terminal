@@ -54,17 +54,3 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - run: npx playwright test --config playwright.desktop.config.ts
       - run: node scripts/release-assets.mjs checksums windows
-
-  desktop-linux:
-    needs: test
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/setup-node@v7.1.0
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run desktop:build:linux
-      - run: node scripts/release-assets.mjs checksums linux

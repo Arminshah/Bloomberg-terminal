@@ -20,7 +20,7 @@ Everything in **2.9.0** is included: Belgian and other European markets (BEL 20,
 
 After 2.12.0: long screens page like the terminal ("Page 2/5", PgUp/PgDn, a number then PgDn moves that many pages), monitor rows and news headlines are numbered and open with their number and GO, a mnemonic typed before F1 opens its help, autocomplete lists mnemonics, and `EXCH` shows exchange hours. New mnemonics: ERN, CF, NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC. See [terminal fidelity after 2.12.0](docs/terminal-fidelity-v2.13.md).
 
-A keyboard-driven market terminal for private use, as a desktop app for Windows and Linux. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
+A keyboard-driven market terminal for private use, as a desktop app for Windows. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
 The desktop app uses public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, Kraken, and Yahoo Finance for personal-use prices/company data. News comes from Google News and Yahoo Finance without a key; with your own keys it adds research (FMP, Finnhub recommendations and Equibles), news (Finnhub, Benzinga through Alpaca, Massive, Marketaux), IEX stocks and indicative option snapshots (Alpaca), plus sources for checking closes. Sources, timestamps, subscription refusals and missing coverage stay explicit. The browser build has no data source and opens a marked demo only when chosen.
 
@@ -36,10 +36,8 @@ From the [Releases page](https://github.com/arminshah/bloomberg-terminal/release
 | --- | --- | --- |
 | Windows | `Armin-Terminal-Setup-<version>.exe` | Installs with Start menu and desktop shortcuts |
 | Windows | `Armin-Terminal-<version>-Portable.exe` | Runs without installing |
-| Linux (Debian, Ubuntu) | `armin-terminal_<version>_amd64.deb` | `sudo apt install ./armin-terminal_<version>_amd64.deb` |
-| Linux (most distributions) | `Armin-Terminal-<version>-x86_64.AppImage` | `chmod +x` it and run it; needs FUSE 2 |
 
-The Windows files are not code-signed, so SmartScreen may warn on first launch (More info, then Run anyway). On Ubuntu 24.04 and later, use the .deb: an Electron AppImage cannot start Chromium's sandbox there. [docs/install.md](docs/install.md) has the details, running from source included.
+The Windows files are not code-signed, so SmartScreen may warn on first launch (More info, then Run anyway). [docs/install.md](docs/install.md) has the details, running from source included.
 
 ## First start
 
@@ -156,7 +154,7 @@ Some figures are calculated from the real data, and the screens say so: the Fed 
 
 ## Documentation
 
-- [Installing and starting](docs/install.md), on Windows and Linux
+- [Installing and starting](docs/install.md), on Windows
 - [Configuration](docs/configuration.md): keys, switches and the provider screen
 - [Data providers](docs/data-providers.md), [limits and entitlements](docs/limits.md) and [attribution](docs/attribution.md)
 - [Feature and data coverage](docs/feature-matrix.md): what is implemented, with what data, and what is missing
@@ -176,7 +174,7 @@ Use Node.js 24, as used by CI. Node.js 22 can also run the project.
 | `npm test` | Unit tests (Vitest) |
 | `npm run e2e` | Browser tests (Playwright) |
 | `npm run desktop:build` | Windows installer and portable app in `release/` |
-| `npm run desktop:build:linux` | Linux AppImage and .deb in `release/` |
+| `npm run desktop:build:portable` | Windows portable app in `release/`, on any system (no Wine needed) |
 
 The code is split into `electron/` (the main process, which makes every provider request and keeps the keys), `src/data/` (the engine, the provider registry and one module per source under `live/`), `src/finance/` (bond, option and statistics math), `src/terminal/` (command parser, function registry, panels and settings), `src/components/` and `src/functions/` (one file per screen or group of screens).
 

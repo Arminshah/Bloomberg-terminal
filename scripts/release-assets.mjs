@@ -6,15 +6,15 @@ import { join } from 'node:path';
 
 const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('A numeric release version is required.');
+// Windows only: the app is released for Windows.
 const files = {
   windows: [`Armin-Terminal-Setup-${version}.exe`, `Armin-Terminal-${version}-Portable.exe`],
-  linux: [`Armin-Terminal-${version}-x86_64.AppImage`, `armin-terminal_${version}_amd64.deb`],
 };
 files.portable = [files.windows[1]];
 
 if (process.argv[2] === 'checksums') {
   const names = files[process.argv[3]];
-  if (!names) throw new Error('Choose windows, linux or portable.');
+  if (!names) throw new Error('Choose windows or portable.');
   const manifest = {};
   for (const name of names) {
     const path = join('release', name);
@@ -23,8 +23,7 @@ if (process.argv[2] === 'checksums') {
     const file = await open(path, 'r');
     const header = Buffer.alloc(8);
     try { await file.read(header, 0, header.length, 0); } finally { await file.close(); }
-    const valid = name.endsWith('.exe') ? header.subarray(0, 2).toString() === 'MZ'
-      : name.endsWith('.deb') ? header.toString() === '!<arch>\n' : header.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]));
+    const valid = name.endsWith('.exe') && header.subarray(0, 2).toString() === 'MZ';
     if (!valid) throw new Error(`Unexpected package format: ${name}`);
     const hash = createHash('sha256');
     for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -44,8 +43,8 @@ if (process.argv[2] === 'checksums') {
   if (!metadata.apiUrl?.startsWith(prefix) || !/^\d+$/.test(metadata.apiUrl.slice(prefix.length))) throw new Error('Unexpected release API location.');
   const release = JSON.parse(execFileSync('gh', ['api', metadata.apiUrl], { encoding: 'utf8' }));
   if (!release.draft) throw new Error('Only a draft release may be published by this workflow.');
-  const manifest = { ...JSON.parse(process.env.WINDOWS_MANIFEST ?? '{}'), ...JSON.parse(process.env.LINUX_MANIFEST ?? '{}') };
-  for (const name of [...files.windows, ...files.linux]) {
+  const manifest = JSON.parse(process.env.WINDOWS_MANIFEST ?? '{}');
+  for (const name of files.windows) {
     const digest = manifest[name];
     if (!/^[a-f0-9]{64}$/.test(digest ?? '')) throw new Error(`Missing build digest for ${name}`);
     const asset = release.assets.find((a) => a.name === name);
@@ -53,7 +52,7 @@ if (process.argv[2] === 'checksums') {
     if (!asset || asset.state !== 'uploaded' || asset.size < 1_000_000 || !checksum || checksum.state !== 'uploaded' || checksum.size < 64) throw new Error(`Missing or incomplete uploaded package/checksum: ${name}`);
     if (asset.digest && asset.digest !== `sha256:${digest}`) throw new Error(`Uploaded digest mismatch: ${name}`);
   }
-  console.log(`Verified four packages and four checksums for ${tag}.`);
+  console.log(`Verified two packages and two checksums for ${tag}.`);
 } else {
   throw new Error('Use checksums <platform> or validate.');
 }

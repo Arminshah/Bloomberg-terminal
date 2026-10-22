@@ -1,6 +1,6 @@
 # Installing and starting
 
-The desktop app runs on Windows and Linux (64-bit). Download it from the [Releases page](https://github.com/arminshah/bloomberg-terminal/releases); the repository is private, so sign in to GitHub first. Every push also builds both in CI: open the [Actions tab](https://github.com/arminshah/bloomberg-terminal/actions), pick the latest successful CI run, and download `armin-terminal-windows` or `armin-terminal-linux` under Artifacts.
+The desktop app runs on Windows (64-bit). Download it from the [Releases page](https://github.com/arminshah/bloomberg-terminal/releases); when the repository is private, sign in to GitHub first.
 
 ## Windows
 
@@ -8,27 +8,6 @@ The desktop app runs on Windows and Linux (64-bit). Download it from the [Releas
 - `Armin-Terminal-<version>-Portable.exe` runs without installing.
 
 The executables are not code-signed, so the first launch may show "Windows protected your PC". Choose More info, then Run anyway.
-
-## Linux
-
-Linux does not run .exe files. Its two equivalents:
-
-- `armin-terminal_<version>_amd64.deb` installs the app on Debian, Ubuntu and their derivatives, with a menu entry, the `armin-terminal` command and Chromium's sandbox set up (including an AppArmor profile on Ubuntu 24.04 and later):
-
-  ```bash
-  sudo apt install ./armin-terminal_<version>_amd64.deb
-  ```
-
-- `Armin-Terminal-<version>-x86_64.AppImage` is one file that runs without installing, on most distributions:
-
-  ```bash
-  chmod +x Armin-Terminal-<version>-x86_64.AppImage
-  ./Armin-Terminal-<version>-x86_64.AppImage
-  ```
-
-  AppImages need FUSE 2: `sudo apt install libfuse2` on Ubuntu 22.04, `libfuse2t64` on 24.04. On Ubuntu 24.04 and later, the system's restriction on user namespaces stops an Electron AppImage from starting Chromium's sandbox, and the app will not start; use the .deb there. Starting the AppImage with `--no-sandbox` also works, but turns that sandbox off.
-
-Saved keys are encrypted with the desktop's secret store (GNOME Keyring or KWallet, through libsecret). Without one, Electron cannot encrypt them, and keys can only come from environment variables.
 
 ## First start
 
@@ -56,8 +35,8 @@ For keys while running from source, copy `.env.example` to `.env` and fill in wh
 
 To build the packages yourself:
 
-- `npm run desktop:build` writes the Windows installer and portable app to `release/`. This runs on Windows; building the installer on Linux needs Wine.
-- `npm run desktop:build:linux` writes the AppImage and the .deb to `release/`, on Linux.
+- `npm run desktop:build` writes the Windows installer and portable app to `release/`. This runs on Windows; building the installer elsewhere needs Wine.
+- `npm run desktop:build:portable` writes the portable app alone, on any system and without Wine: the way to build a release when GitHub Actions has no minutes left. Attach it to a draft release by hand.
 - `npm run desktop:dir` builds an unpacked app folder for the current system.
 
 ## Browser build and demo
@@ -75,11 +54,10 @@ Nothing is deployed publicly. The project is for private use.
 
 ## Updating
 
-Install the new version over the old one, or replace the portable .exe or the AppImage. Settings, watchlists, layouts, alerts, notes, the portfolio and saved keys are kept. Layouts and settings saved under the old command names (for example `GP` or `DES`) are carried over to the new names.
+Install the new version over the old one, or replace the portable .exe. Settings, watchlists, layouts, alerts, notes, the portfolio and saved keys are kept. Layouts and settings saved under the old command names (for example `GP` or `DES`) are carried over to the new names.
 
 ## Where your data is kept
 
 - Windows: `%APPDATA%\armin-terminal`
-- Linux: `~/.config/armin-terminal`
 
 Uninstalling the app leaves this folder in place; delete it to remove your settings and saved keys too.
