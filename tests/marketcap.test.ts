@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adjustedCounts, capByYear, capSeries, coverShareCounts, splitFactorAfter } from '../src/data/marketcap';
+import { adjustedCounts, capByYear, capSeries, coverShareCounts, shareFilings, splitFactorAfter } from '../src/data/marketcap';
 
 const DAY = 86_400_000;
 const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`) / DAY;
@@ -74,5 +74,41 @@ describe('market cap history', () => {
     expect(ys[0].change).toBeCloseTo(-20, 10);
     expect(ys[1].change).toBeCloseTo(50, 10);
     expect(ys[2].change).toBeNaN();
+  });
+});
+
+describe('market cap history as known at the time (audit AR-002)', () => {
+  it('uses only counts filed before each day, a revision from its filing on', () => {
+    // As of 1 Jan: 100, filed 1 Feb, revised to 120 filed 1 Apr; as of 1 Jun: 150, filed 1 Jul. Price 10.
+    const counts = [
+      { end: '2026-01-01', val: 100, filed: '2026-02-01' },
+      { end: '2026-01-01', val: 120, filed: '2026-04-01' },
+      { end: '2026-06-01', val: 150, filed: '2026-07-01' },
+    ];
+    const s = capSeries(bars([['2026-01-15', 10], ['2026-03-02', 10], ['2026-06-15', 10], ['2026-07-15', 10]]), 150, counts, []);
+    expect(s.basis).toBe('filings');
+    // 15 Jan: nothing filed yet, left out. March: the original 100. 15 Jun: the revision, 120 (the June count is not
+    // filed until July). July: 150.
+    expect(s.points.map((p) => [new Date(p.t).toISOString().slice(0, 10), p.cap])).toEqual([['2026-03-02', 1000], ['2026-06-15', 1200], ['2026-07-15', 1500]]);
+    expect(s.points[1].count).toEqual({ end: '2026-01-01', val: 120, filed: '2026-04-01' });
+  });
+
+  it('does not use a count on the day it is filed, only from the next session', () => {
+    const s = capSeries(bars([['2026-02-01', 10], ['2026-02-02', 10]]), 100, [{ end: '2026-01-25', val: 100, filed: '2026-02-01' }], []);
+    expect(s.points.map((p) => p.cap)).toEqual([1000]);
+  });
+
+  it('lists every filing with its date, oldest filing first, from the covers', () => {
+    const cf = { facts: { 'dei:EntityCommonStockSharesOutstanding': { shares: [
+      { end: '2025-01-20', val: 101, filed: '2025-03-01', form: '10-Q/A' },
+      { end: '2025-01-20', val: 100, filed: '2025-01-30', form: '10-Q' },
+      { end: '2024-10-15', val: 0, filed: '2024-11-01', form: '10-K' },
+    ] } } } as never;
+    expect(shareFilings(cf)).toEqual([{ end: '2025-01-20', val: 100, filed: '2025-01-30' }, { end: '2025-01-20', val: 101, filed: '2025-03-01' }]);
+  });
+
+  it('gives each year-end its shares and the filed count behind them', () => {
+    const s = capSeries(bars([['2025-12-31', 10]]), 100, [{ end: '2025-10-20', val: 100, filed: '2025-10-30' }], []);
+    expect(capByYear(s.points)[0]).toMatchObject({ year: 2025, cap: 1000, shares: 100, count: { end: '2025-10-20', filed: '2025-10-30' } });
   });
 });

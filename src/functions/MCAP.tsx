@@ -7,7 +7,7 @@ import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtDay } from '../core/format';
 import { closeAt, marketCap } from '../data/analytics';
 import { engine, useHistoryVersion, useTick } from '../data/market';
-import { capByYear, capSeries, coverShareCounts, type CapPoint } from '../data/marketcap';
+import { capByYear, capSeries, shareFilings, type CapPoint } from '../data/marketcap';
 import { COVER_SHARES, loadCompanyFacts, resolveFiler, secAvailable, secTicker, useSecLoad, type CompanyFacts } from '../data/live/sec';
 import { realSplits } from '../data/live/yahoo';
 import { wantShares } from '../data/live/shares';
@@ -25,9 +25,9 @@ const RANGES = [
 const YEAR_MS = 365.25 * 86_400_000;
 
 /**
- * MARKETCAP: a company's market value over time, as each day's close times its shares outstanding then (the share
- * count on the cover of each SEC filing, split adjusted, anchored to today's), with its value at each year's end and
- * the change on the year before.
+ * MARKETCAP: a company's market value over time, as each day's close times its shares outstanding as last published
+ * then (the count on the cover of the latest SEC filing filed before that day, split adjusted), with its value at each
+ * year's end and the change on the year before.
  */
 export function MCAP({ sec }: FnProps) {
   const s = sec!;
@@ -51,7 +51,7 @@ export function MCAP({ sec }: FnProps) {
   const usd = inUsd && canUsd;
   const sharesNow = (s.eq?.shares ?? NaN) * 1e6;
   const series = useMemo(() => {
-    const counts = coverShareCounts(cf);
+    const counts = shareFilings(cf);
     const splits = realSplits.get(s.id) ?? [];
     return capSeries(engine.daily(s.id), sharesNow, counts, splits, s.minor ? 0.01 : 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -67,7 +67,8 @@ export function MCAP({ sec }: FnProps) {
   // takes the price source's share count, is shown beside it when they differ.
   const quoteCap = marketCap(s.id) * (usd ? engine.usdValue(ccy) : 1);
   const nowCap = points.length ? points[points.length - 1].cap : quoteCap;
-  const latestCount = series.counts[series.counts.length - 1];
+  // The count behind today's value: the latest filed one (as known now).
+  const latestCount = points.length ? points[points.length - 1].count : undefined;
   const span = RANGES[range - 1];
   const from = points.length ? Math.max(points[0].t, points[points.length - 1].t - span.years * YEAR_MS) : 0;
   const shown = points.filter((p) => p.t >= from);
@@ -84,19 +85,24 @@ export function MCAP({ sec }: FnProps) {
     for (let y = y0 + 1; y <= y1; y += every) ticks.push({ v: Date.UTC(y, 0, 1), label: String(y) });
     return ticks.length >= 2 ? ticks : undefined;
   })();
-  const csv = () => [['Year', `Market cap (${unit})`, 'Change %'], ...years.map((y) => [y.year, Math.round(y.cap), Number.isFinite(y.change) ? y.change.toFixed(2) : ''])];
+  // The year's value with the shares behind it: the count's own date and the date it was filed, and the basis.
+  const basisWord = series.basis === 'filings' ? 'filed count' : series.basis === 'scaled' ? "estimate: today's count moved back with the filed counts" : "estimate: today's count held";
+  const csv = () => [
+    ['Year', 'Close date', `Market cap (${unit})`, 'Change %', "Shares used (today's shares)", 'Count as of', 'Count filed', 'Basis'],
+    ...years.map((y) => [y.year, fmtDay(y.t, true), Math.round(y.cap), Number.isFinite(y.change) ? y.change.toFixed(2) : '', y.shares ? Math.round(y.shares) : '', y.count?.end ?? '', y.count?.filed ?? '', basisWord]),
+  ];
   const loadingFacts = secAvailable() && ticker && facts.loading && !cf;
   // Cover counts, or balance-sheet counts for a company that gives its cover count by share class only.
   const where = cf?.facts[COVER_SHARES]?.shares?.length ? 'cover' : 'balance sheet';
   const fromDay = series.counts[0] ? fmtDay(Date.parse(`${series.counts[0].end}T00:00:00Z`)) : '';
   const sourceNote =
     series.basis === 'filings'
-      ? `Each day's close times the shares outstanding then: the count on the ${where} of the company's latest SEC filing at the time (${series.counts.length} filings from ${fromDay}), later stock splits applied. Days before the first filing are left out.`
+      ? `Each day's close times the shares outstanding as last published: the count on the ${where} of the latest SEC filing filed before that day (${series.counts.length} counts from ${fromDay}), later stock splits applied. A count filed later, a revision included, is not used for earlier days, and the number of shares changes between filings without showing here. Days before the first filing are left out.`
       : series.basis === 'scaled'
-      ? `Each day's close times the shares outstanding then: the filings' covers count part of the shares (${series.counts.length} filings from ${fromDay}; one share class of several, as a rule), so the share count behind today's market value is moved back in time with them, later stock splits applied.`
+      ? `An estimate: the filings' covers count part of the shares (${series.counts.length} counts from ${fromDay}; one share class of several, as a rule), so the share count behind today's market value is moved back in time with the counts filed before each day, later stock splits applied.`
       : loadingFacts
         ? 'Loading the share counts from the SEC filings…'
-        : `Each day's close times today's share count: ${secAvailable() ? 'the SEC has no share counts for this company' : 'share counts from SEC filings need the desktop app'}, so changes in the number of shares are not reflected.`;
+        : `An estimate: each day's close times today's share count, as ${secAvailable() ? 'the SEC has no recent share counts for this company' : 'share counts from SEC filings need the desktop app'}, so changes in the number of shares are not reflected.`;
   return (
     <div>
       <FnHeader
@@ -117,7 +123,7 @@ export function MCAP({ sec }: FnProps) {
           <div className="muted">Market cap now</div>
           <div className="mcap-now">{Number.isFinite(nowCap) ? `${fmtBig(nowCap, 2)} ${unit}` : ''}</div>
           {series.basis === 'filings' && latestCount ? (
-            <div className="muted" title="The live price times the shares on the latest filing cover; the quote's market value takes the price source's own share count">
+            <div className="muted" title={`The live price times the shares on the latest filing's ${where}${latestCount.filed ? `, filed ${fmtDay(Date.parse(`${latestCount.filed}T00:00:00Z`))}` : ''}; the quote's market value takes the price source's own share count`}>
               {fmtBig(latestCount.val, 3)} shares ({where} of {fmtDay(Date.parse(`${latestCount.end}T00:00:00Z`))})
               {Number.isFinite(quoteCap) && Math.abs(quoteCap / nowCap - 1) > 0.005 ? ` · quote: ${fmtBig(quoteCap, 2)}` : ''}
             </div>
@@ -142,7 +148,7 @@ export function MCAP({ sec }: FnProps) {
           </div>
         ) : null}
       </div>
-      <Section title={`Market cap (${unit})`}>
+      <Section title={`Market cap (${unit})${series.basis === 'filings' || loadingFacts ? '' : ' · estimated share count'}`}>
         {shown.length > 1 ? (
           <XYChart
             height={300}

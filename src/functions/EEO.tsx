@@ -5,6 +5,7 @@ import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtIso, fmtNum, fmtPct, fmtDay } from '../core/format';
 import { DAY_MS } from '../data/calendar';
 import { engine, useTick } from '../data/market';
+import { marketCap } from '../data/analytics';
 import { financials, majorPrice, reportCcy, type FinPeriod } from '../data/fundamentals';
 import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
 import { useConsensus, type Consensus } from '../data/live/consensus';
@@ -88,9 +89,11 @@ export function EEO({ sec }: FnProps) {
   const fx = ccy === tradeCcy ? 1 : engine.usdValue(tradeCcy) / engine.usdValue(ccy);
   const price = majorPrice(s, q?.last ?? NaN) * fx;
   const ltm = f.ltm;
-  const shares = Number.isFinite(ltm.shares) && ltm.shares > 0 ? ltm.shares : last?.shares ?? NaN;
-  const mcap = price * shares;
-  const ev = mcap + (Number.isFinite(ltm.debt) ? ltm.debt : 0) - (Number.isFinite(ltm.cash) ? ltm.cash : 0);
+  // Market value from today's shares outstanding (the quote's count), not a statement period's weighted diluted count.
+  const mcap = (marketCap(s.id) / 1e6) * fx;
+  // Enterprise value only with both debt and cash known: a missing balance is not a reported zero.
+  const evBasis = Number.isFinite(ltm.debt) && Number.isFinite(ltm.cash);
+  const ev = enterpriseValue(mcap, ltm.debt, ltm.cash);
   const recent = consensus?.past.slice(0, 4) ?? [];
   const ltmAdj = recent.length === 4 && recent.every((x) => Number.isFinite(x.eps.actual)) ? recent.reduce((a, x) => a + x.eps.actual, 0) : NaN;
   // The next four quarters' EPS as the year-weighted blend of the next two fiscal years.
@@ -243,11 +246,18 @@ export function EEO({ sec }: FnProps) {
           <div className="note">
             In millions of {ccy} except per share. Act: the last reported fiscal year from the statements; EPS Adj+ is its four quarters&apos; comparable EPS (the analysts&apos; basis) added up. Est: the
             analysts&apos; consensus{est?.source ? ` from ${est.source}` : ''} with the number of estimates (#); a line the source does not estimate is left blank
-            {est?.state && est.state !== 'ok' && est.state !== 'loading' ? ` (${est.message ?? 'estimates unavailable'})` : ''}. Multiples at today&apos;s price; Next 4 Qtrs Est blends the next two fiscal years by the time left in
-            the current one.
+            {est?.state && est.state !== 'ok' && est.state !== 'loading' ? ` (${est.message ?? 'estimates unavailable'})` : ''}. Multiples at today&apos;s price and today&apos;s shares
+            outstanding; enterprise value adds the latest debt and takes off the latest cash
+            {evBasis ? '' : `, and is not given here because the statements leave ${!Number.isFinite(ltm.debt) && !Number.isFinite(ltm.cash) ? 'debt and cash' : !Number.isFinite(ltm.debt) ? 'debt' : 'cash'} blank`}. Next 4 Qtrs Est blends the next two
+            fiscal years by the time left in the current one.
           </div>
         </>
       )}
     </div>
   );
+}
+
+/** Market value plus debt less cash; unknown (NaN) unless all three are known, as a missing balance is not a zero. */
+export function enterpriseValue(mcap: number, debt: number, cash: number): number {
+  return Number.isFinite(mcap) && Number.isFinite(debt) && Number.isFinite(cash) ? mcap + debt - cash : NaN;
 }

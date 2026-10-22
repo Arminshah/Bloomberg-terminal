@@ -324,8 +324,9 @@ export function defFromYahoo(ticker: string, chart: Json, summary: Json, listed?
     beta: opt(raw(ks, 'beta')),
     rev,
     ni,
-    // The indicated annual rate as the source gives it; without one it is unknown.
-    dps: opt(raw(sd, 'dividendRate')),
+    // The indicated annual rate; without one it is unknown. The source gives it in pounds for a line quoted in pence,
+    // and it is kept in the quote's unit, as the price and the dividend record are.
+    dps: opt(raw(sd, 'dividendRate')) * (meta.currency === 'GBp' || meta.currency === 'GBX' ? 100 : 1),
     emp: opt(ap.fullTimeEmployees),
     hq,
     ceo: ceo ? cleanName(ceo.name) : undefined,

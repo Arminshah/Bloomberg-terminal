@@ -68,7 +68,8 @@ export function DVD({ sec }: FnProps) {
   const perYear: Record<string, number> = { Quarter: 4, Monthly: 12, 'Semi-Anl': 2, Annual: 1 };
   const lastRegular = paid.find((d) => typeName(d) === 'Regular Cash' && Number.isFinite(d.amount));
   const indicatedAnnual = Number.isFinite(s.eq!.dps) ? s.eq!.dps : lastRegular && perYear[lastRegular.freq] ? lastRegular.amount * perYear[lastRegular.freq] : NaN;
-  const indicated = Number.isFinite(indicatedAnnual) && q && q.last > 0 ? (indicatedAnnual / (s.ccy === 'GBp' ? q.last / 100 : q.last)) * 100 : NaN;
+  // The rate and the record are in the quote's unit (pence for a line quoted in pence), like the price.
+  const indicated = indicatedYield(indicatedAnnual, q?.last ?? NaN);
   // The 12-month dividend and its yield at each month end of the range.
   const chart = useMemo(() => {
     const div: { x: number; y: number; label: string }[] = [];
@@ -88,7 +89,7 @@ export function DVD({ sec }: FnProps) {
       const label = fmtDay(t);
       div.push({ x: t, y: sum, label });
       const px = daily.length ? closeAt(daily, t) : NaN;
-      if (Number.isFinite(px) && px > 0) yld.push({ x: t, y: (sum / (s.ccy === 'GBp' ? px : px)) * 100, label });
+      if (Number.isFinite(px) && px > 0) yld.push({ x: t, y: (sum / px) * 100, label });
     }
     return { div, yld };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -255,4 +256,12 @@ export function fmtAmount(v: number): string {
   const x = Number(v.toPrecision(6));
   const dec = Math.min(6, Math.max(2, (String(x).split('.')[1] ?? '').length));
   return fmtNum(x, dec);
+}
+
+/**
+ * The indicated yield, percent: the annual rate over the price, both in the quote's unit (pence for a line quoted in
+ * pence, as the source gives the price and the dividend record, and the rate once converted from pounds).
+ */
+export function indicatedYield(annual: number, last: number): number {
+  return Number.isFinite(annual) && last > 0 ? (annual / last) * 100 : NaN;
 }

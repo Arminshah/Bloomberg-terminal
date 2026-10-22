@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { KV } from '../components/cells';
@@ -10,6 +10,10 @@ import { closeAt } from '../data/analytics';
 import { engine, useTick } from '../data/market';
 import { nasdaqSymbol, parseFinraShort, type NasdaqShort } from '../data/live/nasdaq-company';
 import { getRealFund, useFundamentals } from '../data/live/yfund';
+import { loadCompanyFacts, resolveFiler, secAvailable, secTicker, useSecLoad, type CompanyFacts } from '../data/live/sec';
+import { realSplits } from '../data/live/yahoo';
+import { coverShareCounts } from '../data/marketcap';
+import { pctOfSharesAt } from '../data/shortinterest';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
@@ -21,8 +25,9 @@ const RANGES = [
 
 /**
  * SI, short interest: the shares sold short at each settlement (twice a month) from FINRA's consolidated record for
- * every US listing, with the short interest ratio (days to cover), the share of the float and the average daily
- * volume, and their changes, beside the price.
+ * every US listing, with the short interest ratio (days to cover) and the average daily volume, and their changes,
+ * beside the price. Each settlement's share of the shares outstanding takes the SEC cover count dated on or before
+ * it; the share of the float is given for the latest settlement only, against today's float (no dated float exists).
  */
 export function SI({ sec }: FnProps) {
   const s = sec!;
@@ -55,14 +60,35 @@ export function SI({ sec }: FnProps) {
   const prior = all[1];
   const real = getRealFund(s.id);
   const float = real?.float.float;
-  const sharesOut = (real?.stats.shares && real.stats.shares > 0 ? real.stats.shares : s.eq?.shares ?? NaN) * 1e6;
-  const pctFloat = (r: NasdaqShort | undefined) => (r && float && float > 0 ? (r.shares / float) * 100 : NaN);
-  const pctOut = (r: NasdaqShort | undefined) => (r && sharesOut > 0 ? (r.shares / sharesOut) * 100 : NaN);
+  // Today's float, for the latest settlement only: the sources give no float for earlier dates.
+  const pctFloat = latest && float && float > 0 ? (latest.shares / float) * 100 : NaN;
+  // The shares outstanding at each settlement, from the SEC filings' cover pages.
+  const ticker = secTicker(s);
+  const facts = useSecLoad<CompanyFacts>(symbol && secAvailable() && ticker ? `facts:${ticker}` : null, async (force) => {
+    const c = await resolveFiler(ticker!, force);
+    if (!c.ok) return c;
+    return loadCompanyFacts(c.data.cik, force);
+  });
+  const cf = facts.result?.ok ? facts.result.data : null;
+  const counts = useMemo(() => coverShareCounts(cf), [cf]);
+  const splits = realSplits.get(s.id) ?? [];
+  const outAt = (r: NasdaqShort | undefined) => (r ? pctOfSharesAt(r.shares, r.date, counts, splits) : { pct: NaN, basis: null });
+  const pctOut = (r: NasdaqShort | undefined) => outAt(r).pct;
+  const basisText = (r: NasdaqShort) => {
+    const b = outAt(r).basis;
+    return b ? `${fmtBig(b.val, 3)} shares outstanding as of ${fmtDay(Date.parse(`${b.end}T00:00:00Z`))} (SEC filing cover)` : 'No SEC share count dated within 200 days before this settlement';
+  };
   const chg = (a: number, b: number) => (Number.isFinite(a) && Number.isFinite(b) && b !== 0 ? (a / b - 1) * 100 : NaN);
   const daily = engine.daily(s.id);
   const asc = [...rows].reverse();
   const price = daily.length ? asc.map((r) => ({ x: r.date, y: closeAt(daily, r.date), label: fmtDay(r.date) })) : [];
-  const csv = () => [['Settlement Date', 'Short Interest', 'Change', 'Avg Daily Volume', 'Days to Cover', '% Float', '% Shrs Out'], ...rows.map((r, i) => [fmtDay(r.date, true), r.shares, rows[i + 1] ? r.shares - rows[i + 1].shares : '', r.avgVolume, r.daysToCover, pctFloat(r), pctOut(r)])];
+  const csv = () => [
+    ['Settlement Date', 'Short Interest', 'Change', 'Avg Daily Volume', 'Days to Cover', '% Shrs Out (at settlement)', 'Shares Out Used', 'Shares Out As Of', '% of Current Float (latest only)'],
+    ...rows.map((r, i) => {
+      const o = outAt(r);
+      return [fmtDay(r.date, true), r.shares, rows[i + 1] ? r.shares - rows[i + 1].shares : '', r.avgVolume, r.daysToCover, Number.isFinite(o.pct) ? o.pct : '', o.basis?.val ?? '', o.basis?.end ?? '', r === latest && Number.isFinite(pctFloat) ? pctFloat : ''];
+    }),
+  ];
   const loading = !!symbol && state?.key !== symbol;
   return (
     <div>
@@ -90,8 +116,24 @@ export function SI({ sec }: FnProps) {
                 ['Settlement Date', fmtDay(latest.date)],
                 ['Short Interest', `${fmtBig(latest.shares, 2)}${prior ? `  (${fmtPct(chg(latest.shares, prior.shares), 1)})` : ''}`],
                 ['Short Interest Ratio', `${fmtNum(latest.daysToCover, 2)} days${prior ? `  (${fmtPct(chg(latest.daysToCover, prior.daysToCover), 1)})` : ''}`],
-                ['Short Interest % Float', Number.isFinite(pctFloat(latest)) ? `${fmtNum(pctFloat(latest), 2)}%${prior ? `  (${fmtNum(pctFloat(latest) - pctFloat(prior), 2)} pts)` : ''}` : '--'],
-                ['Short Interest % Shrs Out', Number.isFinite(pctOut(latest)) ? `${fmtNum(pctOut(latest), 2)}%` : '--'],
+                [
+                  'Short Interest % Current Float',
+                  Number.isFinite(pctFloat) ? (
+                    <span key="f" title={`The latest settlement's short interest over today's float (${fmtBig(float!, 3)} shares, as the source gives it now); no float is published for earlier dates`}>
+                      {fmtNum(pctFloat, 2)}%
+                    </span>
+                  ) : (
+                    <span key="f" className="muted" title="The price source gives no float for this company">no float from the source</span>
+                  ),
+                ],
+                [
+                  'Short Interest % Shrs Out',
+                  Number.isFinite(pctOut(latest)) ? (
+                    <span key="o" title={basisText(latest)}>{`${fmtNum(pctOut(latest), 2)}%${prior && Number.isFinite(pctOut(prior)) ? `  (${fmtNum(pctOut(latest) - pctOut(prior), 2)} pts)` : ''}`}</span>
+                  ) : (
+                    <span key="o" className="muted" title={basisText(latest)}>{facts.loading ? 'reading SEC share counts…' : 'no dated share count'}</span>
+                  ),
+                ],
                 ['Avg Daily Volume', fmtBig(latest.avgVolume, 2)],
               ]}
             />
@@ -121,8 +163,7 @@ export function SI({ sec }: FnProps) {
                 <th className="num">Change</th>
                 <th className="num hide-m">Avg Daily Vol</th>
                 <th className="num">Days to Cover</th>
-                <th className="num">% Float</th>
-                <th className="num hide-m">% Shrs Out</th>
+                <th className="num" title="Short interest over the shares outstanding at the settlement date (the SEC cover count dated on or before it)">% Shrs Out</th>
               </tr>
             </thead>
             <tbody>
@@ -136,8 +177,7 @@ export function SI({ sec }: FnProps) {
                     <td className={`num ${d > 0 ? 'up' : d < 0 ? 'dn' : ''}`}>{Number.isFinite(d) ? `${d > 0 ? '+' : ''}${fmtNum(d, 0)}` : ''}</td>
                     <td className="num hide-m">{fmtNum(r.avgVolume, 0)}</td>
                     <td className="num">{fmtNum(r.daysToCover, 2)}</td>
-                    <td className="num">{Number.isFinite(pctFloat(r)) ? fmtNum(pctFloat(r), 2) : ''}</td>
-                    <td className="num hide-m">{Number.isFinite(pctOut(r)) ? fmtNum(pctOut(r), 2) : ''}</td>
+                    <td className="num" title={basisText(r)}>{Number.isFinite(pctOut(r)) ? fmtNum(pctOut(r), 2) : ''}</td>
                   </tr>
                 );
               })}
@@ -145,7 +185,9 @@ export function SI({ sec }: FnProps) {
           </table>
           <p className="pad-s muted">
             FINRA&apos;s consolidated short interest, reported by brokers for the settlement dates twice a month and published about a week later. Short interest ratio: the short interest over the
-            average daily volume (days to cover). % Float uses the latest float{float ? '' : ', which Yahoo did not give this time'}; % Shrs Out the shares outstanding now.
+            average daily volume (days to cover). % Shrs Out: each settlement&apos;s short interest over the shares outstanding then, the count on the cover of the SEC filing
+            dated on or before it (a split between the two dates applied; hover for the count and its date), blank without one. % Current Float: the latest settlement only, over today&apos;s
+            float{float ? '' : ', which the source did not give this time'}, as no float is published for earlier dates.
           </p>
         </>
       )}
