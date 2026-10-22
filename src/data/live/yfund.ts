@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { CLASS_UNITS } from './shares';
 import { createStore, waitFor } from '../../core/store';
 import { createWants, registerRefresh } from '../../terminal/refresh';
 import { engine } from '../market';
@@ -120,6 +121,19 @@ export function floatStats(ks: Json): FloatStats {
     shortPrior: pos(ks?.sharesShortPriorMonth),
     priorAsOf: date(ks?.sharesShortPreviousMonthDate),
   };
+}
+
+/**
+ * The float in the line's own shares: one given in Class A equivalents (Berkshire's, a hundredth or less of the line's
+ * share count) is turned into the line's units (see CLASS_UNITS).
+ */
+function inLineUnits(def: SecurityDef, f: FloatStats): FloatStats {
+  const units = CLASS_UNITS[yahooSymbolFor(def) ?? def.yahoo ?? ''];
+  const shares = (def.eq?.shares ?? NaN) * 1e6;
+  if (!units || !(f.float > 0) || !(shares > 0) || f.float > shares / 100) return f;
+  // Short interest is counted in the line's shares by the exchanges: only the float is converted.
+  const float = f.float * units;
+  return { ...f, float, ...(f.shortPctFloatCalculated ? { shortPctFloat: (f.short / float) * 100 } : {}) };
 }
 
 /** A name as the source writes it, without its doubled spaces or a leading Mr, Ms, Dr or Prof. */
@@ -580,7 +594,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const exDiv = num(r.calendarEvents?.exDividendDate) * 1000;
   const payDiv = num(r.calendarEvents?.dividendDate) * 1000;
   const nextDividend = Number.isFinite(exDiv) ? { ex: exDiv, pay: payDiv, rate: num(sd.dividendRate) } : null;
-  return { fetched: now, ...(currency ? { currency } : {}), ...(statementsFrom ? { statementsFrom } : {}), ...(balance ? { balance } : {}), annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend, float: floatStats(ks), officers: officersFrom(r.assetProfile) };
+  return { fetched: now, ...(currency ? { currency } : {}), ...(statementsFrom ? { statementsFrom } : {}), ...(balance ? { balance } : {}), annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend, float: inLineUnits(def, floatStats(ks)), officers: officersFrom(r.assetProfile) };
 }
 
 /** Writes the real profile into the security so DES, market cap and the model inputs use it. */
@@ -600,7 +614,12 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   const fyeRaw = num(ks.lastFiscalYearEnd);
   if (Number.isFinite(fyeRaw)) eq.fye = new Date(fyeRaw * 1000).getUTCMonth() + 1;
   const shares = impliedShares(def, num(r.summaryDetail?.marketCap ?? r.price?.marketCap), num(r.financialData?.currentPrice ?? r.summaryDetail?.previousClose));
-  if (Number.isFinite(shares)) eq.shares = shares;
+  // Berkshire's B line is valued as the whole company (Yahoo's figure): a summary that counts the B shares alone does
+  // not set its count: the quote or the reported count does (see CLASS_UNITS).
+  const wholeCompany = !!CLASS_UNITS[yahooSymbolFor(def) ?? def.yahoo ?? ''];
+  if (wholeCompany) {
+    /* keep it */
+  } else if (Number.isFinite(shares)) eq.shares = shares;
   else if (Number.isFinite(fund.stats.shares!) && fund.stats.shares! > 0) eq.shares = fund.stats.shares!;
   if (Number.isFinite(fund.stats.beta!)) eq.beta = fund.stats.beta!;
   if (fund.ltm && Number.isFinite(fund.ltm.rev)) eq.rev = fund.ltm.rev;

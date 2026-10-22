@@ -128,7 +128,18 @@ test('EVENTS covers the whole market above $5B with expected and reported EPS an
   await command(page, 'EVENTS');
   const panel = page.locator('.panel').first();
   await expect(panel.getByRole('button', { name: '14) Market', exact: true })).toHaveClass(/\bon\b/);
+  // It opens on today: the days before are folded into one line above it, and a company worth over $500B is tagged.
+  const meta0 = panel.locator('tbody tr.click', { hasText: 'META US' });
+  await expect(meta0).toBeVisible({ timeout: 30_000 });
+  await expect(meta0.locator('.badge.mega')).toHaveText('500B+');
+  const fold = panel.locator('tbody tr.evts-fold');
+  await expect(fold).toContainText('Earlier in this window', { timeout: 30_000 });
+  await expect(fold).toContainText('2 reports');
+  await expect(panel.locator('tbody tr.click', { hasText: 'MMM US' })).toHaveCount(0);
+  await expect(panel.locator('tbody tr.group').nth(1)).not.toContainText(new Date(Date.now() - 86_400_000).toISOString().slice(8, 10) + '/');
+  await fold.click();
   const mmm = panel.locator('tbody tr.click', { hasText: 'MMM US' });
+  await expect(mmm.locator('.badge.mega')).toHaveCount(0);
   // EPS from Nasdaq, revenue from FMP, one figure per column: period, EPS expected, reported and surprise, the same
   // for revenue, market value and time.
   const cells = mmm.locator('td');

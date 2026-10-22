@@ -58,6 +58,7 @@ import { CACS } from '../functions/CACS';
 import { SI } from '../functions/SI';
 import { SPLC } from '../functions/SPLC';
 import { BBK } from '../functions/BBK';
+import { MCAP } from '../functions/MCAP';
 import { IPO } from '../functions/IPO';
 import { DS } from '../functions/DS';
 import { WBF } from '../functions/WBF';
@@ -90,6 +91,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'DOCSEARCH', name: 'Document Search', category: 'Equity', classes: EQ, desc: "Words searched in the text of every SEC filing and exhibit since 2001: for the loaded company or all companies, by kind of document (annual and quarterly reports, current reports, proxies, prospectuses, ownership, mergers) and dates, with the forms that match most and, for each document, the sentences where it matches (EDGAR full-text search, desktop app, SEC_USER_AGENT).", component: DS, example: 'DOCSEARCH AAPL' },
   { code: 'CROSSCHECK', name: 'Close Cross-Check', category: 'Equity', needsSec: true, classes: EQ, desc: "A US stock's daily closes in the app beside other end-of-day sources (Massive, Alpha Vantage, Tiingo, Twelve Data, with your keys), with the gaps in basis points.", component: CROSSCHECK, aliases: ['VERIFY'], example: 'CROSSCHECK AAPL' },
   { code: 'WACC', name: 'Cost of Capital', category: 'Equity', needsSec: true, classes: EQ, desc: 'Weighted average cost of capital from CAPM and after-tax cost of debt, with a perpetuity value check.', component: WACC },
+  { code: 'MARKETCAP', name: 'Market Cap History', category: 'Equity', needsSec: true, classes: EQ, desc: "A company's market value over time: each day's close times the shares outstanding that day (the share count on the cover of each SEC filing, split adjusted), with its value at the end of each year and the change on the year before, in its trading currency or in US dollars. Click any market value to open it.", component: MCAP, aliases: ['MCAP', 'CAPHIST'], example: 'MARKETCAP AAPL' },
   { code: 'FUNDCHART', name: 'Graph Fundamentals', category: 'Equity', needsSec: true, classes: EQ, desc: 'Charts of revenue, EPS, margins, P/E and cash flow across fiscal years and quarters.', component: GF },
   // Charts
   { code: 'CHART', name: 'Price Chart', category: 'Charts', needsSec: true, desc: 'Historical chart with line, mountain, candle and bar styles, daily/weekly/monthly frequency, SMA/EMA, Bollinger bands, volume, RSI, MACD and comparison overlays. Scroll to zoom, drag to pan. GPO opens it as open-high-low-close bars, GPC as candlesticks; RSI, MACD and BOLL open it with that study added.', component: GP, aliases: ['GRAPH', 'GPO', 'GPC', 'RSI', 'MACD', 'BOLL'], example: 'CHART AAPL' },

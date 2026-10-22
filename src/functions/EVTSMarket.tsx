@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { CapLink } from '../components/CapLink';
 import { openSecurity } from '../components/cells';
 import { verdict } from '../components/EarningsExpectations';
 import { fmtBig, fmtDay, fmtNum, MONTHS, WEEKDAYS } from '../core/format';
@@ -216,6 +217,18 @@ interface RowProps {
   onToggle: (key: string) => void;
 }
 
+/** Companies worth more than this are tagged on the calendar. */
+export const MEGA_CAP = 500e9;
+
+/** The tag for a company worth more than $500 billion. */
+export function MegaTag() {
+  return (
+    <span className="badge mega" title="Market value above $500 billion">
+      500B+
+    </span>
+  );
+}
+
 const SIGN = (v: number) => (v > 0.05 ? 'up' : v < -0.05 ? 'dn' : '');
 const pctText = (v: number) => (ok(v) ? `${v > 0 ? '+' : ''}${fmtNum(v, Math.abs(v) < 99.95 ? 1 : 0)}%` : '');
 const epsText = (v: number) => (ok(v) ? fmtNum(v, Math.abs(v) >= 100 ? 1 : 2) : '');
@@ -231,7 +244,8 @@ const MarketRow = memo(
     return (
       <tr className={`click${open ? ' sel' : ''}`} onClick={() => onToggle(rowKey)} title={[from(r.eps) && `EPS ${from(r.eps)}`, from(r.rev) && `Revenue ${from(r.rev)}`].filter(Boolean).join(' · ') || 'Click for the earnings card'}>
         <td className="ellipsis evts-co">
-          <Ticker symbol={r.symbol} /> <span className="evts-name">{r.name}</span>
+          <Ticker symbol={r.symbol} />
+          {ok(r.marketCap) && r.marketCap >= MEGA_CAP ? <MegaTag /> : null} <span className="evts-name">{r.name}</span>
         </td>
         <td className="evts-per">{period(r)}</td>
         <td className="num">{epsText(r.eps.est)}</td>
@@ -240,7 +254,7 @@ const MarketRow = memo(
         <td className="num hide-m">{revText(r.rev.est)}</td>
         <td className={`num hide-m ${SIGN(rs) || 'white'}`}>{revText(r.rev.actual)}</td>
         <td className={`num hide-m ${SIGN(rs)}`}>{pctText(rs)}</td>
-        <td className="num hide-n muted">{revText(r.marketCap)}</td>
+        <td className="num hide-n muted">{ok(r.marketCap) ? <CapLink id={appId(r.symbol)} symbol={r.symbol}>{revText(r.marketCap)}</CapLink> : ''}</td>
         <td className="muted">{TIMING[r.timing]}</td>
       </tr>
     );
@@ -288,9 +302,11 @@ function useVisibleRange(ref: RefObject<HTMLTableSectionElement | null>, count: 
   return { ...view, end: Math.min(view.end, count), last: Math.min(view.last, count) };
 }
 
-export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketCalendar; minCap: number; caps: { v: number; label: string }[]; onCap: (v: number) => void; now: number }) {
+export function MarketEarnings({ cal, minCap, caps, onCap, now, spansPast = false }: { cal: MarketCalendar; minCap: number; caps: { v: number; label: string }[]; onCap: (v: number) => void; now: number; spansPast?: boolean }) {
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  // A window around today opens on today: its earlier days are folded into one line above it, to show on demand.
+  const [showPast, setShowPast] = useState(false);
   const q = filter.trim().toLowerCase();
   // Earnings histories arrive for the lines in view; the lines are completed from them.
   const zv = historyData.use((s) => s.v);
@@ -306,11 +322,14 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
   const today = isoDay(now);
   const cols = 10;
   const toggle = useCallback((key: string) => setOpen((o) => (o === key ? null : key)), []);
+  const past = spansPast ? rows.filter((r) => r.date < today) : [];
+  const folded = past.length > 0 && !showPast && !q;
   // One flat list of day headings and lines; only the lines in view (and a margin) are drawn, the rest is spacer.
   const flat = useMemo(() => {
-    const list: ({ kind: 'day'; date: string } | { kind: 'row'; r: CalendarReport; key: string; sig: string })[] = [];
+    const list: ({ kind: 'fold' } | { kind: 'day'; date: string } | { kind: 'row'; r: CalendarReport; key: string; sig: string })[] = [];
+    if (past.length && !q) list.push({ kind: 'fold' });
     let lastDay = '';
-    for (const r of rows) {
+    for (const r of folded ? rows.filter((x) => x.date >= today) : rows) {
       if (r.date !== lastDay) {
         lastDay = r.date;
         list.push({ kind: 'day', date: r.date });
@@ -318,7 +337,8 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
       list.push({ kind: 'row', r, key: `${r.symbol}|${r.date}`, sig: signature(r) });
     }
     return list;
-  }, [rows]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, folded, today, q]);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const view = useVisibleRange(bodyRef, flat.length);
   // The column headings stay in view under the function's header while the calendar scrolls.
@@ -332,21 +352,14 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
     ro.observe(fnh);
     return () => ro.disconnect();
   }, []);
-  // The calendar opens at today (or the next day with reports) once its days have loaded, as the terminal's does;
-  // once per window, so scrolling afterwards is left alone.
-  const opened = useRef('');
-  const windowKey = `${cal.days}|${cal.reports[0]?.date ?? ''}`;
+  // A new window (another tab) opens on today again.
+  const windowKey = `${cal.days}|${spansPast}`;
+  const lastWindow = useRef(windowKey);
   useEffect(() => {
-    const body = bodyRef.current;
-    if (!body || cal.loading || !flat.length || q || opened.current === windowKey) return;
-    opened.current = windowKey;
-    const idx = flat.findIndex((x) => x.kind === 'day' && x.date >= today);
-    const host = body.closest<HTMLElement>('.panel-body');
-    if (idx <= 0 || !host) return;
-    const sticky = host.querySelector<HTMLElement>('.fnh')?.offsetHeight ?? 0;
-    const head = body.parentElement?.querySelector('thead')?.getBoundingClientRect().height ?? 0;
-    host.scrollTop += body.getBoundingClientRect().top - host.getBoundingClientRect().top + idx * view.rowH - sticky - head;
-  }, [cal.loading, flat, q, today, view.rowH, windowKey]);
+    if (lastWindow.current === windowKey) return;
+    lastWindow.current = windowKey;
+    setShowPast(false);
+  }, [windowKey]);
   const chosen = open ? rows.find((r) => `${r.symbol}|${r.date}` === open) : undefined;
   // Lines in view without the revenue expected (or, once reported, the revenue reported): ask for those companies'
   // earnings histories (Finviz's two years; paced in the main process).
@@ -363,8 +376,18 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now }: { cal: MarketC
   useEffect(() => () => wantHistories([]), []);
   const out: ReactNode[] = [];
   if (view.start > 0) out.push(<tr key="pad-top" aria-hidden="true" style={{ height: view.start * view.rowH }} />);
+  const pastDays = new Set(past.map((r) => r.date));
   for (const item of flat.slice(view.start, view.end)) {
-    if (item.kind === 'day') {
+    if (item.kind === 'fold') {
+      out.push(
+        <tr key="fold" className="group click evts-fold" onClick={() => setShowPast((v) => !v)} title={folded ? 'Show the reports of the days before today' : 'Fold the days before today away'}>
+          <td colSpan={cols}>
+            {folded ? '▸' : '▾'} Earlier in this window: {past.length ? `${fmtDay(ms(past[0].date))} to ${fmtDay(ms(past[past.length - 1].date))}` : ''} · {pastDays.size} {pastDays.size === 1 ? 'day' : 'days'},{' '}
+            {past.length} {past.length === 1 ? 'report' : 'reports'} · <span className="amber">{folded ? 'show' : 'hide'}</span>
+          </td>
+        </tr>,
+      );
+    } else if (item.kind === 'day') {
       out.push(
         <tr key={`h${item.date}`} className="group">
           <td colSpan={cols}>

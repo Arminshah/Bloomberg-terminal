@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CapLink } from '../components/CapLink';
 import { FnHeader } from '../components/FnHeader';
 import { DataTable } from '../components/DataTable';
 import { Sparkline } from '../components/Sparkline';
@@ -116,7 +117,7 @@ export function TOPMOVERS({ route }: FnProps) {
           { key: 'pc', label: 'Change %', num: true, render: (m) => <span className={sign(m.pct)}>{Number.isFinite(m.pct) ? `${signed(m.pct)}%` : ''}</span>, sort: (m) => m.pct },
           { key: 'v', label: 'Volume', num: true, render: (m) => (m.volume > 0 ? fmtBig(m.volume) : ''), sort: (m) => m.volume },
           { key: 'av', label: 'Avg Vol (3M)', num: true, title: 'Average daily volume over three months', render: (m) => (m.avgVolume3m > 0 ? fmtBig(m.avgVolume3m) : ''), sort: (m) => m.avgVolume3m, hideN: true },
-          { key: 'mc', label: 'Market Cap', num: true, render: (m) => (m.marketCap > 0 ? fmtBig(m.marketCap) : ''), sort: (m) => m.marketCap },
+          { key: 'mc', label: 'Market Cap', num: true, render: (m) => (m.marketCap > 0 ? <CapLink id={`${m.symbol.replace('.', '/')} US Equity`} symbol={m.symbol}>{fmtBig(m.marketCap)}</CapLink> : ''), sort: (m) => m.marketCap },
           { key: 'pe', label: 'P/E (TTM)', num: true, render: (m) => (m.pe > 0 ? fmtNum(m.pe, 2) : <span className="muted" title="Not meaningful: trailing 12-month earnings are a loss or not given">NM</span>), sort: (m) => m.pe, hideN: true },
           { key: 'y', label: '52 Wk Change %', num: true, render: (m) => <span className={sign(m.change52w)}>{Number.isFinite(m.change52w) ? `${signed(m.change52w)}%` : ''}</span>, sort: (m) => m.change52w },
           { key: 'r', label: '52 Wk Range', render: (m) => <Range52 m={m} />, hideW: true },

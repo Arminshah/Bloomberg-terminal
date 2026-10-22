@@ -723,6 +723,8 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .badge.sim { background: #3a2a0a; color: var(--amber); }
 .badge.live { background: #0d3a1d; color: var(--up); }
 .badge.hot { background: var(--dn); color: #fff; }
+/* A company worth more than $500 billion on the earnings calendar. */
+.badge.mega { background: #3a2a0a; color: var(--yellow); margin-left: 4px; border: 1px solid #6b5212; }
 /* Freshness labels: every figure's data class (src/components/Freshness.tsx). */
 .badge.fr-rt { background: #0d3a1d; color: var(--up); }
 .badge.fr-delayed { background: #3a300a; color: var(--yellow); }
@@ -1201,6 +1203,8 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 
 /* EVTS market list: Company, event icon, Description, Date, Time. */
 .evts-mkt .evts-co .evts-name { color: #c8c8c8; margin-left: 4px; }
+.evts-fold td { color: var(--muted); }
+.evts-fold:hover td { color: var(--text); }
 .evts-mkt .evts-icon { color: #000; background: #c9c9c9; font-weight: 700; text-align: center; font-size: 10px; padding: 0; width: 14px; }
 .evts-mkt .evts-desc.up { color: var(--up); }
 .evts-mkt .evts-desc.dn { color: var(--dn); }
@@ -1293,3 +1297,10 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 
 /* FXMATRIX: a currency against itself has no rate; the cell is shaded. */
 .fx-same { background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(255, 255, 255, 0.05) 4px 5px); }
+
+/* MARKETCAP: the headline figures and a market value that opens it. */
+.mcap-head { display: flex; flex-wrap: wrap; gap: 8px 36px; padding: 8px 10px 4px; }
+.mcap-now { font-size: var(--fs-xl); color: var(--white); font-weight: 600; }
+.mcap-chg { font-size: var(--fs-l, 15px); }
+.cap-link { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted rgba(255, 181, 71, 0.55); text-underline-offset: 2px; }
+.cap-link:hover { color: var(--amber); }

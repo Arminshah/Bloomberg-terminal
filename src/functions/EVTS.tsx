@@ -14,7 +14,8 @@ import type { SecurityDef } from '../data/types';
 import { portfolio, watchlists } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
 import { calendarAvailable, isoDay, useMarketCalendar } from '../data/live/earnings-calendar';
-import { MarketEarnings } from './EVTSMarket';
+import { MarketEarnings, MEGA_CAP, MegaTag } from './EVTSMarket';
+import { marketCapUsd } from '../data/analytics';
 import { useNasdaq } from '../data/live/nasdaq-company';
 
 interface Ev {
@@ -43,6 +44,7 @@ const CAPS = [
   { v: 10e9, label: '$10B' },
   { v: 50e9, label: '$50B' },
   { v: 200e9, label: '$200B' },
+  { v: 500e9, label: '$500B' },
 ];
 
 /** The stocks among some securities, each once; one not loaded yet is left out. */
@@ -63,6 +65,8 @@ export function EVTS({ sec }: FnProps) {
   const market = calendarAvailable();
   const scope = picked ?? (market ? 14 : watched.length ? 12 : 11);
   const [minCap, setMinCap] = useState(5e9);
+  // A window around today opens on today: the days before it are folded into one line, shown on demand.
+  const [showPast, setShowPast] = useState(false);
   const spans = [
     { n: 1, label: 'This week', from: -3, to: 7 },
     { n: 2, label: '±2 weeks', from: -14, to: 14 },
@@ -124,6 +128,10 @@ export function EVTS({ sec }: FnProps) {
       : !sec && scope === 13 && !holdings.length
         ? 'Your portfolio holds no stocks: enter your holdings on PORTFOLIO, or pick 11) All.'
         : 'No events in this window.';
+  const startOfToday = Math.floor(now / DAY_MS) * DAY_MS;
+  const pastEvents = !sec && span.from < 0 && span.to > 0 ? events.filter((e) => e.date < startOfToday) : [];
+  const folded = pastEvents.length > 0 && !showPast;
+  const shown = folded ? events.filter((e) => e.date >= startOfToday) : events;
   let lastDay = '';
   return (
     <div>
@@ -141,10 +149,10 @@ export function EVTS({ sec }: FnProps) {
               </>
             )}
           </>
-        } tabs={spans.map((s) => ({ n: s.n, label: s.label }))} tab={range} onTab={setRange}
+        } tabs={spans.map((s) => ({ n: s.n, label: s.label }))} tab={range} onTab={(n) => { setRange(n); setShowPast(false); }}
         actions={sec ? [] : SCOPES.filter((x) => x.n !== 14 || market).map((x) => ({ n: x.n, label: x.label, title: `${x.title} · type ${x.n} and press Enter`, on: x.n === scope, onClick: () => setPicked(x.n) }))} />
       {showMarket ? (
-        <MarketEarnings cal={cal} minCap={minCap} caps={CAPS} onCap={setMinCap} now={Date.now()} />
+        <MarketEarnings cal={cal} minCap={minCap} caps={CAPS} onCap={setMinCap} now={Date.now()} spansPast={span.from < 0 && span.to > 0} />
       ) : (
       <table className="tbl">
         <thead>
@@ -168,7 +176,15 @@ export function EVTS({ sec }: FnProps) {
               </td>
             </tr>
           )}
-          {events.map((e, i) => {
+          {pastEvents.length > 0 && (
+            <tr className="group click evts-fold" onClick={() => setShowPast((v) => !v)}>
+              <td colSpan={9}>
+                {folded ? '▸' : '▾'} Earlier in this window: {fmtDay(pastEvents[0].date)} to {fmtDay(pastEvents[pastEvents.length - 1].date)} · {pastEvents.length} {pastEvents.length === 1 ? 'event' : 'events'} ·{' '}
+                <span className="amber">{folded ? 'show' : 'hide'}</span>
+              </td>
+            </tr>
+          )}
+          {shown.map((e, i) => {
             const day = fmtDay(e.date);
             const head = day !== lastDay;
             lastDay = day;
@@ -193,6 +209,7 @@ export function EVTS({ sec }: FnProps) {
                 </td>
                 <td>
                   <SecLink id={e.id}>{d.ticker}</SecLink>
+                  {marketCapUsd(e.id) >= MEGA_CAP ? <MegaTag /> : null}
                 </td>
                 <td className="hide-m ellipsis" style={{ maxWidth: 220 }}>
                   {d.name}

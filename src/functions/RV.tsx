@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { CapLink } from '../components/CapLink';
 import { engine } from '../data/market';
 import { usePeers } from '../data/live/peers';
 import { FnHeader } from '../components/FnHeader';
@@ -100,7 +101,7 @@ export function RV({ sec }: FnProps) {
     },
     { key: 'n', label: '', render: (r) => <span className="muted ellipsis" style={{ display: 'inline-block', maxWidth: 170 }}>{r.d.name}</span>, hideM: true },
     { key: 'px', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
-    { key: 'mcap', label: 'Mkt cap USD', num: true, render: (r) => fmtBig(r.mcap), sort: (r) => r.mcap },
+    { key: 'mcap', label: 'Mkt cap USD', num: true, render: (r) => <CapLink id={r.d.id}>{fmtBig(r.mcap)}</CapLink>, sort: (r) => r.mcap },
     num('pe', 'P/E'),
     num('pb', 'P/B', 2),
     num('evEbitda', 'EV/EBITDA'),

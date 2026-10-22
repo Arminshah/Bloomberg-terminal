@@ -134,8 +134,8 @@ function htmlToText(html) {
     .replace(/ *\n[\n ]*/g, '\n');
 }
 
-// Words whose full stop does not end a sentence (Inc., Co., U.S., e.g.) and single initials.
-const ABBREVIATION = /(?:\b(?:Inc|Corp|Co|Cos|Ltd|Bhd|Pty|No|Nos|S\.A|N\.V|L\.P|S\.p\.A|Mr|Ms|Mrs|Dr|St|Jr|Sr|vs|approx|U\.S|U\.K|e\.g|i\.e|etc|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec|Fig|Bros|Intl|Hldgs|Mfg|Ave)\.|(?:^|[\s(])[A-Z]\.)$/;
+// Words whose full stop does not end a sentence (Inc., Co., U.S., e.g.) and initials, run together too ("J.C. Bamford").
+const ABBREVIATION = /(?:\b(?:Inc|Corp|Co|Cos|Ltd|Bhd|Pty|No|Nos|S\.A|N\.V|L\.P|S\.p\.A|Mr|Ms|Mrs|Dr|St|Jr|Sr|vs|approx|U\.S|U\.K|e\.g|i\.e|etc|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec|Fig|Bros|Intl|Hldgs|Mfg|Ave)\.|(?:^|[\s(.])[A-Z]\.)$/;
 
 /** Sentences of a text, kept whole across "Inc." and "U.S.", never across a paragraph. */
 function splitSentences(text) {
@@ -209,7 +209,7 @@ function mentionSentences(text, names, max = 80) {
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 4;
+const EXTRACTION = 5;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;

@@ -97,7 +97,7 @@ const COMMANDS: [string, string][] = [
   ['FILINGS MSFT', 'FILINGS'], ['CROSSCHECK AAPL', 'CROSSCHECK'], ['MARKETNEWS NVDA', 'MARKETNEWS'], ['MACRO CPI', 'MACRO'],
   ['AAPL US EQUITY PROFILE', 'PROFILE'], ['AAPL CHART', 'CHART'], ['AAPL INTRADAY', 'INTRADAY'], ['AAPL HISTORY', 'HISTORY'], ['AAPL FINANCIALS', 'FINANCIALS'], ['AAPL ANALYSTS', 'ANALYSTS'],
   ['AAPL EARNINGS', 'EARNINGS'], ['AAPL DIVIDENDS', 'DIVIDENDS'], ['AAPL HOLDERS', 'HOLDERS'], ['AAPL MGMT', 'MANAGEMENT'], ['AAPL PEERS', 'PEERS'], ['EVENTS', 'EVENTS'], ['AAPL WACC', 'WACC'],
-  ['AAPL RETURNS', 'RETURNS'], ['AAPL BETA', 'BETA'], ['CORRELATION', 'CORRELATION'], ['TSLA QUOTE', 'QUOTE'], ['TSLA TRADES', 'TRADES'], ['TSLA DEPTH', 'DEPTH'],
+  ['AAPL RETURNS', 'RETURNS'], ['AAPL MCAP', 'MARKETCAP'], ['AAPL BETA', 'BETA'], ['CORRELATION', 'CORRELATION'], ['TSLA QUOTE', 'QUOTE'], ['TSLA TRADES', 'TRADES'], ['TSLA DEPTH', 'DEPTH'],
   ['HEADLINES', 'HEADLINES'], ['NEWS CRYPTO', 'NEWS'], ['AAPL COMPANYNEWS', 'COMPANYNEWS'], ['MARKET', 'MARKET'], ['HEATMAP', 'HEATMAP'], ['MOVERS', 'MOVERS'], ['SCREEN', 'SCREEN'],
   ['FXMATRIX', 'FXMATRIX'], ['FXRANK', 'FXRANK'], ['CRYPTO', 'CRYPTO'], ['BONDS', 'BONDS'], ['CURVE', 'CURVE'], ['MONEYMARKET', 'MONEYMARKET'], ['CT10 GOVT BONDCALC', 'BONDCALC'],
   ['RATEPROBS', 'RATEPROBS'], ['COMMODITIES', 'COMMODITIES'], ['RELEASES', 'RELEASES'], ['ECONSTATS', 'ECONSTATS'], ['NVDA OPTIONS', 'OPTIONS'], ['NVDA OPTIONCALC', 'OPTIONCALC'],
@@ -413,6 +413,17 @@ test('mnemonic commands run the implemented functions and open their help', asyn
   await expect(page.locator('.panel').first()).toContainText('CHART');
   await run(page, 'DES?');
   await expect(page.locator('.panel').first()).toContainText('PROFILE');
+  expect(errors).toEqual([]);
+});
+
+test("clicking a market value opens the company's market cap history", async ({ page }) => {
+  const errors = await boot(page, '1');
+  await run(page, 'AAPL PROFILE');
+  const panel = page.locator('.panel').first();
+  await panel.locator('.cap-link').first().click();
+  await expect(panel.locator('.fnh-code')).toHaveText('MARKETCAP');
+  await expect(panel.locator('.mcap-now')).toContainText(/\d/);
+  await expect(panel.locator('table.tbl tbody tr').first()).toContainText(/^\d{4}/);
   expect(errors).toEqual([]);
 });
 

@@ -451,6 +451,8 @@ export const FACT_LINES: FactLine[] = [
 
 /** Shares outstanding as given on each filing's cover page (dei), for the header. */
 export const COVER_SHARES = 'dei:EntityCommonStockSharesOutstanding';
+/** Shares outstanding on the balance sheet, all classes together (Alphabet gives no cover count without classes). */
+export const BALANCE_SHARES = 'us-gaap:CommonStockSharesOutstanding';
 
 /**
  * BBK's extra figures: shares bought back (from the equity statement) and the repurchase program's authorization
@@ -463,7 +465,7 @@ export const BUYBACK_LINES: FactLine[] = [
   { key: 'bbRemain', label: 'Authorization remaining', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:StockRepurchaseProgramRemainingAuthorizedRepurchaseAmount1', 'us-gaap:StockRepurchaseProgramRemainingAuthorizedRepurchaseAmount'] },
 ];
 
-const WANTED = new Set([...FACT_LINES.flatMap((l) => l.concepts), ...BUYBACK_LINES.flatMap((l) => l.concepts), COVER_SHARES]);
+const WANTED = new Set([...FACT_LINES.flatMap((l) => l.concepts), ...BUYBACK_LINES.flatMap((l) => l.concepts), COVER_SHARES, BALANCE_SHARES]);
 
 /**
  * data.sec.gov/api/xbrl/companyfacts/CIK##########.json:

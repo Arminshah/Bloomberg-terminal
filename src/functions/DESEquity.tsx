@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
+import { CapLink } from '../components/CapLink';
 import { AnalystSummary, lineValue, MissingNotes, useAnalystSnapshot, useNextQuarterEstimate } from '../components/AnalystSummary';
 import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
 import { Chg, HBar, KV, LiveChg, LivePx, SecLink, Section } from '../components/cells';
@@ -233,8 +234,8 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               [`52 Wk H (${fmtDay(rs.hi52t)})`, fmtNum(rs.hi52, sec.dec)],
               [`52 Wk L (${fmtDay(rs.lo52t)})`, fmtNum(rs.lo52, sec.dec)],
               ['YTD Change/%', pair(<Chg key="a" v={ytdAbs} dec={sec.dec} />, <Chg key="p" v={ytd} pct />)],
-              [`Mkt Cap (${ks.tradeCcy})`, fmtMln(ks.mcap)],
-              ...(ks.tradeCcy === 'USD' ? [] : [['Mkt Cap (USD)', fmtBig(marketCapUsd(sec.id))] as [string, string]]),
+              [`Mkt Cap (${ks.tradeCcy})`, <CapLink key="mc" id={sec.id}>{fmtMln(ks.mcap)}</CapLink>],
+              ...(ks.tradeCcy === 'USD' ? [] : [['Mkt Cap (USD)', <CapLink key="mcu" id={sec.id}>{fmtBig(marketCapUsd(sec.id))}</CapLink>] as [string, ReactNode]]),
               ['Shrs Out/Float', pair(fmtMln(eq.shares), f && Number.isFinite(f.float) ? fmtBig(f.float) : '--')],
               ['SI/% of Float', pair(f && Number.isFinite(f.short) ? fmtBig(f.short) : '--', f && Number.isFinite(f.shortPctFloat) ? <span title={f.shortPctFloatCalculated ? 'Calculated: reported shares short / latest available float. Float date may differ from the short-interest settlement date.' : 'Short interest as a percentage of float, as the source reports it'}>{fmtPct(f.shortPctFloat, 2, false)}{f.shortPctFloatCalculated ? '*' : ''}</span> : '--')],
               ['Days to Cover', f && Number.isFinite(f.daysToCover) ? fmtNum(f.daysToCover, 1) : '--'],
@@ -394,7 +395,7 @@ function IssueInfoPage({ sec }: { sec: SecurityDef }) {
           <KV
             items={[
               ['Shares out', fmtMln(eq.shares)],
-              [`Mkt cap (${ks.tradeCcy})`, fmtMln(ks.mcap)],
+              [`Mkt cap (${ks.tradeCcy})`, <CapLink key="mc" id={sec.id}>{fmtMln(ks.mcap)}</CapLink>],
               ['Avg volume 30D', fmtBig(rs.avgVol30)],
               ['Volatility 30D / 260D', `${fmtNum(rs.vol30, 1)}% / ${fmtNum(rs.vol260, 1)}%`],
               ['Beta (source, 5Y monthly)', fmtNum(eq.beta, 2)],
@@ -461,7 +462,7 @@ function RatiosPage({ sec }: { sec: SecurityDef }) {
       </div>
       <div className="cols">
         <Section title="Issue Data">
-          <KV items={[['Last Px', <LivePx key="l" id={sec.id} />], ['P/E', n2(ks.pe)], ['12M Dvd Yld', p1(ks.divYld)], ['P/B', n2(ks.pb)], ['P/S', n2(ks.ps)], ['EV/T12M EBITDA', n2(ks.evEbitda)], [`Mkt Cap (${ks.tradeCcy})`, fmtMln(ks.mcap)], [`EV (${ks.ccy})`, fmtMln(ks.ev)]]} />
+          <KV items={[['Last Px', <LivePx key="l" id={sec.id} />], ['P/E', n2(ks.pe)], ['12M Dvd Yld', p1(ks.divYld)], ['P/B', n2(ks.pb)], ['P/S', n2(ks.ps)], ['EV/T12M EBITDA', n2(ks.evEbitda)], [`Mkt Cap (${ks.tradeCcy})`, <CapLink key="mc" id={sec.id}>{fmtMln(ks.mcap)}</CapLink>], [`EV (${ks.ccy})`, fmtMln(ks.ev)]]} />
         </Section>
         <Section title="Per Share Data">
           <KV items={[['EPS T12M', n2(f.ltm.eps)], ['DPS', n2(f.ltm.dps)], ['Bk Val Per Sh', n2(r.bookPerShare)], ['Rev Per Sh', n2(r.revPerShare)], ['Cash Per Sh', n2(r.cashPerShare)], ['FCF Per Sh', n2(r.fcfPerShare)], ['Diluted Shares', fmtMln(f.ltm.shares)]]} />
@@ -644,7 +645,7 @@ function IndustryPage({ sec }: { sec: SecurityDef }) {
             { key: 'n', label: 'Name', render: (r) => (r.d.id === sec.id ? <span className="amber">{r.d.name}</span> : r.d.name) },
             { key: 'i', label: 'Industry', render: (r) => <span className={r.same ? '' : 'muted'}>{r.d.eq?.industry ?? '--'}</span> },
             { key: 'l', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
-            { key: 'm', label: 'Mkt cap USD', num: true, render: (r) => fmtBig(r.mcap), sort: (r) => r.mcap },
+            { key: 'm', label: 'Mkt cap USD', num: true, render: (r) => <CapLink id={r.d.id}>{fmtBig(r.mcap)}</CapLink>, sort: (r) => r.mcap },
             { key: 'p', label: 'P/E', num: true, render: (r) => (Number.isFinite(r.pe) ? fmtNum(r.pe, 1) : peText(r.pe, r.eps)), sort: (r) => r.pe },
             { key: 'y', label: '%YTD', num: true, render: (r) => (Number.isFinite(r.ytd) ? <Chg v={r.ytd} pct /> : ''), sort: (r) => r.ytd },
           ]}

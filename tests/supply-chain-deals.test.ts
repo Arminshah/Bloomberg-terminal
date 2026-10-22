@@ -511,3 +511,59 @@ describe("SPLC: the company's own report — competitors and stakes", () => {
     expect(ownRelations(['During 2024 the Company sold a portion of our interest in Coca-Cola Consolidated, Inc., an equity method investee.'], d2, { names: ['Coca-Cola'] }, ev, ended)).toEqual([]);
   });
 });
+
+describe('SPLC: the sixth check — lists, short names, ventures and second roles', () => {
+  const ev = { filer: 'Own', form: '10-K', date: '2026-07-15', path: 'x' };
+  const d = buildDirectory([
+    { cik: 1, ticker: 'WMT', title: 'Walmart Inc.' }, { cik: 2, ticker: 'TGT', title: 'TARGET CORP' }, { cik: 3, ticker: 'KR', title: 'KROGER CO' },
+    { cik: 4, ticker: 'AMZN', title: 'AMAZON COM INC' }, { cik: 5, ticker: 'CCEP', title: 'COCA-COLA EUROPACIFIC PARTNERS plc' }, { cik: 6, ticker: 'KOF', title: 'COCA COLA FEMSA SAB DE CV' },
+    { cik: 7, ticker: 'KO', title: 'COCA COLA CO' }, { cik: 8, ticker: 'UBER', title: 'Uber Technologies, Inc' }, { cik: 9, ticker: 'TMUS', title: 'T-Mobile US, Inc.' },
+  ]);
+  const own = (sentences: string[], names: string[]) => ownRelations(sentences, d, { cik: names.includes('Coca-Cola') ? 7 : undefined, names }, ev).map((r) => [r.role, r.ticker ?? r.name]);
+  it('a company whose name is also a word counts inside a list of companies, not alone', () => {
+    expect(own(['Walmart, Target, Kroger, and Amazon are among our significant general merchandise retail competitors in the U.S.'], ['Costco'])).toEqual([['competitor', 'WMT'], ['competitor', 'TGT'], ['competitor', 'KR'], ['competitor', 'AMZN']]);
+    expect(findCompanies('Target customers include large retailers.', d)).toEqual([]);
+  });
+  it('knows Uber and T-Mobile by their short names, and several partnerships in one bullet', () => {
+    expect(own(['Expanded partnership with Kia for autonomous driving, and expanded partnership with Uber to launch a fleet of autonomous vehicles.'], ['NVIDIA'])).toContainEqual(['partner', 'UBER']);
+    expect(own(['Announced collaboration with T-Mobile and Nokia to integrate physical AI applications on AI-RAN-ready infrastructure.'], ['NVIDIA'])).toContainEqual(['partner', 'TMUS']);
+  });
+  it('an investment and partnership is both', () => {
+    expect(own(['Announced an investment and deep technology partnership with Anthropic, which is scaling its model on Azure.'], ['NVIDIA'])).toEqual([['partner', 'Anthropic'], ['investment', 'Anthropic']]);
+  });
+  it("reads the filing's short names and a full list of equity-method investees; bottlers named after the company are others", () => {
+    const got = own([
+      'In March 2025, the Company sold a portion of our ownership interest in Coca-Cola Europacific Partners plc ("CCEP"), an equity method investee, for cash proceeds of $741 million.',
+      'In October 2025, the Company agreed to sell a portion of our interest in our bottling operations in Africa to Coca-Cola HBC AG ("CCHBC"), an equity method investee.',
+      "The Company's equity method investments include, but are not limited to, our ownership interests in CCEP; Monster; AC Bebidas, S. de R.L. de C.V.; Coca-Cola FEMSA; CCHBC; and Coca-Cola Bottlers Japan Holdings Inc. As of December 31, 2025, we owned 18%, 21%, 20%, 28%, 22% and 24%, respectively, of these companies' outstanding shares.",
+    ], ['Coca-Cola']);
+    expect(got).toEqual(expect.arrayContaining([['investment', 'CCEP'], ['investment', 'MNST'], ['investment', 'KOF'], ['investment', 'Coca-Cola HBC'], ['investment', 'Coca-Cola Bottlers Japan']]));
+    expect(got.some(([, t]) => t === 'KO')).toBe(false);
+  });
+  it('a joint venture is a stake, its other owner a partner', () => {
+    expect(own(['This includes engines sold by joint venture partners, the most significant of which is CFM International, a 50-50 non-consolidated joint venture with Safran Aircraft Engines, a subsidiary of Safran Group of France.'], ['GE Aerospace', 'General Electric'])).toEqual([['investment', 'CFM International'], ['partner', 'Safran']]);
+  });
+  it('another company: a rival that is also a partner, a builder of the filer\'s site, a partnership to provide, a stake taken', () => {
+    const t = (target: string, filer: string, s: string) => classify(s, targetPattern(targetNames(target, target).names), targetPattern(targetNames(undefined, filer).names));
+    expect(t('MSFT', 'eGain Corp', 'However, we occasionally compete with some of our platform partners where some of our product capabilities overlap, including Five9, Genesys, Microsoft, NICE, and Salesforce.')).toEqual({ role: 'competitor', also: 'partner' });
+    expect(t('VRT', 'Hut 8 Corp', 'We have partnered with Jacobs and Vertiv to build the data center at a cost of $9-$11 million per MW.')).toEqual({ role: 'customer' });
+    expect(t('ORCL', 'Bloom Energy Corp', 'The increase was primarily in connection with our partnership with Oracle Corporation ("Oracle") to provide on-site solid state power for AI data centers.')).toEqual({ role: 'supplier' });
+    expect(t('BA', 'Archer Aviation Inc.', 'Boeing to take stake and become a strategic partner to Archer')).toEqual({ role: 'investment' });
+  });
+  it('keeps those rules to what they say', () => {
+    const t = (target: string, filer: string, s: string) => classify(s, targetPattern(targetNames(target, target).names), targetPattern(targetNames(undefined, filer).names));
+    // "who is also our partner" is Microsoft only, not Oracle earlier in the text.
+    const s = 'We compete with large enterprise technology providers, including Microsoft Corporation (Microsoft), Oracle Corporation (Oracle) and ServiceNow, Inc. In certain markets, Open Text competes with Microsoft, who is also our partner.';
+    expect(t('MSFT', 'Open Text Corp', s)).toEqual({ role: 'competitor', also: 'partner' });
+    expect(t('ORCL', 'Open Text Corp', s)).toEqual({ role: 'competitor' });
+    // A partnership that "continues to deliver value" is no supply.
+    expect(t('MSFT', 'Intapp Inc', 'Our partnership with Microsoft continues to deliver value in the form of joint innovation and joint marketing.')).toEqual({ role: 'partner' });
+  });
+  it("a short name is not written out inside a longer name, and documents obtained from an agent are no purchase", () => {
+    const d2 = buildDirectory([{ cik: 11, ticker: 'JPM', title: 'JPMORGAN CHASE & CO' }, { cik: 12, ticker: 'C', title: 'CITIGROUP INC' }]);
+    const got = ownRelations(['On August 24, 2026, the Company entered into a $3.0 billion revolving credit agreement with Citibank, N.A. ("Citibank") and JPMorgan Chase Bank, N.A. ("JPMorgan") as joint lead arrangers, Citibank as administrative agent and JPMorgan as syndication agent.'], d2, { names: ['Boeing'] }, ev);
+    expect(got.every((r) => !/Chase Bank Bank|& CO Chase/.test(r.name))).toBe(true);
+    expect(got.map((r) => r.role)).toEqual(got.map(() => 'lender'));
+    expect(ownStatements('Copies of the offer to purchase may be obtained from D.F. King & Co., Inc., the information agent.', d2)).toEqual([]);
+  });
+});

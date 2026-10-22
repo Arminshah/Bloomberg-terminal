@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { CapLink } from '../components/CapLink';
 import { FnHeader } from '../components/FnHeader';
 import { DataTable } from '../components/DataTable';
 import { Chg, LivePx, SecLink, openSecurity } from '../components/cells';
@@ -135,7 +136,7 @@ export function EQS(_: FnProps) {
           { key: 'n', label: 'Name', render: (r) => <span className="ellipsis" style={{ display: 'inline-block', maxWidth: 200 }}>{r.d.name}</span>, sort: (r) => r.d.name, hideM: true },
           { key: 's', label: 'Sector', render: (r) => <span className="muted">{r.d.eq!.sector}</span>, sort: (r) => r.d.eq!.sector, hideM: true },
           { key: 'px', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
-          { key: 'cap', label: 'Mkt cap', num: true, render: (r) => fmtBig(r.cap * 1e9), sort: (r) => r.cap },
+          { key: 'cap', label: 'Mkt cap', num: true, render: (r) => <CapLink id={r.d.id}>{fmtBig(r.cap * 1e9)}</CapLink>, sort: (r) => r.cap },
           { key: 'pe', label: 'P/E', num: true, render: (r) => fmtNum(r.k.pe, 1), sort: (r) => r.k.pe },
           { key: 'dy', label: '12M yld %', num: true, render: (r) => fmtNum(r.k.divYld, 2), sort: (r) => r.k.divYld },
           { key: 'roe', label: 'ROE %', num: true, render: (r) => fmtNum(r.k.roe, 1), sort: (r) => r.k.roe, hideM: true },

@@ -12,6 +12,12 @@ import { desktopData, yahooGet, yahooSymbolFor } from './yahoo';
  */
 
 const KEY = 'armin:reported-shares-v1';
+/**
+ * Lines whose reported count is in another class's units: Berkshire Hathaway reports its shares as Class A
+ * equivalents, and one Class A share is 1,500 Class B shares, so the B line's count (behind its market value, the
+ * whole company's) is the reported count times 1,500.
+ */
+export const CLASS_UNITS: Record<string, number> = { 'BRK-B': 1500 };
 const WEEK = 7 * 86_400_000;
 type Kept = Record<string, { shares: number; at: number }>;
 let memory: Kept | undefined;
@@ -32,7 +38,7 @@ export async function fillShareCounts(stopped: () => boolean = () => false, gap 
     const symbol = yahooSymbolFor(d);
     if (!symbol) continue;
     const k = kept[symbol];
-    if (k && now - k.at < WEEK && k.shares > 0) d.eq.shares = k.shares / 1e6;
+    if (k && now - k.at < WEEK && k.shares > 0) d.eq.shares = (k.shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6;
     else missing.push({ id: d.id, symbol });
   }
   let filled = 0;
@@ -45,7 +51,7 @@ export async function fillShareCounts(stopped: () => boolean = () => false, gap 
     if (shares && shares > 0) {
       kept[symbol] = { shares, at: Date.now() };
       saveJson(KEY, kept);
-      if (!(eq.shares > 0)) eq.shares = shares / 1e6;
+      if (!(eq.shares > 0)) eq.shares = (shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6;
       filled++;
     }
     if (gap) await new Promise((r) => setTimeout(r, gap));

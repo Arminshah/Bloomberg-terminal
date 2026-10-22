@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { CapLink } from '../components/CapLink';
 import { FnHeader } from '../components/FnHeader';
 import { exportActions } from '../components/ExportActions';
 import { LivePx, openSecurity } from '../components/cells';
@@ -249,7 +250,7 @@ export function BoardMembers({ ix }: { ix: SecurityDef }) {
                 <td className="num hide-m">{price ? fmtNum(m.prevClose, 2) : Number.isFinite(m.cap) ? fmtBig(m.cap / m.last, 2) : ''}</td>
                 <td className="num white">{fmtNum(m.last, 2)}</td>
                 <td className={`num ${sign(m.pct)}`}>{fmtPct(m.pct, 2)}</td>
-                <td className="num" title={Number.isFinite(m.cap) ? undefined : NO_CAP}>{Number.isFinite(m.cap) ? fmtBig(m.cap, 2) : ''}</td>
+                <td className="num" title={Number.isFinite(m.cap) ? undefined : NO_CAP}>{Number.isFinite(m.cap) ? <CapLink id={m.id} symbol={m.symbol}>{fmtBig(m.cap, 2)}</CapLink> : ''}</td>
               </tr>
             ))}
           </tbody>
