@@ -216,7 +216,8 @@ describe('SPLC: what the accuracy review found', () => {
 
   it('keeps a share to the company it is stated for, never a group figure', () => {
     expect(classify('Sales to our five largest customers during the fiscal year ended March 31, 2026, accounted for 80.6% of our net revenue, with Apple, Sony, Google, and Microsoft each accounting for more than 10.0% of our net revenue.', MSFT)).toEqual({ role: 'supplier', share: 10, qualifier: '>', basis: 'their-revenue' });
-    expect(classify('For the years ended December 31, 2025 and December 31, 2024, approximately 39% and 40% of our total consolidated sales, respectively, were to Airbus, and its related subcontractors and approximately 13% and 15% of our total consolidated sales, respectively, were to Boeing and its related subcontractors.', BA)).toMatchObject({ role: 'supplier', share: 13 });
+    // 13% is sales to Boeing together with its subcontractors: no share for Boeing alone, and never Airbus's 39%.
+    expect(classify('For the years ended December 31, 2025 and December 31, 2024, approximately 39% and 40% of our total consolidated sales, respectively, were to Airbus, and its related subcontractors and approximately 13% and 15% of our total consolidated sales, respectively, were to Boeing and its related subcontractors.', BA)).toMatchObject({ role: 'supplier', share: undefined });
     expect(classify('Revenues from our top 10 customers, including Boeing and RTX, were 61% of total net revenues during 2025.', BA)).toEqual({ role: 'supplier', share: undefined, qualifier: undefined, basis: 'their-revenue' });
     expect(classify("In the past, we derived most of our revenue from the sale of products made for consoles manufactured by third parties, such as Sony Interactive Entertainment Inc.'s PlayStation and Microsoft Corporation's (\"Microsoft\") Xbox consoles, which comprised approximately 2% and 45% of our total revenue for the years ended December 31, 2025 and 2024, respectively.", MSFT)?.share).toBeUndefined();
     expect(classify('In 2025, our sales volume represented approximately 12.3% of the total sales volume of the Coca-Cola system in the world.', T(['Coca-Cola']))?.share).toBeUndefined();
@@ -225,7 +226,7 @@ describe('SPLC: what the accuracy review found', () => {
   it('reads who sells to whom', () => {
     const CRWV = T(['CoreWeave']);
     expect(classify('We currently depend on a single customer, CoreWeave, for substantially all of our hosting revenue.', CRWV)?.role).toBe('supplier');
-    expect(classify('Air Lease was the launch customer for Boeing on several aircraft programs.', BA)?.role).toBe('customer');
+    expect(classify('Air Lease was the launch customer for Boeing on several aircraft programs.', BA, targetPattern(['Air Lease']))?.role).toBe('customer');
     expect(classify('In September 2026, we received a purchase order from Boeing for our sensor systems.', BA)?.role).toBe('supplier');
     expect(classify('Our products are sold through retail partners, including Walmart, Target and Amazon.', T(['Walmart']))?.role).toBe('supplier');
     expect(classify('Our largest manufacturing partners, ASE, Intel and TSMC, produce our wafers.', T(['Intel']))?.role).toBe('customer');
@@ -324,7 +325,9 @@ describe('SPLC: what the second review found', () => {
   });
 
   it('reads dependence by what it is for', () => {
-    expect(role('We are highly dependent on NVIDIA for the success of our campus.', ['NVIDIA'])).toBe('supplier');
+    expect(role('We are highly dependent on NVIDIA for our success.', ['NVIDIA'])).toBe('supplier');
+    // The success of a project of the filer's gives no direction.
+    expect(role('We are highly dependent on NVIDIA for the success of our campus.', ['NVIDIA'])).toBeNull();
     expect(role('We rely on Micron for the memory in our modules.', ['Micron'])).toBe('customer');
     expect(role('Our business is highly dependent on Ford.', ['Ford'])).toBeNull();
   });
@@ -408,5 +411,34 @@ describe('SPLC: purchases of the filer\'s products, names defined as another com
     expect(definesOther('Approximately 95% of our China revenue in 2019 was generated from Changzhou Almaden Co., Ltd., which was a related party that we refer to in this annual report as AMD.', amd)).toBe(true);
     expect(definesOther('Changzhou Almaden Co., Ltd. (we refer to it as "AMD") supplied our panels.', amd)).toBe(true);
     expect(definesOther('Advanced Micro Devices, Inc. ("AMD") is our largest customer.', amd)).toBe(false);
+  });
+});
+
+describe('SPLC: what checking the fifth round for losses found', () => {
+  const T = (names: string[]) => targetPattern(names);
+  const role = (sentence: string, names: string[], filer: string[]) => classify(sentence, T(names), T(filer))?.role ?? null;
+
+  it('reads retailer lists that name Target the retailer', () => {
+    expect(role('BARK products are currently sold in over 50,000 retail doors, including Target, TJ Maxx, Costco, Walmart, and PetSmart.', ['Costco'], ['Bark'])).toBe('supplier');
+    expect(role('Honest products are available nationwide at major retailers, including Amazon, Target and Walmart.', ['Walmart'], ['Honest Company', 'Honest'])).toBe('supplier');
+  });
+
+  it("reads the filer's purchases and lists written without \"we\"", () => {
+    expect(role('Syrup for frozen beverages is purchased primarily from The Coca-Cola Company, Keurig Dr. Pepper, Inc., the Pepsi Cola Company, and Jogue, Inc.', ['Coca-Cola'], ['J&J Snack Foods'])).toBe('customer');
+    expect(role('Representative customers include Costco, Intermountain Health, Honda, and the Louisiana Office of Group Benefits.', ['Costco'], ['Omada Health'])).toBe('supplier');
+  });
+
+  it("keeps a licence with a company's subsidiary, and notes and shares issued to it", () => {
+    expect(role('In December 2020, the Company entered into an exclusive license agreement with Dermira, Inc., a wholly owned subsidiary of Eli Lilly and Company ("Dermira") to develop and commercialize EVO756.', ['Eli Lilly', 'Lilly'], ['Evommune'])).toBe('partner');
+    expect(role('Interest expense consists of coupon interest accrued on the convertible note that we issued to Eli Lilly and Company in May 2023.', ['Eli Lilly', 'Lilly'], ['Scribe Therapeutics'])).toBe('lender');
+    expect(role('On October 27, 2025, the Company issued to AMD an aggregate of 1,151,052 shares of its Common Stock at $0.01 par value per share.', ['AMD', 'Advanced Micro Devices'], ['Sanmina'])).toBe('investment');
+  });
+
+  it('reads who supplies whom in dependence and appositions', () => {
+    expect(role('We are substantially dependent on NVIDIA Corporation as a supplier of graphics processing units ("GPUs"), and any disruption in our ability to obtain NVIDIA GPUs could materially and adversely affect our business.', ['NVIDIA'], ['SharonAI'])).toBe('customer');
+    expect(role("This status was granted following NVIDIA's assessment of our position as a specialized provider of GPU compute in the Australian public cloud environment.", ['NVIDIA'], ['SharonAI'])).not.toBe('customer');
+    expect(role('We and OpenAI are highly dependent on NVIDIA for the success of our PORTS-Pike Technology Campus', ['NVIDIA'], ['SB Energy'])).toBeNull();
+    expect(role("Core Scientific's extensive portfolio of AI-ready data centers expands access to the infrastructure our customers need to deploy AMD AI solutions at scale.", ['AMD', 'Advanced Micro Devices'], ['Core Scientific'])).not.toBe('customer');
+    expect(role('In October 2025, we entered into a purchase commitment of $128.7 million, payable in the next 12 months, for the development of HPC data center projects with Vertiv, a large publicly-traded American multinational provider of critical infrastructure and services for data centers.', ['Vertiv'], ['Bitfarms'])).toBe('customer');
   });
 });
