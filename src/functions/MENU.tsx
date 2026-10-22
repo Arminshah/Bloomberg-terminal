@@ -40,7 +40,7 @@ const EQUITY: Group[] = [
 const MENUS: Record<AssetClass, Group[]> = {
   equity: EQUITY,
   index: [
-    { title: 'Index', entries: ['PROFILE', 'CONTRIB', 'MEMBERS', 'MOVERS', 'RANKEDRETURNS', 'GROUPRETURNS', 'HEATMAP', 'MARKET', 'INDEXFUTURES', 'COMPANYNEWS'] },
+    { title: 'Index', entries: ['PROFILE', 'CONTRIB', 'MEMBERS', 'MOVERS', 'RANKEDRETURNS', 'GROUPRETURNS', 'INDEXMAP', 'MARKET', 'INDEXFUTURES', 'COMPANYNEWS'] },
     { title: 'Price and charts', entries: ['CHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'VOLATILITY', 'SPREAD'] },
     { title: 'Derivatives', entries: ['OPTIONS', 'OPTIONCALC', 'OPTIONSTRATEGY'] },
     { title: 'Tools', entries: ['ALERTS', 'NOTES', 'CORRELATION'] },
@@ -101,7 +101,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   EQUITY: {
     title: 'Equity',
     groups: [
-      { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'MOVERS', 'TOPMOVERS', 'CONTRIB', 'SCREEN', 'EVENTS', 'IPOS', 'EXCHANGES'] },
+      { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'INDEXMAP', 'MOVERS', 'TOPMOVERS', 'CONTRIB', 'SCREEN', 'EVENTS', 'IPOS', 'EXCHANGES'] },
       { title: 'News and research', entries: ['MARKETNEWS', 'BREAKING', 'HEADLINES', 'NEWS', 'FILINGS', 'RELEASES', 'MACRO'] },
       { title: 'Portfolio and monitors', entries: ['PORTFOLIO', 'WATCHLIST', 'FAVOURITES', 'ALERTS'] },
     ],

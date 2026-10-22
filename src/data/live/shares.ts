@@ -70,8 +70,26 @@ export function wantShares(id: string): void {
   if (!desktopData()) return;
   const eq = engine.get(id)?.eq;
   if (!eq || eq.shares > 0) return;
-  if (filling) wanted.add(id);
-  else void fetchShares(id);
+  wanted.add(id);
+  if (!filling && !draining) void drainWanted();
+}
+
+let draining = false;
+
+/** Reads the stocks asked for while the queue is not running, one at a time (a heat map can ask for dozens). */
+async function drainWanted(gap = 300): Promise<void> {
+  draining = true;
+  try {
+    for (;;) {
+      const next = wanted.values().next();
+      if (next.done || filling) break;
+      wanted.delete(next.value);
+      const got = await fetchShares(next.value);
+      if (got !== 'skipped' && gap) await new Promise((r) => setTimeout(r, gap));
+    }
+  } finally {
+    draining = false;
+  }
 }
 
 /** Fills missing share counts: kept ones at once, the rest one stock at a time, 1.5 seconds apart. */
@@ -103,8 +121,7 @@ export async function fillShareCounts(stopped: () => boolean = () => false, gap 
   } finally {
     filling = false;
     // Stocks asked for after the queue stopped are read now.
-    for (const id of wanted) void fetchShares(id);
-    wanted.clear();
+    if (wanted.size && !draining) void drainWanted();
   }
   return filled;
 }

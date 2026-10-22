@@ -50,7 +50,7 @@ export const LEGACY_CODES: Record<string, string> = {
   MRR: 'RANKEDRETURNS',
   GRR: 'GROUPRETURNS',
   IPO: 'IPOS',
-  IMAP: 'HEATMAP',
+  IMAP: 'INDEXMAP',
   MOST: 'MOVERS',
   EXCH: 'EXCHANGES',
   EQS: 'SCREEN',

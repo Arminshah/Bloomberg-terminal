@@ -29,7 +29,7 @@ import { CN, HEADLINES, N } from '../functions/NEWS';
 import { MNEWS } from '../functions/MNEWS';
 import { BREAKING } from '../functions/BREAKING';
 import { WEI, WEIF } from '../functions/WEI';
-import { IMAP } from '../functions/IMAP';
+import { HEATMAP, IMAP } from '../functions/IMAP';
 import { MOST } from '../functions/MOST';
 import { TOPMOVERS } from '../functions/TOPMOVERS';
 import { EXCH } from '../functions/EXCH';
@@ -117,7 +117,8 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'GROUPRETURNS', name: 'Group Ranked Returns', category: 'Markets', desc: "An index's industry groups ranked by price return over a day, a week, one, three or six months, the year to date or a year: GICS sectors or sub-industries of the S&P 500, sectors and industries of the Nasdaq-100 and the Dow, cap-weighted or equal-weighted, each with its best and worst members (desktop app).", component: GRR, example: 'SPX INDEX GROUPRETURNS' },
   { code: 'TOPMOVERS', name: 'Stock Movers', category: 'Markets', desc: "US stocks as Yahoo Finance's markets pages list them: most active, trending now, the day's top gainers and losers, and the 52-week gainers and losers, with the day's price path, change, volume against the three-month average, market value, P/E and the 52-week change and range (desktop app). GAINERS, LOSERS and TRENDING open those lists.", component: TOPMOVERS, aliases: ['GAINERS', 'LOSERS', 'TRENDING'], example: 'TOPMOVERS GAINERS' },
   { code: 'IPOS', name: 'Capital Raisings: IPOs', category: 'Markets', desc: "US initial public offerings priced, expected, filed and withdrawn in a period (Nasdaq's IPO calendar, all US exchanges, no key), the money raised against the same months a year earlier, and each new listing's first-day and since-offer returns with the best and worst performers; SPACs left out unless included (desktop app).", component: IPO, example: 'IPOS' },
-  { code: 'HEATMAP', name: 'Intraday Market Map', category: 'Markets', desc: 'Heat map of stocks by sector sized by market cap and coloured by performance.', component: IMAP },
+  { code: 'HEATMAP', name: 'Market Heat Map', category: 'Markets', desc: 'US, European and Asia-Pacific stocks (or all of them) by sector and industry, sized by market value and coloured by their change over a day, five days, a month, the year to date or a year. Click a sector to open it.', component: HEATMAP, example: 'HEATMAP' },
+  { code: 'INDEXMAP', name: 'Intraday Market Map', category: 'Markets', desc: "An index's whole membership (S&P 500, Nasdaq-100, Dow; desktop app) by GICS sector or country: a sunburst with a table of the groups, the members' table, and a heat map by sector and industry group sized by estimated weight, coloured by today's change.", component: IMAP, example: 'INDEXMAP SPX' },
   { code: 'MOVERS', name: 'Most Active', category: 'Markets', desc: 'Most active, top gainers, losers, value traded and unusual volume by region.', component: MOST, aliases: ['ACTIVE'] },
   { code: 'EXCHANGES', name: 'Exchange Hours', category: 'Markets', desc: "Each exchange the app keeps a calendar for (NYSE, Euronext, London, Xetra, Tokyo): its local time, whether its regular session is open, today's holiday or early close, and when it next opens or closes, with a countdown. Numbered rows open the exchange's holiday calendar.", component: EXCH, example: 'EXCHANGES' },
   { code: 'SCREEN', name: 'Equity Screening', category: 'Markets', desc: 'Screen stocks by region, sector, size, valuation, yield, quality and momentum.', component: EQS, aliases: ['SCREENER'] },

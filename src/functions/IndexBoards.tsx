@@ -8,6 +8,8 @@ import { engine, useTick } from '../data/market';
 import { BOARD_INDICES, indexData, memberReturn, useIndexMembers, type Board, type Member } from '../data/live/index-members';
 import { loadNews, marketNews, newsAvailable, type MarketStory } from '../data/live/marketnews';
 import type { SecurityDef } from '../data/types';
+import { HeatTreemap, type HeatGroup } from '../components/HeatTreemap';
+import { industryGroup } from '../data/gics';
 import { execute } from '../terminal/exec';
 import { useNumberedRows, usePanelId } from '../terminal/panel';
 
@@ -518,7 +520,7 @@ export function hasBoard(id: string | undefined): boolean {
 
 // ------------------------------------------------------------------- IMAP
 
-type ImapView = 'both' | 'table' | 'pie';
+type ImapView = 'both' | 'table' | 'pie' | 'heat';
 type ImapGroup = 'sector' | 'region';
 const CAP_BANDS: { label: string; min: number; max: number }[] = [
   { label: 'All', min: 0, max: Infinity },
@@ -744,12 +746,42 @@ export function BoardMap({ ix }: { ix: SecurityDef }) {
       </tbody>
     </table>
   );
+  // The heat map: groups, then their industry groups (GICS, for the S&P 500) or sectors (by country), then the members,
+  // sized by estimated index weight.
+  const subOf = (m: Member) =>
+    group === 'sector' ? (board.index.key === 'SPX' ? industryGroup(m.sector, m.industry) : m.industry || 'Other') : m.sector || 'Other';
+  const heatGroups: HeatGroup[] = (() => {
+    if (view !== 'heat') return [];
+    const top = new Map<string, Map<string, Member[]>>();
+    for (const m of scope) {
+      const g = keyOf(m);
+      const sub = subOf(m);
+      if (!top.has(g)) top.set(g, new Map());
+      const subs = top.get(g)!;
+      subs.set(sub, [...(subs.get(sub) ?? []), m]);
+    }
+    return [...top].map(([name, subs]) => ({
+      name,
+      subs: [...subs].map(([sub, ms]) => ({
+        name: sub,
+        leaves: ms.map((m) => ({
+          key: m.symbol,
+          label: m.symbol,
+          pct: m.pct,
+          weight: Number.isFinite(m.weight) && m.weight > 0 ? m.weight : 0,
+          info: [m.name, `${m.symbol} US · ${sub}`, `%Chg ${fmtPct(m.pct, 2)}`, `Weight ${fmtNum(m.weight * 100, 2)}%`, `Last ${fmtNum(m.last, 2)}`],
+          onClick: () => openMember(panel, m),
+        })),
+      })),
+    }));
+  })();
+  const unsized = view === 'heat' ? scope.filter((m) => !(Number.isFinite(m.weight) && m.weight > 0)).length : 0;
   const status = boardStatus(board);
   return (
-    <div>
-      <FnHeader code="HEATMAP" title="Intraday Market Map" sec={ix} actions={exportActions(panel, `${ix.ticker}_map.csv`, csv)} />
+    <div className={view === 'heat' ? 'fn-fill' : undefined}>
+      <FnHeader code="INDEXMAP" title="Intraday Market Map" sec={ix} actions={exportActions(panel, `${ix.ticker}_map.csv`, csv)} />
       <div className="chart-tools">
-        <IndexPicker ix={ix} fn="HEATMAP" />
+        <IndexPicker ix={ix} fn="INDEXMAP" />
         <span className="fld">
           Group by
           <label className="chk"><input type="radio" name={`imap-g-${panel}`} checked={group === 'region'} onChange={() => { setGroup('region'); setFocus(null); }} /> Region</label>
@@ -772,18 +804,33 @@ export function BoardMap({ ix }: { ix: SecurityDef }) {
         {focus ? <> &gt; <span className="white">{focus}</span></> : null}
       </nav>
       <nav className="tabs" aria-label="Map views">
-        {([['both', 'Pie Chart & Table'], ['table', 'Table'], ['pie', 'Pie Chart']] as [ImapView, string][]).map(([k, label]) => (
+        {([['both', 'Pie Chart & Table'], ['table', 'Table'], ['pie', 'Pie Chart'], ['heat', 'Heatmap']] as [ImapView, string][]).map(([k, label]) => (
           <button key={k} type="button" className={`tab${view === k ? ' on' : ''}`} onClick={() => setView(k)}>
             {label}
           </button>
         ))}
       </nav>
       <div className="imap-title">
-        <span className="white">{ix.ticker}: Percent Price Change by {subWord}</span>
+        <span className="white">{view === 'heat' ? `${ix.ticker}: Intraday Return by ${groupWord} (sized by Weight)` : `${ix.ticker}: Percent Price Change by ${subWord}`}</span>
         <span className="white">{scope.length} Securities</span>
       </div>
       {status ??
-        (view === 'table' ? (
+        (view === 'heat' ? (
+          <>
+            <div className="heatmap-head">
+              <span>
+                {focus ?? `${ix.ticker} by ${group === 'sector' ? (board.index.key === 'SPX' ? 'GICS' : 'Sector') : 'Country'}`}, Price Return:{' '}
+                <span className={sign(all.pct)}>{fmtPct(all.pct, 2)}</span> (d)
+              </span>
+              {focus ? (
+                <button type="button" className="link" onClick={() => setFocus(null)}>
+                  All groups
+                </button>
+              ) : null}
+            </div>
+            <HeatTreemap groups={heatGroups} onGroup={focus ? undefined : (name) => setFocus(name)} />
+          </>
+        ) : view === 'table' ? (
           memberTable
         ) : (
           <div className={view === 'both' ? 'imap-both' : 'imap-only'}>
@@ -792,8 +839,11 @@ export function BoardMap({ ix }: { ix: SecurityDef }) {
           </div>
         ))}
       <p className="pad-s muted">
-        Segments sized by estimated index weight and coloured by today&apos;s change (full colour at ±3%). Prices from Yahoo; sectors from{' '}
-        {board.index.key === 'SPX' ? 'the GICS classification in the S&P 500 member list' : "Nasdaq's stock list"}; countries from Nasdaq.
+        {view === 'heat' ? 'Tiles' : 'Segments'} sized by estimated index weight and coloured by today&apos;s change (full colour at ±3%). Prices from Yahoo; sectors from{' '}
+        {board.index.key === 'SPX' ? 'the GICS classification in the S&P 500 member list' : "Nasdaq's stock list"}
+        {view === 'heat' && group === 'sector' ? (board.index.key === 'SPX' ? ', grouped into GICS industry groups by sub-industry' : ", by Nasdaq's industries") : ''}; countries from Nasdaq.
+        {view === 'heat' ? ' Click a sector to open it, a tile to open the stock.' : ''}
+        {unsized ? ` ${unsized} ${unsized === 1 ? 'member has' : 'members have'} no market value yet and ${unsized === 1 ? 'is' : 'are'} not drawn.` : ''}
       </p>
     </div>
   );
