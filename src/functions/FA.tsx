@@ -6,7 +6,7 @@ import { Chg } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtDay, fmtEarnDate, fmtIso, fmtNum } from '../core/format';
 import { financials, hasRealStatements, nextEarnings, priorStatementPeriod, reportCcy, type FinPeriod } from '../data/fundamentals';
-import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
+import { analystsAvailable, analystSymbol, estimateInCurrency, listedOutsideUs, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { useFundamentals } from '../data/live/yfund';
@@ -162,7 +162,10 @@ export function FA({ sec, route }: FnProps) {
   const est = useAnalysts(analystsAvailable() && analystSymbol(s) ? s : undefined, ['estimates']).estimates as AnalystPart<Estimate[]> | undefined;
   const lastEnd = f.annual.length ? f.annual[f.annual.length - 1].end : NaN;
   const estimates = !quarterly && off === 0 && est?.state === 'ok'
-    ? (est.data ?? []).filter((e) => Date.parse(`${e.date}T00:00:00Z`) > lastEnd + 40 * 86_400_000 && (!e.currency || e.currency === ccy)).slice(0, 2)
+    ? (est.data ?? [])
+        .map((e) => estimateInCurrency(e, ccy, listedOutsideUs(analystSymbol(s))))
+        .filter((e): e is Estimate => !!e && Date.parse(`${e.date}T00:00:00Z`) > lastEnd + 40 * 86_400_000)
+        .slice(0, 2)
     : [];
   const next = nextEarnings(s);
   // Dividends come in the unit the shares trade in (Shell: pence) while the statements are in the reporting

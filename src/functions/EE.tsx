@@ -4,13 +4,13 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, Section, KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtEarnDate, fmtIso, fmtMln, fmtNum, fmtPct } from '../core/format';
-import { earningsHistory, earningsReaction, financials, keyStats, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
+import { earningsHistory, earningsReaction, financials, keyStats, priceInCurrency, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
 import { fiscalAdjEps } from './EEO';
 import { engine, useHistoryVersion } from '../data/market';
 import type { FnProps } from '../terminal/types';
 import { useFundamentals } from '../data/live/yfund';
 import { sourceLabel } from '../components/Source';
-import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
+import { analystsAvailable, analystSymbol, listedOutsideUs, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
 import { EstimatesTable, estimateUnit } from './ANR';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
@@ -213,7 +213,7 @@ export function EE({ sec }: FnProps) {
     for (const e of (est?.state === 'ok' ? est.data ?? [] : []).filter((x) => x.date >= today).slice(0, 4).reverse()) {
       const v = measure === 'eps' ? e.epsAvg : e.revenueAvg / 1e6;
       if (!Number.isFinite(v)) continue;
-      coming.push({ key: `est:${e.date}`, ann: '', per: `FY ${e.date.slice(2, 4)}`, perEnd: fmtIso(e.date), confirmed: false, reported: NaN, comp: NaN, est: v, surp: NaN, px: NaN, pe: measure === 'eps' && q && e.epsAvg > 0 ? (s.ccy === 'GBp' ? q.last / 100 : q.last) / e.epsAvg : NaN, future: true, from: est?.source });
+      coming.push({ key: `est:${e.date}`, ann: '', per: `FY ${e.date.slice(2, 4)}`, perEnd: fmtIso(e.date), confirmed: false, reported: NaN, comp: NaN, est: v, surp: NaN, px: NaN, pe: measure === 'eps' && q && e.epsAvg > 0 && (e.epsCurrency ?? e.currency ?? est?.currency ?? !listedOutsideUs(analystSymbol(s))) ? priceInCurrency(s, q.last, e.epsCurrency ?? e.currency ?? est?.currency) / e.epsAvg : NaN, future: true, from: est?.source });
     }
   } else {
     for (const v of [consensus?.following, consensus?.next].filter((x): x is NonNullable<typeof x> => !!x)) {

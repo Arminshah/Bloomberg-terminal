@@ -7,7 +7,7 @@ import { DAY_MS } from '../data/calendar';
 import { engine, useTick } from '../data/market';
 import { marketCap } from '../data/analytics';
 import { financials, majorPrice, reportCcy, type FinPeriod } from '../data/fundamentals';
-import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
+import { analystsAvailable, analystSymbol, estimateInCurrency, listedOutsideUs, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
 import { useConsensus, type Consensus } from '../data/live/consensus';
 import { desktopData } from '../data/live/yahoo';
 import { useFundamentals } from '../data/live/yfund';
@@ -68,8 +68,10 @@ export function EEO({ sec }: FnProps) {
   const last = f.annual[f.annual.length - 1];
   const prior = f.annual[f.annual.length - 2];
   const today = engine.today * DAY_MS;
+  const outside = listedOutsideUs(analystSymbol(s));
   const years = (est?.state === 'ok' ? est.data ?? [] : [])
-    .filter((e) => (!e.currency || e.currency === ccy) && (!last || Date.parse(`${e.date}T00:00:00Z`) > last.end + 40 * DAY_MS))
+    .map((e) => estimateInCurrency(e, ccy, outside))
+    .filter((e): e is Estimate => !!e && (!last || Date.parse(`${e.date}T00:00:00Z`) > last.end + 40 * DAY_MS))
     .slice(0, 4);
   const adjAct = last ? fiscalAdjEps(consensus, last.end) : NaN;
   const adjPrior = prior ? fiscalAdjEps(consensus, prior.end) : NaN;

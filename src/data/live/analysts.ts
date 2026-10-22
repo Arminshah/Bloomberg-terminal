@@ -3,7 +3,7 @@ import { createStore, waitFor } from '../../core/store';
 import type { SecurityDef } from '../types';
 import { secTicker } from './sec';
 import type { KeyedAnswer } from './lookup';
-import { loadYahooAnalysts, retryYahooAnalysts } from './yahoo-research';
+import { loadYahooAnalysts, retryYahooAnalysts, yahooResearchAvailable } from './yahoo-research';
 import { loadNasdaq, nasdaqAvailable, type NasdaqForecast, type NasdaqRatings, type NasdaqTarget } from './nasdaq-company';
 import { alphaVantageAvailable, loadAlphaVantage } from './alphavantage';
 import { createWants, registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
@@ -212,9 +212,52 @@ export function analystsAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.analysts === 'function';
 }
 
-/** The FMP symbol for a security: US-listed stocks only ("BRK-B"). */
+/** Stocks listed outside the US, asked for under their Yahoo symbol: Yahoo's research is their only source. */
+const outsideUs = new Set<string>();
+const YAHOO_LISTING = /^[A-Z][A-Z0-9-]{0,8}\.[A-Z]{1,3}$/;
+
+/**
+ * The symbol research is asked for under: a US listing's ticker ("BRK-B"), for FMP, Finnhub, Yahoo and the keyless
+ * sources; or, in the desktop app with Yahoo research on, the Yahoo symbol of a stock listed elsewhere ("ASML.AS",
+ * "MC.PA"), for Yahoo alone (the others cover US listings, or give their figures in dollars).
+ */
 export function analystSymbol(def: SecurityDef | undefined): string | null {
-  return secTicker(def);
+  const us = secTicker(def);
+  if (us) return us;
+  if (!def || def.cls !== 'equity' || !yahooResearchAvailable()) return null;
+  const y = def.dynamic ? (def.dynamic.source === 'yahoo' ? def.dynamic.symbol : undefined) : def.yahoo;
+  if (!y || !YAHOO_LISTING.test(y)) return null;
+  outsideUs.add(y);
+  return y;
+}
+
+/** A research symbol of a stock listed outside the US (Yahoo's research only). */
+export function listedOutsideUs(symbol: string | null | undefined): boolean {
+  return !!symbol && outsideUs.has(symbol);
+}
+
+/**
+ * An annual estimate in the statements' currency, for comparing with them: null when its currency is another (or, for
+ * a listing outside the US, not stated); its EPS left out when only the EPS is in another currency (an ADR's per-ADR
+ * figure). An unstated currency on a US listing is the statements', as its sources give it.
+ */
+export function estimateInCurrency(e: Estimate, ccy: string, outside: boolean): Estimate | null {
+  const rev = e.currency;
+  const eps = e.epsCurrency ?? e.currency;
+  if (outside && !rev && !eps) return null;
+  if (rev && rev !== ccy) return null;
+  if (eps && eps !== ccy) return { ...e, epsAvg: NaN, epsLow: NaN, epsHigh: NaN };
+  return e;
+}
+
+/** Research for a stock listed outside the US: Yahoo's, which gives no history of the targets' averages. */
+async function outsideUsPart(kind: AnalystKind, symbol: string): Promise<AnalystPart> {
+  if (kind === 'summary') return { state: 'error', source: 'Yahoo Finance', message: "Yahoo gives no history of the price targets' averages for this listing." };
+  try {
+    return await loadYahooAnalysts(kind, symbol);
+  } catch {
+    return { state: 'error', source: 'Yahoo Finance', message: 'Yahoo research could not be loaded.' };
+  }
 }
 
 /** A refusal describes this request/account, not an assumption about the user's plan. */
@@ -345,7 +388,9 @@ async function load(symbol: string, kind: AnalystKind) {
   const generation = analystData.get().retry;
   if (!analystData.get().by[symbol]?.[kind]) put(symbol, kind, { state: 'loading' });
   try {
-    const part = await loadAnalystPart(kind, symbol, { analysts: window.arminDesktop!.analysts!, finnhubResearch: window.arminDesktop!.finnhubResearch, yahooResearch: loadYahooAnalysts, fallback: keylessAnalystPart });
+    const part = listedOutsideUs(symbol)
+      ? await outsideUsPart(kind, symbol)
+      : await loadAnalystPart(kind, symbol, { analysts: window.arminDesktop!.analysts!, finnhubResearch: window.arminDesktop!.finnhubResearch, yahooResearch: loadYahooAnalysts, fallback: keylessAnalystPart });
     if (generation !== analystData.get().retry) return;
     if (part.state === 'needs-key' || part.state === 'off' || part.transient) asked.delete(key);
     put(symbol, kind, part);

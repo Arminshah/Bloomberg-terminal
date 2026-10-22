@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CapLink } from '../components/CapLink';
 import { AnalystSummary, lineValue, MissingNotes, useAnalystSnapshot, useNextQuarterEstimate } from '../components/AnalystSummary';
-import { analystsAvailable, analystSymbol, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
+import { analystsAvailable, analystSymbol, listedOutsideUs, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
 import { Chg, HBar, KV, LiveChg, LivePx, SecLink, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
 import { Sparkline } from '../components/Sparkline';
@@ -9,7 +9,7 @@ import { fmtBig, fmtDay, fmtEarnDate, fmtInt, fmtMln, fmtNum, fmtPct } from '../
 import { DAY_MS } from '../data/calendar';
 import { closeAt, localBeta, marketCapUsd, periodChange, rangeStats } from '../data/analytics';
 import { defaultBenchmark } from '../finance/beta';
-import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings, peers, reportCcy, revenueMix } from '../data/fundamentals';
+import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings, peers, priceInCurrency, reportCcy, revenueMix } from '../data/fundamentals';
 import { desktopData } from '../data/live/yahoo';
 import { fundVersion, getRealFund, useFundamentalsFor, type RealFund } from '../data/live/yfund';
 import { secAvailable, secTicker, useSecLoad } from '../data/live/sec';
@@ -155,8 +155,14 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const ccy = reportCcy(sec);
   const est = useAnalysts(analystsAvailable() && analystSymbol(sec) ? sec : undefined, ['estimates', 'consensus', 'ratings']);
   const analysts = useAnalystSnapshot(sec);
-  const { fy, next } = fiscalEstimates(est.estimates as AnalystPart<Estimate[]> | undefined);
-  const estPe = fy && q && fy.epsAvg > 0 ? q.last / fy.epsAvg : NaN;
+  const estPart = est.estimates as AnalystPart<Estimate[]> | undefined;
+  const { fy, next } = fiscalEstimates(estPart);
+  // The price in the estimates' currency (a London price in pence against estimates in pounds or euros); research on
+  // a listing outside the US must state its currency.
+  const estCcy = fy?.epsCurrency ?? fy?.currency ?? estPart?.currency;
+  const estPx = q && (estCcy || !listedOutsideUs(analystSymbol(sec))) ? priceInCurrency(sec, q.last, estCcy) : NaN;
+  const estPe = fy && fy.epsAvg > 0 ? estPx / fy.epsAvg : NaN;
+  const estUnit = estCcy && estCcy !== (sec.ccy === 'GBp' ? 'GBP' : sec.ccy) ? ` (${estCcy})` : '';
   const growth = fy && next && fy.epsAvg > 0 && next.epsAvg > 0 ? (next.epsAvg / fy.epsAvg - 1) * 100 : NaN;
   const estPeg = Number.isFinite(estPe) && growth > 0 ? estPe / growth : NaN;
   const today = engine.today * DAY_MS;
@@ -263,7 +269,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
                 ['P/E', peText(ks.pe, ks.epsLtm)],
                 [`Est P/E${fy ? ` ${fyLabel(fy.date)}` : ''}`, fy && Number.isFinite(fy.epsAvg) && fy.epsAvg <= 0 ? <span key="n" title="Not meaningful: the year's EPS estimate is a loss">NM</span> : fmtNum(estPe, 2)],
                 [`T12M EPS (${ccy})`, `${fmtNum(ks.epsLtm, 2)}${financials(sec).ltm?.epsComputed ? ' (computed)' : ''}`],
-                [`Est EPS${fy ? ` ${fyLabel(fy.date)}` : ''}`, fy ? fmtNum(fy.epsAvg, 2) : '--'],
+                [`Est EPS${fy ? ` ${fyLabel(fy.date)}` : ''}${estUnit}`, fy ? fmtNum(fy.epsAvg, 2) : '--'],
                 ['Est PEG', Number.isFinite(estPeg) ? fmtNum(estPeg, 2) : fy && Number.isFinite(fy.epsAvg) ? <span key="n" title="Not meaningful: needs a positive estimated P/E and EPS growth into the next fiscal year">NM</span> : '--'],
               ]}
             />

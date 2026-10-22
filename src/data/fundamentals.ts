@@ -83,6 +83,19 @@ export function majorPrice(def: SecurityDef, px: number): number {
   return def.minor ? px / 100 : px;
 }
 
+/**
+ * A quoted price in a currency's main unit: a price in pence in pounds, and in another currency at today's rate (a
+ * London price against euro EPS estimates). Without a stated currency, the one the line trades in. NaN when the rate
+ * is not known.
+ */
+export function priceInCurrency(def: SecurityDef, px: number, ccy: string | undefined): number {
+  const major = majorPrice(def, px);
+  const trade = def.ccy === 'GBp' ? 'GBP' : def.ccy;
+  if (!ccy || ccy === trade) return major;
+  const fx = engine.usdValue(trade) / engine.usdValue(ccy);
+  return Number.isFinite(fx) && fx > 0 ? major * fx : NaN;
+}
+
 /** A period with no figures: what the desktop app shows before (or without) a company's real data. */
 export function emptyPeriod(label = 'LTM', end = NaN): FinPeriod {
   const n = NaN;
