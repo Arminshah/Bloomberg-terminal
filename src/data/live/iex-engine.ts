@@ -53,6 +53,17 @@ export function withBackfill(earlier: readonly ExtBar[] | undefined, own: ExtBar
 }
 
 /**
+ * IEX's own daily bars seen while the app runs, by day, with a reading's bars over the earlier
+ * ones of the same days. A snapshot names only the previous and current session, so without
+ * this a window left open for three or more sessions would lose the days between the backfill's
+ * last day and IEX's previous session at each new reading.
+ */
+export function keepOwnDays(kept: Map<number, ExtBar>, bars: readonly ExtBar[]): ExtBar[] {
+  for (const b of bars) kept.set(b.day, b);
+  return [...kept.values()].sort((a, b) => a.day - b.day);
+}
+
+/**
  * The snapshot supplies only its previous/current daily bars; earlier days come from
  * withBackfill. Neither the previous close nor today's bar is ever taken from another venue.
  */
@@ -99,6 +110,7 @@ export function startIexPrices(): () => void {
   const releases = new Map<string, () => void>();
   const seen = new Map<string, IexState>();
   const observations = new Map<string, Observation[]>();
+  const ownDays = new Map<string, Map<number, ExtBar>>();
   const freshness = new Map<string, string>();
   let knownDefs = -1;
   let stopped = false;
@@ -136,7 +148,9 @@ export function startIexPrices(): () => void {
       const old = engine.quote(id);
       // Cached or out-of-order answers cannot move the last trade backwards.
       if (old?.provider === IEX_PROVIDER && old.time > reading.quote.time) continue;
-      engine.setExternalDaily(id, withBackfill(earlier, reading.bars), { provider: IEX_PROVIDER });
+      let kept = ownDays.get(id);
+      if (!kept) ownDays.set(id, (kept = new Map()));
+      engine.setExternalDaily(id, withBackfill(earlier, keepOwnDays(kept, reading.bars)), { provider: IEX_PROVIDER });
       engine.setExternalQuote(id, reading.quote);
       engine.setStale([id], reading.stale);
       const day = reading.quote.day!;

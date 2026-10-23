@@ -5,7 +5,7 @@ import { engine } from '../src/data/market';
 import { rangeStats } from '../src/data/analytics';
 import { freshnessOf, isOfficialProvider } from '../src/data/freshness';
 import { iex, type IexSnapshot, type IexState } from '../src/data/live/alpaca';
-import { IEX_PROVIDER, iexDay, iexOwns, iexPricesEnabled, iexReading, startIexPrices, withBackfill } from '../src/data/live/iex-engine';
+import { IEX_PROVIDER, iexDay, iexOwns, iexPricesEnabled, iexReading, keepOwnDays, setIexBackfill, startIexPrices, withBackfill } from '../src/data/live/iex-engine';
 import { adoptYahooHistory, realDividends, startYahooData, trailingDividendYield, yahooSymbolFor } from '../src/data/live/yahoo';
 
 const NOW = Date.parse('2026-10-14T15:00:00Z');
@@ -171,5 +171,39 @@ describe('IEX history backfill', () => {
     expect(withBackfill(earlier, own).map((b) => [b.day, b.c])).toEqual([[8, 5], [10, 1], [11, 2]]);
     expect(withBackfill(undefined, own)).toBe(own);
     expect(withBackfill(earlier, [])).toEqual([]);
+  });
+
+  it('keeps every IEX session seen while the window stays open for several days', () => {
+    const kept = new Map<number, { day: number; o: number; h: number; l: number; c: number; v: number }>();
+    expect(keepOwnDays(kept, [{ day: 10, o: 1, h: 1, l: 1, c: 1, v: 1 }, { day: 11, o: 2, h: 2, l: 2, c: 2, v: 2 }]).map((b) => b.day)).toEqual([10, 11]);
+    // The next session's reading gives day 11 in full (its previous session) and day 12.
+    expect(keepOwnDays(kept, [{ day: 11, o: 2, h: 3, l: 2, c: 2.5, v: 5 }, { day: 12, o: 3, h: 3, l: 3, c: 3, v: 3 }]).map((b) => [b.day, b.c])).toEqual([[10, 1], [11, 2.5], [12, 3]]);
+  });
+
+  it('does not lose the days between the backfill and IEX previous session at a later reading', () => {
+    stops.push(startIexPrices());
+    const update = (value: IexState) => iex.set((s) => ({ v: s.v + 1, by: { ...s.by, AAPL: value } }));
+    const ny = (iso: string) => Date.parse(`${iso}T04:00:00Z`);
+    // Yahoo's backfill ends with Wednesday 14 Oct, the session the app was started in.
+    setIexBackfill(ID, [
+      { day: dayNum(ny('2026-10-09')), o: 90, h: 91, l: 89, c: 90, v: 1e6 },
+      { day: dayNum(ny('2026-10-12')), o: 91, h: 92, l: 90, c: 91, v: 1e6 },
+      { day: dayNum(ny('2026-10-13')), o: 92, h: 93, l: 91, c: 92, v: 1e6 },
+      { day: dayNum(ny('2026-10-14')), o: 93, h: 94, l: 92, c: 93, v: 1e6 },
+    ]);
+    // The window stays open: a reading in each session, Wednesday to the next Monday (after the
+    // trade the test above left on this line, so the first reading is not taken for an older one).
+    const sessions: [string, string, number][] = [['2026-10-13', '2026-10-14', 100], ['2026-10-14', '2026-10-15', 101], ['2026-10-15', '2026-10-16', 102], ['2026-10-16', '2026-10-19', 103]];
+    for (const [prev, today, px] of sessions) {
+      const at = Date.parse(`${today}T15:05:00Z`);
+      vi.setSystemTime(at);
+      update({ state: 'ok', at, data: snapshot({ last: px, close: px, lastAt: at - 1_000, quoteAt: at - 500, dayAt: ny(today), prevDayAt: ny(prev), prevClose: px - 1 }) });
+    }
+    const daily = engine.daily(ID);
+    const days = Array.from(daily.t.subarray(0, daily.length), (t) => new Date(t).toISOString().slice(0, 10));
+    expect(days).toEqual(['2026-10-09', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-19']);
+    // IEX's own closes for the sessions it saw, never Yahoo's for the same days.
+    expect(Array.from(daily.c.subarray(0, daily.length))).toEqual([90, 91, 99, 100, 101, 102, 103]);
+    expect(engine.quote(ID)?.prevClose).toBe(102);
   });
 });
