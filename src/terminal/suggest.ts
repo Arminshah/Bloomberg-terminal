@@ -151,7 +151,10 @@ export function suggest(input: string): Suggestion[] {
   const ticker = tokens.length === 1 ? normalizeTicker(tokens[0]) : null;
   const source = ticker && !resolveSecurity(ticker) ? lookupSource() : null;
   if (ticker && source && !exactFn) {
-    out.unshift({ kind: 'sec', key: `online:${ticker}`, primary: `${ticker} US Equity`, secondary: `Load from ${source === 'yahoo' ? 'Yahoo Finance' : 'Finnhub'}`, tag: 'Online', execute: `${ticker} US EQUITY` });
+    const online: Suggestion = { kind: 'sec', key: `online:${ticker}`, primary: `${ticker} US Equity`, secondary: `Load from ${source === 'yahoo' ? 'Yahoo Finance' : 'Finnhub'}`, tag: 'Online', execute: `${ticker} US EQUITY` };
+    // First when nothing the app holds matches; after the matches otherwise ("apple" is Apple Inc before a ticker APPLE).
+    if (secs.length) out.push(online);
+    else out.unshift(online);
   }
   return out;
 }

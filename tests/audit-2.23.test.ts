@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NoMembersNote, groupName, regionTab } from '../src/functions/IMAP';
 import { engine } from '../src/data/market';
 import { buildRealFund, realFund, splitsKey } from '../src/data/live/yfund';
@@ -255,5 +255,17 @@ describe('A23-012: the course notes\' commands (reference document 16)', () => {
     const { lookupFn } = await import('../src/terminal/registry');
     expect(genericTreasuryYield('GT10')).toEqual({ id: 'USGG10YR Index', years: 10 });
     expect(parseCommand('PRTU', lookupFn)).toEqual({ kind: 'route', fn: 'PORTFOLIO' });
+  });
+});
+
+describe('A23-013: a typed company name lists the company before a guessed ticker', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it('"apple" suggests Apple Inc first; an unknown ticker alone still offers the online load first', async () => {
+    vi.stubGlobal('window', { arminDesktop: { yahoo: vi.fn() } });
+    const { suggest } = await import('../src/terminal/suggest');
+    const apple = suggest('apple');
+    expect(apple[0]).toMatchObject({ kind: 'sec', primary: 'AAPL US Equity' });
+    expect(apple.findIndex((s) => s.key === 'online:APPLE')).toBeGreaterThan(0);
+    expect(suggest('ZZZX')[0]).toMatchObject({ key: 'online:ZZZX' });
   });
 });
