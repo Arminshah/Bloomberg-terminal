@@ -52,3 +52,18 @@ describe('heat map layout', () => {
     expect(heatFill(NaN)).toBe('#262626');
   });
 });
+
+describe('heat map tile labels', () => {
+  it('keeps the type small and even: 15 px at most, smaller to fit, none rather than a cut-off ticker', async () => {
+    const { tileText } = await import('../src/components/HeatTreemap');
+    const big = tileText('NVDA', 300, 200);
+    expect(big.fs).toBe(15);
+    expect(big.pfs).toBe(13);
+    expect(big.showPct).toBe(true);
+    const mid = tileText('GOOGL', 60, 40);
+    expect(mid.fs).toBeLessThanOrEqual(15);
+    expect(mid.fs * 0.6 * 5).toBeLessThanOrEqual(60 - 6); // the whole ticker fits
+    expect(tileText('BRK/B', 20, 12).showLabel).toBe(false);
+    expect(tileText('MSFT', 40, 14).showPct).toBe(false); // room for the ticker only
+  });
+});

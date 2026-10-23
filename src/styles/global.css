@@ -1231,8 +1231,8 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .heatmap-group.click { cursor: pointer; }
 .heatmap-group.click:hover { fill: var(--amber); }
 .heatmap-sub { fill: #c8c8c8; font-size: 8px; pointer-events: none; font-family: var(--font-sans, 'IBM Plex Sans', sans-serif); }
-.heatmap-tick { fill: #fff; font-weight: 600; pointer-events: none; font-family: 'IBM Plex Mono', monospace; }
-.heatmap-pct { fill: #f2f2f2; pointer-events: none; font-family: 'IBM Plex Mono', monospace; }
+.heatmap-tick { fill: #fff; font-weight: 600; pointer-events: none; font-family: var(--sans); letter-spacing: 0.01em; }
+.heatmap-pct { fill: #ececec; font-weight: 400; pointer-events: none; font-family: var(--sans); font-variant-numeric: tabular-nums; }
 .heatmap g.click { cursor: pointer; }
 .heatmap g.click:hover > rect { stroke: #fff; stroke-width: 1.5; }
 .heatmap-tip { position: absolute; z-index: 2; background: #b9e3e8; color: #000; padding: 4px 8px; font-size: var(--fs-s); max-width: 240px; pointer-events: none; }

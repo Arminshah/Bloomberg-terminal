@@ -126,6 +126,20 @@ export function layoutHeatmap(groups: HeatGroup[], w: number, h: number): Placed
 
 const pctText = (p: number) => (Number.isFinite(p) ? `${p >= 0 ? '+' : ''}${fmtNum(p, 2)}%` : '');
 
+/**
+ * Label sizes for a tile: the ticker between 8 and 15 px (a little larger on large tiles, never so large it shouts),
+ * the change 86% of it, each shown only when it fits whole.
+ */
+export function tileText(label: string, w: number, h: number): { fs: number; pfs: number; showLabel: boolean; showPct: boolean } {
+  const em = 0.6; // average character width of the sans type, in ems
+  const fit = Math.min((w - 6) / (Math.max(label.length, 3) * em), (h - 4) / 1.3);
+  const fs = Math.round(Math.min(15, 10 + Math.sqrt(Math.max(0, w * h)) / 40, fit) * 2) / 2;
+  const pfs = Math.round(Math.min(13, fs * 0.86) * 2) / 2;
+  const showLabel = fs >= 8;
+  const showPct = showLabel && h >= fs + pfs + 8 && w - 6 >= 6 * pfs * em;
+  return { fs, pfs, showLabel, showPct };
+}
+
 export function HeatTreemap({ groups, scale = 3, height, onGroup, period = 'd' }: { groups: HeatGroup[]; scale?: number; height?: number; onGroup?: (name: string) => void; period?: string }) {
   const [box, size] = useSize<HTMLDivElement>();
   const W = Math.max(240, size.w);
@@ -161,10 +175,9 @@ export function HeatTreemap({ groups, scale = 3, height, onGroup, period = 'd' }
                     </text>
                   )}
                   {s.leaves.map(({ leaf, r }) => {
-                    const big = Math.min(r.w / Math.max(3, leaf.label.length * 0.62), r.h / 2.6);
-                    const fs = Math.max(7, Math.min(42, big));
-                    const showLabel = r.w > 18 && r.h > 12;
-                    const showPct = r.h > fs * 2 && r.w > 30;
+                    // The terminal's own type, small and nearly even across tiles: it grows a little with the tile (to
+                    // 15 px) and shrinks to fit; a label that does not fit at 8 px is left to the tooltip, not cut.
+                    const { fs, pfs, showLabel, showPct } = tileText(leaf.label, r.w, r.h);
                     return (
                       <g
                         key={leaf.key}
@@ -177,12 +190,12 @@ export function HeatTreemap({ groups, scale = 3, height, onGroup, period = 'd' }
                       >
                         <rect x={r.x} y={r.y} width={Math.max(0, r.w)} height={Math.max(0, r.h)} fill={heatFill(leaf.pct, scale)} stroke="#000" strokeWidth={r.w > 6 ? 1 : 0.4} />
                         {showLabel && (
-                          <text x={r.x + r.w / 2} y={r.y + r.h / 2 + (showPct ? -fs * 0.15 : fs * 0.35)} textAnchor="middle" className="heatmap-tick" fontSize={fs}>
-                            {clip(leaf.label, r.w, fs)}
+                          <text x={r.x + r.w / 2} y={r.y + r.h / 2 + (showPct ? -2 : fs * 0.35)} textAnchor="middle" className="heatmap-tick" fontSize={fs}>
+                            {leaf.label}
                           </text>
                         )}
                         {showLabel && showPct && (
-                          <text x={r.x + r.w / 2} y={r.y + r.h / 2 + fs * 0.85} textAnchor="middle" className="heatmap-pct" fontSize={Math.max(7, fs * 0.6)}>
+                          <text x={r.x + r.w / 2} y={r.y + r.h / 2 + pfs + 1} textAnchor="middle" className="heatmap-pct" fontSize={pfs}>
                             {fmtPct(leaf.pct, 2)}
                           </text>
                         )}
