@@ -39,6 +39,8 @@ import { reportCcy, type FinPeriod } from '../data/fundamentals';
 import { resolveSecurity } from '../data/registry';
 import { lookupSecurity, type LookupResult } from '../data/live/lookup';
 import { useFundamentals } from '../data/live/yfund';
+import { realSplits } from '../data/live/yahoo';
+import { splitFactorSince } from '../data/live/statement-supplements';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -425,6 +427,10 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
   const olderCoverage = !!latestShown && Date.now() - isoMs(latestShown) > (kind === 'annual' ? 550 : 200) * 86_400_000;
   const latestCurrent = filings.filter((f) => formGroup(f.form) === 'current').sort((a, b) => b.filed.localeCompare(a.filed))[0];
   const fmt = (line: FactLine, r: Reported) => (line.measure === 'perShare' ? fmtNum(r.val, 2) : fmtNum(r.val / 1e6, line.measure === 'money' ? v.moneyDec : 1));
+  // Per-share figures and share counts are on the share basis of their filing date; a later split changes them.
+  const splitList = security ? realSplits.get(security) : undefined;
+  const splitSince = (line: FactLine, r: Reported) => (line.measure !== 'money' && splitList ? splitFactorSince(splitList, r.filed) : 1);
+  let anySplitMark = false;
   return (
     <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
       <div className="chart-tools">
@@ -498,6 +504,9 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
                           </td>
                         );
                       }
+                      const factor = splitSince(line, r);
+                      const later = Number.isFinite(factor) && factor > 0 && factor !== 1;
+                      if (later) anySplitMark = true;
                       const title = [
                         `${r.concept} (${r.unit})`,
                         r.start ? `${longDay(r.start)} to ${longDay(r.end)}` : `At ${longDay(r.end)}`,
@@ -505,6 +514,7 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
                         r.derived ? `Calculated quarter: cumulative ${longDay(r.derived.current.start)} to ${longDay(r.derived.current.end)} (${fmtNum(r.derived.current.val, 2)} ${r.unit}, filed ${longDay(r.derived.current.filed)}, accession ${r.derived.current.accn}) minus cumulative ${longDay(r.derived.previous.start)} to ${longDay(r.derived.previous.end)} (${fmtNum(r.derived.previous.val, 2)} ${r.unit}, filed ${longDay(r.derived.previous.filed)}, accession ${r.derived.previous.accn}).` : '',
                         r.derived && r.derived.current.accn !== r.derived.previous.accn ? 'Inputs are from different filings; a restatement or reclassification can affect comparability.' : '',
                         r.restated ? `First reported as ${fmt(line, { ...r, val: r.orig.val })} in the ${r.orig.form} filed ${longDay(r.orig.filed)} (accession ${r.orig.accn})` : '',
+                        later ? `Filed before a later share split (${Number(factor.toPrecision(6))} of today's shares for each share then): ${fmt(line, { ...r, val: line.measure === 'perShare' ? r.val / factor : r.val * factor })} on today's shares` : '',
                       ]
                         .filter(Boolean)
                         .join('\n');
@@ -514,6 +524,7 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
                             {fmt(line, r)}
                           </a>
                           {r.derived ? <sup className="sec-fact-mark amber" aria-label="Calculated from cumulative disclosures"> c</sup> : r.restated ? <sup className="sec-fact-mark amber" aria-label="Restated"> r</sup> : null}
+                          {later && <sup className="sec-fact-mark amber" aria-label="Filed before a later share split"> s</sup>}
                         </td>
                       );
                     })}
@@ -527,7 +538,7 @@ function ReportedFigures({ cik, security, filings, onCurrentReports }: { cik: nu
       {kind === 'quarter' && !v.latestQuarter && security && <ProviderQuarters security={security} />}
       <div className="note">
         Figures as the company tagged them in its XBRL filings: audited in annual reports, unaudited in quarterly ones. Each period shows the figure from the most recent filing that reports it; r marks a period a later filing
-        changed (restated or reclassified), with the first figure in its tooltip. c marks an additive quarter calculated as one cumulative monetary flow minus the earlier cumulative flow with the same fiscal start, concept and currency; both inputs and filings are in its tooltip. Inputs from different filings can be affected by restatements or reclassifications. Directly reported quarters take precedence. EPS and weighted shares are never subtracted. Payments are positive numbers and net cash flows carry their sign, as filed. Source: SEC EDGAR company facts.
+        changed (restated or reclassified), with the first figure in its tooltip. c marks an additive quarter calculated as one cumulative monetary flow minus the earlier cumulative flow with the same fiscal start, concept and currency; both inputs and filings are in its tooltip. Inputs from different filings can be affected by restatements or reclassifications. Directly reported quarters take precedence. EPS and weighted shares are never subtracted.{anySplitMark && <> s marks a per-share figure or share count filed before a later share split: shown as filed, with the figure on today&apos;s shares in its tooltip.</>} Payments are positive numbers and net cash flows carry their sign, as filed. Source: SEC EDGAR company facts.
       </div>
     </div>
   );

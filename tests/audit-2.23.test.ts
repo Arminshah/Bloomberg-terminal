@@ -1,0 +1,66 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { engine } from '../src/data/market';
+import { buildRealFund, realFund, splitsKey } from '../src/data/live/yfund';
+import { parseCompanyFacts } from '../src/data/live/sec';
+import { splitFactorSince } from '../src/data/live/statement-supplements';
+import { realSplits } from '../src/data/live/yahoo';
+
+/** Regression tests for the findings of the 2.23.0 audit (docs/audit-v2.23.0.md), one block per finding. */
+
+const day = (s: string) => Date.parse(`${s}T00:00:00Z`) / 86_400_000;
+const NOW = Date.parse('2026-10-20T00:00:00Z');
+
+describe('A23-006: SEC per-share figures filed before a later split are put on today\'s share basis', () => {
+  const def = engine.get('NVDA US Equity')!;
+  // NVIDIA's splits as its price history records them: 4-for-1 on 20 Jul 2021, 10-for-1 on 10 Jun 2024.
+  const NVDA_SPLITS = [{ day: day('2021-07-20'), numerator: 4, denominator: 1 }, { day: day('2024-06-10'), numerator: 10, denominator: 1 }];
+  afterEach(() => {
+    realFund.delete(def.id);
+    realSplits.delete(def.id);
+  });
+
+  it('counts only the splits after the filing day', () => {
+    expect(splitFactorSince(NVDA_SPLITS, '2024-02-21')).toBe(10); // 10-K for FY2024, before the 2024 split
+    expect(splitFactorSince(NVDA_SPLITS, '2021-02-26')).toBe(40); // 10-K for FY2021, before both
+    expect(splitFactorSince(NVDA_SPLITS, '2025-02-26')).toBe(1); // 10-K for FY2025, already restated
+    expect(splitFactorSince(NVDA_SPLITS, '2024-06-10')).toBe(1); // filed on the split day: not counted again
+    expect(splitFactorSince([], '2024-02-21')).toBe(1);
+    expect(splitFactorSince(NVDA_SPLITS, 'not a date')).toBeNaN();
+  });
+
+  // FY2022 (ended 30 Jan 2022) last appeared in the 10-K filed 21 Feb 2024, with EPS 3.85 on 2.535 billion shares.
+  const fy2022 = (unit: string, val: number) => ({ units: { [unit]: [{ start: '2021-02-01', end: '2022-01-30', val, accn: '0001045810-24-000029', form: '10-K', filed: '2024-02-21', fy: 2024, fp: 'FY' }] } });
+  const facts = () => parseCompanyFacts(JSON.stringify({ cik: 1045810, entityName: 'NVIDIA CORP', facts: { 'us-gaap': {
+    Revenues: fy2022('USD', 26_914e6), NetIncomeLoss: fy2022('USD', 9_752e6),
+    EarningsPerShareDiluted: fy2022('USD/shares', 3.85), WeightedAverageNumberOfDilutedSharesOutstanding: fy2022('shares', 2_535e6),
+  } } }))!;
+  const company = { quoteSummary: { result: [{ financialData: { financialCurrency: 'USD' } }] } };
+
+  it('divides the filed EPS by the split factor and multiplies the diluted shares by it (NVIDIA FY2022: 3.85 → 0.385)', () => {
+    const f = buildRealFund(def, company, null, null, null, NOW, facts(), NVDA_SPLITS);
+    const y = f.annual.find((p) => p.label === 'FY 2022')!;
+    expect(y.eps).toBeCloseTo(0.385, 6);
+    expect(y.shares).toBeCloseTo(25_350, 6); // millions, on today's basis
+    expect(y.ni).toBeCloseTo(9_752, 6); // money is unchanged by a split
+    // Both on today's basis, so EPS times diluted shares still gives net income back.
+    expect(Math.abs(y.eps * y.shares - y.ni) / y.ni).toBeLessThan(0.005); // EPS is filed to the cent
+    expect(y.supplements?.join(' ')).toContain('adjusted for the share splits since that filing');
+    expect(y.supplements?.join(' ')).toContain('filed figure 3.85');
+    expect(f.splitsKey).toBe(splitsKey(NVDA_SPLITS));
+  });
+
+  it('leaves the per-share figures out while the split history is unknown, and keeps them as filed when no split followed', () => {
+    const unknown = buildRealFund(def, company, null, null, null, NOW, facts(), null);
+    expect(unknown.annual.find((p) => p.label === 'FY 2022')!.eps).toBeNaN();
+    expect(unknown.annual.find((p) => p.label === 'FY 2022')!.rev).toBeCloseTo(26_914, 6);
+    expect(unknown.splitsKey).toBe('unknown');
+    const none = buildRealFund(def, company, null, null, null, NOW, facts(), []);
+    expect(none.annual.find((p) => p.label === 'FY 2022')!.eps).toBe(3.85);
+    expect(none.splitsKey).toBe('none');
+  });
+
+  it('reads the split history the price history loaded when none is passed', () => {
+    realSplits.set(def.id, NVDA_SPLITS);
+    expect(buildRealFund(def, company, null, null, null, NOW, facts()).annual.find((p) => p.label === 'FY 2022')!.eps).toBeCloseTo(0.385, 6);
+  });
+});

@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { engine } from '../src/data/market';
 import { emptyPeriod, financials, latestDebtPeriod, priorStatementPeriod, reportCcy } from '../src/data/fundamentals';
 import { buildRealFund, periodFrom, realFund, seriesByPeriod } from '../src/data/live/yfund';
 import { parseCompanyFacts } from '../src/data/live/sec';
+import { realSplits } from '../src/data/live/yahoo';
 import summary from './fixtures/yahoo-apld-summary.json';
 import timeseries from './fixtures/yahoo-apld-timeseries.json';
 
@@ -97,6 +98,9 @@ describe('financial statement completeness without invented periods', () => {
 });
 
 describe('SEC statement supplements', () => {
+  // The price history has loaded and records no split since these filings (SEC per-share figures wait for it).
+  beforeEach(() => realSplits.set(def.id, []));
+  afterEach(() => realSplits.delete(def.id));
   const row = (val: number, unit = 'USD') => ({ units: { [unit]: [{ start: '2026-06-01', end: '2026-08-31', val, accn: '0000000000-26-000001', form: '10-Q', filed: '2026-10-07', fy: 2027, fp: 'Q1' }] } });
   const cf = () => parseCompanyFacts(JSON.stringify({ cik: 1, entityName: 'Example', facts: { 'us-gaap': {
     Revenues: row(100e6), GrossProfit: row(40e6), EarningsPerShareDiluted: row(-0.82, 'USD/shares'),

@@ -17,6 +17,8 @@ const FIELD: Record<string, string> = {
 export interface StatementSupplement {
   row: Map<string, number>;
   sources: Map<string, string>;
+  /** The filing date (ISO day) of each figure, for per-share figures that a later share split changes. */
+  filed: Map<string, string>;
 }
 
 /**
@@ -33,8 +35,9 @@ export function secStatementRows(cf: CompanyFacts, currency: string, kind: Perio
     for (const [date, fact] of values) {
       if (!allowed.has(date)) continue;
       const end = Date.parse(`${date}T00:00:00Z`);
-      const item = out.get(end) ?? { row: new Map<string, number>(), sources: new Map<string, string>() };
+      const item = out.get(end) ?? { row: new Map<string, number>(), sources: new Map<string, string>(), filed: new Map<string, string>() };
       item.row.set(key, fact.val);
+      item.filed.set(key, fact.filed);
       item.sources.set(key, `SEC EDGAR ${fact.form}, filed ${fmtIso(fact.filed, true)}${fact.derived ? ' (calculated from aligned reported totals)' : ''}`);
       out.set(end, item);
     }
@@ -50,4 +53,25 @@ export function secStatementRows(cf: CompanyFacts, currency: string, kind: Perio
     extra.row.delete('__DebtNoncurrent');
   }
   return out;
+}
+
+/** A split as the price history records it: `numerator` new shares for every `denominator` old ones, from `day` (days since 1970). */
+export interface SplitEvent {
+  day: number;
+  numerator: number;
+  denominator: number;
+}
+
+/**
+ * How many of today's shares one share had when a figure was filed: the product of the splits that took effect
+ * after the filing day. A filing already restates its per-share figures for splits made before it was issued, so
+ * only later splits change them (NVIDIA's FY2022 EPS of 3.85, filed 21 Feb 2024, is 0.385 after the 10-for-1 split
+ * of 10 Jun 2024). 1 when no split followed.
+ */
+export function splitFactorSince(splits: readonly SplitEvent[], filedIso: string): number {
+  const filed = Date.parse(`${filedIso}T00:00:00Z`);
+  if (!Number.isFinite(filed)) return NaN;
+  let f = 1;
+  for (const s of splits) if (s.day * 86_400_000 > filed && s.numerator > 0 && s.denominator > 0) f *= s.numerator / s.denominator;
+  return f;
 }

@@ -756,9 +756,10 @@ class YahooData {
       this.status();
       return;
     }
-    engine.setExternalDaily(t.id, bars, { provider: YAHOO_PROVIDER });
+    // Dividends and splits first: the engine's notice of new history lets readers rebuild what depends on them.
     realDividends.set(t.id, dividends);
     realSplits.set(t.id, splits);
+    engine.setExternalDaily(t.id, bars, { provider: YAHOO_PROVIDER });
     this.loaded.add(t.id);
     const q = this.pendingQuote.get(t.id);
     if (q) {

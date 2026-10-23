@@ -6,11 +6,11 @@ import { engine } from '../market';
 import { DAY_MS } from '../calendar';
 import type { EarningsEvent, FinPeriod, Holder } from '../fundamentals';
 import type { SecurityDef } from '../types';
-import { desktopData, impliedShares, realDividends, yahooGet, yahooSymbolFor } from './yahoo';
+import { desktopData, impliedShares, realDividends, realSplits, yahooGet, yahooSymbolFor } from './yahoo';
 import { finnhubAvailable, finnhubSymbol, loadFinnhub, type FinnhubMetric, type FinnhubProfile } from './finnhub';
 import { loadCompanyFacts, loadFiler, reportingCurrency, resolveFiler, secAvailable, secTicker, type CompanyFacts, type SecFiler } from './sec';
 import { fillSummary, loadFinraShort, loadNasdaq, nasdaqAvailable, nasdaqSummaryPatch, nasdaqSymbol, type NasdaqHoldings, type NasdaqKind, type NasdaqProfile, type NasdaqShort, type NasdaqSummary } from './nasdaq-company';
-import { secStatementRows } from './statement-supplements';
+import { secStatementRows, splitFactorSince, type SplitEvent } from './statement-supplements';
 import { fmtDay } from '../../core/format';
 
 /**
@@ -30,6 +30,8 @@ export interface RealFund {
   /** The statement provider's reporting currency, independent of the share's trading currency. */
   currency?: string;
   statementsFrom?: 'Yahoo Finance' | 'SEC EDGAR';
+  /** Set when SEC per-share figures were used: the split history they were adjusted with (see splitsKey). */
+  splitsKey?: string;
   /** Latest separately observed balance, even when no income statement exists for that date. */
   balance?: FinPeriod;
   annual: FinPeriod[];
@@ -94,6 +96,28 @@ export const realFund = new Map<string, RealFund>();
 const loading = new Set<string>();
 /** Bumped whenever company data arrives, so screens re-render. */
 export const fundVersion = createStore<{ v: number; status: Record<string, 'loading' | 'ok' | 'error'> }>({ v: 0, status: {} });
+/** Funds built before their split history loaded (SEC per-share figures left out), with how to build them again. */
+const awaitingSplits = new Map<string, () => RealFund>();
+let splitWatch: (() => void) | undefined;
+
+/** Stores a fund; one that waits for its split history is rebuilt as soon as the price history brings it. */
+function keep(id: string, fund: RealFund, remake: () => RealFund) {
+  realFund.set(id, fund);
+  if (fund.splitsKey !== 'unknown') {
+    awaitingSplits.delete(id);
+    return;
+  }
+  awaitingSplits.set(id, remake);
+  splitWatch ??= engine.subscribe((changed) => {
+    for (const x of changed) {
+      const again = awaitingSplits.get(x);
+      if (!again || !realSplits.has(x)) continue;
+      awaitingSplits.delete(x);
+      realFund.set(x, again());
+      fundVersion.set((v) => ({ ...v, v: v.v + 1 }));
+    }
+  });
+}
 
 const num = (v: Json): number => {
   const x = typeof v === 'object' && v !== null ? v.raw : v;
@@ -313,7 +337,17 @@ function dividendsIn(id: string, from: number, to: number): number {
 /** Statement lines worked out per share, from net income to common shareholders. */
 const PER_SHARE = new Set(['DilutedEPS', 'DilutedAverageShares']);
 
-export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, quarterlyRes: Json, trailingRes: Json, now: number, secFacts?: CompanyFacts): RealFund {
+/** What a fund's SEC per-share figures were adjusted with: the split history it saw ('unknown' before it loaded). */
+export function splitsKey(splits: readonly SplitEvent[] | null | undefined): string {
+  return splits ? splits.map((x) => `${x.day}:${x.numerator}/${x.denominator}`).join(',') || 'none' : 'unknown';
+}
+
+/**
+ * `splits`: the security's split history (from its price history), or null while it has not loaded. SEC per-share
+ * figures filed before a later split are put on today's share basis with it; without it they are left out, since
+ * a split could have followed the filing (and a blank is better than a figure on another share basis).
+ */
+export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, quarterlyRes: Json, trailingRes: Json, now: number, secFacts?: CompanyFacts, splits: readonly SplitEvent[] | null = realSplits.get(def.id) ?? null): RealFund {
   const r = summary?.quoteSummary?.result?.[0] ?? {};
   const fiscalEnd = num(r.defaultKeyStatistics?.lastFiscalYearEnd);
   const fye = Number.isFinite(fiscalEnd) ? new Date(fiscalEnd * 1000).getUTCMonth() + 1 : def.eq?.fye ?? 12;
@@ -340,6 +374,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     }
   }
   const netIncome = new Map<string, { value: number; source: string }>();
+  let perShareFromFilings = false;
   if (secFacts && currency) {
     for (const [kind, rows] of [['annual', annualRows], ['quarter', quarterlyRows]] as const) {
       for (const [secEnd, extra] of secStatementRows(secFacts, currency, kind)) {
@@ -367,9 +402,21 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
             continue;
           }
           if (Number.isFinite(row.get(key)) && !(key === 'TotalRevenue' && row.get(key)! < 0)) continue;
-          row.set(key, value);
+          let use = value;
+          let source = extra.sources.get(key)!;
+          // A per-share figure is on the share basis of its filing date: a later split changes it.
+          if (PER_SHARE.has(key)) {
+            perShareFromFilings = true;
+            const factor = splits ? splitFactorSince(splits, extra.filed.get(key) ?? '') : NaN;
+            if (!Number.isFinite(factor) || factor <= 0) continue;
+            if (factor !== 1) {
+              use = key === 'DilutedEPS' ? value / factor : value * factor;
+              source += `; ${key === 'DilutedEPS' ? 'EPS' : 'diluted shares'} adjusted for the share splits since that filing (×${Number((key === 'DilutedEPS' ? 1 / factor : factor).toPrecision(6))}; filed figure ${value})`;
+            }
+          }
+          row.set(key, use);
           const evidence = supplements.get(end) ?? new Set<string>();
-          evidence.add(extra.sources.get(key)!);
+          evidence.add(source);
           supplements.set(end, evidence);
         }
         rows.set(end, row);
@@ -595,7 +642,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const exDiv = num(r.calendarEvents?.exDividendDate) * 1000;
   const payDiv = num(r.calendarEvents?.dividendDate) * 1000;
   const nextDividend = Number.isFinite(exDiv) ? { ex: exDiv, pay: payDiv, rate: num(sd.dividendRate) } : null;
-  return { fetched: now, ...(currency ? { currency } : {}), ...(statementsFrom ? { statementsFrom } : {}), ...(balance ? { balance } : {}), annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend, float: inLineUnits(def, floatStats(ks)), officers: officersFrom(r.assetProfile) };
+  return { fetched: now, ...(perShareFromFilings ? { splitsKey: splitsKey(splits) } : {}), ...(currency ? { currency } : {}), ...(statementsFrom ? { statementsFrom } : {}), ...(balance ? { balance } : {}), annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend, float: inLineUnits(def, floatStats(ks)), officers: officersFrom(r.assetProfile) };
 }
 
 /** Writes the real profile into the security so DES, market cap and the model inputs use it. */
@@ -849,20 +896,22 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false,
       const noProviderData = !used?.quoteSummary?.result?.[0] && !hasStatements;
       const initialFacts = noProviderData ? await factsPromise : undefined;
       if (noProviderData && !initialFacts) throw new Error('no data');
-      const fund = buildRealFund(def, used, annual, quarterly, trailing, now, initialFacts);
-      if (statsFrom) fund.statsFrom = statsFrom;
-      if (gaps.from.length) fund.filledFrom = gaps.from;
-      realFund.set(def.id, fund);
+      const make = (facts?: CompanyFacts) => {
+        const f = buildRealFund(def, used, annual, quarterly, trailing, now, facts);
+        if (statsFrom) f.statsFrom = statsFrom;
+        if (gaps.from.length) f.filledFrom = gaps.from;
+        return f;
+      };
+      const fund = make(initialFacts);
+      keep(def.id, fund, () => make(initialFacts));
       applyProfile(def, used, fund);
       setStatus('ok');
       engine.flush([def.id]);
       if (!initialFacts) {
         const facts = await factsPromise;
         if (facts) {
-          const supplemented = buildRealFund(def, used, annual, quarterly, trailing, now, facts);
-          if (statsFrom) supplemented.statsFrom = statsFrom;
-          if (gaps.from.length) supplemented.filledFrom = gaps.from;
-          realFund.set(def.id, supplemented);
+          const supplemented = make(facts);
+          keep(def.id, supplemented, () => make(facts));
           applyProfile(def, used, supplemented);
           setStatus('ok');
           engine.flush([def.id]);
