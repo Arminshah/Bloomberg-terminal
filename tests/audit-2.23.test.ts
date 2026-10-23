@@ -98,3 +98,14 @@ describe('A23-002: a stock without a known sector is grouped as Unclassified, no
     expect(groupName('Information Technology', 'Unclassified')).toBe('Information Technology');
   });
 });
+
+describe('A23-004: the key bar\'s market sector keys do what their function keys do', () => {
+  it('types each F-key\'s sector word, F12 included (PORT types CLIENT, as F12 does)', async () => {
+    const { KEYS } = await import('../src/components/KeyBar');
+    const { FKEY_TEXT } = await import('../src/components/CommandLine');
+    const yellow = KEYS.filter((k) => k.color === 'yellow');
+    expect(yellow.map((k) => k.sub)).toEqual(Object.keys(FKEY_TEXT));
+    for (const k of yellow) expect(k.types).toBe(FKEY_TEXT[k.sub]);
+    expect(KEYS.find((k) => k.sub === 'F12')).toMatchObject({ label: 'PORT', types: 'CLIENT' });
+  });
+});

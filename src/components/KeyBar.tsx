@@ -1,7 +1,7 @@
 import { execute } from '../terminal/exec';
 import { back, PANEL_COUNT, LAYOUT_PANELS, setActive, terminal } from '../terminal/state';
 import { showPanelHelp, showPanelMenu } from '../terminal/actions';
-import { clearPanelInput, focusPanelInput, pagePanel, recallPanelCommand, submitPanel, typeInto } from './CommandLine';
+import { clearPanelInput, FKEY_TEXT, focusPanelInput, pagePanel, recallPanelCommand, submitPanel, typeInto } from './CommandLine';
 
 interface Key {
   label: string;
@@ -10,23 +10,36 @@ interface Key {
   run: (panel: number) => void;
   title: string;
   mobile?: boolean;
+  /** A market sector key: the word it types, the same as its function key on the keyboard (FKEY_TEXT). */
+  types?: string;
 }
 
-const KEYS: Key[] = [
+/** A yellow market sector key: clicking it types what its function key types. */
+const sector = (label: string, fkey: string, title: string, mobile = false): Key => ({
+  label,
+  sub: fkey,
+  color: 'yellow',
+  types: FKEY_TEXT[fkey],
+  run: (p) => typeInto(p, FKEY_TEXT[fkey]),
+  title,
+  ...(mobile ? { mobile } : {}),
+});
+
+export const KEYS: Key[] = [
   { label: 'HELP', sub: 'F1', color: 'green', run: showPanelHelp, title: 'Current function help (F1); press twice for the local assistant' },
   { label: 'MENU', sub: 'ALT+END', color: 'green', run: showPanelMenu, title: 'Related functions menu (Alt+End)', mobile: true },
   { label: 'BACK', sub: 'ALT+←', color: 'green', run: (p) => back(p), title: 'Previous screen (Backspace on empty line)' },
-  { label: 'GOVT', sub: 'F2', color: 'yellow', run: (p) => typeInto(p, 'GOVT'), title: 'Government bonds market sector (F2)' },
-  { label: 'CORP', sub: 'F3', color: 'yellow', run: (p) => typeInto(p, 'CORP'), title: 'Corporate bonds market sector (F3)' },
-  { label: 'MTGE', sub: 'F4', color: 'yellow', run: (p) => typeInto(p, 'MTGE'), title: 'Mortgage securities market sector (F4)' },
-  { label: 'M-MKT', sub: 'F5', color: 'yellow', run: (p) => typeInto(p, 'M-MKT'), title: 'Money market sector (F5)' },
-  { label: 'MUNI', sub: 'F6', color: 'yellow', run: (p) => typeInto(p, 'MUNI'), title: 'Municipal bonds market sector (F6)' },
-  { label: 'PFD', sub: 'F7', color: 'yellow', run: (p) => typeInto(p, 'PFD'), title: 'Preferred securities market sector (F7)' },
-  { label: 'EQUITY', sub: 'F8', color: 'yellow', run: (p) => typeInto(p, 'EQUITY'), title: 'Stocks market sector (F8)', mobile: true },
-  { label: 'CMDTY', sub: 'F9', color: 'yellow', run: (p) => typeInto(p, 'CMDTY'), title: 'Commodities market sector (F9)' },
-  { label: 'INDEX', sub: 'F10', color: 'yellow', run: (p) => typeInto(p, 'INDEX'), title: 'Indices market sector (F10)', mobile: true },
-  { label: 'CRNCY', sub: 'F11', color: 'yellow', run: (p) => typeInto(p, 'CRNCY'), title: 'Currencies market sector (F11)', mobile: true },
-  { label: 'PORT', sub: 'F12', color: 'yellow', run: (p) => execute(p, 'CLIENT'), title: 'Portfolio (F12)' },
+  sector('GOVT', 'F2', 'Government bonds market sector (F2)'),
+  sector('CORP', 'F3', 'Corporate bonds market sector (F3)'),
+  sector('MTGE', 'F4', 'Mortgage securities market sector (F4)'),
+  sector('M-MKT', 'F5', 'Money market sector (F5)'),
+  sector('MUNI', 'F6', 'Municipal bonds market sector (F6)'),
+  sector('PFD', 'F7', 'Preferred securities market sector (F7)'),
+  sector('EQUITY', 'F8', 'Stocks market sector (F8)', true),
+  sector('CMDTY', 'F9', 'Commodities market sector (F9)'),
+  sector('INDEX', 'F10', 'Indices market sector (F10)', true),
+  sector('CRNCY', 'F11', 'Currencies market sector (F11)', true),
+  sector('PORT', 'F12', 'Portfolio key (F12): types CLIENT, the portfolio sector word; CLIENT <GO> opens PORTFOLIO'),
   { label: 'NEWS', sub: 'TOP', color: 'gray', run: (p) => execute(p, 'TOP'), title: 'Top market news (TOP)' },
   { label: 'HISTORY', sub: 'CTRL+↑', color: 'gray', run: (p) => recallPanelCommand(p), title: 'Recall a previous command (Ctrl+↑)' },
   {
