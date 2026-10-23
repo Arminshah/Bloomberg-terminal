@@ -182,3 +182,15 @@ describe('A23-007: Finnhub\'s calendar-quarter periods are put on the company\'s
     }
   });
 });
+
+describe('A23-008: the missing-revenue hint does not ask for a key that cannot help (SAP GY)', () => {
+  it('says the earlier-estimate sources are asked for US listings only', async () => {
+    const { missingRevenueHint } = await import('../src/data/live/consensus');
+    const q = { end: '2026-09-30', label: 'Q3 2026', eps: { est: NaN, actual: NaN, low: NaN, high: NaN, analysts: NaN }, rev: { est: NaN, actual: 10.27e9, low: NaN, high: NaN, analysts: NaN } };
+    const outside = missingRevenueHint([q as never], undefined, false)!;
+    expect(outside).toContain('1 of 1 reported quarters have no expected revenue');
+    expect(outside).toContain('for US listings only');
+    expect(outside).not.toContain('ALPHA_VANTAGE_API_KEY');
+    expect(missingRevenueHint([q as never], undefined, true)).toContain('ALPHA_VANTAGE_API_KEY');
+  });
+});

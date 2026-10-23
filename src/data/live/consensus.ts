@@ -866,21 +866,23 @@ export function consensusFor(def: SecurityDef): Consensus {
   }
   const loading = !e || e.state === 'loading' || ['earnings', 'history'].some((k) => fparts?.[k as 'earnings']?.state === 'loading');
   const releases = secReleaseData.get().by[secTicker(def) ?? ''];
-  const revenueHint = missingRevenueHint(merged.past, avSymbol(def) ? alphaVantageData.get().by[avSymbol(def)!] : undefined);
+  const revenueHint = missingRevenueHint(merged.past, avSymbol(def) ? alphaVantageData.get().by[avSymbol(def)!] : undefined, !!avSymbol(def));
   return { ...merged, problems, loading, ...(releases ? { releases } : {}), ...(revenueHint ? { revenueHint } : {}) };
 }
 
 /**
  * Yahoo drops a quarter's revenue estimate once the quarter is reported, and no source without a key keeps
- * earlier ones. Says which key fills them, or what Alpha Vantage answered.
+ * earlier ones. Says which key fills them, or what Alpha Vantage answered. `usListing`: the stock is listed in the
+ * US, the only listings the app asks Alpha Vantage, FMP and Finnhub about; for others no key helps.
  */
-export function missingRevenueHint(past: QuarterView[], av: { state: string; message?: string } | undefined): string | undefined {
+export function missingRevenueHint(past: QuarterView[], av: { state: string; message?: string } | undefined, usListing = true): string | undefined {
   const shown = past.slice(0, 8);
   const missing = shown.filter((q) => ok(q.rev.actual) && !ok(q.rev.est)).length;
   if (!missing) return undefined;
   const quarters = `${missing} of ${shown.length} reported quarters have no expected revenue`;
-  if (!alphaVantageAvailable() || !av || av.state === 'needs-key') return `${quarters}: Yahoo drops a quarter's revenue estimate once it is reported. Set ALPHA_VANTAGE_API_KEY (free) on PROVIDERS to fill past quarters' expected revenue.`;
-  if (av.state === 'loading') return undefined;
+  if (!usListing) return `${quarters}: Yahoo drops a quarter's revenue estimate once it is reported, and the app asks Alpha Vantage, FMP and Finnhub for earlier estimates for US listings only.`;
+  if (!alphaVantageAvailable() || av?.state === 'needs-key') return `${quarters}: Yahoo drops a quarter's revenue estimate once it is reported. Set ALPHA_VANTAGE_API_KEY (free) on PROVIDERS to fill past quarters' expected revenue.`;
+  if (!av || av.state === 'loading') return undefined;
   if (av.state === 'error') return `${quarters}. Alpha Vantage: ${av.message ?? 'no answer'}`;
   return `${quarters}: Alpha Vantage gives no estimate for them.`;
 }
