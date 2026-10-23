@@ -267,6 +267,30 @@ export function fiscalLabel(end: string, fye: number | undefined): string | unde
   return `Q${q} ${fy}`;
 }
 
+/** The month (1-12) a fiscal period end counts in: an end in a month's first week (52/53-week years) is the month before. */
+function endMonth(end: string): number {
+  return new Date(ms(end) - (Number(end.slice(8)) <= 7 ? 8 * DAY_MS : 0)).getUTCMonth() + 1;
+}
+
+/**
+ * The end of the fiscal quarter Finnhub's /stock/earnings means by `period`. Finnhub names a quarter by the end of
+ * the calendar quarter its fiscal quarter ends in: NVIDIA's quarter ended 26 Jul 2026 is "2026-09-30". The fiscal
+ * quarter ends in the month of that calendar quarter that closes one of the company's quarters (`closes`: its fiscal
+ * year's last month, or the month of any quarter end it reported). A period that is not a calendar quarter's end,
+ * or a company whose quarters are not known, keeps the period as given.
+ */
+export function finnhubQuarterEnd(period: string, closes: number | undefined): string {
+  if (!ISO.test(period) || !(closes != null && closes >= 1 && closes <= 12)) return period;
+  const y = Number(period.slice(0, 4));
+  const m = Number(period.slice(5, 7));
+  if (m % 3 !== 0 || period !== monthEnd(period.slice(0, 7))) return period;
+  for (let back = 0; back < 3; back++) {
+    const month = m - back;
+    if ((month - closes + 12) % 3 === 0) return monthEnd(`${y}-${String(month).padStart(2, '0')}`);
+  }
+  return period;
+}
+
 /** A single spelling for a fiscal quarter, regardless of a provider's label style. */
 export function canonicalQuarter(label: unknown): string | undefined {
   const text = String(label ?? '').trim().toUpperCase().replace(/FY\s*/g, '');
@@ -314,13 +338,22 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     const noConflict = !label || !canonicalQuarter(q.label) || sameLabel;
     return (sameLabel && daysApart(q.end, end) <= 45) || (noConflict && daysApart(q.end, end) <= 20);
   });
-  // Finnhub's EPS comparisons, for quarters Yahoo leaves out or gives without an estimate.
+  // Finnhub's EPS comparisons, for quarters Yahoo leaves out or gives without an estimate. Its periods are calendar
+  // quarters (see finnhubQuarterEnd); a period it gives twice (NVIDIA's April 2026 quarter, once as fiscal 2026 and
+  // once as 2027) is one quarter, used once.
+  const knownEnd = [...(y?.past ?? []).map((q) => q.end), ...(i.statements ?? []).filter((p) => ok(p.end)).map((p) => new Date(p.end).toISOString().slice(0, 10))].find((e) => ISO.test(e));
+  const closes = i.fye ?? (knownEnd ? endMonth(knownEnd) : undefined);
+  const seenPeriods = new Set<string>();
   for (const f of i.finnhubEps ?? []) {
     if (!ok(f.actual) && !ok(f.estimate)) continue;
+    if (seenPeriods.has(f.period)) continue;
+    seenPeriods.add(f.period);
     const eps: Expectation = { ...NONE, est: f.estimate, actual: f.actual, estFrom: 'Finnhub', actualFrom: 'Finnhub' };
-    const label = reportLabel(f);
-    const q = at(f.period, label);
-    if (!q) quarters.push({ end: f.period, label: label ?? f.period, eps, rev: { ...NONE } });
+    const end = finnhubQuarterEnd(f.period, closes);
+    // The fiscal year names the quarter when it is known; Finnhub's own year and quarter can disagree with it.
+    const label = fiscalLabel(end, i.fye) ?? reportLabel(f);
+    const q = at(end, label);
+    if (!q) quarters.push({ end, label: label ?? end, eps, rev: { ...NONE } });
     else if ((!ok(q.eps.est) || !ok(q.eps.actual)) && ok(f.estimate) && ok(f.actual)) q.eps = eps;
     else if (ok(f.estimate) && ok(f.actual) && (q.eps.est !== f.estimate || q.eps.actual !== f.actual)) q.alternativeEps = eps;
     if (q && !canonicalQuarter(q.label) && label) q.label = label;

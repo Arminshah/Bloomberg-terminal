@@ -137,3 +137,48 @@ describe('A23-003: a bond the app cannot price is not called a stock', () => {
     expect(parseCommand('ZZZQ US Equity PROFILE', lookupFn)).toMatchObject({ kind: 'error', lookup: 'ZZZQ' });
   });
 });
+
+describe('A23-007: Finnhub\'s calendar-quarter periods are put on the company\'s fiscal quarters (NVIDIA)', () => {
+  // Finnhub /stock/earnings for NVDA on 23 Oct 2026, as received (its year and quarter fields included).
+  const finnhubEps = [
+    { period: '2026-09-30', year: 2027, quarter: 2, actual: 2.22, estimate: 2.1384, surprise: 0.0816, surprisePct: 3.8159 },
+    { period: '2026-06-30', year: 2027, quarter: 1, actual: 1.87, estimate: 1.7922, surprise: 0.0778, surprisePct: 4.341 },
+    { period: '2026-06-30', year: 2026, quarter: 1, actual: 1.87, estimate: 1.7922, surprise: 0.0778, surprisePct: 4.341 },
+    { period: '2026-03-31', year: 2026, quarter: 4, actual: 1.62, estimate: 1.5634, surprise: 0.0566, surprisePct: 3.6203 },
+  ];
+
+  it('maps a calendar-quarter label to the fiscal quarter end inside it', async () => {
+    const { finnhubQuarterEnd } = await import('../src/data/live/consensus');
+    expect(finnhubQuarterEnd('2026-09-30', 1)).toBe('2026-07-31'); // NVIDIA: January year end
+    expect(finnhubQuarterEnd('2026-06-30', 1)).toBe('2026-04-30');
+    expect(finnhubQuarterEnd('2026-03-31', 1)).toBe('2026-01-31');
+    expect(finnhubQuarterEnd('2026-09-30', 9)).toBe('2026-09-30'); // Apple: September year end, quarters on calendar quarters
+    expect(finnhubQuarterEnd('2026-09-30', 12)).toBe('2026-09-30');
+    expect(finnhubQuarterEnd('2026-09-30', 5)).toBe('2026-08-31'); // a May year end: quarters end Aug, Nov, Feb, May
+    expect(finnhubQuarterEnd('2026-08-31', 1)).toBe('2026-08-31'); // not a calendar quarter's end: kept
+    expect(finnhubQuarterEnd('2026-09-30', undefined)).toBe('2026-09-30');
+  });
+
+  it('shows no quarter "ended 30/09/26" or "30/06/26" and lists each fiscal quarter once', async () => {
+    const { mergeConsensus } = await import('../src/data/live/consensus');
+    const yahoo = {
+      past: [
+        { end: '2026-07-31', label: 'Q2 2027', date: Date.parse('2026-08-26T20:20:00Z'), epsEst: 2.091, epsActual: 2.22, revActual: NaN },
+        { end: '2026-04-30', label: 'Q1 2027', date: Date.parse('2026-05-20T20:20:00Z'), epsEst: 1.772, epsActual: 1.87, revActual: NaN },
+        { end: '2026-01-31', label: 'Q4 2026', date: Date.parse('2026-02-25T21:20:00Z'), epsEst: 1.538, epsActual: 1.62, revActual: NaN },
+      ],
+      next: null,
+      following: null,
+    };
+    for (const input of [{ yahoo, finnhubEps, fye: 1 }, { yahoo, finnhubEps }, { finnhubEps, fye: 1 }]) {
+      const past = mergeConsensus({ ...input, now: Date.parse('2026-10-23T12:00:00Z') }).past;
+      expect(past.map((q) => q.end)).not.toContain('2026-09-30');
+      expect(past.map((q) => q.end)).not.toContain('2026-06-30');
+      const labels = past.map((q) => q.label);
+      expect(new Set(labels).size).toBe(labels.length);
+      expect(past.find((q) => q.label === 'Q2 2027')).toMatchObject({ end: '2026-07-31' });
+      expect(past.find((q) => q.label === 'Q2 2027')!.eps.actual).toBe(2.22);
+      expect(labels).not.toContain('Q1 2026');
+    }
+  });
+});

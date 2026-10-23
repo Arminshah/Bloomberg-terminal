@@ -59,7 +59,10 @@ export interface RecommendationMonth {
 }
 
 export interface EpsSurprise {
-  /** Fiscal quarter end, YYYY-MM-DD. */
+  /**
+   * YYYY-MM-DD: the end of the calendar quarter the fiscal quarter ends in, not the fiscal quarter's own end (NVIDIA's
+   * quarter ended 26 Jul 2026 is 2026-09-30). consensus.ts `finnhubQuarterEnd` turns it into the fiscal quarter's end.
+   */
   period: string;
   quarter: number;
   year: number;
