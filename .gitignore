@@ -13,3 +13,6 @@ release
 .env
 .env.*
 !.env.example
+
+# Reference documents for audits: copyrighted, never committed.
+reference/pdfs/
