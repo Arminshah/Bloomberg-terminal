@@ -102,7 +102,7 @@ const COMMANDS: [string, string][] = [
   ['FXMATRIX', 'FXMATRIX'], ['FXRANK', 'FXRANK'], ['CRYPTO', 'CRYPTO'], ['BONDS', 'BONDS'], ['CURVE', 'CURVE'], ['MONEYMARKET', 'MONEYMARKET'], ['CT10 GOVT BONDCALC', 'BONDCALC'],
   ['RATEPROBS', 'RATEPROBS'], ['COMMODITIES', 'COMMODITIES'], ['RELEASES', 'RELEASES'], ['ECONSTATS', 'ECONSTATS'], ['NVDA OPTIONS', 'OPTIONS'], ['NVDA OPTIONCALC', 'OPTIONCALC'],
   ['WATCHLIST', 'WATCHLIST'], ['PORTFOLIO', 'PORTFOLIO'], ['ALERTS', 'ALERTS'], ['SEARCH', 'SEARCH'], ['RECENT', 'RECENT'], ['LAYOUTS', 'LAYOUTS'], ['MESSAGES', 'MESSAGES'],
-  ['SETTINGS', 'SETTINGS'], ['PROVIDERS', 'PROVIDERS'], ['HELP', 'HELP'], ['EURUSD CRNCY PROFILE', 'PROFILE'], ['SPX INDEX PROFILE', 'PROFILE'], ['CL1 CMDTY PROFILE', 'PROFILE'],
+  ['SETTINGS', 'SETTINGS'], ['PROVIDERS', 'PROVIDERS'], ['HELP', 'HELP'], ['WHATSNEW', 'WHATSNEW'], ['EURUSD CRNCY PROFILE', 'PROFILE'], ['SPX INDEX PROFILE', 'PROFILE'], ['CL1 CMDTY PROFILE', 'PROFILE'],
   ['USGG10YR INDEX PROFILE', 'PROFILE'], ['XBTUSD CRNCY PROFILE', 'PROFILE'], ['CT2 GOVT PROFILE', 'PROFILE'], ['USGG10YR INDEX SPREAD', 'SPREAD'], ['AAPL NOTES', 'NOTES'],
   ['IBM US EQUITY', 'MENU'], ['EQUITY', 'EQUITY'], ['GOVT', 'GOVT'], ['CORP', 'CORP'], ['CRNCY', 'CRNCY'], ['MTGE', 'MTGE'], ['MENU', 'MENU'],
   ['AAPL CORP', 'BONDSEARCH'], ['JPM CORP DEBTPROFILE', 'DEBTPROFILE'], ['AAPL 4.65 02/23/46 CORP PROFILE', 'PROFILE'], ['AAPL 4.65 02/23/46 CORP BONDCALC', 'BONDCALC'],
@@ -590,5 +590,18 @@ test('workspace tabs open, keep each workspace, rename, close and reopen as a br
   await expect(page.locator('.wtab')).toHaveCount(2);
   await expect(page.locator('.wtab.on')).toContainText('NVDA CHART');
   await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('CHART');
+  expect(errors).toEqual([]);
+});
+
+test('WHATSNEW shows the installed version\'s release notes and earlier releases', async ({ page }) => {
+  const errors = await boot(page);
+  const version = JSON.parse(await readFile('package.json', 'utf8')).version as string;
+  await run(page, 'WHATSNEW');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code').first()).toHaveText('WHATSNEW');
+  await expect(panel.getByTestId('whatsnew-notes')).toContainText(`Armin Terminal ${version}`);
+  await expect(panel.locator('.whatsnew-item.on')).toContainText('installed');
+  await panel.locator('.whatsnew-item', { hasText: '2.23.0' }).click();
+  await expect(panel.getByTestId('whatsnew-notes')).toContainText('Armin Terminal 2.23.0');
   expect(errors).toEqual([]);
 });

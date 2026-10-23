@@ -17,6 +17,10 @@ For whoever continues on Armin Terminal. Read this first, then `docs/audit-v2.23
 
 State at handover: lint, typecheck, 1,231 Vitest tests (95 files), 39 browser and 34 desktop Playwright tests, and the build all pass.
 
+## After 2.24.0 (on the branch, not released yet)
+
+- **WHATSNEW** (`src/functions/WHATSNEW.tsx`, `src/data/releases.ts`): the version and every release's notes inside the app, packed in at build time from `docs/release-v*.md` (2.15.0 and later; older notes named another product and stay out). The installed version is marked; HELP shows the version with a "What's new" action; after an update a one-time notice links to it (`src/terminal/whatsnew.ts`). The owner keeps the repository private, so the app does not ask GitHub for newer versions. Every release still needs its `docs/release-vX.Y.Z.md`; a test fails if a note names another product.
+
 ## What is left, in order
 
 1. **Portfolio tabs** (owner's request, with a screenshot): several portfolios in PORTFOLIO as tabs across the top, like `EQUITY_LONG | DOMESTIC BOND FUND | +` (add, rename, close a portfolio; each keeps its own holdings and cash). Not started. PORTFOLIO is `src/functions/PORT.tsx`; its holdings store is `portfolio` in `src/terminal/userdata.ts`.

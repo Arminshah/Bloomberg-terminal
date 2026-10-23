@@ -4,6 +4,7 @@ import { LEGACY_CODES, primaryMnemonic } from './legacy';
 import { engine } from '../data/market';
 import { configureSecurityLinks } from './state';
 import { HELP } from '../functions/HELP';
+import { WHATSNEW } from '../functions/WHATSNEW';
 import { GIP, GP } from '../functions/GP';
 import { DES } from '../functions/DES';
 import { HP } from '../functions/HP';
@@ -170,6 +171,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'MESSAGES', name: 'Help Desk Messages', category: 'Communication', desc: 'Chat with the help desk bot (quotes, news, calendar); the browser version adds simulated trading desks.', component: IB, aliases: ['CHAT'] },
   // System
   { code: 'HELP', name: 'Function Directory', category: 'System', desc: 'Searchable list of every function, command syntax and keyboard shortcuts.', component: HELP },
+  { code: 'WHATSNEW', name: "What's New", category: 'System', desc: "What each release changed, newest first, with the installed version marked: the release notes packed into the app. A version can follow: WHATSNEW 2.23.0.", component: WHATSNEW, aliases: ['VERSION', 'RELEASENOTES', 'CHANGELOG'], example: 'WHATSNEW' },
   { code: 'MENU', name: 'Related Functions Menu', category: 'System', desc: 'Numbered analysis functions for the loaded security, market sector menus, news and research, or portfolio tools. Use the menu path to return to a sector or the main menu.', component: MENU, example: 'IBM US EQUITY' },
   { code: 'PROVIDERS', name: 'Data Providers & Status', category: 'System', desc: 'Every data provider: what it serves, its state, last answer and error, requests per minute, the terms that apply, and credentials (desktop).', component: PROV, aliases: ['STATUS', 'SOURCES'] },
   { code: 'SETTINGS', name: 'Settings & Data Sources', category: 'System', desc: 'Display preferences, time zone, live data connections and workspace reset.', component: PDFU, aliases: ['PREFS'] },

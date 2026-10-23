@@ -9,6 +9,7 @@ import { exampleCommand, FUNCTIONS, lookupFn } from '../terminal/registry';
 import type { FnCategory, FnDef, FnProps } from '../terminal/types';
 import { primaryMnemonic } from '../terminal/legacy';
 import { settings } from '../terminal/settings';
+import { APP_VERSION } from '../data/releases';
 
 const ORDER: FnCategory[] = [
   'Equity', 'Charts', 'News', 'Markets', 'FX & Crypto', 'Rates & Credit', 'Commodities', 'Economics', 'Derivatives',
@@ -23,6 +24,9 @@ const SHORTCUTS: [string, string][] = [
   ['Alt+End / MENU', 'Related functions; press again to move up the menu hierarchy'],
   ['Alt+1 … Alt+6', 'Switch panel'],
   ['Ctrl+Tab / Ctrl+Shift+Tab', 'Next / previous panel'],
+  ['Ctrl+T / Ctrl+W', 'New workspace tab / close the tab (the + and × on the tab strip)'],
+  ['Ctrl+Shift+T', 'Reopen the tab closed last'],
+  ['Ctrl+PageDown / Ctrl+PageUp, Ctrl+1 … Ctrl+9', 'Next / previous workspace tab, or tab 1 to 8 (9: the last)'],
   ['Alt+← / Alt+→', "Back / forward, as in a browser: through the screen's tabs first, then between screens"],
   ['Mouse back / forward buttons', "The same in the panel under the pointer: the screen's tabs first, then the screen before or after"],
   ['F1 / HELP', 'Help for the current function; press twice for the local help assistant'],
@@ -199,7 +203,7 @@ export function HELP({ route, sec }: FnProps) {
   useMenu('help-securities', secHits.map(({ def }, i) => ({ n: i + 1, label: def.name, run: () => execute(panel, def.id) })));
   return (
     <div>
-      <FnHeader code="HELP" title={fnTopic ? `Help: ${fnTopic.name}` : topic ? `Search: ${topic}` : 'Function Directory'} sec={sec} sub={`${FUNCTIONS.length} functions`} />
+      <FnHeader code="HELP" title={fnTopic ? `Help: ${fnTopic.name}` : topic ? `Search: ${topic}` : 'Function Directory'} sec={sec} sub={`${FUNCTIONS.length} functions · Armin Terminal ${APP_VERSION}`} actions={[{ n: 90, label: "What's new", onClick: () => execute(panel, 'WHATSNEW'), title: `What changed in ${APP_VERSION} and the releases before (WHATSNEW)` }]} />
       {fnTopic ? (
         <FunctionHelp code={fnTopic.code} sec={sec} />
       ) : (

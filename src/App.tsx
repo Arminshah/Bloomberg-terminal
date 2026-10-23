@@ -6,6 +6,7 @@ import { Toasts } from './components/Toasts';
 import { TopBar } from './components/TopBar';
 import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { closeTab, cycleTab, newTab, reopenClosedTab, tabByNumber, workspaceTabs } from './terminal/tabs';
+import { announceUpdate } from './terminal/whatsnew';
 import { YahooSessionBanner } from './components/YahooSessionBanner';
 import { clearPanelInput, focusPanelInput, pagePanel, typeInto, FKEY_TEXT } from './components/CommandLine';
 import { engine } from './data/market';
@@ -90,6 +91,7 @@ export function App() {
   useEffect(() => startIexPrices(), []);
   useEffect(() => startBackground(), []);
   useEffect(() => startHistoryButtons(), []);
+  useEffect(() => announceUpdate(), []);
 
   const activeRoute = terminal.use((s) => currentRoute(s, s.active));
   useEffect(() => {
