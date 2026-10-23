@@ -40,7 +40,8 @@ export interface RealFund {
   earnings: EarningsEvent[];
   holders: Holder[];
   breakdown: { insiders: number; institutions: number; institutionsFloat: number; count: number } | null;
-  stats: Partial<Record<'pe' | 'pb' | 'ps' | 'evEbitda' | 'ev' | 'divYld' | 'payout' | 'roe' | 'roa' | 'opMargin' | 'netMargin' | 'grossMargin' | 'de' | 'beta' | 'revGrowth' | 'epsGrowth' | 'shares', number>>;
+  /** epsLtm: the source's trailing EPS, the one its P/E is worked out from. */
+  stats: Partial<Record<'pe' | 'pb' | 'ps' | 'evEbitda' | 'ev' | 'divYld' | 'payout' | 'roe' | 'roa' | 'opMargin' | 'netMargin' | 'grossMargin' | 'de' | 'beta' | 'revGrowth' | 'epsGrowth' | 'shares' | 'epsLtm', number>>;
   nextDividend: { ex: number; pay: number; rate: number } | null;
   /** The float and short interest from Yahoo's key statistics; NaN wherever the source gives none. */
   float: FloatStats;
@@ -623,6 +624,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const pct = (v: number) => (Number.isFinite(v) ? v * 100 : NaN);
   const stats: RealFund['stats'] = {
     pe: num(sd.trailingPE),
+    epsLtm: num(ks.trailingEps),
     pb: num(ks.priceToBook),
     ps: num(sd.priceToSalesTrailing12Months),
     evEbitda: num(ks.enterpriseToEbitda),

@@ -360,13 +360,15 @@ export function keyStats(def: SecurityDef): KeyStats {
     // When the shares trade in one currency and the company reports in another, Yahoo mixes the two
     // in book value, enterprise value and sales multiples (Shell's price/book reads 155); those are
     // computed here with the exchange rate instead.
-    const mixed = new Set(fx !== 1 ? ['pb', 'ev', 'evEbitda', 'ps'] : []);
+    const mixed = new Set(fx !== 1 ? ['pb', 'ev', 'evEbitda', 'ps', 'epsLtm'] : []);
     // Figures that sit next to their inputs on screen are worked out here from those inputs, so they agree:
     // P/E from the LTM EPS shown, enterprise value from the market cap and the latest balance sheet, and
     // EV/EBITDA from those two. The source's own ratios use other bases (Nebius: P/E 164 next to an EPS of -0.08).
     // Price to book from the market cap and the latest equity (Berkshire's source figure divided a Class B
     // price by a Class A book value).
-    const own = new Set(['ev', 'evEbitda', ...(Number.isFinite(ltm.eps) ? ['pe'] : []), ...(ltm.equity > 0 ? ['pb'] : [])]);
+    // Without an LTM EPS from the statements (a newest quarter known only from the earnings module, SAP's two days
+    // after it reported), the source's P/E comes with the source's own trailing EPS, so the two still agree.
+    const own = new Set(['ev', 'evEbitda', ...(Number.isFinite(ltm.eps) ? ['pe', 'epsLtm'] : []), ...(ltm.equity > 0 ? ['pb'] : [])]);
     for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v) && !mixed.has(k) && !own.has(k)) ks[k] = v as number;
   } else {
     const yq = yahooQuotes.get(def.id);

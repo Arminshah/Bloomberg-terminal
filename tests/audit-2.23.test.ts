@@ -269,3 +269,33 @@ describe('A23-013: a typed company name lists the company before a guessed ticke
     expect(suggest('ZZZX')[0]).toMatchObject({ key: 'online:ZZZX' });
   });
 });
+
+describe('A23-014: a P/E is never shown next to a blank trailing EPS (SAP GY, BRK/B PROFILE)', () => {
+  const def = engine.get('APLD US Equity')!;
+  afterEach(() => realFund.delete(def.id));
+  const series = (prefix: string, rows: [string, string, number][]) => ({ timeseries: { result: rows.map(([field, end, raw]) => ({
+    meta: { type: [`${prefix}${field}`] },
+    [`${prefix}${field}`]: [{ asOfDate: end, periodType: prefix === 'quarterly' ? '3M' : '12M', currencyCode: 'USD', reportedValue: { raw } }],
+  })) } });
+  const summary = { quoteSummary: { result: [{ financialData: { financialCurrency: 'USD' }, summaryDetail: { trailingPE: { raw: 32.24 } }, defaultKeyStatistics: { trailingEps: { raw: 6.68 } } }] } };
+
+  it('takes the source\'s trailing EPS with its P/E when the statements give no LTM EPS', async () => {
+    const { keyStats } = await import('../src/data/fundamentals');
+    // Four quarters of revenue only: an LTM with no EPS.
+    const q = series('quarterly', ['2025-11-30', '2026-02-28', '2026-05-31', '2026-08-31'].map((end): [string, string, number] => ['TotalRevenue', end, 100e6]));
+    realFund.set(def.id, buildRealFund(def, summary, null, q, null, NOW, undefined, []));
+    const ks = keyStats(def);
+    expect(ks.epsLtm).toBe(6.68);
+    expect(ks.pe).toBe(32.24);
+  });
+
+  it('keeps the statements\' EPS, and a P/E worked out from it, when they give one', async () => {
+    const { keyStats } = await import('../src/data/fundamentals');
+    const ends = ['2025-11-30', '2026-02-28', '2026-05-31', '2026-08-31'];
+    const q = series('quarterly', ends.flatMap((end): [string, string, number][] => [['TotalRevenue', end, 100e6], ['NetIncomeCommonStockholders', end, 10e6], ['DilutedEPS', end, 0.5]]));
+    realFund.set(def.id, buildRealFund(def, summary, null, q, null, NOW, undefined, []));
+    const ks = keyStats(def);
+    expect(ks.epsLtm).toBeCloseTo(2, 9);
+    expect(ks.pe).not.toBe(32.24);
+  });
+});
