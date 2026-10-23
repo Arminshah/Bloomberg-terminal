@@ -109,3 +109,12 @@ describe('A23-004: the key bar\'s market sector keys do what their function keys
     expect(KEYS.find((k) => k.sub === 'F12')).toMatchObject({ label: 'PORT', types: 'CLIENT' });
   });
 });
+
+describe('A23-005: the package description counts the registered functions', () => {
+  it('states the number of functions in the registry', async () => {
+    const { FUNCTIONS } = await import('../src/terminal/registry');
+    const { readFileSync } = await import('node:fs');
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { description: string };
+    expect(pkg.description).toContain(`${FUNCTIONS.length} functions`);
+  });
+});
