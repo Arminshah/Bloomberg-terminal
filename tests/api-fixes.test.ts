@@ -101,3 +101,35 @@ describe('TipRanks: calls and answers kept per account', async () => {
     expect(await h.client.research('consensus', 'AAPL', A)).toMatchObject({ budget: true });
   });
 });
+
+describe('official statistics stay current within a session', async () => {
+  const fred = await import('../src/data/live/fred');
+
+  it('drops Eurostat\'s provisional flag once a figure is sent without it', () => {
+    fred.recordStatus('ESTAT:GDP:T1', ['2026-04-01', '2026-07-01'], (d) => (d === '2026-07-01' ? 'p' : undefined));
+    expect(fred.figureStatus('ESTAT:GDP:T1', '2026-07-01')).toBe('provisional');
+    // The next answer: the July quarter is final; a quarter not in it keeps its flag.
+    fred.recordStatus('ESTAT:GDP:T1', ['2026-07-01'], () => undefined);
+    expect(fred.figureStatus('ESTAT:GDP:T1', '2026-07-01')).toBeUndefined();
+    fred.recordStatus('ESTAT:GDP:T2', ['2026-01-01'], () => 'e');
+    fred.recordStatus('ESTAT:GDP:T2', ['2026-04-01'], () => undefined);
+    expect(fred.figureStatus('ESTAT:GDP:T2', '2026-01-01')).toBe('estimate');
+  });
+
+  it('replaces a CPI read from the BLS earlier with its newer release, but never FRED\'s own series', () => {
+    const aug: [string, number][] = [['2026-07-01', 336.2], ['2026-08-01', 336.6]];
+    const sep: [string, number][] = [...aug, ['2026-09-01', 336.94]];
+    const series: Record<string, [string, number][]> = { CPIAUCNS: aug, UNRATE: [['2026-08-01', 4.3]] };
+    fred.takeBlsSeries(series, new Set(), { cpi: sep, un: [['2026-09-01', 4.2]] });
+    expect(series.CPIAUCNS.at(-1)).toEqual(['2026-09-01', 336.94]);
+    expect(series.UNRATE.at(-1)).toEqual(['2026-09-01', 4.2]);
+    // FRED gave the series in this load: it stays.
+    const fromFred: Record<string, [string, number][]> = { CPIAUCNS: aug, UNRATE: [] };
+    fred.takeBlsSeries(fromFred, new Set(['CPIAUCNS']), { cpi: sep, un: [] });
+    expect(fromFred.CPIAUCNS).toBe(aug);
+    // An older BLS answer does not replace a later series.
+    const later: Record<string, [string, number][]> = { CPIAUCNS: sep };
+    fred.takeBlsSeries(later, new Set(), { cpi: aug, un: [] });
+    expect(later.CPIAUCNS).toBe(sep);
+  });
+});

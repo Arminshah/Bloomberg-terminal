@@ -333,11 +333,20 @@ async function loadOfficialStats(series: Record<string, Obs>) {
     for (const [g, as] of [...(ea ? [[ea, 'EA']] : []), ...EUROSTAT_MEMBERS.map((x) => [x, x])]) {
       const id = `ESTAT:${kind}:${as}`;
       put(id, m.get(g));
-      for (const [d] of m.get(g) ?? []) {
-        const f = flags.get(`${g}|${d}`);
-        if (f) statusFlags.set(`${id}|${d}`, f);
-      }
+      recordStatus(id, (m.get(g) ?? []).map(([d]) => d), (d) => flags.get(`${g}|${d}`));
     }
+  }
+}
+
+/**
+ * The status flags a source gives with the figures it just sent. A figure it sends without a flag loses the one it
+ * had (Eurostat drops "p" once a provisional figure is final); figures it did not send keep theirs.
+ */
+export function recordStatus(id: string, dates: string[], flagOf: (date: string) => string | undefined): void {
+  for (const d of dates) {
+    const f = flagOf(d);
+    if (f) statusFlags.set(`${id}|${d}`, f);
+    else statusFlags.delete(`${id}|${d}`);
   }
 }
 
@@ -373,21 +382,32 @@ export function parseBls(text: string): Obs {
   }
 }
 
-async function loadBls(series: Record<string, Obs>) {
+/**
+ * The BLS's own series in place of FRED's copies, which this load did not get: when none is shown yet, or when the
+ * BLS's runs to a later month than the one shown (the figures shown came from an earlier answer). A series FRED gave
+ * in this load stays.
+ */
+export function takeBlsSeries(series: Record<string, Obs>, fromFred: Set<string>, got: { cpi: Obs; un: Obs }): void {
+  const later = (a: Obs, b: Obs | undefined) => a.length > 0 && (!b?.length || a[a.length - 1][0] >= b[b.length - 1][0]);
+  if (!fromFred.has('CPIAUCNS') && later(got.cpi, series.CPIAUCNS)) series.CPIAUCNS = got.cpi;
+  if (!fromFred.has('UNRATE') && later(got.un, series.UNRATE)) series.UNRATE = got.un;
+}
+
+async function loadBls(series: Record<string, Obs>, fromFred: Set<string>) {
   if (!bls || Date.now() - bls.at > 12 * 3600_000) {
     const since = new Date(Date.now() - 3 * 365.25 * 86_400_000).toISOString().slice(0, 10);
     const [cpi, un] = await Promise.all((['blsCpi', 'blsUnemp'] as const).map((k) => official(k, since)));
     const next = { at: Date.now(), cpi: parseBls(cpi), un: parseBls(un) };
     if (next.cpi.length || next.un.length) bls = next;
   }
-  if (bls?.cpi.length && !series.CPIAUCNS?.length) series.CPIAUCNS = bls.cpi;
-  if (bls?.un.length && !series.UNRATE?.length) series.UNRATE = bls.un;
+  if (bls) takeBlsSeries(series, fromFred, bls);
 }
 
 async function loadSeries(): Promise<boolean> {
   const series = { ...fredData.get().series };
   let any = false;
   let stop: Stop | null = null;
+  const fromFred = new Set<string>();
   const official = loadOfficialStats(series);
   for (const id of fredSeriesIds()) {
     const text = await get('observations', id);
@@ -398,6 +418,7 @@ async function loadSeries(): Promise<boolean> {
     const obs = parseFredObservations(text);
     if (obs.length) {
       series[id] = obs;
+      fromFred.add(id);
       any = true;
     }
   }
@@ -411,7 +432,8 @@ async function loadSeries(): Promise<boolean> {
   }
   await official;
   // Without a FRED key, the US CPI and unemployment rate come from the BLS itself, the same series FRED republishes.
-  if (stop && stop.stop !== 'throttled' && (!series.CPIAUCNS?.length || !series.UNRATE?.length)) await loadBls(series);
+  // A series shown from an earlier BLS answer is brought up to date too (it is not FRED's this time either).
+  if (stop && stop.stop !== 'throttled' && (!fromFred.has('CPIAUCNS') || !fromFred.has('UNRATE'))) await loadBls(series, fromFred);
   any ||= Object.keys(series).some((id) => id.includes(':'));
   fredData.set((s) => ({ ...s, series, firstRelease, loaded: s.loaded || any, ...(any ? { at: Date.now() } : {}), ...keyState(s, stop) }));
   return any;
