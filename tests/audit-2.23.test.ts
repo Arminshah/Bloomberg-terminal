@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { groupName } from '../src/functions/IMAP';
 import { engine } from '../src/data/market';
 import { buildRealFund, realFund, splitsKey } from '../src/data/live/yfund';
 import { parseCompanyFacts } from '../src/data/live/sec';
@@ -62,5 +63,15 @@ describe('A23-006: SEC per-share figures filed before a later split are put on t
   it('reads the split history the price history loaded when none is passed', () => {
     realSplits.set(def.id, NVDA_SPLITS);
     expect(buildRealFund(def, company, null, null, null, NOW, facts()).annual.find((p) => p.label === 'FY 2022')!.eps).toBeCloseTo(0.385, 6);
+  });
+});
+
+describe('A23-002: a stock without a known sector is grouped as Unclassified, not "--"', () => {
+  it('turns the lookup placeholder into a group name', () => {
+    expect(groupName('--', 'Unclassified')).toBe('Unclassified');
+    expect(groupName(' -- ', 'Unclassified')).toBe('Unclassified');
+    expect(groupName('', 'Unclassified')).toBe('Unclassified');
+    expect(groupName(undefined, 'Other')).toBe('Other');
+    expect(groupName('Information Technology', 'Unclassified')).toBe('Information Technology');
   });
 });

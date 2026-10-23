@@ -29,6 +29,11 @@ const MEASURES: { n: number; h: Horizon; scale: number; tag: string }[] = [
   { n: 15, h: '1Y', scale: 40, tag: '1y' },
 ];
 
+/** A sector or industry as a group name: the lookup's "--" placeholder (no sector known) is not one. */
+export function groupName(x: string | undefined, none: string): string {
+  return x && x.trim() && x.trim() !== '--' ? x : none;
+}
+
 /**
  * INDEXMAP (IMAP): an index's whole membership as a sunburst, a table and a heat map, where the app can load it
  * (desktop app: the S&P 500, Nasdaq-100 and the Dow). Elsewhere, the regional heat map.
@@ -66,11 +71,13 @@ function RegionalHeatmap({ code }: { code: string }) {
   useEffect(() => {
     for (const id of unsizedIds.split(',')) if (id) wantShares(id);
   }, [unsizedIds]);
-  const secs = inRegion.filter((d) => cap(d.id) > 0 && (!focus || d.eq!.sector === focus));
+  const sectorOf = (d: SecurityDef) => groupName(d.eq!.sector, 'Unclassified');
+  const secs = inRegion.filter((d) => cap(d.id) > 0 && (!focus || sectorOf(d) === focus));
   const bySector = new Map<string, Map<string, SecurityDef[]>>();
   for (const d of secs) {
-    const sector = d.eq!.sector || 'Other';
-    const industry = d.eq!.industry && d.eq!.industry !== sector ? d.eq!.industry : 'Other';
+    const sector = sectorOf(d);
+    const named = groupName(d.eq!.industry, 'Other');
+    const industry = named !== sector ? named : 'Other';
     if (!bySector.has(sector)) bySector.set(sector, new Map());
     const ind = bySector.get(sector)!;
     ind.set(industry, [...(ind.get(industry) ?? []), d]);
