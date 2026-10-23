@@ -79,7 +79,7 @@ export function execute(panel: number, text: string): boolean {
       return true;
     case 'error':
       if (parsed.lookup) return lookupThenRun(panel, text, parsed.lookup, parsed.message);
-      if (lookupSource() && nameQuery(text)) return nameThenRun(panel, text, parsed.message);
+      if (!parsed.final && lookupSource() && nameQuery(text)) return nameThenRun(panel, text, parsed.message);
       flash(panel, parsed.message, 'error');
       return false;
     case 'route': {

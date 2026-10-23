@@ -117,3 +117,23 @@ describe('A23-005: the package description counts the registered functions', () 
     expect(pkg.description).toContain(`${FUNCTIONS.length} functions`);
   });
 });
+
+describe('A23-003: a bond the app cannot price is not called a stock', () => {
+  it('points a generic Treasury to its yield line', async () => {
+    const { genericTreasuryYield } = await import('../src/terminal/commands');
+    expect(genericTreasuryYield('CT10')).toEqual({ id: 'USGG10YR Index', years: 10 });
+    expect(genericTreasuryYield('ct2')).toEqual({ id: 'USGG2YR Index', years: 2 });
+    expect(genericTreasuryYield('CT99')).toBeUndefined();
+    expect(genericTreasuryYield('T 4 08/15/34')).toBeUndefined();
+  });
+
+  it('reports an unknown bond as a security of its kind, without searching it as a company name', async () => {
+    const { parseCommand } = await import('../src/terminal/commands');
+    const { lookupFn } = await import('../src/terminal/registry');
+    const p = parseCommand('CT99 Govt PROFILE', lookupFn);
+    expect(p).toMatchObject({ kind: 'error', message: 'Unknown security: CT99 Govt', final: true });
+    expect(p.kind === 'error' && p.lookup).toBeFalsy();
+    // A stock still gets its online lookup.
+    expect(parseCommand('ZZZQ US Equity PROFILE', lookupFn)).toMatchObject({ kind: 'error', lookup: 'ZZZQ' });
+  });
+});

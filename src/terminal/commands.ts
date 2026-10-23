@@ -8,8 +8,11 @@ export type Parsed =
   | { kind: 'menu'; n: number }
   | { kind: 'help'; topic: string }
   | { kind: 'route'; fn?: string; sec?: SecurityDef; args?: string }
-  /** `lookup` names a ticker that may be found online (not built in). */
-  | { kind: 'error'; message: string; lookup?: string };
+  /**
+   * `lookup` names a ticker that may be found online (not built in). `final`: the text names a security of a kind
+   * the app has no source for (a bond typed with its yellow key), so it is not searched as a company name either.
+   */
+  | { kind: 'error'; message: string; lookup?: string; final?: boolean };
 
 export interface FnLookup {
   (code: string): { code: string; needsSec?: boolean } | undefined;
@@ -18,6 +21,13 @@ export interface FnLookup {
 /** Ticker shapes worth looking up online: APLD, BRK/B, BRK.B; European listings are ABI BB or ABI.BR. */
 const TICKER = /^[A-Z][A-Z0-9]{0,5}([./-][A-Z]{1,2})?$/;
 const lookupable = (t: string) => TICKER.test(t) || !!parseListing(t);
+
+/** A generic Treasury ("CT10 Govt", the current 10-year): the app's yield line for that maturity, if it has one. */
+export function genericTreasuryYield(secText: string): { id: string; years: number } | undefined {
+  const m = /^CT(\d{1,2})$/i.exec(secText.trim());
+  const id = m ? resolveSecurity(`USGG${Number(m[1])}YR`, 'Index')?.id : undefined;
+  return id ? { id, years: Number(m![1]) } : undefined;
+}
 
 /** Strips keyboard-style tokens ("<EQUITY>", "<GO>") and cashtags ("$APLD"). */
 function clean(input: string): string {
@@ -89,18 +99,24 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
       if (lead) return { kind: 'route', fn: lead.code, args: issuer };
       if (after.length === 0) return { kind: 'route', fn: 'BONDSEARCH', args: issuer };
       const fn = lookup(after[0]);
-      if (!fn) return { kind: 'error', message: unknownFunction(after[0]) };
+      if (!fn) return { kind: 'error', message: unknownFunction(after[0]), final: true };
       return { kind: 'route', fn: fn.code, args: issuer };
     }
     const sec = resolveSecurity(secText, yk);
     if (!sec) {
+      const typed = `${secText.toUpperCase()} ${yk}`;
+      const treasury = yk === 'Govt' ? genericTreasuryYield(secText) : undefined;
+      if (treasury) {
+        return { kind: 'error', message: `${typed}: Treasury prices are not available from the app's free sources. The ${treasury.years}-year yield is: ${treasury.id}`, final: true };
+      }
       const root = secText.toUpperCase().replace(/\s+US$/, '');
-      return { kind: 'error', message: `Unknown security: ${secText.toUpperCase()} ${yk}`, lookup: yk === 'Equity' && lookupable(root) ? root : undefined };
+      if (yk !== 'Equity') return { kind: 'error', message: `Unknown security: ${typed}`, final: true };
+      return { kind: 'error', message: `Unknown security: ${typed}`, lookup: lookupable(root) ? root : undefined };
     }
     if (lead) return { kind: 'route', sec, fn: lead.code, args: argsWith(tokens[0], after.join(' ')) };
     if (after.length === 0) return { kind: 'route', sec };
     const fn = lookup(after[0]);
-    if (!fn) return { kind: 'error', message: unknownFunction(after[0]) };
+    if (!fn) return { kind: 'error', message: unknownFunction(after[0]), ...(yk !== 'Equity' ? { final: true } : {}) };
     return { kind: 'route', sec, fn: fn.code, args: argsWith(after[0], after.slice(1).join(' ')) };
   }
 
