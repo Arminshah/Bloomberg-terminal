@@ -566,3 +566,29 @@ test('portfolio date-aligned risk, independent stress P&L and coverage-labelled 
   await expect(page.getByText('Add securities to compare their daily returns.', { exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('workspace tabs open, keep each workspace, rename, close and reopen as a browser\'s tabs', async ({ page }) => {
+  const errors = await boot(page);
+  const titles = () => page.locator('.wtab .wtab-title, .wtab .wtab-edit').allTextContents();
+  await expect(page.locator('.wtab')).toHaveCount(1);
+  await run(page, 'AAPL US Equity DES');
+  await expect(page.locator('.wtab.on')).toContainText('AAPL PROFILE');
+  await page.getByRole('button', { name: 'New tab' }).click();
+  await expect(page.locator('.wtab')).toHaveCount(2);
+  await expect(page.locator('.wtab.on')).toContainText('New Tab');
+  await run(page, 'NVDA US Equity GP');
+  await expect(page.locator('.wtab.on')).toContainText('NVDA CHART');
+  await page.locator('.wtab').first().click();
+  await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('PROFILE');
+  await page.locator('.wtab').first().dblclick();
+  await page.getByRole('textbox', { name: 'Tab name' }).fill('EQUITY_LONG');
+  await page.getByRole('textbox', { name: 'Tab name' }).press('Enter');
+  expect(await titles()).toEqual(['EQUITY_LONG', 'NVDA CHART']);
+  await page.getByRole('button', { name: 'Close NVDA CHART' }).click();
+  await expect(page.locator('.wtab')).toHaveCount(1);
+  await page.keyboard.press('Control+Shift+T');
+  await expect(page.locator('.wtab')).toHaveCount(2);
+  await expect(page.locator('.wtab.on')).toContainText('NVDA CHART');
+  await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('CHART');
+  expect(errors).toEqual([]);
+});

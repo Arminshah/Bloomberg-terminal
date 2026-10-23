@@ -4,6 +4,8 @@ import { Panel } from './components/Panel';
 import { TickerTape } from './components/TickerTape';
 import { Toasts } from './components/Toasts';
 import { TopBar } from './components/TopBar';
+import { WorkspaceTabs } from './components/WorkspaceTabs';
+import { closeTab, cycleTab, newTab, reopenClosedTab, tabByNumber, workspaceTabs } from './terminal/tabs';
 import { YahooSessionBanner } from './components/YahooSessionBanner';
 import { clearPanelInput, focusPanelInput, pagePanel, typeInto, FKEY_TEXT } from './components/CommandLine';
 import { engine } from './data/market';
@@ -56,6 +58,7 @@ function isTyping(el: EventTarget | null): boolean {
 
 export function App() {
   const layout = terminal.use((s) => s.layout);
+  const tabId = workspaceTabs.use((t) => t.active);
   const size = settings.use((s) => s.size);
   const font = settings.use((s) => s.font);
   const tz = settings.use((s) => s.tz);
@@ -98,6 +101,31 @@ export function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const active = terminal.get().active;
+      // Workspace tabs, with a browser's keys.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === 't') {
+          e.preventDefault();
+          if (e.shiftKey) reopenClosedTab();
+          else newTab();
+          return;
+        }
+        if (k === 'w' && !e.shiftKey) {
+          e.preventDefault();
+          closeTab(workspaceTabs.get().active);
+          return;
+        }
+        if (e.key === 'PageDown' || e.key === 'PageUp') {
+          e.preventDefault();
+          cycleTab(e.key === 'PageDown' ? 1 : -1);
+          return;
+        }
+        if (/^[1-9]$/.test(e.key) && !e.shiftKey) {
+          e.preventDefault();
+          tabByNumber(Number(e.key));
+          return;
+        }
+      }
       if (e.key === 'F1') {
         e.preventDefault();
         showPanelHelp(active);
@@ -181,9 +209,11 @@ export function App() {
     <div className={`app${demoMode() ? ' demo' : ''}`}>
       {demoMode() ? <DemoBanner /> : null}
       {demoMode() ? null : <YahooSessionBanner />}
+      <WorkspaceTabs />
       <TopBar />
       <MobileTabs />
-      <main className="workspace" data-layout={layout} style={mobile ? undefined : { gridTemplateColumns: split.cols.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: split.rows.map((r) => `minmax(0, ${r}fr)`).join(' ') }}>
+      {/* A new key per tab: no screen keeps another tab's local state. */}
+      <main key={tabId} className="workspace" data-layout={layout} style={mobile ? undefined : { gridTemplateColumns: split.cols.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: split.rows.map((r) => `minmax(0, ${r}fr)`).join(' ') }}>
         {Array.from({ length: count }, (_, i) => (
           <Panel key={i} index={i} />
         ))}
