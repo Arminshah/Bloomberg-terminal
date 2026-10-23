@@ -9,7 +9,9 @@ export function createTipRanksClient(dependencies: {
   providers: unknown;
   fetch: (url: string, init: RequestInit) => Promise<Response>;
   monthFile?: () => string;
-  store?: { read(): unknown; write(month: { month: string; used: number }): void };
+  store?: { read(): unknown; write(month: { month: string; byKey: Record<string, number> }): void };
   now?: () => number;
   timeoutMs?: number;
 }): { research(kind: string, ticker: string, key: string): Promise<{ status: number; text: string; error?: string; at?: number; cached?: boolean; budget?: boolean }> };
+
+export function keyId(key: string): string;

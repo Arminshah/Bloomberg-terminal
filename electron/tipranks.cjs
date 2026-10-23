@@ -6,6 +6,7 @@
 // credit and no storage beyond transient caching: answers are kept in memory for an hour, never on disk. Only
 // the two research tools below are called, each on an explicit request; portfolio tools never are.
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 
 const ENDPOINT = 'https://mcp.tipranks.com/mcp/';
 const TOOLS = Object.freeze({ consensus: 'get_assets_data', ratings: 'get_recent_analyst_ratings' });
@@ -77,7 +78,10 @@ function readUsage(data) {
 
 const monthOf = (t) => new Date(t).toISOString().slice(0, 7);
 
-/** The month's call count in a small file in the app's data folder. */
+/** A short fingerprint of a key: calls and answers are kept per TipRanks account, and the key itself is never stored. */
+const keyId = (key) => crypto.createHash('sha256').update(String(key)).digest('hex').slice(0, 16);
+
+/** The month's call counts, one per key, in a small file in the app's data folder: { month, byKey: { id: used } }. */
 function fileStore(monthFile) {
   return {
     read() {
@@ -98,23 +102,35 @@ function fileStore(monthFile) {
 }
 
 function createTipRanksClient({ providers, fetch, monthFile, store = fileStore(monthFile), now = Date.now, timeoutMs = 20_000 }) {
+  /** Answers kept for an hour, per key (another account's answers are not served) and per tool and ticker. */
   const kept = new Map();
-  let schemas = null;
-  let ready = null;
+  /** Calls under way, so two screens asking at once share one metered call. */
+  const inflight = new Map();
+  /** Calls sent and not yet answered, per key: counted against the cap before they are answered. */
+  const reserved = new Map();
+  /** The handshake and the tool schemas, per key. */
+  const prepared = new Map();
   let id = 0;
   let session = null;
 
-  function loadMonth() {
+  /** This month's counts per key. A count saved before counts were kept per key belongs to the key that reads it first. */
+  function loadMonth(kid) {
     const m = session ?? store.read();
-    if (m && m.month === monthOf(now()) && Number.isInteger(m.used)) return m;
-    return { month: monthOf(now()), used: 0 };
+    const month = monthOf(now());
+    if (!m || m.month !== month) return { month, byKey: {} };
+    if (m.byKey && typeof m.byKey === 'object') return m;
+    return { month, byKey: Number.isInteger(m.used) && kid ? { [kid]: m.used } : {} };
   }
-  function countCall() {
-    const m = { ...loadMonth() };
-    m.used++;
-    session = m;
-    store.write(m);
-    return m.used;
+  const usedBy = (kid) => {
+    const n = loadMonth(kid).byKey[kid];
+    return Number.isInteger(n) ? n : 0;
+  };
+  function countCall(kid) {
+    const m = loadMonth(kid);
+    const next = { month: m.month, byKey: { ...m.byKey, [kid]: (Number.isInteger(m.byKey[kid]) ? m.byKey[kid] : 0) + 1 } };
+    session = next;
+    store.write(next);
+    return next.byKey[kid];
   }
 
   async function rpc(key, method, params) {
@@ -160,50 +176,71 @@ function createTipRanksClient({ providers, fetch, monthFile, store = fileStore(m
     }
   }
 
-  /** The handshake and the published tool schemas: neither is metered. */
-  async function prepare(key) {
-    ready ??= (async () => {
-      const init = await rpc(key, 'initialize', { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: 'Armin Terminal', version: '1' } });
-      if (init.error) return init;
-      await rpc(key, 'notifications/initialized', {});
-      const list = await rpc(key, 'tools/list', {});
-      if (list.error) return list;
-      const tools = Array.isArray(list.result?.tools) ? list.result.tools : [];
-      schemas = new Map(tools.filter((t) => typeof t?.name === 'string').map((t) => [t.name, t]));
-      return { ok: true };
-    })();
-    const r = await ready;
-    if (!r.ok) ready = null;
+  /** The handshake and the published tool schemas, once per key: neither is metered. */
+  async function prepare(key, kid) {
+    let p = prepared.get(kid);
+    if (!p) {
+      p = (async () => {
+        const init = await rpc(key, 'initialize', { protocolVersion: PROTOCOL, capabilities: {}, clientInfo: { name: 'Armin Terminal', version: '1' } });
+        if (init.error) return init;
+        await rpc(key, 'notifications/initialized', {});
+        const list = await rpc(key, 'tools/list', {});
+        if (list.error) return list;
+        const tools = Array.isArray(list.result?.tools) ? list.result.tools : [];
+        return { ok: true, schemas: new Map(tools.filter((t) => typeof t?.name === 'string').map((t) => [t.name, t])) };
+      })();
+      prepared.set(kid, p);
+    }
+    const r = await p;
+    if (!r.ok && prepared.get(kid) === p) prepared.delete(kid);
     return r;
   }
 
   async function usage(key) {
-    const r = await prepare(key);
+    const kid = keyId(key);
+    const r = await prepare(key, kid);
     if (!r.ok) return { status: r.status ?? 0, text: '', error: r.error };
-    if (!schemas.has(USAGE_TOOL)) return { status: 0, text: '', error: 'TipRanks no longer lists its usage tool.' };
+    if (!r.schemas.has(USAGE_TOOL)) return { status: 0, text: '', error: 'TipRanks no longer lists its usage tool.' };
     const call = await rpc(key, 'tools/call', { name: USAGE_TOOL, arguments: {} });
     if (call.error) return { status: call.status, text: '', error: call.error };
     const { data } = toolText(call.result);
-    return { status: 200, text: JSON.stringify({ usage: readUsage(data), app: { used: loadMonth().used, cap: MONTHLY_CAP } }), at: now() };
+    return { status: 200, text: JSON.stringify({ usage: readUsage(data), app: { used: usedBy(kid), cap: MONTHLY_CAP } }), at: now() };
   }
 
   async function research(kind, ticker, key) {
     if (!validRequest(kind, ticker)) throw new Error('not allowed');
     if (kind === 'usage') return usage(key);
-    const cacheKey = `${kind}:${ticker}`;
+    const kid = keyId(key);
+    const cacheKey = `${kid}:${kind}:${ticker}`;
     const old = kept.get(cacheKey);
     if (old && now() - old.at < KEEP_MS) return { status: 200, text: old.text, at: old.at, cached: true };
-    if (loadMonth().used >= MONTHLY_CAP) return { status: 0, text: '', budget: true, error: `This app has used its ${MONTHLY_CAP} TipRanks calls for ${monthOf(now())}; the count restarts on the 1st (UTC).` };
-    const r = await prepare(key);
-    if (!r.ok) return { status: r.status ?? 0, text: '', error: r.error };
-    const args = toolArguments(schemas.get(TOOLS[kind]), kind, ticker);
-    if (!args) {
-      providers.recordProblem('tipranks', 'schema-changed', `TipRanks changed the ${TOOLS[kind]} tool; nothing was sent.`);
-      return { status: 0, text: '', error: `TipRanks changed the ${TOOLS[kind]} tool, so the app did not call it.` };
+    const running = inflight.get(cacheKey);
+    if (running) return running;
+    const p = askTool(kind, ticker, key, kid, cacheKey).finally(() => inflight.delete(cacheKey));
+    inflight.set(cacheKey, p);
+    return p;
+  }
+
+  async function askTool(kind, ticker, key, kid, cacheKey) {
+    if (usedBy(kid) + (reserved.get(kid) ?? 0) >= MONTHLY_CAP) return { status: 0, text: '', budget: true, error: `This app has used its ${MONTHLY_CAP} TipRanks calls for ${monthOf(now())} with this key; the count restarts on the 1st (UTC).` };
+    // The call counts against the cap from the moment it is sent, so calls made together cannot pass it.
+    reserved.set(kid, (reserved.get(kid) ?? 0) + 1);
+    let answer;
+    try {
+      const r = await prepare(key, kid);
+      if (!r.ok) return { status: r.status ?? 0, text: '', error: r.error };
+      const args = toolArguments(r.schemas.get(TOOLS[kind]), kind, ticker);
+      if (!args) {
+        providers.recordProblem('tipranks', 'schema-changed', `TipRanks changed the ${TOOLS[kind]} tool; nothing was sent.`);
+        return { status: 0, text: '', error: `TipRanks changed the ${TOOLS[kind]} tool, so the app did not call it.` };
+      }
+      answer = await rpc(key, 'tools/call', { name: TOOLS[kind], arguments: args });
+      // A call the server answered is metered, whatever it returned; a refusal over the cap is not.
+      if (answer.status === 200) countCall(kid);
+    } finally {
+      reserved.set(kid, Math.max(0, (reserved.get(kid) ?? 1) - 1));
     }
-    const call = await rpc(key, 'tools/call', { name: TOOLS[kind], arguments: args });
-    // A call the server answered is metered, whatever it returned; a refusal over the cap is not.
-    if (call.status === 200) countCall();
+    const call = answer;
     if (call.error) return { status: call.status, text: '', error: call.error, ...(call.budget ? { budget: true } : {}) };
     const { text, data } = toolText(call.result);
     let reply = text;
@@ -223,4 +260,4 @@ function createTipRanksClient({ providers, fetch, monthFile, store = fileStore(m
   return { research };
 }
 
-module.exports = { ENDPOINT, TOOLS, MONTHLY_CAP, validRequest, toolArguments, decodeReply, readUsage, createTipRanksClient };
+module.exports = { ENDPOINT, TOOLS, MONTHLY_CAP, validRequest, toolArguments, decodeReply, readUsage, createTipRanksClient, keyId };
