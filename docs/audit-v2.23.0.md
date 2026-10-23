@@ -83,13 +83,30 @@ Observations that are **not** findings (checked and correct):
 - Treasury yields: USGG2YR 4.81, USGG10YR 5.13, USGG3M 4.25 in the app on 22 Oct 2026 equal the Treasury's par yield curve CSV for 21 Oct 2026 (2 Yr 4.81, 10 Yr 5.13, 3 Mo 4.25).
 - Security: both windows run with `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`, new windows denied; keys are stored encrypted with Electron `safeStorage`; the renderer receives only "configured/valid/source" per credential (`electron/providers.cjs` `credentialStatus`), never a value; IPC handlers check the sender is the app's own page (`fromApp`).
 - BRK/B: FINANCIALS diluted EPS 2025 31.04 is per Class B share (net income 66,968M over about 2.16B Class B equivalents), matching the B price; 2022–2025 net income matches Berkshire's reported results.
-- 485 screens captured without keys (two runs): no failures, no console errors.
+- 485 screens captured without keys (two runs): no failures, no console errors. 485 screens captured with the owner's keys (two runs, 222 + 263): no failures, no console errors.
+- CURVE on 22 Oct 2026 (keys run, 21:15 UTC): every Treasury yield equals the Treasury's daily par yield curve for 22 Oct (3M 4.22, 6M 4.29, 1Y 4.41, 2Y 4.65, 3Y 4.72, 5Y 4.78, 7Y 4.86, 10Y 4.96, 20Y 5.32, 30Y 5.29), and the day changes equal the difference from 21 Oct (2Y −16bp, 10Y −17bp).
+- ECONSTATS: US CPI 3.7% for Sep 2026 = FRED CPIAUCNS 336.94 / 324.80 − 1 = 3.74%; the real rate +0.26 = the Fed's upper limit 4.00 − 3.74, as the screen's note says.
+- NVDA quarterly diluted EPS 2.46 (quarter ended 26 Jul 2026) and 2.39 (26 Apr 2026) in EARNINGS equal the 10-Qs' XBRL facts; FMP's revenue 96.221 billion for the July quarter matches EARNINGS.
+- NVDA FY2022 P/E after A23-006: the 28 Jan 2022 close of about 228.40 is 22.84 on today's share basis; 22.84 / 0.385 = 59.3, as the app shows.
 
 ## 4. Coverage matrix
 
-(Generated; see `docs/audit-v2.23.0-coverage.md` once built.)
+Full table: [`docs/audit-v2.23.0-coverage.md`](audit-v2.23.0-coverage.md) (the app's 91 functions with the mnemonics that open them and the documents that cite them; every code the documents use with its status).
+
+- 525 codes appear in the documents. 91 open a screen in the app (after the four mnemonics added under A23-010 and PRTU under A23-012); 10 are market sector keys, which typed alone open the sector's MENU; 21 are not functions.
+- **55 missing, could be built from free data (class a).** The ones cited most: ECFC (IMF forecasts), ECTR (IMF trade data), EA (an index's earnings season), EEG/EM (estimate history and trends), RELS, CTM/CT/CCRV (futures contract months), CACT (corporate actions across stocks), FXCA, WCR, WECO, INSD (SEC Form 4), OVDV (option IV surface from the contracts OPTIONS already loads), PSRT/PD/HLDR/FLNG/RANK (SEC 13F), central bank pages (ECB, FED, BOE, BOJ, CBRT).
+- **348 missing, class b**: the provider's own content (its news, research, opinion, newspapers, billionaires, league tables), platform and account services (messaging, Launchpad, Excel and API tools, training, login, trading and execution), and data with no free source identified (credit ratings, ESG scores and emissions, M&A and new-issue databases, CDS, OAS, dealer runs, shipping and energy databases).
+- Not built in this audit: implementing class-a functions is new work, listed here for after it.
 
 ## 5. Data gaps
+
+Seen while checking screens against documents and primary sources; each is a blank or a missing screen because no free source supplies it, not a defect.
+- **ESG** (document 17): disclosure scores, greenhouse-gas intensity, UN Global Compact and board-pay flags; green-bond flags in BONDSEARCH.
+- **Ratings and debt** (documents 14, 16): issuer and bond credit ratings (CRPR); preferred stocks (SECF with Pfd: the app does not cover the Pfd sector); generic Treasury prices on the desktop (yields are there: USGG*).
+- **Screening universe**: SCREEN covers the stocks the app follows and those looked up, not a global universe of tens of thousands (documents 15, 17).
+- **ECONSTATS**: no 10-year yield for France, Italy, Spain, the Netherlands or Belgium; Japan's CPI and policy rate are blank (no connected source; the screen's note says so for inflation).
+- **Earnings outside the US**: past quarters' expected revenue and report sessions for European listings (A23-008 now says why).
+- **Options**: IV and Greeks blank where the provider gives none; no open interest or option volume from this endpoint (the screen says so).
 
 ## 6. Document conflicts
 
