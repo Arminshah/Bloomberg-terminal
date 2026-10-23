@@ -329,6 +329,8 @@ export interface NasdaqPart<T = unknown> {
   data?: T | null;
   message?: string;
   at?: number;
+  /** An earlier answer kept because the latest request failed. */
+  stale?: boolean;
 }
 
 export const nasdaqData = createStore<{ v: number; by: Record<string, Partial<Record<NasdaqKind, NasdaqPart>>> }>({ v: 0, by: {} });
@@ -363,7 +365,7 @@ export function loadNasdaq<T = unknown>(symbol: string, kind: NasdaqKind): Promi
       if (!res.text) part = { state: 'error', message: res.error ?? (res.status ? `Nasdaq answered HTTP ${res.status}.` : 'Nasdaq did not answer.'), at: Date.now() };
       else {
         const parsed = PARSE[kind](res.text);
-        part = 'error' in parsed ? { state: 'error', message: parsed.error, at: Date.now() } : { state: 'ok', data: parsed.data, at: res.at ?? Date.now() };
+        part = 'error' in parsed ? { state: 'error', message: parsed.error, at: Date.now() } : { state: 'ok', data: parsed.data, at: res.at ?? Date.now(), ...(res.stale ? { stale: true } : {}) };
       }
     } catch {
       part = { state: 'error', message: 'The Nasdaq request could not be completed.', at: Date.now() };

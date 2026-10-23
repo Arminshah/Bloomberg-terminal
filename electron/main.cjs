@@ -839,7 +839,8 @@ ipcMain.handle('estimate-history', async (event, kind, symbol) => {
     if (older.history) got.push(older);
   }
   if (!got.length) return { status: first.status ? (first.status === 200 ? 404 : first.status) : 404, text: '', error: first.error || 'No earnings history was found for this ticker.' };
-  return { status: 200, text: JSON.stringify(got.map((g) => g.history)), at: Math.min(...got.map((g) => g.at)) };
+  // A history kept from an earlier answer (the refresh failed) goes back marked stale, with the time it was read.
+  return { status: 200, text: JSON.stringify(got.map((g) => g.history)), at: Math.min(...got.map((g) => g.at)), ...(got.some((g) => g.stale) ? { stale: true } : {}) };
 });
 
 // Analysts' rating actions with their price targets, from MarketBeat's forecast page (electron/analyst-actions.cjs),

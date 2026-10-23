@@ -350,6 +350,8 @@ interface Part<T> {
   data?: T;
   message?: string;
   at?: number;
+  /** An earlier answer kept because the latest request failed. */
+  stale?: boolean;
 }
 
 export const earningsCalendar = createStore<{
@@ -391,7 +393,7 @@ function answerPart<T>(res: KeyedAnswer, source: CalendarSource, parse: (text: s
   if (res.missing || res.refused) return { state: 'needs-key', message: res.refused ? `The configured ${source} key has the wrong format.` : `Needs ${source === 'FMP' ? 'FMP_API_KEY' : 'FINNHUB_API_KEY'} (PROVIDERS).` };
   if (!res.text) return { state: res.budget ? 'budget' : 'error', message: res.budget ? `Today's ${source} allowance in this app is spent.` : `${source}: ${res.error ?? (res.status ? `HTTP ${res.status}` : 'no answer')}` };
   const parsed = parse(res.text);
-  return 'error' in parsed ? { state: 'error', message: `${source}: ${parsed.error}`, at: res.at } : { state: 'ok', data: parsed.data, at: res.at };
+  return 'error' in parsed ? { state: 'error', message: `${source}: ${parsed.error}`, at: res.at } : { state: 'ok', data: parsed.data, at: res.at, ...(res.stale ? { stale: true } : {}) };
 }
 
 /**

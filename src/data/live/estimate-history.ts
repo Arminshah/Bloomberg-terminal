@@ -87,7 +87,9 @@ interface HistoryEntry {
   kind: HistoryKind;
   data?: EstimateHistory[];
   message?: string;
+  /** When the history was read; with `stale`, an earlier answer kept because the latest request failed. */
   at: number;
+  stale?: boolean;
 }
 
 export const historyData = createStore<{ v: number; by: Record<string, HistoryEntry> }>({ v: 0, by: {} });
@@ -102,7 +104,7 @@ function due(symbol: string, kind: HistoryKind): boolean {
   if (!have) return true;
   if (have.state === 'loading') return false;
   const enough = have.kind === 'earnings' || kind === 'calendar';
-  return !enough || Date.now() - have.at >= (have.state === 'ok' ? 12 * 3_600_000 : 15 * 60_000);
+  return !enough || Date.now() - have.at >= (have.state === 'ok' && !have.stale ? 12 * 3_600_000 : 15 * 60_000);
 }
 
 /**
@@ -117,7 +119,8 @@ export async function loadHistory(symbol: string | null | undefined, kind: Histo
   try {
     const res = await window.arminDesktop!.estimateHistory!(kind, symbol);
     const data = res.text ? parseHistory(res.text) : null;
-    set(data ? { state: 'ok', kind, data, at: Date.now() } : { state: 'error', kind, data: have?.data, message: res.error ?? (res.status ? `HTTP ${res.status}` : 'no answer'), at: Date.now() });
+    // A copy kept from an earlier answer keeps its own time and is asked for again after 15 minutes.
+    set(data ? { state: 'ok', kind, data, at: res.at ?? Date.now(), ...(res.stale ? { stale: true } : {}) } : { state: 'error', kind, data: have?.data, message: res.error ?? (res.status ? `HTTP ${res.status}` : 'no answer'), at: Date.now() });
   } catch {
     set({ state: 'error', kind, data: have?.data, message: 'the request could not be made', at: Date.now() });
   }

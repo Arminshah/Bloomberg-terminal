@@ -65,6 +65,8 @@ interface Entry {
   rows?: AnalystAction[];
   message?: string;
   at: number;
+  /** An earlier answer kept because the latest request failed. */
+  stale?: boolean;
 }
 
 export const actionsData = createStore<{ v: number; by: Record<string, Entry> }>({ v: 0, by: {} });
@@ -75,13 +77,13 @@ export function actionsAvailable(): boolean {
 
 async function load(symbol: string) {
   const have = actionsData.get().by[symbol];
-  if (have && (have.state === 'loading' || Date.now() - have.at < (have.state === 'ok' ? 6 * 3_600_000 : 15 * 60_000))) return;
+  if (have && (have.state === 'loading' || Date.now() - have.at < (have.state === 'ok' && !have.stale ? 6 * 3_600_000 : 15 * 60_000))) return;
   const set = (e: Entry) => actionsData.set((s) => ({ v: s.v + 1, by: { ...s.by, [symbol]: e } }));
   set({ ...(have ?? {}), state: 'loading', at: have?.at ?? 0 });
   try {
     const res = await window.arminDesktop!.analystActions!(symbol);
     const rows = res.text ? parseActions(res.text) : null;
-    set(rows ? { state: 'ok', rows, at: res.at ?? Date.now() } : { state: 'error', rows: have?.rows, message: res.error ?? (res.status ? `MarketBeat answered ${res.status}` : 'no answer'), at: Date.now() });
+    set(rows ? { state: 'ok', rows, at: res.at ?? Date.now(), ...(res.stale ? { stale: true } : {}) } : { state: 'error', rows: have?.rows, message: res.error ?? (res.status ? `MarketBeat answered ${res.status}` : 'no answer'), at: Date.now() });
   } catch {
     set({ state: 'error', rows: have?.rows, message: 'the request could not be made', at: Date.now() });
   }

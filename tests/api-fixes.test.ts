@@ -133,3 +133,28 @@ describe('official statistics stay current within a session', async () => {
     expect(later.CPIAUCNS).toBe(sep);
   });
 });
+
+describe('an earlier answer kept after a failed refresh stays marked stale, with its own time', () => {
+  const history = JSON.stringify([{ source: 'Finviz', eps: [{ date: '2026-08-26', period: '2026-07', est: 2.09, actual: 2.22 }], sales: [] }]);
+
+  it('estimate histories: the kept copy keeps its time and is asked for again after 15 minutes, not 12 hours', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse('2026-10-23T12:00:00Z'));
+    const keptAt = Date.parse('2026-10-23T09:00:00Z');
+    const api = vi.fn(async () => ({ status: 200, text: history, at: keptAt, stale: true }));
+    vi.stubGlobal('window', { arminDesktop: { estimateHistory: api } });
+    const { loadHistory, historyData } = await import('../src/data/live/estimate-history');
+    await loadHistory('ZZTEST');
+    expect(historyData.get().by.ZZTEST).toMatchObject({ state: 'ok', at: keptAt, stale: true });
+    await loadHistory('ZZTEST');
+    expect(api).toHaveBeenCalledTimes(2); // three hours old and stale: asked again
+    api.mockImplementation(async () => ({ status: 200, text: history, at: Date.now() }) as never);
+    await loadHistory('ZZTEST');
+    expect(historyData.get().by.ZZTEST.stale).toBeUndefined();
+    vi.setSystemTime(Date.now() + 60 * 60_000);
+    await loadHistory('ZZTEST');
+    expect(api).toHaveBeenCalledTimes(3); // fresh: not asked again within 12 hours
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+});

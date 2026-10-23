@@ -107,6 +107,8 @@ export interface AvEntry {
   data?: AvEarnings;
   message?: string;
   at?: number;
+  /** An earlier answer kept because the latest request failed (a spent allowance, a refusal). */
+  stale?: boolean;
 }
 
 export const alphaVantageData = createStore<{ v: number; by: Record<string, AvEntry> }>({ v: 0, by: {} });
@@ -142,7 +144,7 @@ export function loadAlphaVantage(symbol: string): Promise<AvEntry> {
         const e = estimates.text ? parseAvEstimates(estimates.text) : { error: estimates.error ?? 'Alpha Vantage did not answer.' };
         const data: AvEarnings = { reports: 'data' in r ? r.data : [], estimates: 'data' in e ? e.data : [] };
         const problems = ['error' in r ? r.error : '', 'error' in e ? e.error : ''].filter(Boolean);
-        entry = data.reports.length || data.estimates.length ? { state: 'ok', data, at: Math.min(reports.at ?? Date.now(), estimates.at ?? Date.now()), ...(problems.length ? { message: problems.join(' ') } : {}) } : { state: 'error', message: problems.join(' ') || 'Alpha Vantage has no earnings data for this company.', at: Date.now() };
+        entry = data.reports.length || data.estimates.length ? { state: 'ok', data, at: Math.min(reports.at ?? Date.now(), estimates.at ?? Date.now()), ...(reports.stale || estimates.stale ? { stale: true } : {}), ...(problems.length ? { message: problems.join(' ') } : {}) } : { state: 'error', message: problems.join(' ') || 'Alpha Vantage has no earnings data for this company.', at: Date.now() };
       }
     } catch {
       entry = { state: 'error', message: 'The Alpha Vantage request could not be completed.', at: Date.now() };

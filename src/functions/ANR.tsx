@@ -232,7 +232,7 @@ export function ANR({ sec }: FnProps) {
         )}
       </Section> : null}
       {actions?.rows?.length ? (
-        <Section title="Recent rating actions" right={`${actions.rows.length} actions · MarketBeat · received ${fmtDay(actions.at)}`}>
+        <Section title="Recent rating actions" right={`${actions.rows.length} actions · MarketBeat · received ${fmtDay(actions.at)}${actions.stale ? ' · STALE: the latest request failed' : ''}`}>
           <RatingActions rows={actions.rows} last={engine.quote(s.id)?.last ?? NaN} />
         </Section>
       ) : loading(grades) || grades?.data?.length ? <Section title="Recent rating actions">
