@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { sourceLabel } from '../components/Source';
@@ -71,6 +72,11 @@ function totalReturn(def: SecurityDef, start: number): TrResult {
 }
 
 /** TRA: total return analysis against a benchmark. */
+/** A year's P/E cell without a figure: NM when the year had no earnings, else a blank (no price or another currency). */
+export function yearPeBlank(sameCcy: boolean, eps: number): ReactNode {
+  return sameCcy && Number.isFinite(eps) && eps <= 0 ? <span title="Not meaningful: the year's EPS is a loss">NM</span> : '--';
+}
+
 export function TRA({ sec }: FnProps) {
   const s = sec!;
   useTick(10);
@@ -265,7 +271,7 @@ export function GF({ sec }: FnProps) {
               <td className="num">{fmtNum(p.eps, 2)}</td>
               <td className="num hide-m">{fmtNum(p.fcf, 0)}</td>
               <td className="num hide-m">{fmtNum((p.opInc / p.rev) * 100, 1)}%</td>
-              <td className="num">{Number.isFinite(pe(p)) ? fmtNum(pe(p), 1) : '--'}</td>
+              <td className="num">{Number.isFinite(pe(p)) ? fmtNum(pe(p), 1) : yearPeBlank(sameCcy, p.eps)}</td>
             </tr>
           ))}
         </tbody>

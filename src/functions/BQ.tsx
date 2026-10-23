@@ -6,6 +6,7 @@ import { ChartView } from '../components/chart/ChartView';
 import type { ChartOptions } from '../components/chart/PriceChart';
 import { DayChg, KV, Section } from '../components/cells';
 import { TopOfBook, BookTable } from './DEPTH';
+import { peText } from './DESEquity';
 import { TapeSource, TradeTape } from './TAS';
 import { SimBadge } from '../components/Source';
 import { AnalystSummary, useAnalystSnapshot } from '../components/AnalystSummary';
@@ -173,7 +174,7 @@ export function BQ({ sec }: FnProps) {
             <KV
               items={[
                 ['Market cap', `${fmtMln(ks.mcap)} ${ks.tradeCcy}`],
-                ['P/E LTM', fmtNum(ks.pe, 1)],
+                ['P/E LTM', Number.isFinite(ks.pe) && ks.pe > 0 ? fmtNum(ks.pe, 1) : peText(NaN, ks.epsLtm)],
                 ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
                 ['Beta (5Y monthly)', fmtNum(ks.beta, 2)],
                 ['Next earnings', ne ? fmtEarnDate(ne) : '--'],

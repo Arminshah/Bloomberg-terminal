@@ -194,3 +194,16 @@ describe('A23-008: the missing-revenue hint does not ask for a key that cannot h
     expect(missingRevenueHint([q as never], undefined, true)).toContain('ALPHA_VANTAGE_API_KEY');
   });
 });
+
+describe('A23-009: a P/E on a loss reads NM, not a blank (APLD)', () => {
+  it('FUNDCHART and QUOTE mark loss years NM and keep a blank where the price or currency is missing', async () => {
+    const { yearPeBlank } = await import('../src/functions/ANALYSIS');
+    const { peText } = await import('../src/functions/DESEquity');
+    const html = (n: unknown) => renderToStaticMarkup(createElement('div', null, n as never));
+    expect(html(yearPeBlank(true, -0.91))).toContain('>NM</span>');
+    expect(html(yearPeBlank(true, 0))).toContain('>NM</span>');
+    expect(yearPeBlank(false, -0.91)).toBe('--'); // reported in another currency: no P/E either way
+    expect(yearPeBlank(true, NaN)).toBe('--');
+    expect(html(peText(NaN, -0.91))).toContain('>NM</span>'); // QUOTE's P/E LTM uses the same rule
+  });
+});
