@@ -9,6 +9,7 @@ import { engine, useTick } from '../data/market';
 import { localBeta, marketCapUsd, periodChange } from '../data/analytics';
 import { keyStats } from '../data/fundamentals';
 import { usePanelId } from '../terminal/panel';
+import type { SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
 import { desktopData } from '../data/live/yahoo';
 import { SimBadge } from '../components/Source';
@@ -23,9 +24,17 @@ interface Criteria {
   ytdMin: string;
   betaMax: string;
   roeMin: string;
+  /** Words, separated by commas: a stock whose sector or industry contains one is left out ("tobacco, casinos"). */
+  exclude: string;
 }
 
-const EMPTY: Criteria = { region: 'All', sector: 'All', capMin: '', capMax: '', peMax: '', dyMin: '', ytdMin: '', betaMax: '', roeMin: '' };
+const EMPTY: Criteria = { region: 'All', sector: 'All', capMin: '', capMax: '', peMax: '', dyMin: '', ytdMin: '', betaMax: '', roeMin: '', exclude: '' };
+
+/** The exclusion word a stock's sector or industry contains, if any (case does not matter). */
+export function excludedBy(d: Pick<SecurityDef, 'eq'>, exclude: string): string | undefined {
+  const text = `${d.eq?.sector ?? ''} | ${d.eq?.industry ?? ''}`.toLowerCase();
+  return exclude.split(',').map((w) => w.trim().toLowerCase()).filter(Boolean).find((w) => text.includes(w));
+}
 
 const PRESETS: { name: string; c: Partial<Criteria> }[] = [
   { name: 'Mega caps', c: { capMin: '500' } },
@@ -54,6 +63,7 @@ export function EQS(_: FnProps) {
       .filter(({ d, k, beta, cap, ytd }) => {
         if (c.region !== 'All' && d.region !== c.region) return false;
         if (c.sector !== 'All' && d.eq!.sector !== c.sector) return false;
+        if (c.exclude.trim() && excludedBy(d, c.exclude)) return false;
         if (Number.isFinite(n(c.capMin)) && !(cap >= n(c.capMin))) return false;
         if (Number.isFinite(n(c.capMax)) && !(cap <= n(c.capMax))) return false;
         if (Number.isFinite(n(c.peMax)) && !(k.pe > 0 && k.pe <= n(c.peMax))) return false;
@@ -112,6 +122,10 @@ export function EQS(_: FnProps) {
         {field('roeMin', 'ROE ≥ %', '')}
         {field('ytdMin', 'YTD ≥ %', '')}
         {field('betaMax', 'Beta ≤', '')}
+        <label className="fld" htmlFor={`eqs-exclude-${panel}`} title="Leave out stocks whose sector or industry contains any of these words, separated by commas">
+          Exclude industries
+          <input id={`eqs-exclude-${panel}`} className="inp" style={{ width: 190 }} placeholder="tobacco, casinos, defense" value={c.exclude} onChange={(e) => setC({ ...c, exclude: e.target.value })} />
+        </label>
         <button type="button" className="btn" onClick={() => setC(EMPTY)}>
           Reset
         </button>

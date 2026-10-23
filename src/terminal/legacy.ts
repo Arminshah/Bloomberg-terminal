@@ -105,6 +105,8 @@ export const LEGACY_CODES: Record<string, string> = {
   HCP: 'HISTORY',
   HCPI: 'HISTORY',
   FXFR: 'FXFORWARD',
+  // From Abdoh's course notes (reference document 16): creating a portfolio and adding its positions.
+  PRTU: 'PORTFOLIO',
 };
 
 /**

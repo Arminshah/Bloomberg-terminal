@@ -22,9 +22,9 @@ export interface FnLookup {
 const TICKER = /^[A-Z][A-Z0-9]{0,5}([./-][A-Z]{1,2})?$/;
 const lookupable = (t: string) => TICKER.test(t) || !!parseListing(t);
 
-/** A generic Treasury ("CT10 Govt", the current 10-year): the app's yield line for that maturity, if it has one. */
+/** A generic Treasury ("CT10 Govt" or "GT10 Govt", the current 10-year): the app's yield line for that maturity, if it has one. */
 export function genericTreasuryYield(secText: string): { id: string; years: number } | undefined {
-  const m = /^CT(\d{1,2})$/i.exec(secText.trim());
+  const m = /^[CG]T(\d{1,2})$/i.exec(secText.trim());
   const id = m ? resolveSecurity(`USGG${Number(m[1])}YR`, 'Index')?.id : undefined;
   return id ? { id, years: Number(m![1]) } : undefined;
 }

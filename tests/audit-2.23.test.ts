@@ -234,3 +234,26 @@ describe('A23-010: the news quick start\'s workflows (reference document 14)', (
     expect(parseCommand('ZZA Comdty', lookupFn)).toMatchObject({ kind: 'error', message: 'Unknown security: ZZA Comdty' });
   });
 });
+
+describe('A23-011: SCREEN leaves out industries, as the ESG screening exercise does (reference document 17)', () => {
+  it('excludes a stock whose sector or industry contains one of the words', async () => {
+    const { excludedBy } = await import('../src/functions/EQS');
+    const pm = { eq: { sector: 'Consumer Staples', industry: 'Tobacco' } } as never;
+    const lvs = { eq: { sector: 'Consumer Discretionary', industry: 'Resorts & Casinos' } } as never;
+    const aapl = { eq: { sector: 'Information Technology', industry: 'Consumer Electronics' } } as never;
+    const words = 'tobacco, Casinos , defense';
+    expect(excludedBy(pm, words)).toBe('tobacco');
+    expect(excludedBy(lvs, words)).toBe('casinos');
+    expect(excludedBy(aapl, words)).toBeUndefined();
+    expect(excludedBy(pm, '  ,  ')).toBeUndefined();
+  });
+});
+
+describe('A23-012: the course notes\' commands (reference document 16)', () => {
+  it('points GT10 Govt to the 10-year yield and opens PORTFOLIO for PRTU', async () => {
+    const { parseCommand, genericTreasuryYield } = await import('../src/terminal/commands');
+    const { lookupFn } = await import('../src/terminal/registry');
+    expect(genericTreasuryYield('GT10')).toEqual({ id: 'USGG10YR Index', years: 10 });
+    expect(parseCommand('PRTU', lookupFn)).toEqual({ kind: 'route', fn: 'PORTFOLIO' });
+  });
+});
