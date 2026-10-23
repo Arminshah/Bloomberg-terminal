@@ -1,6 +1,6 @@
 # Armin Terminal 2.23.0: audit against the reference documents
 
-Status: **in progress**. This file is the audit's working record; it is updated as the audit goes.
+Status: **complete for this pass** (23 October 2026). Fourteen findings, all fixed on `claude/market-events-v2.16.0-id814n`, each with a regression test in `tests/audit-2.23.test.ts`.
 
 ## 1. Summary
 
@@ -25,7 +25,31 @@ Commands: a separate checkout of the tag (`git worktree add <dir> v2.23.0`), sha
 
 ### Findings
 
-(Filled in as the audit goes; see section 3.)
+| Severity | Count | IDs |
+|---|---|---|
+| S1 (wrong figure shown as fact) | 2 | A23-006 (NVIDIA EPS on the pre-split basis), A23-007 (a quarter "ended 30/09/26" shown as reported) |
+| S2 (documented workflow missing or misleading label) | 4 | A23-001, A23-008, A23-010, A23-011 |
+| S3 (label, order or format) | 8 | A23-002, A23-003, A23-004, A23-005, A23-009, A23-012, A23-013, A23-014 |
+| S4 | 0 | |
+
+No crash, freeze, data loss or exposed key was found. Each fix was checked in the desktop app where the data allowed it; the tests of A23-007, A23-013 and A23-014 were also run against the old code, where they fail.
+
+### Final run (working branch, after the fixes)
+
+| Suite | Result |
+|---|---|
+| `npm run lint` | pass |
+| `npm run typecheck` | pass |
+| Vitest (`npx vitest run --maxWorkers=2`) | 1,223 passed, 94 files (baseline 1,188, 90) |
+| Playwright, browser | 38 passed |
+| Playwright, Electron under xvfb | 34 passed |
+| `npm run build` | pass |
+
+### Deviations from the brief
+
+- The fixes are on the working branch, not `audit/v2.23.0` from `main` (see Decisions). No pull request was opened: `main` holds only the README, so a pull request into it would carry the whole application; the owner decides.
+- A23-011 and A23-012 share one commit; A23-005's test needed a follow-up commit (it used `node:fs`, which the test typecheck does not include).
+- No version bump, tag or release.
 
 ## 2. Reference documents
 
@@ -119,4 +143,22 @@ Seen while checking screens against documents and primary sources; each is a bla
 
 ## 7. Owner-run checklist
 
+To run on Windows with the installed app (Yahoo refuses this sandbox's session, and some screens need a person to look):
+1. `NVDA US Equity FUNDCHART`: FY2022 EPS about 0.39 and P/E about 59 (A23-006). `NVDA US Equity FILINGS`, reported figures: the FY2022 EPS 3.85 marked s, its tooltip giving 0.39 on today's shares.
+2. `NVDA US Equity EARNINGS` with a Finnhub key: each quarter once, no quarter ended 30/09/26 (A23-007).
+3. `SX5E Index INDEXMAP`, `UKX Index INDEXMAP`: the amber note and the Europe map (A23-001). `HEATMAP` after looking up a stock with no sector: an Unclassified tile (A23-002).
+4. `CT10 Govt`, `GT10 Govt`, `CLA Comdty`: the messages naming USGG10YR Index and CL1 Comdty (A23-003, A23-010, A23-012).
+5. Click PORT on the key bar, then press F12: both type CLIENT; `CLIENT <GO>` opens PORTFOLIO (A23-004).
+6. `SAP GY Equity EARNINGS`: the hint says the sources are asked for US listings only (A23-008). `SAP GY Equity PROFILE` and `BRK/B US Equity PROFILE` with Yahoo working: T12M EPS shown next to the P/E (A23-014).
+7. `APLD US Equity FUNDCHART` and `QUOTE`: NM for the P/E (A23-009).
+8. `TOP Oil`, `TOP Europe`: stories filtered by the word; `FIRS`, `HCP`, `HCPI`, `FXFR`, `PRTU` open BREAKING, HISTORY, FXFORWARD, PORTFOLIO (A23-010, A23-012).
+9. SCREEN: Exclude industries "tobacco, casinos" removes those stocks (A23-011).
+10. Type `apple`: Apple Inc is the first suggestion (A23-013).
+11. With Yahoo working: PROFILE's employees and insiders, ASML's next earnings date and the FX bid/ask, which were blank here because Yahoo refused the session.
+12. Rotate every API key that was pasted into chats during this work (all 13 providers, and the Alpaca key pair).
+
 ## 8. Appendix
+
+- Captures: `scratchpad/live/capture.cjs` (one panel per command in the desktop app on live data: text, screenshot, header, console errors), run without keys (485 screens) and with the owner's keys (485 screens); the keys were passed as environment variables from a file outside the repository and never printed.
+- Primary figures: `scratchpad/audit/expected/fetch_primary.py` (SEC XBRL company facts, FINRA short interest, NY Fed, ECB, FRED, Nasdaq closes), plus the Treasury's daily par yield CSV, FRED CPIAUCNS, the SEC companyconcept API and the Finnhub, FMP and Yahoo answers quoted in the findings.
+- Reference notes in my own words: `scratchpad/refnotes/` (per document, with mnemonic tables); the documents themselves stay in `reference/pdfs/`, which git ignores.
