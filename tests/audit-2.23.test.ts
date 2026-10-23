@@ -207,3 +207,30 @@ describe('A23-009: a P/E on a loss reads NM, not a blank (APLD)', () => {
     expect(html(peText(NaN, -0.91))).toContain('>NM</span>'); // QUOTE's P/E LTM uses the same rule
   });
 });
+
+describe('A23-010: the news quick start\'s workflows (reference document 14)', () => {
+  it('TOP with a topic filters by that word; a stock still filters by its ticker', async () => {
+    const { parseCommand } = await import('../src/terminal/commands');
+    const { lookupFn } = await import('../src/terminal/registry');
+    for (const topic of ['Oil', 'Europe', 'China', 'Stocks', 'Bonds', 'gold']) {
+      expect(parseCommand(`TOP ${topic}`, lookupFn)).toEqual({ kind: 'route', fn: 'MARKETNEWS', args: topic.toUpperCase() });
+    }
+    expect(parseCommand('TOP NVDA', lookupFn)).toMatchObject({ kind: 'route', fn: 'MARKETNEWS', sec: { id: 'NVDA US Equity' } });
+  });
+
+  it('opens the screens the document names that the app has under another name', async () => {
+    const { parseCommand } = await import('../src/terminal/commands');
+    const { lookupFn } = await import('../src/terminal/registry');
+    expect(parseCommand('FIRS', lookupFn)).toEqual({ kind: 'route', fn: 'BREAKING' });
+    expect(parseCommand('HCP', lookupFn)).toEqual({ kind: 'route', fn: 'HISTORY' });
+    expect(parseCommand('HCPI', lookupFn)).toEqual({ kind: 'route', fn: 'HISTORY' });
+    expect(parseCommand('FXFR', lookupFn)).toEqual({ kind: 'route', fn: 'FXFORWARD' });
+  });
+
+  it('names the front contract for an active-contract ticker (CLA Comdty)', async () => {
+    const { parseCommand } = await import('../src/terminal/commands');
+    const { lookupFn } = await import('../src/terminal/registry');
+    expect(parseCommand('CLA Comdty', lookupFn)).toEqual({ kind: 'error', message: 'CLA Comdty: the app has no active-contract line. The front contract is: CL1 Comdty', final: true });
+    expect(parseCommand('ZZA Comdty', lookupFn)).toMatchObject({ kind: 'error', message: 'Unknown security: ZZA Comdty' });
+  });
+});

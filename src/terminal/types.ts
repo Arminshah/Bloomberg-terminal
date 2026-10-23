@@ -44,6 +44,8 @@ export interface FnDef {
   example?: string;
   /** Why the desktop app has no data for this screen, when it has none; menus mark it. */
   unavailable?: string;
+  /** Words after the function are a topic unless they name a stock: "TOP Oil" is oil news, not the crude future. */
+  topics?: boolean;
 }
 
 export interface MenuItem {

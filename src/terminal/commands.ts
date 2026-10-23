@@ -15,7 +15,7 @@ export type Parsed =
   | { kind: 'error'; message: string; lookup?: string; final?: boolean };
 
 export interface FnLookup {
-  (code: string): { code: string; needsSec?: boolean } | undefined;
+  (code: string): { code: string; needsSec?: boolean; topics?: boolean } | undefined;
 }
 
 /** Ticker shapes worth looking up online: APLD, BRK/B, BRK.B; European listings are ABI BB or ABI.BR. */
@@ -109,6 +109,11 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
       if (treasury) {
         return { kind: 'error', message: `${typed}: Treasury prices are not available from the app's free sources. The ${treasury.years}-year yield is: ${treasury.id}`, final: true };
       }
+      // "CLA Comdty", the active contract: the app follows the front contract (CL1), which is the active one except
+      // around a roll; it names it rather than open it in its place.
+      const active = yk === 'Comdty' ? /^([A-Z]{1,3})A$/.exec(secText.trim().toUpperCase()) : null;
+      const front = active ? resolveSecurity(`${active[1]}1`, 'Comdty') : undefined;
+      if (front) return { kind: 'error', message: `${typed}: the app has no active-contract line. The front contract is: ${front.id}`, final: true };
       const root = secText.toUpperCase().replace(/\s+US$/, '');
       if (yk !== 'Equity') return { kind: 'error', message: `Unknown security: ${typed}`, final: true };
       return { kind: 'error', message: `Unknown security: ${typed}`, lookup: lookupable(root) ? root : undefined };
@@ -135,6 +140,7 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
     for (let j = rest.length; j >= 1; j--) {
       const sec = resolveSecurity(rest.slice(0, j).join(' '));
       if (!sec) continue;
+      if (head.topics && sec.cls !== 'equity') break;
       const args = argsWith(tokens[0], rest.slice(j).join(' ').toUpperCase());
       return { kind: 'route', fn: head.code, sec, ...(args ? { args } : {}) };
     }

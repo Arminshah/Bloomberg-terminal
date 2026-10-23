@@ -100,6 +100,11 @@ export const LEGACY_CODES: Record<string, string> = {
   NI: 'NEWS',
   NH: 'NEWS',
   G: 'CHART',
+  // From the news and research quick start (reference document 14): screens the app has under another name.
+  FIRS: 'BREAKING',
+  HCP: 'HISTORY',
+  HCPI: 'HISTORY',
+  FXFR: 'FXFORWARD',
 };
 
 /**

@@ -33,7 +33,7 @@ Stored in `reference/pdfs/` (git-ignored, never committed).
 
 | # | Document | Status |
 |---|---|---|
-| 1 | Getting Started Guide (INSEAD-hosted, 2025) | **Not retrieved**: the host answers with a Cloudflare bot check (HTTP 403). Asked the owner for the file. |
+| 1 | Getting Started Guide (INSEAD-hosted, 2025) | received from the owner on 23 Oct, 28 pp: the same text as the Students guide (compared page by page), so that guide's notes cover it |
 | 2 | Launchpad (Cornell) | retrieved, 16 pp |
 | 3 | Equities Workflow (June 2025), primary | retrieved, 29 pp |
 | 4 | Getting Started, extended (CMU) | retrieved, 36 pp |
@@ -46,10 +46,10 @@ Stored in `reference/pdfs/` (git-ignored, never committed).
 | 11 | BQL in Excel | retrieved, 4 pp |
 | 12 | LUISS primer | retrieved, 11 pp |
 | 13 | Education User Guide (Spanish) | retrieved, 32 pp |
-| 14 | Quick Start: News & Market Research (Ohio) | **Not retrieved**: the host resets the connection from this sandbox. Asked the owner. |
+| 14 | Quick Start: News (the owner's copy, 2020) | received from the owner on 23 Oct, 44 pp; read in full |
 | 15 | EQS exercise, Graham (Crack 2023) | retrieved, 20 pp |
-| 16 | Putting Bloomberg into Action (Abdoh, SSRN) | **Not retrieved**: SSRN answers with a Cloudflare bot check. Asked the owner. |
-| 17 | EQS exercise, ESG (Crack, SSRN) | **Not retrieved**: as #16. Asked the owner. |
+| 16 | Putting Bloomberg into Action (Abdoh, SSRN) | received from the owner on 23 Oct, 69 pp |
+| 17 | EQS exercise, ESG (Crack, SSRN) | received from the owner on 23 Oct, 32 pp (sent twice, identical files) |
 | 18 | Lei and Li (2012) | retrieved, 16 pp |
 | 19 | Training Manual (Scranton) | retrieved, 69 pp |
 | 20 | Market Data Manual (Aug 2024) | retrieved, 44 pp (scope: entitlement labelling only) |
@@ -73,6 +73,7 @@ Severity: S1 wrong figure shown as fact, crash, freeze, data loss, exposed key; 
 | A23-007 | S1 | EARNINGS (EE) | `NVDA US Equity EARNINGS` with a Finnhub key | Each fiscal quarter once: Q2 FY2027 ended 26 Jul 2026, reported 26 Aug 2026, 2.09 expected against 2.22 (FMP, Yahoo); nothing for a quarter not yet reported | Extra rows "Q2 2027 ended 30/09/26 · 2.14 · 2.22 · Beat by 3.8%" and "Q2 2026 ended 30/09/26" (a quarter that had not ended, shown as reported), "Q1 2027 26/08/26" twice, and an ERN row "26/08/26 Q1 2027 30/06/26" | Finnhub's `/stock/earnings` names each quarter by the end of the calendar quarter its fiscal quarter ends in (2026-09-30 for the July quarter, checked against its API on 23 Oct 2026) and lists the April quarter twice; `mergeConsensus` took the period as the quarter's end | Fixed: `finnhubQuarterEnd` maps the period to the fiscal quarter end inside it (from the fiscal year end, else a reported quarter end), the fiscal year names the quarter, a repeated period is used once. Test: A23-007 (fails on the old code). Live: eight quarters, each once; reported EPS 2.46 and 2.39 match the 10-Qs |
 | A23-008 | S2 | EARNINGS (EE) | `SAP GY Equity EARNINGS` with every key set | Why the past quarters have no expected revenue, and no request for a key that cannot fill them | "4 of 4 reported quarters have no expected revenue … Set ALPHA_VANTAGE_API_KEY (free) on PROVIDERS" although the key was set | `missingRevenueHint` (`src/data/live/consensus.ts`) asked for the key whenever Alpha Vantage had no answer for the stock; the app asks Alpha Vantage, FMP and Finnhub about US listings only (`secTicker`) | Fixed: for a listing outside the US the hint says those sources are asked for US listings only. Test: A23-008 |
 | A23-009 | S3 | FUNDCHART, QUOTE | `APLD US Equity FUNDCHART`, `APLD US Equity QUOTE` | NM (not meaningful) for a P/E on a loss, as PROFILE already shows | "--" in every FUNDCHART year (all losses) and for QUOTE's P/E LTM | the two screens printed the NaN P/E as a blank | Fixed: `yearPeBlank` (FUNDCHART) and `peText` (QUOTE) give NM when EPS is at or below zero; a missing price or another reporting currency stays blank. Test: A23-009 |
+| A23-010 | S2 | MARKETNEWS (TOP), command line | Document 14 p3, p12-13, p21-22, p41: `TOP Oil`, `HCP`, `HCPI`, `FXFR`, `FIRS`, `CLA Comdty` | Oil stories; the historical price tables; the spot/forward screen; breaking news; the crude contract | `TOP Oil` read "oil" as the crude future and showed every story unfiltered; HCP, HCPI, FXFR and FIRS were "Unknown function"; `CLA Comdty` "Unknown security" | The parser takes the longest run of words naming a security, and MARKETNEWS filters by stock tickers only; the four codes had no mnemonic | Fixed: functions marked `topics` (MARKETNEWS) keep a word that names anything but a stock as the keyword; FIRS → BREAKING, HCP and HCPI → HISTORY, FXFR → FXFORWARD (the differences are in the coverage notes); an active-contract ticker names the front contract (CL1 Comdty). Test: A23-010 |
 
 Observations that are **not** findings (checked and correct):
 - Command forms (desktop, `scratchpad/live/mech.cjs`): `IBM US Equity DES`, `IBM US Equity DES <GO>`, lower case, extra spaces, `DES IBM US Equity`, `IBM US <EQUITY> DES <GO>`, `IBM US` F8 `DES` all open PROFILE on IBM US Equity; `USGG10YR Index GP` opens CHART; `EURUSD Curncy`, `CL1 Comdty`, `ABI BB Equity`, `AAPL` alone open the security's MENU; an unknown command explains itself in red beside the command line ("No stock found named …", "Unknown function: XQZ"); Backspace on an empty line goes back; Alt+←/→ move through history; F1 opens HELP; `DES` then F1 opens DES's help; Alt+End opens MENU and again the sector menu; `2 <GO>` on a menu opens item 2; PgDn/PgUp page; `3` PgDn moves three pages (1 → 4 of 14 on MEMBERS SPX); `99` PgDn stops at the last page (14 of 14); Ctrl+Tab and Alt+1/Alt+2 change the active panel; no console error in 43 steps.
