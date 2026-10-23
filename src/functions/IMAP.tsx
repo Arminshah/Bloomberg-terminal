@@ -29,6 +29,14 @@ const MEASURES: { n: number; h: Horizon; scale: number; tag: string }[] = [
   { n: 15, h: '1Y', scale: 40, tag: '1y' },
 ];
 
+/** The heat map tab for a security's region: US, Europe, Asia Pacific, or World for the rest. */
+export function regionTab(d: SecurityDef | undefined): number {
+  if (!d || d.country === 'US') return 1;
+  if (d.region === 'EMEA') return 2;
+  if (d.region === 'APAC') return 3;
+  return 4;
+}
+
 /** A sector or industry as a group name: the lookup's "--" placeholder (no sector known) is not one. */
 export function groupName(x: string | undefined, none: string): string {
   return x && x.trim() && x.trim() !== '--' ? x : none;
@@ -36,13 +44,14 @@ export function groupName(x: string | undefined, none: string): string {
 
 /**
  * INDEXMAP (IMAP): an index's whole membership as a sunburst, a table and a heat map, where the app can load it
- * (desktop app: the S&P 500, Nasdaq-100 and the Dow). Elsewhere, the regional heat map.
+ * (desktop app: the S&P 500, Nasdaq-100 and the Dow). For another index, the regional heat map of its region,
+ * saying plainly that it is not the index's membership.
  */
 export function IMAP(props: FnProps) {
   const { sec, route } = props;
   const ix = sec?.cls === 'index' ? sec : route.args ? engine.get(`${route.args.trim().toUpperCase()} Index`) : engine.get('SPX Index');
   if (engine.realOnly && membersAvailable() && ix && hasBoard(ix.id)) return <BoardMap ix={ix} />;
-  return <RegionalHeatmap code="INDEXMAP" />;
+  return <RegionalHeatmap key={ix?.id ?? 'none'} code="INDEXMAP" index={ix} />;
 }
 
 /**
@@ -53,10 +62,21 @@ export function HEATMAP(_: FnProps) {
   return <RegionalHeatmap code="HEATMAP" />;
 }
 
-function RegionalHeatmap({ code }: { code: string }) {
+/** INDEXMAP's statement that the map shown is not the index's membership, and which map it is. */
+export function NoMembersNote({ index, region }: { index: SecurityDef; region: number }) {
+  const why = engine.realOnly && membersAvailable() ? 'the app loads the members of the S&P 500, the Nasdaq-100 and the Dow only' : 'index memberships load in the desktop app';
+  return (
+    <div className="note amber" role="status" data-testid="imap-no-members">
+      {`${index.ticker}: the index's membership is not available here (${why}). `}
+      {`This is not the index: it is the heat map of the ${['US ', 'European ', 'Asia-Pacific ', ''][region - 1] ?? ''}stocks the app follows and those you looked up.`}
+    </div>
+  );
+}
+
+function RegionalHeatmap({ code, index }: { code: string; index?: SecurityDef }) {
   const panel = usePanelId();
   useTick(2);
-  const [region, setRegion] = useState(1);
+  const [region, setRegion] = useState(() => regionTab(index));
   const [measure, setMeasure] = useState(11);
   const [focus, setFocus] = useState<string | null>(null);
   const m = MEASURES.find((x) => x.n === measure)!;
@@ -130,6 +150,7 @@ function RegionalHeatmap({ code }: { code: string }) {
         }}
         actions={MEASURES.map((x) => ({ n: x.n, label: x.h, on: x.n === measure, onClick: () => setMeasure(x.n) }))}
       />
+      {index && <NoMembersNote index={index} region={region} />}
       <div className="heatmap-head">
         <span>
           {focus ?? REGIONS[region - 1].label} by sector, {m.h} change: <span className={total > 0 ? 'up' : total < 0 ? 'dn' : ''}>{fmtPct(total, 2)}</span>
@@ -151,8 +172,8 @@ function RegionalHeatmap({ code }: { code: string }) {
       <p className="pad-s muted">
         The stocks the app follows and those you looked up, by sector and industry, sized by market value in US dollars and coloured by their {m.h} change
         (full colour at ±{m.scale}%). Click a sector to open it, a tile for the stock&apos;s chart.
-        {waiting > 0 ? ` ${waiting} ${waiting === 1 ? 'stock has' : 'stocks have'} no market value yet and ${waiting === 1 ? 'is' : 'are'} not drawn.` : ''} For an
-        index&apos;s whole membership, use INDEXMAP (IMAP).
+        {waiting > 0 ? ` ${waiting} ${waiting === 1 ? 'stock has' : 'stocks have'} no market value yet and ${waiting === 1 ? 'is' : 'are'} not drawn.` : ''}
+        {code === 'INDEXMAP' ? '' : ' For an index\'s whole membership (the S&P 500, the Nasdaq-100, the Dow), use INDEXMAP (IMAP).'}
       </p>
     </div>
   );

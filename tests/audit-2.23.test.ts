@@ -1,5 +1,7 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it } from 'vitest';
-import { groupName } from '../src/functions/IMAP';
+import { NoMembersNote, groupName, regionTab } from '../src/functions/IMAP';
 import { engine } from '../src/data/market';
 import { buildRealFund, realFund, splitsKey } from '../src/data/live/yfund';
 import { parseCompanyFacts } from '../src/data/live/sec';
@@ -63,6 +65,27 @@ describe('A23-006: SEC per-share figures filed before a later split are put on t
   it('reads the split history the price history loaded when none is passed', () => {
     realSplits.set(def.id, NVDA_SPLITS);
     expect(buildRealFund(def, company, null, null, null, NOW, facts()).annual.find((p) => p.label === 'FY 2022')!.eps).toBeCloseTo(0.385, 6);
+  });
+});
+
+describe('A23-001: INDEXMAP for an index without a loadable membership says so and opens its region', () => {
+  it('maps an index to its region tab', () => {
+    expect(regionTab(engine.get('SPX Index'))).toBe(1);
+    expect(regionTab(engine.get('SX5E Index'))).toBe(2);
+    expect(regionTab(engine.get('UKX Index'))).toBe(2);
+    expect(regionTab(engine.get('BEL20 Index'))).toBe(2);
+    expect(regionTab(engine.get('NKY Index'))).toBe(3);
+    expect(regionTab(engine.get('HSI Index'))).toBe(3);
+    expect(regionTab(undefined)).toBe(1);
+  });
+
+  it('labels the fallback as not being the index (SX5E: the European map, not "US by sector")', () => {
+    const sx5e = engine.get('SX5E Index')!;
+    const html = renderToStaticMarkup(createElement(NoMembersNote, { index: sx5e, region: regionTab(sx5e) }));
+    expect(html).toContain('SX5E: the index&#x27;s membership is not available here (index memberships load in the desktop app)');
+    expect(html).toContain('This is not the index: it is the heat map of the European stocks');
+    const world = renderToStaticMarkup(createElement(NoMembersNote, { index: sx5e, region: 4 }));
+    expect(world).toContain('heat map of the stocks the app follows');
   });
 });
 
