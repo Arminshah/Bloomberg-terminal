@@ -585,13 +585,16 @@ ipcMain.handle('coingecko', async (event) => {
   if (!fromApp(event)) throw new Error('not allowed');
   const key = providers.credential('COINGECKO_API_KEY').value;
   if (!key) return { status: 0, text: '', missing: 'COINGECKO_API_KEY' };
-  // The app asks every 10 minutes at most (about 4,400 calls a month); the plan allows 100 a minute.
-  await providers.slot('coingecko', 10, 60_000);
-  const res = await tracked('coingecko', `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${COINGECKO_IDS}`, { headers: { 'User-Agent': clientAgent(), Accept: 'application/json', 'x-cg-demo-api-key': key }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
-  if (res.ok) return { status: res.status, text: await res.text() };
-  const why = providers.providerMessage(await res.text().catch(() => ''), [key]);
-  if (why) providers.recordProblem('coingecko', providers.errorKind(res.status), `HTTP ${res.status}: ${why}`);
-  return { status: res.status, text: '' };
+  // Every window asks every 10 minutes; one answer serves all of them for 9 minutes, so the app makes about 4,800
+  // calls a month however many windows are open (the plan allows 10,000 a month and 100 a minute).
+  return providers.shared('coingecko', key, 9 * 60_000, async () => {
+    await providers.slot('coingecko', 10, 60_000);
+    const res = await tracked('coingecko', `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${COINGECKO_IDS}`, { headers: { 'User-Agent': clientAgent(), Accept: 'application/json', 'x-cg-demo-api-key': key }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (res.ok) return { status: res.status, text: await res.text() };
+    const why = providers.providerMessage(await res.text().catch(() => ''), [key]);
+    if (why) providers.recordProblem('coingecko', providers.errorKind(res.status), `HTTP ${res.status}: ${why}`);
+    return { status: res.status, text: '' };
+  }, (r) => r.status === 200 && !!r.text);
 });
 
 // ------------------------------------------------- End-of-day cross-checks

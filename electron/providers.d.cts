@@ -25,5 +25,6 @@ export function providerMessage(text: string, secrets?: string[]): string;
 export function providerPayloadProblem(provider: string, text: string, secrets?: string[]): { kind: string; message: string } | null;
 export function providerStats(): Record<string, { lastMinute: number; total: number; lastAttemptAt: number | null; lastSuccessAt: number | null; lastLatencyMs: number | null; lastErrorAt: number | null; lastError: string | null; lastErrorKind: string | null }>;
 export function slot(provider: string, max: number, windowMs: number): Promise<void>;
+export function shared<T>(name: string, identity: string, ttlMs: number, fetcher: () => Promise<T>, keep?: (value: T) => boolean, now?: () => number): Promise<T>;
 export function parseDotEnv(text: string): Record<string, string>;
 export function errorKind(status: number, err?: unknown): string;

@@ -669,4 +669,36 @@ function slot(provider, max, windowMs) {
   return next;
 }
 
-module.exports = { CREDENTIALS, SETTINGS, DAILY, credential, credentialStatus, saveCredential, clearCredential, parseCredentialList, importCredentials, setting, settingStatus, saveSetting, parseSwitch, recordRequest, recordResult, recordProblem, providerMessage, providerPayloadProblem, providerStats, slot, usedToday, withinDailyCap, parseDotEnv, errorKind };
+// ------------------------------------------------------- shared answers
+// Every window runs its own timers; an answer fetched for one serves them all while it is fresh, so a monthly
+// allowance (CoinGecko's) is spent once however many windows are open.
+
+const answers = new Map();
+
+/**
+ * The fresh answer `name` already has for `identity` (the key it was asked with), else one fetch for all callers at
+ * once. Only answers `keep` accepts are kept; a failure is fetched again next time.
+ */
+function shared(name, identity, ttlMs, fetcher, keep = () => true, now = Date.now) {
+  const a = answers.get(name);
+  if (a?.value !== undefined && a.identity === identity && now() - a.at < ttlMs) return Promise.resolve(a.value);
+  if (a?.pending && a.identity === identity) return a.pending;
+  const entry = { identity, at: 0, value: undefined, pending: undefined };
+  entry.pending = Promise.resolve()
+    .then(fetcher)
+    .then((value) => {
+      if (answers.get(name) === entry && keep(value)) {
+        entry.value = value;
+        entry.at = now();
+      }
+      return value;
+    })
+    .finally(() => {
+      entry.pending = undefined;
+      if (answers.get(name) === entry && entry.value === undefined) answers.delete(name);
+    });
+  answers.set(name, entry);
+  return entry.pending;
+}
+
+module.exports = { CREDENTIALS, SETTINGS, DAILY, credential, credentialStatus, saveCredential, clearCredential, parseCredentialList, importCredentials, setting, settingStatus, saveSetting, parseSwitch, recordRequest, recordResult, recordProblem, providerMessage, providerPayloadProblem, providerStats, slot, shared, usedToday, withinDailyCap, parseDotEnv, errorKind };
