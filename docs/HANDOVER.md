@@ -1,33 +1,28 @@
-# Handover: where the work stands (23 October 2026)
+# Handover: where the work stands (24 October 2026)
 
 For whoever continues on Armin Terminal. Read this first, then `docs/audit-v2.23.0.md`.
 
 ## The project
 
 - **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with an opt-in browser demo.
-- **Repository**: `arminshah/bloomberg-terminal` (public). All work is on the branch **`claude/market-events-v2.16.0-id814n`**. `main` holds only the first README; do not push to it.
-- **Last release**: 2.23.0 (tag `v2.23.0`). Everything after it on the branch is unreleased (see "Since 2.23.0").
+- **Repository**: `arminshah/bloomberg-terminal` (public). All work is on the branch **`claude/market-events-v2.16.0-id814n`**. `main` holds only the first README; do not push to it. A new cloud session may be told to use another branch name: the owner's choice is to keep working on this one.
+- **Last release**: 2.24.0 (tag `v2.24.0`, published 23 October 2026). It has the audit of 2.23.0 (14 findings fixed, report `docs/audit-v2.23.0.md`), workspace tabs, the heat maps' labels and analyst research outside the US. Notes: `docs/release-v2.24.0.md`.
 
-## Since 2.23.0 (on the branch, not released)
+## Since 2.24.0 (on the branch, not released)
 
-1. **Audit of 2.23.0** against the owner's reference documents and primary sources: 14 findings, all fixed, each with a test in `tests/audit-2.23.test.ts`. Report: `docs/audit-v2.23.0.md`. Coverage matrix: `docs/audit-v2.23.0-coverage.md`. The two serious ones: NVIDIA's FY2022 EPS was on the pre-split basis (A23-006), and NVIDIA's EARNINGS showed a quarter that had not ended as reported, because Finnhub labels quarters by calendar quarter (A23-007).
-2. **Workspace tabs** like a browser's, above the top bar (`src/terminal/tabs.ts`, `src/components/WorkspaceTabs.tsx`): + / Ctrl+T new, × / middle click / Ctrl+W close, Ctrl+Shift+T reopen, Ctrl+PageUp/PageDown and Ctrl+1-9 switch, double click to rename, drag to reorder; saved per window. Tests: `tests/workspace-tabs.test.ts`, an e2e test in `e2e/terminal.spec.ts`.
-3. **Heat map labels**: small, even labels in the terminal's sans type (`tileText` in `src/components/HeatTreemap.tsx`) instead of large bold monospace.
-4. Earlier, before the audit: analyst research for listings outside the US (Yahoo), and the heat maps (INDEXMAP's Heatmap tab; HEATMAP's US / Europe / Asia Pacific / World map restored).
+1. **WHATSNEW** (`src/functions/WHATSNEW.tsx`, `src/data/releases.ts`): the version and every release's notes inside the app, packed in at build time from `docs/release-v*.md` (2.15.0 and later; older notes named another product and stay out). The installed version is marked; HELP shows the version with a "What's new" action; after an update a one-time notice links to it (`src/terminal/whatsnew.ts`). The app does not ask GitHub for newer versions. Every release still needs its `docs/release-vX.Y.Z.md`; a test fails if a note names another product.
+2. **Data fixes** (each with tests in `tests/api-fixes.test.ts` or `tests/iex-engine.test.ts`): CoinGecko answered once for every window (the free plan's calls were spent three times over with three windows); TipRanks calls, cap and answers kept per key; Eurostat flags and BLS series stay current within a session; an answer kept after a failed refresh stays marked stale with its own time; IEX keeps every session seen while a window stays open.
+3. **Weekend demo** (`src/data/engine.ts`, tests in `tests/engine.test.ts` under "a weekend"): the demo simulated a trading session every calendar day, so at weekends stocks ticked and HP showed a Saturday row. Markets on a weekday calendar now show Friday's finished session (no ticks or trades, marked CLOSED); crypto trades every day. A real close known for that Friday ends the session.
+4. **Portfolio tabs** (owner's request): PORTFOLIO keeps several portfolios as tabs above its Holdings / Performance / Risk views, each with its own holdings, cash, currency and benchmark. + new (name ready to type), double click rename, drag reorder, × close (asks first when it holds anything; the last one stays). Store: `portfolios` in `src/terminal/userdata.ts`; `portfolio` there is now the one on screen, so the other screens did not change. The single portfolio saved before (`armin:portfolio`) becomes the first tab and is never changed. Operations: `src/terminal/portfolio-tabs.ts`. Tests: `tests/portfolio-tabs.test.ts`, an e2e test in `e2e/terminal.spec.ts`.
 
-State at handover: lint, typecheck, 1,231 Vitest tests (95 files), 39 browser and 34 desktop Playwright tests, and the build all pass.
-
-## After 2.24.0 (on the branch, not released yet)
-
-- **WHATSNEW** (`src/functions/WHATSNEW.tsx`, `src/data/releases.ts`): the version and every release's notes inside the app, packed in at build time from `docs/release-v*.md` (2.15.0 and later; older notes named another product and stay out). The installed version is marked; HELP shows the version with a "What's new" action; after an update a one-time notice links to it (`src/terminal/whatsnew.ts`). The owner keeps the repository private, so the app does not ask GitHub for newer versions. Every release still needs its `docs/release-vX.Y.Z.md`; a test fails if a note names another product.
+State at handover: lint, typecheck, 1,266 Vitest tests (98 files), 41 browser and 34 desktop Playwright tests, and the build all pass (run on a Saturday, so the weekend demo was exercised).
 
 ## What is left, in order
 
-1. **Portfolio tabs** (owner's request, with a screenshot): several portfolios in PORTFOLIO as tabs across the top, like `EQUITY_LONG | DOMESTIC BOND FUND | +` (add, rename, close a portfolio; each keeps its own holdings and cash). Not started. PORTFOLIO is `src/functions/PORT.tsx`; its holdings store is `portfolio` in `src/terminal/userdata.ts`.
-2. **Release 2.24.0, only when the owner says so.** Steps used before: bump `version` in `package.json` and `package-lock.json`, add `docs/release-v2.24.0.md` and a README paragraph at the top, commit and push. Tag pushes are refused by the cloud git proxy (HTTP 403), so run the GitHub Actions workflow `release.yml` by workflow_dispatch with the input `tag` (e.g. `v2.24.0`) on the branch; it creates the tag and builds the Windows installer and the portable .exe. The repository must be public for the free Actions minutes.
-3. **Functions the reference documents name that the app lacks but could build from free data** (class a in the coverage matrix, 55 codes): the most cited are ECFC (IMF forecasts), ECTR (IMF trade data), EA (an index's earnings season), EEG/EM (estimate history and trends), RELS, CTM/CT (futures contract months), CACT (corporate actions across stocks), FXCA (currency converter), WCR, WECO, INSD (SEC Form 4), OVDV (option IV surface), PSRT/PD/HLDR (SEC 13F).
-4. **Ongoing**: the supply-chain screen (SPLC: more coverage, how recent each relation is, classifier accuracy), the sweep for blank "--" fields (fill from a real source or label why), and the watchlist + favourites in the TOPMOVERS layout (low priority). Dropped by the owner: the remaining Codex audit findings.
-5. **Owner decisions pending**: whether to open a pull request into `main` (it would contain the whole app); rotating every API key that was pasted into chats.
+1. **Release 2.25.0, only when the owner says so.** Steps used before: bump `version` in `package.json` and `package-lock.json`, add `docs/release-v2.25.0.md` and a README paragraph at the top, commit and push. Tag pushes are refused by the cloud git proxy (HTTP 403), so run the GitHub Actions workflow `release.yml` by workflow_dispatch with the input `tag` (e.g. `v2.25.0`) on the branch; it creates the tag and builds the Windows installer and the portable .exe. The repository must be public for the free Actions minutes.
+2. **Functions the reference documents name that the app lacks but could build from free data** (class a in the coverage matrix, 55 codes): the most cited are ECFC (IMF forecasts), ECTR (IMF trade data), EA (an index's earnings season), EEG/EM (estimate history and trends), RELS, CTM/CT (futures contract months), CACT (corporate actions across stocks), FXCA (currency converter), WCR, WECO, INSD (SEC Form 4), OVDV (option IV surface), PSRT/PD/HLDR (SEC 13F).
+3. **Ongoing**: the supply-chain screen (SPLC: more coverage, how recent each relation is, classifier accuracy), the sweep for blank "--" fields (fill from a real source or label why), and the watchlist + favourites in the TOPMOVERS layout (low priority). Dropped by the owner: the remaining Codex audit findings.
+4. **Owner decisions pending**: whether to open a pull request into `main` (it would contain the whole app); rotating every API key that was pasted into chats.
 
 ## The owner's rules (keep them)
 
@@ -48,6 +43,8 @@ npm run lint && npm run typecheck
 npx vitest run --maxWorkers=2                      # unit tests
 npm run build
 npx playwright test                                # browser e2e (demo data)
+# In a cloud sandbox whose Chromium is not the one Playwright expects, first:
+#   export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium
 xvfb-run -a npx playwright test --config playwright.desktop.config.ts   # desktop e2e (Linux sandbox)
 ```
 
