@@ -1,6 +1,6 @@
 import { hashString, normal } from '../core/rng';
 import { cleanPricer, settlementDate, type BondTerms } from '../finance/bonds';
-import { buildGrid, DAY_MS, dayNum, dayStart, frontFuture, isBusinessDay, isoToDay, MINUTE_MS, prevBusinessDay } from './calendar';
+import { buildGrid, businessDayOnOrBefore, DAY_MS, dayNum, dayStart, dayToIso, frontFuture, isBusinessDay, isoToDay, MINUTE_MS, prevBusinessDay } from './calendar';
 import { factorLoadings, idioWeight, type Loadings } from './factors';
 import { indexAtOrBefore, makeSeries, type Series } from './series';
 import type { Quote, SecurityDef, Trade } from './types';
@@ -290,7 +290,7 @@ export class MarketEngine {
   private states = new Map<string, State>();
   private quotes = new Map<string, Quote>();
   private listeners = new Set<EngineListener>();
-  private minuteFactor = new Map<number, Float64Array>();
+  private minuteFactor = new Map<string, Float64Array>();
   private minuteFactorDay = -1;
   private timer: ReturnType<typeof setInterval> | null = null;
   private derivedCache = new Map<string, { key: string; series: Series }>();
@@ -470,7 +470,40 @@ export class MarketEngine {
   }
 
   lastHistDay(allDays: boolean): number {
-    return allDays ? this.today - 1 : prevBusinessDay(this.today);
+    return allDays ? this.today - 1 : prevBusinessDay(this.sessionDay(false));
+  }
+
+  /**
+   * The session a simulated line shows: today, or for markets that trade on weekdays only, the latest weekday.
+   * On a Saturday or Sunday a stock shows Friday's finished session; crypto trades every day.
+   */
+  private sessionDay(allDays: boolean): number {
+    return allDays ? this.today : businessDayOnOrBefore(this.today);
+  }
+
+  /** The line's market does not trade today: its session is an earlier day's, and finished. */
+  private closed(st: State): boolean {
+    return this.sessionDay(st.allDays) !== this.today;
+  }
+
+  /**
+   * A finished session's day while the market is closed (NaN otherwise). A real close given for that day ends
+   * the session (sessionClose) and is not an anchor of the history before it.
+   */
+  private closedSessionDay(st: State): number {
+    return this.closed(st) ? this.sessionDay(st.allDays) : NaN;
+  }
+
+  /** The real open and close a source or the calibration snapshot gives for a finished session's day. */
+  private sessionClose(st: State, day: number): { o?: number; c: number } | undefined {
+    const ok = (v: number | undefined): v is number => v !== undefined && Number.isFinite(v) && v > (st.additive ? -50 : 0);
+    const bar = st.extBars.get(day);
+    if (bar && ok(bar.c)) return ok(bar.o) ? { o: bar.o, c: bar.c } : { c: bar.c };
+    const ext = st.extAnchors.get(day);
+    if (ok(ext)) return { c: ext };
+    const iso = dayToIso(day);
+    const snap = ANCHORS.get(st.def.id)?.find(([d]) => d === iso)?.[1];
+    return ok(snap) ? { c: snap } : undefined;
   }
 
   // ------------------------------------------------------------ simulation
@@ -507,7 +540,7 @@ export class MarketEngine {
       // Rolling feed windows (e.g. 24h of 5-minute crypto bars) survive midnight.
       const rolling = st.liveIntraday && st.intra && st.intra.series.span !== MINUTE_MS;
       if (rolling) {
-        st.intra!.day = this.today;
+        st.intra!.day = this.sessionDay(st.allDays);
       } else {
         st.intra = null;
         st.live = false;
@@ -528,13 +561,15 @@ export class MarketEngine {
     }
     for (const st of this.states.values()) {
       if (st.kind !== 'base' || st.ext) continue;
-      if (jitter && st.live) continue;
+      // A market closed for the weekend neither ticks nor trades.
+      if (jitter && (st.live || this.closed(st))) continue;
       if (jitter && Math.random() > this.tickProbability(st)) continue;
       this.updateBase(st, t, jitter);
       changed.add(st.def.id);
     }
     for (const st of this.states.values()) {
       if (st.kind === 'base' || st.ext) continue;
+      if (jitter && this.closed(st)) continue;
       if (jitter && Math.random() > this.tickProbability(st)) continue;
       this.updateDerived(st, t);
       changed.add(st.def.id);
@@ -609,7 +644,9 @@ export class MarketEngine {
    */
   private fastPrevClose(st: State): number {
     const lastDay = this.lastHistDay(st.allDays);
+    const session = this.closedSessionDay(st);
     const onGrid = (d: number) => {
+      if (d === session) return -Infinity;
       let x = Math.min(d, lastDay);
       if (!st.allDays) while (!isBusinessDay(x)) x--;
       return x;
@@ -649,16 +686,18 @@ export class MarketEngine {
     return 10 - (10 - v) * 0.3;
   }
 
-  private minuteFactors(f: number): Float64Array {
+  private minuteFactors(f: number, day: number): Float64Array {
     if (this.minuteFactorDay !== this.today) {
       this.minuteFactor.clear();
       this.minuteFactorDay = this.today;
     }
-    let arr = this.minuteFactor.get(f);
+    // At a weekend crypto runs on today's factors and the other markets on Friday's.
+    const key = `${day}:${f}`;
+    let arr = this.minuteFactor.get(key);
     if (!arr) {
       arr = new Float64Array(MINUTES);
-      for (let m = 0; m < MINUTES; m++) arr[m] = normal(f, this.today, 10_000 + m);
-      this.minuteFactor.set(f, arr);
+      for (let m = 0; m < MINUTES; m++) arr[m] = normal(f, day, 10_000 + m);
+      this.minuteFactor.set(key, arr);
     }
     return arr;
   }
@@ -688,8 +727,9 @@ export class MarketEngine {
       }
       return ans;
     };
+    const session = this.closedSessionDay(st);
     const add = (day: number, level: number, override: boolean) => {
-      if (day < first || !Number.isFinite(level) || level <= (st.additive ? -50 : 0)) return;
+      if (day < first || day === session || !Number.isFinite(level) || level <= (st.additive ? -50 : 0)) return;
       const idx = indexOf(Math.min(day, last));
       if (idx < 0) return;
       if (!override && out.has(idx)) return;
@@ -773,12 +813,12 @@ export class MarketEngine {
     return adv;
   }
 
-  /** Today's forming bar mirrors the intraday state. */
+  /** Today's forming bar (at a weekend, Friday's finished one) mirrors the intraday state. */
   private writeTodayBar(st: State) {
     const s = st.daily;
     if (!s) return;
     const n = s.length - 1;
-    s.t[n] = dayStart(this.today);
+    s.t[n] = dayStart(this.sessionDay(st.allDays));
     s.o[n] = st.dayOpen;
     s.h[n] = st.dayHigh;
     s.l[n] = st.dayLow;
@@ -789,16 +829,24 @@ export class MarketEngine {
   // --------------------------------------------------------------- intraday
 
   private ensureIntra(st: State, t: number) {
-    if (!st.intra || st.intra.day !== this.today) {
+    const day = this.sessionDay(st.allDays);
+    if (!st.intra || st.intra.day !== day) {
       const key = `${this.today}:${this.version}`;
       const prev = st.daily && st.dailyKey === key ? st.daily.c[st.daily.length - 2] : this.fastPrevClose(st);
       st.prevClose = prev;
       const sd = this.sigmaDaily(st);
-      const gap = sd * this.regime(st, this.today) * 0.22 * normal(st.seed, this.today, 3);
-      const open = st.additive ? prev + gap : prev * Math.exp(gap);
+      const gap = sd * this.regime(st, day) * 0.22 * normal(st.seed, day, 3);
+      const real = this.closed(st) ? this.sessionClose(st, day) : undefined;
+      const open = real?.o ?? (st.additive ? prev + gap : prev * Math.exp(gap));
       const x = new Float64Array(MINUTES + 1);
       x[0] = this.enc(st, open);
-      st.intra = { day: this.today, x, filled: 1, series: makeSeries(MINUTES + 1, MINUTE_MS), cur: -1, totalVol: 0 };
+      st.intra = { day, x, filled: 1, series: makeSeries(MINUTES + 1, MINUTE_MS), cur: -1, totalVol: 0 };
+      if (real) {
+        // The finished session ends at its real close: the simulated path is bent to meet it.
+        this.fillPath(st, MINUTES);
+        const miss = this.enc(st, real.c) - x[MINUTES];
+        for (let k = 1; k <= MINUTES; k++) x[k] += (miss * k) / MINUTES;
+      }
       st.dayOpen = open;
       st.dayHigh = open;
       st.dayLow = open;
@@ -807,19 +855,20 @@ export class MarketEngine {
       st.liveIntraday = false;
     }
     if (st.liveIntraday) return;
-    const m = Math.min(MINUTES - 1, Math.floor((t - dayStart(this.today)) / MINUTE_MS));
+    // A finished session (a weekend's Friday) runs to its last minute.
+    const m = Math.min(MINUTES - 1, Math.floor((t - dayStart(day)) / MINUTE_MS));
     this.fillPath(st, m + 1);
     const it = st.intra!;
     const s = it.series;
-    const sm = (this.sigmaDaily(st) * this.regime(st, this.today)) / Math.sqrt(MINUTES);
+    const sm = (this.sigmaDaily(st) * this.regime(st, day)) / Math.sqrt(MINUTES);
     const advMin = this.advFor(st) / MINUTES;
     // Finalise completed minutes and open the current one.
     for (let k = Math.max(0, it.cur); k <= m; k++) {
       const o = this.dec(st, it.x[k]);
       const c = this.dec(st, it.x[k + 1]);
-      const up = sm * 0.6 * Math.abs(normal(st.seed, this.today, 30_000 + k));
-      const dn = sm * 0.6 * Math.abs(normal(st.seed, this.today, 40_000 + k));
-      const vol = advMin > 0 ? Math.round(advMin * Math.exp(0.5 * normal(st.seed, this.today, 50_000 + k) - 0.125)) : 0;
+      const up = sm * 0.6 * Math.abs(normal(st.seed, day, 30_000 + k));
+      const dn = sm * 0.6 * Math.abs(normal(st.seed, day, 40_000 + k));
+      const vol = advMin > 0 ? Math.round(advMin * Math.exp(0.5 * normal(st.seed, day, 50_000 + k) - 0.125)) : 0;
       const complete = k < m;
       const hi = st.additive ? Math.max(o, c) + up : Math.max(o, c) * Math.exp(up);
       const lo = st.additive ? Math.min(o, c) - dn : Math.min(o, c) * Math.exp(-dn);
@@ -831,7 +880,7 @@ export class MarketEngine {
         it.totalVol += vol - s.v[k];
         s.v[k] = vol;
       } else if (k !== it.cur) {
-        s.t[k] = dayStart(this.today) + k * MINUTE_MS;
+        s.t[k] = dayStart(day) + k * MINUTE_MS;
         s.o[k] = o;
         s.c[k] = complete ? c : o;
         s.h[k] = complete ? hi : o;
@@ -851,13 +900,13 @@ export class MarketEngine {
   private fillPath(st: State, upto: number) {
     const it = st.intra!;
     if (it.filled > upto) return;
-    const sm = (this.sigmaDaily(st) * this.regime(st, this.today)) / Math.sqrt(MINUTES);
-    const fs = st.load.map(([f, l]) => [this.minuteFactors(f), l] as const);
+    const sm = (this.sigmaDaily(st) * this.regime(st, it.day)) / Math.sqrt(MINUTES);
+    const fs = st.load.map(([f, l]) => [this.minuteFactors(f, it.day), l] as const);
     for (let k = it.filled; k <= upto; k++) {
       const minute = k - 1;
       let z = 0;
       for (const [arr, l] of fs) z += l * arr[minute];
-      z += st.idio * normal(st.seed, this.today, 20_000 + minute);
+      z += st.idio * normal(st.seed, it.day, 20_000 + minute);
       it.x[k] = it.x[k - 1] + sm * z + this.revertStep(st, it.x[k - 1], 1 / MINUTES);
     }
     it.filled = upto + 1;
@@ -866,12 +915,12 @@ export class MarketEngine {
   /** Simulated level at time t, with optional Brownian-bridge jitter inside the minute. */
   private simLevel(st: State, t: number, jitter: boolean): number {
     const it = st.intra!;
-    const pos = (t - dayStart(this.today)) / MINUTE_MS;
+    const pos = (t - dayStart(it.day)) / MINUTE_MS;
     const m = Math.min(MINUTES - 1, Math.floor(pos));
     const f = Math.min(1, pos - m);
     let x = it.x[m] + f * (it.x[m + 1] - it.x[m]);
     if (jitter) {
-      const sm = (this.sigmaDaily(st) * this.regime(st, this.today)) / Math.sqrt(MINUTES);
+      const sm = (this.sigmaDaily(st) * this.regime(st, it.day)) / Math.sqrt(MINUTES);
       x += sm * 0.45 * Math.sqrt(f * (1 - f)) * gaussianRandom();
     }
     return this.dec(st, x);
@@ -893,7 +942,7 @@ export class MarketEngine {
     const advMin = this.advFor(st) / MINUTES;
     if (advMin > 0) {
       const frac = (t - s.t[m]) / MINUTE_MS;
-      const target = Math.round(advMin * Math.exp(0.5 * normal(st.seed, this.today, 50_000 + m) - 0.125) * Math.min(1, frac));
+      const target = Math.round(advMin * Math.exp(0.5 * normal(st.seed, it.day, 50_000 + m) - 0.125) * Math.min(1, frac));
       if (target > s.v[m]) {
         it.totalVol += target - s.v[m];
         s.v[m] = target;
@@ -926,7 +975,7 @@ export class MarketEngine {
   }
 
   /** Value of a derived line given its component levels, on a settlement/pricing day. */
-  private derivedValue(st: State, val: (id: string) => number, day = this.today): number {
+  private derivedValue(st: State, val: (id: string) => number, day = this.sessionDay(false)): number {
     switch (st.kind) {
       case 'pair':
         return val(st.pair!.base) / val(st.pair!.quote);
@@ -1060,8 +1109,9 @@ export class MarketEngine {
     st.dayHigh = Math.max(st.dayHigh, px);
     st.dayLow = Math.min(st.dayLow, px);
     if (st.kind === 'fut') {
-      const frac = Math.min(1, (t - dayStart(this.today)) / DAY_MS);
-      st.volume = Math.round(this.advFor(st) * frac * Math.exp(0.25 * normal(st.seed, this.today, 6) - 0.03));
+      const day = this.sessionDay(false);
+      const frac = Math.min(1, (t - dayStart(day)) / DAY_MS);
+      st.volume = Math.round(this.advFor(st) * frac * Math.exp(0.25 * normal(st.seed, day, 6) - 0.03));
     }
   }
 
@@ -1141,7 +1191,7 @@ export class MarketEngine {
 
   private writeDerivedToday(st: State, s: Series) {
     const n = s.length - 1;
-    if (n < 0 || dayNum(s.t[n]) !== this.today) return;
+    if (n < 0 || dayNum(s.t[n]) !== this.sessionDay(false)) return;
     s.o[n] = st.dayOpen;
     s.h[n] = Math.max(st.dayHigh, st.dayLow);
     s.l[n] = Math.min(st.dayLow, st.dayHigh);
@@ -1161,6 +1211,7 @@ export class MarketEngine {
     const out = makeSeries(n, primary.span);
     const sm = st.def.vol / Math.sqrt(252) / Math.sqrt(MINUTES);
     const advMin = this.advFor(st) / MINUTES;
+    const day = this.sessionDay(false);
     for (let i = 0; i < n; i++) {
       const tm = primary.t[i];
       const idx = bases.map((b) => (b.t[i] === tm && i < b.length ? i : indexAtOrBefore(b, tm)));
@@ -1169,15 +1220,15 @@ export class MarketEngine {
         const k = idx[j];
         return k >= 0 ? bases[j][f][k] : this.componentValue(id);
       };
-      const up = sm * 0.5 * Math.abs(normal(st.seed, this.today, 30_000 + i));
-      const dn = sm * 0.5 * Math.abs(normal(st.seed, this.today, 40_000 + i));
-      const [o, h, l, c] = this.derivedBar(st, get, this.today, up, dn);
+      const up = sm * 0.5 * Math.abs(normal(st.seed, day, 30_000 + i));
+      const dn = sm * 0.5 * Math.abs(normal(st.seed, day, 40_000 + i));
+      const [o, h, l, c] = this.derivedBar(st, get, day, up, dn);
       out.t[i] = tm;
       out.o[i] = o;
       out.h[i] = h;
       out.l[i] = l;
       out.c[i] = c;
-      out.v[i] = advMin > 0 ? Math.round(advMin * Math.exp(0.5 * normal(st.seed, this.today, 50_000 + i) - 0.125)) : 0;
+      out.v[i] = advMin > 0 ? Math.round(advMin * Math.exp(0.5 * normal(st.seed, day, 50_000 + i) - 0.125)) : 0;
     }
     if (n > 0) {
       out.c[n - 1] = st.last;
@@ -1249,8 +1300,8 @@ export class MarketEngine {
       chg,
       // No previous close (or zero) gives no percentage, never 0%.
       pct: Number.isFinite(st.prevClose) && st.prevClose !== 0 ? (chg / Math.abs(st.prevClose)) * 100 : NaN,
-      // A real line carries the market's own time, not the moment it was redrawn.
-      time: st.ext ? st.ext.time : t,
+      // A real line carries the market's own time, not the moment it was redrawn; a closed market's ends with its session.
+      time: st.ext ? st.ext.time : Math.min(t, dayStart(this.sessionDay(st.allDays) + 1) - 1),
       tick,
       src: st.ext ? extSrc(st.ext) : st.kind !== 'base' ? this.derivedSrc(st) : st.live ? 'LIVE' : 'SIM',
     };
@@ -1269,6 +1320,7 @@ export class MarketEngine {
     if (st.ext?.volumeUnit) q.volumeUnit = st.ext.volumeUnit;
     // The trading session apart from the data's freshness: unknown for end-of-day series and before the first quote.
     if (st.ext && !st.ext.eod && !st.ext.dayOnly && st.ext.sessionKnown !== false) q.session = st.ext.open ? 'open' : (st.ext.state ?? st.ext.extended?.session ?? 'closed');
+    else if (!st.ext && this.closed(st)) q.session = 'closed';
     this.quotes.set(st.def.id, q);
   }
 
@@ -1325,7 +1377,8 @@ export class MarketEngine {
     const venues = this.venuesFor(st);
     const sp = this.spread(st, q.last);
     const out: Trade[] = [];
-    let t = st.trades.length ? st.trades[st.trades.length - 1].t : now;
+    // A market closed for the weekend printed its last trades at the end of its session.
+    let t = st.trades.length ? st.trades[st.trades.length - 1].t : this.closed(st) ? q.time : now;
     for (let i = 0; i < 150 - st.trades.length; i++) {
       t -= 400 + Math.random() * 2500;
       const idx = Math.max(0, Math.min(s.length - 1, Math.floor((t - s.t[0]) / s.span)));

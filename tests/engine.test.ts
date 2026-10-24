@@ -122,6 +122,87 @@ describe('MarketEngine', () => {
   });
 });
 
+describe('a weekend', () => {
+  const SAT = Date.parse('2026-10-24T15:30:00Z');
+  const FRI = dayNum(Date.parse('2026-10-23T00:00:00Z'));
+  const THU = FRI - 1;
+  const sat = new MarketEngine(() => SAT);
+
+  it('shows a stock with Friday as its latest session, finished, and nothing dated Saturday', () => {
+    const s = sat.daily('AAPL US Equity');
+    expect(dayNum(s.t[s.length - 1])).toBe(FRI);
+    expect(dayNum(s.t[s.length - 2])).toBe(THU);
+    const q = sat.quote('AAPL US Equity')!;
+    expect(q.session).toBe('closed');
+    expect(q.time).toBeLessThan(Date.parse('2026-10-24T00:00:00Z'));
+    expect(q.last).toBeCloseTo(s.c[s.length - 1], 8);
+    expect(q.prevClose).toBeCloseTo(s.c[s.length - 2], 8);
+    const intra = sat.intraday('AAPL US Equity');
+    expect(intra.length).toBe(1440);
+    expect(dayNum(intra.t[intra.length - 1])).toBe(FRI);
+    expect(intra.c[intra.length - 1]).toBeCloseTo(q.last, 8);
+  });
+
+  it('keeps closed markets still while crypto goes on trading', () => {
+    const e = new MarketEngine(() => SAT);
+    const before = new Map(e.securities.map((d) => [d.id, e.quote(d.id)!.last]));
+    for (let i = 0; i < 5; i++) e.tick();
+    for (const d of e.securities) {
+      if (d.cls === 'crypto') continue;
+      expect(e.quote(d.id)!.last, d.id).toBe(before.get(d.id));
+    }
+    const btc = e.daily('XBTUSD Curncy');
+    expect(dayNum(btc.t[btc.length - 1])).toBe(dayNum(SAT));
+    expect(e.quote('XBTUSD Curncy')!.session).toBeUndefined();
+    e.backfillTrades('AAPL US Equity');
+    const tape = e.trades('AAPL US Equity');
+    expect(tape.length).toBeGreaterThan(0);
+    for (const tr of tape) expect(dayNum(tr.t)).toBe(FRI);
+  });
+
+  it('shows the same Friday on Saturday and on Sunday', () => {
+    const sun = new MarketEngine(() => Date.parse('2026-10-25T09:00:00Z'));
+    for (const id of ['AAPL US Equity', 'SPX Index', 'EURUSD Curncy', 'ES1 Index', 'GC1 Comdty']) {
+      expect(sun.quote(id)!.last, id).toBeCloseTo(sat.quote(id)!.last, 8);
+      expect(sun.quote(id)!.prevClose, id).toBeCloseTo(sat.quote(id)!.prevClose, 8);
+    }
+  });
+
+  it('ends a Friday that has a real close at that close, not the Thursday before it', () => {
+    // The calibration snapshot is Friday 2026-10-09's closes.
+    const e = new MarketEngine(() => Date.parse('2026-10-10T12:00:00Z'));
+    const q = e.quote('AAPL US Equity')!;
+    expect(q.last).toBeCloseTo(336.64, 2);
+    expect(Math.abs(q.prevClose - 336.64)).toBeGreaterThan(1e-6);
+    const s = e.daily('SPX Index');
+    expect(s.c[s.length - 1]).toBeCloseTo(7811.54, 2);
+    // Monday's previous close is the same Friday.
+    expect(new MarketEngine(() => NOW).quote('AAPL US Equity')!.prevClose).toBeCloseTo(q.last, 2);
+
+    const def = { ...e.get('AAPL US Equity')!, id: 'WKND US Equity', ticker: 'WKND' };
+    const bar = (day: number, c: number) => ({ day, o: c - 1, h: c + 2, l: c - 2, c, v: 1_000_000 });
+    expect(e.addSecurity(def, { bars: [bar(dayNum(Date.parse('2026-10-08T00:00:00Z')), 50), bar(dayNum(Date.parse('2026-10-09T00:00:00Z')), 55)] })).toBe(true);
+    const w = e.quote('WKND US Equity')!;
+    expect(w.last).toBeCloseTo(55, 8);
+    expect(w.open).toBeCloseTo(54, 8);
+    expect(w.prevClose).toBeCloseTo(50, 8);
+  });
+
+  it('agrees with the full history build on the previous close', () => {
+    for (const d of sat.securities) {
+      const s = sat.daily(d.id);
+      expect(s.c[s.length - 2], d.id).toBeCloseTo(sat.quote(d.id)!.prevClose, 6);
+    }
+  });
+
+  it('derives FX crosses from the same finished session', () => {
+    const eurjpy = sat.quote('EURJPY Curncy')!.last;
+    expect(eurjpy).toBeCloseTo(sat.quote('EURUSD Curncy')!.last * sat.quote('USDJPY Curncy')!.last, 6);
+    const s = sat.daily('EURJPY Curncy');
+    expect(dayNum(s.t[s.length - 1])).toBe(FRI);
+  });
+});
+
 describe('fast previous close', () => {
   it('matches the full history build for every security', () => {
     const e = new MarketEngine(() => Date.parse('2026-10-14T09:00:00Z'));

@@ -111,7 +111,7 @@ export function HP({ sec, route }: FnProps) {
   const hasVol = rows.some((r) => r.v > 0);
   // The newest row is still moving only while the source streams the session.
   const fresh = q ? freshnessOf(q, s, Date.now()) : null;
-  const liveSession = !!fresh && (fresh.label === 'REAL-TIME' || fresh.label === 'DELAYED' || fresh.label === 'DEMO DATA');
+  const liveSession = !!fresh && (fresh.label === 'REAL-TIME' || fresh.label === 'DELAYED' || (fresh.label === 'DEMO DATA' && q?.session !== 'closed'));
   const shownFrom = custom ? custom.from : first?.t ?? from;
   const shownTo = custom ? custom.to : last?.t ?? now;
   const pages = useMemo(() => blockPages(weekSlots(rows, per === 'D'), geo.cols, geo.perCol), [rows, per, geo]);
