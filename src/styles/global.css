@@ -180,6 +180,42 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .wtab-new:disabled { color: #4a4a4a; cursor: default; }
 @media (max-width: 760px) { .wtab { min-width: 70px; max-width: 130px; } }
 
+/* PORTFOLIO's tabs: one per portfolio (PORT.tsx). */
+.ptabs {
+  display: flex;
+  align-items: stretch;
+  min-height: 24px;
+  background: #0a0a0a;
+  border-bottom: 1px solid var(--line-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ptabs::-webkit-scrollbar { display: none; }
+.ptab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 70px;
+  max-width: 220px;
+  padding: 0 4px 0 10px;
+  border-right: 1px solid var(--line-2);
+  color: #a8a8a8;
+  cursor: default;
+  user-select: none;
+  font-size: 12px;
+}
+.ptab:hover { background: #1a1a1a; color: var(--text); }
+.ptab.on { background: #1f1f1f; color: var(--amber-2); box-shadow: inset 0 -2px 0 var(--amber); }
+.ptab.dragging { opacity: 0.5; }
+.ptab-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ptab-edit { flex: 1 1 auto; min-width: 0; width: 100%; background: #000; color: var(--amber-2); border: 1px solid var(--amber-dim); font: inherit; padding: 0 3px; }
+.ptab-x { flex: none; width: 16px; height: 16px; line-height: 14px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: #8a8a8a; font-size: 14px; cursor: pointer; }
+.ptab-x:hover { background: #3c3c3c; color: #fff; }
+.ptab-new { flex: none; align-self: center; width: 24px; height: 20px; margin-left: 4px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #bdbdbd; font-size: 16px; line-height: 18px; cursor: pointer; }
+.ptab-new:hover:not(:disabled) { background: #262626; color: #fff; }
+.ptab-new:disabled { color: #4a4a4a; cursor: default; }
+
 .topbar {
   display: flex;
   align-items: stretch;

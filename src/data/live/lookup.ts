@@ -8,7 +8,7 @@ import { settings } from '../../terminal/settings';
 import { trackFinnhubSymbol } from './feeds';
 import { adoptYahooHistory, barsFromChart, yahooGet, YahooDisabled, type Dividend, type Split } from './yahoo';
 import { loadSecCompanies, searchCompanies } from './sec';
-import { favourites, portfolio, watchlists } from '../../terminal/userdata';
+import { favourites, portfolios, watchlists } from '../../terminal/userdata';
 
 /**
  * Securities that are not built in are looked up online when someone types
@@ -462,9 +462,9 @@ async function loadFinnhub(ticker: string): Promise<LookupResult & { anchors?: [
 
 const inflight = new Map<string, Promise<LookupResult>>();
 
-/** The securities your watchlists, favourites and portfolio name. */
+/** The securities your watchlists, favourites and portfolios (every tab, not only the one on screen) name. */
 function listedIds(): Set<string> {
-  return new Set([...watchlists.get().lists.flatMap((l) => l.ids), ...favourites.get().ids, ...portfolio.get().positions.map((p) => p.id)]);
+  return new Set([...watchlists.get().lists.flatMap((l) => l.ids), ...favourites.get().ids, ...portfolios.get().list.flatMap((p) => p.positions.map((x) => x.id))]);
 }
 
 /** Saves a looked-up security; past the limit the oldest one no list names goes first. */
@@ -491,7 +491,7 @@ function keepListed() {
 }
 watchlists.subscribe(keepListed);
 favourites.subscribe(keepListed);
-portfolio.subscribe(keepListed);
+portfolios.subscribe(keepListed);
 
 /**
  * Looks a ticker up online and registers it. Resolves once the security can be used. `keep` false registers it for

@@ -1,4 +1,4 @@
-import { createStore, loadJson, removeKey, saveJson } from '../core/store';
+import { createStore, loadJson, removeKey, saveJson, type Store } from '../core/store';
 import type { LayoutId, Route } from './types';
 import type { LinkGroup } from './state';
 import { withExtendedColumns, type WatchlistSort } from '../data/watchlist-columns';
@@ -82,17 +82,69 @@ export interface Position {
 })();
 
 /** Cash is held in the base currency; a portfolio saved before 2.8.0 is in USD. */
-export const portfolio = createStore<{ name: string; positions: Position[]; benchmark: string; cash: number; base: string }>(
-  {
-    name: 'My portfolio',
-    benchmark: 'SPX Index',
-    cash: 0,
-    positions: [],
-    base: 'USD',
+export interface Portfolio {
+  name: string;
+  positions: Position[];
+  benchmark: string;
+  cash: number;
+  base: string;
+}
+
+export const MAX_PORTFOLIOS = 12;
+
+/** An empty portfolio, in the currency and against the benchmark of the one it is opened beside. */
+export function emptyPortfolio(name: string, beside?: Portfolio): Portfolio {
+  return { name, benchmark: beside?.benchmark ?? 'SPX Index', cash: 0, positions: [], base: beside?.base ?? 'USD' };
+}
+
+/**
+ * The one portfolio earlier versions kept becomes the first tab. Its saved copy under armin:portfolio is read,
+ * never changed or deleted.
+ */
+function earlierPortfolio(): Portfolio {
+  const saved = loadJson<{ v: number; s: Partial<Portfolio> }>('armin:portfolio');
+  const s = saved?.v === 2 && saved.s && typeof saved.s === 'object' ? saved.s : {};
+  return { ...emptyPortfolio('My portfolio'), ...s };
+}
+
+/** Every portfolio, shown as tabs on PORTFOLIO; `active` is the one on screen there. Shared by every window. */
+export const portfolios = createStore<{ list: Portfolio[]; active: number }>({ list: [earlierPortfolio()], active: 0 }, 'portfolios', 1);
+
+// A damaged list (edited storage) falls back to the earlier portfolio, a portfolio missing fields gets their
+// defaults, and an active tab past the end is the first.
+{
+  const p = portfolios.get();
+  const whole = (x: Partial<Portfolio>, i: number): Portfolio => ({ ...emptyPortfolio(`Portfolio ${i + 1}`), ...x, positions: Array.isArray(x?.positions) ? x.positions : [] });
+  if (!Array.isArray(p.list) || !p.list.length) portfolios.set({ list: [earlierPortfolio()], active: 0 });
+  else {
+    const list = p.list.some((x) => !x || typeof x.name !== 'string' || !Array.isArray(x.positions)) ? p.list.map((x, i) => whole(x && typeof x === 'object' ? x : {}, i)) : p.list;
+    const active = Number.isInteger(p.active) && p.active >= 0 && p.active < list.length ? p.active : 0;
+    if (list !== p.list || active !== p.active) portfolios.set({ list, active });
+  }
+}
+
+const onScreen = (s: { list: Portfolio[]; active: number }): Portfolio => s.list[s.active] ?? s.list[0];
+
+/**
+ * The portfolio on screen on PORTFOLIO: its holdings, cash and benchmark. Performance, risk, EVTS and the other
+ * screens read and change this one; `portfolios` holds them all.
+ */
+export const portfolio: Store<Portfolio> = {
+  get: () => onScreen(portfolios.get()),
+  set(next) {
+    portfolios.set((s) => {
+      const cur = onScreen(s);
+      const value = typeof next === 'function' ? next(cur) : next;
+      if (Object.is(value, cur)) return s;
+      const i = s.list.indexOf(cur);
+      return { ...s, list: s.list.map((p, j) => (j === i ? value : p)) };
+    });
   },
-  'portfolio',
-  2,
-);
+  subscribe: (fn) => portfolios.subscribe(fn),
+  use<S>(selector: (s: Portfolio) => S): S {
+    return portfolios.use((s) => selector(onScreen(s)));
+  },
+};
 
 /**
  * Starred securities, in the order they were starred: the command line offers them as soon as it is clicked,

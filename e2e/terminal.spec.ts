@@ -593,6 +593,60 @@ test('workspace tabs open, keep each workspace, rename, close and reopen as a br
   expect(errors).toEqual([]);
 });
 
+test('portfolio tabs keep each portfolio\'s holdings and cash, open, rename, close only when asked, and stay after a reload', async ({ page }) => {
+  const errors = await boot(page, '1');
+  const panel = page.locator('.panel').first();
+  const tabs = () => panel.locator('.ptab').allTextContents();
+  const add = async (sec: string, qty: string) => {
+    await panel.getByLabel('Security', { exact: true }).fill(sec);
+    await panel.getByLabel('Quantity', { exact: true }).fill(qty);
+    await panel.getByRole('button', { name: 'Add', exact: true }).click();
+  };
+  await run(page, 'PORTFOLIO');
+  await expect(panel.locator('.ptab')).toHaveCount(1);
+  await expect(panel.getByRole('button', { name: /^Close / })).toHaveCount(0);
+  await panel.locator('.ptab').first().dblclick();
+  await panel.getByRole('textbox', { name: 'Portfolio name' }).fill('EQUITY_LONG');
+  await panel.getByRole('textbox', { name: 'Portfolio name' }).press('Enter');
+  await add('AAPL', '10');
+  await panel.getByLabel('Cash in USD').fill('5000');
+  await panel.getByRole('button', { name: 'Set cash', exact: true }).click();
+
+  // A new portfolio opens empty, with its name ready to type.
+  await panel.getByRole('button', { name: 'New portfolio' }).click();
+  await panel.getByRole('textbox', { name: 'Portfolio name' }).fill('DOMESTIC BOND FUND');
+  await panel.getByRole('textbox', { name: 'Portfolio name' }).press('Enter');
+  expect(await tabs()).toEqual(['EQUITY_LONG×', 'DOMESTIC BOND FUND×']);
+  await expect(panel.locator('.ptab.on')).toHaveText('DOMESTIC BOND FUND×');
+  await expect(panel.getByText('No positions yet', { exact: false })).toBeVisible();
+  await add('MSFT', '3');
+  await expect(panel.getByRole('button', { name: 'Remove MSFT US Equity', exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Remove AAPL US Equity', exact: true })).toHaveCount(0);
+
+  await panel.locator('.ptab').first().click();
+  await expect(panel.getByRole('button', { name: 'Remove AAPL US Equity', exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Remove MSFT US Equity', exact: true })).toHaveCount(0);
+  await expect(panel.locator('dl.kv dt', { hasText: /^Cash$/ }).locator('xpath=following-sibling::dd[1]')).toHaveText('5,000');
+
+  // Closing a portfolio that holds something asks first.
+  await panel.getByRole('button', { name: 'Close DOMESTIC BOND FUND' }).click();
+  await expect(panel.getByRole('alert')).toContainText('Close DOMESTIC BOND FUND? Its 1 holding will be deleted.');
+  await panel.getByRole('button', { name: 'Keep it' }).click();
+  expect(await tabs()).toHaveLength(2);
+
+  // The tabs and their holdings are still there after a reload.
+  await page.reload();
+  await expect(panel.locator('.ptab')).toHaveCount(2);
+  await expect(panel.locator('.ptab.on')).toHaveText('EQUITY_LONG×');
+  await expect(panel.getByRole('button', { name: 'Remove AAPL US Equity', exact: true })).toBeVisible();
+
+  await panel.getByRole('button', { name: 'Close DOMESTIC BOND FUND' }).click();
+  await panel.getByRole('button', { name: 'Close and delete' }).click();
+  await expect(panel.locator('.ptab')).toHaveCount(1);
+  await expect(panel.locator('.ptab.on')).toHaveText('EQUITY_LONG');
+  expect(errors).toEqual([]);
+});
+
 test('WHATSNEW shows the installed version\'s release notes and earlier releases', async ({ page }) => {
   const errors = await boot(page);
   const version = JSON.parse(await readFile('package.json', 'utf8')).version as string;

@@ -7,7 +7,8 @@ import { engine, useTick } from '../data/market';
 import { CLASS_LABEL, resolveSecurity } from '../data/registry';
 import type { SecurityDef } from '../data/types';
 import { flash, usePanelId } from '../terminal/panel';
-import { portfolio, type Position } from '../terminal/userdata';
+import { closePortfolio, holdsAnything, movePortfolio, newPortfolio, renamePortfolio, switchPortfolio } from '../terminal/portfolio-tabs';
+import { MAX_PORTFOLIOS, portfolio, portfolios, type Portfolio, type Position } from '../terminal/userdata';
 import { adjustPosition, BASE_CURRENCIES, baseFx, basePerPrice, isMargined, navValue, pnlSplit, priceCurrency } from '../terminal/portfolio';
 import type { FnProps } from '../terminal/types';
 import { PortfolioPerformance, PortfolioRisk } from './PortfolioRisk';
@@ -228,10 +229,144 @@ function Holdings() {
   );
 }
 
+/**
+ * One tab per portfolio, across the top as in a browser: click to show one, + opens a new one (named as you type),
+ * a double click renames, × closes and dragging reorders. Closing one that holds anything asks first.
+ */
+function PortfolioTabs() {
+  const s = portfolios.use((x) => x);
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draft, setDraft] = useState('');
+  const [dragged, setDragged] = useState<number | null>(null);
+  // The portfolio waiting for "Close and delete"; a change to it (another window) withdraws the question.
+  const [closing, setClosing] = useState<Portfolio | null>(null);
+  const rename = (i: number) => {
+    setDraft(portfolios.get().list[i]?.name ?? '');
+    setEditing(i);
+  };
+  const commit = (i: number) => {
+    renamePortfolio(i, draft);
+    setEditing(null);
+  };
+  const close = (i: number) => {
+    setEditing(null);
+    if (holdsAnything(s.list[i])) setClosing(s.list[i]);
+    else closePortfolio(i);
+  };
+  const doomed = closing && s.list.includes(closing) ? closing : undefined;
+  return (
+    <>
+      <nav className="ptabs" role="tablist" aria-label="Portfolios">
+        {s.list.map((p, i) => {
+          const on = i === s.active;
+          return (
+            <div
+              key={i}
+              role="tab"
+              aria-selected={on}
+              tabIndex={on ? 0 : -1}
+              className={`ptab${on ? ' on' : ''}${dragged === i ? ' dragging' : ''}`}
+              title={`${p.name}: ${p.positions.length} holding${p.positions.length === 1 ? '' : 's'} in ${p.base} (double-click to rename)`}
+              draggable={editing !== i}
+              onClick={() => switchPortfolio(i)}
+              onDoubleClick={() => rename(i)}
+              onDragStart={(e) => {
+                setDragged(i);
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', p.name);
+              }}
+              onDragEnd={() => setDragged(null)}
+              onDragOver={(e) => {
+                if (dragged !== null) e.preventDefault();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragged !== null) movePortfolio(dragged, i);
+                setDragged(null);
+              }}
+            >
+              {editing === i ? (
+                <input
+                  className="ptab-edit"
+                  aria-label="Portfolio name"
+                  autoFocus
+                  onFocus={(e) => e.target.select()}
+                  value={draft}
+                  maxLength={40}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') commit(i);
+                    if (e.key === 'Escape') setEditing(null);
+                  }}
+                  onBlur={() => commit(i)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span className="ptab-title">{p.name}</span>
+              )}
+              {s.list.length > 1 && (
+                <button
+                  type="button"
+                  className="ptab-x"
+                  aria-label={`Close ${p.name}`}
+                  title="Close this portfolio"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    close(i);
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          className="ptab-new"
+          aria-label="New portfolio"
+          title={s.list.length >= MAX_PORTFOLIOS ? `At most ${MAX_PORTFOLIOS} portfolios` : 'New portfolio'}
+          disabled={s.list.length >= MAX_PORTFOLIOS}
+          onClick={() => {
+            setClosing(null);
+            if (newPortfolio()) rename(portfolios.get().active);
+          }}
+        >
+          +
+        </button>
+      </nav>
+      {doomed && (
+        <div className="note amber row" role="alert" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <span>
+            Close {doomed.name}? Its {doomed.positions.length} holding{doomed.positions.length === 1 ? '' : 's'}
+            {doomed.cash !== 0 ? ` and cash of ${fmtNum(doomed.cash, 0)} ${doomed.base}` : ''} will be deleted.
+          </span>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              closePortfolio(portfolios.get().list.indexOf(doomed));
+              setClosing(null);
+            }}
+          >
+            Close and delete
+          </button>
+          <button type="button" className="btn primary" onClick={() => setClosing(null)}>
+            Keep it
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 export function PORT(_: FnProps) {
   const panel = usePanelId();
   const [tab, setTab] = useState(1);
   const st = portfolio.use((s) => s);
+  // A half-typed position stays with the portfolio it was typed for: another tab starts with empty boxes.
+  const active = portfolios.use((s) => s.active);
   const base = st.base ?? 'USD';
   const csv = () => [['Security', 'Quantity', 'Cost', 'Last', `Exposure ${base}`, `Entry ${base} per currency unit`], ...st.positions.map((p) => { const d = engine.get(p.id); const last = engine.quote(p.id)?.last; return [p.id, p.qty, p.cost, d ? last : 'Unknown security', d && last !== undefined ? p.qty * last * basePerPrice(d, base) : undefined, p.entryBase === base ? p.entryFx : '']; })];
   return (
@@ -247,9 +382,10 @@ export function PORT(_: FnProps) {
         ]}
         tab={tab}
         onTab={setTab}
-        actions={exportActions(panel, 'portfolio.csv', csv).map((a) => ({ ...a, label: `${a.label} holdings` }))}
+        actions={exportActions(panel, `${st.name.replace(/\W+/g, '_') || 'portfolio'}.csv`, csv).map((a) => ({ ...a, label: `${a.label} holdings` }))}
+        controls={<PortfolioTabs />}
       />
-      {tab === 1 ? <Holdings /> : tab === 2 ? <PortfolioPerformance /> : <PortfolioRisk />}
+      {tab === 1 ? <Holdings key={active} /> : tab === 2 ? <PortfolioPerformance /> : <PortfolioRisk />}
       <div className="note">Current values use source FX marks, which may be delayed or stale. Day and price P&L translate local price changes at current FX; FX P&L is the change in the {st.base ?? 'USD'} value of each position's cost since you entered it, for positions entered from 2.8.0 on. Holdings are stored {engine.realOnly ? 'on this computer' : 'in this browser'} only.</div>
     </div>
   );
