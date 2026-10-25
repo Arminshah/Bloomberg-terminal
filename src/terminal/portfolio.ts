@@ -96,9 +96,9 @@ export function pnlSplit(d: SecurityDef, p: Position, last: number, base: string
  * entry FX rate, adding on the same side averages it by the local cost of each lot; a rate in another base,
  * or a lot without one, leaves the average unknown.
  */
-export function adjustPosition(existing: Position | undefined, id: string, quantity: number, cost: number, entry?: { fx: number; base: string }): Position | null {
+export function adjustPosition(existing: Position | undefined, id: string, quantity: number, cost: number, entry?: { fx: number; base: string; note?: string }): Position | null {
   if (!id || ![quantity, cost].every(Number.isFinite) || quantity === 0 || (existing && (existing.id !== id || ![existing.qty, existing.cost].every(Number.isFinite)))) throw new Error('Invalid position adjustment.');
-  const fresh = entry && entry.fx > 0 ? { entryFx: entry.fx, entryBase: entry.base } : {};
+  const fresh = entry && entry.fx > 0 ? { entryFx: entry.fx, entryBase: entry.base, ...(entry.note ? { entryFxNote: entry.note } : {}) } : {};
   if (!existing || existing.qty === 0) return { id, qty: quantity, cost, ...fresh };
   const qty = existing.qty + quantity;
   if (!Number.isFinite(qty)) throw new Error('Position quantity exceeds the numerical range.');
@@ -107,12 +107,12 @@ export function adjustPosition(existing: Position | undefined, id: string, quant
   const newCost = sameSide ? existing.cost + (cost - existing.cost) * (Math.abs(quantity) / Math.abs(qty))
     : Math.sign(qty) === Math.sign(existing.qty) ? existing.cost : cost;
   if (!Number.isFinite(newCost)) throw new Error('Position cost exceeds the numerical range.');
-  const kept = existing.entryFx !== undefined ? { entryFx: existing.entryFx, entryBase: existing.entryBase } : {};
+  const kept = existing.entryFx !== undefined ? { entryFx: existing.entryFx, entryBase: existing.entryBase, ...(existing.entryFxNote ? { entryFxNote: existing.entryFxNote } : {}) } : {};
   if (!sameSide) return { id, qty, cost: newCost, ...(Math.sign(qty) === Math.sign(existing.qty) ? kept : fresh) };
   // Same side: the entry rate averaged by each lot's local cost (quantity times cost).
   const a = Math.abs(existing.qty * existing.cost);
   const b = Math.abs(quantity * cost);
   const averaged = existing.entryFx! > 0 && entry && entry.fx > 0 && existing.entryBase === entry.base && a + b > 0
-    ? { entryFx: (existing.entryFx! * a + entry.fx * b) / (a + b), entryBase: entry.base } : {};
+    ? { entryFx: (existing.entryFx! * a + entry.fx * b) / (a + b), entryBase: entry.base, entryFxNote: existing.entryFxNote === entry.note && entry.note ? entry.note : "average of the lots' entry rates, weighted by cost" } : {};
   return { id, qty, cost: newCost, ...averaged };
 }

@@ -86,7 +86,7 @@ function usDate(s) {
  * amendment, C candidate, X extension, T termination, W withdrawn, and a few others.
  */
 function parseHouseIndex(text) {
-  const lines = String(text ?? '').replace(/^﻿/, '').split(/\r?\n/);
+  const lines = String(text ?? '').replace(/^\uFEFF/, '').split(/\r?\n/);
   if (!/^Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID/.test(lines[0] ?? '')) return null;
   const out = [];
   for (const line of lines.slice(1)) {

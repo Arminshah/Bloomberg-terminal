@@ -64,6 +64,8 @@ export interface Position {
    */
   entryFx?: number;
   entryBase?: string;
+  /** Where the entry rate comes from: "ECB reference rate of 2026-06-30", the market rate when entered, an average. */
+  entryFxNote?: string;
 }
 
 /**

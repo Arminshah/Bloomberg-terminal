@@ -32,8 +32,9 @@ interface Fixtures {
   insiders?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
+  ecbFx?: boolean;
   supplyChain?: boolean;
-  calls: { congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -371,6 +372,29 @@ test("CONGRESS ranks representatives by their annual reports' assets, lists both
   await command(page, 'NVDA US Equity CONGRESS', 'CONGRESS');
   await expect(panel.getByLabel('Filter', { exact: true })).toHaveValue('NVDA');
   await expect(panel.locator('tbody tr', { hasText: 'NVIDIA' })).toHaveCount(4);
+});
+
+test("PORTFOLIO takes a past purchase's entry exchange rate from the ECB's reference rate of that day", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.ecbFx = true;
+  });
+  await command(page, 'PORTFOLIO', 'PORTFOLIO');
+  const panel = page.locator('.panel').first();
+  await panel.getByLabel('Security', { exact: true }).fill('HSBA LN Equity');
+  await panel.getByLabel('Quantity', { exact: true }).fill('100');
+  await panel.getByLabel('Price', { exact: true }).fill('1000');
+  // Sunday 28 June 2026: the ECB published no rates, so Friday's.
+  await panel.getByLabel('Bought on', { exact: true }).fill('2026-06-28');
+  await panel.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.locator('.cmd-msg')).toContainText("Entry rate 1.321809 USD per GBP: the ECB's of 26/06/26.");
+  const calls = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.ecbFx ?? []);
+  expect(calls).toEqual(['/service/data/EXR/D..EUR.SP00.A?format=csvdata&startPeriod=2026-06-18&endPeriod=2026-06-28']);
+  // The portfolio store saves after a moment.
+  const savedPosition = () => page.evaluate(() => JSON.parse(localStorage.getItem('armin:portfolios') ?? 'null')?.s?.list?.[0]?.positions?.[0] ?? null);
+  await expect.poll(savedPosition).not.toBeNull();
+  const saved = await savedPosition();
+  expect(saved).toMatchObject({ id: 'HSBA LN Equity', qty: 100, cost: 1000, entryBase: 'USD', entryFxNote: 'ECB reference rate of 2026-06-26' });
+  expect(saved.entryFx).toBeCloseTo(1.1401 / 0.86253, 12);
 });
 
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {

@@ -255,6 +255,12 @@ const OFFICIAL = {
   nyfed: () => 'https://markets.newyorkfed.org/api/rates/all/latest.json',
   fomc: () => 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
   ecb: (since) => `https://data-api.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.DFR.LEV?format=csvdata&startPeriod=${since}`,
+  // The ECB's reference rates of every currency it publishes against the euro, for the ten days to a date: the rate of
+  // that date, or of the last day before it with rates (none on weekends and TARGET holidays). PORTFOLIO's dated entries.
+  ecbFx: (date) => {
+    const start = new Date(Date.parse(`${date}T00:00:00Z`) - 10 * 86_400_000).toISOString().slice(0, 10);
+    return `https://data-api.ecb.europa.eu/service/data/EXR/D..EUR.SP00.A?format=csvdata&startPeriod=${start}&endPeriod=${date}`;
+  },
   boe: (since) => boeSeries('IUDBEDR', since),
   boc: (since) => `https://www.bankofcanada.ca/valet/observations/V39079/json?start_date=${since}`,
   rba: () => 'https://www.rba.gov.au/statistics/tables/csv/f1-data.csv',
@@ -309,7 +315,7 @@ const OFFICIAL = {
 
 /** Which provider publishes each official source, for the status screen. */
 const OFFICIAL_PROVIDER = {
-  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', ecb: 'ecb', boe: 'boe', gilts: 'boe', boc: 'boc', canadas: 'boc',
+  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', boe: 'boe', gilts: 'boe', boc: 'boc', canadas: 'boc',
   rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
@@ -336,7 +342,7 @@ ipcMain.handle('official', async (event, source, since) => {
     return { status: res.status, text: res.ok ? await res.text() : '' };
   }
   // Some statistics services answer large requests slowly; a stalled one still ends.
-  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' || source === 'ecbFx' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 

@@ -2,8 +2,10 @@ import { useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
-import { fmtNum } from '../core/format';
+import { fmtIso, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
+import { ecbRateOn } from '../data/live/ecb-fx';
+import { officialAvailable } from '../data/live/official';
 import { CLASS_LABEL, resolveSecurity } from '../data/registry';
 import type { SecurityDef } from '../data/types';
 import { flash, usePanelId } from '../terminal/panel';
@@ -70,6 +72,8 @@ function Holdings() {
   const [sec, setSec] = useState('');
   const [qty, setQty] = useState('');
   const [px, setPx] = useState('');
+  const [bought, setBought] = useState('');
+  const [busy, setBusy] = useState(false);
   const [cash, setCash] = useState('');
   const saveCash = () => {
     const c = Number(cash.replace(/,/g, ''));
@@ -86,7 +90,8 @@ function Holdings() {
     portfolio.set((s) => ({ ...s, base: next, cash: s.cash * rate }));
     flash(panel, `Portfolio now in ${next}. Cash converted at ${fmtNum(rate, 6)} ${next} per ${base}.`, 'info');
   };
-  const add = () => {
+  const add = async () => {
+    if (busy) return;
     const d = resolveSecurity(sec);
     if (!d) return flash(panel, `Unknown security: ${sec}`, 'error');
     if (d.quote === 'yield') return flash(panel, 'A yield reference is not a priced portfolio instrument', 'error');
@@ -94,16 +99,34 @@ function Holdings() {
     if (!Number.isFinite(q) || q === 0) return flash(panel, 'Enter a non-zero quantity', 'error');
     const c = px.trim() ? Number(px) : engine.quote(d.id)!.last;
     if (!Number.isFinite(c) || (!isMargined(d) && c < 0)) return flash(panel, 'Enter a valid cost price or wait for a market price', 'error');
+    // The entry rate of this lot into the base, for the FX part of its P&L later: on a past purchase date the ECB's
+    // reference rate of that day; otherwise today's market rate.
+    const today = new Date().toISOString().slice(0, 10);
+    const ccy = priceCurrency(d);
+    let entry: { fx: number; base: string; note: string } | undefined;
+    let note = '';
+    if (bought && bought < today && ccy !== base && !isMargined(d)) {
+      setBusy(true);
+      const r = await ecbRateOn(bought, ccy, base, today);
+      setBusy(false);
+      if ('error' in r) note = ` No entry rate: ${r.error} The currency part of this lot's P&L is unknown.`;
+      else {
+        entry = { fx: r.rate, base, note: `ECB reference rate of ${r.asOf}` };
+        note = ` Entry rate ${fmtNum(r.rate, 6)} ${base} per ${ccy}: the ECB's of ${fmtIso(r.asOf)}.`;
+      }
+    } else {
+      const fxNow = baseFx(ccy, base);
+      if (Number.isFinite(fxNow) && fxNow > 0) entry = { fx: fxNow, base, note: `market rate when entered, ${today}` };
+    }
     try {
-      // Today's rate into the base is the entry rate of this lot, for the FX part of its P&L later.
-      const fxNow = baseFx(priceCurrency(d), base);
-      const adjusted = adjustPosition(st.positions.find((p) => p.id === d.id), d.id, q, c, Number.isFinite(fxNow) && fxNow > 0 ? { fx: fxNow, base } : undefined);
+      const adjusted = adjustPosition(portfolio.get().positions.find((p) => p.id === d.id), d.id, q, c, entry);
       portfolio.set((s) => ({ ...s, positions: [...s.positions.filter((p) => p.id !== d.id), ...(adjusted ? [adjusted] : [])] }));
     } catch { return flash(panel, 'Position quantity or cost is outside the valid range', 'error'); }
     setSec('');
     setQty('');
     setPx('');
-    flash(panel, `Added ${q} ${d.ticker}`, 'info');
+    setBought('');
+    flash(panel, `Added ${q} ${d.ticker}.${note}`, note.startsWith(' No') ? 'error' : 'info');
   };
   return (
     <>
@@ -140,9 +163,12 @@ function Holdings() {
           <div className="pad row" style={{ gap: 8 }}>
             <input className="inp" placeholder="Security (e.g. AAPL)" aria-label="Security" value={sec} onChange={(e) => setSec(e.target.value)} />
             <input className="inp" style={{ width: 90 }} placeholder="Qty (− to sell)" aria-label="Quantity" inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} />
-            <input className="inp" style={{ width: 90 }} placeholder="Price (mkt)" aria-label="Price" inputMode="decimal" value={px} onChange={(e) => setPx(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
-            <button type="button" className="btn primary" onClick={add}>
-              Add
+            <input className="inp" style={{ width: 90 }} placeholder="Price (mkt)" aria-label="Price" inputMode="decimal" value={px} onChange={(e) => setPx(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void add()} />
+            {officialAvailable() && (
+              <input className="inp" type="date" style={{ width: 140 }} aria-label="Bought on" title="Bought on: for a past date the entry exchange rate is the ECB's reference rate of that day" max={new Date().toISOString().slice(0, 10)} value={bought} onChange={(e) => setBought(e.target.value)} />
+            )}
+            <button type="button" className="btn primary" onClick={() => void add()} disabled={busy}>
+              {busy ? 'Asking the ECB…' : 'Add'}
             </button>
           </div>
           <div className="pad row" style={{ gap: 8 }}>
@@ -154,6 +180,7 @@ function Holdings() {
           <div className="note">
             The portfolio holds only the positions and cash you enter here: there is no order entry and no simulated trading. Futures quantities are contracts and count toward NAV at unrealised P&L; Treasury quantities are face value. A
             blank price records today&apos;s market price as your cost. Adding on the same side averages cost; reducing retains the remaining cost; reversing uses the entered cost for the new side. Cash is adjusted separately.
+            {officialAvailable() ? ' For a lot in another currency bought on a past date, give the date: its entry exchange rate is then the ECB\'s reference rate of that day (or of the last day before it with rates), crossed through the euro; otherwise it is today\'s.' : ''}
           </div>
         </Section>
       </div>
@@ -209,7 +236,7 @@ function Holdings() {
                 <td className="num hide-m">
                   <Chg v={l.total} dec={0} />
                 </td>
-                <td className="num hide-m" title={Number.isFinite(l.fx) ? `${priceCurrency(l.d)} to ${base} since entry` : 'No entry FX rate recorded for this position (entered before 2.8.0, in another base currency, or a future)'}>
+                <td className="num hide-m" title={Number.isFinite(l.fx) ? `${priceCurrency(l.d)} to ${base} since entry at ${fmtNum(l.p.entryFx, 6)}${l.p.entryFxNote ? ` (${l.p.entryFxNote})` : ''}` : 'No entry FX rate recorded for this position (entered before 2.8.0, in another base currency, a future, or a past date the ECB has no rate for)'}>
                   {Number.isFinite(l.fx) ? <Chg v={l.fx} dec={0} /> : <span className="muted">--</span>}
                 </td>
                 <td className="num">

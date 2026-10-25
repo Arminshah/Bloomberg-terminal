@@ -89,6 +89,11 @@ net.fetch = async (input, init) => {
       accessionNumber: [...four.accessionNumber, '0001513845-26-000002', '0001513845-26-000001'], form: [...four.form, '6-K', '20-F'], filingDate: [...four.filingDate, '2026-10-01', '2026-04-30'], reportDate: [...four.reportDate, '2026-10-01', '2025-12-31'], primaryDocument: [...four.primaryDocument, 'synthetic-current.htm', 'synthetic-annual.htm'],
     }, files: [] } });
   }
+  // With fixtures.ecbFx, the ECB's reference rates as published for 25 to 30 June 2026 (tests/fixtures/ecb-exr-2026-06.csv).
+  if (fixtures.ecbFx && url.hostname === 'data-api.ecb.europa.eu' && url.pathname.startsWith('/service/data/EXR/')) {
+    fixtures.calls.ecbFx = [...(fixtures.calls.ecbFx ?? []), url.pathname + url.search];
+    return new Response(fs.readFileSync(path.join(__dirname, '../tests/fixtures/ecb-exr-2026-06.csv'), 'utf8'), { status: 200, headers: { 'Content-Type': 'text/csv' } });
+  }
   // With fixtures.congress: the House Clerk's member list, index and reports and the Senate's member list, from the
   // documents as published (tests/fixtures/congress), and FMP's latest trades of each chamber.
   if (fixtures.congress) {
