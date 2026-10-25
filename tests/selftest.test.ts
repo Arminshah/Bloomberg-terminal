@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as selftest from '../electron/selftest.cjs';
+import { fixture } from './fixtures/congress/files.cjs';
 
 // Made-up answers in each provider's documented layout; no request leaves the test.
 const test = (id: string) => selftest.TESTS.find((t) => t.id === id)!;
@@ -36,6 +37,34 @@ describe('provider self-test', () => {
     expect(test('alpaca').request(['id', 's'], now).url).toBe('https://data.alpaca.markets/v2/stocks/snapshots?symbols=AAPL&feed=iex');
     // Every keyed test names the credentials it needs.
     for (const t of selftest.TESTS) if (/KEY|TOKEN|AGENT/.test(JSON.stringify(t.credentials ?? []))) expect(t.credentials!.length).toBeGreaterThan(0);
+  });
+
+  it("maps Apple's CUSIP on OpenFIGI, with the key only when one is set", () => {
+    const t = test('openfigi');
+    expect(t.keyless).toBe(true);
+    expect(t.request(['k'], 0)).toEqual({
+      url: 'https://api.openfigi.com/v3/mapping',
+      method: 'POST',
+      body: '[{"idType":"ID_CUSIP","idValue":"037833100","exchCode":"US"}]',
+      headers: { 'Content-Type': 'application/json', 'X-OPENFIGI-APIKEY': 'k' },
+    });
+    expect(t.request([], 0).headers).toEqual({ 'Content-Type': 'application/json' });
+    // OpenFIGI's answer layout (api.openfigi.com/v3/mapping): one entry per job.
+    expect(t.read('[{"data":[{"figi":"BBG000B9XRY4","name":"APPLE INC","ticker":"AAPL","exchCode":"US","compositeFIGI":"BBG000B9XRY4","securityType":"Common Stock"}]}]')).toBe('037833100 is AAPL, APPLE INC');
+    expect(() => t.read('[{"warning":"No identifier found."}]')).toThrow('no US listing');
+    expect(() => t.read('[{"error":"Invalid idValue format"}]')).toThrow('Invalid idValue format');
+    expect(() => t.read('<html>')).toThrow('format the app does not recognise');
+  });
+
+  it("reads the House Clerk's index of the year, last year's in January", () => {
+    const t = test('house-clerk');
+    expect(t.binary).toBe(true);
+    const oct = Date.parse('2026-10-25T12:00:00Z');
+    expect(t.request([], oct).url).toBe('https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip');
+    expect(t.request([], Date.parse('2027-01-10T12:00:00Z')).url).toBe('https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip');
+    // The Clerk's 2026 index as published on 25 October 2026.
+    expect(t.read(fixture('2026FD.zip'), oct)).toBe('2026: 1763 filings, 437 of them trade reports, latest filed 2026-10-22');
+    expect(() => t.read(fixture('2026FD.zip'), Date.parse('2027-03-01T00:00:00Z'))).toThrow('no 2027FD.txt in the archive');
   });
 
   it('writes a report with states and samples, never a key', () => {

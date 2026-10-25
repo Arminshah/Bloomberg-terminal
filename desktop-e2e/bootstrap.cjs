@@ -152,7 +152,7 @@ net.fetch = async (input, init) => {
     const jobs = JSON.parse(String(init?.body ?? '[]'));
     const keyed = new Headers(init?.headers).has('X-OPENFIGI-APIKEY');
     fixtures.calls.openfigi = [...(fixtures.calls.openfigi ?? []), { jobs, keyed }];
-    const tickers = { '19247G107': 'COHR', '21873S108': 'CRWV', '370920100': 'GENB', '458140100': 'INTC', N97284108: 'NBIS', '654902204': 'NOK', '84615Q103': 'SPCX', '871607107': 'SNPS' };
+    const tickers = { '037833100': 'AAPL', '19247G107': 'COHR', '21873S108': 'CRWV', '370920100': 'GENB', '458140100': 'INTC', N97284108: 'NBIS', '654902204': 'NOK', '84615Q103': 'SPCX', '871607107': 'SNPS' };
     return json(jobs.map((j) => {
       const ticker = tickers[j.idValue];
       // A foreign issue's code answers only when asked for as a CINS.

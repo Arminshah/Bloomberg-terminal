@@ -3,6 +3,9 @@
 // its HTTP status, how long it took and a short sample of the answer (a price, a date, a count); it never
 // contains a key, a URL with a key in it, or a whole answer. Kept free of Electron so tests can load it.
 
+const congress = require('./congress.cjs');
+const openfigi = require('./openfigi.cjs');
+
 const today = (now) => new Date(now).toISOString().slice(0, 10);
 const daysAgo = (now, n) => new Date(now - n * 86_400_000).toISOString().slice(0, 10);
 
@@ -17,10 +20,18 @@ function json(text) {
 /** A number with up to four significant decimals, or '?' */
 const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? String(Math.round(v * 10_000) / 10_000) : typeof v === 'string' && v.trim() && Number.isFinite(Number(v)) ? v.trim() : '?');
 
+/** Apple's CUSIP, for the OpenFIGI test. */
+const APPLE_CUSIP = '037833100';
+
+/** The Clerk's index of the year: last year's in January, before the new year's has many filings. */
+const indexYear = (now) => new Date(now).getUTCFullYear() - (new Date(now).getUTCMonth() === 0 ? 1 : 0);
+
 /**
  * Each test: the provider it counts against, the credentials and switch it needs, the request it makes and how
  * to read the answer. `read` returns a short sample when the answer is usable, or throws with what is wrong.
- * Requests that spend a small daily allowance say so in `cost`.
+ * Requests that spend a small daily allowance say so in `cost`. `keyless`: the source also answers without the
+ * key, so the test runs without it when none is set. `binary`: `read` gets the answer's bytes. `slot`: the
+ * source's own pace, [requests, per milliseconds].
  */
 const TESTS = [
   {
@@ -301,6 +312,47 @@ const TESTS = [
       if (j?.status === 'error') throw new Error(String(j.message ?? 'error').slice(0, 160));
       if (!j?.close) throw new Error('no quote in the answer');
       return `AAPL ${n(j.close)} on ${j.datetime}`;
+    },
+  },
+  {
+    id: 'openfigi',
+    provider: 'openfigi',
+    label: "OpenFIGI ticker of a CUSIP (Apple's)",
+    credentials: ['OPENFIGI_API_KEY'],
+    keyless: true,
+    setting: 'OPENFIGI_ENABLED',
+    slot: [openfigi.LIMITS.open.perMinute, 60_000],
+    request: ([key]) => ({
+      url: openfigi.MAPPING_URL,
+      method: 'POST',
+      body: JSON.stringify(openfigi.mappingJobs([APPLE_CUSIP])),
+      headers: { 'Content-Type': 'application/json', ...(key ? { 'X-OPENFIGI-APIKEY': key } : {}) },
+    }),
+    read: (text) => {
+      const r = openfigi.parseMapping(text, [APPLE_CUSIP])?.[APPLE_CUSIP];
+      if (!r) throw new Error('OpenFIGI answered in a format the app does not recognise');
+      if (r.error) throw new Error(String(r.error).slice(0, 160));
+      if (!r.ticker) throw new Error("no US listing in the answer for Apple's CUSIP");
+      return `${APPLE_CUSIP} is ${r.ticker}, ${r.name}`;
+    },
+  },
+  {
+    id: 'house-clerk',
+    provider: 'house-clerk',
+    label: "House Clerk's index of members' disclosures",
+    binary: true,
+    slot: [2, 1000],
+    request: (_keys, now) => ({ url: congress.indexUrl(indexYear(now)), accept: 'application/zip' }),
+    read: (bytes, now) => {
+      const year = indexYear(now);
+      const text = congress.unzipFile(bytes, `${year}FD.txt`);
+      if (text === null) throw new Error(`no ${year}FD.txt in the archive`);
+      const rows = congress.parseHouseIndex(text.toString('utf8'));
+      if (!rows) throw new Error('the index has columns the app does not recognise');
+      if (!rows.length) throw new Error('no filings in the index');
+      const trades = rows.filter((r) => r.type === 'P').length;
+      const latest = rows.map((r) => r.filed).sort().pop();
+      return `${year}: ${rows.length} filings, ${trades} of them trade reports, latest filed ${latest}`;
     },
   },
 ];

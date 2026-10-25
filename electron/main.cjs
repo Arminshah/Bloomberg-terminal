@@ -1429,16 +1429,17 @@ ipcMain.handle('providers:selftest', async (event) => {
     }
     const keys = (t.credentials ?? []).map((name) => [name, providers.credential(name).value]);
     const missing = keys.find(([, v]) => !v);
-    if (missing) {
+    if (missing && !t.keyless) {
       results.push({ ...base, state: 'skip', detail: `no ${missing[0]} set` });
       continue;
     }
-    const wrong = keys.find(([name, v]) => !providers.CREDENTIALS[name].valid(v));
+    const wrong = keys.find(([name, v]) => v && !providers.CREDENTIALS[name].valid(v));
     if (wrong) {
       results.push({ ...base, state: 'fail', detail: `${wrong[0]} has the wrong format, so it was not sent` });
       continue;
     }
-    const secrets = keys.map(([, v]) => v);
+    const secrets = keys.map(([, v]) => v).filter(Boolean);
+    const keyNote = missing ? `without a key (no ${missing[0]} set): ` : '';
     const req = t.request(secrets, now);
     const t0 = Date.now();
     try {
@@ -1455,30 +1456,34 @@ ipcMain.handle('providers:selftest', async (event) => {
         const answer = await keyedGet(t.provider, req.url, req.headers ?? {}, 0, SELFTEST_PACE[t.provider], t.agent ? [] : secrets, t.agent ? secrets[0] : undefined);
         res = { status: answer.status, ok: answer.status >= 200 && answer.status < 300 && !answer.stale && !!answer.text,
           statusText: answer.budget ? 'Daily request cap reached; resets at midnight UTC.' : answer.error ?? 'No fresh answer.', text: async () => answer.text };
-      } else res = await tracked(t.provider, req.url, {
-        headers: { 'User-Agent': t.agent ? secrets[0] : clientAgent(), Accept: req.accept ?? 'application/json', ...(req.headers ?? {}) },
-        cache: 'no-cache',
-        signal: AbortSignal.timeout(15_000),
-      });
-      const text = await res.text().catch(() => '');
+      } else {
+        if (t.slot) await providers.slot(t.provider, ...t.slot);
+        res = await tracked(t.provider, req.url, {
+          ...(req.method ? { method: req.method, body: req.body } : {}),
+          headers: { 'User-Agent': t.agent ? secrets[0] : clientAgent(), Accept: req.accept ?? 'application/json', ...(req.headers ?? {}) },
+          cache: 'no-cache',
+          signal: AbortSignal.timeout(15_000),
+        });
+      }
+      const text = t.binary && res.ok ? Buffer.from(await res.arrayBuffer().catch(() => new ArrayBuffer(0))) : await res.text().catch(() => '');
       const ms = Date.now() - t0;
       if (!res.ok) {
         // A direct answer's body says why (statusText is only "Forbidden"); a paced answer's reason is in its error,
         // and its text may be an older kept answer.
         const said = [JSON.stringify({ message: res.statusText }), text];
         if (!SELFTEST_PACE[t.provider]) said.reverse();
-        results.push({ ...base, state: 'fail', status: res.status, ms, detail: said.map((m) => providers.providerMessage(m, secrets)).find(Boolean) || 'refused' });
+        results.push({ ...base, state: 'fail', status: res.status, ms, detail: keyNote + (said.map((m) => providers.providerMessage(m, secrets)).find(Boolean) || 'refused') });
         continue;
       }
       try {
-        results.push({ ...base, state: 'pass', status: res.status, ms, detail: sourceLabel + t.read(text) });
+        results.push({ ...base, state: 'pass', status: res.status, ms, detail: keyNote + sourceLabel + t.read(text, now) });
       } catch (err) {
         providers.recordProblem(t.provider, 'schema-changed', providers.providerMessage(JSON.stringify({ message: String(err?.message ?? err) }), secrets));
-        results.push({ ...base, state: 'fail', status: res.status, ms, detail: providers.providerMessage(JSON.stringify({ message: String(err?.message ?? err) }), secrets) });
+        results.push({ ...base, state: 'fail', status: res.status, ms, detail: keyNote + providers.providerMessage(JSON.stringify({ message: String(err?.message ?? err) }), secrets) });
       }
     } catch (err) {
       const why = err?.name === 'TimeoutError' ? 'no answer within 15 seconds' : String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>');
-      results.push({ ...base, state: 'fail', status: 0, ms: Date.now() - t0, detail: why.slice(0, 160) });
+      results.push({ ...base, state: 'fail', status: 0, ms: Date.now() - t0, detail: keyNote + why.slice(0, 160) });
     }
   }
   const eqBase = { id: 'equibles-estimates', label: 'Equibles analyst estimates (Apple; coverage varies by issuer)' };

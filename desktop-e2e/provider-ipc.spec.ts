@@ -872,6 +872,27 @@ test('the inherited all-source self-test includes Equibles, detects refusals and
   expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(1);
 });
 
+test('the self-test maps a CUSIP on OpenFIGI, with or without a key, and reads the House Clerk\'s index', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.thirteenF = true;
+    fixtures.congress = true;
+    delete process.env.OPENFIGI_API_KEY;
+  });
+  const keyless = await page.evaluate(() => window.arminDesktop!.providersSelfTest!());
+  expect(keyless.results.find((r) => r.id === 'openfigi')).toMatchObject({ state: 'pass', detail: 'without a key (no OPENFIGI_API_KEY set): 037833100 is AAPL, AAPL' });
+  expect(keyless.results.find((r) => r.id === 'house-clerk')).toMatchObject({ state: 'pass', detail: expect.stringMatching(/^\d{4}: [1-9]\d* filings, \d+ of them trade reports, latest filed \d{4}-\d{2}-\d{2}$/) });
+  await app.evaluate(() => { process.env.OPENFIGI_API_KEY = '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0'; });
+  const keyed = await page.evaluate(() => window.arminDesktop!.providersSelfTest!());
+  expect(keyed.results.find((r) => r.id === 'openfigi')).toMatchObject({ state: 'pass', detail: '037833100 is AAPL, AAPL' });
+  expect(keyed.report).not.toContain('0f1e2d3c');
+  // One POST each, the key in its header only when one is set.
+  expect((await calls(app)).openfigi?.map((c) => [c.jobs, c.keyed])).toEqual([
+    [[{ idType: 'ID_CUSIP', idValue: '037833100', exchCode: 'US' }], false],
+    [[{ idType: 'ID_CUSIP', idValue: '037833100', exchCode: 'US' }], true],
+  ]);
+});
+
 test("company news merges Benzinga's stories through Alpaca with Google News's search, keys in headers only", async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.newsStories = true; });
   await command(page, 'AAPL COMPANYNEWS');

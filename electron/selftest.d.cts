@@ -7,8 +7,12 @@ export interface SelfTest {
   setting?: string;
   cost?: string;
   agent?: boolean;
-  request: (keys: string[], now: number) => { url: string; headers?: Record<string, string>; accept?: string };
-  read: (text: string) => string;
+  keyless?: boolean;
+  binary?: boolean;
+  slot?: [number, number];
+  request: (keys: string[], now: number) => { url: string; headers?: Record<string, string>; accept?: string; method?: string; body?: string };
+  /** The answer's text, or its bytes for a `binary` test. */
+  read: (answer: string | Uint8Array, now?: number) => string;
 }
 export const TESTS: SelfTest[];
 export function reportLine(r: { label: string; state: string; status?: number; ms?: number; detail: string }): string;
