@@ -543,6 +543,14 @@ test('manual analytics work in real-data desktop mode without any provider price
   await checkStrategy(page, (text, code) => command(page, text, code));
 });
 
+test("HISTORY says its equity prices and volumes are adjusted for splits, not dividends", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { process.env.YAHOO_PRICES_ENABLED = 'true'; });
+  await page.reload();
+  await command(page, 'APLD US Equity HISTORY', 'HISTORY');
+  const panel = page.locator('.panel').first();
+  await expect(panel).toContainText("Prices and volumes are Yahoo Finance's, adjusted for splits and not for dividends", { timeout: 30_000 });
+});
+
 test('American exercise and independent premium inversion work without provider data', async ({ desktop: { page } }) => {
   await checkAmericanOption(page, (text, code) => command(page, text, code));
 });

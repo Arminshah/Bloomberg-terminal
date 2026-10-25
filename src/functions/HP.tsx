@@ -258,6 +258,12 @@ export function HP({ sec, route }: FnProps) {
           </tbody>
         </table>
       )}
+      {engine.realOnly && s.eq && !iex && rows.length > 0 && (
+        <div className="note">
+          Prices and volumes are Yahoo Finance&apos;s, adjusted for splits and not for dividends: before a split, prices are divided and volumes multiplied by
+          its ratio (NVIDIA&apos;s close of 7 June 2024, 1,208.88 as traded, shows as 120.89).
+        </div>
+      )}
       {per === 'D' && rows.length > 0 && current(rows[0]) && (
         <div className="note">
           {liveSession ? '* Current session, updating as prices arrive.' : `* Latest session as the source last reported it${fresh ? ` (${fresh.label.toLowerCase()})` : ''}.`}
