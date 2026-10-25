@@ -122,7 +122,8 @@ The owner sent an audited atlas of 69 public references (ChatGPT's second audit,
 | H07, H08 | Bloomberg's official pages for two tutorials | published 10 and 13 October 2024 | Chapter lists (E2) | Yes |
 | H12, H13, H18 to H26, H36 to H39 | University library guides (NYU, Harvard, Penn, Duke, Johns Hopkins, Michigan, Brooklyn, San Diego) | pages updated between January 2025 and October 2026; their screenshots can be older | All text (E1) | Yes |
 | H10, H11 | CME's guides to FX futures and options on the terminal | — | Not read | No: HTTP 403 to automated requests |
-| V02 to V06, N02 to N07 | Older manuals and cheat sheets (2012 to 2022) | downloaded, text extracted | Not yet reviewed | Yes |
+| V02 | Babson College, WACC Components in Bloomberg | data of 25 March 2022, 10 pages, `e6fd0e870b31…` | Pages 1 to 6 (text) | Yes |
+| V03 to V06, N02 to N07 | Older manuals and cheat sheets (2012 to 2023) | downloaded, text extracted | Not yet reviewed | Yes |
 
 Findings, and what was done:
 
@@ -133,7 +134,8 @@ Findings, and what was done:
 | Split adjustment (H25) | Users should check whether a price history is split-adjusted | `HISTORY` did not say; checked on NVIDIA's 2024 split: Yahoo's prices and volumes are split-adjusted, not dividend-adjusted (E4, against Tiingo's as-traded figures) | Was missing; now said on screen and in the data dictionary (`921cf87`) |
 | Beta (V01, page 5) | The profile's beta: two years of weekly returns against the S&P 500; adjusted = 0.67 × raw + 0.33 | `BETA` defaults to exactly that; `WACC` and `RISKPREMIUM` used two years of daily returns | Was inconsistent; fixed (`812edcd`) |
 | WACC (V01, page 17) | We/(We+Wd) × Ke + Wd/(We+Wd) × Kd × (1 − t), Ke = Rf + β × ERP | The same formula in `src/functions/WACC.tsx` | Verified in code (E1 and code) |
-| Equity risk premium (V01, page 18) | Writes the premium as "βa (Rm − Rf)" | That is one stock's premium; the market's is Rm − Rf. `RISKPREMIUM` takes the market premium and multiplies it by beta | Not copied; the app's formula is the conventional one. Babson's WACC guide (V02), whose CAPM notation the atlas flags, is not yet reviewed |
+| Equity risk premium (V01, page 18) | Writes the premium as "βa (Rm − Rf)" | That is one stock's premium; the market's is Rm − Rf. `RISKPREMIUM` takes the market premium and multiplies it by beta | Not copied; the app's formula is the conventional one |
+| Cost of equity (V02, Babson's WACC guide of March 2022, pages 2 and 4 to 5) | Prints "Cost of Equity = Risk − Free Rate + (Beta × Market Risk Premium)"; its own section "Risk-Free Rate" then takes the 10-year Treasury yield | The minus is the hyphen of "risk-free" set as a math sign, not a subtraction: the formula is CAPM, Rf + β × premium, as in `WACC` | Verified (text read; the atlas's warning holds) |
 | Relative valuation (H39) | Peers with valuation multiples and percentile rankings | `PEERS` shows each multiple with the peers' average and median, no percentile | Partial; percentile rank is buildable from the figures on screen ("Later") |
 | Financial statements (V01, page 7) | Segments tab (revenue by product), ratios, export | `FINANCIALS` has statements, ratios and CSV; no segments | Partial; segments need the filings' XBRL dimensions ("Later") |
 | Earnings (V01, pages 12 to 15) | EE leads to ERN, EEG, EM, EEO, ANR | `EARNINGS`, `ESTIMATES` (EEO), `ANALYSTS` exist; EEG and EM do not | Partial; EEG and EM were already in "Later" |

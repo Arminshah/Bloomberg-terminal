@@ -12,7 +12,8 @@ Progress on 25 October (the audited atlas of 69 references replaces the request 
 - Read: the ECB's framework for its reference rates, the SEC's Form 13F FAQ, Babson's equity valuation walkthrough (22 pages), the cover of the Global Equity methodology (it is the October 2026 edition), Bloomberg's chapter lists for two tutorials and 15 university guides. The CME guides refuse automated requests. The older manuals (V02 to V06) and cheat sheets (N02 to N07) are downloaded, not yet reviewed.
 - Fixed from them: what a 13F lists (`5ef039b`), the ECB rates' times and purpose (`6a8ac50`), split adjustment stated on HISTORY (`921cf87`), one beta basis on BETA, WACC and RISKPREMIUM (`812edcd`).
 - Every finding, with its source and page, is in `docs/bloomberg-parity.md`, "Evidence audit from the reference atlas".
-- Next: review V02 (its CAPM notation, flagged by the atlas) to V06 and N02 to N07; a percentile rank on PEERS; then the screens you use most against the frames, once you send them.
+- V02's CAPM notation, flagged by the atlas, is checked: "Risk − Free Rate" is the risk-free rate, and the formula is the CAPM the app uses.
+- Next: review V03 to V06 and N02 to N07; a percentile rank on PEERS; then the screens you use most against the frames, once you send them.
 
 You asked: whether Codex's research list of Bloomberg videos (official tutorials, feature demos, university recordings and webinars) is useful, and if so to add it.
 
