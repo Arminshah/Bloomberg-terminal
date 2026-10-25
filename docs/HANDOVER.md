@@ -1,6 +1,6 @@
-# Handover: where the work stands (24 October 2026)
+# Handover: where the work stands (25 October 2026)
 
-For whoever continues on Armin Terminal. Read this first, then `docs/audit-v2.23.0.md`.
+For whoever continues on Armin Terminal. Read this first, then `docs/TODO.md`, then `docs/audit-v2.23.0.md`.
 
 ## The project
 
@@ -17,12 +17,9 @@ For whoever continues on Armin Terminal. Read this first, then `docs/audit-v2.23
 
 State at handover: lint, typecheck, 1,266 Vitest tests (98 files), 41 browser and 34 desktop Playwright tests, and the build all pass (run on a Saturday, so the weekend demo was exercised).
 
-## What is left, in order
+## What is left
 
-1. **Release 2.25.0, only when the owner says so.** Steps used before: bump `version` in `package.json` and `package-lock.json`, add `docs/release-v2.25.0.md` and a README paragraph at the top, commit and push. Tag pushes are refused by the cloud git proxy (HTTP 403), so run the GitHub Actions workflow `release.yml` by workflow_dispatch with the input `tag` (e.g. `v2.25.0`) on the branch; it creates the tag and builds the Windows installer and the portable .exe. The repository must be public for the free Actions minutes.
-2. **Functions the reference documents name that the app lacks but could build from free data** (class a in the coverage matrix, 55 codes): the most cited are ECFC (IMF forecasts), ECTR (IMF trade data), EA (an index's earnings season), EEG/EM (estimate history and trends), RELS, CTM/CT (futures contract months), CACT (corporate actions across stocks), FXCA (currency converter), WCR, WECO, INSD (SEC Form 4), OVDV (option IV surface), PSRT/PD/HLDR (SEC 13F).
-3. **Ongoing**: the supply-chain screen (SPLC: more coverage, how recent each relation is, classifier accuracy), the sweep for blank "--" fields (fill from a real source or label why), and the watchlist + favourites in the TOPMOVERS layout (low priority). Dropped by the owner: the remaining Codex audit findings.
-4. **Owner decisions pending**: whether to open a pull request into `main` (it would contain the whole app); rotating every API key that was pasted into chats.
+`docs/TODO.md` is the one list of what comes next, in order, with what is waiting on the owner. Keep it up to date: move an item to "Done" with its commit when it is finished. The owner's feedback of 24 October 2026 (13F portfolios of companies, a congress trade tracker, a review of Codex's API notes, your own layouts, window buttons in the tab bar, corporate events, the watchlist's live session) is in it. That feedback document also held API keys; none of them were stored or committed.
 
 ## The owner's rules (keep them)
 
