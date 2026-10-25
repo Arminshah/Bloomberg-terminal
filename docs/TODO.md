@@ -6,17 +6,6 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 Accuracy first, then the screens you use every day, then new screens, then the data-source review and the comparison with Codex's video list.
 
-### 4. Window buttons in the tab bar, from your feedback item 5
-
-You asked: put minimise, maximise and close in the tab bar, behind a vertical line the tabs can never cover, and remove the white Windows title bar. The icon and "HELP · Armin Terminal" at its left can go.
-
-Today: the app uses the standard Windows title bar.
-
-Plan:
-- Windows' own buttons drawn inside the app's dark tab bar (Electron's title bar overlay).
-- The tab bar drags the window, like a title bar.
-- A divider keeps the tabs clear of the buttons.
-
 ### 5. Your own layouts, from your feedback item 4
 
 You asked: build a clean layout yourself and name it. First choose how the rows look, then the screen in each tile (heat map, headlines, a stock...). After resizing the tiles, save it, so the layout comes back with the same tile sizes and screens every time. It should be easy to use, with saving always offered.
@@ -125,6 +114,10 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Item 4, window buttons in the tab bar (`3d2d6a0`):
+  - The white title bar is gone. Minimise, maximise and close sit at the right end of the dark tab bar, behind a grey line no tab passes, even with 12 tabs or a narrow window.
+  - The bar drags the window, and a double click on its empty part maximises it.
+  - Checked on Linux; please look at it on Windows.
 - Item 3, the watchlist's live session (`440a174`):
   - A line above the list says which session US stocks are in now: pre-market, regular, after hours or closed (night, weekend or holiday). It gives the time to the next change and names the column to read, which is marked LIVE. It also says whether the list's other markets are open.
   - Hours are from Nasdaq; on early-close days after hours ends at 17:00 (NYSE Group's calendar).
