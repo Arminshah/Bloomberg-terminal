@@ -21,6 +21,8 @@ State at handover: lint, typecheck, 1,266 Vitest tests (98 files), 41 browser an
 
 `docs/TODO.md` is the one list of what comes next, in order, with what is waiting on the owner. Keep it up to date: move an item to "Done" with its commit when it is finished. The owner's feedback of 24 October 2026 (13F portfolios of companies, a congress trade tracker, a review of Codex's API notes, your own layouts, window buttons in the tab bar, corporate events, the watchlist's live session) is in it. That feedback document also held API keys; none of them were stored or committed.
 
+The visual pass (the owner's brief of 25 October 2026) starts from `docs/visual-research-2026-10.md`: colours measured from Bloomberg-published images, a free stand-in for the Terminal's typeface (Bergoom, OFL), layout details of the current window, Launchpad and ASKB, and a chart blur on Windows scaling (`PriceChart.ts`, `XYChart.tsx`).
+
 ## The owner's rules (keep them)
 
 - **Real data only.** No invented or simulated values in the desktop app; a labelled blank beats a plausible wrong number. Say where each figure comes from.
