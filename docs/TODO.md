@@ -6,23 +6,6 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 Accuracy first, then the screens you use every day, then new screens, then the data-source review and the comparison with Codex's video list.
 
-### 6. 13F portfolios of companies, from your feedback item 1
-
-You asked: a company's own 13F portfolio, for example NVIDIA's holdings as on HedgeFollow, in the terminal's style, placed in the Equity menu.
-
-Today:
-- HOLDERS and ANALYSTS show who owns a stock.
-- Nothing shows what a company itself owns.
-
-Plan:
-- A new screen, listed under Company Analysis beside HOLDERS. For each holding it shows shares, value, % of the portfolio and the change since the previous filing (new, added, reduced, sold).
-- A holdings map, built from the SEC's own 13F filings (free, official). Today's prices come from the app's usual sources.
-- Each figure says whether it comes from the filing or from today's price.
-
-Limits:
-- A 13F shows holdings at the end of a quarter and is filed up to 45 days later.
-- HedgeFollow's "average buy price" and "performance" are their own estimates; the filing does not contain them.
-
 ### 7. Congress trade tracker, from your feedback item 2
 
 You asked: a tracker of politicians' trades, ranked by biggest portfolio first, plus whatever else makes sense.
@@ -45,7 +28,7 @@ Plan:
 - Go through Codex's table provider by provider against the code.
 - Keep what is useful, drop calls that only repeat another source, and fix what is wrong. Each fix gets its own commit and test.
 - Codex's two suggestions:
-  - OpenFIGI (you now have a key), for matching the same company across exchanges and ADRs.
+  - OpenFIGI: already connected with your key for item 6 (tickers of 13F holdings). Still to do: use it to match the same company across exchanges and ADRs.
   - Dated ECB exchange rates for portfolio conversions. The ECB is already a source in the app.
 - Write up what I agree and disagree with, and why.
 
@@ -79,7 +62,6 @@ Plan:
 - The browser practice mode (demo): keep it for testing, or delete it?
 - Release 2.25.0: only when you say so.
 - API keys: they have been pasted into chats and into the feedback document, so change them at each provider. Please don't paste keys into chats or documents again. Add them in the cloud environment's settings instead: the environment menu in the session's title bar, then Edit, then Network secrets (called API credentials in older versions of the app), or as environment variables. `.env.example` lists the names the app reads, such as `FINNHUB_API_KEY`. A new session picks them up.
-- Alpaca: the feedback document has two different key IDs, one in the text and one inside the link. Which one is current?
 - A pull request into `main` (it would contain the whole app): yes or no?
 - For item 9:
   - Upload the reference PDFs again (documents 1 to 33). They stay out of the repository, so a new session does not have them.
@@ -95,7 +77,7 @@ Plan:
   - CACT (corporate actions across stocks) and FXCA (currency converter)
   - WCR and WECO
   - INSD (SEC Form 4) and OVDV (option implied volatility surface)
-  - PSRT/PD/HLDR (13F; item 6 covers part of this)
+  - PSRT/PD/HLDR (a manager's 13F; HOLDINGS shows a company's own)
 - Supply chain (SPLC): more coverage, how recent each relation is, classifier accuracy.
 - Blank "--" fields: fill each from a real source or say why it is blank.
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
@@ -103,6 +85,14 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Item 6, 13F portfolios of companies (`fa93936`, chart fix `5b47a39`):
+  - HOLDINGS (also `13F`) sits beside HOLDERS under Company Analysis in a stock's menu. It shows what the company itself owns from its 13F filings on the SEC: each holding's shares, value at the quarter's end, share of the portfolio and the change since the quarter before (new, added, reduced, unchanged, sold out).
+  - Beside the filing it shows today's price and value and the change since the quarter's end, with each figure labelled filing or today. Tabs give a map sized by value and the holdings sold out, and there is a chart of the portfolio's value by quarter, any earlier quarter and a CSV export.
+  - Tickers come from OpenFIGI with your key.
+  - Checked live: NVIDIA, Berkshire, JPMorgan and Apple on screen. The line totals match the filing's own total for nine companies, and NVIDIA's quarter-end prices match the 30 June closes to the cent.
+  - Found while checking: JPMorgan filed an amendment marked "new holdings" that repeats its whole report. The app reads it as a restatement and says so, instead of counting every holding twice.
+  - Apple files no 13F, and the screen says why.
+  - Limits: a 13F is filed up to 45 days after the quarter. It leaves out cash, short positions and shares listed only outside the US. HedgeFollow's "average buy price" is an estimate and is not shown.
 - Item 5, your own layouts (`58df78d`):
   - LAYOUTS builds one in three steps: how the rows look (up to 4 rows, 4 tiles in a row, 6 in all), a screen per tile, a name.
   - Each row keeps its own tile widths. Dragging the lines sizes the tiles, and the layout comes back exactly as saved.
