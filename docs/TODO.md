@@ -6,26 +6,6 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 Accuracy first, then the screens you use every day, then new screens, then the data-source review and the comparison with Codex's video list.
 
-### 2. Corporate events (EVTS), from your feedback item 6
-
-You asked:
-- Opening the earlier earnings releases should not jump to the oldest one. The view should stay on the latest trading day (Friday 23/10/26), with older days above it.
-- The default minimum company size should be $50B, not $5B.
-- "Most anticipated earnings releases" should be the view EVTS opens on: one week, Monday to Friday, split into before the open and after the close, as on Earnings Whispers.
-
-Today:
-- Past days are folded into one line at the top of the list. "Show" opens them with the oldest day first.
-- At the weekend, Friday counts as "past", so it is folded away too.
-- The default is $5B (the choices are $5B, $10B, $50B, $200B and $500B).
-
-Plan:
-- On opening, show the latest trading day.
-- Showing earlier days adds them above it without moving the view.
-- Default to $50B.
-- Add the weekly view and make it the default.
-
-Limit: Earnings Whispers' "most anticipated" list is their own ranking, and I won't copy it. The weekly view will rank by something we can source and name, by default company size. Its heading will say how it is ranked.
-
 ### 3. Watchlist: what is live right now, from your feedback item 7
 
 You asked: make it obvious whether you are looking at the regular market, pre-market or after-hours.
@@ -160,6 +140,10 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Item 2, corporate events (`ca6b4e9`):
+  - EVENTS opens on the week's most relevant releases, Monday to Friday, before the open and after the close. It shows the 10 most traded companies of each (dollars traded in the latest session, from Nasdaq's stock list), with share classes counted once. Against an earnings site's list for the week of 26 October, 34 of its 45 companies are among ours, and 2 of the others aren't listed in the US.
+  - The list of every report starts from $50B.
+  - Every list opens on the latest trading day. Showing earlier days adds them above it without moving the view.
 - Item 1, wrong numbers in estimates (Codex's seventh fix, checked live with your keys):
   - `41db98f` FMP never gave a company's earnings history: the app asked for 20 reports and the free plan refuses more than 5.
   - `8b60de7` FMP's revenue estimates, in dollars, could sit beside revenue reported in another currency.
