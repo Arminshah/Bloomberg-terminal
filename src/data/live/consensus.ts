@@ -459,16 +459,18 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     // A kept EPS estimate fills a quarter no source compares, against Yahoo's reported EPS.
     if (!ok(q.eps.est) && k && ok(k.epsEst) && yq && ok(yq.epsActual) && (!k.epsCcy || !yq.epsCcy || k.epsCcy === yq.epsCcy)) q.eps = { ...NONE, est: k.epsEst, actual: yq.epsActual, ccy: k.epsCcy, estFrom: 'Yahoo Finance (kept)', actualFrom: 'Yahoo Finance' };
     // FMP's history fills what is still without an estimate: its revenue estimate with its own reported revenue when
-    // it gives one (one basis for the surprise), else against the reported revenue already shown.
+    // it gives one (one basis for the surprise), else against the reported revenue already shown. FMP names no
+    // currency and gives dollars even for a company reporting in another (TSM's revenue in dollars, Yahoo's in Taiwan
+    // dollars), so it joins another source's reported revenue only when that is in dollars and of the same order.
     const p = fmpReport(i.fmpReports ?? [], q, usedFmp);
     if (p) {
       usedFmp.add(p);
       if (!q.date) q.date = ms(p.date);
       if ((!ok(q.eps.est) || !ok(q.eps.actual)) && ok(p.epsEst) && ok(p.epsActual)) q.eps = { ...NONE, est: p.epsEst, actual: p.epsActual, estFrom: 'FMP', actualFrom: 'FMP' };
       if (!ok(q.rev.est) && ok(p.revEst)) {
-        q.rev = ok(p.revActual)
-          ? { ...NONE, est: p.revEst, actual: p.revActual, estFrom: 'FMP', actualFrom: 'FMP' }
-          : { ...q.rev, est: p.revEst, estFrom: 'FMP' };
+        const dollars = (q.rev.ccy ?? i.statementCcy ?? 'USD') === 'USD';
+        if (ok(p.revActual)) q.rev = { ...NONE, est: p.revEst, actual: p.revActual, estFrom: 'FMP', actualFrom: 'FMP' };
+        else if (!ok(q.rev.actual) || (dollars && q.rev.actual / p.revEst > 0.25 && q.rev.actual / p.revEst < 4)) q.rev = { ...q.rev, est: p.revEst, estFrom: 'FMP' };
       }
     }
     // Alpha Vantage's estimate of the quarter's revenue (US listings reporting in dollars), when it is of the same

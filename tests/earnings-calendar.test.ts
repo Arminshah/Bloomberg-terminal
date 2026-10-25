@@ -168,6 +168,25 @@ describe("FMP's history fills the revenue estimates of reported quarters", () =>
     expect(filled.past[0].eps.estFrom).toBe('Yahoo Finance');
   });
 
+  it("keeps FMP's revenue estimate, in dollars, away from reported revenue in another currency", () => {
+    const plain = mergeConsensus({ yahoo });
+    const q = plain.past[1];
+    expect(q.rev.ccy).toBe('TWD');
+    expect(q.rev.actual).toBeGreaterThan(0);
+    const reportDay = new Date(q.date!).toISOString().slice(0, 10);
+    // FMP has the EPS reported but not yet the revenue; its estimate is of the same order, so only the currency tells
+    // the two apart.
+    const fmpReports = parsed(parseFmpEarnings(JSON.stringify([{ symbol: 'TSM', date: reportDay, epsActual: 4.6, epsEstimated: 4.45, revenueActual: null, revenueEstimated: q.rev.actual * 0.98 }])));
+    const twd = mergeConsensus({ yahoo, fmpReports }).past[1];
+    expect(twd.rev.est).toBeNaN();
+    expect(twd.rev).toMatchObject({ actual: q.rev.actual, ccy: 'TWD', actualFrom: 'Yahoo Finance' });
+    // The same estimate beside revenue reported in dollars is used, and one far from it is not.
+    const usd = mergeConsensus({ yahoo: { ...yahoo, revCcy: 'USD' }, fmpReports }).past[1];
+    expect(usd.rev).toMatchObject({ est: q.rev.actual * 0.98, actual: q.rev.actual, ccy: 'USD', estFrom: 'FMP' });
+    const far = parsed(parseFmpEarnings(JSON.stringify([{ symbol: 'TSM', date: reportDay, epsActual: 4.6, epsEstimated: 4.45, revenueEstimated: q.rev.actual / 31 }])));
+    expect(mergeConsensus({ yahoo: { ...yahoo, revCcy: 'USD' }, fmpReports: far }).past[1].rev.est).toBeNaN();
+  });
+
   it("gives the coming report FMP's estimates when the others leave them out", () => {
     const base = mergeConsensus({ yahoo: { ...yahoo, next: null, following: null } });
     expect(base.next).toBeNull();
