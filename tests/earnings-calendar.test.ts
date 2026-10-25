@@ -141,7 +141,12 @@ describe('the market earnings calendar', () => {
     expect(finnhubMain.finnhubCalendarRequest('2026-01-01', '2026-12-31', NOW)).toBeNull();
     expect(finnhubMain.finnhubCalendarRequest('2026-11-03', '2026-10-06', NOW)).toBeNull();
     expect(fmpMain.fmpCalendarRequest('2025-09-30', '2025-11-11', 'k', NOW)).toEqual({ url: 'https://financialmodelingprep.com/stable/earnings-calendar?from=2025-09-30&to=2025-11-11&apikey=k', ttl: 24 * 3_600_000 });
-    expect(fmpMain.fmpRequest('earnings', 'MMM', 'k')).toEqual({ url: 'https://financialmodelingprep.com/stable/earnings?symbol=MMM&limit=20&apikey=k', ttl: 12 * 3_600_000 });
+    // The free plan answers HTTP 402 to a limit above 5 (checked live on 25 October 2026).
+    expect(fmpMain.fmpRequest('earnings', 'MMM', 'k')).toEqual({ url: 'https://financialmodelingprep.com/stable/earnings?symbol=MMM&limit=5&apikey=k', ttl: 12 * 3_600_000 });
+    for (const kind of Object.keys(fmpMain.KINDS)) {
+      const limit = /[?&]limit=(\d+)/.exec(fmpMain.fmpRequest(kind, 'MMM', 'k')!.url)?.[1];
+      if (kind === 'earnings') expect(Number(limit), kind).toBeLessThanOrEqual(5);
+    }
   });
 });
 

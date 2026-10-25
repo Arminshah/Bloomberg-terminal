@@ -15,8 +15,9 @@ const KINDS = {
   grades: { path: (s) => `/grades?symbol=${s}`, ttl: 6 * HOUR },
   estimates: { path: (s) => `/analyst-estimates?symbol=${s}&period=annual&limit=10`, ttl: 24 * HOUR },
   // Each report's expected and reported EPS and revenue, the past ones and the next: the revenue estimates of
-  // reported quarters, which Yahoo drops and Finnhub's free calendar keeps for a month only.
-  earnings: { path: (s) => `/earnings?symbol=${s}&limit=20`, ttl: 12 * HOUR },
+  // reported quarters, which Yahoo drops and Finnhub's free calendar keeps for a month only. The free plan refuses a
+  // limit above 5 (HTTP 402, checked live on 25 October 2026); 5 is the next report and the last four.
+  earnings: { path: (s) => `/earnings?symbol=${s}&limit=5`, ttl: 12 * HOUR },
 };
 
 /** The request for a kind of research and a ticker, or null when it is not one the app makes. */
