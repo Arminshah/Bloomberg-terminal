@@ -6,20 +6,6 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 Accuracy first, then the screens you use every day, then new screens, then the data-source review and the comparison with Codex's video list.
 
-### 7. Congress trade tracker, from your feedback item 2
-
-You asked: a tracker of politicians' trades, ranked by biggest portfolio first, plus whatever else makes sense.
-
-Today: nothing.
-
-Plan:
-- First find a free, reliable source.
-- The official ones are the House Clerk's and the Senate's disclosure sites.
-- FMP and Finnhub also offer congress trading data, but whether your free plans include it has to be tested with your keys.
-- Then: politicians ranked by disclosed portfolio size, each one's trades, the latest trades across Congress, and trades in the stock on screen.
-
-Limit: the disclosures give values as ranges (for example $1,001 to $15,000), not exact amounts. Rankings and totals will show the range they come from.
-
 ### 8. Review of the data sources (Codex's notes), from your feedback item 3
 
 You asked: review Codex's assessment of the APIs, don't follow it blindly, and make the improvements that make sense.
@@ -41,9 +27,22 @@ What it adds: the list names 41 function codes.
 - 6 were already sorted by the 2.23.0 audit. WATC, HRA and OVDV can be built from free data (they are in "Later"). BI, OMST and BLP need the provider's own content or platform.
 - The other 20 are new to the gap list: MREP, DSX, CHRT, ALTD, AID, BTM, BTST, CRAN, MM, CMGR, WSL, ASKB, FIW, CFND, SHOK, OVI, OPX, OSCH, BQL and BQNT.
 
+Research pack (ChatGPT's improved version of 25 October, read in full):
+- Useful: its evidence levels (a link, an official description, a chapter list, frames actually seen, behaviour checked in software) match this project's rule that nothing counts as checked from a title alone. Bloomberg's official chapter timestamps for three tutorials are a good start, and its checklist of financial tests is sound.
+- Where it conflicts with how this project works:
+  - It asks for six new documents (inventory, manifest, gap audit, feature matrix CSV, entitlements, access report). The project already keeps `docs/feature-matrix.md`, `docs/data-providers.md` (sources, terms, limits) and `docs/audit-v2.23.0-coverage.md`. I'll extend those rather than start parallel copies.
+  - It suggests `research/video_evidence/` in the repository. Screenshots and transcripts of Bloomberg's videos are copyrighted and stay in a git-ignored folder (`reference/videos/`, like `reference/pdfs/`). Only my own short notes go into the repository.
+- Already handled in the app, so not new work: IEX is labelled as one exchange, not the whole market; estimates come only from named providers; missing data is shown as missing.
+- Its counts are right as far as I checked: 45 resource links plus 9 decorative images.
+
+What works from this cloud session (checked 25 October, nothing installed):
+- Python 3.13 and FFmpeg 6.1 are here; yt-dlp is not.
+- YouTube answers this session with Google's "unusual traffic" page, so neither frames nor captions can be fetched from here. Getting around that would need your account's cookies, which I won't use.
+- Bloomberg's official chapter pages load, so their timestamps are usable as documented evidence. bloomberg.com's Pro Tips pages refuse automated requests (403). Vimeo pages load, but its player refuses (401).
+- The "Watch" plugin (bradautomates/claude-video) is not needed. Its own README says its installer does not run in Claude Code on the web, and its default "Gemini" engine uploads the video to Google, another AI provider, which you ruled out. Its local engine is the same FFmpeg and yt-dlp steps you can run yourself.
+
 Limits:
-- I can read a video page's title and description, but I cannot watch the video. Codex says the same.
-- The links in your message did not come through, and Codex's research pack file was not attached.
+- I cannot watch videos from here, so the frames must come from your PC (see "Waiting on you").
 - Several of the new codes need paid or proprietary data (alternative data, options trade flow, the provider's own research), or are platform features (BQuant, worksheets, compliance rules). They cannot be built without inventing data, which the rules forbid.
 
 Plan:
@@ -65,8 +64,13 @@ Plan:
 - A pull request into `main` (it would contain the whole app): yes or no?
 - For item 9:
   - Upload the reference PDFs again (documents 1 to 33). They stay out of the repository, so a new session does not have them.
-  - If you have Codex's research pack file, attach it and I will check its links.
-  - When a video shows something you want, a screenshot with a short note works best, as in your feedback document.
+  - The video frames have to come from your Windows PC. Choose one route:
+    1. By hand, within YouTube's terms: play the video in your browser, pause at each chapter time and take a screenshot (Windows key + Shift + S). Then open the video's "…" menu, choose "Show transcript" and copy the text into a .txt file.
+    2. With tools, outside YouTube's terms (its terms forbid downloading videos without permission): `winget install --id yt-dlp.yt-dlp --exact`, `winget install --id Gyan.FFmpeg --exact` and `winget install --id DenoLand.Deno --exact`. Then in an empty folder run `yt-dlp --write-auto-subs --sub-langs en --skip-download https://www.youtube.com/watch?v=h0hYYIGryJ4` for the captions, and `yt-dlp -f "bv*[height<=1080]" -o video https://www.youtube.com/watch?v=h0hYYIGryJ4` followed by `ffmpeg -i video.webm -vf fps=1/2 -q:v 3 frame_%04d.jpg` for one frame every 2 seconds (frame n is at (n − 1) × 2 seconds).
+  - Either way, zip the files and attach them here. I will keep them in `reference/videos/`, which I'll add to `.gitignore` first (a one-line change, with your OK), and I will say which frames each finding comes from.
+- Senators' history: the Senate's site refuses automated reading and FMP's free plan has only the latest 25 trades, so CONGRESS builds senators' history from today on. For 6 or 12 months of senators' trades and their holdings, there are two options:
+  - Create a free Eulerpool account and add its key. I'd test its figures against the Senate's own reports, which you can open, before connecting it.
+  - An FMP plan that includes its senate-trades lists.
 
 ## Later
 
@@ -78,6 +82,7 @@ Plan:
   - WCR and WECO
   - INSD (SEC Form 4) and OVDV (option implied volatility surface)
   - PSRT/PD/HLDR (a manager's 13F; HOLDINGS shows a company's own)
+- CONGRESS: liabilities (Schedule D) for an assets-less-debts range; each member's committees (in the Clerk's member list) beside their trades.
 - Supply chain (SPLC): more coverage, how recent each relation is, classifier accuracy.
 - Blank "--" fields: fill each from a real source or say why it is blank.
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
@@ -85,6 +90,17 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Item 7, congress trade tracker (`4221b3b`):
+  - CONGRESS (also CONG) is in the Equity menu and in a stock's menu, with four tabs:
+    - Members: representatives ranked by the assets in their latest annual report, shown as a range because the forms give ranges.
+    - Trades: every trade disclosed in a period, from the latest week to 12 months, by either chamber.
+    - Most Traded: the stocks bought, sold or traded most, by chamber, with your periods: latest week, 6 months, 12 months.
+    - Most Owned: the stocks the most representatives own.
+    - Opened on a stock, it lists that stock's trades.
+  - The House is read from the members' own reports: the app reads the House Clerk's PDFs itself (checked live: 426 annual reports, and all 529 trade reports of the last 12 months). It caught something FMP misses: Cleo Fields bought NVIDIA three times on one day in three accounts, and FMP lists it once.
+  - The Senate: its site refuses automated reading. Senators' trades therefore come from FMP's latest 25, which the app now asks for every 6 hours and keeps, so their history grows from today. Senators' holdings cannot be read, and the screen says so. See "Waiting on you" for a fuller source.
+  - The screen shows the law's notice once (no commercial use, 5 U.S.C. § 13107(c)) before reading anything.
+  - Limits: amounts are ranges by law. House reports filed on paper (about 1 in 10) are scans, linked only. Annual totals are assets, not net worth (debts are not subtracted).
 - Item 6, 13F portfolios of companies (`fa93936`, chart fix `5b47a39`):
   - HOLDINGS (also `13F`) sits beside HOLDERS under Company Analysis in a stock's menu. It shows what the company itself owns from its 13F filings on the SEC: each holding's shares, value at the quarter's end, share of the portfolio and the change since the quarter before (new, added, reduced, unchanged, sold out).
   - Beside the filing it shows today's price and value and the change since the quarter's end, with each figure labelled filing or today. Tabs give a map sized by value and the holdings sold out, and there is a chart of the portfolio's value by quarter, any earlier quarter and a CSV export.
