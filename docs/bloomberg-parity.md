@@ -109,6 +109,43 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `PROVIDERS` | Data/source administration | Project tool: credentials, switches, budgets and diagnostics | Configured does not mean entitled; no Bloomberg entitlement/data-management platform |
 | `SETTINGS` | Preferences | Local tool: display, timezone and source preferences | No full terminal keyboard, account/firm policies or remote settings service |
 
+## Evidence audit from the reference atlas, 25 October 2026 (to-do item 9)
+
+The owner sent an audited atlas of 69 public references (ChatGPT's second audit, 25 October 2026). It replaces the earlier request for reference PDFs 1 to 33. The sources below were downloaded into a scratch folder outside the repository and read in this session; no text or screenshot from them is copied here, only short notes. No video was watched: YouTube refuses this cloud session, and the official pages give chapter lists only. Evidence levels as in the atlas: E1 a written description, E2 an official chapter list, E3 frames or screenshots inspected, E4 checked in running software or against an independent specification.
+
+| ID | Source | Edition, as checked | What was read | Reachable |
+| --- | --- | --- | --- | --- |
+| N01 | ECB, framework for the euro foreign exchange reference rates | 23 June 2026, 7 pages, SHA-256 `0fafe6c7f319…` | All 7 pages (text) | Yes |
+| D01 | SEC, Form 13F FAQ | page last reviewed 28 September 2026 | Questions 1, 3, 6 to 8, 39 and 41 to 43 | Yes |
+| V01 | Babson College, Equity Valuation using Bloomberg | 22 pages, file of 20 March 2023 (screenshots of that time), `d6bf76d090c3…` | All 22 pages (text) | Yes |
+| P02 | Bloomberg Global Equity Indices Methodology | October 2026: the rendered cover, the text and the file date (21 October 2026) agree for this copy, `862d098f3846…` | Cover and contents only; an index methodology, not a description of a screen | Yes |
+| H07, H08 | Bloomberg's official pages for two tutorials | published 10 and 13 October 2024 | Chapter lists (E2) | Yes |
+| H12, H13, H18 to H26, H36 to H39 | University library guides (NYU, Harvard, Penn, Duke, Johns Hopkins, Michigan, Brooklyn, San Diego) | pages updated between January 2025 and October 2026; their screenshots can be older | All text (E1) | Yes |
+| H10, H11 | CME's guides to FX futures and options on the terminal | — | Not read | No: HTTP 403 to automated requests |
+| V02 to V06, N02 to N07 | Older manuals and cheat sheets (2012 to 2022) | downloaded, text extracted | Not yet reviewed | Yes |
+
+Findings, and what was done:
+
+| Area | What the source says | In the app | Status and action |
+| --- | --- | --- | --- |
+| 13F scope (D01, questions 3 and 6) | A 13F lists what the manager has investment discretion over; a bank's or adviser's includes its clients' accounts | `HOLDINGS` said "what the company itself owns" | Was wrong; fixed (`5ef039b`) |
+| ECB reference rates (N01, section 2) | Set about 14:10 CET, published about 16:00 CET, for information only, amendable until the next business day | Code and docs said 14:15 | Was wrong; fixed (`6a8ac50`), and `PORTFOLIO` says the rate a bank or broker applied can differ |
+| Split adjustment (H25) | Users should check whether a price history is split-adjusted | `HISTORY` did not say; checked on NVIDIA's 2024 split: Yahoo's prices and volumes are split-adjusted, not dividend-adjusted (E4, against Tiingo's as-traded figures) | Was missing; now said on screen and in the data dictionary (`921cf87`) |
+| Beta (V01, page 5) | The profile's beta: two years of weekly returns against the S&P 500; adjusted = 0.67 × raw + 0.33 | `BETA` defaults to exactly that; `WACC` and `RISKPREMIUM` used two years of daily returns | Was inconsistent; fixed (`812edcd`) |
+| WACC (V01, page 17) | We/(We+Wd) × Ke + Wd/(We+Wd) × Kd × (1 − t), Ke = Rf + β × ERP | The same formula in `src/functions/WACC.tsx` | Verified in code (E1 and code) |
+| Equity risk premium (V01, page 18) | Writes the premium as "βa (Rm − Rf)" | That is one stock's premium; the market's is Rm − Rf. `RISKPREMIUM` takes the market premium and multiplies it by beta | Not copied; the app's formula is the conventional one. Babson's WACC guide (V02), whose CAPM notation the atlas flags, is not yet reviewed |
+| Relative valuation (H39) | Peers with valuation multiples and percentile rankings | `PEERS` shows each multiple with the peers' average and median, no percentile | Partial; percentile rank is buildable from the figures on screen ("Later") |
+| Financial statements (V01, page 7) | Segments tab (revenue by product), ratios, export | `FINANCIALS` has statements, ratios and CSV; no segments | Partial; segments need the filings' XBRL dimensions ("Later") |
+| Earnings (V01, pages 12 to 15) | EE leads to ERN, EEG, EM, EEO, ANR | `EARNINGS`, `ESTIMATES` (EEO), `ANALYSTS` exist; EEG and EM do not | Partial; EEG and EM were already in "Later" |
+| Ownership (V01, page 11) | HDS summary and insider transactions | `HOLDERS`, and insider trades (Form 4) on `MANAGEMENT` | Partial |
+| Screening (H18) | Criteria by category, results, output to Excel or PDF | `SCREEN`: a fixed set (region, sector, market value, P/E, dividend yield, YTD, beta, ROE, exclusions), CSV | Partial; no category browser or AND/OR groups |
+| Options (H19) | Calls left, puts right, grouped by expiry; a contract leads to scenario analysis | `OPTIONS` pairs calls and puts by strike for an expiry | Matches the layout; the link from a contract to `OPTIONSTRATEGY` was not checked |
+| Charts and history (H21, H25) | GP's longest range; HP by year | `CHART` has MAX; `HISTORY` takes Y | Present |
+| Navigation (H12) | Sector keys, GO, MENU, back, HELP | Present (the function key bar, MENU, back, HELP) | Present |
+| Credit ratings (H20, H23, CRPR, CSDR) | Agency ratings | None | Not available: ratings are licensed |
+
+Limitations: the university guides are second-hand descriptions, often of older screens; V01's screenshots are from 2023 and only its text was read; nothing here establishes how the provider's 2026 screens look or behave in detail.
+
 ## Workflows with no equivalent implementation
 
 Beyond the commands above, important missing product areas include Bloomberg Excel/Office add-ins, BDP/BDH/BDS/BQL, Bloomberg Anywhere and mobile account services, Bloomberg Intelligence/NEF/broker research and transcripts, Bloomberg's messaging network, execution/order routing and EMSX/TOMS/AIM, trade booking/reconciliation and compliance, enterprise risk/factor/attribution/optimisation, credit/CDS and structured credit, securitisation/MBS/municipal/preferred-specific analytics, comprehensive security identifiers/corporate actions, pricing contributors and evaluated prices, global options/futures curves, and professional data licensing/redistribution services. Adding a command name would not implement these systems.

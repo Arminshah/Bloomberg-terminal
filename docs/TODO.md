@@ -4,9 +4,15 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-Items 1 to 8 are done. Item 9 is left: sorting its 20 new function codes can be done now; comparing screens needs your files first (see "Waiting on you").
+Items 1 to 8 are done. Item 9 is under way: the atlas's sources are being read and compared with the app (see below); the videos need frames from your PC.
 
-### 9. Compare the app with Codex's list of Bloomberg videos
+### 9. Compare the app with the reference atlas and Codex's list of Bloomberg videos
+
+Progress on 25 October (the audited atlas of 69 references replaces the request for PDFs 1 to 33):
+- Read: the ECB's framework for its reference rates, the SEC's Form 13F FAQ, Babson's equity valuation walkthrough (22 pages), the cover of the Global Equity methodology (it is the October 2026 edition), Bloomberg's chapter lists for two tutorials and 15 university guides. The CME guides refuse automated requests. The older manuals (V02 to V06) and cheat sheets (N02 to N07) are downloaded, not yet reviewed.
+- Fixed from them: what a 13F lists (`5ef039b`), the ECB rates' times and purpose (`6a8ac50`), split adjustment stated on HISTORY (`921cf87`), one beta basis on BETA, WACC and RISKPREMIUM (`812edcd`).
+- Every finding, with its source and page, is in `docs/bloomberg-parity.md`, "Evidence audit from the reference atlas".
+- Next: review V02 (its CAPM notation, flagged by the atlas) to V06 and N02 to N07; a percentile rank on PEERS; then the screens you use most against the frames, once you send them.
 
 You asked: whether Codex's research list of Bloomberg videos (official tutorials, feature demos, university recordings and webinars) is useful, and if so to add it.
 
@@ -46,18 +52,14 @@ Plan:
 
 ## Waiting on you
 
-- The browser practice mode (demo): keep it for testing, or delete it?
-- Release 2.25.0: only when you say so.
-- API keys: they have been pasted into chats and into the feedback document, so change them at each provider. Please don't paste keys into chats or documents again. Add them in the cloud environment's settings instead: the environment menu in the session's title bar, then Edit, then Network secrets (called API credentials in older versions of the app), or as environment variables. `.env.example` lists the names the app reads, such as `FINNHUB_API_KEY`. A new session picks them up.
-- A pull request into `main` (it would contain the whole app): yes or no?
+- Release 2.25.0: after your final checks. The pull request into `main` is ready as a draft: https://github.com/Arminshah/Bloomberg-terminal/pull/4. An older one (number 1, `claude/amber-terminal`) overlaps with it: close it or keep it, your choice.
 - For item 9:
-  - Upload the reference PDFs again (documents 1 to 33). They stay out of the repository, so a new session does not have them.
   - The video frames have to come from your Windows PC. Choose one route:
     1. By hand, within YouTube's terms: play the video in your browser, pause at each chapter time and take a screenshot (Windows key + Shift + S). Then open the video's "…" menu, choose "Show transcript" and copy the text into a .txt file.
     2. With tools, outside YouTube's terms (its terms forbid downloading videos without permission): `winget install --id yt-dlp.yt-dlp --exact`, `winget install --id Gyan.FFmpeg --exact` and `winget install --id DenoLand.Deno --exact`. Then in an empty folder run `yt-dlp --write-auto-subs --sub-langs en --skip-download https://www.youtube.com/watch?v=h0hYYIGryJ4` for the captions, and `yt-dlp -f "bv*[height<=1080]" -o video https://www.youtube.com/watch?v=h0hYYIGryJ4` followed by `ffmpeg -i video.webm -vf fps=1/2 -q:v 3 frame_%04d.jpg` for one frame every 2 seconds (frame n is at (n − 1) × 2 seconds).
   - Either way, zip the files and attach them here. I will keep them in `reference/videos/`, which I'll add to `.gitignore` first (a one-line change, with your OK), and I will say which frames each finding comes from.
 - Senators' history: the Senate's site refuses automated reading and FMP's free plan has only the latest 25 trades, so CONGRESS builds senators' history from today on. For 6 or 12 months of senators' trades and their holdings, there are two options:
-  - Create a free Eulerpool account and add its key. I'd test its figures against the Senate's own reports, which you can open, before connecting it.
+  - Eulerpool: your key arrived, but on 25 October its API answered "Internal server error" to every request, even one with a made-up key, so the fault is on its side. I'll try again. Even working, its congress list gives no link to the filed report and no owner, so I'd check its rows against FMP's before using it.
   - An FMP plan that includes its senate-trades lists.
 
 ## Later
@@ -75,6 +77,8 @@ Plan:
   - CFND: the securities most correlated with one, from CORRELATION's daily returns.
   - CMGR: your own limits on a portfolio (weight of a position, sector or country), checked on PORTFOLIO.
 - OpenFIGI: a list of the other exchanges a share trades on (one share-class FIGI), if a screen needs it. ADRs cannot be matched this way (see `docs/data-providers.md`).
+- PEERS: each multiple's percentile rank among the peers (the university guides describe it; the figures are already on screen).
+- FINANCIALS: revenue by segment, from the segment tables in the filings' XBRL.
 - CONGRESS: liabilities (Schedule D) for an assets-less-debts range; each member's committees (in the Clerk's member list) beside their trades.
 - Supply chain (SPLC): more coverage, how recent each relation is, classifier accuracy.
 - Blank "--" fields: fill each from a real source or say why it is blank.
@@ -83,6 +87,12 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Your feedback of 25 October:
+  - `6a2789e` CONGRESS no longer freezes while reports load, a progress bar says what is read and about how long is left, 12 months read in about 105 seconds (was about 4.5 minutes), and holdings without a ticker (Treasury bills, private funds) are left out unless Assets is set to Everything.
+  - `beeedbb` EVENTS: the week's most relevant releases as a board, a column a day before the open and after the close, six companies each by name. When Nasdaq's stock list fails (as it did on your PC), Yahoo's quotes rank the companies and the screen says why.
+  - `298317a` No grey block in a menu where a row has fewer sections.
+  - `73ab3de` Building a layout opens on the whole window; your panels before are kept to save or go back to.
+- The browser practice mode stays, as you decided.
 - Item 8, review of the data sources (`691a733`, `a1b1fe6`):
   - Codex's table checked source by source against the code and live with your keys (the self-test, run twice: every source that is switched on answered at least once). The write-up is in `docs/data-providers.md`, "Review of Codex's notes".
   - Agreed, and already in the app: official sources first, Kraken for crypto prices and CoinGecko only for market value, Alpaca labelled IEX-only with options marked indicative, Twelve Data off until you confirm display rights, Anthropic optional.
