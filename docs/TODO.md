@@ -6,12 +6,6 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 Accuracy first, then the screens you use every day, then new screens, then the data-source review and the comparison with Codex's video list.
 
-### 1. Check one possible wrong number from Codex's review
-
-Codex said it fixed seven problems on its own copy and pushed nothing. Six of them are already fixed on the branch: CoinGecko calls per window, TipRanks per key, BLS figures, Eurostat labels, lost "stale" marks and missing days in IEX price history. The seventh, "currency mismatches in estimates", is not. I could not find it in the repository, and Codex's report (`api-review-v2.24.0.md`) is not in the repository either.
-
-Plan: find out whether estimates can show in a different currency from the price they are compared with (for example a European stock's EPS in euros beside a price in dollars). Fix it with a test if so.
-
 ### 2. Corporate events (EVTS), from your feedback item 6
 
 You asked:
@@ -166,6 +160,10 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Item 1, wrong numbers in estimates (Codex's seventh fix, checked live with your keys):
+  - `41db98f` FMP never gave a company's earnings history: the app asked for 20 reports and the free plan refuses more than 5.
+  - `8b60de7` FMP's revenue estimates, in dollars, could sit beside revenue reported in another currency.
+  - `fe6937d` Finnhub answers for a foreign company's home listing were read as the US listing's: TSMC's figures in Taiwan dollars (a market value of 61.8 trillion, an EPS "surprise" of +409%), ASML's in euros. They are now left out, and the screen says why.
 - `c679c7e` WHATSNEW: the version and release notes inside the app.
 - `fd74386`, `947432e`, `7fc9d96`, `6a12a50`, `2b0fe97` Data fixes: CoinGecko, TipRanks, BLS and Eurostat, stale marks, IEX price history.
 - `845e5f8` Browser practice mode: markets closed at the weekend show Friday's finished session.
