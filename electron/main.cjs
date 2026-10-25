@@ -716,7 +716,7 @@ ipcMain.handle('openfigi', async (event, codes) => {
 // Congress (electron/congress.cjs): the member lists of the House Clerk and the Senate, the House Clerk's yearly index
 // of financial disclosures, each trade report (PTR) and annual report read from its PDF (kept on disk: a filed
 // report never changes; a correction is a new filing), and FMP's latest trades of each chamber with the owner's key,
-// kept as they arrive. The Clerk is asked at most twice a second.
+// kept as they arrive. The Clerk is asked at most four times a second.
 const congress = require('./congress.cjs');
 const pdfText = require('./pdf-text.cjs');
 const CONGRESS_FILE = () => path.join(app.getPath('userData'), 'congress-reports.json');
@@ -753,7 +753,7 @@ function congressToDisk() {
 
 /** One file from the House Clerk or the Senate, as bytes; or why there is none. */
 async function congressFile(provider, url, accept, maxBytes) {
-  await providers.slot(provider, 2, 1000);
+  await providers.slot(provider, 4, 1000);
   let res;
   try {
     res = await tracked(provider, url, { headers: { 'User-Agent': clientAgent(), Accept: accept }, cache: 'no-cache', signal: AbortSignal.timeout(3 * TIMEOUT_MS) });

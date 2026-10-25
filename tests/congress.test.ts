@@ -8,6 +8,7 @@ import {
   fmpDocId,
   fmpTrade,
   houseTrades,
+  houseTradesOf,
   latestAnnuals,
   memberFinder,
   mostOwned,
@@ -158,6 +159,12 @@ describe('members, trades and holdings', () => {
     expect(rows).toHaveLength(4);
     expect(rows[0]).toMatchObject({ chamber: 'House', member: 'Cleo Fields', party: 'D', seat: 'LA06', ticker: 'NVDA', type: 'P', date: '2026-10-01', filed: '2026-10-22', min: 1001, max: 15000, account: 'Morgan Stanley - E*TRADE #2', link: 'https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20035669.pdf', source: 'House Clerk' });
     expect(daysToDisclose(rows[0])).toBe(21);
+    // Kept per report: the same rows on every redraw, worked out again only when the member list changes.
+    const find = memberFinder(house);
+    const kept = houseTradesOf(filing, report, find);
+    expect(kept).toEqual(rows);
+    expect(houseTradesOf(filing, report, find)).toBe(kept);
+    expect(houseTradesOf(filing, report, memberFinder(house))).not.toBe(kept);
     const fmp = fmpTrade({ chamber: 'senate', symbol: 'WMB', senateID: 'A000383', disclosureDate: '2026-10-22', transactionDate: '2026-09-08', firstName: 'Alan', lastName: 'Armstrong', owner: 'Joint', assetDescription: 'Williams Companies, Inc. (The) Common Stock', assetType: 'Stock Option', type: 'Sale (Full)', amount: '$250,001 - $500,000', link: 'https://efdsearch.senate.gov/search/view/ptr/6aa5ccb2-ff27-491a-9314-778b9ab37964/' }, 0, [...house, ...senate]);
     expect(fmp).toMatchObject({ chamber: 'Senate', member: 'Alan Armstrong', party: 'R', seat: 'OK', owner: 'JT', ticker: 'WMB', type: 'S', min: 250001, max: 500000, source: 'FMP' });
     expect(fmpDocId('https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20035669.pdf')).toBe('20035669');

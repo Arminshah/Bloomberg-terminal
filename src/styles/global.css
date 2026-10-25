@@ -1508,3 +1508,9 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .whatsnew-tag { font-size: 10px; color: #000; background: var(--amber); padding: 0 4px; border-radius: 2px; }
 .whatsnew-body { flex: 1; min-width: 0; overflow-y: auto; padding: 6px 12px 12px; }
 @media (max-width: 760px) { .whatsnew { flex-direction: column; } .whatsnew-list { width: auto; display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line-2); } .whatsnew-item { width: auto; white-space: nowrap; } }
+
+/* CONGRESS: one summary line, and how far reading the reports has got. */
+.cg-summary { display: flex; flex-wrap: wrap; gap: 4px 22px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.cg-progress { display: flex; align-items: center; gap: 10px; padding: 4px 10px; color: var(--amber); }
+.cg-bar { flex: 0 0 180px; height: 6px; background: var(--bg-3); }
+.cg-bar > i { display: block; height: 100%; background: var(--amber); transition: width 0.4s; }

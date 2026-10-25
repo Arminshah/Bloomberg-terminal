@@ -353,7 +353,15 @@ test("CONGRESS ranks representatives by their annual reports' assets, lists both
   await expect(nvda.filter({ hasText: 'Cleo Fields' }).first().getByRole('link', { name: 'PDF ›' })).toHaveAttribute('href', /ptr-pdfs\/\d{4}\/20035669\.pdf$/);
   await expect(nvda.filter({ hasText: 'John Boozman' })).toContainText('Sen. AR');
   await expect(nvda.filter({ hasText: 'John Boozman' }).getByRole('link', { name: 'FMP ›' })).toHaveAttribute('href', 'https://efdsearch.senate.gov/search/view/ptr/fixture-boozman/');
+  // Holdings without a ticker (a private fund here; Treasury bills and notes in other reports) show with Assets on Everything.
+  await panel.getByLabel('Filter', { exact: true }).fill('REOF');
+  await expect(panel.locator('tbody tr', { hasText: 'REOF XXV' })).toHaveCount(0);
+  await panel.getByLabel('Assets', { exact: true }).selectOption('all');
+  await expect(panel.locator('tbody tr', { hasText: 'REOF XXV' })).toHaveCount(1);
+  await panel.getByLabel('Assets', { exact: true }).selectOption('listed');
   await panel.getByLabel('Filter', { exact: true }).fill('');
+  // Reading has finished: one line says what was read.
+  await expect(panel.locator('.cg-progress')).toContainText('House trade reports of the 90 days read');
   // A report filed on paper is a scan: its trade is FMP's line.
   await expect(panel.locator('tbody tr', { hasText: 'Microsoft Corporation' })).toContainText('Michael McCaul');
   await expect(panel.locator('tbody tr', { hasText: 'Bloom Energy' })).toHaveCount(4);

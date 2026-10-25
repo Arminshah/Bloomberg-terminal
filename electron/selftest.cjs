@@ -341,7 +341,7 @@ const TESTS = [
     provider: 'house-clerk',
     label: "House Clerk's index of members' disclosures",
     binary: true,
-    slot: [2, 1000],
+    slot: [4, 1000],
     request: (_keys, now) => ({ url: congress.indexUrl(indexYear(now)), accept: 'application/zip' }),
     read: (bytes, now) => {
       const year = indexYear(now);

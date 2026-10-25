@@ -226,6 +226,17 @@ export function daysToDisclose(r: { date: string; filed: string }): number {
   return r.date && r.filed ? Math.round((isoDay(r.filed) - isoDay(r.date)) / dayMs) : NaN;
 }
 
+const tradeRows = new WeakMap<TradeReport, { find: unknown; rows: TradeRow[] }>();
+
+/** houseTrades, kept per report: a report read once is not taken apart again on every redraw. */
+export function houseTradesOf(f: HouseFiling, report: TradeReport, find: (f: HouseFiling) => Member | undefined): TradeRow[] {
+  const hit = tradeRows.get(report);
+  if (hit && hit.find === find) return hit.rows;
+  const rows = houseTrades(f, report, find);
+  tradeRows.set(report, { find, rows });
+  return rows;
+}
+
 /** The House trades of a report, with the filing's member and date. */
 export function houseTrades(f: HouseFiling, report: TradeReport, find: (f: HouseFiling) => Member | undefined): TradeRow[] {
   const m = find(f);
@@ -427,27 +438,77 @@ async function loadIndex(year: number) {
   }
 }
 
-/** Reports to read, the preferred kind first, each kind in the order asked (newest first). */
+/** Which reports the screen needs first: trade reports, annual reports, or both taken in turn (Members). */
+export type CongressNeed = 'ptr' | 'annual' | 'both';
+
+/** Reports to read, the needed kind first, each kind in the order asked (newest first). */
 const queue: { kind: 'ptr' | 'annual'; f: HouseFiling }[] = [];
 let running = 0;
-let prefer: 'ptr' | 'annual' = 'ptr';
+let need: CongressNeed = 'ptr';
+let lastKind: 'ptr' | 'annual' = 'annual';
+/** Reports read at once; the main process keeps the House Clerk to four requests a second. */
+const PARALLEL = 4;
+/** When each of the latest reports was answered, for the time left. */
+const answered: number[] = [];
+
+// Answers are put on screen together, at most every 0.6 s: one redraw for several reports, not one each.
+let batch: { kind: 'ptr' | 'annual'; docId: string; value: TradeReport | AnnualReport | Failed }[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+function flush() {
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = null;
+  if (!batch.length) return;
+  const done = batch;
+  batch = [];
+  congress.set((s) => {
+    const ptr = { ...s.ptr };
+    const annual = { ...s.annual };
+    const waiting = { ...s.waiting };
+    for (const d of done) {
+      (d.kind === 'ptr' ? ptr : annual)[d.docId] = d.value;
+      waiting[d.kind] = Math.max(0, waiting[d.kind] - 1);
+    }
+    return { ...s, ptr, annual, waiting };
+  });
+}
+
+function next(): number {
+  if (need === 'both') {
+    // Members shows both: take the kinds in turn while both wait.
+    const other = lastKind === 'ptr' ? 'annual' : 'ptr';
+    const i = queue.findIndex((j) => j.kind === other);
+    return i >= 0 ? i : 0;
+  }
+  return Math.max(0, queue.findIndex((j) => j.kind === need));
+}
 
 function pump() {
-  while (running < 2 && queue.length) {
-    const i = Math.max(0, queue.findIndex((j) => j.kind === prefer));
-    const job = queue.splice(i, 1)[0];
+  while (running < PARALLEL && queue.length) {
+    const job = queue.splice(next(), 1)[0];
+    lastKind = job.kind;
     running++;
     void window.arminDesktop!.congress!(job.kind, `${job.f.year}/${job.f.docId}`)
       .then((a) => ({ report: a.report, problem: a.report ? '' : a.error ?? (a.status ? `HTTP ${a.status}` : 'no answer') }))
       .catch((e: unknown) => ({ report: undefined, problem: String(e) }))
       .then(({ report, problem }) => {
-        congress.set((s) => ({ ...s, [job.kind]: { ...s[job.kind], [job.f.docId]: report ?? { error: problem } }, waiting: { ...s.waiting, [job.kind]: Math.max(0, s.waiting[job.kind] - 1) } }));
+        batch.push({ kind: job.kind, docId: job.f.docId, value: (report as TradeReport | AnnualReport | undefined) ?? { error: problem } });
+        answered.push(Date.now());
+        if (answered.length > 40) answered.shift();
       })
       .finally(() => {
         running--;
+        if (!queue.length && !running) flush();
+        else if (!flushTimer) flushTimer = setTimeout(flush, 600);
         pump();
       });
   }
+}
+
+/** Reports answered a second, over the latest ones; NaN before there are a few. */
+export function readRate(now = Date.now()): number {
+  const recent = answered.filter((t) => now - t < 30_000);
+  if (recent.length < 4) return NaN;
+  return recent.length / Math.max(1, (now - recent[0]) / 1000);
 }
 
 function want(kind: 'ptr' | 'annual', filings: HouseFiling[]) {
@@ -495,7 +556,7 @@ export function recentFilings(index: Record<number, HouseFiling[]>, type: string
  * before (trade reports of the window; annual reports of the latest years), the trade reports filed in the last
  * `days` days, and, when `annual`, each current representative's latest annual report.
  */
-export function useCongress(days: number, annual: boolean, enabled: boolean) {
+export function useCongress(days: number, needs: CongressNeed, enabled: boolean) {
   const st = congress.use((s) => s);
   const year = new Date().getUTCFullYear();
   useEffect(() => {
@@ -506,12 +567,13 @@ export function useCongress(days: number, annual: boolean, enabled: boolean) {
     void loadFmp('house');
   }, [enabled, year]);
   useEffect(() => {
-    prefer = annual ? 'annual' : 'ptr';
-  }, [annual]);
+    need = needs;
+  }, [needs]);
   useEffect(() => {
     if (!enabled || !congressAvailable()) return;
     want('ptr', recentFilings(st.index, 'P', days));
   }, [enabled, st.index, days]);
+  const annual = needs !== 'ptr';
   useEffect(() => {
     if (!enabled || !annual || !congressAvailable() || !st.members) return;
     want('annual', [...latestAnnuals(Object.values(st.index).flat(), st.members.house).values()].sort((a, b) => b.filed.localeCompare(a.filed)));

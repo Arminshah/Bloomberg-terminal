@@ -653,7 +653,7 @@ export const PROVIDERS: ProviderDef[] = [
     dataClass: 'Reference: members’ own disclosures as filed; amounts as the ranges the forms give',
     policy: 'enabled',
     limit: '2/s',
-    terms: "Public records under the Ethics in Government Act; 5 U.S.C. § 13107(c) makes it unlawful to obtain or use them for an unlawful or commercial purpose (other than by news media), to set a credit rating or to solicit money, and CONGRESS asks the owner to acknowledge this before reading anything. The app asks at most twice a second, only while CONGRESS is open, and keeps each report it has read on disk (a filed report never changes).",
+    terms: "Public records under the Ethics in Government Act; 5 U.S.C. § 13107(c) makes it unlawful to obtain or use them for an unlawful or commercial purpose (other than by news media), to set a credit rating or to solicit money, and CONGRESS asks the owner to acknowledge this before reading anything. The app asks at most at most four times a second, only while CONGRESS is open, and keeps each report it has read on disk (a filed report never changes).",
     docs: [
       { label: 'Financial disclosure reports', url: 'https://disclosures-clerk.house.gov/FinancialDisclosure' },
       { label: 'Asset type codes', url: 'https://fd.house.gov/reference/asset-type-codes.aspx' },

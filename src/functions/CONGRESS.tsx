@@ -13,16 +13,18 @@ import {
   DISCLOSURE_DAYS,
   fmpDocId,
   fmpTrade,
-  houseTrades,
+  houseTradesOf,
   latestAnnuals,
   memberFinder,
   mostOwned,
   OWNER_TEXT,
+  readRate,
   rangeSum,
   recentFilings,
   TYPE_TEXT,
   useCongress,
   type AnnualReport,
+  type CongressNeed,
   type HouseFiling,
   type Member,
   type Range,
@@ -99,6 +101,14 @@ interface StockRow {
   last: string;
 }
 
+/** An annual report's total, kept per report: summing every member's assets on each redraw is wasted work. */
+const totals = new WeakMap<AnnualReport, Range>();
+function totalOf(report: AnnualReport): Range {
+  let t = totals.get(report);
+  if (!t) totals.set(report, (t = rangeSum(report.assets)));
+  return t;
+}
+
 const isBuy = (t: TradeRow) => t.type === 'P';
 const isSale = (t: TradeRow) => t.type.startsWith('S');
 
@@ -120,8 +130,10 @@ export function CONGRESS({ sec }: FnProps) {
   const [rank, setRank] = useState<Rank>('members');
   const [kind, setKind] = useState('stocks');
   const [ownedTicker, setOwnedTicker] = useState('');
+  const [assets, setAssets] = useState<'listed' | 'all'>(stockTicker ? 'all' : 'listed');
   const available = congressAvailable();
-  const st = useCongress(days, tab === 1 || tab === 4, ok && available);
+  const need: CongressNeed = tab === 1 ? 'both' : tab === 4 ? 'annual' : 'ptr';
+  const st = useCongress(days, need, ok && available);
   const house = useMemo(() => st.members?.house ?? [], [st.members]);
   const everyone = useMemo(() => [...(st.members?.house ?? []), ...(st.members?.senate ?? [])], [st.members]);
   const find = useMemo(() => memberFinder(house), [house]);
@@ -134,7 +146,7 @@ export function CONGRESS({ sec }: FnProps) {
   const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   const trades = useMemo(() => {
     const textRead = new Set(read.filter((f) => !(st.ptr[f.docId] as TradeReport).scanned).map((f) => f.docId));
-    const own = read.flatMap((f) => ((st.ptr[f.docId] as TradeReport).scanned ? [] : houseTrades(f, st.ptr[f.docId] as TradeReport, find)));
+    const own = read.flatMap((f) => ((st.ptr[f.docId] as TradeReport).scanned ? [] : houseTradesOf(f, st.ptr[f.docId] as TradeReport, find)));
     const fmpRows = [...(st.fmp.senate?.rows ?? []), ...(st.fmp.house?.rows ?? [])]
       .filter((r) => r.disclosureDate >= from && !(r.chamber === 'house' && textRead.has(fmpDocId(r.link ?? ''))))
       .map((r, i) => fmpTrade(r, i, everyone));
@@ -143,6 +155,7 @@ export function CONGRESS({ sec }: FnProps) {
   const q = query.trim().toUpperCase();
   const shown = trades.filter(
     (t) =>
+      (assets === 'all' || !!t.ticker) &&
       (chamber === 'all' || t.chamber === chamber) &&
       (party === 'all' || t.party === party) &&
       (!q || t.ticker === q.replace('.', '/') || t.member.toUpperCase().includes(q) || t.asset.toUpperCase().includes(q)),
@@ -150,35 +163,42 @@ export function CONGRESS({ sec }: FnProps) {
 
   // Members: each representative's latest annual report, and their trades in the period.
   const annuals = useMemo(() => (st.members ? latestAnnuals(Object.values(st.index).flat(), house) : new Map<Member, HouseFiling>()), [st.index, st.members, house]);
-  const memberRows: MemberRow[] = useMemo(
-    () =>
-      house.map((m) => {
+  const memberRows: MemberRow[] = useMemo(() => {
+    const byMember = new Map<string, TradeRow[]>();
+    for (const t of trades) {
+      if (t.chamber !== 'House' || !t.bioguide) continue;
+      const list = byMember.get(t.bioguide);
+      if (list) list.push(t);
+      else byMember.set(t.bioguide, [t]);
+    }
+    return house.map((m) => {
         const filing = annuals.get(m);
         const got = filing ? st.annual[filing.docId] : undefined;
         const report = isReport<AnnualReport>(got) && !got.scanned ? got : undefined;
         const state: MemberRow['state'] = !filing ? 'none' : !got ? 'waiting' : !isReport<AnnualReport>(got) ? 'error' : got.scanned ? 'paper' : 'read';
-        const mine = trades.filter((t) => t.chamber === 'House' && t.bioguide === m.bioguide);
+        const mine = (m.bioguide && byMember.get(m.bioguide)) || [];
         return {
           m,
           filing,
           report,
           state,
-          total: report ? rangeSum(report.assets) : null,
+          total: report ? totalOf(report) : null,
           trades: mine,
           bought: rangeSum(mine.filter(isBuy)),
           sold: rangeSum(mine.filter(isSale)),
           last: mine.reduce((a, t) => (t.date > a ? t.date : a), ''),
         };
-      }),
-    [house, annuals, st.annual, trades],
-  );
+      });
+  }, [house, annuals, st.annual, trades]);
   const membersShown = memberRows.filter((r) => (party === 'all' || r.m.party === party) && (!q || r.m.name.toUpperCase().includes(q) || r.m.stateDst.includes(q)));
   const annualCount = memberRows.filter((r) => r.filing).length;
   const annualRead = memberRows.filter((r) => r.state === 'read').length;
   const annualPaper = memberRows.filter((r) => r.state === 'paper').length;
 
   // Stocks: trades with a ticker, by ticker.
+  // Worked out only on the tab that shows them: each redraw while reports arrive would redo them otherwise.
   const stocks: StockRow[] = useMemo(() => {
+    if (tab !== 3) return [];
     const by = new Map<string, StockRow & { list: TradeRow[] }>();
     for (const t of trades) {
       if (!t.ticker || (chamber !== 'all' && t.chamber !== chamber) || (party !== 'all' && t.party !== party)) continue;
@@ -191,13 +211,13 @@ export function CONGRESS({ sec }: FnProps) {
       by.set(t.ticker, s);
     }
     return [...by.values()].map((s) => ({ ...s, bought: rangeSum(s.list.filter(isBuy)), sold: rangeSum(s.list.filter(isSale)) }));
-  }, [trades, chamber, party]);
+  }, [tab, trades, chamber, party]);
   const stocksShown = stocks.filter((s) => (!q || s.ticker === q.replace('.', '/') || s.name.toUpperCase().includes(q)) && (rank === 'buys' ? s.buys > 0 : rank === 'sells' ? s.sells > 0 : rank === 'net' ? s.buys !== s.sells : true));
 
   // Most owned: the securities in the most representatives' latest annual reports.
   const owned = useMemo(
-    () => mostOwned(memberRows.filter((r) => r.report && (party === 'all' || r.m.party === party)).map((r) => ({ member: r.m, report: r.report! })), KINDS[kind].codes),
-    [memberRows, party, kind],
+    () => (tab === 4 ? mostOwned(memberRows.filter((r) => r.report && (party === 'all' || r.m.party === party)).map((r) => ({ member: r.m, report: r.report! })), KINDS[kind].codes) : { owned: [], withoutTicker: 0 }),
+    [tab, memberRows, party, kind],
   );
   const ownedShown = owned.owned.filter((o) => !q || o.ticker === q.replace('.', '/') || o.name.toUpperCase().includes(q));
   const ownedSel = owned.owned.find((o) => o.ticker === ownedTicker);
@@ -281,10 +301,19 @@ export function CONGRESS({ sec }: FnProps) {
     return [['Disclosed', 'Traded', 'Member', 'Party', 'Chamber', 'Seat', 'Owner', 'Ticker', 'Asset', 'Account', 'Type', 'Amount', 'Low (USD)', 'High (USD)', 'Days to Disclose', 'Source', 'Filing'], ...shown.map((t) => [t.filed, t.date, t.member, t.party, t.chamber, t.seat, OWNER_TEXT[t.owner] ?? t.owner, t.ticker, t.asset, t.account ?? '', TYPE_TEXT[t.type] ?? t.type, t.amount, t.min ?? '', t.max ?? '', daysToDisclose(t), t.source, t.link])];
   };
 
-  const progress = [
-    `trade reports ${fmtNum(read.length, 0)} of ${fmtNum(ptrFilings.length, 0)} read${paper.length ? ` (${paper.length} on paper: linked only)` : ''}${failed.length ? `, ${failed.length} failed` : ''}`,
-    (tab === 1 || tab === 4) && annualCount ? `annual reports ${fmtNum(annualRead + annualPaper, 0)} of ${fmtNum(annualCount, 0)}${annualPaper ? ` (${annualPaper} on paper)` : ''}` : '',
-  ].filter(Boolean);
+  // Reading progress: the period's trade reports, and on Members and Most Owned the annual reports too.
+  const ptrDone = read.length + failed.length;
+  const annualFailed = memberRows.filter((r) => r.state === 'error').length;
+  const annualDone = annualRead + annualPaper + annualFailed;
+  const indexLoaded = Object.keys(st.index).length > 0;
+  const rate = readRate();
+  const queued = st.waiting.ptr + st.waiting.annual;
+  const eta = queued && rate > 0 ? queued / rate : NaN;
+  const etaText = Number.isFinite(eta) ? (eta < 60 ? 'less than a minute left' : `about ${Math.ceil(eta / 60)} min left`) : 'starting';
+  const reading: { label: string; done: number; total: number }[] = [
+    ...(tab !== 4 && ptrDone < ptrFilings.length ? [{ label: `trade reports of the ${periodName(days)}`, done: ptrDone, total: ptrFilings.length }] : []),
+    ...((tab === 1 || tab === 4) && annualCount && annualDone < annualCount ? [{ label: 'annual reports', done: annualDone, total: annualCount }] : []),
+  ];
 
   const body = !available ? (
     <div className="empty">Congress&apos;s disclosures are read by the desktop app: the House Clerk&apos;s reports are PDFs read in its main process.</div>
@@ -304,27 +333,49 @@ export function CONGRESS({ sec }: FnProps) {
     </Section>
   ) : (
     <>
-      <div className="bbk-top">
-        <KV
-          items={[
-            ['Trades disclosed', `${fmtNum(shown.length, 0)} in the ${periodName(days)}${shown.length !== trades.length ? ' (filtered)' : ''}`],
-            ['Purchases · Sales', `${shown.filter(isBuy).length} · ${shown.filter(isSale).length}`],
-            ['Members trading', fmtNum(new Set(shown.map((t) => t.bioguide || t.member)).size, 0)],
-          ]}
-        />
-        <KV
-          items={[
-            ['House', `trade reports from the House Clerk${st.waiting.ptr || st.waiting.annual ? ' (reading…)' : ''}`],
-            ['Read', progress.join(' · ') || '…'],
-          ]}
-        />
-        <KV
-          items={[
-            ['Senate', senate?.problem ? <span key="p" className="amber">{senate.problem}</span> : `FMP's latest, kept since ${fmtIso(senate?.since ?? undefined)}`],
-            ['Senate trades', fmtNum(trades.filter((t) => t.chamber === 'Senate').length, 0)],
-          ]}
-        />
+      <div className="cg-summary">
+        <span>
+          <span className="white">{fmtNum(shown.length, 0)}</span> trades disclosed in the {periodName(days)}
+          {shown.length !== trades.length ? <span className="muted"> (of {fmtNum(trades.length, 0)}, filtered)</span> : null}
+        </span>
+        <span>
+          <span className="up">{fmtNum(shown.filter(isBuy).length, 0)}</span> purchases · <span className="dn">{fmtNum(shown.filter(isSale).length, 0)}</span> sales
+        </span>
+        <span>
+          <span className="white">{fmtNum(new Set(shown.map((t) => t.bioguide || t.member)).size, 0)}</span> members trading
+        </span>
+        <span className="muted">
+          Senate:{' '}
+          {senate?.problem ? (
+            <span className="amber">{senate.problem}</span>
+          ) : (
+            `FMP's latest, kept since ${fmtIso(senate?.since ?? undefined)} (${fmtNum(trades.filter((t) => t.chamber === 'Senate').length, 0)} in the period)`
+          )}
+        </span>
       </div>
+      {!indexLoaded ? (
+        <div className="cg-progress" role="status">
+          Loading the House Clerk&apos;s list of filings…
+        </div>
+      ) : reading.length ? (
+        reading.map((r) => (
+          <div key={r.label} className="cg-progress" role="status">
+            <span className="cg-bar" aria-hidden="true">
+              <i style={{ width: `${Math.round((100 * r.done) / Math.max(1, r.total))}%` }} />
+            </span>
+            <span>
+              Reading the House&apos;s {r.label}: <span className="white">{fmtNum(r.done, 0)}</span> of {fmtNum(r.total, 0)} · {etaText} · results appear as they are read
+            </span>
+          </div>
+        ))
+      ) : (
+        <div className="cg-progress muted" role="status">
+          {fmtNum(read.length, 0)} House trade reports of the {periodName(days)} read
+          {paper.length ? `; ${paper.length} filed on paper are scans, linked only` : ''}
+          {failed.length ? `; ${failed.length} could not be read` : ''}
+          {(tab === 1 || tab === 4) && annualCount ? `. Annual reports: ${fmtNum(annualRead, 0)} read, ${fmtNum(annualPaper, 0)} on paper` : ''}.
+        </div>
+      )}
       {st.problems.map((p) => (
         <div key={p} className="note amber" role="status">
           {p}
@@ -337,11 +388,11 @@ export function CONGRESS({ sec }: FnProps) {
       ))}
       {tab === 1 && (
         <>
-          <DataTable rows={membersShown} columns={memberColumns} rowKey={(r) => r.m.bioguide || r.m.stateDst} defaultSort={{ key: 'a', dir: -1 }} numbered className="zebra" onRowClick={(r) => setPicked(r.m.bioguide === picked ? '' : r.m.bioguide)} selected={picked} empty={st.members ? 'No member matches.' : 'Reading the member lists…'} />
+          <DataTable rows={membersShown} columns={memberColumns} rowKey={(r) => r.m.bioguide || r.m.stateDst} defaultSort={{ key: 'a', dir: -1 }} numbered className="zebra" onRowClick={(r) => setPicked(r.m.bioguide === picked ? '' : r.m.bioguide)} selected={picked} empty={st.members ? 'No member matches.' : 'Reading the member lists…'} page={{ index: 0, size: 100 }} />
           {sel && <MemberDetail row={sel} tradeColumns={tradeColumns} />}
         </>
       )}
-      {tab === 2 && <DataTable rows={shown} columns={tradeColumns} rowKey={(t) => t.key} defaultSort={{ key: 'f', dir: -1 }} numbered className="zebra" empty={trades.length ? 'No trade matches.' : 'Reading the reports…'} page={{ index: 0, size: 500 }} />}
+      {tab === 2 && <DataTable rows={shown} columns={tradeColumns} rowKey={(t) => t.key} defaultSort={{ key: 'f', dir: -1 }} numbered className="zebra" empty={trades.length ? 'No trade matches.' : 'Reading the reports…'} page={{ index: 0, size: 100 }} />}
       {senateShort && (
         <div className="note amber" role="status">
           The Senate&apos;s trades start on {fmtIso(senateFrom)}, when the app first kept FMP&apos;s list: the {periodName(days)} before that have none for the Senate. The list grows every six hours while the app runs.
@@ -431,6 +482,15 @@ export function CONGRESS({ sec }: FnProps) {
                   ))}
                 </select>
               </label>
+              {(tab === 1 || tab === 2) && (
+                <label className="fld">
+                  Assets
+                  <select className="sel-inp" aria-label="Assets" value={assets} onChange={(e) => setAssets(e.target.value as typeof assets)}>
+                    <option value="listed">With a ticker</option>
+                    <option value="all">Everything</option>
+                  </select>
+                </label>
+              )}
               {tab === 3 && (
                 <label className="fld">
                   Rank
