@@ -94,12 +94,21 @@ function json(text: string): any {
 }
 const refusal = (j: any) => (j && typeof j === 'object' && typeof j.error === 'string' ? j.error.slice(0, 200) : null);
 
+/**
+ * Asked about a US listing of a foreign company, Finnhub can answer with its home listing instead: TSM's figures as
+ * 2330.TW's in Taiwan dollars per ordinary share, ASML's as ASML.AS's in euros (checked live on 25 October 2026).
+ * An answer names its listing; one for another listing than the one asked about is left out.
+ */
+const sameListing = (named: unknown, symbol?: string) => !symbol || named == null || named === '' || String(named).replace(/-/g, '.') === symbol.replace(/-/g, '.');
+const otherListing = (named: unknown, symbol: string) => `Finnhub answered for ${String(named)}, another listing than ${symbol}, in its own currency: its figures are left out.`;
+
 /** /stock/profile2: {country, currency, exchange, finnhubIndustry, ipo, marketCapitalization, name, shareOutstanding, weburl, ...}; {} for an unknown ticker. */
-export function parseProfile(text: string): Parsed<FinnhubProfile | null> {
+export function parseProfile(text: string, symbol?: string): Parsed<FinnhubProfile | null> {
   const j = json(text);
   if (j === undefined) return { error: 'The answer was not JSON' };
   if (refusal(j)) return { error: refusal(j)! };
   if (!j?.name) return { data: null };
+  if (!sameListing(j.ticker, symbol)) return { error: otherListing(j.ticker, symbol!) };
   return {
     data: {
       name: String(j.name),
@@ -116,12 +125,13 @@ export function parseProfile(text: string): Parsed<FinnhubProfile | null> {
 }
 
 /** /stock/metric?metric=all: {metric: {...}, series: {...}}. The first field present wins where Finnhub has variants. */
-export function parseMetric(text: string): Parsed<FinnhubMetric | null> {
+export function parseMetric(text: string, symbol?: string): Parsed<FinnhubMetric | null> {
   const j = json(text);
   if (j === undefined) return { error: 'The answer was not JSON' };
   if (refusal(j)) return { error: refusal(j)! };
   const m = j?.metric;
   if (!m || typeof m !== 'object' || !Object.keys(m).length) return { data: null };
+  if (!sameListing(j.symbol, symbol)) return { error: otherListing(j.symbol, symbol!) };
   const pick = (...keys: string[]) => {
     for (const k of keys) {
       const v = num(m[k]);
@@ -157,7 +167,7 @@ export function parseRecommendation(text: string, symbol?: string): Parsed<Recom
   if (j === undefined) return { error: 'The answer was not JSON' };
   if (!Array.isArray(j)) return { error: refusal(j) ?? 'No list in the answer' };
   const rows = j
-    .filter((r: any) => !symbol || String(r?.symbol).replace(/-/g, '.') === symbol.replace(/-/g, '.'))
+    .filter((r: any) => sameListing(r?.symbol, symbol))
     .map((r: any) => ({ period: String(r?.period ?? '').slice(0, 10), strongBuy: num(r?.strongBuy), buy: num(r?.buy), hold: num(r?.hold), sell: num(r?.sell), strongSell: num(r?.strongSell) }))
     .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.period) && Number.isFinite(Date.parse(`${r.period}T00:00:00Z`)) && new Date(`${r.period}T00:00:00Z`).toISOString().slice(0, 10) === r.period && [r.strongBuy, r.buy, r.hold, r.sell, r.strongSell].every((n) => Number.isInteger(n) && n >= 0))
     .sort((a, b) => b.period.localeCompare(a.period));
@@ -165,11 +175,14 @@ export function parseRecommendation(text: string, symbol?: string): Parsed<Recom
 }
 
 /** /stock/earnings: [{actual, estimate, period, quarter, surprise, surprisePercent, year}], newest first after sorting. */
-export function parseEarnings(text: string): Parsed<EpsSurprise[]> {
+export function parseEarnings(text: string, symbol?: string): Parsed<EpsSurprise[]> {
   const j = json(text);
   if (j === undefined) return { error: 'The answer was not JSON' };
   if (!Array.isArray(j)) return { error: refusal(j) ?? 'No list in the answer' };
+  const other = j.find((r: any) => !sameListing(r?.symbol, symbol));
+  if (other && !j.some((r: any) => r?.symbol != null && sameListing(r.symbol, symbol))) return { error: otherListing(other.symbol, symbol!) };
   const rows = j
+    .filter((r: any) => sameListing(r?.symbol, symbol))
     .map((r: any) => ({ period: String(r?.period ?? '').slice(0, 10), quarter: num(r?.quarter), year: num(r?.year), actual: num(r?.actual), estimate: num(r?.estimate), surprise: num(r?.surprise), surprisePct: num(r?.surprisePercent) }))
     .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.period) && (Number.isFinite(r.actual) || Number.isFinite(r.estimate)))
     .sort((a, b) => b.period.localeCompare(a.period));
@@ -177,11 +190,15 @@ export function parseEarnings(text: string): Parsed<EpsSurprise[]> {
 }
 
 /** /calendar/earnings: {earningsCalendar: [{date, hour, quarter, year, epsEstimate, revenueEstimate, ...}]}: the next report. */
-export function parseCalendar(text: string, today = new Date().toISOString().slice(0, 10)): Parsed<NextReport | null> {
+export function parseCalendar(text: string, today = new Date().toISOString().slice(0, 10), symbol?: string): Parsed<NextReport | null> {
   const j = json(text);
   if (j === undefined) return { error: 'The answer was not JSON' };
   if (refusal(j)) return { error: refusal(j)! };
-  const rows = (Array.isArray(j?.earningsCalendar) ? j.earningsCalendar : [])
+  const all = Array.isArray(j?.earningsCalendar) ? j.earningsCalendar : [];
+  const other = all.find((r: any) => !sameListing(r?.symbol, symbol));
+  if (other && !all.some((r: any) => r?.symbol != null && sameListing(r.symbol, symbol))) return { error: otherListing(other.symbol, symbol!) };
+  const rows = all
+    .filter((r: any) => sameListing(r?.symbol, symbol))
     .map((r: any) => ({ date: String(r?.date ?? '').slice(0, 10), hour: String(r?.hour ?? ''), quarter: num(r?.quarter), year: num(r?.year), epsEstimate: num(r?.epsEstimate), revenueEstimate: num(r?.revenueEstimate) }))
     .filter((r: NextReport) => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && r.date >= today)
     .sort((a: NextReport, b: NextReport) => a.date.localeCompare(b.date));
@@ -201,11 +218,15 @@ export interface PastReport {
 }
 
 /** /calendar/earnings over the past months: the reports with a reported EPS or revenue, newest first. */
-export function parseCalendarHistory(text: string): Parsed<PastReport[]> {
+export function parseCalendarHistory(text: string, symbol?: string): Parsed<PastReport[]> {
   const j = json(text);
   if (j === undefined) return { error: 'The answer was not JSON' };
   if (refusal(j)) return { error: refusal(j)! };
-  const rows = (Array.isArray(j?.earningsCalendar) ? j.earningsCalendar : [])
+  const all = Array.isArray(j?.earningsCalendar) ? j.earningsCalendar : [];
+  const other = all.find((r: any) => !sameListing(r?.symbol, symbol));
+  if (other && !all.some((r: any) => r?.symbol != null && sameListing(r.symbol, symbol))) return { error: otherListing(other.symbol, symbol!) };
+  const rows = all
+    .filter((r: any) => sameListing(r?.symbol, symbol))
     .map((r: any) => ({ date: String(r?.date ?? '').slice(0, 10), hour: String(r?.hour ?? ''), quarter: num(r?.quarter), year: num(r?.year), epsEstimate: num(r?.epsEstimate), epsActual: num(r?.epsActual), revenueEstimate: num(r?.revenueEstimate), revenueActual: num(r?.revenueActual) }))
     .filter((r: PastReport) => /^\d{4}-\d{2}-\d{2}$/.test(r.date) && (Number.isFinite(r.epsActual) || Number.isFinite(r.revenueActual)))
     .sort((a: PastReport, b: PastReport) => b.date.localeCompare(a.date));
@@ -220,7 +241,7 @@ export function parsePeers(text: string): Parsed<string[]> {
   return { data: j.filter((x: unknown): x is string => typeof x === 'string' && /^[A-Z][A-Z0-9.]{0,9}$/.test(x)) };
 }
 
-const PARSE: Record<FinnhubKind, (t: string) => Parsed<unknown>> = { profile: parseProfile, metric: parseMetric, recommendation: parseRecommendation, earnings: parseEarnings, calendar: (t) => parseCalendar(t), history: parseCalendarHistory, peers: parsePeers };
+const PARSE: Record<FinnhubKind, (t: string, symbol: string) => Parsed<unknown>> = { profile: parseProfile, metric: parseMetric, recommendation: parseRecommendation, earnings: parseEarnings, calendar: (t, s) => parseCalendar(t, undefined, s), history: parseCalendarHistory, peers: parsePeers };
 
 export interface FinnhubPart<T = unknown> {
   state: 'loading' | 'ok' | 'error' | 'needs-key' | 'budget' | 'off';
@@ -271,7 +292,7 @@ export async function loadFinnhub(symbol: string, kind: FinnhubKind): Promise<Fi
       if (!(res.status >= 400 && res.status < 500 && res.status !== 429)) asked.delete(key);
       part = { state: res.budget ? 'budget' : 'error', message: res.error ?? (res.status ? `Finnhub answered HTTP ${res.status}` : 'Finnhub did not answer') };
     } else {
-      const parsed = kind === 'recommendation' ? parseRecommendation(res.text, symbol) : PARSE[kind](res.text);
+      const parsed = PARSE[kind](res.text, symbol);
       part = 'error' in parsed ? { state: 'error', message: parsed.error, at: res.at } : { state: 'ok', data: parsed.data, at: res.at, stale: res.stale, message: res.stale ? res.error : undefined };
     }
   } catch (err) {
