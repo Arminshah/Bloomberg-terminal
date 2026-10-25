@@ -124,6 +124,39 @@ async function command(page: Page, text: string, code = text.split(' ').at(-1)!,
   await expect(page.locator('.panel').nth(panel).locator('.fnh-code').first()).toHaveText(code);
 }
 
+test("the tab bar is the window's title bar: the window's own buttons sit at its right end, behind a line no tab passes", async ({ desktop: { app, page } }) => {
+  const overlay = await page.evaluate(() => {
+    const o = (navigator as Navigator & { windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect(): DOMRect } }).windowControlsOverlay;
+    const r = o?.getTitlebarAreaRect();
+    return { visible: !!o?.visible, right: r ? r.x + r.width : NaN, height: r?.height ?? NaN };
+  });
+  expect(overlay.visible).toBe(true);
+  expect(overlay.height).toBe(32);
+  const bar = page.locator('.wtabs-bar');
+  await expect(bar).toHaveClass(/\bwco\b/);
+  const region = (selector: string) => page.locator(selector).first().evaluate((el) => getComputedStyle(el).getPropertyValue('-webkit-app-region') || getComputedStyle(el).getPropertyValue('app-region'));
+  // The bar drags the window; the tabs and the + button do not.
+  expect(await region('.wtabs-bar')).toBe('drag');
+  expect(await region('.wtab')).toBe('no-drag');
+  expect(await region('.wtab-new')).toBe('no-drag');
+  const controls = (await page.locator('.wtabs-controls').boundingBox())!;
+  expect(Math.round(controls.x)).toBe(Math.round(overlay.right));
+  expect(controls.width).toBeGreaterThan(0);
+  // A line marks where the buttons begin.
+  expect(await page.locator('.wtabs-controls').evaluate((el) => getComputedStyle(el, '::before').width)).toBe('1px');
+  for (let i = 0; i < 11; i++) await page.getByRole('button', { name: 'New tab', exact: true }).click();
+  await expect(page.locator('.wtab')).toHaveCount(12);
+  const tabs = async () => (await page.locator('nav.wtabs').boundingBox())!;
+  const plus = (await page.getByRole('button', { name: 'New tab', exact: true }).boundingBox())!;
+  expect(plus.x + plus.width).toBeLessThanOrEqual(controls.x);
+  // In a narrow window the tabs scroll; they never pass under the buttons.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(820, 600));
+  await expect.poll(async () => Math.round((await page.locator('.wtabs-controls').boundingBox())!.x)).toBeLessThan(820);
+  const narrow = (await page.locator('.wtabs-controls').boundingBox())!;
+  const nav = await tabs();
+  expect(nav.x + nav.width).toBeLessThanOrEqual(narrow.x + 0.5);
+});
+
 test('EVENTS opens on the week\'s most traded companies reporting, by day and session, share classes once', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.weekCalendar = true; });
   await command(page, 'EVENTS');

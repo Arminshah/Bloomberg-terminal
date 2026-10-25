@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { terminal } from '../terminal/state';
 import { closeTab, MAX_TABS, moveTab, newTab, renameTab, switchTab, tabTitle, workspaceTabs } from '../terminal/tabs';
 
@@ -7,12 +7,26 @@ import { closeTab, MAX_TABS, moveTab, newTab, renameTab, switchTab, tabTitle, wo
  * one, a double click renames it and dragging reorders. Ctrl+T, Ctrl+W, Ctrl+Shift+T, Ctrl+PageUp/PageDown and
  * Ctrl+1 to Ctrl+9 work as in a browser (see App).
  */
+/** Whether the window's own buttons are drawn over the page (the desktop app without a title bar). */
+function useWindowControls(): boolean {
+  const overlay = typeof navigator !== 'undefined' ? (navigator as Navigator & { windowControlsOverlay?: EventTarget & { visible: boolean } }).windowControlsOverlay : undefined;
+  const [visible, setVisible] = useState(!!overlay?.visible);
+  useEffect(() => {
+    if (!overlay) return;
+    const update = () => setVisible(overlay.visible);
+    overlay.addEventListener('geometrychange', update);
+    return () => overlay.removeEventListener('geometrychange', update);
+  }, [overlay]);
+  return visible;
+}
+
 export function WorkspaceTabs() {
   const t = workspaceTabs.use((x) => x);
   const live = terminal.use((x) => x);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [dragged, setDragged] = useState<string | null>(null);
+  const controls = useWindowControls();
 
   const commit = (id: string) => {
     renameTab(id, draft);
@@ -24,7 +38,10 @@ export function WorkspaceTabs() {
     if (e.key === 'Escape') setEditing(null);
   };
 
+  // In the desktop app the bar is the window's title bar: it drags the window, and the window's own buttons are drawn
+  // over its right end, where the tabs never go (.wtabs-controls is as wide as they are; 0 elsewhere).
   return (
+    <div className={`wtabs-bar${controls ? ' wco' : ''}`}>
     <nav className="wtabs" aria-label="Workspace tabs" role="tablist">
       {t.tabs.map((tab, i) => {
         const on = tab.id === t.active;
@@ -102,5 +119,7 @@ export function WorkspaceTabs() {
         +
       </button>
     </nav>
+    <div className="wtabs-controls" aria-hidden="true" />
+    </div>
   );
 }

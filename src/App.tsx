@@ -209,9 +209,10 @@ export function App() {
 
   return (
     <div className={`app${demoMode() ? ' demo' : ''}`}>
+      {/* The tab bar is the window's title bar in the desktop app: always at the top. */}
+      <WorkspaceTabs />
       {demoMode() ? <DemoBanner /> : null}
       {demoMode() ? null : <YahooSessionBanner />}
-      <WorkspaceTabs />
       <TopBar />
       <MobileTabs />
       {/* A new key per tab: no screen keeps another tab's local state. */}

@@ -1227,6 +1227,9 @@ ipcMain.handle('stream:close', (event) => {
   streams.delete(event.sender.id);
 });
 
+/** The tab bar's height in pixels (.wtabs-bar in global.css): the window's buttons are drawn this tall over it. */
+const TAB_BAR_HEIGHT = 32;
+
 function createWindow(id = nextId()) {
   const saved = loadState()[id] ?? {};
   const bounds = visible(saved.bounds);
@@ -1242,6 +1245,9 @@ function createWindow(id = nextId()) {
     icon: fs.existsSync(ICON) ? ICON : undefined,
     show: false,
     autoHideMenuBar: true,
+    // No title bar: the window's own minimise, maximise and close buttons sit at the right end of the app's tab bar,
+    // which drags the window (WorkspaceTabs.tsx keeps the tabs clear of them). TAB_BAR_HEIGHT matches the bar's CSS.
+    ...(process.platform === 'darwin' ? {} : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0a0a0a', symbolColor: '#c8c8c8', height: TAB_BAR_HEIGHT } }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

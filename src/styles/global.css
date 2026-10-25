@@ -110,19 +110,38 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .app > * { flex: none; }
 .app > .workspace { flex: 1 1 auto; }
 
-/* Workspace tabs: one per workspace, as a browser's tabs (WorkspaceTabs.tsx). */
+/*
+ * Workspace tabs: one per workspace, as a browser's tabs (WorkspaceTabs.tsx). In the desktop app the bar is the
+ * window's title bar (32px, TAB_BAR_HEIGHT in electron/main.cjs): it drags the window, the tabs and buttons do not,
+ * and the window's own buttons are drawn over its right end, which .wtabs-controls keeps free behind a line.
+ */
+.wtabs-bar {
+  display: flex;
+  align-items: stretch;
+  min-height: 32px;
+  background: #0a0a0a;
+  border-bottom: 1px solid var(--line-2);
+  -webkit-app-region: drag;
+  app-region: drag;
+}
 .wtabs {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: flex-end;
   gap: 1px;
-  background: #0a0a0a;
-  border-bottom: 1px solid var(--line-2);
   padding: 3px var(--gutter) 0;
   padding-top: calc(3px + env(safe-area-inset-top, 0px));
-  min-height: 27px;
   overflow-x: auto;
   scrollbar-width: none;
 }
+.wtab, .wtab-new { -webkit-app-region: no-drag; app-region: no-drag; }
+.wtabs-controls {
+  flex: none;
+  position: relative;
+  width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+}
+.wtabs-bar.wco .wtabs-controls::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: #6a6a6a; }
 .wtabs::-webkit-scrollbar { display: none; }
 .wtab {
   display: flex;
@@ -131,7 +150,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   min-width: 90px;
   max-width: 200px;
   flex: 0 1 auto;
-  height: 23px;
+  height: 28px;
   padding: 0 4px 0 10px;
   background: #171717;
   color: #a8a8a8;
