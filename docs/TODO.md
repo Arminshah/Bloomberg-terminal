@@ -53,7 +53,7 @@ Plan:
 
 ## Waiting on you
 
-- Release 2.25.0: after your final checks. The pull request into `main` is ready as a draft: https://github.com/Arminshah/Bloomberg-terminal/pull/4. An older one (number 1, `claude/amber-terminal`) overlaps with it: close it or keep it, your choice.
+- The pull request into `main` is ready as a draft: https://github.com/Arminshah/Bloomberg-terminal/pull/4. An older one (number 1, `claude/amber-terminal`) overlaps with it: close it or keep it, your choice.
 - For item 9:
   - The video frames have to come from your Windows PC. Choose one route:
     1. By hand, within YouTube's terms: play the video in your browser, pause at each chapter time and take a screenshot (Windows key + Shift + S). Then open the video's "…" menu, choose "Show transcript" and copy the text into a .txt file.
@@ -87,6 +87,10 @@ Plan:
 - Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
 
 ## Done, on the branch, not released yet
+
+- `d617130` Revenue expected and reported beside EPS on EARNINGS, EVENTS and the week's board (in 2.25.0).
+
+## Done in 2.25.0
 
 - Your feedback of 25 October:
   - `6a2789e` CONGRESS no longer freezes while reports load, a progress bar says what is read and about how long is left, 12 months read in about 105 seconds (was about 4.5 minutes), and holdings without a ticker (Treasury bills, private funds) are left out unless Assets is set to Everything.
@@ -149,4 +153,5 @@ Plan:
 
 ## Released
 
+- 2.25.0 on 25 October 2026 (`docs/release-v2.25.0.md`), at your request.
 - 2.24.0 on 23 October 2026 (`docs/release-v2.24.0.md`).
