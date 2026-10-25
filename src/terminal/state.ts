@@ -1,6 +1,7 @@
 import { createStore, loadJson, saveJson } from '../core/store';
-import type { LayoutId, Route } from './types';
+import type { FixedLayoutId, LayoutId, Route } from './types';
 import { migrateRoute, renamedCode } from './legacy';
+import { normalizeRows, rowsOf, tileCount, type RowsLayout } from './rows-layout';
 
 export interface PanelState {
   history: Route[];
@@ -31,7 +32,11 @@ export interface Split {
 
 export interface TerminalState {
   layout: LayoutId;
-  sizes: Partial<Record<LayoutId, Split>>;
+  sizes: Partial<Record<FixedLayoutId, Split>>;
+  /** The rows and tile sizes of a layout of your own (layout 'rows'). */
+  rows?: RowsLayout;
+  /** The saved layout this workspace was last set to or saved as, to offer saving its changes. */
+  layoutName?: string;
   active: number;
   panels: PanelState[];
   recentSecs: string[];
@@ -123,7 +128,15 @@ if (typeof localStorage !== 'undefined' && !loadJson('armin:front-page-news')) {
   saveJson('armin:front-page-news', 1);
 }
 
-export const LAYOUT_PANELS: Record<LayoutId, number> = { '1': 1, '2': 2, '2v': 2, '3': 3, '4': 4, '5': 5, '6': 6 };
+export const LAYOUT_PANELS: Record<FixedLayoutId, number> = { '1': 1, '2': 2, '2v': 2, '3': 3, '4': 4, '5': 5, '6': 6 };
+
+/** A layout of your own as stored, or one row of one tile when it is missing or damaged. */
+export const rowsOrDefault = (r: RowsLayout | undefined): RowsLayout => normalizeRows(r) ?? rowsOf([1]);
+
+/** How many panels a layout shows. */
+export function panelCount(s: { layout: LayoutId; rows?: RowsLayout }): number {
+  return s.layout === 'rows' ? tileCount(rowsOrDefault(s.rows)) : (LAYOUT_PANELS[s.layout] ?? 1);
+}
 
 export function currentRoute(s: TerminalState, panel: number): Route {
   const p = s.panels[panel] ?? s.panels[0];
@@ -164,9 +177,9 @@ const ARGS_PER_SECURITY = new Set(['OPTIONCALC']);
 /** Only visible members follow; functions and their arguments stay local to each panel. */
 function followers(s: TerminalState, panels: PanelState[], source: number, id: string): PanelState[] {
   const group = linkGroupOf(panels[source]);
-  if (!group || source >= LAYOUT_PANELS[s.layout]) return panels;
+  if (!group || source >= panelCount(s)) return panels;
   return panels.map((p, i) => {
-    if (i === source || i >= LAYOUT_PANELS[s.layout] || linkGroupOf(p) !== group) return p;
+    if (i === source || i >= panelCount(s) || linkGroupOf(p) !== group) return p;
     const r = p.history[p.idx];
     if (!r || !acceptsSecurity(r, id)) return p;
     if (ARGS_PER_SECURITY.has(r.fn) && r.sec !== id) {
@@ -183,7 +196,7 @@ export function broadcastSecurity(panel: number, id: string): boolean {
   const r = s.panels[panel]?.history[s.panels[panel].idx];
   if (!r || acceptsSecurity(r, id)) return false;
   const group = linkGroupOf(s.panels[panel]);
-  const hasFollower = !!group && s.panels.some((p, i) => i !== panel && i < LAYOUT_PANELS[s.layout] && linkGroupOf(p) === group && acceptsSecurity(p.history[p.idx], id));
+  const hasFollower = !!group && s.panels.some((p, i) => i !== panel && i < panelCount(s) && linkGroupOf(p) === group && acceptsSecurity(p.history[p.idx], id));
   if (!hasFollower) return false;
   const panels = followers(s, s.panels, panel, id).map((p, i) => i === panel ? { ...p, loadedSec: id } : p);
   terminal.set({ ...s, panels, recentSecs: [id, ...s.recentSecs.filter((x) => x !== id)].slice(0, 30), active: panel });
@@ -230,14 +243,20 @@ export function setActive(panel: number) {
   if (terminal.get().active !== panel) terminal.set((s) => ({ ...s, active: panel }));
 }
 
-export function setLayout(layout: LayoutId) {
+export function setLayout(layout: FixedLayoutId) {
   terminal.set((s) => ({ ...s, layout, active: Math.min(s.active, LAYOUT_PANELS[layout] - 1) }));
 }
 
-export function applyPreset(routes: Route[], layout: LayoutId, groups?: LinkGroup[]) {
+/**
+ * Sets the panels' screens, the layout (with its rows when it is one of your own) and their link groups. `name`: the
+ * saved layout this is, so its changes can be saved; a preset or a new layout has none.
+ */
+export function applyPreset(routes: Route[], layout: LayoutId, groups?: LinkGroup[], rows?: RowsLayout, name?: string) {
   terminal.set((s) => ({
     ...s,
     layout,
+    ...(layout === 'rows' ? { rows: rowsOrDefault(rows) } : {}),
+    layoutName: name,
     active: 0,
     panels: s.panels.map((p, i) => {
       const r = routes[i];
@@ -247,7 +266,7 @@ export function applyPreset(routes: Route[], layout: LayoutId, groups?: LinkGrou
   }));
 }
 
-export const DEFAULT_SPLIT: Record<LayoutId, Split> = {
+export const DEFAULT_SPLIT: Record<FixedLayoutId, Split> = {
   '1': { cols: [1], rows: [1] },
   '2': { cols: [0.5, 0.5], rows: [1] },
   '2v': { cols: [1], rows: [0.5, 0.5] },
@@ -257,11 +276,19 @@ export const DEFAULT_SPLIT: Record<LayoutId, Split> = {
   '6': { cols: [1 / 3, 1 / 3, 1 / 3], rows: [0.5, 0.5] },
 };
 
+/** A layout of your own sizes its rows and tiles itself (rows-layout.ts); one object, as screens read it while drawing. */
+const ROWS_SPLIT: Split = { cols: [1], rows: [1] };
+
 export function splitFor(s: TerminalState): Split {
-  return s.sizes?.[s.layout] ?? DEFAULT_SPLIT[s.layout];
+  return s.layout === 'rows' ? ROWS_SPLIT : s.sizes?.[s.layout] ?? DEFAULT_SPLIT[s.layout] ?? DEFAULT_SPLIT['1'];
 }
 
-export function setSplit(layout: LayoutId, split: Split | undefined) {
+/** A layout of your own, resized (its dividers dragged). */
+export function setRows(rows: RowsLayout) {
+  terminal.set((s) => ({ ...s, rows }));
+}
+
+export function setSplit(layout: FixedLayoutId, split: Split | undefined) {
   terminal.set((s) => {
     const sizes = { ...(s.sizes ?? {}) };
     if (split) sizes[layout] = split;

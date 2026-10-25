@@ -23,7 +23,7 @@ export async function checkLinkedPanels(page: Page, run: (text: string, code: st
   await p(0).getByRole('button', { name: 'Forward', exact: true }).click();
   await expect(p(1).locator('.fnh-sec').first()).toHaveText('EURUSD Curncy');
   await run('LAYOUTS', 'LAYOUTS', 2);
-  await p(2).getByLabel('Layout name').fill('Research links');
+  await p(2).getByLabel('Layout name', { exact: true }).fill('Research links');
   await p(2).getByRole('button', { name: 'Save current panels', exact: true }).click();
   for (let i = 0; i < 4; i++) await page.getByLabel(`Panel ${i + 1} security link group`, { exact: true }).selectOption('0');
   await run('MARKET', 'MARKET', 0);
@@ -39,7 +39,8 @@ export async function checkLinkedPanels(page: Page, run: (text: string, code: st
   for (let i = 0; i < 4; i++) await expect(page.getByLabel(`Panel ${i + 1} security link group`, { exact: true })).toHaveValue('1');
   await page.getByLabel('Panel 1 security link group', { exact: true }).selectOption('0');
   await page.getByRole('button', { name: 'LAYOUTS ▾', exact: true }).click();
-  await page.getByRole('menuitem').filter({ hasText: 'Research links' }).click();
+  // The link group changed since it was saved, so the menu also offers to save that; this is the saved layout's line.
+  await page.getByRole('menuitem').filter({ hasText: 'Research links' }).filter({ hasText: 'panels' }).click();
   await expect(page.getByLabel('Panel 1 security link group', { exact: true })).toHaveValue('1');
   await page.getByRole('button', { name: 'LAYOUTS ▾', exact: true }).click();
   await page.getByRole('menuitem').filter({ hasText: 'Linked Security Research' }).click();

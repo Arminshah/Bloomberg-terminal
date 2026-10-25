@@ -1,6 +1,7 @@
 import { createStore, loadJson, removeKey, saveJson, type Store } from '../core/store';
 import type { LayoutId, Route } from './types';
 import type { LinkGroup } from './state';
+import type { RowsLayout } from './rows-layout';
 import { withExtendedColumns, type WatchlistSort } from '../data/watchlist-columns';
 
 export interface Watchlist {
@@ -228,6 +229,8 @@ export interface SavedLayout {
   layout: LayoutId;
   routes: Route[];
   split?: { cols: number[]; rows: number[] };
+  /** A layout of your own: its rows, tiles and their sizes. */
+  rows?: RowsLayout;
   linkGroups?: LinkGroup[];
   saved: number;
 }

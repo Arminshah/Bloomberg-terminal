@@ -8,7 +8,8 @@ import { CommandLine } from './CommandLine';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PanelToolbar } from './PanelToolbar';
 
-export function Panel({ index }: { index: number }) {
+/** `place`: the panel's grid lines in a layout of your own (rows-layout.ts); the fixed layouts place panels by CSS. */
+export function Panel({ index, place }: { index: number; place?: { gridRow: string; gridColumn: string } }) {
   const route = terminal.use((s) => currentRoute(s, index));
   const active = terminal.use((s) => s.active === index);
   const def = lookupFn(route.fn) ?? lookupFn('HELP')!;
@@ -21,6 +22,7 @@ export function Panel({ index }: { index: number }) {
     <section
       className={`panel${active ? ' active' : ''}`}
       data-panel={index}
+      style={place}
       onMouseDownCapture={() => setActive(index)}
       onFocusCapture={() => setActive(index)}
       aria-label={`Panel ${index + 1}: ${def.name}`}

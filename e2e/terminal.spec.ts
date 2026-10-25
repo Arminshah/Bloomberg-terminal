@@ -593,6 +593,62 @@ test('workspace tabs open, keep each workspace, rename, close and reopen as a br
   expect(errors).toEqual([]);
 });
 
+test('a layout of your own: rows first, a screen per tile, a name; resized, saved, and back at the same sizes', async ({ page }) => {
+  const errors = await boot(page, '1');
+  await run(page, 'LAYOUTS');
+  const panel = page.locator('.panel').first();
+  // One tile across the top, two below: the heat map, the market news and a stock's chart.
+  await panel.getByRole('button', { name: '2 rows: 1 + 2 tiles', exact: true }).click();
+  await expect(panel.locator('.lb-prow')).toHaveCount(2);
+  await panel.getByLabel('Screen for tile 1').fill('HEATMAP');
+  await panel.getByLabel('Screen for tile 2').fill('MARKETNEWS');
+  await panel.getByLabel('Screen for tile 3').fill('AAPL US Equity CHART');
+  await panel.getByLabel('New layout name').fill('Morning');
+  await panel.getByRole('button', { name: 'Make and save' }).click();
+  const panels = page.locator('.workspace > .panel');
+  await expect(panels).toHaveCount(3);
+  await expect(panels.nth(0).locator('.fnh-code').first()).toHaveText('HEATMAP');
+  await expect(panels.nth(2).locator('.fnh-code').first()).toHaveText('CHART');
+  const box = async (i: number) => (await panels.nth(i).boundingBox())!;
+  const [top, left, right] = [await box(0), await box(1), await box(2)];
+  // The heat map spans the width; the other two share the row below it.
+  expect(Math.abs(top.width - (right.x + right.width - left.x))).toBeLessThan(4);
+  expect(left.y).toBeGreaterThan(top.y + top.height - 2);
+  expect(Math.abs(left.y - right.y)).toBeLessThan(2);
+  expect(Math.abs(left.width - right.width)).toBeLessThan(4);
+  const menu = page.getByRole('button', { name: 'LAYOUTS ▾', exact: true });
+  await expect(menu.locator('.unsaved-dot')).toHaveCount(0);
+  // Drag the line between the two lower tiles to the left: the news gets narrower than the chart.
+  const line = page.getByRole('separator', { name: 'Resize row 2, tiles 1 and 2' });
+  const l = (await line.boundingBox())!;
+  await page.mouse.move(l.x + l.width / 2, l.y + l.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(l.x + l.width / 2 - 300, l.y + l.height / 2, { steps: 6 });
+  await page.mouse.up();
+  const narrow = (await box(1)).width;
+  expect(narrow).toBeLessThan((await box(2)).width - 200);
+  // The menu offers to save the change.
+  await expect(menu.locator('.unsaved-dot')).toHaveCount(1);
+  await expect(menu).toHaveAttribute('title', 'Unsaved changes to "Morning": the menu saves them');
+  await menu.click();
+  await page.getByRole('menuitem', { name: /Save changes to .Morning./ }).click();
+  await expect(menu.locator('.unsaved-dot')).toHaveCount(0);
+  // Another layout, then this one again: the same tiles at the saved sizes, and after a reload too.
+  await page.getByRole('button', { name: 'Four panels', exact: true }).click();
+  await expect(panels).toHaveCount(4);
+  await menu.click();
+  // Switching to four panels is a change the menu would save; the saved layout itself is the line with its panels.
+  await expect(page.getByRole('menuitem', { name: /Save changes to .Morning./ })).toBeVisible();
+  await page.getByRole('menuitem').filter({ hasText: 'Morning' }).filter({ hasText: '3 panels' }).click();
+  await expect(panels).toHaveCount(3);
+  expect(Math.abs((await box(1)).width - narrow)).toBeLessThan(3);
+  await page.reload();
+  await expect(panels).toHaveCount(3);
+  expect(Math.abs((await box(1)).width - narrow)).toBeLessThan(3);
+  await expect(page.getByRole('button', { name: 'Your own layout' })).toHaveClass(/\bon\b/);
+  expect(errors).toEqual([]);
+});
+
 test('portfolio tabs keep each portfolio\'s holdings and cash, open, rename, close only when asked, and stay after a reload', async ({ page }) => {
   const errors = await boot(page, '1');
   const panel = page.locator('.panel').first();

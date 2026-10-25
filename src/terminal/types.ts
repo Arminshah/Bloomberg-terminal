@@ -8,7 +8,10 @@ export interface Route {
   args?: string;
 }
 
-export type LayoutId = '1' | '2' | '2v' | '3' | '4' | '5' | '6';
+/** The fixed arrangements of the layout picker. */
+export type FixedLayoutId = '1' | '2' | '2v' | '3' | '4' | '5' | '6';
+/** A fixed arrangement, or 'rows': a layout of your own, rows with their own tiles (rows-layout.ts). */
+export type LayoutId = FixedLayoutId | 'rows';
 
 export interface FnProps {
   route: Route;

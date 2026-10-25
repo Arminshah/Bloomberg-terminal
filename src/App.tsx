@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { KeyBar } from './components/KeyBar';
 import { Panel } from './components/Panel';
 import { TickerTape } from './components/TickerTape';
@@ -13,7 +13,8 @@ import { engine } from './data/market';
 import { setTimeZone } from './core/format';
 import { lookupFn } from './terminal/registry';
 import { settings } from './terminal/settings';
-import { back, currentRoute, LAYOUT_PANELS, setActive, splitFor, terminal } from './terminal/state';
+import { back, currentRoute, panelCount, rowsOrDefault, setActive, splitFor, terminal } from './terminal/state';
+import { rowsGrid } from './terminal/rows-layout';
 import { Splitters } from './components/Splitters';
 import { startBackground } from './terminal/background';
 import { DemoBanner } from './components/NoDataSource';
@@ -25,7 +26,7 @@ import { canRefresh, refreshAll } from './terminal/refresh';
 
 function MobileTabs() {
   const s = terminal.use((x) => x);
-  const n = LAYOUT_PANELS[s.layout] < 2 ? 4 : Math.max(LAYOUT_PANELS[s.layout], 4);
+  const n = panelCount(s) < 2 ? 4 : Math.max(panelCount(s), 4);
   return (
     <nav className="mobile-tabs" aria-label="Panels">
       {Array.from({ length: n }, (_, i) => {
@@ -69,7 +70,11 @@ export function App() {
   const tape = settings.use((s) => s.tape);
   const mobile = useMediaQuery('(max-width: 760px)');
   const split = terminal.use((s) => splitFor(s));
-  const count = mobile ? Math.max(LAYOUT_PANELS[layout], 4) : LAYOUT_PANELS[layout];
+  const storedRows = terminal.use((s) => s.rows);
+  const rows = useMemo(() => (layout === 'rows' ? rowsOrDefault(storedRows) : undefined), [layout, storedRows]);
+  // A layout of your own is one grid: each tile edge of any row is a column line (rows-layout.ts).
+  const grid = useMemo(() => (rows ? rowsGrid(rows) : undefined), [rows]);
+  const count = mobile ? Math.max(panelCount({ layout, rows }), 4) : panelCount({ layout, rows });
 
   useEffect(() => {
     document.documentElement.dataset.size = size;
@@ -146,7 +151,7 @@ export function App() {
       }
       if (e.ctrlKey && e.key === 'Tab') {
         e.preventDefault();
-        const n = window.innerWidth <= 760 ? Math.max(LAYOUT_PANELS[terminal.get().layout], 4) : LAYOUT_PANELS[terminal.get().layout];
+        const n = window.innerWidth <= 760 ? Math.max(panelCount(terminal.get()), 4) : panelCount(terminal.get());
         const next = (active + (e.shiftKey ? n - 1 : 1)) % n;
         setActive(next);
         focusPanelInput(next);
@@ -171,7 +176,7 @@ export function App() {
       if (e.altKey && /^[1-6]$/.test(e.key)) {
         e.preventDefault();
         const p = Number(e.key) - 1;
-        if (p < LAYOUT_PANELS[terminal.get().layout] || window.innerWidth <= 760) {
+        if (p < panelCount(terminal.get()) || window.innerWidth <= 760) {
           setActive(p);
           focusPanelInput(p);
         }
@@ -216,10 +221,11 @@ export function App() {
       <TopBar />
       <MobileTabs />
       {/* A new key per tab: no screen keeps another tab's local state. */}
-      <main key={tabId} className="workspace" data-layout={layout} style={mobile ? undefined : { gridTemplateColumns: split.cols.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: split.rows.map((r) => `minmax(0, ${r}fr)`).join(' ') }}>
-        {Array.from({ length: count }, (_, i) => (
-          <Panel key={i} index={i} />
-        ))}
+      <main key={tabId} className="workspace" data-layout={layout} style={mobile ? undefined : grid ? { gridTemplateColumns: grid.columns.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: grid.heights.map((r) => `minmax(0, ${r}fr)`).join(' ') } : { gridTemplateColumns: split.cols.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: split.rows.map((r) => `minmax(0, ${r}fr)`).join(' ') }}>
+        {Array.from({ length: count }, (_, i) => {
+          const at = !mobile && grid ? grid.places[i] : undefined;
+          return <Panel key={i} index={i} place={at ? { gridRow: String(at.row), gridColumn: `${at.from} / ${at.to}` } : undefined} />;
+        })}
         {!mobile && <Splitters />}
       </main>
       {tape ? <TickerTape /> : <div />}

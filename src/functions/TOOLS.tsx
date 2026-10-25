@@ -16,11 +16,14 @@ import { lookupSource, searchOnline, type OnlineHit } from '../data/live/lookup'
 import { lookupFn } from '../terminal/registry';
 import { flash, usePanelId } from '../terminal/panel';
 import { settings, type ClickAction } from '../terminal/settings';
-import { applyPreset, defaultTerminal, LAYOUT_PANELS, linkGroupOf, setSplit, terminal } from '../terminal/state';
-import { savedLayouts, type SavedLayout } from '../terminal/userdata';
-import { PRESETS } from '../components/TopBar';
+import { applyPreset, defaultTerminal, panelCount, rowsOrDefault, terminal } from '../terminal/state';
+import { applySaved, currentRoutes, saveLayout, unsavedLayout } from '../terminal/layouts';
+import { fits, MAX_ROWS, MAX_TILES, MAX_TILES_PER_ROW, rowsOf } from '../terminal/rows-layout';
+import { parseCommand } from '../terminal/commands';
+import { savedLayouts } from '../terminal/userdata';
+import { PRESETS, RowsIcon } from '../components/TopBar';
 import type { SecurityDef } from '../data/types';
-import type { FnProps, LayoutId, Route } from '../terminal/types';
+import type { FnProps, Route } from '../terminal/types';
 
 const CLASSES: { n: number; label: string; test?: (d: SecurityDef) => boolean }[] = [
   { n: 1, label: 'All' },
@@ -163,40 +166,142 @@ export function LAST(_: FnProps) {
   );
 }
 
-/** The screen each visible panel shows, for saving; LAYOUTS itself gives way to the screen before it. */
-function currentRoutes(): { layout: LayoutId; routes: Route[] } {
-  const st = terminal.get();
-  const routes = st.panels.slice(0, LAYOUT_PANELS[st.layout]).map((p) => {
-    const r = p.history[p.idx];
-    return r.fn === 'LAYOUTS' && p.idx > 0 ? p.history[p.idx - 1] : r;
-  });
-  return { layout: st.layout, routes };
+const routeText = (routes: Route[]) => routes.map((r) => (r.sec ? `${r.sec.split(' ')[0]} ${r.fn}` : r.args ? `${r.fn} ${r.args}` : r.fn)).join(' · ');
+
+/** A screen as a command line would name it: "AAPL US Equity CHART", "HEATMAP". */
+const commandOf = (r: Route) => [r.sec, r.fn, r.args].filter(Boolean).join(' ');
+
+/**
+ * A tile's screen from what was typed, as the command line takes it: a function ("HEATMAP"), a security and a function
+ * ("NVDA GP", "AAPL US Equity CHART"), or a security alone (its menu).
+ */
+export function routeFromCommand(text: string): Route | { error: string } {
+  const t = text.trim();
+  if (!t) return { error: 'type a screen, e.g. HEATMAP or AAPL CHART' };
+  const p = parseCommand(t, lookupFn);
+  if (p.kind !== 'route') return { error: p.kind === 'error' ? p.message : `"${t}" is not a screen` };
+  const def = lookupFn(p.fn ?? (p.sec ? 'MENU' : 'PROFILE'));
+  if (!def) return { error: `"${t}" is not a screen` };
+  if (def.needsSec && !p.sec) return { error: `${def.code} needs a security, e.g. AAPL ${def.code}` };
+  if (p.sec && def.classes && !def.classes.includes(p.sec.cls)) return { error: `${def.code} is not available for ${CLASS_LABEL[p.sec.cls]} securities` };
+  return { fn: def.code, ...(p.sec ? { sec: p.sec.id } : {}), ...(p.args ? { args: p.args } : {}) };
 }
 
-const routeText = (routes: Route[]) => routes.map((r) => (r.sec ? `${r.sec.split(' ')[0]} ${r.fn}` : r.args ? `${r.fn} ${r.args}` : r.fn)).join(' · ');
+/** Row shapes to start from: the tiles in each row, top to bottom. */
+const SHAPES: number[][] = [[1], [2], [1, 2], [2, 1], [2, 2], [1, 3], [3, 1], [3, 3], [2, 2, 2]];
+/** Screens offered for a tile; any command works. */
+const SUGGESTED = ['HEATMAP', 'MARKETNEWS', 'HEADLINES', 'WATCHLIST', 'MARKET', 'MOVERS', 'EVENTS', 'SPX Index CHART', 'AAPL US Equity CHART', 'AAPL US Equity PROFILE', 'PORTFOLIO', 'FXMATRIX', 'CRYPTO', 'RELEASES'];
+
+/**
+ * Builds a layout of your own: the rows and their tiles first, then a screen for each tile, then a name. Making it sets
+ * the workspace to it and saves it; dragging the lines between tiles afterwards sizes them, and LAYOUTS ▾ (or the list
+ * below) saves the new sizes.
+ */
+function LayoutBuilder() {
+  const panel = usePanelId();
+  const [counts, setCounts] = useState<number[]>([1, 2]);
+  const total = counts.reduce((a, b) => a + b, 0);
+  const [screens, setScreens] = useState<string[]>(() => {
+    const now = currentRoutes().map(commandOf);
+    return Array.from({ length: MAX_TILES }, (_, i) => now[i] ?? SUGGESTED[i]);
+  });
+  const [name, setName] = useState('');
+  const change = (next: number[]) => fits(next) && setCounts(next);
+  const make = () => {
+    const n = name.trim();
+    if (!n) return flash(panel, 'Name the layout first', 'error');
+    const routes: Route[] = [];
+    for (let i = 0; i < total; i++) {
+      const r = routeFromCommand(screens[i]);
+      if ('error' in r) return flash(panel, `Tile ${i + 1}: ${r.error}`, 'error');
+      routes.push(r);
+    }
+    applyPreset(routes, 'rows', undefined, rowsOf(counts), n);
+    saveLayout(n);
+    flash(panel, `Saved "${n}". Drag the lines between tiles to size them; LAYOUTS ▾ saves the new sizes.`, 'info');
+  };
+  let tile = 0;
+  return (
+    <Section title="Build a layout" right="rows, then screens, then a name">
+      <div className="pad layout-builder">
+        <div className="lb-step">
+          <div className="lb-h"><span className="amber">1</span> How the rows look</div>
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {SHAPES.map((sh) => (
+              <button key={sh.join('+')} type="button" className={`btn lb-shape${sh.join() === counts.join() ? ' on' : ''}`} aria-pressed={sh.join() === counts.join()} title={`${sh.length} ${sh.length === 1 ? 'row' : 'rows'}: ${sh.join(' + ')} ${sh.reduce((a, b) => a + b, 0) === 1 ? 'tile' : 'tiles'}`} onClick={() => setCounts(sh)}>
+                <RowsIcon rows={rowsOf(sh)} />
+              </button>
+            ))}
+          </div>
+          {counts.map((c, i) => (
+            <div key={i} className="row lb-row" style={{ gap: 6 }}>
+              <span className="muted" style={{ width: 52 }}>Row {i + 1}</span>
+              <button type="button" className="act" aria-label={`Fewer tiles in row ${i + 1}`} disabled={c <= 1} onClick={() => change(counts.map((x, j) => (j === i ? x - 1 : x)))}>−</button>
+              <span className="white" style={{ minWidth: 48, textAlign: 'center' }}>{c} {c === 1 ? 'tile' : 'tiles'}</span>
+              <button type="button" className="act" aria-label={`More tiles in row ${i + 1}`} disabled={!fits(counts.map((x, j) => (j === i ? x + 1 : x)))} onClick={() => change(counts.map((x, j) => (j === i ? x + 1 : x)))}>+</button>
+              {counts.length > 1 ? <button type="button" className="act" aria-label={`Remove row ${i + 1}`} onClick={() => setCounts(counts.filter((_, j) => j !== i))}>×</button> : null}
+            </div>
+          ))}
+          <button type="button" className="btn" disabled={!fits([...counts, 1])} onClick={() => change([...counts, 1])}>+ Add a row</button>
+          <div className="muted lb-limit">Up to {MAX_ROWS} rows, {MAX_TILES_PER_ROW} tiles in a row and {MAX_TILES} in all.</div>
+        </div>
+        <div className="lb-step">
+          <div className="lb-h"><span className="amber">2</span> A screen for each tile</div>
+          <div className="lb-preview" aria-label="Preview">
+            {counts.map((c, i) => (
+              <div key={i} className="lb-prow" style={{ gridTemplateColumns: `repeat(${c}, 1fr)` }}>
+                {Array.from({ length: c }, () => {
+                  const k = tile++;
+                  return (
+                    <label key={k} className="lb-tile">
+                      <span className="amber">{k + 1}</span>
+                      <input className="inp" aria-label={`Screen for tile ${k + 1}`} list="layout-screens" value={screens[k]} onChange={(e) => setScreens(screens.map((x, j) => (j === k ? e.target.value : x)))} />
+                    </label>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+          <datalist id="layout-screens">
+            {SUGGESTED.map((x) => (
+              <option key={x} value={x} />
+            ))}
+          </datalist>
+          <div className="muted">Type any screen as on the command line: HEATMAP, MARKETNEWS, NVDA GP, AAPL US Equity PROFILE…</div>
+        </div>
+        <div className="lb-step">
+          <div className="lb-h"><span className="amber">3</span> Name it</div>
+          <div className="row" style={{ gap: 8 }}>
+            <input className="inp" placeholder="Name, e.g. Morning desk" aria-label="New layout name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && make()} />
+            <button type="button" className="btn primary" onClick={make}>
+              Make and save
+            </button>
+          </div>
+          <div className="muted">Then drag the lines between the tiles to size them: LAYOUTS ▾ offers to save the new sizes, and the layout comes back as you left it.</div>
+        </div>
+      </div>
+    </Section>
+  );
+}
 
 export function LPAD(_: FnProps) {
   const panel = usePanelId();
   const saved = savedLayouts.use((s) => s.list);
+  const workspace = terminal.use((s) => s);
+  const changed = useMemo(() => unsavedLayout(workspace, saved), [workspace, saved]);
   const [name, setName] = useState('');
   const save = () => {
     const n = name.trim();
     if (!n) return flash(panel, 'Name the layout first', 'error');
-    const { layout, routes } = currentRoutes();
-    const split = terminal.get().sizes?.[layout];
-    const linkGroups = terminal.get().panels.slice(0, LAYOUT_PANELS[layout]).map(linkGroupOf);
     // Saving under a name you used before replaces that layout.
-    savedLayouts.set((s) => ({ list: [{ name: n, layout, routes, linkGroups, ...(split ? { split } : {}), saved: Date.now() }, ...s.list.filter((x) => x.name.toUpperCase() !== n.toUpperCase())] }));
+    saveLayout(n);
     setName('');
     flash(panel, `Saved the panels as "${n}"`, 'info');
   };
-  const apply = (l: SavedLayout) => {
-    applyPreset(l.routes, l.layout, l.linkGroups);
-    setSplit(l.layout, l.split);
-  };
   return (
     <div>
-      <FnHeader code="LAYOUTS" title="Layouts" sub="Save the panels as a workspace and bring it back, or apply a preset" />
+      <FnHeader code="LAYOUTS" title="Layouts" sub="Build a layout of your own, save the panels as a workspace and bring it back, or apply a preset" />
+      <LayoutBuilder />
       <Section title="Your layouts" right={`${saved.length} saved`}>
         <div className="pad row" style={{ gap: 8 }}>
           <input className="inp" placeholder="Name, e.g. Morning" aria-label="Layout name" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} />
@@ -208,16 +313,34 @@ export function LPAD(_: FnProps) {
           <tbody>
             {saved.length === 0 && (
               <tr>
-                <td className="empty">No saved layouts yet. Arrange the panels, then name and save them here.</td>
+                <td className="empty">No saved layouts yet. Build one above, or arrange the panels, then name and save them here.</td>
               </tr>
             )}
             {saved.map((l) => (
-              <tr key={l.name} className="click" onClick={() => apply(l)}>
-                <td className="white b">{l.name}</td>
-                <td className="muted">{LAYOUT_PANELS[l.layout]} panels</td>
+              <tr key={l.name} className="click" onClick={() => applySaved(l)}>
+                <td className="white b">
+                  {l.rows ? <RowsIcon rows={rowsOrDefault(l.rows)} /> : null} {l.name}
+                </td>
+                <td className="muted">
+                  {panelCount(l)} panels{workspace.layoutName === l.name ? <span className="badge" style={{ marginLeft: 6 }}>IN USE</span> : null}
+                </td>
                 <td className="muted hide-m">{routeText(l.routes)}</td>
                 <td className="muted hide-m">{fmtDate(l.saved)}</td>
                 <td>
+                  {changed?.name === l.name ? (
+                    <button
+                      type="button"
+                      className="btn primary"
+                      title="The panels were resized or changed since it was saved"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        saveLayout(l.name);
+                        flash(panel, `Saved the changes to "${l.name}"`, 'info');
+                      }}
+                    >
+                      Save changes
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     className="act"
@@ -250,7 +373,7 @@ export function LPAD(_: FnProps) {
           </tbody>
         </table>
       </Section>
-      <div className="note">Saved layouts include panel screens, divider positions and security link groups. Choose matching colors beside the panel number to share security selections across visible compatible panels. Linked monitors keep their lists open. Unlinked panels stay independent. Layouts are stored {engine.realOnly ? 'on this computer' : 'in this browser'}.</div>
+      <div className="note">Saved layouts include their rows and tile sizes, panel screens, divider positions and security link groups. Choose matching colors beside the panel number to share security selections across visible compatible panels. Linked monitors keep their lists open. Unlinked panels stay independent. Layouts are stored {engine.realOnly ? 'on this computer' : 'in this browser'}.</div>
     </div>
   );
 }

@@ -1,12 +1,88 @@
-import { useRef } from 'react';
-import { setSplit, splitFor, terminal } from '../terminal/state';
+import { useMemo, useRef } from 'react';
+import { rowsOrDefault, setRows, setSplit, splitFor, terminal } from '../terminal/state';
+import { evenRows, resizeRow, resizeTile, type RowsLayout } from '../terminal/rows-layout';
+import type { FixedLayoutId } from '../terminal/types';
 
 /** Drag handles between panels; double-click restores equal sizes. */
 export function Splitters() {
+  const isRows = terminal.use((s) => s.layout === 'rows');
+  return isRows ? <RowSplitters /> : <GridSplitters />;
+}
+
+/**
+ * A layout of your own: a handle between each two rows, and within each row a handle between each two of its tiles,
+ * as tall as the row. Double-click restores equal sizes.
+ */
+function RowSplitters() {
+  const stored = terminal.use((s) => s.rows);
+  const rows = useMemo(() => rowsOrDefault(stored), [stored]);
+  const host = useRef<HTMLDivElement>(null);
+  const drag = (axis: 'x' | 'y', apply: (r: RowsLayout, at: number) => RowsLayout) => (e: React.PointerEvent) => {
+    e.preventDefault();
+    const el = host.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const move = (ev: PointerEvent) => {
+      const at = axis === 'x' ? (ev.clientX - rect.left) / rect.width : (ev.clientY - rect.top) / rect.height;
+      setRows(apply(rowsOrDefault(terminal.get().rows), at));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.style.cursor = '';
+    };
+    document.body.style.cursor = axis === 'x' ? 'col-resize' : 'row-resize';
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const even = () => setRows(evenRows(rowsOrDefault(terminal.get().rows)));
+  const handles: React.ReactElement[] = [];
+  let top = 0;
+  rows.rows.forEach((row, r) => {
+    let left = 0;
+    row.tiles.slice(0, -1).forEach((w, t) => {
+      left += w;
+      handles.push(
+        <div
+          key={`t${r}.${t}`}
+          className="splitter v"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={`Resize row ${r + 1}, tiles ${t + 1} and ${t + 2}`}
+          style={{ left: `${left * 100}%`, top: `${top * 100}%`, bottom: 'auto', height: `${row.h * 100}%` }}
+          onPointerDown={drag('x', (x, at) => resizeTile(x, r, t, at))}
+          onDoubleClick={even}
+        />,
+      );
+    });
+    top += row.h;
+    if (r < rows.rows.length - 1) {
+      handles.push(
+        <div
+          key={`r${r}`}
+          className="splitter h"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label={`Resize rows ${r + 1} and ${r + 2}`}
+          style={{ top: `${top * 100}%` }}
+          onPointerDown={drag('y', (x, at) => resizeRow(x, r, at))}
+          onDoubleClick={even}
+        />,
+      );
+    }
+  });
+  return (
+    <div ref={host} className="splitters" aria-hidden={handles.length === 0}>
+      {handles}
+    </div>
+  );
+}
+
+function GridSplitters() {
   const st = terminal.use((s) => s);
   const split = splitFor(st);
   const host = useRef<HTMLDivElement>(null);
-  const layout = st.layout;
+  const layout = st.layout as FixedLayoutId;
 
   const drag = (axis: 'cols' | 'rows', index: number) => (e: React.PointerEvent) => {
     e.preventDefault();

@@ -1,5 +1,5 @@
 import { execute } from '../terminal/exec';
-import { back, PANEL_COUNT, LAYOUT_PANELS, setActive, terminal } from '../terminal/state';
+import { back, PANEL_COUNT, panelCount, setActive, terminal } from '../terminal/state';
 import { showPanelHelp, showPanelMenu } from '../terminal/actions';
 import { clearPanelInput, FKEY_TEXT, focusPanelInput, pagePanel, recallPanelCommand, submitPanel, typeInto } from './CommandLine';
 
@@ -48,7 +48,7 @@ export const KEYS: Key[] = [
     color: 'blue',
     run: () => {
       const s = terminal.get();
-      const n = Math.min(PANEL_COUNT, window.innerWidth <= 760 ? Math.max(LAYOUT_PANELS[s.layout], 4) : LAYOUT_PANELS[s.layout]);
+      const n = Math.min(PANEL_COUNT, window.innerWidth <= 760 ? Math.max(panelCount(s), 4) : panelCount(s));
       const next = (s.active + 1) % n;
       setActive(next);
       focusPanelInput(next);

@@ -166,7 +166,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'SEARCH', name: 'Security Finder', category: 'Portfolio & Tools', desc: 'Search every security by ticker, name or alias, filtered by asset class.', component: SECF, aliases: ['FIND'] },
   { code: 'RECENT', name: 'Recently Used', category: 'Portfolio & Tools', desc: 'Your recently viewed securities and functions.', component: LAST },
   { code: 'NOTES', name: 'Notes', category: 'Portfolio & Tools', desc: 'Personal notes per security or general, saved as you type.', component: NOTE },
-  { code: 'LAYOUTS', name: 'Layouts', category: 'Portfolio & Tools', desc: 'Save the panels as a named workspace and bring it back, or apply a preset.', component: LPAD, aliases: ['WORKSPACES'] },
+  { code: 'LAYOUTS', name: 'Layouts', category: 'Portfolio & Tools', desc: 'Build a layout of your own (rows, then a screen per tile, then a name), save the panels as a named workspace with their sizes and bring it back, or apply a preset.', component: LPAD, aliases: ['WORKSPACES'] },
   // Communication
   { code: 'MESSAGES', name: 'Help Desk Messages', category: 'Communication', desc: 'Chat with the help desk bot (quotes, news, calendar); the browser version adds simulated trading desks.', component: IB, aliases: ['CHAT'] },
   // System

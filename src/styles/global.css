@@ -285,6 +285,10 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .tb-btn .count.zero { background: var(--bg-4); color: var(--muted); }
 .layout-icon { display: inline-grid; gap: 1px; width: 14px; height: 10px; }
 .layout-icon i { background: currentColor; opacity: 0.85; }
+/* A layout of your own in miniature (RowsIcon): rows, each with its tiles. */
+.layout-icon.rows-icon { display: inline-grid; }
+.rows-icon .rows-icon-row { display: grid; gap: 1px; min-height: 0; }
+.unsaved-dot { display: inline-block; width: 6px; height: 6px; margin-left: 5px; border-radius: 50%; background: var(--amber); vertical-align: middle; }
 .tb-spacer { flex: 1; min-width: 8px; }
 /* REFRESH: the arrow turns while the sources are asked; amber when a source failed in the last refresh. */
 .tb-refresh .refresh-icon { display: inline-block; font-size: 13px; line-height: 1; }
@@ -1019,7 +1023,7 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 /* ------------------------------------------------------------- mobile */
 @media (max-width: 760px) {
   .workspace { grid-template: 1fr / 1fr !important; }
-  .workspace > .panel { display: none; grid-row: auto !important; }
+  .workspace > .panel { display: none; grid-row: auto !important; grid-column: auto !important; }
   .workspace > .panel.active { display: flex; }
   .mobile-tabs {
     display: flex;
@@ -1457,6 +1461,19 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .badge.session-closed { background: #222; color: #b0b0b0; border-color: #3a3a3a; }
 .tbl th.live-col { box-shadow: inset 0 -2px 0 var(--up); }
 .tbl td.live-col { background: rgba(47, 211, 107, 0.06); }
+/* LAYOUTS: building a layout of your own, rows first, then a screen per tile, then a name (TOOLS.tsx). */
+.layout-builder { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(320px, 2fr) minmax(220px, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .layout-builder { grid-template-columns: 1fr; } }
+.lb-step { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lb-h { color: var(--white); font-weight: 600; }
+.lb-shape { padding: 4px 6px; }
+.lb-shape .layout-icon { width: 22px; height: 15px; }
+.lb-shape.on { outline: 1px solid var(--amber); color: var(--amber-2); }
+.lb-limit { font-size: var(--fs-s); }
+.lb-preview { display: flex; flex-direction: column; gap: 4px; padding: 4px; border: 1px solid var(--line-2); background: #050505; }
+.lb-prow { display: grid; gap: 4px; }
+.lb-tile { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 6px 4px; border: 1px solid var(--line); background: #111; }
+.lb-tile .inp { flex: 1 1 auto; min-width: 0; width: 100%; }
 .live-tag { margin-left: 4px; padding: 0 3px; border-radius: 2px; background: #0f3d22; color: var(--up); font-size: 9px; font-weight: 600; letter-spacing: 0.04em; vertical-align: middle; }
 
 /* TOPMOVERS: names and the 52-week range bar */

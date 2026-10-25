@@ -3,17 +3,19 @@ import { engine, useInterval } from '../data/market';
 import { feedStatus } from '../data/live/status';
 import { breakingCount, marketNews } from '../data/live/marketnews';
 import { execute } from '../terminal/exec';
-import { applyPreset, LAYOUT_PANELS, setLayout, setSplit, terminal, type LinkGroup } from '../terminal/state';
+import { applyPreset, panelCount, rowsOrDefault, setLayout, terminal, type LinkGroup } from '../terminal/state';
+import { applySaved, saveLayout, unsavedLayout } from '../terminal/layouts';
+import type { RowsLayout } from '../terminal/rows-layout';
 import { alerts, chats, savedLayouts } from '../terminal/userdata';
 import { favAlerts } from '../terminal/favalerts';
 import { canRefresh, refreshAll, refreshState, refreshSummary } from '../terminal/refresh';
 import { contacts } from '../data/chat';
 import { fmtTime, MONTHS, WEEKDAYS, zonedParts } from '../core/format';
 import { EU_MARKET, fmtCountdown, sessionAt, US_MARKET, type Exchange } from '../data/exchanges';
-import type { LayoutId, Route } from '../terminal/types';
+import type { FixedLayoutId, LayoutId, Route } from '../terminal/types';
 
 /** `fold`: the window width at or below which the button gives way (never while its layout is on). */
-const LAYOUTS: { id: LayoutId; cols: number; rows: number; label: string; fold?: 1180 | 900 }[] = [
+const LAYOUTS: { id: FixedLayoutId; cols: number; rows: number; label: string; fold?: 1180 | 900 }[] = [
   { id: '1', cols: 1, rows: 1, label: 'Single panel' },
   { id: '2', cols: 2, rows: 1, label: 'Two panels side by side', fold: 900 },
   { id: '2v', cols: 1, rows: 2, label: 'Two panels stacked', fold: 1180 },
@@ -42,6 +44,21 @@ function LayoutIcon({ cols, rows, id }: { cols: number; rows: number; id: Layout
     <span className="layout-icon" style={{ gridTemplateColumns: id === '5' ? '1fr 1fr 0.6fr' : `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
       {Array.from({ length: cells }, (_, i) => (
         <i key={i} style={span(i)} />
+      ))}
+    </span>
+  );
+}
+
+/** A layout of your own in miniature: its rows and tiles at their sizes. */
+export function RowsIcon({ rows }: { rows: RowsLayout }) {
+  return (
+    <span className="layout-icon rows-icon" style={{ gridTemplateRows: rows.rows.map((r) => `${r.h}fr`).join(' '), gridTemplateColumns: '1fr' }}>
+      {rows.rows.map((r, i) => (
+        <span key={i} className="rows-icon-row" style={{ gridTemplateColumns: r.tiles.map((t) => `${t}fr`).join(' ') }}>
+          {r.tiles.map((_, j) => (
+            <i key={j} />
+          ))}
+        </span>
       ))}
     </span>
   );
@@ -184,6 +201,7 @@ function RefreshButton() {
 export function TopBar() {
   useInterval(1000);
   const layout = terminal.use((s) => s.layout);
+  const ownRows = terminal.use((s) => s.rows);
   const unreadAlerts = alerts.use((a) => a.unseen);
   const favOpen = favAlerts.use((s) => s.open.length);
   // Stories of the last 15 minutes, counted again when news arrives and every minute as they age.
@@ -197,8 +215,18 @@ export function TopBar() {
   const [presetAt, setPresetAt] = useState<{ left: number; top: number } | null>(null);
   const presetOpen = presetAt != null;
   const saved = savedLayouts.use((s) => s.list);
+  // The saved layout in use, when it has changed since (resized, other screens): offered for saving.
+  const workspace = terminal.use((s) => s);
+  const changed = useMemo(() => unsavedLayout(workspace, saved), [workspace, saved]);
+  // The menu closes a moment after the button loses focus (so a click on an item lands first); opening it again
+  // cancels a close still pending, which would otherwise shut the menu just reopened.
+  const closing = useRef<ReturnType<typeof setTimeout> | null>(null);
   const setPresetOpen = (open: boolean | ((o: boolean) => boolean)) => {
     const next = typeof open === 'function' ? open(presetOpen) : open;
+    if (next && closing.current) {
+      clearTimeout(closing.current);
+      closing.current = null;
+    }
     if (!next) return setPresetAt(null);
     const r = presetBtn.current?.getBoundingClientRect();
     setPresetAt(r ? { left: r.left, top: r.bottom } : { left: 8, top: 32 });
@@ -217,12 +245,38 @@ export function TopBar() {
           <LayoutIcon cols={l.cols} rows={l.rows} id={l.id} />
         </button>
       ))}
+      {layout === 'rows' ? (
+        <button type="button" className="tb-btn hide-m on" title="Your own layout: LAYOUTS builds, resizes and saves it" aria-label="Your own layout" onClick={() => run('LAYOUTS')}>
+          <RowsIcon rows={rowsOrDefault(ownRows)} />
+        </button>
+      ) : null}
       <span style={{ position: 'relative', display: 'flex' }} className="hide-m">
-        <button ref={presetBtn} type="button" className={`tb-btn${presetOpen ? ' on' : ''}`} onClick={() => setPresetOpen((o) => !o)} onBlur={() => setTimeout(() => setPresetOpen(false), 150)} aria-haspopup="menu" aria-expanded={presetOpen}>
-          LAYOUTS ▾
+        <button ref={presetBtn} type="button" className={`tb-btn${presetOpen ? ' on' : ''}`} title={changed ? `Unsaved changes to "${changed.name}": the menu saves them` : 'Layouts: yours, the presets, and building one'} onClick={() => setPresetOpen((o) => !o)} onBlur={() => {
+            closing.current = setTimeout(() => {
+              closing.current = null;
+              setPresetOpen(false);
+            }, 150);
+          }} aria-haspopup="menu" aria-expanded={presetOpen}>
+          LAYOUTS{changed ? <span className="unsaved-dot" aria-hidden="true" /> : null} ▾
         </button>
         {presetOpen && (
           <div className="ac" style={{ position: 'fixed', left: presetAt!.left, top: presetAt!.top, right: 'auto', minWidth: 260 }} role="menu">
+            {changed ? (
+              <div
+                className="ac-item"
+                role="menuitem"
+                style={{ gridTemplateColumns: '24px 1fr auto' }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  saveLayout(changed.name);
+                  setPresetOpen(false);
+                }}
+              >
+                <span className="fn">✓</span>
+                <span>Save changes to &ldquo;{changed.name}&rdquo;</span>
+                <span className="tag">resized or changed</span>
+              </div>
+            ) : null}
             {saved.length > 0 && <div className="ac-head">Your layouts</div>}
             {saved.map((l) => (
               <div
@@ -232,14 +286,13 @@ export function TopBar() {
                 style={{ gridTemplateColumns: '24px 1fr auto' }}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  applyPreset(l.routes, l.layout, l.linkGroups);
-                  setSplit(l.layout, l.split);
+                  applySaved(l);
                   setPresetOpen(false);
                 }}
               >
                 <span className="fn">·</span>
                 <span>{l.name}</span>
-                <span className="tag">{LAYOUT_PANELS[l.layout]} panels</span>
+                <span className="tag">{panelCount(l)} panels</span>
               </div>
             ))}
             <div className="ac-head">Workspace presets</div>
@@ -257,7 +310,7 @@ export function TopBar() {
               >
                 <span className="fn">{i + 1})</span>
                 <span>{p.name}</span>
-                <span className="tag">{LAYOUT_PANELS[p.layout]} panels</span>
+                <span className="tag">{panelCount(p)} panels</span>
               </div>
             ))}
             <div
@@ -271,7 +324,7 @@ export function TopBar() {
               }}
             >
               <span className="fn">+</span>
-              <span>Save or manage layouts…</span>
+              <span>Build, save or manage layouts…</span>
               <span className="tag">LAYOUTS</span>
             </div>
           </div>
