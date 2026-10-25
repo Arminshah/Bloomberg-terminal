@@ -14,6 +14,8 @@ release
 .env.*
 !.env.example
 
-# Reference documents for audits: copyrighted, never committed.
+# Reference documents, images and video frames for audits: copyrighted, never committed.
 reference/pdfs/
+reference/visual/
+reference/videos/
 scripts/live/primary.json
