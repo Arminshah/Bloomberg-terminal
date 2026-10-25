@@ -6,17 +6,6 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 Accuracy first, then the screens you use every day, then new screens, then the data-source review and the comparison with Codex's video list.
 
-### 5. Your own layouts, from your feedback item 4
-
-You asked: build a clean layout yourself and name it. First choose how the rows look, then the screen in each tile (heat map, headlines, a stock...). After resizing the tiles, save it, so the layout comes back with the same tile sizes and screens every time. It should be easy to use, with saving always offered.
-
-Today: LAYOUTS already saves the panels on screen under a name: the arrangement, each panel's screen, linked groups and divider positions. Saved layouts appear at the top of the LAYOUTS menu. There are 7 fixed arrangements, as in the layout picker.
-
-Plan:
-- A "New layout" helper: pick the rows and tiles (more arrangements than the 7), pick a screen per tile, drag the dividers, name it, save.
-- Save changes to a layout you already have, from the LAYOUTS menu.
-- Test that tile sizes come back exactly as saved.
-
 ### 6. 13F portfolios of companies, from your feedback item 1
 
 You asked: a company's own 13F portfolio, for example NVIDIA's holdings as on HedgeFollow, in the terminal's style, placed in the Equity menu.
@@ -114,6 +103,10 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Item 5, your own layouts (`58df78d`):
+  - LAYOUTS builds one in three steps: how the rows look (up to 4 rows, 4 tiles in a row, 6 in all), a screen per tile, a name.
+  - Each row keeps its own tile widths. Dragging the lines sizes the tiles, and the layout comes back exactly as saved.
+  - After changes, a dot on LAYOUTS ▾ and "Save changes to …" offer to save them.
 - Item 4, window buttons in the tab bar (`3d2d6a0`):
   - The white title bar is gone. Minimise, maximise and close sit at the right end of the dark tab bar, behind a grey line no tab passes, even with 12 tabs or a narrow window.
   - The bar drags the window, and a double click on its empty part maximises it.
