@@ -23,6 +23,7 @@ export type Credential =
   | 'ALPACA_API_SECRET_KEY'
   | 'FMP_API_KEY'
   | 'EQUIBLES_API_KEY'
+  | 'OPENFIGI_API_KEY'
   | 'TIPRANKS_API_KEY'
   | 'ANTHROPIC_API_KEY';
 
@@ -457,12 +458,12 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'sec',
     name: 'SEC EDGAR',
-    serves: 'Company search (ticker to CIK), filing histories with links to the documents, figures reported in XBRL financial statements, the latest 8-K filings for MARKETNEWS, press releases for HEADLINES, and full-text search of filings with the sentences that name a company (SPLC supply chain, DS)',
+    serves: 'Company search (ticker to CIK), filing histories with links to the documents, figures reported in XBRL financial statements, the latest 8-K filings for MARKETNEWS, press releases for HEADLINES, full-text search of filings with the sentences that name a company (SPLC supply chain, DS), and the holdings a company reports on Form 13F (HOLDINGS)',
     dataClass: 'Reference: filed documents and as-filed figures',
     policy: 'needs-credential',
     credential: 'SEC_USER_AGENT',
     limit: '300',
-    terms: 'Free to access and reuse (SEC Webmaster FAQ). Automated clients must declare a User-Agent with a name and contact email and stay under 10 requests a second; the app sends at most 5 a second and keeps answers (filing lists 5 minutes, company facts an hour, the company list a day, the sentences SPLC reads from a filing a month).',
+    terms: 'Free to access and reuse (SEC Webmaster FAQ). Automated clients must declare a User-Agent with a name and contact email and stay under 10 requests a second; the app sends at most 5 a second and keeps answers (filing lists 5 minutes, company facts an hour, the company list a day, the sentences SPLC reads from a filing a month, 13F holdings for the session).',
     docs: [
       { label: 'Accessing EDGAR data', url: 'https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data' },
       { label: 'EDGAR APIs', url: 'https://www.sec.gov/search-filings/edgar-application-programming-interfaces' },
@@ -644,6 +645,19 @@ export const PROVIDERS: ProviderDef[] = [
       { label: 'Service terms', url: 'https://equibles.com/legal/terms' },
     ],
     checked: '2026-10-18', desktop: true,
+  },
+  {
+    id: 'openfigi',
+    name: 'OpenFIGI',
+    serves: 'The US ticker of each holding a 13F lists, from its CUSIP or CINS (HOLDINGS)',
+    dataClass: 'Reference: open security identifiers (FIGI) and the tickers they map to',
+    policy: 'enabled', credential: 'OPENFIGI_API_KEY', setting: 'OPENFIGI_ENABLED', limit: '200/min with a key, 20/min without',
+    terms: 'Free and open: the FIGI terms of service allow any use of the identifiers, commercial or not, with no attribution required; the names FIGI and OpenFIGI may be used only to refer to them. Without a key 25 requests a minute of 10 codes each; with one 250 a minute of 100. The app sends only the CUSIPs of the 13F on screen (its 300 largest holdings) and keeps each answer a week on disk, a code without a US listing a day.',
+    docs: [
+      { label: 'API documentation', url: 'https://www.openfigi.com/api/documentation' },
+      { label: 'Terms of service', url: 'https://www.openfigi.com/docs/terms-of-service' },
+    ],
+    checked: '2026-10-25', desktop: true,
   },
   {
     id: 'finnhub',
@@ -863,7 +877,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED' | 'GOOGLE_NEWS_RSS_ENABLED' | 'MASSIVE_NEWS_ENABLED' | 'CLAUDE_HELPDESK_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'OPENFIGI_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED' | 'GOOGLE_NEWS_RSS_ENABLED' | 'MASSIVE_NEWS_ENABLED' | 'CLAUDE_HELPDESK_ENABLED';
 
 export interface SettingState {
   label: string;

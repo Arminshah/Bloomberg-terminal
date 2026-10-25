@@ -26,7 +26,7 @@ const EQUITY: Group[] = [
   // The terminal's own grouping when a stock is loaded: overview, analysis, research, comparison, charts,
   // surveillance, trading data and derivatives.
   { title: 'Company Overview', entries: ['PROFILE', 'COMPANYNEWS', 'MANAGEMENT'] },
-  { title: 'Company Analysis', entries: ['FINANCIALS', 'HOLDERS', 'DIVIDENDS', 'CORPACTIONS', 'BUYBACKS', 'WACC'] },
+  { title: 'Company Analysis', entries: ['FINANCIALS', 'HOLDERS', 'HOLDINGS', 'DIVIDENDS', 'CORPACTIONS', 'BUYBACKS', 'WACC'] },
   { title: 'Research & Estimates', entries: ['ESTIMATES', 'EARNINGS', 'ANALYSTS', 'FILINGS', 'DOCSEARCH'] },
   { title: 'Comparative Analytics', entries: ['PEERS', 'SUPPLYCHAIN'] },
   { title: 'Charting & Reporting', entries: ['CHART', 'FUNDCHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'SPREAD', 'BETA', 'VOLATILITY'] },

@@ -37,6 +37,8 @@ declare global {
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
       secPay?(path: string): Promise<{ status: number; executives: { name: string; title: string; years: { year: number; salary: number; total: number }[] }[]; at?: number; cached?: boolean; error?: string; missing?: string; refused?: string }>;
       secText?(kind: 'mentions' | 'own', path: string, names?: string[]): Promise<{ status: number; sentences: string[]; at?: number; cached?: boolean; error?: string; missing?: string; refused?: string }>;
+      sec13f?(cik: number, accession: string, part: 'cover' | 'holdings'): Promise<import('./thirteenf').Answer13F>;
+      openfigi?(codes: string[]): Promise<import('./thirteenf').FigiAnswer>;
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<KeyedAnswer>;

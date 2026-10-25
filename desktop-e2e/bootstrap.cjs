@@ -47,9 +47,40 @@ net.fetch = async (input, init) => {
     // With fixtures.insiders, two Form 4 filings of the last weeks (electron/sec.cjs ownership-xml).
     const recent = (days) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
     const four = fixtures.insiders ? { accessionNumber: ['0001513845-26-000011', '0001513845-26-000010'], form: ['4', '4'], filingDate: [recent(3), recent(20)], reportDate: [recent(5), recent(22)], primaryDocument: ['xslF345X05/form4-sale.xml', 'xslF345X05/form4-award.xml'] } : { accessionNumber: [], form: [], filingDate: [], reportDate: [], primaryDocument: [] };
+    // With fixtures.thirteenF, two 13F-HR filings: NVIDIA's for the first two quarters of 2026, as filed (tests/fixtures/13f).
+    if (fixtures.thirteenF) {
+      four.accessionNumber.push('0001513845-26-000065', '0001513845-26-000042');
+      four.form.push('13F-HR', '13F-HR');
+      four.filingDate.push('2026-08-14', '2026-05-15');
+      four.reportDate.push('2026-06-30', '2026-03-31');
+      four.primaryDocument.push('xslForm13F_X02/primary_doc.xml', 'xslForm13F_X02/primary_doc.xml');
+    }
     return json({ cik: 1513845, name: 'Synthetic currency-switch fixture', tickers: ['NBIS'], exchanges: ['Nasdaq'], fiscalYearEnd: '1231', filings: { recent: {
       accessionNumber: [...four.accessionNumber, '0001513845-26-000002', '0001513845-26-000001'], form: [...four.form, '6-K', '20-F'], filingDate: [...four.filingDate, '2026-10-01', '2026-04-30'], reportDate: [...four.reportDate, '2026-10-01', '2025-12-31'], primaryDocument: [...four.primaryDocument, 'synthetic-current.htm', 'synthetic-annual.htm'],
     }, files: [] } });
+  }
+  if (fixtures.thirteenF && url.hostname === 'www.sec.gov') {
+    const m = /^\/Archives\/edgar\/data\/1513845\/0001513845260000(65|42)\/(primary_doc\.xml|index\.json|information_table\.xml)$/.exec(url.pathname);
+    if (m) {
+      fixtures.calls.sec13f = [...(fixtures.calls.sec13f ?? []), url.pathname];
+      const quarter = m[1] === '65' ? 'nvda-2026q2' : 'nvda-2026q1';
+      if (m[2] === 'index.json') return json({ directory: { item: [{ name: `0001513845-26-0000${m[1]}-index.html` }, { name: 'information_table.xml' }, { name: 'primary_doc.xml' }] } });
+      const file = path.join(__dirname, '../tests/fixtures/13f', `${quarter}-${m[2] === 'primary_doc.xml' ? 'primary' : 'infotable'}.xml`);
+      return new Response(fs.readFileSync(file, 'utf8'), { status: 200, headers: { 'Content-Type': 'text/xml' } });
+    }
+  }
+  // OpenFIGI's tickers for the CUSIPs in those filings, as OpenFIGI answered them on 25 October 2026.
+  if (fixtures.thirteenF && url.hostname === 'api.openfigi.com' && url.pathname === '/v3/mapping') {
+    const jobs = JSON.parse(String(init?.body ?? '[]'));
+    const keyed = new Headers(init?.headers).has('X-OPENFIGI-APIKEY');
+    fixtures.calls.openfigi = [...(fixtures.calls.openfigi ?? []), { jobs, keyed }];
+    const tickers = { '19247G107': 'COHR', '21873S108': 'CRWV', '370920100': 'GENB', '458140100': 'INTC', N97284108: 'NBIS', '654902204': 'NOK', '84615Q103': 'SPCX', '871607107': 'SNPS' };
+    return json(jobs.map((j) => {
+      const ticker = tickers[j.idValue];
+      // A foreign issue's code answers only when asked for as a CINS.
+      if (!ticker || (/^[A-Z]/.test(j.idValue) && j.idType !== 'ID_CINS')) return { warning: 'No identifier found.' };
+      return { data: [{ figi: 'BBG000000000', name: ticker, ticker, exchCode: 'US', compositeFIGI: 'BBG000000000', securityType: 'Common Stock', marketSector: 'Equity', securityType2: 'Common Stock' }] };
+    }));
   }
   if (fixtures.insiders && url.hostname === 'www.sec.gov' && /^\/Archives\/edgar\/data\/1513845\/\d{18}\/form4-(sale|award)\.xml$/.test(url.pathname)) {
     const day = (days) => new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);

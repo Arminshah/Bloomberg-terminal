@@ -30,8 +30,9 @@ interface Fixtures {
   marketCalendar?: boolean;
   weekCalendar?: boolean;
   insiders?: boolean;
+  thirteenF?: boolean;
   supplyChain?: boolean;
-  calls: { fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -265,6 +266,61 @@ test("MANAGEMENT totals each insider's Form 4 purchases, sales and awards, and l
   await expect(sale.getByRole('link', { name: 'Form 4 ›' })).toHaveAttribute('href', /^https:\/\/www\.sec\.gov\/Archives\/edgar\/data\/1513845\/000151384526000011\/xslF345X05\/form4-sale\.xml$/);
   await expect(section.locator('tbody tr', { hasText: 'Grant or award' })).toContainText('+12,000');
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-management-insiders-fixture.png') });
+});
+
+test("HOLDINGS lists a company's own 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.thirteenF = true;
+    // NBIS is looked up on Yahoo (the fixture's search answers it); its filings are NVIDIA's 13Fs, as filed.
+    fixtures.dataAccuracy = true;
+    process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid';
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'NBIS', 'MENU');
+  // The stock's menu lists it under Company Analysis, beside HOLDERS.
+  const panel = page.locator('.panel').first();
+  await panel.locator('.sect', { hasText: 'Company Analysis' }).locator('tr', { hasText: '13F Holdings' }).click();
+  await expect(panel.locator('.fnh-code').first()).toHaveText('HOLDINGS');
+  await expect(panel.locator('.kv').first()).toContainText('NVIDIA CORP', { timeout: 30_000 });
+  await expect(panel.locator('.kv').first()).toContainText('30/06/26');
+  await expect(panel.locator('.kv').first()).toContainText('63.44B USD');
+  await expect(panel.locator('.kv').nth(1)).toContainText('18.37B USD');
+  await expect(panel.locator('.kv').nth(1)).toContainText('1 · 0 · 0');
+  await expect(panel.locator('.kv').nth(1)).toContainText('7 · 0');
+  const intel = panel.locator('tbody tr', { hasText: 'INTEL CORP' });
+  await expect(intel).toContainText('INTC US');
+  await expect(intel).toContainText('214,776,632');
+  await expect(intel).toContainText('29.99B');
+  await expect(intel).toContainText('47.27');
+  await expect(intel).toContainText('UNCHANGED');
+  // The fixture's price for every stock is 123.45: the quarter's end at 139.63 (value / shares), -11.6% since.
+  await expect(intel).toContainText('139.63');
+  await expect(intel).toContainText('123.45');
+  await expect(intel).toContainText('-11.6%');
+  await expect(intel).toContainText('26.51B');
+  await expect(panel.locator('tbody tr', { hasText: 'SPACE EXPLORATION' })).toContainText('NEW');
+  await expect(panel.locator('tbody tr', { hasText: 'SPACE EXPLORATION' })).toContainText('SPCX US');
+  // Nebius's code is a CINS (it starts with a letter): asked for as one, it has a ticker.
+  await expect(panel.locator('tbody tr', { hasText: 'NEBIUS GROUP' })).toContainText('NBIS US');
+  const figi = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.openfigi ?? []);
+  expect(figi).toHaveLength(1);
+  expect(figi[0].keyed).toBe(false);
+  expect(figi[0].jobs).toHaveLength(8);
+  expect(figi[0].jobs).toContainEqual({ idType: 'ID_CINS', idValue: 'N97284108', exchCode: 'US' });
+  expect(figi[0].jobs).toContainEqual({ idType: 'ID_CUSIP', idValue: '458140100', exchCode: 'US' });
+  await panel.getByRole('button', { name: /^2\)\s*Map$/ }).click();
+  await expect(panel.getByRole('img', { name: 'Heat map' })).toContainText('INTC');
+  await panel.getByRole('button', { name: /^3\)\s*Sold Out$/ }).click();
+  await expect(panel).toContainText('Nothing held on 31/03/26 was sold out by 30/06/26.');
+  await panel.getByLabel('Quarter', { exact: true }).selectOption('2026-03-31');
+  await expect(panel.locator('.kv').first()).toContainText('18.37B USD');
+  await expect(panel.locator('.kv').nth(1)).toContainText('no 13F for Q4 2025');
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-holdings-13f-fixture.png') });
+  // Each filing is read once: the second quarter's cover, list and table, then the first quarter's.
+  const sec = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.sec13f ?? []);
+  expect(sec.filter((p) => p.endsWith('/information_table.xml'))).toHaveLength(2);
 });
 
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {

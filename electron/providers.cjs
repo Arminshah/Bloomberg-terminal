@@ -30,6 +30,8 @@ const CREDENTIALS = {
   // Financial Modeling Prep: analyst price targets, ratings and estimates.
   FMP_API_KEY: { label: 'Financial Modeling Prep API key', valid: (v) => /^[A-Za-z0-9]{20,64}$/.test(v) },
   EQUIBLES_API_KEY: { label: 'Equibles API key', valid: (v) => /^eq_[A-Za-z0-9]{24,128}$/.test(v) },
+  // OpenFIGI: the ticker of each 13F holding from its CUSIP. It answers without a key; a key raises its limits.
+  OPENFIGI_API_KEY: { label: 'OpenFIGI API key', valid: (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) },
   // TipRanks: analyst consensus, price targets and rating actions on ANALYSTS, on request (electron/tipranks.cjs).
   TIPRANKS_API_KEY: { label: 'TipRanks API key', valid: (v) => /^tr_(live|test)_[A-Za-z0-9]{16,80}$/.test(v) && !/^tr_(live|test)_x+$/i.test(v) },
   // Anthropic: Claude answers the help desk's questions (MESSAGES) with the app's data as tools.
@@ -166,6 +168,8 @@ const SETTINGS = {
   // The keyed sources added in 2.1.0, each on while its key is set; off stops every request to it.
   FMP_ENABLED: { label: 'Financial Modeling Prep analyst research', default: true },
   EQUIBLES_ENABLED: { label: 'Equibles company research (read only)', default: true },
+  // OpenFIGI is asked only for the CUSIPs a 13F lists, public identifiers; off leaves 13F holdings without tickers.
+  OPENFIGI_ENABLED: { label: 'OpenFIGI tickers for the CUSIPs of 13F holdings', default: true },
   TIPRANKS_ENABLED: { label: 'TipRanks analyst consensus, targets and rating actions (on request)', default: true },
   CLAUDE_HELPDESK_ENABLED: { label: 'Claude answers help desk questions (sends them to Anthropic)', default: true },
   FINNHUB_ENABLED: { label: 'Finnhub company data, recommendations and news', default: true },
@@ -259,6 +263,7 @@ const ALIASES = [
   [/financial[\s_-]*modeling[\s_-]*prep|\bfmp\b|fmp_api_key/i, 'FMP_API_KEY'],
   [/tipranks/i, 'TIPRANKS_API_KEY'],
   [/equibles/i, 'EQUIBLES_API_KEY'],
+  [/open[\s_-]*figi/i, 'OPENFIGI_API_KEY'],
   [/anthropic|claude/i, 'ANTHROPIC_API_KEY'],
 ];
 

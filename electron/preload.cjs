@@ -3,7 +3,8 @@
 // rules: Yahoo Finance paths on an allowlist, the US Treasury's daily yield
 // curve by year, official rates, calendars and bond yields from central banks
 // and finance ministries (fixed sources named by key), FRED release dates
-// and series from a fixed list, SEC EDGAR files by kind and CIK, Kraken
+// and series from a fixed list, SEC EDGAR files by kind and CIK (and 13F
+// holdings read from a filing), tickers for CUSIPs from OpenFIGI, Kraken
 // tickers, candles and order books for a fixed list of crypto pairs, analyst
 // research from Financial Modeling Prep, news from fixed sources and Alpaca's
 // IEX quotes, each for a validated ticker.
@@ -18,6 +19,8 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   sec: (kind, arg) => ipcRenderer.invoke('sec', String(kind), String(arg ?? '')),
   secPay: (path) => ipcRenderer.invoke('sec-pay', String(path)),
   secText: (kind, path, names) => ipcRenderer.invoke('sec-text', String(kind), String(path), Array.isArray(names) ? names.map(String) : []),
+  sec13f: (cik, accession, part) => ipcRenderer.invoke('sec-13f', String(cik), String(accession), String(part)),
+  openfigi: (codes) => ipcRenderer.invoke('openfigi', Array.isArray(codes) ? codes.map(String) : []),
   kraken: (kind, arg, n) => ipcRenderer.invoke('kraken', String(kind), String(arg ?? ''), Number(n ?? 0)),
   coingecko: () => ipcRenderer.invoke('coingecko'),
   eod: (provider, ticker, from, to) => ipcRenderer.invoke('eod', String(provider), String(ticker), String(from), String(to)),

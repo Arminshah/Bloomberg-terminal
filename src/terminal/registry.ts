@@ -59,6 +59,7 @@ import { CACS } from '../functions/CACS';
 import { SI } from '../functions/SI';
 import { SPLC } from '../functions/SPLC';
 import { BBK } from '../functions/BBK';
+import { HOLDINGS13F } from '../functions/HOLDINGS13F';
 import { MCAP } from '../functions/MCAP';
 import { IPO } from '../functions/IPO';
 import { DS } from '../functions/DS';
@@ -85,6 +86,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'RISKPREMIUM', name: 'Equity Risk Premium', category: 'Equity', needsSec: true, classes: EQ, desc: "The market's expected return, the risk-free 10-year yield and the country risk premium between them, and the stock's equity risk premium through its beta, with their history; each input can be changed.", component: EQRP, example: 'RISKPREMIUM AAPL' },
   { code: 'DIVIDENDS', name: 'Dividend History', category: 'Equity', needsSec: true, classes: EQ, desc: 'Cash dividends over ten years by ex-date, with amounts, frequency, 12-month yield and the next expected ex-date.', component: DVD, aliases: ['DIVS'] },
   { code: 'HOLDERS', name: 'Holders', category: 'Equity', needsSec: true, classes: EQ, desc: 'Largest institutional and fund holders with position, percent outstanding and change, and the ownership breakdown.', component: HDS, aliases: ['OWNERSHIP'] },
+  { code: 'HOLDINGS', name: '13F Holdings', category: 'Equity', needsSec: true, classes: EQ, desc: "What a company itself owns, from its Form 13F filings on SEC EDGAR: the US-listed stocks, options and convertible bonds it held at a quarter's end, each with its value as filed, share of the portfolio and change in shares since the quarter before (new, added, reduced, sold out), beside today's price and value; a map sized by value, and the portfolio's value by quarter. Tickers from OpenFIGI (desktop app, SEC_USER_AGENT).", component: HOLDINGS13F, aliases: ['13F', 'PORTFOLIO13F'], example: 'HOLDINGS NVDA' },
   { code: 'MANAGEMENT', name: 'Management', category: 'Equity', needsSec: true, classes: EQ, desc: "The company's officers from Yahoo Finance's company profile (name, title, age, pay, options exercised and unexercised), each insider's Form 4 purchases, sales, awards, exercises and holdings of the last 12 months from SEC EDGAR, and the proxy statement's total compensation (desktop app).", component: MGMT, aliases: ['OFFICERS'], example: 'MANAGEMENT AAPL' },
   { code: 'PEERS', name: 'Relative Valuation', category: 'Equity', needsSec: true, classes: EQ, desc: 'Peer comparison of valuation multiples, profitability and returns with peer medians.', component: RV, aliases: ['COMPS'] },
   { code: 'EVENTS', name: 'Corporate Events', category: 'Equity', classes: EQ, desc: "Calendar of earnings releases and ex-dividend dates, for one company, your active watchlist, your portfolio or every built-in stock; in the desktop app, a week's most relevant releases (the most traded companies by day, before the open and after the close), and every US-listed company reporting above a market value, with EPS and revenue expected and reported, the surprise, growth and an earnings card.", component: EVTS, aliases: ['CORPCAL'] },

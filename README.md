@@ -57,6 +57,7 @@ Prices, charts, yields, central bank rates, official statistics, official announ
 | `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TIINGO_API_KEY`, `TWELVE_DATA_API_KEY` | Second sources for US stock closes (`CROSSCHECK`); Massive also adds market and ticker news |
 | `FMP_API_KEY` | Analyst price targets, ratings and estimates (`ANALYSTS`, `EARNINGS`) |
 | `EQUIBLES_API_KEY` | Estimate report fallback, plus on-request guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news on `ANALYSTS` |
+| `OPENFIGI_API_KEY` | Optional: faster ticker lookups for a company's 13F holdings (`HOLDINGS`); they work without it |
 | `FINNHUB_API_KEY`, `MARKETAUX_API_TOKEN` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) |
 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option contracts on `OPTIONS`, and Benzinga's news on the news screens; read-only market data, subject to account entitlement |
 

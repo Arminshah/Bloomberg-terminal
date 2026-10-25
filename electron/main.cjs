@@ -553,6 +553,160 @@ ipcMain.handle('sec-text', async (event, kind, docPath, names) => {
   return { status: res.status, sentences, at };
 });
 
+// Form 13F (electron/thirteenf.cjs): a filing's cover page alone ('cover', for the value of each quarter), or with
+// its information table ('holdings'), added up per security. A table can be tens of megabytes (a bank's), so it is
+// read here and only the holdings go to the page. A filing never changes; one is read once a session.
+const thirteenF = require('./thirteenf.cjs');
+const thirteenKept = new Map();
+
+/** One file from sec.gov's archive, for a handler that reads it here: its text, or why there is none. */
+async function secArchiveFile(url, ua, accept) {
+  await providers.slot('sec', sec.PER_SECOND, 1000);
+  let res;
+  try {
+    res = await tracked('sec', url, { headers: { 'User-Agent': ua, Accept: accept }, cache: 'no-cache', signal: AbortSignal.timeout(3 * TIMEOUT_MS) });
+  } catch (err) {
+    return { status: 0, error: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) };
+  }
+  if (!res.ok) {
+    if (res.status === 403 || res.status === 429) providers.recordProblem('sec', providers.errorKind(res.status), sec.refusalReason(res.status));
+    return { status: res.status };
+  }
+  return { status: res.status, text: await res.text() };
+}
+
+ipcMain.handle('sec-13f', async (event, cik, accession, part) => {
+  const folder = thirteenF.folderPath(cik, accession);
+  if (!fromApp(event) || !folder || (part !== 'cover' && part !== 'holdings')) throw new Error('not allowed');
+  const ua = providers.credential('SEC_USER_AGENT').value;
+  if (!ua) return { status: 0, missing: 'SEC_USER_AGENT' };
+  if (!providers.CREDENTIALS.SEC_USER_AGENT.valid(ua)) return { status: 0, refused: 'The configured SEC User-Agent does not give an application name and a contact email, so nothing was sent.' };
+  const kept = thirteenKept.get(`${folder}:${part}`) ?? (part === 'cover' ? thirteenKept.get(`${folder}:holdings`) : undefined);
+  if (kept) return { status: 200, ...kept, cached: true };
+  const base = `https://www.sec.gov/Archives/edgar/data/${folder}`;
+  // Every 13F filed in XML (from the second quarter of 2013) has its cover as primary_doc.xml.
+  const coverFile = await secArchiveFile(`${base}/primary_doc.xml`, ua, 'application/xml');
+  if (coverFile.text == null) return { status: coverFile.status, ...(coverFile.error ? { error: coverFile.error } : {}) };
+  const cover = thirteenF.parseCover(coverFile.text);
+  if (!cover) return { status: 200, unreadable: 'cover' };
+  let out = { cover, at: Date.now() };
+  if (part === 'holdings' && !/NOTICE/i.test(cover.reportType)) {
+    const index = await secArchiveFile(`${base}/index.json`, ua, 'application/json');
+    if (index.text == null) return { status: index.status, ...(index.error ? { error: index.error } : {}) };
+    let names = [];
+    try {
+      const items = JSON.parse(index.text)?.directory?.item;
+      names = Array.isArray(items) ? items.map((x) => String(x?.name ?? '')) : [];
+    } catch {
+      /* no list: no table */
+    }
+    let table = null;
+    let file = '';
+    for (const name of thirteenF.tableCandidates(names).slice(0, 3)) {
+      const got = await secArchiveFile(`${base}/${name}`, ua, 'application/xml');
+      if (got.text == null) return { status: got.status, ...(got.error ? { error: got.error } : {}) };
+      table = thirteenF.parseInfoTable(got.text);
+      if (table) {
+        file = name;
+        break;
+      }
+    }
+    if (!table) return { status: 200, cover, unreadable: 'table' };
+    out = { cover, ...table, file, at: out.at };
+  }
+  thirteenKept.set(`${folder}:${part}`, out);
+  // About forty filings; a bank's holdings can be tens of thousands of lines, so fewer of those.
+  const size = () => [...thirteenKept.values()].reduce((a, v) => a + 1 + (v.holdings?.length ?? 0), 0);
+  while (thirteenKept.size > 1 && (thirteenKept.size > 40 || size() > 150_000)) thirteenKept.delete(thirteenKept.keys().next().value);
+  return { status: 200, ...out };
+});
+
+// OpenFIGI (electron/openfigi.cjs): the US ticker for each CUSIP the page asks about, kept a week on disk. It answers
+// without a key at lower limits; the owner's key, when set, raises them.
+const openfigi = require('./openfigi.cjs');
+const figiStore = new openfigi.FigiStore();
+const FIGI_FILE = () => path.join(app.getPath('userData'), 'openfigi-cusips.json');
+let figiLoaded = false;
+let figiSave = null;
+
+function figiFromDisk() {
+  if (figiLoaded) return;
+  figiLoaded = true;
+  try {
+    figiStore.load(JSON.parse(fs.readFileSync(FIGI_FILE(), 'utf8')));
+  } catch {
+    /* nothing saved yet */
+  }
+}
+
+function figiToDisk() {
+  if (figiSave) return;
+  figiSave = setTimeout(() => {
+    figiSave = null;
+    try {
+      fs.writeFileSync(FIGI_FILE(), JSON.stringify(figiStore));
+    } catch {
+      /* kept in memory only */
+    }
+  }, 5000);
+}
+
+ipcMain.handle('openfigi', async (event, codes) => {
+  const asked = openfigi.cleanCodes(codes);
+  if (!fromApp(event) || !asked) throw new Error('not allowed');
+  if (!providers.setting('OPENFIGI_ENABLED').value) return { status: 0, results: {}, gated: 'OPENFIGI_ENABLED' };
+  figiFromDisk();
+  const results = {};
+  const due = [];
+  for (const c of asked) {
+    const e = figiStore.get(c);
+    if (e) results[c] = e.value;
+    else due.push(c);
+  }
+  if (!due.length) return { status: 200, results, cached: true };
+  const key = providers.credential('OPENFIGI_API_KEY').value;
+  const keyed = !!key && providers.CREDENTIALS.OPENFIGI_API_KEY.valid(key);
+  if (key && !keyed) providers.recordProblem('openfigi', 'not-entitled', 'The configured OPENFIGI_API_KEY has the wrong format, so it was not sent; the app asks without a key, at the lower limits.');
+  const limit = keyed ? openfigi.LIMITS.keyed : openfigi.LIMITS.open;
+  let status = 200;
+  let error;
+  for (let i = 0; i < due.length; i += limit.jobs) {
+    const batch = due.slice(i, i + limit.jobs);
+    await providers.slot('openfigi', limit.perMinute, 60_000);
+    let res;
+    try {
+      res = await tracked('openfigi', openfigi.MAPPING_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(keyed ? { 'X-OPENFIGI-APIKEY': key } : {}) },
+        body: JSON.stringify(openfigi.mappingJobs(batch)),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch (err) {
+      status = 0;
+      error = String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160);
+      break;
+    }
+    if (!res.ok) {
+      status = res.status;
+      if (res.status === 429) providers.recordProblem('openfigi', 'rate-limited', 'HTTP 429: OpenFIGI asked the app to slow down.');
+      else if (res.status === 401 || res.status === 403) providers.recordProblem('openfigi', 'not-entitled', `HTTP ${res.status}: OpenFIGI refused the API key.`);
+      break;
+    }
+    const parsed = openfigi.parseMapping(await res.text(), batch);
+    if (!parsed) {
+      error = 'OpenFIGI answered in a format the app does not recognise.';
+      break;
+    }
+    const at = Date.now();
+    for (const c of batch) {
+      results[c] = parsed[c];
+      figiStore.set(c, parsed[c], at);
+    }
+  }
+  figiToDisk();
+  return { status, results, keyed, ...(error ? { error } : {}) };
+});
+
 // ----------------------------------------------------------------- Kraken
 // Exchange-native crypto prices, candles and order books (electron/kraken.cjs).
 // The page names a kind and a pair from a fixed list; the URL is built here.
