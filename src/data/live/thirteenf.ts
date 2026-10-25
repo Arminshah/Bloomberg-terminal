@@ -4,10 +4,12 @@ import type { SecurityDef } from '../types';
 import { filingLinks, loadFiler, resolveFiler, secAvailable, secTicker, SEC_DESKTOP_ONLY, SEC_NEEDS_AGENT, type Filing, type SecResult } from './sec';
 
 /**
- * What a company itself owns, from its Form 13F filings on SEC EDGAR (desktop app, with the owner's SEC User-Agent):
- * the US-listed stocks, options and convertible bonds it held at the end of each quarter, as the manager filed them.
- * A 13F is filed by an institutional investment manager with discretion over $100 million or more of Section 13(f)
- * securities, within 45 days of each quarter's end. The tickers come from OpenFIGI (by CUSIP), today's prices from the
+ * What a company reports on Form 13F, from its filings on SEC EDGAR (desktop app, with the owner's SEC User-Agent):
+ * the US-listed stocks, options and convertible bonds over which it had investment discretion at the end of each
+ * quarter, as the manager filed them. A 13F is filed by an institutional investment manager with discretion over $100
+ * million or more of Section 13(f) securities, within 45 days of each quarter's end. A company that manages its own
+ * portfolio reports what it owns; a bank, broker or adviser also reports the accounts of others it manages (SEC Form
+ * 13F FAQ, questions 3 and 6, last reviewed 28 September 2026). The tickers come from OpenFIGI (by CUSIP), today's prices from the
  * app's usual sources; nothing is estimated.
  */
 

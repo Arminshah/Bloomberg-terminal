@@ -315,9 +315,11 @@ export function HOLDINGS13F({ sec }: FnProps) {
                 <div className="empty">There is no 13F for the quarter before {fmtIso(cur.period)} to compare with.</div>
               ))}
             <p className="pad-s muted">
-              From {rep.company}&apos;s Form 13F filings on SEC EDGAR, as filed: the US-listed stocks, options and convertible bonds (Section 13(f) securities) it
-              held at the quarter&apos;s end, filed within 45 days. A 13F leaves out cash, short positions, options written, shares listed only outside the US and
-              private holdings. Amendments are applied in the order filed: a restatement replaces the report, new holdings are added to it. Changes compare shares
+              From {rep.company}&apos;s Form 13F filings on SEC EDGAR, as filed: the US-listed stocks, options and convertible bonds (Section 13(f) securities) over
+              which it had investment discretion at the quarter&apos;s end, filed within 45 days. For a company that manages its own investments that is what it
+              owns; a bank, broker or asset manager also reports the accounts of others it manages, so its list is not its own holdings. A 13F leaves out cash,
+              short positions, options written, shares listed only outside the US and private holdings, and may leave out a position of fewer than 10,000 shares
+              worth less than $200,000. Amendments are applied in the order filed: a restatement replaces the report, new holdings are added to it. Changes compare shares
               with the quarter before; a stock split between the two shows as a change. Tickers are OpenFIGI&apos;s for each CUSIP; today&apos;s prices are the
               app&apos;s quotes, or Yahoo Finance&apos;s, in US dollars. The quarter-end price is the filed value divided by the shares. The quarters offered are
               those among the filings the SEC lists first for the company, filed since {fmtIso(rep.listedSince)}.

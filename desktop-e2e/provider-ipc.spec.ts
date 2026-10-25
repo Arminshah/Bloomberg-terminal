@@ -270,7 +270,7 @@ test("MANAGEMENT totals each insider's Form 4 purchases, sales and awards, and l
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-management-insiders-fixture.png') });
 });
 
-test("HOLDINGS lists a company's own 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
+test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
     fixtures.thirteenF = true;
@@ -323,6 +323,10 @@ test("HOLDINGS lists a company's own 13F holdings with the change since the quar
   // Each filing is read once: the second quarter's cover, list and table, then the first quarter's.
   const sec = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.sec13f ?? []);
   expect(sec.filter((p) => p.endsWith('/information_table.xml'))).toHaveLength(2);
+  // A 13F lists what the manager has investment discretion over: a bank's or adviser's includes its clients' accounts.
+  await expect(panel).toContainText('over which it had investment discretion');
+  await expect(panel).toContainText('so its list is not its own holdings');
+  await expect(panel).toContainText('fewer than 10,000 shares worth less than $200,000');
 });
 
 test("CONGRESS ranks representatives by their annual reports' assets, lists both chambers' trades and the stocks bought and owned most", async ({ desktop: { app, page } }) => {

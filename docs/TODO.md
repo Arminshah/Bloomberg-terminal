@@ -104,7 +104,7 @@ Plan:
   - The screen shows the law's notice once (no commercial use, 5 U.S.C. § 13107(c)) before reading anything.
   - Limits: amounts are ranges by law. House reports filed on paper (about 1 in 10) are scans, linked only. Annual totals are assets, not net worth (debts are not subtracted).
 - Item 6, 13F portfolios of companies (`fa93936`, chart fix `5b47a39`):
-  - HOLDINGS (also `13F`) sits beside HOLDERS under Company Analysis in a stock's menu. It shows what the company itself owns from its 13F filings on the SEC: each holding's shares, value at the quarter's end, share of the portfolio and the change since the quarter before (new, added, reduced, unchanged, sold out).
+  - HOLDINGS (also `13F`) sits beside HOLDERS under Company Analysis in a stock's menu. It shows what a company reports on its 13F filings on the SEC (its own investments; for a bank or asset manager also its clients' accounts, so not its own holdings): each holding's shares, value at the quarter's end, share of the portfolio and the change since the quarter before (new, added, reduced, unchanged, sold out).
   - Beside the filing it shows today's price and value and the change since the quarter's end, with each figure labelled filing or today. Tabs give a map sized by value and the holdings sold out, and there is a chart of the portfolio's value by quarter, any earlier quarter and a CSV export.
   - Tickers come from OpenFIGI with your key.
   - Checked live: NVIDIA, Berkshire, JPMorgan and Apple on screen. The line totals match the filing's own total for nine companies, and NVIDIA's quarter-end prices match the 30 June closes to the cent.
