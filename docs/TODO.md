@@ -4,7 +4,7 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-Accuracy first, then the screens you use every day, then new screens, then the data-source review.
+Accuracy first, then the screens you use every day, then new screens, then the data-source review and the comparison with Codex's video list.
 
 ### 1. Check one possible wrong number from Codex's review
 
@@ -113,6 +113,31 @@ Plan:
   - Dated ECB exchange rates for portfolio conversions. The ECB is already a source in the app.
 - Write up what I agree and disagree with, and why.
 
+### 9. Compare the app with Codex's list of Bloomberg videos
+
+You asked: whether Codex's research list of Bloomberg videos (official tutorials, feature demos, university recordings and webinars) is useful, and if so to add it.
+
+What it adds: the list names 41 function codes.
+- 15 already have a screen in the app: WEI, IMAP, EQS, RV, FA, EE, ANR, TOP, CN, PORT, YAS, SRCH, OMON, OVME and IB.
+- 6 were already sorted by the 2.23.0 audit. WATC, HRA and OVDV can be built from free data (they are in "Later"). BI, OMST and BLP need the provider's own content or platform.
+- The other 20 are new to the gap list: MREP, DSX, CHRT, ALTD, AID, BTM, BTST, CRAN, MM, CMGR, WSL, ASKB, FIW, CFND, SHOK, OVI, OPX, OSCH, BQL and BQNT.
+
+Limits:
+- I can read a video page's title and description, but I cannot watch the video. Codex says the same.
+- The links in your message did not come through, and Codex's research pack file was not attached.
+- Several of the new codes need paid or proprietary data (alternative data, options trade flow, the provider's own research), or are platform features (BQuant, worksheets, compliance rules). They cannot be built without inventing data, which the rules forbid.
+
+Plan:
+- Add the 20 new codes to `docs/audit-v2.23.0-coverage.md`. Each gets a class, based on the evidence used: buildable from free data, needs paid or proprietary data, or not applicable. Buildable ones join "Later".
+- Compare the screens you use most with the provider's own documentation, using Codex's checklist. Those screens are the screener, world indices, market map, relative valuation, financials, earnings, analysts, portfolio, bond calculator and options. The checklist covers:
+  - how the screen opens
+  - its inputs and logic
+  - its layout and outputs
+  - its links to other screens
+  - whether the numbers check out
+- Each screen is marked fully working, partial, broken or missing.
+- A workflow counts as checked only when I actually saw it, on a document page or in your screenshot, never from a title alone.
+
 ## Waiting on you
 
 - The browser practice mode (demo): keep it for testing, or delete it?
@@ -120,6 +145,10 @@ Plan:
 - API keys: they have been pasted into chats and into the feedback document, so change them at each provider. Please don't paste keys into chats or documents again. Add them in the cloud environment's settings instead: the environment menu in the session's title bar, then Edit, then Network secrets (called API credentials in older versions of the app), or as environment variables. `.env.example` lists the names the app reads, such as `FINNHUB_API_KEY`. A new session picks them up.
 - Alpaca: the feedback document has two different key IDs, one in the text and one inside the link. Which one is current?
 - A pull request into `main` (it would contain the whole app): yes or no?
+- For item 9:
+  - Upload the reference PDFs again (documents 1 to 33). They stay out of the repository, so a new session does not have them.
+  - If you have Codex's research pack file, attach it and I will check its links.
+  - When a video shows something you want, a screenshot with a short note works best, as in your feedback document.
 
 ## Later
 
