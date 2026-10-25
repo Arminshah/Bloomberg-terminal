@@ -1,8 +1,10 @@
 import { official, officialAvailable } from './official';
 
 /**
- * The ECB's euro foreign exchange reference rates (desktop app): each business day at 14:15 CET the ECB publishes about
- * thirty currencies against the euro (data-api.ecb.europa.eu, dataset EXR, series D.{currency}.EUR.SP00.A). PORTFOLIO
+ * The ECB's euro foreign exchange reference rates (desktop app): about thirty currencies against the euro, set each
+ * TARGET business day around 14:10 CET and published around 16:00 CET (the ECB's framework for the rates, 23 June 2026),
+ * for information only, not as rates to deal at; the ECB may amend a rate until the next business day's rates are
+ * published (data-api.ecb.europa.eu, dataset EXR, series D.{currency}.EUR.SP00.A). PORTFOLIO
  * uses them for a lot bought on a past date: the rate between the position's currency and the portfolio's base on that
  * day, crossed through the euro. No rates are published on weekends and TARGET holidays: a date then takes the last
  * day before it that has rates, and says which. A currency the ECB does not publish has no rate, never a guessed one.

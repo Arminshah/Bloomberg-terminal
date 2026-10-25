@@ -399,6 +399,8 @@ test("PORTFOLIO takes a past purchase's entry exchange rate from the ECB's refer
   const saved = await savedPosition();
   expect(saved).toMatchObject({ id: 'HSBA LN Equity', qty: 100, cost: 1000, entryBase: 'USD', entryFxNote: 'ECB reference rate of 2026-06-26' });
   expect(saved.entryFx).toBeCloseTo(1.1401 / 0.86253, 12);
+  // The ECB's framework (23 June 2026): rates for information, set around 14:10 CET, published around 16:00 CET.
+  await expect(panel).toContainText('The ECB publishes its rates for information, at about 16:00 CET for about 14:10 CET: the rate your bank or broker applied can differ.');
 });
 
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {

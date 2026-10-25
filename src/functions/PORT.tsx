@@ -180,7 +180,7 @@ function Holdings() {
           <div className="note">
             The portfolio holds only the positions and cash you enter here: there is no order entry and no simulated trading. Futures quantities are contracts and count toward NAV at unrealised P&L; Treasury quantities are face value. A
             blank price records today&apos;s market price as your cost. Adding on the same side averages cost; reducing retains the remaining cost; reversing uses the entered cost for the new side. Cash is adjusted separately.
-            {officialAvailable() ? ' For a lot in another currency bought on a past date, give the date: its entry exchange rate is then the ECB\'s reference rate of that day (or of the last day before it with rates), crossed through the euro; otherwise it is today\'s.' : ''}
+            {officialAvailable() ? ' For a lot in another currency bought on a past date, give the date: its entry exchange rate is then the ECB\'s reference rate of that day (or of the last day before it with rates), crossed through the euro; otherwise it is today\'s. The ECB publishes its rates for information, at about 16:00 CET for about 14:10 CET: the rate your bank or broker applied can differ.' : ''}
           </div>
         </Section>
       </div>
