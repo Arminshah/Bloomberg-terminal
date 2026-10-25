@@ -40,6 +40,20 @@ interface Props {
 const AXIS_W = 62;
 const AXIS_H = 20;
 
+/**
+ * Room left at each end of the x axis: 3% of the range, 6% with bars, and at least half the step between bars, as a
+ * bar is 70% of a step wide and a chart of few bars would otherwise draw the outer ones past its edges.
+ */
+export function xPadding(series: XYSeries[], x0: number, x1: number, tx: (x: number) => number = (x) => x): number {
+  const bars = series.filter((s) => s.kind === 'bar');
+  const steps = bars.flatMap((s) => {
+    const xs = s.points.map((q) => tx(q.x)).sort((a, b) => a - b);
+    return xs.slice(1).map((x, i) => x - xs[i]).filter((d) => d > 0);
+  });
+  const halfStep = steps.length ? Math.min(...steps) / 2 : 0;
+  return Math.max((x1 - x0) * (bars.length ? 0.06 : 0.03), halfStep) || 1;
+}
+
 /** Canvas XY chart for curves, scatter plots and bar profiles. */
 export function XYChart(props: Props) {
   const host = useRef<HTMLDivElement>(null);
@@ -111,8 +125,7 @@ export function XYChart(props: Props) {
       const py = (y1 - y0) * 0.08;
       y0 -= py;
       y1 += py;
-      const isBar = p.series.some((s) => s.kind === 'bar');
-      const px = (x1 - x0) * (isBar ? 0.06 : 0.03) || 1;
+      const px = xPadding(p.series, x0, x1, tx);
       x0 -= px;
       x1 += px;
       const L = second.length ? AXIS_W : 8;
