@@ -4,16 +4,16 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtDay, fmtNum } from '../core/format';
 import { DAY_MS } from '../data/calendar';
-import { betaTo } from '../data/analytics';
+import { defaultBeta } from '../data/analytics';
 import { engine, useTick } from '../data/market';
 import { reportCcy } from '../data/fundamentals';
-import { BENCH, TEN_YEAR } from './WACC';
+import { TEN_YEAR } from './WACC';
 import type { FnProps } from '../terminal/types';
 
 /**
  * EQRP, the equity risk premium: the market's expected return less the risk-free rate (the country premium) and the
  * stock's share of it through its beta. The risk-free rate is the currency's 10-year government yield; the beta is
- * worked out from two years of daily returns against the region's benchmark and adjusted toward 1; the expected
+ * the one BETA shows by default, two years of weekly returns against the local index, adjusted toward 1; the expected
  * market return is the risk-free rate plus a long-run premium the owner can change (no free source publishes an
  * implied one). The amber fields take other figures.
  */
@@ -23,9 +23,7 @@ export function EQRP({ sec }: FnProps) {
   const ccy = reportCcy(s);
   const rfLine = TEN_YEAR[ccy] ?? TEN_YEAR.USD;
   const rfNow = engine.quote(rfLine.id)?.last ?? NaN;
-  const bench = BENCH[s.region] ?? 'SPX Index';
-  const raw = betaTo(s.id, bench, 504).beta;
-  const adjusted = Number.isFinite(raw) ? 0.67 * raw + 0.33 : NaN;
+  const { raw, adjusted, bench } = defaultBeta(s.id);
   const [premium, setPremium] = useState(5.5);
   const [rfIn, setRfIn] = useState<string>('');
   const [betaIn, setBetaIn] = useState<string>('');
@@ -80,7 +78,7 @@ export function EQRP({ sec }: FnProps) {
         <div>
           <div className="mov-title">Equity Data</div>
           <div className="eqrp-rows">
-            <span className="amber" title={`Two years of daily returns against ${bench}, adjusted: 0.67 × raw + 0.33 (raw ${fmtNum(raw, 3)})`}>Beta</span>
+            <span className="amber" title={`Two years of weekly returns against ${bench}, adjusted: 0.67 × raw + 0.33 (raw ${fmtNum(raw, 3)}), as on BETA`}>Beta</span>
             <span>{field(betaIn, setBetaIn, fmtNum(adjusted, 3), 'Beta')}</span>
             <span className="amber">Equity Risk Premium</span>
             <span className="white num">{fmtNum(eqrp, 3)}%</span>

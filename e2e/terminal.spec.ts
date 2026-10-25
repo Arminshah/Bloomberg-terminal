@@ -716,3 +716,23 @@ test('WHATSNEW shows the installed version\'s release notes and earlier releases
   await expect(panel.getByTestId('whatsnew-notes')).toContainText('Armin Terminal 2.23.0');
   expect(errors).toEqual([]);
 });
+
+test('WACC and EQRP use the beta BETA shows by default: two years of weekly returns against the local index', async ({ page }) => {
+  const errors = await boot(page);
+  const open = async (cmd: string, code: string) => {
+    await run(page, cmd);
+    const panel = page.locator('.panel').first();
+    await expect(panel.locator('.fnh-code').first()).toHaveText(code);
+    return panel;
+  };
+  const kv = (panel: ReturnType<Page['locator']>, label: string) => panel.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
+  const beta = kv(await open('AAPL US Equity BETA', 'BETA'), 'Adjusted beta');
+  await expect(beta).toHaveText(/^\d+\.\d{3}$/);
+  const adjusted = (await beta.innerText()).trim();
+  const wacc = await open('AAPL US Equity WACC', 'WACC');
+  await expect(kv(wacc, 'Adjusted beta')).toHaveText(adjusted);
+  await expect(wacc.locator('dt', { hasText: /^Raw beta \(2Y weekly vs SPX, as BETA\)$/ })).toBeVisible();
+  const eqrp = await open('AAPL US Equity EQRP', 'RISKPREMIUM');
+  await expect(eqrp.getByLabel('Beta', { exact: true })).toHaveAttribute('placeholder', adjusted);
+  expect(errors).toEqual([]);
+});

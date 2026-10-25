@@ -155,28 +155,45 @@ export function betaTo(id: string, bench: string, bars = 252) {
   return regress(rets[0], rets[1]);
 }
 
-const betaCache = new Map<string, { key: string; v: number }>();
+export interface DefaultBeta {
+  /** Regression slope of the security's weekly returns on the benchmark's; NaN without 52 weeks in common. */
+  raw: number;
+  /** 0.67 × raw + 0.33. */
+  adjusted: number;
+  bench: string;
+  /** Weekly returns in the regression. */
+  weeks: number;
+}
+
+const betaCache = new Map<string, { key: string; v: DefaultBeta }>();
 
 /**
- * Adjusted beta as BETA works it out by default: two years of weekly returns against the security's local index.
- * NaN until both price histories cover a year (52 weeks in common).
+ * Beta as BETA works it out by default, so every screen shows the same one: two years of weekly returns (weeks ending
+ * Friday) against the security's local index. NaN until both price histories cover a year (52 weeks in common).
  */
-export function localBeta(id: string): number {
+export function defaultBeta(id: string): DefaultBeta {
+  const none = (bench = '', weeks = 0): DefaultBeta => ({ raw: NaN, adjusted: NaN, bench, weeks });
   const def = engine.get(id);
-  if (!def) return NaN;
+  if (!def) return none();
   const bench = defaultBenchmark(def, (x) => !!engine.get(x));
   const b = engine.daily(bench);
   const y = engine.daily(id);
-  if (bench === id || !b.length || !y.length) return NaN;
+  if (bench === id || !b.length || !y.length) return none(bench);
   const key = `${bench}|${b.length}|${b.t[b.length - 1]}|${y.length}|${y.t[y.length - 1]}`;
   const hit = betaCache.get(id);
   if (hit?.key === key) return hit.v;
   const to = Math.min(b.t[b.length - 1], y.t[y.length - 1]);
   const from = lookbackStart(to, 24);
   const r = pairedReturns(periodCloses(b, 'W', from, to), periodCloses(y, 'W', from, to));
-  const v = r.x.length >= 52 ? adjustedBeta(regress(r.x, r.y).beta) : NaN;
-  betaCache.set(id, { key, v: Number.isFinite(v) ? v : NaN });
-  return betaCache.get(id)!.v;
+  const raw = r.x.length >= 52 ? regress(r.x, r.y).beta : NaN;
+  const v = Number.isFinite(raw) ? { raw, adjusted: adjustedBeta(raw), bench, weeks: r.x.length } : none(bench, r.x.length);
+  betaCache.set(id, { key, v });
+  return v;
+}
+
+/** The adjusted beta of `defaultBeta`. */
+export function localBeta(id: string): number {
+  return defaultBeta(id).adjusted;
 }
 
 export function marketCap(id: string): number {

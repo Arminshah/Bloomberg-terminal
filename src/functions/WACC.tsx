@@ -4,7 +4,7 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { KV, Section } from '../components/cells';
 import { fmtDay, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { engine } from '../data/market';
-import { betaTo } from '../data/analytics';
+import { defaultBeta } from '../data/analytics';
 import { financials, keyStats, latestDebtPeriod, reportCcy } from '../data/fundamentals';
 import { riskFree } from '../data/options';
 import type { FnProps } from '../terminal/types';
@@ -28,9 +28,10 @@ export function WACC({ sec }: FnProps) {
   const { real, status } = useFundamentals(s);
   const ks = keyStats(s);
   const f = financials(s);
-  const beta = betaTo(s.id, BENCH[s.region], 504);
-  const betaFromHistory = Number.isFinite(beta.beta);
-  const rawBeta = betaFromHistory ? beta.beta : ks.beta;
+  // The beta BETA shows by default (two years of weekly returns against the local index), so both screens agree.
+  const beta = defaultBeta(s.id);
+  const betaFromHistory = Number.isFinite(beta.raw);
+  const rawBeta = betaFromHistory ? beta.raw : ks.beta;
   const adjBeta = 0.67 * rawBeta + 0.33;
   const [erp, setErp] = useState(5.5);
   const [growth, setGrowth] = useState(2.5);
@@ -73,7 +74,7 @@ export function WACC({ sec }: FnProps) {
           <KV
             items={[
               [rfLine ? `Risk-free rate (${rfLine.name})` : 'Risk-free rate', Number.isFinite(rf) ? `${fmtNum(rf, 3)}%` : `-- (no official 10-year ${ccy} yield in this app)`],
-              [betaFromHistory ? 'Raw beta (2Y daily)' : `Provider beta (${real?.statsFrom ?? 'Yahoo'} historical basis)`, fmtNum(rawBeta, 3)],
+              [betaFromHistory ? `Raw beta (2Y weekly vs ${beta.bench.replace(/ Index$/, '')}, as BETA)` : `Provider beta (${real?.statsFrom ?? 'Yahoo'} historical basis)`, fmtNum(rawBeta, 3)],
               ['Adjusted beta', fmtNum(adjBeta, 3)],
               [
                 'Equity risk premium',
@@ -122,7 +123,7 @@ export function WACC({ sec }: FnProps) {
         Equity risk premium and terminal growth are model assumptions. The default assumed tax rate is 21%; it is not a reported rate.
         {Number.isFinite(ltm.end) ? ` LTM cash flows end ${fmtDay(ltm.end)}.` : ''}
         {balance?.supplements?.length ? ` Balance supplements: ${balance.supplements.join('; ')}.` : ''}
-        {!betaFromHistory && Number.isFinite(rawBeta) ? ' Provider beta is used because the app has insufficient matched daily history for its own two-year regression.' : ''}
+        {!betaFromHistory && Number.isFinite(rawBeta) ? ' Provider beta is used because the app has fewer than 52 weeks of matched history for its own two-year weekly regression.' : ''}
       </div>
     </div>
   );
