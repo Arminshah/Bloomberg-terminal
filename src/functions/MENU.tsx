@@ -27,7 +27,7 @@ const EQUITY: Group[] = [
   // surveillance, trading data and derivatives.
   { title: 'Company Overview', entries: ['PROFILE', 'COMPANYNEWS', 'MANAGEMENT'] },
   { title: 'Company Analysis', entries: ['FINANCIALS', 'HOLDERS', 'HOLDINGS', 'DIVIDENDS', 'CORPACTIONS', 'BUYBACKS', 'WACC'] },
-  { title: 'Research & Estimates', entries: ['ESTIMATES', 'EARNINGS', 'ANALYSTS', 'FILINGS', 'DOCSEARCH'] },
+  { title: 'Research & Estimates', entries: ['ESTIMATES', 'EARNINGS', 'ANALYSTS', 'FILINGS', 'DOCSEARCH', 'CONGRESS'] },
   { title: 'Comparative Analytics', entries: ['PEERS', 'SUPPLYCHAIN'] },
   { title: 'Charting & Reporting', entries: ['CHART', 'FUNDCHART', 'INTRADAY', 'HISTORY', 'RETURNS', 'TOTALRETURN', 'SPREAD', 'BETA', 'VOLATILITY'] },
   { title: 'Security Surveillance', entries: ['EVENTS', 'QUOTE', 'ALERTS'] },
@@ -102,7 +102,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
     title: 'Equity',
     groups: [
       { title: 'Markets', entries: ['MARKET', 'HEATMAP', 'INDEXMAP', 'MOVERS', 'TOPMOVERS', 'CONTRIB', 'SCREEN', 'EVENTS', 'IPOS', 'EXCHANGES'] },
-      { title: 'News and research', entries: ['MARKETNEWS', 'BREAKING', 'HEADLINES', 'NEWS', 'FILINGS', 'RELEASES', 'MACRO'] },
+      { title: 'News and research', entries: ['MARKETNEWS', 'BREAKING', 'HEADLINES', 'NEWS', 'FILINGS', 'CONGRESS', 'RELEASES', 'MACRO'] },
       { title: 'Portfolio and monitors', entries: ['PORTFOLIO', 'WATCHLIST', 'FAVOURITES', 'ALERTS'] },
     ],
     list: (d) => d.cls === 'equity',
@@ -207,7 +207,7 @@ function linesFor(groups: Group[], sec: SecurityDef | undefined, start = 1): { t
       const fn = lookupFn(entry.code);
       if (!fn) continue;
       if (sec && fn.classes && !fn.classes.includes(sec.cls)) continue;
-      let cmd = entry.cmd ?? (sec && (fn.needsSec || fn.classes || ['COMPANYNEWS', 'ALERTS', 'NOTES', 'SPREAD', 'CORRELATION', 'RETURNS', 'EVENTS', 'TOTALRETURN'].includes(fn.code)) ? `${sec.id} ${fn.code}` : fn.code);
+      let cmd = entry.cmd ?? (sec && (fn.needsSec || fn.classes || ['COMPANYNEWS', 'ALERTS', 'NOTES', 'SPREAD', 'CORRELATION', 'RETURNS', 'EVENTS', 'TOTALRETURN', 'CONGRESS'].includes(fn.code)) ? `${sec.id} ${fn.code}` : fn.code);
       let label = entry.label ?? fn.name;
       if (sec && (fn.code === 'BONDSEARCH' || fn.code === 'DEBTPROFILE') && sec.cls !== 'bond') {
         if (!issuerRoot || !hasBonds) continue;

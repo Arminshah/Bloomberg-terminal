@@ -707,6 +707,169 @@ ipcMain.handle('openfigi', async (event, codes) => {
   return { status, results, keyed, ...(error ? { error } : {}) };
 });
 
+// Congress (electron/congress.cjs): the member lists of the House Clerk and the Senate, the House Clerk's yearly index
+// of financial disclosures, each trade report (PTR) and annual report read from its PDF (kept on disk: a filed
+// report never changes; a correction is a new filing), and FMP's latest trades of each chamber with the owner's key,
+// kept as they arrive. The Clerk is asked at most twice a second.
+const congress = require('./congress.cjs');
+const pdfText = require('./pdf-text.cjs');
+const CONGRESS_FILE = () => path.join(app.getPath('userData'), 'congress-reports.json');
+const CONGRESS_FMP_FILE = () => path.join(app.getPath('userData'), 'congress-fmp-trades.json');
+const congressKept = new Map();
+let congressReports = null;
+let congressSave = null;
+const fmpTradeLog = new congress.FmpTradeLog();
+let fmpTradeLogLoaded = false;
+
+function congressFromDisk() {
+  if (congressReports) return congressReports;
+  congressReports = { ptr: {}, annual: {} };
+  try {
+    const saved = JSON.parse(fs.readFileSync(CONGRESS_FILE(), 'utf8'));
+    if (saved?.v === congress.READER_VERSION && saved.ptr && saved.annual) congressReports = { ptr: saved.ptr, annual: saved.annual };
+  } catch {
+    /* nothing saved yet */
+  }
+  return congressReports;
+}
+
+function congressToDisk() {
+  if (congressSave) return;
+  congressSave = setTimeout(() => {
+    congressSave = null;
+    try {
+      fs.writeFileSync(CONGRESS_FILE(), JSON.stringify({ v: congress.READER_VERSION, ...congressReports }));
+    } catch {
+      /* kept in memory only */
+    }
+  }, 5000);
+}
+
+/** One file from the House Clerk or the Senate, as bytes; or why there is none. */
+async function congressFile(provider, url, accept, maxBytes) {
+  await providers.slot(provider, 2, 1000);
+  let res;
+  try {
+    res = await tracked(provider, url, { headers: { 'User-Agent': clientAgent(), Accept: accept }, cache: 'no-cache', signal: AbortSignal.timeout(3 * TIMEOUT_MS) });
+  } catch (err) {
+    return { status: 0, error: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) };
+  }
+  if (!res.ok) return { status: res.status };
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (bytes.length > maxBytes) return { status: res.status, error: 'the file is larger than the app reads' };
+  return { status: res.status, bytes };
+}
+
+function fmpTradeLogFromDisk() {
+  if (fmpTradeLogLoaded) return;
+  fmpTradeLogLoaded = true;
+  try {
+    fmpTradeLog.load(JSON.parse(fs.readFileSync(CONGRESS_FMP_FILE(), 'utf8')));
+  } catch {
+    /* nothing kept yet */
+  }
+}
+
+/** FMP's latest trades of a chamber, added to the log; the answer carries the whole log of that chamber. */
+async function fmpCongress(chamber) {
+  fmpTradeLogFromDisk();
+  const kept = () => ({ rows: fmpTradeLog.rows.filter((r) => r.chamber === chamber), gaps: fmpTradeLog.gaps.filter((g) => g.chamber === chamber), since: fmpTradeLog.since[chamber] ?? null });
+  if (!providers.setting('FMP_ENABLED').value) return { status: 0, gated: 'FMP_ENABLED', ...kept() };
+  const key = usableKey('FMP_API_KEY', 'fmp');
+  if (!key.value) return { status: 0, ...(key.missing ? { missing: key.missing } : { refused: key.refused }), ...kept() };
+  const req = fmp.fmpCongressRequest(chamber, key.value);
+  const res = await keyedGet('fmp', req.url, {}, req.ttl, [30, 60_000], [key.value]);
+  if (res.text && !res.stale) {
+    try {
+      const list = JSON.parse(res.text);
+      if (Array.isArray(list) && fmpTradeLog.add(chamber, list)) fs.writeFileSync(CONGRESS_FMP_FILE(), JSON.stringify(fmpTradeLog));
+    } catch {
+      /* not a list: the status says why */
+    }
+  }
+  const rest = { ...res };
+  delete rest.text;
+  return { ...rest, ...kept() };
+}
+
+let fmpCongressTimer = null;
+function watchFmpCongress() {
+  if (fmpCongressTimer) return;
+  fmpCongressTimer = setInterval(() => {
+    void fmpCongress('senate').then(() => fmpCongress('house')).catch(() => {});
+  }, 6 * 3_600_000);
+}
+// A log kept on disk means the screen was opened before: keep watching from the start.
+app.whenReady().then(() => {
+  if (fs.existsSync(CONGRESS_FMP_FILE())) watchFmpCongress();
+});
+
+ipcMain.handle('congress', async (event, kind, arg) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  if (kind === 'members') {
+    const kept = congressKept.get('members');
+    if (kept && Date.now() - kept.at < 24 * 3_600_000) return { status: 200, ...kept, cached: true };
+    // The Clerk answers HTTP 406 to "Accept: application/xml" (checked 25 October 2026); it serves text/xml.
+    const xml = 'text/xml, application/xml;q=0.9, */*;q=0.8';
+    const [h, s] = await Promise.all([congressFile('house-clerk', congress.MEMBERS_URL, xml, 5_000_000), congressFile('senate', congress.SENATORS_URL, xml, 2_000_000)]);
+    const house = h.bytes ? congress.parseHouseMembers(h.bytes.toString('utf8')) : null;
+    const senate = s.bytes ? congress.parseSenators(s.bytes.toString('utf8')) : null;
+    if (!house && !senate) return { status: h.status || s.status, error: h.error ?? s.error ?? 'The member lists could not be read.' };
+    const out = { house: house ?? [], senate: senate ?? [], at: Date.now(), ...(!house || !senate ? { partial: true } : {}) };
+    if (house && senate) congressKept.set('members', out);
+    return { status: 200, ...out };
+  }
+  if (kind === 'index') {
+    const year = congress.filingYear(arg);
+    if (!year) throw new Error('not allowed');
+    const key = `index:${year}`;
+    const kept = congressKept.get(key);
+    // This year's and last year's lists grow as members file (annual reports for a year come the May after it).
+    if (kept && Date.now() - kept.at < (year >= new Date().getUTCFullYear() - 1 ? 6 : 7 * 24) * 3_600_000) return { status: 200, ...kept, cached: true };
+    const got = await congressFile('house-clerk', congress.indexUrl(year), 'application/zip', 20_000_000);
+    if (!got.bytes) return { status: got.status, ...(got.error ? { error: got.error } : {}) };
+    const txt = congress.unzipFile(got.bytes, `${year}FD.txt`);
+    const filings = txt ? congress.parseHouseIndex(txt.toString('utf8')) : null;
+    if (!filings) return { status: 200, error: "The House Clerk's index is not in the format the app reads." };
+    const out = { year, filings, at: Date.now() };
+    congressKept.set(key, out);
+    return { status: 200, ...out };
+  }
+  if (kind === 'ptr' || kind === 'annual') {
+    const ref = congress.docRef(arg);
+    if (!ref) throw new Error('not allowed');
+    const store = congressFromDisk()[kind];
+    if (store[ref.docId]) return { status: 200, report: store[ref.docId], cached: true };
+    const url = kind === 'ptr' ? congress.ptrUrl(ref.year, ref.docId) : congress.annualUrl(ref.year, ref.docId);
+    const got = await congressFile('house-clerk', url, 'application/pdf', 40_000_000);
+    if (!got.bytes) return { status: got.status, ...(got.error ? { error: got.error } : {}) };
+    let report;
+    try {
+      const doc = await pdfText.pdfLines(got.bytes);
+      report = kind === 'ptr' ? congress.parsePtr(doc) : congress.parseAnnual(doc);
+      report.pages = doc.numPages;
+    } catch (err) {
+      return { status: 200, error: `The report could not be read: ${String(err?.message ?? err).slice(0, 120)}` };
+    }
+    report.read = Date.now();
+    store[ref.docId] = report;
+    // A few thousand reports at most; the oldest read go first.
+    const ids = Object.keys(store);
+    if (ids.length > (kind === 'ptr' ? 6000 : 2500)) for (const id of ids.sort((a, b) => store[a].read - store[b].read).slice(0, ids.length - (kind === 'ptr' ? 6000 : 2500))) delete store[id];
+    congressToDisk();
+    return { status: 200, report };
+  }
+  if (kind === 'fmp') {
+    if (arg !== 'senate' && arg !== 'house') throw new Error('not allowed');
+    const res = await fmpCongress(arg);
+    // Once the screen has been opened, the latest lists are asked for every six hours while the app runs, so trades
+    // do not fall off FMP's 25 before the app has kept them.
+    watchFmpCongress();
+    return res;
+  }
+  throw new Error('not allowed');
+});
+
 // ----------------------------------------------------------------- Kraken
 // Exchange-native crypto prices, candles and order books (electron/kraken.cjs).
 // The page names a kind and a pair from a fixed list; the URL is built here.

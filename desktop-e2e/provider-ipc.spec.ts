@@ -31,8 +31,9 @@ interface Fixtures {
   weekCalendar?: boolean;
   insiders?: boolean;
   thirteenF?: boolean;
+  congress?: boolean;
   supplyChain?: boolean;
-  calls: { sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -321,6 +322,55 @@ test("HOLDINGS lists a company's own 13F holdings with the change since the quar
   // Each filing is read once: the second quarter's cover, list and table, then the first quarter's.
   const sec = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.sec13f ?? []);
   expect(sec.filter((p) => p.endsWith('/information_table.xml'))).toHaveLength(2);
+});
+
+test("CONGRESS ranks representatives by their annual reports' assets, lists both chambers' trades and the stocks bought and owned most", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.congress = true;
+  });
+  await command(page, 'CONGRESS', 'CONGRESS');
+  const panel = page.locator('.panel').first();
+  // Nothing is asked for before the law's notice is read.
+  await expect(panel).toContainText('5 U.S.C. § 13107(c)');
+  expect(await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.congress ?? [])).toEqual([]);
+  await panel.getByRole('button', { name: 'I understand: read the disclosures' }).click();
+  const pelosi = panel.locator('tbody tr', { hasText: 'Nancy Pelosi' }).first();
+  await expect(pelosi).toContainText('85.94M–412.41M', { timeout: 30_000 });
+  await expect(panel.locator('tbody tr').first()).toContainText('Nancy Pelosi');
+  await expect(panel.locator('tbody tr', { hasText: 'Brian J. Mast' })).toContainText('600.00K–1.25M');
+  await expect(panel.locator('tbody tr', { hasText: 'Cleo Fields' })).toContainText('none');
+  await panel.getByRole('button', { name: /^2\)\s*Trades$/ }).click();
+  await panel.getByLabel('Filter', { exact: true }).fill('NVDA');
+  const nvda = panel.locator('tbody tr', { hasText: 'NVIDIA' });
+  // Three purchases in three accounts from the report itself (FMP's one line of it left out), and a senator's from FMP.
+  await expect(nvda).toHaveCount(4);
+  await expect(nvda.filter({ hasText: 'Cleo Fields' })).toHaveCount(3);
+  await expect(nvda.filter({ hasText: 'Cleo Fields' }).first().getByRole('link', { name: 'PDF ›' })).toHaveAttribute('href', /ptr-pdfs\/\d{4}\/20035669\.pdf$/);
+  await expect(nvda.filter({ hasText: 'John Boozman' })).toContainText('Sen. AR');
+  await expect(nvda.filter({ hasText: 'John Boozman' }).getByRole('link', { name: 'FMP ›' })).toHaveAttribute('href', 'https://efdsearch.senate.gov/search/view/ptr/fixture-boozman/');
+  await panel.getByLabel('Filter', { exact: true }).fill('');
+  // A report filed on paper is a scan: its trade is FMP's line.
+  await expect(panel.locator('tbody tr', { hasText: 'Microsoft Corporation' })).toContainText('Michael McCaul');
+  await expect(panel.locator('tbody tr', { hasText: 'Bloom Energy' })).toHaveCount(4);
+  await panel.getByRole('button', { name: /^3\)\s*Most Traded$/ }).click();
+  await panel.getByLabel('Rank', { exact: true }).selectOption('buys');
+  await expect(panel.locator('tbody tr').first()).toContainText('NVDA US');
+  await expect(panel.locator('tbody tr').first()).toContainText('4');
+  await panel.getByLabel('Chamber', { exact: true }).selectOption('Senate');
+  await panel.getByLabel('Rank', { exact: true }).selectOption('sells');
+  await expect(panel.locator('tbody tr').first()).toContainText('WMB US');
+  await panel.getByLabel('Chamber', { exact: true }).selectOption('all');
+  await panel.getByRole('button', { name: /^4\)\s*Most Owned$/ }).click();
+  await panel.getByLabel('Filter', { exact: true }).fill('AAPL');
+  await expect(panel.locator('tbody tr').first()).toContainText('Apple Inc.');
+  await expect(panel.locator('tbody tr').first()).toContainText('5.00M–25.00M');
+  await panel.getByLabel('Chamber', { exact: true }).selectOption('Senate');
+  await expect(panel).toContainText("Senators' holdings are in their annual reports on the Senate's disclosure site");
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-congress-fixture.png') });
+  // A stock's own view: its trades.
+  await command(page, 'NVDA US Equity CONGRESS', 'CONGRESS');
+  await expect(panel.getByLabel('Filter', { exact: true })).toHaveValue('NVDA');
+  await expect(panel.locator('tbody tr', { hasText: 'NVIDIA' })).toHaveCount(4);
 });
 
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {

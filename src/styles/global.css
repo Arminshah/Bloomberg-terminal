@@ -1409,6 +1409,11 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .grr-member { display: inline-block; margin: 2px 14px 2px 0; white-space: nowrap; }
 
 /* BBK: three summary blocks above the chart. */
+.party { display: inline-block; min-width: 16px; text-align: center; font-weight: 600; }
+.party-D { color: #5aa7ff; }
+.party-R { color: #ff5a5a; }
+.party-I { color: #c8c8c8; }
+.party-x { color: var(--muted); }
 .bbk-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 4px 8px; }
 @media (max-width: 900px) { .bbk-top { grid-template-columns: 1fr; } }
 

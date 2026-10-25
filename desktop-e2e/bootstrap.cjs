@@ -20,6 +20,36 @@ const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/
 const fullFinnhubKey = 'abcd1234efgh5678ij90abcd1234efgh5678kl12';
 const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, newsStories: false, newsAgeMs: 3_600_000, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], alpacaNews: [], google: [], finnhub: [], equibles: [], yahoo: [], tipranks: [] } };
 globalThis.__desktopFixtures = fixtures;
+
+/** A ZIP archive holding one file, stored without compression, as the House Clerk's index archives hold their list. */
+function storedZip(name, data) {
+  const zlib = require('node:zlib');
+  const nameBuf = Buffer.from(name, 'utf8');
+  const crc = zlib.crc32(data);
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt32LE(crc, 14);
+  local.writeUInt32LE(data.length, 18);
+  local.writeUInt32LE(data.length, 22);
+  local.writeUInt16LE(nameBuf.length, 26);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt32LE(crc, 16);
+  central.writeUInt32LE(data.length, 20);
+  central.writeUInt32LE(data.length, 24);
+  central.writeUInt16LE(nameBuf.length, 28);
+  const end = Buffer.alloc(22);
+  const centralAt = local.length + nameBuf.length + data.length;
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length + nameBuf.length, 12);
+  end.writeUInt32LE(centralAt, 16);
+  return Buffer.concat([local, nameBuf, data, central, nameBuf, end]);
+}
 fixtures.dataAccuracy = false;
 fixtures.extendedHours = false;
 net.fetch = async (input, init) => {
@@ -58,6 +88,49 @@ net.fetch = async (input, init) => {
     return json({ cik: 1513845, name: 'Synthetic currency-switch fixture', tickers: ['NBIS'], exchanges: ['Nasdaq'], fiscalYearEnd: '1231', filings: { recent: {
       accessionNumber: [...four.accessionNumber, '0001513845-26-000002', '0001513845-26-000001'], form: [...four.form, '6-K', '20-F'], filingDate: [...four.filingDate, '2026-10-01', '2026-04-30'], reportDate: [...four.reportDate, '2026-10-01', '2025-12-31'], primaryDocument: [...four.primaryDocument, 'synthetic-current.htm', 'synthetic-annual.htm'],
     }, files: [] } });
+  }
+  // With fixtures.congress: the House Clerk's member list, index and reports and the Senate's member list, from the
+  // documents as published (tests/fixtures/congress), and FMP's latest trades of each chamber.
+  if (fixtures.congress) {
+    const dir = path.join(__dirname, '../tests/fixtures/congress');
+    const year = new Date().getUTCFullYear();
+    const ago = (days) => new Date(Date.now() - days * 86_400_000);
+    const us = (d) => `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()}`;
+    const iso = (d) => d.toISOString().slice(0, 10);
+    const xml = (file) => new Response(fs.readFileSync(path.join(dir, file), 'utf8'), { status: 200, headers: { 'Content-Type': 'text/xml' } });
+    if (url.hostname === 'clerk.house.gov' && url.pathname === '/xml/lists/MemberData.xml') return xml('house-members-excerpt.xml');
+    if (url.hostname === 'www.senate.gov' && url.pathname === '/general/contact_information/senators_cfm.xml') return xml('senators-excerpt.xml');
+    if (url.hostname === 'disclosures-clerk.house.gov') {
+      fixtures.calls.congress = [...(fixtures.calls.congress ?? []), url.pathname];
+      const zip = /^\/public_disc\/financial-pdfs\/(\d{4})FD\.zip$/.exec(url.pathname);
+      if (zip) {
+        const y = Number(zip[1]);
+        const line = (last, first, type, seat, yr, filed, doc) => ['Hon.', last, first, '', type, seat, yr, filed, doc].join('\t');
+        const lines = ['Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID'];
+        if (y === year) lines.push(line('Fields', 'Cleo', 'P', 'LA06', year, us(ago(3)), '20035669'), line('McCaul', 'Michael T.', 'P', 'TX10', year, us(ago(5)), '9116378'), line('Pelosi', 'Nancy', 'P', 'CA11', year, us(ago(10)), '20035143'));
+        if (y === year - 1) lines.push(line('Pelosi', 'Nancy', 'O', 'CA11', year - 1, us(ago(150)), '10075701'), line('Mast', 'Brian', 'O', 'FL21', year - 1, us(ago(100)), '10076430'));
+        return new Response(storedZip(`${y}FD.txt`, Buffer.from(lines.join('\r\n'), 'utf8')), { status: 200, headers: { 'Content-Type': 'application/x-zip-compressed' } });
+      }
+      const pdf = /^\/public_disc\/(ptr-pdfs|financial-pdfs)\/\d{4}\/(\d+)\.pdf$/.exec(url.pathname);
+      const file = pdf && (pdf[1] === 'ptr-pdfs' ? `${pdf[2]}.pdf` : `annual-${pdf[2]}.pdf`);
+      if (file && fs.existsSync(path.join(dir, file))) return new Response(fs.readFileSync(path.join(dir, file)), { status: 200, headers: { 'Content-Type': 'application/pdf' } });
+      return new Response('', { status: 404 });
+    }
+    if (url.hostname === 'financialmodelingprep.com' && (url.pathname === '/stable/senate-latest' || url.pathname === '/stable/house-latest')) {
+      const row = (o) => ({ firstName: '', lastName: '', office: '', district: '', owner: '', assetType: 'Stock', comment: '', ...o });
+      if (url.pathname === '/stable/senate-latest') {
+        return json([
+          row({ symbol: 'NVDA', senateID: 'B001236', disclosureDate: iso(ago(4)), transactionDate: iso(ago(20)), firstName: 'John', lastName: 'Boozman', owner: 'Joint', assetDescription: 'NVIDIA Corporation - Common Stock', type: 'Purchase', amount: '$1,001 - $15,000', link: 'https://efdsearch.senate.gov/search/view/ptr/fixture-boozman/' }),
+          row({ symbol: 'WMB', senateID: 'A000383', disclosureDate: iso(ago(6)), transactionDate: iso(ago(40)), firstName: 'Alan', lastName: 'Armstrong', owner: 'Joint', assetDescription: 'Williams Companies, Inc. (The) Common Stock', type: 'Sale (Full)', amount: '$250,001 - $500,000', link: 'https://efdsearch.senate.gov/search/view/ptr/fixture-armstrong/' }),
+        ]);
+      }
+      return json([
+        // A report the app reads itself: FMP's line of it is left out.
+        row({ symbol: 'NVDA', senateID: 'F000110', disclosureDate: iso(ago(3)), transactionDate: '2026-10-01', firstName: 'Cleo', lastName: 'Fields', district: 'LA06', assetDescription: 'NVIDIA Corporation', type: 'Purchase', amount: '$1,001 - $15,000', link: `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/${year}/20035669.pdf` }),
+        // A report filed on paper: FMP's line of it is the only one.
+        row({ symbol: 'MSFT', senateID: 'M001157', disclosureDate: iso(ago(5)), transactionDate: iso(ago(30)), firstName: 'Michael', lastName: 'McCaul', district: 'TX10', owner: 'Spouse', assetDescription: 'Microsoft Corporation', type: 'Sale', amount: '$15,001 - $50,000', link: `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/${year}/9116378.pdf` }),
+      ]);
+    }
   }
   if (fixtures.thirteenF && url.hostname === 'www.sec.gov') {
     const m = /^\/Archives\/edgar\/data\/1513845\/0001513845260000(65|42)\/(primary_doc\.xml|index\.json|information_table\.xml)$/.exec(url.pathname);

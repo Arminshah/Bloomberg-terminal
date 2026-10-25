@@ -48,4 +48,13 @@ function fmpCalendarRequest(from, to, key, now = Date.now()) {
   return { url: `${FMP}/earnings-calendar?from=${from}&to=${to}&apikey=${encodeURIComponent(key)}`, ttl };
 }
 
-module.exports = { KINDS, fmpRequest, fmpCalendarRequest, dateWindow };
+/**
+ * The latest trades disclosed by senators or representatives, newest first. The free plan gives the first page of 25
+ * only (a larger limit or another page answers HTTP 402, checked live on 25 October 2026); kept two hours.
+ */
+function fmpCongressRequest(chamber, key) {
+  if (chamber !== 'senate' && chamber !== 'house') return null;
+  return { url: `${FMP}/${chamber}-latest?page=0&limit=25&apikey=${encodeURIComponent(key)}`, ttl: 2 * HOUR };
+}
+
+module.exports = { KINDS, fmpRequest, fmpCalendarRequest, fmpCongressRequest, dateWindow };
