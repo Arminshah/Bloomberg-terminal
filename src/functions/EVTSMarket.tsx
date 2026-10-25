@@ -81,15 +81,19 @@ export function surprise(f: CalendarFigure): number {
   return ok(f.actual) && ok(f.est) && f.est !== 0 ? ((f.actual - f.est) / Math.abs(f.est)) * 100 : NaN;
 }
 
-/** The ticker, opening the security (looked up first when the app does not hold it yet). */
-export function Ticker({ symbol }: { symbol: string }) {
+/**
+ * The ticker, opening the security (looked up first when the app does not hold it yet). With children it is a larger
+ * target (a company's tile on the week's board) holding them instead of the ticker.
+ */
+export function Ticker({ symbol, className = 'sec-link', title, children }: { symbol: string; className?: string; title?: string; children?: ReactNode }) {
   const panel = usePanelId();
   const [busy, setBusy] = useState(false);
   return (
     <button
       type="button"
-      className="sec-link"
-      title={`${symbol} US — click to open, shift-click for the next panel`}
+      className={className}
+      title={title ?? `${symbol} US — click to open, shift-click for the next panel`}
+      aria-busy={busy || undefined}
       onClick={(e) => {
         e.stopPropagation();
         const id = appId(symbol);
@@ -102,7 +106,8 @@ export function Ticker({ symbol }: { symbol: string }) {
         });
       }}
     >
-      {symbol} US{busy ? '…' : ''}
+      {children ?? `${symbol} US`}
+      {busy ? '…' : ''}
     </button>
   );
 }

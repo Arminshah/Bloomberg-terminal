@@ -20,6 +20,9 @@ const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/
 const fullFinnhubKey = 'abcd1234efgh5678ij90abcd1234efgh5678kl12';
 const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, newsStories: false, newsAgeMs: 3_600_000, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], alpacaNews: [], google: [], finnhub: [], equibles: [], yahoo: [], tipranks: [] } };
 globalThis.__desktopFixtures = fixtures;
+// With fixtures.listingsDown, Nasdaq's stock list fails and Yahoo's quotes carry the week's trading instead: last price
+// and shares traded as the stock list would give them (fixtures.weekCalendar).
+const WEEK_QUOTES = { BFST: [31.94, 176841], KO: [70.1, 17000000], SOFI: [14.77, 41048438], GOOG: [250, 20000000], GOOGL: [251, 30000000] };
 
 /** A ZIP archive holding one file, stored without compression, as the House Clerk's index archives hold their list. */
 function storedZip(name, data) {
@@ -216,6 +219,10 @@ net.fetch = async (input, init) => {
       return json(chart);
     }
     if (url.pathname === '/v7/finance/quote') return json({ quoteResponse: { result: (url.searchParams.get('symbols') ?? '').split(',').map((symbol) => ({ symbol, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000), currency: 'USD', quoteSourceName: 'Synthetic Real Time Price', exchangeDataDelayedBy: 0,
+      ...(fixtures.listingsDown && (WEEK_QUOTES[symbol] || /^AC[A-L]$/.test(symbol)) ? (() => {
+        const [price, volume] = WEEK_QUOTES[symbol] ?? [10, (symbol.charCodeAt(2) - 64) * 100000];
+        return { regularMarketPrice: price, regularMarketVolume: volume, marketCap: 5e10 };
+      })() : {}),
       ...(fixtures.extendedHours ? {
         regularMarketPrice: 123.45, regularMarketTime: Date.parse('2026-10-19T20:00:00Z') / 1000,
         preMarketPrice: 125, preMarketTime: Date.parse('2026-10-20T11:55:00Z') / 1000,
@@ -249,6 +256,7 @@ net.fetch = async (input, init) => {
   };
   if (url.hostname === 'api.nasdaq.com') {
     fixtures.calls.nasdaq = (fixtures.calls.nasdaq ?? 0) + 1;
+    if (url.pathname === '/api/screener/stocks' && fixtures.listingsDown) return new Response('', { status: 503 });
     if (url.pathname === '/api/screener/stocks') return json({ data: { rows: [{ symbol: 'MMM', name: '3M Company', marketCap: '83552188778.00', country: 'United States', sector: 'Industrials' }, { symbol: 'XYZW', name: 'Synthetic Finnhub-only Co', marketCap: '6100000000.00', country: 'United States', sector: 'Technology' }, ...traded.map(([symbol, lastsale, volume]) => ({ symbol, name: symbol, lastsale: `$${lastsale}`, volume, marketCap: '50000000000.00', country: 'United States', sector: 'Technology' }))] }, status: { rCode: 200 } });
     const date = url.searchParams.get('date');
     const mmm = (back, eps) => ({ eps, surprise: '5.04', time: 'time-pre-market', symbol: 'MMM', name: '3M Company', marketCap: '$83,552,188,778', fiscalQuarterEnding: quarterEnd(back).label, epsForecast: '$2.38', noOfEsts: '6' });

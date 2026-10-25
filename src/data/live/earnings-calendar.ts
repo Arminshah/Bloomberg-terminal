@@ -3,6 +3,7 @@ import { createStore } from '../../core/store';
 import { DAY_MS } from '../calendar';
 import type { KeyedAnswer } from './lookup';
 import type { PastReport } from './finnhub';
+import { yahooGet } from './yahoo';
 
 /**
  * Every company's quarterly reports by date, for EVENTS and the earnings screens (desktop app). Nasdaq's public
@@ -253,8 +254,19 @@ export interface CalendarReport {
   sources: CalendarSource[];
 }
 
+/** A company's name, market value and dollars traded in the latest session from Yahoo Finance's quotes. */
+export interface YahooFact {
+  name: string;
+  /** US dollars; NaN when not given. */
+  cap: number;
+  /** Last price × shares traded in the latest session, US dollars; NaN when not given or not in dollars. */
+  traded: number;
+}
+
 export interface CalendarInput {
   nasdaq: NasdaqReport[];
+  /** Yahoo Finance's figures, asked for when Nasdaq's stock list does not load: names, market values, trading. */
+  yahoo?: Record<string, YahooFact>;
   finnhub?: WindowReport[];
   fmp?: WindowReport[];
   listings?: Map<string, Listing>;
@@ -317,6 +329,7 @@ export function mergeCalendar(i: CalendarInput): CalendarReport[] {
   const ph = bySymbol(i.fmpHistory);
   return drafts.map(({ n, f, p, symbol, date }) => {
     const listing = i.listings?.get(symbol);
+    const yf = i.yahoo?.[symbol];
     const eps = figure([
       ...(n ? [{ from: 'Nasdaq' as const, est: n.epsEst, actual: n.epsActual, analysts: n.analysts }] : []),
       ...(f ? [{ from: 'Finnhub' as const, est: f.epsEst, actual: f.epsActual }] : []),
@@ -339,11 +352,11 @@ export function mergeCalendar(i: CalendarInput): CalendarReport[] {
     const epsYearAgo = reported ? (eps.actualFrom === 'Nasdaq' ? earlierNasdaq(12, 330, 400) : NaN) : eps.estFrom === 'Nasdaq' && n ? n.yearAgoEps : NaN;
     return {
       symbol,
-      name: n?.name || listing?.name || symbol,
+      name: n?.name || listing?.name || yf?.name || symbol,
       date,
       timing: n && n.timing !== '--' ? n.timing : f?.timing ?? n?.timing ?? '--',
-      marketCap: ok(n?.marketCap) ? n!.marketCap : listing?.cap ?? NaN,
-      traded: listing && ok(listing.price) && ok(listing.volume) && listing.price > 0 && listing.volume >= 0 ? listing.price * listing.volume : NaN,
+      marketCap: ok(n?.marketCap) ? n!.marketCap : ok(listing?.cap) ? listing!.cap : yf?.cap ?? NaN,
+      traded: listing && ok(listing.price) && ok(listing.volume) && listing.price > 0 && listing.volume >= 0 ? listing.price * listing.volume : yf?.traded ?? NaN,
       fiscalEnd,
       ...(f?.label ? { label: f.label } : {}),
       eps,
@@ -379,7 +392,8 @@ export const earningsCalendar = createStore<{
   windows: Record<string, Part<WindowReport[]>>;
   listings?: Part<Map<string, Listing>>;
   companies: Record<string, Part<WindowReport[]>>;
-}>({ v: 0, days: {}, windows: {}, companies: {} });
+  yahoo: Record<string, YahooFact>;
+}>({ v: 0, days: {}, windows: {}, companies: {}, yahoo: {} });
 
 /** The reports of long-past days, kept across starts: they do not change, and growth needs a year of them. */
 type SettledRow = Pick<NasdaqReport, 'symbol' | 'fiscalEnd' | 'epsEst' | 'epsActual'>;
@@ -512,6 +526,52 @@ async function askListings() {
   bump(() => ({ listings: part }));
 }
 
+/** Yahoo's quote answer (/v7/finance/quote): each symbol's name, market value and dollars traded today. */
+export function parseYahooFacts(json: unknown): Record<string, YahooFact> {
+  const out: Record<string, YahooFact> = {};
+  const rows = (json as { quoteResponse?: { result?: unknown[] } } | null)?.quoteResponse?.result;
+  for (const q of Array.isArray(rows) ? (rows as Record<string, unknown>[]) : []) {
+    const symbol = typeof q.symbol === 'string' ? q.symbol.replace(/-/g, '.') : '';
+    if (!symbol) continue;
+    const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN);
+    const price = num(q.regularMarketPrice);
+    const volume = num(q.regularMarketVolume);
+    const usd = q.currency === 'USD';
+    out[symbol] = {
+      name: companyName(String(q.longName ?? q.shortName ?? '')),
+      cap: usd ? num(q.marketCap) : NaN,
+      traded: usd && price > 0 && volume >= 0 ? price * volume : NaN,
+    };
+  }
+  return out;
+}
+
+const yahooAsked = new Set<string>();
+
+/**
+ * When Nasdaq's stock list does not load, the week's companies are named and ranked from Yahoo Finance's quotes
+ * instead: 50 symbols a request, one request at a time, each symbol once a session.
+ */
+export function requestYahooFacts(symbols: string[]) {
+  if (!calendarAvailable() || typeof window.arminDesktop?.yahoo !== 'function') return;
+  const fresh = [...new Set(symbols)].filter((x) => /^[A-Z][A-Z0-9.]{0,9}$/.test(x) && !yahooAsked.has(x));
+  if (!fresh.length) return;
+  for (const x of fresh) yahooAsked.add(x);
+  void (async () => {
+    for (let i = 0; i < fresh.length; i += 50) {
+      const batch = fresh.slice(i, i + 50);
+      try {
+        const facts = parseYahooFacts(await yahooGet(`/v7/finance/quote?symbols=${batch.map((x) => encodeURIComponent(x.replace(/\./g, '-'))).join(',')}`));
+        bump((s) => ({ yahoo: { ...s.yahoo, ...facts } }));
+      } catch {
+        // Asked again on the next request for the week.
+        for (const x of batch) yahooAsked.delete(x);
+        return;
+      }
+    }
+  })();
+}
+
 /** The days from `from` to `to`, both YYYY-MM-DD and included. */
 export function daysBetween(from: string, to: string): string[] {
   const out: string[] = [];
@@ -561,6 +621,8 @@ export interface MarketCalendar {
   calendarProblems: string[];
   /** When Nasdaq's stock list (market values, trading) was read; NaN before it is. */
   listingsAt: number;
+  /** Why Nasdaq's stock list did not load, when it did not; empty otherwise or while it loads. */
+  listingsProblem: string;
 }
 
 /** Every company's reports from `from` to `to` (desktop app); with `history`, the year- and quarter-earlier ones too. */
@@ -600,6 +662,7 @@ export function useMarketCalendar(from: string, to: string, history: boolean, en
       finnhub: rows(finnhub),
       fmp: rows(fmp),
       listings: s.listings?.data,
+      yahoo: s.listings?.state === 'ok' ? undefined : s.yahoo,
       nasdaqHistory: history ? rows(historyDays(from, to, isoDay(Date.now())).map((d) => s.days[d])) : [],
       fmpHistory: rows(hist.flatMap(([a, b]) => windows('fmp', a, b))),
     });
@@ -614,6 +677,7 @@ export function useMarketCalendar(from: string, to: string, history: boolean, en
       problems,
       calendarProblems: failed([...dayParts, s.listings]),
       listingsAt: s.listings?.state === 'ok' && s.listings.at ? s.listings.at : NaN,
+      listingsProblem: s.listings && s.listings.state !== 'ok' && s.listings.state !== 'loading' ? s.listings.message ?? 'no answer' : '',
     };
   }, [v, from, to, history]); // eslint-disable-line react-hooks/exhaustive-deps
 }

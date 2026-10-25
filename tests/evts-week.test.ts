@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { latestSession, US_MARKET } from '../src/data/exchanges';
-import { companyName, mergeCalendar, parseNasdaqDay, parseNasdaqListings, type CalendarReport, type CalendarTiming } from '../src/data/live/earnings-calendar';
-import { byRelevance, PER_OTHER, PER_SLOT, topReleases, weekStart } from '../src/functions/EVTSWeek';
+import { companyName, mergeCalendar, parseNasdaqDay, parseNasdaqListings, parseYahooFacts, type CalendarReport, type CalendarTiming } from '../src/data/live/earnings-calendar';
+import { byRelevance, PER_OTHER, PER_SLOT, shortName, topReleases, weekLeaders, weekStart } from '../src/functions/EVTSWeek';
 
 const at = (iso: string) => Date.parse(iso);
 const parsed = <T,>(r: { data: T } | { error: string }): T => {
@@ -93,7 +93,7 @@ describe('the most relevant releases', () => {
     expect(week[2].post.reports.map((r) => r.symbol)).toEqual(['GOOGL']);
     expect(week[2].total).toBe(1);
     expect(week[0].total).toBe(0);
-    // A busy session shows the first ten and counts the others.
+    // A busy session shows the first six and counts the others.
     const busy = Array.from({ length: PER_SLOT + 3 }, (_, i) => report(`C${i}`, `Company ${i}`, tue, 'Aft-mkt', 1e6 * (i + 1)));
     const slot = topReleases(busy, '2026-10-26')[1].post;
     expect(slot.reports).toHaveLength(PER_SLOT);
@@ -105,6 +105,45 @@ describe('the most relevant releases', () => {
     const other = topReleases(untimed, '2026-10-26')[1].other;
     expect(other.reports).toHaveLength(PER_OTHER);
     expect(other.more).toBe(PER_SLOT + 3 - PER_OTHER);
+  });
+
+  it('names the week\'s most traded companies across its days, each once', () => {
+    const tue = '2026-10-27';
+    const wed = '2026-10-28';
+    const week = topReleases([report('KO', 'Coca-Cola Company (The)', tue, 'Bef-mkt', 1.19e9), report('SOFI', 'SoFi Technologies, Inc.', tue, 'Bef-mkt', 6.06e8), report('GOOG', 'Alphabet Inc.', wed, 'Aft-mkt', 5e9), report('GOOGL', 'Alphabet Inc.', wed, 'Aft-mkt', 7.53e9), report('TINY', 'Tiny Co', wed, '--', 1e6)], '2026-10-26');
+    expect(weekLeaders(week, 3).map((l) => [l.r.symbol, l.date, l.session])).toEqual([['GOOGL', wed, 'post'], ['KO', tue, 'pre'], ['SOFI', tue, 'pre']]);
+  });
+
+  it('shows a company by the name people use', () => {
+    // Names as Nasdaq's calendar and Yahoo give them.
+    expect(shortName('Coca-Cola Company (The)', 'KO')).toBe('Coca-Cola');
+    expect(shortName('Verizon Communications Inc.', 'VZ')).toBe('Verizon Communications');
+    expect(shortName('Williams Companies, Inc. (The)', 'WMB')).toBe('Williams Companies');
+    expect(shortName('Cemex S.A.B. de C.V.', 'CX')).toBe('Cemex');
+    expect(shortName('Eli Lilly and Company', 'LLY')).toBe('Eli Lilly');
+    expect(shortName('Microsoft Corporation', 'MSFT')).toBe('Microsoft');
+    expect(shortName('Amazon.com, Inc.', 'AMZN')).toBe('Amazon.com');
+    expect(shortName('Procter & Gamble Co/The', 'PG')).toBe('Procter & Gamble');
+    expect(shortName('Taiwan Semiconductor Manufacturing Company Ltd.', 'TSM')).toBe('Taiwan Semiconductor Manufacturing');
+    // A name that is only the ticker (a calendar without names) shows nothing extra.
+    expect(shortName('ABOS', 'ABOS')).toBe('');
+    expect(shortName('', 'ABOS')).toBe('');
+  });
+
+  it("names and ranks from Yahoo Finance's quotes when Nasdaq's stock list does not load", () => {
+    const facts = parseYahooFacts({ quoteResponse: { result: [
+      { symbol: 'KO', longName: 'The Coca-Cola Company', currency: 'USD', regularMarketPrice: 70.1, regularMarketVolume: 17000000, marketCap: 3.02e11 },
+      { symbol: 'BRK-B', shortName: 'Berkshire Hathaway Inc. New', currency: 'USD', regularMarketPrice: 480, regularMarketVolume: 3e6, marketCap: 1.03e12 },
+      // A foreign line priced in another currency gives no dollar figures.
+      { symbol: 'NOVN.SW', longName: 'Novartis AG', currency: 'CHF', regularMarketPrice: 90, regularMarketVolume: 1e6, marketCap: 1.8e11 },
+    ] } });
+    expect(facts.KO).toEqual({ name: 'The Coca-Cola Company', cap: 3.02e11, traded: 70.1 * 17000000 });
+    expect(facts['BRK.B'].traded).toBe(480 * 3e6);
+    expect(Number.isNaN(facts['NOVN.SW'].cap) && Number.isNaN(facts['NOVN.SW'].traded)).toBe(true);
+    expect(parseYahooFacts(null)).toEqual({});
+    // Finnhub's calendar gives no names or market values: Yahoo's fill them, and rank the week.
+    const [r] = mergeCalendar({ nasdaq: [], finnhub: [{ symbol: 'KO', date: '2026-10-27', timing: 'Bef-mkt', epsEst: 0.88, epsActual: NaN, revEst: NaN, revActual: NaN }], yahoo: facts });
+    expect(r).toMatchObject({ symbol: 'KO', name: 'The Coca-Cola Company', marketCap: 3.02e11, traded: 70.1 * 17000000 });
   });
 
   it("names a company without the share description Nasdaq's stock list adds", () => {

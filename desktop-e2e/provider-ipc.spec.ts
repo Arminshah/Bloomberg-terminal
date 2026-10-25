@@ -29,6 +29,7 @@ interface Fixtures {
   newsAgeMs: number;
   marketCalendar?: boolean;
   weekCalendar?: boolean;
+  listingsDown?: boolean;
   insiders?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
@@ -160,31 +161,51 @@ test("the tab bar is the window's title bar: the window's own buttons sit at its
   expect(nav.x + nav.width).toBeLessThanOrEqual(narrow.x + 0.5);
 });
 
-test('EVENTS opens on the week\'s most traded companies reporting, by day and session, share classes once', async ({ desktop: { app, page } }) => {
+test('EVENTS opens on a board of the week\'s most traded companies reporting, a column a day before the open and after the close', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.weekCalendar = true; });
   await command(page, 'EVENTS');
   const panel = page.locator('.panel').first();
   await expect(panel.getByRole('button', { name: '10) Most relevant', exact: true })).toHaveClass(/\bon\b/);
   await expect(panel.locator('.tabs .tab.on')).toContainText('2) Week of');
-  const week = panel.locator('table.evts-week');
-  // Columns: the session's name, then Monday to Friday.
-  const cell = (session: string, day: number) => week.locator('tbody tr', { has: page.locator('th', { hasText: session }) }).locator('td').nth(day);
-  await expect(cell('Before open', 1).locator('li')).toHaveCount(3, { timeout: 30_000 });
-  // The most traded first: Coca-Cola, then SoFi, then the small bank.
-  await expect(cell('Before open', 1).locator('li .sec-link')).toHaveText(['KO US', 'SOFI US', 'BFST US']);
-  // Twelve report after Tuesday's close: the ten most traded are shown, the other two counted.
-  const late = cell('After close', 1);
-  await expect(late.locator('li')).toHaveCount(10);
-  await expect(late.locator('li .sec-link').first()).toHaveText('ACL US');
-  await expect(late.locator('.evts-week-more')).toHaveText('+2 more');
+  // A column a day, Monday to Friday, each split into before the open and after the close.
+  const day = (n: number) => panel.locator('.evts-day').nth(n);
+  const slot = (n: number, s: 'pre' | 'post') => day(n).locator(`.evts-slot[data-session="${s}"]`);
+  await expect(panel.locator('.evts-day')).toHaveCount(5, { timeout: 30_000 });
+  await expect(day(1).locator('.evts-day-head')).toContainText('Tuesday');
+  await expect(day(1).locator('.evts-day-head')).toContainText('15 reports');
+  // The most traded first, each by the name people use: Coca-Cola, then SoFi, then the small bank.
+  await expect(slot(1, 'pre').locator('.evts-tile-name')).toHaveText(['Coca-Cola', 'SoFi Technologies', 'Business First Bancshares']);
+  await expect(slot(1, 'pre').locator('.evts-tile').first()).toContainText('KO');
+  // Twelve report after Tuesday's close: the six most traded are shown, the other six counted.
+  await expect(slot(1, 'post').locator('.evts-tile')).toHaveCount(6);
+  await expect(slot(1, 'post').locator('.evts-tile-name').first()).toHaveText('After Close L');
+  await expect(slot(1, 'post').locator('.evts-more')).toHaveText('+6 more');
   // GOOG and GOOGL are one company: the more traded class stands for it.
-  await expect(cell('After close', 2).locator('li .sec-link')).toHaveText(['GOOGL US']);
-  await expect(week.locator('thead th').nth(2)).toContainText('15 reports');
+  await expect(slot(2, 'post').locator('.evts-tile')).toHaveCount(1);
+  await expect(slot(2, 'post').locator('.evts-tile')).toContainText('GOOGL');
+  // The week's most traded across its days, in a line above the board.
+  await expect(panel.locator('.evts-lead')).toContainText('Alphabet (Wed, after the close), Coca-Cola (Tue, before the open), SoFi Technologies (Tue, before the open)');
   await expect(panel.locator('.note')).toContainText("Nasdaq's stock list");
   await expect(panel.locator('.note')).toContainText('16 companies report this week');
-  // The week after has no reports in the fixture.
-  await panel.locator('.tabs .tab', { hasText: '3) Week of' }).click();
-  await expect(panel.getByText('No reports this week.')).toBeVisible({ timeout: 30_000 });
+  // A tile opens its company.
+  await slot(1, 'pre').locator('.evts-tile').first().click();
+  await expect(panel.locator('.fnh-code').first()).not.toHaveText('EVENTS');
+});
+
+test("EVENTS ranks the week from Yahoo Finance's quotes when Nasdaq's stock list does not load, and says why", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.weekCalendar = true;
+    fixtures.listingsDown = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'EVENTS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.note')).toContainText("Nasdaq's stock list did not load (Nasdaq: ", { timeout: 30_000 });
+  await expect(panel.locator('.note')).toContainText("ranked by dollars traded in the latest session from Yahoo Finance's quotes instead", { timeout: 30_000 });
+  const pre = panel.locator('.evts-day').nth(1).locator('.evts-slot[data-session="pre"]');
+  await expect(pre.locator('.evts-tile-name')).toHaveText(['Coca-Cola', 'SoFi Technologies', 'Business First Bancshares']);
 });
 
 test('EVENTS covers the whole market above $5B with expected and reported EPS and revenue, growth and an earnings card', async ({ desktop: { app, page } }) => {

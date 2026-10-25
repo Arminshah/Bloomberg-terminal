@@ -1441,23 +1441,29 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .evts-mkt td.num, .evts-mkt th.num { font-variant-numeric: tabular-nums; }
 
 /* EVTS's most relevant releases: a week of days across, the sessions down (EVTSWeek.tsx). */
-.tbl.evts-week { table-layout: fixed; width: 100%; min-width: 760px; }
-.evts-week col.evts-week-label { width: 84px; }
-.evts-week thead th { text-align: left; vertical-align: bottom; white-space: nowrap; }
-.evts-week thead th.evts-week-today { color: var(--amber-2); box-shadow: inset 0 -2px 0 var(--amber); }
-.evts-week .evts-week-count { font-weight: 400; font-size: var(--fs-s); }
-.evts-week th.evts-week-session { color: var(--amber); text-align: left; vertical-align: top; white-space: nowrap; }
-.evts-week td { vertical-align: top; border-left: 1px solid var(--line); padding-top: 3px; padding-bottom: 5px; }
-.evts-week td.evts-week-past .evts-week-name { color: #9a9a9a; }
-.evts-week-list { list-style: none; margin: 0; padding: 0; }
-.evts-week-list li { display: flex; align-items: baseline; gap: 4px; min-width: 0; line-height: 1.45; white-space: nowrap; }
-.evts-week-list .sec-link { flex: none; }
-.evts-week-list .badge { flex: none; }
-.evts-week-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #c8c8c8; }
-.evts-week-fig { flex: none; font-variant-numeric: tabular-nums; }
-.evts-week-fig.up { color: var(--up); }
-.evts-week-fig.dn { color: var(--dn); }
-.evts-week-more { font-size: var(--fs-s); }
+/* EVENTS, most relevant: a column a day, split into before the open and after the close, a tile a company. */
+.evts-board { padding: 6px 8px 2px; }
+.evts-lead { padding: 2px 2px 8px; line-height: 1.5; }
+.evts-days { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); border: 1px solid var(--line); overflow-x: auto; }
+.evts-day { min-width: 0; border-left: 1px solid var(--line); }
+.evts-day:first-child { border-left: 0; }
+.evts-day-head { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px 5px; border-bottom: 1px solid var(--line); }
+.evts-day-name { color: var(--white); font-weight: 600; }
+.evts-day.today .evts-day-head { box-shadow: inset 0 -2px 0 var(--amber); }
+.evts-day.today .evts-day-name { color: var(--amber-2); }
+.evts-day-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.evts-slot { min-width: 0; padding: 4px 3px 6px; }
+.evts-slot + .evts-slot { border-left: 1px dotted var(--line); }
+.evts-slot-head { padding-bottom: 4px; color: var(--amber); font-size: var(--fs-s); text-align: center; text-transform: uppercase; letter-spacing: 0.04em; }
+.evts-tile { display: flex; flex-direction: column; align-items: center; gap: 1px; width: 100%; min-width: 0; margin: 0; padding: 6px 2px; border: 0; border-bottom: 1px solid var(--bg-3); background: none; color: inherit; font: inherit; text-align: center; cursor: pointer; }
+.evts-tile:hover, .evts-tile:focus-visible { background: var(--bg-2); }
+.evts-tile-name { max-width: 100%; overflow: hidden; color: var(--white); font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.evts-tile-sub { display: flex; align-items: baseline; gap: 6px; font-size: var(--fs-s); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.evts-tile-fig.up { color: var(--up); }
+.evts-tile-fig.dn { color: var(--dn); }
+.evts-day.past .evts-tile-name { color: #9a9a9a; }
+.evts-more { padding-top: 4px; font-size: var(--fs-s); text-align: center; }
+.evts-day-other { padding: 4px; border-top: 1px solid var(--line); font-size: var(--fs-s); text-align: center; }
 
 /* Which session US stocks trade in now, above a watchlist (SessionNow.tsx), and the column that is live. */
 .session-now { padding: 3px 7px; border-bottom: 1px solid var(--line); font-size: var(--fs-s); line-height: 1.5; }
