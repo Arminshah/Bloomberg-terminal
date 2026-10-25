@@ -5,6 +5,8 @@ import { Sparkline } from '../components/Sparkline';
 import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { FreshnessLegend } from '../components/Freshness';
 import { FavStar } from '../components/FavStar';
+import { liveColumns, SessionNow } from '../components/SessionNow';
+import { exchangeOfListing, US_MARKET, usSession } from '../data/exchanges';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtBp, fmtNum, fmtPct, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
@@ -115,6 +117,12 @@ export function W({ route }: FnProps) {
     });
   }), list.sort, columns);
   const rows = query ? ordered.filter((r) => `${r.id} ${engine.get(r.id)?.name ?? ''}`.toLowerCase().includes(query)) : ordered;
+  // With real prices, the column US stocks are trading in now is marked LIVE (the simulator trades around the clock).
+  const usStocks = list.ids.some((id) => {
+    const d = engine.get(id);
+    return d?.cls === 'equity' && exchangeOfListing(d.ticker) === US_MARKET;
+  });
+  const live = new Set(engine.realOnly && usStocks ? liveColumns(usSession(Date.now()).phase) : []);
 
   const update = (ids: string[]) => watchlists.set((s) => ({ ...s, lists: s.lists.map((l, i) => (i === active ? { ...l, ids } : l)) }));
   const add = (id: string) => {
@@ -225,13 +233,15 @@ export function W({ route }: FnProps) {
         <input className="inp" aria-label="Filter watchlist" placeholder="Filter this list" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 145 }} />
         <span className="muted hide-m">Click to open · shift-click opens in the next panel · drag a line or ▲▼ to reorder</span>
       </div>
+      {engine.realOnly ? <SessionNow ids={list.ids} columns={columns.map((c) => c.id)} now={Date.now()} /> : null}
       <div className="tbl-wrap">
       <table className="tbl">
         <thead>
           <tr>
             <th>Security</th>
-            {columns.map((c) => <th key={c.id} className={`${c.numeric ? 'num' : ''}${c.compact || list.columns ? '' : ' hide-m'}`} aria-sort={list.sort?.column === c.id ? list.sort.direction === 'asc' ? 'ascending' : 'descending' : undefined}>
+            {columns.map((c) => <th key={c.id} className={`${c.numeric ? 'num' : ''}${c.compact || list.columns ? '' : ' hide-m'}${live.has(c.id) ? ' live-col' : ''}`} aria-sort={list.sort?.column === c.id ? list.sort.direction === 'asc' ? 'ascending' : 'descending' : undefined}>
               {c.id === 'ARMIN_TODAY' ? c.label : <button type="button" className="act" title={`${c.id} · sort ascending, descending, then manual order`} onClick={() => changeSort(c.id)}>{c.label}{list.sort?.column === c.id ? list.sort.direction === 'asc' ? ' ▲' : ' ▼' : ''}</button>}
+              {live.has(c.id) ? <span className="live-tag" title="US stocks are trading in this session now">LIVE</span> : null}
             </th>)}
             <th />
           </tr>
@@ -281,7 +291,7 @@ export function W({ route }: FnProps) {
                   <FavStar id={id} />
                   {d ? <SecLink id={id}>{d.ticker}</SecLink> : <span title="Security definition is unavailable; remove or reload this line.">{id}</span>}
                 </td>
-                {columns.map((c) => <td key={c.id} className={`${c.numeric ? 'num' : 'ellipsis'}${c.compact || list.columns ? '' : ' hide-m'}${c.id === 'PX_LAST' ? ' white' : ''}`} style={c.numeric || c.id === 'ARMIN_TODAY' ? undefined : { maxWidth: 240 }}><FieldCell column={c} row={row} sec={d} quote={q} now={now} /></td>)}
+                {columns.map((c) => <td key={c.id} className={`${c.numeric ? 'num' : 'ellipsis'}${c.compact || list.columns ? '' : ' hide-m'}${c.id === 'PX_LAST' ? ' white' : ''}${live.has(c.id) ? ' live-col' : ''}`} style={c.numeric || c.id === 'ARMIN_TODAY' ? undefined : { maxWidth: 240 }}><FieldCell column={c} row={row} sec={d} quote={q} now={now} /></td>)}
                 <td className="nowrap" onClick={(e) => e.stopPropagation()}>
                   <button type="button" className="act" aria-label="Move up" disabled={k === 0} title={list.sort ? 'Keeps this sorted order as the manual order' : undefined} onClick={() => place(id, rows[k - 1].id, false)}>
                     ▲

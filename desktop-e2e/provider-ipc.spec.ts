@@ -353,6 +353,14 @@ test('watchlist loads supplementary pre-market and after-hours quotes while IEX 
   await expect(row).toContainText('1.26%');
   await expect(row).toContainText('0.45%');
   expect((await calls(app)).yahoo.some((path) => path.startsWith('/v7/finance/quote?') && path.includes('AAPL'))).toBe(true);
+  // 08:00 in New York on a Tuesday: the pre-market is live, and IEX's last price is its latest trade.
+  const session = page.locator('.session-now');
+  await expect(session.locator('.badge')).toHaveText('PRE-MARKET');
+  await expect(session).toContainText('pre-market, 04:00 to 09:30 New York · the regular session opens in 1:');
+  await expect(session).toContainText("Pre-mkt is live; Last is IEX's latest trade, outside the regular session too");
+  await expect(page.locator('th', { hasText: 'Pre-mkt' }).locator('.live-tag')).toHaveText('LIVE');
+  await expect(page.locator('th.live-col')).toHaveCount(1);
+  await expect(row.locator('td.live-col')).toContainText('1.26%');
   await command(page, 'AAPL FLDS PX_LAST', 'FIELDS');
   await expect(page.getByTestId('field-value')).toHaveText('123.4500 · USD');
   await expect(page.locator('.field-definition')).toContainText('Alpaca · IEX only');

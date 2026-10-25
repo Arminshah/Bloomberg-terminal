@@ -1431,6 +1431,15 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .evts-week-fig.dn { color: var(--dn); }
 .evts-week-more { font-size: var(--fs-s); }
 
+/* Which session US stocks trade in now, above a watchlist (SessionNow.tsx), and the column that is live. */
+.session-now { padding: 3px 7px; border-bottom: 1px solid var(--line); font-size: var(--fs-s); line-height: 1.5; }
+.badge.session-open { background: #0f3d22; color: var(--up); border-color: #1d6b3d; }
+.badge.session-pre, .badge.session-post { background: #3a2a06; color: var(--amber-2); border-color: var(--amber-dim); }
+.badge.session-closed { background: #222; color: #b0b0b0; border-color: #3a3a3a; }
+.tbl th.live-col { box-shadow: inset 0 -2px 0 var(--up); }
+.tbl td.live-col { background: rgba(47, 211, 107, 0.06); }
+.live-tag { margin-left: 4px; padding: 0 3px; border-radius: 2px; background: #0f3d22; color: var(--up); font-size: 9px; font-weight: 600; letter-spacing: 0.04em; vertical-align: middle; }
+
 /* TOPMOVERS: names and the 52-week range bar */
 .mv-table .mv-name { display: inline-block; max-width: 230px; vertical-align: bottom; }
 .mv-range { display: inline-grid; grid-template-columns: auto auto; width: 110px; font-size: 10px; color: var(--muted, #8a8a8a); }

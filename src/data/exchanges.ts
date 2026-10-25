@@ -325,6 +325,94 @@ export function latestSession(ex: Exchange, now: number): string {
   return isoOf(p.y, p.mo - 1, p.d);
 }
 
+/**
+ * US stocks' sessions, New York time: pre-market from 04:00, the regular session from 09:30 to 16:00 and after hours
+ * to 20:00 (Nasdaq's published trading hours). On an early-close day the regular session ends at 13:00 and after hours
+ * at 17:00 (NYSE Group's holiday calendar: the late trading sessions close at 5:00 p.m.). Nasdaq and NYSE Arca plan a
+ * night session (21:00 to 04:00, Sunday to Friday) from 6 December 2026, subject to industry readiness; it is not
+ * counted here until it has started.
+ */
+export const US_PRE_OPEN = '04:00';
+export const US_POST_CLOSE = '20:00';
+export const US_POST_CLOSE_EARLY = '17:00';
+
+export type UsPhase = 'pre' | 'regular' | 'post' | 'closed';
+
+export interface UsSession {
+  phase: UsPhase;
+  /** Why the market is closed: the weekend, a holiday, or the hours between one day's after-hours and the next pre-market. */
+  closedFor?: 'weekend' | 'holiday' | 'night';
+  holiday?: string;
+  /** When this phase ends (epoch ms) and which phase follows. */
+  until: number;
+  next: UsPhase;
+  /** The hours of this phase (pre-market, regular or after hours), HH:MM New York. */
+  from?: string;
+  to?: string;
+}
+
+/** Which of US stocks' sessions is trading at `now`, and when that changes. */
+export function usSession(now: number): UsSession {
+  const ex = US_MARKET;
+  const p = zonedParts(now, ex.tz);
+  const at = (y: number, m0: number, d: number, hhmm: string) => {
+    const [h, mi] = hm(hhmm);
+    return zonedToUtc(y, m0, d, h, mi, ex.tz);
+  };
+  /** A trading day's early close (HH:MM), '' for a full day, null for no session. */
+  const closeOn = (y: number, m0: number, d: number): string | null => {
+    const wd = weekdayOf(y, m0, d);
+    if (wd === 0 || wd === 6) return null;
+    const special = dayOf(ex, y, isoOf(y, m0, d));
+    if (special && !special.close) return null;
+    return special?.close ?? '';
+  };
+  const today = closeOn(p.y, p.mo - 1, p.d);
+  if (today !== null) {
+    const close = today || ex.close;
+    const postEnd = today ? US_POST_CLOSE_EARLY : US_POST_CLOSE;
+    const [pre, open, shut, post] = [US_PRE_OPEN, ex.open, close, postEnd].map((t) => at(p.y, p.mo - 1, p.d, t));
+    if (now >= pre && now < open) return { phase: 'pre', until: open, next: 'regular', from: US_PRE_OPEN, to: ex.open };
+    if (now >= open && now < shut) return { phase: 'regular', until: shut, next: 'post', from: ex.open, to: close };
+    if (now >= shut && now < post) return { phase: 'post', until: post, next: 'closed', from: close, to: postEnd };
+    if (now < pre) return { phase: 'closed', closedFor: 'night', until: pre, next: 'pre' };
+  }
+  const wd = weekdayOf(p.y, p.mo - 1, p.d);
+  const holiday = today === null && wd !== 0 && wd !== 6 ? dayOf(ex, p.y, isoOf(p.y, p.mo - 1, p.d))?.name : undefined;
+  const closedFor = today !== null ? 'night' : holiday ? 'holiday' : 'weekend';
+  for (let k = 1; k < 21; k++) {
+    const t = new Date(Date.UTC(p.y, p.mo - 1, p.d + k));
+    if (closeOn(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) !== null) {
+      return { phase: 'closed', closedFor, ...(holiday ? { holiday } : {}), until: at(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate(), US_PRE_OPEN), next: 'pre' };
+    }
+  }
+  return { phase: 'closed', closedFor, ...(holiday ? { holiday } : {}), until: NaN, next: 'pre' };
+}
+
+/** The exchange a listing trades on, by its exchange code (AAPL US, ASML NA, SHEL LN), when the app has its calendar. */
+export function exchangeOfListing(ticker: string): Exchange | undefined {
+  const code = ticker.trim().split(/\s+/)[1];
+  switch (code) {
+    case 'US':
+      return US_MARKET;
+    case 'NA':
+    case 'FP':
+    case 'BB':
+    case 'PL':
+      return EU_MARKET;
+    case 'LN':
+      return LSE_MARKET;
+    case 'GY':
+    case 'GR':
+      return XETRA_MARKET;
+    case 'JT':
+    case 'JP':
+      return JPX_MARKET;
+    default:
+      return undefined;
+  }
+}
+
 /** Time left as H:MM:SS, or "2d 17h 05m" beyond a day. Whole seconds round up, so a closed market never shows 0:00:00. */
 export function fmtCountdown(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return '--';
