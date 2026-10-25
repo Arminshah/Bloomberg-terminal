@@ -16,7 +16,7 @@ import { lookupSource, searchOnline, type OnlineHit } from '../data/live/lookup'
 import { lookupFn } from '../terminal/registry';
 import { flash, usePanelId } from '../terminal/panel';
 import { settings, type ClickAction } from '../terminal/settings';
-import { applyPreset, defaultTerminal, panelCount, rowsOrDefault, terminal } from '../terminal/state';
+import { applyPreset, closeLayouts, defaultTerminal, layoutReturn, panelCount, rowsOrDefault, terminal, workspaceOf } from '../terminal/state';
 import { applySaved, currentRoutes, saveLayout, unsavedLayout } from '../terminal/layouts';
 import { fits, MAX_ROWS, MAX_TILES, MAX_TILES_PER_ROW, rowsOf } from '../terminal/rows-layout';
 import { parseCommand } from '../terminal/commands';
@@ -202,7 +202,7 @@ function LayoutBuilder() {
   const [counts, setCounts] = useState<number[]>([1, 2]);
   const total = counts.reduce((a, b) => a + b, 0);
   const [screens, setScreens] = useState<string[]>(() => {
-    const now = currentRoutes().map(commandOf);
+    const now = currentRoutes(workspaceOf(terminal.get())).map(commandOf);
     return Array.from({ length: MAX_TILES }, (_, i) => now[i] ?? SUGGESTED[i]);
   });
   const [name, setName] = useState('');
@@ -288,7 +288,11 @@ export function LPAD(_: FnProps) {
   const panel = usePanelId();
   const saved = savedLayouts.use((s) => s.list);
   const workspace = terminal.use((s) => s);
-  const changed = useMemo(() => unsavedLayout(workspace, saved), [workspace, saved]);
+  const cameFrom = layoutReturn.use((s) => s.before);
+  const changed = useMemo(() => unsavedLayout(workspace, saved), [workspace, saved, cameFrom]); // eslint-disable-line react-hooks/exhaustive-deps
+  // While LAYOUTS fills the window, "current panels" are the ones it was opened from.
+  const ws = workspaceOf(workspace, cameFrom);
+  const away = ws !== workspace;
   const [name, setName] = useState('');
   const save = () => {
     const n = name.trim();
@@ -301,6 +305,16 @@ export function LPAD(_: FnProps) {
   return (
     <div>
       <FnHeader code="LAYOUTS" title="Layouts" sub="Build a layout of your own, save the panels as a workspace and bring it back, or apply a preset" />
+      {away && (
+        <div className="pad row lb-away" role="status" style={{ gap: 10 }}>
+          <span>
+            LAYOUTS has the whole window. Your {panelCount(ws)} panels{ws.layoutName ? ` ("${ws.layoutName}")` : ''} are kept: saving below saves them.
+          </span>
+          <button type="button" className="btn primary" onClick={closeLayouts}>
+            ← Back to your panels
+          </button>
+        </div>
+      )}
       <LayoutBuilder />
       <Section title="Your layouts" right={`${saved.length} saved`}>
         <div className="pad row" style={{ gap: 8 }}>
@@ -322,7 +336,7 @@ export function LPAD(_: FnProps) {
                   {l.rows ? <RowsIcon rows={rowsOrDefault(l.rows)} /> : null} {l.name}
                 </td>
                 <td className="muted">
-                  {panelCount(l)} panels{workspace.layoutName === l.name ? <span className="badge" style={{ marginLeft: 6 }}>IN USE</span> : null}
+                  {panelCount(l)} panels{ws.layoutName === l.name ? <span className="badge" style={{ marginLeft: 6 }}>IN USE</span> : null}
                 </td>
                 <td className="muted hide-m">{routeText(l.routes)}</td>
                 <td className="muted hide-m">{fmtDate(l.saved)}</td>

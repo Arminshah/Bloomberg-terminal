@@ -3,7 +3,7 @@ import { engine, useInterval } from '../data/market';
 import { feedStatus } from '../data/live/status';
 import { breakingCount, marketNews } from '../data/live/marketnews';
 import { execute } from '../terminal/exec';
-import { applyPreset, panelCount, rowsOrDefault, setLayout, terminal, type LinkGroup } from '../terminal/state';
+import { applyPreset, layoutReturn, openLayouts, panelCount, rowsOrDefault, setLayout, terminal, type LinkGroup } from '../terminal/state';
 import { applySaved, saveLayout, unsavedLayout } from '../terminal/layouts';
 import type { RowsLayout } from '../terminal/rows-layout';
 import { alerts, chats, savedLayouts } from '../terminal/userdata';
@@ -217,7 +217,8 @@ export function TopBar() {
   const saved = savedLayouts.use((s) => s.list);
   // The saved layout in use, when it has changed since (resized, other screens): offered for saving.
   const workspace = terminal.use((s) => s);
-  const changed = useMemo(() => unsavedLayout(workspace, saved), [workspace, saved]);
+  const cameFrom = layoutReturn.use((s) => s.before);
+  const changed = useMemo(() => unsavedLayout(workspace, saved), [workspace, saved, cameFrom]); // eslint-disable-line react-hooks/exhaustive-deps
   // The menu closes a moment after the button loses focus (so a click on an item lands first); opening it again
   // cancels a close still pending, which would otherwise shut the menu just reopened.
   const closing = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -246,7 +247,7 @@ export function TopBar() {
         </button>
       ))}
       {layout === 'rows' ? (
-        <button type="button" className="tb-btn hide-m on" title="Your own layout: LAYOUTS builds, resizes and saves it" aria-label="Your own layout" onClick={() => run('LAYOUTS')}>
+        <button type="button" className="tb-btn hide-m on" title="Your own layout: LAYOUTS builds, resizes and saves it" aria-label="Your own layout" onClick={openLayouts}>
           <RowsIcon rows={rowsOrDefault(ownRows)} />
         </button>
       ) : null}
@@ -319,7 +320,8 @@ export function TopBar() {
               style={{ gridTemplateColumns: '24px 1fr auto' }}
               onMouseDown={(e) => {
                 e.preventDefault();
-                run('LAYOUTS');
+                // Building a layout takes the whole window; LAYOUTS keeps the panels before to save or go back to.
+                openLayouts();
                 setPresetOpen(false);
               }}
             >

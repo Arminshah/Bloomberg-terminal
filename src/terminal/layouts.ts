@@ -1,4 +1,4 @@
-import { applyPreset, linkGroupOf, panelCount, rowsOrDefault, setSplit, terminal, type TerminalState } from './state';
+import { applyPreset, linkGroupOf, nameReturnLayout, panelCount, rowsOrDefault, setSplit, terminal, workspaceOf, type TerminalState } from './state';
 import { savedLayouts, type SavedLayout } from './userdata';
 import type { Route } from './types';
 
@@ -31,9 +31,13 @@ export function snapshotLayout(name: string, s: TerminalState = terminal.get(), 
 
 /** Saves the workspace under `name` (replacing a layout of that name) and remembers it as the one in use. */
 export function saveLayout(name: string): SavedLayout {
-  const l = snapshotLayout(name);
+  const now = terminal.get();
+  const ws = workspaceOf(now);
+  const l = snapshotLayout(name, ws);
   savedLayouts.set((s) => ({ list: [l, ...s.list.filter((x) => x.name.toUpperCase() !== name.toUpperCase())] }));
-  terminal.set((s) => ({ ...s, layoutName: l.name }));
+  // While LAYOUTS fills the window, the saved workspace is the one it came from: that one takes the name.
+  if (ws !== now) nameReturnLayout(l.name);
+  else terminal.set((s) => ({ ...s, layoutName: l.name }));
   return l;
 }
 
@@ -58,7 +62,8 @@ export function sameLayout(a: SavedLayout, b: SavedLayout): boolean {
 }
 
 /** The saved layout the workspace was set to, when it has changed since (resized, other screens): saving would update it. */
-export function unsavedLayout(s: TerminalState, list: SavedLayout[]): SavedLayout | undefined {
+export function unsavedLayout(state: TerminalState, list: SavedLayout[]): SavedLayout | undefined {
+  const s = workspaceOf(state);
   const l = s.layoutName ? list.find((x) => x.name === s.layoutName) : undefined;
   return l && !sameLayout(snapshotLayout(l.name, s, l.saved), l) ? l : undefined;
 }

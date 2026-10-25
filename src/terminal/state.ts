@@ -244,7 +244,49 @@ export function setActive(panel: number) {
 }
 
 export function setLayout(layout: FixedLayoutId) {
+  if (layoutReturn.get().before) layoutReturn.set({ before: null });
   terminal.set((s) => ({ ...s, layout, active: Math.min(s.active, LAYOUT_PANELS[layout] - 1) }));
+}
+
+/** The workspace LAYOUTS was opened from, when the top bar opened it on the whole window. */
+export interface LayoutReturn {
+  layout: LayoutId;
+  rows?: RowsLayout;
+  layoutName?: string;
+  active: number;
+  /** The first panel as it was: the one LAYOUTS takes over. The other panels are kept as they are, hidden. */
+  panel0: PanelState;
+}
+
+/** Kept until a layout is applied or chosen, so LAYOUTS can save the workspace it came from, or go back to it. */
+export const layoutReturn = createStore<{ before: LayoutReturn | null }>({ before: null }, 'layout-return', 1);
+
+/** Opens LAYOUTS on the whole window (one panel): building a layout wants the room. The workspace before is kept. */
+export function openLayouts() {
+  const s = terminal.get();
+  if (s.layout !== '1' && !layoutReturn.get().before) layoutReturn.set({ before: { layout: s.layout, rows: s.rows, layoutName: s.layoutName, active: s.active, panel0: s.panels[0] } });
+  terminal.set((x) => ({ ...x, layout: '1', active: 0 }));
+  if (currentRoute(terminal.get(), 0).fn !== 'LAYOUTS') navigate(0, { fn: 'LAYOUTS' });
+}
+
+/** The workspace saving and "changed" are about: the one LAYOUTS was opened from while it fills the window. */
+export function workspaceOf(s: TerminalState, before = layoutReturn.get().before): TerminalState {
+  if (!before || s.layout !== '1' || currentRoute(s, 0).fn !== 'LAYOUTS') return s;
+  return { ...s, layout: before.layout, rows: before.rows, layoutName: before.layoutName, active: before.active, panels: s.panels.map((p, i) => (i === 0 ? before.panel0 : p)) };
+}
+
+/** Back to the workspace LAYOUTS was opened from. */
+export function closeLayouts() {
+  const before = layoutReturn.get().before;
+  if (!before) return;
+  layoutReturn.set({ before: null });
+  terminal.set((s) => workspaceOf(s, before));
+}
+
+/** Saving the workspace LAYOUTS was opened from under a name makes that its name when it comes back. */
+export function nameReturnLayout(name: string) {
+  const before = layoutReturn.get().before;
+  if (before) layoutReturn.set({ before: { ...before, layoutName: name } });
 }
 
 /**
@@ -252,6 +294,7 @@ export function setLayout(layout: FixedLayoutId) {
  * saved layout this is, so its changes can be saved; a preset or a new layout has none.
  */
 export function applyPreset(routes: Route[], layout: LayoutId, groups?: LinkGroup[], rows?: RowsLayout, name?: string) {
+  if (layoutReturn.get().before) layoutReturn.set({ before: null });
   terminal.set((s) => ({
     ...s,
     layout,

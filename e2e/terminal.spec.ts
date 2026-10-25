@@ -749,3 +749,32 @@ test("a menu's grid leaves the panel's background where a row has fewer sections
   expect(await grid.locator(':scope > *').first().evaluate((el) => getComputedStyle(el).boxShadow)).toContain('1px 0px 0px');
   expect(errors).toEqual([]);
 });
+
+test('building a layout takes the whole window and keeps the panels before, to save them or go back to them', async ({ page }) => {
+  const errors = await boot(page, '4');
+  const panels = page.locator('.workspace > .panel');
+  await expect(panels).toHaveCount(4);
+  await expect(panels.first().locator('.fnh-code').first()).toHaveText('MARKET');
+  await page.getByRole('button', { name: 'LAYOUTS ▾', exact: true }).click();
+  await page.getByRole('menuitem', { name: /Build, save or manage layouts/ }).click();
+  // One panel, the whole window, showing LAYOUTS.
+  await expect(panels).toHaveCount(1);
+  const panel = panels.first();
+  await expect(panel.locator('.fnh-code').first()).toHaveText('LAYOUTS');
+  await expect(page.getByRole('button', { name: 'Single panel', exact: true })).toHaveClass(/\bon\b/);
+  await expect(panel.locator('.lb-away')).toContainText('Your 4 panels are kept');
+  // The builder starts from those panels' screens.
+  await expect(panel.getByLabel('Screen for tile 1')).toHaveValue('MARKET');
+  // "Save current panels" saves the four panels LAYOUTS came from, not itself.
+  await panel.getByLabel('Layout name', { exact: true }).fill('Desk');
+  await panel.getByRole('button', { name: 'Save current panels' }).click();
+  const desk = panel.getByRole('row').filter({ has: page.getByRole('cell', { name: 'Desk', exact: true }) });
+  await expect(desk).toContainText('4 panels');
+  await expect(desk).toContainText('IN USE');
+  await panel.getByRole('button', { name: '← Back to your panels' }).click();
+  await expect(panels).toHaveCount(4);
+  await expect(panels.first().locator('.fnh-code').first()).toHaveText('MARKET');
+  // Back where it was saved: nothing to save.
+  await expect(page.getByRole('button', { name: 'LAYOUTS ▾', exact: true }).locator('.unsaved-dot')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
