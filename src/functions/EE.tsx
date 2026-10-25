@@ -68,6 +68,10 @@ interface ErnRow {
   comp: number;
   est: number;
   surp: number;
+  /** Revenue reported and expected (millions), and the surprise, shown beside EPS whatever the measure. */
+  revRep: number;
+  revEst: number;
+  revSurp: number;
   px: number;
   pxTitle?: string;
   pe: number;
@@ -169,6 +173,9 @@ export function EE({ sec }: FnProps) {
     const comp = measure === 'eps' ? e?.actual ?? NaN : NaN;
     const estimate = measure === 'eps' ? e?.est ?? NaN : Number.isFinite(e?.est ?? NaN) ? e!.est / 1e6 : NaN;
     const base = measure === 'eps' ? comp : reported;
+    // Revenue, always: reported on the estimate's basis where a source gives both, else the statements'.
+    const revRep = cq && Number.isFinite(cq.rev.actual) ? cq.rev.actual / 1e6 : h.revAct ?? NaN;
+    const revEst = cq && Number.isFinite(cq.rev.est) ? cq.rev.est / 1e6 : NaN;
     return {
       key: `${h.period}:${h.date}`,
       ann: h.dateUnknown ? '--' : fmtEarnDate(h, false),
@@ -179,6 +186,9 @@ export function EE({ sec }: FnProps) {
       comp,
       est: estimate,
       surp: Number.isFinite(base) && Number.isFinite(estimate) && estimate !== 0 ? ((base - estimate) / Math.abs(estimate)) * 100 : NaN,
+      revRep,
+      revEst,
+      revSurp: Number.isFinite(revRep) && Number.isFinite(revEst) && revEst !== 0 ? ((revRep - revEst) / Math.abs(revEst)) * 100 : NaN,
       px: r?.pct ?? NaN,
       pxTitle: r && Number.isFinite(r.pct) ? `${BASIS[r.basis]}: close of ${fmtDay(r.to * DAY_MS)} against close of ${fmtDay(r.from * DAY_MS)}` : r ? BASIS[r.basis] : h.dateUnknown ? 'Report date not given' : undefined,
       pe: peAt(i),
@@ -201,6 +211,9 @@ export function EE({ sec }: FnProps) {
       comp,
       est: NaN,
       surp: NaN,
+      revRep: Number.isFinite(y.rev) ? y.rev : NaN,
+      revEst: NaN,
+      revSurp: NaN,
       px: q4?.r?.pct ?? NaN,
       pe: NaN,
       future: false,
@@ -213,14 +226,14 @@ export function EE({ sec }: FnProps) {
     for (const e of (est?.state === 'ok' ? est.data ?? [] : []).filter((x) => x.date >= today).slice(0, 4).reverse()) {
       const v = measure === 'eps' ? e.epsAvg : e.revenueAvg / 1e6;
       if (!Number.isFinite(v)) continue;
-      coming.push({ key: `est:${e.date}`, ann: '', per: `FY ${e.date.slice(2, 4)}`, perEnd: fmtIso(e.date), confirmed: false, reported: NaN, comp: NaN, est: v, surp: NaN, px: NaN, pe: measure === 'eps' && q && e.epsAvg > 0 && (e.epsCurrency ?? e.currency ?? est?.currency ?? !listedOutsideUs(analystSymbol(s))) ? priceInCurrency(s, q.last, e.epsCurrency ?? e.currency ?? est?.currency) / e.epsAvg : NaN, future: true, from: est?.source });
+      coming.push({ key: `est:${e.date}`, ann: '', per: `FY ${e.date.slice(2, 4)}`, perEnd: fmtIso(e.date), confirmed: false, reported: NaN, comp: NaN, est: v, surp: NaN, revRep: NaN, revEst: Number.isFinite(e.revenueAvg) ? e.revenueAvg / 1e6 : NaN, revSurp: NaN, px: NaN, pe: measure === 'eps' && q && e.epsAvg > 0 && (e.epsCurrency ?? e.currency ?? est?.currency ?? !listedOutsideUs(analystSymbol(s))) ? priceInCurrency(s, q.last, e.epsCurrency ?? e.currency ?? est?.currency) / e.epsAvg : NaN, future: true, from: est?.source });
     }
   } else {
     for (const v of [consensus?.following, consensus?.next].filter((x): x is NonNullable<typeof x> => !!x)) {
       const e = measure === 'eps' ? v.eps : v.rev;
       const value = measure === 'eps' ? e.est : e.est / 1e6;
       const label = /^\d{4}-\d{2}-\d{2}$/.test(v.label) && v.end ? fiscalLabel(v.end, s.eq?.fye) ?? fmtIso(v.label) : v.label;
-      coming.push({ key: `next:${v.label}`, ann: v.date ? `${v.dateEstimated ? '~' : ''}${fmtDay(v.date)}` : '', per: label, perEnd: v.end ? fmtIso(v.end) : '', confirmed: !!v.date && !v.dateEstimated, reported: NaN, comp: NaN, est: value, surp: NaN, px: NaN, pe: NaN, future: true, from: e.estFrom });
+      coming.push({ key: `next:${v.label}`, ann: v.date ? `${v.dateEstimated ? '~' : ''}${fmtDay(v.date)}` : '', per: label, perEnd: v.end ? fmtIso(v.end) : '', confirmed: !!v.date && !v.dateEstimated, reported: NaN, comp: NaN, est: value, surp: NaN, revRep: NaN, revEst: Number.isFinite(v.rev.est) ? v.rev.est / 1e6 : NaN, revSurp: NaN, px: NaN, pe: NaN, future: true, from: e.estFrom });
     }
   }
   const pastRows = annual ? yearRows : quarterRows;
@@ -246,8 +259,8 @@ export function EE({ sec }: FnProps) {
   // The chart: comparable (or reported revenue) against the estimate, oldest first, coming periods' estimates after.
   const chartRows = [...rows].reverse();
   const csv = () => [
-    ['Ann Date', 'Per', 'Per End', 'Reported', 'Comp', 'Estimate', '%Surp', '%Px Chg', 'P/E'],
-    ...rows.map((r) => [r.ann, r.per, r.perEnd, r.reported, r.comp, r.est, r.surp, r.px, r.pe]),
+    ['Ann Date', 'Per', 'Per End', 'Reported', 'Comp', 'Estimate', '%Surp', 'Revenue Reported (M)', 'Revenue Estimate (M)', 'Revenue %Surp', '%Px Chg', 'P/E'],
+    ...rows.map((r) => [r.ann, r.per, r.perEnd, r.reported, r.comp, r.est, r.surp, r.revRep, r.revEst, r.revSurp, r.px, r.pe]),
   ];
   const sorted = { estimate: chartRows.map((r, i) => ({ x: i, y: r.est, label: r.per })), comp: chartRows.map((r, i) => ({ x: i, y: measure === 'eps' ? r.comp : r.reported, label: r.per })) };
   return (
@@ -357,6 +370,13 @@ export function EE({ sec }: FnProps) {
             {measure === 'eps' && <th className="num" title="EPS on the analysts' basis (usually adjusted), as the source reporting the estimate gives it">Comp</th>}
             <th className="num" title="The analysts' average estimate before the report">Estimate</th>
             <th className="num">%Surp</th>
+            {measure === 'eps' && (
+              <>
+                <th className="num" title="Revenue reported, millions: on the analysts' basis where a source compares it, else the statements'">Rev Reported</th>
+                <th className="num" title="The analysts' average revenue estimate before the report, millions">Rev Est</th>
+                <th className="num" title="Reported revenue against the estimate">Rev %Surp</th>
+              </>
+            )}
             <th className="num" title="Close-to-close change in the share price around the report, from the daily history">%Px Chg</th>
             <th className="num hide-m" title="The price on the report day over the four quarters' EPS to that report; for coming years, today's price over the estimate">P/E</th>
           </tr>
@@ -370,6 +390,13 @@ export function EE({ sec }: FnProps) {
             {measure === 'eps' && <td />}
             <td />
             <td className="num white">{Number.isFinite(absAvg(pastRows.map((r) => r.surp))) ? `${fmtNum(absAvg(pastRows.map((r) => r.surp)), 2)}%` : ''}</td>
+            {measure === 'eps' && (
+              <>
+                <td />
+                <td />
+                <td className="num white">{Number.isFinite(absAvg(pastRows.map((r) => r.revSurp))) ? `${fmtNum(absAvg(pastRows.map((r) => r.revSurp)), 2)}%` : ''}</td>
+              </>
+            )}
             <td className="num white">{Number.isFinite(absAvg(pastRows.map((r) => r.px))) ? `${fmtNum(absAvg(pastRows.map((r) => r.px)), 2)}%` : ''}</td>
             <td className="hide-m" />
           </tr>
@@ -383,6 +410,13 @@ export function EE({ sec }: FnProps) {
               {measure === 'eps' && <td className="num cyan">{fmtV(r.comp)}</td>}
               <td className="num">{fmtV(r.est)}</td>
               <td className="num">{Number.isFinite(r.surp) ? <Chg v={r.surp} pct dec={2} /> : ''}</td>
+              {measure === 'eps' && (
+                <>
+                  <td className="num white">{r.future ? '' : Number.isFinite(r.revRep) ? fmtMln(r.revRep) : '--'}</td>
+                  <td className="num">{Number.isFinite(r.revEst) ? fmtMln(r.revEst) : ''}</td>
+                  <td className="num">{Number.isFinite(r.revSurp) ? <Chg v={r.revSurp} pct dec={2} /> : ''}</td>
+                </>
+              )}
               <td className="num" title={r.pxTitle}>{Number.isFinite(r.px) ? <Chg v={r.px} pct dec={2} /> : ''}</td>
               <td className="num hide-m">{Number.isFinite(r.pe) ? fmtNum(r.pe, 2) : ''}</td>
             </tr>
@@ -391,7 +425,7 @@ export function EE({ sec }: FnProps) {
       </table>
       {!rows.length ? <div className="empty">{status === 'loading' ? 'Loading the earnings history…' : 'No reports from the source for this security.'}</div> : null}
       <div className="note">
-        Reported: {measure === 'eps' ? 'diluted EPS' : 'revenue (millions)'} from the company&apos;s statements. {measure === 'eps' ? "Comp: EPS on the analysts' basis (usually adjusted), from the source that compares it with the estimate; %Surp sets Comp against the estimate. " : "%Surp sets reported revenue against the analysts' estimate. "}
+        Reported: {measure === 'eps' ? 'diluted EPS' : 'revenue (millions)'} from the company&apos;s statements. {measure === 'eps' ? "Comp: EPS on the analysts' basis (usually adjusted), from the source that compares it with the estimate; %Surp sets Comp against the estimate. Revenue (millions) is shown beside EPS: reported on the estimate's basis where a source gives both, else the statements'. " : "%Surp sets reported revenue against the analysts' estimate. "}
         %Px Chg: the share price&apos;s close-to-close change around each report (before the open: the report day against the previous close; after the close: the next session against the report day). C marks a confirmed date; ~ an expected one.
         {annual ? " Annual view: the fiscal year's figures, its four quarters' comparable EPS added up, and the fourth-quarter report's price change; coming years show the analysts' consensus." : ''}
       </div>

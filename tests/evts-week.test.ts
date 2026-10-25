@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { latestSession, US_MARKET } from '../src/data/exchanges';
 import { companyName, mergeCalendar, parseNasdaqDay, parseNasdaqListings, parseYahooFacts, type CalendarReport, type CalendarTiming } from '../src/data/live/earnings-calendar';
-import { byRelevance, PER_OTHER, PER_SLOT, shortName, topReleases, weekLeaders, weekStart } from '../src/functions/EVTSWeek';
+import { byRelevance, PER_OTHER, PER_SLOT, revenue, shortName, topReleases, weekLeaders, weekStart } from '../src/functions/EVTSWeek';
 
 const at = (iso: string) => Date.parse(iso);
 const parsed = <T,>(r: { data: T } | { error: string }): T => {
@@ -112,6 +112,17 @@ describe('the most relevant releases', () => {
     const wed = '2026-10-28';
     const week = topReleases([report('KO', 'Coca-Cola Company (The)', tue, 'Bef-mkt', 1.19e9), report('SOFI', 'SoFi Technologies, Inc.', tue, 'Bef-mkt', 6.06e8), report('GOOG', 'Alphabet Inc.', wed, 'Aft-mkt', 5e9), report('GOOGL', 'Alphabet Inc.', wed, 'Aft-mkt', 7.53e9), report('TINY', 'Tiny Co', wed, '--', 1e6)], '2026-10-26');
     expect(weekLeaders(week, 3).map((l) => [l.r.symbol, l.date, l.session])).toEqual([['GOOGL', wed, 'post'], ['KO', tue, 'pre'], ['SOFI', tue, 'pre']]);
+  });
+
+  it("shows each tile's revenue: expected before the report, the surprise after it from one source", () => {
+    const base = report('VZ', 'Verizon Communications Inc.', '2026-10-26', 'Bef-mkt', 1e9);
+    expect(revenue({ ...base, rev: { est: 34.85e9, actual: NaN, estFrom: 'FMP' } })).toMatchObject({ text: 'Rev 34.85B', cls: 'muted' });
+    expect(revenue({ ...base, rev: { est: 34.85e9, actual: 35.55e9, estFrom: 'FMP', actualFrom: 'FMP' } })).toMatchObject({ text: 'Rev +2.0%', cls: 'up' });
+    expect(revenue({ ...base, rev: { est: 34.85e9, actual: 33.1e9, estFrom: 'FMP', actualFrom: 'FMP' } })).toMatchObject({ text: 'Rev -5.0%', cls: 'dn' });
+    // Expected and reported from two sources are not set against each other: the reported figure is shown.
+    expect(revenue({ ...base, rev: { est: 34.85e9, actual: 35.55e9, estFrom: 'Finnhub', actualFrom: 'FMP' } })).toMatchObject({ text: 'Rev 35.55B', cls: 'white' });
+    // No source: a labelled blank.
+    expect(revenue(base).text).toBe('Rev --');
   });
 
   it('shows a company by the name people use', () => {

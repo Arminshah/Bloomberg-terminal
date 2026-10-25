@@ -125,11 +125,24 @@ function figure(r: CalendarReport): { text: string; cls: string; title: string }
   return { text: '', cls: '', title: '' };
 }
 
+/** The revenue line under it: the surprise once reported (one source), else the revenue reported or expected. */
+export function revenue(r: CalendarReport): { text: string; cls: string; title: string } {
+  const from = r.rev.estFrom ? ` (${r.rev.estFrom})` : '';
+  if (ok(r.rev.actual)) {
+    const s = r.rev.estFrom === r.rev.actualFrom ? surprise(r.rev) : NaN;
+    if (ok(s)) return { text: `Rev ${s > 0 ? '+' : ''}${fmtNum(s, Math.abs(s) < 99.95 ? 1 : 0)}%`, cls: s > 0.05 ? 'up' : s < -0.05 ? 'dn' : '', title: `revenue ${fmtBig(r.rev.actual)} against ${fmtBig(r.rev.est)} expected${from}` };
+    return { text: `Rev ${fmtBig(r.rev.actual)}`, cls: 'white', title: `revenue reported${r.rev.actualFrom ? ` (${r.rev.actualFrom})` : ''}` };
+  }
+  if (ok(r.rev.est)) return { text: `Rev ${fmtBig(r.rev.est)}`, cls: 'muted', title: `revenue expected${from}` };
+  return { text: 'Rev --', cls: 'muted', title: 'no revenue estimate from the calendars' };
+}
+
 function Tile({ r }: { r: CalendarReport }) {
   const f = figure(r);
+  const rv = revenue(r);
   const name = shortName(r.name, r.symbol);
   const traded = ok(r.traded) ? `${fmtBig(r.traded)} USD traded in the latest session` : 'no trading figure';
-  const title = `${r.name || r.symbol} (${r.symbol} US) · ${traded}${ok(r.marketCap) ? ` · market value ${fmtBig(r.marketCap)} USD` : ''}${f.title ? ` · ${f.title}` : ''} · click to open`;
+  const title = `${r.name || r.symbol} (${r.symbol} US) · ${traded}${ok(r.marketCap) ? ` · market value ${fmtBig(r.marketCap)} USD` : ''}${f.title ? ` · ${f.title}` : ''} · ${rv.title} · click to open`;
   return (
     <Ticker symbol={r.symbol} className="evts-tile" title={title}>
       <span className="evts-tile-name">{name || r.symbol}</span>
@@ -138,6 +151,7 @@ function Tile({ r }: { r: CalendarReport }) {
         {ok(r.marketCap) && r.marketCap >= MEGA_CAP ? <MegaTag /> : null}
         <span className={`evts-tile-fig ${f.cls}`}>{f.text}</span>
       </span>
+      <span className={`evts-tile-sub evts-tile-fig ${rv.cls}`}>{rv.text}</span>
     </Ticker>
   );
 }
@@ -239,7 +253,7 @@ export function TopReleases({ cal, monday, now }: { cal: MarketCalendar; monday:
           Share classes count once. {total} {total === 1 ? 'company reports' : 'companies report'} this week; 14) Market lists every one.
         </div>
         <div>
-          <span className="amber">Reading</span> Before a report: the EPS expected · after it: reported against expected, <span className="up">green</span> beat, <span className="dn">red</span> missed · hover a company for its figures and sources, click to open it
+          <span className="amber">Reading</span> Before a report: the EPS and revenue expected · after it: reported against expected, <span className="up">green</span> beat, <span className="dn">red</span> missed · hover a company for its figures and sources, click to open it
         </div>
         <div>
           <span className="amber">Sources</span> {cal.reports.some((r) => r.sources.includes('Nasdaq')) ? 'Nasdaq earnings calendar: dates, sessions, EPS' : 'Finnhub earnings calendar: dates, sessions, EPS (Nasdaq\'s calendar did not load)'}

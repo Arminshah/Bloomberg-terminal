@@ -198,21 +198,23 @@ export function EVTS({ sec }: FnProps) {
             <th>Detail</th>
             <th className="num" title="The analysts' average EPS estimate for the quarter (Yahoo Finance, Finnhub)">EPS expected</th>
             <th className="num" title="EPS as reported, on the analysts' basis where a source compares it, else diluted EPS from the statements">EPS reported</th>
-            <th className="num hide-m" title="Reported EPS against the estimate">Beat / miss</th>
-            <th className="num hide-m" title="The analysts' average revenue estimate for the quarter">Revenue expected</th>
+            <th className="num hide-m" title="Reported EPS against the estimate">EPS beat / miss</th>
+            <th className="num" title="The analysts' average revenue estimate for the quarter">Revenue expected</th>
+            <th className="num" title="Revenue as reported, on the estimate's basis where a source compares it, else the statements'">Revenue reported</th>
+            <th className="num hide-m" title="Reported revenue against the estimate">Revenue beat / miss</th>
           </tr>
         </thead>
         <tbody ref={tableRef}>
           {events.length === 0 && (
             <tr>
-              <td colSpan={9} className="empty">
+              <td colSpan={11} className="empty">
                 {none}
               </td>
             </tr>
           )}
           {pastEvents.length > 0 && (
             <tr className="group click evts-fold" onClick={toggleFold}>
-              <td colSpan={9}>
+              <td colSpan={11}>
                 {folded ? '▸' : '▾'} Earlier in this window: {fmtDay(pastEvents[0].date)} to {fmtDay(pastEvents[pastEvents.length - 1].date)} · {pastEvents.length} {pastEvents.length === 1 ? 'event' : 'events'} ·{' '}
                 <span className="amber">{folded ? 'show' : 'hide'}</span>
               </td>
@@ -229,11 +231,13 @@ export function EVTS({ sec }: FnProps) {
             const past = e.date < now - DAY_MS;
             const q = e.kind === 'Earnings' && !e.sim && desktopData() ? quarterAt(consensusFor(d), e.date) : null;
             const v = q ? verdict(q.eps) : { text: '', cls: '' };
+            const rv = q ? verdict(q.rev) : { text: '', cls: '' };
+            const revCcy = q?.rev.ccy && q.rev.ccy !== d.ccy ? ` ${q.rev.ccy}` : '';
             const reported = q && Number.isFinite(q.eps.actual) ? q.eps.actual : e.act;
             return [
               head ? (
                 <tr key={`h${i}`} className="group" {...(start ? { 'data-session-start': '' } : {})}>
-                  <td colSpan={9}>
+                  <td colSpan={11}>
                     {WEEKDAYS[new Date(e.date).getUTCDay()]} {day}
                     {Math.floor(e.date / DAY_MS) === Math.floor(now / DAY_MS) ? '  · TODAY' : ''}
                   </td>
@@ -261,9 +265,13 @@ export function EVTS({ sec }: FnProps) {
                 </td>
                 <td className="num white">{reported != null && Number.isFinite(reported) ? fmtNum(reported, 2) : e.kind === 'Earnings' ? <span className="muted">{e.date > now ? 'pending' : '--'}</span> : ''}</td>
                 <td className={`num hide-m ${v.cls}`}>{v.text}</td>
-                <td className="num hide-m" title={q?.rev.estFrom ? `${q.rev.estFrom}${q.rev.ccy ? `, ${q.rev.ccy}` : ''}` : undefined}>
-                  {q && Number.isFinite(q.rev.est) ? `${fmtBig(q.rev.est)}${q.rev.ccy && q.rev.ccy !== d.ccy ? ` ${q.rev.ccy}` : ''}` : ''}
+                <td className="num" title={q?.rev.estFrom ? `${q.rev.estFrom}${q.rev.ccy ? `, ${q.rev.ccy}` : ''}` : undefined}>
+                  {q && Number.isFinite(q.rev.est) ? `${fmtBig(q.rev.est)}${revCcy}` : ''}
                 </td>
+                <td className="num white" title={q?.rev.actualFrom ? `${q.rev.actualFrom}${q.rev.ccy ? `, ${q.rev.ccy}` : ''}` : undefined}>
+                  {q && Number.isFinite(q.rev.actual) ? `${fmtBig(q.rev.actual)}${revCcy}` : e.kind === 'Earnings' && q ? <span className="muted">{e.date > now ? 'pending' : '--'}</span> : ''}
+                </td>
+                <td className={`num hide-m ${rv.cls}`}>{rv.text}</td>
               </tr>,
             ];
           })}

@@ -778,3 +778,21 @@ test('building a layout takes the whole window and keeps the panels before, to s
   await expect(page.getByRole('button', { name: 'LAYOUTS ▾', exact: true }).locator('.unsaved-dot')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('earnings tables show revenue expected and reported beside EPS', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity EARNINGS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code').first()).toHaveText('EARNINGS');
+  const ern = panel.locator('table.ern-tbl');
+  await expect(ern.locator('thead th')).toContainText(['Reported', 'Comp', 'Estimate', '%Surp', 'Rev Reported', 'Rev Est', 'Rev %Surp', '%Px Chg']);
+  // A reported quarter has its revenue (the statements' in this demo), a coming one shows the estimate's place only.
+  const col = (name: string) => ern.locator('thead th').evaluateAll((ths, n) => ths.findIndex((th) => th.textContent === n), name);
+  const revAt = await col('Rev Reported');
+  const reported = ern.locator('tbody tr:not(.ern-future):not(.ern-avg)').first().locator('td').nth(revAt);
+  await expect(reported).toHaveText(/\d/);
+  await run(page, 'EVENTS');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('EVENTS');
+  await expect(panel.locator('table.tbl thead th')).toContainText(['EPS expected', 'EPS reported', 'EPS beat / miss', 'Revenue expected', 'Revenue reported', 'Revenue beat / miss']);
+  expect(errors).toEqual([]);
+});
