@@ -6,22 +6,6 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 Accuracy first, then the screens you use every day, then new screens, then the data-source review and the comparison with Codex's video list.
 
-### 3. Watchlist: what is live right now, from your feedback item 7
-
-You asked: make it obvious whether you are looking at the regular market, pre-market or after-hours.
-
-Today:
-- The watchlist has Pre-mkt and After hrs columns.
-- A Session column exists but is off by default.
-- On a weekend, prices are labelled STALE (APLD's quote line in your screenshot).
-- Your Saturday screenshot shows After hrs equal to the closing price with 0.00%.
-
-Plan:
-- A clear line above the list, for example "US market closed (weekend) · pre-market opens Monday".
-- Highlight the column that is live now.
-- Show each non-US listing's own market state.
-- Check against the source whether a 0.00% after-hours figure is a real after-hours price or a fill-in. This needs Yahoo, which refuses this cloud computer, so it gets checked on your Windows machine.
-
 ### 4. Window buttons in the tab bar, from your feedback item 5
 
 You asked: put minimise, maximise and close in the tab bar, behind a vertical line the tabs can never cover, and remove the white Windows title bar. The icon and "HELP · Armin Terminal" at its left can go.
@@ -137,9 +121,14 @@ Plan:
 - Supply chain (SPLC): more coverage, how recent each relation is, classifier accuracy.
 - Blank "--" fields: fill each from a real source or say why it is blank.
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
+- Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
 
 ## Done, on the branch, not released yet
 
+- Item 3, the watchlist's live session (`440a174`):
+  - A line above the list says which session US stocks are in now: pre-market, regular, after hours or closed (night, weekend or holiday). It gives the time to the next change and names the column to read, which is marked LIVE. It also says whether the list's other markets are open.
+  - Hours are from Nasdaq; on early-close days after hours ends at 17:00 (NYSE Group's calendar).
+  - Your screenshot's 0.00% after-hours figure was real: Yahoo's chart shows APLD's last after-hours trade on Friday at 18.25, the close.
 - Item 2, corporate events (`ca6b4e9`):
   - EVENTS opens on the week's most relevant releases, Monday to Friday, before the open and after the close. It shows the 10 most traded companies of each (dollars traded in the latest session, from Nasdaq's stock list), with share classes counted once. Against an earnings site's list for the week of 26 October, 34 of its 45 companies are among ours, and 2 of the others aren't listed in the US.
   - The list of every report starts from $50B.
