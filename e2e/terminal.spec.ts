@@ -736,3 +736,16 @@ test('WACC and EQRP use the beta BETA shows by default: two years of weekly retu
   await expect(eqrp.getByLabel('Beta', { exact: true })).toHaveAttribute('placeholder', adjusted);
   expect(errors).toEqual([]);
 });
+
+test("a menu's grid leaves the panel's background where a row has fewer sections, not a grey block", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity MENU');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code').first()).toHaveText('MENU');
+  const grid = panel.locator('.cols').first();
+  await expect(grid).toBeVisible();
+  // The lines between sections are drawn by the sections themselves; the grid has no background of its own.
+  expect(await grid.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
+  expect(await grid.locator(':scope > *').first().evaluate((el) => getComputedStyle(el).boxShadow)).toContain('1px 0px 0px');
+  expect(errors).toEqual([]);
+});

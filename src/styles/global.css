@@ -715,13 +715,14 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .pad-s { padding: 4px 8px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .grow { flex: 1; min-width: 0; }
+/* Sections in a grid, 1px lines between them. Each section draws the line on its right and below it, so a row with
+   fewer sections leaves the panel's background, not a grey block where no section is. */
 .cols {
   display: grid;
   gap: 1px;
-  background: var(--line);
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
 }
-.cols > * { background: var(--bg-1); min-width: 0; }
+.cols > * { background: var(--bg-1); min-width: 0; box-shadow: 1px 0 0 var(--line), 0 1px 0 var(--line), 1px 1px 0 var(--line); }
 .sect { min-width: 0; }
 /* Section headings are the terminal's grey strips with white titles (DES boxes, monitor regions). */
 .sect-h {
