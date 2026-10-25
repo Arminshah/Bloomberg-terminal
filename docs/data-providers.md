@@ -51,6 +51,28 @@ In the desktop app, every request below goes out from the Electron main process 
 | CNBC | | RSS | | Not used: its feeds refuse programs and its owner's terms bar it |
 | Coinbase Exchange, Frankfurter | Former browser-build feeds | | | Disabled |
 
+## Review of Codex's notes, 25 October 2026
+
+Codex reviewed the sources of version 2.24.0 and sorted them into keep, keep with clear labels, and optional. Each point was checked against the code and, where it could be, against the live sources with the owner's keys: the self-test on `PROVIDERS`, run twice from a cloud session on 25 October. Every source that is switched on answered at least once.
+
+Where the notes are right, the app already does what they ask:
+- The official sources (SEC, FRED, Treasury, central banks, statistics offices) remain the base for filings, macro data and reference rates.
+- Kraken gives exchange prices and order books. CoinGecko gives market value and supply only, never a price.
+- Alpaca's IEX data is labelled as one exchange wherever it appears (`BQ`, `CROSSCHECK`, the IEX history notice, the help for `ALPACA_IEX_PRICES_ENABLED`). Its options are labelled indicative quotes and delayed trades, not OPRA (`OPTIONS`).
+- Yahoo is the largest single dependency. The app retries a refused quote once with a new session, falls back to Yahoo's charts (which need no session) for prices, and says on screen when Yahoo refuses the session. In the second self-test run Yahoo refused quotes and company data (HTTP 401) while its charts and search answered. From the same cloud address, Yahoo answered a plain request for a session with "Too Many Requests", so this looks like throttling of a shared address, not a fault in the app.
+- Twelve Data stays off until the owner confirms the plan allows displaying its data. Anthropic is optional and paid.
+- A key does not guarantee every endpoint: the app keeps a refusal (HTTP 402 or 403) to the one request, so one refused ticker does not switch off the provider.
+
+Where they are not:
+- "Running every overlapping source adds limited value." The second sources for daily closes run only when the owner opens `CROSSCHECK`, and comparing is their purpose. On 25 October they matched Yahoo's closes to the cent for all 34 sessions shown: Apple against Massive, Alpha Vantage and Tiingo, NVIDIA against Massive and Tiingo. The news feeds repeat each other less than the note implies. In the last seven days of Apple and NVIDIA stories, Alpaca (mostly Benzinga) and Massive (mostly The Motley Fool and Zacks) had none in common. Stories no other feed carried: Alpaca 16 of 50 for Apple and 41 of 50 for NVIDIA, Massive 37 and 19 of 50, Finnhub 200 of 246 and 210 of 250. A story two feeds carry is already shown once (`mergeStories` in `src/data/live/marketnews.ts`). No source is dropped.
+- Frankfurter republishes the ECB's reference rates. `PORTFOLIO` reads them from the ECB itself (see the ECB section), so Frankfurter would add a dependency and nothing else. It stays off.
+- OpenFIGI cannot match a company's ADR to its home share. Checked live on 25 October: ASML's New York shares and the ADRs of Shell, TSMC and AB InBev each have their own share-class FIGI, with no link to the home share and no ADR ratio. OpenFIGI does link one share across exchanges: Shell in London and in Amsterdam share one share-class FIGI. No screen needs that today. The one place where two listings of a company gave wrong numbers (Finnhub's answers for a home listing read as the US listing's) is fixed by checking the currency and the listing.
+- "Live account verification remains pending." It was done on 25 October with the owner's keys, as above.
+
+Changed (`691a733`): the self-test on `PROVIDERS` now also checks OpenFIGI (Apple's CUSIP to its ticker, without a key when none is set, as the app also asks without one) and the House Clerk (this year's index of members' filings; last year's in January). Both passed live: "037833100 is AAPL, APPLE INC" and "2026: 1763 filings, 437 of them trade reports, latest filed 2026-10-22".
+
+Seen while checking: Alpha Vantage answered "our standard API rate limit is 25 requests per day" at 16:01 UTC, then answered normally at 16:05 and 16:10 with the same key. Its notice therefore does not prove the day's allowance is spent. After such a notice the app waits one minute before asking again, so it does not give up for the day.
+
 ## Yahoo Finance
 
 What the app calls, from the main process: a cookie from `https://fc.yahoo.com/`, a crumb from `/v1/test/getcrumb`, then `query2.finance.yahoo.com` paths `/v7/finance/quote`, `/v8/finance/chart`, `/v10/finance/quoteSummary`, `/v1/finance/search`, `/v6/finance/recommendationsbysymbol` (similar stocks, for `PEERS`) and `/ws/fundamentals-timeseries`, plus the stream at `wss://streamer.finance.yahoo.com/?version=2`. Option chains and news remain switched off in the main process (`electron/yahoo-scope.cjs`). `YAHOO_RESEARCH_ENABLED` separately controls analyst modules and fields; when off, they are stripped before delivery. When enabled, Yahoo targets, recommendation snapshots, rating actions and annual estimates can serve as research fallbacks. One bundled request per issuer is reused for six hours, with failed refreshes retried after a minute and older answers marked stale. Relative recommendation periods and provider fiscal dates/currencies are retained, with revenue and EPS units kept separate for ADRs; missing target-history averages are not inferred. Yahoo publishes no documentation for any of these. Requests carry Electron's own user agent, which names this app and the Chromium engine sending them. A test on 12 October 2026 showed Yahoo refusing a crumb to a client that names itself without a browser engine.
@@ -253,7 +275,7 @@ Read on 14 October 2026.
 - [Documentation](https://www.alphavantage.co/documentation/), `TIME_SERIES_DAILY`: "raw (as-traded) daily time series"; `outputsize` defaults to `compact`, the latest 100 data points, and `full` needs a premium key. Real-time and 15-minute delayed US data are premium. The key goes in the `apikey` query parameter, the only way the page documents.
 - [Terms of service](https://www.alphavantage.co/terms_of_service/): the licence is to "install, use, access, display and run" the platform "for personal, non-commercial use". Use counts as commercial if, among other things, it goes beyond "investment analysis, research, testing, monitoring, and any other activities that are private and individual in nature", or if you work for or are affiliated with a financial planning advisor, insurance company, investment adviser, investment bank, money manager, registered representative or securities broker-dealer.
 
-The app asks for the compact series only, at most one request a minute and 20 a day (the count restarts at midnight UTC). When Alpha Vantage answers with a limit notice instead of data, `CROSSCHECK` shows the notice.
+The app asks for the compact series only, at most one request a minute and 20 a day (the count restarts at midnight UTC). When Alpha Vantage answers with a limit notice instead of data, `CROSSCHECK` marks the source "error" and shows the notice on hover. The notice can come before the day's 25 are spent (see the review above).
 
 ### Twelve Data
 
@@ -305,7 +327,7 @@ The main process handles JSON/SSE responses, matching JSON-RPC replies, stateful
 
 The [hosted documentation](https://github.com/daniel3303/stock-market-mcp-server#pricing--rate-limits) advertises a free 100-request/day allowance shared by REST, MCP and other clients, resetting at midnight UTC. This app conservatively counts **all** MCP transport requests, including initialization/discovery, against a persisted 90/day cap. One analyst-estimate report can load automatically when structured annual estimates are unavailable; other queries remain manual. Six-hour in-memory caching and ten transport requests/minute still apply. Limits and refusals remain visible. The user's secret is not bundled or copied from chat into files.
 
-An unauthenticated APLD estimates call returned HTTP 401 (missing key). Public schema discovery proves protocol reachability, not this user's account entitlement or APLD coverage; authenticated live account validation remains outstanding. Securely configure the key in cloud settings for cloud checks, or save it on desktop `PROVIDERS`. The research access check tests five endpoints for the requested ticker; a cached response is explicitly distinguished from a fresh access check. The all-source self-test also includes Equibles and shares the ordinary keyed broker's caps, pacing and refusal handling.
+An unauthenticated APLD estimates call returned HTTP 401 (missing key). With the owner's key, the self-test's Apple estimates request received a research report on 25 October 2026; coverage of other tickers is shown on `ANALYSTS` per request. The research access check tests five endpoints for the requested ticker; a cached response is explicitly distinguished from a fresh access check. The all-source self-test also includes Equibles and shares the ordinary keyed broker's caps, pacing and refusal handling.
 
 ## Market and company news
 
@@ -417,6 +439,8 @@ Amounts are disclosed as ranges; totals are ranges too (an open range, "Over $50
 Read on 25 October 2026. The [API documentation](https://www.openfigi.com/api/documentation): `POST https://api.openfigi.com/v3/mapping` with a JSON array of jobs (`idType`, `idValue`, optional `exchCode`), the key, when there is one, in the `X-OPENFIGI-APIKEY` header; the answer holds one entry per job, `data` (with `ticker`, `name`, `exchCode`, `compositeFIGI`, `securityType`, `securityType2`), `warning` ("No identifier found.") or `error`. Limits: without a key 25 requests a minute of 10 jobs; with one 250 a minute of 100; over them HTTP 429 with `retry-after`, too many jobs HTTP 413. The [terms of service](https://www.openfigi.com/docs/terms-of-service) dedicate the identifiers to the public domain, allow their use "for any purpose, commercial or non-commercial", and allow the names FIGI and OpenFIGI only to refer to them, without suggesting endorsement.
 
 `HOLDINGS` asks for the US composite listing (`exchCode: "US"`) of each CUSIP in the 13F on screen, its 300 largest holdings, as `ID_CUSIP`, or `ID_CINS` for a foreign issue's code (it starts with a letter: Nebius's N97284108 has no answer as a CUSIP and one as a CINS, checked live). Answers are kept a week on disk (`openfigi-cusips.json` in the app's data folder), a code without a US listing a day. The app keeps to 200 requests a minute with a key and 20 without. Switch: `OPENFIGI_ENABLED`.
+
+One share listed on several exchanges has one share-class FIGI (`shareClassFIGI`): Shell's London and Amsterdam lines share BBG0149N4YG4. An ADR has its own share-class FIGI and OpenFIGI gives no link to the home share and no ADR ratio (checked live on 25 October 2026 for ASML, Shell, TSMC and AB InBev), so it cannot match ADRs to their home shares.
 
 ## Disabled and not reviewed
 

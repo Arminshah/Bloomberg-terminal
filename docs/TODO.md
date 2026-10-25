@@ -4,19 +4,7 @@ Updated 25 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-Accuracy first, then the screens you use every day, then new screens, then the data-source review and the comparison with Codex's video list.
-
-### 8. Review of the data sources (Codex's notes), from your feedback item 3
-
-You asked: review Codex's assessment of the APIs, don't follow it blindly, and make the improvements that make sense.
-
-Plan:
-- Go through Codex's table provider by provider against the code.
-- Keep what is useful, drop calls that only repeat another source, and fix what is wrong. Each fix gets its own commit and test.
-- Codex's two suggestions:
-  - OpenFIGI: already connected with your key for item 6 (tickers of 13F holdings). Still to do: use it to match the same company across exchanges and ADRs.
-  - Dated ECB exchange rates for portfolio conversions. The ECB is already a source in the app.
-- Write up what I agree and disagree with, and why.
+Items 1 to 8 are done. Item 9 is left: sorting its 20 new function codes can be done now; comparing screens needs your files first (see "Waiting on you").
 
 ### 9. Compare the app with Codex's list of Bloomberg videos
 
@@ -82,6 +70,7 @@ Plan:
   - WCR and WECO
   - INSD (SEC Form 4) and OVDV (option implied volatility surface)
   - PSRT/PD/HLDR (a manager's 13F; HOLDINGS shows a company's own)
+- OpenFIGI: a list of the other exchanges a share trades on (one share-class FIGI), if a screen needs it. ADRs cannot be matched this way (see `docs/data-providers.md`).
 - CONGRESS: liabilities (Schedule D) for an assets-less-debts range; each member's committees (in the Clerk's member list) beside their trades.
 - Supply chain (SPLC): more coverage, how recent each relation is, classifier accuracy.
 - Blank "--" fields: fill each from a real source or say why it is blank.
@@ -90,6 +79,15 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Item 8, review of the data sources (`691a733`, `a1b1fe6`):
+  - Codex's table checked source by source against the code and live with your keys (the self-test, run twice: every source that is switched on answered at least once). The write-up is in `docs/data-providers.md`, "Review of Codex's notes".
+  - Agreed, and already in the app: official sources first, Kraken for crypto prices and CoinGecko only for market value, Alpaca labelled IEX-only with options marked indicative, Twelve Data off until you confirm display rights, Anthropic optional.
+  - Disagreed, with evidence:
+    - Nothing needed dropping. The second price sources run only on CROSSCHECK, and they matched Yahoo's closes to the cent for 34 sessions of Apple and NVIDIA. Each news feed carried stories the others did not.
+    - Frankfurter only repeats the ECB, so PORTFOLIO reads the ECB itself (`a1b1fe6`): a lot bought on a past date gets that day's ECB rate.
+    - OpenFIGI cannot match ADRs to their home shares: it gives an ADR its own identifier, with no link and no ratio. It can link one share across exchanges, which no screen needs yet (in "Later").
+  - Added: the self-test now checks OpenFIGI and the House Clerk too (`691a733`).
+  - Seen: Alpha Vantage sometimes says its 25 a day are used up when they are not (it answered again 4 minutes later). Yahoo throttled this cloud session's shared address once. The app copes with both.
 - Item 7, congress trade tracker (`4221b3b`):
   - CONGRESS (also CONG) is in the Equity menu and in a stock's menu, with four tabs:
     - Members: representatives ranked by the assets in their latest annual report, shown as a range because the forms give ranges.
