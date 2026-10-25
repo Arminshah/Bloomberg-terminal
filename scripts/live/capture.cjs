@@ -24,7 +24,12 @@ const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice
   page.on('pageerror', (e) => errors.push('pageerror: ' + String(e).slice(0, 300)));
   await page.waitForURL(/^file:/);
   await page.locator('#cmd-0').waitFor({ timeout: 45000 });
-  await page.evaluate(() => { localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: '1' } })); });
+  // ARMIN_LIVE_STORAGE: more local storage to start with, as JSON {key: value} (a screen's notice already accepted).
+  const extra = process.env.ARMIN_LIVE_STORAGE ? JSON.parse(process.env.ARMIN_LIVE_STORAGE) : {};
+  await page.evaluate((more) => {
+    localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: '1' } }));
+    for (const [k, v] of Object.entries(more)) localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
+  }, extra);
   await page.reload();
   await page.locator('#cmd-0').waitFor();
   await page.setViewportSize({ width: 1600, height: 1000 }).catch(() => {});
