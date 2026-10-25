@@ -28,6 +28,7 @@ State at handover: lint, typecheck, 1,231 Vitest tests (95 files), 39 browser an
 3. **Functions the reference documents name that the app lacks but could build from free data** (class a in the coverage matrix, 55 codes): the most cited are ECFC (IMF forecasts), ECTR (IMF trade data), EA (an index's earnings season), EEG/EM (estimate history and trends), RELS, CTM/CT (futures contract months), CACT (corporate actions across stocks), FXCA (currency converter), WCR, WECO, INSD (SEC Form 4), OVDV (option IV surface), PSRT/PD/HLDR (SEC 13F).
 4. **Ongoing**: the supply-chain screen (SPLC: more coverage, how recent each relation is, classifier accuracy), the sweep for blank "--" fields (fill from a real source or label why), and the watchlist + favourites in the TOPMOVERS layout (low priority). Dropped by the owner: the remaining Codex audit findings.
 5. **Owner decisions pending**: whether to open a pull request into `main` (it would contain the whole app); rotating every API key that was pasted into chats.
+6. **Visual pass**: `docs/visual-research-2026-10.md` has colours measured from Bloomberg-published images, a free stand-in for the Terminal's typeface (Bergoom, OFL), layout details of the current window, Launchpad and ASKB, and a chart blur on Windows scaling (`PriceChart.ts`, `XYChart.tsx`). Not started.
 
 ## The owner's rules (keep them)
 
