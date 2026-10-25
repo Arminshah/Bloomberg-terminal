@@ -631,3 +631,32 @@ Status: a function code means the code opens that screen; **a** missing, could b
 | YAS | #4, #6, #19, #33 | BONDCALC |  |
 | YASN | #4 | b |  |
 | YTC | #4 | b |  |
+
+## 3. Codes from Codex's list of Bloomberg videos
+
+Added 25 October 2026. Codex's list of Bloomberg videos names 41 function codes: 15 open a screen in the app and 6 are sorted in section 2 (WATC, HRA, OVDV, BI, OMST, BLP). The other 20 are below. The evidence is the title and one-line description in Codex's list only; no video has been watched yet (`docs/TODO.md`, item 9). A class given from a title is provisional, and **?** means the title does not say enough to sort the code.
+
+| Code | Codex's description | Status | Note |
+|---|---|---|---|
+| AID | Automated snapshots: time-stamped summaries from several datasets | ? | could be a dated snapshot of a security from the app's own sources; what the provider's version holds is not known from the title |
+| ALTD | Alternative data: nontraditional company performance indicators | b | card spending, foot traffic and web data are sold by data vendors; no free source identified |
+| ASKB | Agentic AI research for earnings and corporate events | b | the provider's own assistant; MESSAGES answers questions from the app's sources with the optional, paid Anthropic key |
+| BQL | Bloomberg Query Language, spreadsheet workflow | b | the provider's query language and platform |
+| BQNT | BQuant apps in Launchpad | b | the provider's development platform |
+| BTM | Options flow monitoring: large options trades, alerts | b | needs trade-by-trade options data (OPRA); Alpaca's free options feed is indicative, with no trade flow |
+| BTST | Trading backtests: historical returns, strategy comparisons, risk statistics | **a** | strategies run on daily price history (Yahoo, as on HISTORY and RETURNS) |
+| CFND | Cross-asset correlations (with HRA) | **a** | CORRELATION's daily-return correlations, searched across a list for the closest |
+| CHRT | Chart discovery by company and sector | b | a library of the provider's own published charts |
+| CMGR | Compliance rules: checking investment rules | **a** | limits checked against PORTFOLIO's own holdings (weight of a position, sector or country); no outside data |
+| CRAN | Credit research: issuer credit analysis | b | credit ratings and credit research are licensed content |
+| DSX | AI peer comparison and document research | b | the provider's AI service; DOCSEARCH already searches the full text of SEC filings |
+| FIW | Finding and comparing bonds (with SRCH) | b | bond prices have no free source (see BONDSEARCH) |
+| MM | Securitized credit spreads and yields | b | dealer pricing; no free source identified |
+| MREP | News and research (with TOP) | ? | the title does not say what it holds; brokers' research would be b |
+| OPX | Named in an options webinar (volatility, Greeks, pricing, strategies) | ? | listed without a description |
+| OSCH | Named in the same webinar | ? | listed without a description |
+| OVI | Named in the same webinar | ? | listed without a description |
+| SHOK | Economic scenario modelling | b | needs an economic model; the provider's economists' scenarios are its own |
+| WSL | Worksheet sample library | b | the provider's worksheet platform |
+
+Count: 3 could be built from free data (BTST, CFND, CMGR), 12 are the provider's content, platform or paid data, and 5 cannot be sorted from their titles (AID, MREP, OPX, OSCH, OVI).

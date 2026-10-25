@@ -34,7 +34,7 @@ Limits:
 - Several of the new codes need paid or proprietary data (alternative data, options trade flow, the provider's own research), or are platform features (BQuant, worksheets, compliance rules). They cannot be built without inventing data, which the rules forbid.
 
 Plan:
-- Add the 20 new codes to `docs/audit-v2.23.0-coverage.md`. Each gets a class, based on the evidence used: buildable from free data, needs paid or proprietary data, or not applicable. Buildable ones join "Later".
+- Done: the 20 new codes are in `docs/audit-v2.23.0-coverage.md`, section 3, sorted from Codex's titles only. 3 can be built from free data (BTST backtests, CFND correlation search, CMGR portfolio rules; added to "Later"). 12 need the provider's own content, platform or paid data. 5 can't be sorted from a title (AID, MREP, OPX, OSCH, OVI) and wait for the videos.
 - Compare the screens you use most with the provider's own documentation, using Codex's checklist. Those screens are the screener, world indices, market map, relative valuation, financials, earnings, analysts, portfolio, bond calculator and options. The checklist covers:
   - how the screen opens
   - its inputs and logic
@@ -70,6 +70,10 @@ Plan:
   - WCR and WECO
   - INSD (SEC Form 4) and OVDV (option implied volatility surface)
   - PSRT/PD/HLDR (a manager's 13F; HOLDINGS shows a company's own)
+- From Codex's video list, buildable from free data (sorted from titles only, so to be checked against the videos first):
+  - BTST: backtests of simple strategies on daily price history.
+  - CFND: the securities most correlated with one, from CORRELATION's daily returns.
+  - CMGR: your own limits on a portfolio (weight of a position, sector or country), checked on PORTFOLIO.
 - OpenFIGI: a list of the other exchanges a share trades on (one share-class FIGI), if a screen needs it. ADRs cannot be matched this way (see `docs/data-providers.md`).
 - CONGRESS: liabilities (Schedule D) for an assets-less-debts range; each member's committees (in the Clerk's member list) beside their trades.
 - Supply chain (SPLC): more coverage, how recent each relation is, classifier accuracy.
