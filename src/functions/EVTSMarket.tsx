@@ -1,15 +1,16 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { CapLink } from '../components/CapLink';
 import { openSecurity } from '../components/cells';
 import { verdict } from '../components/EarningsExpectations';
 import { fmtBig, fmtDay, fmtNum, MONTHS, WEEKDAYS } from '../core/format';
-import { growthPct, isoDay, type CalendarFigure, type CalendarReport, type CalendarTiming, type MarketCalendar } from '../data/live/earnings-calendar';
+import { growthPct, type CalendarFigure, type CalendarReport, type CalendarTiming, type MarketCalendar } from '../data/live/earnings-calendar';
 import { lookupSecurity } from '../data/live/lookup';
 import { useFundamentals } from '../data/live/yfund';
 import { useConsensus, type Consensus } from '../data/live/consensus';
 import { historyData, historyFor, loadHistory, wantHistories } from '../data/live/estimate-history';
 import { engine } from '../data/market';
 import { DAY_MS } from '../data/calendar';
+import { latestSession, localDate, US_MARKET } from '../data/exchanges';
 import type { FinPeriod } from '../data/fundamentals';
 import type { SecurityDef } from '../data/types';
 import { execute } from '../terminal/exec';
@@ -81,7 +82,7 @@ export function surprise(f: CalendarFigure): number {
 }
 
 /** The ticker, opening the security (looked up first when the app does not hold it yet). */
-function Ticker({ symbol }: { symbol: string }) {
+export function Ticker({ symbol }: { symbol: string }) {
   const panel = usePanelId();
   const [busy, setBusy] = useState(false);
   return (
@@ -266,18 +267,23 @@ const MarketRow = memo(
  * The slice of a long list of equal-height table lines that is in view in its scrolling ancestor, with a margin, so a
  * thousand-line calendar draws a few dozen lines. The line height is measured from a drawn line.
  */
+/** What scrolls a screen's lines up and down: the panel body; a table wrapper scrolls only sideways and grows with its table. */
+export function scrollerOf(el: HTMLElement | null): HTMLElement | null {
+  if (!el) return null;
+  let scroller: HTMLElement | null = el.closest<HTMLElement>('.panel-body');
+  if (!scroller) {
+    scroller = el.parentElement;
+    while (scroller && !(/(auto|scroll)/.test(getComputedStyle(scroller).overflowY) && scroller.clientHeight < scroller.scrollHeight)) scroller = scroller.parentElement;
+  }
+  return scroller;
+}
+
 function useVisibleRange(ref: RefObject<HTMLTableSectionElement | null>, count: number): { start: number; end: number; rowH: number; first: number; last: number } {
   const [view, setView] = useState({ start: 0, end: Math.min(count, 80), rowH: 20, first: 0, last: Math.min(count, 50) });
   useEffect(() => {
     const body = ref.current;
     if (!body) return;
-    // The panel body scrolls the screen; a table wrapper scrolls only sideways and grows with its table.
-    let scroller: HTMLElement | null = body.closest<HTMLElement>('.panel-body');
-    if (!scroller) {
-      scroller = body.parentElement;
-      while (scroller && !(/(auto|scroll)/.test(getComputedStyle(scroller).overflowY) && scroller.clientHeight < scroller.scrollHeight)) scroller = scroller.parentElement;
-    }
-    const host = scroller ?? document.documentElement;
+    const host = scrollerOf(body) ?? document.documentElement;
     const update = () => {
       const line = body.querySelector<HTMLElement>('tr.click, tr.group');
       const rowH = Math.max(14, line?.offsetHeight || 20);
@@ -305,7 +311,8 @@ function useVisibleRange(ref: RefObject<HTMLTableSectionElement | null>, count: 
 export function MarketEarnings({ cal, minCap, caps, onCap, now, spansPast = false }: { cal: MarketCalendar; minCap: number; caps: { v: number; label: string }[]; onCap: (v: number) => void; now: number; spansPast?: boolean }) {
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<string | null>(null);
-  // A window around today opens on today: its earlier days are folded into one line above it, to show on demand.
+  // A window around today opens on the latest trading day (Friday at a weekend): the days before it are folded into
+  // one line above it, to show on demand.
   const [showPast, setShowPast] = useState(false);
   const q = filter.trim().toLowerCase();
   // Earnings histories arrive for the lines in view; the lines are completed from them.
@@ -319,17 +326,19 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now, spansPast = fals
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cal.reports, minCap, q, zv],
   );
-  const today = isoDay(now);
+  // New York's dates, as the calendar's.
+  const today = localDate(US_MARKET, now);
+  const session = latestSession(US_MARKET, now);
   const cols = 10;
   const toggle = useCallback((key: string) => setOpen((o) => (o === key ? null : key)), []);
-  const past = spansPast ? rows.filter((r) => r.date < today) : [];
+  const past = spansPast ? rows.filter((r) => r.date < session) : [];
   const folded = past.length > 0 && !showPast && !q;
   // One flat list of day headings and lines; only the lines in view (and a margin) are drawn, the rest is spacer.
   const flat = useMemo(() => {
     const list: ({ kind: 'fold' } | { kind: 'day'; date: string } | { kind: 'row'; r: CalendarReport; key: string; sig: string })[] = [];
     if (past.length && !q) list.push({ kind: 'fold' });
     let lastDay = '';
-    for (const r of folded ? rows.filter((x) => x.date >= today) : rows) {
+    for (const r of folded ? rows.filter((x) => x.date >= session) : rows) {
       if (r.date !== lastDay) {
         lastDay = r.date;
         list.push({ kind: 'day', date: r.date });
@@ -338,7 +347,7 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now, spansPast = fals
     }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, folded, today, q]);
+  }, [rows, folded, session, q]);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
   const view = useVisibleRange(bodyRef, flat.length);
   // The column headings stay in view under the function's header while the calendar scrolls.
@@ -377,10 +386,25 @@ export function MarketEarnings({ cal, minCap, caps, onCap, now, spansPast = fals
   const out: ReactNode[] = [];
   if (view.start > 0) out.push(<tr key="pad-top" aria-hidden="true" style={{ height: view.start * view.rowH }} />);
   const pastDays = new Set(past.map((r) => r.date));
+  // Showing the earlier days puts them above the latest trading day without moving it: the screen scrolls by the
+  // lines added (or taken away), all one height.
+  const keepAt = useRef<number | null>(null);
+  const toggleFold = () => {
+    const scroller = scrollerOf(bodyRef.current);
+    const moved = (pastDays.size + past.length) * view.rowH;
+    if (scroller) keepAt.current = scroller.scrollTop + (folded ? moved : -moved);
+    setShowPast((v) => !v);
+  };
+  useLayoutEffect(() => {
+    const top = keepAt.current;
+    keepAt.current = null;
+    const scroller = scrollerOf(bodyRef.current);
+    if (top != null && scroller) scroller.scrollTop = Math.max(0, top);
+  }, [showPast]);
   for (const item of flat.slice(view.start, view.end)) {
     if (item.kind === 'fold') {
       out.push(
-        <tr key="fold" className="group click evts-fold" onClick={() => setShowPast((v) => !v)} title={folded ? 'Show the reports of the days before today' : 'Fold the days before today away'}>
+        <tr key="fold" className="group click evts-fold" onClick={toggleFold} title={folded ? 'Show the reports of the days before the latest trading day, above it' : 'Fold the days before the latest trading day away'}>
           <td colSpan={cols}>
             {folded ? '▸' : '▾'} Earlier in this window: {past.length ? `${fmtDay(ms(past[0].date))} to ${fmtDay(ms(past[past.length - 1].date))}` : ''} · {pastDays.size} {pastDays.size === 1 ? 'day' : 'days'},{' '}
             {past.length} {past.length === 1 ? 'report' : 'reports'} · <span className="amber">{folded ? 'show' : 'hide'}</span>

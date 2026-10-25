@@ -1412,6 +1412,25 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .evts-mkt thead th { top: var(--evts-head-top, 0px); z-index: 4; }
 .evts-mkt td.num, .evts-mkt th.num { font-variant-numeric: tabular-nums; }
 
+/* EVTS's most relevant releases: a week of days across, the sessions down (EVTSWeek.tsx). */
+.tbl.evts-week { table-layout: fixed; width: 100%; min-width: 760px; }
+.evts-week col.evts-week-label { width: 84px; }
+.evts-week thead th { text-align: left; vertical-align: bottom; white-space: nowrap; }
+.evts-week thead th.evts-week-today { color: var(--amber-2); box-shadow: inset 0 -2px 0 var(--amber); }
+.evts-week .evts-week-count { font-weight: 400; font-size: var(--fs-s); }
+.evts-week th.evts-week-session { color: var(--amber); text-align: left; vertical-align: top; white-space: nowrap; }
+.evts-week td { vertical-align: top; border-left: 1px solid var(--line); padding-top: 3px; padding-bottom: 5px; }
+.evts-week td.evts-week-past .evts-week-name { color: #9a9a9a; }
+.evts-week-list { list-style: none; margin: 0; padding: 0; }
+.evts-week-list li { display: flex; align-items: baseline; gap: 4px; min-width: 0; line-height: 1.45; white-space: nowrap; }
+.evts-week-list .sec-link { flex: none; }
+.evts-week-list .badge { flex: none; }
+.evts-week-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #c8c8c8; }
+.evts-week-fig { flex: none; font-variant-numeric: tabular-nums; }
+.evts-week-fig.up { color: var(--up); }
+.evts-week-fig.dn { color: var(--dn); }
+.evts-week-more { font-size: var(--fs-s); }
+
 /* TOPMOVERS: names and the 52-week range bar */
 .mv-table .mv-name { display: inline-block; max-width: 230px; vertical-align: bottom; }
 .mv-range { display: inline-grid; grid-template-columns: auto auto; width: 110px; font-size: 10px; color: var(--muted, #8a8a8a); }

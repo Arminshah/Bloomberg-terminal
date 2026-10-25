@@ -57,6 +57,9 @@ export interface Listing {
   country: string;
   sector: string;
   industry?: string;
+  /** The last price and the shares traded in the latest session the stock list reports; NaN when not given. */
+  price?: number;
+  volume?: number;
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -144,6 +147,16 @@ export function parseNasdaqDay(text: string, date: string, now = Date.now()): { 
 }
 
 /** Nasdaq's screener: every listed stock's market value, by ticker. Preferred shares (ABR^D) are left out. */
+/**
+ * A company's name without the share description Nasdaq's stock list adds to it: "FuboTV Inc. Class A Common Stock"
+ * is FuboTV Inc., "Ionis Pharmaceuticals Inc. Common Stock" Ionis Pharmaceuticals Inc.
+ */
+export function companyName(listed: string): string {
+  const name = listed.trim();
+  const short = name.replace(/\s+(?:Class [A-Z]\s+)?(?:Common Stock|Common Shares|Ordinary Shares|Subordinate Voting Shares)(?:\s*\(.*\))?$/i, '').trim();
+  return short || name;
+}
+
 export function parseNasdaqListings(text: string): { data: Map<string, Listing> } | { error: string } {
   const j = json(text);
   const rows: any[] | undefined = j?.data?.rows ?? j?.data?.table?.rows;
@@ -152,7 +165,7 @@ export function parseNasdaqListings(text: string): { data: Map<string, Listing> 
   for (const r of rows) {
     const symbol = tickerKey(r?.symbol);
     if (!/^[A-Z][A-Z0-9.]{0,9}$/.test(symbol)) continue;
-    out.set(symbol, { cap: nasdaqNumber(r?.marketCap), name: String(r?.name ?? '').trim(), country: String(r?.country ?? ''), sector: String(r?.sector ?? ''), industry: String(r?.industry ?? '') });
+    out.set(symbol, { cap: nasdaqNumber(r?.marketCap), name: companyName(String(r?.name ?? '')), country: String(r?.country ?? ''), sector: String(r?.sector ?? ''), industry: String(r?.industry ?? ''), price: nasdaqNumber(r?.lastsale), volume: nasdaqNumber(r?.volume) });
   }
   return { data: out };
 }
@@ -219,6 +232,11 @@ export interface CalendarReport {
   timing: CalendarTiming;
   /** US dollars; NaN when no source gives it. */
   marketCap: number;
+  /**
+   * US dollars traded in the latest session Nasdaq's stock list reports (last price times shares traded): how much
+   * the market trades the company, which ranks the most relevant releases. NaN when the list does not have it.
+   */
+  traded: number;
   /** The fiscal quarter's last month (YYYY-MM, Nasdaq) and its fiscal label (Finnhub), when given. */
   fiscalEnd: string;
   label?: string;
@@ -325,6 +343,7 @@ export function mergeCalendar(i: CalendarInput): CalendarReport[] {
       date,
       timing: n && n.timing !== '--' ? n.timing : f?.timing ?? n?.timing ?? '--',
       marketCap: ok(n?.marketCap) ? n!.marketCap : listing?.cap ?? NaN,
+      traded: listing && ok(listing.price) && ok(listing.volume) && listing.price > 0 && listing.volume >= 0 ? listing.price * listing.volume : NaN,
       fiscalEnd,
       ...(f?.label ? { label: f.label } : {}),
       eps,
@@ -538,6 +557,10 @@ export interface MarketCalendar {
   /** Which revenue sources answered, and why the others did not. */
   revenueFrom: CalendarSource[];
   problems: string[];
+  /** Why Nasdaq's calendar days or stock list did not load: the dates and companies themselves. */
+  calendarProblems: string[];
+  /** When Nasdaq's stock list (market values, trading) was read; NaN before it is. */
+  listingsAt: number;
 }
 
 /** Every company's reports from `from` to `to` (desktop app); with `history`, the year- and quarter-earlier ones too. */
@@ -581,13 +604,16 @@ export function useMarketCalendar(from: string, to: string, history: boolean, en
       fmpHistory: rows(hist.flatMap(([a, b]) => windows('fmp', a, b))),
     });
     const answered = (parts: (Part<unknown> | undefined)[]) => parts.length > 0 && parts.every((p) => p?.state === 'ok');
-    const problems = [...new Set([...dayParts, ...finnhub, ...fmp, s.listings].filter((p) => p && p.state !== 'ok' && p.state !== 'loading' && p.message).map((p) => p!.message!))];
+    const failed = (parts: (Part<unknown> | undefined)[]) => [...new Set(parts.filter((p) => p && p.state !== 'ok' && p.state !== 'loading' && p.message).map((p) => p!.message!))];
+    const problems = failed([...dayParts, ...finnhub, ...fmp, s.listings]);
     return {
       reports,
       days: dayParts.length,
       loading: dayParts.filter((p) => !p || p.state === 'loading').length,
       revenueFrom: [...(answered(finnhub) ? ['Finnhub' as const] : []), ...(answered(fmp) ? ['FMP' as const] : [])],
       problems,
+      calendarProblems: failed([...dayParts, s.listings]),
+      listingsAt: s.listings?.state === 'ok' && s.listings.at ? s.listings.at : NaN,
     };
   }, [v, from, to, history]); // eslint-disable-line react-hooks/exhaustive-deps
 }

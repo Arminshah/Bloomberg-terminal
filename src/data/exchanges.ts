@@ -302,6 +302,29 @@ export function sessionAt(ex: Exchange, now: number): SessionNow {
   return { open: false, at: NaN, ...(today ? { today } : {}) };
 }
 
+/**
+ * The latest trading day whose regular session has opened by `now`, as the exchange's own date (YYYY-MM-DD): today
+ * once the market has opened, else the trading day before. At a weekend or on a holiday it is the last day the
+ * market traded (Friday 23 October 2026 on the Saturday and Sunday after it).
+ */
+export function latestSession(ex: Exchange, now: number): string {
+  const p = zonedParts(now, ex.tz);
+  const [oh, om] = hm(ex.open);
+  for (let k = 0; k < 21; k++) {
+    const t = new Date(Date.UTC(p.y, p.mo - 1, p.d - k));
+    const y = t.getUTCFullYear();
+    const m0 = t.getUTCMonth();
+    const d = t.getUTCDate();
+    const wd = t.getUTCDay();
+    if (wd === 0 || wd === 6) continue;
+    const special = dayOf(ex, y, isoOf(y, m0, d));
+    if (special && !special.close) continue;
+    if (k === 0 && now < zonedToUtc(y, m0, d, oh, om, ex.tz)) continue;
+    return isoOf(y, m0, d);
+  }
+  return isoOf(p.y, p.mo - 1, p.d);
+}
+
 /** Time left as H:MM:SS, or "2d 17h 05m" beyond a day. Whole seconds round up, so a closed market never shows 0:00:00. */
 export function fmtCountdown(ms: number): string {
   if (!Number.isFinite(ms) || ms < 0) return '--';

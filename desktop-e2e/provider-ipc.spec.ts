@@ -28,6 +28,7 @@ interface Fixtures {
   newsStories: boolean;
   newsAgeMs: number;
   marketCalendar?: boolean;
+  weekCalendar?: boolean;
   insiders?: boolean;
   supplyChain?: boolean;
   calls: { fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
@@ -123,12 +124,44 @@ async function command(page: Page, text: string, code = text.split(' ').at(-1)!,
   await expect(page.locator('.panel').nth(panel).locator('.fnh-code').first()).toHaveText(code);
 }
 
+test('EVENTS opens on the week\'s most traded companies reporting, by day and session, share classes once', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.weekCalendar = true; });
+  await command(page, 'EVENTS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.getByRole('button', { name: '10) Most relevant', exact: true })).toHaveClass(/\bon\b/);
+  await expect(panel.locator('.tabs .tab.on')).toContainText('2) Week of');
+  const week = panel.locator('table.evts-week');
+  // Columns: the session's name, then Monday to Friday.
+  const cell = (session: string, day: number) => week.locator('tbody tr', { has: page.locator('th', { hasText: session }) }).locator('td').nth(day);
+  await expect(cell('Before open', 1).locator('li')).toHaveCount(3, { timeout: 30_000 });
+  // The most traded first: Coca-Cola, then SoFi, then the small bank.
+  await expect(cell('Before open', 1).locator('li .sec-link')).toHaveText(['KO US', 'SOFI US', 'BFST US']);
+  // Twelve report after Tuesday's close: the ten most traded are shown, the other two counted.
+  const late = cell('After close', 1);
+  await expect(late.locator('li')).toHaveCount(10);
+  await expect(late.locator('li .sec-link').first()).toHaveText('ACL US');
+  await expect(late.locator('.evts-week-more')).toHaveText('+2 more');
+  // GOOG and GOOGL are one company: the more traded class stands for it.
+  await expect(cell('After close', 2).locator('li .sec-link')).toHaveText(['GOOGL US']);
+  await expect(week.locator('thead th').nth(2)).toContainText('15 reports');
+  await expect(panel.locator('.note')).toContainText("Nasdaq's stock list");
+  await expect(panel.locator('.note')).toContainText('16 companies report this week');
+  // The week after has no reports in the fixture.
+  await panel.locator('.tabs .tab', { hasText: '3) Week of' }).click();
+  await expect(panel.getByText('No reports this week.')).toBeVisible({ timeout: 30_000 });
+});
+
 test('EVENTS covers the whole market above $5B with expected and reported EPS and revenue, growth and an earnings card', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.marketCalendar = true; process.env.FINNHUB_ENABLED = 'true'; });
   await command(page, 'EVENTS');
   const panel = page.locator('.panel').first();
+  await panel.getByRole('button', { name: '14) Market', exact: true }).click();
   await expect(panel.getByRole('button', { name: '14) Market', exact: true })).toHaveClass(/\bon\b/);
-  // It opens on today: the days before are folded into one line above it, and a company worth over $500B is tagged.
+  // The market list starts from $50B; this test reads it from $5B.
+  await expect(panel.getByRole('button', { name: '$50B', exact: true })).toHaveClass(/\bon\b/);
+  await panel.getByRole('button', { name: '$5B', exact: true }).click();
+  // It opens on the latest trading day: the days before are folded into one line above it, and a company worth over
+  // $500B is tagged.
   const meta0 = panel.locator('tbody tr.click', { hasText: 'META US' });
   await expect(meta0).toBeVisible({ timeout: 30_000 });
   await expect(meta0.locator('.badge.mega')).toHaveText('500B+');

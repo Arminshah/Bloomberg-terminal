@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { SecLink } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, WEEKDAYS } from '../core/format';
@@ -14,7 +14,9 @@ import type { SecurityDef } from '../data/types';
 import { portfolio, watchlists } from '../terminal/userdata';
 import type { FnProps } from '../terminal/types';
 import { calendarAvailable, isoDay, useMarketCalendar } from '../data/live/earnings-calendar';
-import { MarketEarnings, MEGA_CAP, MegaTag } from './EVTSMarket';
+import { MarketEarnings, MEGA_CAP, MegaTag, scrollerOf } from './EVTSMarket';
+import { TopReleases, weekLabel, weekStart } from './EVTSWeek';
+import { latestSession, US_MARKET } from '../data/exchanges';
 import { marketCapUsd } from '../data/analytics';
 import { useNasdaq } from '../data/live/nasdaq-company';
 
@@ -32,6 +34,7 @@ interface Ev {
 
 /** The stocks the calendar covers when no security is loaded. */
 const SCOPES = [
+  { n: 10, label: 'Most relevant', title: "A week's most traded companies reporting, by day, before the open and after the close (desktop app)" },
   { n: 11, label: 'All', title: 'Every stock in the app' },
   { n: 12, label: 'Watchlist', title: "Your active watchlist's stocks (WATCHLIST)" },
   { n: 13, label: 'Portfolio', title: 'The stocks you hold (PORTFOLIO)' },
@@ -52,6 +55,8 @@ const equitiesOf = (ids: string[]) => [...new Set(ids)].map((id) => engine.get(i
 
 export function EVTS({ sec }: FnProps) {
   const [range, setRange] = useState(2);
+  // The most relevant releases' week: 1 the week before, 2 this week (the coming one at a weekend), 3 the week after.
+  const [week, setWeek] = useState(2);
   // Re-reads the calendar as real dates arrive.
   useTick(10);
   const now = engine.now();
@@ -60,12 +65,13 @@ export function EVTS({ sec }: FnProps) {
   // Looked-up stocks load after the lists do, so the lists are read again as time moves.
   const watched = useMemo(() => equitiesOf(wl?.ids ?? []), [wl, now]); // eslint-disable-line react-hooks/exhaustive-deps
   const holdings = useMemo(() => equitiesOf(held.map((p) => p.id)), [held, now]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The whole market in the desktop app; elsewhere your watchlist's stocks when it has any, every stock otherwise, until you pick.
+  // The week's most relevant releases in the desktop app; elsewhere your watchlist's stocks when it has any, every
+  // stock otherwise, until you pick.
   const [picked, setPicked] = useState<number | null>(null);
   const market = calendarAvailable();
-  const scope = picked ?? (market ? 14 : watched.length ? 12 : 11);
-  const [minCap, setMinCap] = useState(5e9);
-  // A window around today opens on today: the days before it are folded into one line, shown on demand.
+  const scope = picked ?? (market ? 10 : watched.length ? 12 : 11);
+  const [minCap, setMinCap] = useState(50e9);
+  // A window around today opens on the latest trading day: the days before it are folded into one line, shown on demand.
   const [showPast, setShowPast] = useState(false);
   const spans = [
     { n: 1, label: 'This week', from: -3, to: 7 },
@@ -75,10 +81,14 @@ export function EVTS({ sec }: FnProps) {
   ];
   const span = spans[range - 1];
   const showMarket = !sec && scope === 14 && market;
-  // Whole days around today; the year- and quarter-earlier calendars only for windows up to a month.
-  const fromIso = isoDay(now + span.from * DAY_MS);
-  const toIso = isoDay(now + span.to * DAY_MS);
-  const cal = useMarketCalendar(fromIso, toIso, span.to - span.from <= 31, showMarket);
+  const showWeek = !sec && scope === 10 && market;
+  const mondays = [weekStart(now, -1), weekStart(now, 0), weekStart(now, 1)];
+  const monday = mondays[week - 1];
+  // Whole days around today (or the chosen week's Monday to Friday); the year- and quarter-earlier calendars only for
+  // windows up to a month.
+  const fromIso = showWeek ? monday : isoDay(now + span.from * DAY_MS);
+  const toIso = showWeek ? isoDay(Date.parse(`${monday}T00:00:00Z`) + 4 * DAY_MS) : isoDay(now + span.to * DAY_MS);
+  const cal = useMarketCalendar(fromIso, toIso, !showWeek && span.to - span.from <= 31, showMarket || showWeek);
   // One stock's next report date from Nasdaq, for when the quote and company data give none.
   const nasdaqParts = useNasdaq(sec?.eq ? sec : undefined, ['earnings-date']);
   const above = cal.reports.filter((r) => minCap <= 0 || (Number.isFinite(r.marketCap) && r.marketCap >= minCap));
@@ -122,20 +132,42 @@ export function EVTS({ sec }: FnProps) {
       {cal.revenueFrom.length ? `, revenue: ${cal.revenueFrom.join(', ')}` : ''} · <span className="badge live">REAL</span>
     </>
   );
+  const weekSub = (
+    <>
+      Most relevant earnings releases, {weekLabel(monday).toLowerCase()} · the most traded companies first · Nasdaq · <span className="badge live">REAL</span>
+    </>
+  );
   const none =
     !sec && scope === 12 && !watched.length
       ? `Your active watchlist${wl ? ` (${wl.name})` : ''} has no stocks: add some on WATCHLIST, or pick 11) All.`
       : !sec && scope === 13 && !holdings.length
         ? 'Your portfolio holds no stocks: enter your holdings on PORTFOLIO, or pick 11) All.'
         : 'No events in this window.';
-  const startOfToday = Math.floor(now / DAY_MS) * DAY_MS;
-  const pastEvents = !sec && span.from < 0 && span.to > 0 ? events.filter((e) => e.date < startOfToday) : [];
+  // The latest trading day (Friday at a weekend), New York's date, and what lies before it.
+  const session = Date.parse(`${latestSession(US_MARKET, now)}T00:00:00Z`);
+  const pastEvents = !sec && span.from < 0 && span.to > 0 ? events.filter((e) => e.date < session) : [];
   const folded = pastEvents.length > 0 && !showPast;
-  const shown = folded ? events.filter((e) => e.date >= startOfToday) : events;
+  const shown = folded ? events.filter((e) => e.date >= session) : events;
+  // Showing the earlier days puts them above the latest trading day without moving it on screen.
+  const tableRef = useRef<HTMLTableSectionElement>(null);
+  const keep = useRef<{ top: number; scroller: HTMLElement } | null>(null);
+  const toggleFold = () => {
+    const scroller = scrollerOf(tableRef.current);
+    const anchor = tableRef.current?.querySelector<HTMLElement>('tr[data-session-start]');
+    if (scroller && anchor) keep.current = { top: anchor.getBoundingClientRect().top, scroller };
+    setShowPast((v) => !v);
+  };
+  useLayoutEffect(() => {
+    const k = keep.current;
+    keep.current = null;
+    const anchor = tableRef.current?.querySelector<HTMLElement>('tr[data-session-start]');
+    if (k && anchor) k.scroller.scrollTop += anchor.getBoundingClientRect().top - k.top;
+  }, [showPast]);
   let lastDay = '';
+  let marked = false;
   return (
     <div>
-      <FnHeader code="EVENTS" title={sec ? 'Corporate Events' : 'Corporate Events Calendar'} sec={sec} sub={showMarket ? marketSub :
+      <FnHeader code="EVENTS" title={sec ? 'Corporate Events' : 'Corporate Events Calendar'} sec={sec} sub={showWeek ? weekSub : showMarket ? marketSub :
           <>
             {covered}
             {events.length} {events.length === 1 ? 'event' : 'events'} · earnings and ex-dividend dates ·{' '}
@@ -149,9 +181,11 @@ export function EVTS({ sec }: FnProps) {
               </>
             )}
           </>
-        } tabs={spans.map((s) => ({ n: s.n, label: s.label }))} tab={range} onTab={(n) => { setRange(n); setShowPast(false); }}
-        actions={sec ? [] : SCOPES.filter((x) => x.n !== 14 || market).map((x) => ({ n: x.n, label: x.label, title: `${x.title} · type ${x.n} and press Enter`, on: x.n === scope, onClick: () => setPicked(x.n) }))} />
-      {showMarket ? (
+        } tabs={showWeek ? mondays.map((m, i) => ({ n: i + 1, label: weekLabel(m) })) : spans.map((s) => ({ n: s.n, label: s.label }))} tab={showWeek ? week : range} onTab={(n) => { if (showWeek) setWeek(n); else { setRange(n); setShowPast(false); } }}
+        actions={sec ? [] : SCOPES.filter((x) => (x.n !== 14 && x.n !== 10) || market).map((x) => ({ n: x.n, label: x.label, title: `${x.title} · type ${x.n} and press Enter`, on: x.n === scope, onClick: () => setPicked(x.n) }))} />
+      {showWeek ? (
+        <TopReleases cal={cal} monday={monday} now={Date.now()} />
+      ) : showMarket ? (
         <MarketEarnings cal={cal} minCap={minCap} caps={CAPS} onCap={setMinCap} now={Date.now()} spansPast={span.from < 0 && span.to > 0} />
       ) : (
       <table className="tbl">
@@ -168,7 +202,7 @@ export function EVTS({ sec }: FnProps) {
             <th className="num hide-m" title="The analysts' average revenue estimate for the quarter">Revenue expected</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody ref={tableRef}>
           {events.length === 0 && (
             <tr>
               <td colSpan={9} className="empty">
@@ -177,7 +211,7 @@ export function EVTS({ sec }: FnProps) {
             </tr>
           )}
           {pastEvents.length > 0 && (
-            <tr className="group click evts-fold" onClick={() => setShowPast((v) => !v)}>
+            <tr className="group click evts-fold" onClick={toggleFold}>
               <td colSpan={9}>
                 {folded ? '▸' : '▾'} Earlier in this window: {fmtDay(pastEvents[0].date)} to {fmtDay(pastEvents[pastEvents.length - 1].date)} · {pastEvents.length} {pastEvents.length === 1 ? 'event' : 'events'} ·{' '}
                 <span className="amber">{folded ? 'show' : 'hide'}</span>
@@ -188,6 +222,9 @@ export function EVTS({ sec }: FnProps) {
             const day = fmtDay(e.date);
             const head = day !== lastDay;
             lastDay = day;
+            // The first line of the latest trading day or after: it stays in place when the earlier days are shown.
+            const start = head && !marked && e.date >= session;
+            if (start) marked = true;
             const d = engine.get(e.id)!;
             const past = e.date < now - DAY_MS;
             const q = e.kind === 'Earnings' && !e.sim && desktopData() ? quarterAt(consensusFor(d), e.date) : null;
@@ -195,7 +232,7 @@ export function EVTS({ sec }: FnProps) {
             const reported = q && Number.isFinite(q.eps.actual) ? q.eps.actual : e.act;
             return [
               head ? (
-                <tr key={`h${i}`} className="group">
+                <tr key={`h${i}`} className="group" {...(start ? { 'data-session-start': '' } : {})}>
                   <td colSpan={9}>
                     {WEEKDAYS[new Date(e.date).getUTCDay()]} {day}
                     {Math.floor(e.date / DAY_MS) === Math.floor(now / DAY_MS) ? '  · TODAY' : ''}
