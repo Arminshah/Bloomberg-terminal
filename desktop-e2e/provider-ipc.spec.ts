@@ -166,6 +166,12 @@ test("the tab bar is the window's title bar: the window's own buttons sit at its
   expect(nav.x + nav.width).toBeLessThanOrEqual(narrow.x + 0.5);
 });
 
+test("the command line's cursor is a cyan block in the desktop app", async ({ desktop: { page } }) => {
+  const input = page.locator('#cmd-0');
+  await input.click();
+  expect(await input.evaluate((el) => [getComputedStyle(el).getPropertyValue('caret-shape'), getComputedStyle(el).caretColor])).toEqual(['block', 'rgb(31, 182, 240)']);
+});
+
 test('EVENTS opens on a board of the week\'s most traded companies reporting, a column a day before the open and after the close', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.weekCalendar = true; });
   await command(page, 'EVENTS');

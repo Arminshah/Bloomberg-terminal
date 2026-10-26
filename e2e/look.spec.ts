@@ -61,7 +61,8 @@ test("the terminal's measured colours: red function bar, grey section strips, an
   expect(await css('.cmd-hint b', 'color')).toBe('rgb(60, 191, 79)');
   expect(await css('#cmd-0', 'box-shadow')).toContain('rgb(31, 182, 240)');
   expect(await css('#cmd-0', 'caret-color')).toBe('rgb(31, 182, 240)');
-  expect(await css('#cmd-0', 'caret-shape')).toBe('block');
+  // Playwright's own Chromium may predate caret-shape; the desktop app's Electron has it (checked in desktop-e2e).
+  if (await page.evaluate(() => CSS.supports('caret-shape', 'block'))) expect(await css('#cmd-0', 'caret-shape')).toBe('block');
   expect(await css('#cmd-0', 'color')).toBe('rgb(255, 255, 255)');
   expect(await css('#cmd-0', 'font-family')).toMatch(/^"?IBM Plex Mono"?,/);
   await page.keyboard.type('w');
