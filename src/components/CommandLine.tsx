@@ -306,6 +306,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
           ›
         </button>
       </span>
+      <span className="cmd-field">
       <input
         ref={inputRef}
         id={`cmd-${panel}`}
@@ -332,6 +333,10 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
       />
+      <span className="cmd-hint" aria-hidden="true">
+        <b>&lt;HELP&gt;</b>&nbsp;for explanation.
+      </span>
+      </span>
       {msg && <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span>}
       <button type="button" className="cmd-help" title="Help for this function" onClick={() => run(`HELP ${route.fn}`)}>
         ?

@@ -44,3 +44,33 @@ test('Bergoom is the typeface, loaded and spaced as the terminal is; SETTINGS sw
   await expect(page.locator('html')).toHaveAttribute('data-font', 'mono');
   expect(errors).toEqual([]);
 });
+
+test("the terminal's measured colours: red function bar, grey section strips, and a cyan command line that reads <HELP> for explanation.", async ({ page }) => {
+  const errors = await boot(page);
+  const css = (selector: string, prop: string) => page.locator(selector).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+  await run(page, 'MARKET');
+  await expect(page.locator('.tbl tr.group').first()).toContainText('Americas');
+  expect(await css('.fnh-row', 'background-color')).toBe('rgb(162, 24, 38)');
+  expect(await css('.tbl tr.group td', 'background-color')).toBe('rgb(52, 52, 52)');
+  // Focused and empty: the hint, with <HELP> in green; the box and cursor are cyan, typed text white and fixed-width.
+  const input = page.locator('#cmd-0');
+  await input.click();
+  const hint = page.locator('.panel').first().locator('.cmd-hint');
+  await expect(hint).toBeVisible();
+  await expect(hint).toHaveText('<HELP> for explanation.');
+  expect(await css('.cmd-hint b', 'color')).toBe('rgb(60, 191, 79)');
+  expect(await css('#cmd-0', 'box-shadow')).toContain('rgb(31, 182, 240)');
+  expect(await css('#cmd-0', 'caret-color')).toBe('rgb(31, 182, 240)');
+  expect(await css('#cmd-0', 'caret-shape')).toBe('block');
+  expect(await css('#cmd-0', 'color')).toBe('rgb(255, 255, 255)');
+  expect(await css('#cmd-0', 'font-family')).toMatch(/^"?IBM Plex Mono"?,/);
+  await page.keyboard.type('w');
+  await expect(hint).toBeHidden();
+  await page.keyboard.press('Backspace');
+  await expect(hint).toBeVisible();
+  // Elsewhere, the empty line names the command behind the screen.
+  await input.blur();
+  await expect(hint).toBeHidden();
+  await expect(input).toHaveAttribute('placeholder', /MARKET|WEI/);
+  expect(errors).toEqual([]);
+});

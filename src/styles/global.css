@@ -27,7 +27,12 @@
   --magenta: #d77bff;
   --hdr: #292b2e;
   --hdr-text: #eeeeee;
-  --function-bar: #870f1e;
+  /* Measured from the terminal's published screens (docs/visual-research-2026-10.md): the red function bar, the grey
+     section strips, and the command line's cyan border and cursor. */
+  --function-bar: #a21826;
+  --section: #343434;
+  --cmd-cyan: #1fb6f0;
+  --help-green: #3cbf4f;
   --sel: #ff9e1b;
   --sel-text: #000000;
   --flash-up: rgba(47, 211, 107, 0.42);
@@ -442,21 +447,31 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 }
 .cmd-nav button:hover:not(:disabled) { color: var(--amber); background: var(--bg-3); }
 .cmd-nav button:disabled { opacity: 0.25; cursor: default; }
+/* The command line: white fixed-width text on black with a cyan block cursor, and a cyan box while it has focus. Empty
+   and focused, it reads "<HELP> for explanation."; empty otherwise, it names the command behind the screen. */
+.cmd-field { position: relative; flex: 1; min-width: 0; display: flex; }
 .cmd-input {
   flex: 1;
   min-width: 0;
   border: 0;
   outline: none;
   background: transparent;
-  color: var(--amber-2);
+  color: var(--white);
   padding: 0 8px;
   text-transform: uppercase;
-  caret-color: var(--blue);
+  caret-color: var(--cmd-cyan);
+  caret-shape: block;
+  font-family: var(--fixed);
+  font-size-adjust: none;
   font-weight: 500;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
 }
-.cmd-input::placeholder { color: #8a6326; text-transform: none; font-weight: 400; }
-.cmd-input:focus { background: #101824; box-shadow: inset 0 0 0 1px #4d81cf; }
+.cmd-input::placeholder { color: #8a6326; text-transform: none; font-weight: 400; font-family: var(--sans); }
+.cmd-input:focus { background: #000; box-shadow: inset 0 0 0 1px var(--cmd-cyan); }
+.cmd-input:focus::placeholder { color: transparent; }
+.cmd-hint { display: none; position: absolute; left: 8px; top: 0; bottom: 0; align-items: center; pointer-events: none; color: #a0a0a0; font-family: var(--fixed); font-size-adjust: none; letter-spacing: 0; white-space: nowrap; }
+.cmd-hint b { color: var(--help-green); font-weight: 500; }
+.cmd-input:focus:placeholder-shown + .cmd-hint { display: flex; }
 .cmd-msg {
   position: absolute;
   right: 74px;
@@ -669,15 +684,15 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .tbl tr.click:hover td { background: #182232; box-shadow: inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
 .tbl tr.click:hover td:first-child { box-shadow: inset 1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
 .tbl tr.click:hover td:last-child { box-shadow: inset -1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
-/* Group lines ("1) Americas", a date) are grey strips with white titles, as monitor regions are on the terminal. */
+/* Group lines ("1) Americas", a date) are flat neutral grey strips with white titles, as monitor regions are on the terminal. */
 .tbl tr.group td {
   color: var(--white);
-  background: linear-gradient(180deg, #353a40 0%, #26292e 100%);
+  background: var(--section);
   font-weight: 500;
-  border-top: 1px solid #454b52;
-  border-bottom: 1px solid #15171a;
+  border-top: 1px solid #444444;
+  border-bottom: 1px solid #1a1a1a;
 }
-.tbl tr.group .group-toggle { color: #b9c0c8; }
+.tbl tr.group .group-toggle { color: #c0c0c0; }
 .tbl tr.click { cursor: pointer; }
 /* A watchlist line being dragged dims; an amber rule marks where it will land. */
 .tbl tr.dragging td { opacity: 0.4; }
