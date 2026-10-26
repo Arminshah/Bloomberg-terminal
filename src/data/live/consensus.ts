@@ -310,6 +310,15 @@ export function fiscalLabel(end: string, fye: number | undefined): string | unde
   return `Q${q} ${fy}`;
 }
 
+/** The fiscal year's last month from a quarter the source names: "Q2 2026" ending in November closes its year in May. */
+export function fyeFromLabels(qs: { end: string; label: string }[]): number | undefined {
+  for (const q of qs) {
+    const m = /^Q([1-4]) \d{4}$/.exec(canonicalQuarter(q.label) ?? '');
+    if (m && ISO.test(q.end)) return ((endMonth(q.end) + (4 - Number(m[1])) * 3 - 1) % 12) + 1;
+  }
+  return undefined;
+}
+
 /** The month (1-12) a fiscal period end counts in: an end in a month's first week (52/53-week years) is the month before. */
 function endMonth(end: string): number {
   return new Date(ms(end) - (Number(end.slice(8)) <= 7 ? 8 * DAY_MS : 0)).getUTCMonth() + 1;
@@ -552,8 +561,10 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
       }
     }
   }
+  // The coming quarters are named by the fiscal year the reported ones show when the security's is not known.
+  const fye = i.fye ?? fyeFromLabels([...(y?.past ?? []), ...(y?.next?.label ? [{ end: y.next.end, label: y.next.label }] : [])]);
   const view = (a: YahooAhead | null | undefined): QuarterView | null =>
-    a ? { end: a.end, label: a.label ?? a.end, ...(a.date ? { date: a.date, dateEstimated: a.dateEstimated } : {}), eps: a.eps, rev: a.rev, yearAgoEps: a.yearAgoEps, yearAgoRev: a.yearAgoRev } : null;
+    a ? { end: a.end, label: a.label ?? fiscalLabel(a.end, fye) ?? a.end, ...(a.date ? { date: a.date, dateEstimated: a.dateEstimated } : {}), eps: a.eps, rev: a.rev, yearAgoEps: a.yearAgoEps, yearAgoRev: a.yearAgoRev } : null;
   let next: QuarterView | null = view(y?.next);
   const fn = i.finnhubNext;
   if (fn) {
@@ -598,7 +609,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     const a = comingAv.find((e) => daysApart(e.end, anchor) <= 20);
     const n = comingNq.find((e) => daysApart(e.end, anchor) <= 20);
     if (!a && !n) return v;
-    const out: QuarterView = v ?? { end: anchor, label: fiscalLabel(anchor, i.fye) ?? anchor, eps: { ...NONE }, rev: { ...NONE } };
+    const out: QuarterView = v ?? { end: anchor, label: fiscalLabel(anchor, fye) ?? anchor, eps: { ...NONE }, rev: { ...NONE } };
     if (!ok(out.eps.est)) {
       if (a && ok(a.epsEst)) out.eps = { ...NONE, est: a.epsEst, low: a.epsLow, high: a.epsHigh, analysts: a.epsAnalysts, estFrom: 'Alpha Vantage' };
       else if (n) out.eps = { ...NONE, est: n.est, low: n.low, high: n.high, analysts: n.analysts, estFrom: 'Nasdaq (Zacks)' };

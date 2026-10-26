@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { ExpectationsTable } from '../src/components/EarningsExpectations';
 import { matchQuarter } from '../src/data/ern';
-import { canonicalQuarter, mergeConsensus, parseYahooEarnings, quarterAt, type YahooEarnings } from '../src/data/live/consensus';
+import { canonicalQuarter, fyeFromLabels, mergeConsensus, parseYahooEarnings, quarterAt, type YahooEarnings } from '../src/data/live/consensus';
 import type { PastReport } from '../src/data/live/finnhub';
 import apld from './fixtures/yahoo-apld-summary.json';
 
@@ -112,5 +112,24 @@ describe('fiscal earnings accuracy', () => {
     expect(quarterAt(c, day('2026-10-07'))?.end).toBe('2026-08-31');
     expect(quarterAt(c, day('2026-11-15'))).toBeNull();
     expect(matchQuarter(day('2026-11-15'), c.past)).toBeUndefined();
+  });
+});
+
+describe('naming the coming quarters', () => {
+  it("names Yahoo's quarter after next by the fiscal year its reported quarters show, when the security's is not known", () => {
+    const c = mergeConsensus({ yahoo: y });
+    expect(c.next).toMatchObject({ end: '2026-11-30', label: 'Q2 2027' });
+    expect(c.following).toMatchObject({ end: '2027-02-28', label: 'Q3 2027' });
+    // A known fiscal year still wins.
+    expect(mergeConsensus({ yahoo: { ...y, next: y.next && { ...y.next, label: undefined } }, fye: 5 }).next?.label).toBe('Q2 2027');
+  });
+
+  it("reads the fiscal year's last month from a named quarter", () => {
+    expect(fyeFromLabels([{ end: '2025-11-30', label: 'Q2 2026' }])).toBe(5);
+    expect(fyeFromLabels([{ end: '2026-05-31', label: '4Q2026' }])).toBe(5);
+    // Apple: Q1 ends in late December, its year in September.
+    expect(fyeFromLabels([{ end: '2025-12-27', label: 'Q1 2026' }])).toBe(9);
+    expect(fyeFromLabels([{ end: '2026-01-03', label: 'Q4 2025' }])).toBe(12);
+    expect(fyeFromLabels([{ end: '2026-08-31', label: '2026-08-31' }])).toBeUndefined();
   });
 });
