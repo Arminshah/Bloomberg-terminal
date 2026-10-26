@@ -198,7 +198,7 @@ export function usTiming(ms: number): EarningsEvent['timing'] {
 // ------------------------------------------------------------------ statements
 
 const INCOME = ['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'ReconciledDepreciation', 'DepreciationAndAmortizationInIncomeStatement', 'EBITDA', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision', 'NetIncomeCommonStockholders', 'DilutedAverageShares', 'DilutedEPS'];
-const BALANCE = ['CashAndCashEquivalents', 'AccountsReceivable', 'Inventory', 'CurrentAssets', 'NetPPE', 'GoodwillAndOtherIntangibleAssets', 'TotalAssets', 'CurrentLiabilities', 'TotalDebt', 'CurrentDebtAndCapitalLeaseObligation', 'LongTermDebtAndCapitalLeaseObligation', 'TotalLiabilitiesNetMinorityInterest', 'StockholdersEquity'];
+const BALANCE = ['CashAndCashEquivalents', 'AccountsReceivable', 'Inventory', 'CurrentAssets', 'NetPPE', 'GoodwillAndOtherIntangibleAssets', 'TotalAssets', 'CurrentLiabilities', 'TotalDebt', 'CurrentDebtAndCapitalLeaseObligation', 'LongTermDebtAndCapitalLeaseObligation', 'TotalLiabilitiesNetMinorityInterest', 'StockholdersEquity', 'MinorityInterest', 'PreferredStock'];
 // IFRS filers' operating cash flow comes as CashFlowFromContinuingOperatingActivities (ASML's annual figures).
 const CASH = ['OperatingCashFlow', 'CashFlowFromContinuingOperatingActivities', 'CapitalExpenditure', 'FreeCashFlow', 'CashDividendsPaid', 'RepurchaseOfCapitalStock'];
 
@@ -289,6 +289,8 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
     debt: Number.isFinite(debtReported) ? debtReported : debtCurrent + debtNoncurrent,
     totLiab: M(g('TotalLiabilitiesNetMinorityInterest')),
     equity: M(g('StockholdersEquity')),
+    minority: M(g('MinorityInterest')),
+    preferred: M(g('PreferredStock')),
     cfo,
     capex,
     fcf: Number.isFinite(fcfRaw) ? fcfRaw : cfo - capex,
@@ -680,6 +682,9 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   const debtSource = [...fund.quarterly, ...fund.annual, ...(fund.balance ? [fund.balance] : [])]
     .filter((p) => Number.isFinite(p.debt)).sort((a, b) => b.end - a.end)[0];
   eq.netDebt = debtSource && Number.isFinite(debtSource.cash) ? debtSource.debt - debtSource.cash : NaN;
+  // Enterprise value's other claims, from the same balance sheet as the debt.
+  eq.minority = debtSource?.minority ?? NaN;
+  eq.preferred = debtSource?.preferred ?? NaN;
   // The source gives the annual rate in the main unit (pounds), while the line is quoted in pence.
   const dr = num(r.summaryDetail?.dividendRate);
   eq.dps = Number.isFinite(dr) ? (def.minor ? dr * 100 : dr) : NaN;

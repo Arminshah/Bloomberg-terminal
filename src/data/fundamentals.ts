@@ -44,6 +44,9 @@ export interface FinPeriod {
   debt: number;
   totLiab: number;
   equity: number;
+  /** Minority interest and preferred stock on the balance sheet; NaN when the source lists none. */
+  minority?: number;
+  preferred?: number;
   cfo: number;
   capex: number;
   fcf: number;
@@ -304,6 +307,9 @@ export interface KeyStats {
   beta: number;
   shares: number;
   fcfYield: number;
+  /** Enterprise value's parts, millions in the statements' currency: market value, net debt, and the minority interest
+   *  and preferred stock of the latest balance sheet (NaN when the source lists none, and then nothing is added). */
+  evParts: { mcap: number; netDebt: number; minority: number; preferred: number };
   /** Currency of the statements and of ev. */
   ccy: string;
   /** Currency of price and mcap. */
@@ -325,13 +331,18 @@ export function keyStats(def: SecurityDef): KeyStats {
   const mcapRep = mcap * fx;
   const priceRep = price * fx;
   const bank = PROFILES[eq.sector]?.bank;
-  const ev = bank ? NaN : mcapRep + eq.netDebt;
+  // Enterprise value: market value, net debt, and the claims ranking ahead of the common shares on the same balance
+  // sheet (minority interest and preferred stock). A part the source does not list adds nothing, and says so.
+  const minority = Number.isFinite(eq.minority) ? eq.minority! : NaN;
+  const preferred = Number.isFinite(eq.preferred) ? eq.preferred! : NaN;
+  const ev = bank ? NaN : mcapRep + eq.netDebt + (Number.isFinite(minority) ? minority : 0) + (Number.isFinite(preferred) ? preferred : 0);
   const prevYear = f.annual[f.annual.length - 2];
   const lastYear = f.annual[f.annual.length - 1];
   const out: KeyStats = {
     price,
     mcap,
     ev,
+    evParts: { mcap: mcapRep, netDebt: eq.netDebt, minority, preferred },
     pe: ltm.eps > 0 ? priceRep / ltm.eps : NaN,
     pb: ltm.equity > 0 ? mcapRep / ltm.equity : NaN,
     ps: mcapRep / ltm.rev,

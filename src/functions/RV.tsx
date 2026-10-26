@@ -22,6 +22,9 @@ import { SimBadge } from '../components/Source';
 interface Row {
   d: SecurityDef;
   mcap: number;
+  /** Enterprise value, USD, and how it is made up. */
+  ev: number;
+  evWhy: string;
   pe: number;
   pb: number;
   evEbitda: number;
@@ -40,6 +43,14 @@ const NM_WHY: Record<string, string> = {
   roe: 'Not meaningful: shareholders’ equity is negative',
   evEbitda: 'Not meaningful: trailing 12-month EBITDA is negative',
 };
+
+/** An enterprise value's parts, in words: "Market value 100.00B + net debt 20.00B + preferred stock: none listed + minority interest 3.00B". */
+export function evBuildUp(p: { mcap: number; netDebt: number; minority: number; preferred: number }, toUsd: number): string {
+  const v = (x: number) => fmtBig(Math.abs(x) * toUsd);
+  const debt = !Number.isFinite(p.netDebt) ? '+ net debt: none listed' : p.netDebt < 0 ? `− net cash ${v(p.netDebt)}` : `+ net debt ${v(p.netDebt)}`;
+  const part = (label: string, x: number) => (Number.isFinite(x) ? `+ ${label} ${v(x)}` : `+ ${label}: none listed`);
+  return [`Market value ${v(p.mcap)}`, debt, part('preferred stock', p.preferred), part('minority interest', p.minority)].join(' ');
+}
 
 export function RV({ sec }: FnProps) {
   const s = sec!;
@@ -66,7 +77,8 @@ export function RV({ sec }: FnProps) {
         if (!Number.isFinite(k.evEbitda) && Number.isFinite(ltm?.ebitda) && ltm.ebitda <= 0) nm.add('evEbitda');
         // A company that paid nothing in the last 12 months has no yield, not a yield of zero.
         const dy = Number.isFinite(k.divYld) && k.divYld > 0 ? k.divYld : NaN;
-        return { d, mcap: marketCapUsd(d.id), pe: k.pe, pb: k.pb, evEbitda: k.evEbitda, dy, roe: k.roe, margin: k.netMargin, ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y'), nm };
+        const toUsd = engine.usdValue(k.ccy) * 1e6;
+        return { d, mcap: marketCapUsd(d.id), ev: k.ev * toUsd, evWhy: evBuildUp(k.evParts, toUsd), pe: k.pe, pb: k.pb, evEbitda: k.evEbitda, dy, roe: k.roe, margin: k.netMargin, ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y'), nm };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [group, tick, loaded],
@@ -102,6 +114,7 @@ export function RV({ sec }: FnProps) {
     { key: 'n', label: '', render: (r) => <span className="muted ellipsis" style={{ display: 'inline-block', maxWidth: 170 }}>{r.d.name}</span>, hideM: true },
     { key: 'px', label: 'Last', num: true, render: (r) => <LivePx id={r.d.id} /> },
     { key: 'mcap', label: 'Mkt cap USD', num: true, render: (r) => <CapLink id={r.d.id}>{fmtBig(r.mcap)}</CapLink>, sort: (r) => r.mcap },
+    { key: 'ev', label: 'EV USD', num: true, hideM: true, title: 'Enterprise value: market value, net debt, preferred stock and minority interest. Hover a value for its parts.', render: (r) => (Number.isFinite(r.ev) ? <span title={r.evWhy}>{fmtBig(r.ev)}</span> : ''), sort: (r) => r.ev },
     num('pe', 'P/E'),
     num('pb', 'P/B', 2),
     num('evEbitda', 'EV/EBITDA'),
@@ -114,7 +127,7 @@ export function RV({ sec }: FnProps) {
   ];
   const stat = (f: (xs: number[]) => number, label: string) => (
     <tr className="group">
-      <td colSpan={4}>{label}</td>
+      <td colSpan={5}>{label}</td>
       {(['pe', 'pb', 'evEbitda', ...(rows.some((r) => Number.isFinite(r.dy)) ? ['dy'] : []), 'roe', 'margin', 'ytd', 'y1'] as (keyof Row)[]).map((k) => {
         const xs = rows.slice(1).map((r) => r[k] as number).filter(Number.isFinite);
         return (
@@ -125,7 +138,7 @@ export function RV({ sec }: FnProps) {
       })}
     </tr>
   );
-  const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'P/E', 'P/B', 'EV/EBITDA', 'Div yld 12M', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), r.pe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
+  const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'EV USD', 'P/E', 'P/B', 'EV/EBITDA', 'Div yld 12M', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), Number.isFinite(r.ev) ? Math.round(r.ev) : '', r.pe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
   return (
     <div>
       <FnHeader code="PEERS" title="Relative Valuation" sec={s} sub={
@@ -179,7 +192,7 @@ export function RV({ sec }: FnProps) {
       />
       <div className="note">
         {desktopData()
-          ? `Peers: for a US-listed stock the companies Finviz lists as its peers, with ·similar the stocks Yahoo Finance links to it both ways; otherwise companies in ${s.name}'s own industry as Yahoo's company profiles name it (Finnhub's sub-industry with FINNHUB_API_KEY, the app's own stocks, Yahoo's similar stocks), largest first. NM: not meaningful (P/E on a loss, P/B and ROE on negative equity, EV/EBITDA on negative EBITDA). Averages and medians leave the loaded security and NM out. `
+          ? `Peers: for a US-listed stock the companies Finviz lists as its peers, with ·similar the stocks Yahoo Finance links to it both ways; otherwise companies in ${s.name}'s own industry as Yahoo's company profiles name it (Finnhub's sub-industry with FINNHUB_API_KEY, the app's own stocks, Yahoo's similar stocks), largest first. EV is market value plus net debt, preferred stock and minority interest from the latest balance sheet; a part the source does not list adds nothing, and an EV's parts show on hover. Banks have none. NM: not meaningful (P/E on a loss, P/B and ROE on negative equity, EV/EBITDA on negative EBITDA). Averages and medians leave the loaded security and NM out. `
           : ''}
         Highlighted row is the loaded security. Click a ticker to open it; shift-click opens it in the next panel.
       </div>

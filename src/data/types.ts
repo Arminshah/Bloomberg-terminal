@@ -23,6 +23,10 @@ export interface EquityInfo {
   fye: number;
   /** Net debt, millions (negative = net cash). */
   netDebt: number;
+  /** Minority (noncontrolling) interest and preferred stock, millions, from the same balance sheet as the debt; NaN
+   *  when the source lists none. Enterprise value adds them. */
+  minority?: number;
+  preferred?: number;
   /** Book equity, millions. */
   book: number;
   desc: string;
