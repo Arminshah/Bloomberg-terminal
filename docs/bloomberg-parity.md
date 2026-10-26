@@ -67,7 +67,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `CONTRIB` | MOV index contribution | Partial: Dow point contribution; local-universe proxies elsewhere | No full licensed constituent/weight/history dataset for other indices |
 | `HEATMAP` | IMAP market map | Partial: local-universe sector map | Not complete exchange/index membership; no global drill-down field catalogue |
 | `MOVERS` | MOST market movers | Partial: local-universe rankings | Not exhaustive exchange-wide scanning; some volume/value measures are estimates |
-| `SCREEN` | EQS equity screening | Partial: local built-in/looked-up stocks and loaded fundamentals | No exhaustive global security database, saved expression language or historical point-in-time screening |
+| `SCREEN` | EQS equity screening | Partial: the app's stocks, or in the desktop app every US-listed stock in Nasdaq's list; AND and OR groups, a stated choice for missing values, saved screens | No universe beyond US listings; over the US list, ratios only for the app's own stocks; no expression language or point-in-time screening |
 | `QUOTE` | BQ quote monitor | Partial: underlying quote, chart, stats, separate IEX box | No guaranteed consolidated real-time price, NBBO, full trade tape or market-wide volume |
 | `TRADES` | TAS time and sales | Partial: aggregated source price/volume updates | These are not individual exchange prints; no conditions, venue audit or full tape |
 | `DEPTH` | Depth of market | Partial: Kraken crypto book; BBO elsewhere | No stock/futures Level 2/order-by-order feed or execution |
@@ -95,7 +95,8 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `OPTIONS` | OMON option monitor | Partial: Alpaca indicative US equity snapshots | No real-time OPRA, index options, open interest/daily volume, exercise/deliverable reference data or surface history |
 | `OPTIONCALC` | OVME option valuation | Model: European/American value/IV, exercise premium, Greeks, grid diagnostics, scenarios and CSV | No exotics, discrete cash dividends, fitted market surface, margin/assignment or complete exchange conventions |
 | `OPTIONSTRATEGY` | OSA option strategy | Model: common-expiry multi-leg + stock risk/scenarios | No different-expiry calendars, American exercise/assignment, margin, funding or live strategy execution |
-| `WATCHLIST` | W/Launchpad monitors | Local tool: editable lists and source prices | No shared enterprise monitors or arbitrary Bloomberg data columns |
+| `WATCHLIST` | Launchpad monitors (WATCH) | Local tool: editable lists and source prices | No shared enterprise monitors or arbitrary Bloomberg data columns |
+| `WORKSHEET` | W worksheets | Local tool: sheets of securities by chosen market and fundamental fields, each cell's source on hover and in the export | Fundamentals for stocks only, worked out as `PEERS` does; no provider-only fields |
 | `PORTFOLIO` | PORT portfolio analytics | Partial: manual holdings/cash, five base currencies, entry-FX metadata, historical-FX replay, exact-date VaR/ES, signed hedge contributions, tracking error, per-line stress and CSV | No institutional position/corporate-action reconciliation, full transaction ledger, factor attribution, multi-asset derivatives or enterprise risk |
 | `ALERTS` | ALRT alerts | Local tool: prices, changes and announcement keywords while open | No server-side alerts when closed, mobile push or enterprise notification service |
 | `CORRELATION` | CORR correlation | Model: daily-return correlation matrix | No factor model, covariance service, optimisation or full data universe |
@@ -140,7 +141,7 @@ Findings, and what was done:
 | Financial statements (V01, page 7) | Segments tab (revenue by product), ratios, export | `FINANCIALS` has statements, ratios and CSV; no segments | Partial; segments need the filings' XBRL dimensions ("Later") |
 | Earnings (V01, pages 12 to 15) | EE leads to ERN, EEG, EM, EEO, ANR | `EARNINGS`, `ESTIMATES` (EEO), `ANALYSTS`; since 26 October also `ESTIMATEGRAPH` (EEG, `cfdd713`) and `EARNINGSTREND` (EM, `313c3e9`) | Present |
 | Ownership (V01, page 11) | HDS summary and insider transactions | `HOLDERS`, and insider trades (Form 4) on `MANAGEMENT` | Partial |
-| Screening (H18) | Criteria by category, results, output to Excel or PDF | `SCREEN`: a fixed set (region, sector, market value, P/E, dividend yield, YTD, beta, ROE, exclusions), CSV | Partial; no category browser or AND/OR groups |
+| Screening (H18) | Criteria by category, results, output to Excel or PDF | `SCREEN`: criteria picked by category (market, valuation, profitability, risk and return, classification) in AND groups joined by OR, exclusions, CSV (`8caa5d7`) | Partial; no PDF output |
 | Options (H19) | Calls left, puts right, grouped by expiry; a contract leads to scenario analysis | `OPTIONS` pairs calls and puts by strike for an expiry | Matches the layout; the link from a contract to `OPTIONSTRATEGY` was not checked |
 | Charts and history (H21, H25) | GP's longest range; HP by year | `CHART` has MAX; `HISTORY` takes Y | Present |
 | Navigation (H12) | Sector keys, GO, MENU, back, HELP | Present (the function key bar, MENU, back, HELP) | Present |
@@ -164,19 +165,19 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 
 | Area | Pack evidence | Armin today | Status | Gap or next step |
 | --- | --- | --- | --- | --- |
-| NAV | E2 | Command line (`src/terminal/commands.ts`), linked panels, `HELP`; `tests/commands.test.ts`, `e2e/terminal.spec.ts` | Implemented | The mnemonics W and LLP (below) |
+| NAV | E2 | Command line (`src/terminal/commands.ts`), linked panels, `HELP`; `tests/commands.test.ts`, `e2e/terminal.spec.ts` | Implemented | W and LLP now open worksheets and layouts (below) |
 | WEI | E2 | `MARKET` (`WEI.tsx`), Yahoo index levels | Partial | Price indices only, no total-return variants |
 | IMAP | E2, E1 | `INDEXMAP` (`IMAP.tsx`), members from `index-members.ts` | Partial | Weights are estimates (market values, not float-adjusted), as the screen says |
-| EQS | E2 | `SCREEN` (`EQS.tsx`) | Partial | Screens the 84 stocks built into the app, not the market; criteria are joined by AND only; a stock without a value fails that criterion silently; no saved screens |
-| WATC | E2 | `WATCHLIST` (`W.tsx`) | Partial, and a defect | No analytics across a list; the mnemonic W opens `WATCHLIST`, but W is Worksheets in the official chapter list |
-| RV | E2 | `PEERS` (`RV.tsx`); EV in `src/data/fundamentals.ts` | Partial | EV is market value plus net debt: preferred stock and minority interest are not added. Banks are left out and negative EBITDA shows "not meaningful", both correct |
+| EQS | E2 | `SCREEN` (`EQS.tsx`, `src/data/screen.ts`) | Partial | Since `8caa5d7`: the app's stocks or Nasdaq's 6,568 US-listed stocks, AND and OR groups, saved screens, and a stated choice for stocks missing a value, counted by field. Over the US list, P/E, yield, ROE, beta and returns exist only for the app's own stocks; Nasdaq's sectors are not GICS; no non-US universe |
+| WATC | E2 | `WATCHLIST` (`W.tsx`), typed WATCH | Partial | No analytics across a list. W opens Worksheets since `f26fa11` |
+| RV | E2 | `PEERS` (`RV.tsx`); EV in `src/data/fundamentals.ts` | Partial | Since `89ef249` EV adds preferred stock and minority interest from the latest balance sheet, and the build-up shows on hover. Banks are left out and negative EBITDA shows "not meaningful", both correct. No percentile rank |
 | FA | E2 | `FINANCIALS` (`FA.tsx`), SEC XBRL | Partial | No segment tables |
 | DSCO | E2 (code only) | `DOCSEARCH` (DS, `DS.tsx`), `FILINGS` | Unverified | What DSCO does is not established |
 | EE | E2 | `EARNINGS`, `ESTIMATES`, `ESTIMATEGRAPH`, `EARNINGSTREND` | Implemented | Estimates come only from named providers |
 | ANR | E2 | `ANALYSTS` (`ANR.tsx`): FMP, Finnhub, TipRanks, Equibles | Implemented | Named providers only |
 | BI | E2 | None | Blocked | The provider's own research |
-| LLP | E2 | `LAYOUTS` (LPAD); more windows with Ctrl+Shift+N, each keeping its own layout | Partial | LLP is not mapped to it |
-| W | E2 | None | Missing | Worksheets: tables of securities by fields the user picks, buildable on the `FIELDS` catalogue |
+| LLP | E2 | `LAYOUTS` (LPAD, and LLP since `3951765`); more windows with Ctrl+Shift+N, each keeping its own layout | Partial | Launchpad's own components are not established from the evidence |
+| W | E2 | `WORKSHEET` (`WS.tsx`, `f26fa11`) | Partial | Sheets of securities by the market fields the watchlist offers and 13 fundamentals; other provider fields are not available |
 | TOP | E2 | `MARKETNEWS` (TOP) | Implemented | MREP (the morning report) is missing |
 | FX | E2 | `FXMATRIX`, `FXRANK`, `FXFORWARD`, `FXOPTION`; ECB rates kept apart | Partial | Mid rates; dealer bid and ask are not available free |
 | CHART | E1 | `CHART` (GP) with studies | Implemented | `HISTORY` says its prices are split-adjusted and not dividend-adjusted; `CHART` neither says so nor offers dividend-adjusted prices |
@@ -203,19 +204,19 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 | HOLDINGS13F | Outside the pack | `HOLDINGS`, `FILINGS13F` | Implemented | |
 | CONGRESS | Outside the pack | `CONGRESS` | Partial | Senators' trades are FMP's latest 25, kept since the app first asked, as the screen says |
 
-Five additions with the most use for the least data (proposed, not started):
-1. `SCREEN` over Nasdaq's full US stock list, which the app already loads: an explicit choice for missing values, AND and OR groups, saved screens.
-2. Worksheets under W: rows of securities, columns from the `FIELDS` catalogue, saved; `WATCHLIST` keeps WATCH.
-3. `PEERS`: preferred stock and minority interest in EV from the filings, with the EV build-up shown.
-4. `PORTFOLIO` transactions: lots with dates, fees and FX, realised P&L, time- and money-weighted returns.
-5. `BONDCALC` call schedules: yield to call and to worst.
+Five additions with the most use for the least data (approved 26 October):
+1. `SCREEN` over Nasdaq's full US stock list, which the app already loads: an explicit choice for missing values, AND and OR groups, saved screens. Done, `8caa5d7`.
+2. Worksheets under W: rows of securities, columns of market and fundamental fields, saved; `WATCHLIST` keeps WATCH. Done, `f26fa11`.
+3. `PEERS`: preferred stock and minority interest in EV from the filings, with the EV build-up shown. Done, `89ef249`.
+4. `PORTFOLIO` transactions: lots with dates, fees and FX, realised P&L, time- and money-weighted returns. Next.
+5. `BONDCALC` call schedules: yield to call and to worst. Next.
 
 Five defects to test first:
-1. W opens `WATCHLIST`, though W is Worksheets in the official chapter list.
-2. LLP does not open `LAYOUTS`.
-3. `SCREEN` drops a stock missing any value a criterion needs, without saying so, and does not say it screens 84 stocks.
-4. `PEERS` leaves preferred stock and minority interest out of EV.
-5. The help desk has no test against instructions planted in the news or filings it reads.
+1. W opens `WATCHLIST`, though W is Worksheets in the official chapter list. Fixed with a test, `f26fa11`.
+2. LLP does not open `LAYOUTS`. Fixed with a test, `3951765`.
+3. `SCREEN` drops a stock missing any value a criterion needs, without saying so, and does not say it screens 84 stocks. Fixed with tests, `8caa5d7`.
+4. `PEERS` leaves preferred stock and minority interest out of EV. Fixed with a test, `89ef249`.
+5. The help desk has no test against instructions planted in the news or filings it reads. Next.
 
 The pack's release gates (financial correctness, provenance, security) agree with this project's rules and are folded into the tests above as each item is built.
 

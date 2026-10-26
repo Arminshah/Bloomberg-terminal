@@ -1,6 +1,6 @@
 # To-do list
 
-Updated 25 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
+Updated 26 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
 
 ## Next, in this order
 
@@ -11,8 +11,9 @@ Items 1 to 8 are done. Item 9 is under way: the atlas's sources are being read a
 Evidence pack v3 (Codex, 26 October): read, its claims checked against the publisher's pages, and its 38 feature areas compared with the code. The gap analysis is in `docs/bloomberg-parity.md`, "Evidence pack v3: gap analysis". In short:
 - Its counts hold: 45 sources (6 at E2, 21 at E1, 18 at E0), no video frames or captions.
 - One claim does not hold: the official page lists DSCO without saying what it is, so "DSCO means document search" is a guess. BTM could not be confirmed.
-- It shows a real defect in the app: W opens `WATCHLIST`, but the official chapter list names W as Worksheets.
-- Proposed next, waiting for your approval: a screener over the full US list, worksheets under W, EV with preferred stock and minority interest on `PEERS`, transactions on `PORTFOLIO`, and call schedules on `BONDCALC`; and tests for five defects (W, LLP, `SCREEN`'s silent exclusions, `PEERS`' EV, the help desk against planted instructions).
+- It showed a real defect in the app: W opened `WATCHLIST`, but the official chapter list names W as Worksheets.
+- Approved on 26 October and under way. Done: currency conversion (`FXCA`, `36c4515`), EV with preferred stock and minority interest on `PEERS` (`89ef249`), LLP to `LAYOUTS` (`3951765`), worksheets under W (`f26fa11`), and the screener over the full US list with AND and OR groups, a stated choice for missing values and saved screens (`8caa5d7`).
+- Next: transactions on `PORTFOLIO`, call schedules on `BONDCALC`, the help desk tested against planted instructions, then the newly confirmed codes (WCR, WEIS, WM, the sector pages, the central bank portals, MYN, NLRT, GEW, CBRT).
 
 Progress on 25 October (the audited atlas of 69 references replaces the request for PDFs 1 to 33):
 - Read: the ECB's framework for its reference rates, the SEC's Form 13F FAQ, Babson's equity valuation walkthrough (22 pages), the cover of the Global Equity methodology (it is the October 2026 edition), Bloomberg's chapter lists for two tutorials and 15 university guides. The CME guides refuse automated requests. The older manuals (V02 to V06) and cheat sheets (N02 to N07) are downloaded, not yet reviewed.
