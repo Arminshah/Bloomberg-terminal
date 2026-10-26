@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSize } from './useSize';
 import { fmtNum, fmtPct } from '../core/format';
+import { heatColour, useColourScheme } from '../terminal/palette';
 
 /**
  * A heat map as a treemap, the market map's way: groups (sectors), their sub-groups (industry groups) and the members,
@@ -74,13 +75,9 @@ export function squarify<T>(items: { v: number; item: T }[], box: Rect): { r: Re
   return out;
 }
 
-/** Red to green, full colour at ±scale%; dark grey without a change. */
+/** Red to green (or the colour scheme's fall and rise), full colour at ±scale%; dark grey without a change. */
 export function heatFill(pct: number, scale = 3): string {
-  if (!Number.isFinite(pct)) return '#262626';
-  const a = Math.min(1, Math.abs(pct) / scale);
-  return pct >= 0
-    ? `rgb(${Math.round(18 + 14 * a)}, ${Math.round(62 + 108 * a)}, ${Math.round(32 + 22 * a)})`
-    : `rgb(${Math.round(84 + 146 * a)}, ${Math.round(20 + 12 * a)}, ${Math.round(38 + 14 * a)})`;
+  return heatColour(pct, scale);
 }
 
 /** The weight-weighted change of some members, over those that have one. */
@@ -141,6 +138,8 @@ export function tileText(label: string, w: number, h: number): { fs: number; pfs
 }
 
 export function HeatTreemap({ groups, scale = 3, height, onGroup, period = 'd' }: { groups: HeatGroup[]; scale?: number; height?: number; onGroup?: (name: string) => void; period?: string }) {
+  // Heat colours follow the colour scheme.
+  useColourScheme();
   const [box, size] = useSize<HTMLDivElement>();
   const W = Math.max(240, size.w);
   const H = height ?? Math.max(360, size.h);

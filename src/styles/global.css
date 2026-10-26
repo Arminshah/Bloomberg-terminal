@@ -68,6 +68,11 @@ html[data-font='plex'] body { font-weight: 500; letter-spacing: 0.01em; }
 html[data-font='terminal'] b, html[data-font='terminal'] strong, html[data-font='terminal'] th,
 html[data-font='plex'] b, html[data-font='plex'] strong, html[data-font='plex'] th { font-weight: 600; }
 
+/* Colour-blind schemes (SETTINGS > Colours; palette.ts has the same colours for what is drawn in code): a rise in blue,
+   a fall in a red or an orange told apart from it, and plain text in a lighter amber. */
+html[data-scheme='deuteranopia'] { --up: #0089e8; --dn: #cd4b4c; --amber: #fea028; --flash-up: rgba(0, 137, 232, 0.42); --flash-dn: rgba(205, 75, 76, 0.42); }
+html[data-scheme='protanomaly'] { --up: #0089e8; --dn: #fb5b28; --amber: #feba12; --flash-up: rgba(0, 137, 232, 0.42); --flash-dn: rgba(251, 91, 40, 0.42); }
+
 html[data-size='S'] { --fs: 11px; --fs-s: 10px; --fs-l: 12px; --row: 18px; }
 html[data-size='L'] { --fs: 13.5px; --fs-s: 12px; --fs-l: 15px; --fs-xl: 18px; --row: 23px; }
 html.embedded { --gutter: 16px; }
@@ -1494,7 +1499,7 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .badge.session-pre, .badge.session-post { background: #3a2a06; color: var(--amber-2); border-color: var(--amber-dim); }
 .badge.session-closed { background: #222; color: #b0b0b0; border-color: #3a3a3a; }
 .tbl th.live-col { box-shadow: inset 0 -2px 0 var(--up); }
-.tbl td.live-col { background: rgba(47, 211, 107, 0.06); }
+.tbl td.live-col { background: color-mix(in srgb, var(--up) 6%, transparent); }
 /* LAYOUTS: building a layout of your own, rows first, then a screen per tile, then a name (TOOLS.tsx). */
 .layout-builder { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(320px, 2fr) minmax(220px, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 1100px) { .layout-builder { grid-template-columns: 1fr; } }

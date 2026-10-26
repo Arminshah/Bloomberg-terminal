@@ -1,6 +1,7 @@
 import { bollinger, ema, macd, rsi, sma } from '../../finance/indicators';
 import type { Series } from '../../data/series';
 import { fmtBig, fmtDay, fmtMonthDayNum, fmtNum, MONTHS } from '../../core/format';
+import { onColourScheme, palette, withAlpha } from '../../terminal/palette';
 import { backingSize, crispDash, crispEdge, crispLine, crispWidth, deviceBox, watchPixelRatio } from './pixels';
 
 export type ChartType = 'line' | 'mountain' | 'candle' | 'bar';
@@ -83,10 +84,19 @@ export const CHART_THEME = {
   line: '#f4f4f4',
   mountainTop: 'rgba(54,124,184,0.78)',
   mountainBottom: 'rgba(10,32,58,0.30)',
-  up: '#2fd36b',
-  dn: '#ff4d4f',
-  upFill: 'rgba(47,211,107,0.55)',
-  dnFill: 'rgba(255,77,79,0.55)',
+  // A rise and a fall in the colour scheme's colours (palette.ts).
+  get up() {
+    return palette().up;
+  },
+  get dn() {
+    return palette().dn;
+  },
+  get upFill() {
+    return withAlpha(palette().up, 0.55);
+  },
+  get dnFill() {
+    return withAlpha(palette().dn, 0.55);
+  },
   cross: 'rgba(255,255,255,0.45)',
   ref: '#6d6d6d',
   get font() {
@@ -134,6 +144,7 @@ export class PriceChart {
   private sy = 1;
   private stopRatio: () => void;
   private redraw = () => this.schedule();
+  private stopScheme: () => void;
   private s: Series | null = null;
   private opt: ChartOptions | null = null;
   private v0 = 0;
@@ -172,6 +183,7 @@ export class PriceChart {
     }
     this.stopRatio = watchPixelRatio(() => this.resize());
     window.addEventListener?.(CHART_LOOK_EVENT, this.redraw);
+    this.stopScheme = onColourScheme(this.redraw);
     this.resize();
     this.bind();
     if (document.fonts?.ready) document.fonts.ready.then(() => this.schedule()).catch(() => undefined);
@@ -182,6 +194,7 @@ export class PriceChart {
     this.ro.disconnect();
     this.stopRatio();
     window.removeEventListener?.(CHART_LOOK_EVENT, this.redraw);
+    this.stopScheme();
     this.canvas.remove();
   }
 

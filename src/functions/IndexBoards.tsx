@@ -12,6 +12,7 @@ import { HeatTreemap, type HeatGroup } from '../components/HeatTreemap';
 import { industryGroup } from '../data/gics';
 import { execute } from '../terminal/exec';
 import { useNumberedRows, usePanelId } from '../terminal/panel';
+import { heatColour, useColourScheme } from '../terminal/palette';
 
 /** The indices whose whole membership the app can load, in the selector's order. */
 export const BOARD_CHOICES = ['SPX Index', 'NDX Index', 'INDU Index'];
@@ -554,11 +555,7 @@ function slice(name: string, members: Member[]): Slice {
   return { name, members, weight: wAll, pct: w > 0 ? sum / w : NaN, up: priced.length ? (priced.filter((m) => m.pct > 0).length / priced.length) * 100 : NaN };
 }
 
-function heatColor(pct: number, scale = 3): string {
-  if (!Number.isFinite(pct)) return '#262626';
-  const a = Math.min(1, Math.abs(pct) / scale);
-  return pct >= 0 ? `rgb(${Math.round(20 + 10 * a)}, ${Math.round(70 + 110 * a)}, ${Math.round(30 + 20 * a)})` : `rgb(${Math.round(90 + 140 * a)}, ${Math.round(28 + 6 * a)}, ${Math.round(30 + 6 * a)})`;
-}
+const heatColor = heatColour;
 
 /** An annular sector from angle a0 to a1 (radians, 0 at the top, clockwise) between radii r0 and r1. */
 function arc(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number): string {
@@ -570,6 +567,8 @@ function arc(cx: number, cy: number, r0: number, r1: number, a0: number, a1: num
 
 /** IMAP on an index's whole membership: a sunburst of groups and members beside a table of the groups. */
 export function BoardMap({ ix }: { ix: SecurityDef }) {
+  // Heat colours follow the colour scheme.
+  useColourScheme();
   useTick(2);
   const panel = usePanelId();
   const board = useIndexMembers(ix.id)!;

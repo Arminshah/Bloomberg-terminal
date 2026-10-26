@@ -4,6 +4,7 @@ import { Freshness } from '../components/Freshness';
 import { QuoteStrip } from '../components/QuoteStrip';
 import { Section } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
+import { palette, useColourScheme } from '../terminal/palette';
 import { fmtBig, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { krakenOwns, krakenPairFor, loadKrakenBook, type KrakenBook } from '../data/live/kraken';
 import { engine, useTick } from '../data/market';
@@ -73,12 +74,12 @@ export function BookTable({ sec, levels = 10, compact }: { sec: SecurityDef; lev
             <tr key={i}>
               {!compact && <td className="num muted hide-m">{bid.orders}</td>}
               {!compact && <td className="num muted hide-m">{fmtBig(cb[i])}</td>}
-              <td className="num" style={{ background: `linear-gradient(to left, rgba(47,211,107,0.28) ${(bid.size / max) * 100}%, transparent 0)` }}>
+              <td className="num" style={{ background: `linear-gradient(to left, color-mix(in srgb, var(--up) 28%, transparent) ${(bid.size / max) * 100}%, transparent 0)` }}>
                 {sizeDec ? fmtNum(bid.size, sizeDec) : fmtBig(bid.size)}
               </td>
               <td className={`num ${i === 0 ? 'up b' : 'up'}`}>{fmtNum(bid.px, sec.dec)}</td>
               <td className={`num ${i === 0 ? 'dn b' : 'dn'}`}>{fmtNum(ask.px, sec.dec)}</td>
-              <td className="num" style={{ background: `linear-gradient(to right, rgba(255,77,79,0.28) ${(ask.size / max) * 100}%, transparent 0)` }}>
+              <td className="num" style={{ background: `linear-gradient(to right, color-mix(in srgb, var(--dn) 28%, transparent) ${(ask.size / max) * 100}%, transparent 0)` }}>
                 {sizeDec ? fmtNum(ask.size, sizeDec) : fmtBig(ask.size)}
               </td>
               {!compact && <td className="num muted hide-m">{fmtBig(ca[i])}</td>}
@@ -241,6 +242,8 @@ export function DEPTH({ sec }: FnProps) {
 }
 
 function DepthSim({ sec: s }: { sec: SecurityDef }) {
+  useColourScheme();
+  const colours = palette();
   useTick(1);
   const b = orderBook(s.id, 15);
   const bidTot = b.bids.reduce((a, x) => a + x.size, 0);
@@ -273,8 +276,8 @@ function DepthSim({ sec: s }: { sec: SecurityDef }) {
           <XYChart
             height={330}
             series={[
-              { label: 'Bids', color: '#2fd36b', points: bidPts, width: 2 },
-              { label: 'Asks', color: '#ff4d4f', points: askPts, width: 2 },
+              { label: 'Bids', color: colours.up, points: bidPts, width: 2 },
+              { label: 'Asks', color: colours.dn, points: askPts, width: 2 },
             ]}
             xFormat={(v) => fmtNum(v, s.dec)}
             yFormat={(v) => fmtBig(v)}

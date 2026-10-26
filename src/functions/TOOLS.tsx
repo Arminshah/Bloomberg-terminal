@@ -16,6 +16,7 @@ import { lookupSource, searchOnline, type OnlineHit } from '../data/live/lookup'
 import { lookupFn } from '../terminal/registry';
 import { flash, usePanelId } from '../terminal/panel';
 import { fontChoice, settings, type ClickAction } from '../terminal/settings';
+import { colourScheme } from '../terminal/palette';
 import { applyPreset, closeLayouts, defaultTerminal, layoutReturn, panelCount, rowsOrDefault, terminal, workspaceOf } from '../terminal/state';
 import { applySaved, currentRoutes, saveLayout, unsavedLayout } from '../terminal/layouts';
 import { fits, MAX_ROWS, MAX_TILES, MAX_TILES_PER_ROW, rowsOf } from '../terminal/rows-layout';
@@ -453,6 +454,14 @@ export function PDFU(_: FnProps) {
                 <option value="terminal">Bergoom, the terminal&apos;s look (proportional, even-width figures)</option>
                 <option value="plex">IBM Plex Sans (proportional, even-width figures)</option>
                 <option value="mono">IBM Plex Mono (monospaced)</option>
+              </select>
+            </label>
+            <label className="fld" htmlFor="pdfu-colours">
+              Colours
+              <select id="pdfu-colours" className="sel-inp" value={colourScheme(s.scheme)} onChange={(e) => set('scheme', colourScheme(e.target.value))}>
+                <option value="default">Default: rises green, falls red</option>
+                <option value="deuteranopia">Deuteranopia: rises blue, falls red</option>
+                <option value="protanomaly">Protanomaly: rises blue, falls orange</option>
               </select>
             </label>
             <label className="fld" htmlFor="pdfu-click">

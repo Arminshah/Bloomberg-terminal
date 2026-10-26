@@ -19,7 +19,8 @@ const PERIODS = [
 function color(c: number): string {
   if (!Number.isFinite(c)) return '#111';
   const a = Math.min(1, Math.abs(c));
-  return c >= 0 ? `rgba(47, 211, 107, ${0.12 + a * 0.75})` : `rgba(255, 77, 79, ${0.12 + a * 0.75})`;
+  // The scheme's colours (--up, --dn), so a colour-blind scheme applies here too.
+  return `color-mix(in srgb, var(${c >= 0 ? '--up' : '--dn'}) ${Math.round((0.12 + a * 0.75) * 100)}%, transparent)`;
 }
 
 export function CORR({ sec }: FnProps) {

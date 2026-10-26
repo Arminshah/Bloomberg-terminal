@@ -74,3 +74,42 @@ test("the terminal's measured colours: red function bar, grey section strips, an
   await expect(input).toHaveAttribute('placeholder', /MARKET|WEI/);
   expect(errors).toEqual([]);
 });
+
+test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
+  const errors = await boot(page);
+  // Pixels of a colour on the panel's chart canvas.
+  const pixels = (r: number, g: number, b: number) => page.locator('.panel canvas').first().evaluate((el, [r, g, b]) => {
+    const c = el as HTMLCanvasElement;
+    const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] === r && d[i + 1] === g && d[i + 2] === b) n++;
+    return n;
+  }, [r, g, b]);
+  await run(page, 'AAPL US Equity GPC');
+  await expect.poll(() => pixels(47, 211, 107)).toBeGreaterThan(50);
+  await run(page, 'SETTINGS');
+  const colours = page.locator('.panel').first().getByLabel('Colours');
+  await expect(colours).toHaveValue('default');
+  await colours.selectOption('deuteranopia');
+  await expect(page.locator('html')).toHaveAttribute('data-scheme', 'deuteranopia');
+  const vars = await page.evaluate(() => {
+    const s = getComputedStyle(document.documentElement);
+    return [s.getPropertyValue('--up').trim(), s.getPropertyValue('--dn').trim(), s.getPropertyValue('--amber').trim()];
+  });
+  expect(vars).toEqual(['#0089e8', '#cd4b4c', '#fea028']);
+  // The chart's rising candles are blue now, none green.
+  await run(page, 'AAPL US Equity GPC');
+  await expect.poll(() => pixels(0, 137, 232)).toBeGreaterThan(50);
+  expect(await pixels(47, 211, 107)).toBe(0);
+  // Heat-map tiles: rises blue (more blue than green), falls red.
+  await run(page, 'HEATMAP');
+  const fills = await page.locator('.heatmap-box svg rect[fill^="rgb("]').evaluateAll((list) => list.map((el) => el.getAttribute('fill')!.match(/\d+/g)!.map(Number)));
+  expect(fills.length).toBeGreaterThan(10);
+  const rises = fills.filter(([r, g, b]) => b > r && b > g);
+  const falls = fills.filter(([r, g, b]) => r > g && r > b);
+  expect(rises.length + falls.length).toBe(fills.length);
+  expect(fills.filter(([r, g, b]) => g > r && g > b)).toHaveLength(0);
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-scheme', 'deuteranopia');
+  expect(errors).toEqual([]);
+});

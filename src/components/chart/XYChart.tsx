@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { CHART_LOOK_EVENT, CHART_THEME } from './PriceChart';
 import { fmtNum } from '../../core/format';
+import { onColourScheme } from '../../terminal/palette';
 import { backingSize, crispDash, crispEdge, crispLine, crispWidth, deviceBox, watchPixelRatio } from './pixels';
 
 export interface XYPoint {
@@ -350,6 +351,7 @@ export function XYChart(props: Props) {
     }
     const stopRatio = watchPixelRatio(draw);
     window.addEventListener(CHART_LOOK_EVENT, draw);
+    const stopScheme = onColourScheme(draw);
     const move = (e: PointerEvent) => {
       const r = cv.getBoundingClientRect();
       hover.current = { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -365,6 +367,7 @@ export function XYChart(props: Props) {
       ro.disconnect();
       stopRatio();
       window.removeEventListener(CHART_LOOK_EVENT, draw);
+      stopScheme();
       cv.removeEventListener('pointermove', move);
       cv.removeEventListener('pointerleave', leave);
     };

@@ -7,6 +7,7 @@ import { freshnessOf, type FreshnessLabel } from '../data/freshness';
 import { defaultFnFor, usePanelId } from '../terminal/panel';
 import { broadcastSecurity, navigate, panelCount, terminal } from '../terminal/state';
 import { settings } from '../terminal/settings';
+import { heatColour } from '../terminal/palette';
 import { Flash } from './Flash';
 
 /** Opens a security: plain click in this panel, shift-click in the next panel. */
@@ -166,10 +167,5 @@ export function HBar({ value, max, signed, color }: { value: number; max: number
   );
 }
 
-/** Heat colour for a percent change. */
-export function heat(pct: number, scale = 3): string {
-  if (!Number.isFinite(pct)) return '#1a1a1a';
-  const a = Math.min(1, Math.abs(pct) / scale);
-  if (pct >= 0) return `rgb(${Math.round(16 + 10 * a)}, ${Math.round(40 + 120 * a)}, ${Math.round(24 + 40 * a)})`;
-  return `rgb(${Math.round(50 + 150 * a)}, ${Math.round(22 + 8 * a)}, ${Math.round(24 + 10 * a)})`;
-}
+/** Heat colour for a percent change (palette.ts). */
+export const heat = heatColour;

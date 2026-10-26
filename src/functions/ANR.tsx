@@ -14,6 +14,7 @@ import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 import type { SecurityDef } from '../data/types';
 import { XYChart } from '../components/chart/XYChart';
+import { palette, useColourScheme } from '../terminal/palette';
 import { DAY_MS } from '../data/calendar';
 import { reportCcy } from '../data/fundamentals';
 import { periodChange } from '../data/analytics';
@@ -431,6 +432,8 @@ function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | nul
 
 /** A year of closes with the consensus target and the range of targets, as ANR's chart beside its summary. */
 function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }) {
+  useColourScheme();
+  const colours = palette();
   const daily = engine.daily(sec.id);
   const from = engine.today * DAY_MS - 365 * DAY_MS;
   const points: { x: number; y: number; label: string }[] = [];
@@ -439,8 +442,8 @@ function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }
   const refLines = c
     ? [
         ...(Number.isFinite(c.mean) ? [{ y: c.mean, color: '#ff9e1b', label: `12M Tgt Px ${fmtNum(c.mean, 2)}` }] : []),
-        ...(Number.isFinite(c.high) ? [{ y: c.high, color: '#2fd36b', label: `High ${fmtNum(c.high, 2)}` }] : []),
-        ...(Number.isFinite(c.low) ? [{ y: c.low, color: '#ff4d4f', label: `Low ${fmtNum(c.low, 2)}` }] : []),
+        ...(Number.isFinite(c.high) ? [{ y: c.high, color: colours.up, label: `High ${fmtNum(c.high, 2)}` }] : []),
+        ...(Number.isFinite(c.low) ? [{ y: c.low, color: colours.dn, label: `Low ${fmtNum(c.low, 2)}` }] : []),
       ]
     : [];
   return (

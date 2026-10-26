@@ -14,6 +14,7 @@ import { setTimeZone } from './core/format';
 import { lookupFn } from './terminal/registry';
 import { fontChoice, settings } from './terminal/settings';
 import { setChartFont } from './components/chart/PriceChart';
+import { colourScheme } from './terminal/palette';
 import { back, currentRoute, panelCount, rowsOrDefault, setActive, splitFor, terminal } from './terminal/state';
 import { rowsGrid } from './terminal/rows-layout';
 import { Splitters } from './components/Splitters';
@@ -64,6 +65,7 @@ export function App() {
   const tabId = workspaceTabs.use((t) => t.active);
   const size = settings.use((s) => s.size);
   const font = settings.use((s) => s.font);
+  const scheme = settings.use((s) => s.scheme);
   const tz = settings.use((s) => s.tz);
   // Changing the date order redraws every screen; settings applies the order itself.
   settings.use((s) => s.dateOrder);
@@ -85,6 +87,10 @@ export function App() {
     document.documentElement.dataset.font = fontChoice(font);
     setChartFont(fontChoice(font));
   }, [font]);
+
+  useEffect(() => {
+    document.documentElement.dataset.scheme = colourScheme(scheme);
+  }, [scheme]);
 
   useEffect(() => {
     setTimeZone(tz);
