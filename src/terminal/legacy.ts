@@ -73,6 +73,7 @@ export const LEGACY_CODES: Record<string, string> = {
   EA: 'EARNINGSSEASON',
   CACT: 'ACTIONCALENDAR',
   SIA: 'SHORTRANKING',
+  GX: 'CROSSSECTION',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',

@@ -144,21 +144,24 @@ export interface MarketShorts {
   listedName: (symbol: string) => string | undefined;
 }
 
-/** A settlement's short interest (`back` settlements before the latest), loading it while a screen shows it. */
-export function useMarketShorts(back: number): MarketShorts {
+/**
+ * A settlement's short interest (`back` settlements before the latest), loading it while a screen shows it and
+ * `enabled` (a screen that plots it only on request).
+ */
+export function useMarketShorts(back: number, enabled = true): MarketShorts {
   shortMarket.use((s) => s.v);
   earningsCalendar.use((s) => s.v);
   const s = shortMarket.get();
   const dates = s.dates?.data ?? [];
   const date = dates[Math.min(back, dates.length - 1)];
   useEffect(() => {
-    if (!shortMarketAvailable()) return;
+    if (!enabled || !shortMarketAvailable()) return;
     requestListings();
     void loadDates();
-  }, []);
+  }, [enabled]);
   useEffect(() => {
-    if (shortMarketAvailable() && date) void loadSettlement(date);
-  }, [date]);
+    if (enabled && shortMarketAvailable() && date) void loadSettlement(date);
+  }, [date, enabled]);
   const part = date ? s.settlements[date] : undefined;
   const listings = earningsCalendar.get().listings?.data;
   return {

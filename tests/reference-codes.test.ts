@@ -3,6 +3,7 @@ import { rankMovers } from '../src/functions/RATES';
 import { crossesZero, trendChange, trendSeries, trendsFor } from '../src/functions/EEG';
 import { fiscalYearOf, quarterLines, trendBars, yearLines } from '../src/functions/EM';
 import { bySector, seasonLines, seasonOf, seasonStats, verdict } from '../src/functions/EA';
+import { FIELDS, fitLine, gxPoints, type GxContext } from '../src/functions/GX';
 import type { CalendarReport } from '../src/data/live/earnings-calendar';
 import type { Member } from '../src/data/live/index-members';
 import type { Consensus, EstimateTrend, QuarterView } from '../src/data/live/consensus';
@@ -244,5 +245,38 @@ describe('Earnings Season Results (EA)', () => {
     expect(parse('NDX INDEX EA')).toMatchObject({ kind: 'route', fn: 'EARNINGSSEASON', sec: { id: 'NDX Index' } });
     expect(parse('EA US')).toMatchObject({ kind: 'error', lookup: 'EA' });
     expect(parse('EA US DES')).toMatchObject({ kind: 'error', lookup: 'EA' });
+  });
+});
+
+describe('Graphical Cross Sectional (GX)', () => {
+  it('fits the least-squares line with its correlation, and none through fewer than three points', () => {
+    const exact = fitLine([{ x: 1, y: 3 }, { x: 2, y: 5 }, { x: 4, y: 9 }]);
+    expect(exact.slope).toBeCloseTo(2, 12);
+    expect(exact.intercept).toBeCloseTo(1, 12);
+    expect(exact.r).toBeCloseTo(1, 12);
+    const noisy = fitLine([{ x: 0, y: 0 }, { x: 1, y: 2 }, { x: 2, y: 1 }, { x: 3, y: 3 }]);
+    expect(noisy.slope).toBeCloseTo(0.8, 12);
+    expect(noisy.intercept).toBeCloseTo(0.3, 12);
+    expect(noisy.r).toBeCloseTo(0.8, 12);
+    expect(noisy.r2).toBeCloseTo(0.64, 12);
+    expect(fitLine([{ x: 1, y: 1 }, { x: 2, y: 2 }]).slope).toBeNaN();
+  });
+
+  it('plots each member on the two fields, market value on a log scale, and leaves out a member without both', () => {
+    const field = (k: string) => FIELDS.find((f) => f.key === k)!;
+    const m = (symbol: string, cap: number, weight: number) => ({ symbol, cap, weight, last: NaN, volume: NaN, pct: NaN }) as unknown as Member;
+    const ctx: GxContext = { index: 'SPX', shortPct: (x) => (x.symbol === 'AAA' ? 2.5 : NaN), daysToCover: () => NaN };
+    const pts = gxPoints([m('AAA', 1e12, 0.07), m('BBB', 1e10, 0.0007), m('CCC', NaN, 0.01)], field('cap'), field('weight'), ctx);
+    expect(pts.map((p) => p.member.symbol)).toEqual(['AAA', 'BBB']);
+    expect(pts.map((p) => p.x)).toEqual([12, 10]);
+    expect(pts[0].y).toBeCloseTo(7, 12);
+    expect(pts[1].y).toBeCloseTo(0.07, 12);
+    expect(field('cap').fmt(12)).toBe('1.0T');
+    expect(gxPoints([m('AAA', 1e12, 0.07), m('BBB', 1e10, 0.0007)], field('si'), field('weight'), ctx).map((p) => p.member.symbol)).toEqual(['AAA']);
+  });
+
+  it('opens under GX for an index', () => {
+    expect(parse('NDX INDEX GX')).toMatchObject({ kind: 'route', fn: 'CROSSSECTION', sec: { id: 'NDX Index' } });
+    expect(parse('GX')).toEqual({ kind: 'route', fn: 'CROSSSECTION' });
   });
 });

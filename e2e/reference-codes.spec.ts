@@ -173,3 +173,13 @@ test("SIA says the market's short interest is the desktop app's, and generates n
   await expect(panel.locator('tbody tr')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("GX says an index's cross section is the desktop app's, and plots nothing in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'SPX INDEX GX');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('CROSSSECTION');
+  await expect(panel.locator('.empty')).toContainText('needs the desktop app');
+  await expect(panel.locator('canvas')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
