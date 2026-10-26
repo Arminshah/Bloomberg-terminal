@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { createStore } from '../../core/store';
 import { DAY_MS } from '../calendar';
+import { companyName } from './earnings-calendar';
 import { usDate } from './ipo';
 
 /**
@@ -39,14 +40,6 @@ const num = (v: unknown): number => {
   return String(v ?? '').trim() !== '' && Number.isFinite(n) ? n : NaN;
 };
 
-/** "Costco Wholesale Corporation Common Stock" → "Costco Wholesale Corporation". */
-export function companyName(name: unknown): string {
-  return String(name ?? '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\s+(Class [A-C] )?(Common Stock|Ordinary Shares|Common Shares|Common Units\b.*|Class [A-C] Units\b.*)$/i, '');
-}
-
 /** The rows of a Nasdaq calendar; none when Nasdaq answers that the day has nothing ("rows": null). */
 function rowsOf(text: string, where: (j: any) => { rows?: unknown } | null | undefined): { rows: any[] } | { error: string } {
   let j: any;
@@ -72,7 +65,7 @@ export function parseNasdaqDividends(text: string): { data: DividendEvent[] } | 
     const amount = num(x?.dividend_Rate);
     if (!symbol || !Number.isFinite(ex) || !Number.isFinite(amount)) continue;
     const annual = num(x?.indicated_Annual_Dividend);
-    out.push({ symbol, name: companyName(x?.companyName), ex, record: usDate(x?.record_Date), pay: usDate(x?.payment_Date), announced: usDate(x?.announcement_Date), amount, annual: annual > 0 ? annual : NaN });
+    out.push({ symbol, name: companyName(String(x?.companyName ?? '')), ex, record: usDate(x?.record_Date), pay: usDate(x?.payment_Date), announced: usDate(x?.announcement_Date), amount, annual: annual > 0 ? annual : NaN });
   }
   return { data: out };
 }
@@ -96,7 +89,7 @@ export function parseNasdaqSplits(text: string): { data: SplitEvent[] } | { erro
     const ratio = splitRatio(x?.ratio);
     const effective = usDate(x?.executionDate);
     if (!symbol || !ratio || !Number.isFinite(effective)) continue;
-    out.push({ symbol, name: companyName(x?.name), newShares: ratio[0], oldShares: ratio[1], effective });
+    out.push({ symbol, name: companyName(String(x?.name ?? '')), newShares: ratio[0], oldShares: ratio[1], effective });
   }
   return { data: out };
 }

@@ -149,12 +149,13 @@ export function parseNasdaqDay(text: string, date: string, now = Date.now()): { 
 
 /** Nasdaq's screener: every listed stock's market value, by ticker. Preferred shares (ABR^D) are left out. */
 /**
- * A company's name without the share description Nasdaq's stock list adds to it: "FuboTV Inc. Class A Common Stock"
- * is FuboTV Inc., "Ionis Pharmaceuticals Inc. Common Stock" Ionis Pharmaceuticals Inc.
+ * A company's name without the share description Nasdaq's lists add to it: "FuboTV Inc. Class A Common Stock" is
+ * FuboTV Inc., "Ionis Pharmaceuticals Inc. Common Stock" Ionis Pharmaceuticals Inc., "Plains GP Holdings, L.P. Class A
+ * Units representing Limited Partner Interests" Plains GP Holdings, L.P.
  */
 export function companyName(listed: string): string {
-  const name = listed.trim();
-  const short = name.replace(/\s+(?:Class [A-Z]\s+)?(?:Common Stock|Common Shares|Ordinary Shares|Subordinate Voting Shares)(?:\s*\(.*\))?$/i, '').trim();
+  const name = listed.replace(/\s+/g, ' ').trim();
+  const short = name.replace(/\s+(?:Class [A-Z]\s+)?(?:(?:Common Stock|Common Shares|Ordinary Shares|Subordinate Voting Shares)(?:\s*\(.*\))?|(?:Common )?Units representing\b.*)$/i, '').trim();
   return short || name;
 }
 

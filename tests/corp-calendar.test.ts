@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { companyName, parseNasdaqDividends, parseNasdaqSplits, splitRatio, weekdays } from '../src/data/live/corp-calendar';
+import { parseNasdaqDividends, parseNasdaqSplits, splitRatio, weekdays } from '../src/data/live/corp-calendar';
+import { companyName } from '../src/data/live/earnings-calendar';
 import { inPeriod, ratioText } from '../src/functions/CACT';
 import { parseCommand } from '../src/terminal/commands';
 import { lookupFn } from '../src/terminal/registry';
@@ -44,6 +45,7 @@ describe('Corporate Action Calendar (CACT)', () => {
   it('keeps the company in a listed name', () => {
     expect(companyName('Texas Instruments Incorporated Common Stock')).toBe('Texas Instruments Incorporated');
     expect(companyName('Plains GP Holdings, L.P. Class A Units representing Limited Partner Interests')).toBe('Plains GP Holdings, L.P.');
+    expect(companyName('Plains All American Pipeline, L.P. Common Units representing Limited Partner Interests')).toBe('Plains All American Pipeline, L.P.');
     expect(companyName('First Merchants Corporation Depository Shares')).toBe('First Merchants Corporation Depository Shares');
   });
 
