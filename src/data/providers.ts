@@ -673,6 +673,19 @@ export const PROVIDERS: ProviderDef[] = [
     checked: '2026-10-25', desktop: true,
   },
   {
+    id: 'imf',
+    name: 'IMF DataMapper',
+    serves: 'The World Economic Outlook: GDP growth, inflation, unemployment, current account, government balance and debt by economy and region, with the forecasts (ECFC)',
+    dataClass: 'Economic statistics and projections (official), the World Economic Outlook of April and October',
+    policy: 'enabled',
+    terms: 'The IMF lets anyone download, reuse and redistribute its data, the World Economic Outlook included, with the IMF named as the source ("Source: International Monetary Fund, database, link"); a material change to the figures must be stated. The app asks once per indicator and keeps each answer 12 hours.',
+    docs: [
+      { label: 'DataMapper API', url: 'https://www.imf.org/external/datamapper/api/help' },
+      { label: 'Copyright and usage', url: 'https://www.imf.org/en/About/copyright-and-terms' },
+    ],
+    checked: '2026-10-26', desktop: true,
+  },
+  {
     id: 'openfigi',
     name: 'OpenFIGI',
     serves: 'The US ticker of each holding a 13F lists, from its CUSIP or CINS (HOLDINGS)',

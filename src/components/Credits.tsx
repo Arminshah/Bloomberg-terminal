@@ -16,6 +16,7 @@ export const CREDITS = {
   bundesbank: 'Source: Deutsche Bundesbank (ESCB statistics).',
   boe: 'Bank of England: contains public sector information licensed under the Open Government Licence v3.0.',
   boc: 'Source: Bank of Canada.',
+  imf: 'Source: International Monetary Fund, World Economic Outlook database (www.imf.org/external/datamapper).',
   rba: 'Source: Reserve Bank of Australia, licensed under CC BY 4.0.',
   mof: 'Source: Ministry of Finance Japan.',
   snb: 'Source: Swiss National Bank.',

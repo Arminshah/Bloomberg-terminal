@@ -84,6 +84,7 @@ import { RELS } from '../functions/RELS';
 import { ECOW } from '../functions/ECOW';
 import { CCRV } from '../functions/CCRV';
 import { CTM } from '../functions/CTM';
+import { ECFC } from '../functions/ECFC';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -189,6 +190,7 @@ export const FUNCTIONS: FnDef[] = [
   // Economics
   { code: 'MACRO', name: 'Macro Dashboard', category: 'Economics', desc: 'US policy rate, Treasury yields and curve, inflation, jobs, growth, money, credit spreads, financial conditions and recession signals from the FRED API, with how payrolls and GDP were revised since first published.', component: MACRO, example: 'MACRO CPI' },
   { code: 'ECONCHART', name: 'Economic Data Chart', category: 'Economics', desc: "Up to four FRED series on one chart, each as published or transformed by FRED (change, % change, on a year ago, compounded annual rate), over two years to the whole history, with a second scale for different units, each one's latest value and the one before, and FRED's description; a search finds any of FRED's series (desktop app, FRED_API_KEY).", component: ECOW, example: 'ECONCHART HOUST CPIAUCSL:PC1' },
+  { code: 'ECOFORECASTS', name: 'Economic Forecasts', category: 'Economics', desc: "The IMF's World Economic Outlook for the world, its regions and the largest economies, or every economy: GDP growth, inflation, unemployment, current account, government balance and debt, two years back to five ahead with the IMF's projections marked, and any economy's history and projections on a chart (desktop app).", component: ECFC, example: 'ECOFORECASTS USA' },
   { code: 'RELEASES', name: 'Economic Calendar', category: 'Economics', desc: 'Releases and central bank decisions with actual and prior; actuals appear once published. The desktop app takes US release dates and values from FRED and decisions from the central banks.', component: ECO, aliases: ['ECONCAL', 'WECO'] },
   { code: 'ECONSTATS', name: 'World Economic Statistics', category: 'Economics', desc: 'GDP, inflation, unemployment and policy rates by country alongside live yields and markets.', component: ECST },
   { code: 'HOLIDAYS', name: 'Holiday Calendar', category: 'Economics', desc: 'Exchange holiday and early-close calendars for New York, Euronext, London, Frankfurt and Tokyo.', component: CDR, example: 'HOLIDAYS US' },

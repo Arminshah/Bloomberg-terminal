@@ -3,12 +3,15 @@ import { _electron, expect, test as base, type ElectronApplication, type Page } 
 import { mkdtemp, open, realpath, rm, unlink, type FileHandle } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { KeyedAnswer } from '../src/data/live/lookup';
 import { checkAmericanOption, checkBond, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from '../e2e/calculator-checks';
 import { checkLinkedPanels } from '../e2e/workspace-checks';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
+// The IMF's October 2026 World Economic Outlook as the bootstrap serves it (fixtures.imf).
+const imfWeo = JSON.parse(readFileSync(join(repository, 'tests/fixtures/imf-weo-2026-10.json'), 'utf8'));
 const FMP_ERROR = 'Invalid API key. Deterministic FMP refusal.';
 const MARKETAUX_ERROR = 'Invalid API token. Deterministic Marketaux refusal.';
 const PRICE = '123.45';
@@ -39,11 +42,12 @@ interface Fixtures {
   fredChart?: boolean;
   futuresCurve?: boolean;
   crudeMonths?: string[];
+  imf?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
   supplyChain?: boolean;
-  calls: { fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -562,6 +566,38 @@ test("CCRV draws a commodity's forward curve from its contract months, with the 
   await expect(rows.nth(0).locator('td').nth(4)).not.toHaveText('');
   expect((await calls(app)).yahoo.some((c) => c.startsWith('/v8/finance/spark?') && c.includes('range=3mo'))).toBe(true);
   await expect(panel.locator('canvas').first()).toBeVisible();
+});
+
+test("ECFC shows the IMF's World Economic Outlook for the regions and major economies, with its projections marked", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.imf = true;
+  });
+  await command(page, 'ECFC USA', 'ECOFORECASTS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-sub')).toContainText('IMF World Economic Outlook (October 2026)', { timeout: 30_000 });
+  const year = new Date().getUTCFullYear();
+  const head = panel.getByRole('table', { name: 'Forecasts' }).locator('thead th');
+  await expect(head).toHaveText(['Economy', String(year - 2), String(year - 1), `${year} P`, `${year + 1} P`, `${year + 2} P`, `${year + 5} P`]);
+  const rows = panel.getByRole('table', { name: 'Forecasts' }).locator('tbody tr');
+  // The regions first, as the IMF names them, then the major economies the fixture has figures for.
+  await expect(rows.first().locator('td').first()).toHaveText('World');
+  await expect(rows).toHaveCount(22);
+  // The economy asked for is picked, and its row holds the IMF's growth figures and projections as given.
+  const usa = rows.filter({ hasText: 'United States' });
+  await expect(usa).toHaveClass(/sel/);
+  const given = imfWeo.values.values.NGDP_RPCH.USA;
+  await expect(usa.locator('td')).toHaveText(['United States', ...[year - 2, year - 1, year, year + 1, year + 2, year + 5].map((y) => (y in given ? given[y].toFixed(1) : ''))]);
+  await expect(panel.locator('canvas').first()).toBeVisible();
+  await panel.getByLabel('Show', { exact: true }).selectOption('all');
+  await panel.getByLabel('Find an economy').fill('united');
+  await expect(rows.locator('td:first-child')).toHaveText(['United Kingdom', 'United States']);
+  // An indicator the IMF gives no figures for shows none, and says so.
+  await panel.getByRole('button', { name: '2) Inflation', exact: true }).click();
+  await expect(panel.getByText('The IMF gave no inflation, average consumer prices figures.')).toBeVisible({ timeout: 30_000 });
+  await expect(rows).toHaveCount(0);
+  const asked = (await calls(app)).imf ?? [];
+  expect(asked).toContain('/external/datamapper/api/v1/NGDP_RPCH');
+  expect(asked).toContain('/external/datamapper/api/v1/PCPIPCH');
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {

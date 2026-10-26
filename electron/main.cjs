@@ -718,6 +718,14 @@ ipcMain.handle('openfigi', async (event, codes) => {
   return { status, results, keyed, ...(error ? { error } : {}) };
 });
 
+// The IMF's World Economic Outlook through its DataMapper API (electron/imf.cjs), no key: ECFC.
+const imf = require('./imf.cjs');
+ipcMain.handle('imf', async (event, kind, arg) => {
+  const req = imf.imfRequest(kind, arg);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  return keyedGet('imf', req.url, { Accept: 'application/json' }, req.ttl, [30, 60_000], []);
+});
+
 // A US stock's listings in other countries from OpenFIGI (RELS): two mapping requests, kept a day.
 const figiListings = new Map();
 ipcMain.handle('openfigi-listings', async (event, ticker) => {
