@@ -68,6 +68,7 @@ export const LEGACY_CODES: Record<string, string> = {
   IYC: 'CURVEMENU',
   FED: 'FEDPORTAL',
   INSD: 'INSIDERS',
+  EEG: 'ESTIMATEGRAPH',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',

@@ -104,12 +104,55 @@ export interface YahooAhead {
   yearAgoRev: number;
 }
 
+/**
+ * Yahoo's consensus EPS for one period now and 7, 30, 60 and 90 days before, with the analysts who raised or cut
+ * their estimate in the last 7 and 30 days (its earningsTrend module): how the consensus changed (EEG).
+ */
+export interface EstimateTrend {
+  /** 0q this quarter, +1q next quarter, 0y this fiscal year, +1y next fiscal year. */
+  period: '0q' | '+1q' | '0y' | '+1y';
+  end: string;
+  /** Consensus EPS now and 7, 30, 60 and 90 days before. */
+  eps: { now: number; d7: number; d30: number; d60: number; d90: number };
+  up7: number;
+  up30: number;
+  down7: number;
+  down30: number;
+  analysts: number;
+  /** The estimate against the same period a year before, as Yahoo gives it (0.12 is 12%). */
+  growth: number;
+  yearAgoEps: number;
+  ccy?: string;
+}
+
 export interface YahooEarnings {
   past: { end: string; label: string; date?: number; epsEst: number; epsActual: number; epsCcy?: string; revActual: number }[];
   /** The currency of the reported revenue (the statements'). */
   revCcy?: string;
   next: YahooAhead | null;
   following: YahooAhead | null;
+  /** How each period's consensus changed over 90 days; empty when Yahoo gives none. */
+  trends?: EstimateTrend[];
+}
+
+/** The earningsTrend rows that carry a consensus history. */
+export function parseEstimateTrends(trend: Json[]): EstimateTrend[] {
+  const out: EstimateTrend[] = [];
+  for (const t of trend) {
+    const period = t?.period;
+    if (!['0q', '+1q', '0y', '+1y'].includes(period) || !ISO.test(String(t?.endDate))) continue;
+    const e = t.epsTrend ?? {};
+    const r = t.epsRevisions ?? {};
+    const eps = { now: number(e.current), d7: number(e['7daysAgo']), d30: number(e['30daysAgo']), d60: number(e['60daysAgo']), d90: number(e['90daysAgo']) };
+    if (!Object.values(eps).some(ok)) continue;
+    out.push({
+      period, end: String(t.endDate), eps,
+      up7: number(r.upLast7days), up30: number(r.upLast30days), down7: number(r.downLast7Days ?? r.downLast7days), down30: number(r.downLast30days),
+      analysts: number(t.earningsEstimate?.numberOfAnalysts), growth: number(t.growth), yearAgoEps: number(t.earningsEstimate?.yearAgoEps),
+      ccy: ccyOf(e.epsTrendCurrency) ?? ccyOf(t.earningsEstimate?.earningsCurrency),
+    });
+  }
+  return out;
 }
 
 export const YAHOO_EARNINGS_MODULES = 'earningsHistory,earningsTrend,calendarEvents,earnings';
@@ -181,7 +224,7 @@ export function parseYahooEarnings(answer: unknown): { data: YahooEarnings } | {
     next.date = date;
     next.dateEstimated = cal?.isEarningsDateEstimate === true;
   }
-  return { data: { past, revCcy: ccyOf(row.earnings?.financialCurrency), next, following } };
+  return { data: { past, revCcy: ccyOf(row.earnings?.financialCurrency), next, following, trends: parseEstimateTrends(trend) } };
 }
 
 // ------------------------------------------------- estimates kept by the app

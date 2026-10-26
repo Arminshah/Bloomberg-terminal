@@ -31,6 +31,7 @@ interface Fixtures {
   weekCalendar?: boolean;
   listingsDown?: boolean;
   insiders?: boolean;
+  estimateTrend?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -318,6 +319,27 @@ test('INSD shows the insiders\' Form 4 activity on its own screen, with the same
   await expect(panel.locator('.insider-total')).toContainText('1 seller sold 25,000 shares (4.01M)');
   await expect(panel.locator('tbody tr', { hasText: 'Sale · 10b5-1' })).toContainText('160.40');
   await expect(panel.getByRole('button', { name: '99) Export' })).toBeVisible();
+});
+
+test('EEG graphs how the consensus EPS of the coming quarters and years moved, from Yahoo\'s earnings trend', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.estimateTrend = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'APLD EEG', 'ESTIMATEGRAPH');
+  const panel = page.locator('.panel').first();
+  const current = panel.locator('tbody tr', { hasText: 'Current quarter' });
+  await expect(current).toContainText('-0.300', { timeout: 30_000 });
+  await expect(current).toContainText('-0.170');
+  // From a loss, the change is given and its percentage is not meaningful.
+  await expect(current).toContainText('0.130');
+  await expect(current).toContainText('NM');
+  await expect(panel.locator('canvas').first()).toBeVisible();
+  // Yahoo's fixture has no +1q row: the fiscal years tab shows both years.
+  await panel.getByRole('button', { name: /2\) Fiscal years/ }).click();
+  await expect(panel.locator('tbody tr', { hasText: 'Next year' })).toContainText('-1.000');
+  await expect(panel.locator('tbody tr', { hasText: 'Next year' })).toContainText('-0.784');
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {

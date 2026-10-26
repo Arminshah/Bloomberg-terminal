@@ -122,3 +122,14 @@ test('INSD says the insiders\' filings are read in the desktop app, and generate
   await expect(panel.locator('.empty')).toContainText('read from SEC EDGAR in the desktop app; none are generated');
   expect(errors).toEqual([]);
 });
+
+test("EEG says the consensus history is the desktop app's, and generates none in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'NVDA EEG');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('ESTIMATEGRAPH');
+  await expect(panel.locator('.empty')).toContainText('read from Yahoo Finance in the desktop app');
+  await expect(panel.locator('canvas')).toHaveCount(0);
+  await expect(panel.locator('tbody tr')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
