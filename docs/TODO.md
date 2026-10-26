@@ -8,6 +8,12 @@ Items 1 to 8 are done. Item 9 is under way: the atlas's sources are being read a
 
 ### 9. Compare the app with the reference atlas and Codex's list of Bloomberg videos
 
+Evidence pack v3 (Codex, 26 October): read, its claims checked against the publisher's pages, and its 38 feature areas compared with the code. The gap analysis is in `docs/bloomberg-parity.md`, "Evidence pack v3: gap analysis". In short:
+- Its counts hold: 45 sources (6 at E2, 21 at E1, 18 at E0), no video frames or captions.
+- One claim does not hold: the official page lists DSCO without saying what it is, so "DSCO means document search" is a guess. BTM could not be confirmed.
+- It shows a real defect in the app: W opens `WATCHLIST`, but the official chapter list names W as Worksheets.
+- Proposed next, waiting for your approval: a screener over the full US list, worksheets under W, EV with preferred stock and minority interest on `PEERS`, transactions on `PORTFOLIO`, and call schedules on `BONDCALC`; and tests for five defects (W, LLP, `SCREEN`'s silent exclusions, `PEERS`' EV, the help desk against planted instructions).
+
 Progress on 25 October (the audited atlas of 69 references replaces the request for PDFs 1 to 33):
 - Read: the ECB's framework for its reference rates, the SEC's Form 13F FAQ, Babson's equity valuation walkthrough (22 pages), the cover of the Global Equity methodology (it is the October 2026 edition), Bloomberg's chapter lists for two tutorials and 15 university guides. The CME guides refuse automated requests. The older manuals (V02 to V06) and cheat sheets (N02 to N07) are downloaded, not yet reviewed.
 - Fixed from them: what a 13F lists (`5ef039b`), the ECB rates' times and purpose (`6a8ac50`), split adjustment stated on HISTORY (`921cf87`), one beta basis on BETA, WACC and RISKPREMIUM (`812edcd`).

@@ -138,7 +138,7 @@ Findings, and what was done:
 | Cost of equity (V02, Babson's WACC guide of March 2022, pages 2 and 4 to 5) | Prints "Cost of Equity = Risk − Free Rate + (Beta × Market Risk Premium)"; its own section "Risk-Free Rate" then takes the 10-year Treasury yield | The minus is the hyphen of "risk-free" set as a math sign, not a subtraction: the formula is CAPM, Rf + β × premium, as in `WACC` | Verified (text read; the atlas's warning holds) |
 | Relative valuation (H39) | Peers with valuation multiples and percentile rankings | `PEERS` shows each multiple with the peers' average and median, no percentile | Partial; percentile rank is buildable from the figures on screen ("Later") |
 | Financial statements (V01, page 7) | Segments tab (revenue by product), ratios, export | `FINANCIALS` has statements, ratios and CSV; no segments | Partial; segments need the filings' XBRL dimensions ("Later") |
-| Earnings (V01, pages 12 to 15) | EE leads to ERN, EEG, EM, EEO, ANR | `EARNINGS`, `ESTIMATES` (EEO), `ANALYSTS` exist; EEG and EM do not | Partial; EEG and EM were already in "Later" |
+| Earnings (V01, pages 12 to 15) | EE leads to ERN, EEG, EM, EEO, ANR | `EARNINGS`, `ESTIMATES` (EEO), `ANALYSTS`; since 26 October also `ESTIMATEGRAPH` (EEG, `cfdd713`) and `EARNINGSTREND` (EM, `313c3e9`) | Present |
 | Ownership (V01, page 11) | HDS summary and insider transactions | `HOLDERS`, and insider trades (Form 4) on `MANAGEMENT` | Partial |
 | Screening (H18) | Criteria by category, results, output to Excel or PDF | `SCREEN`: a fixed set (region, sector, market value, P/E, dividend yield, YTD, beta, ROE, exclusions), CSV | Partial; no category browser or AND/OR groups |
 | Options (H19) | Calls left, puts right, grouped by expiry; a contract leads to scenario analysis | `OPTIONS` pairs calls and puts by strike for an expiry | Matches the layout; the link from a contract to `OPTIONSTRATEGY` was not checked |
@@ -147,6 +147,77 @@ Findings, and what was done:
 | Credit ratings (H20, H23, CRPR, CSDR) | Agency ratings | None | Not available: ratings are licensed |
 
 Limitations: the university guides are second-hand descriptions, often of older screens; V01's screenshots are from 2023 and only its text was read; nothing here establishes how the provider's 2026 screens look or behave in detail.
+
+## Evidence pack v3: gap analysis, 26 October 2026 (to-do item 9)
+
+The owner sent Codex's audited evidence pack v3 (14 files). It replaces the earlier video pack. It is kept outside the repository, and nothing from it is copied here except function codes, chapter names and its own evidence levels: E0 a link only, E1 an official description, E2 an official chapter list, E3 a video frame inspected, E4 behaviour seen in running software. Tests of Armin Terminal are evidence about Armin, never about the provider's product.
+
+What the pack holds, checked: 45 sources (6 at E2, 21 at E1, 18 at E0), 39 chapter markers, 38 feature areas, and no video frames or captions. No video was played for this analysis either.
+
+Checked against the publisher's own pages on 26 October:
+- The equities tutorial's chapters (WEI 01:05, IMAP 01:50, EQS and WATC 02:32, RV 03:48, FA and DSCO 04:20, EE 06:03, ANR 07:05, BI 07:46) match the pack.
+- The Instant Bloomberg, Launchpad and Worksheets tutorial names Launchpad as LLP (03:43) and Worksheets as W (05:07), as the pack says.
+- The 2026 pages on AID, CHRT, the AI summary in CN and Earnings Transcript Takeaways exist.
+- Not confirmed: that DSCO means document search. The equities page lists "FA and DSCO" under fundamentals and estimates and does not say what DSCO is; Document Search appears on the news tutorial's page without a code. DSCO's meaning stays unknown. BTM did not appear on the insights index as fetched, so it stays E0 here.
+
+Status of each area in Armin Terminal. Statuses as the pack defines them; "implemented" means Armin's own behaviour exists and is tested, not that it matches the provider's.
+
+| Area | Pack evidence | Armin today | Status | Gap or next step |
+| --- | --- | --- | --- | --- |
+| NAV | E2 | Command line (`src/terminal/commands.ts`), linked panels, `HELP`; `tests/commands.test.ts`, `e2e/terminal.spec.ts` | Implemented | The mnemonics W and LLP (below) |
+| WEI | E2 | `MARKET` (`WEI.tsx`), Yahoo index levels | Partial | Price indices only, no total-return variants |
+| IMAP | E2, E1 | `INDEXMAP` (`IMAP.tsx`), members from `index-members.ts` | Partial | Weights are estimates (market values, not float-adjusted), as the screen says |
+| EQS | E2 | `SCREEN` (`EQS.tsx`) | Partial | Screens the 84 stocks built into the app, not the market; criteria are joined by AND only; a stock without a value fails that criterion silently; no saved screens |
+| WATC | E2 | `WATCHLIST` (`W.tsx`) | Partial, and a defect | No analytics across a list; the mnemonic W opens `WATCHLIST`, but W is Worksheets in the official chapter list |
+| RV | E2 | `PEERS` (`RV.tsx`); EV in `src/data/fundamentals.ts` | Partial | EV is market value plus net debt: preferred stock and minority interest are not added. Banks are left out and negative EBITDA shows "not meaningful", both correct |
+| FA | E2 | `FINANCIALS` (`FA.tsx`), SEC XBRL | Partial | No segment tables |
+| DSCO | E2 (code only) | `DOCSEARCH` (DS, `DS.tsx`), `FILINGS` | Unverified | What DSCO does is not established |
+| EE | E2 | `EARNINGS`, `ESTIMATES`, `ESTIMATEGRAPH`, `EARNINGSTREND` | Implemented | Estimates come only from named providers |
+| ANR | E2 | `ANALYSTS` (`ANR.tsx`): FMP, Finnhub, TipRanks, Equibles | Implemented | Named providers only |
+| BI | E2 | None | Blocked | The provider's own research |
+| LLP | E2 | `LAYOUTS` (LPAD); more windows with Ctrl+Shift+N, each keeping its own layout | Partial | LLP is not mapped to it |
+| W | E2 | None | Missing | Worksheets: tables of securities by fields the user picks, buildable on the `FIELDS` catalogue |
+| TOP | E2 | `MARKETNEWS` (TOP) | Implemented | MREP (the morning report) is missing |
+| FX | E2 | `FXMATRIX`, `FXRANK`, `FXFORWARD`, `FXOPTION`; ECB rates kept apart | Partial | Mid rates; dealer bid and ask are not available free |
+| CHART | E1 | `CHART` (GP) with studies | Implemented | `HISTORY` says its prices are split-adjusted and not dividend-adjusted; `CHART` neither says so nor offers dividend-adjusted prices |
+| BOND | E1 | `BONDCALC` (YAS), `BONDS`, `CURVE` | Partial | No call schedules, so no yield to call or to worst; issue terms are typed in |
+| COMMOD | E2 | `COMMODITIES`, `FUTURESCURVE`, `CONTRACTS` | Partial | No seasonality (chapter 02:30) and no supply, demand or trade-flow data |
+| PORT | E1 | `PORTFOLIO` (`PORT.tsx`), its risk tab | Partial | Positions only: no transactions, fees, realised P&L, time- or money-weighted return or attribution |
+| BTST | E1 | `BACKTEST` (EQBT) | Partial | Today's members (warned on screen), price returns, no delisted names, monthly steps |
+| BTM | E0 here | None | Blocked | Needs the options trade tape (OPRA) |
+| YAS | E1 | `BONDCALC` | Partial | As BOND; the mobile page says nothing of the desktop screen |
+| BQUANT | E1 | None | Blocked | A platform |
+| CHRT | E1 | None | Missing | Buildable: saved chart templates of the user's own |
+| AID | E1 | `PROFILE` comes closest | Missing | Buildable: a snapshot of the company from the app's real figures, each with its source and date |
+| CN-AI | E1 | `COMPANYNEWS` | Missing | Buildable with the owner's Anthropic key: a summary of the headlines shown, each sentence tied to its story |
+| ETT | E1 | None | Blocked | No transcript source among the app's providers |
+| DSX | E1 | `DOCSEARCH`, help desk | Missing | Search with page citations over filings |
+| CRAN | E1 | None | Blocked | Credit ratings are licensed |
+| CMGR | E1 | None | Missing | Buildable: the user's own limits checked on `PORTFOLIO` (already in "Later") |
+| WSL | E1 | None | Missing | Needs worksheets first |
+| ASKB | E1 | `MESSAGES` (IB): the built-in assistant, or Claude with the app's data as tools | Partial | No tests yet for injected instructions in news or filings |
+| ALTD | E1 | None | Blocked | Paid datasets |
+| ECON | E0 | `RELEASES`, `ECONCHART`, `ECOFORECASTS`, first releases from FRED's vintages | Partial | No survey consensus (licensed) |
+| OPTIONS | E0 | `OPTIONS` (Alpaca, indicative), `OPTIONCALC`, `OPTIONSTRATEGY`; put-call parity tested (`tests/finance.test.ts`, `tests/contracts.test.ts`) | Implemented (models), partial (data) | No OPRA quotes or open interest |
+| SPAC | E0 | `CORPACTIONS`, `ACTIONCALENDAR` | Missing | Ticker changes and de-SPAC history |
+| HOLDINGS13F | Outside the pack | `HOLDINGS`, `FILINGS13F` | Implemented | |
+| CONGRESS | Outside the pack | `CONGRESS` | Partial | Senators' trades are FMP's latest 25, kept since the app first asked, as the screen says |
+
+Five additions with the most use for the least data (proposed, not started):
+1. `SCREEN` over Nasdaq's full US stock list, which the app already loads: an explicit choice for missing values, AND and OR groups, saved screens.
+2. Worksheets under W: rows of securities, columns from the `FIELDS` catalogue, saved; `WATCHLIST` keeps WATCH.
+3. `PEERS`: preferred stock and minority interest in EV from the filings, with the EV build-up shown.
+4. `PORTFOLIO` transactions: lots with dates, fees and FX, realised P&L, time- and money-weighted returns.
+5. `BONDCALC` call schedules: yield to call and to worst.
+
+Five defects to test first:
+1. W opens `WATCHLIST`, though W is Worksheets in the official chapter list.
+2. LLP does not open `LAYOUTS`.
+3. `SCREEN` drops a stock missing any value a criterion needs, without saying so, and does not say it screens 84 stocks.
+4. `PEERS` leaves preferred stock and minority interest out of EV.
+5. The help desk has no test against instructions planted in the news or filings it reads.
+
+The pack's release gates (financial correctness, provenance, security) agree with this project's rules and are folded into the tests above as each item is built.
 
 ## Workflows with no equivalent implementation
 
