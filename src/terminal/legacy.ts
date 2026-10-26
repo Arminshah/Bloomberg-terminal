@@ -64,6 +64,7 @@ export const LEGACY_CODES: Record<string, string> = {
   OVML: 'FXOPTION',
   HRA: 'REGRESSION',
   TECH: 'STUDIES',
+  IN: 'INDEXLIST',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',

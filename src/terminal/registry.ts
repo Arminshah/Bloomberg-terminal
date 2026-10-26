@@ -69,6 +69,7 @@ import { EQRP } from '../functions/EQRP';
 import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
 import { FOMC } from '../functions/FOMC';
 import { TECH } from '../functions/TECH';
+import { IN } from '../functions/IN';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -119,6 +120,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'MARKET', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI, aliases: ['INDICES'], example: 'MARKET US' },
   { code: 'INDEXFUTURES', name: 'World Index Futures', category: 'Markets', desc: 'Front equity index futures with basis, fair value and premium or discount to fair value.', component: WEIF },
   { code: 'CONTRIB', name: 'Index Movers', category: 'Markets', desc: 'What moved an index today: members in index points for the Dow, and for other indices the app\'s stocks in that market by change in market value, with advancers and decliners.', component: MOV, example: 'CONTRIB SPX' },
+  { code: 'INDEXLIST', name: 'Index Directory', category: 'Markets', desc: 'The indices the app follows by region: what each is, its country and currency, today\'s move, and its members where the app lists them.', component: IN },
   { code: 'MEMBERS', name: 'Index Members', category: 'Markets', desc: "An index's members with their weights, shares, price, change and market value: the S&P 500, the Nasdaq-100 and the Dow (desktop app). Weights of cap-weighted indices are estimated from market values.", component: MEMB, example: 'SPX INDEX MEMBERS' },
   { code: 'RANKEDRETURNS', name: 'Member Ranked Returns', category: 'Markets', desc: "An index's best and worst members by price return over a day, a week, a month, three or six months, the year to date or a year (S&P 500, Nasdaq-100, Dow; desktop app).", component: MRR, example: 'NDX INDEX RANKEDRETURNS' },
   { code: 'GROUPRETURNS', name: 'Group Ranked Returns', category: 'Markets', desc: "An index's industry groups ranked by price return over a day, a week, one, three or six months, the year to date or a year: GICS sectors or sub-industries of the S&P 500, sectors and industries of the Nasdaq-100 and the Dow, cap-weighted or equal-weighted, each with its best and worst members (desktop app).", component: GRR, example: 'SPX INDEX GROUPRETURNS' },

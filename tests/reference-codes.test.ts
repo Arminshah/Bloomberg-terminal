@@ -22,3 +22,10 @@ describe('Regression Analysis (HRA)', () => {
     expect(parse('HRA AAPL')).toMatchObject({ kind: 'route', fn: 'REGRESSION', sec: { id: 'AAPL US Equity' } });
   });
 });
+
+describe('Index Directory (IN)', () => {
+  it('opens under IN, and INDICES still opens MARKET', () => {
+    expect(parse('IN')).toEqual({ kind: 'route', fn: 'INDEXLIST' });
+    expect(parse('INDICES')).toEqual({ kind: 'route', fn: 'MARKET' });
+  });
+});

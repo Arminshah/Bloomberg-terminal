@@ -70,3 +70,19 @@ test('TECH lists the studies with what each computes, and a study opens the char
   await expect(panel.getByRole('button', { name: 'SMA 200', exact: true })).toHaveClass(/\bon\b/);
   expect(errors).toEqual([]);
 });
+
+test('IN lists the indices by region with what each is, and opens their chart or members', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'IN');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('INDEXLIST');
+  await expect(panel.locator('tr.group')).toHaveText([/Americas/, /EMEA/, /Asia\/Pacific/]);
+  const spx = panel.locator('tbody tr', { hasText: 'S&P 500 INDEX' });
+  await expect(spx).toContainText('Market-capitalisation-weighted index of 500 leading US companies');
+  await expect(spx.getByRole('button', { name: 'Members' })).toBeVisible();
+  await expect(panel.locator('tbody tr', { hasText: 'NIKKEI 225' }).getByRole('button', { name: 'Members' })).toHaveCount(0);
+  await panel.locator('tbody tr', { hasText: 'DAX INDEX' }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('CHART');
+  await expect(panel.locator('.fnh-sec')).toHaveText('DAX Index');
+  expect(errors).toEqual([]);
+});
