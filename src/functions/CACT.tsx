@@ -9,7 +9,7 @@ import { engine } from '../data/market';
 import { corpCalendarAvailable, useCorpCalendar, type DividendEvent, type SplitEvent } from '../data/live/corp-calendar';
 import { tickerKey } from '../data/live/earnings-calendar';
 import { monthsBetween, useIpoCalendar, type IpoDeal } from '../data/live/ipo';
-import type { SecurityDef } from '../data/types';
+import { nasdaqSymbol } from '../data/live/nasdaq-company';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { portfolio, watchlists } from '../terminal/userdata';
@@ -31,8 +31,9 @@ const SPANS = [
 type Scope = 'all' | 'watchlist' | 'portfolio';
 
 const isoOf = (t: number) => new Date(t).toISOString().slice(0, 10);
-const usTickers = (ids: string[]) =>
-  new Set([...new Set(ids)].map((id) => engine.get(id)).filter((d): d is SecurityDef => d?.cls === 'equity' && d.id.endsWith(' US Equity')).map((d) => tickerKey(d.ticker)));
+/** The Nasdaq symbols of the US-listed stocks among `ids` (a watchlist's or a portfolio's lines). */
+export const usTickers = (ids: string[]) =>
+  new Set([...new Set(ids)].map((id) => nasdaqSymbol(engine.get(id))).filter((t): t is string => !!t).map(tickerKey));
 
 /** A split's ratio as it is said: "3-for-1", "1-for-20". */
 export const ratioText = (s: Pick<SplitEvent, 'newShares' | 'oldShares'>) => `${fmtNum(s.newShares, s.newShares % 1 ? 2 : 0)}-for-${fmtNum(s.oldShares, s.oldShares % 1 ? 2 : 0)}`;

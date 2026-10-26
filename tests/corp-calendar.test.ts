@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseNasdaqDividends, parseNasdaqSplits, splitRatio, weekdays } from '../src/data/live/corp-calendar';
 import { companyName } from '../src/data/live/earnings-calendar';
-import { inPeriod, ratioText } from '../src/functions/CACT';
+import { inPeriod, ratioText, usTickers } from '../src/functions/CACT';
 import { parseCommand } from '../src/terminal/commands';
 import { lookupFn } from '../src/terminal/registry';
 import * as nasdaqMain from '../electron/nasdaq.cjs';
@@ -63,6 +63,10 @@ describe('Corporate Action Calendar (CACT)', () => {
     expect(nasdaqMain.nasdaqDividendRequest('2025-09-01', now)).toBeNull();
     expect(nasdaqMain.nasdaqDividendRequest('2027-04-01', now)).toBeNull();
     expect(nasdaqMain.nasdaqSplitsRequest().url).toBe('https://api.nasdaq.com/api/calendar/splits');
+  });
+
+  it("takes a watchlist's US-listed stocks by their symbol, not the ticker with its market", () => {
+    expect([...usTickers(['AAPL US Equity', 'JPM US Equity', 'SPX Index', 'EURUSD Curncy', 'AAPL US Equity'])]).toEqual(['AAPL', 'JPM']);
   });
 
   it('opens under CACT', () => {
