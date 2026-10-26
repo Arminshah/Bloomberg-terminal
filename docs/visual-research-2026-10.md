@@ -105,3 +105,40 @@ The owner's 13 reference PDFs (kept out of git) remain the best source for indiv
 ## Rules carried over
 
 From [HANDOVER.md](HANDOVER.md): do not commit Bloomberg PDFs, screenshots, logos or fonts, or text copied from them; describe layouts in our own words and cite the source. The app keeps its own name. Bloomberg Prop and Bloomberg Fixed are proprietary and must not be bundled; Bergoom and the other fonts above are OFL and can be, with their licence files.
+
+## Done in the visual pass, 26 October 2026
+
+Each step is its own commit with tests (`e2e/look.spec.ts`, `tests/chart-pixels.test.ts`, `tests/palette.test.ts`, `tests/chart-look.test.ts`):
+
+1. Charts are sharp at 125% and 150% scaling: the real device-pixel ratio, a backing store the size of the element's device-pixel box, straight lines and filled edges on whole screen pixels, a redraw when the ratio changes, opaque canvases (`src/components/chart/pixels.ts`). In 2.25.1.
+2. Bergoom is the default typeface, regular weight, spaced 0.02em wider; `font-size-adjust: 0.563` keeps rows the same height if it fails to load. SETTINGS offers Bergoom, IBM Plex Sans and IBM Plex Mono, and chart labels follow. Fira Mono and IBM Plex Mono were compared with the 2023 tutorial's command line and are near enough identical, so the command line keeps the bundled IBM Plex Mono.
+3. Colours: the function bar is `#A21826`, section strips `#343434`, and the command line has white fixed-width text, a cyan `#1FB6F0` box and block cursor, and "<HELP> for explanation." in grey with `<HELP>` in green while it is focused and empty.
+4. The heat scale runs through the measured tiles (`#014A0F`, `#1BBD3D`, `#50EF6E`; `#7B0C24`, `#A1122C`, `#FD2D4A`) on HEATMAP, INDEXMAP and the table heat colour, which had three slightly different scales.
+5. SETTINGS > Colours has Deuteranopia and Protanomaly. Every colour that means a rise or a fall follows them, in stylesheets and in code (`src/terminal/palette.ts`).
+6. Panel chrome: a frame title per panel (the mnemonic in a green badge, then "1-ARMIN", a maximise button with more than one panel), light grey toolbar boxes, and suggestions with an amber heading, white mnemonics, the typed letters in bold white and "More Functions…" in blue italics.
+7. The help desk opens on its own page until something is asked, laid out as the assistant window is and labelled with who answers and where a question goes.
+
+## What still differs
+
+Measured or seen in the sources above, not done:
+
+- **Window frame and tabs.** Not compared with the 2024 walkthrough (video ZAYiEyaUk2M, 01:36), which a session cannot watch.
+- **Panel frame.** No minimise or close button, and the badge is text, not the terminal's icon. The app's name stands where the terminal's is.
+- **Toolbar.**
+  - Back and forward sit on the command line row, not at the toolbar's left.
+  - The menu box says "Menu ▾", not "Related Functions Menu »".
+  - There is no "Message" box, and no favourites, layout, settings and help icons with ▾.
+- **Command line.** No small cyan triangle at its left. The hint shows only while the line has focus; unfocused, it names the command behind the screen, which the terminal does not.
+- **Suggestions.** No "<UP ARROW> t…" hint beside the heading. The app also shows a category at the right of each row, and securities in their own group.
+- **Information panel.** The blue one-line banner at the foot of each panel is advertising space and is left out.
+- **Launchpad.** Not built:
+  - components with a small grey title, "≡ Options", a pop-out arrow and a maximise box;
+  - tile components (label, period, large value, sparkline);
+  - the "Save View", "Views ▾" and amber "Add Component ▾" toolbar;
+  - the component browser.
+- **Worksheets.** WATCHLIST has no range bar with dots, no heat cells for its return columns, and no solid green group rows.
+- **Chart grid.** Index names in amber with a grey "■ MAvgs" legend and a volume histogram under the mountain are not done. GP's mountain colours were not checked against CVD-3.
+- **Typeface.** Bergoom is a stand-in: a few letters differ from the terminal's proportional face, and there is no fixed-width Bergoom. IBM Plex Mono, on the command line, is a little wider than the terminal's fixed face.
+- **Assistant.** The help desk is a page inside a panel, not a separate window. Its left column lists the chat rooms and "New chat", not the assistant's icon rail (Workflows, History, Favorites, Examples, Settings).
+- **Accuracy of the colours.** Each was sampled from compressed images (about ±10 per channel). The colour-blind schemes' heat scales are their swatch colours darkened and lightened, not measured.
+- **Checked only in Chromium's emulation.** Sharpness at 125% and 150% was checked there, not on a Windows display. The screen-change redraw was checked by sending the media query's change event, which emulation does not send.

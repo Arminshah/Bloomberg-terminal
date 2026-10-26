@@ -88,7 +88,12 @@ Plan:
 
 ## Done, on the branch, not released yet
 
-- Nothing yet.
+- The visual pass (`docs/visual-research-2026-10.md`, "Done in the visual pass" and "What still differs"):
+  - `ce9beb6` Bergoom by default, IBM Plex Sans or IBM Plex Mono in SETTINGS; chart labels follow.
+  - `12dee50` Measured colours: function bar, section strips, the cyan command line with "<HELP> for explanation."
+  - `9f4ce02` Colour-blind schemes (Deuteranopia, Protanomaly) for every rise and fall; the heat scale through the measured tiles.
+  - `79d191f` A frame title per panel with maximise, light grey toolbar boxes, suggestions as the terminal lists them, More Functions….
+  - `c3a6ce9` The help desk opens on its own page, with who answers and New chat.
 
 ## Done in 2.25.1
 
