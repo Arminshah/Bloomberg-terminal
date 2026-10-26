@@ -668,6 +668,31 @@ Described in those guides (27):
 | WBMV | World Bond Movers: sovereign debt with the most price action | N07, V04 |
 | WECO | World Economic Calendars | N04, N06 |
 
+Built since, from free data (26 October 2026), each under the guide's code:
+
+| Code | Screen | Commit |
+|---|---|---|
+| HL, WECO, SOVM | HELP, RELEASES and BONDS, which do what the guides describe | `5cc3d3a` |
+| WBMV | BONDMOVERS | `d84e557` |
+| HRA | REGRESSION | `8a131dd` |
+| TECH | STUDIES | `ba73b02` |
+| IN | INDEXLIST | `0c807a5` |
+| IYC | CURVEMENU | `54e259e` |
+| FED | FEDPORTAL | `f03641d` |
+| INSD | INSIDERS | `3dcd3bf` |
+| EEG | ESTIMATEGRAPH: Yahoo's consensus now and 7 to 90 days before | `cfdd713` |
+| EM | EARNINGSTREND | `313c3e9` |
+| EA | EARNINGSSEASON: an index's season from Nasdaq's earnings calendar | `23a3c6f` |
+| CACT | ACTIONCALENDAR: dividends, splits and IPOs from Nasdaq's calendars (no buybacks: no free source lists them across companies) | `5aff193` |
+| SIA | SHORTRANKING: a FINRA settlement, every listing over 500,000 shares a day | `563561f` |
+| GX | CROSSSECTION | `3f77a48` |
+| CCB | CLASSIFICATION: Nasdaq's sectors and industries | `b644447` |
+| FLNG | FILINGS13F; HOLDINGS now opens a manager by its CIK | `85e5daf` |
+| RELS | RELATED: the SEC's tickers under a CIK and OpenFIGI's listings abroad | `1eeca3f` |
+| ECOW, ECWB | ECONCHART: any FRED series, as published or transformed by FRED | `7ec8316` |
+
+Still to build from this list: BILL (needs a congress.gov key), CCRV, CTM, ECFC, ECTR and EQBT.
+
 Not described in those guides (27), so not yet checked: AGS, BOE, BOJ, CBRT, CT, DOTS, ECB, FXCA, GAS, GEW, GY, HLDR, MINE, MRV, MYN, NGAS, NLRT, OIL, OVDV, PD, PSRT, RANK, SURP, WATC, WCR, WEIS, WM. They wait for documents 1 to 33, or for the videos.
 
 ## 3. Codes from Codex's list of Bloomberg videos

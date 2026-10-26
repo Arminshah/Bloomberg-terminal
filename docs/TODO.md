@@ -65,19 +65,14 @@ Plan:
 
 ## Later
 
-- Functions the reference documents name that the app lacks but could build from free data (55 codes, class a in `docs/audit-v2.23.0-coverage.md`). The most cited:
-  - ECFC (IMF forecasts) and ECTR (IMF trade data)
-  - EA (an index's earnings season) and EEG/EM (estimate history and trends)
-  - RELS, and CTM/CT (futures contract months)
-  - CACT (corporate actions across stocks) and FXCA (currency converter)
-  - WCR and WECO
-  - INSD (SEC Form 4) and OVDV (option implied volatility surface)
-  - PSRT/PD/HLDR (a manager's 13F; HOLDINGS shows a company's own)
+- Functions the reference documents name that the app lacks but could build from free data (class a in `docs/audit-v2.23.0-coverage.md`; 21 of the 27 the guides describe are built, section 2a). Next:
+  - CTM and CCRV (futures contract months), ECFC (IMF forecasts), ECTR (IMF trade data) and EQBT (backtests).
+  - BILL needs a congress.gov API key from you (free, api.congress.gov/sign-up).
+  - The 27 the guides on hand do not describe (FXCA, WCR, OVDV, PSRT/PD/HLDR and others) wait for documents 1 to 33 or the videos.
 - From Codex's video list, buildable from free data (sorted from titles only, so to be checked against the videos first):
   - BTST: backtests of simple strategies on daily price history.
   - CFND: the securities most correlated with one, from CORRELATION's daily returns.
   - CMGR: your own limits on a portfolio (weight of a position, sector or country), checked on PORTFOLIO.
-- OpenFIGI: a list of the other exchanges a share trades on (one share-class FIGI), if a screen needs it. ADRs cannot be matched this way (see `docs/data-providers.md`).
 - PEERS: each multiple's percentile rank among the peers (the university guides describe it; the figures are already on screen).
 - FINANCIALS: revenue by segment, from the segment tables in the filings' XBRL.
 - CONGRESS: liabilities (Schedule D) for an assets-less-debts range; each member's committees (in the Clerk's member list) beside their trades.
@@ -88,6 +83,12 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Codes from the reference guides (`docs/audit-v2.23.0-coverage.md`, section 2a, with each commit): HL, WECO, SOVM, WBMV, HRA, TECH, IN, IYC, FED, INSD, EEG, EM, EA, CACT, SIA, GX, CCB, FLNG, RELS, ECOW and ECWB. Each reads real data only, says where every figure comes from, and has unit, browser and desktop tests. Along the way:
+  - `c60f14f` The quarter after next is named by the fiscal year the reports show ("Q3 2027", not "2027-02-28").
+  - `6441408` TECH US, HL US, IYC US, EA US and FLNG US still name the stocks (Bio-Techne, Hecla, the iShares fund, Electronic Arts, FLEX LNG).
+  - `0ff1746` One company-name helper for Nasdaq's lists (partnership units included).
+  - `5d7af8f` CACT's watchlist and portfolio filters match their stocks.
+- CI: since the repository went private on 26 October, GitHub has started no runner for the `test` job, so it fails in 3 seconds with no log. Every push is checked locally first (lint, types, unit tests, both Playwright suites); see the comment on the pull request.
 - The visual pass (`docs/visual-research-2026-10.md`, "Done in the visual pass" and "What still differs"):
   - `ce9beb6` Bergoom by default, IBM Plex Sans or IBM Plex Mono in SETTINGS; chart labels follow.
   - `12dee50` Measured colours: function bar, section strips, the cyan command line with "<HELP> for explanation."
