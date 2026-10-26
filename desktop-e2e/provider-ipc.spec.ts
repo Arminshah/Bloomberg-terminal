@@ -753,6 +753,19 @@ test("CONGRESS ranks representatives by their annual reports' assets, lists both
   await expect(panel.locator('tbody tr').first()).toContainText('Nancy Pelosi');
   await expect(panel.locator('tbody tr', { hasText: 'Brian J. Mast' })).toContainText('600.00K–1.25M');
   await expect(panel.locator('tbody tr', { hasText: 'Cleo Fields' })).toContainText('none');
+  // The year an annual report covers, and the day it was filed: a year's reports are filed the year after.
+  const year = new Date().getUTCFullYear();
+  await expect(panel.locator('thead')).toContainText('Report For');
+  await expect(panel.locator('thead')).toContainText('Filed');
+  await expect(pelosi.locator('td').filter({ hasText: new RegExp(`^${year - 1}$`) })).toHaveCount(1);
+  // A member opens in place of the list, at the top: their annual report's holdings and their trades.
+  await pelosi.locator('td').nth(1).click();
+  await expect(panel.getByText('Nancy Pelosi (D-CA11)')).toBeVisible();
+  await expect(panel).toContainText(`${year - 1}, filed`);
+  await expect(panel.locator('tbody tr', { hasText: 'Brian J. Mast' })).toHaveCount(0);
+  await panel.getByRole('button', { name: '‹ All members' }).click();
+  await expect(panel.locator('tbody tr', { hasText: 'Nancy Pelosi' }).first()).toHaveClass(/sel/);
+  await expect(panel.locator('tbody tr', { hasText: 'Brian J. Mast' })).toHaveCount(1);
   await panel.getByRole('button', { name: /^2\)\s*Trades$/ }).click();
   await panel.getByLabel('Filter', { exact: true }).fill('NVDA');
   const nvda = panel.locator('tbody tr', { hasText: 'NVIDIA' });
@@ -774,6 +787,12 @@ test("CONGRESS ranks representatives by their annual reports' assets, lists both
   // A report filed on paper is a scan: its trade is FMP's line.
   await expect(panel.locator('tbody tr', { hasText: 'Microsoft Corporation' })).toContainText('Michael McCaul');
   await expect(panel.locator('tbody tr', { hasText: 'Bloom Energy' })).toHaveCount(4);
+  // A representative's name on a trade opens their holdings and trades.
+  await panel.getByLabel('Filter', { exact: true }).fill('NVDA');
+  await nvda.filter({ hasText: 'Cleo Fields' }).first().getByRole('button', { name: 'Cleo Fields' }).click();
+  await expect(panel.getByText('Cleo Fields (D-LA06)')).toBeVisible();
+  await expect(panel).toContainText('none in the last two years');
+  await panel.getByLabel('Filter', { exact: true }).fill('');
   await panel.getByRole('button', { name: /^3\)\s*Most Traded$/ }).click();
   await panel.getByLabel('Rank', { exact: true }).selectOption('buys');
   await expect(panel.locator('tbody tr').first()).toContainText('NVDA US');

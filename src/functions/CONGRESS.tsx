@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { KV, Section } from '../components/cells';
 import { DataTable, type Column } from '../components/DataTable';
@@ -127,6 +127,8 @@ export function CONGRESS({ sec }: FnProps) {
   const [party, setParty] = useState('all');
   const [query, setQuery] = useState(stockTicker);
   const [picked, setPicked] = useState('');
+  // The member last opened, marked in the list on the way back.
+  const [seen, setSeen] = useState('');
   const [rank, setRank] = useState<Rank>('members');
   const [kind, setKind] = useState('stocks');
   const [ownedTicker, setOwnedTicker] = useState('');
@@ -224,6 +226,18 @@ export function CONGRESS({ sec }: FnProps) {
   const reportYears = [...new Set(memberRows.filter((r) => r.report).map((r) => r.filing!.year))].sort();
 
   const sel = memberRows.find((r) => r.m.bioguide === picked);
+  // A member opens in place of the list, at its top; back in the list, the member just seen is in sight.
+  const top = useRef<HTMLDivElement>(null);
+  const openMember = (bioguide: string) => {
+    setPicked(bioguide);
+    setSeen(bioguide);
+    setTab(1);
+  };
+  const closeMember = () => setPicked('');
+  useEffect(() => {
+    const el = picked ? top.current : top.current?.querySelector('tr.sel');
+    el?.scrollIntoView?.({ block: picked ? 'start' : 'center' });
+  }, [picked]);
   const senate = st.fmp.senate;
   // The Senate's trades are FMP's latest lists as the app kept them: none before the first one.
   const senateFrom = senate?.since ?? '';
@@ -232,7 +246,19 @@ export function CONGRESS({ sec }: FnProps) {
   const tradeColumns: Column<TradeRow>[] = [
     { key: 'f', label: 'Disclosed', render: (t) => fmtIso(t.filed), sort: (t) => t.filed },
     { key: 'd', label: 'Traded', render: (t) => fmtIso(t.date), sort: (t) => t.date },
-    { key: 'm', label: 'Member', render: (t) => <span className="white">{t.member}</span>, sort: (t) => t.member },
+    {
+      key: 'm',
+      label: 'Member',
+      render: (t) =>
+        t.chamber === 'House' && t.bioguide ? (
+          <button type="button" className="link-btn" title="Open the member's holdings and trades" onClick={(e) => { e.stopPropagation(); openMember(t.bioguide); }}>
+            {t.member}
+          </button>
+        ) : (
+          <span className="white">{t.member}</span>
+        ),
+      sort: (t) => t.member,
+    },
     { key: 'p', label: 'Party', render: (t) => <Party p={t.party} />, sort: (t) => t.party },
     { key: 'c', label: 'Seat', hideN: true, render: (t) => <span title={t.chamber}>{t.chamber === 'Senate' ? `Sen. ${t.seat}` : t.seat}</span>, sort: (t) => t.seat },
     { key: 'o', label: 'Owner', hideM: true, render: (t) => OWNER_TEXT[t.owner] ?? t.owner, sort: (t) => t.owner },
@@ -266,7 +292,16 @@ export function CONGRESS({ sec }: FnProps) {
         ),
       sort: (r) => (r.total ? r.total.min : -1),
     },
-    { key: 'y', label: 'Year', num: true, hideN: true, title: 'The year the annual report covers', render: (r) => (r.filing ? <Link href={annualLink(r.filing)}>{String(r.filing.year)}</Link> : ''), sort: (r) => r.filing?.year ?? 0 },
+    {
+      key: 'y',
+      label: 'Report For',
+      num: true,
+      hideN: true,
+      title: 'The calendar year the latest annual report covers; its assets are valued at the end of that year. Reports are filed the year after (due 15 May, later with an extension), so those for this year come next year.',
+      render: (r) => (r.filing ? <Link href={annualLink(r.filing)}>{String(r.filing.year)}</Link> : ''),
+      sort: (r) => r.filing?.year ?? 0,
+    },
+    { key: 'r', label: 'Filed', hideN: true, title: 'The day the House Clerk received the annual report', render: (r) => fmtIso(r.filing?.filed), sort: (r) => r.filing?.filed ?? '' },
     { key: 'n', label: 'Assets', num: true, hideM: true, render: (r) => (r.report ? fmtNum(r.report.assets.length, 0) : ''), sort: (r) => r.report?.assets.length ?? -1 },
     { key: 't', label: 'Trades', num: true, title: `Trades disclosed in the period (${periodName(days)})`, render: (r) => (r.trades.length ? fmtNum(r.trades.length, 0) : ''), sort: (r) => r.trades.length },
     { key: 'b', label: 'Bought', num: true, hideN: true, render: (r) => (r.bought.count ? <span className="up">{rangeText(r.bought)}</span> : ''), sort: (r) => r.bought.min },
@@ -295,7 +330,7 @@ export function CONGRESS({ sec }: FnProps) {
   ];
 
   const csv = (): (string | number)[][] => {
-    if (tab === 1) return [['Member', 'Party', 'Seat', 'Assets Reported Low (USD)', 'Assets Reported High (USD)', 'Undetermined Values', 'Report Year', 'Assets', 'Trades in Period'], ...membersShown.map((r) => [r.m.name, r.m.party, r.m.stateDst, r.total?.min ?? '', r.total ? (r.total.max ?? 'open') : '', r.total?.unknown ?? '', r.filing?.year ?? '', r.report?.assets.length ?? '', r.trades.length])];
+    if (tab === 1) return [['Member', 'Party', 'Seat', 'Assets Reported Low (USD)', 'Assets Reported High (USD)', 'Undetermined Values', 'Report For', 'Filed', 'Assets', 'Trades in Period'], ...membersShown.map((r) => [r.m.name, r.m.party, r.m.stateDst, r.total?.min ?? '', r.total ? (r.total.max ?? 'open') : '', r.total?.unknown ?? '', r.filing?.year ?? '', r.filing?.filed ?? '', r.report?.assets.length ?? '', r.trades.length])];
     if (tab === 3) return [['Ticker', 'Asset', 'Members', 'Purchases', 'Sales', 'Net', 'Bought Low (USD)', 'Bought High (USD)', 'Sold Low (USD)', 'Sold High (USD)', 'Last Trade'], ...stocksShown.map((x) => [x.ticker, x.name, x.members.size, x.buys, x.sells, x.buys - x.sells, x.bought.min, x.bought.max ?? 'open', x.sold.min, x.sold.max ?? 'open', x.last])];
     if (tab === 4) return [['Ticker', 'Asset', 'Members', 'Democrats', 'Republicans', 'Value Low (USD)', 'Value High (USD)', 'Largest Holder'], ...ownedShown.map((o) => [o.ticker, o.name, o.holders.length, o.holders.filter((h) => h.member.party === 'D').length, o.holders.filter((h) => h.member.party === 'R').length, o.total.min, o.total.max ?? 'open', o.holders[0]?.member.name ?? ''])];
     return [['Disclosed', 'Traded', 'Member', 'Party', 'Chamber', 'Seat', 'Owner', 'Ticker', 'Asset', 'Account', 'Type', 'Amount', 'Low (USD)', 'High (USD)', 'Days to Disclose', 'Source', 'Filing'], ...shown.map((t) => [t.filed, t.date, t.member, t.party, t.chamber, t.seat, OWNER_TEXT[t.owner] ?? t.owner, t.ticker, t.asset, t.account ?? '', TYPE_TEXT[t.type] ?? t.type, t.amount, t.min ?? '', t.max ?? '', daysToDisclose(t), t.source, t.link])];
@@ -387,10 +422,20 @@ export function CONGRESS({ sec }: FnProps) {
         </div>
       ))}
       {tab === 1 && (
-        <>
-          <DataTable rows={membersShown} columns={memberColumns} rowKey={(r) => r.m.bioguide || r.m.stateDst} defaultSort={{ key: 'a', dir: -1 }} numbered className="zebra" onRowClick={(r) => setPicked(r.m.bioguide === picked ? '' : r.m.bioguide)} selected={picked} empty={st.members ? 'No member matches.' : 'Reading the member lists…'} page={{ index: 0, size: 100 }} />
-          {sel && <MemberDetail row={sel} tradeColumns={tradeColumns} />}
-        </>
+        <div ref={top}>
+          {sel ? (
+            <>
+              <div className="pad-s">
+                <button type="button" className="btn" onClick={closeMember}>
+                  ‹ All members
+                </button>
+              </div>
+              <MemberDetail row={sel} tradeColumns={tradeColumns} />
+            </>
+          ) : (
+            <DataTable rows={membersShown} columns={memberColumns} rowKey={(r) => r.m.bioguide || r.m.stateDst} defaultSort={{ key: 'a', dir: -1 }} numbered className="zebra" onRowClick={(r) => r.m.bioguide && openMember(r.m.bioguide)} selected={seen} empty={st.members ? 'No member matches.' : 'Reading the member lists…'} page={{ index: 0, size: 100 }} />
+          )}
+        </div>
       )}
       {tab === 2 && <DataTable rows={shown} columns={tradeColumns} rowKey={(t) => t.key} defaultSort={{ key: 'f', dir: -1 }} numbered className="zebra" empty={trades.length ? 'No trade matches.' : 'Reading the reports…'} page={{ index: 0, size: 100 }} />}
       {senateShort && (
@@ -446,7 +491,9 @@ export function CONGRESS({ sec }: FnProps) {
         From the members&apos; own disclosures. Representatives: the House Clerk&apos;s index and each report as filed electronically, read here; reports filed on paper
         are scans and are linked only (FMP lists some of their trades). Senators: the Senate&apos;s disclosure site refuses automated reading, so their trades are FMP&apos;s
         list of the latest 25, kept by the app since it first asked. Amounts are disclosed as ranges and totals are ranges too. Assets are the values of the latest
-        annual report&apos;s Schedule A at the end of the year it covers, liabilities not subtracted; an open range (&quot;over&quot;) has no upper end. Most Owned counts the
+        annual report&apos;s Schedule A at the end of the year it covers, liabilities not subtracted; an open range (&quot;over&quot;) has no upper end. A year&apos;s
+        annual reports are filed the year after, by 15 May or later with an extension, so this year&apos;s holdings are reported next year. Click a member for
+        their holdings and trades. Most Owned counts the
         representatives whose latest annual report lists a security; senators&apos; annual reports cannot be read. The STOCK Act asks
         for a trade to be disclosed within {DISCLOSURE_DAYS} days. Party and seat from the House Clerk&apos;s and the Senate&apos;s member lists. For private use only (5
         U.S.C. § 13107(c)).
