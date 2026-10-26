@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { rankMovers } from '../src/functions/RATES';
 import { crossesZero, trendChange, trendSeries, trendsFor } from '../src/functions/EEG';
 import { fiscalYearOf, quarterLines, trendBars, yearLines } from '../src/functions/EM';
+import { bySector, seasonLines, seasonOf, seasonStats, verdict } from '../src/functions/EA';
+import type { CalendarReport } from '../src/data/live/earnings-calendar';
+import type { Member } from '../src/data/live/index-members';
 import type { Consensus, EstimateTrend, QuarterView } from '../src/data/live/consensus';
 import { parseYahooEarnings } from '../src/data/live/consensus';
 import { parseCommand } from '../src/terminal/commands';
@@ -173,5 +176,73 @@ describe('Earnings Trends (EM)', () => {
 
   it('opens under its terminal mnemonic', () => {
     expect(parse('NVDA EM')).toMatchObject({ kind: 'route', fn: 'EARNINGSTREND', sec: { id: 'NVDA US Equity' } });
+  });
+});
+
+describe('Earnings Season Results (EA)', () => {
+  it('takes the season of the calendar quarter that ended last: its reports until the next quarter ends', () => {
+    expect(seasonOf('2026-10-26')).toEqual({ label: 'Q3 2026', from: '2026-10-01', to: '2026-12-31' });
+    expect(seasonOf('2026-10-26', 1)).toEqual({ label: 'Q2 2026', from: '2026-07-01', to: '2026-09-30' });
+    expect(seasonOf('2026-01-15')).toEqual({ label: 'Q4 2025', from: '2026-01-01', to: '2026-03-31' });
+    expect(seasonOf('2026-01-15', 3)).toEqual({ label: 'Q1 2025', from: '2025-04-01', to: '2025-06-30' });
+  });
+
+  it('calls a beat, a match or a miss on EPS to the cent', () => {
+    expect(verdict(2.5, 2.38)).toBe('beat');
+    expect(verdict(1.004, 1)).toBe('inline');
+    expect(verdict(0.99, 1)).toBe('miss');
+    expect(verdict(NaN, 1)).toBeUndefined();
+  });
+
+  const member = (symbol: string, sector: string, cap = NaN, last = NaN) => ({ symbol, name: symbol, sector, cap, last }) as Member;
+  const report = (symbol: string, date: string, est: number, actual: number, yearAgo = NaN, rev: [number, number] = [NaN, NaN]) =>
+    ({ symbol, date, eps: { est, actual }, rev: { est: rev[0], actual: rev[1] }, epsYearAgo: yearAgo, timing: '--' }) as CalendarReport;
+  const season = seasonOf('2026-10-26');
+  const members = [member('AAA', 'Tech', 1000, 10), member('BRK.B', 'Financials', 2000, 20), member('CCC', 'Tech', 500, 5), member('DDD', 'Energy'), member('EEE', 'Energy')];
+  const reports = [
+    report('AAA', '2026-10-20', 1, 1.2, 1, [100, 110]),
+    report('AAA', '2026-07-20', 1, 0.5),
+    report('BRK/B', '2026-11-02', 2, 1.9, 2.5, [300, 290]),
+    report('CCC', '2026-10-15', -0.2, -0.1, -0.3),
+    report('DDD', '2026-11-20', 0.8, NaN),
+  ];
+  const lines = seasonLines(reports, members, season);
+
+  it("matches each member with its report in the season, whatever the ticker's spelling", () => {
+    const [a, b, c, d, e] = lines;
+    expect(a).toMatchObject({ reported: true, epsAct: 1.2, verdict: 'beat', shares: 100 });
+    expect(a.surprise).toBeCloseTo(20, 9);
+    expect(a.growth).toBeCloseTo(20, 9);
+    expect(a.revSurprise).toBeCloseTo(10, 9);
+    expect(b).toMatchObject({ reported: true, verdict: 'miss', shares: 100 });
+    expect(b.growth).toBeCloseTo(-24, 9);
+    // A loss: a surprise, but no growth.
+    expect(c).toMatchObject({ reported: true, verdict: 'beat' });
+    expect(c.surprise).toBeCloseTo(50, 9);
+    expect(c.growth).toBeNaN();
+    expect(d).toMatchObject({ reported: false, epsEst: 0.8 });
+    expect(e.report).toBeUndefined();
+  });
+
+  it('counts the season and adds up the earnings by shares', () => {
+    const st = seasonStats(lines);
+    expect(st).toMatchObject({ members: 5, reported: 3, compared: 3, beat: 2, inline: 0, missed: 1, revCompared: 2, revBeat: 1, toReport: 2, dated: 1, growthCount: 3 });
+    expect(st.medianSurprise).toBeCloseTo(20, 9);
+    // Earnings 120 + 190 - 10 = 300 against 100 + 200 - 20 = 280 expected; a year before 100 + 250 - 30 = 320.
+    expect(st.aggSurprise).toBeCloseTo((300 / 280 - 1) * 100, 9);
+    expect(st.aggGrowth).toBeCloseTo((300 / 320 - 1) * 100, 9);
+    expect(st.medianRevSurprise).toBeCloseTo((10 + (290 / 300 - 1) * 100) / 2, 9);
+  });
+
+  it('gives the same figures by sector, largest first', () => {
+    const sectors = bySector(lines);
+    expect(sectors.map((x) => [x.sector, x.stats.members, x.stats.reported])).toEqual([['Energy', 2, 0], ['Tech', 2, 2], ['Financials', 1, 1]]);
+  });
+
+  it('opens under EA for an index, and EA US is still Electronic Arts', () => {
+    expect(parse('EA')).toEqual({ kind: 'route', fn: 'EARNINGSSEASON' });
+    expect(parse('NDX INDEX EA')).toMatchObject({ kind: 'route', fn: 'EARNINGSSEASON', sec: { id: 'NDX Index' } });
+    expect(parse('EA US')).toMatchObject({ kind: 'error', lookup: 'EA' });
+    expect(parse('EA US DES')).toMatchObject({ kind: 'error', lookup: 'EA' });
   });
 });

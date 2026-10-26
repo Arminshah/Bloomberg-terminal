@@ -374,6 +374,31 @@ test("EM carries a company's reported quarters, their surprise and growth, on in
   await expect(row('FY 2028 Est')).toContainText('-0.78');
 });
 
+test("EA follows an index's earnings season: who reported, beat or missed, by how much, and who is still to report", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.marketCalendar = true; process.env.FINNHUB_ENABLED = 'true'; });
+  await command(page, 'INDU INDEX EA', 'EARNINGSSEASON');
+  const panel = page.locator('.panel').first();
+  // 3M (a Dow member as the app keeps the list) reported eight days ago: the season that report falls in.
+  const day = new Date(Date.now() - 8 * 86_400_000);
+  const q = day.getUTCFullYear() * 4 + Math.floor(day.getUTCMonth() / 3) - 1;
+  const label = `Q${(q % 4) + 1} ${Math.floor(q / 4)}`;
+  const season = panel.getByLabel('Season', { exact: true });
+  await season.selectOption((await season.locator('option', { hasText: label }).getAttribute('value'))!);
+  const mmm = panel.locator('tbody tr', { hasText: 'MMM' });
+  await expect(mmm).toContainText('Beat', { timeout: 60_000 });
+  for (const text of ['2.38', '2.50', '+5.0%', '-0.4%', '+14.2%']) await expect(mmm).toContainText(text);
+  const kv = panel.locator('.kv').first();
+  await expect(kv).toContainText('1 of 30');
+  await expect(kv).toContainText('1 beat (100%) · 0 in line · 0 missed (0%)');
+  await expect(kv).toContainText('0 of 1 above (0%) · median -0.4%');
+  // The members still to report, and the season by sector.
+  await panel.getByRole('button', { name: /3\) To report \(29\)/ }).click();
+  await expect(panel.locator('tbody tr')).toHaveCount(29);
+  await expect(panel.locator('tbody')).not.toContainText('MMM');
+  await panel.getByRole('button', { name: /2\) Sectors/ }).click();
+  await expect(panel.locator('tbody tr', { hasText: 'Industrials' })).toContainText('100%');
+});
+
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;

@@ -70,6 +70,7 @@ export const LEGACY_CODES: Record<string, string> = {
   INSD: 'INSIDERS',
   EEG: 'ESTIMATEGRAPH',
   EM: 'EARNINGSTREND',
+  EA: 'EARNINGSSEASON',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',
@@ -124,10 +125,10 @@ export const LEGACY_CODES: Record<string, string> = {
  * runs them. The word travels as CHART's first argument, so a saved panel reopens the same way.
  */
 /**
- * Mnemonics that are also US tickers (Bio-Techne, Hecla Mining, the iShares consumer discretionary fund). Followed by
- * US they name the stock, as "TECH US DES"; on their own or before anything else, the function.
+ * Mnemonics that are also US tickers (Bio-Techne, Hecla Mining, the iShares consumer discretionary fund, Electronic
+ * Arts). Followed by US they name the stock, as "TECH US DES"; on their own or before anything else, the function.
  */
-export const TICKER_MNEMONICS = new Set(['TECH', 'HL', 'IYC']);
+export const TICKER_MNEMONICS = new Set(['TECH', 'HL', 'IYC', 'EA']);
 
 export const CHART_STYLES: Record<string, string> = { GPO: 'BAR', GPC: 'CANDLE', RSI: 'RSI', MACD: 'MACD', BOLL: 'BOLL' };
 

@@ -143,3 +143,13 @@ test('EM says reported and expected earnings are the desktop app\'s, and generat
   await expect(panel.locator('tbody tr')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("EA says an index's earnings season is the desktop app's, and generates none in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'SPX INDEX EA');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('EARNINGSSEASON');
+  await expect(panel.locator('.empty')).toContainText('needs the desktop app');
+  await expect(panel.locator('tbody tr')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
