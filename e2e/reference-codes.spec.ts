@@ -38,3 +38,19 @@ test('WBMV ranks government yields by their move, largest first, for each period
   await expect(panel.locator('.fnh-code')).toHaveText('CHART');
   expect(errors).toEqual([]);
 });
+
+test('HRA regresses one security on another, named after the function, with its statistics', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity HRA MSFT US Equity');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('REGRESSION');
+  await expect(panel.locator('.fnh-title')).toContainText('Regression Analysis');
+  await expect(panel.locator('.fnh')).toContainText('vs MSFT US Equity');
+  await expect(panel.getByText('Against (independent)')).toBeVisible();
+  await expect(panel.locator('.kv')).toContainText('R²');
+  // BETA keeps its own name and default index.
+  await run(page, 'AAPL US Equity BETA');
+  await expect(panel.locator('.fnh-code')).toHaveText('BETA');
+  await expect(panel.getByText('Relative index')).toBeVisible();
+  expect(errors).toEqual([]);
+});

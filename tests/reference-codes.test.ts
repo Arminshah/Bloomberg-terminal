@@ -15,3 +15,10 @@ describe('World Bond Movers (WBMV)', () => {
     expect(parse('WBMV')).toEqual({ kind: 'route', fn: 'BONDMOVERS' });
   });
 });
+
+describe('Regression Analysis (HRA)', () => {
+  it('regresses the loaded security on the one typed after the function', () => {
+    expect(parse('AAPL HRA MSFT')).toMatchObject({ kind: 'route', fn: 'REGRESSION', sec: { id: 'AAPL US Equity' }, args: 'MSFT' });
+    expect(parse('HRA AAPL')).toMatchObject({ kind: 'route', fn: 'REGRESSION', sec: { id: 'AAPL US Equity' } });
+  });
+});

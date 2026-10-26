@@ -62,6 +62,7 @@ export const LEGACY_CODES: Record<string, string> = {
   CRYP: 'CRYPTO',
   FRD: 'FXFORWARD',
   OVML: 'FXOPTION',
+  HRA: 'REGRESSION',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',

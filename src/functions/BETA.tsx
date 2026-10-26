@@ -24,11 +24,19 @@ const PERIOD_NOTE: Record<BetaFrequency, string> = {
   M: 'calendar months, on each month’s last session',
 };
 
-/** Bloomberg BETA defaults: two years of weekly returns against the security's local index. */
-export function BETA({ sec }: FnProps) {
+/**
+ * BETA: two years of weekly returns against the security's local index, as the terminal's BETA defaults. The same
+ * screen is REGRESSION (HRA, the guides' Regression Analysis): one security's returns on any other's, named after the
+ * function ("AAPL HRA MSFT").
+ */
+export function BETA({ sec, route }: FnProps) {
   const s = sec!;
+  const regression = route.fn === 'REGRESSION';
   const [tab, setTab] = useState(3);
-  const [bench, setBench] = useState(() => defaultBenchmark(s, (id) => !!engine.get(id)));
+  const [bench, setBench] = useState(() => {
+    const named = route.args ? resolveSecurity(route.args) : undefined;
+    return named && named.id !== s.id ? named.id : defaultBenchmark(s, (id) => !!engine.get(id));
+  });
   const [freq, setFreq] = useState<BetaFrequency>('W');
   const [text, setText] = useState('');
   const months = PERIODS[tab - 1].months;
@@ -63,12 +71,12 @@ export function BETA({ sec }: FnProps) {
   const per = { D: 'day', W: 'week', M: 'month' }[freq];
   return (
     <div>
-      <FnHeader code="BETA" title="Historical Beta" sec={s} sub={`vs ${bench} · ${PERIODS[tab - 1].label} ${label.toLowerCase()}`} tabs={PERIODS.map((p) => ({ n: p.n, label: p.label }))} tab={tab} onTab={setTab}
+      <FnHeader code={regression ? 'REGRESSION' : 'BETA'} title={regression ? 'Regression Analysis' : 'Historical Beta'} sec={s} sub={`vs ${bench} · ${PERIODS[tab - 1].label} ${label.toLowerCase()}`} tabs={PERIODS.map((p) => ({ n: p.n, label: p.label }))} tab={tab} onTab={setTab}
         actions={FREQUENCIES.map((f) => ({ n: f.n, label: FREQUENCY_LABEL[f.freq], on: freq === f.freq, onClick: () => setFreq(f.freq) }))} />
       <QuoteStrip sec={s} />
       <div className="chart-tools">
         <label className="fld" htmlFor="beta-bench">
-          Relative index
+          {regression ? 'Against (independent)' : 'Relative index'}
         </label>
         <input
           id="beta-bench"
