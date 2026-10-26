@@ -39,7 +39,8 @@ export function pageState(g: PageGeometry, overlap = PAGE_OVERLAP): PageState {
   const step = Math.max(40, Math.floor(g.client - (g.pinned ?? 0) - overlap));
   const max = Math.max(0, Math.floor(g.height - g.client));
   if (max <= SLACK) return { page: 1, pages: 1, step, max };
-  const pages = 1 + Math.ceil(max / step);
+  // A last page starting within SLACK of the page before would read back as that page: it is not counted.
+  const pages = 1 + Math.ceil((max - SLACK) / step);
   const page = g.top >= max - SLACK ? pages : Math.min(pages, 1 + Math.floor((g.top + SLACK) / step));
   return { page, pages, step, max };
 }

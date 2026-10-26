@@ -28,6 +28,20 @@ describe('screen pages', () => {
     expect(pageState({ ...g, top: 419 }).page).toBe(2);
   });
 
+  it('does not count a last page that starts within two pixels of the one before', () => {
+    // Scrolling stops at 1,261: one pixel past page 4's top (1,260), so page 4 is where the content ends.
+    const g = { height: 1761, client: 500, pinned: 60 };
+    const s = pageState({ ...g, top: 0 });
+    expect(s).toMatchObject({ pages: 4, max: 1261 });
+    for (const p of [1, 2, 3, 4]) expect(pageState({ ...g, top: pageTop(s, p) }).page, `page ${p}`).toBe(p);
+    // PAGE BACK from the end lands on page 3, not on an offset that reads as the end again.
+    const end = pageState({ ...g, top: 1261 });
+    expect(end.page).toBe(4);
+    expect(pageState({ ...g, top: pageTop(end, pageAfter(end, -1)) }).page).toBe(3);
+    // Three pixels past it is a page of its own.
+    expect(pageState({ ...g, height: 1763, top: 0 }).pages).toBe(5);
+  });
+
   it('moves a number of pages and stops at either end', () => {
     const s = { ...pageState({ top: 0, height: 2000, client: 500, pinned: 60 }), page: 2 };
     expect(pageAfter(s, 1)).toBe(3);
