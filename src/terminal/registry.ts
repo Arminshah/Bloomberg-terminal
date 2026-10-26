@@ -138,7 +138,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'FXFORWARD', name: 'Forward Rates', category: 'FX & Crypto', desc: 'FX forward points, outrights and contract PV from your simple deposit rates, day-count bases and input or source spot; calculated, with no dealer bid/ask quotes.', component: FRD, aliases: ['FORWARDS'], example: 'FXFORWARD EURUSD' },
   { code: 'FXOPTION', name: 'FX Option Valuation', category: 'FX & Crypto', desc: 'Vanilla FX option pricer (Garman-Kohlhagen): premium in pips and percent, greeks and expiry P&L.', component: OVML, example: 'FXOPTION EURUSD' },
   // Rates
-  { code: 'BONDS', name: 'World Bond Markets', category: 'Rates & Credit', desc: 'Government yields by country and tenor with changes, spreads to Treasuries and Bunds, and curve slope.', component: WB, aliases: ['WORLDBONDS'] },
+  { code: 'BONDS', name: 'World Bond Markets', category: 'Rates & Credit', desc: 'Government yields by country and tenor with changes, spreads to Treasuries and Bunds, and curve slope.', component: WB, aliases: ['WORLDBONDS', 'SOVM'] },
   { code: 'CURVE', name: 'Graph Curves', category: 'Rates & Credit', desc: 'Yield curves (US, Germany, UK, Japan) today versus one week, one month and one year ago.', component: GC, aliases: ['CURVES', 'YIELDS'] },
   { code: 'BONDFUTURES', name: 'World Bond Futures', category: 'Rates & Credit', desc: 'US Treasury futures (2-year to Ultra Bond) in 32nds with change, range and the cash benchmark yield beside each, and SOFR and Fed funds futures with the rate they imply; price or yield view.', component: WBF, example: 'BONDFUTURES' },
   { code: 'MONEYMARKET', name: 'Treasury & Money Markets', category: 'Rates & Credit', desc: 'Fed funds target and New York Fed reference rates, bills, curve spreads and SOFR futures.', component: BTMM },
@@ -154,7 +154,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'COMMODITIES', name: 'Global Commodities', category: 'Commodities', desc: 'Energy, metals, grains, softs and livestock futures with changes, YTD and intraday.', component: GLCO },
   // Economics
   { code: 'MACRO', name: 'Macro Dashboard', category: 'Economics', desc: 'US policy rate, Treasury yields and curve, inflation, jobs, growth, money, credit spreads, financial conditions and recession signals from the FRED API, with how payrolls and GDP were revised since first published.', component: MACRO, example: 'MACRO CPI' },
-  { code: 'RELEASES', name: 'Economic Calendar', category: 'Economics', desc: 'Releases and central bank decisions with actual and prior; actuals appear once published. The desktop app takes US release dates and values from FRED and decisions from the central banks.', component: ECO, aliases: ['ECONCAL'] },
+  { code: 'RELEASES', name: 'Economic Calendar', category: 'Economics', desc: 'Releases and central bank decisions with actual and prior; actuals appear once published. The desktop app takes US release dates and values from FRED and decisions from the central banks.', component: ECO, aliases: ['ECONCAL', 'WECO'] },
   { code: 'ECONSTATS', name: 'World Economic Statistics', category: 'Economics', desc: 'GDP, inflation, unemployment and policy rates by country alongside live yields and markets.', component: ECST },
   { code: 'HOLIDAYS', name: 'Holiday Calendar', category: 'Economics', desc: 'Exchange holiday and early-close calendars for New York, Euronext, London, Frankfurt and Tokyo.', component: CDR, example: 'HOLIDAYS US' },
   // Derivatives
@@ -174,7 +174,7 @@ export const FUNCTIONS: FnDef[] = [
   // Communication
   { code: 'MESSAGES', name: 'Help Desk Messages', category: 'Communication', desc: 'Chat with the help desk bot (quotes, news, calendar); the browser version adds simulated trading desks.', component: IB, aliases: ['CHAT'] },
   // System
-  { code: 'HELP', name: 'Function Directory', category: 'System', desc: 'Searchable list of every function, command syntax and keyboard shortcuts.', component: HELP },
+  { code: 'HELP', name: 'Function Directory', category: 'System', desc: 'Searchable list of every function, command syntax and keyboard shortcuts.', component: HELP, aliases: ['HL'] },
   { code: 'WHATSNEW', name: "What's New", category: 'System', desc: "What each release changed, newest first, with the installed version marked: the release notes packed into the app. A version can follow: WHATSNEW 2.23.0.", component: WHATSNEW, aliases: ['VERSION', 'RELEASENOTES', 'CHANGELOG'], example: 'WHATSNEW' },
   { code: 'MENU', name: 'Related Functions Menu', category: 'System', desc: 'Numbered analysis functions for the loaded security, market sector menus, news and research, or portfolio tools. Use the menu path to return to a sector or the main menu.', component: MENU, example: 'IBM US EQUITY' },
   { code: 'PROVIDERS', name: 'Data Providers & Status', category: 'System', desc: 'Every data provider: what it serves, its state, last answer and error, requests per minute, the terms that apply, and credentials (desktop).', component: PROV, aliases: ['STATUS', 'SOURCES'] },

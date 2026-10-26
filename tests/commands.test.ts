@@ -243,6 +243,18 @@ describe('search and autocomplete', () => {
   });
 });
 
+describe('codes from the reference guides that name screens the app has', () => {
+  it('opens HELP for HL (help search), RELEASES for WECO (world economic calendars) and BONDS for SOVM (sovereign debt)', () => {
+    expect(parse('HL')).toEqual({ kind: 'route', fn: 'HELP' });
+    expect(parse('HL dividend yield')).toEqual({ kind: 'route', fn: 'HELP', args: 'DIVIDEND YIELD' });
+    expect(parse('WECO')).toEqual({ kind: 'route', fn: 'RELEASES' });
+    expect(parse('SOVM')).toEqual({ kind: 'route', fn: 'BONDS' });
+    // The screens keep their own names in their headers.
+    expect(primaryMnemonic('RELEASES')).toBe('ECO');
+    expect(primaryMnemonic('BONDS')).toBe('WB');
+  });
+});
+
 describe('terminal mnemonics added in 2.13', () => {
   it('opens the existing workflows under their terminal mnemonics', () => {
     const cases: [string, string][] = [
