@@ -33,6 +33,7 @@ interface Fixtures {
   insiders?: boolean;
   estimateTrend?: boolean;
   apldEarnings?: boolean;
+  corpCalendar?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -397,6 +398,26 @@ test("EA follows an index's earnings season: who reported, beat or missed, by ho
   await expect(panel.locator('tbody')).not.toContainText('MMM');
   await panel.getByRole('button', { name: /2\) Sectors/ }).click();
   await expect(panel.locator('tbody tr', { hasText: 'Industrials' })).toContainText('100%');
+});
+
+test("CACT lists the market's dividends going ex and its splits from Nasdaq's calendars", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.corpCalendar = true; });
+  await command(page, 'CACT', 'ACTIONCALENDAR');
+  const panel = page.locator('.panel').first();
+  const cost = panel.locator('tbody tr', { hasText: 'COST' });
+  await expect(cost).toContainText('Costco Wholesale Corporation', { timeout: 30_000 });
+  await expect(cost).toContainText('1.47');
+  await expect(cost).toContainText('5.88');
+  await expect(panel.getByRole('button', { name: /1\) Dividends \(18\)/ })).toBeVisible();
+  await panel.getByLabel('Filter the calendar').fill('plains');
+  await expect(panel.locator('tbody tr')).toHaveCount(2);
+  await panel.getByLabel('Filter the calendar').fill('');
+  // The splits of the coming fortnight: a split and a reverse split.
+  await panel.getByRole('button', { name: /2\) Splits \(2\)/ }).click();
+  await expect(panel.locator('tbody tr', { hasText: 'EFG' })).toContainText('3-for-1');
+  await expect(panel.locator('tbody tr', { hasText: 'EFG' })).toContainText('Stock split');
+  await expect(panel.locator('tbody tr', { hasText: 'SXTC' })).toContainText('1-for-100');
+  await expect(panel.locator('tbody tr', { hasText: 'SXTC' })).toContainText('Reverse split');
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {

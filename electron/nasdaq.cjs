@@ -46,6 +46,25 @@ function nasdaqIpoRequest(month, now = Date.now()) {
   return { url: `https://api.nasdaq.com/api/ipo/calendar?date=${month}`, ttl, headers: { Accept: 'application/json, text/plain, */*' } };
 }
 
+/**
+ * One day's dividend calendar from Nasdaq's site (no key): the dividends going ex that day with their amount, record
+ * and payment dates, announcement date and the annual dividend. From a year back to four months ahead.
+ */
+function nasdaqDividendRequest(date, now = Date.now()) {
+  if (typeof date !== 'string' || !ISO.test(date)) return null;
+  const t = Date.parse(`${date}T00:00:00Z`);
+  if (!Number.isFinite(t) || new Date(t).toISOString().slice(0, 10) !== date) return null;
+  if (t < now - 370 * DAY || t > now + 130 * DAY) return null;
+  // Announcements keep adding to coming days; past days are settled.
+  const ttl = t < now - 3 * DAY ? 7 * DAY : 3 * HOUR;
+  return { url: `https://api.nasdaq.com/api/calendar/dividends?date=${date}`, ttl, headers: { Accept: 'application/json, text/plain, */*' } };
+}
+
+/** Nasdaq's split calendar (no key): the recent and coming stock splits with their ratio and effective date. */
+function nasdaqSplitsRequest() {
+  return { url: 'https://api.nasdaq.com/api/calendar/splits', ttl: 6 * HOUR, headers: { Accept: 'application/json, text/plain, */*' } };
+}
+
 /** Every US-listed stock with its market value, sector and country: the stock screener's full list, kept a day. */
 function nasdaqScreenerRequest() {
   return { url: 'https://api.nasdaq.com/api/screener/stocks?tableonly=true&limit=10000&offset=0&download=true', ttl: 24 * HOUR, headers: { Accept: 'application/json, text/plain, */*' } };
@@ -113,4 +132,4 @@ function finraShortRequest(symbol, now = Date.now(), days = 75, limit = 12) {
   return { url: 'https://api.finra.org/data/group/otcMarket/name/consolidatedShortInterest', ttl: 12 * HOUR, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body };
 }
 
-module.exports = { finraShortRequest, nasdaqCalendarRequest, nasdaqEconomicRequest, nasdaqIpoRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };
+module.exports = { finraShortRequest, nasdaqCalendarRequest, nasdaqEconomicRequest, nasdaqIpoRequest, nasdaqDividendRequest, nasdaqSplitsRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };

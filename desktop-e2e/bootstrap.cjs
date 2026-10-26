@@ -18,6 +18,9 @@ const researchTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tes
 // (EEG), and its reported quarters (EM).
 const apldSummary = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-apld-summary.json'), 'utf8')).quoteSummary.result[0];
 const trendTemplate = apldSummary.earningsTrend.trend;
+// Nasdaq's dividend calendar of 30 Oct 2026 and its split calendar, as answered (CACT, fixtures.corpCalendar).
+const dividendTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/nasdaq-dividends-2026-10-30.json'), 'utf8'));
+const splitsTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/nasdaq-splits-2026-10-26.json'), 'utf8'));
 const currencyTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/sec-currency-change.json'), 'utf8'));
 const chartTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-sofi-chart.json'), 'utf8'));
 const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/tipranks-tools.json'), 'utf8')).tools;
@@ -265,6 +268,22 @@ net.fetch = async (input, init) => {
   };
   if (url.hostname === 'api.nasdaq.com') {
     fixtures.calls.nasdaq = (fixtures.calls.nasdaq ?? 0) + 1;
+    // The dividends go ex on the first weekday two days or more ahead, whatever the day the test runs; two splits fall
+    // in the coming fortnight, the others two months back.
+    const usDay = (iso) => `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}`;
+    if (fixtures.corpCalendar && url.pathname === '/api/calendar/dividends') {
+      let exDay = 2;
+      while ([0, 6].includes(new Date(Date.now() + exDay * 86_400_000).getUTCDay())) exDay++;
+      if (url.searchParams.get('date') !== shift(exDay)) return json({ data: { calendar: { asOf: '', headers: null, rows: null } }, message: 'There are no dividends to show for this date.', status: { rCode: 200 } });
+      const out = structuredClone(dividendTemplate);
+      for (const r of out.data.calendar.rows) r.dividend_Ex_Date = usDay(shift(exDay));
+      return json(out);
+    }
+    if (fixtures.corpCalendar && url.pathname === '/api/calendar/splits') {
+      const out = structuredClone(splitsTemplate);
+      for (const r of out.data.rows) r.executionDate = usDay(shift(r.symbol === 'EFG' ? 5 : r.symbol === 'SXTC' ? 6 : -60));
+      return json(out);
+    }
     if (url.pathname === '/api/screener/stocks' && fixtures.listingsDown) return new Response('', { status: 503 });
     if (url.pathname === '/api/screener/stocks') return json({ data: { rows: [{ symbol: 'MMM', name: '3M Company', marketCap: '83552188778.00', country: 'United States', sector: 'Industrials' }, { symbol: 'XYZW', name: 'Synthetic Finnhub-only Co', marketCap: '6100000000.00', country: 'United States', sector: 'Technology' }, ...traded.map(([symbol, lastsale, volume]) => ({ symbol, name: symbol, lastsale: `$${lastsale}`, volume, marketCap: '50000000000.00', country: 'United States', sector: 'Technology' }))] }, status: { rCode: 200 } });
     const date = url.searchParams.get('date');

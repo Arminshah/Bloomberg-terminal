@@ -121,7 +121,7 @@ const COMMANDS: [string, string][] = [
   // Codes from the reference guides (docs/audit-v2.23.0-coverage.md, section 2a).
   ['HL', 'HELP'], ['WECO', 'RELEASES'], ['SOVM', 'BONDS'], ['WBMV', 'BONDMOVERS'], ['AAPL HRA MSFT', 'REGRESSION'], ['TECH', 'STUDIES'], ['IN', 'INDEXLIST'],
   ['IYC', 'CURVEMENU'], ['CURVE DE', 'CURVE'], ['FED', 'FEDPORTAL'], ['AAPL INSD', 'INSIDERS'],
-  ['NVDA EEG', 'ESTIMATEGRAPH'], ['NVDA EM', 'EARNINGSTREND'], ['SPX INDEX EA', 'EARNINGSSEASON'],
+  ['NVDA EEG', 'ESTIMATEGRAPH'], ['NVDA EM', 'EARNINGSTREND'], ['SPX INDEX EA', 'EARNINGSSEASON'], ['CACT', 'ACTIONCALENDAR'],
 ];
 
 test('default workspace renders four live panels and the watchlist column', async ({ page }) => {

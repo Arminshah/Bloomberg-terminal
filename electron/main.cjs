@@ -1054,6 +1054,15 @@ ipcMain.handle('earnings-calendar', async (event, source, from, to) => {
     if (!req) throw new Error('not allowed');
     return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
   }
+  if (source === 'nasdaq-dividends') {
+    const req = from === to ? nasdaq.nasdaqDividendRequest(from) : null;
+    if (!req) throw new Error('not allowed');
+    return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
+  }
+  if (source === 'nasdaq-splits') {
+    const req = nasdaq.nasdaqSplitsRequest();
+    return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
+  }
   if (source === 'nasdaq-caps') {
     const req = nasdaq.nasdaqScreenerRequest();
     return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());

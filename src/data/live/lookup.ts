@@ -51,7 +51,7 @@ declare global {
       analystActions?(symbol: string): Promise<KeyedAnswer>;
       indexMembers?(kind: 'sp500' | 'nasdaq100' | 'nasdaq-quotes', arg?: string): Promise<KeyedAnswer>;
       alphavantage?(kind: 'earnings' | 'estimates', symbol: string): Promise<KeyedAnswer>;
-      earningsCalendar?(source: 'nasdaq' | 'nasdaq-caps' | 'nasdaq-eco' | 'nasdaq-ipo' | 'finnhub' | 'fmp', from: string, to: string): Promise<KeyedAnswer>;
+      earningsCalendar?(source: 'nasdaq' | 'nasdaq-caps' | 'nasdaq-eco' | 'nasdaq-ipo' | 'nasdaq-dividends' | 'nasdaq-splits' | 'finnhub' | 'fmp', from: string, to: string): Promise<KeyedAnswer>;
       finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
       equibles?(kind: import('./equibles').ResearchKind, symbol: string): Promise<KeyedAnswer>;
       tipranks?(kind: 'consensus' | 'ratings' | 'usage', ticker: string): Promise<KeyedAnswer>;

@@ -153,3 +153,13 @@ test("EA says an index's earnings season is the desktop app's, and generates non
   await expect(panel.locator('tbody tr')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("CACT says the market's corporate action calendars are the desktop app's, and generates none in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'CACT');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('ACTIONCALENDAR');
+  await expect(panel.locator('.empty')).toContainText('read from Nasdaq in the desktop app');
+  await expect(panel.locator('tbody tr')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
