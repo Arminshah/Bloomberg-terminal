@@ -34,6 +34,8 @@ const CREDENTIALS = {
   OPENFIGI_API_KEY: { label: 'OpenFIGI API key', valid: (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) },
   // TipRanks: analyst consensus, price targets and rating actions on ANALYSTS, on request (electron/tipranks.cjs).
   TIPRANKS_API_KEY: { label: 'TipRanks API key', valid: (v) => /^tr_(live|test)_[A-Za-z0-9]{16,80}$/.test(v) && !/^tr_(live|test)_x+$/i.test(v) },
+  // Congress.gov (the Library of Congress): bills and laws on BILL. Keys from api.data.gov are 40 letters and digits.
+  CONGRESS_GOV_API_KEY: { label: 'Congress.gov API key', valid: (v) => /^[A-Za-z0-9]{40}$/.test(v) },
   // Anthropic: Claude answers the help desk's questions (MESSAGES) with the app's data as tools.
   ANTHROPIC_API_KEY: { label: 'Anthropic API key (Claude help desk)', valid: (v) => /^sk-ant-[A-Za-z0-9_-]{20,250}$/.test(v) && !/^sk-ant-x+$/i.test(v) },
   // The SEC asks for an application name and a contact email it can reach.
@@ -264,6 +266,7 @@ const ALIASES = [
   [/tipranks/i, 'TIPRANKS_API_KEY'],
   [/equibles/i, 'EQUIBLES_API_KEY'],
   [/open[\s_-]*figi/i, 'OPENFIGI_API_KEY'],
+  [/congress[\s_.-]*gov/i, 'CONGRESS_GOV_API_KEY'],
   [/anthropic|claude/i, 'ANTHROPIC_API_KEY'],
 ];
 

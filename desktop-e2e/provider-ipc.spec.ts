@@ -49,11 +49,12 @@ interface Fixtures {
   imf?: boolean;
   imfTrade?: boolean;
   monthly?: boolean;
+  congressGov?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
   supplyChain?: boolean;
-  calls: { imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -677,6 +678,41 @@ test("EQBT back-tests momentum on the Dow's members from Yahoo's month-end close
   await panel.getByLabel('Rule', { exact: true }).selectOption('lowvol');
   await expect(panel.getByRole('table', { name: 'Picks now' }).locator('thead')).toContainText('Volatility');
   expect(await monthly()).toHaveLength(3);
+});
+
+test("BILL lists Congress.gov's latest bills and the Congress's laws, and opens a bill's sponsor, summary and actions", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.congressGov = true;
+  });
+  // Without a key nothing is sent, and the screen says where to enter one.
+  await command(page, 'BILL', 'LEGISLATION');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.empty')).toContainText('BILL needs a Congress.gov API key', { timeout: 30_000 });
+  expect((await calls(app)).congressGov ?? []).toEqual([]);
+  await app.evaluate(() => {
+    process.env.CONGRESS_GOV_API_KEY = 'abcdefghijklmnopqrstABCDEFGHIJ0123456789';
+  });
+  await page.reload();
+  await command(page, 'BILL', 'LEGISLATION');
+  const rows = panel.locator('tbody tr');
+  await expect(rows).toHaveCount(25, { timeout: 30_000 });
+  await expect(rows.filter({ hasText: 'S. 2398' })).toContainText('Became law');
+  await panel.getByLabel('Stage', { exact: true }).selectOption('Became law');
+  await expect(rows.first()).toContainText('Became law');
+  await panel.getByRole('button', { name: '2) Laws', exact: true }).click();
+  await expect(rows).toHaveCount(20);
+  const drill = rows.filter({ hasText: 'H.R. 7831' });
+  await expect(drill).toContainText('P.L. 119-134');
+  await drill.locator('td').nth(1).click();
+  await expect(panel.getByText('H.R. 7831 · License to Drill Act')).toBeVisible();
+  await expect(panel).toContainText('Rep. Kennedy, Mike [R-UT-3]');
+  await expect(panel).toContainText('Public Law 119-134');
+  await expect(panel).toContainText('This act extends through FY2037', { timeout: 30_000 });
+  await expect(panel).toContainText('Actions (32)');
+  // Every request carried the key in its header, none in its address.
+  const asked = (await calls(app)).congressGov ?? [];
+  expect(asked.length).toBeGreaterThan(0);
+  expect(asked.every((c) => c.keyed && !/api_key/i.test(c.path))).toBe(true);
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {

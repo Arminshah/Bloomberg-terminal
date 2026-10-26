@@ -84,6 +84,7 @@ export const LEGACY_CODES: Record<string, string> = {
   ECFC: 'ECOFORECASTS',
   ECTR: 'TRADEFLOWS',
   EQBT: 'BACKTEST',
+  BILL: 'LEGISLATION',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',
@@ -142,7 +143,7 @@ export const LEGACY_CODES: Record<string, string> = {
  * Arts, FLEX LNG). Followed by US they name the stock, as "TECH US DES"; on their own or before anything else, the
  * function.
  */
-export const TICKER_MNEMONICS = new Set(['TECH', 'HL', 'IYC', 'EA', 'FLNG']);
+export const TICKER_MNEMONICS = new Set(['TECH', 'HL', 'IYC', 'EA', 'FLNG', 'BILL']);
 
 export const CHART_STYLES: Record<string, string> = { GPO: 'BAR', GPC: 'CANDLE', RSI: 'RSI', MACD: 'MACD', BOLL: 'BOLL' };
 

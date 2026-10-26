@@ -727,6 +727,17 @@ ipcMain.handle('imf', async (event, kind, arg) => {
   return keyedGet('imf', req.url, { Accept: 'application/json' }, req.ttl, [30, 60_000], []);
 });
 
+// Bills, laws and one bill's details from Congress.gov's API (electron/congressgov.cjs), with the owner's key in the
+// X-Api-Key header: BILL.
+const congressGov = require('./congressgov.cjs');
+ipcMain.handle('congress-gov', async (event, kind, arg) => {
+  const req = congressGov.congressGovRequest(kind, arg);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  const key = usableKey('CONGRESS_GOV_API_KEY', 'congressgov');
+  if (!key.value) return { status: 0, text: '', ...key };
+  return keyedGet('congressgov', req.url, { 'X-Api-Key': key.value, Accept: 'application/json' }, req.ttl, [60, 60_000], [key.value]);
+});
+
 // A US stock's listings in other countries from OpenFIGI (RELS): two mapping requests, kept a day.
 const figiListings = new Map();
 ipcMain.handle('openfigi-listings', async (event, ticker) => {

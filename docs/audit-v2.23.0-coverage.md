@@ -696,7 +696,9 @@ Built since, from free data (26 October 2026), each under the guide's code:
 | ECTR | TRADEFLOWS: goods trade by partner from the IMF (formerly the Direction of Trade Statistics) | `9bdf67a` |
 | EQBT | BACKTEST: price rules (momentum, reversal, low volatility, trend) on an index's members today; no fundamental rules yet, as no free source gives fundamentals as known at each date | `13d58b8` |
 
-Still to build from this list: BILL (needs a congress.gov key).
+| BILL | LEGISLATION: bills and laws from Congress.gov, with each bill's sponsor, summary and actions | "BILL: US legislation from Congress.gov" |
+
+All 27 of the class a codes these guides describe are now built.
 
 Not described in those guides (27), so not yet checked: AGS, BOE, BOJ, CBRT, CT, DOTS, ECB, FXCA, GAS, GEW, GY, HLDR, MINE, MRV, MYN, NGAS, NLRT, OIL, OVDV, PD, PSRT, RANK, SURP, WATC, WCR, WEIS, WM. They wait for documents 1 to 33, or for the videos.
 

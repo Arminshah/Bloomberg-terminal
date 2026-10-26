@@ -60,6 +60,7 @@ Prices, charts, yields, central bank rates, official statistics, official announ
 | `FMP_API_KEY` | Analyst price targets, ratings and estimates (`ANALYSTS`, `EARNINGS`) |
 | `EQUIBLES_API_KEY` | Estimate report fallback, plus on-request guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news on `ANALYSTS` |
 | `OPENFIGI_API_KEY` | Optional: faster ticker lookups for a company's 13F holdings (`HOLDINGS`); they work without it |
+| `CONGRESS_GOV_API_KEY` | Bills, laws and each bill's sponsor, summary and actions (`LEGISLATION`, typed as BILL) |
 | `FINNHUB_API_KEY`, `MARKETAUX_API_TOKEN` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) |
 | `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY` | IEX stock quotes and indicative option contracts on `OPTIONS`, and Benzinga's news on the news screens; read-only market data, subject to account entitlement |
 

@@ -28,6 +28,9 @@ const splitsTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests
 const crudeSpark = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-spark-cl-2026-10.json'), 'utf8'));
 // Yahoo's month-end closes of the Dow and the 30 members the app keeps for it, ten years to 23 October 2026 (EQBT,
 // fixtures.monthly).
+// Congress.gov's answers of 26 October 2026: the latest bills, the 119th Congress's laws and H.R. 7831 with its
+// parts (BILL, fixtures.congressGov).
+const congressGov = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/congressgov-2026-10.json'), 'utf8'));
 const dowMonthly = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-monthly-dow-2026-10.json'), 'utf8'));
 const fredFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/${name}.json`), 'utf8');
 // The IMF's October 2026 World Economic Outlook as the DataMapper answered it: GDP growth for 24 economies and groups,
@@ -103,6 +106,18 @@ net.fetch = async (input, init) => {
     if (part === 'countries' || part === 'groups' || part === 'indicators') return json(imfWeo[part]);
     // The fixture holds GDP growth only: the other indicators answer with no figures.
     return json({ values: {} });
+  }
+  if (fixtures.congressGov && url.hostname === 'api.congress.gov') {
+    const h = init?.headers;
+    const key = typeof h?.get === 'function' ? h.get('X-Api-Key') : (h?.['X-Api-Key'] ?? h?.['x-api-key']);
+    fixtures.calls.congressGov = [...(fixtures.calls.congressGov ?? []), { path: url.pathname + url.search, keyed: !!key }];
+    const p = url.pathname.replace(/^\/v3/, '');
+    if (p === '/bill') return json(congressGov.bills);
+    if (p === '/law/119') return json(congressGov.laws);
+    if (p === '/bill/119/hr/7831') return json(congressGov.bill.detail);
+    const part = /^\/bill\/119\/hr\/7831\/(actions|summaries|subjects|committees|cosponsors|text)$/.exec(p);
+    if (part) return json(congressGov.bill[part[1]]);
+    return new Response(JSON.stringify({ error: 'Unknown resource' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
   }
   if (fixtures.imfTrade && url.hostname === 'api.imf.org') {
     fixtures.calls.imf = [...(fixtures.calls.imf ?? []), url.pathname + url.search];

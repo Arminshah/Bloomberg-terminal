@@ -87,6 +87,7 @@ import { CTM } from '../functions/CTM';
 import { ECFC } from '../functions/ECFC';
 import { ECTR } from '../functions/ECTR';
 import { EQBT } from '../functions/EQBT';
+import { BILL } from '../functions/BILL';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -195,6 +196,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'ECONCHART', name: 'Economic Data Chart', category: 'Economics', desc: "Up to four FRED series on one chart, each as published or transformed by FRED (change, % change, on a year ago, compounded annual rate), over two years to the whole history, with a second scale for different units, each one's latest value and the one before, and FRED's description; a search finds any of FRED's series (desktop app, FRED_API_KEY).", component: ECOW, example: 'ECONCHART HOUST CPIAUCSL:PC1' },
   { code: 'ECOFORECASTS', name: 'Economic Forecasts', category: 'Economics', desc: "The IMF's World Economic Outlook for the world, its regions and the largest economies, or every economy: GDP growth, inflation, unemployment, current account, government balance and debt, two years back to five ahead with the IMF's projections marked, and any economy's history and projections on a chart (desktop app).", component: ECFC, example: 'ECOFORECASTS USA' },
   { code: 'TRADEFLOWS', name: 'Trade Flows', category: 'Economics', desc: "An economy's goods exports and imports with each partner country and region from the IMF's International Trade in Goods (formerly the Direction of Trade Statistics): any of the last ten years with the balance, each partner's share and the change on the year before, a partner's trade by year on a chart, and its last 24 months (desktop app).", component: ECTR, example: 'TRADEFLOWS DEU' },
+  { code: 'LEGISLATION', name: 'U.S. Legislation', category: 'Economics', desc: "Bills in Congress from Congress.gov: the latest by update with where each stands, the laws enacted in the current Congress, and a bill's sponsor, cosponsors, committees, Congressional Research Service summary, actions, subjects and text; found by words in the title or by number (desktop app, CONGRESS_GOV_API_KEY).", component: BILL, example: 'LEGISLATION HR 7831' },
   { code: 'RELEASES', name: 'Economic Calendar', category: 'Economics', desc: 'Releases and central bank decisions with actual and prior; actuals appear once published. The desktop app takes US release dates and values from FRED and decisions from the central banks.', component: ECO, aliases: ['ECONCAL', 'WECO'] },
   { code: 'ECONSTATS', name: 'World Economic Statistics', category: 'Economics', desc: 'GDP, inflation, unemployment and policy rates by country alongside live yields and markets.', component: ECST },
   { code: 'HOLIDAYS', name: 'Holiday Calendar', category: 'Economics', desc: 'Exchange holiday and early-close calendars for New York, Euronext, London, Frankfurt and Tokyo.', component: CDR, example: 'HOLIDAYS US' },

@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   openfigi: (codes) => ipcRenderer.invoke('openfigi', Array.isArray(codes) ? codes.map(String) : []),
   openfigiListings: (ticker) => ipcRenderer.invoke('openfigi-listings', String(ticker)),
   imf: (kind, arg) => ipcRenderer.invoke('imf', String(kind), String(arg ?? '')),
+  congressGov: (kind, arg) => ipcRenderer.invoke('congress-gov', String(kind), String(arg ?? '')),
   congress: (kind, arg) => ipcRenderer.invoke('congress', String(kind), String(arg ?? '')),
   kraken: (kind, arg, n) => ipcRenderer.invoke('kraken', String(kind), String(arg ?? ''), Number(n ?? 0)),
   coingecko: () => ipcRenderer.invoke('coingecko'),

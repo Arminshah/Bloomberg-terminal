@@ -1,7 +1,7 @@
 // Types for providers.cjs, for the tests that import it.
 export type CredentialName =
   | 'FRED_API_KEY' | 'MASSIVE_API_KEY' | 'SEC_USER_AGENT' | 'COINGECKO_API_KEY' | 'ALPHA_VANTAGE_API_KEY' | 'TWELVE_DATA_API_KEY'
-  | 'FINNHUB_API_KEY' | 'MARKETAUX_API_TOKEN' | 'TIINGO_API_KEY' | 'ALPACA_API_KEY_ID' | 'ALPACA_API_SECRET_KEY' | 'FMP_API_KEY' | 'EQUIBLES_API_KEY' | 'OPENFIGI_API_KEY' | 'TIPRANKS_API_KEY' | 'ANTHROPIC_API_KEY';
+  | 'FINNHUB_API_KEY' | 'MARKETAUX_API_TOKEN' | 'TIINGO_API_KEY' | 'ALPACA_API_KEY_ID' | 'ALPACA_API_SECRET_KEY' | 'FMP_API_KEY' | 'EQUIBLES_API_KEY' | 'OPENFIGI_API_KEY' | 'TIPRANKS_API_KEY' | 'CONGRESS_GOV_API_KEY' | 'ANTHROPIC_API_KEY';
 export const CREDENTIALS: Record<CredentialName, { label: string; valid: (v: string) => boolean }>;
 export const DAILY: Record<string, { limit: number | null; cap: number }>;
 export function parseCredentialList(text: string): { found: { name: CredentialName; value: string }[]; skipped: { line?: number; name?: string; reason: string }[]; notes: { line: number; name: string; note: string }[] };

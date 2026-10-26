@@ -41,6 +41,7 @@ declare global {
       openfigi?(codes: string[]): Promise<import('./thirteenf').FigiAnswer>;
       openfigiListings?(ticker: string): Promise<import('./related').FigiListingsAnswer>;
       imf?(kind: 'weo' | 'countries' | 'groups' | 'indicators' | 'trade' | 'trade-monthly' | 'trade-areas', arg?: string): Promise<KeyedAnswer>;
+      congressGov?(kind: 'bills' | 'laws' | 'bill' | 'part', arg?: string): Promise<KeyedAnswer>;
       congress?(kind: 'members' | 'index' | 'ptr' | 'annual' | 'fmp', arg: string): Promise<import('./congress').CongressAnswer>;
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;

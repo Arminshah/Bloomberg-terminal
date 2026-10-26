@@ -65,8 +65,7 @@ Plan:
 
 ## Later
 
-- Functions the reference documents name that the app lacks but could build from free data (class a in `docs/audit-v2.23.0-coverage.md`; 26 of the 27 the guides describe are built, section 2a). Next:
-  - BILL needs a congress.gov API key from you (free, api.congress.gov/sign-up).
+- Functions the reference documents name that the app lacks but could build from free data (class a in `docs/audit-v2.23.0-coverage.md`; all 27 the guides describe are built, section 2a). Next:
   - EQBT with fundamental rules (cheap on earnings, say): it needs each company's figures as they were known at each date. The SEC's XBRL frames give filing dates, so it can be built from them; it is a larger piece of work.
   - The 27 the guides on hand do not describe (FXCA, WCR, OVDV, PSRT/PD/HLDR and others) wait for documents 1 to 33 or the videos.
 - From Codex's video list, buildable from free data (sorted from titles only, so to be checked against the videos first):
@@ -83,7 +82,7 @@ Plan:
 
 ## Done, on the branch, not released yet
 
-- Codes from the reference guides (`docs/audit-v2.23.0-coverage.md`, section 2a, with each commit): HL, WECO, SOVM, WBMV, HRA, TECH, IN, IYC, FED, INSD, EEG, EM, EA, CACT, SIA, GX, CCB, FLNG, RELS, ECOW, ECWB, CCRV, CTM, ECFC, ECTR and EQBT. Each reads real data only, says where every figure comes from, and has unit, browser and desktop tests. Along the way:
+- Codes from the reference guides (`docs/audit-v2.23.0-coverage.md`, section 2a, with each commit): HL, WECO, SOVM, WBMV, HRA, TECH, IN, IYC, FED, INSD, EEG, EM, EA, CACT, SIA, GX, CCB, FLNG, RELS, ECOW, ECWB, CCRV, CTM, ECFC, ECTR, EQBT and BILL. Each reads real data only, says where every figure comes from, and has unit, browser and desktop tests. Along the way:
   - `c60f14f` The quarter after next is named by the fiscal year the reports show ("Q3 2027", not "2027-02-28").
   - `6441408` TECH US, HL US, IYC US, EA US and FLNG US still name the stocks (Bio-Techne, Hecla, the iShares fund, Electronic Arts, FLEX LNG).
   - `0ff1746` One company-name helper for Nasdaq's lists (partnership units included).

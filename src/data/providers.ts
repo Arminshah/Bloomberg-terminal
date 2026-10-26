@@ -25,6 +25,7 @@ export type Credential =
   | 'EQUIBLES_API_KEY'
   | 'OPENFIGI_API_KEY'
   | 'TIPRANKS_API_KEY'
+  | 'CONGRESS_GOV_API_KEY'
   | 'ANTHROPIC_API_KEY';
 
 /**
@@ -683,6 +684,23 @@ export const PROVIDERS: ProviderDef[] = [
       { label: 'DataMapper API', url: 'https://www.imf.org/external/datamapper/api/help' },
       { label: 'IMF data API (SDMX)', url: 'https://data.imf.org/en/Resource-Pages/IMF-API' },
       { label: 'Copyright and usage', url: 'https://www.imf.org/en/About/copyright-and-terms' },
+    ],
+    checked: '2026-10-26', desktop: true,
+  },
+  {
+    id: 'congressgov',
+    name: 'Congress.gov API (Library of Congress)',
+    serves: "Bills and their latest actions, the laws enacted in the current Congress, and each bill's sponsor, cosponsors, committees, actions, summaries, subjects and text (BILL)",
+    dataClass: 'Legislative information (official)',
+    policy: 'enabled',
+    credential: 'CONGRESS_GOV_API_KEY',
+    limit: '60',
+    terms: "Each user signs up for their own free key at api.data.gov; the app sends it in the X-Api-Key header. The API allows 5,000 requests an hour; the app sends at most 60 a minute and keeps lists 30 minutes and a bill's details an hour. Bills, actions and the Congressional Research Service's summaries are works of the US government, not under copyright in the US (17 U.S.C. § 105).",
+    docs: [
+      { label: 'Congress.gov API', url: 'https://api.congress.gov/' },
+      { label: 'API documentation (GitHub)', url: 'https://github.com/LibraryOfCongress/api.congress.gov' },
+      { label: 'API keys (api.data.gov)', url: 'https://api.data.gov/docs/developer-manual/' },
+      { label: 'Library of Congress legal', url: 'https://www.loc.gov/legal/' },
     ],
     checked: '2026-10-26', desktop: true,
   },
