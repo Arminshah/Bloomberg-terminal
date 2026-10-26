@@ -1294,6 +1294,7 @@ a.news-item { color: inherit; text-decoration: none; }
 .chg-bar { position: relative; display: inline-block; width: 46px; height: 8px; vertical-align: middle; }
 /* A mover's size against the largest on the list, in the direction's colour. */
 .mover-bar { display: block; height: 8px; min-width: 1px; }
+.link-list { list-style: none; margin: 0; padding: 4px 8px; display: grid; gap: 4px; }
 .mover-bar.up { background: var(--up); }
 .mover-bar.dn { background: var(--dn); }
 .chg-bar > span { position: absolute; top: 0; bottom: 0; }

@@ -71,6 +71,7 @@ import { FOMC } from '../functions/FOMC';
 import { TECH } from '../functions/TECH';
 import { IN } from '../functions/IN';
 import { IYC } from '../functions/IYC';
+import { FED } from '../functions/FED';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -153,6 +154,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'BONDCALC', name: 'Yield & Spread Analysis', category: 'Rates & Credit', classes: ['bond'], desc: 'Fixed-rate bullet calculator: price/yield, accrued, duration, convexity, DV01, G-spread, zero-curve Z-spread, spread risk, scenarios, cash flows and CSV export. Uses explicit contract, benchmark and curve inputs.', component: YAS, example: 'BONDCALC' },
   { code: 'RATEPROBS', name: 'Rate Probabilities', category: 'Rates & Credit', desc: 'Market-implied Fed moves meeting by meeting, from fed funds futures and the FOMC calendar.', component: WIRP },
   { code: 'SWAPCALC', name: 'Swap Manager', category: 'Rates & Credit', desc: 'Fixed/float swap analytics from user-entered zero curves: par coupon, NPV, separate discount/projection curves, cash flows and curve/coupon bump risk. No market swap curve is inferred.', component: SWPM },
+  { code: 'FEDPORTAL', name: 'Federal Reserve', category: 'Rates & Credit', desc: "A portal on the Federal Reserve: the target range and when it last moved, the next decision, the New York Fed's funding rates, the Board's latest announcements, its publications and the app's screens on US rates.", component: FED },
   { code: 'FEDMEETINGS', name: 'FOMC Meetings', category: 'Rates & Credit', desc: "The year's scheduled FOMC announcement days from the Federal Reserve Board's calendar, each decided one with the target range that took effect and the move in basis points, from the New York Fed's daily series; numbered links to the Fed path, central banks and money markets.", component: FOMC, example: 'FOMC' },
   { code: 'CENTRALBANKS', name: 'Central Bank Monitor', category: 'Rates & Credit', desc: 'Policy rates, last moves and next decision dates for major central banks against 2-year yields.', component: CENB },
   { code: 'BONDSEARCH', name: 'Fixed Income Search', category: 'Rates & Credit', desc: 'Search Treasuries and corporate bonds by issuer, rating, maturity and coupon with yields and spreads (browser model; bond prices have no free source).', component: SRCH, example: 'AAPL CORP', unavailable: 'bond prices have no free source' },

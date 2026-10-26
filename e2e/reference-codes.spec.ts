@@ -98,3 +98,18 @@ test("IYC lists the yield curve screens and opens each country's curve", async (
   await expect(panel.locator('.fnh .tab.on, .fnh-actions .act.on').first()).toContainText(/German|DE|Bund/);
   expect(errors).toEqual([]);
 });
+
+test('FED gathers the policy rate, the meetings, the Board’s pages and the screens on US rates', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'FED');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('FEDPORTAL');
+  await expect(panel.locator('.kv')).toContainText('Target range for fed funds');
+  await expect(panel.locator('.kv')).toContainText(/Next decision\d{2}\/\d{2}\/\d{2} \((today|in \d+ days?)\)/);
+  // The browser demo has no Fed rate of its own and says so.
+  await expect(panel.locator('.fnh')).toContainText('reference rate');
+  await expect(panel.getByRole('link', { name: 'Beige Book ↗' })).toHaveAttribute('href', 'https://www.federalreserve.gov/monetarypolicy/publications/beige-book-default.htm');
+  await panel.locator('tbody tr', { hasText: 'Rate probabilities' }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('RATEPROBS');
+  expect(errors).toEqual([]);
+});
