@@ -6,13 +6,13 @@ import { Chg, KV, LivePx, SecLink, Section, openSecurity } from '../components/c
 import { GroupRow, RowNo, useCollapsed } from '../components/Numbered';
 import { fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { periodChange } from '../data/analytics';
+import { periodChange, type Horizon } from '../data/analytics';
 import { CURVES, curveAt, curveMembers, interp, tenorLabel } from '../data/curves';
 import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { DAY_MS } from '../data/calendar';
 import { to32nds } from '../finance/bonds';
 import type { FnProps } from '../terminal/types';
-import { useGroupedRows, useMenu, usePanelId } from '../terminal/panel';
+import { useGroupedRows, useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
 import { RatesSource, RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { policyRates } from '../data/live/policy';
@@ -144,6 +144,86 @@ export function WB(_: FnProps) {
         {engine.realOnly
           ? 'Spreads and curve slope in basis points. Each yield is the figure its source publishes: US Treasury par yields, Bundesbank zero-coupon yields, Bank of England par yields, Japanese Ministry of Finance constant-maturity yields, Bank of Canada benchmark yields and RBA interpolated yields, so methods differ slightly between countries. All are end of day; the Cboe intraday 5, 10 and 30-year Treasury yield indices are separate lines (FVX, TNX, TYX). Countries without a free official source are not listed.'
           : 'Spreads and curve slope in basis points. Simulated curves move with US rates through a country beta.'}
+      </div>
+      <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba']} />
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------- WBMV
+
+const MOVER_PERIODS: { n: number; label: string; h: Horizon }[] = [
+  { n: 1, label: '1D', h: '1D' },
+  { n: 2, label: '5D', h: '5D' },
+  { n: 3, label: '1M', h: '1M' },
+  { n: 4, label: 'YTD', h: 'YTD' },
+];
+
+/** Lines ranked by the size of their move, largest first, rises and falls together; lines without one are left out. */
+export function rankMovers<T extends { chg: number }>(lines: T[]): T[] {
+  return lines.filter((l) => Number.isFinite(l.chg)).sort((a, b) => Math.abs(b.chg) - Math.abs(a.chg));
+}
+
+/**
+ * WBMV, World Bond Movers: every government yield the app has (the lines of BONDS), ranked by how far it moved over
+ * the period, so the markets with the most price action come first.
+ */
+export function WBMV(_: FnProps) {
+  useTick(2);
+  const panel = usePanelId();
+  const [tab, setTab] = useState(1);
+  const period = MOVER_PERIODS[tab - 1];
+  const lines = rankMovers(
+    WB_ROWS.flatMap((r) =>
+      Object.entries(r.ids)
+        .filter(([, id]) => engine.hasSource(id))
+        .map(([tenor, id]) => ({ c: r.c, tenor: Number(tenor), id, chg: periodChange(id, period.h) })),
+    ),
+  );
+  const nums = useNumberedRows('wbmv-rows', lines, 1, (l) => openSecurity(panel, l.id, undefined, 'CHART'), (l) => `${COUNTRY_NAMES[l.c]} ${l.tenor}Y`);
+  const max = Math.max(...lines.map((l) => Math.abs(l.chg)), 0.0001);
+  const up = lines.filter((l) => l.chg > 0).length;
+  return (
+    <div>
+      <FnHeader code="BONDMOVERS" title="World Bond Movers" sub={<>Government yields ranked by their move · <RatesSource /></>} tabs={MOVER_PERIODS.map((p) => ({ n: p.n, label: p.label }))} tab={tab} onTab={setTab} />
+      <div className="pad-s muted">
+        {lines.length ? `${up} of ${lines.length} yields rose over ${period.label === '1D' ? 'the day' : period.label}; the largest moves first.` : 'No government yield has a change for this period yet.'}
+      </div>
+      <table className="tbl">
+        <thead>
+          <tr>
+            <th>Country</th>
+            <th className="num">Tenor</th>
+            <th className="num">Yield</th>
+            <th className="num">{period.label} chg (bp)</th>
+            <th className="hide-m" />
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((l, i) => (
+            <tr key={l.id} className="click" onClick={(e) => openSecurity(panel, l.id, e, 'CHART')}>
+              <td className="amber">
+                <RowNo n={nums[i]} />
+                {COUNTRY_NAMES[l.c]}
+              </td>
+              <td className="num">{l.tenor}Y</td>
+              <td className="num white">
+                <SecLink id={l.id} fn="CHART">
+                  <LivePx id={l.id} />
+                </SecLink>
+              </td>
+              <td className="num">
+                <Chg v={l.chg} bp />
+              </td>
+              <td className="hide-m" style={{ width: '30%' }}>
+                <span className={`mover-bar ${l.chg >= 0 ? 'up' : 'dn'}`} style={{ width: `${(Math.abs(l.chg) / max) * 100}%` }} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="note">
+        Each yield is its official source&apos;s, as on BONDS, so methods differ slightly between countries; changes are in basis points against the close {period.label === '1D' ? 'before' : `at the start of the ${period.label} period`}. Countries without a free official source are not listed.
       </div>
       <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba']} />
     </div>

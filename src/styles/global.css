@@ -1292,6 +1292,10 @@ a.news-item { color: inherit; text-decoration: none; }
 /* WEI: index names in amber, a small bar for the day's change. */
 .tbl.wei .wei-name .sec-link { color: var(--amber); }
 .chg-bar { position: relative; display: inline-block; width: 46px; height: 8px; vertical-align: middle; }
+/* A mover's size against the largest on the list, in the direction's colour. */
+.mover-bar { display: block; height: 8px; min-width: 1px; }
+.mover-bar.up { background: var(--up); }
+.mover-bar.dn { background: var(--dn); }
 .chg-bar > span { position: absolute; top: 0; bottom: 0; }
 .chg-bar > .up { background: var(--up); }
 .chg-bar > .down { background: var(--dn); }

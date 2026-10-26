@@ -35,7 +35,7 @@ import { MOST } from '../functions/MOST';
 import { TOPMOVERS } from '../functions/TOPMOVERS';
 import { EXCH } from '../functions/EXCH';
 import { EQS } from '../functions/EQS';
-import { BTMM, GC, WB, WIRP } from '../functions/RATES';
+import { BTMM, GC, WB, WBMV, WIRP } from '../functions/RATES';
 import { YAS } from '../functions/YAS';
 import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
 import { ECO, ECST } from '../functions/ECO';
@@ -139,6 +139,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'FXOPTION', name: 'FX Option Valuation', category: 'FX & Crypto', desc: 'Vanilla FX option pricer (Garman-Kohlhagen): premium in pips and percent, greeks and expiry P&L.', component: OVML, example: 'FXOPTION EURUSD' },
   // Rates
   { code: 'BONDS', name: 'World Bond Markets', category: 'Rates & Credit', desc: 'Government yields by country and tenor with changes, spreads to Treasuries and Bunds, and curve slope.', component: WB, aliases: ['WORLDBONDS', 'SOVM'] },
+  { code: 'BONDMOVERS', name: 'World Bond Movers', category: 'Rates & Credit', desc: 'Every government yield the app has, ranked by how far it moved over a day, five days, a month or the year to date: the markets with the most price action first.', component: WBMV },
   { code: 'CURVE', name: 'Graph Curves', category: 'Rates & Credit', desc: 'Yield curves (US, Germany, UK, Japan) today versus one week, one month and one year ago.', component: GC, aliases: ['CURVES', 'YIELDS'] },
   { code: 'BONDFUTURES', name: 'World Bond Futures', category: 'Rates & Credit', desc: 'US Treasury futures (2-year to Ultra Bond) in 32nds with change, range and the cash benchmark yield beside each, and SOFR and Fed funds futures with the rate they imply; price or yield view.', component: WBF, example: 'BONDFUTURES' },
   { code: 'MONEYMARKET', name: 'Treasury & Money Markets', category: 'Rates & Credit', desc: 'Fed funds target and New York Fed reference rates, bills, curve spreads and SOFR futures.', component: BTMM },

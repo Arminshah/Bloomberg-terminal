@@ -63,6 +63,7 @@ export const LEGACY_CODES: Record<string, string> = {
   FRD: 'FXFORWARD',
   OVML: 'FXOPTION',
   WB: 'BONDS',
+  WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',
   GC: 'CURVE',
   BTMM: 'MONEYMARKET',
