@@ -302,6 +302,24 @@ test("MANAGEMENT totals each insider's Form 4 purchases, sales and awards, and l
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-management-insiders-fixture.png') });
 });
 
+test('INSD shows the insiders\' Form 4 activity on its own screen, with the same totals as MANAGEMENT', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.insiders = true;
+    fixtures.dataAccuracy = true;
+    process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid';
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'NBIS', 'MENU');
+  await command(page, 'INSD', 'INSIDERS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.insider-total')).toContainText('2 of 2 Form 4 filings read', { timeout: 30_000 });
+  await expect(panel.locator('.insider-total')).toContainText('1 seller sold 25,000 shares (4.01M)');
+  await expect(panel.locator('tbody tr', { hasText: 'Sale · 10b5-1' })).toContainText('160.40');
+  await expect(panel.getByRole('button', { name: '99) Export' })).toBeVisible();
+});
+
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;

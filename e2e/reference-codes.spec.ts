@@ -113,3 +113,12 @@ test('FED gathers the policy rate, the meetings, the Board’s pages and the scr
   await expect(panel.locator('.fnh-code')).toHaveText('RATEPROBS');
   expect(errors).toEqual([]);
 });
+
+test('INSD says the insiders\' filings are read in the desktop app, and generates none', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity INSD');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('INSIDERS');
+  await expect(panel.locator('.empty')).toContainText('read from SEC EDGAR in the desktop app; none are generated');
+  expect(errors).toEqual([]);
+});

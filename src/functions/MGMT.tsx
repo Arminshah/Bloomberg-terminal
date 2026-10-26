@@ -13,6 +13,7 @@ import { loadProxyPay, type Executive, type PayYear, type ProxyPay } from '../da
 import { CODES, loadInsiders, summarize, type InsiderReport, type Person, type Trade } from '../data/live/insiders';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
+import type { SecurityDef } from '../data/types';
 
 const money = (v: number) => (Number.isFinite(v) ? fmtBig(v) : '');
 const ms = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
@@ -154,6 +155,60 @@ export function InsiderSection({ report }: { report: InsiderReport }) {
   );
 }
 
+/** The insiders' Form 4 transactions once read, or what is happening while they are not. */
+function InsiderBody({ s, insiders }: { s: SecurityDef; insiders: ReturnType<typeof useInsiders> }) {
+  if (insiders.loading || !insiders.result) return <div className="empty">Reading the insiders&apos; Form 4 filings from SEC EDGAR…</div>;
+  if (!insiders.result.ok) return <div className="empty">{insiders.result.message}</div>;
+  if (!insiders.result.data.trades.length) {
+    return <div className="empty">No insider transactions in {s.name}&apos;s Form 4 filings of the last 12 months{insiders.result.data.filings ? ` (${insiders.result.data.filings} filings, none readable)` : ''}.</div>;
+  }
+  return <InsiderSection report={insiders.result.data} />;
+}
+
+/** A company's Form 4 filings of the last 12 months, read from SEC EDGAR for a US-listed company (desktop app). */
+function useInsiders(s: SecurityDef) {
+  return useSecLoad(secAvailable() && secTicker(s) ? `insiders:${s.id}` : null, () => loadInsiders(s));
+}
+
+/** Every Form 4 transaction, as a CSV's rows. */
+function insiderCsv(trades: Trade[]): (string | number)[][] {
+  return [
+    ['Date', 'Insider (as filed)', 'Relationship', 'Code', 'Transaction', 'Shares', 'Acquired or disposed', 'Price', 'Held after', 'Ownership', '10b5-1', 'Filed', 'Filing'],
+    ...trades.map((t) => [t.date, t.owner.secName, role(t.owner), t.code, CODES[t.code] ?? '', num(t.shares), t.acquired ? 'A' : 'D', num(t.price), num(t.after), t.direct ? 'Direct' : 'Indirect', t.plan ? 'yes' : '', t.filed, t.link]),
+  ];
+}
+
+/**
+ * INSD, the guides' Insider Shareholder Activity (N02): the insiders' Form 4 purchases, sales, awards and exercises of
+ * the last 12 months on their own screen, each with its filing, and a CSV. MANAGEMENT shows the same beside the
+ * officers.
+ */
+export function INSD({ sec }: FnProps) {
+  const s = sec!;
+  const panel = usePanelId();
+  const insiders = useInsiders(s);
+  const trades = insiders.result?.ok ? insiders.result.data.trades : [];
+  return (
+    <div>
+      <FnHeader
+        code="INSIDERS"
+        title="Insider Transactions"
+        sec={s}
+        sub="Form 4 filings on SEC EDGAR, last 12 months"
+        actions={trades.length ? exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_INSD.csv`, () => insiderCsv(trades)) : undefined}
+      />
+      <QuoteStrip sec={s} />
+      {!secAvailable() ? (
+        <div className="empty">Insiders&apos; Form 4 filings are read from SEC EDGAR in the desktop app; none are generated.</div>
+      ) : !secTicker(s) ? (
+        <div className="empty">Insiders file Form 4 with the SEC for US-listed companies; {s.id} is not one the app can match to an SEC filer.</div>
+      ) : (
+        <InsiderBody s={s} insiders={insiders} />
+      )}
+    </div>
+  );
+}
+
 /** The pay-versus-performance table of the latest proxy statement: the chief executive's and the others' pay by year. */
 function ProxyPayTable({ pay }: { pay: ProxyPay }) {
   const rows: { y: PayYear; name: string; total: number; paid: number; first: boolean }[] = [];
@@ -201,17 +256,14 @@ export function MGMT({ sec }: FnProps) {
   const officers = useMemo(() => real?.officers ?? [], [real]);
   const symbol = yahooSymbolFor(s);
   const proxy = useSecLoad(secAvailable() && secTicker(s) ? `proxypay:${s.id}` : null, () => loadProxyPay(s));
-  const insiders = useSecLoad(secAvailable() && secTicker(s) ? `insiders:${s.id}` : null, () => loadInsiders(s));
+  const insiders = useInsiders(s);
   const people = useMemo(() => (insiders.result?.ok ? summarize(insiders.result.data.trades).people : []), [insiders.result]);
   const executives = useMemo(() => (proxy.result?.ok ? (proxy.result.data?.executives ?? []) : []), [proxy.result]);
   const rows = useMemo(() => executiveRows(officers, executives, people), [officers, executives, people]);
   const csv = () => [
     ['Name', 'Title', 'Age', 'Total pay (Summary Compensation Table, USD)', 'Salary (USD)', 'Pay fiscal year', 'Prior year total (USD)', 'Shares held (Form 4)', 'Net shares 12M (Form 4)'],
     ...rows.map((r) => [r.name, r.title, num(r.age), num(r.pay?.total ?? NaN), num(r.pay?.salary ?? NaN), r.pay ? r.pay.year : '', num(r.pay?.previous ?? NaN), num(r.person?.heldAfter ?? NaN), num(r.person?.netShares ?? NaN)]),
-    ...(insiders.result?.ok && insiders.result.data.trades.length
-      ? [[], ['Form 4 transactions (SEC EDGAR)'], ['Date', 'Insider (as filed)', 'Relationship', 'Code', 'Transaction', 'Shares', 'Acquired or disposed', 'Price', 'Held after', 'Ownership', '10b5-1', 'Filed', 'Filing'],
-         ...insiders.result.data.trades.map((t) => [t.date, t.owner.secName, role(t.owner), t.code, CODES[t.code] ?? '', num(t.shares), t.acquired ? 'A' : 'D', num(t.price), num(t.after), t.direct ? 'Direct' : 'Indirect', t.plan ? 'yes' : '', t.filed, t.link])]
-      : []),
+    ...(insiders.result?.ok && insiders.result.data.trades.length ? [[], ['Form 4 transactions (SEC EDGAR)'], ...insiderCsv(insiders.result.data.trades)] : []),
   ];
   let body;
   if (status === 'sim') {
@@ -293,15 +345,7 @@ export function MGMT({ sec }: FnProps) {
       {body}
       {secAvailable() && secTicker(s) ? (
         <Section title="Insider transactions, last 12 months (SEC Form 4)" right={insiders.result?.ok ? `${insiders.result.data.trades.length} transactions` : 'SEC EDGAR'}>
-          {insiders.loading || !insiders.result ? (
-            <div className="empty">Reading the insiders&apos; Form 4 filings from SEC EDGAR…</div>
-          ) : !insiders.result.ok ? (
-            <div className="empty">{insiders.result.message}</div>
-          ) : !insiders.result.data.trades.length ? (
-            <div className="empty">No insider transactions in {s.name}&apos;s Form 4 filings of the last 12 months{insiders.result.data.filings ? ` (${insiders.result.data.filings} filings, none readable)` : ''}.</div>
-          ) : (
-            <InsiderSection report={insiders.result.data} />
-          )}
+          <InsiderBody s={s} insiders={insiders} />
         </Section>
       ) : null}
       {secAvailable() && secTicker(s) ? (

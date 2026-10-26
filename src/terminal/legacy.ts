@@ -67,6 +67,7 @@ export const LEGACY_CODES: Record<string, string> = {
   IN: 'INDEXLIST',
   IYC: 'CURVEMENU',
   FED: 'FEDPORTAL',
+  INSD: 'INSIDERS',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',
