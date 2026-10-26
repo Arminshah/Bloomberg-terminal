@@ -9,6 +9,25 @@ For the Claude session that takes over Armin Terminal on the owner's other accou
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
 - **Last release**: 2.26.0 (tag `v2.26.0`, 26 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.26.0.md`.
 
+## The objective (the owner's, 26 October 2026)
+
+The closest legally and technically achievable functional equivalent of the provider's terminal: 1:1 parity in commands, navigation, workflows, keyboard shortcuts, screen behaviour, analytics, calculations, data presentation, multiple windows and completeness. It is not an app merely inspired by it. Work by these principles:
+
+1. **Functional parity.** Where a workflow is documented well enough, build the same behaviour, not a simplified version of it.
+2. **Interface fidelity.** Match the functional arrangement, information density, interaction patterns and feel as closely as practicable, with original visual assets and none of the provider's branding.
+3. **Financial accuracy.** Validated formulas, correct market conventions, verified data from suitable providers. Never fabricate missing data.
+4. **Completeness.** A screen that renders is not finished: every control, filter, command, calculation, export and interaction on it must work.
+5. **Research depth.** Use every lawfully accessible reference (PDFs, screenshots, tutorials, videos, technical documentation) and study the interactions and workflows in detail.
+6. **Evidence discipline.** Keep verified behaviour apart from reasonable assumption. Where the evidence is thin, research further or record the limit (`docs/bloomberg-parity.md`).
+7. **Independent implementation.** Original code only. Never take the provider's source code, protected assets or restricted datasets.
+8. **Integration.** Securities, portfolios, charts, screening, analytics and workspaces share the same data and navigation.
+9. **Testing.** Check the maths, the behaviour, the integration, edge cases and the UI separately. Tests alone are not proof of parity.
+10. **A running parity audit.** Keep the evidence-backed gap analysis in `docs/bloomberg-parity.md` current with what the app actually does.
+
+Never lower fidelity on purpose to make the app look different. Separate what is genuinely protected (the provider's own wording, artwork, logos, name, source code) and licensed data the app cannot get from ordinary software behaviour, which can be rebuilt. Continue the roadmap in `docs/TODO.md` (PORTFOLIO, BONDCALC and the rest); do not restart finished work, remove working features, or merge or release without the owner's approval.
+
+The repository is public for GitHub's free usage, not to share research material: copyrighted reference files stay out of its history.
+
 ## Starting on the new account
 
 1. Attach the repository, check out the branch above, run `npm ci`, then the checks under "How to work on it". They all passed at handover.
@@ -19,7 +38,7 @@ For the Claude session that takes over Armin Terminal on the owner's other accou
 
 - **Real data only.** No invented or simulated values in the desktop app; a labelled blank beats a plausible wrong number. Say where each figure comes from.
 - **API keys**: never commit one, and never let one into a release build (the app keeps keys in the main process, encrypted with Windows' safeStorage, entered on PROVIDERS; a desktop test checks that a `.env` beside the source is ignored). The owner relaxed the earlier caution: you may use the keys freely in the sandbox, passed as environment variables (`set -a; . <file>; set +a`).
-- **Reference material**: study any document, screenshot or video frame the owner gives in full detail; functionality, commands, workflows and calculations are free to rebuild in original code (CJEU, SAS Institute v World Programming, C‑406/10; Directive 2009/24, Article 1(2)). The repository is public, so whole PDFs, screenshots and frames stay out of Git: they go in the git-ignored `reference/` folder. Short attributed quotations in the docs are fine where the exact wording is the evidence. The app takes the function, never the other product's wording, graphic design, logos or name.
+- **Reference material**: study any document, screenshot or video frame the owner gives in full detail; functionality, commands, workflows and calculations are free to rebuild in original code (CJEU, SAS Institute v World Programming, C‑406/10; Directive 2009/24, Article 1(2)). The repository is public, so whole PDFs, screenshots and frames stay out of Git: they go in the git-ignored `reference/` folder. Short attributed quotations in the docs are fine where the exact wording is the evidence. The app reproduces the function, layout and behaviour as closely as practicable (the objective above), drawn with its own assets: never the other product's text, artwork, logos or name.
 - **No branding of the other product** in the app or the release notes: not its name, logo or login (a test fails if a release note names it).
 - **Windows only** for the desktop app. Push only to the branch above. No pull request, merge or release unless the owner asks.
 - **Never weaken, skip or delete a test.** Never report as checked anything not run. One commit per fix, with a regression test. Run lint, type checks, unit tests, the build and both Playwright suites before each push.
