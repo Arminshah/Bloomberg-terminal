@@ -4,6 +4,8 @@ import { crossesZero, trendChange, trendSeries, trendsFor } from '../src/functio
 import { fiscalYearOf, quarterLines, trendBars, yearLines } from '../src/functions/EM';
 import { bySector, seasonLines, seasonOf, seasonStats, verdict } from '../src/functions/EA';
 import { FIELDS, fitLine, gxPoints, type GxContext } from '../src/functions/GX';
+import { companiesOf, industriesOf, inIndustry, sectorsOf, UNCLASSIFIED } from '../src/functions/CCB';
+import { parseNasdaqListings } from '../src/data/live/earnings-calendar';
 import type { CalendarReport } from '../src/data/live/earnings-calendar';
 import type { Member } from '../src/data/live/index-members';
 import type { Consensus, EstimateTrend, QuarterView } from '../src/data/live/consensus';
@@ -278,5 +280,29 @@ describe('Graphical Cross Sectional (GX)', () => {
   it('opens under GX for an index', () => {
     expect(parse('NDX INDEX GX')).toMatchObject({ kind: 'route', fn: 'CROSSSECTION', sec: { id: 'NDX Index' } });
     expect(parse('GX')).toEqual({ kind: 'route', fn: 'CROSSSECTION' });
+  });
+});
+
+describe('Company Classification Browser (CCB)', () => {
+  const row = (symbol: string, name: string, sector: string, industry: string, marketCap: string) => ({ symbol, name, sector, industry, marketCap, lastsale: '$10.00', country: 'United States' });
+  const answer = parseNasdaqListings(JSON.stringify({ data: { rows: [
+    row('NVDA', 'NVIDIA Corporation Common Stock', 'Technology', 'Semiconductors', '4500000000000'),
+    row('AMD', 'Advanced Micro Devices, Inc. Common Stock', 'Technology', 'Semiconductors', '300000000000'),
+    row('MSFT', 'Microsoft Corporation Common Stock', 'Technology', 'Computer Software: Prepackaged Software', '3800000000000'),
+    row('JPM', 'JP Morgan Chase & Co. Common Stock', 'Finance', 'Major Banks', '800000000000'),
+    row('XYZ', 'Shell Co', '', '', ''),
+  ] } }));
+  const list = companiesOf('data' in answer ? answer.data : undefined);
+
+  it('groups the listed companies by sector and industry, largest market value first, the unclassified last', () => {
+    expect(sectorsOf(list).map((g) => [g.name, g.count, g.cap])).toEqual([['Technology', 3, 8.6e12], ['Finance', 1, 8e11], [UNCLASSIFIED, 1, 0]]);
+    expect(industriesOf(list, 'Technology').map((g) => [g.name, g.count])).toEqual([['Semiconductors', 2], ['Computer Software: Prepackaged Software', 1]]);
+    expect(inIndustry(list, 'Technology', 'Semiconductors').map((l) => [l.symbol, l.name])).toEqual([['NVDA', 'NVIDIA Corporation'], ['AMD', 'Advanced Micro Devices, Inc.']]);
+    expect(inIndustry(list, UNCLASSIFIED, UNCLASSIFIED).map((l) => l.symbol)).toEqual(['XYZ']);
+  });
+
+  it('opens under CCB, on a stock when one is typed', () => {
+    expect(parse('CCB')).toEqual({ kind: 'route', fn: 'CLASSIFICATION' });
+    expect(parse('NVDA CCB')).toMatchObject({ kind: 'route', fn: 'CLASSIFICATION', sec: { id: 'NVDA US Equity' } });
   });
 });

@@ -296,7 +296,9 @@ net.fetch = async (input, init) => {
       return json(out);
     }
     if (url.pathname === '/api/screener/stocks' && fixtures.listingsDown) return new Response('', { status: 503 });
-    if (url.pathname === '/api/screener/stocks') return json({ data: { rows: [{ symbol: 'MMM', name: '3M Company', marketCap: '83552188778.00', country: 'United States', sector: 'Industrials' }, { symbol: 'XYZW', name: 'Synthetic Finnhub-only Co', marketCap: '6100000000.00', country: 'United States', sector: 'Technology' }, ...traded.map(([symbol, lastsale, volume]) => ({ symbol, name: symbol, lastsale: `$${lastsale}`, volume, marketCap: '50000000000.00', country: 'United States', sector: 'Technology' }))] }, status: { rCode: 200 } });
+    // A bank with its industry (CCB); it reports nothing in the calendars above.
+    const bank = [{ symbol: 'JPM', name: 'JP Morgan Chase & Co. Common Stock', marketCap: '800000000000.00', lastsale: '$290.00', country: 'United States', sector: 'Finance', industry: 'Major Banks' }];
+    if (url.pathname === '/api/screener/stocks') return json({ data: { rows: [{ symbol: 'MMM', name: '3M Company', marketCap: '83552188778.00', country: 'United States', sector: 'Industrials' }, { symbol: 'XYZW', name: 'Synthetic Finnhub-only Co', marketCap: '6100000000.00', country: 'United States', sector: 'Technology' }, ...traded.map(([symbol, lastsale, volume]) => ({ symbol, name: symbol, lastsale: `$${lastsale}`, volume, marketCap: '50000000000.00', country: 'United States', sector: 'Technology' })), ...bank] }, status: { rCode: 200 } });
     const date = url.searchParams.get('date');
     const mmm = (back, eps) => ({ eps, surprise: '5.04', time: 'time-pre-market', symbol: 'MMM', name: '3M Company', marketCap: '$83,552,188,778', fiscalQuarterEnding: quarterEnd(back).label, epsForecast: '$2.38', noOfEsts: '6' });
     const rows = fixtures.weekCalendar ? weekRows[date] ?? null

@@ -2,7 +2,7 @@
   "name": "armin-terminal",
   "private": true,
   "version": "2.25.1",
-  "description": "A keyboard-driven market terminal for private use: a desktop app for Windows on data from free public and official sources, with a command line, linked panels, charts and 107 functions, plus an opt-in browser demo.",
+  "description": "A keyboard-driven market terminal for private use: a desktop app for Windows on data from free public and official sources, with a command line, linked panels, charts and 108 functions, plus an opt-in browser demo.",
   "desktopName": "armin-terminal.desktop",
   "author": "Armin",
   "homepage": "https://github.com/arminshah/bloomberg-terminal",

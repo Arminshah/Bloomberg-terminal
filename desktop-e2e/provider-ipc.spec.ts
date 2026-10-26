@@ -445,6 +445,29 @@ test("SIA ranks the market's short interest at FINRA's latest settlement, most s
   await expect(panel.locator('tbody tr').first()).toContainText('SOXL');
 });
 
+test("CCB browses Nasdaq's stock list by sector and industry, and opens on a typed stock's", async ({ desktop: { page } }) => {
+  await command(page, 'CCB', 'CLASSIFICATION');
+  const panel = page.locator('.panel').first();
+  const sectors = panel.getByRole('table', { name: 'Sectors' });
+  // The fixture's stock list: seventeen companies of $50B and one of $6.1B in technology, a bank, 3M in industrials.
+  await expect(sectors.locator('tbody tr').first()).toContainText('Technology', { timeout: 30_000 });
+  await expect(sectors.locator('tbody tr').first()).toContainText('18');
+  await expect(sectors.locator('tbody tr').first()).toContainText('856.1B');
+  await expect(sectors.locator('tbody tr').nth(1)).toContainText('Finance');
+  await sectors.locator('tbody tr', { hasText: 'Industrials' }).click();
+  await expect(panel.locator('.ccb-companies tbody tr')).toHaveCount(1);
+  await expect(panel.locator('.ccb-companies tbody tr')).toContainText('83.55B');
+  await panel.getByLabel('Find a company').fill('sofi');
+  await expect(panel.locator('.ccb-companies tbody tr')).toHaveCount(1);
+  await expect(panel.locator('.ccb-companies tbody tr')).toContainText('SOFI');
+  // A stock typed with the function: its sector and industry, the search cleared.
+  await command(page, 'JPM US CCB', 'CLASSIFICATION');
+  await expect(panel.getByRole('table', { name: 'Sectors' }).locator('tr.sel')).toContainText('Finance', { timeout: 30_000 });
+  await expect(panel.getByRole('table', { name: 'Industries' }).locator('tr.sel')).toContainText('Major Banks');
+  await expect(panel.getByLabel('Find a company')).toHaveValue('');
+  await expect(panel.locator('.ccb-companies tbody tr')).toContainText('JP Morgan Chase & Co.');
+});
+
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;

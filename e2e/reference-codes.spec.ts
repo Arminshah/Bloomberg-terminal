@@ -183,3 +183,12 @@ test("GX says an index's cross section is the desktop app's, and plots nothing i
   await expect(panel.locator('canvas')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("CCB says the classification is the desktop app's, and generates none in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'CCB');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('CLASSIFICATION');
+  await expect(panel.locator('.empty')).toContainText("Nasdaq\u2019s stock list in the desktop app");
+  expect(errors).toEqual([]);
+});
