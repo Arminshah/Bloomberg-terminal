@@ -2,7 +2,7 @@
 
 Generated on 23 Oct 2026 from the registry (`src/terminal/registry.ts`), the mnemonic table (`src/terminal/legacy.ts`) and the mnemonics found in reference documents 1-33 (read from my own notes and, for documents 13, 18, 19 and 21-32, from the documents' text layer by pattern). Document numbers as in `docs/audit-v2.23.0.md` section 2; #33 is the Getting Started Guide for Students, whose text document #1 shares. Only codes and document numbers are reproduced here.
 
-Totals: 525 codes in the documents. 91 open a screen in the app; 10 are market sector keys (typed alone they open that sector's MENU); 55 are missing but could be built from free data (class a); 348 are missing and are the provider's own content, platform or account services, or data with no free source identified (class b); 21 are not functions (office cities, keys, words caught by the pattern).
+Totals: 525 codes in the documents. 91 open a screen in the app; 10 are market sector keys (typed alone they open that sector's MENU); 54 are missing but could be built from free data (class a); 349 are missing and are the provider's own content, platform or account services, or data with no free source identified (class b); 21 are not functions (office cities, keys, words caught by the pattern).
 
 ## 1. The app's functions
 
@@ -406,7 +406,7 @@ Status: a function code means the code opens that screen; **a** missing, could b
 | ISSD | #4 | b |  |
 | IVSP | #28 | b |  |
 | IYC | #4 | **a** | CURVE for more countries |
-| JOBS | #19, #33 | **a** | BLS employment data |
+| JOBS | #19, #33 | b | the terminal's job board (V06, "Bloomberg Job Postings"); classed **a** as BLS data until 26 Oct 2026 |
 | LALT | #4 | b |  |
 | LANG | #4, #20, #33 | b |  |
 | LEAD | #30 | b |  |
@@ -631,6 +631,44 @@ Status: a function code means the code opens that screen; **a** missing, could b
 | YAS | #4, #6, #19, #33 | BONDCALC |  |
 | YASN | #4 | b |  |
 | YTC | #4 | b |  |
+
+## 2a. The class a codes checked against the atlas's guides
+
+Added 26 October 2026. The class a notes in section 2 say what each code could be built from; they were written from my notes on documents 1 to 33, and one was wrong: JOBS is the terminal's job board, not employment statistics (now class b). Before building any of them, each was looked up in the guides of the reference atlas that are on hand: V01 (Babson, equity valuation), V04 (the students' getting-started guide, 2017), V06 (a training booklet), the cheat sheets N02 to N07, and P02 (an index methodology). Documents 1 to 33 are not on this machine.
+
+Described in those guides (27):
+
+| Code | What the guide calls it | Where |
+|---|---|---|
+| BILL | U.S. Government Legislation | N02 |
+| CACT | Corporate Action Calendar: buybacks, capital changes, distributions, across companies | N02, V04 |
+| CCB | Company Classification Browser | N02 |
+| CCRV | Commodity Forward Curves: all contract months of a commodity on an exchange | N06, V04 |
+| CTM | Exchange Contracts: search for futures contracts by filters | N06, V04 |
+| EA | Earnings Analysis; Earnings Season Results | N02, N04, N06 |
+| ECFC | Economic Forecasts, by region, with prior years | N02, V06 |
+| ECOW | Economic Data Chart | N06 |
+| ECTR | Trade flows: exports and imports between a country and its partners | V06 |
+| ECWB | Economic Workbench | N02 |
+| EEG | Earnings Estimates Graph: how consensus estimates change over time | N02, V01 |
+| EM | Earnings Trends: past earnings and growth rates against estimates | N02, V01 |
+| EQBT | Equity Backtesting | N02 |
+| FED | A portal on the Federal Reserve: news, FOMC releases, functions | V04 |
+| FLNG | 13F Filings; search for 13F filings | N04, N05, N06 |
+| GX | Graphical Cross Sectional | N02 |
+| HL | Help search by keyword | V04, V05 |
+| HRA | Regression Analysis | N02 |
+| IN | The page listing equity indices | P02 |
+| INSD | Insider Shareholder Activity | N02 |
+| IYC | A menu of yield curve analytics, by country, now and in the past | V04 |
+| RELS | A company's related securities and capital structure | V04 |
+| SIA | Short Interest Analysis | N02 |
+| SOVM | Real Time Sovereign Debt | N03 |
+| TECH | The list of technical studies for charts | V06 |
+| WBMV | World Bond Movers: sovereign debt with the most price action | N07, V04 |
+| WECO | World Economic Calendars | N04, N06 |
+
+Not described in those guides (27), so not yet checked: AGS, BOE, BOJ, CBRT, CT, DOTS, ECB, FXCA, GAS, GEW, GY, HLDR, MINE, MRV, MYN, NGAS, NLRT, OIL, OVDV, PD, PSRT, RANK, SURP, WATC, WCR, WEIS, WM. They wait for documents 1 to 33, or for the videos.
 
 ## 3. Codes from Codex's list of Bloomberg videos
 
