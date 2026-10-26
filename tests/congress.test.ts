@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { amountRange as mainRange, assetParts, docRef, FmpTradeLog, filingYear, labelOf, parseAnnual, parseHouseIndex, parseHouseMembers, parsePtr, parseSenators, unzipFile } from '../electron/congress.cjs';
 import { fmpCongressRequest } from '../electron/fmp.cjs';
-import { pdfLines } from '../electron/pdf-text.cjs';
+import { pdfLines, workerUrl } from '../electron/pdf-text.cjs';
 import {
   amountRange,
   daysToDisclose,
@@ -76,6 +76,13 @@ describe("the House Clerk's documents", () => {
     const m = parsePtr(await read('9116378.pdf'));
     expect(m.scanned).toBe(true);
     expect(m.transactions).toEqual([]);
+  });
+
+  it("runs PDF.js's worker in this process without importing it by a path, which Windows refuses", async () => {
+    await read('20033800.pdf');
+    // PDF.js takes a worker module already loaded and never calls import(workerSrc), where "D:\..." fails.
+    expect((globalThis as { pdfjsWorker?: { WorkerMessageHandler?: unknown } }).pdfjsWorker?.WorkerMessageHandler).toBeDefined();
+    expect(workerUrl('/app/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')).toBe('file:///app/node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs');
   });
 
   it("reads an annual report's assets (Schedule A) with their value ranges", async () => {

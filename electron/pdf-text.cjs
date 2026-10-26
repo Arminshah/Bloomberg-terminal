@@ -21,14 +21,25 @@ function refuseCanvas() {
   Module._load = guarded;
 }
 
-/** PDF.js's Node build, loaded on first use. */
+/**
+ * PDF.js's Node build, loaded on first use. Its worker runs in this process: PDF.js uses a worker module already loaded
+ * as globalThis.pdfjsWorker, else it calls import(workerSrc). On Windows a plain path ("D:\...") is no module URL and
+ * that import fails, so the worker is loaded here and workerSrc is a file: URL.
+ */
 async function lib() {
   if (!pdfjs) {
     refuseCanvas();
-    pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-    pdfjs.GlobalWorkerOptions.workerSrc = require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs');
+    const lib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    globalThis.pdfjsWorker ??= await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
+    lib.GlobalWorkerOptions.workerSrc = workerUrl(require.resolve('pdfjs-dist/legacy/build/pdf.worker.mjs'));
+    pdfjs = lib;
   }
   return pdfjs;
+}
+
+/** A module path as the file: URL import() takes on every system. */
+function workerUrl(file) {
+  return require('node:url').pathToFileURL(file).href;
 }
 
 /**
@@ -71,4 +82,4 @@ async function pdfLines(bytes, maxPages = 200) {
   }
 }
 
-module.exports = { pdfLines, linesOf };
+module.exports = { pdfLines, linesOf, workerUrl };
