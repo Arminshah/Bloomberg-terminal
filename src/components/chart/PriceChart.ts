@@ -1,6 +1,7 @@
 import { bollinger, ema, macd, rsi, sma } from '../../finance/indicators';
 import type { Series } from '../../data/series';
 import { fmtBig, fmtDay, fmtMonthDayNum, fmtNum, MONTHS } from '../../core/format';
+import { backingSize, crispDash, crispEdge, crispLine, crispWidth, deviceBox, watchPixelRatio } from './pixels';
 
 export type ChartType = 'line' | 'mountain' | 'candle' | 'bar';
 export type LowerKind = 'VOL' | 'RSI' | 'MACD';
@@ -106,7 +107,10 @@ export class PriceChart {
   private ro: ResizeObserver;
   private w = 0;
   private h = 0;
-  private dpr = 1;
+  /** Backing-store pixels per CSS pixel, across and down. */
+  private sx = 1;
+  private sy = 1;
+  private stopRatio: () => void;
   private s: Series | null = null;
   private opt: ChartOptions | null = null;
   private v0 = 0;
@@ -134,9 +138,16 @@ export class PriceChart {
     this.canvas.style.touchAction = 'none';
     this.canvas.style.cursor = 'crosshair';
     host.appendChild(this.canvas);
-    this.ctx = this.canvas.getContext('2d')!;
-    this.ro = new ResizeObserver(() => this.resize());
+    // Opaque: the chart paints its own black background, and Chromium then skips blending and draws sharper text.
+    this.ctx = this.canvas.getContext('2d', { alpha: false })!;
+    this.ro = new ResizeObserver((entries) => this.resize(deviceBox(entries.find((e) => e.target === this.canvas))));
     this.ro.observe(host);
+    try {
+      this.ro.observe(this.canvas, { box: 'device-pixel-content-box' });
+    } catch {
+      // Without device-pixel boxes, the size comes from the element's exact size times the ratio.
+    }
+    this.stopRatio = watchPixelRatio(() => this.resize());
     this.resize();
     this.bind();
     if (document.fonts?.ready) document.fonts.ready.then(() => this.schedule()).catch(() => undefined);
@@ -145,6 +156,7 @@ export class PriceChart {
   destroy() {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
+    this.stopRatio();
     this.canvas.remove();
   }
 
@@ -198,14 +210,47 @@ export class PriceChart {
     this.zoomAt(mid, factor);
   }
 
-  private resize() {
+  /** Sizes the backing store to the element's device pixels, at the real ratio (125%, 150% or 250% scaling alike). */
+  private resize(device?: { width: number; height: number }) {
     const r = this.host.getBoundingClientRect();
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
-    this.w = Math.max(10, Math.floor(r.width));
-    this.h = Math.max(10, Math.floor(r.height));
-    this.canvas.width = Math.floor(this.w * this.dpr);
-    this.canvas.height = Math.floor(this.h * this.dpr);
+    const dpr = window.devicePixelRatio || 1;
+    this.w = Math.max(10, r.width);
+    this.h = Math.max(10, r.height);
+    // The canvas's own device box, unless it is not the host's size (yet).
+    const fits = device && Math.abs(device.width - this.w * dpr) < 2 && Math.abs(device.height - this.h * dpr) < 2;
+    const size = backingSize(this.w, this.h, dpr, fits ? device : undefined);
+    if (this.canvas.width !== size.width) this.canvas.width = size.width;
+    if (this.canvas.height !== size.height) this.canvas.height = size.height;
+    this.sx = size.width / this.w;
+    this.sy = size.height / this.h;
     this.draw();
+  }
+
+  /** A vertical line's x, a horizontal line's y, on whole device pixels. */
+  private lx(x: number) {
+    return crispLine(x, this.sx);
+  }
+
+  private ly(y: number) {
+    return crispLine(y, this.sy);
+  }
+
+  /** One device pixel or more: the hairline of grids, axes and wicks. */
+  private hair() {
+    return crispWidth(Math.min(this.sx, this.sy));
+  }
+
+  private dash(pattern: number[]) {
+    return crispDash(pattern, Math.min(this.sx, this.sy));
+  }
+
+  /** A filled rectangle whose edges are on device pixels, at least one device pixel each way. */
+  private box(x: number, y: number, w: number, h: number) {
+    const x0 = crispEdge(x, this.sx);
+    const y0 = crispEdge(y, this.sy);
+    const x1 = Math.max(x0 + 1 / this.sx, crispEdge(x + w, this.sx));
+    const y1 = Math.max(y0 + 1 / this.sy, crispEdge(y + h, this.sy));
+    this.ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
   }
 
   private schedule() {
@@ -382,7 +427,7 @@ export class PriceChart {
   private draw() {
     const ctx = this.ctx;
     const T = CHART_THEME;
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.setTransform(this.sx, 0, 0, this.sy, 0, 0);
     ctx.fillStyle = T.bg;
     ctx.fillRect(0, 0, this.w, this.h);
     const s = this.s;
@@ -459,12 +504,12 @@ export class PriceChart {
     const step = niceStep(hi - lo, Math.max(3, Math.floor(main.h / 46)));
     const tickDec = pct ? decimalsFor(step, 2) : Math.max(decimalsFor(step, opt.dec), Math.min(opt.dec, decimalsFor(step, 6)));
     ctx.strokeStyle = T.grid;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = this.hair();
     ctx.fillStyle = T.axisText;
     ctx.textAlign = 'left';
     for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
-      const y = Math.round(yAt(v)) + 0.5;
-      ctx.setLineDash([2, 3]);
+      const y = this.ly(yAt(v));
+      ctx.setLineDash(this.dash([2, 3]));
       ctx.beginPath();
       ctx.moveTo(LEFT, y);
       ctx.lineTo(plotRight, y);
@@ -478,13 +523,13 @@ export class PriceChart {
     ctx.strokeStyle = T.gridStrong;
     for (const p of panes.slice(1)) {
       ctx.beginPath();
-      ctx.moveTo(LEFT, Math.round(p.top) + 0.5);
-      ctx.lineTo(this.w, Math.round(p.top) + 0.5);
+      ctx.moveTo(LEFT, this.ly(p.top));
+      ctx.lineTo(this.w, this.ly(p.top));
       ctx.stroke();
     }
     ctx.beginPath();
-    ctx.moveTo(plotRight + 0.5, TOP);
-    ctx.lineTo(plotRight + 0.5, this.h - AXIS_H);
+    ctx.moveTo(this.lx(plotRight), TOP);
+    ctx.lineTo(this.lx(plotRight), this.h - AXIS_H);
     ctx.stroke();
 
     ctx.save();
@@ -494,9 +539,9 @@ export class PriceChart {
 
     // Reference line (previous close).
     if (opt.refLine && !pct && Number.isFinite(opt.refLine.value)) {
-      const y = Math.round(yAt(opt.refLine.value)) + 0.5;
+      const y = this.ly(yAt(opt.refLine.value));
       ctx.strokeStyle = T.ref;
-      ctx.setLineDash([5, 4]);
+      ctx.setLineDash(this.dash([5, 4]));
       ctx.beginPath();
       ctx.moveTo(LEFT, y);
       ctx.lineTo(plotRight, y);
@@ -539,8 +584,8 @@ export class PriceChart {
         const up = s.c[i] >= s.o[i];
         ctx.strokeStyle = up ? T.up : T.dn;
         ctx.fillStyle = up ? T.up : T.dn;
-        ctx.lineWidth = 1;
-        const xr = Math.round(x) + 0.5;
+        ctx.lineWidth = this.hair();
+        const xr = this.lx(x);
         if (opt.type === 'candle') {
           ctx.beginPath();
           ctx.moveTo(xr, h);
@@ -548,17 +593,17 @@ export class PriceChart {
           ctx.stroke();
           const top = Math.min(o, c);
           const hgt = Math.max(1, Math.abs(c - o));
-          if (body >= 3) ctx.fillRect(Math.round(x - body / 2), top, Math.round(body), hgt);
-          else ctx.fillRect(xr - 0.5, top, 1, hgt);
+          if (body >= 3) this.box(x - body / 2, top, body, hgt);
+          else this.box(xr - this.hair() / 2, top, this.hair(), hgt);
         } else {
           const tick = Math.max(1, body / 2);
           ctx.beginPath();
           ctx.moveTo(xr, h);
           ctx.lineTo(xr, l);
-          ctx.moveTo(xr - tick, o);
-          ctx.lineTo(xr, o);
-          ctx.moveTo(xr, c);
-          ctx.lineTo(xr + tick, c);
+          ctx.moveTo(xr - tick, this.ly(o));
+          ctx.lineTo(xr, this.ly(o));
+          ctx.moveTo(xr, this.ly(c));
+          ctx.lineTo(xr + tick, this.ly(c));
           ctx.stroke();
         }
       }
@@ -663,8 +708,9 @@ export class PriceChart {
     const loV = useHL ? s.l[loI] : s.c[loI];
     if (opt.annotate && !pct) {
       ctx.strokeStyle = 'rgba(255,158,27,0.45)';
-      ctx.setLineDash([1, 3]);
-      const ya = Math.round(yAt(avg)) + 0.5;
+      ctx.lineWidth = this.hair();
+      ctx.setLineDash(this.dash([1, 3]));
+      const ya = this.ly(yAt(avg));
       ctx.beginPath();
       ctx.moveTo(LEFT, ya);
       ctx.lineTo(plotRight, ya);
@@ -693,10 +739,11 @@ export class PriceChart {
     // Crosshair.
     if (this.hover && hoverIndex != null) {
       const idx = hoverIndex;
-      const x = Math.round(this.xAt(idx)) + 0.5;
-      const y = Math.round(this.hover.y) + 0.5;
+      const x = this.lx(this.xAt(idx));
+      const y = this.ly(this.hover.y);
       ctx.strokeStyle = T.cross;
-      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = this.hair();
+      ctx.setLineDash(this.dash([3, 3]));
       ctx.beginPath();
       ctx.moveTo(x, TOP);
       ctx.lineTo(x, this.h - AXIS_H);
@@ -713,7 +760,7 @@ export class PriceChart {
       const tw = ctx.measureText(label).width + 10;
       const tx = Math.min(Math.max(LEFT, x - tw / 2), plotRight - tw);
       ctx.fillStyle = '#e8e8e8';
-      ctx.fillRect(tx, this.h - AXIS_H + 1, tw, AXIS_H - 2);
+      this.box(tx, this.h - AXIS_H + 1, tw, AXIS_H - 2);
       ctx.fillStyle = '#000';
       ctx.textAlign = 'left';
       ctx.fillText(label, tx + 5, this.h - AXIS_H / 2);
@@ -757,7 +804,7 @@ export class PriceChart {
     const ctx = this.ctx;
     const x = LEFT + this.plotW() + 1;
     ctx.fillStyle = bg;
-    ctx.fillRect(x, y - 8, AXIS_W - 2, 16);
+    this.box(x, y - 8, AXIS_W - 2, 16);
     ctx.fillStyle = fg;
     ctx.font = bold ? CHART_THEME.fontB : CHART_THEME.font;
     ctx.textAlign = 'left';
@@ -841,9 +888,9 @@ export class PriceChart {
     ctx.textBaseline = 'middle';
     let lastX = -Infinity;
     for (const tk of ticks) {
-      const x = Math.round(this.xAt(tk.i) - this.plotW() / (this.v1 - this.v0) / 2) + 0.5;
+      const x = this.lx(this.xAt(tk.i) - this.plotW() / (this.v1 - this.v0) / 2);
       ctx.strokeStyle = tk.strong ? T.gridStrong : T.grid;
-      ctx.setLineDash(tk.strong ? [] : [2, 3]);
+      ctx.setLineDash(tk.strong ? [] : this.dash([2, 3]));
       ctx.beginPath();
       ctx.moveTo(x, TOP);
       ctx.lineTo(x, this.h - AXIS_H);
@@ -885,8 +932,9 @@ export class PriceChart {
       const w = Math.max(1, Math.min(bw * 0.7, 18));
       for (let i = i0; i <= i1; i++) {
         const hgt = (s.v[i] / max) * (p.h - 14);
+        if (!(hgt > 0)) continue;
         ctx.fillStyle = s.c[i] >= s.o[i] ? T.upFill : T.dnFill;
-        ctx.fillRect(Math.round(this.xAt(i) - w / 2), p.top + p.h - hgt, Math.max(1, Math.round(w)), hgt);
+        this.box(this.xAt(i) - w / 2, p.top + p.h - hgt, w, hgt);
       }
       label(`Volume ${fmtBig(s.v[inspected])}`);
       ctx.restore();
@@ -897,11 +945,12 @@ export class PriceChart {
       const r = this.ind.rsi;
       const y = (v: number) => p.top + 4 + ((100 - v) / 100) * (p.h - 8);
       ctx.strokeStyle = T.gridStrong;
-      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = this.hair();
+      ctx.setLineDash(this.dash([3, 3]));
       for (const lv of [30, 70]) {
         ctx.beginPath();
-        ctx.moveTo(LEFT, Math.round(y(lv)) + 0.5);
-        ctx.lineTo(right, Math.round(y(lv)) + 0.5);
+        ctx.moveTo(LEFT, this.ly(y(lv)));
+        ctx.lineTo(right, this.ly(y(lv)));
         ctx.stroke();
       }
       ctx.setLineDash([]);
@@ -938,7 +987,7 @@ export class PriceChart {
         ctx.fillStyle = v >= 0 ? T.upFill : T.dnFill;
         const y0 = y(0);
         const y1 = y(v);
-        ctx.fillRect(Math.round(this.xAt(i) - w / 2), Math.min(y0, y1), Math.max(1, Math.round(w)), Math.abs(y1 - y0));
+        if (y1 !== y0) this.box(this.xAt(i) - w / 2, Math.min(y0, y1), w, Math.abs(y1 - y0));
       }
       for (const [arr, col] of [[m.macd, '#45d3e6'], [m.signal, '#ff9e1b']] as const) {
         ctx.strokeStyle = col;
@@ -1024,13 +1073,14 @@ export class PriceChart {
     const boxW = maxW + 22;
     const boxH = rows.length * lineH + 6;
     ctx.fillStyle = 'rgba(0,0,0,0.78)';
-    ctx.fillRect(LEFT + 4, TOP + 2, boxW, boxH);
+    this.box(LEFT + 4, TOP + 2, boxW, boxH);
     ctx.strokeStyle = '#2a2a2a';
-    ctx.strokeRect(LEFT + 4.5, TOP + 2.5, boxW, boxH);
+    ctx.lineWidth = this.hair();
+    ctx.strokeRect(this.lx(LEFT + 4), this.ly(TOP + 2), crispEdge(boxW, this.sx), crispEdge(boxH, this.sy));
     rows.forEach((r, i) => {
       const y = TOP + 2 + 3 + lineH * i + lineH / 2;
       ctx.fillStyle = r.c;
-      ctx.fillRect(LEFT + 10, y - 1, 7, 2);
+      this.box(LEFT + 10, y - 1, 7, 2);
       ctx.fillStyle = r.k === opt.label || i === 0 ? T.text : T.axisText;
       ctx.fillText(r.k, LEFT + 21, y);
       ctx.fillStyle = r.c;

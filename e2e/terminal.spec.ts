@@ -594,6 +594,48 @@ test('workspace tabs open, keep each workspace, rename, close and reopen as a br
   expect(errors).toEqual([]);
 });
 
+test('charts draw one backing pixel per device pixel at 125% and 150% scaling, and again when the scaling changes', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1.25 });
+  const page = await context.newPage();
+  // Chromium's emulated ratio changes no media query's state, so the test sends the change a screen change would.
+  await page.addInitScript(() => {
+    const lists: MediaQueryList[] = [];
+    const original = window.matchMedia.bind(window);
+    window.matchMedia = (query: string) => {
+      const list = original(query);
+      if (query.startsWith('(resolution')) lists.push(list);
+      return list;
+    };
+    (window as Window & { screenChanged?: () => void }).screenChanged = () => lists.splice(0).forEach((l) => l.dispatchEvent(new Event('change')));
+  });
+  const errors = await boot(page, '1');
+  // Each canvas: its backing store, the size it should have at the window's ratio, and whether it is opaque.
+  const sizes = () => page.locator('.panel canvas').evaluateAll((list) => list.map((el) => {
+    const c = el as HTMLCanvasElement;
+    const r = c.getBoundingClientRect();
+    return { w: c.width, h: c.height, want: [r.width * devicePixelRatio, r.height * devicePixelRatio], alpha: c.getContext('2d')!.getContextAttributes().alpha };
+  }));
+  const sharp = async (count: number) => {
+    await expect.poll(async () => (await sizes()).length).toBe(count);
+    await expect.poll(async () => (await sizes()).every((s) => Math.abs(s.w - s.want[0]) <= 1 && Math.abs(s.h - s.want[1]) <= 1)).toBe(true);
+    expect((await sizes()).every((s) => s.alpha === false)).toBe(true);
+  };
+  await run(page, 'AAPL US Equity GP');
+  await sharp(1);
+  expect((await sizes())[0].w).toBeGreaterThan(1280);
+  // The window moves to a screen at 150%: the chart is drawn again at the new ratio, without being resized.
+  const cdp = await context.newCDPSession(page);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1.5, mobile: false });
+  await expect.poll(() => page.evaluate(() => devicePixelRatio)).toBe(1.5);
+  await page.evaluate(() => (window as Window & { screenChanged?: () => void }).screenChanged?.());
+  await sharp(1);
+  // The scatter of BETA is the other kind of chart.
+  await run(page, 'AAPL US Equity BETA');
+  await sharp(1);
+  expect(errors).toEqual([]);
+  await context.close();
+});
+
 test('with more tabs than the bar holds, the tabs scroll to the active one and + stays in sight', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 700 });
   const errors = await boot(page);

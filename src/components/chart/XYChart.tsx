@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { CHART_THEME } from './PriceChart';
 import { fmtNum } from '../../core/format';
+import { backingSize, crispDash, crispEdge, crispLine, crispWidth, deviceBox, watchPixelRatio } from './pixels';
 
 export interface XYPoint {
   x: number;
@@ -66,21 +67,38 @@ export function XYChart(props: Props) {
   useEffect(() => {
     const el = host.current!;
     const cv = canvas.current!;
-    const ctx = cv.getContext('2d')!;
+    // Opaque, as the chart paints its own black background: Chromium then skips blending and draws sharper text.
+    const ctx = cv.getContext('2d', { alpha: false })!;
     let w = 0;
     let h = 0;
+    // The canvas's device-pixel box, from the resize observer where the browser reports it.
+    let device: { width: number; height: number } | undefined;
     const draw = () => {
       // Points without a value (a missing estimate, say) are left out rather than breaking the scale.
       const p = { ...propsRef.current, series: propsRef.current.series.map((s) => ({ ...s, points: s.points.filter((q) => Number.isFinite(q.x) && Number.isFinite(q.y)) })) };
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      // The backing store matches the element's device pixels at the real ratio (125%, 150% or 250% scaling alike).
+      const dpr = window.devicePixelRatio || 1;
       const r = el.getBoundingClientRect();
-      w = Math.max(10, Math.floor(r.width));
-      h = Math.max(10, Math.floor(r.height));
-      if (cv.width !== Math.floor(w * dpr) || cv.height !== Math.floor(h * dpr)) {
-        cv.width = Math.floor(w * dpr);
-        cv.height = Math.floor(h * dpr);
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      w = Math.max(10, r.width);
+      h = Math.max(10, r.height);
+      const fits = device && Math.abs(device.width - w * dpr) < 2 && Math.abs(device.height - h * dpr) < 2;
+      const size = backingSize(w, h, dpr, fits ? device : undefined);
+      if (cv.width !== size.width) cv.width = size.width;
+      if (cv.height !== size.height) cv.height = size.height;
+      const sx = size.width / w;
+      const sy = size.height / h;
+      ctx.setTransform(sx, 0, 0, sy, 0, 0);
+      // Straight lines and filled edges on whole device pixels.
+      const lx = (x: number) => crispLine(x, sx);
+      const ly = (y: number) => crispLine(y, sy);
+      const hair = crispWidth(Math.min(sx, sy));
+      const dash = (d: number[]) => crispDash(d, Math.min(sx, sy));
+      const box = (x: number, y: number, bw: number, bh: number) => {
+        const x0 = crispEdge(x, sx);
+        const y0 = crispEdge(y, sy);
+        ctx.fillRect(x0, y0, Math.max(1 / sx, crispEdge(x + bw, sx) - x0), Math.max(1 / sy, crispEdge(y + bh, sy) - y0));
+      };
+      ctx.lineWidth = hair;
       const T = CHART_THEME;
       ctx.fillStyle = T.bg;
       ctx.fillRect(0, 0, w, h);
@@ -146,9 +164,9 @@ export function XYChart(props: Props) {
       ctx.fillStyle = T.axisText;
       ctx.textAlign = 'left';
       for (let v = Math.ceil(y0 / step) * step; v <= y1; v += step) {
-        const y = Math.round(Y(v)) + 0.5;
+        const y = ly(Y(v));
         ctx.strokeStyle = Math.abs(v) < step / 2 ? T.gridStrong : T.grid;
-        ctx.setLineDash(Math.abs(v) < step / 2 ? [] : [2, 3]);
+        ctx.setLineDash(Math.abs(v) < step / 2 ? [] : dash([2, 3]));
         ctx.beginPath();
         ctx.moveTo(L, y);
         ctx.lineTo(R, y);
@@ -163,11 +181,11 @@ export function XYChart(props: Props) {
         const step2 = (f2 < 1.5 ? 1 : f2 < 3 ? 2 : f2 < 7 ? 5 : 10) * mag2;
         ctx.textAlign = 'right';
         ctx.fillStyle = second[0].color;
-        for (let v = Math.ceil(b0 / step2) * step2; v <= b1; v += step2) ctx.fillText(p.y2Format ? p.y2Format(v) : fmtNum(v, step2 < 0.1 ? 2 : step2 < 1 ? 1 : 0), L - 6, Math.round(Y2(v)) + 0.5);
+        for (let v = Math.ceil(b0 / step2) * step2; v <= b1; v += step2) ctx.fillText(p.y2Format ? p.y2Format(v) : fmtNum(v, step2 < 0.1 ? 2 : step2 < 1 ? 1 : 0), L - 6, ly(Y2(v)));
         ctx.strokeStyle = T.gridStrong;
         ctx.beginPath();
-        ctx.moveTo(L - 0.5, top);
-        ctx.lineTo(L - 0.5, bottom);
+        ctx.moveTo(lx(L - 0.5), top);
+        ctx.lineTo(lx(L - 0.5), bottom);
         ctx.stroke();
       }
       // x ticks
@@ -182,9 +200,9 @@ export function XYChart(props: Props) {
       ctx.textAlign = 'center';
       let lastX = -Infinity;
       for (const t of ticks) {
-        const x = Math.round(X(t.v)) + 0.5;
+        const x = lx(X(t.v));
         ctx.strokeStyle = T.grid;
-        ctx.setLineDash([2, 3]);
+        ctx.setLineDash(dash([2, 3]));
         ctx.beginPath();
         ctx.moveTo(x, top);
         ctx.lineTo(x, bottom);
@@ -199,21 +217,21 @@ export function XYChart(props: Props) {
       }
       ctx.strokeStyle = T.gridStrong;
       ctx.beginPath();
-      ctx.moveTo(R + 0.5, top);
-      ctx.lineTo(R + 0.5, bottom);
-      ctx.moveTo(L, bottom + 0.5);
-      ctx.lineTo(R, bottom + 0.5);
+      ctx.moveTo(lx(R), top);
+      ctx.lineTo(lx(R), bottom);
+      ctx.moveTo(L, ly(bottom));
+      ctx.lineTo(R, ly(bottom));
       ctx.stroke();
       for (const rl of p.refLines ?? []) {
         ctx.strokeStyle = rl.color;
-        ctx.setLineDash([4, 4]);
+        ctx.setLineDash(dash([4, 4]));
         ctx.beginPath();
         if (rl.y != null) {
-          ctx.moveTo(L, Y(rl.y));
-          ctx.lineTo(R, Y(rl.y));
+          ctx.moveTo(L, ly(Y(rl.y)));
+          ctx.lineTo(R, ly(Y(rl.y)));
         } else if (rl.x != null) {
-          ctx.moveTo(X(rl.x), top);
-          ctx.lineTo(X(rl.x), bottom);
+          ctx.moveTo(lx(X(rl.x)), top);
+          ctx.lineTo(lx(X(rl.x)), bottom);
         }
         ctx.stroke();
         ctx.setLineDash([]);
@@ -240,7 +258,7 @@ export function XYChart(props: Props) {
             const x = X(q.x) - (bw * barSeries.length) / 2 + bi * bw;
             const ya = Y(0);
             const yb = Y(q.y);
-            ctx.fillRect(x, Math.min(ya, yb), bw - 1, Math.max(1, Math.abs(yb - ya)));
+            box(x, Math.min(ya, yb), bw - 1, Math.max(1, Math.abs(yb - ya)));
           }
           return;
         }
@@ -269,25 +287,26 @@ export function XYChart(props: Props) {
       });
       // legend
       if (p.legend !== false) {
-        let lx = L + 4;
+        let keyX = L + 4;
         ctx.textAlign = 'left';
         for (const s of p.series) {
           if (!s.label) continue;
           ctx.fillStyle = s.color;
-          ctx.fillRect(lx, 10, 10, 3);
+          box(keyX, 10, 10, 3);
           ctx.fillStyle = T.text;
-          ctx.fillText(s.label, lx + 14, 11);
-          lx += ctx.measureText(s.label).width + 30;
+          ctx.fillText(s.label, keyX + 14, 11);
+          keyX += ctx.measureText(s.label).width + 30;
         }
       }
       // hover: nearest point per series by x
       const hv = hover.current;
       if (hv && hv.x >= L && hv.x <= R && hv.y >= top && hv.y <= bottom) {
         ctx.strokeStyle = T.cross;
-        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = hair;
+        ctx.setLineDash(dash([3, 3]));
         ctx.beginPath();
-        ctx.moveTo(hv.x + 0.5, top);
-        ctx.lineTo(hv.x + 0.5, bottom);
+        ctx.moveTo(lx(hv.x), top);
+        ctx.lineTo(lx(hv.x), bottom);
         ctx.stroke();
         ctx.setLineDash([]);
         const lines: { c: string; t: string }[] = [];
@@ -307,9 +326,9 @@ export function XYChart(props: Props) {
           const bx = hv.x + bw + 12 > R ? hv.x - bw - 8 : hv.x + 8;
           const by = Math.max(top, Math.min(hv.y - 10, bottom - lines.length * 15 - 8));
           ctx.fillStyle = 'rgba(0,0,0,0.85)';
-          ctx.fillRect(bx, by, bw, lines.length * 15 + 6);
+          box(bx, by, bw, lines.length * 15 + 6);
           ctx.strokeStyle = '#333';
-          ctx.strokeRect(bx + 0.5, by + 0.5, bw, lines.length * 15 + 6);
+          ctx.strokeRect(lx(bx), ly(by), crispEdge(bw, sx), crispEdge(lines.length * 15 + 6, sy));
           lines.forEach((l, i) => {
             ctx.fillStyle = l.c;
             ctx.textAlign = 'left';
@@ -319,8 +338,17 @@ export function XYChart(props: Props) {
       }
     };
     drawRef.current = draw;
-    const ro = new ResizeObserver(draw);
+    const ro = new ResizeObserver((entries) => {
+      device = deviceBox(entries.find((e) => e.target === cv)) ?? device;
+      draw();
+    });
     ro.observe(el);
+    try {
+      ro.observe(cv, { box: 'device-pixel-content-box' });
+    } catch {
+      // Without device-pixel boxes, the size comes from the element's exact size times the ratio.
+    }
+    const stopRatio = watchPixelRatio(draw);
     const move = (e: PointerEvent) => {
       const r = cv.getBoundingClientRect();
       hover.current = { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -334,6 +362,7 @@ export function XYChart(props: Props) {
     cv.addEventListener('pointerleave', leave);
     return () => {
       ro.disconnect();
+      stopRatio();
       cv.removeEventListener('pointermove', move);
       cv.removeEventListener('pointerleave', leave);
     };
