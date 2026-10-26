@@ -107,7 +107,8 @@ export const LEGACY_CODES: Record<string, string> = {
   OMON: 'OPTIONS',
   OVME: 'OPTIONCALC',
   OSA: 'OPTIONSTRATEGY',
-  W: 'WATCHLIST',
+  // W is Worksheets in the provider's own chapter list; WATCHLIST keeps WATCH.
+  W: 'WORKSHEET',
   PORT: 'PORTFOLIO',
   ALRT: 'ALERTS',
   CORR: 'CORRELATION',

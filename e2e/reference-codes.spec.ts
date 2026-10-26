@@ -302,3 +302,39 @@ test('FXCA says conversion uses real rates in the desktop app, and converts noth
   await expect(panel.locator('.fxca-big')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('W opens worksheets: securities by fields, fundamentals beside market fields, sorted, added to and saved', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'W');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('WORKSHEET');
+  const rows = panel.getByRole('table', { name: 'Worksheet' }).locator('tbody tr');
+  await expect(rows).toHaveCount(7);
+  const head = panel.getByRole('table', { name: 'Worksheet' }).locator('thead');
+  await expect(head).toContainText('Mkt Cap USD');
+  await expect(head).toContainText('EV/EBITDA');
+  // The browser build's fundamentals are the demo engine's, and say so.
+  await expect(panel.locator('.fnh-sub')).toContainText('demo figures');
+  await expect(rows.first().locator('td').nth(4).locator('span[title]')).toHaveAttribute('title', /Demo engine/);
+  // A column from the picker; a sort by clicking its header.
+  await panel.getByRole('button', { name: 'Columns', exact: true }).click();
+  await panel.getByLabel('Pick columns').getByLabel('Beta').check();
+  await expect(head).toContainText('Beta');
+  await head.getByText('P/E', { exact: true }).click();
+  await expect(head).toContainText('P/E ▼');
+  // A security added, then removed.
+  await panel.getByLabel('Add security to sheet').fill('TSLA');
+  await panel.getByLabel('Add security to sheet').press('Enter');
+  await expect(rows).toHaveCount(8);
+  await panel.getByRole('button', { name: 'Remove TSLA US Equity' }).click();
+  await expect(rows).toHaveCount(7);
+  // A second sheet starts empty; the first keeps its rows.
+  await panel.getByRole('button', { name: 'New sheet', exact: true }).click();
+  await expect(rows).toHaveCount(0);
+  await panel.getByRole('button', { name: /^1\)\s*Sheet 1$/ }).click();
+  await expect(rows).toHaveCount(7);
+  // W with a name opens that sheet.
+  await run(page, 'W SHEET 2');
+  await expect(page.locator('.panel').first().getByRole('table', { name: 'Worksheet' }).locator('tbody tr')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

@@ -128,7 +128,8 @@ describe('mnemonic command aliases', () => {
   it('runs mnemonics with the same arguments and HELP workflows', () => {
     expect(parse('gp nvda 1d')).toMatchObject({ kind: 'route', fn: 'CHART', args: '1D', sec: { id: 'NVDA US Equity' } });
     expect(parse('AAPL US <EQUITY> GP 5Y <GO>')).toMatchObject({ kind: 'route', fn: 'CHART', args: '5Y', sec: { id: 'AAPL US Equity' } });
-    expect(parse('W TECH')).toEqual({ kind: 'route', fn: 'WATCHLIST', args: 'TECH' });
+    expect(parse('WATCH TECH')).toEqual({ kind: 'route', fn: 'WATCHLIST', args: 'TECH' });
+    expect(parse('W TECH')).toEqual({ kind: 'route', fn: 'WORKSHEET', args: 'TECH' });
     expect(parse('WEI US')).toEqual({ kind: 'route', fn: 'MARKET', args: 'US' });
     expect(parse('N AAPL')).toMatchObject({ kind: 'route', fn: 'NEWS', sec: { id: 'AAPL US Equity' } });
     expect(parse('HELP GP')).toEqual({ kind: 'route', fn: 'HELP', args: 'CHART' });

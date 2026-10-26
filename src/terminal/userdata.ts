@@ -54,6 +54,25 @@ if (typeof localStorage !== 'undefined' && !loadJson('armin:1y-column')) {
   saveJson('armin:1y-column', 1);
 }
 
+/** A worksheet (W): rows of securities, columns of market and fundamental fields, a sort. Kept apart from watchlists. */
+export interface Worksheet {
+  name: string;
+  ids: string[];
+  columns: string[];
+  sort?: WatchlistSort;
+}
+
+export const DEFAULT_WORKSHEET_COLUMNS = ['NAME', 'PX_LAST', 'CHG_PCT_1D', 'ARMIN_MKT_CAP_USD', 'ARMIN_EV_USD', 'ARMIN_PE', 'ARMIN_EV_EBITDA', 'ARMIN_DIV_YLD', 'ARMIN_ROE', 'ARMIN_YTD'];
+
+export const worksheets = createStore<{ sheets: Worksheet[]; active: number }>(
+  {
+    sheets: [{ name: 'Sheet 1', ids: ['AAPL US Equity', 'MSFT US Equity', 'NVDA US Equity', 'AMZN US Equity', 'GOOGL US Equity', 'META US Equity', 'JPM US Equity'], columns: DEFAULT_WORKSHEET_COLUMNS }],
+    active: 0,
+  },
+  'worksheets',
+  1,
+);
+
 export interface Position {
   id: string;
   qty: number;

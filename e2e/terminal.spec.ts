@@ -121,7 +121,7 @@ const COMMANDS: [string, string][] = [
   // Codes from the reference guides (docs/audit-v2.23.0-coverage.md, section 2a).
   ['HL', 'HELP'], ['WECO', 'RELEASES'], ['SOVM', 'BONDS'], ['WBMV', 'BONDMOVERS'], ['AAPL HRA MSFT', 'REGRESSION'], ['TECH', 'STUDIES'], ['IN', 'INDEXLIST'],
   ['IYC', 'CURVEMENU'], ['CURVE DE', 'CURVE'], ['FED', 'FEDPORTAL'], ['AAPL INSD', 'INSIDERS'],
-  ['NVDA EEG', 'ESTIMATEGRAPH'], ['NVDA EM', 'EARNINGSTREND'], ['SPX INDEX EA', 'EARNINGSSEASON'], ['CACT', 'ACTIONCALENDAR'], ['SIA', 'SHORTRANKING'], ['SPX INDEX GX', 'CROSSSECTION'], ['CCB', 'CLASSIFICATION'], ['FLNG', 'FILINGS13F'], ['AAPL RELS', 'RELATED'], ['ECOW', 'ECONCHART'], ['ECWB HOUST', 'ECONCHART'], ['CL1 COMDTY CCRV', 'FUTURESCURVE'], ['CTM', 'CONTRACTS'], ['ECFC USA', 'ECOFORECASTS'], ['ECTR', 'TRADEFLOWS'], ['EQBT', 'BACKTEST'], ['BILL', 'LEGISLATION'], ['FXCA', 'CONVERT'],
+  ['NVDA EEG', 'ESTIMATEGRAPH'], ['NVDA EM', 'EARNINGSTREND'], ['SPX INDEX EA', 'EARNINGSSEASON'], ['CACT', 'ACTIONCALENDAR'], ['SIA', 'SHORTRANKING'], ['SPX INDEX GX', 'CROSSSECTION'], ['CCB', 'CLASSIFICATION'], ['FLNG', 'FILINGS13F'], ['AAPL RELS', 'RELATED'], ['ECOW', 'ECONCHART'], ['ECWB HOUST', 'ECONCHART'], ['CL1 COMDTY CCRV', 'FUTURESCURVE'], ['CTM', 'CONTRACTS'], ['ECFC USA', 'ECOFORECASTS'], ['ECTR', 'TRADEFLOWS'], ['EQBT', 'BACKTEST'], ['BILL', 'LEGISLATION'], ['FXCA', 'CONVERT'], ['WORKSHEET', 'WORKSHEET'], ['LLP', 'LAYOUTS'],
 ];
 
 test('default workspace renders four live panels and the watchlist column', async ({ page }) => {
@@ -407,7 +407,7 @@ test('bad commands explain themselves', async ({ page }) => {
 
 test('mnemonic commands run the implemented functions and open their help', async ({ page }) => {
   const errors = await boot(page, '1');
-  for (const [cmd, code] of [['GP AAPL', 'CHART'], ['AAPL US EQUITY DES', 'PROFILE'], ['FA AAPL', 'FINANCIALS'], ['BQ AAPL', 'QUOTE'], ['WEI', 'MARKET'], ['W', 'WATCHLIST'], ['TOP', 'MARKETNEWS']]) {
+  for (const [cmd, code] of [['GP AAPL', 'CHART'], ['AAPL US EQUITY DES', 'PROFILE'], ['FA AAPL', 'FINANCIALS'], ['BQ AAPL', 'QUOTE'], ['WEI', 'MARKET'], ['W', 'WORKSHEET'], ['WATCH', 'WATCHLIST'], ['TOP', 'MARKETNEWS']]) {
     await run(page, cmd);
     await expect(page.locator('.panel').first().locator('.fnh-code').first(), cmd).toHaveText(code);
   }

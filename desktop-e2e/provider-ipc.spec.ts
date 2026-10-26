@@ -1008,7 +1008,7 @@ test('watchlist loads supplementary pre-market and after-hours quotes while IEX 
   await page.clock.install({ time: new Date('2026-10-20T12:00:00Z') });
   // MarketEngine captures Date.now on construction, so install the clock before its next load.
   await page.reload();
-  await command(page, 'W', 'WATCHLIST');
+  await command(page, 'WATCH', 'WATCHLIST');
   const row = page.getByRole('row').filter({ hasText: 'Apple Inc' }).first();
   await expect(row).toContainText('123.45');
   await expect(row).toContainText('1.26%');

@@ -89,6 +89,7 @@ import { ECTR } from '../functions/ECTR';
 import { EQBT } from '../functions/EQBT';
 import { BILL } from '../functions/BILL';
 import { FXCA } from '../functions/FXCA';
+import { WS } from '../functions/WS';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -207,6 +208,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'OPTIONCALC', name: 'Option Valuation', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: 'European BSM or American Tian binomial value/IV, early-exercise premium, Greeks, grid diagnostic, manual tenor, scenarios and CSV for a single option; continuous dividends.', component: OVME },
   { code: 'OPTIONSTRATEGY', name: 'Option Strategy Analysis', category: 'Derivatives', classes: ['equity', 'index'], desc: 'Up to 12 common-expiry option legs plus stock: signed positions, entry premiums, aggregate Greeks, exact expiry risk/breakevens, time/spot/volatility scenarios and CSV. Manual European model, with labelled strategy examples.', component: OptionStrategy, aliases: ['STRATEGY'], example: 'OPTIONSTRATEGY' },
   // Portfolio & tools
+  { code: 'WORKSHEET', name: 'Worksheets', category: 'Portfolio & Tools', desc: "Tables of the securities you choose by the fields you choose: the watchlist's market fields and fundamentals (market value, enterprise value, P/E, P/B, EV/EBITDA, dividend yield, ROE, margins, growth, beta), several saved sheets, sorting, and CSV with every cell's source.", component: WS, aliases: ['SHEETS'], example: 'WORKSHEET' },
   { code: 'WATCHLIST', name: 'Watchlists', category: 'Portfolio & Tools', desc: 'Editable watchlists with saved field columns, quote/source presets, sorting, filtering, intraday sparklines and CSV with field provenance.', component: W, aliases: ['WATCH'], example: 'WATCHLIST TECH' },
   { code: 'FAVOURITES', name: 'Favourites', category: 'Portfolio & Tools', desc: 'The securities you starred (☆ beside a security\'s name, anywhere): 1) live prices and changes, 2) their news merged from every source. The command line offers them as soon as you click it.', component: FAV, aliases: ['FAV', 'FAVORITES', 'FAVS'], example: 'FAVOURITES NEWS' },
   { code: 'PORTFOLIO', name: 'Portfolio & Risk', category: 'Portfolio & Tools', desc: 'Several portfolios as tabs, each with its own manual holdings/cash; historical-FX replay, date-aligned VaR/ES, signed risk contributions, benchmark tracking error, allocation, price/FX stress and CSV. Complete history required.', component: PORT },

@@ -1589,3 +1589,8 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 /* FXCA: the converted amount in large type, the rates and their source under it. */
 .fxca-result { display: grid; gap: 4px; padding: 10px 8px; }
 .fxca-big { font-size: 20px; }
+
+/* WORKSHEET: the column picker, market fields and fundamentals side by side. */
+.ws-picker { display: flex; flex-wrap: wrap; gap: 12px; }
+.ws-picker fieldset { border: 1px solid var(--line, #333); padding: 4px 8px; display: grid; grid-template-columns: repeat(3, minmax(130px, auto)); gap: 2px 12px; }
+.ws-col { white-space: nowrap; cursor: pointer; }
