@@ -690,8 +690,13 @@ Built since, from free data (26 October 2026), each under the guide's code:
 | FLNG | FILINGS13F; HOLDINGS now opens a manager by its CIK | `85e5daf` |
 | RELS | RELATED: the SEC's tickers under a CIK and OpenFIGI's listings abroad | `1eeca3f` |
 | ECOW, ECWB | ECONCHART: any FRED series, as published or transformed by FRED | `7ec8316` |
+| CCRV | FUTURESCURVE: a commodity's contract months from Yahoo, with the curve a week and a month ago | `f8cc608` |
+| CTM | CONTRACTS: the futures the app carries, by sector, exchange or name | `44b0f26` |
+| ECFC | ECOFORECASTS: the IMF's World Economic Outlook, with its projections | `51b8c1c` |
+| ECTR | TRADEFLOWS: goods trade by partner from the IMF (formerly the Direction of Trade Statistics) | `9bdf67a` |
+| EQBT | BACKTEST: price rules (momentum, reversal, low volatility, trend) on an index's members today; no fundamental rules yet, as no free source gives fundamentals as known at each date | `13d58b8` |
 
-Still to build from this list: BILL (needs a congress.gov key), CCRV, CTM, ECFC, ECTR and EQBT.
+Still to build from this list: BILL (needs a congress.gov key).
 
 Not described in those guides (27), so not yet checked: AGS, BOE, BOJ, CBRT, CT, DOTS, ECB, FXCA, GAS, GEW, GY, HLDR, MINE, MRV, MYN, NGAS, NLRT, OIL, OVDV, PD, PSRT, RANK, SURP, WATC, WCR, WEIS, WM. They wait for documents 1 to 33, or for the videos.
 

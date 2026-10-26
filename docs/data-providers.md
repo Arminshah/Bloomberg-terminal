@@ -27,6 +27,7 @@ In the desktop app, every request below goes out from the Electron main process 
 | Eurostat | HICP, GDP growth and unemployment for the euro area and its largest members | Statistics API (JSON-stat) | None | Enabled |
 | Statistics Canada | Canada unemployment rate and CPI | Web Data Service | None | Enabled |
 | Australian Bureau of Statistics | Australia unemployment rate and monthly CPI | Data API (SDMX, CSV) | None | Enabled |
+| International Monetary Fund | The World Economic Outlook with its projections (`ECOFORECASTS`); goods trade by partner country, by year and month (`TRADEFLOWS`) | DataMapper API; SDMX API (api.imf.org) | None | Enabled (desktop) |
 | FRED | US release dates and values; OECD series for Japan, Canada and Australia | FRED API | `FRED_API_KEY` | Enabled once the key is set |
 | SEC EDGAR | Company search, filing histories with document links, XBRL reported figures (`FILINGS`); the latest 8-K filings (`MARKETNEWS`); executives' total compensation from proxy statements (`MANAGEMENT`); what a company reports on its 13F filings (`HOLDINGS`); press releases (`HEADLINES`) | data.sec.gov APIs, the SEC's company ticker file, the latest filings Atom feed, filing folders in the EDGAR archive | `SEC_USER_AGENT` (your contact) | Enabled once `SEC_USER_AGENT` is set |
 | Kraken | Crypto prices, best bid and offer, daily and 5-minute candles, order books for 10 USD pairs | Public REST API | None | Enabled (desktop), switch `KRAKEN_ENABLED` |
