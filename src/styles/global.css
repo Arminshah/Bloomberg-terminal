@@ -125,7 +125,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   app-region: drag;
 }
 .wtabs {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   align-items: flex-end;
@@ -182,10 +182,10 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .wtab-x:hover { background: #3c3c3c; color: #fff; }
 .wtab-new {
   flex: none;
-  align-self: center;
+  align-self: flex-end;
   width: 22px;
   height: 20px;
-  margin-left: 4px;
+  margin: 0 auto 4px 4px;
   padding: 0;
   border: 0;
   border-radius: 4px;

@@ -148,11 +148,16 @@ test("the tab bar is the window's title bar: the window's own buttons sit at its
   expect(controls.width).toBeGreaterThan(0);
   // A line marks where the buttons begin.
   expect(await page.locator('.wtabs-controls').evaluate((el) => getComputedStyle(el, '::before').width)).toBe('1px');
+  // A window 1,024 pixels wide (a small screen's, as on the Windows test machine) holds fewer than 12 tabs.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1024, 700));
+  await expect.poll(async () => Math.round((await page.locator('.wtabs-controls').boundingBox())!.x)).toBeLessThan(1024);
+  const small = (await page.locator('.wtabs-controls').boundingBox())!;
   for (let i = 0; i < 11; i++) await page.getByRole('button', { name: 'New tab', exact: true }).click();
   await expect(page.locator('.wtab')).toHaveCount(12);
   const tabs = async () => (await page.locator('nav.wtabs').boundingBox())!;
   const plus = (await page.getByRole('button', { name: 'New tab', exact: true }).boundingBox())!;
-  expect(plus.x + plus.width).toBeLessThanOrEqual(controls.x);
+  expect(plus.x + plus.width).toBeLessThanOrEqual(small.x);
+  expect(plus.x).toBeGreaterThanOrEqual((await tabs()).x + (await tabs()).width - 0.5);
   // In a narrow window the tabs scroll; they never pass under the buttons.
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(820, 600));
   await expect.poll(async () => Math.round((await page.locator('.wtabs-controls').boundingBox())!.x)).toBeLessThan(820);

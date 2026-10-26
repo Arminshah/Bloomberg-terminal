@@ -594,6 +594,24 @@ test('workspace tabs open, keep each workspace, rename, close and reopen as a br
   expect(errors).toEqual([]);
 });
 
+test('with more tabs than the bar holds, the tabs scroll to the active one and + stays in sight', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 700 });
+  const errors = await boot(page);
+  const plus = page.getByRole('button', { name: 'New tab', exact: true });
+  for (let i = 0; i < 11; i++) await plus.click();
+  await expect(page.locator('.wtab')).toHaveCount(12);
+  const strip = (await page.locator('nav.wtabs').boundingBox())!;
+  const button = (await plus.boundingBox())!;
+  // The + sits right of the strip, inside the window.
+  expect(button.x).toBeGreaterThanOrEqual(strip.x + strip.width - 0.5);
+  expect(button.x + button.width).toBeLessThanOrEqual(900);
+  // The newest tab, the active one, is in the strip's visible part.
+  const active = (await page.locator('.wtab.on').boundingBox())!;
+  expect(active.x).toBeGreaterThanOrEqual(strip.x - 0.5);
+  expect(active.x + active.width).toBeLessThanOrEqual(strip.x + strip.width + 0.5);
+  expect(errors).toEqual([]);
+});
+
 test('a layout of your own: rows first, a screen per tile, a name; resized, saved, and back at the same sizes', async ({ page }) => {
   const errors = await boot(page, '1');
   await run(page, 'LAYOUTS');

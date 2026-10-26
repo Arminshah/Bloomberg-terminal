@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { terminal } from '../terminal/state';
 import { closeTab, MAX_TABS, moveTab, newTab, renameTab, switchTab, tabTitle, workspaceTabs } from '../terminal/tabs';
 
@@ -27,6 +27,12 @@ export function WorkspaceTabs() {
   const [draft, setDraft] = useState('');
   const [dragged, setDragged] = useState<string | null>(null);
   const controls = useWindowControls();
+  const strip = useRef<HTMLElement>(null);
+
+  // When the tabs are wider than the bar they scroll; the active one (a new tab, say) is scrolled into sight.
+  useEffect(() => {
+    strip.current?.querySelector('.wtab.on')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [t.active, t.tabs.length]);
 
   const commit = (id: string) => {
     renameTab(id, draft);
@@ -39,10 +45,11 @@ export function WorkspaceTabs() {
   };
 
   // In the desktop app the bar is the window's title bar: it drags the window, and the window's own buttons are drawn
-  // over its right end, where the tabs never go (.wtabs-controls is as wide as they are; 0 elsewhere).
+  // over its right end, where the tabs never go (.wtabs-controls is as wide as they are; 0 elsewhere). The + stays
+  // outside the tabs' scrolling strip, so it is always in sight.
   return (
     <div className={`wtabs-bar${controls ? ' wco' : ''}`}>
-    <nav className="wtabs" aria-label="Workspace tabs" role="tablist">
+    <nav ref={strip} className="wtabs" aria-label="Workspace tabs" role="tablist">
       {t.tabs.map((tab, i) => {
         const on = tab.id === t.active;
         const title = tabTitle(tab, on ? live : undefined);
@@ -115,10 +122,10 @@ export function WorkspaceTabs() {
           </div>
         );
       })}
-      <button type="button" className="wtab-new" aria-label="New tab" title={t.tabs.length >= MAX_TABS ? `At most ${MAX_TABS} tabs` : 'New tab (Ctrl+T)'} disabled={t.tabs.length >= MAX_TABS} onClick={() => newTab()}>
-        +
-      </button>
     </nav>
+    <button type="button" className="wtab-new" aria-label="New tab" title={t.tabs.length >= MAX_TABS ? `At most ${MAX_TABS} tabs` : 'New tab (Ctrl+T)'} disabled={t.tabs.length >= MAX_TABS} onClick={() => newTab()}>
+      +
+    </button>
     <div className="wtabs-controls" aria-hidden="true" />
     </div>
   );
