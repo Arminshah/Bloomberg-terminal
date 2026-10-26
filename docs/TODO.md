@@ -60,7 +60,7 @@ Plan:
     2. With tools, outside YouTube's terms (its terms forbid downloading videos without permission): `winget install --id yt-dlp.yt-dlp --exact`, `winget install --id Gyan.FFmpeg --exact` and `winget install --id DenoLand.Deno --exact`. Then in an empty folder run `yt-dlp --write-auto-subs --sub-langs en --skip-download https://www.youtube.com/watch?v=h0hYYIGryJ4` for the captions, and `yt-dlp -f "bv*[height<=1080]" -o video https://www.youtube.com/watch?v=h0hYYIGryJ4` followed by `ffmpeg -i video.webm -vf fps=1/2 -q:v 3 frame_%04d.jpg` for one frame every 2 seconds (frame n is at (n − 1) × 2 seconds).
   - Either way, zip the files and attach them here. I will keep them in `reference/videos/`, which I'll add to `.gitignore` first (a one-line change, with your OK), and I will say which frames each finding comes from.
 - Senators' history: the Senate's site refuses automated reading and FMP's free plan has only the latest 25 trades, so CONGRESS builds senators' history from today on. For 6 or 12 months of senators' trades and their holdings, there are two options:
-  - Eulerpool: your key arrived, but on 25 October its API answered "Internal server error" to every request, even one with a made-up key, so the fault is on its side. I'll try again. Even working, its congress list gives no link to the filed report and no owner, so I'd check its rows against FMP's before using it.
+  - Eulerpool: your key arrived, but on 25 and 26 October its API answered "Internal server error" to every request, even one with a made-up key, so the fault is on its side. I'll try again. Even working, its congress list gives no link to the filed report and no owner, so I'd check its rows against FMP's before using it.
   - An FMP plan that includes its senate-trades lists.
 
 ## Later
@@ -88,9 +88,15 @@ Plan:
 
 ## Done, on the branch, not released yet
 
-- `d617130` Revenue expected and reported beside EPS on EARNINGS, EVENTS and the week's board (in 2.25.0).
+- Nothing yet.
 
-## Done in 2.25.0
+## Done in 2.25.1
+
+- `c7cbb74` CONGRESS reads the House Clerk's PDFs on Windows. The 2.25.0 build's tests on Windows found that every report showed "not read" there, as in your preview; 2.25.0 was not published.
+- `51a0a32` Tab bar: with more tabs than it holds, + stays in sight and the tabs scroll to the active one (the same Windows tests found it).
+- `f987214` PAGE BACK from a screen's last page always goes back a page (a browser test found it on 26 October).
+- `ad598d2` Visual pass, step 1: charts sharp at 125% and 150% display scaling.
+- `d617130` Revenue expected and reported beside EPS on EARNINGS, EVENTS and the week's board.
 
 - Your feedback of 25 October:
   - `6a2789e` CONGRESS no longer freezes while reports load, a progress bar says what is read and about how long is left, 12 months read in about 105 seconds (was about 4.5 minutes), and holdings without a ticker (Treasury bills, private funds) are left out unless Assets is set to Everything.
@@ -153,5 +159,5 @@ Plan:
 
 ## Released
 
-- 2.25.0 on 25 October 2026 (`docs/release-v2.25.0.md`), at your request.
+- 2.25.1 on 26 October 2026 (`docs/release-v2.25.1.md`), at your request. 2.25.0 was built but not published (see "Done in 2.25.1").
 - 2.24.0 on 23 October 2026 (`docs/release-v2.24.0.md`).

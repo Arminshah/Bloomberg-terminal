@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.25.0** adds HOLDINGS (a company's 13F holdings) and CONGRESS (members of Congress's trades and holdings from their own disclosures), turns EVENTS into a weekly board of the most relevant earnings releases with revenue beside EPS everywhere, lets you build layouts of your own, and corrects estimates, beta and several descriptions after a review of the data sources. See the [2.25.0 release notes](docs/release-v2.25.0.md).
+Version **2.25.1** adds HOLDINGS (a company's 13F holdings) and CONGRESS (members of Congress's trades and holdings from their own disclosures), turns EVENTS into a weekly board of the most relevant earnings releases with revenue beside EPS everywhere, lets you build layouts of your own, draws charts sharply at 125% and 150% display scaling, and corrects estimates, beta and several descriptions after a review of the data sources. 2.25.0 was not published on its own; its changes are included. See the [2.25.1 release notes](docs/release-v2.25.1.md).
 
 Version **2.24.0** adds workspace tabs like a browser's (Ctrl+T, Ctrl+W, rename, drag), brings back the US / Europe / Asia Pacific / World heat map beside a new heat map of each index's members, asks Yahoo for European stocks' analyst research, and fixes what a full audit of 2.23.0 found: NVIDIA's older EPS on the pre-split basis, a quarter shown as reported before it had ended, P/Es without their EPS, and commands from the reference guides that did not work. See the [2.24.0 release notes](docs/release-v2.24.0.md).
 
