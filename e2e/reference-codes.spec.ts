@@ -133,3 +133,13 @@ test("EEG says the consensus history is the desktop app's, and generates none in
   await expect(panel.locator('tbody tr')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('EM says reported and expected earnings are the desktop app\'s, and generates none in the demo', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'NVDA EM');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('EARNINGSTREND');
+  await expect(panel.locator('.empty')).toContainText('read from the earnings sources in the desktop app');
+  await expect(panel.locator('tbody tr')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

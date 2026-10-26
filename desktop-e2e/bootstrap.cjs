@@ -14,8 +14,10 @@ app.setPath('sessionData', sessionData);
 app.getAppPath = () => profile;
 
 const researchTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-research.json'), 'utf8'));
-// APLD's earningsTrend as Yahoo answered it, with the consensus 7 to 90 days before and the revisions (EEG).
-const trendTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-apld-summary.json'), 'utf8')).quoteSummary.result[0].earningsTrend.trend;
+// APLD's research as Yahoo answered it: the earningsTrend with the consensus 7 to 90 days before and the revisions
+// (EEG), and its reported quarters (EM).
+const apldSummary = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-apld-summary.json'), 'utf8')).quoteSummary.result[0];
+const trendTemplate = apldSummary.earningsTrend.trend;
 const currencyTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/sec-currency-change.json'), 'utf8'));
 const chartTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-sofi-chart.json'), 'utf8'));
 const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/tipranks-tools.json'), 'utf8')).tools;
@@ -199,6 +201,7 @@ net.fetch = async (input, init) => {
           if (row.revenueEstimate) row.revenueEstimate.revenueCurrency = 'JPY';
           if (row.earningsEstimate) row.earningsEstimate.earningsCurrency = 'USD';
         }
+        if (fixtures.apldEarnings) for (const k of ['earningsHistory', 'earnings', 'calendarEvents', 'earningsTrend']) research.quoteSummary.result[0][k] = structuredClone(apldSummary[k]);
         if (fixtures.estimateTrend) for (const row of research.quoteSummary.result[0].earningsTrend.trend) {
           const apld = trendTemplate.find((t) => t.period === row.period);
           if (apld) Object.assign(row, { epsTrend: apld.epsTrend, epsRevisions: apld.epsRevisions });

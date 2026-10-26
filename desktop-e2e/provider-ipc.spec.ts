@@ -32,6 +32,7 @@ interface Fixtures {
   listingsDown?: boolean;
   insiders?: boolean;
   estimateTrend?: boolean;
+  apldEarnings?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -340,6 +341,37 @@ test('EEG graphs how the consensus EPS of the coming quarters and years moved, f
   await panel.getByRole('button', { name: /2\) Fiscal years/ }).click();
   await expect(panel.locator('tbody tr', { hasText: 'Next year' })).toContainText('-1.000');
   await expect(panel.locator('tbody tr', { hasText: 'Next year' })).toContainText('-0.784');
+});
+
+test("EM carries a company's reported quarters, their surprise and growth, on into the consensus for the next ones", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.apldEarnings = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'APLD EM', 'EARNINGSTREND');
+  const panel = page.locator('.panel').first();
+  const row = (label: string) => panel.locator('tbody tr', { hasText: label });
+  // Q4 2026: 0.04 reported against -0.19 expected, down from 0.09 the quarter before.
+  await expect(row('Q4 2026')).toContainText('0.04', { timeout: 30_000 });
+  await expect(row('Q4 2026')).toContainText('-0.19');
+  await expect(row('Q4 2026')).toContainText('+121.1%');
+  await expect(row('Q4 2026')).toContainText('-55.6%');
+  await expect(row('Q4 2026')).toContainText('258.75M');
+  // The next two quarters, named by the fiscal year the reports show, with their growth on the year-ago figure: none
+  // to or from a loss.
+  await expect(row('Q2 2027 Est')).toContainText('-0.17');
+  await expect(row('Q2 2027 Est')).toContainText('NM');
+  await expect(row('Q2 2027 Est')).toContainText('162.85M');
+  await expect(row('Q2 2027 Est')).toContainText('+28.6%');
+  await expect(row('Q3 2027 Est')).toContainText('NM');
+  await expect(row('Q3 2027 Est')).toContainText('+72.7%');
+  await expect(panel.locator('tbody')).not.toContainText('-378');
+  // A fiscal year needs its four quarters: only Yahoo's consensus for this year and next.
+  await panel.getByRole('button', { name: /2\) Fiscal years/ }).click();
+  await expect(panel.locator('tbody tr')).toHaveCount(2);
+  await expect(row('FY 2027 Est')).toContainText('-1.06');
+  await expect(row('FY 2028 Est')).toContainText('-0.78');
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
