@@ -1,68 +1,89 @@
-# Handover: where the work stands (25 October 2026)
+# Handover: where the work stands (26 October 2026)
 
-For whoever continues on Armin Terminal. Read this first, then `docs/TODO.md`, then `docs/audit-v2.23.0.md`.
+For the Claude session that takes over Armin Terminal on the owner's other account. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis").
 
 ## The project
 
-- **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with an opt-in browser demo.
-- **Repository**: `arminshah/bloomberg-terminal` (public). All work is on the branch **`claude/market-events-v2.16.0-id814n`**. `main` holds only the first README; do not push to it. A new cloud session may be told to use another branch name: the owner's choice is to keep working on this one.
-- **Last release**: 2.24.0 (tag `v2.24.0`, published 23 October 2026). It has the audit of 2.23.0 (14 findings fixed, report `docs/audit-v2.23.0.md`), workspace tabs, the heat maps' labels and analyst research outside the US. Notes: `docs/release-v2.24.0.md`.
+- **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 119 functions.
+- **Repository**: `Arminshah/Bloomberg-terminal`, public since 26 October. All work is on the branch **`claude/market-events-v2.16.0-id814n`**. `main` holds only the first README: never push to it. A new cloud session may be given another branch name; the owner's choice is to keep working on this one, so fetch it and continue there (`git fetch origin claude/market-events-v2.16.0-id814n && git checkout claude/market-events-v2.16.0-id814n`).
+- **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
+- **Last release**: 2.26.0 (tag `v2.26.0`, 26 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.26.0.md`.
 
-## Since 2.24.0 (on the branch, not released)
+## Starting on the new account
 
-1. **WHATSNEW** (`src/functions/WHATSNEW.tsx`, `src/data/releases.ts`): the version and every release's notes inside the app, packed in at build time from `docs/release-v*.md` (2.15.0 and later; older notes named another product and stay out). The installed version is marked; HELP shows the version with a "What's new" action; after an update a one-time notice links to it (`src/terminal/whatsnew.ts`). The app does not ask GitHub for newer versions. Every release still needs its `docs/release-vX.Y.Z.md`; a test fails if a note names another product.
-2. **Data fixes** (each with tests in `tests/api-fixes.test.ts` or `tests/iex-engine.test.ts`): CoinGecko answered once for every window (the free plan's calls were spent three times over with three windows); TipRanks calls, cap and answers kept per key; Eurostat flags and BLS series stay current within a session; an answer kept after a failed refresh stays marked stale with its own time; IEX keeps every session seen while a window stays open.
-3. **Weekend demo** (`src/data/engine.ts`, tests in `tests/engine.test.ts` under "a weekend"): the demo simulated a trading session every calendar day, so at weekends stocks ticked and HP showed a Saturday row. Markets on a weekday calendar now show Friday's finished session (no ticks or trades, marked CLOSED); crypto trades every day. A real close known for that Friday ends the session.
-4. **Portfolio tabs** (owner's request): PORTFOLIO keeps several portfolios as tabs above its Holdings / Performance / Risk views, each with its own holdings, cash, currency and benchmark. + new (name ready to type), double click rename, drag reorder, × close (asks first when it holds anything; the last one stays). Store: `portfolios` in `src/terminal/userdata.ts`; `portfolio` there is now the one on screen, so the other screens did not change. The single portfolio saved before (`armin:portfolio`) becomes the first tab and is never changed. Operations: `src/terminal/portfolio-tabs.ts`. Tests: `tests/portfolio-tabs.test.ts`, an e2e test in `e2e/terminal.spec.ts`.
-
-State at handover: lint, typecheck, 1,266 Vitest tests (98 files), 41 browser and 34 desktop Playwright tests, and the build all pass (run on a Saturday, so the weekend demo was exercised).
-
-## What is left
-
-`docs/TODO.md` is the one list of what comes next, in order, with what is waiting on the owner. Keep it up to date: move an item to "Done" with its commit when it is finished. The owner's feedback of 24 October 2026 (13F portfolios of companies, a congress trade tracker, a review of Codex's API notes, your own layouts, window buttons in the tab bar, corporate events, the watchlist's live session) is in it. That feedback document also held API keys; none of them were stored or committed.
-
-The visual pass (the owner's brief of 25 October 2026) starts from `docs/visual-research-2026-10.md`: colours measured from Bloomberg-published images, a free stand-in for the Terminal's typeface (Bergoom, OFL), layout details of the current window, Launchpad and ASKB, and a chart blur on Windows scaling (`PriceChart.ts`, `XYChart.tsx`).
+1. Attach the repository, check out the branch above, run `npm ci`, then the checks under "How to work on it". They all passed at handover.
+2. Ask the owner for the API keys again. They were kept only in the old session's scratch folder, which the new session cannot see. The names are: `ALPHA_VANTAGE_API_KEY`, `TWELVE_DATA_API_KEY`, `COINGECKO_API_KEY`, `FRED_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT` (`Armin Shah arminshahw98@gmail.com`), `FINNHUB_API_KEY`, `TIINGO_API_KEY`, `MARKETAUX_API_TOKEN`, `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`, `FMP_API_KEY`, `TIPRANKS_API_KEY`, `EQUIBLES_API_KEY`, `OPENFIGI_API_KEY`, `EULERPOOL_API_KEY`, `CONGRESS_GOV_API_KEY`. Save them as `NAME=value` lines in a file in the session's scratch folder (`chmod 600`), never in the repository.
+3. Carry on with item 10 of `docs/TODO.md`.
 
 ## The owner's rules (keep them)
 
 - **Real data only.** No invented or simulated values in the desktop app; a labelled blank beats a plausible wrong number. Say where each figure comes from.
-- **Never print, log, screenshot or commit an API key.** Keys live in a file outside the repository (e.g. a scratch folder, `chmod 600`) and are passed only as environment variables: `set -a; . <file>; set +a`. The SEC user agent the owner gave is `Armin Shah arminshahw98@gmail.com`.
-- **Reference PDFs are copyrighted**: keep them in `reference/pdfs/` (git-ignored); never commit them or text or screenshots copied from them. Describe layouts in your own words and cite the document number and page. The owner has the PDFs and can upload them again; documents 1-33 are listed in `docs/audit-v2.23.0.md` section 2.
-- **No branding of the other product** in the app: not its name, logo or login.
-- **Windows only** for the desktop app. Ask before any release. Push only to the branch above. No pull request unless the owner asks.
-- **Never weaken, skip or delete a test.** Never report as checked anything not run. One commit per fix, with a regression test.
+- **API keys**: never commit one, and never let one into a release build (the app keeps keys in the main process, encrypted with Windows' safeStorage, entered on PROVIDERS; a desktop test checks that a `.env` beside the source is ignored). The owner relaxed the earlier caution: you may use the keys freely in the sandbox, passed as environment variables (`set -a; . <file>; set +a`).
+- **Reference material**: study any document, screenshot or video frame the owner gives in full detail; functionality, commands, workflows and calculations are free to rebuild in original code (CJEU, SAS Institute v World Programming, C‑406/10; Directive 2009/24, Article 1(2)). The repository is public, so whole PDFs, screenshots and frames stay out of Git: they go in the git-ignored `reference/` folder. Short attributed quotations in the docs are fine where the exact wording is the evidence. The app takes the function, never the other product's wording, graphic design, logos or name.
+- **No branding of the other product** in the app or the release notes: not its name, logo or login (a test fails if a release note names it).
+- **Windows only** for the desktop app. Push only to the branch above. No pull request, merge or release unless the owner asks.
+- **Never weaken, skip or delete a test.** Never report as checked anything not run. One commit per fix, with a regression test. Run lint, type checks, unit tests, the build and both Playwright suites before each push.
 - Commit messages end with the session's attribution lines; no model names in commits, code or docs.
-- Write for the owner in plain, short language; they are not always technical.
+- Write for the owner in plain, short language, without AI writing habits (no em dashes, no "not X but Y", no stock phrases). They are not always technical.
+
+## What this account did since 2.25.1 (all in 2.26.0)
+
+- 25 new functions, most from the reference guides (each reads real data only, with unit, browser and desktop tests): IN, GX, EA, WBMV, SIA, CACT, CCB, INSD, RELS, EEG, EM, FLNG, HRA, TECH, EQBT, FED, IYC, ECOW/ECWB, ECFC, ECTR, CCRV, CTM, BILL, FXCA, WORKSHEET; HL, WECO and SOVM map to existing screens. Commits are listed in `docs/TODO.md` ("Done in 2.26.0") and `docs/audit-v2.23.0-coverage.md`.
+- The visual pass: Bergoom by default, measured colours, colour-blind schemes, panel chrome, the help desk's own page (`docs/visual-research-2026-10.md`).
+- Evidence pack v3 (from Codex) checked and compared with the app: `docs/bloomberg-parity.md`, "Evidence pack v3: gap analysis". The owner approved its five additions and five defect tests on 26 October. Done: SCREEN over Nasdaq's whole US list with AND/OR groups, explicit missing values and saved screens (`8caa5d7`); worksheets under W (`f26fa11`); PEERS' EV with preferred stock and minority interest (`89ef249`); LLP to LAYOUTS (`3951765`). Left: items 10 to 12 in `docs/TODO.md`.
+- `27947b2`: the portfolio ledger's calculations, without a screen (below).
+
+## Work in progress: PORTFOLIO transactions (TODO item 10)
+
+Done: `src/finance/ledger.ts` with `tests/ledger.test.ts` (7 tests). `replay()` matches buys and sells first in, first out, puts trades before a split on today's share basis (`splitFactor`, splits as new shares per old by the first day they traded split), and splits realised P&L into the price move at the sale's rate, the rate's move on the cost, and fees. `unrealised()` does the same for an open lot. `performance()` chains the time-weighted return over every close where each holding has a price and a rate (Modified Dietz each day: buys from the start of the day, sales and dividends at its end; a date a holding lacks is left out, never filled), adds today's value as the last point, and solves the money-weighted return per day (`irrDaily`), annualised only over 365 days or more. A dividend after everything was sold counts toward the last period.
+
+To build next, as designed:
+- `Txn` (in `ledger.ts`) is the stored shape. Add `transactions?: Txn[]` to `Portfolio` in `src/terminal/userdata.ts`; old portfolios have none.
+- A fourth tab on PORTFOLIO (`src/functions/PORT.tsx`), Transactions:
+  - A form: type (buy, sell, dividend), security (`resolveSecurity`), date (default today), quantity, price (a dividend's total amount, in pounds for a pence-quoted stock), fee, and an optional exchange rate. With no rate typed, a past trade in another currency takes the ECB's rate of that day (`ecbRateOn` in `src/data/live/ecb-fx.ts`, desktop only), and a trade of today takes the market rate (`baseFx` in `src/terminal/portfolio.ts`); `fxNote` says which.
+  - Refuse futures and other margined lines (`isMargined`): the ledger is for cash instruments. Refuse a sale larger than the holding.
+  - The list of transactions with delete; open lots (bought, quantity, cost a share with the fee, unrealised P&L); realised P&L by sale; a summary (invested, proceeds, dividends, fees, realised and unrealised P&L, the time- and money-weighted returns over the period, a year when it is a year or more, and the dates left out).
+  - The inputs of `performance()`: `info(sec)` from the security (`unit` = `multiplier(d)` × 0.01 for pence; splits from `realSplits` in `src/data/live/yahoo.ts`, `day` and `numerator / denominator`); closes from `dailyLevels(engine.daily(id), cutoff)` and rates from `baseFxLevels` in `src/data/portfolio-history.ts`; now from `engine.quote(id).last` and `baseFx`.
+  - Holdings and the ledger: when a security's holding equals the ledger's open quantity (or there is none), a new trade updates the holding (quantity, average cost with fees, entry rate weighted by cost, through `adjustPosition` or by setting the position from the open lots). When they differ (a holding typed on Holdings, or a split the holding does not reflect), say so on both tabs and offer "Use the transactions".
+  - A portfolio whose currency changed: transactions recorded for another base have no rate (`replay` says how many); offer to ask the ECB again.
+- Tests: the store operations (unit), the form and tables (browser, demo data with a typed rate), and a desktop test with a fixture split and an ECB rate (`fixtures.ecbFx` exists in `desktop-e2e/bootstrap.cjs`).
 
 ## How to work on it
 
 ```
 npm ci
 npm run lint && npm run typecheck
-npx vitest run --maxWorkers=2                      # unit tests
+npx vitest run --maxWorkers=2                      # unit tests (about 1,470)
 npm run build
-npx playwright test                                # browser e2e (demo data)
-# In a cloud sandbox whose Chromium is not the one Playwright expects, first:
-#   export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium
-xvfb-run -a npx playwright test --config playwright.desktop.config.ts   # desktop e2e (Linux sandbox)
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (80)
+xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (60)
 ```
 
-Checking screens on live data in a Linux sandbox (the real desktop app, one panel per command):
+Never run two of these at once, and never rebuild while a Playwright suite runs. Do not run Vitest with `--root /`: it runs out of memory. Tests cannot use Node modules (no Node types in the tests' tsconfig); load a text fixture with `?raw`.
+
+Checking screens on live data in a Linux sandbox (the real desktop app, one panel per command), with the keys loaded:
 
 ```
 npm run build
-echo '["NVDA US Equity FUNDCHART","SPX Index IMAP"]' > /tmp/cmds.json
-xvfb-run -a node scripts/live/capture.cjs /tmp/cmds.json /tmp/out 8000 40000
+echo '["NVDA US Equity FUNDCHART","SPX Index IMAP"]' > <scratch>/cmds.json
+(set -a; . <scratch>/keys.env; set +a; YAHOO_PRICES_ENABLED=true timeout 200 xvfb-run -a node scripts/live/capture.cjs <scratch>/cmds.json <scratch>/out 8000 30000)
 ```
 
-It saves each panel's text, a screenshot, its header and any console errors (`/tmp/out/index.json`). With keys: load them into the environment first (see the rules). `scripts/live/fetch_primary.py` fetches figures from the SEC, FINRA, the NY Fed, the ECB, FRED and Nasdaq for independent checks.
+It saves each panel's text, a screenshot, its header and any console errors (`out/index.json`). Yahoo prices are off in the desktop tests unless `YAHOO_PRICES_ENABLED` is set.
 
-Known limits of a cloud sandbox: Yahoo refuses its session there (HTTP 429 on the crumb), so screens that need Yahoo's quote summary can only be checked on the owner's Windows machine; its statements and charts still load.
+Known limits of a cloud sandbox: YouTube refuses it (so no video can be watched there); the Senate's disclosure site refuses automated reading; Eulerpool answered HTTP 500 to every request on 25 and 26 October (TODO, "Waiting on you").
+
+## Making a release (only when the owner asks)
+
+1. `docs/release-vX.Y.Z.md`: it starts `# Armin Terminal X.Y.Z`, then a paragraph starting "This release", and never names the other product.
+2. `npm version X.Y.Z --no-git-tag-version`; the README's version line; "Released" in `docs/TODO.md`.
+3. Run every check above; commit "Release X.Y.Z"; push the branch.
+4. `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow tests the tag, builds the Windows installer and portable app, uploads them and publishes the release. Check it in the repository's Actions tab.
 
 ## Where things are
 
-- Function registry: `src/terminal/registry.ts`; mnemonics (DES → PROFILE etc.): `src/terminal/legacy.ts`; command parsing: `src/terminal/commands.ts`; suggestions: `src/terminal/suggest.ts`.
-- Workspace state (panels, layouts): `src/terminal/state.ts`; workspace tabs: `src/terminal/tabs.ts`.
-- Live data sources: `src/data/live/` (Yahoo, SEC, Nasdaq, Finnhub, FMP, Alpha Vantage, FRED, Treasury and others); key handling in `electron/providers.cjs` (keys stay in the main process, encrypted with safeStorage).
-- Screens: `src/functions/`; shared components: `src/components/`; styles: `src/styles/global.css`.
-- Release notes: `docs/release-v*.md`; the release workflow: `.github/workflows/release.yml`.
+- Function registry: `src/terminal/registry.ts` (the "N functions" in `package.json`'s description must equal its length: `tests/audit-2.23.test.ts`); mnemonics: `src/terminal/legacy.ts`; command parsing: `src/terminal/commands.ts`. Every new code also goes in the `COMMANDS` list of `e2e/terminal.spec.ts`.
+- Desktop data requests: `electron/*.cjs` (URL builders with `.d.cts` types), handlers in `electron/main.cjs` (`usableKey`, `keyedGet`), exposed in `electron/preload.cjs`, typed in `src/data/live/lookup.ts`; keys in `electron/providers.cjs`. Desktop test fixtures: `desktop-e2e/bootstrap.cjs`, by flag.
+- Live data in the renderer: `src/data/live/`. Screens: `src/functions/`. Calculations: `src/finance/`. Styles: `src/styles/global.css`.
+- New in this account's work: the screener's logic `src/data/screen.ts`; worksheets `src/functions/WS.tsx` and `src/data/worksheet-fields.ts`; the ledger `src/finance/ledger.ts`.
+- Research and parity: `docs/bloomberg-parity.md`, `docs/audit-v2.23.0-coverage.md`, `docs/visual-research-2026-10.md`.

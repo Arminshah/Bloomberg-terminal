@@ -4,7 +4,29 @@ Updated 26 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-Items 1 to 8 are done. Item 9 is under way: the atlas's sources are being read and compared with the app (see below); the videos need frames from your PC.
+Items 1 to 8 are done. Item 9 is under way: the atlas's sources are being read and compared with the app (see below); the videos need frames from your PC. Items 10 to 13 are the rest of the work you approved on 26 October, in this order.
+
+### 10. PORTFOLIO transactions (the screen)
+
+The calculations are done and tested (`27947b2`, `src/finance/ledger.ts`, `tests/ledger.test.ts`): buys, sells and dividends with dates, fees and exchange rates; first-in first-out lots; trades before a split on today's share basis; realised P&L split into price, FX and fees; the time-weighted return (buys counted from the start of their day, sales and dividends at its end, dates a holding lacks left out) and the money-weighted return (XIRR, annualised only over a year). Still to do, as designed in `docs/HANDOVER.md`:
+- A `transactions` list on each portfolio (`Portfolio` in `src/terminal/userdata.ts`), and a fourth PORTFOLIO tab, Transactions: a form (type, security, date, quantity, price, fee, an optional exchange rate), the list with delete, the open lots, the realised P&L, and the returns.
+- The rate of a past trade in another currency: the ECB's of that day (`ecbRateOn`), or the one typed in; today's market rate for a trade of today.
+- Futures stay on Holdings: the ledger is for cash instruments.
+- Holdings and the ledger: a trade updates its holding when the two agreed before; when they differ, say so and offer "Use the transactions".
+- Tests: unit tests of the store operations, a browser test of the form and tables, a desktop test with a split (Yahoo's split list) and an ECB rate.
+
+### 11. BONDCALC call schedules
+
+Yield to call and yield to worst from a call schedule typed in (dates and prices), with the price of each call shown; tests against a worked example.
+
+### 12. The help desk against planted instructions
+
+Tests that the help desk (MESSAGES) ignores instructions planted in the news, filings and pages it reads ("ignore your rules and…"): fixtures with such text in a headline, a filing and a profile, and checks that the answer neither follows nor repeats them.
+
+### 13. The newly confirmed codes
+
+From `docs/audit-v2.23.0-coverage.md` (research of 26 October): WCR, WEIS, WM, the sector pages AGS, MINE, GAS and OIL, the ECB, BOE and BOJ portals (as FED), MYN, NLRT, GEW and CBRT (in part). NGAS needs an EIA key from you.
+
 
 ### 9. Compare the app with the reference atlas and Codex's list of Bloomberg videos
 
@@ -87,14 +109,21 @@ Plan:
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
 - Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
 
-## Done, on the branch, not released yet
+## Done in 2.26.0
 
+- `36c4515` FXCA (CONVERT): an amount at the live rate or a past day's ECB rate.
+- `619fada` BILL (LEGISLATION): US bills and laws from Congress.gov, with your key.
+- `89ef249` PEERS: enterprise value with preferred stock and minority interest, its build-up on hover.
+- `3951765` LLP opens LAYOUTS. `f26fa11` W opens WORKSHEET (worksheets); the watchlist is WATCH.
+- `8caa5d7` SCREEN: Nasdaq's whole US list, AND and OR groups, a stated choice for missing values, saved screens.
+- `b334f2d` CONGRESS: a member opens in sight; the report year says what it covers.
+- `27947b2` The portfolio ledger's calculations (no screen yet: item 10).
 - Codes from the reference guides (`docs/audit-v2.23.0-coverage.md`, section 2a, with each commit): HL, WECO, SOVM, WBMV, HRA, TECH, IN, IYC, FED, INSD, EEG, EM, EA, CACT, SIA, GX, CCB, FLNG, RELS, ECOW, ECWB, CCRV, CTM, ECFC, ECTR, EQBT and BILL. Each reads real data only, says where every figure comes from, and has unit, browser and desktop tests. Along the way:
   - `c60f14f` The quarter after next is named by the fiscal year the reports show ("Q3 2027", not "2027-02-28").
   - `6441408` TECH US, HL US, IYC US, EA US and FLNG US still name the stocks (Bio-Techne, Hecla, the iShares fund, Electronic Arts, FLEX LNG).
   - `0ff1746` One company-name helper for Nasdaq's lists (partnership units included).
   - `5d7af8f` CACT's watchlist and portfolio filters match their stocks.
-- CI: since the repository went private on 26 October, GitHub has started no runner for the `test` job, so it fails in 3 seconds with no log. Every push is checked locally first (lint, types, unit tests, both Playwright suites); see the comment on the pull request.
+- CI: while the repository was private on 26 October GitHub started no runner for the `test` job. It is public again, so CI runs on the pull request; every push is still checked locally first (lint, types, unit tests, both Playwright suites).
 - The visual pass (`docs/visual-research-2026-10.md`, "Done in the visual pass" and "What still differs"):
   - `ce9beb6` Bergoom by default, IBM Plex Sans or IBM Plex Mono in SETTINGS; chart labels follow.
   - `12dee50` Measured colours: function bar, section strips, the cyan command line with "<HELP> for explanation."
@@ -171,5 +200,6 @@ Plan:
 
 ## Released
 
+- 2.26.0 on 26 October 2026 (`docs/release-v2.26.0.md`), at your request, before the work moved to another account.
 - 2.25.1 on 26 October 2026 (`docs/release-v2.25.1.md`), at your request. 2.25.0 was built but not published (see "Done in 2.25.1").
 - 2.24.0 on 23 October 2026 (`docs/release-v2.24.0.md`).
