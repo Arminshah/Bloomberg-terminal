@@ -83,6 +83,7 @@ export const LEGACY_CODES: Record<string, string> = {
   CTM: 'CONTRACTS',
   ECFC: 'ECOFORECASTS',
   ECTR: 'TRADEFLOWS',
+  EQBT: 'BACKTEST',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',

@@ -6,12 +6,16 @@ import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { KeyedAnswer } from '../src/data/live/lookup';
+import { byMonth, monthKey, prevMonth } from '../src/data/backtest';
+import { fmtPct } from '../src/core/format';
 import { checkAmericanOption, checkBond, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from '../e2e/calculator-checks';
 import { checkLinkedPanels } from '../e2e/workspace-checks';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
 // The IMF's October 2026 World Economic Outlook as the bootstrap serves it (fixtures.imf).
 const imfWeo = JSON.parse(readFileSync(join(repository, 'tests/fixtures/imf-weo-2026-10.json'), 'utf8'));
+// Yahoo's month-end closes of the Dow and its members as the bootstrap serves them (fixtures.monthly).
+const dowMonthly = JSON.parse(readFileSync(join(repository, 'tests/fixtures/yahoo-monthly-dow-2026-10.json'), 'utf8')) as Record<string, { timestamp: number[]; close: number[] }>;
 const FMP_ERROR = 'Invalid API key. Deterministic FMP refusal.';
 const MARKETAUX_ERROR = 'Invalid API token. Deterministic Marketaux refusal.';
 const PRICE = '123.45';
@@ -44,6 +48,7 @@ interface Fixtures {
   crudeMonths?: string[];
   imf?: boolean;
   imfTrade?: boolean;
+  monthly?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -636,6 +641,42 @@ test("ECTR ranks an economy's goods trade by partner from the IMF, with its regi
   const asked = (await calls(app)).imf ?? [];
   expect(asked.some((c) => c.includes('/IMTS/+/USA.XG_FOB_USD%2BMG_CIF_USD.*.A?c%5BTIME_PERIOD%5D=ge:'))).toBe(true);
   expect(asked.some((c) => c.includes('/IMTS/+/USA.XG_FOB_USD%2BMG_CIF_USD.CHN.M?c%5BTIME_PERIOD%5D=ge:'))).toBe(true);
+});
+
+test("EQBT back-tests momentum on the Dow's members from Yahoo's month-end closes, against the Dow and the members in equal weights", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.monthly = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'EQBT', 'BACKTEST');
+  const panel = page.locator('.panel').first();
+  const results = panel.getByRole('table', { name: 'Backtest results' }).locator('tbody tr');
+  await expect(results).toHaveCount(3, { timeout: 30_000 });
+  // The last complete month the fixture has; the first rebalance after twelve months of closes.
+  const dji = byMonth(dowMonthly['^DJI'].timestamp.map((t) => t * 1000), dowMonthly['^DJI'].close);
+  const last = [prevMonth(monthKey(Date.now())), '2026-10'].sort()[0];
+  const lastName = `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(last.slice(5)) - 1]} ${last.slice(0, 4)}`;
+  await expect(panel.locator('.fnh-sub')).toContainText(`Nov 2017 to ${lastName}`);
+  await expect(results.nth(0).locator('td').first()).toHaveText('Momentum, 10 stocks');
+  // The Dow's own price return over the period, from its closes.
+  await expect(results.nth(2).locator('td').nth(0)).toHaveText('Dow Jones Industrial Average');
+  await expect(results.nth(2).locator('td').nth(1)).toHaveText(fmtPct((dji[last] / dji['2017-11'] - 1) * 100, 1));
+  await expect(panel.locator('canvas').first()).toBeVisible();
+  await panel.getByRole('button', { name: '2) Years', exact: true }).click();
+  const years = panel.getByRole('table', { name: 'Calendar years' }).locator('tbody tr');
+  await expect(years.first().locator('td').first()).toHaveText('2017 (1 month)');
+  await panel.getByRole('button', { name: '3) Holdings', exact: true }).click();
+  await expect(panel.getByRole('table', { name: 'Picks now' }).locator('tbody tr')).toHaveCount(10);
+  // Every month end from the first is a rebalance, the latest first.
+  await expect(panel.getByRole('table', { name: 'Rebalances' }).locator('tbody tr').last().locator('td').first()).toHaveText('Nov 2017');
+  // The Dow's closes are asked while its members load, then the members 20 at a time. Another rule re-runs on the
+  // same closes, with nothing asked again.
+  const monthly = async () => (await calls(app)).yahoo.filter((c) => c.startsWith('/v8/finance/spark?') && c.includes('range=10y') && c.includes('interval=1mo'));
+  expect(await monthly()).toEqual(['/v8/finance/spark?symbols=%5EDJI&range=10y&interval=1mo', expect.stringContaining('symbols=AAPL,AMGN,'), expect.stringContaining('symbols=MSFT,NKE,')]);
+  await panel.getByLabel('Rule', { exact: true }).selectOption('lowvol');
+  await expect(panel.getByRole('table', { name: 'Picks now' }).locator('thead')).toContainText('Volatility');
+  expect(await monthly()).toHaveLength(3);
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {

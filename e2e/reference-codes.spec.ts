@@ -270,3 +270,14 @@ test("ECTR says trade by partner is read from the IMF in the desktop app, and sh
   await expect(panel.locator('canvas')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('EQBT says backtests run on real closes in the desktop app, and runs none in the demo', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'EQBT');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('BACKTEST');
+  await expect(panel.locator('.empty')).toContainText('The browser demo has none, and none are generated');
+  await expect(panel.locator('tbody tr')).toHaveCount(0);
+  await expect(panel.locator('canvas')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

@@ -71,7 +71,7 @@ export interface Member extends MemberInfo {
   points: number;
 }
 
-interface ListState {
+export interface ListState {
   state: 'loading' | 'ok' | 'error';
   members?: MemberInfo[];
   message?: string;
@@ -195,7 +195,8 @@ export function parseNasdaqVolumes(text: string): Record<string, number> {
   return out;
 }
 
-const yahooOf = (symbol: string) => symbol.replace('.', '-');
+/** A member's symbol on Yahoo: BRK-B for BRK.B. */
+export const yahooOf = (symbol: string) => symbol.replace('.', '-');
 
 async function answer(kind: 'sp500' | 'nasdaq100' | 'nasdaq-quotes', arg = ''): Promise<KeyedAnswer> {
   return window.arminDesktop!.indexMembers!(kind, arg);
@@ -358,6 +359,16 @@ export function useIndexMembers(indexId: string | undefined, opts: { history?: b
     };
   }, [b, opts.history]);
   return b ? indexBoard(b.id) : null;
+}
+
+/** The index's member list only, loaded while a screen shows it, without the members' prices (EQBT). */
+export function useIndexList(indexId: string | undefined): ListState | null {
+  indexData.use((s) => s.v);
+  const b = indexId ? BOARD_INDICES[indexId] : undefined;
+  useEffect(() => {
+    if (b && membersAvailable()) void loadList(b.key);
+  }, [b]);
+  return b ? (indexData.get().lists[b.key] ?? { state: 'loading' }) : null;
 }
 
 export interface Board {

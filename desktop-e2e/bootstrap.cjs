@@ -26,6 +26,9 @@ const splitsTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests
 // fixtures.fredChart).
 // Yahoo's daily closes of two crude oil contract months, 28 September to 26 October 2026 (CCRV, fixtures.futuresCurve).
 const crudeSpark = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-spark-cl-2026-10.json'), 'utf8'));
+// Yahoo's month-end closes of the Dow and the 30 members the app keeps for it, ten years to 23 October 2026 (EQBT,
+// fixtures.monthly).
+const dowMonthly = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-monthly-dow-2026-10.json'), 'utf8'));
 const fredFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/${name}.json`), 'utf8');
 // The IMF's October 2026 World Economic Outlook as the DataMapper answered it: GDP growth for 24 economies and groups,
 // with the names and the indicators' descriptions (ECFC, fixtures.imf).
@@ -296,6 +299,11 @@ net.fetch = async (input, init) => {
         const i = fixtures.crudeMonths.indexOf(symbol);
         return i < 0 ? { symbol, currency: 'USD' } : { symbol, currency: 'USD', regularMarketPrice: [100.9, 98.77][i], regularMarketChange: [-2.37, -2.17][i], expireIsoDate: new Date(Date.now() + [24, 52][i] * 86_400_000).toISOString(), openInterest: [250000, 180000][i], regularMarketVolume: [90000, 40000][i] };
       }) } });
+    }
+    if (fixtures.monthly && url.pathname === '/v8/finance/spark' && url.searchParams.get('interval') === '1mo') {
+      const out = {};
+      for (const symbol of (url.searchParams.get('symbols') ?? '').split(',')) if (dowMonthly[symbol]) out[symbol] = dowMonthly[symbol];
+      return json(out);
     }
     if (fixtures.futuresCurve && url.pathname === '/v8/finance/spark') {
       const asked = (url.searchParams.get('symbols') ?? '').split(',');
