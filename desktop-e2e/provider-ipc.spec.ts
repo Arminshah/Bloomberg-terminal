@@ -715,6 +715,26 @@ test("BILL lists Congress.gov's latest bills and the Congress's laws, and opens 
   expect(asked.every((c) => c.keyed && !/api_key/i.test(c.path))).toBe(true);
 });
 
+test("FXCA says when it has no live rate, and converts at the ECB's reference rate of a past day", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.ecbFx = true;
+  });
+  await command(page, 'FXCA 1000 GBP USD', 'CONVERT');
+  const panel = page.locator('.panel').first();
+  // Now: the live dollar rates, crossed. With Yahoo's prices off there are none, and the screen says so.
+  await expect(panel.locator('.empty')).toContainText('No rate yet for GBP', { timeout: 30_000 });
+  await expect(panel.locator('.fxca-big')).toHaveCount(0);
+  // Sunday 28 June 2026: the ECB published no rates, so Friday's, crossed through the euro.
+  await panel.getByLabel('Rate of', { exact: true }).fill('2026-06-28');
+  await expect(panel.locator('.fxca-big')).toContainText('1,000.00 GBP = 1,321.81 USD', { timeout: 30_000 });
+  await expect(panel.getByLabel('Rate source')).toContainText("The ECB's reference rate of 26/06/26");
+  const others = panel.getByRole('table', { name: 'In other currencies' }).locator('tbody tr');
+  await expect(others.filter({ hasText: 'JPY' })).toContainText('213,673.73');
+  // The offshore renminbi has no ECB rate: none is shown.
+  await expect(others.filter({ hasText: 'CNH' })).toContainText('none');
+  expect((await calls(app)).ecbFx?.length).toBeGreaterThan(0);
+});
+
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;

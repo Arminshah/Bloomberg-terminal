@@ -1585,3 +1585,7 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 
 /* LAYOUTS on the whole window: the line that keeps the panels it came from. */
 .lb-away { color: var(--amber); border-bottom: 1px solid var(--line); }
+
+/* FXCA: the converted amount in large type, the rates and their source under it. */
+.fxca-result { display: grid; gap: 4px; padding: 10px 8px; }
+.fxca-big { font-size: 20px; }

@@ -88,6 +88,7 @@ import { ECFC } from '../functions/ECFC';
 import { ECTR } from '../functions/ECTR';
 import { EQBT } from '../functions/EQBT';
 import { BILL } from '../functions/BILL';
+import { FXCA } from '../functions/FXCA';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -166,6 +167,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'DEPTH', name: 'Market Depth', category: 'Markets', needsSec: true, classes: ['equity', 'commodity', 'crypto', 'fx', 'future'], desc: 'Order book for crypto from Kraken, and the best bid and offer from the source for everything else; the browser version models a full book.', component: DEPTH, aliases: ['BOOK'] },
   { code: 'VWAP', name: 'VWAP Analysis', category: 'Markets', needsSec: true, classes: TRADABLE, desc: 'Intraday volume-weighted average price with 30-minute buckets, TWAP and price against VWAP.', component: VWAP },
   // FX & crypto
+  { code: 'CONVERT', name: 'Currency Conversion', category: 'FX & Crypto', desc: "An amount in one currency in another and in the other main currencies, at the live rates against the US dollar or at the ECB's reference rate of any day since 1999, with the rate, its inverse and where it comes from.", component: FXCA, example: 'CONVERT 1000 EUR USD' },
   { code: 'FXMATRIX', name: 'Currency Cross Rates', category: 'FX & Crypto', desc: 'Cross rates of major currencies, worked out from each currency\'s rate against the US dollar.', component: FXC, aliases: ['CROSSES'] },
   { code: 'FXRANK', name: 'World Currency Ranker', category: 'FX & Crypto', desc: 'Currencies ranked by performance against the US dollar over a chosen period.', component: WCRS },
   { code: 'CRYPTO', name: 'Crypto Monitor', category: 'FX & Crypto', desc: 'Ten major coins on Kraken\'s USD pairs: price, range and volume over the UTC day, market value from CoinGecko, and returns.', component: CRYP, example: 'CRYPTO BTC' },

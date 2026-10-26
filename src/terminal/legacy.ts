@@ -85,6 +85,7 @@ export const LEGACY_CODES: Record<string, string> = {
   ECTR: 'TRADEFLOWS',
   EQBT: 'BACKTEST',
   BILL: 'LEGISLATION',
+  FXCA: 'CONVERT',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',
