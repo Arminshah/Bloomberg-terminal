@@ -94,6 +94,12 @@ export function quotesTiming(quotes: Json[]): string {
 
 const MONTH_CODES = 'FGHJKMNQUVXZ';
 
+/** Exchange suffix of each futures root on Yahoo, for its contract months (CLZ26.NYM). */
+export const FUTURES_EXCHANGE: Record<string, string> = {
+  CL: 'NYM', BZ: 'NYM', NG: 'NYM', HO: 'NYM', RB: 'NYM', PL: 'NYM', PA: 'NYM', GC: 'CMX', SI: 'CMX', HG: 'CMX',
+  ZW: 'CBT', ZC: 'CBT', ZS: 'CBT', KC: 'NYB', SB: 'NYB', CC: 'NYB', CT: 'NYB', LE: 'CME', HE: 'CME',
+};
+
 /** Futures contract symbols for the next `n` listed months: CLX26.NYM, GCZ26.CMX and so on. */
 export function contractSymbols(root: string, exch: string, listed: string, n: number, from = new Date()): { symbol: string; month: number; year: number }[] {
   const months = listed === 'All months' ? MONTH_CODES.split('') : listed.split(',').map((x) => x.trim());

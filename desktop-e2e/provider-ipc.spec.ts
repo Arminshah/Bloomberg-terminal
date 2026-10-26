@@ -37,6 +37,8 @@ interface Fixtures {
   marketShorts?: boolean;
   related?: boolean;
   fredChart?: boolean;
+  futuresCurve?: boolean;
+  crudeMonths?: string[];
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -538,6 +540,28 @@ test('ECOW charts a FRED series with its latest values, and adds a series found 
   // A transformation is asked of FRED itself.
   await panel.getByLabel('HOUST shown as').selectOption('pc1');
   await expect.poll(async () => (await calls(app)).fred?.some((c) => c.includes('series_id=HOUST') && c.includes('units=pc1'))).toBe(true);
+});
+
+test("CCRV draws a commodity's forward curve from its contract months, with the curve a week ago", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.futuresCurve = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'CL1 COMDTY CCRV', 'FUTURESCURVE');
+  const panel = page.locator('.panel').first();
+  const rows = panel.getByRole('table', { name: 'Contract months' }).locator('tbody tr');
+  // Only the months with a price, by expiry: the nearer one dearer, so the curve is in backwardation.
+  await expect(rows).toHaveCount(2, { timeout: 30_000 });
+  await expect(rows.nth(0)).toContainText('100.90');
+  await expect(rows.nth(0)).toContainText('250,000');
+  await expect(rows.nth(1)).toContainText('98.77');
+  await expect(rows.nth(1)).toContainText('-2.13');
+  await expect(panel.getByText('Backwardation')).toBeVisible();
+  // The curve a week ago, from each month's own closes: three months of them, so a month ago is covered too.
+  await expect(rows.nth(0).locator('td').nth(4)).not.toHaveText('');
+  expect((await calls(app)).yahoo.some((c) => c.startsWith('/v8/finance/spark?') && c.includes('range=3mo'))).toBe(true);
+  await expect(panel.locator('canvas').first()).toBeVisible();
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {

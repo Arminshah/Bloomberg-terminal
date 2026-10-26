@@ -82,6 +82,7 @@ import { CCB } from '../functions/CCB';
 import { FLNG } from '../functions/FLNG';
 import { RELS } from '../functions/RELS';
 import { ECOW } from '../functions/ECOW';
+import { CCRV } from '../functions/CCRV';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -182,6 +183,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'DEALERQUOTES', name: 'All Quotes', category: 'Rates & Credit', needsSec: true, classes: ['bond'], desc: 'Dealer quote montage for a bond with best bid and offer, yields and sizes (browser model; dealer quotes have no free source).', component: ALLQ, unavailable: 'dealer quotes have no free source' },
   // Commodities
   { code: 'COMMODITIES', name: 'Global Commodities', category: 'Commodities', desc: 'Energy, metals, grains, softs and livestock futures with changes, YTD and intraday.', component: GLCO },
+  { code: 'FUTURESCURVE', name: 'Commodity Forward Curves', category: 'Commodities', desc: "A commodity's forward curve: every listed contract month with its own price and expiry, the curve a week and a month ago from each contract's closes, the change, the spread to the front month, open interest and volume, and whether the curve is in contango or backwardation (Yahoo Finance, desktop app).", component: CCRV, example: 'CL1 COMDTY FUTURESCURVE' },
   // Economics
   { code: 'MACRO', name: 'Macro Dashboard', category: 'Economics', desc: 'US policy rate, Treasury yields and curve, inflation, jobs, growth, money, credit spreads, financial conditions and recession signals from the FRED API, with how payrolls and GDP were revised since first published.', component: MACRO, example: 'MACRO CPI' },
   { code: 'ECONCHART', name: 'Economic Data Chart', category: 'Economics', desc: "Up to four FRED series on one chart, each as published or transformed by FRED (change, % change, on a year ago, compounded annual rate), over two years to the whole history, with a second scale for different units, each one's latest value and the one before, and FRED's description; a search finds any of FRED's series (desktop app, FRED_API_KEY).", component: ECOW, example: 'ECONCHART HOUST CPIAUCSL:PC1' },

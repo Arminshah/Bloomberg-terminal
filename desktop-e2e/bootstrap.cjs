@@ -24,6 +24,8 @@ const splitsTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests
 // FINRA's short interest settlement of 30 Sep 2026, trimmed to 43 listings (SIA, fixtures.marketShorts).
 // FRED's answers as given: housing starts' description and 2025-26 values, and a search for consumer prices (ECOW,
 // fixtures.fredChart).
+// Yahoo's daily closes of two crude oil contract months, 28 September to 26 October 2026 (CCRV, fixtures.futuresCurve).
+const crudeSpark = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-spark-cl-2026-10.json'), 'utf8'));
 const fredFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/${name}.json`), 'utf8');
 // OpenFIGI's answers for Alphabet's class A shares: the ticker's share class, and its listings (RELS, fixtures.related).
 const googlFigi = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/openfigi-googl.json'), 'utf8'));
@@ -261,6 +263,25 @@ net.fetch = async (input, init) => {
       const meta = chart.chart.result[0].meta;
       Object.assign(meta, { symbol, currency: 'USD', exchangeName: 'NMS', instrumentType: 'EQUITY', longName: `Synthetic ${symbol} fixture`, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000) });
       return json(chart);
+    }
+    // With fixtures.futuresCurve, the first two crude oil months asked for trade at the fixture's last closes (December
+    // and January as recorded), expiring 24 and 52 days ahead; the later months have no price.
+    const crude = (url.searchParams.get('symbols') ?? '').split(',').filter((x) => /^CL[FGHJKMNQUVXZ]\d\d\.NYM$/.test(x));
+    if (fixtures.futuresCurve && crude.length && url.pathname === '/v7/finance/quote') {
+      fixtures.crudeMonths ??= crude.slice(0, 2);
+      return json({ quoteResponse: { result: crude.map((symbol) => {
+        const i = fixtures.crudeMonths.indexOf(symbol);
+        return i < 0 ? { symbol, currency: 'USD' } : { symbol, currency: 'USD', regularMarketPrice: [100.9, 98.77][i], regularMarketChange: [-2.37, -2.17][i], expireIsoDate: new Date(Date.now() + [24, 52][i] * 86_400_000).toISOString(), openInterest: [250000, 180000][i], regularMarketVolume: [90000, 40000][i] };
+      }) } });
+    }
+    if (fixtures.futuresCurve && url.pathname === '/v8/finance/spark') {
+      const asked = (url.searchParams.get('symbols') ?? '').split(',');
+      const out = {};
+      for (const symbol of asked) {
+        const i = (fixtures.crudeMonths ?? []).indexOf(symbol);
+        if (i >= 0) out[symbol] = crudeSpark[['CLZ26.NYM', 'CLF27.NYM'][i]];
+      }
+      return json(out);
     }
     if (url.pathname === '/v7/finance/quote') return json({ quoteResponse: { result: (url.searchParams.get('symbols') ?? '').split(',').map((symbol) => ({ symbol, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000), currency: 'USD', quoteSourceName: 'Synthetic Real Time Price', exchangeDataDelayedBy: 0,
       ...(fixtures.listingsDown && (WEEK_QUOTES[symbol] || /^AC[A-L]$/.test(symbol)) ? (() => {

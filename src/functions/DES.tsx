@@ -19,7 +19,7 @@ import { useMenu, usePanelId } from '../terminal/panel';
 import type { FnProps, MenuItem } from '../terminal/types';
 import { CLASS_LABEL } from '../data/registry';
 import { useFundamentals } from '../data/live/yfund';
-import { contractSymbols, useYahooQuotes } from '../data/live/yquotes';
+import { contractSymbols, FUTURES_EXCHANGE, useYahooQuotes } from '../data/live/yquotes';
 import { cryptoReference, yahooQuotes } from '../data/live/yahoo';
 import { DAY_MS } from '../data/calendar';
 import { NoBondNotice, sourceLabel } from '../components/Source';
@@ -315,16 +315,10 @@ function CommodityDES({ sec }: { sec: SecurityDef }) {
   );
 }
 
-/** Exchange suffix of each futures root on Yahoo, for its contract months. */
-const FUT_EXCH: Record<string, string> = {
-  CL: 'NYM', BZ: 'NYM', NG: 'NYM', HO: 'NYM', RB: 'NYM', PL: 'NYM', PA: 'NYM', GC: 'CMX', SI: 'CMX', HG: 'CMX',
-  ZW: 'CBT', ZC: 'CBT', ZS: 'CBT', KC: 'NYB', SB: 'NYB', CC: 'NYB', CT: 'NYB', LE: 'CME', HE: 'CME',
-};
-
 /** The listed contract months with their own prices, expiries and open interest (desktop app). */
 function RealStrip({ sec }: { sec: SecurityDef }) {
   const root = (sec.yahoo ?? '').replace(/=F$/, '');
-  const exch = FUT_EXCH[root];
+  const exch = FUTURES_EXCHANGE[root];
   const contracts = useMemo(() => (exch ? contractSymbols(root, exch, sec.cmd!.months, 12) : []), [root, exch, sec.cmd]);
   const quotes = useYahooQuotes(contracts.map((c) => c.symbol));
   const now = engine.now();
