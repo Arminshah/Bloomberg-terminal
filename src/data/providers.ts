@@ -674,13 +674,14 @@ export const PROVIDERS: ProviderDef[] = [
   },
   {
     id: 'imf',
-    name: 'IMF DataMapper',
-    serves: 'The World Economic Outlook: GDP growth, inflation, unemployment, current account, government balance and debt by economy and region, with the forecasts (ECFC)',
-    dataClass: 'Economic statistics and projections (official), the World Economic Outlook of April and October',
+    name: 'IMF DataMapper and SDMX API',
+    serves: "The World Economic Outlook: GDP growth, inflation, unemployment, current account, government balance and debt by economy and region, with the forecasts (ECFC); an economy's goods exports and imports by partner, by year and month, from International Trade in Goods by partner country (ECTR)",
+    dataClass: 'Economic and trade statistics and projections (official), the World Economic Outlook of April and October',
     policy: 'enabled',
-    terms: 'The IMF lets anyone download, reuse and redistribute its data, the World Economic Outlook included, with the IMF named as the source ("Source: International Monetary Fund, database, link"); a material change to the figures must be stated. The app asks once per indicator and keeps each answer 12 hours.',
+    terms: 'The IMF lets anyone download, reuse and redistribute its data, the World Economic Outlook included, with the IMF named as the source ("Source: International Monetary Fund, database, link"); a material change to the figures must be stated. The app asks once per indicator and keeps each answer 12 hours; trade once per economy a day (one partner\'s months 12 hours), and the names of the economies a week.',
     docs: [
       { label: 'DataMapper API', url: 'https://www.imf.org/external/datamapper/api/help' },
+      { label: 'IMF data API (SDMX)', url: 'https://data.imf.org/en/Resource-Pages/IMF-API' },
       { label: 'Copyright and usage', url: 'https://www.imf.org/en/About/copyright-and-terms' },
     ],
     checked: '2026-10-26', desktop: true,

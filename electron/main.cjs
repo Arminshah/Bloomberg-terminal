@@ -718,7 +718,8 @@ ipcMain.handle('openfigi', async (event, codes) => {
   return { status, results, keyed, ...(error ? { error } : {}) };
 });
 
-// The IMF's World Economic Outlook through its DataMapper API (electron/imf.cjs), no key: ECFC.
+// The IMF's World Economic Outlook through its DataMapper API, and goods trade by partner through its SDMX API
+// (electron/imf.cjs), no key: ECFC and ECTR.
 const imf = require('./imf.cjs');
 ipcMain.handle('imf', async (event, kind, arg) => {
   const req = imf.imfRequest(kind, arg);

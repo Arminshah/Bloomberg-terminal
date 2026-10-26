@@ -43,6 +43,7 @@ interface Fixtures {
   futuresCurve?: boolean;
   crudeMonths?: string[];
   imf?: boolean;
+  imfTrade?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -598,6 +599,43 @@ test("ECFC shows the IMF's World Economic Outlook for the regions and major econ
   const asked = (await calls(app)).imf ?? [];
   expect(asked).toContain('/external/datamapper/api/v1/NGDP_RPCH');
   expect(asked).toContain('/external/datamapper/api/v1/PCPIPCH');
+});
+
+test("ECTR ranks an economy's goods trade by partner from the IMF, with its regions, any year and a partner's months", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.imfTrade = true;
+  });
+  await command(page, 'ECTR', 'TRADEFLOWS');
+  const panel = page.locator('.panel').first();
+  const rows = panel.getByRole('table', { name: 'Trade by partner' }).locator('tbody tr');
+  // The latest year the IMF has for the United States' trade with the world, partners by total trade.
+  await expect(rows).toHaveCount(5, { timeout: 30_000 });
+  await expect(panel.locator('.fnh-sub')).toContainText('United States, goods in US dollars, 2025');
+  await expect(rows.locator('td:first-child')).toHaveText(['Mexico', 'Canada', "China, People's Republic of", 'Germany', 'Japan']);
+  await expect(rows.first().locator('td')).toHaveText(['Mexico', '338.0B', '534.9B', '-196.9B', '872.8B', '15.6%', '+1.2%', '+5.7%']);
+  // Another year from the same answer.
+  await panel.getByLabel('Year', { exact: true }).selectOption('2024');
+  await expect(rows.filter({ hasText: 'China' }).locator('td').nth(1)).toHaveText('143.5B');
+  // The IMF's own groups in the order of its table; a group outside it (GX170) is left out.
+  await panel.getByRole('button', { name: '2) Regions', exact: true }).click();
+  await expect(rows.locator('td:first-child')).toHaveText(['World', 'Other Countries n.i.e.', 'European Union (EU)']);
+  await panel.getByRole('button', { name: '1) Partners', exact: true }).click();
+  await rows.filter({ hasText: 'China' }).click();
+  await expect(rows.filter({ hasText: 'China' })).toHaveClass(/sel/);
+  await expect(panel.locator('canvas').first()).toBeVisible();
+  // The partner's last 24 months, asked of the IMF when shown.
+  await panel.getByRole('button', { name: '3) Monthly', exact: true }).click();
+  const months = panel.getByRole('table', { name: 'Monthly trade' }).locator('tbody tr');
+  await expect(months).toHaveCount(24, { timeout: 30_000 });
+  await expect(months.first().locator('td').nth(0)).toHaveText('Jun 2026');
+  await expect(months.first().locator('td').nth(1)).toHaveText('9.6B');
+  await expect(months.first().locator('td').nth(2)).toHaveText('25.1B');
+  // An economy the IMF has no figures for says so.
+  await panel.getByLabel('Economy', { exact: true }).selectOption('DEU');
+  await expect(panel.getByText('The IMF has no trade figures for Germany.')).toBeVisible({ timeout: 30_000 });
+  const asked = (await calls(app)).imf ?? [];
+  expect(asked.some((c) => c.includes('/IMTS/+/USA.XG_FOB_USD%2BMG_CIF_USD.*.A?c%5BTIME_PERIOD%5D=ge:'))).toBe(true);
+  expect(asked.some((c) => c.includes('/IMTS/+/USA.XG_FOB_USD%2BMG_CIF_USD.CHN.M?c%5BTIME_PERIOD%5D=ge:'))).toBe(true);
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {

@@ -30,6 +30,10 @@ const fredFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fix
 // The IMF's October 2026 World Economic Outlook as the DataMapper answered it: GDP growth for 24 economies and groups,
 // with the names and the indicators' descriptions (ECFC, fixtures.imf).
 const imfWeo = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/imf-weo-2026-10.json'), 'utf8'));
+// The IMF's answers for United States goods trade with eight partners and groups by year, and with China by month,
+// with its codelist trimmed to the codes used (ECTR, fixtures.imfTrade). Any other economy has no figures.
+const imfTrade = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/imf-imts-usa-2026-10.json'), 'utf8'));
+const imfNoSeries = { data: { dataSets: [{ structure: 0, action: 'Replace' }], structures: [{}] } };
 // OpenFIGI's answers for Alphabet's class A shares: the ticker's share class, and its listings (RELS, fixtures.related).
 const googlFigi = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/openfigi-googl.json'), 'utf8'));
 const settlementTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/finra-settlement-2026-09-30.json'), 'utf8'));
@@ -96,6 +100,14 @@ net.fetch = async (input, init) => {
     if (part === 'countries' || part === 'groups' || part === 'indicators') return json(imfWeo[part]);
     // The fixture holds GDP growth only: the other indicators answer with no figures.
     return json({ values: {} });
+  }
+  if (fixtures.imfTrade && url.hostname === 'api.imf.org') {
+    fixtures.calls.imf = [...(fixtures.calls.imf ?? []), url.pathname + url.search];
+    if (url.pathname.endsWith('/codelist/IMF.STA/CL_IMTS_COUNTRY/+')) return json(imfTrade.areas);
+    const key = url.pathname.split('/IMTS/+/')[1] ?? '';
+    if (key === 'USA.XG_FOB_USD%2BMG_CIF_USD.*.A') return json(imfTrade.annual);
+    if (key === 'USA.XG_FOB_USD%2BMG_CIF_USD.CHN.M') return json(imfTrade.monthly);
+    return json(imfNoSeries);
   }
   // With fixtures.thirteenF, EDGAR's search for 13F filings (FLNG) finds the fixture's June 2026 report.
   if (fixtures.thirteenF && url.hostname === 'efts.sec.gov' && url.searchParams.get('forms') === '13F-HR') {
