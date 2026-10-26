@@ -12,7 +12,8 @@ import { clearPanelInput, focusPanelInput, pagePanel, typeInto, FKEY_TEXT } from
 import { engine } from './data/market';
 import { setTimeZone } from './core/format';
 import { lookupFn } from './terminal/registry';
-import { settings } from './terminal/settings';
+import { fontChoice, settings } from './terminal/settings';
+import { setChartFont } from './components/chart/PriceChart';
 import { back, currentRoute, panelCount, rowsOrDefault, setActive, splitFor, terminal } from './terminal/state';
 import { rowsGrid } from './terminal/rows-layout';
 import { Splitters } from './components/Splitters';
@@ -81,7 +82,8 @@ export function App() {
   }, [size]);
 
   useEffect(() => {
-    document.documentElement.dataset.font = font === 'mono' ? 'mono' : 'terminal';
+    document.documentElement.dataset.font = fontChoice(font);
+    setChartFont(fontChoice(font));
   }, [font]);
 
   useEffect(() => {

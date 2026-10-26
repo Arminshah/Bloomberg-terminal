@@ -38,8 +38,10 @@
   --key-gray: #3b3b3b;
   --focus: #ffd23f;
 
-  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
-  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* The fixed-width face: the command line, and every text in the monospaced setting. */
+  --fixed: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+  --mono: var(--fixed);
+  --sans: 'Bergoom', 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --fs: 12px;
   --fs-s: 11px;
   --fs-l: 13px;
@@ -48,13 +50,18 @@
   --gutter: 6px;
 }
 
-/* The terminal's look: one proportional typeface with even-width figures for labels, figures and the command line,
-   slightly bold. SETTINGS can switch back to the monospaced face. */
-html[data-font='terminal'] {
-  --mono: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+/* The terminal's look: one proportional typeface with even-width figures for labels and figures, Bergoom by default
+   (spaced a little wider, as the terminal's own face is). If it fails to load, font-size-adjust gives the fallback
+   Bergoom's x-height (0.563), so rows keep their height. SETTINGS offers IBM Plex Sans, or the monospaced face. */
+html[data-font='terminal'] { --mono: var(--sans); }
+html[data-font='terminal'] body { letter-spacing: 0.02em; font-size-adjust: 0.563; }
+html[data-font='plex'] {
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --mono: var(--sans);
 }
-html[data-font='terminal'] body { font-weight: 500; letter-spacing: 0.01em; }
-html[data-font='terminal'] b, html[data-font='terminal'] strong, html[data-font='terminal'] th { font-weight: 600; }
+html[data-font='plex'] body { font-weight: 500; letter-spacing: 0.01em; }
+html[data-font='terminal'] b, html[data-font='terminal'] strong, html[data-font='terminal'] th,
+html[data-font='plex'] b, html[data-font='plex'] strong, html[data-font='plex'] th { font-weight: 600; }
 
 html[data-size='S'] { --fs: 11px; --fs-s: 10px; --fs-l: 12px; --row: 18px; }
 html[data-size='L'] { --fs: 13.5px; --fs-s: 12px; --fs-l: 15px; --fs-xl: 18px; --row: 23px; }
@@ -1287,10 +1294,10 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .heatmap { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 4px; }
 .heatmap-box { position: relative; flex: 1; min-height: 360px; width: 100%; overflow: hidden; }
 .heatmap-box svg { position: absolute; inset: 0; display: block; }
-.heatmap-group { fill: #f0f0f0; font-size: 10px; font-weight: 600; font-family: var(--font-sans, 'IBM Plex Sans', sans-serif); pointer-events: auto; }
+.heatmap-group { fill: #f0f0f0; font-size: 10px; font-weight: 600; font-family: var(--sans); pointer-events: auto; }
 .heatmap-group.click { cursor: pointer; }
 .heatmap-group.click:hover { fill: var(--amber); }
-.heatmap-sub { fill: #c8c8c8; font-size: 8px; pointer-events: none; font-family: var(--font-sans, 'IBM Plex Sans', sans-serif); }
+.heatmap-sub { fill: #c8c8c8; font-size: 8px; pointer-events: none; font-family: var(--sans); }
 .heatmap-tick { fill: #fff; font-weight: 600; pointer-events: none; font-family: var(--sans); letter-spacing: 0.01em; }
 .heatmap-pct { fill: #ececec; font-weight: 400; pointer-events: none; font-family: var(--sans); font-variant-numeric: tabular-nums; }
 .heatmap g.click { cursor: pointer; }

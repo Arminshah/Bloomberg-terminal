@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { CHART_THEME } from './PriceChart';
+import { CHART_LOOK_EVENT, CHART_THEME } from './PriceChart';
 import { fmtNum } from '../../core/format';
 import { backingSize, crispDash, crispEdge, crispLine, crispWidth, deviceBox, watchPixelRatio } from './pixels';
 
@@ -349,6 +349,7 @@ export function XYChart(props: Props) {
       // Without device-pixel boxes, the size comes from the element's exact size times the ratio.
     }
     const stopRatio = watchPixelRatio(draw);
+    window.addEventListener(CHART_LOOK_EVENT, draw);
     const move = (e: PointerEvent) => {
       const r = cv.getBoundingClientRect();
       hover.current = { x: e.clientX - r.left, y: e.clientY - r.top };
@@ -363,6 +364,7 @@ export function XYChart(props: Props) {
     return () => {
       ro.disconnect();
       stopRatio();
+      window.removeEventListener(CHART_LOOK_EVENT, draw);
       cv.removeEventListener('pointermove', move);
       cv.removeEventListener('pointerleave', leave);
     };

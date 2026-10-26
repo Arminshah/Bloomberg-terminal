@@ -2,6 +2,12 @@ import { setDateOrder, type DateOrder } from '../core/format';
 import { createStore } from '../core/store';
 
 export type ClickAction = 'auto' | 'PROFILE' | 'CHART' | 'QUOTE';
+export type FontChoice = 'terminal' | 'plex' | 'mono';
+
+/** A saved typeface, or the default for anything else. */
+export function fontChoice(v: unknown): FontChoice {
+  return v === 'plex' || v === 'mono' ? v : 'terminal';
+}
 
 export interface Settings {
   flash: boolean;
@@ -19,8 +25,8 @@ export interface Settings {
   mnemonics: boolean;
   /** DD/MM/YYYY (European, the default) or MM/DD/YYYY, for every date shown or typed. */
   dateOrder: DateOrder;
-  /** The terminal's proportional typeface with even-width figures (the default), or a monospaced one. */
-  font: 'terminal' | 'mono';
+  /** A proportional typeface with even-width figures, Bergoom (the default) or IBM Plex Sans, or a monospaced one. */
+  font: FontChoice;
 }
 
 /** The single-file build runs where network requests are blocked; feeds start off there. */

@@ -6,6 +6,7 @@ import '@fontsource/ibm-plex-mono/latin-600.css';
 import '@fontsource/ibm-plex-sans/latin-400.css';
 import '@fontsource/ibm-plex-sans/latin-500.css';
 import '@fontsource/ibm-plex-sans/latin-600.css';
+import './styles/fonts.css';
 import './styles/global.css';
 import { App } from './App';
 import { NoDataSource } from './components/NoDataSource';
