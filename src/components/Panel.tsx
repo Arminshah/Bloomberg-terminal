@@ -3,15 +3,22 @@ import { engine } from '../data/market';
 import { lookupSecurity } from '../data/live/lookup';
 import { PanelContext } from '../terminal/panel';
 import { lookupFn } from '../terminal/registry';
-import { currentRoute, setActive, terminal } from '../terminal/state';
+import { primaryMnemonic } from '../terminal/legacy';
+import { settings } from '../terminal/settings';
+import { currentRoute, setActive, terminal, toggleSolo } from '../terminal/state';
 import { CommandLine } from './CommandLine';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PanelToolbar } from './PanelToolbar';
 
-/** `place`: the panel's grid lines in a layout of your own (rows-layout.ts); the fixed layouts place panels by CSS. */
-export function Panel({ index, place }: { index: number; place?: { gridRow: string; gridColumn: string } }) {
+/**
+ * `place`: the panel's grid lines in a layout of your own (rows-layout.ts); the fixed layouts place panels by CSS.
+ * `panels`: how many the layout shows; with more than one, the frame can show this one alone (`solo`) and the others
+ * are `hidden`, keeping their screens.
+ */
+export function Panel({ index, place, panels = 1, solo = false, hidden = false }: { index: number; place?: { gridRow: string; gridColumn: string }; panels?: number; solo?: boolean; hidden?: boolean }) {
   const route = terminal.use((s) => currentRoute(s, index));
   const active = terminal.use((s) => s.active === index);
+  const mnemonics = settings.use((s) => s.mnemonics);
   const def = lookupFn(route.fn) ?? lookupFn('HELP')!;
   const sec = route.sec ? engine.get(route.sec) : undefined;
   const [, bump] = useState(0);
@@ -20,14 +27,25 @@ export function Panel({ index, place }: { index: number; place?: { gridRow: stri
   const key = `${route.fn}|${route.sec ?? ''}|${route.args ?? ''}`;
   return (
     <section
-      className={`panel${active ? ' active' : ''}`}
+      className={`panel${active ? ' active' : ''}${solo ? ' solo' : ''}`}
       data-panel={index}
+      hidden={hidden}
       style={place}
       onMouseDownCapture={() => setActive(index)}
       onFocusCapture={() => setActive(index)}
       aria-label={`Panel ${index + 1}: ${def.name}`}
     >
       <PanelContext.Provider value={index}>
+        {/* The frame's title, as a terminal window's: the running function's mnemonic, then the panel's number. */}
+        <div className="panel-frame" onDoubleClick={panels > 1 ? () => toggleSolo(index) : undefined}>
+          <span className="panel-frame-mn" title={def.name}>{mnemonics ? primaryMnemonic(def.code) : def.code}</span>
+          <span className="panel-frame-title">{index + 1}-ARMIN</span>
+          {panels > 1 && (
+            <button type="button" className="panel-frame-max" aria-label={solo ? `Show every panel again` : `Show panel ${index + 1} alone`} title={solo ? 'Restore: every panel of the layout (double-click the title bar)' : 'Maximise: this panel alone (double-click the title bar)'} onClick={() => toggleSolo(index)}>
+              {solo ? '❐' : '□'}
+            </button>
+          )}
+        </div>
         <PanelToolbar panel={index} />
         <CommandLine panel={index} route={route} />
         <div className="panel-body" id={`panel-body-${index}`}>

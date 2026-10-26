@@ -15,7 +15,7 @@ import { lookupFn } from './terminal/registry';
 import { fontChoice, settings } from './terminal/settings';
 import { setChartFont } from './components/chart/PriceChart';
 import { colourScheme } from './terminal/palette';
-import { back, currentRoute, panelCount, rowsOrDefault, setActive, splitFor, terminal } from './terminal/state';
+import { back, currentRoute, panelCount, rowsOrDefault, setActive, splitFor, terminal, soloPanel } from './terminal/state';
 import { rowsGrid } from './terminal/rows-layout';
 import { Splitters } from './components/Splitters';
 import { startBackground } from './terminal/background';
@@ -78,6 +78,10 @@ export function App() {
   // A layout of your own is one grid: each tile edge of any row is a column line (rows-layout.ts).
   const grid = useMemo(() => (rows ? rowsGrid(rows) : undefined), [rows]);
   const count = mobile ? Math.max(panelCount({ layout, rows }), 4) : panelCount({ layout, rows });
+  const soloAt = soloPanel.use((s) => s.panel);
+  const solo = !mobile && count > 1 && soloAt !== null && soloAt < count ? soloAt : null;
+  // Another tab, another layout: every panel shows again.
+  useEffect(() => soloPanel.set({ panel: null }), [tabId, layout, rows]);
 
   useEffect(() => {
     document.documentElement.dataset.size = size;
@@ -232,9 +236,11 @@ export function App() {
       <main key={tabId} className="workspace" data-layout={layout} style={mobile ? undefined : grid ? { gridTemplateColumns: grid.columns.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: grid.heights.map((r) => `minmax(0, ${r}fr)`).join(' ') } : { gridTemplateColumns: split.cols.map((c) => `minmax(0, ${c}fr)`).join(' '), gridTemplateRows: split.rows.map((r) => `minmax(0, ${r}fr)`).join(' ') }}>
         {Array.from({ length: count }, (_, i) => {
           const at = !mobile && grid ? grid.places[i] : undefined;
-          return <Panel key={i} index={i} place={at ? { gridRow: String(at.row), gridColumn: `${at.from} / ${at.to}` } : undefined} />;
+          // A maximised panel fills the workspace; the others stay mounted, hidden.
+          if (solo !== null) return <Panel key={i} index={i} panels={count} solo={solo === i} hidden={solo !== i} place={solo === i ? { gridRow: '1 / -1', gridColumn: '1 / -1' } : undefined} />;
+          return <Panel key={i} index={i} panels={count} place={at ? { gridRow: String(at.row), gridColumn: `${at.from} / ${at.to}` } : undefined} />;
         })}
-        {!mobile && <Splitters />}
+        {!mobile && solo === null && <Splitters />}
       </main>
       {tape ? <TickerTape /> : <div />}
       <KeyBar />

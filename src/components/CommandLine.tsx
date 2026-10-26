@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { execute } from '../terminal/exec';
 import { panelMessages, clearFlash, flash } from '../terminal/panel';
 import { turnPage, typedPageCount } from '../terminal/paging';
-import { back, forward, LINK_GROUPS, linkGroupOf, setLinkGroup, terminal, type LinkGroup } from '../terminal/state';
+import { back, forward, LINK_GROUPS, linkGroupOf, navigate, setLinkGroup, terminal, type LinkGroup } from '../terminal/state';
 import { CHART_STYLES, primaryMnemonic, styledMnemonic } from '../terminal/legacy';
 import { settings } from '../terminal/settings';
 import { startSuggestions, suggest, type Suggestion } from '../terminal/suggest';
@@ -214,6 +214,15 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   };
 
   const submit = () => sel >= 0 && items[sel] ? choose(items[sel]) : run(valueRef.current);
+  // The word being typed: bold in the functions' titles, and the search behind "More Functions…".
+  const typed = value.trim().split(/\s+/).at(-1) ?? '';
+  // The directory searched for it, opened as a route: typed as a command, "HELP CORP" would open the CORP market.
+  const moreFunctions = (text: string) => {
+    navigate(panel, { fn: 'HELP', args: text });
+    setValue('');
+    setOpen(false);
+    setSel(-1);
+  };
   submitRef.current = submit;
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -348,6 +357,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         <div className="ac" id={`cmd-suggestions-${panel}`} ref={listRef} role="listbox" aria-label="Suggested functions and securities">
           {items.map((s, i) => {
             const head = i === 0 || items[i - 1].kind !== s.kind;
+            const lastFn = s.kind === 'fn' && (i + 1 === items.length || items[i + 1].kind !== 'fn');
             return [
               head ? (
                 <div key={`h${i}`} className="ac-head">
@@ -370,9 +380,14 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
                   {s.kind === 'fn' && s.scope ? `${s.scope} ` : ''}
                   {s.kind === 'fn' && mnemonics ? suggestedMnemonic(s) : s.primary}
                 </span>
-                <span>{s.secondary}</span>
+                <span>{s.kind === 'fn' ? boldTyped(s.secondary, typed) : s.secondary}</span>
                 <span className="tag">{s.tag}</span>
               </div>,
+              lastFn && typed ? (
+                <button key="more" type="button" className="ac-more" onMouseDown={(e) => e.preventDefault()} onClick={() => moreFunctions(typed)} title={`Every function matching ${typed}, in HELP`}>
+                  More Functions…
+                </button>
+              ) : null,
             ];
           })}
           <div className="ac-foot">
@@ -382,4 +397,21 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       )}
     </div>
   );
+}
+
+/** A title with the letters typed in bold where a word starts with them ("**Merg**ers & Acquisitions"). */
+export function boldTyped(title: string, typed: string): ReactNode {
+  const t = typed.replace(/[^A-Za-z0-9&]/g, '');
+  if (!t) return title;
+  const re = new RegExp(`(^|[^A-Za-z0-9])(${t})`, 'gi');
+  const out: ReactNode[] = [];
+  let at = 0;
+  for (let m = re.exec(title); m; m = re.exec(title)) {
+    const start = m.index + m[1].length;
+    out.push(title.slice(at, start), <b key={start}>{m[2]}</b>);
+    at = start + m[2].length;
+  }
+  if (!out.length) return title;
+  out.push(title.slice(at));
+  return out;
 }

@@ -69,6 +69,12 @@ const EXAMPLES: [string, string][] = [
   ['N CB', 'Central bank announcements'],
 ];
 
+/** Whether every word of a search is found in some function's code, name, description, category or aliases. */
+function namesFunctions(search: string): boolean {
+  const terms = search.trim().toUpperCase().split(/\s+/).filter(Boolean);
+  return terms.length > 0 && FUNCTIONS.some((fn) => terms.every((term) => [fn.code, fn.name, fn.desc, fn.category, ...(fn.aliases ?? [])].join(' ').toUpperCase().includes(term)));
+}
+
 function Directory({ filter, sec, start = 1 }: { filter: string; sec?: SecurityDef; start?: number }) {
   const panel = usePanelId();
   const mnemonics = settings.use((s) => s.mnemonics);
@@ -262,7 +268,8 @@ export function HELP({ route, sec }: FnProps) {
             <input id={`help-filter-${panel}`} className="inp" value={filter} placeholder="e.g. GP, yield, option" onChange={(e) => setFilter(e.target.value)} />
             <span className="muted">Enter a numbered item and GO, or click a function.{sec ? ` Analysis uses ${sec.id} where supported.` : ''}</span>
           </div>
-          <Directory filter={filter || (secHits.length ? '' : topic)} sec={sec} start={secHits.length + 1} />
+          {/* A topic that names functions too ("corp": Corporate Actions, and bonds named CORP) filters the directory. */}
+          <Directory filter={filter || (secHits.length && !namesFunctions(topic) ? '' : topic)} sec={sec} start={secHits.length + 1} />
         </>
       )}
     </div>

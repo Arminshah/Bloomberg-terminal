@@ -243,6 +243,15 @@ export function setActive(panel: number) {
   if (terminal.get().active !== panel) terminal.set((s) => ({ ...s, active: panel }));
 }
 
+/** A panel shown alone on the whole workspace, from its frame's maximise button; the others keep their screens, hidden. */
+export const soloPanel = createStore<{ panel: number | null }>({ panel: null });
+
+/** Shows a panel alone, or the whole layout again. */
+export function toggleSolo(panel: number) {
+  soloPanel.set((s) => ({ panel: s.panel === panel ? null : panel }));
+  setActive(panel);
+}
+
 export function setLayout(layout: FixedLayoutId) {
   if (layoutReturn.get().before) layoutReturn.set({ before: null });
   terminal.set((s) => ({ ...s, layout, active: Math.min(s.active, LAYOUT_PANELS[layout] - 1) }));

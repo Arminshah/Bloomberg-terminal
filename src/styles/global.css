@@ -392,15 +392,26 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   border: 1px solid var(--blue);
   opacity: 0.55;
 }
+.panel[hidden] { display: none; }
 .panel-body { position: relative; flex: 1; min-height: 0; overflow: auto; }
+
+/* The frame's title, as a terminal window's: a small green badge with the running mnemonic, then "1-ARMIN"; with more
+   than one panel, a maximise button shows the panel alone. */
+.panel-frame { display: flex; align-items: center; gap: 6px; height: 18px; flex: none; padding: 0 2px 0 4px; background: #141414; border-bottom: 1px solid #2a2a2a; color: #a8a8a8; font-family: var(--sans); font-size: 10.5px; user-select: none; }
+.panel.active .panel-frame { background: #1c1c1c; color: #e0e0e0; }
+.panel-frame-mn { flex: none; padding: 0 4px; border-radius: 2px; background: #1f7a3a; color: #fff; font-size: 9.5px; font-weight: 600; line-height: 13px; letter-spacing: 0.02em; }
+.panel-frame-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0.04em; }
+.panel-frame-max { flex: none; width: 22px; height: 16px; border: 0; padding: 0; background: transparent; color: #a8a8a8; font-size: 12px; line-height: 14px; }
+.panel-frame-max:hover { background: #3a3a3a; color: #fff; }
+@media (max-width: 760px) { .panel-frame { display: none; } }
 .panel-body.fill { overflow: hidden; display: flex; flex-direction: column; }
 
 /* Independent panel toolbar: related menu, retained security and active function. */
-.panel-toolbar { display: flex; align-items: stretch; gap: 3px; height: 25px; flex: none; padding: 2px 3px; background: #25292e; border-bottom: 1px solid #454b52; font-family: var(--sans); }
-.panel-menu, .panel-tool { flex: none; border: 1px solid #727272; padding: 0 7px; background: #171717; color: var(--white); font-size: var(--fs-s); line-height: 1; }
-.panel-menu { background: #353b42; border-color: #818891; }
+.panel-toolbar { display: flex; align-items: stretch; gap: 3px; height: 25px; flex: none; padding: 2px 3px; background: #1e1e1e; border-bottom: 1px solid #3a3a3a; font-family: var(--sans); }
+/* Light grey boxes with dark text, as the terminal's toolbar draws its security, function and menu boxes. */
+.panel-menu, .panel-tool { flex: none; border: 1px solid #aeb7c2; padding: 0 7px; background: #c9cfd6; color: #101318; font-size: var(--fs-s); line-height: 1; }
 .panel-menu span { margin-left: 7px; }
-.panel-menu:hover, .panel-tool:hover { border-color: var(--white); background: #424242; }
+.panel-menu:hover, .panel-tool:hover { border-color: var(--white); background: #e4e8ec; }
 .loaded-security { width: 210px; flex: 1 1 80px; min-width: 35px; max-width: 380px; border: 1px solid #aeb7c2; border-radius: 0; padding: 0 4px; color: #101318; background: #d5dbe2; font-size: var(--fs-s); }
 .loaded-security option { color: var(--white); background: #151515; }
 .panel-function { flex: 0 1 128px; min-width: 56px; width: 128px; margin-left: auto; padding: 0 2px; border: 1px solid #aeb7c2; border-radius: 0; color: #101318; background: #d5dbe2; font-size: var(--fs-s); }
@@ -515,6 +526,8 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 }
 .cmd-help:hover { color: var(--amber); }
 
+/* Suggestions, as the terminal lists them: an amber heading per kind, mnemonics in white, titles in grey with the typed
+   letters in bold white, and "More Functions…" in blue italics after the functions. */
 .ac {
   position: absolute;
   left: 22px;
@@ -523,16 +536,15 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   z-index: 40;
   max-height: min(420px, 70vh);
   overflow: auto;
-  background: #0b0b0b;
-  border: 1px solid var(--amber-dim);
+  background: #161616;
+  border: 1px solid #3a3a3a;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7);
+  font-family: var(--sans);
 }
 .ac-head {
-  padding: 3px 8px;
+  padding: 4px 8px 2px;
   font-size: var(--fs-s);
   color: var(--amber);
-  background: var(--bg-3);
-  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .ac-item {
@@ -544,12 +556,15 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   cursor: pointer;
   white-space: nowrap;
 }
-.ac-item > :nth-child(2) { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.ac-item > :nth-child(2) { overflow: hidden; text-overflow: ellipsis; color: #b4b4b4; }
+.ac-item > :nth-child(2) b { color: var(--white); font-weight: 600; }
 .ac-item .k { color: var(--yellow); font-weight: 500; }
-.ac-item .fn { color: var(--amber); font-weight: 600; }
+.ac-item .fn { color: var(--white); font-weight: 500; }
 .ac-item .tag { color: var(--muted); font-size: var(--fs-s); }
-.ac-item.sel, .ac-item:hover { background: var(--amber); }
+.ac-item.sel, .ac-item:hover { background: #c8c8c8; }
 .ac-item.sel *, .ac-item:hover * { color: #000 !important; }
+.ac-more { display: block; width: 100%; padding: 2px 8px 4px; border: 0; background: transparent; color: #4d9be6; font-style: italic; text-align: left; }
+.ac-more:hover { text-decoration: underline; }
 .ac-foot { padding: 3px 8px; color: var(--faint); font-size: var(--fs-s); border-top: 1px solid var(--line); }
 
 /* --------------------------------------------------------- function header */

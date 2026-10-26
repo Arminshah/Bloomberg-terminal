@@ -113,3 +113,55 @@ test('a colour-blind scheme turns rises blue in text, heat maps and charts, and 
   await expect(page.locator('html')).toHaveAttribute('data-scheme', 'deuteranopia');
   expect(errors).toEqual([]);
 });
+
+test("each panel's frame names its function and number, and maximises it alone and back", async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('armin:terminal')) localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: '4' } }));
+  });
+  const errors = await boot(page);
+  const panels = page.locator('.panel');
+  await expect(panels).toHaveCount(4);
+  await run(page, 'AAPL US Equity GP');
+  const frame = panels.first().locator('.panel-frame');
+  await expect(frame.locator('.panel-frame-mn')).toHaveText('GP');
+  await expect(frame.locator('.panel-frame-title')).toHaveText('1-ARMIN');
+  await expect(panels.nth(1).locator('.panel-frame-title')).toHaveText('2-ARMIN');
+  const quarter = (await panels.nth(1).boundingBox())!;
+  await panels.nth(1).getByRole('button', { name: 'Show panel 2 alone' }).click();
+  await expect(page.locator('.panel:visible')).toHaveCount(1);
+  // Alone, it takes the room of all four.
+  const alone = (await panels.nth(1).boundingBox())!;
+  expect(alone.width).toBeGreaterThan(quarter.width * 1.95);
+  expect(alone.height).toBeGreaterThan(quarter.height * 1.95);
+  await panels.nth(1).getByRole('button', { name: 'Show every panel again' }).click();
+  await expect(page.locator('.panel:visible')).toHaveCount(4);
+  // A double-click on the title does the same; the first panel kept its chart while hidden.
+  await frame.dblclick();
+  await expect(page.locator('.panel:visible')).toHaveCount(1);
+  await expect(panels.first().locator('.fnh-code')).toHaveText('CHART');
+  await frame.dblclick();
+  await expect(page.locator('.panel:visible')).toHaveCount(4);
+  expect(errors).toEqual([]);
+});
+
+test('suggestions read as the terminal lists them: amber heading, white mnemonics, typed letters bold, More Functions…', async ({ page }) => {
+  const errors = await boot(page);
+  const input = page.locator('#cmd-0');
+  await input.click();
+  await page.keyboard.type('corp');
+  const list = page.locator('.panel').first().locator('.ac');
+  await expect(list.locator('.ac-head').first()).toHaveText('FUNCTIONS');
+  expect(await list.locator('.ac-head').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 158, 27)');
+  const item = list.locator('.ac-item', { hasText: 'Corporate Actions' }).first();
+  await expect(item.locator('b')).toHaveText('Corp');
+  expect(await item.locator('.fn').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 255, 255)');
+  const more = list.getByRole('button', { name: 'More Functions…' });
+  expect(await more.evaluate((el) => [getComputedStyle(el).fontStyle, getComputedStyle(el).color])).toEqual(['italic', 'rgb(77, 155, 230)']);
+  await more.click();
+  await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('HELP');
+  await expect(page.locator('.panel').first().locator('.fnh-title')).toContainText('CORP');
+  // The directory lists the functions that match, not every function.
+  await expect(page.locator('.panel').first().locator('.sect', { hasText: 'Corporate Actions' })).toBeVisible();
+  await expect(page.locator('.panel').first().getByText('World Equity Indices', { exact: true })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
