@@ -1,7 +1,7 @@
 import { isMarketCode, parseListing } from '../data/listings';
 import { resolveSecurity, UNCOVERED_KEYS, YELLOW_KEYS } from '../data/registry';
 import type { SecurityDef } from '../data/types';
-import { argsWith } from './legacy';
+import { argsWith, TICKER_MNEMONICS } from './legacy';
 
 export type Parsed =
   | { kind: 'empty' }
@@ -125,7 +125,8 @@ export function parseCommand(input: string, lookup: FnLookup): Parsed {
     return { kind: 'route', sec, fn: fn.code, args: argsWith(after[0], after.slice(1).join(' ')) };
   }
 
-  const head = lookup(tokens[0]);
+  // "TECH US" is Bio-Techne's stock, not the studies screen with "US" typed after it.
+  const head = TICKER_MNEMONICS.has(tokens[0]) && tokens[1] === 'US' ? undefined : lookup(tokens[0]);
   if (head) {
     const rest = raw.slice(1);
     const preset = argsWith(tokens[0]);

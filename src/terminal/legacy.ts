@@ -123,6 +123,12 @@ export const LEGACY_CODES: Record<string, string> = {
  * candlesticks, and the study commands RSI, MACD and BOLL with that study added, as the terminal's TECH list
  * runs them. The word travels as CHART's first argument, so a saved panel reopens the same way.
  */
+/**
+ * Mnemonics that are also US tickers (Bio-Techne, Hecla Mining, the iShares consumer discretionary fund). Followed by
+ * US they name the stock, as "TECH US DES"; on their own or before anything else, the function.
+ */
+export const TICKER_MNEMONICS = new Set(['TECH', 'HL', 'IYC']);
+
 export const CHART_STYLES: Record<string, string> = { GPO: 'BAR', GPC: 'CANDLE', RSI: 'RSI', MACD: 'MACD', BOLL: 'BOLL' };
 
 /** Words that open TOPMOVERS on one of its lists: GAINERS is TOPMOVERS GAINERS. */

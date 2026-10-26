@@ -253,6 +253,19 @@ describe('codes from the reference guides that name screens the app has', () => 
     expect(primaryMnemonic('RELEASES')).toBe('ECO');
     expect(primaryMnemonic('BONDS')).toBe('WB');
   });
+
+  it('reads a mnemonic that is also a US ticker, followed by US, as the stock', () => {
+    // Bio-Techne, Hecla Mining and the iShares fund, looked up online with the function typed after them.
+    expect(parse('TECH US')).toMatchObject({ kind: 'error', lookup: 'TECH' });
+    expect(parse('TECH US DES')).toMatchObject({ kind: 'error', lookup: 'TECH' });
+    expect(parse('HL US')).toMatchObject({ kind: 'error', lookup: 'HL' });
+    expect(parse('IYC US CHART')).toMatchObject({ kind: 'error', lookup: 'IYC' });
+    // On their own or before anything else they are the functions; other mnemonics keep a region after them.
+    expect(parse('TECH')).toEqual({ kind: 'route', fn: 'STUDIES' });
+    expect(parse('HL dividends')).toEqual({ kind: 'route', fn: 'HELP', args: 'DIVIDENDS' });
+    expect(parse('IYC')).toEqual({ kind: 'route', fn: 'CURVEMENU' });
+    expect(parse('WEI US')).toEqual({ kind: 'route', fn: 'MARKET', args: 'US' });
+  });
 });
 
 describe('terminal mnemonics added in 2.13', () => {
