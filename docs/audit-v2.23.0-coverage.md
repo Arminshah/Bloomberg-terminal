@@ -700,7 +700,29 @@ Built since, from free data (26 October 2026), each under the guide's code:
 
 All 27 of the class a codes these guides describe are now built.
 
-Not described in those guides (27), so not yet checked: AGS, BOE, BOJ, CBRT, CT, DOTS, ECB, FXCA, GAS, GEW, GY, HLDR, MINE, MRV, MYN, NGAS, NLRT, OIL, OVDV, PD, PSRT, RANK, SURP, WATC, WCR, WEIS, WM. They wait for documents 1 to 33, or for the videos.
+Not described in those guides (27): AGS, BOE, BOJ, CBRT, CT, DOTS, ECB, FXCA, GAS, GEW, GY, HLDR, MINE, MRV, MYN, NGAS, NLRT, OIL, OVDV, PD, PSRT, RANK, SURP, WATC, WCR, WEIS, WM. Searched for on 26 October in public sources. The main find is Bloomberg's own "Bloomberg Terminal: Quick Start" (Bloomberg Professional Services, PDF of July 2020, kept in `reference/pdfs/`, git-ignored), whose function list names 15 of them. University of Michigan's commodities and currencies guides, the older manual V05 and the cheat sheet N05 agree where they overlap. Only the codes and their names are noted here.
+
+| Code | What the sources say it is | Source | From free data? | In the app |
+| --- | --- | --- | --- | --- |
+| AGS, MINE, GAS, OIL | Commodity sector pages: agriculture, metals, natural gas, oil | Quick Start, Michigan, N05 (OIL) | Yes, the futures, curves and contracts; oil and gas inventories need the EIA's free key | `COMMODITIES` shows every sector together |
+| NGAS | Natural gas statistics for the US, Canada and Mexico | V05 | US figures with the EIA's free key; Canada and Mexico not found free | None |
+| ECB, BOE, BOJ | Central bank portals, listed with FED | Quick Start | Yes, as `FEDPORTAL` does for the Fed: policy rate, decisions, the bank's own releases | Rates on `CENTRALBANKS`; releases on `HEADLINES` |
+| CBRT | Central Bank Rate Analysis | Quick Start (name only) | Partly: rates and decisions; implied paths only where futures exist (`RATEPROBS` covers the Fed) | `CENTRALBANKS` |
+| FXCA | Conversion Calculator: an amount at the current rate or any past close | Quick Start | Yes | None |
+| WCR | World Currency Rates, with baskets of the user's choosing | Quick Start, Michigan | Yes | `FXMATRIX` and `FXRANK` (WCRS) are near it |
+| GEW | Global Economy Watch | Quick Start (name only) | Partly | Parts of `ECONSTATS` and `MACRO` |
+| MYN | My News: personal pages of filtered news sections | Quick Start | Yes, saved searches over the app's feeds | `NEWS` searches, not saved as pages |
+| NLRT | News Alerts | Quick Start, N05 | Yes, on the app's feeds | `ALERTS` covers prices only |
+| WEIS | World Equity Index Rankings | Quick Start (name only) | Yes | `MARKET` (WEI) lists the indices unranked |
+| WM | World Equity Markets Map | Quick Start (name only) | Yes | None |
+| PSRT | Public portfolio search directory | A Texas State guide, as a search result (its PDF did not load, HTTP 503) | Yes, from the SEC's 13F filers | `HOLDINGS`, `FILINGS13F` |
+| OVDV | A volatility surface | Forum posts and the titles of the provider's webinars only | Partly, from Alpaca's indicative implied volatilities | `OPTIONS` per contract |
+| WATC | Watchlist analytics | The equities tutorial's chapter name (E2) | Yes | `WATCHLIST` |
+| CT, GY | Exchange codes in P02 (Toronto, Xetra); no source names a function | P02 | — | Michigan names CTM the Contract Table Menu, built as `CONTRACTS` |
+| DOTS | No terminal source found; the IMF's Direction of Trade Statistics is the dataset behind `TRADEFLOWS` | — | — | `TRADEFLOWS` |
+| HLDR, MRV, PD, RANK, SURP | Nothing found | — | — | — |
+
+So 17 of the 27 have a source now (15 in the Quick Start, NGAS in V05, WATC as a chapter name); PSRT and OVDV have weaker ones, and 8 have none. The 2020 guide predates the 2026 screens and lists names, not behaviour.
 
 ## 3. Codes from Codex's list of Bloomberg videos
 
