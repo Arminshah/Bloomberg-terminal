@@ -70,6 +70,7 @@ import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
 import { FOMC } from '../functions/FOMC';
 import { TECH } from '../functions/TECH';
 import { IN } from '../functions/IN';
+import { IYC } from '../functions/IYC';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -146,6 +147,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'BONDS', name: 'World Bond Markets', category: 'Rates & Credit', desc: 'Government yields by country and tenor with changes, spreads to Treasuries and Bunds, and curve slope.', component: WB, aliases: ['WORLDBONDS', 'SOVM'] },
   { code: 'BONDMOVERS', name: 'World Bond Movers', category: 'Rates & Credit', desc: 'Every government yield the app has, ranked by how far it moved over a day, five days, a month or the year to date: the markets with the most price action first.', component: WBMV },
   { code: 'CURVE', name: 'Graph Curves', category: 'Rates & Credit', desc: 'Yield curves (US, Germany, UK, Japan) today versus one week, one month and one year ago.', component: GC, aliases: ['CURVES', 'YIELDS'] },
+  { code: 'CURVEMENU', name: 'Yield Curve Analysis', category: 'Rates & Credit', desc: "A menu of the yield curve screens: each country's curve now and in the past, then the bond monitors and calculators.", component: IYC },
   { code: 'BONDFUTURES', name: 'World Bond Futures', category: 'Rates & Credit', desc: 'US Treasury futures (2-year to Ultra Bond) in 32nds with change, range and the cash benchmark yield beside each, and SOFR and Fed funds futures with the rate they imply; price or yield view.', component: WBF, example: 'BONDFUTURES' },
   { code: 'MONEYMARKET', name: 'Treasury & Money Markets', category: 'Rates & Credit', desc: 'Fed funds target and New York Fed reference rates, bills, curve spreads and SOFR futures.', component: BTMM },
   { code: 'BONDCALC', name: 'Yield & Spread Analysis', category: 'Rates & Credit', classes: ['bond'], desc: 'Fixed-rate bullet calculator: price/yield, accrued, duration, convexity, DV01, G-spread, zero-curve Z-spread, spread risk, scenarios, cash flows and CSV export. Uses explicit contract, benchmark and curve inputs.', component: YAS, example: 'BONDCALC' },

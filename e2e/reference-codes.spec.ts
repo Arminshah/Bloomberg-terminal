@@ -86,3 +86,15 @@ test('IN lists the indices by region with what each is, and opens their chart or
   await expect(panel.locator('.fnh-sec')).toHaveText('DAX Index');
   expect(errors).toEqual([]);
 });
+
+test("IYC lists the yield curve screens and opens each country's curve", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'IYC');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('CURVEMENU');
+  await expect(panel.locator('tbody tr').first()).toContainText('US Treasuries curve');
+  await panel.locator('tbody tr', { hasText: 'German Bunds curve' }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('CURVE');
+  await expect(panel.locator('.fnh .tab.on, .fnh-actions .act.on').first()).toContainText(/German|DE|Bund/);
+  expect(errors).toEqual([]);
+});

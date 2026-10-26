@@ -65,6 +65,7 @@ export const LEGACY_CODES: Record<string, string> = {
   HRA: 'REGRESSION',
   TECH: 'STUDIES',
   IN: 'INDEXLIST',
+  IYC: 'CURVEMENU',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',

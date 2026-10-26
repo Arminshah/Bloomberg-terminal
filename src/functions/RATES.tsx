@@ -247,9 +247,10 @@ const COMPARE = [
 /** Whose credit a country's curve carries. */
 const CURVE_CREDIT: Record<string, CreditId> = { US: 'treasury', DE: 'bundesbank', GB: 'boe', JP: 'mof', CA: 'boc', AU: 'rba' };
 
-export function GC(_: FnProps) {
+export function GC({ route }: FnProps) {
   useTick(2);
-  const [tab, setTab] = useState(1);
+  // CURVE DE opens on Germany's curve (IYC lists one line per country).
+  const [tab, setTab] = useState(() => Math.max(1, CURVES.findIndex((c) => c.code === route.args?.trim().toUpperCase()) + 1));
   const code = CURVES[tab - 1].code;
   const curves = COMPARE.map((c) => ({ ...c, pts: curveAt(code, c.k) }));
   const cur = curves[0].pts;
