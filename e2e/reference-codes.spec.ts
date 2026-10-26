@@ -231,3 +231,20 @@ test("CCRV says contract months are read in the desktop app, and draws no curve 
   await expect(panel.locator('canvas')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('CTM lists the futures the app carries with their terms, found by sector and words', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'CTM');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('CONTRACTS');
+  await panel.getByLabel('Sector', { exact: true }).selectOption('Precious Metals');
+  await expect(panel.locator('tbody tr')).toHaveCount(4);
+  await expect(panel.locator('tbody tr', { hasText: 'GC1' })).toContainText('100 troy oz');
+  await panel.getByLabel('Find a contract').fill('gold');
+  await expect(panel.locator('tbody tr')).toHaveCount(1);
+  // The browser demo shows the terms only: no front month or price is made up.
+  await expect(panel.locator('tbody tr').first().locator('td').nth(9)).toHaveText('');
+  await panel.locator('tbody tr').first().click();
+  await expect(panel.locator('.fnh-code')).toHaveText('FUTURESCURVE');
+  expect(errors).toEqual([]);
+});
