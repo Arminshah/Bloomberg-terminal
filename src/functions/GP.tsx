@@ -285,8 +285,14 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
 /** Style words CHART accepts: BAR (GPO) and CANDLE (GPC), with LINE and MOUNTAIN for completeness. */
 const STYLE_WORDS: Record<string, ChartType> = { BAR: 'bar', OHLC: 'bar', CANDLE: 'candle', LINE: 'line', MOUNTAIN: 'mountain' };
 
-/** Study words CHART accepts, as the terminal runs RSI, MACD and BOLL: each adds its study to the chart. */
-const STUDY_WORDS: Record<string, { study?: string; lower?: LowerKind }> = { RSI: { lower: 'RSI' }, MACD: { lower: 'MACD' }, BOLL: { study: 'BOLL' } };
+/**
+ * Study words CHART accepts, as the terminal runs RSI, MACD and BOLL: each adds its study to the chart. TECH opens
+ * the others by the same words (SMA50, EMA20, VOL).
+ */
+const STUDY_WORDS: Record<string, { study?: string; lower?: LowerKind }> = {
+  RSI: { lower: 'RSI' }, MACD: { lower: 'MACD' }, BOLL: { study: 'BOLL' }, VOL: { lower: 'VOL' },
+  SMA20: { study: 'SMA20' }, SMA50: { study: 'SMA50' }, SMA200: { study: 'SMA200' }, EMA20: { study: 'EMA20' },
+};
 
 export function GP({ sec, route }: FnProps) {
   const words = route.args?.toUpperCase().split(/\s+/).filter(Boolean) ?? [];

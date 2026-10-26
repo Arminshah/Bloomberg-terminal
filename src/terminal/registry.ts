@@ -68,6 +68,7 @@ import { WBF } from '../functions/WBF';
 import { EQRP } from '../functions/EQRP';
 import { CDR, CENB, FRD, OVML, SWPM } from '../functions/FXRATES';
 import { FOMC } from '../functions/FOMC';
+import { TECH } from '../functions/TECH';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -106,6 +107,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'SPREAD', name: 'Historical Spread', category: 'Charts', needsSec: true, desc: 'Spread or ratio between two securities with mean, standard deviation, z-score and percentile (2s10s, Brent-WTI, gold/silver).', component: HS, aliases: ['RATIO'], example: 'SPREAD USGG10YR' },
   { code: 'BETA', name: 'Historical Beta', category: 'Charts', needsSec: true, classes: ['equity', 'index', 'crypto', 'commodity', 'fx'], desc: 'Regression of returns against an index: raw and adjusted beta, alpha, R², with scatter plot.', component: BETA },
   { code: 'REGRESSION', name: 'Regression Analysis', category: 'Charts', needsSec: true, classes: ['equity', 'index', 'crypto', 'commodity', 'fx'], desc: "One security's returns regressed on another's (any security, typed after the function): beta, alpha, R², correlation and the scatter, daily, weekly or monthly over six months to five years.", component: BETA, example: 'AAPL US Equity HRA MSFT US Equity' },
+  { code: 'STUDIES', name: 'Technical Studies', category: 'Charts', desc: 'The technical studies charts draw (moving averages, Bollinger bands, RSI, MACD, volume), what each computes, and the command that adds it to a chart.', component: TECH },
   { code: 'VOLATILITY', name: 'Historical Volatility', category: 'Charts', needsSec: true, desc: 'Realised volatility over 10 to 260 days with percentiles and a rolling chart. Implied volatility is not available (option quotes are licensed).', component: HVT },
   // News
   { code: 'HEADLINES', name: 'Official Announcements', category: 'News', desc: 'Official announcements, newest first, by topic: central banks (Fed, ECB, Bank of England, Bank of Canada, RBA, Bank of Japan), regulators (ESMA, SEC), statistics (BEA) and speeches (Fed, ECB blog, BIS). TOP opens the market news (MARKETNEWS).', component: HEADLINES, aliases: ['ANNOUNCEMENTS'] },

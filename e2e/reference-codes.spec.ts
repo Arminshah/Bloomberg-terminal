@@ -54,3 +54,19 @@ test('HRA regresses one security on another, named after the function, with its 
   await expect(panel.getByText('Relative index')).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('TECH lists the studies with what each computes, and a study opens the chart with it added', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity TECH');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('STUDIES');
+  await expect(panel.locator('tbody tr')).toHaveCount(8);
+  await expect(panel.locator('tbody tr', { hasText: 'Relative strength index' })).toContainText('AAPL US GP RSI');
+  await panel.locator('tbody tr', { hasText: 'Relative strength index' }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('CHART');
+  await expect(panel.getByRole('button', { name: 'RSI', exact: true })).toHaveClass(/\bon\b/);
+  await run(page, 'AAPL US Equity TECH');
+  await panel.locator('tbody tr', { hasText: '200 closes' }).click();
+  await expect(panel.getByRole('button', { name: 'SMA 200', exact: true })).toHaveClass(/\bon\b/);
+  expect(errors).toEqual([]);
+});
