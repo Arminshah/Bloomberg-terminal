@@ -77,6 +77,8 @@ export const LEGACY_CODES: Record<string, string> = {
   CCB: 'CLASSIFICATION',
   FLNG: 'FILINGS13F',
   RELS: 'RELATED',
+  ECOW: 'ECONCHART',
+  ECWB: 'ECONCHART',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',

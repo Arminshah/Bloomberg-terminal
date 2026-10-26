@@ -22,6 +22,9 @@ const trendTemplate = apldSummary.earningsTrend.trend;
 const dividendTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/nasdaq-dividends-2026-10-30.json'), 'utf8'));
 const splitsTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/nasdaq-splits-2026-10-26.json'), 'utf8'));
 // FINRA's short interest settlement of 30 Sep 2026, trimmed to 43 listings (SIA, fixtures.marketShorts).
+// FRED's answers as given: housing starts' description and 2025-26 values, and a search for consumer prices (ECOW,
+// fixtures.fredChart).
+const fredFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/${name}.json`), 'utf8');
 // OpenFIGI's answers for Alphabet's class A shares: the ticker's share class, and its listings (RELS, fixtures.related).
 const googlFigi = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/openfigi-googl.json'), 'utf8'));
 const settlementTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/finra-settlement-2026-09-30.json'), 'utf8'));
@@ -71,6 +74,16 @@ net.fetch = async (input, init) => {
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
   // With fixtures.supplyChain, SPLC's full-text search and three annual reports (electron/supply-chain.cjs).
   if (fixtures.supplyChain && url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Nebius Group N.V.' } });
+  if (fixtures.fredChart && url.hostname === 'api.stlouisfed.org') {
+    fixtures.calls.fred = [...(fixtures.calls.fred ?? []), url.pathname + url.search.replace(/([?&]api_key=)[^&]*/, '$1<key>')];
+    const text = (body) => new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const id = url.searchParams.get('series_id');
+    if (url.pathname === '/fred/series/search') return text(fredFixture('fred-search-cpi'));
+    if (url.pathname === '/fred/series' && id === 'HOUST') return text(fredFixture('fred-series-houst'));
+    if (url.pathname === '/fred/series/observations' && id === 'HOUST' && url.searchParams.get('units') === 'lin') return text(fredFixture('fred-houst-2025'));
+    if (url.pathname === '/fred/series/observations') return json({ count: 0, observations: [] });
+    return json({ seriess: [] });
+  }
   // With fixtures.thirteenF, EDGAR's search for 13F filings (FLNG) finds the fixture's June 2026 report.
   if (fixtures.thirteenF && url.hostname === 'efts.sec.gov' && url.searchParams.get('forms') === '13F-HR') {
     fixtures.calls.sec13f = [...(fixtures.calls.sec13f ?? []), `efts?${url.searchParams}`];

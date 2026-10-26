@@ -33,7 +33,7 @@ declare global {
       yahoo(path: string): Promise<{ status: number; data: unknown; disabled?: boolean; session?: boolean }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string; sourceLabel?: string; missing?: string }>;
-      fred?(kind: 'release-dates' | 'observations' | 'first-release', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
+      fred?(kind: 'release-dates' | 'observations' | 'first-release' | 'search' | 'series' | 'chart', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
       secPay?(path: string): Promise<{ status: number; executives: { name: string; title: string; years: { year: number; salary: number; total: number }[] }[]; at?: number; cached?: boolean; error?: string; missing?: string; refused?: string }>;
       secText?(kind: 'mentions' | 'own', path: string, names?: string[]): Promise<{ status: number; sentences: string[]; at?: number; cached?: boolean; error?: string; missing?: string; refused?: string }>;

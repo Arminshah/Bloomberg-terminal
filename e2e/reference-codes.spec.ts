@@ -211,3 +211,13 @@ test("RELS says a company's related securities are read in the desktop app, and 
   await expect(panel.locator('tbody tr')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("ECOW says FRED series are read in the desktop app, and charts none in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'ECOW HOUST');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('ECONCHART');
+  await expect(panel.locator('.empty')).toContainText('The browser demo has no economic series, and none are generated');
+  await expect(panel.locator('canvas')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

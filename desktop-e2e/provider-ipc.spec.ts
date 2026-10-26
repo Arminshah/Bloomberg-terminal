@@ -36,11 +36,12 @@ interface Fixtures {
   corpCalendar?: boolean;
   marketShorts?: boolean;
   related?: boolean;
+  fredChart?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
   supplyChain?: boolean;
-  calls: { ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -513,6 +514,30 @@ test("RELS lists the tickers the SEC files under a company and its share class's
   await expect(abroad.locator('tbody tr', { hasText: 'Mexico' })).toContainText('GOOGL*');
   // Only each country's composite line: fifteen of them.
   await expect(abroad.locator('tbody tr')).toHaveCount(15);
+});
+
+test('ECOW charts a FRED series with its latest values, and adds a series found by a search', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.fredChart = true;
+    process.env.FRED_API_KEY = 'abcdefghijklmnopqrstuvwxyz012345';
+  });
+  await command(page, 'ECOW HOUST', 'ECONCHART');
+  const panel = page.locator('.panel').first();
+  const row = panel.getByRole('table', { name: 'Series', exact: true }).locator('tbody tr').first();
+  // Housing starts as FRED gives them: 1,221 thousand in September 2026, 1,288 in August.
+  await expect(row).toContainText('New Privately-Owned Housing Units Started: Total Units', { timeout: 30_000 });
+  for (const t of ['1,221.00', '01/09/26', '1,288.00', '-67.00', 'Monthly']) await expect(row).toContainText(t);
+  await expect(panel.locator('canvas').first()).toBeVisible();
+  expect((await calls(app)).fred?.some((c) => c.includes('series_id=HOUST') && c.includes('units=lin') && c.includes('api_key=<key>'))).toBe(true);
+  await panel.getByLabel('Find a FRED series').fill('consumer price index');
+  await panel.getByRole('button', { name: 'Search', exact: true }).click();
+  const found = panel.getByRole('table', { name: 'FRED series found' });
+  await expect(found.locator('tbody tr').first()).toContainText('CPIAUCSL');
+  await found.locator('tbody tr', { hasText: 'CPILFESL' }).getByRole('button', { name: 'Add' }).click();
+  await expect(panel.getByRole('table', { name: 'Series', exact: true }).locator('tbody tr')).toHaveCount(2);
+  // A transformation is asked of FRED itself.
+  await panel.getByLabel('HOUST shown as').selectOption('pc1');
+  await expect.poll(async () => (await calls(app)).fred?.some((c) => c.includes('series_id=HOUST') && c.includes('units=pc1'))).toBe(true);
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {

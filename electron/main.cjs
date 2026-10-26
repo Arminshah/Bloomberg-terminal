@@ -365,6 +365,8 @@ const FRED_SERIES = new Set([
 // Series whose first releases the app compares with today's values (ALFRED vintages): payrolls and GDP growth.
 const FRED_FIRST_RELEASE = new Set(['PAYEMS', 'A191RL1Q225SBEA']);
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+// The economic data chart (ECOW): FRED's search, series descriptions and transformed observations (electron/fred.cjs).
+const { fredChartUrl } = require('./fred.cjs');
 
 ipcMain.handle('fred', async (event, kind, arg, from) => {
   if (!fromApp(event)) throw new Error('not allowed');
@@ -384,7 +386,10 @@ ipcMain.handle('fred', async (event, kind, arg, from) => {
     if (typeof arg !== 'string' || !FRED_FIRST_RELEASE.has(arg)) throw new Error('not allowed');
     const start = new Date(Date.now() - 2 * 365.25 * 86_400_000).toISOString().slice(0, 10);
     url = `${FRED_API}/series/observations?series_id=${arg}&observation_start=${start}&output_type=4&realtime_start=1776-07-04&realtime_end=9999-12-31&file_type=json`;
-  } else throw new Error('not allowed');
+  } else {
+    url = fredChartUrl(kind, arg, from);
+    if (!url) throw new Error('not allowed');
+  }
   const key = providers.credential('FRED_API_KEY').value;
   if (!key) return { status: 0, text: '', missing: 'FRED_API_KEY' };
   if (!providers.CREDENTIALS.FRED_API_KEY.valid(key)) {
