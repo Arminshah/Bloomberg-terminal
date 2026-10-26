@@ -22,6 +22,8 @@ const trendTemplate = apldSummary.earningsTrend.trend;
 const dividendTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/nasdaq-dividends-2026-10-30.json'), 'utf8'));
 const splitsTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/nasdaq-splits-2026-10-26.json'), 'utf8'));
 // FINRA's short interest settlement of 30 Sep 2026, trimmed to 43 listings (SIA, fixtures.marketShorts).
+// OpenFIGI's answers for Alphabet's class A shares: the ticker's share class, and its listings (RELS, fixtures.related).
+const googlFigi = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/openfigi-googl.json'), 'utf8'));
 const settlementTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/finra-settlement-2026-09-30.json'), 'utf8'));
 const currencyTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/sec-currency-change.json'), 'utf8'));
 const chartTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-sofi-chart.json'), 'utf8'));
@@ -89,6 +91,8 @@ net.fetch = async (input, init) => {
     const body = docs[url.pathname];
     if (body) return new Response(`<html><body>${body}</body></html>`, { status: 200, headers: { 'Content-Type': 'text/html' } });
   }
+  // With fixtures.related, Alphabet's tickers as the SEC lists them under its CIK.
+  if (fixtures.related && url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1652044, ticker: 'GOOGL', title: 'Alphabet Inc.' }, 1: { cik_str: 1652044, ticker: 'GOOG', title: 'Alphabet Inc.' }, 2: { cik_str: 1513845, ticker: 'NBIS', title: 'Synthetic currency-switch fixture' }, 3: { cik_str: 1652044, ticker: 'GOOGN', title: 'Alphabet Inc.' }, 4: { cik_str: 1652044, ticker: 'GOOGM', title: 'Alphabet Inc.' } });
   if (url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Synthetic currency-switch fixture' } });
   if (url.hostname === 'data.sec.gov') {
     if (url.pathname.includes('/companyfacts/')) return json(currencyTemplate);
@@ -166,6 +170,13 @@ net.fetch = async (input, init) => {
     }
   }
   // OpenFIGI's tickers for the CUSIPs in those filings, as OpenFIGI answered them on 25 October 2026.
+  if (fixtures.related && url.hostname === 'api.openfigi.com' && url.pathname === '/v3/mapping') {
+    const jobs = JSON.parse(String(init?.body ?? '[]'));
+    fixtures.calls.openfigi = [...(fixtures.calls.openfigi ?? []), { jobs, keyed: new Headers(init?.headers).has('X-OPENFIGI-APIKEY') }];
+    if (jobs[0]?.idType === 'TICKER') return json(jobs[0].idValue === 'GOOGL' ? googlFigi.ticker : [{ warning: 'No identifier found.' }]);
+    if (jobs[0]?.idType === 'ID_BB_GLOBAL_SHARE_CLASS_LEVEL' && jobs[0].idValue === 'BBG009S39JY5') return json(googlFigi.shareClass);
+    return json(jobs.map(() => ({ warning: 'No identifier found.' })));
+  }
   if (fixtures.thirteenF && url.hostname === 'api.openfigi.com' && url.pathname === '/v3/mapping') {
     const jobs = JSON.parse(String(init?.body ?? '[]'));
     const keyed = new Headers(init?.headers).has('X-OPENFIGI-APIKEY');

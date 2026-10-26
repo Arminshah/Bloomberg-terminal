@@ -35,6 +35,7 @@ interface Fixtures {
   apldEarnings?: boolean;
   corpCalendar?: boolean;
   marketShorts?: boolean;
+  related?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -490,6 +491,28 @@ test("FLNG finds 13F filings by manager and opens a manager's holdings by its CI
   await expect(panel.locator('.fnh-code').first()).toHaveText('HOLDINGS');
   await expect(panel.locator('.kv').first()).toContainText('NVIDIA CORP', { timeout: 30_000 });
   await expect(panel.locator('.kv').first()).toContainText('30/06/26');
+});
+
+test("RELS lists the tickers the SEC files under a company and its share class's listings abroad", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.related = true;
+    process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid';
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'GOOGL US RELS', 'RELATED');
+  const panel = page.locator('.panel').first();
+  const filed = panel.getByRole('table', { name: 'Securities filed with the SEC' });
+  // The company's own ticker first, then the others under its CIK, in the SEC's order.
+  await expect(filed.locator('tbody tr')).toHaveCount(4, { timeout: 30_000 });
+  await expect(filed.locator('tbody tr td:first-child')).toHaveText(['GOOGL', 'GOOG', 'GOOGN', 'GOOGM']);
+  await expect(panel.getByText('Securities filed under Alphabet Inc. (CIK 1652044)')).toBeVisible();
+  const abroad = panel.getByRole('table', { name: 'Listings of the share class' });
+  await expect(abroad.locator('tbody tr').first()).toContainText('United States');
+  await expect(abroad.locator('tbody tr', { hasText: 'Germany' })).toContainText('ABEA');
+  await expect(abroad.locator('tbody tr', { hasText: 'Mexico' })).toContainText('GOOGL*');
+  // Only each country's composite line: fifteen of them.
+  await expect(abroad.locator('tbody tr')).toHaveCount(15);
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {

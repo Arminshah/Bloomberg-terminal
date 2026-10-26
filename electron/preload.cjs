@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   secText: (kind, path, names) => ipcRenderer.invoke('sec-text', String(kind), String(path), Array.isArray(names) ? names.map(String) : []),
   sec13f: (cik, accession, part) => ipcRenderer.invoke('sec-13f', String(cik), String(accession), String(part)),
   openfigi: (codes) => ipcRenderer.invoke('openfigi', Array.isArray(codes) ? codes.map(String) : []),
+  openfigiListings: (ticker) => ipcRenderer.invoke('openfigi-listings', String(ticker)),
   congress: (kind, arg) => ipcRenderer.invoke('congress', String(kind), String(arg ?? '')),
   kraken: (kind, arg, n) => ipcRenderer.invoke('kraken', String(kind), String(arg ?? ''), Number(n ?? 0)),
   coingecko: () => ipcRenderer.invoke('coingecko'),

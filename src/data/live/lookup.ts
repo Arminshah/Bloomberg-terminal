@@ -39,6 +39,7 @@ declare global {
       secText?(kind: 'mentions' | 'own', path: string, names?: string[]): Promise<{ status: number; sentences: string[]; at?: number; cached?: boolean; error?: string; missing?: string; refused?: string }>;
       sec13f?(cik: number, accession: string, part: 'cover' | 'holdings'): Promise<import('./thirteenf').Answer13F>;
       openfigi?(codes: string[]): Promise<import('./thirteenf').FigiAnswer>;
+      openfigiListings?(ticker: string): Promise<import('./related').FigiListingsAnswer>;
       congress?(kind: 'members' | 'index' | 'ptr' | 'annual' | 'fmp', arg: string): Promise<import('./congress').CongressAnswer>;
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;

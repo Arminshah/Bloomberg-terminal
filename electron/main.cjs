@@ -713,6 +713,44 @@ ipcMain.handle('openfigi', async (event, codes) => {
   return { status, results, keyed, ...(error ? { error } : {}) };
 });
 
+// A US stock's listings in other countries from OpenFIGI (RELS): two mapping requests, kept a day.
+const figiListings = new Map();
+ipcMain.handle('openfigi-listings', async (event, ticker) => {
+  const t = openfigi.usTicker(ticker);
+  if (!fromApp(event) || !t) throw new Error('not allowed');
+  if (!providers.setting('OPENFIGI_ENABLED').value) return { status: 0, listings: [], gated: 'OPENFIGI_ENABLED' };
+  const kept = figiListings.get(t);
+  if (kept && Date.now() - kept.at < 86_400_000) return { ...kept.value, cached: true };
+  const key = providers.credential('OPENFIGI_API_KEY').value;
+  const keyed = !!key && providers.CREDENTIALS.OPENFIGI_API_KEY.valid(key);
+  const limit = keyed ? openfigi.LIMITS.keyed : openfigi.LIMITS.open;
+  const ask = async (jobs) => {
+    await providers.slot('openfigi', limit.perMinute, 60_000);
+    const res = await tracked('openfigi', openfigi.MAPPING_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(keyed ? { 'X-OPENFIGI-APIKEY': key } : {}) },
+      body: JSON.stringify(jobs),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (res.status === 429) providers.recordProblem('openfigi', 'rate-limited', 'HTTP 429: OpenFIGI asked the app to slow down.');
+    return { status: res.status, text: res.ok ? await res.text() : '' };
+  };
+  try {
+    const first = await ask(openfigi.tickerJobs(t));
+    if (!first.text) return { status: first.status, listings: [] };
+    const share = openfigi.shareClassOf(first.text);
+    if (!share) return { status: 200, listings: [], none: true };
+    const second = await ask(openfigi.shareClassJobs(share.shareClassFIGI));
+    const listings = second.text ? openfigi.compositesOf(second.text) : null;
+    if (!listings) return { status: second.status || 0, listings: [], error: second.text ? 'OpenFIGI answered in a format the app does not recognise.' : undefined };
+    const value = { status: 200, listings, shareClassFIGI: share.shareClassFIGI, name: share.name };
+    figiListings.set(t, { at: Date.now(), value });
+    return value;
+  } catch (err) {
+    return { status: 0, listings: [], error: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) };
+  }
+});
+
 // Congress (electron/congress.cjs): the member lists of the House Clerk and the Senate, the House Clerk's yearly index
 // of financial disclosures, each trade report (PTR) and annual report read from its PDF (kept on disk: a filed
 // report never changes; a correction is a new filing), and FMP's latest trades of each chamber with the owner's key,

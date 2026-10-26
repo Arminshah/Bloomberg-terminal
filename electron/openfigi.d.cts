@@ -14,3 +14,8 @@ export class FigiStore {
   load(saved: unknown): void;
   toJSON(): Record<string, { at: number; value: FigiHit }>;
 }
+export function usTicker(ticker: unknown): string | null;
+export function tickerJobs(ticker: string): { idType: string; idValue: string; exchCode: string }[];
+export function shareClassJobs(figi: string): { idType: string; idValue: string }[];
+export function shareClassOf(text: string): { shareClassFIGI: string; name: string } | null;
+export function compositesOf(text: string): { exchCode: string; ticker: string; name: string; securityType: string; figi: string }[] | null;

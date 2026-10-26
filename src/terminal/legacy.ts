@@ -76,6 +76,7 @@ export const LEGACY_CODES: Record<string, string> = {
   GX: 'CROSSSECTION',
   CCB: 'CLASSIFICATION',
   FLNG: 'FILINGS13F',
+  RELS: 'RELATED',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',

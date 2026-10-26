@@ -106,4 +106,45 @@ class FigiStore {
   }
 }
 
-module.exports = { MAPPING_URL, LIMITS, CODE, cleanCodes, idType, mappingJobs, parseMapping, FigiStore };
+// A US stock's listings in other countries (RELS): its ticker on the US composite gives its share class, and the share
+// class every line it trades on; each country's composite line is kept.
+
+/** A US ticker as OpenFIGI writes it (BRK/A for a class); null when it is not one. */
+function usTicker(ticker) {
+  const t = String(ticker ?? '').trim().toUpperCase().replace(/[.-]/, '/');
+  return /^[A-Z][A-Z0-9]{0,6}(\/[A-Z]{1,2})?$/.test(t) ? t : null;
+}
+
+const tickerJobs = (ticker) => [{ idType: 'TICKER', idValue: ticker, exchCode: 'US' }];
+const shareClassJobs = (figi) => [{ idType: 'ID_BB_GLOBAL_SHARE_CLASS_LEVEL', idValue: figi }];
+const SHARE_CLASS = /^BBG[0-9A-Z]{9}$/;
+
+/** The share class of a ticker's US line, from a one-job mapping answer; null when there is none. */
+function shareClassOf(text) {
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const hit = Array.isArray(json?.[0]?.data) ? json[0].data.find((d) => SHARE_CLASS.test(String(d?.shareClassFIGI ?? ''))) : null;
+  return hit ? { shareClassFIGI: hit.shareClassFIGI, name: str(hit.name) ?? '' } : null;
+}
+
+/** Each country's composite line of a share class, the US first: exchange code, ticker, name and type. */
+function compositesOf(text) {
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const data = json?.[0]?.data;
+  if (!Array.isArray(data)) return typeof json?.[0]?.warning === 'string' ? [] : null;
+  return data
+    .filter((d) => str(d?.figi) && d.figi === d.compositeFIGI && str(d?.exchCode) && str(d?.ticker))
+    .map((d) => ({ exchCode: str(d.exchCode), ticker: str(d.ticker), name: str(d.name) ?? '', securityType: str(d.securityType2) ?? str(d.securityType) ?? '', figi: d.figi }))
+    .sort((a, b) => Number(b.exchCode === 'US') - Number(a.exchCode === 'US') || a.exchCode.localeCompare(b.exchCode) || a.ticker.localeCompare(b.ticker));
+}
+
+module.exports = { MAPPING_URL, LIMITS, CODE, cleanCodes, idType, mappingJobs, parseMapping, FigiStore, usTicker, tickerJobs, shareClassJobs, shareClassOf, compositesOf };
