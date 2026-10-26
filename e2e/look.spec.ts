@@ -165,3 +165,23 @@ test('suggestions read as the terminal lists them: amber heading, white mnemonic
   await expect(page.locator('.panel').first().getByText('World Equity Indices', { exact: true })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('the help desk opens on its own page, says who answers, and starts again with New chat', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'MESSAGES');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.desk-title')).toHaveText('HELP DESK');
+  await expect(panel.locator('.desk-sub')).toContainText('Nothing you type goes to an AI service');
+  expect(await panel.locator('.chat-input.desk .inp').evaluate((el) => getComputedStyle(el).borderBottomColor)).toBe('rgb(255, 158, 27)');
+  await panel.getByRole('button', { name: 'How do I set a price alert?' }).click();
+  const box = panel.getByRole('textbox', { name: 'Message' });
+  await expect(box).toHaveValue('How do I set a price alert?');
+  await box.press('Enter');
+  await expect(panel.locator('.desk-title')).toHaveCount(0);
+  await expect(panel.locator('.msg.me')).toContainText('How do I set a price alert?');
+  await expect(panel.locator('.msg').last()).not.toHaveClass(/\bme\b/);
+  await panel.getByRole('button', { name: '＋ New chat' }).click();
+  await expect(panel.locator('.desk-title')).toHaveText('HELP DESK');
+  await expect(panel.locator('.msg.me')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

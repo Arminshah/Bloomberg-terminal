@@ -28,6 +28,16 @@ const LOOKING: Record<string, string> = {
   find_terminal_functions: 'the terminal\'s screens',
 };
 
+/** Questions the help desk answers, offered while its conversation is empty. */
+const EXAMPLES = ['When does NVDA report?', 'Did AAPL beat last quarter?', 'SEC filings for TSLA', 'How do I set a price alert?'];
+
+/** Who answers the help desk, and where a question goes. */
+function whoAnswers(): string {
+  return claudeAvailable()
+    ? 'With an Anthropic key on PROVIDERS, Claude answers from the app\'s data, and your question goes to Anthropic. Without one, the built-in assistant answers in the app and nothing goes to an AI service.'
+    : 'The built-in assistant answers in the app, from the sources it reads: prices, earnings, filings, analysts, news and its screens. Nothing you type goes to an AI service.';
+}
+
 export function IB({ route }: FnProps) {
   const panel = usePanelId();
   const [busy, setBusy] = useState<string | null>(null);
@@ -43,6 +53,7 @@ export function IB({ route }: FnProps) {
   const room = st.rooms.find((r) => r.id === st.active) ?? st.rooms[0];
   const [text, setText] = useState('');
   const end = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLInputElement>(null);
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' });
   }, [room?.messages.length, busy]);
@@ -68,6 +79,31 @@ export function IB({ route }: FnProps) {
     }
   };
   if (!room) return null;
+  // Until something is asked, the help desk opens on its own page (its greeting aside): what it is, who answers,
+  // examples, and the question box.
+  const welcome = room.id === 'helpdesk' && !room.messages.some((m) => m.from === 'ME') && !busy;
+  const input = (
+    <div className={`chat-input${welcome ? ' desk' : ''}`}>
+      <input
+        ref={box}
+        className="inp wide"
+        aria-label="Message"
+        placeholder={room.id === 'helpdesk' ? 'Ask anything: when does NVDA report? did AAPL beat? SEC filings for TSLA…' : `Message ${room.name}`}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            void send();
+          }
+        }}
+      />
+      <button type="button" className="btn primary" disabled={!!busy} onClick={() => void send()}>
+        Send
+      </button>
+    </div>
+  );
+  const newChat = () => chats.set((s) => ({ ...s, rooms: s.rooms.map((r) => (r.id === 'helpdesk' ? { ...r, messages: [], unread: 0 } : r)) }));
   return (
     <div className="fn-fill">
       <FnHeader
@@ -83,6 +119,11 @@ export function IB({ route }: FnProps) {
       />
       <div className="chat" style={{ flex: 1, minHeight: 0 }}>
         <nav className="chat-rooms" aria-label="Chats">
+          {room.id === 'helpdesk' && !welcome && !busy && (
+            <button type="button" className="chat-new" onClick={newChat} title="Start again with an empty help desk conversation">
+              ＋ New chat
+            </button>
+          )}
           {st.rooms.map((r) => (
             <div key={r.id} className={`chat-room${r.id === room.id ? ' on' : ''}`} onClick={() => chats.set((s) => ({ ...s, active: r.id }))}>
               <span>{r.name}</span>
@@ -91,6 +132,22 @@ export function IB({ route }: FnProps) {
           ))}
         </nav>
         <div className="chat-main">
+          {welcome ? (
+            <div className="desk-welcome">
+              <div className="desk-mark" aria-hidden="true">?</div>
+              <h2 className="desk-title">HELP DESK</h2>
+              <p className="desk-sub">{whoAnswers()}</p>
+              {input}
+              <div className="desk-examples" aria-label="Example questions">
+                {EXAMPLES.map((q) => (
+                  <button key={q} type="button" className="act" onClick={() => { setText(q); box.current?.focus(); }}>
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+          <>
           <div className="chat-msgs" role="log" aria-live="polite">
             {room.messages.length === 0 && <div className="empty">No messages yet. Say hello.</div>}
             {room.messages.map((m) => (
@@ -125,24 +182,9 @@ export function IB({ route }: FnProps) {
             {busy && room.id === 'helpdesk' ? <div className="msg"><div className="txt muted">{busy}</div></div> : null}
             <div ref={end} />
           </div>
-          <div className="chat-input">
-            <input
-              className="inp wide"
-              aria-label="Message"
-              placeholder={room.id === 'helpdesk' ? 'Ask anything: when does NVDA report? did AAPL beat? SEC filings for TSLA…' : `Message ${room.name}`}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  void send();
-                }
-              }}
-            />
-            <button type="button" className="btn primary" disabled={!!busy} onClick={() => void send()}>
-              Send
-            </button>
-          </div>
+          {input}
+          </>
+          )}
         </div>
       </div>
     </div>
