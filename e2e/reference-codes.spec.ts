@@ -192,3 +192,12 @@ test("CCB says the classification is the desktop app's, and generates none in th
   await expect(panel.locator('.empty')).toContainText("Nasdaq\u2019s stock list in the desktop app");
   expect(errors).toEqual([]);
 });
+
+test("FLNG says 13F filings are read in the desktop app, and generates none in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'FLNG');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('FILINGS13F');
+  await expect(panel.locator('.empty')).toContainText('no 13F filings, and none are generated');
+  expect(errors).toEqual([]);
+});

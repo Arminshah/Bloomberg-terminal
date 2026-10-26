@@ -69,6 +69,12 @@ net.fetch = async (input, init) => {
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
   // With fixtures.supplyChain, SPLC's full-text search and three annual reports (electron/supply-chain.cjs).
   if (fixtures.supplyChain && url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Nebius Group N.V.' } });
+  // With fixtures.thirteenF, EDGAR's search for 13F filings (FLNG) finds the fixture's June 2026 report.
+  if (fixtures.thirteenF && url.hostname === 'efts.sec.gov' && url.searchParams.get('forms') === '13F-HR') {
+    fixtures.calls.sec13f = [...(fixtures.calls.sec13f ?? []), `efts?${url.searchParams}`];
+    const hit = { _id: '0001513845-26-000065:primary_doc.xml', _source: { adsh: '0001513845-26-000065', ciks: ['0001513845'], display_names: ['NVIDIA CORP  (CIK 0001513845)'], form: '13F-HR', root_forms: ['13F-HR'], file_date: '2026-08-14', period_ending: '2026-06-30' } };
+    return json({ hits: { total: { value: 1, relation: 'eq' }, hits: [hit] } });
+  }
   if (fixtures.supplyChain && url.hostname === 'efts.sec.gov') {
     fixtures.calls.fts = [...(fixtures.calls.fts ?? []), url.searchParams.get('q')];
     const hit = (cik, adsh, file, display, date) => ({ _id: `${adsh}:${file}`, _score: 5, _source: { ciks: [cik], display_names: [display], form: '10-K', file_date: date } });

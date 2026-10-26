@@ -75,6 +75,7 @@ export const LEGACY_CODES: Record<string, string> = {
   SIA: 'SHORTRANKING',
   GX: 'CROSSSECTION',
   CCB: 'CLASSIFICATION',
+  FLNG: 'FILINGS13F',
   WB: 'BONDS',
   WBMV: 'BONDMOVERS',
   WBF: 'BONDFUTURES',
@@ -130,9 +131,10 @@ export const LEGACY_CODES: Record<string, string> = {
  */
 /**
  * Mnemonics that are also US tickers (Bio-Techne, Hecla Mining, the iShares consumer discretionary fund, Electronic
- * Arts). Followed by US they name the stock, as "TECH US DES"; on their own or before anything else, the function.
+ * Arts, FLEX LNG). Followed by US they name the stock, as "TECH US DES"; on their own or before anything else, the
+ * function.
  */
-export const TICKER_MNEMONICS = new Set(['TECH', 'HL', 'IYC', 'EA']);
+export const TICKER_MNEMONICS = new Set(['TECH', 'HL', 'IYC', 'EA', 'FLNG']);
 
 export const CHART_STYLES: Record<string, string> = { GPO: 'BAR', GPC: 'CANDLE', RSI: 'RSI', MACD: 'MACD', BOLL: 'BOLL' };
 

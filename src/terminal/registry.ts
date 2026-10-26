@@ -79,6 +79,7 @@ import { CACT } from '../functions/CACT';
 import { SIA } from '../functions/SIA';
 import { GX } from '../functions/GX';
 import { CCB } from '../functions/CCB';
+import { FLNG } from '../functions/FLNG';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -103,6 +104,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'DIVIDENDS', name: 'Dividend History', category: 'Equity', needsSec: true, classes: EQ, desc: 'Cash dividends over ten years by ex-date, with amounts, frequency, 12-month yield and the next expected ex-date.', component: DVD, aliases: ['DIVS'] },
   { code: 'HOLDERS', name: 'Holders', category: 'Equity', needsSec: true, classes: EQ, desc: 'Largest institutional and fund holders with position, percent outstanding and change, and the ownership breakdown.', component: HDS, aliases: ['OWNERSHIP'] },
   { code: 'HOLDINGS', name: '13F Holdings', category: 'Equity', needsSec: true, classes: EQ, desc: "What a company reports on its Form 13F filings on SEC EDGAR: the US-listed stocks, options and convertible bonds it managed at a quarter's end (its own investments; for a bank or asset manager also its clients' accounts), each with its value as filed, share of the portfolio and change in shares since the quarter before (new, added, reduced, sold out), beside today's price and value; a map sized by value, and the portfolio's value by quarter. Tickers from OpenFIGI (desktop app, SEC_USER_AGENT).", component: HOLDINGS13F, aliases: ['13F', 'PORTFOLIO13F'], example: 'HOLDINGS NVDA' },
+  { code: 'FILINGS13F', name: '13F Filings', category: 'Equity', desc: "Form 13F holdings reports filed with the SEC by investment managers, the latest first: those filed in the last days, week or month, or a manager's by name, with the quarter, form (amendments marked) and a link to the filing; a row opens the manager's holdings on HOLDINGS, whether or not it has listed shares (SEC EDGAR full-text search, desktop app).", component: FLNG, example: 'FILINGS13F BRIDGEWATER' },
   { code: 'MANAGEMENT', name: 'Management', category: 'Equity', needsSec: true, classes: EQ, desc: "The company's officers from Yahoo Finance's company profile (name, title, age, pay, options exercised and unexercised), each insider's Form 4 purchases, sales, awards, exercises and holdings of the last 12 months from SEC EDGAR, and the proxy statement's total compensation (desktop app).", component: MGMT, aliases: ['OFFICERS'], example: 'MANAGEMENT AAPL' },
   { code: 'INSIDERS', name: 'Insider Transactions', category: 'Equity', needsSec: true, classes: EQ, desc: "The insiders' purchases, sales, awards and option exercises of the last 12 months from their SEC Form 4 filings: each insider's totals and every transaction with its filing, with a CSV (desktop app, US-listed companies).", component: INSD },
   { code: 'PEERS', name: 'Relative Valuation', category: 'Equity', needsSec: true, classes: EQ, desc: 'Peer comparison of valuation multiples, profitability and returns with peer medians.', component: RV, aliases: ['COMPS'] },

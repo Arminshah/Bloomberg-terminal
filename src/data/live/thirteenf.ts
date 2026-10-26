@@ -358,7 +358,13 @@ export async function loadHoldings(def: SecurityDef, period?: string, force = fa
   if (!ticker) return { ok: false, reason: 'not-found', message: '13F filings are made with the SEC, for US-listed companies.' };
   const filer = await resolveFiler(ticker, force);
   if (!filer.ok) return filer;
-  const sub = await loadFiler(filer.data.cik, force);
+  return loadHoldingsOf(filer.data.cik, period, force);
+}
+
+/** A 13F filer's report by its CIK: an investment manager with no listed shares (FLNG opens these). */
+export async function loadHoldingsOf(filerCik: number, period?: string, force = false): Promise<SecResult<HoldingsReport>> {
+  if (!secAvailable()) return { ok: false, reason: 'desktop-only', message: SEC_DESKTOP_ONLY };
+  const sub = await loadFiler(filerCik, force);
   if (!sub.ok) return sub;
   const cik = sub.data.cik;
   const quarters = quartersOf(sub.data.filings);
@@ -453,4 +459,10 @@ export function useFigi(codes: string[]): { hits: Map<string, FigiHit>; problem:
     if (h) hits.set(c, h);
   }
   return { hits, problem: st.problem };
+}
+
+/** "CIK 1350694" or "CIK0001350694" in a route's arguments: the 13F filer it names. */
+export function cikArg(args: string | undefined): number | null {
+  const m = /^CIK\s*0*([1-9]\d{0,9})$/i.exec(String(args ?? '').trim());
+  return m ? Number(m[1]) : null;
 }

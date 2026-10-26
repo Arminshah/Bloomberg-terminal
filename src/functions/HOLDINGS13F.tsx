@@ -11,7 +11,7 @@ import { engine, useTick } from '../data/market';
 import { secAvailable, secTicker, SEC_DESKTOP_ONLY, useSecLoad } from '../data/live/sec';
 import { quotesTiming, useYahooQuotes } from '../data/live/yquotes';
 import { lookupSecurity } from '../data/live/lookup';
-import { compareQuarters, impliedPrice, loadHoldings, previousQuarterEnd, useFigi, type Compared, type FigiHit, type HoldingsReport } from '../data/live/thirteenf';
+import { cikArg, compareQuarters, impliedPrice, loadHoldings, loadHoldingsOf, previousQuarterEnd, useFigi, type Compared, type FigiHit, type HoldingsReport } from '../data/live/thirteenf';
 import { openSecurity } from '../components/cells';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -76,15 +76,18 @@ function TickerCell({ r }: { r: Row }) {
  * the quarter before, beside today's price and value. A map sizes each holding by its filed value and colours it by
  * the price change since the quarter's end.
  */
-export function HOLDINGS13F({ sec }: FnProps) {
-  const s = sec!;
+export function HOLDINGS13F({ sec, route }: FnProps) {
+  const s = sec;
   useTick(10);
   const panel = usePanelId();
   const [period, setPeriod] = useState('');
   const [tab, setTab] = useState(1);
   const [all, setAll] = useState(false);
-  const ticker = secTicker(s);
-  const load = useSecLoad<HoldingsReport>(secAvailable() && ticker ? `13f:${ticker}:${period}` : null, (force) => loadHoldings(s, period || undefined, force));
+  const ticker = s ? secTicker(s) : null;
+  // An investment manager with no listed shares is opened by its CIK (from FLNG).
+  const filerCik = s ? null : cikArg(route.args);
+  const key = ticker ? `13f:${ticker}:${period}` : filerCik ? `13f:cik${filerCik}:${period}` : null;
+  const load = useSecLoad<HoldingsReport>(secAvailable() && key ? key : null, (force) => (s ? loadHoldings(s, period || undefined, force) : loadHoldingsOf(filerCik!, period || undefined, force)));
   const rep = load.result?.ok ? load.result.data : null;
   const cur = rep?.current;
   const cmp = cur ? compareQuarters(cur.positions, rep!.previous?.positions ?? null) : { rows: [], sold: [] };
@@ -139,7 +142,7 @@ export function HOLDINGS13F({ sec }: FnProps) {
   const history = (rep?.history ?? []).filter((h) => h.total != null);
   const yahooQuotes = rows.filter((r) => r.lastSource === 'Yahoo Finance').map((r) => quotes.get(stockTicker(r)!.replace('/', '-')));
 
-  const status = !ticker
+  const status = !ticker && !filerCik
     ? '13F filings are made with the SEC, for US-listed companies.'
     : !secAvailable()
       ? SEC_DESKTOP_ONLY
@@ -209,10 +212,10 @@ export function HOLDINGS13F({ sec }: FnProps) {
         ]}
         tab={tab}
         onTab={setTab}
-        actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_13F_${cur?.period ?? ''}.csv`, csv)}
+        actions={exportActions(panel, `${(s?.ticker ?? `CIK${filerCik ?? ''}`).replace(/\W+/g, '_')}_13F_${cur?.period ?? ''}.csv`, csv)}
         controls={
           <div className="chart-tools">
-            <span className="cyan">{rep?.company ?? s.name}</span>
+            <span className="cyan">{rep?.company ?? s?.name ?? (filerCik ? `CIK ${filerCik}` : '')}</span>
             {rep && (
               <label className="fld" title={`Quarters with a 13F among the filings the SEC lists first for the company (filed since ${fmtIso(rep.listedSince)})`}>
                 Quarter
@@ -228,7 +231,7 @@ export function HOLDINGS13F({ sec }: FnProps) {
           </div>
         }
       />
-      <QuoteStrip sec={s} />
+      {s && <QuoteStrip sec={s} />}
       {status ? (
         <div className="empty">{status}</div>
       ) : (

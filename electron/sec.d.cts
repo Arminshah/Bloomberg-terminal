@@ -1,6 +1,7 @@
 // Types for sec.cjs, for the tests that import it.
 export function cik10(cik: unknown): string | null;
 export function secRequest(kind: unknown, arg?: unknown): { url: string; ttl: number } | null;
+export function filings13fUrl(arg: unknown): string | null;
 export class SecCache {
   constructor(maxChars: number);
   maxChars: number;

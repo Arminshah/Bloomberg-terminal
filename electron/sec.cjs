@@ -25,6 +25,43 @@ const { ftsUrl, searchUrl } = require('./supply-chain.cjs');
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
+/**
+ * EDGAR's full-text search for Form 13F holdings reports (13F-HR, with their amendments), newest first, 100 a page:
+ * by the filer's name, between two filing dates, or both (FLNG). Arg "name=…&startdt=…&enddt=…&from=…".
+ */
+function filings13fUrl(arg) {
+  if (typeof arg !== 'string' || arg.length > 300) return null;
+  let p;
+  try {
+    p = new URLSearchParams(arg);
+  } catch {
+    return null;
+  }
+  for (const key of p.keys()) if (!['name', 'startdt', 'enddt', 'from'].includes(key)) return null;
+  const out = new URLSearchParams({ forms: '13F-HR' });
+  const name = (p.get('name') ?? '').trim();
+  if (name) {
+    if (name.length < 2 || name.length > 80 || /[\u0000-\u001f<>{}\\^`|~]/.test(name)) return null;
+    out.set('entityName', name);
+  }
+  const iso = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(`${v}T00:00:00Z`));
+  const start = p.get('startdt');
+  const end = p.get('enddt');
+  if (start || end) {
+    if (!start || !end || !iso(start) || !iso(end) || start > end) return null;
+    out.set('dateRange', 'custom');
+    out.set('startdt', start);
+    out.set('enddt', end);
+  }
+  if (!name && !start) return null;
+  const from = p.get('from');
+  if (from) {
+    if (!/^\d{1,4}$/.test(from) || Number(from) % 100 !== 0) return null;
+    out.set('from', from);
+  }
+  return `https://efts.sec.gov/LATEST/search-index?${out}`;
+}
+
 /** A CIK as the SEC's file names write it: ten digits with leading zeros; null if it is not a CIK. */
 function cik10(cik) {
   const s = String(cik ?? '').trim().replace(/^CIK/i, '');
@@ -66,6 +103,8 @@ const KINDS = {
   fts: { url: (arg) => ftsUrl(arg), ttl: 12 * HOUR },
   // DS: the full-text search with the words and filters typed (see searchUrl).
   search: { url: (arg) => searchUrl(arg), ttl: HOUR },
+  // FLNG: Form 13F filings by filer name or filing dates.
+  filings13f: { url: (arg) => filings13fUrl(arg), ttl: 30 * MINUTE },
 };
 
 /** The URL and keep time for a request from the page, or null when it is not one the app makes. */
@@ -116,4 +155,4 @@ function refusalReason(status) {
   return `HTTP ${status}`;
 }
 
-module.exports = { cik10, secRequest, SecCache, PER_SECOND, refusalReason, TICKERS_URL, KINDS };
+module.exports = { cik10, secRequest, SecCache, PER_SECOND, refusalReason, TICKERS_URL, KINDS, filings13fUrl };

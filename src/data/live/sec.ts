@@ -26,7 +26,7 @@ export interface SecAnswer {
   error?: string;
 }
 
-export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl' | 'ownership-xml' | 'fts' | 'search';
+export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl' | 'ownership-xml' | 'fts' | 'search' | 'filings13f';
 
 export type SecResult<T> =
   | { ok: true; data: T; at: number; stale?: boolean }
@@ -763,6 +763,56 @@ function load<T>(kind: SecKind, arg: string, ttl: number, parse: (text: string) 
 }
 
 export const loadSecCompanies = (force = false) => load('tickers', '', 24 * 3600_000, parseTickers, force);
+
+/** A Form 13F holdings report found by EDGAR's full-text search. */
+export interface Filing13F {
+  cik: number;
+  /** The filer's name as the filing gives it. */
+  filer: string;
+  /** 13F-HR, or 13F-HR/A for an amendment. */
+  form: string;
+  filed: string;
+  /** The quarter's last day, YYYY-MM-DD. */
+  period: string;
+  accession: string;
+}
+
+/** EDGAR's full-text search answer for Form 13F: the filings (one each, documents folded) and how many match. */
+export function parseFilings13F(text: string): { total: number; filings: Filing13F[] } | null {
+  let j: any;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const hits = j?.hits?.hits;
+  if (!Array.isArray(hits)) return null;
+  const seen = new Set<string>();
+  const filings: Filing13F[] = [];
+  for (const h of hits) {
+    const src = h?._source ?? {};
+    const accession = String(src.adsh ?? String(h?._id ?? '').split(':')[0]);
+    const cik = Number(Array.isArray(src.ciks) ? src.ciks[0] : NaN);
+    if (!/^\d{10}-\d{2}-\d{6}$/.test(accession) || !(cik > 0) || seen.has(accession)) continue;
+    seen.add(accession);
+    const filer = String(Array.isArray(src.display_names) ? src.display_names[0] ?? '' : '').replace(/\s*\(CIK \d+\)\s*$/, '').replace(/\s+/g, ' ').trim();
+    filings.push({ cik, filer, form: String(src.form ?? src.file_type ?? ''), filed: String(src.file_date ?? ''), period: String(src.period_ending ?? ''), accession });
+  }
+  const total = Number(j?.hits?.total?.value);
+  return { total: Number.isFinite(total) ? total : filings.length, filings };
+}
+
+/** Form 13F filings by filer name and filing dates, 100 a page (`from` 0, 100, ...). */
+export const loadFilings13F = (query: { name?: string; startdt?: string; enddt?: string; from?: number }, force = false) => {
+  const p = new URLSearchParams();
+  if (query.name?.trim()) p.set('name', query.name.trim());
+  if (query.startdt && query.enddt) {
+    p.set('startdt', query.startdt);
+    p.set('enddt', query.enddt);
+  }
+  if (query.from) p.set('from', String(query.from));
+  return load('filings13f', p.toString(), 30 * 60_000, parseFilings13F, force);
+};
 export const loadFiler = (cik: number, force = false) => load('submissions', cik10(cik), 5 * 60_000, parseSubmissions, force);
 export const loadFilingPage = (name: string) => load('submissions-page', name, 24 * 3600_000, parseFilingPage);
 export const loadCompanyFacts = (cik: number, force = false) => load('facts', cik10(cik), 3600_000, parseCompanyFacts, force);

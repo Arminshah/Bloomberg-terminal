@@ -468,6 +468,30 @@ test("CCB browses Nasdaq's stock list by sector and industry, and opens on a typ
   await expect(panel.locator('.ccb-companies tbody tr')).toContainText('JP Morgan Chase & Co.');
 });
 
+test("FLNG finds 13F filings by manager and opens a manager's holdings by its CIK", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.thirteenF = true;
+    process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid';
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'FLNG', 'FILINGS13F');
+  const panel = page.locator('.panel').first();
+  await panel.getByLabel('Manager name').fill('nvidia');
+  await panel.getByRole('button', { name: 'Search', exact: true }).click();
+  const row = panel.locator('tbody tr', { hasText: 'NVIDIA CORP' });
+  await expect(row).toContainText('Q2 2026', { timeout: 30_000 });
+  await expect(row).toContainText('14/08/26');
+  await expect(row.getByRole('link', { name: 'SEC ›' })).toHaveAttribute('href', 'https://www.sec.gov/Archives/edgar/data/1513845/000151384526000065/');
+  // Searching asks EDGAR for the manager's name in the last three days' filings.
+  expect((await calls(app)).sec13f?.some((c) => c.includes('entityName=nvidia') && c.includes('forms=13F-HR'))).toBe(true);
+  await row.locator('td').nth(1).click();
+  await expect(panel.locator('.fnh-code').first()).toHaveText('HOLDINGS');
+  await expect(panel.locator('.kv').first()).toContainText('NVIDIA CORP', { timeout: 30_000 });
+  await expect(panel.locator('.kv').first()).toContainText('30/06/26');
+});
+
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
