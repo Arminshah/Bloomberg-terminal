@@ -1203,10 +1203,11 @@ ipcMain.handle('finviz-peers', async (event, symbol) => {
   return peers.length ? { status: 200, text: JSON.stringify(peers), at: got.at } : { status: got.status === 200 || !got.status ? 404 : got.status, text: '', error: got.error || 'Finviz lists no peers for this stock.' };
 });
 
-// FINRA's consolidated short interest for one US-listed stock (no key), where Nasdaq's page has none.
+// FINRA's consolidated short interest (no key): one US-listed stock's, where Nasdaq's page has none, or a settlement's.
 ipcMain.handle('finra', async (event, kind, symbol) => {
-  // The latest settlements (75 days), or two years of them for the short interest screen (SI).
-  const req = kind === 'short-interest' ? nasdaq.finraShortRequest(symbol) : kind === 'short-history' ? nasdaq.finraShortRequest(symbol, Date.now(), 760, 60) : null;
+  // The latest settlements (75 days), or two years of them for the short interest screen (SI); or, for the market's
+  // ranking (SIA), one settlement of every listing (`symbol` is then its date).
+  const req = kind === 'short-interest' ? nasdaq.finraShortRequest(symbol) : kind === 'short-history' ? nasdaq.finraShortRequest(symbol, Date.now(), 760, 60) : kind === 'settlement' ? nasdaq.finraSettlementRequest(symbol) : null;
   if (!fromApp(event) || !req) throw new Error('not allowed');
   return keyedGet('finra', req.url, req.headers, req.ttl, [20, 60_000], [], undefined, { method: 'POST', body: req.body });
 });

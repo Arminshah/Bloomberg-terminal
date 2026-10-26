@@ -21,6 +21,8 @@ const trendTemplate = apldSummary.earningsTrend.trend;
 // Nasdaq's dividend calendar of 30 Oct 2026 and its split calendar, as answered (CACT, fixtures.corpCalendar).
 const dividendTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/nasdaq-dividends-2026-10-30.json'), 'utf8'));
 const splitsTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/nasdaq-splits-2026-10-26.json'), 'utf8'));
+// FINRA's short interest settlement of 30 Sep 2026, trimmed to 43 listings (SIA, fixtures.marketShorts).
+const settlementTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/finra-settlement-2026-09-30.json'), 'utf8'));
 const currencyTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/sec-currency-change.json'), 'utf8'));
 const chartTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-sofi-chart.json'), 'utf8'));
 const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/tipranks-tools.json'), 'utf8')).tools;
@@ -266,6 +268,15 @@ net.fetch = async (input, init) => {
     const t = d.getUTCFullYear() * 4 + Math.floor(d.getUTCMonth() / 3) - 1 - back;
     return { label: `${['Mar', 'Jun', 'Sep', 'Dec'][t % 4]}/${Math.floor(t / 4)}`, q: (t % 4) + 1, y: Math.floor(t / 4) };
   };
+  // FINRA's short interest (fixtures.marketShorts): the latest settlement 26 days back and the one before, whatever
+  // the day the test runs; Apple's own record names them.
+  if (fixtures.marketShorts && url.hostname === 'api.finra.org') {
+    const filters = JSON.parse(String(init?.body ?? '{}')).compareFilters ?? [];
+    const latest = shift(-26);
+    if (filters.some((f) => f.fieldName === 'symbolCode')) return json([shift(-26), shift(-41)].map((settlementDate) => ({ settlementDate, symbolCode: 'AAPL', currentShortPositionQuantity: 120000000, averageDailyVolumeQuantity: 50000000, daysToCoverQuantity: 2.4 })));
+    const date = filters.find((f) => f.fieldName === 'settlementDate')?.fieldValue;
+    return json(date === latest ? settlementTemplate.map((r) => ({ ...r, settlementDate: latest })) : []);
+  }
   if (url.hostname === 'api.nasdaq.com') {
     fixtures.calls.nasdaq = (fixtures.calls.nasdaq ?? 0) + 1;
     // The dividends go ex on the first weekday two days or more ahead, whatever the day the test runs; two splits fall

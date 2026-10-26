@@ -45,7 +45,7 @@ declare global {
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<KeyedAnswer>;
       analysts?(kind: import('./analysts').AnalystKind | 'earnings', symbol: string): Promise<KeyedAnswer>;
       nasdaq?(kind: import('./nasdaq-company').NasdaqKind | 'info', symbol: string): Promise<KeyedAnswer>;
-      finra?(kind: 'short-interest' | 'short-history', symbol: string): Promise<KeyedAnswer>;
+      finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;
       finvizPeers?(symbol: string): Promise<KeyedAnswer>;
       analystActions?(symbol: string): Promise<KeyedAnswer>;

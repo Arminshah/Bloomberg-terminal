@@ -132,4 +132,24 @@ function finraShortRequest(symbol, now = Date.now(), days = 75, limit = 12) {
   return { url: 'https://api.finra.org/data/group/otcMarket/name/consolidatedShortInterest', ttl: 12 * HOUR, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body };
 }
 
-module.exports = { finraShortRequest, nasdaqCalendarRequest, nasdaqEconomicRequest, nasdaqIpoRequest, nasdaqDividendRequest, nasdaqSplitsRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };
+/**
+ * One settlement of FINRA's consolidated short interest for every listing trading over 500,000 shares a day (no key),
+ * largest short position first: the market's short interest ranked (SIA). A settlement is final once published, so
+ * it is kept a day.
+ */
+function finraSettlementRequest(date, now = Date.now()) {
+  if (typeof date !== 'string' || !ISO.test(date)) return null;
+  const t = Date.parse(`${date}T00:00:00Z`);
+  if (!Number.isFinite(t) || new Date(t).toISOString().slice(0, 10) !== date || t > now || t < now - 800 * DAY) return null;
+  const body = JSON.stringify({
+    limit: 5000,
+    compareFilters: [
+      { compareType: 'EQUAL', fieldName: 'settlementDate', fieldValue: date },
+      { compareType: 'GREATER', fieldName: 'averageDailyVolumeQuantity', fieldValue: 500000 },
+    ],
+    sortFields: ['-currentShortPositionQuantity'],
+  });
+  return { url: 'https://api.finra.org/data/group/otcMarket/name/consolidatedShortInterest', ttl: 24 * HOUR, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body };
+}
+
+module.exports = { finraShortRequest, finraSettlementRequest, nasdaqCalendarRequest, nasdaqEconomicRequest, nasdaqIpoRequest, nasdaqDividendRequest, nasdaqSplitsRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };

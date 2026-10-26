@@ -163,3 +163,13 @@ test("CACT says the market's corporate action calendars are the desktop app's, a
   await expect(panel.locator('tbody tr')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("SIA says the market's short interest is the desktop app's, and generates none in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'SIA');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('SHORTRANKING');
+  await expect(panel.locator('.empty')).toContainText('read from FINRA in the desktop app');
+  await expect(panel.locator('tbody tr')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

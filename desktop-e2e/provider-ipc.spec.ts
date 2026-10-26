@@ -34,6 +34,7 @@ interface Fixtures {
   estimateTrend?: boolean;
   apldEarnings?: boolean;
   corpCalendar?: boolean;
+  marketShorts?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -418,6 +419,30 @@ test("CACT lists the market's dividends going ex and its splits from Nasdaq's ca
   await expect(panel.locator('tbody tr', { hasText: 'EFG' })).toContainText('Stock split');
   await expect(panel.locator('tbody tr', { hasText: 'SXTC' })).toContainText('1-for-100');
   await expect(panel.locator('tbody tr', { hasText: 'SXTC' })).toContainText('Reverse split');
+});
+
+test("SIA ranks the market's short interest at FINRA's latest settlement, most shorted, by days to cover, rising and falling", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.marketShorts = true; });
+  await command(page, 'SIA', 'SHORTRANKING');
+  const panel = page.locator('.panel').first();
+  const first = panel.locator('tbody tr').first();
+  await expect(first).toContainText('NVDA', { timeout: 30_000 });
+  for (const text of ['NVIDIA Corporation', '311.39M', '+5.8%', '2.82']) await expect(first).toContainText(text);
+  await expect(panel.getByLabel('Settlement', { exact: true }).locator('option')).toHaveCount(2);
+  // The OTC market is left out until asked for.
+  await expect(panel.locator('tbody tr', { hasText: 'IVPAF' })).toHaveCount(0);
+  await panel.getByLabel('Include OTC').check();
+  await expect(panel.locator('tbody tr', { hasText: 'IVPAF' })).toHaveCount(1);
+  await panel.getByLabel('Include OTC').uncheck();
+  await panel.getByRole('button', { name: /3\) Days to cover/ }).click();
+  await expect(panel.locator('tbody tr').first()).toContainText('IPSC');
+  await expect(panel.locator('tbody tr').first()).toContainText('50.91');
+  // A settlement across a split is not a rise.
+  await panel.getByRole('button', { name: /4\) Rising/ }).click();
+  await expect(panel.locator('tbody tr').first()).toContainText('ACWX');
+  await expect(panel.locator('tbody tr', { hasText: 'ZCSH' })).toHaveCount(0);
+  await panel.getByRole('button', { name: /5\) Falling/ }).click();
+  await expect(panel.locator('tbody tr').first()).toContainText('SOXL');
 });
 
 test("HOLDINGS lists a company's 13F holdings with the change since the quarter before, tickers by CUSIP and today's value", async ({ desktop: { app, page } }) => {
