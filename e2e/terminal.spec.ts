@@ -118,6 +118,9 @@ const COMMANDS: [string, string][] = [
   ['AAPL EEO', 'ESTIMATES'], ['AAPL CACS', 'CORPACTIONS'], ['AAPL SI', 'SHORTINTEREST'], ['AAPL EQRP', 'RISKPREMIUM'], ['SPX INDEX MEMB', 'MEMBERS'], ['NDX INDEX MRR', 'RANKEDRETURNS'],
   ['MLRT', 'ALERTS'], ['AAPL GV', 'VOLATILITY'], ['NVDA SPLC', 'SUPPLYCHAIN'], ['SPX INDEX GRR', 'GROUPRETURNS'], ['AAPL BBK', 'BUYBACKS'], ['IPO', 'IPOS'], ['AAPL DS', 'DOCSEARCH'], ['WBF', 'BONDFUTURES'], ['GAINERS', 'TOPMOVERS'], ['TOPMOVERS', 'TOPMOVERS'],
   ['NVDA HOLDINGS', 'HOLDINGS'], ['BRK/B 13F', 'HOLDINGS'], ['CONGRESS', 'CONGRESS'], ['NVDA CONGRESS', 'CONGRESS'], ['CONG', 'CONGRESS'],
+  // Codes from the reference guides (docs/audit-v2.23.0-coverage.md, section 2a).
+  ['HL', 'HELP'], ['WECO', 'RELEASES'], ['SOVM', 'BONDS'], ['WBMV', 'BONDMOVERS'], ['AAPL HRA MSFT', 'REGRESSION'], ['TECH', 'STUDIES'], ['IN', 'INDEXLIST'],
+  ['IYC', 'CURVEMENU'], ['CURVE DE', 'CURVE'], ['FED', 'FEDPORTAL'], ['AAPL INSD', 'INSIDERS'],
 ];
 
 test('default workspace renders four live panels and the watchlist column', async ({ page }) => {
