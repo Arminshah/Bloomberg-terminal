@@ -1594,3 +1594,8 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .ws-picker { display: flex; flex-wrap: wrap; gap: 12px; }
 .ws-picker fieldset { border: 1px solid var(--line, #333); padding: 4px 8px; display: grid; grid-template-columns: repeat(3, minmax(130px, auto)); gap: 2px 12px; }
 .ws-col { white-space: nowrap; cursor: pointer; }
+.eqs-groups { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px; }
+.eqs-group { border: 1px solid var(--line); margin: 0; padding: 2px 8px 4px; }
+.eqs-group legend { color: var(--amber); padding: 0 4px; }
+.eqs-crit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0; }
+.eqs-crit.incomplete .sel-inp, .eqs-crit.incomplete .inp { border-style: dashed; }

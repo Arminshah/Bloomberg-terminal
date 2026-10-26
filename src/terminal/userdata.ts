@@ -3,6 +3,7 @@ import type { LayoutId, Route } from './types';
 import type { LinkGroup } from './state';
 import type { RowsLayout } from './rows-layout';
 import { withExtendedColumns, type WatchlistSort } from '../data/watchlist-columns';
+import type { ScreenDef } from '../data/screen';
 
 export interface Watchlist {
   name: string;
@@ -72,6 +73,9 @@ export const worksheets = createStore<{ sheets: Worksheet[]; active: number }>(
   'worksheets',
   1,
 );
+
+/** SCREEN's saved screens, by name: the universe, the criteria groups, the missing-value choice, the exclusions. */
+export const savedScreens = createStore<{ screens: ScreenDef[] }>({ screens: [] }, 'screens', 1);
 
 export interface Position {
   id: string;

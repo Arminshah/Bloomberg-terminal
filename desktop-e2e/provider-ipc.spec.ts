@@ -48,6 +48,7 @@ interface Fixtures {
   crudeMonths?: string[];
   imf?: boolean;
   imfTrade?: boolean;
+  nasdaqList?: boolean;
   monthly?: boolean;
   congressGov?: boolean;
   thirteenF?: boolean;
@@ -1593,3 +1594,30 @@ test('the mouse back and forward buttons and the window\'s back command step thr
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].emit('app-command', { preventDefault() {} }, 'browser-forward'));
   await expect(panel.locator('.fnh-code').first()).toHaveText('TOPMOVERS');
 });
+
+test("SCREEN screens Nasdaq's whole US list in the desktop app and says how many stocks a missing value left undecided", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.nasdaqList = true;
+  });
+  await command(page, 'SCREEN', 'SCREEN');
+  const panel = page.locator('.panel').first();
+  await panel.getByLabel('Universe').selectOption('us');
+  // 23 rows, less the preferred share.
+  await expect(panel.locator('.fnh-sub')).toContainText("22 of Nasdaq's list of 22 US-listed stocks, loaded", { timeout: 30_000 });
+  const rows = panel.locator('tbody tr');
+  await expect(rows).toHaveCount(22);
+  await expect(rows.first()).toContainText('NVDA');
+  await panel.getByLabel('Field 1.1').selectOption('sector');
+  await panel.getByLabel('Value 1.1').fill('Technology');
+  await expect(rows).toHaveCount(4);
+  const logic = panel.getByTestId('eqs-logic');
+  await expect(logic).toContainText('3 left out because a value the screen needs is missing (Sector 3).');
+  await panel.getByLabel('A stock missing a value').selectOption('keep');
+  await expect(rows).toHaveCount(7);
+  await expect(logic).toContainText('3 kept although a value the screen needs is missing (Sector 3), marked ?.');
+  await expect(rows.filter({ hasText: 'BRK.B' }).locator('td').last()).toHaveText('?');
+  // The ratios the list lacks: the screen says they come only for the app's own stocks.
+  await expect(panel.getByLabel('Field 1.1').locator('option[value="pe"]')).toContainText("the app's stocks only");
+  await expect(panel.getByText("Nasdaq's list has no P/E, yield, ROE, beta or returns")).toBeVisible();
+});
+

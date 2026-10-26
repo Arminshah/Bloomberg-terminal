@@ -38,6 +38,8 @@ const fredFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fix
 const imfWeo = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/imf-weo-2026-10.json'), 'utf8'));
 // The IMF's answers for United States goods trade with eight partners and groups by year, and with China by month,
 // with its codelist trimmed to the codes used (ECTR, fixtures.imfTrade). Any other economy has no figures.
+// Rows of Nasdaq's stock list as it answered on 26 October 2026 (SCREEN over the US list, fixtures.nasdaqList).
+const nasdaqList = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/nasdaq-screener-2026-10.json'), 'utf8'));
 const imfTrade = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/imf-imts-usa-2026-10.json'), 'utf8'));
 const imfNoSeries = { data: { dataSets: [{ structure: 0, action: 'Replace' }], structures: [{}] } };
 // OpenFIGI's answers for Alphabet's class A shares: the ticker's share class, and its listings (RELS, fixtures.related).
@@ -393,6 +395,7 @@ net.fetch = async (input, init) => {
       return json(out);
     }
     if (url.pathname === '/api/screener/stocks' && fixtures.listingsDown) return new Response('', { status: 503 });
+    if (url.pathname === '/api/screener/stocks' && fixtures.nasdaqList) return json(nasdaqList);
     // A bank with its industry (CCB); it reports nothing in the calendars above.
     const bank = [{ symbol: 'JPM', name: 'JP Morgan Chase & Co. Common Stock', marketCap: '800000000000.00', lastsale: '$290.00', country: 'United States', sector: 'Finance', industry: 'Major Banks' }];
     if (url.pathname === '/api/screener/stocks') return json({ data: { rows: [{ symbol: 'MMM', name: '3M Company', marketCap: '83552188778.00', country: 'United States', sector: 'Industrials' }, { symbol: 'XYZW', name: 'Synthetic Finnhub-only Co', marketCap: '6100000000.00', country: 'United States', sector: 'Technology' }, ...traded.map(([symbol, lastsale, volume]) => ({ symbol, name: symbol, lastsale: `$${lastsale}`, volume, marketCap: '50000000000.00', country: 'United States', sector: 'Technology' })), ...bank] }, status: { rCode: 200 } });

@@ -338,3 +338,43 @@ test('W opens worksheets: securities by fields, fundamentals beside market field
   await expect(page.locator('.panel').first().getByRole('table', { name: 'Worksheet' }).locator('tbody tr')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('SCREEN joins criteria by AND within a group and OR across groups, says its universe, and keeps saved screens', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'EQS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('SCREEN');
+  await expect(panel.locator('.fnh-sub')).toContainText("of the app's");
+  // The full US list needs the desktop app; the browser build says so rather than offering it.
+  await expect(panel.locator('option[value="us"]')).toHaveAttribute('disabled', '');
+  await expect(panel.locator('option[value="us"]')).toContainText('desktop app');
+  const rows = panel.locator('tbody tr');
+  const all = await rows.count();
+  await panel.getByLabel('Value 1.1').fill('500');
+  const logic = panel.getByTestId('eqs-logic');
+  await expect(logic).toContainText('Screen: Market value ≥ 500 $bn.');
+  await expect.poll(() => rows.count()).toBeLessThan(all);
+  const big = await rows.count();
+  // A second group, joined by OR: more stocks, never fewer.
+  await panel.getByRole('button', { name: '+ Or group' }).click();
+  await panel.getByLabel('Field 2.1').selectOption('divYld');
+  await panel.getByLabel('Value 2.1').fill('3');
+  await expect(logic).toContainText('Screen: Market value ≥ 500 $bn or Dividend yield ≥ 3 %.');
+  await expect.poll(() => rows.count()).toBeGreaterThan(big);
+  // A second criterion in the first group, joined by AND.
+  await panel.getByRole('button', { name: '+ And' }).first().click();
+  await panel.getByLabel('Field 1.2').selectOption('sector');
+  await panel.getByLabel('Value 1.2').fill('Information Technology');
+  await expect(logic).toContainText('(Market value ≥ 500 $bn and Sector is "Information Technology") or Dividend yield ≥ 3 %');
+  await expect(panel.getByLabel('A stock missing a value')).toHaveValue('leave-out');
+  // Saved by name, and opened again after a restart with SCREEN and the name.
+  await panel.getByLabel('Screen name').fill('Big tech or yield');
+  await panel.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Object.values(localStorage).some((v) => v.includes('Big tech or yield')))).toBe(true);
+  await page.reload();
+  await expect(page.locator('.panel').first()).toBeVisible();
+  await run(page, 'SCREEN BIG');
+  await expect(page.locator('.panel').first().getByTestId('eqs-logic')).toContainText('(Market value ≥ 500 $bn and Sector is "Information Technology") or Dividend yield ≥ 3 %');
+  await expect(page.locator('.panel').first().getByLabel('Saved screens')).toHaveValue('Big tech or yield');
+  expect(errors).toEqual([]);
+});

@@ -61,6 +61,10 @@ export interface Listing {
   /** The last price and the shares traded in the latest session the stock list reports; NaN when not given. */
   price?: number;
   volume?: number;
+  /** The change on the previous close in that session, %; NaN when not given. */
+  change?: number;
+  /** The year the stock listed, as Nasdaq gives it; NaN for the many it gives none. */
+  ipoYear?: number;
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -167,7 +171,18 @@ export function parseNasdaqListings(text: string): { data: Map<string, Listing> 
   for (const r of rows) {
     const symbol = tickerKey(r?.symbol);
     if (!/^[A-Z][A-Z0-9.]{0,9}$/.test(symbol)) continue;
-    out.set(symbol, { cap: nasdaqNumber(r?.marketCap), name: companyName(String(r?.name ?? '')), country: String(r?.country ?? ''), sector: String(r?.sector ?? ''), industry: String(r?.industry ?? ''), price: nasdaqNumber(r?.lastsale), volume: nasdaqNumber(r?.volume) });
+    const ipo = String(r?.ipoyear ?? '').trim();
+    out.set(symbol, {
+      cap: nasdaqNumber(r?.marketCap),
+      name: companyName(String(r?.name ?? '')),
+      country: String(r?.country ?? ''),
+      sector: String(r?.sector ?? ''),
+      industry: String(r?.industry ?? ''),
+      price: nasdaqNumber(r?.lastsale),
+      volume: nasdaqNumber(r?.volume),
+      change: nasdaqNumber(String(r?.pctchange ?? '').replace(/%$/, '')),
+      ipoYear: /^\d{4}$/.test(ipo) ? Number(ipo) : NaN,
+    });
   }
   return { data: out };
 }
