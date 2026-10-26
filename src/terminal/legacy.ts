@@ -115,6 +115,8 @@ export const LEGACY_CODES: Record<string, string> = {
   LAST: 'RECENT',
   NOTE: 'NOTES',
   LPAD: 'LAYOUTS',
+  // The provider's own code for its Launchpad (the chapter list of its Instant Bloomberg, Launchpad and Worksheets tutorial).
+  LLP: 'LAYOUTS',
   IB: 'MESSAGES',
   PROV: 'PROVIDERS',
   PDF: 'SETTINGS',
