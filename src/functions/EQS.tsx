@@ -5,7 +5,7 @@ import { DataTable, type Column } from '../components/DataTable';
 import { Chg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { SimBadge } from '../components/Source';
-import { fmtBig, fmtNum, fmtTime } from '../core/format';
+import { fmtBig, fmtInt, fmtNum, fmtTime } from '../core/format';
 import { useTick } from '../data/market';
 import { calendarAvailable, earningsCalendar, requestListings } from '../data/live/earnings-calendar';
 import { lookupSecurity } from '../data/live/lookup';
@@ -17,6 +17,7 @@ import {
   describeScreen,
   excludedWord,
   FIELD,
+  matchesAfterEach,
   NM,
   OPS,
   PRESETS,
@@ -114,6 +115,8 @@ export function EQS({ route }: FnProps) {
     [s.universe, list, s.universe === 'app' ? tick : 0],
   );
   const out = useMemo(() => runScreen(cands, s), [cands, s]);
+  // The stocks left after each criterion in its group, as the fixed income search shows them beside its criteria.
+  const left = useMemo(() => matchesAfterEach(cands, s), [cands, s]);
   const fields = offered(s.universe);
   const used = s.groups.flat().map((c) => c.field);
   const shown = [...SHOWN[s.universe], ...used.filter((f) => !SHOWN[s.universe].includes(f) && f !== 'name' && f !== 'sector')].filter((f, i, a) => a.indexOf(f) === i);
@@ -301,6 +304,11 @@ export function EQS({ route }: FnProps) {
                   <button type="button" className="link-btn" aria-label={`Remove criterion ${at}`} onClick={() => removeCriterion(gi, ci)}>
                     ✕
                   </button>
+                  {left[gi]?.[ci] != null && cands.length > 0 && (
+                    <span className="eqs-left muted" data-testid={`eqs-left-${at}`} title={`Stocks left after this criterion${ci > 0 ? ' and the ones above it' : ''}${s.groups.length > 1 ? ' in this group' : ''}`}>
+                      {fmtInt(left[gi][ci]!)} left
+                    </span>
+                  )}
                 </div>
               );
             })}

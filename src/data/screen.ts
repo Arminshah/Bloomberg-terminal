@@ -203,6 +203,29 @@ export function runScreen(cands: readonly Candidate[], s: ScreenDef): ScreenOutc
   return out;
 }
 
+/**
+ * The stocks left after each criterion and the ones above it in its group (the fixed income search's "Matches" column,
+ * seen on an April 2023 screenshot), counted as the screen counts them: after the exclusion words, and with an
+ * undecided stock kept or left out as the screen says. One number per criterion, in the groups' order; null for a
+ * criterion that has no value yet and takes no part. A group's last number is that group's count; the screen's
+ * result joins the groups.
+ */
+export function matchesAfterEach(cands: readonly Candidate[], s: ScreenDef): (number | null)[][] {
+  const words = s.exclude.trim();
+  const pool = words ? cands.filter((c) => !excludedWord(String(c.values.sector ?? ''), String(c.values.industry ?? ''), words)) : cands;
+  return s.groups.map((g) => {
+    let left: readonly Candidate[] = pool;
+    return g.map((c) => {
+      if (!complete(c)) return null;
+      left = left.filter((x) => {
+        const r = meets(c, x.values[c.field]);
+        return r === true || (r === null && s.missing === 'keep');
+      });
+      return left.length;
+    });
+  });
+}
+
 function criterionText(c: Criterion): string {
   const f = FIELD[c.field];
   const op = OPS[f.kind].find((o) => o.id === c.op)?.label ?? c.op;

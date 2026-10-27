@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { engine } from '../src/data/market';
 import { parseNasdaqListings } from '../src/data/live/earnings-calendar';
-import { appCandidates, complete, describeScreen, evaluate, meets, NM, runScreen, usCandidates, type Candidate, type Criterion, type ScreenDef } from '../src/data/screen';
+import { appCandidates, complete, describeScreen, evaluate, matchesAfterEach, meets, NM, runScreen, usCandidates, type Candidate, type Criterion, type ScreenDef } from '../src/data/screen';
 import { parseCommand } from '../src/terminal/commands';
 import { lookupFn } from '../src/terminal/registry';
 import list from './fixtures/nasdaq-screener-2026-10.json';
@@ -58,6 +58,22 @@ describe('SCREEN criteria', () => {
     expect(describeScreen(s)).toBe('(Market value ≥ 10 $bn and P/E ≤ 20) or Dividend yield ≥ 4 %');
     expect(describeScreen(screen([[{ field: 'sector', op: 'is', value: 'Energy' }, { field: 'ytd', op: 'between', value: '0', to: '10' }]]))).toBe('Sector is "Energy" and YTD change between 0 and 10 %');
     expect(describeScreen(screen([[]]))).toBe('No criteria: every stock');
+  });
+
+  it('counts the stocks left after each criterion in its group, as the screen counts them', () => {
+    const cands = [cand({ cap: 50, pe: 15, divYld: 1 }), cand({ cap: 50, pe: 25, divYld: 5 }), cand({ cap: 50 }), cand({ cap: 5, pe: 10, divYld: 6 }), cand({ cap: 20, pe: 12, sector: 'Tobacco' })];
+    const groups: Criterion[][] = [
+      [{ field: 'cap', op: 'gte', value: '10' }, { field: 'pe', op: 'between', value: '' }, { field: 'pe', op: 'lte', value: '20' }],
+      [{ field: 'divYld', op: 'gte', value: '4' }],
+    ];
+    // Four, then two once P/E is set (the one without a P/E is left out); the unfinished criterion takes no part.
+    expect(matchesAfterEach(cands, screen(groups))).toEqual([[4, null, 2], [2]]);
+    // Kept when undecided, as the screen keeps it: the stocks without a P/E or a yield count too.
+    expect(matchesAfterEach(cands, screen(groups, 'keep'))).toEqual([[4, null, 3], [4]]);
+    // The exclusion words come first.
+    expect(matchesAfterEach(cands, screen(groups, 'leave-out', 'tobacco'))).toEqual([[3, null, 1], [2]]);
+    // Each group's last count is its own; the result joins them (two in each group, none in both).
+    expect(runScreen(cands, screen(groups)).rows).toHaveLength(4);
   });
 });
 

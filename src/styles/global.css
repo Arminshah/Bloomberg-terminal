@@ -1592,6 +1592,7 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .eqs-group legend { color: var(--amber); padding: 0 4px; }
 .eqs-crit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0; }
 .eqs-crit.incomplete .sel-inp, .eqs-crit.incomplete .inp { border-style: dashed; }
+.eqs-left { margin-left: 6px; font-variant-numeric: tabular-nums; }
 /* A range on one line, as the watchlist's Day Range and 52-Wk Range: low, bar with the filled part and a marker, high. */
 .rangebar { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .rb-end { color: var(--muted); font-size: var(--fs-s); min-width: 40px; text-align: right; }

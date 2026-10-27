@@ -355,6 +355,8 @@ test('SCREEN joins criteria by AND within a group and OR across groups, says its
   await expect(logic).toContainText('Screen: Market value ≥ 500 $bn.');
   await expect.poll(() => rows.count()).toBeLessThan(all);
   const big = await rows.count();
+  // The stocks left after the criterion, beside it (as the fixed income search's Matches column).
+  await expect(panel.getByTestId('eqs-left-1.1')).toHaveText(`${big} left`);
   // A second group, joined by OR: more stocks, never fewer.
   await panel.getByRole('button', { name: '+ Or group' }).click();
   await panel.getByLabel('Field 2.1').selectOption('divYld');
@@ -366,6 +368,10 @@ test('SCREEN joins criteria by AND within a group and OR across groups, says its
   await panel.getByLabel('Field 1.2').selectOption('sector');
   await panel.getByLabel('Value 1.2').fill('Information Technology');
   await expect(logic).toContainText('(Market value ≥ 500 $bn and Sector is "Information Technology") or Dividend yield ≥ 3 %');
+  // Each criterion in a group can only narrow what the ones above it left.
+  const leftAfter = async (at: string) => Number((await panel.getByTestId(`eqs-left-${at}`).textContent())?.replace(/\D/g, ''));
+  await expect.poll(() => leftAfter('1.2')).toBeLessThanOrEqual(big);
+  await expect(panel.getByTestId('eqs-left-2.1')).toContainText('left');
   await expect(panel.getByLabel('A stock missing a value')).toHaveValue('leave-out');
   // Saved by name, and opened again after a restart with SCREEN and the name.
   await panel.getByLabel('Screen name').fill('Big tech or yield');
