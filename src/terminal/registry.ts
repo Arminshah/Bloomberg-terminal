@@ -42,6 +42,7 @@ import { AGS, GAS, MINE, OIL } from '../functions/CMDSECTOR';
 import { WCR } from '../functions/WCR';
 import { WEIS, WM } from '../functions/WORLDEQ';
 import { BOE, BOJ, ECB } from '../functions/CBPORTAL';
+import { CBRT } from '../functions/CBRT';
 import { ECO, ECST } from '../functions/ECO';
 import { MACRO } from '../functions/MACRO';
 import { OMON, OVME } from '../functions/OPTIONS';
@@ -197,6 +198,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'BOJPORTAL', name: 'Bank of Japan', category: 'Rates & Credit', desc: "A portal on the Bank of Japan: the basic loan rate and its last move and the overnight call rate from the Bank's Time-Series Data Search, the next meeting, its latest announcements, its pages and the screens on yen rates.", component: BOJ },
   { code: 'FEDMEETINGS', name: 'FOMC Meetings', category: 'Rates & Credit', desc: "The year's scheduled FOMC announcement days from the Federal Reserve Board's calendar, each decided one with the target range that took effect and the move in basis points, from the New York Fed's daily series; numbered links to the Fed path, central banks and money markets.", component: FOMC, example: 'FOMC' },
   { code: 'CENTRALBANKS', name: 'Central Bank Monitor', category: 'Rates & Credit', desc: 'Policy rates, last moves and next decision dates for major central banks against 2-year yields.', component: CENB },
+  { code: 'RATEANALYSIS', name: 'Central Bank Rate Analysis', category: 'Rates & Credit', desc: "Each central bank's policy rate from its own data with every move over about four years: the level, the last move, the change over a year, the rises and cuts, the next decision, a step chart and the meeting that decided each move.", component: CBRT },
   { code: 'BONDSEARCH', name: 'Fixed Income Search', category: 'Rates & Credit', desc: 'Search Treasuries and corporate bonds by issuer, rating, maturity and coupon with yields and spreads (browser model; bond prices have no free source).', component: SRCH, example: 'AAPL CORP', unavailable: 'bond prices have no free source' },
   { code: 'DEBTPROFILE', name: 'Debt Distribution', category: 'Rates & Credit', desc: "An issuer's bonds by maturity: amounts outstanding, weighted coupon, life and spread (browser model).", component: DDIS, example: 'DEBTPROFILE JPM CORP', unavailable: 'bond data has no free source' },
   { code: 'DEALERQUOTES', name: 'All Quotes', category: 'Rates & Credit', needsSec: true, classes: ['bond'], desc: 'Dealer quote montage for a bond with best bid and offer, yields and sizes (browser model; dealer quotes have no free source).', component: ALLQ, unavailable: 'dealer quotes have no free source' },

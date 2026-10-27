@@ -515,3 +515,13 @@ test('ECB, BOE and BOJ gather each bank: its rate, the next decision, its pages 
   await expect(panel.locator('.note').last()).toContainText('This service uses the API provided by the "Bank of Japan Time-Series Data Search."');
   expect(errors).toEqual([]);
 });
+
+test("CBRT says the banks' rate histories are the desktop app's, and generates none in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'CBRT');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('RATEANALYSIS');
+  await expect(panel.locator('.empty')).toContainText('The browser demo has none, and none are generated');
+  await expect(panel.getByTestId('cbrt-banks')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

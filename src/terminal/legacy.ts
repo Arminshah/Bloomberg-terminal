@@ -71,6 +71,8 @@ export const LEGACY_CODES: Record<string, string> = {
   ECB: 'ECBPORTAL',
   BOE: 'BOEPORTAL',
   BOJ: 'BOJPORTAL',
+  // Central Bank Rate Analysis (2020 Quick Start, name only).
+  CBRT: 'RATEANALYSIS',
   INSD: 'INSIDERS',
   EEG: 'ESTIMATEGRAPH',
   EM: 'EARNINGSTREND',

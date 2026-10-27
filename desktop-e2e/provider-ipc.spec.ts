@@ -1027,6 +1027,25 @@ test("ECB, BOE and BOJ show each bank's rate from its own data, its last move an
   await expect(panel.locator('.fnh')).toContainText('REAL');
 });
 
+test("CBRT lists each bank's rate with its moves from the bank's own data, and the meeting that decided each", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.centralBankRates = true;
+  });
+  await page.reload();
+  await command(page, 'CBRT', 'RATEANALYSIS');
+  const panel = page.locator('.panel').first();
+  const ecb = panel.getByTestId('cbrt-banks').locator('tbody tr', { hasText: 'European Central Bank' });
+  await expect(ecb.locator('td').nth(2)).toHaveText('2.50%', { timeout: 30_000 });
+  await expect(ecb.locator('td').nth(4)).toHaveText('+25 bp');
+  await ecb.click();
+  const move = panel.getByTestId('cbrt-moves').locator('tbody tr').first();
+  await expect(move).toContainText('16/09/26');
+  await expect(move.locator('td').nth(3)).toHaveText('10/09/26');
+  await panel.getByTestId('cbrt-banks').locator('tbody tr', { hasText: 'Bank of Japan' }).click();
+  await expect(panel.getByTestId('cbrt-moves').locator('tbody tr').first().locator('td').nth(3)).toHaveText('18/09/26');
+  await expect(panel).toContainText("moves with the Bank's guideline for the overnight call rate");
+});
+
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
