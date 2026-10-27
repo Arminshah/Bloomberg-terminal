@@ -30,13 +30,20 @@ export interface CentralBank {
  * derived from the 3M bill and the rest are reference settings.
  */
 export function centralBanks(): CentralBank[] {
+  return withRealRates(referenceBanks());
+}
+
+/** A bank's decision days from its published calendar, whether or not its rate comes from its own data. */
+export const meetingsOf = (code: string): string[] => referenceBanks().find((b) => b.code === code)?.meetings ?? [];
+
+function referenceBanks(): CentralBank[] {
   const bill = engine.quote('USGG3M Index')?.prevClose ?? 4;
   const fedUpper = Math.round((bill + 0.12) * 4) / 4;
-  return withRealRates([
+  return [
     { code: 'FED', country: 'US', bank: 'Federal Reserve', rate: fedUpper, name: 'FOMC Rate Decision (Upper Bound)', tz: 'America/New_York', time: [14, 0], meetings: ['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-17', '2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09', '2027-01-27', '2027-03-17', '2027-04-28', '2027-06-09', '2027-07-28', '2027-09-15', '2027-10-27', '2027-12-08'], last: '2026-09-16', lastMove: 0.25 },
-    { code: 'ECB', country: 'EZ', bank: 'European Central Bank', rate: 2.0, name: 'ECB Deposit Facility Rate', tz: 'Europe/Berlin', time: [14, 15], meetings: ['2026-02-05', '2026-03-19', '2026-04-30', '2026-06-11', '2026-07-23', '2026-09-10', '2026-10-29', '2026-12-17', '2027-02-04', '2027-03-18', '2027-04-29', '2027-06-10', '2027-07-22', '2027-09-09', '2027-10-28', '2027-12-16', '2028-02-03', '2028-03-23', '2028-05-04', '2028-06-08', '2028-07-20', '2028-09-07', '2028-10-12', '2028-12-07'], last: '2025-06-05', lastMove: -0.25 },
+    { code: 'ECB', country: 'EZ', bank: 'European Central Bank', rate: 2.5, name: 'ECB Deposit Facility Rate', tz: 'Europe/Berlin', time: [14, 15], meetings: ['2026-02-05', '2026-03-19', '2026-04-30', '2026-06-11', '2026-07-23', '2026-09-10', '2026-10-29', '2026-12-17', '2027-02-04', '2027-03-18', '2027-04-29', '2027-06-10', '2027-07-22', '2027-09-09', '2027-10-28', '2027-12-16', '2028-02-03', '2028-03-23', '2028-05-04', '2028-06-08', '2028-07-20', '2028-09-07', '2028-10-12', '2028-12-07'], last: '2026-09-10', lastMove: 0.25 },
     { code: 'BOE', country: 'GB', bank: 'Bank of England', rate: 3.75, name: 'BoE Bank Rate', tz: 'Europe/London', time: [12, 0], meetings: ['2026-02-05', '2026-03-19', '2026-04-30', '2026-06-18', '2026-07-30', '2026-09-17', '2026-11-05', '2026-12-17', '2027-02-04', '2027-03-18', '2027-04-29', '2027-06-17', '2027-07-29', '2027-09-16', '2027-11-04', '2027-12-16'], last: '2025-12-18', lastMove: -0.25 },
-    { code: 'BOJ', country: 'JP', bank: 'Bank of Japan', rate: 1.0, name: 'BOJ Policy Balance Rate', tz: 'Asia/Tokyo', time: [12, 0], meetings: ['2026-01-23', '2026-03-19', '2026-04-28', '2026-06-16', '2026-07-31', '2026-09-18', '2026-10-30', '2026-12-18', '2027-01-22', '2027-03-18', '2027-04-28', '2027-06-11', '2027-07-22', '2027-09-22', '2027-10-29', '2027-12-17'], last: '2026-07-31', lastMove: 0.25 },
+    { code: 'BOJ', country: 'JP', bank: 'Bank of Japan', rate: 1.25, name: 'BOJ Overnight Call Rate Guideline', tz: 'Asia/Tokyo', time: [12, 0], meetings: ['2026-01-23', '2026-03-19', '2026-04-28', '2026-06-16', '2026-07-31', '2026-09-18', '2026-10-30', '2026-12-18', '2027-01-22', '2027-03-18', '2027-04-28', '2027-06-11', '2027-07-22', '2027-09-22', '2027-10-29', '2027-12-17'], last: '2026-09-18', lastMove: 0.25 },
     { code: 'BOC', country: 'CA', bank: 'Bank of Canada', rate: 2.25, name: 'Bank of Canada Rate Decision', tz: 'America/Toronto', time: [9, 45], meetings: ['2026-01-28', '2026-03-18', '2026-04-29', '2026-06-10', '2026-07-15', '2026-09-02', '2026-10-28', '2026-12-09', '2027-01-27', '2027-03-03', '2027-04-28', '2027-06-02', '2027-07-21', '2027-09-08', '2027-10-27', '2027-12-08'], last: '2025-10-29', lastMove: -0.25 },
     { code: 'RBA', country: 'AU', bank: 'Reserve Bank of Australia', rate: 3.6, name: 'RBA Cash Rate Target', tz: 'Australia/Sydney', time: [14, 30], meetings: ['2026-02-03', '2026-03-17', '2026-05-05', '2026-06-16', '2026-08-11', '2026-09-29', '2026-11-03', '2026-12-08', '2027-02-09', '2027-03-23', '2027-05-04', '2027-06-22', '2027-08-10', '2027-09-28', '2027-11-02', '2027-12-14'], last: '2025-08-12', lastMove: -0.25 },
     { code: 'SNB', country: 'CH', bank: 'Swiss National Bank', rate: 0.0, name: 'SNB Policy Rate', tz: 'Europe/Zurich', time: [9, 30], meetings: ['2026-03-19', '2026-06-18', '2026-09-24', '2026-12-10', '2027-03-18', '2027-06-24', '2027-09-23', '2027-12-16'], last: '2025-06-19', lastMove: -0.25 },
@@ -44,7 +51,7 @@ export function centralBanks(): CentralBank[] {
     { code: 'RBI', country: 'IN', bank: 'Reserve Bank of India', rate: 5.25, name: 'RBI Repurchase Rate', tz: 'Asia/Kolkata', time: [10, 0], meetings: ['2026-02-06', '2026-04-08', '2026-06-05', '2026-08-07', '2026-10-07', '2026-12-04'], last: '2025-12-05', lastMove: -0.25 },
     { code: 'BCB', country: 'BR', bank: 'Banco Central do Brasil', rate: 14.25, name: 'Selic Rate', tz: 'America/Sao_Paulo', time: [18, 30], meetings: ['2026-01-28', '2026-03-18', '2026-05-06', '2026-06-17', '2026-08-05', '2026-09-16', '2026-11-04', '2026-12-09', '2027-01-27', '2027-03-17', '2027-04-28', '2027-06-16', '2027-08-04', '2027-09-22', '2027-10-27', '2027-12-08'], last: '2026-09-16', lastMove: -0.25 },
     { code: 'BANXICO', country: 'MX', bank: 'Banco de Mexico', rate: 7.0, name: 'Overnight Rate', tz: 'America/Mexico_City', time: [13, 0], meetings: ['2026-02-12', '2026-03-26', '2026-05-14', '2026-06-25', '2026-08-13', '2026-09-24', '2026-11-12', '2026-12-17'], last: '2025-12-18', lastMove: -0.25 },
-  ]);
+  ];
 }
 
 const REAL_SERIES: Record<string, keyof PolicyRates> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOC: 'boc', RBA: 'rba', SNB: 'snb', BCB: 'bcb' };

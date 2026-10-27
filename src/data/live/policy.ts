@@ -33,6 +33,12 @@ export interface PolicyRates {
   rba?: PolicySeries;
   snb?: PolicySeries;
   bcb?: PolicySeries;
+  /** The euro short-term rate (ECB) and SONIA (Bank of England): each overnight benchmark, daily. */
+  estr?: PolicySeries;
+  sonia?: PolicySeries;
+  /** The Bank of Japan's basic loan rate (with every change) and the overnight call rate its guideline targets (daily average). */
+  bojLoan?: PolicySeries;
+  bojCall?: PolicySeries;
   /** FOMC decision days (the second day of each scheduled meeting), from the Federal Reserve Board's calendar. */
   fomc?: string[];
   /** The New York Fed's latest reference rates. */
@@ -135,6 +141,29 @@ export function parseBoeCsv(text: string): Obs {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/**
+ * The Bank of Japan's Time-Series Data Search API (getDataCode, JSON): RESULTSET[0].VALUES holds SURVEY_DATES
+ * (YYYYMMDD) and VALUES (a number, or null on a day without one).
+ */
+export function parseBojJson(text: string): Obs {
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  const v = json?.RESULTSET?.[0]?.VALUES;
+  const dates: unknown[] = Array.isArray(v?.SURVEY_DATES) ? v.SURVEY_DATES : [];
+  const values: unknown[] = Array.isArray(v?.VALUES) ? v.VALUES : [];
+  const out: Obs = [];
+  dates.forEach((d, i) => {
+    const s = String(d);
+    const x = values[i];
+    if (/^\d{8}$/.test(s) && typeof x === 'number' && Number.isFinite(x)) out.push([`${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6)}`, x]);
+  });
+  return out;
+}
+
 /** The New York Fed's latest reference rates: {refRates: [{type, effectiveDate, percentRate, percentPercentile1, ..., volumeInBillions}]}. */
 export function parseNyFedLatest(text: string): FundingRate[] {
   let json: any;
@@ -182,9 +211,15 @@ export function parseFomcCalendar(html: string): string[] {
 async function load(): Promise<number> {
   const since = new Date(Date.now() - 4 * 365 * DAY_MS).toISOString().slice(0, 10);
   const today = new Date().toISOString().slice(0, 10);
-  const [effr, sofr, nyfed, fomc, ecb, boe, boc, rba, snb, bcb] = await Promise.all(
-    (['effr', 'sofr', 'nyfed', 'fomc', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb'] as const).map((k) => official(k, since)),
-  );
+  // The overnight benchmarks over the last quarter; the Bank of Japan's two rates as far back as the others.
+  const recent = new Date(Date.now() - 92 * DAY_MS).toISOString().slice(0, 10);
+  const [effr, sofr, nyfed, fomc, ecb, boe, boc, rba, snb, bcb, estr, sonia, bojLoan, bojCall] = await Promise.all([
+    ...(['effr', 'sofr', 'nyfed', 'fomc', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb'] as const).map((k) => official(k, since)),
+    official('estr', recent),
+    official('sonia', recent),
+    official('bojLoan', since),
+    official('bojCall', recent),
+  ]);
   const fed = parseNyFed(effr);
   const calendar = parseFomcCalendar(fomc);
   const prev = policyRates.get();
@@ -199,11 +234,15 @@ async function load(): Promise<number> {
     rba: toChanges(parseRbaTable(rba).get('FIRMMCRTD') ?? []),
     snb: toChanges(parseSnbCube(snb, 'LZ')),
     bcb: toChanges(parseSgs(bcb, today)),
+    estr: toChanges(parseEcbCsv(estr)),
+    sonia: toChanges(parseBoeCsv(sonia)),
+    bojLoan: toChanges(parseBojJson(bojLoan)),
+    bojCall: toChanges(parseBojJson(bojCall)),
     // A source that fails this time keeps what it gave before.
     fomc: calendar.length ? calendar : prev.fomc,
     funding: nyfed ? parseNyFedLatest(nyfed) : prev.funding,
   };
-  for (const k of ['fedUpper', 'fedLower', 'effr', 'sofr', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb'] as const) next[k] ??= prev[k];
+  for (const k of ['fedUpper', 'fedLower', 'effr', 'sofr', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb', 'estr', 'sonia', 'bojLoan', 'bojCall'] as const) next[k] ??= prev[k];
   policyRates.set(next);
   return BANKS.filter(([k]) => next[k]).length;
 }

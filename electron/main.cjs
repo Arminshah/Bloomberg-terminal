@@ -262,6 +262,15 @@ const OFFICIAL = {
     return `https://data-api.ecb.europa.eu/service/data/EXR/D..EUR.SP00.A?format=csvdata&startPeriod=${start}&endPeriod=${date}`;
   },
   boe: (since) => boeSeries('IUDBEDR', since),
+  // The overnight benchmarks the ECB and the Bank of England publish: the euro short-term rate (ECB Data Portal,
+  // dataset EST) and SONIA (Bank of England database, IUDSOIA).
+  estr: (since) => `https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT?format=csvdata&startPeriod=${since}`,
+  sonia: (since) => boeSeries('IUDSOIA', since),
+  // The Bank of Japan's Time-Series Data Search API (no key; its notice asks for a credit line, shown where the
+  // figures are): the basic loan rate, daily with every change (IR01, MADR1Z@D), and the uncollateralized overnight
+  // call rate, the daily average (FM01, STRDCLUCON), which the Bank's policy guideline targets.
+  bojLoan: (since) => `https://www.stat-search.boj.or.jp/api/v1/getDataCode?format=json&lang=en&db=IR01&startDate=${since.slice(0, 4)}${since.slice(5, 7)}&code=MADR1Z@D`,
+  bojCall: (since) => `https://www.stat-search.boj.or.jp/api/v1/getDataCode?format=json&lang=en&db=FM01&startDate=${since.slice(0, 4)}${since.slice(5, 7)}&code=STRDCLUCON`,
   boc: (since) => `https://www.bankofcanada.ca/valet/observations/V39079/json?start_date=${since}`,
   rba: () => 'https://www.rba.gov.au/statistics/tables/csv/f1-data.csv',
   snb: (since) => `https://data.snb.ch/api/cube/snbgwdzid/data/csv/en?fromDate=${since}`,
@@ -315,7 +324,7 @@ const OFFICIAL = {
 
 /** Which provider publishes each official source, for the status screen. */
 const OFFICIAL_PROVIDER = {
-  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', boe: 'boe', gilts: 'boe', boc: 'boc', canadas: 'boc',
+  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
   rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
@@ -342,7 +351,7 @@ ipcMain.handle('official', async (event, source, since) => {
     return { status: res.status, text: res.ok ? await res.text() : '' };
   }
   // Some statistics services answer large requests slowly; a stalled one still ends.
-  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' || source === 'ecbFx' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' || source === 'ecbFx' || source === 'estr' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 

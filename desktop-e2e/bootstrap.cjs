@@ -169,6 +169,17 @@ net.fetch = async (input, init) => {
       accessionNumber: [...four.accessionNumber, '0001513845-26-000002', '0001513845-26-000001'], form: [...four.form, '6-K', '20-F'], filingDate: [...four.filingDate, '2026-10-01', '2026-04-30'], reportDate: [...four.reportDate, '2026-10-01', '2025-12-31'], primaryDocument: [...four.primaryDocument, 'synthetic-current.htm', 'synthetic-annual.htm'],
     }, files: [] } });
   }
+  // With fixtures.centralBankRates, the ECB's deposit rate and €STR, Bank Rate and SONIA, and the Bank of Japan's
+  // basic loan rate and call rate, as each bank published them (tests/fixtures/central-banks).
+  if (fixtures.centralBankRates) {
+    const file = (name, type) => new Response(fs.readFileSync(path.join(__dirname, '../tests/fixtures/central-banks', name), 'utf8'), { status: 200, headers: { 'Content-Type': type } });
+    if (url.hostname === 'data-api.ecb.europa.eu' && url.pathname.startsWith('/service/data/FM/')) return file('ecb-dfr.csv', 'text/csv');
+    if (url.hostname === 'data-api.ecb.europa.eu' && url.pathname.startsWith('/service/data/EST/')) return file('ecb-estr.csv', 'text/csv');
+    if (url.hostname === 'www.bankofengland.co.uk' && url.searchParams.get('SeriesCodes') === 'IUDBEDR') return file('boe-bank-rate.csv', 'text/csv');
+    if (url.hostname === 'www.bankofengland.co.uk' && url.searchParams.get('SeriesCodes') === 'IUDSOIA') return file('boe-sonia.csv', 'text/csv');
+    if (url.hostname === 'www.stat-search.boj.or.jp' && url.searchParams.get('db') === 'IR01') return file('boj-basic-loan-rate.json', 'application/json');
+    if (url.hostname === 'www.stat-search.boj.or.jp' && url.searchParams.get('db') === 'FM01') return file('boj-call-rate.json', 'application/json');
+  }
   // With fixtures.ecbFx, the ECB's reference rates as published for 25 to 30 June 2026 (tests/fixtures/ecb-exr-2026-06.csv).
   if (fixtures.ecbFx && url.hostname === 'data-api.ecb.europa.eu' && url.pathname.startsWith('/service/data/EXR/')) {
     fixtures.calls.ecbFx = [...(fixtures.calls.ecbFx ?? []), url.pathname + url.search];

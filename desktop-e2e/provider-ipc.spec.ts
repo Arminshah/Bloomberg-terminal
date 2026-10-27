@@ -56,6 +56,7 @@ interface Fixtures {
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
+  centralBankRates?: boolean;
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
@@ -1000,6 +1001,30 @@ test("WEIS ranks the indices by their year-to-date return from each one's own cl
   // Every fixture index has the same recorded closes and trades at 123.45 now, so every return is the same figure.
   await expect.poll(async () => new Set((await cells.allInnerTexts()).filter((s) => s !== '--')).size, { timeout: 30_000 }).toBe(1);
   expect((await cells.allInnerTexts())[0]).toMatch(/^[+-]\d+\.\d\d%$/);
+});
+
+test("ECB, BOE and BOJ show each bank's rate from its own data, its last move and the meeting that decided it", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.centralBankRates = true;
+  });
+  await page.reload();
+  const panel = page.locator('.panel').first();
+  const kv = (label: string) => panel.locator('dl.kv dt', { hasText: label }).locator('xpath=following-sibling::dd[1]');
+  await command(page, 'ECB', 'ECBPORTAL');
+  await expect(kv('Deposit facility rate')).toHaveText('2.50%', { timeout: 30_000 });
+  await expect(kv('In force since')).toHaveText('16/09/26');
+  await expect(kv('Last move')).toHaveText('+25 bp, decided 10/09/26');
+  await expect(kv('Euro short-term rate')).toHaveText('2.442% on 23/10/26');
+  await command(page, 'BOE', 'BOEPORTAL');
+  await expect(kv('Bank Rate')).toHaveText('3.75%');
+  // The cut of 18 December 2025 is older than the calendar the app holds: no meeting is named, and none is denied.
+  await expect(kv('Last move')).toHaveText('-25 bp');
+  await expect(kv('SONIA')).toHaveText('3.734% on 23/10/26');
+  await command(page, 'BOJ', 'BOJPORTAL');
+  await expect(kv('Basic loan rate')).toHaveText('1.50%');
+  await expect(kv('Last move')).toHaveText('+25 bp, decided 18/09/26');
+  await expect(kv('Uncollateralized overnight call rate')).toHaveText('1.227% on 23/10/26');
+  await expect(panel.locator('.fnh')).toContainText('REAL');
 });
 
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {

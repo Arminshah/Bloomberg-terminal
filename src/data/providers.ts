@@ -191,7 +191,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'ecb',
     name: 'European Central Bank',
-    serves: 'Deposit facility rate; press releases and blog posts (RSS)',
+    serves: 'Deposit facility rate; the euro short-term rate (€STR); press releases and blog posts (RSS)',
     dataClass: 'Policy rate and announcements (official)',
     policy: 'enabled',
     feed: 'policy',
@@ -207,7 +207,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'boe',
     name: 'Bank of England',
-    serves: 'Bank Rate; nominal par gilt yields (5, 10 and 20 years); news (RSS)',
+    serves: 'Bank Rate; SONIA; nominal par gilt yields (5, 10 and 20 years); news (RSS)',
     dataClass: 'Policy rate; end-of-day fitted yields (official)',
     policy: 'enabled',
     feed: 'yields',
@@ -282,16 +282,18 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'boj',
     name: 'Bank of Japan',
-    serves: "What's new: announcements, speeches and statistics releases (RSS, HEADLINES)",
-    dataClass: 'Official announcements',
+    serves: "Basic loan rate and the overnight call rate (Time-Series Data Search API, BOJPORTAL); what's new: announcements, speeches and statistics releases (RSS, HEADLINES)",
+    dataClass: 'Policy rates and announcements (official)',
     policy: 'enabled',
     feed: 'news',
-    terms: 'Site content may be copied with the Bank of Japan named as the source, except for commercial use, material marked as needing permission, and graphics; it may not be altered.',
+    terms: 'Site content may be copied with the Bank of Japan named as the source, except for commercial use, material marked as needing permission, and graphics; it may not be altered. The Time-Series Data Search API needs no key; its notice asks for a credit line where the figures are shown (BOJPORTAL shows it), no excessive requests, and an email to the Bank before a service using it is released to others.',
     docs: [
       { label: 'Copyright', url: 'https://www.boj.or.jp/en/about/copyright.htm' },
+      { label: 'API user manual', url: 'https://www.stat-search.boj.or.jp/info/api_manual_en.pdf' },
+      { label: 'Notice on the use of the API', url: 'https://www.stat-search.boj.or.jp/info/api_notice_en.pdf' },
       { label: 'RSS feed', url: 'https://www.boj.or.jp/en/rss/whatsnew.xml' },
     ],
-    checked: '2026-10-19',
+    checked: '2026-10-27',
     desktop: true,
   },
   {

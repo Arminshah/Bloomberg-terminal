@@ -41,6 +41,7 @@ import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
 import { AGS, GAS, MINE, OIL } from '../functions/CMDSECTOR';
 import { WCR } from '../functions/WCR';
 import { WEIS, WM } from '../functions/WORLDEQ';
+import { BOE, BOJ, ECB } from '../functions/CBPORTAL';
 import { ECO, ECST } from '../functions/ECO';
 import { MACRO } from '../functions/MACRO';
 import { OMON, OVME } from '../functions/OPTIONS';
@@ -191,6 +192,9 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'RATEPROBS', name: 'Rate Probabilities', category: 'Rates & Credit', desc: 'Market-implied Fed moves meeting by meeting, from fed funds futures and the FOMC calendar.', component: WIRP },
   { code: 'SWAPCALC', name: 'Swap Manager', category: 'Rates & Credit', desc: 'Fixed/float swap analytics from user-entered zero curves: par coupon, NPV, separate discount/projection curves, cash flows and curve/coupon bump risk. No market swap curve is inferred.', component: SWPM },
   { code: 'FEDPORTAL', name: 'Federal Reserve', category: 'Rates & Credit', desc: "A portal on the Federal Reserve: the target range and when it last moved, the next decision, the New York Fed's funding rates, the Board's latest announcements, its publications and the app's screens on US rates.", component: FED },
+  { code: 'ECBPORTAL', name: 'European Central Bank', category: 'Rates & Credit', desc: "A portal on the ECB: the deposit facility rate and its last move from the ECB's own data, the next decision from its calendar, €STR, its latest announcements, its pages and the screens on euro rates.", component: ECB },
+  { code: 'BOEPORTAL', name: 'Bank of England', category: 'Rates & Credit', desc: "A portal on the Bank of England: Bank Rate and its last move from the Bank's database, the next MPC decision, SONIA, its latest announcements, its pages and the screens on sterling rates.", component: BOE },
+  { code: 'BOJPORTAL', name: 'Bank of Japan', category: 'Rates & Credit', desc: "A portal on the Bank of Japan: the basic loan rate and its last move and the overnight call rate from the Bank's Time-Series Data Search, the next meeting, its latest announcements, its pages and the screens on yen rates.", component: BOJ },
   { code: 'FEDMEETINGS', name: 'FOMC Meetings', category: 'Rates & Credit', desc: "The year's scheduled FOMC announcement days from the Federal Reserve Board's calendar, each decided one with the target range that took effect and the move in basis points, from the New York Fed's daily series; numbered links to the Fed path, central banks and money markets.", component: FOMC, example: 'FOMC' },
   { code: 'CENTRALBANKS', name: 'Central Bank Monitor', category: 'Rates & Credit', desc: 'Policy rates, last moves and next decision dates for major central banks against 2-year yields.', component: CENB },
   { code: 'BONDSEARCH', name: 'Fixed Income Search', category: 'Rates & Credit', desc: 'Search Treasuries and corporate bonds by issuer, rating, maturity and coupon with yields and spreads (browser model; bond prices have no free source).', component: SRCH, example: 'AAPL CORP', unavailable: 'bond prices have no free source' },

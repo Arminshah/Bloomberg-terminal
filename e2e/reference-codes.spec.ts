@@ -490,3 +490,28 @@ test('WEIS ranks the indices by return over a period, in their own currency or o
   await expect(panel.locator('.fnh-code')).toHaveText('CHART');
   expect(errors).toEqual([]);
 });
+
+test('ECB, BOE and BOJ gather each bank: its rate, the next decision, its pages and the screens on its market', async ({ page }) => {
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  await run(page, 'ECB');
+  await expect(panel.locator('.fnh-code')).toHaveText('ECBPORTAL');
+  await expect(panel.locator('.kv')).toContainText('Deposit facility rate');
+  await expect(panel.locator('.kv')).toContainText(/Next decision\d{2}\/\d{2}\/\d{2} \((today|in \d+ days?)\), 14:15 Frankfurt/);
+  // The browser demo has no rate of the bank's own and says so; the overnight rate is left blank, not made up.
+  await expect(panel.locator('.fnh')).toContainText('reference rate');
+  await expect(panel.locator('.kv')).toContainText('(reference)');
+  await expect(panel.locator('.kv')).toContainText('Euro short-term rate (€STR)--');
+  await expect(panel.getByRole('link', { name: 'Accounts of the monetary policy meetings ↗' })).toHaveAttribute('href', 'https://www.ecb.europa.eu/press/accounts/html/index.en.html');
+  await panel.locator('tbody tr', { hasText: 'German Bund curve' }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('CURVE');
+  await run(page, 'BOE');
+  await expect(panel.locator('.fnh-code')).toHaveText('BOEPORTAL');
+  await expect(panel.locator('.kv')).toContainText('Bank Rate');
+  await expect(panel.locator('.kv')).toContainText('12:00 London');
+  await run(page, 'BOJ');
+  await expect(panel.locator('.fnh-code')).toHaveText('BOJPORTAL');
+  await expect(panel.locator('.kv')).toContainText('Basic loan rate');
+  await expect(panel.locator('.note').last()).toContainText('This service uses the API provided by the "Bank of Japan Time-Series Data Search."');
+  expect(errors).toEqual([]);
+});

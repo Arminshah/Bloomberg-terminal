@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as selftest from '../electron/selftest.cjs';
 import { fixture } from './fixtures/congress/files.cjs';
+import bojLoan from './fixtures/central-banks/boj-basic-loan-rate.json?raw';
 
 // Made-up answers in each provider's documented layout; no request leaves the test.
 const test = (id: string) => selftest.TESTS.find((t) => t.id === id)!;
@@ -9,6 +10,12 @@ describe('provider self-test', () => {
   it('requests ECB CSV explicitly and rejects missing or nonnumeric observations', () => {
     expect(test('ecb').request([], 0).accept).toBe('text/csv');
     for (const body of ['{"dataSets":[]}', 'TIME_PERIOD,OBS_VALUE\n2026-10-16,\n', 'TIME_PERIOD,OBS_VALUE\n2026-10-16,NaN\n']) expect(() => test('ecb').read(body)).toThrow();
+  });
+
+  it("reads the Bank of Japan's basic loan rate from its Time-Series Data Search, asking from two months back", () => {
+    expect(test('boj').request([], Date.parse('2026-10-27T12:00:00Z')).url).toBe('https://www.stat-search.boj.or.jp/api/v1/getDataCode?format=json&lang=en&db=IR01&startDate=202608&code=MADR1Z@D');
+    expect(test('boj').read(bojLoan)).toBe('1.5% on 2026-09-30');
+    expect(() => test('boj').read('{"STATUS":400,"MESSAGE":"Invalid parameter"}')).toThrow('Invalid parameter');
   });
 
   it('selects a percentage rate instead of displaying the SOFR index as an unknown percent', () => {

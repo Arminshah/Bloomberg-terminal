@@ -64,6 +64,24 @@ const TESTS = [
     },
   },
   {
+    id: 'boj',
+    provider: 'boj',
+    label: 'Bank of Japan basic loan rate (Time-Series Data Search API)',
+    request: (_, now) => {
+      const d = new Date(now - 62 * 86_400_000).toISOString();
+      return { url: `https://www.stat-search.boj.or.jp/api/v1/getDataCode?format=json&lang=en&db=IR01&startDate=${d.slice(0, 4)}${d.slice(5, 7)}&code=MADR1Z@D` };
+    },
+    read: (text) => {
+      const v = json(text)?.RESULTSET?.[0]?.VALUES;
+      const dates = Array.isArray(v?.SURVEY_DATES) ? v.SURVEY_DATES : [];
+      const values = Array.isArray(v?.VALUES) ? v.VALUES : [];
+      const i = values.map((x) => typeof x === 'number' && Number.isFinite(x)).lastIndexOf(true);
+      if (i < 0 || !/^\d{8}$/.test(String(dates[i]))) throw new Error(json(text)?.MESSAGE ? String(json(text).MESSAGE).slice(0, 120) : 'no usable observation in the answer');
+      const d = String(dates[i]);
+      return `${n(values[i])}% on ${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`;
+    },
+  },
+  {
     id: 'fed-rss',
     provider: 'fedboard',
     label: 'Federal Reserve press releases (RSS)',

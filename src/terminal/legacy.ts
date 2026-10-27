@@ -67,6 +67,10 @@ export const LEGACY_CODES: Record<string, string> = {
   IN: 'INDEXLIST',
   IYC: 'CURVEMENU',
   FED: 'FEDPORTAL',
+  // The other central bank portals the 2020 Quick Start lists with FED.
+  ECB: 'ECBPORTAL',
+  BOE: 'BOEPORTAL',
+  BOJ: 'BOJPORTAL',
   INSD: 'INSIDERS',
   EEG: 'ESTIMATEGRAPH',
   EM: 'EARNINGSTREND',
