@@ -4,7 +4,7 @@ Updated 27 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-Items 1 to 8 and 10 to 13 are done, all on 27 October except the first eight; NGAS, the last code of item 13, waits on an EIA key from you. Item 9 continues with public written and illustrated sources; missing video frames do not block documented functional work. What comes next is yours to choose: "Later" lists the candidates.
+Items 1 to 8 and 10 to 13 are done, all on 27 October except the first eight; NGAS, the last code of item 13, waits on an EIA key from you. Item 9 continues with public written and illustrated sources: the three archives of public guides you sent on 27 October gave the first screenshots inspected, and three changes came from them (below, "Done after 2.27.0"). Missing video frames do not block documented functional work. What comes next is yours to choose: "Later" lists the candidates.
 
 
 ### 9. Compare the app with the reference atlas and Codex's list of Bloomberg videos
@@ -49,6 +49,11 @@ Access checked on 27 October in Codex's environment: the proxy refused CONNECT r
 
 Access checked later on 27 October from the new account's environment: the University of San Diego's guide, the publisher's insights site (and its post search) and the ECB's framework PDF all answered. Reference research can continue from here.
 
+Progress on 27 October, evening (the owner's three archives of public guides: a student DES guide of February 2026, a university manual with TSMC's earnings screens of July 2024, a BQuant tutorial with the fixed income search of April 2023):
+- Inspected: every screen picture in them (the account sign-up forms left aside, the notebooks' plots checked and set aside as charts their code drew). Each picture's source, date, what it shows and the app's status are in `docs/bloomberg-parity.md`, "Screenshots from three public guides".
+- Settled: DSCO is company document search (the related functions menu). EE is a page of its own, not ERN: fixed. The app's DES and ANR match their pictures closely.
+- Open questions, each with the picture or text that would settle it, are listed at the end of that section (EQS's match counts, DES pages 2 to 5, MODL, EE's implied move, ANR's BARR and rank).
+
 Limits:
 - The supplied evidence pack has no video frames or captions. Exact current screen details stay unverified until the relevant images or interactions are inspected; documented commands, calculations and workflows can proceed from suitable written sources.
 - Several of the new codes need paid or proprietary data (alternative data, options trade flow, the provider's own research), or are platform features (BQuant, worksheets, compliance rules). They cannot be built without inventing data, which the rules forbid.
@@ -91,6 +96,13 @@ Plan:
 - Blank "--" fields: fill each from a real source or say why it is blank.
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
 - Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
+
+## Done after 2.27.0
+
+From the screenshots of 27 October (`docs/bloomberg-parity.md`, "Screenshots from three public guides"), each with unit, browser and desktop tests:
+- `e8b56ff` EE opens a new page, Earnings & Estimates (`EARNINGSSUMMARY`), laid out as the terminal's in July 2024: the next and last reports and the price's average move, the trailing and blended forward P/E and next year's growth, the analysts' ratings and target, the last quarter against its estimates with past surprises and the next quarter's estimates, the EPS trend and the consensus's moves. Each box opens the screen with the detail. ERN stays the earnings history (`EARNINGS`), whose "Prior Announcement" now takes the newest dated report (it showed "--" when only the analysts' sources dated it).
+- `1b0cefc` DES shows the US listing's FIGI beside the name (OpenFIGI) and writes the report date as "Aft-mkt (C) 02/25/26".
+- `6e1e5bd` SCREEN shows the stocks left after each criterion.
 
 ## Done in 2.27.0
 

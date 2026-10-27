@@ -1,11 +1,11 @@
 # Handover: where the work stands (27 October 2026)
 
-For any Claude session that takes over Armin Terminal, on this account or another. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis").
+For any Claude session that takes over Armin Terminal, on this account or another. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis" and "Screenshots from three public guides").
 
 ## The project
 
-- **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 131 functions.
-- **Repository**: `Arminshah/Bloomberg-terminal`, public again since 27 October (the owner opened it for the handover), so GitHub runs CI on every push and can build releases. If it is made private again, GitHub starts no runner (the `test` job fails in 3 seconds with no log): then check everything locally before each push, and ask the owner to check Settings → Billing → Actions before a release.
+- **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 132 functions.
+- **Repository**: `Arminshah/Bloomberg-terminal`. The owner keeps it private and opens it when a release is built. While it is private, GitHub starts no runner: on 27 October every job failed within seconds, its annotation saying "recent account payments have failed or your spending limit needs to be increased" (the account's Actions minutes for private repositories). Then check everything locally before each push, and before a release ask the owner to open the repository for about half an hour or raise the spending limit.
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
 - **Last release**: 2.27.0 (tag `v2.27.0`, 27 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.27.0.md`. 2.26.0 came the day before.
 
@@ -71,6 +71,12 @@ Done after the morning's handover, each with unit, browser and desktop tests, an
 - Item 13, the newly confirmed codes: the sector pages `src/functions/CMDSECTOR.tsx` (measures in `src/data/sector-measures.ts`), WCR `src/functions/WCR.tsx`, WEIS and WM `src/functions/WORLDEQ.tsx`, the ECB, BOE and BOJ portals `src/functions/CBPORTAL.tsx` (new series €STR, SONIA and the Bank of Japan's API in `src/data/live/policy.ts` and `electron/main.cjs`), CBRT `src/functions/CBRT.tsx`, MYN `src/functions/MYN.tsx`; GEW, NLRT and DSCO open existing screens. NGAS waits on an EIA key.
 - Reference research: DSCO and BTM rechecked at their sources; reference hosts answer from this environment (`docs/bloomberg-parity.md`, under the gap analysis).
 
+## After 2.27.0 (27 October, evening)
+
+- 2.27.0 was published by the release workflow once the owner opened the repository (the first attempt was refused for the billing reason above).
+- The owner sent three archives of public guides with screenshots (a student DES guide of February 2026, a Taiwanese university manual with TSMC's earnings screens of July 2024, a BQuant tutorial with the fixed income search of April 2023). They are not in the repository; a new session needs them sent again to look at the pictures. Every picture inspected, with its source, date, what it shows and the app's status: `docs/bloomberg-parity.md`, "Screenshots from three public guides", which ends with the open questions and what would settle each.
+- Built from them: `e8b56ff` EE's own page (`EARNINGSSUMMARY`, `src/functions/EESummary.tsx`; EARNINGS' report matching is the shared hook `useErnReports` in `src/functions/EE.tsx`), `1b0cefc` the FIGI on DES, `6e1e5bd` the stocks left after each criterion on SCREEN (`matchesAfterEach` in `src/data/screen.ts`).
+
 ## Waiting on the owner
 
 - An EIA key for NGAS and the oil and gas inventories (`docs/TODO.md`, "Waiting on you").
@@ -81,10 +87,10 @@ Done after the morning's handover, each with unit, browser and desktop tests, an
 ```
 npm ci
 npm run lint && npm run typecheck
-npx vitest run --maxWorkers=2                      # unit tests (1,537 at 2.27.0)
+npx vitest run --maxWorkers=2                      # unit tests (1,541 after 2.27.0)
 npm run build
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (88)
-xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (69)
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (89)
+xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (70)
 ```
 
 Never run two of these at once, and never rebuild while a Playwright suite runs. Do not run Vitest with `--root /`: it runs out of memory. Tests cannot use Node modules (no Node types in the tests' tsconfig); load a text fixture with `?raw`.
@@ -101,14 +107,14 @@ It saves each panel's text, a screenshot, its header and any console errors (`ou
 
 Access observed in the 25 and 26 October session: YouTube refused playback, the Senate's disclosure site refused automated reading, and Eulerpool answered HTTP 500 (TODO, "Waiting on you"). These are dated observations; check access again in the current environment.
 
-On 27 October, this environment's proxy refused CONNECT requests to public reference hosts with HTTP 403. Network requirements are saved in the environment draft but have not been applied; no new reference access has been verified. Retry after access changes. An inaccessible source is not evidence that it does not exist, and source collection does not block the documented functional work above.
+Earlier on 27 October, Codex's environment refused CONNECT requests to public reference hosts with HTTP 403; later that day the publisher's and universities' sites answered from the new account's environment. Check access again in the current environment. An inaccessible source is not evidence that it does not exist, and source collection does not block the documented functional work above.
 
 ## Making a release (only when the owner asks)
 
 1. `docs/release-vX.Y.Z.md`: it starts `# Armin Terminal X.Y.Z`, then a paragraph starting "This release", and never names the other product.
 2. `npm version X.Y.Z --no-git-tag-version`; the README's version line; "Released" in `docs/TODO.md`.
 3. Run every check above; commit "Release X.Y.Z"; push the branch.
-4. `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow tests the tag, builds the Windows installer and portable app, uploads them and publishes the release. Check it in the repository's Actions tab.
+4. `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow tests the tag, builds the Windows installer and portable app, uploads them and publishes the release. Check it in the repository's Actions tab. When the tag push fails through the cloud session's git proxy (it did on 27 October), start the workflow by hand instead (GitHub's "run workflow" with the input `tag` = `vX.Y.Z`, on this branch): it creates the tag on the branch's last commit, which must carry that version.
 
 ## Where things are
 
