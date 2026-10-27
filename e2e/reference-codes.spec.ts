@@ -434,3 +434,33 @@ test('OIL, GAS, MINE and AGS gather their sector: contracts, measures worked out
   await expect(panel.locator('.fnh-code')).toHaveText('NEWS');
   expect(errors).toEqual([]);
 });
+
+test('WCR gives every currency against a base by region, and keeps a basket of your own', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'WCR');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('CURRENCYRATES');
+  const table = panel.getByTestId('wcr-table');
+  // Against the dollar, the dollar itself is not listed.
+  await expect(table.locator('tbody tr', { hasText: 'EUR' })).toHaveCount(1);
+  await expect(table.locator('tbody tr').filter({ has: page.locator('td.b', { hasText: /^USD$/ }) })).toHaveCount(0);
+  const eurPerUsd = Number(await table.locator('tbody tr', { hasText: 'Euro' }).locator('td').nth(2).innerText());
+  await panel.getByLabel('Base currency').selectOption('EUR');
+  // Against the euro the dollar is listed, at the inverse of the euro's rate a dollar.
+  const usd = table.locator('tbody tr').filter({ has: page.locator('td.b', { hasText: /^USD$/ }) });
+  await expect.poll(async () => Number(await usd.locator('td').nth(2).innerText())).toBeCloseTo(1 / eurPerUsd, 3);
+  await panel.getByRole('button', { name: /Asia-Pacific$/ }).click();
+  await expect(table).toContainText('Japanese Yen');
+  await expect(table).not.toContainText('Mexican Peso');
+  await panel.getByRole('button', { name: /My basket$/ }).click();
+  // Six currencies to start with; the euro, now the base, is not listed against itself.
+  await expect(table.locator('tbody tr')).toHaveCount(5);
+  await panel.getByLabel('Currency to add').fill('mxn');
+  await panel.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(table).toContainText('Mexican Peso');
+  await panel.getByRole('button', { name: 'Remove JPY from the basket' }).click();
+  await expect(table).not.toContainText('Japanese Yen');
+  await page.reload();
+  await expect(panel.getByLabel('Base currency')).toHaveValue('EUR');
+  expect(errors).toEqual([]);
+});

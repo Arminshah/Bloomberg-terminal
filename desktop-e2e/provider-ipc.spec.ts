@@ -973,6 +973,21 @@ test('MINE works out the gold to silver ratio from the two contracts\' own price
   await expect(panel.getByTestId('sector-contracts').locator('tbody tr', { hasText: 'GC1' }).locator('td').nth(2)).toContainText('123.5');
 });
 
+test("WCR gives each currency's rate a dollar from Yahoo's quote of it, inverted to the currency's dollar value and back", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'WCR', 'CURRENCYRATES');
+  const table = page.locator('.panel').first().getByTestId('wcr-table');
+  // Each currency's dollar value comes from Yahoo's XXX=X quote (units a dollar), inverted; every fixture quote is
+  // 123.45, so every currency is 123.45 a dollar, and a dollar is 1/123.45 of each in the other column.
+  await expect(table.locator('tbody tr', { hasText: 'Japanese Yen' }).locator('td').nth(2)).toHaveText('123.450', { timeout: 30_000 });
+  await expect(table.locator('tbody tr', { hasText: 'Euro' }).first().locator('td').nth(2)).toHaveText('123.450');
+  await expect(table.locator('tbody tr', { hasText: 'Euro' }).first().locator('td').nth(3)).toHaveText('0.00810');
+  await expect(page.locator('.panel').first().locator('.note')).toContainText('Yahoo');
+});
+
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;

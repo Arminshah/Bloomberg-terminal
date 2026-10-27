@@ -92,7 +92,7 @@ const RANK_H: { n: number; h: Horizon }[] = [
 ];
 
 /** Percent change of a currency's value against USD over a horizon. */
-function ccyVsUsd(code: string, h: Horizon): { id: string | undefined; pct: number } {
+export function ccyVsUsd(code: string, h: Horizon): { id: string | undefined; pct: number } {
   const direct = engine.get(`${code}USD Curncy`);
   const inverse = engine.get(`USD${code} Curncy`);
   if (direct) return { id: direct.id, pct: periodChange(direct.id, h) };

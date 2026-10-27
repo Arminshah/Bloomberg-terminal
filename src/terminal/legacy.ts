@@ -105,6 +105,8 @@ export const LEGACY_CODES: Record<string, string> = {
   GAS: 'NATURALGAS',
   MINE: 'METALS',
   AGS: 'AGRICULTURE',
+  // World Currency Rates (2020 Quick Start; Michigan's currencies guide).
+  WCR: 'CURRENCYRATES',
   ECO: 'RELEASES',
   ECST: 'ECONSTATS',
   ECMX: 'ECONSTATS',

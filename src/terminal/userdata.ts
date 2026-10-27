@@ -188,6 +188,9 @@ export const portfolio: Store<Portfolio> = {
  */
 export const favourites = createStore<{ ids: string[] }>({ ids: [] }, 'favourites', 1);
 
+/** WCR's basket: the currencies you chose to watch together, and the base it was last shown in. */
+export const currencyBasket = createStore<{ codes: string[]; base: string }>({ codes: ['EUR', 'JPY', 'GBP', 'CHF', 'CAD', 'AUD'], base: 'USD' }, 'wcr', 1);
+
 /** Stars a security, or takes its star off; true when it is now a favourite. */
 export function toggleFavourite(id: string): boolean {
   const on = !favourites.get().ids.includes(id);

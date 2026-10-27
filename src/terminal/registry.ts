@@ -39,6 +39,7 @@ import { BTMM, GC, WB, WBMV, WIRP } from '../functions/RATES';
 import { YAS } from '../functions/YAS';
 import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
 import { AGS, GAS, MINE, OIL } from '../functions/CMDSECTOR';
+import { WCR } from '../functions/WCR';
 import { ECO, ECST } from '../functions/ECO';
 import { MACRO } from '../functions/MACRO';
 import { OMON, OVME } from '../functions/OPTIONS';
@@ -171,6 +172,7 @@ export const FUNCTIONS: FnDef[] = [
   // FX & crypto
   { code: 'CONVERT', name: 'Currency Conversion', category: 'FX & Crypto', desc: "An amount in one currency in another and in the other main currencies, at the live rates against the US dollar or at the ECB's reference rate of any day since 1999, with the rate, its inverse and where it comes from.", component: FXCA, example: 'CONVERT 1000 EUR USD' },
   { code: 'FXMATRIX', name: 'Currency Cross Rates', category: 'FX & Crypto', desc: 'Cross rates of major currencies, worked out from each currency\'s rate against the US dollar.', component: FXC, aliases: ['CROSSES'] },
+  { code: 'CURRENCYRATES', name: 'World Currency Rates', category: 'FX & Crypto', desc: 'Every currency the app carries against a base you choose (USD, EUR, GBP, JPY, CHF, CAD, AUD), by region or in a basket of your own, with the change over the day, a month, the year to date and a year.', component: WCR },
   { code: 'FXRANK', name: 'World Currency Ranker', category: 'FX & Crypto', desc: 'Currencies ranked by performance against the US dollar over a chosen period.', component: WCRS },
   { code: 'CRYPTO', name: 'Crypto Monitor', category: 'FX & Crypto', desc: 'Ten major coins on Kraken\'s USD pairs: price, range and volume over the UTC day, market value from CoinGecko, and returns.', component: CRYP, example: 'CRYPTO BTC' },
   { code: 'FXFORWARD', name: 'Forward Rates', category: 'FX & Crypto', desc: 'FX forward points, outrights and contract PV from your simple deposit rates, day-count bases and input or source spot; calculated, with no dealer bid/ask quotes.', component: FRD, aliases: ['FORWARDS'], example: 'FXFORWARD EURUSD' },
