@@ -255,6 +255,13 @@ describe('codes from the reference guides that name screens the app has', () => 
     expect(primaryMnemonic('BONDS')).toBe('WB');
   });
 
+  it('opens ECONSTATS for GEW (key economic statistics by country) and ALERTS for NLRT (news alerts)', () => {
+    expect(parse('GEW')).toEqual({ kind: 'route', fn: 'ECONSTATS' });
+    expect(parse('NLRT')).toEqual({ kind: 'route', fn: 'ALERTS' });
+    expect(primaryMnemonic('ECONSTATS')).toBe('ECST');
+    expect(primaryMnemonic('ALERTS')).toBe('ALRT');
+  });
+
   it('reads a mnemonic that is also a US ticker, followed by US, as the stock', () => {
     // Bio-Techne, Hecla Mining and the iShares fund, looked up online with the function typed after them.
     expect(parse('TECH US')).toMatchObject({ kind: 'error', lookup: 'TECH' });
