@@ -34,6 +34,8 @@ Public or private, the repository is not for sharing research material: copyrigh
 2. Ask the owner for the API keys again. They were kept only in the old session's scratch folder, which the new session cannot see. The names are: `ALPHA_VANTAGE_API_KEY`, `TWELVE_DATA_API_KEY`, `COINGECKO_API_KEY`, `FRED_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT` (`Armin Shah arminshahw98@gmail.com`), `FINNHUB_API_KEY`, `TIINGO_API_KEY`, `MARKETAUX_API_TOKEN`, `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`, `FMP_API_KEY`, `TIPRANKS_API_KEY`, `EQUIBLES_API_KEY`, `OPENFIGI_API_KEY`, `EULERPOOL_API_KEY`, `CONGRESS_GOV_API_KEY`. Save them as `NAME=value` lines in a file in the session's scratch folder (`chmod 600`), never in the repository.
 3. Carry on with item 10 of `docs/TODO.md`.
 
+The assistant owns reference research: find and inspect lawful public manuals, illustrated guides and publisher images, then record the source, date, page or image URL and what was actually seen in `docs/bloomberg-parity.md`. Missing video frames do not block documented functional work in TODO items 10 to 13. Keep exact visual details unverified where the evidence is missing. Ask the owner for one precise image only if that gap blocks the current change and accessible alternatives have been exhausted. Keep reference media out of public Git history and preserve the fixed typefaces in `CLAUDE.md`.
+
 ## The owner's rules (keep them)
 
 - **Real data only.** No invented or simulated values in the desktop app; a labelled blank beats a plausible wrong number. Say where each figure comes from.
@@ -85,10 +87,10 @@ To build next, as designed:
 ```
 npm ci
 npm run lint && npm run typecheck
-npx vitest run --maxWorkers=2                      # unit tests (about 1,470)
+npx vitest run --maxWorkers=2                      # unit tests (1,480 on 27 October)
 npm run build
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (80)
-xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (60)
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (81)
+xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (61)
 ```
 
 Never run two of these at once, and never rebuild while a Playwright suite runs. Do not run Vitest with `--root /`: it runs out of memory. Tests cannot use Node modules (no Node types in the tests' tsconfig); load a text fixture with `?raw`.
@@ -103,7 +105,9 @@ echo '["NVDA US Equity FUNDCHART","SPX Index IMAP"]' > <scratch>/cmds.json
 
 It saves each panel's text, a screenshot, its header and any console errors (`out/index.json`). Yahoo prices are off in the desktop tests unless `YAHOO_PRICES_ENABLED` is set.
 
-Known limits of a cloud sandbox: YouTube refuses it (so no video can be watched there); the Senate's disclosure site refuses automated reading; Eulerpool answered HTTP 500 to every request on 25 and 26 October (TODO, "Waiting on you").
+Access observed in the 25 and 26 October session: YouTube refused playback, the Senate's disclosure site refused automated reading, and Eulerpool answered HTTP 500 (TODO, "Waiting on you"). These are dated observations; check access again in the current environment.
+
+On 27 October, this environment's proxy refused CONNECT requests to public reference hosts with HTTP 403. Network requirements are saved in the environment draft but have not been applied; no new reference access has been verified. Retry after access changes. An inaccessible source is not evidence that it does not exist, and source collection does not block the documented functional work above.
 
 ## Making a release (only when the owner asks)
 

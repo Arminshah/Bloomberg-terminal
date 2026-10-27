@@ -1,10 +1,10 @@
 # To-do list
 
-Updated 26 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
+Updated 27 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
 
 ## Next, in this order
 
-Items 1 to 8 are done. Item 9 is under way: the atlas's sources are being read and compared with the app (see below); the videos need frames from your PC. Items 10 to 13 are the rest of the work you approved on 26 October, in this order.
+Items 1 to 8 are done. Item 9 continues with public written and illustrated sources; missing video frames do not block documented functional work. Items 10 to 13 are the rest of the work you approved on 26 October, in this order.
 
 ### 10. PORTFOLIO transactions (the screen)
 
@@ -30,7 +30,7 @@ From `docs/audit-v2.23.0-coverage.md` (research of 26 October): WCR, WEIS, WM, t
 
 ### 9. Compare the app with the reference atlas and Codex's list of Bloomberg videos
 
-Evidence pack v3 (Codex, 26 October): read, its claims checked against the publisher's pages, and its 38 feature areas compared with the code. The gap analysis is in `docs/bloomberg-parity.md`, "Evidence pack v3: gap analysis". In short:
+Review recorded on 26 October: evidence pack v3 (Codex) was read, its claims checked against the publisher's pages, and its 38 feature areas compared with the code. The gap analysis is in `docs/bloomberg-parity.md`, "Evidence pack v3: gap analysis". The findings then were:
 - Its counts hold: 45 sources (6 at E2, 21 at E1, 18 at E0), no video frames or captions.
 - One claim does not hold: the official page lists DSCO without saying what it is, so "DSCO means document search" is a guess. BTM could not be confirmed.
 - It showed a real defect in the app: W opened `WATCHLIST`, but the official chapter list names W as Worksheets.
@@ -42,7 +42,7 @@ Progress on 25 October (the audited atlas of 69 references replaces the request 
 - Fixed from them: what a 13F lists (`5ef039b`), the ECB rates' times and purpose (`6a8ac50`), split adjustment stated on HISTORY (`921cf87`), one beta basis on BETA, WACC and RISKPREMIUM (`812edcd`).
 - Every finding, with its source and page, is in `docs/bloomberg-parity.md`, "Evidence audit from the reference atlas".
 - V02's CAPM notation, flagged by the atlas, is checked: "Risk − Free Rate" is the risk-free rate, and the formula is the CAPM the app uses.
-- Next: review V03 to V06 and N02 to N07; a percentile rank on PEERS; then the screens you use most against the frames, once you send them.
+- Remaining research: review V03 to V06 and N02 to N07 where accessible, check the percentile rank on PEERS, and compare the priority screens with public written guides and illustrated pages. Record any exact visual details those sources do not settle.
 
 You asked: whether Codex's research list of Bloomberg videos (official tutorials, feature demos, university recordings and webinars) is useful, and if so to add it.
 
@@ -59,18 +59,21 @@ Research pack (ChatGPT's improved version of 25 October, read in full):
 - Already handled in the app, so not new work: IEX is labelled as one exchange, not the whole market; estimates come only from named providers; missing data is shown as missing.
 - Its counts are right as far as I checked: 45 resource links plus 9 decorative images.
 
-What works from this cloud session (checked 25 October, nothing installed):
+Access recorded in the previous cloud session (checked 25 October, nothing installed):
 - Python 3.13 and FFmpeg 6.1 are here; yt-dlp is not.
-- YouTube answers this session with Google's "unusual traffic" page, so neither frames nor captions can be fetched from here. Getting around that would need your account's cookies, which I won't use.
+- YouTube returned Google's "unusual traffic" page; no frames or captions were fetched. No account cookies were used.
 - Bloomberg's official chapter pages load, so their timestamps are usable as documented evidence. bloomberg.com's Pro Tips pages refuse automated requests (403). Vimeo pages load, but its player refuses (401).
-- The "Watch" plugin (bradautomates/claude-video) is not needed. Its own README says its installer does not run in Claude Code on the web, and its default "Gemini" engine uploads the video to Google, another AI provider, which you ruled out. Its local engine is the same FFmpeg and yt-dlp steps you can run yourself.
+- The "Watch" plugin (bradautomates/claude-video) was not used. Its README said its installer did not run in Claude Code on the web, and its default "Gemini" engine uploaded video to Google, another AI provider, which you ruled out.
+
+Access checked on 27 October in this environment: the proxy refused CONNECT requests to public reference hosts with HTTP 403. Network requirements were saved to the environment draft but have not been applied. No new PDF, image or video access is established by that save. A source being inaccessible here does not mean it does not exist; retry after access changes.
 
 Limits:
-- I cannot watch videos from here, so the frames must come from your PC (see "Waiting on you").
+- The supplied evidence pack has no video frames or captions. Exact current screen details stay unverified until the relevant images or interactions are inspected; documented commands, calculations and workflows can proceed from suitable written sources.
 - Several of the new codes need paid or proprietary data (alternative data, options trade flow, the provider's own research), or are platform features (BQuant, worksheets, compliance rules). They cannot be built without inventing data, which the rules forbid.
 
 Plan:
-- Done: the 20 new codes are in `docs/audit-v2.23.0-coverage.md`, section 3, sorted from Codex's titles only. 3 can be built from free data (BTST backtests, CFND correlation search, CMGR portfolio rules; added to "Later"). 12 need the provider's own content, platform or paid data. 5 can't be sorted from a title (AID, MREP, OPX, OSCH, OVI) and wait for the videos.
+- The initial title-based classification of 20 codes is in `docs/audit-v2.23.0-coverage.md`, section 3: 3 could use free data (BTST backtests, CFND correlation search, CMGR portfolio rules; added to "Later"), 12 need the provider's own content, platform or paid data, and 5 were uncertain (AID, MREP, OPX, OSCH, OVI). Reconcile these with the later written-source findings in `docs/bloomberg-parity.md`; leave unresolved scope unverified until a fuller public description or visual evidence settles it.
+- The assistant gathers and inspects lawful public manuals, publisher pages, screenshots and illustrations first, recording the source, edition, page or image URL, and what was actually seen in the existing parity notes. Keep reference media outside public Git history. Ask for one precise image only if an identified visual gap blocks the current change and accessible alternatives have been exhausted. Source collection continues alongside items 10 to 13.
 - Compare the screens you use most with the provider's own documentation, using Codex's checklist. Those screens are the screener, world indices, market map, relative valuation, financials, earnings, analysts, portfolio, bond calculator and options. The checklist covers:
   - how the screen opens
   - its inputs and logic
@@ -78,16 +81,11 @@ Plan:
   - its links to other screens
   - whether the numbers check out
 - Each screen is marked fully working, partial, broken or missing.
-- A workflow counts as checked only when I actually saw it, on a document page or in your screenshot, never from a title alone.
+- A documented workflow is checked against the source page that describes it; a visual comparison requires an image actually inspected. Record those separately, and never infer either from a title alone.
 
 ## Waiting on you
 
 - The pull request into `main` is ready as a draft: https://github.com/Arminshah/Bloomberg-terminal/pull/4. An older one (number 1, `claude/amber-terminal`) overlaps with it: close it or keep it, your choice.
-- For item 9:
-  - The video frames have to come from your Windows PC. Choose one route:
-    1. By hand, within YouTube's terms: play the video in your browser, pause at each chapter time and take a screenshot (Windows key + Shift + S). Then open the video's "…" menu, choose "Show transcript" and copy the text into a .txt file.
-    2. With tools, outside YouTube's terms (its terms forbid downloading videos without permission): `winget install --id yt-dlp.yt-dlp --exact`, `winget install --id Gyan.FFmpeg --exact` and `winget install --id DenoLand.Deno --exact`. Then in an empty folder run `yt-dlp --write-auto-subs --sub-langs en --skip-download https://www.youtube.com/watch?v=h0hYYIGryJ4` for the captions, and `yt-dlp -f "bv*[height<=1080]" -o video https://www.youtube.com/watch?v=h0hYYIGryJ4` followed by `ffmpeg -i video.webm -vf fps=1/2 -q:v 3 frame_%04d.jpg` for one frame every 2 seconds (frame n is at (n − 1) × 2 seconds).
-  - Either way, zip the files and attach them here. I will keep them in `reference/videos/`, which I'll add to `.gitignore` first (a one-line change, with your OK), and I will say which frames each finding comes from.
 - Senators' history: the Senate's site refuses automated reading and FMP's free plan has only the latest 25 trades, so CONGRESS builds senators' history from today on. For 6 or 12 months of senators' trades and their holdings, there are two options:
   - Eulerpool: your key arrived, but on 25 and 26 October its API answered "Internal server error" to every request, even one with a made-up key, so the fault is on its side. I'll try again. Even working, its congress list gives no link to the filed report and no owner, so I'd check its rows against FMP's before using it.
   - An FMP plan that includes its senate-trades lists.
@@ -96,8 +94,8 @@ Plan:
 
 - Functions the reference documents name that the app lacks but could build from free data (class a in `docs/audit-v2.23.0-coverage.md`; all 27 the guides describe are built, section 2a). Next:
   - EQBT with fundamental rules (cheap on earnings, say): it needs each company's figures as they were known at each date. The SEC's XBRL frames give filing dates, so it can be built from them; it is a larger piece of work.
-  - The 27 the guides on hand do not describe (FXCA, WCR, OVDV, PSRT/PD/HLDR and others) wait for documents 1 to 33 or the videos.
-- From Codex's video list, buildable from free data (sorted from titles only, so to be checked against the videos first):
+  - Use `docs/audit-v2.23.0-coverage.md`, section 2a, for the later research on those 27 codes: 17 now have public sources, PSRT and OVDV have weaker evidence, and 8 remain unresolved. FXCA is built; the approved newly confirmed codes are in item 13. Research the unresolved codes from accessible written or visual sources before claiming their scope.
+- From Codex's video list, potentially buildable from free data; confirm each workflow from suitable written or visual sources before implementation:
   - BTST: backtests of simple strategies on daily price history (EQBT's engine runs on month-end closes and could take daily ones).
   - CFND: the securities most correlated with one, from CORRELATION's daily returns.
   - CMGR: your own limits on a portfolio (weight of a position, sector or country), checked on PORTFOLIO.

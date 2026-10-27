@@ -10,11 +10,11 @@ No licensed session was available. Every colour below was sampled from compresse
 | --- | --- | --- | --- |
 | [ASKB window render](https://professional.bloomberg.com/globalassets/professional/products/bloomberg-terminal/askb_window_render_0910_02.png) on the [Terminal product page](https://professional.bloomberg.com/products/bloomberg-terminal/) | 2026 (file name suggests 10 Sept) | The newest official picture of the Terminal: a 3840×2160 render of two monitors with Launchpad and the ASKB window | The market data on screen is from 2019, composited. Studio lighting darkens colours, so use it for layout, not exact values. |
 | [Designing the Terminal for colour accessibility](https://www.bloomberg.co.jp/company/stories/designing-the-terminal-for-color-accessibility/) (Bloomberg Japan; the English page blocks automated readers) | 6 April 2022 | Colour meanings, the two colour-blind schemes with flat swatches, heat-map tiles, and the setting that switches schemes (`PDFU COLORS <GO>`) | Images: `https://assets.bbhub.io/company/sites/59/2022/04/CVD-1-a.webp` to `CVD-9.gif`. CVD-3 is a full default Launchpad. |
-| [Terminal Essentials: Getting started](https://professional.content.cirrus.bloomberg.com/professional2023/insights/technology/bloomberg-terminal-essentials-getting-started/), video [ZAYiEyaUk2M](https://www.youtube.com/watch?v=ZAYiEyaUk2M) | 13 Oct 2024 | Chapter "Terminal Window: Anatomy and Tabs" at 01:36 is the only official walkthrough of today's window frame and tabs | Not watched (a session cannot play video). The thumbnail shows a Launchpad toolbar with "Save View", "Views ▾" and an amber "Add Component ▾". |
+| [Terminal Essentials: Getting started](https://professional.content.cirrus.bloomberg.com/professional2023/insights/technology/bloomberg-terminal-essentials-getting-started/), video [ZAYiEyaUk2M](https://www.youtube.com/watch?v=ZAYiEyaUk2M) | 13 Oct 2024 | Chapter "Terminal Window: Anatomy and Tabs" at 01:36 is a candidate walkthrough of the window frame and tabs | Not watched in the research session. The thumbnail shows a Launchpad toolbar with "Save View", "Views ▾" and an amber "Add Component ▾"; it does not establish the video's interactions or the current layout. |
 | [Terminal Essentials: IB, Worksheets & Launchpad](https://professional.content.cirrus.bloomberg.com/professional2023/insights/technology/bloomberg-terminal-essentials-ib-worksheets-launchpad), video [TFn7Kr-xF8w](https://www.youtube.com/watch?v=TFn7Kr-xF8w) | 12 Oct 2024 | Launchpad at 03:43, Worksheets at 05:07 | Thumbnail shows Launchpad component chrome and tile components (see Layout). |
 | [UNF "Getting Started with Bloomberg"](https://www.unf.edu/coggin/_files/ccb/certified.rf.Bloomberg-Tutorial-8-8-2023.pdf) | Aug 2023 (screens look 2015) | Labelled anatomy: panel frame, toolbar, command line, function area, information panel; autocomplete; WEI | 15 pages, about 60 images, the clearest screenshots of the toolbar and command line found. |
 | [Bloomberg getting-started guide for students](https://data.bloomberglp.com/professional/sites/10/Getting-Started-Guide-for-Students-English.pdf) | Nov 2017 | Already used by earlier rounds; used again here to cross-check colours | Still the newest official guide. A copy uploaded by Catholic University in July 2026 is the same 2017 file ("©2017 … DIG 1117") with a 2006 cheat sheet appended. |
-| [Bloomberg 2018 primer (LUISS)](https://data.bloomberglp.com/professional/sites/10/LUISS_2018Primer.pdf) | Oct 2018 | 37 pages with dated screenshots of WEI, WB, ECO (actuals amber, forecasts white), Launchpad, DES, GP, RV, FA, EQS, news | 17.7 MB. Earlier rounds could only read excerpts; it downloads in full now. |
+| [Bloomberg 2018 primer (LUISS)](https://data.bloomberglp.com/professional/sites/10/LUISS_2018Primer.pdf) | Oct 2018 | 37 pages with dated screenshots of WEI, WB, ECO (actuals amber, forecasts white), Launchpad, DES, GP, RV, FA, EQS, news | 17.7 MB. The 25 October research notes record a complete download; earlier rounds had only excerpts. Access has not been repeated in this session. |
 | [SAFE Frankfurt primer](https://datacenter.safe-frankfurt.de/documents/Bloomberg_Terminal_primer.pdf) | Oct 2014 | Older screens, 25 images | Old, use only to confirm long-standing conventions. |
 | [CMU cheat sheets](https://guides.library.cmu.edu/Bloomberg/CheatSheets) | Files from 2009 to 2016 | Function lists per asset class | No screenshots worth using. Mnemonics only. |
 | [Bergoom](https://github.com/dchest/bergoom) | May 2025 | Free font modelled on the Terminal's proportional face | SIL OFL 1.1, derived from Source Sans 3. See Typeface. |
@@ -94,15 +94,37 @@ Most Windows laptops run at 125% or 150% display scaling, so `devicePixelRatio` 
 
 Check each change at 100%, 125% and 150% Windows scaling, and with the window moved between two screens.
 
-## What the owner can supply
+## Remaining visual evidence
 
-A session cannot watch video. These short clips would settle the remaining questions, as screenshots uploaded to the session:
+The session continuing this work should find and inspect public illustrated guides,
+PDF pages and publisher images first. Use the sources above and the atlas in
+`docs/bloomberg-parity.md`. Recover reference files from their publishers when
+they are absent from a new account. Keep the files outside Git and cite the
+edition, page or image URL and the detail actually inspected. A publisher's page
+update date does not establish the date of its screenshots.
 
-- ZAYiEyaUk2M, 01:36 to 02:40: the current window frame and tabs.
-- TFn7Kr-xF8w, 03:43 to 05:07: Launchpad toolbar, adding a component, component menus.
-- TFn7Kr-xF8w, 05:07 to the end: worksheet columns, groups and heat cells.
+These are specific comparisons still to make when suitable evidence is available:
 
-The owner's 13 reference PDFs (kept out of git) remain the best source for individual screens.
+- Window frame and tabs: compare the public guide images first; ZAYiEyaUk2M,
+  01:36 to 02:40, is a candidate later video comparison.
+- Launchpad toolbar and component menus: inspect publisher images and written
+  steps; TFn7Kr-xF8w, 03:43 to 05:07, is a candidate interaction comparison.
+- Worksheet columns, groups and heat cells: use illustrated worksheet guides;
+  TFn7Kr-xF8w, 05:07 onward, is a candidate later video comparison.
+
+These gaps do not block the approved PORTFOLIO, BONDCALC, help-desk tests or
+documented function work in TODO items 10 to 13. Keep exact visual behaviour
+unverified until it is actually observed. Ask the owner for one precise,
+authorized capture only if a named visual question blocks the current change
+and accessible references do not answer it. Do not assign a general video,
+transcript or screenshot collection task to the owner.
+
+On 27 October, this environment's proxy refused connections to the public Babson,
+Brooklyn and Bloomberg sources before any content was received. No new images
+were inspected. Publisher domains were added to the cloud environment
+configuration draft for review; the save did not activate access. Retry after
+access changes. This is a local access limitation, not evidence that the sources
+are missing.
 
 ## Rules carried over
 
@@ -124,7 +146,7 @@ Each step is its own commit with tests (`e2e/look.spec.ts`, `tests/chart-pixels.
 
 Measured or seen in the sources above, not done:
 
-- **Window frame and tabs.** Not compared with the 2024 walkthrough (video ZAYiEyaUk2M, 01:36), which a session cannot watch.
+- **Window frame and tabs.** Not compared with the 2024 walkthrough (video ZAYiEyaUk2M, 01:36). The remaining-evidence section above gives the public-reference route and the scope of the unresolved comparison.
 - **Panel frame.** No minimise or close button, and the badge is text, not the terminal's icon. The app's name stands where the terminal's is.
 - **Toolbar.**
   - Back and forward sit on the command line row, not at the toolbar's left.

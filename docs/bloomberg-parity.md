@@ -110,9 +110,33 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `PROVIDERS` | Data/source administration | Project tool: credentials, switches, budgets and diagnostics | Configured does not mean entitled; no Bloomberg entitlement/data-management platform |
 | `SETTINGS` | Preferences | Local tool: display, timezone and source preferences | No full terminal keyboard, account/firm policies or remote settings service |
 
+## Continuing the research without a screenshot prerequisite
+
+The implementation session owns source collection. Use accessible official
+written instructions, public illustrated guides, PDF pages and publisher images
+to check each documented workflow. Keep reference media outside Git. In this
+document, record the source, edition, page or image URL, what was actually read
+or seen, and the code or test it supports. A source mentioned in the atlas is a
+candidate until inspected.
+
+Written evidence can support documented functionality and calculation references;
+an inspected PDF or page image can support the visible details it shows. Neither
+proves an unobserved interaction, a newer screen layout or complete parity.
+Keep those details unverified while continuing TODO items 10 to 13 in their
+approved order. Missing video frames are not a general development blocker.
+
+Request one precise owner capture only when a specific visual question blocks
+the current task and accessible alternatives have been exhausted. A failed cloud
+request does not make a source nonexistent or require the owner to collect every
+video. On 27 October, this environment refused publisher connections with proxy
+CONNECT HTTP 403, before any PDF or image could be read. Required publisher
+domains were saved in a configuration draft; access and fresh source inspection
+remain pending. Earlier dated inspections below are preserved as historical
+evidence, not claimed as repeated in this session.
+
 ## Evidence audit from the reference atlas, 25 October 2026 (to-do item 9)
 
-The owner sent an audited atlas of 69 public references (ChatGPT's second audit, 25 October 2026). It replaces the earlier request for reference PDFs 1 to 33. The sources below were downloaded into a scratch folder outside the repository and read in this session; no text or screenshot from them is copied here, only short notes. No video was watched: YouTube refuses this cloud session, and the official pages give chapter lists only. Evidence levels as in the atlas: E1 a written description, E2 an official chapter list, E3 frames or screenshots inspected, E4 checked in running software or against an independent specification.
+The owner sent an audited atlas of 69 public references (ChatGPT's second audit, 25 October 2026). It replaces the earlier request for reference PDFs 1 to 33. The sources below were downloaded into a scratch folder outside the repository and read in the 25 October research session; no text or screenshot from them is copied here, only short notes. No video was watched in that session: YouTube refused playback, and the official pages supplied chapter lists only. Evidence levels as in the atlas: E1 a written description, E2 an official chapter list, E3 frames or screenshots inspected, E4 checked in running software or against an independent specification.
 
 | ID | Source | Edition, as checked | What was read | Reachable |
 | --- | --- | --- | --- | --- |
