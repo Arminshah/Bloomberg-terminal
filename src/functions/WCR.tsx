@@ -138,7 +138,7 @@ export function WCR(_: FnProps) {
       </table>
       <div className="note">
         Rates are worked out through the US dollar from each currency&apos;s dollar pair{providers.length ? ` (${providers.join(', ')})` : ''}: units of the currency for one {base}. A change is the currency&apos;s against the {base} (positive when it gained), from both
-        currencies&apos; changes against the dollar over the same closes; the day&apos;s change needs each pair&apos;s previous close confirmed. Mid rates, not dealing rates.
+        currencies&apos; changes against the dollar over the same closes. A change shows -- when a pair&apos;s previous close is not confirmed for the right session yet (the day), or it has no close at the start of the period (the others). Mid rates, not dealing rates.
         {missing.length > 0 && ` No rate yet for ${missing.join(', ')}.`}
       </div>
     </div>
