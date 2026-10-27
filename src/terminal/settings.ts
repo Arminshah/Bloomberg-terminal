@@ -2,14 +2,8 @@ import { setDateOrder, type DateOrder } from '../core/format';
 import { createStore } from '../core/store';
 
 export type ClickAction = 'auto' | 'PROFILE' | 'CHART' | 'QUOTE';
-export type FontChoice = 'terminal' | 'plex' | 'mono';
 /** The default colours, or one of the two colour-blind schemes (palette.ts). */
 export type ColourScheme = 'default' | 'deuteranopia' | 'protanomaly';
-
-/** A saved typeface, or the default for anything else. */
-export function fontChoice(v: unknown): FontChoice {
-  return v === 'plex' || v === 'mono' ? v : 'terminal';
-}
 
 export interface Settings {
   flash: boolean;
@@ -27,8 +21,6 @@ export interface Settings {
   mnemonics: boolean;
   /** DD/MM/YYYY (European, the default) or MM/DD/YYYY, for every date shown or typed. */
   dateOrder: DateOrder;
-  /** A proportional typeface with even-width figures, Bergoom (the default) or IBM Plex Sans, or a monospaced one. */
-  font: FontChoice;
   scheme: ColourScheme;
 }
 
@@ -51,7 +43,6 @@ export const settings = createStore<Settings>(
     userName: 'TRADER',
     mnemonics: true,
     dateOrder: 'DMY',
-    font: 'terminal',
     scheme: 'default',
   },
   'settings',

@@ -22,26 +22,27 @@ async function boot(page: Page) {
 
 const bodyFont = (page: Page) => page.evaluate(() => getComputedStyle(document.body).fontFamily);
 
-test('Bergoom is the typeface, loaded and spaced as the terminal is; SETTINGS switches to IBM Plex Sans or the monospaced face', async ({ page }) => {
+test('IBM Plex Sans is the typeface, fixed: loaded, slightly bold, with no setting to change it and an old choice ignored', async ({ page }) => {
+  // A choice saved by 2.26.0 (Bergoom) or earlier (the monospaced face) no longer changes anything.
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('armin:settings')) localStorage.setItem('armin:settings', JSON.stringify({ v: 1, s: { liveCrypto: false, liveFx: false, newsFlashes: false, font: 'bergoom' } }));
+  });
   const errors = await boot(page);
-  await expect(page.locator('html')).toHaveAttribute('data-font', 'terminal');
-  expect(await bodyFont(page)).toMatch(/^"?Bergoom"?,/);
-  // The font file loads (it is bundled), and its figures and letters are spaced 0.02em wider.
-  await expect.poll(() => page.evaluate(async () => { await document.fonts.ready; return document.fonts.check('12px Bergoom'); })).toBe(true);
-  const look = await page.evaluate(() => ({ spacing: getComputedStyle(document.body).letterSpacing, adjust: getComputedStyle(document.body).fontSizeAdjust, size: getComputedStyle(document.body).fontSize }));
-  expect(parseFloat(look.spacing)).toBeCloseTo(parseFloat(look.size) * 0.02, 2);
-  expect(look.adjust).toBe('0.563');
-  await run(page, 'SETTINGS');
-  const typeface = page.locator('.panel').first().getByLabel('Typeface');
-  await expect(typeface).toHaveValue('terminal');
-  await typeface.selectOption('plex');
-  await expect(page.locator('html')).toHaveAttribute('data-font', 'plex');
   expect(await bodyFont(page)).toMatch(/^"?IBM Plex Sans"?,/);
-  await typeface.selectOption('mono');
-  await expect(page.locator('html')).toHaveAttribute('data-font', 'mono');
-  expect(await bodyFont(page)).toMatch(/^"?IBM Plex Mono"?,/);
-  await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-font', 'mono');
+  await expect.poll(() => page.evaluate(async () => { await document.fonts.ready; return document.fonts.check('500 12px "IBM Plex Sans"'); })).toBe(true);
+  const plex = await page.evaluate(() => ({ weight: getComputedStyle(document.body).fontWeight, spacing: getComputedStyle(document.body).letterSpacing, size: getComputedStyle(document.body).fontSize, adjust: getComputedStyle(document.body).fontSizeAdjust }));
+  expect(plex.weight).toBe('500');
+  expect(parseFloat(plex.spacing)).toBeCloseTo(parseFloat(plex.size) * 0.01, 2);
+  expect(plex.adjust).toBe('none');
+  // Figures on a quote line are IBM Plex Sans too; the command line is IBM Plex Mono.
+  await run(page, 'SPX Index QUOTE');
+  await expect.poll(() => page.locator('.panel').first().locator('.fnh-code').textContent()).toBeTruthy();
+  expect(await page.locator('.panel-body').first().evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/^"?IBM Plex Sans"?,/);
+  expect(await page.locator('#cmd-0').evaluate((el) => getComputedStyle(el).fontFamily)).toMatch(/^"?IBM Plex Mono"?,/);
+  await run(page, 'SETTINGS');
+  await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('SETTINGS');
+  await expect(page.locator('.panel').first().getByLabel('Typeface')).toHaveCount(0);
+  await expect(page.locator('html')).not.toHaveAttribute('data-font', /.+/);
   expect(errors).toEqual([]);
 });
 

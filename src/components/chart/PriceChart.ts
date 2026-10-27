@@ -53,23 +53,6 @@ export interface ChartObservation {
   hovered: boolean;
 }
 
-/** The charts' text follows the typeface setting: the proportional face, or the monospaced one. */
-const CHART_FONTS: Record<'terminal' | 'plex' | 'mono', string> = {
-  terminal: '"Bergoom", "IBM Plex Sans", system-ui, sans-serif',
-  plex: '"IBM Plex Sans", system-ui, sans-serif',
-  mono: '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace',
-};
-let chartFamily = CHART_FONTS.terminal;
-
-/** Sets the charts' typeface; charts drawn after it use it, and open charts are drawn again. */
-export function setChartFont(choice: keyof typeof CHART_FONTS) {
-  if (CHART_FONTS[choice] === chartFamily) return;
-  chartFamily = CHART_FONTS[choice];
-  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event(CHART_LOOK_EVENT));
-}
-
-/** Sent when the charts' look changes, so open charts draw again. */
-export const CHART_LOOK_EVENT = 'armin:chart-look';
 
 export const CHART_THEME = {
   bg: '#000000',
@@ -99,12 +82,9 @@ export const CHART_THEME = {
   },
   cross: 'rgba(255,255,255,0.45)',
   ref: '#6d6d6d',
-  get font() {
-    return `11px ${chartFamily}`;
-  },
-  get fontB() {
-    return `600 11px ${chartFamily}`;
-  },
+  // The charts' labels: IBM Plex Mono, fixed (the owner's choice; tests/typeface.test.ts).
+  font: '11px "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace',
+  fontB: '600 11px "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace',
 };
 
 export const COMPARE_COLORS = ['#45d3e6', '#d77bff', '#2fd36b', '#ffd23f', '#ff6f91', '#7aa2ff'];
@@ -182,7 +162,6 @@ export class PriceChart {
       // Without device-pixel boxes, the size comes from the element's exact size times the ratio.
     }
     this.stopRatio = watchPixelRatio(() => this.resize());
-    window.addEventListener?.(CHART_LOOK_EVENT, this.redraw);
     this.stopScheme = onColourScheme(this.redraw);
     this.resize();
     this.bind();
@@ -193,7 +172,6 @@ export class PriceChart {
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
     this.stopRatio();
-    window.removeEventListener?.(CHART_LOOK_EVENT, this.redraw);
     this.stopScheme();
     this.canvas.remove();
   }

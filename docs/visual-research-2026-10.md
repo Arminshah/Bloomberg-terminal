@@ -54,6 +54,8 @@ The Terminal's faces are Bloomberg Prop (proportional) and Bloomberg Fixed (mono
 
 Most current screens use the proportional face: quoteline, chart labels, Launchpad tiles and worksheets in the 2018 to 2026 images. The command line and some older text screens use the fixed face.
 
+Superseded on 27 October 2026: Bergoom was the default in 2.26.0, drew thin, uneven figures on Windows, and the owner fixed IBM Plex Sans as the app's only face (`CLAUDE.md`). The notes below are kept as research.
+
 [Bergoom](https://github.com/dchest/bergoom) is the closest free match. It is Source Sans 3 with i, j, J, l, h, k, q, w and W reshaped after Bloomberg Prop, and g and I swapped for Source Sans alternates. Rendered beside the "G 214: Histogram 1D Change" line from the 2024 Equities poster, it matches the footless "1" and the open single-storey "g". Source Sans 3 has a footed "1", and IBM Plex Sans (what the app uses now) has squarer, heavier forms. The real text is spaced a little wider than Bergoom, so add about 0.02em of letter-spacing and compare again.
 
 | Font | Licence | Weights | Figures by default | `frac` |

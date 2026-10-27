@@ -109,6 +109,11 @@ Plan:
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
 - Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
 
+## Done, on the branch, not released yet
+
+- The typeface is IBM Plex Sans again, fixed by the owner on 27 October: 2.26.0's default (Bergoom) drew thin, uneven figures on Windows. The typeface setting and the Bergoom files are gone; `CLAUDE.md`, `tests/typeface.test.ts` and `e2e/look.spec.ts` keep it from changing.
+- `e01d65b` Earnings history: the latest reports' year-earlier days are asked first, so a long season's last week shows its growth at once.
+
 ## Done in 2.26.0
 
 - `36c4515` FXCA (CONVERT): an amount at the live rate or a past day's ECB rate.

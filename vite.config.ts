@@ -52,6 +52,8 @@ export default defineConfig(({ mode }) => {
     test: {
       include: ['tests/**/*.test.ts'],
       environment: 'node',
+      // The stylesheet as written, for tests/typeface.test.ts (other CSS stays empty in unit tests).
+      css: { include: [/src\/styles\/global\.css/] },
     },
   };
 });

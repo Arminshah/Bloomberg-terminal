@@ -15,7 +15,7 @@ import { execute } from '../terminal/exec';
 import { lookupSource, searchOnline, type OnlineHit } from '../data/live/lookup';
 import { lookupFn } from '../terminal/registry';
 import { flash, usePanelId } from '../terminal/panel';
-import { fontChoice, settings, type ClickAction } from '../terminal/settings';
+import { settings, type ClickAction } from '../terminal/settings';
 import { colourScheme } from '../terminal/palette';
 import { applyPreset, closeLayouts, defaultTerminal, layoutReturn, panelCount, rowsOrDefault, terminal, workspaceOf } from '../terminal/state';
 import { applySaved, currentRoutes, saveLayout, unsavedLayout } from '../terminal/layouts';
@@ -447,14 +447,6 @@ export function PDFU(_: FnProps) {
             </label>
             <label className="fld" style={{ color: 'var(--text)' }}>
               <input type="checkbox" checked={s.dateOrder !== 'MDY'} onChange={(e) => set('dateOrder', e.target.checked ? 'DMY' : 'MDY')} /> European dates, DD/MM/YYYY (off: MM/DD/YYYY)
-            </label>
-            <label className="fld" htmlFor="pdfu-font">
-              Typeface
-              <select id="pdfu-font" className="sel-inp" value={fontChoice(s.font)} onChange={(e) => set('font', fontChoice(e.target.value))}>
-                <option value="terminal">Bergoom, the terminal&apos;s look (proportional, even-width figures)</option>
-                <option value="plex">IBM Plex Sans (proportional, even-width figures)</option>
-                <option value="mono">IBM Plex Mono (monospaced)</option>
-              </select>
             </label>
             <label className="fld" htmlFor="pdfu-colours">
               Colours

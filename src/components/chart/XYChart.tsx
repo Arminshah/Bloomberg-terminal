@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { CHART_LOOK_EVENT, CHART_THEME } from './PriceChart';
+import { CHART_THEME } from './PriceChart';
 import { fmtNum } from '../../core/format';
 import { onColourScheme } from '../../terminal/palette';
 import { backingSize, crispDash, crispEdge, crispLine, crispWidth, deviceBox, watchPixelRatio } from './pixels';
@@ -350,7 +350,6 @@ export function XYChart(props: Props) {
       // Without device-pixel boxes, the size comes from the element's exact size times the ratio.
     }
     const stopRatio = watchPixelRatio(draw);
-    window.addEventListener(CHART_LOOK_EVENT, draw);
     const stopScheme = onColourScheme(draw);
     const move = (e: PointerEvent) => {
       const r = cv.getBoundingClientRect();
@@ -366,7 +365,6 @@ export function XYChart(props: Props) {
     return () => {
       ro.disconnect();
       stopRatio();
-      window.removeEventListener(CHART_LOOK_EVENT, draw);
       stopScheme();
       cv.removeEventListener('pointermove', move);
       cv.removeEventListener('pointerleave', leave);

@@ -12,8 +12,7 @@ import { clearPanelInput, focusPanelInput, pagePanel, typeInto, FKEY_TEXT } from
 import { engine } from './data/market';
 import { setTimeZone } from './core/format';
 import { lookupFn } from './terminal/registry';
-import { fontChoice, settings } from './terminal/settings';
-import { setChartFont } from './components/chart/PriceChart';
+import { settings } from './terminal/settings';
 import { colourScheme } from './terminal/palette';
 import { back, currentRoute, panelCount, rowsOrDefault, setActive, splitFor, terminal, soloPanel } from './terminal/state';
 import { rowsGrid } from './terminal/rows-layout';
@@ -64,7 +63,6 @@ export function App() {
   const layout = terminal.use((s) => s.layout);
   const tabId = workspaceTabs.use((t) => t.active);
   const size = settings.use((s) => s.size);
-  const font = settings.use((s) => s.font);
   const scheme = settings.use((s) => s.scheme);
   const tz = settings.use((s) => s.tz);
   // Changing the date order redraws every screen; settings applies the order itself.
@@ -86,11 +84,6 @@ export function App() {
   useEffect(() => {
     document.documentElement.dataset.size = size;
   }, [size]);
-
-  useEffect(() => {
-    document.documentElement.dataset.font = fontChoice(font);
-    setChartFont(fontChoice(font));
-  }, [font]);
 
   useEffect(() => {
     document.documentElement.dataset.scheme = colourScheme(scheme);
