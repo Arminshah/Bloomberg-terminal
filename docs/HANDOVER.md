@@ -69,7 +69,9 @@ The assistant owns reference research: find and inspect lawful public manuals, i
 
 ## PORTFOLIO transactions (TODO item 10): done on 27 October
 
-The Transactions tab is `src/functions/PortTransactions.tsx`; the store operations (add, delete, holdings kept in step, rates after a currency change) are `src/terminal/transactions.ts`; the calculations stay in `src/finance/ledger.ts`. A portfolio's `transactions` list is saved with it (a rate saved as null is read back as unknown). What the screen does and the formulas are in `docs/calculators.md`, "Portfolio performance and risk". Next is item 11.
+The Transactions tab is `src/functions/PortTransactions.tsx`; the store operations (add, delete, holdings kept in step, rates after a currency change) are `src/terminal/transactions.ts`; the calculations stay in `src/finance/ledger.ts`. A portfolio's `transactions` list is saved with it (a rate saved as null is read back as unknown). What the screen does and the formulas are in `docs/calculators.md`, "Portfolio performance and risk". Next was item 11.
+
+Item 11, BONDCALC call schedules, is done too: `parseCallSchedule`, `redemptionFlows`, `yieldToRedemption` and `workouts` in `src/finance/bonds.ts`, the section in `src/functions/BondCalc.tsx`, the conventions in `docs/calculators.md` ("Calls"). Next is item 12.
 
 ## How to work on it
 

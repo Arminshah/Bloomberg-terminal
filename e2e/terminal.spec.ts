@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { checkAmericanOption, checkBond, checkBondConventions, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from './calculator-checks';
+import { checkAmericanOption, checkBond, checkBondCalls, checkBondConventions, checkForward, checkOptions, checkPortfolioPositions, checkStrategy, checkSwap } from './calculator-checks';
 import { checkLinkedPanels } from './workspace-checks';
 
 // Keep runs deterministic: no live network feeds.
@@ -498,6 +498,12 @@ test('bond and FX forward calculators solve independent examples, reject invalid
   expect(csv).toContain('2030-01-01');
   expect(csv).toContain('User-entered contract terms');
   await checkBondConventions(page, execute);
+  await checkBondCalls(page, execute);
+  const callsCsv = page.waitForEvent('download');
+  await run(page, '99');
+  const callsText = await readFile((await (await callsCsv).path())!, 'utf8');
+  expect(callsText).toContain('Call schedule (date and price per 100),"2031-01-15, 110"');
+  expect(callsText).toContain('Workout date,2031-01-15');
   await checkForward(page, execute);
   expect(errors).toEqual([]);
 });

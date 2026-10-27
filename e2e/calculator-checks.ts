@@ -54,6 +54,30 @@ export async function checkBondConventions(page: Page, run: RunCommand) {
   await expect(page.getByLabel('Settlement', { exact: true })).toHaveValue('2026-10-19');
 }
 
+/** A call schedule: the textbook yield-to-call example, 10% semiannual priced 117.50 and callable in five years at 110. */
+export async function checkBondCalls(page: Page, run: RunCommand) {
+  await run('YAS', 'BONDCALC');
+  await page.getByLabel('Day count').selectOption('ACT/ACT ICMA');
+  await page.getByLabel('Coupons per year').selectOption('2');
+  await page.getByLabel('Coupon %', { exact: true }).fill('10');
+  await page.getByLabel('Settlement', { exact: true }).fill('2026-01-15');
+  await page.getByLabel('Maturity', { exact: true }).fill('2036-01-15');
+  await page.getByLabel('Solve from').selectOption('price');
+  await page.getByLabel('Clean price per 100').fill('117.5');
+  await page.getByLabel('Call schedule').fill('2031-01-15, 110\n2020-01-15, 115');
+  // 7.43% to the call (7.4332997367 from a separate solver), below the 7.48% to maturity: the call is the worst.
+  await expect.poll(() => displayed(page, 'bond-ytw')).toBeCloseTo(7.4332997367, 6);
+  await expect(page.getByTestId('bond-workout')).toContainText('(call at 110.000)');
+  await expect(page.getByTestId('bond-calls').locator('tbody tr')).toHaveCount(2);
+  await expect(page.getByTestId('bond-calls').locator('tbody tr').first()).toContainText('Call (worst)');
+  await expect(page.getByText('Left out: 1 on or before settlement.', { exact: true })).toBeVisible();
+  await page.getByLabel('Call schedule').fill('2031-01-15, 0');
+  await expect(page.getByRole('status').filter({ hasText: 'The call on 2031-01-15 needs a price above zero.' })).toBeVisible();
+  await expect(page.getByTestId('bond-ytw')).toHaveCount(0);
+  await page.getByLabel('Call schedule').fill('2031-01-15, 110');
+  await expect.poll(() => displayed(page, 'bond-ytw')).toBeCloseTo(7.4332997367, 6);
+}
+
 export async function checkForward(page: Page, run: RunCommand) {
   await run('EURUSD Curncy FRD', 'FXFORWARD');
   await page.getByLabel('Spot override').fill('1.1');

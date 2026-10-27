@@ -233,6 +233,130 @@ export function analytics(terms: BondTerms, settle: Date, yieldPct: number): Bon
   };
 }
 
+/** A call: the issuer may redeem the bond on `date` at `price` per 100 face. */
+export interface Call {
+  date: Date;
+  price: number;
+}
+
+/** The share of the coupon period from coupon date `from` (whose next coupon is `next`) to `to`, on the bond's basis: A/E. */
+function periodFraction(terms: BondTerms, from: Date, to: Date, next: Date): number {
+  const freq = terms.freq ?? 2;
+  switch (terms.basis ?? 'ACT/ACT ICMA') {
+    case '30/360':
+      return days30360(from, to, isEndOfMonth(terms.maturity)) / (360 / freq);
+    case '30E/360':
+      return days30E360(from, to) / (360 / freq);
+    case 'ACT/360':
+      return actualDays(from, to) / (360 / freq);
+    case 'ACT/365F':
+      return actualDays(from, to) / (365 / freq);
+    default:
+      return actualDays(from, to) / actualDays(from, next);
+  }
+}
+
+/**
+ * The bond's cash flows if it is redeemed on `red.date` at `red.price` per 100: the coupons on its schedule before
+ * that date, then the redemption price with the coupon accrued since the last coupon date (the whole coupon when the
+ * date is a coupon date). Each flow's exponent is in coupon periods from settlement, as for the price to maturity:
+ * the next coupon DSC/E, each later one a period more, and a redemption between coupon dates the share of its
+ * period on the bond's basis. Null when the date is not after settlement or is after maturity.
+ */
+export function redemptionFlows(terms: BondTerms, settle: Date, red: Call): { t: number; cf: number; date: Date }[] | null {
+  const sched = couponSchedule(terms, settle);
+  const { w } = periodInfo(terms, settle);
+  if (sched.length < 2 || !Number.isFinite(w) || !(red.price > 0) || !Number.isFinite(red.date.getTime()) || red.date.getTime() <= settle.getTime() || red.date.getTime() > terms.maturity.getTime()) return null;
+  const cpn = terms.coupon / (terms.freq ?? 2);
+  let j = 0;
+  while (j + 1 < sched.length && sched[j + 1].getTime() <= red.date.getTime()) j++;
+  const flows: { t: number; cf: number; date: Date }[] = [];
+  for (let i = 1; i <= j; i++) flows.push({ t: w + i - 1, cf: cpn, date: sched[i] });
+  if (j >= 1 && sched[j].getTime() === red.date.getTime()) {
+    flows[flows.length - 1].cf += red.price;
+    return flows;
+  }
+  const frac = periodFraction(terms, sched[j], red.date, sched[j + 1]);
+  flows.push({ t: w + j - 1 + frac, cf: cpn * frac + red.price, date: red.date });
+  return flows;
+}
+
+/** Clean price per 100 for a yield in percent if the bond is redeemed as `red` says; NaN when it cannot be. */
+export function cleanToRedemption(terms: BondTerms, settle: Date, red: Call, yieldPct: number): number {
+  const freq = terms.freq ?? 2;
+  const flows = redemptionFlows(terms, settle, red);
+  if (!flows || !Number.isFinite(yieldPct) || yieldPct <= -100 * freq) return NaN;
+  const logV = -Math.log1p(yieldPct / 100 / freq);
+  return flows.reduce((a, f) => a + f.cf * Math.exp(f.t * logV), 0) - accruedInterest(terms, settle);
+}
+
+/** The yield in percent at which redeeming as `red` says gives this clean price; NaN without one. */
+export function yieldToRedemption(terms: BondTerms, settle: Date, red: Call, clean: number): number {
+  if (!Number.isFinite(clean) || clean <= 0 || !redemptionFlows(terms, settle, red)) return NaN;
+  const freq = terms.freq ?? 2;
+  const price = (y: number) => cleanToRedemption(terms, settle, red, y);
+  let lo = -100 * freq + 1e-8;
+  let hi = Math.max(10, terms.coupon + 10);
+  for (let i = 0; i < 60 && price(hi) > clean; i++) hi = hi * 2 + 10;
+  if (!(price(lo) >= clean) || !(price(hi) <= clean)) return NaN;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    if (price(mid) > clean) lo = mid;
+    else hi = mid;
+    if (hi - lo < 1e-11 * Math.max(1, Math.abs(mid))) break;
+  }
+  return (lo + hi) / 2;
+}
+
+export interface Workout {
+  kind: 'call' | 'maturity';
+  date: Date;
+  /** Redemption price per 100. */
+  price: number;
+  /** Yield to this date from the clean price given. */
+  yield: number;
+  /** Clean price to this date at the yield given. */
+  cleanAtYield: number;
+}
+
+/**
+ * Yield to each call and to maturity from a clean price, and the clean price to each at a yield. The yield to worst
+ * is the lowest of those yields (its date is the workout date), the price to worst the lowest of those prices. Each
+ * call is treated as a certain redemption: there is no option value, so this is not an option-adjusted measure.
+ */
+export function workouts(terms: BondTerms, settle: Date, calls: readonly Call[], clean: number, yieldPct: number): { rows: Workout[]; toWorst: Workout | null; priceToWorst: Workout | null } {
+  const rows: Workout[] = [...calls.map((c) => ({ kind: 'call' as const, ...c })), { kind: 'maturity' as const, date: terms.maturity, price: 100 }]
+    .map((r) => ({ ...r, yield: yieldToRedemption(terms, settle, r, clean), cleanAtYield: cleanToRedemption(terms, settle, r, yieldPct) }));
+  const pick = (key: 'yield' | 'cleanAtYield') => rows.filter((r) => Number.isFinite(r[key])).reduce<Workout | null>((a, r) => (!a || r[key] < a[key] ? r : a), null);
+  return { rows, toWorst: pick('yield'), priceToWorst: pick('cleanAtYield') };
+}
+
+/**
+ * A call schedule typed one call a line, "date, price" (YYYY-MM-DD and the price per 100; commas, semicolons, tabs or
+ * spaces between). Calls on or before settlement are left out and counted, as are calls on or after maturity (the
+ * maturity is always a workout). A date given twice, or a price that is not positive, is an error.
+ */
+export function parseCallSchedule(text: string, settle: Date, maturity: Date): { calls: Call[]; past: number; late: number } | { error: string } {
+  const calls: Call[] = [];
+  let past = 0;
+  let late = 0;
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length > 400) return { error: 'At most 400 calls.' };
+  for (const line of lines) {
+    const m = /^(\d{4}-\d{2}-\d{2})[\s,;]+([0-9]+(?:\.[0-9]+)?)$/.exec(line);
+    const date = m ? new Date(`${m[1]}T00:00:00Z`) : new Date(NaN);
+    if (!m || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== m[1]) return { error: `Write each call as a date and a price per 100, such as 2028-06-15, 101.5: "${line.slice(0, 40)}" is not.` };
+    const price = Number(m[2]);
+    if (!(price > 0)) return { error: `The call on ${m[1]} needs a price above zero.` };
+    if (calls.some((c) => c.date.getTime() === date.getTime())) return { error: `${m[1]} is in the schedule twice.` };
+    if (date.getTime() <= settle.getTime()) past++;
+    else if (date.getTime() >= maturity.getTime()) late++;
+    else calls.push({ date, price });
+  }
+  calls.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return { calls, past, late };
+}
+
 /**
  * Market-standard settlement lag in business days: T+1 for US Treasuries (and US corporates, T+1 since the SEC's
  * Rule 15c6-1 change of 28 May 2024), T+2 for European government bonds, corporates and Eurobonds. With no bond

@@ -210,7 +210,7 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 | TOP | E2 | `MARKETNEWS` (TOP) | Implemented | MREP (the morning report) is missing |
 | FX | E2 | `FXMATRIX`, `FXRANK`, `FXFORWARD`, `FXOPTION`; ECB rates kept apart | Partial | Mid rates; dealer bid and ask are not available free |
 | CHART | E1 | `CHART` (GP) with studies | Implemented | `HISTORY` says its prices are split-adjusted and not dividend-adjusted; `CHART` neither says so nor offers dividend-adjusted prices |
-| BOND | E1 | `BONDCALC` (YAS), `BONDS`, `CURVE` | Partial | No call schedules, so no yield to call or to worst; issue terms are typed in |
+| BOND | E1 | `BONDCALC` (YAS), `BONDS`, `CURVE` | Partial | Yield to each call and to worst from a typed call schedule since item 11 (27 October); issue terms and calls are typed in, and calls carry no option value (no OAS) |
 | COMMOD | E2 | `COMMODITIES`, `FUTURESCURVE`, `CONTRACTS` | Partial | No seasonality (chapter 02:30) and no supply, demand or trade-flow data |
 | PORT | E1 | `PORTFOLIO` (`PORT.tsx`), its risk tab, its Transactions tab (`PortTransactions.tsx`) | Partial | Transactions with fees and rates of the day, first-in first-out lots, splits, realised P&L, time- and money-weighted returns since item 10 (27 October). No attribution, no factor model, other corporate actions not applied |
 | BTST | E1 | `BACKTEST` (EQBT) | Partial | Today's members (warned on screen), price returns, no delisted names, monthly steps |
@@ -238,7 +238,7 @@ Five additions with the most use for the least data (approved 26 October):
 2. Worksheets under W: rows of securities, columns of market and fundamental fields, saved; `WATCHLIST` keeps WATCH. Done, `f26fa11`.
 3. `PEERS`: preferred stock and minority interest in EV from the filings, with the EV build-up shown. Done, `89ef249`.
 4. `PORTFOLIO` transactions: lots with dates, fees and FX, realised P&L, time- and money-weighted returns. Done, item 10 (27 October).
-5. `BONDCALC` call schedules: yield to call and to worst. Next.
+5. `BONDCALC` call schedules: yield to call and to worst. Done, item 11 (27 October).
 
 Five defects to test first:
 1. W opens `WATCHLIST`, though W is Worksheets in the official chapter list. Fixed with a test, `f26fa11`.

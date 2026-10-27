@@ -6,7 +6,7 @@ import { KV, Section } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtDay, fmtNum } from '../core/format';
 import { engine } from '../data/market';
-import { analytics, cleanFromYield, couponSchedule, DAY_COUNTS, defaultSettlementLag, settlementDate, to32nds, yieldFromClean, type BondAnalytics, type BondTerms, type DayCount } from '../finance/bonds';
+import { analytics, cleanFromYield, couponSchedule, DAY_COUNTS, defaultSettlementLag, parseCallSchedule, settlementDate, to32nds, workouts, yieldFromClean, type BondAnalytics, type BondTerms, type DayCount } from '../finance/bonds';
 import { contractDate, inputNumber } from '../finance/contracts';
 import { parseZeroCurve } from '../finance/contracts';
 import { bondSpreadValue } from '../finance/bond-spreads';
@@ -15,11 +15,11 @@ import type { FnProps } from '../terminal/types';
 
 type Form = {
   coupon: string; maturity: string; trade: string; lag: string; settle: string; frequency: string; basis: DayCount; mode: string; value: string; face: string;
-  benchmark: string; curve: string;
+  benchmark: string; curve: string; calls: string;
 };
 const EXAMPLE: Form = {
   coupon: '5', maturity: '2030-01-01', trade: '2025-01-01', lag: 'manual', settle: '2025-01-01', frequency: '2', basis: 'ACT/ACT ICMA', mode: 'yield', value: '4',
-  face: '1000000', benchmark: '3', curve: '1,3\n5,3\n10,3',
+  face: '1000000', benchmark: '3', curve: '1,3\n5,3\n10,3', calls: '',
 };
 const LAGS: { value: string; label: string }[] = [
   { value: '0', label: 'T+0' }, { value: '1', label: 'T+1 (US Treasuries)' }, { value: '2', label: 'T+2 (European govts, corporates)' },
@@ -33,7 +33,7 @@ export function BondCalc({ sec }: FnProps) {
   const [form, setForm] = useState<Form>(() => {
     const today = isoDay(new Date(engine.now()));
     return { coupon: '', maturity: '', trade: today, lag: String(defaultSettlementLag(sec?.cls === 'bond' ? sec : undefined)), settle: '', frequency: '2',
-      basis: 'ACT/ACT ICMA', mode: 'yield', value: '', face: '1000000', benchmark: '', curve: '' };
+      basis: 'ACT/ACT ICMA', mode: 'yield', value: '', face: '1000000', benchmark: '', curve: '', calls: '' };
   });
   const [example, setExample] = useState(false);
   const update = (fn: (f: Form) => Form) => { setForm(fn); setExample(false); };
@@ -74,6 +74,11 @@ export function BondCalc({ sec }: FnProps) {
     try { spread = bondSpreadValue(terms, settle, r.clean, parseZeroCurve(form.curve)); }
     catch (e) { spreadError = (e as Error).message; }
   }
+  // The call schedule: each call a possible redemption; the yield to worst is the lowest yield over the calls and maturity.
+  const callParse = r && form.calls.trim() ? parseCallSchedule(form.calls, settle, terms.maturity) : null;
+  const callError = callParse && 'error' in callParse ? callParse.error : '';
+  const work = r && callParse && !('error' in callParse) && callParse.calls.length ? workouts(terms, settle, callParse.calls, r.clean, r.yield) : null;
+  const skipped = callParse && !('error' in callParse) ? [callParse.past ? `${callParse.past} on or before settlement` : '', callParse.late ? `${callParse.late} on or after maturity` : ''].filter(Boolean).join(' and ') : '';
   const cash = r ? couponSchedule(terms, settle).slice(1).map((date, index, dates) => {
     const amount = terms.coupon / terms.freq + (index === dates.length - 1 ? 100 : 0);
     // The first flow is discounted DSC/E periods on the bond's day count, each later one a whole period more.
@@ -86,7 +91,7 @@ export function BondCalc({ sec }: FnProps) {
   const points = r ? Array.from({ length: 41 }, (_, k) => ({ x: r.yield - 2 + k / 10, y: cleanFromYield(terms, settle, r.yield - 2 + k / 10) })).filter((p) => Number.isFinite(p.y)) : [];
   const rows = () => [
     ['Source', example ? 'Calculation example, not market data' : 'User-entered contract terms and price/yield'],
-    ['Convention', `Regular fixed-rate bullet; ${basisLabel}; unadjusted dates`],
+    ['Convention', `${work ? 'Fixed-rate bond with the calls typed in, each a redemption without option value' : 'Regular fixed-rate bullet'}; ${basisLabel}; unadjusted dates`],
     ['Day count', form.basis], ['Trade date', form.lag === 'manual' ? '' : form.trade], ['Settlement lag', lagLabel],
     ['Coupon %', terms.coupon], ['Maturity', form.maturity], ['Settlement', settleText], ['Frequency', terms.freq], ['Face', face],
     ['Yield %', r?.yield], ['Clean / 100', r?.clean], ['Accrued / 100', r?.accrued], ['Accrued days', r?.accruedDays], ['Days in coupon period', r?.periodDays],
@@ -94,10 +99,13 @@ export function BondCalc({ sec }: FnProps) {
     ['Benchmark nominal yield %', form.benchmark], ['G-spread bp (matching nominal compounding)', gSpread],
     ['Settlement-relative zero curve: years, continuous zero %, optional projection ignored', form.curve],
     ['Z-spread bp (continuous ACT/365F)', spread?.spreadBp], ['Z01 per 100', spread?.z01], ['Spread duration', spread?.spreadDuration], ['Zero-spread clean price', spread?.zeroSpreadClean], ['Spread input error', spreadError],
+    ['Call schedule (date and price per 100)', form.calls.trim().replace(/\r?\n/g, '; ')], ['Call schedule error', callError],
+    ['Yield to worst %', work?.toWorst?.yield], ['Workout date', work?.toWorst ? work.toWorst.date.toISOString().slice(0, 10) : ''], [`Price to worst / 100 at ${r?.yield ?? ''}%`, work?.priceToWorst?.cleanAtYield],
+    ...(work ? [['Redemption', 'Date', 'Price / 100', `Yield % from clean ${r?.clean ?? ''}`, `Clean / 100 at ${r?.yield ?? ''}%`], ...work.rows.map((w) => [w.kind, w.date.toISOString().slice(0, 10), w.price, w.yield, w.cleanAtYield])] : []),
     ['Payment date', 'Cash flow / 100', 'PV / 100'], ...cash.map((c) => [c.date.toISOString().slice(0, 10), c.amount, c.pv]),
   ];
   return <div>
-    <FnHeader code="BONDCALC" title="Yield & Spread Analysis" sec={sec} sub={`Regular fixed-rate bullet · ${basisLabel} · ${form.lag === 'manual' ? 'manual settlement' : lagLabel.replace(/ \(.*\)$/, '')}`}
+    <FnHeader code="BONDCALC" title="Yield & Spread Analysis" sec={sec} sub={`${work ? 'Fixed-rate bond with calls' : 'Regular fixed-rate bullet'} · ${basisLabel} · ${form.lag === 'manual' ? 'manual settlement' : lagLabel.replace(/ \(.*\)$/, '')}`}
       actions={[{ n: 1, label: 'Example', onClick: () => { setForm(EXAMPLE); setExample(true); } }, ...(r ? exportActions(panel, 'bond-calculation.csv', rows) : [])]} />
     <CalcSource>{example ? 'Example inputs. ' : 'Your contract terms and price/yield. '}Calculated price, yield risk and optional benchmark/Z-spreads. Supply the benchmark or zero curve; no market quote, curve or issue terms are inferred.</CalcSource>
     <div className="chart-tools">
@@ -145,11 +153,25 @@ export function BondCalc({ sec }: FnProps) {
           <table className="tbl"><thead><tr><th>Z-spread shift bp</th><th className="num">Clean / 100</th><th className="num">P&L for face amount</th></tr></thead><tbody>{spread.scenarios.map((s) => <tr key={s.bp}><td>{s.bp}</td><td className="num">{fmtNum(s.clean, 6)}</td><td className="num">{fmtNum((s.clean - r.clean) * face / 100, 2)}</td></tr>)}</tbody></table>
         </> : <p className="pad-s muted">Enter a zero curve to solve Z-spread. This is an option-free spread, not an option-adjusted spread.</p>}
       </Section>
+      <Section title="Call schedule: yield to call and to worst">
+        <div className="pad-s"><label className="fld" style={{ display: 'block', whiteSpace: 'normal' }}>Calls: one a line, date and price per 100<textarea className="inp" aria-label="Call schedule" rows={4} value={form.calls} onChange={(e) => set('calls', e.target.value)} placeholder={'2028-06-15, 102\n2029-06-15, 101\n2030-06-15, 100'} spellCheck={false} style={{ width: 'min(100%, 500px)', display: 'block' }} /></label></div>
+        {callError ? <div className="pad-s amber" role="status">{callError}</div> : work ? <>
+          <KV items={[
+            ['Yield to worst %', <span key="ytw" data-testid="bond-ytw">{fmtNum(work.toWorst?.yield, 6)}</span>],
+            ['Workout date', <span key="wd" data-testid="bond-workout">{work.toWorst ? `${fmtDay(work.toWorst.date.getTime(), true)} (${work.toWorst.kind === 'call' ? `call at ${fmtNum(work.toWorst.price, 3)}` : 'maturity'})` : '--'}</span>],
+            [`Price to worst / 100 at ${fmtNum(r.yield, 4)}%`, <span key="ptw" data-testid="bond-ptw">{fmtNum(work.priceToWorst?.cleanAtYield, 6)}</span>],
+          ]} />
+          <table className="tbl" data-testid="bond-calls"><thead><tr><th>Redemption</th><th>Date</th><th className="num">Price / 100</th><th className="num" title={`The yield at which this redemption gives the clean price ${fmtNum(r.clean, 6)}`}>Yield %</th><th className="num" title={`The clean price of this redemption at the yield ${fmtNum(r.yield, 6)}%`}>Clean / 100 at {fmtNum(r.yield, 4)}%</th></tr></thead>
+            <tbody>{work.rows.map((w) => <tr key={w.date.getTime()} className={w === work.toWorst ? 'white b' : undefined}><td>{w.kind === 'call' ? 'Call' : 'Maturity'}{w === work.toWorst ? ' (worst)' : ''}</td><td>{fmtDay(w.date.getTime(), true)}</td><td className="num">{fmtNum(w.price, 3)}</td><td className="num">{fmtNum(w.yield, 6)}</td><td className="num">{fmtNum(w.cleanAtYield, 6)}</td></tr>)}</tbody></table>
+          {skipped && <p className="pad-s muted">Left out: {skipped}.</p>}
+        </> : <p className="pad-s muted">{skipped ? `No call between settlement and maturity (left out: ${skipped}).` : 'Type the call dates and prices to get the yield to each call and the yield to worst.'}</p>}
+        <p className="pad-s muted">Each call is treated as a redemption on its date at its price: the coupons on the bond&apos;s schedule before it, then the price and the coupon accrued since the last coupon date, discounted at the yield as for maturity. The yield to worst is the lowest of the yields to each call and to maturity, from the clean price above; the price to worst is the lowest clean price at the yield above. The option itself has no value here: this is not an option-adjusted spread. Price, accrued and the risk measures above are to maturity.</p>
+      </Section>
       <div className="cols"><Section title="Parallel yield scenarios"><table className="tbl"><thead><tr><th>Shift bp</th><th className="num">Clean / 100</th><th className="num">Price change</th><th className="num">P&L</th></tr></thead>
         <tbody>{scenarios.map((s) => <tr key={s.bp}><td>{s.bp > 0 ? '+' : ''}{s.bp}</td><td className="num">{fmtNum(s.price, 6)}</td><td className="num">{fmtNum(s.change, 6)}</td><td className="num">{fmtNum(s.pnl, 2)}</td></tr>)}</tbody></table></Section>
         <Section title="Cash flows" right={`${cash.length} payments`}><div style={{ maxHeight: 300, overflow: 'auto' }}><table className="tbl"><thead><tr><th>Payment date</th><th className="num">Cash flow / 100</th><th className="num">PV / 100</th></tr></thead>
           <tbody>{cash.map((c) => <tr key={c.date.getTime()}><td>{fmtDay(c.date.getTime(), true)}</td><td className="num">{fmtNum(c.amount, 6)}</td><td className="num">{fmtNum(c.pv, 6)}</td></tr>)}</tbody></table></div></Section></div>
     </>}
-    <p className="pad-s muted">Regular fixed-rate bullet, nominal yield compounded at coupon frequency. {basisLabel}: accrued interest is coupon/frequency × accrued days / period days and the first cash flow is discounted DSC/E periods, both on that day count. Settlement lags count weekdays only, with no holiday calendar. Dates are unadjusted. Confirm contractual settlement, day count and coupon schedule; stubs, calls, defaults and taxes are outside this model.</p>
+    <p className="pad-s muted">Regular fixed-rate bullet, nominal yield compounded at coupon frequency. {basisLabel}: accrued interest is coupon/frequency × accrued days / period days and the first cash flow is discounted DSC/E periods, both on that day count. Settlement lags count weekdays only, with no holiday calendar. Dates are unadjusted. Confirm contractual settlement, day count and coupon schedule; calls count only as typed in the call schedule, and stubs, sinking funds, defaults and taxes are outside this model.</p>
   </div>;
 }
