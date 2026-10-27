@@ -71,7 +71,9 @@ The assistant owns reference research: find and inspect lawful public manuals, i
 
 The Transactions tab is `src/functions/PortTransactions.tsx`; the store operations (add, delete, holdings kept in step, rates after a currency change) are `src/terminal/transactions.ts`; the calculations stay in `src/finance/ledger.ts`. A portfolio's `transactions` list is saved with it (a rate saved as null is read back as unknown). What the screen does and the formulas are in `docs/calculators.md`, "Portfolio performance and risk". Next was item 11.
 
-Item 11, BONDCALC call schedules, is done too: `parseCallSchedule`, `redemptionFlows`, `yieldToRedemption` and `workouts` in `src/finance/bonds.ts`, the section in `src/functions/BondCalc.tsx`, the conventions in `docs/calculators.md` ("Calls"). Next is item 12.
+Item 11, BONDCALC call schedules, is done too: `parseCallSchedule`, `redemptionFlows`, `yieldToRedemption` and `workouts` in `src/finance/bonds.ts`, the section in `src/functions/BondCalc.tsx`, the conventions in `docs/calculators.md` ("Calls"). Next was item 12.
+
+Item 12 is done: `src/data/assistant/guard.ts` screens what the sources say before the built-in assistant (`local.ts`) or Claude (`claude.ts`, each tool result) uses it; Claude's instructions in `electron/assistant.cjs` say the same. Next is item 13.
 
 ## How to work on it
 

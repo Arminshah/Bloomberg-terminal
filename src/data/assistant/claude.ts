@@ -17,6 +17,7 @@ import {
   type Reply,
 } from './answers';
 import { findSecurity } from './find';
+import { asSourceData, guardAnswer, guardReply } from './guard';
 import { functionsReply } from './local';
 import type { Block } from './types';
 
@@ -146,21 +147,24 @@ export async function claudeReply(question: string, history: ChatMessage[], onTo
         onTool?.(call.name);
         let r: Reply & { error?: boolean };
         try {
-          r = await runTool(call.name, call.input ?? {});
+          // Headlines, filings and descriptions are others' text: sentences addressed to an assistant are left out.
+          r = guardReply(await runTool(call.name, call.input ?? {}));
         } catch (err) {
           r = { text: `The lookup failed: ${err instanceof Error ? err.message : String(err)}`, error: true };
         }
         for (const c of r.commands ?? []) commands.set(c.command, c);
         for (const l of r.links ?? []) links.set(l.url, l);
-        results.push({ type: 'tool_result', tool_use_id: call.id, content: toolText(r), ...(r.error ? { is_error: true } : {}) });
+        results.push({ type: 'tool_result', tool_use_id: call.id, content: asSourceData(toolText(r)), ...(r.error ? { is_error: true } : {}) });
       }
       messages.push({ role: 'user', content: results });
       continue;
     }
     const tail = res.stopReason === 'max_tokens' ? ' (The answer was cut short.)' : res.stopReason === 'refusal' ? 'Claude declined to answer that.' : '';
+    // The answer too is screened, and links only to addresses the tools gave.
+    const answer = guardAnswer(said, new Set(links.keys()));
     // Only the links Claude's answer mentions, so the chat does not repeat every story it read.
-    const cited = [...links.values()].filter((l) => said.includes(l.url));
-    return { text: `${said}${tail}`.trim() || 'Claude gave no answer.', commands: [...commands.values()].slice(0, 4), links: cited, model: res.model };
+    const cited = [...links.values()].filter((l) => answer.includes(l.url));
+    return { text: `${answer}${tail}`.trim() || 'Claude gave no answer.', commands: [...commands.values()].slice(0, 4), links: cited, model: res.model };
   }
   return { text: 'Claude needed more lookups than allowed for one question; try asking something narrower.', commands: [...commands.values()].slice(0, 4) };
 }

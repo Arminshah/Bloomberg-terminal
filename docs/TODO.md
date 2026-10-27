@@ -4,11 +4,7 @@ Updated 27 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-Items 1 to 8, 10 and 11 are done. Item 9 continues with public written and illustrated sources; missing video frames do not block documented functional work. Items 12 and 13 are the rest of the work you approved on 26 October, in this order.
-
-### 12. The help desk against planted instructions
-
-Tests that the help desk (MESSAGES) ignores instructions planted in the news, filings and pages it reads ("ignore your rules and…"): fixtures with such text in a headline, a filing and a profile, and checks that the answer neither follows nor repeats them.
+Items 1 to 8 and 10 to 12 are done. Item 9 continues with public written and illustrated sources; missing video frames do not block documented functional work. Item 13 is the rest of the work you approved on 26 October.
 
 ### 13. The newly confirmed codes
 
@@ -99,6 +95,7 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Item 12, the help desk against planted instructions: headlines, filings, company descriptions and other text from the sources can carry instructions aimed at an AI ("ignore your rules and…"). Before an answer reaches the chat (built-in assistant) or Claude (each tool result), every sentence that addresses an assistant is left out and the answer says so. Claude reads the sources between marked tags as data, its instructions say never to follow or repeat such text, and its answer may link only to addresses the sources gave (others are replaced). Ordinary market headlines ("analysts urge investors to sell", "Goldman to act as adviser") are left alone. The news screens still show headlines as published. Tests: `tests/assistant-injection.test.ts` (a planted headline, filing and profile through both modes, a block-closing tag, a foreign link) and a desktop test with a planted headline.
 - Item 11, BONDCALC call schedules: type the calls one a line (date, price per 100). The screen gives the yield to each call and to maturity from the clean price, the yield to worst with its workout date, and each date's clean price at the yield with the price to worst. A call between coupon dates pays its price and the coupon accrued since the last coupon date. Calls already past or at maturity are left out and counted. The calls carry no option value (no OAS), as the screen says. Checked against the textbook yield-to-call example (10% at 117.50, callable in five years at 110: 7.43%), Excel's PRICE and YIELD examples and a separate calculation of a call between coupon dates (`tests/bond-calls.test.ts`, and in the browser).
 - Item 10, PORTFOLIO transactions: a fourth tab, Transactions. Buys, sells and dividends with dates, fees and a rate into the portfolio currency (typed, the ECB's of a past trade date on the desktop, today's market rate for a trade of today). Sales take the oldest shares first; trades before a split count on today's share basis (Yahoo's split list). It lists the transactions (delete with ×), the open lots, the realised P&L split into price, currency and fees, and a summary with the time- and money-weighted returns (a year once the period is a year or more). A sale larger than the shares held then is refused. A security's holding follows its transactions while the two agree; when they differ, both tabs say so and offer "Use the transactions". After a change of portfolio currency, "Ask the ECB again" fills the rates. The export on that tab is the transactions. Tests: `tests/transactions.test.ts`, `e2e/portfolio-transactions.spec.ts`, and a desktop test with a four-for-one split and the ECB's rate of 29 June.
 - The typeface is IBM Plex Sans again, fixed by the owner on 27 October: 2.26.0's default (Bergoom) drew thin, uneven figures on Windows. The typeface setting and the Bergoom files are gone; `CLAUDE.md`, `tests/typeface.test.ts` and `e2e/look.spec.ts` keep it from changing.

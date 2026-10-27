@@ -225,7 +225,7 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 | CRAN | E1 | None | Blocked | Credit ratings are licensed |
 | CMGR | E1 | None | Missing | Buildable: the user's own limits checked on `PORTFOLIO` (already in "Later") |
 | WSL | E1 | None | Missing | Needs worksheets first |
-| ASKB | E1 | `MESSAGES` (IB): the built-in assistant, or Claude with the app's data as tools | Partial | No tests yet for injected instructions in news or filings |
+| ASKB | E1 | `MESSAGES` (IB): the built-in assistant, or Claude with the app's data as tools | Partial | Instructions planted in news, filings or profiles are left out of both modes' answers and marked as data for Claude, with tests (item 12, 27 October) |
 | ALTD | E1 | None | Blocked | Paid datasets |
 | ECON | E0 | `RELEASES`, `ECONCHART`, `ECOFORECASTS`, first releases from FRED's vintages | Partial | No survey consensus (licensed) |
 | OPTIONS | E0 | `OPTIONS` (Alpaca, indicative), `OPTIONCALC`, `OPTIONSTRATEGY`; put-call parity tested (`tests/finance.test.ts`, `tests/contracts.test.ts`) | Implemented (models), partial (data) | No OPRA quotes or open interest |
@@ -245,7 +245,7 @@ Five defects to test first:
 2. LLP does not open `LAYOUTS`. Fixed with a test, `3951765`.
 3. `SCREEN` drops a stock missing any value a criterion needs, without saying so, and does not say it screens 84 stocks. Fixed with tests, `8caa5d7`.
 4. `PEERS` leaves preferred stock and minority interest out of EV. Fixed with a test, `89ef249`.
-5. The help desk has no test against instructions planted in the news or filings it reads. Next.
+5. The help desk has no test against instructions planted in the news or filings it reads. Fixed with tests, item 12 (27 October).
 
 The pack's release gates (financial correctness, provenance, security) agree with this project's rules and are folded into the tests above as each item is built.
 

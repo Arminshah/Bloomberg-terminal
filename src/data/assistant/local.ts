@@ -17,6 +17,7 @@ import {
   statsReply,
   type Reply,
 } from './answers';
+import { guardReply } from './guard';
 import { ENGLISH, findLoaded, findSecurity, type Found } from './find';
 
 /**
@@ -157,8 +158,15 @@ function searchWords(text: string): string {
     .trim();
 }
 
-/** Answers one message in a conversation (`room` keeps the security asked about last). */
+/**
+ * Answers one message in a conversation (`room` keeps the security asked about last). Sentences from the sources
+ * that address an AI assistant are left out of the answer (guard.ts).
+ */
 export async function localReply(text: string, room = 'helpdesk'): Promise<Reply> {
+  return guardReply(await answer(text, room));
+}
+
+async function answer(text: string, room: string): Promise<Reply> {
   const t = text.trim();
   if (!t) return { text: '' };
   const intent = intentOf(t);
