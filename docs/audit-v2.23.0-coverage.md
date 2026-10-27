@@ -704,17 +704,17 @@ Not described in those guides (27): AGS, BOE, BOJ, CBRT, CT, DOTS, ECB, FXCA, GA
 
 | Code | What the sources say it is | Source | From free data? | In the app |
 | --- | --- | --- | --- | --- |
-| AGS, MINE, GAS, OIL | Commodity sector pages: agriculture, metals, natural gas, oil | Quick Start, Michigan, N05 (OIL) | Yes, the futures, curves and contracts; oil and gas inventories need the EIA's free key | `COMMODITIES` shows every sector together |
-| NGAS | Natural gas statistics for the US, Canada and Mexico | V05 | US figures with the EIA's free key; Canada and Mexico not found free | None |
-| ECB, BOE, BOJ | Central bank portals, listed with FED | Quick Start | Yes, as `FEDPORTAL` does for the Fed: policy rate, decisions, the bank's own releases | Rates on `CENTRALBANKS`; releases on `HEADLINES` |
-| CBRT | Central Bank Rate Analysis | Quick Start (name only) | Partly: rates and decisions; implied paths only where futures exist (`RATEPROBS` covers the Fed) | `CENTRALBANKS` |
-| FXCA | Conversion Calculator: an amount at the current rate or any past close | Quick Start | Yes | None |
-| WCR | World Currency Rates, with baskets of the user's choosing | Quick Start, Michigan | Yes | `FXMATRIX` and `FXRANK` (WCRS) are near it |
-| GEW | Global Economy Watch | Quick Start (name only) | Partly | Parts of `ECONSTATS` and `MACRO` |
-| MYN | My News: personal pages of filtered news sections | Quick Start | Yes, saved searches over the app's feeds | `NEWS` searches, not saved as pages |
-| NLRT | News Alerts | Quick Start, N05 | Yes, on the app's feeds | `ALERTS` covers prices only |
-| WEIS | World Equity Index Rankings | Quick Start (name only) | Yes | `MARKET` (WEI) lists the indices unranked |
-| WM | World Equity Markets Map | Quick Start (name only) | Yes | None |
+| AGS, MINE, GAS, OIL | Commodity sector pages: agriculture, metals, natural gas, oil | Quick Start, Michigan, N05 (OIL) | Yes, the futures, curves and contracts; oil and gas inventories need the EIA's free key | `OILMARKET`, `NATURALGAS`, `METALS`, `AGRICULTURE` since 27 October (`81cea33`); `COMMODITIES` shows every sector together |
+| NGAS | Natural gas statistics for the US, Canada and Mexico | V05 | US figures with the EIA's free key; Canada and Mexico not found free | None: waits on an EIA key |
+| ECB, BOE, BOJ | Central bank portals, listed with FED | Quick Start | Yes, as `FEDPORTAL` does for the Fed: policy rate, decisions, the bank's own releases | `ECBPORTAL`, `BOEPORTAL`, `BOJPORTAL` since 27 October (`9446ca7`), with €STR, SONIA and the Bank of Japan's API |
+| CBRT | Central Bank Rate Analysis | Quick Start (name only) | Partly: rates and decisions; implied paths only where futures exist (`RATEPROBS` covers the Fed) | `RATEANALYSIS` since 27 October (`f403fc2`), in part |
+| FXCA | Conversion Calculator: an amount at the current rate or any past close | Quick Start | Yes | `CONVERT` (`36c4515`, 2.26.0) |
+| WCR | World Currency Rates, with baskets of the user's choosing | Quick Start, Michigan | Yes | `CURRENCYRATES` since 27 October (`560c5e7`) |
+| GEW | Global Economy Watch: key economic statistics by country (a Lithuanian training handout, found 27 October) | Quick Start, the handout | Partly | Opens `ECONSTATS` since 27 October (`8b7830d`) |
+| MYN | My News: personal pages of filtered news sections | Quick Start | Yes, saved searches over the app's feeds | `MYNEWS` since 27 October (`74fc0d5`) |
+| NLRT | News Alerts | Quick Start, N05 | Yes, on the app's feeds | Opens `ALERTS`, whose news keyword alerts cover it, since 27 October (`8b7830d`) |
+| WEIS | World Equity Index Rankings | Quick Start (name only) | Yes | `INDEXRANKING` since 27 October (`d1e9f99`) |
+| WM | World Equity Markets Map | Quick Start (name only) | Yes | `WORLDMAP` since 27 October (`d1e9f99`) |
 | PSRT | Public portfolio search directory | A Texas State guide, as a search result (its PDF did not load, HTTP 503) | Yes, from the SEC's 13F filers | `HOLDINGS`, `FILINGS13F` |
 | OVDV | A volatility surface | Forum posts and the titles of the provider's webinars only | Partly, from Alpaca's indicative implied volatilities | `OPTIONS` per contract |
 | WATC | Watchlist analytics | The equities tutorial's chapter name (E2) | Yes | `WATCHLIST` |
@@ -723,6 +723,8 @@ Not described in those guides (27): AGS, BOE, BOJ, CBRT, CT, DOTS, ECB, FXCA, GA
 | HLDR, MRV, PD, RANK, SURP | Nothing found | — | — | — |
 
 So 17 of the 27 have a source now (15 in the Quick Start, NGAS in V05, WATC as a chapter name); PSRT and OVDV have weaker ones, and 8 have none. The 2020 guide predates the 2026 screens and lists names, not behaviour.
+
+Built on 27 October (TODO item 13): every code above with a source except NGAS, which waits on an EIA key. Where a source gives only the name (WEIS, WM, CBRT), the screen's layout is the app's own and its notes say what it covers. DSCO, which the University of San Diego's guide names Document Search, opens `DOCSEARCH` (`01e7211`).
 
 ## 3. Codes from Codex's list of Bloomberg videos
 

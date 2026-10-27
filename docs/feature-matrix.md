@@ -87,6 +87,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | --- | --- | --- | --- |
 | `HEADLINES` | Press releases and speeches, newest first, by topic | Federal Reserve Board (releases and speeches), ECB (releases and blog), Bank of England, Bank of Canada, RBA, Bank of Japan, BEA, ESMA, SEC, BIS central bankers' speeches (RSS) | Real. Not a market news wire |
 | `NEWS` | Every story the app holds that matches your words, with Google News's search for them | The market news sources below, the official announcements, Google News | Real: headlines and links |
+| `MYNEWS` (`MYN`) | Pages of your own news sections, each a saved search with its eight latest stories | As `NEWS` | Real: headlines and links; pages kept on this computer |
 | `BREAKING` (`FIRST`, `BN`) | The newest stories from every source in the last hour, 4 hours or day, your favourites' and watchlist's stories, NEW marks for the last 15 minutes; pop-ups for new stories on your favourites, which stay until dismissed and are listed on the ★ Favourites tab, and brief ones for central bank announcements | All the news sources here | Real: headlines and links |
 | `MARKETNEWS` (`TOP`) | Market and merger news merged without duplicates, with the latest 8-K filings and Euronext press releases; ticker and keyword filters; 4) Official opens `HEADLINES` | Finnhub, Alpaca (Benzinga), Massive, Marketaux (with sentiment), with your keys; Google News's market search, SEC EDGAR, Euronext; MarketWatch if switched on | Real: headlines, summaries and links, not article text |
 | `COMPANYNEWS` | A US company's news from Finnhub (the last week), Alpaca and Massive, with sentiment where Marketaux gives it; for any stock, Yahoo headlines and Google News's search in its market's languages (Dutch, French and English for Brussels); a Euronext-listed company's press releases among Euronext's latest | Finnhub, Alpaca, Massive, Marketaux (your keys); Yahoo Finance; Google News; Euronext | Real: headlines and links |
@@ -96,6 +97,8 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
 | `MARKET` | World equity indices with changes and YTD in local currency and USD | Yahoo Finance | Real; USD YTD calculated |
+| `INDEXRANKING` (`WEIS`) | `MARKET`'s indices ranked by price return over 1D to 1Y, local or in USD, EUR, GBP, JPY, CHF | Yahoo Finance | Calculated; no dividends; unranked when a close is missing |
+| `WORLDMAP` (`WM`) | One main index per market on a grid laid out like the world, coloured by return | Yahoo Finance | Calculated; the grid is the app's own |
 | `INDEXFUTURES` | US index futures with basis and fair value | Yahoo Finance (CME, delay as Yahoo states it) | Real; fair value a stated model. Non-US futures not available |
 | `EXCHANGES` (`EXCH`) | NYSE, Euronext, London, Xetra and Tokyo: local time, open/closed/holiday/weekend, early closes, next open or close | NYSE and Euronext rules; LSE, Xetra and JPX tables through 2027 | Real (published calendars). Regular sessions only; unscheduled closures not known |
 | `CONTRIB` | What moved an index | Yahoo Finance | Calculated. Index points for the Dow only (its membership is public); other indices by the app's stocks in that market |
@@ -117,6 +120,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | --- | --- | --- | --- |
 | `FXMATRIX` | Cross rates | Yahoo Finance rates against the dollar | Calculated: crosses derived, not quoted |
 | `FXRANK` | Currencies ranked against the dollar | Yahoo Finance | Calculated |
+| `CURRENCYRATES` (`WCR`) | Every currency against a base you choose, by region or in your basket, with day, 1M, YTD and 1Y changes | Yahoo Finance | Calculated through the dollar; mid rates |
 | `CRYPTO` | Ten coins: price, range, volume, market value, returns | Kraken (Yahoo Finance for the session if Kraken does not answer); CoinGecko (key) | Real |
 | `FXFORWARD` | Outright, points, contract PV, tenor scenarios | User deposit rates, day bases, point size, notional and input/source spot | Calculated covered interest parity; no dealer quotes or cross-currency basis |
 | `FXOPTION` | Garman-Kohlhagen option value, Greeks and expiry P&L | Source spot/reference rates/realised volatility or manual overrides | Calculated European model. All inputs can be supplied offline; rates are continuous model rates |
@@ -130,6 +134,8 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `MONEYMARKET` | Fed funds and reference rates, bills, spreads, SOFR futures | New York Fed, US Treasury, Fed Board, Yahoo Finance (CME) | Real |
 | `RATEPROBS` | Fed moves priced meeting by meeting | CBOT fed funds futures via Yahoo Finance, New York Fed, Fed Board | Calculated (CME FedWatch method). Fed only |
 | `CENTRALBANKS` | Policy rates, last moves, next decisions | Fed, ECB, Bank of England, Bank of Canada, RBA, SNB, Banco Central do Brasil | Real. Meeting dates other than the Fed's entered from published calendars |
+| `RATEANALYSIS` (`CBRT`) | Each bank's policy rate with every move over about four years, the meeting that decided each, the change and moves over a year, a step chart | As `CENTRALBANKS`, and the Bank of Japan's basic loan rate | Real; implied paths only for the Fed (`RATEPROBS`) |
+| `ECBPORTAL`, `BOEPORTAL`, `BOJPORTAL` (`ECB`, `BOE`, `BOJ`) | Each bank's policy rate, last move and its meeting, next decision, overnight benchmark (€STR, SONIA, the call rate), announcements, pages | ECB Data Portal; Bank of England database; Bank of Japan Time-Series Data Search; each bank's feed | Real. The BoJ's guideline is in its statements, not the API: the portal shows the basic loan rate and the call rate |
 | `BONDCALC` | Price/yield, accrued, duration, convexity, DV01, yield to each call and to worst with the workout date and price to worst, G/Z-spread, Z01, scenarios and cash flows; five day counts and explicit/lagged settlement | User terms, price/yield, optional call schedule, benchmark yield and continuous zero curve | Calculated regular schedule; calls valued as redemptions without option value (no OAS); settlement skips weekends only; no observed price or curve |
 | `SWAPCALC` | Par coupon, NPV, projected cash flows, curve/coupon bump P&L | User contract and separate discount/projection zero curves | Calculated forward-start fixed/float model; no dealer curve, fixing history or OIS conventions |
 | `BONDSEARCH`, `DEBTPROFILE`, `DEALERQUOTES` | | none | Not available: individual bond/dealer datasets have no connected free source |
@@ -139,6 +145,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
 | `COMMODITIES` | 19 front-month futures | Yahoo Finance (delays as Yahoo states them) | Real |
+| `OILMARKET`, `NATURALGAS`, `METALS`, `AGRICULTURE` (`OIL`, `GAS`, `MINE`, `AGS`) | A sector's front-month futures, its relative measures (Brent-WTI, crack spreads, crude to gas, gold to silver, gold to platinum, soybean to corn, wheat less corn) with their year's range, curves and news | Yahoo Finance | Real; measures calculated; inventories need the EIA's key (not set up) |
 | `MACRO` | US macro dashboard with first-release revisions | FRED (key) | Real |
 | `RELEASES` | Release calendar and rate decisions with actual and prior | FRED (key), central banks | Real. US release times and consensus forecasts not available |
 | `ECONSTATS` | GDP, inflation, unemployment, rates and markets by country | ONS, Eurostat, Statistics Canada, ABS, FRED | Real. Japan's inflation not connected |

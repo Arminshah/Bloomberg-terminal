@@ -1,6 +1,6 @@
-# Handover: where the work stands (26 October 2026)
+# Handover: where the work stands (27 October 2026)
 
-For the Claude session that takes over Armin Terminal on the owner's other account. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis").
+For any Claude session that takes over Armin Terminal, on this account or another. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis").
 
 ## The project
 
@@ -31,10 +31,10 @@ Public or private, the repository is not for sharing research material: copyrigh
 ## Starting on the new account
 
 1. Attach the repository, check out the branch above, run `npm ci`, then the checks under "How to work on it". They all passed at handover.
-2. Ask the owner for the API keys again. They were kept only in the old session's scratch folder, which the new session cannot see. The names are: `ALPHA_VANTAGE_API_KEY`, `TWELVE_DATA_API_KEY`, `COINGECKO_API_KEY`, `FRED_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT` (`Armin Shah arminshahw98@gmail.com`), `FINNHUB_API_KEY`, `TIINGO_API_KEY`, `MARKETAUX_API_TOKEN`, `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`, `FMP_API_KEY`, `TIPRANKS_API_KEY`, `EQUIBLES_API_KEY`, `OPENFIGI_API_KEY`, `EULERPOOL_API_KEY`, `CONGRESS_GOV_API_KEY`. Save them as `NAME=value` lines in a file in the session's scratch folder (`chmod 600`), never in the repository.
-3. Carry on with item 10 of `docs/TODO.md`.
+2. Ask the owner for the API keys again if the environment's settings do not hold them: they are kept only in each session's scratch folder, which a new session cannot see. The names are: `ALPHA_VANTAGE_API_KEY`, `TWELVE_DATA_API_KEY`, `COINGECKO_API_KEY`, `FRED_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT` (`Armin Shah arminshahw98@gmail.com`), `FINNHUB_API_KEY`, `TIINGO_API_KEY`, `MARKETAUX_API_TOKEN`, `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`, `FMP_API_KEY`, `TIPRANKS_API_KEY`, `EQUIBLES_API_KEY`, `OPENFIGI_API_KEY`, `EULERPOOL_API_KEY`, `CONGRESS_GOV_API_KEY`. Save them as `NAME=value` lines in a file in the session's scratch folder (`chmod 600`), never in the repository.
+3. Carry on with `docs/TODO.md`: items 10 to 13 were done on 27 October; NGAS waits on an EIA key, and the owner chooses what comes next from "Later".
 
-The assistant owns reference research: find and inspect lawful public manuals, illustrated guides and publisher images, then record the source, date, page or image URL and what was actually seen in `docs/bloomberg-parity.md`. Missing video frames do not block documented functional work in TODO items 10 to 13. Keep exact visual details unverified where the evidence is missing. Ask the owner for one precise image only if that gap blocks the current change and accessible alternatives have been exhausted. Keep reference media out of public Git history and preserve the fixed typefaces in `CLAUDE.md`.
+The assistant owns reference research: find and inspect lawful public manuals, illustrated guides and publisher images, then record the source, date, page or image URL and what was actually seen in `docs/bloomberg-parity.md`. Missing video frames do not block documented functional work. Keep exact visual details unverified where the evidence is missing. Ask the owner for one precise image only if that gap blocks the current change and accessible alternatives have been exhausted. Keep reference media out of public Git history and preserve the fixed typefaces in `CLAUDE.md`.
 
 ## The owner's rules (keep them)
 
@@ -62,18 +62,19 @@ The assistant owns reference research: find and inspect lawful public manuals, i
 - `a152d9a` **Watchlist sessions, the owner's rule:** After-hrs is the latest after-hours session, live 16:00 to 20:00 New York, then frozen at its last trade through the next pre-market and day until the next evening trades. Pre-mkt is today's, live 04:00 to 09:30, then frozen; from the regular close until the next pre-market (and at weekends) it reads N/A. The blinking After-hrs column was the price poller replacing the stored Yahoo quote without the evening read from the chart (`withSessionChart` in `src/data/live/yahoo.ts`).
 - The next commit: **the owner's watchlist layout** (after Yahoo Finance's watchlist summary): Security, Name, Last Price, Change (%), Change, Pre-mkt, After-hrs, Volume, Avg Vol (3M), YTD, 52-Wk %, Day Range and 52-Wk Range (one-line range bars: low, bar with marker at the last price, high; the day fills the move from the open, the year fills today's range), Day Chart (dotted line at the previous close, green above, red below), Market Cap. Lists that still carried the old default columns move to it once; lists with their own columns keep them. Bid, Ask and Time are still in 94) Columns.
 
+## The second account's work, 27 October (TODO items 10 to 13)
+
+Done after the morning's handover, each with unit, browser and desktop tests, and checked live where data was involved (`docs/TODO.md`, "Done"):
+- Item 10, PORTFOLIO transactions (`9642efe`): the Transactions tab is `src/functions/PortTransactions.tsx`; the store operations (add, delete, holdings kept in step, rates after a currency change) are `src/terminal/transactions.ts`; the calculations stay in `src/finance/ledger.ts`, now also checked against Microsoft's XIRR example. Formulas in `docs/calculators.md`, "Portfolio performance and risk".
+- Item 11, BONDCALC call schedules (`af1e679`): `parseCallSchedule`, `redemptionFlows`, `yieldToRedemption` and `workouts` in `src/finance/bonds.ts`; conventions in `docs/calculators.md`, "Calls".
+- Item 12, the help desk against planted instructions (`454a482`): `src/data/assistant/guard.ts`, used by `local.ts` and `claude.ts`; Claude's instructions in `electron/assistant.cjs`.
+- Item 13, the newly confirmed codes: the sector pages `src/functions/CMDSECTOR.tsx` (measures in `src/data/sector-measures.ts`), WCR `src/functions/WCR.tsx`, WEIS and WM `src/functions/WORLDEQ.tsx`, the ECB, BOE and BOJ portals `src/functions/CBPORTAL.tsx` (new series €STR, SONIA and the Bank of Japan's API in `src/data/live/policy.ts` and `electron/main.cjs`), CBRT `src/functions/CBRT.tsx`, MYN `src/functions/MYN.tsx`; GEW, NLRT and DSCO open existing screens. NGAS waits on an EIA key.
+- Reference research: DSCO and BTM rechecked at their sources; reference hosts answer from this environment (`docs/bloomberg-parity.md`, under the gap analysis).
+
 ## Waiting on the owner
 
-- **Release 2.26.1** with all of the above: ask the owner before releasing (`docs/HANDOVER.md`, "Making a release").
-- Points to raise with the owner about the new layout: "52-WK" was read as the one-year change (labelled 52-Wk %); Avg Vol (3M) is worked out from the last 63 sessions of the daily history (Yahoo's own figure may differ slightly); Market Cap is in each stock's own currency; Currency and Market Time (Yahoo's columns) were not asked for and are not in the default.
-
-## PORTFOLIO transactions (TODO item 10): done on 27 October
-
-The Transactions tab is `src/functions/PortTransactions.tsx`; the store operations (add, delete, holdings kept in step, rates after a currency change) are `src/terminal/transactions.ts`; the calculations stay in `src/finance/ledger.ts`. A portfolio's `transactions` list is saved with it (a rate saved as null is read back as unknown). What the screen does and the formulas are in `docs/calculators.md`, "Portfolio performance and risk". Next was item 11.
-
-Item 11, BONDCALC call schedules, is done too: `parseCallSchedule`, `redemptionFlows`, `yieldToRedemption` and `workouts` in `src/finance/bonds.ts`, the section in `src/functions/BondCalc.tsx`, the conventions in `docs/calculators.md` ("Calls"). Next was item 12.
-
-Item 12 is done: `src/data/assistant/guard.ts` screens what the sources say before the built-in assistant (`local.ts`) or Claude (`claude.ts`, each tool result) uses it; Claude's instructions in `electron/assistant.cjs` say the same. Next is item 13.
+- An EIA key for NGAS and the oil and gas inventories (`docs/TODO.md`, "Waiting on you").
+- Points on the watchlist layout of 27 October: "52-WK" was read as the one-year change (labelled 52-Wk %); Avg Vol (3M) is worked out from the last 63 sessions of the daily history (Yahoo's own figure may differ slightly); Market Cap is in each stock's own currency; Currency and Market Time (Yahoo's columns) were not asked for and are not in the default.
 
 ## How to work on it
 

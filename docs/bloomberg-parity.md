@@ -60,9 +60,12 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `VOLATILITY` | HVT volatility | Model: realised rolling volatility and percentiles | No market implied surface, skew/term structure or volatility cube |
 | `HEADLINES` | Official/government announcements (`TOP` opens `MARKETNEWS`) | Partial: official central-bank/statistics/regulator announcements, also 4) Official on `MARKETNEWS` | No Bloomberg News wire or full-text newsroom/archive |
 | `NEWS` | N news search | Partial: keyword/topic search of fetched announcements | No global licensed archive, advanced news classification or full-text search |
+| `MYNEWS` | MYN personal news pages | Partial: pages of saved searches over the app's feeds and Google News | No licensed wire archive, provider topic codes or alert routing from a page |
 | `MARKETNEWS` | TOP top news headlines | Partial: Finnhub/Marketaux/SEC/Euronext headlines and links, merged; `TOP` opens it | Provider coverage/quota limits; no Bloomberg editors' ranking of top stories or real-time news service |
 | `COMPANYNEWS` | CN company news | Partial: ticker-tagged external headlines and sentiment; Yahoo headlines; a Euronext-listed company's press releases matched by issuer name | Limited lookback/tagging; Euronext's feed holds only its 10 latest releases; no transcripts or proprietary Bloomberg reporting |
 | `MARKET` | WEI global index monitor | Partial: major index prices and currency-adjusted YTD | Coverage/freshness depend on public feeds; no exchange-wide terminal universe |
+| `INDEXRANKING` | WEIS index rankings (name only in the 2020 Quick Start) | Partial: `MARKET`'s indices ranked by price return over 1D to 1Y, local or in one currency | Layout not documented; no total-return or index-family universe |
+| `WORLDMAP` | WM world markets map (name only) | Partial: one main index per market on the app's own grid, coloured by return | Layout not documented; no geographic map artwork; 24 markets |
 | `INDEXFUTURES` | WEIF index futures | Partial: US index futures and model fair value | No global futures/depth/settlement/roll coverage |
 | `CONTRIB` | MOV index contribution | Partial: Dow point contribution; local-universe proxies elsewhere | No full licensed constituent/weight/history dataset for other indices |
 | `HEATMAP` | IMAP market map | Partial: local-universe sector map | Not complete exchange/index membership; no global drill-down field catalogue |
@@ -74,6 +77,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `VWAP` | VWAP analysis | Model: bar-based VWAP/TWAP and buckets | Not transaction-level exchange VWAP or an execution algorithm |
 | `FXMATRIX` | FXC cross-currency monitor | Partial: derived cross rates | Not simultaneous dealer bid/ask crosses or an executable FX marketplace |
 | `FXRANK` | WCRS currency ranking | Partial: supplied USD pair returns | No exhaustive currency universe or forward/hedged ranking |
+| `CURRENCYRATES` | WCR world currency rates | Partial: every carried currency against a chosen base, by region and in a basket | Mid rates through the dollar; no dealer quotes, forwards or full currency universe |
 | `CRYPTO` | Digital asset monitor | Partial: ten Kraken USD pairs and CoinGecko reference fields | One exchange, small universe; no consolidated liquidity, derivatives or custody |
 | `FXFORWARD` | FRD forwards | Model: simple-rate CIP outrights/points and spot-settlement PV | No dealer quotes, cross-currency basis, calendars or full valuation-to-spot discounting |
 | `FXOPTION` | OVML FX option analysis | Model: European Garman-Kohlhagen and manual scenarios | No observed smile/surface, premium-adjusted delta conventions, exotics or dealer liquidity |
@@ -84,10 +88,13 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `RATEPROBS` | WIRP policy expectations | Model: Fed path inferred from futures | Fed only; not all central banks or a probability guarantee |
 | `SWAPCALC` | SWPM swap valuation | Model: dual-curve forward-start common-frequency fixed/float | No past fixings, OIS compounding, calendars, leg-specific schedules, collateral/XVA or live dealer curves |
 | `CENTRALBANKS` | CENB central-bank monitor | Partial: selected official rates/calendars | Limited countries; some calendar dates maintained manually |
+| `RATEANALYSIS` | CBRT central bank rate analysis (name only) | Partial: each bank's moves over about four years, each with its meeting | Implied paths only for the Fed (`RATEPROBS`); eight banks |
+| `ECBPORTAL`, `BOEPORTAL`, `BOJPORTAL` | ECB, BOE, BOJ bank portals (listed with FED) | Partial: policy rate and last move from each bank's data, next decision, overnight benchmark, announcements, pages | The BoJ guideline is in its statements, not the API; no balance sheets or speeches search |
 | `BONDSEARCH` | SRCH fixed-income search | Unavailable for real bond datasets | Needs a connected issue master, ratings, outstanding amounts and permitted prices; browser model excluded |
 | `DEBTPROFILE` | DDIS issuer debt | Unavailable for real issue-level debt | Needs issue/maturity/outstanding datasets; browser model excluded |
 | `DEALERQUOTES` | ALLQ bond quote montage | Unavailable for dealer data | Needs licensed/contributed dealer quotes; browser dealers are fictional |
 | `COMMODITIES` | GLCO commodity monitor | Partial: selected front futures | No global physical pricing, curves, inventories, shipping or exchange depth |
+| `OILMARKET`, `NATURALGAS`, `METALS`, `AGRICULTURE` | OIL, GAS, MINE, AGS sector pages | Partial: the sector's front-month futures and relative measures with their year's range | No inventories (EIA key not set up), physical prices, shipping or seasonality |
 | `MACRO` | Macro data dashboard | Partial: FRED levels and selected first-release vintages | Not a full economics database or point-in-time research platform |
 | `RELEASES` | ECO economic calendar | Partial: FRED dates/actual/prior and bank decisions | No consensus survey, release-time coverage or global surprise monitoring |
 | `ECONSTATS` | ECST world economics | Partial: selected countries/official statistics | Coverage/frequencies/revisions incomplete; Japan CPI not connected |
