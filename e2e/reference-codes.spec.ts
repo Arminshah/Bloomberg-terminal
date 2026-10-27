@@ -464,3 +464,29 @@ test('WCR gives every currency against a base by region, and keeps a basket of y
   await expect(panel.getByLabel('Base currency')).toHaveValue('EUR');
   expect(errors).toEqual([]);
 });
+
+test('WEIS ranks the indices by return over a period, in their own currency or one, and WM maps them', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'WEIS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('INDEXRANKING');
+  const table = panel.getByTestId('weis-table');
+  await panel.getByRole('button', { name: /YTD$/ }).click();
+  // Ranked highest first.
+  const values = async () => (await table.locator('tbody tr td:nth-child(6)').allInnerTexts()).map((s) => Number(s.replace(/[%+,]/g, ''))).filter(Number.isFinite);
+  await expect.poll(async () => (await values()).length).toBeGreaterThan(20);
+  const v = await values();
+  expect(v).toEqual([...v].sort((a, b) => b - a));
+  await expect(table.locator('tbody tr').first().locator('td').first()).toHaveText('1');
+  // In dollars the ranking changes with the currencies; Asia-Pacific alone lists its own.
+  await panel.getByLabel('Return currency').selectOption('USD');
+  await panel.getByLabel('Region').selectOption('Asia/Pacific');
+  await expect(table).toContainText('NIKKEI');
+  await expect(table).not.toContainText('DAX');
+  await run(page, 'WM');
+  await expect(panel.locator('.fnh-code')).toHaveText('WORLDMAP');
+  await expect(panel.getByTestId('wm-grid').locator('.wm-tile')).toHaveCount(24);
+  await panel.getByRole('button', { name: /^Japan NIKKEI / }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('CHART');
+  expect(errors).toEqual([]);
+});

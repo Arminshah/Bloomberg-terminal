@@ -107,6 +107,9 @@ export const LEGACY_CODES: Record<string, string> = {
   AGS: 'AGRICULTURE',
   // World Currency Rates (2020 Quick Start; Michigan's currencies guide).
   WCR: 'CURRENCYRATES',
+  // World Equity Index Rankings and the World Equity Markets Map (2020 Quick Start, names only).
+  WEIS: 'INDEXRANKING',
+  WM: 'WORLDMAP',
   ECO: 'RELEASES',
   ECST: 'ECONSTATS',
   ECMX: 'ECONSTATS',
@@ -151,10 +154,10 @@ export const LEGACY_CODES: Record<string, string> = {
  */
 /**
  * Mnemonics that are also US tickers (Bio-Techne, Hecla Mining, the iShares consumer discretionary fund, Electronic
- * Arts, FLEX LNG). Followed by US they name the stock, as "TECH US DES"; on their own or before anything else, the
+ * Arts, FLEX LNG, Waste Management). Followed by US they name the stock, as "TECH US DES"; on their own or before anything else, the
  * function.
  */
-export const TICKER_MNEMONICS = new Set(['TECH', 'HL', 'IYC', 'EA', 'FLNG', 'BILL']);
+export const TICKER_MNEMONICS = new Set(['TECH', 'HL', 'IYC', 'EA', 'FLNG', 'BILL', 'WM']);
 
 export const CHART_STYLES: Record<string, string> = { GPO: 'BAR', GPC: 'CANDLE', RSI: 'RSI', MACD: 'MACD', BOLL: 'BOLL' };
 

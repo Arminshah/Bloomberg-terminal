@@ -40,6 +40,7 @@ import { YAS } from '../functions/YAS';
 import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
 import { AGS, GAS, MINE, OIL } from '../functions/CMDSECTOR';
 import { WCR } from '../functions/WCR';
+import { WEIS, WM } from '../functions/WORLDEQ';
 import { ECO, ECST } from '../functions/ECO';
 import { MACRO } from '../functions/MACRO';
 import { OMON, OVME } from '../functions/OPTIONS';
@@ -148,6 +149,8 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'BREAKING', name: 'Breaking News', category: 'News', desc: 'The newest stories from every news source, the official announcements and your favourites\' news, with their age: last hour, 4 hours, 24 hours, favourites or watchlist. NEW marks the last 15 minutes; refreshed every 1 to 3 minutes while open.', component: BREAKING, aliases: ['FIRST', 'BN', 'BREAK'], example: 'BREAKING FAV' },
   // Markets
   { code: 'MARKET', name: 'World Equity Indices', category: 'Markets', desc: 'Major equity indices by region with net and percent change, YTD in local currency and USD, intraday sparkline.', component: WEI, aliases: ['INDICES'], example: 'MARKET US' },
+  { code: 'INDEXRANKING', name: 'World Equity Index Rankings', category: 'Markets', desc: "MARKET's indices ranked by price return over a day, a week, a month, three months, the year to date or a year, in each index's own currency or in USD, EUR, GBP, JPY or CHF, by region.", component: WEIS },
+  { code: 'WORLDMAP', name: 'World Equity Markets Map', category: 'Markets', desc: "One main index per market on a grid laid out like the world, coloured by its price return over the period chosen, in its own currency or one currency; a tile opens the index's chart.", component: WM },
   { code: 'INDEXFUTURES', name: 'World Index Futures', category: 'Markets', desc: 'Front equity index futures with basis, fair value and premium or discount to fair value.', component: WEIF },
   { code: 'CONTRIB', name: 'Index Movers', category: 'Markets', desc: 'What moved an index today: members in index points for the Dow, and for other indices the app\'s stocks in that market by change in market value, with advancers and decliners.', component: MOV, example: 'CONTRIB SPX' },
   { code: 'INDEXLIST', name: 'Index Directory', category: 'Markets', desc: 'The indices the app follows by region: what each is, its country and currency, today\'s move, and its members where the app lists them.', component: IN },

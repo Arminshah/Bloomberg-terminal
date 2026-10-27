@@ -1599,3 +1599,13 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .rb-fill { position: absolute; top: 0; height: 3px; background: var(--amber); }
 .rb-mark { position: absolute; top: -5px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid var(--white); transform: translateX(-4px); }
 
+
+/* WM: the world equity markets map, a grid of tiles laid out roughly as the markets lie. */
+.wm-grid { display: grid; gap: 4px; padding: 8px; }
+.wm-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 64px; padding: 4px 2px; border: 1px solid rgba(0, 0, 0, 0.5); color: #fff; cursor: pointer; font: inherit; text-shadow: 0 0 2px rgba(0, 0, 0, 0.7); }
+.wm-tile:hover, .wm-tile:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+.wm-cc { font-weight: 600; font-size: var(--fs-lg, 14px); }
+.wm-ix { font-size: 10px; opacity: 0.9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.wm-pct { font-weight: 600; }
+.wm-legend { display: flex; justify-content: center; gap: 0; padding: 0 8px 6px; }
+.wm-legend span { min-width: 64px; text-align: center; padding: 1px 4px; color: #fff; font-size: 11px; text-shadow: 0 0 2px rgba(0, 0, 0, 0.7); }

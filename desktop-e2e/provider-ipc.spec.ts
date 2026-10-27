@@ -988,6 +988,20 @@ test("WCR gives each currency's rate a dollar from Yahoo's quote of it, inverted
   await expect(page.locator('.panel').first().locator('.note')).toContainText('Yahoo');
 });
 
+test("WEIS ranks the indices by their year-to-date return from each one's own closes", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'WEIS', 'INDEXRANKING');
+  const panel = page.locator('.panel').first();
+  await panel.getByRole('button', { name: /YTD$/ }).click();
+  const cells = panel.getByTestId('weis-table').locator('tbody tr td:nth-child(6)');
+  // Every fixture index has the same recorded closes and trades at 123.45 now, so every return is the same figure.
+  await expect.poll(async () => new Set((await cells.allInnerTexts()).filter((s) => s !== '--')).size, { timeout: 30_000 }).toBe(1);
+  expect((await cells.allInnerTexts())[0]).toMatch(/^[+-]\d+\.\d\d%$/);
+});
+
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
