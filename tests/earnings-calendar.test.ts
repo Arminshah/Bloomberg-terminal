@@ -122,9 +122,12 @@ describe('the market earnings calendar', () => {
   it('asks for the days and the year- and quarter-earlier windows around them', () => {
     expect(daysBetween('2026-10-30', '2026-11-02')).toEqual(['2026-10-30', '2026-10-31', '2026-11-01', '2026-11-02']);
     expect(historyWindows('2026-10-06', '2026-11-03')).toEqual([['2025-09-30', '2025-11-11'], ['2026-06-30', '2026-08-11']]);
-    // 52 and 13 weeks before each day up to today first, then a day further each way, up to a week; nothing for coming days.
+    // 52 and 13 weeks before each day up to today first, the latest day's first, then a day further each way, up to a
+    // week; nothing for coming days.
     const days = historyDays('2026-10-19', '2026-10-25', '2026-10-20');
-    expect(days.slice(0, 4)).toEqual(['2025-10-20', '2025-10-21', '2026-07-20', '2026-07-21']);
+    expect(days.slice(0, 4)).toEqual(['2025-10-21', '2025-10-20', '2026-07-21', '2026-07-20']);
+    // In a season of five weeks, the latest report's year-earlier day is asked first, not after a month of others.
+    expect(historyDays('2026-09-21', '2026-10-27', '2026-10-27')[0]).toBe('2025-10-28');
     expect(new Set(days).size).toBe(days.length);
     expect(days).toContain('2025-10-13');
     expect(historyDays('2026-10-21', '2026-10-30', '2026-10-20')).toEqual([]);

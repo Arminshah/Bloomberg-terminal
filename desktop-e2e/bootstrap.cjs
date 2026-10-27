@@ -405,7 +405,9 @@ net.fetch = async (input, init) => {
       : !fixtures.marketCalendar ? null
       : date === shift(-8) ? [mmm(0, '$2.50'), { eps: '($0.17)', surprise: 'N/A', time: 'time-not-supplied', symbol: 'TINY', name: 'Tiny Synthetic Corp', marketCap: '$410,000,000', fiscalQuarterEnding: quarterEnd(0).label, epsForecast: '', noOfEsts: 'N/A' }]
         : date === shift(1) ? [{ lastYearRptDt: '10/29/2025', lastYearEPS: '$7.25', time: 'time-after-hours', symbol: 'META', name: 'Meta Platforms, Inc.', marketCap: '$1,807,009,840,000', fiscalQuarterEnding: quarterEnd(0).label, epsForecast: '$6.54', noOfEsts: '11' }]
-          : date === shift(-373) ? [mmm(4, '$2.19')]
+          // 52 weeks before the report, the same weekday: the app asks the year-ago calendar for that day and the
+          // days around it, never a weekend (373 days fell on a Sunday whenever the report was on a Monday).
+          : date === shift(-372) ? [mmm(4, '$2.19')]
             : date === shift(-100) ? [mmm(1, '$2.40')]
               : null;
     return json(rows ? { data: { rows }, status: { rCode: 200 } } : { data: null, message: null, status: { rCode: 200, bCodeMessage: [{ code: 1002, errorMessage: 'Earnings Calendar: No record found.' }] } });
@@ -416,7 +418,7 @@ net.fetch = async (input, init) => {
     const to = url.searchParams.get('to');
     return json([
       { symbol: 'MMM', date: shift(-8), epsActual: 2.5, epsEstimated: 2.38, revenueActual: 6.584e9, revenueEstimated: 6.61e9 },
-      { symbol: 'MMM', date: shift(-373), epsActual: 2.19, epsEstimated: 2.1, revenueActual: 6.33e9, revenueEstimated: 6.3e9 },
+      { symbol: 'MMM', date: shift(-372), epsActual: 2.19, epsEstimated: 2.1, revenueActual: 6.33e9, revenueEstimated: 6.3e9 },
       { symbol: 'MMM', date: shift(-100), epsActual: 2.4, epsEstimated: 2.3, revenueActual: 6.52e9, revenueEstimated: 6.4e9 },
     ].filter((r) => r.date >= from && r.date <= to));
   }

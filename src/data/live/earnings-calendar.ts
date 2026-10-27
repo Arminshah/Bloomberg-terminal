@@ -610,12 +610,13 @@ export function historyWindows(from: string, to: string): [string, string][] {
 /**
  * The days on which a window's reported quarters were most likely reported a year and a quarter earlier: 52 and 13
  * weeks before each day up to today first (companies tend to keep their weekday), then a day further each way, up to
- * a week.
+ * a week. The latest reports' days come first, as the window's own days do: a long season's last week waited behind
+ * its first.
  */
 export function historyDays(from: string, to: string, today: string): string[] {
   const last = to < today ? to : today;
   if (last < from) return [];
-  const reported = daysBetween(from, last);
+  const reported = daysBetween(from, last).reverse();
   const out = new Set<string>();
   for (let off = 0; off <= 7; off++) {
     for (const sign of off ? [-1, 1] : [0]) {
