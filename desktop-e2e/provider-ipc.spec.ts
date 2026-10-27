@@ -532,6 +532,9 @@ test("RELS lists the tickers the SEC files under a company and its share class's
   await expect(abroad.locator('tbody tr', { hasText: 'Mexico' })).toContainText('GOOGL*');
   // Only each country's composite line: fifteen of them.
   await expect(abroad.locator('tbody tr')).toHaveCount(15);
+  // DES shows the US line's FIGI beside the name, as the terminal's page does (seen on a February 2026 screenshot).
+  await command(page, 'GOOGL US DES', 'PROFILE');
+  await expect(panel.locator('.des-figi')).toHaveText('FIGI BBG009S39JX6', { timeout: 30_000 });
 });
 
 test('ECOW charts a FRED series with its latest values, and adds a series found by a search', async ({ desktop: { app, page } }) => {
@@ -1824,4 +1827,3 @@ test('in the evening the watchlist shows after-hours live and the morning\'s pre
   await expect(await cell('Pre-mkt')).toHaveText('N/A');
   await expect((await cell('Pre-mkt')).locator('span')).toHaveAttribute('title', /next pre-market opens at 04:00 New York time/);
 });
-

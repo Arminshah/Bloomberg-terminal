@@ -13,6 +13,7 @@ import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings
 import { desktopData } from '../data/live/yahoo';
 import { fundVersion, getRealFund, useFundamentalsFor, type RealFund } from '../data/live/yfund';
 import { secAvailable, secTicker, useSecLoad } from '../data/live/sec';
+import { useFigiListings } from '../data/live/related';
 import { loadInsiders, summarize } from '../data/live/insiders';
 import { wantShares } from '../data/live/shares';
 import { usePeers } from '../data/live/peers';
@@ -170,6 +171,9 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const lastDiv = divs.find((d) => d.ex <= today && Number.isFinite(d.amount));
   const nextDiv = divs.filter((d) => d.ex > today).sort((a, b) => a.ex - b.ex)[0];
   const daily = engine.daily(sec.id);
+  // The US listing's FIGI beside the name, as the terminal's page shows it (OpenFIGI, desktop app, US stocks).
+  const figiAnswer = useFigiListings(engine.realOnly && sec.country === 'US' ? secTicker(sec) : null);
+  const figi = figiAnswer?.listings.find((l) => l.exchCode === 'US')?.figi;
   const ytd = periodChange(sec.id, 'YTD');
   const ytdAbs = q && Number.isFinite(ytd) ? q.last - q.last / (1 + ytd / 100) : NaN;
   const totRet = totalReturn1Y(sec);
@@ -219,6 +223,13 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
     <>
       <div className="des-head">
         <span className="des-name">{sec.name.toUpperCase()}</span>
+        {figi && (
+          <span className="des-figi" title="Financial Instrument Global Identifier of the US listing, from OpenFIGI">
+            <span className="amber">FIGI</span> <span className="white">{figi}</span>
+          </span>
+        )}
+      </div>
+      <div className="des-head">
         <span className="des-class">
           <span className="amber">Classification</span> <span className="white">{eq.industry || eq.sector || '--'}</span>
         </span>
@@ -265,7 +276,8 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
           <Box n={9} title="Estimates" fn="EARNINGS" sec={sec}>
             <KV
               items={[
-                ['Date', ne ? <span key="d">{ne.approx ? <span className="muted">(E) </span> : <span className="muted">(C) </span>}{fmtEarnDate(ne)}</span> : '--'],
+                // As the terminal writes it: the session, then (C) for a confirmed date or (E) for an expected one.
+                ['Date', ne ? <span key="d">{ne.timing && ne.timing !== '--' ? `${ne.timing} ` : ''}<span className="muted">{ne.approx ? '(E) ' : '(C) '}</span>{fmtEarnDate(ne, false)}</span> : '--'],
                 ['P/E', peText(ks.pe, ks.epsLtm)],
                 [`Est P/E${fy ? ` ${fyLabel(fy.date)}` : ''}`, fy && Number.isFinite(fy.epsAvg) && fy.epsAvg <= 0 ? <span key="n" title="Not meaningful: the year's EPS estimate is a loss">NM</span> : fmtNum(estPe, 2)],
                 [`T12M EPS (${ccy})`, `${fmtNum(ks.epsLtm, 2)}${financials(sec).ltm?.epsComputed ? ' (computed)' : ''}`],

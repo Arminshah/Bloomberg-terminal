@@ -795,6 +795,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .des-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 4px 8px 0; }
 .des-name { color: var(--cyan); font-weight: 600; letter-spacing: 0.02em; }
 .des-class { margin-left: auto; color: var(--amber); }
+.des-figi { margin-left: auto; }
 .des-desc { margin: 0; padding: 4px 8px 6px; color: var(--amber); font-family: var(--sans); font-size: var(--fs); line-height: 1.45; }
 /* The terminal shows three lines of the description, then "… More". */
 .des-desc.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; padding-bottom: 0; }
