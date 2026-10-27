@@ -91,6 +91,17 @@ export function percentile(xs: number[], p: number): number {
   return s[lo] + (s[hi] - s[lo]) * (idx - lo);
 }
 
+/**
+ * Where a value ranks in a set that holds it, as Excel's PERCENTRANK.INC: the share of the other values below it,
+ * (values below) / (count − 1), from 0 (the lowest) to 1 (the highest); equal values share a rank. NaN for a value
+ * not in the set or a set of one. Values that are not finite are left out.
+ */
+export function percentRank(xs: readonly number[], v: number): number {
+  const s = xs.filter((x) => Number.isFinite(x));
+  if (!Number.isFinite(v) || s.length < 2 || !s.includes(v)) return NaN;
+  return s.filter((x) => x < v).length / (s.length - 1);
+}
+
 export function median(xs: number[]): number {
   return percentile(xs.filter((x) => Number.isFinite(x)), 0.5);
 }

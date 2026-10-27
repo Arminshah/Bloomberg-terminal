@@ -580,3 +580,25 @@ test('EE is the earnings and estimates page: its boxes open the screens with the
   await expect(panel.locator('.fnh-code')).toHaveText('EARNINGS');
   expect(errors).toEqual([]);
 });
+
+test("PEERS ranks the loaded stock among its peers on each figure, as the table's own figures give", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL PEERS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
+  const rank = panel.getByTestId('rv-rank');
+  await expect(rank).toContainText('percentile among peers');
+  // The P/E column: the subject's rank is the share of the others with a lower P/E.
+  const headers = await panel.locator('thead th').allTextContents();
+  const col = headers.findIndex((h) => h.trim().startsWith('P/E'));
+  expect(col).toBeGreaterThan(0);
+  const data = panel.locator('tbody:not(.tbl-summary) tr');
+  const values = (await data.locator(`td:nth-child(${col + 1})`).allTextContents()).map((t) => Number(t.replace(/,/g, '')));
+  const finite = values.filter((v) => Number.isFinite(v) && v > 0);
+  const subject = Number((await data.filter({ hasText: 'AAPL US' }).first().locator(`td:nth-child(${col + 1})`).textContent())?.replace(/,/g, ''));
+  const expected = Math.round((finite.filter((v) => v < subject).length / (finite.length - 1)) * 100);
+  const cells = rank.locator('td');
+  // The rank row's first cell spans the five columns before P/E.
+  await expect(cells.nth(col - 4)).toHaveText(String(expected));
+  expect(errors).toEqual([]);
+});

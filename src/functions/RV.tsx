@@ -11,7 +11,7 @@ import { fmtBig, fmtNum } from '../core/format';
 import { useTick } from '../data/market';
 import { marketCapUsd, periodChange } from '../data/analytics';
 import { financials, keyStats, peers } from '../data/fundamentals';
-import { median } from '../finance/stats';
+import { median, percentRank } from '../finance/stats';
 import type { SecurityDef } from '../data/types';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -125,10 +125,17 @@ export function RV({ sec }: FnProps) {
     num('ytd', 'YTD %', 1, true),
     num('y1', '1Y %', 1, true),
   ];
+  const metrics = ['pe', 'pb', 'evEbitda', ...(rows.some((r) => Number.isFinite(r.dy)) ? ['dy'] : []), 'roe', 'margin', 'ytd', 'y1'] as (keyof Row)[];
+  // The loaded security's percentile rank on each figure among itself and its peers (NM and missing left out).
+  const ranks = metrics.map((k) => {
+    const xs = rows.map((r) => r[k] as number).filter(Number.isFinite);
+    const v = rows[0]?.[k] as number;
+    return { k, pr: percentRank(xs, v), below: xs.filter((x) => x < v).length, of: xs.length };
+  });
   const stat = (f: (xs: number[]) => number, label: string) => (
     <tr className="group">
       <td colSpan={5}>{label}</td>
-      {(['pe', 'pb', 'evEbitda', ...(rows.some((r) => Number.isFinite(r.dy)) ? ['dy'] : []), 'roe', 'margin', 'ytd', 'y1'] as (keyof Row)[]).map((k) => {
+      {metrics.map((k) => {
         const xs = rows.slice(1).map((r) => r[k] as number).filter(Number.isFinite);
         return (
           <td key={k} className="num">
@@ -138,7 +145,15 @@ export function RV({ sec }: FnProps) {
       })}
     </tr>
   );
-  const csv = () => [['Ticker', 'Name', 'Mkt cap USD', 'EV USD', 'P/E', 'P/B', 'EV/EBITDA', 'Div yld 12M', 'ROE', 'Net margin', 'YTD %', '1Y %'], ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), Number.isFinite(r.ev) ? Math.round(r.ev) : '', r.pe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v)))];
+  const rankOf = (k: keyof Row) => {
+    const r = ranks.find((x) => x.k === k);
+    return r && Number.isFinite(r.pr) ? Math.round(r.pr * 100) : '';
+  };
+  const csv = () => [
+    ['Ticker', 'Name', 'Mkt cap USD', 'EV USD', 'P/E', 'P/B', 'EV/EBITDA', 'Div yld 12M', 'ROE', 'Net margin', 'YTD %', '1Y %'],
+    ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), Number.isFinite(r.ev) ? Math.round(r.ev) : '', r.pe, r.pb, r.evEbitda, r.dy, r.roe, r.margin, r.ytd, r.y1].map((v) => (typeof v === 'number' ? Number(v.toFixed(3)) : v))),
+    [`${s.ticker} percentile among peers`, '', '', '', rankOf('pe'), rankOf('pb'), rankOf('evEbitda'), rankOf('dy'), rankOf('roe'), rankOf('margin'), rankOf('ytd'), rankOf('y1')],
+  ];
   return (
     <div>
       <FnHeader code="PEERS" title="Relative Valuation" sec={s} sub={
@@ -187,6 +202,16 @@ export function RV({ sec }: FnProps) {
           <>
             {stat((xs) => xs.reduce((a, b) => a + b, 0) / xs.length, 'Peer average (excl. subject)')}
             {stat(median, 'Peer median (excl. subject)')}
+            <tr className="group" data-testid="rv-rank">
+              <td colSpan={5} title="Where the loaded security ranks among itself and its peers on each figure: 0 the lowest, 100 the highest (Excel's PERCENTRANK.INC)">
+                {s.ticker} percentile among peers
+              </td>
+              {ranks.map((r) => (
+                <td key={r.k} className="num" title={Number.isFinite(r.pr) ? `${r.below} of the ${r.of - 1} others are lower` : 'No figure for the loaded security, or no peer to compare'}>
+                  {Number.isFinite(r.pr) ? fmtNum(r.pr * 100, 0) : ''}
+                </td>
+              ))}
+            </tr>
           </>
         }
       />
@@ -194,7 +219,7 @@ export function RV({ sec }: FnProps) {
         {desktopData()
           ? `Peers: for a US-listed stock the companies Finviz lists as its peers, with ·similar the stocks Yahoo Finance links to it both ways; otherwise companies in ${s.name}'s own industry as Yahoo's company profiles name it (Finnhub's sub-industry with FINNHUB_API_KEY, the app's own stocks, Yahoo's similar stocks), largest first. EV is market value plus net debt, preferred stock and minority interest from the latest balance sheet; a part the source does not list adds nothing, and an EV's parts show on hover. Banks have none. NM: not meaningful (P/E on a loss, P/B and ROE on negative equity, EV/EBITDA on negative EBITDA). Averages and medians leave the loaded security and NM out. `
           : ''}
-        Highlighted row is the loaded security. Click a ticker to open it; shift-click opens it in the next panel.
+        Highlighted row is the loaded security; its percentile ranks it among itself and the peers with a figure, 0 the lowest and 100 the highest (Excel&apos;s PERCENTRANK.INC). Click a ticker to open it; shift-click opens it in the next panel.
       </div>
     </div>
   );
