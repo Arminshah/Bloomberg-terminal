@@ -38,6 +38,7 @@ import { EQS } from '../functions/EQS';
 import { BTMM, GC, WB, WBMV, WIRP } from '../functions/RATES';
 import { YAS } from '../functions/YAS';
 import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
+import { AGS, GAS, MINE, OIL } from '../functions/CMDSECTOR';
 import { ECO, ECST } from '../functions/ECO';
 import { MACRO } from '../functions/MACRO';
 import { OMON, OVME } from '../functions/OPTIONS';
@@ -192,6 +193,10 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'DEALERQUOTES', name: 'All Quotes', category: 'Rates & Credit', needsSec: true, classes: ['bond'], desc: 'Dealer quote montage for a bond with best bid and offer, yields and sizes (browser model; dealer quotes have no free source).', component: ALLQ, unavailable: 'dealer quotes have no free source' },
   // Commodities
   { code: 'COMMODITIES', name: 'Global Commodities', category: 'Commodities', desc: 'Energy, metals, grains, softs and livestock futures with changes, YTD and intraday.', component: GLCO },
+  { code: 'OILMARKET', name: 'Oil', category: 'Commodities', desc: 'The oil page: WTI, Brent, heating oil and gasoline futures, the Brent-WTI spread and two crack spreads with their year\'s range, curves and news.', component: OIL },
+  { code: 'NATURALGAS', name: 'Natural Gas', category: 'Commodities', desc: 'The natural gas page: Henry Hub futures, the crude to gas ratio with its year\'s range, the curve and news.', component: GAS },
+  { code: 'METALS', name: 'Metals & Mining', category: 'Commodities', desc: 'Precious and base metal futures, the gold to silver and gold to platinum ratios with their year\'s range, curves and news.', component: MINE },
+  { code: 'AGRICULTURE', name: 'Agriculture', category: 'Commodities', desc: 'Grain, soft and livestock futures, the soybean to corn ratio and the wheat-corn spread with their year\'s range, curves and news.', component: AGS },
   { code: 'FUTURESCURVE', name: 'Commodity Forward Curves', category: 'Commodities', desc: "A commodity's forward curve: every listed contract month with its own price and expiry, the curve a week and a month ago from each contract's closes, the change, the spread to the front month, open interest and volume, and whether the curve is in contango or backwardation (Yahoo Finance, desktop app).", component: CCRV, example: 'CL1 COMDTY FUTURESCURVE' },
   { code: 'CONTRACTS', name: 'Exchange Contracts', category: 'Commodities', desc: "The futures the app carries (commodities, rate and equity index futures), found by sector, exchange or name, with each contract's size or multiplier, price unit or tick and listed months, and in the desktop app Yahoo's front month with its expiry, price, change and open interest. A commodity opens on its forward curve.", component: CTM, example: 'CONTRACTS CRUDE' },
   // Economics

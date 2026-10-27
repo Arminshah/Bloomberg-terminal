@@ -405,3 +405,32 @@ test("the watchlist's layout: changes, both extended sessions, volumes, YTD and 
   expect(errors).toEqual([]);
 });
 
+
+test('OIL, GAS, MINE and AGS gather their sector: contracts, measures worked out from them, curves and news', async ({ page }) => {
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  await run(page, 'OIL');
+  await expect(panel.locator('.fnh-code')).toHaveText('OILMARKET');
+  await expect(panel.getByTestId('sector-contracts').locator('tbody tr')).toHaveCount(4);
+  const spread = panel.getByTestId('sector-measures').locator('tbody tr', { hasText: 'Brent − WTI spread' });
+  // The spread is the two contracts' own prices, as shown above it.
+  const price = async (ticker: string) => Number((await panel.getByTestId('sector-contracts').locator('tbody tr', { hasText: ticker }).locator('td').nth(2).innerText()).replace(/,/g, ''));
+  await expect.poll(async () => Number((await spread.locator('td').nth(1).innerText()).replace(/,/g, ''))).toBeCloseTo((await price('CO1')) - (await price('CL1')), 1);
+  await expect(spread.locator('td').nth(3)).not.toHaveText('--');
+  await expect(panel).toContainText("the app needs its free key for them (NGAS)");
+  await panel.getByRole('button', { name: 'WTI Crude futures curve', exact: true }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('FUTURESCURVE');
+  await run(page, 'GAS');
+  await expect(panel.locator('.fnh-code')).toHaveText('NATURALGAS');
+  await expect(panel.getByTestId('sector-contracts').locator('tbody tr')).toHaveCount(1);
+  await expect(panel.getByTestId('sector-measures')).toContainText('Crude to gas ratio');
+  await run(page, 'MINE');
+  await expect(panel.locator('.fnh-code')).toHaveText('METALS');
+  await expect(panel.getByTestId('sector-measures')).toContainText('Gold to silver ratio');
+  await run(page, 'AGS');
+  await expect(panel.locator('.fnh-code')).toHaveText('AGRICULTURE');
+  await expect(panel.getByTestId('sector-contracts').locator('tbody tr')).toHaveCount(9);
+  await panel.locator('tbody tr', { hasText: 'Agriculture news' }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('NEWS');
+  expect(errors).toEqual([]);
+});

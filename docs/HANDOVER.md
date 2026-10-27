@@ -4,7 +4,7 @@ For the Claude session that takes over Armin Terminal on the owner's other accou
 
 ## The project
 
-- **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 119 functions.
+- **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 123 functions.
 - **Repository**: `Arminshah/Bloomberg-terminal`, public again since 27 October (the owner opened it for the handover), so GitHub runs CI on every push and can build releases. If it is made private again, GitHub starts no runner (the `test` job fails in 3 seconds with no log): then check everything locally before each push, and ask the owner to check Settings → Billing → Actions before a release.
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
 - **Last release**: 2.26.0 (tag `v2.26.0`, 26 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.26.0.md`.

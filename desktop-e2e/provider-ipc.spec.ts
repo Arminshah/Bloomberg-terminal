@@ -958,6 +958,21 @@ test("PORTFOLIO's transactions put shares bought before a split on today's basis
   expect(calls).toContain('/service/data/EXR/D..EUR.SP00.A?format=csvdata&startPeriod=2026-06-19&endPeriod=2026-06-29');
 });
 
+test('MINE works out the gold to silver ratio from the two contracts\' own prices and the closes both share', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'MINE', 'METALS');
+  const panel = page.locator('.panel').first();
+  const ratio = panel.getByTestId('sector-measures').locator('tbody tr', { hasText: 'Gold to silver ratio' });
+  // Every fixture contract trades at 123.45 on the same recorded closes, so the ratio is 1 now and all year.
+  await expect(ratio.locator('td').nth(1)).toHaveText('1.00', { timeout: 30_000 });
+  await expect(ratio.locator('td').nth(3)).toHaveText('1.00', { timeout: 30_000 });
+  await expect(ratio.locator('td').nth(4)).toHaveText('1.00');
+  await expect(panel.getByTestId('sector-contracts').locator('tbody tr', { hasText: 'GC1' }).locator('td').nth(2)).toContainText('123.5');
+});
+
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;

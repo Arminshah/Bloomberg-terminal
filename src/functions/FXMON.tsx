@@ -284,7 +284,7 @@ export function CRYP({ sec }: FnProps) {
   );
 }
 
-const GROUPS = ['Energy', 'Precious Metals', 'Base Metals', 'Grains', 'Softs', 'Livestock'];
+export const GROUPS = ['Energy', 'Precious Metals', 'Base Metals', 'Grains', 'Softs', 'Livestock'];
 
 /** Each generic contract's commodity, as the monitor names it. */
 const GLCO_NAMES: Record<string, string> = {
@@ -293,7 +293,7 @@ const GLCO_NAMES: Record<string, string> = {
   'W 1': 'Wheat', 'C 1': 'Corn', 'S 1': 'Soybeans', KC1: 'Coffee', SB1: 'Sugar No. 11', CC1: 'Cocoa', CT1: 'Cotton',
   LC1: 'Live Cattle', LH1: 'Lean Hogs', FC1: 'Feeder Cattle',
 };
-const glcoName = (d: SecurityDef) => GLCO_NAMES[d.ticker] ?? (d.alias?.[0] ? d.alias[0].charAt(0) + d.alias[0].slice(1).toLowerCase() : d.name);
+export const glcoName = (d: SecurityDef) => GLCO_NAMES[d.ticker] ?? (d.alias?.[0] ? d.alias[0].charAt(0) + d.alias[0].slice(1).toLowerCase() : d.name);
 
 export function GLCO(_: FnProps) {
   const panel = usePanelId();

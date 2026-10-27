@@ -100,6 +100,11 @@ export const LEGACY_CODES: Record<string, string> = {
   DDIS: 'DEBTPROFILE',
   ALLQ: 'DEALERQUOTES',
   GLCO: 'COMMODITIES',
+  // The commodity sector pages (2020 Quick Start; Michigan's commodities guide; N05 for OIL).
+  OIL: 'OILMARKET',
+  GAS: 'NATURALGAS',
+  MINE: 'METALS',
+  AGS: 'AGRICULTURE',
   ECO: 'RELEASES',
   ECST: 'ECONSTATS',
   ECMX: 'ECONSTATS',
