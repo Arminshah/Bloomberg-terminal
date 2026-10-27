@@ -64,6 +64,50 @@ export function keepOwnDays(kept: Map<number, ExtBar>, bars: readonly ExtBar[]):
 }
 
 /**
+ * The session's open, high, low and volume across all US venues (Yahoo Finance), for the lines IEX prices. IEX is one
+ * venue: its own volume is a small part of the market's (APLD on 27 October 2026: 892K on IEX, about 15M in all), and
+ * its range only spans the trades made on it. The last price and the quote stay IEX's.
+ */
+export interface ConsolidatedDay {
+  /** The session (day number) the figures are for. */
+  day: number;
+  open: number;
+  high: number;
+  low: number;
+  volume: number;
+  time: number;
+}
+export const CONSOLIDATED_PROVIDER = 'Yahoo Finance · all US venues';
+const consolidated = new Map<string, ConsolidatedDay>();
+/** The session whose minute bars of all venues the chart holds, by line. */
+const consolidatedBars = new Map<string, number>();
+
+export function setConsolidatedDay(id: string, v: ConsolidatedDay) {
+  const old = consolidated.get(id);
+  if (old && old.time >= v.time && old.day === v.day) return;
+  consolidated.set(id, v);
+  for (const f of backfillListeners) f();
+}
+
+/** The chart of a line IEX prices holds the day's minute bars of all venues: IEX's sampled trades no longer replace them. */
+export function setConsolidatedBars(id: string, day: number) {
+  consolidatedBars.set(id, day);
+}
+
+/** IEX's reading with the session's open, range and volume of all venues, when they are for the same session. */
+export function withConsolidatedDay(reading: { bars: ExtBar[]; quote: ExtQuote; stale: boolean }, cons: ConsolidatedDay | undefined): { bars: ExtBar[]; quote: ExtQuote; stale: boolean } {
+  const q = reading.quote;
+  if (!cons || cons.day !== q.day) return reading;
+  const open = positive(cons.open) ? cons.open : q.open;
+  const high = positive(cons.high) ? Math.max(cons.high, q.last) : q.high;
+  const low = positive(cons.low) ? Math.min(cons.low, q.last) : q.low;
+  const volume = nonnegative(cons.volume) ? cons.volume : q.volume;
+  const n = reading.bars.length - 1;
+  const bars = reading.bars.map((b, i) => (i === n && b.day === q.day ? { ...b, o: open ?? b.o, h: high ?? b.h, l: low ?? b.l, v: volume ?? b.v } : b));
+  return { ...reading, bars, quote: { ...q, open, high, low, volume, dayProvider: CONSOLIDATED_PROVIDER, sourceName: `${q.sourceName} · session open, range and volume of all venues: ${CONSOLIDATED_PROVIDER}` } };
+}
+
+/**
  * The snapshot supplies only its previous/current daily bars; earlier days come from
  * withBackfill. Neither the previous close nor today's bar is ever taken from another venue.
  */
@@ -126,8 +170,8 @@ export function startIexPrices(): () => void {
       const state = iex.get().by[symbol];
       if (!state) continue;
       if (state.message) message = state.message;
-      const reading = iexReading(state);
-      if (!reading) {
+      const own = iexReading(state);
+      if (!own) {
         const old = engine.quote(id);
         if (old?.provider === IEX_PROVIDER && (seen.get(id) !== state || freshness.get(id) !== 'unavailable')) {
           seen.set(id, state);
@@ -139,9 +183,10 @@ export function startIexPrices(): () => void {
         continue;
       }
       received++;
+      const reading = withConsolidatedDay(own, consolidated.get(id));
       if (!reading.stale) recent++;
       const earlier = backfill.get(id);
-      const key = `${reading.stale}:${Number.isFinite(reading.quote.bid)}:${Number.isFinite(reading.quote.ask)}:${earlier?.length ?? 0}`;
+      const key = `${reading.stale}:${Number.isFinite(reading.quote.bid)}:${Number.isFinite(reading.quote.ask)}:${earlier?.length ?? 0}:${consolidated.get(id)?.time ?? 0}`;
       if (seen.get(id) === state && freshness.get(id) === key) continue;
       seen.set(id, state);
       freshness.set(id, key);
@@ -163,7 +208,8 @@ export function startIexPrices(): () => void {
       // Sampled observations only: gaps and volume between polls are unknown, never filled candles.
       if (points.length > 5000) points = points.slice(-5000);
       observations.set(id, points);
-      engine.setExternalIntraday(id, points, 5_000, day);
+      // The day's minute bars of all venues, once loaded, stay the chart: the engine moves its last bar with IEX's price.
+      if (consolidatedBars.get(id) !== day) engine.setExternalIntraday(id, points, 5_000, day);
       changed.push(id);
     }
     if (changed.length) engine.flush(changed);

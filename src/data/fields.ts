@@ -65,9 +65,10 @@ export function securityFields(sec: SecurityDef, q: Quote | undefined, now: numb
   };
   market('BID', 'Bid', 'Source bid, when supplied. No size, executable guarantee or consolidated NBBO is inferred.', q?.bid, bbo);
   market('ASK', 'Ask', 'Source offer, when supplied. No size, executable guarantee or consolidated NBBO is inferred.', q?.ask, bbo);
-  market('PX_OPEN', 'Session open', 'Opening level of the session supplied by the provider.', q?.open);
-  market('PX_HIGH', 'Session high', 'High of the source session; the time shown belongs to the source snapshot, not the high event.', q?.high);
-  market('PX_LOW', 'Session low', 'Low of the source session; the time shown belongs to the source snapshot, not the low event.', q?.low);
+  const day = q?.dayProvider ? { source: q.dayProvider } : {};
+  market('PX_OPEN', 'Session open', 'Opening level of the session supplied by the provider.', q?.open, day);
+  market('PX_HIGH', 'Session high', 'High of the source session; the time shown belongs to the source snapshot, not the high event.', q?.high, day);
+  market('PX_LOW', 'Session low', 'Low of the source session; the time shown belongs to the source snapshot, not the low event.', q?.low, day);
   market('PX_PREV_CLOSE', 'Previous close', 'Source previous close, checked against a prior daily bar when available. Unverified bases remain labelled.', q?.prevClose, {
     status: q?.src === 'SIM' ? 'DEMO DATA' : q?.chgCheck === 'verified' ? (q.prevSettle ? 'SETTLEMENT' : 'VERIFIED CLOSE') : 'UNVERIFIED BASE',
     asOf: timestamp(q?.prevCloseDay === undefined ? undefined : q.prevCloseDay * DAY_MS), dateOnly: true,
@@ -82,7 +83,7 @@ export function securityFields(sec: SecurityDef, q: Quote | undefined, now: numb
   market('CHG_NET_1D', 'Day net change', 'Last minus previous close in price units; yield references use percentage points, not basis points.', q?.chg, { unit: sec.quote === 'yield' ? 'percentage points' : sec.ccy, ...change });
   market('CHG_PCT_1D', 'Day percent change', '100 × (last / previous close − 1). This is a relative percent even for a yield reference.', q?.pct, { unit: '%', ...change });
   const volumeUnit = q?.volumeUnit ?? (sec.cls === 'equity' ? 'shares' : sec.cls === 'future' || sec.cls === 'commodity' ? 'contracts' : sec.cls === 'crypto' ? 'base coins' : 'unspecified');
-  market('PX_VOLUME', 'Session volume', 'Volume supplied for the source session and coverage. IEX-only data does not imply market-wide volume.', q?.volume, { unit: volumeUnit });
+  market('PX_VOLUME', 'Session volume', 'Volume supplied for the source session and coverage. IEX-only data does not imply market-wide volume.', q?.volume, { unit: volumeUnit, ...day });
 
   const validBbo = available && Number.isFinite(q?.bid) && Number.isFinite(q?.ask) && q!.bid > 0 && q!.ask >= q!.bid;
   const spread = validBbo ? q!.ask - q!.bid : null;

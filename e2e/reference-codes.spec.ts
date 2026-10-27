@@ -401,6 +401,24 @@ test("the watchlist's layout: changes, both extended sessions, volumes, YTD and 
     const mark = await bars.nth(i).locator('.rb-mark').boundingBox();
     expect(track && mark && mark.x + mark.width / 2 >= track.x - 1 && mark.x + mark.width / 2 <= track.x + track.width + 1).toBe(true);
   }
+  // The ends are white and the price is a white bar across the track (the owner's choice, 27 October 2026).
+  const white = await page.evaluate(() => {
+    const d = document.createElement('span');
+    d.style.color = 'var(--white)';
+    document.body.appendChild(d);
+    const c = getComputedStyle(d).color;
+    d.remove();
+    return c;
+  });
+  const look = await bars.first().evaluate((el) => {
+    const mark = el.querySelector('.rb-mark')!;
+    const r = mark.getBoundingClientRect();
+    return { end: getComputedStyle(el.querySelector('.rb-end')!).color, bar: getComputedStyle(mark).backgroundColor, w: r.width, h: r.height };
+  });
+  expect(look.end).toBe(white);
+  expect(look.bar).toBe(white);
+  expect(look.w).toBeLessThanOrEqual(3);
+  expect(look.h).toBeGreaterThan(8);
   // The day chart, on a dotted line at the previous close.
   await expect(row.getByTestId('day-chart')).toBeVisible();
   await expect(row.getByTestId('day-chart-base')).toHaveAttribute('stroke-dasharray', '1.5 1.5');

@@ -44,6 +44,7 @@ interface Fixtures {
   corpCalendar?: boolean;
   marketShorts?: boolean;
   related?: boolean;
+  consolidatedDay?: boolean;
   fredChart?: boolean;
   futuresCurve?: boolean;
   crudeMonths?: string[];
@@ -1652,6 +1653,25 @@ test('the explicit IEX source switch supplies watchlist and quote prices with on
   await expect(quote.getByText('REAL-TIME', { exact: true })).toBeVisible();
   expect((await calls(app)).alpaca.length).toBeGreaterThan(0);
   for (const url of (await calls(app)).alpaca) expect(new URL(url).searchParams.get('feed')).toBe('iex');
+});
+
+test("with IEX pricing, the watchlist's volume and day range are all US venues' (Yahoo), the last price IEX's", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.consolidatedDay = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await enableIex(page);
+  await command(page, 'WATCHLIST');
+  const panel = page.locator('.panel').first();
+  const row = panel.getByRole('row').filter({ has: page.getByRole('button', { name: 'AAPL US', exact: true }) });
+  const cell = async (label: string) => row.getByRole('cell').nth((await panel.locator('thead th').allTextContents()).findIndex((h) => h.replace(/[▲▼]/g, '').trim() === label));
+  // IEX's last trade; IEX's own volume is 1,000 shares in the fixture, all venues' 15 million.
+  await expect(row.getByRole('cell').nth(2)).toHaveText(PRICE);
+  await expect(await cell('Volume')).toHaveText('15.00M', { timeout: 30_000 });
+  await expect((await cell('Volume')).locator('span[title]')).toHaveAttribute('title', /Yahoo Finance · all US venues/);
+  await expect((await cell('Day Range')).locator('.rb-end')).toHaveText(['119.50', '125.00']);
+  // The day chart is the day's minute bars of all venues, not the few trades IEX was seen at since the window opened.
+  await expect.poll(async () => ((await row.getByTestId('day-chart').locator('path').last().getAttribute('d')) ?? '').split('L').length, { timeout: 30_000 }).toBeGreaterThan(40);
 });
 
 test('a newly fetched IEX snapshot keeps an old trade stale on the main quote and watchlist', async ({ desktop: { app, page } }) => {

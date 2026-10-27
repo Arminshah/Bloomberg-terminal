@@ -312,8 +312,16 @@ net.fetch = async (input, init) => {
       return json({ quoteSummary: { result: [fixtures.profileMissing ? {} : { assetProfile: { industry: 'Synthetic fixture industry' }, summaryDetail: { trailingPE: { raw: 20 } } }], error: null } });
     }
     if (url.pathname.startsWith('/v8/finance/chart/')) {
-      const chart = structuredClone(chartTemplate);
       const symbol = decodeURIComponent(url.pathname.split('/').at(-1));
+      // With fixtures.consolidatedDay, AAPL's minute bars of all venues for the last hour (Yahoo's day chart).
+      if (fixtures.consolidatedDay && symbol === 'AAPL' && url.searchParams.get('interval') === '1m') {
+        const end = Math.floor(Date.now() / 60_000) * 60 - 60;
+        const timestamp = Array.from({ length: 60 }, (_, k) => end - (59 - k) * 60);
+        const close = timestamp.map((_, k) => 120 + 3 * Math.sin(k / 6) + k / 30);
+        fixtures.calls.minuteBars = [...(fixtures.calls.minuteBars ?? []), symbol];
+        return json({ chart: { result: [{ meta: { symbol, currency: 'USD', gmtoffset: -14400, exchangeTimezoneName: 'America/New_York', regularMarketVolume: 15_000_000 }, timestamp, indicators: { quote: [{ open: close, high: close.map((c) => c + 0.1), low: close.map((c) => c - 0.1), close, volume: close.map(() => 250_000) }] } }], error: null } });
+      }
+      const chart = structuredClone(chartTemplate);
       const meta = chart.chart.result[0].meta;
       Object.assign(meta, { symbol, currency: 'USD', exchangeName: 'NMS', instrumentType: 'EQUITY', longName: `Synthetic ${symbol} fixture`, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000) });
       // With fixtures.chartSplits, the splits a symbol's chart lists, as Yahoo lists them: {date, numerator, denominator}, date in seconds.
@@ -350,6 +358,8 @@ net.fetch = async (input, init) => {
         const [price, volume] = WEEK_QUOTES[symbol] ?? [10, (symbol.charCodeAt(2) - 64) * 100000];
         return { regularMarketPrice: price, regularMarketVolume: volume, marketCap: 5e10 };
       })() : {}),
+      // The session's open, range and volume of all US venues, beside IEX's own (consolidatedDay).
+      ...(fixtures.consolidatedDay && symbol === 'AAPL' ? { regularMarketVolume: 15_000_000, regularMarketOpen: 120.5, regularMarketDayHigh: 125, regularMarketDayLow: 119.5, gmtOffSetMilliseconds: -4 * 3_600_000, exchangeTimezoneName: 'America/New_York' } : {}),
       ...(fixtures.extendedHours ? {
         regularMarketPrice: 123.45, regularMarketTime: Date.parse('2026-10-19T20:00:00Z') / 1000,
         preMarketPrice: 125, preMarketTime: Date.parse('2026-10-20T11:55:00Z') / 1000,

@@ -97,6 +97,8 @@ interface ExtData {
   timing: Timing;
   /** The source's own name for its quotes. */
   sourceName?: string;
+  /** Who supplies the session's open, high, low and volume when another source than the last price's does. */
+  dayProvider?: string;
   /** Who supplies this line ("Yahoo Finance", "US Treasury"), shown with every value. */
   provider?: string;
   /** When the app received the latest value (epoch ms). */
@@ -156,6 +158,8 @@ export interface ExtQuote {
   /** What the source says about timing; left as it was when not given. */
   timing?: Timing;
   sourceName?: string;
+  /** Who supplies the session's open, high, low and volume, when not the last price's source. */
+  dayProvider?: string;
   /** When the app received this value (epoch ms); defaults to now. */
   fetched?: number;
 }
@@ -1307,6 +1311,7 @@ export class MarketEngine {
     };
     if (st.ext?.delay) q.delay = st.ext.delay;
     if (st.ext?.sourceName) q.sourceName = st.ext.sourceName;
+    if (st.ext?.dayProvider) q.dayProvider = st.ext.dayProvider;
     if (st.ext?.provider) q.provider = st.ext.provider;
     if (st.ext) {
       if (st.prevCloseDay !== undefined) q.prevCloseDay = st.prevCloseDay;
@@ -1673,6 +1678,7 @@ export class MarketEngine {
       delay: prev?.delay ?? 0,
       timing: prev?.timing ?? 'unknown',
       sourceName: prev?.sourceName,
+      dayProvider: prev?.dayProvider,
       fetched: prev?.fetched ?? Date.now(),
       stale: false,
       extended: prev?.extended,
@@ -1796,6 +1802,7 @@ export class MarketEngine {
     if (q.delay !== undefined) ext.delay = q.delay;
     if (q.timing !== undefined) ext.timing = q.timing;
     if (q.sourceName !== undefined) ext.sourceName = q.sourceName;
+    if (q.dayProvider !== undefined) ext.dayProvider = q.dayProvider || undefined;
     ext.fetched = q.fetched ?? Date.now();
     ext.open = q.marketOpen;
     if (q.sessionKnown !== undefined) ext.sessionKnown = q.sessionKnown;
@@ -1841,11 +1848,11 @@ export class MarketEngine {
   }
 
   /** Replaces the latest session's intraday bars with real ones. */
-  setExternalIntraday(id: string, bars: { t: number; o: number; h: number; l: number; c: number; v: number }[], span: number, day = dayNum(bars[bars.length - 1]?.t ?? 0)) {
+  setExternalIntraday(id: string, bars: { t: number; o: number; h: number; l: number; c: number; v: number }[], span: number, day = dayNum(bars[bars.length - 1]?.t ?? 0)): boolean {
     const st = this.states.get(id);
-    if (!st?.ext || bars.length === 0) return;
+    if (!st?.ext || bars.length === 0) return false;
     // Only bars from the session the line is on; a newer session arrives through quotes first.
-    if (day !== st.ext.session) return;
+    if (day !== st.ext.session) return false;
     const s = makeSeries(bars.length + 512, span);
     bars.forEach((b, i) => {
       s.t[i] = b.t;
@@ -1862,6 +1869,7 @@ export class MarketEngine {
     s.l[s.length - 1] = Math.min(s.l[s.length - 1], st.last);
     st.ext.intra = s;
     this.derivedCache.clear();
+    return true;
   }
 
   /** Derived lines (crosses, futures fair value, bonds) recompute their session when a component's changes. */

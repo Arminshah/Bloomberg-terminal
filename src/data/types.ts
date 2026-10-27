@@ -159,6 +159,8 @@ export interface Quote {
   delay?: number;
   /** The source's own name for the quote ("Nasdaq Real Time Price", "Delayed Quote"). */
   sourceName?: string;
+  /** Who supplies the session's open, high, low and volume when another source than the last price's does. */
+  dayProvider?: string;
   /** Who supplies the line: "Yahoo Finance", "US Treasury", "Deutsche Bundesbank" and so on. */
   provider?: string;
   /** When the app received the latest value (epoch ms), as against `time`, when the market set it. */

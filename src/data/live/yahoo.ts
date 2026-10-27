@@ -13,7 +13,7 @@ import { setFeed } from './status';
 import { YahooStream, type Tick } from './ystream';
 import { TREASURY_IDS, treasuryAvailable } from './ust';
 import { krakenOwns, whenKrakenHandsBack } from './kraken';
-import { iexOwns, setIexBackfill } from './iex-engine';
+import { iexOwns, setConsolidatedBars, setConsolidatedDay, setIexBackfill } from './iex-engine';
 import { registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
 
 /**
@@ -823,7 +823,8 @@ class YahooData {
   /** One round of quote requests, 50 symbols each: how many symbols were asked for and how many answered. */
   private async pollOnce(): Promise<{ ok: number; asked: number }> {
     this.sync();
-    const all = [...this.bySymbol.keys()].filter((sym) => this.bySymbol.get(sym)!.some((t) => !iexOwns(t.id)));
+    // Lines IEX prices are asked too, for the session's open, range and volume of all venues only.
+    const all = [...this.bySymbol.keys()];
     const changed: string[] = [];
     let ok = 0;
     for (let i = 0; i < all.length; i += 50) {
@@ -847,7 +848,14 @@ class YahooData {
           const lines = this.bySymbol.get(q.symbol) ?? [];
           if (lines.length) ok++;
           for (const t of lines) {
-            if (iexOwns(t.id)) continue;
+            if (iexOwns(t.id)) {
+              const time = Number(q.regularMarketTime) * 1000;
+              if (!t.invert && Number.isFinite(time) && time > 0) {
+                const gmt = Number.isFinite(Number(q.gmtOffSetMilliseconds)) ? Number(q.gmtOffSetMilliseconds) : t.gmtOffset ?? 0;
+                setConsolidatedDay(t.id, { day: sessionDay(time, gmt, false), open: Number(q.regularMarketOpen), high: Number(q.regularMarketDayHigh), low: Number(q.regularMarketDayLow), volume: Number(q.regularMarketVolume), time });
+              }
+              continue;
+            }
             yahooQuotes.set(t.id, withSessionChart(t.id, q));
             if (Number.isFinite(Number(q.gmtOffSetMilliseconds))) t.gmtOffset = Number(q.gmtOffSetMilliseconds);
             const timing = timingOf(q);
@@ -905,7 +913,6 @@ class YahooData {
   }
 
   private wantIntraday(id: string) {
-    if (iexOwns(id)) return;
     this.intradayWanted.set(id, Date.now());
     const at = this.intradayAt.get(id) ?? 0;
     if (Date.now() - at > 60_000) void this.loadIntraday(id);
@@ -920,7 +927,6 @@ class YahooData {
   }
 
   private async loadIntraday(id: string) {
-    if (iexOwns(id)) return;
     const t = this.byId.get(id);
     if (!t || !this.loaded.has(id) || this.intradayActive >= 3) return;
     this.intradayAt.set(id, Date.now());
@@ -928,7 +934,7 @@ class YahooData {
     try {
       const chart = await yahooGet(`/v8/finance/chart/${encodeURIComponent(t.symbol)}?range=1d&interval=1m&includePrePost=false`);
       const r = chart?.chart?.result?.[0];
-      if (!r?.timestamp || iexOwns(id)) return;
+      if (!r?.timestamp) return;
       const gmt = Number(r.meta?.gmtoffset ?? 0);
       const q = r.indicators?.quote?.[0] ?? {};
       const bars: { t: number; o: number; h: number; l: number; c: number; v: number }[] = [];
@@ -941,7 +947,9 @@ class YahooData {
       });
       if (!bars.length) return;
       dropVolumeSpikes(bars, Number(r.meta?.regularMarketVolume));
-      engine.setExternalIntraday(id, bars, 60_000, localDay(r.timestamp[r.timestamp.length - 1], gmt));
+      const day = localDay(r.timestamp[r.timestamp.length - 1], gmt);
+      // For a line IEX prices, these are the minute bars of all venues: the chart keeps them.
+      if (engine.setExternalIntraday(id, bars, 60_000, day) && iexOwns(id)) setConsolidatedBars(id, day);
       engine.flush([id]);
     } catch {
       /* try again on the next request */

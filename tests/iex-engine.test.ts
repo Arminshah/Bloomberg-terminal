@@ -5,7 +5,7 @@ import { engine } from '../src/data/market';
 import { rangeStats } from '../src/data/analytics';
 import { freshnessOf, isOfficialProvider } from '../src/data/freshness';
 import { iex, type IexSnapshot, type IexState } from '../src/data/live/alpaca';
-import { IEX_PROVIDER, iexDay, iexOwns, iexPricesEnabled, iexReading, keepOwnDays, setIexBackfill, startIexPrices, withBackfill } from '../src/data/live/iex-engine';
+import { CONSOLIDATED_PROVIDER, IEX_PROVIDER, iexDay, iexOwns, iexPricesEnabled, iexReading, keepOwnDays, setIexBackfill, startIexPrices, withBackfill, withConsolidatedDay } from '../src/data/live/iex-engine';
 import { adoptYahooHistory, realDividends, startYahooData, trailingDividendYield, yahooSymbolFor } from '../src/data/live/yahoo';
 
 const NOW = Date.parse('2026-10-14T15:00:00Z');
@@ -60,6 +60,25 @@ describe('explicit IEX price selection', () => {
     expect(iexDay(Date.parse('2026-10-14T04:00:00Z'))).toBe(day);
     expect(iexDay(Date.parse('2026-12-14T04:59:00Z'))).toBe(dayNum(Date.parse('2026-12-13')));
     expect(iexDay(Date.parse('2026-12-14T05:00:00Z'))).toBe(dayNum(Date.parse('2026-12-14')));
+  });
+});
+
+describe("the session's open, range and volume of all venues beside IEX's last price", () => {
+  it("takes Yahoo's figures for the same session, keeps IEX's last price, and names both sources", () => {
+    const own = iexReading(state(), NOW)!;
+    // APLD on 27 October 2026: IEX counted 892K shares, all venues about 15M.
+    const got = withConsolidatedDay(own, { day, open: 99.5, high: 101.5, low: 98.2, volume: 15_000_000, time: NOW - 2_000 });
+    expect(got.quote).toMatchObject({ last: 101, volume: 15_000_000, open: 99.5, low: 98.2, dayProvider: CONSOLIDATED_PROVIDER });
+    // The range always holds the last trade: Yahoo's high of 101.5 stands; a high below IEX's 101 is raised to it.
+    expect(got.quote.high).toBe(101.5);
+    expect(withConsolidatedDay(own, { day, open: 99.5, high: 100.5, low: 98.2, volume: 1, time: NOW }).quote.high).toBe(101);
+    expect(got.bars.at(-1)).toMatchObject({ day, o: 99.5, h: 101.5, l: 98.2, v: 15_000_000 });
+    expect(got.quote.sourceName).toContain('IEX');
+    expect(got.quote.sourceName).toContain(CONSOLIDATED_PROVIDER);
+    // Another session's figures (Yahoo still on yesterday before the open) are not today's.
+    expect(withConsolidatedDay(own, { day: day - 1, open: 1, high: 2, low: 1, volume: 5, time: NOW })).toBe(own);
+    // A figure Yahoo leaves out stays IEX's.
+    expect(withConsolidatedDay(own, { day, open: NaN, high: NaN, low: NaN, volume: 15_000_000, time: NOW }).quote).toMatchObject({ open: 100, high: 102, low: 99, volume: 15_000_000 });
   });
 });
 
