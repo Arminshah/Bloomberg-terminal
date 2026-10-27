@@ -11,8 +11,9 @@ export const LEGACY_CODES: Record<string, string> = {
   DES: 'PROFILE',
   FA: 'FINANCIALS',
   ANR: 'ANALYSTS',
-  EE: 'EARNINGS',
   ERN: 'EARNINGS',
+  // EE is the earnings and estimates page (a July 2024 screenshot), ERN the earnings history.
+  EE: 'EARNINGSSUMMARY',
   EEO: 'ESTIMATES',
   EEB: 'ESTIMATES',
   DVD: 'DIVIDENDS',

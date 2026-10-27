@@ -1827,3 +1827,42 @@ test('in the evening the watchlist shows after-hours live and the morning\'s pre
   await expect(await cell('Pre-mkt')).toHaveText('N/A');
   await expect((await cell('Pre-mkt')).locator('span')).toHaveAttribute('title', /next pre-market opens at 04:00 New York time/);
 });
+
+
+test('EE sums up the earnings on one page with the figures of ERN, EEO, ANR, EM and EEG', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.apldEarnings = true;
+    fixtures.estimateTrend = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'APLD EE', 'EARNINGSSUMMARY');
+  const panel = page.locator('.panel').first();
+  const kv = panel.locator('.des-grid').first();
+  // The next report (expected), the last one (7 October 2026) and the price's average move around reports.
+  await expect(kv).toContainText('(E) 06/01/27', { timeout: 30_000 });
+  await expect(kv).toContainText('07/10/26');
+  await expect(kv).toContainText('1.29%');
+  // A loss-maker: the P/E on the blended forward EPS and next year's growth are not meaningful.
+  await expect(kv).toContainText('20.00');
+  await expect(kv.locator('dd', { hasText: 'NM' })).toHaveCount(2);
+  await expect(kv).toContainText('6/1/0');
+  await expect(kv).toContainText('25.00');
+  // Q1 2027: -0.01 against -0.303 expected, and the four reports with an estimate all came in above it.
+  const eps = panel.getByTestId('ee-last').locator('tbody tr').first();
+  for (const t of ['-0.010', '-0.303', '+96.70%', 'Above 4/4']) await expect(eps).toContainText(t);
+  await expect(panel.getByTestId('ee-last').locator('tbody tr').nth(2)).toContainText('341.88M');
+  // The next quarter's estimate, as EM gives it.
+  await panel.getByRole('button', { name: /^Next/ }).click();
+  await expect(panel.getByTestId('ee-next').locator('tbody tr').first()).toContainText('-0.170');
+  await expect(panel.getByTestId('ee-next').locator('tbody tr').nth(1)).toContainText('162.85M');
+  await expect(panel.getByTestId('ee-next').locator('tbody tr').nth(1)).toContainText('+28.64%');
+  await expect(panel.locator('canvas')).toHaveCount(2);
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-ee-fixture.png') });
+  // Box 1 opens ERN, whose snapshot gives the same average move and the same last report (dated by the analysts'
+  // sources here: the statements in this fixture carry no report dates).
+  await command(page, '1', 'EARNINGS');
+  await expect(panel.locator('.ern-snap')).toContainText('1.29%', { timeout: 30_000 });
+  await expect(panel.locator('.ern-snap')).toContainText('07/10/26');
+});

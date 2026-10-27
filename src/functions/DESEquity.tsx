@@ -48,7 +48,7 @@ function useFnName(): (code: string) => string {
  * A DES box: a grey heading with its number and the function it opens, "11) Price Chart (GP)", as the terminal's
  * description page shows them. The number typed with GO opens the function, as a click on the heading does.
  */
-function Box({ n, title, fn, sec, right, children }: { n?: number; title: string; fn?: string; sec: SecurityDef; right?: ReactNode; children: ReactNode }) {
+export function Box({ n, title, fn, sec, right, children }: { n?: number; title: string; fn?: string; sec: SecurityDef; right?: ReactNode; children: ReactNode }) {
   const panel = usePanelId();
   const name = useFnName();
   const head = (
@@ -201,7 +201,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
     const go = (fn: string) => () => execute(panel, `${sec.id} ${fn}`);
     const list: MenuItem[] = [
       { n: 8, label: 'Price Chart', run: go('CHART') },
-      { n: 9, label: 'Estimates', run: go('EARNINGS') },
+      { n: 9, label: 'Estimates', run: go('EARNINGSSUMMARY') },
       { n: 10, label: 'Analyst Ratings', run: go('ANALYSTS') },
       { n: 12, label: 'Dividend', run: go('DIVIDENDS') },
       { n: 15, label: 'Management', run: go('MANAGEMENT') },
@@ -273,7 +273,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
           />
         </div>
         <div className="des-col">
-          <Box n={9} title="Estimates" fn="EARNINGS" sec={sec}>
+          <Box n={9} title="Estimates" fn="EARNINGSSUMMARY" sec={sec}>
             <KV
               items={[
                 // As the terminal writes it: the session, then (C) for a confirmed date or (E) for an expected one.

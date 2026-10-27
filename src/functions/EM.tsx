@@ -170,7 +170,7 @@ export function EM({ sec }: FnProps) {
         tab={tab}
         onTab={setTab}
         actions={[
-          { n: 96, label: 'Earnings', title: 'Earnings against expectations (EE)', onClick: () => execute(panel, `${s.id} EARNINGS`) },
+          { n: 96, label: 'Earnings', title: 'Earnings & Estimates (EE)', onClick: () => execute(panel, `${s.id} EARNINGSSUMMARY`) },
           { n: 97, label: 'Estimates graph', title: 'How the consensus moved (EEG)', onClick: () => execute(panel, `${s.id} ESTIMATEGRAPH`) },
           ...exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_EM.csv`, csv),
         ]}

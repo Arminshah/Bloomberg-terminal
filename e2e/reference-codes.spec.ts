@@ -558,3 +558,25 @@ test('MYN keeps pages of news sections, each a saved search, and opens NEWS on o
   await expect(panel.locator('.fnh-code')).toHaveText('NEWS');
   expect(errors).toEqual([]);
 });
+
+test('EE is the earnings and estimates page: its boxes open the screens with the detail', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL EE');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('EARNINGSSUMMARY');
+  await expect(panel.locator('.fnh-title')).toHaveText('Earnings & Estimates');
+  for (const box of ['1) Earnings History', '2) Consensus Overview', '3) Analyst Coverage', '4) Reported and Expected', '5) Earnings Trend', '7) Earnings Estimate Graph']) await expect(panel.locator('.sect-h', { hasText: box })).toBeVisible();
+  // The demo's own statements give the last report; the analysts' figures are the desktop app's, and none are generated.
+  await expect(panel.locator('.kv').first()).toContainText('Prior Announcement');
+  await expect(panel.getByTestId('ee-last').locator('tbody tr').first().locator('td').nth(2)).toHaveText('--');
+  await expect(panel.locator('.empty').first()).toContainText('none are generated');
+  await run(page, '2');
+  await expect(panel.locator('.fnh-code')).toHaveText('ESTIMATES');
+  await run(page, 'AAPL EE');
+  await run(page, '7');
+  await expect(panel.locator('.fnh-code')).toHaveText('ESTIMATEGRAPH');
+  // ERN stays the earnings history.
+  await run(page, 'AAPL ERN');
+  await expect(panel.locator('.fnh-code')).toHaveText('EARNINGS');
+  expect(errors).toEqual([]);
+});

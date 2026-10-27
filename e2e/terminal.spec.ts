@@ -113,7 +113,7 @@ const COMMANDS: [string, string][] = [
   ['OSA', 'OPTIONSTRATEGY'],
   ['BREAKING', 'BREAKING'], ['FIRST FAV', 'BREAKING'], ['FAVOURITES', 'FAVOURITES'], ['FAV NEWS', 'FAVOURITES'], ['NEWS SPEECH', 'NEWS'], ['GC1 COMDTY COMPANYNEWS', 'COMPANYNEWS'],
   ['$APLD', 'MENU'], ['APLD US EQUITY PROFILE', 'PROFILE'], ['$APLD CHART', 'CHART'], ['APLD FINANCIALS', 'FINANCIALS'],
-  ['EXCH', 'EXCHANGES'], ['GPC AAPL', 'CHART'], ['AAPL GPO', 'CHART'], ['CF MSFT', 'FILINGS'], ['AAPL ERN', 'EARNINGS'], ['QR TSLA', 'TRADES'], ['PDF', 'SETTINGS'],
+  ['EXCH', 'EXCHANGES'], ['GPC AAPL', 'CHART'], ['AAPL GPO', 'CHART'], ['CF MSFT', 'FILINGS'], ['AAPL ERN', 'EARNINGS'], ['AAPL EE', 'EARNINGSSUMMARY'], ['QR TSLA', 'TRADES'], ['PDF', 'SETTINGS'],
   ['FOMC', 'FEDMEETINGS'], ['EVT', 'EVENTS'], ['ECMX', 'ECONSTATS'], ['AAPL RSI', 'CHART'], ['MACD AAPL', 'CHART'], ['BOLL AAPL', 'CHART'], ['AAPL HP OHLC', 'HISTORY'], ['FA AAPL BS', 'FINANCIALS'],
   ['AAPL EEO', 'ESTIMATES'], ['AAPL CACS', 'CORPACTIONS'], ['AAPL SI', 'SHORTINTEREST'], ['AAPL EQRP', 'RISKPREMIUM'], ['SPX INDEX MEMB', 'MEMBERS'], ['NDX INDEX MRR', 'RANKEDRETURNS'],
   ['MLRT', 'ALERTS'], ['AAPL GV', 'VOLATILITY'], ['NVDA SPLC', 'SUPPLYCHAIN'], ['SPX INDEX GRR', 'GROUPRETURNS'], ['AAPL BBK', 'BUYBACKS'], ['IPO', 'IPOS'], ['AAPL DS', 'DOCSEARCH'], ['WBF', 'BONDFUTURES'], ['GAINERS', 'TOPMOVERS'], ['TOPMOVERS', 'TOPMOVERS'],
@@ -359,7 +359,7 @@ test('DES pages and numbered boxes, the security in the red bar and typed chart 
   await expect(panel.locator('.sect-h', { hasText: 'Per Share Data' })).toBeVisible();
   await run(page, '1');
   await run(page, '9');
-  await expect(panel.locator('.fnh-code').first()).toHaveText('EARNINGS');
+  await expect(panel.locator('.fnh-code').first()).toHaveText('EARNINGSSUMMARY');
   // GP's amber range boxes take a typed start date; the period tabs then show none chosen.
   await run(page, 'AAPL GP');
   const start = panel.getByLabel('Start date');

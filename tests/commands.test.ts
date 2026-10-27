@@ -297,7 +297,8 @@ describe('terminal mnemonics added in 2.13', () => {
   });
 
   it('keeps the first mnemonic of a function as the one its header shows', () => {
-    expect(primaryMnemonic('EARNINGS')).toBe('EE');
+    expect(primaryMnemonic('EARNINGS')).toBe('ERN');
+    expect(primaryMnemonic('EARNINGSSUMMARY')).toBe('EE');
     expect(primaryMnemonic('HOLDERS')).toBe('HDS');
     expect(primaryMnemonic('TRADES')).toBe('TAS');
     expect(primaryMnemonic('CHART')).toBe('GP');

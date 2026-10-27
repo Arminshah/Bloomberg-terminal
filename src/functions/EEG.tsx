@@ -20,7 +20,7 @@ import type { FnProps } from '../terminal/types';
 const PERIOD_NAMES: Record<EstimateTrend['period'], string> = { '0q': 'Current quarter', '+1q': 'Next quarter', '0y': 'Current year', '+1y': 'Next year' };
 
 /** Each reading by its day against today (-90 is 90 days before), oldest first. */
-const READINGS: { day: number; key: keyof EstimateTrend['eps']; label: string }[] = [
+export const READINGS: { day: number; key: keyof EstimateTrend['eps']; label: string }[] = [
   { day: -90, key: 'd90', label: '90 days ago' },
   { day: -60, key: 'd60', label: '60 days ago' },
   { day: -30, key: 'd30', label: '30 days ago' },
@@ -100,7 +100,7 @@ export function EEG({ sec }: FnProps) {
         onTab={setTab}
         actions={[
           { n: 96, label: 'Consensus', title: 'Consensus overview (EEO)', onClick: () => execute(panel, `${s.id} ESTIMATES`) },
-          { n: 97, label: 'Earnings', title: 'Earnings against expectations (EE)', onClick: () => execute(panel, `${s.id} EARNINGS`) },
+          { n: 97, label: 'Earnings', title: 'Earnings & Estimates (EE)', onClick: () => execute(panel, `${s.id} EARNINGSSUMMARY`) },
           ...exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_EEG.csv`, csv),
         ]}
       />

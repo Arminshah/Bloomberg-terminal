@@ -322,7 +322,7 @@ export function FA({ sec, route }: FnProps) {
         <span className="fa-next">
           Earnings: {next ? fmtEarnDate(next, false) : '--'} |{' '}
           <button type="button" className="link" onClick={() => execute(panel, `${s.id} EVENTS`)}>EVTS »</button>
-          <button type="button" className="link" onClick={() => execute(panel, `${s.id} EARNINGS`)}>Earnings | EE »</button>
+          <button type="button" className="link" onClick={() => execute(panel, `${s.id} EARNINGSSUMMARY`)}>Earnings | EE »</button>
         </span>
       </div>
       <div className="note">

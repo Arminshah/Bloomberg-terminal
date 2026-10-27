@@ -8,6 +8,7 @@ import { earningsHistory, earningsReaction, financials, keyStats, priceInCurrenc
 import { fiscalAdjEps } from './EEO';
 import { engine, useHistoryVersion } from '../data/market';
 import type { FnProps } from '../terminal/types';
+import type { SecurityDef } from '../data/types';
 import { useFundamentals } from '../data/live/yfund';
 import { sourceLabel } from '../components/Source';
 import { analystsAvailable, analystSymbol, listedOutsideUs, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
@@ -38,7 +39,7 @@ const BASIS: Record<EarningsReaction['basis'], string> = {
  * the desktop app, also the last four quarters' EPS against the analysts' estimate and the next report's
  * estimates from Finnhub, and annual estimates from Financial Modeling Prep. Nothing is generated.
  */
-type Measure = 'eps' | 'rev';
+export type Measure = 'eps' | 'rev';
 
 /** Pearson correlation of paired values; NaN under three pairs. */
 function correlation(xs: number[], ys: number[]): number {
@@ -80,19 +81,14 @@ interface ErnRow {
 }
 
 /**
- * Earnings history (ERN): the snapshot of surprises and price reactions beside a chart of the comparable figure
- * against the estimate, then each report with its reported and comparable figure, the estimate, the surprise,
- * the price reaction and the P/E, coming periods' estimates on top. For US-listed stocks in the desktop app the
- * analysts' figures come from Yahoo Finance, Finnhub, FMP or Alpha Vantage; nothing is generated.
+ * The reports EARNINGS lists, newest first, each matched with the analysts' quarter and the share price's reaction, and
+ * one table line per quarter for a measure. Shared with EARNINGSSUMMARY, so both pages show the same figures.
  */
-export function EE({ sec }: FnProps) {
-  const s = sec!;
+export function useErnReports(s: SecurityDef, measure: Measure) {
   const { status, real } = useFundamentals(s);
   // The analysts' expectations against the reports (Yahoo research, Finnhub), desktop app only.
   const consensus = useConsensus(desktopData() ? s : undefined);
   useHistoryVersion();
-  const [annual, setAnnual] = useState(false);
-  const [measure, setMeasure] = useState<Measure>('eps');
   // Report dates and sessions the statements leave out come from the expectation sources (Alpha Vantage, the SEC's 8-Ks).
   const hist = datedHistory(earningsHistory(s), consensus);
   const daily = engine.daily(s.id);
@@ -104,18 +100,7 @@ export function EE({ sec }: FnProps) {
   const reaction = (h: EarningsEvent) => (h.dateUnknown || (h.actual == null && h.revAct == null) ? null : earningsReaction(daily, reportSessionDay(h.date, tz), h.timing, lastFinal));
   // A quarter can come twice, once from the statements without a report date and once dated: the dated one stays.
   const done = hist.filter((h) => (h.actual != null || h.revAct != null) && !(h.dateUnknown && hist.some((o) => o !== h && o.period === h.period && !o.dateUnknown)));
-  const ccy = reportCcy(s);
-  const panel = usePanelId();
-  const fmp = analystsAvailable() && !!analystSymbol(s);
-  const est = useAnalysts(fmp ? s : undefined, ['estimates']).estimates as AnalystPart<Estimate[]> | undefined;
-  const fh = finnhubAvailable() && !!finnhubSymbol(s);
-  const fparts = useFinnhub(fh ? s : undefined, ['calendar']);
-  const cal = fparts.calendar as FinnhubPart<NextReport | null> | undefined;
-  const nextFh = cal?.data ?? null;
-  const nextConsensus = consensus?.next;
   const next = hist.find((h) => h.actual == null && h.revAct == null);
-  const { pe, epsLtm } = keyStats(s);
-  const f = financials(s);
   // Each past report with its consensus quarter, newest first: the analysts' quarters (with the statements' diluted
   // EPS where a statement quarter matches), then older reports the statements alone give. One line per quarter.
   const used = new Set<EarningsEvent>();
@@ -196,6 +181,32 @@ export function EE({ sec }: FnProps) {
       from: [e?.estFrom && `estimate: ${e.estFrom}`, e?.actualFrom && `comparable: ${e.actualFrom}`, gaapFrom && `reported: ${gaapFrom}`].filter(Boolean).join('; ') || undefined,
     };
   });
+  return { status, real, consensus, reports, quarterRows, next, daily };
+}
+
+/**
+ * Earnings history (ERN): the snapshot of surprises and price reactions beside a chart of the comparable figure
+ * against the estimate, then each report with its reported and comparable figure, the estimate, the surprise,
+ * the price reaction and the P/E, coming periods' estimates on top. For US-listed stocks in the desktop app the
+ * analysts' figures come from Yahoo Finance, Finnhub, FMP or Alpha Vantage; nothing is generated.
+ */
+export function EE({ sec }: FnProps) {
+  const s = sec!;
+  const [annual, setAnnual] = useState(false);
+  const [measure, setMeasure] = useState<Measure>('eps');
+  const { status, real, consensus, reports, quarterRows, next } = useErnReports(s, measure);
+  const q = engine.quote(s.id);
+  const ccy = reportCcy(s);
+  const panel = usePanelId();
+  const fmp = analystsAvailable() && !!analystSymbol(s);
+  const est = useAnalysts(fmp ? s : undefined, ['estimates']).estimates as AnalystPart<Estimate[]> | undefined;
+  const fh = finnhubAvailable() && !!finnhubSymbol(s);
+  const fparts = useFinnhub(fh ? s : undefined, ['calendar']);
+  const cal = fparts.calendar as FinnhubPart<NextReport | null> | undefined;
+  const nextFh = cal?.data ?? null;
+  const nextConsensus = consensus?.next;
+  const { pe, epsLtm } = keyStats(s);
+  const f = financials(s);
   // Fiscal years: the year's reported EPS or revenue, its four quarters' comparable EPS, and the Q4 report's reaction.
   const yearRows: ErnRow[] = [...f.annual].reverse().map((y) => {
     const q4 = reports.find((x) => x.cq && Math.abs(Date.parse(`${x.cq.end}T00:00:00Z`) - y.end) <= 10 * DAY_MS) ?? reports.find((x) => x.h.date > y.end && x.h.date - y.end < 100 * DAY_MS);
@@ -245,7 +256,8 @@ export function EE({ sec }: FnProps) {
     const v = xs.filter(Number.isFinite);
     return v.length ? v.reduce((a, b) => a + Math.abs(b), 0) / v.length : NaN;
   };
-  const prior = [...done].reverse().find((h) => !h.dateUnknown);
+  // The newest dated report, as the table's first line: from the statements or the analysts' sources.
+  const prior = reports.find((x) => !x.h.dateUnknown)?.h;
   // Five-year growth of reported EPS, from the fiscal years the statements give (fewer years when that is all).
   const years = f.annual.filter((y) => Number.isFinite(y.eps));
   const first = years[Math.max(0, years.length - 6)];

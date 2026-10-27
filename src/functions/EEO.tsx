@@ -133,7 +133,7 @@ export function EEO({ sec }: FnProps) {
         ]}
         tab={tab}
         onTab={setTab}
-        actions={[{ n: 96, label: 'Earnings', title: 'Earnings against expectations (EE)', onClick: () => execute(panel, `${s.id} EARNINGS`) }, ...exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_EEO.csv`, csv)]}
+        actions={[{ n: 96, label: 'Earnings', title: 'Earnings & Estimates (EE)', onClick: () => execute(panel, `${s.id} EARNINGSSUMMARY`) }, ...exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_EEO.csv`, csv)]}
         controls={
           <div className="chart-tools">
             <span className="cyan">{s.name}</span>
