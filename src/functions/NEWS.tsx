@@ -11,7 +11,7 @@ import { firstRowNumber } from '../terminal/numbering';
 import type { FnProps } from '../terminal/types';
 import { sourceCode } from '../data/sourcecode';
 import { CompanyNews, feedWord, StoryList } from './MNEWS';
-import { loadNews, MARKET_SOURCES, marketNews, mergeStories, newsAvailable, officialStories, SEARCHABLE, storiesFor, useMarketNews } from '../data/live/marketnews';
+import { loadNews, MARKET_SOURCES, marketNews, mergeStories, newsAvailable, officialStories, SEARCHABLE, storiesFor, useMarketNews, type MarketStory } from '../data/live/marketnews';
 import { execute } from '../terminal/exec';
 
 // The searches Google is asked for (the main process checks them again): words, digits, quotes, $, %, & and the like.
@@ -21,10 +21,11 @@ import { execute } from '../terminal/exec';
  * source, the official announcements), with Google News's search for them over the last week. Bare NEWS lists
  * the newest of everything.
  */
-function NewsSearch({ query }: { query?: string }) {
-  const panel = usePanelId();
-  const [text, setText] = useState(query ?? '');
-  const [asked, setAsked] = useState((query ?? '').trim());
+/**
+ * The stories for a search: those the app holds whose headline, summary or tickers have all the words, merged with
+ * Google News's search for them over the last week (asked again every five minutes). Also MYN's sections.
+ */
+export function useNewsSearch(asked: string): { stories: MarketStory[]; google: string } {
   const v = useMarketNews([]);
   const official = news.use((n) => n.stories);
   const feeds = marketNews.use((s) => s.feeds);
@@ -41,7 +42,14 @@ function NewsSearch({ query }: { query?: string }) {
     const local = mergeStories([storiesFor(MARKET_SOURCES), officialStories(official)]).filter((s) => words.every((w) => `${s.title} ${s.summary ?? ''} ${s.tickers.join(' ')}`.toLowerCase().includes(w)));
     return mergeStories([local, google]).slice(0, 500);
   }, [asked, arg, official, v]); // eslint-disable-line react-hooks/exhaustive-deps
-  const google = arg ? feedWord('Google News search', feeds[`google-news-search:${arg}`]) : '';
+  return { stories, google: arg ? feedWord('Google News search', feeds[`google-news-search:${arg}`]) : '' };
+}
+
+function NewsSearch({ query }: { query?: string }) {
+  const panel = usePanelId();
+  const [text, setText] = useState(query ?? '');
+  const [asked, setAsked] = useState((query ?? '').trim());
+  const { stories, google } = useNewsSearch(asked);
   return (
     <div className="fn-fill">
       <FnHeader

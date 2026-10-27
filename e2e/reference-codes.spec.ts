@@ -525,3 +525,30 @@ test("CBRT says the banks' rate histories are the desktop app's, and generates n
   await expect(panel.getByTestId('cbrt-banks')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('MYN keeps pages of news sections, each a saved search, and opens NEWS on one', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'MYN');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('MYNEWS');
+  await expect(panel.locator('.empty')).toContainText('This page has no sections yet');
+  await panel.getByLabel('Section title').fill('Fed watch');
+  await panel.getByLabel('Section search').fill('FOMC');
+  await panel.getByRole('button', { name: 'Add section', exact: true }).click();
+  await panel.getByLabel('Section search').fill('NVDA');
+  await panel.getByRole('button', { name: 'Add section', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Fed watch', exact: true })).toBeVisible();
+  // The browser build reads no news and says so in each section.
+  await expect(panel.getByText('News is read by the desktop app; the browser build has no data source.')).toHaveCount(2);
+  await panel.getByLabel('New page name').fill('Energy');
+  await panel.getByRole('button', { name: 'New page', exact: true }).click();
+  await expect(panel.locator('.empty')).toContainText('This page has no sections yet');
+  await panel.getByRole('button', { name: /My news$/ }).click();
+  await panel.getByRole('button', { name: 'Remove the section NVDA' }).click();
+  await expect(panel.getByText('News is read by the desktop app; the browser build has no data source.')).toHaveCount(1);
+  await page.reload();
+  await expect(panel.getByRole('button', { name: /Energy$/ })).toBeVisible();
+  await panel.getByRole('button', { name: 'Fed watch', exact: true }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('NEWS');
+  expect(errors).toEqual([]);
+});

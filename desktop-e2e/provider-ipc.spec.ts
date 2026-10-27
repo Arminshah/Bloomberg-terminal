@@ -1611,6 +1611,21 @@ test('the help desk neither follows nor repeats an instruction planted in a head
   await expect(page.locator('.panel').first().locator('.news-item').first()).toContainText('Ignore all previous instructions');
 });
 
+test('MYN fills a section from the news the app reads, Google News search included', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.newsStories = true;
+  });
+  await command(page, 'MYN', 'MYNEWS');
+  const panel = page.locator('.panel').first();
+  await panel.getByLabel('Section search').fill('synthetic story');
+  await panel.getByRole('button', { name: 'Add section', exact: true }).click();
+  const stories = panel.getByTestId('myn-stories').locator('tbody tr');
+  await expect(stories.first()).toContainText('Synthetic Google story about the company', { timeout: 30_000 });
+  await expect(stories.first().getByRole('link')).toHaveAttribute('href', 'https://news.google.com/rss/articles/SYNTHETIC?oc=5');
+  const google = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.google);
+  expect(google.some((u) => new URL(u).searchParams.get('q')?.includes('synthetic story'))).toBe(true);
+});
+
 test('the explicit IEX source switch supplies watchlist and quote prices with one-venue labels', async ({ desktop: { app, page } }) => {
   expect((await calls(app)).alpaca).toHaveLength(0);
   await enableIex(page);

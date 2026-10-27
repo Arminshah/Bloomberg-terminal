@@ -1609,3 +1609,6 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .wm-pct { font-weight: 600; }
 .wm-legend { display: flex; justify-content: center; gap: 0; padding: 0 8px 6px; }
 .wm-legend span { min-width: 64px; text-align: center; padding: 1px 4px; color: #fff; font-size: 11px; text-shadow: 0 0 2px rgba(0, 0, 0, 0.7); }
+
+/* MYN: a page of news sections, two or three across. */
+.myn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 0 8px; }

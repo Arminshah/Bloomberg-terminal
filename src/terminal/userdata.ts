@@ -188,6 +188,13 @@ export const portfolio: Store<Portfolio> = {
  */
 export const favourites = createStore<{ ids: string[] }>({ ids: [] }, 'favourites', 1);
 
+/** MYN: your news pages, each a set of sections, each a saved search over the app's news (a title and its words). */
+export interface NewsSection {
+  title: string;
+  query: string;
+}
+export const myNews = createStore<{ pages: { name: string; sections: NewsSection[] }[]; active: number }>({ pages: [{ name: 'My news', sections: [] }], active: 0 }, 'mynews', 1);
+
 /** WCR's basket: the currencies you chose to watch together, and the base it was last shown in. */
 export const currencyBasket = createStore<{ codes: string[]; base: string }>({ codes: ['EUR', 'JPY', 'GBP', 'CHF', 'CAD', 'AUD'], base: 'USD' }, 'wcr', 1);
 
