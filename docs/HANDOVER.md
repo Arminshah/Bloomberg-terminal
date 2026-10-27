@@ -5,7 +5,7 @@ For the Claude session that takes over Armin Terminal on the owner's other accou
 ## The project
 
 - **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 119 functions.
-- **Repository**: `Arminshah/Bloomberg-terminal`, private since 27 October (the owner's choice). While it is private, GitHub starts no runner for CI (the `test` job fails in 3 seconds with no log) or for the release workflow: run every check locally before each push, and before a release ask the owner to check Settings → Billing → Actions on GitHub or to make the repository public for the build. All work is on the branch **`claude/market-events-v2.16.0-id814n`**. `main` holds only the first README: never push to it. A new cloud session may be given another branch name; the owner's choice is to keep working on this one, so fetch it and continue there (`git fetch origin claude/market-events-v2.16.0-id814n && git checkout claude/market-events-v2.16.0-id814n`).
+- **Repository**: `Arminshah/Bloomberg-terminal`, public again since 27 October (the owner opened it for the handover), so GitHub runs CI on every push and can build releases. If it is made private again, GitHub starts no runner (the `test` job fails in 3 seconds with no log): then check everything locally before each push, and ask the owner to check Settings → Billing → Actions before a release.
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
 - **Last release**: 2.26.0 (tag `v2.26.0`, 26 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.26.0.md`.
 
@@ -62,7 +62,7 @@ Public or private, the repository is not for sharing research material: copyrigh
 
 ## Waiting on the owner
 
-- **Release 2.26.1** with all of the above: ask before releasing. The repository is private, so GitHub runs no CI or release build; check Settings → Billing → Actions, or make it public for the build.
+- **Release 2.26.1** with all of the above: ask the owner before releasing (`docs/HANDOVER.md`, "Making a release").
 - Points to raise with the owner about the new layout: "52-WK" was read as the one-year change (labelled 52-Wk %); Avg Vol (3M) is worked out from the last 63 sessions of the daily history (Yahoo's own figure may differ slightly); Market Cap is in each stock's own currency; Currency and Market Time (Yahoo's columns) were not asked for and are not in the default.
 
 ## Work in progress: PORTFOLIO transactions (TODO item 10)
