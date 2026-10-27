@@ -34,8 +34,8 @@ export function renamePortfolio(index: number, name: string): void {
   portfolios.set((s) => (clean && s.list[index] && s.list[index].name !== clean ? { ...s, list: s.list.map((p, i) => (i === index ? { ...p, name: clean } : p)) } : s));
 }
 
-/** Whether closing a portfolio would delete anything you entered: holdings or cash. */
-export const holdsAnything = (p: Portfolio): boolean => p.positions.length > 0 || p.cash !== 0;
+/** Whether closing a portfolio would delete anything you entered: holdings, transactions or cash. */
+export const holdsAnything = (p: Portfolio): boolean => p.positions.length > 0 || (Array.isArray(p.transactions) && p.transactions.length > 0) || p.cash !== 0;
 
 /**
  * Closes a portfolio and deletes its holdings and cash. The last one stays: there is always a portfolio. Closing

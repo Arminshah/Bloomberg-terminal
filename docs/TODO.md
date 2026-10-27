@@ -4,16 +4,7 @@ Updated 27 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-Items 1 to 8 are done. Item 9 continues with public written and illustrated sources; missing video frames do not block documented functional work. Items 10 to 13 are the rest of the work you approved on 26 October, in this order.
-
-### 10. PORTFOLIO transactions (the screen)
-
-The calculations are done and tested (`27947b2`, `src/finance/ledger.ts`, `tests/ledger.test.ts`): buys, sells and dividends with dates, fees and exchange rates; first-in first-out lots; trades before a split on today's share basis; realised P&L split into price, FX and fees; the time-weighted return (buys counted from the start of their day, sales and dividends at its end, dates a holding lacks left out) and the money-weighted return (XIRR, annualised only over a year). Still to do, as designed in `docs/HANDOVER.md`:
-- A `transactions` list on each portfolio (`Portfolio` in `src/terminal/userdata.ts`), and a fourth PORTFOLIO tab, Transactions: a form (type, security, date, quantity, price, fee, an optional exchange rate), the list with delete, the open lots, the realised P&L, and the returns.
-- The rate of a past trade in another currency: the ECB's of that day (`ecbRateOn`), or the one typed in; today's market rate for a trade of today.
-- Futures stay on Holdings: the ledger is for cash instruments.
-- Holdings and the ledger: a trade updates its holding when the two agreed before; when they differ, say so and offer "Use the transactions".
-- Tests: unit tests of the store operations, a browser test of the form and tables, a desktop test with a split (Yahoo's split list) and an ECB rate.
+Items 1 to 8 and 10 are done. Item 9 continues with public written and illustrated sources; missing video frames do not block documented functional work. Items 11 to 13 are the rest of the work you approved on 26 October, in this order.
 
 ### 11. BONDCALC call schedules
 
@@ -112,6 +103,7 @@ Plan:
 
 ## Done, on the branch, not released yet
 
+- Item 10, PORTFOLIO transactions: a fourth tab, Transactions. Buys, sells and dividends with dates, fees and a rate into the portfolio currency (typed, the ECB's of a past trade date on the desktop, today's market rate for a trade of today). Sales take the oldest shares first; trades before a split count on today's share basis (Yahoo's split list). It lists the transactions (delete with ×), the open lots, the realised P&L split into price, currency and fees, and a summary with the time- and money-weighted returns (a year once the period is a year or more). A sale larger than the shares held then is refused. A security's holding follows its transactions while the two agree; when they differ, both tabs say so and offer "Use the transactions". After a change of portfolio currency, "Ask the ECB again" fills the rates. The export on that tab is the transactions. Tests: `tests/transactions.test.ts`, `e2e/portfolio-transactions.spec.ts`, and a desktop test with a four-for-one split and the ECB's rate of 29 June.
 - The typeface is IBM Plex Sans again, fixed by the owner on 27 October: 2.26.0's default (Bergoom) drew thin, uneven figures on Windows. The typeface setting and the Bergoom files are gone; `CLAUDE.md`, `tests/typeface.test.ts` and `e2e/look.spec.ts` keep it from changing.
 - `e01d65b` Earnings history: the latest reports' year-earlier days are asked first, so a long season's last week shows its growth at once.
 

@@ -52,6 +52,8 @@ describe('transactions matched into lots, first in first out', () => {
     const st = replay([txn({ kind: 'buy', date: '2026-01-05', qty: 5, price: 10 }), txn({ kind: 'sell', date: '2026-01-06', qty: 8, price: 11 }), txn({ kind: 'dividend', date: '2026-01-07', price: 3, base: 'EUR' })], () => plain, 'USD');
     expect(st.problems).toEqual(['The sale of S on 2026-01-06 is 3 more than the shares held then.', '1 transaction has no exchange rate into USD: amounts in USD that need it are unknown.']);
     expect(st.income[0].base).toBeNaN();
+    // The oversold sale, for the screen to refuse it: its transaction and the excess.
+    expect(st.oversold).toEqual([{ txn: expect.any(String), sec: 'S', date: '2026-01-06', qty: 3 }]);
   });
 });
 
@@ -60,6 +62,29 @@ describe('returns', () => {
     expect(xirr([{ t: at('2025-01-01'), amount: -1000 }, { t: at('2026-01-01'), amount: 1100 }])).toBeCloseTo(0.1, 9);
     expect(xirr([{ t: at('2025-01-01'), amount: -1000 }, { t: at('2025-07-02'), amount: -1000 }, { t: at('2026-01-01'), amount: 2200 }])).toBeGreaterThan(0.1);
     expect(xirr([{ t: 0, amount: -1 }])).toBeNaN();
+  });
+
+  it("matches the worked example in Microsoft's documentation of Excel's XIRR (365-day years): 37.34%", () => {
+    // https://support.microsoft.com/en-us/office/xirr-function-de1242ec-6477-445b-b11b-a303ad9adc9d
+    const flows = [['2008-01-01', -10_000], ['2008-03-01', 2_750], ['2008-10-30', 4_250], ['2009-02-15', 3_250], ['2009-04-01', 2_750]] as const;
+    expect(xirr(flows.map(([d, amount]) => ({ t: at(d), amount })))).toBeCloseTo(0.373362535, 8);
+  });
+
+  it('values a holding in another currency at each close and its rate: the return is the change in base value', () => {
+    // A euro stock in a dollar portfolio: 100, 110 and 99 euros at 1.10, 1.05 and 1.20 dollars a euro.
+    const eur = performance({
+      txns: [txn({ kind: 'buy', date: '2026-03-02', qty: 10, price: 100, fx: 1.1 })],
+      base: 'USD',
+      info: () => plain,
+      closes: () => [{ date: at('2026-03-02'), value: 100 }, { date: at('2026-03-03'), value: 110 }, { date: at('2026-03-04'), value: 99 }],
+      fx: () => [{ date: at('2026-03-02'), value: 1.1 }, { date: at('2026-03-03'), value: 1.05 }, { date: at('2026-03-04'), value: 1.2 }],
+      now: { at: at('2026-03-05'), price: () => 99, fx: () => 1.2 },
+      cutoff: at('2026-03-05'),
+    });
+    expect(eur.points.map((p) => p.value)).toEqual([1100, 1155, 1188.0000000000002].map((v) => expect.closeTo(v, 9)));
+    // 1,100 dollars became 1,188: 8%, whichever way the price and the rate moved in between.
+    expect(eur.twr).toBeCloseTo(0.08, 12);
+    expect(eur.mwrPeriod).toBeCloseTo(0.08, 9);
   });
 
   // A stock at 100, 110 and 121 on three closes: 10% a day. Buying more at 110 changes the money-weighted

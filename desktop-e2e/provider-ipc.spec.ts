@@ -55,6 +55,7 @@ interface Fixtures {
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
+  chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
@@ -895,6 +896,65 @@ test("PORTFOLIO takes a past purchase's entry exchange rate from the ECB's refer
   expect(saved.entryFx).toBeCloseTo(1.1401 / 0.86253, 12);
   // The ECB's framework (23 June 2026): rates for information, set around 14:10 CET, published around 16:00 CET.
   await expect(panel).toContainText('The ECB publishes its rates for information, at about 16:00 CET for about 14:10 CET: the rate your bank or broker applied can differ.');
+});
+
+test("PORTFOLIO's transactions put shares bought before a split on today's basis and take a past trade's rate from the ECB", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    // Four for one, first traded split on Monday 3 August 2026 (Yahoo dates a split by that session's open).
+    fixtures.chartSplits = { AAPL: [{ date: 1785763800, numerator: 4, denominator: 1 }] };
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'AAPL US Equity GP', 'CHART');
+  await command(page, 'PORTFOLIO', 'PORTFOLIO');
+  const panel = page.locator('.panel').first();
+  const msg = page.locator('.cmd-msg');
+  // A holding typed on Holdings, as counted before the split.
+  await panel.getByLabel('Security', { exact: true }).fill('AAPL');
+  await panel.getByLabel('Quantity', { exact: true }).fill('10');
+  await panel.getByLabel('Price', { exact: true }).fill('200');
+  await panel.getByRole('button', { name: 'Add', exact: true }).click();
+  await panel.getByRole('button', { name: '4) Transactions', exact: true }).click();
+  const record = async (sec: string, qty: string, price: string, fee: string) => {
+    await panel.getByLabel('Security', { exact: true }).fill(sec);
+    await panel.getByLabel('Trade date', { exact: true }).fill('2026-06-29');
+    await panel.getByLabel('Quantity', { exact: true }).fill(qty);
+    await panel.getByLabel('Price', { exact: true }).fill(price);
+    await panel.getByLabel('Fee', { exact: true }).fill(fee);
+    await panel.getByRole('button', { name: 'Record', exact: true }).click();
+  };
+  await record('AAPL', '10', '200', '8');
+  await expect(msg).toContainText('Holding left as it was: it differs from the transactions.');
+  // The ten shares of 29 June are forty today, at 50 a share and 0.20 of the fee each.
+  await expect(panel.getByTestId('holding-mismatch')).toContainText("AAPL US: Holdings say 10, the transactions 40 (on today's share basis, after any split)", { timeout: 30_000 });
+  const lot = panel.getByTestId('lots-table').locator('tbody tr', { hasText: 'AAPL US' });
+  await expect(lot.locator('td').nth(2)).toHaveText('40');
+  await expect(lot.locator('td').nth(3)).toHaveText('50.20');
+  await panel.getByRole('button', { name: 'Use the transactions for AAPL US', exact: true }).click();
+  await expect(panel.getByTestId('holding-mismatch')).toHaveCount(0);
+  const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('armin:portfolios') ?? 'null')?.s?.list?.[0] ?? null);
+  await expect.poll(async () => (await saved())?.positions?.find((p: { id: string }) => p.id === 'AAPL US Equity')?.qty).toBe(40);
+
+  // A trade in pounds on a past day, while the ECB does not answer: recorded without a rate, and the screen says so.
+  await record('HSBA LN', '100', '1000', '10');
+  await expect(msg).toContainText('No rate: The ECB did not answer; try again.');
+  await expect(panel.getByText('1 transaction has no exchange rate into USD', { exact: false })).toBeVisible();
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.ecbFx = true;
+  });
+  await panel.getByRole('button', { name: 'Ask the ECB again', exact: true }).click();
+  await expect(msg).toContainText('1 rate found.');
+  await expect(panel.getByText('1 transaction has no exchange rate into USD', { exact: false })).toHaveCount(0);
+  const hsba = panel.getByTestId('txn-table').locator('tbody tr', { hasText: 'HSBA LN' });
+  // The ECB's rates of Monday 29 June: 1.1406 dollars and 0.86215 pounds a euro.
+  await expect(hsba.locator('td').nth(6)).toHaveText('1.322972');
+  await expect(hsba.locator('td').nth(6)).toHaveAttribute('title', 'ECB reference rate of 2026-06-29');
+  await expect.poll(async () => (await saved())?.transactions?.find((t: { sec: string }) => t.sec === 'HSBA LN Equity')?.fxNote).toBe('ECB reference rate of 2026-06-29');
+  const stored = (await saved()).transactions.find((t: { sec: string }) => t.sec === 'HSBA LN Equity');
+  expect(stored.fx).toBeCloseTo(1.1406 / 0.86215, 12);
+  const calls = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.ecbFx ?? []);
+  expect(calls).toContain('/service/data/EXR/D..EUR.SP00.A?format=csvdata&startPeriod=2026-06-19&endPeriod=2026-06-29');
 });
 
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {

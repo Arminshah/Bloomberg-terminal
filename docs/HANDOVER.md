@@ -67,20 +67,9 @@ The assistant owns reference research: find and inspect lawful public manuals, i
 - **Release 2.26.1** with all of the above: ask the owner before releasing (`docs/HANDOVER.md`, "Making a release").
 - Points to raise with the owner about the new layout: "52-WK" was read as the one-year change (labelled 52-Wk %); Avg Vol (3M) is worked out from the last 63 sessions of the daily history (Yahoo's own figure may differ slightly); Market Cap is in each stock's own currency; Currency and Market Time (Yahoo's columns) were not asked for and are not in the default.
 
-## Work in progress: PORTFOLIO transactions (TODO item 10)
+## PORTFOLIO transactions (TODO item 10): done on 27 October
 
-Done: `src/finance/ledger.ts` with `tests/ledger.test.ts` (7 tests). `replay()` matches buys and sells first in, first out, puts trades before a split on today's share basis (`splitFactor`, splits as new shares per old by the first day they traded split), and splits realised P&L into the price move at the sale's rate, the rate's move on the cost, and fees. `unrealised()` does the same for an open lot. `performance()` chains the time-weighted return over every close where each holding has a price and a rate (Modified Dietz each day: buys from the start of the day, sales and dividends at its end; a date a holding lacks is left out, never filled), adds today's value as the last point, and solves the money-weighted return per day (`irrDaily`), annualised only over 365 days or more. A dividend after everything was sold counts toward the last period.
-
-To build next, as designed:
-- `Txn` (in `ledger.ts`) is the stored shape. Add `transactions?: Txn[]` to `Portfolio` in `src/terminal/userdata.ts`; old portfolios have none.
-- A fourth tab on PORTFOLIO (`src/functions/PORT.tsx`), Transactions:
-  - A form: type (buy, sell, dividend), security (`resolveSecurity`), date (default today), quantity, price (a dividend's total amount, in pounds for a pence-quoted stock), fee, and an optional exchange rate. With no rate typed, a past trade in another currency takes the ECB's rate of that day (`ecbRateOn` in `src/data/live/ecb-fx.ts`, desktop only), and a trade of today takes the market rate (`baseFx` in `src/terminal/portfolio.ts`); `fxNote` says which.
-  - Refuse futures and other margined lines (`isMargined`): the ledger is for cash instruments. Refuse a sale larger than the holding.
-  - The list of transactions with delete; open lots (bought, quantity, cost a share with the fee, unrealised P&L); realised P&L by sale; a summary (invested, proceeds, dividends, fees, realised and unrealised P&L, the time- and money-weighted returns over the period, a year when it is a year or more, and the dates left out).
-  - The inputs of `performance()`: `info(sec)` from the security (`unit` = `multiplier(d)` × 0.01 for pence; splits from `realSplits` in `src/data/live/yahoo.ts`, `day` and `numerator / denominator`); closes from `dailyLevels(engine.daily(id), cutoff)` and rates from `baseFxLevels` in `src/data/portfolio-history.ts`; now from `engine.quote(id).last` and `baseFx`.
-  - Holdings and the ledger: when a security's holding equals the ledger's open quantity (or there is none), a new trade updates the holding (quantity, average cost with fees, entry rate weighted by cost, through `adjustPosition` or by setting the position from the open lots). When they differ (a holding typed on Holdings, or a split the holding does not reflect), say so on both tabs and offer "Use the transactions".
-  - A portfolio whose currency changed: transactions recorded for another base have no rate (`replay` says how many); offer to ask the ECB again.
-- Tests: the store operations (unit), the form and tables (browser, demo data with a typed rate), and a desktop test with a fixture split and an ECB rate (`fixtures.ecbFx` exists in `desktop-e2e/bootstrap.cjs`).
+The Transactions tab is `src/functions/PortTransactions.tsx`; the store operations (add, delete, holdings kept in step, rates after a currency change) are `src/terminal/transactions.ts`; the calculations stay in `src/finance/ledger.ts`. A portfolio's `transactions` list is saved with it (a rate saved as null is read back as unknown). What the screen does and the formulas are in `docs/calculators.md`, "Portfolio performance and risk". Next is item 11.
 
 ## How to work on it
 

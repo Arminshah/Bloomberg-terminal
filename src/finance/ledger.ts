@@ -85,6 +85,8 @@ export interface LedgerState {
   income: Income[];
   /** Fees paid, in the base. */
   fees: number;
+  /** Sales larger than the shares held on their day: the transaction and the excess, on today's share basis. */
+  oversold: { txn: string; sec: string; date: string; qty: number }[];
   problems: string[];
 }
 
@@ -95,7 +97,7 @@ export const ordered = (txns: readonly Txn[]) => txns.map((t, i) => ({ t, i, day
 const rateOf = (t: Txn, base: string) => (t.base === base && t.fx > 0 ? t.fx : NaN);
 
 export function replay(txns: readonly Txn[], info: (sec: string) => SecInfo | undefined, base: string): LedgerState {
-  const out: LedgerState = { lots: [], realised: [], income: [], fees: 0, problems: [] };
+  const out: LedgerState = { lots: [], realised: [], income: [], fees: 0, oversold: [], problems: [] };
   const open = new Map<string, Lot[]>();
   let noRate = 0;
   for (const { t, day } of ordered(txns)) {
@@ -133,7 +135,10 @@ export function replay(txns: readonly Txn[], info: (sec: string) => SecInfo | un
       left -= q;
       if (lot.qty <= 1e-9) lots.shift();
     }
-    if (left > 1e-9) out.problems.push(`The sale of ${t.sec} on ${t.date} is ${fmt(left)} more than the shares held then.`);
+    if (left > 1e-9) {
+      out.oversold.push({ txn: t.id, sec: t.sec, date: t.date, qty: left });
+      out.problems.push(`The sale of ${t.sec} on ${t.date} is ${fmt(left)} more than the shares held then.`);
+    }
   }
   for (const lots of open.values()) out.lots.push(...lots.filter((l) => l.qty > 1e-9));
   if (noRate) out.problems.push(`${noRate} transaction${noRate === 1 ? ' has' : 's have'} no exchange rate into ${base}: amounts in ${base} that need ${noRate === 1 ? 'it' : 'them'} are unknown.`);

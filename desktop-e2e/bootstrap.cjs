@@ -305,6 +305,9 @@ net.fetch = async (input, init) => {
       const symbol = decodeURIComponent(url.pathname.split('/').at(-1));
       const meta = chart.chart.result[0].meta;
       Object.assign(meta, { symbol, currency: 'USD', exchangeName: 'NMS', instrumentType: 'EQUITY', longName: `Synthetic ${symbol} fixture`, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000) });
+      // With fixtures.chartSplits, the splits a symbol's chart lists, as Yahoo lists them: {date, numerator, denominator}, date in seconds.
+      const splits = fixtures.chartSplits?.[symbol];
+      if (splits) chart.chart.result[0].events = { ...(chart.chart.result[0].events ?? {}), splits: Object.fromEntries(splits.map((s) => [String(s.date), { ...s, splitRatio: `${s.numerator}:${s.denominator}` }])) };
       return json(chart);
     }
     // With fixtures.futuresCurve, the first two crude oil months asked for trade at the fixture's last closes (December

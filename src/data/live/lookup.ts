@@ -468,9 +468,10 @@ async function loadFinnhub(ticker: string): Promise<LookupResult & { anchors?: [
 
 const inflight = new Map<string, Promise<LookupResult>>();
 
-/** The securities your watchlists, favourites and portfolios (every tab, not only the one on screen) name. */
+/** The securities your watchlists, favourites and portfolios (every tab, not only the one on screen, holdings and transactions) name. */
 function listedIds(): Set<string> {
-  return new Set([...watchlists.get().lists.flatMap((l) => l.ids), ...favourites.get().ids, ...portfolios.get().list.flatMap((p) => p.positions.map((x) => x.id))]);
+  const inPortfolios = portfolios.get().list.flatMap((p) => [...p.positions.map((x) => x.id), ...(Array.isArray(p.transactions) ? p.transactions.map((t) => t?.sec).filter((s): s is string => typeof s === 'string') : [])]);
+  return new Set([...watchlists.get().lists.flatMap((l) => l.ids), ...favourites.get().ids, ...inPortfolios]);
 }
 
 /** Saves a looked-up security; past the limit the oldest one no list names goes first. */

@@ -4,6 +4,7 @@ import type { LinkGroup } from './state';
 import type { RowsLayout } from './rows-layout';
 import { onPreviousDefault, withExtendedColumns, type WatchlistSort } from '../data/watchlist-columns';
 import type { ScreenDef } from '../data/screen';
+import type { Txn } from '../finance/ledger';
 
 export interface Watchlist {
   name: string;
@@ -121,6 +122,8 @@ export interface Portfolio {
   benchmark: string;
   cash: number;
   base: string;
+  /** Buys, sells and dividends entered on the Transactions tab; portfolios saved before it existed have none. */
+  transactions?: Txn[];
 }
 
 export const MAX_PORTFOLIOS = 12;

@@ -14,6 +14,8 @@ import { MAX_PORTFOLIOS, portfolio, portfolios, type Portfolio, type Position } 
 import { adjustPosition, BASE_CURRENCIES, baseFx, basePerPrice, isMargined, navValue, pnlSplit, priceCurrency } from '../terminal/portfolio';
 import type { FnProps } from '../terminal/types';
 import { PortfolioPerformance, PortfolioRisk } from './PortfolioRisk';
+import { HoldingMismatch, transactionRows, Transactions } from './PortTransactions';
+import { txnsOf } from '../terminal/transactions';
 
 export { multiplier } from '../terminal/portfolio';
 
@@ -130,6 +132,7 @@ function Holdings() {
   };
   return (
     <>
+      <HoldingMismatch />
       {unresolved.length > 0 && <div className="note amber" role="status">Some saved holdings are not in the security directory. Resolve or remove them to calculate total NAV: {unresolved.map((p) => <span key={p.id}>{p.id} <button type="button" className="btn" aria-label={`Remove unresolved ${p.id}`} onClick={() => portfolio.set((s) => ({ ...s, positions: s.positions.filter((r) => r.id !== p.id) }))}>Remove</button> </span>)}</div>}
       <div className="cols">
         <Section
@@ -367,6 +370,7 @@ function PortfolioTabs() {
         <div className="note amber row" role="alert" style={{ gap: 8, flexWrap: 'wrap' }}>
           <span>
             Close {doomed.name}? Its {doomed.positions.length} holding{doomed.positions.length === 1 ? '' : 's'}
+            {txnsOf(doomed).length ? `, ${txnsOf(doomed).length} transaction${txnsOf(doomed).length === 1 ? '' : 's'}` : ''}
             {doomed.cash !== 0 ? ` and cash of ${fmtNum(doomed.cash, 0)} ${doomed.base}` : ''} will be deleted.
           </span>
           <button
@@ -406,13 +410,18 @@ export function PORT(_: FnProps) {
           { n: 1, label: 'Holdings' },
           { n: 2, label: 'Performance' },
           { n: 3, label: 'Risk & Allocation' },
+          { n: 4, label: 'Transactions' },
         ]}
         tab={tab}
         onTab={setTab}
-        actions={exportActions(panel, `${st.name.replace(/\W+/g, '_') || 'portfolio'}.csv`, csv).map((a) => ({ ...a, label: `${a.label} holdings` }))}
+        actions={
+          tab === 4
+            ? exportActions(panel, `${st.name.replace(/\W+/g, '_') || 'portfolio'}-transactions.csv`, transactionRows).map((a) => ({ ...a, label: `${a.label} transactions` }))
+            : exportActions(panel, `${st.name.replace(/\W+/g, '_') || 'portfolio'}.csv`, csv).map((a) => ({ ...a, label: `${a.label} holdings` }))
+        }
         controls={<PortfolioTabs />}
       />
-      {tab === 1 ? <Holdings key={active} /> : tab === 2 ? <PortfolioPerformance /> : <PortfolioRisk />}
+      {tab === 1 ? <Holdings key={active} /> : tab === 2 ? <PortfolioPerformance /> : tab === 3 ? <PortfolioRisk /> : <Transactions key={active} />}
       <div className="note">Current values use source FX marks, which may be delayed or stale. Day and price P&L translate local price changes at current FX; FX P&L is the change in the {st.base ?? 'USD'} value of each position's cost since you entered it, for positions entered from 2.8.0 on. Holdings are stored {engine.realOnly ? 'on this computer' : 'in this browser'} only.</div>
     </div>
   );

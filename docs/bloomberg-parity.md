@@ -212,7 +212,7 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 | CHART | E1 | `CHART` (GP) with studies | Implemented | `HISTORY` says its prices are split-adjusted and not dividend-adjusted; `CHART` neither says so nor offers dividend-adjusted prices |
 | BOND | E1 | `BONDCALC` (YAS), `BONDS`, `CURVE` | Partial | No call schedules, so no yield to call or to worst; issue terms are typed in |
 | COMMOD | E2 | `COMMODITIES`, `FUTURESCURVE`, `CONTRACTS` | Partial | No seasonality (chapter 02:30) and no supply, demand or trade-flow data |
-| PORT | E1 | `PORTFOLIO` (`PORT.tsx`), its risk tab | Partial | Positions only: no transactions, fees, realised P&L, time- or money-weighted return or attribution |
+| PORT | E1 | `PORTFOLIO` (`PORT.tsx`), its risk tab, its Transactions tab (`PortTransactions.tsx`) | Partial | Transactions with fees and rates of the day, first-in first-out lots, splits, realised P&L, time- and money-weighted returns since item 10 (27 October). No attribution, no factor model, other corporate actions not applied |
 | BTST | E1 | `BACKTEST` (EQBT) | Partial | Today's members (warned on screen), price returns, no delisted names, monthly steps |
 | BTM | E1 (publisher post, 16 October 2026) | None | Blocked | Needs the options trade tape (OPRA) |
 | YAS | E1 | `BONDCALC` | Partial | As BOND; the mobile page says nothing of the desktop screen |
@@ -237,7 +237,7 @@ Five additions with the most use for the least data (approved 26 October):
 1. `SCREEN` over Nasdaq's full US stock list, which the app already loads: an explicit choice for missing values, AND and OR groups, saved screens. Done, `8caa5d7`.
 2. Worksheets under W: rows of securities, columns of market and fundamental fields, saved; `WATCHLIST` keeps WATCH. Done, `f26fa11`.
 3. `PEERS`: preferred stock and minority interest in EV from the filings, with the EV build-up shown. Done, `89ef249`.
-4. `PORTFOLIO` transactions: lots with dates, fees and FX, realised P&L, time- and money-weighted returns. Next.
+4. `PORTFOLIO` transactions: lots with dates, fees and FX, realised P&L, time- and money-weighted returns. Done, item 10 (27 October).
 5. `BONDCALC` call schedules: yield to call and to worst. Next.
 
 Five defects to test first:
