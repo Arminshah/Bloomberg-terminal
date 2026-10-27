@@ -52,7 +52,8 @@ Access checked later on 27 October from the new account's environment: the Unive
 Progress on 27 October, evening (the owner's three archives of public guides: a student DES guide of February 2026, a university manual with TSMC's earnings screens of July 2024, a BQuant tutorial with the fixed income search of April 2023):
 - Inspected: every screen picture in them (the account sign-up forms left aside, the notebooks' plots checked and set aside as charts their code drew). Each picture's source, date, what it shows and the app's status are in `docs/bloomberg-parity.md`, "Screenshots from three public guides".
 - Settled: DSCO is company document search (the related functions menu). EE is a page of its own, not ERN: fixed. The app's DES and ANR match their pictures closely.
-- Open questions, each with the picture or text that would settle it, are listed at the end of that section (EQS's match counts, DES pages 2 to 5, MODL, EE's implied move, ANR's BARR and rank).
+- Found the same evening: the University of Ljubljana's EQS guide (screens of 2023) shows the equity screener's Matches column, so SCREEN's count after each criterion matches EQS itself; it also shows a "top N by a field" criterion the app lacks (now in "Later").
+- Open questions, each with the picture or text that would settle it, are listed at the end of that section (DES pages 2 to 5, MODL, EE's implied move, ANR's BARR and rank).
 
 Limits:
 - The supplied evidence pack has no video frames or captions. Exact current screen details stay unverified until the relevant images or interactions are inspected; documented commands, calculations and workflows can proceed from suitable written sources.
@@ -82,6 +83,7 @@ Plan:
 
 ## Later
 
+- SCREEN: a "top N by a field" criterion (EQS's "Top 20 Sequential Rank", seen on a 2023 screenshot) and a period per criterion (trailing 12 months, latest quarter, latest year), from the figures the app already reads.
 - Functions the reference documents name that the app lacks but could build from free data (class a in `docs/audit-v2.23.0-coverage.md`; all 27 the guides describe are built, section 2a). Next:
   - EQBT with fundamental rules (cheap on earnings, say): it needs each company's figures as they were known at each date. The SEC's XBRL frames give filing dates, so it can be built from them; it is a larger piece of work.
   - Use `docs/audit-v2.23.0-coverage.md`, section 2a, for the later research on those 27 codes: 17 now have public sources, PSRT and OVDV have weaker evidence, and 8 remain unresolved. FXCA is built, and the newly confirmed codes of item 13 were built on 27 October. Research the unresolved codes from accessible written or visual sources before claiming their scope.
