@@ -30,6 +30,8 @@ export const LEGACY_CODES: Record<string, string> = {
   EVT: 'EVENTS',
   CF: 'FILINGS',
   DS: 'DOCSEARCH',
+  // Document Search, as the University of San Diego's guide names DSCO (checked 27 October 2026); DS stays the name shown.
+  DSCO: 'DOCSEARCH',
   GF: 'FUNDCHART',
   GP: 'CHART',
   GIP: 'INTRADAY',

@@ -255,6 +255,12 @@ describe('codes from the reference guides that name screens the app has', () => 
     expect(primaryMnemonic('BONDS')).toBe('WB');
   });
 
+  it('opens DOCSEARCH for DSCO (Document Search), keeping DS as its name', () => {
+    expect(parse('DSCO')).toEqual({ kind: 'route', fn: 'DOCSEARCH' });
+    expect(parse('AAPL US Equity DSCO')).toMatchObject({ kind: 'route', fn: 'DOCSEARCH', sec: expect.objectContaining({ id: 'AAPL US Equity' }) });
+    expect(primaryMnemonic('DOCSEARCH')).toBe('DS');
+  });
+
   it('opens ECONSTATS for GEW (key economic statistics by country) and ALERTS for NLRT (news alerts)', () => {
     expect(parse('GEW')).toEqual({ kind: 'route', fn: 'ECONSTATS' });
     expect(parse('NLRT')).toEqual({ kind: 'route', fn: 'ALERTS' });
