@@ -49,7 +49,7 @@ describe('which column is live, and what the line says', () => {
     // Without the column, it says how to add it; with IEX prices, the last price is IEX's latest trade.
     expect(usSessionText(at('2026-10-26T11:00:00Z'), ['PX_LAST'], true).text).toContain('Pre-mkt is live (not among the columns: 94) Columns adds it); Last is IEX\'s latest trade, outside the regular session too');
     expect(usSessionText(at('2026-10-26T14:00:00Z'), []).text).toBe('regular session, 09:30 to 16:00 New York · closes in 6:00:00 · Last is live');
-    expect(usSessionText(at('2026-10-24T15:00:00Z'), []).text).toBe('closed for the weekend · pre-market opens Mon 04:00 New York (in 1d 17h 00m) · nothing is live: Last is the latest close, After hrs the last after-hours trade');
+    expect(usSessionText(at('2026-10-24T15:00:00Z'), []).text).toBe('closed for the weekend · pre-market opens Mon 04:00 New York (in 1d 17h 00m) · nothing is live: Last is the latest close, After-hrs the last after-hours trade');
     expect(usSessionText(at('2026-11-26T17:00:00Z'), []).text).toContain('closed for Thanksgiving Day · pre-market opens Fri 04:00 New York');
   });
 

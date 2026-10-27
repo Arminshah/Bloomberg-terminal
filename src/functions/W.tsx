@@ -2,6 +2,7 @@ import { useEffect, useState, type DragEvent, type ReactNode } from 'react';
 import { useBooks, withBook } from '../data/live/nasdaq-book';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
+import { RangeBar } from '../components/RangeBar';
 import { DayChg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { FreshnessLegend } from '../components/Freshness';
 import { FavStar } from '../components/FavStar';
@@ -10,11 +11,11 @@ import { exchangeOfListing, US_MARKET, usSession } from '../data/exchanges';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtBp, fmtNum, fmtPct, fmtStamp } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { periodChange } from '../data/analytics';
+import { averageVolume, marketCap, periodChange, range52w } from '../data/analytics';
 import { fieldTime } from '../data/fields';
 import { extendedSessions } from '../data/live/yahoo';
 import { hasSessionColumns, useExtendedSessionQuotes } from '../data/live/extended-hours';
-import { placeInOrder, sortWatchlistRows, WATCHLIST_COLUMNS, WATCHLIST_PRESETS, watchlistColumns, watchlistExport, watchlistRow, type WatchlistColumn, type WatchlistRow, type WatchlistSort } from '../data/watchlist-columns';
+import { placeInOrder, sortWatchlistRows, UNSORTED_COLUMNS, WATCHLIST_COLUMNS, WATCHLIST_PRESETS, watchlistColumns, watchlistExport, watchlistRow, type WatchlistColumn, type WatchlistRow, type WatchlistSort } from '../data/watchlist-columns';
 import { resolveSecurity, searchSecurities } from '../data/registry';
 import type { Quote, SecurityDef } from '../data/types';
 import { flash, usePanelId } from '../terminal/panel';
@@ -40,7 +41,15 @@ export function FieldCell({ column, row, sec, quote, now }: { column: WatchlistC
     case 'ARMIN_YTD':
     case 'ARMIN_1Y': value = y ? fmtBp(Number(f.value), 0) : <span className={Number(f.value) >= 0 ? 'up' : 'dn'}>{fmtPct(Number(f.value), 1)}</span>; break;
     case 'ARMIN_SOURCE_TIME': value = f.dateOnly ? fieldTime(f) : quote ? fmtStamp(quote.time, now) : '--'; break;
-    case 'ARMIN_TODAY': value = <Sparkline values={row.today} width={80} height={14} />; break;
+    case 'ARMIN_TODAY': value = <Sparkline values={row.today} width={80} height={16} base={row.base} />; break;
+    case 'ARMIN_AVG_VOL_3M': value = fmtBig(Number(f.value)); break;
+    case 'CUR_MKT_CAP': value = fmtBig(Number(f.value)); break;
+    case 'ARMIN_DAY_RANGE':
+    case 'ARMIN_52W_RANGE': {
+      const r = column.id === 'ARMIN_DAY_RANGE' ? row.day : row.year;
+      if (!r) break;
+      return <RangeBar r={r} dec={sec.dec} title={`${f.name} (${f.unit}) · ${f.source}\n${f.definition}\n${f.note}`} />;
+    }
     case 'ARMIN_RECEIVED_AT': value = f.asOf === null ? '--' : fieldTime(f); break;
     case 'ARMIN_PRE_MARKET':
     case 'ARMIN_AFTER_HOURS': {
@@ -113,6 +122,9 @@ export function W({ route }: FnProps) {
     const intra = selected.has('ARMIN_TODAY') ? engine.intraday(id) : undefined;
     return watchlistRow(id, engine.get(id), withBook(id, engine.quote(id)), now, {
       ytd: selected.has('ARMIN_YTD') ? periodChange(id, 'YTD') : NaN,
+      avgVolume: selected.has('ARMIN_AVG_VOL_3M') ? averageVolume(id) : NaN,
+      range52: selected.has('ARMIN_52W_RANGE') ? range52w(id) : null,
+      marketCap: selected.has('CUR_MKT_CAP') ? marketCap(id) : NaN,
       y1: selected.has('ARMIN_1Y') ? periodChange(id, '1Y') : NaN,
       today: intra ? Array.from(intra.c.subarray(0, intra.length)) : [], intradayTime: intra?.length ? intra.t[intra.length - 1] : undefined,
       extended: extendedSessions(id, now),
@@ -242,7 +254,7 @@ export function W({ route }: FnProps) {
           <tr>
             <th>Security</th>
             {columns.map((c) => <th key={c.id} className={`${c.numeric ? 'num' : ''}${c.compact || list.columns ? '' : ' hide-m'}${live.has(c.id) ? ' live-col' : ''}`} aria-sort={list.sort?.column === c.id ? list.sort.direction === 'asc' ? 'ascending' : 'descending' : undefined}>
-              {c.id === 'ARMIN_TODAY' ? c.label : <button type="button" className="act" title={`${c.id} · sort ascending, descending, then manual order`} onClick={() => changeSort(c.id)}>{c.label}{list.sort?.column === c.id ? list.sort.direction === 'asc' ? ' ▲' : ' ▼' : ''}</button>}
+              {UNSORTED_COLUMNS.has(c.id) ? c.label : <button type="button" className="act" title={`${c.id} · sort ascending, descending, then manual order`} onClick={() => changeSort(c.id)}>{c.label}{list.sort?.column === c.id ? list.sort.direction === 'asc' ? ' ▲' : ' ▼' : ''}</button>}
               {live.has(c.id) ? <span className="live-tag" title="US stocks are trading in this session now">LIVE</span> : null}
             </th>)}
             <th />
@@ -293,7 +305,7 @@ export function W({ route }: FnProps) {
                   <FavStar id={id} />
                   {d ? <SecLink id={id}>{d.ticker}</SecLink> : <span title="Security definition is unavailable; remove or reload this line.">{id}</span>}
                 </td>
-                {columns.map((c) => <td key={c.id} className={`${c.numeric ? 'num' : 'ellipsis'}${c.compact || list.columns ? '' : ' hide-m'}${c.id === 'PX_LAST' ? ' white' : ''}${live.has(c.id) ? ' live-col' : ''}`} style={c.numeric || c.id === 'ARMIN_TODAY' ? undefined : { maxWidth: 240 }}><FieldCell column={c} row={row} sec={d} quote={q} now={now} /></td>)}
+                {columns.map((c) => <td key={c.id} className={`${c.numeric ? 'num' : 'ellipsis'}${c.compact || list.columns ? '' : ' hide-m'}${c.id === 'PX_LAST' ? ' white' : ''}${live.has(c.id) ? ' live-col' : ''}`} style={c.numeric || UNSORTED_COLUMNS.has(c.id) ? undefined : { maxWidth: 240 }}><FieldCell column={c} row={row} sec={d} quote={q} now={now} /></td>)}
                 <td className="nowrap" onClick={(e) => e.stopPropagation()}>
                   <button type="button" className="act" aria-label="Move up" disabled={k === 0} title={list.sort ? 'Keeps this sorted order as the manual order' : undefined} onClick={() => place(id, rows[k - 1].id, false)}>
                     ▲

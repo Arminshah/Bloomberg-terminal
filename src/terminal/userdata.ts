@@ -2,7 +2,7 @@ import { createStore, loadJson, removeKey, saveJson, type Store } from '../core/
 import type { LayoutId, Route } from './types';
 import type { LinkGroup } from './state';
 import type { RowsLayout } from './rows-layout';
-import { withExtendedColumns, type WatchlistSort } from '../data/watchlist-columns';
+import { onPreviousDefault, withExtendedColumns, type WatchlistSort } from '../data/watchlist-columns';
 import type { ScreenDef } from '../data/screen';
 
 export interface Watchlist {
@@ -53,6 +53,13 @@ if (typeof localStorage !== 'undefined' && !loadJson('armin:ext-hours-columns'))
 if (typeof localStorage !== 'undefined' && !loadJson('armin:1y-column')) {
   watchlists.set((s) => ({ ...s, lists: s.lists.map((l) => (l.columns?.includes('ARMIN_YTD') && !l.columns.includes('ARMIN_1Y') ? { ...l, columns: l.columns.flatMap((c) => (c === 'ARMIN_YTD' ? [c, 'ARMIN_1Y'] : [c])) } : l)) }));
   saveJson('armin:1y-column', 1);
+}
+
+// Once per installation (27 October 2026): lists that carry exactly the previous default columns take the new layout;
+// a list with columns of its own keeps them.
+if (typeof localStorage !== 'undefined' && !loadJson('armin:watchlist-layout-2')) {
+  watchlists.set((s) => ({ ...s, lists: s.lists.map((l) => (onPreviousDefault(l.columns) ? { name: l.name, ids: l.ids, ...(l.sort ? { sort: l.sort } : {}) } : l)) }));
+  saveJson('armin:watchlist-layout-2', 1);
 }
 
 /** A worksheet (W): rows of securities, columns of market and fundamental fields, a sort. Kept apart from watchlists. */

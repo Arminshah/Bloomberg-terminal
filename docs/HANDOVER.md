@@ -53,6 +53,18 @@ Public or private, the repository is not for sharing research material: copyrigh
 - Evidence pack v3 (from Codex) checked and compared with the app: `docs/bloomberg-parity.md`, "Evidence pack v3: gap analysis". The owner approved its five additions and five defect tests on 26 October. Done: SCREEN over Nasdaq's whole US list with AND/OR groups, explicit missing values and saved screens (`8caa5d7`); worksheets under W (`f26fa11`); PEERS' EV with preferred stock and minority interest (`89ef249`); LLP to LAYOUTS (`3951765`). Left: items 10 to 12 in `docs/TODO.md`.
 - `27947b2`: the portfolio ledger's calculations, without a screen (below).
 
+## Done on 27 October (on the branch, not released; your installed 2.26.0 lacks all of it)
+
+- `6e6171a` **Typeface fixed to IBM Plex Sans** (see `CLAUDE.md`): Bergoom drew uneven figures on Windows. No typeface setting any more; `tests/typeface.test.ts` and `e2e/look.spec.ts` guard it.
+- `e01d65b` EA/EVENTS ask the latest reports' year-earlier days first, so growth figures show at once.
+- `a152d9a` **Watchlist sessions, the owner's rule:** After-hrs is the latest after-hours session, live 16:00 to 20:00 New York, then frozen at its last trade through the next pre-market and day until the next evening trades. Pre-mkt is today's, live 04:00 to 09:30, then frozen; from the regular close until the next pre-market (and at weekends) it reads N/A. The blinking After-hrs column was the price poller replacing the stored Yahoo quote without the evening read from the chart (`withSessionChart` in `src/data/live/yahoo.ts`).
+- The next commit: **the owner's watchlist layout** (after Yahoo Finance's watchlist summary): Security, Name, Last Price, Change (%), Change, Pre-mkt, After-hrs, Volume, Avg Vol (3M), YTD, 52-Wk %, Day Range and 52-Wk Range (one-line range bars: low, bar with marker at the last price, high; the day fills the move from the open, the year fills today's range), Day Chart (dotted line at the previous close, green above, red below), Market Cap. Lists that still carried the old default columns move to it once; lists with their own columns keep them. Bid, Ask and Time are still in 94) Columns.
+
+## Waiting on the owner
+
+- **Release 2.26.1** with all of the above: ask before releasing. The repository is private, so GitHub runs no CI or release build; check Settings → Billing → Actions, or make it public for the build.
+- Points to raise with the owner about the new layout: "52-WK" was read as the one-year change (labelled 52-Wk %); Avg Vol (3M) is worked out from the last 63 sessions of the daily history (Yahoo's own figure may differ slightly); Market Cap is in each stock's own currency; Currency and Market Time (Yahoo's columns) were not asked for and are not in the default.
+
 ## Work in progress: PORTFOLIO transactions (TODO item 10)
 
 Done: `src/finance/ledger.ts` with `tests/ledger.test.ts` (7 tests). `replay()` matches buys and sells first in, first out, puts trades before a split on today's share basis (`splitFactor`, splits as new shares per old by the first day they traded split), and splits realised P&L into the price move at the sale's rate, the rate's move on the cost, and fees. `unrealised()` does the same for an open lot. `performance()` chains the time-weighted return over every close where each holding has a price and a rate (Modified Dietz each day: buys from the start of the day, sales and dividends at its end; a date a holding lacks is left out, never filled), adds today's value as the last point, and solves the money-weighted return per day (`irrDaily`), annualised only over 365 days or more. A dividend after everything was sold counts toward the last period.

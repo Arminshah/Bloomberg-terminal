@@ -5,7 +5,7 @@ import { SimBadge } from '../components/Source';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtNum, fmtPct } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { periodChange } from '../data/analytics';
+import { averageVolume, marketCap, periodChange, range52w } from '../data/analytics';
 import { extendedSessions } from '../data/live/yahoo';
 import { useFundamentalsFor } from '../data/live/yfund';
 import { withBook } from '../data/live/nasdaq-book';
@@ -39,7 +39,7 @@ export function sheetColumns(ids: readonly string[] | undefined): WatchlistColum
 
 /** One row: the watchlist's market fields with the fundamental ones added. */
 export function worksheetRow(id: string, sec: SecurityDef | undefined, now: number): WatchlistRow {
-  const row = watchlistRow(id, sec, withBook(id, engine.quote(id)), now, { ytd: periodChange(id, 'YTD'), y1: periodChange(id, '1Y'), today: [], extended: extendedSessions(id, now) });
+  const row = watchlistRow(id, sec, withBook(id, engine.quote(id)), now, { ytd: periodChange(id, 'YTD'), y1: periodChange(id, '1Y'), today: [], extended: extendedSessions(id, now), avgVolume: averageVolume(id), range52: range52w(id), marketCap: marketCap(id) });
   for (const [k, f] of fundamentalFields(sec)) row.fields.set(k, f);
   return row;
 }

@@ -1448,7 +1448,10 @@ test('the explicit IEX source switch supplies watchlist and quote prices with on
   await command(page, 'WATCHLIST');
   const row = page.locator('.panel').first().getByRole('row').filter({ has: page.getByRole('button', { name: 'AAPL US', exact: true }) });
   await expect(row.getByRole('cell').nth(2)).toHaveText(PRICE);
-  // Bid and ask by their headers: the default columns include the extended sessions before them.
+  // Bid and ask by their headers, in the Quote detail view (the default layout has none since 27 October 2026).
+  await page.locator('.panel').first().getByRole('button', { name: '94) Columns' }).click();
+  await page.locator('.panel').first().getByRole('button', { name: 'Quote detail', exact: true }).click();
+  await page.locator('.panel').first().getByRole('button', { name: 'Done', exact: true }).click();
   const headers = await page.locator('.panel').first().locator('thead th').allTextContents();
   await expect(row.getByRole('cell').nth(headers.findIndex((h) => h.trim() === 'Bid'))).toHaveText('123.40');
   await expect(row.getByRole('cell').nth(headers.findIndex((h) => h.trim() === 'Ask'))).toHaveText('123.50');
@@ -1633,7 +1636,7 @@ test('in the evening the watchlist shows after-hours live and the morning\'s pre
   const row = page.getByRole('row').filter({ hasText: 'Apple Inc' }).first();
   const header = page.locator('thead th');
   const cell = async (label: string) => row.locator('td').nth(await header.evaluateAll((ths, l) => ths.findIndex((th) => th.textContent?.trim().startsWith(l)), label));
-  await expect(await cell('After hrs')).toContainText('2.07%', { timeout: 30_000 });
+  await expect(await cell('After-hrs')).toContainText('2.07%', { timeout: 30_000 });
   await expect(await cell('Pre-mkt')).toHaveText('N/A');
   await expect((await cell('Pre-mkt')).locator('span')).toHaveAttribute('title', /next pre-market opens at 04:00 New York time/);
 });

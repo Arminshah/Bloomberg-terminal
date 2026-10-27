@@ -214,3 +214,34 @@ export function marketCapUsd(id: string): number {
   if (!def) return NaN;
   return toUsd(marketCap(id), def.ccy === 'GBp' ? 'GBP' : def.ccy);
 }
+
+/**
+ * Average daily volume over the last `sessions` completed sessions of the daily history (63, about three months);
+ * today's forming session is left out. NaN without that many sessions with volume (indices and currencies trade none).
+ */
+export function averageVolume(id: string, sessions = 63): number {
+  const s = engine.daily(id);
+  const today = Math.floor(engine.now() / DAY_MS) * DAY_MS;
+  const vols: number[] = [];
+  for (let i = s.length - 1; i >= 0 && vols.length < sessions; i--) if (s.t[i] < today) vols.push(s.v[i]);
+  if (vols.length < sessions || !vols.every((v) => Number.isFinite(v) && v >= 0) || !vols.some((v) => v > 0)) return NaN;
+  return vols.reduce((a, v) => a + v, 0) / vols.length;
+}
+
+/** The lowest low and highest high of the last 52 weeks of the daily history, today's session included; null without a year of it. */
+export function range52w(id: string): { low: number; high: number } | null {
+  const s = engine.daily(id);
+  const now = engine.now();
+  if (!s.length || s.t[0] > now - 358 * DAY_MS) return null;
+  let low = Infinity;
+  let high = -Infinity;
+  for (let i = 0; i < s.length; i++) {
+    if (s.t[i] < now - 365 * DAY_MS) continue;
+    if (s.l[i] > 0) low = Math.min(low, s.l[i]);
+    if (s.h[i] > 0) high = Math.max(high, s.h[i]);
+  }
+  const q = engine.quote(id);
+  if (q && q.low > 0) low = Math.min(low, q.low);
+  if (q && q.high > 0) high = Math.max(high, q.high);
+  return Number.isFinite(low) && Number.isFinite(high) && high >= low ? { low, high } : null;
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { toCsv } from '../src/core/csv';
-import { DEFAULT_WATCHLIST_COLUMNS, placeInOrder, sortWatchlistRows, watchlistColumns, watchlistExport, watchlistRow, withExtendedColumns } from '../src/data/watchlist-columns';
+import { averageVolume, marketCap, range52w } from '../src/data/analytics';
+import { DEFAULT_WATCHLIST_COLUMNS, onPreviousDefault, PREVIOUS_DEFAULT_COLUMNS, placeInOrder, sortWatchlistRows, watchlistColumns, watchlistExport, watchlistRow, withExtendedColumns } from '../src/data/watchlist-columns';
 import { extendedSessions, lastPostTrade, yahooQuotes } from '../src/data/live/yahoo';
 import { engine } from '../src/data/market';
 import type { Quote, SecurityDef } from '../src/data/types';
@@ -79,7 +80,7 @@ describe('pre-market and after-hours columns', () => {
   });
 
   it('are on by default and join lists saved with their own columns after %Chg, once', () => {
-    expect(DEFAULT_WATCHLIST_COLUMNS.slice(3, 6)).toEqual(['CHG_PCT_1D', 'ARMIN_PRE_MARKET', 'ARMIN_AFTER_HOURS']);
+    expect(DEFAULT_WATCHLIST_COLUMNS.slice(2, 6)).toEqual(['CHG_PCT_1D', 'CHG_NET_1D', 'ARMIN_PRE_MARKET', 'ARMIN_AFTER_HOURS']);
     expect(withExtendedColumns(['NAME', 'PX_LAST', 'CHG_PCT_1D', 'BID'])).toEqual(['NAME', 'PX_LAST', 'CHG_PCT_1D', 'ARMIN_PRE_MARKET', 'ARMIN_AFTER_HOURS', 'BID']);
     expect(withExtendedColumns(['PX_LAST'])).toEqual(['PX_LAST', 'ARMIN_PRE_MARKET', 'ARMIN_AFTER_HOURS']);
     // A list that already chose one of them (or removed the other) is left as it is.
@@ -123,5 +124,55 @@ describe('the pre-market column once the session is over', () => {
     expect(row.fields.get('ARMIN_PRE_MARKET')!.note).toContain('04:00 New York time');
     expect(row.fields.get('ARMIN_PRE_PX')).toMatchObject({ value: null, status: 'OUT OF SESSION' });
     expect(row.fields.get('ARMIN_AFTER_HOURS')).toMatchObject({ value: 0.19, status: 'EXTENDED HOURS' });
+  });
+});
+
+describe("the owner's watchlist layout (27 October 2026)", () => {
+  it('is Security, Name, Last Price, Change (%), Change, Pre-mkt, After-hrs, Volume, Avg Vol (3M), YTD, 52-Wk %, Day Range, 52-Wk Range, Day Chart, Market Cap', () => {
+    expect(watchlistColumns(undefined).map((c) => c.label)).toEqual(['Name', 'Last Price', 'Change (%)', 'Change', 'Pre-mkt', 'After-hrs', 'Volume', 'Avg Vol (3M)', 'YTD', '52-Wk %', 'Day Range', '52-Wk Range', 'Day Chart', 'Market Cap']);
+    // Bid, Ask and Time stay in the column picker.
+    for (const id of ['BID', 'ASK', 'ARMIN_SOURCE_TIME']) expect(watchlistColumns([id]).map((c) => c.id)).toEqual([id]);
+  });
+
+  it('moves lists that carry exactly the previous default, in any order, and leaves lists with their own columns', () => {
+    expect(onPreviousDefault(PREVIOUS_DEFAULT_COLUMNS)).toBe(true);
+    expect(onPreviousDefault([...PREVIOUS_DEFAULT_COLUMNS].reverse())).toBe(true);
+    expect(onPreviousDefault(PREVIOUS_DEFAULT_COLUMNS.filter((c) => c !== 'BID'))).toBe(false);
+    expect(onPreviousDefault([...PREVIOUS_DEFAULT_COLUMNS, 'PX_OPEN'])).toBe(false);
+    expect(onPreviousDefault(undefined)).toBe(false);
+  });
+
+  it("gives the day and 52-week ranges, average volume and market value, each with its source, and nothing it lacks", () => {
+    const id = 'AAPL US Equity';
+    const q = engine.quote(id)!;
+    const row = watchlistRow(id, engine.get(id), q, Date.now(), { ytd: NaN, today: [], avgVolume: averageVolume(id), range52: range52w(id), marketCap: marketCap(id) });
+    // The day: low to high, the marker at the last price, the move from the open filled.
+    expect(row.day).toMatchObject({ low: q.low, high: q.high, at: q.last, from: Math.min(q.open, q.last), to: Math.max(q.open, q.last) });
+    expect(row.fields.get('ARMIN_DAY_RANGE')!.value).toBe(`${q.low.toFixed(2)} - ${q.high.toFixed(2)}`);
+    // The year contains the day, and today's range is the filled part.
+    const year = row.year!;
+    expect(year.low).toBeLessThanOrEqual(q.low);
+    expect(year.high).toBeGreaterThanOrEqual(q.high);
+    expect([year.from, year.to]).toEqual([q.low, q.high]);
+    expect(row.base).toBe(q.prevClose);
+    expect(row.fields.get('ARMIN_AVG_VOL_3M')).toMatchObject({ value: averageVolume(id), unit: 'shares' });
+    expect(row.fields.get('CUR_MKT_CAP')).toMatchObject({ value: marketCap(id), unit: 'USD' });
+    // A currency trades no volume and has no market value: blank, with the reason.
+    const fx = watchlistRow('EURUSD Curncy', engine.get('EURUSD Curncy'), engine.quote('EURUSD Curncy'), Date.now(), { ytd: NaN, today: [], avgVolume: averageVolume('EURUSD Curncy'), range52: range52w('EURUSD Curncy'), marketCap: marketCap('EURUSD Curncy') });
+    expect(fx.fields.get('ARMIN_AVG_VOL_3M')).toMatchObject({ value: null, status: 'UNAVAILABLE' });
+    expect(fx.fields.get('CUR_MKT_CAP')).toMatchObject({ value: null, status: 'UNAVAILABLE' });
+  });
+
+  it('averages the last 63 completed sessions, and takes the 52-week range from the daily history and the quote', () => {
+    const id = 'MSFT US Equity';
+    const s = engine.daily(id);
+    const today = Math.floor(engine.now() / 86_400_000) * 86_400_000;
+    const done = Array.from(s.v.subarray(0, s.length)).filter((_, i) => s.t[i] < today).slice(-63);
+    expect(averageVolume(id)).toBeCloseTo(done.reduce((a, v) => a + v, 0) / 63, 6);
+    const r = range52w(id)!;
+    expect(r.low).toBeGreaterThan(0);
+    expect(r.high).toBeGreaterThan(r.low);
+    expect(r.low).toBeLessThanOrEqual(engine.quote(id)!.last);
+    expect(r.high).toBeGreaterThanOrEqual(engine.quote(id)!.last);
   });
 });

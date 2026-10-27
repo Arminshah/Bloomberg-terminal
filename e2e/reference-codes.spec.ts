@@ -378,3 +378,30 @@ test('SCREEN joins criteria by AND within a group and OR across groups, says its
   await expect(page.locator('.panel').first().getByLabel('Saved screens')).toHaveValue('Big tech or yield');
   expect(errors).toEqual([]);
 });
+
+test("the watchlist's layout: changes, both extended sessions, volumes, YTD and 52 weeks, two range bars, a day chart on the previous close, market value", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'WATCH');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('WATCHLIST');
+  const heads = (await panel.locator('thead th').allTextContents()).map((h) => h.replace(/[▲▼]/g, '').trim()).filter(Boolean);
+  expect(heads.slice(0, 15)).toEqual(['Security', 'Name', 'Last Price', 'Change (%)', 'Change', 'Pre-mkt', 'After-hrs', 'Volume', 'Avg Vol (3M)', 'YTD', '52-Wk %', 'Day Range', '52-Wk Range', 'Day Chart', 'Market Cap']);
+  const row = panel.getByRole('row').filter({ has: page.getByRole('button', { name: 'AAPL US', exact: true }) });
+  // Both ranges: low and high either side of a bar, the marker inside it.
+  const bars = row.locator('.rangebar');
+  await expect(bars).toHaveCount(2);
+  for (let i = 0; i < 2; i++) {
+    const track = await bars.nth(i).getByTestId('range-track').boundingBox();
+    const mark = await bars.nth(i).locator('.rb-mark').boundingBox();
+    expect(track && mark && mark.x + mark.width / 2 >= track.x - 1 && mark.x + mark.width / 2 <= track.x + track.width + 1).toBe(true);
+  }
+  // The day chart, on a dotted line at the previous close.
+  await expect(row.getByTestId('day-chart')).toBeVisible();
+  await expect(row.getByTestId('day-chart-base')).toHaveAttribute('stroke-dasharray', '1.5 1.5');
+  // Market value and average volume are figures, and their sources show on hover.
+  const cell = async (label: string) => row.getByRole('cell').nth((await panel.locator('thead th').allTextContents()).findIndex((h) => h.replace(/[▲▼]/g, '').trim() === label));
+  await expect(await cell('Market Cap')).toHaveText(/^\d+(\.\d+)?[KMBT]$/);
+  await expect((await cell('Avg Vol (3M)')).locator('span[title]')).toHaveAttribute('title', /Calculated from the daily history[\s\S]*session is left out/);
+  expect(errors).toEqual([]);
+});
+

@@ -28,7 +28,7 @@ test('watchlist column choices, order and sort persist and export the filtered v
   const pending = page.waitForEvent('download');
   await panel.getByRole('button', { name: '99) Export', exact: true }).click();
   const csv = await readFile((await (await pending).path())!, 'utf8');
-  expect(csv.split('\n')[0]).toBe('Security,Name,Last,Provider,Currency,Freshness,Time,Received UTC,Change Check');
+  expect(csv.split('\n')[0]).toBe('Security,Name,Last Price,Provider,Currency,Freshness,Time,Received UTC,Change Check');
   expect(csv).toContain('AAPL US Equity');
   expect(csv).not.toContain('MSFT US Equity');
   expect(csv).toContain('DEMO DATA');

@@ -39,11 +39,11 @@ export function usSessionText(now: number, shown: string[], iex = false): { phas
   let text: string;
   if (s.phase === 'pre') text = `pre-market, ${s.from} to ${s.to} New York · the regular session opens in ${left} · Pre-mkt is live${missing(liveColumns('pre'))}; ${last('Last is the previous close')}`;
   else if (s.phase === 'regular') text = `regular session, ${s.from} to ${s.to} New York · closes in ${left} · Last is live`;
-  else if (s.phase === 'post') text = `after hours, ${s.from} to ${s.to} New York · ends in ${left} · After hrs is live${missing(liveColumns('post'))}; ${last("Last is today's close")}`;
+  else if (s.phase === 'post') text = `after hours, ${s.from} to ${s.to} New York · ends in ${left} · After-hrs is live${missing(liveColumns('post'))}; ${last("Last is today's close")}`;
   else {
     const why = s.closedFor === 'holiday' ? `closed for ${s.holiday}` : s.closedFor === 'weekend' ? 'closed for the weekend' : 'closed until the pre-market';
     const opens = Number.isFinite(s.until) ? ` · pre-market opens ${nyTime(s.until, now)} New York (in ${left})` : '';
-    text = `${why}${opens} · nothing is live: ${iex ? "Last is IEX's latest trade" : 'Last is the latest close'}, After hrs the last after-hours trade`;
+    text = `${why}${opens} · nothing is live: ${iex ? "Last is IEX's latest trade" : 'Last is the latest close'}, After-hrs the last after-hours trade`;
   }
   return { phase: s.phase, label: LABEL[s.phase], text };
 }
