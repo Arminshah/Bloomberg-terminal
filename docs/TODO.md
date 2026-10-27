@@ -92,7 +92,7 @@ Plan:
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
 - Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
 
-## Done, on the branch, not released yet
+## Done in 2.27.0
 
 - Item 13, the newly confirmed codes (`docs/audit-v2.23.0-coverage.md`, after section 2a's table), each on real data with unit, browser and desktop tests:
   - `81cea33` OIL, GAS, MINE and AGS: the commodity sector pages, with the sector's contracts and measures worked out from them (Brent-WTI, two crack spreads, crude to gas, gold to silver and to platinum, soybean to corn, wheat less corn) and each one's year's range.
@@ -202,6 +202,7 @@ Plan:
 
 ## Released
 
+- 2.27.0 on 27 October 2026 (`docs/release-v2.27.0.md`), at your request: everything under "Done in 2.27.0".
 - 2.26.0 on 26 October 2026 (`docs/release-v2.26.0.md`), at your request, before the work moved to another account.
 - 2.25.1 on 26 October 2026 (`docs/release-v2.25.1.md`), at your request. 2.25.0 was built but not published (see "Done in 2.25.1").
 - 2.24.0 on 23 October 2026 (`docs/release-v2.24.0.md`).

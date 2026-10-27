@@ -7,7 +7,7 @@ For any Claude session that takes over Armin Terminal, on this account or anothe
 - **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 131 functions.
 - **Repository**: `Arminshah/Bloomberg-terminal`, public again since 27 October (the owner opened it for the handover), so GitHub runs CI on every push and can build releases. If it is made private again, GitHub starts no runner (the `test` job fails in 3 seconds with no log): then check everything locally before each push, and ask the owner to check Settings → Billing → Actions before a release.
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
-- **Last release**: 2.26.0 (tag `v2.26.0`, 26 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.26.0.md`.
+- **Last release**: 2.27.0 (tag `v2.27.0`, 27 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.27.0.md`. 2.26.0 came the day before.
 
 ## The objective (the owner's, 26 October 2026)
 
@@ -55,14 +55,14 @@ The assistant owns reference research: find and inspect lawful public manuals, i
 - Evidence pack v3 (from Codex) checked and compared with the app: `docs/bloomberg-parity.md`, "Evidence pack v3: gap analysis". The owner approved its five additions and five defect tests on 26 October. Done: SCREEN over Nasdaq's whole US list with AND/OR groups, explicit missing values and saved screens (`8caa5d7`); worksheets under W (`f26fa11`); PEERS' EV with preferred stock and minority interest (`89ef249`); LLP to LAYOUTS (`3951765`). Left: items 10 to 12 in `docs/TODO.md`.
 - `27947b2`: the portfolio ledger's calculations, without a screen (below).
 
-## Done on 27 October (on the branch, not released; your installed 2.26.0 lacks all of it)
+## Done on 27 October, before the second account (in 2.27.0)
 
 - `6e6171a` **Typeface fixed to IBM Plex Sans** (see `CLAUDE.md`): Bergoom drew uneven figures on Windows. No typeface setting any more; `tests/typeface.test.ts` and `e2e/look.spec.ts` guard it.
 - `e01d65b` EA/EVENTS ask the latest reports' year-earlier days first, so growth figures show at once.
 - `a152d9a` **Watchlist sessions, the owner's rule:** After-hrs is the latest after-hours session, live 16:00 to 20:00 New York, then frozen at its last trade through the next pre-market and day until the next evening trades. Pre-mkt is today's, live 04:00 to 09:30, then frozen; from the regular close until the next pre-market (and at weekends) it reads N/A. The blinking After-hrs column was the price poller replacing the stored Yahoo quote without the evening read from the chart (`withSessionChart` in `src/data/live/yahoo.ts`).
 - The next commit: **the owner's watchlist layout** (after Yahoo Finance's watchlist summary): Security, Name, Last Price, Change (%), Change, Pre-mkt, After-hrs, Volume, Avg Vol (3M), YTD, 52-Wk %, Day Range and 52-Wk Range (one-line range bars: low, bar with marker at the last price, high; the day fills the move from the open, the year fills today's range), Day Chart (dotted line at the previous close, green above, red below), Market Cap. Lists that still carried the old default columns move to it once; lists with their own columns keep them. Bid, Ask and Time are still in 94) Columns.
 
-## The second account's work, 27 October (TODO items 10 to 13)
+## The second account's work, 27 October (TODO items 10 to 13, in 2.27.0)
 
 Done after the morning's handover, each with unit, browser and desktop tests, and checked live where data was involved (`docs/TODO.md`, "Done"):
 - Item 10, PORTFOLIO transactions (`9642efe`): the Transactions tab is `src/functions/PortTransactions.tsx`; the store operations (add, delete, holdings kept in step, rates after a currency change) are `src/terminal/transactions.ts`; the calculations stay in `src/finance/ledger.ts`, now also checked against Microsoft's XIRR example. Formulas in `docs/calculators.md`, "Portfolio performance and risk".
@@ -81,10 +81,10 @@ Done after the morning's handover, each with unit, browser and desktop tests, an
 ```
 npm ci
 npm run lint && npm run typecheck
-npx vitest run --maxWorkers=2                      # unit tests (1,480 on 27 October)
+npx vitest run --maxWorkers=2                      # unit tests (1,537 at 2.27.0)
 npm run build
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (81)
-xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (61)
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (88)
+xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (69)
 ```
 
 Never run two of these at once, and never rebuild while a Playwright suite runs. Do not run Vitest with `--root /`: it runs out of memory. Tests cannot use Node modules (no Node types in the tests' tsconfig); load a text fixture with `?raw`.
