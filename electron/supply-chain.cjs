@@ -209,7 +209,7 @@ function mentionSentences(text, names, max = 80) {
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 5;
+const EXTRACTION = 6;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;
@@ -217,8 +217,16 @@ const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(
 // In a company's own report: who it names as customers, suppliers and competitors, and the agreements it enters
 // into with other companies (leases, supply and purchase agreements, orders, partnerships, investments, loans).
 const OWN = new RegExp(
-  String.raw`\b(competitors?|compete[sd]?|competing|competition\b[^.]{0,80}?\b(?:from|with|comes|includes)|equity[- ]method|(?:own|owns|hold|holds|held|retained)\s+(?:approximately\s+|about\s+|an?\s+)?\d{1,2}(?:\.\d+)?%|foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|limited[- ]source|customers? (?:include|including|such as|are|is)|largest customers?|end customers?|Customer [A-Z]\b|accounted for|accounting for|(?:represented|representing|contributed|comprised) (?:approximately |about )?\d|\d{1,3}(?:\.\d+)?\s?%[^.]{0,60}\bof (?:our |its |the Company's )?(?:total |net |consolidated )*(?:revenue|revenues|net sales|sales)\b|(?:revenue|revenues|sales) (?:from|to) [A-Z]|(?:lease|leases|hosting agreement|colocation agreement|capacity agreement|services agreement)\b[^;]{0,120}\bwith [A-Z][^;]{0,200}\bto (?:host|serve|support)\b` +
-    String.raw`|(?:agreements?|leases?|contracts?|orders?|partnership|collaboration|alliance|joint venture|facility|notice to proceed|LNTP|memorandum of understanding|letter of intent|offtake)\b[^.;]{0,160}?\bwith\s+(?:(?:a|an|the|its)\s+)?(?:new\s+|leading\s+|major\s+|global\s+)?[A-Z]` +
+  String.raw`\b(competitors?|compete[sd]?|competing|competition\b[^.]{0,80}?\b(?:from|with|comes|includes)|equity[- ]method|(?:own|owns|owned|hold|holds|held|retained)\s+(?:approximately\s+|about\s+|an?\s+)?\d{1,3}(?:\.\d+)?%|(?:majority|wholly)[- ]owned subsidiar|foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source|limited[- ]source|customers? (?:include|including|such as|are|is)|largest customers?|end customers?|Customer [A-Z]\b|accounted for|accounting for|(?:represented|representing|contributed|comprised) (?:approximately |about )?\d|\d{1,3}(?:\.\d+)?\s?%[^.]{0,60}\bof (?:our |its |the Company's )?(?:total |net |consolidated )*(?:revenue|revenues|net sales|sales)\b|(?:revenue|revenues|sales) (?:from|to) [A-Z]|(?:lease|leases|hosting agreement|colocation agreement|capacity agreement|services agreement)\b[^;]{0,120}\bwith [A-Z][^;]{0,200}\bto (?:host|serve|support)\b` +
+    // Agreement names are often capitalised ("a Credit and Guaranty Agreement with Goldman Sachs Bank USA").
+    String.raw`|(?:[Aa]greements?|[Ll]eases?|[Cc]ontracts?|[Oo]rders?|[Pp]artnership|[Cc]ollaboration|[Aa]lliance|[Jj]oint [Vv]enture|[Ff]acility|[Nn]otice to [Pp]roceed|LNTP|[Mm]emorandum of [Uu]nderstanding|[Ll]etter of [Ii]ntent|[Oo]fftake|[Pp]romissory [Nn]ote)\b[^.;]{0,160}?\bwith\s+(?:(?:a|an|the|its)\s+)?(?:new\s+|leading\s+|major\s+|global\s+)?[A-Z]` +
+    // A lender named as a facility's agent; units or shares issued to an investor; suppliers listed after the
+    // purchasing they serve ("purchasing around ... qualified partners-including ABB for electrical equipment"); an
+    // exhibit list's agreements "by and among" their parties.
+    String.raw`|as\s+(?:the\s+)?(?:administrative|collateral)\s+agent\b|formerly,?\s+(?:known as\s+)?[A-Z]` +
+    String.raw`|\b(?:issued|issuing|issue|sold|selling|sell)\b(?:[^.;]|\.(?=\d)){0,160}\b(?:preferred units|common units|units|preferred stock|preferred shares|shares of (?:our |its )?(?:common|preferred|Series))\b(?:[^.;]|\.(?=\d)){0,160}\bto\s+[A-Z]` +
+    String.raw`|\b(?:purchas\w+|procur\w+|sourc\w+|buy\w*)\b[^.]{0,120}?\b(?:partners?|providers?|vendors?|suppliers?|manufacturers?)\b[^.]{0,20}?\b(?:including|such as|like|include|includes|namely)\b` +
+    String.raw`|^[A-Z][^.;]{0,140}\b(?:Agreement|Lease|Note|Contract|Guaranty)\b[^;]{0,120}\b(?:by and between|by and among|between|among)\s+[A-Z]` +
     String.raw`|(?:agreements?|leases?|contracts?|orders?|partnership|collaboration)\b[^.;]{0,160}?\bwith\s+${UNNAMED_PARTY}` +
     String.raw`|\b(?:selected|chosen|awarded|engaged)\b[^.;]{0,60}\bby\s+[A-Z]|\b(?:orders?|contracts?|awards?|investments?)\s+from\s+[A-Z]|\bpartner(?:ship|ships|ed|s)?\b[^.;]{0,60}\bwith\s+[A-Z]` +
     String.raw`|\b(?:purchase[sd]?|purchasing|buy|buys|bought|source[sd]?|sourcing|procure[sd]?|procuring|obtain(?:s|ed)?|license[sd]?)\b[^.;]{0,100}\bfrom\s+[A-Z]|\b(?:rely|relies|relied|depend|depends|depended|dependent|reliant)\b[^.;]{0,40}\bon\s+[A-Z]|\b(?:manufactured|produced|supplied|fabricated|assembled) by\s+[A-Z])`,

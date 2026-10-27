@@ -1144,7 +1144,7 @@ const HAS_FORM = /(?:,?\s+(?:Inc|Incorporated|Corp|Corporation|Co|Company|Ltd|Li
 const NOT_COMPANY = /^(?:The|Our|We|In|For|Such|These|This|Those|Including|Include|And|Or|As|At|By|On|To|Customer [A-Z]|Fiscal|Annual|Report|Form|Item|Part|Note|Notes|Data Center|United States|North America|Europe|Asia|China|Taiwan|Korea|Japan|Israel|India|Middle East)$/;
 
 /** A bank, fund or asset manager written without a legal form: "First National Bank of Omaha", "Macquarie Asset Management". */
-const FINANCIAL_NAME = /\b(?:Bank|Bancorp|Banc|Capital|Partners|Asset Management|Investment Management|Securities|Financial|Credit|Funding|Lending|Trust)(?:\s+of\s+[A-Z][\w.-]*(?:\s+[A-Z][\w.-]*)?)?$/;
+const FINANCIAL_NAME = /\b(?:Bank|Bancorp|Banc|Capital|Partners|Asset Management|Investment Management|Securities|Financial|Credit|Funding|Lending|Trust)(?:\s+of\s+[A-Z][\w.-]*(?:\s+[A-Z][\w.-]*)?)?(?:\s+(?:USA|U\.S\.A\.?|AG|SE|plc|Europe|International))?$/;
 
 /**
  * The companies a passage names: those in the SEC's list or the app's securities, and others written with a legal
@@ -1268,20 +1268,117 @@ const JOINT_VENTURE = /([A-Z][A-Za-z0-9&.' -]{2,60}?),\s+an?\s+(?:50[-–/]50\s+
 /** A stake described only in the past: "until its disposition in the first quarter of 2025". */
 const GONE_STAKE = /\buntil (?:its|their|the) (?:disposition|sale|divestiture)\b|\bdiscontinu\w* (?:of )?the equity method\b|\bwhile subject to the equity method\b/i;
 
+/** "our majority owned subsidiary ("ChronoScale")", "APLD ComputeCo 3 LLC, a subsidiary of the Company": the company's
+ * own subsidiaries, whose deals are its own. */
+const SUBSIDIARY_AFTER = /\b(?:our|its|the Company's|the Group's)\s+(?:(?:majority|wholly|indirect(?:ly)?|direct(?:ly)?|consolidated)[- ]?(?:owned)?,?\s+){0,3}subsidiar(?:y|ies),?\s+(?:named\s+)?((?:[A-Z][\w&.'-]*)(?:\s+(?:[A-Z][\w&.'-]*|\d{1,3}))*)/g;
+const SUBSIDIARY_BEFORE = /((?:[A-Z][\w&.'-]*)(?:\s+(?:[A-Z][\w&.'-]*|\d{1,3}))*)(?:\s*\([^)]{0,60}\))?,\s+(?:a|an|our|its|the Company's)\s+(?:(?:majority|wholly|indirect(?:ly)?|direct(?:ly)?|consolidated)[- ]?(?:owned)?,?\s+){0,3}subsidiary(?:\s+of\s+(?:the Company|ours|us))?\b/g;
+const NOT_A_NAME = /^(?:The|A|An|Our|Its|We|In|On|As|For|Each|Such|This|These|Company|Delaware|Nevada)$/;
+
+/** Names a company's own filing gives its subsidiaries, and short names defined for them. */
+export function subsidiaryNames(sentences: string[]): string[] {
+  const out = new Set<string>();
+  const keep = (n: string) => {
+    const name = n.replace(/(?:'s|’s)$/, '').replace(/\s+(?:LLC|Inc|Corp|Corporation|Ltd|L\.P|LP)\.?$/, '').trim();
+    if (name.length >= 4 && !NOT_A_NAME.test(name.split(' ')[0])) out.add(name);
+  };
+  for (const s of sentences) {
+    for (const m of s.matchAll(SUBSIDIARY_AFTER)) keep(m[1]);
+    for (const m of s.matchAll(SUBSIDIARY_BEFORE)) keep(m[1]);
+    // "the Company owned approximately 97% of ChronoScale's outstanding common stock".
+    const major = /\b(?:own|owns|owned|hold|holds|held)\s+(?:approximately\s+|about\s+)?(\d{1,3}(?:\.\d+)?)%\s+of\s+([A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,3})(?:'s)?\b/.exec(s);
+    if (major && Number(major[1]) > 50) keep(major[2]);
+  }
+  return [...out];
+}
+
+/** "Credit Agreement, dated as of May 29, 2026, by and between Applied Digital Corporation, ..., the lenders party thereto,
+ * First National Bank of Omaha and Goldman Sachs Lending Partners LLC": an exhibit list's agreement and its parties. */
+const EXHIBIT_LINE = /^(?:\d+(?:\.\d+)*\*{0,2}\s+)?([A-Z][^;]{2,140}?\b(?:Agreement|Lease|Note|Notes|Contract|Guaranty))(?:\s*\([^)]*\))?,\s*(?:dated|effective)(?: as of)?\s+[A-Z][a-z]+\.?\s+\d{1,2},\s+\d{4},?\s*(?:as amended[^,]*,\s*)?(?:by and between|by and among|between|among)\s+(.+?)\.?$/;
+const EXHIBIT_GENERIC = /\b(?:the (?:several )?lenders|lenders party|issuing banks?|guarantors?|purchasers? (?:party|named)|thereto|hereto|from time to time|each of|certain (?:of )?(?:its|the|our)|the Company|the Registrant|the Borrower|the Issuer|trustee|as agent|representatives?|underwriters?|initial purchasers?)\b/i;
+
+export function exhibitStatements(sentence: string, dir: Directory, self: RegExp, own: (name: string) => boolean, filed?: string): OwnStatement[] {
+  const m = EXHIBIT_LINE.exec(sentence.trim());
+  if (!m) return [];
+  const year = /,\s*(?:dated|effective)(?: as of)?\s+[A-Z][a-z]+\.?\s+\d{1,2},\s+(\d{4})/.exec(sentence);
+  if (year && filed && Number(year[1]) < Number(filed.slice(0, 4)) - 3) return [];
+  const kind = m[1];
+  const role: Role | null = /\b(?:Credit|Loan|Guaranty|Promissory|Term|Revolving|Bridge|Note Purchase|Financing|Security)\b/i.test(kind) && !/\bIndenture\b/i.test(kind)
+    ? 'lender'
+    : /\b(?:Collaboration|License|Licence|Partnership|Joint Development|Joint Venture|Alliance)\b/i.test(kind)
+      ? 'partner'
+      : /\b(?:Securities Purchase|Stock Purchase|Share Purchase|Unit Purchase|Subscription|Investment|Investor Rights)\b/i.test(kind)
+        ? 'investor'
+        : null;
+  if (!role || /\b(?:Underwriting|Sales Agreement|Equity Distribution|Registration Rights|Merger|Employment|Separation|Indemnification|Warrant)\b/i.test(kind)) return [];
+  const out: OwnStatement[] = [];
+  // "APLD GPU-01, LLC and Cornerstone Bank": a legal form after a comma belongs to the name before it.
+  const parties = m[2].replace(/,\s+(LLC|L\.L\.C\.|Inc\.?|Ltd\.?|L\.P\.?|N\.A\.?|Corp\.?|plc)(?=[\s,.]|$)/g, ' $1');
+  for (const part of parties.split(/,\s*(?:and\s+)?|\s+and\s+/)) {
+    // The borrower, guarantors and sellers are the company's side.
+    if (/\bas\s+(?:the\s+)?(?:Borrowers?|Guarantors?|Parent|Issuer|Sellers?|Lessees?|Tenants?|Company|Holdings)\b/i.test(part)) continue;
+    const p = part.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/,?\s+as\s+[^,]*$/i, '').trim();
+    if (p.length < 3 || EXHIBIT_GENERIC.test(p) || own(p)) continue;
+    self.lastIndex = 0;
+    if (self.test(p)) continue;
+    // A listed company only when the whole name is its own ("First National Bank of Omaha" is not First National
+    // Corp); an unlisted bank or fund as written.
+    const f = findCompanies(p, dir, false, true).find((x) => x.index <= 4) ?? (/\b(?:Bank|Banking|Capital|Partners|Credit|Lending|Financial|Fund|Funding|Trust|Management|Securities)\b|\b(?:N\.A|LLC|Inc|Corp|Corporation|Ltd|L\.P|plc)\.?$/.test(p) ? { name: p.replace(/,?\s+(?:LLC|Inc|Corp|Corporation|Ltd|L\.P|plc)\.?$/, '').trim(), index: 0 } as Found : undefined);
+    if (f && !own(f.name)) out.push({ role, party: f });
+  }
+  return out;
+}
+
+/** Units or shares issued to a named investor: "issuing 1,825,000 preferred units ... for proceeds of approximately $1.8
+ * billion to MIP HPC Holdings, LLC". Warrants, shares for services and awards to staff are not investments. */
+// The company issuing its own units or shares; selling a stake it holds in another company is no investment in it.
+const ISSUED_TO = /\b(?:issued|issuing|issue|issues)\b((?:[^.;]|\.(?=\d)){0,160})\b(?:preferred units|common units|units|preferred stock|preferred shares|shares of (?:our |its )?(?:common|preferred|Series)[\w ]{0,20}?|shares)\b((?:[^.;]|\.(?=\d)){0,160})\bto\s+/i;
+const NOT_INVESTOR = /\b(?:interests? in|stake in|warrants?|options?|restricted|RSUs?|awards?|employees?|directors|officers|consultants?|services|vendors?|in (?:exchange|connection) (?:for|with) (?:the )?(?:acquisition|merger|services)|settlement|conversion|exercise|holders|stockholders|shareholders|the public|investors|underwriters?|agents?)\b/i;
+
+/** "MIP VI HPC Holdings, LLC, which is an affiliate of funds and investment vehicles managed by entities within Macquarie
+ * Asset Management": the vehicle and the manager behind it. */
+const AFFILIATE_OF = /^[^.;]{0,90}?,?\s*(?:which is\s+)?an?\s+(?:affiliate|subsidiary|fund|vehicle|entity)\s+of\s+(?:funds\s+(?:and\s+investment\s+vehicles\s+)?(?:managed|advised)\s+by\s+)?(?:entities\s+within\s+)?(?:an?\s+affiliate\s+of\s+)?/i;
+
+/** A loan the filing says has been repaid or ended: its lender is no longer one. */
+const LOAN_ENDED = /\b(?:repaid in full|paid off|prepaid in full|extinguish\w*|terminated (?:the|all|its)|payoff)\b/i;
+const AGENT_OF = /((?:[A-Z][\w&.'-]*)(?:\s+[A-Z][\w&.'-]*){0,5})(?:\s*\([^)]*\))?,?\s+as\s+(?:the\s+)?administrative agent\b/g;
+
+/** "partners-including ABB for electrical equipment ... and Caterpillar for backup generation": suppliers listed after
+ * the purchasing they serve. */
+const PURCHASING_LIST = /\b(?:purchas\w+|procur\w+|sourc\w+|buy\w*)\b[^.]{0,120}?\b(?:partners?|providers?|vendors?|suppliers?|manufacturers?)\b[^.]{0,20}?\b(?:including|such as|like|include|includes|namely)\b/i;
+
 /**
  * Relations the company's own report states: customers with the share of its revenue (named, or "Customer A"),
  * suppliers it names ("foundries, such as TSMC and Samsung") and competitors ("our competitors include ...").
  */
-export function ownRelations(sentences: string[], dir: Directory, self: { cik?: number; names: string[] }, ev: Omit<Evidence, 'sentence'>, ended: EndedStakes = { sold: new Set(), subsidiaries: new Set() }): Relation[] {
+export function ownRelations(sentences: string[], dir: Directory, self: { cik?: number; names: string[]; ticker?: string }, ev: Omit<Evidence, 'sentence'>, ended: EndedStakes = { sold: new Set(), subsidiaries: new Set() }): Relation[] {
   const out: Relation[] = [];
   const { sold: soldStakes, subsidiaries } = ended;
-  const selfPattern = targetPattern(self.names);
-  const selfNames = new Set(self.names.map(normalizeName));
+  // Its subsidiaries are the company: their deals are its own, and they are never a counterparty.
+  const subs = [...new Set([...(ended.subsidiaryNames ?? []), ...subsidiaryNames(sentences)])];
+  ended.subsidiaryNames = subs;
+  const selfPattern = targetPattern([...self.names, ...subs.map((n) => escapeLiteral(n))]);
+  const selfNames = new Set([...self.names, ...subs].map(normalizeName));
+  // Entities named after its ticker ("APLD Intermediate Holdco LLC") or one of its subsidiaries are its own; a company
+  // named after the company itself can be another ("Coca-Cola FEMSA").
+  const selfStarts = [...(self.ticker ? [self.ticker] : []), ...subs].map(normalizeName).filter((x) => x.length >= 3);
+  const ownName = (n: string) => {
+    const v = normalizeName(n);
+    return selfNames.has(v) || selfStarts.some((x) => v === x || v.startsWith(`${x} `));
+  };
+  // "MIP HPC Holdings, LLC (formerly, MIP VI HPC Holdings, LLC)": one company under its old and new names.
+  const renamed = (ended.renamed ??= new Map<string, string>());
+  for (const raw of sentences) for (const m of raw.matchAll(/([A-Z][\w&.'-]*(?:\s+[A-Z0-9][\w&.'-]*){0,5}),?\s+(?:LLC|Inc\.?|Corp\.?|Corporation|Ltd\.?)?\s*\(formerly,?\s+(?:known as\s+)?([A-Z][^)]{2,80}?)\)/g)) {
+    const now = m[1].trim();
+    const was = m[2].replace(/,?\s+(?:LLC|Inc\.?|Corp\.?|Corporation|Ltd\.?)$/, '').trim();
+    if (normalizeName(now) !== normalizeName(was)) renamed.set(normalizeName(was), now);
+  }
   const add = (f: Found | { name: string }, role: Role, sentence: string, extra: Partial<Relation> = {}) => {
-    const found = f as Found;
+    const now = renamed.get(normalizeName(f.name));
+    const found = (now && !(f as Found).cik ? { ...f, name: now } : f) as Found;
     if (found.cik && self.cik && found.cik === self.cik) return;
-    // The company itself under its own name; a bottler named after it ("Coca-Cola HBC") is another company.
-    if (!found.cik && selfNames.has(normalizeName(found.name))) return;
+    // The company itself under its own name, or one of its subsidiaries; a bottler named after it ("Coca-Cola HBC") is
+    // another company.
+    if (!found.cik && (selfNames.has(normalizeName(found.name)) || ownName(found.name))) return;
     out.push({ key: relationKey(found), name: found.name, ticker: found.ticker, cik: found.cik, id: found.id, yahoo: found.yahoo, role, side: 'own', evidence: [{ ...ev, sentence: sentence.replace(/^\[competitors\]\s*/, 'Competitors: ') }], ...extra });
   };
   // Unnamed large customers with their shares, from the latest year the report gives ("sales to one direct customer
@@ -1307,6 +1404,39 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
   for (const raw of sentences) {
     const s = expandAliases(raw.replace(/^\[competitors\]\s*/, ''), aliases);
     if (SAFE_HARBOR.test(s) || /\brisks related to:/i.test(s)) continue;
+    // The text of slides ("Investor Presentation 2026 7 / 46 AI Data Center Expansion ..."): headings run together.
+    if (/\bInvestor Presentation\b|\b\d{1,3}\s\/\s\d{1,3}\b/.test(s)) continue;
+    // A loan repaid or ended: its agent bank is no longer a lender.
+    if (LOAN_ENDED.test(s)) {
+      for (const m of s.matchAll(AGENT_OF)) for (const f of findCompanies(m[1], dir).slice(-1)) (ended.repaid ??= new Set()).add(relationKey(f));
+      continue;
+    }
+    // An exhibit list's agreement and its parties.
+    const listed = exhibitStatements(s, dir, selfPattern, ownName, ev.date);
+    if (listed.length) {
+      for (const st of listed) if (!('unnamed' in st.party)) add(st.party, st.role, raw);
+      continue;
+    }
+    // Units or shares issued to an investor, and the manager behind the vehicle that bought them.
+    const issued = ISSUED_TO.exec(s);
+    if (issued && !NOT_INVESTOR.test(`${issued[1]} ${issued[2]}`)) {
+      const rest = s.slice(issued.index + issued[0].length);
+      const buyers = partiesAt(rest, dir, true).filter((f) => !ownName(f.name));
+      for (const f of buyers.slice(0, 2)) {
+        add(f, 'investor', raw);
+        const tail = rest.slice(f.index + f.name.length);
+        const aff = AFFILIATE_OF.exec(tail);
+        if (aff) for (const parent of partiesAt(tail.slice(aff[0].length), dir, true).slice(0, 1)) add(parent, 'investor', raw);
+      }
+      if (buyers.length) continue;
+    }
+    // Suppliers listed for its purchasing.
+    const buying = PURCHASING_LIST.exec(s);
+    if (buying) {
+      const found = findCompanies(s.slice(buying.index + buying[0].length), dir).filter((f) => !ownName(f.name));
+      for (const f of found) add(f, 'supplier', raw);
+      if (found.length) continue;
+    }
     // Customers with shares of revenue: named ones and the anonymous "Customer A".
     const runs = percentRuns(s).filter((run) => OF_REVENUE.test(s.slice(run[run.length - 1].end, run[run.length - 1].end + 140)));
     // "approximately 67% of our revenue from our top customer, Microsoft, for the year ended December 31, 2025".
@@ -1421,6 +1551,12 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
 export interface EndedStakes {
   sold: Set<string>;
   subsidiaries: Set<string>;
+  /** Names the company's filings give its subsidiaries, kept across its filings. */
+  subsidiaryNames?: string[];
+  /** Companies renamed ("formerly ..."): the old name, normalised, to the new. */
+  renamed?: Map<string, string>;
+  /** Lenders whose loan the filings say was repaid or ended. */
+  repaid?: Set<string>;
   /** Short names the company's filings define for others ("Coca-Cola HBC AG ("CCHBC")"), kept across its filings. */
   aliases?: Map<string, string>;
 }
@@ -1458,8 +1594,8 @@ function expandAliases(s: string, aliases: Map<string, string> | undefined): str
   return out;
 }
 
-function stillHeld(r: Relation, ended: EndedStakes): boolean {
-  return !ended.subsidiaries.has(r.key) && !(r.role === 'investment' && ended.sold.has(r.key));
+export function stillHeld(r: Relation, ended: EndedStakes): boolean {
+  return !ended.subsidiaries.has(r.key) && !(r.role === 'investment' && ended.sold.has(r.key)) && !(r.role === 'lender' && ended.repaid?.has(r.key));
 }
 
 const COUNT: Record<string, number> = { one: 1, another: 1, a: 1, 'a single': 1, single: 1, two: 2, three: 3, four: 4, five: 5 };
@@ -1545,11 +1681,11 @@ export function dealRole(before: string, after: string, sentence: string, self?:
     if (own.test(after)) return 'customer';
   }
   if (AGENT_PARTY.test(after)) return null;
-  if (/\b(?:securities purchase|subscription|investment agreement|investment from|invest(?:s|ed|ing)? (?:up to )?\$|private placement|preferred (?:equity|stock|units)|equity (?:investment|financing)|strategic investment)\b/i.test(b)) return 'investor';
+  if (/\b(?:securities purchase|unit purchase|unit subscription|subscription|investment agreement|investment from|invest(?:s|ed|ing)? (?:up to )?\$|private placement|preferred (?:equity|stock|units)|equity (?:investment|financing)|strategic investment)\b/i.test(b)) return 'investor';
   // "proceeds of the GPU Financing ... in support of the Group's agreement with Microsoft": the loan is someone else's.
   if (LOAN.test(b) && !/\bin (?:support|connection|respect) (?:of|with) (?:the|our|its|the Group's|the Company's) (?:[\w-]+\s+){0,3}(?:agreement|contract)\s*,?\s*$/i.test(b)) return 'lender';
   // "a $5.0 billion AI infrastructure partnership with Macquarie Asset Management": financing called a partnership.
-  if (/\bpartnership\b/i.test(b) && /\$\s?[\d.,]+\s*(?:billion|million)/i.test(b) && /^(?:[A-Z][\w&.-]*\s+){0,3}(?:Asset Management|Capital|Infrastructure Partners|Investments?|Investment Management|Fund|Bank|Credit)\b/.test(after)) return 'investor';
+  if (/\bpartnership\b/i.test(b) && /\$\s?[\d.,]+\s*(?:billion|million)/i.test(`${b} ${after.slice(0, 120)}`) && /^(?:[A-Z][\w&.-]*\s+){0,3}(?:Asset Management|Capital|Infrastructure Partners|Investments?|Investment Management|Fund|Bank|Credit)\b/.test(after)) return 'investor';
   // "secured several new multi-year contracts, including a landmark partnership with Microsoft ... new customer segments".
   if (/\b(?:secured|signed|won|awarded|landed)\b[^.;]{0,80}\bcontracts?\b[^.;]{0,60}\bincluding\b[^.;]{0,40}\bpartnership\s*$/i.test(before.slice(-200)) && /\bcustomers?\b/i.test(sentence)) return 'customer';
   if (/^[^;]{0,80}?,?\s+as\s+(?:the\s+)?(?:administrative|collateral) agent\b/i.test(after)) return /\bcredit\b/i.test(sentence) ? 'lender' : null;
@@ -2088,7 +2224,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     const sentences = await io.text('own', f.path).catch(() => null);
     let found = 0;
     if (sentences) {
-      const got = ownRelations(sentences, dir, { cik: company?.cik, names: names.names }, evidence(f, ''), ended);
+      const got = ownRelations(sentences, dir, { cik: company?.cik, names: names.names, ticker: company?.ticker ?? target.ticker }, evidence(f, ''), ended);
       const shares = got.filter((r) => SHARE_ONLY.test(r.key));
       const keep = shares.length > 0 && f.date > sharesFrom;
       if (keep) {
