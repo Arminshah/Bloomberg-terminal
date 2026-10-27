@@ -33,6 +33,7 @@ From `docs/audit-v2.23.0-coverage.md` (research of 26 October): WCR, WEIS, WM, t
 Review recorded on 26 October: evidence pack v3 (Codex) was read, its claims checked against the publisher's pages, and its 38 feature areas compared with the code. The gap analysis is in `docs/bloomberg-parity.md`, "Evidence pack v3: gap analysis". The findings then were:
 - Its counts hold: 45 sources (6 at E2, 21 at E1, 18 at E0), no video frames or captions.
 - One claim does not hold: the official page lists DSCO without saying what it is, so "DSCO means document search" is a guess. BTM could not be confirmed.
+- Rechecked on 27 October from the new account (`docs/bloomberg-parity.md`, under the gap analysis): a university guide names DSCO Document Search, and the publisher's post on BTM (16 October 2026) exists. Both are now written evidence (E1); neither changes what can be built.
 - It showed a real defect in the app: W opened `WATCHLIST`, but the official chapter list names W as Worksheets.
 - Approved on 26 October and under way. Done: currency conversion (`FXCA`, `36c4515`), EV with preferred stock and minority interest on `PEERS` (`89ef249`), LLP to `LAYOUTS` (`3951765`), worksheets under W (`f26fa11`), and the screener over the full US list with AND and OR groups, a stated choice for missing values and saved screens (`8caa5d7`).
 - Next: transactions on `PORTFOLIO`, call schedules on `BONDCALC`, the help desk tested against planted instructions, then the newly confirmed codes (WCR, WEIS, WM, the sector pages, the central bank portals, MYN, NLRT, GEW, CBRT).
@@ -65,7 +66,9 @@ Access recorded in the previous cloud session (checked 25 October, nothing insta
 - Bloomberg's official chapter pages load, so their timestamps are usable as documented evidence. bloomberg.com's Pro Tips pages refuse automated requests (403). Vimeo pages load, but its player refuses (401).
 - The "Watch" plugin (bradautomates/claude-video) was not used. Its README said its installer did not run in Claude Code on the web, and its default "Gemini" engine uploaded video to Google, another AI provider, which you ruled out.
 
-Access checked on 27 October in this environment: the proxy refused CONNECT requests to public reference hosts with HTTP 403. Network requirements were saved to the environment draft but have not been applied. No new PDF, image or video access is established by that save. A source being inaccessible here does not mean it does not exist; retry after access changes.
+Access checked on 27 October in Codex's environment: the proxy refused CONNECT requests to public reference hosts with HTTP 403. Network requirements were saved to the environment draft but have not been applied. No new PDF, image or video access is established by that save. A source being inaccessible here does not mean it does not exist; retry after access changes.
+
+Access checked later on 27 October from the new account's environment: the University of San Diego's guide, the publisher's insights site (and its post search) and the ECB's framework PDF all answered. Reference research can continue from here.
 
 Limits:
 - The supplied evidence pack has no video frames or captions. Exact current screen details stay unverified until the relevant images or interactions are inspected; documented commands, calculations and workflows can proceed from suitable written sources.

@@ -185,6 +185,11 @@ Checked against the publisher's own pages on 26 October:
 - The 2026 pages on AID, CHRT, the AI summary in CN and Earnings Transcript Takeaways exist.
 - Not confirmed: that DSCO means document search. The equities page lists "FA and DSCO" under fundamentals and estimates and does not say what DSCO is; Document Search appears on the news tutorial's page without a code. DSCO's meaning stays unknown. BTM did not appear on the insights index as fetched, so it stays E0 here.
 
+Rechecked on 27 October, from the new account, with the publisher's and the universities' sites reachable from this environment again (the earlier 27 October note records a proxy refusal):
+- DSCO: the University of San Diego's Bloomberg guide (https://libguides.sandiego.edu/bloomberg/home) lists DSCO as "Document Search" in its table of codes and links slides on finding SEC filings with it. This is a university's summary, not the publisher's (the same table calls EQS "Industry Averages"), so DSCO is taken as document search at E1, and what its screen holds stays unverified. The app's nearest screens are `DOCSEARCH` and `FILINGS`; DSCO does not open either yet.
+- BTM: the publisher's own Pro Tips post of 16 October 2026 exists (found through the site's post search: https://professional.content.cirrus.bloomberg.com/professional2023/insights/markets/bloomberg-pro-tips-monitor-the-options-trades-you-care-about-with-btm/). Its text says BTM shows how a large options trade can affect the market and sets alerts on the size and effect of such trades, without working out the Greeks yourself. E1 now. The video was not played. It still needs trade-by-trade options data (OPRA), so it stays blocked.
+- Also found by the same search, for later research: Pro Tips posts on IMAP (11 September 2026: what drives a rally or a fall, in one click), ASKB (12 June and 31 August 2026) and WSL (8 May 2026). Titles and short descriptions only; no video was played.
+
 Status of each area in Armin Terminal. Statuses as the pack defines them; "implemented" means Armin's own behaviour exists and is tested, not that it matches the provider's.
 
 | Area | Pack evidence | Armin today | Status | Gap or next step |
@@ -196,7 +201,7 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 | WATC | E2 | `WATCHLIST` (`W.tsx`), typed WATCH | Partial | No analytics across a list. W opens Worksheets since `f26fa11` |
 | RV | E2 | `PEERS` (`RV.tsx`); EV in `src/data/fundamentals.ts` | Partial | Since `89ef249` EV adds preferred stock and minority interest from the latest balance sheet, and the build-up shows on hover. Banks are left out and negative EBITDA shows "not meaningful", both correct. No percentile rank |
 | FA | E2 | `FINANCIALS` (`FA.tsx`), SEC XBRL | Partial | No segment tables |
-| DSCO | E2 (code only) | `DOCSEARCH` (DS, `DS.tsx`), `FILINGS` | Unverified | What DSCO does is not established |
+| DSCO | E2 (code), E1 (a university guide names it Document Search) | `DOCSEARCH` (DS, `DS.tsx`), `FILINGS` | Unverified | Taken as document search (27 October recheck above); its screen is not established, and DSCO opens nothing in the app |
 | EE | E2 | `EARNINGS`, `ESTIMATES`, `ESTIMATEGRAPH`, `EARNINGSTREND` | Implemented | Estimates come only from named providers |
 | ANR | E2 | `ANALYSTS` (`ANR.tsx`): FMP, Finnhub, TipRanks, Equibles | Implemented | Named providers only |
 | BI | E2 | None | Blocked | The provider's own research |
@@ -209,7 +214,7 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 | COMMOD | E2 | `COMMODITIES`, `FUTURESCURVE`, `CONTRACTS` | Partial | No seasonality (chapter 02:30) and no supply, demand or trade-flow data |
 | PORT | E1 | `PORTFOLIO` (`PORT.tsx`), its risk tab | Partial | Positions only: no transactions, fees, realised P&L, time- or money-weighted return or attribution |
 | BTST | E1 | `BACKTEST` (EQBT) | Partial | Today's members (warned on screen), price returns, no delisted names, monthly steps |
-| BTM | E0 here | None | Blocked | Needs the options trade tape (OPRA) |
+| BTM | E1 (publisher post, 16 October 2026) | None | Blocked | Needs the options trade tape (OPRA) |
 | YAS | E1 | `BONDCALC` | Partial | As BOND; the mobile page says nothing of the desktop screen |
 | BQUANT | E1 | None | Blocked | A platform |
 | CHRT | E1 | None | Missing | Buildable: saved chart templates of the user's own |
