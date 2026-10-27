@@ -128,7 +128,7 @@ Plan:
   - `6441408` TECH US, HL US, IYC US, EA US and FLNG US still name the stocks (Bio-Techne, Hecla, the iShares fund, Electronic Arts, FLEX LNG).
   - `0ff1746` One company-name helper for Nasdaq's lists (partnership units included).
   - `5d7af8f` CACT's watchlist and portfolio filters match their stocks.
-- CI: while the repository was private on 26 October GitHub started no runner for the `test` job. It is public again, so CI runs on the pull request; every push is still checked locally first (lint, types, unit tests, both Playwright suites).
+- CI: the repository is private again since 27 October, and GitHub starts no runner for the `test` job (it fails in 3 seconds with no log), as on 26 October. Every push is checked locally first (lint, types, unit tests, both Playwright suites). A release also needs GitHub Actions: check Settings → Billing → Actions, or make the repository public for the build.
 - The visual pass (`docs/visual-research-2026-10.md`, "Done in the visual pass" and "What still differs"):
   - `ce9beb6` Bergoom by default, IBM Plex Sans or IBM Plex Mono in SETTINGS; chart labels follow.
   - `12dee50` Measured colours: function bar, section strips, the cyan command line with "<HELP> for explanation."

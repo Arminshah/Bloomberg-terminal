@@ -5,7 +5,7 @@ For the Claude session that takes over Armin Terminal on the owner's other accou
 ## The project
 
 - **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 119 functions.
-- **Repository**: `Arminshah/Bloomberg-terminal`, public since 26 October. All work is on the branch **`claude/market-events-v2.16.0-id814n`**. `main` holds only the first README: never push to it. A new cloud session may be given another branch name; the owner's choice is to keep working on this one, so fetch it and continue there (`git fetch origin claude/market-events-v2.16.0-id814n && git checkout claude/market-events-v2.16.0-id814n`).
+- **Repository**: `Arminshah/Bloomberg-terminal`, private since 27 October (the owner's choice). While it is private, GitHub starts no runner for CI (the `test` job fails in 3 seconds with no log) or for the release workflow: run every check locally before each push, and before a release ask the owner to check Settings → Billing → Actions on GitHub or to make the repository public for the build. All work is on the branch **`claude/market-events-v2.16.0-id814n`**. `main` holds only the first README: never push to it. A new cloud session may be given another branch name; the owner's choice is to keep working on this one, so fetch it and continue there (`git fetch origin claude/market-events-v2.16.0-id814n && git checkout claude/market-events-v2.16.0-id814n`).
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
 - **Last release**: 2.26.0 (tag `v2.26.0`, 26 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.26.0.md`.
 
@@ -26,7 +26,7 @@ The closest legally and technically achievable functional equivalent of the prov
 
 Never lower fidelity on purpose to make the app look different. Separate what is genuinely protected (the provider's own wording, artwork, logos, name, source code) and licensed data the app cannot get from ordinary software behaviour, which can be rebuilt. Continue the roadmap in `docs/TODO.md` (PORTFOLIO, BONDCALC and the rest); do not restart finished work, remove working features, or merge or release without the owner's approval.
 
-The repository is public for GitHub's free usage, not to share research material: copyrighted reference files stay out of its history.
+Public or private, the repository is not for sharing research material: copyrighted reference files stay out of its history.
 
 ## Starting on the new account
 
@@ -38,7 +38,7 @@ The repository is public for GitHub's free usage, not to share research material
 
 - **Real data only.** No invented or simulated values in the desktop app; a labelled blank beats a plausible wrong number. Say where each figure comes from.
 - **API keys**: never commit one, and never let one into a release build (the app keeps keys in the main process, encrypted with Windows' safeStorage, entered on PROVIDERS; a desktop test checks that a `.env` beside the source is ignored). The owner relaxed the earlier caution: you may use the keys freely in the sandbox, passed as environment variables (`set -a; . <file>; set +a`).
-- **Reference material**: study any document, screenshot or video frame the owner gives in full detail; functionality, commands, workflows and calculations are free to rebuild in original code (CJEU, SAS Institute v World Programming, C‑406/10; Directive 2009/24, Article 1(2)). The repository is public, so whole PDFs, screenshots and frames stay out of Git: they go in the git-ignored `reference/` folder. Short attributed quotations in the docs are fine where the exact wording is the evidence. The app reproduces the function, layout and behaviour as closely as practicable (the objective above), drawn with its own assets: never the other product's text, artwork, logos or name.
+- **Reference material**: study any document, screenshot or video frame the owner gives in full detail; functionality, commands, workflows and calculations are free to rebuild in original code (CJEU, SAS Institute v World Programming, C‑406/10; Directive 2009/24, Article 1(2)). Whole PDFs, screenshots and frames stay out of Git: they go in the git-ignored `reference/` folder. Short attributed quotations in the docs are fine where the exact wording is the evidence. The app reproduces the function, layout and behaviour as closely as practicable (the objective above), drawn with its own assets: never the other product's text, artwork, logos or name.
 - **The typeface is fixed** (the owner, 27 October 2026): IBM Plex Sans at weight 500 and 0.01em spacing for all text, IBM Plex Mono for the command line and the charts. Never change it, add another face or offer a choice; see `CLAUDE.md`. `tests/typeface.test.ts` and `e2e/look.spec.ts` guard it.
 - **No branding of the other product** in the app or the release notes: not its name, logo or login (a test fails if a release note names it).
 - **Windows only** for the desktop app. Push only to the branch above. No pull request, merge or release unless the owner asks.
