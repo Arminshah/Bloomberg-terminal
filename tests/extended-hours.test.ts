@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { engine } from '../src/data/market';
 import { chartExtendedSessions, hasSessionColumns, refreshExtendedQuotes } from '../src/data/live/extended-hours';
-import { extendedSessions, yahooQuotes } from '../src/data/live/yahoo';
+import { extendedSessions, withSessionChart, yahooQuotes } from '../src/data/live/yahoo';
 
 const ID = 'AAPL US Equity';
 const time = (iso: string) => Date.parse(iso);
@@ -57,13 +57,50 @@ describe('extended-hours observations independent of regular-price ownership', (
     expect(extendedSessions(ID, time('2026-10-19T14:01:00Z')).post).toBeUndefined();
   });
 
-  it('suppresses the prior morning after local midnight and does not turn blank percentages into zero', () => {
+  it("ends the morning's pre-market once the evening trades, keeps the evening through the next day, and does not turn blank percentages into zero", () => {
     yahooQuotes.set(ID, { regularMarketPrice: 130, regularMarketPreviousClose: 120, regularMarketTime: sec('2026-10-19T20:00:00Z'), preMarketPrice: 126, preMarketTime: sec('2026-10-19T13:25:00Z'), preMarketChangePercent: '', postMarketPrice: 132, postMarketTime: sec('2026-10-19T21:00:00Z'), postMarketChangePercent: '' });
-    expect(extendedSessions(ID, time('2026-10-19T22:00:00Z')).pre?.pct).toBeCloseTo(5);
+    // 18:00 in New York: after-hours is live, this morning's pre-market is over (N/A).
+    expect(extendedSessions(ID, time('2026-10-19T22:00:00Z'))).toMatchObject({ preOver: true });
+    expect(extendedSessions(ID, time('2026-10-19T22:00:00Z')).pre).toBeUndefined();
     expect(extendedSessions(ID, time('2026-10-19T22:00:00Z')).post?.pct).toBeCloseTo((132 / 130 - 1) * 100);
     expect(extendedSessions(ID, time('2026-10-20T08:00:00Z')).pre).toBeUndefined();
-    yahooQuotes.set(ID, { ...yahooQuotes.get(ID), marketState: 'REGULAR' });
-    expect(extendedSessions(ID, time('2026-10-20T14:00:00Z')).post).toBeUndefined();
+    // The next day's regular session: the evening stays, frozen, against its own day's close.
+    yahooQuotes.set(ID, { ...yahooQuotes.get(ID), marketState: 'REGULAR', regularMarketPrice: 135, regularMarketPreviousClose: 130, regularMarketTime: sec('2026-10-20T14:00:00Z') });
+    expect(extendedSessions(ID, time('2026-10-20T14:00:00Z')).post).toMatchObject({ price: 132, time: time('2026-10-19T21:00:00Z') });
+    expect(extendedSessions(ID, time('2026-10-20T14:00:00Z')).post?.pct).toBeCloseTo((132 / 130 - 1) * 100);
+    // Five days on (a long weekend is four), it is gone.
+    expect(extendedSessions(ID, time('2026-10-24T22:00:00Z')).post).toBeUndefined();
+  });
+
+  it('shows the pre-market from its open through the regular session, and N/A from the close until the next one', () => {
+    const quote = { regularMarketPrice: 130, regularMarketPreviousClose: 120, preMarketPrice: 126, preMarketTime: sec('2026-10-19T13:25:00Z'), postMarketPrice: 121, postMarketTime: sec('2026-10-16T23:50:00Z'), exchangeTimezoneName: 'America/New_York' };
+    // 09:25 New York, pre-market: live, and Friday evening's after-hours beside it.
+    yahooQuotes.set(ID, { ...quote, marketState: 'PRE', regularMarketPrice: 120, regularMarketTime: sec('2026-10-16T20:00:00Z') });
+    const morning = extendedSessions(ID, time('2026-10-19T13:26:00Z'));
+    expect(morning.pre?.price).toBe(126);
+    expect(morning.post).toMatchObject({ price: 121 });
+    expect(morning.preOver).toBeUndefined();
+    // 11:00, regular session: both frozen.
+    yahooQuotes.set(ID, { ...quote, marketState: 'REGULAR', regularMarketTime: sec('2026-10-19T15:00:00Z') });
+    const day = extendedSessions(ID, time('2026-10-19T15:00:00Z'));
+    expect(day.pre?.pct).toBeCloseTo(5);
+    expect(day.post?.price).toBe(121);
+    expect(day.post?.pct).toBeCloseTo((121 / 120 - 1) * 100);
+    // 16:05, Yahoo says the evening session has begun, before any trade: the pre-market is over.
+    yahooQuotes.set(ID, { ...quote, marketState: 'POST', regularMarketTime: sec('2026-10-19T20:00:00Z') });
+    expect(extendedSessions(ID, time('2026-10-19T20:05:00Z'))).toMatchObject({ preOver: true });
+    // A weekend: no pre-market at all, N/A.
+    yahooQuotes.set(ID, { ...quote, marketState: 'CLOSED', regularMarketTime: sec('2026-10-23T20:00:00Z'), preMarketTime: sec('2026-10-23T13:25:00Z'), postMarketTime: sec('2026-10-23T23:50:00Z') });
+    expect(extendedSessions(ID, time('2026-10-24T15:00:00Z'))).toMatchObject({ preOver: true, post: { price: 121 } });
+  });
+
+  it("keeps the evening read from the chart when a new quote replaces the old one, so after-hours does not blink out", () => {
+    yahooQuotes.set(ID, { marketState: 'PRE', regularMarketPrice: 120, regularMarketTime: sec('2026-10-16T20:00:00Z'), arminSessionChart: chartExtendedSessions(chart(), NOW) });
+    expect(extendedSessions(ID, NOW).post?.price).toBe(122.4);
+    // The price poller's next quote has no evening fields, as Yahoo's quote has none in the pre-market.
+    yahooQuotes.set(ID, withSessionChart(ID, { marketState: 'PRE', regularMarketPrice: 120, regularMarketTime: sec('2026-10-16T20:00:00Z'), preMarketPrice: 126.5, preMarketTime: sec('2026-10-19T12:29:00Z') }));
+    expect(extendedSessions(ID, NOW).post?.price).toBe(122.4);
+    expect(extendedSessions(ID, NOW).pre?.price).toBe(126.5);
   });
 
   it('requests supplementary data only when a session column is selected', () => {
@@ -82,10 +119,12 @@ describe('source-defined chart sessions', () => {
     expect(sessions.post?.time).toBe(time('2026-10-16T23:55:00Z'));
   });
 
-  it('keeps the morning result during regular trading and removes the earlier evening result once the regular session opens', () => {
+  it('keeps the morning result and the earlier evening, frozen, during regular trading, and says when the evening began', () => {
     const sessions = chartExtendedSessions(chart(), time('2026-10-19T14:00:00Z'));
     expect(sessions.pre?.pct).toBeCloseTo(127 / 120 * 100 - 100);
-    expect(sessions.post).toBeUndefined();
+    expect(sessions.post).toMatchObject({ price: 122.4, time: time('2026-10-16T23:55:00Z') });
+    expect(sessions.post?.pct).toBeCloseTo(2);
+    expect(sessions.eveningFrom).toBe(time('2026-10-16T20:00:00Z'));
   });
 
   it('honours an early close and daylight saving boundary from the provider instead of assuming a four-hour evening', () => {
@@ -103,7 +142,8 @@ describe('source-defined chart sessions', () => {
   it('does not invent a change without an observed regular-session base or quote non-equities', () => {
     const fixture = chart();
     fixture.chart.result[0].indicators.quote[0].close[0] = NaN;
-    expect(chartExtendedSessions(fixture, NOW)).toEqual({});
+    // No price without its base; only when the evening began, which is no price.
+    expect(chartExtendedSessions(fixture, NOW)).toEqual({ eveningFrom: time('2026-10-16T20:00:00Z') });
     expect(chartExtendedSessions(null, NOW)).toEqual({});
     expect(extendedSessions('SPX Index', NOW)).toEqual({});
   });

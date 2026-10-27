@@ -92,7 +92,7 @@ export interface WatchlistRow {
 /** Captures exactly the local values and provenance used by the monitor and its export. */
 export function watchlistRow(
   id: string, sec: SecurityDef | undefined, q: Quote | undefined, now: number,
-  history: { ytd: number; y1?: number; today: readonly number[]; intradayTime?: number; extended?: { pre?: SessionPrice; post?: SessionPrice } },
+  history: { ytd: number; y1?: number; today: readonly number[]; intradayTime?: number; extended?: { pre?: SessionPrice; post?: SessionPrice; preOver?: boolean } },
 ): WatchlistRow {
   const fields = new Map((sec ? securityFields(sec, q, now) : []).map((f) => [f.id, f]));
   const today = history.today.filter(Number.isFinite);
@@ -116,12 +116,16 @@ export function watchlistRow(
     };
     // Pre-market and after-hours trading (stocks): the change against the regular close, and the price.
     const session = (pctId: string, pxId: string, name: string, s: SessionPrice | undefined) => {
-      const base = { category: 'Calculated' as const, source: s?.source ?? 'Extended-hours quote', dateOnly: false, timeBasis: s?.source.includes('(bar close)') ? 'Source timestamp of the last available extended-session bar; not an individual trade timestamp.' : 'Time of the last trade in the session, as the source gives it.', note: sec.cls === 'equity' ? 'Pre-market uses the preceding regular close; after-hours uses that day’s regular close and remains until the next regular session opens. Yahoo sessions are independent of any IEX regular quote. A chart fallback is the last observed bar close, not a transaction tape.' : 'Extended sessions apply to stocks.' };
+      const base = { category: 'Calculated' as const, source: s?.source ?? 'Extended-hours quote', dateOnly: false, timeBasis: s?.source.includes('(bar close)') ? 'Source timestamp of the last available extended-session bar; not an individual trade timestamp.' : 'Time of the last trade in the session, as the source gives it.', note: sec.cls === 'equity' ? 'Pre-market uses the preceding regular close and is N/A from the regular close until the next pre-market. After-hours uses that day’s regular close and stays, frozen at its last trade, through the next morning and day until the next after-hours session trades. Yahoo sessions are independent of any IEX regular quote. A chart fallback is the last observed bar close, not a transaction tape.' : 'Extended sessions apply to stocks.' };
       const valid = !!s && Number.isFinite(s.price) && s.price > 0;
       fields.set(pctId, { ...base, id: pctId, name: `${name} change`, definition: `${name} price against the last regular-session close.`, value: valid && Number.isFinite(s!.pct) ? s!.pct : null, unit: '%', status: valid ? 'EXTENDED HOURS' : 'UNAVAILABLE', asOf: valid ? s!.time : null });
       fields.set(pxId, { ...base, id: pxId, name: `${name} price`, definition: `Last ${name.toLowerCase()} trade.`, value: valid ? s!.price : null, unit: sec.ccy, status: valid ? 'EXTENDED HOURS' : 'UNAVAILABLE', asOf: valid ? s!.time : null });
     };
     session('ARMIN_PRE_MARKET', 'ARMIN_PRE_PX', 'Pre-market', history.extended?.pre);
+    if (history.extended?.preOver) {
+      const over = { status: 'OUT OF SESSION', note: 'Pre-market is over: the regular session has closed. The next pre-market opens at 04:00 New York time on the next trading day.' };
+      for (const fid of ['ARMIN_PRE_MARKET', 'ARMIN_PRE_PX']) fields.set(fid, { ...fields.get(fid)!, ...over });
+    }
     session('ARMIN_AFTER_HOURS', 'ARMIN_POST_PX', 'After-hours', history.extended?.post);
     extra('ARMIN_YTD', 'Year-to-date change', history.ytd, sec.quote === 'yield' ? 'percentage points' : '%', q?.time, 'Current source price against the available year-end daily close; price return for prices, percentage-point change for yield references.');
     extra('ARMIN_1Y', 'One-year change', history.y1 ?? NaN, sec.quote === 'yield' ? 'percentage points' : '%', q?.time, 'Current source price against the daily close a year earlier; price return for prices, percentage-point change for yield references.');

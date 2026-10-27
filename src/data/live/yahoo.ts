@@ -400,17 +400,31 @@ export function lastPostTrade(bars: { t: number[]; c: (number | null)[] }, close
   return hit;
 }
 
+/** A new quote for a line, keeping the extended sessions read from Yahoo's chart: its quote drops the previous
+ * evening once the pre-market opens, and replacing the quote without them blanked the after-hours column. */
+export function withSessionChart(id: string, q: Json): Json {
+  const chart = yahooQuotes.get(id)?.arminSessionChart;
+  return chart ? { ...q, arminSessionChart: chart } : q;
+}
+
+const DAY = 86_400_000;
+
 /**
- * A stock's pre-market and after-hours prices for the watchlist: today's pre-market (within 20 hours), and the
- * after-hours session that followed the latest regular session (gone once the next one opens). A streamed price
- * newer than the polled quote replaces it. Changes are against the regular close, as Yahoo gives them.
+ * A stock's pre-market and after-hours prices for the watchlist.
+ * - After-hours: the latest after-hours session, live while it trades, then frozen at its last trade through the
+ *   next pre-market and regular session, until the next after-hours session trades (within five days, for long
+ *   weekends). Its change is against that day's regular close.
+ * - Pre-market: today's, live and then frozen through the regular session. Once today's regular session has closed
+ *   it is over (`preOver`), and stays so until the next pre-market trades: the watchlist shows N/A.
+ * A streamed price newer than the polled quote replaces it.
  */
-export function extendedSessions(id: string, now = Date.now()): { pre?: SessionPrice; post?: SessionPrice } {
+export function extendedSessions(id: string, now = Date.now()): { pre?: SessionPrice; post?: SessionPrice; preOver?: boolean } {
   const q = yahooQuotes.get(id);
   if (!q || engine.get(id)?.cls !== 'equity') return {};
   const close = Number(q.regularMarketPrice);
   const regularAt = Number(q.regularMarketTime) * 1000;
-  const out: { pre?: SessionPrice; post?: SessionPrice } = {};
+  const previousClose = Number(q.regularMarketPreviousClose ?? q.previousClose);
+  const out: { pre?: SessionPrice; post?: SessionPrice; preOver?: boolean } = {};
   const pct = (price: number, given: unknown, base = close) => {
     const supplied = typeof given === 'number' || (typeof given === 'string' && given.trim() !== '');
     return supplied && Number.isFinite(Number(given)) ? Number(given) : base > 0 ? (price / base - 1) * 100 : NaN;
@@ -423,7 +437,9 @@ export function extendedSessions(id: string, now = Date.now()): { pre?: SessionP
       return a.y === b.y && a.mo === b.mo && a.d === b.d;
     } catch { return false; }
   };
-  const regularTrading = q.marketState === 'REGULAR';
+  const state = String(q.marketState ?? '');
+  // An evening price belongs to the regular session before it: a later regular session's price is not its base.
+  const postBase = (at: number) => (at >= regularAt - 60_000 ? close : previousClose);
   const pre = Number(q.preMarketPrice);
   const preAt = Number(q.preMarketTime) * 1000;
   // During the regular session the morning's pre-market change still uses the preceding close.
@@ -431,17 +447,26 @@ export function extendedSessions(id: string, now = Date.now()): { pre?: SessionP
   if (pre > 0 && today(preAt) && preAt <= now && now - preAt < 20 * 3_600_000) out.pre = { price: pre, pct: pct(pre, q.preMarketChangePercent, preBase), time: preAt, source: SESSION_SOURCE };
   const post = Number(q.postMarketPrice);
   const postAt = Number(q.postMarketTime) * 1000;
-  if (!regularTrading && post > 0 && postAt > 0 && postAt <= now && postAt >= regularAt - 60_000 && now - postAt < 4 * 86_400_000) out.post = { price: post, pct: pct(post, q.postMarketChangePercent), time: postAt, source: SESSION_SOURCE };
+  if (post > 0 && postAt > 0 && postAt <= now && now - postAt < 5 * DAY) out.post = { price: post, pct: pct(post, q.postMarketChangePercent, postBase(postAt)), time: postAt, source: SESSION_SOURCE };
   for (const key of ['pre', 'post'] as const) {
     const chart = q.arminSessionChart?.[key] as SessionPrice | undefined;
-    if (chart && (key === 'pre' ? today(chart.time) : !regularTrading) && chart.time > (out[key]?.time ?? 0) && chart.time <= now && now - chart.time < (key === 'pre' ? 20 * 3_600_000 : 4 * 86_400_000) && (key === 'pre' || chart.time >= regularAt - 60_000)) out[key] = chart;
+    if (chart && (key === 'post' || today(chart.time)) && chart.time > (out[key]?.time ?? 0) && chart.time <= now && now - chart.time < (key === 'pre' ? 20 * 3_600_000 : 5 * DAY)) out[key] = chart;
   }
   const streamed = engine.quote(id)?.extended;
   if (streamed && streamed.price > 0) {
     const key = streamed.session === 'pre' ? 'pre' : streamed.session === 'post' ? 'post' : null;
-    if (key && (key === 'pre' ? today(streamed.time) : !regularTrading) && streamed.time <= now && streamed.time > (out[key]?.time ?? 0) && now - streamed.time < 20 * 3_600_000 && (key === 'pre' || streamed.time >= regularAt - 60_000)) {
-      out[key] = { price: streamed.price, pct: pct(streamed.price, undefined, key === 'pre' && streamed.time < regularAt ? Number(q.regularMarketPreviousClose ?? q.previousClose) : close), time: streamed.time, source: 'Yahoo Finance streaming' };
+    if (key && (key === 'post' || today(streamed.time)) && streamed.time <= now && streamed.time > (out[key]?.time ?? 0) && now - streamed.time < 20 * 3_600_000) {
+      out[key] = { price: streamed.price, pct: pct(streamed.price, undefined, key === 'pre' ? (streamed.time < regularAt ? previousClose : close) : postBase(streamed.time)), time: streamed.time, source: 'Yahoo Finance streaming' };
     }
+  }
+  // Today's regular session has closed (Yahoo says so, an after-hours trade or period of today is seen): this
+  // morning's pre-market is over. Between the evening and the next pre-market, and at weekends, there is none.
+  const evening = Number(q.arminSessionChart?.eveningFrom);
+  const closedToday = today(regularAt) && ['POST', 'POSTPOST', 'PREPRE', 'CLOSED'].includes(state);
+  const eveningToday = (!!out.post && today(out.post.time) && today(regularAt)) || (evening > 0 && evening <= now && today(evening));
+  if (closedToday || eveningToday || (!out.pre && ['POST', 'POSTPOST', 'PREPRE', 'CLOSED'].includes(state))) {
+    delete out.pre;
+    out.preOver = true;
   }
   return out;
 }
@@ -823,7 +848,7 @@ class YahooData {
           if (lines.length) ok++;
           for (const t of lines) {
             if (iexOwns(t.id)) continue;
-            yahooQuotes.set(t.id, q);
+            yahooQuotes.set(t.id, withSessionChart(t.id, q));
             if (Number.isFinite(Number(q.gmtOffSetMilliseconds))) t.gmtOffset = Number(q.gmtOffSetMilliseconds);
             const timing = timingOf(q);
             t.delay = timing.delay;

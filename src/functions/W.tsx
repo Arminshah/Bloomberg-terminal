@@ -25,7 +25,9 @@ import type { FnProps } from '../terminal/types';
 export function FieldCell({ column, row, sec, quote, now }: { column: WatchlistColumn; row: WatchlistRow; sec?: SecurityDef; quote?: Quote; now: number }) {
   const f = row.fields.get(column.id);
   if (sec?.quote === 'yield' && column.id === 'CHG_PCT_1D') return <span title={f?.note} />;
-  // Nothing to show is a blank cell, its reason on hover.
+  // A session that is over says so (the pre-market after the close); nothing else to show is a blank cell, its reason
+  // on hover.
+  if (f?.status === 'OUT OF SESSION') return <span className="muted" title={f.note}>N/A</span>;
   if (!f || f.value === null || !sec) return <span className="muted" title={f?.note ?? 'No field value is available.'} />;
   const y = sec.quote === 'yield';
   let value: ReactNode = typeof f.value === 'number' ? fmtNum(f.value, column.id === 'ARMIN_SPREAD_PCT' ? 3 : sec.dec) : f.value;

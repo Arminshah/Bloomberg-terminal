@@ -4,11 +4,12 @@ import { zonedParts } from '../../core/format';
 import { engine } from '../market';
 import type { SessionPrice } from '../watchlist-columns';
 import { createWants, registerRefresh } from '../../terminal/refresh';
-import { desktopData, extendedSessions, yahooGet, yahooQuotes, yahooSymbolFor } from './yahoo';
+import { desktopData, extendedSessions, withSessionChart, yahooGet, yahooQuotes, yahooSymbolFor } from './yahoo';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Json = any;
-type Sessions = { pre?: SessionPrice; post?: SessionPrice };
+/** `eveningFrom`: when the latest after-hours period that has begun opened (ms). */
+type Sessions = { pre?: SessionPrice; post?: SessionPrice; eveningFrom?: number };
 const updates = createStore({ v: 0 });
 const wanted = createWants<string[]>();
 const asked = new Map<string, number>();
@@ -57,13 +58,13 @@ export function chartExtendedSessions(chart: Json, now = Date.now()): Sessions {
       if (kind === 'pre' && localDate(period.start * 1000) !== localDate(now)) continue;
       const basePeriod = regular.filter((p) => p.end <= period.start).at(-1);
       if (!basePeriod) continue;
-      // An earlier evening quote stops being the latest extended session once another regular session opens.
-      if (kind === 'post' && regular.some((p) => p.start >= period.end && p.start * 1000 <= now)) continue;
+      if (kind === 'post' && period.start * 1000 <= now) out.eveningFrom = period.start * 1000;
       const trade = last(period.start, period.end);
       const base = last(basePeriod.start, basePeriod.end);
       if (!trade || !base) continue;
       if (kind === 'pre' && now - trade.time >= 20 * 3_600_000) continue;
-      if (kind === 'post' && now - trade.time >= 4 * 86_400_000) continue;
+      // The latest evening stays, frozen, through the next morning and day, until another evening trades.
+      if (kind === 'post' && now - trade.time >= 5 * 86_400_000) continue;
       out[kind] = { ...trade, pct: (trade.price / base.price - 1) * 100, source: 'Yahoo Finance chart, extended hours (bar close)' };
     }
   }
@@ -95,11 +96,12 @@ export async function refreshExtendedQuotes(ids: readonly string[], force = fals
         const q = quotes.find((q) => q?.symbol === symbol);
         if (q) {
           answered.set(id, true);
-          yahooQuotes.set(id, { ...q, arminSessionChart: yahooQuotes.get(id)?.arminSessionChart });
+          yahooQuotes.set(id, withSessionChart(id, q));
         }
         const sessions = extendedSessions(id);
-        // Pre-market no longer includes the previous evening in Yahoo's quote. Charts retain both sessions.
-        if (!q || (q.hasPrePostMarketData !== false && (!sessions.pre || (q.marketState !== 'REGULAR' && !sessions.post)))) missing.push(id);
+        // Yahoo's quote drops the previous evening once the pre-market opens; its chart keeps both sessions. The
+        // morning's pre-market is not asked for once it is over.
+        if (!q || (q.hasPrePostMarketData !== false && (!sessions.post || (!sessions.pre && !sessions.preOver)))) missing.push(id);
       }
       // Bound concurrency for long lists and stay inside the main process's provider request budgets.
       for (let k = 0; k < missing.length; k += 3) await Promise.all(missing.slice(k, k + 3).map(async (id) => {

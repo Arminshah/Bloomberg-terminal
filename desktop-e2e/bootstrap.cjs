@@ -344,6 +344,15 @@ net.fetch = async (input, init) => {
         postMarketChangePercent: (124 / 123.45 - 1) * 100,
         hasPrePostMarketData: true, marketState: 'PRE', exchangeTimezoneName: 'America/New_York',
       } : {}),
+      // 17:00 in New York (fixtures.extendedEvening): today's regular session closed at 123.45, after-hours trades at
+      // 126, and this morning's pre-market (125) is over.
+      ...(fixtures.extendedEvening ? {
+        regularMarketPrice: 123.45, regularMarketTime: Date.parse('2026-10-20T20:00:00Z') / 1000, regularMarketPreviousClose: 120,
+        preMarketPrice: 125, preMarketTime: Date.parse('2026-10-20T11:55:00Z') / 1000,
+        postMarketPrice: 126, postMarketTime: Date.parse('2026-10-20T20:55:00Z') / 1000,
+        postMarketChangePercent: (126 / 123.45 - 1) * 100,
+        hasPrePostMarketData: true, marketState: 'POST', exchangeTimezoneName: 'America/New_York',
+      } : {}),
     })) } });
   }
   // The market earnings calendar (fixtures.marketCalendar): 3M reported eight days ago, as on an earnings card, with

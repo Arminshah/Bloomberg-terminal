@@ -48,6 +48,7 @@ interface Fixtures {
   crudeMonths?: string[];
   imf?: boolean;
   imfTrade?: boolean;
+  extendedEvening?: boolean;
   nasdaqList?: boolean;
   monthly?: boolean;
   congressGov?: boolean;
@@ -1619,5 +1620,21 @@ test("SCREEN screens Nasdaq's whole US list in the desktop app and says how many
   // The ratios the list lacks: the screen says they come only for the app's own stocks.
   await expect(panel.getByLabel('Field 1.1').locator('option[value="pe"]')).toContainText("the app's stocks only");
   await expect(panel.getByText("Nasdaq's list has no P/E, yield, ROE, beta or returns")).toBeVisible();
+});
+
+test('in the evening the watchlist shows after-hours live and the morning\'s pre-market as N/A', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.extendedEvening = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.clock.install({ time: new Date('2026-10-20T21:00:00Z') });
+  await page.reload();
+  await command(page, 'WATCH', 'WATCHLIST');
+  const row = page.getByRole('row').filter({ hasText: 'Apple Inc' }).first();
+  const header = page.locator('thead th');
+  const cell = async (label: string) => row.locator('td').nth(await header.evaluateAll((ths, l) => ths.findIndex((th) => th.textContent?.trim().startsWith(l)), label));
+  await expect(await cell('After hrs')).toContainText('2.07%', { timeout: 30_000 });
+  await expect(await cell('Pre-mkt')).toHaveText('N/A');
+  await expect((await cell('Pre-mkt')).locator('span')).toHaveAttribute('title', /next pre-market opens at 04:00 New York time/);
 });
 

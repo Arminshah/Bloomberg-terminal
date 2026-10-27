@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { toCsv } from '../src/core/csv';
 import { DEFAULT_WATCHLIST_COLUMNS, placeInOrder, sortWatchlistRows, watchlistColumns, watchlistExport, watchlistRow, withExtendedColumns } from '../src/data/watchlist-columns';
 import { extendedSessions, lastPostTrade, yahooQuotes } from '../src/data/live/yahoo';
+import { engine } from '../src/data/market';
 import type { Quote, SecurityDef } from '../src/data/types';
 
 const NOW = Date.parse('2026-10-16T15:00:00Z');
@@ -96,9 +97,12 @@ describe('pre-market and after-hours columns', () => {
     const x = extendedSessions('AAPL US Equity', now);
     expect(x.pre).toMatchObject({ price: 343.25, pct: -0.0611 });
     expect(x.post).toMatchObject({ price: 344.1, pct: 0.1863 });
-    // Once the regular session has traded again, the earlier after-hours price is gone; a stale pre-market too.
+    // After the regular session has traded again, the latest evening the quote has stays, frozen, until another
+    // evening trades (the owner's rule of 27 October 2026); yesterday's pre-market is gone.
     yahooQuotes.set('AAPL US Equity', { ...yahooQuotes.get('AAPL US Equity'), marketState: 'REGULAR', regularMarketTime: at('2026-10-19T14:00:00Z') });
-    expect(extendedSessions('AAPL US Equity', Date.parse('2026-10-20T08:00:00Z'))).toEqual({});
+    const later = extendedSessions('AAPL US Equity', Date.parse('2026-10-20T08:00:00Z'));
+    expect(later.pre).toBeUndefined();
+    expect(later.post).toMatchObject({ price: 344.1, pct: 0.1863 });
     yahooQuotes.delete('AAPL US Equity');
   });
 
@@ -108,5 +112,16 @@ describe('pre-market and after-hours columns', () => {
     const bars = { t: [t('2026-10-16T19:45:00Z'), t('2026-10-16T21:00:00Z'), t('2026-10-16T23:45:00Z'), t('2026-10-19T08:00:00Z')], c: [342, 342.4, 342.62, 343.7] };
     expect(lastPostTrade(bars, close)).toEqual({ price: 342.62, time: Date.parse('2026-10-16T23:45:00Z') });
     expect(lastPostTrade({ t: bars.t, c: [342, null, null, 343.7] }, close)).toBeNull();
+  });
+});
+
+describe('the pre-market column once the session is over', () => {
+  it('says N/A, with the reason, rather than a blank', () => {
+    const id = 'AAPL US Equity';
+    const row = watchlistRow(id, engine.get(id), engine.quote(id), Date.now(), { ytd: NaN, today: [], extended: { preOver: true, post: { price: 344.1, pct: 0.19, time: Date.now() - 3_600_000, source: 'Yahoo Finance extended-hours quote' } } });
+    expect(row.fields.get('ARMIN_PRE_MARKET')).toMatchObject({ value: null, status: 'OUT OF SESSION' });
+    expect(row.fields.get('ARMIN_PRE_MARKET')!.note).toContain('04:00 New York time');
+    expect(row.fields.get('ARMIN_PRE_PX')).toMatchObject({ value: null, status: 'OUT OF SESSION' });
+    expect(row.fields.get('ARMIN_AFTER_HOURS')).toMatchObject({ value: 0.19, status: 'EXTENDED HOURS' });
   });
 });
