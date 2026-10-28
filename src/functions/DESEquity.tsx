@@ -7,7 +7,8 @@ import { DataTable } from '../components/DataTable';
 import { Sparkline } from '../components/Sparkline';
 import { fmtBig, fmtDay, fmtEarnDate, fmtInt, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { DAY_MS } from '../data/calendar';
-import { closeAt, localBeta, marketCapUsd, periodChange, rangeStats } from '../data/analytics';
+import { indexAtOrBefore } from '../data/series';
+import { localBeta, marketCapUsd, periodChange, periodStart, rangeStats } from '../data/analytics';
 import { defaultBenchmark } from '../finance/beta';
 import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings, peers, priceInCurrency, reportCcy, revenueMix } from '../data/fundamentals';
 import { desktopData } from '../data/live/yahoo';
@@ -121,18 +122,26 @@ function marketValueRep(sec: SecurityDef): number {
 
 // ---------------------------------------------------------------- 1) Profile
 
-/** Total return over the past year: the price change with the dividends that went ex in it, in percent. */
+/**
+ * Total return over the past year in percent, the dividends reinvested on their ex-dates (as TOTALRETURN works it
+ * out): from the close a year before the latest session, the session of the last price.
+ */
 export function totalReturn1Y(sec: SecurityDef): number {
-  const q = engine.quote(sec.id);
   const s = engine.daily(sec.id);
-  if (!q || !Number.isFinite(q.last) || !s.length) return NaN;
-  const today = engine.today * DAY_MS;
-  const from = Date.UTC(new Date(today).getUTCFullYear() - 1, new Date(today).getUTCMonth(), new Date(today).getUTCDate());
+  const n = s.length;
+  if (!n || !Number.isFinite(s.c[n - 1])) return NaN;
+  const from = periodStart(s, '1Y');
   if (s.t[0] > from) return NaN;
-  const base = closeAt(s, from);
-  if (!Number.isFinite(base) || base <= 0) return NaN;
-  const paid = dividends(sec).filter((d) => d.ex > from && d.ex <= today && Number.isFinite(d.amount)).reduce((a, d) => a + d.amount, 0);
-  return ((q.last + paid) / base - 1) * 100;
+  const i0 = indexAtOrBefore(s, from);
+  if (i0 < 0 || !(s.c[i0] > 0)) return NaN;
+  const paid = dividends(sec).filter((d) => d.ex > s.t[i0] && d.ex <= s.t[n - 1] && Number.isFinite(d.amount));
+  let tr = 1;
+  for (let i = i0 + 1; i < n; i++) {
+    let gross = s.c[i] / s.c[i - 1];
+    for (const d of paid) if (d.ex > s.t[i - 1] && d.ex <= s.t[i]) gross += d.amount / s.c[i - 1];
+    tr *= gross;
+  }
+  return (tr - 1) * 100;
 }
 
 /** The current and next fiscal years' EPS estimates (the first two estimate years from today), for Est P/E and PEG. */
@@ -338,7 +347,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
                 <b className="des-n">19)</b> 12M Tot Ret
               </button>
             </dt>
-            <dd title="Price change with the dividends that went ex in the past 12 months">
+            <dd title="The price change with the dividends reinvested on their ex-dates, from the close a year before the latest session">
               <Chg v={totRet} pct />
             </dd>
             <dt>

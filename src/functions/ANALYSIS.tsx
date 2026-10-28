@@ -9,7 +9,7 @@ import { XYChart, type XYSeries } from '../components/chart/XYChart';
 import { Chg, DayChg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useHistoryVersion, useTick } from '../data/market';
-import { horizonStart, marketCapUsd, type Horizon } from '../data/analytics';
+import { marketCapUsd, periodStart, type Horizon } from '../data/analytics';
 import { dividends, financials, hasRealStatements, majorPrice, reportCcy } from '../data/fundamentals';
 import { dividendYield } from '../data/options';
 import { resolveSecurity } from '../data/registry';
@@ -85,9 +85,10 @@ export function TRA({ sec }: FnProps) {
   const defBench = s.cls === 'index' ? (s.id === 'SPX Index' ? 'INDU Index' : 'SPX Index') : BENCH[s.region] ?? 'SPX Index';
   const [bench, setBench] = useState(defBench);
   const h = H[tab - 1].h;
-  const start = horizonStart(h);
   // Recomputed when daily history arrives, which can be after the screen opens.
   const history = useHistoryVersion();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const start = useMemo(() => periodStart(engine.daily(s.id), h), [s.id, h, history]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const a = useMemo(() => totalReturn(s, start), [s, start, history]);
   // eslint-disable-next-line react-hooks/exhaustive-deps

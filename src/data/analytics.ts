@@ -52,9 +52,19 @@ export function periodChange(id: string, h: Horizon): number {
     return def.quote === 'yield' ? q.chg : q.pct;
   }
   const s = engine.daily(id);
-  const base = closeAt(s, horizonStart(h));
+  const base = closeAt(s, periodStart(s, h));
   if (!Number.isFinite(base)) return NaN;
   return def.quote === 'yield' ? q.last - base : (q.last / base - 1) * 100;
+}
+
+/**
+ * Where a return over `h` starts for a line: counted back from its latest session (its last daily bar), the session of
+ * the last price, not from the calendar day. Before the open the last price is the day before's, and a year counted
+ * from today would start a session late (NVIDIA on 28 October 2026: +8.7% from 28 October 2025 against +14.1% from the
+ * 27th, the day after a 5% rise). The year to date stays on the calendar year.
+ */
+export function periodStart(s: Series, h: Horizon): number {
+  return horizonStart(h, h === 'YTD' || !s.length ? engine.today * DAY_MS : s.t[s.length - 1]);
 }
 
 export interface RangeStats {
