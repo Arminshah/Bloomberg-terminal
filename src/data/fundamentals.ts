@@ -381,6 +381,13 @@ export function keyStats(def: SecurityDef): KeyStats {
     // after it reported), the source's P/E comes with the source's own trailing EPS, so the two still agree.
     const own = new Set(['ev', 'evEbitda', ...(Number.isFinite(ltm.eps) ? ['pe', 'epsLtm'] : []), ...(ltm.equity > 0 ? ['pb'] : [])]);
     for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v) && !mixed.has(k) && !own.has(k)) ks[k] = v as number;
+    // The source's price to book for a depositary receipt divides the receipt's price by the book value of one
+    // ordinary share (HSBC's, five shares a receipt, read 8.31 on 28 October 2026 against about 1.5). Price to book
+    // is P/E times ROE: a source figure far from that is on two share bases and is left blank.
+    if (!own.has('pb') && Number.isFinite(ks.pb) && ks.pe > 0 && ks.roe > 0) {
+      const implied = ks.pe * (ks.roe / 100);
+      if (ks.pb / implied > 2.5 || ks.pb / implied < 0.4) ks.pb = NaN;
+    }
   } else {
     const yq = yahooQuotes.get(def.id);
     if (yq) {
