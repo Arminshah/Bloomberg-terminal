@@ -54,6 +54,7 @@ interface Fixtures {
   monthly?: boolean;
   congressGov?: boolean;
   eia?: boolean;
+  bea?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -61,7 +62,7 @@ interface Fixtures {
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   segments?: boolean;
-  calls: { eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -757,6 +758,41 @@ test("NGAS shows EIA's storage report as EIA states it, and the keyed history an
   const keyed = ((await calls(app)).eia ?? []).filter((c) => c.keyed);
   expect(keyed.map((c) => c.path).sort()).toEqual(['/v2/natural-gas/stor/wkly/data/', '/v2/natural-gas/sum/snd/data/', '/v2/petroleum/sum/sndw/data/']);
   expect(await page.content()).not.toContain('abcdefghijABCDEFGHIJ0123456789klmnopqrst');
+});
+
+test("NIPA shows BEA's GDP contributions and personal income, and never the UserID BEA repeats", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.bea = true;
+  });
+  await command(page, 'NIPA');
+  const panel = page.locator('.panel').first();
+  await expect(panel).toContainText('Needs BEA_API_KEY on PROVIDERS', { timeout: 30_000 });
+  expect((await calls(app)).bea ?? []).toEqual([]);
+  // A UserID BEA does not know: its error inside an HTTP 200 answer reads as a refused UserID.
+  await app.evaluate(() => {
+    process.env.BEA_API_KEY = 'FEDCBA98-7654-3210-FEDC-BA9876543210';
+  });
+  await page.reload();
+  await command(page, 'NIPA');
+  await expect(panel).toContainText('BEA refused the UserID', { timeout: 30_000 });
+  await app.evaluate(() => {
+    process.env.BEA_API_KEY = '01234567-89AB-CDEF-0123-456789ABCDEF';
+  });
+  await page.reload();
+  await command(page, 'NIPA');
+  // Q2 2026: real GDP +2.2% at an annual rate, consumption +2.51 points, net exports -1.10 (BEA Table 1.1.2).
+  const gdp = panel.getByTestId('bea-gdp');
+  await expect(gdp.locator('tbody tr').filter({ hasText: 'Gross domestic product' })).toContainText('2.20', { timeout: 30_000 });
+  await expect(gdp.getByRole('row').filter({ hasText: 'Personal consumption expenditures' })).toContainText('2.51');
+  await expect(gdp.getByRole('row').filter({ hasText: 'Net exports' })).toContainText('-1.10');
+  await expect(gdp.locator('thead')).toContainText('Q2 2026');
+  // August 2026: personal income 27,626.9 billion a year, saving rate 4.1% (Table 2.6).
+  const income = panel.getByTestId('bea-income');
+  await expect(income.locator('tbody tr').filter({ hasText: 'Personal income' }).first()).toContainText('27,626.9');
+  await expect(income.locator('tbody tr').filter({ hasText: 'percentage of disposable' })).toContainText('4.1%');
+  await expect(panel).toContainText('last revised 30/09/26');
+  expect(await page.content()).not.toContain('01234567-89AB-CDEF-0123-456789ABCDEF');
+  expect(await page.content()).not.toContain('FEDCBA98-7654-3210-FEDC-BA9876543210');
 });
 
 test("FXCA says when it has no live rate, and converts at the ECB's reference rate of a past day", async ({ desktop: { app, page } }) => {

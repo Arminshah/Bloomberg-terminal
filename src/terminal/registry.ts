@@ -43,6 +43,7 @@ import { YAS } from '../functions/YAS';
 import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
 import { AGS, GAS, MINE, OIL } from '../functions/CMDSECTOR';
 import { NGAS } from '../functions/NGAS';
+import { NIPA } from '../functions/NIPA';
 import { WCR } from '../functions/WCR';
 import { WEIS, WM } from '../functions/WORLDEQ';
 import { BOE, BOJ, ECB } from '../functions/CBPORTAL';
@@ -220,6 +221,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'FUTURESCURVE', name: 'Commodity Forward Curves', category: 'Commodities', desc: "A commodity's forward curve: every listed contract month with its own price and expiry, the curve a week and a month ago from each contract's closes, the change, the spread to the front month, open interest and volume, and whether the curve is in contango or backwardation (Yahoo Finance, desktop app).", component: CCRV, example: 'CL1 COMDTY FUTURESCURVE' },
   { code: 'CONTRACTS', name: 'Exchange Contracts', category: 'Commodities', desc: "The futures the app carries (commodities, rate and equity index futures), found by sector, exchange or name, with each contract's size or multiplier, price unit or tick and listed months, and in the desktop app Yahoo's front month with its expiry, price, change and open interest. A commodity opens on its forward curve.", component: CTM, example: 'CONTRACTS CRUDE' },
   // Economics
+  { code: 'NIPA', name: 'US National Accounts', category: 'Economics', desc: "BEA's national accounts: what drove real GDP growth in each of the last six quarters (contributions by component, Table 1.1.2) and personal income, spending and saving by month (Table 2.6), with BEA's revision dates (desktop app, BEA_API_KEY).", component: NIPA },
   { code: 'MACRO', name: 'Macro Dashboard', category: 'Economics', desc: 'US policy rate, Treasury yields and curve, inflation, jobs, growth, money, credit spreads, financial conditions and recession signals from the FRED API, with how payrolls and GDP were revised since first published.', component: MACRO, example: 'MACRO CPI' },
   { code: 'ECONCHART', name: 'Economic Data Chart', category: 'Economics', desc: "Up to four FRED series on one chart, each as published or transformed by FRED (change, % change, on a year ago, compounded annual rate), over two years to the whole history, with a second scale for different units, each one's latest value and the one before, and FRED's description; a search finds any of FRED's series (desktop app, FRED_API_KEY).", component: ECOW, example: 'ECONCHART HOUST CPIAUCSL:PC1' },
   { code: 'ECOFORECASTS', name: 'Economic Forecasts', category: 'Economics', desc: "The IMF's World Economic Outlook for the world, its regions and the largest economies, or every economy: GDP growth, inflation, unemployment, current account, government balance and debt, two years back to five ahead with the IMF's projections marked, and any economy's history and projections on a chart (desktop app).", component: ECFC, example: 'ECOFORECASTS USA' },

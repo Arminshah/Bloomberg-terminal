@@ -50,6 +50,8 @@ declare global {
       analysts?(kind: import('./analysts').AnalystKind | 'earnings', symbol: string, fresh?: boolean): Promise<KeyedAnswer>;
       /** EIA's storage report (no key) and its Open Data API (EIA_API_KEY): src/data/live/eia.ts. */
       eia?(kind: import('./eia').EiaKind): Promise<KeyedAnswer>;
+      /** BEA's national accounts tables (BEA_API_KEY), without BEA's echo of the UserID: src/data/live/bea.ts. */
+      bea?(kind: import('./bea').BeaKind): Promise<KeyedAnswer>;
       nasdaq?(kind: import('./nasdaq-company').NasdaqKind | 'info' | 'historical', symbol: string): Promise<KeyedAnswer>;
       finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;

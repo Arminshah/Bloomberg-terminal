@@ -653,6 +653,20 @@ export const PROVIDERS: ProviderDef[] = [
     checked: '2026-10-28', desktop: true,
   },
   {
+    id: 'bea',
+    name: 'BEA (US Bureau of Economic Analysis)',
+    serves: 'NIPA: the contributions to real GDP growth by component (Table 1.1.2, quarterly) and personal income, spending and saving (Table 2.6, monthly), with BEA\'s revision dates. GDP growth and the PCE price indexes one series at a time stay with FRED (MACRO).',
+    dataClass: 'Official US national accounts, as BEA publishes them',
+    policy: 'needs-credential', credential: 'BEA_API_KEY', limit: '30',
+    terms: "Free with a registered UserID. BEA's API allows 100 requests, 100 MB and 30 errors a minute per user and refuses further requests for about a minute when one is passed. Its answers repeat the UserID; the app removes that part in the main process. The app asks two tables, each kept six hours.",
+    docs: [
+      { label: 'API user guide', url: 'https://apps.bea.gov/api/_pdf/bea_web_service_api_user_guide.pdf' },
+      { label: 'Register for a UserID', url: 'https://apps.bea.gov/API/signup/' },
+      { label: 'Interactive NIPA tables', url: 'https://apps.bea.gov/iTable/?reqid=19&step=2&isuri=1&categories=survey' },
+    ],
+    checked: '2026-10-28', desktop: true,
+  },
+  {
     id: 'house-clerk',
     name: 'Clerk of the House (financial disclosures)',
     serves: "CONGRESS: the House's member list with party and seat, the yearly index of members' financial disclosures, and each periodic transaction report and annual report, read from its PDF in the app (reports filed on paper are scans: linked only)",

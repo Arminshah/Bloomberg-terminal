@@ -32,6 +32,8 @@ const crudeSpark = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fix
 // parts (BILL, fixtures.congressGov).
 // EIA's answers of 28 October 2026: its weekly storage report of 22 October (week ending 16 October), and from its
 // Open Data API the weekly storage history, the weekly petroleum figures and the monthly gas figures (fixtures.eia).
+// BEA's tables of 28 October 2026 (fixtures.bea); the fixture repeats the UserID in a Request block as BEA does.
+const beaFixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, `../tests/fixtures/bea/${name}.json`), 'utf8'));
 const eiaFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/eia/${name}.json`), 'utf8');
 const congressGov = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/congressgov-2026-10.json'), 'utf8'));
 const dowMonthly = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-monthly-dow-2026-10.json'), 'utf8'));
@@ -111,6 +113,14 @@ net.fetch = async (input, init) => {
     if (part === 'countries' || part === 'groups' || part === 'indicators') return json(imfWeo[part]);
     // The fixture holds GDP growth only: the other indicators answer with no figures.
     return json({ values: {} });
+  }
+  if (fixtures.bea && url.hostname === 'apps.bea.gov') {
+    const user = url.searchParams.get('UserID') ?? '';
+    fixtures.calls.bea = [...(fixtures.calls.bea ?? []), url.searchParams.get('TableName')];
+    const echo = { RequestParam: [{ ParameterName: 'USERID', ParameterValue: user }, { ParameterName: 'TABLENAME', ParameterValue: url.searchParams.get('TableName') }] };
+    if (user !== '01234567-89AB-CDEF-0123-456789ABCDEF') return json({ BEAAPI: { Request: echo, Results: { Error: { APIErrorCode: '1', APIErrorDescription: 'Invalid Request - Invalid API UserId.' } } } });
+    const table = url.searchParams.get('TableName') === 'T10102' ? beaFixture('gdp-contributions-2026-10-28') : beaFixture('personal-income-2026-10-28');
+    return json({ BEAAPI: { Request: echo, ...table.BEAAPI } });
   }
   if (fixtures.eia && (url.hostname === 'ir.eia.gov' || url.hostname === 'api.eia.gov')) {
     const keyed = url.searchParams.has('api_key');

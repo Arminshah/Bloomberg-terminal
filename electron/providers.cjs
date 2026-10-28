@@ -614,6 +614,15 @@ function providerPayloadProblem(provider, text, secrets = []) {
         code = Number(data.code) > 999 ? Number(String(data.code).slice(0, 3)) : Number(data.code);
       }
       break;
+    case 'bea': {
+      // BEA answers HTTP 200 with its error inside: code 1 for an unknown UserID, 7 and others for its limits a minute.
+      const e = data?.BEAAPI?.Results?.Error ?? data?.BEAAPI?.Error;
+      if (e) {
+        message = e.APIErrorDescription ?? 'BEA refused the request.';
+        code = String(e.APIErrorCode) === '1' || /userid/i.test(message) ? 401 : /quota|exceeded|limit/i.test(message) ? 429 : undefined;
+      }
+      break;
+    }
     case 'eia':
       if (data?.error) {
         message = typeof data.error === 'string' ? data.error : `${data.error.code ?? ''} ${data.error.message ?? ''}`.trim();

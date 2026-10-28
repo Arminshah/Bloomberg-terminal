@@ -192,6 +192,15 @@ NGAS, and the gas and oil pages (NATURALGAS, OILMARKET), in the desktop app. Two
 
 EIA publishes its weekly petroleum report on Wednesdays at 10:30 New York time; on 28 October the API still gave the week ending 16 October hours after the report for 23 October was out, so every figure is shown with its week. Monthly gas figures come about two months after the month and are revised. A bad key answers HTTP 403 with `API_KEY_INVALID`; EIA suspends a key for a short while if it asks too often (no number stated) and gives at most 5,000 rows an answer. The app asks four datasets, each at most every 30 minutes while a screen shows it.
 
+## US Bureau of Economic Analysis (BEA)
+
+NIPA, in the desktop app, with the owner's `BEA_API_KEY` (BEA's UserID, a GUID). Two tables from the API's `GetData` method on the NIPA dataset, checked live on 28 October 2026:
+
+- **Table 1.1.2**, contributions to the percent change in real GDP, quarterly (the last three years asked): line 1 is real GDP's growth at an annual rate, the others each part's contribution in percentage points. Q2 2026 read 2.2, consumption 2.51, net exports -1.10, last revised 30 September 2026; FRED's copies (A191RL1Q225SBEA, DPCERY2Q224SBEA, A019RY2Q224SBEA) gave the same.
+- **Table 2.6**, personal income and its disposition, monthly (the last two years asked), in millions of dollars at seasonally adjusted annual rates, shown in billions: August 2026 personal income 27,626.9, disposable income 24,223.2, saving rate 4.1%, as FRED's PI, DSPI and PSAVERT.
+
+FRED stays the source of GDP growth and the PCE price indexes one series at a time (MACRO, with first releases); BEA adds the whole table at once, revised together, with its revision date. BEA's answers repeat the UserID in a `Request` block: the main process removes it before the answer goes anywhere, and returns nothing from an answer that is not BEA's JSON. BEA reports errors inside HTTP 200 answers: code 1 is an unknown UserID, code 7 and others its limits of 100 requests, 100 MB and 30 errors a minute (a minute's lockout). The app asks two tables, each kept six hours.
+
 ## Kraken
 
 Read on 13 October 2026.

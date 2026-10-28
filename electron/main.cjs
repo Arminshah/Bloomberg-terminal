@@ -1113,6 +1113,20 @@ ipcMain.handle('eia', async (event, kind) => {
   return keyedGet('eia', eia.withKey(req.url, key.value), { Accept: 'application/json' }, req.ttl, [20, 60_000], [key.value]);
 });
 
+// BEA (electron/bea.cjs): two national accounts tables with the owner's UserID, which BEA's answer repeats and the
+// main process removes before the answer goes anywhere.
+const bea = require('./bea.cjs');
+ipcMain.handle('bea', async (event, kind) => {
+  const req = bea.beaRequest(String(kind));
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  const key = usableKey('BEA_API_KEY', 'bea');
+  if (!key.value) return { status: 0, text: '', ...key };
+  const res = await keyedGet('bea', bea.withKey(req.url, key.value), { Accept: 'application/json' }, req.ttl, [30, 60_000], [key.value]);
+  if (!res.text) return res;
+  const text = bea.withoutRequest(res.text);
+  return text ? { ...res, text } : { ...res, text: '', error: 'BEA answered with something other than its data.' };
+});
+
 ipcMain.handle('finnhub-research', async (event, kind, symbol, fresh) => {
   const url = finnhubResearchRequest(kind, symbol);
   if (!fromApp(event) || !url) throw new Error('not allowed');
