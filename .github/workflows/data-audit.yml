@@ -4,13 +4,18 @@ name: Data audit
 # within a stated tolerance. It fails when a figure is beyond its tolerance, and reports a blocked reference (refused
 # key, plan limit, rate limit, network, outage) as blocked, never as passed. See docs/audit-check.md.
 #
-# GitHub runs a schedule only from the default branch (main): until this file is on main, start it by hand (Actions >
-# Data audit > Run workflow, on the work branch). Runners start only while the repository has Actions minutes (public,
-# or a spending limit above zero for a private repository).
+# GitHub runs a schedule only from the default branch (main): until this file is on main, it runs when the check
+# changes and when started by hand (Actions > Data audit > Run workflow, on the work branch). Runners are free while
+# the repository is public; a private repository needs Actions minutes.
 #
 # Secrets (Settings > Secrets and variables > Actions > New repository secret): TIINGO_API_KEY, MASSIVE_API_KEY,
 # SEC_USER_AGENT; optional EIA_API_KEY and COINGECKO_API_KEY. A missing one turns its checks into skipped checks.
 on:
+  # When the check itself changes, on any branch: it tests the check, and GitHub learns of the workflow only from a run.
+  push:
+    paths:
+      - .github/workflows/data-audit.yml
+      - scripts/live/audit/check.cjs
   schedule:
     # Tuesday to Saturday at 01:37 UTC: after each US session's close and evening trading, references published.
     - cron: '37 1 * * 2-6'
