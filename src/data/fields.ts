@@ -83,7 +83,11 @@ export function securityFields(sec: SecurityDef, q: Quote | undefined, now: numb
   market('CHG_NET_1D', 'Day net change', 'Last minus previous close in price units; yield references use percentage points, not basis points.', q?.chg, { unit: sec.quote === 'yield' ? 'percentage points' : sec.ccy, ...change });
   market('CHG_PCT_1D', 'Day percent change', '100 × (last / previous close − 1). This is a relative percent even for a yield reference.', q?.pct, { unit: '%', ...change });
   const volumeUnit = q?.volumeUnit ?? (sec.cls === 'equity' ? 'shares' : sec.cls === 'future' || sec.cls === 'commodity' ? 'contracts' : sec.cls === 'crypto' ? 'base coins' : 'unspecified');
-  market('PX_VOLUME', 'Session volume', 'Volume supplied for the source session and coverage. IEX-only data does not imply market-wide volume.', q?.volume, { unit: volumeUnit, ...day });
+  market('PX_VOLUME', 'Session volume', 'Volume supplied for the source session and coverage. IEX-only data does not imply market-wide volume.', q?.volume, {
+    unit: volumeUnit,
+    ...day,
+    ...(q?.volumeSource ? { source: q.volumeSource, note: 'The finished session’s volume of all US venues, as the consolidated tape reports it; the price source’s figure taken at the close was smaller.' } : {}),
+  });
 
   const validBbo = available && Number.isFinite(q?.bid) && Number.isFinite(q?.ask) && q!.bid > 0 && q!.ask >= q!.bid;
   const spread = validBbo ? q!.ask - q!.bid : null;

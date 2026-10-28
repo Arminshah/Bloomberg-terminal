@@ -5,6 +5,7 @@ import { describe } from '../functions/ALRT';
 import { startLiveFeeds } from '../data/live/feeds';
 import { startDynamicFeeds } from '../data/live/lookup';
 import { startYahooData } from '../data/live/yahoo';
+import { startSettledVolumes } from '../data/live/settled-volume';
 import { startShareCounts } from '../data/live/shares';
 import { startTreasury } from '../data/live/ust';
 import { startPolicyRates } from '../data/live/policy';
@@ -186,6 +187,7 @@ export function startBackground(): () => void {
   stops.push(startLiveFeeds());
   stops.push(startDynamicFeeds());
   stops.push(startYahooData());
+  stops.push(startSettledVolumes());
   stops.push(startShareCounts());
   stops.push(startKraken());
   stops.push(startCoinGecko());

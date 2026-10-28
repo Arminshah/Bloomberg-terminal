@@ -1,0 +1,95 @@
+import { dayNum } from '../calendar';
+import { engine } from '../market';
+import { terminal } from '../../terminal/state';
+import { watchlists } from '../../terminal/userdata';
+import { nasdaqNumber } from './earnings-calendar';
+import { nasdaqTicker } from './nasdaq-book';
+
+/**
+ * The volume of a finished session of a US-listed stock, from Nasdaq's historical prices (all venues, as the
+ * consolidated tape reports them). Yahoo's quote keeps the volume it had at the close, short of the late reports:
+ * Apple on 27 October 2026 showed 39.05M against 39.98M at Nasdaq and Massive, JPMorgan 4.58M against 4.71M.
+ */
+
+export const SETTLED_SOURCE = 'Nasdaq historical prices · consolidated volume of all US venues';
+
+/** Nasdaq's historical rows as sessions (day number) with their volume; rows it cannot read are left out. */
+export function parseNasdaqDays(text: string): { day: number; volume: number; close: number }[] {
+  try {
+    const rows = JSON.parse(text)?.data?.tradesTable?.rows;
+    if (!Array.isArray(rows)) return [];
+    const out: { day: number; volume: number; close: number }[] = [];
+    for (const r of rows) {
+      const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(r?.date ?? ''));
+      const volume = nasdaqNumber(r?.volume);
+      if (!m || !(volume > 0)) continue;
+      out.push({ day: dayNum(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2]))), volume: Math.round(volume), close: nasdaqNumber(r?.close) });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+const NY = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+/**
+ * Whether a US session (day number of its New York date) has ended and its volume can be settled: from 16:10 New
+ * York time that day, when the closing auction and the late reports are in, or any later day.
+ */
+export function settleDue(day: number, now: number): boolean {
+  const p = Object.fromEntries(NY.formatToParts(now).map((x) => [x.type, x.value]));
+  const today = dayNum(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day)));
+  return day < today || (day === today && Number(p.hour) * 60 + Number(p.minute) >= 16 * 60 + 10);
+}
+
+const asked = new Map<string, { at: number; day: number; times: number }>();
+
+/** The US stocks on screen and in watchlists, the first 60. */
+function wanted(): string[] {
+  const ids = new Set<string>();
+  for (const p of terminal.get().panels) {
+    const r = p.history[p.idx];
+    if (r?.sec) ids.add(r.sec);
+    if (p.loadedSec) ids.add(p.loadedSec);
+  }
+  for (const l of watchlists.get().lists) for (const id of l.ids) ids.add(id);
+  return [...ids].filter((id) => nasdaqTicker(id) !== null).slice(0, 60);
+}
+
+async function settle(id: string, symbol: string, day: number) {
+  const api = window.arminDesktop;
+  if (!api?.nasdaq) return;
+  try {
+    const res = await api.nasdaq('historical', symbol);
+    const row = res.text ? parseNasdaqDays(res.text).find((r) => r.day === day) : undefined;
+    if (row && engine.settleVolume(id, day, row.volume, SETTLED_SOURCE)) engine.flush([id]);
+  } catch {
+    /* asked again on a later round */
+  }
+}
+
+/** Settles the finished session's volume of the US stocks in view: each at most every 30 minutes, four times a session. */
+export function startSettledVolumes(): () => void {
+  if (typeof window === 'undefined' || !window.arminDesktop?.nasdaq) return () => undefined;
+  const tick = () => {
+    const now = Date.now();
+    for (const id of wanted()) {
+      const q = engine.quote(id);
+      const d = engine.daily(id);
+      if (!q || q.src === 'SIM' || q.src === 'NONE' || !d.length) continue;
+      const day = dayNum(d.t[d.length - 1]);
+      if (!settleDue(day, now)) continue;
+      const a = asked.get(id);
+      if (a && a.day === day && (a.times >= 4 || now - a.at < 30 * 60_000)) continue;
+      asked.set(id, { at: now, day, times: a && a.day === day ? a.times + 1 : 1 });
+      void settle(id, nasdaqTicker(id)!, day);
+    }
+  };
+  const first = setTimeout(tick, 15_000);
+  const timer = setInterval(tick, 60_000);
+  return () => {
+    clearTimeout(first);
+    clearInterval(timer);
+  };
+}

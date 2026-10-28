@@ -95,14 +95,17 @@ const COMPANY_KINDS = {
   profile: { path: (s) => `/company/${s}/company-profile`, ttl: 24 * HOUR },
   // The real-time quote (Nasdaq Basic): last sale, bid and ask with their sizes, the day's volume.
   info: { path: (s) => `/quote/${s}/info?assetclass=stocks`, ttl: 20_000 },
+  // The last two weeks' sessions with their open, high, low, close and consolidated volume: a finished session's
+  // volume of all venues, which a quote taken at the close leaves short.
+  historical: { path: (s, now) => `/quote/${s}/historical?assetclass=stocks&fromdate=${new Date(now - 14 * DAY).toISOString().slice(0, 10)}&todate=${new Date(now + DAY).toISOString().slice(0, 10)}&limit=15`, ttl: 20 * 60_000 },
 };
 
 /** The request for one kind of company data, or null when the kind or the ticker (Nasdaq's style: BRK.B) is not one the app asks for. */
-function nasdaqCompanyRequest(kind, symbol) {
+function nasdaqCompanyRequest(kind, symbol, now = Date.now()) {
   if (typeof kind !== 'string' || !Object.prototype.hasOwnProperty.call(COMPANY_KINDS, kind)) return null;
   if (typeof symbol !== 'string' || !COMPANY.test(symbol)) return null;
   const k = COMPANY_KINDS[kind];
-  return { url: `https://api.nasdaq.com/api${k.path(symbol)}`, ttl: k.ttl, headers: { Accept: 'application/json, text/plain, */*' } };
+  return { url: `https://api.nasdaq.com/api${k.path(symbol, now)}`, ttl: k.ttl, headers: { Accept: 'application/json, text/plain, */*' } };
 }
 
 /** Nasdaq answers HTTP 200 with {status: {rCode, bCodeMessage}} when it refuses; a day without reports has no rows. */

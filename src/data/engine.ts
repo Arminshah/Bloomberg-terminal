@@ -73,6 +73,8 @@ interface State {
 interface ExtData {
   /** Real daily bars; the last one is the latest session, which is earlier than today while the market has not opened. */
   daily: Series;
+  /** A finished session's volume of all venues from a second source; a later reading of that session never lowers it. */
+  settled?: { day: number; volume: number; source: string };
   /** Intraday bars of the latest session. */
   intra: Series;
   session: number;
@@ -1312,6 +1314,7 @@ export class MarketEngine {
     if (st.ext?.delay) q.delay = st.ext.delay;
     if (st.ext?.sourceName) q.sourceName = st.ext.sourceName;
     if (st.ext?.dayProvider) q.dayProvider = st.ext.dayProvider;
+    if (st.ext?.settled && st.ext.settled.day === st.ext.session && st.ext.settled.volume >= st.volume) q.volumeSource = st.ext.settled.source;
     if (st.ext?.provider) q.provider = st.ext.provider;
     if (st.ext) {
       if (st.prevCloseDay !== undefined) q.prevCloseDay = st.prevCloseDay;
@@ -1440,6 +1443,28 @@ export class MarketEngine {
   }
 
   /** Notifies listeners after a batch of live updates. */
+  /**
+   * A finished session's volume of all venues from a second source (Nasdaq's historical prices), for the line's latest
+   * session only. It replaces a smaller volume and stays when the price source repeats its shorter one; a new session
+   * starts from the price source's own. Returns whether the line changed.
+   */
+  settleVolume(id: string, day: number, volume: number, source: string): boolean {
+    const st = this.states.get(id);
+    const ext = st?.ext;
+    if (!st || !ext || ext.session !== day || !(volume > 0)) return false;
+    const s = ext.daily;
+    const n = s.length - 1;
+    if (n < 0 || dayNum(s.t[n]) !== day) return false;
+    ext.settled = { day, volume, source };
+    if (!(volume > st.volume)) return false;
+    s.v[n] = volume;
+    st.volume = volume;
+    this.version++;
+    this.derivedCache.clear();
+    this.publishQuote(st, this.now());
+    return true;
+  }
+
   flush(ids: Iterable<string>) {
     const set = new Set(ids);
     for (const fn of this.listeners) fn(set);
@@ -1679,6 +1704,7 @@ export class MarketEngine {
       timing: prev?.timing ?? 'unknown',
       sourceName: prev?.sourceName,
       dayProvider: prev?.dayProvider,
+      settled: prev?.settled,
       fetched: prev?.fetched ?? Date.now(),
       stale: false,
       extended: prev?.extended,
@@ -1707,7 +1733,9 @@ export class MarketEngine {
     st.dayOpen = last.o;
     st.dayHigh = s.h[s.length - 1];
     st.dayLow = s.l[s.length - 1];
-    st.volume = last.v;
+    const settled = st.ext.settled?.day === last.day ? st.ext.settled.volume : NaN;
+    if (settled > (s.v[s.length - 1] || 0)) s.v[s.length - 1] = settled;
+    st.volume = s.v[s.length - 1];
     if (!prev) st.trades = [];
     st.dailyKey = `ext:${st.ext.seq}`;
     this.version++;
@@ -1759,7 +1787,10 @@ export class MarketEngine {
     s.h[n] = Math.max(Number.isFinite(hi) ? hi : -Infinity, keepHi, q.last, s.o[n]);
     s.l[n] = Math.min(Number.isFinite(lo) ? lo : Infinity, keepLo, q.last, s.o[n]);
     s.c[n] = q.last;
-    const vol = q.volume != null && Number.isFinite(q.volume) ? q.volume : s.v[n];
+    const read = q.volume != null && Number.isFinite(q.volume) ? q.volume : s.v[n];
+    // A quote taken at the close leaves the session's volume short of what all venues reported (Yahoo's for Apple on
+    // 27 October 2026: 39.05M against 39.98M on the consolidated tape).
+    const vol = ext.settled?.day === day && ext.settled.volume > read ? ext.settled.volume : read;
     const dv = vol - st.volume;
     s.v[n] = vol;
     // Time and sales on real data: one aggregated print per change in cumulative volume. Kraken's crypto

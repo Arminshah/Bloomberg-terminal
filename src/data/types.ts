@@ -161,6 +161,8 @@ export interface Quote {
   sourceName?: string;
   /** Who supplies the session's open, high, low and volume when another source than the last price's does. */
   dayProvider?: string;
+  /** Who supplied the finished session's volume, when a second source settled it. */
+  volumeSource?: string;
   /** Who supplies the line: "Yahoo Finance", "US Treasury", "Deutsche Bundesbank" and so on. */
   provider?: string;
   /** When the app received the latest value (epoch ms), as against `time`, when the market set it. */
