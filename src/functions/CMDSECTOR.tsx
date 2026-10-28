@@ -11,6 +11,8 @@ import { execute } from '../terminal/exec';
 import { useNumberedRows, usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 import { glcoName } from './FXMON';
+import { PetroleumWeekly, StorageReportTable } from './NGAS';
+import { eiaAvailable } from '../data/live/eia';
 
 /**
  * The commodity sector pages: AGS (agriculture), MINE (metals and mining), GAS (natural gas) and OIL. Each gathers
@@ -26,15 +28,17 @@ interface Sector {
   includes: (d: SecurityDef) => boolean;
   news: string;
   note?: string;
+  /** EIA's figures for the sector (desktop app). */
+  eia?: 'gas' | 'oil';
 }
 
-const EIA = "US inventories, production and storage are the EIA's: the app needs its free key for them (NGAS), which is not set up yet.";
+const EIA = "US storage, inventories, production and consumption are the EIA's: on NGAS and below in the desktop app.";
 
 export const SECTORS: Record<string, Sector> = {
   AGRICULTURE: { code: 'AGRICULTURE', title: 'Agriculture', includes: (d) => ['Grains', 'Softs', 'Livestock'].includes(d.cmd!.group), news: 'NEWS AGRICULTURE' },
   METALS: { code: 'METALS', title: 'Metals & Mining', includes: (d) => ['Precious Metals', 'Base Metals'].includes(d.cmd!.group), news: 'NEWS METALS' },
-  NATURALGAS: { code: 'NATURALGAS', title: 'Natural Gas', includes: (d) => d.cmd!.group === 'Energy' && d.ticker === 'NG1', news: 'NEWS NATURAL GAS', note: EIA },
-  OILMARKET: { code: 'OILMARKET', title: 'Oil', includes: (d) => d.cmd!.group === 'Energy' && d.ticker !== 'NG1', news: 'NEWS OIL', note: EIA },
+  NATURALGAS: { code: 'NATURALGAS', title: 'Natural Gas', includes: (d) => d.cmd!.group === 'Energy' && d.ticker === 'NG1', news: 'NEWS NATURAL GAS', note: EIA, eia: 'gas' },
+  OILMARKET: { code: 'OILMARKET', title: 'Oil', includes: (d) => d.cmd!.group === 'Energy' && d.ticker !== 'NG1', news: 'NEWS OIL', note: EIA, eia: 'oil' },
 };
 
 /** The sector's contracts, in the order COMMODITIES lists them. */
@@ -62,6 +66,7 @@ function SectorPage({ code }: { code: string }) {
   void version;
   const more = [
     ...contracts.slice(0, 3).map((d) => ({ label: `${glcoName(d)} futures curve`, command: `${d.id} FUTURESCURVE` })),
+    ...(sector.eia ? [{ label: 'Natural gas statistics (EIA)', command: 'NGAS' }] : []),
     { label: 'Exchange contracts and their terms', command: 'CONTRACTS' },
     { label: `${sector.title} news`, command: sector.news },
     { label: 'Every commodity sector', command: 'COMMODITIES' },
@@ -188,6 +193,11 @@ function SectorPage({ code }: { code: string }) {
           {sector.note && <div className="note">{sector.note}</div>}
         </Section>
       </div>
+      {sector.eia && eiaAvailable() ? (
+        <Section title={sector.eia === 'gas' ? 'US storage, Lower 48 (EIA weekly report)' : 'US weekly petroleum (EIA)'} right="EIA">
+          {sector.eia === 'gas' ? <StorageReportTable lower48Only /> : <PetroleumWeekly />}
+        </Section>
+      ) : null}
     </div>
   );
 }

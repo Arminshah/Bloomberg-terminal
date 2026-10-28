@@ -1102,6 +1102,17 @@ ipcMain.handle('analysts', async (event, kind, symbol, fresh) => {
   return keyedGet('fmp', req.url, {}, fresh === true ? 0 : req.ttl, [30, 60_000], [key.value]);
 });
 
+// EIA (electron/eia.cjs): the weekly storage report needs no key; the Open Data API takes the owner's.
+const eia = require('./eia.cjs');
+ipcMain.handle('eia', async (event, kind) => {
+  const req = eia.eiaRequest(String(kind));
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  if (!req.keyed) return keyedGet('eia-report', req.url, { Accept: 'application/json' }, req.ttl, [10, 60_000], []);
+  const key = usableKey('EIA_API_KEY', 'eia');
+  if (!key.value) return { status: 0, text: '', ...key };
+  return keyedGet('eia', eia.withKey(req.url, key.value), { Accept: 'application/json' }, req.ttl, [20, 60_000], [key.value]);
+});
+
 ipcMain.handle('finnhub-research', async (event, kind, symbol, fresh) => {
   const url = finnhubResearchRequest(kind, symbol);
   if (!fromApp(event) || !url) throw new Error('not allowed');

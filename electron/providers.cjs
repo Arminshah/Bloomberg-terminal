@@ -33,6 +33,11 @@ const CREDENTIALS = {
   OPENFIGI_API_KEY: { label: 'OpenFIGI API key', valid: (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) },
   // TipRanks: analyst consensus, price targets and rating actions on ANALYSTS, on request (electron/tipranks.cjs).
   TIPRANKS_API_KEY: { label: 'TipRanks API key', valid: (v) => /^tr_(live|test)_[A-Za-z0-9]{16,80}$/.test(v) && !/^tr_(live|test)_x+$/i.test(v) },
+  // The US Energy Information Administration's Open Data API: natural gas storage history, weekly petroleum and monthly
+  // gas figures (NGAS, NATURALGAS, OILMARKET). Keys from eia.gov/opendata are 40 letters and digits.
+  EIA_API_KEY: { label: 'EIA Open Data API key', valid: (v) => /^[A-Za-z0-9]{40}$/.test(v) },
+  // The Bureau of Economic Analysis's API: national accounts tables (NIPA). Its UserID is a GUID.
+  BEA_API_KEY: { label: 'BEA API UserID', valid: (v) => /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i.test(v) },
   // Congress.gov (the Library of Congress): bills and laws on BILL. Keys from api.data.gov are 40 letters and digits.
   CONGRESS_GOV_API_KEY: { label: 'Congress.gov API key', valid: (v) => /^[A-Za-z0-9]{40}$/.test(v) },
   // Anthropic: Claude answers the help desk's questions (MESSAGES) with the app's data as tools.
@@ -289,6 +294,8 @@ const ALIASES = [
   [/tipranks/i, 'TIPRANKS_API_KEY'],
   [/open[\s_-]*figi/i, 'OPENFIGI_API_KEY'],
   [/congress[\s_.-]*gov/i, 'CONGRESS_GOV_API_KEY'],
+  [/\beia\b|energy information administration/i, 'EIA_API_KEY'],
+  [/\bbea\b|bureau of economic analysis/i, 'BEA_API_KEY'],
   [/anthropic|claude/i, 'ANTHROPIC_API_KEY'],
 ];
 
@@ -605,6 +612,12 @@ function providerPayloadProblem(provider, text, secrets = []) {
       if (typeof data?.message === 'string' && Number(data.code) >= 400) {
         message = data.message;
         code = Number(data.code) > 999 ? Number(String(data.code).slice(0, 3)) : Number(data.code);
+      }
+      break;
+    case 'eia':
+      if (data?.error) {
+        message = typeof data.error === 'string' ? data.error : `${data.error.code ?? ''} ${data.error.message ?? ''}`.trim();
+        code = data.error.code;
       }
       break;
     case 'fred':

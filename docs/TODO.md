@@ -4,7 +4,7 @@ Updated 28 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-Items 1 to 8 and 10 to 13 are done, all on 27 October except the first eight; NGAS, the last code of item 13, waits on an EIA key from you. Item 9 continues with public written and illustrated sources: the three archives of public guides you sent on 27 October gave the first screenshots inspected, and three changes came from them (below, "Done after 2.27.0"). Missing video frames do not block documented functional work. What comes next is yours to choose: "Later" lists the candidates.
+Items 1 to 8 and 10 to 13 are done, all on 27 October except the first eight; NGAS, the last code of item 13, came with the EIA key on 28 October. Item 9 continues with public written and illustrated sources: the three archives of public guides you sent on 27 October gave the first screenshots inspected, and three changes came from them (below, "Done after 2.27.0"). Missing video frames do not block documented functional work. What comes next is yours to choose: "Later" lists the candidates.
 
 
 ### 9. Compare the app with the reference atlas and Codex's list of Bloomberg videos
@@ -73,7 +73,6 @@ Plan:
 
 ## Waiting on you
 
-- NGAS (natural gas statistics) and the oil and gas inventories on OIL and GAS need a free EIA key: register at https://www.eia.gov/opendata/ and add it as `EIA_API_KEY` in this cloud environment's settings. The app has no EIA source yet: with a key to test against, the next session connects it (with its field on PROVIDERS). Nothing is shown in its place meanwhile.
 - The watchlist layout of 27 October, two points to confirm: "52-Wk %" is the one-year price change (today's price against the close a year earlier, without dividends); "Avg Vol (3M)" is the average of the last 63 full trading days, so it can differ a little from Yahoo's own figure. Say if you meant something else.
 - The Bank of Japan's API asks anyone who releases a service using it to tell the Bank by email first. For your own use there is nothing to send; if you ever share the app, that email is due (`docs/data-providers.md`, "Bank of Japan").
 - The pull request into `main` is ready as a draft: https://github.com/Arminshah/Bloomberg-terminal/pull/4. An older one (number 1, `claude/amber-terminal`) overlaps with it: close it or keep it, your choice.

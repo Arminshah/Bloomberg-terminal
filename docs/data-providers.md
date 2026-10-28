@@ -183,6 +183,15 @@ What changed on 12 October 2026: the app used to download the website's `fredgra
 
 Live-tested on 14 October 2026 with the owner's key: release dates, series values, the macro series and the first releases all answered (for example, real GDP growth for the fourth quarter of 2025 was first published at 1.4% on 20 February 2026 and stands at 0.2% now). The parsers are also tested on the example layouts in FRED's documentation.
 
+## US Energy Information Administration (EIA)
+
+NGAS, and the gas and oil pages (NATURALGAS, OILMARKET), in the desktop app. Two parts, checked live on 28 October 2026:
+
+- The **Weekly Natural Gas Storage Report** as EIA publishes it each Thursday at 10:30 New York time: `https://ir.eia.gov/ngs/wngsr.json`, no key. Each region's working gas this week, a week and a year before, the net change, the implied flow and the five-year average, with EIA's revision and reclassification flags. The app shows EIA's own year-ago and five-year figures: EIA works them out by interpolating to the report's date, and from the API's weekly series alone they cannot be reproduced exactly (on 28 October the Mountain region's interpolated year-ago level came to 271.6 against EIA's 282). The week ending 16 October 2026 read 3,644 Bcf, +77, year ago 3,796, five-year average 3,609, as on EIA's report page.
+- The **Open Data API** (version 2) with the owner's `EIA_API_KEY` (40 letters and digits, sent as the `api_key` parameter; EIA does not echo it in its answers): two years of weekly working gas by region (`natural-gas/stor/wkly`), the weekly petroleum supply estimates (`petroleum/sum/sndw`: commercial crude, Cushing, SPR, gasoline and distillate stocks; crude production, refinery input and utilisation; products supplied), and monthly dry gas production and consumption (`natural-gas/sum/snd`, series N9070US2 and N9140US2). The petroleum year-ago figure is the same week 364 days earlier, as EIA's weekly report compares it (its table 1 set 23 October 2026 against 24 October 2025); the week ending 16 October 2026 matched the report's table 1 (412.517, 282.683, 205.310 and 104.286 million barrels; 13,269 and 16,649 thousand barrels a day).
+
+EIA publishes its weekly petroleum report on Wednesdays at 10:30 New York time; on 28 October the API still gave the week ending 16 October hours after the report for 23 October was out, so every figure is shown with its week. Monthly gas figures come about two months after the month and are revised. A bad key answers HTTP 403 with `API_KEY_INVALID`; EIA suspends a key for a short while if it asks too often (no number stated) and gives at most 5,000 rows an answer. The app asks four datasets, each at most every 30 minutes while a screen shows it.
+
 ## Kraken
 
 Read on 13 October 2026.

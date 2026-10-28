@@ -300,6 +300,7 @@ const CREDENTIALS: { name: Credential; help: string; secret: boolean; placeholde
   { name: 'ALPACA_API_KEY_ID', help: 'Key ID from your Alpaca account (paper keys start with PK): IEX quotes on QUOTE. Used for market data only, never for trading.', secret: true, placeholder: 'Key ID' },
   { name: 'ALPACA_API_SECRET_KEY', help: 'The secret that goes with the Alpaca key ID.', secret: true, placeholder: 'Secret key' },
   { name: 'ANTHROPIC_API_KEY', help: 'API key from console.anthropic.com for the Claude help desk (MESSAGES). Billed by Anthropic per use: a question costs about 1 to 8 requests to Claude Opus 5.5 ($4 per million tokens in, $20 out); the app stops at 400 requests a day.', secret: true, placeholder: 'sk-ant-…' },
+  { name: 'EIA_API_KEY', help: 'Free key from eia.gov/opendata/register.php: natural gas storage history, weekly petroleum and monthly gas figures (NGAS, OILMARKET). The weekly storage report itself needs no key.', secret: true, placeholder: '40 letters and digits' },
   { name: 'CONGRESS_GOV_API_KEY', help: 'Free key from api.congress.gov/sign-up (an api.data.gov key): bills and laws on BILL. 5,000 requests an hour; the app sends far fewer.', secret: true, placeholder: '40 letters and digits' },
   { name: 'TIPRANKS_API_KEY', help: 'TipRanks MCP key (tr_live_…) for analyst consensus, targets and rating actions on ANALYSTS. Each click costs one of the account\'s monthly calls (50 on the free plan).', secret: true, placeholder: 'tr_live_…' },
 ];

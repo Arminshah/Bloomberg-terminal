@@ -519,13 +519,17 @@ test('OIL, GAS, MINE and AGS gather their sector: contracts, measures worked out
   const price = async (ticker: string) => Number((await panel.getByTestId('sector-contracts').locator('tbody tr', { hasText: ticker }).locator('td').nth(2).innerText()).replace(/,/g, ''));
   await expect.poll(async () => Number((await spread.locator('td').nth(1).innerText()).replace(/,/g, ''))).toBeCloseTo((await price('CO1')) - (await price('CL1')), 1);
   await expect(spread.locator('td').nth(3)).not.toHaveText('--');
-  await expect(panel).toContainText("the app needs its free key for them (NGAS)");
+  // EIA's figures (connected on 28 October 2026) are the desktop app's: the browser says where they are.
+  await expect(panel).toContainText("US storage, inventories, production and consumption are the EIA's: on NGAS and below in the desktop app.");
   await panel.getByRole('button', { name: 'WTI Crude futures curve', exact: true }).click();
   await expect(panel.locator('.fnh-code')).toHaveText('FUTURESCURVE');
   await run(page, 'GAS');
   await expect(panel.locator('.fnh-code')).toHaveText('NATURALGAS');
   await expect(panel.getByTestId('sector-contracts').locator('tbody tr')).toHaveCount(1);
   await expect(panel.getByTestId('sector-measures')).toContainText('Crude to gas ratio');
+  await panel.locator('tbody tr', { hasText: 'Natural gas statistics (EIA)' }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('NGAS');
+  await expect(panel).toContainText('The browser demo has none, and none are generated.');
   await run(page, 'MINE');
   await expect(panel.locator('.fnh-code')).toHaveText('METALS');
   await expect(panel.getByTestId('sector-measures')).toContainText('Gold to silver ratio');

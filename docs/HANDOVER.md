@@ -86,7 +86,6 @@ Done after the morning's handover, each with unit, browser and desktop tests, an
 
 ## Waiting on the owner
 
-- An EIA key for NGAS and the oil and gas inventories (`docs/TODO.md`, "Waiting on you").
 - Points on the watchlist layout of 27 October: "52-WK" was read as the one-year change (labelled 52-Wk %); Avg Vol (3M) is worked out from the last 63 sessions of the daily history (Yahoo's own figure may differ slightly); Market Cap is in each stock's own currency; Currency and Market Time (Yahoo's columns) were not asked for and are not in the default.
 
 ## How to work on it

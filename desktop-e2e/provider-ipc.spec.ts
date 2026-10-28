@@ -53,6 +53,7 @@ interface Fixtures {
   nasdaqList?: boolean;
   monthly?: boolean;
   congressGov?: boolean;
+  eia?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -60,7 +61,7 @@ interface Fixtures {
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   segments?: boolean;
-  calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -723,6 +724,39 @@ test("BILL lists Congress.gov's latest bills and the Congress's laws, and opens 
   const asked = (await calls(app)).congressGov ?? [];
   expect(asked.length).toBeGreaterThan(0);
   expect(asked.every((c) => c.keyed && !/api_key/i.test(c.path))).toBe(true);
+});
+
+test("NGAS shows EIA's storage report as EIA states it, and the keyed history and monthly figures once the key is set", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.eia = true;
+  });
+  // Without a key: the storage report (no key) shows; the history and monthly figures say where to enter one.
+  await command(page, 'NGAS');
+  const panel = page.locator('.panel').first();
+  const storage = panel.getByTestId('eia-storage');
+  await expect(storage.getByRole('row').filter({ hasText: 'Total Lower 48' })).toContainText('3,644', { timeout: 30_000 });
+  await expect(panel).toContainText('Needs EIA_API_KEY on PROVIDERS');
+  expect(((await calls(app)).eia ?? []).every((c) => !c.keyed)).toBe(true);
+  await app.evaluate(() => {
+    process.env.EIA_API_KEY = 'abcdefghijABCDEFGHIJ0123456789klmnopqrst';
+  });
+  await page.reload();
+  await command(page, 'NGAS');
+  // EIA's report for the week ending 16 October 2026: 3,644 Bcf, +77, year ago 3,796, five-year average 3,609.
+  const total = panel.getByTestId('eia-storage').getByRole('row').filter({ hasText: 'Total Lower 48' });
+  for (const v of ['3,644', '3,567', '+77', '3,796', '-4.0%', '3,609', '+1.0%']) await expect(total).toContainText(v);
+  await expect(panel.getByTestId('eia-storage').getByRole('row').filter({ hasText: 'Mountain' })).toContainText('282');
+  await expect(panel).toContainText('week ending 16/10/26');
+  // July 2026: 3,524,896 million cubic feet produced, 2,775,752 consumed.
+  await expect(panel.getByTestId('eia-gas-monthly').getByRole('row').filter({ hasText: 'Jul 2026' })).toContainText('3,524.9');
+  await expect(panel.getByTestId('eia-gas-monthly').getByRole('row').filter({ hasText: 'Jul 2026' })).toContainText('2,775.8');
+  // OILMARKET: commercial crude 412.517 million barrels in the week ending 16 October 2026 (EIA's table 1).
+  await command(page, 'OILMARKET');
+  const crude = page.locator('.panel').first().getByTestId('eia-petroleum').getByRole('row').filter({ hasText: 'Commercial crude oil' });
+  await expect(crude).toContainText('412.517', { timeout: 30_000 });
+  const keyed = ((await calls(app)).eia ?? []).filter((c) => c.keyed);
+  expect(keyed.map((c) => c.path).sort()).toEqual(['/v2/natural-gas/stor/wkly/data/', '/v2/natural-gas/sum/snd/data/', '/v2/petroleum/sum/sndw/data/']);
+  expect(await page.content()).not.toContain('abcdefghijABCDEFGHIJ0123456789klmnopqrst');
 });
 
 test("FXCA says when it has no live rate, and converts at the ECB's reference rate of a past day", async ({ desktop: { app, page } }) => {

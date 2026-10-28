@@ -25,6 +25,8 @@ export type Credential =
   | 'OPENFIGI_API_KEY'
   | 'TIPRANKS_API_KEY'
   | 'CONGRESS_GOV_API_KEY'
+  | 'EIA_API_KEY'
+  | 'BEA_API_KEY'
   | 'ANTHROPIC_API_KEY';
 
 /**
@@ -633,6 +635,22 @@ export const PROVIDERS: ProviderDef[] = [
     ],
     checked: '2026-10-18',
     desktop: true,
+  },
+  {
+    id: 'eia',
+    name: 'EIA (US Energy Information Administration)',
+    serves: "NGAS: the weekly natural gas storage report with EIA's own comparisons (no key) and two years of weekly storage; monthly dry gas production and consumption; OILMARKET: the weekly petroleum supply estimates (stocks, production, refinery runs, products supplied)",
+    dataClass: 'Official US government statistics (weekly and monthly), as EIA publishes them',
+    policy: 'needs-credential', credential: 'EIA_API_KEY', limit: '20',
+    terms: "Public US government data, free with a registered key (the storage report file needs none). EIA's documentation asks programs to throttle requests per second and per hour and suspends a key that exceeds its tolerances for a short while; it gives at most 5,000 rows an answer. The app asks four datasets, each at most every 30 minutes while a screen shows it, and keeps answers 30 minutes to six hours.",
+    docs: [
+      { label: 'API documentation', url: 'https://www.eia.gov/opendata/documentation.php' },
+      { label: 'Register for a key', url: 'https://www.eia.gov/opendata/register.php' },
+      { label: 'Weekly Natural Gas Storage Report', url: 'https://ir.eia.gov/ngs/ngs.html' },
+      { label: 'Weekly Petroleum Status Report', url: 'https://www.eia.gov/petroleum/supply/weekly/' },
+      { label: 'Copyright and reuse', url: 'https://www.eia.gov/about/copyrights_reuse.php' },
+    ],
+    checked: '2026-10-28', desktop: true,
   },
   {
     id: 'house-clerk',

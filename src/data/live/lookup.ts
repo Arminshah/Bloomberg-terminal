@@ -48,6 +48,8 @@ declare global {
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<KeyedAnswer>;
       analysts?(kind: import('./analysts').AnalystKind | 'earnings', symbol: string, fresh?: boolean): Promise<KeyedAnswer>;
+      /** EIA's storage report (no key) and its Open Data API (EIA_API_KEY): src/data/live/eia.ts. */
+      eia?(kind: import('./eia').EiaKind): Promise<KeyedAnswer>;
       nasdaq?(kind: import('./nasdaq-company').NasdaqKind | 'info' | 'historical', symbol: string): Promise<KeyedAnswer>;
       finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;
@@ -100,6 +102,8 @@ export interface KeyedAnswer {
   missing?: string;
   refused?: string;
   budget?: boolean;
+  /** The provider asked the app to wait (HTTP 429 or 423). */
+  throttled?: boolean;
   /** The switch that keeps this source off. */
   gated?: string;
   error?: string;

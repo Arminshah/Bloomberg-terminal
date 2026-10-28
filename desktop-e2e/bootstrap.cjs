@@ -30,6 +30,9 @@ const crudeSpark = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fix
 // fixtures.monthly).
 // Congress.gov's answers of 26 October 2026: the latest bills, the 119th Congress's laws and H.R. 7831 with its
 // parts (BILL, fixtures.congressGov).
+// EIA's answers of 28 October 2026: its weekly storage report of 22 October (week ending 16 October), and from its
+// Open Data API the weekly storage history, the weekly petroleum figures and the monthly gas figures (fixtures.eia).
+const eiaFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/eia/${name}.json`), 'utf8');
 const congressGov = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/congressgov-2026-10.json'), 'utf8'));
 const dowMonthly = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-monthly-dow-2026-10.json'), 'utf8'));
 const fredFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/${name}.json`), 'utf8');
@@ -108,6 +111,17 @@ net.fetch = async (input, init) => {
     if (part === 'countries' || part === 'groups' || part === 'indicators') return json(imfWeo[part]);
     // The fixture holds GDP growth only: the other indicators answer with no figures.
     return json({ values: {} });
+  }
+  if (fixtures.eia && (url.hostname === 'ir.eia.gov' || url.hostname === 'api.eia.gov')) {
+    const keyed = url.searchParams.has('api_key');
+    fixtures.calls.eia = [...(fixtures.calls.eia ?? []), { path: url.pathname, keyed, series: url.searchParams.getAll('facets[series][]') }];
+    if (url.hostname === 'ir.eia.gov' && url.pathname === '/ngs/wngsr.json') return json(JSON.parse(eiaFixture('storage-report-2026-10-22')));
+    if (!keyed) return new Response(JSON.stringify({ error: { code: 'API_KEY_MISSING', message: 'No api_key was supplied.' } }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    if (url.searchParams.get('api_key') !== 'abcdefghijABCDEFGHIJ0123456789klmnopqrst') return new Response(JSON.stringify({ error: { code: 'API_KEY_INVALID', message: 'An invalid api_key was supplied.' } }), { status: 403, headers: { 'Content-Type': 'application/json' } });
+    if (url.pathname === '/v2/natural-gas/stor/wkly/data/') return json(JSON.parse(eiaFixture('storage-history-2026-10-28')));
+    if (url.pathname === '/v2/petroleum/sum/sndw/data/') return json(JSON.parse(eiaFixture('petroleum-2026-10-28')));
+    if (url.pathname === '/v2/natural-gas/sum/snd/data/') return json(JSON.parse(eiaFixture('gas-monthly-2026-10-28')));
+    return new Response(JSON.stringify({ error: 'Unknown route' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
   }
   if (fixtures.congressGov && url.hostname === 'api.congress.gov') {
     const h = init?.headers;
