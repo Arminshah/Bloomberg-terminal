@@ -54,8 +54,16 @@ const TOLERANCE = {
 
 const rows = [];
 const add = (r) => rows.push(r);
+const FLAGGED_ON_SCREEN = Symbol('flagged');
+/** A figure on screen, or the marker for a cell that says "Sources disagree". */
+const shown = (text, parse) => (/^Sources disagree$/.test((text ?? '').trim()) ? FLAGGED_ON_SCREEN : parse(text));
 /** A comparison: PASS within tolerance, FAIL beyond it, SKIP when either side has no figure (with the reason). */
 function compare(area, item, field, app, ref, tol, refName, note) {
+  // The screen itself says the sources disagree on this figure: reported, not hidden and not failed.
+  if (app === FLAGGED_ON_SCREEN) {
+    add({ status: 'FLAGGED', area, item, field, ref, refName, detail: 'the screen shows "Sources disagree"' });
+    return;
+  }
   if (!Number.isFinite(app) || !Number.isFinite(ref)) {
     add({ status: 'SKIP', area, item, field, app, ref, refName, detail: note ?? (!Number.isFinite(app) ? 'the screen shows no figure' : 'the reference gives no figure') });
     return;
@@ -267,11 +275,11 @@ async function equity(t) {
     }
   }
   if (!summary.ok) blocked('quote', t, 'Market cap', summary, 'Nasdaq summary');
-  else compare('quote', t, 'Market cap', big(after(bq, 'Market cap')), num(summary.json.data.summaryData?.MarketCap?.value), TOLERANCE.marketCap, 'Nasdaq market cap');
+  else compare('quote', t, 'Market cap', shown(after(bq, 'Market cap'), big), num(summary.json.data.summaryData?.MarketCap?.value), TOLERANCE.marketCap, 'Nasdaq market cap');
   if (des) {
     const details = await massive(t);
     const so = afterMatch(des, /^Shrs Out\/Float$/);
-    if (details.ok) compare('profile', t, 'Shares out', big(so?.split('/')[0]), details.json.results.share_class_shares_outstanding, TOLERANCE.shares, 'Massive share class shares');
+    if (details.ok) compare('profile', t, 'Shares out', shown(so, (x) => big(x?.split('/')[0])), details.json.results.share_class_shares_outstanding, TOLERANCE.shares, 'Massive share class shares');
     else if (details.kind === 'no-key') skip('profile', t, 'Shares out', details.detail);
     else blocked('profile', t, 'Shares out', details, 'Massive');
     const si = big(afterMatch(des, /^SI\/% of Float$/)?.split('/')[0]);
@@ -358,7 +366,9 @@ async function dividends(t) {
 }
 
 const CONCEPTS = {
-  Revenue: ['RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'SalesRevenueNet', 'RevenuesNetOfInterestExpense', 'RevenueFromContractWithCustomerIncludingAssessedTax'],
+  // Total revenues first, as the income statement's top line (Walmart's 611,289 for fiscal 2023, with membership
+  // income; its net sales tag says 605,881), then the narrower tags.
+  Revenue: ['Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueNet', 'RevenuesNetOfInterestExpense'],
   'Gross Profit': ['GrossProfit'],
   'Net Income': ['NetIncomeLoss', 'ProfitLoss'],
   'Diluted EPS': ['EarningsPerShareDiluted', 'EarningsPerShareBasicAndDiluted'],
@@ -377,18 +387,15 @@ async function statements(t) {
   const ends = (ls[h + 1] ?? '').split('\t').slice(1);
   const days = (a, b) => (Date.parse(b) - Date.parse(a)) / DAY;
   for (const key of Object.keys(CONCEPTS)) {
-    let vals;
-    for (const c of CONCEPTS[key]) {
-      const u = g[c]?.units;
-      vals = u?.USD ?? u?.['USD/shares'];
-      if (vals?.length) break;
-    }
+    // Each period from the first tag, in order, that gives it.
+    const tagged = CONCEPTS[key].map((c) => g[c]?.units).map((u) => u?.USD ?? u?.['USD/shares']).filter((v) => v?.length);
     const row = ls.slice(h, h + 30).find((l) => l.split('\t')[0] === key)?.split('\t').slice(1) ?? [];
-    if (!vals?.length || !row.length) continue;
+    if (!tagged.length || !row.length) continue;
     labels.forEach((lab, i) => {
       if (/Est/.test(lab) || !/^\d{2}\/\d{2}\/\d{4}$/.test(ends[i] ?? '')) return;
       const [dd, mm, yy] = ends[i].split('/');
       const end = `${yy}-${mm}-${dd}`;
+      const vals = tagged.find((v) => v.some((x) => x.start && Math.abs(days(x.end, end)) <= 7)) ?? tagged[0];
       const near = (x) => Math.abs(days(x.end, end)) <= 7;
       let refV = NaN;
       let how = '';
