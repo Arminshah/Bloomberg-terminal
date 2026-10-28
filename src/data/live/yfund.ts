@@ -9,7 +9,7 @@ import type { SecurityDef } from '../types';
 import { desktopData, impliedShares, realDividends, realSplits, yahooGet, yahooSymbolFor } from './yahoo';
 import { finnhubAvailable, finnhubSymbol, loadFinnhub, type FinnhubMetric, type FinnhubProfile } from './finnhub';
 import { loadCompanyFacts, loadFiler, reportingCurrency, resolveFiler, secAvailable, secTicker, type CompanyFacts, type SecFiler } from './sec';
-import { fillSummary, loadFinraShort, loadNasdaq, nasdaqAvailable, nasdaqSummaryPatch, nasdaqSymbol, type NasdaqHoldings, type NasdaqKind, type NasdaqProfile, type NasdaqShort, type NasdaqSummary } from './nasdaq-company';
+import { fillSummary, loadFinraShort, loadNasdaq, nasdaqAvailable, nasdaqSummaryPatch, nasdaqSymbol, preferNewerShort, type NasdaqHoldings, type NasdaqKind, type NasdaqProfile, type NasdaqShort, type NasdaqSummary } from './nasdaq-company';
 import { secStatementRows, splitFactorSince, type SplitEvent } from './statement-supplements';
 import { fmtDay } from '../../core/format';
 
@@ -794,7 +794,8 @@ async function fillGaps(def: SecurityDef, summary: Json, front: boolean): Promis
     if (ns && nasdaqAvailable()) {
       const kinds: NasdaqKind[] = [];
       if (!hasNum(r0.summaryDetail?.marketCap ?? r0.price?.marketCap) || !r0.assetProfile?.industry || (front && !hasNum(r0.summaryDetail?.dividendRate))) kinds.push('summary');
-      if (front && !hasNum(r0.defaultKeyStatistics?.sharesShort)) kinds.push('short-interest');
+      // Always for the stock on screen: Yahoo's short interest can be a settlement or more behind FINRA's.
+      if (front) kinds.push('short-interest');
       if (front && (!hasNum(r0.majorHoldersBreakdown?.institutionsPercentHeld) || !r0.institutionOwnership?.ownershipList?.length || !hasNum(r0.defaultKeyStatistics?.sharesOutstanding))) kinds.push('holdings');
       // The dividend record's declaration, record and payment dates, which Yahoo's price history does not give.
       if (front) kinds.push('dividends');
@@ -806,6 +807,7 @@ async function fillGaps(def: SecurityDef, summary: Json, front: boolean): Promis
       };
       // Nasdaq's page has short interest for Nasdaq listings only; FINRA's covers every US-listed stock.
       const short = pick<NasdaqShort[]>('short-interest') ?? (kinds.includes('short-interest') ? await loadFinraShort(ns) : null);
+      out = preferNewerShort(out, short);
       const filled = fillSummary(out, nasdaqSummaryPatch({ summary: pick<NasdaqSummary>('summary'), short, holdings: pick<NasdaqHoldings>('holdings'), profile: pick<NasdaqProfile>('profile') }));
       if (filled.filled.length) {
         out = filled.summary;

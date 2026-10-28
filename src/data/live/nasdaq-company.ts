@@ -439,6 +439,25 @@ export function nasdaqSummaryPatch(p: { summary?: NasdaqSummary | null; short?: 
   return out;
 }
 
+/**
+ * Yahoo's summary without its short interest when FINRA's latest settlement (Nasdaq's page or FINRA's own) is newer:
+ * Yahoo's lags a settlement or more (Apple on 28 October 2026: 120.76M at 30 September against 131.59M at 15 October),
+ * and the profile then disagreed with the short interest page. Its ratio to the float goes with it, worked out again
+ * from the newer count. Returns the summary unchanged otherwise.
+ */
+export function preferNewerShort(summary: Json, short: NasdaqShort[] | null | undefined): Json {
+  const r0 = summary?.quoteSummary?.result?.[0];
+  const ks = r0?.defaultKeyStatistics;
+  const last = short?.[0];
+  if (!r0 || !ks || !last || !Number.isFinite(last.date)) return summary;
+  const raw = (v: Json) => (typeof v === 'object' && v !== null ? v.raw : v);
+  const theirs = Number(raw(ks.dateShortInterest)) * 1000;
+  if (Number.isFinite(theirs) && theirs > 0 && theirs >= last.date) return summary;
+  const keep = { ...ks };
+  for (const k of ['sharesShort', 'shortRatio', 'dateShortInterest', 'sharesShortPriorMonth', 'sharesShortPreviousMonthDate', 'shortPercentOfFloat', 'sharesPercentSharesOut']) delete keep[k];
+  return { ...summary, quoteSummary: { ...summary.quoteSummary, result: [{ ...r0, defaultKeyStatistics: keep }, ...summary.quoteSummary.result.slice(1)] } };
+}
+
 const missing = (v: unknown): boolean =>
   v == null ||
   (typeof v === 'number' && !Number.isFinite(v)) ||
