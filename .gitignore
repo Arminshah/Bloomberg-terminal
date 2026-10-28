@@ -19,3 +19,6 @@ reference/pdfs/
 reference/visual/
 reference/videos/
 scripts/live/primary.json
+
+# Live data audit runs (scripts/live/audit/check.cjs)
+audit-out/

@@ -23,7 +23,8 @@
     "desktop:build": "npm run build && electron-builder --win --x64 --publish never",
     "desktop:dir": "npm run build && electron-builder --dir --publish never",
     "desktop:build:portable": "npm run build && electron-builder --win portable --x64 --publish never",
-    "e2e:desktop": "npm run build && playwright test --config playwright.desktop.config.ts"
+    "e2e:desktop": "npm run build && playwright test --config playwright.desktop.config.ts",
+    "audit:check": "node scripts/live/audit/check.cjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

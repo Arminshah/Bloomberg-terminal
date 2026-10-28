@@ -1,0 +1,56 @@
+name: Data audit
+
+# The live data audit (scripts/live/audit/check.cjs): the desktop app's figures against independent references, each
+# within a stated tolerance. It fails when a figure is beyond its tolerance, and reports a blocked reference (refused
+# key, plan limit, rate limit, network, outage) as blocked, never as passed. See docs/audit-check.md.
+#
+# GitHub runs a schedule only from the default branch (main): until this file is on main, start it by hand (Actions >
+# Data audit > Run workflow, on the work branch). Runners start only while the repository has Actions minutes (public,
+# or a spending limit above zero for a private repository).
+#
+# Secrets (Settings > Secrets and variables > Actions > New repository secret): TIINGO_API_KEY, MASSIVE_API_KEY,
+# SEC_USER_AGENT; optional EIA_API_KEY and COINGECKO_API_KEY. A missing one turns its checks into skipped checks.
+on:
+  schedule:
+    # Tuesday to Saturday at 01:37 UTC: after each US session's close and evening trading, references published.
+    - cron: '37 1 * * 2-6'
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: Comma-separated US tickers (default AAPL,NVDA,JPM,XOM,WMT,LLY,KO,TSLA)
+        required: false
+        type: string
+
+concurrency:
+  group: data-audit
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Audit the live figures
+        env:
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+          COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
+          TICKERS: ${{ inputs.tickers }}
+        run: node scripts/live/audit/check.cjs --out audit-out/run ${TICKERS:+--tickers "$TICKERS"}
+      - name: Keep the report
+        if: always()
+        run: |
+          if [ -f audit-out/run/report.md ]; then cat audit-out/run/report.md >> "$GITHUB_STEP_SUMMARY"; fi
