@@ -36,6 +36,9 @@ const crudeSpark = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fix
 // The CFTC's public reporting platform as it answered on 28 October 2026 (fixtures.cftc): the latest Disaggregated
 // (futures only, and combined), TFF futures and Legacy combined reports, and two years of WTI's Disaggregated futures.
 const cftcFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/cftc/${name}-2026-10-28.json`), 'utf8');
+// The Treasury's Fiscal Data as it answered on 28 October 2026: the statement of the public debt for 30 September and
+// the average interest rates (fixtures.fiscal).
+const fiscalFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/fiscal/${name}-2026-10-28.json`), 'utf8');
 const beaFixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, `../tests/fixtures/bea/${name}.json`), 'utf8'));
 const eiaFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/eia/${name}.json`), 'utf8');
 const congressGov = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/congressgov-2026-10.json'), 'utf8'));
@@ -135,6 +138,13 @@ net.fetch = async (input, init) => {
     if (url.pathname === '/v2/petroleum/sum/sndw/data/') return json(JSON.parse(eiaFixture('petroleum-2026-10-28')));
     if (url.pathname === '/v2/natural-gas/sum/snd/data/') return json(JSON.parse(eiaFixture('gas-monthly-2026-10-28')));
     return new Response(JSON.stringify({ error: 'Unknown route' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  }
+  if (fixtures.fiscal && url.hostname === 'api.fiscaldata.treasury.gov') {
+    fixtures.calls.fiscal = [...(fixtures.calls.fiscal ?? []), url.pathname];
+    const text = (body) => new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url.pathname.endsWith('/v1/debt/mspd/mspd_table_3_market')) return text(fiscalFixture('mspd-table3'));
+    if (url.pathname.endsWith('/v2/accounting/od/avg_interest_rates')) return text(fiscalFixture('avg-rates'));
+    return new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
   }
   if (fixtures.cftc && url.hostname === 'publicreporting.cftc.gov') {
     const where = url.searchParams.get('$where') ?? '';

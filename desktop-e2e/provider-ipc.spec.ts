@@ -56,6 +56,7 @@ interface Fixtures {
   eia?: boolean;
   bea?: boolean;
   cftc?: boolean;
+  fiscal?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -63,7 +64,7 @@ interface Fixtures {
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   segments?: boolean;
-  calls: { cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -824,6 +825,27 @@ test("COT shows the CFTC's positions with their position and publication dates, 
   // Each request named one of the CFTC's six datasets.
   const asked = (await calls(app)).cftc ?? [];
   expect(new Set(asked.map((c) => c.ds))).toEqual(new Set(['72hh-3qpy', 'kh3c-gbw2', 'gpe5-46if']));
+});
+
+test("DEBTPROFILE T GOVT shows the Treasury's marketable debt from its statement; other issuers still have no source", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.fiscal = true;
+  });
+  const panel = page.locator('.panel').first();
+  await command(page, 'DEBTPROFILE JPM CORP', 'DEBTPROFILE');
+  await expect(panel).toContainText('no free public feed', { timeout: 30_000 });
+  await expect(panel).toContainText('type DEBTPROFILE T GOVT');
+  await command(page, 'DEBTPROFILE T GOVT', 'DEBTPROFILE');
+  // The statement of 30 September 2026: 31,834,878 million marketable; notes 16,281,473 million, the Treasury's
+  // average rate on them 3.383%.
+  await expect(panel).toContainText('31,834.9bn USD', { timeout: 30_000 });
+  await expect(panel).toContainText('30/09/26');
+  await expect(panel.getByTestId('debt-classes').locator('tbody tr').filter({ hasText: 'Notes' }).first()).toContainText('16,281.5');
+  await expect(panel.getByTestId('debt-classes').locator('tbody tr').filter({ hasText: 'Notes' }).first()).toContainText('3.383%');
+  await expect(panel.getByTestId('debt-years').locator('tbody tr').first()).toContainText('2026');
+  await expect(panel).toContainText("They add up to the statement's own total for each class.");
+  await expect(panel.getByTestId('debt-mismatch')).toHaveCount(0);
+  expect(new Set((await calls(app)).fiscal ?? [])).toEqual(new Set(['/services/api/fiscal_service/v1/debt/mspd/mspd_table_3_market', '/services/api/fiscal_service/v2/accounting/od/avg_interest_rates']));
 });
 
 test("FXCA says when it has no live rate, and converts at the ECB's reference rate of a past day", async ({ desktop: { app, page } }) => {

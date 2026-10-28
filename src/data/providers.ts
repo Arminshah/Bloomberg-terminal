@@ -682,6 +682,20 @@ export const PROVIDERS: ProviderDef[] = [
     checked: '2026-10-28', desktop: true,
   },
   {
+    id: 'fiscal',
+    name: 'U.S. Treasury Fiscal Data',
+    serves: "DEBTPROFILE T GOVT: the Treasury's marketable debt outstanding by class and year of maturity, from the Monthly Statement of the Public Debt (each security's CUSIP, interest rate, maturity and amount), and its average interest rates",
+    dataClass: 'Official, monthly (amounts outstanding at each month end; not prices or yields)',
+    policy: 'enabled', limit: '20',
+    terms: "Public US government data on the Treasury's Fiscal Data API, no key and no registration. The statement is published on the fourth business day of each month for the month before; the app asks two datasets, each kept six hours.",
+    docs: [
+      { label: 'Monthly Statement of the Public Debt (dataset)', url: 'https://fiscaldata.treasury.gov/datasets/monthly-statement-public-debt/' },
+      { label: 'Average interest rates (dataset)', url: 'https://fiscaldata.treasury.gov/datasets/average-interest-rates-treasury-securities/' },
+      { label: 'API documentation', url: 'https://fiscaldata.treasury.gov/api-documentation/' },
+    ],
+    checked: '2026-10-28', desktop: true,
+  },
+  {
     id: 'house-clerk',
     name: 'Clerk of the House (financial disclosures)',
     serves: "CONGRESS: the House's member list with party and seat, the yearly index of members' financial disclosures, and each periodic transaction report and annual report, read from its PDF in the app (reports filed on paper are scans: linked only)",

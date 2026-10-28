@@ -139,7 +139,8 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `ECBPORTAL`, `BOEPORTAL`, `BOJPORTAL` (`ECB`, `BOE`, `BOJ`) | Each bank's policy rate, last move and its meeting, next decision, overnight benchmark (€STR, SONIA, the call rate), announcements, pages | ECB Data Portal; Bank of England database; Bank of Japan Time-Series Data Search; each bank's feed | Real. The BoJ's guideline is in its statements, not the API: the portal shows the basic loan rate and the call rate |
 | `BONDCALC` | Price/yield, accrued, duration, convexity, DV01, yield to each call and to worst with the workout date and price to worst, G/Z-spread, Z01, scenarios and cash flows; five day counts and explicit/lagged settlement | User terms, price/yield, optional call schedule, benchmark yield and continuous zero curve | Calculated regular schedule; calls valued as redemptions without option value (no OAS); settlement skips weekends only; no observed price or curve |
 | `SWAPCALC` | Par coupon, NPV, projected cash flows, curve/coupon bump P&L | User contract and separate discount/projection zero curves | Calculated forward-start fixed/float model; no dealer curve, fixing history or OIS conventions |
-| `BONDSEARCH`, `DEBTPROFILE`, `DEALERQUOTES` | | none | Not available: individual bond/dealer datasets have no connected free source |
+| `DEBTPROFILE T GOVT` | The U.S. Treasury's marketable debt outstanding by class and year of maturity, with the Treasury's average interest rates | U.S. Treasury Fiscal Data: Monthly Statement of the Public Debt (no key) | Real, monthly, desktop app; amounts, not prices |
+| `BONDSEARCH`, `DEBTPROFILE` (other issuers), `DEALERQUOTES` | | none | Not available: individual bond/dealer datasets have no connected free source |
 
 ## Commodities and economics
 

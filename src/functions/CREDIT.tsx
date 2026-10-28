@@ -11,6 +11,7 @@ import { analytics, settlementDate, yieldFromClean } from '../finance/bonds';
 import { usePanelId } from '../terminal/panel';
 import { openSecurity } from '../components/cells';
 import { NoBondData, SimBadge } from '../components/Source';
+import { TreasuryDebt } from './TreasuryDebt';
 import { desktopData } from '../data/live/yahoo';
 import type { FnProps } from '../terminal/types';
 
@@ -159,9 +160,25 @@ function SRCHSim({ route, sec }: FnProps) {
   );
 }
 
+/** The U.S. Treasury named in the arguments: "T GOVT", "UST", "TREASURY" (a bare "T" is AT&T's stock). */
+export function namesTreasury(args: string | undefined): boolean {
+  const t = (args ?? '').trim().toUpperCase().replace(/\s+/g, ' ');
+  return /^(?:T|US|UST|TSY|US TREASURY|TREASURY|UNITED STATES TREASURY) GOVT$/.test(t) || /^(?:UST|TSY|TREASURY|US TREASURY|UNITED STATES TREASURY)$/.test(t);
+}
+
 /** DDIS: an issuer's debt distribution by maturity. */
 export function DDIS(props: FnProps) {
-  if (engine.realOnly) return <NoBondData code="DEBTPROFILE" title="Debt Distribution" />;
+  if (engine.realOnly) {
+    // The Treasury's own statement lists every marketable security it has outstanding; no free source does that for
+    // other issuers.
+    if (namesTreasury(props.route.args)) return <TreasuryDebt />;
+    return (
+      <div>
+        <NoBondData code="DEBTPROFILE" title="Debt Distribution" />
+        <div className="note">For the U.S. Treasury&apos;s marketable debt by maturity, from its monthly statement of the public debt, type DEBTPROFILE T GOVT.</div>
+      </div>
+    );
+  }
   return <DDISSim {...props} />;
 }
 

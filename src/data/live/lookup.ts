@@ -54,6 +54,8 @@ declare global {
       bea?(kind: import('./bea').BeaKind): Promise<KeyedAnswer>;
       /** The CFTC's Commitments of Traders (no key): src/data/live/cftc.ts. */
       cftc?(kind: 'latest' | 'history', report: import('./cftc').CotReport, mode: import('./cftc').CotMode, code?: string): Promise<KeyedAnswer>;
+      /** The Treasury's Fiscal Data (no key): src/data/live/fiscal.ts. */
+      fiscal?(kind: 'mspd' | 'avg-rates'): Promise<KeyedAnswer>;
       nasdaq?(kind: import('./nasdaq-company').NasdaqKind | 'info' | 'historical', symbol: string): Promise<KeyedAnswer>;
       finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;

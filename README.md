@@ -133,7 +133,7 @@ Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES`
 | Markets | `MARKET` world indices, `EXCHANGES` (`EXCH`) exchange hours and status, `INDEXFUTURES`, `CONTRIB` index movers, `HEATMAP`, `MOVERS`, `SCREEN` stock screener (the full US list in the desktop app), `QUOTE`, `TRADES`, `DEPTH` (order book for crypto, best bid and offer otherwise), `VWAP` |
 | News | `BREAKING` (`FIRST`) the newest stories from every source with pop-ups for your favourites, `MARKETNEWS` (`TOP`) market and merger news, the latest 8-K filings and Euronext press releases, `COMPANYNEWS` any security's news, from the local press in its market's languages and, for a stock listed there, its Euronext press releases; `NEWS` searches every story; `HEADLINES` press releases and speeches from central banks, the BIS, BEA, ESMA and SEC |
 | FX and crypto | `FXMATRIX` cross rates, `FXRANK`, `CRYPTO`, `FXOPTION` European option pricer with overrides, `FXFORWARD` calculated forwards and contract PV from your term rates |
-| Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` still need bond/dealer datasets |
+| Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `DEBTPROFILE T GOVT` the Treasury's marketable debt by maturity from its monthly statement; `BONDSEARCH`, `DEBTPROFILE` for other issuers and `DEALERQUOTES` still need bond/dealer datasets |
 | Commodities | `COMMODITIES`, the sector pages (`OILMARKET`, `NATURALGAS`, `METALS`, `AGRICULTURE`), `NGAS` EIA's gas storage report, production and consumption, `COT` the CFTC's Commitments of Traders |
 | Economics | `MACRO` dashboard with first-release revisions, `NIPA` BEA's GDP contributions and personal income, `RELEASES` calendar, `ECONSTATS` world statistics, `HOLIDAYS` exchange calendars |
 | Derivatives | `OPTIONS` indicative listed US equity snapshots with Alpaca; `OPTIONCALC` European/American value/IV; `OPTIONSTRATEGY` common-expiry multi-leg/stock risk and scenarios |
@@ -159,6 +159,7 @@ Tables can be copied or exported as CSV. Watchlists, the portfolio, alerts, note
 | Gas storage, oil stocks, production and consumption | EIA: its weekly storage report (no key) and Open Data API (key) | Weekly and monthly, as EIA publishes |
 | US national accounts | BEA (key) | As BEA publishes and revises |
 | Futures positioning by trader category | CFTC Commitments of Traders, public reporting platform (no key) | Tuesday's positions, published the following Friday |
+| U.S. Treasury debt outstanding by security | U.S. Treasury Fiscal Data, Monthly Statement of the Public Debt (no key) | Each month end, published on the fourth business day after |
 | Analysts' expected EPS and revenue against the reports; similar stocks | Yahoo Finance research; Finnhub (key) for past revenue estimates and sub-industry peers | Kept 6 hours, hourly after a report |
 | Executive pay | SEC EDGAR proxy statements (your contact) | As filed |
 | Analyst price targets, ratings, rating actions, annual estimates | Financial Modeling Prep (key) | As of each answer, kept 6 to 24 hours |
