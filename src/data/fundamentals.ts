@@ -536,8 +536,23 @@ export function earningsReaction(s: { t: ArrayLike<number>; c: ArrayLike<number>
 }
 
 export function nextEarnings(def: SecurityDef): EarningsEvent | undefined {
-  const today = engine.today * DAY_MS;
-  return earningsEvents(def).find((e) => e.date >= today && e.actual == null);
+  const events = earningsEvents(def);
+  return events.find((e) => e.actual == null && isUpcomingReport(e.date, lastReportDate(events), engine.today * DAY_MS));
+}
+
+/** The newest report date the history gives with its figures. */
+export function lastReportDate(events: readonly { date: number; actual: number | null; revAct?: number | null; dateUnknown?: boolean }[]): number {
+  let last = -Infinity;
+  for (const e of events) if (!e.dateUnknown && (e.actual != null || e.revAct != null) && e.date > last) last = e.date;
+  return last;
+}
+
+/**
+ * Whether a date a source gives for the next report is still to come: not before today, and not the report already
+ * made (Coca-Cola reported on 27 October 2026; the next day the source still gave the 27th as its next date).
+ */
+export function isUpcomingReport(date: number, lastReported: number, today: number): boolean {
+  return Number.isFinite(date) && date >= today && !(date <= lastReported + 20 * DAY_MS);
 }
 
 // ---------------------------------------------------------------- holders

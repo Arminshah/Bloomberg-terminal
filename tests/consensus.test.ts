@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as finnhubMain from '../electron/finnhub.cjs';
 import { verdict } from '../src/components/EarningsExpectations';
+import { isUpcomingReport, lastReportDate } from '../src/data/fundamentals';
 import { epsDisagreement, growth, keepEstimates, keptEstimates, mergeConsensus, parseYahooEarnings, quarterAt, surprisePct, type YahooEarnings } from '../src/data/live/consensus';
 import { parseCalendarHistory, type PastReport } from '../src/data/live/finnhub';
 import tsm from './fixtures/yahoo-earnings-tsm.json';
@@ -130,5 +131,41 @@ describe('two sources that call a quarter a beat and a miss', () => {
     expect(epsDisagreement({ eps: yahoo })).toBeUndefined();
     // Within 2% either way is in line, not a disagreement.
     expect(epsDisagreement({ eps: { ...yahoo, actual: -0.305 }, alternativeEps: { ...finnhub, actual: -0.30 } })).toBeUndefined();
+  });
+});
+
+describe('the next report date: still to come, and confirmed only when the company has set it', () => {
+  const cal = (over: Record<string, unknown>) => {
+    const t = structuredClone(tsm) as typeof tsm;
+    Object.assign(t.quoteSummary.result[0].calendarEvents.earnings, over);
+    const r = parseYahooEarnings(t);
+    if ('error' in r) throw new Error(r.error);
+    return r.data.next!;
+  };
+
+  it("takes Yahoo's date as estimated unless the earnings call is set for it", () => {
+    // Yahoo called NVIDIA's 25 November 2026 confirmed on 28 October, before NVIDIA had set a date: its call date was
+    // still the last one.
+    expect(cal({ isEarningsDateEstimate: false })).toMatchObject({ date: 1799929800 * 1000, dateEstimated: true });
+    expect(cal({ isEarningsDateEstimate: false, earningsCallDate: [{ raw: 1799929800 }] })).toMatchObject({ dateEstimated: false });
+    expect(cal({ isEarningsDateEstimate: true, earningsCallDate: [{ raw: 1799929800 }] })).toMatchObject({ dateEstimated: true });
+  });
+
+  it('is no next date once past, or when it is the report just made', () => {
+    const lastReported = day('2026-10-27');
+    expect(isUpcomingReport(day('2026-10-27'), lastReported, day('2026-10-28'))).toBe(false);
+    // On the day itself, before the figures are in, the source's date is the report just made.
+    expect(isUpcomingReport(day('2026-10-27'), lastReported, day('2026-10-27'))).toBe(false);
+    expect(isUpcomingReport(day('2027-02-10'), lastReported, day('2026-10-28'))).toBe(true);
+    expect(isUpcomingReport(day('2026-10-27'), -Infinity, day('2026-10-27'))).toBe(true);
+    expect(lastReportDate([{ date: day('2026-07-28'), actual: 0.97 }, { date: day('2026-10-27'), actual: 0.93 }, { date: day('2026-10-27'), actual: null }])).toBe(day('2026-10-27'));
+  });
+
+  it("drops a past date from the merged consensus and does not take Nasdaq's past one", () => {
+    const now = day('2026-10-28') + 8 * 3_600_000;
+    const past = { ...yahoo, next: { ...yahoo.next!, date: day('2026-10-15') } };
+    expect(mergeConsensus({ yahoo: past, now }).next?.date).toBeUndefined();
+    const nasdaqNext = { date: day('2026-10-20'), estimated: false, timing: 'Bef-mkt' as const };
+    expect(mergeConsensus({ yahoo: { ...yahoo, next: { ...yahoo.next!, date: undefined } }, nasdaqNext, now } as never).next?.date).toBeUndefined();
   });
 });

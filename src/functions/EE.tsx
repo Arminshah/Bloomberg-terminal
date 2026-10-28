@@ -4,7 +4,7 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, Section, KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtEarnDate, fmtIso, fmtMln, fmtNum, fmtPct } from '../core/format';
-import { earningsHistory, earningsReaction, financials, keyStats, priceInCurrency, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
+import { earningsHistory, earningsReaction, financials, isUpcomingReport, keyStats, lastReportDate, priceInCurrency, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
 import { fiscalAdjEps } from './EEO';
 import { engine, useHistoryVersion } from '../data/market';
 import type { FnProps } from '../terminal/types';
@@ -102,7 +102,9 @@ export function useErnReports(s: SecurityDef, measure: Measure) {
   const reaction = (h: EarningsEvent) => (h.dateUnknown || (h.actual == null && h.revAct == null) ? null : earningsReaction(daily, reportSessionDay(h.date, tz), h.timing, lastFinal));
   // A quarter can come twice, once from the statements without a report date and once dated: the dated one stays.
   const done = hist.filter((h) => (h.actual != null || h.revAct != null) && !(h.dateUnknown && hist.some((o) => o !== h && o.period === h.period && !o.dateUnknown)));
-  const next = hist.find((h) => h.actual == null && h.revAct == null);
+  // The next report: a date still to come, and not the report just made (the sources keep it a day or two).
+  const lastReported = lastReportDate(hist);
+  const next = hist.find((h) => h.actual == null && h.revAct == null && isUpcomingReport(h.date, lastReported, engine.today * DAY_MS));
   // Each past report with its consensus quarter, newest first: the analysts' quarters (with the statements' diluted
   // EPS where a statement quarter matches), then older reports the statements alone give. One line per quarter.
   const used = new Set<EarningsEvent>();

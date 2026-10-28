@@ -222,7 +222,10 @@ export function parseYahooEarnings(answer: unknown): { data: YahooEarnings } | {
   const date = number(cal?.earningsDate?.[0]) * 1000;
   if (next && date > 0 && date > ms(next.end)) {
     next.date = date;
-    next.dateEstimated = cal?.isEarningsDateEstimate === true;
+    // Confirmed only when Yahoo says so and has the earnings call set on that date: it also marks dates the company has
+    // not announced as confirmed (NVIDIA's 25 November 2026 on 28 October, before NVIDIA had set any date).
+    const call = number(cal?.earningsCallDate?.[0]) * 1000;
+    next.dateEstimated = cal?.isEarningsDateEstimate === true || !(call > 0 && call >= date - DAY_MS);
   }
   return { data: { past, revCcy: ccyOf(row.earnings?.financialCurrency), next, following, trends: parseEstimateTrends(trend) } };
 }
@@ -633,9 +636,16 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     if (next && !ok(next.rev.est) && historyRow([r], next)) next.rev = { ...NONE, est: r.est, ccy: 'USD', estFrom: h.source };
   }
   if (following && next && following.end && next.end && following.end <= next.end) following = null;
+  // A next date that is past, or the report just made, is no next date (Coca-Cola's sources still gave 27 October 2026
+  // the day after it reported); the estimates stay.
+  const todayStart = Math.floor((i.now ?? Date.now()) / DAY_MS) * DAY_MS;
+  if (next?.date && !(next.date >= todayStart && !(lastDate && next.date <= lastDate + 20 * DAY_MS))) {
+    delete next.date;
+    delete next.dateEstimated;
+  }
   // Nasdaq's next report date, when no other source names one: for the quarter it names, or the next one.
   const nn = i.nasdaqNext;
-  if (next && !next.date && nn && nn.date > lastDate && (!nn.end || !next.end || daysApart(nn.end, next.end) <= 20)) {
+  if (next && !next.date && nn && nn.date > lastDate && nn.date >= todayStart && (!nn.end || !next.end || daysApart(nn.end, next.end) <= 20)) {
     next.date = nn.date;
     next.dateEstimated = nn.estimated;
     if (!next.timing || next.timing === '--') next.timing = nn.timing;
