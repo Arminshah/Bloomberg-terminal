@@ -2410,8 +2410,10 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
       })().catch(() => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.source === 'federal' && x.state !== 'read' ? { ...x, state: 'failed' } : x)) })))
     : null;
 
-  // Unnamed customers' shares come from the newest filing that states them (a quarter's are not the year's).
-  const SHARE_ONLY = /^unnamed:\d+$/;
+  // Unnamed customers' shares come from the newest filing that states them (a quarter's are not the year's). A filing's
+  // letters name its own customers ("Customer A" in NVIDIA's 10-Q of August 2025, 23%), not the same company in another
+  // filing: they go with the rest when a newer filing states the shares.
+  const SHARE_ONLY = /^(?:unnamed:\d+|n:(?:(?:direct|indirect) )?customer [a-z])$/;
   let sharesFrom = '';
   for (const f of own) {
     mark(f, 'reading');

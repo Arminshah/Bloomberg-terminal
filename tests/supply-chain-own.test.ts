@@ -172,3 +172,30 @@ describe("SPLC: Applied Digital's three tenants, as its filings name them", () =
     expect(own([cond, perf]).filter((r) => r.role === 'customer')).toEqual([]);
   });
 });
+
+describe("SPLC: unnamed customers' shares from the newest filing only", () => {
+  it("drops an older filing's lettered customers when a newer one states the shares (NVIDIA, 2025 and 2026)", async () => {
+    const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+    const nvda: SecCompany[] = [...COMPANIES, { cik: 1045810, ticker: 'NVDA', title: 'NVIDIA CORP' }];
+    const io: ChainIO = {
+      companies: async () => nvda,
+      filings: async () => [
+        { form: '10-Q', filed: day(60), accession: '0001045810-26-000075', doc: 'nvda-20260726.htm' },
+        { form: '10-Q', filed: day(425), accession: '0001045810-25-000209', doc: 'nvda-20250727.htm' },
+      ],
+      index: async () => [],
+      fts: async () => ({ hits: [], total: 0 }),
+      text: async (kind, path) => {
+        if (kind !== 'own') return [];
+        if (path.endsWith('nvda-20260726.htm')) return ['For the second quarter of fiscal year 2027, one direct customer represented 16% of total revenue, which was primarily attributable to the Compute & Networking segment.'];
+        return ['For the second quarter of fiscal year 2026, sales to one direct customer, Customer A, represented 23% of total revenue, all of which were attributable to the Compute & Networking segment.'];
+      },
+      securities: [],
+    };
+    let chain: Chain = { state: 'loading', filers: [], relations: [], changes: {} };
+    await runChain({ ticker: 'NVDA', name: 'NVIDIA Corp' }, io, (f) => {
+      chain = f(chain);
+    });
+    expect(chain.relations.filter((r) => r.role === 'customer').map((r) => [r.name, r.share])).toEqual([['Unnamed direct customer 1', 16]]);
+  });
+});
