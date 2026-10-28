@@ -84,3 +84,30 @@ describe("a finished session's volume, settled from the consolidated tape", () =
     expect(q.volumeSource).toBeUndefined();
   });
 });
+
+describe('30-day average volume: the finished session counts once settled', () => {
+  // The audit of 28 October 2026: DES's 30-day average left out the last bar even after the close, so the session
+  // just finished (and its settled volume) never counted until the next day's bar appeared.
+  const bars = (last: number) => Array.from({ length: 31 }, (_, i) => ({ day: last - 30 + i, o: 10, h: 10, l: 10, c: 10, v: i === 30 ? 5_000_000 : 1_000_000 }));
+
+  it("leaves out today's session while it trades, and counts it with Nasdaq's settled volume after the close", async () => {
+    const { engine } = await import('../src/data/market');
+    const { rangeStats } = await import('../src/data/analytics');
+    const id = 'MSFT US Equity';
+    engine.setExternalDaily(id, bars(engine.today));
+    expect(engine.lastSessionDone(id)).toBe(false);
+    expect(rangeStats(id).avgVol30).toBe(1_000_000);
+    engine.settleVolume(id, engine.today, 7_000_000, SETTLED_SOURCE);
+    expect(engine.lastSessionDone(id)).toBe(true);
+    expect(rangeStats(id).avgVol30).toBeCloseTo((29 * 1_000_000 + 7_000_000) / 30, 6);
+  });
+
+  it("counts an earlier day's last bar: that session is over", async () => {
+    const { engine } = await import('../src/data/market');
+    const { rangeStats } = await import('../src/data/analytics');
+    const id = 'GOOGL US Equity';
+    engine.setExternalDaily(id, bars(engine.today - 1));
+    expect(engine.lastSessionDone(id)).toBe(true);
+    expect(rangeStats(id).avgVol30).toBeCloseTo((29 * 1_000_000 + 5_000_000) / 30, 6);
+  });
+});

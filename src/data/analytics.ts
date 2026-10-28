@@ -117,9 +117,12 @@ export function rangeStats(id: string): RangeStats {
       loT = s.t[i];
     }
   }
+  // The last 30 finished sessions: the latest bar counts once its session is over and its volume settled (Nasdaq's
+  // consolidated figure after the close); a session still trading does not.
+  const end = engine.lastSessionDone(id) ? n : n - 1;
   let v30 = 0;
-  for (let i = Math.max(0, n - 31); i < n - 1; i++) v30 += s.v[i];
-  v30 /= Math.min(30, n - 1);
+  for (let i = Math.max(0, end - 30); i < end; i++) v30 += s.v[i];
+  v30 /= Math.min(30, end);
   const rv = (bars: number) => {
     const rets: number[] = [];
     for (let i = Math.max(1, n - bars); i < n; i++) {

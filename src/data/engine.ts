@@ -1448,6 +1448,18 @@ export class MarketEngine {
    * session only. It replaces a smaller volume and stays when the price source repeats its shorter one; a new session
    * starts from the price source's own. Returns whether the line changed.
    */
+  /**
+   * Whether the line's last daily bar is a finished session with its full volume: a day before today, or today's once
+   * its volume has been settled from the consolidated tape (settleVolume). A session still trading is not.
+   */
+  lastSessionDone(id: string): boolean {
+    const s = this.daily(id);
+    const n = s.length - 1;
+    if (n < 0) return false;
+    const day = dayNum(s.t[n]);
+    return day < this.today || this.states.get(id)?.ext?.settled?.day === day;
+  }
+
   settleVolume(id: string, day: number, volume: number, source: string): boolean {
     const st = this.states.get(id);
     const ext = st?.ext;
