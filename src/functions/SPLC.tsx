@@ -35,6 +35,8 @@ function openRelated(panel: number, r: Relation, e?: MouseEvent) {
 const openable = (r: Relation) => !!(r.ticker || r.id);
 
 const docUrl = (path: string) => `https://www.sec.gov/Archives/edgar/data/${path}`;
+/** Where a statement or a document read is: the SEC filing, or the record on USAspending.gov. */
+export const sourceUrl = (x: { path: string; url?: string }) => x.url ?? docUrl(x.path);
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -49,11 +51,19 @@ export function latestEvidence(r: Relation): Relation['evidence'][number] | unde
   return r.evidence.reduce<Relation['evidence'][number] | undefined>((m, e) => (!m || e.date > m.date ? e : m), undefined);
 }
 
+/** "Contracts $2.3B" or "Subcontracts $15.5M": the federal dollars behind a relation from government records. */
+export function amountLabel(r: Relation): string {
+  if (r.amount == null || !Number.isFinite(r.amount)) return '';
+  const contract = r.evidence.some((e) => e.form === 'Contract');
+  return `${contract ? 'Contracts' : 'Subcontracts'} $${fmtBig(r.amount, 1)}`;
+}
+
 /** The figure a box shows: whose share of what; without a share, who said so last and when ("Its press release · Apr 2026"). */
 export function shareLabel(r: Relation): string {
   if (r.share == null) {
     const e = latestEvidence(r);
     if (!e) return '';
+    if (r.amount != null) return `${amountLabel(r)} · ${monthYear(e.date)}`;
     const src = sourceLabel(e);
     if (r.side === 'both') return `Both name it · ${monthYear(e.date)}`;
     return `${r.side === 'own' ? 'Its' : 'Their'} ${src === 'Press release' || src === 'Agreement' ? src.toLowerCase() : src} · ${monthYear(e.date)}`;
@@ -76,6 +86,11 @@ export function shareLabel(r: Relation): string {
 
 /** One line on what the relation is, in the target's terms. */
 export function describe(r: Relation, t: string): string {
+  if (r.side === 'records') {
+    const v = r.amount != null ? `$${fmtBig(r.amount, 1)}` : '';
+    if (r.role === 'supplier') return `Subcontractor on ${t}'s federal contracts: ${v} reported in five years`;
+    return r.evidence.some((e) => e.form === 'Contract') ? `Federal agency: ${v} obligated on ${t}'s contracts running in the last year` : `Prime contractor: ${v} in subcontracts to ${t} in two years`;
+  }
   const period = r.share != null ? sharePeriod(r.evidence[0]?.sentence ?? '') : '';
   const v = r.share != null ? `${r.qualifier === '>' ? 'at least ' : r.qualifier === '<' ? 'less than ' : ''}${fmtNum(r.share, r.share % 1 ? 1 : 0)}%` : '';
   switch (r.role) {
@@ -107,6 +122,7 @@ export function relationLabel(r: Relation): string {
 
 /** "8-K EX-99.1" as the reader knows it: a press release; an 8-K is a current report. */
 export function sourceLabel(e: { form: string; type?: string }): string {
+  // A federal record is named by its kind ("Contract", "Subcontract").
   if (e.type && /^EX-99/i.test(e.type)) return 'Press release';
   if (/^8-K/i.test(e.form)) return e.type && /^EX-10/i.test(e.type) ? 'Agreement' : '8-K';
   return e.form;
@@ -132,11 +148,12 @@ function sorted(list: Relation[], key: SortKey, capOf: (r: Relation) => number):
   if (key === 'name') return arr.sort((a, b) => a.name.localeCompare(b.name));
   if (key === 'date') return arr.sort((a, b) => latestDate(b).localeCompare(latestDate(a)) || a.name.localeCompare(b.name));
   if (key === 'cap') return arr.sort((a, b) => cap(b) - cap(a) || a.name.localeCompare(b.name));
-  const sideRank = (r: Relation) => (r.side === 'both' ? 0 : r.side === 'own' ? 1 : 2);
+  const sideRank = (r: Relation) => (r.side === 'both' ? 0 : r.side === 'own' ? 1 : r.side === 'records' ? 2 : 3);
   return arr.sort(
     (a, b) =>
       (b.share ?? -1) - (a.share ?? -1) ||
       sideRank(a) - sideRank(b) ||
+      (b.amount ?? -1) - (a.amount ?? -1) ||
       cap(b) - cap(a) ||
       Number(openable(b)) - Number(openable(a)) ||
       b.evidence.length - a.evidence.length ||
@@ -185,7 +202,7 @@ interface BoxProps {
 
 function Box({ r, x, y, w, h, fill, t, onOpen }: BoxProps) {
   const ev = r.evidence[0];
-  const tip = `${displayName(r.name)}${r.ticker ? ` (${r.ticker})` : ''}\n${describe(r, t)}\n\n"${trunc(ev?.sentence ?? '', 420)}"\n${ev ? `${ev.filer}, ${ev.form} filed ${ev.date}` : ''}`;
+  const tip = `${displayName(r.name)}${r.ticker ? ` (${r.ticker})` : ''}\n${describe(r, t)}\n\n"${trunc(ev?.sentence ?? '', 420)}"\n${ev ? `${ev.filer}, ${ev.form} ${ev.url ? 'dated' : 'filed'} ${ev.date}` : ''}`;
   const chars = Math.floor((w - 10) / 7.4);
   return (
     <g className={`splc-box${openable(r) ? ' link' : ''}`} onClick={(e) => openable(r) && onOpen(r, e)} data-key={r.key}>
@@ -255,8 +272,10 @@ function Summary({ chain, t, suppliers, customers, competitors, fillOf, onOpen }
   const cy = 176;
   const quantified = customers.filter((r) => r.basis === 'target-revenue' && r.share != null);
   const revQ = quantified.reduce((a, r) => a + (r.share ?? 0), 0);
-  const read = chain.filers.filter((f) => f.state === 'read').length;
-  const total = chain.filers.length;
+  // SEC filings; the federal contract records are listed with them on Filings Read.
+  const filings = chain.filers.filter((f) => f.source !== 'federal');
+  const read = filings.filter((f) => f.state === 'read').length;
+  const total = filings.length;
   const newest = chain.relations.reduce((m, r) => (latestDate(r) > m ? latestDate(r) : m), '');
   const count = (role: Role) => chain.relations.filter((r) => r.role === role).length;
   const company = chain.company?.display ?? displayName(chain.company?.name ?? t);
@@ -371,6 +390,7 @@ function RelationTable({ rows, t, changes, onOpen, role, capOf }: { rows: Relati
           {role === 'other' && <th>Relation</th>}
           <th>Relationship</th>
           <th className="num">Share</th>
+          <th className="num hide-m" title="Federal contracts or subcontracts behind the relation (USAspending.gov), US dollars">Contracts $</th>
           <th className="num hide-m">Mkt Cap</th>
           <th className="num hide-m">1D %</th>
           <th className="hide-m">Source</th>
@@ -396,11 +416,12 @@ function RelationTable({ rows, t, changes, onOpen, role, capOf }: { rows: Relati
                 {r.share != null ? `${r.qualifier === '>' ? '≥' : r.qualifier === '<' ? '<' : ''}${fmtNum(r.share, 1)}%` : ''}
                 {r.share != null && sharePeriod(ev?.sentence ?? '') ? <span className="muted"> {sharePeriod(ev?.sentence ?? '')}</span> : null}
               </td>
+              <td className="num hide-m white">{r.amount != null && Number.isFinite(r.amount) ? fmtBig(r.amount, 1) : ''}</td>
               <td className="num hide-m">{Number.isFinite(capOf(r)) ? fmtBig(capOf(r), 1) : ''}</td>
               <td className={`num hide-m ${chg > 0 ? 'up' : chg < 0 ? 'dn' : ''}`}>{chg != null && Number.isFinite(chg) ? fmtPct(chg, 2) : ''}</td>
               <td className="hide-m">
                 {ev && (
-                  <a className="link" href={docUrl(ev.path)} target="_blank" rel="noopener noreferrer" title={`${ev.filer} ${ev.form}${ev.type ? ` ${ev.type}` : ''}`}>
+                  <a className="link" href={sourceUrl(ev)} target="_blank" rel="noopener noreferrer" title={`${ev.filer} ${ev.form}${ev.type ? ` ${ev.type}` : ''}`}>
                     {sourceLabel(ev)} {fmtDay(Date.parse(`${ev.date}T00:00:00Z`))}
                   </a>
                 )}
@@ -449,10 +470,10 @@ export function SPLC({ sec }: FnProps) {
   const fillOf = (r: Relation) => (color === 'change' ? changeFill(r.key === '__self' ? selfChange(s.id) : changes[r.key]) : color === 'share' ? shareFill(r.key === '__self' ? undefined : r.share) : '#1d3a22');
   const onOpen = (r: Relation, e: MouseEvent) => openRelated(panel, r, e);
   const csv = () => [
-    ['Relation', 'Name', 'Ticker', 'Share %', 'Share of', 'Stated by', 'Filer', 'Form', 'Filed', 'Statement', 'Document'],
+    ['Relation', 'Name', 'Ticker', 'Share %', 'Share of', 'Stated by', 'Contracts $', 'Filer', 'Form', 'Filed', 'Statement', 'Document'],
     ...all.map((r) => {
       const ev = r.evidence[0];
-      return [r.role, displayName(r.name), r.ticker ?? '', r.share ?? '', r.basis ?? '', r.side, ev?.filer ?? '', ev?.form ?? '', ev?.date ?? '', ev?.sentence ?? '', ev ? docUrl(ev.path) : ''];
+      return [r.role, displayName(r.name), r.ticker ?? '', r.share ?? '', r.basis ?? '', r.side, r.amount ?? '', ev?.filer ?? '', ev?.form ?? '', ev?.date ?? '', ev?.sentence ?? '', ev ? sourceUrl(ev) : ''];
     }),
   ];
   const usOnly = !secTicker(s);
@@ -541,7 +562,9 @@ export function SPLC({ sec }: FnProps) {
               From SEC filings: the company&apos;s own last two annual reports, the quarterly reports since, and its current reports (8-K) of the last two years on
               agreements, deals, financings and announcements, with the press releases filed with them; and, from other companies that name it, their annual and
               quarterly reports (10-K, 20-F, 40-F, 10-Q) and current reports of the last two years and IPO prospectuses (S-1, F-1, 424B4) of the last three years
-              {chain.names ? ` (${chain.names.legal.concat(chain.names.names).filter((v, i, a) => a.indexOf(v) === i).join(', ')})` : ''}. Shares are as the
+              {chain.names ? ` (${chain.names.legal.concat(chain.names.names).filter((v, i, a) => a.indexOf(v) === i).join(', ')})` : ''}. From USAspending.gov,
+              the federal government&apos;s contract records: the agencies whose contracts with the company ran in the last year (amounts obligated), the prime
+              contractors that subcontracted to it in the last two years, and the subcontractors on its largest contracts over five years. Shares are as the
               reports state them, for the latest year they give: a supplier&apos;s share is of its own revenue, a customer&apos;s of {t}&apos;s revenue (or of its
               own sales or purchases). Companies a filing names without a share are listed after, with the filing that last named them; unnamed counterparties are
               shown as the filings describe them. Each box links to the statements and filings behind it.
@@ -559,7 +582,7 @@ function selfChange(id: string): number | undefined {
   return q && Number.isFinite(q.pct) ? q.pct : undefined;
 }
 
-const SOURCE: Record<Filer['source'], string> = { own: 'Its own filing', report: 'Report naming it', current: 'Current report naming it' };
+const SOURCE: Record<Filer['source'], string> = { own: 'Its own filing', report: 'Report naming it', current: 'Current report naming it', federal: 'Federal contract records' };
 
 function FilingsRead({ chain }: { chain: Chain }) {
   return (
@@ -579,7 +602,7 @@ function FilingsRead({ chain }: { chain: Chain }) {
           <tr key={r.path}>
             <td className="white">{displayName(r.name)}</td>
             <td>
-              <a className="link" href={docUrl(r.path)} target="_blank" rel="noopener noreferrer" title={`${r.form}${r.type && r.type !== r.form ? ` ${r.type}` : ''}`}>
+              <a className="link" href={sourceUrl(r)} target="_blank" rel="noopener noreferrer" title={`${r.form}${r.type && r.type !== r.form ? ` ${r.type}` : ''}`}>
                 {r.form}
                 {r.type && r.type !== r.form ? ` ${r.type}` : ''}
               </a>

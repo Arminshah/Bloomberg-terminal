@@ -707,6 +707,20 @@ export const PROVIDERS: ProviderDef[] = [
     checked: '2026-10-26', desktop: true,
   },
   {
+    id: 'usaspending',
+    name: 'USAspending.gov (U.S. Treasury)',
+    serves: "A company's federal contracts and subcontracts for SPLC: the agencies whose contracts with it ran in the last year, the prime contractors that subcontracted to it in two years, and the subcontractors on its largest contracts over five years",
+    dataClass: 'Government records: federal prime contracts (DATA Act) and subcontract reports (FFATA)',
+    policy: 'enabled',
+    terms: "The Treasury's public API needs no key and states no request limit. Its records are the federal government's own, published as the DATA Act requires; works of the US government are not under copyright in the US (17 U.S.C. § 105). The app asks only when SPLC opens a US-listed company, waits and asks again when the API answers 503, and keeps each answer 12 hours.",
+    docs: [
+      { label: 'API home', url: 'https://api.usaspending.gov/' },
+      { label: 'Award search endpoint', url: 'https://github.com/fedspendingtransparency/usaspending-api/blob/master/usaspending_api/api_contracts/contracts/v2/search/spending_by_award.md' },
+      { label: 'Recipient endpoints', url: 'https://github.com/fedspendingtransparency/usaspending-api/tree/master/usaspending_api/api_contracts/contracts/v2/recipient' },
+    ],
+    checked: '2026-10-28', desktop: true,
+  },
+  {
     id: 'openfigi',
     name: 'OpenFIGI',
     serves: 'The US ticker of each holding a 13F lists, from its CUSIP or CINS (HOLDINGS)',

@@ -60,7 +60,7 @@ interface Fixtures {
   centralBankRates?: boolean;
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
-  calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -1078,9 +1078,28 @@ test('SPLC reads suppliers, customers and competitors from the SEC filings that 
   await expect(panel.locator('tbody tr').first()).toContainText('12% of NBIS US');
   await expect(row('Example Cloud')).toContainText('Names NBIS US as a supplier');
   await expect(row('Example Cloud').getByRole('link', { name: /10-K/ })).toHaveAttribute('href', 'https://www.sec.gov/Archives/edgar/data/2222222/000222222226000004/excl-20251231.htm');
+  // Federal records: the agency whose contract it holds and the prime contractor that subcontracted to it are customers.
+  await expect(row('Department of Energy')).toContainText('Federal agency: $2.5M obligated on NBIS US');
+  await expect(row('Department of Energy').getByRole('link', { name: /Contract/ })).toHaveAttribute('href', 'https://www.usaspending.gov/award/CONT_AWD_89303026FSC000001_8900_-NONE-_-NONE-');
+  await expect(row('Microsoft')).toContainText('Prime contractor: $400.0K in subcontracts to NBIS US');
+  await panel.getByRole('button', { name: '2) Suppliers' }).click();
+  await expect(row('Synthetic Cooling')).toContainText("Subcontractor on NBIS US's federal contracts: $300.0K");
   await panel.getByRole('button', { name: '4) Competitors' }).click();
   await expect(row('Microsoft')).toContainText('Named by NBIS US as a competitor');
   await expect(row('CoreWeave')).toHaveCount(1);
+  await panel.getByRole('button', { name: '6) Filings Read' }).click();
+  const fed = panel.locator('tbody tr', { hasText: 'Federal contracts' });
+  await expect(fed).toContainText('Federal contract records');
+  await expect(fed.getByRole('link')).toHaveAttribute('href', 'https://www.usaspending.gov/recipient/5e1f0000-0000-4000-8000-000000000001-P/latest');
+  // Found by its name; "NEBIUS GROUP SOLUTIONS INC" is another company. Its units are searched by their UEIs, and the
+  // subcontracts let under the contract it holds.
+  expect((await calls(app)).usaspending).toEqual([
+    'POST /api/v2/recipient/ keyword=nebius',
+    'GET /api/v2/recipient/children/NBSFIXTURE01/',
+    'POST /api/v2/search/spending_by_award/ recipients=NBSFIXTURE01',
+    'POST /api/v2/search/spending_by_award/ subawards recipients=NBSFIXTURE01',
+    'POST /api/v2/search/spending_by_award/ subawards award_ids=89303026FSC000001',
+  ]);
   const searched = await app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls.fts ?? []);
   // Few documents name it: they are all read, found by the name alone (the shortest name covers the longer ones).
   expect(searched).toContain('"Nebius"');

@@ -40,6 +40,7 @@ declare global {
       sec13f?(cik: number, accession: string, part: 'cover' | 'holdings'): Promise<import('./thirteenf').Answer13F>;
       openfigi?(codes: string[]): Promise<import('./thirteenf').FigiAnswer>;
       openfigiListings?(ticker: string): Promise<import('./related').FigiListingsAnswer>;
+      usaspending?(kind: import('./usaspending').UsaspendingKind, arg: string): Promise<import('./usaspending').UsaspendingAnswer>;
       imf?(kind: 'weo' | 'countries' | 'groups' | 'indicators' | 'trade' | 'trade-monthly' | 'trade-areas', arg?: string): Promise<KeyedAnswer>;
       congressGov?(kind: 'bills' | 'laws' | 'bill' | 'part', arg?: string): Promise<KeyedAnswer>;
       congress?(kind: 'members' | 'index' | 'ptr' | 'annual' | 'fmp', arg: string): Promise<import('./congress').CongressAnswer>;

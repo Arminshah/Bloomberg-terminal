@@ -6,6 +6,7 @@ import type { SecurityDef } from '../types';
 import { yahooGet } from './yahoo';
 import { parseSpark } from './index-members';
 import { findByTicker, loadFiler, loadFilingIndex, loadSecCompanies, secAvailable, secTicker, type SecCompany } from './sec';
+import { federalRelations, type FedAsk, type FedParty, type FedStep } from './usaspending';
 
 /**
  * SPLC: a company's suppliers, customers and competitors as annual reports state them. Companies name their large
@@ -14,7 +15,8 @@ import { findByTicker, loadFiler, loadFilingIndex, loadSecCompanies, secAvailabl
  * search finds the reports and current reports of the last two years that name the company; the desktop app reads
  * the sentences that name it and classifies them here. The company's own reports of two years, its agreement and
  * financing 8-Ks and their press releases add the suppliers, customers, competitors, partners, investors and
- * lenders it names itself. Every relation keeps the sentence and filing it comes from.
+ * lenders it names itself. The federal contract records (USAspending.gov) add the agencies and prime contractors it
+ * works for and the subcontractors on its contracts. Every relation keeps the sentence or record it comes from.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -47,6 +49,8 @@ export interface Evidence {
   path: string;
   /** The document within the filing when it is not the main one: "EX-99.1" (a press release), "EX-10.1". */
   type?: string;
+  /** Where the record is, when it is not an SEC filing (a federal contract on USAspending.gov). */
+  url?: string;
 }
 
 export interface Relation {
@@ -64,8 +68,10 @@ export interface Relation {
   /** The share is "more than" or "at least" (10% or more), or "less than". */
   qualifier?: '>' | '<';
   basis?: Basis;
-  /** Who states it: the related company's report, the target's own, or both. */
-  side: 'theirs' | 'own' | 'both';
+  /** Who states it: the related company's report, the target's own, both, or government records (federal contracts). */
+  side: 'theirs' | 'own' | 'both' | 'records';
+  /** US dollars in the federal records behind it: contracts obligated, or subcontracts reported. */
+  amount?: number;
   /** A counterparty the filings describe without naming it ("a U.S. based investment-grade hyperscaler"). */
   unnamed?: boolean;
   evidence: Evidence[];
@@ -1824,6 +1830,38 @@ export function relationKey(f: { cik?: number; ticker?: string; yahoo?: string; 
   return f.cik ? `cik:${f.cik}` : f.ticker ? `t:${f.ticker}` : f.yahoo ? `y:${f.yahoo}` : `n:${normalizeName(f.name)}`;
 }
 
+/** Words a group's units add to its name in government records: "Northrop Grumman Systems", "General Dynamics Land Systems". */
+const UNIT_WORD = new Set('systems system services technologies technology information electronic electronics integration land marine mission space aeronautics aeronautical aerospace rotary defense defence federal government usg operations international global america usa us north and support manufacturing'.split(' '));
+let aliasIndex: Map<string, string> | null = null;
+
+/**
+ * A company named in government records ("NORTHROP GRUMMAN SYSTEMS CORPORATION") as the listed company it belongs
+ * to, by its name or a group's name with a unit's words after it; otherwise as written.
+ */
+export function federalParty(name: string, dir: Directory): FedParty {
+  aliasIndex ??= new Map(
+    Object.entries(ALIASES)
+      .flatMap(([t, a]) => [...a.legal, ...a.names].map((n): [string, string] => [normalizeName(n), t]))
+      .filter(([k]) => k.length >= 4 && !COMMON.has(k)),
+  );
+  // "BOEING COMPANY, THE" is The Boeing Company.
+  let words = normalizeName(name.replace(/,\s*THE\s*$/i, '')).split(' ').filter(Boolean);
+  while (words.length) {
+    const k = words.join(' ');
+    // "HUNTINGTON INGALLS INCORPORATED" is Huntington Ingalls Industries.
+    const hit = dir.byName.get(k) ?? (words.length >= 2 ? dir.byName.get(`${k} industries`) : undefined);
+    if (hit) return { key: relationKey(hit), ...hit };
+    const listed = aliasIndex.has(k) ? dir.byTicker.get(aliasIndex.get(k)!) : undefined;
+    if (listed) {
+      const f = { name: knownName(listed.ticker) ?? listed.title, ticker: listed.ticker, cik: listed.cik };
+      return { key: relationKey(f), ...f };
+    }
+    if (words.length <= 1 || !UNIT_WORD.has(words[words.length - 1])) break;
+    words = words.slice(0, -1);
+  }
+  return { key: relationKey({ name }), name };
+}
+
 const ORDINAL: Record<string, number> = { first: 1, second: 2, third: 3, fourth: 4 };
 const MONTH_ABBR: Record<string, string> = { january: 'Jan', february: 'Feb', march: 'Mar', april: 'Apr', may: 'May', june: 'Jun', july: 'Jul', august: 'Aug', september: 'Sep', october: 'Oct', november: 'Nov', december: 'Dec' };
 
@@ -1880,7 +1918,9 @@ export function mergeRelations(list: Relation[]): Relation[] {
       shareFrom.set(k, at);
       if (ev) have.evidence = [ev, ...have.evidence.filter((x) => x !== ev && x.sentence !== ev.sentence)];
     }
-    if (r.side !== have.side) have.side = 'both';
+    // Government records add to what the filings say; the filings decide who states it.
+    if (r.side !== have.side && r.side !== 'records') have.side = have.side === 'records' ? r.side : 'both';
+    if (r.amount != null) have.amount = Math.max(have.amount ?? 0, r.amount);
     have.ticker ??= r.ticker;
     have.id ??= r.id;
     have.yahoo ??= r.yahoo;
@@ -1968,8 +2008,11 @@ export interface Filer extends FtsHit {
   terms: number;
   state: 'waiting' | 'reading' | 'read' | 'failed';
   found?: number;
-  /** Why it is read: the company's own filing, or another company's report, prospectus or current report (8-K). */
-  source: 'own' | 'report' | 'current';
+  /** Why it is read: the company's own filing, another company's report, prospectus or current report (8-K), or the
+   * federal contract records. */
+  source: 'own' | 'report' | 'current' | 'federal';
+  /** Where it is, when it is not an SEC filing. */
+  url?: string;
 }
 
 const ANNUAL = /^(10-K|20-F|40-F)\b/;
@@ -2134,8 +2177,17 @@ export interface ChainIO {
   fts(arg: string): Promise<{ hits: FtsHit[]; total: number }>;
   /** The sentences of a document: those naming `names` ('mentions'), or the company's own statements ('own'). */
   text(kind: 'own' | 'mentions', path: string, names?: string[]): Promise<string[] | null>;
+  /** USAspending.gov's federal contract records; optional. */
+  usaspending?: FedAsk;
   securities: SecurityDef[];
 }
+
+/** The federal records read, as rows of the Filings Read tab. */
+const FED_STEPS: { step: FedStep; form: string }[] = [
+  { step: 'awards', form: 'Federal contracts' },
+  { step: 'subawards', form: 'Subcontracts received' },
+  { step: 'subs', form: 'Subcontracts let' },
+];
 
 async function pool<T>(items: T[], n: number, f: (x: T) => Promise<void>) {
   let i = 0;
@@ -2241,8 +2293,13 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
   const ranked = rankFilers(reports.map((hits) => hits.filter(outside)), company?.cik, MAX_REPORTS, weights);
   const newer = newerReports(reports, ranked.slice(0, MAX_NEWER));
   const theirCurrent = currentDocs(current.map((hits) => hits.filter(outside)), company?.cik, MAX_CURRENT);
+  // The federal contract records of a US-listed company, read beside its filings.
+  const today = new Date().toISOString().slice(0, 10);
+  const fed: Filer[] = company && io.usaspending
+    ? FED_STEPS.map(({ step, form }) => ({ cik: company.cik, name: 'USAspending.gov', tickers: [], form, date: today, path: `usaspending/${step}`, url: 'https://www.usaspending.gov/search', score: 0, terms: 0, state: 'waiting', source: 'federal' }))
+    : [];
   // Read order: its own filings, the 40 likeliest reports, the current reports, then the rest.
-  const docs = [...own, ...ranked.slice(0, 40), ...theirCurrent, ...ranked.slice(40), ...newer];
+  const docs = [...own, ...fed, ...ranked.slice(0, 40), ...theirCurrent, ...ranked.slice(40), ...newer];
   emit((c) => ({ ...c, filers: docs }));
 
   const pattern = targetPattern(names.names.concat(names.legal.map((l) => l.replace(SUFFIX, '').trim())));
@@ -2254,6 +2311,22 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
   const mark = (f: Filer, state: Filer['state'], found?: number) => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === f.path ? { ...x, state, ...(found != null ? { found } : {}) } : x)) }));
   const sentenceNames = [...new Set([...names.names, ...names.legal.map((l) => l.replace(SUFFIX, '').trim())])].slice(0, 8);
   const evidence = (f: Filer, sentence: string): Evidence => ({ sentence, filer: f.name, form: f.form, date: f.date, path: f.path, ...(f.type && f.type !== f.form ? { type: f.type } : {}) });
+
+  const federal = company && io.usaspending
+    ? (async () => {
+        const keys = [...new Set([normalizeName(title), ...names.legal.map(normalizeName)])].filter((k) => k.length >= 3);
+        const selfRe = new RegExp(pattern.source);
+        const got = await federalRelations(io.usaspending!, {
+          keys,
+          self: (n) => selfRe.test(n) || keys.some((k) => { const x = normalizeName(n); return x === k || x.startsWith(`${k} `); }),
+          party: (n) => federalParty(n, dir),
+          normalize: normalizeName,
+          today,
+        }, (step, state, found, url) => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === `usaspending/${step}` ? { ...x, state, ...(found != null ? { found } : {}), ...(url ? { url } : {}) } : x)) })));
+        relations.push(...got.relations);
+        publish();
+      })().catch(() => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.source === 'federal' && x.state !== 'read' ? { ...x, state: 'failed' } : x)) })))
+    : null;
 
   // Unnamed customers' shares come from the newest filing that states them (a quarter's are not the year's).
   const SHARE_ONLY = /^unnamed:\d+$/;
@@ -2278,7 +2351,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     publish();
   }
 
-  await pool(docs.slice(own.length), 3, async (f) => {
+  await pool(docs.slice(own.length + fed.length), 3, async (f) => {
     mark(f, 'reading');
     const sentences = await io.text('mentions', f.path, sentenceNames).catch(() => null);
     let found = 0;
@@ -2311,6 +2384,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     mark(f, sentences ? 'read' : 'failed', found);
     publish();
   });
+  await federal;
 }
 
 function setChain(key: string, f: (c: Chain) => Chain) {
@@ -2348,6 +2422,7 @@ function desktopIO(): ChainIO {
       const res = await bridge.secText!(kind, path, names);
       return res && res.status === 200 ? res.sentences : null;
     },
+    ...(typeof bridge.usaspending === 'function' ? { usaspending: (kind, arg) => bridge.usaspending!(kind, arg) } : {}),
     securities: engine.securities,
   };
 }

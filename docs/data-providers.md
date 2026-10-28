@@ -47,6 +47,7 @@ In the desktop app, every request below goes out from the Electron main process 
 | Clerk of the House | Members' trade reports and annual reports, the yearly index of filings, the member list with party (`CONGRESS`) | The Clerk's ZIP index, PDF reports read with PDF.js in the app, MemberData XML | None | Enabled; asked only while `CONGRESS` is open, after its legal notice |
 | U.S. Senate | Senators with party and state (`CONGRESS`) | senators_cfm.xml | None | Enabled. Senators' disclosures (efdsearch.senate.gov) refuse automated requests: not read |
 | OpenFIGI | The US ticker of each security a 13F lists, by CUSIP or CINS (`HOLDINGS`) | Mapping API v3 | `OPENFIGI_API_KEY` (optional) | Enabled; switch `OPENFIGI_ENABLED` |
+| USAspending.gov (U.S. Treasury) | A company's federal contracts and subcontracts (`SPLC`): agencies and prime contractors as customers, subcontractors as suppliers | API v2 (recipient, recipient children, award search) | None | Enabled (desktop) |
 | TipRanks | Analyst consensus, average price target, Smart Score and recent rating actions (`ANALYSTS`), on request | MCP server | `TIPRANKS_API_KEY` | On request only, 45 calls a month at most, switch `TIPRANKS_ENABLED` |
 | Anthropic | Answers to open questions on the help desk (`MESSAGES`), with the app's own data as tools | Messages API | `ANTHROPIC_API_KEY` | Enabled once the key is set, switch `CLAUDE_HELPDESK_ENABLED`; without it the built-in assistant answers |
 | Binance | | Spot REST API | | Evaluated, not connected (see below) |
@@ -447,6 +448,22 @@ Read on 25 October 2026. The [API documentation](https://www.openfigi.com/api/do
 `HOLDINGS` asks for the US composite listing (`exchCode: "US"`) of each CUSIP in the 13F on screen, its 300 largest holdings, as `ID_CUSIP`, or `ID_CINS` for a foreign issue's code (it starts with a letter: Nebius's N97284108 has no answer as a CUSIP and one as a CINS, checked live). Answers are kept a week on disk (`openfigi-cusips.json` in the app's data folder), a code without a US listing a day. The app keeps to 200 requests a minute with a key and 20 without. Switch: `OPENFIGI_ENABLED`.
 
 One share listed on several exchanges has one share-class FIGI (`shareClassFIGI`): Shell's London and Amsterdam lines share BBG0149N4YG4. An ADR has its own share-class FIGI and OpenFIGI gives no link to the home share and no ADR ratio (checked live on 25 October 2026 for ASML, Shell, TSMC and AB InBev), so it cannot match ADRs to their home shares.
+
+## USAspending.gov
+
+Read on 28 October 2026. The [API home](https://api.usaspending.gov/) says the API "allows the public to access comprehensive U.S. government spending data", which "the federal law" requires to be publicly accessible; it names no key, no request limit and no licence. The records are the federal government's own (prime awards reported under the DATA Act, subawards under FFATA); works of the US government are not under copyright in the US (17 U.S.C. § 105). The [award search contract](https://github.com/fedspendingtransparency/usaspending-api/blob/master/usaspending_api/api_contracts/contracts/v2/search/spending_by_award.md): `recipient_search_text` is "Text searched across a recipient's name, UEI, and DUNS"; `subawards: true` searches subawards instead of awards; `award_ids` matches award numbers (fuzzy unless quoted); `Prime Award Recipient UEI` and `Sub-Recipient UEI` are fields of a subaward.
+
+`SPLC` asks only for a US-listed company, from the main process (`electron/usaspending.cjs`), in this order:
+
+1. `POST /api/v2/recipient/` with the company's name without its legal form ("palantir technologies"), contracts only. Only entries whose name is the company's, once normalized, count: "PALANTIR TECHNOLOGIES INC." is Palantir, "PALANTIR.NET INC" and "APPLIED DIGITAL SOLUTIONS INC" (for Applied Digital Corp) are not.
+2. `GET /api/v2/recipient/children/{UEI}/` for up to four parents of that name: the units SAM.gov files under them ("PALANTIR USG INC" under Palantir Technologies; 217 under Lockheed Martin).
+3. The award search for the 30 largest units' UEIs, ten a request (a longer list answered 503 on 28 October): contracts (types A to D) with activity in the last two years, largest first. `Award Amount` is the amount obligated to date (`total_obligation` on the award's page: $637,552,404.79 for Army task order W9128Z26FA001, checked). Contracts that ended more than a year ago are dropped; the rest are summed by awarding sub-agency (the Army, not the Department of Defense; an office such as "Office of the Chief Financial Officer" with its department).
+4. The same search with `subawards: true`: subcontracts the units received in two years. The prime contractor is the customer, unless it is one of the company's own units (by `Prime Award Recipient UEI`).
+5. Subawards under the company's ten largest running contracts (`award_ids`), five years: the subcontractors are its suppliers, when the prime is one of its units.
+
+A unit of a listed group is named by the group: "NORTHROP GRUMMAN SYSTEMS CORPORATION" is Northrop Grumman (NOC), "GENERAL DYNAMICS LAND SYSTEMS INC." General Dynamics, "BOEING COMPANY, THE" Boeing; others keep the name as written. Records repeated word for word (one Northrop Grumman report to Palantir appears five times) count once. Each answer is kept 12 hours; a request is tried four times, after 2, 4 and 8 seconds, because the API answers 503 or drops the connection at times. Checked live on 28 October 2026: Palantir 31 customers (24 agencies, 7 prime contractors, among them General Dynamics, Northrop Grumman, Booz Allen Hamilton and SAIC); Lockheed Martin 41 customers and 29 suppliers (Northrop Grumman, BAE Systems, Aerojet Rocketdyne, Boeing, Leonardo, Moog, RTX, Honeywell, L3Harris and others); Applied Digital none (no federal contracts under its name).
+
+What it cannot give: contract dollars are obligations over a contract's life, not a share of the company's revenue; subcontract reports are filed by the primes and are incomplete; companies without federal work have no records.
 
 ## Disabled and not reviewed
 

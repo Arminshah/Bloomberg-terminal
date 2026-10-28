@@ -747,6 +747,43 @@ ipcMain.handle('congress-gov', async (event, kind, arg) => {
   return keyedGet('congressgov', req.url, { 'X-Api-Key': key.value, Accept: 'application/json' }, req.ttl, [60, 60_000], [key.value]);
 });
 
+// USAspending.gov (SPLC): a company's federal contracts and subcontracts, kept 12 hours. The API needs no key; it
+// answers 503 or drops the connection at times, so a request is tried four times, waiting 2, 4 and 8 seconds.
+const usaspending = require('./usaspending.cjs');
+const usaspendingKept = new Map();
+ipcMain.handle('usaspending', async (event, kind, arg) => {
+  const req = usaspending.usaspendingRequest(kind, arg);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  const key = `${kind}|${arg}`;
+  const kept = usaspendingKept.get(key);
+  if (kept && Date.now() - kept.at < 12 * 3_600_000) return { ...kept.value, cached: true };
+  let last = { status: 0, rows: [], error: 'no answer' };
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const init = req.method === 'POST' ? { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'User-Agent': clientAgent() }, body: JSON.stringify(req.body) } : { headers: { Accept: 'application/json', 'User-Agent': clientAgent() } };
+      const res = await tracked('usaspending', req.url, { ...init, signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+      if (!res.ok) {
+        last = { status: res.status, rows: [] };
+        if (res.status < 500) break;
+      } else {
+        const rows = usaspending.parseUsaspending(kind, await res.text());
+        if (!rows) {
+          providers.recordProblem('usaspending', 'schema-changed', 'USAspending answered in a format the app does not recognise.');
+          return { status: res.status, rows: [], error: 'format' };
+        }
+        const value = { status: 200, rows };
+        if (usaspendingKept.size > 400) usaspendingKept.delete(usaspendingKept.keys().next().value);
+        usaspendingKept.set(key, { at: Date.now(), value });
+        return value;
+      }
+    } catch (err) {
+      last = { status: 0, rows: [], error: String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 160) };
+    }
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+  }
+  return last;
+});
+
 // A US stock's listings in other countries from OpenFIGI (RELS): two mapping requests, kept a day.
 const figiListings = new Map();
 ipcMain.handle('openfigi-listings', async (event, ticker) => {

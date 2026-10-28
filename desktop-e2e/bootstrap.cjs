@@ -140,6 +140,26 @@ net.fetch = async (input, init) => {
     const hit = (cik, adsh, file, display, date) => ({ _id: `${adsh}:${file}`, _score: 5, _source: { ciks: [cik], display_names: [display], form: '10-K', file_date: date } });
     return json({ hits: { total: { value: 2 }, hits: [hit('0001408710', '0001408710-26-000028', 'fn-20260626.htm', 'Fabrinet  (FN)  (CIK 0001408710)', '2026-08-18'), hit('0002222222', '0002222222-26-000004', 'excl-20251231.htm', 'Example Cloud Inc.  (EXCL)  (CIK 0002222222)', '2026-03-02')] } });
   }
+  // With fixtures.supplyChain, USAspending's records for a synthetic federal footprint of the company: one contract, one
+  // subcontract it received and one it let (electron/usaspending.cjs).
+  if (fixtures.supplyChain && url.hostname === 'api.usaspending.gov') {
+    const body = init?.body ? JSON.parse(String(init.body)) : null;
+    fixtures.calls.usaspending = [...(fixtures.calls.usaspending ?? []), `${init?.method ?? 'GET'} ${url.pathname}${body?.subawards ? ' subawards' : ''}${body?.filters?.award_ids ? ` award_ids=${body.filters.award_ids.join(',')}` : ''}${body?.filters?.recipient_search_text ? ` recipients=${body.filters.recipient_search_text.join(',')}` : ''}${body?.keyword ? ` keyword=${body.keyword}` : ''}`];
+    const day = (days) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+    const prime = { 'Prime Award ID': '89303026FSC000001', prime_award_generated_internal_id: 'CONT_AWD_89303026FSC000001_8900_-NONE-_-NONE-', 'Awarding Agency': 'Department of Energy' };
+    if (url.pathname === '/api/v2/recipient/') return json({ page_metadata: { page: 1, hasNext: false }, results: [{ id: '5e1f0000-0000-4000-8000-000000000001-P', uei: 'NBSFIXTURE01', name: 'NEBIUS GROUP N.V.', recipient_level: 'P', amount: 2_500_000 }, { id: '5e1f0000-0000-4000-8000-000000000002-P', uei: 'NBSFIXTURE02', name: 'NEBIUS GROUP SOLUTIONS INC', recipient_level: 'P', amount: 9_000_000 }] });
+    if (url.pathname === '/api/v2/recipient/children/NBSFIXTURE01/') return json([{ recipient_id: '5e1f0000-0000-4000-8000-000000000001-C', name: 'NEBIUS GROUP N.V.', uei: 'NBSFIXTURE01', amount: 2_500_000 }]);
+    if (url.pathname === '/api/v2/search/spending_by_award/' && body?.subawards && body.filters?.award_ids) {
+      return json({ results: [{ 'Sub-Award ID': 'SYN-2', 'Sub-Awardee Name': 'SYNTHETIC COOLING SYSTEMS LLC', 'Sub-Recipient UEI': 'SYNCOOL00001', 'Sub-Award Amount': 300_000, 'Sub-Award Date': day(-30), 'Prime Recipient Name': 'NEBIUS GROUP N.V.', 'Prime Award Recipient UEI': 'NBSFIXTURE01', 'Sub-Award Description': 'LIQUID COOLING UNITS', ...prime }] });
+    }
+    if (url.pathname === '/api/v2/search/spending_by_award/' && body?.subawards) {
+      return json({ results: [{ 'Sub-Award ID': 'SYN-1', 'Sub-Awardee Name': 'NEBIUS GROUP N.V.', 'Sub-Recipient UEI': 'NBSFIXTURE01', 'Sub-Award Amount': 400_000, 'Sub-Award Date': day(-60), 'Prime Recipient Name': 'MICROSOFT CORPORATION', 'Prime Award Recipient UEI': 'MSFTFIXTURE1', 'Prime Award ID': 'W52P1J26C0001', prime_award_generated_internal_id: 'CONT_AWD_W52P1J26C0001_9700_-NONE-_-NONE-', 'Awarding Agency': 'Department of Defense', 'Sub-Award Description': 'GPU CAPACITY' }] });
+    }
+    if (url.pathname === '/api/v2/search/spending_by_award/') {
+      return json({ results: [{ generated_internal_id: prime.prime_award_generated_internal_id, 'Award ID': prime['Prime Award ID'], 'Recipient Name': 'NEBIUS GROUP N.V.', 'Recipient UEI': 'NBSFIXTURE01', 'Award Amount': 2_500_000, 'Awarding Agency': 'Department of Energy', 'Awarding Sub Agency': 'Department of Energy', 'Start Date': day(-90), 'End Date': day(275), Description: 'SYNTHETIC GPU CLOUD CAPACITY' }] });
+    }
+    return new Response(JSON.stringify({ detail: 'Not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  }
   if (fixtures.supplyChain && url.hostname === 'www.sec.gov' && url.pathname.startsWith('/Archives/edgar/data/')) {
     const docs = {
       '/Archives/edgar/data/1408710/000140871026000028/fn-20260626.htm': '<p>During fiscal year 2026, Cisco Systems, Inc., Nebius Group N.V. and Amazon.com, Inc. contributed 19.9%, 12.5% and 10.5%, respectively, of our revenues.</p>',
