@@ -9,7 +9,7 @@ import { fmtBig, fmtDay, fmtNum, fmtTime } from '../core/format';
 import { engine } from '../data/market';
 import { desktopData } from '../data/live/yahoo';
 import { lookupSecurity } from '../data/live/lookup';
-import { MOVER_LISTS, useMoverList, type Mover, type MoverList } from '../data/live/stock-movers';
+import { MOVER_LISTS, moverVolume, useMoverList, type Mover, type MoverList } from '../data/live/stock-movers';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
@@ -73,7 +73,7 @@ function Range52({ m }: { m: Mover }) {
 export function TOPMOVERS({ route }: FnProps) {
   const [tab, setTab] = useState(() => tabFor(route.args));
   const list = MOVER_LISTS.find((l) => l.n === tab) ?? MOVER_LISTS[0];
-  const { entry, paths } = useMoverList(list.id as MoverList);
+  const { entry, paths, settled } = useMoverList(list.id as MoverList);
   const header = (
     <FnHeader
       code="TOPMOVERS"
@@ -115,8 +115,17 @@ export function TOPMOVERS({ route }: FnProps) {
           { key: 'p', label: 'Price', num: true, render: (m) => <span className="white">{fmtNum(m.price, 2)}</span>, sort: (m) => m.price },
           { key: 'c', label: 'Change', num: true, render: (m) => <span className={sign(m.change)}>{signed(m.change)}</span>, sort: (m) => m.change },
           { key: 'pc', label: 'Change %', num: true, render: (m) => <span className={sign(m.pct)}>{Number.isFinite(m.pct) ? `${signed(m.pct)}%` : ''}</span>, sort: (m) => m.pct },
-          { key: 'v', label: 'Volume', num: true, render: (m) => (m.volume > 0 ? fmtBig(m.volume) : ''), sort: (m) => m.volume },
-          { key: 'av', label: 'Avg Vol (3M)', num: true, title: 'Average daily volume over three months', render: (m) => (m.avgVolume3m > 0 ? fmtBig(m.avgVolume3m) : ''), sort: (m) => m.avgVolume3m, hideN: true },
+          {
+            key: 'v',
+            label: 'Volume',
+            num: true,
+            render: (m) => {
+              const v = moverVolume(m, settled);
+              return v.volume > 0 ? <span title={v.settled ? "Nasdaq's consolidated volume of all US venues for the finished session" : "Yahoo Finance's screener figure; after the close it can be a few percent short of the consolidated total"}>{fmtBig(v.volume)}{v.settled ? '' : <span className="muted">*</span>}</span> : '';
+            },
+            sort: (m) => moverVolume(m, settled).volume,
+          },
+          { key: 'av', label: 'Avg Vol (3M)', num: true, title: "Average daily volume over three months (Yahoo Finance)", render: (m) => (m.avgVolume3m > 0 ? fmtBig(m.avgVolume3m) : ''), sort: (m) => m.avgVolume3m, hideN: true },
           { key: 'mc', label: 'Market Cap', num: true, render: (m) => (m.marketCap > 0 ? <CapLink id={`${m.symbol.replace('.', '/')} US Equity`} symbol={m.symbol}>{fmtBig(m.marketCap)}</CapLink> : ''), sort: (m) => m.marketCap },
           { key: 'pe', label: 'P/E (TTM)', num: true, render: (m) => (m.pe > 0 ? fmtNum(m.pe, 2) : <span className="muted" title="Not meaningful: trailing 12-month earnings are a loss or not given">NM</span>), sort: (m) => m.pe, hideN: true },
           { key: 'y', label: '52 Wk Change %', num: true, render: (m) => <span className={sign(m.change52w)}>{Number.isFinite(m.change52w) ? `${signed(m.change52w)}%` : ''}</span>, sort: (m) => m.change52w },
@@ -124,7 +133,7 @@ export function TOPMOVERS({ route }: FnProps) {
         ]}
       />
       <div className="note">
-        Yahoo Finance&apos;s lists, asked again every minute while open. Prices are Nasdaq&apos;s real-time last sale where Yahoo has it (others delayed 15 minutes). Click a symbol to open the stock; shift-click for the next panel.
+        Yahoo Finance&apos;s lists, asked again every minute while open. Prices are Nasdaq&apos;s real-time last sale where Yahoo has it (others delayed 15 minutes). Volume marked * is Yahoo&apos;s screener figure; from 16:10 New York time the first 30 rows show Nasdaq&apos;s consolidated volume of all US venues for the finished session instead (hover a figure for its source). Click a symbol to open the stock; shift-click for the next panel.
       </div>
     </div>
   );

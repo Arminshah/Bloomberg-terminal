@@ -43,6 +43,12 @@ export function settleDue(day: number, now: number): boolean {
   return day < today || (day === today && Number(p.hour) * 60 + Number(p.minute) >= 16 * 60 + 10);
 }
 
+/** The New York date of a moment, as a day number: the session a US quote time belongs to. */
+export function nyDay(ms: number): number {
+  const p = Object.fromEntries(NY.formatToParts(ms).map((x) => [x.type, x.value]));
+  return dayNum(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day)));
+}
+
 const asked = new Map<string, { at: number; day: number; times: number }>();
 
 /** The US stocks on screen and in watchlists, the first 60. */

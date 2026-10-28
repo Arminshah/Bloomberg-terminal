@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ALLOWED } from '../electron/yahoo-scope.cjs';
-import { moverOf, parseScreener, parseSparkPaths, parseTrending } from '../src/data/live/stock-movers';
+import { moverData, moverOf, moverVolume, parseScreener, parseSparkPaths, parseTrending, settleMovers } from '../src/data/live/stock-movers';
+import { nyDay } from '../src/data/live/settled-volume';
 import { argsWith } from '../src/terminal/legacy';
 
 // Yahoo's most-active list (SpaceX, 21 October 2026), as its screener returns it.
@@ -31,3 +32,31 @@ describe('TOPMOVERS: Yahoo Finance stock lists', () => {
     expect(argsWith('LOSERS', 'X')).toBe('LOSERS X');
   });
 });
+
+describe("TOPMOVERS: the finished session's volume, settled from Nasdaq", () => {
+  // Apple on 27 October 2026: Yahoo's figure 39,051,747 after the close; Nasdaq's historical prices 39,984,400.
+  const close = Date.parse('2026-10-27T20:00:01Z');
+  const aapl = moverOf({ symbol: 'AAPL', longName: 'Apple Inc.', regularMarketPrice: 347.1, regularMarketVolume: 39_051_747, regularMarketTime: close / 1000 })!;
+  const nasdaq = JSON.stringify({ data: { tradesTable: { rows: [{ date: '10/27/2026', close: '$347.10', volume: '39,984,400' }, { date: '10/26/2026', close: '$343.91', volume: '42,743,580' }] } } });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("shows Yahoo's figure, marked as Yahoo's, until the session is settled", () => {
+    expect(moverVolume(aapl, {})).toEqual({ volume: 39_051_747, settled: false });
+    // A settled figure for another session is not this one's.
+    expect(moverVolume(aapl, { AAPL: { day: nyDay(close) - 1, volume: 42_743_580 } })).toEqual({ volume: 39_051_747, settled: false });
+  });
+
+  it("asks Nasdaq only from 16:10 New York time, and then shows its consolidated volume", async () => {
+    const ask = vi.fn(async () => ({ status: 200, text: nasdaq }));
+    vi.stubGlobal('window', { arminDesktop: { nasdaq: ask } });
+    await settleMovers([aapl], Date.parse('2026-10-27T20:05:00Z'));
+    expect(ask).not.toHaveBeenCalled();
+    await settleMovers([aapl], Date.parse('2026-10-27T20:11:00Z'));
+    expect(ask).toHaveBeenCalledWith('historical', 'AAPL');
+    expect(moverVolume(aapl, moverData.get().settled)).toEqual({ volume: 39_984_400, settled: true });
+    // Asked again only after 30 minutes.
+    await settleMovers([aapl], Date.parse('2026-10-27T20:20:00Z'));
+    expect(ask).toHaveBeenCalledTimes(1);
+  });
+});
+

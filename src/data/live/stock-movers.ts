@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { createStore } from '../../core/store';
 import { yahooGet } from './yahoo';
+import { nasdaqTicker } from './nasdaq-book';
+import { nyDay, parseNasdaqDays, settleDue } from './settled-volume';
 
 /**
  * US stock lists as Yahoo Finance's markets pages show them (desktop app): most active, trending, the day's gainers
@@ -101,7 +103,47 @@ interface Entry {
   at: number;
 }
 
-export const moverData = createStore<{ v: number; lists: Partial<Record<MoverList, Entry>>; paths: Record<string, { at: number; c: number[] }> }>({ v: 0, lists: {}, paths: {} });
+/** A finished session's consolidated volume, by symbol: the session (New York day number) and its volume. */
+export type SettledVolumes = Record<string, { day: number; volume: number }>;
+
+export const moverData = createStore<{ v: number; lists: Partial<Record<MoverList, Entry>>; paths: Record<string, { at: number; c: number[] }>; settled: SettledVolumes }>({ v: 0, lists: {}, paths: {}, settled: {} });
+
+/**
+ * The volume a row shows, and whose: Nasdaq's consolidated volume of all US venues for the finished session where the
+ * app has settled it, else Yahoo's screener figure (after the close, often a few percent short: Apple on 27 October
+ * 2026, 39.05M against 39.98M).
+ */
+export function moverVolume(m: Mover, settled: SettledVolumes): { volume: number; settled: boolean } {
+  const s = settled[m.symbol];
+  return s && m.time > 0 && s.day === nyDay(m.time) && s.volume >= (m.volume || 0) ? { volume: s.volume, settled: true } : { volume: m.volume, settled: false };
+}
+
+const settleAsked = new Map<string, { at: number; day: number; times: number }>();
+
+/**
+ * After the close (16:10 New York time), the finished session's volume of the first rows from Nasdaq's historical
+ * prices: each at most every 30 minutes and four times a session, as for the stocks on screen.
+ */
+export async function settleMovers(rows: Mover[], now = Date.now(), max = 30): Promise<void> {
+  const api = typeof window === 'undefined' ? undefined : window.arminDesktop;
+  if (!api?.nasdaq) return;
+  for (const m of rows.slice(0, max)) {
+    if (!(m.time > 0)) continue;
+    const day = nyDay(m.time);
+    if (!settleDue(day, now)) continue;
+    const symbol = nasdaqTicker(`${m.symbol.replace('-', '/')} US Equity`);
+    const a = settleAsked.get(m.symbol);
+    if (!symbol || (a && a.day === day && (a.times >= 4 || now - a.at < 30 * 60_000))) continue;
+    settleAsked.set(m.symbol, { at: now, day, times: a && a.day === day ? a.times + 1 : 1 });
+    try {
+      const res = await api.nasdaq('historical', symbol);
+      const row = res.text ? parseNasdaqDays(res.text).find((r) => r.day === day) : undefined;
+      if (row) moverData.set((s) => ({ ...s, v: s.v + 1, settled: { ...s.settled, [m.symbol]: { day, volume: row.volume } } }));
+    } catch {
+      /* asked again on a later round */
+    }
+  }
+}
 
 const put = (id: MoverList, e: Entry) => moverData.set((s) => ({ ...s, v: s.v + 1, lists: { ...s.lists, [id]: e } }));
 
@@ -128,6 +170,7 @@ async function loadList(id: MoverList, count: number) {
     }
     put(id, { state: 'ok', rows, total, at: Date.now() });
     void loadPaths(rows.map((r) => r.symbol));
+    void settleMovers(rows);
   } catch (err) {
     put(id, { state: 'error', rows: have?.rows ?? [], total: have?.total ?? NaN, message: err instanceof Error ? err.message : String(err), at: Date.now() });
   }
@@ -156,5 +199,5 @@ export function useMoverList(id: MoverList, count = 100) {
     const t = setInterval(() => void loadList(id, count), 60_000);
     return () => clearInterval(t);
   }, [id, count]);
-  return { entry: moverData.get().lists[id], paths: moverData.get().paths, v };
+  return { entry: moverData.get().lists[id], paths: moverData.get().paths, settled: moverData.get().settled, v };
 }
