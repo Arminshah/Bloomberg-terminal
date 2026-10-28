@@ -119,11 +119,21 @@ describe('research fallback and section isolation', () => {
     analysts.mockResolvedValueOnce({ status: 402, text: '', error: 'HTTP 402' });
     expect(await loadAnalystPart('estimates', 'APLD', { analysts })).not.toHaveProperty('transient');
   });
-  it('keeps valid FMP ratings without spending fallback calls; shows both failures when neither works', async () => {
+  it("counts the ratings from Finnhub's latest month first, without spending an FMP call", async () => {
+    // FMP's tally counts every firm's last grade, however old: 112 for Apple on 28 October 2026 against the 49
+    // analysts of Finnhub's October month (11 strong buy, 20 buy, 14 hold, 3 sell, 1 strong sell).
+    const apple = { symbol: 'AAPL', period: '2026-10-01', strongBuy: 11, buy: 20, hold: 14, sell: 3, strongSell: 1 };
+    const finnhubResearch = vi.fn(async () => ({ status: 200, text: JSON.stringify([apple]) }));
+    const analysts = vi.fn(async () => ({ status: 200, text: JSON.stringify([{ symbol: 'AAPL', strongBuy: 1, buy: 69, hold: 33, sell: 9, strongSell: 0, consensus: 'Buy' }]) }));
+    expect(await loadAnalystPart('ratings', 'AAPL', { analysts, finnhubResearch })).toMatchObject({ state: 'ok', source: 'Finnhub', data: { strongBuy: 11, buy: 20, hold: 14, sell: 3, strongSell: 1, period: '2026-10-01' } });
+    expect(analysts).not.toHaveBeenCalled();
+  });
+
+  it("takes FMP's ratings when Finnhub has none; shows both failures when neither works", async () => {
     const finnhubResearch = vi.fn(async () => ({ status: 401, text: '', error: 'HTTP 401' }));
     const analysts = vi.fn(async () => ({ status: 200, text: JSON.stringify([counts]) }));
     expect(await loadAnalystPart('ratings', 'APLD', { analysts, finnhubResearch })).toMatchObject({ state: 'ok', source: 'FMP' });
-    expect(finnhubResearch).not.toHaveBeenCalled();
+    expect(finnhubResearch).toHaveBeenCalledTimes(1);
     analysts.mockResolvedValueOnce({ status: 402, text: '' });
     const failed = await loadAnalystPart('ratings', 'APLD', { analysts, finnhubResearch });
     expect(failed.message).toContain('HTTP 402'); expect(failed.message).toContain('HTTP 401');

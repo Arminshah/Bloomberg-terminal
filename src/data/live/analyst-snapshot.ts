@@ -5,7 +5,7 @@ import type { FinnhubPart, NextReport } from './finnhub';
 /**
  * The analyst figures PROFILE and QUOTE show beside a US stock's own figures, from the parts ANALYSTS and
  * EARNINGS already load (no request of its own): the price target consensus (FMP, else Yahoo), the tally of
- * ratings (FMP, else Finnhub's latest month, else Yahoo's current snapshot) and the next quarter's EPS
+ * ratings (Finnhub's latest month, else FMP, else Yahoo's current snapshot) and the next quarter's EPS
  * estimate with its report date (Finnhub's earnings calendar). Every figure carries its source.
  */
 

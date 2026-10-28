@@ -304,12 +304,23 @@ export async function loadAnalystPart(kind: AnalystKind, symbol: string, api: {
   const safe = async (request: () => Promise<KeyedAnswer>) => {
     try { return await request(); } catch { return { status: 0, text: '', error: 'The research request could not be completed.' }; }
   };
-  const primary = responsePart(await safe(() => api.analysts(kind, symbol)), kind, symbol, 'FMP');
   const usable = (part: AnalystPart) => part.state === 'ok' && (Array.isArray(part.data) ? part.data.length > 0 : !!part.data);
-  if (usable(primary) && !primary.stale) return primary;
+  // The tally of ratings: Finnhub's latest month counts the analysts covering the stock now (Apple in October 2026:
+  // 49, near the 29 to 50 other sources name). FMP's tally counts every firm's last grade, however old (112 for
+  // Apple, 61 for JPMorgan against Finnhub's 30), so it comes second.
+  let early: AnalystPart | undefined;
+  if (kind === 'ratings' && api.finnhubResearch) {
+    early = responsePart(await safe(() => api.finnhubResearch!('ratings', symbol)), kind, symbol, 'Finnhub');
+    if (usable(early) && !early.stale) return early;
+  }
+  const primary = responsePart(await safe(() => api.analysts(kind, symbol)), kind, symbol, 'FMP');
+  if (usable(primary) && !primary.stale) return early ? { ...primary, problems: [early.message ?? 'Finnhub has no recommendation counts for this symbol.'] } : primary;
   const problems = [primary.message ?? `FMP has no ${kind} for this symbol.`];
   let retained = usable(primary) ? primary : undefined;
-  if (kind === 'ratings' && api.finnhubResearch) {
+  if (kind === 'ratings' && early) {
+    if (usable(early) && !retained) retained = early;
+    problems.push(early.message ?? 'Finnhub has no recommendation counts for this symbol.');
+  } else if (kind === 'ratings' && api.finnhubResearch) {
     const fallback = responsePart(await safe(() => api.finnhubResearch!('ratings', symbol)), kind, symbol, 'Finnhub');
     if (usable(fallback) && !fallback.stale) return { ...fallback, problems, message: 'Showing Finnhub recommendation counts.' };
     if (usable(fallback) && !retained) retained = fallback;
