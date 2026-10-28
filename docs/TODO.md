@@ -83,7 +83,6 @@ Plan:
 
 ## Later
 
-- SCREEN: a "top N by a field" criterion (EQS's "Top 20 Sequential Rank", seen on a 2023 screenshot) and a period per criterion (trailing 12 months, latest quarter, latest year), from the figures the app already reads.
 - Functions the reference documents name that the app lacks but could build from free data (class a in `docs/audit-v2.23.0-coverage.md`; all 27 the guides describe are built, section 2a). Next:
   - EQBT with fundamental rules (cheap on earnings, say): it needs each company's figures as they were known at each date. The SEC's XBRL frames give filing dates, so it can be built from them; it is a larger piece of work.
   - Use `docs/audit-v2.23.0-coverage.md`, section 2a, for the later research on those 27 codes: 17 now have public sources, PSRT and OVDV have weaker evidence, and 8 remain unresolved. FXCA is built, and the newly confirmed codes of item 13 were built on 27 October. Research the unresolved codes from accessible written or visual sources before claiming their scope.
@@ -97,6 +96,10 @@ Plan:
 - Blank "--" fields: fill each from a real source or say why it is blank.
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
 - Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
+
+## Done after 2.28.0 was prepared
+
+- SCREEN: a rank criterion, the top N of the stocks the criteria above it left, higher or lower is better (EQS's "Top 20 Sequential Rank, lower is better" on a 2023 screenshot); a period per criterion (P/E and ROE on the trailing 12 months or the latest fiscal year; revenue, EBITDA, net income and margins also on the latest quarter; revenue and EPS growth on the year or the quarter; price change over 1 day to 5 years); new fields from the statements (revenue, EBITDA, net income in dollars, revenue and EPS growth, operating and net margins); criteria move up and down, since a rank depends on what comes before it.
 
 ## Done in 2.28.0 (prepared, not published)
 

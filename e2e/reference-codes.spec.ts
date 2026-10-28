@@ -385,6 +385,39 @@ test('SCREEN joins criteria by AND within a group and OR across groups, says its
   expect(errors).toEqual([]);
 });
 
+test('SCREEN keeps the top N of the stocks the criteria above left, in an order you set, and reads a figure for its period', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'EQS');
+  const panel = page.locator('.panel').first();
+  const rows = panel.locator('tbody tr');
+  const logic = panel.getByTestId('eqs-logic');
+  await panel.getByLabel('Value 1.1').fill('50');
+  await expect(logic).toContainText('Screen: Market value ≥ 50 $bn.');
+  // The table opens sorted by market value, largest first: the three a rank should keep.
+  const firstThree = async () => (await rows.locator('td:nth-child(2)').allTextContents()).slice(0, 3).map((t) => t.trim());
+  await expect.poll(() => rows.count()).toBeGreaterThan(3);
+  const largest = await firstThree();
+  await panel.getByRole('button', { name: '+ And' }).first().click();
+  await panel.getByLabel('Comparison 1.2').selectOption('top');
+  await panel.getByLabel('Value 1.2').fill('3');
+  await expect(logic).toContainText('Market value ≥ 50 $bn and Top 3 by Market value, higher is better');
+  await expect(panel.getByTestId('eqs-left-1.2')).toHaveText('3 left');
+  await expect(rows).toHaveCount(3);
+  expect((await firstThree()).sort()).toEqual([...largest].sort());
+  // Criteria apply in order: moved up, the rank comes first.
+  await panel.getByRole('button', { name: 'Move criterion 1.2 up' }).click();
+  await expect(logic).toContainText('Top 3 by Market value, higher is better and Market value ≥ 50 $bn');
+  await expect(panel.getByTestId('eqs-left-1.1')).toHaveText('3 left');
+  // A figure for a period of its own: P/E on the latest fiscal year, shown in its own column.
+  await panel.getByLabel('Field 1.2').selectOption('pe');
+  await panel.getByLabel('Period 1.2').selectOption('lfy');
+  await panel.getByLabel('Comparison 1.2').selectOption('lte');
+  await panel.getByLabel('Value 1.2').fill('1000');
+  await expect(logic).toContainText('Top 3 by Market value, higher is better and P/E, latest fiscal year ≤ 1000');
+  await expect(panel.locator('thead th', { hasText: 'P/E LFY' })).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
 test("the watchlist's layout: changes, both extended sessions, volumes, YTD and 52 weeks, two range bars, a day chart on the previous close, market value", async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'WATCH');

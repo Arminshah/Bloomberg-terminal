@@ -17,16 +17,23 @@ import {
   describeScreen,
   excludedWord,
   FIELD,
+  fieldText,
+  isRank,
   matchesAfterEach,
   NM,
   OPS,
+  PERIOD_LABEL,
+  PERIOD_SHORT,
+  periodOf,
   PRESETS,
   runScreen,
   SCREEN_FIELDS,
   usCandidates,
+  valueKey,
   type Candidate,
   type Criterion,
   type FieldId,
+  type PeriodId,
   type ScreenDef,
   type ScreenField,
   type ScreenRow,
@@ -47,7 +54,20 @@ const SHOWN: Record<Universe, FieldId[]> = {
   app: ['price', 'cap', 'pe', 'divYld', 'roe', 'beta', 'ytd', 'y1'],
   us: ['price', 'chg', 'cap', 'volume', 'industry', 'country', 'ipoYear'],
 };
-const CATEGORIES: ScreenField['category'][] = ['Market', 'Valuation', 'Profitability', 'Risk and return', 'Classification'];
+const CATEGORIES: ScreenField['category'][] = ['Market', 'Valuation', 'Size and growth', 'Profitability', 'Risk and return', 'Classification'];
+
+/** A column of the results: a field for one period. */
+interface Col {
+  field: FieldId;
+  key: string;
+  period?: PeriodId;
+}
+const colOf = (field: FieldId, period?: PeriodId): Col => ({ field, key: valueKey({ field, period }), period: periodOf({ field, period }) });
+function colLabel(c: Col): string {
+  const f = FIELD[c.field];
+  const p = c.period ? ` ${PERIOD_SHORT[c.period]}` : '';
+  return `${f.label}${p}${f.unit && f.unit !== 'shares' && f.unit !== '$bn' ? ` ${f.unit}` : ''}`;
+}
 const PAGE = 250;
 
 const offered = (u: Universe) => SCREEN_FIELDS.filter((f) => f.from[u]);
@@ -59,13 +79,14 @@ function valueText(id: FieldId, v: number | string | undefined): string {
   const x = numberOf(v);
   if (!Number.isFinite(x)) return '';
   if (id === 'cap') return fmtBig(x * 1e9);
+  if (FIELD[id].unit === '$M') return fmtBig(x * 1e6);
   if (id === 'volume') return fmtBig(x);
   if (id === 'ipoYear') return String(x);
   return fmtNum(x, id === 'price' || id === 'beta' || id === 'divYld' ? 2 : 1);
 }
 
 function Cell({ id, v }: { id: FieldId; v: number | string | undefined }) {
-  if (v === NM) return <span className="muted" title="Not meaningful: a loss">{NM}</span>;
+  if (v === NM) return <span className="muted" title="Not meaningful: a loss, or growth from a loss">{NM}</span>;
   if ((id === 'chg' || id === 'ytd' || id === 'y1') && Number.isFinite(numberOf(v))) return <Chg v={numberOf(v)} pct dec={1} />;
   const text = valueText(id, v);
   return text ? <>{text}</> : <span className="muted" title="The source gives no value" />;
@@ -119,7 +140,8 @@ export function EQS({ route }: FnProps) {
   const left = useMemo(() => matchesAfterEach(cands, s), [cands, s]);
   const fields = offered(s.universe);
   const used = s.groups.flat().map((c) => c.field);
-  const shown = [...SHOWN[s.universe], ...used.filter((f) => !SHOWN[s.universe].includes(f) && f !== 'name' && f !== 'sector')].filter((f, i, a) => a.indexOf(f) === i);
+  // The universe's columns, then each field and period a criterion uses.
+  const shown: Col[] = [...SHOWN[s.universe].map((f) => colOf(f)), ...s.groups.flat().filter((c) => c.field !== 'name' && c.field !== 'sector').map((c) => colOf(c.field, c.period))].filter((c, i, a) => a.findIndex((x) => x.key === c.key) === i);
 
   const setGroups = (groups: Criterion[][]) => setS({ ...s, groups });
   const setCriterion = (gi: number, ci: number, patch: Partial<Criterion>) =>
@@ -127,8 +149,16 @@ export function EQS({ route }: FnProps) {
   const pickField = (gi: number, ci: number, field: FieldId) => {
     const kind = FIELD[field].kind;
     const c = s.groups[gi][ci];
-    setCriterion(gi, ci, FIELD[c.field].kind === kind ? { field } : { field, op: OPS[kind][0].id, value: '', to: undefined });
+    setCriterion(gi, ci, FIELD[c.field].kind === kind ? { field, period: undefined } : { field, op: OPS[kind][0].id, value: '', to: undefined, period: undefined });
   };
+  // Order matters once a rank is in the group: it ranks what the criteria above it left.
+  const moveCriterion = (gi: number, ci: number, by: -1 | 1) =>
+    setGroups(s.groups.map((g, i) => {
+      if (i !== gi || ci + by < 0 || ci + by >= g.length) return g;
+      const next = [...g];
+      [next[ci], next[ci + by]] = [next[ci + by], next[ci]];
+      return next;
+    }));
   const addCriterion = (gi: number) => setGroups(s.groups.map((g, i) => (i === gi ? [...g, { field: 'cap', op: 'gte', value: '' }] : g)));
   const removeCriterion = (gi: number, ci: number) => {
     const groups = s.groups.map((g, i) => (i === gi ? g.filter((_, j) => j !== ci) : g)).filter((g) => g.length > 0);
@@ -185,21 +215,23 @@ export function EQS({ route }: FnProps) {
     .sort((a, b) => b[1] - a[1])
     .map(([f, n]) => `${FIELD[f].label} ${n.toLocaleString('en-US')}`)
     .join(', ');
+  const unrankedText = (Object.entries(out.unranked) as [FieldId, number][]).map(([f, n]) => `${n.toLocaleString('en-US')} without a ${FIELD[f].label.toLowerCase()} could not be ranked`).join('; ');
 
   const columns: Column<ScreenRow>[] = [
     { key: 't', label: 'Ticker', render: (r) => <TickerCell c={r.c} />, sort: (r) => r.c.ticker },
     { key: 'n', label: 'Name', render: (r) => <span className="ellipsis" style={{ display: 'inline-block', maxWidth: 200 }}>{r.c.name}</span>, sort: (r) => r.c.name, hideM: true },
     { key: 'sector', label: 'Sector', render: (r) => <span className="muted">{String(r.c.values.sector ?? '')}</span>, sort: (r) => String(r.c.values.sector ?? ''), hideM: true },
-    ...shown.map((f): Column<ScreenRow> => ({
-      key: f,
-      label: FIELD[f].unit && FIELD[f].unit !== 'shares' && FIELD[f].unit !== '$bn' ? `${FIELD[f].label} ${FIELD[f].unit}` : FIELD[f].label,
+    ...shown.map(({ field: f, key, period }): Column<ScreenRow> => ({
+      key,
+      label: colLabel({ field: f, key, period }),
+      title: period ? `${FIELD[f].label}, ${PERIOD_LABEL[period]}` : undefined,
       num: FIELD[f].kind === 'num',
       hideN: f === 'industry' || f === 'country' || f === 'ipoYear' || f === 'volume',
       render: (r) =>
         f === 'price' && s.universe === 'app' && r.c.id ? <LivePx id={r.c.id} />
           : f === 'cap' && r.c.id && Number.isFinite(numberOf(r.c.values.cap)) ? <CapLink id={r.c.id}>{fmtBig(numberOf(r.c.values.cap) * 1e9)}</CapLink>
-            : <Cell id={f} v={r.c.values[f]} />,
-      sort: (r) => (FIELD[f].kind === 'text' ? String(r.c.values[f] ?? '') : numberOf(r.c.values[f])),
+            : <Cell id={f} v={r.c.values[key]} />,
+      sort: (r) => (FIELD[f].kind === 'text' ? String(r.c.values[key] ?? '') : numberOf(r.c.values[key])),
     })),
     {
       key: 'missing',
@@ -211,10 +243,11 @@ export function EQS({ route }: FnProps) {
   ];
 
   const csv = () => {
-    const cols = fields.filter((f) => f.id !== 'name');
+    // Every field for its default period, then the other periods the criteria use.
+    const cols: Col[] = [...fields.filter((f) => f.id !== 'name').map((f) => colOf(f.id)), ...shown].filter((c, i, a) => a.findIndex((x) => x.key === c.key) === i);
     return [
-      ['Ticker', 'Name', ...cols.map((f) => (f.unit ? `${f.label} (${f.unit})` : f.label)), 'Missing values'],
-      ...out.rows.map((r) => [r.c.ticker, r.c.name, ...cols.map((f) => (f.kind === 'text' ? String(r.c.values[f.id] ?? '') : r.c.values[f.id] === NM ? NM : Number.isFinite(numberOf(r.c.values[f.id])) ? String(numberOf(r.c.values[f.id])) : '')), r.unknown.map((f) => FIELD[f].label).join('; ')]),
+      ['Ticker', 'Name', ...cols.map((c) => { const f = FIELD[c.field]; const p = c.period ? `, ${PERIOD_LABEL[c.period]}` : ''; return f.unit ? `${f.label}${p} (${f.unit})` : `${f.label}${p}`; }), 'Missing values'],
+      ...out.rows.map((r) => [r.c.ticker, r.c.name, ...cols.map((c) => (FIELD[c.field].kind === 'text' ? String(r.c.values[c.key] ?? '') : r.c.values[c.key] === NM ? NM : Number.isFinite(numberOf(r.c.values[c.key])) ? String(numberOf(r.c.values[c.key])) : '')), r.unknown.map((f) => FIELD[f].label).join('; ')]),
     ];
   };
 
@@ -279,6 +312,15 @@ export function EQS({ route }: FnProps) {
                       </optgroup>
                     ))}
                   </select>
+                  {f.periods && (
+                    <select className="sel-inp" aria-label={`Period ${at}`} title="The period the figure covers" value={periodOf(c)} onChange={(e) => setCriterion(gi, ci, { period: e.target.value as PeriodId })}>
+                      {f.periods.map((p) => (
+                        <option key={p} value={p}>
+                          {PERIOD_LABEL[p]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <select className="sel-inp" aria-label={`Comparison ${at}`} value={c.op} onChange={(e) => setCriterion(gi, ci, { op: e.target.value as Criterion['op'] })}>
                     {OPS[f.kind].map((o) => (
                       <option key={o.id} value={o.id}>
@@ -286,7 +328,17 @@ export function EQS({ route }: FnProps) {
                       </option>
                     ))}
                   </select>
-                  <input className="inp" style={{ width: f.kind === 'text' ? 180 : 80 }} aria-label={`Value ${at}`} inputMode={f.kind === 'num' ? 'decimal' : undefined} list={f.kind === 'text' ? listId : undefined} value={c.value} onChange={(e) => setCriterion(gi, ci, { value: e.target.value })} />
+                  <input
+                    className="inp"
+                    style={{ width: f.kind === 'text' ? 180 : isRank(c) ? 50 : 80 }}
+                    aria-label={`Value ${at}`}
+                    placeholder={isRank(c) ? 'N' : undefined}
+                    title={isRank(c) ? `How many stocks to keep: the ${c.op === 'top' ? 'highest' : 'lowest'} by ${fieldText(c)} of those the criteria above left` : undefined}
+                    inputMode={f.kind === 'num' ? (isRank(c) ? 'numeric' : 'decimal') : undefined}
+                    list={f.kind === 'text' ? listId : undefined}
+                    value={c.value}
+                    onChange={(e) => setCriterion(gi, ci, { value: e.target.value })}
+                  />
                   {f.kind === 'text' && (
                     <datalist id={listId}>
                       {(suggestions.get(c.field) ?? []).map((v) => (
@@ -300,7 +352,13 @@ export function EQS({ route }: FnProps) {
                       <input className="inp" style={{ width: 80 }} aria-label={`Upper value ${at}`} inputMode="decimal" value={c.to ?? ''} onChange={(e) => setCriterion(gi, ci, { to: e.target.value })} />
                     </>
                   )}
-                  {f.unit && f.unit !== 'shares' && <span className="muted">{f.unit}</span>}
+                  {f.unit && f.unit !== 'shares' && !isRank(c) && <span className="muted">{f.unit}</span>}
+                  <button type="button" className="link-btn" aria-label={`Move criterion ${at} up`} title="Move up: criteria apply in order" disabled={ci === 0} onClick={() => moveCriterion(gi, ci, -1)}>
+                    ▲
+                  </button>
+                  <button type="button" className="link-btn" aria-label={`Move criterion ${at} down`} title="Move down: criteria apply in order" disabled={ci === g.length - 1} onClick={() => moveCriterion(gi, ci, 1)}>
+                    ▼
+                  </button>
                   <button type="button" className="link-btn" aria-label={`Remove criterion ${at}`} onClick={() => removeCriterion(gi, ci)}>
                     ✕
                   </button>
@@ -360,6 +418,7 @@ export function EQS({ route }: FnProps) {
           (s.missing === 'leave-out'
             ? ` ${out.undecided.toLocaleString('en-US')} left out because a value the screen needs is missing (${missingText}).`
             : ` ${out.undecided.toLocaleString('en-US')} kept although a value the screen needs is missing (${missingText}), marked ?.`)}
+        {unrankedText && ` ${unrankedText}.`}
       </div>
       <DataTable
         rows={out.rows}
@@ -375,7 +434,7 @@ export function EQS({ route }: FnProps) {
       <div className="note pad-s">
         Where the figures come from:{' '}
         {fields
-          .filter((f) => shown.includes(f.id) || used.includes(f.id) || f.id === 'sector')
+          .filter((f) => shown.some((c) => c.field === f.id) || used.includes(f.id) || f.id === 'sector')
           .map((f) => `${f.label}: ${f.from[s.universe]}`)
           .join('. ')}
         .{s.universe === 'us' ? " Nasdaq's list has no P/E, yield, ROE, beta or returns; for those the screen has values only for the stocks the app holds." : ''}
