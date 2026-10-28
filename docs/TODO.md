@@ -98,9 +98,9 @@ Plan:
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
 - Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
 
-## Done in 2.28.0
+## Done in 2.28.0 (prepared, not published)
 
-Released on 28 October 2026 (`docs/release-v2.28.0.md`), at your request once SPLC's coverage and the watchlist were fixed.
+The version and notes are ready (`docs/release-v2.28.0.md`). On 28 October you said to keep coding and release only when you say so; the notes will then take in what came after.
 
 Your priorities of 27 October:
 - SPLC far wider: `e87e66d` the company's own filings read for lenders (credit agreements and their agents, the exhibit list's parties), investors (buyers of its shares or units and their managers), suppliers named for its purchasing and its subsidiaries' deals, a repaid loan's lender dropped; `400b566` two years of its own filings (both annual reports, the quarterly reports since, agreement and financing 8-Ks and their press releases) and of other companies' reports and 8-Ks; `55358fe` federal contracts and subcontracts from USAspending.gov (agencies and prime contractors as customers with the dollars, subcontractors as suppliers). Applied Digital live: 29 relations to 43; Palantir +31 customers, Lockheed Martin +41 customers and +29 suppliers from the federal records.
@@ -222,7 +222,6 @@ From the screenshots of 27 October (`docs/bloomberg-parity.md`, "Screenshots fro
 
 ## Released
 
-- 2.28.0 on 28 October 2026 (`docs/release-v2.28.0.md`), at your request: everything under "Done in 2.28.0".
 - 2.27.0 on 27 October 2026 (`docs/release-v2.27.0.md`), at your request: everything under "Done in 2.27.0".
 - 2.26.0 on 26 October 2026 (`docs/release-v2.26.0.md`), at your request, before the work moved to another account.
 - 2.25.1 on 26 October 2026 (`docs/release-v2.25.1.md`), at your request. 2.25.0 was built but not published (see "Done in 2.25.1").

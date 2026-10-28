@@ -7,7 +7,8 @@ For any Claude session that takes over Armin Terminal, on this account or anothe
 - **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 132 functions.
 - **Repository**: `Arminshah/Bloomberg-terminal`. The owner keeps it private and opens it when a release is built. While it is private, GitHub starts no runner: on 27 October every job failed within seconds, its annotation saying "recent account payments have failed or your spending limit needs to be increased" (the account's Actions minutes for private repositories). Then check everything locally before each push, and before a release ask the owner to open the repository for about half an hour or raise the spending limit.
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
-- **Last release**: 2.28.0 (tag `v2.28.0`, 28 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.28.0.md`. 2.27.0 came the day before.
+- **Last release**: 2.27.0 (tag `v2.27.0`, 27 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.27.0.md`.
+- **2.28.0 is prepared, not published**: the version, notes (`docs/release-v2.28.0.md`) and commit "Release 2.28.0" (`1f27774`) are on the branch. On 28 October the owner said to keep coding and release only when they say so. When they do: update the notes with what came after, ask them to open the repository, and start the workflow with the tag.
 
 ## The objective (the owner's, 26 October 2026)
 
@@ -77,7 +78,7 @@ Done after the morning's handover, each with unit, browser and desktop tests, an
 - The owner sent three archives of public guides with screenshots (a student DES guide of February 2026, a Taiwanese university manual with TSMC's earnings screens of July 2024, a BQuant tutorial with the fixed income search of April 2023). They are not in the repository; a new session needs them sent again to look at the pictures. Every picture inspected, with its source, date, what it shows and the app's status: `docs/bloomberg-parity.md`, "Screenshots from three public guides", which ends with the open questions and what would settle each.
 - Built from them: `e8b56ff` EE's own page (`EARNINGSSUMMARY`, `src/functions/EESummary.tsx`; EARNINGS' report matching is the shared hook `useErnReports` in `src/functions/EE.tsx`), `1b0cefc` the FIGI on DES, `6e1e5bd` the stocks left after each criterion on SCREEN (`matchesAfterEach` in `src/data/screen.ts`).
 
-## 28 October (in 2.28.0)
+## 28 October (in 2.28.0, not yet published)
 
 - The owner found SPLC far too thin (Applied Digital: 2 suppliers, 4 customers) and the watchlist wrong with the IEX price on (volume 892K against about 15M, flat day charts, grey range figures, triangles). Fixed: `e87e66d` and `400b566` read much more of the company's own filings (lenders, investors, suppliers, subsidiaries; two years of reports, agreement 8-Ks and their press releases) and two years of other companies' filings; `55358fe` adds USAspending.gov's federal contract records (`src/data/live/usaspending.ts`, `electron/usaspending.cjs`, documented in `docs/data-providers.md`); `84c8a8d` takes the session's volume, open, high, low and minute bars of all US venues from Yahoo beside IEX's last price (`withConsolidatedDay` in `src/data/live/iex-engine.ts`).
 - `1dcb295` PEERS percentile rank.
