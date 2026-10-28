@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { amount, parseSummaryCompensation, splitNameTitle } from '../electron/proxy-pay.cjs';
 import { executiveRows, sameName } from '../src/functions/MGMT';
+import { isChiefExecutive } from '../src/functions/DESEquity';
 import type { Officer } from '../src/data/live/yfund';
 import type { Person } from '../src/data/live/insiders';
 
@@ -55,5 +56,33 @@ describe('Executive pay from the proxy statement', () => {
     expect(rows[0].person?.heldAfter).toBe(5_874_453);
     expect(rows[1].pay).toMatchObject({ total: 40_480_906, previous: 9_787_555 });
     expect(rows[2].pay).toBeUndefined();
+  });
+
+  it("takes each officer's title from the latest Form 4, adds an officer the profile lacks, and puts the chief executive first", () => {
+    // Apple in October 2026: the proxy statement and the profile still listed Tim Cook as chief executive; his Form 4
+    // filings named him Executive Chair, and John Ternus filed as CEO.
+    const officers: Officer[] = [
+      { name: 'Mr. Timothy D. Cook', title: 'CEO & Director', age: 65, yearBorn: 1960, totalPay: NaN, exercised: NaN, unexercised: NaN, fiscalYear: 2025 },
+      { name: 'Mr. Kevan Parekh', title: 'Senior VP & CFO', age: 53, yearBorn: 1972, totalPay: NaN, exercised: NaN, unexercised: NaN, fiscalYear: 2025 },
+    ];
+    const executives = [{ name: 'Tim Cook', title: 'Chief Executive Officer', years: [{ year: 2025, salary: 3_000_000, total: 74_294_811 }] }];
+    const person = (name: string, secName: string, title: string, last: string) => ({ owner: { name, secName, title, officer: true, director: true }, heldAfter: NaN, netShares: 0, last }) as unknown as Person;
+    const rows = executiveRows(officers, executives, [
+      person('Timothy D Cook', 'COOK TIMOTHY D', 'Executive Chair', '2026-10-02'),
+      person('John Ternus', 'Ternus John', 'CEO', '2026-10-02'),
+      person('Kevan Parekh', 'Parekh Kevan', 'Senior VP & CFO', '2026-10-16'),
+    ]);
+    expect(rows.map((r) => [r.name, r.title])).toEqual([
+      ['John Ternus', 'CEO'],
+      ['Mr. Timothy D. Cook', 'Executive Chair'],
+      ['Mr. Kevan Parekh', 'Senior VP & CFO'],
+    ]);
+    expect(rows[1].listedTitle).toBe('CEO & Director');
+    expect(rows[2].listedTitle).toBeUndefined();
+  });
+
+  it('knows a chief executive by title, not a former or interim one (DES puts them first)', () => {
+    expect(['CEO', 'Chief Executive Officer & Director', 'Chairman, CEO, Secretary & Treasurer'].every(isChiefExecutive)).toBe(true);
+    expect(['Executive Chair', 'Former Chief Executive Officer', 'Interim CEO', 'Senior VP & CFO'].some(isChiefExecutive)).toBe(false);
   });
 });

@@ -122,6 +122,9 @@ function marketValueRep(sec: SecurityDef): number {
 
 // ---------------------------------------------------------------- 1) Profile
 
+/** A chief executive's title, not a former or interim one. */
+export const isChiefExecutive = (title: string) => /\b(?:CEO|Chief Executive)\b/i.test(title) && !/\b(?:former|retired|interim)\b/i.test(title);
+
 /**
  * Total return over the past year in percent, the dividends reinvested on their ex-dates (as TOTALRETURN works it
  * out): from the close a year before the latest session, the session of the last price.
@@ -199,7 +202,10 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
       .sort((a, b) => rank(a.owner.title) - rank(b.owner.title))
       .map((p) => ({ name: p.owner.name, title: p.owner.title || 'Officer' }));
   }, [insiders.result]);
-  const officers = real?.officers.length ? real.officers.slice(0, 3) : eq.ceo ? [{ name: eq.ceo, title: 'Chief Executive Officer' }] : filers.slice(0, 3);
+  // The chief executive first: the profile lists officers by pay, and a newly appointed one comes late (Apple's John
+  // Ternus in October 2026, after the executive chair, the finance chief and the operating chief).
+  const ranked = real?.officers.length ? [...real.officers].sort((a, b) => Number(isChiefExecutive(b.title)) - Number(isChiefExecutive(a.title))) : [];
+  const officers = ranked.length ? ranked.slice(0, 3) : eq.ceo ? [{ name: eq.ceo, title: 'Chief Executive Officer' }] : filers.slice(0, 3);
   const f = real?.float;
   // Outside the US no short interest is published for the whole market: the rows say so instead of dashes.
   const noShortData = engine.realOnly && sec.country !== 'US' && !(f && (Number.isFinite(f.short) || Number.isFinite(f.daysToCover)));

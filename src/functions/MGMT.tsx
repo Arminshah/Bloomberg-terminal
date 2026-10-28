@@ -67,7 +67,11 @@ interface ExecRow {
   /** The Summary Compensation Table's latest year, salary and total. */
   pay?: { year: number; salary: number; total: number; previous?: number };
   person?: Person;
+  /** The title the profile or the proxy gives, when the latest Form 4 names another. */
+  listedTitle?: string;
 }
+
+const CHIEF_EXECUTIVE = /\b(?:CEO|Chief Executive)\b/i;
 
 /** The named executives first (largest pay first), then the other officers in Yahoo's order. */
 export function executiveRows(officers: Officer[], executives: Executive[], people: Person[]): ExecRow[] {
@@ -83,7 +87,23 @@ export function executiveRows(officers: Officer[], executives: Executive[], peop
   for (const r of rows) {
     const hits = people.filter((p) => sameName(r.name, p.owner.name));
     if (hits.length === 1) r.person = hits[0];
+    // The officer's latest Form 4 names the role now; a profile and a proxy statement lag appointments (Apple in
+    // October 2026: Tim Cook still "Chief Executive Officer" in both, "Executive Chair" in his Form 4 filings, with
+    // John Ternus filing as CEO).
+    const filed = r.person?.owner.officer ? r.person.owner.title.trim() : '';
+    if (filed && filed.toLowerCase() !== r.title.trim().toLowerCase()) {
+      r.listedTitle = r.title;
+      r.title = filed;
+    }
   }
+  // Officers who file Form 4 but whom neither the profile nor the proxy lists yet.
+  for (const p of people) {
+    if (!p.owner.officer || !p.owner.title.trim() || rows.some((r) => r.person === p || sameName(r.name, p.owner.name))) continue;
+    rows.push({ name: p.owner.name, title: p.owner.title.trim(), age: NaN, person: p });
+  }
+  // The chief executive first.
+  const ceo = rows.findIndex((r) => CHIEF_EXECUTIVE.test(r.title) && !/\b(?:former|retired|interim)\b/i.test(r.title));
+  if (ceo > 0) rows.unshift(...rows.splice(ceo, 1));
   return rows;
 }
 
@@ -290,7 +310,7 @@ export function MGMT({ sec }: FnProps) {
             numbered
             columns={[
               { key: 'n', label: 'Name', render: (r) => <span className="white">{r.name}</span>, sort: (r) => r.name },
-              { key: 't', label: 'Title', render: (r) => r.title, sort: (r) => r.title },
+              { key: 't', label: 'Title', render: (r) => (r.listedTitle || r.person?.owner.officer ? <span title={`${r.person ? `As the latest Form 4 (${fmtDay(ms(r.person.last))}) gives it` : ''}${r.listedTitle ? `; the profile or proxy statement lists: ${r.listedTitle}` : ''}`}>{r.title}</span> : r.title), sort: (r) => r.title },
               { key: 'a', label: 'Age', num: true, render: (r) => (Number.isFinite(r.age) ? fmtInt(r.age) : ''), sort: (r) => r.age, hideM: true },
               ...(executives.length
                 ? [
