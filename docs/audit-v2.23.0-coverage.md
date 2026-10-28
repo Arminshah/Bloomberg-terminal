@@ -739,7 +739,7 @@ Added 25 October 2026. Codex's list of Bloomberg videos names 41 function codes:
 | BQNT | BQuant apps in Launchpad | b | the provider's development platform |
 | BTM | Options flow monitoring: large options trades, alerts | b | needs trade-by-trade options data (OPRA); Alpaca's free options feed is indicative, with no trade flow |
 | BTST | Trading backtests: historical returns, strategy comparisons, risk statistics | **a** | strategies run on daily price history (Yahoo, as on HISTORY and RETURNS) |
-| CFND | Cross-asset correlations (with HRA) | **a** | CORRELATION's daily-return correlations, searched across a list for the closest |
+| CFND | Cross-asset correlations (with HRA) | **a** | CORRELATION's daily-return correlations, searched across a list for the closest. Built on 28 October as CORRELATION's "Most correlated" view; the code CFND is not mapped to it, since no public page found on 28 October says what CFND shows |
 | CHRT | Chart discovery by company and sector | b | a library of the provider's own published charts |
 | CMGR | Compliance rules: checking investment rules | **a** | limits checked against PORTFOLIO's own holdings (weight of a position, sector or country); no outside data |
 | CRAN | Credit research: issuer credit analysis | b | credit ratings and credit research are licensed content |

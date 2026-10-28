@@ -1,6 +1,6 @@
 import { engine } from './market';
 import { indexAtOrBefore, type Series } from './series';
-import { regress, stdev } from '../finance/stats';
+import { correlation, regress, stdev } from '../finance/stats';
 import { DAY_MS } from './calendar';
 import { IEX_PROVIDER } from './live/iex-engine';
 import { adjustedBeta, defaultBenchmark, lookbackStart, pairedReturns, periodCloses } from '../finance/beta';
@@ -147,6 +147,38 @@ export function alignedReturns(ids: string[], bars: number): { dates: number[]; 
     return out;
   });
   return { dates: dates.slice(1), rets };
+}
+
+export interface CorrelationHit {
+  id: string;
+  /** Pearson correlation of the two daily return series. */
+  corr: number;
+  /** Return intervals the two have in common. */
+  n: number;
+  /** The security's beta to the one searched from: the slope of its returns on that one's. */
+  beta: number;
+}
+
+/**
+ * How closely each candidate's daily returns moved with `target`'s over the last `bars` days, each pair aligned on its
+ * own dates as CORRELATION aligns them (yield changes for rates). A candidate with less than `minShare` of the period
+ * in common (and at least 20 intervals) is not ranked and is counted in `short`.
+ */
+export function correlationSearch(target: string, candidates: readonly string[], bars: number, minShare = 0.6): { hits: CorrelationHit[]; short: number } {
+  const hits: CorrelationHit[] = [];
+  let short = 0;
+  const need = Math.max(20, Math.floor(bars * minShare));
+  for (const id of candidates) {
+    if (id === target) continue;
+    const { rets } = alignedReturns([target, id], bars);
+    const corr = rets[0].length >= need ? correlation(rets[0], rets[1]) : NaN;
+    if (!Number.isFinite(corr)) {
+      short++;
+      continue;
+    }
+    hits.push({ id, corr, n: rets[0].length, beta: regress(rets[0], rets[1]).beta });
+  }
+  return { hits, short };
 }
 
 /** Beta of `id` to `bench` from daily returns. */

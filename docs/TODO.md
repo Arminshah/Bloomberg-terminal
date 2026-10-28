@@ -88,7 +88,7 @@ Plan:
   - Use `docs/audit-v2.23.0-coverage.md`, section 2a, for the later research on those 27 codes: 17 now have public sources, PSRT and OVDV have weaker evidence, and 8 remain unresolved. FXCA is built, and the newly confirmed codes of item 13 were built on 27 October. Research the unresolved codes from accessible written or visual sources before claiming their scope.
 - From Codex's video list, potentially buildable from free data; confirm each workflow from suitable written or visual sources before implementation:
   - BTST: backtests of simple strategies on daily price history (EQBT's engine runs on month-end closes and could take daily ones).
-  - CFND: the securities most correlated with one, from CORRELATION's daily returns.
+  - CFND: the screen itself is not described in any public source found on 28 October, so the code is not mapped; the search it was thought to be is built (below).
   - CMGR: your own limits on a portfolio (weight of a position, sector or country), checked on PORTFOLIO.
 - FINANCIALS: revenue by segment, from the segment tables in the filings' XBRL.
 - CONGRESS: liabilities (Schedule D) for an assets-less-debts range; each member's committees (in the Clerk's member list) beside their trades.
@@ -99,7 +99,9 @@ Plan:
 
 ## Done after 2.28.0 was prepared
 
-- SCREEN: a rank criterion, the top N of the stocks the criteria above it left, higher or lower is better (EQS's "Top 20 Sequential Rank, lower is better" on a 2023 screenshot); a period per criterion (P/E and ROE on the trailing 12 months or the latest fiscal year; revenue, EBITDA, net income and margins also on the latest quarter; revenue and EPS growth on the year or the quarter; price change over 1 day to 5 years); new fields from the statements (revenue, EBITDA, net income in dollars, revenue and EPS growth, operating and net margins); criteria move up and down, since a rank depends on what comes before it.
+- `e39869e` SCREEN: a rank criterion, the top N of the stocks the criteria above it left, higher or lower is better (EQS's "Top 20 Sequential Rank, lower is better" on a 2023 screenshot); a period per criterion (P/E and ROE on the trailing 12 months or the latest fiscal year; revenue, EBITDA, net income and margins also on the latest quarter; revenue and EPS growth on the year or the quarter; price change over 1 day to 5 years); new fields from the statements (revenue, EBITDA, net income in dollars, revenue and EPS growth, operating and net margins); criteria move up and down, since a rank depends on what comes before it.
+
+- CORRELATION's "Most correlated" view: the lines whose daily returns moved most closely with one (or most opposite, or strongest either way) over 3 months to 3 years, among all asset classes or one, with each one's beta and the days in common; the first nine open in the matrix. The S&P 500 future tops SPX's list, the VIX ends it.
 
 ## Done in 2.28.0 (prepared, not published)
 

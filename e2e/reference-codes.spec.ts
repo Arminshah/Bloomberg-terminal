@@ -418,6 +418,27 @@ test('SCREEN keeps the top N of the stocks the criteria above left, in an order 
   expect(errors).toEqual([]);
 });
 
+test('CORRELATION finds the lines that moved most closely with the one loaded, and opens them in the matrix', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'SPX INDEX CORRELATION');
+  const panel = page.locator('.panel').first();
+  await panel.getByRole('button', { name: 'Most correlated', exact: true }).click();
+  const rows = panel.getByTestId('corr-search').locator('tbody tr');
+  // The S&P 500 future first; the volatility index when the order is the most opposite.
+  await expect(rows.first()).toContainText('ES1');
+  await expect(rows).toHaveCount(25);
+  await expect(panel.locator('.note')).toContainText("lines ranked by the correlation of their daily returns with SPX's over 1Y");
+  await panel.getByLabel('Order').selectOption('low');
+  await expect(rows.first()).toContainText('VIX');
+  await panel.getByLabel('Among').selectOption('fx');
+  await expect(rows.first().locator('td').nth(3)).toHaveText('fx');
+  // The first nine beside SPX in the matrix.
+  await panel.getByRole('button', { name: 'Compare the first 9 in the matrix' }).click();
+  await expect(panel.locator('table.tbl tbody tr')).toHaveCount(10);
+  await expect(panel.locator('table.tbl tbody tr').first()).toContainText('SPX');
+  expect(errors).toEqual([]);
+});
+
 test("the watchlist's layout: changes, both extended sessions, volumes, YTD and 52 weeks, two range bars, a day chart on the previous close, market value", async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'WATCH');
