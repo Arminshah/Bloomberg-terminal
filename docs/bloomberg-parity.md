@@ -38,7 +38,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | --- | --- | --- | --- |
 | `PROFILE` | DES security description | Partial: asset-specific profile and fundamentals, float and short interest, source-labelled analyst consensus for US stocks | Global instrument master, identifiers, issue terms and vendor fields are incomplete; no BEst consensus |
 | `FINANCIALS` | FA financial analysis | Partial: reported annual/quarterly statements and ratios | No Bloomberg-standardised global history, restatement database or complete line-item mapping |
-| `ANALYSTS` | ANR analyst research | Partial: independent FMP sections, Finnhub/Yahoo research fallbacks, eight Equibles datasets with automatic estimate fallback, optional on-demand TipRanks consensus/actions | Account/issuer coverage and quota limits; no verified broker-target replacement, broker research documents or complete consensus universe |
+| `ANALYSTS` | ANR analyst research | Partial: independent FMP sections, Finnhub/Yahoo/Nasdaq research fallbacks, links to the insider, short interest, holder, event and news screens (Equibles retired 28 October 2026), optional on-demand TipRanks consensus/actions | Account/issuer coverage and quota limits; no verified broker-target replacement, broker research documents or complete consensus universe |
 | `EARNINGS` | ERN earnings history (EE until 27 October 2026) | Partial: reported EPS/revenue, close-to-close price reaction per report, Finnhub quarterly EPS comparisons and annual estimates | No full quarterly consensus history, estimate contributors or revisions surface |
 | `EARNINGSSUMMARY` | EE earnings and estimates (seen on a July 2024 screenshot) | Partial: the page's boxes 1 to 5 and 7 from the other screens' figures | No research box, options-implied move or peer scorecard |
 | `DIVIDENDS` | DVD dividend analysis | Partial: ex-date cash history with splits, derived yield and 5-year growth | Missing declaration/record/payment dates and comprehensive forecasts/actions |
@@ -212,7 +212,7 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 | FA | E2 | `FINANCIALS` (`FA.tsx`), SEC XBRL | Partial | Segment tables from the latest 10-K only (no quarters, no 20-F filers) |
 | DSCO | E2 (code), E1 (a university guide), E3 (the related functions menu, July 2024: company document search) | `DOCSEARCH` (DS, `DS.tsx`), `FILINGS` | Partial | Document search confirmed by the menu screenshot ("Screenshots from three public guides"); DSCO opens `DOCSEARCH`. No picture of its screen, so what it holds is not established |
 | EE | E2, E3 (July 2024 screenshots) | `EARNINGSSUMMARY` (EE since `e8b56ff`), `EARNINGS` (ERN), `ESTIMATES`, `ESTIMATEGRAPH`, `EARNINGSTREND` | Implemented | Estimates come only from named providers. No research box, options-implied move or peer scorecard |
-| ANR | E2 | `ANALYSTS` (`ANR.tsx`): FMP, Finnhub, TipRanks, Equibles | Implemented | Named providers only |
+| ANR | E2 | `ANALYSTS` (`ANR.tsx`): FMP, Finnhub, Yahoo Finance, Nasdaq, TipRanks | Implemented | Named providers only |
 | BI | E2 | None | Blocked | The provider's own research |
 | LLP | E2 | `LAYOUTS` (LPAD, and LLP since `3951765`); more windows with Ctrl+Shift+N, each keeping its own layout | Partial | Launchpad's own components are not established from the evidence |
 | W | E2 | `WORKSHEET` (`WS.tsx`, `f26fa11`) | Partial | Sheets of securities by the market fields the watchlist offers and 13 fundamentals; other provider fields are not available |

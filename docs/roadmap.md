@@ -124,7 +124,7 @@
 ## Next
 
 1. Finish the data audit: rates against each central bank's file (`BONDS`, `CURVE`, `MONEYMARKET`, `RATEPROBS`, `CENTRALBANKS`) and the market screens (`MARKET`, `FXMATRIX`, `COMMODITIES`, `CRYPTO`, `MOVERS`). NBIS, the 15-stock sample and the economic screens are done.
-2. Validate current providers with securely configured owner keys: especially Equibles APLD coverage, Finnhub research, Alpaca IEX/indicative options, and FMP symbol/endpoint entitlements. Run PROVIDERS research diagnostics; a remaining quota does not grant a premium entitlement.
+2. Validate current providers with securely configured owner keys: especially Finnhub research, Alpaca IEX/indicative options, and FMP symbol/endpoint entitlements. Run PROVIDERS research diagnostics; a remaining quota does not grant a premium entitlement.
 3. Japan's unemployment from the Statistics Bureau (the OECD series runs a month behind) and its CPI, which needs an e-Stat key.
 4. Release times for US economic data from the agencies' own schedules, if their terms allow automated reading.
 5. Holiday calendars for London, Xetra and Tokyo beyond 2027 (NYSE and Euronext follow their rules for any year).

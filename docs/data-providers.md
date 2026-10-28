@@ -39,7 +39,6 @@ In the desktop app, every request below goes out from the Electron main process 
 | Twelve Data | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `TWELVE_DATA_API_KEY` | Off until the key is set and `TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED` is on |
 | Tiingo | Second source for US stock daily closes (`CROSSCHECK`) | REST API | `TIINGO_API_KEY` | Enabled once the key is set, switch `TIINGO_ENABLED` |
 | Financial Modeling Prep | Analyst price targets, ratings, rating actions and annual estimates (`ANALYSTS`, `EARNINGS`) | Stable REST API | `FMP_API_KEY` | Enabled once the key is set, switch `FMP_ENABLED` |
-| Equibles | Analyst-estimate reports, guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news (`ANALYSTS`) | Read-only MCP Streamable HTTP | `EQUIBLES_API_KEY` | One automatic estimate fallback; other reports on request; switch `EQUIBLES_ENABLED` |
 | Finnhub | Market, merger and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`); US company profiles and ratios when Yahoo's summary is refused (`PROFILE`), recommendation trends (`ANALYSTS`), EPS surprises, the past year's reports with revenue expected and reported, and the next report (`EARNINGS`); companies in the same sub-industry (`PEERS`) | REST API | `FINNHUB_API_KEY` | Enabled once the key is set, switch `FINNHUB_ENABLED` |
 | Marketaux | News tagged with tickers, with sentiment (`MARKETNEWS`, `COMPANYNEWS`) | REST API | `MARKETAUX_API_TOKEN` | Enabled once the token is set, switch `MARKETAUX_ENABLED` |
 | MarketWatch | Top stories headlines (`MARKETNEWS`) | RSS | None | Off until `MARKETWATCH_RSS_ENABLED` is on (Dow Jones terms) |
@@ -324,17 +323,22 @@ The app asks only from `CROSSCHECK`: at most one request a minute, 40 an hour an
 
 The tally of ratings comes first from Finnhub's documented `/stock/recommendation?symbol=` endpoint with `X-Finnhub-Token`, its latest month. The data audit of 28 October 2026 found FMP's `grades-consensus` counting every firm's last grade however old: 112 ratings for Apple, 79 for NVIDIA, 61 for JPMorgan, against Finnhub's 49, 69 and 30 for October (Nasdaq named 29, 39 and 24 analysts). FMP's tally is used only when Finnhub's fails, is missing, empty or stale. Its official schema was read on October 18, 2026; unlike Finnhub price targets, upgrades and EPS estimates, this endpoint has no premium marker. Counts must be nonnegative integers for the requested symbol and a valid monthly period. The original period and source are shown; the app does not invent a consensus word or price target from the counts. Both providers' failures are retained if neither answers. This still requires a working Finnhub REST key: its webhook secret cannot authenticate data requests. Version 2.7.2 removes the old repeated-prefix heuristic that shortened valid 40-character REST keys. Complete keys are preserved after whitespace trimming. Re-save a rejected key after upgrading; a saved truncated value cannot be reconstructed. Explicitly webhook-labelled entries remain rejected.
 
-### Equibles research
+### Equibles (retired)
 
-The live public MCP `initialize` and `tools/list` responses at `https://mcp.equibles.com/mcp` were verified on October 18, 2026. The public catalogue includes `GetAnalystEstimates`, a newer tool absent from the earlier README. It prefers company-published consensus and can fall back to compiled consensus; original source labels, units, accounting basis and snapshot dates remain in the report. There is no verified broker price-target replacement in this integration.
+Equibles was retired on 28 October 2026 at the owner's request: its answers were unreliable. The app sends it no request, has no switch or key for it, and deletes an Equibles key or switch saved by an earlier version when it starts. What its eight reports covered, and where the app has it instead:
 
-Eight explicitly selected read-only tools are available on `ANALYSTS`: `GetAnalystEstimates`, `GetGuidance`, `GetCompanyKpis`, `ListInvestorEvents`, `GetInsiderTransactions`, `GetShortInterest`, `GetTopHolders` and `GetInvestorRelationsNews`. The adapter discovers the actual argument schema before calling a tool, validates a single ticker, and refuses missing/ambiguous schemas or any other tool name. The page cannot supply URLs or arbitrary MCP methods. Quotes/options and portfolio writes are not added through Equibles.
+| Equibles report | In the app now | Source |
+| --- | --- | --- |
+| Analyst estimates | ANALYSTS, "Estimates, by fiscal year" | FMP, then Yahoo Finance, then Nasdaq (EPS) and Alpha Vantage; marked "not available" when none has the company |
+| Insider trades | INSIDERS | The insiders' SEC Form 4 filings |
+| Short interest | SHORTINTEREST | FINRA's settlements (Nasdaq's page) |
+| Institutional holders | HOLDERS, HOLDINGS | Yahoo Finance and Nasdaq; SEC 13F filings |
+| Investor events | EVENTS | Nasdaq, Yahoo Finance, SEC filings |
+| IR news | COMPANYNEWS, FILINGS | Finnhub, Alpaca, Massive, Marketaux; 8-K filings |
+| Guidance | Not available | No source the app uses publishes it reliably; the results releases are on FILINGS |
+| Company KPIs | Not available | No source the app uses publishes them reliably |
 
-The main process handles JSON/SSE responses, matching JSON-RPC replies, stateful sessions, bounded discovery, concurrent deduplication, account-scoped caches, rate limits and stale results. It cancels an SSE reader once the reply arrives; a persistent stream does not hold up the screen. Report text is shown as text: HTML and remote instructions never execute. Model/AI qualifications and as-filed versus restated figures stay verbatim. Each request shows the first available page, up to 20 rows where supported; the UI does not claim full history or transcript text.
-
-The [hosted documentation](https://github.com/daniel3303/stock-market-mcp-server#pricing--rate-limits) advertises a free 100-request/day allowance shared by REST, MCP and other clients, resetting at midnight UTC. This app conservatively counts **all** MCP transport requests, including initialization/discovery, against a persisted 90/day cap. One analyst-estimate report can load automatically when structured annual estimates are unavailable; other queries remain manual. Six-hour in-memory caching and ten transport requests/minute still apply. Limits and refusals remain visible. The user's secret is not bundled or copied from chat into files.
-
-An unauthenticated APLD estimates call returned HTTP 401 (missing key). With the owner's key, the self-test's Apple estimates request received a research report on 25 October 2026; coverage of other tickers is shown on `ANALYSTS` per request. The research access check tests five endpoints for the requested ticker; a cached response is explicitly distinguished from a fresh access check. The all-source self-test also includes Equibles and shares the ordinary keyed broker's caps, pacing and refusal handling.
+Eulerpool is not a replacement: it stays evaluation-only until its reliability, coverage and terms are shown.
 
 ## Market and company news
 

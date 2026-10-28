@@ -31,7 +31,6 @@ interface Fixtures {
   researchBlocked: boolean;
   profileMissing: boolean;
   mixedEstimateCurrencies: boolean;
-  equiblesRefusal: boolean;
   newsStories: boolean;
   plantedNews?: boolean;
   newsAgeMs: number;
@@ -61,7 +60,7 @@ interface Fixtures {
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   segments?: boolean;
-  calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -102,6 +101,7 @@ const test = base.extend<{ desktop: Desktop; sourceDotEnv: boolean }>({
           FMP_ENABLED: 'true', EQUIBLES_ENABLED: 'true', MARKETAUX_ENABLED: 'true', ALPACA_ENABLED: 'true',
           FMP_API_KEY: 'DesktopFixtureKey1234567890',
           FINNHUB_API_KEY: 'abcd1234efgh5678ij90abcd1234efgh5678kl12',
+          // A retired source's key and switch left in the environment: the app must ignore both.
           EQUIBLES_API_KEY: 'eq_DesktopFixtureEquibles1234567890',
           TIPRANKS_API_KEY: 'tr_live_DesktopFixtureTipRanks0001',
           MARKETAUX_API_TOKEN: 'DesktopFixtureToken1234567890',
@@ -1359,36 +1359,18 @@ test('HTTP 200 provider refusals cross desktop IPC as errors and are never cache
   }
 });
 
-test('research remains usable across FMP 402s, Finnhub fallback and manual Equibles reports', async ({ desktop: { app, page } }) => {
+test('research remains usable across FMP 402s and the Finnhub fallback, each row with its own source', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.researchPartial = true; process.env.FINNHUB_ENABLED = 'true'; });
   await command(page, 'AAPL ANALYSTS');
   await page.getByText('Research source availability', { exact: true }).click();
+  // The owner's wording of 28 October 2026: FMP's refusal in plain words, without its own error text.
   await expect(page.getByText("FMP's plan does not cover AAPL", { exact: false }).first()).toBeVisible();
+  await expect(page.getByTestId('research-coverage')).not.toContainText('Premium subscription');
   await expect(page.getByText('Source: Finnhub', { exact: false }).first()).toContainText('recommendation period 01/10/2026');
   await expect(page.getByRole('cell', { name: '1.25', exact: true })).toBeVisible();
   expect((await calls(app)).finnhub.some((url) => new URL(url).pathname === '/api/v1/stock/recommendation')).toBe(true);
-  expect((await calls(app)).equibles).toHaveLength(0);
-  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
-  await expect(page.getByTestId('equibles-report')).toContainText('AAPL · GetAnalystEstimates');
-  await expect(page.getByTestId('equibles-report')).toContainText('<script>');
-  await expect(page.getByText('Source: Equibles', { exact: false })).toBeVisible();
-  expect((await calls(app)).equibles.map((r) => r.method)).toEqual(['initialize', 'notifications/initialized', 'tools/list', 'tools/call']);
-  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true })).toBeEnabled();
-  expect((await calls(app)).equibles).toHaveLength(4); // The valid answer is reused, with its original timestamp.
-  await page.getByRole('button', { name: 'Insider trades', exact: true }).click();
-  await page.getByRole('button', { name: 'Load Insider trades for AAPL', exact: true }).click();
-  await expect(page.getByTestId('equibles-report')).toContainText('GetInsiderTransactions');
-  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call').map((r) => r.params.name)).toEqual(['GetAnalystEstimates', 'GetInsiderTransactions']);
-  const rejected = await page.evaluate(async () => {
-    try { await window.arminDesktop!.equibles!('DeletePortfolio' as 'estimates', 'AAPL'); return false; } catch { return true; }
-  });
-  expect(rejected).toBe(true);
-  await page.getByRole('button', { name: 'Retry analyst research', exact: true }).click();
-  await expect(page.getByTestId('equibles-report')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
-  await expect(page.getByTestId('equibles-report')).toContainText('GetAnalystEstimates');
-  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(2);
+  await expect(page.getByTestId('more-research')).toContainText('Company guidance');
+  expect((await calls(app)).retired).toEqual([]);
 });
 
 test('a company typed by its name is found and opened, with the function typed after it', async ({ desktop: { app, page } }) => {
@@ -1428,7 +1410,7 @@ test('APLD research recovers from both reported provider refusals and lookup sur
   await expect(page.getByText('Current snapshot', { exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: '-0.25 USD', exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: '0.00 USD', exact: true }).first()).toBeVisible();
-  expect((await calls(app)).equibles).toHaveLength(0);
+  expect((await calls(app)).retired).toEqual([]);
   const bundle = (await calls(app)).yahoo.filter((path) => path.startsWith('/v10/finance/quoteSummary/APLD?') && path.includes('earningsTrend'));
   expect(bundle).toHaveLength(1);
   await expect(page.getByTestId('research-coverage').locator('details')).not.toHaveAttribute('open');
@@ -1519,27 +1501,19 @@ test('foreign issuer research retains separate local revenue and dollar EPS unit
   await expect(page.getByRole('cell', { name: '-0.25 USD', exact: true })).toBeVisible();
 });
 
-test('Equibles automatically loads one estimate report when structured research has no coverage', async ({ desktop: { app, page } }) => {
+// Equibles was retired on 28 October 2026 at the owner's request (unreliable): with its key and switch still in the
+// environment, nothing is asked of it, the bridge offers no way to, and no screen or report names it.
+test('Equibles is retired: no request, no bridge, no research section, even with research blocked', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.researchBlocked = true; });
   await command(page, 'APLD ANALYSTS');
-  await expect(page.getByTestId('equibles-report')).toContainText('APLD · GetAnalystEstimates');
-  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(1);
+  await expect(page.getByTestId('more-research')).toBeVisible();
   await page.getByRole('button', { name: 'Retry analyst research', exact: true }).click();
-  await expect(page.getByTestId('equibles-report')).toContainText('APLD · GetAnalystEstimates');
-  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(1);
-});
-
-test('Equibles tool refusals stay visible and can recover without caching the refusal', async ({ desktop: { app, page } }) => {
-  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.equiblesRefusal = true; });
-  await command(page, 'AAPL ANALYSTS');
-  await expect(page.getByRole('status')).toContainText('Subscription does not include this research.');
-  await expect(page.getByTestId('equibles-report')).toHaveCount(0);
+  await expect(page.getByTestId('more-research')).toBeVisible();
+  await expect(page.getByText('Equibles', { exact: false })).toHaveCount(0);
+  expect(await page.evaluate(() => 'equibles' in window.arminDesktop!)).toBe(false);
   const report = await page.evaluate(() => window.arminDesktop!.providersStatus!());
-  expect(report.providers.equibles.lastErrorKind).toBe('not-entitled');
-  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.equiblesRefusal = false; });
-  await page.getByRole('button', { name: 'Load Analyst estimates for AAPL', exact: true }).click();
-  await expect(page.getByTestId('equibles-report')).toContainText('GetAnalystEstimates');
-  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(2);
+  expect(Object.keys(report.providers)).not.toContain('equibles');
+  expect((await calls(app)).retired).toEqual([]);
 });
 
 test('TipRanks answers only on request, shows the free usage check and its credit, and never shows the key', async ({ desktop: { app, page } }) => {
@@ -1569,21 +1543,22 @@ test('provider research checks report access for each APLD endpoint instead of a
   await expect(page.getByRole('textbox', { name: 'Research test ticker' })).toHaveValue('APLD');
   await page.getByRole('button', { name: 'Test research access', exact: true }).click();
   const results = page.getByRole('table', { name: 'Research access results for APLD' });
-  await expect(results.getByRole('row')).toHaveCount(7);
+  // Header, three FMP datasets, Finnhub and Yahoo: Equibles, retired on 28 October 2026, has no row.
+  await expect(results.getByRole('row')).toHaveCount(6);
   await expect(results.getByRole('row').filter({ hasText: 'FMP price targets' })).toContainText('Denied');
   await expect(results.getByRole('row').filter({ hasText: 'FMP annual estimates' })).toContainText('Answered');
   await expect(results.getByRole('row').filter({ hasText: 'Finnhub recommendation counts' })).toContainText('Answered');
-  await expect(results.getByRole('row').filter({ hasText: 'Equibles analyst estimates' })).toContainText('Answered');
-  expect((await calls(app)).equibles.find((r) => r.method === 'tools/call')?.params.arguments?.ticker).toBe('APLD');
+  await expect(results).not.toContainText('Equibles');
+  expect((await calls(app)).retired).toEqual([]);
 });
 
-test('the inherited all-source self-test includes Equibles, detects refusals and keeps reports free of keys', async ({ desktop: { app, page } }) => {
+test('the inherited all-source self-test detects refusals, keeps reports free of keys and asks no retired source', async ({ desktop: { app, page } }) => {
   const report = await page.evaluate(() => window.arminDesktop!.providersSelfTest!());
   expect(report.results.find((r) => r.id === 'fmp')).toMatchObject({ state: 'fail', detail: expect.stringContaining(FMP_ERROR) });
-  expect(report.results.find((r) => r.id === 'equibles-estimates')).toMatchObject({ state: 'pass', detail: expect.stringContaining('Research report received') });
+  expect(report.results.some((r) => /equibles/i.test(`${r.id} ${r.label}`))).toBe(false);
   expect(report.report).not.toContain('DesktopFixture');
   expect(report.report).not.toContain('https://');
-  expect((await calls(app)).equibles.filter((r) => r.method === 'tools/call')).toHaveLength(1);
+  expect((await calls(app)).retired).toEqual([]);
 });
 
 test('the self-test maps a CUSIP on OpenFIGI, with or without a key, and reads the House Clerk\'s index', async ({ desktop: { app, page } }) => {

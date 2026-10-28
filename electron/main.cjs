@@ -1059,9 +1059,7 @@ const fmp = require('./fmp.cjs');
 const news = require('./news.cjs');
 const alpaca = require('./alpaca.cjs');
 const { optionChainRequest, optionChainProblem } = require('./option-chain.cjs');
-const equibles = require('./equibles.cjs');
 const { finnhubResearchRequest } = require('./finnhub-research.cjs');
-const equiblesClient = equibles.createEquiblesClient({ providers, fetch: (url, init) => net.fetch(url, init), agent: clientAgent, refresh });
 
 // Credential-scoped cache, deduplication, retries, quotas and provider-body errors are tested
 // independently of Electron in requests.test.ts. Never count HTTP-200 error bodies as success.
@@ -1111,14 +1109,6 @@ ipcMain.handle('finnhub-research', async (event, kind, symbol, fresh) => {
   const key = usableKey('FINNHUB_API_KEY', 'finnhub');
   if (!key.value) return { status: 0, text: '', ...key };
   return keyedGet('finnhub', url, { 'X-Finnhub-Token': key.value }, fresh === true ? 0 : 6 * 3_600_000, [30, 60_000], [key.value]);
-});
-
-ipcMain.handle('equibles', async (event, kind, symbol, fresh) => {
-  if (!fromApp(event) || !equibles.validRequest(kind, symbol)) throw new Error('not allowed');
-  if (!providers.setting('EQUIBLES_ENABLED').value) return { status: 0, text: '', gated: 'EQUIBLES_ENABLED' };
-  const key = usableKey('EQUIBLES_API_KEY', 'equibles');
-  if (!key.value) return { status: 0, text: '', ...key };
-  return equiblesClient.research(kind, symbol, key.value, false, fresh === true);
 });
 
 const tipranks = require('./tipranks.cjs');
@@ -1606,21 +1596,6 @@ ipcMain.handle('providers:selftest', async (event) => {
       results.push({ ...base, state: 'fail', status: 0, ms: Date.now() - t0, detail: keyNote + why.slice(0, 160) });
     }
   }
-  const eqBase = { id: 'equibles-estimates', label: 'Equibles analyst estimates (Apple; coverage varies by issuer)' };
-  if (!providers.setting('EQUIBLES_ENABLED').value) results.push({ ...eqBase, state: 'off', detail: 'switched off (EQUIBLES_ENABLED)' });
-  else {
-    const key = usableKey('EQUIBLES_API_KEY', 'equibles');
-    if (!key.value) results.push({ ...eqBase, state: key.missing ? 'skip' : 'fail', detail: key.missing ? 'no EQUIBLES_API_KEY set' : 'EQUIBLES_API_KEY has the wrong format' });
-    else {
-      const start = Date.now();
-      try {
-        const answer = await equiblesClient.research('estimates', 'AAPL', key.value);
-        const pass = !!answer.text && !answer.stale;
-        results.push({ ...eqBase, state: pass ? 'pass' : 'fail', status: answer.status, ms: Date.now() - start,
-          detail: pass ? `Research report received${answer.cached ? ' from cache; no new account-access check' : ''}; inspect ANALYSTS for coverage and source dates.` : providers.providerMessage(JSON.stringify({ message: answer.budget ? 'Daily request cap reached.' : answer.error ?? 'No research report received.' }), [key.value]) });
-      } catch { results.push({ ...eqBase, state: 'fail', status: 0, ms: Date.now() - start, detail: 'Equibles research request could not be completed.' }); }
-    }
-  }
   const run = { at: now, version: app.getVersion(), platform: `${process.platform} ${process.arch}, Electron ${process.versions.electron}`, results };
   return { ...run, report: selftest.reportText(run) };
 });
@@ -1780,6 +1755,8 @@ if (!app.requestSingleInstanceLock()) {
   // Launching the app again opens another terminal window.
   app.on('second-instance', () => createWindow());
   app.whenReady().then(() => {
+    // A retired source's saved key and switch (Equibles) are deleted.
+    providers.forgetRetired();
     // With Yahoo prices switched off, nothing reaches Yahoo: not even the page's own streaming socket.
     session.defaultSession.webRequest.onBeforeRequest({ urls: ['wss://streamer.finance.yahoo.com/*', 'https://*.yahoo.com/*'] }, (_details, done) => done({ cancel: !yahooEnabled() }));
     // macOS needs a menu for Cmd+Q and the clipboard; other platforms get none.

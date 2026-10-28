@@ -31,7 +31,6 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   eod: (provider, ticker, from, to) => ipcRenderer.invoke('eod', String(provider), String(ticker), String(from), String(to)),
   analysts: (kind, symbol, fresh) => ipcRenderer.invoke('analysts', String(kind), String(symbol), fresh === true),
   finnhubResearch: (kind, symbol, fresh) => ipcRenderer.invoke('finnhub-research', String(kind), String(symbol), fresh === true),
-  equibles: (kind, symbol, fresh) => ipcRenderer.invoke('equibles', String(kind), String(symbol), fresh === true),
   tipranks: (kind, ticker) => ipcRenderer.invoke('tipranks', String(kind), String(ticker)),
   assistant: (messages) => ipcRenderer.invoke('assistant', messages),
   finnhub: (kind, symbol) => ipcRenderer.invoke('finnhub', String(kind), String(symbol)),

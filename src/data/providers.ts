@@ -22,7 +22,6 @@ export type Credential =
   | 'ALPACA_API_KEY_ID'
   | 'ALPACA_API_SECRET_KEY'
   | 'FMP_API_KEY'
-  | 'EQUIBLES_API_KEY'
   | 'OPENFIGI_API_KEY'
   | 'TIPRANKS_API_KEY'
   | 'CONGRESS_GOV_API_KEY'
@@ -636,20 +635,6 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
-    id: 'equibles',
-    name: 'Equibles',
-    serves: 'On-request analyst consensus estimates, guidance, KPIs, investor events, insider trades, FINRA short interest, 13F holders and IR news on ANALYSTS',
-    dataClass: 'Filed/reported research and provider analysis, as labelled in each report; distinct from broker consensus',
-    policy: 'needs-credential', credential: 'EQUIBLES_API_KEY', setting: 'EQUIBLES_ENABLED', limit: '10',
-    terms: 'Hosted free tier: 100 requests/day shared across REST, MCP and other clients, resetting at midnight UTC. This app caps all MCP transport requests at 90/day, discovers server schemas, sends only read-only research queries, and caches answers in memory for six hours. Public live tool discovery was verified on 18 October 2026, including analyst estimates; authenticated account coverage remains unverified. No portfolio writes or automatic polling. Hosted service terms apply.',
-    docs: [
-      { label: 'API documentation', url: 'https://equibles.com/docs/api' },
-      { label: 'Hosted tools and limits', url: 'https://github.com/daniel3303/stock-market-mcp-server' },
-      { label: 'Service terms', url: 'https://equibles.com/legal/terms' },
-    ],
-    checked: '2026-10-18', desktop: true,
-  },
-  {
     id: 'house-clerk',
     name: 'Clerk of the House (financial disclosures)',
     serves: "CONGRESS: the House's member list with party and seat, the yearly index of members' financial disclosures, and each periodic transaction report and annual report, read from its PDF in the app (reports filed on paper are scans: linked only)",
@@ -951,7 +936,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'EQUIBLES_ENABLED' | 'OPENFIGI_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED' | 'GOOGLE_NEWS_RSS_ENABLED' | 'MASSIVE_NEWS_ENABLED' | 'CLAUDE_HELPDESK_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'OPENFIGI_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED' | 'GOOGLE_NEWS_RSS_ENABLED' | 'MASSIVE_NEWS_ENABLED' | 'CLAUDE_HELPDESK_ENABLED';
 
 export interface SettingState {
   label: string;

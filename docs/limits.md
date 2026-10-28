@@ -44,7 +44,7 @@ The main process keeps answers for a while (`electron/requests.cjs`, the SEC cac
 
 Not asked again:
 
-- Marketaux, Financial Modeling Prep, Equibles, Alpha Vantage, Twelve Data and Tiingo keep answers younger than an hour: their daily allowances are small, and a click must not spend them. An older answer is asked for again, within the daily ceiling;
+- Marketaux, Financial Modeling Prep, Alpha Vantage, Twelve Data and Tiingo keep answers younger than an hour: their daily allowances are small, and a click must not spend them. An older answer is asked for again, within the daily ceiling;
 - TipRanks is asked only when you ask on `ANALYSTS` (50 calls a month), and CoinGecko's market caps every 10 minutes (10,000 calls a month);
 - what changes rarely or never: daily history already loaded, `CROSSCHECK`'s closes of completed sessions (kept an hour), the SEC's company list and filed documents, peer groups, index members and the index ETFs' dividends.
 

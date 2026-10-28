@@ -49,7 +49,7 @@ const currencyTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tes
 const chartTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-sofi-chart.json'), 'utf8'));
 const tipranksTools = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/tipranks-tools.json'), 'utf8')).tools;
 const fullFinnhubKey = 'abcd1234efgh5678ij90abcd1234efgh5678kl12';
-const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, equiblesRefusal: false, newsStories: false, newsAgeMs: 3_600_000, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], alpacaNews: [], google: [], finnhub: [], equibles: [], yahoo: [], tipranks: [] } };
+const fixtures = { tradeAgeMs: 0, optionPageFailure: false, optionMalformed: false, optionContractCount: 1, researchPartial: false, researchBlocked: false, profileMissing: false, mixedEstimateCurrencies: false, newsStories: false, newsAgeMs: 3_600_000, calls: { fmp: 0, marketaux: 0, alpaca: [], options: [], alpacaNews: [], google: [], finnhub: [], retired: [], yahoo: [], tipranks: [] } };
 globalThis.__desktopFixtures = fixtures;
 // With fixtures.listingsDown, Nasdaq's stock list fails and Yahoo's quotes carry the week's trading instead: last price
 // and shares traded as the stock list would give them (fixtures.weekCalendar).
@@ -529,16 +529,10 @@ net.fetch = async (input, init) => {
       : [{ recommendationDate: '10/14/2026', analystName: 'Synthetic Analyst', firm: 'Fixture Securities', rating: 'Buy', action: 'reiterated', priceTarget: 250, numOfStars: 4.5 }];
     return sse({ jsonrpc: '2.0', id: body.id, result: { content: [{ type: 'text', text: JSON.stringify(data) }] } });
   }
-  if (url.hostname === 'mcp.equibles.com') {
-    const body = JSON.parse(init.body);
-    fixtures.calls.equibles.push(body);
-    if (body.method === 'initialize') return json({ jsonrpc: '2.0', id: body.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} } } });
-    if (body.method === 'notifications/initialized') return new Response(null, { status: 202 });
-    if (body.method === 'tools/list') return json({ jsonrpc: '2.0', id: body.id, result: { tools: [
-      { name: 'GetAnalystEstimates', annotations: { readOnlyHint: true }, inputSchema: { type: 'object', properties: { ticker: { type: 'string' }, limit: { type: 'integer' } }, required: ['ticker'] } },
-      { name: 'GetInsiderTransactions', annotations: { readOnlyHint: true }, inputSchema: { type: 'object', properties: { ticker: { type: 'string' }, maxResults: { type: 'integer' } }, required: ['ticker'] } },
-    ] } });
-    return json({ jsonrpc: '2.0', id: body.id, result: fixtures.equiblesRefusal ? { isError: true, content: [{ type: 'text', text: 'Subscription does not include this research.' }] } : { content: [{ type: 'text', text: `${body.params.arguments.ticker} · ${body.params.name}\nSYNTHETIC TEST REPORT · reported source date 2026-10-01 · USD\nProvider coverage and accounting qualifications retained. <script>throw new Error('Do not execute')</script>` }] } });
+  // Equibles was retired on 28 October 2026: any request to it is logged so a test can fail on it.
+  if (/(^|\.)equibles\.com$/.test(url.hostname)) {
+    fixtures.calls.retired.push(url.href);
+    return new Response('retired source', { status: 410 });
   }
   if (url.hostname === 'api.marketaux.com') {
     fixtures.calls.marketaux++;

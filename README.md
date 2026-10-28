@@ -34,7 +34,7 @@ After 2.12.0: long screens page like the terminal ("Page 2/5", PgUp/PgDn, a numb
 
 A keyboard-driven market terminal for private use, as a desktop app for Windows. You type a command such as `QUOTE AAPL`, `CHART NVDA 1D` or `MARKET US`, and up to six panels show quotes, charts, yields, central bank rates, economic statistics and company filings.
 
-The desktop app uses public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, Kraken, and Yahoo Finance for personal-use prices/company data. News comes from Google News and Yahoo Finance without a key; with your own keys it adds research (FMP, Finnhub recommendations and Equibles), news (Finnhub, Benzinga through Alpaca, Massive, Marketaux), IEX stocks and indicative option snapshots (Alpaca), plus sources for checking closes. Sources, timestamps, subscription refusals and missing coverage stay explicit. The browser build has no data source and opens a marked demo only when chosen.
+The desktop app uses public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, Kraken, and Yahoo Finance for personal-use prices/company data. News comes from Google News and Yahoo Finance without a key; with your own keys it adds research (FMP, Finnhub recommendations and TipRanks), news (Finnhub, Benzinga through Alpaca, Massive, Marketaux), IEX stocks and indicative option snapshots (Alpaca), plus sources for checking closes. Sources, timestamps, subscription refusals and missing coverage stay explicit. The browser build has no data source and opens a marked demo only when chosen.
 
 This is an independent project, not affiliated with Bloomberg L.P. It does not have the data coverage of a professional terminal; [docs/feature-matrix.md](docs/feature-matrix.md) says what is covered and what is not.
 
@@ -62,7 +62,6 @@ Prices, charts, yields, central bank rates, official statistics, official announ
 | `COINGECKO_API_KEY` | Market value and supply of the listed coins |
 | `MASSIVE_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `TIINGO_API_KEY`, `TWELVE_DATA_API_KEY` | Second sources for US stock closes (`CROSSCHECK`); Massive also adds market and ticker news |
 | `FMP_API_KEY` | Analyst price targets, ratings and estimates (`ANALYSTS`, `EARNINGS`) |
-| `EQUIBLES_API_KEY` | Estimate report fallback, plus on-request guidance, KPIs, investor events, insider trades, short interest, 13F holders and IR news on `ANALYSTS` |
 | `OPENFIGI_API_KEY` | Optional: faster ticker lookups for a company's 13F holdings (`HOLDINGS`); they work without it |
 | `CONGRESS_GOV_API_KEY` | Bills, laws and each bill's sponsor, summary and actions (`LEGISLATION`, typed as BILL) |
 | `FINNHUB_API_KEY`, `MARKETAUX_API_TOKEN` | Market and company news (`MARKETNEWS`, `COMPANYNEWS`, `QUOTE`) |
@@ -74,7 +73,7 @@ Finnhub also supplies company-profile/ratio fallbacks, monthly recommendation hi
 
 After upgrading, re-save the complete Finnhub REST API key on `PROVIDERS` if it was rejected: older builds could shorten valid 40-character keys. A shortened saved value cannot be reconstructed. Environment variables take precedence over saved keys.
 
-For APLD research, `ANALYSTS` falls back to Yahoo targets, recommendations, rating actions and annual estimates when the primary providers cannot answer; `YAHOO_RESEARCH_ENABLED` controls this separately. If structured annual estimates are unavailable, one Equibles estimate report loads automatically. Other reports remain on request. **Research source availability** retains the exact provider failures; **Test research access** on `PROVIDERS` checks six datasets for the selected issuer. Coverage depends on source and issuer: quota does not unlock a denied endpoint. Equibles' shared 100/day allowance is unsuitable for polling stock prices.
+For APLD research, `ANALYSTS` falls back to Yahoo targets, recommendations, rating actions and annual estimates when the primary providers cannot answer; `YAHOO_RESEARCH_ENABLED` controls this separately. Where no source has annual estimates, the screen says so. **Research source availability** gives each dataset's own source and state; **Test research access** on `PROVIDERS` asks each dataset afresh for the selected issuer. Coverage depends on source and issuer: quota does not unlock a denied endpoint. Equibles was retired on 28 October 2026 (unreliable): the app sends it nothing and deletes a saved Equibles key.
 
 `FILINGS` → **Reported figures** defaults to the currency with the latest monetary reporting period. Older currencies remain selectable with their coverage dates. Standalone quarters absent from SEC company facts are identified explicitly, with access to newer 6-K/8-K documents; they are not inferred from annual figures.
 

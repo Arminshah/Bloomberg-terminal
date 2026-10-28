@@ -29,7 +29,6 @@ const CREDENTIALS = {
   ALPACA_API_SECRET_KEY: { label: 'Alpaca API secret key', valid: (v) => /^[A-Za-z0-9/+=_-]{30,80}$/.test(v) },
   // Financial Modeling Prep: analyst price targets, ratings and estimates.
   FMP_API_KEY: { label: 'Financial Modeling Prep API key', valid: (v) => /^[A-Za-z0-9]{20,64}$/.test(v) },
-  EQUIBLES_API_KEY: { label: 'Equibles API key', valid: (v) => /^eq_[A-Za-z0-9]{24,128}$/.test(v) },
   // OpenFIGI: the ticker of each 13F holding from its CUSIP. It answers without a key; a key raises its limits.
   OPENFIGI_API_KEY: { label: 'OpenFIGI API key', valid: (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) },
   // TipRanks: analyst consensus, price targets and rating actions on ANALYSTS, on request (electron/tipranks.cjs).
@@ -169,7 +168,6 @@ const SETTINGS = {
   MARKETWATCH_RSS_ENABLED: { label: 'MarketWatch top stories RSS (Dow Jones terms restrict automated access)', default: false },
   // The keyed sources added in 2.1.0, each on while its key is set; off stops every request to it.
   FMP_ENABLED: { label: 'Financial Modeling Prep analyst research', default: true },
-  EQUIBLES_ENABLED: { label: 'Equibles company research (read only)', default: true },
   // OpenFIGI is asked only for the CUSIPs a 13F lists, public identifiers; off leaves 13F holdings without tickers.
   OPENFIGI_ENABLED: { label: 'OpenFIGI tickers for the CUSIPs of 13F holdings', default: true },
   TIPRANKS_ENABLED: { label: 'TipRanks analyst consensus, targets and rating actions (on request)', default: true },
@@ -228,6 +226,31 @@ function saveSetting(name, value) {
   fs.writeFileSync(SETTINGS_FILE(), JSON.stringify({ ...readSettings(), [name]: value }));
 }
 
+/**
+ * Sources the app no longer uses: Equibles was retired on 28 October 2026 (unreliable). A key or switch saved for one
+ * is deleted from the app's stores at start, and nothing reads it again.
+ */
+const RETIRED = { credentials: ['EQUIBLES_API_KEY'], settings: ['EQUIBLES_ENABLED'] };
+
+/** A saved store without the retired names; null when there were none to drop. */
+function withoutRetired(data, names) {
+  if (!data || typeof data !== 'object' || !names.some((n) => Object.hasOwn(data, n))) return null;
+  const out = { ...data };
+  for (const n of names) delete out[n];
+  return out;
+}
+
+function forgetRetired() {
+  try {
+    const keys = withoutRetired(readStore(), RETIRED.credentials);
+    if (keys) writeStore(keys);
+    const switches = withoutRetired(readSettings(), RETIRED.settings);
+    if (switches) fs.writeFileSync(SETTINGS_FILE(), JSON.stringify(switches));
+  } catch {
+    /* tried again at the next start */
+  }
+}
+
 function credentialStatus() {
   const out = {};
   for (const [name, def] of Object.entries(CREDENTIALS)) {
@@ -264,7 +287,6 @@ const ALIASES = [
   [/marketaux/i, 'MARKETAUX_API_TOKEN'],
   [/financial[\s_-]*modeling[\s_-]*prep|\bfmp\b|fmp_api_key/i, 'FMP_API_KEY'],
   [/tipranks/i, 'TIPRANKS_API_KEY'],
-  [/equibles/i, 'EQUIBLES_API_KEY'],
   [/open[\s_-]*figi/i, 'OPENFIGI_API_KEY'],
   [/congress[\s_.-]*gov/i, 'CONGRESS_GOV_API_KEY'],
   [/anthropic|claude/i, 'ANTHROPIC_API_KEY'],
@@ -303,7 +325,7 @@ function parseCredentialList(text) {
       if (!name && /secret/i.test(line) && (previous === 'ALPACA_API_KEY_ID' || previous === 'ALPACA_API_SECRET_KEY')) name = 'ALPACA_API_SECRET_KEY';
       previous = name;
       if (!name) {
-        skipped.push({ line: i + 1, reason: 'no provider named' });
+        skipped.push({ line: i + 1, reason: /equibles/i.test(line) ? 'Equibles is retired: the app no longer uses it' : 'no provider named' });
         return;
       }
       if (name === 'FINNHUB_API_KEY' && /webhook|x-finnhub-secret/i.test(line)) {
@@ -397,8 +419,6 @@ const DAILY = {
   alphavantage: { limit: 25, cap: 20 },
   twelvedata: { limit: 800, cap: 600 },
   fmp: { limit: 250, cap: 220 },
-  // Hosted REST and MCP share the free account's allowance. Other clients can spend it too.
-  equibles: { limit: 100, cap: 90 },
   marketaux: { limit: 100, cap: 90 },
   tiingo: { limit: 1000, cap: 500 },
   // Anthropic bills by use rather than limiting requests: the app's ceiling bounds a day's cost (a question takes 1 to 8).
@@ -574,19 +594,6 @@ function providerPayloadProblem(provider, text, secrets = []) {
     case 'finnhub':
       message = typeof data?.error === 'string' ? data.error : data?.error?.message;
       break;
-    case 'equibles':
-      if (typeof data?.Error === 'string') message = data.Error;
-      else if (data?.error) {
-        message = typeof data.error === 'string' ? data.error : data.error.message;
-        code = data.error.code;
-      } else if (data?.result?.isError === true) {
-        message = Array.isArray(data.result.content) ? data.result.content.filter((block) => block?.type === 'text').map((block) => block.text).join(' ') : 'Equibles refused the research query.';
-      } else if (Array.isArray(data?.result?.content)) {
-        // Over the daily allowance, Equibles' MCP server answers with an ordinary tool result that says so.
-        const over = data.result.content.find((block) => block?.type === 'text' && typeof block.text === 'string' && /^\s*daily call limit exceeded/i.test(block.text));
-        if (over) message = over.text;
-      }
-      break;
     case 'marketaux':
       if (data?.error) {
         message = typeof data.error === 'string' ? data.error : data.error.message;
@@ -709,4 +716,4 @@ function shared(name, identity, ttlMs, fetcher, keep = () => true, now = Date.no
   return entry.pending;
 }
 
-module.exports = { CREDENTIALS, SETTINGS, DAILY, credential, credentialStatus, saveCredential, clearCredential, parseCredentialList, importCredentials, setting, settingStatus, saveSetting, parseSwitch, recordRequest, recordResult, recordProblem, providerMessage, providerPayloadProblem, providerStats, slot, shared, usedToday, withinDailyCap, parseDotEnv, errorKind };
+module.exports = { CREDENTIALS, SETTINGS, DAILY, RETIRED, withoutRetired, forgetRetired, credential, credentialStatus, saveCredential, clearCredential, parseCredentialList, importCredentials, setting, settingStatus, saveSetting, parseSwitch, recordRequest, recordResult, recordProblem, providerMessage, providerPayloadProblem, providerStats, slot, shared, usedToday, withinDailyCap, parseDotEnv, errorKind };

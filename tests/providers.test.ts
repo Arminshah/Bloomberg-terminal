@@ -7,11 +7,22 @@ import * as providers from '../electron/providers.cjs';
 afterEach(() => vi.unstubAllEnvs());
 
 describe('provider credentials', () => {
-  it('imports Equibles labels and excludes Finnhub webhook secrets', () => {
+  // Equibles was retired on 28 October 2026 at the owner's request (unreliable): its key is no longer taken or kept.
+  it('takes no Equibles key and excludes Finnhub webhook secrets', () => {
     const result = providers.parseCredentialList('13: equibles.com: eq_Fixture012345678901234567890\nFinnhub webhook secret: Fixture012345678901234567890');
-    expect(result.found).toEqual([{ name: 'EQUIBLES_API_KEY', value: 'eq_Fixture012345678901234567890' }]);
-    expect(result.skipped[0].reason).toContain('webhook secret');
-    expect(providers.CREDENTIALS.EQUIBLES_API_KEY.valid('eq_short')).toBe(false);
+    expect(result.found).toEqual([]);
+    expect(result.skipped.map((s: { reason: string }) => s.reason)).toEqual(['Equibles is retired: the app no longer uses it', 'a Finnhub webhook secret is not a REST API key']);
+    expect(JSON.stringify(result)).not.toContain('eq_Fixture');
+    expect(Object.keys(providers.CREDENTIALS)).not.toContain('EQUIBLES_API_KEY');
+    expect(Object.keys(providers.SETTINGS)).not.toContain('EQUIBLES_ENABLED');
+    expect(Object.keys(providers.DAILY)).not.toContain('equibles');
+  });
+
+  it("deletes a retired source's saved key and switch, and leaves the rest", () => {
+    expect(providers.RETIRED).toEqual({ credentials: ['EQUIBLES_API_KEY'], settings: ['EQUIBLES_ENABLED'] });
+    expect(providers.withoutRetired({ EQUIBLES_API_KEY: 'enc', FMP_API_KEY: 'enc2' }, providers.RETIRED.credentials)).toEqual({ FMP_API_KEY: 'enc2' });
+    expect(providers.withoutRetired({ EQUIBLES_ENABLED: true, FMP_ENABLED: false }, providers.RETIRED.settings)).toEqual({ FMP_ENABLED: false });
+    expect(providers.withoutRetired({ FMP_API_KEY: 'enc2' }, providers.RETIRED.credentials)).toBeNull();
   });
   it('accepts only well-formed keys and a real SEC contact', () => {
     const { FRED_API_KEY, MASSIVE_API_KEY, SEC_USER_AGENT } = providers.CREDENTIALS;
@@ -128,9 +139,6 @@ describe('provider refusals returned as HTTP 200', () => {
     ['fmp', { 'Error Message': 'Invalid API KEY.' }, 'not-entitled'],
     ['fmp', 'Premium Query Parameter: not available under your current subscription.', 'not-entitled'],
     ['finnhub', { error: "You don't have access to this resource." }, 'not-entitled'],
-    ['equibles', { jsonrpc: '2.0', error: { code: -32000, message: 'Missing API key' } }, 'not-entitled'],
-    ['equibles', { result: { isError: true, content: [{ type: 'text', text: 'Daily quota exceeded' }] } }, 'rate-limited'],
-    ['equibles', { jsonrpc: '2.0', id: 'tools/call:x', result: { content: [{ type: 'text', text: 'Daily call limit exceeded. Upgrade for more calls.' }] } }, 'rate-limited'],
     ['marketaux', { error: { code: 'usage_limit_reached', message: 'Your allowance is spent.' } }, 'rate-limited'],
     ['marketaux', { error: { code: 'invalid_api_token', message: 'The supplied token is incorrect.' } }, 'not-entitled'],
     ['alpaca', { code: 42910000, message: 'Rate limit exceeded.' }, 'rate-limited'],
@@ -423,7 +431,6 @@ describe('pasted key list in the layout of the owner\'s list', () => {
       ALPACA_API_SECRET_KEY: 'AbCdEfGh1jKlMnOpQrStUvWxYz0123456789AbCdEfG',
       FMP_API_KEY: 'AbCdEfGhIjKlMnOpQrStUvWxYz012345',
       TIPRANKS_API_KEY: 'tr_live_AbCdEfGhIjKlMnOpQrStUvWx',
-      EQUIBLES_API_KEY: 'eq_0123456789abcdef0123456789abcdef01234567',
     });
     expect(notes).toEqual([]);
   });

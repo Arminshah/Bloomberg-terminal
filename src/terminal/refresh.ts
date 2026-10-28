@@ -101,7 +101,6 @@ const KEPT_NAMES: Record<string, string> = {
   alphavantage: 'Alpha Vantage',
   twelvedata: 'Twelve Data',
   fmp: 'Financial Modeling Prep',
-  equibles: 'Equibles',
   marketaux: 'Marketaux',
   tiingo: 'Tiingo',
   tipranks: 'TipRanks',

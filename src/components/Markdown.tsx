@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 /**
- * Renders the Markdown a research provider writes (Equibles): headings, pipe tables, lists, links, bold, italic
+ * Renders Markdown (the release notes on WHATSNEW): headings, pipe tables, lists, links, bold, italic
  * notes and rules, as the app's own headings and tables. Only the elements below are produced, from text: nothing in
  * the source runs or becomes HTML, and links open only http(s) addresses.
  */

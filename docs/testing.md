@@ -34,7 +34,6 @@ The 2.15 data-accuracy regressions are in `earnings-accuracy.test.ts`, `financia
 | `kraken.test.ts` | Kraken requests, answers and lines in the engine; CoinGecko market values |
 | `eod.test.ts` | Requests, budgets and answers of Massive, Alpha Vantage, Tiingo and Twelve Data, and the close comparison |
 | `analysts.test.ts` | Financial Modeling Prep requests, price targets, the ratings tally, rating actions, estimates under both field namings, and refusals in words |
-| `equibles.test.ts` | Actual public tool schemas, read-only allowlist, JSON/SSE framing and cancellation, session/account isolation, distinct POST body caches, refusals, redaction, stale answers, discovery and quotas |
 | `research-check.test.ts` | Per-symbol endpoint diagnostics, no-data versus denial, cached responses, stale reports, missing keys and transport failures |
 | `finnhub.test.ts` | Preserved profile/ratio, EPS-surprise and next-report readers; recommendation date/count/symbol validation and replaced-key race regression |
 | `marketnews.test.ts` | News requests and switches, canonical links, Finnhub, Marketaux, MarketWatch and SEC 8-K answers, and duplicates merged |
@@ -71,7 +70,7 @@ Version 2.7.2 additionally exercises simultaneous FMP 402/Finnhub 401 recovery t
 
 REFRESH and favourite pop-ups: the button asks Alpaca's company news again although the main process holds it for ten minutes, Alt+R does the same, and its tooltip names what was left to the daily allowances; a story about a favourite published while the app was closed pops up, stays through a reload, is listed on `BREAKING FAV`, and does not come back once dismissed.
 
-Research regressions exercise a denied FMP target alongside working annual estimates and Finnhub counts, explicit Equibles queries and cache reuse, literal HTML in report text, denied arbitrary MCP tools, refusal recovery, and APLD-specific access checks. The published 2.4.1 Yahoo session/chart fallback and key-import regressions are retained.
+Research regressions exercise a denied FMP target alongside working annual estimates and Finnhub counts, each availability row's own source and plain-worded refusals, refusal recovery, APLD-specific access checks, and that the retired Equibles source receives no request. The published 2.4.1 Yahoo session/chart fallback and key-import regressions are retained.
 
 On Linux use `xvfb-run -a npm run e2e:desktop`, or set `DISPLAY` to an existing display. The test process uses `--no-sandbox` where the isolated cloud cannot configure Chromium user namespaces; installed desktop startup is unchanged.
 

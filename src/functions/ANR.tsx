@@ -6,8 +6,7 @@ import { NotConnected } from '../components/NotConnected';
 import { Chg, HBar, KV, LivePx, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtIso, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { analystData, analystsAvailable, analystSymbol, availabilityNote, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
-import { EquiblesResearch } from '../components/EquiblesResearch';
+import { analystsAvailable, analystSymbol, availabilityNote, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
 import { TipRanksResearch } from '../components/TipRanksResearch';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
@@ -33,7 +32,6 @@ export function ANR({ sec }: FnProps) {
   const symbol = analystSymbol(s);
   const parts = useAnalysts(s, ['consensus', 'ratings', 'summary', 'grades', 'estimates']);
   const actions = useAnalystActions(s);
-  const researchGeneration = analystData.use((data) => data.retry);
   const fhOn = finnhubAvailable() && !!finnhubSymbol(s) && parts.ratings?.state === 'ok' && !!parts.ratings.data && parts.ratings.source === 'FMP';
   const fh = useFinnhub(fhOn ? s : undefined, ['recommendation']).recommendation as FinnhubPart<RecommendationMonth[]> | undefined;
   const bundledRecs = parts.ratings?.recommendations;
@@ -48,7 +46,7 @@ export function ANR({ sec }: FnProps) {
         <QuoteStrip sec={s} />
         <NotConnected
           what="This screen shows analyst price targets, the tally of broker ratings, recent rating actions and estimates."
-          why="The desktop app reads FMP, Finnhub and Yahoo research with Equibles company reports; the browser has no connected research source."
+          why="The desktop app reads FMP, Finnhub, Yahoo Finance and TipRanks research; the browser has no connected research source."
           needs="the desktop app with the relevant provider keys set on PROVIDERS."
         />
       </div>
@@ -68,7 +66,7 @@ export function ANR({ sec }: FnProps) {
       sec={s}
       sub={
         <>
-          Source-labelled research · FMP, Finnhub, Yahoo Finance and Equibles{at ? ` · last response ${fmtDay(at)} ${fmtTime(at, false)}` : ''}
+          Source-labelled research · FMP, Finnhub, Yahoo Finance and Nasdaq{at ? ` · last response ${fmtDay(at)} ${fmtTime(at, false)}` : ''}
           {all.some((p) => p?.stale) ? <span className="badge sim"> STALE</span> : null}
         </>
       }
@@ -79,7 +77,7 @@ export function ANR({ sec }: FnProps) {
       <div>
         {header}
         <QuoteStrip sec={s} />
-        <div className="empty">FMP, Finnhub and Equibles research here covers US-listed stocks; {s.ticker} is not one. TipRanks covers some other markets:</div>
+        <div className="empty">FMP, Finnhub and Nasdaq research here covers US-listed stocks; {s.ticker} is not one. TipRanks covers some other markets:</div>
         {s.cls === 'equity' ? <TipRanksResearch key={s.id} def={s} /> : null}
       </div>
     );
@@ -267,10 +265,10 @@ export function ANR({ sec }: FnProps) {
       <Section title="Estimates, by fiscal year" right={estimateUnit(s, estimates)}>
         <EstimatesTable part={estimates} />
       </Section>
-      <EquiblesResearch key={`${symbol}:${researchGeneration}`} symbol={symbol} autoLoad={!!estimates && estimates.state !== 'loading' && !estimates.data?.length} />
+      <MoreResearch sec={s} />
       <TipRanksResearch key={s.id} def={s} />
       <div className="note">
-        Targets, ratings and estimates are provider consensus and analyst opinions, not forecasts calculated by this app. Each dataset keeps its own source, fiscal/per-share basis and retrieval time. Yahoo fallback has no equivalent to FMP&apos;s period-average target history, so that dataset remains unavailable when FMP denies it. Finnhub supplies recommendation counts, not price targets. Equibles reports preserve the provider&apos;s original coverage and accounting qualifications. Research is cached for hours; opening this screen does not poll it continuously.
+        Targets, ratings and estimates are provider consensus and analyst opinions, not forecasts calculated by this app. Each dataset keeps its own source, fiscal/per-share basis and retrieval time. Yahoo fallback has no equivalent to FMP&apos;s period-average target history, so that dataset remains unavailable when FMP denies it. Finnhub supplies recommendation counts, not price targets. Research is cached for hours; opening this screen does not poll it continuously.
       </div>
     </div>
   );
@@ -342,6 +340,37 @@ function RatingActions({ rows, last }: { rows: AnalystAction[]; last: number }) 
         ) : null}
       </div>
     </>
+  );
+}
+
+/**
+ * The company research the app has on other screens, each from its own source, and what it has no source for: company
+ * guidance and operating KPIs are not available (no provider the app uses publishes them in a reliable form).
+ */
+export const MORE_RESEARCH: { label: string; code?: string; source: string }[] = [
+  { label: 'Insider trades', code: 'INSIDERS', source: "the insiders' SEC Form 4 filings" },
+  { label: 'Short interest', code: 'SHORTINTEREST', source: "FINRA's settlements" },
+  { label: 'Institutional and fund holders', code: 'HOLDERS', source: 'Yahoo Finance and Nasdaq, with SEC 13F filings on HOLDINGS' },
+  { label: 'Earnings dates and events', code: 'EVENTS', source: 'Nasdaq, Yahoo Finance and the SEC filings' },
+  { label: 'Company announcements and news', code: 'COMPANYNEWS', source: 'Finnhub, Alpaca, Massive and Marketaux, with the 8-K filings on FILINGS' },
+  { label: 'Company guidance', source: 'not available: no source the app uses publishes it reliably; read the company\'s results releases on FILINGS' },
+  { label: 'Company operating KPIs', source: 'not available: no source the app uses publishes them reliably' },
+];
+
+function MoreResearch({ sec }: { sec: SecurityDef }) {
+  const panel = usePanelId();
+  return (
+    <Section title="More company research" right="on other screens">
+      <table className="tbl" data-testid="more-research"><tbody>
+        {MORE_RESEARCH.map((r) => (
+          <tr key={r.label}>
+            <td className="white">{r.label}</td>
+            <td className="muted">{r.source}</td>
+            <td>{r.code ? <button type="button" className="act" onClick={() => execute(panel, `${sec.id} ${r.code}`)}>{r.code}</button> : null}</td>
+          </tr>
+        ))}
+      </tbody></table>
+    </Section>
   );
 }
 
@@ -508,7 +537,7 @@ export function estimateUnit(s: SecurityDef, part?: AnalystPart): string {
 export function EstimatesTable({ part, rows = 5 }: { part: AnalystPart<Estimate[]> | undefined; rows?: number }) {
   if (!part || part.state === 'loading') return <div className="empty">Loading annual estimates…</div>;
   const list = (part.data ?? []).filter((e) => Date.parse(`${e.date}T00:00:00Z`) > Date.now() - 365 * 86_400_000).slice(0, rows);
-  if (!list.length) return <div className="note">No structured annual-estimate coverage. Equibles company research may provide a separate report.</div>;
+  if (!list.length) return <div className="note">No annual estimates from FMP, Yahoo Finance, Nasdaq or Alpha Vantage for this company: not available here.</div>;
   // A source with EPS estimates only (Nasdaq) shows no revenue columns.
   const hasRev = list.some((e) => Number.isFinite(e.revenueAvg));
   return (

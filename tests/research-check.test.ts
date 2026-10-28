@@ -21,8 +21,8 @@ describe('research diagnostics', () => {
   // The owner asked on 28 October 2026 that a kept answer never read as a fresh check: it is "Cached", with its time.
   it('distinguishes endpoint denial, empty coverage, missing keys and kept answers', async () => {
     const analysts = vi.fn().mockResolvedValueOnce({ status: 402, text: '', error: 'HTTP 402: premium request' }).mockResolvedValueOnce({ status: 200, text: '[]' }).mockResolvedValueOnce({ status: 200, text: '[{"date":"2027-05-31","epsAvg":1}]', cached: true, at: Date.UTC(2026, 9, 28, 9, 5) });
-    const checks = await checkResearchAccess('APLD', { analysts, finnhubResearch: async () => ({ status: 0, text: '', missing: 'FINNHUB_API_KEY' }), equibles: async () => ({ status: 429, text: '', error: 'Daily quota exceeded' }) });
-    expect(checks.map((c) => c.state)).toEqual(['Denied', 'No data', 'Cached', 'Needs key', 'Rate limited']);
+    const checks = await checkResearchAccess('APLD', { analysts, finnhubResearch: async () => ({ status: 0, text: '', missing: 'FINNHUB_API_KEY' }) });
+    expect(checks.map((c) => c.state)).toEqual(['Denied', 'No data', 'Cached', 'Needs key']);
     expect(checks[2]).toMatchObject({ detail: 'Kept answer from 2026-10-28 09:05 UTC; not a new check.', cached: true });
     expect(analysts.mock.calls.map((c) => c[1])).toEqual(['APLD', 'APLD', 'APLD']);
   });
@@ -30,26 +30,30 @@ describe('research diagnostics', () => {
   it('asks every keyed provider again on each press, not for the kept answer', async () => {
     const analysts = vi.fn(async () => ({ status: 200, text: '[]' }));
     const finnhubResearch = vi.fn(async () => ({ status: 200, text: '[]' }));
-    const equibles = vi.fn(async () => ({ status: 200, text: '' }));
-    await checkResearchAccess('APLD', { analysts, finnhubResearch, equibles });
-    await checkResearchAccess('APLD', { analysts, finnhubResearch, equibles });
+    await checkResearchAccess('APLD', { analysts, finnhubResearch });
+    await checkResearchAccess('APLD', { analysts, finnhubResearch });
     expect(analysts.mock.calls.every((c) => (c as unknown[])[2] === true)).toBe(true);
     expect(analysts).toHaveBeenCalledTimes(6);
     expect(finnhubResearch.mock.calls.map((c) => (c as unknown[])[2])).toEqual([true, true]);
-    expect(equibles.mock.calls.map((c) => (c as unknown[])[2])).toEqual([true, true]);
   });
-  it('labels stale reports and treats malformed successful responses as errors', async () => {
-    const checks = await checkResearchAccess('APLD', { analysts: async () => ({ status: 200, text: '{}' }), equibles: async () => ({ status: 0, text: JSON.stringify({ tool: 'GetAnalystEstimates', report: 'Old report' }), stale: true, at: 123, error: 'HTTP 503' }) });
+  it('labels stale answers and treats malformed successful responses as errors', async () => {
+    const counts = [{ symbol: 'APLD', period: '2026-10-01', strongBuy: 2, buy: 4, hold: 1, sell: 0, strongSell: 0 }];
+    const checks = await checkResearchAccess('APLD', { analysts: async () => ({ status: 200, text: '{}' }), finnhubResearch: async () => ({ status: 0, text: JSON.stringify(counts), stale: true, at: 123, error: 'HTTP 503' }) });
     expect(checks.slice(0, 3).every((c) => c.state === 'Error')).toBe(true);
-    expect(checks[3].state).toBe('Unavailable');
-    expect(checks[4]).toMatchObject({ state: 'Stale', at: 123, detail: expect.stringContaining('HTTP 503') });
+    expect(checks[3]).toMatchObject({ state: 'Stale', at: 123, detail: expect.stringContaining('HTTP 503') });
+  });
+
+  // Equibles was retired on 28 October 2026 at the owner's request: the check asks it nothing.
+  it('has no Equibles row', async () => {
+    const checks = await checkResearchAccess('APLD', { analysts: async () => ({ status: 200, text: '[]' }) });
+    expect(checks.map((c) => c.dataset)).toEqual(['FMP price targets', 'FMP ratings', 'FMP annual estimates', 'Finnhub recommendation counts']);
   });
   it('continues after a transport error and rejects malformed tickers without sending anything', async () => {
     const analysts = vi.fn<() => Promise<KeyedAnswer>>().mockRejectedValue(new Error('transport error'));
     await expect(checkResearchAccess('APLD&x=1', { analysts })).rejects.toThrow('one US stock ticker');
     expect(analysts).not.toHaveBeenCalled();
     const checks = await checkResearchAccess('APLD', { analysts });
-    expect(checks).toHaveLength(5);
+    expect(checks).toHaveLength(4);
     expect(checks.slice(0, 3).every((c) => c.state === 'Error')).toBe(true);
   });
 });

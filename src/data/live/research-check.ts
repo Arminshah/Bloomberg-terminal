@@ -1,13 +1,11 @@
 import type { KeyedAnswer } from './lookup';
 import { parseConsensus, parseEstimates, parseFinnhubRatings, parseRatings, type AnalystKind } from './analysts';
-import { parseResearch } from './equibles';
 import { parseYahooResearch, yahooResearchPath, type YahooResearchApi } from './yahoo-research';
 
 export type ResearchApi = {
   /** fresh: ask the provider again, not the answer the app kept. */
   analysts?: (kind: AnalystKind, symbol: string, fresh?: boolean) => Promise<KeyedAnswer>;
   finnhubResearch?: (kind: 'ratings', symbol: string, fresh?: boolean) => Promise<KeyedAnswer>;
-  equibles?: (kind: 'estimates', symbol: string, fresh?: boolean) => Promise<KeyedAnswer>;
   yahoo?: YahooResearchApi;
   settings?: Record<string, boolean>;
 };
@@ -25,7 +23,6 @@ export async function checkResearchAccess(symbol: string, api: ResearchApi): Pro
     { dataset: 'FMP ratings', send: () => api.analysts?.('ratings', symbol, true), parse: parseRatings },
     { dataset: 'FMP annual estimates', send: () => api.analysts?.('estimates', symbol, true), parse: parseEstimates },
     { dataset: 'Finnhub recommendation counts', send: () => api.finnhubResearch?.('ratings', symbol, true), parse: (text: string) => parseFinnhubRatings(text, symbol) },
-    { dataset: 'Equibles analyst estimates', send: () => api.equibles?.('estimates', symbol, true), parse: (text: string) => { const parsed = parseResearch(text); return parsed ? { data: parsed } : { error: 'No readable report in the answer.' }; } },
   ];
   if (api.yahoo) requests.push({
     dataset: 'Yahoo analyst research',
