@@ -1,6 +1,6 @@
 # To-do list
 
-Updated 27 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
+Updated 28 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
 
 ## Next, in this order
 
@@ -91,20 +91,26 @@ Plan:
   - BTST: backtests of simple strategies on daily price history (EQBT's engine runs on month-end closes and could take daily ones).
   - CFND: the securities most correlated with one, from CORRELATION's daily returns.
   - CMGR: your own limits on a portfolio (weight of a position, sector or country), checked on PORTFOLIO.
-- PEERS: each multiple's percentile rank among the peers (the university guides describe it; the figures are already on screen).
 - FINANCIALS: revenue by segment, from the segment tables in the filings' XBRL.
 - CONGRESS: liabilities (Schedule D) for an assets-less-debts range; each member's committees (in the Clerk's member list) beside their trades.
-- Supply chain (SPLC): more coverage, how recent each relation is, classifier accuracy.
+- Supply chain (SPLC): the share of revenue behind more relations; other public sources for companies whose filings and federal records name few counterparties (news of deals was checked on 28 October: for Applied Digital it named no counterparty the filings had not).
 - Blank "--" fields: fill each from a real source or say why it is blank.
 - The watchlist and favourites in the TOPMOVERS layout (low priority).
 - Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
 
-## Done after 2.27.0
+## Done in 2.28.0
+
+Released on 28 October 2026 (`docs/release-v2.28.0.md`), at your request once SPLC's coverage and the watchlist were fixed.
+
+Your priorities of 27 October:
+- SPLC far wider: `e87e66d` the company's own filings read for lenders (credit agreements and their agents, the exhibit list's parties), investors (buyers of its shares or units and their managers), suppliers named for its purchasing and its subsidiaries' deals, a repaid loan's lender dropped; `400b566` two years of its own filings (both annual reports, the quarterly reports since, agreement and financing 8-Ks and their press releases) and of other companies' reports and 8-Ks; `55358fe` federal contracts and subcontracts from USAspending.gov (agencies and prime contractors as customers with the dollars, subcontractors as suppliers). Applied Digital live: 29 relations to 43; Palantir +31 customers, Lockheed Martin +41 customers and +29 suppliers from the federal records.
+- `84c8a8d` Watchlist with the IEX price on: volume, open, high and low of all US venues (Yahoo Finance) beside IEX's last price, the day chart from all venues' minute bars, white range figures and a white bar for the price.
 
 From the screenshots of 27 October (`docs/bloomberg-parity.md`, "Screenshots from three public guides"), each with unit, browser and desktop tests:
 - `e8b56ff` EE opens a new page, Earnings & Estimates (`EARNINGSSUMMARY`), laid out as the terminal's in July 2024: the next and last reports and the price's average move, the trailing and blended forward P/E and next year's growth, the analysts' ratings and target, the last quarter against its estimates with past surprises and the next quarter's estimates, the EPS trend and the consensus's moves. Each box opens the screen with the detail. ERN stays the earnings history (`EARNINGS`), whose "Prior Announcement" now takes the newest dated report (it showed "--" when only the analysts' sources dated it).
 - `1b0cefc` DES shows the US listing's FIGI beside the name (OpenFIGI) and writes the report date as "Aft-mkt (C) 02/25/26".
 - `6e1e5bd` SCREEN shows the stocks left after each criterion.
+- `1dcb295` PEERS: the loaded stock's percentile among the peers on each figure (from "Later").
 
 ## Done in 2.27.0
 
@@ -216,6 +222,7 @@ From the screenshots of 27 October (`docs/bloomberg-parity.md`, "Screenshots fro
 
 ## Released
 
+- 2.28.0 on 28 October 2026 (`docs/release-v2.28.0.md`), at your request: everything under "Done in 2.28.0".
 - 2.27.0 on 27 October 2026 (`docs/release-v2.27.0.md`), at your request: everything under "Done in 2.27.0".
 - 2.26.0 on 26 October 2026 (`docs/release-v2.26.0.md`), at your request, before the work moved to another account.
 - 2.25.1 on 26 October 2026 (`docs/release-v2.25.1.md`), at your request. 2.25.0 was built but not published (see "Done in 2.25.1").
