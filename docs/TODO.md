@@ -73,6 +73,8 @@ Plan:
 
 ## Waiting on you
 
+- The data audit on GitHub needs its keys as repository secrets (Settings > Secrets and variables > Actions > New repository secret): `TIINGO_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT`, and optionally `EIA_API_KEY` and `COINGECKO_API_KEY`. Its schedule runs only once `.github/workflows/data-audit.yml` is on `main`; until then it runs when the check changes or when you start it (Actions > Data audit > Run workflow). See `docs/audit-check.md`.
+
 - The watchlist layout of 27 October, two points to confirm: "52-Wk %" is the one-year price change (today's price against the close a year earlier, without dividends); "Avg Vol (3M)" is the average of the last 63 full trading days, so it can differ a little from Yahoo's own figure. Say if you meant something else.
 - The Bank of Japan's API asks anyone who releases a service using it to tell the Bank by email first. For your own use there is nothing to send; if you ever share the app, that email is due (`docs/data-providers.md`, "Bank of Japan").
 - The pull request into `main` is ready as a draft: https://github.com/Arminshah/Bloomberg-terminal/pull/4. An older one (number 1, `claude/amber-terminal`) overlaps with it: close it or keep it, your choice.
@@ -94,6 +96,9 @@ Plan:
 - Nasdaq and NYSE Arca plan a night session (21:00 to 04:00 New York, Sunday to Friday) from 6 December 2026, subject to industry readiness. Once it has started, add it to the watchlist's session line (`usSession` in `src/data/exchanges.ts`).
 
 ## Done after 2.28.0 was prepared
+
+- The data audit (`docs/audit-v2.28-data.md`, findings D1 to D28 with their commits): every figure on the main screens set against a second source; the wrong ones fixed, each with a regression test. Since then: `2506c36` "Sources disagree" for the next report date and for dividends (Broadcom's 2018 dividends: Yahoo 0.35, Nasdaq and Broadcom 0.175); `b6c9554` and `3156d47` the repeatable check `npm run audit:check` with its GitHub workflow (`docs/audit-check.md`); `5f58f58` SPLC for Oracle and Microsoft (Rimini Street, Black Titan, Insight).
+- `9c46990` Equibles retired. New sources: `54d9b29` EIA (NGAS, the oil and gas pages), `587c549` BEA (NIPA), `02f8ea2` the CFTC's Commitments of Traders (COT).
 
 - `e39869e` SCREEN: a rank criterion, the top N of the stocks the criteria above it left, higher or lower is better (EQS's "Top 20 Sequential Rank, lower is better" on a 2023 screenshot); a period per criterion (P/E and ROE on the trailing 12 months or the latest fiscal year; revenue, EBITDA, net income and margins also on the latest quarter; revenue and EPS growth on the year or the quarter; price change over 1 day to 5 years); new fields from the statements (revenue, EBITDA, net income in dollars, revenue and EPS growth, operating and net margins); criteria move up and down, since a rank depends on what comes before it.
 

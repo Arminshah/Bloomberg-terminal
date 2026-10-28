@@ -1,11 +1,11 @@
-# Handover: where the work stands (27 October 2026)
+# Handover: where the work stands (28 October 2026)
 
 For any Claude session that takes over Armin Terminal, on this account or another. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis" and "Screenshots from three public guides").
 
 ## The project
 
-- **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 134 functions.
-- **Repository**: `Arminshah/Bloomberg-terminal`. The owner keeps it private and opens it when a release is built. While it is private, GitHub starts no runner: on 27 October every job failed within seconds, its annotation saying "recent account payments have failed or your spending limit needs to be increased" (the account's Actions minutes for private repositories). Then check everything locally before each push, and before a release ask the owner to open the repository for about half an hour or raise the spending limit.
+- **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 137 functions.
+- **Repository**: `Arminshah/Bloomberg-terminal`. **Public again since the evening of 28 October** (the owner opened it so CI, the data audit and releases can run). The owner may make it private again; while it is private, GitHub starts no runner: on 27 October every job failed within seconds, its annotation saying "recent account payments have failed or your spending limit needs to be increased" (the account's Actions minutes for private repositories). Then check everything locally before each push, and before a release ask the owner to open the repository for about half an hour or raise the spending limit.
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
 - **Last release**: 2.27.0 (tag `v2.27.0`, 27 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.27.0.md`.
 - **2.28.0 is prepared, not published**: the version, notes (`docs/release-v2.28.0.md`) and commit "Release 2.28.0" (`1f27774`) are on the branch. On 28 October the owner said to keep coding and release only when they say so. When they do: update the notes with what came after, ask them to open the repository, and start the workflow with the tag.
@@ -33,7 +33,7 @@ Public or private, the repository is not for sharing research material: copyrigh
 
 1. Attach the repository, check out the branch above, run `npm ci`, then the checks under "How to work on it". They all passed at handover.
 2. Ask the owner for the API keys again if the environment's settings do not hold them: they are kept only in each session's scratch folder, which a new session cannot see. The names are: `ALPHA_VANTAGE_API_KEY`, `TWELVE_DATA_API_KEY`, `COINGECKO_API_KEY`, `FRED_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT`, `FINNHUB_API_KEY` (and `FINNHUB_SECRET_KEY`, the webhook secret, which no data request uses), `TIINGO_API_KEY`, `MARKETAUX_API_TOKEN`, `ALPACA_API_KEY_ID`, `ALPACA_API_SECRET_KEY`, `FMP_API_KEY`, `TIPRANKS_API_KEY`, `OPENFIGI_API_KEY`, `EULERPOOL_API_KEY` (evaluation only), `CONGRESS_GOV_API_KEY`, `EIA_API_KEY`, `BEA_API_KEY`. Equibles was retired on 28 October 2026: do not ask for or use its key. Save them as `NAME=value` lines in a file in the session's scratch folder (`chmod 600`), never in the repository.
-3. Carry on with `docs/TODO.md`: items 10 to 13 were done on 27 October; NGAS waits on an EIA key, and the owner chooses what comes next from "Later".
+3. Carry on with `docs/TODO.md`: items 10 to 13 are done (NGAS came with the EIA key on 28 October), and the owner chooses what comes next from "Later".
 
 The assistant owns reference research: find and inspect lawful public manuals, illustrated guides and publisher images, then record the source, date, page or image URL and what was actually seen in `docs/bloomberg-parity.md`. Missing video frames do not block documented functional work. Keep exact visual details unverified where the evidence is missing. Ask the owner for one precise image only if that gap blocks the current change and accessible alternatives have been exhausted. Keep reference media out of public Git history and preserve the fixed typefaces in `CLAUDE.md`.
 
@@ -84,7 +84,18 @@ Done after the morning's handover, each with unit, browser and desktop tests, an
 - `1dcb295` PEERS percentile rank.
 - Measuring SPLC: run the live capture (below) on `<TICKER> US Equity SPLC` and compare the centre box's counts. Applied Digital went from 29 relations to 43. News of deals (Alpaca's Benzinga headlines and an earnings call transcript) was checked for Applied Digital and named no counterparty the filings had not, so it was not added.
 
+## 28 October, later: the data audit and new sources (after the 2.28.0 commit, not released)
+
+The owner asked for a full audit ("accurate for past, current and upcoming data for all stocks; non-negotiable") and for errors to be hard to bring back. Everything is in `docs/audit-v2.28-data.md` (findings D1 to D28, each with its second source and fix commit, what was checked and found right, and the known limits). In short:
+- Fixed figures: volume after the close, short interest, 12-month return, statements (JPMorgan, Applied Digital, CoreWeave), the ratings tally, HSBC's price to book, Apple's CEO, earnings beats on mixed bases, ECO's dates, earnings dates (past or unset shown as next), net income rows, 30-day volume, STOCK MOVERS' volume, CNY and CNH, the research rows' wording, and many supply chains (AMD/Meta, Lockheed/DoW and the U.S. Government's share, NVIDIA/SoftBank and lettered customers, Super Micro's suppliers, Oracle/Rimini Street and Black Titan, Microsoft/Insight).
+- `2506c36` **"Sources disagree"** where two sources give the same figure and differ: the next report date (Yahoo against Nasdaq, both confirmed) and dividends (Yahoo's price history against Nasdaq's record, amounts on today's share basis). Broadcom's 2018 dividends are the live example. The EPS case existed (`0f4bf83`).
+- `9c46990` **Equibles retired**: no requests, key or research section; a key saved earlier is dropped at start. `54d9b29` **EIA** (NGAS, the oil and gas pages), `587c549` **BEA** (NIPA), `02f8ea2` **CFTC Commitments of Traders** (COT, no key). Each documented in `docs/data-providers.md`, checked live against the publisher's own pages.
+- `b6c9554` **The data audit check**: `npm run audit:check` (`scripts/live/audit/check.cjs`, `docs/audit-check.md`) captures the screens, fetches independent references and fails (exit 1) when a figure is beyond its stated tolerance; blocked references exit 2 and are never counted as passed. `.github/workflows/data-audit.yml` runs it on GitHub: on a schedule once the file is on `main`, when the check changes, or by hand.
+- SPLC rule changes are checked against about 6,000 saved filing sentences of 32 companies before they go in: only the intended classifications may change.
+
 ## Waiting on the owner
+
+- **Secrets for the data audit on GitHub**: Settings > Secrets and variables > Actions > New repository secret: `TIINGO_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT`, optional `EIA_API_KEY` and `COINGECKO_API_KEY`. Without them those comparisons are skipped (the check says so). The schedule (Tuesday to Saturday, 01:37 UTC) runs only once the workflow is on `main`, which needs the owner's decision (no merge without it). Keys in a Claude session's scratch folder never reach GitHub or a scheduled task: each runner needs its own copy.
 
 - Points on the watchlist layout of 27 October: "52-WK" was read as the one-year change (labelled 52-Wk %); Avg Vol (3M) is worked out from the last 63 sessions of the daily history (Yahoo's own figure may differ slightly); Market Cap is in each stock's own currency; Currency and Market Time (Yahoo's columns) were not asked for and are not in the default.
 
@@ -93,10 +104,11 @@ Done after the morning's handover, each with unit, browser and desktop tests, an
 ```
 npm ci
 npm run lint && npm run typecheck
-npx vitest run --maxWorkers=2                      # unit tests (1,561 after 2.28.0)
+npx vitest run --maxWorkers=2                      # unit tests (1,651 on 28 October)
 npm run build
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (90)
-xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (71)
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (94)
+xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (74)
+npm run audit:check                                 # live data audit (keys from the environment; docs/audit-check.md)
 ```
 
 Never run two of these at once, and never rebuild while a Playwright suite runs. Do not run Vitest with `--root /`: it runs out of memory. Tests cannot use Node modules (no Node types in the tests' tsconfig); load a text fixture with `?raw`.
