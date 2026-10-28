@@ -8,7 +8,7 @@ import type { Quote, SecurityDef } from './types';
 import { freshnessOf } from './freshness';
 import { alignPortfolio, type Checked, type DailyLevel, type PortfolioHistory, type RiskPosition } from '../finance/portfolio-risk';
 
-export const majorCurrency = (ccy: string) => ccy === 'GBp' ? 'GBP' : ccy === 'USd' ? 'USD' : ccy === 'CNY' ? 'CNH' : ccy;
+export const majorCurrency = (ccy: string) => ccy === 'GBp' ? 'GBP' : ccy === 'USd' ? 'USD' : ccy;
 
 export function dailyLevels(series: Series, cutoff: number): DailyLevel[] {
   const out: DailyLevel[] = [];
@@ -90,7 +90,7 @@ export function portfolioSnapshot(positions: Position[], cash: number, observati
       fx: ccy === base ? 1 : market.usdValue(ccy) / market.usdValue(base),
       priceMark: captureMark(priceQuote, d, capturedAt),
       fxMark: fxMarkFor(ccy, base, market, capturedAt),
-      quoteCurrency: d.ccy, fxCurrency: ccy, fxProxyNote: d.ccy === 'CNY' ? 'CNY translated using offshore CNH as a proxy; onshore/offshore basis is not modelled.' : '',
+      quoteCurrency: d.ccy, fxCurrency: ccy, fxProxyNote: '',
       prices: dailyLevels(market.daily(p.id), cutoff), ...(fxHistory ? { fxId, fxHistory } : {}) });
   }
   return { ok: true, value: { positions: out, cutoff, capturedAt, history: alignPortfolio(out, cash, cutoff, observations) } };

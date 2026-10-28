@@ -43,7 +43,7 @@ function BenchmarkPicker() {
 }
 
 function MethodNote({ base }: { base: string }) {
-  return <div className="note">Today’s quantities and {base} cash, with no trades, deposits, interest or dividend cash flows replayed. Historical FX into {base} is required for every holding in another currency; CNY uses offshore CNH as a conversion proxy, without onshore/offshore basis. Only shared dates before today’s UTC date are used; missing prices are never carried forward. Price returns can reflect splits, generic futures rolls and source adjustment conventions. This is a hypothetical replay, not your realised performance.</div>;
+  return <div className="note">Today’s quantities and {base} cash, with no trades, deposits, interest or dividend cash flows replayed. Historical FX into {base} is required for every holding in another currency, each at its own rate (onshore CNY and offshore CNH apart). Only shared dates before today’s UTC date are used; missing prices are never carried forward. Price returns can reflect splits, generic futures rolls and source adjustment conventions. This is a hypothetical replay, not your realised performance.</div>;
 }
 
 export function PortfolioPerformance() {
@@ -59,7 +59,7 @@ export function PortfolioPerformance() {
   const last = common.at(-1);
   const rows = () => [
     ['Method', 'Fixed quantities and cash replay; historical FX; no dividend cash flows or trading'],
-    ['FX convention', 'CNY, if present, uses offshore CNH as a proxy; no onshore/offshore basis adjustment'],
+    ['FX convention', 'Each currency at its own rate: onshore CNY and offshore CNH apart'],
     ['Benchmark', st.benchmark], ['Omitted incomplete session dates', history?.omittedDates ?? ''],
     ['Session date', `Hypothetical NAV ${B}`, `Benchmark ${B} level`],
     ...(history?.dates.map((date, i) => [new Date(date).toISOString().slice(0, 10), history.nav[i], bench.get(date)]) ?? []),
@@ -193,7 +193,7 @@ export function PortfolioRisk() {
     <Section title="Exposure allocation · share of gross absolute notional" right={<select className="sel-inp" aria-label="Exposure grouping" value={group} onChange={(e) => setGroup(e.target.value)}><option value="class">Asset class</option><option value="sector">Sector</option><option value="region">Region</option></select>}><table className="tbl"><tbody>{[...groups.entries()].sort((a, b) => b[1] - a[1]).map(([key, value]) => <tr key={key}><td>{key}</td><td className="num">{fmtNum(value, 2)} {B}</td><td className="num">{fmtNum(gross > 0 ? value / gross * 100 : NaN, 2)}%</td></tr>)}</tbody></table></Section>
     <Section title="Captured marks and history coverage"><div className="tbl-wrap"><table className="tbl"><thead><tr><th>Security</th><th className="num">Price</th><th>Price source / freshness</th><th>Quote time UTC</th><th className="num">{B} per currency</th><th>FX source / freshness</th><th>FX time UTC</th><th className="num">Prior-date price bars</th><th className="num">Prior-date FX bars</th></tr></thead><tbody>{positions.map((p) => <tr key={p.id}><td>{engine.get(p.id)?.ticker ?? p.id}</td><td className="num">{fmtNum(p.price, engine.get(p.id)?.dec ?? 4)} {p.quoteCurrency}</td><td>{p.priceMark.provider} · {p.priceMark.freshness}</td><td>{capturedTime(p.priceMark) || '--'}</td><td className="num">{fmtNum(p.fx, 6)} / {p.fxCurrency}</td><td title={p.fxProxyNote}>{p.fxId ?? B} · {p.fxMark.provider} · {p.fxMark.freshness}</td><td>{capturedTime(p.fxMark) || '--'}</td><td className="num">{p.prices.length}</td><td className="num">{p.fxHistory?.length ?? B}</td></tr>)}</tbody></table></div>
       <div className="note">Marks and their sources, source times, receipt times and freshness are captured together{snapshot.ok ? ` at ${new Date(snapshot.value.capturedAt).toISOString()}` : ''}. The calculations and CSV use that same snapshot; displayed freshness is evaluated at capture.</div>
-      {positions.some((p) => p.fxProxyNote) && <div className="note amber">CNY holdings use offshore CNH for current and historical {B} conversion. The onshore/offshore basis is not modelled.</div>}
+      {positions.some((p) => p.fxProxyNote) && <div className="note amber">{[...new Set(positions.map((p) => p.fxProxyNote).filter(Boolean))].join(' ')}</div>}
     </Section>
     <MethodNote base={B} />
   </>;

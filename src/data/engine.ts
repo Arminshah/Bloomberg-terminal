@@ -462,7 +462,7 @@ export class MarketEngine {
     if (code === 'USD') return 1;
     if (code === 'GBp') return this.usdValue('GBP') / 100;
     if (code === 'USd') return 0.01;
-    if (code === 'CNY') return this.usdValue('CNH');
+    // CNY (onshore) and CNH (offshore) are each their own line: one is never shown under the other's name.
     const st = this.states.get(`CCY:${code}`);
     if (!st || (this.realOnly && !st.ext)) return NaN;
     return st.last;

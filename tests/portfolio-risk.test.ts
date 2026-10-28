@@ -48,13 +48,25 @@ describe('exact portfolio history and historical FX', () => {
     expect(result.value.capturedAt).toBe(CUTOFF);
   });
 
-  it('labels the CNY/CNH conversion proxy explicitly and keeps its actual FX identity', () => {
+  // Until October 2026 CNY holdings were converted at the offshore CNH rate as a proxy; the app carries the onshore CNY
+  // line itself (Yahoo's CNY=X, the ECB's CNY fixing), so each currency is converted at its own rate.
+  it('converts a CNY holding at the onshore CNY rate, not offshore CNH', () => {
     const market = new MarketEngine(() => CUTOFF);
     const d = { ...market.get('AAPL US Equity')!, id: 'CNY FIXTURE Equity', ticker: 'CNY FIXTURE', ccy: 'CNY' };
     expect(market.addSecurity(d)).toBe(true);
     const result = portfolioSnapshot([{ id: d.id, qty: 1, cost: 1 }], 1000, 20, market);
     if (!result.ok) throw new Error(result.error);
-    expect(result.value.positions[0]).toMatchObject({ quoteCurrency: 'CNY', fxCurrency: 'CNH', fxId: 'CCY:CNH', fxProxyNote: expect.stringContaining('offshore CNH') });
+    expect(result.value.positions[0]).toMatchObject({ quoteCurrency: 'CNY', fxCurrency: 'CNY', fxId: 'CCY:CNY', fxProxyNote: '' });
+    expect(result.value.positions[0].fx).toBe(market.usdValue('CNY'));
+  });
+
+  it('keeps the onshore CNY and offshore CNH rates apart', () => {
+    const market = new MarketEngine(() => CUTOFF);
+    const day = Math.floor(CUTOFF / 86_400_000);
+    market.setExternalDaily('CCY:CNY', [{ day: day - 1, o: 1 / 7.1, h: 1 / 7.1, l: 1 / 7.1, c: 1 / 7.1, v: 0 }]);
+    market.setExternalDaily('CCY:CNH', [{ day: day - 1, o: 1 / 7.13, h: 1 / 7.13, l: 1 / 7.13, c: 1 / 7.13, v: 0 }]);
+    expect(1 / market.usdValue('CNY')).toBeCloseTo(7.1, 6);
+    expect(1 / market.usdValue('CNH')).toBeCloseTo(7.13, 6);
   });
   it('allows the correlation universe to become empty without accessing a missing date spine', () => {
     expect(alignedReturns([], 252)).toEqual({ dates: [], rets: [] });

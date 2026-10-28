@@ -180,7 +180,8 @@ async function loadFx(signal: AbortSignal) {
     const dates = Object.keys(res.rates).sort();
     let n = 0;
     for (const c of CURRENCIES) {
-      const code = c.code === 'CNH' ? 'CNY' : c.code;
+      // The ECB fixes the onshore CNY only: the offshore CNH keeps no ECB rate rather than CNY's under its name.
+      const code = c.code;
       const pts: [number, number][] = [];
       for (const d of dates) {
         const v = res.rates[d][code];
