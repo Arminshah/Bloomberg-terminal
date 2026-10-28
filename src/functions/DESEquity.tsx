@@ -6,6 +6,7 @@ import { Chg, HBar, KV, LiveChg, LivePx, SecLink, Section } from '../components/
 import { DataTable } from '../components/DataTable';
 import { Sparkline } from '../components/Sparkline';
 import { NextEarnings } from '../components/NextEarnings';
+import { MarketValue } from '../components/MarketValue';
 import { fmtBig, fmtDay, fmtEarnDate, fmtInt, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { DAY_MS } from '../data/calendar';
 import { indexAtOrBefore } from '../data/series';
@@ -276,9 +277,9 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               [`52 Wk H (${fmtDay(rs.hi52t)})`, fmtNum(rs.hi52, sec.dec)],
               [`52 Wk L (${fmtDay(rs.lo52t)})`, fmtNum(rs.lo52, sec.dec)],
               ['YTD Change/%', pair(<Chg key="a" v={ytdAbs} dec={sec.dec} />, <Chg key="p" v={ytd} pct />)],
-              [`Mkt Cap (${ks.tradeCcy})`, <CapLink key="mc" id={sec.id}>{fmtMln(ks.mcap)}</CapLink>],
-              ...(ks.tradeCcy === 'USD' ? [] : [['Mkt Cap (USD)', <CapLink key="mcu" id={sec.id}>{fmtBig(marketCapUsd(sec.id))}</CapLink>] as [string, ReactNode]]),
-              ['Shrs Out/Float', pair(fmtMln(eq.shares), f && Number.isFinite(f.float) ? fmtBig(f.float) : '--')],
+              [`Mkt Cap (${ks.tradeCcy})`, <MarketValue key="mc" sec={sec}><CapLink id={sec.id}>{fmtMln(ks.mcap)}</CapLink></MarketValue>],
+              ...(ks.tradeCcy === 'USD' ? [] : [['Mkt Cap (USD)', <MarketValue key="mcu" sec={sec}><CapLink id={sec.id}>{fmtBig(marketCapUsd(sec.id))}</CapLink></MarketValue>] as [string, ReactNode]]),
+              ['Shrs Out/Float', <MarketValue key="so" sec={sec}>{pair(fmtMln(eq.shares), f && Number.isFinite(f.float) ? fmtBig(f.float) : '--')}</MarketValue>],
               ...(noShortData
                 ? [['SI/Days to Cover', <span key="si" className="muted" title="Short interest is published for US listings (FINRA); exchanges elsewhere publish only large individual short positions, and the sources give none for this listing">US listings only</span>] as [string, ReactNode]]
                 : [

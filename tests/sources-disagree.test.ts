@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { NextEarnings } from '../src/components/NextEarnings';
 import { dividendDisagreement, nextEarningsDisagreement, type EarningsEvent } from '../src/data/fundamentals';
+import { shareCountDisagreement } from '../src/data/live/share-check';
+import type { CompanyFacts } from '../src/data/live/sec';
 import { mergeConsensus, parseYahooEarnings } from '../src/data/live/consensus';
 import { nasdaqData } from '../src/data/live/nasdaq-company';
 import { engine } from '../src/data/market';
@@ -83,5 +85,25 @@ describe('Sources disagree: a dividend', () => {
     expect(dividendDisagreement({ ...mar18, amount: 0.175 }, { ...mar18, amount: 1.75 }, 10)).toBeUndefined();
     // A split's adjustment rounded by Yahoo: 0.40 after a 3:1 split, 0.133333.
     expect(dividendDisagreement({ ...row, amount: 0.133333 }, { ...row, amount: 0.4 }, 3)).toBeUndefined();
+  });
+});
+
+describe('Sources disagree: the share count behind a market value', () => {
+  const now = Date.parse('2026-10-28T20:00:00Z');
+  const facts = (rows: { end: string; val: number; accn: string; form?: string; filed?: string }[]): CompanyFacts =>
+    ({ cik: 59478, name: 'ELI LILLY & Co', facts: { 'dei:EntityCommonStockSharesOutstanding': { shares: rows.map((r) => ({ form: '10-Q', filed: '2026-08-05', ...r })) } } }) as unknown as CompanyFacts;
+  it("flags Eli Lilly: Yahoo's 891.4M shares against 941.4M on its 10-Q's cover", () => {
+    const lly = facts([{ end: '2026-04-27', val: 941_741_406, accn: 'a', filed: '2026-04-30' }, { end: '2026-08-03', val: 941_357_065, accn: 'b' }]);
+    expect(shareCountDisagreement(891.357065, lly, now)).toBe("Yahoo Finance's market value counts 891.36M shares; the company's 10-Q filed 05/08/26 gives 941.36M on its cover, as of 03/08/26.");
+    // Within 2%: the same count on different dates.
+    expect(shareCountDisagreement(935, lly, now)).toBeUndefined();
+  });
+
+  it('says nothing for several classes on one cover, an old cover, or no count', () => {
+    const classes = facts([{ end: '2026-07-20', val: 5_800_000_000, accn: 'g' }, { end: '2026-07-20', val: 5_400_000_000, accn: 'g' }]);
+    expect(shareCountDisagreement(12_100, classes, now)).toBeUndefined();
+    expect(shareCountDisagreement(891, facts([{ end: '2026-01-02', val: 941_000_000, accn: 'x' }]), now)).toBeUndefined();
+    expect(shareCountDisagreement(NaN, facts([{ end: '2026-08-03', val: 941_000_000, accn: 'b' }]), now)).toBeUndefined();
+    expect(shareCountDisagreement(891, null, now)).toBeUndefined();
   });
 });

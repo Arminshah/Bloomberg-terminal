@@ -16,6 +16,7 @@ import { engine, useQuote, useTick } from '../data/market';
 import { rangeStats } from '../data/analytics';
 import { keyStats, nextEarnings } from '../data/fundamentals';
 import { NextEarnings } from '../components/NextEarnings';
+import { MarketValue } from '../components/MarketValue';
 import { news } from '../data/news';
 import { execute } from '../terminal/exec';
 import { requestCompanyNews } from '../data/live/feeds';
@@ -174,7 +175,7 @@ export function BQ({ sec }: FnProps) {
           {ks ? (
             <KV
               items={[
-                ['Market cap', `${fmtMln(ks.mcap)} ${ks.tradeCcy}`],
+                ['Market cap', <MarketValue key="mc" sec={s}>{`${fmtMln(ks.mcap)} ${ks.tradeCcy}`}</MarketValue>],
                 ['P/E LTM', Number.isFinite(ks.pe) && ks.pe > 0 ? fmtNum(ks.pe, 1) : peText(NaN, ks.epsLtm)],
                 ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
                 ['Beta (5Y monthly)', fmtNum(ks.beta, 2)],
