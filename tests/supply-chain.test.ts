@@ -237,7 +237,7 @@ describe('SPLC: the search', () => {
 describe('SPLC: the main process', () => {
   it('builds only the searches and documents the app makes', () => {
     expect(main.ftsUrl('accounted for|NVIDIA Corporation', Date.parse('2026-10-20T12:00:00Z'))).toBe(
-      'https://efts.sec.gov/LATEST/search-index?q=%22NVIDIA%20Corporation%22%20%22accounted%20for%22&forms=10-K,20-F,40-F,10-Q&dateRange=custom&startdt=2025-04-20&enddt=2026-10-20',
+      'https://efts.sec.gov/LATEST/search-index?q=%22NVIDIA%20Corporation%22%20%22accounted%20for%22&forms=10-K,20-F,40-F,10-Q&dateRange=custom&startdt=2024-10-20&enddt=2026-10-20',
     );
     // IPO prospectuses over three years, and the second page of hits.
     expect(main.ftsUrl('customer|NVIDIA Corporation|prospectus|100', Date.parse('2026-10-20T12:00:00Z'))).toBe(
@@ -246,10 +246,10 @@ describe('SPLC: the main process', () => {
     expect(main.ftsUrl('customer|NVIDIA Corporation|other')).toBeNull();
     expect(main.ftsUrl('customer|NVIDIA Corporation|reports|500')).toBeNull();
     expect(main.ftsUrl('customer|NVIDIA Corporation|reports|150')).toBeNull();
-    // The name alone; a year of current reports (8-K and their exhibits); one filer's documents.
+    // The name alone; two years of current reports (8-K and their exhibits); one filer's documents.
     expect(main.ftsUrl('|Applied Digital|reports', Date.parse('2026-10-20T12:00:00Z'))).toContain('q=%22Applied%20Digital%22&forms=10-K,20-F,40-F,10-Q&');
     expect(main.ftsUrl('|Applied Digital|current|0|1144879', Date.parse('2026-10-20T12:00:00Z'))).toBe(
-      'https://efts.sec.gov/LATEST/search-index?q=%22Applied%20Digital%22&forms=8-K&dateRange=custom&startdt=2025-10-19&enddt=2026-10-20&ciks=0001144879',
+      'https://efts.sec.gov/LATEST/search-index?q=%22Applied%20Digital%22&forms=8-K&dateRange=custom&startdt=2024-10-20&enddt=2026-10-20&ciks=0001144879',
     );
     expect(main.ftsUrl('lease|Applied Digital|current|200', Date.parse('2026-10-20T12:00:00Z'))).toContain('&from=200');
     expect(main.ftsUrl('|Applied Digital|current|0|0123')).toBeNull();

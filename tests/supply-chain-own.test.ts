@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as main from '../electron/supply-chain.cjs';
-import { buildDirectory, exhibitStatements, mergeRelations, ownRelations, stillHeld, subsidiaryNames, targetNames, targetPattern, type EndedStakes, type Relation } from '../src/data/live/supply-chain';
+import { buildDirectory, exhibitStatements, mergeRelations, ownRelations, runChain, stillHeld, subsidiaryNames, targetNames, targetPattern, type Chain, type ChainIO, type EndedStakes, type Relation } from '../src/data/live/supply-chain';
 import type { SecCompany } from '../src/data/live/sec';
 
 // Sentences as Applied Digital (APLD) and Coca-Cola wrote them in their filings of 2025 and 2026.
@@ -72,5 +72,53 @@ describe("SPLC: what a company's own filings say of its lenders, investors and s
     // Coca-Cola FEMSA is an investee of Coca-Cola, not Coca-Cola itself.
     const ko = "The Company's equity method investments include, but are not limited to, our ownership interests in Coca-Cola FEMSA, S.A.B. de C.V.";
     expect(ownRelations([ko], dir, { cik: 21344, names: ['Coca-Cola'], ticker: 'KO' }, EV).map((r) => `${r.role}:${r.name}`)).toEqual(['investment:COCA COLA FEMSA SAB DE CV']);
+  });
+});
+
+describe("SPLC: which of the company's own filings are read", () => {
+  it('reads both annual reports, the quarterly reports between, the agreement 8-Ks of two years and their press releases', async () => {
+    const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+    const indexed: string[] = [];
+    const io: ChainIO = {
+      companies: async () => COMPANIES,
+      filings: async () => [
+        { form: '10-Q', filed: day(20), accession: '0001144879-26-000059', doc: 'apld-20260831.htm' },
+        { form: '8-K', filed: day(40), accession: '0001493152-26-030333', doc: 'form8-k.htm', items: ['1.01', '2.03', '9.01'] },
+        { form: '8-K', filed: day(60), accession: '0001493152-26-017092', doc: 'form8-k.htm', items: ['5.02'] },
+        { form: '10-K', filed: day(90), accession: '0001144879-26-000048', doc: 'apld-20260531.htm' },
+        { form: '10-Q', filed: day(200), accession: '0001144879-26-000030', doc: 'apld-20260228.htm' },
+        { form: '10-K', filed: day(455), accession: '0001144879-25-000021', doc: 'apld-20250531.htm' },
+        { form: '10-Q', filed: day(500), accession: '0001144879-25-000010', doc: 'apld-20250228.htm' },
+        { form: '8-K', filed: day(800), accession: '0001493152-24-000001', doc: 'form8-k.htm', items: ['1.01'] },
+      ],
+      index: async (_cik, accession) => {
+        indexed.push(accession);
+        return ['form8-k.htm', 'ex10-1.htm', 'ex99-1.htm', 'ex99-2.htm', 'ex99-3.htm'];
+      },
+      fts: async () => ({ hits: [], total: 0 }),
+      text: async (kind, path) => {
+        if (kind !== 'own') return [];
+        if (path.endsWith('ex99-1.htm')) return ['Applied Digital today announced it has entered into a $500 million loan facility with Macquarie Equipment Capital, Inc. to support its new campuses.'];
+        return [];
+      },
+      securities: [],
+    };
+    let chain: Chain = { state: 'loading', filers: [], relations: [], changes: {} };
+    await runChain({ ticker: 'APLD', name: 'Applied Digital Corp' }, io, (f) => {
+      chain = f(chain);
+    });
+    expect(chain.filers.filter((f) => f.source === 'own').map((f) => [f.form, f.type ?? '', f.path.split('/').pop()])).toEqual([
+      ['10-K', '', 'apld-20260531.htm'],
+      ['10-Q', '', 'apld-20260831.htm'],
+      ['10-Q', '', 'apld-20260228.htm'],
+      ['10-K', '', 'apld-20250531.htm'],
+      ['8-K', '', 'form8-k.htm'],
+      ['8-K', 'EX-99.1', 'ex99-1.htm'],
+      ['8-K', 'EX-99.2', 'ex99-2.htm'],
+    ]);
+    // A change of officers (5.02) and an agreement of more than two years ago are not read.
+    expect(indexed).toEqual(['0001493152-26-030333']);
+    expect(chain.relations.map((r) => [r.role, r.name])).toEqual([['lender', 'Macquarie Group']]);
+    expect(chain.relations[0].evidence[0]).toMatchObject({ form: '8-K', type: 'EX-99.1' });
   });
 });

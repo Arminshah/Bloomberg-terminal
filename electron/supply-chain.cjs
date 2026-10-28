@@ -18,13 +18,13 @@ const DAY = 86_400_000;
 const TERMS = ['', 'accounted for', 'largest customer', 'revenues', 'suppliers', 'supplier', 'customer', 'sole source', 'purchase', 'distributor', 'competitors', 'lease', 'contract', 'agreement'];
 
 /**
- * The filings searched: annual and quarterly reports of the last 18 months, the IPO prospectuses of the last three
- * years, or the current reports (8-K, with their press releases and other exhibits) of the last year.
+ * The filings searched: annual and quarterly reports of the last two years, the IPO prospectuses of the last three
+ * years, or the current reports (8-K, with their press releases and other exhibits) of the last two years.
  */
 const SETS = {
-  reports: { forms: '10-K,20-F,40-F,10-Q', days: 548 },
+  reports: { forms: '10-K,20-F,40-F,10-Q', days: 730 },
   prospectus: { forms: 'S-1,F-1,424B4', days: 1096 },
-  current: { forms: '8-K', days: 366 },
+  current: { forms: '8-K', days: 730 },
 };
 
 /** A company name as the page may search it: letters, digits and the punctuation of legal names. */

@@ -1,18 +1,20 @@
 import { useEffect } from 'react';
 import { createStore } from '../../core/store';
+import { DAY_MS } from '../calendar';
 import { engine } from '../market';
 import type { SecurityDef } from '../types';
 import { yahooGet } from './yahoo';
 import { parseSpark } from './index-members';
-import { findByTicker, loadFiler, loadSecCompanies, secAvailable, secTicker, type SecCompany } from './sec';
+import { findByTicker, loadFiler, loadFilingIndex, loadSecCompanies, secAvailable, secTicker, type SecCompany } from './sec';
 
 /**
  * SPLC: a company's suppliers, customers and competitors as annual reports state them. Companies name their large
  * customers with the share of revenue each brought (Fabrinet: "NVIDIA Corporation ... contributed 16.3% of our
  * revenues"), their key suppliers (CoreWeave relies on NVIDIA GPUs) and their competitors. The SEC's full-text
- * search finds the reports of the last 18 months that name the company; the desktop app reads the sentences that
- * name it and classifies them here. The company's own report adds the suppliers, customers and competitors it
- * names itself. Every relation keeps the sentence and filing it comes from.
+ * search finds the reports and current reports of the last two years that name the company; the desktop app reads
+ * the sentences that name it and classifies them here. The company's own reports of two years, its agreement and
+ * financing 8-Ks and their press releases add the suppliers, customers, competitors, partners, investors and
+ * lenders it names itself. Every relation keeps the sentence and filing it comes from.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -2100,10 +2102,17 @@ export interface Chain {
 export const supplyChains = createStore<{ v: number; chains: Record<string, Chain> }>({ v: 0, chains: {} });
 
 /** Other companies' reports read (one per company), current reports read (two per company), quarterly updates read. */
-const MAX_REPORTS = 80;
-const MAX_CURRENT = 30;
+const MAX_REPORTS = 150;
+const MAX_CURRENT = 60;
 const MAX_OWN_CURRENT = 40;
-const MAX_NEWER = 25;
+const MAX_NEWER = 40;
+/** The company's own current reports of two years that report agreements, deals, financings or announcements, and the
+ * press releases filed with them. */
+const MAX_OWN_8K = 40;
+const MAX_OWN_RELEASES = 30;
+const OWN_ITEMS = /^(?:1\.01|2\.01|2\.03|7\.01|8\.01)$/;
+/** A press release's file name in a filing's folder: "ex99-1.htm", "ex991.htm", "exhibit99_1.htm", "d12345dex991.htm". */
+const RELEASE_FILE = /(?:^|[^a-z])ex(?:hibit)?[-_.]?99(?:[-_.]?(\d{1,2}))?[^/]*\.html?$/i;
 /** A name found in fewer documents than this is read in full; above, only beside the terms. */
 const NAME_ONLY = 300;
 const running = new Set<string>();
@@ -2118,7 +2127,9 @@ const PROSPECTUS_TERMS = ['customer', 'supplier', 'accounted for'];
 export interface ChainIO {
   companies(): Promise<SecCompany[]>;
   /** A filer's recent filings, newest first. */
-  filings(cik: number): Promise<{ form: string; filed: string; accession: string; doc?: string }[] | null>;
+  filings(cik: number): Promise<{ form: string; filed: string; accession: string; doc?: string; items?: string[] }[] | null>;
+  /** The file names in one of its filings' folders, to find a current report's press releases; optional. */
+  index?(cik: number, accession: string): Promise<string[] | null>;
   /** A full-text search; throws when it fails (Error('missing-agent') without the SEC User-Agent). */
   fts(arg: string): Promise<{ hits: FtsHit[]; total: number }>;
   /** The sentences of a document: those naming `names` ('mentions'), or the company's own statements ('own'). */
@@ -2171,13 +2182,41 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     const filings = (await io.filings(company.cik)) ?? [];
     const doc = (f: { form: string; filed: string; accession: string; doc?: string }): Filer | null =>
       f.doc && /\.html?$/i.test(f.doc) ? { cik: company.cik, name: title, tickers: [company.ticker], form: f.form, date: f.filed, path: `${company.cik}/${f.accession.replace(/-/g, '')}/${f.doc}`, score: 0, terms: 0, state: 'waiting', source: 'own' } : null;
-    const annual = filings.find((f) => /^(10-K|20-F|40-F)$/.test(f.form) && doc(f));
-    if (annual) own.push(doc(annual)!);
-    const quarterly = filings.find((f) => f.form === '10-Q' && doc(f));
-    if (quarterly && (!annual || quarterly.filed > annual.filed)) own.push(doc(quarterly)!);
+    // The latest annual report, the quarterly reports since the one before, and that earlier annual report.
+    const annuals = filings.filter((f) => /^(10-K|20-F|40-F)$/.test(f.form) && doc(f)).slice(0, 2);
+    if (annuals[0]) own.push(doc(annuals[0])!);
+    for (const q of filings.filter((f) => f.form === '10-Q' && doc(f) && (!annuals[1] || f.filed > annuals[1].filed)).slice(0, 4)) own.push(doc(q)!);
+    if (annuals[1]) own.push(doc(annuals[1])!);
     if (queries[0]) {
       const got = await ask(`|${queries[0]}|current|0|${company.cik}`);
       own.push(...currentDocs([got.hits], company.cik, MAX_OWN_CURRENT, MAX_OWN_CURRENT, true));
+    }
+    // Every current report of two years on an agreement, a deal, a financing or an announcement, and the press
+    // releases filed with them: where companies announce their customers, suppliers and lenders.
+    const since = new Date(Date.now() - 730 * DAY_MS).toISOString().slice(0, 10);
+    const eightKs = filings.filter((f) => /^(?:8-K|6-K)$/.test(f.form) && f.filed >= since && doc(f) && (!f.items || f.items.some((i) => OWN_ITEMS.test(i)))).slice(0, MAX_OWN_8K);
+    const have = new Set(own.map((f) => f.path));
+    for (const f of eightKs) {
+      const d = doc(f)!;
+      if (!have.has(d.path)) {
+        have.add(d.path);
+        own.push(d);
+      }
+    }
+    if (io.index) {
+      let releases = 0;
+      for (const f of eightKs.filter((x) => !x.items || x.items.some((i) => /^(?:1\.01|7\.01|8\.01)$/.test(i)))) {
+        if (releases >= MAX_OWN_RELEASES) break;
+        const names = (await io.index(company.cik, f.accession).catch(() => null)) ?? [];
+        for (const name of names.filter((n) => RELEASE_FILE.test(n)).slice(0, 2)) {
+          const path = `${company.cik}/${f.accession.replace(/-/g, '')}/${name}`;
+          if (have.has(path)) continue;
+          have.add(path);
+          const n = RELEASE_FILE.exec(name)?.[1];
+          own.push({ cik: company.cik, name: title, tickers: [company.ticker], form: f.form, type: `EX-99${n ? `.${Number(n)}` : ''}`, date: f.filed, path, score: 0, terms: 0, state: 'waiting', source: 'own' });
+          releases++;
+        }
+      }
     }
   }
   emit((c) => ({ ...c, filers: own }));
@@ -2293,7 +2332,11 @@ function desktopIO(): ChainIO {
     },
     filings: async (cik) => {
       const filer = await loadFiler(cik);
-      return filer.ok ? filer.data.filings.map((f) => ({ form: f.form, filed: f.filed, accession: f.accession, doc: f.doc })) : null;
+      return filer.ok ? filer.data.filings.map((f) => ({ form: f.form, filed: f.filed, accession: f.accession, doc: f.doc, items: f.items })) : null;
+    },
+    index: async (cik, accession) => {
+      const got = await loadFilingIndex(cik, accession);
+      return got.ok ? got.data : null;
     },
     fts: async (arg) => {
       const res = await bridge.sec!('fts', arg);

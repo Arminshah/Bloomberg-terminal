@@ -538,9 +538,9 @@ export function SPLC({ sec }: FnProps) {
             {tab === 5 && <RelationTable rows={others} t={t} changes={changes} onOpen={onOpen} role="other" capOf={capOf} />}
             {tab === 6 && <FilingsRead chain={chain} />}
             <p className="pad-s muted">
-              From SEC filings: the company&apos;s own latest annual and quarterly reports and its press releases and agreements (8-K) of the last year; and, from
-              other companies that name it, their annual and quarterly reports (10-K, 20-F, 40-F, 10-Q) of the last 18 months, IPO prospectuses (S-1, F-1, 424B4)
-              of the last three years and press releases of the last year
+              From SEC filings: the company&apos;s own last two annual reports, the quarterly reports since, and its current reports (8-K) of the last two years on
+              agreements, deals, financings and announcements, with the press releases filed with them; and, from other companies that name it, their annual and
+              quarterly reports (10-K, 20-F, 40-F, 10-Q) and current reports of the last two years and IPO prospectuses (S-1, F-1, 424B4) of the last three years
               {chain.names ? ` (${chain.names.legal.concat(chain.names.names).filter((v, i, a) => a.indexOf(v) === i).join(', ')})` : ''}. Shares are as the
               reports state them, for the latest year they give: a supplier&apos;s share is of its own revenue, a customer&apos;s of {t}&apos;s revenue (or of its
               own sales or purchases). Companies a filing names without a share are listed after, with the filing that last named them; unnamed counterparties are
