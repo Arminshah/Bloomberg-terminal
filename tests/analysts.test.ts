@@ -90,6 +90,12 @@ describe('FMP answers', () => {
     expect(fmpProblem(500, 'XYZ')).toBe('FMP answered HTTP 500.');
     expect(fmpProblem(0, 'XYZ')).toBe('FMP did not answer.');
   });
+
+  it('reads a refusal FMP sends as HTTP 200 by its text, and cuts any other message short', () => {
+    expect(fmpProblem(200, 'XYZ', 'Premium Query Parameter: This value set for symbol is not available under your current subscription please visit our subscription page')).toBe("FMP's plan does not cover XYZ for this dataset (HTTP 402).");
+    expect(fmpProblem(200, 'XYZ', 'Invalid API KEY. Feel free to create a Free API Key or visit our page.')).toBe('FMP refused the key. Check the key on PROVIDERS.');
+    expect(fmpProblem(0, 'XYZ', 'Limit Reach . Please upgrade your plan or visit our documentation for more details at https://site.financialmodelingprep.com/')).toMatch(/^FMP refused the request: Limit Reach .{60,}…$/);
+  });
 });
 
 describe('research fallback and section isolation', () => {

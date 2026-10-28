@@ -275,10 +275,25 @@ async function outsideUsPart(kind: AnalystKind, symbol: string): Promise<Analyst
  * An FMP refusal in plain words, without FMP's own error text (a paragraph about plans and pricing): HTTP 402 is the
  * account's plan not covering the request for this ticker.
  */
-export function fmpProblem(status: number, symbol: string): string {
-  if (status === 402) return `FMP's plan does not cover ${symbol} for this dataset (HTTP 402).`;
-  if (status === 401 || status === 403) return `FMP refused the key (HTTP ${status}). Check the key on PROVIDERS.`;
+export function fmpProblem(status: number, symbol: string, error?: string): string {
+  const kind = refusalStatus(status, error);
+  if (kind === 402) return `FMP's plan does not cover ${symbol} for this dataset (HTTP 402).`;
+  if (kind === 401 || kind === 403) return `FMP refused the key${status && status !== 200 ? ` (HTTP ${status})` : ''}. Check the key on PROVIDERS.`;
+  const said = error?.replace(/^HTTP \d+:?\s*/, '').trim();
+  if (said) return `FMP refused the request: ${said.length > 100 ? `${said.slice(0, 99)}…` : said}`;
   return status ? `FMP answered HTTP ${status}.` : 'FMP did not answer.';
+}
+
+/**
+ * What a refusal is, also when the provider answers HTTP 200 with an error in the body: 402 for a plan that does not
+ * cover the request ("Premium Query Parameter", "not available under your current subscription"), 401 for a key it
+ * does not accept ("Invalid API KEY"), else the status as it came.
+ */
+export function refusalStatus(status: number, error?: string): number {
+  if (status === 402 || /premium|subscription|not available under your/i.test(error ?? '')) return 402;
+  if (status === 401 || status === 403) return status;
+  if (/invalid api key|api key is (?:invalid|missing)|unauthori[sz]ed/i.test(error ?? '')) return 401;
+  return status;
 }
 
 /** What one source's failure means, in a few words: "FMP's plan does not cover APLD". */
@@ -333,7 +348,7 @@ export function parseFinnhubRecommendations(text: string, symbol: string): Parse
 function responsePart(res: KeyedAnswer, kind: AnalystKind, symbol: string, source: 'FMP' | 'Finnhub'): AnalystPart {
   if (res.gated) return { state: 'off', source, message: `${source} is switched off (${res.gated} on PROVIDERS).` };
   if (res.missing || res.refused) return { state: 'needs-key', source, message: res.refused ? `${source}'s configured key has the wrong format.` : `Needs ${source === 'FMP' ? 'FMP_API_KEY' : 'FINNHUB_API_KEY'} on PROVIDERS.` };
-  if (!res.text) return { state: res.budget ? 'budget' : 'error', source, ...(res.status ? { status: res.status } : {}), ...(!res.budget && (!res.status || res.status === 429 || res.status >= 500) ? { transient: true } : {}), message: res.budget ? `Today's ${source} allowance in this app is spent; it resets at midnight UTC.` : source === 'FMP' ? fmpProblem(res.status, symbol) : `Finnhub: ${res.status === 401 ? 'refused the key (HTTP 401). The REST key goes on PROVIDERS; the webhook secret cannot authenticate data requests.' : res.status ? `HTTP ${res.status}.` : 'did not answer.'}` };
+  if (!res.text) return { state: res.budget ? 'budget' : 'error', source, ...(refusalStatus(res.status, res.error) ? { status: refusalStatus(res.status, res.error) } : {}), ...(!res.budget && (!res.status || res.status === 429 || res.status >= 500) ? { transient: true } : {}), message: res.budget ? `Today's ${source} allowance in this app is spent; it resets at midnight UTC.` : source === 'FMP' ? fmpProblem(res.status, symbol, res.error) : `Finnhub: ${res.status === 401 ? 'refused the key (HTTP 401). The REST key goes on PROVIDERS; the webhook secret cannot authenticate data requests.' : res.status ? `HTTP ${res.status}.` : 'did not answer.'}` };
   const parsed = source === 'Finnhub' ? parseFinnhubRatings(res.text, symbol) : PARSE[kind](res.text);
   if ('error' in parsed) return { state: 'error', source, message: parsed.error, at: res.at };
   const months = source === 'Finnhub' ? parseFinnhubRecommendations(res.text, symbol) : undefined;

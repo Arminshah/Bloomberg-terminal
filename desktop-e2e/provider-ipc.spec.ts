@@ -1328,7 +1328,8 @@ test('malformed option schemas are not cached or reported as successful and reco
 
 test('HTTP 200 provider refusals cross desktop IPC as errors and are never cached as successes', async ({ desktop: { app, page } }) => {
   await command(page, 'AAPL ANALYSTS');
-  await expect(page.locator('.panel').first().getByText(FMP_ERROR, { exact: false }).first()).toBeVisible();
+  // In plain words on ANALYSTS (the owner, 28 October 2026); FMP's own message stays on PROVIDERS, below.
+  await expect(page.locator('.panel').first().getByText('FMP refused the key. Check the key on PROVIDERS.', { exact: false }).first()).toBeVisible();
   await expect.poll(async () => (await calls(app)).fmp).toBe(5);
   const beforeFmp = (await calls(app)).fmp;
   const fmp: KeyedAnswer = await page.evaluate(() => window.arminDesktop!.analysts!('consensus', 'AAPL'));
@@ -1362,7 +1363,7 @@ test('research remains usable across FMP 402s, Finnhub fallback and manual Equib
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.researchPartial = true; process.env.FINNHUB_ENABLED = 'true'; });
   await command(page, 'AAPL ANALYSTS');
   await page.getByText('Research source availability', { exact: true }).click();
-  await expect(page.getByText('Your FMP subscription does not include this request for AAPL (HTTP 402)', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("FMP's plan does not cover AAPL", { exact: false }).first()).toBeVisible();
   await expect(page.getByText('Source: Finnhub', { exact: false }).first()).toContainText('recommendation period 01/10/2026');
   await expect(page.getByRole('cell', { name: '1.25', exact: true })).toBeVisible();
   expect((await calls(app)).finnhub.some((url) => new URL(url).pathname === '/api/v1/stock/recommendation')).toBe(true);
