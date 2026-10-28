@@ -22,6 +22,8 @@ export const LEGACY_CODES: Record<string, string> = {
   SI: 'SHORTINTEREST',
   EQRP: 'RISKPREMIUM',
   SPLC: 'SUPPLYCHAIN',
+  // Compliance Manager: "real-time compliance checks in every step of the buy-side process" (the publisher's Pro Tips page).
+  CMGR: 'COMPLIANCE',
   HDS: 'HOLDERS',
   OWN: 'HOLDERS',
   MGMT: 'MANAGEMENT',

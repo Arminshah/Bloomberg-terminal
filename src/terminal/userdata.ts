@@ -124,6 +124,9 @@ export interface Portfolio {
   base: string;
   /** Buys, sells and dividends entered on the Transactions tab; portfolios saved before it existed have none. */
   transactions?: Txn[];
+  /** COMPLIANCE's rules for this portfolio, and when each exception (rule|item) was first seen (ms). */
+  rules?: import('./compliance').Rule[];
+  exceptions?: Record<string, number>;
 }
 
 export const MAX_PORTFOLIOS = 12;

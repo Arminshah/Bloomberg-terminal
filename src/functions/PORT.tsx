@@ -15,6 +15,8 @@ import { adjustPosition, BASE_CURRENCIES, baseFx, basePerPrice, isMargined, navV
 import type { FnProps } from '../terminal/types';
 import { PortfolioPerformance, PortfolioRisk } from './PortfolioRisk';
 import { HoldingMismatch, transactionRows, Transactions } from './PortTransactions';
+import { complianceSummary, PreTradeCheck, preTradeProblems } from './PreTrade';
+import { execute } from '../terminal/exec';
 import { txnsOf } from '../terminal/transactions';
 
 export { multiplier } from '../terminal/portfolio';
@@ -77,6 +79,8 @@ function Holdings() {
   const [bought, setBought] = useState('');
   const [busy, setBusy] = useState(false);
   const [cash, setCash] = useState('');
+  const [asking, setAsking] = useState<{ problems: string[]; commit: () => void } | null>(null);
+  const compliance = complianceSummary(st);
   const saveCash = () => {
     const c = Number(cash.replace(/,/g, ''));
     if (!cash.trim() || !Number.isFinite(c)) return flash(panel, `Enter the cash amount in ${base}`, 'error');
@@ -120,19 +124,37 @@ function Holdings() {
       const fxNow = baseFx(ccy, base);
       if (Number.isFinite(fxNow) && fxNow > 0) entry = { fx: fxNow, base, note: `market rate when entered, ${today}` };
     }
+    let next: Portfolio;
     try {
-      const adjusted = adjustPosition(portfolio.get().positions.find((p) => p.id === d.id), d.id, q, c, entry);
-      portfolio.set((s) => ({ ...s, positions: [...s.positions.filter((p) => p.id !== d.id), ...(adjusted ? [adjusted] : [])] }));
+      const cur = portfolio.get();
+      const adjusted = adjustPosition(cur.positions.find((p) => p.id === d.id), d.id, q, c, entry);
+      next = { ...cur, positions: [...cur.positions.filter((p) => p.id !== d.id), ...(adjusted ? [adjusted] : [])] };
     } catch { return flash(panel, 'Position quantity or cost is outside the valid range', 'error'); }
-    setSec('');
-    setQty('');
-    setPx('');
-    setBought('');
-    flash(panel, `Added ${q} ${d.ticker}.${note}`, note.startsWith(' No') ? 'error' : 'info');
+    const commit = () => {
+      portfolio.set((s) => ({ ...s, positions: next.positions }));
+      setAsking(null);
+      setSec('');
+      setQty('');
+      setPx('');
+      setBought('');
+      flash(panel, `Added ${q} ${d.ticker}.${note}`, note.startsWith(' No') ? 'error' : 'info');
+    };
+    // The portfolio's compliance rules, checked on the portfolio as it would be: asked first when it adds an exception.
+    const problems = preTradeProblems(portfolio.get(), next);
+    if (problems.length) return setAsking({ problems, commit });
+    commit();
   };
   return (
     <>
       <HoldingMismatch />
+      {compliance && (
+        <div className={`note ${compliance.status === 'breach' ? 'dn' : compliance.status === 'warn' ? 'amber' : 'muted'}`} data-testid="port-compliance">
+          Compliance: {compliance.text}.{' '}
+          <button type="button" className="link-btn" onClick={() => execute(panel, 'COMPLIANCE')}>
+            Open COMPLIANCE
+          </button>
+        </div>
+      )}
       {unresolved.length > 0 && <div className="note amber" role="status">Some saved holdings are not in the security directory. Resolve or remove them to calculate total NAV: {unresolved.map((p) => <span key={p.id}>{p.id} <button type="button" className="btn" aria-label={`Remove unresolved ${p.id}`} onClick={() => portfolio.set((s) => ({ ...s, positions: s.positions.filter((r) => r.id !== p.id) }))}>Remove</button> </span>)}</div>}
       <div className="cols">
         <Section
@@ -163,6 +185,7 @@ function Holdings() {
           />
         </Section>
         <Section title="Add or adjust a position">
+          {asking && <PreTradeCheck problems={asking.problems} onGo={asking.commit} onCancel={() => setAsking(null)} go="Add anyway" />}
           <div className="pad row" style={{ gap: 8 }}>
             <input className="inp" placeholder="Security (e.g. AAPL)" aria-label="Security" value={sec} onChange={(e) => setSec(e.target.value)} />
             <input className="inp" style={{ width: 90 }} placeholder="Qty (− to sell)" aria-label="Quantity" inputMode="decimal" value={qty} onChange={(e) => setQty(e.target.value)} />
@@ -263,7 +286,7 @@ function Holdings() {
  * One tab per portfolio, across the top as in a browser: click to show one, + opens a new one (named as you type),
  * a double click renames, × closes and dragging reorders. Closing one that holds anything asks first.
  */
-function PortfolioTabs() {
+export function PortfolioTabs() {
   const s = portfolios.use((x) => x);
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState('');

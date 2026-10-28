@@ -232,7 +232,7 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 | ETT | E1 | None | Blocked | No transcript source among the app's providers |
 | DSX | E1 | `DOCSEARCH`, help desk | Missing | Search with page citations over filings |
 | CRAN | E1 | None | Blocked | Credit ratings are licensed |
-| CMGR | E1 | None | Missing | Buildable: the user's own limits checked on `PORTFOLIO` (already in "Later") |
+| CMGR | E1 (the publisher's Pro Tips page: "build and run real-time compliance checks in every step of the buy-side process"; an award write-up: a rules engine and an exception blotter) | `COMPLIANCE` (CMGR) | Partial | The user's own rules on the app's portfolios, checked with every price and before a trade is recorded, with an exception blotter. No order management system to check orders in, no regulatory rule library beyond UCITS 5/10/40, issuers counted as holdings |
 | WSL | E1 | None | Missing | Needs worksheets first |
 | ASKB | E1 | `MESSAGES` (IB): the built-in assistant, or Claude with the app's data as tools | Partial | Instructions planted in news, filings or profiles are left out of both modes' answers and marked as data for Claude, with tests (item 12, 27 October) |
 | ALTD | E1 | None | Blocked | Paid datasets |

@@ -741,7 +741,7 @@ Added 25 October 2026. Codex's list of Bloomberg videos names 41 function codes:
 | BTST | Trading backtests: historical returns, strategy comparisons, risk statistics | **a** | strategies run on daily price history (Yahoo, as on HISTORY and RETURNS) |
 | CFND | Cross-asset correlations (with HRA) | **a** | CORRELATION's daily-return correlations, searched across a list for the closest. Built on 28 October as CORRELATION's "Most correlated" view; the code CFND is not mapped to it, since no public page found on 28 October says what CFND shows |
 | CHRT | Chart discovery by company and sector | b | a library of the provider's own published charts |
-| CMGR | Compliance rules: checking investment rules | **a** | limits checked against PORTFOLIO's own holdings (weight of a position, sector or country); no outside data |
+| CMGR | Compliance rules: checking investment rules | **a** | limits checked against PORTFOLIO's own holdings (weight of a position, sector or country); no outside data. Built on 28 October as `COMPLIANCE` |
 | CRAN | Credit research: issuer credit analysis | b | credit ratings and credit research are licensed content |
 | DSX | AI peer comparison and document research | b | the provider's AI service; DOCSEARCH already searches the full text of SEC filings |
 | FIW | Finding and comparing bonds (with SRCH) | b | bond prices have no free source (see BONDSEARCH) |

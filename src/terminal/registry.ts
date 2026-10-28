@@ -24,6 +24,7 @@ import { WACC } from '../functions/WACC';
 import { COMP } from '../functions/COMP';
 import { BETA } from '../functions/BETA';
 import { CORR } from '../functions/CORR';
+import { CMGR } from '../functions/CMGR';
 import { DEPTH } from '../functions/DEPTH';
 import { TAS } from '../functions/TAS';
 import { BQ } from '../functions/BQ';
@@ -233,6 +234,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'FAVOURITES', name: 'Favourites', category: 'Portfolio & Tools', desc: 'The securities you starred (☆ beside a security\'s name, anywhere): 1) live prices and changes, 2) their news merged from every source. The command line offers them as soon as you click it.', component: FAV, aliases: ['FAV', 'FAVORITES', 'FAVS'], example: 'FAVOURITES NEWS' },
   { code: 'PORTFOLIO', name: 'Portfolio & Risk', category: 'Portfolio & Tools', desc: 'Several portfolios as tabs, each with its own holdings, cash and transactions (first-in first-out lots, fees, ECB rates of the day, realised P&L, time- and money-weighted returns); historical-FX replay, date-aligned VaR/ES, signed risk contributions, benchmark tracking error, allocation, price/FX stress and CSV. Complete history required.', component: PORT },
   { code: 'ALERTS', name: 'Alerts', category: 'Portfolio & Tools', desc: 'Price, percent-change and news keyword alerts that pop up wherever you are while the app is open.', component: ALRT, aliases: ['ALERT', 'NLRT'] },
+  { code: 'COMPLIANCE', name: 'Compliance Manager', category: 'Portfolio & Tools', desc: "Your own rules on a portfolio (largest position, sector, country, region or asset class weights, UCITS 5/10/40, a restricted list, fewest holdings, cash, no shorts), checked as prices move, with an exception blotter; PORTFOLIO asks before recording a trade that would add an exception.", component: CMGR },
   { code: 'CORRELATION', name: 'Correlation Matrix', category: 'Portfolio & Tools', desc: 'Correlation of daily returns across any set of securities and periods, and the lines that moved most closely with one.', component: CORR },
   { code: 'SEARCH', name: 'Security Finder', category: 'Portfolio & Tools', desc: 'Search every security by ticker, name or alias, filtered by asset class.', component: SECF, aliases: ['FIND'] },
   { code: 'RECENT', name: 'Recently Used', category: 'Portfolio & Tools', desc: 'Your recently viewed securities and functions.', component: LAST },

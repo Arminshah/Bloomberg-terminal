@@ -13,6 +13,7 @@ import { flash, usePanelId } from '../terminal/panel';
 import { baseFx, isMargined, multiplier, priceCurrency } from '../terminal/portfolio';
 import { addTxn, adoptTransactions, mismatches, needingRates, removeTxn, setRates, txnId, txnsOf } from '../terminal/transactions';
 import { portfolio } from '../terminal/userdata';
+import { PreTradeCheck, preTradeProblems } from './PreTrade';
 
 /**
  * PORTFOLIO's Transactions tab: buys, sells and dividends with their dates, fees and exchange rates, matched first in,
@@ -98,6 +99,7 @@ export function Transactions() {
   const [fee, setFee] = useState('');
   const [rate, setRate] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<{ problems: string[]; commit: () => void } | null>(null);
 
   const record = async () => {
     if (busy) return;
@@ -123,16 +125,23 @@ export function Transactions() {
     const t: Txn = { id: txnId(), kind, sec: d.id, date, qty: q, price: p, fee: kind === 'dividend' ? 0 : f, fx: r.fx, fxNote: r.note, base };
     const res = addTxn(portfolio.get(), t, ledgerInfo);
     if (!res.ok) return flash(panel, res.error, 'error');
-    portfolio.set(res.change.portfolio);
-    setSec('');
-    setQty('');
-    setPx('');
-    setFee('');
-    setRate('');
-    const what = `${KIND[kind]} ${kind === 'dividend' ? `${fmtNum(p, 2)} ${ccy}` : `${qtyText(q)}`} ${d.ticker} on ${fmtIso(date)}`;
-    const rateText = r.fx > 0 && ccy !== base ? ` Rate ${fmtNum(r.fx, 6)} ${base} per ${ccy} (${r.note}).` : r.warn ? ` ${r.warn}` : '';
-    const holding = res.change.holding === 'updated' ? ' Holding updated.' : res.change.holding === 'kept' ? ' Holding left as it was: it differs from the transactions.' : '';
-    flash(panel, `Recorded: ${what}.${rateText}${holding}`, r.warn ? 'error' : 'info');
+    const commit = () => {
+      portfolio.set(res.change.portfolio);
+      setPending(null);
+      setSec('');
+      setQty('');
+      setPx('');
+      setFee('');
+      setRate('');
+      const what = `${KIND[kind]} ${kind === 'dividend' ? `${fmtNum(p, 2)} ${ccy}` : `${qtyText(q)}`} ${d.ticker} on ${fmtIso(date)}`;
+      const rateText = r.fx > 0 && ccy !== base ? ` Rate ${fmtNum(r.fx, 6)} ${base} per ${ccy} (${r.note}).` : r.warn ? ` ${r.warn}` : '';
+      const holding = res.change.holding === 'updated' ? ' Holding updated.' : res.change.holding === 'kept' ? ' Holding left as it was: it differs from the transactions.' : '';
+      flash(panel, `Recorded: ${what}.${rateText}${holding}`, r.warn ? 'error' : 'info');
+    };
+    // The portfolio's compliance rules, checked on the holdings the trade leaves: asked first when it adds an exception.
+    const problems = preTradeProblems(portfolio.get(), res.change.portfolio);
+    if (problems.length) return setPending({ problems, commit });
+    commit();
   };
 
   const remove = (t: Txn) => {
@@ -257,6 +266,7 @@ export function Transactions() {
           />
         </Section>
         <Section title="Record a transaction">
+          {pending && <PreTradeCheck problems={pending.problems} onGo={pending.commit} onCancel={() => setPending(null)} />}
           <div className="pad row" style={{ gap: 8, flexWrap: 'wrap' }}>
             <select className="sel-inp" aria-label="Transaction type" value={kind} onChange={(e) => setKind(e.target.value as Txn['kind'])}>
               <option value="buy">Buy</option>
