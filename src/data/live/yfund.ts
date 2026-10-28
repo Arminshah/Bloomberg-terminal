@@ -398,7 +398,12 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         // Per-share figures follow net income to common shareholders, which restating revenue or operating income for
         // discontinued operations leaves as it was (Applied Digital's FY2025): they still fit when that agrees.
         const ni = row.get('NetIncomeCommonStockholders');
-        const secNi = extra.row.get('NetIncomeCommonStockholders');
+        // A filing without the net-income-to-common tag (Eli Lilly's) gives its net income instead, where the feed's
+        // net income and its net income to common are the same (no preferred dividends): Lilly's 2022 diluted EPS was
+        // the feed's 6.57 (its net income over 950.2 million shares, the trust's included) against 6.90 filed.
+        const feedTotal = row.get('NetIncome');
+        const noPreferred = ni != null && feedTotal != null && Number.isFinite(ni) && Number.isFinite(feedTotal) && Math.abs(ni - feedTotal) <= 0.001 * Math.max(Math.abs(ni), 1);
+        const secNi = extra.row.get('NetIncomeCommonStockholders') ?? (noPreferred ? extra.row.get('__NetIncome') : undefined);
         const niAgrees = ni != null && secNi != null && Number.isFinite(ni) && Number.isFinite(secNi) && Math.abs(ni - secNi) <= 0.01 * Math.max(Math.abs(ni), Math.abs(secNi), 1);
         // The filing's revenue wins where the feed's differs, net income agrees, and either the company restated the
         // year (Applied Digital FY2025: 229 as first reported with its cloud business, 144 from continuing operations

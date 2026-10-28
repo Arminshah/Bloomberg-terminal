@@ -67,6 +67,37 @@ describe('FINANCIALS: the filing wins where the feed is on another basis', () =>
   });
 });
 
+describe("FINANCIALS: the filed diluted EPS where the filing tags only net income", () => {
+  beforeEach(() => realSplits.set('LLY US Equity', []));
+  afterEach(() => realSplits.delete('LLY US Equity'));
+
+  it("takes Eli Lilly's 2022 diluted EPS as filed, 6.90, not the feed's 6.57", () => {
+    // Lilly tags NetIncomeLoss but not net income to common; the feed divided 2022's 6,244.8 million by 950.2 million
+    // shares (its employee benefit trust's included), the 10-Ks by 904.6 million.
+    const lly = engine.get('LLY US Equity')!;
+    const f = buildRealFund(lly, company, annual([
+      ['TotalRevenue', '2022-12-31', 28_541.4e6], ['NetIncome', '2022-12-31', 6_244.8e6], ['NetIncomeCommonStockholders', '2022-12-31', 6_244.8e6], ['DilutedEPS', '2022-12-31', 6.572215], ['DilutedAverageShares', '2022-12-31', 950_182_000],
+    ]), null, null, NOW, facts({
+      Revenues: { rows: [fact('2022-01-01', '2022-12-31', 28_541.4e6, '2025-02-19')] },
+      NetIncomeLoss: { rows: [fact('2022-01-01', '2022-12-31', 6_244.8e6, '2025-02-19')] },
+      EarningsPerShareDiluted: { unit: 'USD/shares', rows: [fact('2022-01-01', '2022-12-31', 6.9, '2025-02-19')] },
+      WeightedAverageNumberOfDilutedSharesOutstanding: { unit: 'shares', rows: [fact('2022-01-01', '2022-12-31', 904_619_000, '2025-02-19')] },
+    }));
+    expect(f.annual[0].eps).toBe(6.9);
+    expect(f.annual[0].supplements?.join(' ')).toContain('diluted EPS as filed, where the statements feed gave 6.572215');
+  });
+
+  it("keeps the feed's EPS where its net income to common differs from its total (preferred dividends)", () => {
+    const f = buildRealFund(engine.get('LLY US Equity')!, company, annual([
+      ['NetIncome', '2022-12-31', 6_244.8e6], ['NetIncomeCommonStockholders', '2022-12-31', 6_000e6], ['DilutedEPS', '2022-12-31', 6.6],
+    ]), null, null, NOW, facts({
+      NetIncomeLoss: { rows: [fact('2022-01-01', '2022-12-31', 6_244.8e6, '2025-02-19')] },
+      EarningsPerShareDiluted: { unit: 'USD/shares', rows: [fact('2022-01-01', '2022-12-31', 6.9, '2025-02-19')] },
+    }));
+    expect(f.annual[0].eps).toBe(6.6);
+  });
+});
+
 describe('FINANCIALS: total net income and net income to common shareholders, each on its own row', () => {
   beforeEach(() => realSplits.set('JPM US Equity', []));
   afterEach(() => realSplits.delete('JPM US Equity'));
