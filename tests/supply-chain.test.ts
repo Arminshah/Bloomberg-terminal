@@ -113,6 +113,30 @@ describe("SPLC: what another company's report says", () => {
     expect(c('Revenue Concentration Apple For the year ended December 31, 2025, 5,759 Apple units sold accounted for approximately 41% of the annual revenue recorded.', apple)).toMatchObject({ role: 'customer', share: 41, basis: 'their-product-sales' });
   });
 
+  it("reads a reseller's group figure, a support provider's revenue and a list of products' shares as their filings mean them", () => {
+    const msft = targetPattern(targetNames('MSFT', 'MICROSOFT CORP').names);
+    const oracle = targetPattern(targetNames('ORCL', 'Oracle Corp').names);
+    // Insight Enterprises' 10-K of February 2026: five makers' products together, not Microsoft buying half its sales
+    // (it was read as Insight supplying Microsoft, 50% of its revenue).
+    expect(classify('Sales of product from our top five manufacturers/publishers as a group (Microsoft, Dell, Cisco Systems, HP Inc. and Lenovo) accounted for approximately 50% of our consolidated net sales during 2025.', msft)).toEqual({ role: 'customer', share: undefined, qualifier: undefined, basis: 'their-product-sales' });
+    expect(classify('During 2025, sales of Microsoft products accounted for approximately 17% of our consolidated net sales.', msft)).toMatchObject({ role: 'customer', share: 17, basis: 'their-product-sales' });
+    // Rimini Street's 10-Q of July 2026: it supports Oracle's software in Oracle's place; it neither resells it nor buys
+    // from Oracle (it was read as an Oracle customer with 3%).
+    expect(classify('Revenue related to providing services for Oracle PeopleSoft products accounted for approximately 3% and 6% of revenue for the six months ended June 30, 2026 and 2025, respectively.', oracle)).toBeNull();
+    // Its 10-K of February 2025: SAP's own figure, not a share of Rimini's revenue from Oracle.
+    expect(classify('For example, for fiscal year 2024, SAP reported that support revenue represented approximately 33% of its total revenue and, for fiscal year 2024, Oracle reported a margin of 76% for cloud services and license support.', oracle)).toBeNull();
+    // What businesses buy, not Rimini's supplier.
+    expect(classify('In a composable ERP strategy, we believe that businesses can take advantage of a modular functionality approach by selecting a mix of best-of-breed vendors, products and technologies to achieve their strategic, operational and financial goals - instead of being confined to the conventional architecture, technology, products and capabilities of a single ERP software vendor like SAP or Oracle.', oracle)).toBeNull();
+    // Black Titan's 20-F of November 2025: Oracle's products were 78.9% of revenue in 2024 and 70.5% in 2025; only
+    // 2024's figure was read.
+    const list = 'The contributions to revenue of the products, in 2024 and 2025, respectively, are as follows: Oracle PeopleSoft HCM/ Oracle PeopleSoft Financials, 78.9% and 70.5%; Dayforce HCM, 0.2% and 0.1%; Sunfish Workplaze HR, 14.5% and 15.0%; MiHCM Cloud, 5.6% and 5.5%.';
+    expect(classify(list, oracle)).toEqual({ role: 'customer', share: 70.5, basis: 'their-product-sales' });
+    expect(classify(list, targetPattern(['Dayforce']))).toEqual({ role: 'customer', share: 0.1, basis: 'their-product-sales' });
+    const ev = (sentence: string, share: number): Relation => ({ key: 'cik:2034400', name: 'Black Titan Corp', role: 'customer', share, basis: 'their-product-sales', side: 'theirs', evidence: [{ sentence, filer: 'Black Titan Corp', form: '20-F', date: '2025-11-28', path: '' }] });
+    const merged = mergeRelations([ev("In particular, maintenance, implementation, and licensing of Oracle Corporation's PeopleSoft HCM and PeopleSoft Financials products accounted for 78.9% of the Company's Group's revenues in fiscal year 2024.", 78.9), ev(list, 70.5)]);
+    expect(merged[0].share).toBe(70.5);
+  });
+
   it('buyers that name it as their supplier', () => {
     expect(c('We currently rely on Nvidia for the GPU chips we use and on a limited number of other suppliers for other key components in our infrastructure.')).toEqual({ role: 'customer' });
     expect(c('Additionally, our current customers have contractually specified our use of NVIDIA GPUs.')).toEqual({ role: 'customer' });

@@ -528,7 +528,13 @@ function stripForms(s: string): string {
 }
 
 /** Several customers' figure together. */
-const GROUP = /\b(?:top|largest|biggest|major|principal|ten|five)\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\s+customers?\b|\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\s+(?:largest|biggest|major|principal|top|significant)\s+customers?\b|\bcustomers,?\s+(?:including|such as)\b|\bin (?:the )?aggregate\b/i;
+// A figure for several companies together: "our five largest customers", "our top five manufacturers/publishers as a group
+// (Microsoft, Dell, ...)" (Insight's 10-K).
+const GROUP_OF = String.raw`(?:customers?|clients?|suppliers?|vendors?|manufacturers?|publishers?|partners?|distributors?|resellers?|OEMs?)\b`;
+const GROUP = new RegExp(
+  String.raw`\b(?:top|largest|biggest|major|principal|ten|five)\s+(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\s+${GROUP_OF}|\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\s+(?:largest|biggest|major|principal|top|significant)\s+${GROUP_OF}|\bcustomers,?\s+(?:including|such as)\b|\bin (?:the )?aggregate\b|\bas a group\b`,
+  'i',
+);
 const PRONOUN_START = /^(?:we|our|it|its|they|their|this|these|the company|the group|sales|revenue|revenues|which|who)\b/i;
 
 /**
@@ -616,6 +622,25 @@ export function yearPairRun(s: string): { run: Pct[]; purchases: boolean } | nul
   }
   const index = best.index ?? 0;
   return { run: [{ value: Number(best[1]), index, end: index + best[1].length + 1 }], purchases };
+}
+
+/**
+ * A list of products' shares of revenue by year ("The contributions to revenue of the products, in 2024 and 2025,
+ * respectively, are as follows: Oracle PeopleSoft HCM/ Oracle PeopleSoft Financials, 78.9% and 70.5%; Dayforce HCM,
+ * 0.2% and 0.1%"): the share of the item naming the target, for the later year.
+ */
+export function productListShare(s: string, pattern: RegExp): { share: number; year: number } | null {
+  const head = /\bcontributions?\s+to\s+(?:(?:our|its|total|the Company's|the Group's)\s+)*revenues?\s+of\s+(?:the|our|its)\s+(?:products?|services?|solutions?|brands?)\b,?\s+(?:in|for)\s+(?:fiscal\s+(?:years?\s+)?)?((?:19|20)\d{2})\s+and\s+((?:19|20)\d{2}),?\s+respectively,?\s+(?:are|were)\s+as\s+follows:\s*/i.exec(s);
+  if (!head) return null;
+  const years = [Number(head[1]), Number(head[2])];
+  const later = years[1] >= years[0] ? 1 : 0;
+  for (const item of s.slice(head.index + head[0].length).split(/;\s*/)) {
+    const m = /^(.{1,120}?),\s*(\d{1,3}(?:\.\d{1,2})?)\s*%\s+and\s+(\d{1,3}(?:\.\d{1,2})?)\s*%/.exec(item);
+    if (!m) break;
+    pattern.lastIndex = 0;
+    if (pattern.test(m[1])) return { share: Number(m[later + 2]), year: years[later] };
+  }
+  return null;
 }
 
 // ------------------------------------------------------------ classification
@@ -789,6 +814,12 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   // Data center space or power licensed to the company is capacity sold to it, not a licence.
   if (company.some((c) => /\b(?:facilit\w*|capacity|space|MW|megawatts?|data cent\w*|campus\w*|sites?|buildings?|propert\w*|premises)\b[^.;]{0,80}\blicensed to\s+(?:the\s+)?$/i.test(before(c)))) return { role: 'supplier' };
 
+  // "The contributions to revenue of the products, in 2024 and 2025, respectively, are as follows: Oracle PeopleSoft HCM/
+  // Oracle PeopleSoft Financials, 78.9% and 70.5%; Dayforce HCM, 0.2% and 0.1%; ..." (Black Titan's 20-F): the products
+  // of the target the filer sells, with the latest year's share.
+  const listed = productListShare(s, pattern);
+  if (listed) return { role: 'customer', share: listed.share, basis: 'their-product-sales' };
+
   // Shares: a run of percentages "of our revenues" or "of our purchases" with a verb that gives it to someone; of
   // several, the one nearest the target's name ("39% ... were to Airbus ... and 13% ... were to Boeing").
   const allRuns = percentRuns(s);
@@ -849,6 +880,9 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     // another company's alone.
     const prev = allRuns.filter((r) => r[r.length - 1].end <= run[0].index).pop();
     const subject = s.slice(prev ? prev[prev.length - 1].end : 0, run[0].index);
+    // "SAP reported that support revenue represented approximately 33% of its total revenue" (Rimini Street's 10-K): a
+    // figure another company reported of itself, the target included, is no share of the filer's.
+    if (/\b(?!(?:We|Our|It|They|The Company|The Group)\b)[A-Z][\w&.-]*(?:\s+[A-Z][\w&.-]*){0,3}\s+(?:has\s+|had\s+)?(?:publicly\s+)?(?:reported|disclosed|announced|stated)\s+(?:that\s+)?[^.;%]{0,120}$/.test(subject)) return true;
     pattern.lastIndex = 0;
     if (pattern.test(subject)) return false;
     const lead = new RegExp(String.raw`([A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,3})${FORM}(?:\s*\([^)]*\))?,?\s+(?:\w+\s+){0,2}?${GIVES}$`).exec(subject.slice(-160));
@@ -900,9 +934,15 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     // revenue" (Signing Day Sports, in AIB Data Centers' 8-K/A of May 2026) is what it sold through the target's store,
     // not revenue from the target. Used devices bought elsewhere are no purchase from the target.
     if (/\b(?:pre-owned|refurbished|used|second-hand)\b/i.test(s)) return null;
+    // "Revenue related to providing services for Oracle PeopleSoft products accounted for approximately 3%" (Rimini
+    // Street, which supports Oracle's software in Oracle's place): servicing a company's products sells nothing of it
+    // and buys nothing from it.
+    if (new RegExp(String.raw`\b(?:services?|support|maintenance)\s+(?:services\s+)?for\s+(?:the\s+)?(?:${p})(?:'s|’s)?\s+(?:[A-Z][\w-]*\s+){0,4}(?:products?|software|applications?|systems?|platforms?)\b`).test(s)) return null;
     const distributor =
       new RegExp(`(?:products?|solutions?|offerings?)\\s+(?:purchased\\s+|sourced\\s+|bought\\s+)?from\\s+(?:[^.]{0,40}?)(?:${p})|sales of (?:${p})(?:'s)?\\s+(?:[A-Za-z.,-]+\\s+){0,3}?products|(?:${p})(?:\\s+(?:Corporation|Corp\\.?|Inc\\.?|Company))?(?:'s|’s)?\\s+(?:branded\\s+)?(?:[A-Z][\\w-]*\\s+){0,4}(?:and\\s+(?:[A-Z][\\w-]*\\s+){1,4})?products|(?:${p})\\s+(?:units?|devices?|items?|subscriptions?)\\s+(?:sold|shipped|delivered)`).test(s) ||
-      /\b(?:suppliers?|vendors?|brands?|branded)\b/i.test(clause);
+      /\b(?:suppliers?|vendors?|brands?|branded)\b/i.test(clause) ||
+      // "Sales of product from our top five manufacturers/publishers as a group (Microsoft, Dell, ...)".
+      /\b(?:products?|sales)\b[^.;]{0,40}\bfrom\s+(?:our|its|the)\s+(?:[\w-]+\s+){0,3}(?:manufacturers?|publishers?)\b/i.test(clause);
     if (purchases) return { role: 'customer', share, qualifier, basis: 'their-purchases' };
     if (distributor) return { role: 'customer', share, qualifier, basis: 'their-product-sales' };
     if (company.length) return { role: 'supplier', share, qualifier, basis: 'their-revenue' };
@@ -1016,7 +1056,9 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     const forGoods = goodsReason || /\b(?:supply|supplies|components?|chips?|GPUs?|wafers?|products?|materials?|hardware|equipment|parts|bottler|(?:contract )?manufacturers?|assemblers?|foundr(?:y|ies)|suppliers?|vendors?)\b/i.test(dependence?.[1] ?? '');
     if (
       (gapListy(b, /\b(?:suppliers?|vendors?|providers?|platforms?)\b[^.;]{0,80}?\b(?:include|includes|including|such as|like|namely|notably|primarily|e\.g\.,?|are|is)\b([^.;]*)$/i) &&
-        /\b(?:[Oo]ur|[Ww]e|[Uu]s|[Tt]he Company(?:'s)?|key|principal|primary|main|largest|major|critical|sole|single|limited)\b[^.;]{0,50}\b(?:suppliers?|vendors?|providers?|platforms?)\b/.test(b) &&
+        // "a single source supplier"; not "a single ERP software vendor like SAP or Oracle" (Rimini Street's 10-K, on
+        // what businesses buy).
+        (/\b(?:[Oo]ur|[Ww]e|[Uu]s|[Tt]he Company(?:'s)?|key|principal|primary|main|largest|major|critical|sole|limited)\b[^.;]{0,50}\b(?:suppliers?|vendors?|providers?|platforms?)\b/.test(b) || /\bsingle[- ](?:source[ds]?[- ])?(?:suppliers?|vendors?|providers?)\b/i.test(b)) &&
         !/\b(?:alternative|work(?:s|ing)? with|partner\w*|coordinat\w*|ecosystem|align\w*)\b[^.;]{0,60}\b(?:suppliers?|vendors?|providers?|platforms?)\b/i.test(b) && !third(b)) ||
       /\b(?:sole|single|limited)[- ](?:source|sourced|supplier|vendor)s?\b[^.;]{0,150}$/i.test(b) ||
       (dependence && forGoods && /\b(?:[Ww]e|[Oo]ur|[Tt]he Company|[Ii]t)\b/.test(b.slice(-120))) ||
