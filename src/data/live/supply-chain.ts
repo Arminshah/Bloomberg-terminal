@@ -1401,10 +1401,13 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
     const sig = x.parts.map((p) => `${p.kind}:${p.share}`).join(',');
     if (seenUnnamed.has(sig)) continue;
     seenUnnamed.add(sig);
+    // "HPC Hosting Business During fiscal year 2026, this business segment was comprised of one customer accounting for
+    // 59%": the segment's heading tells which business the customer buys from.
+    const seg = /^([A-Z][\w&-]*(?:\s+[A-Z][\w&-]*){0,4}?)\s+(?:Business|Segment)\s+(?:During|In|For)\b[^.]{0,80}\bthis (?:business )?segment\b/.exec(x.raw)?.[1];
     for (const p of x.parts) {
       for (let k = 0; k < p.count; k++) {
         n++;
-        out.push({ key: `unnamed:${n}`, name: `Unnamed ${p.kind ? `${p.kind} ` : ''}customer ${n}`, role: 'customer', share: p.share, basis: 'target-revenue', side: 'own', evidence: [{ ...ev, sentence: x.raw }] });
+        out.push({ key: `unnamed:${n}`, name: `Unnamed ${p.kind ? `${p.kind} ` : ''}${seg && !p.kind ? `${seg} ` : ''}customer ${n}`, role: 'customer', share: p.share, basis: 'target-revenue', side: 'own', evidence: [{ ...ev, sentence: x.raw }] });
       }
     }
   }
@@ -1630,11 +1633,19 @@ const QUALIFIER_FILLER = /^(?:new|second|third|fourth|fifth|additional|existing|
  * "a new U.S. based high investment-grade hyperscaler" → { key: 'unnamed:investment grade hyperscaler', label:
  * 'Unnamed U.S. investment-grade hyperscaler' }; null for a bare "a customer", which says nothing of who it is.
  */
-export function unnamedParty(text: string): { key: string; label: string; end: number } | null {
+export function unnamedParty(text: string, sentence = ''): { key: string; label: string; end: number } | null {
   const m = UNNAMED_PARTY.exec(text);
   if (!m) return null;
   let noun = m[2].toLowerCase().replace(/ies$/, 'y').replace(/(?<=[a-z])s$/, '').replace(/^oem$/, 'OEM');
   const US = /^U\.?S\.?(?:-based)?$/i;
+  // "a second U.S.-based investment-grade hyperscaler" is another party than the first; "the same ... hyperscaler" in a
+  // sentence about "the second hyperscaler's" infrastructure is that second one.
+  // "a third hyperscale tenant" counts tenants (CoreWeave, then two hyperscalers): it names no new party.
+  const counting = /\bhyperscale\s+$/i.test(m[1]) && /^(?:tenants?|customers?)$/i.test(m[2]);
+  const ordinal = counting
+    ? undefined
+    : /(?:^|\s)(second|third|fourth|fifth)\s/i.exec(` ${m[1]}`)?.[1]?.toLowerCase() ??
+    (/^the same\b/i.test(m[0]) ? new RegExp(String.raw`\b(second|third|fourth|fifth)\s+(?:[\w.-]+\s+){0,4}${m[2].replace(/s$/i, '')}`, 'i').exec(sentence)?.[1]?.toLowerCase() : undefined);
   let words = m[1].replace(/,/g, ' ').split(/\s+/).filter((w) => w && !QUALIFIER_FILLER.test(w));
   // "a hyperscale tenant" is a hyperscaler.
   if (/^(?:tenant|customer)$/.test(noun) && words[words.length - 1]?.toLowerCase() === 'hyperscale') {
@@ -1645,8 +1656,12 @@ export function unnamedParty(text: string): { key: string; label: string; end: n
   const quals = words.filter((w) => !US.test(w) && !/^(?:a|an|the|its|our)$/i.test(w));
   if (!quals.length && /^(?:customer|tenant|operator|carrier|retailer)$/.test(noun)) return null;
   const core = [...quals.map((w) => (/^[A-Z0-9]{2,}$/.test(w) ? w : w.toLowerCase())), noun].join(' ');
+  if (ordinal) return { key: `unnamed:${ordinal} ${normalizeName(core)}`, label: `Unnamed ${ordinal} ${us ? 'U.S. ' : ''}${core}`, end: m[0].length };
   return { key: `unnamed:${normalizeName(core)}`, label: `Unnamed ${us ? 'U.S. ' : ''}${core}`, end: m[0].length };
 }
+
+/** A deal the sentence makes a condition of something else ("conditioned upon ... executing a lease with a hyperscaler"): not one made. */
+const CONDITION = /\b(?:condition(?:ed|s|al)?|subject to|based on (?:the Company |us |our )?entering|if (?:the following|certain|one or more)|upon (?:the )?(?:execution|signing)|executing|execution of|are met)\b/i;
 
 /** The companies listed right after a word ("with", "from", "by"): "TSMC and Samsung", "CoreWeave, Inc. ("CoreWeave")". */
 export function partiesAt(text: string, dir: Directory, loose = false): Found[] {
@@ -1768,7 +1783,7 @@ export function ownStatements(sentence: string, dir: Directory, self?: RegExp): 
     seen.add(k);
     out.push({ role, party });
   };
-  const re = /\b(with|from|by|on)\s+/g;
+  const re = /\b(with|from|by|on|to)\s+/g;
   for (let m = re.exec(s); m; m = re.exec(s)) {
     const word = m[1];
     const at = m.index + m[0].length;
@@ -1777,10 +1792,24 @@ export function ownStatements(sentence: string, dir: Directory, self?: RegExp): 
     const clause = before.split(/[;]/).pop() ?? before;
     let role: Role | null = null;
     let loose = false;
+    if (word === 'to') {
+      // "Polaris Forge 2, its AI Factory campus ... currently leased to Oracle": the company is the landlord and the
+      // tenant its customer. Not "leased to us" (no company follows) nor another landlord's lease.
+      if (!/\b(?:leased|subleased|rented)\s+(?:[\w-]+\s+){0,2}$/i.test(before)) continue;
+      if (otherSubject(s.slice(0, m.index), dir, self)) continue;
+      const u = unnamedParty(rest, s);
+      if (u) {
+        push('customer', { name: u.label, unnamed: true, key: u.key });
+        continue;
+      }
+      for (const p of partiesAt(rest, dir, true).slice(0, 1)) push('customer', p);
+      continue;
+    }
     if (word === 'with') {
       if (!/\b(?:agreements?|leases?|contracts?|orders?|partnership|collaboration|alliance|joint venture|facility|facilities|notice to proceed|LNTP|memorandum of understanding|letter of intent|offtake|partnered|collaborat\w*)\b/i.test(clause)) continue;
       if (otherSubject(s.slice(0, m.index), dir, self)) continue;
-      const u = unnamedParty(rest);
+      if (CONDITION.test(clause.slice(-160))) continue;
+      const u = unnamedParty(rest, s);
       if (u) {
         role = dealRole(before, rest.slice(u.end), s, self);
         if (role) push(role, { name: u.label, unnamed: true, key: u.key });
@@ -1894,6 +1923,24 @@ export function statementYear(sentence: string, now = Date.now()): number {
  * Relations merged by company and role: the evidence joined, the share from the latest filing that gives one (and
  * within a filing, from the latest year it speaks of); the statement behind the share comes first.
  */
+const MONTH_NUM: Record<string, string> = { january: '01', february: '02', march: '03', april: '04', may: '05', june: '06', july: '07', august: '08', september: '09', october: '10', november: '11', december: '12' };
+
+/** The date a sentence gives its event ("On October 22, 2025, we entered into ..."), YYYY-MM-DD; '' without one. */
+export function eventDate(sentence: string): string {
+  const m = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+((?:19|20)\d{2})\b/.exec(sentence);
+  return m ? `${m[3]}-${MONTH_NUM[m[1].toLowerCase()]}-${m[2].padStart(2, '0')}` : '';
+}
+
+/** The sites a sentence says are leased to the named company: "Polaris Forge 2, its AI Factory campus ... currently leased to Oracle". */
+export function leasedSites(sentence: string, name: string): string[] {
+  const head = name.split(/[\s,]+/)[0];
+  const at = new RegExp(`\\b(?:leased|subleased|rented)\\s+(?:[\\w-]+\\s+){0,2}to\\s+(?:the\\s+)?${escapeRe(head)}`, 'i').exec(sentence);
+  if (!at) return [];
+  const before = sentence.slice(Math.max(0, at.index - 200), at.index);
+  const sites = [...before.matchAll(/\b((?:[A-Z][a-z]+ ){1,3}\d{1,2})\b/g)].map((m) => m[1].trim());
+  return sites.length ? [sites[sites.length - 1]] : [];
+}
+
 export function mergeRelations(list: Relation[]): Relation[] {
   const by = new Map<string, Relation>();
   const shareFrom = new Map<string, { date: string; year: number }>();
@@ -1925,20 +1972,55 @@ export function mergeRelations(list: Relation[]): Relation[] {
     have.id ??= r.id;
     have.yahoo ??= r.yahoo;
   }
+  // A site a filing says is "leased to Oracle" ("Polaris Forge 2"): statements on an unnamed tenant at that site are
+  // about the named one.
+  for (const r of [...by.values()]) {
+    if (r.unnamed || r.role !== 'customer') continue;
+    const sites = new Set(r.evidence.flatMap((e) => leasedSites(e.sentence, r.name)));
+    if (!sites.size) continue;
+    for (const [k, u] of by) {
+      if (!u.unnamed || u.role !== 'customer') continue;
+      const moved = u.evidence.filter((e) => [...sites].some((site) => new RegExp(`\\b${escapeRe(site)}\\b`).test(e.sentence)));
+      if (!moved.length) continue;
+      for (const e of moved) if (!r.evidence.some((x) => x.sentence === e.sentence)) r.evidence.push(e);
+      u.evidence = u.evidence.filter((e) => !moved.includes(e));
+      if (!u.evidence.length) by.delete(k);
+      if (r.side !== u.side) r.side = r.side === 'records' ? u.side : r.side;
+    }
+  }
   // An unnamed party described more loosely elsewhere ("a hyperscaler") is the one described more fully ("an
   // investment-grade hyperscaler") when there is only one such.
+  const ORDINAL_KEY = /^unnamed:(?:second|third|fourth|fifth) /;
+  // "A U.S.-based hyperscaler" beside "a second U.S.-based hyperscaler", when a named tenant took the first one's
+  // statements by its site: the plain one is that first tenant before the second one's first lease, the second after.
+  for (const [k, g] of [...by.entries()]) {
+    if (!g.unnamed || ORDINAL_KEY.test(k)) continue;
+    const words = k.replace(/^unnamed:/, '').split(' ');
+    const second = [...by.entries()].find(([k2]) => k2.startsWith('unnamed:second ') && words.every((w) => k2.slice('unnamed:second '.length).split(' ').includes(w)))?.[1];
+    const first = [...by.values()].find((r) => !r.unnamed && r.role === g.role && r.evidence.some((e) => leasedSites(e.sentence, r.name).length));
+    if (!second || !first) continue;
+    const starts = second.evidence.map((e) => eventDate(e.sentence) || e.date).filter(Boolean).sort();
+    if (!starts.length) continue;
+    for (const e of g.evidence) {
+      const into = (eventDate(e.sentence) || e.date) < starts[0] ? first : second;
+      if (!into.evidence.some((x) => x.sentence === e.sentence)) into.evidence.push(e);
+    }
+    by.delete(k);
+  }
   const unnamed = [...by.entries()].filter(([, r]) => r.unnamed);
   for (const [k, r] of unnamed) {
     const words = r.key.replace(/^unnamed:/, '').split(' ');
-    const wider = unnamed.filter(([k2, r2]) => k2 !== k && r2.role === r.role && by.has(k2) && words.every((w) => r2.key.replace(/^unnamed:/, '').split(' ').includes(w)));
+    // A plain description is not merged into a second or third party of that kind.
+    const wider = unnamed.filter(([k2, r2]) => k2 !== k && r2.role === r.role && by.has(k2) && !(ORDINAL_KEY.test(k2) && !ORDINAL_KEY.test(k)) && words.every((w) => r2.key.replace(/^unnamed:/, '').split(' ').includes(w)));
     if (wider.length !== 1) continue;
     const into = by.get(wider[0][0])!;
     for (const e of r.evidence) if (!into.evidence.some((x) => x.sentence === e.sentence)) into.evidence.push(e);
     by.delete(k);
   }
-  // Several unnamed parties of a kind ("two U.S. based investment-grade hyperscalers") are named in the plural.
+  // Several unnamed parties of a kind ("two U.S. based investment-grade hyperscalers") are named in the plural; "a
+  // second hyperscaler" kept apart is one party.
   for (const r of by.values()) {
-    if (!r.unnamed || /s$/.test(r.name)) continue;
+    if (!r.unnamed || /s$/.test(r.name) || ORDINAL_KEY.test(r.key)) continue;
     const noun = r.name.split(' ').pop() ?? '';
     if (r.evidence.some((e) => new RegExp(`\\b(?:two|three|four|second|third|another|both|multiple|several)\\b[^.;]{0,60}\\b${escapeRe(noun)}s?\\b`, 'i').test(e.sentence))) r.name = `${r.name}s`;
   }

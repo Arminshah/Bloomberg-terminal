@@ -122,3 +122,53 @@ describe("SPLC: which of the company's own filings are read", () => {
     expect(chain.relations[0].evidence[0]).toMatchObject({ form: '8-K', type: 'EX-99.1' });
   });
 });
+
+describe("SPLC: Applied Digital's three tenants, as its filings name them", () => {
+  // From APLD's 8-K of 4 March 2026, its press releases and its 10-K of 29 July 2026.
+  const EV8K = { ...EV, form: '8-K', date: '2026-03-10' };
+  const own = (sentences: string[], ev = EV) => ownRelations(main.ownSentences(sentences.join('\n')), dir, APLD, ev);
+  const PF2_ORACLE = 'The Issuer intends to use the net proceeds from the offering to fund the development and construction of 200 megawatts of critical IT load at Polaris Forge 2, its AI Factory campus in Harwood, North Dakota currently leased to Oracle, as well as the "Project Accounts".';
+  const PF2_UNNAMED = 'On October 22, 2025, we announced that we entered into an approximately 15-year lease agreement with a U.S. based investment grade hyperscaler for 200 MW of critical IT load at our Polaris Forge 2 campus.';
+  const PLAIN_EARLY = 'On October 22, 2025, we entered into an approximately 15-year lease with a U.S.-based investment-grade hyperscaler for 200 MW of critical IT load at the campus.';
+  const SECOND = 'On April 23, 2026, we entered into two approximately 15-year leases with a second U.S.-based investment-grade hyperscaler for an aggregate 300 MW of critical IT load at the campus.';
+  const SAME = "On May 20, 2026, a different subsidiary of the Company entered into a data center lease with the same U.S.-based investment-grade hyperscaler to deliver a combined 300MW of critical IT load to support the second hyperscaler's AI and HPC infrastructure at Polaris Forge 3.";
+  const PLAIN_LATE = "The lease is with a U.S. based high investment-grade hyperscaler, marking the company's fifth AI Factory campus overall.";
+  const COUNTING = "This addition expands total contracted lease revenue to over $23 billion and further diversifies the company's customer base with a third hyperscale tenant.";
+
+  it('takes a site "currently leased to Oracle" as Oracle being a customer', () => {
+    expect(main.ownSentences(PF2_ORACLE)).toHaveLength(1);
+    expect(roles(own([PF2_ORACLE], EV8K))).toEqual(['customer:Oracle']);
+  });
+
+  it('gives the statements on its sites and dates to the right tenant: Oracle, then a second hyperscaler', () => {
+    const rels = mergeRelations([
+      ...own([PF2_ORACLE], EV8K),
+      ...own([PF2_UNNAMED, PLAIN_EARLY, SECOND, SAME]),
+      ...own([PLAIN_LATE, COUNTING], { ...EV, form: '8-K', date: '2026-06-09' }),
+    ]);
+    const customers = rels.filter((r) => r.role === 'customer');
+    expect(customers.map((r) => r.name).sort()).toEqual(['Oracle', 'Unnamed second U.S. investment-grade hyperscaler']);
+    const oracle = customers.find((r) => r.name === 'Oracle')!;
+    expect(oracle.evidence.map((e) => e.sentence)).toEqual([PF2_ORACLE, PF2_UNNAMED, PLAIN_EARLY]);
+    const second = customers.find((r) => r.unnamed)!;
+    expect(second.evidence.map((e) => e.sentence).sort()).toEqual([SECOND, SAME, PLAIN_LATE, COUNTING].sort());
+  });
+
+  it("names an unnamed customer by the segment heading its 10-K puts before it", () => {
+    // The heading is a line of its own in the filing's text.
+    const hpc = 'HPC Hosting Business\nDuring fiscal year 2026, this business segment was comprised of one customer accounting for 59% of our total revenue from continuing operations.';
+    const dc = 'Data Center Hosting Business\nDuring fiscal year 2026, this business segment was comprised of one customer accounting for 25% of our revenue from continuing operations.';
+    expect(main.ownSentences(hpc)).toEqual([hpc.replace('\n', ' ')]);
+    const got = own([hpc, dc]).filter((r) => r.role === 'customer');
+    expect(got.map((r) => [r.name, r.share])).toEqual([
+      ['Unnamed HPC Hosting customer 1', 59],
+      ['Unnamed Data Center Hosting customer 2', 25],
+    ]);
+  });
+
+  it('leaves out a lease that is only a condition of something else', () => {
+    const cond = 'The closing is conditioned upon, among other things, APLDH executing a lease with a hyperscaler for the first 100 MW on the Ellendale Campus, in a form acceptable to MAM.';
+    const perf = 'Such performance measures are based on the Company entering into data center leases with a hyperscaler, the consummation of project financing, and receipt of sustainable revenue.';
+    expect(own([cond, perf]).filter((r) => r.role === 'customer')).toEqual([]);
+  });
+});

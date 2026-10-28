@@ -209,7 +209,7 @@ function mentionSentences(text, names, max = 80) {
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 6;
+const EXTRACTION = 7;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;
@@ -228,6 +228,8 @@ const OWN = new RegExp(
     String.raw`|\b(?:purchas\w+|procur\w+|sourc\w+|buy\w*)\b[^.]{0,120}?\b(?:partners?|providers?|vendors?|suppliers?|manufacturers?)\b[^.]{0,20}?\b(?:including|such as|like|include|includes|namely)\b` +
     String.raw`|^[A-Z][^.;]{0,140}\b(?:Agreement|Lease|Note|Contract|Guaranty)\b[^;]{0,120}\b(?:by and between|by and among|between|among)\s+[A-Z]` +
     String.raw`|(?:agreements?|leases?|contracts?|orders?|partnership|collaboration)\b[^.;]{0,160}?\bwith\s+${UNNAMED_PARTY}` +
+    // A campus or building "currently leased to Oracle": the tenant is a customer.
+    String.raw`|\b(?:leased|subleased|rented)\s+(?:[\w-]+\s+){0,2}?to\s+(?:(?:[A-Z])|${UNNAMED_PARTY})` +
     String.raw`|\b(?:selected|chosen|awarded|engaged)\b[^.;]{0,60}\bby\s+[A-Z]|\b(?:orders?|contracts?|awards?|investments?)\s+from\s+[A-Z]|\bpartner(?:ship|ships|ed|s)?\b[^.;]{0,60}\bwith\s+[A-Z]` +
     String.raw`|\b(?:purchase[sd]?|purchasing|buy|buys|bought|source[sd]?|sourcing|procure[sd]?|procuring|obtain(?:s|ed)?|license[sd]?)\b[^.;]{0,100}\bfrom\s+[A-Z]|\b(?:rely|relies|relied|depend|depends|depended|dependent|reliant)\b[^.;]{0,40}\bon\s+[A-Z]|\b(?:manufactured|produced|supplied|fabricated|assembled) by\s+[A-Z])`,
 );
@@ -246,11 +248,16 @@ function ownSentences(text, max = 400) {
     }
   };
   const blocks = String(text).split('\n');
+  let heading = '';
   for (let b = 0; b < blocks.length && out.length < max; b++) {
     const block = blocks[b].trim();
     for (const s of splitSentences(block)) {
-      if (s.length >= 25 && /[a-z]{3}/.test(s) && OWN.test(s)) add(s);
+      if (s.length < 25 || !/[a-z]{3}/.test(s) || !OWN.test(s)) continue;
+      // "HPC Hosting Business" above "During fiscal year 2026, this business segment was comprised of one customer
+      // accounting for 59%": the heading names the segment the sentence speaks of.
+      add(heading && /\bthis (?:business )?segment\b/i.test(s) && !s.startsWith(heading) ? `${heading} ${s}` : s);
     }
+    if (block) heading = /^[A-Z][\w&-]*(?:\s+[A-Z][\w&-]*){0,5}$/.test(block) && /\b(?:Business|Segment)$/.test(block) ? block : '';
     // "Our current competitors include:" then one line per group of competitors.
     if (LIST_INTRO.test(block) && block.endsWith(':')) {
       let k = b + 1;
