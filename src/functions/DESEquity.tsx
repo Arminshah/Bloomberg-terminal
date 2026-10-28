@@ -5,6 +5,7 @@ import { analystsAvailable, analystSymbol, listedOutsideUs, useAnalysts, type An
 import { Chg, HBar, KV, LiveChg, LivePx, SecLink, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
 import { Sparkline } from '../components/Sparkline';
+import { NextEarnings } from '../components/NextEarnings';
 import { fmtBig, fmtDay, fmtEarnDate, fmtInt, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { DAY_MS } from '../data/calendar';
 import { indexAtOrBefore } from '../data/series';
@@ -292,7 +293,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
             <KV
               items={[
                 // As the terminal writes it: the session, then (C) for a confirmed date or (E) for an expected one.
-                ['Date', ne ? <span key="d">{ne.timing && ne.timing !== '--' ? `${ne.timing} ` : ''}<span className="muted">{ne.approx ? '(E) ' : '(C) '}</span>{fmtEarnDate(ne, false)}</span> : '--'],
+                ['Date', <NextEarnings key="d" sec={sec} ne={ne} withTiming={false} prefix={ne ? <>{ne.timing && ne.timing !== '--' ? `${ne.timing} ` : ''}<span className="muted">{ne.approx ? '(E) ' : '(C) '}</span></> : null} />],
                 ['P/E', peText(ks.pe, ks.epsLtm)],
                 [`Est P/E${fy ? ` ${fyLabel(fy.date)}` : ''}`, fy && Number.isFinite(fy.epsAvg) && fy.epsAvg <= 0 ? <span key="n" title="Not meaningful: the year's EPS estimate is a loss">NM</span> : fmtNum(estPe, 2)],
                 [`T12M EPS (${ccy})`, `${fmtNum(ks.epsLtm, 2)}${financials(sec).ltm?.epsComputed ? ' (computed)' : ''}`],
@@ -626,7 +627,7 @@ function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
           </table>
         </Section>
         <Section title="Next report">
-          <KV items={[['Date', next ? fmtEarnDate(next) : '--'], [estimate.label, lineValue(estimate)]]} />
+          <KV items={[['Date', <NextEarnings key="d" sec={sec} ne={next} />], [estimate.label, lineValue(estimate)]]} />
           <MissingNotes lines={[estimate]} />
         </Section>
       </div>

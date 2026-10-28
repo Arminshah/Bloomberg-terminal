@@ -11,7 +11,7 @@ import { loadNasdaq, nasdaqAvailable, nasdaqData, nasdaqPart, nasdaqSymbol, type
 import { desktopData, yahooGet, yahooSymbolFor } from './yahoo';
 import { fundVersion, getRealFund, usTiming } from './yfund';
 import { createWants, registerRefresh } from '../../terminal/refresh';
-import { fmtDay } from '../../core/format';
+import { fmtDay, zonedParts } from '../../core/format';
 import { historyData, historyFor, loadHistory, periodMonth, type EstimateHistory, type HistoryQuarter } from './estimate-history';
 
 /**
@@ -52,6 +52,10 @@ export interface QuarterView {
   dateEstimated?: boolean;
   /** Session of the announcement; absent when the provider gives only a date. */
   timing?: ReportTiming;
+  /** Which source gave `date`. */
+  dateFrom?: string;
+  /** Where Nasdaq confirms a different day for this report than the date given: both dates in words. */
+  dateDisagree?: string;
   /** Another provider's EPS comparison, kept separate because reporting bases may differ. */
   alternativeEps?: Expectation;
   eps: Expectation;
@@ -567,7 +571,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
   // The coming quarters are named by the fiscal year the reported ones show when the security's is not known.
   const fye = i.fye ?? fyeFromLabels([...(y?.past ?? []), ...(y?.next?.label ? [{ end: y.next.end, label: y.next.label }] : [])]);
   const view = (a: YahooAhead | null | undefined): QuarterView | null =>
-    a ? { end: a.end, label: a.label ?? fiscalLabel(a.end, fye) ?? a.end, ...(a.date ? { date: a.date, dateEstimated: a.dateEstimated } : {}), eps: a.eps, rev: a.rev, yearAgoEps: a.yearAgoEps, yearAgoRev: a.yearAgoRev } : null;
+    a ? { end: a.end, label: a.label ?? fiscalLabel(a.end, fye) ?? a.end, ...(a.date ? { date: a.date, dateEstimated: a.dateEstimated, dateFrom: 'Yahoo Finance' } : {}), eps: a.eps, rev: a.rev, yearAgoEps: a.yearAgoEps, yearAgoRev: a.yearAgoRev } : null;
   let next: QuarterView | null = view(y?.next);
   const fn = i.finnhubNext;
   if (fn) {
@@ -575,6 +579,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
       end: '',
       label: ok(fn.quarter) && ok(fn.year) ? `Q${fn.quarter} ${fn.year}` : fn.date,
       date: ms(fn.date),
+      dateFrom: 'Finnhub',
       timing: reportTiming(fn.hour),
       eps: { ...NONE, est: fn.epsEstimate, estFrom: ok(fn.epsEstimate) ? 'Finnhub' : undefined },
       rev: { ...NONE, est: fn.revenueEstimate, estFrom: ok(fn.revenueEstimate) ? 'Finnhub' : undefined },
@@ -584,7 +589,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
       next.timing = fromFinnhub.timing;
       if (!canonicalQuarter(next.label) && reportLabel(fn)) next.label = reportLabel(fn)!;
       // Finnhub's calendar names the report date when Yahoo has none, and fills an estimate Yahoo leaves out.
-      if (!next.date) next.date = fromFinnhub.date;
+      if (!next.date) Object.assign(next, { date: fromFinnhub.date, dateFrom: 'Finnhub' });
       if (!ok(next.eps.est) && ok(fn.epsEstimate)) next.eps = fromFinnhub.eps;
       if (!ok(next.rev.est) && ok(fn.revenueEstimate)) next.rev = fromFinnhub.rev;
     }
@@ -592,11 +597,11 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
   // FMP's coming report, for an estimate the others leave out.
   const ahead = (i.fmpReports ?? []).filter((r) => !ok(r.epsActual) && !ok(r.revActual) && (ok(r.epsEst) || ok(r.revEst)) && (!quarters[0]?.date || ms(r.date) > quarters[0].date + 20 * DAY_MS)).sort((a, b) => a.date.localeCompare(b.date))[0];
   if (ahead && next && (!next.date || Math.abs(ms(ahead.date) - next.date) <= 10 * DAY_MS)) {
-    if (!next.date) next.date = ms(ahead.date);
+    if (!next.date) Object.assign(next, { date: ms(ahead.date), dateFrom: 'FMP' });
     if (!ok(next.eps.est) && ok(ahead.epsEst)) next.eps = { ...NONE, est: ahead.epsEst, estFrom: 'FMP' };
     if (!ok(next.rev.est) && ok(ahead.revEst)) next.rev = { ...NONE, est: ahead.revEst, estFrom: 'FMP' };
   } else if (ahead && !next) {
-    next = { end: '', label: ahead.date, date: ms(ahead.date), eps: { ...NONE, est: ahead.epsEst, estFrom: ok(ahead.epsEst) ? 'FMP' : undefined }, rev: { ...NONE, est: ahead.revEst, estFrom: ok(ahead.revEst) ? 'FMP' : undefined } };
+    next = { end: '', label: ahead.date, date: ms(ahead.date), dateFrom: 'FMP', eps: { ...NONE, est: ahead.epsEst, estFrom: ok(ahead.epsEst) ? 'FMP' : undefined }, rev: { ...NONE, est: ahead.revEst, estFrom: ok(ahead.revEst) ? 'FMP' : undefined } };
   }
   let following = view(y?.following);
   // Alpha Vantage's and Nasdaq's estimates of the coming quarters: they fill what the others leave out, and name the
@@ -632,7 +637,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     const r = coming(h);
     if (!r) continue;
     const end = r.end ?? (r.period ? monthEnd(r.period) : labelEnd(r.label, i.fye));
-    if (!next && end) next = { end, label: fiscalLabel(end, i.fye) ?? r.label ?? end, date: ms(r.date), dateEstimated: true, eps: { ...NONE }, rev: { ...NONE } };
+    if (!next && end) next = { end, label: fiscalLabel(end, i.fye) ?? r.label ?? end, date: ms(r.date), dateEstimated: true, dateFrom: h.source, eps: { ...NONE }, rev: { ...NONE } };
     if (next && !ok(next.rev.est) && historyRow([r], next)) next.rev = { ...NONE, est: r.est, ccy: 'USD', estFrom: h.source };
   }
   if (following && next && following.end && next.end && following.end <= next.end) following = null;
@@ -642,16 +647,32 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
   if (next?.date && !(next.date >= todayStart && !(lastDate && next.date <= lastDate + 20 * DAY_MS))) {
     delete next.date;
     delete next.dateEstimated;
+    delete next.dateFrom;
   }
   // Nasdaq's next report date, when no other source names one: for the quarter it names, or the next one.
   const nn = i.nasdaqNext;
   if (next && !next.date && nn && nn.date > lastDate && nn.date >= todayStart && (!nn.end || !next.end || daysApart(nn.end, next.end) <= 20)) {
     next.date = nn.date;
     next.dateEstimated = nn.estimated;
+    next.dateFrom = 'Nasdaq';
     if (!next.timing || next.timing === '--') next.timing = nn.timing;
+  }
+  // Both confirmed, for the same report, on different days: neither is shown as the date (QuarterView.dateDisagree).
+  if (next?.date && next.dateFrom !== 'Nasdaq' && !next.dateEstimated && nn && !nn.estimated && (!nn.end || !next.end || daysApart(nn.end, next.end) <= 20)) {
+    const given = newYorkDay(next.date);
+    const theirs = Math.floor(nn.date / DAY_MS);
+    if (given !== theirs && Math.abs(given - theirs) <= 45) next.dateDisagree = `${next.dateFrom ?? 'One source'} confirms ${isoDay(given)}; Nasdaq confirms ${isoDay(theirs)}.`;
   }
   return { past: quarters, next, following };
 }
+
+/** A report time's day in New York, or the day itself for a date without a time (midnight UTC). */
+function newYorkDay(t: number): number {
+  if (t % DAY_MS === 0) return t / DAY_MS;
+  const p = zonedParts(t, 'America/New_York');
+  return Math.floor(Date.UTC(p.y, p.mo - 1, p.d) / DAY_MS);
+}
+const isoDay = (d: number) => new Date(d * DAY_MS).toISOString().slice(0, 10);
 
 /** The last day of a month given as YYYY-MM. */
 function monthEnd(m: string): string {

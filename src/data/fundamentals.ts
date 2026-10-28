@@ -1,6 +1,6 @@
 import { hashString, seeded, gaussian } from '../core/rng';
 import { DAY_MS, dayNum, rollForward } from './calendar';
-import { zonedParts } from '../core/format';
+import { fmtDay, zonedParts } from '../core/format';
 import { engine } from './market';
 import { marketCap } from './analytics';
 import type { SecurityDef } from './types';
@@ -446,6 +446,8 @@ export interface EarningsEvent {
   approx?: boolean;
   /** The source gives the quarter but not the report date: `date` is the quarter end, for ordering only. */
   dateUnknown?: boolean;
+  /** The source of a next report date that is not the statements' own (Nasdaq's, when Yahoo names none). */
+  from?: string;
 }
 
 /** Past reports plus the next scheduled one: real when loaded, otherwise generated. */
@@ -475,7 +477,7 @@ export function earningsEvents(def: SecurityDef): EarningsEvent[] {
   const now = engine.now();
   if (list.some((e) => e.actual == null && e.date >= now - DAY_MS)) return list;
   const n = nasdaqPart<NasdaqNextReport>(nasdaqSymbol(def), 'earnings-date');
-  return n && n.date >= engine.today * DAY_MS ? [...list, { period: 'Next', date: n.date, ...(n.estimated ? { approx: true } : {}), actual: null, timing: n.timing, revAct: null }] : list;
+  return n && n.date >= engine.today * DAY_MS ? [...list, { period: 'Next', date: n.date, ...(n.estimated ? { approx: true } : {}), actual: null, timing: n.timing, revAct: null, from: 'Nasdaq' }] : list;
 }
 
 function quoteEarningsEvents(def: SecurityDef): EarningsEvent[] {
@@ -541,6 +543,23 @@ export function earningsReaction(s: { t: ArrayLike<number>; c: ArrayLike<number>
 export function nextEarnings(def: SecurityDef): EarningsEvent | undefined {
   const events = earningsEvents(def);
   return events.find((e) => e.actual == null && isUpcomingReport(e.date, lastReportDate(events), engine.today * DAY_MS));
+}
+
+/**
+ * Where Yahoo Finance and Nasdaq both confirm the next report and name different days: the two dates in words, for
+ * "Sources disagree" in place of either. An estimated date on either side is no disagreement (the screens mark an
+ * estimate "~"), nor is a date for another report (more than 45 days apart). Nasdaq's part loads with the earnings
+ * screens; until it has, there is nothing to compare.
+ */
+export function nextEarningsDisagreement(def: SecurityDef, ne: EarningsEvent | undefined = nextEarnings(def)): string | undefined {
+  if (!ne || ne.approx || ne.dateUnknown || ne.from) return undefined;
+  const n = nasdaqPart<NasdaqNextReport>(nasdaqSymbol(def), 'earnings-date');
+  if (!n || n.estimated || !Number.isFinite(n.date)) return undefined;
+  const yahooDay = reportSessionDay(ne.date, def.country === 'US' ? 'America/New_York' : undefined);
+  const nasdaqDay = dayNum(n.date);
+  if (yahooDay === nasdaqDay || Math.abs(yahooDay - nasdaqDay) > 45) return undefined;
+  const day = (d: number) => fmtDay(d * DAY_MS);
+  return `Yahoo Finance confirms ${day(yahooDay)}${ne.timing !== '--' ? ` ${ne.timing}` : ''}; Nasdaq says ${day(nasdaqDay)}${n.timing !== '--' ? ` ${n.timing}` : ''}.`;
 }
 
 /** The newest report date the history gives with its figures. */
@@ -621,6 +640,8 @@ export interface Dividend {
   amount: number;
   freq: string;
   type: string;
+  /** Where Yahoo's price history and Nasdaq's dividend record give this dividend different dates or amounts. */
+  disagree?: string;
 }
 
 const FREQ_BY_COUNTRY: Record<string, number> = { US: 4, CA: 4, GB: 2, TW: 4, KR: 4, JP: 2, HK: 2, AU: 2, IN: 1, DE: 1, FR: 2, NL: 4, CH: 1, DK: 2 };
@@ -688,9 +709,13 @@ function realDividendList(def: SecurityDef): Dividend[] {
   // declared dividend before it goes ex. Its amounts are as paid at the time, so the price history's split-adjusted
   // amounts are kept; a declared dividend still to go ex takes Nasdaq's amount, which is on today's share basis.
   const declared = nasdaqPart<NasdaqDividend[]>(nasdaqSymbol(def), 'dividends') ?? [];
+  // Shares after the splits since a date for one share before them (10 after Broadcom's 10:1 split of July 2024).
+  const splitFactor = (t: number) => (realSplits.get(def.id) ?? []).reduce((f, x) => (x.day * DAY_MS > t && x.denominator > 0 ? (f * x.numerator) / x.denominator : f), 1);
   for (const n of declared) {
     const row = out.find((d) => Math.abs(d.ex - n.ex) < 1.5 * DAY_MS);
     if (row) {
+      const disagree = dividendDisagreement(row, n, splitFactor(Math.max(row.ex, n.ex)));
+      if (disagree) row.disagree = disagree;
       if (!Number.isFinite(row.declared)) row.declared = n.declared;
       if (!Number.isFinite(row.record)) row.record = n.record;
       if (!Number.isFinite(row.pay)) row.pay = n.pay;
@@ -700,6 +725,28 @@ function realDividendList(def: SecurityDef): Dividend[] {
     }
   }
   return out.sort((a, b) => b.ex - a.ex);
+}
+
+/**
+ * What Yahoo's price history (`row`) and Nasdaq's dividend record (`n`) say differently about one dividend: the ex-date
+ * (matched within a day), the payable date, or the amount. Yahoo's amounts are adjusted for later splits and Nasdaq's
+ * are as paid, so Nasdaq's is divided by `splitFactor`, the shares one share became in the splits since (Broadcom's
+ * $1.75 of March 2018 is 0.175 after its 10:1 split; Yahoo gave 0.35). Undefined when they agree or one of them leaves
+ * the figure out.
+ */
+export function dividendDisagreement(row: Pick<Dividend, 'ex' | 'pay' | 'amount'>, n: Pick<NasdaqDividend, 'ex' | 'pay' | 'amount'>, splitFactor = 1): string | undefined {
+  const parts: string[] = [];
+  const day = (t: number) => fmtDay(t);
+  if (dayNum(row.ex) !== dayNum(n.ex)) parts.push(`ex-date ${day(row.ex)} (Yahoo Finance) against ${day(n.ex)} (Nasdaq)`);
+  if (Number.isFinite(row.pay) && Number.isFinite(n.pay) && dayNum(row.pay) !== dayNum(n.pay)) parts.push(`payable ${day(row.pay)} (Yahoo Finance) against ${day(n.pay)} (Nasdaq)`);
+  const f = Number.isFinite(splitFactor) && splitFactor > 0 ? splitFactor : 1;
+  const theirs = n.amount / f;
+  // Half a hundredth of a cent: Yahoo stores some amounts as single-precision floats (29.179998 for 29.18), and rounds
+  // amounts it adjusts for a split (0.133333 for 0.40 after a 3:1 split).
+  if (Number.isFinite(row.amount) && Number.isFinite(theirs) && Math.abs(row.amount - theirs) > 0.00005 + Math.abs(theirs) * (f === 1 ? 1e-6 : 1e-4)) {
+    parts.push(f === 1 ? `amount ${row.amount} (Yahoo Finance) against ${n.amount} (Nasdaq)` : `amount ${row.amount} (Yahoo Finance) against ${+theirs.toPrecision(6)} (Nasdaq's ${n.amount} as paid, on today's share basis)`);
+  }
+  return parts.length ? `The sources disagree: ${parts.join('; ')}.` : undefined;
 }
 
 /** A share split: `numerator` new shares for every `denominator` held, effective on `date` (ms). */

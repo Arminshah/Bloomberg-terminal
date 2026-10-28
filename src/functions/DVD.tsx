@@ -229,12 +229,28 @@ export function DVD({ sec }: FnProps) {
                     <td>{Number.isFinite(r.d.pay) ? fmtDay(r.d.pay) : ''}</td>
                     <td className="muted">{ccy}</td>
                     <td className="num white">{fmtAmount(r.d.amount)}</td>
-                    <td className={r.d.type === 'Projected' || r.d.type === 'Expected' ? 'yellow' : typeName(r.d) === 'Special Cash' ? 'cyan' : ''}>{typeName(r.d)}</td>
+                    <td className={r.d.type === 'Projected' || r.d.type === 'Expected' ? 'yellow' : typeName(r.d) === 'Special Cash' ? 'cyan' : ''}>
+                      {typeName(r.d)}
+                      {r.d.disagree ? (
+                        <span className="amber" title={r.d.disagree} data-testid="dvd-disagree">
+                          {' '}· Sources disagree
+                        </span>
+                      ) : null}
+                    </td>
                   </tr>
                 ),
               )}
             </tbody>
           </table>
+          {list.some((d) => d.disagree) ? (
+            <div className="note amber" data-testid="dvd-disagreements">
+              {list
+                .filter((d) => d.disagree)
+                .map((d) => `Ex ${fmtDay(d.ex)}: ${d.disagree}`)
+                .join(' ')}{' '}
+              The table shows Yahoo Finance's figure; neither source is taken as right.
+            </div>
+          ) : null}
           <div className="note">
             Dividend growth: the compound annual rate from the dividends that went ex in the 12 months to this date one, three or five years ago to those in the past 12 months, shown only when the record covers that earlier year in full. Yield: the 12-month dividend over the price at each month end.
             {list.some((d) => !Number.isFinite(d.record)) ? ' Declaration, record and payable dates come from Nasdaq\'s dividend record, which covers Nasdaq-listed stocks; the price history gives the ex-date and amount only, so a blank cell is a date no source gives.' : ''}

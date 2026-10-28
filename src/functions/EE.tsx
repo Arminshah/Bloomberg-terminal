@@ -350,7 +350,7 @@ export function EE({ sec }: FnProps) {
             <KV
               items={[
                 ['Industry', s.eq?.industry || '--'],
-                ['Next Announcement', nextDate],
+                ['Next Announcement', nextConsensus?.dateDisagree ? <span key="na" className="amber" title={nextConsensus.dateDisagree} data-testid="earnings-disagree">Sources disagree</span> : nextDate],
                 ['Prior Announcement', prior ? fmtEarnDate(prior, false) : '--'],
                 ['P/E Actual', peText(pe, epsLtm)],
                 // Compound growth needs positive EPS at both ends: "NM" for a loss-maker.

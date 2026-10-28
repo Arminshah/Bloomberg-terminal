@@ -14,6 +14,8 @@
 
 **Crypto prices missing, or Kraken shows ERROR.** Crypto comes from Kraken. Its row in `PROVIDERS` gives the last problem, for example `HTTP 403` (Kraken refused the request, which it does for some networks and regions), `HTTP 429` or `EGeneral:Too many requests` (rate limited), or a timeout (a firewall or proxy). If Kraken never answers in a session, the app gives the crypto lines to Yahoo Finance for the rest of that session: after three failed tries, or at once when the daily candles failed too. `CRYPTO` then says why, and the prices are Yahoo's (CoinMarketCap's aggregate) rather than one exchange's. Once Kraken has answered in a session, a later outage marks its prices stale instead. Switching `KRAKEN_ENABLED` off hands the crypto lines to Yahoo after a reload.
 
+**"Sources disagree" in amber.** Two sources give the same figure and differ, so the app shows neither as right. Hover for both values. It appears for the next report date (Yahoo Finance and Nasdaq both confirm it, on different days: `QUOTE`, `PROFILE`, `FINANCIALS`, `EARNINGSSUMMARY`, `EE`), for a quarter's EPS when the sources report it on different bases (`EARNINGS`, `EE`), and for a dividend whose ex-date, payable date or amount differs between Yahoo's price history and Nasdaq's dividend record (`DIVIDENDS`; the note under the table lists both). An estimate on either side is not a disagreement: estimated dates are marked `~` or `(E)`.
+
 ## Keys and providers
 
 **"FRED needs your API key".** Add `FRED_API_KEY` on `PROVIDERS`. Until then `MACRO`, `RELEASES` and FRED's series in `ECONSTATS` stay empty; the ONS, Eurostat, Statistics Canada and ABS figures do not need it.

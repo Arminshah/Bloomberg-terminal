@@ -110,7 +110,7 @@ export function EESummary({ sec }: FnProps) {
           <Box n={1} title="Earnings History" fn="EARNINGS" sec={s}>
             <KV
               items={[
-                ['Next Announcement', nextText],
+                ['Next Announcement', nc?.dateDisagree ? <span key="na" className="amber" title={nc.dateDisagree} data-testid="earnings-disagree">Sources disagree</span> : nextText],
                 ['Prior Announcement', prior ? fmtEarnDate(prior, false) : '--'],
                 [
                   <span key="m" title="The average size of the share price's close-to-close move around each of the last eight reports, either way, as EARNINGS shows">

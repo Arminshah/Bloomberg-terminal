@@ -11,10 +11,11 @@ import { TapeSource, TradeTape } from './TAS';
 import { SimBadge } from '../components/Source';
 import { AnalystSummary, useAnalystSnapshot } from '../components/AnalystSummary';
 import { useFundamentals } from '../data/live/yfund';
-import { fmtBig, fmtDay, fmtEarnDate, fmtMln, fmtNum, fmtPct, fmtStamp, fmtTime } from '../core/format';
+import { fmtBig, fmtDay, fmtMln, fmtNum, fmtPct, fmtStamp, fmtTime } from '../core/format';
 import { engine, useQuote, useTick } from '../data/market';
 import { rangeStats } from '../data/analytics';
 import { keyStats, nextEarnings } from '../data/fundamentals';
+import { NextEarnings } from '../components/NextEarnings';
 import { news } from '../data/news';
 import { execute } from '../terminal/exec';
 import { requestCompanyNews } from '../data/live/feeds';
@@ -177,7 +178,7 @@ export function BQ({ sec }: FnProps) {
                 ['P/E LTM', Number.isFinite(ks.pe) && ks.pe > 0 ? fmtNum(ks.pe, 1) : peText(NaN, ks.epsLtm)],
                 ['Dividend yield 12M', fmtPct(ks.divYld, 2, false)],
                 ['Beta (5Y monthly)', fmtNum(ks.beta, 2)],
-                ['Next earnings', ne ? fmtEarnDate(ne) : '--'],
+                ['Next earnings', <NextEarnings key="ne" sec={s} ne={ne} />],
                 ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
               ]}
             />

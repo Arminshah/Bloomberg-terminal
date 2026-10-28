@@ -4,7 +4,8 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { Sparkline } from '../components/Sparkline';
 import { Chg } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
-import { fmtDay, fmtEarnDate, fmtIso, fmtNum } from '../core/format';
+import { fmtDay, fmtIso, fmtNum } from '../core/format';
+import { NextEarnings } from '../components/NextEarnings';
 import { financials, hasRealStatements, nextEarnings, priorStatementPeriod, reportCcy, type FinPeriod } from '../data/fundamentals';
 import { analystsAvailable, analystSymbol, estimateInCurrency, listedOutsideUs, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
 import { execute } from '../terminal/exec';
@@ -327,7 +328,7 @@ export function FA({ sec, route }: FnProps) {
         <button type="button" disabled={off === 0} title="One period later" onClick={() => setOffset(Math.max(0, off - 1))}>&gt;</button>
         <button type="button" disabled={off === 0} title="Latest periods" onClick={() => setOffset(0)}>&gt;&gt;</button>
         <span className="fa-next">
-          Earnings: {next ? fmtEarnDate(next, false) : '--'} |{' '}
+          Earnings: <NextEarnings sec={s} ne={next} withTiming={false} /> |{' '}
           <button type="button" className="link" onClick={() => execute(panel, `${s.id} EVENTS`)}>EVTS »</button>
           <button type="button" className="link" onClick={() => execute(panel, `${s.id} EARNINGSSUMMARY`)}>Earnings | EE »</button>
         </span>
