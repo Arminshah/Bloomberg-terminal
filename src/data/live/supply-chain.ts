@@ -36,7 +36,9 @@ export type Basis =
   /** The related company's purchases, cost of sales or capital spending that go to the target. */
   | 'their-purchases'
   /** The target's revenue that comes from the related company (the target's own disclosure). */
-  | 'target-revenue';
+  | 'target-revenue'
+  /** The target's purchases that go to the related company (the target's own disclosure). */
+  | 'target-purchases';
 
 export interface Evidence {
   sentence: string;
@@ -1415,6 +1417,19 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       }
     }
   }
+  // Unnamed suppliers with their shares of its purchases, from the latest year the report gives ("One supplier
+  // accounted for a significant portion of our total purchases in fiscal year 2026 of 63.1%").
+  // One statement counts them: the latest year's, for the longest period it gives (a 10-Q's six months rather than its
+  // quarter). A supplier the report names elsewhere with the same figure ("KeHE ... accounting for approximately 52%
+  // ... of our total purchases") is that company, not another one.
+  const suppliers = sentences.map((raw) => ({ raw, year: statementYear(raw), months: periodMonths(sharePeriod(raw)), shares: unnamedSupplierShares(raw) })).filter((x) => x.shares.length);
+  const supplierYear = Math.max(0, ...suppliers.map((x) => x.year));
+  const counted = suppliers.filter((u) => u.year === supplierYear).sort((a, b) => b.months - a.months)[0];
+  const namedElsewhere = (share: number) =>
+    sentences.some((raw) => !unnamedSupplierShares(raw).length && new RegExp(`(?<![\\d.])${String(share).replace('.', '\\.')}\\s?(?:%|percent)[^.;]{0,80}\\bpurchases\\b`).test(raw));
+  (counted?.shares ?? []).filter((share) => !namedElsewhere(share)).forEach((share, i) => {
+    out.push({ key: `unnamed-supplier:${i + 1}`, name: `Unnamed supplier ${i + 1}`, role: 'supplier', share, basis: 'target-purchases', side: 'own', evidence: [{ ...ev, sentence: counted!.raw }] });
+  });
   const aliases = definedNames(sentences, dir, (ended.aliases ??= new Map()));
   const legal = (ended.legalNames ??= new Map<string, string>());
   for (const raw of sentences) {
@@ -1708,6 +1723,49 @@ export function unnamedShares(sentence: string): { count: number; kind: string; 
   return out;
 }
 
+/** Of the company's purchases: "of our total purchases", "of the Company's purchases of raw materials", "of total cost of sales". */
+const PURCHASES_OF = String.raw`of\s+(?:the\s+)?(?:(?:our|the Company's|the Company’s|the Group's|the Group’s)\s+)?(?:(?:total|aggregate|net)\s+)*(?:purchases|inventory purchases|raw material purchases|purchasing|products purchased|cost of (?:sales|revenues?|goods sold))\b`;
+const SHARE_RUN = String.raw`(\d{1,3}(?:\.\d{1,2})?\s?(?:%|percent\b)(?:\s*,?\s*(?:and\s+)?\d{1,3}(?:\.\d{1,2})?\s?(?:%|percent\b))*)`;
+/** Unnamed suppliers: "One supplier", "two vendors", "our single largest supplier", "The Company's two largest suppliers". */
+const UNNAMED_SUPPLIERS = String.raw`(?<!\b[Nn]o\s)(?<!\b[Nn]o other\s)\b(?:(?:[Oo]ne|[Aa] single|[Tt]wo|[Tt]hree|[Tt]hese (?:two|three))\s+(?:of (?:our|its) )?|(?:[Oo]ur|[Tt]he Company's|[Tt]he Company’s|[Ii]ts)\s+(?:(?:one|single|two|three)\s+)?largest\s+)(?:suppliers?|vendors?)`;
+const SUPPLIER_SHARE = [
+  // "two suppliers accounted for 42% and 17% of the Company's total purchases"; "The Company's largest supplier
+  // accounted for approximately 52%, 50% and 47% of total purchases during 2025, 2024 and 2023, respectively".
+  new RegExp(String.raw`(${UNNAMED_SUPPLIERS})(?:,[^,;.]{0,60},)?\s+(?:each\s+|individually\s+)?(?:accounted for|represented|comprised)\s+(?:approximately\s+|about\s+)?${SHARE_RUN}(?:,?\s*respectively,?)?\s+${PURCHASES_OF}`),
+  // Super Micro's 10-K: "One supplier accounted for a significant portion of our total purchases in fiscal year 2026 of 63.1%".
+  new RegExp(String.raw`(${UNNAMED_SUPPLIERS})\s+accounted for a (?:significant|substantial) portion\s+${PURCHASES_OF}\s+(?:in|for|during)\s+[^.;%]{0,40}?\bof\s+${SHARE_RUN}`),
+];
+
+/**
+ * Suppliers a report counts without naming them, with each one's share of the company's purchases ("One supplier
+ * accounted for ... 63.1%"): one share for each supplier the report counts, for the latest year when it gives several.
+ * Suppliers counted together ("two suppliers accounted for 87% of products purchased") have no share each, and none
+ * is taken; nor from "No single supplier accounted for more than 5%".
+ */
+export function unnamedSupplierShares(sentence: string): number[] {
+  const s = sentence.replace(/\s+/g, ' ');
+  for (const re of SUPPLIER_SHARE) {
+    const m = re.exec(s);
+    if (!m) continue;
+    const subject = m[1].toLowerCase();
+    const count = /\bthree\b/.test(subject) ? 3 : /\btwo\b/.test(subject) ? 2 : 1;
+    const values = [...m[2].matchAll(/(\d{1,3}(?:\.\d{1,2})?)\s?(?:%|percent)/g)].map((x) => Number(x[1]));
+    if (values.length === count) return values;
+    if (count > 1) return [];
+    const latest = latestOfRun(s, values, m.index + m[0].length);
+    return latest == null ? [] : [latest];
+  }
+  return [];
+}
+
+/** Of a run of figures for several years ("52%, 50% and 47% ... during 2025, 2024 and 2023"), the latest year's. */
+function latestOfRun(s: string, values: number[], end: number): number | undefined {
+  const unique = (list: string[]) => list.filter((y, i, a) => a.indexOf(y) === i).map(Number);
+  const after = unique(s.slice(end, end + 140).match(/\b(?:19|20)\d{2}\b/g) ?? []);
+  const years = after.length === values.length ? after : unique(s.match(/\b(?:19|20)\d{2}\b/g) ?? []);
+  return years.length === values.length ? values[years.indexOf(Math.max(...years))] : undefined;
+}
+
 /**
  * The U.S. Government as a customer, with "U.S." written "US" (governmentShare drops the dots); not "non-U.S. government
  * customers" or sales "through the U.S. government".
@@ -1757,11 +1815,7 @@ export function governmentShare(sentence: string): { share: number | undefined }
     const values = [...m[1].matchAll(/(\d{1,3}(?:\.\d{1,2})?)\s?(?:%|percent)/g)].map((x) => Number(x[1]));
     if (values.length === 1) return { share: values[0] };
     if (values.length === 2 && /\b(?:three|six|nine) and (?:six|nine|twelve) months\b/.test(s)) return { share: values[1] };
-    const end = m.index + m[0].length;
-    const unique = (list: string[]) => list.filter((y, i, a) => a.indexOf(y) === i).map(Number);
-    const after = unique(s.slice(end, end + 140).match(/\b(?:19|20)\d{2}\b/g) ?? []);
-    const years = after.length === values.length ? after : unique(s.match(/\b(?:19|20)\d{2}\b/g) ?? []);
-    return { share: years.length === values.length ? values[years.indexOf(Math.max(...years))] : undefined };
+    return { share: latestOfRun(s, values, m.index + m[0].length) };
   }
   return null;
 }
@@ -2067,6 +2121,13 @@ export function sharePeriod(sentence: string): string {
   if (m) return `FY${m[1] ?? m[2]}`;
   const y = statementYear(s);
   return y ? String(y) : '';
+}
+
+/** How many months a period label covers: "6M to Jun 2026" 6, "Q2 FY2027" 3, a year 12. */
+export function periodMonths(label: string): number {
+  const m = /^(\d+)M\b/.exec(label);
+  if (m) return Number(m[1]);
+  return /^Q\d/.test(label) ? 3 : label ? 12 : 0;
 }
 
 /** The latest year a statement speaks of ("During fiscal year 2026, ..."), 0 when none. */
@@ -2569,21 +2630,24 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
   // Unnamed customers' shares come from the newest filing that states them (a quarter's are not the year's). A filing's
   // letters name its own customers ("Customer A" in NVIDIA's 10-Q of August 2025, 23%), not the same company in another
   // filing: they go with the rest when a newer filing states the shares.
-  const SHARE_ONLY = /^(?:unnamed:\d+|n:(?:(?:direct|indirect) )?customer [a-z])$/;
-  let sharesFrom = '';
+  // Unnamed suppliers' shares of its purchases likewise, on their own: a quarter that states customers' shares only
+  // leaves the year's suppliers in place.
+  const SHARE_ONLY = [/^(?:unnamed:\d+|n:(?:(?:direct|indirect) )?customer [a-z])$/, /^unnamed-supplier:\d+$/];
+  const shareOnly = (key: string) => SHARE_ONLY.some((re) => re.test(key));
+  const sharesFrom = SHARE_ONLY.map(() => '');
   for (const f of own) {
     mark(f, 'reading');
     const sentences = await io.text('own', f.path).catch(() => null);
     let found = 0;
     if (sentences) {
       const got = ownRelations(sentences, dir, { cik: company?.cik, names: names.names, ticker: company?.ticker ?? target.ticker }, evidence(f, ''), ended);
-      const shares = got.filter((r) => SHARE_ONLY.test(r.key));
-      const keep = shares.length > 0 && f.date > sharesFrom;
-      if (keep) {
-        sharesFrom = f.date;
-        for (let i = relations.length - 1; i >= 0; i--) if (SHARE_ONLY.test(relations[i].key)) relations.splice(i, 1);
-      }
-      const add = got.filter((r) => keep || !SHARE_ONLY.test(r.key));
+      const keep = SHARE_ONLY.map((re, i) => {
+        if (!got.some((r) => re.test(r.key)) || f.date <= sharesFrom[i]) return false;
+        sharesFrom[i] = f.date;
+        for (let j = relations.length - 1; j >= 0; j--) if (re.test(relations[j].key)) relations.splice(j, 1);
+        return true;
+      });
+      const add = got.filter((r) => !shareOnly(r.key) || SHARE_ONLY.some((re, i) => keep[i] && re.test(r.key)));
       relations.push(...add);
       found = add.length;
     }

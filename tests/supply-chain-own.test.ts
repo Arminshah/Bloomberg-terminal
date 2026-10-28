@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import * as main from '../electron/supply-chain.cjs';
-import { buildDirectory, exhibitStatements, governmentShare, mergeRelations, ownRelations, runChain, sharePeriod, stillHeld, subsidiaryNames, targetNames, targetPattern, type Chain, type ChainIO, type EndedStakes, type Relation } from '../src/data/live/supply-chain';
+import { buildDirectory, exhibitStatements, governmentShare, mergeRelations, ownRelations, runChain, sharePeriod, stillHeld, subsidiaryNames, targetNames, targetPattern, unnamedSupplierShares, type Chain, type ChainIO, type EndedStakes, type Relation } from '../src/data/live/supply-chain';
 import type { SecCompany } from '../src/data/live/sec';
+import { describe as describeRelation, shareLabel } from '../src/functions/SPLC';
 
 // Sentences as Applied Digital (APLD) and Coca-Cola wrote them in their filings of 2025 and 2026.
 const COMPANIES: SecCompany[] = [
@@ -288,5 +289,89 @@ describe("the U.S. Government's share of a contractor's revenue", () => {
     expect(got.map((r) => [r.role, r.name, r.share, r.basis])).toEqual([['customer', 'U.S. Government', 70, 'target-revenue']]);
     expect(sharePeriod(s)).toBe('9M to Sep 2026');
     expect(sharePeriod('During the quarter ended March 29, 2026, 69% of our $18.0 billion in sales were from the U.S. Government.')).toBe('3M to Mar 2026');
+  });
+});
+
+describe("SPLC: unnamed suppliers with their share of the company's purchases", () => {
+  // Sentences as 10-K and 10-Q filings of 2025 and 2026 write them.
+  it('reads one share for each supplier the report counts, for the latest year', () => {
+    expect(unnamedSupplierShares('One supplier accounted for a significant portion of our total purchases in fiscal year 2026 of 63.1%, and two suppliers accounted for a significant portion of our total purchases in fiscal year 2025 of 64.4% and 5.1%, and 65.4% and 6.3% in fiscal year 2024, respectively.')).toEqual([63.1]);
+    expect(unnamedSupplierShares('For the three months ended March 31, 2026, two suppliers accounted for 42% and 17% of the Company\'s total purchases.')).toEqual([42, 17]);
+    expect(unnamedSupplierShares('The Company\'s largest supplier accounted for approximately 52%, 50% and 47% of total purchases during 2025, 2024 and 2023, respectively.')).toEqual([52]);
+    expect(unnamedSupplierShares('For the three months ended September 30, 2025 and 2024, one supplier accounted for 66% and 11% of the Company\'s total purchases, respectively.')).toEqual([66]);
+    expect(unnamedSupplierShares('For the year ended December 31, 2025, two suppliers individually accounted for 51% and 26% of the Company\'s total purchases respectively.')).toEqual([51, 26]);
+  });
+
+  it('takes none for suppliers counted together, "no single supplier", accounts payable or operating costs', () => {
+    for (const s of [
+      'During the year ended December 31, 2025, two suppliers accounted for 87% of products purchased.',
+      'No single supplier accounted for more than 5% of our total purchases in fiscal year 2026.',
+      'No other single supplier accounted for 10% or more of our propane purchases in fiscal 2025.',
+      'One supplier accounted for approximately 75% of the Company\'s total accounts payable as of March 31, 2026.',
+      'For the nine months ended September 30, 2025 and 2024, one vendor accounted for 15% and 32% of our total operating costs, respectively.',
+      'During 2025, based on total purchase cost, our ten largest suppliers of goods and services represented approximately 23% of all such purchases.',
+    ])
+      expect([s.slice(0, 40), unnamedSupplierShares(s)]).toEqual([s.slice(0, 40), []]);
+  });
+
+  const d = buildDirectory([], []);
+  const smci = { cik: 1375365, names: targetNames('SMCI', 'Super Micro Computer, Inc.').names, ticker: 'SMCI' };
+  const own = (sentences: string[]) => ownRelations(sentences, d, smci, { ...EV, filer: 'Super Micro Computer, Inc.' }).filter((r) => r.role === 'supplier');
+
+  it("Super Micro's 10-K: one unnamed supplier with 63.1% of purchases in fiscal 2026", () => {
+    const got = own(['One supplier accounted for a significant portion of our total purchases in fiscal year 2026 of 63.1%, and two suppliers accounted for a significant portion of our total purchases in fiscal year 2025 of 64.4% and 5.1%, and 65.4% and 6.3% in fiscal year 2024, respectively.']);
+    expect(got.map((r) => [r.key, r.name, r.share, r.basis])).toEqual([['unnamed-supplier:1', 'Unnamed supplier 1', 63.1, 'target-purchases']]);
+    expect(shareLabel(got[0])).toBe('Purch: 63.1% · FY2026');
+    expect(describeRelation(got[0], 'SMCI US')).toBe("63.1% of SMCI US's purchases (FY2026)");
+  });
+
+  it("a 10-Q's quarter and half-year count the same suppliers once, for the longer period", () => {
+    const got = own([
+      'For the three months ended June 30, 2026, two suppliers accounted for 24% and 16% of the Company\'s total purchases.',
+      'For the six months ended June 30, 2026, two suppliers accounted for 27% and 13% of the Company\'s total purchases.',
+      'For the six months ended June 30, 2025, one supplier accounted for 52% of the Company\'s total purchases.',
+    ]);
+    expect(got.map((r) => [r.name, r.share])).toEqual([
+      ['Unnamed supplier 1', 27],
+      ['Unnamed supplier 2', 13],
+    ]);
+  });
+
+  it('a supplier the report names elsewhere with the same figure is not listed again unnamed (Sprouts and KeHE)', () => {
+    const got = own([
+      'KeHE Distributors, LLC ("KeHE"), is our primary supplier of dry grocery and frozen food products, accounting for approximately 52%, 50% and 47% of our total purchases in fiscal 2025, 2024 and 2023, respectively.',
+      'The Company\'s largest supplier accounted for approximately 52%, 50% and 47% of total purchases during 2025, 2024 and 2023, respectively.',
+    ]);
+    expect(got.filter((r) => r.name.startsWith('Unnamed'))).toEqual([]);
+  });
+
+  it("a newer 10-Q with customers' shares only keeps the 10-K's supplier share", async () => {
+    const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+    const io: ChainIO = {
+      companies: async () => [...COMPANIES, { cik: 1375365, ticker: 'SMCI', title: 'Super Micro Computer, Inc.' }],
+      filings: async () => [
+        { form: '10-Q', filed: day(10), accession: '0001375365-26-000090', doc: 'smci-20260930.htm' },
+        { form: '10-K', filed: day(60), accession: '0001375365-26-000070', doc: 'smci-20260630.htm' },
+      ],
+      index: async () => [],
+      fts: async () => ({ hits: [], total: 0 }),
+      text: async (kind, path) => {
+        if (kind !== 'own') return [];
+        if (path.endsWith('smci-20260930.htm')) return ['For the three months ended September 30, 2026, sales to one customer represented 31.2% of total net sales.'];
+        return [
+          'For the fiscal year ended June 30, 2026, sales to one customer represented 28.1% of total net sales.',
+          'One supplier accounted for a significant portion of our total purchases in fiscal year 2026 of 63.1%, and two suppliers accounted for a significant portion of our total purchases in fiscal year 2025 of 64.4% and 5.1%, and 65.4% and 6.3% in fiscal year 2024, respectively.',
+        ];
+      },
+      securities: [],
+    };
+    let chain: Chain = { state: 'loading', filers: [], relations: [], changes: {} };
+    await runChain({ ticker: 'SMCI', name: 'Super Micro Computer' }, io, (f) => {
+      chain = f(chain);
+    });
+    expect(chain.relations.filter((r) => r.name.startsWith('Unnamed')).map((r) => [r.role, r.name, r.share]).sort()).toEqual([
+      ['customer', 'Unnamed customer 1', 31.2],
+      ['supplier', 'Unnamed supplier 1', 63.1],
+    ]);
   });
 });

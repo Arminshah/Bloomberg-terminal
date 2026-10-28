@@ -78,6 +78,7 @@ export function shareLabel(r: Relation): string {
     case 'their-product-sales':
       return `Sales: ${v}${tail}`;
     case 'their-purchases':
+    case 'target-purchases':
       return `Purch: ${v}${tail}`;
     default:
       return `${v}${tail}`;
@@ -96,6 +97,7 @@ export function describe(r: Relation, t: string): string {
   switch (r.role) {
     case 'supplier':
       if (r.basis === 'their-revenue') return `${t} brought ${v} of its revenue${period ? ` (${period})` : ''}`;
+      if (r.basis === 'target-purchases') return `${v} of ${t}'s purchases${period ? ` (${period})` : ''}`;
       return r.side === 'theirs' ? `Names ${t} as a customer` : r.side === 'both' ? `Named by ${t}; names it as a customer` : `Named by ${t} as a supplier`;
     case 'customer':
       if (r.basis === 'target-revenue') return `${v} of ${t}'s revenue${period ? ` (${period})` : ''}`;
@@ -289,7 +291,7 @@ function Summary({ chain, t, suppliers, customers, competitors, fillOf, onOpen }
         {t}&apos;s Exposure to Related Companies:
       </text>
       <text x={W / 2} y={38} textAnchor="middle" className="splc-sub">
-        Suppliers are sorted by the share of their revenue {t} brings; customers by the share of {t}&apos;s revenue they bring,
+        Suppliers are sorted by the share of their revenue {t} brings or of {t}&apos;s purchases; customers by the share of {t}&apos;s revenue they bring,
       </text>
       <text x={W / 2} y={52} textAnchor="middle" className="splc-sub">
         then by the share of their sales or purchases {t} accounts for. Companies named without a share follow.
