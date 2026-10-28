@@ -11,7 +11,7 @@ import { finnhubAvailable, finnhubSymbol, loadFinnhub, type FinnhubMetric, type 
 import { loadCompanyFacts, loadFiler, reportingCurrency, resolveFiler, secAvailable, secTicker, type CompanyFacts, type SecFiler } from './sec';
 import { fillSummary, loadFinraShort, loadNasdaq, nasdaqAvailable, nasdaqSummaryPatch, nasdaqSymbol, preferNewerShort, type NasdaqHoldings, type NasdaqKind, type NasdaqProfile, type NasdaqShort, type NasdaqSummary } from './nasdaq-company';
 import { secStatementRows, splitFactorSince, type SplitEvent } from './statement-supplements';
-import { fmtDay } from '../../core/format';
+import { fmtDay, fmtNum } from '../../core/format';
 
 /**
  * Company data for the desktop app from Yahoo Finance (personal
@@ -339,6 +339,8 @@ function dividendsIn(id: string, from: number, to: number): number {
 
 /** Statement lines worked out per share, from net income to common shareholders. */
 const PER_SHARE = new Set(['DilutedEPS', 'DilutedAverageShares']);
+/** Income lines that move with the revenue basis (a restatement for discontinued operations moves them all). */
+const REVENUE_BASIS = new Set(['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'EBITDA', 'DepreciationAndAmortizationInIncomeStatement', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision']);
 
 /** What a fund's SEC per-share figures were adjusted with: the split history it saw ('unknown' before it loaded). */
 export function splitsKey(splits: readonly SplitEvent[] | null | undefined): string {
@@ -397,7 +399,48 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         const ni = row.get('NetIncomeCommonStockholders');
         const secNi = extra.row.get('NetIncomeCommonStockholders');
         const niAgrees = ni != null && secNi != null && Number.isFinite(ni) && Number.isFinite(secNi) && Math.abs(ni - secNi) <= 0.01 * Math.max(Math.abs(ni), Math.abs(secNi), 1);
+        // The filing's revenue wins where the feed's differs, net income agrees, and either the company restated the
+        // year (Applied Digital FY2025: 229 as first reported with its cloud business, 144 from continuing operations
+        // in its latest 10-K, the basis of its FY2026 figure) or it is a bank, whose revenue the feed works out its
+        // own way (JPMorgan 2024: 169,439 in the feed, a total net revenue of 177,556 filed). Elsewhere a difference
+        // is a choice of line (Altria's revenue net of excise taxes in the feed), and the feed's stays. The lines that
+        // move with the revenue basis then all come from the filing, or stay blank: never a mix.
+        const primaryRev = row.get('TotalRevenue');
+        const secRev = extra.row.get('TotalRevenue');
+        const bank = def.eq?.sector === 'Financials' || /\bbank/i.test(def.eq?.industry ?? '');
+        const filedBasis = niAgrees && (bank || extra.restated.has('TotalRevenue')) && primaryRev != null && secRev != null && Number.isFinite(primaryRev) && Number.isFinite(secRev) && secRev > 0 && Math.abs(primaryRev - secRev) > 0.01 * Math.max(Math.abs(primaryRev), secRev);
+        if (filedBasis) {
+          for (const key of REVENUE_BASIS) {
+            if (extra.row.has(key)) continue;
+            row.delete(key);
+          }
+          const evidence = supplements.get(end) ?? new Set<string>();
+          evidence.add(`${extra.sources.get('TotalRevenue')}: revenue and the lines that depend on it as filed, where the statements feed gave ${fmtNum(primaryRev! / 1e6, 0)} million`);
+          supplements.set(end, evidence);
+        }
         for (const [key, value] of extra.row) {
+          if (filedBasis && REVENUE_BASIS.has(key)) {
+            row.set(key, value);
+            continue;
+          }
+          // The company's own diluted EPS and share count win over the feed's where they differ on the same net
+          // income: the feed divided CoreWeave's pre-listing losses by its later share count (2024: -2.02 against
+          // -4.30 in the 10-K).
+          if (niAgrees && PER_SHARE.has(key) && Number.isFinite(row.get(key) ?? NaN)) {
+            const factor = splits ? splitFactorSince(splits, extra.filed.get(key) ?? '') : NaN;
+            if (Number.isFinite(factor) && factor > 0) {
+              const filed = key === 'DilutedEPS' ? value / factor : value * factor;
+              const feed = row.get(key)!;
+              if (Math.abs(filed - feed) > Math.max(key === 'DilutedEPS' ? 0.015 : 0, 0.015 * Math.max(Math.abs(filed), Math.abs(feed)))) {
+                row.set(key, filed);
+                perShareFromFilings = true;
+                const evidence = supplements.get(end) ?? new Set<string>();
+                evidence.add(`${extra.sources.get(key)}: ${key === 'DilutedEPS' ? 'diluted EPS' : 'diluted shares'} as filed${factor !== 1 ? ` (adjusted for later splits, ×${Number((key === 'DilutedEPS' ? 1 / factor : factor).toPrecision(6))})` : ''}, where the statements feed gave ${feed}`);
+                supplements.set(end, evidence);
+              }
+            }
+            continue;
+          }
           if (conflict && !BALANCE_SET.has(key) && !(niAgrees && PER_SHARE.has(key))) continue;
           // Net income before any preferred dividends: kept aside, used below only where it checks out.
           if (key === '__NetIncome') {

@@ -19,6 +19,8 @@ export interface StatementSupplement {
   sources: Map<string, string>;
   /** The filing date (ISO day) of each figure, for per-share figures that a later share split changes. */
   filed: Map<string, string>;
+  /** The figures a later filing restated (its latest value differs from the first one filed). */
+  restated: Set<string>;
 }
 
 /**
@@ -35,9 +37,10 @@ export function secStatementRows(cf: CompanyFacts, currency: string, kind: Perio
     for (const [date, fact] of values) {
       if (!allowed.has(date)) continue;
       const end = Date.parse(`${date}T00:00:00Z`);
-      const item = out.get(end) ?? { row: new Map<string, number>(), sources: new Map<string, string>(), filed: new Map<string, string>() };
+      const item = out.get(end) ?? { row: new Map<string, number>(), sources: new Map<string, string>(), filed: new Map<string, string>(), restated: new Set<string>() };
       item.row.set(key, fact.val);
       item.filed.set(key, fact.filed);
+      if (fact.restated) item.restated.add(key);
       item.sources.set(key, `SEC EDGAR ${fact.form}, filed ${fmtIso(fact.filed, true)}${fact.derived ? ' (calculated from aligned reported totals)' : ''}`);
       out.set(end, item);
     }
