@@ -1051,6 +1051,19 @@ ipcMain.handle('eod', async (event, provider, ticker, from, to) => {
   return keyedGet(provider, req.url, req.headers, 3600_000, [def.perMinute, 60_000, def.perHour], [key]);
 });
 
+// Massive's dividend record (electron/eod.cjs) for a stock Nasdaq's record does not cover, with the owner's key.
+ipcMain.handle('massive-dividends', async (event, ticker) => {
+  if (!fromApp(event) || !eod.massiveDividendsRequest(String(ticker), 'x')) throw new Error('not allowed');
+  const key = providers.credential('MASSIVE_API_KEY').value;
+  if (!key) return { status: 0, text: '', missing: 'MASSIVE_API_KEY' };
+  if (!providers.CREDENTIALS.MASSIVE_API_KEY.valid(key)) {
+    providers.recordProblem('massive', 'not-entitled', 'The configured MASSIVE_API_KEY has the wrong format, so it was not sent.');
+    return { status: 0, text: '', refused: 'wrong format' };
+  }
+  const req = eod.massiveDividendsRequest(String(ticker), key);
+  return keyedGet('massive', req.url, req.headers, 12 * 3600_000, [eod.PROVIDERS.massive.perMinute, 60_000], [key]);
+});
+
 // ----------------------------------------- Analyst research, news, IEX quotes
 // Financial Modeling Prep (electron/fmp.cjs), the news sources (electron/news.cjs) and Alpaca's IEX data
 // (electron/alpaca.cjs), each with the owner's key where it needs one. Answers are kept for a while per

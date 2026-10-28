@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   bea: (kind) => ipcRenderer.invoke('bea', String(kind)),
   cftc: (kind, report, mode, code) => ipcRenderer.invoke('cftc', String(kind), String(report), String(mode), code == null ? undefined : String(code)),
   fiscal: (kind) => ipcRenderer.invoke('fiscal', String(kind)),
+  massiveDividends: (ticker) => ipcRenderer.invoke('massive-dividends', String(ticker)),
   analysts: (kind, symbol, fresh) => ipcRenderer.invoke('analysts', String(kind), String(symbol), fresh === true),
   finnhubResearch: (kind, symbol, fresh) => ipcRenderer.invoke('finnhub-research', String(kind), String(symbol), fresh === true),
   tipranks: (kind, ticker) => ipcRenderer.invoke('tipranks', String(kind), String(ticker)),

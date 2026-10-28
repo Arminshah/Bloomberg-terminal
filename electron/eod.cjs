@@ -80,4 +80,14 @@ function takeDaily(provider, now = Date.now()) {
   return true;
 }
 
-module.exports = { PROVIDERS, eodRequest, takeDaily };
+/**
+ * Massive's dividend record for one US ticker (declared, ex, record and payable dates, cash amount as declared), newest
+ * first: the second dividend source for stocks Nasdaq's record does not cover (NYSE listings). Key in the header.
+ */
+function massiveDividendsRequest(ticker, key) {
+  if (typeof ticker !== 'string' || !TICKER.test(ticker)) return null;
+  const q = new URLSearchParams({ ticker, order: 'desc', sort: 'ex_dividend_date', limit: '1000' });
+  return { url: `https://api.massive.com/v3/reference/dividends?${q.toString()}`, headers: { Authorization: `Bearer ${key}` } };
+}
+
+module.exports = { PROVIDERS, eodRequest, takeDaily, massiveDividendsRequest };

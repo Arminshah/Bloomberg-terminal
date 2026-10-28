@@ -7,6 +7,7 @@ import type { SecurityDef } from './types';
 import { getRealFund, usTiming } from './live/yfund';
 import { realDividends, realSplits, trailingDividendYield, yahooQuotes } from './live/yahoo';
 import { nasdaqPart, nasdaqSymbol, type NasdaqDividend, type NasdaqNextReport } from './live/nasdaq-company';
+import { massiveDividends } from './live/massive-dividends';
 
 /** All money values in millions of the reporting currency (GBP for pence lines). */
 export interface FinPeriod {
@@ -642,6 +643,8 @@ export interface Dividend {
   type: string;
   /** Where Yahoo's price history and Nasdaq's dividend record give this dividend different dates or amounts. */
   disagree?: string;
+  /** The amount is Nasdaq's exact figure: Yahoo's history gives it rounded to three decimals (Walmart's 0.2475 as 0.248). */
+  exactFrom?: string;
 }
 
 const FREQ_BY_COUNTRY: Record<string, number> = { US: 4, CA: 4, GB: 2, TW: 4, KR: 4, JP: 2, HK: 2, AU: 2, IN: 1, DE: 1, FR: 2, NL: 4, CH: 1, DK: 2 };
@@ -705,17 +708,22 @@ function realDividendList(def: SecurityDef): Dividend[] {
     const row = out.find((d) => Math.abs(d.ex - next.ex) < DAY_MS);
     if (row) row.pay = next.pay;
   }
-  // Nasdaq's dividend record (US listings) gives each payment's declaration, record and payment dates, and a
-  // declared dividend before it goes ex. Its amounts are as paid at the time, so the price history's split-adjusted
-  // amounts are kept; a declared dividend still to go ex takes Nasdaq's amount, which is on today's share basis.
-  const declared = nasdaqPart<NasdaqDividend[]>(nasdaqSymbol(def), 'dividends') ?? [];
+  // Nasdaq's dividend record (its own listings) gives each payment's declaration, record and payment dates, and a
+  // declared dividend before it goes ex; for the stocks it does not cover (NYSE listings), Massive's record does. Their
+  // amounts are as paid at the time, so the price history's split-adjusted amounts are kept; a declared dividend still
+  // to go ex takes the record's amount, which is on today's share basis.
+  const fromNasdaq = nasdaqPart<NasdaqDividend[]>(nasdaqSymbol(def), 'dividends') ?? [];
+  const source = fromNasdaq.length ? 'Nasdaq' : 'Massive';
+  const declared = fromNasdaq.length ? fromNasdaq : massiveDividends(nasdaqSymbol(def)) ?? [];
   // Shares after the splits since a date for one share before them (10 after Broadcom's 10:1 split of July 2024).
   const splitFactor = (t: number) => (realSplits.get(def.id) ?? []).reduce((f, x) => (x.day * DAY_MS > t && x.denominator > 0 ? (f * x.numerator) / x.denominator : f), 1);
   for (const n of declared) {
     const row = out.find((d) => Math.abs(d.ex - n.ex) < 1.5 * DAY_MS);
     if (row) {
-      const disagree = dividendDisagreement(row, n, splitFactor(Math.max(row.ex, n.ex)));
+      const f = splitFactor(Math.max(row.ex, n.ex));
+      const disagree = dividendDisagreement(row, n, f, source);
       if (disagree) row.disagree = disagree;
+      else if (yahooRounded(row.amount, n.amount / f)) Object.assign(row, { amount: Number((n.amount / f).toPrecision(10)), exactFrom: `${source}'s dividend record` });
       if (!Number.isFinite(row.declared)) row.declared = n.declared;
       if (!Number.isFinite(row.record)) row.record = n.record;
       if (!Number.isFinite(row.pay)) row.pay = n.pay;
@@ -734,19 +742,26 @@ function realDividendList(def: SecurityDef): Dividend[] {
  * $1.75 of March 2018 is 0.175 after its 10:1 split; Yahoo gave 0.35). Undefined when they agree or one of them leaves
  * the figure out.
  */
-export function dividendDisagreement(row: Pick<Dividend, 'ex' | 'pay' | 'amount'>, n: Pick<NasdaqDividend, 'ex' | 'pay' | 'amount'>, splitFactor = 1): string | undefined {
+export function dividendDisagreement(row: Pick<Dividend, 'ex' | 'pay' | 'amount'>, n: Pick<NasdaqDividend, 'ex' | 'pay' | 'amount'>, splitFactor = 1, source = 'Nasdaq'): string | undefined {
   const parts: string[] = [];
   const day = (t: number) => fmtDay(t);
-  if (dayNum(row.ex) !== dayNum(n.ex)) parts.push(`ex-date ${day(row.ex)} (Yahoo Finance) against ${day(n.ex)} (Nasdaq)`);
-  if (Number.isFinite(row.pay) && Number.isFinite(n.pay) && dayNum(row.pay) !== dayNum(n.pay)) parts.push(`payable ${day(row.pay)} (Yahoo Finance) against ${day(n.pay)} (Nasdaq)`);
+  if (dayNum(row.ex) !== dayNum(n.ex)) parts.push(`ex-date ${day(row.ex)} (Yahoo Finance) against ${day(n.ex)} (${source})`);
+  if (Number.isFinite(row.pay) && Number.isFinite(n.pay) && dayNum(row.pay) !== dayNum(n.pay)) parts.push(`payable ${day(row.pay)} (Yahoo Finance) against ${day(n.pay)} (${source})`);
   const f = Number.isFinite(splitFactor) && splitFactor > 0 ? splitFactor : 1;
   const theirs = n.amount / f;
   // Half a hundredth of a cent: Yahoo stores some amounts as single-precision floats (29.179998 for 29.18), and rounds
-  // amounts it adjusts for a split (0.133333 for 0.40 after a 3:1 split).
-  if (Number.isFinite(row.amount) && Number.isFinite(theirs) && Math.abs(row.amount - theirs) > 0.00005 + Math.abs(theirs) * (f === 1 ? 1e-6 : 1e-4)) {
-    parts.push(f === 1 ? `amount ${row.amount} (Yahoo Finance) against ${n.amount} (Nasdaq)` : `amount ${row.amount} (Yahoo Finance) against ${+theirs.toPrecision(6)} (Nasdaq's ${n.amount} as paid, on today's share basis)`);
+  // amounts it adjusts for a split (0.133333 for 0.40 after a 3:1 split). Its history also rounds every amount to three
+  // decimals (Walmart's 0.2475 as 0.248): the same dividend, which the list shows with Nasdaq's exact figure.
+  if (Number.isFinite(row.amount) && Number.isFinite(theirs) && Math.abs(row.amount - theirs) > 0.00005 + Math.abs(theirs) * (f === 1 ? 1e-6 : 1e-4) && !yahooRounded(row.amount, theirs)) {
+    parts.push(f === 1 ? `amount ${row.amount} (Yahoo Finance) against ${n.amount} (${source})` : `amount ${row.amount} (Yahoo Finance) against ${+theirs.toPrecision(6)} (${source}'s ${n.amount} as paid, on today's share basis)`);
   }
   return parts.length ? `The sources disagree: ${parts.join('; ')}.` : undefined;
+}
+
+/** Yahoo's amount is `exact` rounded to three decimals, and `exact` has more (0.248 for 0.2475). */
+export function yahooRounded(yahoo: number, exact: number): boolean {
+  const third = (v: number) => Math.abs(v * 1000 - Math.round(v * 1000)) < 1e-6;
+  return Number.isFinite(yahoo) && Number.isFinite(exact) && third(yahoo) && !third(exact) && Math.abs(yahoo - exact) <= 0.0005 + 1e-9;
 }
 
 /** A share split: `numerator` new shares for every `denominator` held, effective on `date` (ms). */

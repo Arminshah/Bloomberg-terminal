@@ -9,7 +9,8 @@ import type { SecurityDef } from '../types';
 import { desktopData, impliedShares, realDividends, realSplits, yahooGet, yahooSymbolFor } from './yahoo';
 import { finnhubAvailable, finnhubSymbol, loadFinnhub, type FinnhubMetric, type FinnhubProfile } from './finnhub';
 import { loadCompanyFacts, loadFiler, reportingCurrency, resolveFiler, secAvailable, secTicker, type CompanyFacts, type SecFiler } from './sec';
-import { fillSummary, loadFinraShort, loadNasdaq, nasdaqAvailable, nasdaqSummaryPatch, nasdaqSymbol, preferNewerShort, type NasdaqHoldings, type NasdaqKind, type NasdaqProfile, type NasdaqShort, type NasdaqSummary } from './nasdaq-company';
+import { fillSummary, loadFinraShort, loadNasdaq, nasdaqAvailable, nasdaqSummaryPatch, nasdaqSymbol, preferNewerShort, type NasdaqDividend, type NasdaqHoldings, type NasdaqKind, type NasdaqProfile, type NasdaqShort, type NasdaqSummary } from './nasdaq-company';
+import { loadMassiveDividends } from './massive-dividends';
 import { secStatementRows, splitFactorSince, type SplitEvent } from './statement-supplements';
 import { fmtDay, fmtNum } from '../../core/format';
 
@@ -861,6 +862,8 @@ async function fillGaps(def: SecurityDef, summary: Json, front: boolean): Promis
         const p = got[kinds.indexOf(k)];
         return p?.state === 'ok' ? ((p.data as T) ?? null) : null;
       };
+      // Nasdaq's dividend record covers its own listings; Massive's (with its key) the others, before the screen draws.
+      if (kinds.includes('dividends') && !pick<NasdaqDividend[]>('dividends')?.length) await loadMassiveDividends(ns);
       // Nasdaq's page has short interest for Nasdaq listings only; FINRA's covers every US-listed stock.
       const short = pick<NasdaqShort[]>('short-interest') ?? (kinds.includes('short-interest') ? await loadFinraShort(ns) : null);
       out = preferNewerShort(out, short);

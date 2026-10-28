@@ -253,7 +253,8 @@ export function DVD({ sec }: FnProps) {
           ) : null}
           <div className="note">
             Dividend growth: the compound annual rate from the dividends that went ex in the 12 months to this date one, three or five years ago to those in the past 12 months, shown only when the record covers that earlier year in full. Yield: the 12-month dividend over the price at each month end.
-            {list.some((d) => !Number.isFinite(d.record)) ? ' Declaration, record and payable dates come from Nasdaq\'s dividend record, which covers Nasdaq-listed stocks; the price history gives the ex-date and amount only, so a blank cell is a date no source gives.' : ''}
+            {list.some((d) => d.exactFrom) ? ` Amounts with four or more decimals are from ${list.find((d) => d.exactFrom)!.exactFrom}: Yahoo's price history rounds them to three (Walmart's 0.2475 a share as 0.248).` : ''}
+            {engine.realOnly ? ` Declaration, record and payable dates and declared dividends come from Nasdaq's dividend record for Nasdaq-listed stocks and from Massive's (with MASSIVE_API_KEY) for the others; the price history gives the ex-date and amount only${list.some((d) => !Number.isFinite(d.record)) ? ', so a blank cell is a date no source gives' : ''}.` : ''}
             {sp.length ? ` Splits as Yahoo's price history records them, on their effective date; it records some spin-offs as fractional splits too. ${adjusted ? 'Dividend amounts are on the current share basis (adjusted for later splits).' : 'Dividend amounts as paid at the time (not adjusted for later splits).'}` : ''}
           </div>
         </>
