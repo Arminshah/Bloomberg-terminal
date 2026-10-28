@@ -388,9 +388,10 @@ function ownValues(id: string): Candidate['values'] {
     const at = (field: FieldId) => (pid === FIELD[field].periods![0] ? field : `${field}@${pid}`);
     out[at('rev')] = usd(p?.rev);
     out[at('ebitda')] = usd(p?.ebitda);
-    out[at('ni')] = usd(p?.ni);
+    // Net income as FINANCIALS shows it: attributable to the company's shareholders, before preferred dividends.
+    out[at('ni')] = usd(p?.niTotal);
     out[at('opMargin')] = ratio(p?.opInc, p?.rev);
-    out[at('netMargin')] = ratio(p?.ni, p?.rev);
+    out[at('netMargin')] = ratio(p?.niTotal, p?.rev);
   }
   const prevYear = yearBefore(f.annual, fy);
   const prevQuarter = yearBefore(f.quarterly, periods.lq);

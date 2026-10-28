@@ -29,7 +29,10 @@ export interface FinPeriod {
   interest: number;
   pretax: number;
   tax: number;
+  /** Net income to common shareholders: after preferred dividends; what diluted EPS divides. */
   ni: number;
+  /** Net income attributable to the company's shareholders, before preferred dividends (the filing's NetIncomeLoss). */
+  niTotal: number;
   shares: number;
   eps: number;
   dps: number;
@@ -103,7 +106,7 @@ export function priceInCurrency(def: SecurityDef, px: number, ccy: string | unde
 export function emptyPeriod(label = 'LTM', end = NaN): FinPeriod {
   const n = NaN;
   return {
-    label, end, rev: n, cogs: n, gp: n, sga: n, rnd: n, opInc: n, da: n, ebitda: n, interest: n, pretax: n, tax: n, ni: n, shares: n,
+    label, end, rev: n, cogs: n, gp: n, sga: n, rnd: n, opInc: n, da: n, ebitda: n, interest: n, pretax: n, tax: n, ni: n, niTotal: n, shares: n,
     eps: n, dps: n, cash: n, recv: n, inv: n, curAssets: n, ppe: n, intang: n, totAssets: n, curLiab: n, debt: n, totLiab: n, equity: n,
     cfo: n, capex: n, fcf: n, divPaid: n, buyback: n,
   };
@@ -182,7 +185,7 @@ function buildPeriod(def: SecurityDef, label: string, end: number, scale: number
   const fcf = cfo - capex;
   const buyback = Math.max(0, (fcf - divPaid) * (0.35 + r() * 0.4));
   return {
-    label, end, rev, cogs: rev - gp, gp, sga, rnd: Math.max(0, rnd), opInc, da, ebitda: opInc + da, interest, pretax, tax, ni,
+    label, end, rev, cogs: rev - gp, gp, sga, rnd: Math.max(0, rnd), opInc, da, ebitda: opInc + da, interest, pretax, tax, ni, niTotal: ni,
     shares, eps: ni / shares, dps: dps * k, cash, recv, inv, curAssets, ppe, intang, totAssets, curLiab, debt, totLiab, equity,
     cfo, capex, fcf, divPaid, buyback,
   };

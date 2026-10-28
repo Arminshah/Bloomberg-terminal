@@ -197,7 +197,7 @@ export function usTiming(ms: number): EarningsEvent['timing'] {
 
 // ------------------------------------------------------------------ statements
 
-const INCOME = ['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'ReconciledDepreciation', 'DepreciationAndAmortizationInIncomeStatement', 'EBITDA', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision', 'NetIncomeCommonStockholders', 'DilutedAverageShares', 'DilutedEPS'];
+const INCOME = ['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'ReconciledDepreciation', 'DepreciationAndAmortizationInIncomeStatement', 'EBITDA', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision', 'NetIncome', 'NetIncomeCommonStockholders', 'DilutedAverageShares', 'DilutedEPS'];
 const BALANCE = ['CashAndCashEquivalents', 'AccountsReceivable', 'Inventory', 'CurrentAssets', 'NetPPE', 'GoodwillAndOtherIntangibleAssets', 'TotalAssets', 'CurrentLiabilities', 'TotalDebt', 'CurrentDebtAndCapitalLeaseObligation', 'LongTermDebtAndCapitalLeaseObligation', 'TotalLiabilitiesNetMinorityInterest', 'StockholdersEquity', 'MinorityInterest', 'PreferredStock'];
 // IFRS filers' operating cash flow comes as CashFlowFromContinuingOperatingActivities (ASML's annual figures).
 const CASH = ['OperatingCashFlow', 'CashFlowFromContinuingOperatingActivities', 'CapitalExpenditure', 'FreeCashFlow', 'CashDividendsPaid', 'RepurchaseOfCapitalStock'];
@@ -274,6 +274,7 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
     pretax: M(g('PretaxIncome')),
     tax: M(g('TaxProvision')),
     ni: M(g('NetIncomeCommonStockholders')),
+    niTotal: M(g('NetIncome')),
     shares: M(g('DilutedAverageShares')),
     eps: g('DilutedEPS') ?? NaN,
     dps,
@@ -299,7 +300,7 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
   };
 }
 
-const FLOWS = ['rev', 'cogs', 'gp', 'sga', 'rnd', 'opInc', 'da', 'ebitda', 'interest', 'pretax', 'tax', 'ni', 'eps', 'cfo', 'capex', 'fcf', 'divPaid', 'buyback'] as const;
+const FLOWS = ['rev', 'cogs', 'gp', 'sga', 'rnd', 'opInc', 'da', 'ebitda', 'interest', 'pretax', 'tax', 'ni', 'niTotal', 'eps', 'cfo', 'capex', 'fcf', 'divPaid', 'buyback'] as const;
 
 /** Trailing twelve months from four consecutive quarters: flows summed, balance sheet from the latest. */
 export function sumQuarters(q4: FinPeriod[], dps = NaN): FinPeriod {
@@ -445,6 +446,13 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
           // Net income before any preferred dividends: kept aside, used below only where it checks out.
           if (key === '__NetIncome') {
             if (!Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN)) netIncome.set(`${kind}:${end}`, { value, source: extra.sources.get(key)! });
+            // The total itself, where the feed has none: the filing's net income attributable to the company.
+            if (!Number.isFinite(row.get('NetIncome') ?? NaN)) {
+              row.set('NetIncome', value);
+              const evidence = supplements.get(end) ?? new Set<string>();
+              evidence.add(`${extra.sources.get(key)}: net income`);
+              supplements.set(end, evidence);
+            }
             continue;
           }
           if (Number.isFinite(row.get(key)) && !(key === 'TotalRevenue' && row.get(key)! < 0)) continue;

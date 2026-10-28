@@ -46,8 +46,9 @@ const KEY: Row[] = [
   { label: 'Margin %', get: (p) => margin(p.gp, p.rev), indent: true, ratio: true },
   { label: 'EBITDA', get: (p) => p.ebitda, bold: true },
   { label: 'Margin %', get: (p) => margin(p.ebitda, p.rev), indent: true, ratio: true },
-  { label: 'Net Income', get: (p) => p.ni, bold: true },
-  { label: 'Margin %', get: (p) => margin(p.ni, p.rev), indent: true, ratio: true },
+  { label: 'Net Income', get: (p) => p.niTotal, bold: true },
+  { label: 'Margin %', get: (p) => margin(p.niTotal, p.rev), indent: true, ratio: true },
+  { label: 'Net Income to Common Shareholders', get: (p) => p.ni },
   { label: 'Diluted EPS', get: (p) => p.eps, dec: 2, bold: true },
   { label: 'Growth %, YoY', get: (p, q) => growth(p.eps, q?.eps), nm: (p, q) => growthNm(p.eps, q?.eps), indent: true, ratio: true },
   { label: 'Cash from Operations', get: (p) => p.cfo },
@@ -65,7 +66,8 @@ const IS: Row[] = [
   { label: '- Interest Expense', get: (p) => -p.interest, indent: true },
   { label: 'Pretax Income (Loss)', get: (p) => p.pretax },
   { label: '- Income Tax Expense', get: (p) => -p.tax, indent: true },
-  { label: 'Net Income', get: (p) => p.ni, bold: true },
+  { label: 'Net Income', get: (p) => p.niTotal, bold: true },
+  { label: 'Net Income to Common Shareholders', get: (p) => p.ni },
   { label: 'Diluted EPS', get: (p) => p.eps, dec: 2, bold: true },
   { label: 'Diluted Weighted Avg Shares', get: (p) => p.shares },
   { label: 'Dividends per Share', get: (p) => p.dps, dec: 2 },
@@ -89,7 +91,7 @@ const BS: Row[] = [
 ];
 
 const CF: Row[] = [
-  { label: 'Net Income', get: (p) => p.ni },
+  { label: 'Net Income', get: (p) => p.niTotal },
   { label: '+ Depreciation & Amortization', get: (p) => p.da, indent: true },
   { label: 'Cash from Operating Activities', get: (p) => p.cfo, bold: true },
   { label: '- Capital Expenditures', get: (p) => -p.capex, indent: true },
@@ -332,7 +334,7 @@ export function FA({ sec, route }: FnProps) {
       </div>
       <div className="note">
         {status === 'ok'
-          ? `Figures from ${real?.statementsFrom === 'SEC EDGAR' ? 'SEC EDGAR' : 'Yahoo Finance, supplemented from compatible SEC EDGAR observations where available'}; LTM ${f.ltm?.basis === 'annual' ? 'is the latest complete fiscal year, dated above' : f.ltm?.basis === 'trailing' ? "is the source's trailing twelve months" : 'sums four consecutive reported quarters'}${f.ltm?.epsComputed ? ', with EPS as net income over diluted shares (a quarter has no EPS in the source)' : ''}. Missing values have no supported observation; they are not zero.${estimates.length ? ` Est columns: the analysts' consensus${est?.source ? ` from ${est.source}` : ''} (revenue, net income and EPS on the analysts' basis).` : ''}`
+          ? `Figures from ${real?.statementsFrom === 'SEC EDGAR' ? 'SEC EDGAR' : 'Yahoo Finance, supplemented from compatible SEC EDGAR observations where available'}; LTM ${f.ltm?.basis === 'annual' ? 'is the latest complete fiscal year, dated above' : f.ltm?.basis === 'trailing' ? "is the source's trailing twelve months" : 'sums four consecutive reported quarters'}${f.ltm?.epsComputed ? ', with EPS as net income over diluted shares (a quarter has no EPS in the source)' : ''}. Net Income is attributable to the company's shareholders; Net Income to Common Shareholders comes after preferred dividends and is what diluted EPS divides. Missing values have no supported observation; they are not zero.${estimates.length ? ` Est columns: the analysts' consensus${est?.source ? ` from ${est.source}` : ''} (revenue, net income and EPS on the analysts' basis).` : ''}`
           : status === 'sim' ? "Statements are simulated from each company's scale and sector profile; they are not reported figures." : ''}
       </div>
       {supplementSources.length ? <details className="note"><summary>* Supplemental observations (hover a period heading for its sources)</summary>{supplementSources.map((source) => <div key={source}>{source}</div>)}</details> : null}

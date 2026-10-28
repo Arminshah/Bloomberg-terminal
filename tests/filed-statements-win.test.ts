@@ -66,3 +66,28 @@ describe('FINANCIALS: the filing wins where the feed is on another basis', () =>
     expect(f.annual[0].supplements?.join(' ')).toContain('diluted EPS as filed, where the statements feed gave -2.018966');
   });
 });
+
+describe('FINANCIALS: total net income and net income to common shareholders, each on its own row', () => {
+  beforeEach(() => realSplits.set('JPM US Equity', []));
+  afterEach(() => realSplits.delete('JPM US Equity'));
+  // JPMorgan's 10-K of 13 February 2026: net income 57,048 (2025) and 58,471 (2024); to common shareholders, after
+  // preferred dividends, 55,681 and 56,868. The one "Net Income" row used to show the second under the first's name.
+  const filed = facts({
+    NetIncomeLoss: { rows: [fact('2024-01-01', '2024-12-31', 58_471e6, '2026-02-13'), fact('2025-01-01', '2025-12-31', 57_048e6, '2026-02-13')] },
+    NetIncomeLossAvailableToCommonStockholdersBasic: { rows: [fact('2024-01-01', '2024-12-31', 56_868e6, '2026-02-13'), fact('2025-01-01', '2025-12-31', 55_681e6, '2026-02-13')] },
+  });
+
+  it("keeps the feed's net income beside its net income to common", () => {
+    const f = buildRealFund(engine.get('JPM US Equity')!, company, annual([
+      ['NetIncome', '2025-12-31', 57_048e6], ['NetIncomeCommonStockholders', '2025-12-31', 55_681e6],
+    ]), null, null, NOW, filed);
+    expect(f.annual.find((p) => p.end === Date.parse('2025-12-31T00:00:00Z'))).toMatchObject({ niTotal: 57_048, ni: 55_681 });
+  });
+
+  it("takes the filing's net income where the feed gives only the common shareholders'", () => {
+    const f = buildRealFund(engine.get('JPM US Equity')!, company, annual([['NetIncomeCommonStockholders', '2024-12-31', 56_868e6]]), null, null, NOW, filed);
+    const fy = f.annual.find((p) => p.end === Date.parse('2024-12-31T00:00:00Z'))!;
+    expect(fy).toMatchObject({ niTotal: 58_471, ni: 56_868 });
+    expect(fy.supplements?.join(' ')).toContain('net income');
+  });
+});
