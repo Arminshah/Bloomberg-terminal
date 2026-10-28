@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as main from '../electron/supply-chain.cjs';
-import { buildDirectory, exhibitStatements, mergeRelations, ownRelations, runChain, stillHeld, subsidiaryNames, targetNames, targetPattern, type Chain, type ChainIO, type EndedStakes, type Relation } from '../src/data/live/supply-chain';
+import { buildDirectory, exhibitStatements, governmentShare, mergeRelations, ownRelations, runChain, sharePeriod, stillHeld, subsidiaryNames, targetNames, targetPattern, type Chain, type ChainIO, type EndedStakes, type Relation } from '../src/data/live/supply-chain';
 import type { SecCompany } from '../src/data/live/sec';
 
 // Sentences as Applied Digital (APLD) and Coca-Cola wrote them in their filings of 2025 and 2026.
@@ -247,5 +247,46 @@ describe('SPLC: statements read the wrong way round before the data audit of Oct
       'For the fiscal year ended June 30, 2026, we had no sales to and immaterial purchases from Green Earth Liang\'s Inc. ("Green Earth"), an entity affiliated with our Chief Executive Officer.',
     ]);
     expect(got).toEqual(['supplier:Ablecom Technology', 'supplier:Compuware Technology']);
+  });
+});
+
+describe("the U.S. Government's share of a contractor's revenue", () => {
+  const d = buildDirectory([], []);
+  // Sentences as the contractors' 10-K and 10-Q filings of 2026 write them.
+  it('reads the share in each wording, for the latest year or the longer period', () => {
+    const cases: [string, number][] = [
+      ['During the nine months ended September 27, 2026, 70% of our $58.8 billion in sales were from the U.S. Government, either as a prime contractor or as a subcontractor (including 61% from U.S. Department of War (DoW), also known as the Department of Defense under 10 U.S.C. 113).', 70],
+      ['We derived 72% of our total consolidated sales from the U.S. Government in 2025, including 63% from the Department of War (DoW), also known as the Department of Defense under 10 U.S.C. § 111(a).', 72],
+      ['Sales to the U.S. government accounted for 84 percent, 87 percent and 86 percent of sales during the years ended December 31, 2025, 2024 and 2023, respectively.', 84],
+      ['In 2025, 68% of our consolidated revenue was from the U.S. government, 15% was from U.S. commercial customers, 8% was from non-U.S. government customers and the remaining 9% was from non-U.S. commercial customers.', 68],
+      ['During the three and six months ended July 3, 2026, we generated approximately 83% and 85%, respectively, of total revenues from contracts with the U.S. government, as compared to 87% for both the three and six months ended July 4, 2025.', 85],
+      ['The federal government is our primary customer, with revenues from federal government contracts, either as a prime contractor or a subcontractor, accounting for 95.6% and 95.7% of our total revenues in fiscal 2026 and 2025, respectively.', 95.6],
+      ['Revenues from U.S. Government agency customers in aggregate accounted for approximately 68%, 67% and 69% of total revenues in 2025, 2024, and 2023, respectively.', 68],
+      ['Approximately 51%, 59%, and 55% of consolidated revenues for the years ended December 31, 2025, December 31, 2024 and December 31, 2023, respectively were derived from contracts with the United States federal government.', 51],
+      ['For the year ended December 31, 2025, whether directly or as a sub-tier contractor to a government contractor, U.S. Government contracts comprised approximately 68% of our total consolidated revenues.', 68],
+      ['The percentage of our revenue that was derived from sales to U.S. Government customers, including foreign military sales funded through the U.S. Government, whether directly or through prime contractors, was 74% for year to date 2026.', 74],
+      ['In 2025, 35% of our revenues were earned pursuant to U.S. government contracts, which include FMS.', 35],
+      ['For each of the fiscal years 2026, 2025, and 2024, approximately 98% of the Company\'s revenue was generated from contracts with an agency or department of the U.S. government, including contracts where the Company performed either as a prime contractor or subcontractor.', 98],
+    ];
+    for (const [s, share] of cases) expect([s.slice(0, 40), governmentShare(s)?.share]).toEqual([s.slice(0, 40), share]);
+  });
+
+  it("takes no segment's share, no other customers' figure and no purchase obligations", () => {
+    for (const s of [
+      'In the six months ended June 30, 2026 and 2025, sales to the U.S. Government accounted for approximately 88% and 89% of our Government Operations segment revenues, respectively.',
+      'No individual non-U.S. Government customer accounted for more than 10% of our consolidated revenues in the years ended December 31, 2025, 2024 or 2023.',
+      'Approximately 50% of our purchase obligations described above represent purchase orders for products to be delivered under firm contracts with the U.S. government.',
+      'Sales to the U.S. government grew 5 percent, while sales to international customers represented 26% of our sales.',
+      'In 2025, non-U.S. customers, which include Foreign Military Sales through the U.S. government (FMS), accounted for 46% of our total revenues.',
+    ])
+      expect([s.slice(0, 40), governmentShare(s)]).toEqual([s.slice(0, 40), null]);
+  });
+
+  it("Lockheed Martin's 10-Q: the U.S. Government is a customer with 70% of sales, for nine months", () => {
+    const s = 'During the nine months ended September 27, 2026, 70% of our $58.8 billion in sales were from the U.S. Government, either as a prime contractor or as a subcontractor (including 61% from U.S. Department of War (DoW), also known as the Department of Defense under 10 U.S.C. 113).';
+    const got = mergeRelations(ownRelations(main.ownSentences(s), d, { cik: 936468, names: targetNames('LMT', 'LOCKHEED MARTIN CORP').names, ticker: 'LMT' }, { ...EV, filer: 'LOCKHEED MARTIN CORP' }));
+    expect(got.map((r) => [r.role, r.name, r.share, r.basis])).toEqual([['customer', 'U.S. Government', 70, 'target-revenue']]);
+    expect(sharePeriod(s)).toBe('9M to Sep 2026');
+    expect(sharePeriod('During the quarter ended March 29, 2026, 69% of our $18.0 billion in sales were from the U.S. Government.')).toBe('3M to Mar 2026');
   });
 });

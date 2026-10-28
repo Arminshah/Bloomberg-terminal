@@ -1576,6 +1576,9 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       }
       if (any) continue;
     }
+    // "70% of our $58.8 billion in sales were from the U.S. Government": the government is one customer, with its share.
+    const gov = governmentShare(s);
+    if (gov) add({ name: 'U.S. Government' }, 'customer', raw, { share: gov.share, basis: 'target-revenue' });
     // "70% of our sales were from the U.S. Government, either as a prime contractor or as a subcontractor (including
     // 61% from U.S. Department of War (DoW)": the company is the subcontractor, and the list is of its customers.
     if (OWN_SUPPLIER.test(s) && !/\bas an? (?:prime contractor or (?:as an? )?)?(?:subcontractor|supplier|vendor|contract manufacturer)\b/i.test(s)) {
@@ -1703,6 +1706,64 @@ export function unnamedShares(sentence: string): { count: number; kind: string; 
     out.push({ count, kind: (m[2] ?? '').toLowerCase(), share: Number(m[4]) });
   }
   return out;
+}
+
+/**
+ * The U.S. Government as a customer, with "U.S." written "US" (governmentShare drops the dots); not "non-U.S. government
+ * customers" or sales "through the U.S. government".
+ */
+const US_GOV = String.raw`(?<!non-)(?<!through\s(?:the\s)?)(?:the\s+)?(?:US|United States)\s+(?:[Ff]ederal\s+)?[Gg]overnment|(?<!non-)(?:the\s+)?[Ff]ederal\s+[Gg]overnment`;
+/** The company's whole revenue: "of our $58.8 billion in sales", "of the Company's total revenues", "of our 2025 revenues". */
+const GOV_OF = String.raw`of\s+(?:(?:our|the Company's|the Company’s)\s+)?(?:(?:19|20)\d{2}\s+)?(?:\$[\d.,]+\s+(?:billion|million)\s+in\s+)?(?:(?:total|net|consolidated)\s+)*(?:revenues?|net sales|sales)\b`;
+const GOV_RUN = String.raw`(\d{1,3}(?:\.\d{1,2})?\s?(?:%|percent\b)(?:\s*,?\s*(?:and\s+)?\d{1,3}(?:\.\d{1,2})?\s?(?:%|percent\b))*)`;
+/** The period a figure is for, between the revenue and its source: "in fiscal 2025, 2024 and 2023", "for the years ended ...". */
+const GOV_PERIOD = String.raw`(?:\s+(?:in|for|during)\s+[^.;%]{0,100}?)?`;
+/** The source of the revenue: "contracts with an agency or department of the U.S. government", "sales to a variety of". */
+const GOV_FROM = String.raw`(?:(?:prime\s+)?contracts?\s+with\s+|sales\s+to\s+)?(?:a variety of\s+)?(?:(?:an?\s+)?(?:agency|agencies)(?:\s+or\s+departments?)?\s+of\s+)?(?:${US_GOV})`;
+/** Words between the government and its figure, without another group's sales coming in between ("while sales to ..."). */
+const GOV_GAP = String.raw`(?:(?!\b(?:while|whereas)\b|\b(?:[Ss]ales|[Rr]evenues?)\s+(?:to|from)\b|\d\s?percent\b)[^.;%]){0,200}?`;
+const GOV_SHARE = [
+  // "70% of our $58.8 billion in sales were from the U.S. Government"; "98% of the Company's revenue was generated from
+  // contracts with an agency or department of the U.S. government"; "35% of our revenues were earned pursuant to U.S.
+  // government contracts"; "51%, 59%, and 55% of consolidated revenues for the years ended ..., respectively were derived
+  // from contracts with the United States federal government".
+  new RegExp(String.raw`${GOV_RUN}\s*,?\s*(?:respectively,?\s+)?${GOV_OF}${GOV_PERIOD},?\s*(?:respectively,?\s+)?(?:was|were|came)\s+(?:(?:derived|generated|earned)\s+)?(?:from|attributable to|pursuant to|under)\s+${GOV_FROM}`),
+  // "we generated approximately 83% and 85%, respectively, of total revenues from contracts with the U.S. government";
+  // "We derived 72% of our total consolidated sales from the U.S. Government in 2025".
+  new RegExp(String.raw`\b(?:generated|derived|derive|earned|received)\s+(?:approximately\s+|about\s+)?${GOV_RUN},?\s*(?:respectively,?\s+)?${GOV_OF}${GOV_PERIOD}\s+from\s+${GOV_FROM}`),
+  // "Sales to the U.S. government, either as a prime contractor or subcontractor ..., represented approximately 85% of
+  // our revenue"; "revenues from federal government contracts ... accounting for 95.6% and 95.7% of our total revenues";
+  // "U.S. Government contracts comprised approximately 68% of our total consolidated revenues".
+  new RegExp(String.raw`(?:\b(?:[Ss]ales|[Rr]evenues?)\s+(?:to|from)\s+${GOV_FROM}|(?:${US_GOV})\s+contracts\b)${GOV_GAP}\b(?:accounted for|accounting for|represented|representing|comprised|constituted|generated|was|were)\s+(?:approximately\s+|about\s+)?${GOV_RUN}\s+${GOV_OF}`),
+  // "The percentage of our revenue that was derived from sales to U.S. Government customers, ..., was 74% for year to
+  // date 2026".
+  new RegExp(String.raw`\b[Pp]ercentage of our (?:total )?revenues? (?:that )?(?:was|were) derived from sales to (?:${US_GOV})[^.;%]{0,200}?\bwas\s+(?:approximately\s+)?${GOV_RUN}`),
+  // "Our primary customer is the U.S. Government, from which we derived 70% of our sales during the nine months ...";
+  // Northrop Grumman's "84 percent of our sales in 2025".
+  new RegExp(String.raw`(?:${US_GOV}),?\s+from which we deriv(?:e|ed)\s+(?:approximately\s+)?${GOV_RUN}\s+${GOV_OF}`),
+];
+
+/**
+ * The U.S. Government's share of the company's revenue, as its report states it: for several years, the latest year's;
+ * for "the three and six months ended", the longer period's (the period sharePeriod names). A segment's share ("of our
+ * Government Operations segment revenues") is not the company's. Null when the sentence states no share for it; a
+ * share undefined when it gives figures for several periods it does not tell apart.
+ */
+export function governmentShare(sentence: string): { share: number | undefined } | null {
+  const s = sentence.replace(/\s+/g, ' ').replace(/\bU\.\s?S\.(?!\w)/g, 'US');
+  for (const re of GOV_SHARE) {
+    const m = re.exec(s);
+    if (!m) continue;
+    const values = [...m[1].matchAll(/(\d{1,3}(?:\.\d{1,2})?)\s?(?:%|percent)/g)].map((x) => Number(x[1]));
+    if (values.length === 1) return { share: values[0] };
+    if (values.length === 2 && /\b(?:three|six|nine) and (?:six|nine|twelve) months\b/.test(s)) return { share: values[1] };
+    const end = m.index + m[0].length;
+    const unique = (list: string[]) => list.filter((y, i, a) => a.indexOf(y) === i).map(Number);
+    const after = unique(s.slice(end, end + 140).match(/\b(?:19|20)\d{2}\b/g) ?? []);
+    const years = after.length === values.length ? after : unique(s.match(/\b(?:19|20)\d{2}\b/g) ?? []);
+    return { share: years.length === values.length ? values[years.indexOf(Math.max(...years))] : undefined };
+  }
+  return null;
 }
 
 // ------------------------------------------------- agreements in its own filings
@@ -1997,6 +2058,9 @@ export function sharePeriod(sentence: string): string {
   if (m) return `Q${ORDINAL[m[1].toLowerCase()]} FY${m[2]}`;
   m = /\b(three|six|nine|twelve) months ended ([A-Z][a-z]+) \d{1,2}, (\d{4})\b/.exec(s);
   if (m && MONTH_ABBR[m[2].toLowerCase()]) return m[1] === 'twelve' ? `Year to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}` : `${{ three: 3, six: 6, nine: 9 }[m[1] as 'three' | 'six' | 'nine']}M to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}`;
+  // "During the quarter ended March 29, 2026": three months.
+  m = /\bquarter ended ([A-Z][a-z]+) \d{1,2}, (\d{4})\b/.exec(s);
+  if (m && MONTH_ABBR[m[1].toLowerCase()]) return `3M to ${MONTH_ABBR[m[1].toLowerCase()]} ${m[2]}`;
   m = /\b(?:fiscal )?years? ended ([A-Z][a-z]+) \d{1,2}, (\d{4})\b/.exec(s);
   if (m && MONTH_ABBR[m[1].toLowerCase()]) return `Year to ${MONTH_ABBR[m[1].toLowerCase()]} ${m[2]}`;
   m = /\bfiscal (?:year )?(\d{4})\b|\bFY ?(\d{4})\b/i.exec(s);
