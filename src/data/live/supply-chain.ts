@@ -894,10 +894,12 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     }
     const p = pattern.source;
     // A reseller of the target's products ("Ingram Micro: Apple products 21% of sales"); a supplier or vendor named with
-    // a share of sales is a brand the filer sells. Used devices bought elsewhere are no purchase from the target.
+    // a share of sales is a brand the filer sells; "5,759 Apple units sold accounted for approximately 41% of the annual
+    // revenue" (Signing Day Sports, in AIB Data Centers' 8-K/A of May 2026) is what it sold through the target's store,
+    // not revenue from the target. Used devices bought elsewhere are no purchase from the target.
     if (/\b(?:pre-owned|refurbished|used|second-hand)\b/i.test(s)) return null;
     const distributor =
-      new RegExp(`(?:products?|solutions?|offerings?)\\s+(?:purchased\\s+|sourced\\s+|bought\\s+)?from\\s+(?:[^.]{0,40}?)(?:${p})|sales of (?:${p})(?:'s)?\\s+(?:[A-Za-z.,-]+\\s+){0,3}?products|(?:${p})(?:\\s+(?:Corporation|Corp\\.?|Inc\\.?|Company))?(?:'s|’s)?\\s+(?:branded\\s+)?(?:[A-Z][\\w-]*\\s+){0,4}(?:and\\s+(?:[A-Z][\\w-]*\\s+){1,4})?products`).test(s) ||
+      new RegExp(`(?:products?|solutions?|offerings?)\\s+(?:purchased\\s+|sourced\\s+|bought\\s+)?from\\s+(?:[^.]{0,40}?)(?:${p})|sales of (?:${p})(?:'s)?\\s+(?:[A-Za-z.,-]+\\s+){0,3}?products|(?:${p})(?:\\s+(?:Corporation|Corp\\.?|Inc\\.?|Company))?(?:'s|’s)?\\s+(?:branded\\s+)?(?:[A-Z][\\w-]*\\s+){0,4}(?:and\\s+(?:[A-Z][\\w-]*\\s+){1,4})?products|(?:${p})\\s+(?:units?|devices?|items?|subscriptions?)\\s+(?:sold|shipped|delivered)`).test(s) ||
       /\b(?:suppliers?|vendors?|brands?|branded)\b/i.test(clause);
     if (purchases) return { role: 'customer', share, qualifier, basis: 'their-purchases' };
     if (distributor) return { role: 'customer', share, qualifier, basis: 'their-product-sales' };
@@ -1202,6 +1204,8 @@ export function findCompanies(input: string, dir: Directory, loose = false, whol
         const prefixOk = n === ws.length || !single || KNOWN[key] || BRAND.test(ws[0]);
         // "ESG rating systems", "CSP/hyperscalers": a short word in capitals alone is a company only when well known.
         if (single && n === 1 && /^[A-Z]{2,4}$/.test(ws[0]) && !KNOWN[key] && !HAS_FORM.test(phraseText)) continue;
+        // "U.S. Department of War (DoW)", "DoD", "DoE": a department's acronym, not Dow Inc.
+        if (single && n === 1 && /^[A-Z][a-z][A-Z]{1,2}$/.test(ws[0])) continue;
         if (entry && prefixOk && (!single || !COMMON.has(key) || KNOWN[key] || HAS_FORM.test(phrase))) return { ...entry, index: m!.index };
       }
       return undefined;
@@ -1412,6 +1416,22 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
     }
   }
   const aliases = definedNames(sentences, dir, (ended.aliases ??= new Map()));
+  const legal = (ended.legalNames ??= new Map<string, string>());
+  for (const raw of sentences) {
+    for (const m of raw.matchAll(DEFINED)) {
+      const name = legalName(trailingName(m[1]));
+      if (name && !GENERIC_ALIAS.test(m[2]) && !legal.has(m[2])) legal.set(m[2], name);
+    }
+  }
+  /** A party named as a subject: a company the app knows, or one the filings define with its legal form. */
+  const subjectParty = (text: string): Found | { name: string } | null => {
+    const n = text.replace(/(?:'s|’s)$/, '').trim();
+    if (/^(?:We|Our|The|This|These|Such|Each|It|They|Its)\b/.test(n)) return null;
+    const known = findCompanies(n, dir, false, true).filter((f) => !f.cik || f.cik !== self.cik);
+    if (known.length === 1 && known[0].index === 0) return known[0];
+    const full = legal.get(n) ?? (legalName(n) ? n : null);
+    return full && !ownName(full) ? { name: legalName(full) ?? full } : null;
+  };
   for (const raw of sentences) {
     const s = expandAliases(raw.replace(/^\[competitors\]\s*/, ''), aliases);
     if (SAFE_HARBOR.test(s) || /\brisks related to:/i.test(s)) continue;
@@ -1532,7 +1552,33 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       continue;
     }
     if (among) continue;
-    if (OWN_SUPPLIER.test(s)) {
+    const supplies = SUBJECT_SUPPLIES.exec(s);
+    const resells = SUBJECT_RESELLS.exec(s);
+    const uses = WE_USE_FOR.exec(s);
+    if (uses) {
+      // The companies it names, with the short names it defines for them.
+      const named = [...uses[1].matchAll(DEFINED)].map((m) => subjectParty(trailingName(m[1]))).filter((p): p is Found | { name: string } => !!p);
+      const found = named.length ? named : partiesAt(uses[1], dir, true).filter((f) => !ownName(f.name));
+      for (const p of found) add(p, 'supplier', raw);
+      if (found.length) continue;
+    }
+    if (supplies || resells) {
+      let any = false;
+      for (const [m, role] of [[supplies, 'supplier'], [resells, 'customer']] as const) {
+        if (!m) continue;
+        for (const part of m[1].split(/\s+and\s+/)) {
+          const p = subjectParty(part);
+          if (p) {
+            add(p, role, raw);
+            any = true;
+          }
+        }
+      }
+      if (any) continue;
+    }
+    // "70% of our sales were from the U.S. Government, either as a prime contractor or as a subcontractor (including
+    // 61% from U.S. Department of War (DoW)": the company is the subcontractor, and the list is of its customers.
+    if (OWN_SUPPLIER.test(s) && !/\bas an? (?:prime contractor or (?:as an? )?)?(?:subcontractor|supplier|vendor|contract manufacturer)\b/i.test(s)) {
       const at = s.search(/\b(?:such as|including|include|includes|namely|like)\b/i);
       // "NVIDIA relies on suppliers such as TSMC": another company's suppliers.
       const lead = s.slice(0, Math.max(0, s.search(/\b(?:foundr(?:y|ies)|suppliers?|subcontractors?|contract manufacturers?|manufacturing partners?|vendors?|sole[- ]source|single[- ]source)\b/i)));
@@ -1570,7 +1616,43 @@ export interface EndedStakes {
   repaid?: Set<string>;
   /** Short names the company's filings define for others ("Coca-Cola HBC AG ("CCHBC")"), kept across its filings. */
   aliases?: Map<string, string>;
+  /**
+   * Short names its filings define for companies with a legal form, listed or not ("Ablecom Technology, Inc.
+   * ("Ablecom")"), kept across its filings: for statements that name a supplier as their subject.
+   */
+  legalNames?: Map<string, string>;
 }
+
+/** The name that ends a phrase ("Purchases from Ablecom Technology, Inc." → "Ablecom Technology, Inc."): its capitalised words, with the small words a name can hold ("Bank of America"). */
+function trailingName(text: string): string {
+  const words = text.trim().split(/\s+/);
+  let i = words.length;
+  while (i > 0 && (/^[A-Z0-9&(]/.test(words[i - 1]) || (/^(?:of|and|de|du|la|del|der|von|van)$/.test(words[i - 1]) && i > 1 && /^[A-Z]/.test(words[i - 2])))) i--;
+  while (i < words.length && /^(?:of|and|de|du|la|del|der|von|van)$/.test(words[i])) i++;
+  return words.slice(i).join(' ');
+}
+
+/** "Ablecom Technology, Inc." without its legal form; null for a name without one. */
+function legalName(full: string): string | null {
+  const m = /^(.*?[A-Za-z0-9)])\s*,?\s+(?:Inc|Incorporated|Ltd|Limited|LLC|L\.L\.C|Corp|Corporation|Co|Company|plc|PLC|GmbH|AG|SE|S\.A|N\.V|B\.V|Pte|Pty|K\.K|Co\., Ltd)\.?$/.exec(full.trim());
+  return m && /^[A-Z]/.test(m[1]) ? m[1].trim() : null;
+}
+
+/**
+ * A supplier named as the subject of its statement (Super Micro's 10-K of August 2026): "Ablecom is a major contract
+ * manufacturer for us", "Ablecom manufactured approximately 95.3% of the chassis purchased by us", "Ablecom and
+ * Compuware's sales to us constitute a majority of Ablecom's and Compuware's net sales". The names, and the role.
+ */
+const SUBJECT_PARTY = String.raw`((?:[A-Z][\w&.'’-]*)(?:\s+[A-Z][\w&.'’-]*){0,4}?(?:'s|’s)?(?:\s+and\s+[A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*){0,4}?(?:'s|’s)?)?)`;
+const SUBJECT_SUPPLIES = new RegExp(
+  String.raw`^(?:(?:In addition|Additionally|Also|Moreover|Further(?:more)?|However),\s+)?${SUBJECT_PARTY}\s+(?:` +
+    String.raw`(?:is|was|has been|remains|serves as|acts as)\s+(?:both\s+)?(?:a|an|our|the)\s+[^.;]{0,80}?\b(?:contract manufacturers?|suppliers?|vendors?|foundry|subcontractors?|manufacturing partners?)\b[^.;]{0,40}?\b(?:for|to|of)\s+(?:us|the Company|our)\b` +
+    String.raw`|(?:manufactured|produced|supplied|fabricated|assembled)\s+(?:approximately\s+|about\s+)?\d{1,3}(?:\.\d+)?%(?:,?\s+(?:and\s+)?\d{1,3}(?:\.\d+)?%)*\s+of\s+[^.;]{0,60}?\b(?:purchased|bought|procured)\s+by\s+(?:us|the Company)\b` +
+    String.raw`|sales\s+to\s+(?:us|the Company)\s+(?:constitute|constitutes|comprise|comprises|represent|represents|are|were|make up|account for)\s+(?:a|the)\s+(?:majority|substantial|significant))`,
+);
+/** "We use Ablecom Technology, Inc. ("Ablecom") and its affiliate Compuware ..., for contract design and manufacturing". */
+const WE_USE_FOR = /^We (?:use|engage|utilize|retain)\s+(.{3,240}?)\s*,?\s+for (?:contract )?(?:design|manufactur\w*|assembl\w*|production|fabricat\w*)\b/;
+const SUBJECT_RESELLS = new RegExp(String.raw`^(?:(?:In addition|Additionally|Also|Moreover|Further(?:more)?),\s+)?${SUBJECT_PARTY}\s+(?:is|was|has been|remains|serves as|acts as)\s+(?:both\s+)?(?:a|an|our|the)\s+(?:[\w-]+\s+){0,2}(?:distributors?|resellers?)\s+(?:of|for)\s+(?:our|the Company's|its)\s+products\b`);
 
 /** "Coca-Cola Europacific Partners plc ("CCEP")": a company and the short name a filing gives it. */
 const DEFINED = /([A-Z][A-Za-z0-9&.,'’ -]{2,90}?)\s*\((?:collectively,?\s+|together,?\s+)?(?:the\s+)?["“]([A-Z][A-Za-z0-9&.-]{1,24})["”]\)/g;
@@ -1704,8 +1786,10 @@ export function dealRole(before: string, rawAfter: string, sentence: string, sel
   const after = rawAfter.replace(LEGAL_FORM_DOT, (m) => m.replace(/\./g, ''));
   // "a product purchase agreement with OpenAI to deploy 6 gigawatts of AMD GPUs": the party buys the filer's products.
   if (/\b(?:product |master |supply and )?purchase agreements?\b/i.test(b) && self) {
-    const own = new RegExp(String.raw`^(?:'s)?,?[^.;]{0,60}?\b(?:to (?:deploy|purchase|buy|acquire|use)|for (?:the )?(?:purchase|deployment) of)\b[^.;]{0,60}?(?:\bour\b|${self.source})`, 'i');
+    const own = new RegExp(String.raw`^(?:'s)?,?[^.;]{0,140}?\b(?:to (?:deploy|purchase|buy|acquire|use)|for (?:the )?(?:purchase|deployment) of)\b[^.;]{0,140}?(?:\bour\b|${self.source})`, 'i');
     if (own.test(after)) return 'customer';
+    // "Meta agreed to a binding commitment under the Agreement to purchase ... certain AMD Instinct GPU products".
+    if (/^(?:'s)?[^.;]{0,60}?\bagreed to\b[^.;]{0,80}?\b(?:purchase|buy|deploy)\b/i.test(after)) return 'customer';
   }
   if (AGENT_PARTY.test(after)) return null;
   if (/\b(?:securities purchase|unit purchase|unit subscription|subscription|investment agreement|investment from|invest(?:s|ed|ing)? (?:up to )?\$|private placement|preferred (?:equity|stock|units)|equity (?:investment|financing)|strategic investment)\b/i.test(b)) return 'investor';
@@ -1829,13 +1913,17 @@ export function ownStatements(sentence: string, dir: Directory, self?: RegExp): 
       continue;
     }
     if (word === 'from') {
+      // "we had no sales to and immaterial purchases from Green Earth": no dealing worth a relation.
+      if (/\b(?:immaterial|insignificant|nominal|minimal|de minimis|no)\s+(?:purchases?|sales|amounts?)\s+$/i.test(before)) continue;
       if (/\b(?:orders?|contracts?|awards?)\s+$/i.test(before) || (/\b(?:revenue|revenues|sales)\s+(?:(?:generated|earned|derived)\s+)?$/i.test(before) && /\bcustomers?\b/i.test(s) && !/\bexclud\w*/i.test(before))) role = 'customer';
       else if (/\binvestments?\s+$/i.test(before)) role = 'investor';
       // "Ngenla is licensed from OPKO Health": a licence is a partnership, not a purchase.
       else if (/\b(?:licen[cs]ed|in-licensed|sublicensed)\s+(?:[\w-]+\s+){0,3}$/i.test(before)) role = 'partner';
       else if (/\b(?:purchase[sd]?|purchasing|buy|buys|bought|source[sd]?|sourcing|procure[sd]?|procuring|obtain(?:s|ed)?|license[sd]?)\b([^.;]{0,100})$/i.test(clause)) {
         const object = /\b(?:purchase[sd]?|purchasing|buy|buys|bought|source[sd]?|sourcing|procure[sd]?|procuring|obtain(?:s|ed)?|license[sd]?)\b([^.;]{0,100})$/i.exec(clause)?.[1] ?? '';
-        if (/\b(?:shares?|stock|notes|securities|interests?|units|warrants|assets|business|land|property|properties|subsidiar\w+|entity|acquisition|rights)\b/i.test(object)) continue;
+        if (/\b(?:shares?|stock|notes|securities|interests?|units|warrants|assets|business|land|property|properties|subsidiar\w+|entity|acquisition|acquir\w*|rights)\b/i.test(object)) continue;
+        // "the termination of the Share Purchase Agreement whereby NVIDIA would have acquired Arm from SoftBank".
+        if (/\b(?:share|stock|asset|equity|unit|membership interest) purchase agreement|\bterminat\w*/i.test(clause)) continue;
         // "copies of which may be obtained from D.F. King & Co.": documents, not supplies.
         if (/\b(?:copies|documents?|information|materials|prospectus|offer to purchase)\b/i.test(clause)) continue;
         role = 'supplier';

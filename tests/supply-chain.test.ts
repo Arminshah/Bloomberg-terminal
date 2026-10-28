@@ -108,6 +108,9 @@ describe("SPLC: what another company's report says", () => {
 
   it('a reseller of its products is a customer', () => {
     expect(c('For example, sales of Apple Inc. products and services comprised approximately 12%, 12%, and 11% of our total revenue for fiscal years 2025, 2024, and 2023, respectively and sales from HP, Inc. comprised approximately 10% of our total revenue for fiscal year 2025.', apple)).toMatchObject({ role: 'customer', share: 12, basis: 'their-product-sales' });
+    // What a filer sold through Apple's store is no revenue from Apple (Signing Day Sports in AIB Data Centers' 8-K/A of
+    // May 2026): it was read as Apple buying 41% of its revenue.
+    expect(c('Revenue Concentration Apple For the year ended December 31, 2025, 5,759 Apple units sold accounted for approximately 41% of the annual revenue recorded.', apple)).toMatchObject({ role: 'customer', share: 41, basis: 'their-product-sales' });
   });
 
   it('buyers that name it as their supplier', () => {

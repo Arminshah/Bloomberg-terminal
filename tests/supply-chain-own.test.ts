@@ -209,3 +209,43 @@ describe('SPLC: a purchase agreement under which the other party buys', () => {
     expect(got.map((r) => `${r.role}:${r.name}`)).toEqual(['customer:Meta Platforms']);
   });
 });
+
+describe('SPLC: statements read the wrong way round before the data audit of October 2026', () => {
+  const listed: SecCompany[] = [
+    ...COMPANIES,
+    { cik: 2488, ticker: 'AMD', title: 'ADVANCED MICRO DEVICES INC' },
+    { cik: 1326801, ticker: 'META', title: 'Meta Platforms, Inc.' },
+    { cik: 1751788, ticker: 'DOW', title: 'Dow Inc.' },
+    { cik: 936468, ticker: 'LMT', title: 'LOCKHEED MARTIN CORP' },
+    { cik: 1045810, ticker: 'NVDA', title: 'NVIDIA CORP' },
+    { cik: 1065521, ticker: 'SFTBY', title: 'SOFTBANK GROUP CORP.' },
+    { cik: 1375365, ticker: 'SMCI', title: 'Super Micro Computer, Inc.' },
+  ];
+  const d = buildDirectory(listed);
+  const read = (ticker: string, title: string, cik: number, sentences: string[]) =>
+    mergeRelations(ownRelations(main.ownSentences(sentences.join('\n')), d, { cik, names: targetNames(ticker, title).names, ticker }, { ...EV, filer: title })).map((r) => `${r.role}:${r.name}`).sort();
+
+  it("AMD's 8-K: Meta committed to buy under the purchase agreement, so it is a customer", () => {
+    const s = 'Under the arrangement, the parties entered into an amendment to that certain Master Purchase Agreement dated May 23, 2023 (the "Agreement") and concurrent with the Warrant issuance, Meta Platforms, Inc. agreed to a binding commitment under the Agreement to purchase (directly or through its affiliates, or indirectly through authorized third parties ("Authorized Purchasers")) the initial one (1) gigawatt equivalent of certain AMD Instinct GPU products.';
+    expect(read('AMD', 'ADVANCED MICRO DEVICES INC', 2488, [s]).filter((x) => x.startsWith('supplier'))).toEqual([]);
+  });
+
+  it("Lockheed Martin's sales as a subcontractor to the Department of War (DoW) name no supplier, nor Dow Inc.", () => {
+    const s = 'During the nine months ended September 27, 2026, 70% of our $58.8 billion in sales were from the U.S. Government, either as a prime contractor or as a subcontractor (including 61% from U.S. Department of War (DoW), also known as the Department of Defense under 10 U.S.C. 113).';
+    expect(read('LMT', 'LOCKHEED MARTIN CORP', 936468, [s]).filter((x) => /Dow/i.test(x))).toEqual([]);
+  });
+
+  it("NVIDIA's ended agreement to acquire Arm from SoftBank makes SoftBank no supplier", () => {
+    const s = 'In February 2022, NVIDIA and SoftBank Group Corp, or SoftBank, announced the termination of the Share Purchase Agreement whereby NVIDIA would have acquired Arm from SoftBank.';
+    expect(read('NVDA', 'NVIDIA CORP', 1045810, [s])).toEqual([]);
+  });
+
+  it("Super Micro's 10-K: the related companies that make its chassis are suppliers; an immaterial dealing is none", () => {
+    const got = read('SMCI', 'Super Micro Computer, Inc.', 1375365, [
+      'We use Ablecom Technology, Inc. ("Ablecom") and its affiliate Compuware Technology, Inc. ("Compuware"), both of which are related parties to us, for contract design and manufacturing coordination support.',
+      'Ablecom manufactured approximately 95.3%, 95.4%, and 93.6% of the chassis purchased by us during fiscal years 2026, 2025, and 2024, respectively.',
+      'For the fiscal year ended June 30, 2026, we had no sales to and immaterial purchases from Green Earth Liang\'s Inc. ("Green Earth"), an entity affiliated with our Chief Executive Officer.',
+    ]);
+    expect(got).toEqual(['supplier:Ablecom Technology', 'supplier:Compuware Technology']);
+  });
+});

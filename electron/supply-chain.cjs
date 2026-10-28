@@ -209,7 +209,7 @@ function mentionSentences(text, names, max = 80) {
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 7;
+const EXTRACTION = 8;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;
@@ -231,7 +231,15 @@ const OWN = new RegExp(
     // A campus or building "currently leased to Oracle": the tenant is a customer.
     String.raw`|\b(?:leased|subleased|rented)\s+(?:[\w-]+\s+){0,2}?to\s+(?:(?:[A-Z])|${UNNAMED_PARTY})` +
     String.raw`|\b(?:selected|chosen|awarded|engaged)\b[^.;]{0,60}\bby\s+[A-Z]|\b(?:orders?|contracts?|awards?|investments?)\s+from\s+[A-Z]|\bpartner(?:ship|ships|ed|s)?\b[^.;]{0,60}\bwith\s+[A-Z]` +
-    String.raw`|\b(?:purchase[sd]?|purchasing|buy|buys|bought|source[sd]?|sourcing|procure[sd]?|procuring|obtain(?:s|ed)?|license[sd]?)\b[^.;]{0,100}\bfrom\s+[A-Z]|\b(?:rely|relies|relied|depend|depends|depended|dependent|reliant)\b[^.;]{0,40}\bon\s+[A-Z]|\b(?:manufactured|produced|supplied|fabricated|assembled) by\s+[A-Z])`,
+    String.raw`|\b(?:[Pp]urchase[sd]?|[Pp]urchasing|[Bb]uy|[Bb]uys|[Bb]ought|[Ss]ource[sd]?|[Ss]ourcing|[Pp]rocure[sd]?|[Pp]rocuring|[Oo]btain(?:s|ed)?|[Ll]icense[sd]?)\b[^.;]{0,100}\bfrom\s+[A-Z]|\b(?:rely|relies|relied|depend|depends|depended|dependent|reliant)\b[^.;]{0,40}\bon\s+[A-Z]|\b(?:manufactured|produced|supplied|fabricated|assembled) by\s+[A-Z]` +
+    // A supplier as the subject (Super Micro's 10-K of August 2026): "Ablecom manufactured approximately 95.3% of the
+    // chassis purchased by us", "Ablecom and Compuware's sales to us constitute a majority of their net sales", "We use
+    // Ablecom ... for contract design and manufacturing coordination support", "Compuware is both a distributor of the
+    // Company's products and a contract manufacturer"; and the sentence that defines such a company's short name.
+    String.raw`|\b(?:manufactured|produced|supplied|fabricated|assembled)\s+(?:approximately\s+|about\s+)?\d{1,3}(?:\.\d+)?%(?:[^.;]|\.(?=\d)){0,80}\b(?:purchased|bought|procured) by (?:us|the Company)` +
+    String.raw`|\b[Ss]ales to (?:us|the Company)\s+(?:constitute|constitutes|comprise|comprises|represent|represents|make up)\b|\b(?:distributors?|resellers?) (?:of|for) (?:our|the Company's) products` +
+    String.raw`|^We (?:use|engage|utilize|retain)\b[^.;]{0,220}\bfor (?:contract )?(?:design|manufactur|assembl|production|fabricat)` +
+    String.raw`|[A-Z][\w&.' -]{1,80}?,?\s+(?:Inc|Ltd|LLC|Corp|Corporation|Co|Limited|plc|GmbH|AG|S\.A|N\.V)\.?\s*\(\s*["“][A-Z][\w&.-]{1,24}["”]\))`,
 );
 // A sentence that introduces a list of competitors on the lines that follow.
 const LIST_INTRO = /\b(competitors (?:include|are|consist)|compete (?:with|against)|competition (?:comes from|includes|from))\b[^.]*:?\s*$/i;
