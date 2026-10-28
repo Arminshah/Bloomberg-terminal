@@ -1094,30 +1094,31 @@ function usableKey(name, provider) {
   return { value };
 }
 
-ipcMain.handle('analysts', async (event, kind, symbol) => {
+// fresh: the owner's research access check asks the provider again rather than reading the kept answer.
+ipcMain.handle('analysts', async (event, kind, symbol, fresh) => {
   if (!fromApp(event) || !fmp.fmpRequest(kind, symbol, 'x')) throw new Error('not allowed');
   if (!providers.setting('FMP_ENABLED').value) return { status: 0, text: '', gated: 'FMP_ENABLED' };
   const key = usableKey('FMP_API_KEY', 'fmp');
   if (!key.value) return { status: 0, text: '', ...key };
   const req = fmp.fmpRequest(kind, symbol, key.value);
-  return keyedGet('fmp', req.url, {}, req.ttl, [30, 60_000], [key.value]);
+  return keyedGet('fmp', req.url, {}, fresh === true ? 0 : req.ttl, [30, 60_000], [key.value]);
 });
 
-ipcMain.handle('finnhub-research', async (event, kind, symbol) => {
+ipcMain.handle('finnhub-research', async (event, kind, symbol, fresh) => {
   const url = finnhubResearchRequest(kind, symbol);
   if (!fromApp(event) || !url) throw new Error('not allowed');
   if (!providers.setting('FINNHUB_ENABLED').value) return { status: 0, text: '', gated: 'FINNHUB_ENABLED' };
   const key = usableKey('FINNHUB_API_KEY', 'finnhub');
   if (!key.value) return { status: 0, text: '', ...key };
-  return keyedGet('finnhub', url, { 'X-Finnhub-Token': key.value }, 6 * 3_600_000, [30, 60_000], [key.value]);
+  return keyedGet('finnhub', url, { 'X-Finnhub-Token': key.value }, fresh === true ? 0 : 6 * 3_600_000, [30, 60_000], [key.value]);
 });
 
-ipcMain.handle('equibles', async (event, kind, symbol) => {
+ipcMain.handle('equibles', async (event, kind, symbol, fresh) => {
   if (!fromApp(event) || !equibles.validRequest(kind, symbol)) throw new Error('not allowed');
   if (!providers.setting('EQUIBLES_ENABLED').value) return { status: 0, text: '', gated: 'EQUIBLES_ENABLED' };
   const key = usableKey('EQUIBLES_API_KEY', 'equibles');
   if (!key.value) return { status: 0, text: '', ...key };
-  return equiblesClient.research(kind, symbol, key.value);
+  return equiblesClient.research(kind, symbol, key.value, false, fresh === true);
 });
 
 const tipranks = require('./tipranks.cjs');

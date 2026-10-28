@@ -153,33 +153,33 @@ function createEquiblesAccount({ providers, fetch, agent, now = Date.now, sleep,
     return { error: fail('Equibles tool discovery was incomplete or changed format.') };
   }
 
-  async function research(kind, symbol, key, recovered = false) {
+  async function research(kind, symbol, key, recovered = false, fresh = false) {
     if (!validRequest(kind, symbol)) throw new Error('not allowed');
     if (account !== key) { account = key; session = ''; protocol = '2025-06-18'; initialized = undefined; toolsPromise = undefined; }
     initialized ??= initialize(key);
     const ready = await initialized;
     if (!ready.text || ready.stale) {
       initialized = undefined;
-      if (ready.status === 404 && session && !recovered) { session = ''; toolsPromise = undefined; return research(kind, symbol, key, true); }
+      if (ready.status === 404 && session && !recovered) { session = ''; toolsPromise = undefined; return research(kind, symbol, key, true, fresh); }
       return ready;
     }
     toolsPromise ??= discover(key);
     const discovery = await toolsPromise;
     if (discovery.error) {
       toolsPromise = undefined;
-      if (discovery.error.status === 404 && session && !recovered) { session = ''; initialized = undefined; return research(kind, symbol, key, true); }
+      if (discovery.error.status === 404 && session && !recovered) { session = ''; initialized = undefined; return research(kind, symbol, key, true, fresh); }
       return discovery.error;
     }
     const matches = discovery.tools.filter((tool) => normalize(tool?.name) === normalize(TOOLS[kind]));
     const tool = matches.length === 1 ? matches[0] : null;
     const args = toolArguments(tool, symbol, WANT[kind]);
     if (!args) return fail(`Equibles does not expose a compatible ${TOOLS[kind]} tool for this account.`, 'no-data');
-    const answer = await rpc(key, 'tools/call', { name: tool.name, arguments: args }, 6 * 3_600_000);
+    const answer = await rpc(key, 'tools/call', { name: tool.name, arguments: args }, fresh ? 0 : 6 * 3_600_000);
     // Expired stateful sessions must be initialized again, at most once per user query.
     // The broker hands back an older cached report with the 404, so the text is not a sign of success here.
     if (answer.status === 404 && session && !recovered) {
       session = ''; initialized = undefined; toolsPromise = undefined;
-      return research(kind, symbol, key, true);
+      return research(kind, symbol, key, true, fresh);
     }
     if (!answer.text) return answer;
     const result = JSON.parse(answer.text).result;

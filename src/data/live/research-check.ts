@@ -4,23 +4,28 @@ import { parseResearch } from './equibles';
 import { parseYahooResearch, yahooResearchPath, type YahooResearchApi } from './yahoo-research';
 
 export type ResearchApi = {
-  analysts?: (kind: AnalystKind, symbol: string) => Promise<KeyedAnswer>;
-  finnhubResearch?: (kind: 'ratings', symbol: string) => Promise<KeyedAnswer>;
-  equibles?: (kind: 'estimates', symbol: string) => Promise<KeyedAnswer>;
+  /** fresh: ask the provider again, not the answer the app kept. */
+  analysts?: (kind: AnalystKind, symbol: string, fresh?: boolean) => Promise<KeyedAnswer>;
+  finnhubResearch?: (kind: 'ratings', symbol: string, fresh?: boolean) => Promise<KeyedAnswer>;
+  equibles?: (kind: 'estimates', symbol: string, fresh?: boolean) => Promise<KeyedAnswer>;
   yahoo?: YahooResearchApi;
   settings?: Record<string, boolean>;
 };
-export type ResearchCheck = { dataset: string; state: string; detail: string; at?: number };
+/** at: when the answer was received; cached: it came from the app's store, not from a request made by this check. */
+export type ResearchCheck = { dataset: string; state: string; detail: string; at?: number; cached?: boolean };
 
-/** User-triggered, per-endpoint evidence; never interpret a valid key as data access. */
+/**
+ * User-triggered, per-endpoint evidence; never interpret a valid key as data access. Each press asks the providers
+ * again; an answer that still comes from the app's store is marked so, with its time.
+ */
 export async function checkResearchAccess(symbol: string, api: ResearchApi): Promise<ResearchCheck[]> {
   if (!/^[A-Z][A-Z0-9.-]{0,9}$/.test(symbol)) throw new Error('Enter one US stock ticker, such as APLD.');
   const requests: { dataset: string; send: () => Promise<KeyedAnswer | undefined> | undefined; parse: (text: string) => { data: unknown } | { error: string } }[] = [
-    { dataset: 'FMP price targets', send: () => api.analysts?.('consensus', symbol), parse: parseConsensus },
-    { dataset: 'FMP ratings', send: () => api.analysts?.('ratings', symbol), parse: parseRatings },
-    { dataset: 'FMP annual estimates', send: () => api.analysts?.('estimates', symbol), parse: parseEstimates },
-    { dataset: 'Finnhub recommendation counts', send: () => api.finnhubResearch?.('ratings', symbol), parse: (text: string) => parseFinnhubRatings(text, symbol) },
-    { dataset: 'Equibles analyst estimates', send: () => api.equibles?.('estimates', symbol), parse: (text: string) => { const parsed = parseResearch(text); return parsed ? { data: parsed } : { error: 'No readable report in the answer.' }; } },
+    { dataset: 'FMP price targets', send: () => api.analysts?.('consensus', symbol, true), parse: parseConsensus },
+    { dataset: 'FMP ratings', send: () => api.analysts?.('ratings', symbol, true), parse: parseRatings },
+    { dataset: 'FMP annual estimates', send: () => api.analysts?.('estimates', symbol, true), parse: parseEstimates },
+    { dataset: 'Finnhub recommendation counts', send: () => api.finnhubResearch?.('ratings', symbol, true), parse: (text: string) => parseFinnhubRatings(text, symbol) },
+    { dataset: 'Equibles analyst estimates', send: () => api.equibles?.('estimates', symbol, true), parse: (text: string) => { const parsed = parseResearch(text); return parsed ? { data: parsed } : { error: 'No readable report in the answer.' }; } },
   ];
   if (api.yahoo) requests.push({
     dataset: 'Yahoo analyst research',
@@ -56,10 +61,11 @@ export async function checkResearchAccess(symbol: string, api: ResearchApi): Pro
       if ('error' in parsed) detail = parsed.error ?? 'Unrecognized research response.';
       else if (answer.stale) { state = 'Stale'; detail = `Earlier answer retained; ${detail}.`; }
       else if (!parsed.data || (Array.isArray(parsed.data) && !parsed.data.length)) { state = 'No data'; detail = 'The endpoint answered but returned no usable records for this symbol.'; }
-      else { state = 'Answered'; detail = answer.cached ? 'Cached answer; not a new provider access check.' : 'Valid response. Inspect the report for coverage, dates and source qualifications.'; }
+      else if (answer.cached) { state = 'Cached'; detail = `Kept answer${answer.at ? ` from ${new Date(answer.at).toISOString().slice(0, 16).replace('T', ' ')} UTC` : ''}; not a new check.`; }
+      else { state = 'Answered'; detail = 'Valid response. Inspect the report for coverage, dates and source qualifications.'; }
     } else if ([401, 402, 403].includes(answer.status) || /premium|subscription|key.*invalid|access denied/i.test(detail)) state = 'Denied';
     else if (answer.budget || answer.status === 429 || answer.retryAt) state = 'Rate limited';
-    checks.push({ dataset: request.dataset, state, detail, at: answer.at });
+    checks.push({ dataset: request.dataset, state, detail, at: answer.at, ...(answer.cached ? { cached: true } : {}) });
   }
   return checks;
 }

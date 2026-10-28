@@ -47,7 +47,7 @@ declare global {
       kraken?(kind: 'ticker' | 'ohlc' | 'depth', arg: string, n?: number): Promise<{ status: number; text: string; serverTime?: number; disabled?: boolean }>;
       coingecko?(): Promise<{ status: number; text: string; missing?: string }>;
       eod?(provider: import('./eod').EodProvider, ticker: string, from: string, to: string): Promise<KeyedAnswer>;
-      analysts?(kind: import('./analysts').AnalystKind | 'earnings', symbol: string): Promise<KeyedAnswer>;
+      analysts?(kind: import('./analysts').AnalystKind | 'earnings', symbol: string, fresh?: boolean): Promise<KeyedAnswer>;
       nasdaq?(kind: import('./nasdaq-company').NasdaqKind | 'info' | 'historical', symbol: string): Promise<KeyedAnswer>;
       finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;
@@ -56,8 +56,8 @@ declare global {
       indexMembers?(kind: 'sp500' | 'nasdaq100' | 'nasdaq-quotes', arg?: string): Promise<KeyedAnswer>;
       alphavantage?(kind: 'earnings' | 'estimates', symbol: string): Promise<KeyedAnswer>;
       earningsCalendar?(source: 'nasdaq' | 'nasdaq-caps' | 'nasdaq-eco' | 'nasdaq-ipo' | 'nasdaq-dividends' | 'nasdaq-splits' | 'finnhub' | 'fmp', from: string, to: string): Promise<KeyedAnswer>;
-      finnhubResearch?(kind: 'ratings', symbol: string): Promise<KeyedAnswer>;
-      equibles?(kind: import('./equibles').ResearchKind, symbol: string): Promise<KeyedAnswer>;
+      finnhubResearch?(kind: 'ratings', symbol: string, fresh?: boolean): Promise<KeyedAnswer>;
+      equibles?(kind: import('./equibles').ResearchKind, symbol: string, fresh?: boolean): Promise<KeyedAnswer>;
       tipranks?(kind: 'consensus' | 'ratings' | 'usage', ticker: string): Promise<KeyedAnswer>;
       assistant?(messages: unknown[]): Promise<import('../assistant/types').AssistantAnswer>;
       finnhub?(kind: 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'history' | 'quote' | 'peers', symbol: string): Promise<KeyedAnswer>;

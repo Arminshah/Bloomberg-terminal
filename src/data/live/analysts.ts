@@ -194,6 +194,17 @@ export interface AnalystPart<T = unknown> {
   problems?: string[];
   /** The request failed on the way (no answer, rate limit, server error): opening the screen again retries. */
   transient?: boolean;
+  /** The HTTP status of a refused or failed answer. */
+  status?: number;
+  /** The sources asked before this answer that gave nothing, each with its own state ("FMP refused, HTTP 402"). */
+  attempts?: ResearchAttempt[];
+}
+
+/** A source asked for a dataset that gave nothing usable. */
+export interface ResearchAttempt {
+  source: string;
+  state: AnalystPart['state'];
+  status?: number;
 }
 
 type ByKind = Partial<Record<AnalystKind, AnalystPart>>;
@@ -260,12 +271,48 @@ async function outsideUsPart(kind: AnalystKind, symbol: string): Promise<Analyst
   }
 }
 
-/** A refusal describes this request/account, not an assumption about the user's plan. */
-export function fmpProblem(status: number, symbol: string, error?: string): string {
-  const said = error?.replace(/^HTTP \d+:?\s*/, '');
-  if (status === 402) return `Your FMP subscription does not include this request for ${symbol} (HTTP 402)${said ? `: ${said}` : '.'}`;
-  if (status === 401 || status === 403) return `FMP denied access (HTTP ${status})${said ? `: ${said}` : '.'} Check the key and endpoint permissions on PROVIDERS.`;
-  return error ?? (status ? `FMP answered HTTP ${status}` : 'FMP did not answer');
+/**
+ * An FMP refusal in plain words, without FMP's own error text (a paragraph about plans and pricing): HTTP 402 is the
+ * account's plan not covering the request for this ticker.
+ */
+export function fmpProblem(status: number, symbol: string): string {
+  if (status === 402) return `FMP's plan does not cover ${symbol} for this dataset (HTTP 402).`;
+  if (status === 401 || status === 403) return `FMP refused the key (HTTP ${status}). Check the key on PROVIDERS.`;
+  return status ? `FMP answered HTTP ${status}.` : 'FMP did not answer.';
+}
+
+/** What one source's failure means, in a few words: "FMP's plan does not cover APLD". */
+export function attemptPhrase(a: ResearchAttempt, symbol: string): string {
+  if (a.state === 'needs-key') return `${a.source} has no key on PROVIDERS`;
+  if (a.state === 'off') return `${a.source} is switched off on PROVIDERS`;
+  if (a.state === 'budget') return `today's ${a.source} allowance is spent`;
+  if (a.status === 402) return `${a.source}'s plan does not cover ${symbol}`;
+  if (a.status === 401 || a.status === 403) return `${a.source} refused the key`;
+  if (a.status === 429) return `${a.source} asked the app to wait`;
+  if (a.state === 'ok') return `${a.source} has none for ${symbol}`;
+  return a.status && a.status >= 500 ? `${a.source} failed (HTTP ${a.status})` : a.status === 200 ? `${a.source} has none for ${symbol}` : `${a.source} did not answer`;
+}
+
+/**
+ * The note on one row of "Research source availability": the row's own source's state, and, where FMP was asked first
+ * and refused, that in plain words with the source that fills the row instead. Other sources' raw errors stay out.
+ */
+export function availabilityNote(part: AnalystPart | undefined, symbol: string): string {
+  if (!part || part.state === 'loading') return '';
+  const answered = part.state === 'ok' && (Array.isArray(part.data) ? part.data.length > 0 : !!part.data);
+  const attempts = (part.attempts ?? []).filter((a) => a.source !== part.source || !answered);
+  if (answered) {
+    const fmp = attempts.find((a) => a.source === 'FMP');
+    const own = part.stale ? `${part.source ?? 'The source'}'s latest refresh failed; the earlier answer is shown.` : '';
+    const instead = fmp ? `${cap(attemptPhrase(fmp, symbol))}; ${part.source ?? 'another source'} fills this row.` : '';
+    return [instead, own].filter(Boolean).join(' ');
+  }
+  if (attempts.length) return `${cap(attempts.map((a) => attemptPhrase(a, symbol)).join('; '))}.`;
+  return (part.message ?? '').slice(0, 140);
+}
+
+function cap(s: string): string {
+  return s ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
 /** Finnhub's latest valid monthly count. No target/consensus word is invented. */
@@ -286,7 +333,7 @@ export function parseFinnhubRecommendations(text: string, symbol: string): Parse
 function responsePart(res: KeyedAnswer, kind: AnalystKind, symbol: string, source: 'FMP' | 'Finnhub'): AnalystPart {
   if (res.gated) return { state: 'off', source, message: `${source} is switched off (${res.gated} on PROVIDERS).` };
   if (res.missing || res.refused) return { state: 'needs-key', source, message: res.refused ? `${source}'s configured key has the wrong format.` : `Needs ${source === 'FMP' ? 'FMP_API_KEY' : 'FINNHUB_API_KEY'} on PROVIDERS.` };
-  if (!res.text) return { state: res.budget ? 'budget' : 'error', source, ...(!res.budget && (!res.status || res.status === 429 || res.status >= 500) ? { transient: true } : {}), message: res.budget ? `Today's ${source} allowance in this app is spent; it resets at midnight UTC.` : source === 'FMP' ? fmpProblem(res.status, symbol, res.error) : `Finnhub: ${res.error ?? (res.status ? `HTTP ${res.status}` : 'did not answer')}. HTTP 401 means the REST key was rejected; the webhook secret cannot authenticate data requests.` };
+  if (!res.text) return { state: res.budget ? 'budget' : 'error', source, ...(res.status ? { status: res.status } : {}), ...(!res.budget && (!res.status || res.status === 429 || res.status >= 500) ? { transient: true } : {}), message: res.budget ? `Today's ${source} allowance in this app is spent; it resets at midnight UTC.` : source === 'FMP' ? fmpProblem(res.status, symbol) : `Finnhub: ${res.status === 401 ? 'refused the key (HTTP 401). The REST key goes on PROVIDERS; the webhook secret cannot authenticate data requests.' : res.status ? `HTTP ${res.status}.` : 'did not answer.'}` };
   const parsed = source === 'Finnhub' ? parseFinnhubRatings(res.text, symbol) : PARSE[kind](res.text);
   if ('error' in parsed) return { state: 'error', source, message: parsed.error, at: res.at };
   const months = source === 'Finnhub' ? parseFinnhubRecommendations(res.text, symbol) : undefined;
@@ -313,18 +360,22 @@ export async function loadAnalystPart(kind: AnalystKind, symbol: string, api: {
     early = responsePart(await safe(() => api.finnhubResearch!('ratings', symbol)), kind, symbol, 'Finnhub');
     if (usable(early) && !early.stale) return early;
   }
+  const attempt = (p: AnalystPart, source: string): ResearchAttempt => ({ source: p.source ?? source, state: p.state, ...(p.status ? { status: p.status } : {}) });
   const primary = responsePart(await safe(() => api.analysts(kind, symbol)), kind, symbol, 'FMP');
-  if (usable(primary) && !primary.stale) return early ? { ...primary, problems: [early.message ?? 'Finnhub has no recommendation counts for this symbol.'] } : primary;
+  if (usable(primary) && !primary.stale) return early ? { ...primary, problems: [early.message ?? 'Finnhub has no recommendation counts for this symbol.'], attempts: [attempt(early, 'Finnhub')] } : primary;
   const problems = [primary.message ?? `FMP has no ${kind} for this symbol.`];
+  const attempts = [attempt(primary, 'FMP')];
   let retained = usable(primary) ? primary : undefined;
   if (kind === 'ratings' && early) {
     if (usable(early) && !retained) retained = early;
     problems.push(early.message ?? 'Finnhub has no recommendation counts for this symbol.');
+    attempts.unshift(attempt(early, 'Finnhub'));
   } else if (kind === 'ratings' && api.finnhubResearch) {
     const fallback = responsePart(await safe(() => api.finnhubResearch!('ratings', symbol)), kind, symbol, 'Finnhub');
-    if (usable(fallback) && !fallback.stale) return { ...fallback, problems, message: 'Showing Finnhub recommendation counts.' };
+    if (usable(fallback) && !fallback.stale) return { ...fallback, problems, attempts, message: 'Showing Finnhub recommendation counts.' };
     if (usable(fallback) && !retained) retained = fallback;
     problems.push(fallback.message ?? 'Finnhub has no recommendation counts for this symbol.');
+    attempts.push(attempt(fallback, 'Finnhub'));
   }
   // Yahoo does not supply the same period-average target-history dataset. Never
   // substitute today's target or rating history for those historical averages.
@@ -332,17 +383,18 @@ export async function loadAnalystPart(kind: AnalystKind, symbol: string, api: {
     let fallback: AnalystPart;
     try { fallback = await api.yahooResearch(kind, symbol); }
     catch { fallback = { state: 'error', message: 'Yahoo research could not be loaded.' }; }
-    if (usable(fallback) && (!fallback.stale || !retained)) return { ...fallback, problems };
+    if (usable(fallback) && (!fallback.stale || !retained)) return { ...fallback, problems, attempts };
     problems.push(fallback.message ?? `Yahoo has no ${kind} for this symbol.`);
+    attempts.push(attempt(fallback, 'Yahoo Finance'));
   }
   if (!retained && api.fallback) {
     let last: AnalystPart | null = null;
     try { last = await api.fallback(kind, symbol); }
     catch { last = null; }
-    if (last && usable(last)) return { ...last, problems };
+    if (last && usable(last)) return { ...last, problems, attempts };
   }
-  if (retained) return { ...retained, problems };
-  return { ...primary, problems, message: problems.join(' ') };
+  if (retained) return { ...retained, problems, attempts };
+  return { ...primary, problems, attempts, message: problems.join(' ') };
 }
 
 /**

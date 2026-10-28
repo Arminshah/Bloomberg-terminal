@@ -6,7 +6,7 @@ import { NotConnected } from '../components/NotConnected';
 import { Chg, HBar, KV, LivePx, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtIso, fmtNum, fmtPct, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { analystData, analystsAvailable, analystSymbol, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
+import { analystData, analystsAvailable, analystSymbol, availabilityNote, retryAnalysts, useAnalysts, type AnalystPart, type Estimate, type RatingAction, type RatingTally, type TargetConsensus, type TargetSummary } from '../data/live/analysts';
 import { EquiblesResearch } from '../components/EquiblesResearch';
 import { TipRanksResearch } from '../components/TipRanksResearch';
 import { execute } from '../terminal/exec';
@@ -102,7 +102,7 @@ export function ANR({ sec }: FnProps) {
         <button type="button" className="btn" onClick={() => { retryAnalysts(); retryFinnhub(); }}>Retry analyst research</button>
         <button type="button" className="btn" onClick={() => execute(panel, 'PROVIDERS')}>Open the provider screen</button>
       </div>
-      <ResearchCoverage parts={[
+      <ResearchCoverage symbol={symbol} parts={[
         ['Price targets', consensus], ['Ratings', ratings], ['Target-history averages', summary], ['Rating actions', grades], ['Annual estimates', estimates],
       ]} />
       <AnrSnapshot sec={s} c={comparableTarget ? c : null} r={r} />
@@ -347,7 +347,7 @@ function RatingActions({ rows, last }: { rows: AnalystAction[]; last: number }) 
 
 const hasResearch = (part: AnalystPart | undefined) => part?.state === 'ok' && (Array.isArray(part.data) ? part.data.length > 0 : !!part.data);
 
-function ResearchCoverage({ parts }: { parts: [string, AnalystPart | undefined][] }) {
+function ResearchCoverage({ parts, symbol }: { parts: [string, AnalystPart | undefined][]; symbol: string }) {
   const available = parts.filter(([, part]) => hasResearch(part)).length;
   const loading = parts.some(([, part]) => !part || part.state === 'loading');
   return <div className="pad-s" data-testid="research-coverage">
@@ -355,7 +355,7 @@ function ResearchCoverage({ parts }: { parts: [string, AnalystPart | undefined][
     <details open={!loading && available === 0}>
       <summary style={{ cursor: 'pointer' }}>Research source availability</summary>
       <table className="tbl"><thead><tr><th>Dataset</th><th>Source</th><th>Status</th><th>Details</th></tr></thead><tbody>
-        {parts.map(([label, part]) => <tr key={label}><td>{label}</td><td>{part?.source ?? '--'}</td><td>{hasResearch(part) ? part?.stale ? 'STALE' : 'Available' : !part || part.state === 'loading' ? 'Loading' : 'Unavailable'}</td><td className="muted">{(part?.problems?.length ? part.problems : part?.message ? [part.message] : []).join(' ')}</td></tr>)}
+        {parts.map(([label, part]) => <tr key={label}><td>{label}</td><td>{part?.source ?? '--'}</td><td>{hasResearch(part) ? part?.stale ? 'STALE' : 'Available' : !part || part.state === 'loading' ? 'Loading' : 'Unavailable'}</td><td className="muted">{availabilityNote(part, symbol)}</td></tr>)}
       </tbody></table>
     </details>
   </div>;

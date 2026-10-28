@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as fmpMain from '../electron/fmp.cjs';
-import { fmpProblem, loadAnalystPart, parseConsensus, parseEstimates, parseFinnhubRatings, parseGrades, parseRatings, parseSummary } from '../src/data/live/analysts';
+import { availabilityNote, fmpProblem, loadAnalystPart, parseConsensus, parseEstimates, parseFinnhubRatings, parseGrades, parseRatings, parseSummary } from '../src/data/live/analysts';
 import { finnhubResearchRequest } from '../electron/finnhub-research.cjs';
 
 // Made-up answers in the layouts of FMP's stable API; no request leaves the test.
@@ -83,11 +83,12 @@ describe('FMP answers', () => {
     expect(sparse.data[0].revenueAvg).toBeNaN();
   });
 
-  it('says what a refusal means', () => {
-    expect(fmpProblem(402, 'XYZ', 'HTTP 402: Premium Query Parameter')).toBe('Your FMP subscription does not include this request for XYZ (HTTP 402): Premium Query Parameter');
-    expect(fmpProblem(401, 'XYZ', 'HTTP 401: Invalid API KEY.')).toBe('FMP denied access (HTTP 401): Invalid API KEY. Check the key and endpoint permissions on PROVIDERS.');
-    expect(fmpProblem(500, 'XYZ')).toBe('FMP answered HTTP 500');
-    expect(fmpProblem(0, 'XYZ')).toBe('FMP did not answer');
+  // The owner asked on 28 October 2026 for refusals in plain words without FMP's own error text.
+  it('says what a refusal means in plain words, without the provider\'s error text', () => {
+    expect(fmpProblem(402, 'XYZ')).toBe("FMP's plan does not cover XYZ for this dataset (HTTP 402).");
+    expect(fmpProblem(401, 'XYZ')).toBe('FMP refused the key (HTTP 401). Check the key on PROVIDERS.');
+    expect(fmpProblem(500, 'XYZ')).toBe('FMP answered HTTP 500.');
+    expect(fmpProblem(0, 'XYZ')).toBe('FMP did not answer.');
   });
 });
 
@@ -137,5 +138,34 @@ describe('research fallback and section isolation', () => {
     analysts.mockResolvedValueOnce({ status: 402, text: '' });
     const failed = await loadAnalystPart('ratings', 'APLD', { analysts, finnhubResearch });
     expect(failed.message).toContain('HTTP 402'); expect(failed.message).toContain('HTTP 401');
+  });
+});
+
+describe('Research source availability: each row its own source', () => {
+  // Applied Digital on 28 October 2026: FMP refused every dataset (HTTP 402), Finnhub's key was refused, and Yahoo
+  // answered. The FMP refusal used to be the note on every row, Yahoo's included.
+  const api = {
+    analysts: vi.fn(async () => ({ status: 402, text: '', error: 'HTTP 402: Premium Query Parameter: This value set for symbol is not available under your current subscription please visit our subscription page' })),
+    finnhubResearch: vi.fn(async () => ({ status: 401, text: '', error: 'HTTP 401: Invalid API key' })),
+    yahooResearch: vi.fn(async (kind: string) => (kind === 'grades' ? { state: 'ok' as const, source: 'Yahoo Finance' as const, data: [] } : { state: 'ok' as const, source: 'Yahoo Finance' as const, data: { mean: 40, median: 41, low: 30, high: 50 }, at: 1 })),
+  };
+
+  it("a row Yahoo fills says FMP's plan does not cover the ticker and names Yahoo, without FMP's text", async () => {
+    const part = await loadAnalystPart('consensus', 'APLD', api);
+    expect(part.source).toBe('Yahoo Finance');
+    expect(availabilityNote(part, 'APLD')).toBe("FMP's plan does not cover APLD; Yahoo Finance fills this row.");
+    expect(availabilityNote(part, 'APLD')).not.toMatch(/subscription page|Premium|Finnhub/);
+  });
+
+  it('a row no source fills says what each source answered, in a few words', async () => {
+    const part = await loadAnalystPart('ratings', 'APLD', { ...api, yahooResearch: vi.fn(async () => ({ state: 'ok' as const, source: 'Yahoo Finance' as const, data: null })) });
+    expect(availabilityNote(part, 'APLD')).toBe("Finnhub refused the key; FMP's plan does not cover APLD; Yahoo Finance has none for APLD.");
+  });
+
+  it('a row FMP answers itself carries no other source\'s failure', async () => {
+    const counts = { symbol: 'APLD', period: '2026-10-01', strongBuy: 2, buy: 4, hold: 1, sell: 0, strongSell: 0 };
+    const part = await loadAnalystPart('estimates', 'APLD', { analysts: vi.fn(async () => ({ status: 200, text: '[{"date":"2027-05-31","epsAvg":1}]' })), finnhubResearch: vi.fn(async () => ({ status: 200, text: JSON.stringify([counts]) })) });
+    expect(part.source).toBe('FMP');
+    expect(availabilityNote(part, 'APLD')).toBe('');
   });
 });

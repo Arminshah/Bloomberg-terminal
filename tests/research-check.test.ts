@@ -18,12 +18,25 @@ describe('research diagnostics', () => {
     expect(checks.find((r) => r.dataset === 'Finnhub recommendation counts')?.state).toBe('Denied');
   });
 
-  it('distinguishes endpoint denial, empty coverage, missing keys and cached responses', async () => {
-    const analysts = vi.fn().mockResolvedValueOnce({ status: 402, text: '', error: 'HTTP 402: premium request' }).mockResolvedValueOnce({ status: 200, text: '[]' }).mockResolvedValueOnce({ status: 200, text: '[{"date":"2027-05-31","epsAvg":1}]', cached: true });
+  // The owner asked on 28 October 2026 that a kept answer never read as a fresh check: it is "Cached", with its time.
+  it('distinguishes endpoint denial, empty coverage, missing keys and kept answers', async () => {
+    const analysts = vi.fn().mockResolvedValueOnce({ status: 402, text: '', error: 'HTTP 402: premium request' }).mockResolvedValueOnce({ status: 200, text: '[]' }).mockResolvedValueOnce({ status: 200, text: '[{"date":"2027-05-31","epsAvg":1}]', cached: true, at: Date.UTC(2026, 9, 28, 9, 5) });
     const checks = await checkResearchAccess('APLD', { analysts, finnhubResearch: async () => ({ status: 0, text: '', missing: 'FINNHUB_API_KEY' }), equibles: async () => ({ status: 429, text: '', error: 'Daily quota exceeded' }) });
-    expect(checks.map((c) => c.state)).toEqual(['Denied', 'No data', 'Answered', 'Needs key', 'Rate limited']);
-    expect(checks[2].detail).toContain('not a new provider access check');
+    expect(checks.map((c) => c.state)).toEqual(['Denied', 'No data', 'Cached', 'Needs key', 'Rate limited']);
+    expect(checks[2]).toMatchObject({ detail: 'Kept answer from 2026-10-28 09:05 UTC; not a new check.', cached: true });
     expect(analysts.mock.calls.map((c) => c[1])).toEqual(['APLD', 'APLD', 'APLD']);
+  });
+
+  it('asks every keyed provider again on each press, not for the kept answer', async () => {
+    const analysts = vi.fn(async () => ({ status: 200, text: '[]' }));
+    const finnhubResearch = vi.fn(async () => ({ status: 200, text: '[]' }));
+    const equibles = vi.fn(async () => ({ status: 200, text: '' }));
+    await checkResearchAccess('APLD', { analysts, finnhubResearch, equibles });
+    await checkResearchAccess('APLD', { analysts, finnhubResearch, equibles });
+    expect(analysts.mock.calls.every((c) => (c as unknown[])[2] === true)).toBe(true);
+    expect(analysts).toHaveBeenCalledTimes(6);
+    expect(finnhubResearch.mock.calls.map((c) => (c as unknown[])[2])).toEqual([true, true]);
+    expect(equibles.mock.calls.map((c) => (c as unknown[])[2])).toEqual([true, true]);
   });
   it('labels stale reports and treats malformed successful responses as errors', async () => {
     const checks = await checkResearchAccess('APLD', { analysts: async () => ({ status: 200, text: '{}' }), equibles: async () => ({ status: 0, text: JSON.stringify({ tool: 'GetAnalystEstimates', report: 'Old report' }), stale: true, at: 123, error: 'HTTP 503' }) });
