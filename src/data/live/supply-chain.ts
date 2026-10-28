@@ -1696,8 +1696,12 @@ export function dealClause(before: string): string {
   return out.slice(-160);
 }
 
-export function dealRole(before: string, after: string, sentence: string, self?: RegExp): Role | null {
+/** The periods of a company's legal form ("Meta Platforms, Inc. (Meta) and Meta agreed to deploy"), which end no sentence. */
+const LEGAL_FORM_DOT = /\b(?:Inc|Corp|Co|Ltd|Plc|Bhd|Pty|S\.A|N\.V|L\.P|L\.L\.C|S\.p\.A)\./g;
+
+export function dealRole(before: string, rawAfter: string, sentence: string, self?: RegExp): Role | null {
   const b = dealClause(before);
+  const after = rawAfter.replace(LEGAL_FORM_DOT, (m) => m.replace(/\./g, ''));
   // "a product purchase agreement with OpenAI to deploy 6 gigawatts of AMD GPUs": the party buys the filer's products.
   if (/\b(?:product |master |supply and )?purchase agreements?\b/i.test(b) && self) {
     const own = new RegExp(String.raw`^(?:'s)?,?[^.;]{0,60}?\b(?:to (?:deploy|purchase|buy|acquire|use)|for (?:the )?(?:purchase|deployment) of)\b[^.;]{0,60}?(?:\bour\b|${self.source})`, 'i');

@@ -199,3 +199,13 @@ describe("SPLC: unnamed customers' shares from the newest filing only", () => {
     expect(chain.relations.filter((r) => r.role === 'customer').map((r) => [r.name, r.share])).toEqual([['Unnamed direct customer 1', 16]]);
   });
 });
+
+describe('SPLC: a purchase agreement under which the other party buys', () => {
+  it("reads AMD's master purchase agreement with Meta as Meta buying, the party's legal form in between", () => {
+    const amd = { cik: 2488, names: targetNames('AMD', 'ADVANCED MICRO DEVICES INC').names, ticker: 'AMD' };
+    const amdDir = buildDirectory([...COMPANIES, { cik: 2488, ticker: 'AMD', title: 'ADVANCED MICRO DEVICES INC' }, { cik: 1326801, ticker: 'META', title: 'Meta Platforms, Inc.' }]);
+    const s = 'In February 2026, we amended a master purchase agreement with Meta Platforms, Inc. (Meta) and Meta agreed to deploy up to 6 gigawatts of AMD GPUs, with the first gigawatt of capacity powered by custom AMD Instinct MI450-based GPU and 6th Gen AMD EPYC™ CPUs.';
+    const got = ownRelations(main.ownSentences(s), amdDir, amd, { ...EV, filer: 'Advanced Micro Devices', form: '10-Q', date: '2026-05-06' });
+    expect(got.map((r) => `${r.role}:${r.name}`)).toEqual(['customer:Meta Platforms']);
+  });
+});
