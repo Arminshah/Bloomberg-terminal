@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ecoNumber, ecoValue, newYorkTime, parseNasdaqEco } from '../src/data/live/nasdaq-eco';
+import { ecoNumber, ecoValue, nasdaqEcoDay, nasdaqEcoRequestDate, newYorkTime, parseNasdaqEco } from '../src/data/live/nasdaq-eco';
 import * as nasdaq from '../electron/nasdaq.cjs';
 
 describe("Nasdaq's economic calendar", () => {
@@ -15,8 +15,9 @@ describe("Nasdaq's economic calendar", () => {
     });
     const r = parseNasdaqEco(text, '2026-10-19');
     if ('error' in r) throw new Error(r.error);
-    // 22:00 in New York (EDT, UTC-4) is 02:00 UTC the next day: 10:00 in Beijing.
-    expect(new Date(r.data[0].time).toISOString()).toBe('2026-10-20T02:00:00.000Z');
+    // The request dated 19 October lists Sunday the 18th's releases: 22:00 in New York (EDT, UTC-4) is 02:00 UTC on
+    // Monday the 19th, 10:00 in Beijing, when China published its third-quarter GDP.
+    expect(new Date(r.data[0].time).toISOString()).toBe('2026-10-19T02:00:00.000Z');
     expect(r.data[0]).toMatchObject({ country: 'CN', name: 'GDP', actual: '4.5%', consensus: '4.4%', previous: '4.3%', relevance: 3 });
     expect(r.data[1]).toMatchObject({ country: 'CA', relevance: 3 });
     expect(r.data[2]).toMatchObject({ country: 'EZ', actual: '', consensus: '', relevance: 2 });
@@ -40,5 +41,20 @@ describe("Nasdaq's economic calendar", () => {
     expect(nasdaq.nasdaqEconomicRequest('2026-10-20', now)?.url).toBe('https://api.nasdaq.com/api/calendar/economicevents?date=2026-10-20');
     expect(nasdaq.nasdaqEconomicRequest('2026-02-30', now)).toBeNull();
     expect(nasdaq.nasdaqEconomicRequest('2020-01-01', now)).toBeNull();
+  });
+
+  it("puts each release on its own day: Nasdaq lists a day's releases under the next day's date", () => {
+    // Asked on 28 October 2026: date=2026-10-23 (a Friday) gave Thursday's jobless claims, date=2026-10-29 the Fed's
+    // decision of Wednesday the 28th at 14:00 New York time.
+    const fed = JSON.stringify({ data: { rows: [{ gmt: '14:00', country: 'United States', eventName: 'Fed Interest Rate Decision', actual: '&nbsp;', consensus: '4.00%', previous: '4.00%', description: '' }] } });
+    const r = parseNasdaqEco(fed, '2026-10-29');
+    if ('error' in r) throw new Error(r.error);
+    expect(new Date(r.data[0].time).toISOString()).toBe('2026-10-28T18:00:00.000Z');
+    const claims = JSON.stringify({ data: { rows: [{ gmt: '08:30', country: 'United States', eventName: 'Initial Jobless Claims', actual: '194K', consensus: '', previous: '', description: '' }] } });
+    const c = parseNasdaqEco(claims, '2026-10-23');
+    if ('error' in c) throw new Error(c.error);
+    expect(new Date(c.data[0].time).toISOString()).toBe('2026-10-22T12:30:00.000Z');
+    expect(nasdaqEcoRequestDate('2026-10-28')).toBe('2026-10-29');
+    expect(nasdaqEcoDay('2026-11-01')).toBe('2026-10-31');
   });
 });

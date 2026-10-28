@@ -66,6 +66,15 @@ export function newYorkTime(date: string, hour: number, minute: number): number 
   return t;
 }
 
+/**
+ * Nasdaq lists a day's releases under the next day's date, at their New York times: date=2026-10-23 (a Friday) gives
+ * Thursday's jobless claims, date=2026-10-24 Friday's Michigan survey, date=2026-10-29 the Fed's decision of the 28th,
+ * and date=2026-10-19 China's GDP released at 10:00 in Beijing that Monday (22:00 on Sunday in New York). The date to
+ * ask for a day's releases, and the day a request's releases fall on.
+ */
+export const nasdaqEcoRequestDate = (day: string): string => new Date(Date.parse(`${day}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+export const nasdaqEcoDay = (requestDate: string): string => new Date(Date.parse(`${requestDate}T00:00:00Z`) - DAY_MS).toISOString().slice(0, 10);
+
 export function parseNasdaqEco(text: string, date: string): { data: NasdaqEcoEvent[] } | { error: string } {
   let j: any;
   try {
@@ -76,7 +85,9 @@ export function parseNasdaqEco(text: string, date: string): { data: NasdaqEcoEve
   const rows: any[] | null | undefined = j?.data?.rows;
   if (rows === null || (j?.data === null && j?.status?.rCode === 200)) return { data: [] };
   if (!Array.isArray(rows)) return { error: 'Nasdaq returned no economic calendar.' };
-  const base = Date.parse(`${date}T00:00:00Z`);
+  // `date` is the request's; its releases are the day before's (see nasdaqEcoRequestDate).
+  const day = nasdaqEcoDay(date);
+  const base = Date.parse(`${day}T00:00:00Z`);
   return {
     data: rows
       .map((r, i): NasdaqEcoEvent | null => {
@@ -84,8 +95,8 @@ export function parseNasdaqEco(text: string, date: string): { data: NasdaqEcoEve
         const countryName = ecoValue(r?.country);
         const hm = /^(\d{1,2}):(\d{2})$/.exec(ecoValue(r?.gmt));
         if (!name || !Number.isFinite(base)) return null;
-        // The "gmt" field is New York time: China's 10:00 GDP release reads 22:00 the day before.
-        const time = hm ? newYorkTime(date, Number(hm[1]), Number(hm[2])) : base;
+        // The "gmt" field is New York time on that day: China's 10:00 GDP release reads 22:00 the evening before.
+        const time = hm ? newYorkTime(day, Number(hm[1]), Number(hm[2])) : base;
         return {
           id: `${date}:${i}:${name}`,
           time,
@@ -134,11 +145,12 @@ async function loadDay(date: string, now: number) {
 /** The week's events from Nasdaq (loaded day by day, today first), with whether any day is still loading or failed. */
 export function useNasdaqEco(start: number, days: number, now: number): { events: NasdaqEcoEvent[]; loading: boolean; failed: boolean; any: boolean } {
   nasdaqEco.use((s) => s.v);
-  const list = Array.from({ length: days }, (_, i) => new Date(start + i * DAY_MS).toISOString().slice(0, 10));
+  // The request dates whose releases fall on the days shown (each a day later).
+  const list = Array.from({ length: days }, (_, i) => nasdaqEcoRequestDate(new Date(start + i * DAY_MS).toISOString().slice(0, 10)));
   const key = list.join(',');
   useEffect(() => {
     if (!nasdaqEcoAvailable()) return;
-    const today = new Date(now).toISOString().slice(0, 10);
+    const today = nasdaqEcoRequestDate(new Date(now).toISOString().slice(0, 10));
     const order = [...list].sort((a, b) => Number(b === today) - Number(a === today));
     let stopped = false;
     void (async () => {
