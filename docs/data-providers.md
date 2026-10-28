@@ -53,6 +53,38 @@ In the desktop app, every request below goes out from the Electron main process 
 | CNBC | | RSS | | Not used: its feeds refuse programs and its owner's terms bar it |
 | Coinbase Exchange, Frankfurter | Former browser-build feeds | | | Disabled |
 
+## Access by endpoint, 28 October 2026
+
+One small read-only request per key and endpoint, from the build environment, each result classed as the app classes them. A working key does not open a provider's whole catalogue: the plan decides endpoint by endpoint.
+
+| Provider | Endpoint | Result |
+| --- | --- | --- |
+| Alpha Vantage | `GLOBAL_QUOTE` | works |
+| Alpha Vantage | `EARNINGS_ESTIMATES` | rate limit (the free key's one request a second; a second, slower request is needed to tell the plan) |
+| Twelve Data | quote, time series | works |
+| CoinGecko | `coins/markets` (demo key) | works |
+| FRED | series observations | works |
+| Massive | daily bars, dividends | works |
+| Massive | stock snapshot | not entitled (plan) |
+| SEC EDGAR | submissions, company facts | works (with `SEC_USER_AGENT`) |
+| Finnhub | quote, earnings calendar, recommendations | works |
+| Finnhub | price target | not entitled (premium) |
+| Tiingo | daily prices, IEX | works |
+| Marketaux | news | works |
+| Alpaca | market data snapshot, news (read-only; no trading endpoint is called) | works |
+| FMP | quote, price target for AAPL, senate trades | works |
+| FMP | price target for APLD | not entitled (HTTP 402, the plan's symbol list) |
+| TipRanks | MCP `initialize`, `Authorization: Bearer` | works |
+| OpenFIGI | mapping | works |
+| Congress.gov | bills | works |
+| EIA | natural gas storage series | works |
+| BEA | NIPA tables | works |
+| CFTC | public reporting platform (no key) | works |
+| Treasury Fiscal Data | debt datasets (no key) | works |
+| Eulerpool | congress trades, equity profile | outage (HTTP 502 from its own servers, as on 25 to 27 October); evaluation only, not used |
+
+`FINNHUB_SECRET_KEY` is Finnhub's webhook secret: no request the app makes needs it, so it is never sent. CME Group's settlement pages refuse automated reading (HTTP 403, and its terms forbid scraping), so futures settlements have no independent free reference.
+
 ## Review of Codex's notes, 25 October 2026
 
 Codex reviewed the sources of version 2.24.0 and sorted them into keep, keep with clear labels, and optional. Each point was checked against the code and, where it could be, against the live sources with the owner's keys: the self-test on `PROVIDERS`, run twice from a cloud session on 25 October. Every source that is switched on answered at least once.
