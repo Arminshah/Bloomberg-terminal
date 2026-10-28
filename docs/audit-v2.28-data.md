@@ -59,6 +59,10 @@ Severity: S1 a wrong figure shown as fact; S2 a misleading figure or label; S3 a
 | D25 | S2 | SPLC | Oracle: Black Titan's 78.9% (2024) shown though its 20-F gives 70.5% for 2025 | Black Titan's 20-F of November 2025 | `5f58f58` |
 | D26 | S1 | SPLC | Microsoft: Insight Enterprises shown as supplying Microsoft with 50% of its revenue, from "our top five manufacturers/publishers as a group (Microsoft, Dell, ...)" | Insight's 10-K | `5f58f58`: a group's figure is no one company's |
 | D27 | S1 | DIVIDENDS | Broadcom's dividends of March and June 2018 at 0.35 a share (after the 10:1 split) where Broadcom paid $1.75 (0.175): Yahoo's own history says 0.35 | Nasdaq's dividend record | `2506c36`: shown as "Sources disagree", with both amounts (see below) |
+| D29 | S2 | QUOTE, PROFILE | Eli Lilly's market value 5% low: Yahoo's count (891.4M shares) leaves out the 50M its employee benefit trust holds; its 10-Q's cover gives 941.4M, as Nasdaq's value does | SEC cover page, Nasdaq | `ad81c2b`: shown as "Sources disagree" with both counts (found by the check's first run on GitHub) |
+| D30 | S3 | DIVIDENDS | Walmart's dividends of 2024 and 2026 at 0.208 and 0.248: Yahoo rounds to three decimals; Walmart paid 0.2075 and 0.2475 | Nasdaq's dividend record | `5d0e651`: the record's exact amount shown, with a note; not counted as a disagreement |
+| D31 | S1 | FINANCIALS | Eli Lilly's 2022 diluted EPS 6.57 (the feed's: net income over 950.2M shares, the trust's included) against 6.90 in every 10-K: the filed EPS rule needed a net-income-to-common tag Lilly does not file | Lilly's 10-Ks | `6c118ac` |
+| D32 | S1 | DIVIDENDS | Coca-Cola's dividend declared on 15 October 2026 ($0.53, ex 1 December) shown as "None announced": Nasdaq's dividend record has no rows for NYSE listings, so declared dividends of Coca-Cola, JPMorgan, Exxon and Lilly had no source | Massive's dividend record | `5d0e651`: Massive's record where Nasdaq's has none |
 | D28 | S2 | COT | The commodities table built from an object's keys left seven of eighteen markets out (number-like codes come first) | The CFTC's report | `02f8ea2`, caught by the desktop test before release |
 
 ## Checked and right
@@ -86,12 +90,14 @@ Where two sources give the same figure and differ, the screens now say "Sources 
 
 - a quarter's EPS when the sources report it on different bases (D9);
 - the next report date, when Yahoo Finance and Nasdaq both confirm it on different days (QUOTE, PROFILE, FINANCIALS, EE, EARNINGSSUMMARY);
+- a market value or share count, when Yahoo Finance's count and the company's latest filing cover differ by more than 2% (QUOTE, PROFILE: Eli Lilly, D29);
 - a dividend whose ex-date, payable date or amount differs between Yahoo's price history and Nasdaq's dividend record, amounts compared on today's share basis (DIVIDENDS, with both values in the note under the table).
 
 ## Sources changed on 28 October
 
 - **Equibles retired**: no requests, no key, no research section. What it gave on ANALYSTS (guidance, KPIs, insider and institutional summaries) is shown from the app's other sources where they have it (INSIDERS and HOLDERS from SEC filings, SHORTINTEREST from FINRA, EVENTS and COMPANYNEWS), and as not available otherwise; nothing is estimated in its place.
 - **EIA** (NGAS, NATURALGAS, OILMARKET), **BEA** (NIPA) and the **CFTC's Commitments of Traders** (COT) added, each checked live against the publisher's own pages (above).
+- **U.S. Treasury Fiscal Data** for one workflow: `DEBTPROFILE T GOVT`, the Treasury's marketable debt by class and maturity from its monthly statement of the public debt (463 securities on 30 September 2026, adding up to the statement's own totals to the cent). Amounts, not prices.
 
 ## Known limits
 
