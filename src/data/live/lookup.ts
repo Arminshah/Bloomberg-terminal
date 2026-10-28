@@ -52,6 +52,8 @@ declare global {
       eia?(kind: import('./eia').EiaKind): Promise<KeyedAnswer>;
       /** BEA's national accounts tables (BEA_API_KEY), without BEA's echo of the UserID: src/data/live/bea.ts. */
       bea?(kind: import('./bea').BeaKind): Promise<KeyedAnswer>;
+      /** The CFTC's Commitments of Traders (no key): src/data/live/cftc.ts. */
+      cftc?(kind: 'latest' | 'history', report: import('./cftc').CotReport, mode: import('./cftc').CotMode, code?: string): Promise<KeyedAnswer>;
       nasdaq?(kind: import('./nasdaq-company').NasdaqKind | 'info' | 'historical', symbol: string): Promise<KeyedAnswer>;
       finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;

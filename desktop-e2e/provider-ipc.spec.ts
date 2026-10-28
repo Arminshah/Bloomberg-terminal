@@ -55,6 +55,7 @@ interface Fixtures {
   congressGov?: boolean;
   eia?: boolean;
   bea?: boolean;
+  cftc?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -62,7 +63,7 @@ interface Fixtures {
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   segments?: boolean;
-  calls: { bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -793,6 +794,36 @@ test("NIPA shows BEA's GDP contributions and personal income, and never the User
   await expect(panel).toContainText('last revised 30/09/26');
   expect(await page.content()).not.toContain('01234567-89AB-CDEF-0123-456789ABCDEF');
   expect(await page.content()).not.toContain('FEDCBA98-7654-3210-FEDC-BA9876543210');
+});
+
+test("COT shows the CFTC's positions with their position and publication dates, for each report and mode", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.cftc = true;
+  });
+  await command(page, 'COT');
+  const panel = page.locator('.panel').first();
+  // WTI, positions of Tuesday 20 October 2026: managed money 163,413 long, 127,226 short; the CFTC's changes -8,560
+  // and -4,173 since 13 October; producers and merchants 625,697 and 266,129; open interest 1,835,144.
+  const wti = panel.getByTestId('cot-table').locator('tbody tr').filter({ hasText: 'WTI-PHYSICAL' });
+  for (const v of ['20/10/26', '1,835,144', '+36,187', '-4,387', '+359,568', '23/10/26 19:30 UTC']) await expect(wti).toContainText(v, { timeout: 30_000 });
+  await expect(panel).toContainText('delayed and aggregated');
+  await expect(panel).toContainText('Positions held at the close on Tuesday 20/10/26, published by the CFTC on 23/10/26 19:30 UTC');
+  // The two years' chart and the groups of the latest week.
+  await expect(panel.getByTestId('cot-groups').locator('tbody tr').filter({ hasText: 'Managed money' })).toContainText('163,413');
+  await expect(panel).toContainText('Contracts, each report from');
+  // Futures and options combined: managed money 178,884 long and 76,978 short, -859 since 13 October.
+  await panel.getByRole('button', { name: 'Futures and options' }).click();
+  for (const v of ['2,502,206', '+101,906', '-859']) await expect(wti).toContainText(v);
+  await expect(panel).toContainText('Futures and options combined');
+  // Traders in Financial Futures, futures only: the E-mini S&P 500's leveraged funds net short 371,245, +37,481.
+  await panel.getByRole('button', { name: 'Futures only' }).click();
+  await panel.getByRole('button', { name: '2) Financial (TFF)' }).click();
+  const es = panel.getByTestId('cot-table').locator('tbody tr').filter({ hasText: 'E-MINI S&P 500' });
+  for (const v of ['1,935,470', '-371,245', '+37,481', '+901,377']) await expect(es).toContainText(v);
+  await expect(panel.getByTestId('cot-table').locator('thead')).toContainText('Leveraged funds net');
+  // Each request named one of the CFTC's six datasets.
+  const asked = (await calls(app)).cftc ?? [];
+  expect(new Set(asked.map((c) => c.ds))).toEqual(new Set(['72hh-3qpy', 'kh3c-gbw2', 'gpe5-46if']));
 });
 
 test("FXCA says when it has no live rate, and converts at the ECB's reference rate of a past day", async ({ desktop: { app, page } }) => {

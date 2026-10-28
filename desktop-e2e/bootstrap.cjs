@@ -33,6 +33,9 @@ const crudeSpark = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fix
 // EIA's answers of 28 October 2026: its weekly storage report of 22 October (week ending 16 October), and from its
 // Open Data API the weekly storage history, the weekly petroleum figures and the monthly gas figures (fixtures.eia).
 // BEA's tables of 28 October 2026 (fixtures.bea); the fixture repeats the UserID in a Request block as BEA does.
+// The CFTC's public reporting platform as it answered on 28 October 2026 (fixtures.cftc): the latest Disaggregated
+// (futures only, and combined), TFF futures and Legacy combined reports, and two years of WTI's Disaggregated futures.
+const cftcFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/cftc/${name}-2026-10-28.json`), 'utf8');
 const beaFixture = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, `../tests/fixtures/bea/${name}.json`), 'utf8'));
 const eiaFixture = (name) => fs.readFileSync(path.join(__dirname, `../tests/fixtures/eia/${name}.json`), 'utf8');
 const congressGov = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/congressgov-2026-10.json'), 'utf8'));
@@ -132,6 +135,16 @@ net.fetch = async (input, init) => {
     if (url.pathname === '/v2/petroleum/sum/sndw/data/') return json(JSON.parse(eiaFixture('petroleum-2026-10-28')));
     if (url.pathname === '/v2/natural-gas/sum/snd/data/') return json(JSON.parse(eiaFixture('gas-monthly-2026-10-28')));
     return new Response(JSON.stringify({ error: 'Unknown route' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  }
+  if (fixtures.cftc && url.hostname === 'publicreporting.cftc.gov') {
+    const where = url.searchParams.get('$where') ?? '';
+    const ds = url.pathname.replace(/^\/resource\/|\.json$/g, '');
+    fixtures.calls.cftc = [...(fixtures.calls.cftc ?? []), { ds, single: !where.includes(',') }];
+    const text = (body) => new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (ds === '72hh-3qpy' && where.startsWith("cftc_contract_market_code in('067651')")) return text(cftcFixture('history-disaggregated-futures-067651'));
+    if (!where.includes(',')) return json([]);
+    const latest = { '72hh-3qpy': 'latest-disaggregated-futures', 'kh3c-gbw2': 'latest-disaggregated-combined', 'gpe5-46if': 'latest-tff-futures', 'jun7-fc8e': 'latest-legacy-combined' }[ds];
+    return latest ? text(cftcFixture(latest)) : json([]);
   }
   if (fixtures.congressGov && url.hostname === 'api.congress.gov') {
     const h = init?.headers;

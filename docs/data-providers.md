@@ -201,6 +201,20 @@ NIPA, in the desktop app, with the owner's `BEA_API_KEY` (BEA's UserID, a GUID).
 
 FRED stays the source of GDP growth and the PCE price indexes one series at a time (MACRO, with first releases); BEA adds the whole table at once, revised together, with its revision date. BEA's answers repeat the UserID in a `Request` block: the main process removes it before the answer goes anywhere, and returns nothing from an answer that is not BEA's JSON. BEA reports errors inside HTTP 200 answers: code 1 is an unknown UserID, code 7 and others its limits of 100 requests, 100 MB and 30 errors a minute (a minute's lockout). The app asks two tables, each kept six hours.
 
+## CFTC Commitments of Traders
+
+COT, in the desktop app, from the CFTC's public reporting platform (Socrata, `https://publicreporting.cftc.gov/resource/<dataset>.json`), no key. The CFTC's documentation offers an optional Socrata app token for higher request limits; the app asks at most a few requests an hour while COT is open, so it sends none. Datasets, each checked against its own name on 28 October 2026:
+
+| Report | Futures only | Futures and options combined |
+| --- | --- | --- |
+| Legacy | `6dca-aqww` | `jun7-fc8e` |
+| Disaggregated (commodities) | `72hh-3qpy` | `kh3c-gbw2` |
+| Traders in Financial Futures | `gpe5-46if` | `yw9f-hn96` |
+
+The app asks only those six datasets, for 40 contract codes (18 commodities read on the Disaggregated report, 22 financial futures on TFF, all 40 on Legacy), with fixed columns: the position date (`report_date_as_yyyy_mm_dd`, the Tuesday the positions were held), open interest, each trader group's long and short positions, and the platform's own row times (`:created_at`, when the CFTC published the row, and `:updated_at`, shown as "revised" when it differs). The latest request covers 120 days, the history two years of one market; each is kept an hour.
+
+What the figures are: delayed, aggregated positions of reportable traders by category, in contracts, held at the close on Tuesday and published the following Friday at 15:30 New York time, or the Monday after when a holiday intervenes. The positions are then sometimes another day's: Tuesday 11 November 2025 was Veterans Day, so that week's report holds Monday 10 November's. Reports can also come late: after the federal shutdown of October 2025 the positions of 30 September were published on 19 November, 50 days later, and the schedule was normal again only from the positions of 30 December. The app therefore shows each row's own position date and the time the CFTC published it, asks for the last 120 days rather than a fixed week, and says so on screen when the newest report is more than 15 days old. Net is long minus short; spreading positions are left out of the nets. The change compares the previous report, as the CFTC's own "changes from" column does: the report before, if it is 4 to 10 days earlier, else none. Checked on 28 October 2026 against the CFTC's report pages: WTI (067651), positions of 20 October: open interest 1,835,144, managed money 163,413 long and 127,226 short, changes -8,560 and -4,173; E-mini S&P 500 (13874A) on the TFF report: leveraged funds 135,034 long and 506,279 short, asset managers 1,101,642 and 200,265. A request the platform does not understand answers with `{"message": ..., "error": true}`, which the app shows; HTTP 429 is its rate limit.
+
 ## Kraken
 
 Read on 13 October 2026.

@@ -667,6 +667,21 @@ export const PROVIDERS: ProviderDef[] = [
     checked: '2026-10-28', desktop: true,
   },
   {
+    id: 'cftc',
+    name: 'CFTC Commitments of Traders',
+    serves: 'COT: positions by category of reportable trader in 40 futures markets (Disaggregated for commodities, Traders in Financial Futures for financial futures, Legacy for both; futures only or with options), with the Tuesday they were held and the time the CFTC published them, and two years of history',
+    dataClass: 'Official, delayed and aggregated positioning data (weekly)',
+    policy: 'enabled', limit: '30',
+    terms: "Public US government data on the CFTC's public reporting platform (Socrata), no key: an application token only raises the platform's throttle for unregistered users, which the app's few requests do not reach. Positions are as of each Tuesday and published the following Friday at 15:30 New York time (later after holidays); the app keeps answers an hour.",
+    docs: [
+      { label: 'Public reporting platform', url: 'https://publicreporting.cftc.gov/' },
+      { label: 'Legacy, combined (the dataset on Socrata)', url: 'https://dev.socrata.com/foundry/publicreporting.cftc.gov/jun7-fc8e' },
+      { label: 'Explanatory notes', url: 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/ExplanatoryNotes/index.htm' },
+      { label: 'Release schedule', url: 'https://www.cftc.gov/MarketReports/CommitmentsofTraders/ReleaseSchedule/index.htm' },
+    ],
+    checked: '2026-10-28', desktop: true,
+  },
+  {
     id: 'house-clerk',
     name: 'Clerk of the House (financial disclosures)',
     serves: "CONGRESS: the House's member list with party and seat, the yearly index of members' financial disclosures, and each periodic transaction report and annual report, read from its PDF in the app (reports filed on paper are scans: linked only)",

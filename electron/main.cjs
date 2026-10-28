@@ -1113,6 +1113,14 @@ ipcMain.handle('eia', async (event, kind) => {
   return keyedGet('eia', eia.withKey(req.url, key.value), { Accept: 'application/json' }, req.ttl, [20, 60_000], [key.value]);
 });
 
+// The CFTC's Commitments of Traders (electron/cftc.cjs), from its public reporting platform: no key.
+const cftc = require('./cftc.cjs');
+ipcMain.handle('cftc', async (event, kind, report, mode, code) => {
+  const req = cftc.cftcRequest(String(kind), String(report), String(mode), code == null ? undefined : String(code));
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  return keyedGet('cftc', req.url, { Accept: 'application/json' }, req.ttl, [30, 60_000], []);
+});
+
 // BEA (electron/bea.cjs): two national accounts tables with the owner's UserID, which BEA's answer repeats and the
 // main process removes before the answer goes anywhere.
 const bea = require('./bea.cjs');

@@ -146,8 +146,11 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | Function | What it shows | Source | Status |
 | --- | --- | --- | --- |
 | `COMMODITIES` | 19 front-month futures | Yahoo Finance (delays as Yahoo states them) | Real |
-| `OILMARKET`, `NATURALGAS`, `METALS`, `AGRICULTURE` (`OIL`, `GAS`, `MINE`, `AGS`) | A sector's front-month futures, its relative measures (Brent-WTI, crack spreads, crude to gas, gold to silver, gold to platinum, soybean to corn, wheat less corn) with their year's range, curves and news | Yahoo Finance | Real; measures calculated; inventories need the EIA's key (not set up) |
+| `OILMARKET`, `NATURALGAS`, `METALS`, `AGRICULTURE` (`OIL`, `GAS`, `MINE`, `AGS`) | A sector's front-month futures, its relative measures (Brent-WTI, crack spreads, crude to gas, gold to silver, gold to platinum, soybean to corn, wheat less corn) with their year's range, curves and news | Yahoo Finance; EIA for gas storage (NATURALGAS) and weekly petroleum figures (OILMARKET) | Real; measures calculated; EIA's figures with their week |
+| `NGAS` | EIA's weekly gas storage report by region with its year-ago and five-year comparisons, two years of storage, monthly dry gas production and consumption | EIA (report without key; history and monthly with `EIA_API_KEY`) | Real, desktop app |
+| `COT` | The CFTC's Commitments of Traders: positions by trader category for 18 commodities (Disaggregated) and 22 financial futures (TFF), Legacy for all; futures only or with options; change against the previous report; two years for one market | CFTC public reporting platform (no key) | Real, delayed and aggregated (Tuesday's positions, published Friday), desktop app |
 | `MACRO` | US macro dashboard with first-release revisions | FRED (key) | Real |
+| `NIPA` | BEA's contributions to real GDP growth (Table 1.1.2) and personal income and saving (Table 2.6) | BEA (`BEA_API_KEY`) | Real, desktop app |
 | `RELEASES` | Release calendar and rate decisions with actual and prior | FRED (key), central banks | Real. US release times and consensus forecasts not available |
 | `ECONSTATS` | GDP, inflation, unemployment, rates and markets by country | ONS, Eurostat, Statistics Canada, ABS, FRED | Real. Japan's inflation not connected |
 | `HOLIDAYS` | NYSE, Euronext, LSE, Xetra and Tokyo calendars | NYSE and Euronext rules; LSE, Xetra and JPX tables through 2027 | Real. Unscheduled closures not known |

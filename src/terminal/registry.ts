@@ -43,6 +43,7 @@ import { YAS } from '../functions/YAS';
 import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
 import { AGS, GAS, MINE, OIL } from '../functions/CMDSECTOR';
 import { NGAS } from '../functions/NGAS';
+import { COT } from '../functions/COT';
 import { NIPA } from '../functions/NIPA';
 import { WCR } from '../functions/WCR';
 import { WEIS, WM } from '../functions/WORLDEQ';
@@ -214,6 +215,7 @@ export const FUNCTIONS: FnDef[] = [
   // Commodities
   { code: 'COMMODITIES', name: 'Global Commodities', category: 'Commodities', desc: 'Energy, metals, grains, softs and livestock futures with changes, YTD and intraday.', component: GLCO },
   { code: 'OILMARKET', name: 'Oil', category: 'Commodities', desc: 'The oil page: WTI, Brent, heating oil and gasoline futures, the Brent-WTI spread and two crack spreads with their year\'s range, curves and news.', component: OIL },
+  { code: 'COT', name: 'Commitments of Traders', category: 'Commodities', desc: "The CFTC's Commitments of Traders: positions by category of reportable trader in 40 futures markets, held each Tuesday and published the following Friday (delayed and aggregated): Disaggregated for commodities, Traders in Financial Futures for financial futures, Legacy for both; futures only or with options; two years of a market's history (desktop app).", component: COT },
   { code: 'NGAS', name: 'Natural Gas Statistics', category: 'Commodities', desc: "EIA's weekly natural gas storage report by region with EIA's own year-ago and five-year comparisons, two years of the Lower 48's weekly stocks, and monthly dry gas production and consumption (desktop app; EIA_API_KEY for the history and monthly figures).", component: NGAS },
   { code: 'NATURALGAS', name: 'Natural Gas', category: 'Commodities', desc: 'The natural gas page: Henry Hub futures, the crude to gas ratio with its year\'s range, the curve and news.', component: GAS },
   { code: 'METALS', name: 'Metals & Mining', category: 'Commodities', desc: 'Precious and base metal futures, the gold to silver and gold to platinum ratios with their year\'s range, curves and news.', component: MINE },

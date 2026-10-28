@@ -134,8 +134,8 @@ Command names changed in version 2.0.0. Mnemonic commands such as `GP` and `DES`
 | News | `BREAKING` (`FIRST`) the newest stories from every source with pop-ups for your favourites, `MARKETNEWS` (`TOP`) market and merger news, the latest 8-K filings and Euronext press releases, `COMPANYNEWS` any security's news, from the local press in its market's languages and, for a stock listed there, its Euronext press releases; `NEWS` searches every story; `HEADLINES` press releases and speeches from central banks, the BIS, BEA, ESMA and SEC |
 | FX and crypto | `FXMATRIX` cross rates, `FXRANK`, `CRYPTO`, `FXOPTION` European option pricer with overrides, `FXFORWARD` calculated forwards and contract PV from your term rates |
 | Rates | `BONDS` world government yields, `CURVE`, `MONEYMARKET`, `RATEPROBS` the Fed path priced in futures, `CENTRALBANKS`; `BONDCALC` contract analytics and `SWAPCALC` from user zero curves; `BONDSEARCH`, `DEBTPROFILE` and `DEALERQUOTES` still need bond/dealer datasets |
-| Commodities | `COMMODITIES` |
-| Economics | `MACRO` dashboard with first-release revisions, `RELEASES` calendar, `ECONSTATS` world statistics, `HOLIDAYS` exchange calendars |
+| Commodities | `COMMODITIES`, the sector pages (`OILMARKET`, `NATURALGAS`, `METALS`, `AGRICULTURE`), `NGAS` EIA's gas storage report, production and consumption, `COT` the CFTC's Commitments of Traders |
+| Economics | `MACRO` dashboard with first-release revisions, `NIPA` BEA's GDP contributions and personal income, `RELEASES` calendar, `ECONSTATS` world statistics, `HOLIDAYS` exchange calendars |
 | Derivatives | `OPTIONS` indicative listed US equity snapshots with Alpaca; `OPTIONCALC` European/American value/IV; `OPTIONSTRATEGY` common-expiry multi-leg/stock risk and scenarios |
 | Portfolio and tools | `WATCHLIST` with pre-market and after-hours prices, `WORKSHEET` (W), `FAVOURITES` (`FAV`), `PORTFOLIO` manual holdings, historical-FX replay, VaR/ES, risk contributions and price/FX stress, `ALERTS`, `CORRELATION`, `SEARCH`, `RECENT`, `NOTES`, `LAYOUTS` |
 | System | `HELP`, `MENU`, `PROVIDERS` data providers and keys, `SETTINGS`, `MESSAGES` help desk that answers questions from the app's data (Claude with your Anthropic key) |
@@ -156,6 +156,9 @@ Tables can be copied or exported as CSV. Watchlists, the portfolio, alerts, note
 | Economic statistics | ONS, Eurostat, Statistics Canada, ABS; FRED (key) for US releases and other countries | As published |
 | Filings and reported financial figures | SEC EDGAR (your contact) | As filed |
 | Press releases and speeches | Central banks, BIS, BEA, ESMA, SEC (RSS) | As published |
+| Gas storage, oil stocks, production and consumption | EIA: its weekly storage report (no key) and Open Data API (key) | Weekly and monthly, as EIA publishes |
+| US national accounts | BEA (key) | As BEA publishes and revises |
+| Futures positioning by trader category | CFTC Commitments of Traders, public reporting platform (no key) | Tuesday's positions, published the following Friday |
 | Analysts' expected EPS and revenue against the reports; similar stocks | Yahoo Finance research; Finnhub (key) for past revenue estimates and sub-industry peers | Kept 6 hours, hourly after a report |
 | Executive pay | SEC EDGAR proxy statements (your contact) | As filed |
 | Analyst price targets, ratings, rating actions, annual estimates | Financial Modeling Prep (key) | As of each answer, kept 6 to 24 hours |
