@@ -12,6 +12,8 @@ import { usePanelId } from '../terminal/panel';
 import { useFundamentals } from '../data/live/yfund';
 import { sourceLabel } from '../components/Source';
 import type { FnProps } from '../terminal/types';
+import { useSegments } from '../data/live/segments';
+import { segmentRows, SegmentsView } from './FASegments';
 
 type Row = {
   label: string;
@@ -120,10 +122,11 @@ const TABS = [
   { n: 3, label: 'B/S', file: 'BalanceSheet', rows: BS },
   { n: 4, label: 'C/F', file: 'CashFlow', rows: CF },
   { n: 5, label: 'Ratios', file: 'Ratios', rows: RATIOS },
+  { n: 6, label: 'Segments', file: 'Segments', rows: [] as Row[] },
 ];
 
 /** Words FA takes after the security to open a page: FA AAPL IS, FA AAPL BS. */
-const PAGE_WORDS: Record<string, number> = { KEY: 1, KS: 1, IS: 2, BS: 3, CF: 4, RATIOS: 5, R: 5 };
+const PAGE_WORDS: Record<string, number> = { KEY: 1, KS: 1, IS: 2, BS: 3, CF: 4, RATIOS: 5, R: 5, SEG: 6, SEGMENTS: 6 };
 
 /** A period's heading as the terminal writes it: "2025 Y" for a fiscal year, "Q3 2025" for a quarter. */
 function periodHeading(c: FinPeriod, quarterly: boolean): string {
@@ -149,6 +152,7 @@ export function FA({ sec, route }: FnProps) {
   const [periods, setPeriods] = useState(5);
   const [offset, setOffset] = useState(0);
   const { real, status: fundStatus } = useFundamentals(s);
+  const segments = useSegments(s, tab === 6);
   const status = fundStatus === 'ok' && !hasRealStatements(s) ? 'error' : fundStatus;
   const f = financials(s);
   const all = quarterly ? f.quarterly : [...f.annual, ...(Number.isFinite(f.ltm.end) ? [f.ltm] : [])];
@@ -198,9 +202,9 @@ export function FA({ sec, route }: FnProps) {
         onTab={setTab}
         actions={[
           { n: 96, label: 'Graph', title: 'Graph these figures (GF)', onClick: () => execute(panel, `${s.id} FUNDCHART`) },
-          ...exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_${TABS[tab - 1].file}.csv`, csv),
+          ...exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_${TABS[tab - 1].file}.csv`, tab === 6 ? () => segmentRows(segments) : csv),
         ]}
-        controls={<div className="chart-tools fa-tools">
+        controls={tab === 6 ? undefined : <div className="chart-tools fa-tools">
           <label className="fld">
             Periods
             <select className="sel-inp" aria-label="Periods" value={periods} onChange={(e) => { setPeriods(Number(e.target.value)); setOffset(0); }}>
@@ -228,6 +232,7 @@ export function FA({ sec, route }: FnProps) {
         </div>}
       />
       <QuoteStrip sec={s} />
+      {tab === 6 ? <SegmentsView state={segments} /> : <>
       <div className="tbl-wrap">
         <table className="tbl zebra fa-tbl">
           <thead>
@@ -331,6 +336,7 @@ export function FA({ sec, route }: FnProps) {
           : status === 'sim' ? "Statements are simulated from each company's scale and sector profile; they are not reported figures." : ''}
       </div>
       {supplementSources.length ? <details className="note"><summary>* Supplemental observations (hover a period heading for its sources)</summary>{supplementSources.map((source) => <div key={source}>{source}</div>)}</details> : null}
+      </>}
     </div>
   );
 }

@@ -89,7 +89,6 @@ Plan:
 - From Codex's video list, potentially buildable from free data; confirm each workflow from suitable written or visual sources before implementation:
   - BTST: backtests of simple strategies on daily price history (EQBT's engine runs on month-end closes and could take daily ones).
   - CFND: the screen itself is not described in any public source found on 28 October, so the code is not mapped; the search it was thought to be is built (below).
-- FINANCIALS: revenue by segment, from the segment tables in the filings' XBRL.
 - CONGRESS: liabilities (Schedule D) for an assets-less-debts range; each member's committees (in the Clerk's member list) beside their trades.
 - Supply chain (SPLC): the share of revenue behind more relations; other public sources for companies whose filings and federal records name few counterparties (news of deals was checked on 28 October: for Applied Digital it named no counterparty the filings had not).
 - Blank "--" fields: fill each from a real source or say why it is blank.
@@ -103,6 +102,8 @@ Plan:
 - CORRELATION's "Most correlated" view: the lines whose daily returns moved most closely with one (or most opposite, or strongest either way) over 3 months to 3 years, among all asset classes or one, with each one's beta and the days in common; the first nine open in the matrix. The S&P 500 future tops SPX's list, the VIX ends it.
 
 - COMPLIANCE (CMGR): your own rules on each portfolio (largest position, sector, country, region or asset class weight, UCITS 5/10/40, a restricted list, fewest holdings, cash, no shorts), with warnings before the limits, checked as prices move; an exception blotter with when each was first seen; PORTFOLIO shows the exceptions and asks before recording a position or transaction that would add one.
+
+- FINANCIALS' Segments page (`FA AAPL SEG`): from the latest 10-K's XBRL instance and its labels, revenue by business segment, product or service, geography and major customer, and the segments' operating income, for its three fiscal years, with each line's share and growth; lines a filing counts within a larger one (iPhone within Products, Compute within Data Center) are shown inside it.
 
 ## Done in 2.28.0 (prepared, not published)
 

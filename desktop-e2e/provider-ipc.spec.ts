@@ -60,7 +60,8 @@ interface Fixtures {
   centralBankRates?: boolean;
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
-  calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  segments?: boolean;
+  calls: { congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; equibles: { method: string; params: { name?: string; arguments?: Record<string, unknown> } }[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -1105,6 +1106,37 @@ test('SPLC reads suppliers, customers and competitors from the SEC filings that 
   expect(searched).toContain('"Nebius"');
   expect(searched.some((q) => /Nebius Group/.test(q ?? ''))).toBe(false);
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-splc-fixture.png') });
+});
+
+test("FINANCIALS' Segments page reads the latest 10-K's XBRL: segments, product lines within products, geography and segment profit", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const fixtures = (globalThis as FixtureGlobal).__desktopFixtures;
+    fixtures.segments = true;
+    process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid';
+  });
+  await page.reload();
+  await command(page, 'FA AAPL SEG', 'FINANCIALS');
+  const panel = page.locator('.panel').first();
+  const seg = panel.getByTestId('seg-revenue-segment');
+  await expect(seg.locator('tbody tr').first()).toContainText('Americas', { timeout: 30_000 });
+  await expect(seg.locator('tbody tr').first()).toContainText('178,353');
+  await expect(seg.locator('thead')).toContainText('FY 2025');
+  await expect(seg.locator('tbody tr', { hasText: 'Total revenue (reported)' })).toContainText('416,161');
+  // iPhone, Mac, iPad and Wearables add up to Products, so they are shown within it.
+  const product = panel.getByTestId('seg-revenue-product').locator('tbody tr');
+  await expect(product.nth(0)).toContainText('Products');
+  await expect(product.nth(1)).toContainText('iPhone');
+  await expect(product.nth(1)).toContainText('209,586');
+  await expect(panel.getByTestId('seg-revenue-geography')).toContainText('United States');
+  await expect(panel.getByTestId('seg-operating-segment')).toContainText('72,480');
+  await expect(panel.getByTestId('fa-segments')).toContainText('10-K filed');
+  // The 10-K, not the newer 10-Q: its folder, instance and labels.
+  expect((await calls(app)).segments).toEqual([
+    '/submissions/CIK0000320193.json',
+    '/Archives/edgar/data/320193/000032019325000079/index.json',
+    '/Archives/edgar/data/320193/000032019325000079/aapl-20250927_htm.xml',
+    '/Archives/edgar/data/320193/000032019325000079/aapl-20250927_lab.xml',
+  ]);
 });
 
 test('linked panels preserve functions and saved groups in the real desktop renderer', async ({ desktop: { page } }) => {

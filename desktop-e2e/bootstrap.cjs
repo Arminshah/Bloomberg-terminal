@@ -169,6 +169,25 @@ net.fetch = async (input, init) => {
     const body = docs[url.pathname];
     if (body) return new Response(`<html><body>${body}</body></html>`, { status: 200, headers: { 'Content-Type': 'text/html' } });
   }
+  // With fixtures.segments, Apple's 10-K for FY2025: its filing list, folder and XBRL instance and labels, trimmed to the
+  // revenue and operating income facts (tests/fixtures/xbrl-segments).
+  if (fixtures.segments) {
+    const SEG = '/Archives/edgar/data/320193/000032019325000079/';
+    if (url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 320193, ticker: 'AAPL', title: 'Apple Inc.' } });
+    if (url.hostname === 'data.sec.gov' && url.pathname === '/submissions/CIK0000320193.json') {
+      fixtures.calls.segments = [...(fixtures.calls.segments ?? []), url.pathname];
+      return json({ cik: 320193, name: 'Apple Inc.', tickers: ['AAPL'], exchanges: ['Nasdaq'], fiscalYearEnd: '0927', filings: { recent: { accessionNumber: ['0000320193-26-000010', '0000320193-25-000079'], form: ['10-Q', '10-K'], filingDate: ['2026-01-30', '2025-10-31'], reportDate: ['2025-12-27', '2025-09-27'], primaryDocument: ['aapl-20251227.htm', 'aapl-20250927.htm'] }, files: [] } });
+    }
+    if (url.hostname === 'www.sec.gov' && url.pathname === `${SEG}index.json`) {
+      fixtures.calls.segments = [...(fixtures.calls.segments ?? []), url.pathname];
+      return json({ directory: { name: SEG, item: ['aapl-20250927.htm', 'aapl-20250927.xsd', 'aapl-20250927_cal.xml', 'aapl-20250927_def.xml', 'aapl-20250927_lab.xml', 'aapl-20250927_pre.xml', 'aapl-20250927_htm.xml', 'Financial_Report.xlsx'].map((name) => ({ name, type: 'text.gif' })) } });
+    }
+    const file = { [`${SEG}aapl-20250927_htm.xml`]: 'aapl-20250927.xml', [`${SEG}aapl-20250927_lab.xml`]: 'aapl-20250927_lab.xml' }[url.pathname];
+    if (url.hostname === 'www.sec.gov' && file) {
+      fixtures.calls.segments = [...(fixtures.calls.segments ?? []), url.pathname];
+      return new Response(fs.readFileSync(path.join(__dirname, '../tests/fixtures/xbrl-segments', file), 'utf8'), { status: 200, headers: { 'Content-Type': 'application/xml' } });
+    }
+  }
   // With fixtures.related, Alphabet's tickers as the SEC lists them under its CIK.
   if (fixtures.related && url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1652044, ticker: 'GOOGL', title: 'Alphabet Inc.' }, 1: { cik_str: 1652044, ticker: 'GOOG', title: 'Alphabet Inc.' }, 2: { cik_str: 1513845, ticker: 'NBIS', title: 'Synthetic currency-switch fixture' }, 3: { cik_str: 1652044, ticker: 'GOOGN', title: 'Alphabet Inc.' }, 4: { cik_str: 1652044, ticker: 'GOOGM', title: 'Alphabet Inc.' } });
   if (url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Synthetic currency-switch fixture' } });

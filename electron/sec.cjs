@@ -17,6 +17,9 @@ const ARCHIVES = 'https://www.sec.gov/Archives/edgar/data';
 const FOLDER = /^([1-9]\d{0,9})\/(\d{18})$/;
 // The XBRL instance EDGAR extracts from an inline XBRL document (name_htm.xml).
 const INSTANCE = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}_htm\.xml)$/;
+/** A filing's XBRL label file, or its schema when the labels are inside it: the names the company gives its elements
+ * (FINANCIALS' segments). */
+const LABELS = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}(?:_lab\.xml|\.xsd))$/;
 // An ownership filing's own XML (Forms 3, 4 and 5), at the top of its folder.
 const OWNERSHIP = /^([1-9]\d{0,9})\/(\d{18})\/([A-Za-z0-9][A-Za-z0-9._-]{0,150}\.xml)$/;
 
@@ -96,6 +99,7 @@ const KINDS = {
   // (DEF 14A), which company facts do not include. A filing never changes once made.
   'filing-index': { url: (arg) => (FOLDER.test(arg) ? `${ARCHIVES}/${arg}/index.json` : null), ttl: 24 * HOUR },
   'filing-xbrl': { url: (arg) => (INSTANCE.test(arg) ? `${ARCHIVES}/${arg}` : null), ttl: 7 * 24 * HOUR },
+  'filing-labels': { url: (arg) => (LABELS.test(arg) ? `${ARCHIVES}/${arg}` : null), ttl: 7 * 24 * HOUR },
   // An insider's Form 4: the shares bought, sold, received and exercised, and the holdings after.
   'ownership-xml': { url: (arg) => (OWNERSHIP.test(arg) ? `${ARCHIVES}/${arg}` : null), ttl: 7 * 24 * HOUR },
   // The full-text search (efts.sec.gov): annual reports of the last 18 months naming a company beside a term

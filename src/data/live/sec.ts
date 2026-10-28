@@ -26,7 +26,7 @@ export interface SecAnswer {
   error?: string;
 }
 
-export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl' | 'ownership-xml' | 'fts' | 'search' | 'filings13f';
+export type SecKind = 'tickers' | 'submissions' | 'submissions-page' | 'facts' | 'filing-index' | 'filing-xbrl' | 'filing-labels' | 'ownership-xml' | 'fts' | 'search' | 'filings13f';
 
 export type SecResult<T> =
   | { ok: true; data: T; at: number; stale?: boolean }
@@ -831,6 +831,8 @@ const folder = (cik: number, accession: string) => `${cik}/${accession.replace(/
 export const loadFilingIndex = (cik: number, accession: string) => load('filing-index', folder(cik, accession), 24 * 3600_000, parseFilingIndex);
 /** A filing's XBRL instance as text (the SEC extracts it from inline XBRL as name_htm.xml). */
 export const loadFilingXbrl = (cik: number, accession: string, file: string) => load('filing-xbrl', `${folder(cik, accession)}/${file}`, 7 * 24 * 3600_000, (t) => (t.includes('<') ? t : null));
+/** A filing's XBRL label file (name_lab.xml): the names the company gives its elements. */
+export const loadFilingLabels = (cik: number, accession: string, file: string) => load('filing-labels', `${folder(cik, accession)}/${file}`, 7 * 24 * 3600_000, (t) => (t.includes('<') ? t : null));
 /** An ownership filing's XML (Form 4): `file` is its primary document without EDGAR's style-sheet folder. */
 export const loadOwnershipXml = (cik: number, accession: string, file: string) => load('ownership-xml', `${folder(cik, accession)}/${file}`, 7 * 24 * 3600_000, (t) => (t.includes('<ownershipDocument') ? t : null));
 
