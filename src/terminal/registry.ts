@@ -25,6 +25,7 @@ import { COMP } from '../functions/COMP';
 import { BETA } from '../functions/BETA';
 import { CORR } from '../functions/CORR';
 import { CMGR } from '../functions/CMGR';
+import { BTST } from '../functions/BTST';
 import { DEPTH } from '../functions/DEPTH';
 import { TAS } from '../functions/TAS';
 import { BQ } from '../functions/BQ';
@@ -174,6 +175,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'MOVERS', name: 'Most Active', category: 'Markets', desc: 'Most active, top gainers, losers, value traded and unusual volume by region.', component: MOST, aliases: ['ACTIVE'] },
   { code: 'EXCHANGES', name: 'Exchange Hours', category: 'Markets', desc: "Each exchange the app keeps a calendar for (NYSE, Euronext, London, Xetra, Tokyo): its local time, whether its regular session is open, today's holiday or early close, and when it next opens or closes, with a countdown. Numbered rows open the exchange's holiday calendar.", component: EXCH, example: 'EXCHANGES' },
   { code: 'SCREEN', name: 'Equity Screening', category: 'Markets', desc: 'Screen stocks by region, sector, size, valuation, yield, quality and momentum.', component: EQS, aliases: ['SCREENER'] },
+  { code: 'STRATEGIES', name: 'Strategy Backtesting', category: 'Charts', needsSec: true, desc: "Popular trading rules on the security's daily closes (moving average cross, price above its 200-day average, MACD, RSI and Bollinger reversals, breakout, momentum, beside buy and hold), long only or long and short, with a cost per trade, ranked by return, Sharpe ratio, drawdown or win rate, each one's growth drawn beside buying and holding.", component: BTST, example: 'STRATEGIES SPX' },
   { code: 'BACKTEST', name: 'Equity Backtesting', category: 'Markets', desc: "Back-tests a stock-picking rule (momentum, short-term reversal, low volatility or trend) on an index's members over up to ten years of month-end closes, held in equal weights and rebalanced monthly or quarterly with trading costs, against the index and the members in equal weights: growth, annual return, volatility, drawdown, each calendar year and the picks at each rebalance. Price returns on today's members (desktop app).", component: EQBT, example: 'BACKTEST SPX' },
   { code: 'QUOTE', name: 'Quote', category: 'Markets', needsSec: true, desc: "One-screen quote: price, intraday chart, best bid and offer, recent updates and key statistics; for US stocks also IEX's last trade and bid and offer from Alpaca (labelled IEX only) and the company's latest news from Finnhub, with your keys.", component: BQ, example: 'QUOTE AAPL' },
   { code: 'TRADES', name: 'Time and Sales', category: 'Markets', needsSec: true, classes: TRADABLE, desc: 'Tape of the price and volume updates the source reports (not single trades) with a VWAP and volume summary; the browser version models single trades.', component: TAS, aliases: ['TAPE'] },

@@ -222,7 +222,7 @@ Status of each area in Armin Terminal. Statuses as the pack defines them; "imple
 | BOND | E1 | `BONDCALC` (YAS), `BONDS`, `CURVE` | Partial | Yield to each call and to worst from a typed call schedule since item 11 (27 October); issue terms and calls are typed in, and calls carry no option value (no OAS) |
 | COMMOD | E2 | `COMMODITIES`, `FUTURESCURVE`, `CONTRACTS` | Partial | No seasonality (chapter 02:30) and no supply, demand or trade-flow data |
 | PORT | E1 | `PORTFOLIO` (`PORT.tsx`), its risk tab, its Transactions tab (`PortTransactions.tsx`) | Partial | Transactions with fees and rates of the day, first-in first-out lots, splits, realised P&L, time- and money-weighted returns since item 10 (27 October). No attribution, no factor model, other corporate actions not applied |
-| BTST | E1 | `BACKTEST` (EQBT) | Partial | Today's members (warned on screen), price returns, no delisted names, monthly steps |
+| BTST | E1 (the publisher's Pro Tips page: "rank popular trading strategies based on historical return and risk stats for any asset class") | `STRATEGIES` (BTST) since 28 October; `BACKTEST` (EQBT) for stock picking | Partial | Eight common rules with fixed settings on daily closes, price returns only; no optimisation of a rule's settings, no rules of the user's own, no intraday data |
 | BTM | E1 (publisher post, 16 October 2026) | None | Blocked | Needs the options trade tape (OPRA) |
 | YAS | E1 | `BONDCALC` | Partial | As BOND; the mobile page says nothing of the desktop screen |
 | BQUANT | E1 | None | Blocked | A platform |

@@ -439,6 +439,30 @@ test('CORRELATION finds the lines that moved most closely with the one loaded, a
   expect(errors).toEqual([]);
 });
 
+test('BTST ranks popular trading rules on the loaded security by return or risk, and draws one beside buying and holding', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'BTST SPX INDEX');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code').first()).toHaveText('STRATEGIES');
+  const rows = panel.getByTestId('btst-table').locator('tbody tr');
+  await expect(rows).toHaveCount(8);
+  await expect(panel.getByTestId('btst-table')).toContainText('Buy and hold');
+  // Ranked by total return: each row's total is at least the next one's.
+  const totals = async () => (await rows.locator('td:nth-child(3)').allTextContents()).map((t) => Number(t.replace('%', '').replace('+', '')));
+  const byReturn = await totals();
+  expect(byReturn.every((v, i) => i === 0 || byReturn[i - 1] >= v)).toBe(true);
+  // By the smallest drawdown: the drawdown column rises down the table.
+  await panel.getByLabel('Rank by').selectOption('maxDrawdown');
+  const dd = (await rows.locator('td:nth-child(7)').allTextContents()).map((t) => Number(t.replace('%', '')));
+  expect(dd.every((v, i) => i === 0 || dd[i - 1] >= v)).toBe(true);
+  // A row draws that rule beside buying and holding, with its rule in words.
+  await rows.filter({ hasText: 'MACD 12/26/9' }).click();
+  await expect(panel.locator('.note.amber')).toContainText('MACD 12/26/9: Long while the MACD line is above its 9-day signal line');
+  await panel.getByLabel('Positions').selectOption('ls');
+  await expect(panel.locator('.note.amber')).toContainText('short on the mirror signal');
+  expect(errors).toEqual([]);
+});
+
 test("the watchlist's layout: changes, both extended sessions, volumes, YTD and 52 weeks, two range bars, a day chart on the previous close, market value", async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'WATCH');

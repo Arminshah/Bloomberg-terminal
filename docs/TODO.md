@@ -87,7 +87,6 @@ Plan:
   - EQBT with fundamental rules (cheap on earnings, say): it needs each company's figures as they were known at each date. The SEC's XBRL frames give filing dates, so it can be built from them; it is a larger piece of work.
   - Use `docs/audit-v2.23.0-coverage.md`, section 2a, for the later research on those 27 codes: 17 now have public sources, PSRT and OVDV have weaker evidence, and 8 remain unresolved. FXCA is built, and the newly confirmed codes of item 13 were built on 27 October. Research the unresolved codes from accessible written or visual sources before claiming their scope.
 - From Codex's video list, potentially buildable from free data; confirm each workflow from suitable written or visual sources before implementation:
-  - BTST: backtests of simple strategies on daily price history (EQBT's engine runs on month-end closes and could take daily ones).
   - CFND: the screen itself is not described in any public source found on 28 October, so the code is not mapped; the search it was thought to be is built (below).
 - CONGRESS: liabilities (Schedule D) for an assets-less-debts range; each member's committees (in the Clerk's member list) beside their trades.
 - Supply chain (SPLC): the share of revenue behind more relations; other public sources for companies whose filings and federal records name few counterparties (news of deals was checked on 28 October: for Applied Digital it named no counterparty the filings had not).
@@ -104,6 +103,8 @@ Plan:
 - COMPLIANCE (CMGR): your own rules on each portfolio (largest position, sector, country, region or asset class weight, UCITS 5/10/40, a restricted list, fewest holdings, cash, no shorts), with warnings before the limits, checked as prices move; an exception blotter with when each was first seen; PORTFOLIO shows the exceptions and asks before recording a position or transaction that would add one.
 
 - FINANCIALS' Segments page (`FA AAPL SEG`): from the latest 10-K's XBRL instance and its labels, revenue by business segment, product or service, geography and major customer, and the segments' operating income, for its three fiscal years, with each line's share and growth; lines a filing counts within a larger one (iPhone within Products, Compute within Data Center) are shown inside it.
+
+- STRATEGIES (BTST): eight common trading rules on the loaded security's daily closes, long only or long and short, with a cost per trade, ranked by return, Sharpe ratio, drawdown or win rate, each drawn beside buying and holding; decisions use only the closes up to each day (tested).
 
 ## Done in 2.28.0 (prepared, not published)
 

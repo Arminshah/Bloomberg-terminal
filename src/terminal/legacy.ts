@@ -24,6 +24,8 @@ export const LEGACY_CODES: Record<string, string> = {
   SPLC: 'SUPPLYCHAIN',
   // Compliance Manager: "real-time compliance checks in every step of the buy-side process" (the publisher's Pro Tips page).
   CMGR: 'COMPLIANCE',
+  // "Rank popular trading strategies based on historical return and risk stats for any asset class" (the publisher's Pro Tips page).
+  BTST: 'STRATEGIES',
   HDS: 'HOLDERS',
   OWN: 'HOLDERS',
   MGMT: 'MANAGEMENT',
