@@ -1329,7 +1329,7 @@ test('malformed option schemas are not cached or reported as successful and reco
 test('HTTP 200 provider refusals cross desktop IPC as errors and are never cached as successes', async ({ desktop: { app, page } }) => {
   await command(page, 'AAPL ANALYSTS');
   // In plain words on ANALYSTS (the owner, 28 October 2026); FMP's own message stays on PROVIDERS, below.
-  await expect(page.locator('.panel').first().getByText('FMP refused the key. Check the key on PROVIDERS.', { exact: false }).first()).toBeVisible();
+  await expect(page.locator('.panel').first().getByTestId('research-coverage')).toContainText('FMP refused the key');
   await expect.poll(async () => (await calls(app)).fmp).toBe(5);
   const beforeFmp = (await calls(app)).fmp;
   const fmp: KeyedAnswer = await page.evaluate(() => window.arminDesktop!.analysts!('consensus', 'AAPL'));
@@ -1416,8 +1416,13 @@ test('APLD research recovers from both reported provider refusals and lookup sur
   await expect(page.getByTestId('research-coverage').locator('details')).not.toHaveAttribute('open');
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-v272-apld-research-fixture.png') });
   await page.getByText('Research source availability', { exact: true }).click();
-  await expect(page.getByTestId('research-coverage')).toContainText('HTTP 402');
-  await expect(page.getByTestId('research-coverage')).toContainText('HTTP 401');
+  // Each row its own source (the owner, 28 October 2026): Yahoo's rows say FMP's plan does not cover APLD and that
+  // Yahoo fills them, without Finnhub's 401 or FMP's own error text; the row no source fills says FMP refused it.
+  const coverage = page.getByTestId('research-coverage');
+  await expect(coverage.getByRole('row').filter({ hasText: 'Price targets' })).toContainText("FMP's plan does not cover APLD; Yahoo Finance fills this row.");
+  await expect(coverage.getByRole('row').filter({ hasText: 'Ratings' })).toContainText("FMP's plan does not cover APLD; Yahoo Finance fills this row.");
+  await expect(coverage.getByRole('row').filter({ hasText: 'Ratings' })).not.toContainText('Finnhub');
+  await expect(coverage.getByRole('row').filter({ hasText: 'Target-history averages' })).toContainText("FMP's plan does not cover APLD.");
   await app.evaluate(() => { process.env.FINNHUB_API_KEY = 'abcd1234efgh5678ij90abcd1234efgh5678kl12'; });
   // A replaced complete key must work immediately, even while the previous key's 401 is cooling down.
   const recovered = await page.evaluate(() => window.arminDesktop!.finnhubResearch!('ratings', 'APLD'));
