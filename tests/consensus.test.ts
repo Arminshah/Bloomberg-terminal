@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as finnhubMain from '../electron/finnhub.cjs';
 import { verdict } from '../src/components/EarningsExpectations';
-import { growth, keepEstimates, keptEstimates, mergeConsensus, parseYahooEarnings, quarterAt, surprisePct, type YahooEarnings } from '../src/data/live/consensus';
+import { epsDisagreement, growth, keepEstimates, keptEstimates, mergeConsensus, parseYahooEarnings, quarterAt, surprisePct, type YahooEarnings } from '../src/data/live/consensus';
 import { parseCalendarHistory, type PastReport } from '../src/data/live/finnhub';
 import tsm from './fixtures/yahoo-earnings-tsm.json';
 
@@ -109,5 +109,26 @@ describe("the analysts' expectations against the reports", () => {
     ] });
     const r = parseCalendarHistory(text);
     expect('data' in r && r.data.map((x) => x.date)).toEqual(['2026-10-15', '2026-07-16']);
+  });
+});
+
+describe('two sources that call a quarter a beat and a miss', () => {
+  // Applied Digital's quarter to 31 August 2026: Yahoo's adjusted -0.01 against -0.30 expected, Finnhub's -0.82
+  // (the 10-Q's diluted EPS) against -0.31.
+  const NONE = { est: NaN, actual: NaN, low: NaN, high: NaN, analysts: NaN };
+  const yahoo = { ...NONE, est: -0.303, actual: -0.01, estFrom: 'Yahoo Finance', actualFrom: 'Yahoo Finance' };
+  const finnhub = { ...NONE, est: -0.306, actual: -0.82, estFrom: 'Finnhub', actualFrom: 'Finnhub' };
+
+  it('says they disagree, with both comparisons', () => {
+    const text = epsDisagreement({ eps: yahoo, alternativeEps: finnhub })!;
+    expect(text).toContain('Yahoo Finance: -0.01 against -0.303 expected (beat by 97%)');
+    expect(text).toContain('Finnhub: -0.82 against -0.306 expected (miss by 168%)');
+  });
+
+  it('says nothing when they agree on the direction, or only one compares', () => {
+    expect(epsDisagreement({ eps: yahoo, alternativeEps: { ...finnhub, actual: -0.2 } })).toBeUndefined();
+    expect(epsDisagreement({ eps: yahoo })).toBeUndefined();
+    // Within 2% either way is in line, not a disagreement.
+    expect(epsDisagreement({ eps: { ...yahoo, actual: -0.305 }, alternativeEps: { ...finnhub, actual: -0.30 } })).toBeUndefined();
   });
 });

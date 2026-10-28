@@ -187,7 +187,7 @@ export function EESummary({ sec }: FnProps) {
                 <td className="amber" title="EPS on the analysts' basis (usually adjusted)">EPS Adj+</td>
                 <td className="num">{last && Number.isFinite(last.comp) ? fmtNum(last.comp, 3) : '--'}</td>
                 <td className="num">{last && Number.isFinite(last.est) ? fmtNum(last.est, 3) : '--'}</td>
-                <td className="num">{last && Number.isFinite(last.surp) ? <Chg v={last.surp} pct /> : '--'}</td>
+                <td className="num">{last?.disagree ? <span className="amber" title={last.disagree}>Sources disagree</span> : last && Number.isFinite(last.surp) ? <Chg v={last.surp} pct /> : '--'}</td>
                 <td className="num" title={tallyTitle(epsTally, 'EPS')}>{tallyText(epsTally)}</td>
               </tr>
               <tr>

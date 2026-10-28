@@ -17,7 +17,7 @@ import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type NextReport } from '../data/live/finnhub';
 import { exportActions } from '../components/ExportActions';
-import { canonicalQuarter, datedHistory, fiscalLabel, useConsensus } from '../data/live/consensus';
+import { canonicalQuarter, datedHistory, epsDisagreement, fiscalLabel, useConsensus } from '../data/live/consensus';
 import { matchQuarter, surpriseStats } from '../data/ern';
 import { desktopData } from '../data/live/yahoo';
 import { ExpectationsTable, LatestReport } from '../components/EarningsExpectations';
@@ -69,6 +69,8 @@ interface ErnRow {
   comp: number;
   est: number;
   surp: number;
+  /** Set when two sources call the quarter a beat and a miss: their comparisons, for the tooltip. */
+  disagree?: string;
   /** Revenue reported and expected (millions), and the surprise, shown beside EPS whatever the measure. */
   revRep: number;
   revEst: number;
@@ -158,6 +160,8 @@ export function useErnReports(s: SecurityDef, measure: Measure) {
     const comp = measure === 'eps' ? e?.actual ?? NaN : NaN;
     const estimate = measure === 'eps' ? e?.est ?? NaN : Number.isFinite(e?.est ?? NaN) ? e!.est / 1e6 : NaN;
     const base = measure === 'eps' ? comp : reported;
+    // Two sources calling the quarter a beat and a miss: no surprise is shown, nor counted in the averages.
+    const disagree = measure === 'eps' && cq ? epsDisagreement(cq) : undefined;
     // Revenue, always: reported on the estimate's basis where a source gives both, else the statements'.
     const revRep = cq && Number.isFinite(cq.rev.actual) ? cq.rev.actual / 1e6 : h.revAct ?? NaN;
     const revEst = cq && Number.isFinite(cq.rev.est) ? cq.rev.est / 1e6 : NaN;
@@ -170,7 +174,8 @@ export function useErnReports(s: SecurityDef, measure: Measure) {
       reported,
       comp,
       est: estimate,
-      surp: Number.isFinite(base) && Number.isFinite(estimate) && estimate !== 0 ? ((base - estimate) / Math.abs(estimate)) * 100 : NaN,
+      surp: !disagree && Number.isFinite(base) && Number.isFinite(estimate) && estimate !== 0 ? ((base - estimate) / Math.abs(estimate)) * 100 : NaN,
+      ...(disagree ? { disagree } : {}),
       revRep,
       revEst,
       revSurp: Number.isFinite(revRep) && Number.isFinite(revEst) && revEst !== 0 ? ((revRep - revEst) / Math.abs(revEst)) * 100 : NaN,
@@ -421,7 +426,7 @@ export function EE({ sec }: FnProps) {
               <td className="num white">{r.future ? '' : fmtV(r.reported) || '--'}</td>
               {measure === 'eps' && <td className="num cyan">{fmtV(r.comp)}</td>}
               <td className="num">{fmtV(r.est)}</td>
-              <td className="num">{Number.isFinite(r.surp) ? <Chg v={r.surp} pct dec={2} /> : ''}</td>
+              <td className="num">{r.disagree ? <span className="amber" title={r.disagree}>disagree</span> : Number.isFinite(r.surp) ? <Chg v={r.surp} pct dec={2} /> : ''}</td>
               {measure === 'eps' && (
                 <>
                   <td className="num white">{r.future ? '' : Number.isFinite(r.revRep) ? fmtMln(r.revRep) : '--'}</td>

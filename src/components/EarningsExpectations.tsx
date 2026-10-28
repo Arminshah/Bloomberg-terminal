@@ -1,5 +1,5 @@
 import { fmtBig, fmtDay, fmtNum } from '../core/format';
-import { growth, growthSeries, surprisePct, timingLabel, type Consensus, type Expectation, type QuarterView } from '../data/live/consensus';
+import { epsDisagreement, growth, growthSeries, surprisePct, timingLabel, type Consensus, type Expectation, type QuarterView } from '../data/live/consensus';
 import type { FinPeriod } from '../data/fundamentals';
 
 /**
@@ -21,8 +21,8 @@ export function verdict(e: Pick<Expectation, 'est' | 'actual'>): { text: string;
 const eps = (v: number) => (ok(v) ? fmtNum(v, 2) : '--');
 const rev = (v: number) => (ok(v) ? fmtBig(v) : '--');
 
-function Row({ label, e, fmt }: { label: string; e: Expectation; fmt: (v: number) => string }) {
-  const v = verdict(e);
+function Row({ label, e, fmt, disagree }: { label: string; e: Expectation; fmt: (v: number) => string; disagree?: string }) {
+  const v = disagree ? { text: 'Sources disagree', cls: 'amber' } : verdict(e);
   const from = [e.estFrom && `expected: ${e.estFrom}`, e.actualFrom && `reported: ${e.actualFrom}`].filter(Boolean).join('; ');
   return (
     <tr title={from || undefined}>
@@ -32,7 +32,7 @@ function Row({ label, e, fmt }: { label: string; e: Expectation; fmt: (v: number
       </td>
       <td className="num">{fmt(e.est)}</td>
       <td className="num white">{fmt(e.actual)}</td>
-      <td className={`num ${v.cls}`}>{v.text || (ok(e.actual) ? 'no estimate' : ok(e.est) ? 'not reported yet' : '--')}</td>
+      <td className={`num ${v.cls}`} title={disagree}>{v.text || (ok(e.actual) ? 'no estimate' : ok(e.est) ? 'not reported yet' : '--')}</td>
     </tr>
   );
 }
@@ -68,7 +68,7 @@ export function LatestReport({ c, statements }: { c: Consensus; statements: FinP
           </tr>
         </thead>
         <tbody>
-          <Row label="Earnings per share" e={q.eps} fmt={eps} />
+          <Row label="Earnings per share" e={q.eps} fmt={eps} disagree={epsDisagreement(q)} />
           <Row label="Revenue" e={q.rev} fmt={rev} />
         </tbody>
       </table>
@@ -120,7 +120,8 @@ export function ExpectationsTable({ c }: { c: Consensus }) {
         </thead>
         <tbody>
           {c.past.slice(0, 8).map((q) => {
-            const ve = verdict(q.eps);
+            const disagree = epsDisagreement(q);
+            const ve = disagree ? { text: 'Sources disagree', cls: 'amber' } : verdict(q.eps);
             const vr = verdict(q.rev);
             return (
               <tr key={`${q.label}:${q.end}`} title={[q.eps.estFrom && `EPS: ${q.eps.estFrom}`, q.rev.estFrom && `revenue: ${q.rev.estFrom}`].filter(Boolean).join('; ') || undefined}>
@@ -129,7 +130,7 @@ export function ExpectationsTable({ c }: { c: Consensus }) {
                 <td className="hide-m muted">{timingLabel(q.timing)}</td>
                 <td className="num" title={q.eps.estFrom}>{eps(q.eps.est)}</td>
                 <td className="num white">{eps(q.eps.actual)}</td>
-                <td className={`num ${ve.cls}`}>{ve.text || '--'}</td>
+                <td className={`num ${ve.cls}`} title={disagree}>{ve.text || '--'}</td>
                 {hasRev ? (
                   <>
                     <td className="num" title={ok(q.rev.est) ? q.rev.estFrom : ok(q.rev.actual) ? c.revenueHint : undefined}>{rev(q.rev.est)}</td>
@@ -144,7 +145,7 @@ export function ExpectationsTable({ c }: { c: Consensus }) {
       </table>
       {hasRev && c.revenueHint ? <div className="note amber">{c.revenueHint}</div> : null}
       {c.past.some((q) => q.alternativeEps) ? (
-        <details className="note">
+        <details className="note" open={c.past.some((q) => !!epsDisagreement(q))}>
           <summary>Other provider EPS comparisons (reporting bases can differ)</summary>
           {c.past.filter((q) => q.alternativeEps).map((q) => (
             <div key={`${q.label}:${q.end}`}>

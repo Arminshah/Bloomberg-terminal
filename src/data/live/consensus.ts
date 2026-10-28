@@ -732,6 +732,20 @@ export function surprisePct(e: Pick<Expectation, 'est' | 'actual'>): number {
   return ok(e.est) && ok(e.actual) && e.est !== 0 ? ((e.actual - e.est) / Math.abs(e.est)) * 100 : NaN;
 }
 
+/**
+ * The other source's comparison when two sources call a quarter's EPS a beat and a miss (each by 2% or more): their
+ * figures are on different bases. Applied Digital's quarter to 31 August 2026 was a 97% beat by Yahoo's figures (an
+ * adjusted -0.01 against -0.30) and a 168% miss by Finnhub's (-0.82 against -0.31, as Nasdaq's -0.76 against -0.26).
+ * Undefined when they agree or only one compares.
+ */
+export function epsDisagreement(q: Pick<QuarterView, 'eps' | 'alternativeEps'>): string | undefined {
+  const a = surprisePct(q.eps);
+  const b = q.alternativeEps ? surprisePct(q.alternativeEps) : NaN;
+  if (!ok(a) || !ok(b) || Math.abs(a) < 2 || Math.abs(b) < 2 || Math.sign(a) === Math.sign(b)) return undefined;
+  const one = (e: Expectation, pct: number) => `${e.estFrom ?? 'one source'}: ${e.actual} against ${e.est} expected (${pct > 0 ? 'beat' : 'miss'} by ${Math.abs(pct).toFixed(0)}%)`;
+  return `The sources disagree, on different EPS bases. ${one(q.eps, a)}; ${one(q.alternativeEps!, b)}.`;
+}
+
 export interface Growth {
   /** Change against the same quarter a year earlier, and against the quarter before, in percent. */
   yoy: number;
