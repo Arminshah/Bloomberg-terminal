@@ -28,6 +28,25 @@ This release widens the supply chain analysis (SPLC) with what a company's own f
 
 - New source: USAspending.gov, the U.S. Treasury's public contract records (no key). PROVIDERS lists it with its terms.
 
+## Data accuracy audit
+
+Every screen with figures was checked against a second, independent source on 28 and 29 October; `docs/audit-v2.28-data.md` lists each finding with its source and fix. The main corrections:
+
+- **Prices and returns**: the session's volume after the close (it was 0.3% to 2.8% short), short interest a settlement behind, and the 12-month return counted from the calendar day instead of the last session.
+- **Financial statements**: bank revenue, restated years and IPO-year EPS now follow the filings (JPMorgan, Applied Digital, CoreWeave); Eli Lilly's 2022 EPS shows 6.90 as filed.
+- **Dividends**: declared dividends of NYSE stocks, which had no source (Coca-Cola's $0.53 of 15 October), now come from Massive's record; Walmart's exact amounts replace three-decimal roundings.
+- **Analysts, earnings and events**: the ratings tally counts current ratings only; beats on mixed bases are flagged; the economic calendar's dates are no longer a day late.
+- **"Sources disagree"**: where two sources give the same figure and differ (next report date, a dividend, market value and share count, a quarter's EPS), the screen says so in amber with both values, instead of showing one as fact.
+- **Supply chains (SPLC)**: many misreadings fixed and tested on the sentence that showed them, among them Bank of America and about 100 other companies whose SEC name has a small word ("Bank OF America" matched no filing); a segment's share shown as the company's; a quarter's share shown as the year's; data sources and glossary lines read as suppliers; banks behind a credit facility now listed as lenders; and federal contract records of companies USAspending wrongly files under a parent (Clariant and Transworld Systems under JPMorgan) left out unless the company's own filings name them.
+
+## New sources and screens
+
+- **COT**: the CFTC's Commitments of Traders for 18 commodity and financial futures (no key), with a note when a report is late.
+- **DEBTPROFILE T GOVT**: the U.S. Treasury's marketable debt by class and year of maturity from the Monthly Statement of the Public Debt (Fiscal Data, no key), adding up to the statement's totals.
+- **EIA** for natural gas storage and the weekly oil figures, **BEA** for the national accounts (NIPA).
+- **Equibles removed**: no requests and no key; what it gave is shown from the app's other sources or as not available.
+- **A data audit check** (`npm run audit:check`) compares the app's figures with independent references and fails when one is beyond its tolerance; a GitHub workflow runs it.
+
 ## Checks
 
-Lint, type checks, unit tests, the build, the browser tests on demo data and the desktop tests on recorded data all pass; the release build runs the desktop tests on Windows. SPLC was also checked live in the desktop app on 28 October for Applied Digital and Palantir.
+Lint, type checks, unit tests, the build, the browser tests on demo data and the desktop tests on recorded data all pass; the release build runs the desktop tests on Windows. SPLC was also checked live in the desktop app on 28 and 29 October for Applied Digital, Palantir, JPMorgan, Bank of America, Costco, Target and Home Depot, each stated share against the supplier's own filing.

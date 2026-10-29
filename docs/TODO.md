@@ -235,6 +235,7 @@ From the screenshots of 27 October (`docs/bloomberg-parity.md`, "Screenshots fro
 
 ## Released
 
+- 2.28.0 on 29 October 2026 (`docs/release-v2.28.0.md`), at your request: SPLC with own filings and federal records, the watchlist fixes, EE, and the data audit's fixes and new sources.
 - 2.27.0 on 27 October 2026 (`docs/release-v2.27.0.md`), at your request: everything under "Done in 2.27.0".
 - 2.26.0 on 26 October 2026 (`docs/release-v2.26.0.md`), at your request, before the work moved to another account.
 - 2.25.1 on 26 October 2026 (`docs/release-v2.25.1.md`), at your request. 2.25.0 was built but not published (see "Done in 2.25.1").
