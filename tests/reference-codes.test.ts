@@ -90,10 +90,11 @@ describe('Earnings Estimates Graph (EEG)', () => {
 });
 
 describe('Earnings Trends (EM)', () => {
+  const definition = { basis: 'adjusted' as const, ccy: 'USD', shareBasis: 'listing' as const, splitBasis: 'verified same convention', scope: 'issuer' };
   const none = { est: NaN, low: NaN, high: NaN, analysts: NaN, actual: NaN };
   const q = (label: string, end: string, actual: number, est: number, rev = NaN): QuarterView => ({
     label, end,
-    eps: { ...none, actual, est, analysts: 9, actualFrom: 'Yahoo Finance' },
+    eps: { ...none, ...definition, actual, est, analysts: 9, actualFrom: 'Yahoo Finance' },
     rev: { ...none, actual: rev, actualFrom: 'Yahoo Finance' },
   });
   // Newest first, as the consensus gives them: fiscal years end in May.
@@ -102,8 +103,8 @@ describe('Earnings Trends (EM)', () => {
       q('Q4 2026', '2026-05-31', 0.5, 0.4, 1200e6), q('Q3 2026', '2026-02-28', 0.4, 0.42, 1100e6), q('Q2 2026', '2025-11-30', 0.3, 0.3), q('Q1 2026', '2025-08-31', 0.2, 0.25),
       q('Q4 2025', '2025-05-31', 0.25, 0.2, 1000e6), q('Q3 2025', '2025-02-28', -0.1, -0.05), q('Q2 2025', '2024-11-30', 0.1, 0.1), q('Q1 2025', '2024-08-31', 0.1, 0.1),
     ],
-    next: { label: 'Q1 2027', end: '2026-08-31', eps: { ...none, est: 0.6, analysts: 8, estFrom: 'Yahoo Finance' }, rev: { ...none, est: 1300e6 }, yearAgoEps: 0.2, yearAgoRev: 1000e6 },
-    following: { label: 'Q2 2027', end: '2026-11-30', eps: { ...none, est: 0.7, analysts: 7 }, rev: none, yearAgoEps: -0.05 },
+    next: { label: 'Q1 2027', end: '2026-08-31', eps: { ...none, ...definition, est: 0.6, analysts: 8, estFrom: 'Yahoo Finance' }, rev: { ...none, est: 1300e6 }, yearAgoEps: 0.2, yearAgoRev: 1000e6 },
+    following: { label: 'Q2 2027', end: '2026-11-30', eps: { ...none, ...definition, est: 0.7, analysts: 7 }, rev: none, yearAgoEps: -0.05 },
     problems: [],
     loading: false,
   };
@@ -147,13 +148,15 @@ describe('Earnings Trends (EM)', () => {
     expect(lines[7].yoy).toBeCloseTo(100, 6);
     // Revenue: the reported figures first; the statements only where none was reported.
     expect(lines[7].revYoy).toBeCloseTo(20, 6);
+    const incompatible: Consensus = { ...mixed, past: mixed.past.map((x, i) => i >= 4 ? { ...x, eps: { ...x.eps, basis: 'gaap' } } : x) };
+    expect(quarterLines(incompatible, statements)[7].yoy).toBeNaN();
   });
 
   it("adds up a fiscal year's four reported quarters and carries on into Yahoo's consensus for the years to come", () => {
     const trends: EstimateTrend[] = [
-      { period: '0y', end: '2027-05-31', eps: { now: 2.4, d7: 2.4, d30: 2.3, d60: 2.2, d90: 2.1 }, up7: 0, up30: 1, down7: 0, down30: 0, analysts: 9, growth: 0.714, yearAgoEps: 1.4 },
-      { period: '+1y', end: '2028-05-31', eps: { now: 3, d7: 3, d30: 3, d60: 3, d90: 3 }, up7: 0, up30: 0, down7: 0, down30: 0, analysts: 6, growth: 0.25, yearAgoEps: 2.4 },
-      { period: '0q', end: '2026-08-31', eps: { now: 0.6, d7: 0.6, d30: 0.6, d60: 0.6, d90: 0.6 }, up7: 0, up30: 0, down7: 0, down30: 0, analysts: 8, growth: 2, yearAgoEps: 0.2 },
+      { ...definition, period: '0y', end: '2027-05-31', eps: { now: 2.4, d7: 2.4, d30: 2.3, d60: 2.2, d90: 2.1 }, up7: 0, up30: 1, down7: 0, down30: 0, analysts: 9, growth: 0.714, yearAgoEps: 1.4 },
+      { ...definition, period: '+1y', end: '2028-05-31', eps: { now: 3, d7: 3, d30: 3, d60: 3, d90: 3 }, up7: 0, up30: 0, down7: 0, down30: 0, analysts: 6, growth: 0.25, yearAgoEps: 2.4 },
+      { ...definition, period: '0q', end: '2026-08-31', eps: { now: 0.6, d7: 0.6, d30: 0.6, d60: 0.6, d90: 0.6 }, up7: 0, up30: 0, down7: 0, down30: 0, analysts: 8, growth: 2, yearAgoEps: 0.2 },
     ];
     const lines = yearLines(c, trends);
     expect(lines.map((l) => [l.label, l.reported])).toEqual([['FY 2025', true], ['FY 2026', true], ['FY 2027', false], ['FY 2028', false]]);

@@ -33,9 +33,11 @@ describe('corporate actions', () => {
 
 describe('consensus overview', () => {
   it("adds up a fiscal year's four reported quarters, and gives none when one is missing", () => {
-    const q = (end: string, actual: number) => ({ end, label: end, eps: { est: NaN, low: NaN, high: NaN, analysts: NaN, actual }, rev: { est: NaN, low: NaN, high: NaN, analysts: NaN, actual: NaN } });
+    const q = (end: string, actual: number) => ({ end, label: end, eps: { est: NaN, low: NaN, high: NaN, analysts: NaN, actual, basis: 'adjusted' as const, ccy: 'USD', shareBasis: 'listing' as const, splitBasis: 'same normalized series', scope: 'issuer', actualFrom: 'one provider' }, rev: { est: NaN, low: NaN, high: NaN, analysts: NaN, actual: NaN } });
     const c = { past: [q('2026-01-25', 0.89), q('2025-10-26', 1.3), q('2025-07-27', 1.05), q('2025-04-27', 0.81), q('2025-01-26', 0.89)], next: null, following: null, problems: [], loading: false };
     expect(fiscalAdjEps(c, t('2026-01-25'))).toBeCloseTo(4.05, 6);
     expect(fiscalAdjEps({ ...c, past: c.past.slice(0, 3) }, t('2026-01-25'))).toBeNaN();
+    expect(fiscalAdjEps({ ...c, past: c.past.filter((x) => x.end !== '2025-07-27') }, t('2026-01-25'))).toBeNaN();
+    expect(fiscalAdjEps({ ...c, past: c.past.map((x, i) => i ? x : { ...x, eps: { ...x.eps, basis: 'gaap' as const } }) }, t('2026-01-25'))).toBeNaN();
   });
 });

@@ -147,8 +147,13 @@ describe('an earlier answer kept after a failed refresh stays marked stale, with
     await loadHistory('ZZTEST');
     expect(historyData.get().by.ZZTEST).toMatchObject({ state: 'ok', at: keptAt, stale: true });
     await loadHistory('ZZTEST');
-    expect(api).toHaveBeenCalledTimes(2); // three hours old and stale: asked again
+    expect(api).toHaveBeenCalledTimes(1); // failed attempts use their own retry clock, not the old observation's age
+    vi.setSystemTime(Date.now() + 15 * 60_000);
+    await loadHistory('ZZTEST');
+    expect(api).toHaveBeenCalledTimes(2);
+    expect(historyData.get().by.ZZTEST.at).toBe(keptAt);
     api.mockImplementation(async () => ({ status: 200, text: history, at: Date.now() }) as never);
+    vi.setSystemTime(Date.now() + 15 * 60_000);
     await loadHistory('ZZTEST');
     expect(historyData.get().by.ZZTEST.stale).toBeUndefined();
     vi.setSystemTime(Date.now() + 60 * 60_000);

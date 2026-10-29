@@ -115,7 +115,7 @@ describe("Alpha Vantage's earnings and estimates (the owner's key)", () => {
   const estimates = data(parseAvEstimates(JSON.stringify(avEstimates)));
 
   it('reads each reported quarter with its date, session and EPS, and the estimates by period', () => {
-    expect(reports[0]).toEqual({ end: '2026-06-30', date: '2026-07-22', timing: 'Aft-mkt', epsEst: 2.93, epsActual: 2.93 });
+    expect(reports[0]).toEqual({ end: '2026-06-30', date: '2026-07-22', timing: 'Aft-mkt', epsEst: 2.93, epsActual: 2.93, basis: 'unknown', ccy: undefined, dataset: 'Alpha Vantage EARNINGS', sourceUrl: 'https://www.alphavantage.co/documentation/#earnings' });
     const q = estimates.find((e) => e.period === 'quarter' && e.end === '2026-06-30')!;
     expect(q.revEst).toBeCloseTo(17178737000, -3);
     expect(q.revAnalysts).toBe(9);
@@ -138,13 +138,16 @@ describe("Alpha Vantage's earnings and estimates (the owner's key)", () => {
     expect(c.following?.end).toBe('2026-12-31');
   });
 
-  it("keeps the estimate for a fast grower whose revenue came in far above it", () => {
-    // 2.5 times the estimate (a small company's surprise) is still the same basis; ten times is not.
+  it('retains an unknown-definition estimate separately from filed actuals at both similar and different magnitudes', () => {
     const statements = (x: number) => [{ end: day('2026-06-30'), rev: (17178737000 * x) / 1e6 }] as never;
     const beat = mergeConsensus({ av: { reports, estimates }, statements: statements(2.5), statementCcy: 'USD', fye: 12, now: day('2026-10-20') });
-    expect(beat.past.find((q) => q.end === '2026-06-30')!.rev.estFrom).toBe('Alpha Vantage');
+    const b = beat.past.find((q) => q.end === '2026-06-30')!;
+    expect(b.rev.est).toBeNaN();
+    expect(b.rev.actual).toBeCloseTo(17178737000 * 2.5, -3);
+    expect(b.revComparisons).toEqual(expect.arrayContaining([expect.objectContaining({ est: 17178737000, estFrom: 'Alpha Vantage', actual: NaN, basis: 'unknown' })]));
     const other = mergeConsensus({ av: { reports, estimates }, statements: statements(10), statementCcy: 'USD', fye: 12, now: day('2026-10-20') });
     expect(other.past.find((q) => q.end === '2026-06-30')!.rev.est).toBeNaN();
+    expect(other.past.find((q) => q.end === '2026-06-30')!.revComparisons).toEqual(expect.arrayContaining([expect.objectContaining({ est: 17178737000, estFrom: 'Alpha Vantage', actual: NaN })]));
   });
 
   it('says which key fills past quarters without an expected revenue', () => {

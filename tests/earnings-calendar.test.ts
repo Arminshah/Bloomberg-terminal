@@ -183,9 +183,10 @@ describe("FMP's history fills the revenue estimates of reported quarters", () =>
     const twd = mergeConsensus({ yahoo, fmpReports }).past[1];
     expect(twd.rev.est).toBeNaN();
     expect(twd.rev).toMatchObject({ actual: q.rev.actual, ccy: 'TWD', actualFrom: 'Yahoo Finance' });
-    // The same estimate beside revenue reported in dollars is used, and one far from it is not.
+    // Changing the actual's currency label is not proof of the FMP estimate's currency or issuer scope.
     const usd = mergeConsensus({ yahoo: { ...yahoo, revCcy: 'USD' }, fmpReports }).past[1];
-    expect(usd.rev).toMatchObject({ est: q.rev.actual * 0.98, actual: q.rev.actual, ccy: 'USD', estFrom: 'FMP' });
+    expect(usd.rev.est).toBeNaN();
+    expect(usd.rev).toMatchObject({ actual: q.rev.actual, ccy: 'USD', actualFrom: 'Yahoo Finance' });
     const far = parsed(parseFmpEarnings(JSON.stringify([{ symbol: 'TSM', date: reportDay, epsActual: 4.6, epsEstimated: 4.45, revenueEstimated: q.rev.actual / 31 }])));
     expect(mergeConsensus({ yahoo: { ...yahoo, revCcy: 'USD' }, fmpReports: far }).past[1].rev.est).toBeNaN();
   });

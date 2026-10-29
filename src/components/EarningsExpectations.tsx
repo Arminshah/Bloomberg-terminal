@@ -1,5 +1,7 @@
 import { fmtBig, fmtDay, fmtNum } from '../core/format';
-import { epsDisagreement, growth, growthSeries, surprisePct, timingLabel, type Consensus, type Expectation, type QuarterView } from '../data/live/consensus';
+import { useState } from 'react';
+import { epsBasisLabel, epsDisagreement, expectationNote, growth, growthSeries, surprisePct, verifiedEpsSurprise, timingLabel, type Consensus, type Expectation, type QuarterView } from '../data/live/consensus';
+import { earningsArchiveHealth, earningsEvidence, selectEarningsVersions, type EarningsHistoryView } from '../data/live/earnings-evidence';
 import type { FinPeriod } from '../data/fundamentals';
 
 /**
@@ -11,8 +13,8 @@ const ok = (n: number | undefined): n is number => n != null && Number.isFinite(
 const day = (iso: string) => fmtDay(Date.parse(`${iso}T00:00:00Z`));
 
 /** "Beat by 1.7%", "Missed by 2.3%", "In line"; empty without both figures. */
-export function verdict(e: Pick<Expectation, 'est' | 'actual'>): { text: string; cls: string } {
-  const pct = surprisePct(e);
+export function verdict(e: Pick<Expectation, 'est' | 'actual'>, verifiedEps = false): { text: string; cls: string } {
+  const pct = verifiedEps ? verifiedEpsSurprise(e as Expectation) : surprisePct(e);
   if (!ok(pct)) return { text: '', cls: '' };
   if (Math.abs(pct) < 0.05) return { text: 'In line', cls: '' };
   return pct > 0 ? { text: `Beat by ${fmtNum(pct, Math.abs(pct) < 9.95 ? 1 : 0)}%`, cls: 'up' } : { text: `Missed by ${fmtNum(-pct, Math.abs(pct) < 9.95 ? 1 : 0)}%`, cls: 'dn' };
@@ -21,18 +23,18 @@ export function verdict(e: Pick<Expectation, 'est' | 'actual'>): { text: string;
 const eps = (v: number) => (ok(v) ? fmtNum(v, 2) : '--');
 const rev = (v: number) => (ok(v) ? fmtBig(v) : '--');
 
-function Row({ label, e, fmt, disagree }: { label: string; e: Expectation; fmt: (v: number) => string; disagree?: string }) {
-  const v = disagree ? { text: 'Sources disagree', cls: 'amber' } : verdict(e);
-  const from = [e.estFrom && `expected: ${e.estFrom}`, e.actualFrom && `reported: ${e.actualFrom}`].filter(Boolean).join('; ');
+function Row({ label, e, fmt, disagree, isEps = false }: { label: string; e: Expectation; fmt: (v: number) => string; disagree?: string; isEps?: boolean }) {
+  const v = disagree ? { text: 'Sources disagree', cls: 'amber' } : verdict(e, isEps);
+  const from = expectationNote(e);
   return (
     <tr title={from || undefined}>
       <td className="amber">
-        {label}
+        {label}{isEps ? ` (${epsBasisLabel(e.basis)})` : ''}
         {e.ccy ? <span className="muted"> ({e.ccy})</span> : null}
       </td>
       <td className="num">{fmt(e.est)}</td>
       <td className="num white">{fmt(e.actual)}</td>
-      <td className={`num ${v.cls}`} title={disagree}>{v.text || (ok(e.actual) ? 'no estimate' : ok(e.est) ? 'not reported yet' : '--')}</td>
+      <td className={`num ${v.cls}`} title={disagree ?? from}>{v.text || (ok(e.actual) && ok(e.est) ? 'definition unverified' : ok(e.actual) ? 'no estimate' : ok(e.est) ? 'not reported yet' : '--')}</td>
     </tr>
   );
 }
@@ -68,7 +70,7 @@ export function LatestReport({ c, statements }: { c: Consensus; statements: FinP
           </tr>
         </thead>
         <tbody>
-          <Row label="Earnings per share" e={q.eps} fmt={eps} disagree={epsDisagreement(q)} />
+          <Row label="Earnings per share" e={q.eps} fmt={eps} disagree={epsDisagreement(q)} isEps />
           <Row label="Revenue" e={q.rev} fmt={rev} />
         </tbody>
       </table>
@@ -121,16 +123,16 @@ export function ExpectationsTable({ c }: { c: Consensus }) {
         <tbody>
           {c.past.slice(0, 8).map((q) => {
             const disagree = epsDisagreement(q);
-            const ve = disagree ? { text: 'Sources disagree', cls: 'amber' } : verdict(q.eps);
+            const ve = disagree ? { text: 'Sources disagree', cls: 'amber' } : verdict(q.eps, true);
             const vr = verdict(q.rev);
             return (
-              <tr key={`${q.label}:${q.end}`} title={[q.eps.estFrom && `EPS: ${q.eps.estFrom}`, q.rev.estFrom && `revenue: ${q.rev.estFrom}`].filter(Boolean).join('; ') || undefined}>
-                <td className="amber">{q.label}</td>
+              <tr key={`${q.label}:${q.end}`} title={expectationNote(q.eps)}>
+                <td className="amber">{q.label} <span className="muted">{epsBasisLabel(q.eps.basis)}{q.eps.stale ? ' · stale' : ''}</span></td>
                 <td className="hide-m">{q.date ? fmtDay(q.date) : `ended ${day(q.end)}`}</td>
                 <td className="hide-m muted">{timingLabel(q.timing)}</td>
                 <td className="num" title={q.eps.estFrom}>{eps(q.eps.est)}</td>
                 <td className="num white">{eps(q.eps.actual)}</td>
-                <td className={`num ${ve.cls}`} title={disagree}>{ve.text || '--'}</td>
+                <td className={`num ${ve.cls}`} title={disagree ?? expectationNote(q.eps)}>{ve.text || (ok(q.eps.est) && ok(q.eps.actual) ? 'definition unverified' : '--')}</td>
                 {hasRev ? (
                   <>
                     <td className="num" title={ok(q.rev.est) ? q.rev.estFrom : ok(q.rev.actual) ? c.revenueHint : undefined}>{rev(q.rev.est)}</td>
@@ -149,11 +151,37 @@ export function ExpectationsTable({ c }: { c: Consensus }) {
           <summary>Other provider EPS comparisons (reporting bases can differ)</summary>
           {c.past.filter((q) => q.alternativeEps).map((q) => (
             <div key={`${q.label}:${q.end}`}>
-              {q.label}: {q.eps.estFrom} expected {eps(q.eps.est)}, reported {eps(q.eps.actual)}; {q.alternativeEps!.estFrom} expected {eps(q.alternativeEps!.est)}, reported {eps(q.alternativeEps!.actual)}. Each comparison keeps its own source and basis.
+              {q.label}: {q.eps.estFrom} ({epsBasisLabel(q.eps.basis)}) expected {eps(q.eps.est)}, reported {eps(q.eps.actual)}; {q.alternativeEps!.estFrom} ({epsBasisLabel(q.alternativeEps!.basis)}) expected {eps(q.alternativeEps!.est)}, reported {eps(q.alternativeEps!.actual)}. Each comparison keeps its own source and basis.
             </div>
           ))}
         </details>
       ) : null}
     </div>
   );
+}
+
+/** Definitions and immutable local versions are visible without implying an unreconstructed original release. */
+export function EarningsEvidence({ c, security }: { c: Consensus | null; security: string }) {
+  const [view, setView] = useState<EarningsHistoryView>('latest');
+  const [asOf, setAsOf] = useState('');
+  const records = earningsEvidence.use((s) => s.by[security]) ?? [];
+  const archiveState = earningsArchiveHealth.use((s) => s.state);
+  const versions = selectEarningsVersions(records, view, asOf ? Date.parse(`${asOf}Z`) : Infinity);
+  return <details className="note" data-testid="earnings-evidence">
+    <summary>Definitions, source checks and observation versions</summary>
+    {(c?.past ?? []).slice(0, 8).map((q) => <div key={`${q.label}:${q.end}`}>
+      {q.label}: {expectationNote(q.eps)}. {q.eps.sourceUrl && <a href={q.eps.sourceUrl} target="_blank" rel="noreferrer">Source</a>}
+      {q.cutoffAt ? ` Estimate cutoff: ${new Date(q.cutoffAt).toISOString()} (${q.cutoffKind}).` : ' Announcement cutoff unavailable.'}
+      {q.alternativeEps && <div>Alternative: expected {eps(q.alternativeEps.est)}, actual {eps(q.alternativeEps.actual)} · {expectationNote(q.alternativeEps)}</div>}
+    </div>)}
+    <label className="fld">Observation view <select className="sel-inp" value={view} onChange={(e) => setView(e.target.value as EarningsHistoryView)}>
+      <option value="latest">Latest observed correction</option><option value="first-observed">First observed locally</option><option value="as-of">Local knowledge as of</option>
+    </select></label>
+    {view === 'as-of' && <label className="fld">As of (UTC) <input type="datetime-local" value={asOf} onChange={(e) => setAsOf(e.target.value)} /></label>}
+    <div>First observed means the first version this installation saved. A historical feed first fetched after a report cannot reconstruct its original reported actual or pre-release consensus.</div>
+    <div className={archiveState === 'memory-only' ? 'amber' : 'muted'} data-testid="earnings-archive-status">{archiveState === 'saved' ? 'Observation history saved locally.' : archiveState === 'memory-only' ? 'Local history storage is unavailable or full. These versions remain in this session; export them before closing.' : 'Local history persistence has not yet been confirmed.'} Storage is finite; recorded history is not a complete provider archive.</div>
+    {versions.length ? <table className="tbl"><thead><tr><th>Period</th><th>Observation</th><th className="num">Value</th><th>Definition / source</th><th>First seen (UTC)</th><th>Revision</th></tr></thead><tbody>
+      {versions.slice(-80).map((o) => <tr key={o.id}><td>{o.fiscalLabel}</td><td>{o.metric} {o.role}</td><td className="num">{fmtNum(o.value, o.metric === 'eps' ? 3 : 0)}</td><td>{epsBasisLabel(o.basis)} {o.currency} · {o.source}</td><td>{o.observedAt ? new Date(o.observedAt).toISOString() : 'unknown'}</td><td title={o.revisionOf ? `Revises ${o.revisionOf}` : undefined}>{o.id}{o.revisionOf ? ' (correction)' : ''}</td></tr>)}
+    </tbody></table> : <div>No eligible observation versions are saved for this view.</div>}
+  </details>;
 }

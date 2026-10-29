@@ -4,7 +4,7 @@ import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, Section, KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtEarnDate, fmtIso, fmtMln, fmtNum, fmtPct } from '../core/format';
-import { earningsHistory, earningsReaction, financials, isUpcomingReport, keyStats, lastReportDate, priceInCurrency, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
+import { earningsHistory, earningsReaction, financials, isUpcomingReport, lastReportDate, priceInCurrency, reportCcy, reportSessionDay, type EarningsEvent, type EarningsReaction } from '../data/fundamentals';
 import { fiscalAdjEps } from './EEO';
 import { engine, useHistoryVersion } from '../data/market';
 import type { FnProps } from '../terminal/types';
@@ -17,10 +17,10 @@ import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { finnhubAvailable, finnhubSymbol, useFinnhub, type FinnhubPart, type NextReport } from '../data/live/finnhub';
 import { exportActions } from '../components/ExportActions';
-import { canonicalQuarter, datedHistory, epsDisagreement, fiscalLabel, useConsensus } from '../data/live/consensus';
+import { canonicalQuarter, datedHistory, earningsAuditState, earningsEvidenceExport, epsBasisLabel, epsDisagreement, expectationNote, fiscalLabel, trailingComparableEps, useConsensus, verifiedEpsSurprise } from '../data/live/consensus';
 import { matchQuarter, surpriseStats } from '../data/ern';
 import { desktopData } from '../data/live/yahoo';
-import { ExpectationsTable, LatestReport } from '../components/EarningsExpectations';
+import { EarningsEvidence, ExpectationsTable, LatestReport } from '../components/EarningsExpectations';
 import { fmtDay } from '../core/format';
 import { DAY_MS } from '../data/calendar';
 import { peText } from './DESEquity';
@@ -71,6 +71,8 @@ interface ErnRow {
   surp: number;
   /** Set when two sources call the quarter a beat and a miss: their comparisons, for the tooltip. */
   disagree?: string;
+  epsBasis?: string;
+  peBasis?: string;
   /** Revenue reported and expected (millions), and the surprise, shown beside EPS whatever the measure. */
   revRep: number;
   revEst: number;
@@ -143,16 +145,10 @@ export function useErnReports(s: SecurityDef, measure: Measure) {
   // The P/E on a report day: the close against the four quarters' EPS to that report (comparable when all four
   // are known, else reported).
   const peAt = (i: number) => {
-    const four = reports.slice(i, i + 4);
-    if (four.length < 4 || !reports[i].r) return NaN;
-    const comp = four.map((x) => x.cq?.eps.actual ?? NaN);
-    const gaap = four.map((x) => x.h.actual ?? NaN);
-    const eps = comp.every(Number.isFinite) ? comp.reduce((a, b) => a + b, 0) : gaap.every(Number.isFinite) ? gaap.reduce((a, b) => a + b, 0) : NaN;
-    const d = reports[i].r!;
-    const k = d.to;
-    let close = NaN;
-    for (let j = daily.length - 1; j >= 0; j--) if (Math.floor(daily.t[j] / DAY_MS) <= k) { close = daily.c[j]; break; }
-    return eps > 0 ? (s.ccy === 'GBp' ? close / 100 : close) / eps : NaN;
+    // Historical daily prices and EPS can be revised onto different split/ADR bases.
+    // No dated normalization factor accompanies these inputs, so a historical multiple cannot be certified.
+    void i;
+    return NaN;
   };
   const quarterRows: ErnRow[] = reports.map(({ h, r, cq }, i) => {
     const e = measure === 'eps' ? cq?.eps : cq?.rev;
@@ -176,7 +172,8 @@ export function useErnReports(s: SecurityDef, measure: Measure) {
       reported,
       comp,
       est: estimate,
-      surp: !disagree && Number.isFinite(base) && Number.isFinite(estimate) && estimate !== 0 ? ((base - estimate) / Math.abs(estimate)) * 100 : NaN,
+      surp: disagree ? NaN : measure === 'eps' ? e ? verifiedEpsSurprise(e) : NaN : Number.isFinite(base) && Number.isFinite(estimate) && estimate !== 0 ? ((base - estimate) / Math.abs(estimate)) * 100 : NaN,
+      epsBasis: e ? epsBasisLabel(e.basis) : undefined,
       ...(disagree ? { disagree } : {}),
       revRep,
       revEst,
@@ -185,7 +182,7 @@ export function useErnReports(s: SecurityDef, measure: Measure) {
       pxTitle: r && Number.isFinite(r.pct) ? `${BASIS[r.basis]}: close of ${fmtDay(r.to * DAY_MS)} against close of ${fmtDay(r.from * DAY_MS)}` : r ? BASIS[r.basis] : h.dateUnknown ? 'Report date not given' : undefined,
       pe: peAt(i),
       future: false,
-      from: [e?.estFrom && `estimate: ${e.estFrom}`, e?.actualFrom && `comparable: ${e.actualFrom}`, gaapFrom && `reported: ${gaapFrom}`].filter(Boolean).join('; ') || undefined,
+      from: [e && expectationNote(e), gaapFrom && `reported: ${gaapFrom}`, 'Historical P/E unavailable: dated price/EPS share adjustments are not verified.'].filter(Boolean).join('; '),
     };
   });
   return { status, real, consensus, reports, quarterRows, next, daily };
@@ -212,7 +209,9 @@ export function EE({ sec }: FnProps) {
   const cal = fparts.calendar as FinnhubPart<NextReport | null> | undefined;
   const nextFh = cal?.data ?? null;
   const nextConsensus = consensus?.next;
-  const { pe, epsLtm } = keyStats(s);
+  const trailing = trailingComparableEps(consensus?.past ?? []);
+  const epsLtm = trailing.value;
+  const pe = q && trailing.ccy && epsLtm > 0 ? priceInCurrency(s, q.last, trailing.ccy) / epsLtm : NaN;
   const f = financials(s);
   // Fiscal years: the year's reported EPS or revenue, its four quarters' comparable EPS, and the Q4 report's reaction.
   const yearRows: ErnRow[] = [...f.annual].reverse().map((y) => {
@@ -278,12 +277,13 @@ export function EE({ sec }: FnProps) {
   // The chart: comparable (or reported revenue) against the estimate, oldest first, coming periods' estimates after.
   const chartRows = [...rows].reverse();
   const csv = () => [
-    ['Ann Date', 'Per', 'Per End', 'Reported', 'Comp', 'Estimate', '%Surp', 'Revenue Reported (M)', 'Revenue Estimate (M)', 'Revenue %Surp', '%Px Chg', 'P/E'],
-    ...rows.map((r) => [r.ann, r.per, r.perEnd, r.reported, r.comp, r.est, r.surp, r.revRep, r.revEst, r.revSurp, r.px, r.pe]),
+    ['Ann Date', 'Per', 'Per End', 'Reported', 'Comp', 'Estimate', '%Surp', 'Revenue Reported (M)', 'Revenue Estimate (M)', 'Revenue %Surp', '%Px Chg', 'P/E', 'EPS basis', 'Definition / source / freshness'],
+    ...rows.map((r) => [r.ann, r.per, r.perEnd, r.reported, r.comp, r.est, r.surp, r.revRep, r.revEst, r.revSurp, r.px, r.pe, r.epsBasis, r.from]),
+    ...earningsEvidenceExport(consensus, s.id),
   ];
   const sorted = { estimate: chartRows.map((r, i) => ({ x: i, y: r.est, label: r.per })), comp: chartRows.map((r, i) => ({ x: i, y: measure === 'eps' ? r.comp : r.reported, label: r.per })) };
   return (
-    <div>
+    <div data-audit-state={JSON.stringify(earningsAuditState(consensus, s.id, Date.now(), real?.quarterly, ccy))}>
       <FnHeader
         code="EARNINGS"
         title="Earnings History"
@@ -322,7 +322,7 @@ export function EE({ sec }: FnProps) {
               <label className="fld">
                 Measure
                 <select className="sel-inp" aria-label="Measure" value={measure} onChange={(e) => setMeasure(e.target.value as Measure)}>
-                  <option value="eps">EPS, Adj+</option>
+                  <option value="eps">EPS, provider comparison</option>
                   <option value="rev">Revenue</option>
                 </select>
               </label>
@@ -343,6 +343,7 @@ export function EE({ sec }: FnProps) {
         }
       />
       <QuoteStrip sec={s} />
+      <EarningsEvidence c={consensus} security={s.id} />
       <div className="ern-top">
         <div>
           <div className="mov-title">Earnings/Surprise Snapshot</div>
@@ -352,7 +353,7 @@ export function EE({ sec }: FnProps) {
                 ['Industry', s.eq?.industry || '--'],
                 ['Next Announcement', nextConsensus?.dateDisagree ? <span key="na" className="amber" title={nextConsensus.dateDisagree} data-testid="earnings-disagree">Sources disagree</span> : nextDate],
                 ['Prior Announcement', prior ? fmtEarnDate(prior, false) : '--'],
-                ['P/E Actual', peText(pe, epsLtm)],
+                [`${epsBasisLabel(trailing.basis)} T12M P/E`, peText(pe, epsLtm)],
                 // Compound growth needs positive EPS at both ends: "NM" for a loss-maker.
                 [`${span && span < 5 ? `${span} Year` : '5 Year'} Growth`, Number.isFinite(growth5) ? fmtPct(growth5, 2) : first && lastY && span > 0 ? 'NM' : 'Not enough years'],
               ]}
@@ -360,9 +361,9 @@ export function EE({ sec }: FnProps) {
             <KV
               items={[
                 ['Exp. for Next Period', fmtV(nextEst) || '--'],
-                ['Average Surprise', stats.surprises ? fmtPct(stats.avgSurprise, 2) : consensus ? '--' : "Needs the analysts' estimates (desktop app)"],
+                [`Average Surprise (n=${stats.surprises}/${recent.length})`, stats.surprises ? fmtPct(stats.avgSurprise, 2) : consensus ? '--' : "Needs the analysts' estimates (desktop app)"],
                 ['Average Abs. Surp', stats.surprises ? `${fmtNum(stats.avgAbsSurprise, 2)}%` : '--'],
-                ['Surp/Px Chg Corr.', fmtNum(corr, 2)],
+                [`Surp/Px Chg Corr. (n=${recent.filter((r) => Number.isFinite(r.surp) && Number.isFinite(r.px)).length})`, fmtNum(corr, 2)],
                 ['Average Abs. Px Chg', stats.moves ? `${fmtNum(stats.avgAbsMove, 2)}%` : '--'],
               ]}
             />
@@ -426,7 +427,7 @@ export function EE({ sec }: FnProps) {
               <td className="hide-m muted">{r.perEnd}</td>
               <td className="hide-m muted">{r.future && r.confirmed ? 'C' : ''}</td>
               <td className="num white">{r.future ? '' : fmtV(r.reported) || '--'}</td>
-              {measure === 'eps' && <td className="num cyan">{fmtV(r.comp)}</td>}
+              {measure === 'eps' && <td className="num cyan" title={r.epsBasis}>{fmtV(r.comp)} <span className="muted">{r.epsBasis}</span></td>}
               <td className="num">{fmtV(r.est)}</td>
               <td className="num">{r.disagree ? <span className="amber" title={r.disagree}>disagree</span> : Number.isFinite(r.surp) ? <Chg v={r.surp} pct dec={2} /> : ''}</td>
               {measure === 'eps' && (
@@ -446,7 +447,7 @@ export function EE({ sec }: FnProps) {
       <div className="note">
         Reported: {measure === 'eps' ? 'diluted EPS' : 'revenue (millions)'} from the company&apos;s statements. {measure === 'eps' ? "Comp: EPS on the analysts' basis (usually adjusted), from the source that compares it with the estimate; %Surp sets Comp against the estimate. Revenue (millions) is shown beside EPS: reported on the estimate's basis where a source gives both, else the statements'. " : "%Surp sets reported revenue against the analysts' estimate. "}
         %Px Chg: the share price&apos;s close-to-close change around each report (before the open: the report day against the previous close; after the close: the next session against the report day). C marks a confirmed date; ~ an expected one.
-        {annual ? " Annual view: the fiscal year's figures, its four quarters' comparable EPS added up, and the fourth-quarter report's price change; coming years show the analysts' consensus." : ''}
+        Surprise averages exclude missing estimates, unresolved definitions and equivalent-metric conflicts. Historical P/E requires verified dated split and share normalization and remains blank without it. {annual ? " Annual view: the fiscal year's figures, its four quarters' comparable EPS added up, and the fourth-quarter report's price change; coming years show the analysts' consensus." : ''}
       </div>
       {consensus ? (
         <Section title="Expected and reported, by quarter" right={consensus.problems.length && !consensus.past.length ? consensus.problems.join(' ') : consensus.problems.length ? <span className="muted" title={consensus.problems.join(' ')}>some sources unavailable</span> : undefined}>

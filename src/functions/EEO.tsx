@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { QuoteStrip } from '../components/QuoteStrip';
+import { EarningsEvidence } from '../components/EarningsExpectations';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtIso, fmtNum, fmtPct, fmtDay } from '../core/format';
 import { DAY_MS } from '../data/calendar';
@@ -8,7 +9,7 @@ import { engine, useTick } from '../data/market';
 import { marketCap } from '../data/analytics';
 import { financials, majorPrice, reportCcy, type FinPeriod } from '../data/fundamentals';
 import { analystsAvailable, analystSymbol, estimateInCurrency, listedOutsideUs, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
-import { useConsensus, type Consensus } from '../data/live/consensus';
+import { earningsAuditState, earningsEvidenceExport, trailingComparableEps, useConsensus, type Consensus } from '../data/live/consensus';
 import { desktopData } from '../data/live/yahoo';
 import { useFundamentals } from '../data/live/yfund';
 import { execute } from '../terminal/exec';
@@ -33,14 +34,14 @@ type Line = {
 };
 
 const LINES: Line[] = [
-  { n: 11, label: 'EPS, Adj+', act: (_p, adj) => adj, est: (e) => e.epsAvg, count: (e) => e.analystsEps, kind: 'eps' },
+  { n: 11, label: 'EPS, Adjusted / provider est.', act: (_p, adj) => adj, est: (e) => e.epsAvg, count: (e) => e.analystsEps, kind: 'eps' },
   { n: 12, label: 'EPS, GAAP', act: (p) => p.eps, kind: 'eps' },
   { n: 13, label: 'Revenue', act: (p) => p.rev, est: (e) => e.revenueAvg / 1e6, count: (e) => e.analystsRevenue, kind: 'money' },
   { n: 14, label: 'Gross Margin %', act: (p) => (p.rev > 0 ? (p.gp / p.rev) * 100 : NaN), kind: 'pct' },
   { n: 15, label: 'Operating Profit', act: (p) => p.opInc, est: (e) => (e.ebitAvg ?? NaN) / 1e6, count: (e) => e.analystsRevenue, kind: 'money' },
   { n: 16, label: 'EBITDA', act: (p) => p.ebitda, est: (e) => (e.ebitdaAvg ?? NaN) / 1e6, count: (e) => e.analystsRevenue, kind: 'money' },
   { n: 17, label: 'Pre-Tax Profit', act: (p) => p.pretax, kind: 'money' },
-  { n: 18, label: 'Net Income Adj+', act: (p) => p.ni, est: (e) => e.netIncomeAvg / 1e6, count: (e) => e.analystsEps, kind: 'money' },
+  { n: 18, label: 'Net Income, filed / provider est.', act: (p) => p.ni, est: (e) => e.netIncomeAvg / 1e6, count: (e) => e.analystsEps, kind: 'money' },
 ];
 
 const fmtLine = (kind: Line['kind'], v: number) => (!Number.isFinite(v) ? '' : kind === 'eps' ? fmtNum(v, 3) : kind === 'pct' ? fmtNum(v, 3) : fmtBig(v * 1e6, 3));
@@ -48,11 +49,8 @@ const fmtLine = (kind: Line['kind'], v: number) => (!Number.isFinite(v) ? '' : k
 /** The fiscal year's comparable (adjusted) EPS: its four reported quarters added up, when all four are known. */
 export function fiscalAdjEps(c: Consensus | null | undefined, yearEnd: number): number {
   if (!c || !Number.isFinite(yearEnd)) return NaN;
-  const qs = c.past.filter((q) => {
-    const end = Date.parse(`${q.end}T00:00:00Z`);
-    return end > yearEnd - 360 * DAY_MS && end <= yearEnd + 10 * DAY_MS && Number.isFinite(q.eps.actual);
-  });
-  return qs.length === 4 ? qs.reduce((a, q) => a + q.eps.actual, 0) : NaN;
+  const result = trailingComparableEps(c.past, new Date(yearEnd).toISOString().slice(0, 10));
+  return result.basis === 'adjusted' ? result.value : NaN;
 }
 
 export function EEO({ sec }: FnProps) {
@@ -80,6 +78,8 @@ export function EEO({ sec }: FnProps) {
   const series = (l: Line) => [last ? l.act(last, adjAct) : NaN, ...years.map((e) => (l.est ? l.est(e) : NaN))];
   const priorAct = (l: Line) => (prior ? l.act(prior, adjPrior) : NaN);
   const growth = (l: Line, i: number) => {
+    // Annual estimate feeds do not identify their EPS/net-income accounting methodology.
+    if ((l.n === 11 || l.n === 18) && i > 0) return NaN;
     const v = series(l);
     const base = i === 0 ? priorAct(l) : v[i - 1];
     if (l.kind === 'pct') return v[i] - base;
@@ -96,8 +96,8 @@ export function EEO({ sec }: FnProps) {
   // Enterprise value only with both debt and cash known: a missing balance is not a reported zero.
   const evBasis = Number.isFinite(ltm.debt) && Number.isFinite(ltm.cash);
   const ev = enterpriseValue(mcap, ltm.debt, ltm.cash);
-  const recent = consensus?.past.slice(0, 4) ?? [];
-  const ltmAdj = recent.length === 4 && recent.every((x) => Number.isFinite(x.eps.actual)) ? recent.reduce((a, x) => a + x.eps.actual, 0) : NaN;
+  const trailing = trailingComparableEps(consensus?.past ?? []);
+  const ltmAdj = trailing.basis === 'adjusted' && trailing.ccy === ccy ? trailing.value : NaN;
   // The next four quarters' EPS as the year-weighted blend of the next two fiscal years.
   const fy1 = years[0];
   const fy2 = years[1];
@@ -107,8 +107,9 @@ export function EEO({ sec }: FnProps) {
   // A multiple on a loss or negative book is not meaningful: "NM", not a blank.
   const nm = (a: number, b: number) => Number.isFinite(a) && a > 0 && Number.isFinite(b) && b <= 0;
   const multiples: { label: string; act: number; next: number; fy: number[]; pct?: boolean; nmAct?: boolean }[] = [
-    { label: 'Price/EPS Adj+', act: ratio(price, ltmAdj), nmAct: nm(price, ltmAdj), next: ratio(price, blend((e) => e.epsAvg)), fy: years.map((e) => ratio(price, e.epsAvg)) },
-    { label: 'Price/EPS GAAP', act: ratio(price, ltm.eps), nmAct: nm(price, ltm.eps), next: NaN, fy: years.map(() => NaN) },
+    { label: 'Price/EPS Adjusted', act: ratio(price, ltmAdj), nmAct: nm(price, ltmAdj), next: NaN, fy: years.map(() => NaN) },
+    { label: 'Price/EPS, provider estimate', act: NaN, next: ratio(price, blend((e) => e.epsAvg)), fy: years.map((e) => ratio(price, e.epsAvg)) },
+    { label: 'Price/EPS GAAP', act: ['quarters', 'trailing'].includes(ltm.basis ?? '') && !ltm.epsComputed && (!s.id.endsWith(' US Equity') || s.country === 'US') ? ratio(price, ltm.eps) : NaN, nmAct: ['quarters', 'trailing'].includes(ltm.basis ?? '') && !ltm.epsComputed && nm(price, ltm.eps), next: NaN, fy: years.map(() => NaN) },
     { label: 'Price/Book', act: ratio(mcap, ltm.equity), nmAct: nm(mcap, ltm.equity), next: NaN, fy: years.map(() => NaN) },
     { label: 'Price/Cash Flow', act: ratio(mcap, ltm.cfo), nmAct: nm(mcap, ltm.cfo), next: NaN, fy: years.map(() => NaN) },
     { label: 'EV/Revenue', act: ratio(ev, ltm.rev), nmAct: nm(ev, ltm.rev), next: ratio(ev, blend((e) => e.revenueAvg / 1e6)), fy: years.map((e) => ratio(ev, e.revenueAvg / 1e6)) },
@@ -119,10 +120,11 @@ export function EEO({ sec }: FnProps) {
   const csv = () => [
     ['Line', last ? `${yearLabel(new Date(last.end).toISOString())} Act` : 'Act', ...years.flatMap((e) => [`${yearLabel(e.date)} Est`, '#'])],
     ...LINES.map((l) => [l.label, last ? l.act(last, adjAct) : '', ...years.flatMap((e) => [l.est ? l.est(e) : '', l.count ? l.count(e) : ''])]),
+    ...earningsEvidenceExport(consensus, s.id),
   ];
   const lastLabel = last ? `FY ${new Date(last.end).getUTCFullYear()} Act` : 'Act';
   return (
-    <div>
+    <div data-audit-state={JSON.stringify(earningsAuditState(consensus, s.id, Date.now(), f.quarterly, ccy))}>
       <FnHeader
         code="ESTIMATES"
         title="Consensus Overview"
@@ -159,6 +161,7 @@ export function EEO({ sec }: FnProps) {
         }
       />
       <QuoteStrip sec={s} />
+      <EarningsEvidence c={consensus} security={s.id} />
       {!last ? (
         <div className="empty">{status === 'loading' ? 'Loading the statements…' : 'No reported fiscal year from the source for this security.'}</div>
       ) : (
@@ -246,12 +249,12 @@ export function EEO({ sec }: FnProps) {
             </tbody>
           </table>
           <div className="note">
-            In millions of {ccy} except per share. Act: the last reported fiscal year from the statements; EPS Adj+ is its four quarters&apos; comparable EPS (the analysts&apos; basis) added up. Est: the
+            In millions of {ccy} except per share. Act: the last reported fiscal year from the statements; adjusted EPS requires four consecutive quarters with one stated definition. Est: the
             analysts&apos; consensus{est?.source ? ` from ${est.source}` : ''} with the number of estimates (#); a line the source does not estimate is left blank
             {est?.state && est.state !== 'ok' && est.state !== 'loading' ? ` (${est.message ?? 'estimates unavailable'})` : ''}. Multiples at today&apos;s price and today&apos;s shares
             outstanding; enterprise value adds the latest debt and takes off the latest cash
             {evBasis ? '' : `, and is not given here because the statements leave ${!Number.isFinite(ltm.debt) && !Number.isFinite(ltm.cash) ? 'debt and cash' : !Number.isFinite(ltm.debt) ? 'debt' : 'cash'} blank`}. Next 4 Qtrs Est blends the next two
-            fiscal years by the time left in the current one.
+            fiscal years by the time left in the current one. Annual EPS estimates retain their provider basis; their methodology is not stated, so growth across an actual/estimate accounting basis is unavailable. GAAP and adjusted multiples are labelled separately. Historical split or ADR normalization is not inferred.
           </div>
         </>
       )}

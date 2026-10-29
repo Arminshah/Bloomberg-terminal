@@ -1,6 +1,7 @@
 import { createStore } from '../../core/store';
 import type { SecurityDef } from '../types';
 import { secTicker } from './sec';
+import type { EarningsMeta } from './earnings-evidence';
 
 /**
  * Alpha Vantage's earnings data for one US-listed company, with the owner's key (ALPHA_VANTAGE_API_KEY), asked by the
@@ -12,7 +13,8 @@ import { secTicker } from './sec';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Json = any;
 
-export interface AvReport {
+export interface AvReport extends EarningsMeta {
+  ccy?: string;
   /** Fiscal quarter end, YYYY-MM-DD. */
   end: string;
   /** Report date, YYYY-MM-DD. */
@@ -22,7 +24,8 @@ export interface AvReport {
   epsActual: number;
 }
 
-export interface AvEstimate {
+export interface AvEstimate extends EarningsMeta {
+  ccy?: string;
   /** Fiscal period end, YYYY-MM-DD. */
   end: string;
   period: 'quarter' | 'year';
@@ -46,6 +49,11 @@ export interface AvEarnings {
 type Parsed<T> = { data: T } | { error: string };
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const num = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() && v !== 'None' ? Number(v) : NaN);
+const definition = (r: Json): EarningsMeta & { ccy?: string } => ({
+  basis: /^(?:non.?gaap|adjusted)$/i.test(String(r?.methodology)) ? 'adjusted' : /^gaap$/i.test(String(r?.methodology)) ? 'gaap' : 'unknown',
+  ccy: /^[A-Z]{3}$/.test(String(r?.currency)) ? r.currency : undefined,
+  sourceUrl: 'https://www.alphavantage.co/documentation/#earnings',
+});
 
 /** Alpha Vantage answers HTTP 200 with {"Information" | "Note" | "Error Message": ...} when it refuses. */
 function body(text: string): Json | { error: string } {
@@ -66,6 +74,7 @@ export function parseAvReports(text: string): Parsed<AvReport[]> {
   const rows: Json[] = Array.isArray(j?.quarterlyEarnings) ? j.quarterlyEarnings : [];
   const data = rows
     .map((r) => ({
+      ...definition(r), dataset: 'Alpha Vantage EARNINGS',
       end: String(r?.fiscalDateEnding ?? ''),
       date: String(r?.reportedDate ?? ''),
       timing: r?.reportTime === 'pre-market' ? 'Bef-mkt' : r?.reportTime === 'post-market' ? 'Aft-mkt' : '--',
@@ -84,6 +93,7 @@ export function parseAvEstimates(text: string): Parsed<AvEstimate[]> {
   const rows: Json[] = Array.isArray(j?.estimates) ? j.estimates : [];
   const data = rows
     .map((r) => ({
+      ...definition(r), dataset: 'Alpha Vantage EARNINGS_ESTIMATES',
       end: String(r?.date ?? ''),
       period: /year/i.test(String(r?.horizon ?? '')) ? 'year' : 'quarter',
       epsEst: num(r?.eps_estimate_average),
@@ -107,6 +117,7 @@ export interface AvEntry {
   data?: AvEarnings;
   message?: string;
   at?: number;
+  attemptedAt?: number;
   /** An earlier answer kept because the latest request failed (a spent allowance, a refusal). */
   stale?: boolean;
 }
@@ -149,7 +160,8 @@ export function loadAlphaVantage(symbol: string): Promise<AvEntry> {
     } catch {
       entry = { state: 'error', message: 'The Alpha Vantage request could not be completed.', at: Date.now() };
     }
-    if (entry.state === 'error' && have?.state === 'ok') entry = { ...have, message: entry.message };
+    if (entry.state === 'error' && have?.data) entry = { ...have, stale: true, message: entry.message };
+    entry.attemptedAt = Date.now();
     put(entry);
     return entry;
   })().finally(() => inflight.delete(symbol));

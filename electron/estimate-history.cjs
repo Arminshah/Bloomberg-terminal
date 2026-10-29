@@ -163,10 +163,12 @@ function parseFinviz(html) {
     const row = { date: at.day, period: periodOf(end.day), end: end.day, est: num(e.salesEstimate), actual: num(e.salesActual), ...(timing ? { timing } : {}) };
     if (Number.isFinite(row.est) || Number.isFinite(row.actual)) sales.push(row);
     // Its own comparison: the consensus against the EPS on the analysts' basis where it has one.
-    const ep = { date: row.date, period: row.period, end: row.end, est: per(e.epsEstimate), actual: per(e.epsActual), ...(timing ? { timing } : {}) };
+    const methodology = String(e.epsMethodology ?? e.methodology ?? '');
+    const basis = /^(?:non.?gaap|adjusted)$/i.test(methodology) ? 'adjusted' : /^gaap$/i.test(methodology) ? 'gaap' : 'unknown';
+    const ep = { date: row.date, period: row.period, end: row.end, est: per(e.epsEstimate), actual: per(e.epsActual), basis, unit: 'per-share', dataset: 'Finviz chartEvents EPS comparison', sourceUrl: 'https://finviz.com/', scheduledAt: e.dateTimestamp * 1000, ...(timing ? { timing } : {}) };
     if (Number.isFinite(ep.est) || Number.isFinite(ep.actual)) eps.push(ep);
     // Its "reported" EPS is the diluted EPS in the company's statements.
-    if (Number.isFinite(per(e.epsReportedActual))) gaap.push({ date: row.date, period: row.period, end: row.end, est: NaN, actual: per(e.epsReportedActual) });
+    if (Number.isFinite(per(e.epsReportedActual))) gaap.push({ date: row.date, period: row.period, end: row.end, est: NaN, actual: per(e.epsReportedActual), basis: 'gaap', epsType: 'diluted', unit: 'per-share', dataset: 'Finviz reported diluted EPS', sourceUrl: 'https://finviz.com/' });
   }
   const newest = (a, b) => b.date.localeCompare(a.date);
   sales.sort(newest);
@@ -239,19 +241,19 @@ const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
 /**
- * Whether a kept history still holds: past reports do not change, so a history keeps until the company's next report
- * (its coming row) for up to 30 days, three days without one, and 12 hours in any case; a page without figures 30 minutes.
+ * Histories can be corrected and coming consensus can change. Recheck within twelve hours, or sooner around a
+ * scheduled publication. This response cache is not the immutable observation journal.
  */
 function historyFresh(entry, now = Date.now()) {
   if (!entry || !Number.isFinite(entry.at)) return false;
   const age = now - entry.at;
   if (!entry.history) return age < 30 * 60_000;
-  if (age < 12 * HOUR) return true;
   const rows = [...(entry.history.sales ?? []), ...(entry.history.eps ?? [])];
   const fetchedDay = new Date(entry.at).toISOString().slice(0, 10);
   const coming = rows.filter((r) => !Number.isFinite(r.actual) && typeof r.date === 'string' && r.date >= fetchedDay).map((r) => r.date).sort()[0];
-  if (coming) return age < 30 * DAY && now < Date.parse(`${coming}T00:00:00Z`);
-  return age < 3 * DAY;
+  const releaseDay = coming ? Date.parse(`${coming}T00:00:00Z`) : NaN;
+  if (Number.isFinite(releaseDay) && now >= releaseDay - DAY && now < releaseDay + 2 * DAY) return age < HOUR;
+  return age < 12 * HOUR;
 }
 
 /**

@@ -4,6 +4,7 @@ import { DAY_MS } from '../calendar';
 import type { KeyedAnswer } from './lookup';
 import type { PastReport } from './finnhub';
 import { yahooGet } from './yahoo';
+import { sameEpsDefinition, type EarningsMeta } from './earnings-evidence';
 
 /**
  * Every company's quarterly reports by date, for EVENTS and the earnings screens (desktop app). Nasdaq's public
@@ -21,7 +22,8 @@ export type CalendarSource = 'Nasdaq' | 'Finnhub' | 'FMP';
 export type CalendarTiming = 'Bef-mkt' | 'Aft-mkt' | 'During-mkt' | '--';
 
 /** One company's report on Nasdaq's calendar. NaN wherever Nasdaq gives no figure. */
-export interface NasdaqReport {
+export interface NasdaqReport extends EarningsMeta {
+  ccy?: string;
   symbol: string;
   name: string;
   /** Report day, YYYY-MM-DD. */
@@ -40,7 +42,8 @@ export interface NasdaqReport {
 }
 
 /** A report on Finnhub's or FMP's calendar: expected and reported EPS and revenue. */
-export interface WindowReport {
+export interface WindowReport extends EarningsMeta {
+  ccy?: string;
   symbol: string;
   date: string;
   timing: CalendarTiming;
@@ -130,8 +133,9 @@ function nasdaqReported(r: any, date: string, now: number): boolean {
 export function parseNasdaqDay(text: string, date: string, now = Date.now()): { data: NasdaqReport[] } | { error: string } {
   const j = json(text);
   if (j === undefined) return { error: 'Nasdaq returned a page that is not JSON.' };
-  const rows: any[] = Array.isArray(j?.data?.rows) ? j.data.rows : [];
-  if (j?.data && j.data.rows != null && !Array.isArray(j.data.rows)) return { error: 'Nasdaq changed the calendar format.' };
+  if (!j || !Object.hasOwn(j, 'data') || (j.status?.rCode != null && j.status.rCode !== 200)) return { error: 'Nasdaq returned no valid earnings calendar.' };
+  const rows: any[] = Array.isArray(j.data?.rows) ? j.data.rows : [];
+  if (j.data != null && !Array.isArray(j.data.rows)) return { error: 'Nasdaq changed the calendar format.' };
   return {
     data: rows
       .map((r) => ({
@@ -194,7 +198,8 @@ export function parseFinnhubWindow(text: string): { data: WindowReport[] } | { e
   const j = json(text);
   if (j === undefined) return { error: 'Finnhub returned a page that is not JSON.' };
   if (typeof j?.error === 'string') return { error: j.error.slice(0, 200) };
-  const rows: any[] = Array.isArray(j?.earningsCalendar) ? j.earningsCalendar : [];
+  if (!Array.isArray(j?.earningsCalendar)) return { error: 'Finnhub changed the calendar format.' };
+  const rows: any[] = j.earningsCalendar;
   return {
     data: rows
       .map((r) => ({
@@ -233,13 +238,16 @@ export function parseFmpEarnings(text: string): { data: WindowReport[] } | { err
 
 // ------------------------------------------------------------------ merging
 
-export interface CalendarFigure {
+export interface CalendarFigure extends EarningsMeta {
+  ccy?: string;
   est: number;
   actual: number;
   /** The calendar that gave the figure, or (completed for one company) the source of its own history. */
   estFrom?: CalendarSource | string;
   actualFrom?: CalendarSource | string;
   analysts?: number;
+  /** Incomplete alternative pairs stay inspectable; they are not combined across unknown definitions. */
+  alternatives?: (EarningsMeta & { ccy?: string; source: CalendarSource; est: number; actual: number })[];
 }
 
 export interface CalendarReport {
@@ -291,14 +299,23 @@ export interface CalendarInput {
   fmpHistory?: WindowReport[];
 }
 
-/** The figure from the first source that gives both numbers, else each number from the first source that has it. */
-function figure(options: { from: CalendarSource; est: number; actual: number; analysts?: number }[]): CalendarFigure {
-  const both = options.find((o) => ok(o.est) && ok(o.actual));
-  if (both) return { est: both.est, actual: both.actual, estFrom: both.from, actualFrom: both.from, ...(ok(both.analysts) ? { analysts: both.analysts } : {}) };
-  const e = options.find((o) => ok(o.est));
-  const a = options.find((o) => ok(o.actual));
-  return { est: e?.est ?? NaN, actual: a?.actual ?? NaN, ...(e ? { estFrom: e.from } : {}), ...(a ? { actualFrom: a.from } : {}), ...(e && ok(e.analysts) ? { analysts: e.analysts } : {}) };
+/** Keep an estimate and actual in one source's comparison; unknown bases cannot justify a cross-provider join. */
+function figure(options: (EarningsMeta & { ccy?: string; from: CalendarSource; est: number; actual: number; analysts?: number })[], eps = false): CalendarFigure {
+  const current = options.filter((o) => !o.stale && !o.error);
+  const candidates = current.length ? current : options;
+  const both = candidates.find((o) => ok(o.est) && ok(o.actual));
+  const selected = both ?? candidates.find((o) => ok(o.actual)) ?? candidates.find((o) => ok(o.est));
+  if (!selected) return { est: NaN, actual: NaN };
+  const { from, analysts, ...values } = selected;
+  const estimate = !both && eps && !ok(selected.est) ? candidates.find((o) => ok(o.est) && sameEpsDefinition(selected, o)) : undefined;
+  const actual = !both && eps && !ok(selected.actual) ? candidates.find((o) => ok(o.actual) && sameEpsDefinition(selected, o)) : undefined;
+  return { ...values, ...(estimate ? { est: estimate.est, estFrom: estimate.from } : {}), ...(actual ? { actual: actual.actual, actualFrom: actual.from } : {}), ...(ok(selected.est) ? { estFrom: from } : {}), ...(ok(selected.actual) ? { actualFrom: from } : {}), ...(ok(analysts) ? { analysts } : {}), ...(options.length > 1 ? { alternatives: options.filter((o) => o !== selected).map(({ from, ...value }) => ({ ...value, source: from })) } : {}) };
 }
+
+const evidenceOf = (row: EarningsMeta & { ccy?: string }): EarningsMeta & { ccy?: string } => {
+  const { basis, shareBasis, epsType, unit, splitBasis, scope, dataset, sourceUrl, ccy, observedAt, publishedAt, attemptedAt, lastSuccessfulAt, revisionId, stale, error, estimateProvenance, estimateObservedAt, estimatePublishedAt } = row;
+  return { basis, shareBasis, epsType, unit, splitBasis, scope, dataset, sourceUrl, ccy, observedAt, publishedAt, attemptedAt, lastSuccessfulAt, revisionId, stale, error, estimateProvenance, estimateObservedAt, estimatePublishedAt };
+};
 
 /** YYYY-MM moved by `months`. */
 function shiftMonth(ym: string, months: number): string {
@@ -347,21 +364,21 @@ export function mergeCalendar(i: CalendarInput): CalendarReport[] {
     const listing = i.listings?.get(symbol);
     const yf = i.yahoo?.[symbol];
     const eps = figure([
-      ...(n ? [{ from: 'Nasdaq' as const, est: n.epsEst, actual: n.epsActual, analysts: n.analysts }] : []),
-      ...(f ? [{ from: 'Finnhub' as const, est: f.epsEst, actual: f.epsActual }] : []),
-      ...(p ? [{ from: 'FMP' as const, est: p.epsEst, actual: p.epsActual }] : []),
-    ]);
+      ...(n ? [{ ...evidenceOf(n), from: 'Nasdaq' as const, est: n.epsEst, actual: n.epsActual, analysts: n.analysts }] : []),
+      ...(f ? [{ ...evidenceOf(f), from: 'Finnhub' as const, est: f.epsEst, actual: f.epsActual }] : []),
+      ...(p ? [{ ...evidenceOf(p), from: 'FMP' as const, est: p.epsEst, actual: p.epsActual }] : []),
+    ], true);
     // FMP's revenue first: its earlier calendars give the same figure a year and a quarter before.
-    const rev = figure([...(p ? [{ from: 'FMP' as const, est: p.revEst, actual: p.revActual }] : []), ...(f ? [{ from: 'Finnhub' as const, est: f.revEst, actual: f.revActual }] : [])]);
+    const rev = figure([...(p ? [{ ...evidenceOf(p), from: 'FMP' as const, est: p.revEst, actual: p.revActual }] : []), ...(f ? [{ ...evidenceOf(f), from: 'Finnhub' as const, est: f.revEst, actual: f.revActual }] : [])]);
     const fiscalEnd = n?.fiscalEnd ?? '';
     // Year-earlier and quarter-earlier figures from the same source as this report's.
     const earlierNasdaq = (months: number, lo: number, hi: number) => {
-      const rows = nh.get(symbol) ?? [];
+      const rows = (nh.get(symbol) ?? []).filter((r) => !r.stale && !r.error);
       const byQuarter = fiscalEnd ? rows.find((r) => r.fiscalEnd === shiftMonth(fiscalEnd, -months) && ok(r.epsActual)) : undefined;
-      const byDate = rows.find((r) => ok(r.epsActual) && ms(date) - ms(r.date) >= lo * DAY_MS && ms(date) - ms(r.date) <= hi * DAY_MS);
+      const byDate = !fiscalEnd ? rows.find((r) => ok(r.epsActual) && ms(date) - ms(r.date) >= lo * DAY_MS && ms(date) - ms(r.date) <= hi * DAY_MS) : undefined;
       return (byQuarter ?? byDate)?.epsActual ?? NaN;
     };
-    const earlierFmp = (lo: number, hi: number) => (ph.get(symbol) ?? []).find((r) => ok(r.revActual) && ms(date) - ms(r.date) >= lo * DAY_MS && ms(date) - ms(r.date) <= hi * DAY_MS)?.revActual ?? NaN;
+    const earlierFmp = (lo: number, hi: number) => (ph.get(symbol) ?? []).find((r) => !r.stale && !r.error && ok(r.revActual) && ms(date) - ms(r.date) >= lo * DAY_MS && ms(date) - ms(r.date) <= hi * DAY_MS)?.revActual ?? NaN;
     const reported = ok(eps.actual);
     // A reported EPS against the year-earlier report on Nasdaq's calendar; a coming report's estimate against the
     // year-earlier EPS on its own line.
@@ -400,6 +417,7 @@ interface Part<T> {
   at?: number;
   /** An earlier answer kept because the latest request failed. */
   stale?: boolean;
+  attemptedAt?: number;
 }
 
 export const earningsCalendar = createStore<{
@@ -411,16 +429,53 @@ export const earningsCalendar = createStore<{
   yahoo: Record<string, YahooFact>;
 }>({ v: 0, days: {}, windows: {}, companies: {}, yahoo: {} });
 
-/** The reports of long-past days, kept across starts: they do not change, and growth needs a year of them. */
-type SettledRow = Pick<NasdaqReport, 'symbol' | 'fiscalEnd' | 'epsEst' | 'epsActual'>;
+/** Response cache for long-past days; the evidence journal below retains corrections independently. */
+type SettledRow = Pick<NasdaqReport, 'symbol' | 'fiscalEnd' | 'epsEst' | 'epsActual'> & EarningsMeta & { ccy?: string };
 const settled = createStore<{ by: Record<string, { at: number; rows: SettledRow[] }> }>({ by: {} }, 'earnings-days', 1);
 const SETTLED_AFTER = 20 * DAY_MS;
 const KEEP_DAYS = 400;
+/** Historical provider corrections are rechecked at most weekly for days a screen requests. */
+export const HISTORY_RECHECK_MS = 7 * DAY_MS;
 
-function keepSettled(date: string, rows: NasdaqReport[]) {
+export interface CalendarDayVersion {
+  /** Local knowledge time, not the issuer's publication time. */
+  observedAt: number;
+  rows: SettledRow[];
+  origin: 'source' | 'migrated-cache';
+}
+
+export const calendarHistory = createStore<{ by: Record<string, CalendarDayVersion[]> }>({ by: {} }, 'earnings-day-observations', 1);
+
+/** Keep the value's definition in the archive; repeated check clocks do not create corrections. */
+function settledRow(row: SettledRow): SettledRow {
+  const { symbol, fiscalEnd, epsEst, epsActual, basis, shareBasis, epsType, unit, splitBasis, scope, dataset, sourceUrl, ccy, publishedAt, revisionId, estimateProvenance, estimateObservedAt, estimatePublishedAt } = row;
+  return { symbol, fiscalEnd, epsEst, epsActual, basis, shareBasis, epsType, unit, splitBasis, scope, dataset, sourceUrl, ccy, publishedAt, revisionId, estimateProvenance, estimateObservedAt, estimatePublishedAt };
+}
+
+/** Append changed observations; never silently rewrite a previously observed historical day. */
+export function recordCalendarDay(date: string, rows: SettledRow[], observedAt: number, origin: CalendarDayVersion['origin'] = 'source'): void {
+  if (!ISO.test(date) || !Number.isFinite(observedAt) || observedAt <= 0) return;
+  const values = rows.map(settledRow).sort((a, b) => a.symbol.localeCompare(b.symbol));
+  calendarHistory.set((s) => {
+    const previous = s.by[date] ?? [];
+    const last = [...previous].sort((a, b) => b.observedAt - a.observedAt)[0];
+    if (last && JSON.stringify(last.rows) === JSON.stringify(values)) return s;
+    if (previous.some((p) => p.observedAt === observedAt && JSON.stringify(p.rows) === JSON.stringify(values))) return s;
+    return { by: { ...s.by, [date]: [...previous, { observedAt, rows: values, origin }] } };
+  });
+}
+
+/** A first-observed or knowledge-as-of view never claims to reconstruct an earlier issuer release. */
+export function calendarDayVersion(date: string, view: 'latest' | 'first-observed' | 'as-of' = 'latest', asOf = Infinity): CalendarDayVersion | undefined {
+  const rows = (calendarHistory.get().by[date] ?? []).filter((r) => view !== 'as-of' || r.observedAt <= asOf).sort((a, b) => a.observedAt - b.observedAt);
+  return view === 'first-observed' ? rows[0] : rows[rows.length - 1];
+}
+
+function keepSettled(date: string, rows: NasdaqReport[], observedAt: number) {
+  recordCalendarDay(date, rows, observedAt);
   if (ms(date) > Date.now() - SETTLED_AFTER) return;
   settled.set((s) => {
-    const by = { ...s.by, [date]: { at: Date.now(), rows: rows.map((r) => ({ symbol: r.symbol, fiscalEnd: r.fiscalEnd, epsEst: r.epsEst, epsActual: r.epsActual })) } };
+    const by = { ...s.by, [date]: { at: observedAt, rows: rows.map(settledRow) } };
     const days = Object.keys(by).sort();
     for (const d of days.slice(0, Math.max(0, days.length - KEEP_DAYS))) delete by[d];
     return { by };
@@ -430,7 +485,8 @@ function keepSettled(date: string, rows: NasdaqReport[]) {
 /** A settled day kept from an earlier start, as Nasdaq's lines (the fields growth uses). */
 function settledDay(date: string): NasdaqReport[] | undefined {
   const k = settled.get().by[date];
-  return k ? k.rows.map((r) => ({ ...r, name: '', date, timing: '--', marketCap: NaN, analysts: NaN, yearAgoEps: NaN })) : undefined;
+  if (k && !calendarHistory.get().by[date]?.length) recordCalendarDay(date, k.rows, k.at, 'migrated-cache');
+  return k ? k.rows.map((r) => ({ ...r, observedAt: k.at, lastSuccessfulAt: k.at, name: '', date, timing: '--', marketCap: NaN, analysts: NaN, yearAgoEps: NaN })) : undefined;
 }
 
 export function calendarAvailable(): boolean {
@@ -438,11 +494,24 @@ export function calendarAvailable(): boolean {
 }
 
 function answerPart<T>(res: KeyedAnswer, source: CalendarSource, parse: (text: string) => { data: T } | { error: string }): Part<T> {
-  if (res.gated) return { state: 'off', message: `${source} is switched off (${res.gated} on PROVIDERS).` };
-  if (res.missing || res.refused) return { state: 'needs-key', message: res.refused ? `The configured ${source} key has the wrong format.` : `Needs ${source === 'FMP' ? 'FMP_API_KEY' : 'FINNHUB_API_KEY'} (PROVIDERS).` };
-  if (!res.text) return { state: res.budget ? 'budget' : 'error', message: res.budget ? `Today's ${source} allowance in this app is spent.` : `${source}: ${res.error ?? (res.status ? `HTTP ${res.status}` : 'no answer')}` };
+  const attemptedAt = Date.now();
+  if (res.gated) return { state: 'off', attemptedAt, message: `${source} is switched off (${res.gated} on PROVIDERS).` };
+  if (res.missing || res.refused) return { state: 'needs-key', attemptedAt, message: res.refused ? `The configured ${source} key has the wrong format.` : `Needs ${source === 'FMP' ? 'FMP_API_KEY' : 'FINNHUB_API_KEY'} (PROVIDERS).` };
+  if (!res.text) return { state: res.budget ? 'budget' : 'error', attemptedAt, message: res.budget ? `Today's ${source} allowance in this app is spent.` : `${source}: ${res.error ?? (res.status ? `HTTP ${res.status}` : 'no answer')}` };
   const parsed = parse(res.text);
-  return 'error' in parsed ? { state: 'error', message: `${source}: ${parsed.error}`, at: res.at } : { state: 'ok', data: parsed.data, at: res.at, ...(res.stale ? { stale: true } : {}) };
+  if ('error' in parsed) return { state: 'error', message: `${source}: ${parsed.error}`, at: res.at, attemptedAt };
+  const failed = !!res.stale || !!res.error || res.status !== 200;
+  const at = res.at ?? (!res.cached && !failed ? attemptedAt : undefined);
+  const message = failed ? `${source}: ${res.error ?? (res.status ? `HTTP ${res.status}; earlier answer retained` : 'the source did not answer; earlier answer retained')}` : undefined;
+  const data = Array.isArray(parsed.data) ? parsed.data.map((r) => ({ ...r, ...(at != null ? { observedAt: at, lastSuccessfulAt: at } : {}), attemptedAt, ...(failed ? { stale: true, error: message } : {}) })) as T : parsed.data;
+  return { state: failed ? 'error' : 'ok', data, at, attemptedAt, ...(failed ? { stale: true, message } : {}) };
+}
+
+/** Preserve a usable old value while preserving the latest failure, rather than restoring state:ok. */
+function retainPart<T>(next: Part<T>, previous: Part<T> | undefined): Part<T> {
+  if (next.state === 'ok' || previous?.data === undefined) return next;
+  const data = Array.isArray(previous.data) ? previous.data.map((r) => ({ ...r, stale: true, error: next.message, attemptedAt: Date.now() })) as T : previous.data;
+  return { ...next, data, at: previous.at, attemptedAt: Date.now(), stale: true };
 }
 
 /**
@@ -482,12 +551,14 @@ function askDay(date: string, now: number) {
   const key = `day:${date}`;
   const recent = Math.abs(ms(date) - now) < 4 * DAY_MS;
   if (!again(key, recent ? 30 * 60_000 : 6 * 3_600_000) || queue.some((j) => j.key === key)) return;
-  // A long-past day read on an earlier start is not asked again.
+  // Hydrate long-past days immediately, then budget a correction check instead of freezing them forever.
   const kept = ms(date) < now - SETTLED_AFTER ? settledDay(date) : undefined;
   if (kept) {
-    asked.set(key, Date.now());
-    if (earningsCalendar.get().days[date]?.state !== 'ok') bump((s) => ({ days: { ...s.days, [date]: { state: 'ok', data: kept, at: settled.get().by[date].at } } }));
-    return;
+    if (!earningsCalendar.get().days[date]?.data) bump((s) => ({ days: { ...s.days, [date]: { state: 'ok', data: kept, at: settled.get().by[date].at } } }));
+    if (now - settled.get().by[date].at < HISTORY_RECHECK_MS) {
+      asked.set(key, Date.now());
+      return;
+    }
   }
   asked.set(key, Date.now());
   if (!earningsCalendar.get().days[date]) bump((s) => ({ days: { ...s.days, [date]: { state: 'loading' } } }));
@@ -500,12 +571,20 @@ function askDay(date: string, now: number) {
       } catch {
         part = { state: 'error', message: 'Nasdaq: the request could not be made.' };
       }
-      if (part.state !== 'ok') asked.delete(key);
-      else keepSettled(date, part.data ?? []);
+      if (part.message) part = { ...part, message: `${date} · ${part.message}` };
+      if (part.state !== 'ok' && recent) asked.delete(key);
+      else if (part.state === 'ok' && part.at != null) keepSettled(date, part.data ?? [], part.at);
       const kept = earningsCalendar.get().days[date];
-      bump((s) => ({ days: { ...s.days, [date]: part.state === 'ok' || !kept?.data ? part : { ...kept, message: part.message } } }));
+      bump((s) => ({ days: { ...s.days, [date]: retainPart(part, kept) } }));
     },
   });
+}
+
+/** Request specific calendar days through the shared, budgeted correction queue. */
+export function requestCalendarDays(dates: string[], now = Date.now()): void {
+  if (!calendarAvailable()) return;
+  for (const date of dates) if (ISO.test(date) && Number.isFinite(ms(date)) && isoDay(ms(date)) === date) askDay(date, now);
+  pump();
 }
 
 async function askWindow(source: 'finnhub' | 'fmp', from: string, to: string) {
@@ -521,7 +600,7 @@ async function askWindow(source: 'finnhub' | 'fmp', from: string, to: string) {
   }
   if (part.state === 'needs-key' || part.state === 'off' || part.state === 'error') asked.delete(key);
   const kept = earningsCalendar.get().windows[key];
-  bump((s) => ({ windows: { ...s.windows, [key]: part.state === 'ok' || !kept?.data ? part : { ...kept, message: part.message } } }));
+  bump((s) => ({ windows: { ...s.windows, [key]: retainPart(part, kept) } }));
 }
 
 /** Every US-listed stock's market value and sector from Nasdaq's stock list, loaded once every six hours. */
@@ -651,7 +730,7 @@ export function useMarketCalendar(from: string, to: string, history: boolean, en
       const now = Date.now();
       void askListings();
       // Nearest days first: today's and yesterday's reports before last week's.
-      for (const d of daysBetween(from, to).sort((a, b) => Math.abs(ms(a) - now) - Math.abs(ms(b) - now))) askDay(d, now);
+      requestCalendarDays(daysBetween(from, to).sort((a, b) => Math.abs(ms(a) - now) - Math.abs(ms(b) - now)), now);
       for (const [a, b] of chunks(from, to)) {
         void askWindow('finnhub', a, b);
         void askWindow('fmp', a, b);
@@ -674,25 +753,27 @@ export function useMarketCalendar(from: string, to: string, history: boolean, en
     const hist = history ? historyWindows(from, to) : [];
     const finnhub = windows('finnhub', from, to);
     const fmp = windows('fmp', from, to);
+    const nasdaqHistoryParts = history ? historyDays(from, to, isoDay(Date.now())).map((d) => s.days[d]) : [];
+    const fmpHistoryParts = hist.flatMap(([a, b]) => windows('fmp', a, b));
     const reports = mergeCalendar({
       nasdaq: rows(dayParts),
       finnhub: rows(finnhub),
       fmp: rows(fmp),
       listings: s.listings?.data,
       yahoo: s.listings?.state === 'ok' ? undefined : s.yahoo,
-      nasdaqHistory: history ? rows(historyDays(from, to, isoDay(Date.now())).map((d) => s.days[d])) : [],
-      fmpHistory: rows(hist.flatMap(([a, b]) => windows('fmp', a, b))),
+      nasdaqHistory: rows(nasdaqHistoryParts),
+      fmpHistory: rows(fmpHistoryParts),
     });
     const answered = (parts: (Part<unknown> | undefined)[]) => parts.length > 0 && parts.every((p) => p?.state === 'ok');
     const failed = (parts: (Part<unknown> | undefined)[]) => [...new Set(parts.filter((p) => p && p.state !== 'ok' && p.state !== 'loading' && p.message).map((p) => p!.message!))];
-    const problems = failed([...dayParts, ...finnhub, ...fmp, s.listings]);
+    const problems = failed([...dayParts, ...nasdaqHistoryParts, ...finnhub, ...fmp, ...fmpHistoryParts, s.listings]);
     return {
       reports,
       days: dayParts.length,
       loading: dayParts.filter((p) => !p || p.state === 'loading').length,
       revenueFrom: [...(answered(finnhub) ? ['Finnhub' as const] : []), ...(answered(fmp) ? ['FMP' as const] : [])],
       problems,
-      calendarProblems: failed([...dayParts, s.listings]),
+      calendarProblems: failed([...dayParts, ...nasdaqHistoryParts, s.listings]),
       listingsAt: s.listings?.state === 'ok' && s.listings.at ? s.listings.at : NaN,
       listingsProblem: s.listings && s.listings.state !== 'ok' && s.listings.state !== 'loading' ? s.listings.message ?? 'no answer' : '',
     };
@@ -716,7 +797,7 @@ export function requestCompanyEarnings(symbol: string | null) {
     }
     if (part.state !== 'ok') asked.delete(key);
     const kept = earningsCalendar.get().companies[symbol];
-    bump((s) => ({ companies: { ...s.companies, [symbol]: part.state === 'ok' || !kept?.data ? part : kept } }));
+    bump((s) => ({ companies: { ...s.companies, [symbol]: retainPart(part, kept) } }));
   })();
 }
 
@@ -724,18 +805,30 @@ export function requestCompanyEarnings(symbol: string | null) {
  * Everything the calendars hold for one company: FMP's reports (its history, then any calendar window) and
  * Finnhub's market calendar lines in the shape of its per-company history.
  */
-export function companyReports(symbol: string | null): { fmp: WindowReport[]; finnhub: PastReport[] } {
+export interface CompanyReports {
+  fmp: WindowReport[];
+  finnhub: (PastReport & EarningsMeta)[];
+  fmpMeta?: EarningsMeta & { at?: number };
+  finnhubMeta?: EarningsMeta & { at?: number };
+}
+
+export function companyReports(symbol: string | null): CompanyReports {
   if (!symbol) return { fmp: [], finnhub: [] };
   const s = earningsCalendar.get();
   const key = tickerKey(symbol);
-  const fromWindows = (source: string) => Object.entries(s.windows).filter(([k]) => k.startsWith(`${source}:`)).flatMap(([, p]) => (p.data ?? []).filter((r) => r.symbol === key));
-  const fmp = [...(s.companies[symbol]?.data ?? [])];
+  const fromWindows = (source: string) => Object.entries(s.windows).filter(([k]) => k.startsWith(`${source}:`)).flatMap(([, p]) => (p.data ?? []).filter((r) => r.symbol === key).map((r) => ({ ...r, ...(p.at != null ? { observedAt: p.at } : {}), ...(p.stale || p.state !== 'ok' ? { stale: true, error: p.message } : {}), ...(p.attemptedAt ? { attemptedAt: p.attemptedAt } : {}) })));
+  const companyPart = s.companies[symbol];
+  const fmp = [...(companyPart?.data ?? [])].map((r) => ({ ...r, ...(companyPart?.at != null ? { observedAt: companyPart.at, lastSuccessfulAt: companyPart.at } : {}), ...(companyPart?.attemptedAt ? { attemptedAt: companyPart.attemptedAt } : {}), ...(companyPart?.stale || (companyPart && companyPart.state !== 'ok') ? { stale: true, error: companyPart.message } : {}) }));
   for (const r of fromWindows('fmp')) if (!fmp.some((x) => x.date === r.date)) fmp.push(r);
   const finnhub = fromWindows('finnhub')
     .filter((r) => ok(r.epsActual) || ok(r.revActual))
     .map((r) => {
       const m = /^Q([1-4]) (\d{4})$/.exec(r.label ?? '');
-      return { date: r.date, hour: r.timing === 'Bef-mkt' ? 'bmo' : r.timing === 'Aft-mkt' ? 'amc' : r.timing === 'During-mkt' ? 'dmh' : '', quarter: m ? Number(m[1]) : NaN, year: m ? Number(m[2]) : NaN, epsEstimate: r.epsEst, epsActual: r.epsActual, revenueEstimate: r.revEst, revenueActual: r.revActual };
+      return { ...evidenceOf(r), date: r.date, hour: r.timing === 'Bef-mkt' ? 'bmo' : r.timing === 'Aft-mkt' ? 'amc' : r.timing === 'During-mkt' ? 'dmh' : '', quarter: m ? Number(m[1]) : NaN, year: m ? Number(m[2]) : NaN, epsEstimate: r.epsEst, epsActual: r.epsActual, revenueEstimate: r.revEst, revenueActual: r.revActual };
     });
-  return { fmp: fmp.sort((a, b) => b.date.localeCompare(a.date)), finnhub };
+  const metadata = (rows: EarningsMeta[]): EarningsMeta & { at?: number } => {
+    const latest = [...rows].filter((r) => r.observedAt != null).sort((a, b) => (b.observedAt ?? 0) - (a.observedAt ?? 0))[0];
+    return { ...(latest ? { observedAt: latest.observedAt, at: latest.observedAt, lastSuccessfulAt: latest.lastSuccessfulAt ?? latest.observedAt } : {}), ...(rows.some((r) => r.stale) ? { stale: true, error: rows.find((r) => r.error)?.error } : {}) };
+  };
+  return { fmp: fmp.sort((a, b) => b.date.localeCompare(a.date)), finnhub, ...(fmp.length || companyPart ? { fmpMeta: { ...metadata(fmp), ...(companyPart?.attemptedAt ? { attemptedAt: companyPart.attemptedAt } : {}), ...(companyPart && companyPart.state !== 'ok' ? { stale: true, error: companyPart.message } : {}) } } : {}), ...(finnhub.length ? { finnhubMeta: metadata(finnhub) } : {}) };
 }

@@ -8,6 +8,7 @@ import { fmtIso, fmtNum, fmtPct } from '../core/format';
 import { DAY_MS } from '../data/calendar';
 import { engine } from '../data/market';
 import { isoDay, tickerKey, useMarketCalendar, type CalendarReport } from '../data/live/earnings-calendar';
+import { epsBasisLabel, sameEpsDefinition } from '../data/live/earnings-evidence';
 import { BOARD_INDICES, membersAvailable, useIndexMembers, type Member } from '../data/live/index-members';
 import type { SecurityDef } from '../data/types';
 import { usePanelId } from '../terminal/panel';
@@ -52,6 +53,8 @@ export interface SeasonLine {
   /** Reported against expected, in percent of the estimate's size. */
   surprise: number;
   verdict?: Verdict;
+  /** The source definition and limits of a provider's historical comparison. */
+  comparisonNote: string;
   revEst: number;
   revAct: number;
   revSurprise: number;
@@ -86,19 +89,33 @@ export function seasonLines(reports: CalendarReport[], members: Member[], season
     const epsEst = r?.eps.est ?? NaN;
     const epsAct = r?.eps.actual ?? NaN;
     const yearAgo = r?.epsYearAgo ?? NaN;
+    const eps = r?.eps;
+    const current = !eps?.stale && !eps?.error;
+    const paired = !eps?.estFrom || !eps.actualFrom || eps.estFrom === eps.actualFrom || sameEpsDefinition(eps, eps);
+    const comparable = current && paired;
+    const comparisonNote = [
+      epsBasisLabel(eps?.basis),
+      eps?.estFrom ? `estimate: ${eps.estFrom}` : 'Estimate source not recorded',
+      eps?.actualFrom ? `actual: ${eps.actualFrom}` : 'Actual source not recorded',
+      eps && sameEpsDefinition(eps, eps) ? 'EPS definition stated' : 'Methodology, currency or share basis not fully verified; provider comparison is conditional',
+      eps?.estimateProvenance === 'pre-announcement-snapshot' ? 'Estimate captured before the announcement' : 'Historical estimate cutoff not independently recorded',
+      !paired ? 'Cross-provider definitions do not establish a comparable pair' : '',
+      !current ? `Stale: ${eps?.error ?? 'latest source check failed'}` : '',
+    ].filter(Boolean).join(' · ');
     return {
       member: m,
       report: r,
       reported: ok(epsAct) || ok(r?.rev.actual),
       epsEst,
       epsAct,
-      surprise: pctOf(epsAct, epsEst),
-      verdict: verdict(epsAct, epsEst),
+      surprise: comparable ? pctOf(epsAct, epsEst) : NaN,
+      verdict: comparable ? verdict(epsAct, epsEst) : undefined,
+      comparisonNote,
       revEst: r?.rev.est ?? NaN,
       revAct: r?.rev.actual ?? NaN,
-      revSurprise: pctOf(r?.rev.actual ?? NaN, r?.rev.est ?? NaN),
+      revSurprise: !r?.rev.stale && !r?.rev.error ? pctOf(r?.rev.actual ?? NaN, r?.rev.est ?? NaN) : NaN,
       epsYearAgo: yearAgo,
-      growth: ok(epsAct) && ok(yearAgo) && epsAct > 0 && yearAgo > 0 ? (epsAct / yearAgo - 1) * 100 : NaN,
+      growth: current && ok(epsAct) && ok(yearAgo) && epsAct > 0 && yearAgo > 0 ? (epsAct / yearAgo - 1) * 100 : NaN,
       shares: ok(m.cap) && m.last > 0 ? m.cap / m.last : NaN,
     };
   });
@@ -109,6 +126,8 @@ export interface SeasonStats {
   reported: number;
   /** Members whose EPS is compared with a forecast. */
   compared: number;
+  excludedComparisons: number;
+  conditionalComparisons: number;
   beat: number;
   inline: number;
   missed: number;
@@ -140,7 +159,7 @@ export function seasonStats(lines: SeasonLine[]): SeasonStats {
   const weighted = cmp.filter((l) => ok(l.shares));
   const sumA = weighted.reduce((a, l) => a + l.epsAct * l.shares, 0);
   const sumE = weighted.reduce((a, l) => a + l.epsEst * l.shares, 0);
-  const grown = rep.filter((l) => ok(l.epsAct) && ok(l.epsYearAgo) && ok(l.shares));
+  const grown = rep.filter((l) => !l.report?.eps.stale && !l.report?.eps.error && ok(l.epsAct) && ok(l.epsYearAgo) && ok(l.shares));
   const nowE = grown.reduce((a, l) => a + l.epsAct * l.shares, 0);
   const agoE = grown.reduce((a, l) => a + l.epsYearAgo * l.shares, 0);
   const coming = lines.filter((l) => !l.reported);
@@ -148,6 +167,8 @@ export function seasonStats(lines: SeasonLine[]): SeasonStats {
     members: lines.length,
     reported: rep.length,
     compared: cmp.length,
+    excludedComparisons: rep.filter((l) => ok(l.epsAct) && ok(l.epsEst) && !l.verdict).length,
+    conditionalComparisons: cmp.filter((l) => !l.report?.eps || !sameEpsDefinition(l.report.eps, l.report.eps)).length,
     beat: cmp.filter((l) => l.verdict === 'beat').length,
     inline: cmp.filter((l) => l.verdict === 'inline').length,
     missed: cmp.filter((l) => l.verdict === 'miss').length,
@@ -228,6 +249,7 @@ function SeasonBoard({ ix }: { ix: SecurityDef }) {
     { key: 'est', label: 'EPS est.', num: true, render: (l) => (ok(l.epsEst) ? fmtNum(l.epsEst, 2) : ''), sort: (l) => l.epsEst },
     { key: 'act', label: 'EPS', num: true, render: (l) => (ok(l.epsAct) ? fmtNum(l.epsAct, 2) : ''), sort: (l) => l.epsAct, cls: () => 'white' },
     { key: 'v', label: '', render: (l) => (l.verdict ? VERDICT[l.verdict] : ''), sort: (l) => l.verdict ?? '', cls: (l) => (l.verdict === 'beat' ? 'up' : l.verdict === 'miss' ? 'dn' : '') },
+    { key: 'evidence', label: 'EPS basis', render: (l) => <span className="muted" title={l.comparisonNote}>{epsBasisLabel(l.report?.eps.basis)}{l.report?.eps.stale ? ' · stale' : ''}</span>, sort: (l) => l.report?.eps.basis ?? '', hideM: true },
     { key: 'surp', label: 'Surprise', num: true, render: (l) => pct(l.surprise), sort: (l) => l.surprise, cls: (l) => dir(l.surprise) },
     { key: 'rsurp', label: 'Rev. surprise', num: true, render: (l) => pct(l.revSurprise), sort: (l) => l.revSurprise, cls: (l) => dir(l.revSurprise), hideM: true },
     { key: 'g', label: 'EPS YoY', num: true, render: (l) => (ok(l.growth) ? pct(l.growth) : ok(l.epsAct) && ok(l.epsYearAgo) ? 'NM' : ''), sort: (l) => l.growth, cls: (l) => dir(l.growth) },
@@ -241,8 +263,8 @@ function SeasonBoard({ ix }: { ix: SecurityDef }) {
     { key: 'ago', label: 'Year ago', num: true, render: (l) => (ok(l.report?.epsYearAgo) ? fmtNum(l.report!.epsYearAgo, 2) : ''), sort: (l) => l.report?.epsYearAgo ?? NaN, hideM: true },
   ];
   const csv = () => [
-    ['Ticker', 'Name', 'Sector', 'Report date', 'EPS est', 'EPS', 'Verdict', 'Surprise %', 'Revenue est', 'Revenue', 'Revenue surprise %', 'EPS year ago', 'EPS YoY %'],
-    ...lines.map((l) => [l.member.symbol, l.member.name, l.member.sector, l.report?.date ?? '', l.epsEst, l.epsAct, l.verdict ?? '', l.surprise, l.revEst, l.revAct, l.revSurprise, l.epsYearAgo, l.growth]),
+    ['Ticker', 'Name', 'Sector', 'Report date', 'EPS est', 'EPS', 'Verdict', 'Surprise %', 'Revenue est', 'Revenue', 'Revenue surprise %', 'EPS year ago', 'EPS YoY %', 'EPS evidence', 'Last successful EPS check'],
+    ...lines.map((l) => [l.member.symbol, l.member.name, l.member.sector, l.report?.date ?? '', l.epsEst, l.epsAct, l.verdict ?? '', l.surprise, l.revEst, l.revAct, l.revSurprise, l.epsYearAgo, l.growth, l.comparisonNote, l.report?.eps.lastSuccessfulAt ? new Date(l.report.eps.lastSuccessfulAt).toISOString() : '']),
   ];
   const status = !members?.length
     ? board?.state === 'error'
@@ -293,6 +315,7 @@ function SeasonBoard({ ix }: { ix: SecurityDef }) {
               items={[
                 ['Members reported', `${st.reported} of ${st.members} (${share(st.reported, st.members)})`],
                 ['EPS against the forecast', st.compared ? `${st.beat} beat (${share(st.beat, st.compared)}) · ${st.inline} in line · ${st.missed} missed (${share(st.missed, st.compared)})` : ''],
+                ['EPS comparison coverage', `${st.compared} compared of ${st.reported} reported · ${st.conditionalComparisons} with unverified definitions · ${st.excludedComparisons} stale or incompatible pairs excluded`],
                 ['Median EPS surprise', pct(st.medianSurprise)],
                 ['Earnings against expected (EPS × shares)', pct(st.aggSurprise)],
                 ['Revenue against the forecast', st.revCompared ? `${st.revBeat} of ${st.revCompared} above (${share(st.revBeat, st.revCompared)}) · median ${pct(st.medianRevSurprise)}` : cal.revenueFrom.length ? '' : 'Needs a Finnhub or FMP key (PROVIDERS)'],
@@ -354,8 +377,10 @@ function SeasonBoard({ ix }: { ix: SecurityDef }) {
           )}
           <div className="note">
             A member counts in the season when it reports between {fmtIso(season.from)} and {fmtIso(season.to)}. Beat, in line and missed compare EPS
-            with Nasdaq&apos;s forecast to the cent. Earnings add up each member&apos;s EPS times its shares (market value over price), so a large company
-            counts for more. Growth compares the year-ago quarter on the same basis; to or from a loss it is not meaningful (NM).
+            with its provider&apos;s forecast to the cent. These are conditional provider comparisons where methodology, currency, share basis or the
+            pre-announcement estimate cutoff is unverified. Stale and incompatible pairs are excluded. Earnings add up each member&apos;s EPS times its
+            shares (market value over price), so a large company counts for more. Growth uses the provider&apos;s year-ago quarter; to or from a loss it is
+            not meaningful (NM). Source details accompany each row and the export.
           </div>
         </>
       ) : (

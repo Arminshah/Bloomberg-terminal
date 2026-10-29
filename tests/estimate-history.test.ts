@@ -63,7 +63,7 @@ describe('Earnings history pages', () => {
   it("reads Finviz's earnings events: New York dates and sessions, quarter ends, revenue and EPS", () => {
     const p = main.parseFinviz(FINVIZ)!;
     expect(p.source).toBe('Finviz');
-    expect(p.eps[1]).toEqual({ date: '2026-10-07', period: '2026-08', end: '2026-08-31', est: -0.2954, actual: -0.82, timing: 'Aft-mkt' });
+    expect(p.eps[1]).toEqual({ date: '2026-10-07', period: '2026-08', end: '2026-08-31', est: -0.2954, actual: -0.82, timing: 'Aft-mkt', basis: 'unknown', unit: 'per-share', dataset: 'Finviz chartEvents EPS comparison', sourceUrl: 'https://finviz.com/', scheduledAt: 1791405000000 });
     expect(p.eps[0]).toMatchObject({ date: '2027-01-06', est: -0.17 });
     expect(p.sales).toHaveLength(3);
     expect(p.sales[1]).toEqual({ date: '2026-10-07', period: '2026-08', end: '2026-08-31', est: 116_288_600, actual: 341_875_000, timing: 'Aft-mkt' });
@@ -79,7 +79,7 @@ describe('Earnings history pages', () => {
   it('parses the figures the main process sends, in order, and nothing else', () => {
     const [h, z] = parseHistory(JSON.stringify([main.parseFinviz(FINVIZ), main.parseZacks(ZACKS)]))!;
     expect(h.source).toBe('Finviz');
-    expect(z.sales[0]).toEqual({ date: '2026-10-07', period: '2026-08', est: 134.1e6, actual: 341.88e6, timing: 'Aft-mkt' });
+    expect(z.sales[0]).toEqual({ date: '2026-10-07', period: '2026-08', est: 134.1e6, actual: 341.88e6, timing: 'Aft-mkt', basis: 'unknown' });
     expect(parseHistory(JSON.stringify([{ source: 'Other', eps: [], sales: [{ date: '2026-01-01', period: '2025-12', est: 1, actual: 1 }] }]))).toBeNull();
     expect(parseHistory(JSON.stringify(main.parseZacks(ZACKS)))).toBeNull();
     expect(parseHistory('not json')).toBeNull();
@@ -92,7 +92,8 @@ describe('Earnings history pages', () => {
     const history = parseHistory(JSON.stringify([main.parseZacks(ZACKS)]))!;
     const c = mergeConsensus({ history, fye: 5, statements: [statement('2026-08-31', 341.88), statement('2026-05-31', 240.35)], statementCcy: 'USD', now: Date.parse('2026-10-21') });
     const q1 = c.past.find((q) => q.label === 'Q1 2027')!;
-    expect(q1.rev).toMatchObject({ est: 134.1e6, actual: 341.88e6, estFrom: 'Zacks', actualFrom: 'statements' });
+    expect(q1.rev).toMatchObject({ est: 134.1e6, actual: 341.88e6, estFrom: 'Zacks', actualFrom: 'Zacks' });
+    expect(q1.revComparisons).toEqual(expect.arrayContaining([expect.objectContaining({ actual: 341.88e6, actualFrom: 'statements' })]));
     expect(q1.eps).toMatchObject({ est: -0.26, actual: -0.76, estFrom: 'Zacks' });
     expect(q1.timing).toBe('Aft-mkt');
     expect(c.past.find((q) => q.label === 'Q4 2026')!.rev.est).toBe(99.34e6);
@@ -100,12 +101,13 @@ describe('Earnings history pages', () => {
     expect(c.past.find((q) => q.label === 'Q2 2024')!.rev).toMatchObject({ est: 54.78e6, actual: 42.2e6, actualFrom: 'Zacks' });
   });
 
-  it('matches MarketBeat quarters by fiscal quarter; the filings keep the reported revenue', () => {
+  it('matches MarketBeat quarters by fiscal quarter and keeps each complete provider pair separate from filings', () => {
     const history = parseHistory(JSON.stringify([main.parseMarketBeat(MARKETBEAT)]))!;
     const c = mergeConsensus({ history, fye: 5, statements: [statement('2026-08-31', 341.88), statement('2026-05-31', 240.35)], statementCcy: 'USD', now: Date.parse('2026-10-21') });
     const q1 = c.past.find((q) => q.label === 'Q1 2027')!;
     expect(q1.end).toBe('2026-08-31');
-    expect(q1.rev).toMatchObject({ est: 116.29e6, actual: 341.88e6, estFrom: 'MarketBeat', actualFrom: 'statements' });
+    expect(q1.rev).toMatchObject({ est: 116.29e6, actual: 300.39e6, estFrom: 'MarketBeat', actualFrom: 'MarketBeat' });
+    expect(q1.revComparisons).toEqual(expect.arrayContaining([expect.objectContaining({ actual: 341.88e6, actualFrom: 'statements' })]));
     expect(c.past.find((q) => q.label === 'Q1 2026')!.rev).toMatchObject({ est: 52.25e6, actual: 64.22e6 });
     // "Q2 2026" reported in June does not fit a fiscal year ending in May (its quarter ended in November): left out.
     expect(c.past.some((q) => q.label === 'Q2 2026')).toBe(false);
@@ -117,23 +119,28 @@ describe('Earnings history pages', () => {
     const history = parseHistory(JSON.stringify([main.parseFinviz(FINVIZ), main.parseMarketBeat(MARKETBEAT)]))!;
     const c = mergeConsensus({ history, fye: 5, statements: [statement('2026-08-31', 341.88), statement('2026-05-31', 258.75)], statementCcy: 'USD', now: Date.parse('2026-10-21') });
     const q1 = c.past.find((q) => q.label === 'Q1 2027')!;
-    expect(q1.rev).toMatchObject({ est: 116_288_600, actual: 341.88e6, estFrom: 'Finviz', actualFrom: 'statements' });
+    expect(q1.rev).toMatchObject({ est: 116_288_600, actual: 341_875_000, estFrom: 'Finviz', actualFrom: 'Finviz' });
+    expect(q1.revComparisons).toEqual(expect.arrayContaining([expect.objectContaining({ actual: 341.88e6, actualFrom: 'statements' }), expect.objectContaining({ est: 116.29e6, actual: 300.39e6, actualFrom: 'MarketBeat' })]));
     // Finviz's own EPS comparison comes first.
     expect(q1.eps).toMatchObject({ est: -0.2954, actual: -0.82, estFrom: 'Finviz', actualFrom: 'Finviz' });
     expect(q1.timing).toBe('Aft-mkt');
     expect(c.past.find((q) => q.label === 'Q2 2026')!.rev).toMatchObject({ est: 89_651_900, actual: 126_588_000, estFrom: 'Finviz' });
-    expect(c.past.find((q) => q.label === 'Q4 2026')!.rev).toMatchObject({ est: 96.85e6, actual: 258.75e6, estFrom: 'MarketBeat' });
+    expect(c.past.find((q) => q.label === 'Q4 2026')!.rev).toMatchObject({ est: 96.85e6, actual: 240.35e6, estFrom: 'MarketBeat', actualFrom: 'MarketBeat' });
+    expect(c.past.find((q) => q.label === 'Q4 2026')!.revComparisons).toEqual(expect.arrayContaining([expect.objectContaining({ actual: 258.75e6, actualFrom: 'statements' })]));
     // The coming report is not a past quarter; it is the next one, with its revenue estimate.
     expect(c.past.some((q) => q.label === 'Q2 2027')).toBe(false);
     expect(c.next).toMatchObject({ label: 'Q2 2027', end: '2026-11-30' });
     expect(c.next!.rev).toMatchObject({ est: 180_500_000, estFrom: 'Finviz' });
   });
 
-  it('does not use an estimate of another order than the reported revenue, nor in another currency', () => {
+  it('retains a provider pair without joining it to statement values of a different magnitude or currency', () => {
     const history = parseHistory(JSON.stringify([main.parseZacks(ZACKS)]))!;
     const c = mergeConsensus({ history, fye: 5, statements: [statement('2026-08-31', 34188)], statementCcy: 'USD' });
-    expect(c.past.find((q) => q.label === 'Q1 2027')!.rev.est).toBeNaN();
+    const q = c.past.find((q) => q.label === 'Q1 2027')!;
+    expect(q.rev).toMatchObject({ est: 134.1e6, actual: 341.88e6, actualFrom: 'Zacks' });
+    expect(q.revComparisons).toEqual(expect.arrayContaining([expect.objectContaining({ actual: 34188e6, actualFrom: 'statements' })]));
     const eur = mergeConsensus({ history, fye: 5, statements: [], statementCcy: 'EUR' });
-    expect(eur.past.find((q) => q.label === 'Q1 2027')!.rev.est).toBeNaN();
+    expect(eur.past.find((q) => q.label === 'Q1 2027')!.rev).toMatchObject({ est: 134.1e6, actual: 341.88e6, actualFrom: 'Zacks' });
+    expect(eur.past.find((q) => q.label === 'Q1 2027')!.rev.ccy).toBeUndefined();
   });
 });

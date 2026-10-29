@@ -1,5 +1,6 @@
 import { createStore } from '../../core/store';
 import type { ReportTiming } from './consensus';
+import type { EarningsMeta } from './earnings-evidence';
 
 /**
  * A US-listed stock's earnings history (desktop app, no key): for each reported quarter, the consensus EPS and revenue
@@ -11,7 +12,10 @@ import type { ReportTiming } from './consensus';
 
 export type HistorySource = 'Finviz' | 'Zacks' | 'MarketBeat';
 
-export interface HistoryQuarter {
+export interface HistoryQuarter extends EarningsMeta {
+  ccy?: string;
+  /** Scheduled event time supplied by the page; never proof of actual publication. */
+  scheduledAt?: number;
   /** Report date, YYYY-MM-DD. */
   date: string;
   /** The fiscal quarter's last month, YYYY-MM (Finviz, Zacks); empty when the source names the quarter instead. */
@@ -48,7 +52,13 @@ function rows(list: unknown): HistoryQuarter[] {
     const end = typeof r.end === 'string' && DATE.test(r.end) ? r.end : undefined;
     if (!period && !label) continue;
     const timing = TIMINGS.find((t) => t === r.timing);
-    out.push({ date: r.date, period, ...(end ? { end } : {}), ...(label ? { label } : {}), est: num(r.est), actual: num(r.actual), ...(timing ? { timing } : {}) });
+    const basis = r.basis === 'gaap' || r.basis === 'adjusted' ? r.basis : 'unknown';
+    const meta: EarningsMeta = { basis };
+    if (r.epsType === 'basic' || r.epsType === 'diluted') meta.epsType = r.epsType;
+    if (r.unit === 'per-share' || r.unit === 'currency') meta.unit = r.unit;
+    for (const k of ['splitBasis', 'scope', 'dataset', 'sourceUrl'] as const) if (typeof r[k] === 'string') meta[k] = r[k];
+    if (r.shareBasis === 'listing' || r.shareBasis === 'ordinary') meta.shareBasis = r.shareBasis;
+    out.push({ ...meta, date: r.date, period, ...(end ? { end } : {}), ...(label ? { label } : {}), est: num(r.est), actual: num(r.actual), ...(timing ? { timing } : {}), ...(typeof r.ccy === 'string' && /^[A-Z]{3}$/.test(r.ccy) ? { ccy: r.ccy } : {}), ...(Number.isFinite(r.scheduledAt) ? { scheduledAt: r.scheduledAt as number } : {}) });
   }
   return out;
 }
@@ -89,6 +99,8 @@ interface HistoryEntry {
   message?: string;
   /** When the history was read; with `stale`, an earlier answer kept because the latest request failed. */
   at: number;
+  attemptedAt?: number;
+  lastSuccessfulAt?: number;
   stale?: boolean;
 }
 
@@ -104,7 +116,7 @@ function due(symbol: string, kind: HistoryKind): boolean {
   if (!have) return true;
   if (have.state === 'loading') return false;
   const enough = have.kind === 'earnings' || kind === 'calendar';
-  return !enough || Date.now() - have.at >= (have.state === 'ok' && !have.stale ? 12 * 3_600_000 : 15 * 60_000);
+  return !enough || Date.now() - (have.attemptedAt ?? have.at) >= (have.state === 'ok' && !have.stale ? 12 * 3_600_000 : 15 * 60_000);
 }
 
 /**
@@ -120,9 +132,9 @@ export async function loadHistory(symbol: string | null | undefined, kind: Histo
     const res = await window.arminDesktop!.estimateHistory!(kind, symbol);
     const data = res.text ? parseHistory(res.text) : null;
     // A copy kept from an earlier answer keeps its own time and is asked for again after 15 minutes.
-    set(data ? { state: 'ok', kind, data, at: res.at ?? Date.now(), ...(res.stale ? { stale: true } : {}) } : { state: 'error', kind, data: have?.data, message: res.error ?? (res.status ? `HTTP ${res.status}` : 'no answer'), at: Date.now() });
+    set(data ? { state: 'ok', kind, data, at: res.at ?? Date.now(), lastSuccessfulAt: res.stale ? have?.lastSuccessfulAt ?? res.at : res.at ?? Date.now(), attemptedAt: Date.now(), ...(res.stale ? { stale: true, message: res.error ?? 'Earlier history retained after the latest source check failed.' } : {}) } : { state: 'error', kind, data: have?.data, message: res.error ?? (res.status ? `HTTP ${res.status}` : 'no answer'), at: have?.at ?? 0, lastSuccessfulAt: have?.lastSuccessfulAt, attemptedAt: Date.now(), stale: !!have?.data });
   } catch {
-    set({ state: 'error', kind, data: have?.data, message: 'the request could not be made', at: Date.now() });
+    set({ state: 'error', kind, data: have?.data, message: 'the request could not be made', at: have?.at ?? 0, lastSuccessfulAt: have?.lastSuccessfulAt, attemptedAt: Date.now(), stale: !!have?.data });
   }
 }
 

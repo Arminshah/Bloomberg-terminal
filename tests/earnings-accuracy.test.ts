@@ -91,10 +91,11 @@ describe('fiscal earnings accuracy', () => {
 
   it('rejects an estimate saved after publication and still fills EPS independently of calendar revenue', () => {
     const partial: YahooEarnings = { ...y, past: [{ ...y.past[0], epsEst: NaN }] };
-    const kept = { epsEst: -0.3, epsCcy: 'USD', revEst: 300e6, revCcy: 'USD', revAnalysts: 3, at: day('2026-10-01') };
+    const kept = { epsEst: -0.3, epsCcy: 'USD', revEst: 300e6, revCcy: 'USD', revAnalysts: 3, basis: y.past[0].basis, shareBasis: y.past[0].shareBasis, splitBasis: y.past[0].splitBasis, scope: y.past[0].scope, at: day('2026-10-01') };
     const c = mergeConsensus({ yahoo: partial, finnhubPast: [{ ...calendar[0], epsEstimate: NaN }], kept: { '2026-08-31': kept } });
     expect(c.past[0].eps.est).toBe(-0.3);
     expect(c.past[0].rev.est).toBe(136.44e6);
+    expect(mergeConsensus({ yahoo: partial, kept: { '2026-08-31': { ...kept, basis: 'unknown' } } }).past[0].eps.est).toBeNaN();
     const after = mergeConsensus({ yahoo: partial, kept: { '2026-08-31': { ...kept, at: day('2026-10-08') } } });
     expect(after.past[0].eps.est).toBeNaN();
     expect(after.past[0].rev.est).toBeNaN();

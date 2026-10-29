@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { RealBadge } from '../components/Source';
+import { EarningsEvidence } from '../components/EarningsExpectations';
 import { exportActions } from '../components/ExportActions';
 import { XYChart, type XYSeries } from '../components/chart/XYChart';
 import { fmtBig, fmtIso, fmtNum, fmtPct } from '../core/format';
 import { DAY_MS } from '../data/calendar';
 import type { FinPeriod } from '../data/fundamentals';
-import { consensusData, growth, growthSeries, surprisePct, useConsensus, type Consensus, type EstimateTrend, type QuarterView } from '../data/live/consensus';
+import { consensusData, earningsEvidenceExport, epsBasisLabel, growth, growthSeries, verifiedEpsSurprise, useConsensus, type Consensus, type EstimateTrend, type QuarterView } from '../data/live/consensus';
+import { sameEpsDefinition } from '../data/live/earnings-evidence';
 import { desktopData } from '../data/live/yahoo';
 import { useFundamentals } from '../data/live/yfund';
 import { execute } from '../terminal/exec';
@@ -41,6 +43,7 @@ export interface TrendLine {
   revYoy: number;
   analysts: number;
   from?: string;
+  basis?: string;
 }
 
 const ok = (n: number | undefined): n is number => n != null && Number.isFinite(n);
@@ -61,18 +64,16 @@ function yearAgo(past: QuarterView[], q: QuarterView): QuarterView | undefined {
 /** The reported quarters (at most `max`, oldest first), then the next two to report. */
 export function quarterLines(c: Consensus, statements: FinPeriod[], max = 12): TrendLine[] {
   const past = c.past.filter((q) => q.end && (ok(q.eps.actual) || ok(q.rev.actual))).slice(0, max).reverse();
-  // Every reported EPS here is on the analysts' basis, whichever source gave it, so the quarters are compared with
-  // each other and never with the statements' GAAP EPS. Revenue is the same on any basis: the statements fill in.
   const dated = c.past.filter((q) => q.end);
-  const epsSeries = [{ from: 'reported EPS', points: dated.map((q) => ({ end: q.end, value: q.eps.actual })) }];
   const revSeries = [{ from: 'reported revenue', points: dated.map((q) => ({ end: q.end, value: q.rev.actual })) }, growthSeries(c, statements, {}).rev[1]];
   const out: TrendLine[] = past.map((q) => {
+    const epsSeries = [{ from: 'reported EPS', points: dated.filter((p) => sameEpsDefinition(q.eps, p.eps)).map((p) => ({ end: p.end, value: p.eps.actual })) }];
     const ge = growth(q.end, epsSeries);
     const gr = growth(q.end, revSeries);
     // growth() gives none to or from a loss; say so when the year before is known.
-    const before = yearAgo(dated, q);
+    const before = yearAgo(dated.filter((p) => sameEpsDefinition(q.eps, p.eps)), q);
     return {
-      label: q.label, end: q.end, reported: true, eps: q.eps.actual, est: q.eps.est, surprise: surprisePct(q.eps),
+      label: q.label, end: q.end, reported: true, eps: q.eps.actual, est: q.eps.est, surprise: verifiedEpsSurprise(q.eps), basis: epsBasisLabel(q.eps.basis),
       yoy: ge.yoy, nm: !ok(ge.yoy) && !!before && lossBase(q.eps.actual, before.eps.actual), qoq: ge.qoq,
       rev: q.rev.actual, revEst: q.rev.est, revYoy: gr.yoy, analysts: q.eps.analysts, from: q.eps.actualFrom,
     };
@@ -81,10 +82,10 @@ export function quarterLines(c: Consensus, statements: FinPeriod[], max = 12): T
     if (!q || !ok(q.eps.est)) continue;
     // The year-ago figures the source gives, or else the same quarter's as reported a year before.
     const ago = yearAgo(dated, q);
-    const agoEps = ok(q.yearAgoEps) ? q.yearAgoEps : ago?.eps.actual;
+    const agoEps = sameEpsDefinition(q.eps, q.eps) ? ok(q.yearAgoEps) ? q.yearAgoEps : ago && sameEpsDefinition(q.eps, ago.eps) ? ago.eps.actual : undefined : undefined;
     const agoRev = ok(q.yearAgoRev) ? q.yearAgoRev : ago?.rev.actual;
     out.push({
-      label: q.label, end: q.end, reported: false, eps: NaN, est: q.eps.est, surprise: NaN,
+      label: q.label, end: q.end, reported: false, eps: NaN, est: q.eps.est, surprise: NaN, basis: epsBasisLabel(q.eps.basis),
       yoy: change(q.eps.est, agoEps), nm: lossBase(q.eps.est, agoEps), qoq: NaN,
       rev: NaN, revEst: q.rev.est, revYoy: change(q.rev.est, agoRev), analysts: q.eps.analysts, from: q.eps.estFrom,
     });
@@ -109,14 +110,16 @@ export function yearLines(c: Consensus, trends: EstimateTrend[], max = 4): Trend
     const eps = fiscalAdjEps(c, Date.parse(`${end}T00:00:00Z`));
     if (!ok(eps)) continue;
     const prior = out[out.length - 1];
-    const base = prior && fiscalYearOf(end) - fiscalYearOf(prior.end) === 1 ? prior.eps : NaN;
-    out.push({ label: `FY ${fiscalYearOf(end)}`, end, reported: true, eps, est: NaN, surprise: NaN, yoy: change(eps, base), nm: lossBase(eps, base), qoq: NaN, rev: NaN, revEst: NaN, revYoy: NaN, analysts: NaN, from: 'reported quarters added up' });
+    const currentDefinition = c.past.find((q) => q.end === end)?.eps;
+    const priorDefinition = c.past.find((q) => q.end === prior?.end)?.eps;
+    const base = prior && currentDefinition && priorDefinition && sameEpsDefinition(currentDefinition, priorDefinition) && fiscalYearOf(end) - fiscalYearOf(prior.end) === 1 ? prior.eps : NaN;
+    out.push({ label: `FY ${fiscalYearOf(end)}`, end, reported: true, eps, est: NaN, surprise: NaN, yoy: change(eps, base), nm: lossBase(eps, base), qoq: NaN, rev: NaN, revEst: NaN, revYoy: NaN, analysts: NaN, from: 'reported quarters added up', basis: 'Adjusted' });
   }
   for (const t of trends.filter((x) => x.period.endsWith('y'))) {
     if (!ok(t.eps.now)) continue;
     out.push({
       label: `FY ${fiscalYearOf(t.end)}`, end: t.end, reported: false, eps: NaN, est: t.eps.now, surprise: NaN,
-      yoy: change(t.eps.now, t.yearAgoEps), nm: lossBase(t.eps.now, t.yearAgoEps), qoq: NaN,
+      yoy: sameEpsDefinition(t, t) ? change(t.eps.now, t.yearAgoEps) : NaN, nm: sameEpsDefinition(t, t) && lossBase(t.eps.now, t.yearAgoEps), qoq: NaN, basis: epsBasisLabel(t.basis),
       rev: NaN, revEst: NaN, revYoy: NaN, analysts: t.analysts, from: 'Yahoo Finance',
     });
   }
@@ -144,8 +147,9 @@ export function EM({ sec }: FnProps) {
   const lines = c ? (tab === 1 ? quarterLines(c, real?.quarterly ?? []) : yearLines(c, trends)) : [];
   const ccy = c?.past.find((q) => q.eps.ccy)?.eps.ccy ?? c?.next?.eps.ccy;
   const csv = () => [
-    ['Period', 'Ends', 'Reported', 'EPS', 'Consensus', 'Surprise %', 'EPS YoY %', 'EPS QoQ %', 'Revenue', 'Revenue consensus', 'Revenue YoY %', 'Analysts', 'Source'],
-    ...lines.map((l) => [l.label, l.end, l.reported ? 'yes' : 'no', l.eps, l.est, l.surprise, l.yoy, l.qoq, l.rev, l.revEst, l.revYoy, l.analysts, l.from ?? '']),
+    ['Period', 'Ends', 'Reported', 'EPS', 'Consensus', 'Surprise %', 'EPS YoY %', 'EPS QoQ %', 'Revenue', 'Revenue consensus', 'Revenue YoY %', 'Analysts', 'Source', 'EPS basis'],
+    ...lines.map((l) => [l.label, l.end, l.reported ? 'yes' : 'no', l.eps, l.est, l.surprise, l.yoy, l.qoq, l.rev, l.revEst, l.revYoy, l.analysts, l.from ?? '', l.basis]),
+    ...earningsEvidenceExport(c, s.id),
   ];
   const blank = !desktop
     ? 'Reported and expected earnings are read from the earnings sources in the desktop app. The browser demo has none, and none are generated.'
@@ -175,6 +179,7 @@ export function EM({ sec }: FnProps) {
           ...exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_EM.csv`, csv),
         ]}
       />
+      <EarningsEvidence c={c} security={s.id} />
       {blank ? (
         <div className="empty">{blank}</div>
       ) : (
@@ -218,15 +223,15 @@ export function EM({ sec }: FnProps) {
                   {tab === 1 && <td className="num hide-m">{ok(l.revEst) ? fmtBig(l.revEst, 2) : ''}</td>}
                   {tab === 1 && <td className={`num ${dir(l.revYoy)}`}>{pct(l.revYoy)}</td>}
                   <td className="num">{ok(l.analysts) ? l.analysts : ''}</td>
-                  <td className="muted hide-m">{l.from ?? ''}</td>
+                  <td className="muted hide-m">{l.basis} · {l.from ?? ''}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div className="note">
             {tab === 1
-              ? 'Reported quarters, then the next two. EPS is on the analysts\u2019 basis (adjusted), compared with the same quarter a year before and the quarter before; for a quarter to come, with the year-ago figure the source gives.'
-              : 'A past fiscal year is its four reported quarters added up (the analysts’ basis); a year to come is Yahoo Finance’s consensus against its year-ago EPS.'}{' '}
+              ? 'Reported quarters, then the next two. EPS methodology is named per row. Growth requires compatible accounting, currency, share and adjustment definitions; for a quarter to come, its own year-ago figure or a compatible reported quarter.'
+              : 'Adjusted fiscal-year EPS requires four consecutive compatible reported quarters; a year to come is Yahoo Finance’s consensus on its stated methodology.'}{' '}
             Growth to or from a loss is not meaningful (NM).
           </div>
         </>

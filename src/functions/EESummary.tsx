@@ -9,9 +9,11 @@ import { DAY_MS } from '../data/calendar';
 import { ratingSummary } from '../data/anr';
 import { blendedForwardEps, surpriseTally, type SurpriseTally } from '../data/earnings-summary';
 import { surpriseStats } from '../data/ern';
-import { keyStats, priceInCurrency } from '../data/fundamentals';
+import { priceInCurrency, reportCcy } from '../data/fundamentals';
 import { analystsAvailable, analystSymbol, listedOutsideUs, useAnalysts, type AnalystPart, type RatingTally, type TargetConsensus } from '../data/live/analysts';
-import { consensusData } from '../data/live/consensus';
+import { consensusData, earningsAuditState, epsBasisLabel, trailingComparableEps } from '../data/live/consensus';
+import { EarningsEvidence } from '../components/EarningsExpectations';
+import { sameEpsDefinition } from '../data/live/earnings-evidence';
 import { desktopData } from '../data/live/yahoo';
 import { engine, useTick } from '../data/market';
 import { execute } from '../terminal/exec';
@@ -45,7 +47,9 @@ export function EESummary({ sec }: FnProps) {
   const symbol = analystsAvailable() ? analystSymbol(s) : null;
   const parts = useAnalysts(symbol ? s : undefined, ['consensus', 'ratings']);
   const q = engine.quote(s.id);
-  const { pe, epsLtm } = keyStats(s);
+  const trailing = trailingComparableEps(consensus?.past ?? []);
+  const epsLtm = trailing.value;
+  const pe = q && trailing.ccy && epsLtm > 0 ? priceInCurrency(s, q.last, trailing.ccy) / epsLtm : NaN;
 
   // 1) Earnings history: the next and last reports, and the price's average move over the last eight (as EARNINGS).
   const nc = consensus?.next;
@@ -66,7 +70,7 @@ export function EESummary({ sec }: FnProps) {
   const today = new Date(engine.today * DAY_MS).toISOString().slice(0, 10);
   const bfEps = blendedForwardEps(cur && { end: cur.end, eps: cur.eps.now }, nxt && { end: nxt.end, eps: nxt.eps.now }, today);
   const px = q && (ccy || !listedOutsideUs(analystSymbol(s))) ? priceInCurrency(s, q.last, ccy) : NaN;
-  const bfPe = bfEps > 0 ? px / bfEps : NaN;
+  const bfPe = cur && nxt && sameEpsDefinition(cur, nxt) && bfEps > 0 ? px / bfEps : NaN;
   // Next year's growth is on the year before it: Yahoo's year-ago figure, else this year's consensus.
   const growthBase = nxt && Number.isFinite(nxt.yearAgoEps) ? nxt.yearAgoEps : cur?.eps.now ?? NaN;
 
@@ -102,9 +106,10 @@ export function EESummary({ sec }: FnProps) {
 
   const noAnalysts = desktop ? 'No source gives this company’s estimates.' : "The analysts' figures are read by the desktop app; the browser demo has none, and none are generated.";
   return (
-    <div>
+    <div data-audit-state={JSON.stringify(earningsAuditState(consensus, s.id, Date.now(), real?.quarterly, reportCcy(s)))}>
       <FnHeader code="EARNINGSSUMMARY" title="Earnings & Estimates" sec={s} sub={<>Quarterly · {sourceLabel(status, "demo figures; the analysts' figures need the desktop app")}</>} />
       <QuoteStrip sec={s} />
+      <EarningsEvidence c={consensus} security={s.id} />
       <div className="des-grid">
         <div className="des-col">
           <Box n={1} title="Earnings History" fn="EARNINGS" sec={s}>
@@ -126,7 +131,7 @@ export function EESummary({ sec }: FnProps) {
           <Box n={2} title="Consensus Overview" fn="ESTIMATES" sec={s}>
             <KV
               items={[
-                ['T12M P/E', peText(pe, epsLtm)],
+                [`${epsBasisLabel(trailing.basis)} T12M P/E`, peText(pe, epsLtm)],
                 [
                   <span key="bf" title="The price over the next twelve months' EPS: the current fiscal year's consensus for the part of it still to run, the next year's for the rest (Yahoo Finance)">
                     BF 12M P/E
@@ -184,7 +189,7 @@ export function EESummary({ sec }: FnProps) {
             </thead>
             <tbody>
               <tr>
-                <td className="amber" title="EPS on the analysts' basis (usually adjusted)">EPS Adj+</td>
+                <td className="amber" title="EPS on the selected provider's stated methodology">EPS {last?.epsBasis ?? 'Provider basis'}</td>
                 <td className="num">{last && Number.isFinite(last.comp) ? fmtNum(last.comp, 3) : '--'}</td>
                 <td className="num">{last && Number.isFinite(last.est) ? fmtNum(last.est, 3) : '--'}</td>
                 <td className="num">{last?.disagree ? <span className="amber" title={last.disagree}>Sources disagree</span> : last && Number.isFinite(last.surp) ? <Chg v={last.surp} pct /> : '--'}</td>
@@ -218,7 +223,7 @@ export function EESummary({ sec }: FnProps) {
             </thead>
             <tbody>
               <tr>
-                <td className="amber">EPS Adj+</td>
+                <td className="amber">EPS {epsBasisLabel(nc?.eps.basis)}</td>
                 <td className="num">{nc && Number.isFinite(nc.eps.est) ? fmtNum(nc.eps.est, 3) : '--'}</td>
                 <td className="num">{nc && Number.isFinite(nc.eps.analysts) ? nc.eps.analysts : '--'}</td>
                 <td className="num">{ahead && Number.isFinite(ahead.yoy) ? <Chg v={ahead.yoy} pct /> : ahead?.nm ? <span title="Not meaningful: to or from a loss">NM</span> : '--'}</td>

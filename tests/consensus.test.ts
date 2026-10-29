@@ -113,17 +113,20 @@ describe("the analysts' expectations against the reports", () => {
   });
 });
 
-describe('two sources that call a quarter a beat and a miss', () => {
+describe('EPS disagreement requires equivalent definitions', () => {
   // Applied Digital's quarter to 31 August 2026: Yahoo's adjusted -0.01 against -0.30 expected, Finnhub's -0.82
   // (the 10-Q's diluted EPS) against -0.31.
   const NONE = { est: NaN, actual: NaN, low: NaN, high: NaN, analysts: NaN };
   const yahoo = { ...NONE, est: -0.303, actual: -0.01, estFrom: 'Yahoo Finance', actualFrom: 'Yahoo Finance' };
   const finnhub = { ...NONE, est: -0.306, actual: -0.82, estFrom: 'Finnhub', actualFrom: 'Finnhub' };
 
-  it('says they disagree, with both comparisons', () => {
-    const text = epsDisagreement({ eps: yahoo, alternativeEps: finnhub })!;
-    expect(text).toContain('Yahoo Finance: -0.01 against -0.303 expected (beat by 97%)');
-    expect(text).toContain('Finnhub: -0.82 against -0.306 expected (miss by 168%)');
+  const definition = { basis: 'adjusted' as const, ccy: 'USD', shareBasis: 'listing' as const, splitBasis: 'same verified convention', scope: 'issuer' };
+  it('retains opposite-sign comparisons without claiming a conflict when methodology is unknown or different', () => {
+    expect(epsDisagreement({ eps: yahoo, alternativeEps: finnhub })).toBeUndefined();
+    expect(epsDisagreement({ eps: { ...yahoo, ...definition }, alternativeEps: { ...finnhub, ...definition, basis: 'gaap' } })).toBeUndefined();
+    const text = epsDisagreement({ eps: { ...yahoo, ...definition }, alternativeEps: { ...finnhub, ...definition } })!;
+    expect(text).toContain('Yahoo Finance -0.01 against -0.303 expected');
+    expect(text).toContain('Finnhub -0.82 against -0.306 expected');
   });
 
   it('says nothing when they agree on the direction, or only one compares', () => {
@@ -131,6 +134,10 @@ describe('two sources that call a quarter a beat and a miss', () => {
     expect(epsDisagreement({ eps: yahoo })).toBeUndefined();
     // Within 2% either way is in line, not a disagreement.
     expect(epsDisagreement({ eps: { ...yahoo, actual: -0.305 }, alternativeEps: { ...finnhub, actual: -0.30 } })).toBeUndefined();
+  });
+
+  it('detects materially different equivalent values even when both providers show a beat', () => {
+    expect(epsDisagreement({ eps: { ...yahoo, ...definition }, alternativeEps: { ...finnhub, ...definition, actual: -0.2 } })).toContain('same stated definition');
   });
 });
 

@@ -13,6 +13,8 @@ import { fundVersion, getRealFund, usTiming } from './yfund';
 import { createWants, registerRefresh } from '../../terminal/refresh';
 import { fmtDay, zonedParts } from '../../core/format';
 import { historyData, historyFor, loadHistory, periodMonth, type EstimateHistory, type HistoryQuarter } from './estimate-history';
+import { announcementCutoff, appendEarningsEvidence, consecutiveEps, earningsEvidence, epsBasisLabel, sameEpsDefinition, type EarningsMeta, type EpsBasis, type ObservationInput } from './earnings-evidence';
+export { consecutiveEps, epsBasisLabel } from './earnings-evidence';
 
 /**
  * What analysts expected of a company's quarterly reports, against what it reported: EPS and revenue, for the last
@@ -26,7 +28,7 @@ import { historyData, historyFor, loadHistory, periodMonth, type EstimateHistory
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Json = any;
 
-export interface Expectation {
+export interface Expectation extends EarningsMeta {
   /** The analysts' average; NaN when no source gives one. */
   est: number;
   low: number;
@@ -48,6 +50,10 @@ export interface QuarterView {
   label: string;
   /** The report date (ms), when a source gives it. */
   date?: number;
+  /** A source's actual announcement timestamp, distinct from a date-only calendar entry. */
+  announcedAt?: number;
+  cutoffAt?: number;
+  cutoffKind?: 'source-time' | 'session-boundary' | 'date-only';
   /** The report date is the source's estimate, not confirmed by the company. */
   dateEstimated?: boolean;
   /** Session of the announcement; absent when the provider gives only a date. */
@@ -58,6 +64,9 @@ export interface QuarterView {
   dateDisagree?: string;
   /** Another provider's EPS comparison, kept separate because reporting bases may differ. */
   alternativeEps?: Expectation;
+  /** Other normalized comparisons, including incompatible definitions; never averaged. */
+  epsComparisons?: Expectation[];
+  revComparisons?: Expectation[];
   eps: Expectation;
   rev: Expectation;
   /** For a quarter not reported yet, the same quarter a year earlier, as the source gives it. */
@@ -75,6 +84,8 @@ export interface Consensus {
   following: QuarterView | null;
   /** Why figures are missing, in the sources' words. */
   problems: string[];
+  /** Provider records withheld because their stated reporting chronology is still in the future. */
+  chronologyProblems?: string[];
   /** A source has not answered yet. */
   loading: boolean;
   /** The company's earnings releases filed with the SEC (8-K item 2.02), newest first, when loaded. */
@@ -95,6 +106,22 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const ms = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
 const daysApart = (a: string, b: string) => Math.abs(ms(a) - ms(b)) / DAY_MS;
 
+const complete = (e: Expectation) => ok(e.est) && ok(e.actual);
+function retainComparison(q: QuarterView, metric: 'eps' | 'rev', candidate: Expectation) {
+  if (!complete(candidate)) return;
+  const selected = q[metric];
+  const score = (e: Expectation) => (complete(e) ? 1 : 0) + (metric === 'eps' && sameEpsDefinition(e, e) ? 2 : 0) + (e.estimateProvenance === 'pre-announcement-snapshot' ? 4 : 0);
+  if (!complete(selected) || score(candidate) > score(selected)) q[metric] = candidate;
+  const alternative = q[metric] === candidate ? selected : candidate;
+  if (!ok(alternative.est) && !ok(alternative.actual)) return;
+  const equal = (a: Expectation, b: Expectation) => a.est === b.est && a.actual === b.actual && a.estFrom === b.estFrom && a.actualFrom === b.actualFrom && a.basis === b.basis && a.ccy === b.ccy;
+  if (equal(q[metric], alternative)) return;
+  const field = metric === 'eps' ? 'epsComparisons' : 'revComparisons';
+  const list = q[field] ?? [];
+  if (!list.some((e) => equal(e, alternative))) q[field] = [...list, alternative];
+  if (metric === 'eps') q.alternativeEps = q.epsComparisons?.[0];
+}
+
 // ------------------------------------------------------------------ Yahoo
 
 export interface YahooAhead {
@@ -112,7 +139,7 @@ export interface YahooAhead {
  * Yahoo's consensus EPS for one period now and 7, 30, 60 and 90 days before, with the analysts who raised or cut
  * their estimate in the last 7 and 30 days (its earningsTrend module): how the consensus changed (EEG).
  */
-export interface EstimateTrend {
+export interface EstimateTrend extends EarningsMeta {
   /** 0q this quarter, +1q next quarter, 0y this fiscal year, +1y next fiscal year. */
   period: '0q' | '+1q' | '0y' | '+1y';
   end: string;
@@ -130,7 +157,7 @@ export interface EstimateTrend {
 }
 
 export interface YahooEarnings {
-  past: { end: string; label: string; date?: number; epsEst: number; epsActual: number; epsCcy?: string; revActual: number }[];
+  past: (EarningsMeta & { end: string; label: string; date?: number; announcedAt?: number; epsEst: number; epsActual: number; epsCcy?: string; revActual: number })[];
   /** The currency of the reported revenue (the statements'). */
   revCcy?: string;
   next: YahooAhead | null;
@@ -163,9 +190,14 @@ export const YAHOO_EARNINGS_MODULES = 'earningsHistory,earningsTrend,calendarEve
 export const yahooEarningsPath = (symbol: string) => `/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=${YAHOO_EARNINGS_MODULES}`;
 
 /** Yahoo's quoteSummary with the earnings modules, as figures; NaN wherever Yahoo gives none. */
-export function parseYahooEarnings(answer: unknown): { data: YahooEarnings } | { error: string } {
+export function parseYahooEarnings(answer: unknown, symbol?: string, now = Date.now()): { data: YahooEarnings } | { error: string } {
   const row = (answer as Json)?.quoteSummary?.result?.[0];
   if (!row || typeof row !== 'object') return { error: 'Yahoo returned no earnings data.' };
+  const basisOf = (v: unknown): EpsBasis => /^(non.?gaap|adjusted)$/i.test(String(v)) ? 'adjusted' : /^gaap$/i.test(String(v)) ? 'gaap' : 'unknown';
+  const sourceUrl = symbol ? `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}/analysis/` : 'https://finance.yahoo.com/';
+  const historyBasis = basisOf(row.earningsHistory?.defaultMethodology);
+  const trendBasis = basisOf(row.earningsTrend?.defaultMethodology);
+  const definition = { sourceUrl, dataset: 'Yahoo earnings comparison', shareBasis: 'listing' as const, splitBasis: 'Yahoo comparison series', scope: 'issuer' };
   const chart: Json[] = Array.isArray(row.earnings?.earningsChart?.quarterly) ? row.earnings.earningsChart.quarterly : [];
   const fin: Json[] = Array.isArray(row.earnings?.financialsChart?.quarterly) ? row.earnings.financialsChart.quarterly : [];
   const revByLabel = new Map(fin.map((q) => [String(q?.date ?? ''), number(q?.revenue)]));
@@ -185,6 +217,9 @@ export function parseYahooEarnings(answer: unknown): { data: YahooEarnings } | {
         end,
         label: canonicalQuarter(c?.fiscalQuarter ?? c?.date) ?? end,
         ...(reported > ms(end) ? { date: reported } : {}),
+        ...(reported > ms(end) && reported % DAY_MS !== 0 ? { announcedAt: reported } : {}),
+        ...definition,
+        basis: historyBasis,
         // Both EPS figures must stay on the same provider/module basis.
         epsEst: c && ok(number(c.estimate)) && ok(number(c.actual)) ? number(c.estimate) : number(h?.epsEstimate),
         epsActual: c && ok(number(c.estimate)) && ok(number(c.actual)) ? number(c.actual) : number(h?.epsActual),
@@ -199,7 +234,7 @@ export function parseYahooEarnings(answer: unknown): { data: YahooEarnings } | {
     const end = isoOf(number(c?.periodEndDate));
     if (!ISO.test(end) || past.some((q) => q.end === end) || (!ok(number(c?.estimate)) && !ok(number(c?.actual)))) continue;
     const reported = number(c.reportedDate) * 1000;
-    past.push({ end, label: canonicalQuarter(c.fiscalQuarter ?? c.date) ?? end, ...(reported > ms(end) ? { date: reported } : {}), epsEst: number(c.estimate), epsActual: number(c.actual), epsCcy: undefined, revActual: revByLabel.get(String(c.date)) ?? NaN });
+    past.push({ end, label: canonicalQuarter(c.fiscalQuarter ?? c.date) ?? end, ...(reported > ms(end) ? { date: reported } : {}), ...(reported > ms(end) && reported % DAY_MS !== 0 ? { announcedAt: reported } : {}), ...definition, basis: historyBasis, epsEst: number(c.estimate), epsActual: number(c.actual), epsCcy: undefined, revActual: revByLabel.get(String(c.date)) ?? NaN });
   }
   past.sort((a, b) => b.end.localeCompare(a.end));
   const trend: Json[] = Array.isArray(row.earningsTrend?.trend) ? row.earningsTrend.trend : [];
@@ -211,8 +246,8 @@ export function parseYahooEarnings(answer: unknown): { data: YahooEarnings } | {
     const out: YahooAhead = {
       end: String(t.endDate),
       ...(period === '0q' && daysApart(isoOf(number(row.earnings?.earningsChart?.currentPeriodEndDate)), String(t.endDate)) <= 20 ? { label: canonicalQuarter(row.earnings?.earningsChart?.currentFiscalQuarter) } : {}),
-      eps: { est: number(e.avg), low: number(e.low), high: number(e.high), analysts: number(e.numberOfAnalysts), actual: NaN, ccy: ccyOf(e.earningsCurrency), estFrom: 'Yahoo Finance' },
-      rev: { est: number(r.avg), low: number(r.low), high: number(r.high), analysts: number(r.numberOfAnalysts), actual: NaN, ccy: ccyOf(r.revenueCurrency), estFrom: 'Yahoo Finance' },
+      eps: { ...definition, basis: trendBasis, est: number(e.avg), low: number(e.low), high: number(e.high), analysts: number(e.numberOfAnalysts), actual: NaN, ccy: ccyOf(e.earningsCurrency), estFrom: 'Yahoo Finance' },
+      rev: { sourceUrl, dataset: 'Yahoo revenue estimates', scope: 'issuer', est: number(r.avg), low: number(r.low), high: number(r.high), analysts: number(r.numberOfAnalysts), actual: NaN, ccy: ccyOf(r.revenueCurrency), estFrom: 'Yahoo Finance' },
       yearAgoEps: number(e.yearAgoEps),
       yearAgoRev: number(r.yearAgoRevenue),
     };
@@ -221,7 +256,8 @@ export function parseYahooEarnings(answer: unknown): { data: YahooEarnings } | {
   let next = ahead('0q');
   let following = ahead('+1q');
   // Just after a report, Yahoo can still name the reported quarter as the current one.
-  if (next && past[0] && next.end <= past[0].end) [next, following] = [following, null];
+  const latestReported = past.find((q) => ms(q.end) <= now && (!q.announcedAt || q.announcedAt <= now) && (q.announcedAt || !q.date || q.date <= now));
+  if (next && latestReported && next.end <= latestReported.end) [next, following] = [following, null];
   const cal = row.calendarEvents?.earnings;
   const date = number(cal?.earningsDate?.[0]) * 1000;
   if (next && date > 0 && date > ms(next.end)) {
@@ -231,13 +267,13 @@ export function parseYahooEarnings(answer: unknown): { data: YahooEarnings } | {
     const call = number(cal?.earningsCallDate?.[0]) * 1000;
     next.dateEstimated = cal?.isEarningsDateEstimate === true || !(call > 0 && call >= date - DAY_MS);
   }
-  return { data: { past, revCcy: ccyOf(row.earnings?.financialCurrency), next, following, trends: parseEstimateTrends(trend) } };
+  return { data: { past, revCcy: ccyOf(row.earnings?.financialCurrency), next, following, trends: parseEstimateTrends(trend).map((t) => ({ ...definition, basis: trendBasis, ...t })) } };
 }
 
 // ------------------------------------------------- estimates kept by the app
 
 /** A coming quarter's estimates as the app last saw them, kept after Yahoo drops them at the report. */
-export interface KeptEstimate {
+export interface KeptEstimate extends EarningsMeta {
   epsEst: number;
   epsCcy?: string;
   revEst: number;
@@ -248,7 +284,8 @@ export interface KeptEstimate {
 }
 
 /** By security id, then quarter end. */
-export const keptEstimates = createStore<{ by: Record<string, Record<string, KeptEstimate>> }>({ by: {} }, 'earnings-expectations', 1);
+// Keep version 1 readable: older snapshots remain explicitly without methodology/provenance.
+export const keptEstimates = createStore<{ by: Record<string, Record<string, KeptEstimate>>; vintages?: Record<string, Record<string, KeptEstimate[]>> }>({ by: {}, vintages: {} }, 'earnings-expectations', 1);
 const KEEP_QUARTERS = 6;
 const KEEP_SECURITIES = 400;
 
@@ -258,7 +295,16 @@ export function keepEstimates(id: string, y: YahooEarnings, now = Date.now()) {
   if (!ahead.length) return;
   keptEstimates.set((s) => {
     const mine = { ...(s.by[id] ?? {}) };
-    for (const a of ahead) mine[a.end] = { epsEst: a.eps.est, epsCcy: a.eps.ccy, revEst: a.rev.est, revCcy: a.rev.ccy, revAnalysts: a.rev.analysts, at: now };
+    const vintages = { ...(s.vintages?.[id] ?? {}) };
+    for (const a of ahead) {
+      const next: KeptEstimate = { epsType: a.eps.epsType, unit: a.eps.unit, publishedAt: a.eps.publishedAt, epsEst: a.eps.est, epsCcy: a.eps.ccy, revEst: a.rev.est, revCcy: a.rev.ccy, revAnalysts: a.rev.analysts, basis: a.eps.basis ?? 'unknown', shareBasis: a.eps.shareBasis, splitBasis: a.eps.splitBasis, scope: a.eps.scope, sourceUrl: a.eps.sourceUrl, dataset: a.eps.dataset, observedAt: now, at: now };
+      // Migrate the one legacy snapshot without inventing a definition or an earlier provider publication time.
+      const list = [...(vintages[a.end] ?? (mine[a.end] ? [mine[a.end]] : []))];
+      const same = (x: KeptEstimate) => JSON.stringify([x.epsEst, x.epsCcy, x.revEst, x.revCcy, x.basis, x.shareBasis, x.splitBasis, x.scope, x.epsType, x.unit, x.publishedAt]) === JSON.stringify([next.epsEst, next.epsCcy, next.revEst, next.revCcy, next.basis, next.shareBasis, next.splitBasis, next.scope, next.epsType, next.unit, next.publishedAt]);
+      if (!list.length || !same(list[list.length - 1])) list.push(next);
+      vintages[a.end] = list;
+      mine[a.end] = next;
+    }
     const ends = Object.keys(mine).sort().reverse();
     for (const e of ends.slice(KEEP_QUARTERS)) delete mine[e];
     const by = { ...s.by, [id]: mine };
@@ -267,7 +313,7 @@ export function keepEstimates(id: string, y: YahooEarnings, now = Date.now()) {
       const latest = (x: string) => Math.max(...Object.values(by[x]).map((k) => k.at));
       for (const old of ids.sort((a, b) => latest(a) - latest(b)).slice(0, ids.length - KEEP_SECURITIES)) delete by[old];
     }
-    return { by };
+    return { by, vintages: { ...s.vintages, [id]: vintages } };
   });
 }
 
@@ -279,6 +325,8 @@ export interface ConsensusInput {
   finnhubPast?: PastReport[];
   finnhubNext?: NextReport | null;
   kept?: Record<string, KeptEstimate>;
+  keptVintages?: Record<string, KeptEstimate[]>;
+  sourceMeta?: Record<string, EarningsMeta>;
   /** FMP's reports (expected and reported EPS and revenue), newest first. */
   fmpReports?: WindowReport[];
   /** The company's quarterly statements (revenue in millions) and their currency. */
@@ -384,12 +432,43 @@ function fmpReport(rows: WindowReport[], q: QuarterView, used: Set<WindowReport>
 
 /** Expected against reported for each quarter, from every source, each figure with its source. */
 export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 'loading'> {
+  const now = i.now ?? Date.now();
+  const chronologyProblems: string[] = [];
+  const reportedByNow = (source: string, end?: string, date?: number, announcedAt?: number): boolean => {
+    const reason = end && ms(end) > now ? `fiscal period ${end} has not ended` :
+      ok(announcedAt) && announcedAt > now ? `stated announcement ${new Date(announcedAt).toISOString()} is in the future` :
+        !ok(announcedAt) && ok(date) && date > now ? `stated report date ${new Date(date).toISOString().slice(0, 10)} is in the future` : undefined;
+    if (!reason) return true;
+    const message = `${source}: reported data withheld because ${reason}.`;
+    if (!chronologyProblems.includes(message)) chronologyProblems.push(message);
+    return false;
+  };
+  const reportedHistoryRow = (source: string, rows: HistoryQuarter[], q: QuarterView) => {
+    const r = historyRow(rows, q);
+    return r && reportedByNow(source, r.end ?? (r.period ? monthEnd(r.period) : labelEnd(r.label, i.fye)), ms(r.date)) ? r : undefined;
+  };
+  // Reject a source's impossible reported rows before they can supply dates, fiscal anchors or comparisons to
+  // healthy sources. Future estimates remain available in the separate upcoming-quarter path.
+  i = {
+    ...i,
+    yahoo: i.yahoo ? { ...i.yahoo, past: i.yahoo.past.filter((q) => reportedByNow('Yahoo Finance', q.end, q.date, q.announcedAt)) } : undefined,
+    finnhubPast: i.finnhubPast?.filter((r) => reportedByNow('Finnhub', undefined, ms(r.date))),
+    fmpReports: i.fmpReports?.filter((r) => (!ok(r.epsActual) && !ok(r.revActual)) || reportedByNow('FMP', undefined, ms(r.date))),
+    av: i.av ? { ...i.av, reports: i.av.reports.filter((r) => reportedByNow('Alpha Vantage', r.end, ms(r.date))) } : undefined,
+    statements: i.statements?.filter((p) => !ok(p.end) || reportedByNow('Statements', new Date(p.end).toISOString().slice(0, 10))),
+    secReleases: i.secReleases?.filter((r) => reportedByNow('SEC earnings release', undefined, ms(r.date))),
+    history: i.history?.map((h) => {
+      const eligible = (r: HistoryQuarter) => !ok(r.actual) || reportedByNow(h.source, r.end ?? (r.period ? monthEnd(r.period) : labelEnd(r.label, i.fye)), ms(r.date));
+      return { ...h, eps: h.eps.filter(eligible), sales: h.sales.filter(eligible), gaap: h.gaap.filter(eligible) };
+    }),
+  };
   const y = i.yahoo;
-  const quarters: QuarterView[] = (y?.past ?? []).map((q) => ({
+  let quarters: QuarterView[] = (y?.past ?? []).map((q) => ({
     end: q.end,
     label: canonicalQuarter(q.label) ?? q.label,
     ...(q.date ? { date: q.date } : {}),
-    eps: { ...NONE, est: q.epsEst, actual: q.epsActual, ccy: q.epsCcy, estFrom: ok(q.epsEst) ? 'Yahoo Finance' : undefined, actualFrom: ok(q.epsActual) ? 'Yahoo Finance' : undefined },
+    ...(q.announcedAt ? { announcedAt: q.announcedAt } : {}),
+    eps: { ...NONE, basis: q.basis ?? 'unknown', epsType: q.epsType, unit: q.unit, shareBasis: q.shareBasis, splitBasis: q.splitBasis, scope: q.scope, dataset: q.dataset, sourceUrl: q.sourceUrl, est: q.epsEst, actual: q.epsActual, ccy: q.epsCcy, estFrom: ok(q.epsEst) ? 'Yahoo Finance' : undefined, actualFrom: ok(q.epsActual) ? 'Yahoo Finance' : undefined },
     rev: { ...NONE },
   }));
   const at = (end: string, label?: string) => quarters.find((q) => {
@@ -409,12 +488,12 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     seenPeriods.add(f.period);
     const eps: Expectation = { ...NONE, est: f.estimate, actual: f.actual, estFrom: 'Finnhub', actualFrom: 'Finnhub' };
     const end = finnhubQuarterEnd(f.period, closes);
+    if (!reportedByNow('Finnhub', end)) continue;
     // The fiscal year names the quarter when it is known; Finnhub's own year and quarter can disagree with it.
     const label = fiscalLabel(end, i.fye) ?? reportLabel(f);
     const q = at(end, label);
     if (!q) quarters.push({ end, label: label ?? end, eps, rev: { ...NONE } });
-    else if ((!ok(q.eps.est) || !ok(q.eps.actual)) && ok(f.estimate) && ok(f.actual)) q.eps = eps;
-    else if (ok(f.estimate) && ok(f.actual) && (q.eps.est !== f.estimate || q.eps.actual !== f.actual)) q.alternativeEps = eps;
+    else retainComparison(q, 'eps', eps);
     if (q && !canonicalQuarter(q.label) && label) q.label = label;
   }
   // Calendar history can be the only available reported data. Its fiscal label and publication date are
@@ -432,7 +511,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
   // Alpha Vantage's reports: quarters the others leave out, and the report date, session and EPS comparison of
   // those they give without one (its expected and reported EPS are one basis).
   for (const r of (i.av?.reports ?? []).slice(0, 12)) {
-    const eps: Expectation = { ...NONE, est: r.epsEst, actual: r.epsActual, estFrom: ok(r.epsEst) ? 'Alpha Vantage' : undefined, actualFrom: ok(r.epsActual) ? 'Alpha Vantage' : undefined };
+    const eps: Expectation = { ...NONE, ...r, est: r.epsEst, actual: r.epsActual, estFrom: ok(r.epsEst) ? 'Alpha Vantage' : undefined, actualFrom: ok(r.epsActual) ? 'Alpha Vantage' : undefined };
     const q = at(r.end);
     if (!q) {
       quarters.push({ end: r.end, label: fiscalLabel(r.end, i.fye) ?? r.end, date: ms(r.date), ...(r.timing !== '--' ? { timing: r.timing } : {}), eps, rev: { ...NONE } });
@@ -440,11 +519,10 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     }
     if (!q.date && r.date > q.end) q.date = ms(r.date);
     if ((!q.timing || q.timing === '--') && r.timing !== '--' && q.date && Math.abs(q.date - ms(r.date)) <= 2 * DAY_MS) q.timing = r.timing;
-    if ((!ok(q.eps.est) || !ok(q.eps.actual)) && ok(r.epsEst) && ok(r.epsActual)) q.eps = eps;
+    retainComparison(q, 'eps', eps);
   }
   // The histories' reported quarters that no other source gives (Finviz reaches back two years, Zacks about five,
   // MarketBeat two). Finviz and Zacks name a quarter by the month it ends in, MarketBeat by its fiscal quarter.
-  const now = i.now ?? Date.now();
   for (const hs of i.history ?? []) {
     const keyOf = (r: HistoryQuarter) => r.period || r.label || '';
     const keys = [...new Set([...hs.sales, ...hs.eps].map(keyOf).filter(Boolean))];
@@ -474,7 +552,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
         ...probe,
         label: label ?? probe.end,
         ...(row.timing ? { timing: row.timing } : {}),
-        eps: e && ok(e.est) && ok(e.actual) ? { ...NONE, est: e.est, actual: e.actual, estFrom: hs.source, actualFrom: hs.source } : { ...NONE },
+        eps: e && ok(e.est) && ok(e.actual) ? { ...NONE, ...e, estFrom: hs.source, actualFrom: hs.source } : { ...NONE },
       });
     }
   }
@@ -488,35 +566,49 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
   const usedFmp = new Set<WindowReport>();
   const usedReleases = new Set<EarningsRelease>();
   // Alpha Vantage names no currency: its revenue estimates are used for companies reporting in dollars.
-  const avRevenue = !i.statementCcy || i.statementCcy === 'USD';
+  const avRevenue = i.statementCcy === 'USD';
   for (const q of quarters) {
+    // Resolve all available date/session evidence before testing estimate vintage eligibility.
+    // A calendar date discovered later in the merge must not silently discard an eligible snapshot.
+    const dateHistory = (i.history ?? []).flatMap((h) => [reportedHistoryRow(h.source, h.sales, q), reportedHistoryRow(h.source, h.eps, q)]).find((r) => !!r);
+    const dateFmp = fmpReport(i.fmpReports ?? [], q, usedFmp);
+    const dateSec = ISO.test(q.end) ? (i.secReleases ?? []).filter((r) => !usedReleases.has(r) && r.date > q.end && ms(r.date) - ms(q.end) <= 120 * DAY_MS).sort((a, b) => a.date.localeCompare(b.date))[0] : undefined;
+    if (!q.date) {
+      const date = dateFmp?.date ?? dateHistory?.date ?? dateSec?.date;
+      if (date) q.date = ms(date);
+      if (!dateFmp && !dateHistory && dateSec) usedReleases.add(dateSec);
+    }
+    if (!q.timing || q.timing === '--') q.timing = dateHistory?.timing ?? dateSec?.timing;
     const f = finnhubReport(i.finnhubPast ?? [], q, usedReports);
     if (f) {
       usedReports.add(f);
       q.timing = reportTiming(f.hour);
       if (!q.date) q.date = ms(f.date);
-      if ((!ok(q.eps.est) || !ok(q.eps.actual)) && ok(f.epsEstimate) && ok(f.epsActual)) q.eps = { ...NONE, est: f.epsEstimate, actual: f.epsActual, estFrom: 'Finnhub', actualFrom: 'Finnhub' };
+      retainComparison(q, 'eps', { ...NONE, ...f, est: f.epsEstimate, actual: f.epsActual, estFrom: 'Finnhub', actualFrom: 'Finnhub' });
       // Finnhub names no currency, so its revenue is compared only with its own estimate.
-      if (ok(f.revenueEstimate) || ok(f.revenueActual)) q.rev = { ...NONE, est: f.revenueEstimate, actual: f.revenueActual, estFrom: ok(f.revenueEstimate) ? 'Finnhub' : undefined, actualFrom: ok(f.revenueActual) ? 'Finnhub' : undefined };
+      if (ok(f.revenueEstimate) || ok(f.revenueActual)) q.rev = { ...NONE, ...(f as PastReport & EarningsMeta), est: f.revenueEstimate, actual: f.revenueActual, estFrom: ok(f.revenueEstimate) ? 'Finnhub' : undefined, actualFrom: ok(f.revenueActual) ? 'Finnhub' : undefined };
     }
     // Otherwise the reported revenue in the statements' currency, and the estimate the app kept in the same currency.
     const yq = y?.past.find((p) => p.end === q.end);
     const st = statements.find((p) => ok(p.end) && Math.abs(p.end - ms(q.end)) <= 20 * DAY_MS && ok(p.rev));
     const actual = yq && ok(yq.revActual) ? { v: yq.revActual, ccy: y?.revCcy, from: 'Yahoo Finance' } : st ? { v: st.rev * 1e6, ccy: i.statementCcy, from: 'statements' } : ok(q.rev.actual) ? { v: q.rev.actual, ccy: undefined, from: q.rev.actualFrom } : null;
-    const keptEnd = Object.keys(i.kept ?? {}).find((e) => daysApart(e, q.end) <= 20);
-    const saved = keptEnd ? i.kept![keptEnd] : undefined;
-    const k = saved && (!q.date || saved.at < q.date) ? saved : undefined;
-    const estOk = k && ok(k.revEst) && actual?.from !== 'Finnhub' && (!actual || !k.revCcy || !actual.ccy || k.revCcy === actual.ccy);
+    const cutoff = announcementCutoff(q.date, q.timing, q.announcedAt);
+    if (cutoff) Object.assign(q, { cutoffAt: cutoff.at, cutoffKind: cutoff.kind });
+    const keptEnd = [...new Set([...Object.keys(i.keptVintages ?? {}), ...Object.keys(i.kept ?? {})])].find((e) => daysApart(e, q.end) <= 20);
+    const candidates = keptEnd ? i.keptVintages?.[keptEnd] ?? (i.kept?.[keptEnd] ? [i.kept[keptEnd]] : []) : [];
+    // With an unknown announcement time only an estimate from before the report day is eligible.
+    const k = cutoff ? candidates.filter((s) => ok(s.at) && s.at < cutoff.at && (!ok(s.publishedAt) || s.publishedAt < cutoff.at)).sort((a, b) => b.at - a.at)[0] : undefined;
+    const estOk = k && ok(k.revEst) && actual?.from !== 'Finnhub' && !!k.revCcy && !!actual?.ccy && k.revCcy === actual.ccy;
     if (!ok(q.rev.est)) {
       q.rev = {
         ...NONE,
-        ...(estOk ? { est: k!.revEst, analysts: k!.revAnalysts, estFrom: `Yahoo Finance, read ${fmtDay(k!.at, true)}` } : {}),
+        ...(estOk ? { est: k!.revEst, analysts: k!.revAnalysts, estFrom: `Yahoo Finance, read ${fmtDay(k!.at, true)}`, estimateObservedAt: k!.at, estimateProvenance: 'pre-announcement-snapshot' as const, sourceUrl: k!.sourceUrl, dataset: 'Yahoo revenue estimates' } : {}),
         ...(actual ? { actual: actual.v, actualFrom: actual.from } : {}),
         ccy: (estOk ? k!.revCcy : undefined) ?? actual?.ccy,
       };
     }
     // A kept EPS estimate fills a quarter no source compares, against Yahoo's reported EPS.
-    if (!ok(q.eps.est) && k && ok(k.epsEst) && yq && ok(yq.epsActual) && (!k.epsCcy || !yq.epsCcy || k.epsCcy === yq.epsCcy)) q.eps = { ...NONE, est: k.epsEst, actual: yq.epsActual, ccy: k.epsCcy, estFrom: 'Yahoo Finance (kept)', actualFrom: 'Yahoo Finance' };
+    if (k && ok(k.epsEst) && yq && ok(yq.epsActual) && sameEpsDefinition({ ...k, ccy: k.epsCcy }, { ...yq, ccy: yq.epsCcy })) q.eps = { ...NONE, basis: k.basis, shareBasis: k.shareBasis, epsType: k.epsType, unit: k.unit, splitBasis: k.splitBasis, scope: k.scope, dataset: k.dataset, sourceUrl: k.sourceUrl, est: k.epsEst, actual: yq.epsActual, ccy: k.epsCcy, estFrom: 'Yahoo Finance (kept)', actualFrom: 'Yahoo Finance', estimateObservedAt: k.at, estimatePublishedAt: k.publishedAt, estimateProvenance: 'pre-announcement-snapshot' };
     // FMP's history fills what is still without an estimate: its revenue estimate with its own reported revenue when
     // it gives one (one basis for the surprise), else against the reported revenue already shown. FMP names no
     // currency and gives dollars even for a company reporting in another (TSM's revenue in dollars, Yahoo's in Taiwan
@@ -525,33 +617,32 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     if (p) {
       usedFmp.add(p);
       if (!q.date) q.date = ms(p.date);
-      if ((!ok(q.eps.est) || !ok(q.eps.actual)) && ok(p.epsEst) && ok(p.epsActual)) q.eps = { ...NONE, est: p.epsEst, actual: p.epsActual, estFrom: 'FMP', actualFrom: 'FMP' };
+      retainComparison(q, 'eps', { ...NONE, ...p, est: p.epsEst, actual: p.epsActual, estFrom: 'FMP', actualFrom: 'FMP' });
       if (!ok(q.rev.est) && ok(p.revEst)) {
         const dollars = (q.rev.ccy ?? i.statementCcy ?? 'USD') === 'USD';
-        if (ok(p.revActual)) q.rev = { ...NONE, est: p.revEst, actual: p.revActual, estFrom: 'FMP', actualFrom: 'FMP' };
-        else if (!ok(q.rev.actual) || (dollars && q.rev.actual / p.revEst > 0.25 && q.rev.actual / p.revEst < 4)) q.rev = { ...q.rev, est: p.revEst, estFrom: 'FMP' };
+        if (ok(p.revActual)) retainComparison(q, 'rev', { ...NONE, ...p, est: p.revEst, actual: p.revActual, estFrom: 'FMP', actualFrom: 'FMP' });
+        else if (!ok(q.rev.actual) || (dollars && q.rev.ccy === 'USD' && q.rev.actualFrom === 'FMP')) q.rev = { ...q.rev, est: p.revEst, estFrom: 'FMP' };
       }
     }
     // Alpha Vantage's estimate of the quarter's revenue (US listings reporting in dollars), when it is of the same
     // order as the reported figure: a wider gap means another basis or currency.
     const ae = avQuarter(i.av, q.end);
-    if (ae && !ok(q.rev.est) && ok(ae.revEst) && avRevenue && (!ok(q.rev.actual) || (q.rev.actual / ae.revEst > 0.25 && q.rev.actual / ae.revEst < 4))) {
+    if (ae && ok(ae.revEst) && ok(q.rev.actual) && q.rev.actualFrom !== 'Alpha Vantage') q.revComparisons = [...(q.revComparisons ?? []), { ...NONE, ...ae, est: ae.revEst, low: ae.revLow, high: ae.revHigh, analysts: ae.revAnalysts, estFrom: 'Alpha Vantage' }];
+    if (ae && !ok(q.rev.est) && ok(ae.revEst) && avRevenue && (!ok(q.rev.actual) || q.rev.actualFrom === 'Alpha Vantage')) {
       q.rev = { ...q.rev, est: ae.revEst, low: ae.revLow, high: ae.revHigh, analysts: ae.revAnalysts, estFrom: 'Alpha Vantage' };
     }
     // The history's consensus before the report: the expected revenue Yahoo drops once a quarter is reported (dollars,
     // for companies reporting in dollars, and only when it is of the same order as the reported revenue), and the EPS
     // comparison or report date the other sources leave out.
     for (const h of i.history ?? []) {
-      const zs = historyRow(h.sales, q);
-      const ze = historyRow(h.eps, q);
-      if (zs && avRevenue && !ok(q.rev.est) && ok(zs.est)) {
-        const actual = ok(q.rev.actual) ? q.rev.actual : zs.actual;
-        if (!ok(actual) || (actual / zs.est > 0.2 && actual / zs.est < 5)) {
-          q.rev = ok(q.rev.actual) ? { ...q.rev, est: zs.est, estFrom: h.source } : { ...NONE, est: zs.est, actual: zs.actual, ccy: 'USD', estFrom: h.source, actualFrom: ok(zs.actual) ? h.source : undefined };
-        }
+      const zs = reportedHistoryRow(h.source, h.sales, q);
+      const ze = reportedHistoryRow(h.source, h.eps, q);
+      if (zs && ok(zs.est)) {
+        // Keep the source's own pair. Similar magnitudes cannot establish matching reporting scope.
+        if (ok(zs.actual)) retainComparison(q, 'rev', { ...NONE, ...zs, est: zs.est, actual: zs.actual, ccy: zs.ccy, estFrom: h.source, actualFrom: h.source });
       }
-      if (ze && (!ok(q.eps.est) || !ok(q.eps.actual)) && ok(ze.est) && ok(ze.actual)) q.eps = { ...NONE, est: ze.est, actual: ze.actual, estFrom: h.source, actualFrom: h.source };
-      const zg = q.gaapEps ? undefined : historyRow(h.gaap, q);
+      if (ze) retainComparison(q, 'eps', { ...NONE, ...ze, estFrom: h.source, actualFrom: h.source });
+      const zg = q.gaapEps ? undefined : reportedHistoryRow(h.source, h.gaap, q);
       if (zg && ok(zg.actual)) q.gaapEps = { v: zg.actual, from: h.source };
       const zd = zs ?? ze;
       if (zd && !q.date) q.date = ms(zd.date);
@@ -568,6 +659,8 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
       }
     }
   }
+  // Check the resolved chronology too, before a purported reported quarter can change the upcoming-quarter anchors.
+  quarters = quarters.filter((q) => reportedByNow(q.eps.actualFrom ?? q.rev.actualFrom ?? 'Earnings source', q.end, q.date, q.announcedAt));
   // The coming quarters are named by the fiscal year the reported ones show when the security's is not known.
   const fye = i.fye ?? fyeFromLabels([...(y?.past ?? []), ...(y?.next?.label ? [{ end: y.next.end, label: y.next.label }] : [])]);
   const view = (a: YahooAhead | null | undefined): QuarterView | null =>
@@ -619,7 +712,7 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     if (!a && !n) return v;
     const out: QuarterView = v ?? { end: anchor, label: fiscalLabel(anchor, fye) ?? anchor, eps: { ...NONE }, rev: { ...NONE } };
     if (!ok(out.eps.est)) {
-      if (a && ok(a.epsEst)) out.eps = { ...NONE, est: a.epsEst, low: a.epsLow, high: a.epsHigh, analysts: a.epsAnalysts, estFrom: 'Alpha Vantage' };
+      if (a && ok(a.epsEst)) out.eps = { ...NONE, ...a, est: a.epsEst, low: a.epsLow, high: a.epsHigh, analysts: a.epsAnalysts, estFrom: 'Alpha Vantage' };
       else if (n) out.eps = { ...NONE, est: n.est, low: n.low, high: n.high, analysts: n.analysts, estFrom: 'Nasdaq (Zacks)' };
     }
     if (!ok(out.rev.est) && a && ok(a.revEst) && avRevenue) out.rev = { ...NONE, est: a.revEst, low: a.revLow, high: a.revHigh, analysts: a.revAnalysts, estFrom: 'Alpha Vantage' };
@@ -663,7 +756,26 @@ export function mergeConsensus(i: ConsensusInput): Omit<Consensus, 'problems' | 
     const theirs = Math.floor(nn.date / DAY_MS);
     if (given !== theirs && Math.abs(given - theirs) <= 45) next.dateDisagree = `${next.dateFrom ?? 'One source'} confirms ${isoDay(given)}; Nasdaq confirms ${isoDay(theirs)}.`;
   }
-  return { past: quarters, next, following };
+  const urls: Record<string, string> = {
+    'Yahoo Finance': 'https://finance.yahoo.com/', Finnhub: 'https://finnhub.io/docs/api/earnings-surprises',
+    FMP: 'https://site.financialmodelingprep.com/developer/docs/stable/earnings',
+    'Alpha Vantage': 'https://www.alphavantage.co/documentation/#earnings', Finviz: 'https://finviz.com/',
+    Zacks: 'https://www.zacks.com/', MarketBeat: 'https://www.marketbeat.com/', 'Nasdaq (Zacks)': 'https://www.nasdaq.com/market-activity/stocks',
+  };
+  for (const q of [...quarters, next, following].filter((p): p is QuarterView => !!p)) {
+    for (const e of [q.eps, q.rev, q.alternativeEps, ...(q.epsComparisons ?? []), ...(q.revComparisons ?? [])].filter((p): p is Expectation => !!p)) {
+      const source = (e.actualFrom ?? e.estFrom ?? '').replace(/ \(kept\)$|, read .+$/, '');
+      const meta = i.sourceMeta?.[source];
+      if (meta) for (const [field, value] of Object.entries(meta)) if (e[field as keyof Expectation] == null) Object.assign(e, { [field]: value });
+      e.sourceUrl ??= urls[source];
+      e.dataset ??= source ? `${source} earnings comparison` : undefined;
+      if (e === q.eps || e === q.alternativeEps || q.epsComparisons?.includes(e)) e.basis ??= 'unknown';
+      e.estimateProvenance ??= quarters.includes(q) ? 'provider-history' : 'unknown';
+    }
+    const cutoff = announcementCutoff(q.date, q.timing, q.announcedAt);
+    if (cutoff) Object.assign(q, { cutoffAt: cutoff.at, cutoffKind: cutoff.kind });
+  }
+  return { past: quarters, next, following, ...(chronologyProblems.length ? { chronologyProblems } : {}) };
 }
 
 /** A report time's day in New York, or the day itself for a date without a time (midnight UTC). */
@@ -763,18 +875,94 @@ export function surprisePct(e: Pick<Expectation, 'est' | 'actual'>): number {
   return ok(e.est) && ok(e.actual) && e.est !== 0 ? ((e.actual - e.est) / Math.abs(e.est)) * 100 : NaN;
 }
 
+/** A numeric EPS verdict requires a stated definition. Unknown methodology remains visible as evidence. */
+export function verifiedEpsSurprise(e: Expectation): number {
+  return sameEpsDefinition(e, e) ? surprisePct(e) : NaN;
+}
+
 /**
- * The other source's comparison when two sources call a quarter's EPS a beat and a miss (each by 2% or more): their
- * figures are on different bases. Applied Digital's quarter to 31 August 2026 was a 97% beat by Yahoo's figures (an
- * adjusted -0.01 against -0.30) and a 168% miss by Finnhub's (-0.82 against -0.31, as Nasdaq's -0.76 against -0.26).
- * Undefined when they agree or only one compares.
+ * A conflict means different values for the same stated definition. Different or unknown methodologies are
+ * separate evidence, including when their beat/miss signs differ.
  */
 export function epsDisagreement(q: Pick<QuarterView, 'eps' | 'alternativeEps'>): string | undefined {
-  const a = surprisePct(q.eps);
-  const b = q.alternativeEps ? surprisePct(q.alternativeEps) : NaN;
-  if (!ok(a) || !ok(b) || Math.abs(a) < 2 || Math.abs(b) < 2 || Math.sign(a) === Math.sign(b)) return undefined;
-  const one = (e: Expectation, pct: number) => `${e.estFrom ?? 'one source'}: ${e.actual} against ${e.est} expected (${pct > 0 ? 'beat' : 'miss'} by ${Math.abs(pct).toFixed(0)}%)`;
-  return `The sources disagree, on different EPS bases. ${one(q.eps, a)}; ${one(q.alternativeEps!, b)}.`;
+  const a = q.eps, b = q.alternativeEps;
+  if (!b || !sameEpsDefinition(a, b)) return undefined;
+  const differs = (x: number, y: number) => [x, y].every(Number.isFinite) && Math.abs(x - y) > Math.max(0.011, Math.max(Math.abs(x), Math.abs(y)) * 0.02);
+  if (!differs(a.actual, b.actual) && !differs(a.est, b.est)) return undefined;
+  return `${epsBasisLabel(a.basis)} EPS differs on the same stated definition: ${a.actualFrom ?? a.estFrom} ${a.actual} against ${a.est} expected; ${b.actualFrom ?? b.estFrom} ${b.actual} against ${b.est} expected.`;
+}
+
+/** A provider comparison is retained without claiming that its historical consensus is a point-in-time archive. */
+export function expectationNote(e: Expectation): string {
+  return [
+    `${epsBasisLabel(e.basis)}${e.ccy ? `, ${e.ccy}` : ', currency not stated'}`,
+    e.estFrom ? `estimate: ${e.estFrom}` : '', e.actualFrom ? `actual: ${e.actualFrom}` : '',
+    e.estimateProvenance === 'pre-announcement-snapshot' ? 'estimate captured before the announcement cutoff' : 'historical estimate as supplied by the provider; original cutoff not independently recorded',
+    e.observedAt ? `received ${new Date(e.observedAt).toISOString()}` : 'retrieval time not recorded',
+    e.lastSuccessfulAt ? `last successful check ${new Date(e.lastSuccessfulAt).toISOString()}` : '',
+    e.dataset ? `dataset: ${e.dataset}` : '',
+    e.shareBasis ? `shares: ${e.shareBasis}${e.epsType ? `, ${e.epsType}` : ''}` : '',
+    e.splitBasis ? `adjustment convention: ${e.splitBasis}` : '',
+    e.stale ? 'STALE: latest source check failed; earlier observation retained' : '',
+  ].filter(Boolean).join(' · ');
+}
+
+export function trailingComparableEps(past: QuarterView[], end?: string) {
+  return consecutiveEps(past.map((q) => ({ ...q.eps, end: q.end, value: q.eps.actual, source: q.eps.actualFrom })), end);
+}
+
+/** Sanitized screen evidence, shared by UI and audit. Nonfinite values serialize as null. */
+export function earningsAuditState(c: Pick<Consensus, 'past' | 'next' | 'following'> | null, security: string, now = Date.now(), statements: FinPeriod[] = [], statementCcy?: string) {
+  const observation = (e: Expectation, role: 'estimate' | 'actual') => ({
+    value: role === 'estimate' ? e.est : e.actual, basis: e.basis, currency: e.ccy, shareBasis: e.shareBasis,
+    epsType: e.epsType, splitBasis: e.splitBasis, scope: e.scope, source: role === 'estimate' ? e.estFrom : e.actualFrom,
+    sourceUrl: e.sourceUrl, dataset: e.dataset, retrievedAt: role === 'estimate' ? e.estimateObservedAt ?? e.observedAt : e.observedAt,
+    publishedAt: role === 'estimate' ? e.estimatePublishedAt : e.publishedAt, lastSuccessfulAt: e.lastSuccessfulAt,
+    attemptedAt: e.attemptedAt, stale: e.stale, error: e.error,
+  });
+  const quarters = [...(c?.past ?? []), c?.next, c?.following].filter((q): q is QuarterView => !!q).map((q) => ({
+    periodEnd: q.end, fiscalLabel: q.label, announcedAt: q.announcedAt, cutoffAt: q.cutoffAt, cutoffKind: q.cutoffKind,
+    estimateProvenance: q.eps.estimateProvenance, estimate: observation(q.eps, 'estimate'), actual: observation(q.eps, 'actual'),
+    surprisePct: epsDisagreement(q) ? NaN : verifiedEpsSurprise(q.eps),
+    status: q.eps.stale || q.eps.error ? 'stale' : sameEpsDefinition(q.eps, q.eps) ? 'coherent' : 'definition-unresolved',
+    alternatives: q.alternativeEps ? [{ estimate: observation(q.alternativeEps, 'estimate'), actual: observation(q.alternativeEps, 'actual') }] : [],
+    gaapActual: (() => {
+      const st = statements.find((p) => ok(p.end) && Math.abs(p.end - ms(q.end)) <= 20 * DAY_MS && ok(p.eps));
+      return st ? { value: st.eps, currency: statementCcy, periodEnd: new Date(st.end).toISOString().slice(0, 10), source: 'statements', basis: 'gaap' } : q.gaapEps ? { value: q.gaapEps.v, periodEnd: q.end, source: q.gaapEps.from, basis: 'gaap' } : undefined;
+    })(),
+  }));
+  const aggregate = trailingComparableEps(c?.past ?? []);
+  return { schema: 1, domain: 'earnings', security, capturedAt: now, quarters, aggregates: Number.isFinite(aggregate.value) ? [{ metric: `${epsBasisLabel(aggregate.basis)} EPS`, value: aggregate.value, basis: aggregate.basis, currency: aggregate.ccy, periodEnds: c!.past.filter((q) => ok(q.eps.actual) && ISO.test(q.end)).sort((a, b) => b.end.localeCompare(a.end)).slice(0, 4).map((q) => q.end) }] : [] };
+}
+
+/** Immutable local observation versions. This does not backdate a newly fetched historical feed. */
+export function archiveConsensus(security: string, c: Pick<Consensus, 'past' | 'next' | 'following'>, now = Date.now()) {
+  const rows: ObservationInput[] = [];
+  for (const q of [...c.past, c.next, c.following].filter((p): p is QuarterView => !!p)) {
+    for (const [metric, e] of [['eps', q.eps], ['revenue', q.rev], ...[q.alternativeEps, ...(q.epsComparisons ?? [])].map((e) => ['eps', e] as const), ...(q.revComparisons ?? []).map((e) => ['revenue', e] as const)] as const) {
+      if (!e) continue;
+      for (const role of ['estimate', 'actual'] as const) {
+        const value = role === 'estimate' ? e.est : e.actual;
+        const source = role === 'estimate' ? e.estFrom : e.actualFrom;
+        if (!ok(value) || !source) continue;
+        rows.push({ ...e, security, periodEnd: q.end, fiscalLabel: q.label, metric, role, value, currency: e.ccy, source,
+          observedAt: role === 'estimate' ? e.estimateObservedAt ?? e.observedAt : e.observedAt,
+          ...(q.announcedAt ? { announcedAt: q.announcedAt } : {}) });
+      }
+    }
+  }
+  appendEarningsEvidence(security, rows, now);
+}
+
+/** The same definitions and freshness printed in the screen are available with exported values. */
+export function earningsEvidenceExport(c: Pick<Consensus, 'past' | 'next' | 'following'> | null, security: string): (string | number | undefined)[][] {
+  return [
+    ['Observation evidence', 'Security', 'Period end', 'Fiscal label', 'Metric', 'Role', 'Value', 'Currency', 'Basis', 'Share basis', 'EPS type', 'Adjustment basis', 'Scope', 'Source', 'Dataset', 'Source URL', 'Observed at', 'Published at', 'Revision', 'Revises', 'Estimate provenance', 'Stale', 'Latest attempt', 'Latest successful check'],
+    ...((c ? [...c.past, c.next, c.following] : []).filter((q): q is QuarterView => !!q).flatMap((q) => [q.eps, ...(q.epsComparisons ?? [])].flatMap((e) => (['estimate', 'actual'] as const).map((role) => [
+      'Current selected / alternative EPS', security, q.end, q.label, 'eps', role, role === 'estimate' ? e.est : e.actual, e.ccy, e.basis, e.shareBasis, e.epsType, e.splitBasis, e.scope, role === 'estimate' ? e.estFrom : e.actualFrom, e.dataset, e.sourceUrl, role === 'estimate' ? e.estimateObservedAt ?? e.observedAt : e.observedAt, role === 'estimate' ? e.estimatePublishedAt : e.publishedAt, e.revisionId, undefined, e.estimateProvenance, e.stale ? 'yes' : '', e.attemptedAt, e.lastSuccessfulAt,
+    ])))),
+    ...(earningsEvidence.get().by[security] ?? []).map((o) => ['Saved immutable version', security, o.periodEnd, o.fiscalLabel, o.metric, o.role, o.value, o.currency, o.basis, o.shareBasis, o.epsType, o.splitBasis, o.scope, o.source, o.dataset, o.sourceUrl, o.observedAt, o.publishedAt, o.id, o.revisionOf, o.estimateProvenance, o.stale ? 'yes' : '', o.attemptedAt, o.lastSuccessfulAt]),
+  ];
 }
 
 export interface Growth {
@@ -806,7 +994,8 @@ export function growth(end: string, series: { from: string; points: { end: strin
 
 /** The series a quarter's EPS and revenue growth are worked out from: the consensus basis first, then the statements. */
 export function growthSeries(c: Pick<Consensus, 'past'>, statements: FinPeriod[], basis: Partial<Record<'eps' | 'rev', string>>) {
-  const own = (k: 'eps' | 'rev') => ({ from: basis[k] ?? '', points: c.past.filter((q) => q[k].actualFrom === basis[k]).map((q) => ({ end: q.end, value: q[k].actual })) });
+  const anchor = c.past.find((q) => q.eps.actualFrom === basis.eps)?.eps;
+  const own = (k: 'eps' | 'rev') => ({ from: k === 'eps' ? `${epsBasisLabel(anchor?.basis)} ${basis[k] ?? ''}` : basis[k] ?? '', points: c.past.filter((q) => q[k].actualFrom === basis[k] && (k !== 'eps' || !!anchor && sameEpsDefinition(q.eps, anchor))).map((q) => ({ end: q.end, value: q[k].actual })) });
   const st = (k: 'eps' | 'rev') => ({ from: 'statements', points: statements.filter((p) => ok(p.end)).map((p) => ({ end: new Date(p.end).toISOString().slice(0, 10), value: k === 'eps' ? p.eps : p.rev })) });
   return { eps: [own('eps'), st('eps')], rev: [own('rev'), st('rev')] };
 }
@@ -818,6 +1007,8 @@ interface Entry {
   yahoo?: YahooEarnings;
   message?: string;
   at: number;
+  attemptedAt?: number;
+  stale?: boolean;
 }
 
 export const consensusData = createStore<{ v: number; by: Record<string, Entry> }>({ v: 0, by: {} });
@@ -843,7 +1034,7 @@ const put = (id: string, e: Entry) => consensusData.set((s) => ({ v: s.v + 1, by
 function due(e: Entry | undefined, now: number): boolean {
   if (!e) return true;
   if (e.state === 'loading') return false;
-  if (e.state !== 'ok') return now - e.at > 10 * 60_000;
+  if (e.state !== 'ok') return now - (e.attemptedAt ?? e.at) > 10 * 60_000;
   const reported = e.yahoo?.next?.date;
   return now - e.at > TTL || (!!reported && reported < now && now - e.at > 3_600_000);
 }
@@ -891,12 +1082,12 @@ export function requestConsensus(def: SecurityDef | undefined, front = false, fi
       return;
     }
     try {
-      const parsed = parseYahooEarnings(await yahooGet(yahooEarningsPath(symbol)));
+      const parsed = parseYahooEarnings(await yahooGet(yahooEarningsPath(symbol)), symbol);
       if ('error' in parsed) throw new Error(parsed.error);
       keepEstimates(def.id, parsed.data);
-      put(def.id, { state: 'ok', yahoo: parsed.data, at: Date.now() });
+      put(def.id, { state: 'ok', yahoo: parsed.data, at: Date.now(), attemptedAt: Date.now() });
     } catch (err) {
-      put(def.id, { state: 'error', yahoo: have?.yahoo, message: `Yahoo: ${err instanceof Error ? err.message : String(err)}`, at: Date.now() });
+      put(def.id, { state: 'error', yahoo: have?.yahoo, message: `Yahoo: ${err instanceof Error ? err.message : String(err)}`, at: have?.at ?? Date.now(), attemptedAt: Date.now(), stale: !!have?.yahoo });
     }
   };
   if (front) queue.unshift({ id: def.id, run });
@@ -944,6 +1135,7 @@ export function consensusFor(def: SecurityDef): Consensus {
     finnhubNext: partData<NextReport | null>(fparts?.calendar),
     fmpReports: calendars.fmp,
     kept: keptEstimates.get().by[def.id],
+    keptVintages: keptEstimates.get().vintages?.[def.id],
     statements: real?.quarterly,
     statementCcy: reportCcy(def),
     av: alphaVantageFor(avSymbol(def)),
@@ -952,6 +1144,13 @@ export function consensusFor(def: SecurityDef): Consensus {
     secReleases: secReleaseData.get().by[secTicker(def) ?? ''],
     history: historyFor(secTicker(def)),
     fye: def.eq?.fye,
+    sourceMeta: {
+      'Yahoo Finance': { observedAt: e?.at, lastSuccessfulAt: e?.yahoo ? e.at : undefined, attemptedAt: e?.attemptedAt, stale: e?.stale, error: e?.message },
+      Finnhub: { observedAt: fparts?.earnings?.at ?? fparts?.history?.at, stale: !!fparts?.earnings?.stale || !!fparts?.history?.stale, error: fparts?.earnings?.message ?? fparts?.history?.message },
+      'Alpha Vantage': { observedAt: alphaVantageData.get().by[avSymbol(def) ?? '']?.at, attemptedAt: alphaVantageData.get().by[avSymbol(def) ?? '']?.attemptedAt, stale: alphaVantageData.get().by[avSymbol(def) ?? '']?.stale, error: alphaVantageData.get().by[avSymbol(def) ?? '']?.message },
+      FMP: { ...calendars.fmpMeta, observedAt: calendars.fmpMeta?.observedAt ?? calendars.fmpMeta?.at },
+      ...Object.fromEntries((historyFor(secTicker(def)) ?? []).map((h) => [h.source, { observedAt: historyData.get().by[secTicker(def) ?? '']?.at, stale: historyData.get().by[secTicker(def) ?? '']?.stale, error: historyData.get().by[secTicker(def) ?? '']?.message }])),
+    },
   });
   // Yahoo timestamps have session meaning only for US-listed securities.
   if (def.id.endsWith(' US Equity')) {
@@ -959,7 +1158,7 @@ export function consensusFor(def: SecurityDef): Consensus {
       if ((!q.timing || q.timing === '--') && q.date) q.timing = usTiming(q.date);
     }
   }
-  const problems: string[] = [];
+  const problems: string[] = [...(merged.chronologyProblems ?? [])];
   if (e?.message && e.state !== 'loading') problems.push(e.message);
   for (const k of ['earnings', 'history'] as const) {
     const p = fparts?.[k];
@@ -1026,7 +1225,10 @@ export function useConsensus(def: SecurityDef | undefined): Consensus | null {
       off();
     };
   }, [def]);
-  return def?.eq ? consensusFor(def) : null;
+  const c = def?.eq ? consensusFor(def) : null;
+  const evidenceKey = c ? JSON.stringify([c.past, c.next, c.following]) : '';
+  useEffect(() => { if (def && c) archiveConsensus(def.id, c); }, [def?.id, evidenceKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  return c;
 }
 
 /** Loads several stocks' expectations (a calendar's rows), at most `max`; re-renders as they arrive. */
