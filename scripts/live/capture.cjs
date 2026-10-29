@@ -4,6 +4,8 @@
 // environment (load them from a file outside the repository; never print them).
 // For each command: run it in a one-panel desktop app on live data, wait until the screen stops loading, then save
 // the panel's text, a screenshot, its header (code, security, title, tabs, numbered actions) and console errors.
+// ARMIN_LIVE_CSV=1 also saves the screen's whole table as its 98) Copy action gives it (<name>.csv), for a screen
+// that shows one page of a longer list (SPLC).
 const path = require('node:path');
 const os = require('node:os');
 const { _electron } = require(path.resolve(__dirname, '../../node_modules/@playwright/test'));
@@ -67,6 +69,16 @@ const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice
       const text = await page.locator('.panel').first().innerText().catch(() => '');
       fs.writeFileSync(`${outDir}/${name}.txt`, text);
       await page.locator('.panel').first().screenshot({ path: `${outDir}/${name}.png` }).catch(() => {});
+      if (process.env.ARMIN_LIVE_CSV) {
+        await app.evaluate(({ clipboard }) => clipboard.writeText(''));
+        const copy = page.locator('.panel').first().locator('.fnh-actions .act, .fnh-actions button').filter({ hasText: /Copy/ }).first();
+        if (await copy.count()) {
+          await copy.click();
+          await page.waitForTimeout(800);
+          const csv = await app.evaluate(({ clipboard }) => clipboard.readText());
+          if (csv) fs.writeFileSync(`${outDir}/${name}.csv`, csv);
+        }
+      }
       const dashes = (text.match(/(^|[\s\t(])--(?=$|[\s\t)%])/gm) || []).length;
       const rec = { cmd, name, ...head, ms: Date.now() - t0, dashes, errors: errors.slice(before) };
       index.push(rec);
