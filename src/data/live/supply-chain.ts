@@ -978,6 +978,9 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   // leaving the facility ("Exiting Lenders").
   const leadsLenders = (c: Mention) =>
     LENDER_AFTER.test(s.slice(c.end)) || /^(?:'s)?(?:,?\s+N\.\s?A\.)?(?:\s*\([^)]*\))?(?:,\s+(?:[A-Z][\w&.'-]*\s*){1,6}(?:,\s*N\.\s?A\.)?)*,?\s+and\s+(?:the\s+)?other lenders\b/.test(s.slice(c.end));
+  // "we obtained from JPMorgan Chase our $5.00 million cash collateralized JPMorgan Chase Credit Facility" (Charles &
+  // Colvard): borrowed, not bought.
+  if (company.some((c) => /\b(?:obtained|borrowed|secured|drew|draws?)\b[^.;]{0,30}\bfrom\s+(?:the\s+)?$/i.test(before(c))) && /\b(?:credit facilit(?:y|ies)|line of credit|loans?|borrowings?|revolving)\b/i.test(s) && byFiler(s)) return { role: 'lender' };
   if (company.some(leadsLenders) && /\b(?:credit|loans?|revolving|financing|facilit(?:y|ies)|lenders?)\b/i.test(s) && !/\b(?:Exiting|Departing|Non-Extending) Lenders?\b/i.test(s) && (byFiler(s) || /\bas\s+(?:the\s+)?(?:parent\s+)?borrowers?\b|\bthe Borrower\b|\b(?:our|its|the Company's)\s+(?:wholly[- ]owned\s+)?subsidiar/i.test(s))) return { role: 'lender' };
   // Licences, royalties and research collaborations with the target. Not a bank whose published rates or quotes a
   // licence refers to ("In the event that the Bank of America ... ceases to publish currency quotes, Licensee will use").
@@ -1120,6 +1123,9 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     const b = before(m);
     // Equity, assets and notices are no sale: "issue and sell shares to", "sold a 40% interest to", "provide updates to".
     if (/\b(?:sell|sells|sold|selling|issue|issued|transfer\w*|provid\w*|deliver\w*)\b[^.;]{0,100}\b(?:shares?|stock|securities|warrants?|units|interests?|stake|assets?|business|propert(?:y|ies)|land|rights|updates?|reports?|information|notices?|copies|documents?|data|waivers?|guarant\w*)\b[^.;]{0,80}\bto\s+[^.;]{0,30}$/i.test(b)) continue;
+    // "until the Issuer has provided to J.P. Morgan, Morgan Stanley and Piper Sandler a written notice" (Heartflow's
+    // lock-up letter): the thing provided comes after the names.
+    if (/\b(?:provid\w*|deliver\w*|sen[dt]\w*|furnish\w*|giv(?:e|es|en|ing))\s+to\s+(?:the\s+)?$/i.test(b) && after(s, m, /^(?:'s)?(?:,?\s+(?:and\s+)?[A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,3})*,?\s+(?:an?|the|any|such|its|our|their)\s+(?:[\w-]+\s+){0,2}?(?:notices?|copy|copies|updates?|reports?|information|statements?|certificates?|documents?|letters?|consents?|waivers?|requests?)\b/)) continue;
     if (/\b(?:was|were|been|is|are|being)\s+(?:contracted|hired|engaged|retained|commissioned|awarded a contract)\s+by\s+(?:the\s+)?$/i.test(b) && byFiler(b.slice(-160))) return { role: 'supplier' };
     if (after(s, m, /^(?:'s)?\s+(?:has\s+)?(?:recogni[sz]e[sd]?|selected|named|chose|chosen|designated)\s+(?:[A-Z][\w&.-]*\s+|us\s+|the Company\s+){1,3}as\s+(?:its|our|a|the|their)\s+(?:[\w-]+\s+){0,3}(?:provider|supplier|vendor|source|manufacturer)\b/i)) return { role: 'supplier' };
     const forTarget = /\b(?:manufactur\w*|build|builds|built|building|construct\w*|install\w*|assembl\w*|fabricat\w*|produc(?:e|es|ed|ing))\b[^.;]{0,80}?\bfor\s+(?:(?:our|the|its)\s+(?:\w+\s+){0,2}customers?,?\s+)?$/i.test(b) && !/\b(?:solutions?|alternatives?|options?|platforms?|choice|focus|experience|expertise|track record)\b[^.;]{0,60}\bfor\s+[^.;]{0,30}$/i.test(b);
@@ -1151,7 +1157,9 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   // Partnerships the filer is in: "our partnership with NVIDIA", "we collaborate with Apple".
   const partner = /\b(?:partner(?:s|ship|ships|ed|ing)?|collaborat\w*|alliances?|co-develop\w*|joint development|co-engineer\w*|jointly (?:develop|pursue|market|sell)\w*|co-sell\w*)\b/i;
   // The filer's own name is no partnership word: "Alliance Laundry Systems LLC" (Alliance Laundry's S-1).
-  const unnamed = filer ? s.replace(filer, (x) => ' '.repeat(x.length)) : s;
+  // Nor are the legal terms of partnerships: "J.P. Morgan REIT OP Special Limited Partner, L.P." (J.P. Morgan Real
+  // Estate Income Trust's 10-K).
+  const unnamed = (filer ? s.replace(filer, (x) => ' '.repeat(x.length)) : s).replace(/\b(?:Special\s+)?(?:Limited|General|Managing)\s+Partners?\b|\bOperating Partnership\b|\bPartners?,?\s+L\.?P\b/gi, (x) => ' '.repeat(x.length));
   for (const c of company) {
     const lead = s.slice(Math.max(0, c.index - 140), c.index);
     const tail = s.slice(c.end, c.end + 80);

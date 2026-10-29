@@ -205,6 +205,12 @@ describe("SPLC: what another company's report says", () => {
     expect(classify('We are grateful for the ongoing partnership with Bank of America and our lender group, who unanimously approved the amendment.', bac, f('HELE', 'HELEN OF TROY LTD'))).toEqual({ role: 'lender' });
     // Beta Bionics' licence: the bank only publishes the quotes it refers to.
     expect(classify('In the event that the Bank of America (or its successor) ceases to publish currency quotes, Licensee will use currency quotes from another US headquartered multinational bank.', bac, f('BBNX', 'Beta Bionics, Inc'))).toBeNull();
+    // SPLC JPM, 29 October 2026: a facility obtained from the bank is borrowed; a notice provided to the underwriters is
+    // no sale; a REIT's "Special Limited Partner" is a legal form, not a partnership.
+    const jpm = targetPattern(targetNames('JPM', 'JPMORGAN CHASE & CO').names);
+    expect(classify('Effective July 7, 2021, we obtained from JPMorgan Chase our $5.00 million cash collateralized JPMorgan Chase Credit Facility.', jpm, f('CTHR', 'CHARLES & COLVARD LTD'))).toEqual({ role: 'lender' });
+    expect(classify('This authorization shall remain in effect until the Issuer has provided to J.P. Morgan, Morgan Stanley and Piper Sandler a written notice revoking this authorization.', jpm, f('HTFL', 'Heartflow, Inc.'))).toBeNull();
+    expect(classify('J.P. Morgan REIT OP Special Limited Partner, L.P. (the "Special Limited Partner"), an affiliate of J.P. Morgan Investment Management Inc. (the "Adviser" or "JPMIM" and together with its affiliates "J.P. Morgan"), owns a special limited partner interest in the Operating Partnership.', jpm, f('JPMREIT', 'J.P. Morgan Real Estate Income Trust, Inc.'))).toBeNull();
     // A bank leaving the facility is no lender.
     expect(classify('"Exiting Lenders" means each of (i) First-Citizens Bank & Trust Company, and (ii) Bank of America, N.A., each in its capacity as a Lender, and in each case who is a signatory hereto as an "Exiting Lender".', bac)).not.toEqual({ role: 'lender' });
   });
