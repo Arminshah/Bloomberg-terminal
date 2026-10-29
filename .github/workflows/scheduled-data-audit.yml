@@ -1,0 +1,21 @@
+name: Scheduled data accuracy audit
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/scheduled-data-audit.yml]
+  schedule:
+    - cron: '37 1 * * 2-6'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    uses: Arminshah/Bloomberg-terminal/.github/workflows/data-audit.yml@claude/market-events-v2.16.0-id814n
+    with:
+      ref: claude/market-events-v2.16.0-id814n
+      research_tickers: APLD,NVDA,LLY,PFE,MRK,XOM,CVX,F,GM,NOC
+    secrets: inherit
+
