@@ -1,4 +1,4 @@
-# Handover: where the work stands (28 October 2026)
+# Handover: where the work stands (29 October 2026)
 
 For any Claude session that takes over Armin Terminal, on this account or another. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis" and "Screenshots from three public guides").
 
@@ -7,8 +7,8 @@ For any Claude session that takes over Armin Terminal, on this account or anothe
 - **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 137 functions.
 - **Repository**: `Arminshah/Bloomberg-terminal`. **Public again since the evening of 28 October** (the owner opened it so CI, the data audit and releases can run). The owner may make it private again; while it is private, GitHub starts no runner: on 27 October every job failed within seconds, its annotation saying "recent account payments have failed or your spending limit needs to be increased" (the account's Actions minutes for private repositories). Then check everything locally before each push, and before a release ask the owner to open the repository for about half an hour or raise the spending limit.
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
-- **Last release**: 2.27.0 (tag `v2.27.0`, 27 October 2026), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.27.0.md`.
-- **2.28.0 is prepared, not published**: the version, notes (`docs/release-v2.28.0.md`) and commit "Release 2.28.0" (`1f27774`) are on the branch. On 28 October the owner said to keep coding and release only when they say so. When they do: update the notes with what came after, ask them to open the repository, and start the workflow with the tag.
+- **Working branch**: `claude/market-events-v2.16.0-id814n` (the owner's choice; a session's own suggested branch name is an older ancestor: ignore it). Push only there.
+- **Last release**: 2.28.0 (tag `v2.28.0`, 29 October 2026, at the owner's request), built by `.github/workflows/release.yml` from this branch. Notes: `docs/release-v2.28.0.md`. Check the release workflow's run in the Actions tab: if the tag push or the run failed, start the workflow by hand (see "Making a release"). Earlier: 2.27.0 (`docs/release-v2.27.0.md`).
 
 ## The objective (the owner's, 26 October 2026)
 
@@ -94,6 +94,15 @@ The owner asked for a full audit ("accurate for past, current and upcoming data 
 - `b6c9554` **The data audit check**: `npm run audit:check` (`scripts/live/audit/check.cjs`, `docs/audit-check.md`) captures the screens, fetches independent references and fails (exit 1) when a figure is beyond its stated tolerance; blocked references exit 2 and are never counted as passed. `.github/workflows/data-audit.yml` runs it on GitHub: on a schedule once the file is on `main`, when the check changes, or by hand.
 - SPLC rule changes are checked against about 6,000 saved filing sentences of 32 companies before they go in: only the intended classifications may change.
 
+## 29 October: SPLC review of more companies, and the 2.28.0 release
+
+The owner asked for SPLC to be checked on 15 or more companies across banks, retailers, pharma, energy and autos. Done for JPMorgan, Bank of America, Costco, Target and Home Depot (every stated share checked against the supplier's own 10-K); findings D33 to D41 in `docs/audit-v2.28-data.md`, each fixed with a test on the sentence that showed it. Then the owner asked for the release and this handover (their weekly allowance on this account was running out).
+
+- **Not done yet** (next steps, in order): (1) SPLC review of Eli Lilly, Pfizer, Merck, Exxon, Chevron, Ford, GM, Northrop: capture each with `ARMIN_LIVE_CSV=1` (below) and check every relation and share against the filing it cites; (2) spot checks of HOLDERS, HOLDINGS (13F), INSIDERS and CONGRESS against the SEC (references: Berkshire's 13F of 30 June 2026, Apple's Form 4s of October 2026, Nasdaq's institutional holders); (3) EVENTS (upcoming dates) against the companies' own announcements.
+- **How a SPLC review is done**: `ARMIN_LIVE_CSV=1` makes `scripts/live/capture.cjs` save each screen's whole table (`<name>.csv`: relation, name, share, filer, form, date, statement, document link). For a share, download the filer's 10-K and find the sentence. Before committing a rule change, run the changed classifier over saved sentences and diff it against the last commit: only the intended statements may change (that is how the 7,737-sentence comparison in the commits was made; the scripts were scratch files, rebuild them: `classify(sentence, targetPattern(targetNames(ticker, title).names), filerPattern)` from `src/data/live/supply-chain.ts`, sentences from `electron/supply-chain.cjs` `mentionSentences`).
+- **Watch for regex cost**: SPLC BAC hung because one rule nested repeats (68 seconds on four bank names in capitals, `0a6735f`). Keep new patterns linear: no repeat inside a repeat over the same characters.
+- **Known SPLC limits**: very widely named companies are read from the few hundred filings the full-text search ranks first; a share of one revenue line ("16% of our loyalty services revenue", Bakkt on Bank of America) still shows as a share of the filer's revenue.
+
 ## Waiting on the owner
 
 - **Secrets for the data audit on GitHub**: Settings > Secrets and variables > Actions > New repository secret: `TIINGO_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT`, optional `EIA_API_KEY` and `COINGECKO_API_KEY`. Without them those comparisons are skipped (the check says so). The schedule (Tuesday to Saturday, 01:37 UTC) runs only once the workflow is on `main`, which needs the owner's decision (no merge without it). Keys in a Claude session's scratch folder never reach GitHub or a scheduled task: each runner needs its own copy.
@@ -105,10 +114,10 @@ The owner asked for a full audit ("accurate for past, current and upcoming data 
 ```
 npm ci
 npm run lint && npm run typecheck
-npx vitest run --maxWorkers=2                      # unit tests (1,651 on 28 October)
+npx vitest run --maxWorkers=2                      # unit tests (1,674 on 29 October)
 npm run build
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (94)
-xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (74)
+xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (75)
 npm run audit:check                                 # live data audit (keys from the environment; docs/audit-check.md)
 ```
 
