@@ -977,7 +977,7 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   // lender", "Bank of America, N.A., U.S. Bank National Association and the other lenders party thereto". Not a bank
   // leaving the facility ("Exiting Lenders").
   const leadsLenders = (c: Mention) =>
-    LENDER_AFTER.test(s.slice(c.end)) || /^(?:'s)?(?:,?\s+N\.\s?A\.)?(?:\s*\([^)]*\))?(?:,\s+(?:[A-Z][\w&.'-]*\s*){1,6}(?:,\s*N\.\s?A\.)?)*,?\s+and\s+(?:the\s+)?other lenders\b/.test(s.slice(c.end));
+    LENDER_AFTER.test(s.slice(c.end)) || /^(?:'s)?(?:,?\s+N\.\s?A\.)?(?:\s*\([^)]*\))?(?:,\s+[A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,5}(?:,\s*N\.\s?A\.)?){0,4},?\s+and\s+(?:the\s+)?other lenders\b/.test(s.slice(c.end));
   // "we obtained from JPMorgan Chase our $5.00 million cash collateralized JPMorgan Chase Credit Facility" (Charles &
   // Colvard): borrowed, not bought.
   if (company.some((c) => /\b(?:obtained|borrowed|secured|drew|draws?)\b[^.;]{0,30}\bfrom\s+(?:the\s+)?$/i.test(before(c))) && /\b(?:credit facilit(?:y|ies)|line of credit|loans?|borrowings?|revolving)\b/i.test(s) && byFiler(s)) return { role: 'lender' };
