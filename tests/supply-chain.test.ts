@@ -120,6 +120,16 @@ describe("SPLC: what another company's report says", () => {
     expect(c('In fiscal 2025, revenue (in descending order) from Samsung, Apple, and vivo each comprised 10% or more of our consolidated revenue.', apple)).toMatchObject({ role: 'supplier', share: 10, qualifier: '>' });
   });
 
+  it("a segment's figure is no share of the company's sales (Edgewell's 10-K of November 2025)", () => {
+    const target = targetPattern(targetNames('TGT', 'TARGET CORP').names);
+    // Target bought 9.2% of one segment's sales; SPLC TGT showed "Rev: 9.2%" of Edgewell's.
+    expect(c('Target Corporation represented approximately 9.2% of net sales for our Sun and Skin Care segment and 10.1% for our Feminine Care segment, respectively.', target)).toEqual({ role: 'supplier', basis: 'their-revenue' });
+    expect(c('Additionally, in fiscal 2025, Target Corporation represented approximately 9.2% of consolidated net sales for the Sun and Skin Care segment and 10.1% of consolidated net sales for the Feminine Care segment, respectively.', target)).toEqual({ role: 'supplier', basis: 'their-revenue' });
+    expect(c('Target accounted for approximately 14% of our Consumer segment net sales in fiscal 2025.', target)).toEqual({ role: 'supplier', basis: 'their-revenue' });
+    // The company's own total still gives the share, even when a segment is named after it.
+    expect(c('Target accounted for approximately 12% of our consolidated net sales in fiscal 2025, primarily in our Consumer segment.', target)).toMatchObject({ role: 'supplier', share: 12 });
+  });
+
   it('a contractor building for it is a supplier; a stake it took is apart (Babcock & Wilcox, Applied Digital)', () => {
     const apld = targetPattern(['Applied Digital', 'Applied Digital Corporation']);
     expect(classify('On November 4, 2025, we entered into a limited notice to proceed ("LNTP") with Applied Digital for a project to design and install four 300-megawatt natural gas-fired power plants consisting of boilers and associated steam turbines to deliver power for an AI factory.', apld)).toEqual({ role: 'supplier' });
@@ -239,6 +249,11 @@ describe("SPLC: the company's own report", () => {
       ['NOK', 10.7, 'target-revenue'],
       ['AMZN', 10.5, 'target-revenue'],
     ]);
+  });
+
+  it("a customer named for a segment's revenue, without the company's share", () => {
+    const rel = ownRelations(['For fiscal year 2026, NVIDIA Corporation accounted for 31% of our Optical segment revenue.'], dir, { cik: 1408710, names: ['Fabrinet'] }, { ...ev, filer: 'Fabrinet' });
+    expect(rel.map((r) => [r.ticker, r.role, r.share])).toEqual([['NVDA', 'customer', undefined]]);
   });
 
   it('merges the statements about one company, the latest share first', () => {

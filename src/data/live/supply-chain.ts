@@ -518,6 +518,17 @@ export function percentRuns(s: string): Pct[][] {
 }
 
 const OF_REVENUE = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?:(?:our|its|their|the Company's|the Group's|Company's|Group's|total|consolidated|net|aggregate|annual|worldwide)\s+)*(?:(?:total|net|consolidated|product|segment|gross)\s+)*(?:(?!of\b|from\b|to\b|in\b)[A-Za-z&-]+,?\s+){0,5}?(?:revenue|revenues|net sales|sales|turnover)\b(?![ -](?:volumes?|force|tax|taxes|team|agents?|channels?|representatives?|prices?|growth|mix|units?)\b)/i;
+/**
+ * A share of the company's revenue, not of one segment's: "9.2% of net sales for our Sun and Skin Care segment" and "of
+ * our Government Operations segment revenues" (Edgewell's 10-K of November 2025) are a segment's.
+ */
+function companyRevenue(tail: string): RegExpExecArray | null {
+  const rev = OF_REVENUE.exec(tail);
+  if (!rev) return null;
+  if (/\b(?:segment|division)\b/i.test(rev[0]) && !/\btotal segment\b/i.test(rev[0])) return null;
+  if (/^\s+(?:for|in|of|within|from)\s+(?:our|its|their|the)\s+(?:[A-Za-z&,'-]+\s+){0,6}?(?:segments?|divisions?|business units?)\b/i.test(tail.slice(rev[0].length))) return null;
+  return rev;
+}
 const OF_PURCHASES = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?:(?:our|its|their|the Company's|the Group's|total|consolidated|net|aggregate|annual)\s+)*(?:(?:total|net|consolidated|merchandise)\s+)*(?:purchases|inventory purchases|merchandise purchases|purchases of (?:merchandise|inventory|products)|component purchases|cost of (?:revenue|revenues|sales|goods sold)|capital expenditures|property and equipment purchases|procurement)\b/i;
 const VERB = /\b(?:contribut(?:ed|es|e|ing)|account(?:ed|s|ing)? for|represent(?:ed|s|ing)?|compris(?:ed|es|e|ing)|constitut(?:ed|es|e)|amounted to|made up|generated|were to|was to)\b/i;
 
@@ -615,7 +626,7 @@ export function yearPairRun(s: string): { run: Pct[]; purchases: boolean } | nul
   if (pairs.length < 2) return null;
   const last = pairs[pairs.length - 1];
   const tail = s.slice((last.index ?? 0) + last[0].length, (last.index ?? 0) + last[0].length + 140);
-  const revenue = OF_REVENUE.test(tail);
+  const revenue = !!companyRevenue(tail);
   const purchases = !revenue && OF_PURCHASES.test(tail);
   if (!revenue && !purchases) return null;
   let best = pairs[0];
@@ -836,7 +847,7 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   const stated = VERB.test(s) || /\b(?:sales|revenues?) (?:to|from)\b/i.test(s);
   const pairRun = stated ? yearPairRun(s) : null;
   const shareRuns = pairRun
-    ? [{ run: pairRun.run, revenue: !pairRun.purchases, purchases: pairRun.purchases }]
+    ? [{ run: pairRun.run, revenue: !pairRun.purchases, purchases: pairRun.purchases, segment: false }]
     : stated
       ? allRuns
           // A range ("provinces that represent 30% to 40% of the sales") is no one company's share.
@@ -847,7 +858,7 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
             const rev = OF_REVENUE.exec(tail);
             const owner = rev ? /^\s+of\s+(?:the\s+)?(?!(?:Company|Group|Registrant|Partnership)\b)([A-Z][^.;,]{0,40})/.exec(tail.slice(rev[0].length)) : null;
             const revenue = !!rev && (!owner || byFiler(owner[1]));
-            return { run, revenue, purchases: !revenue && OF_PURCHASES.test(tail) };
+            return { run, revenue, purchases: !revenue && OF_PURCHASES.test(tail), segment: revenue && !companyRevenue(tail) };
           })
           .filter((x) => x.revenue || x.purchases)
       : [];
@@ -855,7 +866,7 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   // have the total's basis.
   const ofWhich = s.search(/\bof which\b/i);
   const total = shareRuns.find((x) => x.run[0].index < ofWhich);
-  if (ofWhich >= 0 && total) for (const run of allRuns) if (run[0].index > ofWhich && !shareRuns.some((x) => x.run === run)) shareRuns.push({ run, revenue: total.revenue, purchases: total.purchases });
+  if (ofWhich >= 0 && total) for (const run of allRuns) if (run[0].index > ofWhich && !shareRuns.some((x) => x.run === run)) shareRuns.push({ run, revenue: total.revenue, purchases: total.purchases, segment: total.segment });
   // "Platform providers, such as Apple, ... charge ... fees, which represent approximately 30% of our revenue": the
   // filer pays the company; the figure is its fees, not sales to it.
   if (company.some((c) => /^[^.;]{0,80}?\b(?:charges?|charged|collects?|collected|retains?|withholds?)\b[^.;]{0,60}\b(?:fees?|commissions?)\b/i.test(s.slice(c.end)))) return { role: 'customer' };
@@ -900,15 +911,16 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   for (const run of allRuns) {
     if (shareRuns.some((x) => x.run === run) || !tied(run)) continue;
     const base = shareRuns.find((x) => x.run[0].index < run[0].index);
-    if (base) shareRuns.push({ run, revenue: base.revenue, purchases: base.purchases });
+    if (base) shareRuns.push({ run, revenue: base.revenue, purchases: base.purchases, segment: base.segment });
   }
   for (let i = shareRuns.length - 1; i >= 0; i--) if (others(shareRuns[i].run)) shareRuns.splice(i, 1);
   const gap = (run: Pct[]) => (tied(run) ? -1 : Math.min(...anchor.map((c) => (c.index >= run[run.length - 1].end ? c.index - run[run.length - 1].end : c.end <= run[0].index ? run[0].index - c.end : 0))));
   shareRuns.sort((a, b) => gap(a.run) - gap(b.run));
-  for (const { run, purchases } of shareRuns.slice(0, 1)) {
+  for (const { run, purchases, segment } of shareRuns.slice(0, 1)) {
     const found = shareOf(s, run, pattern);
-    let share = found.value;
-    let qualifier = qualifierOf(s, run);
+    // A segment's figure ("9.2% of net sales for our Sun and Skin Care segment") is no share of the company's sales.
+    let share = segment ? undefined : found.value;
+    let qualifier = segment ? undefined : qualifierOf(s, run);
     // A figure for a group ("our five largest customers ... 80.6%", "our top 10 customers, including Boeing and RTX,
     // were 61%", "three branded suppliers ... collectively") is not the target's, unless the run gives each its own.
     const prev = allRuns.filter((r) => r[r.length - 1].end <= run[0].index).pop();
@@ -1552,9 +1564,11 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       const named = findCompanies(stripForms(head), dir).filter((f) => !f.cik || f.cik !== self.cik);
       const parties: { name: string; f?: Found }[] = anon.length ? anon.map((a) => ({ name: a })) : named.map((f) => ({ name: f.name, f }));
       const each = run.length === 1 && /\beach\b/i.test(head.slice(-60));
+      // A segment's figure names the customer but is no share of the company's revenue.
+      const segment = !companyRevenue(s.slice(run[run.length - 1].end, run[run.length - 1].end + 140));
       parties.forEach((p, i) => {
-        const value = each ? run[0].value : parties.length === run.length ? run[i].value : parties.length === 1 ? shareInRun(s, run, targetPattern([escapeLiteral(p.name)])) ?? run[0].value : undefined;
-        add(p.f ?? { name: p.name }, 'customer', raw, { share: value, qualifier: qualifierOf(s, run), basis: 'target-revenue' });
+        const value = segment ? undefined : each ? run[0].value : parties.length === run.length ? run[i].value : parties.length === 1 ? shareInRun(s, run, targetPattern([escapeLiteral(p.name)])) ?? run[0].value : undefined;
+        add(p.f ?? { name: p.name }, 'customer', raw, { share: value, qualifier: segment ? undefined : qualifierOf(s, run), basis: 'target-revenue' });
       });
       if (parties.length) continue;
     }
