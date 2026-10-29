@@ -33,6 +33,16 @@ describe('FINANCIALS: the filing wins where the feed is on another basis', () =>
     expect(f.annual[0].supplements?.join(' ')).toContain('where the statements feed gave 169,439 million');
   });
 
+  it("takes JPMorgan's filed revenue however small the feed's difference (the data audit on GitHub, 28 October)", () => {
+    const f = buildRealFund(engine.get('JPM US Equity')!, company, annual([
+      ['TotalRevenue', '2025-12-31', 181_847e6], ['NetIncomeCommonStockholders', '2025-12-31', 55_800e6],
+    ]), null, null, NOW, facts({
+      Revenues: { rows: [fact('2025-01-01', '2025-12-31', 182_447e6, '2026-02-13')] },
+      NetIncomeLossAvailableToCommonStockholdersBasic: { rows: [fact('2025-01-01', '2025-12-31', 55_800e6, '2026-02-13')] },
+    }));
+    expect(f.annual[0]).toMatchObject({ rev: 182_447 });
+  });
+
   it("puts Applied Digital's FY2025 on the continuing basis of its latest 10-K, as its FY2026 is", () => {
     const f = buildRealFund(engine.get('APLD US Equity')!, company, annual([
       ['TotalRevenue', '2025-05-31', 228.569e6], ['GrossProfit', '2025-05-31', 11.8e6], ['OperatingIncome', '2025-05-31', -150e6], ['NetIncomeCommonStockholders', '2025-05-31', -233.68e6],

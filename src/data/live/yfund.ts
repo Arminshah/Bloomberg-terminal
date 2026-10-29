@@ -410,12 +410,13 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         // year (Applied Digital FY2025: 229 as first reported with its cloud business, 144 from continuing operations
         // in its latest 10-K, the basis of its FY2026 figure) or it is a bank, whose revenue the feed works out its
         // own way (JPMorgan 2024: 169,439 in the feed, a total net revenue of 177,556 filed). Elsewhere a difference
-        // is a choice of line (Altria's revenue net of excise taxes in the feed), and the feed's stays. The lines that
+        // is a choice of line (Altria's revenue net of excise taxes in the feed), and the feed's stays. For a bank any
+        // real difference counts: JPMorgan's 2025 is 181,847 in the feed against 182,447 filed (0.3%). The lines that
         // move with the revenue basis then all come from the filing, or stay blank: never a mix.
         const primaryRev = row.get('TotalRevenue');
         const secRev = extra.row.get('TotalRevenue');
         const bank = def.eq?.sector === 'Financials' || /\bbank/i.test(def.eq?.industry ?? '');
-        const filedBasis = niAgrees && (bank || extra.restated.has('TotalRevenue')) && primaryRev != null && secRev != null && Number.isFinite(primaryRev) && Number.isFinite(secRev) && secRev > 0 && Math.abs(primaryRev - secRev) > 0.01 * Math.max(Math.abs(primaryRev), secRev);
+        const filedBasis = niAgrees && (bank || extra.restated.has('TotalRevenue')) && primaryRev != null && secRev != null && Number.isFinite(primaryRev) && Number.isFinite(secRev) && secRev > 0 && Math.abs(primaryRev - secRev) > (bank ? 0.0005 : 0.01) * Math.max(Math.abs(primaryRev), secRev);
         if (filedBasis) {
           for (const key of REVENUE_BASIS) {
             if (extra.row.has(key)) continue;
