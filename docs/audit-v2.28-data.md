@@ -73,6 +73,7 @@ Severity: S1 a wrong figure shown as fact; S2 a misleading figure or label; S3 a
 | D39 | S1 | SPLC | JPMorgan: contracts of Clariant, Transworld Systems and Evonik shown as its federal customers. USAspending files them, NCO Financial and two railroads under JPMorgan Chase & Co. (old private equity holdings) | JPMorgan's own filings name none of them; General Dynamics' name Electric Boat, NASSCO and Iron EagleX, Lockheed's Sikorsky | `3dbe6aa`: a unit named unlike the company counts only when its own filings name it |
 | D40 | S2 | SPLC | JPMorgan: Charles & Colvard as its customer ("we obtained from JPMorgan Chase our ... Credit Facility": a lender), Heartflow as a supplier (a lock-up notice "provided to J.P. Morgan"), J.P. Morgan's REIT as a partner ("Special Limited Partner") | The filings | `1408f28` |
 | D41 | S1 | SPLC | SPLC BAC never finished: one lender rule backtracked for 68 seconds and more on four bank names in capitals | Timed on the saved sentences | `0a6735f`: loads in 77 seconds |
+| D42 | S1 | FINANCIALS | JPMorgan's revenue of 2022 and 2025 shown as 127,727 and 181,847 (the feed's) against 128,695 and 182,447 filed: the filed figure replaced the feed's only beyond a 1% difference. Found by the check on GitHub, which also compared Tesla's net income with ProfitLoss (minority interests included) and failed on the check's side | JPMorgan's 10-Ks (SEC companyfacts) | `a8dee8f` (a bank's filing wins beyond 0.05%), `640fa59` (the check) |
 
 ## Checked and right
 
