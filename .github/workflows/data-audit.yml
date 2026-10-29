@@ -31,6 +31,7 @@ on:
       - scripts/live/audit/check.cjs
       - scripts/live/audit/assurance.cjs
       - scripts/live/audit/domains.cjs
+      - scripts/live/audit/annotate.cjs
   schedule:
     # Tuesday to Saturday at 01:37 UTC: after each US session's close and evening trading, references published.
     - cron: '37 1 * * 2-6'
@@ -50,7 +51,8 @@ on:
         type: string
 
 concurrency:
-  group: data-audit
+  # Serialize each entry point; the scheduled wrapper can run beside a direct diagnostic run.
+  group: data-audit-${{ github.workflow }}
   cancel-in-progress: false
 
 permissions:
@@ -91,3 +93,4 @@ jobs:
         if: always()
         run: |
           if [ -f audit-out/run/report.md ]; then cat audit-out/run/report.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f audit-out/run/report.json ]; then node scripts/live/audit/annotate.cjs audit-out/run/report.json; fi
