@@ -11,6 +11,7 @@ Before anything else, read in this order: `CLAUDE.md`, `docs/HANDOVER.md` (my ru
 My standing rule: the data must be accurate for past, current and upcoming figures for all stocks. That is non-negotiable. Say where each figure comes from, never invent a figure, and where two sources differ, show "Sources disagree" instead of picking one. Keep the typeface rules in `CLAUDE.md`. Never commit, print or log an API key: I will give you keys in a file for the sandbox only, loaded with `set -a; . keys.env; set +a`.
 
 Continue with the next steps listed under "29 October" in `docs/HANDOVER.md`:
+0. Settle the two questions the data audit left (Tesla's net income line, Walmart's volume of 28 October), as the handover describes.
 1. Review SPLC (supply chain) for Eli Lilly, Pfizer, Merck, Exxon, Chevron, Ford, GM and Northrop Grumman on live data: every relation and stated share against the filing it cites. Fix each misreading with a regression test on the sentence that showed it, and check each rule change against saved filing sentences so nothing else changes.
 2. Spot-check HOLDERS, HOLDINGS (13F), INSIDERS and CONGRESS against SEC filings, and EVENTS against the companies' own announcements.
 3. Add each finding to `docs/audit-v2.28-data.md`.
