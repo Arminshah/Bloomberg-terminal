@@ -370,7 +370,8 @@ const CONCEPTS = {
   // income; its net sales tag says 605,881), then the narrower tags.
   Revenue: ['Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueNet', 'RevenuesNetOfInterestExpense'],
   'Gross Profit': ['GrossProfit'],
-  'Net Income': ['NetIncomeLoss', 'ProfitLoss'],
+  // Net income to the company's shareholders, as FINANCIALS shows it; ProfitLoss (with minority interests) only when neither is filed: Tesla files no NetIncomeLoss after 2020, and its ProfitLoss (7,153 in 2024) is not the 7,130 its shareholders earned.
+  'Net Income': ['NetIncomeLoss', 'NetIncomeLossAvailableToCommonStockholdersBasic', 'ProfitLoss'],
   'Diluted EPS': ['EarningsPerShareDiluted', 'EarningsPerShareBasicAndDiluted'],
   'Cash from Operations': ['NetCashProvidedByUsedInOperatingActivities', 'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations'],
   'Capital Expenditures': ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets'],
