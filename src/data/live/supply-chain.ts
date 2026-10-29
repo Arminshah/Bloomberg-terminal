@@ -2090,6 +2090,8 @@ export function ownStatements(sentence: string, dir: Directory, self?: RegExp): 
         if (/\b(?:share|stock|asset|equity|unit|membership interest) purchase agreement|\bterminat\w*/i.test(clause)) continue;
         // "copies of which may be obtained from D.F. King & Co.": documents, not supplies.
         if (/\b(?:copies|documents?|information|materials|prospectus|offer to purchase)\b/i.test(clause)) continue;
+        // "Quartile ranking sourced from Morningstar, Lipper and Nomura": the source a figure cites, not a purchase.
+        if (/\b(?:rankings?|ratings?|data|statistics|figures|estimates|forecasts?|scores?|indices|index|quotes?|surveys?)\s+(?:(?:is|are|was|were)\s+)?(?:sourced|obtained)\s+$/i.test(before)) continue;
         role = 'supplier';
       }
     } else if (word === 'on') {
@@ -2098,7 +2100,8 @@ export function ownStatements(sentence: string, dir: Directory, self?: RegExp): 
       if (!/\b(?:[Ww]e|[Oo]ur|[Tt]he Company|[Tt]he Group|[Ii]t)\b[^.;]{0,40}$/.test(before)) continue;
       role = /^[^.;]{0,80}\bfor (?:a |the )?(?:significant|substantial|large|majority|portion|most|all)[^.;]{0,40}\b(?:revenue|revenues|sales)\b/i.test(rest) ? 'customer' : 'supplier';
     } else if (word === 'by') {
-      if (/\b(?:manufactured|produced|supplied|fabricated|assembled)\s+$/i.test(before)) role = 'supplier';
+      // "Our products are manufactured by Foxconn"; not a glossary's "credit reports produced by Fair Isaac Corporation".
+      if (/\b(?:manufactured|produced|supplied|fabricated|assembled)\s+$/i.test(before) && /\b(?:[Oo]ur|[Ww]e|[Uu]s|[Tt]he Company(?:'s)?|[Tt]he Group(?:'s)?)\b/.test(clause)) role = 'supplier';
       else if (/\b(?:selected|chosen|awarded|engaged)\b[^.;]{0,60}$/i.test(before)) role = 'customer';
     }
     if (!role) continue;

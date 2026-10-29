@@ -566,4 +566,21 @@ describe('SPLC: the sixth check — lists, short names, ventures and second role
     expect(got.map((r) => r.role)).toEqual(got.map(() => 'lender'));
     expect(ownStatements('Copies of the offer to purchase may be obtained from D.F. King & Co., Inc., the information agent.', d2)).toEqual([]);
   });
+  it("a figure's cited source and a glossary's definition are no supplier (JPMorgan's 10-K of February 2026)", () => {
+    const d3 = buildDirectory([
+      { cik: 21, ticker: 'MORN', title: 'Morningstar, Inc.' },
+      { cik: 22, ticker: 'NMR', title: 'NOMURA HOLDINGS INC' },
+      { cik: 23, ticker: 'FICO', title: 'FAIR ISAAC CORP' },
+      { cik: 24, ticker: 'LMT', title: 'LOCKHEED MARTIN CORP' },
+      { cik: 25, ticker: 'HNHPF', title: 'HON HAI PRECISION INDUSTRY CO LTD' },
+    ]);
+    const of = (s: string) => ownStatements(s, d3).map((x) => [x.role, x.party.name]);
+    expect(of('(b)Quartile ranking sourced from Morningstar, Lipper and Nomura based on country of domicile.')).toEqual([]);
+    expect(of('FICO score: A measure of consumer credit risk based on information in consumer credit reports produced by Fair Isaac Corporation.')).toEqual([]);
+    // RTX's 10-K: the aircraft Lockheed Martin makes, not something it makes for RTX.
+    expect(of("Pratt & Whitney produces and sustains the F135 engine for the U.S. government's F-35 Joint Program Office to exclusively power the single-engine F-35 Lightning II fifth generation aircraft (commonly known as the Joint Strike Fighter) produced by Lockheed Martin.")).toEqual([]);
+    // What the company itself buys or has made still counts.
+    expect(of('We purchase scoring models from Fair Isaac Corporation.')).toEqual([['supplier', 'FAIR ISAAC CORP']]);
+    expect(of('Substantially all of our products are manufactured by Hon Hai Precision Industry.').map((r) => r[0])).toEqual(['supplier']);
+  });
 });
