@@ -442,7 +442,8 @@ export function targetNames(ticker: string | undefined, title: string): TargetNa
   const words = clean.replace(/,/g, ' ').split(' ').filter(Boolean);
   const tail: string[] = [];
   while (words.length > 1 && suffixWord(words[words.length - 1])) tail.unshift(words.pop()!);
-  const base = words.map(titleWord).join(' ').replace(/ Com$/, '.com');
+  // "BANK OF AMERICA CORP": "Bank of America", as reports write it; "Bank OF America" matched no filing.
+  const base = words.map((w, i) => (i > 0 && /^(?:OF|AND|THE|FOR|IN|ON|AT)$/.test(w) ? w.toLowerCase() : titleWord(w))).join(' ').replace(/ Com$/, '.com');
   const legalSuffix = tail.length ? suffixWord(tail[0]) : '';
   const legal = legalSuffix ? `${base} ${legalSuffix}` : base;
   const names = [base.replace(/\s+(?:and|&)$/i, '')];
@@ -459,7 +460,13 @@ function escapeRe(s: string): string {
 export function targetPattern(names: string[]): RegExp {
   // A space or a hyphen between words: "Coca Cola" is also "Coca-Cola".
   const spaced = (p: string) => p.replace(/(?:\\-| )/g, '[ -]');
-  const alts = names.flatMap((n) => (/[a-z]/.test(n) ? [spaced(escapeRe(n)), spaced(escapeRe(n.toUpperCase()))] : [spaced(n.split('').map((c) => (/[A-Za-z]/.test(c) ? `[${c.toUpperCase()}${c.toLowerCase()}]` : escapeRe(c))).join(''))]));
+  // A short word kept in capitals from the SEC's title ("NEW York Times", "Jack IN the BOX") is also written "New", "in";
+  // a word the title gives in capitals is written with capitals inside it too ("MASTEC INC" is "MasTec", "AUTOZONE INC"
+  // "AutoZone").
+  const word = (w: string) =>
+    /^[A-Z]{2,3}$/.test(w) ? `(?:${w}|${w[0]}${w.slice(1).toLowerCase()}|${w.toLowerCase()})` : /^[A-Z][a-z]{3,}$/.test(w) ? w[0] + [...w.slice(1)].map((ch) => `[${ch.toUpperCase()}${ch}]`).join('') : escapeRe(w);
+  const words = (n: string) => n.split(' ').map(word).join(' ');
+  const alts = names.flatMap((n) => (/[a-z]/.test(n) ? [spaced(words(n)), spaced(escapeRe(n.toUpperCase()))] : [spaced(n.split('').map((c) => (/[A-Za-z]/.test(c) ? `[${c.toUpperCase()}${c.toLowerCase()}]` : escapeRe(c))).join(''))]));
   alts.sort((a, b) => b.length - a.length);
   return new RegExp(`(?<![A-Za-z0-9])(?:${alts.join('|')})(?![A-Za-z0-9])`, 'g');
 }

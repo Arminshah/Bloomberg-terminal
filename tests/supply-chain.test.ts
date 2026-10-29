@@ -53,6 +53,27 @@ describe('SPLC: names', () => {
     expect(targetPattern(targetNames('KO', 'COCA COLA CO').names).test('The Coca-Cola Company and Coca Cola bottlers')).toBe(true);
   });
 
+  it("finds Bank of America and The New York Times as reports write them, whatever the SEC's capitals", () => {
+    // SPLC BAC read 268 filings on 28 October 2026 and found nothing: it looked for "Bank OF America".
+    expect(targetNames('BAC', 'BANK OF AMERICA CORP /DE/')).toEqual({ legal: ['Bank of America Corporation'], names: ['Bank of America'] });
+    const bac = targetPattern(targetNames('BAC', 'BANK OF AMERICA CORP /DE/').names);
+    expect('a credit agreement with Bank of America, N.A., as administrative agent'.match(bac)).toEqual(['Bank of America']);
+    expect('BANK OF AMERICA, N.A.'.match(bac)).toEqual(['BANK OF AMERICA']);
+    // Words of three letters or fewer keep the SEC's capitals (IBM, AMD) but are found as written too.
+    for (const [t, title, text] of [
+      ['NYT', 'NEW YORK TIMES CO', 'The New York Times Company'],
+      ['JACK', 'JACK IN THE BOX INC', 'Jack in the Box restaurants'],
+      ['RY', 'ROYAL BANK OF CANADA', 'Royal Bank of Canada'],
+      // A word the SEC gives in capitals, written with capitals inside it.
+      ['MTZ', 'MASTEC INC', 'MasTec, Inc.'],
+      ['AZO', 'AUTOZONE INC', 'AutoZone stores'],
+    ]) {
+      const p = targetPattern(targetNames(t, title).names);
+      p.lastIndex = 0;
+      expect(p.test(text)).toBe(true);
+    }
+  });
+
   it('finds companies a passage names, with or without their legal form', () => {
     const found = findCompanies('such as Ambarella, Inc., AMD, Broadcom, Intel, Qualcomm Incorporated, Renesas Electronics Corporation, and Samsung', dir);
     expect(found.map((f) => f.ticker ?? f.name)).toEqual(['AMBA', 'AMD', 'AVGO', 'INTC', 'QCOM', 'Renesas Electronics', 'Samsung Electronics']);
