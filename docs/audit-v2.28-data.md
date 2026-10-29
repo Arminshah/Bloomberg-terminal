@@ -28,6 +28,8 @@ Six stocks were checked screen by screen (Apple, NVIDIA, Applied Digital, JPMorg
 
 ## Findings and fixes
 
+Follow-up remediation for 2.29.0 is documented in `docs/accuracy-v2.29.md`. It addresses policy HOLD omission, retained-data freshness, EPS definitions and vintages, supply-chain entities/concentrations/lifecycle, partial extraction and required audit coverage. These are source-code and deterministic-regression findings; implementation did not independently recheck live policy or issuer facts while network access was blocked. D1–D42 below remain dated records of the earlier audit.
+
 Severity: S1 a wrong figure shown as fact; S2 a misleading figure or label; S3 a small difference or presentation.
 
 | ID | Sev | Screen | Finding | Second source | Fix |

@@ -28,11 +28,12 @@ Each comparison is one of:
 
 - **PASS**: within tolerance.
 - **FAIL**: beyond tolerance. The check exits with code 1.
-- **FLAGGED**: the reference differs, and the screen already shows "Sources disagree" for that figure.
+- **FLAGGED**: an unresolved displayed conflict. Captured alternatives and evidence are retained; a candidate agreeing with a reference does not resolve the conflict. A critical flag prevents verified assurance.
+- **INCOMPLETE**: required definitions, source coverage or corroboration are missing. Optional missing comparisons remain separate SKIP results.
 - **BLOCKED**: the reference or the capture could not be checked, with the reason: `auth` (key refused), `entitlement` (the plan does not cover it), `rate-limit`, `network-policy` (the network refused the host), `network`, `outage` (the provider's server failed), `no-data`, `malformed` (an answer that is not the expected data), `setup` (the app was not built or the capture failed). Exit code 2 when nothing failed but something was blocked.
 - **SKIP**: not compared, with the reason (a key not set, a session still trading, a reference not published yet).
 
-A blocked or skipped comparison is never counted as passed. The report is written to `audit-out/<date>/report.md` and `report.json`, with the screens' text and screenshots under `screens/`. `audit-out/` is not committed.
+A blocked, flagged, incomplete or skipped comparison is never counted as passed. Exit 0 means the explicitly required scope was verified, exit 1 means a factual/invariant failure, exit 2 means blocked verification, and exit 3 means incomplete required assurance. Required areas need reference passes as well as their specified invariant checks; all-skipped runs cannot pass. The report is written to `audit-out/<date>/report.md` and `report.json`, with the screens' text and screenshots under `screens/`. `audit-out/` is not committed.
 
 ## Running it
 
@@ -67,3 +68,18 @@ The check needs a machine that can run the desktop app (Linux with `xvfb-run`, o
 - **On your computer**: set the keys in the environment (or a `.env` file, which is never committed) and run `npm run audit:check`.
 - **A Claude Code scheduled task in the cloud environment**: it starts a fresh session on schedule, checks out the work branch, builds and runs the check, and reports the result. The keys go in the cloud environment's settings (the environment menu in the session's title bar, then Edit), as environment variables or network secrets under the names above. A new session picks them up.
 - **GitHub Actions** (`.github/workflows/data-audit.yml`): the keys go in the repository's Settings > Secrets and variables > Actions > New repository secret, under the names above; the workflow passes each to the check, and the report appears on the run's summary page. GitHub runs a schedule only from the default branch (`main`), so until the workflow file is on `main` it runs when the check itself changes and when started by hand (Actions > Data audit > Run workflow, choosing the work branch). While the repository is public, runners are free; while it is private they need Actions minutes (on 27 and 28 October every job failed within seconds for the account's billing). The report of a public repository's run is public too: it holds market figures, never a key.
+
+
+## Policy, earnings and supply-chain coverage (2.29.0)
+
+The capture now includes CBRT plus ERN and SPLC for APLD and NVIDIA by default. Choose a different research set with `--research-tickers LLY,PFE,MRK,XOM,CVX,F,GM,NOC`. The ordinary eight-ticker quote/statements audit remains separate.
+
+- **Policy:** ordered effective target bounds, source-check chronology, no future-effective current policy, HOLD/hike/cut semantics, and the latest published official FOMC statement. A calendar date alone is no result.
+- **Earnings:** compatible accounting/currency/share definitions, arithmetic, pre-announcement snapshot cutoffs when available, consecutive trailing quarters, and directly filed diluted EPS from SEC companyfacts. Original consensus vintages are not certified merely because a commercial provider returns historical rows.
+- **SPLC:** entities separate from concentration disclosures, recomputed counts, chronology and explicit bounded/partial extraction. Up to four documentary quotations per research company are sampled against their canonical SEC documents. Exact quotation agreement corroborates that evidence; it does not independently certify every inferred role, identity, contract state or omitted relationship.
+
+The data-bearing screens expose a sanitized, versioned audit snapshot. Capture writes `*.audit.json` only with `ARMIN_LIVE_AUDIT=1`; these files contain research observations and provenance, never provider authentication. Evidence dates, receipt times and successful-check clocks remain separate. Reports state their actual scope and required coverage results. A verified required scope is not a certificate for every screen or historical figure.
+
+The lightweight default-branch scheduler calls this workflow on the development branch. It adds no application code or merge to main. The user approved that scheduler-only exception on 29 October 2026. Runner secrets must already be configured; a key in chat is not a runner secret. Scheduled and manual runs report unavailable access as blocked/incomplete.
+
+Inherited HTTP/HTTPS proxies are honored with Node 24's environment-proxy support. Destination-policy denial is never bypassed. Captures, logs, candidate metadata and report strings are sanitized before writing public report artifacts.

@@ -10,6 +10,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { _electron } = require(path.resolve(__dirname, '../../node_modules/@playwright/test'));
 const fs = require('node:fs');
+const { sanitize, redact } = require('./audit/assurance.cjs');
 const [file, outDir, minArg, maxArg] = process.argv.slice(2);
 const cmds = JSON.parse(fs.readFileSync(file, 'utf8'));
 const MIN = Number(minArg || 6000);
@@ -67,7 +68,20 @@ const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice
       });
       const name = slug(cmd);
       const text = await page.locator('.panel').first().innerText().catch(() => '');
-      fs.writeFileSync(`${outDir}/${name}.txt`, text);
+      fs.writeFileSync(`${outDir}/${name}.txt`, redact(text));
+      if (process.env.ARMIN_LIVE_AUDIT === '1') {
+        const snapshot = await page.locator('.panel').first().evaluate((panel) => ({
+          schema: 1,
+          capturedAt: Date.now(),
+          domains: [...panel.querySelectorAll('[data-audit-state]')].flatMap((node) => {
+            try { return [JSON.parse(node.tagName === 'SCRIPT' ? node.textContent ?? '' : node.getAttribute('data-audit-state') ?? '')]; } catch { return []; }
+          }),
+          conflicts: [...panel.querySelectorAll('[data-source-conflict], [title]')]
+            .filter((node) => /Sources disagree/.test(node.textContent ?? '') && !!node.getAttribute('title'))
+            .map((node) => ({ text: node.textContent?.trim(), detail: node.getAttribute('title'), label: node.closest('dd')?.previousElementSibling?.textContent ?? node.closest('tr')?.textContent?.slice(0, 500), candidates: (() => { try { return JSON.parse(node.getAttribute('data-source-candidates') ?? '[]'); } catch { return []; } })() })),
+        }));
+        fs.writeFileSync(`${outDir}/${name}.audit.json`, JSON.stringify(sanitize(snapshot), null, 1));
+      }
       await page.locator('.panel').first().screenshot({ path: `${outDir}/${name}.png` }).catch(() => {});
       if (process.env.ARMIN_LIVE_CSV) {
         await app.evaluate(({ clipboard }) => clipboard.writeText(''));
@@ -76,18 +90,18 @@ const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice
           await copy.click();
           await page.waitForTimeout(800);
           const csv = await app.evaluate(({ clipboard }) => clipboard.readText());
-          if (csv) fs.writeFileSync(`${outDir}/${name}.csv`, csv);
+          if (csv) fs.writeFileSync(`${outDir}/${name}.csv`, redact(csv));
         }
       }
       const dashes = (text.match(/(^|[\s\t(])--(?=$|[\s\t)%])/gm) || []).length;
-      const rec = { cmd, name, ...head, ms: Date.now() - t0, dashes, errors: errors.slice(before) };
+      const rec = sanitize({ cmd, name, ...head, ms: Date.now() - t0, dashes, errors: errors.slice(before) });
       index.push(rec);
       console.log(`${cmd} -> ${head.code} ${head.sec} dashes=${dashes} errors=${rec.errors.length} ${rec.ms}ms`);
     } catch (e) {
-      index.push({ cmd, failed: String(e).slice(0, 300) });
-      console.log(`${cmd} FAILED ${String(e).slice(0, 120)}`);
+      index.push({ cmd, failed: redact(String(e)).slice(0, 300) });
+      console.log(`${cmd} FAILED ${redact(String(e)).slice(0, 120)}`);
     }
     fs.writeFileSync(`${outDir}/index.json`, JSON.stringify(index, null, 1));
   }
   await app.close();
-})().catch((e) => { console.error(e); process.exit(1); });
+})().catch((e) => { console.error(redact(e?.stack ?? e)); process.exit(1); });

@@ -5,9 +5,10 @@
 //   npm run build
 //   node scripts/live/audit/check.cjs [--out <dir>] [--tickers AAPL,NVDA] [--skip-capture]
 //
-// Exit code 0: every comparison passed or was skipped for a stated reason. 1: at least one figure differs beyond its
+// Exit code 0: the explicitly required scope is verified. 1: at least one figure differs beyond its
 // tolerance (FAIL). 2: nothing failed, but a reference or the capture could not be checked (BLOCKED: refused key,
-// plan limit, rate limit, network policy, outage or malformed answer). A blocked or skipped check is never a pass.
+// plan limit, rate limit, network policy, outage or malformed answer). 3: required assurance is incomplete, including
+// unresolved conflicts or missing coverage. A blocked or skipped check is never a pass.
 //
 // Keys come from the environment only and are never printed: TIINGO_API_KEY, MASSIVE_API_KEY and SEC_USER_AGENT for
 // the references; EIA_API_KEY and COINGECKO_API_KEY are optional. See docs/audit-check.md.
@@ -15,6 +16,18 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const assurance = require('./assurance.cjs');
+const domains = require('./domains.cjs');
+
+// Node's fetch must use the same inherited proxy as Electron. Never bypass an enforced destination policy.
+if ((process.env.HTTPS_PROXY || process.env.HTTP_PROXY) && process.env.NODE_USE_ENV_PROXY !== '1' && !process.execArgv.includes('--use-env-proxy')) {
+  if (!process.allowedNodeEnvironmentFlags.has('--use-env-proxy')) {
+    console.error('Audit setup blocked: this Node version cannot honor the inherited proxy; use Node 24.');
+    process.exit(2);
+  }
+  const child = spawnSync(process.execPath, ['--use-env-proxy', __filename, ...process.argv.slice(2)], { env: { ...process.env, NODE_USE_ENV_PROXY: '1' }, stdio: 'inherit' });
+  process.exit(child.status ?? 2);
+}
 
 const ROOT = path.resolve(__dirname, '../../..');
 const DAY = 86_400_000;
@@ -24,6 +37,8 @@ const arg = (name) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 const TICKERS = (arg('--tickers') ?? 'AAPL,NVDA,JPM,XOM,WMT,LLY,KO,TSLA').split(',').map((t) => t.trim().toUpperCase()).filter(Boolean);
+const RESEARCH = (arg('--research-tickers') ?? 'APLD,NVDA').split(',').map((t) => t.trim().toUpperCase()).filter(Boolean);
+if ([...TICKERS, ...RESEARCH].some((t) => !/^[A-Z][A-Z0-9.-]{0,9}$/.test(t))) throw new Error('Unsupported audit ticker.');
 const OUT = path.resolve(arg('--out') ?? path.join(ROOT, 'audit-out', new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')));
 const SCREENS = path.join(OUT, 'screens');
 fs.mkdirSync(SCREENS, { recursive: true });
@@ -53,7 +68,7 @@ const TOLERANCE = {
 };
 
 const rows = [];
-const add = (r) => rows.push(r);
+const add = (r) => rows.push(assurance.sanitize({ evidenceKind: 'reference', ...r }));
 const FLAGGED_ON_SCREEN = Symbol('flagged');
 /** A figure on screen, or the marker for a cell that says "Sources disagree". */
 const shown = (text, parse) => (/^Sources disagree$/.test((text ?? '').trim()) ? FLAGGED_ON_SCREEN : parse(text));
@@ -61,7 +76,9 @@ const shown = (text, parse) => (/^Sources disagree$/.test((text ?? '').trim()) ?
 function compare(area, item, field, app, ref, tol, refName, note) {
   // The screen itself says the sources disagree on this figure: reported, not hidden and not failed.
   if (app === FLAGGED_ON_SCREEN) {
-    add({ status: 'FLAGGED', area, item, field, ref, refName, detail: 'the screen shows "Sources disagree"' });
+    const evidence = conflictsFor(item);
+    const candidates = evidence.flatMap((r) => r.candidates ?? []).filter((r) => r.field === field);
+    add({ ...assurance.conflictComparison(candidates, ref, tol, evidence.map((r) => r.detail).join('; ')), area, item, field, ref, refName });
     return;
   }
   if (!Number.isFinite(app) || !Number.isFinite(ref)) {
@@ -77,7 +94,7 @@ const skip = (area, item, field, detail) => add({ status: 'SKIP', area, item, fi
 
 // ------------------------------------------------------------------ references
 
-const redact = (s) => String(s).replace(/((?:apiKey|api_key|token|key)=)[^&\s]+/gi, '$1<key>');
+const redact = assurance.redact;
 /**
  * A reference request, its failure classified: auth (key refused), entitlement (plan does not cover it), rate-limit,
  * network-policy (the network refused the host), network, outage (5xx), no-data (404), malformed (not the expected
@@ -161,6 +178,18 @@ function lines(cmd) {
   const i = t.indexOf('GO');
   return i >= 0 ? t.slice(i + 1) : t;
 }
+function screenSnapshot(cmd) {
+  try {
+    const snapshot = JSON.parse(fs.readFileSync(screenFile(cmd).replace(/\.txt$/, '.audit.json'), 'utf8'));
+    return snapshot?.schema === 1 ? snapshot : null;
+  } catch { return null; }
+}
+function domainSnapshot(cmd, domain) {
+  return screenSnapshot(cmd)?.domains?.find((d) => d.domain === domain) ?? null;
+}
+function conflictsFor(ticker) {
+  return ['BQ', 'DES', 'DVD', 'FA', 'ERN'].flatMap((f) => screenSnapshot(`${ticker} US Equity ${f}`)?.conflicts ?? []);
+}
 const after = (ls, label) => {
   const i = ls?.findIndex((l) => l.trim() === label) ?? -1;
   return i >= 0 ? ls[i + 1]?.trim() : undefined;
@@ -187,12 +216,12 @@ const usDay = (s) => {
 
 function capture() {
   if (!fs.existsSync(path.join(ROOT, 'dist', 'index.html'))) return { kind: 'setup', detail: 'dist/ is missing: run npm run build first' };
-  const cmds = [...TICKERS.flatMap((t) => ['BQ', 'DES', 'DVD', 'FA'].map((f) => `${t} US Equity ${f}`)), 'XBTUSD Curncy BQ', 'NGAS'];
+  const cmds = [...TICKERS.flatMap((t) => ['BQ', 'DES', 'DVD', 'FA'].map((f) => `${t} US Equity ${f}`)), ...RESEARCH.flatMap((t) => ['ERN', 'SPLC'].map((f) => `${t} US Equity ${f}`)), 'CBRT', 'XBTUSD Curncy BQ', 'NGAS'];
   const list = path.join(OUT, 'commands.json');
   fs.writeFileSync(list, JSON.stringify(cmds));
   const node = [path.join(ROOT, 'scripts/live/capture.cjs'), list, SCREENS, '12000', '90000'];
   const useXvfb = process.platform === 'linux' && !process.env.DISPLAY;
-  const r = spawnSync(useXvfb ? 'xvfb-run' : process.execPath, useXvfb ? ['-a', process.execPath, ...node] : node, { cwd: ROOT, env: { ...process.env, YAHOO_PRICES_ENABLED: 'true' }, encoding: 'utf8', timeout: 60 * 60_000 });
+  const r = spawnSync(useXvfb ? 'xvfb-run' : process.execPath, useXvfb ? ['-a', process.execPath, ...node] : node, { cwd: ROOT, env: { ...process.env, YAHOO_PRICES_ENABLED: 'true', ARMIN_LIVE_AUDIT: '1' }, encoding: 'utf8', timeout: 60 * 60_000 });
   fs.writeFileSync(path.join(OUT, 'capture.log'), redact(`${r.stdout ?? ''}\n${r.stderr ?? ''}`));
   if (r.error) return { kind: 'setup', detail: String(r.error.message).slice(0, 160) };
   return r.status === 0 ? { ok: true } : { kind: 'setup', detail: `capture exited with ${r.status}; see capture.log` };
@@ -370,8 +399,10 @@ const CONCEPTS = {
   // income; its net sales tag says 605,881), then the narrower tags.
   Revenue: ['Revenues', 'RevenueFromContractWithCustomerExcludingAssessedTax', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueNet', 'RevenuesNetOfInterestExpense'],
   'Gross Profit': ['GrossProfit'],
-  // Net income to the company's shareholders, as FINANCIALS shows it; ProfitLoss (with minority interests) only when neither is filed: Tesla files no NetIncomeLoss after 2020, and its ProfitLoss (7,153 in 2024) is not the 7,130 its shareholders earned.
-  'Net Income': ['NetIncomeLoss', 'NetIncomeLossAvailableToCommonStockholdersBasic', 'ProfitLoss'],
+  // Parent-attributable income, the common-shareholder EPS numerator and consolidated income including NCI are
+  // distinct definitions. Never substitute one for another just to obtain a numerical reference.
+  'Net Income': ['NetIncomeLoss'],
+  'Net Income to Common Shareholders': ['NetIncomeLossAvailableToCommonStockholdersBasic'],
   'Diluted EPS': ['EarningsPerShareDiluted', 'EarningsPerShareBasicAndDiluted'],
   'Cash from Operations': ['NetCashProvidedByUsedInOperatingActivities', 'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations'],
   'Capital Expenditures': ['PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquireProductiveAssets'],
@@ -453,6 +484,81 @@ async function gas() {
   compare('energy', 'NGAS', `Lower 48 storage, week ending ${week}`, shown, Number(row.value), TOLERANCE.gasStorage, 'EIA API series NW2_EPG0_SWO_R48_BCF');
 }
 
+// ------------------------------------------------------------------ critical event and research coverage
+
+async function documentary(url, kind) {
+  if (kind === 'fed' && !/^https:\/\/www\.federalreserve\.gov\/(?:monetarypolicy\/fomccalendars\.htm|newsevents\/pressreleases\/monetary\d{8}a\.htm)$/.test(url)) return { kind: 'malformed', detail: 'unsupported official evidence URL' };
+  if (kind === 'sec' && !domains.evidenceUrl(url, 'sec')) return { kind: 'malformed', detail: 'unsupported SEC evidence URL' };
+  try {
+    const response = await fetch(url, { headers: { 'User-Agent': env('SEC_USER_AGENT') || 'Armin Terminal research audit', Accept: 'text/html' }, signal: AbortSignal.timeout(30_000) });
+    if (!response.ok) return { kind: response.status === 429 ? 'rate-limit' : response.status >= 500 ? 'outage' : response.status === 403 ? 'network-or-access' : 'no-data', detail: `HTTP ${response.status}` };
+    const text = await response.text();
+    if (!text || text.length > 15_000_000) return { kind: 'malformed', detail: 'empty or oversized evidence document' };
+    return { ok: true, text };
+  } catch (error) {
+    const detail = redact(`${error?.message ?? error} ${error?.cause?.message ?? ''}`).slice(0, 180);
+    return { kind: /proxy|403|policy/i.test(detail) ? 'network-policy' : 'network', detail };
+  }
+}
+
+async function policyResearch() {
+  const snapshot = domainSnapshot('CBRT', 'policy');
+  domains.validatePolicy(snapshot).forEach(add);
+  if (!snapshot) return;
+  const calendar = await documentary('https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', 'fed');
+  if (!calendar.ok) return blocked('policy', 'FED', 'latest official announcement', calendar, 'Federal Reserve Board');
+  const latest = domains.fedLinks(calendar.text, iso(Date.now()))[0];
+  if (!latest) return blocked('policy', 'FED', 'latest official announcement', { kind: 'malformed', detail: 'no published statement link was found; a scheduled date is not an outcome' }, 'Federal Reserve Board');
+  const statement = await documentary(latest, 'fed');
+  if (!statement.ok) return blocked('policy', 'FED', 'latest official announcement', statement, latest);
+  const reference = domains.fedStatement(statement.text, latest);
+  if (!reference) return blocked('policy', 'FED', 'latest official announcement', { kind: 'malformed', detail: 'the independent statement parser could not identify a unique policy target/action' }, latest);
+  domains.verifyFed(snapshot, reference).forEach(add);
+}
+
+async function earningsResearch(ticker) {
+  const snapshot = domainSnapshot(`${ticker} US Equity ERN`, 'earnings');
+  domains.validateEarnings(snapshot, ticker).forEach(add);
+  if (!snapshot) return;
+  const facts = await secFacts(ticker);
+  if (!facts.ok) return blocked('earnings', ticker, 'filed diluted EPS corroboration', facts, 'SEC companyfacts');
+  let compared = 0;
+  for (const q of snapshot.quarters ?? []) {
+    const actual = q.gaapActual;
+    if (!Number.isFinite(actual?.value) || !actual.currency) continue;
+    const latest = domains.filedQuarterEps(facts.json, q.periodEnd, actual.currency);
+    if (!latest) continue;
+    compare('earnings', ticker, `filed diluted EPS ${q.periodEnd}`, actual.value, latest.val, { abs: 0.011 }, `SEC ${latest.concept}, ${latest.form}, filed ${latest.filed}`, 'Latest-corrected filed EPS corroboration; this does not certify historical analyst consensus or its pre-release vintage.');
+    compared++;
+    if (compared >= 4) break;
+  }
+  if (!compared) add({ status: 'INCOMPLETE', area: 'earnings', item: ticker, field: 'filed diluted EPS corroboration', detail: 'no matching currency and directly reported fiscal-quarter EPS fact could be compared; annual-minus-YTD per-share derivation is not assumed' });
+}
+
+async function supplyResearch(ticker) {
+  const snapshot = domainSnapshot(`${ticker} US Equity SPLC`, 'supply-chain');
+  domains.validateSupply(snapshot, ticker).forEach(add);
+  if (!snapshot) return;
+  if (!env('SEC_USER_AGENT')) return blocked('supply-chain', ticker, 'documentary evidence', { kind: 'no-key', detail: 'SEC_USER_AGENT is not set' }, 'SEC filing');
+  const evidence = (snapshot.relations ?? []).flatMap((r) => (r.evidence ?? []).map((e) => ({ ...e, relation: `${r.role}: ${r.name}` }))).filter((e) => domains.evidenceUrl(e.sourceUrl, 'sec') && typeof e.sentence === 'string');
+  const documents = new Map();
+  let checked = 0;
+  // Budgeted documentary sampling, with its scope stated. The capture invariants independently check every record.
+  for (const e of evidence) {
+    if (checked >= 4) break;
+    if (!documents.has(e.sourceUrl)) {
+      if (documents.size >= 4) continue;
+      if (documents.size) await new Promise((resolve) => setTimeout(resolve, 200));
+      documents.set(e.sourceUrl, await documentary(e.sourceUrl, 'sec'));
+    }
+    const reference = documents.get(e.sourceUrl);
+    if (!reference.ok) blocked('supply-chain', ticker, `evidence ${e.relation}`, reference, e.sourceUrl);
+    else add({ status: domains.quotedEvidence(reference.text, e) ? 'PASS' : 'FAIL', area: 'supply-chain', item: ticker, field: `documentary quotation ${e.relation}`, refName: e.sourceUrl, detail: 'Exact normalized quotation corroboration only; this does not independently certify every role, contract, denominator, identity link or missing counterparty.' });
+    checked++;
+  }
+  if (!checked) add({ status: 'INCOMPLETE', area: 'supply-chain', item: ticker, field: 'documentary evidence', detail: 'no canonical SEC quotation could be sampled' });
+}
+
 // ------------------------------------------------------------------ run
 
 (async () => {
@@ -470,16 +576,30 @@ async function gas() {
   }
   await crypto();
   await gas();
-  const count = (s) => rows.filter((r) => r.status === s).length;
-  const summary = { started, finished: new Date().toISOString(), tickers: TICKERS, pass: count('PASS'), fail: count('FAIL'), flagged: count('FLAGGED'), skip: count('SKIP'), blocked: count('BLOCKED') };
+  await policyResearch();
+  for (const t of RESEARCH) { await earningsResearch(t); await supplyResearch(t); }
+  for (const t of [...new Set([...TICKERS, ...RESEARCH])]) {
+    for (const conflict of conflictsFor(t)) add({ status: 'FLAGGED', area: 'conflicts', item: t, field: conflict.label ?? 'unresolved displayed observation', detail: conflict.detail, candidates: conflict.candidates });
+  }
+  const requirements = [
+    ...TICKERS.flatMap((t) => ['quote', 'financials'].map((area) => ({ area, item: t, minReferencePasses: 1 }))),
+    { area: 'policy', item: 'FED', minReferencePasses: 1, minInvariantPasses: 1 },
+    ...RESEARCH.flatMap((t) => ['earnings', 'supply-chain'].map((area) => ({ area, item: t, minReferencePasses: 1, minInvariantPasses: 1 }))),
+  ];
+  const evaluated = assurance.assess(rows, requirements);
+  const summary = { started, finished: new Date().toISOString(), tickers: TICKERS, researchTickers: RESEARCH, ...evaluated };
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify({ summary, tolerance: TOLERANCE, rows }, null, 1));
   const fmt = (v) => (v == null || !Number.isFinite(v) ? '' : Math.abs(v) >= 1e6 ? v.toExponential(4) : String(+v.toFixed(4)));
-  const order = { FAIL: 0, BLOCKED: 1, FLAGGED: 2, SKIP: 3, PASS: 4 };
+  const order = { FAIL: 0, BLOCKED: 1, INCOMPLETE: 2, FLAGGED: 3, SKIP: 4, PASS: 5 };
   const sorted = [...rows].sort((a, b) => order[a.status] - order[b.status]);
   const md = [
     `# Data audit check, ${summary.finished.slice(0, 16).replace('T', ' ')} UTC`,
     '',
-    `${summary.pass} passed, ${summary.fail} failed, ${summary.flagged} shown as "Sources disagree", ${summary.blocked} blocked, ${summary.skip} skipped. Tickers: ${TICKERS.join(', ')}.`,
+    `Assurance: **${summary.assurance}**. ${summary.pass} passed, ${summary.fail} failed, ${summary.flagged} unresolved flags, ${summary.incomplete} incomplete, ${summary.blocked} blocked, ${summary.skip} skipped. Tickers: ${TICKERS.join(', ')}. Research: ${RESEARCH.join(', ')}.`,
+    '',
+    'Scope: numerical reference checks, definition/chronology invariants, the latest Fed statement, directly filed diluted EPS, and budgeted SEC quotation samples. Passing this required scope does not certify all historical consensus vintages or complete supply-chain coverage.',
+    '',
+    ...summary.coverage.map((c) => `- ${c.area} ${c.item ?? ''}: ${c.satisfied ? 'required scope verified' : 'INCOMPLETE'}; ${c.referencePasses} reference passes, ${c.invariantPasses} invariant passes, ${c.unresolved} unresolved required results.`),
     '',
     '| Status | Area | Item | Field | App | Reference | Difference | Allowed | Reference source | Detail |',
     '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
@@ -492,5 +612,5 @@ async function gas() {
   fs.writeFileSync(path.join(OUT, 'report.md'), md);
   for (const r of sorted.filter((x) => x.status !== 'PASS')) console.log(`${r.status.padEnd(8)} ${r.area.padEnd(10)} ${String(r.item).padEnd(6)} ${r.field.padEnd(34)} app ${fmt(r.app).padEnd(12)} ref ${fmt(r.ref).padEnd(12)} ${r.refName ?? ''} ${[r.kind, r.detail].filter(Boolean).join(': ')}`);
   console.log(`\n${summary.pass} passed, ${summary.fail} FAILED, ${summary.flagged} flagged on screen, ${summary.blocked} blocked, ${summary.skip} skipped. Report: ${path.relative(ROOT, path.join(OUT, 'report.md'))}`);
-  process.exit(summary.fail ? 1 : summary.blocked ? 2 : 0);
+  process.exit(summary.exitCode);
 })();

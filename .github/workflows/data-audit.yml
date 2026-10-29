@@ -11,11 +11,26 @@ name: Data audit
 # Secrets (Settings > Secrets and variables > Actions > New repository secret): TIINGO_API_KEY, MASSIVE_API_KEY,
 # SEC_USER_AGENT; optional EIA_API_KEY and COINGECKO_API_KEY. A missing one turns its checks into skipped checks.
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Development revision whose data and audit are checked
+        required: false
+        type: string
+        default: claude/market-events-v2.16.0-id814n
+      tickers:
+        required: false
+        type: string
+      research_tickers:
+        required: false
+        type: string
   # When the check itself changes, on any branch: it tests the check, and GitHub learns of the workflow only from a run.
   push:
     paths:
       - .github/workflows/data-audit.yml
       - scripts/live/audit/check.cjs
+      - scripts/live/audit/assurance.cjs
+      - scripts/live/audit/domains.cjs
   schedule:
     # Tuesday to Saturday at 01:37 UTC: after each US session's close and evening trading, references published.
     - cron: '37 1 * * 2-6'
@@ -23,6 +38,14 @@ on:
     inputs:
       tickers:
         description: Comma-separated US tickers (default AAPL,NVDA,JPM,XOM,WMT,LLY,KO,TSLA)
+        required: false
+        type: string
+      ref:
+        description: Optional revision to check (defaults to the selected workflow branch)
+        required: false
+        type: string
+      research_tickers:
+        description: Earnings and supply-chain tickers (default APLD,NVDA)
         required: false
         type: string
 
@@ -39,6 +62,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
       - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
@@ -54,7 +79,14 @@ jobs:
           EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
           COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
           TICKERS: ${{ inputs.tickers }}
-        run: node scripts/live/audit/check.cjs --out audit-out/run ${TICKERS:+--tickers "$TICKERS"}
+          RESEARCH_TICKERS: ${{ inputs.research_tickers }}
+          NODE_USE_ENV_PROXY: '1'
+        shell: bash
+        run: |
+          args=(--out audit-out/run)
+          if [ -n "$TICKERS" ]; then args+=(--tickers "$TICKERS"); fi
+          if [ -n "$RESEARCH_TICKERS" ]; then args+=(--research-tickers "$RESEARCH_TICKERS"); fi
+          node scripts/live/audit/check.cjs "${args[@]}"
       - name: Keep the report
         if: always()
         run: |
