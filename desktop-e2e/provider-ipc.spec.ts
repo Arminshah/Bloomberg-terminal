@@ -61,6 +61,8 @@ interface Fixtures {
   congress?: boolean;
   ecbFx?: boolean;
   centralBankRates?: boolean;
+  policyDecisions?: boolean;
+  policyDown?: boolean;
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   segments?: boolean;
@@ -379,7 +381,7 @@ test("EM carries a company's reported quarters, their surprise and growth, on in
   await page.reload();
   await command(page, 'APLD EM', 'EARNINGSTREND');
   const panel = page.locator('.panel').first();
-  const row = (label: string) => panel.locator('tbody tr', { hasText: label });
+  const row = (label: string) => panel.getByRole('table').locator('tbody tr', { hasText: label });
   // Q4 2026: 0.04 reported against -0.19 expected, down from 0.09 the quarter before.
   await expect(row('Q4 2026')).toContainText('0.04', { timeout: 30_000 });
   await expect(row('Q4 2026')).toContainText('-0.19');
@@ -394,10 +396,10 @@ test("EM carries a company's reported quarters, their surprise and growth, on in
   await expect(row('Q2 2027 Est')).toContainText('+28.6%');
   await expect(row('Q3 2027 Est')).toContainText('NM');
   await expect(row('Q3 2027 Est')).toContainText('+72.7%');
-  await expect(panel.locator('tbody')).not.toContainText('-378');
+  await expect(panel.getByRole('table').locator('tbody')).not.toContainText('-378');
   // A fiscal year needs its four quarters: only Yahoo's consensus for this year and next.
   await panel.getByRole('button', { name: /2\) Fiscal years/ }).click();
-  await expect(panel.locator('tbody tr')).toHaveCount(2);
+  await expect(panel.getByRole('table').locator('tbody tr')).toHaveCount(2);
   await expect(row('FY 2027 Est')).toContainText('-1.06');
   await expect(row('FY 2028 Est')).toContainText('-0.78');
 });
@@ -1141,7 +1143,7 @@ test("ECB, BOE and BOJ show each bank's rate from its own data, its last move an
   await command(page, 'ECB', 'ECBPORTAL');
   await expect(kv('Deposit facility rate')).toHaveText('2.50%', { timeout: 30_000 });
   await expect(kv('In force since')).toHaveText('16/09/26');
-  await expect(kv('Last move')).toHaveText('+25 bp, decided 10/09/26');
+  await expect(kv('Last move')).toHaveText('+25 bp, calendar match 10/09/26 (unverified)');
   await expect(kv('Euro short-term rate')).toHaveText('2.442% on 23/10/26');
   await command(page, 'BOE', 'BOEPORTAL');
   await expect(kv('Bank Rate')).toHaveText('3.75%');
@@ -1150,7 +1152,7 @@ test("ECB, BOE and BOJ show each bank's rate from its own data, its last move an
   await expect(kv('SONIA')).toHaveText('3.734% on 23/10/26');
   await command(page, 'BOJ', 'BOJPORTAL');
   await expect(kv('Basic loan rate')).toHaveText('1.50%');
-  await expect(kv('Last move')).toHaveText('+25 bp, decided 18/09/26');
+  await expect(kv('Last move')).toHaveText('+25 bp, calendar match 18/09/26 (unverified)');
   await expect(kv('Uncollateralized overnight call rate')).toHaveText('1.227% on 23/10/26');
   await expect(panel.locator('.fnh')).toContainText('REAL');
 });
@@ -1168,10 +1170,46 @@ test("CBRT lists each bank's rate with its moves from the bank's own data, and t
   await ecb.click();
   const move = panel.getByTestId('cbrt-moves').locator('tbody tr').first();
   await expect(move).toContainText('16/09/26');
-  await expect(move.locator('td').nth(3)).toHaveText('10/09/26');
+  await expect(move.locator('td').nth(3)).toHaveText('10/09/26 · unverified');
   await panel.getByTestId('cbrt-banks').locator('tbody tr', { hasText: 'Bank of Japan' }).click();
-  await expect(panel.getByTestId('cbrt-moves').locator('tbody tr').first().locator('td').nth(3)).toHaveText('18/09/26');
+  await expect(panel.getByTestId('cbrt-moves').locator('tbody tr').first().locator('td').nth(3)).toHaveText('18/09/26 · unverified');
   await expect(panel).toContainText("moves with the Bank's guideline for the overnight call rate");
+});
+
+test('a confirmed Fed hold crosses real IPC without replacing the last hike, and source outages retain the successful-check time', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const f = (globalThis as FixtureGlobal).__desktopFixtures;
+    f.policyDecisions = true;
+    f.centralBankRates = true;
+  });
+  await page.reload();
+  await command(page, 'CBRT', 'RATEANALYSIS');
+  const panel = page.locator('.panel').first();
+  const fed = panel.getByTestId('cbrt-banks').locator('tbody tr', { hasText: 'Federal Reserve' });
+  await expect(fed).toContainText('Unchanged, 0 bp', { timeout: 30_000 });
+  await expect(fed.locator('td').nth(3)).toHaveText('17/09/26');
+  await expect(fed.locator('td').nth(4)).toHaveText('+25 bp');
+  await expect(panel.getByTestId('cbrt-decisions')).toContainText('28/10/26');
+  const target = async () => {
+    const raw = await panel.locator('[data-audit-state]').first().getAttribute('data-audit-state');
+    return (JSON.parse(raw!) as { banks: { code: string; current: { upper: number; lastSuccessfulAt: number; error?: string }; latestDecision: { outcome: string; changeBp: number } }[] }).banks.find((b) => b.code === 'FED')!;
+  };
+  const before = await target();
+  expect(before.latestDecision).toMatchObject({ outcome: 'hold', changeBp: 0 });
+  expect(before.current.upper).toBe(4);
+  expect(before.current.lastSuccessfulAt).toBeGreaterThan(0);
+  await command(page, 'FOMC', 'FEDMEETINGS');
+  await expect(panel.getByTestId('fomc-decisions').locator('[data-policy-date="2026-10-28"]')).toHaveAttribute('data-policy-status', 'confirmed');
+  await command(page, 'FED', 'FEDPORTAL');
+  await expect(panel).toContainText('Unchanged, 0 bp');
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.policyDown = true; });
+  await command(page, 'CBRT', 'RATEANALYSIS');
+  await page.getByRole('button', { name: 'Refresh every source now', exact: true }).click();
+  await expect.poll(async () => (await target()).current.error, { timeout: 30_000 }).toBeTruthy();
+  const retained = await target();
+  expect(retained.current.upper).toBe(4);
+  expect(retained.current.lastSuccessfulAt).toBe(before.current.lastSuccessfulAt);
+  await expect(fed.locator('td').nth(4)).toHaveText('+25 bp');
 });
 
 test('SPLC reads suppliers, customers and competitors from the SEC filings that name the company and from its own report', async ({ desktop: { app, page } }) => {
@@ -1189,7 +1227,8 @@ test('SPLC reads suppliers, customers and competitors from the SEC filings that 
   // Fabrinet's report: Nebius brought 12.5% of its revenue, in the place Nebius has in its list of three.
   const fabrinet = panel.locator('.splc-box', { hasText: 'Fabrinet' });
   await expect(fabrinet).toContainText('Rev: 12.5%', { timeout: 30_000 });
-  await expect(panel.locator('.splc-center')).toContainText('Rev. quantified 12.0% (1 customer)');
+  await expect(panel.locator('.splc-center')).toContainText('1 unresolved concentration disclosure');
+  await expect(panel.locator('.splc-center')).toContainText('Customers 3 named · 0 anonymous records');
   // Its own 20-F and its 6-K of October (current reports of two years are read), and the two reports naming it.
   await expect(panel.locator('.splc-center')).toContainText('4 filings read');
   await panel.getByRole('button', { name: '2) Suppliers' }).click();
@@ -1199,13 +1238,18 @@ test('SPLC reads suppliers, customers and competitors from the SEC filings that 
   await expect(row('NVIDIA')).toContainText('NVDA');
   await expect(row('Dell Technologies')).toContainText('DELL');
   await panel.getByRole('button', { name: '3) Customers' }).click();
-  await expect(panel.locator('tbody tr').first()).toContainText('12% of NBIS US');
+  await expect(panel.locator('tbody tr')).toHaveCount(3);
+  await expect(panel.locator('tbody')).not.toContainText('12% of NBIS US');
   await expect(row('Example Cloud')).toContainText('Names NBIS US as a supplier');
   await expect(row('Example Cloud').getByRole('link', { name: /10-K/ })).toHaveAttribute('href', 'https://www.sec.gov/Archives/edgar/data/2222222/000222222226000004/excl-20251231.htm');
   // Federal records: the agency whose contract it holds and the prime contractor that subcontracted to it are customers.
   await expect(row('Department of Energy')).toContainText('Federal agency: $2.5M obligated on NBIS US');
   await expect(row('Department of Energy').getByRole('link', { name: /Contract/ })).toHaveAttribute('href', 'https://www.usaspending.gov/award/CONT_AWD_89303026FSC000001_8900_-NONE-_-NONE-');
   await expect(row('Microsoft')).toContainText('Prime contractor: $400.0K in subcontracts to NBIS US');
+  await panel.getByRole('button', { name: '7) Concentration', exact: true }).click();
+  await expect(panel.locator('tbody tr')).toHaveCount(1);
+  await expect(panel.locator('tbody tr').first()).toContainText('12% of NBIS US');
+  await expect(panel).toContainText('Their identities are unresolved');
   await panel.getByRole('button', { name: '2) Suppliers' }).click();
   await expect(row('Synthetic Cooling')).toContainText("Subcontractor on NBIS US's federal contracts: $300.0K");
   await panel.getByRole('button', { name: '4) Competitors' }).click();
@@ -2021,7 +2065,9 @@ test('EE sums up the earnings on one page with the figures of ERN, EEO, ANR, EM 
   await expect(kv).toContainText('07/10/26');
   await expect(kv).toContainText('1.29%');
   // A loss-maker: the P/E on the blended forward EPS and next year's growth are not meaningful.
-  await expect(kv).toContainText('20.00');
+  // Current market price is 18 in the quote fixture; the target provider's old 20 is not today's price.
+  await expect(kv).toContainText('Current Price18.00');
+  await expect(kv).toContainText('Adjusted T12M P/E150.00');
   await expect(kv.locator('dd', { hasText: 'NM' })).toHaveCount(2);
   await expect(kv).toContainText('6/1/0');
   await expect(kv).toContainText('25.00');
