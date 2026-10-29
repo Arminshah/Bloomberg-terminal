@@ -389,7 +389,9 @@ async function statements(t) {
   const days = (a, b) => (Date.parse(b) - Date.parse(a)) / DAY;
   for (const key of Object.keys(CONCEPTS)) {
     // Each period from the first tag, in order, that gives it.
-    const tagged = CONCEPTS[key].map((c) => g[c]?.units).map((u) => u?.USD ?? u?.['USD/shares']).filter((v) => v?.length);
+    // Only the annual and quarterly reports: a proxy statement's pay table tags Tesla's 2024 net income as 7,153 (with
+    // minority interests) where its 10-K gives 7,091.
+    const tagged = CONCEPTS[key].map((c) => g[c]?.units).map((u) => (u?.USD ?? u?.['USD/shares'])?.filter((x) => /^(?:10-K|10-Q|20-F|40-F|10-KT|10-QT)(?:\/A)?$/.test(x.form ?? ''))).filter((v) => v?.length);
     const row = ls.slice(h, h + 30).find((l) => l.split('\t')[0] === key)?.split('\t').slice(1) ?? [];
     if (!tagged.length || !row.length) continue;
     labels.forEach((lab, i) => {
