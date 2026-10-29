@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createStore } from '../../core/store';
+import { createStore, loadJson } from '../../core/store';
 import { DAY_MS } from '../calendar';
 import { engine } from '../market';
 import type { SecurityDef } from '../types';
@@ -7,6 +7,8 @@ import { yahooGet } from './yahoo';
 import { parseSpark } from './index-members';
 import { findByTicker, loadFiler, loadFilingIndex, loadSecCompanies, secAvailable, secTicker, type SecCompany } from './sec';
 import { federalRelations, type FedAsk, type FedParty, type FedStep } from './usaspending';
+import { appendRelationshipHistory, enrichRelation, lifecycleRelations, evidenceIdentity, relationKind, type RelationshipAssertion, type ShareObservation, type IdentityLink } from './supply-chain-history';
+export { relationKind, relationStatus, relationshipView, customerCounts } from './supply-chain-history';
 
 /**
  * SPLC: a company's suppliers, customers and competitors as annual reports state them. Companies name their large
@@ -53,6 +55,13 @@ export interface Evidence {
   type?: string;
   /** Where the record is, when it is not an SEC filing (a federal contract on USAspending.gov). */
   url?: string;
+  /** First time this installation recorded this parsed disclosure; not its publication or a fresh network check. */
+  observedAt?: number;
+  /** Source publication precision is a day for EDGAR records here; an exact acceptance timestamp is not available. */
+  publishedPrecision?: 'day';
+  parserVersion?: number;
+  /** A source-backed lifecycle assertion, kept even when it closes a relationship. */
+  assertion?: RelationshipAssertion;
 }
 
 export interface Relation {
@@ -76,6 +85,11 @@ export interface Relation {
   amount?: number;
   /** A counterparty the filings describe without naming it ("a U.S. based investment-grade hyperscaler"). */
   unnamed?: boolean;
+  recordKind?: 'entity' | 'concentration';
+  assertions?: RelationshipAssertion[];
+  observations?: ShareObservation[];
+  /** Explicit naming evidence; never a match inferred from a percentage or a nearby date. */
+  identityLinks?: IdentityLink[];
   evidence: Evidence[];
 }
 
@@ -1460,7 +1474,7 @@ const PURCHASING_LIST = /\b(?:purchas\w+|procur\w+|sourc\w+|buy\w*)\b[^.]{0,120}
  * suppliers it names ("foundries, such as TSMC and Samsung") and competitors ("our competitors include ...").
  */
 export function ownRelations(sentences: string[], dir: Directory, self: { cik?: number; names: string[]; ticker?: string }, ev: Omit<Evidence, 'sentence'>, ended: EndedStakes = { sold: new Set(), subsidiaries: new Set() }): Relation[] {
-  const out: Relation[] = [];
+  const out: Relation[] = ended.retainHistory ? lifecycleRelations(sentences, dir, self, ev) : [];
   const { sold: soldStakes, subsidiaries } = ended;
   // Its subsidiaries are the company: their deals are its own, and they are never a counterparty.
   const subs = [...new Set([...(ended.subsidiaryNames ?? []), ...subsidiaryNames(sentences)])];
@@ -1508,7 +1522,7 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
     for (const p of x.parts) {
       for (let k = 0; k < p.count; k++) {
         n++;
-        out.push({ key: `unnamed:${n}`, name: `Unnamed ${p.kind ? `${p.kind} ` : ''}${seg && !p.kind ? `${seg} ` : ''}customer ${n}`, role: 'customer', share: p.share, basis: 'target-revenue', side: 'own', evidence: [{ ...ev, sentence: x.raw }] });
+        out.push({ key: `unnamed:${n}`, name: `Unnamed ${p.kind ? `${p.kind} ` : ''}${seg && !p.kind ? `${seg} ` : ''}customer ${n}`, recordKind: 'concentration', role: 'customer', share: p.share, basis: 'target-revenue', side: 'own', evidence: [{ ...ev, sentence: x.raw }] });
       }
     }
   }
@@ -1522,8 +1536,8 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
   const counted = suppliers.filter((u) => u.year === supplierYear).sort((a, b) => b.months - a.months)[0];
   const namedElsewhere = (share: number) =>
     sentences.some((raw) => !unnamedSupplierShares(raw).length && new RegExp(`(?<![\\d.])${String(share).replace('.', '\\.')}\\s?(?:%|percent)[^.;]{0,80}\\bpurchases\\b`).test(raw));
-  (counted?.shares ?? []).filter((share) => !namedElsewhere(share)).forEach((share, i) => {
-    out.push({ key: `unnamed-supplier:${i + 1}`, name: `Unnamed supplier ${i + 1}`, role: 'supplier', share, basis: 'target-purchases', side: 'own', evidence: [{ ...ev, sentence: counted!.raw }] });
+  (counted?.shares ?? []).filter((share) => ended.retainHistory || !namedElsewhere(share)).forEach((share, i) => {
+    out.push({ key: `unnamed-supplier:${i + 1}`, name: `Unnamed supplier ${i + 1}`, recordKind: 'concentration', role: 'supplier', share, basis: 'target-purchases', side: 'own', evidence: [{ ...ev, sentence: counted!.raw }] });
   });
   const aliases = definedNames(sentences, dir, (ended.aliases ??= new Map()));
   const legal = (ended.legalNames ??= new Map<string, string>());
@@ -1716,7 +1730,7 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       else add(st.party, st.role, raw);
     }
   }
-  return out.filter((r) => stillHeld(r, ended));
+  return ended.retainHistory ? out : out.filter((r) => stillHeld(r, ended));
 }
 
 /** Stakes the company's reports say were sold, and companies it owns more than half of: neither is a relation now. */
@@ -1736,6 +1750,8 @@ export interface EndedStakes {
    * ("Ablecom")"), kept across its filings: for statements that name a supplier as their subject.
    */
   legalNames?: Map<string, string>;
+  /** Production retains lifecycle disclosures; legacy pure-classifier callers can request its original current-only view. */
+  retainHistory?: boolean;
 }
 
 /** The name that ends a phrase ("Purchases from Ablecom Technology, Inc." → "Ablecom Technology, Inc."): its capitalised words, with the small words a name can hold ("Bank of America"). */
@@ -2262,11 +2278,11 @@ export function leasedSites(sentence: string, name: string): string[] {
   return sites.length ? [sites[sites.length - 1]] : [];
 }
 
-export function mergeRelations(list: Relation[]): Relation[] {
+export function mergeRelations(list: Relation[], options: { preserveRoles?: boolean; strictIdentity?: boolean } = {}): Relation[] {
   const by = new Map<string, Relation>();
   const shareFrom = new Map<string, { date: string; year: number }>();
   for (const r of list) {
-    const k = `${r.key}|${r.role}`;
+    const k = `${r.key}|${r.role}${options.strictIdentity && relationKind(r) === 'concentration' ? `|${evidenceIdentity(r.evidence[0])}` : ''}`;
     const have = by.get(k);
     const ev = r.evidence[0];
     const at = { date: ev?.date ?? '', year: statementYear(ev?.sentence ?? '') };
@@ -2275,7 +2291,9 @@ export function mergeRelations(list: Relation[]): Relation[] {
       if (r.share != null) shareFrom.set(k, at);
       continue;
     }
-    for (const e of r.evidence) if (!have.evidence.some((x) => x.sentence === e.sentence)) have.evidence.push(e);
+    for (const e of r.evidence) if (!have.evidence.some((x) => evidenceIdentity(x) === evidenceIdentity(e))) have.evidence.push(e);
+    if (r.assertions) have.assertions = [...new Map([...(have.assertions ?? []), ...r.assertions].map((a) => [a.id, a])).values()];
+    if (r.observations) have.observations = [...new Map([...(have.observations ?? []), ...r.observations].map((a) => [a.id, a])).values()];
     const prev = shareFrom.get(k);
     const later = !prev || at.date > prev.date || (at.date === prev.date && at.year > prev.year);
     // A share stated by the target itself wins, then the latest; a share beats none.
@@ -2284,7 +2302,7 @@ export function mergeRelations(list: Relation[]): Relation[] {
       have.qualifier = r.qualifier;
       have.basis = r.basis;
       shareFrom.set(k, at);
-      if (ev) have.evidence = [ev, ...have.evidence.filter((x) => x !== ev && x.sentence !== ev.sentence)];
+      if (ev) have.evidence = [ev, ...have.evidence.filter((x) => evidenceIdentity(x) !== evidenceIdentity(ev))];
     }
     // Government records add to what the filings say; the filings decide who states it.
     if (r.side !== have.side && r.side !== 'records') have.side = have.side === 'records' ? r.side : 'both';
@@ -2292,6 +2310,20 @@ export function mergeRelations(list: Relation[]): Relation[] {
     have.ticker ??= r.ticker;
     have.id ??= r.id;
     have.yahoo ??= r.yahoo;
+  }
+  // The production graph preserves anonymous disclosures. A later, explicit site naming is recorded as a
+  // dated link; moving older evidence onto a named entity would rewrite what was known at the time.
+  if (options.strictIdentity) {
+    for (const u of by.values()) {
+      if (!u.unnamed || u.role !== 'customer' || relationKind(u) !== 'entity') continue;
+      const candidates = [...by.values()].filter((r) => !r.unnamed && r.role === u.role).flatMap((r) => r.evidence.flatMap((e) => {
+        const sites = leasedSites(e.sentence, r.name).filter((site) => u.evidence.some((old) => new RegExp(`\\b${escapeRe(site)}\\b`).test(old.sentence)));
+        return sites.length ? [{ r, e, sites }] : [];
+      }));
+      if (new Set(candidates.map(({ r }) => r.key)).size !== 1) continue;
+      u.identityLinks = candidates.map(({ r, e, sites }) => ({ entityKey: r.key, name: r.name, ticker: r.ticker, cik: r.cik, id: r.id, yahoo: r.yahoo, evidence: e, proof: `Same explicitly named leased site: ${sites.join(', ')}` }));
+    }
+    return [...by.values()];
   }
   // A site a filing says is "leased to Oracle" ("Polaris Forge 2"): statements on an unnamed tenant at that site are
   // about the named one.
@@ -2303,7 +2335,7 @@ export function mergeRelations(list: Relation[]): Relation[] {
       if (!u.unnamed || u.role !== 'customer') continue;
       const moved = u.evidence.filter((e) => [...sites].some((site) => new RegExp(`\\b${escapeRe(site)}\\b`).test(e.sentence)));
       if (!moved.length) continue;
-      for (const e of moved) if (!r.evidence.some((x) => x.sentence === e.sentence)) r.evidence.push(e);
+      for (const e of moved) if (!r.evidence.some((x) => evidenceIdentity(x) === evidenceIdentity(e))) r.evidence.push(e);
       u.evidence = u.evidence.filter((e) => !moved.includes(e));
       if (!u.evidence.length) by.delete(k);
       if (r.side !== u.side) r.side = r.side === 'records' ? u.side : r.side;
@@ -2324,7 +2356,7 @@ export function mergeRelations(list: Relation[]): Relation[] {
     if (!starts.length) continue;
     for (const e of g.evidence) {
       const into = (eventDate(e.sentence) || e.date) < starts[0] ? first : second;
-      if (!into.evidence.some((x) => x.sentence === e.sentence)) into.evidence.push(e);
+      if (!into.evidence.some((x) => evidenceIdentity(x) === evidenceIdentity(e))) into.evidence.push(e);
     }
     by.delete(k);
   }
@@ -2335,7 +2367,7 @@ export function mergeRelations(list: Relation[]): Relation[] {
     const wider = unnamed.filter(([k2, r2]) => k2 !== k && r2.role === r.role && by.has(k2) && !(ORDINAL_KEY.test(k2) && !ORDINAL_KEY.test(k)) && words.every((w) => r2.key.replace(/^unnamed:/, '').split(' ').includes(w)));
     if (wider.length !== 1) continue;
     const into = by.get(wider[0][0])!;
-    for (const e of r.evidence) if (!into.evidence.some((x) => x.sentence === e.sentence)) into.evidence.push(e);
+    for (const e of r.evidence) if (!into.evidence.some((x) => evidenceIdentity(x) === evidenceIdentity(e))) into.evidence.push(e);
     by.delete(k);
   }
   // Several unnamed parties of a kind ("two U.S. based investment-grade hyperscalers") are named in the plural; "a
@@ -2348,6 +2380,7 @@ export function mergeRelations(list: Relation[]): Relation[] {
   // One filer read as both the target's supplier and its customer: a single stray statement gives way to a share or
   // to two or more statements the other way (a company can be both, when both are well attested).
   const out = [...by.values()];
+  if (options.preserveRoles) return out;
   return out.filter((r) => {
     if ((r.role !== 'supplier' && r.role !== 'customer') || r.side !== 'theirs' || r.share != null || r.evidence.length > 1) return true;
     const other = out.find((x) => x.key === r.key && x !== r && (x.role === 'supplier' || x.role === 'customer') && x.role !== r.role);
@@ -2546,6 +2579,25 @@ export interface Chain {
   /** Day's change in percent, by relation key. */
   changes: Record<string, number>;
   at?: number;
+  /** Append-only parsed disclosures seen by this installation, including prior periods and ended relations. */
+  history?: Relation[];
+  historySince?: number;
+  archiveState?: 'saved' | 'session-only';
+  coverage?: {
+    state: 'bounded' | 'partial';
+    warnings: string[];
+    searches: number;
+    searchAttempts: number;
+    failedSearchAttempts: number;
+    failedSearches: number;
+    indexRequests: number;
+    failedIndexes: number;
+    failedDocuments: number;
+    capReached: boolean;
+    documentsAttempted: number;
+    documentsRead: number;
+    windows: string[];
+  };
 }
 
 export const supplyChains = createStore<{ v: number; chains: Record<string, Chain> }>({ v: 0, chains: {} });
@@ -2607,6 +2659,12 @@ async function pool<T>(items: T[], n: number, f: (x: T) => Promise<void>) {
  * classifies their sentences, telling `emit` each step. Throws Error('missing-agent') without the SEC User-Agent.
  */
 export async function runChain(target: { ticker?: string; name: string }, io: ChainIO, emit: (f: (c: Chain) => Chain) => void): Promise<void> {
+  const coverage: NonNullable<Chain['coverage']> = { state: 'bounded', warnings: [], searches: 0, searchAttempts: 0, failedSearchAttempts: 0, failedSearches: 0, indexRequests: 0, failedIndexes: 0, failedDocuments: 0, capReached: false, documentsAttempted: 0, documentsRead: 0, windows: ['Own: two annual reports, up to four subsequent quarters and two years of selected current reports', 'Counterparties: two years of reports/current reports; three years of prospectuses'] };
+  const warn = (message: string) => { if (!coverage.warnings.includes(message)) coverage.warnings.push(message); };
+  const reportCoverage = () => emit((c) => ({ ...c, coverage: { ...coverage, warnings: [...coverage.warnings] } }));
+  const failedDocument = () => { coverage.state = 'partial'; coverage.failedDocuments++; reportCoverage(); };
+  const failedIndex = () => { coverage.state = 'partial'; coverage.failedIndexes++; reportCoverage(); };
+  const capped = (message: string) => { coverage.capReached = true; coverage.state = 'partial'; warn(message); };
   const companies = await io.companies();
   const company = target.ticker ? findByTicker(companies, target.ticker) : undefined;
   const names = targetNames(company?.ticker ?? target.ticker, company?.title ?? target.name);
@@ -2620,8 +2678,21 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
   // A search's first page; the next pages too while the whole answer stays within `all` documents. A search that
   // fails is asked once more (the full-text search answers errors at times).
   const weights: number[] = [];
-  const once = (arg: string) => io.fts(arg).catch((e) => (e?.message === 'missing-agent' ? Promise.reject(e) : null));
-  const ask = async (arg: string) => (await once(arg)) ?? (await once(arg)) ?? { hits: [], total: 0 };
+  const once = async (arg: string) => {
+    coverage.searchAttempts++;
+    try { return await io.fts(arg); }
+    catch (e) { coverage.failedSearchAttempts++; if ((e as Error)?.message === 'missing-agent') throw e; return null; }
+  };
+  const ask = async (arg: string) => {
+    coverage.searches++;
+    const result = (await once(arg)) ?? (await once(arg));
+    if (!result) {
+      coverage.state = 'partial'; coverage.failedSearches++;
+      warn('Some SEC searches failed after retry. Missing results are not evidence of no relationships.');
+    }
+    reportCoverage();
+    return result ?? { hits: [], total: 0 };
+  };
   const search = async (arg: string, into: FtsHit[][], all: number, weight = 1) => {
     const first = await ask(arg);
     into.push(first.hits);
@@ -2631,13 +2702,18 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
         into.push((await ask(`${arg}|${p * 100}`)).hits);
         if (into === reports) weights.push(weight);
       }
+    } else {
+      capped('SEC search results exceeded a search window. Some matching documents were not processed.');
     }
     return first.total;
   };
   // The company's own latest annual report, a newer quarterly report, and its current reports of the last year.
   const own: Filer[] = [];
   if (company) {
-    const filings = (await io.filings(company.cik)) ?? [];
+    coverage.indexRequests++;
+    const fetchedFilings = await io.filings(company.cik).catch(() => null);
+    if (!fetchedFilings) { failedIndex(); warn('The company filing index could not be read.'); }
+    const filings = fetchedFilings ?? [];
     const doc = (f: { form: string; filed: string; accession: string; doc?: string }): Filer | null =>
       f.doc && /\.html?$/i.test(f.doc) ? { cik: company.cik, name: title, tickers: [company.ticker], form: f.form, date: f.filed, path: `${company.cik}/${f.accession.replace(/-/g, '')}/${f.doc}`, score: 0, terms: 0, state: 'waiting', source: 'own' } : null;
     // The latest annual report, the quarterly reports since the one before, and that earlier annual report.
@@ -2653,6 +2729,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     // releases filed with them: where companies announce their customers, suppliers and lenders.
     const since = new Date(Date.now() - 730 * DAY_MS).toISOString().slice(0, 10);
     const eightKs = filings.filter((f) => /^(?:8-K|6-K)$/.test(f.form) && f.filed >= since && doc(f) && (!f.items || f.items.some((i) => OWN_ITEMS.test(i)))).slice(0, MAX_OWN_8K);
+    if (eightKs.length === MAX_OWN_8K) capped('The current-report limit was reached; older agreements may not have been read.');
     const have = new Set(own.map((f) => f.path));
     for (const f of eightKs) {
       const d = doc(f)!;
@@ -2664,8 +2741,11 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     if (io.index) {
       let releases = 0;
       for (const f of eightKs.filter((x) => !x.items || x.items.some((i) => /^(?:1\.01|7\.01|8\.01)$/.test(i)))) {
-        if (releases >= MAX_OWN_RELEASES) break;
-        const names = (await io.index(company.cik, f.accession).catch(() => null)) ?? [];
+        if (releases >= MAX_OWN_RELEASES) { capped('The filed press-release limit was reached.'); break; }
+        coverage.indexRequests++;
+        const listedNames = await io.index(company.cik, f.accession).catch(() => null);
+        if (!listedNames) { failedIndex(); warn('A filing exhibit index could not be read.'); }
+        const names = listedNames ?? [];
         for (const name of names.filter((n) => RELEASE_FILE.test(n)).slice(0, 2)) {
           const path = `${company.cik}/${f.accession.replace(/-/g, '')}/${name}`;
           if (have.has(path)) continue;
@@ -2697,8 +2777,10 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
   // Not other companies: the target's own finance arms ("Ford Motor Credit") and securitization trusts.
   const outside = (h: FtsHit) => !groupFiler(h.name, names) && !SECURITIZATION.test(h.name) && !BLANK_CHECK.test(h.name);
   const ranked = rankFilers(reports.map((hits) => hits.filter(outside)), company?.cik, MAX_REPORTS, weights);
+  if (ranked.length === MAX_REPORTS) capped('The report ranking limit was reached. Filing counts do not measure all counterparties.');
   const newer = newerReports(reports, ranked.slice(0, MAX_NEWER));
   const theirCurrent = currentDocs(current.map((hits) => hits.filter(outside)), company?.cik, MAX_CURRENT);
+  if (theirCurrent.length === MAX_CURRENT) capped('The counterparty current-report limit was reached.');
   // The federal contract records of a US-listed company, read beside its filings.
   const today = new Date().toISOString().slice(0, 10);
   const fed: Filer[] = company && io.usaspending
@@ -2712,11 +2794,24 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
   const exclude = names.exclude ? new RegExp(names.exclude) : null;
   const relations: Relation[] = [];
   // A stake one of its reports says was sold (or a subsidiary) stays out, whichever filing names it.
-  const ended: EndedStakes = { sold: new Set(), subsidiaries: new Set() };
-  const publish = () => emit((c) => ({ ...c, relations: mergeRelations(relations.filter((r) => stillHeld(r, ended))), at: Date.now() }));
+  const ended: EndedStakes = { sold: new Set(), subsidiaries: new Set(), retainHistory: true };
+  const captured: Relation[] = [];
+  const publish = () => emit((c) => {
+    const history = appendRelationshipHistory(c.history ?? [], captured);
+    // The current list selects the newest concentration disclosure per role. Annual, quarterly and amended
+    // versions remain in the separate archive, whose local labels never establish a persistent customer identity.
+    const newestConcentration = new Map<Role, string>();
+    for (const r of history) if (relationKind(r) === 'concentration') {
+      const date = r.evidence.reduce((at, e) => e.date > at ? e.date : at, '');
+      if (date > (newestConcentration.get(r.role) ?? '')) newestConcentration.set(r.role, date);
+    }
+    const current = history.filter((r) => relationKind(r) !== 'concentration' || r.evidence.some((e) => e.date === newestConcentration.get(r.role)));
+    const latest = mergeRelations(current, { preserveRoles: true, strictIdentity: true });
+    return { ...c, relations: latest, history: appendRelationshipHistory(history, latest), historySince: c.historySince ?? Date.now(), coverage: { ...coverage, warnings: [...coverage.warnings] }, at: Date.now() };
+  });
   const mark = (f: Filer, state: Filer['state'], found?: number) => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === f.path ? { ...x, state, ...(found != null ? { found } : {}) } : x)) }));
   const sentenceNames = [...new Set([...names.names, ...names.legal.map((l) => l.replace(SUFFIX, '').trim())])].slice(0, 8);
-  const evidence = (f: Filer, sentence: string): Evidence => ({ sentence, filer: f.name, form: f.form, date: f.date, path: f.path, ...(f.type && f.type !== f.form ? { type: f.type } : {}) });
+  const evidence = (f: Filer, sentence: string): Evidence => ({ sentence, filer: f.name, form: f.form, date: f.date, path: f.path, observedAt: Date.now(), publishedPrecision: 'day', ...(f.type && f.type !== f.form ? { type: f.type } : {}) });
 
   const federal = company && io.usaspending
     ? (async () => {
@@ -2739,10 +2834,11 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
             return out;
           },
           today,
-        }, (step, state, found, url) => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === `usaspending/${step}` ? { ...x, state, ...(found != null ? { found } : {}), ...(url ? { url } : {}) } : x)) })));
-        relations.push(...got.relations);
+        }, (step, state, found, url) => { if (state === 'failed') failedDocument(); emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === `usaspending/${step}` ? { ...x, state, ...(found != null ? { found } : {}), ...(url ? { url } : {}) } : x)) })); });
+        relations.push(...got.relations.map((r) => enrichRelation(r, Date.now())));
+        captured.push(...got.relations.map((r) => enrichRelation(r, Date.now())));
         publish();
-      })().catch(() => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.source === 'federal' && x.state !== 'read' ? { ...x, state: 'failed' } : x)) })))
+      })().catch(() => { failedDocument(); emit((c) => ({ ...c, filers: c.filers.map((x) => (x.source === 'federal' && x.state !== 'read' ? { ...x, state: 'failed' } : x)) })); })
     : null;
 
   // Unnamed customers' shares come from the newest filing that states them (a quarter's are not the year's). A filing's
@@ -2755,10 +2851,14 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
   const sharesFrom = SHARE_ONLY.map(() => '');
   for (const f of own) {
     mark(f, 'reading');
+    coverage.documentsAttempted++;
     const sentences = await io.text('own', f.path).catch(() => null);
     let found = 0;
     if (sentences) {
+      coverage.documentsRead++;
+      if (sentences.length >= 400) capped('A document reached the sentence extraction limit.');
       const got = ownRelations(sentences, dir, { cik: company?.cik, names: names.names, ticker: company?.ticker ?? target.ticker }, evidence(f, ''), ended);
+      captured.push(...got.map((r) => enrichRelation(r)));
       const keep = SHARE_ONLY.map((re, i) => {
         if (!got.some((r) => re.test(r.key)) || f.date <= sharesFrom[i]) return false;
         sharesFrom[i] = f.date;
@@ -2768,16 +2868,19 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
       const add = got.filter((r) => !shareOnly(r.key) || SHARE_ONLY.some((re, i) => keep[i] && re.test(r.key)));
       relations.push(...add);
       found = add.length;
-    }
+    } else failedDocument();
     mark(f, sentences ? 'read' : 'failed', found);
     publish();
   }
 
   await pool(docs.slice(own.length + fed.length), 3, async (f) => {
     mark(f, 'reading');
+    coverage.documentsAttempted++;
     const sentences = await io.text('mentions', f.path, sentenceNames).catch(() => null);
     let found = 0;
     if (sentences) {
+      coverage.documentsRead++;
+      if (sentences.length >= 80) capped('A document reached the mention extraction limit.');
       const listed = dir.byTicker.get(f.tickers[0] ?? '');
       // The filer as its documents call it, initials included ("BMS" for Bristol-Myers Squibb).
       // Two-word names also written as one ("Open Text" is "OpenText" in its own filings).
@@ -2799,14 +2902,18 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
         const dated = /^(?:In|On|During|By|As of)\s+(?:(?:early|mid|late)[- ])?(?:[A-Z][a-z]+\s+)?(?:\d{1,2},\s+)?((?:19|20)\d{2})\b/.exec(sentence.trim());
         if (dated && Number(dated[1]) < filedYear - 5 && Math.max(...years) < filedYear - 5 && /\b(?:announced|acquir\w+|acquisition|sold|completed|consummated|merged|spun off|spin-off|divest\w*)\b/i.test(sentence)) continue;
         found++;
-        relations.push({ key: `cik:${f.cik}`, name: knownName(f.tickers[0]) ?? listed?.title ?? f.name, ticker: f.tickers[0], cik: f.cik, role: c.role, share: c.share, qualifier: c.qualifier, basis: c.basis, side: 'theirs', evidence: [evidence(f, sentence)] });
-        if (c.also) relations.push({ key: `cik:${f.cik}`, name: knownName(f.tickers[0]) ?? listed?.title ?? f.name, ticker: f.tickers[0], cik: f.cik, role: c.also, side: 'theirs', evidence: [evidence(f, sentence)] });
+        const r: Relation = { key: `cik:${f.cik}`, name: knownName(f.tickers[0]) ?? listed?.title ?? f.name, ticker: f.tickers[0], cik: f.cik, role: c.role, share: c.share, qualifier: c.qualifier, basis: c.basis, side: 'theirs', evidence: [evidence(f, sentence)] };
+        relations.push(r); captured.push(enrichRelation(r));
+        if (c.also) { const also = { ...r, role: c.also, share: undefined, qualifier: undefined, basis: undefined }; relations.push(also); captured.push(enrichRelation(also)); }
       }
-    }
+    } else failedDocument();
     mark(f, sentences ? 'read' : 'failed', found);
     publish();
   });
   await federal;
+  if (coverage.failedDocuments) warn('Some source documents could not be read. The extracted relationships are incomplete.');
+  if (!company) warn('No company filing index was matched; only counterparties found in other sources are available.');
+  reportCoverage();
 }
 
 function setChain(key: string, f: (c: Chain) => Chain) {
@@ -2838,7 +2945,9 @@ function desktopIO(): ChainIO {
       const res = await bridge.sec!('fts', arg);
       if ((res as any)?.missing) throw new Error('missing-agent');
       if (!res?.text) throw new Error(`the full-text search answered ${res?.status ?? 'nothing'}`);
-      return { hits: parseFts(res.text) ?? [], total: ftsTotal(res.text) };
+      const hits = parseFts(res.text);
+      if (!hits) throw new Error('The SEC search response schema was not recognized.');
+      return { hits, total: ftsTotal(res.text) };
     },
     text: async (kind, path, names) => {
       const res = await bridge.secText!(kind, path, names);
@@ -2854,13 +2963,25 @@ async function build(key: string, def: SecurityDef) {
   if (running.has(key)) return;
   running.add(key);
   try {
-    setChain(key, () => ({ state: 'loading', filers: [], relations: [], changes: {} }));
+    const saved = loadJson<{ schema: number; history: Relation[]; firstRecordedAt: number }>(`armin:splc-history:${key}`);
+    const valid = saved?.schema === 1 && Array.isArray(saved.history) && saved.history.every((r) => r && typeof r.key === 'string' && Array.isArray(r.evidence) && r.evidence.every((e) => typeof e.sentence === 'string' && typeof e.date === 'string' && typeof e.path === 'string'));
+    setChain(key, (c) => ({ ...c, state: 'loading', message: undefined, filers: [], relations: c.relations.length ? c.relations : valid ? saved!.history : [], history: c.history ?? (valid ? saved!.history : []), historySince: c.historySince ?? (valid ? saved!.firstRecordedAt : Date.now()), archiveState: valid ? 'saved' : 'session-only' }));
     await runChain({ ticker: secTicker(def) ?? undefined, name: def.name }, desktopIO(), (f) => setChain(key, f));
-    setChain(key, (c) => ({ ...c, state: 'ok', at: Date.now() }));
+    const c = supplyChains.get().chains[key];
+    let archiveState: Chain['archiveState'] = 'session-only';
+    try {
+      const json = JSON.stringify({ schema: 1, history: c.history ?? [], firstRecordedAt: c.historySince ?? Date.now() });
+      // Avoid exhausting the app's shared storage with raw public filing paragraphs. Memory retains the whole run.
+      if (json.length <= 750_000) {
+        localStorage.setItem(`armin:splc-history:${key}`, json);
+        archiveState = 'saved';
+      }
+    } catch { /* The UI identifies session-only history when storage is blocked or full. */ }
+    setChain(key, (c) => ({ ...c, state: 'ok', archiveState, at: Date.now() }));
     void refreshChanges(key);
   } catch (e) {
     const missing = (e as Error)?.message === 'missing-agent';
-    setChain(key, (c) => ({ ...c, state: 'error', message: missing ? 'SPLC reads SEC filings, which need SEC_USER_AGENT (your name and email) in PROVIDERS.' : 'The SEC filings could not be read.' }));
+    setChain(key, (c) => ({ ...c, state: 'error', coverage: { state: 'partial', warnings: ['The latest refresh failed. Prior recorded disclosures remain available with their original dates.'], searches: c.coverage?.searches ?? 0, searchAttempts: c.coverage?.searchAttempts ?? 0, failedSearchAttempts: c.coverage?.failedSearchAttempts ?? 0, failedSearches: c.coverage?.failedSearches ?? 0, indexRequests: c.coverage?.indexRequests ?? 0, failedIndexes: c.coverage?.failedIndexes ?? 0, failedDocuments: c.coverage?.failedDocuments ?? 0, capReached: c.coverage?.capReached ?? false, documentsAttempted: c.coverage?.documentsAttempted ?? 0, documentsRead: c.coverage?.documentsRead ?? 0, windows: c.coverage?.windows ?? [] }, message: missing ? 'SPLC reads SEC filings, which need SEC_USER_AGENT (your name and email) in PROVIDERS.' : 'The SEC filings could not be read.' }));
   } finally {
     running.delete(key);
   }
