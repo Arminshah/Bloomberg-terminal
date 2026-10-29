@@ -203,6 +203,9 @@ describe('SPLC: the period of a share', () => {
     expect(sharePeriod('For the second quarter of fiscal year 2027, one direct customer represented 16% of total revenue.')).toBe('Q2 FY2027');
     expect(sharePeriod('For fiscal year 2026, sales to one direct customer represented 22% of total revenue.')).toBe('FY2026');
     expect(sharePeriod('For the three months ended August 31, 2026, CoreWeave accounted for 62% of revenue.')).toBe('3M to Aug 2026');
+    // Emerson Radio's 10-Q of 14 November 2025 gives Costco's share for one quarter, not for 2025.
+    expect(sharePeriod('For the three month period ended September 30, 2025, the Company\'s three largest customers accounted for approximately 77% of the Company\'s net revenues, of which Amazon accounted for approximately 56%, Costco accounted for approximately 11% and Variety accounted for approximately 10%.')).toBe('3M to Sep 2025');
+    expect(sharePeriod('For the six-month period ended June 30, 2026, Walmart accounted for 21% of net sales.')).toBe('6M to Jun 2026');
     expect(sharePeriod('For the years ended December 31, 2025 and 2024, Microsoft accounted for 71% and 62% of revenue.')).toBe('Year to Dec 2025');
     expect(sharePeriod('During 2025, Apple accounted for 18% of net sales.')).toBe('2025');
     expect(sharePeriod('Apple accounted for 18% of net sales.')).toBe('');

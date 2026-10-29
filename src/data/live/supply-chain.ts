@@ -2162,8 +2162,12 @@ export function sharePeriod(sentence: string): string {
   const s = sentence.replace(/\s+/g, ' ');
   let m = /\b(first|second|third|fourth) (?:fiscal )?quarter of (?:fiscal )?(?:year )?(\d{4})\b/i.exec(s);
   if (m) return `Q${ORDINAL[m[1].toLowerCase()]} FY${m[2]}`;
-  m = /\b(three|six|nine|twelve) months ended ([A-Z][a-z]+) \d{1,2}, (\d{4})\b/.exec(s);
-  if (m && MONTH_ABBR[m[2].toLowerCase()]) return m[1] === 'twelve' ? `Year to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}` : `${{ three: 3, six: 6, nine: 9 }[m[1] as 'three' | 'six' | 'nine']}M to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}`;
+  // "for the three months ended", "For the three month period ended", "the 3-month period ended".
+  m = /\b(three|six|nine|twelve|3|6|9|12)[- ]months?(?: periods?)? ended ([A-Z][a-z]+) \d{1,2}, (\d{4})\b/i.exec(s);
+  if (m && MONTH_ABBR[m[2].toLowerCase()]) {
+    const n = ({ three: 3, six: 6, nine: 9, twelve: 12 } as Record<string, number>)[m[1].toLowerCase()] ?? Number(m[1]);
+    return n === 12 ? `Year to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}` : `${n}M to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}`;
+  }
   // "During the quarter ended March 29, 2026": three months.
   m = /\bquarter ended ([A-Z][a-z]+) \d{1,2}, (\d{4})\b/.exec(s);
   if (m && MONTH_ABBR[m[1].toLowerCase()]) return `3M to ${MONTH_ABBR[m[1].toLowerCase()]} ${m[2]}`;
