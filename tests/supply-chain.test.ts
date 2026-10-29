@@ -193,6 +193,22 @@ describe("SPLC: what another company's report says", () => {
     expect(c('Apple limits our access to its application marketplace because our application provides mobile messaging services similar to Apple; or', apple)).toBeNull();
   });
 
+  it("a bank leading the filer's credit facility is its lender, not a partner; a licence's quoted bank is neither (SPLC BAC, 28 October 2026)", () => {
+    const bac = targetPattern(targetNames('BAC', 'BANK OF AMERICA CORP /DE/').names);
+    const f = (ticker: string, title: string) => targetPattern(targetNames(ticker, title).names);
+    // Alliance Laundry's S-1: the filer's own name is no "alliance".
+    expect(classify('(i) "Credit Agreement: means that certain Amended and Restated Credit Agreement, dated as of February 28, 2019, among Alliance Laundry Systems LLC, Alliance Laundry Holdings LLC, the lenders from time to time party thereto, Bank of America, N.A., as administrative agent and swing line lender, Bank of Montreal, as an issuing lender.', bac, f('ALH', 'Alliance Laundry Holdings Inc.'))).toEqual({ role: 'lender' });
+    // MasTec writes its name "MasTec"; the SEC's title is "MASTEC INC".
+    expect(classify('Term Loan Agreement, dated as of June 26, 2025, by and among MasTec, Inc. and MasTec North America, Inc., as Borrowers, Bank of America, N.A., as Administrative Agent, and the other lenders party thereto', bac, f('MTZ', 'MASTEC INC'))).toEqual({ role: 'lender' });
+    expect(classify('On August 13, 2021, the Company amended and restated its Credit Agreement, originally dated December 7, 2016, with Bank of America, N.A. ("Bank of America"), as administrative agent, swing line lender and letter of credit issuer.', bac)).toEqual({ role: 'lender' });
+    expect(classify('On June 12, 2024, Moove Brazil, our wholly owned subsidiary, entered into an export prepayment facility in the aggregate principal amount of US$100 million with Bank of America, N.A., as lender, and Moove UK, as guarantor.', bac)).toEqual({ role: 'lender' });
+    expect(classify('We are grateful for the ongoing partnership with Bank of America and our lender group, who unanimously approved the amendment.', bac, f('HELE', 'HELEN OF TROY LTD'))).toEqual({ role: 'lender' });
+    // Beta Bionics' licence: the bank only publishes the quotes it refers to.
+    expect(classify('In the event that the Bank of America (or its successor) ceases to publish currency quotes, Licensee will use currency quotes from another US headquartered multinational bank.', bac, f('BBNX', 'Beta Bionics, Inc'))).toBeNull();
+    // A bank leaving the facility is no lender.
+    expect(classify('"Exiting Lenders" means each of (i) First-Citizens Bank & Trust Company, and (ii) Bank of America, N.A., each in its capacity as a Lender, and in each case who is a signatory hereto as an "Exiting Lender".', bac)).not.toEqual({ role: 'lender' });
+  });
+
   it('competitors, stakes, products, careers and lawsuits', () => {
     expect(c('Our principal competitors include NVIDIA Corporation and new well-funded entrants for our in-place associative computing solutions.')).toEqual({ role: 'competitor' });
     expect(c('Apple, Lenovo, Dell, HP, Cherry, and Amazon Basics are our main competitors worldwide for pointing devices.', apple)).toEqual({ role: 'competitor' });

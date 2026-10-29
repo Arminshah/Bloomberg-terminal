@@ -529,6 +529,8 @@ function companyRevenue(tail: string): RegExpExecArray | null {
   if (/^\s+(?:for|in|of|within|from)\s+(?:our|its|their|the)\s+(?:[A-Za-z&,'-]+\s+){0,6}?(?:segments?|divisions?|business units?)\b/i.test(tail.slice(rev[0].length))) return null;
   return rev;
 }
+/** A bank named as the agent of a credit facility or as a lender under it: ", N.A., as Administrative Agent". */
+const LENDER_AFTER = /^(?:'s)?(?:,?\s+N\.\s?A\.)?(?:\s*\([^)]*\))?,?\s+(?:(?:is expected to|will|shall|to)\s+)?(?:(?:act|acts|serve|serves|acting|serving)\s+)?as\s+(?:the\s+|a\s+|an\s+|sole\s+)*(?:(?:[A-Z][\w-]*|joint|lead|syndication)\s+){0,2}?(?:administrative agent|collateral agent|(?:(?:revolving|term|incremental|swing line|initial|revolving credit|term loan)\s+){0,2}(?:credit\s+)?lenders?)\b/i;
 const OF_PURCHASES = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?:(?:our|its|their|the Company's|the Group's|total|consolidated|net|aggregate|annual)\s+)*(?:(?:total|net|consolidated|merchandise)\s+)*(?:purchases|inventory purchases|merchandise purchases|purchases of (?:merchandise|inventory|products)|component purchases|cost of (?:revenue|revenues|sales|goods sold)|capital expenditures|property and equipment purchases|procurement)\b/i;
 const VERB = /\b(?:contribut(?:ed|es|e|ing)|account(?:ed|s|ing)? for|represent(?:ed|s|ing)?|compris(?:ed|es|e|ing)|constitut(?:ed|es|e)|amounted to|made up|generated|were to|was to)\b/i;
 
@@ -753,6 +755,8 @@ export function classify(sentence: string, pattern: RegExp, filer?: RegExp): Cla
   const s = sentence.replace(/^\[competitors\]\s*/, '');
   const involves = (text: string) => {
     if (FILER.test(text) || /\b[Tt]he (?:Corporation|Trust|Partnership|Fund|Bank|Issuer|Firm|Partnerships?)(?:'s)?\b|\b[Bb]oth companies\b/.test(text)) return true;
+    // A credit agreement's borrowers in the filer's own exhibit list: "by and among MasTec, Inc. ..., as Borrowers".
+    if (/\bas\s+(?:the\s+)?(?:parent\s+)?[Bb]orrowers?\b|\bthe Borrower\b/.test(text)) return true;
     // A share of net sales or revenue is the filer's own figure: "these major retailers represented 54% of total net sales".
     if (/\d\s*(?:%|percent)\s+of\s+(?:our\s+|its\s+|the Company's\s+)?(?:total\s+|net\s+|consolidated\s+|annual\s+)*(?:sales|revenues?)\b/i.test(text)) return true;
     // "the purchase order received from Esso", "revenues arising from": the filer's own orders and revenue.
@@ -967,8 +971,18 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     if (company.length) return { role: 'supplier', share, qualifier, basis: 'their-revenue' };
   }
 
-  // Licences, royalties and research collaborations with the target.
-  if (company.length && LICENSING.test(s) && !MINERAL.test(s)) return { role: 'partner' };
+  // "the Credit Agreement ... among Alliance Laundry Systems LLC, the lenders from time to time party thereto, Bank of
+  // America, N.A., as administrative agent": the target leads the filer's lenders.
+  // Also "Bank of America, N.A. ("Bank of America"), as administrative agent", "as Domestic Administrative Agent", "as
+  // lender", "Bank of America, N.A., U.S. Bank National Association and the other lenders party thereto". Not a bank
+  // leaving the facility ("Exiting Lenders").
+  const leadsLenders = (c: Mention) =>
+    LENDER_AFTER.test(s.slice(c.end)) || /^(?:'s)?(?:,?\s+N\.\s?A\.)?(?:\s*\([^)]*\))?(?:,\s+(?:[A-Z][\w&.'-]*\s*){1,6}(?:,\s*N\.\s?A\.)?)*,?\s+and\s+(?:the\s+)?other lenders\b/.test(s.slice(c.end));
+  if (company.some(leadsLenders) && /\b(?:credit|loans?|revolving|financing|facilit(?:y|ies)|lenders?)\b/i.test(s) && !/\b(?:Exiting|Departing|Non-Extending) Lenders?\b/i.test(s) && (byFiler(s) || /\bas\s+(?:the\s+)?(?:parent\s+)?borrowers?\b|\bthe Borrower\b|\b(?:our|its|the Company's)\s+(?:wholly[- ]owned\s+)?subsidiar/i.test(s))) return { role: 'lender' };
+  // Licences, royalties and research collaborations with the target. Not a bank whose published rates or quotes a
+  // licence refers to ("In the event that the Bank of America ... ceases to publish currency quotes, Licensee will use").
+  const rateSource = (c: Mention) => /^(?:'s)?(?:\s*\([^)]*\))?[^.;]{0,30}\b(?:ceases? to publish|publish(?:es|ed)?|quot(?:es|ed))\b/i.test(s.slice(c.end)) || /\b(?:published|quoted|announced|reported)\s+by\s+(?:the\s+)?$/i.test(before(c));
+  if (company.length && LICENSING.test(s) && !MINERAL.test(s) && !company.every(rateSource)) return { role: 'partner' };
   if (company.length && MINERAL.test(s) && /\broyalt/i.test(s)) return null;
 
   // The filer holds a stake in the target ("our investment in Applied Digital", "our largest holdings were Apple"),
@@ -1136,13 +1150,16 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   }
   // Partnerships the filer is in: "our partnership with NVIDIA", "we collaborate with Apple".
   const partner = /\b(?:partner(?:s|ship|ships|ed|ing)?|collaborat\w*|alliances?|co-develop\w*|joint development|co-engineer\w*|jointly (?:develop|pursue|market|sell)\w*|co-sell\w*)\b/i;
+  // The filer's own name is no partnership word: "Alliance Laundry Systems LLC" (Alliance Laundry's S-1).
+  const unnamed = filer ? s.replace(filer, (x) => ' '.repeat(x.length)) : s;
   for (const c of company) {
     const lead = s.slice(Math.max(0, c.index - 140), c.index);
     const tail = s.slice(c.end, c.end + 80);
+    const leadWords = unnamed.slice(Math.max(0, c.index - 140), c.index);
     // "Costco's exclusive RV partner", "the official partner of the NBA".
     if (/^(?:'s|’s)\s+(?:exclusive|preferred|official|strategic|primary|principal|global)\s+(?:[\w-]+\s+){0,2}partner\b/i.test(tail) && byFiler(lead.slice(-80))) return { role: 'partner' };
-    const at = lead.search(partner);
-    if (at < 0 && !partner.test(tail.slice(0, 60))) continue;
+    const at = leadWords.search(partner);
+    if (at < 0 && !partner.test(unnamed.slice(c.end, c.end + 60))) continue;
     // Not a partnership with the target: "(some of which are strategic partners of ours in other areas) include ...",
     // "both our largest BaaS partner and Walmart", "Walmart, Costco and other traditional and non-traditional partners",
     // "one of our Channel Partners, Apple", "progress on partnering with".
@@ -1166,6 +1183,8 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     if (filer && (new RegExp(String.raw`\bto (?:deploy|implement|roll out|adopt)\s+(?:the\s+)?(?:${filer.source})`, 'i').test(around) || new RegExp(String.raw`\bwith\s+(?:${filer.source})\s*,\s*$`, 'i').test(lead) && /^(?:'s)?\s+(?:has |have )?(?:enhanced|improved|reduced|increased|achieved|cut|saved|accelerated|streamlined)\b/i.test(tail))) return { role: 'supplier' };
     // Deploying the target's own platform is buying it; a partnership to deploy something together stays a partnership.
     if (new RegExp(String.raw`\bto (?:deploy|use|adopt|implement|run on|bring|integrate|incorporate|leverage)\s+(?:the\s+)?(?:[\w-]+\s+){0,2}?(?:${pattern.source}|its|their)\b`, 'i').test(around)) return { role: 'customer' };
+    // "we partnered with Bank of America and our lender group to amend our credit facility" (Helen of Troy): its bank.
+    if (/\b(?:lender group|(?:credit|loan|revolving) (?:facility|facilities|agreement)|term loans?)\b/i.test(around)) return { role: 'lender' };
     return { role: 'partner' };
   }
   return null;
