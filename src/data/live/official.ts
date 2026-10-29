@@ -12,14 +12,42 @@ export function officialAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.official === 'function';
 }
 
-/** Text of one official source, or '' when it does not answer. */
-export async function official(source: OfficialSource, since: string): Promise<string> {
+/** A transport result, with receipt and confirmation kept apart from the date a value applies. */
+export interface OfficialAnswer {
+  status: number;
+  text: string;
+  sourceLabel?: string;
+  missing?: string;
+  error?: string;
+  at?: number;
+  cached?: boolean;
+  stale?: boolean;
+  url?: string;
+  publishedAt?: number;
+  effectiveAt?: number;
+  attemptedAt: number;
+  receivedAt: number;
+  /** Absent when this call only returned a cache or failed. Never a publication timestamp. */
+  checkedAt?: number;
+}
+
+/** Preserve failed requests and source timing instead of turning every failure into an empty dataset. */
+export async function officialAnswer(source: OfficialSource, since: string): Promise<OfficialAnswer> {
+  const attemptedAt = Date.now();
   try {
-    const res = await window.arminDesktop!.official(source, since);
-    return res.status === 200 ? res.text : '';
-  } catch {
-    return '';
+    const res = await window.arminDesktop!.official(source, since) as Omit<OfficialAnswer, 'attemptedAt' | 'receivedAt'>;
+    const receivedAt = Date.now();
+    const fresh = res.status === 200 && !res.stale && !res.cached && !res.error;
+    return { ...res, attemptedAt, receivedAt, ...(fresh ? { checkedAt: res.checkedAt ?? res.at ?? receivedAt } : { checkedAt: undefined }) };
+  } catch (err) {
+    return { status: 0, text: '', attemptedAt, receivedAt: Date.now(), error: err instanceof Error ? err.message : 'The official source could not be reached.' };
   }
+}
+
+/** Text compatibility for parsers that do not yet consume request provenance. */
+export async function official(source: OfficialSource, since: string): Promise<string> {
+  const res = await officialAnswer(source, since);
+  return res.status === 200 && !res.stale && !res.error ? res.text : '';
 }
 
 const MON: Record<string, string> = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };

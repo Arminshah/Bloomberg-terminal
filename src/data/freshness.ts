@@ -50,7 +50,7 @@ export const DAILY_STALE_AFTER = 5 * DAY;
 
 /** Official publishers: their once-a-day values are reference values. */
 export function isOfficialProvider(provider: string | undefined): boolean {
-  return !!provider && !/yahoo|coingecko|binance|kraken|alpaca|iex|massive|twelve|financial modeling|alpha vantage/i.test(provider);
+  return !!provider && /^(?:US Treasury|U\.S\. Treasury|Deutsche Bundesbank|Bundesbank|Bank of England|Bank of Canada|Reserve Bank of Australia|Swiss National Bank|Banco Central do Brasil|Bank of Japan|Ministry of Finance(?:,? Japan)?|Japan Ministry of Finance|European Central Bank|ECB|Federal Reserve(?: Bank of New York)?|New York Fed|FRED|ALFRED)(?:\s*[·:(-].*)?$/i.test(provider.trim());
 }
 
 function age(ms: number): string {

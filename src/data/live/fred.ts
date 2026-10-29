@@ -2,7 +2,9 @@ import { fmtMonthDayNum } from '../../core/format';
 import { createStore } from '../../core/store';
 import { setFeed } from './status';
 import { registerRefresh } from '../../terminal/refresh';
-import { euroAreaCode, official, parseAbsCsv, parseJsonStat, parseOnsCsv, parseOnsMonths, parseStatcanVectors } from './official';
+import { euroAreaCode, officialAnswer, parseAbsCsv, parseJsonStat, parseOnsCsv, parseOnsMonths, parseStatcanVectors, type OfficialAnswer } from './official';
+import { datasetHealth, type DatasetHealth } from './provenance';
+import type { KeyedAnswer } from './lookup';
 import { FIRST_RELEASE_IDS, MACRO_SERIES } from '../macroseries';
 
 /**
@@ -30,11 +32,13 @@ export interface FredState {
   firstRelease: Record<string, FirstRelease[]>;
   /** When the series values were last received (epoch ms). */
   at: number;
+  /** Confirmation and failed attempts for each series/release; a retained value does not renew its check. */
+  health: Record<string, DatasetHealth>;
 }
 
 export type FirstRelease = [date: string, value: number, published: string];
 
-export const fredData = createStore<FredState>({ series: {}, releases: {}, loaded: false, needsKey: false, keyRefused: '', firstRelease: {}, at: 0 });
+export const fredData = createStore<FredState>({ series: {}, releases: {}, loaded: false, needsKey: false, keyRefused: '', firstRelease: {}, at: 0, health: {} });
 
 export type Calc = 'level' | 'diff' | 'mom' | 'yoy';
 export type Freq = 'm' | 'q' | 'w';
@@ -129,7 +133,7 @@ export function parseFredObservations(text: string): Obs {
     return [];
   }
   const out: Obs = [];
-  for (const o of (json?.observations ?? []) as any[]) {
+  for (const o of (Array.isArray(json?.observations) ? json.observations : []) as any[]) {
     const d = String(o?.date ?? '');
     const c = String(o?.value ?? '').trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^-?\d*\.?\d+$/.test(c)) continue;
@@ -150,7 +154,7 @@ export function parseFredFirstRelease(text: string): FirstRelease[] {
     return [];
   }
   const out: FirstRelease[] = [];
-  for (const o of (json?.observations ?? []) as any[]) {
+  for (const o of (Array.isArray(json?.observations) ? json.observations : []) as any[]) {
     const d = String(o?.date ?? '');
     const r = String(o?.realtime_start ?? '');
     const c = String(o?.value ?? '').trim();
@@ -169,7 +173,7 @@ export function parseFredReleaseDates(text: string, rid: number): string[] {
     return [];
   }
   const out = new Set<string>();
-  for (const r of (json?.release_dates ?? []) as any[]) {
+  for (const r of (Array.isArray(json?.release_dates) ? json.release_dates : []) as any[]) {
     const d = String(r?.date ?? '');
     if (Number(r?.release_id) === rid && /^\d{4}-\d{2}-\d{2}$/.test(d)) out.add(d);
   }
@@ -274,17 +278,25 @@ interface Stop {
   why?: string;
 }
 
-/** The answer to one FRED request ('' when it fails), or why to stop asking for now. */
-async function get(kind: 'release-dates' | 'observations' | 'first-release', arg: string, from?: string): Promise<string | Stop> {
+type FredAnswer = KeyedAnswer & { attemptedAt: number; receivedAt: number };
+const validFredAnswer = (answer: FredAnswer) => answer.status === 200 && !answer.stale && !answer.error;
+
+/** Keep transport provenance even when a source returns an older usable response. */
+async function get(kind: 'release-dates' | 'observations' | 'first-release', arg: string, from?: string): Promise<FredAnswer | Stop> {
+  const attemptedAt = Date.now();
   try {
-    const res = await window.arminDesktop!.fred!(kind, arg, from);
+    const res: KeyedAnswer = await window.arminDesktop!.fred!(kind, arg, from);
     if (res.missing) return { stop: 'missing' };
     if (res.refused) return { stop: 'refused', why: res.refused };
     if (res.throttled) return { stop: 'throttled' };
-    return res.status === 200 ? res.text : '';
-  } catch {
-    return '';
+    return { ...res, attemptedAt, receivedAt: Date.now() };
+  } catch (err) {
+    return { status: 0, text: '', attemptedAt, receivedAt: Date.now(), error: err instanceof Error ? err.message : 'FRED could not be reached.' };
   }
+}
+
+function fredHealth(previous: DatasetHealth | undefined, answer: FredAnswer, valid: boolean, source: string, sourceDate?: string): DatasetHealth {
+  return datasetHealth(previous, { at: answer.attemptedAt, ok: valid && validFredAnswer(answer), checkedAt: answer.receivedAt, receivedAt: answer.at ?? answer.receivedAt, cached: answer.cached, stale: answer.stale, source, sourceDate, error: answer.error ?? (valid && validFredAnswer(answer) ? undefined : answer.status !== 200 ? `HTTP ${answer.status}` : 'The source did not return valid observations.') });
 }
 
 /** The key flags after a pass: a missing or refused key sets them, a pass that got through clears them, throttling leaves them. */
@@ -305,37 +317,43 @@ function fredSeriesIds(): string[] {
 }
 
 /** Headline rates the statistics offices publish themselves (ONS, Eurostat), under pseudo series ids. */
-async function loadOfficialStats(series: Record<string, Obs>) {
+async function loadOfficialStats(series: Record<string, Obs>, health: Record<string, DatasetHealth>): Promise<number> {
   const since = new Date(Date.now() - 3 * 365.25 * 86_400_000).toISOString().slice(0, 10);
   const [cpi, gdp, unemp, hicp, eun, egdp, statcan, absUnemp, absCpi] = await Promise.all(
-    (['ukcpi', 'ukgdp', 'ukunemp', 'estatHicp', 'estatUnemp', 'estatGdp', 'statcan', 'absUnemp', 'absCpi'] as const).map((k) => official(k, since)),
+    (['ukcpi', 'ukgdp', 'ukunemp', 'estatHicp', 'estatUnemp', 'estatGdp', 'statcan', 'absUnemp', 'absCpi'] as const).map((k) => officialAnswer(k, since)),
   );
-  const put = (id: string, obs: Obs | undefined) => {
-    if (obs?.length) series[id] = obs;
+  let fresh = 0;
+  const text = (r: OfficialAnswer) => r.status === 200 && !r.stale && !r.error ? r.text : '';
+  const put = (id: string, obs: Obs | undefined, answer: OfficialAnswer, source: string) => {
+    const valid = !!obs?.length && answer.status === 200 && !answer.stale && !answer.error;
+    if (valid) series[id] = obs!;
+    health[id] = datasetHealth(health[id], { at: answer.attemptedAt, ok: valid, checkedAt: answer.checkedAt, receivedAt: answer.at ?? answer.receivedAt, cached: answer.cached, stale: answer.stale, sourceDate: valid ? obs![obs!.length - 1][0] : undefined, source, error: valid ? undefined : answer.error ?? (answer.status !== 200 ? `HTTP ${answer.status}` : 'No valid observations in the source response.') });
+    if (valid && !answer.cached) fresh++;
   };
   // Canada: Statistics Canada's unemployment rate and all-items CPI (the 12-month change is worked out
   // from the published index, as StatCan does). Australia: the ABS's unemployment rate and the monthly
   // CPI's published annual change.
-  const sc = parseStatcanVectors(statcan);
-  put('STATCAN:UN', sc.get(2062815));
-  put('STATCAN:CPI', sc.get(41690973));
-  put('ABS:UN', parseAbsCsv(absUnemp));
-  put('ABS:CPI', parseAbsCsv(absCpi));
-  put('ONS:D7G7', parseOnsCsv(cpi));
-  put('ONS:IHYR', parseOnsCsv(gdp, 'q'));
-  const lfs = parseOnsMonths(unemp);
-  put('ONS:MGSX', lfs.obs);
+  const sc = parseStatcanVectors(text(statcan));
+  put('STATCAN:UN', sc.get(2062815), statcan, 'Statistics Canada');
+  put('STATCAN:CPI', sc.get(41690973), statcan, 'Statistics Canada');
+  put('ABS:UN', parseAbsCsv(text(absUnemp)), absUnemp, 'ABS');
+  put('ABS:CPI', parseAbsCsv(text(absCpi)), absCpi, 'ABS');
+  put('ONS:D7G7', parseOnsCsv(text(cpi)), cpi, 'ONS');
+  put('ONS:IHYR', parseOnsCsv(text(gdp), 'q'), gdp, 'ONS');
+  const lfs = parseOnsMonths(text(unemp));
+  put('ONS:MGSX', lfs.obs, unemp, 'ONS');
   for (const [d, label] of lfs.labels) periodNames.set(`ONS:MGSX|${d}`, label);
-  for (const [kind, text] of [['HICP', hicp], ['UN', eun], ['GDP', egdp]] as const) {
+  for (const [kind, answer] of [['HICP', hicp], ['UN', eun], ['GDP', egdp]] as const) {
     const flags = new Map<string, string>();
-    const m = parseJsonStat(text, flags);
+    const m = parseJsonStat(text(answer), flags);
     const ea = euroAreaCode(m);
-    for (const [g, as] of [...(ea ? [[ea, 'EA']] : []), ...EUROSTAT_MEMBERS.map((x) => [x, x])]) {
+    for (const [g, as] of [[ea ?? 'EA', 'EA'], ...EUROSTAT_MEMBERS.map((x) => [x, x])]) {
       const id = `ESTAT:${kind}:${as}`;
-      put(id, m.get(g));
+      put(id, m.get(g), answer, 'Eurostat');
       recordStatus(id, (m.get(g) ?? []).map(([d]) => d), (d) => flags.get(`${g}|${d}`));
     }
   }
+  return fresh;
 }
 
 /**
@@ -365,7 +383,7 @@ const statusFlags = new Map<string, string>();
 const periodNames = new Map<string, string>();
 
 /** BLS answers kept twelve hours: its keyless API allows a few requests a day from each address. */
-let bls: { at: number; cpi: Obs; un: Obs } | null = null;
+let bls: { cpi: Obs; un: Obs; health: Record<string, DatasetHealth> } | null = null;
 
 /** BLS version 1 JSON → observations in date order (monthly; the annual average M13 left out). */
 export function parseBls(text: string): Obs {
@@ -393,49 +411,90 @@ export function takeBlsSeries(series: Record<string, Obs>, fromFred: Set<string>
   if (!fromFred.has('UNRATE') && later(got.un, series.UNRATE)) series.UNRATE = got.un;
 }
 
-async function loadBls(series: Record<string, Obs>, fromFred: Set<string>) {
-  if (!bls || Date.now() - bls.at > 12 * 3600_000) {
+async function loadBls(series: Record<string, Obs>, fromFred: Set<string>, health: Record<string, DatasetHealth>): Promise<number> {
+  let fresh = 0;
+  const ids = ['CPIAUCNS', 'UNRATE'] as const;
+  const due = !bls || ids.some((id) => !bls!.health[id]?.checkedAt || Date.now() - bls!.health[id].checkedAt! > 12 * 3600_000);
+  if (due) {
     const since = new Date(Date.now() - 3 * 365.25 * 86_400_000).toISOString().slice(0, 10);
-    const [cpi, un] = await Promise.all((['blsCpi', 'blsUnemp'] as const).map((k) => official(k, since)));
-    const next = { at: Date.now(), cpi: parseBls(cpi), un: parseBls(un) };
-    if (next.cpi.length || next.un.length) bls = next;
+    const answers = await Promise.all((['blsCpi', 'blsUnemp'] as const).map((k) => officialAnswer(k, since)));
+    const next = { cpi: bls?.cpi ?? [], un: bls?.un ?? [], health: { ...bls?.health } };
+    for (const [index, id] of ids.entries()) {
+      if (fromFred.has(id)) continue;
+      const answer = answers[index];
+      const obs = parseBls(answer.status === 200 && !answer.stale && !answer.error ? answer.text : '');
+      const valid = obs.length > 0;
+      next.health[id] = datasetHealth(next.health[id], { at: answer.attemptedAt, ok: valid, checkedAt: answer.checkedAt, receivedAt: answer.at ?? answer.receivedAt, cached: answer.cached, stale: answer.stale, source: 'BLS', sourceDate: obs[obs.length - 1]?.[0], error: valid ? undefined : answer.error ?? 'BLS did not return valid observations.' });
+      if (valid) next[index === 0 ? 'cpi' : 'un'] = obs;
+      if (valid && !answer.cached) fresh++;
+    }
+    bls = next;
   }
-  if (bls) takeBlsSeries(series, fromFred, bls);
+  if (bls) {
+    for (const [id, obs] of [['CPIAUCNS', bls.cpi], ['UNRATE', bls.un]] as const) {
+      if (fromFred.has(id)) continue;
+      const selected = obs.length > 0 && (!series[id]?.length || obs[obs.length - 1][0] >= series[id][series[id].length - 1][0]);
+      if (selected) series[id] = obs;
+      const sourceHealth = bls.health[id];
+      if (sourceHealth && (selected || !series[id]?.length)) health[id] = !due && sourceHealth.state === 'current' ? { ...sourceHealth, state: 'cached' } : sourceHealth;
+    }
+  }
+  return fresh;
 }
 
 async function loadSeries(): Promise<boolean> {
   const series = { ...fredData.get().series };
+  // Calendar requests run concurrently; only merge this pass's series health back into the shared store.
+  const health = Object.fromEntries(Object.entries(fredData.get().health).filter(([id]) => !id.startsWith('release:')));
   let any = false;
   let stop: Stop | null = null;
   const fromFred = new Set<string>();
-  const official = loadOfficialStats(series);
+  const official = loadOfficialStats(series, health);
   for (const id of fredSeriesIds()) {
-    const text = await get('observations', id);
-    if (typeof text !== 'string') {
-      stop = text;
+    const attemptedAt = Date.now();
+    const answer = await get('observations', id);
+    if ('stop' in answer) {
+      stop = answer;
+      for (const remaining of fredSeriesIds().slice(fredSeriesIds().indexOf(id))) {
+        health[remaining] = datasetHealth(health[remaining], { at: attemptedAt, ok: false, source: 'FRED', error: answer.why ?? `FRED request ${answer.stop}.` });
+      }
       break;
     }
-    const obs = parseFredObservations(text);
+    const obs = parseFredObservations(validFredAnswer(answer) ? answer.text : '');
+    health[id] = fredHealth(health[id], answer, obs.length > 0, 'FRED', obs[obs.length - 1]?.[0]);
     if (obs.length) {
       series[id] = obs;
       fromFred.add(id);
-      any = true;
+      any ||= !answer.cached;
     }
   }
   // First releases of the series whose revisions MACRO shows.
+  if (stop) for (const id of FIRST_RELEASE_IDS) {
+    const key = `first-release:${id}`;
+    health[key] = datasetHealth(health[key], { at: Date.now(), ok: false, source: 'ALFRED', error: stop.why ?? `ALFRED request ${stop.stop}.` });
+  }
   const firstRelease = { ...fredData.get().firstRelease };
   for (const id of stop ? [] : FIRST_RELEASE_IDS) {
-    const text = await get('first-release', id);
-    if (typeof text !== 'string') break;
-    const rows = parseFredFirstRelease(text);
+    const answer = await get('first-release', id);
+    if ('stop' in answer) {
+      stop = answer;
+      for (const remaining of FIRST_RELEASE_IDS.slice(FIRST_RELEASE_IDS.indexOf(id))) {
+        const key = `first-release:${remaining}`;
+        health[key] = datasetHealth(health[key], { at: Date.now(), ok: false, source: 'ALFRED', error: answer.why ?? `ALFRED request ${answer.stop}.` });
+      }
+      break;
+    }
+    const rows = parseFredFirstRelease(validFredAnswer(answer) ? answer.text : '');
     if (rows.length) firstRelease[id] = rows;
+    const key = `first-release:${id}`;
+    health[key] = fredHealth(health[key], answer, rows.length > 0, 'ALFRED', rows[rows.length - 1]?.[0]);
   }
-  await official;
+  const officialFresh = await official;
   // Without a FRED key, the US CPI and unemployment rate come from the BLS itself, the same series FRED republishes.
   // A series shown from an earlier BLS answer is brought up to date too (it is not FRED's this time either).
-  if (stop && stop.stop !== 'throttled' && (!fromFred.has('CPIAUCNS') || !fromFred.has('UNRATE'))) await loadBls(series, fromFred);
-  any ||= Object.keys(series).some((id) => id.includes(':'));
-  fredData.set((s) => ({ ...s, series, firstRelease, loaded: s.loaded || any, ...(any ? { at: Date.now() } : {}), ...keyState(s, stop) }));
+  const blsFresh = stop && stop.stop !== 'throttled' && (!fromFred.has('CPIAUCNS') || !fromFred.has('UNRATE')) ? await loadBls(series, fromFred, health) : 0;
+  any ||= officialFresh > 0 || blsFresh > 0;
+  fredData.set((s) => ({ ...s, series, firstRelease, health: { ...s.health, ...health }, loaded: s.loaded || Object.values(series).some((obs) => obs.length > 0), ...(any ? { at: Date.now() } : {}), ...keyState(s, stop) }));
   return any;
 }
 
@@ -444,21 +503,29 @@ async function loadCalendars(): Promise<boolean> {
   const from = new Date(Date.now() - 45 * 86_400_000).toISOString().slice(0, 10);
   const rids = [...new Set(US_EVENTS.map((e) => e.rid))];
   const releases = { ...fredData.get().releases };
+  const health: Record<string, DatasetHealth> = {};
   let any = false;
   let stop: Stop | null = null;
   for (const rid of rids) {
-    const text = await get('release-dates', String(rid), from);
-    if (typeof text !== 'string') {
-      stop = text;
+    const key = `release:${rid}`;
+    const attemptedAt = Date.now();
+    const answer = await get('release-dates', String(rid), from);
+    if ('stop' in answer) {
+      stop = answer;
+      for (const remaining of rids.slice(rids.indexOf(rid))) {
+        const key = `release:${remaining}`;
+        health[key] = datasetHealth(fredData.get().health[key], { at: attemptedAt, ok: false, source: 'FRED', error: answer.why ?? `FRED calendar request ${answer.stop}.` });
+      }
       break;
     }
-    const dates = parseFredReleaseDates(text, rid);
+    const dates = parseFredReleaseDates(validFredAnswer(answer) ? answer.text : '', rid);
+    health[key] = fredHealth(fredData.get().health[key], answer, dates.length > 0, 'FRED', dates[dates.length - 1]);
     if (dates.length) {
       releases[rid] = dates;
-      any = true;
+      any ||= !answer.cached;
     }
   }
-  fredData.set((s) => ({ ...s, releases, ...keyState(s, stop) }));
+  fredData.set((s) => ({ ...s, releases, health: { ...s.health, ...health }, ...keyState(s, stop) }));
   return any;
 }
 
@@ -481,12 +548,15 @@ export function startFred(): () => void {
   let stopped = false;
   const report = () => {
     const s = fredData.get();
-    const fredOk = Object.keys(s.releases).length > 0 && US_EVENTS.some((e) => s.series[e.series]?.length);
-    const officialOk = Object.keys(s.series).some((id) => id.includes(':'));
-    if (fredOk) setFeed('eco', 'live', 'US releases and values from the FRED API; UK and euro area statistics from the ONS and Eurostat');
-    else if (s.keyRefused) setFeed('eco', officialOk ? 'live' : 'blocked', `The FRED API key was not accepted (check it in PROVIDERS)${officialOk ? '; ONS and Eurostat statistics are live' : ''}`);
-    else if (s.needsKey) setFeed('eco', officialOk ? 'live' : 'blocked', `FRED needs your API key (open PROVIDERS to add it)${officialOk ? '; ONS and Eurostat statistics are live' : ''}`);
-    else setFeed('eco', officialOk ? 'live' : 'error', officialOk ? 'FRED unavailable; ONS and Eurostat statistics are live' : 'Economic data sources unavailable');
+    const fredOk = !s.needsKey && !s.keyRefused && Object.keys(s.releases).some((rid) => s.health[`release:${rid}`]?.state === 'current') && US_EVENTS.some((e) => s.series[e.series]?.length && s.health[e.series]?.state === 'current');
+    const checks = Object.values(s.health);
+    const successful = checks.filter((h) => h.state === 'current');
+    const failed = checks.filter((h) => h.state !== 'current');
+    if (successful.length && !failed.length) setFeed('eco', 'live', `${successful.length} economic datasets checked`, { deliveredAt: s.at });
+    else if (successful.length) setFeed('eco', 'error', `Partial economic data: ${successful.length} datasets checked; ${failed.length} checks failed or returned cached answers. Earlier values keep their original check dates.`);
+    else if (s.keyRefused) setFeed('eco', 'blocked', 'The FRED API key was not accepted (check it in PROVIDERS); earlier values are retained with their check dates.');
+    else if (s.needsKey) setFeed('eco', 'blocked', 'FRED needs your API key (PROVIDERS); no successful current source check.');
+    else setFeed('eco', 'error', 'Economic data sources did not answer; earlier values retain their original check dates.');
     return fredOk;
   };
   const first = async () => {
@@ -495,7 +565,9 @@ export function startFred(): () => void {
     await Promise.all([loadCalendars(), loadSeries()]);
     if (stopped) return;
     const { needsKey, keyRefused } = fredData.get();
-    if (!report() && !needsKey && !keyRefused) retry = setTimeout(() => void first(), 120_000);
+    const fredOk = report();
+    const failed = Object.values(fredData.get().health).some((health) => health.state === 'error');
+    if ((!fredOk || failed) && !needsKey && !keyRefused) retry = setTimeout(() => void first(), 120_000);
   };
   reload = () => void first();
   void first();
@@ -509,9 +581,10 @@ export function startFred(): () => void {
       await Promise.all([loadSeries(), Object.keys(fredData.get().releases).length ? Promise.resolve(true) : loadCalendars()]);
       const fredOk = report();
       const s = fredData.get();
-      if (fredOk) return { source, state: 'asked' };
-      if (s.needsKey || s.keyRefused) return { source, state: 'asked', detail: `statistics offices asked; FRED ${s.keyRefused ? 'refused the configured key' : 'needs FRED_API_KEY'} (PROVIDERS)` };
-      return { source, state: 'failed', detail: 'FRED did not answer' };
+      const failed = Object.values(s.health).filter((h) => h.state === 'error').length;
+      if (fredOk && !failed) return { source, state: 'asked' };
+      if (s.needsKey || s.keyRefused) return { source, state: 'failed', detail: `FRED ${s.keyRefused ? 'refused the configured key' : 'needs FRED_API_KEY'} (PROVIDERS); statistics-office results are tracked separately` };
+      return { source, state: 'failed', detail: `${failed} dataset checks failed; retained values were not renewed` };
     },
   });
   return () => {
@@ -522,4 +595,9 @@ export function startFred(): () => void {
     if (retry) clearTimeout(retry);
     offRefresh();
   };
+}
+
+/** The specific series' source check, independent of whether another economic dataset loaded. */
+export function fredSeriesHealth(id: string): DatasetHealth | undefined {
+  return fredData.get().health[id];
 }

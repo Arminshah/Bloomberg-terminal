@@ -20,8 +20,10 @@ export function loadJson<T>(key: string): T | undefined {
 export function saveJson(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch {
     /* storage full or blocked: state stays in memory */
+    return false;
   }
 }
 
@@ -73,7 +75,7 @@ export const WINDOW_ID: number = (() => {
  * (debounced) and restored on load, merged over `initial` for forward
  * compatibility when fields are added.
  */
-export function createStore<T extends object>(initial: T, persist?: string, version = 1, opts: { perWindow?: boolean } = {}): Store<T> {
+export function createStore<T extends object>(initial: T, persist?: string, version = 1, opts: { perWindow?: boolean; onPersist?: (saved: boolean) => void } = {}): Store<T> {
   const key = persist ? `${PREFIX}${persist}${opts.perWindow && WINDOW_ID > 1 ? `:w${WINDOW_ID}` : ''}` : '';
   const restore = (saved: { v: number; s: T } | undefined): T | undefined => {
     if (saved && saved.v === version && saved.s && typeof saved.s === 'object') {
@@ -102,7 +104,8 @@ export function createStore<T extends object>(initial: T, persist?: string, vers
     if (!timer) return;
     clearTimeout(timer);
     timer = null;
-    saveJson(key, { v: version, s: state });
+    const saved = saveJson(key, { v: version, s: state });
+    opts.onPersist?.(saved);
   };
   // A reload/close can happen before the debounced write. Persist the last visible state.
   if (key && typeof window !== 'undefined') window.addEventListener('pagehide', flush);
