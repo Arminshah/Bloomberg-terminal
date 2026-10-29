@@ -1,8 +1,10 @@
 # To-do list
 
-Updated 28 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
+Updated 29 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
 
 ## Next, in this order
+
+The owner-authorized 2.29.0 accuracy work is documented in `docs/accuracy-v2.29.md`, with release notes and explicit live-verification limits. The scheduler-only exception for main is recorded in HANDOVER. Do not treat the eight-company documentary samples as completion of the outstanding full SPLC/ownership reviews.
 
 Items 1 to 8 and 10 to 13 are done, all on 27 October except the first eight; NGAS, the last code of item 13, came with the EIA key on 28 October. Item 9 continues with public written and illustrated sources: the three archives of public guides you sent on 27 October gave the first screenshots inspected, and three changes came from them (below, "Done after 2.27.0"). Missing video frames do not block documented functional work. What comes next is yours to choose: "Later" lists the candidates.
 

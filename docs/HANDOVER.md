@@ -2,6 +2,14 @@
 
 For any Claude session that takes over Armin Terminal, on this account or another. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis" and "Screenshots from three public guides").
 
+## Accuracy release 2.29.0
+
+The owner authorized accuracy remediation and a new release on 29 October. Implementation and evidence limits are in `docs/accuracy-v2.29.md`; release notes are in `docs/release-v2.29.0.md`. The version-matched `.github/release-request.json` starts the gated Windows release workflow when that explicit request changes on the development branch. Check the release/workflow result before claiming publication.
+
+The owner separately approved **only** a scheduler workflow on `main`, without merging application code. It calls the reusable audit on `claude/market-events-v2.16.0-id814n` and includes the eight handover companies alongside APLD and NVIDIA. Application pushes remain restricted to the development branch. Do not merge the draft PR.
+
+Provider access was blocked in this environment; fixture checks and public GitHub reads work. A network draft was saved but does not activate access by itself. The remaining manual source checks below remain pending evidence work. The Tesla income definitions are separate and the exact-period filed parent line now has priority in its own field; Walmart's volume question still needs direct corroboration.
+
 ## The project
 
 - **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 137 functions.
@@ -107,7 +115,7 @@ The owner asked for SPLC to be checked on 15 or more companies across banks, ret
 
 ## Waiting on the owner
 
-- **Secrets for the data audit on GitHub**: Settings > Secrets and variables > Actions > New repository secret: `TIINGO_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT`, optional `EIA_API_KEY` and `COINGECKO_API_KEY`. Without them those comparisons are skipped (the check says so). The schedule (Tuesday to Saturday, 01:37 UTC) runs only once the workflow is on `main`, which needs the owner's decision (no merge without it). Keys in a Claude session's scratch folder never reach GitHub or a scheduled task: each runner needs its own copy.
+- **Secrets for the data audit on GitHub**: Settings > Secrets and variables > Actions > New repository secret: `TIINGO_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT`, optional `EIA_API_KEY` and `COINGECKO_API_KEY`. Keys in a session's scratch folder never reach GitHub or a scheduled task: each runner needs its own copy. Missing credentials are reported explicitly, and missing required evidence prevents a verified result. The owner approved adding only `.github/workflows/scheduled-data-audit.yml` to `main`, without merging application code. Once installed, it calls the development branch's reusable audit Tuesday to Saturday at 01:37 UTC, with the eight outstanding SPLC companies alongside APLD and NVIDIA. Check the workflow's actual run and report; scheduled quotation samples do not complete the full documentary reviews.
 
 - Points on the watchlist layout of 27 October: "52-WK" was read as the one-year change (labelled 52-Wk %); Avg Vol (3M) is worked out from the last 63 sessions of the daily history (Yahoo's own figure may differ slightly); Market Cap is in each stock's own currency; Currency and Market Time (Yahoo's columns) were not asked for and are not in the default.
 
@@ -116,10 +124,10 @@ The owner asked for SPLC to be checked on 15 or more companies across banks, ret
 ```
 npm ci
 npm run lint && npm run typecheck
-npx vitest run --maxWorkers=2                      # unit tests (1,674 on 29 October)
+npx vitest run --maxWorkers=2                      # unit tests (1,784 for 2.29.0)
 npm run build
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/opt/pw-browsers/chromium npx playwright test     # browser e2e, demo data (94)
-xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (75)
+xvfb-run -a npx playwright test --config playwright.desktop.config.ts                 # desktop e2e on fixtures (76)
 npm run audit:check                                 # live data audit (keys from the environment; docs/audit-check.md)
 ```
 
@@ -142,9 +150,11 @@ Earlier on 27 October, Codex's environment refused CONNECT requests to public re
 ## Making a release (only when the owner asks)
 
 1. `docs/release-vX.Y.Z.md`: it starts `# Armin Terminal X.Y.Z`, then a paragraph starting "This release", and never names the other product.
-2. `npm version X.Y.Z --no-git-tag-version`; the README's version line; "Released" in `docs/TODO.md`.
-3. Run every check above; commit "Release X.Y.Z"; push the branch.
-4. `git tag vX.Y.Z && git push origin vX.Y.Z`. The release workflow tests the tag, builds the Windows installer and portable app, uploads them and publishes the release. Check it in the repository's Actions tab. When the tag push fails through the cloud session's git proxy (it did on 27 October), start the workflow by hand instead (GitHub's "run workflow" with the input `tag` = `vX.Y.Z`, on this branch): it creates the tag on the branch's last commit, which must carry that version.
+2. `npm version X.Y.Z --no-git-tag-version`; update the README's version line and the release status in `docs/TODO.md`. Mark it published only after confirming the release and its assets.
+3. Set `.github/release-request.json` to `{"schema":1,"tag":"vX.Y.Z","branch":"claude/market-events-v2.16.0-id814n"}`. The tag must match `package.json`. Run every check above; commit the changes and push the development branch. A change to this request file starts the gated release workflow, which creates the tag on that commit. Do not also push the tag or start a duplicate release run.
+4. Confirm the workflow finishes successfully and the public release has both Windows executables and their SHA256 files. Linux checks, native Windows desktop tests, package checks and upload verification must pass before publication. A started workflow or a draft is not a published release.
+
+The existing tag-push and manual workflow triggers remain available for an authorized release when no request-file push is used. A manual run takes `tag` = `vX.Y.Z` on the development branch and requires the same version in `package.json`; an existing tag must point to that exact commit. The cloud session's git proxy has refused tag pushes, so use the request-file route for this environment.
 
 ## Where things are
 
