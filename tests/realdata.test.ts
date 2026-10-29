@@ -287,26 +287,26 @@ describe('official rates', () => {
     policyRates.set({ fedUpper: fed, ecb });
     const banks = centralBanks();
     const f = banks.find((b) => b.code === 'FED')!;
-    expect(f).toMatchObject({ rate: 4, last: '2026-09-16', real: true });
+    expect(f).toMatchObject({ rate: 4, last: '2026-09-17', real: true });
     expect(f.lastMove).toBeCloseTo(0.25, 9);
-    expect(banks.find((b) => b.code === 'ECB')).toMatchObject({ rate: 2.5, last: '2026-09-10', real: true });
+    expect(banks.find((b) => b.code === 'ECB')).toMatchObject({ rate: 2.5, last: '2026-09-16', real: true });
     expect(banks.find((b) => b.code === 'BOE')!.real).toBeFalsy();
     const sep = ecoEvents(Date.UTC(2026, 8, 15), Date.UTC(2026, 8, 18), Date.UTC(2026, 9, 1)).find((e) => e.id === 'FED:2026-09-16')!;
-    expect(sep).toMatchObject({ prior: 3.75, actual: 4, survey: null, real: true });
+    expect(sep).toMatchObject({ prior: 3.75, actual: null, survey: null, real: true, policyStatus: 'awaiting-publication' });
     policyRates.set({});
   });
 
-  it("leaves a rate decision pending until the bank's data reaches the day it takes effect", () => {
-    // The ECB decides on Thursday 29 October 2026; a change applies from the next Wednesday.
-    const soFar = toChanges([['2026-09-16', 2], ['2026-10-30', 2]])!;
-    expect(rateDecision({ code: 'ECB', rate: 2 }, '2026-10-29', soFar).actual).toBeNull();
-    const cut = toChanges([['2026-09-16', 2], ['2026-11-04', 1.75], ['2026-11-05', 1.75]])!;
-    expect(rateDecision({ code: 'ECB', rate: 2 }, '2026-10-29', cut)).toMatchObject({ prior: 2, actual: 1.75 });
-    const held = toChanges([['2026-09-16', 2], ['2026-11-05', 2]])!;
-    expect(rateDecision({ code: 'ECB', rate: 2 }, '2026-10-29', held).actual).toBe(2);
-    // The Fed's new range applies the day after the decision.
-    expect(rateDecision({ code: 'FED', rate: 4 }, '2026-10-28', toChanges([['2026-09-17', 4], ['2026-10-28', 4]])!).actual).toBeNull();
-    expect(rateDecision({ code: 'FED', rate: 4 }, '2026-10-28', toChanges([['2026-09-17', 4], ['2026-10-29', 3.75]])!).actual).toBe(3.75);
+  it('keeps a series comparison separate from a source-confirmed policy announcement', () => {
+    // Synthetic levels exercise observation lag and HOLD; these are not actual ECB or Fed decisions.
+    const now = Date.parse('2026-11-06T12:00:00Z');
+    const soFar = toChanges([['2026-09-16', 2], ['2026-10-30', 2]], '2026-11-06')!;
+    expect(rateDecision({ code: 'ECB', rate: 2 }, '2026-10-29', soFar, [], now)).toMatchObject({ actual: null, observed: null });
+    const cut = toChanges([['2026-09-16', 2], ['2026-11-04', 1.75], ['2026-11-05', 1.75]], '2026-11-06')!;
+    expect(rateDecision({ code: 'ECB', rate: 2 }, '2026-10-29', cut, [], now)).toMatchObject({ prior: 2, actual: null, observed: 1.75 });
+    const held = toChanges([['2026-09-16', 2], ['2026-11-05', 2]], '2026-11-06')!;
+    expect(rateDecision({ code: 'ECB', rate: 2 }, '2026-10-29', held, [], now)).toMatchObject({ actual: null, observed: 2 });
+    expect(rateDecision({ code: 'FED', rate: 4 }, '2026-10-28', toChanges([['2026-09-17', 4], ['2026-10-28', 4]])!, [], now)).toMatchObject({ actual: null, observed: null });
+    expect(rateDecision({ code: 'FED', rate: 4 }, '2026-10-28', toChanges([['2026-09-17', 4], ['2026-10-29', 3.75]])!, [], now)).toMatchObject({ actual: null, observed: 3.75 });
   });
 });
 

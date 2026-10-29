@@ -9,15 +9,16 @@ import { lookupFn } from '../src/terminal/registry';
 const series: PolicySeries = { changes: [['2025-01-01', 3], ['2025-02-05', 2.75], ['2025-06-11', 2], ['2026-06-17', 2.25], ['2026-09-16', 2.5]], last: 2.5, asOf: '2026-10-27' };
 
 describe('central bank rate analysis', () => {
-  it("lists each move with its size, the meeting that decided it, and the days since the one before", () => {
+  it('lists observed moves and keeps calendar comparisons separate from confirmed decision linkage', () => {
     const moves = rateMoves(series, meetingsOf('ECB'));
     expect(moves.map((m) => [m.date, m.change])).toEqual([['2025-02-05', -0.25], ['2025-06-11', -0.75], ['2026-06-17', 0.25], ['2026-09-16', 0.25]]);
     // The calendar the app holds starts in 2026: the 2025 moves have no meeting named.
-    expect(moves.map((m) => m.meeting)).toEqual([undefined, undefined, '2026-06-11', '2026-09-10']);
+    expect(moves.map((m) => m.scheduledCandidate)).toEqual([undefined, undefined, '2026-06-11', '2026-09-10']);
+    expect(moves.every((m) => m.meeting === undefined)).toBe(true);
     expect(moves[0].gapDays).toBeNaN();
     expect(moves[3].gapDays).toBe(91);
-    // The ECB's own series as published: one move, decided on 10 September 2026.
-    expect(rateMoves(toChanges(parseEcbCsv(ecbDfr))!, meetingsOf('ECB'))).toEqual([{ date: '2026-09-16', level: 2.5, change: 0.25, meeting: '2026-09-10', gapDays: NaN }]);
+    // The rate series proves the move; the calendar alone does not prove which meeting decided it.
+    expect(rateMoves(toChanges(parseEcbCsv(ecbDfr))!, meetingsOf('ECB'))).toEqual([{ date: '2026-09-16', level: 2.5, change: 0.25, scheduledCandidate: '2026-09-10', gapDays: NaN }]);
   });
 
   it('works out the change over a period and counts the rises and cuts', () => {
@@ -36,5 +37,13 @@ describe('central bank rate analysis', () => {
 
   it('opens under CBRT', () => {
     expect(parseCommand('CBRT', lookupFn)).toEqual({ kind: 'route', fn: 'RATEANALYSIS' });
+  });
+
+  it('caps a stale chart at its dated source and excludes future rows even if its requested endpoint is later', () => {
+    const s: PolicySeries = { changes: [['2026-10-01', 4], ['2026-11-02', 3.75]], last: 3.75, asOf: '2026-10-27' };
+    expect(stepPoints(s, Date.parse('2026-11-03T00:00:00Z'))).toEqual([
+      { x: Date.parse('2026-10-01T00:00:00Z'), y: 4 }, { x: Date.parse('2026-10-27T00:00:00Z'), y: 4 },
+    ]);
+    expect(stepPoints(s, Date.parse('2026-09-30T23:59:59Z'))).toEqual([]);
   });
 });

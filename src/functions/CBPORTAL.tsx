@@ -2,9 +2,12 @@ import { FnHeader } from '../components/FnHeader';
 import { Chg, KV, Section } from '../components/cells';
 import { RowNo } from '../components/Numbered';
 import { RealBadge, SimBadge } from '../components/Source';
-import { fmtDay, fmtNum, fmtTime } from '../core/format';
+import { fmtDateTime, fmtDay, fmtNum, fmtTime } from '../core/format';
 import { centralBanks, meetingsOf } from '../data/eco';
-import { policyRates, type PolicyRates, type PolicySeries } from '../data/live/policy';
+import { policyRates, POLICY_SOURCE, type PolicyRates, type PolicySeries } from '../data/live/policy';
+import type { PolicyDecision } from '../data/live/policy-decisions';
+import { bankDate, currentPolicyTarget, effectivePolicyHistory, effectivePolicySeries, latestPolicyDecision, policyDecisionLabel, policyMeetingState, visibleDecisions } from '../data/policy-state';
+import { rateMoves } from '../data/rate-analysis';
 import { engine, useTick } from '../data/market';
 import { news } from '../data/news';
 import { execute } from '../terminal/exec';
@@ -127,22 +130,16 @@ export const PORTALS: Record<string, Portal> = {
   },
 };
 
-/** Today in a time zone, as YYYY-MM-DD. */
-const dayIn = (tz: string, now: number) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(now)).slice(0, 10);
 const day = (iso: string) => fmtDay(Date.parse(`${iso}T00:00:00Z`));
 
 /**
- * The last move of a policy series: when it took effect, its size in points, and the meeting that decided it (the
- * last meeting on or before it, within eight days). `unscheduled` only when the calendar covers that date and no
- * meeting came just before: a move older than the calendar is not called unscheduled.
+ * The last nonzero effective change. A nearby calendar date is only a candidate; statement evidence is required
+ * to link an announcement to the change or call it unscheduled.
  */
-export function lastMove(s: PolicySeries | undefined, meetings: readonly string[]): { since: string; level: number; move: number; meeting?: string; unscheduled?: boolean } | undefined {
+export function lastMove(s: PolicySeries | undefined, meetings: readonly string[], decisions: readonly PolicyDecision[] = []): { since: string; level: number; move: number; meeting?: string; scheduledCandidate?: string; unscheduled?: boolean } | undefined {
   if (!s || s.changes.length < 2) return s?.changes.length ? { since: s.changes[0][0], level: s.changes[0][1], move: NaN } : undefined;
-  const [since, level] = s.changes[s.changes.length - 1];
-  const before = s.changes[s.changes.length - 2][1];
-  const meeting = [...meetings].reverse().find((m) => m <= since && Date.parse(since) - Date.parse(m) <= 8 * 86_400_000);
-  const covered = meetings.length > 0 && Date.parse(meetings[0]) <= Date.parse(since) - 8 * 86_400_000;
-  return { since, level, move: Math.round((level - before) * 10_000) / 10_000, ...(meeting ? { meeting } : covered ? { unscheduled: true } : {}) };
+  const move = rateMoves(s, meetings, decisions).at(-1);
+  return move ? { since: move.date, level: move.level, move: move.change, ...(move.meeting ? { meeting: move.meeting, ...(!meetings.includes(move.meeting) ? { unscheduled: true } : {}) } : {}), ...(move.scheduledCandidate ? { scheduledCandidate: move.scheduledCandidate } : {}) } : undefined;
 }
 
 function CentralBankPortal({ fn }: { fn: string }) {
@@ -152,25 +149,29 @@ function CentralBankPortal({ fn }: { fn: string }) {
   const rates = policyRates.use((r) => r);
   const stories = news.use((n) => n.stories);
   const ref = centralBanks().find((b) => b.code === p.code);
-  const tz = ref?.tz ?? { ECB: 'Europe/Berlin', BOE: 'Europe/London', BOJ: 'Asia/Tokyo' }[p.code];
   const now = engine.now();
-  const today = dayIn(tz, now);
   const meetings = meetingsOf(p.code);
-  const policy = rates[p.policy.key] as PolicySeries | undefined;
-  const overnight = rates[p.overnight.key] as PolicySeries | undefined;
+  const observed = effectivePolicySeries(rates[p.policy.key] as PolicySeries | undefined, bankDate(p.code, now));
+  const policy = effectivePolicyHistory(rates, p.code, observed, now);
+  const current = currentPolicyTarget(rates, p.code, observed, now);
+  const overnight = effectivePolicySeries(rates[p.overnight.key] as PolicySeries | undefined, bankDate(p.code, now));
   const real = engine.realOnly;
-  const move = lastMove(policy, meetings);
-  const next = meetings.find((m) => m >= today);
-  const days = next ? Math.round((Date.parse(`${next}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000) : NaN;
+  const move = lastMove(policy, meetings, visibleDecisions(rates.decisions ?? [], p.code, now));
+  const calendar = policyMeetingState(p.code, meetings, rates.decisions ?? [], now);
+  const decision = latestPolicyDecision(rates, p.code, now);
+  const source = POLICY_SOURCE[p.policy.key];
+  const health = source ? rates.health?.[source] : undefined;
+  const overnightSource = POLICY_SOURCE[p.overnight.key];
+  const overnightHealth = overnightSource ? rates.health?.[overnightSource] : undefined;
   const latest = overnight ? { level: overnight.last, on: overnight.asOf } : undefined;
   const board = stories.filter((s) => s.source.startsWith(p.publisher)).slice(0, 8);
   const nums = useNumberedRows(`${fn}-functions`, p.functions, 1, (f) => execute(panel, f.command), (f) => f.label);
   // In the browser demo the rate is a reference setting, not the bank's: said so in the header.
-  const policyValue = real ? (policy ? `${fmtNum(policy.last, 2)}%` : '--') : ref ? `${fmtNum(ref.rate, 2)}% (reference)` : '--';
+  const policyValue = real ? (Number.isFinite(current.value) ? `${fmtNum(current.value, 2)}%` : '--') : ref ? `${fmtNum(ref.rate, 2)}% (reference)` : '--';
   const sinceValue = real ? (move ? day(move.since) : '--') : ref ? `${day(ref.last)} (reference)` : '--';
   const lastValue = real
     ? move && Number.isFinite(move.move)
-      ? <span key="l"><Chg v={move.move * 100} dec={0} /> bp{move.meeting ? `, decided ${day(move.meeting)}` : move.unscheduled ? ', between scheduled meetings' : ''}</span>
+      ? <span key="l"><Chg v={move.move * 100} dec={0} /> bp{move.meeting ? `, confirmed ${day(move.meeting)}${move.unscheduled ? ' (unscheduled)' : ''}` : move.scheduledCandidate ? `, calendar match ${day(move.scheduledCandidate)} (unverified)` : ''}</span>
       : '--'
     : ref ? <span key="l"><Chg v={ref.lastMove * 100} dec={0} /> bp (reference)</span> : '--';
   return (
@@ -187,10 +188,14 @@ function CentralBankPortal({ fn }: { fn: string }) {
               [p.policy.label, <span key="r" className="white b" title={p.policy.about}>{policyValue}</span>],
               ['In force since', sinceValue],
               ['Last move', lastValue],
-              ['Next decision', next ? `${day(next)} (${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`}), ${p.when}` : '--'],
+              ['Latest confirmed decision', decision ? <a key="d" href={decision.sourceUrl} target="_blank" rel="noreferrer noopener">{day(decision.date)}, {policyDecisionLabel(decision)}</a> : 'Statement not archived'],
+              ['Next decision', calendar.next ? `${day(calendar.next.date)}, ${p.when} (scheduled)` : 'Calendar exhausted'],
               [p.overnight.label, <span key="o" title={p.overnight.about}>{real && latest ? `${fmtNum(latest.level, 3)}% on ${day(latest.on)}` : '--'}</span>],
             ]}
           />
+          <div className="note">{health?.checkedAt ? `Latest successful policy-rate check: ${fmtDateTime(health.checkedAt)}.` : 'No successful policy-rate check recorded.'}{health?.error && ` Latest policy-rate check failed: ${health.error} Retained values keep their dates.`}{overnightHealth?.error && ` Latest overnight-rate check failed: ${overnightHealth.error}`}</div>
+          {real && health?.state === 'cached' && <div className="note">The policy rate uses cached evidence; its successful-check time has not advanced.</div>}
+          <div className="note">Calendar coverage through {calendar.horizon ? day(calendar.horizon) : 'unknown'}.{calendar.horizonExpired && ' No later official dates are loaded.'} Published statements for this bank are not automatically archived here; rate observations do not confirm a HOLD.</div>
           {real && !policy && <div className="note">The {p.title}&apos;s rate has not loaded yet, or its service did not answer; nothing is shown in its place.</div>}
         </Section>
         <Section title={`${p.title} announcements`}>
@@ -234,7 +239,7 @@ function CentralBankPortal({ fn }: { fn: string }) {
         </Section>
       </div>
       <div className="note">
-        {p.source} The last move is the latest change in the series, dated when it took effect, with the meeting that decided it. Links open the bank&apos;s site in your browser.
+        {p.source} The last move is the latest nonzero effective change. A nearby scheduled meeting is labelled an unverified calendar match. Links open the bank&apos;s site in your browser.
         {p.credit && <> {p.credit}</>}
       </div>
     </div>

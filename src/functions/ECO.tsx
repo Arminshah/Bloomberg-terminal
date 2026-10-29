@@ -1,22 +1,24 @@
 import { Credits } from '../components/Credits';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Chg, LivePx, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
-import { fmtDay, fmtMonthDayNum, fmtNum, fmtTime, WEEKDAYS, zonedParts } from '../core/format';
+import { fmtDateTime, fmtDay, fmtMonthDayNum, fmtNum, fmtTime, WEEKDAYS, zonedParts } from '../core/format';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { engine, useInterval } from '../data/market';
 import { DAY_MS } from '../data/calendar';
-import { centralBanks, COUNTRY_NAMES, ecoEvents, newYorkDate, type EcoEvent } from '../data/eco';
+import { centralBanks, COUNTRY_NAMES, ecoEvents, newYorkDate, policyCalendarEvents, type EcoEvent } from '../data/eco';
 import { periodChange } from '../data/analytics';
 import type { FnProps } from '../terminal/types';
 import { FRED_NOTICE, FRED_TERMS_URL } from '../data/macroseries';
 import { RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
-import { levelOn, policyRates } from '../data/live/policy';
+import { policyRates } from '../data/live/policy';
+import { currentPolicyTarget, policyDecisionLabel, policyMeetingState } from '../data/policy-state';
+import type { DatasetHealth } from '../data/live/provenance';
 import { ecoNumber, nasdaqEcoAvailable, useNasdaqEco } from '../data/live/nasdaq-eco';
-import { COMPUTED_GROWTH, COUNTRY_STATS, EUROSTAT_MEMBERS, figurePeriod, figureStatus, fredData, US_EVENTS, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
+import { COMPUTED_GROWTH, COUNTRY_STATS, EUROSTAT_MEMBERS, figurePeriod, figureStatus, fredData, fredSeriesHealth, US_EVENTS, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
 
 const COUNTRIES = ['US', 'EZ', 'DE', 'GB', 'JP', 'CN', 'CA', 'AU'];
 /** The desktop app's calendar: US releases from FRED and the central banks with their own data. */
@@ -48,15 +50,17 @@ export function ECO(_: FnProps) {
   const now = engine.now();
   const [week, setWeek] = useState(2);
   const real = engine.realOnly;
+  policyRates.use((r) => r);
   const countries = real ? REAL_COUNTRIES : COUNTRIES;
   const [ctry, setCtry] = useState<string[]>(countries);
   fredData.use((x) => x.loaded);
+  fredData.use((x) => x.health);
   const needsKey = fredData.use((x) => x.needsKey);
   const keyRefused = fredData.use((x) => x.keyRefused);
   const [minRel, setMinRel] = useState(1);
   const today = newYorkDate(now);
   const start = weekStart(now) + (week - 2) * 7 * DAY_MS;
-  const all = useMemo(() => ecoEvents(start, start + 7 * DAY_MS, now), [start, Math.floor(now / 30_000)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const all = ecoEvents(start, start + 7 * DAY_MS, now);
   const events = all.filter((e) => ctry.includes(e.country) && e.relevance >= minRel);
   const next = ecoEvents(now - DAY_MS, now + 14 * DAY_MS, now).find((e) => e.relevance >= 3 && (e.date ? e.date > today || (e.date === today && e.actual == null) : e.time > now));
   // The desktop app's calendar comes from Nasdaq's (every country, times, consensus); FRED's when Nasdaq has nothing.
@@ -164,27 +168,29 @@ export function ECO(_: FnProps) {
             lastDay = dayKey;
             const md = fmtMonthDayNum(p.mo, p.d);
             const diff = e.actual != null && e.survey != null ? e.actual - e.survey : 0;
-            const released = e.date ? e.actual != null || e.date < today : real ? e.time <= now : e.actual != null;
+            const released = e.policyStatus ? e.policyStatus === 'confirmed' : e.date ? e.actual != null || e.date < today : real ? e.time <= now : e.actual != null;
             const dueToday = !released && e.date === today;
             const soon = !e.date && !released && e.time - now < 3600_000 && e.time > now;
             return (
-              <tr key={e.id} className={`${band % 2 ? 'eco-band' : ''}${released ? '' : ' eco-ahead'}`}>
-                <td className={soon ? 'yellow b' : undefined} title={e.date ? 'FRED gives the release date, not the time' : `${WEEKDAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]} ${md}`}>
+              <tr key={e.id} data-policy-status={e.policyStatus} data-policy-date={e.policyStatus ? e.policyDecision?.date ?? e.id.split(':').at(-1) : undefined} data-policy-outcome={e.policyDecision?.action} className={`${band % 2 ? 'eco-band' : ''}${released ? '' : ' eco-ahead'}`}>
+                <td className={soon ? 'yellow b' : undefined} title={e.date ? e.kind === 'rate' ? 'The policy statement gives no exact publication time' : 'FRED gives the release date, not the time' : `${WEEKDAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]} ${md}`}>
                   <span className="eco-date">{md}</span> {e.date ? '--:--' : fmtTime(e.time, false)}
                 </td>
                 <td className="amber">{e.country}</td>
                 <td className={e.relevance >= 3 ? 'white b' : ''}>
                   {e.name}
+                  {e.policyDecision && <> · <a href={e.policyDecision.sourceUrl} target="_blank" rel="noreferrer noopener">{policyDecisionLabel(e.policyDecision)}</a></>}
+                  {e.health && <span className="muted" title={`${e.health.checkedAt ? `Last successful check ${fmtDateTime(e.health.checkedAt)}. ` : 'No successful check recorded. '}${e.health.error ?? ''}`}>{e.health.state === 'error' ? ' · retained; latest check failed' : e.health.state === 'cached' ? ' · cached' : ''}</span>}
                   {e.real || !all.some((x) => x.real) ? null : <span className="muted"> DEMO</span>}
                 </td>
                 <td className="muted">{e.period}</td>
                 {real ? null : <td className="num">{fmtVal(e, e.survey)}</td>}
                 <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`}>
-                  {released ? (
+                  {e.policyStatus === 'statement-unavailable' ? <span className="muted" title="This bank's published statement decisions are not automatically archived here">statement not archived</span> : e.policyStatus === 'awaiting-publication' ? <span className="amber" title="The scheduled release time has passed, but no official statement has been archived">awaiting statement</span> : released ? (
                     e.actual != null ? (
                       fmtVal(e, e.actual)
                     ) : (
-                      <span className="muted" title={e.kind === 'rate' ? "Decided; the rate shows once the bank's own data reaches the day it takes effect" : 'Released; the value has not reached the source yet'}>
+                      <span className="muted" title={e.kind === 'rate' ? 'No source-confirmed policy outcome is available' : 'Released; the value has not reached the source yet'}>
                         pending
                       </span>
                     )
@@ -220,8 +226,10 @@ const ECO_COUNTRIES = ['US', 'EZ', 'DE', 'FR', 'IT', 'GB', 'JP', 'CN', 'CA', 'AU
 function NasdaqEcoCalendar({ week, setWeek, nq, now, minRel, setMinRel }: { week: number; setWeek: (n: number) => void; nq: ReturnType<typeof useNasdaqEco>; now: number; minRel: number; setMinRel: (n: number) => void }) {
   const [ctry, setCtry] = useState<string[]>(ECO_COUNTRIES);
   const [others, setOthers] = useState(false);
-  const events = nq.events.filter((e) => (ctry.includes(e.country) || (others && !ECO_COUNTRIES.includes(e.country))) && e.relevance >= minRel);
-  const next = nq.events.find((e) => e.relevance >= 3 && e.time > now && (ctry.includes(e.country) || others));
+  const start = weekStart(now) + (week - 2) * 7 * DAY_MS;
+  const merged = policyCalendarEvents(nq.events, start, start + 7 * DAY_MS, now);
+  const events = merged.filter((e) => (ctry.includes(e.country) || (others && !ECO_COUNTRIES.includes(e.country))) && e.relevance >= minRel);
+  const next = merged.find((e) => e.relevance >= 3 && e.time > now && (ctry.includes(e.country) || others));
   let lastDay = '';
   let band = 0;
   return (
@@ -229,7 +237,7 @@ function NasdaqEcoCalendar({ week, setWeek, nq, now, minRel, setMinRel }: { week
       <FnHeader
         code="RELEASES"
         title="Economic Calendar"
-        sub={<>Times in your display time zone · <RealBadge /> releases, consensus (Surv), actual and prior values from Nasdaq&apos;s economic calendar</>}
+        sub={<>Times in your display time zone · <RealBadge /> Nasdaq calendar · Fed outcomes from official statements</>}
         tabs={[
           { n: 1, label: 'Last week' },
           { n: 2, label: 'This week' },
@@ -280,25 +288,25 @@ function NasdaqEcoCalendar({ week, setWeek, nq, now, minRel, setMinRel }: { week
             </tr>
           )}
           {events.map((e) => {
-            const p = zonedParts(e.time);
+            const p = e.date ? { y: Number(e.date.slice(0, 4)), mo: Number(e.date.slice(5, 7)), d: Number(e.date.slice(8, 10)) } : zonedParts(e.time);
             const dayKey = `${p.y}-${p.mo}-${p.d}`;
             if (dayKey !== lastDay) band++;
             lastDay = dayKey;
             const a = ecoNumber(e.actual);
             const c = ecoNumber(e.consensus);
             const diff = Number.isFinite(a) && Number.isFinite(c) ? a - c : 0;
-            const ahead = e.time > now && !e.actual;
+            const ahead = e.policyStatus ? e.policyStatus !== 'confirmed' : e.time > now && !e.actual;
             const soon = ahead && e.time - now < 3600_000;
             return (
-              <tr key={e.id} className={`${band % 2 ? 'eco-band' : ''}${ahead ? ' eco-ahead' : ''}`} title={e.description || undefined}>
+              <tr key={e.id} data-policy-status={e.policyStatus} data-policy-date={e.policyStatus ? e.policyDecision?.date ?? newYorkDate(e.time) : undefined} data-policy-outcome={e.policyDecision?.action} className={`${band % 2 ? 'eco-band' : ''}${ahead ? ' eco-ahead' : ''}`} title={e.description || undefined}>
                 <td className={soon ? 'yellow b' : undefined}>
-                  <span className="eco-date">{fmtMonthDayNum(p.mo, p.d)}</span> {fmtTime(e.time, false)}
+                  <span className="eco-date">{fmtMonthDayNum(p.mo, p.d)}</span> {e.date ? 'time not provided' : fmtTime(e.time, false)}
                 </td>
                 <td className="amber" title={e.countryName}>{e.country}</td>
-                <td className={e.relevance >= 3 ? 'white b' : ''}>{e.name}</td>
-                <td className="num">{e.consensus}</td>
-                <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`}>{e.actual || (soon ? <span className="yellow">{countdown(e.time - now)}</span> : '')}</td>
-                <td className="num">{e.previous}</td>
+                <td className={e.relevance >= 3 ? 'white b' : ''}>{e.name}{e.policyDecision && <> · <a href={e.policyDecision.sourceUrl} target="_blank" rel="noreferrer noopener">{policyDecisionLabel(e.policyDecision)}</a></>}</td>
+                <td className="num" title={e.reportedConsensus ? `Nasdaq reports ${e.reportedConsensus}; target-bound definition not verified` : undefined}>{e.consensus}</td>
+                <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`} title={e.reportedActual ? `Nasdaq reports ${e.reportedActual}; official statement controls the announced upper bound` : undefined}>{e.policyStatus === 'awaiting-publication' ? <span className="amber">awaiting statement</span> : e.actual || (soon && e.time > now ? <span className="yellow">{countdown(e.time - now)}</span> : '')}</td>
+                <td className="num" title={e.reportedPrevious ? `Nasdaq reports ${e.reportedPrevious}; official upper-bound evidence controls this comparison` : undefined}>{e.previous}</td>
                 <td className="hide-m amber" title={`Relevance ${e.relevance}/3`}>
                   {'●'.repeat(e.relevance)}
                   <span className="faint">{'●'.repeat(3 - e.relevance)}</span>
@@ -309,7 +317,7 @@ function NasdaqEcoCalendar({ week, setWeek, nq, now, minRel, setMinRel }: { week
         </tbody>
       </table>
       <p className="pad-s muted">
-        Release times, consensus, actual and prior values as Nasdaq&apos;s economic calendar publishes them; actual green above the consensus, red below. Relevance is the app&apos;s reading of the kind of release (rate decisions, payrolls, inflation and growth first), not the source&apos;s.
+        Nasdaq supplies the release calendar and its reported figures. Fed rows use the shared official statement record, including unchanged/0 bp and emergency decisions. Their actual is the announced upper bound; a delayed statement remains awaiting publication. Vendor policy figures remain in the cell details, and unverified target-bound forecasts are excluded from the surprise comparison. Relevance is the app&apos;s reading of the release type.
       </p>
     </div>
   );
@@ -346,7 +354,7 @@ export function ECST(props: FnProps) {
 }
 
 /** A statistic from FRED with the period it refers to. */
-function stat(key: [string, Freq, Calc?] | undefined, calc: Calc, series: Record<string, Obs>): { v: number; period: string } | null {
+function stat(key: [string, Freq, Calc?] | undefined, calc: Calc, series: Record<string, Obs>): { v: number; period: string; health?: DatasetHealth } | null {
   if (!key) return null;
   const [id, freq] = key;
   calc = key[2] ?? calc;
@@ -355,15 +363,16 @@ function stat(key: [string, Freq, Calc?] | undefined, calc: Calc, series: Record
   const p = obs[obs.length - 1][0];
   const v = valueAt(obs, p, calc, freq);
   const status = figureStatus(id, p);
-  return v == null ? null : { v, period: `${figurePeriod(id, p, freq)}${status ? ` (${status})` : ''}` };
+  return v == null ? null : { v, period: `${figurePeriod(id, p, freq)}${status ? ` (${status})` : ''}`, health: fredSeriesHealth(id) };
 }
 
-function StatCell({ s, dec = 1, mark }: { s: { v: number; period: string } | null; dec?: number; mark?: boolean }) {
+function StatCell({ s, dec = 1, mark }: { s: { v: number; period: string; health?: DatasetHealth } | null; dec?: number; mark?: boolean }) {
   if (!s) return <span className="faint">--</span>;
   return (
-    <span title={mark ? `${s.period}, worked out from the real GDP level a year earlier` : s.period}>
+    <span title={`${s.period}${mark ? ', worked out from the real GDP level a year earlier' : ''}${s.health?.checkedAt ? `; last successful check ${fmtDateTime(s.health.checkedAt)}` : ''}${s.health?.error ? `; latest check failed: ${s.health.error}` : ''}`}>
       {fmtNum(s.v, dec)}
       {mark ? '*' : ''} <span className="muted">{s.period}</span>
+      {s.health?.state === 'error' ? <span className="amber"> · retained</span> : s.health?.state === 'cached' ? <span className="muted"> · cached</span> : null}
     </span>
   );
 }
@@ -377,14 +386,15 @@ function ECSTReal() {
   useInterval(2000);
   const panel = usePanelId();
   const series = fredData.use((x) => x.series);
+  fredData.use((x) => x.health);
+  const rates = policyRates.use((x) => x);
   const needsKey = fredData.use((x) => x.needsKey);
   const keyRefused = fredData.use((x) => x.keyRefused);
   const cbs = centralBanks();
   const policy = (c: string) => cbs.find((b) => b.country === (EUROSTAT_MEMBERS.includes(c) ? 'EZ' : c))?.rate;
   const market = (id?: string) => (id && engine.hasSource(id) ? id : undefined);
   // The Fed sets a target range: shown whole, with the real rate worked out from its upper limit.
-  const fed = policyRates.get().fedLower;
-  const fedLow = fed ? levelOn(fed, newYorkDate(Date.now())) : NaN;
+  const fedLow = currentPolicyTarget(rates, 'FED', rates.fedUpper, engine.now()).lower ?? NaN;
   const rows = Object.entries(COUNTRY_STATS).map(([c, k]) => {
     const cpi = stat(k.cpi, 'yoy', series);
     const rate = policy(c);
@@ -459,8 +469,8 @@ function ECSTReal() {
               key: 'n',
               label: 'Next meeting',
               render: (b) => {
-                const next = b.meetings.find((m) => Date.parse(`${m}T23:59:00Z`) > engine.now());
-                return next ? fmtDay(Date.parse(`${next}T00:00:00Z`)) : <span className="muted">not yet in the app</span>;
+                const calendar = policyMeetingState(b.code, b.meetings, rates.decisions ?? [], engine.now());
+                return calendar.next ? fmtDay(Date.parse(`${calendar.next.date}T00:00:00Z`)) : <span className="muted" title={`Calendar coverage through ${calendar.horizon ?? 'unknown'}`}>Calendar exhausted</span>;
               },
             },
           ]}

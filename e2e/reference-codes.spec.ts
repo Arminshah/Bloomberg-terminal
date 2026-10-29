@@ -105,7 +105,8 @@ test('FED gathers the policy rate, the meetings, the Board’s pages and the scr
   const panel = page.locator('.panel').first();
   await expect(panel.locator('.fnh-code')).toHaveText('FEDPORTAL');
   await expect(panel.locator('.kv')).toContainText('Target range for fed funds');
-  await expect(panel.locator('.kv')).toContainText(/Next decision\d{2}\/\d{2}\/\d{2} \((today|in \d+ days?)\)/);
+  await expect(panel.locator('.kv')).toContainText(/Next decision\d{2}\/\d{2}\/\d{2}, 14:00 New York \(scheduled\)/);
+  await expect(panel.locator('.kv')).toContainText('Latest confirmed decisionStatement not archived');
   // The browser demo has no Fed rate of its own and says so.
   await expect(panel.locator('.fnh')).toContainText('reference rate');
   await expect(panel.getByRole('link', { name: 'Beige Book ↗' })).toHaveAttribute('href', 'https://www.federalreserve.gov/monetarypolicy/publications/beige-book-default.htm');
@@ -603,7 +604,8 @@ test('ECB, BOE and BOJ gather each bank: its rate, the next decision, its pages 
   await run(page, 'ECB');
   await expect(panel.locator('.fnh-code')).toHaveText('ECBPORTAL');
   await expect(panel.locator('.kv')).toContainText('Deposit facility rate');
-  await expect(panel.locator('.kv')).toContainText(/Next decision\d{2}\/\d{2}\/\d{2} \((today|in \d+ days?)\), 14:15 Frankfurt/);
+  await expect(panel.locator('.kv')).toContainText(/Next decision\d{2}\/\d{2}\/\d{2}, 14:15 Frankfurt \(scheduled\)/);
+  await expect(panel.locator('.kv')).toContainText('Latest confirmed decisionStatement not archived');
   // The browser demo has no rate of the bank's own and says so; the overnight rate is left blank, not made up.
   await expect(panel.locator('.fnh')).toContainText('reference rate');
   await expect(panel.locator('.kv')).toContainText('(reference)');
@@ -618,6 +620,7 @@ test('ECB, BOE and BOJ gather each bank: its rate, the next decision, its pages 
   await run(page, 'BOJ');
   await expect(panel.locator('.fnh-code')).toHaveText('BOJPORTAL');
   await expect(panel.locator('.kv')).toContainText('Basic loan rate');
+  await expect(panel.locator('.kv')).toContainText('when the meeting ends, usually around midday Tokyo (scheduled)');
   await expect(panel.locator('.note').last()).toContainText('This service uses the API provided by the "Bank of Japan Time-Series Data Search."');
   expect(errors).toEqual([]);
 });

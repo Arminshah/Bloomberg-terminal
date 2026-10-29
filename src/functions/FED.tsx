@@ -2,10 +2,11 @@ import { FnHeader } from '../components/FnHeader';
 import { Chg, KV, Section } from '../components/cells';
 import { RowNo } from '../components/Numbered';
 import { RealBadge, SimBadge } from '../components/Source';
-import { fmtDay, fmtNum, fmtTime } from '../core/format';
-import { centralBanks, newYorkDate } from '../data/eco';
-import { fomcRows } from '../data/fomc';
+import { fmtDateTime, fmtDay, fmtNum, fmtTime } from '../core/format';
+import { centralBanks, meetingsOf } from '../data/eco';
 import { policyRates } from '../data/live/policy';
+import { currentPolicyTarget, effectivePolicyHistory, latestPolicyDecision, policyDecisionLabel, policyEffectiveAt, policyMeetingState, policyTargetHealth, visibleDecisions } from '../data/policy-state';
+import { rateMoves } from '../data/rate-analysis';
 import { engine, useTick } from '../data/market';
 import { news } from '../data/news';
 import { execute } from '../terminal/exec';
@@ -43,37 +44,46 @@ export function FED(_: FnProps) {
   const panel = usePanelId();
   const rates = policyRates.use((r) => r);
   const stories = news.use((n) => n.stories);
-  const fed = centralBanks().find((b) => b.code === 'FED')!;
-  const today = newYorkDate(engine.now());
+  const now = engine.now();
+  const fed = centralBanks(now).find((b) => b.code === 'FED');
   const upper = rates.fedUpper;
-  const lower = rates.fedLower;
-  const real = !!upper;
-  const range = real ? `${fmtNum(lower?.last ?? NaN, 2)} - ${fmtNum(upper.last, 2)}%` : `${fmtNum(fed.rate, 2)}% (upper bound)`;
-  const since = upper?.changes.at(-1)?.[0];
-  const decided = fomcRows(fed.meetings, lower, upper, today).filter((r) => r.status === 'decided' && Number.isFinite(r.changeBp));
-  const last = decided.at(-1);
-  const next = fed.meetings.find((m) => m >= today);
-  const days = next ? Math.round((Date.parse(`${next}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000) : NaN;
+  const real = engine.realOnly;
+  const meetings = rates.fomc ?? meetingsOf('FED');
+  const current = currentPolicyTarget(rates, 'FED', upper, now);
+  const history = effectivePolicyHistory(rates, 'FED', upper, now);
+  const range = real ? Number.isFinite(current.value) ? `${Number.isFinite(current.lower) ? `${fmtNum(current.lower!, 2)} - ` : ''}${fmtNum(current.value, 2)}%` : '--' : `${fmtNum(fed?.rate ?? NaN, 2)}% (upper bound, reference)`;
+  const latest = latestPolicyDecision(rates, 'FED', now);
+  const lastMove = history ? rateMoves(history, meetings, visibleDecisions(rates.decisions ?? [], 'FED', now)).at(-1) : undefined;
+  const calendar = policyMeetingState('FED', meetings, rates.decisions ?? [], now);
+  const health = policyTargetHealth(rates, 'FED', 'fedUpper', now);
+  const auditState = { schema: 1, domain: 'policy', capturedAt: now, banks: [{ code: 'FED', current: { value: current.value, upper: current.value, lower: current.lower, effectiveAt: current.effectiveDate ? policyEffectiveAt('FED', current.effectiveDate) : undefined, sourceAsOf: current.sourceAsOf, sourceUrl: current.sourceUrl ?? health?.source, lastSuccessfulAt: health?.checkedAt, lastAttemptAt: health?.attemptedAt, freshnessState: health?.state, stale: health?.state === 'cached' || health?.state === 'error', error: health?.error }, latestDecision: latest ? { ...latest, outcome: latest.action } : undefined, nextDecision: calendar.next, awaitingDecision: calendar.awaiting, calendarThrough: calendar.horizon }] };
   const funding = (type: string) => rates.funding?.find((f) => f.type === type);
   const effr = funding('EFFR');
   const sofr = funding('SOFR');
   const board = stories.filter((s) => s.source.startsWith('Federal Reserve')).slice(0, 8);
   const nums = useNumberedRows('fed-functions', FED_FUNCTIONS, 1, (f) => execute(panel, f.command), (f) => f.label);
   return (
-    <div>
+    <div data-audit-state={JSON.stringify(auditState)}>
       <FnHeader code="FEDPORTAL" title="Federal Reserve" sub={real ? <><RealBadge /> New York Fed rates · Federal Reserve Board calendar and announcements</> : <><SimBadge /> the browser demo has a reference rate, not the Fed&apos;s</>} />
       <div className="cols">
         <Section title="Policy">
           <KV
             items={[
               ['Target range for fed funds', <span key="r" className="white b">{range}</span>],
-              ['In force since', since ? fmtDay(Date.parse(`${since}T00:00:00Z`)) : '--'],
-              ['Last decision', last ? <span key="l">{fmtDay(Date.parse(`${last.date}T00:00:00Z`))}, <Chg v={last.changeBp} dec={0} /> bp</span> : '--'],
-              ['Next decision', next ? `${fmtDay(Date.parse(`${next}T00:00:00Z`))} (${days === 0 ? 'today' : `in ${days} day${days === 1 ? '' : 's'}`}), 14:00 New York` : '--'],
+              ['In force since', real && current.effectiveDate ? fmtDay(Date.parse(`${current.effectiveDate}T00:00:00Z`)) : '--'],
+              ['Latest confirmed decision', latest ? <a key="d" href={latest.sourceUrl} target="_blank" rel="noreferrer noopener">{fmtDay(Date.parse(`${latest.date}T00:00:00Z`))}, {policyDecisionLabel(latest)}</a> : 'Statement not archived'],
+              ['Last nonzero change', real && lastMove ? <span key="l">{fmtDay(Date.parse(`${lastMove.date}T00:00:00Z`))}, <Chg v={lastMove.change * 100} dec={0} /> bp</span> : '--'],
+              ['Next decision', calendar.next ? `${fmtDay(Date.parse(`${calendar.next.date}T00:00:00Z`))}, 14:00 New York (scheduled)` : 'Calendar exhausted'],
               ['Effective fed funds rate', effr ? `${fmtNum(effr.rate, 2)}% on ${fmtDay(Date.parse(`${effr.date}T00:00:00Z`))}` : '--'],
               ['SOFR', sofr ? `${fmtNum(sofr.rate, 2)}% on ${fmtDay(Date.parse(`${sofr.date}T00:00:00Z`))}` : '--'],
             ]}
           />
+          {calendar.awaiting && <div className="note amber">Awaiting the official statement for {calendar.awaiting.date}. The scheduled time has passed; no outcome is inferred.</div>}
+          {latest?.effectiveDate && policyEffectiveAt('FED', latest.effectiveDate) > now && <div className="note">The announced target takes effect {latest.effectiveDate}; the current range retains its earlier effective level.</div>}
+          {real && <div className="note">{health?.checkedAt ? `Latest successful target check: ${fmtDateTime(health.checkedAt)}.` : 'No successful target check recorded.'}{health?.error && ` Latest check failed: ${health.error} Retained figures keep their original dates.`}{current.conflict && ` ${current.conflict}`}</div>}
+          {real && health?.state === 'cached' && <div className="note">The current target uses cached evidence; its successful-check time has not advanced.</div>}
+          {real && <div className="note">{rates.health?.nyfed?.checkedAt ? `Latest successful funding-rate check: ${fmtDateTime(rates.health.nyfed.checkedAt)}.` : 'No successful funding-rate check recorded.'}{rates.health?.nyfed?.error && ` Latest funding-rate check failed: ${rates.health.nyfed.error}`}</div>}
+          <div className="note">Calendar coverage through {calendar.horizon ?? 'unknown'}.{calendar.horizonExpired && ' No later official meeting dates are loaded.'}</div>
         </Section>
         <Section title="Federal Reserve Board announcements">
           {board.length ? (
@@ -118,7 +128,7 @@ export function FED(_: FnProps) {
           </table>
         </Section>
       </div>
-      <div className="note">The target range and the funding rates are the New York Fed&apos;s; meeting days are the Board&apos;s calendar; announcements are the Board&apos;s press release feed. Links open the Board&apos;s site in your browser.</div>
+      <div className="note">Confirmed decisions come from the Board&apos;s statements; an explicitly verified implementation date determines when an announced target becomes current. Daily observations and funding rates remain separately dated. Meeting days are the Board&apos;s calendar. Links open the Board&apos;s site in your browser.</div>
     </div>
   );
 }

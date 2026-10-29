@@ -182,11 +182,13 @@ describe('FOMC table', () => {
   const upper = { changes: [['2025-01-02', 4.5], ['2026-09-17', 4.25]] as [string, number][], last: 4.25, asOf: '2026-10-16' };
   const lower = { changes: [['2025-01-02', 4.25], ['2026-09-17', 4.0]] as [string, number][], last: 4.0, asOf: '2026-10-16' };
 
-  it('reads each decision from the range in effect the day after it', () => {
+  it('labels day-after rate comparisons as observations without confirming the scheduled decision', () => {
     const rows = fomcRows(['2026-07-29', '2026-09-16', '2026-10-28', '2026-09-16'], lower, upper, '2026-10-19');
     expect(rows.map((r) => r.date)).toEqual(['2026-07-29', '2026-09-16', '2026-10-28']);
-    expect(rows[0]).toMatchObject({ status: 'decided', lower: 4.25, upper: 4.5, changeBp: 0 });
-    expect(rows[1]).toMatchObject({ status: 'decided', lower: 4.0, upper: 4.25, changeBp: -25 });
+    expect(rows[0]).toMatchObject({ status: 'observed', lower: 4.25, upper: 4.5, changeBp: 0 });
+    expect(rows[1]).toMatchObject({ status: 'observed', lower: 4.0, upper: 4.25, changeBp: -25 });
+    expect(rows[0].decision).toBeUndefined();
+    expect(rows[1].decision).toBeUndefined();
     expect(rows[2]).toMatchObject({ status: 'scheduled' });
     expect(rows[2].upper).toBeNaN();
   });

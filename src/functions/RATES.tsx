@@ -4,7 +4,7 @@ import { FnHeader } from '../components/FnHeader';
 import { XYChart } from '../components/chart/XYChart';
 import { Chg, KV, LivePx, SecLink, Section, openSecurity } from '../components/cells';
 import { GroupRow, RowNo, useCollapsed } from '../components/Numbered';
-import { fmtDay, fmtNum } from '../core/format';
+import { fmtDateTime, fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange, type Horizon } from '../data/analytics';
 import { CURVES, curveAt, curveMembers, interp, tenorLabel } from '../data/curves';
@@ -15,7 +15,8 @@ import type { FnProps } from '../terminal/types';
 import { useGroupedRows, useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
 import { RatesSource, RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
-import { policyRates } from '../data/live/policy';
+import { policyRates, type PolicyRates } from '../data/live/policy';
+import { currentPolicyTarget, policyMeetingState, policyTargetHealth } from '../data/policy-state';
 import { contractSymbols, quotesTiming, useYahooQuotes } from '../data/live/yquotes';
 import { fedPath, meetingMoves, type MeetingMoves } from '../data/fedpath';
 
@@ -359,14 +360,45 @@ function useStrip(root: string, exch: string, listed: string, n: number) {
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+function fedTargetRange(target: ReturnType<typeof currentPolicyTarget>): string {
+  if (!Number.isFinite(target.value)) return '--';
+  return Number.isFinite(target.lower) ? `${fmtNum(target.lower!, 2)}-${fmtNum(target.value, 2)}%` : `${fmtNum(target.value, 2)}% (upper bound; lower unavailable)`;
+}
+
+/** A target's check belongs to its actual statement/implementation pair or to its daily observation source. */
+function FedTargetSource({ rates, now }: { rates: PolicyRates; now: number }) {
+  const target = currentPolicyTarget(rates, 'FED', rates.fedUpper, now);
+  const health = policyTargetHealth(rates, 'FED', 'fedUpper', now);
+  return <div className="note" data-testid="fed-target-source">
+    Target source: {target.source === 'statement' ? <a href={target.sourceUrl} target="_blank" rel="noreferrer noopener">Federal Reserve statement and implementation</a> : 'New York Fed observations'}{target.sourceAsOf ? ` dated ${target.sourceAsOf}` : '; no current target available'}.
+    {target.effectiveDate && ` In force from ${target.effectiveDate}.`}
+    {health?.checkedAt ? ` Last successful target check: ${fmtDateTime(health.checkedAt)}.` : ' No successful target check recorded.'}
+    {health?.state === 'cached' && ' Cached source response; the successful-check date is unchanged.'}
+    {health?.state === 'error' && ` Latest target check failed${health.error ? `: ${health.error}` : '.'} Retained target keeps its source dates.`}
+    {target.conflict && ` ${target.conflict}`}
+  </div>;
+}
+
+function FundingSource({ rates, source }: { rates: PolicyRates; source: 'nyfed' | 'effr' }) {
+  const health = rates.health?.[source];
+  return <div className="note">
+    {health?.checkedAt ? `Last successful funding-rate check: ${fmtDateTime(health.checkedAt)}.` : 'No successful funding-rate check recorded.'}
+    {health?.state === 'cached' && ' Cached source response; observations retain their dates.'}
+    {health?.state === 'error' && ` Latest funding-rate check failed${health.error ? `: ${health.error}` : '.'} Retained observations keep their source dates.`}
+  </div>;
+}
+
 /** BTMM on real data: New York Fed reference rates, Treasury bills, curve spreads and SOFR futures. */
 function BTMMReal() {
   useTick(2);
   const pr = policyRates.use((x) => x);
   const funding = pr.funding ?? [];
   const asOf = funding.reduce((m, f) => (f.date > m ? f.date : m), '');
-  const fed = centralBanks().find((b) => b.code === 'FED');
-  const nextFomc = (pr.fomc ?? fed?.meetings ?? []).find((m) => Date.parse(`${m}T18:00:00Z`) > engine.now());
+  const now = engine.now();
+  const target = currentPolicyTarget(pr, 'FED', pr.fedUpper, now);
+  const fed = centralBanks(now).find((b) => b.code === 'FED');
+  const calendar = policyMeetingState('FED', pr.fomc ?? fed?.meetings ?? [], pr.decisions ?? [], now);
+  const nextFomc = calendar.next?.date;
   const us = curveAt('US', 0);
   const y = (t: number) => us.find((p) => p.tenor === t)?.y ?? NaN;
   const y10 = y(10);
@@ -396,13 +428,13 @@ function BTMMReal() {
               </tr>
             </thead>
             <tbody>
-              {pr.fedLower && pr.fedUpper ? (
-                <tr>
+              {Number.isFinite(target.value) ? (
+                <tr data-testid="money-target">
                   <td className="amber">Fed funds target</td>
                   <td className="num white">
-                    {fmtNum(pr.fedLower.last, 2)} - {fmtNum(pr.fedUpper.last, 2)}
+                    {fedTargetRange(target)}
                   </td>
-                  <td className="num hide-m muted">since {fmtDay(Date.parse(`${pr.fedUpper.changes[pr.fedUpper.changes.length - 1][0]}T00:00:00Z`))}</td>
+                  <td className="num hide-m muted">{target.effectiveDate ? `since ${fmtDay(Date.parse(`${target.effectiveDate}T00:00:00Z`))}` : 'Effective date unavailable'}</td>
                   {/* A target, not a traded rate: no volume. */}
                   <td className="num" />
                 </tr>
@@ -422,6 +454,8 @@ function BTMMReal() {
             </tbody>
           </table>
           <KV items={[['Next FOMC decision', nextFomc ? fmtDay(Date.parse(`${nextFomc}T00:00:00Z`)) : '--']]} />
+          <FedTargetSource rates={pr} now={now} />
+          <FundingSource rates={pr} source="nyfed" />
         </Section>
         <Section title="Bills" right="Treasury par yield curve">
           <table className="tbl">
@@ -506,10 +540,12 @@ function BTMMSim(_: FnProps) {
   const fed = centralBanks()[0];
   // The New York Fed's published levels in the desktop app; otherwise the usual spreads to the range.
   const pr = policyRates.use((x) => x);
-  const lower = pr.fedLower?.last ?? fed.rate - 0.25;
+  const target = currentPolicyTarget(pr, 'FED', pr.fedUpper, engine.now());
+  const realPolicy = Number.isFinite(target.value);
+  const upper = realPolicy ? target.value : fed.rate;
+  const lower = realPolicy ? target.lower ?? NaN : fed.rate - 0.25;
   const effr = pr.effr?.last ?? lower + 0.08;
   const sofr = pr.sofr?.last ?? effr + 0.02;
-  const realPolicy = !!pr.fedUpper;
   const bonds = engine.securities.filter((d) => d.cls === 'bond' && d.yk === 'Govt');
   const us = curveAt('US', 0);
   const y = (t: number) => interp(us, t);
@@ -526,10 +562,10 @@ function BTMMSim(_: FnProps) {
         }
       />
       <div className="cols">
-        <Section title="Policy and funding" right={realPolicy ? <><RealBadge /> New York Fed, as of {fmtDay(Date.parse(`${pr.fedUpper!.asOf}T00:00:00Z`))}</> : <SimBadge />}>
+        <Section title="Policy and funding" right={<SimBadge />}>
           <KV
             items={[
-              ['Fed funds target', `${fmtNum(lower, 2)} - ${fmtNum(fed.rate, 2)}%`],
+              ['Fed funds target', realPolicy ? fedTargetRange(target) : `${fmtNum(lower, 2)}-${fmtNum(upper, 2)}%`],
               ['Effective fed funds', `${fmtNum(effr, 2)}%`],
               ['Interest on reserves', `${fmtNum(fed.rate - 0.1, 2)}%`],
               ['SOFR', `${fmtNum(sofr, 2)}%`],
@@ -689,10 +725,12 @@ function WIRPReal() {
   const pr = policyRates.use((x) => x);
   const strip = useStrip('ZQ', 'CBT', 'All months', 16);
   const now = engine.now();
+  const target = currentPolicyTarget(pr, 'FED', pr.fedUpper, now);
   const current = pr.effr?.last ?? NaN;
+  const awaitingEffr = !!target.effectiveDate && !!pr.effr?.asOf && pr.effr.asOf < target.effectiveDate;
   const meetings = pr.fomc ?? centralBanks().find((b) => b.code === 'FED')?.meetings ?? [];
   const months = strip.map((c) => ({ year: c.year, month: c.month, avg: 100 - Number(c.q.regularMarketPrice) }));
-  const path = fedPath(months, meetings, current, now);
+  const path = awaitingEffr ? [] : fedPath(months, meetings, current, now);
   const step = 0.25;
   const header = (
     <FnHeader
@@ -705,29 +743,19 @@ function WIRPReal() {
       }
     />
   );
-  if (!Number.isFinite(current) || !strip.length) {
-    return (
-      <div>
-        {header}
-        <div className="empty">{!Number.isFinite(current) ? 'Loading the effective fed funds rate from the New York Fed…' : 'Loading fed funds futures…'}</div>
-      </div>
-    );
-  }
   return (
     <div>
       {header}
       <div className="chart-tools">
         <span>
-          <span className="amber">Effective fed funds</span> {fmtNum(current, 2)}% ({fmtDay(Date.parse(`${pr.effr!.asOf}T00:00:00Z`))})
+          <span className="amber">Latest observed effective fed funds</span> {Number.isFinite(current) ? <>{fmtNum(current, 2)}% ({fmtDay(Date.parse(`${pr.effr!.asOf}T00:00:00Z`))})</> : '--'}
         </span>
-        {pr.fedLower && pr.fedUpper ? (
-          <span>
-            <span className="amber">Target range</span> {fmtNum(pr.fedLower.last, 2)}-{fmtNum(pr.fedUpper.last, 2)}%
-          </span>
-        ) : null}
+        <span data-testid="probability-target"><span className="amber">Target range</span> {fedTargetRange(target)}</span>
         <span className="muted">Positive = hikes priced, negative = cuts.</span>
       </div>
-      {path.length === 0 ? (
+      <FedTargetSource rates={pr} now={now} />
+      <FundingSource rates={pr} source="effr" />
+      {awaitingEffr ? <div className="empty">Awaiting an effective fed funds observation on or after {target.effectiveDate}. The older observation remains dated above; current probabilities are unavailable.</div> : !Number.isFinite(current) || !strip.length ? <div className="empty">{!Number.isFinite(current) ? 'Loading the effective fed funds rate from the New York Fed…' : 'Loading fed funds futures…'}</div> : path.length === 0 ? (
         <div className="empty">No upcoming FOMC decision is covered by the listed futures.</div>
       ) : (
         <div className="cols" style={{ gridTemplateColumns: 'minmax(0, 1.3fr) minmax(0, 1fr)' }}>

@@ -32,20 +32,20 @@ describe("the central banks' own series", () => {
   });
 });
 
-describe('the last move and the meeting that decided it', () => {
-  it('finds the meeting just before a move took effect', () => {
-    // The ECB decided on 10 September 2026; the new rate took effect on the 16th.
-    expect(lastMove(toChanges(parseEcbCsv(ecbDfr)), meetingsOf('ECB'))).toEqual({ since: '2026-09-16', level: 2.5, move: 0.25, meeting: '2026-09-10' });
-    // The Bank of Japan's meeting of 18 September 2026, in force from the 24th after Japan's holidays.
-    expect(lastMove(toChanges(parseBojJson(bojLoan)), meetingsOf('BOJ'))).toMatchObject({ since: '2026-09-24', move: 0.25, meeting: '2026-09-18' });
+describe('the last move and its separate calendar comparison', () => {
+  it('does not promote a nearby scheduled meeting to a confirmed decision', () => {
+    expect(lastMove(toChanges(parseEcbCsv(ecbDfr)), meetingsOf('ECB'))).toEqual({ since: '2026-09-16', level: 2.5, move: 0.25, scheduledCandidate: '2026-09-10' });
+    const boj = lastMove(toChanges(parseBojJson(bojLoan)), meetingsOf('BOJ'))!;
+    expect(boj).toMatchObject({ since: '2026-09-24', move: 0.25, scheduledCandidate: '2026-09-18' });
+    expect(boj.meeting).toBeUndefined();
   });
 
   it('does not call a move older than the calendar unscheduled', () => {
     // Bank Rate's cut of 18 December 2025 comes before the calendar the app holds (from February 2026).
     const m = lastMove(toChanges(parseBoeCsv(boeRate)), meetingsOf('BOE'))!;
     expect(m).toEqual({ since: '2025-12-18', level: 3.75, move: -0.25 });
-    // A move the calendar covers with no meeting just before it is.
-    expect(lastMove({ changes: [['2026-01-01', 4], ['2026-08-20', 3.5]], last: 3.5, asOf: '2026-10-01' }, meetingsOf('BOE'))).toMatchObject({ move: -0.5, unscheduled: true });
+    // Calendar coverage alone cannot establish that a change came from an emergency decision.
+    expect(lastMove({ changes: [['2026-01-01', 4], ['2026-08-20', 3.5]], last: 3.5, asOf: '2026-10-01' }, meetingsOf('BOE'))).toEqual({ since: '2026-08-20', level: 3.5, move: -0.5 });
   });
 
   it("keeps each bank's published decision days", () => {

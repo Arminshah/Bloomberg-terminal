@@ -2,7 +2,11 @@ import { createStore } from '../../core/store';
 import { DAY_MS } from '../calendar';
 import { setFeed } from './status';
 import { registerRefresh } from '../../terminal/refresh';
-import { official, officialAvailable, parseRbaTable, parseSgs, parseSnbCube } from './official';
+import { officialAnswer, officialAvailable, parseRbaTable, parseSgs, parseSnbCube, type OfficialAnswer } from './official';
+import { datasetHealth, type DatasetHealth } from './provenance';
+import type { OfficialSource } from './lookup';
+import { fedStatementLinks, parseFedDecision, type PolicyDecision } from './policy-decisions';
+import { bankDate, scheduledPolicyAt } from '../policy-state';
 
 /**
  * Real policy and funding rates for the desktop app, from the central banks'
@@ -20,9 +24,16 @@ export interface PolicySeries {
   changes: [string, number][];
   last: number;
   asOf: string;
+  /** Announced/source rows not yet effective; excluded from last, changes and historical calculations. */
+  future?: [string, number][];
 }
 
 export interface PolicyRates {
+  /** Statement-backed decisions, with immutable correction versions retained. */
+  decisions?: PolicyDecision[];
+  health?: Partial<Record<OfficialSource, DatasetHealth>>;
+  /** A successful check of one statement cannot certify a different, older effective target. */
+  documentHealth?: Record<string, DatasetHealth>;
   fedUpper?: PolicySeries;
   fedLower?: PolicySeries;
   effr?: PolicySeries;
@@ -59,16 +70,20 @@ export interface FundingRate {
 }
 
 export const policyRates = createStore<PolicyRates>({});
+const decisionArchive = createStore<{ decisions: PolicyDecision[] }>({ decisions: [] }, 'policy-decision-archive', 1);
 
 type Obs = [string, number][];
 
 /** Keeps the first day of each level, so the last entry is the latest move. */
-export function toChanges(obs: Obs): PolicySeries | undefined {
-  const sorted = obs.filter(([, v]) => Number.isFinite(v)).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-  if (!sorted.length) return undefined;
+export function toChanges(obs: Obs, today = new Date().toISOString().slice(0, 10)): PolicySeries | undefined {
+  const sorted = obs.filter(([d, v]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d && Number.isFinite(v)).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  if (sorted.some(([d, v], i) => i > 0 && sorted[i - 1][0] === d && sorted[i - 1][1] !== v)) return undefined;
+  const future = sorted.filter(([d]) => d > today);
+  const effective = sorted.filter(([d]) => d <= today);
+  if (!effective.length) return undefined;
   const changes: Obs = [];
-  for (const [d, v] of sorted) if (!changes.length || changes[changes.length - 1][1] !== v) changes.push([d, v]);
-  return { changes, last: sorted[sorted.length - 1][1], asOf: sorted[sorted.length - 1][0] };
+  for (const [d, v] of effective) if (!changes.length || changes[changes.length - 1][1] !== v) changes.push([d, v]);
+  return { changes, last: effective[effective.length - 1][1], asOf: effective[effective.length - 1][0], ...(future.length ? { future } : {}) };
 }
 
 /** The level in effect on an ISO date. */
@@ -91,7 +106,7 @@ export function parseNyFed(text: string): { rate: Obs; lower: Obs; upper: Obs } 
   } catch {
     return out;
   }
-  for (const r of (json?.refRates ?? []) as any[]) {
+  for (const r of (Array.isArray(json?.refRates) ? json.refRates : []) as any[]) {
     const d = String(r?.effectiveDate ?? '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
     if (Number.isFinite(r.percentRate)) out.rate.push([d, r.percentRate]);
@@ -105,7 +120,7 @@ export function parseNyFed(text: string): { rate: Obs; lower: Obs; upper: Obs } 
 export function parseValet(text: string, series: string): Obs {
   try {
     const json: any = JSON.parse(text);
-    return ((json?.observations ?? []) as any[]).map((o) => [String(o?.d), Number(o?.[series]?.v)] as [string, number]).filter(([d, v]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(v));
+    return (Array.isArray(json?.observations) ? json.observations as any[] : []).filter((o) => o?.[series]?.v != null && String(o[series].v).trim() !== '').map((o) => [String(o?.d), Number(o?.[series]?.v)] as [string, number]).filter(([d, v]) => /^\d{4}-\d{2}-\d{2}$/.test(d) && Number.isFinite(v));
   } catch {
     return [];
   }
@@ -173,7 +188,7 @@ export function parseNyFedLatest(text: string): FundingRate[] {
     return [];
   }
   const out: FundingRate[] = [];
-  for (const r of (json?.refRates ?? []) as any[]) {
+  for (const r of (Array.isArray(json?.refRates) ? json.refRates : []) as any[]) {
     const date = String(r?.effectiveDate ?? '');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(r?.percentRate)) continue;
     const n = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) ? x : NaN);
@@ -202,55 +217,102 @@ export function parseFomcCalendar(html: string): string[] {
       if (!days) continue; // notation votes, unscheduled meetings
       const k = SHORT_MONTH(months[months.length - 1].trim().slice(0, 3));
       if (k < 0) continue;
-      out.add(`${p.year}-${String(k + 1).padStart(2, '0')}-${days[2].padStart(2, '0')}`);
+      const iso = `${p.year}-${String(k + 1).padStart(2, '0')}-${days[2].padStart(2, '0')}`;
+      const parsed = Date.parse(`${iso}T00:00:00Z`);
+      if (Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === iso) out.add(iso);
     }
   });
   return [...out].sort();
 }
 
-async function load(): Promise<number> {
-  const since = new Date(Date.now() - 4 * 365 * DAY_MS).toISOString().slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
-  // The overnight benchmarks over the last quarter; the Bank of Japan's two rates as far back as the others.
-  const recent = new Date(Date.now() - 92 * DAY_MS).toISOString().slice(0, 10);
-  const [effr, sofr, nyfed, fomc, ecb, boe, boc, rba, snb, bcb, estr, sonia, bojLoan, bojCall] = await Promise.all([
-    ...(['effr', 'sofr', 'nyfed', 'fomc', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb'] as const).map((k) => official(k, since)),
-    official('estr', recent),
-    official('sonia', recent),
-    official('bojLoan', since),
-    official('bojCall', recent),
-  ]);
-  const fed = parseNyFed(effr);
-  const calendar = parseFomcCalendar(fomc);
+export function mergeDecisionVersions(previous: readonly PolicyDecision[], incoming: readonly PolicyDecision[]): PolicyDecision[] {
+  const out = [...previous];
+  const signature = (d: PolicyDecision) => JSON.stringify({ ...d, retrievedAt: 0 });
+  for (const d of incoming) if (!out.some((x) => x.id === d.id && signature(x) === signature(d))) out.push(d);
+  return out.sort((a, b) => a.date.localeCompare(b.date) || a.retrievedAt - b.retrievedAt);
+}
+
+export const POLICY_SOURCE: Partial<Record<keyof PolicyRates, OfficialSource>> = {
+  fedUpper: 'effr', fedLower: 'effr', effr: 'effr', sofr: 'sofr', ecb: 'ecb', boe: 'boe', boc: 'boc',
+  rba: 'rba', snb: 'snb', bcb: 'bcb', estr: 'estr', sonia: 'sonia', bojLoan: 'bojLoan', bojCall: 'bojCall',
+};
+
+/** Injected transport and time permit chronological checks without pretending fixture data are live observations. */
+export async function loadPolicyRates(request: (source: OfficialSource, since: string) => Promise<OfficialAnswer> = officialAnswer, now = Date.now()): Promise<{ answered: number; failures: number }> {
+  const since = new Date(now - 4 * 365 * DAY_MS).toISOString().slice(0, 10);
+  const recent = new Date(now - 92 * DAY_MS).toISOString().slice(0, 10);
+  const sources = ['effr', 'sofr', 'nyfed', 'fomc', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb', 'estr', 'sonia', 'bojLoan', 'bojCall', 'newsFed'] as const;
+  const answers = await Promise.all(sources.map(async (source) => {
+    try { return await request(source, ['estr', 'sonia', 'bojCall'].includes(source) ? recent : since); }
+    catch (err) { return { status: 0, text: '', attemptedAt: now, receivedAt: now, error: err instanceof Error ? err.message : 'Source unavailable' } as OfficialAnswer; }
+  }));
+  const response = Object.fromEntries(sources.map((key, i) => [key, answers[i]])) as Record<typeof sources[number], OfficialAnswer>;
   const prev = policyRates.get();
-  const next: PolicyRates = {
-    fedUpper: toChanges(fed.upper),
-    fedLower: toChanges(fed.lower),
-    effr: toChanges(fed.rate),
-    sofr: toChanges(parseNyFed(sofr).rate),
-    ecb: toChanges(parseEcbCsv(ecb)),
-    boe: toChanges(parseBoeCsv(boe)),
-    boc: toChanges(parseValet(boc, 'V39079')),
-    rba: toChanges(parseRbaTable(rba).get('FIRMMCRTD') ?? []),
-    snb: toChanges(parseSnbCube(snb, 'LZ')),
-    bcb: toChanges(parseSgs(bcb, today)),
-    estr: toChanges(parseEcbCsv(estr)),
-    sonia: toChanges(parseBoeCsv(sonia)),
-    bojLoan: toChanges(parseBojJson(bojLoan)),
-    bojCall: toChanges(parseBojJson(bojCall)),
-    // A source that fails this time keeps what it gave before.
-    fomc: calendar.length ? calendar : prev.fomc,
-    funding: nyfed ? parseNyFedLatest(nyfed) : prev.funding,
+  const next: PolicyRates = { ...prev, health: { ...prev.health }, documentHealth: { ...prev.documentHealth } };
+  const validTransport = (a: OfficialAnswer) => a.status === 200 && !!a.text && !a.error && !a.stale;
+  const record = (source: OfficialSource, a: OfficialAnswer, valid: boolean, sourceDate?: string, error?: string) => {
+    const document = (source === 'fedStatement' || source === 'fedImplementation') && sourceDate ? `${source}:${sourceDate}` : undefined;
+    const previous = document ? next.documentHealth?.[document] : next.health?.[source];
+    const health = datasetHealth(previous, { at: a.attemptedAt, receivedAt: a.receivedAt, checkedAt: a.checkedAt, ok: validTransport(a) && valid, cached: a.cached, stale: a.stale, sourceDate, source: a.url ?? source, error: a.error ?? (!valid ? error ?? `HTTP ${a.status || 'unavailable'}` : undefined) });
+    next.health![source] = health;
+    if (document) next.documentHealth![document] = health;
   };
-  for (const k of ['fedUpper', 'fedLower', 'effr', 'sofr', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb', 'estr', 'sonia', 'bojLoan', 'bojCall'] as const) next[k] ??= prev[k];
+  const text = (source: typeof sources[number]) => validTransport(response[source]) ? response[source].text : '';
+  const fed = parseNyFed(text('effr'));
+  const series: [keyof Pick<PolicyRates, 'fedUpper' | 'fedLower' | 'effr' | 'sofr' | 'ecb' | 'boe' | 'boc' | 'rba' | 'snb' | 'bcb' | 'estr' | 'sonia' | 'bojLoan' | 'bojCall'>, OfficialSource, Obs, string][] = [
+    ['fedUpper', 'effr', fed.upper, 'FED'], ['fedLower', 'effr', fed.lower, 'FED'], ['effr', 'effr', fed.rate, 'FED'],
+    ['sofr', 'sofr', parseNyFed(text('sofr')).rate, 'FED'], ['ecb', 'ecb', parseEcbCsv(text('ecb')), 'ECB'],
+    ['boe', 'boe', parseBoeCsv(text('boe')), 'BOE'], ['boc', 'boc', parseValet(text('boc'), 'V39079'), 'BOC'],
+    ['rba', 'rba', parseRbaTable(text('rba')).get('FIRMMCRTD') ?? [], 'RBA'], ['snb', 'snb', parseSnbCube(text('snb'), 'LZ'), 'SNB'],
+    ['bcb', 'bcb', parseSgs(text('bcb'), bankDate('BCB', now)), 'BCB'], ['estr', 'estr', parseEcbCsv(text('estr')), 'ECB'],
+    ['sonia', 'sonia', parseBoeCsv(text('sonia')), 'BOE'], ['bojLoan', 'bojLoan', parseBojJson(text('bojLoan')), 'BOJ'], ['bojCall', 'bojCall', parseBojJson(text('bojCall')), 'BOJ'],
+  ];
+  let fedValid = true;
+  for (const [key, source, obs, bank] of series) {
+    const candidate = toChanges(obs, bankDate(bank, now));
+    const previous = prev[key];
+    const regressed = !!candidate && !!previous && candidate.asOf < previous.asOf;
+    if (candidate && !regressed) next[key] = candidate;
+    if (source === 'effr') fedValid = fedValid && !!candidate && !regressed;
+    else record(source, response[source as typeof sources[number]], !!candidate && !regressed, candidate?.asOf, regressed ? 'The source returned an older observation window; the newer value was retained.' : 'No valid effective observations in the response.');
+  }
+  fedValid = fedValid && !!next.fedLower && !!next.fedUpper && next.fedLower.asOf === next.fedUpper.asOf && next.fedLower.last <= next.fedUpper.last;
+  if (!fedValid) { next.fedUpper = prev.fedUpper; next.fedLower = prev.fedLower; next.effr = prev.effr; }
+  record('effr', response.effr, fedValid, next.fedUpper?.asOf, 'The response did not establish coherent effective fed funds and target-range observations.');
+  const calendar = parseFomcCalendar(text('fomc'));
+  if (calendar.length) next.fomc = calendar;
+  record('fomc', response.fomc, calendar.length > 0, calendar.at(-1), 'No valid decision calendar in the response.');
+  const funding = parseNyFedLatest(text('nyfed'));
+  if (funding.length) next.funding = funding;
+  record('nyfed', response.nyfed, funding.length > 0, funding.map((f) => f.date).sort().at(-1), 'No valid reference rates in the response.');
+  const links = [...fedStatementLinks(text('fomc')), ...fedStatementLinks(text('newsFed'))];
+  record('newsFed', response.newsFed, /<(?:item|entry)\b/i.test(text('newsFed')), undefined, 'No usable Federal Reserve announcements.');
+  let archive = mergeDecisionVersions(decisionArchive.get().decisions ?? [], prev.decisions ?? []);
+  // Discovery failures do not exempt previously displayed documents from revalidation. Keep their exact source
+  // checks honest even when both calendar/RSS endpoints are unavailable.
+  const dates = [...new Set([...links.map((l) => l.date), ...archive.map((d) => d.date)])].filter((date) => date <= bankDate('FED', now)).sort().reverse().slice(0, 3).sort();
+  for (const date of dates) {
+    const a = await request('fedStatement', date).catch(() => ({ status: 0, text: '', attemptedAt: now, receivedAt: now, error: 'Statement unavailable' } as OfficialAnswer));
+    const note = await request('fedImplementation', date).catch(() => ({ status: 0, text: '', attemptedAt: now, receivedAt: now, error: 'Implementation note unavailable' } as OfficialAnswer));
+    const url = `https://www.federalreserve.gov/newsevents/pressreleases/monetary${date.replace(/-/g, '')}a.htm`;
+    const d = validTransport(a) ? parseFedDecision(a.text, validTransport(note) ? note.text : '', url, a.receivedAt, now) : undefined;
+    // Per-document records preserve a failure on today's statement even when an older statement works.
+    record('fedStatement', a, !!d, date, 'The statement did not establish an unambiguous published target.');
+    record('fedImplementation', note, !!d?.effectiveDate, date, 'The implementation note did not establish an effective date.');
+    if (d) archive = mergeDecisionVersions(archive, [d]);
+  }
+  next.decisions = archive;
+  decisionArchive.set({ decisions: archive });
   policyRates.set(next);
-  return BANKS.filter(([k]) => next[k]).length;
+  const bankStates = BANKS.map(([key]) => next.health?.[POLICY_SOURCE[key]!]);
+  return { answered: bankStates.filter((h) => h?.state === 'current').length, failures: bankStates.filter((h) => !h || h.state === 'error').length };
 }
 
 const BANKS: [keyof PolicyRates, string][] = [
   ['fedUpper', 'Fed (New York Fed)'],
   ['ecb', 'ECB'],
   ['boe', 'Bank of England'],
+  ['bojLoan', 'Bank of Japan'],
   ['boc', 'Bank of Canada'],
   ['rba', 'Reserve Bank of Australia'],
   ['snb', 'Swiss National Bank'],
@@ -263,13 +325,15 @@ export function startPolicyRates(): () => void {
   setFeed('policy', 'connecting', 'Central bank rates');
   let retry: ReturnType<typeof setTimeout> | null = null;
   let retries = 0;
-  const run = () =>
-    load().then((n) => {
-      const got = BANKS.filter(([k]) => policyRates.get()[k]).map(([, name]) => name);
-      if (n) setFeed('policy', 'live', `${n} of ${BANKS.length} central banks: ${got.join(', ')}`);
-      else setFeed('policy', 'error', 'Central bank sources unavailable');
+  let running: Promise<number> | undefined;
+  const run = (): Promise<number> => {
+    if (running) return running;
+    running = loadPolicyRates().then(({ answered: n, failures }) => {
+      const got = BANKS.filter(([k]) => policyRates.get().health?.[POLICY_SOURCE[k]!]?.state === 'current').map(([, name]) => name);
+      if (n) setFeed('policy', failures ? 'error' : 'live', `${n} of ${BANKS.length} central banks confirmed this check: ${got.join(', ')}${failures ? '; other sources failed; retained values show their dates' : ''}`, { delivered: true });
+      else setFeed('policy', 'error', 'No central bank rate was freshly checked; any retained or cached values keep their own dates.');
       const p = policyRates.get();
-      const missing = n < BANKS.length || !p.funding?.length || !p.fomc?.length;
+      const missing = failures > 0 || ['nyfed', 'fomc', 'newsFed', 'fedStatement', 'fedImplementation'].some((key) => p.health?.[key as OfficialSource]?.state === 'error');
       if (retry) clearTimeout(retry);
       retry = null;
       if (missing && retries < 5) {
@@ -277,9 +341,17 @@ export function startPolicyRates(): () => void {
         retry = setTimeout(() => void run(), 120_000);
       } else if (!missing) retries = 0;
       return n;
-    });
+    }).finally(() => { running = undefined; });
+    return running;
+  };
   void run();
-  const timer = setInterval(() => void run(), 3600_000);
+  // Check more often around a published Fed decision time, without changing any provider quota.
+  let lastRun = Date.now();
+  const timer = setInterval(() => {
+    const now = Date.now();
+    const nearDecision = policyRates.get().fomc?.some((date) => Math.abs(scheduledPolicyAt('FED', date) - now) < 3 * 3600_000);
+    if (now - lastRun >= (nearDecision ? 120_000 : 3600_000)) { lastRun = now; void run(); }
+  }, 60_000);
   const offRefresh = registerRefresh({
     source: 'Central bank rates',
     run: async () => {

@@ -254,6 +254,9 @@ const OFFICIAL = {
   sofr: () => 'https://markets.newyorkfed.org/api/rates/secured/sofr/last/1.json',
   nyfed: () => 'https://markets.newyorkfed.org/api/rates/all/latest.json',
   fomc: () => 'https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm',
+  // Only dated Board monetary-policy documents; no renderer-supplied URL is accepted.
+  fedStatement: (date) => `https://www.federalreserve.gov/newsevents/pressreleases/monetary${date.replace(/-/g, '')}a.htm`,
+  fedImplementation: (date) => `https://www.federalreserve.gov/newsevents/pressreleases/monetary${date.replace(/-/g, '')}a1.htm`,
   ecb: (since) => `https://data-api.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.DFR.LEV?format=csvdata&startPeriod=${since}`,
   // The ECB's reference rates of every currency it publishes against the euro, for the ten days to a date: the rate of
   // that date, or of the last day before it with rates (none on weekends and TARGET holidays). PORTFOLIO's dated entries.
@@ -324,7 +327,7 @@ const OFFICIAL = {
 
 /** Which provider publishes each official source, for the status screen. */
 const OFFICIAL_PROVIDER = {
-  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
+  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', fedStatement: 'fedboard', fedImplementation: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
   rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
@@ -352,7 +355,7 @@ ipcMain.handle('official', async (event, source, since) => {
   }
   // Some statistics services answer large requests slowly; a stalled one still ends.
   const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' || source === 'ecbFx' || source === 'estr' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
-  return { status: res.status, text: res.ok ? await res.text() : '' };
+  return { status: res.status, text: res.ok ? await res.text() : '', at: Date.now(), url };
 });
 
 // ------------------------------------------------------------------- FRED

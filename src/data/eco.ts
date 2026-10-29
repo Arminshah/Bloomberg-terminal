@@ -3,7 +3,12 @@ import { zonedToUtc } from '../core/format';
 import { DAY_MS, isBusinessDay, dayNum } from './calendar';
 import { engine } from './market';
 import { levelOn, policyRates, type PolicyRates, type PolicySeries } from './live/policy';
-import { eventDates, expectedPeriod, fredData, periodLabel as fredPeriodLabel, previousPeriod, US_EVENTS, valueAt, type FredEvent } from './live/fred';
+import type { PolicyDecision } from './live/policy-decisions';
+import type { NasdaqEcoEvent } from './live/nasdaq-eco';
+import type { DatasetHealth } from './live/provenance';
+import { rateMoves } from './rate-analysis';
+import { bankDate, currentPolicyTarget, effectivePolicyHistory, effectivePolicySeries, scheduledPolicyAt, visibleDecisions } from './policy-state';
+import { eventDates, expectedPeriod, fredData, fredSeriesHealth, periodLabel as fredPeriodLabel, previousPeriod, US_EVENTS, valueAt, type FredEvent } from './live/fred';
 
 export { zonedToUtc } from '../core/format';
 
@@ -29,8 +34,8 @@ export interface CentralBank {
  * services and the others are left out; in the browser the Fed range is
  * derived from the 3M bill and the rest are reference settings.
  */
-export function centralBanks(): CentralBank[] {
-  return withRealRates(referenceBanks());
+export function centralBanks(now = engine.now()): CentralBank[] {
+  return withRealRates(referenceBanks(), now);
 }
 
 /** A bank's decision days from its published calendar, whether or not its rate comes from its own data. */
@@ -57,23 +62,24 @@ function referenceBanks(): CentralBank[] {
 const REAL_SERIES: Record<string, keyof PolicyRates> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOC: 'boc', RBA: 'rba', SNB: 'snb', BCB: 'bcb' };
 
 /** A bank's real rate series, when loaded. */
-export function policySeries(code: string): PolicySeries | undefined {
+export function policySeries(code: string, now = engine.now()): PolicySeries | undefined {
   const key = REAL_SERIES[code];
-  return key ? (policyRates.get()[key] as PolicySeries | undefined) : undefined;
+  return key ? effectivePolicySeries(policyRates.get()[key] as PolicySeries | undefined, bankDate(code, now)) : undefined;
 }
 
-function withRealRates(banks: CentralBank[]): CentralBank[] {
+function withRealRates(banks: CentralBank[], now: number): CentralBank[] {
   // The Fed's meeting list comes from the Board's own calendar once it has loaded.
   const fomc = policyRates.get().fomc;
   if (fomc?.length) banks = banks.map((cb) => (cb.code === 'FED' ? { ...cb, meetings: fomc } : cb));
   const out = banks.map((cb) => {
-    const s = policySeries(cb.code);
-    if (!s || !s.changes.length) return cb;
-    const [since, level] = s.changes[s.changes.length - 1];
-    const before = s.changes.length > 1 ? s.changes[s.changes.length - 2][1] : level;
-    // A move takes effect a day (Fed) to a week (ECB) after the meeting that decided it.
-    const meeting = [...cb.meetings].reverse().find((m) => m <= since && Date.parse(since) - Date.parse(m) <= 8 * DAY_MS);
-    return { ...cb, rate: level, last: meeting ?? since, lastMove: level - before, real: true };
+    const rates = policyRates.get();
+    const observed = policySeries(cb.code, now);
+    const s = effectivePolicyHistory(rates, cb.code, observed, now);
+    const current = currentPolicyTarget(rates, cb.code, observed, now);
+    if (!Number.isFinite(current.value)) return cb;
+    const move = s ? rateMoves(s, cb.meetings, visibleDecisions(rates.decisions ?? [], cb.code, now)).at(-1) : undefined;
+    // A rate observation establishes its effective level and date, never the meeting that decided it.
+    return { ...cb, rate: current.value, last: move?.date ?? s?.changes[0]?.[0] ?? current.effectiveDate ?? '', lastMove: move?.change ?? NaN, real: true };
   });
   // The desktop app lists only the banks whose rates come from their own data.
   return engine.realOnly ? out.filter((b) => b.real) : out;
@@ -98,6 +104,50 @@ export interface EcoEvent {
   real?: boolean;
   /** For an event whose source gives the day but not the time (FRED release dates): that day, ISO. */
   date?: string;
+  /** Official policy announcement evidence, distinct from the daily effective-rate series. */
+  policyDecision?: PolicyDecision;
+  policyStatus?: 'confirmed' | 'awaiting-publication' | 'statement-unavailable' | 'scheduled';
+  health?: DatasetHealth;
+}
+
+export interface PolicyCalendarEvent extends NasdaqEcoEvent {
+  policyDecision?: PolicyDecision;
+  policyStatus?: 'confirmed' | 'awaiting-publication' | 'scheduled';
+  date?: string;
+  /** Vendor values remain attributable evidence; their target-bound definition is not verified here. */
+  reportedActual?: string;
+  reportedConsensus?: string;
+  reportedPrevious?: string;
+}
+
+/** The main commercial calendar uses the same confirmed Fed record as CBRT/FED/FOMC. */
+export function policyCalendarEvents(events: readonly NasdaqEcoEvent[], from: number, to: number, now: number, rates: PolicyRates = policyRates.get()): PolicyCalendarEvent[] {
+  const known = visibleDecisions(rates.decisions ?? [], 'FED', now);
+  const seen = new Set<string>();
+  const apply = (event: NasdaqEcoEvent, date: string): PolicyCalendarEvent => {
+    const decision = known.findLast((d) => d.date === date);
+    const time = decision?.announcedAt ?? (decision ? Date.parse(`${date}T12:00:00Z`) : scheduledPolicyAt('FED', date));
+    const previous = decision?.action === 'hold' ? decision.upper : decision?.changeBp != null ? decision.upper - decision.changeBp / 100 : rates.fedUpper ? levelOn(rates.fedUpper, new Date(Date.parse(`${date}T00:00:00Z`) - DAY_MS).toISOString().slice(0, 10)) : NaN;
+    seen.add(date);
+    return {
+      ...event, time, name: 'FOMC Rate Decision (Upper Bound)',
+      actual: decision ? `${decision.upper.toFixed(2)}%` : '', consensus: '', previous: Number.isFinite(previous) ? `${previous.toFixed(2)}%` : '',
+      reportedActual: event.actual, reportedConsensus: event.consensus, reportedPrevious: event.previous,
+      policyDecision: decision,
+      policyStatus: decision ? 'confirmed' : time <= now ? 'awaiting-publication' : 'scheduled',
+      ...(decision && !decision.announcedAt ? { date } : {}),
+    };
+  };
+  const out: PolicyCalendarEvent[] = events.map((event) => event.country === 'US' && /\b(?:fed|fomc|federal funds)\b.*\brate decision\b/i.test(event.name) ? apply(event, bankDate('FED', event.time)) : event);
+  for (const date of [...new Set([...(rates.fomc ?? meetingsOf('FED')), ...known.map((d) => d.date)])].sort()) {
+    if (seen.has(date)) continue;
+    const decision = known.findLast((d) => d.date === date);
+    const time = decision?.announcedAt ?? (decision ? Date.parse(`${date}T12:00:00Z`) : scheduledPolicyAt('FED', date));
+    if (time < from || time > to) continue;
+    const prior = levelOn(effectivePolicySeries(rates.fedUpper, bankDate('FED', now)) ?? { changes: [], last: NaN, asOf: '' }, new Date(Date.parse(`${date}T00:00:00Z`) - DAY_MS).toISOString().slice(0, 10));
+    out.push(apply({ id: `FED:${date}`, time, country: 'US', countryName: 'United States', name: 'FOMC Rate Decision (Upper Bound)', actual: '', consensus: '', previous: Number.isFinite(prior) ? `${prior.toFixed(2)}%` : '', description: 'Official Fed calendar and statements; the displayed actual is the announced upper bound.', relevance: 3 }, date));
+  }
+  return out.filter((event) => event.time >= from && event.time <= to).sort((a, b) => a.time - b.time);
 }
 
 type Rule =
@@ -307,6 +357,7 @@ function usReleases(from: number, to: number, now: number): EcoEvent[] {
         relevance: ev.rel,
         kind: ev.kind,
         real: true,
+        health: fredSeriesHealth(ev.series),
       });
     }
   }
@@ -351,12 +402,18 @@ export function ecoEvents(from: number, to: number, now = engine.now()): EcoEven
       }
     }
   }
-  for (const cb of centralBanks()) {
-    for (const iso of cb.meetings) {
+  const rates = policyRates.get();
+  const currentBanks = centralBanks(now);
+  // An announcement remains visible when the effective-rate source is unavailable or its target is still future.
+  const announcedBanks = referenceBanks().filter((cb) => !currentBanks.some((b) => b.code === cb.code) && visibleDecisions(rates.decisions ?? [], cb.code, now).length).map((cb) => ({ ...cb, rate: NaN, last: '', lastMove: NaN, real: true }));
+  for (const cb of [...currentBanks, ...announcedBanks]) {
+    const known = visibleDecisions(rates.decisions ?? [], cb.code, now);
+    for (const iso of [...new Set([...cb.meetings, ...known.map((d) => d.date)])].sort()) {
       const [yy, mm, dd] = iso.split('-').map(Number);
-      const time = zonedToUtc(yy, mm - 1, dd, cb.time[0], cb.time[1], cb.tz);
+      const confirmed = known.findLast((d) => d.date === iso);
+      const time = confirmed?.announcedAt ?? (confirmed ? Date.UTC(yy, mm - 1, dd, 12) : zonedToUtc(yy, mm - 1, dd, cb.time[0], cb.time[1], cb.tz));
       if (time < from || time > to) continue;
-      const decision = rateDecision(cb, iso);
+      const decision = rateDecision(cb, iso, policySeries(cb.code, now), rates.decisions ?? [], now);
       out.push({
         id: `${cb.code}:${iso}`,
         time,
@@ -364,7 +421,7 @@ export function ecoEvents(from: number, to: number, now = engine.now()): EcoEven
         name: cb.name,
         period: MONTH[mm - 1] + ' ' + dd,
         survey: decision.survey,
-        actual: time <= now ? decision.actual : null,
+        actual: confirmed || time <= now ? decision.actual : null,
         prior: decision.prior,
         revised: null,
         unit: '%',
@@ -372,6 +429,8 @@ export function ecoEvents(from: number, to: number, now = engine.now()): EcoEven
         relevance: 3,
         kind: 'rate',
         real: !!cb.real,
+        ...(confirmed && !confirmed.announcedAt ? { date: iso } : {}),
+        ...(cb.real ? { policyDecision: confirmed, policyStatus: confirmed ? 'confirmed' as const : time <= now ? cb.code === 'FED' ? 'awaiting-publication' as const : 'statement-unavailable' as const : 'scheduled' as const } : {}),
       });
     }
   }
@@ -385,23 +444,20 @@ export function ecoEvents(from: number, to: number, now = engine.now()): EcoEven
 const EFFECTIVE_AFTER: Record<string, number> = { ECB: 6 };
 
 /**
- * A meeting's prior rate and decision. With real history these are the levels
- * before and after the meeting (no survey: consensus is not available). The
- * decision is read from the bank's series once the series reaches the day the
- * rate applies, or earlier if a change dated after the meeting is already
- * there; until then it is null (pending), so an unchanged level never stands in
- * for a decision that has not taken effect yet. Without real history every
- * meeting keeps the reference rate.
+ * An announcement actual requires the official decision, including HOLD. A dated series comparison remains
+ * separately available as `observed`; neither a flat observation nor a nearby change confirms an announcement.
  */
-export function rateDecision(cb: Pick<CentralBank, 'code' | 'rate'>, iso: string, series = policySeries(cb.code)): { survey: number | null; actual: number | null; prior: number } {
-  const s = series;
-  if (!s) return { survey: cb.rate, actual: cb.rate, prior: cb.rate };
+export function rateDecision(cb: Pick<CentralBank, 'code' | 'rate'>, iso: string, series = policySeries(cb.code), decisions: readonly PolicyDecision[] = policyRates.get().decisions ?? [], now = engine.now()): { survey: number | null; actual: number | null; prior: number; observed?: number | null } {
+  const s = effectivePolicySeries(series, bankDate(cb.code, now));
+  const confirmed = visibleDecisions(decisions, cb.code, now).findLast((d) => d.date === iso);
+  const statementPrior = confirmed?.action === 'hold' ? confirmed.upper : confirmed?.changeBp != null ? confirmed.upper - confirmed.changeBp / 100 : NaN;
+  if (!s) return confirmed ? { survey: null, actual: confirmed.upper, prior: statementPrior } : engine.realOnly ? { survey: null, actual: null, prior: NaN } : { survey: cb.rate, actual: cb.rate, prior: cb.rate };
   const shift = (days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
-  const prior = levelOn(s, shift(-1));
+  const prior = Number.isFinite(statementPrior) ? statementPrior : levelOn(s, shift(-1));
   const effective = shift(EFFECTIVE_AFTER[cb.code] ?? 1);
   const moved = s.changes.find(([d]) => d > iso && d <= shift(8));
-  const actual = effective <= s.asOf ? levelOn(s, effective) : moved ? moved[1] : null;
-  return { survey: null, actual, prior: Number.isFinite(prior) ? prior : s.last };
+  const observed = effective <= s.asOf ? levelOn(s, effective) : moved ? moved[1] : null;
+  return { survey: null, actual: confirmed?.upper ?? null, prior, observed };
 }
 
 function round(x: number, dec: number): number {

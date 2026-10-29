@@ -4,16 +4,17 @@ import { FnHeader } from '../components/FnHeader';
 import { CalcInput, CalcSelect, CalcSource } from '../components/CalcInputs';
 import { XYChart } from '../components/chart/XYChart';
 import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
-import { fmtDay, fmtInt, fmtNum, MONTHS, WEEKDAYS, zonedParts } from '../core/format';
+import { fmtDateTime, fmtDay, fmtInt, fmtNum, MONTHS, WEEKDAYS, zonedParts } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { DAY_MS } from '../data/calendar';
 import { EXCHANGES, fmtCountdown, localDate, marketDay, sessionAt, type Exchange } from '../data/exchanges';
-import { centralBanks, COUNTRY_NAMES, newYorkDate } from '../data/eco';
+import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { curveMembers } from '../data/curves';
 import { rangeStats } from '../data/analytics';
 import { resolveSecurity } from '../data/registry';
 import { depoRate, policyRate } from '../data/rates';
-import { levelOn, policyRates } from '../data/live/policy';
+import { policyRates, type PolicyRates, type PolicySeries } from '../data/live/policy';
+import { BANK_CLOCKS, bankDate, currentPolicyTarget, policyMeetingState, policyTargetHealth } from '../data/policy-state';
 import type { SecurityDef } from '../data/types';
 import { blackScholes, type OptType } from '../finance/options';
 import { inputNumber } from '../finance/contracts';
@@ -197,14 +198,15 @@ export { SwapCalc as SWPM } from './SwapCalc';
 
 // ------------------------------------------------------------------ CENB
 
+const MONITOR_POLICY_SERIES: Partial<Record<string, keyof PolicyRates>> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOJ: 'bojLoan', BOC: 'boc', RBA: 'rba', SNB: 'snb', BCB: 'bcb' };
+
 /** CENB: central bank policy monitor. */
 export function CENB(_: FnProps) {
   useTick(10);
   const panel = usePanelId();
   const now = engine.now();
-  const banks = centralBanks();
-  const fedLower = policyRates.get().fedLower;
-  const fedLow = fedLower ? levelOn(fedLower, newYorkDate(now)) : NaN;
+  const rates = policyRates.use((r) => r);
+  const banks = centralBanks(now);
   const twoYear = (country: string) => {
     const code = country === 'EZ' ? 'DE' : country;
     const m = curveMembers(code).find((d) => d.tenor === 2);
@@ -212,42 +214,51 @@ export function CENB(_: FnProps) {
   };
   return (
     <div>
-      <FnHeader code="CENTRALBANKS" title="Central Bank Monitor" sub="Policy rates, last move and next decision" actions={[{ n: 1, label: 'Rate path (RATEPROBS)', onClick: () => execute(panel, 'RATEPROBS') }, { n: 2, label: 'Central bank news', onClick: () => execute(panel, 'NEWS CB') }]} />
-      <table className="tbl">
+      <FnHeader code="CENTRALBANKS" title="Central Bank Monitor" sub="Effective policy rates, last nonzero change and next scheduled decision" actions={[{ n: 1, label: 'Rate path (RATEPROBS)', onClick: () => execute(panel, 'RATEPROBS') }, { n: 2, label: 'Central bank news', onClick: () => execute(panel, 'NEWS CB') }]} />
+      <table className="tbl" data-testid="central-bank-monitor">
         <thead>
           <tr>
             <th>Bank</th>
             <th className="hide-m">Country</th>
             <th className="num">Policy rate</th>
-            <th className="num">Last move</th>
+            <th className="num">Last nonzero change</th>
             <th className="hide-m">Last change</th>
             <th>Next decision</th>
             <th className="num">Days</th>
             <th className="num hide-m">2Y yield</th>
             <th className="num hide-m">2Y - policy</th>
+            <th>Source check</th>
           </tr>
         </thead>
         <tbody>
           {banks.map((b) => {
-            const next = b.meetings.find((m) => Date.parse(`${m}T23:59:00Z`) > now);
-            const days = next ? Math.ceil((Date.parse(`${next}T00:00:00Z`) - engine.today * DAY_MS) / DAY_MS) : NaN;
+            const key = MONITOR_POLICY_SERIES[b.code];
+            const current = b.real && key ? currentPolicyTarget(rates, b.code, rates[key] as PolicySeries | undefined, now) : undefined;
+            const upper = current?.value ?? b.rate;
+            const lower = current?.lower;
+            const health = b.real && key ? policyTargetHealth(rates, b.code, key, now) : undefined;
+            const calendar = policyMeetingState(b.code, b.meetings, rates.decisions ?? [], now);
+            const next = calendar.next;
+            const days = next ? Math.round((Date.parse(`${next.date}T00:00:00Z`) - Date.parse(`${bankDate(b.code, now)}T00:00:00Z`)) / DAY_MS) : NaN;
+            const clock = BANK_CLOCKS[b.code];
+            const nextTime = next ? !clock ? 'time not verified' : clock.timeKnown === false ? 'time varies (Tokyo)' : `${new Intl.DateTimeFormat('en-GB', { timeZone: clock.tz, hour: '2-digit', minute: '2-digit' }).format(next.scheduledAt)} ${clock.tz.split('/').at(-1)?.replaceAll('_', ' ')}` : '';
             const y2 = twoYear(b.country);
             const yv = y2 ? engine.quote(y2)!.last : NaN;
             return (
-              <tr key={b.code}>
+              <tr key={b.code} data-bank-code={b.code} data-source-health={health?.state}>
                 <td>
                   <span className="amber b">{b.code}</span> <span className="hide-m">{b.bank}</span>
                 </td>
                 <td className="hide-m">{COUNTRY_NAMES[b.country] ?? b.country}</td>
                 <td className="num white b">
                   {/* The Fed sets a target range; the rate used elsewhere in this row is its upper limit. */}
-                  {b.code === 'FED' && Number.isFinite(fedLow) ? `${fmtNum(fedLow, 2)}-${fmtNum(b.rate, 2)}` : fmtNum(b.rate, 2)}%{b.real ? null : <span className="muted" title="Reference setting, not a live source"> SIM</span>}
+                  {b.code === 'FED' && Number.isFinite(lower) ? `${fmtNum(lower!, 2)}-${fmtNum(upper, 2)}` : fmtNum(upper, 2)}%{b.code === 'FED' && b.real && !Number.isFinite(lower) && <span className="muted"> upper bound; lower unavailable</span>}{b.real ? null : <span className="muted" title="Reference setting, not a live source"> SIM</span>}
                 </td>
                 <td className="num">
                   <Chg v={b.lastMove * 100} dec={0} /> bp
                 </td>
                 <td className="hide-m">{fmtDay(Date.parse(`${b.last}T00:00:00Z`))}</td>
-                <td>{next ? fmtDay(Date.parse(`${next}T00:00:00Z`)) : <span className="muted">{b.code === 'PBOC' ? 'Monthly fixing' : 'Not yet in the app'}</span>}</td>
+                <td>{next ? <>{fmtDay(Date.parse(`${next.date}T00:00:00Z`))} · {nextTime} (scheduled)</> : <span className="muted">{b.code === 'PBOC' ? 'Monthly fixing; dates unavailable' : 'Calendar exhausted'}</span>}<div className="muted">Calendar through {calendar.horizon ?? 'unknown'}</div>{b.code === 'FED' && calendar.awaiting && <div className="amber">Awaiting {calendar.awaiting.date} statement</div>}</td>
                 <td className="num">{Number.isFinite(days) ? days : null}</td>
                 <td className="num hide-m">
                   {y2 ? (
@@ -256,7 +267,8 @@ export function CENB(_: FnProps) {
                     </SecLink>
                   ) : null}
                 </td>
-                <td className="num hide-m">{Number.isFinite(yv) ? <Chg v={(yv - b.rate) * 100} dec={0} /> : null}</td>
+                <td className="num hide-m">{Number.isFinite(yv) ? <Chg v={(yv - upper) * 100} dec={0} /> : null}</td>
+                <td title={`${health?.error ? `Latest check failed: ${health.error}. ` : ''}${current?.sourceAsOf ? `Source as of ${current.sourceAsOf}. ` : ''}${current?.conflict ?? ''}`}>{b.real ? <>{health?.state === 'error' ? <span className="amber">retained; latest check failed</span> : health?.state === 'cached' ? <span className="muted">cached</span> : health?.checkedAt ? 'Checked' : 'Check unavailable'}{health?.checkedAt && <div className="muted">Last successful {fmtDateTime(health.checkedAt)}</div>}</> : <span className="muted">Reference setting</span>}</td>
               </tr>
             );
           })}
@@ -268,7 +280,7 @@ export function CENB(_: FnProps) {
           : banks.some((b) => b.real)
           ? 'Rates without SIM, and their last moves, come from the central banks’ own data. Rates marked SIM are reference settings with no free daily source and may be out of date.'
           : 'Policy rates are reference settings (the Fed range is derived from the 3-month bill) and may be out of date; the desktop app loads the Fed, ECB, Bank of England and Bank of Canada rates from the banks themselves.'}{' '}
-        The Fed's 2-year spread is to the upper limit of its target range. A 2-year yield below the policy rate means the market expects cuts.
+        The Fed&apos;s complete range comes from the same effective observation or statement record; a missing lower bound is left unavailable. Announced future targets remain separate until their verified effective date. Each bank retains its own source check and calendar coverage. The Fed&apos;s 2-year spread is to the upper limit of its target range. A 2-year yield below the policy rate means the market expects cuts.
       </p>
       <Credits ids={['fedboard', 'nyfed', 'treasury', 'ecb', 'bundesbank', 'boe', 'boc', 'rba', 'snb', 'bcb']} />
     </div>
