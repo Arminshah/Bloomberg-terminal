@@ -77,6 +77,11 @@ export interface FederalContext {
   self: (name: string) => boolean;
   party: (name: string) => FedParty;
   normalize: (name: string) => string;
+  /**
+   * Which of these unit names (normalized) the company's own filings name; when given, a unit named unlike the company
+   * counts only then.
+   */
+  named?: (names: string[]) => Promise<Set<string>>;
   /** YYYY-MM-DD. */
   today: string;
 }
@@ -222,9 +227,27 @@ export async function federalRelations(ask: FedAsk, ctx: FederalContext, mark: (
   const profile = top.id ? `${SITE}/recipient/${encodeURIComponent(top.id)}/latest` : undefined;
   // The units under each parent of its name ("PALANTIR USG INC" under Palantir Technologies), largest first.
   const units = new Map<string, number>();
-  for (const r of own) units.set(r.uei, Math.max(units.get(r.uei) ?? 0, r.amount || 0));
+  const unitName = new Map<string, string>();
+  for (const r of own) {
+    units.set(r.uei, Math.max(units.get(r.uei) ?? 0, r.amount || 0));
+    unitName.set(r.uei, r.name);
+  }
   for (const p of own.filter((r) => r.level === 'P').slice(0, 4)) {
-    for (const c of rows<FedRecipient>(await ask('children', p.uei).catch(() => null)) ?? []) units.set(c.uei, Math.max(units.get(c.uei) ?? 0, c.amount || 0));
+    for (const c of rows<FedRecipient>(await ask('children', p.uei).catch(() => null)) ?? []) {
+      units.set(c.uei, Math.max(units.get(c.uei) ?? 0, c.amount || 0));
+      if (!unitName.has(c.uei)) unitName.set(c.uei, c.name);
+    }
+  }
+  // A unit named unlike the company counts only when the company's own filings name it ("Electric Boat" in General
+  // Dynamics' reports). USAspending lists Clariant, Evonik, Transworld Systems and two railroads under JPMorgan Chase &
+  // Co., none of which its filings name.
+  if (ctx.named) {
+    const strange = [...new Set([...units.entries()].sort((a, b) => b[1] - a[1]).map(([u]) => unitName.get(u) ?? '').filter((n) => n && !ctx.self(n)).map(ctx.normalize).filter(Boolean))];
+    const known = strange.length ? await ctx.named(strange).catch(() => new Set<string>()) : new Set<string>();
+    for (const [u] of [...units]) {
+      const n = unitName.get(u) ?? '';
+      if (n && !ctx.self(n) && !known.has(ctx.normalize(n))) units.delete(u);
+    }
   }
   const searched = [...units.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_UNITS).map(([u]) => u);
   const mine = new Set(units.keys());

@@ -1,0 +1,190 @@
+{
+ "recipients": {
+  "results": [
+   {
+    "id": "7230c9bf-5306-dda5-24db-72bd58d037be-C",
+    "uei": "FFXLNEJJJKJ7",
+    "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+    "recipient_level": "C",
+    "amount": 1460693.13
+   },
+   {
+    "id": "50a2dc49-0a35-f879-b6d9-1a9c4a24b397-P",
+    "uei": "G2LEEMLM2UA3",
+    "name": "JPMORGAN CHASE & CO.",
+    "recipient_level": "P",
+    "amount": -641022.7
+   }
+  ]
+ },
+ "children": [
+  {
+   "recipient_id": "7230c9bf-5306-dda5-24db-72bd58d037be-C",
+   "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+   "uei": "FFXLNEJJJKJ7",
+   "amount": 1460693.13
+  },
+  {
+   "recipient_id": "92a47cf5-7f4d-0d8c-cf82-d5d5e0fc384b-C",
+   "name": "JPMORGAN CHASE BANK NA",
+   "uei": "C2FRRGG7C699",
+   "amount": 245079877.0
+  },
+  {
+   "recipient_id": "8a5142cc-f31b-6301-6caf-4012ba455cc9-C",
+   "name": "J. P. MORGAN INVESTMENT MANAGEMENT INC.",
+   "uei": "J2W5NB6EDPH6",
+   "amount": -2101715.83
+  },
+  {
+   "recipient_id": "d58454fc-68c9-1af7-407f-c02fa135838f-C",
+   "name": "ARIZONA & CALIFORNIA RAILROAD COMPANY",
+   "uei": "H3LHQ657VD84",
+   "amount": 22706222.0
+  },
+  {
+   "recipient_id": "ae5afcf1-531c-9ade-4520-237593d6d46d-C",
+   "name": "TOLEDO, PEORIA & WESTERN RAILWAY CORP.",
+   "uei": "EUXLSBL75FA8",
+   "amount": 8128000.0
+  },
+  {
+   "recipient_id": "5728c0be-d0cd-b9ad-0c08-7e8886669c54-C",
+   "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+   "uei": "ZKTMEHNL4M84",
+   "amount": 0
+  },
+  {
+   "recipient_id": "001530dd-1dcd-99b7-74a5-aa2bac760afb-C",
+   "name": "CLARIANT CORP",
+   "uei": "YNFFND612EA9",
+   "amount": 0
+  },
+  {
+   "recipient_id": "88c56438-7e39-9d64-e6d4-a43248bdbf92-C",
+   "name": "SUD-CHEMIE, INC.",
+   "uei": "XMK7H9Y6NL99",
+   "amount": 0
+  },
+  {
+   "recipient_id": "dfe3221c-e77d-ee13-5ae0-a81d607ef064-C",
+   "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+   "uei": "T1TWMSFAURM8",
+   "amount": 0
+  },
+  {
+   "recipient_id": "4484ab73-018b-2ccf-bd0f-ac7f34edc36d-C",
+   "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+   "uei": "NRLAEK5T4DF5",
+   "amount": 0
+  },
+  {
+   "recipient_id": "a3ae1375-c77d-a0f9-5eec-a0580e6700b8-C",
+   "name": "NCO FINANCIAL SYSTEMS, INC",
+   "uei": "MG5DLNJBA147",
+   "amount": 0
+  },
+  {
+   "recipient_id": "46eff057-15b6-a3ab-982b-da573032d114-C",
+   "name": "CLARIANT CORP",
+   "uei": "ME1JGD1YSJG7",
+   "amount": 0
+  },
+  {
+   "recipient_id": "165b3f90-16c3-b6d2-5def-bbbb8a16c82f-C",
+   "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+   "uei": "M3J7X5W5ELL3",
+   "amount": 0
+  },
+  {
+   "recipient_id": "499c25cf-a796-7a0a-4c3c-bc8c9c20db60-C",
+   "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+   "uei": "KU6MMNVJT2E8",
+   "amount": 0
+  },
+  {
+   "recipient_id": "f1aa7dd5-6499-3bd1-c92a-965dc435ac3f-C",
+   "name": "NEOLOGY, INC.",
+   "uei": "KM1QHSG74NX7",
+   "amount": 0
+  },
+  {
+   "recipient_id": "11fd3f74-aa2c-a882-778c-01bdc833484a-C",
+   "name": "ASK CHEMICALS HI-TECH LLC",
+   "uei": "JQ6GERELHKN6",
+   "amount": 0
+  },
+  {
+   "recipient_id": "06d6b1a2-6741-c002-7be5-de0a32179009-C",
+   "name": "JPMORGAN CHASE BANK NA",
+   "uei": "JDBFGMCA3ZP1",
+   "amount": 0
+  },
+  {
+   "recipient_id": "11cc26a5-4f66-8a39-5b20-3a9811e04f9a-C",
+   "name": "J.P. MORGAN SECURITIES LLC",
+   "uei": "HK7AQUMLFPP1",
+   "amount": 0
+  },
+  {
+   "recipient_id": "b678053e-9b09-465f-7390-e124fd6423c1-C",
+   "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+   "uei": "H5LRLJ8WMJY1",
+   "amount": 0
+  },
+  {
+   "recipient_id": "51607aa9-0a4d-4012-65fc-fea52d609d95-C",
+   "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+   "uei": "GMYAU8AGBYJ5",
+   "amount": 0
+  },
+  {
+   "recipient_id": "3613321c-0091-1fcb-34e1-7b17fba9384b-C",
+   "name": "TRANSWORLD SYSTEMS INC.",
+   "uei": "G5U7RMFCTM75",
+   "amount": 0
+  },
+  {
+   "recipient_id": "50a2dc49-0a35-f879-b6d9-1a9c4a24b397-C",
+   "name": "JPMORGAN CHASE & CO.",
+   "uei": "G2LEEMLM2UA3",
+   "amount": 0
+  },
+  {
+   "recipient_id": "b03e01a7-4afa-27db-9317-5424dfae371f-C",
+   "name": "OSI COLLECTION SERVICES INC",
+   "uei": "G1N4CKV4ZHD8",
+   "amount": 0
+  },
+  {
+   "recipient_id": "2f68a207-4709-e717-2ad7-a46003e23f4a-C",
+   "name": "TRANSAMERICAN AUTO PARTS CO, LLC",
+   "uei": "FK6CSLCJ3C15",
+   "amount": 0
+  },
+  {
+   "recipient_id": "3f2a7132-3dc0-7f3c-5b1d-010649cfebc4-C",
+   "name": "J.P. MORGAN ELECTRONIC FINANCIAL SERVICES, INC.",
+   "uei": "DNEMELSBN5F7",
+   "amount": 0
+  },
+  {
+   "recipient_id": "e2b854c6-90ae-18f5-6283-fee947377338-C",
+   "name": "JPMORGAN CHASE BANK, NATIONAL ASSOCIATION",
+   "uei": "CRBKQHCYMNB6",
+   "amount": 0
+  },
+  {
+   "recipient_id": "0c4c74fb-1bfb-1a9a-23d3-b66796e19991-C",
+   "name": "TRANSAMERICAN AUTO PARTS COMPANY, LLC",
+   "uei": "CFD9FQ7GMCJ4",
+   "amount": 0
+  },
+  {
+   "recipient_id": "434718a5-33b6-376e-f7f3-584383ca9e9e-C",
+   "name": "EVONIK CORP",
+   "uei": "CF98DGDLRC15",
+   "amount": 0
+  }
+ ]
+}

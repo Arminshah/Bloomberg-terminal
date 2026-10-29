@@ -5,6 +5,9 @@ import { agencyName, agencyRelations, federalRelations, ownRecipients, subRelati
 import type { SecCompany } from '../src/data/live/sec';
 import { describe as relationLine, shareLabel, sourceUrl } from '../src/functions/SPLC';
 import FIX from './fixtures/usaspending-2026-10.json';
+// USAspending.gov's recipient entries for JPMorgan Chase and the units it files under JPMorgan Chase & Co. (29 October
+// 2026): its banks and asset managers, and Clariant, Evonik, Transworld Systems, NCO Financial and two railroads.
+import JPM from './fixtures/usaspending-jpm-2026-10-29.json';
 
 // The fixture's answers (USAspending.gov's of 28 October 2026, trimmed: Palantir's records and Lockheed Martin's F-35
 // subcontracts), read as the main process reads them.
@@ -22,6 +25,7 @@ const COMPANIES: SecCompany[] = [
   { cik: 1501585, ticker: 'HII', title: 'HUNTINGTON INGALLS INDUSTRIES, INC.' },
   { cik: 101829, ticker: 'RTX', title: 'RTX Corp' },
   { cik: 1144879, ticker: 'APLD', title: 'Applied Digital Corp.' },
+  { cik: 19617, ticker: 'JPM', title: 'JPMORGAN CHASE & CO' },
 ];
 const dir = buildDirectory(COMPANIES);
 
@@ -164,6 +168,27 @@ describe('SPLC: the federal records of a company', () => {
     const failed: string[] = [];
     await federalRelations(async () => null, context('APLD'), (step, state) => failed.push(`${step} ${state}`));
     expect(failed).toEqual(['awards failed', 'subawards failed', 'subs failed']);
+  });
+
+  it("counts a unit named unlike the company only when the company's own filings name it", async () => {
+    const asked: string[] = [];
+    const ask = async (kind: UsaspendingKind, arg: string): Promise<UsaspendingAnswer> => {
+      asked.push(`${kind} ${arg}`);
+      const body = kind === 'recipients' ? JPM.recipients : kind === 'children' ? JPM.children : { results: [] };
+      return { status: 200, rows: main.parseUsaspending(kind, JSON.stringify(body))! };
+    };
+    const looked: string[][] = [];
+    // JPMorgan's 10-K and 10-Qs name J.P. Morgan Investment Management and J.P. Morgan Securities, not Clariant.
+    const named = async (list: string[]) => {
+      looked.push(list);
+      return new Set(list.filter((n) => /morgan/.test(n)));
+    };
+    await federalRelations(ask, { ...context('JPM'), named });
+    expect(looked[0]).toEqual(expect.arrayContaining(['clariant', 'transworld systems', 'evonik']));
+    const units = asked.find((a) => a.startsWith('awards '))!.slice(7).split(',');
+    expect(units).toEqual(expect.arrayContaining(['C2FRRGG7C699', 'FFXLNEJJJKJ7', 'J2W5NB6EDPH6']));
+    // SPLC JPM listed the Defense Logistics Agency's contract with Clariant and Transworld Systems' collection work.
+    for (const other of ['YNFFND612EA9', 'ME1JGD1YSJG7', 'G5U7RMFCTM75', 'CF98DGDLRC15', 'H3LHQ657VD84', 'MG5DLNJBA147']) expect(units).not.toContain(other);
   });
 
   afterEach(() => {

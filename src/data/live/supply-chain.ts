@@ -2349,6 +2349,9 @@ export function mergeRelations(list: Relation[]): Relation[] {
 
 // ----------------------------------------------------------- the search
 
+/** At most this many of a company's differently named federal units are looked up in its own filings. */
+const MAX_UNIT_CHECKS = 12;
+
 export interface FtsHit {
   cik: number;
   name: string;
@@ -2716,6 +2719,17 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
           self: (n) => selfRe.test(n) || keys.some((k) => { const x = normalizeName(n); return x === k || x.startsWith(`${k} `); }),
           party: (n) => federalParty(n, dir),
           normalize: normalizeName,
+          // Searched in its own annual and quarterly reports of two years, the largest units first.
+          named: async (list) => {
+            const out = new Set<string>();
+            for (const n of list.slice(0, MAX_UNIT_CHECKS)) {
+              const q = n.replace(/[^A-Za-z0-9 .,&'()-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 59);
+              if (q.length < 3 || !company?.cik) continue;
+              const got = await ask(`|${q}|reports|0|${company.cik}`);
+              if (got.total > 0) out.add(n);
+            }
+            return out;
+          },
           today,
         }, (step, state, found, url) => emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === `usaspending/${step}` ? { ...x, state, ...(found != null ? { found } : {}), ...(url ? { url } : {}) } : x)) })));
         relations.push(...got.relations);
