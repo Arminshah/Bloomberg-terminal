@@ -114,6 +114,13 @@ describe('SEC statement supplements', () => {
     expect(f.quarterly[0].supplements?.join()).toContain('SEC EDGAR 10-Q, filed 07/10/2026');
   });
 
+  it('keeps filed parent income distinct when a feed repeats its common-shareholder EPS numerator as net income', () => {
+    const f = buildRealFund(def, { quoteSummary: { result: [{ financialData: { financialCurrency: 'USD' } }] } }, null,
+      series('quarterly', [['TotalRevenue', '2026-08-31', 100e6], ['NetIncome', '2026-08-31', -60e6], ['NetIncomeCommonStockholders', '2026-08-31', -60e6]]), null, NOW, cf());
+    expect(f.quarterly[0]).toMatchObject({ niTotal: -50, ni: -60 });
+    expect(f.quarterly[0].supplements?.join()).toContain("net income attributable to the company's shareholders");
+  });
+
   it('does not blend income statement bases when the primary revenue conflicts', () => {
     const f = buildRealFund(def, { quoteSummary: { result: [{ financialData: { financialCurrency: 'USD' } }] } }, null,
       series('quarterly', [['TotalRevenue', '2026-08-31', 200e6]]), null, NOW, cf());

@@ -453,11 +453,12 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
           // Net income before any preferred dividends: kept aside, used below only where it checks out.
           if (key === '__NetIncome') {
             if (!Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN)) netIncome.set(`${kind}:${end}`, { value, source: extra.sources.get(key)! });
-            // The total itself, where the feed has none: the filing's net income attributable to the company.
-            if (!Number.isFinite(row.get('NetIncome') ?? NaN)) {
+            // Exact-period parent-attributable filed income is a different measure from the EPS numerator. Prefer
+            // that explicit filed line without overwriting net income available to common shareholders.
+            if (row.get('NetIncome') !== value) {
               row.set('NetIncome', value);
               const evidence = supplements.get(end) ?? new Set<string>();
-              evidence.add(`${extra.sources.get(key)}: net income`);
+              evidence.add(`${extra.sources.get(key)}: net income attributable to the company's shareholders`);
               supplements.set(end, evidence);
             }
             continue;
