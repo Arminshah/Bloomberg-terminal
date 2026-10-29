@@ -144,6 +144,17 @@ describe("SPLC: what another company's report says", () => {
     expect(c('Revenue Concentration Apple For the year ended December 31, 2025, 5,759 Apple units sold accounted for approximately 41% of the annual revenue recorded.', apple)).toMatchObject({ role: 'customer', share: 41, basis: 'their-product-sales' });
   });
 
+  it('an order a retailer places to sell its products makes it a supplier; an order placed with a maker, a customer', () => {
+    const hd = targetPattern(targetNames('HD', 'HOME DEPOT, INC.').names);
+    const ba = targetPattern(targetNames('BA', 'BOEING CO').names);
+    // Axil Brands' press release of 8 April 2026: SPLC HD listed Axil as Home Depot's customer.
+    expect(c('Announced new order with Home Depot to distribute three high performance products through its on-line platform', hd)).toEqual({ role: 'supplier' });
+    expect(c('We have 42 aircraft on order with Boeing for delivery through 2030.', ba)).toEqual({ role: 'customer' });
+    // American Woodmark's 10-K of June 2025: Home Depot is what it competes for, not a rival.
+    expect(c("We compete with numerous large national and regional home products companies for, among other things, customers, orders from Home Depot and Lowe's, raw materials, skilled management, and labor resources.", hd)).toBeNull();
+    expect(c('We compete with Home Depot and Lowe\'s for professional customers.', hd)).toEqual({ role: 'competitor' });
+  });
+
   it("reads a reseller's group figure, a support provider's revenue and a list of products' shares as their filings mean them", () => {
     const msft = targetPattern(targetNames('MSFT', 'MICROSOFT CORP').names);
     const oracle = targetPattern(targetNames('ORCL', 'Oracle Corp').names);

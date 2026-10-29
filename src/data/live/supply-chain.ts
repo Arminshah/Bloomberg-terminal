@@ -996,7 +996,10 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
       const lead = plain.slice(Math.max(0, m.index - 80), m.index);
       if (!own.test(lead) && !byFiler(lead) && !/^\s+(?:with|against)\s+us\b|^\s+(?:of|to|for)\s+(?:our|the Company's)\b/i.test(plain.slice(at, at + 24))) continue;
       if (/\bcompeting (?:\w+\s+)?brands\b/i.test(plain)) continue;
-      if (company.some((c) => c.index > m!.index && (c.index - m!.index < 260 || (c.index - at < 1200 && /\b(?:include|includes|including|such as|are|:)\b/i.test(plain.slice(at, at + 80)))))) return { role: 'competitor' };
+      // What the filer competes for is no rival: "we compete with ... companies for ... customers, orders from Home Depot
+      // and Lowe's" (American Woodmark's 10-K of June 2025).
+      const sought = (c: Mention) => /\b(?:orders?|business|sales|shelf space|placement|contracts?|programs?|awards?)\s+(?:from|with|at|to|of)\s+(?:the\s+)?$/i.test(plain.slice(Math.max(0, c.index - 40), c.index));
+      if (company.some((c) => !sought(c) && c.index > m!.index && (c.index - m!.index < 260 || (c.index - at < 1200 && /\b(?:include|includes|including|such as|are|:)\b/i.test(plain.slice(at, at + 80)))))) return { role: 'competitor' };
     }
     if (company.some((c) => /^[^.]{0,250}?\b(?:is|are|as|remains?|were|was)\s+(?:one of\s+)?(?:our|the Company's)\s+(?:\w+\s+){0,3}competitors?\b/i.test(plain.slice(c.end)))) return { role: 'competitor' };
   }
@@ -1030,7 +1033,11 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   for (const m of ms.filter((x) => !x.product || x.goods)) {
     const b = before(m);
     if (/\b(?:deploy|deploying|deployed|adopt|adopting|adopted|implement\w*|integrat\w*|install\w*|purchas\w*|buy\w*|procur\w*)\s+(?:the\s+)?(?:latest\s+|new\s+|next-generation\s+)?$/i.test(b) && /\b(?:[Ww]e|[Oo]ur|[Tt]he Company)\b/.test(b.slice(-200)) && !/\b(?:customers?|clients?|users?|partners?)\b[^.;]{0,40}$/i.test(b) && (m.product || m.goods || after(s, m, /^(?:'s)?\s+(?:[A-Z][\w-]*\s+){0,2}(?:platforms?|GPUs?|chips?|systems?|products?|servers?|accelerators?|software|solutions?|technology)\b/))) return { role: 'customer' };
-    if (/\b(?:deliver(?:y|ies) (?:of|from)|on order (?:from|with)|orders? (?:placed )?with)\s+(?:the\s+)?(?:new\s+)?$/i.test(b)) return { role: 'customer' };
+    if (/\b(?:deliver(?:y|ies) (?:of|from)|on order (?:from|with)|orders? (?:placed )?with)\s+(?:the\s+)?(?:new\s+)?$/i.test(b)) {
+      // "a new order with Home Depot to distribute three high performance products through its on-line platform" (Axil
+      // Brands, April 2026): the target sells the filer's products, which makes the filer its supplier.
+      return after(s, m, /^(?:'s)?,?\s+(?:to|which will|that will|who will)\s+(?:distribute|sell|carry|stock|offer|resell|retail)\b/i) ? { role: 'supplier' } : { role: 'customer' };
+    }
     if (gapListy(b, /\bunder\s+(?:various\s+|the\s+|multiple\s+|several\s+)?brands?,?\s+(?:including|such as)\b([^.;]*)$/i) || after(s, m, /^\s+brand(?:ed)?\s+(?:fuel|gasoline|stations?|stores?)\b/i)) return { role: 'customer' };
     if (after(s, m, /^(?:'s)?[^.;]{0,40}\b(?:has |have )?(?:committed|agreed) to (?:pay|purchase)\b[^.;]{0,40}\b(?:us|the (?:Company|Group))\b/i)) return { role: 'supplier' };
   }
