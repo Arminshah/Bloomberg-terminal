@@ -83,7 +83,7 @@ describe("FINANCIALS: the filed diluted EPS where the filing tags only net incom
 
   it("takes Eli Lilly's 2022 diluted EPS as filed, 6.90, not the feed's 6.57", () => {
     // Lilly tags NetIncomeLoss but not net income to common; the feed divided 2022's 6,244.8 million by 950.2 million
-    // shares (its employee benefit trust's included), the 10-Ks by 904.6 million.
+    // shares, the 10-Ks by 904.6 million. The earlier trust-based explanation is not primary-source evidence.
     const lly = engine.get('LLY US Equity')!;
     const f = buildRealFund(lly, company, annual([
       ['TotalRevenue', '2022-12-31', 28_541.4e6], ['NetIncome', '2022-12-31', 6_244.8e6], ['NetIncomeCommonStockholders', '2022-12-31', 6_244.8e6], ['DilutedEPS', '2022-12-31', 6.572215], ['DilutedAverageShares', '2022-12-31', 950_182_000],

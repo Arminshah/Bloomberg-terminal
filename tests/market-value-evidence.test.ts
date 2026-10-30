@@ -5,6 +5,7 @@ import { MarketValueConflict } from '../src/components/MarketValue';
 import { dayNum } from '../src/data/calendar';
 import { engine } from '../src/data/market';
 import { shareCountConflict } from '../src/data/live/share-check';
+import { observedShareBasis, setObservedShares } from '../src/data/live/share-basis';
 import type { CompanyFacts } from '../src/data/live/sec';
 
 const now = Date.parse('2026-10-29T20:00:00Z');
@@ -47,5 +48,71 @@ describe('market-value conflict evidence', () => {
     const future = structuredClone(facts);
     future.facts['dei:EntityCommonStockSharesOutstanding'].shares.push({ end: '2026-11-01', filed: '2026-11-02', form: '10-Q', val: 1700, accn: 'future' } as never);
     expect(shareCountConflict(0.0012, future, now)?.cover).toBe(1500);
+  });
+
+  it('labels an observed current-market-cap pair with its actual provider and original clocks', () => {
+    engine.setExternalDaily(id, [{ day, o: 100, h: 110, l: 95, c: 105, v: 1000 }]);
+    const sec = { ...engine.get(id)!, eq: { ...engine.get(id)!.eq! } };
+    setObservedShares(sec, { shares: 0.0012, source: 'Yahoo Finance quote', method: 'current-market-cap-pair', observedAt: now - 1000, sourceTime: now - 5000, marketCap: 120000, price: 100, currency: 'USD' });
+    const evidence = shareCountConflict(sec.eq.shares, facts, now, observedShareBasis(sec))!;
+    const html = renderToStaticMarkup(createElement(MarketValueConflict, { sec, evidence }));
+    expect(evidence.message).toContain("Yahoo Finance quote's market value counts 1,200 shares");
+    expect(candidates(html)[0]).toMatchObject({ source: 'Yahoo Finance quote market-implied shares', method: 'current-market-cap-pair', shares: 1200, value: 126000, observedAt: now - 1000, sourceTime: now - 5000, sourceMarketCap: 120000, sourcePriceQuoted: 100, sourceCurrency: 'USD' });
+  });
+
+  it.each(['Yahoo Finance reported-share series', 'Nasdaq holdings', 'Finnhub company summary'])('retains the reported provenance of %s without calling it market-implied', (source) => {
+    engine.setExternalDaily(id, [{ day, o: 100, h: 110, l: 95, c: 105, v: 1000 }]);
+    const sec = { ...engine.get(id)!, eq: { ...engine.get(id)!.eq! } };
+    setObservedShares(sec, { shares: 0.0012, source, method: 'reported', observedAt: now - 86400_000 });
+    const evidence = shareCountConflict(sec.eq.shares, facts, now, observedShareBasis(sec))!;
+    const html = renderToStaticMarkup(createElement(MarketValueConflict, { sec, evidence }));
+    expect(evidence.message).toContain(`${source} reports 1,200 shares`);
+    expect(evidence.message).not.toContain('market value counts');
+    const first = candidates(html)[0];
+    expect(first).toMatchObject({ source: `${source} reported shares`, method: 'reported', observedAt: now - 86400_000, sourceTime: null, shares: 1200, value: 126000 });
+    expect(first).not.toHaveProperty('sourceMarketCap');
+    expect(first).not.toHaveProperty('sourcePriceQuoted');
+  });
+
+  it('keeps an untracked count explicit instead of assigning it a provider', () => {
+    engine.setExternalDaily(id, [{ day, o: 100, h: 110, l: 95, c: 105, v: 1000 }]);
+    const sec = { ...engine.get(id)!, eq: { ...engine.get(id)!.eq!, shares: 0.0012 } };
+    const evidence = shareCountConflict(sec.eq.shares, facts, now, observedShareBasis(sec))!;
+    const html = renderToStaticMarkup(createElement(MarketValueConflict, { sec, evidence }));
+    expect(evidence.message).toContain('The current app count is 1,200 shares (source unknown)');
+    expect(evidence.message).not.toContain('Yahoo');
+    expect(candidates(html)[0]).toMatchObject({ source: 'Current app share count (source unknown)', method: 'unknown', observedAt: null, sourceTime: null, shares: 1200, value: 126000 });
+  });
+
+  it('does not reuse an earlier source after the actual count has been replaced', () => {
+    engine.setExternalDaily(id, [{ day, o: 100, h: 110, l: 95, c: 105, v: 1000 }]);
+    const sec = { ...engine.get(id)!, eq: { ...engine.get(id)!.eq! } };
+    const previous = { shares: 0.0012, source: 'Nasdaq holdings', method: 'reported' as const, observedAt: now - 1000 };
+    setObservedShares(sec, previous);
+    sec.eq.shares = 0.0013;
+    expect(observedShareBasis(sec)).toBeUndefined();
+    const evidence = shareCountConflict(sec.eq.shares, facts, now, previous)!;
+    const html = renderToStaticMarkup(createElement(MarketValueConflict, { sec, evidence }));
+    expect(evidence.current).toBe(1300);
+    expect(evidence.basis).toBeUndefined();
+    expect(candidates(html)[0]).toMatchObject({ source: 'Current app share count (source unknown)', method: 'unknown', shares: 1300, value: 136500 });
+  });
+
+  it.each([
+    { observedAt: now + 1000 },
+    { observedAt: NaN },
+    { observedAt: Infinity },
+    { observedAt: now - 1000, sourceTime: now + 1000 },
+    { observedAt: now - 1000, sourceTime: NaN },
+  ])('does not attribute a count to an observation unavailable at the explicit cutoff: %o', (clocks) => {
+    engine.setExternalDaily(id, [{ day, o: 100, h: 110, l: 95, c: 105, v: 1000 }]);
+    const sec = { ...engine.get(id)!, eq: { ...engine.get(id)!.eq! } };
+    setObservedShares(sec, { shares: 0.0012, source: 'Yahoo Finance quote', method: 'current-market-cap-pair', ...clocks });
+    const evidence = shareCountConflict(sec.eq.shares, facts, now, observedShareBasis(sec))!;
+    const html = renderToStaticMarkup(createElement(MarketValueConflict, { sec, evidence }));
+    expect(evidence).toMatchObject({ current: 1200, cover: 1500 });
+    expect(evidence.basis).toBeUndefined();
+    expect(evidence.message).toContain('source unknown');
+    expect(candidates(html)[0]).toMatchObject({ source: 'Current app share count (source unknown)', method: 'unknown', shares: 1200, value: 126000, observedAt: null, sourceTime: null });
   });
 });

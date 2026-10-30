@@ -435,7 +435,8 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         const ni = row.get('NetIncomeCommonStockholders');
         // A filing without the net-income-to-common tag (Eli Lilly's) gives its net income instead, where the feed's
         // net income and its net income to common are the same (no preferred dividends): Lilly's 2022 diluted EPS was
-        // the feed's 6.57 (its net income over 950.2 million shares, the trust's included) against 6.90 filed.
+        // the feed's 6.57 (its net income over 950.2 million shares) against 6.90 filed. The earlier trust-based
+        // explanation of the denominator has no retained primary quotation; it does not select this figure.
         const feedTotal = row.get('NetIncome');
         const noPreferred = ni != null && feedTotal != null && Number.isFinite(ni) && Number.isFinite(feedTotal) && Math.abs(ni - feedTotal) <= 0.001 * Math.max(Math.abs(ni), 1);
         const secNi = extra.row.get('NetIncomeCommonStockholders') ?? (noPreferred ? extra.row.get('__NetIncome') : undefined);
