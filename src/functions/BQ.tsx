@@ -27,6 +27,7 @@ import { usePanelId } from '../terminal/panel';
 import type { Quote, SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
 import { sourceCode } from '../data/sourcecode';
+import { quoteAuditState } from '../data/live/quote-audit';
 import '../styles/quote-terminal.css';
 
 const QUOTE_REACH: NewsReach = { massive: false, marketaux: false };
@@ -75,7 +76,7 @@ export function BQ({ sec }: FnProps) {
   const analysts = useAnalystSnapshot(s);
   const tradable = s.cls === 'equity' || s.cls === 'crypto' || s.cls === 'commodity' || s.cls === 'future';
   return (
-    <div className="quote-terminal">
+    <div className="quote-terminal" data-audit-state={JSON.stringify(quoteAuditState(s, q, ks ? ks.mcap * 1e6 : undefined, Date.now()))}>
       <FnHeader
         code="QUOTE"
         title="Quote"

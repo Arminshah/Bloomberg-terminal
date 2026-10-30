@@ -2,6 +2,7 @@ import { loadJson, saveJson } from '../../core/store';
 import { engine } from '../market';
 import { latestReportedShares } from './lookup';
 import { desktopData, yahooGet, yahooSymbolFor } from './yahoo';
+import { setObservedShares } from './share-basis';
 
 /**
  * Shares outstanding for the stocks the app lists, from Yahoo's fundamentals series (the last reported balance
@@ -48,14 +49,14 @@ async function fetchShares(id: string): Promise<'filled' | 'none' | 'skipped'> {
     const kept: Kept = (memory ??= loadJson<Kept>(KEY) ?? {});
     const k = kept[symbol];
     if (k && Date.now() - k.at < WEEK && k.shares > 0) {
-      eq.shares = (k.shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6;
+      setObservedShares(d!, { shares: (k.shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6, source: 'Yahoo Finance reported-share series', method: 'reported', observedAt: k.at, classMultiplier: CLASS_UNITS[symbol] ?? 1 });
       return 'skipped';
     }
     const shares = latestReportedShares(await yahooGet(seriesPath(symbol, Date.now())).catch(() => null));
     if (!(shares && shares > 0)) return 'none';
     kept[symbol] = { shares, at: Date.now() };
     saveJson(KEY, kept);
-    if (!(eq.shares > 0)) eq.shares = (shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6;
+    if (!(eq.shares > 0)) setObservedShares(d!, { shares: (shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6, source: 'Yahoo Finance reported-share series', method: 'reported', observedAt: kept[symbol].at, classMultiplier: CLASS_UNITS[symbol] ?? 1 });
     return 'filled';
   } finally {
     inFlight.delete(id);
@@ -102,7 +103,7 @@ export async function fillShareCounts(stopped: () => boolean = () => false, gap 
     const symbol = yahooSymbolFor(d);
     if (!symbol) continue;
     const k = kept[symbol];
-    if (k && now - k.at < WEEK && k.shares > 0) d.eq.shares = (k.shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6;
+    if (k && now - k.at < WEEK && k.shares > 0) setObservedShares(d, { shares: (k.shares * (CLASS_UNITS[symbol] ?? 1)) / 1e6, source: 'Yahoo Finance reported-share series', method: 'reported', observedAt: k.at, classMultiplier: CLASS_UNITS[symbol] ?? 1 });
     else missing.push(d.id);
   }
   let filled = 0;

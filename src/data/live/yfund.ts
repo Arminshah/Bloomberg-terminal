@@ -13,6 +13,7 @@ import { fillSummary, loadFinraShort, loadNasdaq, nasdaqAvailable, nasdaqSummary
 import { loadMassiveDividends } from './massive-dividends';
 import { secStatementRows, splitFactorSince, type SplitEvent } from './statement-supplements';
 import { fmtDay, fmtNum } from '../../core/format';
+import { setObservedShares, type ShareBasis } from './share-basis';
 
 /**
  * Company data for the desktop app from Yahoo Finance (personal
@@ -743,8 +744,45 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   return { fetched: now, ...(perShareFromFilings ? { splitsKey: splitsKey(splits) } : {}), ...(currency ? { currency } : {}), ...(statementsFrom ? { statementsFrom } : {}), ...(balance ? { balance } : {}), annual, quarterly, ltm, earnings, holders, breakdown, stats, nextDividend, float: inLineUnits(def, floatStats(ks)), officers: officersFrom(r.assetProfile) };
 }
 
+export interface ProfileShareSelection {
+  implied?: ShareBasis;
+  reported?: ShareBasis;
+}
+
+/** Read before fallback fields are merged: a Nasdaq cap and a Yahoo price are not a pair. */
+export function profileShareSelection(def: SecurityDef, summary: Json, source: 'Yahoo Finance' | 'Finnhub', observedAt: number): ProfileShareSelection {
+  const r = summary?.quoteSummary?.result?.[0] ?? {};
+  const out: ProfileShareSelection = {};
+  const reported = num(r.defaultKeyStatistics?.sharesOutstanding) / 1e6;
+  if (reported > 0 && Number.isFinite(reported)) out.reported = { shares: reported, source: `${source} company summary`, method: 'reported', observedAt };
+  // Finnhub's profile has a cap and a reported count, but no co-observed current price.
+  if (source !== 'Yahoo Finance') return out;
+  const fromPrice = num(r.price?.marketCap) > 0 && num(r.price?.regularMarketPrice) > 0;
+  const capSection = fromPrice || !(num(r.summaryDetail?.marketCap) > 0) ? r.price : r.summaryDetail;
+  const priceFromQuote = fromPrice || !(num(r.financialData?.currentPrice) > 0);
+  const cap = num(capSection?.marketCap);
+  const price = num(priceFromQuote ? r.price?.regularMarketPrice : r.financialData?.currentPrice);
+  const shares = impliedShares(def, cap, price);
+  if (Number.isFinite(shares) && shares > 0) {
+    const currency = capSection?.currency;
+    const time = priceFromQuote ? num(r.price?.regularMarketTime) * 1000 : NaN;
+    out.implied = { shares, source: 'Yahoo Finance company summary', method: 'current-market-cap-pair', observedAt, marketCap: cap, price,
+      ...(Number.isFinite(time) && time > 0 ? { sourceTime: time } : {}),
+      ...(typeof currency === 'string' && /^(?:[A-Z]{3}|GBp)$/.test(currency) ? { currency } : {}) };
+  }
+  return out;
+}
+
+/** Keep the existing class/ADR precedence while excluding mismatched cap/price dates. */
+export function applyProfileShares(def: SecurityDef, selection: ProfileShareSelection): void {
+  // The whole-company B equivalent count must come from the quote or reported-share series.
+  if (CLASS_UNITS[yahooSymbolFor(def) ?? def.yahoo ?? '']) return;
+  const selected = selection.implied ?? selection.reported;
+  if (selected) setObservedShares(def, selected);
+}
+
 /** Writes the real profile into the security so DES, market cap and the model inputs use it. */
-function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
+function applyProfile(def: SecurityDef, summary: Json, fund: RealFund, shares: ProfileShareSelection) {
   const eq = def.eq;
   if (!eq) return;
   const r = summary?.quoteSummary?.result?.[0] ?? {};
@@ -759,14 +797,7 @@ function applyProfile(def: SecurityDef, summary: Json, fund: RealFund) {
   if (typeof ap.website === 'string' && /^https?:\/\/[^\s]+$/i.test(ap.website)) eq.web = ap.website;
   const fyeRaw = num(ks.lastFiscalYearEnd);
   if (Number.isFinite(fyeRaw)) eq.fye = new Date(fyeRaw * 1000).getUTCMonth() + 1;
-  const shares = impliedShares(def, num(r.summaryDetail?.marketCap ?? r.price?.marketCap), num(r.financialData?.currentPrice ?? r.summaryDetail?.previousClose));
-  // Berkshire's B line is valued as the whole company (Yahoo's figure): a summary that counts the B shares alone does
-  // not set its count: the quote or the reported count does (see CLASS_UNITS).
-  const wholeCompany = !!CLASS_UNITS[yahooSymbolFor(def) ?? def.yahoo ?? ''];
-  if (wholeCompany) {
-    /* keep it */
-  } else if (Number.isFinite(shares)) eq.shares = shares;
-  else if (Number.isFinite(fund.stats.shares!) && fund.stats.shares! > 0) eq.shares = fund.stats.shares!;
+  applyProfileShares(def, shares);
   if (Number.isFinite(fund.stats.beta!)) eq.beta = fund.stats.beta!;
   if (fund.ltm && Number.isFinite(fund.ltm.rev)) eq.rev = fund.ltm.rev;
   if (fund.ltm && Number.isFinite(fund.ltm.ni)) eq.ni = fund.ltm.ni;
@@ -993,10 +1024,15 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false,
       }
       // What Yahoo's summary leaves empty (all of it when Yahoo refuses its session) comes from Nasdaq's quote and
       // company pages and the SEC's company record, for US-listed stocks. Yahoo's own figures are kept.
+      const shares = profileShareSelection(def, used, statsFrom ?? 'Yahoo Finance', Date.now());
       const isFront = shownFront.has(def.id);
       const gaps = await fillGaps(def, used, isFront);
       if (isFront) loadedFront.add(def.id);
       used = gaps.summary;
+      // Only Nasdaq holdings supplies a missing reported count in fillGaps; its market cap is never paired
+      // with a price from the original summary. Freeze the observation before any later cache reapplication.
+      const filledShares = num(used?.quoteSummary?.result?.[0]?.defaultKeyStatistics?.sharesOutstanding) / 1e6;
+      if (!shares.reported && Number.isFinite(filledShares) && filledShares > 0) shares.reported = { shares: filledShares, source: 'Nasdaq holdings', method: 'reported', observedAt: Date.now() };
       const hasStatements = [annual, quarterly].some((x) => (x?.timeseries?.result ?? []).some((r: Json) => Object.keys(r ?? {}).some((k) => k !== 'meta' && k !== 'timestamp' && Array.isArray(r[k]) && r[k].length)));
       const noProviderData = !used?.quoteSummary?.result?.[0] && !hasStatements;
       const initialFacts = noProviderData ? await factsPromise : undefined;
@@ -1009,7 +1045,7 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false,
       };
       const fund = make(initialFacts);
       keep(def.id, fund, () => make(initialFacts));
-      applyProfile(def, used, fund);
+      applyProfile(def, used, fund, shares);
       setStatus('ok');
       engine.flush([def.id]);
       if (!initialFacts) {
@@ -1017,7 +1053,7 @@ export function requestFundamentals(def: SecurityDef | undefined, front = false,
         if (facts) {
           const supplemented = make(facts);
           keep(def.id, supplemented, () => make(facts));
-          applyProfile(def, used, supplemented);
+          applyProfile(def, used, supplemented, shares);
           setStatus('ok');
           engine.flush([def.id]);
         }

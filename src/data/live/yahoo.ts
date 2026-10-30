@@ -15,6 +15,7 @@ import { TREASURY_IDS, treasuryAvailable } from './ust';
 import { krakenOwns, whenKrakenHandsBack } from './kraken';
 import { iexOwns, setConsolidatedBars, setConsolidatedDay, setIexBackfill } from './iex-engine';
 import { registerRefresh, type RefreshOutcome } from '../../terminal/refresh';
+import { setObservedShares } from './share-basis';
 
 /**
  * Real market data for the desktop app from Yahoo Finance, fetched by the
@@ -864,7 +865,9 @@ class YahooData {
             t.sourceName = timing.sourceName;
             const def = engine.get(t.id);
             const shares = def ? impliedShares(def, Number(q.marketCap), Number(q.regularMarketPrice)) : NaN;
-            if (def?.eq && Number.isFinite(shares)) def.eq.shares = shares;
+            if (def?.eq && Number.isFinite(shares)) setObservedShares(def, { shares, source: 'Yahoo Finance quote', method: 'current-market-cap-pair', observedAt: Date.now(), marketCap: Number(q.marketCap), price: Number(q.regularMarketPrice),
+              ...(Number.isFinite(Number(q.regularMarketTime)) && Number(q.regularMarketTime) > 0 ? { sourceTime: Number(q.regularMarketTime) * 1000 } : {}),
+              ...(typeof q.currency === 'string' && /^(?:[A-Z]{3}|GBp)$/.test(q.currency) ? { currency: q.currency } : {}) });
             if (def?.cry && Number(q.circulatingSupply) > 0) def.cry.supply = Number(q.circulatingSupply);
             if (!this.loaded.has(t.id)) {
               this.pendingQuote.set(t.id, q);
