@@ -4,7 +4,9 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-2.29.0 is published. The live follow-up and the 2.29.1 patch are documented in `docs/accuracy-v2.29.1.md`. CI passed at `37b8241`; its intraday live audit reported 550 passes and three failures, with 103 skipped comparisons. The earlier completed-session audit reported 620 passes and five failures. Settled-volume readiness, DES refresh and reported operating-income follow-up passed all local checks; prior open/volume discrepancies still need completed-session corroboration. Keep actual audit failures and coverage limits separate from passing software checks, and hold the 2.29.1 publication request.
+2.29.0 is published. The live follow-up and the 2.29.1 patch are documented in `docs/accuracy-v2.29.1.md`. At `8234588`, CI including Windows passed; the live audit reported 553 passes, zero numerical failures, five flags, two blocked checks, three incomplete results and 103 skips. Verification remains incomplete. The earlier completed-session open/volume discrepancies still need corroboration. Next evidence work: Lilly's share definition, Exxon's revenue basis, partial supply-chain coverage and unavailable references. Keep coverage limits separate from passing software checks, and hold the 2.29.1 publication request.
+
+Continued definition work now preserves actual share-count origins, exposes compatible filed revenue definitions, and verifies Fed statements through guarded official discovery and full bodies. All local checks passed (1,895 unit, 95 browser and 77 desktop tests, lint/type/build); review a fresh live run before calling those source questions resolved.
 
 The owner-authorized 2.29.0 accuracy work is documented in `docs/accuracy-v2.29.md`, with release notes and explicit live-verification limits. The scheduler-only exception for main is recorded in HANDOVER. Do not treat the eight-company documentary samples as completion of the outstanding full SPLC/ownership reviews.
 

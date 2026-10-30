@@ -94,3 +94,31 @@ DES had an independently reproduced update defect: its profile subscribed to eve
 The statement request now includes Yahoo's distinct `TotalOperatingIncomeAsReported` field for annual, quarterly and trailing periods. A finite reported value in the same period and currency is selected for operating income and its basis comparison. The original `OperatingIncome` value remains a separate captured alternative. An absent reported field keeps the existing comparison; a reported value that still disagrees with SEC preserves the warning and withheld margin. Zero and negative operating results remain valid observations. Existing whole-statement filed-basis selection takes precedence, and no adjacent-period or currency substitution is allowed. The next live run must establish which reported fields actually arrive and agree.
 
 The combined follow-up passed all local checks sequentially: lint, type checks, 1,868 unit tests in 182 files, production build, 95 browser checks and 77 fixture desktop checks. The new desktop regression changes a provider quote between engine clock ticks and verifies that the displayed price and YTD refresh together with an unchanged tick counter. These software results do not certify the remaining previous-close discrepancies or the earlier completed-session figures. Publication remains held.
+
+## Latest verified run at `8234588`
+
+[CI 41070636036](https://github.com/Arminshah/Bloomberg-terminal/actions/runs/41070636036) passed, including the Windows build and native desktop tests. [Live audit 41070625015](https://github.com/Arminshah/Bloomberg-terminal/actions/runs/41070625015) reported **553 passes, zero numerical failures, five flags, two blocked checks, three incomplete results and 103 skips**. Its exit code is 2 and assurance remains incomplete. All ten unresolved rows were available publicly; one long candidate row was truncated.
+
+The prior two previous-close failures and Tesla YTD failure were absent from this run's failure list. The ten operating-income basis warnings were also absent. Public annotations do not expose individual passing observations, so this does not independently certify each former cell or explain the previous-close source difference. No previous-close selection rule or tolerance was changed.
+
+The remaining findings are:
+
+- Five related Lilly flags preserve the unresolved Yahoo market-implied count of about 890.75 million versus 940.75 million on the SEC cover, with their market-value sensitivities and Massive comparison. Matching the SEC alternative does not resolve the share-definition conflict.
+- Exxon's LTM revenue basis remains unreconciled: 114,529 million from the statement feed versus 116,017 million from the filed quarterly observation. Its affected parent-income margin stays withheld.
+- Applied Digital and NVIDIA supply-chain source coverage remains partial.
+- The Fed announcement reference is blocked by HTTP 403, and neither dividend reference supplies a Tesla record. An absent dividend record is not a proven zero.
+- The run captured regular trading. Its 103 skips leave earlier completed-session open/volume discrepancies unverified; the settled-volume scheduling regression does not replace their live corroboration.
+
+The release request remains `v2.29.0`. No 2.29.1 tag or publication was requested. These results establish the checked scope and its limits, not complete accuracy for every security or historical observation.
+
+## Definition review after the latest run
+
+The owner requested continued work on the remaining findings. Normal SEC, Exxon IR and Lilly IR requests remain blocked by the local proxy, and no retained primary filing or quotation was found locally for the revenue or trust definitions. A difference near 50 million shares does not prove which trust or treasury treatment explains it.
+
+The share-conflict renderer now uses the actual recorded share-count provider and method. A reported count is identified as reported; a matched current market-value/price pair is identified as implied. A count whose origin is untracked or no longer matches the recorded observation remains explicitly unknown. Values, conflict thresholds and cover-page eligibility are unchanged. Earlier trust explanations in the historical notes are qualified until primary evidence is retained.
+
+Revenue-conflict diagnostics now expose the selected SEC concept, start/end, filing date and source URL, plus other recognized revenue concepts for exactly the same currency and period. These alternatives use facts already retrieved by the app, with proxy and future observations excluded. The selected amount and concept priority remain unchanged. A matching alternative is diagnostic evidence, not a resolution of the statement basis.
+
+The Fed audit now tries the official press RSS feeds when the calendar cannot provide a published statement link, following the app's existing discovery strategy. RSS establishes a link only. The full canonical statement must confirm the publication date, action and target bounds; its dated implementation note must independently confirm the same target and an explicit FOMC Desk effective date. Metadata and visible publication dates must agree. The target must occur in that Desk instruction or its immediately associated list. Only a matching official response URL and at most one same-document host-canonicalization redirect are accepted. Missing, contradictory or inaccessible bodies remain blocked; an IORB date or a headline cannot establish the effective date. Direct access to these sources remains unestablished locally.
+
+The definition and Fed follow-up passed the full local sequence: lint, type checks, 1,895 unit tests in 184 files, production build, 95 browser checks and 77 fixture desktop checks. Independent review caught and corrected publication-date ambiguity, unrelated implementation-target association and redirect-destination checks before this pass. A missing TypeScript container annotation was corrected without a suppression. Financial selection and tolerance rules remain unchanged; a fresh live audit must establish source availability and definition evidence.

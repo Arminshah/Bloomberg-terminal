@@ -16,5 +16,7 @@ This release fixes financial statement selection and quote corrections found whi
 - Direct and scheduled audits share the provider budget. Public findings use bounded annotation chunks, with missing coverage, unavailable sources and omissions explicit.
 - Earnings corroboration uses the actual's filed fiscal period and currency. Open/volume failures retain their original comparison and add dated secondary-source diagnostics.
 - Quote captures retain the displayed price and share-count sources. Financial-basis warnings identify the conflicting lines and their original source values, while keeping unreconciled margins blank.
+- Share-count conflicts name the actual recorded source and method, with unknown origins explicit. Revenue warnings preserve the exact filed definition and compatible alternatives for review.
+- The Fed audit can discover statement links through the official RSS feeds. Full statement and implementation bodies remain required to confirm the decision and effective date.
 
 These safeguards do not settle every historical source discrepancy. The detailed live audit results and remaining verification limits are recorded in `docs/accuracy-v2.29.1.md`.
