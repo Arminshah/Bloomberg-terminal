@@ -73,8 +73,11 @@ interface State {
 interface ExtData {
   /** Real daily bars; the last one is the latest session, which is earlier than today while the market has not opened. */
   daily: Series;
-  /** A finished session's volume of all venues from a second source; a later reading of that session never lowers it. */
-  settled?: { day: number; volume: number; source: string };
+  /**
+   * A finished session's volume of all venues from a second source; a later reading of that session never lowers it.
+   * With it, the session's official open from the same source, which a later provisional reading never replaces.
+   */
+  settled?: { day: number; volume: number; source: string; open?: { price: number; source: string } };
   /** Intraday bars of the latest session. */
   intra: Series;
   session: number;
@@ -1315,6 +1318,7 @@ export class MarketEngine {
     if (st.ext?.sourceName) q.sourceName = st.ext.sourceName;
     if (st.ext?.dayProvider) q.dayProvider = st.ext.dayProvider;
     if (st.ext?.settled && st.ext.settled.day === st.ext.session && st.ext.settled.volume >= st.volume) q.volumeSource = st.ext.settled.source;
+    if (st.ext?.settled?.open && st.ext.settled.day === st.ext.session && st.dayOpen === st.ext.settled.open.price) q.openSource = st.ext.settled.open.source;
     if (st.ext?.provider) q.provider = st.ext.provider;
     if (st.ext) {
       if (st.prevCloseDay !== undefined) q.prevCloseDay = st.prevCloseDay;
@@ -1460,21 +1464,39 @@ export class MarketEngine {
     return day < this.today || this.states.get(id)?.ext?.settled?.day === day;
   }
 
-  settleVolume(id: string, day: number, volume: number, source: string): boolean {
+  settleVolume(id: string, day: number, volume: number, source: string, open?: { price: number; source: string }): boolean {
     const st = this.states.get(id);
     const ext = st?.ext;
     if (!st || !ext || ext.session !== day || !(volume > 0)) return false;
     const s = ext.daily;
     const n = s.length - 1;
     if (n < 0 || dayNum(s.t[n]) !== day) return false;
-    ext.settled = { day, volume, source };
-    if (!(volume > st.volume)) return false;
-    s.v[n] = volume;
-    st.volume = volume;
+    const official = open && Number.isFinite(open.price) && open.price > 0 ? open : undefined;
+    ext.settled = { day, volume, source, ...(official ? { open: official } : {}) };
+    // The price source's open of a finished session can be its first print, not the official opening price (Yahoo's
+    // Tesla on 29 October 2026: 405.94 against the official 405.625).
+    const reopened = !!official && s.o[n] !== official.price;
+    if (reopened) this.applyOpen(st, s, n, official!.price);
+    const louder = volume > st.volume;
+    if (!louder && !reopened) return false;
+    if (louder) {
+      s.v[n] = volume;
+      st.volume = volume;
+    }
     this.version++;
     this.derivedCache.clear();
     this.publishQuote(st, this.now());
     return true;
+  }
+
+  /** Puts a session's official open on its daily bar and quote; the day's range takes it in. */
+  private applyOpen(st: State, s: Series, n: number, price: number) {
+    s.o[n] = price;
+    s.h[n] = Math.max(s.h[n], price);
+    s.l[n] = Math.min(s.l[n], price);
+    st.dayOpen = price;
+    st.dayHigh = s.h[n];
+    st.dayLow = s.l[n];
   }
 
   flush(ids: Iterable<string>) {
@@ -1745,6 +1767,8 @@ export class MarketEngine {
     st.dayOpen = last.o;
     st.dayHigh = s.h[s.length - 1];
     st.dayLow = s.l[s.length - 1];
+    const officialOpen = st.ext.settled?.day === last.day ? st.ext.settled.open?.price : undefined;
+    if (officialOpen !== undefined) this.applyOpen(st, s, s.length - 1, officialOpen);
     const settled = st.ext.settled?.day === last.day ? st.ext.settled.volume : NaN;
     if (settled > (s.v[s.length - 1] || 0)) s.v[s.length - 1] = settled;
     st.volume = s.v[s.length - 1];
@@ -1790,6 +1814,8 @@ export class MarketEngine {
       st.volume = 0;
     }
     if (q.open && Number.isFinite(q.open)) s.o[n] = q.open;
+    // A settled session keeps its official open against the price source's repeated provisional one.
+    if (ext.settled?.day === day && ext.settled.open) s.o[n] = ext.settled.open.price;
     // A full quote's high and low are the day's own. The bar's can be another contract's after a futures roll
     // (Yahoo's lean hogs on 12 Oct 2026: a quote on December, 67.825-69.00, and a bar on October up to 75.675).
     const hi = q.high && Number.isFinite(q.high) ? q.high : NaN;

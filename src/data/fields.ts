@@ -66,7 +66,10 @@ export function securityFields(sec: SecurityDef, q: Quote | undefined, now: numb
   market('BID', 'Bid', 'Source bid, when supplied. No size, executable guarantee or consolidated NBBO is inferred.', q?.bid, bbo);
   market('ASK', 'Ask', 'Source offer, when supplied. No size, executable guarantee or consolidated NBBO is inferred.', q?.ask, bbo);
   const day = q?.dayProvider ? { source: q.dayProvider } : {};
-  market('PX_OPEN', 'Session open', 'Opening level of the session supplied by the provider.', q?.open, day);
+  market('PX_OPEN', 'Session open', 'Opening level of the session supplied by the provider.', q?.open, {
+    ...day,
+    ...(q?.openSource ? { source: q.openSource, note: 'The finished session’s official opening price, as the consolidated tape reports it; the price source’s first reading differed.' } : {}),
+  });
   market('PX_HIGH', 'Session high', 'High of the source session; the time shown belongs to the source snapshot, not the high event.', q?.high, day);
   market('PX_LOW', 'Session low', 'Low of the source session; the time shown belongs to the source snapshot, not the low event.', q?.low, day);
   market('PX_PREV_CLOSE', 'Previous close', 'Source previous close, checked against a prior daily bar when available. Unverified bases remain labelled.', q?.prevClose, {

@@ -12,18 +12,19 @@ import { nasdaqTicker } from './nasdaq-book';
  */
 
 export const SETTLED_SOURCE = 'Nasdaq historical prices · consolidated volume of all US venues';
+export const SETTLED_OPEN_SOURCE = 'Nasdaq historical prices · official opening price';
 
-/** Nasdaq's historical rows as sessions (day number) with their volume; rows it cannot read are left out. */
-export function parseNasdaqDays(text: string): { day: number; volume: number; close: number }[] {
+/** Nasdaq's historical rows as sessions (day number) with their volume, open and close; rows it cannot read are left out. */
+export function parseNasdaqDays(text: string): { day: number; volume: number; close: number; open: number }[] {
   try {
     const rows = JSON.parse(text)?.data?.tradesTable?.rows;
     if (!Array.isArray(rows)) return [];
-    const out: { day: number; volume: number; close: number }[] = [];
+    const out: { day: number; volume: number; close: number; open: number }[] = [];
     for (const r of rows) {
       const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(r?.date ?? ''));
       const volume = nasdaqNumber(r?.volume);
       if (!m || !(volume > 0)) continue;
-      out.push({ day: dayNum(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2]))), volume: Math.round(volume), close: nasdaqNumber(r?.close) });
+      out.push({ day: dayNum(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2]))), volume: Math.round(volume), close: nasdaqNumber(r?.close), open: nasdaqNumber(r?.open) });
     }
     return out;
   } catch {
@@ -70,7 +71,7 @@ async function settle(id: string, symbol: string, day: number, active: () => boo
     const res = await api.nasdaq('historical', symbol);
     if (!active()) return;
     const row = res.text ? parseNasdaqDays(res.text).find((r) => r.day === day) : undefined;
-    if (row && engine.settleVolume(id, day, row.volume, SETTLED_SOURCE)) engine.flush([id]);
+    if (row && engine.settleVolume(id, day, row.volume, SETTLED_SOURCE, { price: row.open, source: SETTLED_OPEN_SOURCE })) engine.flush([id]);
   } catch {
     /* asked again on a later round */
   }

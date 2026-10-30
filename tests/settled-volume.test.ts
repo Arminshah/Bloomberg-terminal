@@ -4,7 +4,7 @@ import { dayNum } from '../src/data/calendar';
 import { MarketEngine } from '../src/data/engine';
 import { securityFields } from '../src/data/fields';
 import { extQuote } from '../src/data/live/yahoo';
-import { parseNasdaqDays, settleDue, SETTLED_SOURCE } from '../src/data/live/settled-volume';
+import { parseNasdaqDays, settleDue, SETTLED_OPEN_SOURCE, SETTLED_SOURCE } from '../src/data/live/settled-volume';
 
 // Apple on 27 October 2026, read the next morning: Yahoo's quote kept 39,051,747 shares, its daily bar 39,949,500;
 // Nasdaq's historical prices and Massive's daily bar gave 39,984,400 and 39,984,395.
@@ -28,8 +28,8 @@ const ID = 'AAPL US Equity';
 describe("a finished session's volume, settled from the consolidated tape", () => {
   it("reads Nasdaq's historical rows by session", () => {
     expect(parseNasdaqDays(NASDAQ)).toEqual([
-      { day: D('2026-10-27'), volume: 39_984_400, close: 347.1 },
-      { day: D('2026-10-26'), volume: 42_743_580, close: 343.91 },
+      { day: D('2026-10-27'), volume: 39_984_400, close: 347.1, open: 343.165 },
+      { day: D('2026-10-26'), volume: 42_743_580, close: 343.91, open: 343.92 },
     ]);
     expect(parseNasdaqDays('{"data":null}')).toEqual([]);
     expect(parseNasdaqDays('<html>')).toEqual([]);
@@ -82,6 +82,61 @@ describe("a finished session's volume, settled from the consolidated tape", () =
     q = engine.quote(ID)!;
     expect(q.volume).toBe(1_250_000);
     expect(q.volumeSource).toBeUndefined();
+  });
+});
+
+describe("a finished session's official open, settled with its volume", () => {
+  // Walmart on 29 October 2026, as the data audit of the next morning (run 41028233779) captured it: Yahoo's quote
+  // gave an open of 120.83 and about 15.84M shares; Nasdaq's historical prices, Tiingo and Massive gave the official
+  // open, 120.74, and 16,048,290 shares (Nasdaq; Tiingo 16,048,288). Yahoo's own daily bar later read 120.74.
+  const WMT = 'WMT US Equity';
+  const ROW = JSON.stringify({ data: { tradesTable: { rows: [{ date: '10/29/2026', close: '$121.25', volume: '16,048,290', open: '$120.74', high: '$121.97', low: '$120.33' }] } } });
+
+  it("replaces the price source's provisional open with the official one, says so, and keeps it", () => {
+    const now = Date.parse('2026-10-30T08:00:00Z');
+    const engine = new MarketEngine(() => now);
+    engine.setExternalDaily(WMT, [
+      { day: D('2026-10-28'), o: 118.425, h: 119.4, l: 117.9, c: 118.77, v: 14_456_440 },
+      { day: D('2026-10-29'), o: 120.83, h: 121.97, l: 120.33, c: 121.25, v: 15_840_000 },
+    ]);
+    const quote = { regularMarketPrice: 121.25, regularMarketOpen: 120.83, regularMarketDayHigh: 121.97, regularMarketDayLow: 120.33, regularMarketPreviousClose: 118.77, regularMarketVolume: 15_840_000, regularMarketTime: Date.parse('2026-10-29T20:00:00Z') / 1000, gmtOffSetMilliseconds: -14_400_000, exchangeTimezoneName: 'America/New_York', marketState: 'CLOSED' };
+    engine.setExternalQuote(WMT, extQuote(quote, false)!);
+    expect(engine.quote(WMT)!.open).toBe(120.83);
+    const row = parseNasdaqDays(ROW)[0];
+    expect(row).toEqual({ day: D('2026-10-29'), volume: 16_048_290, close: 121.25, open: 120.74 });
+    expect(engine.settleVolume(WMT, row.day, row.volume, SETTLED_SOURCE, { price: row.open, source: SETTLED_OPEN_SOURCE })).toBe(true);
+    let q = engine.quote(WMT)!;
+    expect([q.open, q.volume]).toEqual([120.74, 16_048_290]);
+    expect([q.openSource, q.volumeSource]).toEqual([SETTLED_OPEN_SOURCE, SETTLED_SOURCE]);
+    expect(engine.daily(WMT).o[1]).toBe(120.74);
+    const open = securityFields(engine.get(WMT)!, q, now).find((f) => f.id === 'PX_OPEN')!;
+    expect([open.value, open.source]).toEqual([120.74, SETTLED_OPEN_SOURCE]);
+    // Yahoo's next poll and a reload of its bars repeat the provisional open; the official one stays.
+    engine.setExternalQuote(WMT, extQuote(quote, false)!);
+    expect(engine.quote(WMT)!.open).toBe(120.74);
+    engine.setExternalDaily(WMT, [
+      { day: D('2026-10-28'), o: 118.425, h: 119.4, l: 117.9, c: 118.77, v: 14_456_440 },
+      { day: D('2026-10-29'), o: 120.83, h: 121.97, l: 120.33, c: 121.25, v: 15_840_000 },
+    ]);
+    q = engine.quote(WMT)!;
+    expect([q.open, q.openSource]).toEqual([120.74, SETTLED_OPEN_SOURCE]);
+    // The next session's open is its own.
+    engine.setExternalQuote(WMT, extQuote({ ...quote, regularMarketPrice: 122.5, regularMarketOpen: 123.15, regularMarketVolume: 900_000, regularMarketTime: Date.parse('2026-10-30T13:35:00Z') / 1000, marketState: 'REGULAR' }, false)!);
+    q = engine.quote(WMT)!;
+    expect(q.open).toBe(123.15);
+    expect(q.openSource).toBeUndefined();
+  });
+
+  it('settles the open alone when the volume is already in, and leaves a missing open as the price source gave it', () => {
+    const now = Date.parse('2026-10-30T08:00:00Z');
+    const engine = new MarketEngine(() => now);
+    engine.setExternalDaily(WMT, [{ day: D('2026-10-28'), o: 118.425, h: 119.4, l: 117.9, c: 118.77, v: 14_456_440 }, { day: D('2026-10-29'), o: 120.83, h: 121.97, l: 120.33, c: 121.25, v: 16_048_290 }]);
+    expect(engine.settleVolume(WMT, D('2026-10-29'), 16_048_290, SETTLED_SOURCE, { price: 120.74, source: SETTLED_OPEN_SOURCE })).toBe(true);
+    expect(engine.quote(WMT)!.open).toBe(120.74);
+    const other = new MarketEngine(() => now);
+    other.setExternalDaily(WMT, [{ day: D('2026-10-28'), o: 118.425, h: 119.4, l: 117.9, c: 118.77, v: 14_456_440 }, { day: D('2026-10-29'), o: 120.83, h: 121.97, l: 120.33, c: 121.25, v: 16_048_290 }]);
+    expect(other.settleVolume(WMT, D('2026-10-29'), 16_048_290, SETTLED_SOURCE, { price: NaN, source: SETTLED_OPEN_SOURCE })).toBe(false);
+    expect([other.quote(WMT)!.open, other.quote(WMT)!.openSource]).toEqual([120.83, undefined]);
   });
 });
 
