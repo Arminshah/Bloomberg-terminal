@@ -53,6 +53,7 @@ interface Fixtures {
   extendedEvening?: boolean;
   nasdaqList?: boolean;
   monthly?: boolean;
+  ftseMonthEnd?: boolean;
   congressGov?: boolean;
   eia?: boolean;
   bea?: boolean;
@@ -695,6 +696,41 @@ test("EQBT back-tests momentum on the Dow's members from Yahoo's month-end close
   await panel.getByLabel('Rule', { exact: true }).selectOption('lowvol');
   await expect(panel.getByRole('table', { name: 'Picks now' }).locator('thead')).toContainText('Volatility');
   expect(await monthly()).toHaveLength(3);
+});
+
+test("FRONTIER runs the first portfolio paper's mean-variance analysis on Yahoo's month-end closes of its London stocks", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.ftseMonthEnd = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'FRONTIER');
+  const panel = page.locator('.panel').first();
+  // The summary of the three portfolios, on British American Tobacco's own prices, February 2009 to January 2019.
+  const summary = panel.getByRole('table', { name: 'Portfolio optimisation results' }).locator('tbody tr');
+  await expect(summary).toHaveCount(7, { timeout: 30_000 });
+  await expect(panel.locator('.fnh-sub')).toContainText('Feb 2009 to Jan 2019: 119 monthly returns');
+  await expect(summary.nth(0).locator('td')).toHaveText(['BATS LN Equity', '-7.849%', '25.000%', '-45.668%']);
+  await expect(summary.nth(3).locator('td')).toHaveText(['DGE LN Equity', '54.127%', '25.000%', '123.056%']);
+  await panel.getByRole('button', { name: '6) Tangency', exact: true }).click();
+  await expect(panel.getByRole('table', { name: 'TP results' })).toContainText('Sharpe Ratio =0.26588537');
+  await expect(panel.getByRole('table', { name: 'TP results' })).toContainText('Rf=0.0025');
+  // The optimum over the ten screened names: Ferguson has no London prices left at Yahoo, and is named.
+  await panel.getByRole('button', { name: '2) Optimum', exact: true }).click();
+  await expect(panel.getByText('No prices from Yahoo Finance for FERG LN Equity (FERG.L): left out of the optimum.')).toBeVisible();
+  await expect(panel.getByRole('table', { name: 'Optimum weights' }).locator('tbody tr')).toHaveCount(10);
+  await expect(panel.getByRole('table', { name: 'Optimum weights' }).locator('tbody tr').last()).toHaveText('100.00%');
+  // The month-end table, dated by each month's last trading day.
+  await panel.getByRole('button', { name: '1) Prices', exact: true }).click();
+  const prices = panel.getByRole('table', { name: 'Month-end last prices' });
+  await expect(prices.locator('tbody tr').first().locator('td')).toHaveText(['27/02/2009', '1797', '1076.865', '2742.833', '819']);
+  await expect(prices.locator('tbody tr')).toHaveCount(120);
+  await panel.getByRole('button', { name: '3) Frontier', exact: true }).click();
+  await expect(panel.locator('canvas').first()).toBeVisible();
+  // Each London stock's daily closes are asked once, for whole months.
+  const asked = ((await calls(app)) as { monthEnd?: string[] }).monthEnd ?? [];
+  expect(asked).toContain(`BATS.L ${Date.UTC(2009, 1, 1) / 1000} ${Date.UTC(2019, 1, 1) / 1000}`);
+  expect(asked.filter((c) => c.startsWith('BATS.L '))).toHaveLength(1);
 });
 
 test("BILL lists Congress.gov's latest bills and the Congress's laws, and opens a bill's sponsor, summary and actions", async ({ desktop: { app, page } }) => {

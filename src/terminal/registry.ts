@@ -57,6 +57,7 @@ import { OptionStrategy } from '../functions/OptionStrategy';
 import { W } from '../functions/W';
 import { FAV } from '../functions/FAV';
 import { PORT } from '../functions/PORT';
+import { FRONTIER } from '../functions/FRONTIER';
 import { ALRT } from '../functions/ALRT';
 import { LAST, LPAD, PDFU, SECF } from '../functions/TOOLS';
 import { PROV } from '../functions/PROV';
@@ -240,6 +241,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'WORKSHEET', name: 'Worksheets', category: 'Portfolio & Tools', desc: "Tables of the securities you choose by the fields you choose: the watchlist's market fields and fundamentals (market value, enterprise value, P/E, P/B, EV/EBITDA, dividend yield, ROE, margins, growth, beta), several saved sheets, sorting, and CSV with every cell's source.", component: WS, aliases: ['SHEETS'], example: 'WORKSHEET' },
   { code: 'WATCHLIST', name: 'Watchlists', category: 'Portfolio & Tools', desc: 'Editable watchlists with saved field columns, quote/source presets, sorting, filtering, intraday sparklines and CSV with field provenance.', component: W, aliases: ['WATCH'], example: 'WATCHLIST TECH' },
   { code: 'FAVOURITES', name: 'Favourites', category: 'Portfolio & Tools', desc: 'The securities you starred (☆ beside a security\'s name, anywhere): 1) live prices and changes, 2) their news merged from every source. The command line offers them as soon as you click it.', component: FAV, aliases: ['FAV', 'FAVORITES', 'FAVS'], example: 'FAVOURITES NEWS' },
+  { code: 'FRONTIER', name: 'Mean-Variance Portfolio', category: 'Portfolio & Tools', desc: "Mean-variance analysis on month-end last prices (desktop app): a long-only minimum-variance optimum over screened names with those under 1% marked, then the efficient frontier, the global minimum-variance, equally weighted and tangency portfolios, the capital market line and the Sharpe ratio, with the monthly price table. Prices from Yahoo Finance, adjusted for splits and not dividends.", component: FRONTIER, aliases: ['MVO', 'EFFICIENT'], example: 'FRONTIER' },
   { code: 'PORTFOLIO', name: 'Portfolio & Risk', category: 'Portfolio & Tools', desc: 'Several portfolios as tabs, each with its own holdings, cash and transactions (first-in first-out lots, fees, ECB rates of the day, realised P&L, time- and money-weighted returns); historical-FX replay, date-aligned VaR/ES, signed risk contributions, benchmark tracking error, allocation, price/FX stress and CSV. Complete history required.', component: PORT },
   { code: 'ALERTS', name: 'Alerts', category: 'Portfolio & Tools', desc: 'Price, percent-change and news keyword alerts that pop up wherever you are while the app is open.', component: ALRT, aliases: ['ALERT', 'NLRT'] },
   { code: 'COMPLIANCE', name: 'Compliance Manager', category: 'Portfolio & Tools', desc: "Your own rules on a portfolio (largest position, sector, country, region or asset class weights, UCITS 5/10/40, a restricted list, fewest holdings, cash, no shorts), checked as prices move, with an exception blotter; PORTFOLIO asks before recording a trade that would add an exception.", component: CMGR },

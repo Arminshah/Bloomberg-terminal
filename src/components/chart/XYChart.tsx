@@ -18,6 +18,10 @@ export interface XYSeries {
   dash?: number[];
   width?: number;
   markers?: boolean;
+  /** A scatter point's shape (a dot by default); a point's label is written beside it. */
+  shape?: 'dot' | 'diamond' | 'cross';
+  /** Write the points' labels below them instead of above. */
+  labelBelow?: boolean;
   /** Plot against a second scale whose labels are at the left (a yield beside a dividend, say). */
   axis?: 'left';
 }
@@ -265,11 +269,33 @@ export function XYChart(props: Props) {
         }
         if (s.kind === 'scatter') {
           for (const q of s.points) {
+            const px = X(q.x);
+            const py = Y(q.y);
             ctx.beginPath();
-            ctx.arc(X(q.x), Y(q.y), 2.2, 0, Math.PI * 2);
-            ctx.globalAlpha = 0.7;
-            ctx.fill();
-            ctx.globalAlpha = 1;
+            if (s.shape === 'diamond') {
+              ctx.moveTo(px, py - 5);
+              ctx.lineTo(px + 5, py);
+              ctx.lineTo(px, py + 5);
+              ctx.lineTo(px - 5, py);
+              ctx.closePath();
+              ctx.fill();
+            } else if (s.shape === 'cross') {
+              ctx.moveTo(px - 4, py - 4);
+              ctx.lineTo(px + 4, py + 4);
+              ctx.moveTo(px + 4, py - 4);
+              ctx.lineTo(px - 4, py + 4);
+              ctx.lineWidth = crispWidth(2);
+              ctx.stroke();
+            } else {
+              ctx.arc(px, py, s.shape ? 3.5 : 2.2, 0, Math.PI * 2);
+              ctx.globalAlpha = s.shape ? 1 : 0.7;
+              ctx.fill();
+              ctx.globalAlpha = 1;
+            }
+            if (q.label) {
+              ctx.textAlign = 'left';
+              ctx.fillText(q.label, px + 8, s.labelBelow ? py + 12 : py - 6);
+            }
           }
           return;
         }

@@ -26,6 +26,8 @@ const splitsTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests
 // fixtures.fredChart).
 // Yahoo's daily closes of two crude oil contract months, 28 September to 26 October 2026 (CCRV, fixtures.futuresCurve).
 const crudeSpark = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-spark-cl-2026-10.json'), 'utf8'));
+// Yahoo's month-end closes of five London stocks, January 2009 to January 2019 (FRONTIER, fixtures.ftseMonthEnd).
+const ftseMonthEnd = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/ftse-month-end-2009-2019.json'), 'utf8')).closes;
 // Yahoo's month-end closes of the Dow and the 30 members the app keeps for it, ten years to 23 October 2026 (EQBT,
 // fixtures.monthly).
 // Congress.gov's answers of 26 October 2026: the latest bills, the 119th Congress's laws and H.R. 7831 with its
@@ -421,6 +423,14 @@ net.fetch = async (input, init) => {
         const close = timestamp.map((_, k) => 120 + 3 * Math.sin(k / 6) + k / 30);
         fixtures.calls.minuteBars = [...(fixtures.calls.minuteBars ?? []), symbol];
         return json({ chart: { result: [{ meta: { symbol, currency: 'USD', gmtoffset: -14400, exchangeTimezoneName: 'America/New_York', regularMarketVolume: 15_000_000 }, timestamp, indicators: { quote: [{ open: close, high: close.map((c) => c + 0.1), low: close.map((c) => c - 0.1), close, volume: close.map(() => 250_000) }] } }], error: null } });
+      }
+      // With fixtures.ftseMonthEnd, a London stock's daily chart holds its month-end closes only, which is all the
+      // screen keeps; a London stock the fixture lacks is not found, as Yahoo answers for FERG.L.
+      if (fixtures.ftseMonthEnd && symbol.endsWith('.L') && url.searchParams.get('interval') === '1d') {
+        fixtures.calls.monthEnd = [...(fixtures.calls.monthEnd ?? []), `${symbol} ${url.searchParams.get('period1')} ${url.searchParams.get('period2')}`];
+        const rows = Object.values(ftseMonthEnd[symbol] ?? {}).filter(([day]) => Date.parse(day) / 1000 >= Number(url.searchParams.get('period1')) && Date.parse(day) / 1000 < Number(url.searchParams.get('period2')));
+        if (!rows.length) return new Response(JSON.stringify({ chart: { result: null, error: { code: 'Not Found', description: 'No data found, symbol may be delisted' } } }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+        return json({ chart: { result: [{ meta: { symbol, currency: 'GBp', exchangeName: 'LSE', gmtoffset: 0, longName: symbol }, timestamp: rows.map(([day]) => Date.parse(day) / 1000 + 8 * 3600), indicators: { quote: [{ close: rows.map(([, c]) => c) }] } }], error: null } });
       }
       const chart = structuredClone(chartTemplate);
       const meta = chart.chart.result[0].meta;
