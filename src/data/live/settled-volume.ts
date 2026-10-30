@@ -63,11 +63,12 @@ function wanted(): string[] {
   return [...ids].filter((id) => nasdaqTicker(id) !== null).slice(0, 60);
 }
 
-async function settle(id: string, symbol: string, day: number) {
+async function settle(id: string, symbol: string, day: number, active: () => boolean) {
   const api = window.arminDesktop;
   if (!api?.nasdaq) return;
   try {
     const res = await api.nasdaq('historical', symbol);
+    if (!active()) return;
     const row = res.text ? parseNasdaqDays(res.text).find((r) => r.day === day) : undefined;
     if (row && engine.settleVolume(id, day, row.volume, SETTLED_SOURCE)) engine.flush([id]);
   } catch {
@@ -78,23 +79,60 @@ async function settle(id: string, symbol: string, day: number) {
 /** Settles the finished session's volume of the US stocks in view: each at most every 30 minutes, four times a session. */
 export function startSettledVolumes(): () => void {
   if (typeof window === 'undefined' || !window.arminDesktop?.nasdaq) return () => undefined;
-  const tick = () => {
+  let stopped = false;
+  let visible = new Set<string>();
+  const pending = new Set<string>();
+  let queued: ReturnType<typeof setTimeout> | undefined;
+  const check = (ids: Iterable<string>) => {
+    if (stopped) return;
     const now = Date.now();
-    for (const id of wanted()) {
+    for (const id of ids) {
+      if (!visible.has(id)) continue;
       const q = engine.quote(id);
       const d = engine.daily(id);
       if (!q || q.src === 'SIM' || q.src === 'NONE' || !d.length) continue;
       const day = dayNum(d.t[d.length - 1]);
-      if (!settleDue(day, now)) continue;
       const a = asked.get(id);
       if (a && a.day === day && (a.times >= 4 || now - a.at < 30 * 60_000)) continue;
+      if (!settleDue(day, now)) continue;
       asked.set(id, { at: now, day, times: a && a.day === day ? a.times + 1 : 1 });
-      void settle(id, nasdaqTicker(id)!, day);
+      void settle(id, nasdaqTicker(id)!, day, () => !stopped);
     }
   };
+  // A newly opened line or its first history must not wait for the minute poll.
+  // Batch source/store notifications, ignoring clock ticks and unrelated lines.
+  const schedule = (ids: Iterable<string>) => {
+    if (stopped) return;
+    for (const id of ids) if (visible.has(id)) pending.add(id);
+    if (!pending.size || queued !== undefined) return;
+    queued = setTimeout(() => {
+      queued = undefined;
+      const ids = [...pending];
+      pending.clear();
+      check(ids);
+    }, 100);
+  };
+  const refresh = () => {
+    if (stopped) return;
+    const next = new Set(wanted());
+    const added = [...next].filter((id) => !visible.has(id));
+    visible = next;
+    schedule(added);
+  };
+  const offTerminal = terminal.subscribe(refresh);
+  const offWatchlists = watchlists.subscribe(refresh);
+  const offEngine = engine.subscribe(schedule);
+  refresh();
+  const tick = () => { refresh(); check(visible); };
   const first = setTimeout(tick, 15_000);
   const timer = setInterval(tick, 60_000);
   return () => {
+    stopped = true;
+    offTerminal();
+    offWatchlists();
+    offEngine();
+    if (queued !== undefined) clearTimeout(queued);
+    pending.clear();
     clearTimeout(first);
     clearInterval(timer);
   };
