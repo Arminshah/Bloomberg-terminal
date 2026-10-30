@@ -1,0 +1,70 @@
+# Portfolio-management upload: plan
+
+The owner uploaded `Portfolio_Management-…zip` on 30 October 2026 and asked for everything in it to be built as an exact copy, accurate in every figure. This file is the plan and the record of what was found. It is kept apart from the files Codex is editing (`docs/accuracy-v2.29.1.md`, `docs/audit-v2.28-data.md`, `docs/release-v2.29.1.md`, `docs/HANDOVER.md`).
+
+The upload is in `reference/portfolio-management/`, which Git ignores (the whole `reference/` folder), so its screenshots and PDFs stay out of the public history. Short descriptions and figures from them appear here; no image is committed.
+
+## What the upload contains
+
+The README swaps the two titles. The files are:
+
+- `2360760J_ECON5071_1.pdf` (34 pages, March 2019): "Equity Research and Portfolio Analysis", a FTSE 100 portfolio built with the terminal and Excel. 67 screen captures and spreadsheet figures.
+- `2360760_ECON5102p_1.pdf` (92 pages, August 2019): the MSc dissertation "Model Predictive Control applied to Portfolio Management". 15 result tables and 20 charts.
+- `MPC1.ipynb`: the dissertation's Python notebook (cvxportfolio). It holds a partly masked Quandl key, which is not copied anywhere.
+
+## The workflow in the first paper
+
+1. Screening (EQS). Criteria, each with its running match count: security universe 1,055,919; trading status active 339,956; index FTSE 100 101; latest-filing gross margin above 25%, 37; latest-filing return on common equity above 25%, 11. The screen is dated 31 January 2019. Results open in a watchlist analytics view with tabs Overview, Returns, Valuation, Estimates, Actuals, Credit, Technicals, Custom and Results; the Results tab lists the 11 names with GM LF (sorted, with a bar), ROE LF, Market Cap, Price:D-1, P/E and Total Return YTD, under a summary row "Investable Universe (11)".
+2. A 10-asset minimum-variance portfolio on ten years of monthly closes (Figure 1.4). Six names with weights under 1% are dropped, leaving British American Tobacco, GSK, Reckitt Benckiser and Diageo.
+3. Company analysis of each of the four: the security description (5 pages: Profile, Issue Info, Ratios, Revenue & EPS, Industry Info), news stories, financial analysis (Adj Highlights; Segments by measure as a bar chart), the price chart against the UKX index normalised to the start (with a 20-day average and volume), relative valuation (comp range panel, Overview and Comp Sheets, Profitability), and analyst recommendations.
+4. Mean-variance analysis in Excel on monthly last prices: the efficient frontier σp = √((A·µp² − 2·B·µp + C)/D) with A = 1′Σ⁻¹1, B = 1′Σ⁻¹µ, C = µ′Σ⁻¹µ and D = AC − B²; the global minimum-variance portfolio Σ⁻¹1/(1′Σ⁻¹1); the equally weighted portfolio; the tangency portfolio Σ⁻¹(µ − rf·1)/(B − A·rf); the capital market line µp = rf + σp·√(C − 2·rf·B + rf²·A); the Sharpe ratio. rf is 3% a year, entered as 0.0025 a month. Results: a table of the three portfolios' weights, return, variance and standard deviation, and a chart with EPF, CML, TP and "GMVP ≈ EWP".
+
+A figure-by-figure description of every capture (layout, buttons, tabs, columns in order, panels, charts and visible values) is in `docs/portfolio-management-screens.md`. Each screen is built from that description.
+
+## The dissertation
+
+A back-test from 3 January 2013 to 29 December 2016 on 20 S&P 500 stocks, $10,000 each ($200,000), self-financing, with a 250-day estimation window (2012). Policies: Hold (no trades) and model predictive control (multi-period optimisation), maximising forecast return minus risk aversion × w′Σw, trading aversion × transaction cost and holding aversion × holding cost, subject to the self-financing condition and a constraint set (leverage limit, long only, dollar neutral). Transaction cost: half the bid-ask spread on each trade (plus an optional 3/2-power market-impact term); holding cost: a borrow fee on short positions. Metrics: annual return, annual excess return, annual excess risk, Sharpe ratio, maximum drawdown and annual turnover, on 250 periods a year.
+
+Its tests: forecast horizon 0, 10, 50, 100 and 250 days; risk aversion 1, 5, 10, 20 and 50 (at horizons 10 and 100); trading aversion 0.5 to 1.5; holding aversion 1 to 50; leverage limit 1 to 3; long only; dollar neutral (risk aversion and leverage tests). Each test has an input table (dates, history, horizon, budget, aversions, half spread 0.05%, borrow cost 0.01%, constraints), a result table and charts of portfolio value and weights over time.
+
+## Errors found in the sources, and how each is handled
+
+The app follows the correct definition each time and says so on screen where it matters.
+
+1. The first paper's "BATS LN" prices are Berkeley Group's. Its appendix column headed "BATS LN Equity" (870.5, 888, 980.5 for February to April 2009) equals Yahoo's BKG.L closes divided by a constant 1.0364, and the column headed "BKG LN Equity" (1,797, 1,613, 1,639) is exactly Yahoo's BATS.L. Recomputing on Yahoo's month-end closes, February 2009 to January 2019 (119 monthly returns, sample covariance), with Berkeley's prices in the BATS slot reproduces every figure the paper shows: GMVP 17.36%, 22.10%, 24.02% and 36.52% with return 0.945% and SD 3.097%; EWP 0.943%; TP 29.59%, −26.54%, 28.26% and 68.69%; Sharpe 0.2812. So the paper's British American Tobacco results are Berkeley Group's. The app uses each name's own prices. On British American Tobacco's real prices the same window gives GMVP −7.85%, 26.43%, 27.29% and 54.13% (return 0.894%, SD 3.326%), EWP 0.701% (SD 3.661%) and TP −45.67%, −26.03%, 48.64% and 123.06% (return 1.464%, SD 4.567%, Sharpe 0.2659). The paper's own figures are kept as a test, run on Berkeley's prices and labelled as such, to prove the maths matches the spreadsheet.
+2. Annual excess risk is printed as (Std[PR] − rf) × 250 × 100 (equation 4.12). The tables follow the standard definition, the standard deviation of excess returns × √250 (the Hold policy's 12.264 / 14.199 = 0.864, its Sharpe ratio). The app uses the standard definition.
+3. Dollar neutral is printed per asset (wᵢ + zᵢ = 0 for every i, equation 3.31), which would leave only cash. The intended constraint is that the asset weights sum to zero (cash weight 1). The app uses the sum.
+4. The leverage limit is printed per asset (|wᵢ + zᵢ| ≤ L, equation 3.30). The notebook's cvxportfolio `LeverageLimit` limits the sum of absolute asset weights. The app uses the sum.
+5. "Long cash only" is printed as an equality (= 0, equation 3.32). It is an inequality (≥ 0).
+6. The self-financing condition (3.16) has −1′·PPₜ on the right; it is −1′·Trₜ, as in (3.20).
+7. The notebook runs the market simulation on `expected_returns`, the rolling forecasts, instead of the realised returns. A back-test on forecasts is not a back-test. The app simulates on realised returns.
+8. The notebook's multi-period policy reads the forecast table at future dates within the horizon (cvxportfolio's `MultiPeriodOpt` with a time-indexed forecast), which uses data that is not yet known. In the app every forecast made at day t uses returns up to day t − 1 only, for every step of the horizon.
+9. The notebook's half spread is 10E-4 (0.1%), the dissertation's tables say 0.05%. The app uses 0.05%, as the owner asked, and lets it be changed.
+10. The notebook's holding aversions are 1, 5, 1, 10 and 50; the tables test 1, 5, 10, 20 and 50. The app uses the tables' values.
+11. The notebook combines `LongOnly` with `DollarNeutral`, which together allow no positions at all. The app offers them as separate tests, as the tables do.
+12. The notebook does not run as written: `returns`, `market_sim` and `results` are undefined, and `MultiPeriodOpt` is given neither trading times nor a horizon.
+13. A forecast horizon of 0 days is not a multi-period problem. The app runs it as single-period optimisation (one step), which is what a zero look-ahead means.
+14. The tables are headed 1 January 2012 to 31 December 2016; the back-test itself runs from 3 January 2013 (2012 is the estimation window), as the notebook and the charts show. The app states both.
+15. The dissertation says holding costs triple over a weekend; cvxportfolio charges per period. The app accrues borrow fees and the risk-free rate by calendar day, so Friday to Monday counts three days.
+16. Company facts in Tables 5.1 and 5.2 are wrong in places: "Konami (ADS)" is Alliance Data Systems (the notebook uses ADS), Motorola Solutions was not founded in 2011, and Abbott's headquarters are not in San Jose. The app shows each company's profile from its live sources, not the table.
+17. Table 5.5 prints an excess return of 14.27% for risk aversion 10, equal to its excess risk, beside an expected return of 18.56%: a copy error. The app computes its own results and does not reuse the printed ones.
+
+## What cannot match exactly, and why
+
+- Results of the first paper's analysis: they come from the mislabelled prices (error 1). The app reproduces them only in a test, labelled.
+- The screen as of 31 January 2019: the app screens today's FTSE 100 on today's latest filings. Point-in-time membership and filings for 2019 are not in the free sources the app uses (Yahoo's fundamentals go back about four years).
+- Stocks that no longer trade where the paper used them: Ferguson (FERG.L) and Evraz (EVR.L) have no London history at Yahoo any more; Ferguson's shares now trade in New York. Reckitt Benckiser is now RKT.L, not RB/. The 10-asset optimum therefore runs on eight of its ten names, and says which two are missing.
+- The dissertation's numbers: they came from forecasts used as returns and from look-ahead (errors 7 and 8), so a correct back-test on real returns gives different, much lower results. The app shows its own results; the printed ones are not targets.
+- The dissertation's data: Quandl's WIKI dataset stopped in 2018. Tiingo has adjusted daily closes for all 20 stocks in 2012, including the five that are now delisted (Alexion, Activision Blizzard, Patterson, Juniper, Viacom), Healthpeak (formerly HCP) as DOC and Alliance Data as BFH. Tiingo's free plan allows 50 requests an hour and keeps data in memory only. Tiingo's adjusted close is adjusted for splits and dividends, as Quandl's was. The risk-free rate is FRED's DTB3, as in the notebook.
+- The provider's analyst list, research, news wires and its own estimates are not available from free data. The analyst screen shows the free consensus and actions it has, with the source named; blanks are labelled.
+
+## Build order
+
+Each step is one commit with its tests, after all the checks in `docs/HANDOVER.md`.
+
+1. Mean-variance maths (`src/finance/mean-variance.ts`): A, B, C, D, the frontier, GMVP, EWP, TP, the CML and the Sharpe ratio, plus a long-only minimum-variance portfolio (Figure 1.4's ten names). Test: the paper's figures to the digits shown, on Yahoo's closes with Berkeley in the BATS slot, labelled; properties on synthetic data.
+2. Monthly last prices for any window (Yahoo's daily chart, last close of each month; adjusted for splits, not dividends, like the paper's last prices).
+3. The mean-variance screen, laid out like the spreadsheet: the monthly price table (start date, end date, a row per month, a column per security), the 10-asset optimum with names under 1% marked, the GMVP, EWP and TP tables (weights, return, variance, SD; for TP also Rf, risk premium and Sharpe), the summary table, and the chart with EPF, CML, TP, GMVP and EWP. Defaults: the paper's four names, February 2009 to January 2019, rf 3% a year.
+4. Screening: an index criterion (FTSE 100 first) and trading status, latest-filing gross margin and return on common equity (net income over average common equity), a running match count after each criterion, and the results view with the summary row.
+5. The MPC back-test: the simulator (self-financing, costs, calendar-day accrual), the policies (Hold, single-period, multi-period with horizon H), the constraints, the metrics, the input and result tables in the dissertation's layout, and the value and weight charts. Data from Tiingo and FRED on the desktop.
+6. The company screens, each compared with its captures: the five description pages, financial highlights and segments by measure, the normalised comparison chart, relative valuation's comp range and comp sheets, analyst recommendations, and the news story view.

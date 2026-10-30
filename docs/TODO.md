@@ -4,6 +4,8 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
+Portfolio management (asked 30 October): build everything in the owner's upload as exact copies, on real data. The plan, the errors found in the sources and how each is handled, and what cannot match are in `docs/portfolio-management-plan.md`; each screen's description is in `docs/portfolio-management-screens.md`. Order: mean-variance maths, month-end prices, the mean-variance screen, screening (FTSE 100, gross margin, return on common equity, running match counts), the MPC back-test with the Hold policy, then the company analysis screens.
+
 2.29.0 is published. The live follow-up and the 2.29.1 patch are documented in `docs/accuracy-v2.29.1.md`. At `8234588`, CI including Windows passed; the live audit reported 553 passes, zero numerical failures, five flags, two blocked checks, three incomplete results and 103 skips. Verification remains incomplete. The earlier completed-session open/volume discrepancies still need corroboration. Next evidence work: Lilly's share definition, Exxon's revenue basis, partial supply-chain coverage and unavailable references. Keep coverage limits separate from passing software checks, and hold the 2.29.1 publication request.
 
 Continued definition work now preserves actual share-count origins, exposes compatible filed revenue definitions, and verifies Fed statements through guarded official discovery and full bodies. All local checks passed (1,895 unit, 95 browser and 77 desktop tests, lint/type/build); review a fresh live run before calling those source questions resolved.
