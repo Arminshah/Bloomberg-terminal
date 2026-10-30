@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.29.0** adds confirmed Federal Reserve decisions, including holds, preserves earnings definitions and observed estimate versions, separates supply-chain counterparties from concentration disclosures, and shows source age, failed refreshes and audit coverage. Historical values keep their evidence limits; future decisions require published confirmation. See the [2.29.0 release notes](docs/release-v2.29.0.md) and [accuracy scope](docs/accuracy-v2.29.md).
+Version **2.29.1** corrects financial statement selection when later proxy disclosures reuse accounting tags, refreshes range statistics after quote corrections, and improves source evidence and audit dates. It includes the policy, earnings-history and supply-chain changes in 2.29.0. See the [2.29.1 release notes](docs/release-v2.29.1.md) and [accuracy follow-up](docs/accuracy-v2.29.1.md).
 
 Version **2.27.0** brings back the IBM Plex Sans typeface, gives the watchlist a new default layout and after-hours rule, adds a Transactions tab to PORTFOLIO (lots, realised P&L, time- and money-weighted returns), yield to call and to worst on BONDCALC, a help desk that ignores instructions planted in the news, and new screens: commodity sector pages, world currency rates, index rankings and a markets map, portals on the ECB, the Bank of England and the Bank of Japan, central bank rate analysis and your own news pages. See the [2.27.0 release notes](docs/release-v2.27.0.md).
 

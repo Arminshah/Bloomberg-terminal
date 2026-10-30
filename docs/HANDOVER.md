@@ -1,8 +1,11 @@
-# Handover: where the work stands (29 October 2026)
+# Handover: where the work stands (30 October 2026)
 
 For any Claude session that takes over Armin Terminal, on this account or another. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis" and "Screenshots from three public guides").
 
-## Accuracy release 2.29.0
+## Published 2.29.0 and the 2.29.1 follow-up
+
+2.29.0 was published on 29 October by release run 40946612641. Both Windows executables and checksum files were verified publicly; normal CI also passed. Diagnostic live run 40951008804 reported 559 passes, 6 failures, 4 unresolved flags, 5 blocked checks, 3 incomplete results and 87 skips. The failures and follow-up are recorded in `docs/accuracy-v2.29.1.md`; they are not erased by the software test results. The 2.29.1 release request will start the same gated workflow after the follow-up checks pass. Verify its actual result before claiming publication.
+
 
 The owner authorized accuracy remediation and a new release on 29 October. Implementation and evidence limits are in `docs/accuracy-v2.29.md`; release notes are in `docs/release-v2.29.0.md`. The version-matched `.github/release-request.json` starts the gated Windows release workflow when that explicit request changes on the development branch. Check the release/workflow result before claiming publication.
 
@@ -16,7 +19,7 @@ Provider access was blocked in this environment; fixture checks and public GitHu
 - **Repository**: `Arminshah/Bloomberg-terminal`. **Public again since the evening of 28 October** (the owner opened it so CI, the data audit and releases can run). The owner may make it private again; while it is private, GitHub starts no runner: on 27 October every job failed within seconds, its annotation saying "recent account payments have failed or your spending limit needs to be increased" (the account's Actions minutes for private repositories). Then check everything locally before each push, and before a release ask the owner to open the repository for about half an hour or raise the spending limit.
 - **Pull request**: https://github.com/Arminshah/Bloomberg-terminal/pull/4, a draft into `main`. Its description is out of date; rewrite it only if the owner wants it out of draft. Do not merge it. An older one (number 1) overlaps; the owner decides.
 - **Working branch**: `claude/market-events-v2.16.0-id814n` (the owner's choice; a session's own suggested branch name is an older ancestor: ignore it). Push only there.
-- **Last release: 2.28.0** (tag `v2.28.0` on `8e619b0`, 29 October 2026, at the owner's request), built and published by `.github/workflows/release.yml` (run 40833569143) once the owner opened the repository again; the tag push from the cloud session is refused by its git proxy, so the workflow was started by hand with the input `tag`. Notes: `docs/release-v2.28.0.md`. **After it on the branch, for the next release**: `a8dee8f` (FINANCIALS: JPMorgan's 2022 and 2025 revenue as filed) and `640fa59` (the check's net income).
+- **Last confirmed published release: 2.29.0** (tag `v2.29.0` on `016a930`, 29 October 2026), release workflow 40946612641. Native Windows tests, both executables and published checksums passed verification. The 2.29.1 candidate fixes and remaining live evidence are in `docs/accuracy-v2.29.1.md`; do not claim it is published before checking its workflow and assets.
 
 ## The objective (the owner's, 26 October 2026)
 

@@ -1,8 +1,10 @@
 # To-do list
 
-Updated 29 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
+Updated 30 October 2026. This is the one list of what comes next for Armin Terminal. When an item is finished it moves to "Done" with the commit that did it. Work happens on the branch `claude/market-events-v2.16.0-id814n`.
 
 ## Next, in this order
+
+2.29.0 is published. The live follow-up and the 2.29.1 patch are documented in `docs/accuracy-v2.29.1.md`. Keep actual audit failures and coverage limits separate from passing software checks.
 
 The owner-authorized 2.29.0 accuracy work is documented in `docs/accuracy-v2.29.md`, with release notes and explicit live-verification limits. The scheduler-only exception for main is recorded in HANDOVER. Do not treat the eight-company documentary samples as completion of the outstanding full SPLC/ownership reviews.
 
@@ -237,6 +239,7 @@ From the screenshots of 27 October (`docs/bloomberg-parity.md`, "Screenshots fro
 
 ## Released
 
+- 2.29.0 on 29 October 2026 (`docs/release-v2.29.0.md`): policy decisions, earnings versions and definitions, source freshness and supply-chain evidence. Release workflow and Windows assets verified; the separate live audit findings are retained in the 2.29.1 follow-up.
 - 2.28.0 on 29 October 2026 (`docs/release-v2.28.0.md`), at your request: SPLC with own filings and federal records, the watchlist fixes, EE, and the data audit's fixes and new sources.
 - 2.27.0 on 27 October 2026 (`docs/release-v2.27.0.md`), at your request: everything under "Done in 2.27.0".
 - 2.26.0 on 26 October 2026 (`docs/release-v2.26.0.md`), at your request, before the work moved to another account.
