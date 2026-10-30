@@ -87,18 +87,16 @@ export function rangeStats(id: string): RangeStats {
     return { hi52: NaN, lo52: NaN, hi52t: NaN, lo52t: NaN, avgVol30: NaN, vol30: NaN, vol90: NaN, vol260: NaN };
   }
   const s = engine.daily(id);
-  const key = `${engine.version}:${engine.today}:${s.length}`;
-  const hit = statsCache.get(id);
   const def = engine.get(id);
   const q = engine.quote(id);
-  if (hit && hit.key === key) {
-    if (q) {
-      hit.v.hi52 = Math.max(hit.v.hi52, q.high);
-      hit.v.lo52 = Math.min(hit.v.lo52, q.low);
-    }
-    return hit.v;
-  }
   const n = s.length;
+  const last = n - 1;
+  // A full same-session quote may correct an earlier high/low downwards/upwards without rebuilding history.
+  // Include the mutable final bar and completion state instead of accumulating extrema in the cached result.
+  const done = engine.lastSessionDone(id);
+  const key = `${engine.version}:${engine.today}:${n}:${s.t[last]}:${s.h[last]}:${s.l[last]}:${s.c[last]}:${s.v[last]}:${q?.high}:${q?.low}:${done}`;
+  const hit = statsCache.get(id);
+  if (hit && hit.key === key) return hit.v;
   // 52 weeks by date, not a count of sessions: 252 sessions can reach back past a year.
   const cutoff = n ? s.t[n - 1] - 365 * DAY_MS : 0;
   let from = Math.max(0, n - 400); // more than a year of bars, for markets that trade every day
@@ -117,9 +115,13 @@ export function rangeStats(id: string): RangeStats {
       loT = s.t[i];
     }
   }
+  if (q && n) {
+    if (q.high > hi) { hi = q.high; hiT = s.t[last]; }
+    if (q.low < lo) { lo = q.low; loT = s.t[last]; }
+  }
   // The last 30 finished sessions: the latest bar counts once its session is over and its volume settled (Nasdaq's
   // consolidated figure after the close); a session still trading does not.
-  const end = engine.lastSessionDone(id) ? n : n - 1;
+  const end = done ? n : n - 1;
   let v30 = 0;
   for (let i = Math.max(0, end - 30); i < end; i++) v30 += s.v[i];
   v30 /= Math.min(30, end);
