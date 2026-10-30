@@ -195,7 +195,7 @@ export function FA({ sec, route }: FnProps) {
   const fmtCell = (r: Row, v: number, i?: number) =>
     !Number.isFinite(v) ? (i != null && r.nm?.(cols[i], prevOf(i)) ? 'NM' : '') : r.ratio ? fmtNum(v, 1) : r.pct ? `${fmtNum(v, 1)}%` : fmtNum(v, r.dec ?? (Math.abs(v) >= 100 ? 0 : 1));
   return (
-    <div data-audit-state={JSON.stringify({ schema: 1, domain: 'financials', capturedAt: Date.now(), security: s.id, currency: ccy, page: TABS[tab - 1].file, periods: cols.map((p) => ({ label: p.label, end: p.end, basis: p.basis, rev: p.rev, niTotal: p.niTotal, ni: p.ni, niTotalFiled: p.niTotalFiled, niTotalBasisConflict: !!p.niTotalBasisConflict, niTotalBasisDetails: p.niTotalBasisDetails, parentIncomeMargin: parentIncomeMargin(p) })) })}>
+    <div data-audit-state={JSON.stringify({ schema: 1, domain: 'financials', capturedAt: Date.now(), security: s.id, currency: ccy, page: TABS[tab - 1].file, periods: cols.map((p) => ({ label: p.label, end: p.end, basis: p.basis, rev: p.rev, opInc: p.opInc, operatingIncomeVariants: p.operatingIncomeVariants, niTotal: p.niTotal, ni: p.ni, niTotalFiled: p.niTotalFiled, niTotalBasisConflict: !!p.niTotalBasisConflict, niTotalBasisDetails: p.niTotalBasisDetails, parentIncomeMargin: parentIncomeMargin(p) })) })}>
       <FnHeader
         code="FINANCIALS"
         title="Financial Analysis"

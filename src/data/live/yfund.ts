@@ -199,12 +199,15 @@ export function usTiming(ms: number): EarningsEvent['timing'] {
 
 // ------------------------------------------------------------------ statements
 
-const INCOME = ['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'ReconciledDepreciation', 'DepreciationAndAmortizationInIncomeStatement', 'EBITDA', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision', 'NetIncome', 'NetIncomeCommonStockholders', 'DilutedAverageShares', 'DilutedEPS'];
+const INCOME = ['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'TotalOperatingIncomeAsReported', 'ReconciledDepreciation', 'DepreciationAndAmortizationInIncomeStatement', 'EBITDA', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision', 'NetIncome', 'NetIncomeCommonStockholders', 'DilutedAverageShares', 'DilutedEPS'];
 const BALANCE = ['CashAndCashEquivalents', 'AccountsReceivable', 'Inventory', 'CurrentAssets', 'NetPPE', 'GoodwillAndOtherIntangibleAssets', 'TotalAssets', 'CurrentLiabilities', 'TotalDebt', 'CurrentDebtAndCapitalLeaseObligation', 'LongTermDebtAndCapitalLeaseObligation', 'TotalLiabilitiesNetMinorityInterest', 'StockholdersEquity', 'MinorityInterest', 'PreferredStock'];
 // IFRS filers' operating cash flow comes as CashFlowFromContinuingOperatingActivities (ASML's annual figures).
 const CASH = ['OperatingCashFlow', 'CashFlowFromContinuingOperatingActivities', 'CapitalExpenditure', 'FreeCashFlow', 'CashDividendsPaid', 'RepurchaseOfCapitalStock'];
 
 type Row = Map<string, number>;
+
+/** The provider's reported line is separate from its standardized operating-income line. */
+const operatingIncomeField = (row: Row): 'TotalOperatingIncomeAsReported' | 'OperatingIncome' => Number.isFinite(row.get('TotalOperatingIncomeAsReported')) ? 'TotalOperatingIncomeAsReported' : 'OperatingIncome';
 
 /** Groups a timeseries response by period end: {end -> {type -> value}}. */
 export function seriesByPeriod(res: Json, prefix: string, currency?: string): Map<number, Row> {
@@ -250,7 +253,11 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
   const revRaw = M(g('TotalRevenue'));
   const rev = revRaw < 0 ? NaN : revRaw;
   const cogs = M(g('CostOfRevenue'));
-  const opInc = M(g('OperatingIncome'));
+  const opField = operatingIncomeField(row);
+  const opInc = M(g(opField));
+  const operatingIncomeVariants: FinPeriod['operatingIncomeVariants'] = opField === 'TotalOperatingIncomeAsReported'
+    ? (['TotalOperatingIncomeAsReported', 'OperatingIncome'] as const).filter((field) => Number.isFinite(row.get(field))).map((field) => ({ field, source: `Yahoo Finance statement time series ${field}`, value: M(row.get(field)), end, selected: field === opField }))
+    : undefined;
   const da = M(Number.isFinite(g('ReconciledDepreciation')) ? g('ReconciledDepreciation') : g('DepreciationAndAmortizationInIncomeStatement'));
   const capex = Math.abs(M(g('CapitalExpenditure')));
   const cfo = M(Number.isFinite(g('OperatingCashFlow')) ? g('OperatingCashFlow') : g('CashFlowFromContinuingOperatingActivities'));
@@ -270,6 +277,7 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
     sga: M(g('SellingGeneralAndAdministration')),
     rnd: M(g('ResearchAndDevelopment')),
     opInc,
+    ...(operatingIncomeVariants ? { operatingIncomeVariants } : {}),
     da,
     ebitda: Number.isFinite(opInc) && Number.isFinite(da) ? opInc + da : ebitdaFeed,
     interest: M(Number.isFinite(g('InterestExpense')) ? g('InterestExpense') : g('InterestExpenseNonOperating')),
@@ -313,6 +321,9 @@ export function sumQuarters(q4: FinPeriod[], dps = NaN): FinPeriod {
     out[k] = xs.every(Number.isFinite) ? xs.reduce((a, b) => a + b, 0) : NaN;
   }
   out.shares = last.shares;
+  delete out.operatingIncomeVariants;
+  const operatingVariants = q4.flatMap((period) => period.operatingIncomeVariants ?? []);
+  if (operatingVariants.length) out.operatingIncomeVariants = operatingVariants;
   const supplements = q4.flatMap((p) => p.supplements ?? []);
   if (supplements.length) out.supplements = [...new Set(supplements)];
   // A copied latest quarter cannot establish the provenance or basis of all four quarters.
@@ -354,7 +365,7 @@ function dividendsIn(id: string, from: number, to: number): number {
 /** Statement lines worked out per share, from net income to common shareholders. */
 const PER_SHARE = new Set(['DilutedEPS', 'DilutedAverageShares']);
 /** Income lines that move with the revenue basis (a restatement for discontinued operations moves them all). */
-const REVENUE_BASIS = new Set(['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'EBITDA', 'DepreciationAndAmortizationInIncomeStatement', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision']);
+const REVENUE_BASIS = new Set(['TotalRevenue', 'CostOfRevenue', 'GrossProfit', 'SellingGeneralAndAdministration', 'ResearchAndDevelopment', 'OperatingIncome', 'TotalOperatingIncomeAsReported', 'EBITDA', 'DepreciationAndAmortizationInIncomeStatement', 'InterestExpense', 'InterestExpenseNonOperating', 'PretaxIncome', 'TaxProvision']);
 
 /** What a fund's SEC per-share figures were adjusted with: the split history it saw ('unknown' before it loaded). */
 export function splitsKey(splits: readonly SplitEvent[] | null | undefined): string {
@@ -404,7 +415,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         const row = rows.get(end) ?? new Map<string, number>();
         // Different restatement/continuing-operation bases must not create a hybrid income statement.
         const conflictingKeys = ['TotalRevenue', 'NetIncomeCommonStockholders', 'OperatingIncome', 'GrossProfit'].filter((key) => {
-          const primary = row.get(key);
+          const primary = row.get(key === 'OperatingIncome' ? operatingIncomeField(row) : key);
           const official = extra.row.get(key);
           if (primary == null || !Number.isFinite(primary) || official == null || (key === 'TotalRevenue' && primary < 0)) return false;
           return Math.abs(primary - official) > 0.01 * Math.max(Math.abs(primary), Math.abs(official), 1);
@@ -414,7 +425,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
           const observation = extra.observations.get(key);
           return {
             field: key, currency, unit: 'raw monetary units', observations: [
-              { source: 'Yahoo Finance statement time series', value: row.get(key)!, end },
+              { source: key === 'OperatingIncome' && operatingIncomeField(row) === 'TotalOperatingIncomeAsReported' ? 'Yahoo Finance statement time series TotalOperatingIncomeAsReported' : 'Yahoo Finance statement time series', value: row.get(key === 'OperatingIncome' ? operatingIncomeField(row) : key)!, end },
               { source: extra.sources.get(key)!, value: extra.row.get(key)!, end: secEnd, ...(observation ? { start: observation.start, filed: observation.filed, concept: observation.concept, sourceUrl: observation.sourceUrl } : {}) },
             ],
           };
@@ -467,6 +478,9 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
             row.set(key, value);
             continue;
           }
+          // The displayed reported line already has this observation. Do not manufacture a provider-standardized
+          // alternative by filling its missing field with the SEC's independently defined operating-income line.
+          if (key === 'OperatingIncome' && operatingIncomeField(row) === 'TotalOperatingIncomeAsReported') continue;
           // The company's own diluted EPS and share count win over the feed's where they differ on the same net
           // income: the feed divided CoreWeave's pre-listing losses by its later share count (2024: -2.02 against
           // -4.30 in the 10-K).
@@ -638,6 +652,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     const other = ltm === fromTrailing ? summed! : fromTrailing!;
     for (const key of FLOWS) if (!Number.isFinite(ltm[key]) && Number.isFinite(other[key])) {
       ltm[key] = other[key];
+      if (key === 'opInc') ltm.operatingIncomeVariants = other.operatingIncomeVariants;
       if (key === 'niTotal') {
         ltm.niTotalFiled = other.niTotalFiled;
         ltm.niTotalBasisConflict = other.niTotalBasisConflict;

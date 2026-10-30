@@ -33,6 +33,8 @@ export interface FinPeriod {
   sga: number;
   rnd: number;
   opInc: number;
+  /** Distinct provider operating-income lines, in millions; quarter sums retain each original period. */
+  operatingIncomeVariants?: { field: 'TotalOperatingIncomeAsReported' | 'OperatingIncome'; source: string; value: number; end: number; selected: boolean }[];
   da: number;
   ebitda: number;
   interest: number;
