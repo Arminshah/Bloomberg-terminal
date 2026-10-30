@@ -1600,7 +1600,7 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .rb-track { position: relative; width: 70px; height: 3px; background: #4a4a4a; }
 .rb-fill { position: absolute; top: 0; height: 3px; background: var(--amber); }
 /* The price as a white bar across the track (the owner's choice, 27 October 2026), easier to read than a triangle. */
-.rb-mark { position: absolute; top: -5px; width: 2px; height: 13px; background: var(--white); transform: translateX(-1px); }
+.rb-mark { position: absolute; left: 0; top: 0; width: 2px; height: 13px; background: var(--white); transform-origin: 0 0; }
 
 
 /* WM: the world equity markets map, a grid of tiles laid out roughly as the markets lie. */

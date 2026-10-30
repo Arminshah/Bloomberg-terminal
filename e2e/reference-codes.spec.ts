@@ -508,6 +508,60 @@ test("the watchlist's layout: changes, both extended sessions, volumes, YTD and 
   expect(errors).toEqual([]);
 });
 
+test('watchlist price markers keep even white edges across positions, resizing and fractional display scaling', async ({ browser }, testInfo) => {
+  for (const scale of [1, 1.25, 1.5]) {
+    const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL, viewport: { width: 1600, height: 1000 }, deviceScaleFactor: scale });
+    try {
+      const page = await context.newPage();
+      const errors = await boot(page);
+      await run(page, 'WATCH');
+      const panel = page.locator('.panel').first();
+      await expect(panel.locator('.fnh-code')).toHaveText('WATCHLIST');
+      const markers = panel.locator('.rb-mark');
+      await expect.poll(() => markers.count()).toBeGreaterThan(10);
+      const geometry = () => markers.evaluateAll((nodes) => {
+        const dpr = window.devicePixelRatio;
+        return nodes.map((node) => {
+          const box = node.getBoundingClientRect();
+          const track = node.parentElement!.getBoundingClientRect();
+          return {
+            x: box.x * dpr, y: box.y * dpr, width: box.width * dpr, height: box.height * dpr,
+            at: (box.x + box.width / 2 - track.x) / track.width,
+            white: getComputedStyle(node).backgroundColor,
+          };
+        });
+      });
+      const even = async () => {
+        const boxes = await geometry();
+        return boxes.every((box) =>
+          Math.abs(box.x - Math.round(box.x)) < 0.02 && Math.abs(box.y - Math.round(box.y)) < 0.02 &&
+          Math.abs(box.width - Math.round(2 * scale)) < 0.02 && Math.abs(box.height - Math.round(13 * scale)) < 0.02,
+        );
+      };
+      await expect.poll(even).toBe(true);
+      const before = await geometry();
+      expect(new Set(before.map((box) => box.at.toFixed(2))).size).toBeGreaterThan(3);
+      expect(new Set(before.map((box) => box.white)).size).toBe(1);
+      // Fractional track sizes and origins must not be mistaken for a parent scale.
+      await panel.locator('.rangebar').evaluateAll((nodes) => nodes.forEach((node, index) => {
+        (node.querySelector('.rb-track') as HTMLElement).style.width = '77.5px';
+        (node as HTMLElement).style.marginLeft = `${index % 4 * 0.19}px`;
+      }));
+      await expect.poll(even).toBe(true);
+      await page.setViewportSize({ width: 1273, height: 917 });
+      await expect.poll(even).toBe(true);
+      // The actual rendered close-ups remain ignored test output, not committed reference images.
+      if (scale === 1.25) {
+        const ranges = panel.locator('.rangebar');
+        await ranges.nth(0).screenshot({ path: testInfo.outputPath('day-range-125.png') });
+        await ranges.nth(1).screenshot({ path: testInfo.outputPath('year-range-125.png') });
+        await expect.poll(even).toBe(true);
+      }
+      expect(errors).toEqual([]);
+    } finally { await context.close(); }
+  }
+});
+
 
 test('OIL, GAS, MINE and AGS gather their sector: contracts, measures worked out from them, curves and news', async ({ page }) => {
   const errors = await boot(page);
