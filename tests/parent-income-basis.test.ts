@@ -35,6 +35,10 @@ describe('parent-attributable income across statement-basis conflicts', () => {
     expect(period.niTotalFiled?.source).toContain('SEC EDGAR 10-K');
     expect(parentIncomeMargin(period)).toBeNaN();
     expect(period.supplements?.join(' ')).toContain('margins are withheld');
+    expect(period.niTotalBasisDetails).toEqual([{ field: 'OperatingIncome', currency: 'USD', unit: 'raw monetary units', observations: [
+      { source: 'Yahoo Finance statement time series', value: 30e6, end: Date.parse('2025-12-31') },
+      { source: expect.stringContaining('SEC EDGAR 10-K'), value: 10e6, end: Date.parse('2025-12-31'), start: '2025-01-01', filed: '2026-02-15', concept: 'us-gaap:OperatingIncomeLoss', sourceUrl: 'https://data.sec.gov/api/xbrl/companyfacts/CIK0000000001.json' },
+    ] }]);
   });
 
   it('computes the parent-income margin when the remaining statement lines agree', () => {
@@ -42,7 +46,20 @@ describe('parent-attributable income across statement-basis conflicts', () => {
       cf([{ start: '2025-01-01', end: '2025-12-31' }]), []);
     expect(fund.annual[0]).toMatchObject({ niTotal: 20, ni: 22 });
     expect(fund.annual[0].niTotalBasisConflict).toBeUndefined();
+    expect(fund.annual[0].niTotalBasisDetails).toBeUndefined();
     expect(parentIncomeMargin(fund.annual[0])).toBe(20);
+  });
+
+  it('identifies a common-income-only conflict without claiming that revenue differs', () => {
+    const rows = annualRows();
+    rows.find(([field]) => field === 'NetIncomeCommonStockholders')![2] = 25e6;
+    const fund = buildRealFund(company, summary, series('annual', rows), null, null, NOW,
+      cf([{ start: '2025-01-01', end: '2025-12-31' }]), []);
+    const period = fund.annual[0];
+    expect(period).toMatchObject({ rev: 100, niTotal: 20, ni: 25, niTotalBasisConflict: true });
+    expect(period.niTotalBasisDetails?.map((detail) => detail.field)).toEqual(['NetIncomeCommonStockholders']);
+    expect(period.niTotalBasisDetails?.[0].observations.map((observation) => observation.value)).toEqual([25e6, 22e6]);
+    expect(parentIncomeMargin(period)).toBeNaN();
   });
 
   it('keeps unknown and invalid margins unknown, including a nonpositive revenue denominator', () => {
@@ -61,6 +78,10 @@ describe('parent-attributable income across statement-basis conflicts', () => {
     const fund = buildRealFund(company, withEarnings, series('annual', annualRows()), null, null, NOW,
       cf([{ start: '2025-01-01', end: '2025-12-31' }]), []);
     expect(fund.annual[0]).toMatchObject({ rev: 120, niTotal: 20, niTotalBasisConflict: true });
+    expect(fund.annual[0].niTotalBasisDetails?.[0]).toMatchObject({ field: 'TotalRevenue', currency: 'USD', observations: [
+      { source: 'Selected statement revenue before earnings override', value: 100e6 },
+      { source: 'Yahoo Finance earnings module', value: 120e6 },
+    ] });
     expect(parentIncomeMargin(fund.annual[0])).toBeNaN();
   });
 
@@ -107,6 +128,8 @@ describe('parent-attributable income across statement-basis conflicts', () => {
     ]), NOW, cf(quarters.slice(0, 3).map(([start, end]) => ({ start, end, operating: 5e6 }))), []);
     expect(fund.ltm).toMatchObject({ basis: 'trailing', niTotal: 82, niTotalBasisConflict: true });
     expect(fund.ltm?.niTotalFiled).toBeUndefined();
+    expect(fund.ltm?.niTotalBasisDetails).toHaveLength(3);
+    expect(fund.ltm?.niTotalBasisDetails?.map((detail) => detail.observations[1].end)).toEqual(quarters.slice(0, 3).map(([, end]) => Date.parse(end)));
     expect(parentIncomeMargin(fund.ltm!)).toBeNaN();
   });
 });

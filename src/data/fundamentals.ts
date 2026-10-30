@@ -9,7 +9,15 @@ import { realDividends, realSplits, trailingDividendYield, yahooQuotes } from '.
 import { nasdaqPart, nasdaqSymbol, type NasdaqDividend, type NasdaqNextReport } from './live/nasdaq-company';
 import { massiveDividends } from './live/massive-dividends';
 
-/** All money values in millions of the reporting currency (GBP for pence lines). */
+/** Original source observations behind a reporting-basis warning, before line selection. */
+export interface StatementBasisDifference {
+  field: string;
+  currency: string;
+  unit: 'raw monetary units';
+  observations: { source: string; value: number; end: number; start?: string; filed?: string; concept?: string; sourceUrl?: string }[];
+}
+
+/** All statement money values in millions of the reporting currency (GBP for pence lines). */
 export interface FinPeriod {
   label: string;
   end: number;
@@ -38,6 +46,8 @@ export interface FinPeriod {
   niTotalFiled?: { end: number; source: string };
   /** The selected filed parent income and other statement lines have unresolved reporting-basis differences. */
   niTotalBasisConflict?: boolean;
+  /** Exact source values that triggered the warning; these metadata values retain their original raw units. */
+  niTotalBasisDetails?: StatementBasisDifference[];
   shares: number;
   eps: number;
   dps: number;

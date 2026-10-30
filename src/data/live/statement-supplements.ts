@@ -21,6 +21,8 @@ export interface StatementSupplement {
   filed: Map<string, string>;
   /** The figures a later filing restated (its latest value differs from the first one filed). */
   restated: Set<string>;
+  /** Original exact-period metadata for tracing source-basis warnings. */
+  observations: Map<string, { start?: string; end: string; filed: string; concept: string; sourceUrl: string }>;
 }
 
 /**
@@ -37,11 +39,12 @@ export function secStatementRows(cf: CompanyFacts, currency: string, kind: Perio
     for (const [date, fact] of values) {
       if (!allowed.has(date)) continue;
       const end = Date.parse(`${date}T00:00:00Z`);
-      const item = out.get(end) ?? { row: new Map<string, number>(), sources: new Map<string, string>(), filed: new Map<string, string>(), restated: new Set<string>() };
+      const item = out.get(end) ?? { row: new Map<string, number>(), sources: new Map<string, string>(), filed: new Map<string, string>(), restated: new Set<string>(), observations: new Map() };
       item.row.set(key, fact.val);
       item.filed.set(key, fact.filed);
       if (fact.restated) item.restated.add(key);
       item.sources.set(key, `SEC EDGAR ${fact.form}, filed ${fmtIso(fact.filed, true)}${fact.derived ? ' (calculated from aligned reported totals)' : ''}`);
+      item.observations.set(key, { ...(fact.start ? { start: fact.start } : {}), end: fact.end, filed: fact.filed, concept: fact.concept, sourceUrl: `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(cf.cik).padStart(10, '0')}.json` });
       out.set(end, item);
     }
   }

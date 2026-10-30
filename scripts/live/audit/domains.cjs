@@ -74,8 +74,10 @@ function validateFinancials(snapshot, item, now = Date.now()) {
   const result = [];
   for (const period of snapshot.periods) {
     if (!period.niTotalBasisConflict) continue;
-    result.push(row('INCOMPLETE', `parent income basis ${period.label ?? ''}`, 'parent-attributable filed income and the revenue basis have not been reconciled; a matching net-income value does not resolve the source-basis conflict'));
-    if (finite(period.parentIncomeMargin)) result.push(row('FAIL', `parent income margin ${period.label ?? ''}`, 'a numerical parent-income margin is displayed despite an unresolved income/revenue source basis'));
+    const differences = Array.isArray(period.niTotalBasisDetails) ? period.niTotalBasisDetails : [];
+    const detail = differences.map((difference) => `${difference.field}: ${(difference.observations ?? []).map((observation) => `${observation.source}=${observation.value} at ${iso(observation.end)}`).join(' vs ')} ${difference.currency ?? ''} (${difference.unit ?? 'unit unknown'})`).join('; ');
+    result.push(row('INCOMPLETE', `parent income basis ${period.label ?? ''}`, ['Filed parent income and other statement lines have unresolved reporting-basis differences; a matching net-income value does not resolve the conflict.', detail].filter(Boolean).join(' '), { basisDifferences: differences }));
+    if (finite(period.parentIncomeMargin)) result.push(row('FAIL', `parent income margin ${period.label ?? ''}`, 'a numerical parent-income margin is displayed despite an unresolved statement source basis'));
   }
   return result;
 }

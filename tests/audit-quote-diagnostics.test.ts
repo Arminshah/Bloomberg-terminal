@@ -61,4 +61,14 @@ describe('financial audit source-basis capture', () => {
     expect(validateFinancials({ ...snapshot, periods: [{ ...snapshot.periods[0], parentIncomeMargin: 7.3 }] }, 'TSLA', now)).toEqual(expect.arrayContaining([expect.objectContaining({ status: 'FAIL', field: 'parent income margin 2024 Y' })]));
     expect(validateFinancials(null, 'TSLA', now)[0].status).toBe('BLOCKED');
   });
+  it('reports the exact conflicting line and preserves raw observations without inventing a revenue discrepancy', () => {
+    const differences = [{ field: 'NetIncomeCommonStockholders', currency: 'USD', unit: 'raw monetary units', observations: [
+      { source: 'Yahoo Finance statement time series', value: 25e6, end: Date.parse('2025-12-31') },
+      { source: 'SEC EDGAR 10-K', value: 22e6, end: Date.parse('2025-12-31'), start: '2025-01-01', filed: '2026-02-15', concept: 'us-gaap:NetIncomeLossAvailableToCommonStockholdersBasic', sourceUrl: 'https://data.sec.gov/api/xbrl/companyfacts/CIK0000000001.json' },
+    ] }];
+    const result = validateFinancials({ ...snapshot, periods: [{ ...snapshot.periods[0], niTotalBasisDetails: differences }] }, 'TSLA', now);
+    expect(result).toMatchObject([{ status: 'INCOMPLETE', basisDifferences: differences }]);
+    expect(result[0].detail).toContain('NetIncomeCommonStockholders: Yahoo Finance statement time series=25000000 at 2025-12-31 vs SEC EDGAR 10-K=22000000');
+    expect(result[0].detail).not.toContain('revenue basis have not been reconciled');
+  });
 });

@@ -4,7 +4,7 @@ import { createStore, waitFor } from '../../core/store';
 import { createWants, registerRefresh } from '../../terminal/refresh';
 import { engine } from '../market';
 import { DAY_MS } from '../calendar';
-import type { EarningsEvent, FinPeriod, Holder } from '../fundamentals';
+import type { EarningsEvent, FinPeriod, Holder, StatementBasisDifference } from '../fundamentals';
 import type { SecurityDef } from '../types';
 import { desktopData, impliedShares, realDividends, realSplits, yahooGet, yahooSymbolFor } from './yahoo';
 import { finnhubAvailable, finnhubSymbol, loadFinnhub, type FinnhubMetric, type FinnhubProfile } from './finnhub';
@@ -318,11 +318,14 @@ export function sumQuarters(q4: FinPeriod[], dps = NaN): FinPeriod {
   // A copied latest quarter cannot establish the provenance or basis of all four quarters.
   delete out.niTotalFiled;
   delete out.niTotalBasisConflict;
+  delete out.niTotalBasisDetails;
   if (q4.every((p) => !!p.niTotalFiled)) out.niTotalFiled = {
     end: last.niTotalFiled!.end,
     source: `Sum of four filed quarters: ${[...new Set(q4.map((p) => p.niTotalFiled!.source))].join('; ')}`,
   };
   if (q4.some((p) => p.niTotalBasisConflict)) out.niTotalBasisConflict = true;
+  const differences = q4.flatMap((p) => p.niTotalBasisDetails ?? []);
+  if (differences.length) out.niTotalBasisDetails = differences;
   return out;
 }
 
@@ -390,7 +393,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     }
   }
   const netIncome = new Map<string, { value: number; source: string }>();
-  const parentIncome = new Map<string, { end: number; source: string; conflict: boolean }>();
+  const parentIncome = new Map<string, { end: number; source: string; conflict: boolean; differences: StatementBasisDifference[] }>();
   let perShareFromFilings = false;
   if (secFacts && currency) {
     for (const [kind, rows] of [['annual', annualRows], ['quarter', quarterlyRows]] as const) {
@@ -400,11 +403,21 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         const end = rows.has(secEnd) ? secEnd : [...rows.keys()].find((e) => Math.abs(e - secEnd) <= 10 * DAY_MS) ?? secEnd;
         const row = rows.get(end) ?? new Map<string, number>();
         // Different restatement/continuing-operation bases must not create a hybrid income statement.
-        const conflict = ['TotalRevenue', 'NetIncomeCommonStockholders', 'OperatingIncome', 'GrossProfit'].some((key) => {
+        const conflictingKeys = ['TotalRevenue', 'NetIncomeCommonStockholders', 'OperatingIncome', 'GrossProfit'].filter((key) => {
           const primary = row.get(key);
           const official = extra.row.get(key);
           if (primary == null || !Number.isFinite(primary) || official == null || (key === 'TotalRevenue' && primary < 0)) return false;
           return Math.abs(primary - official) > 0.01 * Math.max(Math.abs(primary), Math.abs(official), 1);
+        });
+        const conflict = conflictingKeys.length > 0;
+        const differences: StatementBasisDifference[] = conflictingKeys.map((key) => {
+          const observation = extra.observations.get(key);
+          return {
+            field: key, currency, unit: 'raw monetary units', observations: [
+              { source: 'Yahoo Finance statement time series', value: row.get(key)!, end },
+              { source: extra.sources.get(key)!, value: extra.row.get(key)!, end: secEnd, ...(observation ? { start: observation.start, filed: observation.filed, concept: observation.concept, sourceUrl: observation.sourceUrl } : {}) },
+            ],
+          };
         });
         // Per-share figures follow net income to common shareholders, which restating revenue or operating income for
         // discontinued operations leaves as it was (Applied Digital's FY2025): they still fit when that agrees.
@@ -443,7 +456,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
             const source = extra.sources.get(key)!;
             if (!Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN) && !conflict) netIncome.set(`${kind}:${end}`, { value, source });
             row.set('NetIncome', value);
-            parentIncome.set(`${kind}:${end}`, { end: secEnd, source, conflict: conflict && !filedBasis });
+            parentIncome.set(`${kind}:${end}`, { end: secEnd, source, conflict: conflict && !filedBasis, differences: filedBasis ? [] : differences });
             const evidence = supplements.get(end) ?? new Set<string>();
             evidence.add(`${source}: net income attributable to the company's shareholders`);
             if (conflict && !filedBasis) evidence.add('Filed parent income and other statement lines have unresolved reporting-basis differences; parent-income margins are withheld');
@@ -525,6 +538,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     if (parent) {
       period.niTotalFiled = { end: parent.end, source: parent.source };
       if (parent.conflict) period.niTotalBasisConflict = true;
+      if (parent.differences.length) period.niTotalBasisDetails = parent.differences;
     }
     return period;
   };
@@ -584,6 +598,12 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
       if (!Number.isFinite(value)) return;
       if (p.niTotalFiled && (!Number.isFinite(p.rev) || Math.abs(value - p.rev) > 0.01 * Math.max(Math.abs(value), Math.abs(p.rev), 1))) {
         p.niTotalBasisConflict = true;
+        p.niTotalBasisDetails = [...(p.niTotalBasisDetails ?? []), {
+          field: 'TotalRevenue', currency: currency ?? '', unit: 'raw monetary units', observations: [
+            ...(Number.isFinite(p.rev) ? [{ source: 'Selected statement revenue before earnings override', value: p.rev * 1e6, end: p.end }] : []),
+            { source: 'Yahoo Finance earnings module', value: value * 1e6, end: p.end },
+          ],
+        }];
         p.supplements = [...new Set([...(p.supplements ?? []), 'The earnings module reports revenue on a different basis from the filed parent-income statement; parent-income margins are withheld'])];
       }
       p.rev = value;
@@ -621,6 +641,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
       if (key === 'niTotal') {
         ltm.niTotalFiled = other.niTotalFiled;
         ltm.niTotalBasisConflict = other.niTotalBasisConflict;
+        ltm.niTotalBasisDetails = other.niTotalBasisDetails;
       }
     }
     if (summed!.supplements) ltm.supplements = [...new Set([...(ltm.supplements ?? []), ...summed!.supplements])];
@@ -630,6 +651,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
       ltm.niTotal = summed!.niTotal;
       ltm.niTotalFiled = summed!.niTotalFiled;
       if (summed!.niTotalBasisConflict) ltm.niTotalBasisConflict = true;
+      if (summed!.niTotalBasisDetails) ltm.niTotalBasisDetails = summed!.niTotalBasisDetails;
     }
   }
   // A quarter without its EPS in the feed (ASML's Q3 2025) leaves the sum without one: LTM net income over the
