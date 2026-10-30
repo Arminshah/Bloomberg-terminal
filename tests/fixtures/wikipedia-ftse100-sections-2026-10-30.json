@@ -1,0 +1,114 @@
+{
+ "parse": {
+  "title": "FTSE 100 Index",
+  "pageid": 497717,
+  "tocdata": {
+   "sections": [
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "History",
+     "number": "1",
+     "index": "1",
+     "anchor": "History"
+    },
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "Description",
+     "number": "2",
+     "index": "2",
+     "anchor": "Description"
+    },
+    {
+     "tocLevel": 2,
+     "hLevel": 3,
+     "line": "Weighting",
+     "number": "2.1",
+     "index": "3",
+     "anchor": "Weighting"
+    },
+    {
+     "tocLevel": 2,
+     "hLevel": 3,
+     "line": "Futures contracts",
+     "number": "2.2",
+     "index": "4",
+     "anchor": "Futures_contracts"
+    },
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "Record values",
+     "number": "3",
+     "index": "5",
+     "anchor": "Record_values"
+    },
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "Annual returns",
+     "number": "4",
+     "index": "6",
+     "anchor": "Annual_returns"
+    },
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "Constituents",
+     "number": "5",
+     "index": "7",
+     "anchor": "Constituents"
+    },
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "Past constituents",
+     "number": "6",
+     "index": "8",
+     "anchor": "Past_constituents"
+    },
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "FT 30",
+     "number": "7",
+     "index": "9",
+     "anchor": "FT_30"
+    },
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "See also",
+     "number": "8",
+     "index": "10",
+     "anchor": "See_also"
+    },
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "References",
+     "number": "9",
+     "index": "11",
+     "anchor": "References"
+    },
+    {
+     "tocLevel": 2,
+     "hLevel": 3,
+     "line": "Sources",
+     "number": "9.1",
+     "index": "12",
+     "anchor": "Sources"
+    },
+    {
+     "tocLevel": 1,
+     "hLevel": 2,
+     "line": "External links",
+     "number": "10",
+     "index": "13",
+     "anchor": "External_links"
+    }
+   ]
+  }
+ }
+}

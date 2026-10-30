@@ -1243,13 +1243,14 @@ ipcMain.handle('earnings-calendar', async (event, source, from, to) => {
   throw new Error('not allowed');
 });
 
-// Index memberships and member volumes without a key (electron/index-members.cjs), for the index monitors.
+// Index memberships and member volumes without a key (electron/index-members.cjs), for the index monitors and SCREEN.
 const indexMembers = require('./index-members.cjs');
 ipcMain.handle('index-members', async (event, kind, arg) => {
   if (!fromApp(event)) throw new Error('not allowed');
-  const req = kind === 'nasdaq-quotes' ? indexMembers.nasdaqQuotesRequest(arg) : indexMembers.membersRequest(kind);
+  const req = kind === 'nasdaq-quotes' ? indexMembers.nasdaqQuotesRequest(arg) : kind === 'ftse100' ? indexMembers.ftse100Request(arg) : indexMembers.membersRequest(kind);
   if (!req) throw new Error('not allowed');
-  return keyedGet(req.provider, req.url, req.headers, req.ttl, req.provider === 'nasdaq' ? [60, 60_000] : [10, 60_000], [], nasdaqAgent());
+  // Wikimedia asks programs to name themselves and say how to reach their author: the app's own agent does both.
+  return keyedGet(req.provider, req.url, req.headers, req.ttl, req.provider === 'nasdaq' ? [60, 60_000] : [10, 60_000], [], req.provider === 'wikipedia' ? clientAgent() : nasdaqAgent());
 });
 
 // One company's figures from Nasdaq's quote and company pages, without a key (electron/nasdaq.cjs): they fill what

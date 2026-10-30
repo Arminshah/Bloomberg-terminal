@@ -647,6 +647,13 @@ function providerPayloadProblem(provider, text, secrets = []) {
     case 'massive':
       if (/^(ERROR|NOT_AUTHORIZED)$/i.test(data?.status ?? '')) message = data.error ?? data.message;
       break;
+    case 'wikipedia':
+      // The MediaWiki API answers HTTP 200 with {error: {code, info}}: a missing page or section, a refused request.
+      if (data?.error) {
+        message = data.error.info ?? data.error.code ?? 'Wikipedia refused the request.';
+        code = data.error.code === 'ratelimited' ? 429 : ['missingtitle', 'nosuchsection', 'nosuchpageid'].includes(data.error.code) ? 404 : undefined;
+      }
+      break;
     default:
       return null;
   }
