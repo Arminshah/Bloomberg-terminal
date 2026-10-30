@@ -7,6 +7,9 @@ This release fixes financial statement selection and quote corrections found whi
 - Same-session corrections can lower a previously reported high or raise a low. Range statistics now recalculate when the underlying quote changes.
 - White current-price markers in Day Range and 52-Wk Range keep the same thin dimensions and align to screen pixels, including fractional display scaling.
 - Market values no longer derive shares by dividing a current market value by the previous close, or by combining one provider's market value with another's price. Reported counts remain available when a matched current pair is missing.
+- Opening a stock starts its settled-volume check once history is ready, removing a wait of up to a minute. Existing source and request limits remain in place.
+- DES refreshes its price and YTD return together when a provider quote changes between clock ticks.
+- Financial statements use the provider's separate reported operating-income line when available, retaining the other line for comparison. Missing or disagreeing reported observations keep their existing source warnings.
 - Share-count conflicts expose dated numeric alternatives, including the distinction between shares and market-value sensitivities. An alternative matching a reference does not resolve a share-definition conflict.
 - Filing quotation checks preserve inline XBRL text and source entities. Competitor-list context is stored separately from the actual quotation and exported with it.
 - The audit requires the same completed reference session for rolling analytics, validates reference OHLC data, and excludes corporate actions after the captured session. Intraday ranges remain unverified by an EOD-only reference.

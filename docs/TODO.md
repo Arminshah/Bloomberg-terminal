@@ -4,7 +4,7 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-2.29.0 is published. The live follow-up and the 2.29.1 patch are documented in `docs/accuracy-v2.29.1.md`. Fresh public-repository CI passed at `d2c8c0e`; the separate live audit reported 620 passes and five failures. Quote and statement-basis diagnostics are being extended to trace those failures. Keep actual audit failures and coverage limits separate from passing software checks, and hold the 2.29.1 publication request.
+2.29.0 is published. The live follow-up and the 2.29.1 patch are documented in `docs/accuracy-v2.29.1.md`. CI passed at `37b8241`; its intraday live audit reported 550 passes and three failures, with 103 skipped comparisons. The earlier completed-session audit reported 620 passes and five failures. Settled-volume readiness, DES refresh and reported operating-income follow-up passed all local checks; prior open/volume discrepancies still need completed-session corroboration. Keep actual audit failures and coverage limits separate from passing software checks, and hold the 2.29.1 publication request.
 
 The owner-authorized 2.29.0 accuracy work is documented in `docs/accuracy-v2.29.md`, with release notes and explicit live-verification limits. The scheduler-only exception for main is recorded in HANDOVER. Do not treat the eight-company documentary samples as completion of the outstanding full SPLC/ownership reviews.
 

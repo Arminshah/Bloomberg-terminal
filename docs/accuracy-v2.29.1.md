@@ -66,3 +66,31 @@ Financial-basis captures now retain the exact conflicting field names, raw monet
 No tolerance or reference value is changed, and 2.29.1 publication remains held. An audit captured during regular trading deliberately skips end-of-day open/volume comparisons when no completed reference session is available. Such skips do not resolve the 29 October failures above.
 
 Local checks for the source-observation follow-up passed sequentially: lint, type checks, 1,851 unit tests in 180 files, production build, 95 browser checks and 76 fixture desktop checks. The first unit attempt found an invalid new ADR fixture referencing a security outside the built-in list. An explicit synthetic receipt fixture corrected that input, with additional share-unit assertions; all checks then passed. The fresh live source evidence remains a separate requirement.
+
+## Settled-volume readiness
+
+A separate scheduler review reproduced a delay in the existing settled-volume route: a stock opened at second 61, just after the minute poll, could wait until second 120 for its first Nasdaq request. A capture taken after 12 seconds could therefore precede that request even with history already loaded. This establishes a scheduling gap; it does not establish the cause of the earlier Walmart or Coca-Cola mismatches.
+
+The service now reacts to panel and watchlist additions and to engine changes for visible stocks, coalescing checks within 100 ms. History becoming available can start the existing request immediately. Empty clock notifications and unrelated securities do not schedule checks. The finished-session rule, Nasdaq source, 30-minute spacing, four-attempt session limit and periodic retry remain. Stopping the service removes subscriptions, cancels queued work and prevents late answers from changing the engine.
+
+This timing patch passed the complete sequential local checks: lint, type checks, 1,858 unit tests in 181 files, build, 95 browser checks and 76 fixture desktop checks. Those results precede the further DES and reported-operating-income changes below.
+
+## Intraday audit at `37b8241`
+
+[CI 41065482940](https://github.com/Arminshah/Bloomberg-terminal/actions/runs/41065482940) passed, including native Windows desktop checks. [Live audit 41065471341](https://github.com/Arminshah/Bloomberg-terminal/actions/runs/41065471341) reported 550 passes, three failures, five flags, two blocked checks, 13 incomplete results and 103 skips. All 23 unresolved rows were visible in public annotations, although one long candidate row was truncated. The run captured regular trading; its count cannot be compared directly with the earlier completed-session audit as a measure of improved accuracy.
+
+| New failed comparison | Displayed | Reference | Allowed difference |
+| --- | --- | --- | --- |
+| Exxon previous close | 183.18 | 183.29 | 0.036658 |
+| Lilly previous close | 1,373.00 | 1,373.70 | 0.27474 |
+| Tesla YTD return | -12.66% | -12.5522547363% | 0.1 percentage point |
+
+The earlier opens and volumes remain unverified by this intraday run. NVIDIA market value was absent from the unresolved list; individual passing comparisons are not available in the public annotations, so that absence alone does not certify the earlier exact observation.
+
+The new financial evidence identifies operating-income differences behind the ten earlier basis warnings. Examples, in raw USD: Coca-Cola FY2024, Yahoo 14,022,000,000 versus SEC 9,992,000,000; Tesla FY2024, 7,760,000,000 versus 7,076,000,000; NVIDIA FY2023, 5,577,000,000 versus 4,224,000,000. A separate new Exxon LTM warning records quarterly revenue of 114,529,000,000 versus 116,017,000,000. The parser maps Yahoo's operating-income field literally; no application EBIT substitution was found. The provider also supports a distinct `TotalOperatingIncomeAsReported` field. Exact expense exclusions behind the differing observations remain unverified.
+
+DES had an independently reproduced update defect: its profile subscribed to every fifth clock tick, while its price child subscribed to quote updates. A network update between ticks could therefore show a new price alongside an old YTD return. The profile now subscribes to quotes, and return captures retain the actual price, year-end base and dates. The observed Tesla comparison still requires new corroboration. All failed quote comparisons now receive capture provenance. Previous-close diagnostics retain both spark previous-close fields, available quote change fields and the daily-history closes; the engine's selection rule is unchanged. Tolerances remain unchanged.
+
+The statement request now includes Yahoo's distinct `TotalOperatingIncomeAsReported` field for annual, quarterly and trailing periods. A finite reported value in the same period and currency is selected for operating income and its basis comparison. The original `OperatingIncome` value remains a separate captured alternative. An absent reported field keeps the existing comparison; a reported value that still disagrees with SEC preserves the warning and withheld margin. Zero and negative operating results remain valid observations. Existing whole-statement filed-basis selection takes precedence, and no adjacent-period or currency substitution is allowed. The next live run must establish which reported fields actually arrive and agree.
+
+The combined follow-up passed all local checks sequentially: lint, type checks, 1,868 unit tests in 182 files, production build, 95 browser checks and 77 fixture desktop checks. The new desktop regression changes a provider quote between engine clock ticks and verifies that the displayed price and YTD refresh together with an unchanged tick counter. These software results do not certify the remaining previous-close discrepancies or the earlier completed-session figures. Publication remains held.
