@@ -70,3 +70,18 @@ Each step is one commit with its tests, after all the checks in `docs/HANDOVER.m
 4. Screening: an index criterion (FTSE 100 first) and trading status, latest-filing gross margin and return on common equity (net income over average common equity), a running match count after each criterion, and the results view with the summary row.
 5. The MPC back-test: the simulator (self-financing, costs, calendar-day accrual), the policies (Hold, single-period, multi-period with horizon H), the constraints, the metrics, the input and result tables in the dissertation's layout, and the value and weight charts. Data from Tiingo and FRED on the desktop.
 6. The company screens, each compared with its captures: the five description pages, financial highlights and segments by measure, the normalised comparison chart, relative valuation's comp range and comp sheets, analyst recommendations, and the news story view.
+
+## What the built screens give on real data (30 October 2026)
+
+FRONTIER, the first paper's four names on their own prices, February 2009 to January 2019 (119 monthly returns, rf 0.25% a month): GMVP −7.849%, 26.431%, 27.292% and 54.127% (return 0.894%, SD 3.326%); EWP return 0.701% (SD 3.661%); TP −45.668%, −26.025%, 48.637% and 123.056% (return 1.464%, SD 4.567%, Sharpe ratio 0.26588537). The long-only optimum over the nine screened names with London prices puts 0% in British American Tobacco and Persimmon.
+
+MPC, on Tiingo's adjusted closes of the 20 stocks (all complete from 3 January 2012 to 30 December 2016, no day carried) and DTB3, back-test from 2 January 2013, half spread 0.05%, borrow 0.01% a day:
+
+| Test | App | Dissertation |
+| --- | --- | --- |
+| Hold: annual return, excess return, excess risk, Sharpe, max drawdown | 12.155, 12.042, 14.141, 0.852, 17.766 | 12.379, 12.264, 14.199, 0.864, 17.759 |
+| Horizon 0, 10, 50, 100, 250: Sharpe | 0.11, −0.15, −0.27, −0.29, −0.30 | 0.40, 1.23, 1.65, 1.60, 1.81 |
+| Horizon test: max drawdown (%) | 47.76, 59.42, 60.75, 61.31, 61.71 | 33.03, 20.48, 21.10, 21.07, 14.55 |
+| Dollar neutral, risk aversion 1 to 50: Sharpe | −1.05, −0.88, −0.64, −0.57, −0.57 | 1.49, 1.65, 1.46, 1.44, 1.45 |
+
+The Hold policy needs no forecast and matches closely; the small gaps fit different data vendors and the risk-free basis. The MPC policies, with forecasts from past returns only, lose money on these stocks: the rolling mean of the last 250 days is a poor forecast of the next day's return, and leverage of up to 3 magnifies its errors. The dissertation's high Sharpe ratios are consistent with forecasts that already contained the returns being forecast (error 8). The engine itself agrees with cvxpy on every test problem to within 2e-6, and its multi-period answer equals cvxpy's full H-period plan.
