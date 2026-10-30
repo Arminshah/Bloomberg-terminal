@@ -33,7 +33,8 @@ const PROVIDERS = {
   },
   tiingo: {
     credential: 'TIINGO_API_KEY',
-    perMinute: 1,
+    // Twenty a minute lets the MPC back-test read its 20 stocks at once; the hourly cap below stays under the plan's 50.
+    perMinute: 20,
     // Tiingo's free plan: 50 requests an hour and 1,000 a day; its data may not be stored on disk, and the app
     // keeps it in memory only.
     perHour: 40,

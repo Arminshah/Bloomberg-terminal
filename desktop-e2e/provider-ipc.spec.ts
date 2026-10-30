@@ -54,6 +54,7 @@ interface Fixtures {
   nasdaqList?: boolean;
   monthly?: boolean;
   ftseMonthEnd?: boolean;
+  mpcData?: boolean;
   congressGov?: boolean;
   eia?: boolean;
   bea?: boolean;
@@ -731,6 +732,42 @@ test("FRONTIER runs the first portfolio paper's mean-variance analysis on Yahoo'
   const asked = ((await calls(app)) as { monthEnd?: string[] }).monthEnd ?? [];
   expect(asked).toContain(`BATS.L ${Date.UTC(2009, 1, 1) / 1000} ${Date.UTC(2019, 1, 1) / 1000}`);
   expect(asked.filter((c) => c.startsWith('BATS.L '))).toHaveLength(1);
+});
+
+test("MPC runs the dissertation's Hold and MPC back-tests on Tiingo's adjusted closes and FRED's bill rate", async ({ desktop: { app, page } }) => {
+  test.setTimeout(240_000);
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.mpcData = true;
+    process.env.FRED_API_KEY = 'abcdefghijklmnopqrstuvwxyz012345';
+    process.env.TIINGO_API_KEY = 'abcdefghijklmnopqrstuvwx';
+    process.env.TIINGO_ENABLED = 'true';
+  });
+  await command(page, 'MPC');
+  const panel = page.locator('.panel').first();
+  // The fixture's prices end on 29 March 2013: a short back-test after the 250-day window.
+  await panel.getByLabel('End date').fill('2013-03-29');
+  const table = panel.getByRole('table', { name: 'Back-test inputs and results' });
+  await expect(table).toContainText('Investment Policy: HOLD', { timeout: 120_000 });
+  const row = (name: string) => table.locator('tr', { hasText: name }).locator('td');
+  await expect(row('Start date')).toHaveText(['Start date', '1st January 2012']);
+  await expect(row('Annual Portfolio Turnover (%)')).toHaveText(['Annual Portfolio Turnover (%)', '0%'], { timeout: 60_000 });
+  await expect(row('Bid/ask half spread (%)')).toHaveText(['Bid/ask half spread (%)', 'N/A']);
+  // A dollar-neutral test: five risk aversions, each run to the end.
+  await panel.getByRole('button', { name: '12) DN RAv', exact: true }).click();
+  await expect(table).toContainText('Investment Policy: MPC');
+  await expect(row('Risk Aversion')).toHaveText(['Risk Aversion', '1', '5', '10', '20', '50']);
+  await expect(row('Bid/ask half spread (%)')).toHaveText(['Bid/ask half spread (%)', '0.05']);
+  await expect(table.locator('tr', { hasText: 'Dollar Neutral portfolio' })).toHaveCount(1);
+  await expect(row('Sharpe ratio')).not.toContainText(['…'], { timeout: 180_000 });
+  for (let k = 1; k <= 5; k++) await expect(row('Sharpe ratio').nth(k)).toHaveText(/^-?\d+\.\d\d$/);
+  await expect(panel.getByText('Portfolio weights over time')).toBeVisible();
+  // Every stock asked once from Tiingo, the renamed ones under today's tickers: those read for the screen's first
+  // period before the end date changed are cut from it, not asked again. DTB3 from two weeks before the start.
+  const asked = ((await calls(app)) as { tiingo?: string[]; fred?: string[] });
+  expect(new Set(asked.tiingo!.map((c) => c.split(' ')[0]))).toEqual(new Set(['akam', 'jnpr', 'msi', 'acn', 'adbe', 'abt', 'doc', 'bax', 'alxn', 'pdco', 'viab', 'bfh', 'urbn', 'atvi', 'amzn', 'ppl', 'aee', 'nov', 'aes', 'aep']));
+  expect(asked.tiingo).toHaveLength(20);
+  expect(asked.tiingo!.every((c) => / 2012-01-01 (2016-12-31|2013-03-29)$/.test(c))).toBe(true);
+  expect(asked.fred?.some((c) => c.includes('series_id=DTB3') && c.includes('observation_start=2011-12-18'))).toBe(true);
 });
 
 test("BILL lists Congress.gov's latest bills and the Congress's laws, and opens a bill's sponsor, summary and actions", async ({ desktop: { app, page } }) => {

@@ -104,6 +104,30 @@ net.fetch = async (input, init) => {
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
   // With fixtures.supplyChain, SPLC's full-text search and three annual reports (electron/supply-chain.cjs).
   if (fixtures.supplyChain && url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Nebius Group N.V.' } });
+  // With fixtures.mpcData, synthetic answers for the MPC back-test: Tiingo's adjusted closes of any ticker on weekdays
+  // from 3 January 2012 to 29 March 2013, each a steady drift with a swing set by its letters, and FRED's DTB3 at
+  // 0.02% from 15 December 2011 and 0.09% from 1 June 2012.
+  if (fixtures.mpcData && url.hostname === 'api.tiingo.com') {
+    const ticker = url.pathname.split('/')[3] ?? '';
+    fixtures.calls.tiingo = [...(fixtures.calls.tiingo ?? []), `${ticker} ${url.searchParams.get('startDate')} ${url.searchParams.get('endDate')}`];
+    const seed = [...ticker].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const rows = [];
+    let p = 50 + (seed % 50);
+    for (let d = Date.UTC(2012, 0, 3); d <= Date.UTC(2013, 2, 29); d += 86_400_000) {
+      const wd = new Date(d).getUTCDay();
+      if (wd === 0 || wd === 6) continue;
+      p *= 1 + 0.0003 * ((seed % 7) - 2) + 0.01 * Math.sin(rows.length * (0.7 + (seed % 5) * 0.13));
+      const day = new Date(d).toISOString().slice(0, 10);
+      if (day >= url.searchParams.get('startDate') && day <= url.searchParams.get('endDate')) rows.push({ date: `${day}T00:00:00.000Z`, close: p * 1.1, adjClose: p });
+    }
+    return json(rows);
+  }
+  if (fixtures.mpcData && url.hostname === 'api.stlouisfed.org') {
+    fixtures.calls.fred = [...(fixtures.calls.fred ?? []), url.pathname + url.search.replace(/([?&]api_key=)[^&]*/, '$1<key>')];
+    if (url.pathname === '/fred/series/observations' && url.searchParams.get('series_id') === 'DTB3') return json({ observations: [{ date: '2011-12-15', value: '0.02' }, { date: '2012-06-01', value: '0.09' }] });
+    if (url.pathname === '/fred/series') return json({ seriess: [{ id: 'DTB3', title: '3-Month Treasury Bill Secondary Market Rate, Discount Basis', units: 'Percent', frequency: 'Daily', observation_start: '1954-01-04', observation_end: '2026-10-29', last_updated: '2026-10-30 15:18:02-05' }] });
+    return json({ observations: [] });
+  }
   if (fixtures.fredChart && url.hostname === 'api.stlouisfed.org') {
     fixtures.calls.fred = [...(fixtures.calls.fred ?? []), url.pathname + url.search.replace(/([?&]api_key=)[^&]*/, '$1<key>')];
     const text = (body) => new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
