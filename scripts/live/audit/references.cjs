@@ -98,9 +98,69 @@ function quoteProbe(source, json, days, expectedTicker) {
   return { ...identity, status: !observations.length ? 'no-data' : malformed || missingDates.length ? 'partial' : 'available', observations: observations.sort((a, b) => a.day.localeCompare(b.day)), missingDates };
 }
 
-/** Diagnostic sources never overwrite a failed comparison or relax its tolerance. */
-function withQuoteDiagnostics(failure, diagnostics) {
-  return { ...failure, diagnostics, detail: [failure.detail, 'Dated daily observations (diagnostic only; session, auction and late-report conventions remain unverified): ' + JSON.stringify(diagnostics)].filter(Boolean).join('; ') };
+/** Keep only observations already completely parsed when this DOM snapshot was taken. */
+function capturedQuote(snapshot) {
+  const capturedAt = snapshot?.capturedAt;
+  if (!Number.isFinite(capturedAt)) return null;
+  const state = snapshot.domains?.find((domain) => domain.domain === 'quote') ?? null;
+  const origins = Object.fromEntries(Object.entries(snapshot.quoteOrigins ?? {}).map(([kind, rows]) => [kind,
+    (Array.isArray(rows) ? rows : []).filter((row) => Number.isFinite(row.observedAt) && row.observedAt <= capturedAt && Number.isFinite(row.receivedAt) && row.receivedAt <= capturedAt).slice(-2),
+  ]).filter(([, rows]) => rows.length));
+  return { capturedAt, state, origins };
 }
 
-module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics };
+function capturedQuoteDetail(capture, field) {
+  if (!capture) return 'Captured quote provenance unavailable.';
+  const { capturedAt, state, origins } = capture;
+  const finite = (value) => Number.isFinite(value) ? value : 'n/a';
+  const short = (value) => typeof value === 'string' ? value.slice(0, 90) : 'n/a';
+  const shown = state?.displayed ?? {};
+  const q = state?.quote ?? {};
+  let display;
+  if (field === 'Market cap') {
+    const cap = state?.marketCap ?? {};
+    const basis = cap.shareBasis ?? {};
+    display = `cap=${finite(cap.value)} ${short(cap.currency)}, price=${finite(cap.price)}, shares=${finite(cap.shares)}, priceSource=${short(cap.priceProvider)}@${finite(cap.priceTime)}, sharesSource=${short(basis.source)}, method=${short(basis.method)}, sharesObserved=${finite(basis.observedAt)}, sourceCap=${finite(basis.marketCap)}, sourcePrice=${finite(basis.price)}`;
+  } else {
+    const key = field === 'Volume' ? 'volume' : field === 'Open' ? 'open' : 'last';
+    display = `${key}=${finite(shown[key])}, provider=${short(q.provider)}, dayProvider=${short(q.dayProvider)}, volumeSource=${short(q.volumeSource)}, sourceTime=${finite(q.time)}`;
+  }
+  const raw = [];
+  const fieldName = field === 'Volume' ? 'regularMarketVolume' : field === 'Open' ? 'regularMarketOpen' : 'regularMarketPrice';
+  const quote = origins.quote?.at(-1);
+  if (quote) raw.push(`Yahoo.quote ${field === 'Market cap' ? `cap=${finite(quote.fields?.marketCap)},price=${finite(quote.fields?.regularMarketPrice)},shares=${finite(quote.fields?.sharesOutstanding)}` : `${finite(quote.fields?.[fieldName])},day=${short(quote.fields?.sessionDate)}`}@${quote.observedAt}`);
+  if (field === 'Market cap') {
+    const summary = origins.summary?.at(-1);
+    if (summary) raw.push(`Yahoo.summary ${JSON.stringify(summary.modules ?? {})}@${summary.observedAt}`);
+  } else {
+    for (const kind of ['chartDaily', 'chartIntraday']) {
+      const observation = origins[kind]?.at(-1);
+      if (!observation) continue;
+      const bar = observation.bars?.at(-1);
+      const name = field === 'Volume' ? 'volume' : field === 'Open' ? 'open' : 'close';
+      raw.push(`Yahoo.${kind} last ${short(observation.interval)} bar ${name}=${finite(bar?.[name])},barTime=${finite(bar?.timestamp)},day=${short(bar?.sessionDate)}@${observation.observedAt}`);
+    }
+  }
+  return `Captured@${capturedAt}: ${display}; raw (read completed at clock after @): ${raw.join('; ') || 'unavailable'}.`;
+}
+
+/** Diagnostic sources never overwrite a failed comparison or relax its tolerance. */
+function withQuoteDiagnostics(failure, diagnostics, snapshot) {
+  const field = failure.field === 'Volume' ? 'volume' : failure.field === 'Open' ? 'open' : null;
+  const days = diagnostics.days ?? [];
+  const shownDay = days.at(-1);
+  const values = (day) => (diagnostics.sources ?? []).map((source) => {
+    const value = source.observations?.find((observation) => observation.day === day)?.[field];
+    return `${source.source}=${Number.isFinite(value) ? value : `unavailable (${source.kind ?? source.status ?? 'unknown'})`}`;
+  }).join('; ');
+  const capture = capturedQuote(snapshot);
+  const detail = field ? `Dated ${failure.field} ${shownDay}: ${values(shownDay)}. ${capturedQuoteDetail(capture, failure.field)}${days.length > 1 ? ` Previous available ${days[0]}: ${values(days[0])}.` : ''} These are diagnostic only: Massive unadjusted; auction/session/late-report definitions and Nasdaq adjustments unverified. Full OHLCV, clocks and links: report.json.` : 'Dated diagnostic context is retained in report.json.';
+  return { ...failure, diagnostics, capturedQuote: capture, detail: [detail, failure.detail].filter(Boolean).join('; ') };
+}
+
+function withQuoteCapture(failure, snapshot, referenceObservation) {
+  const capture = capturedQuote(snapshot);
+  return { ...failure, capturedQuote: capture, ...(referenceObservation ? { referenceObservation } : {}), detail: [capturedQuoteDetail(capture, failure.field), failure.detail].filter(Boolean).join('; ') };
+}
+
+module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics, capturedQuote, withQuoteCapture };

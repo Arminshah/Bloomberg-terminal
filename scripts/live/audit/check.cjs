@@ -271,6 +271,7 @@ async function equity(t) {
     if (invalid) bars = { kind: 'malformed', detail: invalid };
   }
   const summary = await nasdaq(t, 'summary?assetclass=stocks');
+  const summaryRetrievedAt = Date.now();
   // The session the screen shows: a date when the session is over, a time while it trades.
   const shownDay = screenDay(after(bq, 'Last update'));
   if (!bars.ok) {
@@ -296,7 +297,7 @@ async function equity(t) {
       const failures = rows.slice(firstComparison).filter((row) => row.status === 'FAIL' && ['Open', 'Volume'].includes(row.field));
       if (failures.length) {
         const diagnostics = await quoteDiagnostics(t, shownDay, b);
-        if (diagnostics) for (const failure of failures) Object.assign(failure, assurance.sanitize(references.withQuoteDiagnostics(failure, diagnostics)));
+        if (diagnostics) for (const failure of failures) Object.assign(failure, assurance.sanitize(references.withQuoteDiagnostics(failure, diagnostics, screenSnapshot(`${t} US Equity BQ`))));
       }
     }
     // The previous close: the session before the one shown (today's, while it trades).
@@ -347,7 +348,12 @@ async function equity(t) {
     }
   }
   if (!summary.ok) blocked('quote', t, 'Market cap', summary, 'Nasdaq summary');
-  else compare('quote', t, 'Market cap', shown(after(bq, 'Market cap'), big), num(summary.json.data.summaryData?.MarketCap?.value), TOLERANCE.marketCap, 'Nasdaq market cap');
+  else {
+    const index = rows.length;
+    compare('quote', t, 'Market cap', shown(after(bq, 'Market cap'), big), num(summary.json.data.summaryData?.MarketCap?.value), TOLERANCE.marketCap, 'Nasdaq market cap');
+    const comparison = rows[index];
+    if (comparison.status === 'FAIL') Object.assign(comparison, assurance.sanitize(references.withQuoteCapture(comparison, screenSnapshot(`${t} US Equity BQ`), { source: 'Nasdaq summary', retrievedAt: summaryRetrievedAt, marketCap: num(summary.json.data.summaryData?.MarketCap?.value), price: num(summary.json.data.primaryData?.lastSalePrice) })));
+  }
   if (des) {
     const details = await massive(t);
     const so = afterMatch(des, /^Shrs Out\/Float$/);

@@ -67,7 +67,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ inputs.ref || github.ref }}
+          # A later push must not change the revision of a queued push audit.
+          ref: ${{ inputs.ref || github.sha }}
       - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24

@@ -67,12 +67,12 @@ const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice
         };
       });
       const name = slug(cmd);
-      const text = await page.locator('.panel').first().innerText().catch(() => '');
-      fs.writeFileSync(`${outDir}/${name}.txt`, redact(text));
+      let text = await page.locator('.panel').first().innerText().catch(() => '');
       if (process.env.ARMIN_LIVE_AUDIT === '1') {
         const snapshot = await page.locator('.panel').first().evaluate((panel) => ({
           schema: 1,
           capturedAt: Date.now(),
+          text: panel.innerText,
           domains: [...panel.querySelectorAll('[data-audit-state]')].flatMap((node) => {
             try { return [JSON.parse(node.tagName === 'SCRIPT' ? node.textContent ?? '' : node.getAttribute('data-audit-state') ?? '')]; } catch { return []; }
           }),
@@ -80,8 +80,14 @@ const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice
             .filter((node) => /Sources disagree/.test(node.textContent ?? '') && !!node.getAttribute('title'))
             .map((node) => ({ text: node.textContent?.trim(), detail: node.getAttribute('title'), label: node.closest('dd')?.previousElementSibling?.textContent ?? node.closest('tr')?.textContent?.slice(0, 500), candidates: (() => { try { return JSON.parse(node.getAttribute('data-source-candidates') ?? '[]'); } catch { return []; } })() })),
         }));
+        const quote = snapshot.domains.find((domain) => domain.domain === 'quote');
+        const symbol = String(quote?.ticker ?? quote?.security ?? head.sec ?? cmd).split(/\s+/)[0];
+        text = snapshot.text;
+        delete snapshot.text;
+        snapshot.quoteOrigins = await app.evaluate((_electron, input) => globalThis.__arminLiveQuoteOrigins?.snapshot(input.symbol, input.capturedAt) ?? {}, { symbol, capturedAt: snapshot.capturedAt });
         fs.writeFileSync(`${outDir}/${name}.audit.json`, JSON.stringify(sanitize(snapshot), null, 1));
       }
+      fs.writeFileSync(`${outDir}/${name}.txt`, redact(text));
       await page.locator('.panel').first().screenshot({ path: `${outDir}/${name}.png` }).catch(() => {});
       if (process.env.ARMIN_LIVE_CSV) {
         await app.evaluate(({ clipboard }) => clipboard.writeText(''));
