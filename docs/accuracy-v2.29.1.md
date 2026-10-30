@@ -18,4 +18,23 @@ Public report annotations are limited to eight detail chunks plus one summary, e
 
 No comparison tolerance was widened, and no reference price or Walmart volume was replaced to make a check pass. The 28 October Walmart volume discrepancy, full eight-company relationship review and the ownership/insider/Congress/EVENTS primary-source checks remain evidence work. The environment still blocks direct publisher hosts. Passing regression tests proves the reproduced safeguards; it does not independently corroborate every live figure.
 
-The default-branch scheduler is active and its installation-triggered run executed. As of 30 October 06:44 UTC, GitHub's public schedule-event history showed no automatic cron execution. The configured schedule and an observed scheduled execution are distinct operational claims.
+The default-branch scheduler was triggered by a schedule event on 30 October at 07:42 UTC: run [41021723864](https://github.com/Arminshah/Bloomberg-terminal/actions/runs/41021723864). GitHub prevented the job from starting, citing account payments or its spending limit. This establishes that scheduling triggered, but no audit executed in that run. The owner subsequently made the repository public again; a new run must establish whether runner access is restored.
+
+
+## Candidate audit and continuation
+
+The candidate at `ecd1125` passed ordinary CI ([41016873777](https://github.com/Arminshah/Bloomberg-terminal/actions/runs/41016873777)). Its separate live audit ([41016869012](https://github.com/Arminshah/Bloomberg-terminal/actions/runs/41016869012)) reported 617 passes, six failures, five flags, two blocked checks, three incomplete results and 31 skips. All 16 unresolved findings were available in its public annotations.
+
+The six failures were the two Tesla income comparisons above, Walmart's 29 October open (120.83 versus 120.74) and volume (15.84 million versus 16,048,288), Coca-Cola's volume (15.38 million versus 15,872,118), and Tesla's open (405.94 versus 405.625). The earlier Lilly high and three APLD quotation failures were absent from the failure list. That absence does not prove that those exact earlier observations were rechecked and passed.
+
+The continuation addresses the remaining reproduced code paths:
+
+- Select exact-period filed parent income before the general statement-conflict gate. Keep the common-shareholder EPS numerator separate. Preserve provenance through quarter sums and trailing observations; withhold parent-income margins when the remaining statement basis is unresolved.
+- Capture visible financial periods and their basis warnings for the auditor. A corroborated dollar amount does not erase a separate basis warning.
+- Corroborate earnings using the actual's exact fiscal end and currency when the screen row has a calendar label. Do not choose another quarter or derive quarterly EPS by subtracting annual and cumulative values.
+- Attach same-day and previous-available-day Tiingo, unadjusted Massive and Nasdaq observations to open/volume failures. Record source identity and adjustment limits. These are diagnostic references; they do not replace prices, relax tolerances or change a failed comparison into a pass.
+
+Direct publisher requests in this continuation still failed at the environment proxy before reaching SEC, Tiingo, Massive or Nasdaq. A source access failure is not an authentication diagnosis. Historical figures and the new diagnostic source joins require a fresh live audit. Publication remains held; the release request still names `v2.29.0`.
+
+
+The continuation's final local checks passed sequentially: lint, type checks, production build, 1,830 unit tests in 178 files, 95 browser checks and 76 fixture-based Electron desktop checks. Existing assertions were preserved. The new white-marker regression verifies uniform geometry at 100%, 125% and 150% display scaling, fractional table positions and widths, and viewport resizing; generated close-ups of both range columns were inspected. This does not replace live-source corroboration.

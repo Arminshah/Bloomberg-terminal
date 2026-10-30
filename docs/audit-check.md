@@ -85,3 +85,10 @@ The data-bearing screens expose a sanitized, versioned audit snapshot. Capture w
 The lightweight default-branch scheduler calls this workflow on the development branch. It adds no application code or merge to main. The user approved that scheduler-only exception on 29 October 2026. Runner secrets must already be configured; a key in chat is not a runner secret. Scheduled and manual runs report unavailable access as blocked/incomplete.
 
 Inherited HTTP/HTTPS proxies are honored with Node 24's environment-proxy support. Destination-policy denial is never bypassed. Captures, logs, candidate metadata and report strings are sanitized before writing public report artifacts.
+
+
+## Candidate follow-up diagnostics
+
+A failed open or volume comparison now retains its original value, reference and tolerance and adds dated secondary observations for the displayed day and previous available reference day. Massive bars are requested unadjusted; other provider session/auction conventions remain unverified unless their evidence establishes them. Explicit response-security mismatches are rejected. Missing or refused secondary sources do not make the original comparison pass.
+
+FINANCIALS captures the selected parent-income source and unresolved statement-basis warnings. The audit reports those warnings independently from numerical comparisons, and fails a numerical parent-income margin displayed across an unresolved basis. Earnings corroboration uses the actual observation's exact filed fiscal period and matching currency rather than assuming its screen row's calendar month-end is the filing date.

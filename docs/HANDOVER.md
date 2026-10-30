@@ -13,6 +13,14 @@ The owner separately approved **only** a scheduler workflow on `main`, without m
 
 Provider access was blocked in this environment; fixture checks and public GitHub reads work. A network draft was saved but does not activate access by itself. The remaining manual source checks below remain pending evidence work. The Tesla income definitions are separate and the exact-period filed parent line now has priority in its own field; Walmart's volume question still needs direct corroboration.
 
+## Continuation after the candidate audit
+
+The `ecd1125` candidate's live audit `41016869012` reported 617 passes, six failures, five flags, two blocked checks, three incomplete results and 31 skips. Ordinary CI passed separately. The two Tesla income failures persisted; four open/volume comparisons failed. Further parent-income selection, margin-basis, fiscal-period and dated quote diagnostics are documented in `docs/accuracy-v2.29.1.md`. The release request remains at `v2.29.0`; do not publish 2.29.1 before reviewing fresh live evidence.
+
+The continuation passed all local checks sequentially: lint, type checks, build, 1,830 unit tests (178 files), 95 browser checks and 76 fixture desktop checks. The white current-price markers now align evenly in both watchlist range columns; their browser regression covers 100%, 125% and 150% scaling. A fresh live audit is still required.
+
+A real schedule event triggered run `41021723864` at 07:42 UTC on 30 October. GitHub blocked its job before execution with an account billing/spending-limit annotation. The owner has since made the repository public again; check a new run before claiming runner access is restored.
+
 ## The project
 
 - **Armin Terminal**: a Windows desktop market terminal for the owner's private use (Electron 43, React 19, Vite 7, TypeScript), with a browser demo on simulated data. 137 functions.
