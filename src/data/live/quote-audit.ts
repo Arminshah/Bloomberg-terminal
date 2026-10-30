@@ -8,7 +8,7 @@ export function quoteAuditState(def: SecurityDef, q: Quote, displayedMarketCap: 
   return {
     schema: 1, domain: 'quote', security: def.id, ticker: yahooSymbolFor(def) ?? def.yahoo ?? def.ticker.split(' ')[0], capturedAt,
     displayed: { last: q.last, open: q.open, high: q.high, low: q.low, prevClose: q.prevClose, volume: q.volume },
-    quote: { provider: q.provider ?? null, time: q.time, fetched: q.fetched ?? null, dayProvider: q.dayProvider ?? null, volumeSource: q.volumeSource ?? null, src: q.src, session: q.session ?? null, dayOnly: !!q.dayOnly, tz: q.tz ?? null },
+    quote: { provider: q.provider ?? null, time: q.time, fetched: q.fetched ?? null, dayProvider: q.dayProvider ?? null, volumeSource: q.volumeSource ?? null, src: q.src, session: q.session ?? null, dayOnly: !!q.dayOnly, tz: q.tz ?? null, chgCheck: q.chgCheck ?? null, prevCloseDay: q.prevCloseDay ?? null },
     marketCap: def.eq ? {
       value: displayedMarketCap ?? null,
       currency: def.ccy === 'GBp' ? 'GBP' : def.ccy,

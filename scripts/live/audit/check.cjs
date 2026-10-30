@@ -264,6 +264,7 @@ async function equity(t) {
   const bq = lines(`${t} US Equity BQ`);
   const des = lines(`${t} US Equity DES`);
   if (!bq) return skip('quote', t, 'all', 'the quote screen was not captured');
+  const quoteStart = rows.length;
   const now = Date.now();
   let bars = await tiingo(t, iso(now - 420 * DAY));
   if (bars.ok) {
@@ -340,7 +341,12 @@ async function equity(t) {
       // what can be wrong.
       const ytd = afterMatch(des, /^YTD Change\/%$/)?.split('/');
       const shownPx = num(afterMatch(des, /^Px\/Chg 1D/)?.split('/')[0]);
-      if (ytd && yearEnd) compare('profile', t, 'YTD %', num(ytd[1]), (shownPx / yearEnd.close - 1) * 100, TOLERANCE.ytd, `the screen's price over Tiingo's close of ${yearEnd.day}`);
+      if (ytd && yearEnd) {
+        const index = rows.length;
+        compare('profile', t, 'YTD %', num(ytd[1]), (shownPx / yearEnd.close - 1) * 100, TOLERANCE.ytd, `the screen's price over Tiingo's close of ${yearEnd.day}`);
+        const comparison = rows[index];
+        if (comparison.status === 'FAIL') Object.assign(comparison, assurance.sanitize(references.withProfileReturnCapture(comparison, screenSnapshot(`${t} US Equity DES`), { source: 'Tiingo raw daily close', price: shownPx, baseClose: yearEnd.close, baseDay: yearEnd.day })));
+      }
       const yearAgo = b.filter((x) => x.day <= `${Number(last.day.slice(0, 4)) - 1}${last.day.slice(4)}`).pop();
       const tr = afterMatch(des, /12M Tot Ret$/);
       if (!sessionOver) skip('profile', t, '12M total return', 'the session was trading when captured');
@@ -353,6 +359,9 @@ async function equity(t) {
     compare('quote', t, 'Market cap', shown(after(bq, 'Market cap'), big), num(summary.json.data.summaryData?.MarketCap?.value), TOLERANCE.marketCap, 'Nasdaq market cap');
     const comparison = rows[index];
     if (comparison.status === 'FAIL') Object.assign(comparison, assurance.sanitize(references.withQuoteCapture(comparison, screenSnapshot(`${t} US Equity BQ`), { source: 'Nasdaq summary', retrievedAt: summaryRetrievedAt, marketCap: num(summary.json.data.summaryData?.MarketCap?.value), price: num(summary.json.data.primaryData?.lastSalePrice) })));
+  }
+  for (const failure of rows.slice(quoteStart).filter((row) => row.area === 'quote' && row.status === 'FAIL' && !Object.hasOwn(row, 'capturedQuote'))) {
+    Object.assign(failure, assurance.sanitize(references.withQuoteCapture(failure, screenSnapshot(`${t} US Equity BQ`))));
   }
   if (des) {
     const details = await massive(t);

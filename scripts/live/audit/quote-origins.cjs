@@ -7,7 +7,7 @@ const READ_TIMEOUT_MS = 1500;
 const SYMBOL = /^[A-Z0-9^=._/-]{1,30}$/i;
 const key = (symbol) => typeof symbol === 'string' && SYMBOL.test(symbol) ? symbol.toUpperCase().replace(/[./]/g, '-') : null;
 const number = (value) => typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-const fields = ['regularMarketPrice', 'regularMarketOpen', 'regularMarketDayHigh', 'regularMarketDayLow', 'regularMarketVolume', 'regularMarketPreviousClose', 'regularMarketTime', 'marketCap', 'sharesOutstanding', 'floatShares'];
+const fields = ['regularMarketPrice', 'regularMarketOpen', 'regularMarketDayHigh', 'regularMarketDayLow', 'regularMarketVolume', 'regularMarketPreviousClose', 'regularMarketChange', 'regularMarketChangePercent', 'previousClose', 'chartPreviousClose', 'regularMarketTime', 'marketCap', 'sharesOutstanding', 'floatShares'];
 
 function requestContext(input) {
   let url;

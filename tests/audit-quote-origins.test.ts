@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 const require = createRequire(import.meta.url);
 const { requestContext, readJsonBounded, createQuoteOrigins } = require('../scripts/live/audit/quote-origins.cjs');
-const { withQuoteDiagnostics, withQuoteCapture } = require('../scripts/live/audit/references.cjs');
+const { withQuoteDiagnostics, withQuoteCapture, withProfileReturnCapture } = require('../scripts/live/audit/references.cjs');
 const { formatAnnotations } = require('../scripts/live/audit/annotate.cjs');
 
 // Publisher-shaped structural inputs exercise capture mechanics, not live-source facts.
@@ -118,5 +118,35 @@ describe('development audit quote-origin observation', () => {
     origins.record(context, { chart: { result: [{ meta: { symbol: 'WMT', gmtoffset: -14400 }, timestamp: [1793304000], indicators: { quote: [{ open: [121.25], volume: [1500] }] } }] } }, 100, 200, 300);
     const annotated = withQuoteCapture({ status: 'FAIL', field: 'Volume', app: 15840000, ref: 16048288, allowed: 160482.88 }, { capturedAt: 400, quoteOrigins: origins.snapshot('WMT', 400) });
     expect(annotated.detail).toContain('Yahoo.chartIntraday last 1m bar volume=1500,barTime=1793304000');
+  });
+  it('preserves exact spark previous-close alternatives and reports them for a previous-close failure', () => {
+    const origins = createQuoteOrigins();
+    const context = requestContext('https://query2.finance.yahoo.com/v8/finance/spark?symbols=XOM&range=1d&interval=1m&crumb=SyntheticSessionSecret');
+    origins.record(context, { XOM: { previousClose: 183.18, chartPreviousClose: 183, timestamp: [1793368123], close: [184.2] } }, 100, 200, 300);
+    const snapshot = { capturedAt: 400, domains: [{ domain: 'quote', displayed: { prevClose: 183.18 }, quote: { provider: 'Yahoo Finance', chgCheck: 'verified', prevCloseDay: 20755, time: 1793368123000 } }], quoteOrigins: origins.snapshot('XOM', 400) };
+    const failure = { status: 'FAIL', area: 'quote', item: 'XOM', field: 'Previous close', app: 183.18, ref: 183.29, allowed: 0.036658 };
+    const captured = withQuoteCapture(failure, snapshot);
+    expect(captured).toMatchObject(failure);
+    expect(captured.capturedQuote.origins.spark[0].meta).toMatchObject({ previousClose: 183.18, chartPreviousClose: 183 });
+    const publicText = formatAnnotations({ summary: { fail: 1 }, rows: [captured] }, {});
+    expect(publicText).toContain('prevClose=183.18');
+    expect(publicText).toContain('Yahoo.spark previousClose=183.18,chartPreviousClose=183@300');
+    expect(publicText).not.toMatch(/SyntheticSessionSecret|\[truncated\]/);
+  });
+  it('exposes the exact YTD price, dated base and recomputed return while preserving the failed comparison', () => {
+    const state = { domain: 'profile-returns', price: 400, priceTime: 300, provider: 'Yahoo Finance', ytd: -20, baseClose: 500, baseTime: Date.parse('2025-12-31'), cutoff: Date.parse('2025-12-31') };
+    const snapshot = { capturedAt: 400, domains: [state] };
+    const failure = { status: 'FAIL', area: 'profile', item: 'TSLA', field: 'YTD %', app: -20, ref: -19, allowed: 0.1 };
+    const reference = { source: 'Tiingo raw daily close', price: 405, baseClose: 500, baseDay: '2025-12-31' };
+    const captured = withProfileReturnCapture(failure, snapshot, reference);
+    expect(captured).toMatchObject(failure);
+    expect(captured.capturedReturns.state).toBe(state);
+    expect(captured.capturedReturns.recomputedYtd).toBeCloseTo(-20, 12);
+    expect(captured.referenceObservation).toBe(reference);
+    const publicText = formatAnnotations({ summary: { fail: 1 }, rows: [captured] }, {});
+    expect(publicText).toContain('DES price=400@300');
+    expect(publicText).toContain('baseClose=500');
+    expect(publicText).toContain('baseDay=2025-12-31');
+    expect(publicText).not.toContain('[truncated]');
   });
 });

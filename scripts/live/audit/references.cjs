@@ -122,22 +122,30 @@ function capturedQuoteDetail(capture, field) {
     const basis = cap.shareBasis ?? {};
     display = `cap=${finite(cap.value)} ${short(cap.currency)}, price=${finite(cap.price)}, shares=${finite(cap.shares)}, priceSource=${short(cap.priceProvider)}@${finite(cap.priceTime)}, sharesSource=${short(basis.source)}, method=${short(basis.method)}, sharesObserved=${finite(basis.observedAt)}, sourceCap=${finite(basis.marketCap)}, sourcePrice=${finite(basis.price)}`;
   } else {
-    const key = field === 'Volume' ? 'volume' : field === 'Open' ? 'open' : 'last';
-    display = `${key}=${finite(shown[key])}, provider=${short(q.provider)}, dayProvider=${short(q.dayProvider)}, volumeSource=${short(q.volumeSource)}, sourceTime=${finite(q.time)}`;
+    const key = { Last: 'last', Open: 'open', High: 'high', Low: 'low', 'Previous close': 'prevClose', Volume: 'volume' }[field];
+    display = `${key ?? field}=${key ? finite(shown[key]) : 'see displayed comparison'}, provider=${short(q.provider)}, dayProvider=${short(q.dayProvider)}, volumeSource=${short(q.volumeSource)}, sourceTime=${finite(q.time)}${field === 'Previous close' ? `, check=${short(q.chgCheck)}, prevCloseDay=${finite(q.prevCloseDay)}` : ''}`;
   }
   const raw = [];
-  const fieldName = field === 'Volume' ? 'regularMarketVolume' : field === 'Open' ? 'regularMarketOpen' : 'regularMarketPrice';
+  const fieldName = { Last: 'regularMarketPrice', Open: 'regularMarketOpen', High: 'regularMarketDayHigh', Low: 'regularMarketDayLow', 'Previous close': 'regularMarketPreviousClose', Volume: 'regularMarketVolume' }[field] ?? 'regularMarketPrice';
   const quote = origins.quote?.at(-1);
   if (quote) raw.push(`Yahoo.quote ${field === 'Market cap' ? `cap=${finite(quote.fields?.marketCap)},price=${finite(quote.fields?.regularMarketPrice)},shares=${finite(quote.fields?.sharesOutstanding)}` : `${finite(quote.fields?.[fieldName])},day=${short(quote.fields?.sessionDate)}`}@${quote.observedAt}`);
   if (field === 'Market cap') {
     const summary = origins.summary?.at(-1);
     if (summary) raw.push(`Yahoo.summary ${JSON.stringify(summary.modules ?? {})}@${summary.observedAt}`);
+  } else if (field === 'Previous close') {
+    const spark = origins.spark?.at(-1);
+    if (spark) raw.push(`Yahoo.spark previousClose=${finite(spark.meta?.previousClose)},chartPreviousClose=${finite(spark.meta?.chartPreviousClose)}@${spark.observedAt}`);
+    const daily = origins.chartDaily?.at(-1);
+    if (daily) raw.push(`Yahoo.daily closes=${JSON.stringify((daily.bars ?? []).map((bar) => ({ day: bar.sessionDate, close: bar.close })))}@${daily.observedAt}`);
+    const intraday = origins.chartIntraday?.at(-1);
+    if (intraday) raw.push(`Yahoo.chartMeta previousClose=${finite(intraday.meta?.previousClose)},chartPreviousClose=${finite(intraday.meta?.chartPreviousClose)}@${intraday.observedAt}`);
+    if (quote) raw.push(`Yahoo.quote price=${finite(quote.fields?.regularMarketPrice)},change=${finite(quote.fields?.regularMarketChange)}`);
   } else {
     for (const kind of ['chartDaily', 'chartIntraday']) {
       const observation = origins[kind]?.at(-1);
       if (!observation) continue;
       const bar = observation.bars?.at(-1);
-      const name = field === 'Volume' ? 'volume' : field === 'Open' ? 'open' : 'close';
+      const name = { Last: 'close', Open: 'open', High: 'high', Low: 'low', Volume: 'volume' }[field] ?? 'close';
       raw.push(`Yahoo.${kind} last ${short(observation.interval)} bar ${name}=${finite(bar?.[name])},barTime=${finite(bar?.timestamp)},day=${short(bar?.sessionDate)}@${observation.observedAt}`);
     }
   }
@@ -163,4 +171,12 @@ function withQuoteCapture(failure, snapshot, referenceObservation) {
   return { ...failure, capturedQuote: capture, ...(referenceObservation ? { referenceObservation } : {}), detail: [capturedQuoteDetail(capture, failure.field), failure.detail].filter(Boolean).join('; ') };
 }
 
-module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics, capturedQuote, withQuoteCapture };
+function withProfileReturnCapture(failure, snapshot, referenceObservation) {
+  const state = snapshot?.domains?.find((domain) => domain.domain === 'profile-returns') ?? null;
+  const capturedAt = snapshot?.capturedAt;
+  const recomputedYtd = state && Number.isFinite(state.price) && state.baseClose > 0 ? (state.price / state.baseClose - 1) * 100 : null;
+  const detail = state && Number.isFinite(capturedAt) ? `Captured@${capturedAt}: DES price=${state.price}@${state.priceTime}, provider=${state.provider}, YTD=${state.ytd}, recomputedYTD=${recomputedYtd}, baseClose=${state.baseClose}, baseTime=${state.baseTime}, cutoff=${state.cutoff}; reference price=${referenceObservation.price}, baseClose=${referenceObservation.baseClose}, baseDay=${referenceObservation.baseDay}.` : 'Captured DES return inputs unavailable.';
+  return { ...failure, capturedReturns: { capturedAt, state, recomputedYtd }, referenceObservation, detail: [detail, failure.detail].filter(Boolean).join('; ') };
+}
+
+module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics, capturedQuote, withQuoteCapture, withProfileReturnCapture };
