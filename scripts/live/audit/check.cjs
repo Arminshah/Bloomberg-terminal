@@ -20,6 +20,7 @@ const assurance = require('./assurance.cjs');
 const domains = require('./domains.cjs');
 const references = require('./references.cjs');
 const { filedEpsContext } = require('./fiscal-periods.cjs');
+const { obtainFedReference, effectiveDateComparison, fedResponseMatches } = require('./fed-reference.cjs');
 const massiveBudget = references.requestBudget();
 
 // Node's fetch must use the same inherited proxy as Electron. Never bypass an enforced destination policy.
@@ -546,10 +547,20 @@ async function gas() {
 // ------------------------------------------------------------------ critical event and research coverage
 
 async function documentary(url, kind) {
-  if (kind === 'fed' && !/^https:\/\/www\.federalreserve\.gov\/(?:monetarypolicy\/fomccalendars\.htm|newsevents\/pressreleases\/monetary\d{8}a\.htm)$/.test(url)) return { kind: 'malformed', detail: 'unsupported official evidence URL' };
+  if (kind === 'fed' && !/^https:\/\/www\.federalreserve\.gov\/(?:monetarypolicy\/fomccalendars\.htm|feeds\/press_(?:all|monetary)\.xml|newsevents\/pressreleases\/monetary\d{8}a1?\.htm)$/.test(url)) return { kind: 'malformed', detail: 'unsupported official evidence URL' };
   if (kind === 'sec' && !domains.evidenceUrl(url, 'sec')) return { kind: 'malformed', detail: 'unsupported SEC evidence URL' };
   try {
-    const response = await fetch(url, { headers: { 'User-Agent': env('SEC_USER_AGENT') || 'Armin Terminal research audit', Accept: 'text/html' }, signal: AbortSignal.timeout(30_000) });
+    const init = { headers: { 'User-Agent': env('SEC_USER_AGENT') || 'Armin Terminal research audit', Accept: kind === 'fed' && url.endsWith('.xml') ? 'application/rss+xml, application/xml, text/xml;q=0.9' : 'text/html' }, signal: AbortSignal.timeout(30_000), ...(kind === 'fed' ? { redirect: 'manual' } : {}) };
+    let response = await fetch(url, init);
+    if (kind === 'fed') {
+      if (!fedResponseMatches(url, response.url)) return { kind: 'malformed', detail: 'The official evidence response URL did not match the requested canonical document' };
+      if (response.status >= 300 && response.status < 400) {
+        const redirect = new URL(response.headers.get('location') ?? '', response.url).href;
+        if (!fedResponseMatches(url, redirect)) return { kind: 'malformed', detail: 'The official evidence redirect did not match the requested canonical document' };
+        response = await fetch(redirect, init);
+        if (!fedResponseMatches(url, response.url)) return { kind: 'malformed', detail: 'The official evidence response URL did not match the requested canonical document' };
+      }
+    }
     if (!response.ok) return { kind: response.status === 429 ? 'rate-limit' : response.status >= 500 ? 'outage' : response.status === 403 ? 'network-or-access' : 'no-data', detail: `HTTP ${response.status}` };
     const text = await response.text();
     if (!text || text.length > 15_000_000) return { kind: 'malformed', detail: 'empty or oversized evidence document' };
@@ -564,15 +575,12 @@ async function policyResearch() {
   const snapshot = domainSnapshot('CBRT', 'policy');
   domains.validatePolicy(snapshot).forEach(add);
   if (!snapshot) return;
-  const calendar = await documentary('https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm', 'fed');
-  if (!calendar.ok) return blocked('policy', 'FED', 'latest official announcement', calendar, 'Federal Reserve Board');
-  const latest = domains.fedLinks(calendar.text, iso(Date.now()))[0];
-  if (!latest) return blocked('policy', 'FED', 'latest official announcement', { kind: 'malformed', detail: 'no published statement link was found; a scheduled date is not an outcome' }, 'Federal Reserve Board');
-  const statement = await documentary(latest, 'fed');
-  if (!statement.ok) return blocked('policy', 'FED', 'latest official announcement', statement, latest);
-  const reference = domains.fedStatement(statement.text, latest);
-  if (!reference) return blocked('policy', 'FED', 'latest official announcement', { kind: 'malformed', detail: 'the independent statement parser could not identify a unique policy target/action' }, latest);
+  const evidence = await obtainFedReference((url) => documentary(url, 'fed'), iso(Date.now()));
+  if (!evidence.ok) return blocked('policy', 'FED', 'latest official announcement', evidence, evidence.implementationUrl ?? evidence.discovery?.url ?? 'Federal Reserve Board');
+  const reference = evidence.reference;
   domains.verifyFed(snapshot, reference).forEach(add);
+  const decision = snapshot.banks?.find((bank) => bank.code === 'FED')?.latestDecision;
+  add({ area: 'policy', item: 'FED', ...effectiveDateComparison(decision, reference) });
 }
 
 async function earningsResearch(ticker) {
