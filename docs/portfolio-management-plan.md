@@ -19,7 +19,7 @@ The README swaps the two titles. The files are:
 3. Company analysis of each of the four: the security description (5 pages: Profile, Issue Info, Ratios, Revenue & EPS, Industry Info), news stories, financial analysis (Adj Highlights; Segments by measure as a bar chart), the price chart against the UKX index normalised to the start (with a 20-day average and volume), relative valuation (comp range panel, Overview and Comp Sheets, Profitability), and analyst recommendations.
 4. Mean-variance analysis in Excel on monthly last prices: the efficient frontier σp = √((A·µp² − 2·B·µp + C)/D) with A = 1′Σ⁻¹1, B = 1′Σ⁻¹µ, C = µ′Σ⁻¹µ and D = AC − B²; the global minimum-variance portfolio Σ⁻¹1/(1′Σ⁻¹1); the equally weighted portfolio; the tangency portfolio Σ⁻¹(µ − rf·1)/(B − A·rf); the capital market line µp = rf + σp·√(C − 2·rf·B + rf²·A); the Sharpe ratio. rf is 3% a year, entered as 0.0025 a month. Results: a table of the three portfolios' weights, return, variance and standard deviation, and a chart with EPF, CML, TP and "GMVP ≈ EWP".
 
-A figure-by-figure description of every capture (layout, buttons, tabs, columns in order, panels, charts and visible values) is in `docs/portfolio-management-screens.md`. Each screen is built from that description.
+A figure-by-figure description of every capture (layout, buttons, tabs, columns in order, panels, charts and formats) is in `docs/portfolio-management-screens.md`. Each screen is built from it. The values transcribed from the captures are kept out of the public repository, in `reference/portfolio-management/screens-full.md`.
 
 ## The dissertation
 
@@ -37,8 +37,8 @@ The app follows the correct definition each time and says so on screen where it 
 4. The leverage limit is printed per asset (|wᵢ + zᵢ| ≤ L, equation 3.30). The notebook's cvxportfolio `LeverageLimit` limits the sum of absolute asset weights. The app uses the sum.
 5. "Long cash only" is printed as an equality (= 0, equation 3.32). It is an inequality (≥ 0).
 6. The self-financing condition (3.16) has −1′·PPₜ on the right; it is −1′·Trₜ, as in (3.20).
-7. The notebook runs the market simulation on `expected_returns`, the rolling forecasts, instead of the realised returns. A back-test on forecasts is not a back-test. The app simulates on realised returns.
-8. The notebook's multi-period policy reads the forecast table at future dates within the horizon (cvxportfolio's `MultiPeriodOpt` with a time-indexed forecast), which uses data that is not yet known. In the app every forecast made at day t uses returns up to day t − 1 only, for every step of the horizon.
+7. The uploaded notebook passes `expected_returns`, the rolling forecasts, to the market simulator instead of the realised returns. The dissertation's tables cannot have come from that version: its Hold results match a simulation on real returns closely (on Tiingo's prices the app gives an annual return of 12.155%, excess return 12.042%, excess risk 14.141%, Sharpe ratio 0.852 and maximum drawdown 17.766%; the dissertation prints 12.379, 12.264, 14.199, 0.864 and 17.759), while forecasts used as returns would give an excess risk near zero. The app simulates on realised returns.
+8. The notebook's multi-period policy is given a forecast table indexed by date; cvxportfolio's multi-period policy then reads it at the future dates of the horizon, whose rolling means include returns not yet known at the decision. That is the likeliest reason the dissertation's MPC results (Sharpe ratios of 1.0 to 1.9 against the Hold policy's 0.86) are so high. In the app every forecast made at a close uses the returns up to that close only, for every step of the horizon.
 9. The notebook's half spread is 10E-4 (0.1%), the dissertation's tables say 0.05%. The app uses 0.05%, as the owner asked, and lets it be changed.
 10. The notebook's holding aversions are 1, 5, 1, 10 and 50; the tables test 1, 5, 10, 20 and 50. The app uses the tables' values.
 11. The notebook combines `LongOnly` with `DollarNeutral`, which together allow no positions at all. The app offers them as separate tests, as the tables do.
@@ -48,6 +48,8 @@ The app follows the correct definition each time and says so on screen where it 
 15. The dissertation says holding costs triple over a weekend; cvxportfolio charges per period. The app accrues borrow fees and the risk-free rate by calendar day, so Friday to Monday counts three days.
 16. Company facts in Tables 5.1 and 5.2 are wrong in places: "Konami (ADS)" is Alliance Data Systems (the notebook uses ADS), Motorola Solutions was not founded in 2011, and Abbott's headquarters are not in San Jose. The app shows each company's profile from its live sources, not the table.
 17. Table 5.5 prints an excess return of 14.27% for risk aversion 10, equal to its excess risk, beside an expected return of 18.56%: a copy error. The app computes its own results and does not reuse the printed ones.
+18. The first paper's conclusions say the tangency portfolio short-sells 26.55% of its weight in GSK; its own table gives −26.544%, which rounds to 26.54%.
+19. On the correct prices, the paper's own workflow keeps different names: the long-only optimum over the nine screened names that still have London prices (February 2009 to January 2019) puts 0% in British American Tobacco and Persimmon and keeps the other seven above 1%, where the paper kept four. The app shows that result; the paper's four names stay the default portfolio so its analysis can be compared.
 
 ## What cannot match exactly, and why
 
