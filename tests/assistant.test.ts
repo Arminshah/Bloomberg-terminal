@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as main from '../electron/assistant.cjs';
 import { formFilter } from '../src/data/assistant/answers';
 import { claudeReply, historyMessages } from '../src/data/assistant/claude';
@@ -10,6 +10,12 @@ import type { ChatMessage } from '../src/terminal/userdata';
 afterEach(() => vi.unstubAllGlobals());
 
 describe('the help desk understands questions', () => {
+  // A reply's first lookup of a screen imports the whole function registry, every screen with it; load it here, so
+  // each test's time is the reply's own and not the import's.
+  beforeAll(async () => {
+    await import('../src/terminal/registry');
+  }, 60_000);
+
   it.each([
     ['when are the next earnings for NBIS', 'earnings'],
     ['give me the SEC files for APLD', 'filings'],
