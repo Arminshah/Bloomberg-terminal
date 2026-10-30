@@ -1,4 +1,5 @@
-import { FACT_LINES, lineValues, periodColumns, standaloneQuarterValues, type CompanyFacts, type PeriodKind } from './sec';
+import { FACT_LINES, lineValues, periodColumns, periodKind, standaloneQuarterValues, type CompanyFacts, type FactLine, type PeriodKind, type Reported } from './sec';
+import type { StatementBasisObservation } from '../fundamentals';
 import { fmtIso } from '../../core/format';
 
 /** SEC observations in the Yahoo statement reader's field names and raw units. */
@@ -23,13 +24,35 @@ export interface StatementSupplement {
   restated: Set<string>;
   /** Original exact-period metadata for tracing source-basis warnings. */
   observations: Map<string, { start?: string; end: string; filed: string; concept: string; sourceUrl: string }>;
+  revenueAlternatives?: StatementBasisObservation[];
+}
+
+/** Existing recognized concepts only. A numerical match does not establish interchangeable revenue definitions. */
+function revenueAlternatives(cf: CompanyFacts, line: FactLine, selected: Reported, currency: string, kind: PeriodKind, asOf: number): StatementBasisObservation[] {
+  const through = new Date(asOf).toISOString().slice(0, 10);
+  if (selected.end > through) return [];
+  const priorEnd = selected.start ? new Date(Date.parse(selected.start) - 86_400_000).toISOString().slice(0, 10) : undefined;
+  return line.concepts.filter((concept) => concept !== selected.concept).flatMap((concept) => {
+    const rows = (cf.facts[concept]?.[currency] ?? []).filter((row) => {
+      if (row.filed > through || row.end > through) return false;
+      if (row.end !== selected.end && (kind !== 'quarter' || row.end !== priorEnd)) return false;
+      // Keep aligned cumulative inputs for the quarter reader, but never allow a different directly reported
+      // period ending on the same day to hide or substitute for the selected period's exact start.
+      return row.end !== selected.end || periodKind(row.start, row.end) !== kind || row.start === selected.start;
+    });
+    const facts = { [concept]: { [currency]: rows } };
+    const single = { ...line, concepts: [concept] };
+    const value = (kind === 'quarter' ? standaloneQuarterValues(facts, single, currency) : lineValues(facts, single, currency, kind)).get(selected.end);
+    if (!value || value.start !== selected.start) return [];
+    return [{ source: `SEC EDGAR ${value.form}${value.derived ? ' (calculated from aligned reported totals)' : ''}`, value: value.val, end: Date.parse(`${value.end}T00:00:00Z`), ...(value.start ? { start: value.start } : {}), filed: value.filed, concept, sourceUrl: `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(cf.cik).padStart(10, '0')}.json` }];
+  });
 }
 
 /**
  * Exact period and reporting-currency matches only. Missing standalone cash flows may be derived from
  * aligned cumulative filings by the SEC reader. EPS and weighted shares are never subtracted or inferred.
  */
-export function secStatementRows(cf: CompanyFacts, currency: string, kind: PeriodKind): Map<number, StatementSupplement> {
+export function secStatementRows(cf: CompanyFacts, currency: string, kind: PeriodKind, asOf = Date.now()): Map<number, StatementSupplement> {
   const out = new Map<number, StatementSupplement>();
   const allowed = new Set(periodColumns(cf, currency, kind, 100, true).filter((c) => c.kind === kind).map((c) => c.end));
   for (const line of FACT_LINES) {
@@ -39,12 +62,13 @@ export function secStatementRows(cf: CompanyFacts, currency: string, kind: Perio
     for (const [date, fact] of values) {
       if (!allowed.has(date)) continue;
       const end = Date.parse(`${date}T00:00:00Z`);
-      const item = out.get(end) ?? { row: new Map<string, number>(), sources: new Map<string, string>(), filed: new Map<string, string>(), restated: new Set<string>(), observations: new Map() };
+      const item: StatementSupplement = out.get(end) ?? { row: new Map<string, number>(), sources: new Map<string, string>(), filed: new Map<string, string>(), restated: new Set<string>(), observations: new Map() };
       item.row.set(key, fact.val);
       item.filed.set(key, fact.filed);
       if (fact.restated) item.restated.add(key);
       item.sources.set(key, `SEC EDGAR ${fact.form}, filed ${fmtIso(fact.filed, true)}${fact.derived ? ' (calculated from aligned reported totals)' : ''}`);
       item.observations.set(key, { ...(fact.start ? { start: fact.start } : {}), end: fact.end, filed: fact.filed, concept: fact.concept, sourceUrl: `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(cf.cik).padStart(10, '0')}.json` });
+      if (line.key === 'revenue') item.revenueAlternatives = revenueAlternatives(cf, line, fact, currency, kind, asOf);
       out.set(end, item);
     }
   }

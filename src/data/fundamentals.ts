@@ -9,12 +9,24 @@ import { realDividends, realSplits, trailingDividendYield, yahooQuotes } from '.
 import { nasdaqPart, nasdaqSymbol, type NasdaqDividend, type NasdaqNextReport } from './live/nasdaq-company';
 import { massiveDividends } from './live/massive-dividends';
 
+export interface StatementBasisObservation {
+  source: string;
+  value: number;
+  end: number;
+  start?: string;
+  filed?: string;
+  concept?: string;
+  sourceUrl?: string;
+}
+
 /** Original source observations behind a reporting-basis warning, before line selection. */
 export interface StatementBasisDifference {
   field: string;
   currency: string;
   unit: 'raw monetary units';
-  observations: { source: string; value: number; end: number; start?: string; filed?: string; concept?: string; sourceUrl?: string }[];
+  observations: StatementBasisObservation[];
+  /** Other recognized, exactly aligned filed revenue definitions; diagnostic only, never selected by a match. */
+  revenueAlternatives?: StatementBasisObservation[];
 }
 
 /** All statement money values in millions of the reporting currency (GBP for pence lines). */

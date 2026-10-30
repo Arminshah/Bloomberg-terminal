@@ -408,7 +408,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   let perShareFromFilings = false;
   if (secFacts && currency) {
     for (const [kind, rows] of [['annual', annualRows], ['quarter', quarterlyRows]] as const) {
-      for (const [secEnd, extra] of secStatementRows(secFacts, currency, kind)) {
+      for (const [secEnd, extra] of secStatementRows(secFacts, currency, kind, now)) {
         // The same period can end a few days apart in the two sources (NVIDIA's quarter: the last Sunday of July
         // in its filings, the month end in Yahoo's feed): it is one period, kept under the date already listed.
         const end = rows.has(secEnd) ? secEnd : [...rows.keys()].find((e) => Math.abs(e - secEnd) <= 10 * DAY_MS) ?? secEnd;
@@ -428,6 +428,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
               { source: key === 'OperatingIncome' && operatingIncomeField(row) === 'TotalOperatingIncomeAsReported' ? 'Yahoo Finance statement time series TotalOperatingIncomeAsReported' : 'Yahoo Finance statement time series', value: row.get(key === 'OperatingIncome' ? operatingIncomeField(row) : key)!, end },
               { source: extra.sources.get(key)!, value: extra.row.get(key)!, end: secEnd, ...(observation ? { start: observation.start, filed: observation.filed, concept: observation.concept, sourceUrl: observation.sourceUrl } : {}) },
             ],
+            ...(key === 'TotalRevenue' && extra.revenueAlternatives?.length ? { revenueAlternatives: extra.revenueAlternatives } : {}),
           };
         });
         // Per-share figures follow net income to common shareholders, which restating revenue or operating income for
