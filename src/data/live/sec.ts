@@ -325,7 +325,7 @@ export function formGroup(form: string): FormGroup {
   if (/^(10-K|10-Q|20-F|40-F|10-KT|10-QT|NT 10-K|NT 10-Q|NT 20-F|10-K405|ARS)(\/A)?\b/.test(f)) return 'periodic';
   if (/^(8-K|6-K)/.test(f)) return 'current';
   if (/^(3|4|5|144)(\/A)?$/.test(f) || /^(SC|SCHEDULE) 13[DG]/.test(f)) return 'ownership';
-  if (/^(DEF|PRE|DFAN|PRER|DEFR|DEFM|PREM)\s?14[AC]|^DEFA14|^PX14A6/.test(f)) return 'proxy';
+  if (/^(DEF|PRE|DFAN|PRER|DEFR|DEFM|PREM|DEFC|PREC)\s?14[AC]|^DEFA14|^PX14A6/.test(f)) return 'proxy';
   if (/^(S-1|S-3|S-4|S-8|S-11|F-1|F-3|F-4|F-10|424B|FWP|POS AM|POSASR|S-3ASR|RW|EFFECT)/.test(f)) return 'offering';
   return 'other';
 }

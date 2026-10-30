@@ -44,4 +44,12 @@ describe('financial statement document context', () => {
     const facts: FactTable = { [program.concepts[0]]: { USD: [proxy] } };
     expect(lineValues(facts, program, 'USD', 'annual').get(annual.end)).toMatchObject({ val: 200, form: 'DEF 14A' });
   });
+
+  it('also excludes contested preliminary and definitive proxy statements from financial statement selection', () => {
+    const facts: FactTable = { 'us-gaap:NetIncomeLoss': { USD: [annual,
+      { ...annual, val: 800, form: 'DEFC14A', filed: '2025-08-01' },
+      { ...annual, val: 900, form: 'PREC14A', filed: '2025-09-01' },
+    ] } };
+    expect(lineValues(facts, line('netInc'), 'USD', 'annual').get(annual.end)).toMatchObject({ val: 70, form: '10-K' });
+  });
 });
