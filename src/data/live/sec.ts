@@ -449,6 +449,18 @@ export const FACT_LINES: FactLine[] = [
   { key: 'equity', label: 'Shareholders\' equity', section: 'balance', kind: 'stock', measure: 'money', concepts: ['us-gaap:StockholdersEquity', 'ifrs-full:EquityAttributableToOwnersOfParent'] },
 ];
 
+const STATEMENT_LINE_KEYS = new Set(FACT_LINES.map((line) => line.key));
+
+/**
+ * Proxy compensation tables can reuse financial tags for a different income scope.
+ * Keep those observations in the raw archive, but never let them supply or restate
+ * a standard financial-statement line. Separate research lines (such as buyback
+ * authorizations) retain their own document coverage.
+ */
+function statementObservations(rows: XbrlFact[], line: FactLine): XbrlFact[] {
+  return STATEMENT_LINE_KEYS.has(line.key) ? rows.filter((row) => formGroup(row.form) !== 'proxy') : rows;
+}
+
 /** Shares outstanding as given on each filing's cover page (dei), for the header. */
 export const COVER_SHARES = 'dei:EntityCommonStockSharesOutstanding';
 /** Shares outstanding on the balance sheet, all classes together (Alphabet gives no cover count without classes). */
@@ -548,7 +560,7 @@ export function reportingCurrencies(facts: FactTable): ReportingCurrency[] {
     if (line.measure !== 'money') continue;
     for (const c of line.concepts) for (const [u, rows] of Object.entries(facts[c] ?? {})) {
       if (!/^[A-Z]{3}$/.test(u)) continue;
-      for (const r of rows) {
+      for (const r of statementObservations(rows, line)) {
         const unit = units.get(u) ?? { latestPeriod: '', latestFiled: '', lines: new Set<string>() };
         if (r.end > unit.latestPeriod) {
           unit.latestPeriod = r.end;
@@ -616,7 +628,7 @@ export function lineValues(facts: FactTable, line: FactLine, ccy: string, kind: 
     const rows = facts[concept]?.[unit];
     if (!rows?.length) continue;
     const groups = new Map<string, XbrlFact[]>();
-    for (const r of rows) {
+    for (const r of statementObservations(rows, line)) {
       if (line.kind === 'flow' ? periodKind(r.start, r.end) !== kind : r.start != null) continue;
       const k = line.kind === 'flow' ? `${r.start}/${r.end}` : r.end;
       const g = groups.get(k);
@@ -647,7 +659,7 @@ export function standaloneQuarterValues(facts: FactTable, line: FactLine, ccy: s
   const out = lineValues(facts, line, ccy, 'quarter');
   if (line.kind !== 'flow' || line.measure !== 'money') return out;
   for (const concept of line.concepts) {
-    const rows = facts[concept]?.[ccy] ?? [];
+    const rows = statementObservations(facts[concept]?.[ccy] ?? [], line);
     const cumulative = rows.filter((r) => r.start && days(r.start, r.end) >= 160 && days(r.start, r.end) <= 380);
     // Latest cumulative report at each end; a directly reported quarter always wins.
     cumulative.sort((a, b) => b.filed.localeCompare(a.filed) || b.accn.localeCompare(a.accn));

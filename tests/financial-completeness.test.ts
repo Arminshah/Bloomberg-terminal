@@ -121,6 +121,22 @@ describe('SEC statement supplements', () => {
     expect(f.quarterly[0].supplements?.join()).toContain("net income attributable to the company's shareholders");
   });
 
+  it('uses the annual income statement rather than a later proxy compensation figure for the parent income line', () => {
+    const period = { start: '2024-01-01', end: '2024-12-31', accn: '0000000001-25-000001', form: '10-K', filed: '2025-02-01', fy: 2024, fp: 'FY' };
+    const proxy = { ...period, accn: '0000000001-25-000002', form: 'DEF 14A', filed: '2025-04-01' };
+    const facts = parseCompanyFacts(JSON.stringify({ cik: 1, facts: { 'us-gaap': {
+      Revenues: { units: { USD: [{ ...period, val: 1000e6 }] } },
+      NetIncomeLoss: { units: { USD: [{ ...period, val: 70.9e6 }, { ...proxy, val: 71.5e6 }] } },
+      NetIncomeLossAvailableToCommonStockholdersBasic: { units: { USD: [{ ...period, val: 71.3e6 }] } },
+    } } }))!;
+    const company = { quoteSummary: { result: [{ financialData: { financialCurrency: 'USD' } }] } };
+    const input = series('annual', [['TotalRevenue', period.end, 1000e6], ['NetIncome', period.end, 71.3e6], ['NetIncomeCommonStockholders', period.end, 71.3e6]]);
+    const f = buildRealFund(def, company, input, null, null, NOW, facts);
+    expect(f.annual[0]).toMatchObject({ niTotal: 70.9, ni: 71.3 });
+    expect(f.annual[0].supplements?.join()).toContain('SEC EDGAR 10-K, filed 01/02/2025');
+    expect(f.annual[0].supplements?.join()).not.toContain('14A');
+  });
+
   it('does not blend income statement bases when the primary revenue conflicts', () => {
     const f = buildRealFund(def, { quoteSummary: { result: [{ financialData: { financialCurrency: 'USD' } }] } }, null,
       series('quarterly', [['TotalRevenue', '2026-08-31', 200e6]]), null, NOW, cf());
