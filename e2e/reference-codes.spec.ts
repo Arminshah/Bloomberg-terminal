@@ -767,17 +767,23 @@ test("PEERS ranks the loaded stock among its peers on each figure, as the table'
   await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
   const rank = panel.getByTestId('rv-rank');
   await expect(rank).toContainText('percentile among peers');
-  // The P/E column: the subject's rank is the share of the others with a lower P/E.
-  const headers = await panel.locator('thead th').allTextContents();
-  const col = headers.findIndex((h) => h.trim().startsWith('P/E'));
-  expect(col).toBeGreaterThan(0);
-  const data = panel.locator('tbody:not(.tbl-summary) tr');
-  const values = (await data.locator(`td:nth-child(${col + 1})`).allTextContents()).map((t) => Number(t.replace(/,/g, '')));
-  const finite = values.filter((v) => Number.isFinite(v) && v > 0);
-  const subject = Number((await data.filter({ hasText: 'AAPL US' }).first().locator(`td:nth-child(${col + 1})`).textContent())?.replace(/,/g, ''));
-  const expected = Math.round((finite.filter((v) => v < subject).length / (finite.length - 1)) * 100);
-  const cells = rank.locator('td');
-  // The rank row's first cell spans the five columns before P/E.
-  await expect(cells.nth(col - 4)).toHaveText(String(expected));
+  // The P/E column: the subject's rank is the share of the others with a lower P/E. The exact figures (each cell
+  // carries its own) and the rank row are read at one moment, as the demo's prices move, and two P/Es can look
+  // equal at one decimal while one is lower.
+  const snap = await panel.evaluate((el) => {
+    const headers = Array.from(el.querySelectorAll('thead th')).map((h) => h.textContent?.trim() ?? '');
+    const col = headers.findIndex((h) => h.startsWith('P/E'));
+    const rows = Array.from(el.querySelectorAll('tbody:not(.tbl-summary) tr')).filter((r) => r.getAttribute('data-testid') !== 'rv-rank' && r.querySelectorAll('td').length > col);
+    const valueAt = (r: Element) => Number(r.querySelectorAll('td')[col]?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
+    const subject = rows.find((r) => r.textContent?.includes('AAPL US'));
+    // The rank row's first cell spans the five columns before P/E.
+    const rankCell = el.querySelectorAll('[data-testid="rv-rank"] td')[col - 4];
+    return { col, values: rows.map(valueAt), subject: subject ? valueAt(subject) : NaN, rank: rankCell?.textContent?.trim() ?? '' };
+  });
+  expect(snap.col).toBeGreaterThan(0);
+  const finite = snap.values.filter((v) => Number.isFinite(v) && v > 0);
+  expect(Number.isFinite(snap.subject)).toBe(true);
+  const expected = Math.round((finite.filter((v) => v < snap.subject).length / (finite.length - 1)) * 100);
+  expect(snap.rank).toBe(String(expected));
   expect(errors).toEqual([]);
 });

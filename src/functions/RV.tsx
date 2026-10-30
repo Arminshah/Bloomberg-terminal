@@ -90,7 +90,8 @@ export function RV({ sec }: FnProps) {
     sort: (r) => r[key] as number,
     render: (r) => {
       const v = r[key] as number;
-      if (Number.isFinite(v)) return pct ? <Chg v={v} pct dec={dec} /> : fmtNum(v, dec);
+      // The exact figure rides on the cell, for a check against the rank row, which ranks exact figures.
+      if (Number.isFinite(v)) return <span data-value={v}>{pct ? <Chg v={v} pct dec={dec} /> : fmtNum(v, dec)}</span>;
       if (r.nm.has(key)) return <span className="muted" title={NM_WHY[key as string]}>NM</span>;
       if (key === 'dy') return <span className="muted" title="No dividend paid in the last 12 months">none</span>;
       return '';
