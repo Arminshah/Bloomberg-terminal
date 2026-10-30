@@ -1,7 +1,7 @@
 import { eventDate, findCompanies, normalizeName, relationKey, sharePeriod, type Chain, type Directory, type Evidence, type Relation, type Role } from './supply-chain';
 
 /** Parsed public disclosures, not a reconstruction of observations that predate collection. */
-export const RELATIONSHIP_PARSER = 2;
+export const RELATIONSHIP_PARSER = 3;
 export type AssertionState = 'reported' | 'signed' | 'planned' | 'amended' | 'ended';
 export interface RelationshipAssertion {
   id: string;

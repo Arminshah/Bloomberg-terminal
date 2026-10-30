@@ -43,7 +43,10 @@ export type Basis =
   | 'target-purchases';
 
 export interface Evidence {
+  /** Literal extracted source text. Classification labels are not part of the quotation. */
   sentence: string;
+  /** Extraction context retained separately from the source's actual words. */
+  context?: 'competitor-list';
   /** Who filed it: the related company or the target itself. */
   filer: string;
   form: string;
@@ -1502,7 +1505,8 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
     // The company itself under its own name, or one of its subsidiaries; a bottler named after it ("Coca-Cola HBC") is
     // another company.
     if (!found.cik && (selfNames.has(normalizeName(found.name)) || ownName(found.name))) return;
-    out.push({ key: relationKey(found), name: found.name, ticker: found.ticker, cik: found.cik, id: found.id, yahoo: found.yahoo, role, side: 'own', evidence: [{ ...ev, sentence: sentence.replace(/^\[competitors\]\s*/, 'Competitors: ') }], ...extra });
+    const competitorList = sentence.startsWith('[competitors]');
+    out.push({ key: relationKey(found), name: found.name, ticker: found.ticker, cik: found.cik, id: found.id, yahoo: found.yahoo, role, side: 'own', evidence: [{ ...ev, sentence: sentence.replace(/^\[competitors\]\s*/, ''), ...(competitorList ? { context: 'competitor-list' as const } : {}) }], ...extra });
   };
   // Unnamed large customers with their shares, from the latest year the report gives ("sales to one direct customer
   // represented 22% of total revenue and sales to another direct customer represented 14%").

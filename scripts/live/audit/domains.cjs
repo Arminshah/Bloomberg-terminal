@@ -199,10 +199,34 @@ function verifyFed(snapshot, reference) {
   return checks.map(([field, app, ref]) => row(app === ref ? 'PASS' : 'FAIL', field, 'independently read official FOMC statement', { evidenceKind: 'reference', app, ref, refName: reference.sourceUrl }));
 }
 
-/** Exact documentary quotation checks corroborate evidence, not universal role inference. */
+const QUOTATION_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', rsquo: "'", lsquo: "'", ldquo: '"', rdquo: '"', ndash: '-', mdash: '-', hellip: '...', bull: ' ', middot: ' ' };
+function quotationEntity(whole, body) {
+  if (body[0] !== '#') return QUOTATION_ENTITIES[body.toLowerCase()] ?? whole;
+  const code = /^#x[0-9a-f]+$/i.test(body) ? Number.parseInt(body.slice(2), 16) : /^#\d+$/.test(body) ? Number(body.slice(1)) : NaN;
+  return Number.isInteger(code) && code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : whole;
+}
+
+// Keep source text in reading order. Inline/XBRL tags do not introduce spaces:
+// "$<ix:nonFraction>375</ix:nonFraction>" renders "$375", not "$ 375".
+// Block boundaries remain separators so removing markup cannot join two words.
+function documentaryText(html) {
+  return String(html ?? '')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style|ix:header)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
+    .replace(/<\/?([a-z][\w:.-]*)\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, (_tag, name) => /^(?:p|div|li|h[1-6]|tr|td|th|table|center|br|pre|section|article|header|footer|blockquote|dl|dt|dd|ul|ol)$/i.test(name) ? ' ' : '')
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, quotationEntity);
+}
+
+function literalQuotation(text) {
+  return String(text ?? '').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/[\u2010-\u2015]/g, '-').replace(/[\u2022\u00b7]/g, ' ').replace(/\u2026/g, '...').replace(/[\s\u200b]+/g, ' ').trim().toLowerCase();
+}
+
+/** Exact contiguous documentary quotation checks corroborate evidence, not universal role inference. */
 function quotedEvidence(html, evidence) {
-  const document = compact(html).replace(/[“”]/g, '"').replace(/[‘’]/g, "'").toLowerCase();
-  const quote = compact(evidence.sentence).replace(/[“”]/g, '"').replace(/[‘’]/g, "'").toLowerCase();
+  const document = literalQuotation(documentaryText(html));
+  // A stored sentence is plain text, already decoded by extraction. Decoding or
+  // stripping markup again could change literal entities or angle comparisons.
+  const quote = literalQuotation(evidence.sentence);
   return quote.length >= 30 && document.includes(quote);
 }
 
