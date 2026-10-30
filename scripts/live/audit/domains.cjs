@@ -65,6 +65,21 @@ function compatible(a, b) {
   return true;
 }
 
+/** Financial source-basis warnings remain unresolved alongside numerical reference comparisons. */
+function validateFinancials(snapshot, item, now = Date.now()) {
+  const row = make('financials', item);
+  const initial = frame(snapshot, 'financials', item, now);
+  if (initial.length) return initial;
+  if (!Array.isArray(snapshot.periods) || !snapshot.periods.length) return [row('INCOMPLETE', 'financial source basis', 'no visible statement periods were captured')];
+  const result = [];
+  for (const period of snapshot.periods) {
+    if (!period.niTotalBasisConflict) continue;
+    result.push(row('INCOMPLETE', `parent income basis ${period.label ?? ''}`, 'parent-attributable filed income and the revenue basis have not been reconciled; a matching net-income value does not resolve the source-basis conflict'));
+    if (finite(period.parentIncomeMargin)) result.push(row('FAIL', `parent income margin ${period.label ?? ''}`, 'a numerical parent-income margin is displayed despite an unresolved income/revenue source basis'));
+  }
+  return result;
+}
+
 function validateEarnings(snapshot, item, now = Date.now()) {
   const row = make('earnings', item);
   const initial = frame(snapshot, 'earnings', item, now);
@@ -244,4 +259,4 @@ function filedQuarterEps(facts, periodEnd, currency) {
   return null;
 }
 
-module.exports = { validatePolicy, validateEarnings, validateSupply, compatible, evidenceUrl, fedLinks, fedStatement, verifyFed, quotedEvidence, compact, moment, iso, number, filedQuarterEps };
+module.exports = { validatePolicy, validateFinancials, validateEarnings, validateSupply, compatible, evidenceUrl, fedLinks, fedStatement, verifyFed, quotedEvidence, compact, moment, iso, number, filedQuarterEps };

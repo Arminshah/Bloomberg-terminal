@@ -33,6 +33,7 @@ on:
       - scripts/live/audit/domains.cjs
       - scripts/live/audit/annotate.cjs
       - scripts/live/audit/references.cjs
+      - scripts/live/audit/fiscal-periods.cjs
   schedule:
     # Tuesday to Saturday at 01:37 UTC: after each US session's close and evening trading, references published.
     - cron: '37 1 * * 2-6'

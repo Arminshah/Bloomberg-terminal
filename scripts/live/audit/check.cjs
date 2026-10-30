@@ -19,6 +19,7 @@ const { spawnSync } = require('node:child_process');
 const assurance = require('./assurance.cjs');
 const domains = require('./domains.cjs');
 const references = require('./references.cjs');
+const { filedEpsContext } = require('./fiscal-periods.cjs');
 const massiveBudget = references.requestBudget();
 
 // Node's fetch must use the same inherited proxy as Electron. Never bypass an enforced destination policy.
@@ -159,6 +160,33 @@ async function massive(t) {
   if (!key) return { kind: 'no-key', detail: 'MASSIVE_API_KEY is not set' };
   return get(`https://api.massive.com/v3/reference/tickers/${t}?apiKey=${key}`, {}, (j) => (j?.results ? null : { kind: /auth|key/i.test(j?.error ?? j?.message ?? '') ? 'auth' : 'malformed', detail: String(j?.error ?? j?.message ?? j?.status ?? '').slice(0, 120) }));
 }
+async function quoteDiagnostics(ticker, shownDay, bars) {
+  const days = references.quoteProbeDays(bars, shownDay);
+  if (!days.length) return null;
+  const from = days[0];
+  const to = days.at(-1);
+  const key = env('MASSIVE_API_KEY');
+  const [massiveDaily, nasdaqDaily] = await Promise.all([
+    key ? get(`https://api.massive.com/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=false&sort=asc&limit=10&apiKey=${key}`, {}, (j) => Array.isArray(j?.results) ? null : { kind: /auth|key/i.test(j?.error ?? j?.message ?? '') ? 'auth' : 'no-data', detail: String(j?.error ?? j?.message ?? j?.status ?? 'no daily bars').slice(0, 120) }) : { kind: 'no-key', detail: 'MASSIVE_API_KEY is not set' },
+    nasdaq(ticker, `historical?assetclass=stocks&fromdate=${from}&todate=${to}&limit=10`),
+  ]);
+  const basis = { Tiingo: 'Raw OHLC fields, not adjOHLC', Massive: 'Daily aggregate, adjusted=false', Nasdaq: 'Reported historical OHLC; adjustment convention unverified' };
+  const sourceUrl = {
+    Tiingo: `https://api.tiingo.com/tiingo/daily/${ticker.replace('.', '-')}/prices`,
+    Massive: `https://api.massive.com/v2/aggs/ticker/${ticker}/range/1/day/${from}/${to}?adjusted=false&sort=asc&limit=10`,
+    Nasdaq: `https://api.nasdaq.com/api/quote/${ticker.replace('-', '.')}/historical?assetclass=stocks&fromdate=${from}&todate=${to}&limit=10`,
+  };
+  const observation = (source, answer) => ({ source, sourceUrl: sourceUrl[source], priceBasis: basis[source], currency: 'not declared by this diagnostic endpoint', ...(answer.ok ? references.quoteProbe(source, answer.json, days, ticker) : { status: 'unavailable', kind: answer.kind, detail: answer.detail }) });
+  return {
+    days,
+    retrievedAt: new Date().toISOString(),
+    sources: [
+      observation('Tiingo', { ok: true, json: bars }),
+      observation('Massive', massiveDaily),
+      observation('Nasdaq', nasdaqDaily),
+    ],
+  };
+}
 let secTickers;
 async function secFacts(t) {
   const ua = env('SEC_USER_AGENT');
@@ -259,11 +287,17 @@ async function equity(t) {
     else if (at < 0) for (const f of ['Last', 'Open', 'High', 'Low', 'Volume']) skip('quote', t, f, `Tiingo has no bar for ${shownDay} yet`);
     else {
       const d = b[at];
+      const firstComparison = rows.length;
       compare('quote', t, 'Last', num(after(bq, 'Last price')), d.close, TOLERANCE.last, `Tiingo close ${d.day}`);
       compare('quote', t, 'Open', num(after(bq, 'Open')), d.open, TOLERANCE.open, `Tiingo open ${d.day}`);
       compare('quote', t, 'High', num(after(bq, 'Day high')), d.high, TOLERANCE.highLow, `Tiingo high ${d.day}`);
       compare('quote', t, 'Low', num(after(bq, 'Day low')), d.low, TOLERANCE.highLow, `Tiingo low ${d.day}`);
       compare('quote', t, 'Volume', big(after(bq, 'Volume')), d.volume, TOLERANCE.volume, `Tiingo volume ${d.day}`);
+      const failures = rows.slice(firstComparison).filter((row) => row.status === 'FAIL' && ['Open', 'Volume'].includes(row.field));
+      if (failures.length) {
+        const diagnostics = await quoteDiagnostics(t, shownDay, b);
+        if (diagnostics) for (const failure of failures) Object.assign(failure, assurance.sanitize(references.withQuoteDiagnostics(failure, diagnostics)));
+      }
     }
     // The previous close: the session before the one shown (today's, while it trades).
     const ref = sessionOver ? (at > 0 ? b[at - 1] : undefined) : b.filter((x) => x.day < iso(now)).pop();
@@ -419,6 +453,7 @@ const CONCEPTS = {
 async function statements(t) {
   const ls = lines(`${t} US Equity FA`);
   if (!ls) return skip('financials', t, 'all', 'the financials screen was not captured');
+  domains.validateFinancials(domainSnapshot(`${t} US Equity FA`, 'financials'), t).forEach(add);
   const ref = await secFacts(t);
   if (!ref.ok) return ref.kind === 'no-key' ? skip('financials', t, 'all', ref.detail) : blocked('financials', t, 'all', ref, 'SEC companyfacts');
   const g = ref.json.facts?.['us-gaap'] ?? {};
@@ -533,11 +568,11 @@ async function earningsResearch(ticker) {
   if (!facts.ok) return blocked('earnings', ticker, 'filed diluted EPS corroboration', facts, 'SEC companyfacts');
   let compared = 0;
   for (const q of snapshot.quarters ?? []) {
-    const actual = q.gaapActual;
-    if (!Number.isFinite(actual?.value) || !actual.currency) continue;
-    const latest = domains.filedQuarterEps(facts.json, q.periodEnd, actual.currency);
+    const actual = filedEpsContext(q);
+    if (!actual) continue;
+    const latest = domains.filedQuarterEps(facts.json, actual.periodEnd, actual.currency);
     if (!latest) continue;
-    compare('earnings', ticker, `filed diluted EPS ${q.periodEnd}`, actual.value, latest.val, { abs: 0.011 }, `SEC ${latest.concept}, ${latest.form}, filed ${latest.filed}`, 'Latest-corrected filed EPS corroboration; this does not certify historical analyst consensus or its pre-release vintage.');
+    compare('earnings', ticker, `filed diluted EPS ${actual.periodEnd}`, actual.value, latest.val, { abs: 0.011 }, `SEC ${latest.concept}, ${latest.form}, filed ${latest.filed}`, `Latest-corrected filed EPS corroboration; display row ${q.periodEnd}, actual fiscal end ${actual.periodEnd}. This does not certify historical analyst consensus or its pre-release vintage.`);
     compared++;
     if (compared >= 4) break;
   }
