@@ -1,0 +1,882 @@
+{
+ "BATS.L": {
+  "timeseries": {
+   "result": [
+    {
+     "meta": {
+      "symbol": [
+       "BATS.L"
+      ],
+      "type": [
+       "annualGrossProfit"
+      ]
+     },
+     "annualGrossProfit": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 23101000000.0
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 22642000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 21431000000.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 21384000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "BATS.L"
+      ],
+      "type": [
+       "annualTotalRevenue"
+      ]
+     },
+     "annualTotalRevenue": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 27655000000.0
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 27283000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 25867000000.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 25610000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "BATS.L"
+      ],
+      "type": [
+       "quarterlyOrdinarySharesNumber"
+      ]
+     },
+     "quarterlyOrdinarySharesNumber": [
+      {
+       "asOfDate": "2025-06-30",
+       "periodType": "3M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2188456844.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "3M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2173333978.0
+       }
+      },
+      {
+       "asOfDate": "2026-06-30",
+       "periodType": "3M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2159189751.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "BATS.L"
+      ],
+      "type": [
+       "annualDilutedEPS"
+      ]
+     },
+     "annualDilutedEPS": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2.919
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": -6.466
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 1.36
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 3.491
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "BATS.L"
+      ],
+      "type": [
+       "annualCommonStockEquity"
+      ]
+     },
+     "annualCommonStockEquity": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 75368000000.0
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 52566000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 49643000000.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 47926000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "BATS.L"
+      ],
+      "type": [
+       "annualOrdinarySharesNumber"
+      ]
+     },
+     "annualOrdinarySharesNumber": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2229946590.0
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2230456075.0
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2202445277.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2173333978.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "BATS.L"
+      ],
+      "type": [
+       "annualNetIncomeCommonStockholders"
+      ]
+     },
+     "annualNetIncomeCommonStockholders": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 6617000000.0
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": -14412000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 3026000000.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 7677000000.0
+       }
+      }
+     ]
+    }
+   ],
+   "error": null
+  }
+ },
+ "HSBA.L": {
+  "timeseries": {
+   "result": [
+    {
+     "meta": {
+      "symbol": [
+       "HSBA.L"
+      ],
+      "type": [
+       "annualCommonStockEquity"
+      ]
+     },
+     "annualCommonStockEquity": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 177833000000.0
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 185329000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 184973000000.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 198225000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "HSBA.L"
+      ],
+      "type": [
+       "annualTotalRevenue"
+      ]
+     },
+     "annualTotalRevenue": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 53719000000.0
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 64528000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 67396000000.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 71020000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "HSBA.L"
+      ],
+      "type": [
+       "quarterlyOrdinarySharesNumber"
+      ]
+     },
+     "quarterlyOrdinarySharesNumber": [
+      {
+       "asOfDate": "2025-06-30",
+       "periodType": "3M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 17468610336.0
+       }
+      },
+      {
+       "asOfDate": "2025-09-30",
+       "periodType": "3M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 17245892771.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "3M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 17139885525.0
+       }
+      },
+      {
+       "asOfDate": "2026-03-31",
+       "periodType": "3M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 17148192022.0
+       }
+      },
+      {
+       "asOfDate": "2026-06-30",
+       "periodType": "3M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 17148209505.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "HSBA.L"
+      ],
+      "type": [
+       "annualDilutedEPS"
+      ]
+     },
+     "annualDilutedEPS": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 0.74
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 1.14
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 1.24
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 1.2
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "HSBA.L"
+      ],
+      "type": [
+       "annualOrdinarySharesNumber"
+      ]
+     },
+     "annualOrdinarySharesNumber": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 19968334003.0
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 19241825975.0
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 17935716398.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 17139885525.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "HSBA.L"
+      ],
+      "type": [
+       "annualNetIncomeCommonStockholders"
+      ]
+     },
+     "annualNetIncomeCommonStockholders": [
+      {
+       "asOfDate": "2022-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 14346000000.0
+       }
+      },
+      {
+       "asOfDate": "2023-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 22432000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 22917000000.0
+       }
+      },
+      {
+       "asOfDate": "2025-12-31",
+       "periodType": "12M",
+       "currencyCode": "USD",
+       "reportedValue": {
+        "raw": 21102000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "HSBA.L"
+      ],
+      "type": [
+       "annualGrossProfit"
+      ]
+     },
+     "annualGrossProfit": []
+    }
+   ],
+   "error": null
+  }
+ },
+ "SMIN.L": {
+  "timeseries": {
+   "result": [
+    {
+     "meta": {
+      "symbol": [
+       "SMIN.L"
+      ],
+      "type": [
+       "quarterlyOrdinarySharesNumber"
+      ]
+     },
+     "quarterlyOrdinarySharesNumber": [
+      {
+       "asOfDate": "2025-01-31",
+       "periodType": "3M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 341223885.0
+       }
+      },
+      {
+       "asOfDate": "2026-01-31",
+       "periodType": "3M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 314837837.0
+       }
+      },
+      {
+       "asOfDate": "2026-07-31",
+       "periodType": "3M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 294313218.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "SMIN.L"
+      ],
+      "type": [
+       "annualNetIncomeCommonStockholders"
+      ]
+     },
+     "annualNetIncomeCommonStockholders": [
+      {
+       "asOfDate": "2023-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 231000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 250000000.0
+       }
+      },
+      {
+       "asOfDate": "2026-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 1970000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "SMIN.L"
+      ],
+      "type": [
+       "annualOrdinarySharesNumber"
+      ]
+     },
+     "annualOrdinarySharesNumber": [
+      {
+       "asOfDate": "2023-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 347560061.0
+       }
+      },
+      {
+       "asOfDate": "2024-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 343709064.0
+       }
+      },
+      {
+       "asOfDate": "2026-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 294313218.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "SMIN.L"
+      ],
+      "type": [
+       "annualCommonStockEquity"
+      ]
+     },
+     "annualCommonStockEquity": [
+      {
+       "asOfDate": "2023-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2384000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2230000000.0
+       }
+      },
+      {
+       "asOfDate": "2026-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2582000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "SMIN.L"
+      ],
+      "type": [
+       "annualTotalRevenue"
+      ]
+     },
+     "annualTotalRevenue": [
+      {
+       "asOfDate": "2023-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 3037000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 2778000000.0
+       }
+      },
+      {
+       "asOfDate": "2025-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 1898000000.0
+       }
+      },
+      {
+       "asOfDate": "2026-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 1937000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "SMIN.L"
+      ],
+      "type": [
+       "annualGrossProfit"
+      ]
+     },
+     "annualGrossProfit": [
+      {
+       "asOfDate": "2023-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 1118000000.0
+       }
+      },
+      {
+       "asOfDate": "2024-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 1036000000.0
+       }
+      },
+      {
+       "asOfDate": "2025-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 801000000.0
+       }
+      },
+      {
+       "asOfDate": "2026-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 808000000.0
+       }
+      }
+     ]
+    },
+    {
+     "meta": {
+      "symbol": [
+       "SMIN.L"
+      ],
+      "type": [
+       "annualDilutedEPS"
+      ]
+     },
+     "annualDilutedEPS": [
+      {
+       "asOfDate": "2023-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 0.651
+       }
+      },
+      {
+       "asOfDate": "2024-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 0.72
+       }
+      },
+      {
+       "asOfDate": "2025-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 0.853
+       }
+      },
+      {
+       "asOfDate": "2026-07-31",
+       "periodType": "12M",
+       "currencyCode": "GBP",
+       "reportedValue": {
+        "raw": 6.262
+       }
+      }
+     ]
+    }
+   ],
+   "error": null
+  }
+ }
+}

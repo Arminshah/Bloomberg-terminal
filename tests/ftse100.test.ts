@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import * as main from '../electron/index-members.cjs';
 import * as providers from '../electron/providers.cjs';
-import { constituentsSection, htmlText, londonSymbols, parseFtseConstituents } from '../src/data/live/ftse100';
+import { annualFigures, constituentsSection, convertMoney, dailyFigures, dailyPath, htmlText, londonSymbols, parseFtseConstituents, statementsPath } from '../src/data/live/ftse100';
 import { parseListing, yahooListingSymbol } from '../src/data/listings';
+// Yahoo's answers of 30 October 2026, kept to what the app reads: the annual statement lines and share counts of
+// British American Tobacco, HSBC (no gross profit) and Smiths Group (no figures for its 2025 balance sheet), and
+// British American Tobacco's daily closes and dividends from 1 December 2025.
+import STATEMENTS from './fixtures/yahoo-ftse100-statements-2026-10-30.json';
+import BATS_DAILY from './fixtures/yahoo-bats-daily-2026-10-30.json';
 // The MediaWiki API's answers of 30 October 2026 for Wikipedia's FTSE 100 Index article: its sections (titles and
 // numbers only) and its Constituents section, kept to the heading and the table (Wikipedia's text is CC BY-SA).
 import SECTIONS from './fixtures/wikipedia-ftse100-sections-2026-10-30.json?raw';
@@ -77,5 +82,83 @@ describe("the FTSE 100's members from Wikipedia", () => {
     expect(providers.providerPayloadProblem('wikipedia', JSON.stringify({ error: { code: 'nosuchsection', info: 'There is no section 9 in FTSE 100 Index.' } }))).toMatchObject({ kind: 'no-data' });
     expect(providers.providerPayloadProblem('wikipedia', JSON.stringify({ error: { code: 'ratelimited', info: "You've exceeded your rate limit." } }))).toMatchObject({ kind: 'rate-limited' });
     expect(providers.providerPayloadProblem('wikipedia', SECTIONS)).toBeNull();
+  });
+});
+
+describe("the FTSE 100's figures from Yahoo", () => {
+  const NOW = Date.UTC(2026, 9, 30, 18);
+
+  it('asks for four years of the statement lines and the year so far of daily closes with dividends', () => {
+    expect(statementsPath('BT-A.L', NOW)).toBe(`/ws/fundamentals-timeseries/v1/finance/timeseries/BT-A.L?symbol=BT-A.L&type=annualGrossProfit,annualTotalRevenue,annualNetIncomeCommonStockholders,annualCommonStockEquity,annualDilutedEPS,annualOrdinarySharesNumber,quarterlyOrdinarySharesNumber&period1=${NOW / 1000 - 4 * 365 * 86_400}&period2=${NOW / 1000}`);
+    expect(dailyPath('BATS.L', NOW)).toBe(`/v8/finance/chart/BATS.L?interval=1d&period1=${Date.UTC(2025, 11, 1) / 1000}&period2=${NOW / 1000}&events=div`);
+  });
+
+  it("takes the latest fiscal year's lines, the year before's equity and the latest share count", () => {
+    // British American Tobacco, FY2025 in pounds, as its annual report gives them in millions.
+    expect(annualFigures(STATEMENTS['BATS.L'])).toEqual({
+      end: '2025-12-31', currency: 'GBP',
+      grossProfit: 21_384e6, revenue: 25_610e6, netIncome: 7_677e6, equity: 47_926e6,
+      equityBefore: 49_643e6, beforeEnd: '2024-12-31',
+      eps: 3.491, epsCurrency: 'GBP',
+      // The half-year count of 30 June 2026 is later than the year-end one.
+      shares: 2_159_189_751, sharesAt: '2026-06-30',
+    });
+    // A bank reports no gross profit: missing, not zero.
+    const hsbc = annualFigures(STATEMENTS['HSBA.L']);
+    expect(hsbc).toMatchObject({ end: '2025-12-31', currency: 'USD', revenue: 71_020e6, netIncome: 21_102e6, equityBefore: 184_973e6, eps: 1.2, epsCurrency: 'USD' });
+    expect(hsbc.grossProfit).toBeNaN();
+    // Smiths Group: Yahoo has no balance sheet for July 2025, so the year to July 2026 has no starting equity; the
+    // one from July 2024, two years back, does not stand in for it.
+    const smiths = annualFigures(STATEMENTS['SMIN.L']);
+    expect(smiths).toMatchObject({ end: '2026-07-31', grossProfit: 808e6, revenue: 1_937e6, netIncome: 1_970e6, equity: 2_582e6 });
+    expect(smiths.equityBefore).toBeNaN();
+    expect(smiths.beforeEnd).toBeUndefined();
+    // A line missing in the latest year is missing, never an older year's figure.
+    const older = structuredClone(STATEMENTS['BATS.L']);
+    for (const r of older.timeseries.result) if (r.meta.type[0] === 'annualGrossProfit') r.annualGrossProfit = r.annualGrossProfit!.slice(0, 3);
+    expect(annualFigures(older).grossProfit).toBeNaN();
+    expect(annualFigures(null)).toMatchObject({ revenue: NaN, shares: NaN });
+  });
+
+  it("works out the price, the previous close and the year's price and total returns from the daily chart", () => {
+    const d = dailyFigures(BATS_DAILY, NOW)!;
+    // Checked by hand on the same answer: last year's final close 4,214p on 31 December 2025, the latest 4,592p, the
+    // close before 4,516p, and three dividends of 61.26p this year (the one of 29 December 2025 is last year's).
+    expect(d).toMatchObject({ currency: 'GBp', last: 4592, lastDay: '2026-10-30', prev: 4516, prevDay: '2026-10-29', base: 4214, baseDay: '2025-12-31' });
+    expect(d.dividends.map((x) => x.day)).toEqual(['2026-03-26', '2026-07-09', '2026-10-01']);
+    expect(d.priceReturn).toBeCloseTo((4592 / 4214 - 1) * 100, 10);
+    expect(d.priceReturn).toBeCloseTo(8.9701, 4);
+    expect(d.totalReturn).toBeCloseTo(13.74, 4);
+  });
+
+  it("reinvests a dividend at the close of its ex-date, and has no return without last year's close", () => {
+    // Synthetic: 1,000 at the end of 2025; a dividend of 50 goes ex on a day the price falls to 950, then 1,045.
+    const day = (s: string) => Date.parse(`${s}T08:00:00Z`) / 1000;
+    const chart = (days: string[], close: (number | null)[], dividends: Record<string, { amount: number; date: number }> = {}) => ({ chart: { result: [{ meta: { currency: 'GBp', gmtoffset: 0 }, timestamp: days.map(day), events: { dividends }, indicators: { quote: [{ close }] } }] } });
+    const d = dailyFigures(chart(['2025-12-31', '2026-01-02', '2026-01-05', '2026-01-06'], [1000, 1000, 950, 1045], { x: { amount: 50, date: day('2026-01-05') } }), NOW)!;
+    expect(d.totalReturn).toBeCloseTo(10, 10);
+    expect(d.priceReturn).toBeCloseTo(4.5, 10);
+    expect(d.prev).toBe(950);
+    // A dividend going ex on a day without a close counts on the next one; empty closes are skipped.
+    const gap = dailyFigures(chart(['2025-12-31', '2026-01-02', '2026-01-06'], [1000, null, 1045], { x: { amount: 50, date: day('2026-01-05') } }), NOW)!;
+    expect(gap.totalReturn).toBeCloseTo(9.5, 10);
+    expect(gap.prev).toBe(1000);
+    // Listed this year: no base, so no return rather than one from its first day.
+    const listed = dailyFigures(chart(['2026-03-02', '2026-03-03'], [500, 510]), NOW)!;
+    expect(listed.last).toBe(510);
+    expect(listed.priceReturn).toBeNaN();
+    expect(listed.totalReturn).toBeNaN();
+    expect(dailyFigures({ chart: { result: null } }, NOW)).toBeNull();
+  });
+
+  it('converts pence and pounds by 100 and other currencies only at a known rate', () => {
+    const usd = (c: string) => ({ USD: 1, GBP: 1.25, EUR: 1.1 })[c] ?? NaN;
+    expect(convertMoney(4592, 'GBp', 'GBP', usd)).toBeCloseTo(45.92, 10);
+    expect(convertMoney(3.491, 'GBP', 'GBp', usd)).toBeCloseTo(349.1, 10);
+    expect(convertMoney(100, 'USD', 'GBP', usd)).toBeCloseTo(80, 10);
+    expect(convertMoney(100, 'GEL', 'GBP', usd)).toBeNaN();
+    expect(convertMoney(100, undefined, 'GBP', usd)).toBeNaN();
+    // Pence and pounds need no rate.
+    expect(convertMoney(1277, 'GBp', 'GBP', () => NaN)).toBeCloseTo(12.77, 10);
   });
 });
