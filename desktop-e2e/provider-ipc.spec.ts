@@ -22,6 +22,7 @@ const PRICE = '123.45';
 
 interface Fixtures {
   dataAccuracy: boolean;
+  desQuotePrice?: number;
   extendedHours: boolean;
   tradeAgeMs: number;
   optionPageFailure: boolean;
@@ -1341,6 +1342,32 @@ async function enableIex(page: Page) {
 async function calls(app: ElectronApplication) {
   return app.evaluate(() => (globalThis as FixtureGlobal).__desktopFixtures.calls);
 }
+
+test('DES keeps its displayed price and YTD return together on a provider update between engine ticks', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.desQuotePrice = 123.45; process.env.YAHOO_PRICES_ENABLED = 'true'; });
+  // Keep the clock tick outside this test. The ordinary Yahoo poll still updates
+  // the quote and flushes subscribers, so a slow clock cannot repair a stale YTD.
+  await page.evaluate(() => localStorage.setItem('armin:settings', JSON.stringify({ v: 1, s: { tickMs: 3_600_000, liveCrypto: false, liveFx: false, newsFlashes: false } })));
+  await page.reload();
+  await command(page, 'AAPL DES', 'PROFILE');
+  const price = page.locator('dt').filter({ hasText: /^Px\/Chg 1D/ }).locator('+ dd');
+  const ytd = page.locator('dt').filter({ hasText: 'YTD Change/%' }).locator('+ dd');
+  const audit = page.locator('[data-audit-state*="profile-returns"]');
+  await expect(price).toContainText('123.45');
+  await expect.poll(async () => JSON.parse(await audit.getAttribute('data-audit-state') ?? '{}').price).toBe(123.45);
+  const before = JSON.parse(await audit.getAttribute('data-audit-state') ?? '{}');
+  expect(before.baseClose).toBeGreaterThan(0);
+  await expect(ytd).toContainText(fmtPct((123.45 / before.baseClose - 1) * 100));
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.desQuotePrice = 130; });
+  await expect(price).toContainText('130.00', { timeout: 20_000 });
+  await expect(ytd).toContainText(fmtPct((130 / before.baseClose - 1) * 100), { timeout: 2000 });
+  const after = JSON.parse(await audit.getAttribute('data-audit-state') ?? '{}');
+  expect(after.price).toBe(130);
+  expect(after.ytd).toBeCloseTo((130 / before.baseClose - 1) * 100, 10);
+  expect(after.baseTime).toBe(before.baseTime);
+  expect(after.priceTime).toBeGreaterThan(before.priceTime);
+  expect(after.engineTick).toBe(before.engineTick);
+});
 
 test('holders sort and filter by reported period, and short float is calculated from reported share counts', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.dataAccuracy = true; process.env.YAHOO_PRICES_ENABLED = 'true'; });

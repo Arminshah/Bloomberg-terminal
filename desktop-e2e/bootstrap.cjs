@@ -454,7 +454,7 @@ net.fetch = async (input, init) => {
       }
       return json(out);
     }
-    if (url.pathname === '/v7/finance/quote') return json({ quoteResponse: { result: (url.searchParams.get('symbols') ?? '').split(',').map((symbol) => ({ symbol, regularMarketPrice: symbol === 'APLD' ? 18 : 123.45, regularMarketTime: Math.floor(Date.now() / 1000), currency: 'USD', quoteSourceName: 'Synthetic Real Time Price', exchangeDataDelayedBy: 0,
+    if (url.pathname === '/v7/finance/quote') return json({ quoteResponse: { result: (url.searchParams.get('symbols') ?? '').split(',').map((symbol) => ({ symbol, regularMarketPrice: symbol === 'APLD' ? 18 : symbol === 'AAPL' && Number.isFinite(fixtures.desQuotePrice) ? fixtures.desQuotePrice : 123.45, regularMarketTime: Math.floor(Date.now() / 1000), currency: 'USD', quoteSourceName: 'Synthetic Real Time Price', exchangeDataDelayedBy: 0,
       ...(fixtures.listingsDown && (WEEK_QUOTES[symbol] || /^AC[A-L]$/.test(symbol)) ? (() => {
         const [price, volume] = WEEK_QUOTES[symbol] ?? [10, (symbol.charCodeAt(2) - 64) * 100000];
         return { regularMarketPrice: price, regularMarketVolume: volume, marketCap: 5e10 };

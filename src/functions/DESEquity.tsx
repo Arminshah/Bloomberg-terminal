@@ -13,14 +13,14 @@ import { indexAtOrBefore } from '../data/series';
 import { localBeta, marketCapUsd, periodChange, periodStart, rangeStats } from '../data/analytics';
 import { defaultBenchmark } from '../finance/beta';
 import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings, peers, priceInCurrency, reportCcy, revenueMix } from '../data/fundamentals';
-import { desktopData } from '../data/live/yahoo';
+import { desktopData, yahooSymbolFor } from '../data/live/yahoo';
 import { fundVersion, getRealFund, useFundamentalsFor, type RealFund } from '../data/live/yfund';
 import { secAvailable, secTicker, useSecLoad } from '../data/live/sec';
 import { useFigiListings } from '../data/live/related';
 import { loadInsiders, summarize } from '../data/live/insiders';
 import { wantShares } from '../data/live/shares';
 import { usePeers } from '../data/live/peers';
-import { engine, useTick } from '../data/market';
+import { engine, useQuote, useTick } from '../data/market';
 import { equityRatios } from '../data/ratios';
 import type { SecurityDef } from '../data/types';
 import { COUNTRY_NAMES } from '../data/eco';
@@ -160,7 +160,9 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   useTick(5);
   const panel = usePanelId();
   const eq = sec.eq!;
-  const q = engine.quote(sec.id);
+  // Price-dependent rows must refresh on the same quote notification as LivePx.
+  // The slower clock subscription alone does not react to a provider flush.
+  const q = useQuote(sec.id);
   const ks = keyStats(sec);
   const rs = rangeStats(sec.id);
   const ne = nextEarnings(sec);
@@ -190,6 +192,13 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const figi = figiAnswer?.listings.find((l) => l.exchCode === 'US')?.figi;
   const ytd = periodChange(sec.id, 'YTD');
   const ytdAbs = q && Number.isFinite(ytd) ? q.last - q.last / (1 + ytd / 100) : NaN;
+  const ytdBaseIndex = indexAtOrBefore(daily, periodStart(daily, 'YTD'));
+  const returnsAudit = {
+    schema: 1, domain: 'profile-returns', security: sec.id, ticker: yahooSymbolFor(sec) ?? sec.yahoo ?? sec.ticker.split(' ')[0], capturedAt: Date.now(),
+    price: q?.last ?? null, priceTime: q?.time ?? null, provider: q?.provider ?? null, currency: sec.ccy,
+    ytd, ytdAbsolute: ytdAbs, baseClose: ytdBaseIndex >= 0 ? daily.c[ytdBaseIndex] : null,
+    baseTime: ytdBaseIndex >= 0 ? daily.t[ytdBaseIndex] : null, cutoff: periodStart(daily, 'YTD'), engineTick: engine.tickCount,
+  };
   const totRet = totalReturn1Y(sec);
   const [more, setMore] = useState(false);
   // Without Yahoo's officer list, the officers who filed Form 4s with the SEC in the past year, chief executive first.
@@ -238,7 +247,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const idx = Number.isFinite(workedBeta) ? benchId.replace(/ Index$/, '') : BETA_INDEX[sec.country] ?? 'index';
   return (
     <>
-      <div className="des-head">
+      <div className="des-head" data-audit-state={JSON.stringify(returnsAudit)}>
         <span className="des-name">{sec.name.toUpperCase()}</span>
         {figi && (
           <span className="des-figi" title="Financial Instrument Global Identifier of the US listing, from OpenFIGI">
