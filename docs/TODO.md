@@ -4,7 +4,7 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-2.29.0 is published. The live follow-up and the 2.29.1 patch are documented in `docs/accuracy-v2.29.1.md`. Keep actual audit failures and coverage limits separate from passing software checks.
+2.29.0 is published. The live follow-up and the 2.29.1 patch are documented in `docs/accuracy-v2.29.1.md`. Fresh public-repository CI passed at `d2c8c0e`; the separate live audit reported 620 passes and five failures. Quote and statement-basis diagnostics are being extended to trace those failures. Keep actual audit failures and coverage limits separate from passing software checks, and hold the 2.29.1 publication request.
 
 The owner-authorized 2.29.0 accuracy work is documented in `docs/accuracy-v2.29.md`, with release notes and explicit live-verification limits. The scheduler-only exception for main is recorded in HANDOVER. Do not treat the eight-company documentary samples as completion of the outstanding full SPLC/ownership reviews.
 
@@ -77,7 +77,7 @@ Plan:
 
 ## Waiting on you
 
-- The data audit on GitHub needs its keys as repository secrets (Settings > Secrets and variables > Actions > New repository secret): `TIINGO_API_KEY`, `MASSIVE_API_KEY`, `SEC_USER_AGENT`, and optionally `EIA_API_KEY` and `COINGECKO_API_KEY`. Its schedule runs only once `.github/workflows/data-audit.yml` is on `main`; until then it runs when the check changes or when you start it (Actions > Data audit > Run workflow). See `docs/audit-check.md`.
+- The latest GitHub audit executed with the required repository secrets; no new credential request is pending. The approved scheduler on `main` calls the development branch. Fresh CI and audit jobs ran after the repository became public again. See `docs/audit-check.md` for configuration and `docs/accuracy-v2.29.1.md` for the unresolved findings.
 
 - The watchlist layout of 27 October, two points to confirm: "52-Wk %" is the one-year price change (today's price against the close a year earlier, without dividends); "Avg Vol (3M)" is the average of the last 63 full trading days, so it can differ a little from Yahoo's own figure. Say if you meant something else.
 - The Bank of Japan's API asks anyone who releases a service using it to tell the Bank by email first. For your own use there is nothing to send; if you ever share the app, that email is due (`docs/data-providers.md`, "Bank of Japan").

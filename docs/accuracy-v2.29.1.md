@@ -38,3 +38,31 @@ Direct publisher requests in this continuation still failed at the environment p
 
 
 The continuation's final local checks passed sequentially: lint, type checks, production build, 1,830 unit tests in 178 files, 95 browser checks and 76 fixture-based Electron desktop checks. Existing assertions were preserved. The new white-marker regression verifies uniform geometry at 100%, 125% and 150% display scaling, fractional table positions and widths, and viewport resizing; generated close-ups of both range columns were inspected. This does not replace live-source corroboration.
+
+## Fresh public-repository run
+
+At `d2c8c0e`, [CI 41028238433](https://github.com/Arminshah/Bloomberg-terminal/actions/runs/41028238433) passed, including the native Windows desktop checks. The separate [live audit 41028233779](https://github.com/Arminshah/Bloomberg-terminal/actions/runs/41028233779) ran and reported 620 passes, five failures, five flags, two blocked checks, 12 incomplete results and 31 skips. Making the repository public restored runner execution for these runs. The earlier billing annotation describes the earlier scheduled run only.
+
+The five failed comparisons were:
+
+| Figure, 29 October 2026 session | Displayed | Reference | Allowed difference |
+| --- | --- | --- | --- |
+| Tesla open | 405.94 | 405.625 | 0.2028125 |
+| Walmart open | 120.83 | 120.74 | 0.06037 |
+| Walmart volume | 15.84 million | 16,048,288 | 160,482.88 |
+| Coca-Cola volume | 15.38 million | 15,872,118 | 158,721.18 |
+| NVIDIA market value | 5.16 trillion | 5,020,789,150,000 | 100,415,783,000 |
+
+Tiingo and unadjusted Massive agreed on the disputed opens and approximately agreed on the volumes. This corroborates the reference observations, without yet establishing why the app differs. The Nasdaq diagnostic was cut off in some public rows. Public detail should put the failed field and displayed day first, with full observations retained in the report.
+
+The two Tesla income failures and the NVIDIA filed-EPS incomplete result were absent from the new unresolved list. Public annotations do not expose individual passing rows, so this does not independently certify those exact former cells. Ten financial-basis warnings remain explicit, alongside two incomplete supply-chain captures. The Lilly share-definition conflict, inaccessible Fed announcement and absent Tesla dividend reference remain unresolved. A matching parent-income amount does not reconcile the remaining statement basis.
+
+The next diagnostics observe only Yahoo responses the app already requests and preserve the displayed quote's source and clocks. They must distinguish provider values, engine updates and capture timing before a runtime quote fix is selected. The observer bounds response size, read time, concurrent reads and retained observations; it stores whitelisted market fields without authentication data. Records completed after the DOM capture are excluded. Minute bars are labelled with their interval and timestamp.
+
+A separate reproduced market-value defect derived shares using a current market value and previous close. Profile share selection now uses a current price and market value from the same provider response, selected before fallback fields are merged. A Nasdaq fallback market value cannot be paired with a Yahoo price. Explicit reported counts remain available when no current pair exists. Share provenance preserves the original app-observation clock; missing publisher dates stay unknown. The role of this defect in the NVIDIA failure remains unproven.
+
+Financial-basis captures now retain the exact conflicting field names, raw monetary values, periods and available SEC concepts, filing dates and source links. The warning refers to other statement lines, since common income, operating income or gross profit can trigger it even when revenue agrees. The warning and withheld margins remain until the source bases are reconciled.
+
+No tolerance or reference value is changed, and 2.29.1 publication remains held. An audit captured during regular trading deliberately skips end-of-day open/volume comparisons when no completed reference session is available. Such skips do not resolve the 29 October failures above.
+
+Local checks for the source-observation follow-up passed sequentially: lint, type checks, 1,851 unit tests in 180 files, production build, 95 browser checks and 76 fixture desktop checks. The first unit attempt found an invalid new ADR fixture referencing a security outside the built-in list. An explicit synthetic receipt fixture corrected that input, with additional share-unit assertions; all checks then passed. The fresh live source evidence remains a separate requirement.
