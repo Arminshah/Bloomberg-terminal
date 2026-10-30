@@ -70,9 +70,11 @@ export interface Evidence {
 export interface Relation {
   key: string;
   name: string;
-  /** US ticker from the SEC's company list. */
+  /** US ticker from the SEC's company list, for the related company's own CIK only. */
   ticker?: string;
   cik?: number;
+  /** A company with a CIK that the SEC's current list no longer has: why, from its own filings. */
+  listing?: Listing;
   /** The app's security id when the company is one of its built-in securities. */
   id?: string;
   /** Yahoo's symbol, for the day's change. */
@@ -98,7 +100,8 @@ export interface Relation {
 
 // ------------------------------------------------------------------ names
 
-const SUFFIX = /(?:,?\s+(?:S\.?A\.?B\.?\s+de\s+C\.?V|S\.?A\.?\s+de\s+C\.?V|S\.?\s+de\s+R\.?L\.?(?:\s+de\s+C\.?V)?|Inc|Incorporated|Corp|Corporation|Co|Company|Cos|Ltd|Limited|LLC|L\.L\.C|plc|N\.V|NV|S\.A|SA|AG|SE|SpA|S\.p\.A|GmbH|LP|L\.P|Holdings?|Group|Hldgs|Bhd|Pty)\.?)+$/i;
+// "N.A." and "National Association" are a US bank's legal form: "JPMorgan Chase Bank, N.A." is "JPMorgan Chase Bank".
+const SUFFIX = /(?:,?\s+(?:S\.?A\.?B\.?\s+de\s+C\.?V|S\.?A\.?\s+de\s+C\.?V|S\.?\s+de\s+R\.?L\.?(?:\s+de\s+C\.?V)?|Inc|Incorporated|Corp|Corporation|Co|Company|Cos|Ltd|Limited|LLC|L\.L\.C|plc|N\.V|NV|S\.A|SA|AG|SE|SpA|S\.p\.A|GmbH|LP|L\.P|Holdings?|Group|Hldgs|Bhd|Pty|N\.\s?A|National Association)\.?)+$/i;
 const STATE_TAG = /\s*[/\\][A-Za-z]{2,3}[/\\]?\s*$/;
 
 /** A company name without its legal form, punctuation or case: "Cisco Systems, Inc." → "cisco systems". */
@@ -317,6 +320,8 @@ const KNOWN: Record<string, Known> = {
   'qatar airways': { name: 'Qatar Airways' },
   'air india': { name: 'Air India' },
   avolon: { name: 'Avolon' },
+  // "Citibank, N.A." is Citigroup's bank, not the ADR depositary filer the SEC lists as "Citibank,N.A./ADR" (GM's 8-K
+  // of March 2026).
   citibank: { name: 'Citigroup', ticker: 'C' },
   deere: { name: 'Deere & Company', ticker: 'DE' },
   'doosan bobcat': { name: 'Doosan Bobcat', yahoo: '241560.KS' },
@@ -1221,7 +1226,16 @@ export interface Directory {
   /** Normalized name → company. */
   byName: Map<string, { name: string; ticker?: string; cik?: number; id?: string; yahoo?: string }>;
   byTicker: Map<string, SecCompany>;
+  /**
+   * CIK → its entry in the SEC's current list of listed companies. A filer's name and ticker come from here, never
+   * from the ticker its filing carried: the SEC gives a retired ticker to another company ("ARIS" was Aris Water
+   * Solutions, CIK 1865187, and is now Aris Mining, CIK 1964504).
+   */
+  byCik: Map<number, SecCompany>;
 }
+
+/** An ADR facility the SEC lists under the depositary bank's name ("Citibank,N.A./ADR", tickers JTGEY and JTGLF): another issuer's shares, not the bank. */
+const DEPOSITARY_ADR = /^(?:Citibank|JPMorgan Chase Bank|Deutsche Bank Trust Company|(?:The )?Bank of New York(?: Mellon)?|BNY Mellon)\b.*\/ADR\/?$/i;
 
 /** The SEC's company list and the app's securities by normalized name, for finding companies in a sentence. */
 /** A listed company's usual name when the SEC writes it in capitals ("NVIDIA CORP" is NVIDIA). */
@@ -1234,8 +1248,11 @@ export function knownName(ticker: string | undefined): string | undefined {
 export function buildDirectory(companies: SecCompany[], securities: SecurityDef[] = []): Directory {
   const byName: Directory['byName'] = new Map();
   const byTicker = new Map<string, SecCompany>();
+  const byCik = new Map<number, SecCompany>();
   for (const c of companies) {
+    if (DEPOSITARY_ADR.test(c.title)) continue;
     if (!byTicker.has(c.ticker)) byTicker.set(c.ticker, c);
+    if (!byCik.has(c.cik)) byCik.set(c.cik, c);
     const key = normalizeName(c.title);
     if (key && !byName.has(key)) byName.set(key, { name: knownName(c.ticker) ?? c.title.replace(STATE_TAG, ''), ticker: c.ticker, cik: c.cik });
   }
@@ -1248,7 +1265,54 @@ export function buildDirectory(companies: SecCompany[], securities: SecurityDef[
     const listed = v.ticker ? byTicker.get(v.ticker) : undefined;
     byName.set(k, listed ? { name: v.name, ticker: listed.ticker, cik: listed.cik } : { name: v.name, id: v.id, yahoo: v.yahoo, ticker: v.ticker });
   }
-  return { byName, byTicker };
+  return { byName, byTicker, byCik };
+}
+
+/**
+ * A filer as the related company: its name and ticker from its own CIK's entry in the SEC's current list, or, when
+ * the list no longer has the CIK, the name it filed under and no ticker, with the ticker its filing carried kept as a
+ * former one ("Aris Water Solutions, Inc.", was ARIS, now Aris Mining's).
+ */
+export function filerIdentity(dir: Directory, cik: number, filedName: string, filedTickers: string[] = []): { name: string; ticker?: string; listing?: Listing } {
+  const listed = dir.byCik.get(cik);
+  if (listed) return { name: knownName(listed.ticker) ?? listed.title.replace(STATE_TAG, ''), ticker: listed.ticker };
+  return { name: filedName, listing: { listed: false, ...(filedTickers[0] ? { was: filedTickers[0] } : {}) } };
+}
+
+/** Why a company with a CIK has no ticker now, from its own filings: a change in control, a bankruptcy, a deregistration or a delisting. */
+export interface Listing {
+  listed: false;
+  /** The ticker its filing carried when it was filed. */
+  was?: string;
+  /** Forms 15 (deregistration) and 25 (delisting), and 8-Ks reporting a change in control (item 5.01) or a bankruptcy (1.03), newest first. */
+  events?: { form: string; date: string; what: 'change in control' | 'bankruptcy' | 'deregistered' | 'delisted' }[];
+}
+
+const DEREGISTERED = /^15F?-(?:12[BG]|15D)$/;
+
+/** The events in a company's filing list that explain why it has no listing now, newest first. */
+export function listingEvents(filings: { form: string; filed: string; items?: string[] }[]): NonNullable<Listing['events']> {
+  const out: NonNullable<Listing['events']> = [];
+  for (const f of [...filings].sort((a, b) => b.filed.localeCompare(a.filed))) {
+    if (DEREGISTERED.test(f.form)) out.push({ form: f.form, date: f.filed, what: 'deregistered' });
+    else if (/^25(?:-NSE)?$/.test(f.form)) out.push({ form: f.form, date: f.filed, what: 'delisted' });
+    else if (/^8-K/.test(f.form) && f.items?.includes('5.01')) out.push({ form: f.form, date: f.filed, what: 'change in control' });
+    else if (/^8-K/.test(f.form) && f.items?.includes('1.03')) out.push({ form: f.form, date: f.filed, what: 'bankruptcy' });
+  }
+  // The last of each kind, and only the events of the last delisting: the year before the latest of them.
+  const last = out[0]?.date;
+  const since = last ? `${Number(last.slice(0, 4)) - 1}${last.slice(4)}` : '';
+  return out.filter((e, i) => e.date >= since && out.findIndex((x) => x.what === e.what) === i);
+}
+
+/** "Acquired Oct 2025 (was ARIS)": a company's listing as SPLC shows it; '' while it is listed. */
+export function listingLabel(l: Listing | undefined): string {
+  if (!l) return '';
+  const e = l.events ?? [];
+  const pick = e.find((x) => x.what === 'change in control') ?? e.find((x) => x.what === 'bankruptcy') ?? e.find((x) => x.what === 'deregistered') ?? e.find((x) => x.what === 'delisted');
+  const month = pick ? ` ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(pick.date.slice(5, 7)) - 1]} ${pick.date.slice(0, 4)}` : '';
+  const what = !pick ? 'Not listed' : pick.what === 'change in control' ? 'Acquired' : pick.what === 'bankruptcy' ? 'Bankruptcy' : pick.what === 'deregistered' ? 'Deregistered' : 'Delisted';
+  return `${what}${month}${l.was ? ` (was ${l.was})` : ''}`;
 }
 
 export interface Found {
@@ -1312,7 +1376,11 @@ export function findCompanies(input: string, dir: Directory, loose = false, whol
         const key = normalizeName(phrase);
         if (!key) continue;
         const single = !key.includes(' ');
-        const entry = dir.byName.get(key);
+        // "Jiangsu Hengrui Pharmaceutical Co., Ltd." (Merck's release of August 2026) is the SEC's "Jiangsu Hengrui
+        // Pharmaceuticals Co., Ltd.": a name of several words read with its last word singular or plural.
+        const last = key.slice(key.lastIndexOf(' ') + 1);
+        const other = single || last.length < 6 ? '' : /[^s]s$/.test(last) ? key.slice(0, -1) : `${key}s`;
+        const entry = dir.byName.get(key) ?? (other && n === ws.length ? dir.byName.get(other) : undefined);
         // A first word alone stands for a company only when it is a well-known one or written like a brand ("NVIDIA
         // Blackwell", "CoreWeave Compute"); "Polaris Forge 1" is not Polaris Inc.
         const prefixOk = n === ws.length || !single || KNOWN[key] || BRAND.test(ws[0]);
@@ -2312,6 +2380,7 @@ export function mergeRelations(list: Relation[], options: { preserveRoles?: bool
     if (r.side !== have.side && r.side !== 'records') have.side = have.side === 'records' ? r.side : 'both';
     if (r.amount != null) have.amount = Math.max(have.amount ?? 0, r.amount);
     have.ticker ??= r.ticker;
+    have.listing ??= r.listing;
     have.id ??= r.id;
     have.yahoo ??= r.yahoo;
   }
@@ -2396,6 +2465,8 @@ export function mergeRelations(list: Relation[], options: { preserveRoles?: bool
 
 /** At most this many of a company's differently named federal units are looked up in its own filings. */
 const MAX_UNIT_CHECKS = 12;
+/** At most this many related companies without a listing have their filing lists read for the reason. */
+const MAX_LISTING_CHECKS = 30;
 
 export interface FtsHit {
   cik: number;
@@ -2885,7 +2956,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     if (sentences) {
       coverage.documentsRead++;
       if (sentences.length >= 80) capped('A document reached the mention extraction limit.');
-      const listed = dir.byTicker.get(f.tickers[0] ?? '');
+      const identity = filerIdentity(dir, f.cik, f.name, f.tickers);
       // The filer as its documents call it, initials included ("BMS" for Bristol-Myers Squibb).
       // Two-word names also written as one ("Open Text" is "OpenText" in its own filings).
       const filerNames = targetNames(f.tickers[0], f.name).names.flatMap((n) => (/^[A-Z][a-z]{2,} [A-Z][a-z]{2,}$/.test(n) ? [n, n.replace(' ', '')] : [n]));
@@ -2906,7 +2977,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
         const dated = /^(?:In|On|During|By|As of)\s+(?:(?:early|mid|late)[- ])?(?:[A-Z][a-z]+\s+)?(?:\d{1,2},\s+)?((?:19|20)\d{2})\b/.exec(sentence.trim());
         if (dated && Number(dated[1]) < filedYear - 5 && Math.max(...years) < filedYear - 5 && /\b(?:announced|acquir\w+|acquisition|sold|completed|consummated|merged|spun off|spin-off|divest\w*)\b/i.test(sentence)) continue;
         found++;
-        const r: Relation = { key: `cik:${f.cik}`, name: knownName(f.tickers[0]) ?? listed?.title ?? f.name, ticker: f.tickers[0], cik: f.cik, role: c.role, share: c.share, qualifier: c.qualifier, basis: c.basis, side: 'theirs', evidence: [evidence(f, sentence)] };
+        const r: Relation = { key: `cik:${f.cik}`, name: identity.name, ticker: identity.ticker, cik: f.cik, ...(identity.listing ? { listing: identity.listing } : {}), role: c.role, share: c.share, qualifier: c.qualifier, basis: c.basis, side: 'theirs', evidence: [evidence(f, sentence)] };
         relations.push(r); captured.push(enrichRelation(r));
         if (c.also) { const also = { ...r, role: c.also, share: undefined, qualifier: undefined, basis: undefined }; relations.push(also); captured.push(enrichRelation(also)); }
       }
@@ -2915,6 +2986,16 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     publish();
   });
   await federal;
+  // Companies the SEC's current list no longer has: their own filing lists say why (a change in control, a
+  // bankruptcy, a deregistration or a delisting). Without an answer they stay "Not listed".
+  const unlisted = [...new Set(captured.filter((r) => r.cik && r.listing).map((r) => r.cik!))].slice(0, MAX_LISTING_CHECKS);
+  for (const cik of unlisted) {
+    const filings = await io.filings(cik).catch(() => null);
+    const events = filings ? listingEvents(filings) : [];
+    if (!events.length) continue;
+    for (const list of [captured, relations]) for (const r of list) if (r.cik === cik && r.listing) r.listing = { ...r.listing, events };
+  }
+  if (unlisted.length) publish();
   if (coverage.failedDocuments) warn('Some source documents could not be read. The extracted relationships are incomplete.');
   if (!company) warn('No company filing index was matched; only counterparties found in other sources are available.');
   reportCoverage();

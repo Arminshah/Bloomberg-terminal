@@ -112,7 +112,8 @@ net.fetch = async (input, init) => {
   const url = new URL(String(input));
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
   // With fixtures.supplyChain, SPLC's full-text search and three annual reports (electron/supply-chain.cjs).
-  if (fixtures.supplyChain && url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Nebius Group N.V.' } });
+  // The two filers naming it are listed under their own CIKs: SPLC takes a filer's name and ticker from that entry.
+  if (fixtures.supplyChain && url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Nebius Group N.V.' }, 1: { cik_str: 1408710, ticker: 'FN', title: 'Fabrinet' }, 2: { cik_str: 2222222, ticker: 'EXCL', title: 'Example Cloud Inc.' } });
   // With fixtures.mpcData, synthetic answers for the MPC back-test: Tiingo's adjusted closes of any ticker on weekdays
   // from 3 January 2012 to 29 March 2013, each a steady drift with a swing set by its letters, and FRED's DTB3 at
   // 0.02% from 15 December 2011 and 0.09% from 1 June 2012.

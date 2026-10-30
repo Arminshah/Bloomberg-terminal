@@ -134,6 +134,7 @@ export function enrichRelation(r: Relation, observedAt?: number): Relation {
 /** Retain all recorded versions, including periods no longer selected for the current display. */
 export function appendRelationshipHistory(previous: Relation[], incoming: Relation[], observedAt?: number): Relation[] {
   const by = new Map<string, Relation>();
+  const newer = new Set(incoming);
   for (const raw of [...previous, ...incoming]) {
     const r = enrichRelation(raw, observedAt);
     // Anonymous concentration labels are local to a filing and cannot identify an entity across periods.
@@ -144,8 +145,15 @@ export function appendRelationshipHistory(previous: Relation[], incoming: Relati
     for (const a of r.assertions!) if (!have.assertions!.some((x) => x.id === a.id)) have.assertions!.push(a);
     for (const o of r.observations!) if (!have.observations!.some((x) => x.id === o.id)) have.observations!.push(o);
     if (r.identityLinks) have.identityLinks = [...new Map([...(have.identityLinks ?? []), ...r.identityLinks].map((link) => [evidenceIdentity(link.evidence), link])).values()];
-    // Name/ticker changes are display aliases only; earlier citations keep the name as filed.
+    // Name/ticker changes are display aliases only; earlier citations keep the name as filed. The newest reading names
+    // the company: a saved record keeps no ticker the SEC has since given to another company.
+    if (newer.has(raw) && r.cik && r.cik === have.cik) {
+      have.name = r.name;
+      have.ticker = r.ticker;
+      have.listing = r.listing;
+    }
     have.ticker ??= r.ticker;
+    have.listing ??= r.listing;
     have.cik ??= r.cik;
     have.id ??= r.id;
     have.yahoo ??= r.yahoo;
