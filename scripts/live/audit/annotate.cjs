@@ -2,6 +2,9 @@
 
 const { sanitize, redact } = require('./assurance.cjs');
 const MAX_OUTPUT_BYTES = 48 * 1024;
+const MAX_ANNOTATION_BYTES = 3 * 1024;
+const MAX_DETAIL_CHUNKS = 8;
+const MAX_ROW_BYTES = 1800;
 const ORDER = { FAIL: 0, FLAGGED: 1, BLOCKED: 2, INCOMPLETE: 3 };
 
 // Escape command data, including '%' first, so provider text cannot add another
@@ -40,27 +43,37 @@ function formatAnnotations(report, environment = process.env) {
   const rows = report.rows.filter((row) => row && Object.hasOwn(ORDER, row.status)).map((row) => sanitize(row, environment)).sort((a, b) => ORDER[a.status] - ORDER[b.status]);
   const counts = ['pass', 'fail', 'flagged', 'blocked', 'incomplete', 'skip'].map((key) => `${key.toUpperCase()}=${value(summary[key])}`).join('; ');
   const level = rows.some((row) => row.status === 'FAIL') || summary.exitCode === 1 ? 'error' : rows.length || summary.exitCode !== 0 ? 'warning' : 'notice';
-  // Pack every detail into one annotation. GitHub limits the number of error and
-  // warning annotations per step, so many separate commands could lose failures.
-  const prefix = `::${level}::`;
-  const lines = [boundedData(`Data audit: assurance=${value(summary.assurance)}; exit=${value(summary.exitCode)}; ${counts}. Public annotation is bounded diagnostics; the full report is in the run summary.`, environment)];
+  // Public pages truncate long annotation bodies. Pack rows into at most eight
+  // small detail annotations plus one summary, below GitHub's per-step count limit.
+  const chunks = [];
+  let lines = [];
+  let chunkLevel = 'warning';
   const separator = '%0A';
-  let bytes = Buffer.byteLength(prefix + lines[0] + '\n');
+  const commandReserve = Buffer.byteLength('::warning::\n');
+  let bytes = commandReserve;
   let shown = 0;
-  // Reserve the final notice even when a large report exhausts the detail budget.
-  const footerReserve = 1024;
   for (const row of rows) {
     const detail = [row.kind, row.detail, row.candidates ? `candidates=${value(row.candidates)}` : ''].filter(Boolean).map(value).join('; ');
     const message = `${row.status} | area=${value(row.area)} | item=${value(row.item)} | field=${value(row.field)} | app=${value(row.app)} | ref=${value(row.ref)} | allowed=${value(row.allowed)} | source=${value(row.refName ?? row.source ?? row.sourceUrl)} | detail=${detail || 'n/a'}`;
-    const line = boundedData(message, environment);
-    const size = Buffer.byteLength(separator + line);
-    if (bytes + size + footerReserve > MAX_OUTPUT_BYTES) break;
+    const line = boundedData(message, environment, MAX_ROW_BYTES);
+    let size = Buffer.byteLength((lines.length ? separator : '') + line);
+    if (bytes + size > MAX_ANNOTATION_BYTES) {
+      chunks.push(`::${chunkLevel}::${lines.join(separator)}\n`);
+      lines = [];
+      chunkLevel = 'warning';
+      bytes = commandReserve;
+      if (chunks.length >= MAX_DETAIL_CHUNKS) break;
+      size = Buffer.byteLength(line);
+    }
     lines.push(line);
+    if (row.status === 'FAIL') chunkLevel = 'error';
     bytes += size;
     shown++;
   }
-  lines.push(boundedData(`Audit annotation detail: ${shown} unresolved rows shown; ${rows.length - shown} unresolved rows omitted by the 48 KiB annotation limit. Long rows may be truncated. Read report.md/report.json or the run summary for the complete evidence.`, environment, footerReserve - Buffer.byteLength(separator)));
-  return prefix + lines.join(separator) + '\n';
+  if (lines.length) chunks.push(`::${chunkLevel}::${lines.join(separator)}\n`);
+  const prefix = `::${level}::`;
+  const summaryData = boundedData(`Data audit: assurance=${value(summary.assurance)}; exit=${value(summary.exitCode)}; ${counts}. ${shown} unresolved rows shown; ${rows.length - shown} unresolved rows omitted by the ${MAX_DETAIL_CHUNKS}-chunk public annotation limit. Detail commands are at most 3 KiB; long individual rows may be truncated. Read report.md/report.json or the run summary for the complete evidence.`, environment, MAX_ANNOTATION_BYTES - Buffer.byteLength(prefix + '\n'));
+  return `${prefix}${summaryData}\n${chunks.join('')}`;
 }
 
 if (require.main === module) {
@@ -68,9 +81,9 @@ if (require.main === module) {
     const report = JSON.parse(require('node:fs').readFileSync(process.argv[2] ?? 'audit-out/run/report.json', 'utf8'));
     process.stdout.write(formatAnnotations(report));
   } catch (error) {
-    process.stdout.write(`::error::${boundedData(`Audit report annotations could not be generated: ${error.message}`, process.env)}\n`);
+    process.stdout.write(`::error::${boundedData(`Audit report annotations could not be generated: ${error.message}`, process.env, MAX_ANNOTATION_BYTES - Buffer.byteLength('::error::\n'))}\n`);
     process.exitCode = 1;
   }
 }
 
-module.exports = { formatAnnotations, escapeData, MAX_OUTPUT_BYTES };
+module.exports = { formatAnnotations, escapeData, MAX_OUTPUT_BYTES, MAX_ANNOTATION_BYTES, MAX_DETAIL_CHUNKS };

@@ -32,6 +32,7 @@ on:
       - scripts/live/audit/assurance.cjs
       - scripts/live/audit/domains.cjs
       - scripts/live/audit/annotate.cjs
+      - scripts/live/audit/references.cjs
   schedule:
     # Tuesday to Saturday at 01:37 UTC: after each US session's close and evening trading, references published.
     - cron: '37 1 * * 2-6'
@@ -51,8 +52,8 @@ on:
         type: string
 
 concurrency:
-  # Serialize each entry point; the scheduled wrapper can run beside a direct diagnostic run.
-  group: data-audit-${{ github.workflow }}
+  # The wrapper and direct runs share free-plan credentials and must not exhaust one another's quotas.
+  group: data-audit
   cancel-in-progress: false
 
 permissions:

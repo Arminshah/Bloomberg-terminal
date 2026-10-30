@@ -34,6 +34,16 @@ function conflictComparison(candidates, ref, tolerance = {}, detail = '') {
   return { status: 'FLAGGED', candidates: checked, detail: [detail, checked.length ? `${checked.filter((x) => x.status === 'PASS').length} of ${checked.length} displayed candidates match this reference; the source conflict remains unresolved` : 'the warning exposes no safely interpretable numeric candidates'].filter(Boolean).join('; ') };
 }
 
+/** Select comparable captured alternatives, keeping share counts out of market-value comparisons. */
+function conflictCandidates(conflicts, field, currency) {
+  const measure = field === 'Market cap' ? 'market-cap' : field === 'Shares out' ? 'shares' : undefined;
+  const rows = conflicts.flatMap((conflict) => conflict.candidates ?? []).filter((candidate) =>
+    (candidate.field === field || (measure && candidate.measure === measure)) &&
+    (!currency || candidate.measure !== 'market-cap' || candidate.currency === currency),
+  );
+  return [...new Map(rows.map((candidate) => [JSON.stringify(candidate), candidate])).values()];
+}
+
 /** Required coverage is explicit. Optional omissions never become numeric passes. */
 function assess(rows, requirements = []) {
   const counts = Object.fromEntries(STATUSES.map((s) => [s.toLowerCase(), rows.filter((r) => r.status === s).length]));
@@ -52,4 +62,4 @@ function assess(rows, requirements = []) {
   return { ...counts, coverage, assurance: exitCode === 0 ? 'verified-required-scope' : 'incomplete', exitCode };
 }
 
-module.exports = { STATUSES, redact, sanitize, numericComparison, conflictComparison, assess };
+module.exports = { STATUSES, redact, sanitize, numericComparison, conflictComparison, conflictCandidates, assess };

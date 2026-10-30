@@ -18,6 +18,8 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const assurance = require('./assurance.cjs');
 const domains = require('./domains.cjs');
+const references = require('./references.cjs');
+const massiveBudget = references.requestBudget();
 
 // Node's fetch must use the same inherited proxy as Electron. Never bypass an enforced destination policy.
 if ((process.env.HTTPS_PROXY || process.env.HTTP_PROXY) && process.env.NODE_USE_ENV_PROXY !== '1' && !process.execArgv.includes('--use-env-proxy')) {
@@ -77,8 +79,8 @@ function compare(area, item, field, app, ref, tol, refName, note) {
   // The screen itself says the sources disagree on this figure: reported, not hidden and not failed.
   if (app === FLAGGED_ON_SCREEN) {
     const evidence = conflictsFor(item);
-    const candidates = evidence.flatMap((r) => r.candidates ?? []).filter((r) => r.field === field);
-    add({ ...assurance.conflictComparison(candidates, ref, tol, evidence.map((r) => r.detail).join('; ')), area, item, field, ref, refName });
+    const candidates = assurance.conflictCandidates(evidence, field, field === 'Market cap' ? 'USD' : undefined);
+    add({ ...assurance.conflictComparison(candidates, ref, tol, [...new Set(evidence.map((r) => r.detail).filter(Boolean))].join('; ')), area, item, field, ref, refName });
     return;
   }
   if (!Number.isFinite(app) || !Number.isFinite(ref)) {
@@ -105,6 +107,7 @@ async function get(url, headers = {}, check = () => null, init = {}) {
   for (let i = 0; i < 3; i++) {
     let r;
     try {
+      if (new URL(url).hostname === 'api.massive.com') await massiveBudget.wait();
       r = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(45_000) });
     } catch (e) {
       const msg = `${e?.message ?? e} ${e?.cause?.message ?? ''} ${e?.cause?.code ?? ''}`;
@@ -234,7 +237,11 @@ async function equity(t) {
   const des = lines(`${t} US Equity DES`);
   if (!bq) return skip('quote', t, 'all', 'the quote screen was not captured');
   const now = Date.now();
-  const bars = await tiingo(t, iso(now - 420 * DAY));
+  let bars = await tiingo(t, iso(now - 420 * DAY));
+  if (bars.ok) {
+    const invalid = references.invalidDailyBars(bars.json);
+    if (invalid) bars = { kind: 'malformed', detail: invalid };
+  }
   const summary = await nasdaq(t, 'summary?assetclass=stocks');
   // The session the screen shows: a date when the session is over, a time while it trades.
   const shownDay = screenDay(after(bq, 'Last update'));
@@ -244,9 +251,10 @@ async function equity(t) {
       else blocked('quote', t, f, bars, 'Tiingo');
     }
   } else {
-    const b = bars.json.map((x) => ({ ...x, day: x.date.slice(0, 10) }));
+    const b = bars.json.map((x) => ({ ...x, day: x.date.slice(0, 10) })).sort((a, c) => a.day.localeCompare(c.day));
     const at = shownDay ? b.findIndex((x) => x.day === shownDay) : -1;
     const sessionOver = !!shownDay;
+    if (sessionOver && at < 0) add({ status: 'INCOMPLETE', area: 'quote', item: t, field: 'reference session coverage', detail: `Screen session ${shownDay}; latest Tiingo bar ${b.at(-1)?.day ?? 'unavailable'}. Dated rolling analytics are withheld until the same reference session is available.` });
     if (!sessionOver) for (const f of ['Last', 'Open', 'High', 'Low', 'Volume']) skip('quote', t, f, 'the session was trading when captured');
     else if (at < 0) for (const f of ['Last', 'Open', 'High', 'Low', 'Volume']) skip('quote', t, f, `Tiingo has no bar for ${shownDay} yet`);
     else {
@@ -262,7 +270,7 @@ async function equity(t) {
     if (ref) compare('quote', t, 'Previous close', num(after(bq, 'Previous close')), ref.close, TOLERANCE.prevClose, `Tiingo close ${ref.day}`);
     else skip('quote', t, 'Previous close', 'no reference session');
     // 30 sessions ending with the last finished one.
-    const end = sessionOver && at >= 0 ? at : b.findLastIndex((x) => x.day < iso(now));
+    const end = references.referenceEnd(b, shownDay, iso(now));
     if (end >= 30) {
       const w = b.slice(end - 29, end + 1);
       compare('quote', t, 'Avg vol 30D', big(after(bq, 'Avg vol 30D')), w.reduce((a, x) => a + x.volume, 0) / 30, TOLERANCE.avgVolume, `Tiingo, 30 sessions to ${b[end].day}`);
@@ -276,8 +284,8 @@ async function equity(t) {
     }
     // The 52-week range from the daily highs and lows, adjusted for splits only (as quotes give it). Sources start the
     // window a year or 52 weeks back: the screen passes if it matches either.
-    if (end >= 0) {
-      const split = b.map((_, i) => b.slice(i + 1).reduce((f, x) => f * (x.splitFactor || 1), 1));
+    if (sessionOver && end >= 0) {
+      const split = references.splitFactorsAt(b, end);
       // Counted back from the session shown, or from today while it trades.
       const anchor = Date.parse(sessionOver ? b[end].day : iso(now));
       const window = (days) => b.map((x, i) => ({ ...x, i })).filter((x) => x.i <= end && Date.parse(x.day) >= anchor - days * DAY);
@@ -286,9 +294,10 @@ async function equity(t) {
         const a = pick(window(364));
         const y = pick(window(365));
         const ref = Math.abs(shown - a) <= Math.abs(shown - y) ? a : y;
-        compare('quote', t, field, shown, ref, TOLERANCE.range52, `Tiingo daily ${field.slice(8)}s, 52 weeks or a year to ${iso(anchor)}`);
+        const extrema = [...window(365)].sort((x, z) => field === '52-week high' ? z.high / split[z.i] - x.high / split[x.i] : x.low / split[x.i] - z.low / split[z.i])[0];
+        compare('quote', t, field, shown, ref, TOLERANCE.range52, `Tiingo daily ${field.slice(8)}s, 52 weeks or a year to ${iso(anchor)}`, `Screen session ${shownDay}; reference session ${b[end].day}; one-year extreme dated ${extrema?.day ?? 'unavailable'}; prices use only splits effective through that session.`);
       }
-    }
+    } else if (!sessionOver) for (const field of ['52-week low', '52-week high']) skip('quote', t, field, 'an EOD reference cannot confirm the live session\'s changing range');
     if (des && end >= 0) {
       const last = b[end];
       const yearEnd = b.filter((x) => x.day < `${last.day.slice(0, 4)}-01-01`).pop();
@@ -553,7 +562,10 @@ async function supplyResearch(ticker) {
     }
     const reference = documents.get(e.sourceUrl);
     if (!reference.ok) blocked('supply-chain', ticker, `evidence ${e.relation}`, reference, e.sourceUrl);
-    else add({ status: domains.quotedEvidence(reference.text, e) ? 'PASS' : 'FAIL', area: 'supply-chain', item: ticker, field: `documentary quotation ${e.relation}`, refName: e.sourceUrl, detail: 'Exact normalized quotation corroboration only; this does not independently certify every role, contract, denominator, identity link or missing counterparty.' });
+    else {
+      const matches = domains.quotedEvidence(reference.text, e);
+      add({ status: matches ? 'PASS' : 'FAIL', area: 'supply-chain', item: ticker, field: `documentary quotation ${e.relation}`, refName: e.sourceUrl, detail: `${matches ? '' : `Unmatched captured quotation: ${String(e.sentence).slice(0, 1400)}. `}Exact normalized quotation corroboration only; this does not independently certify every role, contract, denominator, identity link or missing counterparty.` });
+    }
     checked++;
   }
   if (!checked) add({ status: 'INCOMPLETE', area: 'supply-chain', item: ticker, field: 'documentary evidence', detail: 'no canonical SEC quotation could be sampled' });
