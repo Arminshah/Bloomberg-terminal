@@ -34,6 +34,10 @@ export interface FinPeriod {
   ni: number;
   /** Net income attributable to the company's shareholders, before preferred dividends (the filing's NetIncomeLoss). */
   niTotal: number;
+  /** An exact-period parent-income observation selected from the company's financial filings. */
+  niTotalFiled?: { end: number; source: string };
+  /** The selected filed parent income and other statement lines have unresolved reporting-basis differences. */
+  niTotalBasisConflict?: boolean;
   shares: number;
   eps: number;
   dps: number;
@@ -111,6 +115,12 @@ export function emptyPeriod(label = 'LTM', end = NaN): FinPeriod {
     eps: n, dps: n, cash: n, recv: n, inv: n, curAssets: n, ppe: n, intang: n, totAssets: n, curLiab: n, debt: n, totLiab: n, equity: n,
     cfo: n, capex: n, fcf: n, divPaid: n, buyback: n,
   };
+}
+
+/** A parent-income margin needs revenue on a compatible reporting basis. */
+export function parentIncomeMargin(period: Pick<FinPeriod, 'niTotal' | 'rev' | 'niTotalBasisConflict'> | undefined): number {
+  return period && !period.niTotalBasisConflict && Number.isFinite(period.niTotal) && Number.isFinite(period.rev) && period.rev > 0
+    ? (period.niTotal / period.rev) * 100 : NaN;
 }
 
 /**
@@ -356,7 +366,7 @@ export function keyStats(def: SecurityDef): KeyStats {
     roe: ltm.equity > 0 ? (ltm.ni / ltm.equity) * 100 : NaN,
     roa: (ltm.ni / ltm.totAssets) * 100,
     opMargin: (ltm.opInc / ltm.rev) * 100,
-    netMargin: (ltm.ni / ltm.rev) * 100,
+    netMargin: parentIncomeMargin(ltm),
     grossMargin: (ltm.gp / ltm.rev) * 100,
     de: ltm.equity > 0 ? (ltm.debt / ltm.equity) * 100 : NaN,
     epsLtm: ltm.eps,
@@ -383,7 +393,7 @@ export function keyStats(def: SecurityDef): KeyStats {
     // price by a Class A book value).
     // Without an LTM EPS from the statements (a newest quarter known only from the earnings module, SAP's two days
     // after it reported), the source's P/E comes with the source's own trailing EPS, so the two still agree.
-    const own = new Set(['ev', 'evEbitda', ...(Number.isFinite(ltm.eps) ? ['pe', 'epsLtm'] : []), ...(ltm.equity > 0 ? ['pb'] : [])]);
+    const own = new Set(['ev', 'evEbitda', ...(Number.isFinite(ltm.eps) ? ['pe', 'epsLtm'] : []), ...(ltm.equity > 0 ? ['pb'] : []), ...(ltm.niTotalFiled || ltm.niTotalBasisConflict ? ['netMargin'] : [])]);
     for (const [k, v] of Object.entries(real.stats)) if (Number.isFinite(v) && !mixed.has(k) && !own.has(k)) ks[k] = v as number;
     // The source's price to book for a depositary receipt divides the receipt's price by the book value of one
     // ordinary share (HSBC's, five shares a receipt, read 8.31 on 28 October 2026 against about 1.5). Price to book

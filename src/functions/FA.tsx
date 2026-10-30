@@ -6,7 +6,7 @@ import { Chg } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtDay, fmtIso, fmtNum } from '../core/format';
 import { NextEarnings } from '../components/NextEarnings';
-import { financials, hasRealStatements, nextEarnings, priorStatementPeriod, reportCcy, type FinPeriod } from '../data/fundamentals';
+import { financials, hasRealStatements, nextEarnings, parentIncomeMargin, priorStatementPeriod, reportCcy, type FinPeriod } from '../data/fundamentals';
 import { analystsAvailable, analystSymbol, estimateInCurrency, listedOutsideUs, useAnalysts, type AnalystPart, type Estimate } from '../data/live/analysts';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
@@ -48,7 +48,7 @@ const KEY: Row[] = [
   { label: 'EBITDA', get: (p) => p.ebitda, bold: true },
   { label: 'Margin %', get: (p) => margin(p.ebitda, p.rev), indent: true, ratio: true },
   { label: 'Net Income', get: (p) => p.niTotal, bold: true },
-  { label: 'Margin %', get: (p) => margin(p.niTotal, p.rev), indent: true, ratio: true },
+  { label: 'Margin %', get: parentIncomeMargin, indent: true, ratio: true },
   { label: 'Net Income to Common Shareholders', get: (p) => p.ni },
   { label: 'Diluted EPS', get: (p) => p.eps, dec: 2, bold: true },
   { label: 'Growth %, YoY', get: (p, q) => growth(p.eps, q?.eps), nm: (p, q) => growthNm(p.eps, q?.eps), indent: true, ratio: true },
@@ -106,7 +106,7 @@ const RATIOS: Row[] = [
   { label: 'Gross Margin', get: (p) => (p.gp / p.rev) * 100, pct: true },
   { label: 'Operating Margin', get: (p) => (p.opInc / p.rev) * 100, pct: true },
   { label: 'EBITDA Margin', get: (p) => (p.ebitda / p.rev) * 100, pct: true },
-  { label: 'Net Margin', get: (p) => (p.ni / p.rev) * 100, pct: true },
+  { label: 'Net Margin', get: parentIncomeMargin, pct: true },
   { label: 'Return on Common Equity', get: (p) => (p.equity > 0 ? (p.ni / p.equity) * 100 : NaN), nm: (p) => Number.isFinite(p.ni) && p.equity <= 0, pct: true },
   { label: 'Return on Assets', get: (p) => (p.ni / p.totAssets) * 100, pct: true },
   { label: 'Effective Tax Rate', get: (p) => (p.pretax > 0 ? (p.tax / p.pretax) * 100 : NaN), nm: (p) => Number.isFinite(p.tax) && p.pretax <= 0, pct: true },
@@ -195,7 +195,7 @@ export function FA({ sec, route }: FnProps) {
   const fmtCell = (r: Row, v: number, i?: number) =>
     !Number.isFinite(v) ? (i != null && r.nm?.(cols[i], prevOf(i)) ? 'NM' : '') : r.ratio ? fmtNum(v, 1) : r.pct ? `${fmtNum(v, 1)}%` : fmtNum(v, r.dec ?? (Math.abs(v) >= 100 ? 0 : 1));
   return (
-    <div>
+    <div data-audit-state={JSON.stringify({ schema: 1, domain: 'financials', capturedAt: Date.now(), security: s.id, currency: ccy, page: TABS[tab - 1].file, periods: cols.map((p) => ({ label: p.label, end: p.end, basis: p.basis, rev: p.rev, niTotal: p.niTotal, ni: p.ni, niTotalFiled: p.niTotalFiled, niTotalBasisConflict: !!p.niTotalBasisConflict, parentIncomeMargin: parentIncomeMargin(p) })) })}>
       <FnHeader
         code="FINANCIALS"
         title="Financial Analysis"
@@ -338,6 +338,7 @@ export function FA({ sec, route }: FnProps) {
           ? `Figures from ${real?.statementsFrom === 'SEC EDGAR' ? 'SEC EDGAR' : 'Yahoo Finance, supplemented from compatible SEC EDGAR observations where available'}; LTM ${f.ltm?.basis === 'annual' ? 'is the latest complete fiscal year, dated above' : f.ltm?.basis === 'trailing' ? "is the source's trailing twelve months" : 'sums four consecutive reported quarters'}${f.ltm?.epsComputed ? ', with EPS as net income over diluted shares (a quarter has no EPS in the source)' : ''}. Net Income is attributable to the company's shareholders; Net Income to Common Shareholders comes after preferred dividends and is what diluted EPS divides. Missing values have no supported observation; they are not zero.${estimates.length ? ` Est columns: the analysts' consensus${est?.source ? ` from ${est.source}` : ''} (revenue, net income and EPS on the analysts' basis).` : ''}`
           : status === 'sim' ? "Statements are simulated from each company's scale and sector profile; they are not reported figures." : ''}
       </div>
+      {cols.some((p) => p.niTotalBasisConflict) ? <div className="note">Filed parent net income is shown on its own reported basis. Other statement lines remain on an unresolved basis; the affected net margins are withheld.</div> : null}
       {supplementSources.length ? <details className="note"><summary>* Supplemental observations (hover a period heading for its sources)</summary>{supplementSources.map((source) => <div key={source}>{source}</div>)}</details> : null}
       </>}
     </div>

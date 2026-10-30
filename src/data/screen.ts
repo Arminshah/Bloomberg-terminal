@@ -1,5 +1,5 @@
 import { localBeta, marketCapUsd, periodChange, toUsd, type Horizon } from './analytics';
-import { financials, keyStats, type FinPeriod } from './fundamentals';
+import { financials, keyStats, parentIncomeMargin, type FinPeriod } from './fundamentals';
 import { engine } from './market';
 import type { Listing } from './live/earnings-calendar';
 
@@ -391,7 +391,7 @@ function ownValues(id: string): Candidate['values'] {
     // Net income as FINANCIALS shows it: attributable to the company's shareholders, before preferred dividends.
     out[at('ni')] = usd(p?.niTotal);
     out[at('opMargin')] = ratio(p?.opInc, p?.rev);
-    out[at('netMargin')] = ratio(p?.niTotal, p?.rev);
+    out[at('netMargin')] = parentIncomeMargin(p);
   }
   const prevYear = yearBefore(f.annual, fy);
   const prevQuarter = yearBefore(f.quarterly, periods.lq);

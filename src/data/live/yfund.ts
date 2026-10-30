@@ -314,6 +314,14 @@ export function sumQuarters(q4: FinPeriod[], dps = NaN): FinPeriod {
   out.shares = last.shares;
   const supplements = q4.flatMap((p) => p.supplements ?? []);
   if (supplements.length) out.supplements = [...new Set(supplements)];
+  // A copied latest quarter cannot establish the provenance or basis of all four quarters.
+  delete out.niTotalFiled;
+  delete out.niTotalBasisConflict;
+  if (q4.every((p) => !!p.niTotalFiled)) out.niTotalFiled = {
+    end: last.niTotalFiled!.end,
+    source: `Sum of four filed quarters: ${[...new Set(q4.map((p) => p.niTotalFiled!.source))].join('; ')}`,
+  };
+  if (q4.some((p) => p.niTotalBasisConflict)) out.niTotalBasisConflict = true;
   return out;
 }
 
@@ -381,6 +389,7 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     }
   }
   const netIncome = new Map<string, { value: number; source: string }>();
+  const parentIncome = new Map<string, { end: number; source: string; conflict: boolean }>();
   let perShareFromFilings = false;
   if (secFacts && currency) {
     for (const [kind, rows] of [['annual', annualRows], ['quarter', quarterlyRows]] as const) {
@@ -427,6 +436,19 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
           supplements.set(end, evidence);
         }
         for (const [key, value] of extra.row) {
+          // This independently defined parent-income line must be selected before the generic income-basis gate.
+          // Other statement differences must not silently substitute the common-share EPS numerator for it.
+          if (key === '__NetIncome') {
+            const source = extra.sources.get(key)!;
+            if (!Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN) && !conflict) netIncome.set(`${kind}:${end}`, { value, source });
+            row.set('NetIncome', value);
+            parentIncome.set(`${kind}:${end}`, { end: secEnd, source, conflict: conflict && !filedBasis });
+            const evidence = supplements.get(end) ?? new Set<string>();
+            evidence.add(`${source}: net income attributable to the company's shareholders`);
+            if (conflict && !filedBasis) evidence.add('Filed parent income and other statement lines have unresolved reporting-basis differences; parent-income margins are withheld');
+            supplements.set(end, evidence);
+            continue;
+          }
           if (filedBasis && REVENUE_BASIS.has(key)) {
             row.set(key, value);
             continue;
@@ -450,19 +472,6 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
             continue;
           }
           if (conflict && !BALANCE_SET.has(key) && !(niAgrees && PER_SHARE.has(key))) continue;
-          // Net income before any preferred dividends: kept aside, used below only where it checks out.
-          if (key === '__NetIncome') {
-            if (!Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN)) netIncome.set(`${kind}:${end}`, { value, source: extra.sources.get(key)! });
-            // Exact-period parent-attributable filed income is a different measure from the EPS numerator. Prefer
-            // that explicit filed line without overwriting net income available to common shareholders.
-            if (row.get('NetIncome') !== value) {
-              row.set('NetIncome', value);
-              const evidence = supplements.get(end) ?? new Set<string>();
-              evidence.add(`${extra.sources.get(key)}: net income attributable to the company's shareholders`);
-              supplements.set(end, evidence);
-            }
-            continue;
-          }
           if (Number.isFinite(row.get(key)) && !(key === 'TotalRevenue' && row.get(key)! < 0)) continue;
           let use = value;
           let source = extra.sources.get(key)!;
@@ -507,10 +516,15 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     if (!year) continue;
     for (const key of BALANCE_SET) if (!Number.isFinite(row.get(key)) && Number.isFinite(year.get(key))) row.set(key, year.get(key)!);
   }
-  const fromRow = (label: string, end: number, row: Row, dps: number) => {
+  const fromRow = (label: string, end: number, row: Row, dps: number, kind: 'annual' | 'quarter') => {
     const period = periodFrom(label, end, row, undefined, dps);
     const sources = supplements.get(end);
     if (sources?.size) period.supplements = [...sources];
+    const parent = parentIncome.get(`${kind}:${end}`);
+    if (parent) {
+      period.niTotalFiled = { end: parent.end, source: parent.source };
+      if (parent.conflict) period.niTotalBasisConflict = true;
+    }
     return period;
   };
   const balanceRow = [...annualRows, ...quarterlyRows]
@@ -522,12 +536,12 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
     .sort((a, b) => a[0] - b[0])
     .filter(([, row]) => Number.isFinite(row.get('TotalRevenue') ?? NaN) || Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN))
     .slice(-5)
-    .map(([end, row]) => fromRow(`FY ${new Date(end).getUTCFullYear()}`, end, row, dividendsIn(def.id, end - 365 * DAY_MS, end)));
+    .map(([end, row]) => fromRow(`FY ${new Date(end).getUTCFullYear()}`, end, row, dividendsIn(def.id, end - 365 * DAY_MS, end), 'annual'));
   let quarterly = [...quarterlyRows.entries()]
     .sort((a, b) => a[0] - b[0])
     .filter(([, row]) => Number.isFinite(row.get('TotalRevenue') ?? NaN) || Number.isFinite(row.get('NetIncomeCommonStockholders') ?? NaN))
     .slice(-8)
-    .map(([end, row]) => fromRow(fiscalQuarter(end, fye), end, row, dividendsIn(def.id, end - 91 * DAY_MS, end)));
+    .map(([end, row]) => fromRow(fiscalQuarter(end, fye), end, row, dividendsIn(def.id, end - 91 * DAY_MS, end), 'quarter'));
   // The statements feed can lag a quarter; the earnings module already has the newest quarter's revenue and profit.
   const fq = (r.earnings?.financialsChart?.quarterly ?? []) as Json[];
   // The source labels quarters its own way ("2Q2026" for NVIDIA's July quarter): its earnings chart pairs each
@@ -565,13 +579,21 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   const lastYear = annual[annual.length - 1];
   const reportedRev = lastYear ? M(num(yearOf(lastYear)?.revenue)) : NaN;
   if (lastYear && reportedRev > 0 && Math.abs(reportedRev - lastYear.rev) > 0.05 * reportedRev) {
+    const setRevenue = (p: FinPeriod, value: number) => {
+      if (!Number.isFinite(value)) return;
+      if (p.niTotalFiled && (!Number.isFinite(p.rev) || Math.abs(value - p.rev) > 0.01 * Math.max(Math.abs(value), Math.abs(p.rev), 1))) {
+        p.niTotalBasisConflict = true;
+        p.supplements = [...new Set([...(p.supplements ?? []), 'The earnings module reports revenue on a different basis from the filed parent-income statement; parent-income margins are withheld'])];
+      }
+      p.rev = value;
+    };
     for (const p of annual) {
       const v = M(num(yearOf(p)?.revenue));
-      if (Number.isFinite(v)) p.rev = v;
+      setRevenue(p, v);
     }
     for (const p of quarterly) {
       const v = M(num(finFor(p.end)?.revenue));
-      if (Number.isFinite(v)) p.rev = v;
+      setRevenue(p, v);
     }
   }
   const trailing = [...trailingRows.entries()].sort((a, b) => b[0] - a[0])[0];
@@ -593,8 +615,21 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
   // only when their period ends and overlapping income figures agree.
   if (ltm && compatible) {
     const other = ltm === fromTrailing ? summed! : fromTrailing!;
-    for (const key of FLOWS) if (!Number.isFinite(ltm[key]) && Number.isFinite(other[key])) ltm[key] = other[key];
+    for (const key of FLOWS) if (!Number.isFinite(ltm[key]) && Number.isFinite(other[key])) {
+      ltm[key] = other[key];
+      if (key === 'niTotal') {
+        ltm.niTotalFiled = other.niTotalFiled;
+        ltm.niTotalBasisConflict = other.niTotalBasisConflict;
+      }
+    }
     if (summed!.supplements) ltm.supplements = [...new Set([...(ltm.supplements ?? []), ...summed!.supplements])];
+    // Four filed standalone parent-income observations establish the same twelve-month measure more directly
+    // than a trailing feed value. This never changes common-share income or EPS.
+    if (summed!.niTotalFiled && Number.isFinite(summed!.niTotal)) {
+      ltm.niTotal = summed!.niTotal;
+      ltm.niTotalFiled = summed!.niTotalFiled;
+      if (summed!.niTotalBasisConflict) ltm.niTotalBasisConflict = true;
+    }
   }
   // A quarter without its EPS in the feed (ASML's Q3 2025) leaves the sum without one: LTM net income over the
   // latest diluted share count instead, marked as worked out here.
