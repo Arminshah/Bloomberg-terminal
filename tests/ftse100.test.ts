@@ -158,7 +158,9 @@ describe("the FTSE 100's figures from Yahoo", () => {
     expect(convertMoney(100, 'USD', 'GBP', usd)).toBeCloseTo(80, 10);
     expect(convertMoney(100, 'GEL', 'GBP', usd)).toBeNaN();
     expect(convertMoney(100, undefined, 'GBP', usd)).toBeNaN();
-    // Pence and pounds need no rate.
+    // Pence and pounds need no rate; pence to another currency go through pounds.
     expect(convertMoney(1277, 'GBp', 'GBP', () => NaN)).toBeCloseTo(12.77, 10);
+    expect(convertMoney(1277, 'GBp', 'USD', usd)).toBeCloseTo(15.9625, 10);
+    expect(convertMoney(80, 'USD', 'GBp', usd)).toBeCloseTo(6400, 10);
   });
 });

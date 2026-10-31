@@ -8,6 +8,8 @@ import { SimBadge } from '../components/Source';
 import { fmtBig, fmtInt, fmtNum, fmtTime } from '../core/format';
 import { useTick } from '../data/market';
 import { calendarAvailable, earningsCalendar, requestListings } from '../data/live/earnings-calendar';
+import { FTSE_SOURCE, useFtse100, type FtseList, type MemberFigures } from '../data/live/ftse100';
+import { membersAvailable } from '../data/live/index-members';
 import { lookupSecurity } from '../data/live/lookup';
 import { desktopData } from '../data/live/yahoo';
 import {
@@ -18,6 +20,7 @@ import {
   excludedWord,
   FIELD,
   fieldText,
+  ftseCandidates,
   isRank,
   matchesAfterEach,
   NM,
@@ -28,6 +31,7 @@ import {
   PRESETS,
   runScreen,
   SCREEN_FIELDS,
+  unitOf,
   usCandidates,
   valueKey,
   type Candidate,
@@ -53,6 +57,7 @@ export function excludedBy(d: Pick<SecurityDef, 'eq'>, exclude: string): string 
 const SHOWN: Record<Universe, FieldId[]> = {
   app: ['price', 'cap', 'pe', 'divYld', 'roe', 'beta', 'ytd', 'y1'],
   us: ['price', 'chg', 'cap', 'volume', 'industry', 'country', 'ipoYear'],
+  ftse: ['price', 'chg', 'cap', 'gm', 'roce', 'ytd', 'tr'],
 };
 const CATEGORIES: ScreenField['category'][] = ['Market', 'Valuation', 'Size and growth', 'Profitability', 'Risk and return', 'Classification'];
 
@@ -63,10 +68,24 @@ interface Col {
   period?: PeriodId;
 }
 const colOf = (field: FieldId, period?: PeriodId): Col => ({ field, key: valueKey({ field, period }), period: periodOf({ field, period }) });
-function colLabel(c: Col): string {
+function colLabel(c: Col, u: Universe): string {
   const f = FIELD[c.field];
   const p = c.period ? ` ${PERIOD_SHORT[c.period]}` : '';
-  return `${f.label}${p}${f.unit && f.unit !== 'shares' && f.unit !== '$bn' ? ` ${f.unit}` : ''}`;
+  const unit = unitOf(f, u);
+  // Market values read "1.23B": the column says the currency only where it is not the dollar.
+  return `${f.label}${p}${unit === '£bn' ? ' £' : unit && unit !== 'shares' && unit !== '$bn' ? ` ${unit}` : ''}`;
+}
+
+/** The FTSE 100 universe in words: Wikipedia's list, its review date and load time, and how many members have figures. */
+function ftseText(list: FtseList | undefined, by: Readonly<Record<string, MemberFigures>>, problem: string | undefined): string {
+  if (!list || (list.state === 'loading' && !list.members)) return "the FTSE 100's members from Wikipedia, loading";
+  if (!list.members?.length) return `Wikipedia's FTSE 100 list did not load: ${list.message ?? 'no answer'}`;
+  const n = list.members.length;
+  const done = list.members.filter((m) => by[m.yahoo]?.annual !== undefined && by[m.yahoo]?.daily !== undefined).length;
+  const failed = list.members.filter((m) => by[m.yahoo]?.error).length;
+  const source = `${FTSE_SOURCE}${list.asOf ? `, after the changes on ${list.asOf}` : ''}${list.at ? `, loaded ${fmtTime(list.at, false)}` : ''}`;
+  const figures = problem ?? `figures for ${done} of ${n} from Yahoo Finance${done + failed < n ? ', loading' : ''}${failed ? `; Yahoo did not answer for ${failed}, asked again shortly` : ''}`;
+  return `the FTSE 100's ${n} members (${source}${list.state === 'error' ? `; the latest request failed: ${list.message}` : ''}); ${figures}`;
 }
 const PAGE = 250;
 
@@ -92,13 +111,14 @@ function Cell({ id, v }: { id: FieldId; v: number | string | undefined }) {
   return text ? <>{text}</> : <span className="muted" title="The source gives no value" />;
 }
 
-/** A US ticker the app may not hold yet: looked up first, then opened. */
+/** A stock the app may not hold yet (a US ticker, or a London one as "BATS LN"): looked up first, then opened. */
 function openTicker(panel: number, c: Candidate, e?: MouseEvent) {
   if (c.id) return openSecurity(panel, c.id, e);
   const shift = !!e?.shiftKey;
-  void lookupSecurity(c.ticker, false).then((r) => {
+  const asked = c.lookup ?? c.ticker;
+  void lookupSecurity(asked, false).then((r) => {
     if (r.ok) openSecurity(panel, r.def.id, { shiftKey: shift } as unknown as MouseEvent);
-    else flash(panel, `${c.ticker} could not be looked up`, 'error');
+    else flash(panel, `${asked} could not be looked up`, 'error');
   });
 }
 
@@ -106,7 +126,7 @@ function TickerCell({ c }: { c: Candidate }) {
   const panel = usePanelId();
   if (c.id) return <SecLink id={c.id}>{c.ticker}</SecLink>;
   return (
-    <button type="button" className="sec-link" title={`${c.ticker} US: click to look it up and open it`} onClick={(e) => { e.stopPropagation(); openTicker(panel, c, e); }}>
+    <button type="button" className="sec-link" title={`${c.lookup ?? `${c.ticker} US`}: click to look it up and open it`} onClick={(e) => { e.stopPropagation(); openTicker(panel, c, e); }}>
       {c.ticker}
     </button>
   );
@@ -125,15 +145,18 @@ export function EQS({ route }: FnProps) {
     if (wanted && !named) flash(panel, `No saved screen named ${wanted}`, 'error');
   }, [wanted, named, panel]);
   const usAvailable = calendarAvailable();
+  const ftseAvailable = membersAvailable();
   useEffect(() => {
     if (s.universe === 'us') requestListings();
   }, [s.universe]);
   const list = earningsCalendar.use((x) => x.listings);
-  // The US list is rebuilt when it loads again, not on every tick: six thousand stocks take a moment.
+  const ftse = useFtse100(s.universe === 'ftse');
+  // The US list is rebuilt when it loads again, not on every tick: six thousand stocks take a moment. The FTSE 100's
+  // members as their figures arrive, and on the tick for the exchange rates of its dollar and euro lines.
   const cands = useMemo(
-    () => (s.universe === 'us' ? (list?.data ? usCandidates(list.data) : []) : appCandidates()),
+    () => (s.universe === 'us' ? (list?.data ? usCandidates(list.data) : []) : s.universe === 'ftse' ? ftseCandidates(ftse.list?.members ?? [], ftse.by) : appCandidates()),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [s.universe, list, s.universe === 'app' ? tick : 0],
+    [s.universe, list, ftse.list, ftse.by, s.universe !== 'us' ? tick : 0],
   );
   const out = useMemo(() => runScreen(cands, s), [cands, s]);
   // The stocks left after each criterion in its group, as the fixed income search shows them beside its criteria.
@@ -189,8 +212,11 @@ export function EQS({ route }: FnProps) {
     flash(panel, `Deleted ${n}`);
   };
   const isSaved = saved.some((x) => x.name === name.trim());
-  const applyPreset = (groups: Criterion[][]) => {
-    if (groups.every((g) => g.every((c) => FIELD[c.field].from[s.universe]))) setGroups(groups);
+  // A preset with its own universe (the FTSE 100 paper's screen) switches to it.
+  const applyPreset = (p: (typeof PRESETS)[number]) => {
+    const u = p.universe ?? s.universe;
+    if (u === 'ftse' && !ftseAvailable) flash(panel, 'The FTSE 100 universe needs the desktop app', 'error');
+    else if (p.groups.every((g) => g.every((c) => FIELD[c.field].from[u]))) setS({ ...s, universe: u, groups: p.groups });
     else flash(panel, 'This preset needs figures this universe does not have', 'error');
   };
 
@@ -206,6 +232,8 @@ export function EQS({ route }: FnProps) {
   const universeText =
     s.universe === 'app'
       ? `the app's ${cands.length} stocks`
+      : s.universe === 'ftse'
+        ? ftseText(ftse.list, ftse.by, ftse.problem)
       : list?.state === 'ok' && list.data
         ? `Nasdaq's list of ${cands.length.toLocaleString('en-US')} US-listed stocks${list.at ? `, loaded ${fmtTime(list.at, false)}` : ''}${list.stale ? ' (an earlier answer: the latest request failed)' : ''}`
         : list && list.state !== 'loading'
@@ -223,13 +251,13 @@ export function EQS({ route }: FnProps) {
     { key: 'sector', label: 'Sector', render: (r) => <span className="muted">{String(r.c.values.sector ?? '')}</span>, sort: (r) => String(r.c.values.sector ?? ''), hideM: true },
     ...shown.map(({ field: f, key, period }): Column<ScreenRow> => ({
       key,
-      label: colLabel({ field: f, key, period }),
-      title: period ? `${FIELD[f].label}, ${PERIOD_LABEL[period]}` : undefined,
+      label: colLabel({ field: f, key, period }, s.universe),
+      title: period ? `${FIELD[f].label}, ${PERIOD_LABEL[period]}` : unitOf(FIELD[f], s.universe) === '£bn' ? `${FIELD[f].label}, pounds` : undefined,
       num: FIELD[f].kind === 'num',
       hideN: f === 'industry' || f === 'country' || f === 'ipoYear' || f === 'volume',
       render: (r) =>
         f === 'price' && s.universe === 'app' && r.c.id ? <LivePx id={r.c.id} />
-          : f === 'cap' && r.c.id && Number.isFinite(numberOf(r.c.values.cap)) ? <CapLink id={r.c.id}>{fmtBig(numberOf(r.c.values.cap) * 1e9)}</CapLink>
+          : f === 'cap' && s.universe !== 'ftse' && r.c.id && Number.isFinite(numberOf(r.c.values.cap)) ? <CapLink id={r.c.id}>{fmtBig(numberOf(r.c.values.cap) * 1e9)}</CapLink>
             : <Cell id={f} v={r.c.values[key]} />,
       sort: (r) => (FIELD[f].kind === 'text' ? String(r.c.values[key] ?? '') : numberOf(r.c.values[key])),
     })),
@@ -246,7 +274,7 @@ export function EQS({ route }: FnProps) {
     // Every field for its default period, then the other periods the criteria use.
     const cols: Col[] = [...fields.filter((f) => f.id !== 'name').map((f) => colOf(f.id)), ...shown].filter((c, i, a) => a.findIndex((x) => x.key === c.key) === i);
     return [
-      ['Ticker', 'Name', ...cols.map((c) => { const f = FIELD[c.field]; const p = c.period ? `, ${PERIOD_LABEL[c.period]}` : ''; return f.unit ? `${f.label}${p} (${f.unit})` : `${f.label}${p}`; }), 'Missing values'],
+      ['Ticker', 'Name', ...cols.map((c) => { const f = FIELD[c.field]; const p = c.period ? `, ${PERIOD_LABEL[c.period]}` : ''; const u = unitOf(f, s.universe); return u ? `${f.label}${p} (${u})` : `${f.label}${p}`; }), 'Missing values'],
       ...out.rows.map((r) => [r.c.ticker, r.c.name, ...cols.map((c) => (FIELD[c.field].kind === 'text' ? String(r.c.values[c.key] ?? '') : r.c.values[c.key] === NM ? NM : Number.isFinite(numberOf(r.c.values[c.key])) ? String(numberOf(r.c.values[c.key])) : '')), r.unknown.map((f) => FIELD[f].label).join('; ')]),
     ];
   };
@@ -272,6 +300,9 @@ export function EQS({ route }: FnProps) {
             <option value="us" disabled={!usAvailable}>
               US-listed stocks (Nasdaq&apos;s list){usAvailable ? '' : ': desktop app'}
             </option>
+            <option value="ftse" disabled={!ftseAvailable}>
+              FTSE 100 (Wikipedia&apos;s member list){ftseAvailable ? '' : ': desktop app'}
+            </option>
           </select>
         </label>
         <label className="fld" htmlFor={`eqs-missing-${panel}`} title="A stock whose result turns on a value the source does not give">
@@ -290,6 +321,14 @@ export function EQS({ route }: FnProps) {
         </button>
       </div>
       <div className="eqs-groups">
+        {cands.length > 0 && (
+          <div className="eqs-crit" title="The stocks screened, before the criteria below">
+            <span className="white">Security universe</span>
+            <span className="eqs-left muted" data-testid="eqs-universe-count">
+              {fmtInt(cands.length)}
+            </span>
+          </div>
+        )}
         {s.groups.map((g, gi) => (
           <fieldset key={gi} className="eqs-group" aria-label={`Group ${gi + 1}`}>
             <legend>{gi === 0 ? 'All of' : 'Or all of'}</legend>
@@ -305,7 +344,7 @@ export function EQS({ route }: FnProps) {
                         {fields.filter((x) => x.category === cat).map((x) => (
                           <option key={x.id} value={x.id}>
                             {x.label}
-                            {x.unit && x.unit !== 'shares' ? ` (${x.unit})` : ''}
+                            {unitOf(x, s.universe) && unitOf(x, s.universe) !== 'shares' ? ` (${unitOf(x, s.universe)})` : ''}
                             {s.universe === 'us' && x.from.us?.startsWith("the app's own") ? ": the app's stocks only" : ''}
                           </option>
                         ))}
@@ -352,7 +391,7 @@ export function EQS({ route }: FnProps) {
                       <input className="inp" style={{ width: 80 }} aria-label={`Upper value ${at}`} inputMode="decimal" value={c.to ?? ''} onChange={(e) => setCriterion(gi, ci, { to: e.target.value })} />
                     </>
                   )}
-                  {f.unit && f.unit !== 'shares' && !isRank(c) && <span className="muted">{f.unit}</span>}
+                  {unitOf(f, s.universe) && unitOf(f, s.universe) !== 'shares' && !isRank(c) && <span className="muted">{unitOf(f, s.universe)}</span>}
                   <button type="button" className="link-btn" aria-label={`Move criterion ${at} up`} title="Move up: criteria apply in order" disabled={ci === 0} onClick={() => moveCriterion(gi, ci, -1)}>
                     ▲
                   </button>
@@ -384,7 +423,7 @@ export function EQS({ route }: FnProps) {
       <div className="chart-tools">
         <span className="amber">Preset screens</span>
         {PRESETS.map((p) => (
-          <button key={p.name} type="button" className="chip-btn" onClick={() => applyPreset(p.groups)}>
+          <button key={p.name} type="button" className="chip-btn" disabled={p.universe === 'ftse' && !ftseAvailable} title={p.universe === 'ftse' ? (ftseAvailable ? 'Switches to the FTSE 100 universe' : 'The FTSE 100 universe needs the desktop app') : undefined} onClick={() => applyPreset(p)}>
             {p.name}
           </button>
         ))}
@@ -438,6 +477,7 @@ export function EQS({ route }: FnProps) {
           .map((f) => `${f.label}: ${f.from[s.universe]}`)
           .join('. ')}
         .{s.universe === 'us' ? " Nasdaq's list has no P/E, yield, ROE, beta or returns; for those the screen has values only for the stocks the app holds." : ''}
+        {s.universe === 'ftse' ? ` Members: ${FTSE_SOURCE} (CC BY-SA). The statement figures are the latest fiscal year's in Yahoo Finance's annual statements, not interim ones.` : ''}
       </div>
     </div>
   );

@@ -3,10 +3,14 @@ import { engine } from '../src/data/market';
 import { parseNasdaqListings } from '../src/data/live/earnings-calendar';
 import { toUsd } from '../src/data/analytics';
 import { financials, keyStats } from '../src/data/fundamentals';
-import { appCandidates, complete, describeScreen, evaluate, matchesAfterEach, meets, NM, periodOf, runScreen, usCandidates, valueKey, type Candidate, type Criterion, type ScreenDef } from '../src/data/screen';
+import { appCandidates, complete, describeScreen, evaluate, FIELD, ftseCandidates, grossMargin, matchesAfterEach, meets, NM, periodOf, PRESETS, returnOnCommonEquity, runScreen, unitOf, usCandidates, valueKey, type Candidate, type Criterion, type ScreenDef } from '../src/data/screen';
+import { annualFigures, dailyFigures, type FtseMember } from '../src/data/live/ftse100';
 import { parseCommand } from '../src/terminal/commands';
 import { lookupFn } from '../src/terminal/registry';
 import list from './fixtures/nasdaq-screener-2026-10.json';
+// Yahoo's answers of 30 October 2026 (tests/ftse100.test.ts says what they hold).
+import STATEMENTS from './fixtures/yahoo-ftse100-statements-2026-10-30.json';
+import BATS_DAILY from './fixtures/yahoo-bats-daily-2026-10-30.json';
 
 // Rows of Nasdaq's stock list as it answered on 26 October 2026: large caps, an ADR, recent listings, rows with no
 // market value or no sector, and a preferred share.
@@ -218,5 +222,106 @@ describe('SCREEN: ranks and periods', () => {
     expect(aapl.values.revGrowth).toBeCloseTo((fy.rev / prev.rev - 1) * 100, 6);
     expect(aapl.values['pe@lfy']).toBeCloseTo(k.price / fy.eps, 6);
     for (const key of ['y1', 'y1@3M', 'y1@1D', 'y1@5Y', 'ebitda@lq', 'opMargin@lfy', 'epsGrowth@lq']) expect(aapl.values).toHaveProperty(key);
+  });
+});
+
+describe("SCREEN over the FTSE 100: the first portfolio paper's screen", () => {
+  it('works out gross margin and return on common equity as the paper defines them', () => {
+    // British American Tobacco, FY2025 (Yahoo's annual statements, in £m): gross profit 21,384 on revenue 25,610;
+    // net income to common shareholders 7,677 on common equity of 47,926 at the end and 49,643 a year before.
+    expect(grossMargin(21_384, 25_610)).toBeCloseTo(83.4986, 4);
+    expect(returnOnCommonEquity(7_677, 47_926, 49_643)).toBeCloseTo(15.7366, 4);
+    // On the average equity (48,784.5), not the closing (16.02%) or the opening (15.46%).
+    expect(returnOnCommonEquity(7_677, 47_926, 49_643)).toBeCloseTo((7_677 / ((47_926 + 49_643) / 2)) * 100, 10);
+    // Missing figures are missing; no revenue, or negative average equity, is not meaningful.
+    expect(grossMargin(NaN, 25_610)).toBeNaN();
+    expect(returnOnCommonEquity(7_677, 47_926, NaN)).toBeNaN();
+    expect(grossMargin(5, 0)).toBe(NM);
+    // IHG's common equity was negative at both ends of 2025.
+    expect(returnOnCommonEquity(758, -2_741, -2_312)).toBe(NM);
+  });
+
+  it('compares strictly above and below, as "> 25" in the paper', () => {
+    expect(meets({ field: 'gm', op: 'gt', value: '25' }, 25)).toBe(false);
+    expect(meets({ field: 'gm', op: 'gt', value: '25' }, 25.01)).toBe(true);
+    expect(meets({ field: 'gm', op: 'gte', value: '25' }, 25)).toBe(true);
+    expect(meets({ field: 'roce', op: 'lt', value: '25' }, 25)).toBe(false);
+    expect(meets({ field: 'roce', op: 'lt', value: '25' }, 24.99)).toBe(true);
+    expect(meets({ field: 'roce', op: 'gt', value: '25' }, NM)).toBe(false);
+    expect(meets({ field: 'gm', op: 'gt', value: '25' }, NaN)).toBeNull();
+  });
+
+  const members: FtseMember[] = [
+    { name: 'British American Tobacco', ticker: 'BATS', root: 'BATS', yahoo: 'BATS.L', isin: 'GB0002875804', sector: 'Tobacco' },
+    { name: 'HSBC', ticker: 'HSBA', root: 'HSBA', yahoo: 'HSBA.L', isin: 'GB0005405286', sector: 'Banks' },
+    { name: 'Smiths Group', ticker: 'SMIN', root: 'SMIN', yahoo: 'SMIN.L', isin: 'GB00B1WY2338', sector: 'General Industrials' },
+    { name: 'BT Group', ticker: 'BT.A', root: 'BT/A', yahoo: 'BT-A.L', isin: 'GB0030913577', sector: 'Telecommunications Service Providers' },
+  ];
+  const NOW = Date.UTC(2026, 9, 30, 18);
+  const usd = (c: string) => ({ USD: 1, GBP: 1.25 })[c] ?? NaN;
+
+  it("gives each member its latest fiscal year's ratios, its market value in pounds and the year's returns", () => {
+    const by = {
+      'BATS.L': { annual: annualFigures(STATEMENTS['BATS.L']), daily: dailyFigures(BATS_DAILY, NOW) },
+      // HSBC reports in dollars and trades in pence: its P/E converts the price at the rate given.
+      'HSBA.L': { annual: annualFigures(STATEMENTS['HSBA.L']), daily: { currency: 'GBp', last: 1277, lastDay: '2026-10-30', prev: 1292.6, base: NaN, priceReturn: NaN, totalReturn: NaN, dividends: [] } },
+      'SMIN.L': { annual: annualFigures(STATEMENTS['SMIN.L']) },
+    };
+    const [bats, hsbc, smiths, bt] = ftseCandidates(members, by, usd);
+    expect(bats).toMatchObject({ ticker: 'BATS', name: 'British American Tobacco', lookup: 'BATS LN' });
+    expect(bats.values.gm).toBeCloseTo(83.4986, 4);
+    expect(bats.values.roce).toBeCloseTo(15.7366, 4);
+    // 2,159,189,751 shares (30 June 2026) at 45.92 pounds; P/E 45.92 over the diluted EPS of 3.491 pounds.
+    expect(bats.values.cap).toBeCloseTo((2_159_189_751 * 45.92) / 1e9, 9);
+    expect(bats.values['pe@lfy']).toBeCloseTo(45.92 / 3.491, 9);
+    expect(bats.values).toMatchObject({ price: 4592, prev: 4516, ccy: 'GBp', fy: '2025-12-31', sector: 'Tobacco' });
+    expect(bats.values.chg).toBeCloseTo((4592 / 4516 - 1) * 100, 9);
+    expect(bats.values.tr).toBeCloseTo(13.74, 4);
+    expect(bats.values.ytd).toBeCloseTo(8.9701, 4);
+    // A bank has no gross margin: missing, for the screen's choice on missing values.
+    expect(hsbc.values.gm).toBeNaN();
+    expect(hsbc.values.roce).toBeCloseTo((21_102 / ((198_225 + 184_973) / 2)) * 100, 9);
+    expect(hsbc.values['pe@lfy']).toBeCloseTo((12.77 * 1.25) / 1.2, 9);
+    expect(hsbc.values.cap).toBeCloseTo((17_148_209_505 * 12.77) / 1e9, 9);
+    // No starting equity, no ROE; no chart, no price, return or market value.
+    expect(smiths.values.gm).toBeCloseTo((808 / 1_937) * 100, 9);
+    expect(smiths.values.roce).toBeNaN();
+    expect(smiths.values.cap).toBeNaN();
+    expect(smiths.values.tr).toBeNaN();
+    // No figures yet: every number missing, the list's name and sector kept.
+    expect(bt).toMatchObject({ ticker: 'BT/A', lookup: 'BT/A LN', values: { name: 'BT Group', sector: 'Telecommunications Service Providers' } });
+    expect(bt.values.gm).toBeNaN();
+    expect(bt.values['pe@lfy']).toBeNaN();
+    // A loss is not a P/E.
+    const loss = structuredClone(STATEMENTS['BATS.L']);
+    for (const r of loss.timeseries.result) if (r.meta.type[0] === 'annualDilutedEPS') r.annualDilutedEPS!.at(-1)!.reportedValue.raw = -1;
+    expect(ftseCandidates(members.slice(0, 1), { 'BATS.L': { annual: annualFigures(loss), daily: dailyFigures(BATS_DAILY, NOW) } }, usd)[0].values['pe@lfy']).toBe(NM);
+  });
+
+  it("is a preset: the FTSE 100, then gross margin above 25%, then return on common equity above 25%, with the count after each", () => {
+    const p = PRESETS.find((x) => x.name === 'FTSE 100: gross margin and ROE above 25%')!;
+    expect(p.universe).toBe('ftse');
+    const s: ScreenDef = { universe: 'ftse', groups: p.groups, missing: 'leave-out', exclude: '' };
+    expect(describeScreen(s)).toBe('Gross margin, latest fiscal year > 25 % and Return on common equity, latest fiscal year > 25 %');
+    // Synthetic members: margins and returns on either side of 25, a bank with no margin, one without a return.
+    const cands = [
+      cand({ gm: 83.5, roce: 15.7 }, 'A'),
+      cand({ gm: 72.4, roce: 38.1 }, 'B'),
+      cand({ gm: 25, roce: 40 }, 'C'),
+      cand({ gm: NaN, roce: 11 }, 'D'),
+      cand({ gm: 41.7, roce: NaN }, 'E'),
+      cand({ gm: 31.3, roce: NM }, 'F'),
+      cand({ gm: 93.9, roce: 27.7 }, 'G'),
+    ];
+    expect(matchesAfterEach(cands, s)).toEqual([[5, 2]]);
+    expect(runScreen(cands, s).rows.map((r) => r.c.ticker)).toEqual(['B', 'G']);
+    // Kept when undecided: the bank passes the margin and the one without a return passes both, marked.
+    expect(matchesAfterEach(cands, { ...s, missing: 'keep' })).toEqual([[6, 3]]);
+    // Only the FTSE 100 has these fields; its market values are in pounds.
+    expect(FIELD.gm.from.app).toBeUndefined();
+    expect(FIELD.roce.from.us).toBeUndefined();
+    expect(unitOf(FIELD.cap, 'ftse')).toBe('£bn');
+    expect(unitOf(FIELD.cap, 'us')).toBe('$bn');
+    expect(describeScreen({ ...s, groups: [[{ field: 'cap', op: 'gte', value: '10' }]] })).toBe('Market value ≥ 10 £bn');
   });
 });

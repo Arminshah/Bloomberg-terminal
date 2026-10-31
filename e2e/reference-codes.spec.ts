@@ -371,8 +371,14 @@ test('SCREEN joins criteria by AND within a group and OR across groups, says its
   // The full US list needs the desktop app; the browser build says so rather than offering it.
   await expect(panel.locator('option[value="us"]')).toHaveAttribute('disabled', '');
   await expect(panel.locator('option[value="us"]')).toContainText('desktop app');
+  // So do the FTSE 100 (Wikipedia's member list, Yahoo's statements) and the paper's preset that switches to it.
+  await expect(panel.locator('option[value="ftse"]')).toHaveAttribute('disabled', '');
+  await expect(panel.locator('option[value="ftse"]')).toContainText('desktop app');
+  await expect(panel.getByRole('button', { name: 'FTSE 100: gross margin and ROE above 25%' })).toBeDisabled();
   const rows = panel.locator('tbody tr');
   const all = await rows.count();
+  // The universe's size comes first, as the screen's first line, before any criterion narrows it.
+  expect(Number((await panel.getByTestId('eqs-universe-count').textContent())?.replace(/\D/g, ''))).toBe(all);
   await panel.getByLabel('Value 1.1').fill('500');
   const logic = panel.getByTestId('eqs-logic');
   await expect(logic).toContainText('Screen: Market value ≥ 500 $bn.');

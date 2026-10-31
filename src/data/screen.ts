@@ -2,6 +2,7 @@ import { localBeta, marketCapUsd, periodChange, toUsd, type Horizon } from './an
 import { financials, keyStats, parentIncomeMargin, type FinPeriod } from './fundamentals';
 import { engine } from './market';
 import type { Listing } from './live/earnings-calendar';
+import { convertMoney, type FtseMember, type MemberFigures } from './live/ftse100';
 
 /**
  * SCREEN's criteria and how a stock meets them. Criteria in a group must all hold; a stock passes when any group
@@ -12,10 +13,11 @@ import type { Listing } from './live/earnings-calendar';
  * on the trailing 12 months or the latest fiscal year): each criterion picks one.
  */
 
-export type Universe = 'app' | 'us';
+/** The app's own stocks, Nasdaq's list of US-listed stocks, or the FTSE 100's members (Wikipedia's list). */
+export type Universe = 'app' | 'us' | 'ftse';
 export type FieldId =
-  | 'cap' | 'price' | 'chg' | 'volume' | 'ipoYear' | 'pe' | 'divYld' | 'roe' | 'beta' | 'ytd' | 'y1'
-  | 'rev' | 'ebitda' | 'ni' | 'revGrowth' | 'epsGrowth' | 'opMargin' | 'netMargin'
+  | 'cap' | 'price' | 'prev' | 'chg' | 'volume' | 'ipoYear' | 'pe' | 'divYld' | 'roe' | 'beta' | 'ytd' | 'y1' | 'tr'
+  | 'rev' | 'ebitda' | 'ni' | 'revGrowth' | 'epsGrowth' | 'opMargin' | 'netMargin' | 'gm' | 'roce'
   | 'sector' | 'industry' | 'region' | 'country' | 'name';
 
 /** The period a figure covers: a statement's (trailing 12 months, latest quarter, latest fiscal year) or a price change's. */
@@ -34,18 +36,24 @@ export interface ScreenField {
   kind: 'num' | 'text';
   category: 'Market' | 'Valuation' | 'Size and growth' | 'Profitability' | 'Risk and return' | 'Classification';
   unit?: string;
+  /** A universe whose values are in another unit: the FTSE 100's market values are in pounds. */
+  units?: Partial<Record<Universe, string>>;
   /** Where the value comes from in each universe; a universe without an entry does not offer the field. */
   from: Partial<Record<Universe, string>>;
   /** The periods it can be read for, the default first; a field without periods has one. */
   periods?: readonly PeriodId[];
 }
 
+/** The field's unit in a universe. */
+export const unitOf = (f: ScreenField, u: Universe): string | undefined => f.units?.[u] ?? f.unit;
+
 const OWN = "the app's own stocks only; the list has none";
 
 export const SCREEN_FIELDS: readonly ScreenField[] = [
-  { id: 'cap', label: 'Market value', kind: 'num', category: 'Market', unit: '$bn', from: { app: 'shares times the last price, in dollars', us: "Nasdaq's stock list, in dollars" } },
-  { id: 'price', label: 'Last price', kind: 'num', category: 'Market', from: { app: "the last price, in the stock's own currency", us: "Nasdaq's stock list: the last sale when the list loaded, in dollars" } },
-  { id: 'chg', label: 'Change today', kind: 'num', category: 'Market', unit: '%', from: { app: "the change on the previous close", us: "Nasdaq's stock list, when it loaded" } },
+  { id: 'cap', label: 'Market value', kind: 'num', category: 'Market', unit: '$bn', units: { ftse: '£bn' }, from: { app: 'shares times the last price, in dollars', us: "Nasdaq's stock list, in dollars", ftse: "the latest ordinary share count in Yahoo Finance's statements times the last price, in pounds (a dollar or euro line at today's rate)" } },
+  { id: 'price', label: 'Last price', kind: 'num', category: 'Market', from: { app: "the last price, in the stock's own currency", us: "Nasdaq's stock list: the last sale when the list loaded, in dollars", ftse: "the latest close, or the trade so far today, from Yahoo Finance's daily chart, in the line's own currency (pence for most)" } },
+  { id: 'prev', label: 'Previous close', kind: 'num', category: 'Market', from: { ftse: "the close of the session before the latest, from Yahoo Finance's daily chart, in the line's own currency" } },
+  { id: 'chg', label: 'Change today', kind: 'num', category: 'Market', unit: '%', from: { app: "the change on the previous close", us: "Nasdaq's stock list, when it loaded", ftse: 'the latest price on the previous close' } },
   { id: 'volume', label: 'Volume', kind: 'num', category: 'Market', unit: 'shares', from: { app: 'shares traded today', us: "Nasdaq's stock list, when it loaded" } },
   { id: 'ipoYear', label: 'IPO year', kind: 'num', category: 'Market', from: { us: "Nasdaq's stock list" } },
   { id: 'pe', label: 'P/E', kind: 'num', category: 'Valuation', periods: ['ltm', 'lfy'], from: { app: "the price over the period's diluted EPS (the statements' currency); not meaningful on a loss", us: OWN } },
@@ -58,24 +66,30 @@ export const SCREEN_FIELDS: readonly ScreenField[] = [
   { id: 'roe', label: 'ROE', kind: 'num', category: 'Profitability', unit: '%', periods: ['ltm', 'lfy'], from: { app: "the period's net income over its closing equity", us: OWN } },
   { id: 'opMargin', label: 'Operating margin', kind: 'num', category: 'Profitability', unit: '%', periods: ['ltm', 'lq', 'lfy'], from: { app: "the period's operating income over its revenue", us: OWN } },
   { id: 'netMargin', label: 'Net margin', kind: 'num', category: 'Profitability', unit: '%', periods: ['ltm', 'lq', 'lfy'], from: { app: "the period's net income over its revenue", us: OWN } },
+  { id: 'gm', label: 'Gross margin', kind: 'num', category: 'Profitability', unit: '%', periods: ['lfy'], from: { ftse: "gross profit over revenue in the latest fiscal year of Yahoo Finance's annual statements; none for a company that reports no gross profit (banks, insurers, investment trusts)" } },
+  { id: 'roce', label: 'Return on common equity', kind: 'num', category: 'Profitability', unit: '%', periods: ['lfy'], from: { ftse: "net income to common shareholders over the average of common equity at the start and end of the latest fiscal year, from Yahoo Finance's annual statements; none without the year before's equity, not meaningful when the average is not positive" } },
   { id: 'beta', label: 'Beta', kind: 'num', category: 'Risk and return', from: { app: 'two years of weekly returns against the local index, as BETA works it out', us: OWN } },
-  { id: 'ytd', label: 'YTD change', kind: 'num', category: 'Risk and return', unit: '%', from: { app: 'the price change since the end of last year', us: OWN } },
+  { id: 'ytd', label: 'YTD change', kind: 'num', category: 'Risk and return', unit: '%', from: { app: 'the price change since the end of last year', us: OWN, ftse: "the price change since last year's final close, from Yahoo Finance's daily closes" } },
+  { id: 'tr', label: 'Total return YTD', kind: 'num', category: 'Risk and return', unit: '%', from: { ftse: "the return since last year's final close with each dividend reinvested at the close of its ex-date, from Yahoo Finance's daily closes and dividends" } },
   { id: 'y1', label: 'Price change', kind: 'num', category: 'Risk and return', unit: '%', periods: ['1Y', '1D', '5D', '1M', '3M', '6M', 'YTD', '2Y', '5Y'], from: { app: "the price change over the period, from the daily closes (1 day: on the previous close)", us: OWN } },
-  { id: 'sector', label: 'Sector', kind: 'text', category: 'Classification', from: { app: "the app's security definition (GICS names)", us: "Nasdaq's classification, which is not GICS" } },
+  { id: 'sector', label: 'Sector', kind: 'text', category: 'Classification', from: { app: "the app's security definition (GICS names)", us: "Nasdaq's classification, which is not GICS", ftse: "the ICB sector in Wikipedia's constituents table (FTSE Russell's Industry Classification Benchmark, not GICS)" } },
   { id: 'industry', label: 'Industry', kind: 'text', category: 'Classification', from: { app: "the app's security definition", us: "Nasdaq's classification, which is not GICS" } },
   { id: 'region', label: 'Region', kind: 'text', category: 'Classification', from: { app: 'Americas, EMEA or APAC' } },
   { id: 'country', label: 'Country', kind: 'text', category: 'Classification', from: { us: "the company's country in Nasdaq's stock list" } },
-  { id: 'name', label: 'Name', kind: 'text', category: 'Classification', from: { app: "the security's name", us: "Nasdaq's stock list" } },
+  { id: 'name', label: 'Name', kind: 'text', category: 'Classification', from: { app: "the security's name", us: "Nasdaq's stock list", ftse: "Wikipedia's constituents table" } },
 ];
 
 export const FIELD = Object.fromEntries(SCREEN_FIELDS.map((f) => [f.id, f])) as Record<FieldId, ScreenField>;
 
-export type Op = 'gte' | 'lte' | 'between' | 'top' | 'bottom' | 'is' | 'isnot' | 'has' | 'hasnot';
+export type Op = 'gte' | 'gt' | 'lte' | 'lt' | 'between' | 'top' | 'bottom' | 'is' | 'isnot' | 'has' | 'hasnot';
 
 export const OPS: Record<ScreenField['kind'], { id: Op; label: string }[]> = {
   num: [
     { id: 'gte', label: '≥' },
+    // Strictly above or below, as the first portfolio paper's "LF Gross Margin > 25".
+    { id: 'gt', label: '>' },
     { id: 'lte', label: '≤' },
+    { id: 'lt', label: '<' },
     { id: 'between', label: 'between' },
     // A rank: the N highest (or lowest) of the stocks the criteria above it left.
     { id: 'top', label: 'top N, higher is better' },
@@ -137,6 +151,8 @@ export interface Candidate {
   name: string;
   /** The app's security, when it holds the stock. */
   id?: string;
+  /** What to look the stock up by when the app does not hold it: "BATS LN"; a US ticker otherwise. */
+  lookup?: string;
   /** By field, and by "field@period" for a period other than the field's default. */
   values: Partial<Record<FieldId, number | string>> & Record<string, number | string | undefined>;
 }
@@ -164,7 +180,9 @@ export function meets(c: Criterion, v: number | string | undefined): boolean | n
     const x = Number(v);
     const a = number(c.value);
     if (c.op === 'gte') return x >= a;
+    if (c.op === 'gt') return x > a;
     if (c.op === 'lte') return x <= a;
+    if (c.op === 'lt') return x < a;
     const b = number(c.to);
     return x >= Math.min(a, b) && x <= Math.max(a, b);
   }
@@ -323,17 +341,20 @@ export function matchesAfterEach(cands: readonly Candidate[], s: ScreenDef): (nu
   return s.groups.map((g) => runGroup(pool, g, s.missing, {}).left);
 }
 
-/** "P/E" for the default period, "P/E, latest fiscal year" for another, "Price change, 3 months" (its default too). */
+/**
+ * "P/E" for the default period, "P/E, latest fiscal year" for another, "Price change, 3 months" (its default too), and
+ * "Gross margin, latest fiscal year" for a field read for one period only.
+ */
 export function fieldText(c: Pick<Criterion, 'field' | 'period'>): string {
   const f = FIELD[c.field];
   const p = periodOf(c);
-  return p && (p !== f.periods![0] || f.id === 'y1') ? `${f.label}, ${PERIOD_LABEL[p]}` : f.label;
+  return p && (p !== f.periods![0] || f.id === 'y1' || f.periods!.length === 1) ? `${f.label}, ${PERIOD_LABEL[p]}` : f.label;
 }
 
-function criterionText(c: Criterion): string {
+function criterionText(c: Criterion, u: Universe): string {
   const f = FIELD[c.field];
   const op = OPS[f.kind].find((o) => o.id === c.op)?.label ?? c.op;
-  const unit = f.unit && f.unit !== 'shares' ? ` ${f.unit}` : '';
+  const unit = unitOf(f, u) && unitOf(f, u) !== 'shares' ? ` ${unitOf(f, u)}` : '';
   if (f.kind === 'text') return `${f.label} ${op} "${c.value.trim()}"`;
   if (isRank(c)) return `Top ${c.value.trim()} by ${fieldText(c)}, ${c.op === 'top' ? 'higher' : 'lower'} is better`;
   if (f.periods) return c.op === 'between' ? `${fieldText(c)} between ${c.value.trim()} and ${c.to?.trim()}${unit}` : `${fieldText(c)} ${op} ${c.value.trim()}${unit}`;
@@ -344,7 +365,8 @@ function criterionText(c: Criterion): string {
 export function describeScreen(s: ScreenDef): string {
   const groups = activeGroups(s);
   if (!groups.length) return 'No criteria: every stock';
-  return groups.map((g) => (groups.length > 1 && g.length > 1 ? `(${g.map(criterionText).join(' and ')})` : g.map(criterionText).join(' and '))).join(' or ');
+  const text = (c: Criterion) => criterionText(c, s.universe);
+  return groups.map((g) => (groups.length > 1 && g.length > 1 ? `(${g.map(text).join(' and ')})` : g.map(text).join(' and '))).join(' or ');
 }
 
 const YEAR_MS = 365 * 86_400_000;
@@ -460,11 +482,67 @@ export function usCandidates(listings: ReadonlyMap<string, Listing>): Candidate[
   return out;
 }
 
-export const PRESETS: { name: string; groups: Criterion[][] }[] = [
+/** Gross margin, %: (revenue less cost of goods sold, the gross profit) over revenue. NaN without either figure; not
+ * meaningful without positive revenue. */
+export function grossMargin(grossProfit: number, revenue: number): number | string {
+  if (!Number.isFinite(grossProfit) || !Number.isFinite(revenue)) return NaN;
+  return revenue > 0 ? (grossProfit / revenue) * 100 : NM;
+}
+
+/** Return on common equity, %: net income to common shareholders over the average of the year's opening and closing
+ * common equity. NaN without any of the three; not meaningful when the average is not positive. */
+export function returnOnCommonEquity(netIncome: number, equityEnd: number, equityStart: number): number | string {
+  if (![netIncome, equityEnd, equityStart].every(Number.isFinite)) return NaN;
+  const average = (equityEnd + equityStart) / 2;
+  return average > 0 ? (netIncome / average) * 100 : NM;
+}
+
+/**
+ * The FTSE 100's members with their figures: the latest fiscal year's gross margin, return on common equity and P/E
+ * (the last price over that year's diluted EPS) from Yahoo's annual statements, and the market value, prices and
+ * returns from its daily chart. Market values are in pounds; a line quoted in dollars or euros is converted at
+ * `usd`'s rates (the engine's), and has none without a rate. `values.ccy` is the price's currency, `values.fy` the
+ * fiscal year's end.
+ */
+export function ftseCandidates(members: readonly FtseMember[], by: Readonly<Record<string, MemberFigures>>, usd: (ccy: string) => number = (c) => engine.usdValue(c)): Candidate[] {
+  return members.map((m) => {
+    const a = by[m.yahoo]?.annual ?? undefined;
+    const d = by[m.yahoo]?.daily ?? undefined;
+    const last = d?.last ?? NaN;
+    const id = `${m.root} LN Equity`;
+    return {
+      ticker: m.root,
+      name: m.name,
+      ...(engine.get(id) ? { id } : {}),
+      lookup: `${m.root} LN`,
+      values: {
+        cap: a && d ? (a.shares * convertMoney(last, d.currency, 'GBP', usd)) / 1e9 : NaN,
+        price: last,
+        prev: d?.prev ?? NaN,
+        chg: d && d.prev > 0 ? (d.last / d.prev - 1) * 100 : NaN,
+        ytd: d?.priceReturn ?? NaN,
+        tr: d?.totalReturn ?? NaN,
+        gm: a ? grossMargin(a.grossProfit, a.revenue) : NaN,
+        roce: a ? returnOnCommonEquity(a.netIncome, a.equity, a.equityBefore) : NaN,
+        // A loss is not a P/E.
+        'pe@lfy': a && Number.isFinite(a.eps) ? (a.eps > 0 ? convertMoney(last, d?.currency, a.epsCurrency, usd) / a.eps : NM) : NaN,
+        sector: m.sector,
+        name: m.name,
+        ccy: d?.currency ?? '',
+        fy: a?.end ?? '',
+      },
+    };
+  });
+}
+
+export const PRESETS: { name: string; universe?: Universe; groups: Criterion[][] }[] = [
   { name: 'Mega caps', groups: [[{ field: 'cap', op: 'gte', value: '500' }]] },
   { name: 'Value', groups: [[{ field: 'pe', op: 'lte', value: '16' }, { field: 'divYld', op: 'gte', value: '2' }]] },
   { name: 'Dividend', groups: [[{ field: 'divYld', op: 'gte', value: '3' }]] },
   { name: 'Momentum', groups: [[{ field: 'ytd', op: 'gte', value: '25' }]] },
   { name: 'Low beta', groups: [[{ field: 'beta', op: 'lte', value: '0.7' }]] },
   { name: 'Quality', groups: [[{ field: 'roe', op: 'gte', value: '25' }]] },
+  // The first portfolio paper's screen of 31 January 2019: the FTSE 100, then latest-filing gross margin above 25%,
+  // then return on common equity above 25%.
+  { name: 'FTSE 100: gross margin and ROE above 25%', universe: 'ftse', groups: [[{ field: 'gm', op: 'gt', value: '25' }, { field: 'roce', op: 'gt', value: '25' }]] },
 ];

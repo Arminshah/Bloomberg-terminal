@@ -328,8 +328,8 @@ export function dailyFigures(chart: any, now: number): DailyFigures | null {
 export function convertMoney(amount: number, from: string | undefined, to: string | undefined, usd: (ccy: string) => number): number {
   if (!from || !to) return NaN;
   if (from === to) return amount;
-  if (from === 'GBp' && to === 'GBP') return amount / 100;
-  if (from === 'GBP' && to === 'GBp') return amount * 100;
+  if (from === 'GBp') return convertMoney(amount / 100, 'GBP', to, usd);
+  if (to === 'GBp') return convertMoney(amount, from, 'GBP', usd) * 100;
   return (amount * usd(from)) / usd(to);
 }
 
