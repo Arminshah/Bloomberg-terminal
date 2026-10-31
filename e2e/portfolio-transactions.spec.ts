@@ -23,7 +23,7 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   const msg = page.locator('.cmd-msg');
   await run(page, 'PORTFOLIO');
   await expect(panel.locator('.fnh-code').first()).toHaveText('PORTFOLIO');
-  await run(page, '4');
+  await run(page, '5');
   await expect(panel.getByText('No transactions yet', { exact: false })).toBeVisible();
 
   const record = async (type: string, sec: string, date: string, qty: string, price: string, fee = '', rate = '') => {
@@ -78,7 +78,7 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   await expect(kv('Money-weighted return')).toHaveText(/^[+-]?\d+\.\d\d%$/);
 
   // Holdings follow the transactions; a holding typed there differs, and both tabs say so until it is put right.
-  await run(page, '1');
+  await run(page, '2');
   const holdingRow = panel.locator('.tbl tbody tr', { has: page.getByRole('button', { name: 'Remove AAPL US Equity', exact: true }) });
   await expect(holdingRow.locator('td').nth(2)).toHaveText('5');
   await panel.getByLabel('Security', { exact: true }).fill('AAPL');
@@ -86,7 +86,7 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   await panel.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(holdingRow.locator('td').nth(2)).toHaveText('15');
   await expect(panel.getByTestId('holding-mismatch')).toContainText('AAPL US: Holdings say 15, the transactions 5');
-  await run(page, '4');
+  await run(page, '5');
   await expect(panel.getByTestId('holding-mismatch')).toContainText('AAPL US: Holdings say 15, the transactions 5');
   await panel.getByRole('button', { name: 'Use the transactions for AAPL US', exact: true }).click();
   await expect(panel.getByTestId('holding-mismatch')).toHaveCount(0);
@@ -96,11 +96,11 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   await expect(lots).toHaveCount(3);
   await expect(realised).toHaveCount(1);
   await expect(realised.first()).toContainText('Nothing sold yet.');
-  await run(page, '1');
+  await run(page, '2');
   await expect(holdingRow.locator('td').nth(2)).toHaveText('20');
 
   // The export on this tab is the transactions.
-  await run(page, '4');
+  await run(page, '5');
   const saving = page.waitForEvent('download');
   await panel.getByRole('button', { name: /Export transactions$/ }).click();
   const csv = await readFile((await (await saving).path())!, 'utf8');
@@ -111,7 +111,7 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   // Kept after a reload.
   await page.reload();
   await run(page, 'PORTFOLIO');
-  await run(page, '4');
+  await run(page, '5');
   await expect(panel.getByTestId('txn-table').locator('tbody tr')).toHaveCount(4);
   expect(errors).toEqual([]);
 });

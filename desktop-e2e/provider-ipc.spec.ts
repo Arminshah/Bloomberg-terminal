@@ -1199,6 +1199,8 @@ test("PORTFOLIO takes a past purchase's entry exchange rate from the ECB's refer
   });
   await command(page, 'PORTFOLIO', 'PORTFOLIO');
   const panel = page.locator('.panel').first();
+  // PORT opens on Intraday; positions are typed on 2) Holdings.
+  await panel.getByRole('button', { name: '2) Holdings', exact: true }).click();
   await panel.getByLabel('Security', { exact: true }).fill('HSBA LN Equity');
   await panel.getByLabel('Quantity', { exact: true }).fill('100');
   await panel.getByLabel('Price', { exact: true }).fill('1000');
@@ -1231,11 +1233,12 @@ test("PORTFOLIO's transactions put shares bought before a split on today's basis
   const panel = page.locator('.panel').first();
   const msg = page.locator('.cmd-msg');
   // A holding typed on Holdings, as counted before the split.
+  await panel.getByRole('button', { name: '2) Holdings', exact: true }).click();
   await panel.getByLabel('Security', { exact: true }).fill('AAPL');
   await panel.getByLabel('Quantity', { exact: true }).fill('10');
   await panel.getByLabel('Price', { exact: true }).fill('200');
   await panel.getByRole('button', { name: 'Add', exact: true }).click();
-  await panel.getByRole('button', { name: '4) Transactions', exact: true }).click();
+  await panel.getByRole('button', { name: '5) Transactions', exact: true }).click();
   const record = async (sec: string, qty: string, price: string, fee: string) => {
     await panel.getByLabel('Security', { exact: true }).fill(sec);
     await panel.getByLabel('Trade date', { exact: true }).fill('2026-06-29');

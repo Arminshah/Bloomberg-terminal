@@ -19,6 +19,7 @@ test('COMPLIANCE checks your rules on a portfolio as prices move, and PORTFOLIO 
   await page.goto('/');
   const panel = page.locator('.panel').first();
   await run(page, 'PORTFOLIO');
+  await run(page, '2');
   await expect(panel.locator('.fnh-code').first()).toHaveText('PORTFOLIO');
   const addPosition = async (sec: string, qty: string) => {
     await panel.getByLabel('Security', { exact: true }).fill(sec);
@@ -53,6 +54,7 @@ test('COMPLIANCE checks your rules on a portfolio as prices move, and PORTFOLIO 
 
   // Back on PORTFOLIO: the exceptions are named, and a trade that adds one asks first.
   await run(page, 'PORTFOLIO');
+  await run(page, '2');
   await expect(panel.getByTestId('port-compliance')).toContainText('Compliance:');
   await expect(panel.getByTestId('port-compliance')).toContainText('breach');
   await addPosition('TSLA', '5');

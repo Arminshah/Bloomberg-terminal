@@ -2058,3 +2058,39 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .allq-tbl td + td, .allq-tbl th + th { border-left: 1px solid #313131; }
 .allq-tbl tr.allq-lead td { background: #282828; }
 .allq-none { padding: 6px; }
+
+/* PORT's Intraday tab (PT_PORT_Enterprise_attribution 0:09): the Intraday Navigator on #1E1E1E at the left with a grey
+   heading band and amber fields, Summary boxes on #1A1A1A, the grid's heading on #222325 above an amber rule, the
+   Total row on #141613 and the sectors on black. */
+.port-intra { display: grid; grid-template-columns: 210px 1fr; gap: 4px; align-items: start; }
+.port-intra.nav-closed { grid-template-columns: 18px 1fr; }
+.port-nav { background: #1e1e1e; padding: 0 0 8px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.port-nav-h { display: flex; justify-content: space-between; align-items: center; padding: 1px 6px; background: #686868; color: #fff; }
+.port-nav-x, .port-nav-open { padding: 0 4px; border: 0; background: transparent; color: #fff; cursor: pointer; }
+.port-nav-open { background: #1e1e1e; align-self: stretch; }
+.port-nav-sec { margin-top: 6px; padding: 0 6px; color: #9a9a9a; }
+.port-nav-row, .port-nav-kv { display: flex; align-items: center; gap: 6px; padding: 0 6px; color: #fff; }
+.port-nav-kv { justify-content: space-between; }
+.port-nav .sel-inp { margin: 0 6px; }
+.port-fld { padding: 0 6px; background: var(--amber); color: #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.port-nav > .port-fld { margin: 0 6px; align-self: flex-start; }
+.port-main { min-width: 0; }
+.port-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; }
+.port-box { background: #1a1a1a; padding: 3px 6px 6px; min-height: 92px; min-width: 0; }
+.port-box-h { color: #fff; margin-bottom: 2px; }
+.port-big { font-size: var(--fs-xl); }
+.port-kv, .port-mv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.port-mv { grid-template-columns: minmax(0, 1fr) auto 40px; }
+.port-mv .amber, .port-kv .amber { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.port-bar { display: inline-block; height: 10px; }
+.port-bar.up { background: #2a9a44; }
+.port-bar.dn { background: #d01f35; }
+.port-colset { display: flex; align-items: center; gap: 6px; padding: 3px 4px; }
+.port-grid th { background: #222325; color: #e8e8e8; }
+.port-grid tr.port-grid-top th { border-bottom: 0; }
+.port-grid tbody tr.port-total td { background: #141613; border-top: 2px solid var(--amber); color: #fff; }
+.port-grid td:first-child { color: #fff; }
+.port-caret { display: inline-block; width: 14px; color: #c0c0c0; }
+.port-grid tr.port-line td { background: #0b0b0b; }
+.port-indent { padding-left: 26px !important; }
+.port-foot { display: flex; gap: 14px; padding: 4px; flex-wrap: wrap; }

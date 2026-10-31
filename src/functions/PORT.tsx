@@ -14,6 +14,7 @@ import { MAX_PORTFOLIOS, portfolio, portfolios, type Portfolio, type Position } 
 import { adjustPosition, BASE_CURRENCIES, baseFx, basePerPrice, isMargined, navValue, pnlSplit, priceCurrency } from '../terminal/portfolio';
 import type { FnProps } from '../terminal/types';
 import { PortfolioPerformance, PortfolioRisk } from './PortfolioRisk';
+import { PortIntraday } from './PortIntraday';
 import { HoldingMismatch, transactionRows, Transactions } from './PortTransactions';
 import { complianceSummary, PreTradeCheck, preTradeProblems } from './PreTrade';
 import { execute } from '../terminal/exec';
@@ -417,6 +418,7 @@ export function PortfolioTabs() {
 
 export function PORT(_: FnProps) {
   const panel = usePanelId();
+  // Intraday first, as the 2025 frame opens on it (PT_PORT_Enterprise_attribution 0:09); the app's own tabs follow.
   const [tab, setTab] = useState(1);
   const st = portfolio.use((s) => s);
   // A half-typed position stays with the portfolio it was typed for: another tab starts with empty boxes.
@@ -430,21 +432,22 @@ export function PORT(_: FnProps) {
         title="Portfolio & Risk Analytics"
         sub={`${st.name} · the holdings you enter`}
         tabs={[
-          { n: 1, label: 'Holdings' },
-          { n: 2, label: 'Performance' },
-          { n: 3, label: 'Risk & Allocation' },
-          { n: 4, label: 'Transactions' },
+          { n: 1, label: 'Intraday' },
+          { n: 2, label: 'Holdings' },
+          { n: 3, label: 'Performance' },
+          { n: 4, label: 'Risk & Allocation' },
+          { n: 5, label: 'Transactions' },
         ]}
         tab={tab}
         onTab={setTab}
         actions={
-          tab === 4
+          tab === 5
             ? exportActions(panel, `${st.name.replace(/\W+/g, '_') || 'portfolio'}-transactions.csv`, transactionRows).map((a) => ({ ...a, label: `${a.label} transactions` }))
             : exportActions(panel, `${st.name.replace(/\W+/g, '_') || 'portfolio'}.csv`, csv).map((a) => ({ ...a, label: `${a.label} holdings` }))
         }
         controls={<PortfolioTabs />}
       />
-      {tab === 1 ? <Holdings key={active} /> : tab === 2 ? <PortfolioPerformance /> : tab === 3 ? <PortfolioRisk /> : <Transactions key={active} />}
+      {tab === 1 ? <PortIntraday key={active} onHoldings={() => setTab(2)} /> : tab === 2 ? <Holdings key={active} /> : tab === 3 ? <PortfolioPerformance /> : tab === 4 ? <PortfolioRisk /> : <Transactions key={active} />}
       <div className="note">Current values use source FX marks, which may be delayed or stale. Day and price P&L translate local price changes at current FX; FX P&L is the change in the {st.base ?? 'USD'} value of each position's cost since you entered it, for positions entered from 2.8.0 on. Holdings are stored {engine.realOnly ? 'on this computer' : 'in this browser'} only.</div>
     </div>
   );

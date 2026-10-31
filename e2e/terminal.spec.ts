@@ -832,6 +832,9 @@ test('portfolio tabs keep each portfolio\'s holdings and cash, open, rename, clo
     await panel.getByRole('button', { name: 'Add', exact: true }).click();
   };
   await run(page, 'PORTFOLIO');
+  // PORT opens on Intraday (the 2025 frame); positions are added on 2) Holdings.
+  await expect(panel.locator('.tab.on')).toContainText('Intraday');
+  await run(page, '2');
   await expect(panel.locator('.ptab')).toHaveCount(1);
   await expect(panel.getByRole('button', { name: /^Close / })).toHaveCount(0);
   await panel.locator('.ptab').first().dblclick();
@@ -867,6 +870,7 @@ test('portfolio tabs keep each portfolio\'s holdings and cash, open, rename, clo
   await page.reload();
   await expect(panel.locator('.ptab')).toHaveCount(2);
   await expect(panel.locator('.ptab.on')).toHaveText('EQUITY_LONG×');
+  await run(page, '2');
   await expect(panel.getByRole('button', { name: 'Remove AAPL US Equity', exact: true })).toBeVisible();
 
   await panel.getByRole('button', { name: 'Close DOMESTIC BOND FUND' }).click();
