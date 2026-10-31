@@ -102,7 +102,7 @@ export function lineOf(s: Pick<Series, 't' | 'c' | 'length'>): DailyLine {
 }
 
 /** Index of the last time at or before `time`, or -1. */
-function atOrBefore(t: number[], time: number): number {
+export function atOrBefore(t: number[], time: number): number {
   let lo = 0;
   let hi = t.length - 1;
   let ans = -1;
@@ -159,19 +159,20 @@ export interface WbStats {
 }
 
 /**
- * WB's statistics of a line over the range that starts at `start` (UTC ms). A range holding one value is measured with
- * the value before it as well; a line with no value in the range (one whose source has not caught up) has none.
+ * WB's statistics of a line over the range that starts at `start` (UTC ms): the values after the start, measured from
+ * the last value at or before it (the close before the year for YTD). That base must be within WB_STALE_DAYS of the
+ * start: a line whose history begins inside the range, or has a long gap before it, has no change for the range rather
+ * than one from the wrong day. Null when no value falls in the range (a source that has not caught up, or the first
+ * days of a year before its first close).
  */
 export function wbStats(l: DailyLine, start: number): WbStats | null {
   const n = l.v.length;
   if (n < 2) return null;
-  let from = atOrBefore(l.t, start) + 1;
-  if (from >= n) return null;
-  if (from === n - 1) from = n - 2;
-  const values = l.v.slice(from);
-  const before = from > 0 ? from - 1 : from;
+  const before = atOrBefore(l.t, start);
+  if (before + 1 >= n) return null;
+  const values = l.v.slice(before + 1);
   const now = l.v[n - 1];
-  const base = l.v[before];
+  const base = before >= 0 && start - l.t[before] <= WB_STALE_DAYS * 86_400_000 ? l.v[before] : NaN;
   let low = Infinity;
   let high = -Infinity;
   for (const x of values) {
@@ -181,7 +182,7 @@ export function wbStats(l: DailyLine, start: number): WbStats | null {
   const avg = mean(values);
   const sdLevel = stdev(values);
   const changes: number[] = [];
-  for (let i = Math.max(1, from); i < n; i++) changes.push(l.v[i] - l.v[i - 1]);
+  for (let i = Math.max(1, before + 1); i < n; i++) changes.push(l.v[i] - l.v[i - 1]);
   const sdChange = stdev(changes);
   const dayChg = now - l.v[n - 2];
   const r = rsi(l.v, 14);
@@ -226,28 +227,43 @@ export function rangePos(v: number, low: number, high: number): number {
   return Math.min(1, Math.max(0, (v - low) / (high - low)));
 }
 
-/** The words a story about a country names it by, and its central bank and statistics office as the feeds call them. */
-const COUNTRY_WORDS: Record<string, string[]> = {
-  US: ['United States', 'U.S.', 'US ', 'Federal Reserve', 'Treasury', 'FOMC'],
-  CA: ['Canada', 'Canadian', 'Bank of Canada'],
-  BR: ['Brazil', 'Brazilian'],
-  MX: ['Mexico', 'Mexican', 'Banxico'],
-  GB: ['United Kingdom', 'Britain', 'British', 'UK ', 'Bank of England'],
-  FR: ['France', 'French', 'Banque de France'],
-  DE: ['Germany', 'German', 'Bundesbank'],
-  IT: ['Italy', 'Italian', "Banca d'Italia"],
-  ES: ['Spain', 'Spanish', 'Banco de España'],
-  CH: ['Switzerland', 'Swiss', 'SNB'],
-  JP: ['Japan', 'Japanese', 'Bank of Japan', 'BOJ'],
-  AU: ['Australia', 'Australian', 'Reserve Bank of Australia', 'RBA'],
-  CN: ['China', 'Chinese', "People's Bank of China", 'PBOC'],
-  IN: ['India', 'Indian', 'Reserve Bank of India', 'RBI'],
+/**
+ * How a story names a country: in its headline, whole words only (so Indiana is not India, New Mexico not Mexico,
+ * British Columbia not Britain), or by its publisher (a central bank, a ministry, a statistics office).
+ */
+const COUNTRY_HEADLINE: Record<string, RegExp> = {
+  US: /\b(?:United States|U\.S\.(?!\w)|US\b|Federal Reserve|FOMC|(?<!(?:UK|HM|British|Australian|Japanese|German|Canadian) )Treasur(?:y|ies)\b)/,
+  CA: /\b(?:Canada|Canadian)\b/,
+  BR: /\b(?:Brazil|Brazilian)\b/,
+  MX: /(?<!New )\bMexic(?:o|an)\b/,
+  GB: /\b(?:United Kingdom|Britain|British(?! Columbia)|UK|Bank of England)\b/,
+  FR: /\b(?:France|French)\b/,
+  DE: /\b(?:Germany|German|Bundesbank)\b/,
+  IT: /\b(?:Italy|Italian)\b/,
+  ES: /\b(?:Spain|Spanish)\b/,
+  CH: /\b(?:Switzerland|Swiss|SNB)\b/,
+  JP: /\b(?:Japan|Japanese|BOJ)\b/,
+  AU: /\b(?:Australia|Australian|RBA)\b/,
+  CN: /\b(?:China|Chinese|PBOC)\b/,
+  IN: /\b(?:India|Indian(?! Ocean)|RBI)\b/,
+};
+
+const COUNTRY_SOURCE: Record<string, RegExp> = {
+  US: /^(?:US |U\.S\. )|^Federal Reserve\b|^Bureau of (?:Labor Statistics|Economic Analysis)\b/i,
+  CA: /^Bank of Canada\b|^Statistics Canada\b/i,
+  GB: /^Bank of England\b|^Office for National Statistics\b/i,
+  DE: /^Deutsche Bundesbank\b|^Destatis\b/i,
+  JP: /^Bank of Japan\b|^Ministry of Finance Japan\b/i,
+  AU: /^Reserve Bank of Australia\b|^Australian Bureau of Statistics\b/i,
+  ES: /^Banco de Espa[nñ]a\b/i,
+  CH: /^Swiss National Bank\b/i,
+  BR: /^Banco Central do Brasil\b/i,
 };
 
 /** The latest stories the app holds that name a country, newest first. */
 export function countryStories(stories: Story[], c: string, max = 4): Story[] {
-  const words = COUNTRY_WORDS[c] ?? [COUNTRY_NAMES[c]];
-  const hit = (s: Story) => words.some((w) => s.headline.includes(w) || s.source.includes(w.trim()));
+  const head = COUNTRY_HEADLINE[c] ?? new RegExp(`\\b${COUNTRY_NAMES[c] ?? c}\\b`);
+  const src = COUNTRY_SOURCE[c];
+  const hit = (s: Story) => head.test(s.headline) || (!!src && src.test(s.source));
   return stories.filter(hit).sort((a, b) => b.time - a.time).slice(0, max);
 }
-

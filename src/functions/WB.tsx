@@ -18,7 +18,9 @@ import {
   WB_CURVES,
   WB_RANGES,
   WB_REGIONS,
+  WB_STALE_DAYS,
   WB_TENORS,
+  atOrBefore,
   countryStories,
   diffLine,
   fmtRangeLevel,
@@ -75,8 +77,19 @@ interface Row {
   long?: string;
   /** Why the row has no figures. */
   why?: string;
-  /** The latest spread's two yields and their day, for its tooltip: each country's sources publish on their own days. */
-  pair?: { t: number; a: number; b: number };
+  /**
+   * The latest spread's two yields and their days, for its tooltip: each country's sources publish on their own days,
+   * so the Sell country's yield can be its last one before the row's day.
+   */
+  pair?: { t: number; a: number; tb: number; b: number };
+  /** The day (UTC ms) of the row's latest value. */
+  asOf?: number;
+}
+
+/** The Spd cell's tooltip: both yields and their days, and what the day's change measures when the days differ. */
+function pairTitle(p: NonNullable<Row['pair']>, name: string, sellName: string): string {
+  if (p.tb === p.t) return `${fmtNum(p.a, 3)} less ${sellName}'s ${fmtNum(p.b, 3)}, both on ${fmtDay(p.t)}`;
+  return `${name}'s ${fmtNum(p.a, 3)} of ${fmtDay(p.t)} less ${sellName}'s ${fmtNum(p.b, 3)} of ${fmtDay(p.tb)}, its latest: the day's change is ${name}'s own move`;
 }
 
 /** The figure each view sorts by and the main column shows. */
@@ -121,6 +134,13 @@ export function WB(_: FnProps) {
     const old = ls.map((l) => staleSince(l, today)).filter((t): t is number => t !== null);
     return old.length ? `The latest ${name} value is from ${fmtDay(Math.min(...old))}: waiting for its source` : undefined;
   };
+  // A range with no value in it yet (the first days of a year, before its first close) says so rather than show blanks.
+  const statsOf = (name: string, l: DailyLine): Pick<Row, 'stats' | 'why' | 'asOf'> => {
+    const start = rangeStart(range, l);
+    const stats = wbStats(l, start);
+    const asOf = l.t.length ? l.t[l.t.length - 1] : undefined;
+    return stats ? { stats, asOf } : { stats: null, asOf, why: `No ${name} value since ${fmtDay(start)}, where the ${rangeDef.label} range starts: its first close is still to come` };
+  };
   const rowOf = (k: WbCountry): Row => {
     const name = COUNTRY_NAMES[k.c];
     if (tab === 93) {
@@ -132,21 +152,22 @@ export function WB(_: FnProps) {
       const why = waiting(name, ll, sl);
       if (why) return { k, name, short, long, stats: null, why };
       const l = diffLine(ll, sl);
-      return { k, name, short, long, stats: wbStats(l, rangeStart(range, l)) };
+      return { k, name, short, long, ...statsOf(name, l) };
     }
     const id = k.ids[tenor];
     if (!has(id)) return { k, name, stats: null, why: `No ${tenor}-year line from this country's source` };
     const own = line(id);
     const why = waiting(name, own);
-    if (tab === 91) return { k, name, id, stats: why ? null : wbStats(own, rangeStart(range, own)), why };
+    if (tab === 91) return why ? { k, name, id, stats: null, why, asOf: own.t[own.t.length - 1] } : { k, name, id, ...statsOf(name, own) };
     if (k === sellK) return { k, name, id, stats: null, base: true, why };
     if (!sellLine) return { k, name, id, stats: null };
     const sellWhy = sellK ? waiting(COUNTRY_NAMES[sellK.c], sellLine) : undefined;
     if (why || sellWhy) return { k, name, id, stats: null, why: why ?? sellWhy };
     const l = diffLine(own, sellLine);
     const t = l.t[l.t.length - 1];
-    const pair = l.t.length ? { t, a: own.v[own.t.lastIndexOf(t)], b: own.v[own.t.lastIndexOf(t)] - l.v[l.v.length - 1] / 100 } : undefined;
-    return { k, name, id, stats: wbStats(l, rangeStart(range, l)), pair };
+    const j = l.t.length ? atOrBefore(sellLine.t, t) : -1;
+    const pair = j >= 0 ? { t, a: own.v[own.t.lastIndexOf(t)], tb: sellLine.t[j], b: sellLine.v[j] } : undefined;
+    return { k, name, id, ...statsOf(name, l), pair };
   };
 
   const rows = countries.map(rowOf);
@@ -181,7 +202,7 @@ export function WB(_: FnProps) {
     const out = ticked.length ? sorted.filter((r) => ticked.includes(r.k.c)) : sorted;
     const head =
       tab === 91
-        ? ['Country', 'Line', 'Yield', 'Chg (bp)', 'Low', 'High', `${rangeDef.short} Chg (bp)`]
+        ? ['Country', 'Line', 'Yield', 'As of', 'Chg (bp)', 'Low', 'High', `${rangeDef.short} Chg (bp)`, 'Note']
         : [
             'Country',
             tab === 92 ? 'Yield' : `${curve.label} (bp)`,
@@ -194,16 +215,24 @@ export function WB(_: FnProps) {
             '+/-',
             '#SD',
             'RSI',
+            'As of',
+            'Note',
           ].filter(Boolean);
+    const sellName = sellK ? COUNTRY_NAMES[sellK.c] : '';
     const body = out.map((r) => {
       const s = r.stats;
+      const asOf = r.asOf !== undefined ? fmtDay(r.asOf) : '';
       if (tab === 91) {
         const q = r.id ? engine.quote(r.id)! : null;
-        return [r.name, r.id ?? '', q ? fmtNum(q.last, 3) : '', q ? fmtNum(q.chg * 100, 1) : '', s ? fmtNum(s.low, 3) : '', s ? fmtNum(s.high, 3) : '', s ? fmtNum(s.chg * 100, 1) : ''];
+        // The screen greys a change whose previous close is not yet confirmed: the file leaves it out and says why.
+        const unconfirmed = q?.chgCheck === 'unverified';
+        const note = [r.why, unconfirmed ? "The day's change waits for a confirmed previous close" : '', s && !Number.isFinite(s.base) ? `No close within ${WB_STALE_DAYS} days before the range starts` : ''].filter(Boolean).join('; ');
+        return [r.name, r.id ?? '', q ? fmtNum(q.last, 3) : '', asOf, q && !unconfirmed ? fmtNum(q.chg * 100, 1) : '', s ? fmtNum(s.low, 3) : '', s ? fmtNum(s.high, 3) : '', s ? fmtNum(s.chg * 100, 1) : '', note];
       }
+      const note = r.why ?? (r.pair && r.pair.tb !== r.pair.t ? `${sellName}'s yield is from ${fmtDay(r.pair.tb)}` : '');
       const first = tab === 92 ? (r.id ? fmtNum(engine.quote(r.id)!.last, 3) : '') : s ? fmtNum(s.now, 1) : '';
       const stat = s ? [fmtNum(s.dayChg, 1), fmtNum(s.sdDay, 1), fmtNum(s.low, 1), fmtNum(s.high, 1), fmtNum(s.avg, 1), fmtNum(s.diff, 1), fmtNum(s.sd, 1), fmtNum(s.rsi, 1)] : ['', '', '', '', '', '', '', ''];
-      return tab === 92 ? [r.name, first, s ? fmtNum(s.now, 1) : '', ...stat] : [r.name, first, ...stat];
+      return tab === 92 ? [r.name, first, s ? fmtNum(s.now, 1) : '', ...stat, asOf, note] : [r.name, first, ...stat, asOf, note];
     });
     return [head, ...body];
   };
@@ -419,7 +448,7 @@ function WbRow({ r, n, tab, ticked, onTick, onChart, onOpen, sellName }: { r: Ro
       <td className="wb-r wb-range-col"><RangeBar s={s} bp={bp} /></td>
       <td className="num wb-r"><Level v={s.high} at={s.now >= s.high} bp={bp} /></td>
       {tab === 91 ? (
-        <td className="num wb-r amber">{fmtSigned(s.chg * 100, 1)}</td>
+        <td className="num wb-r amber" title={Number.isFinite(s.base) ? `From ${fmtNum(s.base, 3)}` : `No close within ${WB_STALE_DAYS} days before the range starts: the line's history begins inside it`}>{fmtSigned(s.chg * 100, 1)}</td>
       ) : (
         <>
           <td className="num wb-r wb-avgv">{fmtNum(s.avg, 1)}</td>
@@ -465,7 +494,7 @@ function WbRow({ r, n, tab, ticked, onTick, onChart, onOpen, sellName }: { r: Ro
         <>
           {chartIcon}
           <td className={`num ${r.base ? 'cyan' : 'white'}`}>{r.id ? <LivePx id={r.id} dec={3} /> : ''}</td>
-          <td className="num cyan" title={r.pair ? `${fmtNum(r.pair.a, 3)} less ${sellName}'s ${fmtNum(r.pair.b, 3)}, both on ${fmtDay(r.pair.t)}` : undefined}>{s ? fmtNum(s.now, 1) : ''}</td>
+          <td className="num cyan" title={r.pair ? pairTitle(r.pair, r.name, sellName) : undefined}>{s ? fmtNum(s.now, 1) : ''}</td>
           <td className="num">{s ? <Move v={s.dayChg} /> : ''}</td>
           <td className="hide-m wb-spark">{s ? <Sparkline values={s.values} width={44} height={16} color="var(--up)" /> : null}</td>
           <td className="num">{s ? <SdDay v={s.sdDay} /> : ''}</td>
@@ -556,8 +585,18 @@ function SecurityAnalysis({ k, onClose }: { k: WbCountry; onClose: () => void })
     else flash(panel, 'This story has no link to its publisher');
   };
   const other = OTHER_MARKETS[k.c];
+  // 2) opens the section's first market, the country's equity index, as clicking its tile does.
+  const otherMarkets = () => {
+    if (!other || !engine.hasSource(other.index)) {
+      flash(panel, `No other market for ${name} has a source here`);
+      return;
+    }
+    onClose();
+    openSecurity(panel, other.index);
+  };
   useMenu(OVERLAY_MENU, [
     { n: 1, label: 'News Headlines', run: more },
+    { n: 2, label: `${name}: Other Markets`, run: otherMarkets },
     ...stories.map((s, i) => ({ n: 11 + i, label: s.headline, run: () => read(s) })),
   ]);
   return (
@@ -582,7 +621,7 @@ function SecurityAnalysis({ k, onClose }: { k: WbCountry; onClose: () => void })
         ) : (
           <div className="muted wb-sa-none">No story the app holds names {name} yet; More » searches all news.</div>
         )}
-        <div className="wb-sa-h">
+        <div className="wb-sa-h" title={`2 and GO opens ${other ? engine.get(other.index)?.name ?? other.index : 'the first market'}`}>
           <b>2)</b> {name}: Other Markets
         </div>
         <div className="wb-tiles">

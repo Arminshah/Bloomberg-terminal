@@ -66,11 +66,29 @@ describe('wbStats', () => {
     expect(wbStats(rising, day(0))!.rsi).toBe(100);
   });
 
-  it('measures a range holding one value with the value before it, and gives nothing for a range with none', () => {
-    expect(wbStats(l, day(3))!.values).toEqual([3.5, 3.3]);
+  it('measures a range holding one value from the value at its start, and gives nothing for a range with none', () => {
+    // The first session of a year: the range holds that day alone, measured from the year-end close.
+    const one = wbStats(l, day(3))!;
+    expect(one.values).toEqual([3.3]);
+    expect(one.base).toBe(3.5);
+    expect(one.chg).toBeCloseTo(-0.2, 12);
     // A source that has not caught up: its latest value is before the range starts.
     expect(wbStats(l, day(10))).toBeNull();
     expect(wbStats({ t: [day(0)], v: [1] }, day(0))).toBeNull();
+  });
+
+  it('has no change for the range when no close falls within ten days before it starts', () => {
+    // The line's history begins inside the range.
+    const late = wbStats({ t: [day(1), day(2)], v: [1, 2] }, day(0))!;
+    expect(late.values).toEqual([1, 2]);
+    expect(late.base).toBeNaN();
+    expect(late.chg).toBeNaN();
+    // A gap of twenty days before the start: that close is not the range's base.
+    const gap = wbStats({ t: [day(-20), day(1), day(2)], v: [5, 1, 2] }, day(0))!;
+    expect(gap.base).toBeNaN();
+    expect(gap.values).toEqual([1, 2]);
+    // Ten days is still within the limit.
+    expect(wbStats({ t: [day(-10), day(1)], v: [5, 1] }, day(0))!.base).toBe(5);
   });
 
   it('treats a line as waiting for its source once its latest value is more than ten days old', () => {
@@ -110,5 +128,32 @@ describe('Security Analysis headlines', () => {
     expect(countryStories(all, 'DE').map((s) => s.id)).toEqual(['d', 'a']);
     expect(countryStories(all, 'JP').map((s) => s.id)).toEqual(['b']);
     expect(countryStories(all, 'AU')).toEqual([]);
+  });
+
+  it('matches whole words, so a US state, a Canadian province or an ocean is not the country', () => {
+    const others = [
+      story('in1', 'Indiana factory orders rise', 'Reuters', 1),
+      story('mx1', 'New Mexico oil output hits a record', 'Reuters', 2),
+      story('gb1', 'British Columbia wildfire season ends', 'CBC', 3),
+      story('in2', 'Indian Ocean shipping rates climb', 'Reuters', 4),
+      story('us1', 'Stocks close higher', 'FOX BUSINESS', 5),
+      story('au1', 'Australian Treasury forecasts wider deficit', 'Reuters', 6),
+    ];
+    expect(countryStories(others, 'IN')).toEqual([]);
+    expect(countryStories(others, 'MX')).toEqual([]);
+    expect(countryStories(others, 'GB')).toEqual([]);
+    expect(countryStories(others, 'US')).toEqual([]);
+    expect(countryStories(others, 'AU').map((s) => s.id)).toEqual(['au1']);
+    const hits = [
+      story('us2', 'US Treasury yields climb after payrolls', 'Reuters', 7),
+      story('us3', 'Payrolls beat forecasts', 'US Bureau of Labor Statistics', 8),
+      story('in3', 'India cuts fuel taxes', 'Reuters', 9),
+      story('mx2', "Mexico's central bank holds rates", 'Reuters', 10),
+      story('gb2', 'UK inflation eases', 'Reuters', 11),
+    ];
+    expect(countryStories(hits, 'US').map((s) => s.id)).toEqual(['us3', 'us2']);
+    expect(countryStories(hits, 'IN').map((s) => s.id)).toEqual(['in3']);
+    expect(countryStories(hits, 'MX').map((s) => s.id)).toEqual(['mx2']);
+    expect(countryStories(hits, 'GB').map((s) => s.id)).toEqual(['gb2']);
   });
 });
