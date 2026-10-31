@@ -142,6 +142,8 @@ export const LEGACY_CODES: Record<string, string> = {
   SECF: 'SEARCH',
   LAST: 'RECENT',
   NOTE: 'NOTES',
+  // BLP is the Launchpad's own code on the terminal (the 2024 frames, the plan's Appendix B); LPAD and LLP still work.
+  BLP: 'LAYOUTS',
   LPAD: 'LAYOUTS',
   // The provider's own code for its Launchpad (the chapter list of its Instant Bloomberg, Launchpad and Worksheets tutorial).
   LLP: 'LAYOUTS',

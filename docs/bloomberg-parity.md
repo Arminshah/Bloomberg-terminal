@@ -188,6 +188,13 @@ Evidence: TE01 01:57 (a new tab: "New Tab" on the tab, the command line ready), 
 - Not built: the small pictures beside each tip (they would be screenshots of the provider's screens).
 - Checked: `tests/workspace-tabs.test.ts` (a new tab opens on WELC in the default layout with the watchlist in panel 5 and is named "New Tab"), `e2e/look.spec.ts` (tab label, toolbar, tips, keys and colours), the whole unit and browser suites.
 
+### M2.6 Codes and aliases
+
+Evidence: the plan's Appendix A (every provider code the pack shows that the app covers, with the screen it opens) and Appendix B.
+
+- Checked: every Appendix A code opens its screen (`tests/appendix-codes.test.ts`, 69 codes with SEAR and WELC). The one gap was BLP, the Launchpad's code, now the mnemonic of LAYOUTS (shown on the toolbar and tabs; LPAD and LLP still work). The header and toolbar show each screen's mnemonic.
+- Not aliased on purpose: MSG (the provider's mail network: MESSAGES is the app's help desk, not mail) and FXFC (contributors' FX forecasts, licensed content). The rest of Appendix B are functions to build (M5) or the provider's own services.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

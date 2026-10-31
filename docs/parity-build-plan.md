@@ -37,7 +37,7 @@ M2. Navigation, keyboard and menus
 - [x] 2.2 Help menu and Live Help (`917e53d`)
 - [x] 2.3 Keyboard table and gaps (`59b9b6a`)
 - [x] 2.4 Command grammar and plain-word search (`5ff7371`)
-- [ ] 2.5 New-tab page
+- [x] 2.5 New-tab page (`4cc243b`)
 - [ ] 2.6 Codes and aliases
 
 M3 to M5: ticked per screen, calculation and function as they are done (see sections M3, M4 and M5 below).

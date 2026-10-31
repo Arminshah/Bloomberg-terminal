@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { primaryMnemonic } from '../src/terminal/legacy';
 import { parseCommand } from '../src/terminal/commands';
 import { lookupFn } from '../src/terminal/registry';
 
@@ -7,5 +8,7 @@ describe('Mnemonics from the official chapter lists', () => {
   it('opens LAYOUTS under LLP, the Launchpad code, as under LPAD', () => {
     expect(parseCommand('LLP', lookupFn)).toEqual({ kind: 'route', fn: 'LAYOUTS' });
     expect(parseCommand('LPAD', lookupFn)).toEqual({ kind: 'route', fn: 'LAYOUTS' });
+    expect(parseCommand('BLP', lookupFn)).toEqual({ kind: 'route', fn: 'LAYOUTS' });
+    expect(primaryMnemonic('LAYOUTS')).toBe('BLP');
   });
 });
