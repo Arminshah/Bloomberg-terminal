@@ -117,3 +117,42 @@ describe('FINANCIALS: segments from a 10-K’s XBRL', () => {
     for (const bad of ['320193/000032019325000079/aapl-20250927.htm', '320193/000032019325000079/../x_lab.xml', '320193/0000320193250000/aapl_lab.xml', 'https://example.com/a_lab.xml']) expect(secMain.secRequest('filing-labels', bad)).toBeNull();
   });
 });
+
+// A synthetic IFRS instance in the pattern of the 20-Fs read on 31 October 2026 (Novo Nordisk, Shell, TSMC): ifrs-full
+// concepts, IFRS 8's segment and geography axes, segment figures with the operating-segments member of the
+// consolidation axis, a currency other than dollars, and a company axis (SAP's "scenario") that is left out. The names
+// and figures are made up.
+const ifrs = (() => {
+  const period = (id: string, start: string, end: string, dims: [string, string][] = []) =>
+    `<xbrli:context id="${id}"><xbrli:entity><xbrli:identifier scheme="http://www.sec.gov/CIK">0000000001</xbrli:identifier>${dims.length ? `<xbrli:segment>${dims.map(([a, m]) => `<xbrldi:explicitMember dimension="${a}">${m}</xbrldi:explicitMember>`).join('')}</xbrli:segment>` : ''}</xbrli:entity><xbrli:period><xbrli:startDate>${start}</xbrli:startDate><xbrli:endDate>${end}</xbrli:endDate></xbrli:period></xbrli:context>`;
+  const fact = (concept: string, ctx: string, v: number) => `<ifrs-full:${concept} contextRef="${ctx}" unitRef="DKK" decimals="-6">${v}</ifrs-full:${concept}>`;
+  const ops: [string, string] = ['ifrs-full:SegmentConsolidationItemsAxis', 'ifrs-full:OperatingSegmentsMember'];
+  return `<xbrli:xbrl><xbrli:unit id="DKK"><xbrli:measure>iso4217:DKK</xbrli:measure></xbrli:unit>
+    ${period('Y25', '2025-01-01', '2025-12-31')}${period('Y24', '2024-01-01', '2024-12-31')}
+    ${period('A25', '2025-01-01', '2025-12-31', [ops, ['ifrs-full:SegmentsAxis', 'xyz:AlphaCareMember']])}
+    ${period('B25', '2025-01-01', '2025-12-31', [ops, ['ifrs-full:SegmentsAxis', 'xyz:BetaCareMember']])}
+    ${period('A24', '2024-01-01', '2024-12-31', [ops, ['ifrs-full:SegmentsAxis', 'xyz:AlphaCareMember']])}
+    ${period('B24', '2024-01-01', '2024-12-31', [ops, ['ifrs-full:SegmentsAxis', 'xyz:BetaCareMember']])}
+    ${period('US25', '2025-01-01', '2025-12-31', [['ifrs-full:GeographicalAreasAxis', 'country:US']])}
+    ${period('IO25', '2025-01-01', '2025-12-31', [['ifrs-full:GeographicalAreasAxis', 'xyz:InternationalMember']])}
+    ${period('S25', '2025-01-01', '2025-12-31', [ops, ['ifrs-full:SegmentsAxis', 'xyz:GammaMember'], ['xyz:ScenarioAxis', 'xyz:ActualCurrencyMember']])}
+    ${fact('Revenue', 'Y25', 300e6)}${fact('Revenue', 'Y24', 280e6)}
+    ${fact('Revenue', 'A25', 270e6)}${fact('Revenue', 'B25', 30e6)}${fact('Revenue', 'A24', 255e6)}${fact('Revenue', 'B24', 25e6)}
+    ${fact('Revenue', 'US25', 170e6)}${fact('Revenue', 'IO25', 130e6)}${fact('Revenue', 'S25', 999e6)}
+    ${fact('ProfitLossFromOperatingActivities', 'Y25', 120e6)}${fact('ProfitLossFromOperatingActivities', 'A25', 118e6)}${fact('ProfitLossFromOperatingActivities', 'B25', 2e6)}
+  </xbrli:xbrl>`;
+})();
+
+describe('FINANCIALS: segments from a foreign filer’s 20-F in IFRS', () => {
+  it('reads IFRS 8 segments, their operating profit and geography, in the filing’s currency', () => {
+    const ts = parseSegments(ifrs);
+    expect(ts.map((t) => `${t.metric}:${t.breakdown}`)).toEqual(['revenue:segment', 'revenue:geography', 'operating:segment']);
+    const seg = table(ts, 'revenue', 'segment');
+    expect(seg).toMatchObject({ concept: 'Revenue', unit: 'DKK', total: { '2025-12-31': 300e6, '2024-12-31': 280e6 } });
+    expect(rows(seg)).toEqual([['Alpha Care', 270, 255], ['Beta Care', 30, 25]]);
+    expect(rows(table(ts, 'revenue', 'geography'))).toEqual([['United States', 170], ['International', 130]]);
+    expect(rows(table(ts, 'operating', 'segment'))).toEqual([['Alpha Care', 118], ['Beta Care', 2]]);
+    // The figure tagged with the company's own scenario axis as well is not a plain segment figure.
+    expect(seg.lines.some((l) => l.member === 'xyz:GammaMember')).toBe(false);
+  });
+});

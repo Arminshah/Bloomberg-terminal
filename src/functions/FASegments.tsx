@@ -245,7 +245,7 @@ export function SegmentsView({ state }: { state: SegmentState | undefined }) {
   const [kind, setKind] = useState<'business' | 'location'>('business');
   const [group, setGroup] = useState<'measure' | 'segment'>('measure');
   if (!secAvailable()) return <div className="empty">Segments are read from the company’s annual report (10-K) on SEC EDGAR by the desktop app.</div>;
-  if (!state || state.state === 'loading') return <div className="empty">Reading the segment tables of the latest 10-K…</div>;
+  if (!state || state.state === 'loading') return <div className="empty">Reading the segment tables of the latest annual report…</div>;
   if (state.state !== 'ok') return <div className="empty">{state.message}</div>;
   const r = state.report;
   const has = (k: 'business' | 'location') => r.tables.some((t) => isShown(k, t.breakdown));

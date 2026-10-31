@@ -5,7 +5,8 @@ import { loadFiler, loadFilingIndex, loadFilingLabels, loadFilingXbrl, resolveFi
 
 /**
  * FINANCIALS' segment pages: a company's revenue by business segment, by product, by geography and by major customer,
- * and its segments' operating income, as its latest annual report (10-K) tags them in XBRL. SEC company facts leave
+ * and its segments' operating income, as its latest annual report (10-K, or a foreign filer's 20-F or 40-F, in US GAAP
+ * or IFRS) tags them in XBRL. SEC company facts leave
  * out every figure with a dimension, so the filing's own XBRL instance is read, with its label file for the names
  * the company gives its segments ("iPhone", not "IPhoneMember").
  */
@@ -43,17 +44,24 @@ export interface SegmentTable {
   unit: string;
 }
 
-const REVENUE = ['RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueNet', 'RevenuesNetOfInterestExpense'];
-const OPERATING = ['OperatingIncomeLoss'];
+// US GAAP's concepts, then IFRS's (ifrs-full: Revenue, RevenueFromContractsWithCustomers, ProfitLossFromOperatingActivities).
+const REVENUE = ['RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'SalesRevenueNet', 'RevenuesNetOfInterestExpense', 'Revenue', 'RevenueFromContractsWithCustomers'];
+const OPERATING = ['OperatingIncomeLoss', 'ProfitLossFromOperatingActivities'];
 const AXIS: Record<string, Breakdown> = {
   StatementBusinessSegmentsAxis: 'segment',
   ProductOrServiceAxis: 'product',
   StatementGeographicalAxis: 'geography',
   MajorCustomersAxis: 'customer',
+  // IFRS 8's axes.
+  SegmentsAxis: 'segment',
+  ProductsAndServicesAxis: 'product',
+  GeographicalAreasAxis: 'geography',
 };
+/** The consolidation axes (US GAAP's, IFRS's) whose operating-segments member leaves a segment's own figure. */
+const CONSOLIDATION = new Set(['ConsolidationItemsAxis', 'SegmentConsolidationItemsAxis']);
 const local = (q: string) => q.slice(q.indexOf(':') + 1);
 /** A member of the standard taxonomies ("us-gaap:ProductMember"), not one the company defined. */
-const STANDARD = /^(?:us-gaap|srt):/;
+const STANDARD = /^(?:us-gaap|srt|ifrs-full):/;
 
 interface Context {
   start?: string;
@@ -173,16 +181,16 @@ export function parseSegments(xml: string, labels?: Map<string, string>): Segmen
   const facts = new Map<string, Map<Breakdown, Map<string, Map<string, Cell>>>>();
   const totals = new Map<string, Map<string, number>>();
   const wanted = new Set([...REVENUE, ...OPERATING]);
-  for (const m of xml.matchAll(/<us-gaap:(\w+)\b([^>]*?)>([^<]*)<\/us-gaap:\1>/g)) {
-    const concept = m[1];
+  for (const m of xml.matchAll(/<(us-gaap|ifrs-full):(\w+)\b([^>]*?)>([^<]*)<\/\1:\2>/g)) {
+    const concept = m[2];
     if (!wanted.has(concept)) continue;
-    const ctx = contexts.get(/\bcontextRef="([^"]+)"/.exec(m[2])?.[1] ?? '');
-    const value = Number(m[3].trim());
+    const ctx = contexts.get(/\bcontextRef="([^"]+)"/.exec(m[3])?.[1] ?? '');
+    const value = Number(m[4].trim());
     if (!ctx?.start || !ctx.end || !Number.isFinite(value)) continue;
     const d = days(ctx.start, ctx.end);
     if (d < 340 || d > 380) continue;
-    const unit = units.get(/\bunitRef="([^"]+)"/.exec(m[2])?.[1] ?? '') ?? '';
-    const dims = ctx.dims.filter(([axis, member]) => !(local(axis) === 'ConsolidationItemsAxis' && local(member) === 'OperatingSegmentsMember'));
+    const unit = units.get(/\bunitRef="([^"]+)"/.exec(m[3])?.[1] ?? '') ?? '';
+    const dims = ctx.dims.filter(([axis, member]) => !(CONSOLIDATION.has(local(axis)) && local(member) === 'OperatingSegmentsMember'));
     if (!dims.length) {
       if (!ctx.dims.length) {
         const t = totals.get(concept) ?? new Map<string, number>();
@@ -263,7 +271,7 @@ function setState(id: string, s: SegmentState) {
   segmentStore.set((x) => ({ v: x.v + 1, by: { ...x.by, [id]: s } }));
 }
 
-/** Reads the company's latest 10-K and its segment tables. */
+/** Reads the company's latest annual report (10-K, 20-F or 40-F) and its segment tables. */
 async function build(def: SecurityDef) {
   const ticker = secTicker(def);
   if (!ticker) return setState(def.id, { state: 'none', message: 'Segments come from SEC filings: this security has no US listing in the SEC’s list.' });
@@ -272,8 +280,9 @@ async function build(def: SecurityDef) {
   if (!filer.ok) return setState(def.id, { state: 'error', message: filer.reason === 'needs-agent' ? 'Segments need SEC_USER_AGENT (your name and email) in PROVIDERS.' : 'The SEC’s company list could not be read.' });
   const filings = await loadFiler(filer.data.cik);
   if (!filings.ok) return setState(def.id, { state: 'error', message: 'The company’s filings could not be read.' });
-  const annual = filings.data.filings.find((f) => f.form === '10-K' || f.form === '10-K/A');
-  if (!annual) return setState(def.id, { state: 'none', message: 'No annual report on Form 10-K among the company’s filings (foreign filers report on 20-F, in IFRS).' });
+  // The newest annual report: a 10-K, or a foreign filer's 20-F or 40-F (their XBRL in IFRS or US GAAP).
+  const annual = filings.data.filings.find((f) => ['10-K', '10-K/A', '20-F', '40-F'].includes(f.form));
+  if (!annual) return setState(def.id, { state: 'none', message: 'No annual report on Form 10-K, 20-F or 40-F among the company’s filings.' });
   const index = await loadFilingIndex(filer.data.cik, annual.accession);
   const names = index.ok ? index.data : [];
   const instance = names.find((n) => /_htm\.xml$/i.test(n));
