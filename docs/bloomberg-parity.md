@@ -305,6 +305,17 @@ Evidence: TE04 01:21 ("WEI World Equity Indices"), TE01 02:27 ("New Tab" on the 
 - Now: a tab is named after its screen even in the untouched default workspace; "New Tab" is only the new-tab page's name, as in the frames. Before, the first tab read "New Tab" over WEI until another screen was opened.
 - Checked: `tests/workspace-tabs.test.ts`, the browser tests of tabs.
 
+### M3 IMAP (E3)
+
+Evidence: TE04 01:55 (DAX, 2023), TE04 02:29 (the security dropdown).
+
+Inventory: red bar "Export" and "Settings ▾" without numbers; the index in an amber field, "Group by" Region or Sector as radio buttons, "Market Cap (USD)" with an amber "All ▾", a grey "Historical Performance" button; a blue breadcrumb "DAX > GICS"; grey tabs Pie Chart & Table (chosen), Table, Pie Chart; "DAX: Intraday Return by GICS Sector"; a sunburst with the index at the centre, the sectors around it and the members outside, green or red by the day's return, each sector labelled with its change; at the right "Name" over 1) All Securities and the sectors from 2) with ">".
+
+- Already built before this pass (the desktop app, with the S&P 500, Nasdaq-100 and Dow members): the controls, the breadcrumb, the tabs, the sunburst and the numbered group list, plus the app's Heatmap tab and the group table's change and share-up columns.
+- Now: Export is a dropdown without a number; the tabs are the grey ones of the frames; the title reads "Intraday Return by" as the frame's.
+- Checked on live data in the desktop app (31 October 2026, closes of 30 October, `docs/parity-m3-imap-live.png`): INDU's All Securities line gives -1.09%, the index's own change on the quote line. The browser demo has no index memberships and shows the app's heat map with a note saying so.
+- Not done: Settings ▾, the member labels on the outer ring.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

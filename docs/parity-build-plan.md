@@ -50,7 +50,8 @@ M3. Screen parity
 - [x] RV: Export dropdown, controls with Region and Mkt Cap > filters, segment panel, unnumbered tabs (next commit); the multiples chart, Settings and five tabs not built
 - [x] EQS: screens list, criteria categories, Add Criteria, Selected Screening Criteria with Matches, results on their own page with Back (next commit); Formula, Backtest and WATC not built
 - [x] WEI: News and Settings dropdowns, Movers, Volatility (10D and 30D), the change period (next commit); Ratios, Δ AVAT and Adv/Dcl not built
-- [ ] IMAP
+- [x] IMAP: Export dropdown, grey tabs, the frame's title (next commit), checked on live data in the desktop app; Settings not built
+- [ ] GP and G
 
 ## 1. Rules that come before anything in this plan
 
