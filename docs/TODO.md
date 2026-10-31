@@ -4,7 +4,7 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-2.30.0 was requested on 31 October through `.github/release-request.json`: the portfolio-management screens (FRONTIER, MPC), the FTSE 100 screen, the SPLC review fixes (`docs/splc-review-2026-10-30.md`), official session figures from Nasdaq's record, the interface work of 31 October and the unpublished 2.29.1 accuracy work. It is published only once the release workflow has finished and both Windows executables and their checksums are on the release.
+2.30.0 was published on 31 October (08:23 UTC). 2.31.0 was requested on 31 October through `.github/release-request.json`: the new data sources of 31 October (`docs/release-v2.31.0.md`) and the screen-by-screen layout work since 2.30.0. It is published only once the release workflow has finished and both Windows executables and their checksums are on the release.
 
 ### 15. More free data sources (asked 31 October)
 
@@ -15,11 +15,11 @@ The owner asked for every free source that makes the data more complete, accurat
 - Done: Treasury prices from TreasuryDirect's FedInvest (Bureau of the Fiscal Service): the day's Sell, Buy and End of Day price of every marketable Treasury by CUSIP. The page is a form with a token and a cookie and refuses Node's requests, so the desktop app asks through Chromium's stack (`net.fetch`), for the latest day with prices and the one before, when a Treasury is first needed. Each note and bond becomes a security ("T 4 5/8 08/15/36 Govt", its CUSIP an alias): ALLQ shows its Sell and Buy, SRCH's results have prices and open it, YAS starts from its terms and price.
 - Not used: Cboe's delayed quote files (SPX, RUT and VIX options, Greeks). Every Cboe quote page forbids automated download and warns of IP blocks (`docs/data-providers.md`, "Cboe delayed quotes"). Only the owner can decide otherwise.
 - Next, from the survey of 31 October (each still to be checked the same way before it is built):
-  - Index futures outside the US: done for the Euro Stoxx 50 and DAX (Eurex's daily settlements on INDEXFUTURES, 31 October); next, JPX for Nikkei 225 (NK1) and TOPIX futures. Checked on 31 October 2026: JPX's daily settlement file (`rb_e<date>.csv`, 3.9 MB with every option) gives each contract month's settlement, theoretical price and the index close (Nikkei 225 December 2026 at 63,490 on 30 October, index 63,290.11), but only the latest day's file stays online (the day before's answered 404), so a day's change needs the app to keep each day's settlement with its date. JPX's terms bar collecting or reusing its data for commercial purposes only; its robots.txt allows all. No permitted free source gives their intraday prices.
+  - Index futures outside the US: done for the Euro Stoxx 50 and DAX (Eurex's daily settlements on INDEXFUTURES, 31 October); the Nikkei 225 future (NK1) from JPX's settlement and open interest files since 31 October, each day kept by the app for the next day's change; TOPIX futures are in the same files once the app has a TOPIX index line. No permitted free source gives their intraday prices.
   - UK short interest: the FCA's daily aggregated net short positions exist, but its terms (clause 3.3) bar including them in an electronic retrieval system without permission: the owner's call.
   - Treasuries: auction results and the auction schedule are on `AUCTIONS` (`AUCR`) since 31 October, from Fiscal Data and TreasuryDirect. Next: buybacks, and TIPS and FRN index figures; the Bank of England's 2 and 30-year gilt points exist only as zero-coupon yields.
   - Fund holders: the SEC's N-PORT data for every fund holding a stock (HOLDERS), and the 13F data sets for buyers and sellers counts.
-  - Economics: GDPNow and the Cleveland Fed's inflation nowcasts are on MACRO, and the ECB's Survey of Professional Forecasters on ECOFORECASTS, since 31 October; ECO's release times are right in winter now. The BLS's release schedule gives ECO the official times of payrolls, CPI, PPI and JOLTS, asked with the owner's SEC_USER_AGENT contact as the owner allowed on 31 October. Still open: the Philadelphia Fed's US survey, whose files give levels (annual growth needs the year before's actuals from a second workbook) and whose site states no reuse terms beyond "All rights reserved".
+  - Economics: GDPNow and the Cleveland Fed's inflation nowcasts are on MACRO, and the ECB's Survey of Professional Forecasters on ECOFORECASTS, since 31 October; ECO's release times are right in winter now. The BLS's release schedule gives ECO the official times of payrolls, CPI, PPI and JOLTS, asked with the owner's SEC_USER_AGENT contact as the owner allowed on 31 October. The Philadelphia Fed's US survey is on ECOFORECASTS too, read from its release page (the owner's choice, 31 October).
   - Not available free: SPX, RUT and VIX options (Cboe's terms), per-bond corporate and municipal prices, ESG scores, a history of consensus price targets.
 
 ### 14. Match the provider's terminal screen for screen (asked 31 October)
@@ -124,6 +124,9 @@ Plan:
 
 ## Waiting on you
 
+On 31 October the owner left every open choice to the sessions' judgement: "just do whatever is best for the project and end goal... make a Bloomberg terminal 1:1 ... accurate in data, looks, feels, functions, features". So decide each question below by what matches the reference frames and the provider's real behaviour most closely, record the choice and why, and go on; ask the owner only about money (paid plans) or about a source whose terms forbid automated use (Cboe, the FCA), which stay off. The owner's fixed rules still stand: the IBM Plex typeface (CLAUDE.md), the app's own name and logo, real data only.
+
+- Parity build, four questions (31 October): decided by the frames and the owner's rules, with the reasons, under item 14 above.
 - The latest GitHub audit executed with the required repository secrets; no new credential request is pending. The approved scheduler on `main` calls the development branch. Fresh CI and audit jobs ran after the repository became public again. See `docs/audit-check.md` for configuration and `docs/accuracy-v2.29.1.md` for the unresolved findings.
 
 - The watchlist layout of 27 October, two points to confirm: "52-Wk %" is the one-year price change (today's price against the close a year earlier, without dividends); "Avg Vol (3M)" is the average of the last 63 full trading days, so it can differ a little from Yahoo's own figure. Say if you meant something else.

@@ -26,6 +26,13 @@ export type OfficialSource =
   | 'newsFed' | 'newsEcb' | 'newsBoe' | 'newsBoc' | 'newsRba' | 'newsBea' | 'newsEsma'
   | 'newsFedSpeeches' | 'newsEcbBlog' | 'newsBoj' | 'newsBis' | 'newsSec';
 
+/** One day of JPX's Nikkei 225 future: the index close, each month's settlement, and volume and open interest by month when JPX's workbook for that day was read. */
+export interface JpxDay {
+  close: number;
+  months: { sq: string; month: string; settle: number; theoretical: number }[];
+  oi?: Record<string, { volume: number; openInterest: number }>;
+}
+
 declare global {
   interface Window {
     arminDesktop?: {
@@ -66,7 +73,11 @@ declare global {
       nasdaqOptions?(symbol: string, assetClass: 'stocks' | 'etf' | 'index'): Promise<KeyedAnswer>;
       spdrHoldings?(fund: 'SPY' | 'DIA'): Promise<import('./index-members').SpdrAnswer>;
       asic?(kind: 'index' | 'day', date?: string, version?: string): Promise<KeyedAnswer>;
+      /** The Philadelphia Fed's Survey of Professional Forecasters pages (no key): src/data/live/us-spf.ts. */
+      philfed?(kind: 'index' | 'survey', quarter?: number, year?: number): Promise<KeyedAnswer>;
       eurex?(product: 'FESX' | 'FDAX', busdate?: string): Promise<KeyedAnswer>;
+      /** JPX's Nikkei 225 future settlements, each day the app has read (electron/main.cjs, src/data/live/jpx.ts). */
+      jpx?(): Promise<{ days: Record<string, JpxDay>; error?: string }>;
       finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;
       finvizPeers?(symbol: string): Promise<KeyedAnswer>;

@@ -1317,6 +1317,7 @@ export class MarketEngine {
     if (st.ext?.delay) q.delay = st.ext.delay;
     if (st.ext?.sourceName) q.sourceName = st.ext.sourceName;
     if (st.ext?.dayProvider) q.dayProvider = st.ext.dayProvider;
+    if (st.ext?.settled && st.ext.settled.day === st.ext.session) q.sessionSettled = true;
     if (st.ext?.settled && st.ext.settled.day === st.ext.session && st.ext.settled.volume >= st.volume) q.volumeSource = st.ext.settled.source;
     if (st.ext?.settled?.open && st.ext.settled.day === st.ext.session && st.dayOpen === st.ext.settled.open.price) q.openSource = st.ext.settled.open.source;
     if (st.ext?.settled?.range && st.ext.settled.day === st.ext.session && st.dayHigh === st.ext.settled.range.high && st.dayLow === st.ext.settled.range.low) q.rangeSource = st.ext.settled.range.source;
@@ -1474,6 +1475,7 @@ export class MarketEngine {
     if (n < 0 || dayNum(s.t[n]) !== day) return false;
     const official = open && Number.isFinite(open.price) && open.price > 0 ? open : undefined;
     const officialRange = range && Number.isFinite(range.high) && Number.isFinite(range.low) && range.low > 0 && range.high >= range.low ? range : undefined;
+    const wasSettled = ext.settled?.day === day;
     ext.settled = { day, volume, source, ...(official ? { open: official } : {}), ...(officialRange ? { range: officialRange } : {}) };
     // The price source's open of a finished session can be its first print, not the official opening price (Yahoo's
     // Tesla on 29 October 2026: 405.94 against the official 405.625).
@@ -1484,7 +1486,14 @@ export class MarketEngine {
     const reranged = !!officialRange && (s.h[n] !== officialRange.high || s.l[n] !== officialRange.low);
     if (reranged) this.applyRange(st, s, n, officialRange!);
     const louder = volume > st.volume;
-    if (!louder && !reopened && !reranged) return false;
+    if (!louder && !reopened && !reranged) {
+      // Nothing to correct, but a session checked for the first time says so on its quote (no longer provisional).
+      if (!wasSettled) {
+        this.version++;
+        this.publishQuote(st, this.now());
+      }
+      return false;
+    }
     if (louder) {
       s.v[n] = volume;
       st.volume = volume;

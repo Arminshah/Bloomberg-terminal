@@ -77,7 +77,11 @@ async function settle(id: string, symbol: string, day: number, active: () => boo
     if (!res.text || (res.status !== undefined && res.status !== 200)) return 'failed';
     if (!active()) return 'answered';
     const row = parseNasdaqDays(res.text).find((r) => r.day === day);
-    if (row && engine.settleVolume(id, day, row.volume, SETTLED_SOURCE, { price: row.open, source: SETTLED_OPEN_SOURCE }, { high: row.high, low: row.low, source: SETTLED_RANGE_SOURCE })) engine.flush([id]);
+    if (row) {
+      // Flushed whether or not a figure changed: a session checked against its record is no longer provisional.
+      engine.settleVolume(id, day, row.volume, SETTLED_SOURCE, { price: row.open, source: SETTLED_OPEN_SOURCE }, { high: row.high, low: row.low, source: SETTLED_RANGE_SOURCE });
+      engine.flush([id]);
+    }
     return 'answered';
   } catch {
     return 'failed';

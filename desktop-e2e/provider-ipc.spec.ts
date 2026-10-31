@@ -68,6 +68,8 @@ interface Fixtures {
   ecbFx?: boolean;
   ecbSpf?: boolean;
   blsSchedule?: boolean;
+  philfed?: boolean;
+  jpx?: boolean;
   centralBankRates?: boolean;
   policyDecisions?: boolean;
   policyDown?: boolean;
@@ -78,7 +80,7 @@ interface Fixtures {
   treasuryCurve?: boolean;
   spdr?: boolean;
   asic?: boolean;
-  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; fedinvest?: { date: string; token: string | null }[]; treasuryDirect?: string[]; ecbSpf?: string[]; blsSchedule?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; fedinvest?: { date: string; token: string | null }[]; treasuryDirect?: string[]; ecbSpf?: string[]; blsSchedule?: string[]; philfed?: string[]; jpx?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -666,6 +668,51 @@ test("the BLS's release schedule is asked only with the owner's SEC_USER_AGENT c
   expect(answer.status).toBe(200);
   expect(answer.text).toContain('SUMMARY:Employment Situation');
   expect((await calls(app)).blsSchedule).toEqual(['Armin Desktop Test desktop-fixture@example.invalid']);
+});
+
+test("INDEXFUTURES shows the Nikkei 225 future from JPX's settlement, against the previous trading day the app kept", async ({ desktop: { app, page } }) => {
+  await app.evaluate(({ app: electronApp }) => {
+    (globalThis as FixtureGlobal).__desktopFixtures.jpx = true;
+    const fs = process.getBuiltinModule('node:fs');
+    const path = process.getBuiltinModule('node:path');
+    // The settlement the app read on Thursday 29 October (synthetic), kept on disk as the app keeps each day.
+    fs.writeFileSync(path.join(electronApp.getPath('userData'), 'jpx-nikkei225.json'), JSON.stringify({ days: { '2026-10-29': { close: 49000, months: [{ sq: '2026-12-10', month: '2026-12', settle: 49500, theoretical: 49500 }] } } }));
+  });
+  await page.reload();
+  await command(page, 'INDEXFUTURES', 'INDEXFUTURES');
+  const panel = page.locator('.panel').first();
+  const row = panel.locator('tbody tr').filter({ hasText: 'NK1' });
+  // Friday 30 October's file: December settles at 50,010 against 49,500, on 40,000 contracts; the index closed at
+  // 49,990.5. JPX gives no high or low.
+  await expect(row).toContainText('NKZ6', { timeout: 30_000 });
+  for (const v of ['50,010', '+510', '+1.03%', '40,000', '49,990.50']) await expect(row).toContainText(v);
+  // No high or low from JPX: the two cells are blank, not the settlement repeated.
+  await expect(row.locator('td').nth(5)).toHaveText('--');
+  await expect(row.locator('td').nth(6)).toHaveText('--');
+  await expect(panel).toContainText('The Nikkei 225 future (NK) is JPX’s end of day on the Osaka Exchange');
+  const asked = (await calls(app)).jpx ?? [];
+  expect(asked).toContain('/english/markets/derivatives/settlement-price/tvdivq00000014l6-att/rb_e20261030.csv');
+  expect(asked).toContain('/english/markets/derivatives/trading-volume/vk0khi000002j00k-att/20261030open_interest_e.xlsx');
+});
+
+test("ECOFORECASTS shows the Philadelphia Fed's latest survey as its release page tabulates it, previous beside new", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.philfed = true;
+  });
+  await command(page, 'ECOFORECASTS', 'ECOFORECASTS');
+  const panel = page.locator('.panel').first();
+  await panel.getByLabel('Forecasts from').selectOption('us-spf');
+  const survey = panel.getByTestId('us-spf');
+  await expect(survey).toContainText('Third Quarter 2026 Survey of Professional Forecasters, August 2026', { timeout: 30_000 });
+  const main = panel.getByRole('table', { name: 'Median forecasts for selected variables' });
+  await expect(main.locator('thead tr').first().locator('th')).toHaveText(['', 'Real GDP (%)', 'Unemployment Rate (%)', 'Payrolls (000s/month)']);
+  // The synthetic page's figures, as printed: N.A. where the previous survey asked nothing, decimals as given.
+  await expect(main.locator('tbody tr').filter({ hasText: '2027:Q3' }).locator('td')).toHaveText(['2027:Q3', 'N.A.', '1.6', 'N.A.', '5.2', 'N.A.', '30.0']);
+  const inflation = panel.getByRole('table', { name: /projections for inflation/ });
+  await expect(inflation.locator('tbody tr').filter({ hasText: '2026-2030' }).locator('td')).toHaveText(['2026-2030', '2.40', '2.50', 'N.A.', 'N.A.', '2.30', '2.30', 'N.A.', 'N.A.']);
+  await expect(panel.getByRole('table', { name: 'Risk of a negative quarter (%), survey means' })).toContainText('19.9');
+  await expect(survey).toContainText('Source: Federal Reserve Bank of Philadelphia, Survey of Professional Forecasters.');
+  expect((await calls(app)).philfed).toEqual(['/surveys-and-data/real-time-data-research/survey-of-professional-forecasters', '/surveys-and-data/real-time-data-research/spf-q3-2026']);
 });
 
 test("ECOFORECASTS shows the ECB's Survey of Professional Forecasters for the euro area, with each change since the round before", async ({ desktop: { app, page } }) => {

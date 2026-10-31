@@ -16,6 +16,7 @@ import { exportActions } from '../components/ExportActions';
 import { execute } from '../terminal/exec';
 import { realFutureContract } from '../data/realfut';
 import { EUREX_IDS, eurexFront } from '../data/live/eurex';
+import { JPX_IDS, jpxFront } from '../data/live/jpx';
 import type { FnProps } from '../terminal/types';
 
 /** MARKET's regions and their indices, in the order shown. */
@@ -282,8 +283,8 @@ export function WEIF(_: FnProps) {
   useTick(1);
   const panel = usePanelId();
   const [collapsed, toggle] = useCollapsed();
-  // An end-of-day Eurex line waits for Eurex's answer rather than standing empty.
-  const shown = (id: string) => engine.hasSource(id) && (!EUREX_IDS.has(id) || eurexFront.has(id));
+  // An end-of-day line (Eurex, JPX) waits for its source's answer rather than standing empty.
+  const shown = (id: string) => engine.hasSource(id) && (!EUREX_IDS.has(id) || eurexFront.has(id)) && (!JPX_IDS.has(id) || jpxFront.has(id));
   const groups = FUT_GROUPS.filter((g) => g.ids.some(shown));
   const lists = groups.map((g) => g.ids.filter((id) => !!engine.get(id) && shown(id)));
   const nums = useGroupedRows('weif-rows', lists, groups.map((g) => !collapsed.includes(g.name)), (id) => openSecurity(panel, id, undefined, 'INTRADAY'), (id) => engine.get(id)?.name ?? id);
@@ -326,7 +327,7 @@ export function WEIF(_: FnProps) {
                 const q = engine.quote(id)!;
                 const u = engine.quote(d.fut!.underlying)!;
                 const c = engine.realOnly ? realFutureContract(d) : engine.futureContract(id)!;
-                // An end-of-day line (Eurex) is set against the index's close of the same day, not today's level.
+                // An end-of-day line (Eurex, JPX) is set against the index's close of the same day, not today's level.
                 const eod = engine.realOnly ? (c as ReturnType<typeof realFutureContract>) : undefined;
                 const spot = eod?.asOf ? eod.spot : u.last;
                 const intra = engine.intraday(id);
@@ -351,7 +352,7 @@ export function WEIF(_: FnProps) {
                     <td className="num hide-m">{fmtNum(q.high, d.dec)}</td>
                     <td className="num hide-m">{fmtNum(q.low, d.dec)}</td>
                     <td className="num hide-m">{fmtNum(q.volume, 0)}</td>
-                    <td className="num" title={eod?.asOf ? `The index's close on ${eod.asOf}, as Eurex gives it with the settlement` : undefined}>
+                    <td className="num" title={eod?.asOf ? `The index's close on ${eod.asOf}, as ${JPX_IDS.has(id) ? 'JPX' : 'Eurex'} gives it with the settlement` : undefined}>
                       <SecLink id={d.fut!.underlying} fn="CHART">
                         {fmtNum(spot, 2)}
                       </SecLink>
@@ -374,7 +375,7 @@ export function WEIF(_: FnProps) {
       </table>
       <p className="pad-s muted">
         {engine.realOnly
-          ? `Prices, contracts and last trade dates from Yahoo Finance (CME, ${timing}). Basis and premium set the future against the index as each is timed. Fair value is a model: index × e^((r − q) × days/365) with the 3-month Treasury rate and the dividends the index’s ETF paid over the past 12 months as a share of its price. The Euro Stoxx 50 and DAX futures (VG, GX) are Eurex’s end of day: the front month’s daily settlement against the day before’s, with Eurex’s volume and open interest; their fair value uses the ECB’s deposit rate, and the DAX, a performance index, no dividend yield. Other non-US index futures have no free source and are not listed.`
+          ? `Prices, contracts and last trade dates from Yahoo Finance (CME, ${timing}). Basis and premium set the future against the index as each is timed. Fair value is a model: index × e^((r − q) × days/365) with the 3-month Treasury rate and the dividends the index’s ETF paid over the past 12 months as a share of its price. The Euro Stoxx 50 and DAX futures (VG, GX) are Eurex’s end of day: the front month’s daily settlement against the day before’s, with Eurex’s volume and open interest; their fair value uses the ECB’s deposit rate, and the DAX, a performance index, no dividend yield. The Nikkei 225 future (NK) is JPX’s end of day on the Osaka Exchange: the front month’s settlement against the previous Tokyo trading day’s, when the app read that day too (JPX keeps only the latest day online), with JPX’s volume and open interest; JPX’s files give no high or low. Other non-US index futures have no free source and are not listed.`
           : 'Fair value = index × e^((r − q) × days/365), using the 3-month bill (or local policy rate) and the index dividend yield. Futures prices are simulated around fair value.'}
       </p>
     </div>

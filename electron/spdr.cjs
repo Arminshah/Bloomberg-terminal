@@ -69,4 +69,4 @@ function parseSpdrHoldings(buf) {
   return holdings.length ? { fund, asOf, holdings } : { error: 'The holdings file listed no stocks.' };
 }
 
-module.exports = { spdrHoldingsUrl, parseSpdrHoldings, SPDR_FUNDS: Object.keys(FUNDS) };
+module.exports = { spdrHoldingsUrl, parseSpdrHoldings, sheetRows, SPDR_FUNDS: Object.keys(FUNDS) };

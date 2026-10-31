@@ -1132,6 +1132,10 @@ const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(ur
       const message = require('./eurex.cjs').eurexProblem(text);
       return message ? { kind: 'schema-changed', message } : null;
     }
+    if (provider === 'philfed') {
+      const message = require('./philfed.cjs').philFedProblem(text);
+      return message ? { kind: 'schema-changed', message } : null;
+    }
     if (provider === 'asic') {
       const ok = url.endsWith('.json') ? /^\s*\[/.test(text) : /^\uFEFF?Product,Product Code,/.test(text);
       return ok ? null : { kind: 'schema-changed', message: 'ASIC changed its short position files.' };
@@ -1313,9 +1317,67 @@ ipcMain.handle('eurex', async (event, product, busdate) => {
   return keyedGet('eurex', req.url, { Accept: 'application/json' }, req.ttl, [1, 30_000], [], clientAgent());
 });
 
+// JPX's end-of-day files for the Nikkei 225 future (electron/jpx.cjs): the settlement prices and the open interest
+// workbook. Only the latest day of each is online, so each day's settlements are kept on disk (the last 40 days) to
+// give the next day its change. A file already read for its day is not downloaded again.
+const jpx = require('./jpx.cjs');
+const JPX_FILE = () => path.join(app.getPath('userData'), 'jpx-nikkei225.json');
+let jpxBusy = null;
+async function jpxGet(url, binary) {
+  await providers.slot('jpx', 10, 60_000);
+  const res = await tracked('jpx', url, { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`JPX answered HTTP ${res.status}.`);
+  return binary ? Buffer.from(await res.arrayBuffer()) : res.text();
+}
+async function jpxLoad() {
+  let kept = { days: {} };
+  try { kept = JSON.parse(fs.readFileSync(JPX_FILE(), 'utf8')); } catch { /* none yet */ }
+  if (!kept || typeof kept.days !== 'object') kept = { days: {} };
+  const answer = (error) => ({ days: kept.days, ...(error ? { error } : {}) });
+  try {
+    const latest = jpx.latestFile(await jpxGet(jpx.PAGES.settlement), 'settlement');
+    if (!latest) return answer('JPX changed its settlement page.');
+    if (!kept.days[latest.date]) {
+      // The settlement file lists every contract, in Japanese text encodings; the rows read here are ASCII.
+      const parsed = jpx.nikkeiSettlements((await jpxGet(jpx.jpxFileUrl('settlement', latest.file), true)).toString('latin1'));
+      if (parsed.error) return answer(parsed.error);
+      kept.days[latest.date] = { close: parsed.close, months: parsed.months };
+    }
+    if (!kept.days[latest.date].oi) {
+      const oiFile = jpx.latestFile(await jpxGet(jpx.PAGES.oi), 'oi');
+      // The open interest belongs to the day only when its file is that day's.
+      if (oiFile?.date === latest.date) {
+        const oi = jpx.nikkeiOpenInterest(await jpxGet(jpx.jpxFileUrl('oi', oiFile.file), true));
+        if (!oi.error) kept.days[latest.date].oi = oi;
+      }
+    }
+    const dates = Object.keys(kept.days).sort().slice(-40);
+    kept.days = Object.fromEntries(dates.map((d) => [d, kept.days[d]]));
+    fs.writeFileSync(JPX_FILE(), JSON.stringify(kept));
+    return answer();
+  } catch (err) {
+    providers.recordProblem('jpx', 'network', String(err?.message ?? err));
+    return answer(err?.message ?? 'JPX did not answer.');
+  }
+}
+ipcMain.handle('jpx', async (event) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  jpxBusy ??= jpxLoad().finally(() => { jpxBusy = null; });
+  return jpxBusy;
+});
+
 // ASIC's daily aggregated short positions (electron/asic.cjs), for SI on ASX stocks: the index of published days,
 // then the days the page picks from it. A day's file never changes; the index is kept three hours.
 const asic = require('./asic.cjs');
+// The Philadelphia Fed's Survey of Professional Forecasters (electron/philfed.cjs): the survey's page and a quarter's
+// release page, HTML, for ECOFORECASTS' US consensus.
+const philfed = require('./philfed.cjs');
+ipcMain.handle('philfed', async (event, kind, quarter, year) => {
+  const req = philfed.philFedRequest(kind, quarter, year);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  return keyedGet('philfed', req.url, { Accept: 'text/html' }, req.ttl, [10, 60_000], [], clientAgent());
+});
+
 ipcMain.handle('asic', async (event, kind, date, version) => {
   const req = asic.asicRequest(kind, date, version);
   if (!fromApp(event) || !req) throw new Error('not allowed');

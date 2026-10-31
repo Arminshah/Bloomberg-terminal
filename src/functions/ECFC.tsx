@@ -6,6 +6,7 @@ import { XYChart } from '../components/chart/XYChart';
 import { fmtNum, fmtSigned } from '../core/format';
 import { useWeo, weoAvailable, WEO, type WeoValues } from '../data/live/weo';
 import { roundLabel, SPF_TOPICS, useEcbSpf, type EcbSpf } from '../data/live/spf';
+import { useUsSpf, type SpfTable as UsSpfTable } from '../data/live/us-spf';
 import { CREDITS } from '../components/Credits';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -72,6 +73,64 @@ export function SpfTable({ spf }: { spf: EcbSpf }) {
   );
 }
 
+/** One of the Philadelphia Fed's tables as its release page lays it out: each variable's previous and new median. */
+export function UsSpfTableView({ table }: { table: UsSpfTable }) {
+  const span = 1 + table.columns.length * 2;
+  return (
+    <table className="tbl" aria-label={table.caption}>
+      <thead>
+        <tr>
+          <th rowSpan={2} />
+          {table.columns.map((c) => <th key={c} colSpan={2} className="num">{c}</th>)}
+        </tr>
+        <tr>
+          {table.columns.flatMap((c) => [<th key={`${c}p`} className="num">Previous</th>, <th key={`${c}n`} className="num cyan">New</th>])}
+        </tr>
+      </thead>
+      <tbody>
+        {table.sections.flatMap((s) => [
+          <tr key={`s:${s.title}`}><td colSpan={span} className="amber">{s.title}</td></tr>,
+          ...s.rows.map((r) => (
+            <tr key={`${s.title}:${r.label}`}>
+              <td>{r.label}</td>
+              {table.columns.flatMap((c, i) => [
+                <td key={`${c}p`} className="num">{r.previous[i] ?? 'N.A.'}</td>,
+                <td key={`${c}n`} className="num cyan">{r.current[i] ?? 'N.A.'}</td>,
+              ])}
+            </tr>
+          )),
+        ])}
+      </tbody>
+    </table>
+  );
+}
+
+function UsSurveyView() {
+  const { state, spf, message } = useUsSpf(true);
+  if (state === 'none') return <div className="empty">The Philadelphia Fed&apos;s survey is read from its website in the desktop app. The browser demo has none, and none is generated.</div>;
+  if (state === 'loading') return <div className="empty">Reading the Philadelphia Fed&apos;s Survey of Professional Forecasters…</div>;
+  if (state === 'error' || !spf) return <div className="empty amber" role="status">{message}</div>;
+  return (
+    <div data-testid="us-spf">
+      <div className="pad-s">
+        <b>{spf.title}{spf.month ? `, ${spf.month}` : ''}</b>: the panel&apos;s median forecasts for the United States as the Philadelphia Fed tabulates them,
+        each beside the previous survey&apos;s.
+      </div>
+      {spf.tables.map((t) => (
+        <div key={t.caption} className="pad-s">
+          <div className="white b">{t.caption}</div>
+          <UsSpfTableView table={t} />
+        </div>
+      ))}
+      <div className="note">
+        Real GDP growth by quarter is annualized; by year it is the change in annual-average levels. Inflation by quarter is annualized; by year, fourth quarter over
+        fourth quarter; the long-term rows are annual averages over five and ten years. Payrolls are average monthly gains. N.A.: not asked in that survey. Source:
+        Federal Reserve Bank of Philadelphia, Survey of Professional Forecasters.
+      </div>
+    </div>
+  );
+}
+
 function SurveyView() {
   const { state, spf, message } = useEcbSpf(true);
   if (state === 'none') return <div className="empty">The ECB&apos;s survey is read from the ECB Data Portal in the desktop app. The browser demo has none, and none is generated.</div>;
@@ -94,7 +153,7 @@ function SurveyView() {
 
 export function ECFC({ route }: FnProps) {
   const panel = usePanelId();
-  const [source, setSource] = useState<'imf' | 'ecb-spf'>('imf');
+  const [source, setSource] = useState<'imf' | 'ecb-spf' | 'us-spf'>('imf');
   const [tab, setTab] = useState(1);
   const [view, setView] = useState<'major' | 'all'>('major');
   const [words, setWords] = useState('');
@@ -125,12 +184,21 @@ export function ECFC({ route }: FnProps) {
   const pick = (
     <label className="fld">
       Source
-      <select className="sel-inp" aria-label="Forecasts from" value={source} onChange={(e) => setSource(e.target.value as 'imf' | 'ecb-spf')}>
+      <select className="sel-inp" aria-label="Forecasts from" value={source} onChange={(e) => setSource(e.target.value as 'imf' | 'ecb-spf' | 'us-spf')}>
         <option value="imf">IMF World Economic Outlook</option>
         <option value="ecb-spf">ECB Survey of Professional Forecasters (euro area)</option>
+        <option value="us-spf">Philadelphia Fed Survey of Professional Forecasters (US)</option>
       </select>
     </label>
   );
+  if (source === 'us-spf') {
+    return (
+      <div>
+        <FnHeader code="ECOFORECASTS" title="Economic Forecasts" sub={<><RealBadge /> Philadelphia Fed Survey of Professional Forecasters · United States</>} controls={<div className="chart-tools">{pick}</div>} />
+        <UsSurveyView />
+      </div>
+    );
+  }
   if (source === 'ecb-spf') {
     return (
       <div>
