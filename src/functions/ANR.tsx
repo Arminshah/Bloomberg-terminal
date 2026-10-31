@@ -436,7 +436,7 @@ function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | nul
     <div className="anr-snap">
       <KV
         items={[
-          [<span key="s" title="Average of the ratings counted: buys 5, holds 3, sells 1">Rating score (5 buy, 1 sell)</span>, rs ? fmtNum(rs.score, 2) : '--'],
+          [<span key="s" title="Average of the ratings counted on ANR's 1 to 5 scale: buys 5, holds 3, sells 1">Consensus Rating</span>, rs ? fmtNum(rs.score, 2) : '--'],
           [<span key="b" className="up">Buys</span>, rs ? share(rs.buyPct, rs.buys) : '--'],
           [<span key="h">Holds</span>, rs ? share(rs.holdPct, rs.holds) : '--'],
           [<span key="x" className="dn">Sells</span>, rs ? share(rs.sellPct, rs.sells) : '--'],
@@ -444,10 +444,11 @@ function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | nul
       />
       <KV
         items={[
-          ['Average target', c ? fmtNum(c.mean, 2) : '--'],
-          ['Last price', <LivePx key="p" id={sec.id} />],
-          ['Return potential', <Chg key="r" v={potential} pct dec={1} />],
-          ['LTM return', <Chg key="l" v={periodChange(sec.id, '1Y')} pct dec={1} />],
+          [<span key="t" title="The average of the analysts' 12-month price targets">12M Tgt Px</span>, c ? fmtNum(c.mean, 2) : '--'],
+          ['Last Price', <LivePx key="p" id={sec.id} />],
+          ['Pricing Currency', sec.ccy],
+          [<span key="r" title="12M Tgt Px over the last price, less one">Return Potential</span>, <Chg key="r" v={potential} pct dec={1} />],
+          [<span key="l" title="The price change over the last 12 months">LTM Return</span>, <Chg key="l" v={periodChange(sec.id, '1Y')} pct dec={1} />],
         ]}
       />
       <TargetChart sec={sec} c={c} />
