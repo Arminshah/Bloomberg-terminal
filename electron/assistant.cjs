@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The help desk's Claude mode (MESSAGES): with the owner's Anthropic API key, Claude answers open questions using the
 // app's own data as tools. The page runs the tools, from the same sources its screens read; this module holds the
 // instructions and the tool definitions, checks what the page sends, and calls the Messages API. Only the

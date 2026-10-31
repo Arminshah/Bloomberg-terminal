@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { terminal } from '../terminal/state';
 import { lookupFn } from '../terminal/registry';

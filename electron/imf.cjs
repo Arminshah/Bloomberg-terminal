@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The IMF's data, no key. The World Economic Outlook's figures and forecasts by country and region come from the
 // DataMapper API (ECFC): each answer holds one indicator for every economy and group. Goods trade by partner country
 // (IMTS, formerly the Direction of Trade Statistics) comes from the IMF's SDMX API (ECTR). The page names what it

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * DS, document search: the SEC's full-text search of every filing since 2001 (EDGAR full-text search, desktop app,
  * SEC_USER_AGENT), filtered by company, form and dates, with the forms and companies that match most as facets.

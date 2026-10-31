@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Exposes the desktop-only data requests the web app uses, made by the main
 // process, which (unlike the page) is not limited by browser cross-origin
 // rules: Yahoo Finance paths on an allowlist, the US Treasury's daily yield

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Read-only Alpaca indicative option snapshots. Never select paid OPRA implicitly,
 // accept arbitrary URLs or call an account/order endpoint.
 const SYMBOL = /^[A-Z][A-Z0-9.]{0,9}$/;

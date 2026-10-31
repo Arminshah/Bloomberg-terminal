@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { useId, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { useMenu } from '../terminal/panel';
 import { rowNumbers } from '../terminal/numbering';

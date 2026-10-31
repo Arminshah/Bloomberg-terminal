@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The CFTC's Commitments of Traders for COT, from its public reporting platform (Socrata, no key): the Legacy,
 // Disaggregated and Traders in Financial Futures reports, each futures only or futures and options combined. The URLs
 // are built here from the six dataset IDs and a fixed list of contract codes; nothing else can be asked for.

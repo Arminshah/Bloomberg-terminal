@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // State Street's daily holdings files for two SPDR funds (no key): every holding with its ticker, CUSIP, SEDOL,
 // weight and shares held, as of the previous business day. SPY holds the S&P 500 and DIA the Dow in full, so SPY's
 // shares of each member are in proportion to the index's float-adjusted shares, and DIA's tickers are the Dow's

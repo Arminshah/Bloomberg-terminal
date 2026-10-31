@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Company data from Finnhub's free plan with the owner's key (finnhub.io/docs/api), for US-listed stocks: the
 // profile, key ratios ("basic financials"), analysts' recommendation counts by month, the last four quarters'
 // EPS against the estimate, the next report date with its estimates, and the past year's reports with expected and

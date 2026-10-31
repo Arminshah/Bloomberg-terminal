@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * A layout of your own: rows top to bottom, each with its tiles left to right, every row and tile sized as you drag
  * its dividers. The workspace draws it as one grid: each tile edge in any row is a column line, and a tile spans the

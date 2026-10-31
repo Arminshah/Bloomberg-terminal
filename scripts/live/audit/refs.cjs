@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Independent reference values for a list of US tickers, saved as JSON (keys from the environment, never printed).
 // Usage: node scripts/live/audit/refs.cjs <outdir> AAPL NVDA ...
 const fs = require('node:fs');

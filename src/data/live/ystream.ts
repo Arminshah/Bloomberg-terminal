@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Yahoo Finance's streaming quotes for the desktop app: the same push feed
  * Yahoo's own pages use. Each message is a base64 protobuf PricingData record

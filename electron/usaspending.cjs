@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // USAspending.gov for the main process (SPLC): the federal contracts a company holds, the subcontracts prime
 // contractors gave it, and the subcontracts let under its own largest contracts. The U.S. Treasury's public API needs
 // no key; its data is the federal government's own (DATA Act and FFATA subaward reports), free to use.

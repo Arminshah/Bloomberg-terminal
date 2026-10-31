@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * BETA's statistics panel (Babson's "WACC Components in Bloomberg" p.5, March 2022): the ordinary least squares fit
  * of the security's returns (Y) on the index's (X), in percent, with the standard errors, the t-test on beta and its

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Optional end-of-day history providers, each with the owner's own key: Massive
 // (formerly Polygon.io), Alpha Vantage, Tiingo and Twelve Data. The app uses them to
 // check the daily closes it shows against a second and third source (the

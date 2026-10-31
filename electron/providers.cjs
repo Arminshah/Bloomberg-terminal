@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Provider credentials, request accounting and rate limits for the main process.
 // Keys stay in this process: the page can save or clear a credential and see
 // whether one is configured and where it came from, but it can never read a

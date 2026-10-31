@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { eventDate, findCompanies, normalizeName, periodMonths, relationKey, sharePeriod, type Chain, type Directory, type Evidence, type Relation, type Role } from './supply-chain';
 
 /** Parsed public disclosures, not a reconstruction of observations that predate collection. */

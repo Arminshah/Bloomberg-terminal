@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { EU_EXCHANGES, parseListing, yahooListingSymbol, type Listing } from '../listings';
 import { BROWSER_FEEDS_ENABLED } from '../providers';
 import { createStore } from '../../core/store';

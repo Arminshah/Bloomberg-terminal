@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { resolveSecurity, searchSecurities, YELLOW_KEYS, CLASS_LABEL } from '../data/registry';
 import type { SecurityDef } from '../data/types';
 import { FUNCTIONS, lookupFn } from './registry';

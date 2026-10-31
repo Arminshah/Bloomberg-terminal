@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Analyst research from Financial Modeling Prep (its "stable" API) with the owner's own key: the price
 // target consensus and summary, the tally of broker ratings, recent rating actions and annual estimates.
 // Checked live on 14 October 2026 with the owner's free key: the price target, ratings and rating actions

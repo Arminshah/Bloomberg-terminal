@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * The BLS's release schedule (www.bls.gov/schedule/news_release/bls.ics; electron/main.cjs, official 'blsSchedule'):
  * every scheduled BLS news release of this year and the last with its date and time in New York. FRED gives the

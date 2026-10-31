@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { useCallback, useEffect, useState } from 'react';
 import type { SecurityDef } from '../types';
 import { useRefresh, type RefreshOutcome } from '../../terminal/refresh';

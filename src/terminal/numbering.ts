@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Numbered rows, as terminal monitors and news lists show them: "12) S&P 500 INDEX", where typing 12 and GO
  * does what clicking the row does. 96 to 99 belong to the function bar's actions (Table, Compare, Copy,

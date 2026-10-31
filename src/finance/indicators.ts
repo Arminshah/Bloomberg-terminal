@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /** Technical studies. Outputs are aligned with the input; warm-up entries are NaN. */
 
 export function sma(xs: ArrayLike<number>, n: number): Float64Array {

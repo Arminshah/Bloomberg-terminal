@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // FRED requests for the economic data chart (ECOW): the API's series search, any series' description, and any
 // series' observations with one of FRED's own transformations. The page names the words, the series and the
 // transformation; the URL is built here from fixed patterns, and main.cjs adds the owner's key.

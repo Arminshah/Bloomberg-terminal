@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The data audit as one check that can run on a schedule: it captures the desktop app's screens on live data, fetches
 // independent references, compares each figure within a stated tolerance and fails loudly when one is beyond it.
 //

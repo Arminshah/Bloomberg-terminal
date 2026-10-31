@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Screen paging, as PAGE FWD / PAGE BACK work on a terminal: a long screen is a
  * series of pages, the function bar shows "Page 2/5", and a number typed before

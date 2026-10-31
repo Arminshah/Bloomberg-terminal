@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
+/*! @license Armin Terminal. Copyright (c) 2026 Armin. PolyForm Strict License 1.0.0: non-commercial use only; no copying into other work, changes or redistribution. https://polyformproject.org/licenses/strict/1.0.0 */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@fontsource/ibm-plex-mono/latin-400.css';

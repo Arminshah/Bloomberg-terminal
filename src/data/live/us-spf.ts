@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * The Philadelphia Fed's Survey of Professional Forecasters (electron/philfed.cjs): the latest quarter's medians as
  * the Bank's release page tabulates them, each beside the previous survey's. Real GDP growth, the unemployment rate

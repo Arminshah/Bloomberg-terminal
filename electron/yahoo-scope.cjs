@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Unofficial, personal-use Yahoo data. Options and news remain outside this adapter.
 // The independent research switch controls analyst modules and fields. Kept free
 // of Electron so both settings can be verified without a running desktop.

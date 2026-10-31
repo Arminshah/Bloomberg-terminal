@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * World currency rates (WCR) against any base, worked out through the US dollar: each currency's rate is its value
  * in dollars against the base's, and its change against the base is its change against the dollar net of the base's.

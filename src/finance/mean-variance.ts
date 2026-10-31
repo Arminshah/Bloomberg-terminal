@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Mean-variance analysis on a set of return series (Markowitz): the efficient frontier, the global minimum-variance
  * portfolio, the equally weighted portfolio, the tangency portfolio, the capital market line and the Sharpe ratio, in

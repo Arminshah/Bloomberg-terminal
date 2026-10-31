@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * A small dense solver for convex quadratic programs, minimise ½x′Px + q′x subject to l ≤ Ax ≤ u, by the alternating
  * direction method of multipliers as OSQP runs it (Stellato et al., 2020): one Cholesky factor of P + σI + A′ρA per

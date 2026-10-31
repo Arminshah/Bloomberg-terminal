@@ -5,6 +5,7 @@
   "description": "A keyboard-driven market terminal for private use: a desktop app for Windows on data from free public and official sources, with a command line, linked panels, charts and 142 functions, plus an opt-in browser demo.",
   "desktopName": "armin-terminal.desktop",
   "author": "Armin",
+  "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://github.com/arminshah/armin-terminal",
   "type": "module",
   "main": "electron/main.cjs",
@@ -60,6 +61,7 @@
       "electron/**/*",
       "build/icon.png",
       "package.json",
+      "LICENSE",
       "!node_modules/@napi-rs/**",
       "!node_modules/pdfjs-dist/{build,web,image_decoders,types}/**",
       "!node_modules/pdfjs-dist/**/*.map"

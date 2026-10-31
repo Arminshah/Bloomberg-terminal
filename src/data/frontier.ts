@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { parseListing, yahooListingSymbol } from './listings';
 import { meanVariance, minVarianceLongOnly, periodReturns, portfolioStats, sharpe, tangency, type MeanVariance, type PortfolioStats } from '../finance/mean-variance';
 import type { MonthEndSeries } from './live/month-end-prices';

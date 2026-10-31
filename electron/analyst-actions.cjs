@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Analysts' rating actions on a US-listed stock from MarketBeat's public forecast page: date, brokerage, analyst,
 // action, rating and the price target before and after ("$83.00 ➝ $70.00"). The page's ratings history table is read;
 // quantitative rating services (Weiss Ratings and the like) are left out, as they are not analysts' research.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * WACC, its cost of debt without a fair market curve, the preferred component and Economic Value Added, as the
  * provider's WACC help page (May 2013) sets them out; the owner's reference pack collects them in METHODOLOGY.md,

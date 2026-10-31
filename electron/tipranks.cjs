@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // TipRanks analyst data through its hosted MCP server (https://mcp.tipranks.com/mcp/), read only, with the
 // owner's key. Checked 18 October 2026: initialize and tools/list answer without a key and are not metered;
 // every tools/call is metered against the account's monthly allowance (50 on the free plan) whether or not it

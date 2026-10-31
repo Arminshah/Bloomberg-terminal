@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { Fragment, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { IexHistoryNotice } from '../components/IexHistoryNotice';

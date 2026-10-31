@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Kraken's public market data (docs.kraken.com/api, REST): tickers, candles and
 // order books for the crypto pairs the app lists. No key is needed or sent.
 // Kraken's support pages say public endpoints are limited by IP address (and,

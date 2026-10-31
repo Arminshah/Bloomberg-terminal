@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import {
   BUYBACK_LINES, COVER_SHARES, FACT_LINES, fiscalLabel, lineValues, standaloneQuarterValues, type CompanyFacts, type FactLine, type PeriodKind, type Reported,
 } from './live/sec';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Whether a company's story is breaking news: fresh, about the company itself, and reporting an event that moves its
  * shares. A headline that only mentions the company among others, asks a question, ranks stocks, previews a report

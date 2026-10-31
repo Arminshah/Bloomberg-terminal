@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Starts the real desktop app on live data with a throwaway profile, for capture.cjs (development only).
 // ARMIN_LIVE_PROFILE: the profile folder. HTTPS_PROXY, when set (cloud sandboxes), is passed to Chromium.
 const { app, net } = require('electron');

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Short source codes for headline lists, as the terminal's news screens print a code beside each headline's time
  * ("BN 10:15"). These are this app's abbreviations of the publishers' own names, not Bloomberg's wire codes; the

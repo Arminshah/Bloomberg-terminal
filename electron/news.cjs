@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Market and company news for the MARKETNEWS and COMPANYNEWS screens, from fixed sources:
 // - Finnhub: market news by category and a company's news by symbol and dates, with the owner's key in the
 //   X-Finnhub-Token header (finnhub.io/docs/api).

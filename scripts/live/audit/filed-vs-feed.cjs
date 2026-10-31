@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // For many companies: the statements feed's annual revenue, net income to common and EPS against the filings.
 const fs = require('node:fs');
 const [outDir, ...tickers] = process.argv.slice(2);

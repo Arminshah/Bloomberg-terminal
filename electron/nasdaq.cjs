@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Nasdaq's public earnings calendar (no key), one day at a time: every US-listed company reporting that day with
 // its market value, the fiscal quarter, the time of the report, the analysts' EPS forecast and their number, and,
 // once reported, the EPS and the surprise; for coming reports, the year-earlier EPS and its date. Nasdaq gives no

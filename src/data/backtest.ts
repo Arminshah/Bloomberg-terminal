@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Equity backtests on monthly closes (EQBT): at each rebalance a rule ranks the stocks on their closes up to that
  * month's end only, the best ones are held in equal weights until the next rebalance (their weights drift with

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * European exchanges the app can look stocks up on, through Yahoo Finance: Yahoo's exchange code, the
  * two-letter market code the app writes after a ticker (ABI BB), Yahoo's symbol suffix (ABI.BR), the

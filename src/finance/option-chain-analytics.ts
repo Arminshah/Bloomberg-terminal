@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * What a listed option chain implies, from its own quotes: the forward of each expiry by put-call parity, and each
  * contract's implied volatility from the middle of its bid and ask (Black's formula on that forward), with the

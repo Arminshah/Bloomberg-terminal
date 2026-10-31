@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // OpenFIGI for the main process: the US ticker of a security named by its CUSIP (a US or Canadian issue) or CINS (a
 // foreign issue, the same nine characters starting with a letter), as 13F filings name their holdings. The
 // identifiers are free and open (FIGI terms of service); the API needs no key and takes one for higher limits.

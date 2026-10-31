@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Supply chains from SEC filings, for the main process. Companies name their
 // large customers (with the share of revenue each accounts for), their key
 // suppliers and their competitors in their annual reports. SPLC finds the

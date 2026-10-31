@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { fmtInt, fmtNum, fmtSigned } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { defaultBeta, marketCapUsd } from '../data/analytics';

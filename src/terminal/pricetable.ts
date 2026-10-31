@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * The layout of HP's price table as the terminal prints it: rows newest first, a blank line between weeks of daily
  * prices, and as many "Date / Last Price / Volume" blocks across the screen as fit, each page filled column by column.

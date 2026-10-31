@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /** Day numbers count whole UTC days since 1970-01-01 (a Thursday). */
 export const DAY_MS = 86_400_000;
 export const MINUTE_MS = 60_000;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Form 13F for the main process: an institutional investment manager's quarterly report of the US-listed stocks,
 // options and convertible bonds it held at the end of a calendar quarter (Section 13(f) securities), from the
 // filing's own XML on SEC EDGAR. The cover page (primary_doc.xml) gives the manager, the quarter, whether the filing

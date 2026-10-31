@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { favourites, toggleFavourite } from '../terminal/userdata';
 
 /** The star beside a security: on, it is one of your favourites (FAVOURITES), offered first on the command line. */

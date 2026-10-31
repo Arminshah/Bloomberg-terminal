@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Eurex's market statistics for two index futures (no key): per contract month the day's open, high, low, last,
 // daily settlement, volume and open interest, with the index close, from the JSON behind eurex.com's product pages.
 // Eurex's terms allow "a single copy in a single personal computer's memory for personal, non-commercial use", and

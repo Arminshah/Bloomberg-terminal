@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * The Nikkei 225 future on the Osaka Exchange (NK1) from JPX's end-of-day files (electron/jpx.cjs, electron/main.cjs):
  * the front month's settlement, the index close JPX settles against, and the month's volume and open interest. JPX

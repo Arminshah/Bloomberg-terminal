@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The Bureau of Economic Analysis (BEA) for NIPA: two national accounts tables from its API with the owner's UserID
 // (BEA_API_KEY). The URLs are built here from fixed tables; main.cjs adds the key. BEA repeats the UserID in its
 // answer (BEAAPI.Request), so that part is removed before the answer leaves the main process.

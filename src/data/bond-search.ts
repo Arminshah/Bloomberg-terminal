@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import type { PublicDebt } from './live/fiscal';
 
 /** One bond SRCH can find: the Treasury's statement's securities, or the demo's bonds. */

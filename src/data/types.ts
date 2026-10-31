@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 export type YellowKey = 'Equity' | 'Index' | 'Curncy' | 'Comdty' | 'Govt' | 'Corp' | 'Mtge' | 'M-Mkt' | 'Muni' | 'Pfd' | 'Client';
 export type AssetClass = 'equity' | 'index' | 'future' | 'fx' | 'commodity' | 'rate' | 'crypto' | 'bond';
 export type Region = 'Americas' | 'EMEA' | 'APAC';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { fmtBig, fmtDay, fmtNum } from '../core/format';
 import { useState } from 'react';
 import { epsBasisLabel, epsDisagreement, expectationNote, growth, growthSeries, surprisePct, verifiedEpsSurprise, timingLabel, type Consensus, type Expectation, type QuarterView } from '../data/live/consensus';

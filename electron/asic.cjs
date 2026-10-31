@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // ASIC's daily aggregated short positions (no key, CC BY 4.0): an index of every published day, and one CSV a day
 // with each ASX product's reported short position, the product in issue and the share short. Positions are those
 // of four trading days earlier. The page asks for the index, then for days from it; nothing else is built here.

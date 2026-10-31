@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Members of Congress and their financial disclosures, for the main process. The House Clerk publishes every
 // disclosure filed by members of the House: a yearly index (a ZIP holding a tab-separated list) and each report as
 // a PDF. Periodic transaction reports (PTRs) list the stocks and other assets a member, a spouse or a dependent child

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The US Energy Information Administration (EIA) for NGAS, NATURALGAS and OILMARKET: its weekly natural gas storage
 // report (a public JSON file, no key), and from its Open Data API (version 2, the owner's key) the weekly storage
 // history, the weekly petroleum supply estimates and the monthly natural gas production and consumption. The URLs are

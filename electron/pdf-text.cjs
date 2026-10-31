@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The text of a PDF, line by line with each piece's position, for the main process: the House Clerk's financial
 // disclosure forms are PDFs generated from its e-filing system, laid out as tables. PDF.js (Mozilla) reads them;
 // nothing is drawn and no script in a document runs (isEvalSupported off, no fonts loaded into a page).

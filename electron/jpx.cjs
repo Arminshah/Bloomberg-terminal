@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Japan Exchange Group's end-of-day files for the Nikkei 225 future on the Osaka Exchange (no key): the daily
 // settlement prices (every futures and options contract, about 4 MB of CSV) and the open interest workbook (each
 // contract month's volume and open interest). Only the latest day of each stays online, and the pages that link them

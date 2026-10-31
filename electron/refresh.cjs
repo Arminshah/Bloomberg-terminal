@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The top bar's REFRESH, as the main process sees it. The page says when the owner asked for fresh data; for a
 // short while after that, an answer this process kept from before the click counts as expired, so the page's
 // requests reach the sources again instead of being answered from memory. Pacing, pauses after failures and

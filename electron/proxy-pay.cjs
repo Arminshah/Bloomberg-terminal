@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The Summary Compensation Table of a company's proxy statement (DEF 14A), read from the filing's HTML: each named
 // executive officer with their title and, by fiscal year, salary and total compensation (salary, bonus, stock and
 // option awards at grant-date value, incentive pay, pension changes and other compensation). Item 402(c) of

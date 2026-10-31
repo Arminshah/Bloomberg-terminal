@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { isMarketCode, parseListing } from '../data/listings';
 import { resolveSecurity, UNCOVERED_KEYS, YELLOW_KEYS } from '../data/registry';
 import type { SecurityDef } from '../data/types';

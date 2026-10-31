@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The Federal Reserve Bank of Philadelphia's Survey of Professional Forecasters (no key): the survey's page, which
 // links each quarter's release, and a quarter's release page with the median forecasts as the Bank tabulates them.
 // Two kinds of page only; nothing else on the site can be asked for. robots.txt allows them (31 October 2026).

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * The standard relative measures of the commodity sector pages (AGS, MINE, GAS, OIL), worked out from the
  * front-month contracts' own prices: a ratio of two prices, or the spread between two in the same unit. Each is

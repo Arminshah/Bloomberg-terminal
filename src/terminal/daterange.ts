@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Date fields as the terminal's amber range boxes take them (GP, HP): DD/MM/YYYY, DD/MM/YY or D/M/YY in the European
  * date order (MM/DD/YYYY and so on in the US order), YYYY-MM-DD or YYYYMMDD. Dates are UTC midnights, the convention

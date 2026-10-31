@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { defineConfig } from '@playwright/test';
 
 // This exercises the packaged desktop IPC boundary, separately from the browser demo suite.

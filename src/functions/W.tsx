@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react';
 import { useBooks, withBook } from '../data/live/nasdaq-book';
 import { FnHeader } from '../components/FnHeader';

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { setDemo } from '../data/demo';
 
 /** What the browser build shows until the user opens the demo: it has no data source of its own. */

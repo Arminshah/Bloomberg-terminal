@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Index memberships and member volumes without a key, for the index monitors (MOV, MEMB, MOST, IMAP, MRR) and SCREEN.
 // The S&P 500's members come from the public dataset kept from the index's published list (symbol, name, GICS
 // sector and sub-industry); the Nasdaq-100's from Nasdaq's own list; the FTSE 100's from Wikipedia's article on the

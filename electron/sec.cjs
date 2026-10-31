@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // SEC EDGAR for the main process: the SEC's list of companies with their
 // tickers, each company's filing history and the financial facts tagged in its
 // XBRL filings, from the SEC's own JSON files, and a proxy statement's XBRL

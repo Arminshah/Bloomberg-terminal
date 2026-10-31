@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { defineConfig, devices } from '@playwright/test';
 
 // A Chromium other than Playwright's own (the cloud sandbox's newer build) draws text differently, so screenshot

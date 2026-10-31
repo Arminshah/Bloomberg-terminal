@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Security identifier check digits: CUSIP's (the ABA's modulus 10 "double add double") and ISIN's (ISO 6166, Luhn on
  * the code with its letters as numbers). A US issuer's ISIN is "US", its CUSIP and the check digit.

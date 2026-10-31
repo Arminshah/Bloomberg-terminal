@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+ * Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE. */
 /*
  * Armin Terminal design tokens. Every colour, size and spacing in the app comes from these variables.
  * Dark graphite is the default; [data-theme="light"] on <html> switches to the light theme.

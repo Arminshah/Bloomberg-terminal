@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Both URLs are published by the Federal Reserve's feed directory. The
 // narrower fallback is labelled, so it never claims to cover all releases.
 const FED_PRESS_URLS = [

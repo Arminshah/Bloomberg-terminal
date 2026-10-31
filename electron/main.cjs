@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Armin Terminal desktop shell (Windows, macOS, Linux).
 // Loads the built web app from dist/ and gives it a native window. There is no
 // menu bar: F1-F12 belong to the terminal's market sector keys, so window

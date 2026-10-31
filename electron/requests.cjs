@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Shared, injectable GET transport. Only complete, valid answers enter the cache.
 // Kept data is scoped to credentials so replacing a key cannot reuse another account's answer.
 const { createHash } = require('node:crypto');

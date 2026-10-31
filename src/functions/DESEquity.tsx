@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CapLink } from '../components/CapLink';
 import { AnalystSummary, lineValue, MissingNotes, useAnalystSnapshot, useNextQuarterEstimate } from '../components/AnalystSummary';

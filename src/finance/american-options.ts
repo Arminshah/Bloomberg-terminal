@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /** American vanilla options, continuous yields. Tian's three-moment recombining lattice (1993). */
 import { blackScholes, impliedVol, type Greeks, type OptType } from './options';
 

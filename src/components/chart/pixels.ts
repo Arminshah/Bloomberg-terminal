@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Pixel geometry for the canvas charts. The backing store has one pixel per device pixel of the element, and straight
  * lines and filled edges land on whole device pixels, so charts stay sharp at 125% and 150% display scaling, where a

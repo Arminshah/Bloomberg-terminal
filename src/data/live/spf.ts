@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * The ECB's Survey of Professional Forecasters (ECB Data Portal, dataset SPF; electron/main.cjs, official 'ecbSpf'):
  * each quarterly round's average of the panel's point forecasts for euro area real GDP growth, HICP and core inflation

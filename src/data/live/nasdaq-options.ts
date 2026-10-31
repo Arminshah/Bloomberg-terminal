@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * One underlying's listed options from nasdaq.com's option-chain page (electron/nasdaq.cjs): per contract the
  * composite (all exchanges) bid, ask, last and change, the day's volume and the open interest at the start of the

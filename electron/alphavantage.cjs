@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Alpha Vantage's earnings data with the owner's key (ALPHA_VANTAGE_API_KEY), for one US-listed company's screens:
 // EARNINGS gives every reported quarter's date, session (pre-market or post-market), EPS expected and reported and
 // the surprise; EARNINGS_ESTIMATES gives the analysts' EPS and revenue estimates for each fiscal quarter and year,

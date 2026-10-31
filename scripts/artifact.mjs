@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Folds the `--mode single` build into one self-contained HTML document:
  * scripts and styles inlined (fonts are already data URIs). Writes

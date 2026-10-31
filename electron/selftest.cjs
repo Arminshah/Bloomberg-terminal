@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The provider self-test on PROVIDERS: one small request to each source with the owner's own keys, from the
 // owner's own computer and network, so a failure shows where it happens and why. The report names each test,
 // its HTTP status, how long it took and a short sample of the answer (a price, a date, a count); it never

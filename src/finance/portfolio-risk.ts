@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /** Historical simulation of today's fixed quantities, with explicit FX and exact session-date joins. */
 import { maxDrawdown, mean, regress, stdev, type Regression } from './stats';
 

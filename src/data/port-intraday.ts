@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * PORT's Intraday tab (PT_PORT_Enterprise_attribution 0:09): the portfolio against its benchmark by GICS sector, as
  * counts, weights and contributions to the day's return, with the differences. A holding's weight is its exposure at

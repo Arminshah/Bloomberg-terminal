@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * ASIC's daily aggregated short positions for ASX products (electron/asic.cjs; CC BY 4.0, "© Australian Securities &
  * Investments Commission"): each product's reported short position, the product in issue and the share short, as of

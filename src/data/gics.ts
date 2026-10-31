@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * GICS industry groups (the structure in force since March 2023): each sub-industry's group, the level between a
  * sector and its industries ("Information Technology" > "Semiconductors & Semiconductor Equipment" > "Semiconductors").

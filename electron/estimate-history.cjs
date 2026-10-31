@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // A US-listed stock's reported quarters with the consensus before each report: EPS and revenue expected against
 // reported, the report date and the session. Keyless sources keep only the coming quarters' estimates; these public
 // pages keep the past ones.

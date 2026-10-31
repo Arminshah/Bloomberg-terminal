@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Counter-based deterministic randomness. Every draw is a pure function of its
  * inputs, so the same instrument on the same day and minute produces the same

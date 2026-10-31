@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Congress.gov's API (the Library of Congress), with the owner's key: bills and their latest actions, enacted laws,
 // and one bill's sponsor, actions, summaries, subjects, committees, cosponsors and text (BILL). The page names what it
 // wants; the URL is built here from checked parts, and the key goes in a header, never in the URL. The API allows

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // Alpaca market data with the owner's key ID and secret (docs.alpaca.markets, Market Data API v2). On the
 // free plan the real-time feed is IEX: one exchange's trades and quotes, not the whole US market, so every
 // figure from here is labelled "IEX only". Only the market data host is ever called: the trading hosts

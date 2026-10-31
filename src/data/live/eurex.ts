@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 /**
  * Euro Stoxx 50 (FESX) and DAX (FDAX) futures from Eurex's end-of-day statistics (electron/eurex.cjs): each contract
  * month's open, high, low, last, daily settlement, volume and open interest, and the index close. The generic lines

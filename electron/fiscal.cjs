@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 // The U.S. Treasury's Fiscal Data API (no key) for DEBTPROFILE T: the Monthly Statement of the Public Debt's
 // marketable securities outstanding (table 3), and the Treasury's average interest rates; and for AUCTIONS, Fiscal
 // Data's auction records with TreasuryDirect's securities service for the latest results and the announced auctions

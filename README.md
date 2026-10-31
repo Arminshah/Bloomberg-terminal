@@ -36,6 +36,8 @@ A keyboard-driven market terminal for private use, as a desktop app for Windows.
 
 The desktop app uses public and official sources: the US Treasury, the Fed and other central banks, statistics offices, FRED, SEC EDGAR, Kraken, and Yahoo Finance for personal-use prices/company data. News comes from Google News and Yahoo Finance without a key; with your own keys it adds research (FMP, Finnhub recommendations and TipRanks), news (Finnhub, Benzinga through Alpaca, Massive, Marketaux), IEX stocks and indicative option snapshots (Alpaca), plus sources for checking closes. Sources, timestamps, subscription refusals and missing coverage stay explicit. The browser build has no data source and opens a marked demo only when chosen.
 
+Licensed for non-commercial use only, with no copying, changes or redistribution: see [License](#license).
+
 This is an independent project, not affiliated with Bloomberg L.P. It does not have the data coverage of a professional terminal; [docs/feature-matrix.md](docs/feature-matrix.md) says what is covered and what is not.
 
 ![Terminal-fidelity workspace in explicitly labelled demo mode: world equity indices, price chart, official announcements, heatmap and configurable watchlist](docs/terminal-v2.12-overview.png)
@@ -198,6 +200,10 @@ Use Node.js 24, as used by CI. Node.js 22 can also run the project.
 | `npm run desktop:build:portable` | Windows portable app in `release/`, on any system (no Wine needed) |
 
 The code is split into `electron/` (the main process, which makes every provider request and keeps the keys), `src/data/` (the engine, the provider registry and one module per source under `live/`), `src/finance/` (bond, option and statistics math), `src/terminal/` (command parser, function registry, panels and settings), `src/components/` and `src/functions/` (one file per screen or group of screens).
+
+## License
+
+Copyright (c) 2026 Armin. Armin Terminal is licensed under the [PolyForm Strict License 1.0.0](LICENSE): you may use it for non-commercial purposes, such as personal study or a hobby. You may not sell it or use it to make money, distribute it, copy it or any part of it into other work, or make changes or new works based on it. That holds for every copy, a fork or one made by an AI system included. For anything else, ask the owner. Third-party packages, fonts and data keep their own licenses and terms.
 
 ## Disclaimer
 
