@@ -26,6 +26,11 @@ type Row = {
   ratio?: boolean;
   /** Both figures are there but the ratio means nothing (growth from a loss): "NM". */
   nm?: (p: FinPeriod, prev?: FinPeriod) => boolean;
+  /**
+   * The line in an analysts' estimate column: the estimate, the one for the year before (none for the first) and the
+   * last reported year (only for the first). Money in the statements' units.
+   */
+  est?: (e: Estimate, prev: Estimate | undefined, reported: FinPeriod | undefined) => number;
 };
 
 /** Year on year (or quarter on quarter) change, from a positive base only. */
@@ -33,6 +38,7 @@ const growth = (a: number, b: number | undefined) => (b !== undefined && Number.
 const margin = (a: number, rev: number) => (Number.isFinite(a) && rev > 0 ? (a / rev) * 100 : NaN);
 /** Growth from a loss or zero: both figures known, no meaningful percentage. */
 const growthNm = (a: number, b: number | undefined) => b !== undefined && Number.isFinite(a) && Number.isFinite(b) && b <= 0;
+const mln = (v: number | undefined) => (v === undefined ? NaN : v / 1e6);
 
 /**
  * FA's first page, as the terminal's Key Stats: the headline figures with their growth and margins under them. The
@@ -40,17 +46,20 @@ const growthNm = (a: number, b: number | undefined) => b !== undefined && Number
  * not give.
  */
 const KEY: Row[] = [
-  { label: 'Revenue', get: (p) => p.rev, bold: true },
-  { label: 'Growth %, YoY', get: (p, q) => growth(p.rev, q?.rev), nm: (p, q) => growthNm(p.rev, q?.rev), indent: true, ratio: true },
+  { label: 'Revenue', get: (p) => p.rev, bold: true, est: (e) => mln(e.revenueAvg) },
+  // The first estimate year grows from the last reported revenue, a later one from the estimate before it.
+  { label: 'Growth %, YoY', get: (p, q) => growth(p.rev, q?.rev), nm: (p, q) => growthNm(p.rev, q?.rev), indent: true, ratio: true, est: (e, b, r) => growth(mln(e.revenueAvg), b ? mln(b.revenueAvg) : r?.rev) },
   { label: 'Gross Profit', get: (p) => p.gp, bold: true },
   { label: 'Margin %', get: (p) => margin(p.gp, p.rev), indent: true, ratio: true },
-  { label: 'EBITDA', get: (p) => p.ebitda, bold: true },
-  { label: 'Margin %', get: (p) => margin(p.ebitda, p.rev), indent: true, ratio: true },
-  { label: 'Net Income', get: (p) => p.niTotal, bold: true },
-  { label: 'Margin %', get: parentIncomeMargin, indent: true, ratio: true },
+  { label: 'EBITDA', get: (p) => p.ebitda, bold: true, est: (e) => mln(e.ebitdaAvg) },
+  { label: 'Margin %', get: (p) => margin(p.ebitda, p.rev), indent: true, ratio: true, est: (e) => margin(mln(e.ebitdaAvg), mln(e.revenueAvg)) },
+  { label: 'Net Income', get: (p) => p.niTotal, bold: true, est: (e) => mln(e.netIncomeAvg) },
+  { label: 'Margin %', get: parentIncomeMargin, indent: true, ratio: true, est: (e) => margin(mln(e.netIncomeAvg), mln(e.revenueAvg)) },
   { label: 'Net Income to Common Shareholders', get: (p) => p.ni },
-  { label: 'Diluted EPS', get: (p) => p.eps, dec: 2, bold: true },
-  { label: 'Growth %, YoY', get: (p, q) => growth(p.eps, q?.eps), nm: (p, q) => growthNm(p.eps, q?.eps), indent: true, ratio: true },
+  { label: 'Diluted EPS', get: (p) => p.eps, dec: 2, bold: true, est: (e) => e.epsAvg },
+  // The analysts' EPS is on their own basis, usually adjusted, so the first estimate year has no growth on the reported
+  // diluted EPS; a later year grows from the estimate before it.
+  { label: 'Growth %, YoY', get: (p, q) => growth(p.eps, q?.eps), nm: (p, q) => growthNm(p.eps, q?.eps), indent: true, ratio: true, est: (e, b) => (b ? growth(e.epsAvg, b.epsAvg) : NaN) },
   { label: 'Cash from Operations', get: (p) => p.cfo },
   { label: 'Capital Expenditures', get: (p) => -p.capex },
   { label: 'Free Cash Flow', get: (p) => p.fcf, bold: true },
@@ -145,6 +154,11 @@ const EST_ROWS: Record<string, (e: Estimate) => number> = {
   'Diluted EPS': (e) => e.epsAvg,
 };
 
+/** Key Stats' lines in each estimate column, as the grid shows them (for tests). */
+export function keyStatsEstimates(estimates: Estimate[], lastAnnual: FinPeriod | undefined): { label: string; values: number[] }[] {
+  return KEY.map((r) => ({ label: r.label, values: estimates.map((e, j) => (r.est ? r.est(e, estimates[j - 1], j === 0 ? lastAnnual : undefined) : NaN)) }));
+}
+
 export function FA({ sec, route }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
@@ -185,7 +199,11 @@ export function FA({ sec, route }: FnProps) {
   // column overlaps the latest year, so it has no growth of its own.
   const prevOf = (i: number) => (!quarterly && cols[i].label === 'LTM' ? undefined : priorStatementPeriod(all, cols[i], 'year'));
   const value = (r: Row, i: number) => r.get(cols[i], prevOf(i));
-  const estValue = (r: Row, e: Estimate) => (EST_ROWS[r.label] && !r.indent ? EST_ROWS[r.label](e) : NaN);
+  const lastAnnual = f.annual.length ? f.annual[f.annual.length - 1] : undefined;
+  const estValue = (r: Row, e: Estimate) => {
+    const j = estimates.indexOf(e);
+    return r.est ? r.est(e, j > 0 ? estimates[j - 1] : undefined, j === 0 ? lastAnnual : undefined) : EST_ROWS[r.label] && !r.indent ? EST_ROWS[r.label](e) : NaN;
+  };
   const csv = () => [
     ['Item', ...cols.map((c) => periodHeading(c, quarterly)), ...estimates.map((e) => `${e.date.slice(0, 4)} Y Est`)],
     ...rows.map((r) => [r.label, ...cols.map((_, i) => value(r, i).toFixed(r.dec ?? 1)), ...estimates.map((e) => estValue(r, e).toFixed(r.dec ?? 1))]),

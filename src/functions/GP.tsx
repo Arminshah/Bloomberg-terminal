@@ -27,13 +27,19 @@ interface ChartPrefs {
 const prefs = createStore<ChartPrefs>({ type: 'mountain', studies: ['SMA50'], lower: ['VOL'] }, 'chart-prefs', 1);
 const intradayPrefs = createStore<ChartPrefs>({ type: 'line', studies: [], lower: ['VOL'] }, 'chart-prefs-intraday', 1);
 
+// The 20-day average is pale green, as the report's GP captures draw it, so it differs from the first comparison line.
 const STUDIES: { id: string; label: string; ov: Overlay }[] = [
-  { id: 'SMA20', label: 'SMA 20', ov: { kind: 'SMA', n: 20, color: '#45d3e6' } },
+  { id: 'SMA10', label: 'SMA 10', ov: { kind: 'SMA', n: 10, color: '#ffb066' } },
+  { id: 'SMA20', label: 'SMA 20', ov: { kind: 'SMA', n: 20, color: '#b5f2a0' } },
+  { id: 'SMA30', label: 'SMA 30', ov: { kind: 'SMA', n: 30, color: '#e0d9a0' } },
   { id: 'SMA50', label: 'SMA 50', ov: { kind: 'SMA', n: 50, color: '#d77bff' } },
   { id: 'SMA200', label: 'SMA 200', ov: { kind: 'SMA', n: 200, color: '#ffd23f' } },
   { id: 'EMA20', label: 'EMA 20', ov: { kind: 'EMA', n: 20, color: '#7aa2ff' } },
   { id: 'BOLL', label: 'BOLL', ov: { kind: 'BOLL', n: 20, color: '#bdbdbd' } },
 ];
+
+/** The volume average the report's GP captures add under the price (Simple MA(15,0) on volume). */
+const VOLUME_AVERAGE = { id: 'VMA15', label: 'Vol MA 15', n: 15 };
 
 const PERIODS = [
   { n: 1, id: '1D', label: '1D' },
@@ -167,6 +173,7 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
       label: sec.quote === 'yield' ? `${sec.ticker} Yield` : `${sec.ticker} Last Price`,
       intraday,
       overlays: STUDIES.filter((st) => p.studies.includes(st.id)).map((st) => st.ov),
+      volumeAverage: p.studies.includes(VOLUME_AVERAGE.id) ? VOLUME_AVERAGE.n : undefined,
       lower: p.lower.filter((k) => k !== 'VOL' || (series.length > 0 && series.v[series.length - 1] + series.v[Math.max(0, series.length - 2)] > 0)),
       compare: compareSeries,
       percent: compareSeries.length > 0,
@@ -256,6 +263,14 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
               {st.label}
             </button>
           ))}
+          <button
+            type="button"
+            className={`chip-btn${p.studies.includes(VOLUME_AVERAGE.id) ? ' on' : ''}`}
+            title="The 15-day simple average of volume, drawn over the volume bars"
+            onClick={() => toggleStudy(VOLUME_AVERAGE.id)}
+          >
+            {VOLUME_AVERAGE.label}
+          </button>
           {(['VOL', 'RSI', 'MACD'] as LowerKind[]).map((k) => (
             <button
               key={k}
@@ -289,7 +304,8 @@ const STYLE_WORDS: Record<string, ChartType> = { BAR: 'bar', OHLC: 'bar', CANDLE
  */
 const STUDY_WORDS: Record<string, { study?: string; lower?: LowerKind }> = {
   RSI: { lower: 'RSI' }, MACD: { lower: 'MACD' }, BOLL: { study: 'BOLL' }, VOL: { lower: 'VOL' },
-  SMA20: { study: 'SMA20' }, SMA50: { study: 'SMA50' }, SMA200: { study: 'SMA200' }, EMA20: { study: 'EMA20' },
+  SMA10: { study: 'SMA10' }, SMA20: { study: 'SMA20' }, SMA30: { study: 'SMA30' }, SMA50: { study: 'SMA50' }, SMA200: { study: 'SMA200' }, EMA20: { study: 'EMA20' },
+  VMA15: { study: 'VMA15' },
 };
 
 export function GP({ sec, route }: FnProps) {

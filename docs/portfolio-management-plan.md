@@ -96,3 +96,30 @@ MPC, on Tiingo's adjusted closes of the 20 stocks (all complete from 3 January 2
 | Dollar neutral, risk aversion 1 to 50: Sharpe | −1.05, −0.88, −0.64, −0.57, −0.57 | 1.49, 1.65, 1.46, 1.44, 1.45 |
 
 The Hold policy needs no forecast and matches closely; the small gaps fit different data vendors and the risk-free basis. The MPC policies, with forecasts from past returns only, lose money on these stocks: the rolling mean of the last 250 days is a poor forecast of the next day's return, and leverage of up to 3 magnifies its errors. The dissertation's high Sharpe ratios are consistent with forecasts that already contained the returns being forecast (error 8). The engine itself agrees with cvxpy on every test problem to within 2e-6, and its multi-period answer equals cvxpy's full H-period plan.
+
+## Step 6: the company screens against the captures (31 October 2026)
+
+Each company screen was compared with its section of `docs/portfolio-management-screens.md`. The look of these screens (tab shapes, colours, bands, the red bar's buttons) is item M3 of `docs/parity-build-plan.md`, which follows the 2024 design, so this step changes what the screens show and how they calculate it, not how they look.
+
+Fixed:
+
+- CHART: in percent mode a study's legend figure was its price beside lines drawn in percent (`ca93842`).
+- PROFILE: a London company's head office read "London, United Kingdom, GB" (`4105969`).
+- ANALYSTS: the rating score weighted the source's "buy" count 4. The captures fit buys 5, holds 3 and sells 1 to within 0.04; on Finnhub's counts of 31 October the old weights read Microsoft 4.29 and Apple 3.76, where that scale gives 4.91 and 4.10 (`5184e59`).
+
+Wrong and still open:
+
+- PROFILE labels the source's five-year monthly beta "Beta vs UKX" for a London stock; the source does not say which index it measured against. The app's own beta against the local index (two years, weekly, adjusted) is used only when the source has none.
+- PROFILE's index page lists every equity the app holds in the index's country as "Members", not the index's members.
+- PROFILE's Est P/E and Est EPS take the first fiscal year ending after today. The captures use the year just ended until its results are reported.
+- PEERS gives a median of the peers without the subject, labelled so. The captures' Median row includes the subject and covers every column.
+- FINANCIALS can show free cash flow that is not operating cash flow less capital spending when Yahoo gives its own free cash flow but the operating line came from another field. No company has been seen with it yet.
+
+Missing, by screen, with the source the app has or a labelled blank where it has none:
+
+- FINANCIALS, Adj Highlights: market value, cash, preferred and other, debt and enterprise value at each year end (year-end close times the SEC cover count, the statements' cash, debt, preferred stock and minority interest); estimate columns for growth, margins and EBITDA (FMP's EBITDA estimate); money with one decimal; dates as MM/DD/YYYY; five years and two estimates. The adjusted lines have no free source and stay as reported, labelled. Segments by measure as a bar chart with a tree, the measuring line (total and compound annual change over calendar days), and the grid drawn as a chart (graph mode). Segments come from SEC filings only, so the papers' London companies get a labelled blank.
+- CHART against an index: a fixed normalisation date with `Normalized As Of`; figures to three decimals without `%`; SMA 10, 20 and 30 and a 15-day average of volume; the index added by default for a stock with a home index (UKX for London); 5Y as the default range and a 3D range; key events from Yahoo's dividends and splits and the earnings calendar.
+- PEERS: the Median row first, the subject as `100)`, peers from `101)`; 1-day and 1-month change; one-year revenue and EPS growth from the annual statements; market value and price in one chosen currency; the comp range panel (current-year P/E, EV to estimated EBITDA, sales growth, EBITDA margin, return on invested capital, with low, high, subject and median); the Profitability sheet; `--` for a missing figure.
+- ANALYSTS: monthly 100% stacked bars of buys, holds and sells (Finnhub's monthly counts); range buttons; the pricing currency row; the count of firms with a target; one row per firm with its own rating word; the price spread pane, which needs a history of the consensus target that no free source gives (labelled blank, or built up from the firms' target history).
+- PROFILE: the Issue Info page's panels (institutional and insider holdings, top holders, issue information, index weights); the index page's members, movers and period table from the FTSE 100 list and the index boards; market value in millions with a separator.
+- COMPANYNEWS: headlines numbered from `101)`, the story header as `MM/DD/YYYY hh:mm:ss [SRC]`, and Previous and Next.

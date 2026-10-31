@@ -125,6 +125,16 @@ function marketValueRep(sec: SecurityDef): number {
 // ---------------------------------------------------------------- 1) Profile
 
 /** A chief executive's title, not a former or interim one. */
+/**
+ * The head office line: the source's city and state or country, then the country code where the source has not
+ * already named the country ("Cupertino, CA, US", but "London, United Kingdom" rather than "London, United Kingdom, GB").
+ */
+export function headOffice(hq: string, country: string): string {
+  if (!hq) return '';
+  if (!country || hq.endsWith(country) || (COUNTRY_NAMES[country] && hq.endsWith(COUNTRY_NAMES[country]))) return hq;
+  return `${hq}, ${country}`;
+}
+
 export const isChiefExecutive = (title: string) => /\b(?:CEO|Chief Executive)\b/i.test(title) && !/\b(?:former|retired|interim)\b/i.test(title);
 
 /**
@@ -149,10 +159,17 @@ export function totalReturn1Y(sec: SecurityDef): number {
   return (tr - 1) * 100;
 }
 
-/** The current and next fiscal years' EPS estimates (the first two estimate years from today), for Est P/E and PEG. */
-function fiscalEstimates(part: AnalystPart<Estimate[]> | undefined): { fy?: Estimate; next?: Estimate; from?: string } {
-  const today = new Date(engine.today * DAY_MS).toISOString().slice(0, 10);
-  const years = (part?.state === 'ok' ? part.data ?? [] : []).filter((e) => e.date >= today && Number.isFinite(e.epsAvg));
+/**
+ * The current and next fiscal years' EPS estimates, for Est P/E and PEG. The current year is the first one whose
+ * results are not yet in the statements: the report's capture of 31 January 2019 gives Est P/E for 12/18, a year that
+ * had ended but was reported in February. Without the statements it is the first year ending from today; a year ended
+ * more than a year ago never counts as current.
+ */
+export function fiscalEstimates(part: AnalystPart<Estimate[]> | undefined, lastReportedEnd = NaN, todayMs = engine.today * DAY_MS): { fy?: Estimate; next?: Estimate; from?: string } {
+  // A fiscal year's estimate can be dated a few days after the statements' period end (52- and 53-week years).
+  const from = Number.isFinite(lastReportedEnd) ? Math.max(lastReportedEnd + 20 * DAY_MS, todayMs - 366 * DAY_MS) : todayMs;
+  const fromIso = new Date(from).toISOString().slice(0, 10);
+  const years = (part?.state === 'ok' ? part.data ?? [] : []).filter((e) => e.date >= fromIso && Number.isFinite(e.epsAvg));
   return { fy: years[0], next: years[1], from: part?.source };
 }
 
@@ -173,7 +190,8 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const est = useAnalysts(analystsAvailable() && analystSymbol(sec) ? sec : undefined, ['estimates', 'consensus', 'ratings']);
   const analysts = useAnalystSnapshot(sec);
   const estPart = est.estimates as AnalystPart<Estimate[]> | undefined;
-  const { fy, next } = fiscalEstimates(estPart);
+  const annual = financials(sec).annual;
+  const { fy, next } = fiscalEstimates(estPart, annual.length ? annual[annual.length - 1].end : NaN);
   // The price in the estimates' currency (a London price in pence against estimates in pounds or euros); research on
   // a listing outside the US must state its currency.
   const estCcy = fy?.epsCurrency ?? fy?.currency ?? estPart?.currency;
@@ -240,11 +258,9 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
     return list;
   }, [panel, sec.id, officers.length, eq.web]); // eslint-disable-line react-hooks/exhaustive-deps
   useMenu('des-boxes', items);
-  const city = eq.hq ? `${eq.hq}${sec.country && !eq.hq.endsWith(sec.country) ? `, ${sec.country}` : ''}` : '';
+  const city = headOffice(eq.hq, sec.country ?? '');
   // Without the source's beta, the one BETA works out: two years of weekly returns against the local index.
-  const workedBeta = engine.realOnly && !Number.isFinite(eq.beta) ? localBeta(sec.id) : NaN;
-  const benchId = defaultBenchmark(sec, (x) => !!engine.get(x));
-  const idx = Number.isFinite(workedBeta) ? benchId.replace(/ Index$/, '') : BETA_INDEX[sec.country] ?? 'index';
+  const beta = betaLine(sec.country ?? '', eq.beta, () => localBeta(sec.id), defaultBenchmark(sec, (x) => !!engine.get(x)).replace(/ Index$/, ''), engine.realOnly);
   return (
     <>
       <div className="des-head" data-audit-state={JSON.stringify(returnsAudit)}>
@@ -369,14 +385,13 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
             </dd>
             <dt>
               <button type="button" className="des-link" onClick={() => execute(panel, `${sec.id} BETA`)}>
-                <b className="des-n">20)</b> Beta vs {idx}
+                <b className="des-n">20)</b> {beta.label}
               </button>
             </dt>
-            {Number.isFinite(workedBeta) ? (
-              <dd title={`Worked out from two years of weekly returns against the ${idx} (adjusted beta), as on BETA: the sources give no beta for this company`}>{fmtNum(workedBeta, 2)}*</dd>
-            ) : (
-              <dd title="The source's beta, 5 years of monthly returns; BETA works it out against the local index">{fmtNum(eq.beta, 2)}</dd>
-            )}
+            <dd title={beta.title}>
+              {fmtNum(beta.value, 2)}
+              {beta.worked ? '*' : ''}
+            </dd>
           </dl>
           <Box n={21} title="Ownership" fn="HOLDERS" sec={sec}>
             {real && !Number.isFinite(real.breakdown?.institutions) && !Number.isFinite(real.breakdown?.insiders) && !Number.isFinite(real.breakdown?.count) ? (
@@ -422,6 +437,28 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
 
 /** The index a stock's beta is quoted against on the page, by listing country. */
 const BETA_INDEX: Record<string, string> = { US: 'SPX', GB: 'UKX', DE: 'DAX', FR: 'CAC', JP: 'NKY', HK: 'HSI', CA: 'SPTSX', BE: 'BEL20', NL: 'AEX', CH: 'SMI', AU: 'AS51' };
+
+/**
+ * PROFILE's beta line. The source's beta (Yahoo's or Finnhub's, five years of monthly returns) is against the S&P 500:
+ * Apple's 1.07 at Yahoo on 31 October 2026 against 1.09 worked out on the S&P 500. For a stock listed elsewhere it is
+ * not against the home index (GSK: 0.28 at Yahoo, 0.95 on the FTSE 100), so there the line gives the beta BETA works
+ * out against the home index, two years of weekly returns, adjusted, and names no index when that cannot be worked out.
+ */
+export function betaLine(country: string, sourceBeta: number, worked: () => number, bench: string, realOnly: boolean): { label: string; value: number; worked: boolean; title: string } {
+  const source = "The source's beta, 5 years of monthly returns";
+  if (!realOnly || (country === 'US' && Number.isFinite(sourceBeta))) {
+    return { label: `Beta vs ${BETA_INDEX[country] ?? 'index'}`, value: sourceBeta, worked: false, title: `${source}; BETA works it out against the local index` };
+  }
+  const w = worked();
+  if (Number.isFinite(w)) {
+    const why = Number.isFinite(sourceBeta) ? `the source's beta (${fmtNum(sourceBeta, 2)}) is not measured against this index` : 'the sources give no beta for this company';
+    return { label: `Beta vs ${bench}`, value: w, worked: true, title: `Worked out from two years of weekly returns against the ${bench} (adjusted beta), as on BETA: ${why}` };
+  }
+  if (Number.isFinite(sourceBeta)) {
+    return { label: 'Beta', value: sourceBeta, worked: false, title: `${source}; the source does not name the index, and for a stock outside the US it is not the home index` };
+  }
+  return { label: `Beta vs ${bench}`, value: NaN, worked: false, title: 'No beta: the sources give none and the price history is too short to work one out' };
+}
 
 /** "12/26": the fiscal year an estimate is for, by its year-end month. */
 function fyLabel(iso: string): string {

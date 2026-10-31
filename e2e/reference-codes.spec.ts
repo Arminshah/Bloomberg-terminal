@@ -71,6 +71,15 @@ test('TECH lists the studies with what each computes, and a study opens the char
   expect(errors).toEqual([]);
 });
 
+test("CHART takes the report's studies: the 10-, 20- and 30-day averages and the 15-day average of volume", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US GP SMA10 SMA20 SMA30 VMA15');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('CHART');
+  for (const name of ['SMA 10', 'SMA 20', 'SMA 30', 'Vol MA 15']) await expect(panel.getByRole('button', { name, exact: true })).toHaveClass(/\bon\b/);
+  expect(errors).toEqual([]);
+});
+
 test('IN lists the indices by region with what each is, and opens their chart or members', async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'IN');
