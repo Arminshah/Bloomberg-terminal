@@ -105,6 +105,7 @@ import { BILL } from '../functions/BILL';
 import { FXCA } from '../functions/FXCA';
 import { WS } from '../functions/WS';
 import { SEAR } from '../functions/SEAR';
+import { WELC } from '../functions/WELC';
 
 const EQ: AssetClass[] = ['equity'];
 const TRADABLE: AssetClass[] = ['equity', 'commodity', 'crypto', 'future'];
@@ -251,6 +252,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'CORRELATION', name: 'Correlation Matrix', category: 'Portfolio & Tools', desc: 'Correlation of daily returns across any set of securities and periods, and the lines that moved most closely with one.', component: CORR },
   { code: 'SEARCH', name: 'Security Finder', category: 'Portfolio & Tools', desc: 'Search every security by ticker, name or alias, filtered by asset class.', component: SECF, aliases: ['FIND'] },
   { code: 'SEARCHRESULTS', name: 'Search Results', category: 'Portfolio & Tools', desc: 'Plain words or a question typed on the command line: the functions, securities and headlines in the app that match, with tabs for each kind.', component: SEAR, aliases: ['SEAR'], example: 'SEAR green bonds', hint: '<Pg Dn> for More Results, <Back> to Return' },
+  { code: 'WELCOME', name: 'New Tab', category: 'System', desc: 'The page a new tab opens on: tips on running functions, tabs, windows, zoom, panels, going back, menus and help, with their keys.', component: WELC, aliases: ['WELC'] },
   { code: 'RECENT', name: 'Recently Used', category: 'Portfolio & Tools', desc: 'Your recently viewed securities and functions.', component: LAST },
   { code: 'NOTES', name: 'Notes', category: 'Portfolio & Tools', desc: 'Personal notes per security or general, saved as you type.', component: NOTE },
   { code: 'LAYOUTS', name: 'Layouts', category: 'Portfolio & Tools', desc: 'Build a layout of your own (rows, then a screen per tile, then a name), save the panels as a named workspace with their sizes and bring it back, or apply a preset.', component: LPAD, aliases: ['WORKSPACES'] },

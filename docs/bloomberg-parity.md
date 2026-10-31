@@ -180,6 +180,14 @@ Evidence: TE01 02:05 (a question typed on the command line), TE01 02:11 (the SEA
 - Different from the frame: the provider's tabs Reference, FAQs and More, its fixed-income table and its documents are its own content; the app searches what it holds. The thumbs up and down are not built.
 - Checked: `tests/plain-word-search.test.ts` (words or command, the meaningful words, function search, the suggestion row), `e2e/look.spec.ts` (suggestion, lit row, SEAR's toolbar, hint row, amber field, tabs, matches, a number runs a result, a question), the whole unit and browser suites.
 
+### M2.5 New-tab page (E3)
+
+Evidence: TE01 01:57 (a new tab: "New Tab" on the tab, the command line ready), TE01 02:27 (WELC on the toolbar; a dark page of tips, each a white title, an amber line, the keys in grey caps and a small picture).
+
+- Now: "+" (and Ctrl+T) opens a tab whose first panel shows WELC, a new function (141 in all): "New Tab" on the tab, "WELC ▾" on the toolbar, and a page of the app's own tips in that layout (running a function, tabs, zoom, windows, panels, going back, related functions, help), each with its keys in grey caps and, where it applies, "In the desktop app". The tab keeps the default layout, the watchlist in panel 5; the first start of the app opens as before.
+- Not built: the small pictures beside each tip (they would be screenshots of the provider's screens).
+- Checked: `tests/workspace-tabs.test.ts` (a new tab opens on WELC in the default layout with the watchlist in panel 5 and is named "New Tab"), `e2e/look.spec.ts` (tab label, toolbar, tips, keys and colours), the whole unit and browser suites.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

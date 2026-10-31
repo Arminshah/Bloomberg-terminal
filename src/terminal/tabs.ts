@@ -39,7 +39,10 @@ const closed: { tab: WorkspaceTab; at: number }[] = [];
 
 /** A new workspace, with the recent securities and functions of the one in use (they are the user's, not a tab's). */
 function freshWorkspace(from: TerminalState): TerminalState {
-  return { ...defaultTerminal(), recentSecs: from.recentSecs, recentFns: from.recentFns };
+  const fresh = defaultTerminal();
+  // The first panel opens on WELC, the new-tab page (TE01 01:57); the other panels and the layout are the defaults,
+  // the watchlist in panel 5 among them.
+  return { ...fresh, panels: fresh.panels.map((p, i) => (i === 0 ? { history: [{ fn: 'WELCOME' }], idx: 0 } : p)), recentSecs: from.recentSecs, recentFns: from.recentFns };
 }
 
 /** A tab's saved workspace, ready to go on screen: current function names, and the user's recent lists. */
@@ -158,6 +161,7 @@ export function tabTitle(tab: WorkspaceTab, live: TerminalState | undefined): st
   if (!s || !Array.isArray(s.panels)) return 'New Tab';
   if (JSON.stringify(s.panels.map((p) => p.history)) === DEFAULT_SCREENS) return 'New Tab';
   const r = currentRoute(s, s.active);
+  if (r.fn === 'WELCOME') return 'New Tab';
   return `${r.sec ? `${r.sec.split(' ')[0]} ` : ''}${r.fn}`;
 }
 
@@ -166,6 +170,11 @@ export function tabRoute(tab: WorkspaceTab, live: TerminalState | undefined) {
   const s = live ?? tab.saved;
   if (!s || !Array.isArray(s.panels) || JSON.stringify(s.panels.map((p) => p.history)) === DEFAULT_SCREENS) return undefined;
   return currentRoute(s, s.active);
+}
+
+/** Whether a tab shows the new-tab page, which its label names "New Tab" with WELC's mnemonic (TE01 02:27). */
+export function onNewTabPage(tab: WorkspaceTab, live: TerminalState | undefined): boolean {
+  return tabRoute(tab, live)?.fn === 'WELCOME';
 }
 
 /** For the tests: forget the tabs closed in this session. */

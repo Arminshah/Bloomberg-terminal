@@ -21,7 +21,11 @@ describe('workspace tabs', () => {
     expect(newTab()).toBe(true);
     expect(ids()).toEqual(['t1', 't2']);
     expect(active()).toBe('t2');
-    expect(screen()).toEqual(defaultTerminal().panels[0].history[0]);
+    // A new tab opens on WELC, the new-tab page (TE01 01:57), in the default layout: the watchlist stays in panel 5.
+    expect(screen()).toEqual({ fn: 'WELCOME' });
+    expect(terminal.get().layout).toBe(defaultTerminal().layout);
+    expect(terminal.get().panels[4].history[0]).toEqual({ fn: 'WATCHLIST' });
+    expect(tabTitle(workspaceTabs.get().tabs[1], terminal.get())).toBe('New Tab');
     // The user's recent securities follow them into the new tab.
     expect(terminal.get().recentSecs[0]).toBe('AAPL US Equity');
     navigate(0, { fn: 'CHART', sec: 'MSFT US Equity' });
@@ -57,7 +61,7 @@ describe('workspace tabs', () => {
     navigate(0, { fn: 'PROFILE', sec: 'AAPL US Equity' });
     closeTab('t1');
     expect(ids()).toEqual(['t4']);
-    expect(screen()).toEqual(defaultTerminal().panels[0].history[0]);
+    expect(screen()).toEqual({ fn: 'WELCOME' });
   });
 
   it('closes a tab in the background without touching the one on screen', () => {

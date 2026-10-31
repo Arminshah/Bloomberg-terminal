@@ -1184,6 +1184,16 @@ a.sear-title:hover { text-decoration: underline; }
 .sear-text { grid-column: 2 / -1; color: var(--amber); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sear-story .sear-text { grid-column: 2 / -1; }
 
+/* WELC (TE01 02:27): tips on a dark page, each a white title, an amber line and grey key caps, thin rules between. */
+.welc { padding: 8px 24px 24px; background: #121212; }
+.welc-tip { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: center; padding: 16px 0; border-bottom: 1px solid #2c2c2c; }
+.welc-title { margin: 0 0 4px; color: var(--white); font-size: var(--fs-l); font-weight: 500; }
+.welc-line { margin: 0; color: var(--amber); }
+.welc-where { margin: 2px 0 0; color: #8a8a8a; font-size: var(--fs-s); }
+.welc-keys { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.welc-combo { display: flex; gap: 6px; }
+.welc-key { min-width: 34px; padding: 3px 9px; background: #4a4a4a; color: var(--white); text-align: center; font-family: var(--sans); font-size: var(--fs); border-radius: 0; }
+
 /* ------------------------------------------------------------- mobile */
 @media (max-width: 760px) {
   .workspace { grid-template: 1fr / 1fr !important; }

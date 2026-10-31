@@ -14,6 +14,7 @@ import { securityLabel } from './PanelToolbar';
 function tabLabel(tab: WorkspaceTab, live: TerminalState | undefined): { mnemonic: string; title: string } {
   const r = tabRoute(tab, live);
   if (!r) return { mnemonic: '', title: tab.name ?? 'New Tab' };
+  if (r.fn === 'WELCOME') return { mnemonic: '', title: tab.name ?? 'New Tab' };
   const mnemonic = styledMnemonic(r.fn, r.args).mnemonic;
   return { mnemonic, title: tab.name ?? (r.sec ? securityLabel(r.sec) : (lookupFn(r.fn)?.name ?? r.fn)) };
 }

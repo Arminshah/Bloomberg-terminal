@@ -9,6 +9,7 @@ import type { Route } from './types';
 export const LEGACY_CODES: Record<string, string> = {
   FLDS: 'FIELDS',
   SEAR: 'SEARCHRESULTS',
+  WELC: 'WELCOME',
   DES: 'PROFILE',
   FA: 'FINANCIALS',
   ANR: 'ANALYSTS',

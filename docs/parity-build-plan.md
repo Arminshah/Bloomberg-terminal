@@ -36,7 +36,7 @@ M2. Navigation, keyboard and menus
 - [x] 2.1 Related Functions Menu overlay (`ed60a30`) and the right-click window (`b13f047`)
 - [x] 2.2 Help menu and Live Help (`917e53d`)
 - [x] 2.3 Keyboard table and gaps (`59b9b6a`)
-- [ ] 2.4 Command grammar and plain-word search
+- [x] 2.4 Command grammar and plain-word search (`5ff7371`)
 - [ ] 2.5 New-tab page
 - [ ] 2.6 Codes and aliases
 

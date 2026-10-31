@@ -406,6 +406,20 @@ test('plain words on the command line open SEAR: the question on the red bar, ta
   expect(errors).toEqual([]);
 });
 
+test('"+" opens a new tab on WELC: "New Tab" on the tab, WELC on the toolbar, tips with their keys', async ({ page }) => {
+  const errors = await boot(page);
+  await page.getByRole('button', { name: 'New tab', exact: true }).click();
+  const panel = page.locator('.panel').first();
+  // TE01 01:57, 02:27: the tab is "New Tab", the toolbar shows WELC, the page lists tips with keys in grey caps.
+  await expect(page.locator('.wtab.on .wtab-title')).toHaveText('New Tab');
+  await expect(panel.locator('.ptb-function .ptb-label')).toHaveText('WELC ▾');
+  await expect(panel.locator('.welc-title').first()).toBeVisible();
+  await expect(panel.locator('.welc-tip', { hasText: 'Open a new window' }).locator('.welc-key')).toHaveText(['Ctrl', 'N']);
+  expect(await panel.locator('.welc-line').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 158, 27)');
+  expect(await panel.locator('.welc-key').first().evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(74, 74, 74)');
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.
