@@ -4,7 +4,7 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-2.30.0 was published on 31 October (08:23 UTC). 2.31.0 was requested on 31 October through `.github/release-request.json`: the new data sources of 31 October (`docs/release-v2.31.0.md`) and the screen-by-screen layout work since 2.30.0. It is published only once the release workflow has finished and both Windows executables and their checksums are on the release.
+2.31.0 was published on 31 October at 17:30 UTC by release run 41223380595 (tag `v2.31.0` on `2be9190`): the setup and portable Windows executables and their SHA256 files are on the release, and the checksums match GitHub's digests. Notes: `docs/release-v2.31.0.md`. 2.30.0 was published the same morning (08:23 UTC).
 
 ### 15. More free data sources (asked 31 October)
 
