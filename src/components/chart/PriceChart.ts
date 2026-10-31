@@ -1,5 +1,5 @@
 import { bollinger, ema, macd, rsi, sma } from '../../finance/indicators';
-import type { Series } from '../../data/series';
+import { indexAtOrBefore, type Series } from '../../data/series';
 import { fmtBig, fmtDay, fmtMonthDayNum, fmtNum, MONTHS } from '../../core/format';
 import { onColourScheme, palette, withAlpha } from '../../terminal/palette';
 import { backingSize, crispDash, crispEdge, crispLine, crispWidth, deviceBox, watchPixelRatio } from './pixels';
@@ -144,6 +144,8 @@ export class PriceChart {
     vma?: Float64Array;
   } = { overlays: [], cmp: [] };
   private indKey = '';
+  /** The bar percent mode measures from: the first bar of the range the view last reset to. */
+  private normT: number | null = null;
   onHover?: (index: number | null) => void;
   onObservation?: (observation: ChartObservation | null) => void;
 
@@ -221,7 +223,17 @@ export class PriceChart {
     const pad = Math.max(1, count * 0.02);
     this.v1 = end + pad;
     this.v0 = end - count;
+    // Normalised as of the range's first bar, as GP's "Normalized As Of": panning or zooming does not move it.
+    this.normT = n ? this.s.t[Math.max(0, Math.min(n - 1, Math.floor(this.v0)))] : null;
     this.schedule();
+  }
+
+  /** The index of the bar percent mode measures from, or the first visible bar when that bar is not in the series. */
+  private baseIndex(i0: number): number {
+    const s = this.s!;
+    if (this.normT == null) return i0;
+    const i = indexAtOrBefore(s, this.normT);
+    return i >= 0 && s.t[i] === this.normT ? i : i0;
   }
 
   zoom(factor: number) {
@@ -467,7 +479,8 @@ export class PriceChart {
     const panes = this.panes();
     const main = panes[0];
     const pct = opt.percent || opt.compare.length > 0;
-    const base = s.c[i0];
+    const bi = pct ? this.baseIndex(i0) : i0;
+    const base = s.c[bi];
     const tr = (v: number) => (pct ? (v / base - 1) * 100 : v);
 
     // Y range on visible bars.
@@ -492,7 +505,7 @@ export class PriceChart {
       }
     }
     this.ind.cmp.forEach((arr) => {
-      const b0 = firstFinite(arr, i0, i1);
+      const b0 = firstFinite(arr, bi, Math.max(bi, i1));
       if (!Number.isFinite(b0)) return;
       for (let i = i0; i <= i1; i++) {
         const v = arr[i];
@@ -535,7 +548,7 @@ export class PriceChart {
       ctx.lineTo(plotRight, y);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillText(pct ? `${fmtNum(v, tickDec)}%` : fmtNum(v, tickDec), plotRight + 6, y);
+      ctx.fillText(fmtNum(v, tickDec), plotRight + 6, y);
     }
     this.drawTimeAxis(i0, i1, panes);
 
@@ -685,10 +698,10 @@ export class PriceChart {
       });
     }
 
-    // Comparison lines (percent from first visible value).
+    // Comparison lines (percent from their value on the normalisation date, or the first one after it).
     const cmpLast: { y: number; v: number; color: string }[] = [];
     this.ind.cmp.forEach((arr, k) => {
-      const b0 = firstFinite(arr, i0, i1);
+      const b0 = firstFinite(arr, bi, Math.max(bi, i1));
       if (!Number.isFinite(b0)) return;
       const col = opt.compare[k].color;
       ctx.strokeStyle = col;
@@ -752,9 +765,9 @@ export class PriceChart {
     // Axis tags: average, reference, comparisons, last.
     if (opt.annotate && !pct) this.axisTag(yAt(avg), fmtNum(avg, opt.dec), '#3a2a10', T.amber, main);
     if (opt.refLine && !pct && Number.isFinite(opt.refLine.value)) this.axisTag(yAt(opt.refLine.value), fmtNum(opt.refLine.value, opt.dec), '#2a2a2a', T.axisText, main);
-    for (const c of cmpLast) this.axisTag(c.y, `${fmtNum(c.v, 2)}%`, c.color, '#000', main);
+    for (const c of cmpLast) this.axisTag(c.y, fmtNum(c.v, 3), c.color, '#000', main);
     const lastV = tr(s.c[i1]);
-    this.axisTag(yAt(lastV), pct ? `${fmtNum(lastV, 2)}%` : fmtNum(s.c[i1], opt.dec), color, '#000', main, true);
+    this.axisTag(yAt(lastV), pct ? fmtNum(lastV, 3) : fmtNum(s.c[i1], opt.dec), color, '#000', main, true);
 
     // Crosshair.
     if (this.hover && hoverIndex != null) {
@@ -773,7 +786,7 @@ export class PriceChart {
       ctx.setLineDash([]);
       if (this.hover.y <= main.top + main.h) {
         const v = hi - ((this.hover.y - main.top) / main.h) * (hi - lo);
-        this.axisTag(this.hover.y, pct ? `${fmtNum(v, 2)}%` : fmtNum(v, opt.dec), '#e8e8e8', '#000', main);
+        this.axisTag(this.hover.y, pct ? fmtNum(v, 3) : fmtNum(v, opt.dec), '#e8e8e8', '#000', main);
       }
       const label = opt.intraday ? `${this.dateText(s.t[idx], true)} ${this.timeText(s.t[idx], true)}` : this.dateText(s.t[idx], true);
       ctx.font = T.font;
@@ -785,7 +798,7 @@ export class PriceChart {
       ctx.textAlign = 'left';
       ctx.fillText(label, tx + 5, this.h - AXIS_H / 2);
     }
-    this.drawLegend(hoverIndex, { hiI, loI, hiV, loV, avg, pct, i0, i1 });
+    this.drawLegend(hoverIndex, { hiI, loI, hiV, loV, avg, pct, i0, i1, base: bi });
     this.onHover?.(hoverIndex);
     this.onObservation?.({
       time: s.t[inspected], open: s.o[inspected], high: s.h[inspected], low: s.l[inspected],
@@ -1063,7 +1076,7 @@ export class PriceChart {
     }
   }
 
-  private drawLegend(idx: number | null, a: { hiI: number; loI: number; hiV: number; loV: number; avg: number; pct: boolean; i0: number; i1: number }) {
+  private drawLegend(idx: number | null, a: { hiI: number; loI: number; hiV: number; loV: number; avg: number; pct: boolean; i0: number; i1: number; base: number }) {
     const ctx = this.ctx;
     const T = CHART_THEME;
     const s = this.s!;
@@ -1090,19 +1103,21 @@ export class PriceChart {
     }
     const legendIdx = idx ?? a.i1;
     // A study is drawn on the security's own scale, so in percent mode its figure is its change from the same base.
-    const studyText = (v: number) => (a.pct && idx == null ? (Number.isFinite(v) ? `${fmtNum((v / s.c[a.i0] - 1) * 100, 2)}%` : '--') : fmtNum(v, opt.dec));
+    // In percent mode every figure is its change from the normalisation date, to three decimals, as GP gives it.
+    const studyText = (v: number) => (a.pct && idx == null ? (Number.isFinite(v) ? fmtNum((v / s.c[a.base] - 1) * 100, 3) : '--') : fmtNum(v, opt.dec));
     for (const ov of this.ind.overlays) {
       const v = ov.a[legendIdx];
       rows.push({ k: ov.o.kind === 'BOLL' ? `BOLL(${ov.o.n},2)` : `${ov.o.kind}(${ov.o.n})`, v: studyText(v), c: ov.o.color });
     }
     this.ind.cmp.forEach((arr, k) => {
-      const b0 = firstFinite(arr, a.i0, a.i1);
+      const b0 = firstFinite(arr, a.base, Math.max(a.base, a.i1));
       const v = arr[legendIdx];
-      rows.push({ k: opt.compare[k].label, v: Number.isFinite(v) && Number.isFinite(b0) ? `${fmtNum((v / b0 - 1) * 100, 2)}%` : '--', c: opt.compare[k].color });
+      rows.push({ k: opt.compare[k].label, v: Number.isFinite(v) && Number.isFinite(b0) ? fmtNum((v / b0 - 1) * 100, 3) : '--', c: opt.compare[k].color });
     });
     if (a.pct && idx == null) {
-      const b0 = s.c[a.i0];
-      rows[0] = { k: opt.label, v: `${fmtNum((s.c[legendIdx] / b0 - 1) * 100, 2)}%`, c: color };
+      const b0 = s.c[a.base];
+      rows[0] = { k: opt.label, v: fmtNum((s.c[legendIdx] / b0 - 1) * 100, 3), c: color };
+      rows.unshift({ k: `Normalized As Of ${dt(s.t[a.base])}`, v: '', c: T.text });
     }
     ctx.font = T.font;
     ctx.textBaseline = 'middle';

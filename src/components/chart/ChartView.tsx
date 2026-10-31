@@ -66,7 +66,7 @@ export function ChartView({ series, options, resetKey, className, onReady, reado
       </div>
       {plot}
       <div className="chart-scale-info">
-        <span>{readout.periodicity} · OHLC {readout.unit}{options.percent || options.compare.length > 0 ? ' · Chart % from visible start' : ''}</span>
+        <span>{readout.periodicity} · OHLC {readout.unit}{options.percent || options.compare.length > 0 ? ' · Lines in % from the range start, as Normalized As Of says' : ''}</span>
         <span>{observation ? `${stamp(observation.from)} — ${stamp(observation.to)}` : 'No observations'}</span>
       </div>
     </div>
