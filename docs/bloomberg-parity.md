@@ -340,6 +340,17 @@ Inventory: red bar with the bond in an amber box and "Settings ▾", a green "95
 - Labelled blanks: G-Sprd (needs the government curve interpolated at maturity), I-Sprd and ASW (no swap curve source), Basis, True Yield (no holiday calendar), the benchmark's risk and hedges (needs the benchmark bond's terms), OAS for a callable bond (needs a rate tree; for a bullet it is the Z-spread).
 - Not done: 95) Buy, Notes, Consensus Yld, 5) Custom, Issue Price, bid/ask lines (no bond quotes).
 
+### M3 DS: Ask a Question (E3)
+
+Evidence: FFM_DS_TA 0:30.7 and 0:35.5 (an earnings call transcript open on DS, 2025).
+
+Inventory: a document with "Document Actions ▾", Comment, Highlight ▾ and zoom; at its left "Ask a Question" with an amber field, a grey line explaining what to ask, "Suggestions" in amber over grey buttons; once asked, a one-line answer over bullet points in grey boxes, each linked to the passage it comes from.
+
+- Now: an opened filing on DS (a result's matching sentences) has that panel: the amber field, the explanation, "Suggestions" with five questions in the app's own words, then the answer and each point over the filing's own words in quotes. The answer is Google Gemini's (the owner's key, `GEMINI_API_KEY`, with the switch `GEMINI_DOCS_ENABLED` on PROVIDERS; gemini-3-flash-preview, then gemini-3.1-flash-lite), from the filing's text read on sec.gov by the desktop app.
+- Kept to the filing (`electron/gemini.cjs`): each point must quote the filing word for word (case, curly quotes, dashes and spacing aside; a quote shortened with "…" counts only when each piece is in the filing in order), and every figure in a point must be in its quote; the answer sentence is dropped if it carries a figure the filing does not contain. What is dropped is counted under the answer, and the panel names Gemini and its model. The question and the filing go to Google; on the free tier Google may use them (PROVIDERS says so). The app stops at 200 requests a day.
+- Checked: `tests/gemini-grounding.test.ts` (quotes found or not, figures, the answer's figures, shortened quotes in and out of order, the question limits, the key kept out of errors); live in the desktop app on Apple's 10-K with "What risks does it name?" (`docs/parity-m3-ds-live.png`): five points kept over their quotes, one left out.
+- Not done: the document viewer itself (the filing opens on sec.gov), Document Actions, Comment, Highlight, and the links from a point to its place in the document.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

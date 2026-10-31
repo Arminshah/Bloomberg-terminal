@@ -1657,6 +1657,16 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .yas-tax { display: flex; align-items: center; gap: 6px; padding: 6px 0 2px; }
 .yas-tax .yas-mini { width: 4em; }
 @media (max-width: 900px) { .yas-top, .yas-bottom { grid-template-columns: 1fr; } }
+/* DS's Ask a Question (FFM_DS_TA 0:30.7): an amber field, grey suggestion buttons, the points over their quotes. */
+.ds-ask { margin-top: 8px; padding: 6px 10px; max-width: 720px; background: #121212; border-left: 3px solid #2b2b2b; }
+.ds-ask-h { color: var(--white); padding-bottom: 4px; }
+.ds-ask-inp { width: 100%; }
+.ds-ask-sugg { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0; }
+.ds-ask-chip { border: 0; padding: 4px 10px; background: #2b2b2b; color: #e8e8e8; text-align: left; font-size: var(--fs); }
+.ds-ask-chip:hover { background: #3a3a3a; }
+.ds-ask-point { padding: 4px 8px; margin: 4px 0; background: #1e1e1e; }
+.ds-ask-quote { color: #9a9a9a; font-style: italic; padding-left: 10px; }
+.ds-ask-note { font-size: var(--fs-s); }
 .fa-set { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--white); }
 .fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid #1d1d1d; background: #000; }
 .fa-bottom > button { background: #434142; border: 0; color: var(--white); padding: 0 12px; }
