@@ -7,6 +7,7 @@ import { engine } from '../data/market';
 import { fmtNum, fmtPct } from '../core/format';
 import { favourites } from './userdata';
 import { CHART_STYLES } from './legacy';
+import { plainWords } from './plain-words';
 
 export interface Suggestion {
   /** fav and recent: the list the command line shows before anything is typed. */
@@ -21,6 +22,8 @@ export interface Suggestion {
   fill?: string;
   /** A function offered for a security: shown after it ("AAPL US Equity DES"). */
   scope?: string;
+  /** A search of the app for the words typed: the row reads "SEARCH <words>" (TE01 05:09, TE04 02:53). */
+  search?: string;
 }
 
 /** What a security's own functions are offered first when its ticker is typed alone, as the terminal lists them. */
@@ -146,7 +149,12 @@ export function suggest(input: string): Suggestion[] {
         .filter((f): f is FnDef => !!f && applies(f, exactSec))
         .map((f) => ({ ...fnSuggestion(f, exactSec.id), key: `own:${f.code}`, scope: exactSec.id }))
     : [];
-  const out = [...own, ...fns.filter((f) => !own.some((o) => o.primary === f.primary)), ...secs];
+  const fnRows = [...own, ...fns.filter((f) => !own.some((o) => o.primary === f.primary))];
+  // Plain words or a question: a search of the app for them comes first, as the terminal lists "SEARCH <words>"
+  // (TE04 02:53). A single word keeps its functions and companies ("apple" lists Apple Inc first).
+  const words = raw.trim();
+  const search: Suggestion = { kind: 'fn', key: 'search', primary: 'SEARCHRESULTS', secondary: `Search the app for '${words.toUpperCase()}'`, tag: '', execute: `SEAR ${words}`, search: words.toUpperCase() };
+  const out = plainWords(words) ? [search, ...fnRows, ...secs] : [...fnRows, ...secs];
   // A ticker that is not built in can be loaded online.
   const ticker = tokens.length === 1 ? normalizeTicker(tokens[0]) : null;
   const source = ticker && !resolveSecurity(ticker) ? lookupSource() : null;

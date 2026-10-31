@@ -374,6 +374,38 @@ test('the yellow ? opens the help menu over a dimmed screen: What\'s New for the
   expect(errors).toEqual([]);
 });
 
+test('plain words on the command line open SEAR: the question on the red bar, tabs by kind, the hint row', async ({ page }) => {
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  const input = page.locator('#cmd-0');
+  await input.click();
+  await page.keyboard.type('apple dividend growth');
+  // TE04 02:53: the first suggestion is the search, its words bold, lit; Enter runs it.
+  const first = panel.locator('.ac .ac-item').first();
+  await expect(first.locator('.fn')).toHaveText('SEARCH APPLE DIVIDEND GROWTH');
+  await expect(first.locator('.fn b')).toHaveText('APPLE DIVIDEND GROWTH');
+  await expect(first).toHaveClass(/\bsel\b/);
+  await page.keyboard.press('Enter');
+  // TE01 02:11: SEAR on the toolbar, the hint row, the question in the red bar's amber field, tabs.
+  await expect(panel.locator('.fnh-code')).toHaveText('SEARCHRESULTS');
+  await expect(panel.locator('.ptb-function .ptb-label')).toHaveText('SEAR ▾');
+  await expect(panel.locator('.cmd-hints')).toHaveText('<Pg Dn> for More Results, <Back> to Return');
+  await expect(panel.getByRole('textbox', { name: 'Search' })).toHaveValue('apple dividend growth');
+  await expect(panel.locator('.tabs .tab').first()).toHaveText('1) Top Results');
+  await expect(panel.locator('.tabs .tab').nth(1)).toHaveText(/^2\) Functions \(\d+\)$/);
+  // The app's own matches: DVD among the functions, Apple among the securities.
+  await expect(panel.locator('.sear-row', { hasText: 'DVD' }).first()).toBeVisible();
+  await expect(panel.locator('.sear-sect', { hasText: 'Securities' }).getByText('AAPL US Equity')).toBeVisible();
+  // A numbered result runs with GO.
+  const n = (await panel.locator('.sear-row .row-no').first().textContent())!.replace(')', '');
+  await run(page, n);
+  await expect(panel.locator('.fnh-code')).not.toHaveText('SEARCHRESULTS');
+  // A question runs the search too.
+  await run(page, 'what moved oil?');
+  await expect(panel.locator('.fnh-code')).toHaveText('SEARCHRESULTS');
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.

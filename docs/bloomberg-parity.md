@@ -170,6 +170,16 @@ Evidence: `03_bloomberg_getting_started_and_keyboard/Getting_Started_Guide_for_S
 
 - Checked: `e2e/shell.spec.ts` (F1 once the help page, twice Live Help, Esc closes it, End goes back), the whole browser suite.
 
+### M2.4 Command grammar and plain-word search (E3)
+
+Evidence: TE01 02:05 (a question typed on the command line), TE01 02:11 (the SEAR results page), TE04 02:53 (the "SEARCH <words>" suggestion), TE01 05:09 ("SEARCH OF" first in the list).
+
+- Grammar, already in the app and unchanged: `<ticker> <yellow key> <function> <GO>`, the function first or last, the loaded security carried to the next function.
+- Now: plain words or a question of two words or more typed on the command line run SEAR (Search Results, a new function, 140 in all). Words count as plain when they neither start nor end with a function and hold no market sector; a single word stays a command ("DES?" still opens DES's help, "apple" still lists Apple Inc first), and so does anything shaped like a command ("GP QZZX 1D", "ZZZZ CHART" with its error). The suggestions put "SEARCH <words>" first, the words bold, lit, so Enter runs it.
+- SEAR: the toolbar reads "SEAR ▾"; the hint row says "<Pg Dn> for More Results, <Back> to Return" (functions can now carry a hint for that row); the question sits in an amber field on the red bar and can be edited there; tabs Top Results, Functions, Securities and News with their counts; sections of the app's own matches: functions (mnemonic, name, kind, description; one that needs a security opens for the security the words name), securities (ticker, name in amber, last and change) and headlines from the app's news (title, source and time, first line in amber). Rows are numbered; a number and GO opens one.
+- Different from the frame: the provider's tabs Reference, FAQs and More, its fixed-income table and its documents are its own content; the app searches what it holds. The thumbs up and down are not built.
+- Checked: `tests/plain-word-search.test.ts` (words or command, the meaningful words, function search, the suggestion row), `e2e/look.spec.ts` (suggestion, lit row, SEAR's toolbar, hint row, amber field, tabs, matches, a number runs a result, a question), the whole unit and browser suites.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

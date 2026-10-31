@@ -2,6 +2,7 @@ import { engine } from '../data/market';
 import { lookupSecurity, lookupSource } from '../data/live/lookup';
 import { CLASS_LABEL } from '../data/registry';
 import { parseCommand } from './commands';
+import { plainWords } from './plain-words';
 import { flash, clearFlash, menuItem } from './panel';
 import { lookupFn } from './registry';
 import { loadedSecurity, navigate, terminal } from './state';
@@ -60,6 +61,13 @@ function nameThenRun(panel: number, text: string, message: string): boolean {
 export function execute(panel: number, text: string): boolean {
   runSeq.set(panel, (runSeq.get(panel) ?? 0) + 1);
   const parsed = parseCommand(text, lookupFn);
+  // Plain words or a question of several words run a search of the app (SEAR), as the terminal's command line does
+  // (TE01 02:05); a single code with "?" still asks for its help.
+  if ((parsed.kind === 'error' || parsed.kind === 'help') && plainWords(text)) {
+    clearFlash(panel);
+    navigate(panel, { fn: 'SEARCHRESULTS', args: text.replace(/<\s*GO\s*>/gi, ' ').trim() });
+    return true;
+  }
   switch (parsed.kind) {
     case 'empty':
       return true;

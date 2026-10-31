@@ -8,6 +8,7 @@ import type { Route } from './types';
  */
 export const LEGACY_CODES: Record<string, string> = {
   FLDS: 'FIELDS',
+  SEAR: 'SEARCHRESULTS',
   DES: 'PROFILE',
   FA: 'FINANCIALS',
   ANR: 'ANALYSTS',

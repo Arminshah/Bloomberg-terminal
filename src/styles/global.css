@@ -481,6 +481,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .cmd-input:focus-visible { outline: none; }
 .cmd-spacer { flex: 1 1 0; min-width: 0; }
 .cmd-hints { display: flex; align-items: center; gap: 12px; height: 20px; flex: none; padding: 0 8px; overflow: hidden; background: #000; border-bottom: 1px solid var(--line-2); color: var(--white); font-family: var(--sans); white-space: nowrap; }
+.cmd-hint-text { color: var(--white); }
 .cmd-msg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-s); }
 .cmd-msg.error { padding: 0 6px; color: #fff; background: #7a1010; }
 .cmd-msg.info { color: var(--white); }
@@ -1168,6 +1169,20 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .lh-faq { margin: 0; padding: 0; list-style: none; }
 .lh-faq li button { display: block; width: 100%; padding: 2px 6px; border: 0; border-bottom: 1px solid #2a2a2a; background: #232323; color: var(--white); text-align: left; }
 .lh-faq li button:hover { background: #153b67; }
+
+/* SEAR (TE01 02:11): the question in an amber field on the red bar; results with a white title, a grey kind and
+   amber text. */
+.sear-q { flex: 0 1 420px; min-width: 120px; }
+.sear-sect { margin: 0 0 10px; }
+.sear-row, .sear-story { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 0 8px; width: 100%; padding: 4px 8px; border: 0; background: transparent; text-align: left; }
+.sear-story { grid-template-columns: auto minmax(0, 1fr) auto; }
+.sear-row:hover, .sear-story:hover { background: #153b67; }
+.sear-mn { color: var(--white); }
+.sear-title { color: var(--white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
+a.sear-title:hover { text-decoration: underline; }
+.sear-type { color: #8a8a8a; white-space: nowrap; }
+.sear-text { grid-column: 2 / -1; color: var(--amber); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sear-story .sear-text { grid-column: 2 / -1; }
 
 /* ------------------------------------------------------------- mobile */
 @media (max-width: 760px) {

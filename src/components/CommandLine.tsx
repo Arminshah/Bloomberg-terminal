@@ -11,6 +11,7 @@ import { favourites } from '../terminal/userdata';
 import type { Route } from '../terminal/types';
 import { lookupFn } from '../terminal/registry';
 import { parseCommand } from '../terminal/commands';
+import { plainWords } from '../terminal/plain-words';
 import { engine, useQuote } from '../data/market';
 import { QuoteLine1, QuoteLine2 } from './QuoteStrip';
 
@@ -223,7 +224,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   const submit = () => sel >= 0 && items[sel] ? choose(items[sel]) : run(valueRef.current);
   // The first row is lit, as the terminal lights it, when it is what Enter would run anyway (WEI typed, WEI first);
   // Enter always runs what was typed unless a row was chosen with the arrows.
-  const shownSel = sel >= 0 ? sel : items[0]?.execute && sameRoute(value, items[0].execute) ? 0 : -1;
+  const shownSel = sel >= 0 ? sel : items[0]?.execute && (sameRoute(value, items[0].execute) || (!!items[0].search && plainWords(value))) ? 0 : -1;
   // The word being typed: bold in the functions' titles, and the search behind "More Functions…".
   const typed = value.trim().split(/\s+/).at(-1) ?? '';
   // The directory searched for it, opened as a route: typed as a command, "HELP CORP" would open the CORP market.
@@ -388,7 +389,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
               >
                 <span className="ac-hist" title={recentFn ? 'Used recently' : undefined}>{recentFn ? <HistoryIcon /> : null}</span>
                 <span className={s.kind === 'fn' ? 'fn' : s.kind === 'fav' ? 'k fav' : 'k'} title={s.kind === 'fn' ? `${s.primary}: ${s.secondary}` : undefined}>
-                  {boldPrefix(command, s.kind === 'fn' && s.scope ? '' : typed)}
+                  {s.search ? <>SEARCH <b>{s.search}</b></> : boldPrefix(command, s.kind === 'fn' && s.scope ? '' : typed)}
                 </span>
                 <span className="ac-title">{s.kind === 'fav' || s.kind === 'recent' ? s.secondary : boldTyped(s.secondary, typed)}</span>
                 {/* No category column (TE01 05:09); the list shown before typing keeps each security's price. */}
@@ -410,7 +411,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       )}
     </div>
     {/* The row under the command line carries its hints and messages, in white. */}
-    <div className="cmd-hints" aria-live="polite">{msg ? <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span> : quoteShown && sec ? <QuoteLine2 sec={sec} /> : null}</div>
+    <div className="cmd-hints" aria-live="polite">{msg ? <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span> : quoteShown && sec ? <QuoteLine2 sec={sec} /> : fnDef?.hint ? <span className="cmd-hint-text">{fnDef.hint}</span> : null}</div>
     </>
   );
 }
