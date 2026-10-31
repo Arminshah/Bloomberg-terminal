@@ -21,6 +21,8 @@ import { loadInsiders, summarize } from '../data/live/insiders';
 import { wantShares } from '../data/live/shares';
 import { usePeers } from '../data/live/peers';
 import { engine, useQuote, useTick } from '../data/market';
+import { epsText, fiscalGrid, fiscalQuarterOf, fiscalYearOf, GRID_ROWS, revenueText } from '../data/fiscal-grid';
+import { useSegments, type SegmentState } from '../data/live/segments';
 import { equityRatios } from '../data/ratios';
 import type { SecurityDef } from '../data/types';
 import { COUNTRY_NAMES } from '../data/eco';
@@ -36,7 +38,9 @@ export const EQUITY_DES_TABS = [
   { n: 2, label: 'Issue Info' },
   { n: 3, label: 'Ratios' },
   { n: 4, label: 'Revenue & EPS' },
-  { n: 5, label: 'Industry Info' },
+  { n: 5, label: 'ESG' },
+  // The app's own, after the five the terminal shows (brochure 2025 p.13).
+  { n: 6, label: 'Industry Info' },
 ];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -51,13 +55,13 @@ function useFnName(): (code: string) => string {
  * A DES box: a grey heading with its number and the function it opens, "11) Price Chart (GP)", as the terminal's
  * description page shows them. The number typed with GO opens the function, as a click on the heading does.
  */
-export function Box({ n, title, fn, sec, right, children }: { n?: number; title: string; fn?: string; sec: SecurityDef; right?: ReactNode; children: ReactNode }) {
+export function Box({ n, title, fn, link, sec, right, children }: { n?: number; title: string; fn?: string; link?: string; sec: SecurityDef; right?: ReactNode; children: ReactNode }) {
   const panel = usePanelId();
   const name = useFnName();
   const head = (
     <>
       {n != null && <b className="des-n">{n})</b>} {title}
-      {fn && <span className="des-fn"> | {name(fn)} »</span>}
+      {fn && <span className="des-fn"> | {link ?? name(fn)} »</span>}
     </>
   );
   return (
@@ -140,6 +144,12 @@ export function inMillions(v: number | undefined): string {
   return v !== undefined && Number.isFinite(v) ? `${fmtNum(v, 1)}M` : '--';
 }
 
+/** A market value given in millions, as DES writes it: in billions from a billion up ("2,400.3B"), else in millions. */
+export function marketCapText(millions: number | undefined): string {
+  if (millions === undefined || !Number.isFinite(millions)) return '--';
+  return Math.abs(millions) >= 1000 ? `${fmtNum(millions / 1000, 1)}B` : inMillions(millions);
+}
+
 export const isChiefExecutive = (title: string) => /\b(?:CEO|Chief Executive)\b/i.test(title) && !/\b(?:former|retired|interim)\b/i.test(title);
 
 /**
@@ -193,7 +203,6 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   useEffect(() => wantShares(sec.id), [sec.id]);
   const ccy = reportCcy(sec);
   const est = useAnalysts(analystsAvailable() && analystSymbol(sec) ? sec : undefined, ['estimates', 'consensus', 'ratings']);
-  const analysts = useAnalystSnapshot(sec);
   const estPart = est.estimates as AnalystPart<Estimate[]> | undefined;
   const annual = financials(sec).annual;
   const { fy, next } = fiscalEstimates(estPart, annual.length ? annual[annual.length - 1].end : NaN);
@@ -243,8 +252,6 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const f = real?.float;
   // Outside the US no short interest is published for the whole market: the rows say so instead of dashes.
   const noShortData = engine.realOnly && sec.country !== 'US' && !(f && (Number.isFinite(f.short) || Number.isFinite(f.daysToCover)));
-  const mix = real ? [] : revenueMix(sec);
-  const hs = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 3);
   // The boxes take the numbers the terminal's description page gives them; a number typed with GO opens the box.
   const items: MenuItem[] = useMemo(() => {
     const go = (fn: string) => () => execute(panel, `${sec.id} ${fn}`);
@@ -254,9 +261,6 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
       { n: 10, label: 'Analyst Ratings', run: go('ANALYSTS') },
       { n: 12, label: 'Dividend', run: go('DIVIDENDS') },
       { n: 15, label: 'Management', run: go('MANAGEMENT') },
-      { n: 19, label: '12M Total Return', run: go('TOTALRETURN') },
-      { n: 20, label: 'Beta', run: go('BETA') },
-      { n: 21, label: 'Ownership', run: go('HOLDERS') },
     ];
     if (eq.web) list.push({ n: 14, label: 'Website', run: () => window.open(eq.web, '_blank', 'noopener') });
     officers.forEach((_, i) => list.push({ n: 16 + i, label: 'Management', run: go('MANAGEMENT') }));
@@ -307,7 +311,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               [`52 Wk H (${fmtDay(rs.hi52t)})`, fmtNum(rs.hi52, sec.dec)],
               [`52 Wk L (${fmtDay(rs.lo52t)})`, fmtNum(rs.lo52, sec.dec)],
               ['YTD Change/%', pair(<Chg key="a" v={ytdAbs} dec={sec.dec} />, <Chg key="p" v={ytd} pct />)],
-              [`Mkt Cap (${ks.tradeCcy})`, <MarketValue key="mc" sec={sec}><CapLink id={sec.id}>{inMillions(ks.mcap)}</CapLink></MarketValue>],
+              [`Mkt Cap (${ks.tradeCcy})`, <MarketValue key="mc" sec={sec}><CapLink id={sec.id}>{marketCapText(ks.mcap)}</CapLink></MarketValue>],
               ...(ks.tradeCcy === 'USD' ? [] : [['Mkt Cap (USD)', <MarketValue key="mcu" sec={sec} currency="USD"><CapLink id={sec.id}>{fmtBig(marketCapUsd(sec.id))}</CapLink></MarketValue>] as [string, ReactNode]]),
               ['Shrs Out/Float', <MarketValue key="so" sec={sec} measure="shares">{pair(inMillions(eq.shares), f && Number.isFinite(f.float) ? inMillions(f.float / 1e6) : '--')}</MarketValue>],
               ...(noShortData
@@ -347,9 +351,6 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               />
             )}
           </Box>
-          <Box n={10} title="Analyst Ratings" fn="ANALYSTS" sec={sec}>
-            <AnalystSummary sec={sec} snap={analysts} />
-          </Box>
         </div>
         <div className="des-col">
           <Box n={13} title="Corporate Info" sec={sec}>
@@ -360,7 +361,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
                 </button>
               )}
               <div className="amber">{city || (engine.realOnly ? '' : '--')}</div>
-              <KV items={[['Empls', eq.emp > 0 ? fmtInt(eq.emp) : '--'], ['Fiscal Year End', MONTHS[eq.fye - 1] ?? '--'], ['Exchange', sec.exch ?? '--']]} />
+              <KV items={[['Empls', eq.emp > 0 ? fmtInt(eq.emp) : '--']]} />
             </div>
           </Box>
           <Box n={15} title="Management" fn="MANAGEMENT" sec={sec}>
@@ -379,10 +380,11 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               </ol>
             )}
           </Box>
+          {/* No numbers on these two, even with values (brochure 2025 p.13, TE01 01:45): 18) runs on to 21). */}
           <dl className="kv des-links">
             <dt>
               <button type="button" className="des-link" onClick={() => execute(panel, `${sec.id} TOTALRETURN`)}>
-                <b className="des-n">19)</b> 12M Tot Ret
+                12M Tot Ret
               </button>
             </dt>
             <dd title="The price change with the dividends reinvested on their ex-dates, from the close a year before the latest session">
@@ -390,7 +392,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
             </dd>
             <dt>
               <button type="button" className="des-link" onClick={() => execute(panel, `${sec.id} BETA`)}>
-                <b className="des-n">20)</b> {beta.label}
+                {beta.label}
               </button>
             </dt>
             <dd title={beta.title}>
@@ -398,42 +400,9 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               {beta.worked ? '*' : ''}
             </dd>
           </dl>
-          <Box n={21} title="Ownership" fn="HOLDERS" sec={sec}>
-            {real && !Number.isFinite(real.breakdown?.institutions) && !Number.isFinite(real.breakdown?.insiders) && !Number.isFinite(real.breakdown?.count) ? (
-              <p className="pad-s muted">No ownership breakdown from the sources for this company; HOLDERS lists the holders they give.</p>
-            ) : real ? (
-              <KV
-                items={[
-                  ['Institutions', fmtPct(real.breakdown?.institutions, 2, false)],
-                  ['Insiders', fmtPct(real.breakdown?.insiders, 2, false)],
-                  ['Inst. holders', fmtInt(real.breakdown?.count)],
-                ]}
-              />
-            ) : engine.realOnly ? (
-              <p className="pad-s muted">{fundVersion.get().status[sec.id] === 'error' ? 'No ownership data from the sources for this company.' : 'Loading ownership…'}</p>
-            ) : (
-              <KV items={hs.map((h) => [h.name, `${fmtNum(h.pct, 2)}%`] as [string, string])} />
-            )}
+          <Box n={21} title="Depositary Receipts" sec={sec}>
+            <KV items={[['Active Receipts', <span key="r" className="muted" title="Depositary receipts on the company's shares: none of the app's sources lists them">--</span>]]} />
           </Box>
-          {mix.length > 0 && (
-            <Section title="Revenue by region" right={<span className="badge sim">DEMO DATA</span>}>
-              <table className="tbl">
-                <tbody>
-                  {mix.map((m) => (
-                    <tr key={m.region}>
-                      <td style={{ width: 70 }}>{m.region}</td>
-                      <td>
-                        <HBar value={m.pct} max={100} color="var(--amber)" />
-                      </td>
-                      <td className="num" style={{ width: 56 }}>
-                        {fmtNum(m.pct, 1)}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Section>
-          )}
         </div>
       </div>
     </>
@@ -529,6 +498,7 @@ function IssueInfoPage({ sec }: { sec: SecurityDef }) {
           <KV
             items={[
               ['Sec Type', 'Common Stock'],
+              ['Fiscal Year End', MONTHS[eq.fye - 1] ?? '--'],
               ['Pri Exch', sec.exch ?? '--'],
               ['PAR', noSource],
               ['Pri MIC', marketIdentifier(sec.exch)],
@@ -574,53 +544,108 @@ function RatiosPage({ sec }: { sec: SecurityDef }) {
   const f = financials(sec);
   const ks = keyStats(sec);
   const ccy = reportCcy(sec);
+  const eq = sec.eq!;
   const latest = f.annual[f.annual.length - 1];
   const prior = f.annual[f.annual.length - 2];
+  const lastQ = f.quarterly[f.quarterly.length - 1];
   const r = equityRatios(f.ltm, latest, prior, marketValueRep(sec));
+  // Links 7) to 9): the statements on FA (Scranton manual p.28, 2016).
+  const links: [number, string, string][] = [[7, 'Income Statements', 'IS'], [8, 'Balance Sheet', 'BS'], [9, 'Cash Flow', 'CF']];
+  useMenu('des-ratios', useMemo(() => links.map(([n, label, page]) => ({ n, label, run: () => execute(panel, `${sec.id} FINANCIALS ${page}`) })), [panel, sec.id])); // eslint-disable-line react-hooks/exhaustive-deps
+  const n1 = (v: number) => fmtNum(v, 1);
   const n2 = (v: number) => fmtNum(v, 2);
   const p1 = (v: number) => fmtPct(v, 1, false);
-  const g1 = (v: number) => fmtPct(v, 1);
+  const g1 = (v: number) => fmtPct(v, 1, false);
+  const own = (v: string, what: string) => <span title={`The app's own measure: ${what}. The provider does not publish its definition.`}>{v}</span>;
+  const mmYyyy = (ms: number) => (Number.isFinite(ms) ? `${String(new Date(ms).getUTCMonth() + 1).padStart(2, '0')}/${new Date(ms).getUTCFullYear()}` : '--');
+  const mmYy = (ms: number) => (Number.isFinite(ms) ? `${String(new Date(ms).getUTCMonth() + 1).padStart(2, '0')}/${String(new Date(ms).getUTCFullYear()).slice(2)}` : '--');
   if (!f.annual.length) return <div className="empty">{engine.realOnly ? 'Loading the statements from Yahoo Finance…' : 'No statements for this company.'}</div>;
+  const box = (title: string, items: [string, ReactNode][]) => (
+    <Section title={title} right={<span className="des-chart-mark" aria-hidden="true">▤</span>}>
+      <KV items={items} />
+    </Section>
+  );
   return (
     <>
       <div className="des-fy">
         <KV
           items={[
-            ['Fiscal year end', latest ? fmtDay(latest.end) : '--'],
-            ['Trailing 12 months to', fmtDay(f.ltm.end)],
-            ['Currency', `${ccy} millions, per share in ${ccy}`],
+            ['Fiscal Year End', latest ? mmYyyy(latest.end) : '--'],
+            ['Last Quarter End', lastQ ? `${mmYy(lastQ.end)} Q${fiscalQuarterOf(lastQ.end, eq.fye || 12)}` : '--'],
+            ['Current/T12M', `(${ccy})`],
           ]}
         />
         <span className="des-fy-links">
-          {(['Income statement', 'Balance sheet', 'Cash flow'] as const).map((label) => (
-            <button key={label} type="button" className="des-link" onClick={() => execute(panel, `${sec.id} FINANCIALS`)}>
-              {label} ({name('FINANCIALS')})
+          {links.map(([n, label, page]) => (
+            <button key={n} type="button" className="des-link" onClick={() => execute(panel, `${sec.id} FINANCIALS ${page}`)}>
+              <b className="des-n">{n})</b> <span className="amber">{label} ({name('FINANCIALS')} {page})</span>
             </button>
           ))}
         </span>
       </div>
-      <div className="cols">
-        <Section title="Issue Data">
-          <KV items={[['Last Px', <LivePx key="l" id={sec.id} />], ['P/E', n2(ks.pe)], ['12M Dvd Yld', p1(ks.divYld)], ['P/B', n2(ks.pb)], ['P/S', n2(ks.ps)], ['EV/T12M EBITDA', n2(ks.evEbitda)], [`Mkt Cap (${ks.tradeCcy})`, <CapLink key="mc" id={sec.id}>{fmtMln(ks.mcap)}</CapLink>], [`EV (${ks.ccy})`, fmtMln(ks.ev)]]} />
-        </Section>
-        <Section title="Per Share Data">
-          <KV items={[['EPS T12M', n2(f.ltm.eps)], ['DPS', n2(f.ltm.dps)], ['Bk Val Per Sh', n2(r.bookPerShare)], ['Rev Per Sh', n2(r.revPerShare)], ['Cash Per Sh', n2(r.cashPerShare)], ['FCF Per Sh', n2(r.fcfPerShare)], ['Diluted Shares', fmtMln(f.ltm.shares)]]} />
-        </Section>
-        <Section title="Cash Flow Analysis">
-          <KV items={[['P/CF', n2(r.pcf)], ['P/FCF', n2(r.pfcf)], ['CF/NI', n2(r.cfToNi)], ['Dvd Payout', p1(ks.payout)], ['CFO/Sales', p1(r.cfoToSales)], ['Capex/Sales', p1(r.capexToSales)]]} />
-        </Section>
-        <Section title="Growth Potential">
-          <KV items={[['Rev 1Y Gr', g1(r.revGrowth)], ['EPS 1Y Gr', g1(r.epsGrowth)], ['Bk Val 1Y Gr', g1(r.bookGrowth)], ['Assets 1Y Gr', g1(r.assetGrowth)], ['R&D/Sales', p1(r.rndToSales)], ['Retention Rate', p1(r.retention)]]} />
-        </Section>
-        <Section title="Profitability">
-          <KV items={[['EBITDA', fmtMln(f.ltm.ebitda)], ['EBIT', fmtMln(f.ltm.opInc)], ['Gross Mrgn', p1(r.grossMargin)], ['Oper Mrgn', p1(r.opMargin)], ['Pretax Mrgn', p1(r.pretaxMargin)], ['Net Mrgn', p1(r.netMargin)], ['ROA', p1(r.roa)], ['ROE', p1(r.roe)], ['Asset Turnover', n2(r.assetTurnover)]]} />
-        </Section>
-        <Section title="Structure">
-          <KV items={[['Current Ratio', n2(r.currentRatio)], ['Quick Ratio', n2(r.quickRatio)], ['Debt/Assets', p1(r.debtToAssets)], ['Debt/Equity', p1(r.debtToEquity)], ['EBIT/Interest', n2(r.interestCover)], ['Inv Turnover', n2(r.invTurnover)], ['A/R Turnover', n2(r.recvTurnover)]]} />
-        </Section>
+      <div className="cols cols-3">
+        {box('Issue Data', [
+          ['Last Px', <span key="l">{ks.tradeCcy}/<LivePx id={sec.id} /></span>],
+          ['P/E', n1(ks.pe)],
+          ['Dvd Ind Yld', p1(ks.divYld)],
+          ['P/B', n2(ks.pb)],
+          ['P/S', n1(ks.ps)],
+          ['Curr EV/T12M EBITDA', n1(ks.evEbitda)],
+          ['Mkt Cap', <CapLink key="mc" id={sec.id}>{inMillions(ks.mcap)}</CapLink>],
+          ['Curr EV', inMillions(ks.ev)],
+        ])}
+        {box('Per Share Data', [
+          ['EPS T12M', n2(f.ltm.eps)],
+          ['DPS', n2(f.ltm.dps)],
+          ['Bk Val Per Sh', n2(r.bookPerShare)],
+          ['Rev/Bas Sh', n2(r.revPerShare)],
+          ['CPS', <span key="c" title="Cash from operations per share, trailing 12 months">{n2(r.cfoPerShare)}</span>],
+          ['Curr Shares Out', eq.shares > 0 ? `${fmtNum(eq.shares / 1000, 1)}B` : '--'],
+          ['FCF/Basic Sh', n2(r.fcfPerShare)],
+        ])}
+        {box('Cash Flow Analysis', [
+          ['P/CF', n1(r.pcf)],
+          ['Curr P/FCF', n1(r.pfcf)],
+          ['CF/NI', n1(r.cfToNi)],
+          ['Dvd P/O', p1(ks.payout)],
+          ['Cash Gen/Cash Reqd', own(n1(r.cashGenToReqd), 'cash from operations over capital spending plus dividends paid')],
+          ['Csh Dvd Cov', own(n1(r.cashDividendCover), 'cash from operations less capital spending, over dividends paid')],
+          ['CFO/Sales', p1(r.cfoToSales)],
+          ['Eff IR', own(p1(r.effectiveInterest), 'interest expense over total debt')],
+        ])}
+        {box('Growth Potential', [
+          ['Dil EPS Frm Cont Op 1Y Gr', g1(r.epsGrowth)],
+          ['Cap 1Y Gr', own(g1(r.capitalGrowth), 'growth of debt plus equity over the last fiscal year')],
+          ['BPS 1Y Gr', g1(r.bookGrowth)],
+          ['R&D To Sl', p1(r.rndToSales)],
+          ['Retntn Rt', p1(r.retention)],
+          ['Rev - 1 Yr Gr', g1(r.revGrowth)],
+          ['Empl 1Y Gr', <span key="e" className="muted" title="Needs the number of employees a year ago: none of the app's sources gives it">--</span>],
+          ['Ast 1Y Gr', g1(r.assetGrowth)],
+        ])}
+        {box('Profitability', [
+          ['EBITDA', revenueText(f.ltm.ebitda)],
+          ['EBIT', revenueText(f.ltm.opInc)],
+          ['OPM', p1(r.opMargin)],
+          ['Pretax Mrgn', p1(r.pretaxMargin)],
+          ['ROA', p1(r.roa)],
+          ['ROE', p1(r.roe)],
+          ['ROC', own(p1(r.returnOnCapital), 'operating income after the effective tax rate, over debt plus equity')],
+          ['Ast TO', n1(r.assetTurnover)],
+        ])}
+        {box('Structure', [
+          ['Curr Ratio', n1(r.currentRatio)],
+          ['Quick Ratio', n1(r.quickRatio)],
+          ['Debt/Assets', p1(r.debtToAssets)],
+          ['Debt/Com Eq', p1(r.debtToEquity)],
+          ['A/R Trnovr', n1(r.recvTurnover)],
+          ['Inv Turnover', n1(r.invTurnover)],
+          ['GM', p1(r.grossMargin)],
+          ['EBIT/Tot Int Exp', n1(r.interestCover)],
+        ])}
       </div>
       <div className="note">
-        Worked out from the reported statements: the trailing twelve months, growth from the last two fiscal years, prices against the current market value. P/E, yield, P/B, P/S and EV/EBITDA are the figures PROFILE shows.
+        Worked out from the reported statements: the trailing twelve months, growth from the last two fiscal years, prices against the current market value. P/E, yield, P/B, P/S and EV/EBITDA are the figures PROFILE shows. Rows marked on hover as the app&apos;s own use its definitions where the provider publishes none. The app&apos;s other measures: net margin {p1(r.netMargin)}, capital spending/sales {p1(r.capexToSales)}, cash per share {n2(r.cashPerShare)}.
       </div>
     </>
   );
@@ -628,7 +653,108 @@ function RatiosPage({ sec }: { sec: SecurityDef }) {
 
 // ---------------------------------------------------------------- 4) Revenue & EPS
 
+/** A line of yearly figures over the quarters' bars, reported in orange and estimated in grey (TE01 02:31). */
+function FiscalChart({ years, cells }: ReturnType<typeof fiscalGrid>) {
+  const fyVals = cells.FY.map((c) => (c ? c.value : NaN));
+  const qVals = years.flatMap((_, i) => (['Q1', 'Q2', 'Q3', 'Q4'] as const).map((r) => cells[r][i]));
+  // The yearly line spans its own range, as the terminal's does; the bars stand on zero.
+  const finite = fyVals.filter(Number.isFinite);
+  const top = finite.length ? Math.max(...finite) : 1;
+  const low = finite.length ? Math.min(...finite) : 0;
+  const qTop = Math.max(...qVals.map((c) => (c ? c.value : NaN)).filter(Number.isFinite), 0);
+  const qLow = Math.min(...qVals.map((c) => (c ? c.value : NaN)).filter(Number.isFinite), 0);
+  const W = 300;
+  const x = (i: number) => 14 + (i + 0.5) * ((W - 28) / years.length);
+  const yLine = (v: number) => 50 - ((v - low) / (top - low || 1)) * 40;
+  const slot = (W - 28) / (years.length * 4);
+  const zero = 118 - ((0 - qLow) / (qTop - qLow || 1)) * 52;
+  const pts = fyVals.map((v, i) => (Number.isFinite(v) ? [x(i), yLine(v)] : null)).filter((pt): pt is number[] => !!pt);
+  return (
+    <svg className="fisc-chart" viewBox={`0 0 ${W} 122`} preserveAspectRatio="none" aria-hidden="true">
+      <line x1="14" x2={W - 14} y1="56" y2="56" stroke="#333" />
+      {pts.length > 1 && <polyline points={pts.map((pt) => pt.join(',')).join(' ')} fill="none" stroke="#d9d9d9" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />}
+      {fyVals.map((v, i) => (Number.isFinite(v) ? <circle key={i} cx={x(i)} cy={yLine(v)} r="2.2" fill={cells.FY[i]?.estimate ? '#9a9a9a' : '#fe9f11'} /> : null))}
+      {qVals.map((c, i) => {
+        if (!c) return null;
+        const h = ((Math.abs(c.value) - 0) / (qTop - qLow || 1)) * 52;
+        return <rect key={i} x={14 + i * slot + slot * 0.15} width={slot * 0.7} y={c.value >= 0 ? zero - h : zero} height={Math.max(1, h)} fill={c.estimate ? '#b8b8b8' : '#fe9f11'} />;
+      })}
+    </svg>
+  );
+}
+
+/** FY and Q1 to Q4 by fiscal year under the chart, reported in amber and estimated in white. */
+function FiscalTable({ grid, ccy, text }: { grid: ReturnType<typeof fiscalGrid>; ccy: string; text: (v: number) => string }) {
+  return (
+    <table className="tbl fisc-tbl">
+      <thead>
+        <tr>
+          <th>({ccy})</th>
+          {grid.years.map((y) => <th key={y} className="num">{y}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {GRID_ROWS.map((r) => (
+          <tr key={r}>
+            <td className="amber">{r}</td>
+            {grid.cells[r].map((c, i) => <td key={i} className={`num ${c ? (c.estimate ? 'white' : 'amber') : ''}`} title={c?.estimate ? 'Analysts\' estimate' : undefined}>{c ? text(c.value) : ''}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** A segment box (8) Geo Seg, 9) Prod Seg): the latest fiscal year's revenue by line with its growth, from the 10-K. */
+function SegmentBox({ n, title, link, sec, state, breakdown, fye }: { n: number; title: string; link: string; sec: SecurityDef; state: SegmentState | undefined; breakdown: 'geography' | 'product'; fye: number }) {
+  const table = state?.state === 'ok' ? state.report.tables.find((t) => t.breakdown === breakdown && t.metric === 'revenue') : undefined;
+  const latest = table?.periods[0];
+  const first = table?.periods.at(-1);
+  const span = table ? table.periods.length - 1 : 0;
+  const lines = table && latest ? table.lines.filter((l) => !l.parent && Number.isFinite(l.values[latest.end])).sort((a, b) => b.values[latest.end] - a.values[latest.end]).slice(0, 5) : [];
+  const max = Math.max(...lines.map((l) => l.values[latest!.end]), 1);
+  const year = latest ? fiscalYearOf(Date.parse(`${latest.end}T00:00:00Z`), fye) : undefined;
+  const why = !engine.realOnly ? 'Segments come from the company\'s latest 10-K, read by the desktop app' : state?.state === 'none' || state?.state === 'error' ? state.message : 'Loading the segments from the latest 10-K…';
+  return (
+    <Box n={n} title={title} fn="FINANCIALS SEG" link={link} sec={sec}>
+      {lines.length && latest ? (
+        <table className="tbl seg-tbl">
+          <thead>
+            <tr>
+              <th />
+              <th className="num">{year} Rev</th>
+              <th className="num" title={`Compound annual growth over the ${span} years the 10-K reports`}>{span}Yr Gr</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l) => {
+              const v = l.values[latest.end];
+              const base = first ? l.values[first.end] : NaN;
+              const g = span > 0 && base > 0 && v > 0 ? ((v / base) ** (1 / span) - 1) * 100 : NaN;
+              return (
+                <tr key={l.member}>
+                  <td className="amber ellipsis" style={{ maxWidth: 200 }}>{l.label}</td>
+                  <td className="num seg-bar" style={{ ['--w' as string]: `${(v / max) * 100}%` }}>{revenueText(v / 1e6)}</td>
+                  <td className="num">{Number.isFinite(g) ? `${fmtNum(g, 2)}%` : ''}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <p className="pad-s muted">{why}</p>
+      )}
+    </Box>
+  );
+}
+
 function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
+  const analysts = useAnalystSnapshot(sec);
+  const eqDef = sec.eq!;
+  const est = useAnalysts(analystsAvailable() && analystSymbol(sec) ? sec : undefined, ['estimates']);
+  const estList = (est.estimates as AnalystPart<Estimate[]> | undefined)?.state === 'ok' ? (est.estimates as AnalystPart<Estimate[]>).data ?? [] : [];
+  const segments = useSegments(sec, engine.realOnly);
+  const mix = getRealFund(sec.id) ? [] : revenueMix(sec);
   const f = financials(sec);
   const ccy = reportCcy(sec);
   const years = f.annual.slice(-6);
@@ -636,7 +762,10 @@ function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
   const hist = earningsHistory(sec).filter((x) => x.actual != null || x.revAct != null).slice(-8).reverse();
   const next = nextEarnings(sec);
   const estimate = useNextQuarterEstimate(sec);
-  const maxRev = Math.max(...years.map((y) => y.rev).filter(Number.isFinite), 1);
+  const fye = eqDef.fye || 12;
+  const estYears = (get: (e: Estimate) => number) => estList.map((e) => ({ year: fiscalYearOf(Date.parse(`${e.date}T00:00:00Z`), fye), value: get(e) }));
+  const revGrid = fiscalGrid(f.annual, f.quarterly, fye, (p) => p.rev, estYears((e) => e.revenueAvg / 1e6));
+  const epsGrid = fiscalGrid(f.annual, f.quarterly, fye, (p) => p.eps, estYears((e) => e.epsAvg));
   if (!years.length) return <div className="empty">{engine.realOnly ? 'Loading the statements from Yahoo Finance…' : 'No statements for this company.'}</div>;
   const table = (cols: typeof years, title: string) => (
     <Section title={title} right={`${ccy} millions; EPS in ${ccy}`}>
@@ -692,26 +821,23 @@ function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
   );
   return (
     <>
+      {/* The terminal's page 4 (TE01 02:31): revenue and EPS by fiscal year and quarter, then the segments. */}
+      <div className="des-grid des-grid-2">
+        <Box n={6} title="Comparable Revenue" fn="EARNINGSTREND" sec={sec}>
+          <FiscalChart {...revGrid} />
+          <FiscalTable grid={revGrid} ccy={ccy} text={revenueText} />
+        </Box>
+        <Box n={7} title="Comparable Earnings Per Share" fn="EARNINGSTREND" sec={sec}>
+          <FiscalChart {...epsGrid} />
+          <FiscalTable grid={epsGrid} ccy={ccy} text={epsText} />
+        </Box>
+      </div>
+      <div className="fisc-legend">(Fiscal Period: <span className="amber">Reported</span>, <span className="white">Estimated</span>)</div>
+      <div className="des-grid des-grid-2">
+        <SegmentBox n={8} title="Geo Seg" link="FA GEO" sec={sec} state={segments} breakdown="geography" fye={fye} />
+        <SegmentBox n={9} title="Prod Seg" link="FA PROD" sec={sec} state={segments} breakdown="product" fye={fye} />
+      </div>
       <div className="cols">
-        <Section title="Revenue by fiscal year" right="reported">
-          <table className="tbl">
-            <tbody>
-              {years.map((y) => (
-                <tr key={y.label}>
-                  <td style={{ width: 70 }} className="amber">
-                    {y.label}
-                  </td>
-                  <td>
-                    <HBar value={y.rev} max={maxRev} color="var(--amber)" />
-                  </td>
-                  <td className="num" style={{ width: 90 }}>
-                    {fmtMln(y.rev)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Section>
         <Section title="Next report">
           <KV items={[['Date', <NextEarnings key="d" sec={sec} ne={next} />], [estimate.label, lineValue(estimate)]]} />
           <MissingNotes lines={[estimate]} />
@@ -743,11 +869,56 @@ function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
           </table>
         </Section>
       )}
+      {/* The app's own boxes, moved from the profile page so that page matches the terminal's (brochure 2025 p.13). */}
+      <div className="cols">
+        <Box n={10} title="Analyst Ratings" fn="ANALYSTS" sec={sec}>
+          <AnalystSummary sec={sec} snap={analysts} />
+        </Box>
+        <div>
+          {mix.length > 0 && (
+            <Section title="Revenue by region" right={<span className="badge sim">DEMO DATA</span>}>
+              <table className="tbl">
+                <tbody>
+                  {mix.map((m) => (
+                    <tr key={m.region}>
+                      <td style={{ width: 70 }}>{m.region}</td>
+                      <td>
+                        <HBar value={m.pct} max={100} color="var(--amber)" />
+                      </td>
+                      <td className="num" style={{ width: 56 }}>
+                        {fmtNum(m.pct, 1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Section>
+          )}
+        </div>
+      </div>
     </>
   );
 }
 
-// ---------------------------------------------------------------- 5) Industry Info
+// ---------------------------------------------------------------- 5) ESG
+
+/**
+ * The ESG tab (brochure 2025 p.13 names it; the 2022 article's picture shows its scores): ESG scores are the
+ * provider's own or other agencies' licensed data, which the app has no source for, so the page says so.
+ */
+function EsgPage({ sec }: { sec: SecurityDef }) {
+  const why = 'ESG scores are licensed data of the provider and of rating agencies; none of the app\'s sources gives them';
+  return (
+    <div className="cols">
+      <Section title="ESG Scores">
+        <KV items={['ESG Disclosure Score', 'Environmental', 'Social', 'Governance'].map((k) => [k, <span key={k} className="muted" title={why}>--</span>] as [string, ReactNode])} />
+        <div className="note muted">{why}. The company publishes its own sustainability reports; FILINGS lists its filings{sec.country === 'US' ? ' with the SEC' : ''}.</div>
+      </Section>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 6) Industry Info
 
 function IndustryPage({ sec }: { sec: SecurityDef }) {
   const tick = useTick(5);
@@ -804,6 +975,8 @@ export function EquityDES({ sec, tab }: { sec: SecurityDef; tab: number }) {
     case 4:
       return <RevenueEpsPage sec={sec} />;
     case 5:
+      return <EsgPage sec={sec} />;
+    case 6:
       return <IndustryPage sec={sec} />;
     default:
       return <ProfilePage sec={sec} />;

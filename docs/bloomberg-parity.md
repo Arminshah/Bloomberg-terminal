@@ -195,6 +195,40 @@ Evidence: the plan's Appendix A (every provider code the pack shows that the app
 - Checked: every Appendix A code opens its screen (`tests/appendix-codes.test.ts`, 69 codes with SEAR and WELC). The one gap was BLP, the Launchpad's code, now the mnemonic of LAYOUTS (shown on the toolbar and tabs; LPAD and LLP still work). The header and toolbar show each screen's mnemonic.
 - Not aliased on purpose: MSG (the provider's mail network: MESSAGES is the app's help desk, not mail) and FXFC (contributors' FX forecasts, licensed content). The rest of Appendix B are functions to build (M5) or the provider's own services.
 
+### M3 DES, Profile page (E3)
+
+Evidence: `02_bloomberg_methodology/Equities_Workflow_Brochure_EN.pdf` p.13 (GOOG DES, January 2025, rendered at 400 dpi), TE01 01:41 and 03:11 (GOOGL and AAPL, 2023), TE01 01:45.
+
+Inventory of the 2025 page, top to bottom: red bar with the security box, 98) Report, 99) Contact IR, "Page 1/5" and the title; tabs Profile, Issue Info, Ratios, Revenue & EPS, ESG (unnumbered, the active one light grey with black text); the name in cyan with the FIGI at the right; 6) BI Research Primer | BICO and the Classification; the description in amber ending "... More"; three columns: 8) Price Chart | GP with a right-hand axis, then Px/Chg 1D, 52 Wk H and L with dates, YTD Change/%, Mkt Cap, Shrs Out/Float, SI/% of Float, Days to Cover; 9) Estimates | EE (Date (E), P/E, Est P/E with its fiscal period, T12M EPS, Est EPS, Est PEG) and 12) Dividend | DVD (Ind Gross Yield, the last cash payment with its date, Multi-shares (EV)); 13) Corporate Info (14) the web address, the city, employees with their date), 15) Management | MGMT with 16) to 18) officers and their titles in grey, 12M Tot Ret and Beta vs the index without numbers, 21) Depositary Receipts (Active Receipts).
+
+- Now: the tabs are drawn as above (unnumbered, active `#A19FA2` with black text, others `#464646`), with ESG added (its scores are licensed, so the page says so) and the app's Industry Info kept after it. The red bar counts the tabs ("Page 1/6": five as on the terminal plus Industry Info) and PgDn / PgUp turn them. 12M Tot Ret and Beta lost their numbers (18) runs on to 21)). 21) is Depositary Receipts, Active Receipts a labelled blank (no source lists them). The market value is written in billions from a billion up ("5,450.3B"). The app's own boxes moved off the page, not removed: Analyst Ratings and the demo's revenue by region to Revenue & EPS, the ownership breakdown to Issue Info (which lists the holders), Fiscal Year End to Issue Info (Exchange was already there).
+- Kept from the app: the line under the red bar with the source of the figures (the owner's rule); "Next ex" in the dividend box; a typed number still opens a tab.
+- Not done: 6) BI Research Primer (the provider's research), Multi-shares (EV) and the employees' date (no source gives them), the price chart's right-hand axis, 98) Report and 99) Contact IR.
+- Checked: `e2e/terminal.spec.ts` (tab labels and colours, Page 1/6, PgDn and PgUp, no numbers on 12M Tot Ret and Beta, 21) Depositary Receipts, no Ownership or Analyst Ratings box), `tests/des-profile-format.test.ts`, the whole browser suite.
+
+### M3 DES, Revenue & EPS page (E3)
+
+Evidence: TE01 02:31 (GOOGL, page 4/5, recorded October 2023).
+
+Inventory of the frame: 6) Comparable Revenue | EM and 7) Comparable Earnings Per Share | EM side by side, each a line of yearly figures over the quarters' bars (reported orange, estimates grey) and, under it, a table headed by the currency with six fiscal years as columns and FY, Q1 to Q4 as rows (revenue in billions with one decimal, EPS with three decimals and no leading zero below one); the line "(Fiscal Period: Reported, Estimated)"; then 8) Geo Seg | FA GEO and 9) Prod Seg | FA PROD, each listing the latest year's revenue by line in green bar cells and its 3-year growth.
+
+- Now: the page opens with that layout. The figures are the app's own: reported revenue and diluted EPS from the statements, placed in their fiscal year and quarter by the company's fiscal year-end month (52- and 53-week years included); a year with nothing reported takes the analysts' consensus (Yahoo Finance, FMP or Finnhub), in white where reported figures are amber. Revenue reads "131.8B", EPS ".541" or "2.33". Geo Seg and Prod Seg come from the latest 10-K's XBRL (the desktop app, as FA SEG), the latest fiscal year's revenue by line with a green bar sized to the largest. 6) and 7) open EM, 8) and 9) open FA's segments.
+- Different: the growth column is compound annual growth over the years the 10-K reports, two in most filings, labelled "2Yr Gr" rather than "3Yr Gr"; three years would need the 10-K before it. Quarters have no estimates in the app's sources except the next one, so quarterly bars are reported only. The browser demo has no 10-K, so the segment boxes say so.
+- Kept below the terminal's layout, the app's own: next report and its estimate, the annual and quarterly statement lines with growth and net income, the reported earnings, the analysts' ratings and the demo's regions.
+- Checked: `tests/fiscal-grid.test.ts` (fiscal year and quarter for September and December year ends and a 53-week year, reported and estimated cells, the number formats), `e2e/terminal.spec.ts` (headings, rows, columns, format, legend, segment boxes), the whole browser suite.
+
+### M3 DES, Ratios page (E3, 2016)
+
+Evidence: `04_university_guides/Scranton_Bloomberg_Training_Manual.pdf` p.28 (AAPL, page 3/5, 2016), the newest picture of this page in the pack. Its p.28 also shows page 4/5 as built above, with "3Yr Gr" and the legend in the same places.
+
+Inventory: a top block (Fiscal Year End as month/year, Last Quarter End as month/year and quarter, Current/T12M with the currency) with links 7) Income Statements, 8) Balance Sheet, 9) Cash Flow to FA's pages; six boxes in two rows of three, each heading with a chart mark at its right: Issue Data, Per Share Data, Cash Flow Analysis, Growth Potential, Profitability and Structure, eight rows each (seven in Per Share Data), short labels in amber, values in white.
+
+- Now: the page has that block, those boxes, rows and labels in that order. Links 7) to 9) open FA on I/S, B/S and C/F, also as 7, 8 or 9 and GO. CPS is cash from operations per share (the picture's 9.81 against EPS of 8.66 fits that, not cash per share).
+- The app's own measures, marked so on hover because the provider publishes no definition: Cash Gen/Cash Reqd (cash from operations over capital spending plus dividends paid), Csh Dvd Cov (that less capital spending, over dividends), Eff IR (interest expense over debt), Cap 1Y Gr (growth of debt plus equity), ROC (operating income after the effective tax rate, over debt plus equity). Empl 1Y Gr is a labelled blank (no source gives last year's headcount).
+- Kept: net margin, capital spending to sales and cash per share, named in the note under the boxes.
+- Unverified: the page's 2024 look (no newer picture); the chart marks open nothing.
+- Checked: `tests/ratios-des-rows.test.ts` (each new measure by hand, blanks), `e2e/terminal.spec.ts` (top block, links, box order, Structure's rows), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

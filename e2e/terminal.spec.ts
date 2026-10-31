@@ -221,7 +221,7 @@ test("the mouse back button steps back through a screen's tabs before leaving it
   const tabs = panel.locator('nav.tabs .tab');
   await tabs.nth(1).click();
   await tabs.nth(2).click();
-  await expect(panel.locator('.tab.on')).toContainText('3)');
+  await expect(panel.locator('.tab.on')).toHaveText('Ratios');
   const box = (await panel.locator('.panel-body').boundingBox())!;
   const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   const cdp = await page.context().newCDPSession(page);
@@ -230,17 +230,17 @@ test("the mouse back button steps back through a screen's tabs before leaving it
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...at, button, clickCount: 1 });
   };
   await press('back');
-  await expect(panel.locator('.tab.on')).toContainText('2)');
+  await expect(panel.locator('.tab.on')).toHaveText('Issue Info');
   await press('back');
-  await expect(panel.locator('.tab.on')).toContainText('1)');
+  await expect(panel.locator('.tab.on')).toHaveText('Profile');
   await press('back');
   await expect(panel.locator('.fnh-code').first()).toHaveText('CHART');
   // Forward returns to the profile on the tab it was left on, then through the tabs again.
   await press('forward');
   await expect(panel.locator('.fnh-code').first()).toHaveText('PROFILE');
-  await expect(panel.locator('.tab.on')).toContainText('1)');
+  await expect(panel.locator('.tab.on')).toHaveText('Profile');
   await press('forward');
-  await expect(panel.locator('.tab.on')).toContainText('2)');
+  await expect(panel.locator('.tab.on')).toHaveText('Issue Info');
   expect(errors).toEqual([]);
 });
 
@@ -351,12 +351,44 @@ test('DES pages and numbered boxes, the security in the red bar and typed chart 
   // The loaded security sits in the amber field of the red bar; the title reads as the terminal's.
   await expect(panel.locator('.fnh-row .fnh-sec')).toHaveText('AAPL US Equity');
   await expect(panel.locator('.fnh-title')).toHaveText('Security Description: Equity');
-  await expect(panel.locator('.tab')).toHaveText(['1) Profile', '2) Issue Info', '3) Ratios', '4) Revenue & EPS', '5) Industry Info']);
+  // Brochure 2025 p.13: the five pages as unnumbered tabs (the app's Industry Info after them), "Page 1/n" on the
+  // red bar counting them, PgDn and PgUp turning them.
+  await expect(panel.locator('.tab')).toHaveText(['Profile', 'Issue Info', 'Ratios', 'Revenue & EPS', 'ESG', 'Industry Info']);
+  await expect(panel.locator('.fnh-page')).toHaveText('Page 1/6');
+  expect(await panel.locator('.tab.on').evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])).toEqual(['rgb(161, 159, 162)', 'rgb(0, 0, 0)']);
+  await page.locator('#cmd-0').press('PageDown');
+  await expect(panel.locator('.tab.on')).toHaveText('Issue Info');
+  await expect(panel.locator('.fnh-page')).toHaveText('Page 2/6');
+  await page.locator('#cmd-0').press('PageUp');
+  await expect(panel.locator('.tab.on')).toHaveText('Profile');
   await expect(panel.locator('.des-name')).toHaveText('APPLE INC');
   await expect(panel.getByRole('button', { name: /8\) Price Chart/ })).toBeVisible();
+  // 12M Tot Ret and Beta carry no number; 18) runs on to 21) Depositary Receipts.
+  await expect(panel.locator('.des-links dt').first()).toHaveText('12M Tot Ret');
+  await expect(panel.locator('.des-links dt').nth(1)).not.toContainText(')');
+  await expect(panel.locator('.sect-h', { hasText: 'Depositary Receipts' })).toContainText('21)');
+  await expect(panel.locator('.sect-h', { hasText: 'Ownership' })).toHaveCount(0);
+  await expect(panel.locator('.sect-h', { hasText: 'Analyst Ratings' })).toHaveCount(0);
   await run(page, '3');
-  await expect(panel.locator('.tab.on')).toHaveText('3) Ratios');
+  await expect(panel.locator('.tab.on')).toHaveText('Ratios');
+  // Page 4 (TE01 02:31): 6) and 7) side by side, each a chart over FY and Q1 to Q4 by fiscal year, then 8) Geo Seg and
+  // 9) Prod Seg.
+  await panel.locator('.tab', { hasText: 'Revenue & EPS' }).click();
+  await expect(panel.locator('.sect-h', { hasText: 'Comparable Revenue' })).toContainText('6) Comparable Revenue | EM »');
+  await expect(panel.locator('.sect-h', { hasText: 'Comparable Earnings Per Share' })).toContainText('7)');
+  await expect(panel.locator('.fisc-tbl').first().locator('tbody td:first-child')).toHaveText(['FY', 'Q1', 'Q2', 'Q3', 'Q4']);
+  await expect(panel.locator('.fisc-tbl').first().locator('thead th')).toHaveCount(7);
+  await expect(panel.locator('.fisc-tbl').first().locator('tbody tr').first().locator('td.amber').nth(1)).toHaveText(/^\d[\d,]*\.\dB$/);
+  await expect(panel.locator('.fisc-legend')).toHaveText('(Fiscal Period: Reported, Estimated)');
+  await expect(panel.locator('.sect-h', { hasText: 'Geo Seg' })).toContainText('8) Geo Seg | FA GEO »');
+  await expect(panel.locator('.sect-h', { hasText: 'Prod Seg' })).toContainText('9) Prod Seg | FA PROD »');
+  await panel.locator('.tab', { hasText: 'Ratios' }).click();
   await expect(panel.locator('.sect-h', { hasText: 'Per Share Data' })).toBeVisible();
+  // Scranton manual p.28: the top block with links 7) to 9) to the statements, then six boxes in this order.
+  await expect(panel.locator('.des-fy dt')).toHaveText(['Fiscal Year End', 'Last Quarter End', 'Current/T12M']);
+  await expect(panel.locator('.des-fy-links .des-link')).toHaveText(['7) Income Statements (FA IS)', '8) Balance Sheet (FA BS)', '9) Cash Flow (FA CF)']);
+  await expect(panel.locator('.cols-3 .sect-h')).toHaveText(['Issue Data▤', 'Per Share Data▤', 'Cash Flow Analysis▤', 'Growth Potential▤', 'Profitability▤', 'Structure▤']);
+  await expect(panel.locator('.sect', { hasText: 'Structure' }).locator('dt')).toHaveText(['Curr Ratio', 'Quick Ratio', 'Debt/Assets', 'Debt/Com Eq', 'A/R Trnovr', 'Inv Turnover', 'GM', 'EBIT/Tot Int Exp']);
   await run(page, '1');
   await run(page, '9');
   await expect(panel.locator('.fnh-code').first()).toHaveText('EARNINGSSUMMARY');

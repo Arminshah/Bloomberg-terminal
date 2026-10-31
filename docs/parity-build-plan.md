@@ -38,9 +38,13 @@ M2. Navigation, keyboard and menus
 - [x] 2.3 Keyboard table and gaps (`59b9b6a`)
 - [x] 2.4 Command grammar and plain-word search (`5ff7371`)
 - [x] 2.5 New-tab page (`4cc243b`)
-- [ ] 2.6 Codes and aliases
+- [x] 2.6 Codes and aliases (`3c63e94`)
 
 M3 to M5: ticked per screen, calculation and function as they are done (see sections M3, M4 and M5 below).
+
+M3. Screen parity
+- [x] DES: Profile (`b61bebc`), Revenue & EPS (`323e9e6`), Ratios (`2e252ee`), ESG (labelled blank, `b61bebc`); Issue Info has no newer picture, look unverified
+- [ ] FA
 
 ## 1. Rules that come before anything in this plan
 

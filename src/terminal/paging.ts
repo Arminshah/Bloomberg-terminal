@@ -110,7 +110,24 @@ export function geometryOf(el: HTMLElement): PageGeometry {
 }
 
 /** Moves a panel `count` pages; returns the page now shown, or undefined when the panel has nothing to page. */
+/**
+ * Screens whose pages are their tabs, as DES's "Page 1/5" counts its five tabs: PgDn and PgUp turn the tabs there
+ * instead of scrolling (FnHeader registers them with `paged`).
+ */
+const tabPagers = new Map<number, { page: number; pages: number; go: (page: number) => void }>();
+
+export function setTabPager(panel: number, pager: { page: number; pages: number; go: (page: number) => void } | undefined): void {
+  if (pager) tabPagers.set(panel, pager);
+  else tabPagers.delete(panel);
+}
+
 export function turnPage(panel: number, dir: 1 | -1, count = 1): PageState | undefined {
+  const tabs = tabPagers.get(panel);
+  if (tabs) {
+    const page = Math.max(1, Math.min(tabs.pages, tabs.page + dir * count));
+    if (page !== tabs.page) tabs.go(page);
+    return { page, pages: tabs.pages, step: 0, max: 0 };
+  }
   const el = pageTarget(panel);
   if (!el) return undefined;
   const state = pageState(geometryOf(el));

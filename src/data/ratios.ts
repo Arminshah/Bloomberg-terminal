@@ -36,6 +36,19 @@ export interface EquityRatios {
   interestCover: number;
   invTurnover: number;
   recvTurnover: number;
+  /** CPS: cash from operations per share, as DES's Ratios page lists it (Apple's 9.81 against EPS of 8.66, 2016). */
+  cfoPerShare: number;
+  /**
+   * The app's own measures for rows whose definition the provider does not publish (docs/bloomberg-parity.md):
+   * cash from operations over capital spending and dividends paid; free cash flow over dividends paid; interest paid
+   * over total debt (percent); the 1-year growth of debt plus equity (percent); operating income after the effective
+   * tax rate over debt plus equity (percent).
+   */
+  cashGenToReqd: number;
+  cashDividendCover: number;
+  effectiveInterest: number;
+  capitalGrowth: number;
+  returnOnCapital: number;
 }
 
 const ok = (v: number) => Number.isFinite(v);
@@ -51,7 +64,17 @@ function growth(a: number, b: number): number {
 export function equityRatios(ltm: FinPeriod, latest: FinPeriod | undefined, prior: FinPeriod | undefined, mcapRep: number): EquityRatios {
   const sh = ltm.shares;
   const pct = (v: number) => (ok(v) ? v * 100 : NaN);
+  const capex = Math.abs(ltm.capex);
+  const dividendsPaid = ok(ltm.dps) && sh > 0 ? ltm.dps * sh : NaN;
+  const taxRate = ok(ltm.tax) && ltm.pretax > 0 ? Math.min(Math.max(ltm.tax / ltm.pretax, 0), 1) : NaN;
+  const capital = (p: FinPeriod) => (ok(p.debt) && ok(p.equity) ? p.debt + p.equity : NaN);
   return {
+    cfoPerShare: div(ltm.cfo, sh),
+    cashGenToReqd: ok(capex) && ok(dividendsPaid) ? div(ltm.cfo, capex + dividendsPaid) : NaN,
+    cashDividendCover: ok(ltm.cfo) && ok(capex) ? div(ltm.cfo - capex, dividendsPaid) : NaN,
+    effectiveInterest: pct(div(Math.abs(ltm.interest), ltm.debt)),
+    capitalGrowth: latest && prior ? growth(capital(latest), capital(prior)) : NaN,
+    returnOnCapital: ok(ltm.opInc) && ok(taxRate) ? pct(div(ltm.opInc * (1 - taxRate), capital(ltm))) : NaN,
     pcf: div(mcapRep, ltm.cfo),
     pfcf: div(mcapRep, ltm.fcf),
     cfToNi: div(ltm.cfo, ltm.ni),
