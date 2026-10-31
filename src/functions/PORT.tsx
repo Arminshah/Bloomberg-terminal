@@ -424,6 +424,7 @@ export function PORT(_: FnProps) {
   // A half-typed position stays with the portfolio it was typed for: another tab starts with empty boxes.
   const active = portfolios.use((s) => s.active);
   const base = st.base ?? 'USD';
+  const fileBase = st.name.replace(/\W+/g, '_') || 'portfolio';
   const csv = () => [['Security', 'Quantity', 'Cost', 'Last', `Exposure ${base}`, `Entry ${base} per currency unit`], ...st.positions.map((p) => { const d = engine.get(p.id); const last = engine.quote(p.id)?.last; return [p.id, p.qty, p.cost, d ? last : 'Unknown security', d && last !== undefined ? p.qty * last * basePerPrice(d, base) : undefined, p.entryBase === base ? p.entryFx : '']; })];
   return (
     <div>
@@ -440,11 +441,42 @@ export function PORT(_: FnProps) {
         ]}
         tab={tab}
         onTab={setTab}
-        actions={
-          tab === 5
-            ? exportActions(panel, `${st.name.replace(/\W+/g, '_') || 'portfolio'}-transactions.csv`, transactionRows).map((a) => ({ ...a, label: `${a.label} transactions` }))
-            : exportActions(panel, `${st.name.replace(/\W+/g, '_') || 'portfolio'}.csv`, csv).map((a) => ({ ...a, label: `${a.label} holdings` }))
-        }
+        actions={[
+          // The red bar as the 2025 frame draws it (PT_PORT_Enterprise_attribution 0:09): Manage, Export and Settings
+          // without numbers. Each item does what the app already does, or opens the control that does it.
+          {
+            n: 9901,
+            bare: true,
+            label: 'Manage',
+            onClick: () => {},
+            menu: [
+              { label: 'New Portfolio', onClick: () => { if (!newPortfolio()) flash(panel, `At most ${MAX_PORTFOLIOS} portfolios`, 'error'); } },
+              { label: 'Add Holdings', onClick: () => setTab(2) },
+              { label: 'Record a Transaction', onClick: () => setTab(5) },
+              { label: 'Compliance Rules (COMPLIANCE)', sep: true, onClick: () => execute(panel, 'COMPLIANCE') },
+            ],
+          },
+          {
+            n: 9902,
+            bare: true,
+            label: 'Export',
+            onClick: () => {},
+            menu: [
+              ...exportActions(panel, `${fileBase}.csv`, csv).map((a) => ({ label: a.label === 'Copy' ? 'Copy Holdings' : 'Download Holdings as CSV', title: a.title, onClick: a.onClick })),
+              ...exportActions(panel, `${fileBase}-transactions.csv`, transactionRows).map((a, i) => ({ label: a.label === 'Copy' ? 'Copy Transactions' : 'Download Transactions as CSV', title: a.title, sep: i === 0, onClick: a.onClick })),
+            ],
+          },
+          {
+            n: 9903,
+            bare: true,
+            label: 'Settings',
+            onClick: () => {},
+            menu: [
+              { label: `Benchmark: ${engine.get(st.benchmark)?.ticker ?? st.benchmark} (set on 3) Performance)`, onClick: () => setTab(3) },
+              { label: `Base Currency: ${base} (set on 2) Holdings)`, onClick: () => setTab(2) },
+            ],
+          },
+        ]}
         controls={<PortfolioTabs />}
       />
       {tab === 1 ? <PortIntraday key={active} onHoldings={() => setTab(2)} /> : tab === 2 ? <Holdings key={active} /> : tab === 3 ? <PortfolioPerformance /> : tab === 4 ? <PortfolioRisk /> : <Transactions key={active} />}

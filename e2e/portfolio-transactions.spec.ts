@@ -99,10 +99,11 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   await run(page, '2');
   await expect(holdingRow.locator('td').nth(2)).toHaveText('20');
 
-  // The export on this tab is the transactions.
+  // Export ▾ on the red bar saves the transactions as well as the holdings.
   await run(page, '5');
   const saving = page.waitForEvent('download');
-  await panel.getByRole('button', { name: /Export transactions$/ }).click();
+  await panel.getByRole('button', { name: 'Export' }).click();
+  await page.getByRole('menuitem', { name: 'Download Transactions as CSV' }).click();
   const csv = await readFile((await (await saving).path())!, 'utf8');
   expect(csv).toContain('Date,Type,Security,Quantity,Price,Fee,Rate (USD per currency unit),Rate source,Rate into');
   expect(csv).toContain('2026-01-05,buy,AAPL US Equity,10,100,5,1,same currency,USD');
