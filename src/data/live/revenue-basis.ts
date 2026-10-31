@@ -10,7 +10,12 @@ import type { StatementSupplement } from './statement-supplements';
  */
 export function exxonRevenueDefinition(def: SecurityDef, facts: CompanyFacts, currency: string, kind: PeriodKind, end: number, selected: number, supplement: StatementSupplement, now: number): StatementBasisDefinition | undefined {
   const observation = supplement.observations.get('TotalRevenue');
-  if (def.id !== 'XOM US Equity' || ![34088, 2115436].includes(facts.cik) || !/^EXXON\s+MOBIL\s+CORP(?:ORATION)?\.?$/i.test(facts.name.trim())) return;
+  // Exxon Mobil Corporation (CIK 34088), or the holding company it put on top in 2026, ExxonMobil Holdings Corp (CIK
+  // 2115436), whose company facts carry the 10-Q filed on 3 August under its original accession and its own name.
+  const name = facts.name.trim();
+  const exxon = /^EXXON\s+MOBIL\s+CORP(?:ORATION)?\.?$/i.test(name);
+  const issuer = (facts.cik === 34088 && exxon) || (facts.cik === 2115436 && (exxon || /^EXXONMOBIL\s+HOLDINGS\s+CORP(?:ORATION)?\.?$/i.test(name)));
+  if (def.id !== 'XOM US Equity' || !issuer) return;
   if (currency !== 'USD' || kind !== 'quarter' || end !== Date.parse('2026-06-30T00:00:00Z')) return;
   if (selected !== 114_529e6 || supplement.row.get('TotalRevenue') !== 116_017e6) return;
   if (observation?.start !== '2026-04-01' || observation.end !== '2026-06-30' || observation.filed !== '2026-08-03'

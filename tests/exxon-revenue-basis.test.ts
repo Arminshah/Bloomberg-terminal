@@ -44,12 +44,21 @@ describe('reviewed Exxon revenue basis', () => {
     expect(difference.definition?.explanation).toContain('xom:SalesAndOtherOperatingRevenueMember');
   });
 
+  it("labels the holding company's facts, as the SEC now files them: ExxonMobil Holdings Corp, CIK 2115436", () => {
+    // data.sec.gov/api/xbrl/companyconcept/CIK0002115436/dei/EntityCommonStockSharesOutstanding.json, read 31 October
+    // 2026: entityName "ExxonMobil Holdings Corp"; the 10-Q facts keep the accession 0000034088-26-000093.
+    const holding = { ...facts(2115436), name: 'ExxonMobil Holdings Corp' };
+    expect(exxonRevenueDefinition(company, holding, 'USD', 'quarter', END, 114_529e6, supplement(), NOW)).toMatchObject({ label: 'Revenue basis difference', accession: ACCESSION });
+  });
+
   it('does not extend the label to another issuer, source identity, currency, period or amount', () => {
     const base = facts();
     const extra = supplement();
     expect(exxonRevenueDefinition(engine.get('CVX US Equity')!, base, 'USD', 'quarter', END, 114_529e6, extra, NOW)).toBeUndefined();
     expect(exxonRevenueDefinition(company, { ...base, cik: 1 }, 'USD', 'quarter', END, 114_529e6, extra, NOW)).toBeUndefined();
     expect(exxonRevenueDefinition(company, { ...base, name: 'Other company' }, 'USD', 'quarter', END, 114_529e6, extra, NOW)).toBeUndefined();
+    // The holding company's name under Exxon Mobil Corporation's own CIK is refused.
+    expect(exxonRevenueDefinition(company, { ...base, name: 'ExxonMobil Holdings Corp' }, 'USD', 'quarter', END, 114_529e6, extra, NOW)).toBeUndefined();
     expect(exxonRevenueDefinition(company, base, 'EUR', 'quarter', END, 114_529e6, extra, NOW)).toBeUndefined();
     expect(exxonRevenueDefinition(company, base, 'USD', 'annual', END, 114_529e6, extra, NOW)).toBeUndefined();
     expect(exxonRevenueDefinition(company, base, 'USD', 'quarter', END + 86_400_000, 114_529e6, extra, NOW)).toBeUndefined();
