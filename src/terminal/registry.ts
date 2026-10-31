@@ -38,7 +38,8 @@ import { MOST } from '../functions/MOST';
 import { TOPMOVERS } from '../functions/TOPMOVERS';
 import { EXCH } from '../functions/EXCH';
 import { EQS } from '../functions/EQS';
-import { BTMM, GC, WB, WBMV, WIRP } from '../functions/RATES';
+import { BTMM, GC, WBMV, WIRP } from '../functions/RATES';
+import { WB } from '../functions/WB';
 import { YAS } from '../functions/YAS';
 import { CRYP, FXC, GLCO, WCRS } from '../functions/FXMON';
 import { AGS, GAS, MINE, OIL } from '../functions/CMDSECTOR';
@@ -199,7 +200,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'FXFORWARD', name: 'Forward Rates', category: 'FX & Crypto', desc: 'FX forward points, outrights and contract PV from your simple deposit rates, day-count bases and input or source spot; calculated, with no dealer bid/ask quotes.', component: FRD, aliases: ['FORWARDS'], example: 'FXFORWARD EURUSD', suggested: ['MONEYMARKET', 'FXOPTION'] },
   { code: 'FXOPTION', name: 'FX Option Valuation', category: 'FX & Crypto', desc: 'Vanilla FX option pricer (Garman-Kohlhagen): premium in pips and percent, greeks and expiry P&L.', component: OVML, example: 'FXOPTION EURUSD' },
   // Rates
-  { code: 'BONDS', name: 'World Bond Markets', category: 'Rates & Credit', desc: 'Government yields by country and tenor with changes, spreads to Treasuries and Bunds, and curve slope.', component: WB, aliases: ['WORLDBONDS', 'SOVM'] },
+  { code: 'BONDS', name: 'World Bond Markets', category: 'Rates & Credit', desc: "Government yields by region at a chosen maturity, with the day's change and a data range (low, average, latest, high); spreads to any country and curve slopes with their standard deviations and RSI; a country opens its headlines and other markets.", component: WB, aliases: ['WORLDBONDS', 'SOVM'] },
   { code: 'BONDMOVERS', name: 'World Bond Movers', category: 'Rates & Credit', desc: 'Every government yield the app has, ranked by how far it moved over a day, five days, a month or the year to date: the markets with the most price action first.', component: WBMV },
   { code: 'CURVE', name: 'Graph Curves', category: 'Rates & Credit', desc: 'Yield curves (US, Germany, UK, Japan) today versus one week, one month and one year ago.', component: GC, aliases: ['CURVES', 'YIELDS'] },
   { code: 'CURVEMENU', name: 'Yield Curve Analysis', category: 'Rates & Credit', desc: "A menu of the yield curve screens: each country's curve now and in the past, then the bond monitors and calculators.", component: IYC },
