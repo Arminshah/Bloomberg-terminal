@@ -21,6 +21,8 @@ import { loadInsiders, summarize } from '../data/live/insiders';
 import { wantShares } from '../data/live/shares';
 import { usePeers } from '../data/live/peers';
 import { engine, useQuote, useTick } from '../data/market';
+import { epsText, fiscalGrid, fiscalYearOf, GRID_ROWS, revenueText } from '../data/fiscal-grid';
+import { useSegments, type SegmentState } from '../data/live/segments';
 import { equityRatios } from '../data/ratios';
 import type { SecurityDef } from '../data/types';
 import { COUNTRY_NAMES } from '../data/eco';
@@ -53,13 +55,13 @@ function useFnName(): (code: string) => string {
  * A DES box: a grey heading with its number and the function it opens, "11) Price Chart (GP)", as the terminal's
  * description page shows them. The number typed with GO opens the function, as a click on the heading does.
  */
-export function Box({ n, title, fn, sec, right, children }: { n?: number; title: string; fn?: string; sec: SecurityDef; right?: ReactNode; children: ReactNode }) {
+export function Box({ n, title, fn, link, sec, right, children }: { n?: number; title: string; fn?: string; link?: string; sec: SecurityDef; right?: ReactNode; children: ReactNode }) {
   const panel = usePanelId();
   const name = useFnName();
   const head = (
     <>
       {n != null && <b className="des-n">{n})</b>} {title}
-      {fn && <span className="des-fn"> | {name(fn)} »</span>}
+      {fn && <span className="des-fn"> | {link ?? name(fn)} »</span>}
     </>
   );
   return (
@@ -596,8 +598,107 @@ function RatiosPage({ sec }: { sec: SecurityDef }) {
 
 // ---------------------------------------------------------------- 4) Revenue & EPS
 
+/** A line of yearly figures over the quarters' bars, reported in orange and estimated in grey (TE01 02:31). */
+function FiscalChart({ years, cells }: ReturnType<typeof fiscalGrid>) {
+  const fyVals = cells.FY.map((c) => (c ? c.value : NaN));
+  const qVals = years.flatMap((_, i) => (['Q1', 'Q2', 'Q3', 'Q4'] as const).map((r) => cells[r][i]));
+  // The yearly line spans its own range, as the terminal's does; the bars stand on zero.
+  const finite = fyVals.filter(Number.isFinite);
+  const top = finite.length ? Math.max(...finite) : 1;
+  const low = finite.length ? Math.min(...finite) : 0;
+  const qTop = Math.max(...qVals.map((c) => (c ? c.value : NaN)).filter(Number.isFinite), 0);
+  const qLow = Math.min(...qVals.map((c) => (c ? c.value : NaN)).filter(Number.isFinite), 0);
+  const W = 300;
+  const x = (i: number) => 14 + (i + 0.5) * ((W - 28) / years.length);
+  const yLine = (v: number) => 50 - ((v - low) / (top - low || 1)) * 40;
+  const slot = (W - 28) / (years.length * 4);
+  const zero = 118 - ((0 - qLow) / (qTop - qLow || 1)) * 52;
+  const pts = fyVals.map((v, i) => (Number.isFinite(v) ? [x(i), yLine(v)] : null)).filter((pt): pt is number[] => !!pt);
+  return (
+    <svg className="fisc-chart" viewBox={`0 0 ${W} 122`} preserveAspectRatio="none" aria-hidden="true">
+      <line x1="14" x2={W - 14} y1="56" y2="56" stroke="#333" />
+      {pts.length > 1 && <polyline points={pts.map((pt) => pt.join(',')).join(' ')} fill="none" stroke="#d9d9d9" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />}
+      {fyVals.map((v, i) => (Number.isFinite(v) ? <circle key={i} cx={x(i)} cy={yLine(v)} r="2.2" fill={cells.FY[i]?.estimate ? '#9a9a9a' : '#fe9f11'} /> : null))}
+      {qVals.map((c, i) => {
+        if (!c) return null;
+        const h = ((Math.abs(c.value) - 0) / (qTop - qLow || 1)) * 52;
+        return <rect key={i} x={14 + i * slot + slot * 0.15} width={slot * 0.7} y={c.value >= 0 ? zero - h : zero} height={Math.max(1, h)} fill={c.estimate ? '#b8b8b8' : '#fe9f11'} />;
+      })}
+    </svg>
+  );
+}
+
+/** FY and Q1 to Q4 by fiscal year under the chart, reported in amber and estimated in white. */
+function FiscalTable({ grid, ccy, text }: { grid: ReturnType<typeof fiscalGrid>; ccy: string; text: (v: number) => string }) {
+  return (
+    <table className="tbl fisc-tbl">
+      <thead>
+        <tr>
+          <th>({ccy})</th>
+          {grid.years.map((y) => <th key={y} className="num">{y}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {GRID_ROWS.map((r) => (
+          <tr key={r}>
+            <td className="amber">{r}</td>
+            {grid.cells[r].map((c, i) => <td key={i} className={`num ${c ? (c.estimate ? 'white' : 'amber') : ''}`} title={c?.estimate ? 'Analysts\' estimate' : undefined}>{c ? text(c.value) : ''}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** A segment box (8) Geo Seg, 9) Prod Seg): the latest fiscal year's revenue by line with its growth, from the 10-K. */
+function SegmentBox({ n, title, link, sec, state, breakdown, fye }: { n: number; title: string; link: string; sec: SecurityDef; state: SegmentState | undefined; breakdown: 'geography' | 'product'; fye: number }) {
+  const table = state?.state === 'ok' ? state.report.tables.find((t) => t.breakdown === breakdown && t.metric === 'revenue') : undefined;
+  const latest = table?.periods[0];
+  const first = table?.periods.at(-1);
+  const span = table ? table.periods.length - 1 : 0;
+  const lines = table && latest ? table.lines.filter((l) => !l.parent && Number.isFinite(l.values[latest.end])).sort((a, b) => b.values[latest.end] - a.values[latest.end]).slice(0, 5) : [];
+  const max = Math.max(...lines.map((l) => l.values[latest!.end]), 1);
+  const year = latest ? fiscalYearOf(Date.parse(`${latest.end}T00:00:00Z`), fye) : undefined;
+  const why = !engine.realOnly ? 'Segments come from the company\'s latest 10-K, read by the desktop app' : state?.state === 'none' || state?.state === 'error' ? state.message : 'Loading the segments from the latest 10-K…';
+  return (
+    <Box n={n} title={title} fn="FINANCIALS SEG" link={link} sec={sec}>
+      {lines.length && latest ? (
+        <table className="tbl seg-tbl">
+          <thead>
+            <tr>
+              <th />
+              <th className="num">{year} Rev</th>
+              <th className="num" title={`Compound annual growth over the ${span} years the 10-K reports`}>{span}Yr Gr</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((l) => {
+              const v = l.values[latest.end];
+              const base = first ? l.values[first.end] : NaN;
+              const g = span > 0 && base > 0 && v > 0 ? ((v / base) ** (1 / span) - 1) * 100 : NaN;
+              return (
+                <tr key={l.member}>
+                  <td className="amber ellipsis" style={{ maxWidth: 200 }}>{l.label}</td>
+                  <td className="num seg-bar" style={{ ['--w' as string]: `${(v / max) * 100}%` }}>{revenueText(v / 1e6)}</td>
+                  <td className="num">{Number.isFinite(g) ? `${fmtNum(g, 2)}%` : ''}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <p className="pad-s muted">{why}</p>
+      )}
+    </Box>
+  );
+}
+
 function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
   const analysts = useAnalystSnapshot(sec);
+  const eqDef = sec.eq!;
+  const est = useAnalysts(analystsAvailable() && analystSymbol(sec) ? sec : undefined, ['estimates']);
+  const estList = (est.estimates as AnalystPart<Estimate[]> | undefined)?.state === 'ok' ? (est.estimates as AnalystPart<Estimate[]>).data ?? [] : [];
+  const segments = useSegments(sec, engine.realOnly);
   const mix = getRealFund(sec.id) ? [] : revenueMix(sec);
   const f = financials(sec);
   const ccy = reportCcy(sec);
@@ -606,7 +707,10 @@ function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
   const hist = earningsHistory(sec).filter((x) => x.actual != null || x.revAct != null).slice(-8).reverse();
   const next = nextEarnings(sec);
   const estimate = useNextQuarterEstimate(sec);
-  const maxRev = Math.max(...years.map((y) => y.rev).filter(Number.isFinite), 1);
+  const fye = eqDef.fye || 12;
+  const estYears = (get: (e: Estimate) => number) => estList.map((e) => ({ year: fiscalYearOf(Date.parse(`${e.date}T00:00:00Z`), fye), value: get(e) }));
+  const revGrid = fiscalGrid(f.annual, f.quarterly, fye, (p) => p.rev, estYears((e) => e.revenueAvg / 1e6));
+  const epsGrid = fiscalGrid(f.annual, f.quarterly, fye, (p) => p.eps, estYears((e) => e.epsAvg));
   if (!years.length) return <div className="empty">{engine.realOnly ? 'Loading the statements from Yahoo Finance…' : 'No statements for this company.'}</div>;
   const table = (cols: typeof years, title: string) => (
     <Section title={title} right={`${ccy} millions; EPS in ${ccy}`}>
@@ -662,26 +766,23 @@ function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
   );
   return (
     <>
+      {/* The terminal's page 4 (TE01 02:31): revenue and EPS by fiscal year and quarter, then the segments. */}
+      <div className="des-grid des-grid-2">
+        <Box n={6} title="Comparable Revenue" fn="EARNINGSTREND" sec={sec}>
+          <FiscalChart {...revGrid} />
+          <FiscalTable grid={revGrid} ccy={ccy} text={revenueText} />
+        </Box>
+        <Box n={7} title="Comparable Earnings Per Share" fn="EARNINGSTREND" sec={sec}>
+          <FiscalChart {...epsGrid} />
+          <FiscalTable grid={epsGrid} ccy={ccy} text={epsText} />
+        </Box>
+      </div>
+      <div className="fisc-legend">(Fiscal Period: <span className="amber">Reported</span>, <span className="white">Estimated</span>)</div>
+      <div className="des-grid des-grid-2">
+        <SegmentBox n={8} title="Geo Seg" link="FA GEO" sec={sec} state={segments} breakdown="geography" fye={fye} />
+        <SegmentBox n={9} title="Prod Seg" link="FA PROD" sec={sec} state={segments} breakdown="product" fye={fye} />
+      </div>
       <div className="cols">
-        <Section title="Revenue by fiscal year" right="reported">
-          <table className="tbl">
-            <tbody>
-              {years.map((y) => (
-                <tr key={y.label}>
-                  <td style={{ width: 70 }} className="amber">
-                    {y.label}
-                  </td>
-                  <td>
-                    <HBar value={y.rev} max={maxRev} color="var(--amber)" />
-                  </td>
-                  <td className="num" style={{ width: 90 }}>
-                    {fmtMln(y.rev)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Section>
         <Section title="Next report">
           <KV items={[['Date', <NextEarnings key="d" sec={sec} ne={next} />], [estimate.label, lineValue(estimate)]]} />
           <MissingNotes lines={[estimate]} />

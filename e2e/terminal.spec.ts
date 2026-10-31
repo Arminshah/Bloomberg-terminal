@@ -371,6 +371,18 @@ test('DES pages and numbered boxes, the security in the red bar and typed chart 
   await expect(panel.locator('.sect-h', { hasText: 'Analyst Ratings' })).toHaveCount(0);
   await run(page, '3');
   await expect(panel.locator('.tab.on')).toHaveText('Ratios');
+  // Page 4 (TE01 02:31): 6) and 7) side by side, each a chart over FY and Q1 to Q4 by fiscal year, then 8) Geo Seg and
+  // 9) Prod Seg.
+  await panel.locator('.tab', { hasText: 'Revenue & EPS' }).click();
+  await expect(panel.locator('.sect-h', { hasText: 'Comparable Revenue' })).toContainText('6) Comparable Revenue | EM »');
+  await expect(panel.locator('.sect-h', { hasText: 'Comparable Earnings Per Share' })).toContainText('7)');
+  await expect(panel.locator('.fisc-tbl').first().locator('tbody td:first-child')).toHaveText(['FY', 'Q1', 'Q2', 'Q3', 'Q4']);
+  await expect(panel.locator('.fisc-tbl').first().locator('thead th')).toHaveCount(7);
+  await expect(panel.locator('.fisc-tbl').first().locator('tbody tr').first().locator('td.amber').nth(1)).toHaveText(/^\d[\d,]*\.\dB$/);
+  await expect(panel.locator('.fisc-legend')).toHaveText('(Fiscal Period: Reported, Estimated)');
+  await expect(panel.locator('.sect-h', { hasText: 'Geo Seg' })).toContainText('8) Geo Seg | FA GEO »');
+  await expect(panel.locator('.sect-h', { hasText: 'Prod Seg' })).toContainText('9) Prod Seg | FA PROD »');
+  await panel.locator('.tab', { hasText: 'Ratios' }).click();
   await expect(panel.locator('.sect-h', { hasText: 'Per Share Data' })).toBeVisible();
   await run(page, '1');
   await run(page, '9');

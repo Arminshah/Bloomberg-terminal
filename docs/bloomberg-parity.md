@@ -206,6 +206,17 @@ Inventory of the 2025 page, top to bottom: red bar with the security box, 98) Re
 - Not done: 6) BI Research Primer (the provider's research), Multi-shares (EV) and the employees' date (no source gives them), the price chart's right-hand axis, 98) Report and 99) Contact IR.
 - Checked: `e2e/terminal.spec.ts` (tab labels and colours, Page 1/6, PgDn and PgUp, no numbers on 12M Tot Ret and Beta, 21) Depositary Receipts, no Ownership or Analyst Ratings box), `tests/des-profile-format.test.ts`, the whole browser suite.
 
+### M3 DES, Revenue & EPS page (E3)
+
+Evidence: TE01 02:31 (GOOGL, page 4/5, recorded October 2023).
+
+Inventory of the frame: 6) Comparable Revenue | EM and 7) Comparable Earnings Per Share | EM side by side, each a line of yearly figures over the quarters' bars (reported orange, estimates grey) and, under it, a table headed by the currency with six fiscal years as columns and FY, Q1 to Q4 as rows (revenue in billions with one decimal, EPS with three decimals and no leading zero below one); the line "(Fiscal Period: Reported, Estimated)"; then 8) Geo Seg | FA GEO and 9) Prod Seg | FA PROD, each listing the latest year's revenue by line in green bar cells and its 3-year growth.
+
+- Now: the page opens with that layout. The figures are the app's own: reported revenue and diluted EPS from the statements, placed in their fiscal year and quarter by the company's fiscal year-end month (52- and 53-week years included); a year with nothing reported takes the analysts' consensus (Yahoo Finance, FMP or Finnhub), in white where reported figures are amber. Revenue reads "131.8B", EPS ".541" or "2.33". Geo Seg and Prod Seg come from the latest 10-K's XBRL (the desktop app, as FA SEG), the latest fiscal year's revenue by line with a green bar sized to the largest. 6) and 7) open EM, 8) and 9) open FA's segments.
+- Different: the growth column is compound annual growth over the years the 10-K reports, two in most filings, labelled "2Yr Gr" rather than "3Yr Gr"; three years would need the 10-K before it. Quarters have no estimates in the app's sources except the next one, so quarterly bars are reported only. The browser demo has no 10-K, so the segment boxes say so.
+- Kept below the terminal's layout, the app's own: next report and its estimate, the annual and quarterly statement lines with growth and net income, the reported earnings, the analysts' ratings and the demo's regions.
+- Checked: `tests/fiscal-grid.test.ts` (fiscal year and quarter for September and December year ends and a 53-week year, reported and estimated cells, the number formats), `e2e/terminal.spec.ts` (headings, rows, columns, format, legend, segment boxes), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

@@ -1200,6 +1200,13 @@ a.sear-title:hover { text-decoration: underline; }
 .welc-combo { display: flex; gap: 6px; }
 .welc-key { min-width: 34px; padding: 3px 9px; background: #4a4a4a; color: var(--white); text-align: center; font-family: var(--sans); font-size: var(--fs); border-radius: 0; }
 
+/* DES page 4 (TE01 02:31): two boxes side by side, a chart over FY and Q1 to Q4; segment rows with a green bar. */
+.des-grid-2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); }
+.fisc-chart { display: block; width: 100%; height: 122px; background: #000; }
+.fisc-tbl td, .fisc-tbl th { padding: 0 6px; }
+.fisc-legend { padding: 2px 8px 6px; color: #b0b0b0; }
+.seg-bar { background: linear-gradient(90deg, #1f5e2a var(--w, 0%), transparent var(--w, 0%)); color: var(--white); }
+
 /* ------------------------------------------------------------- mobile */
 @media (max-width: 760px) {
   .workspace { grid-template: 1fr / 1fr !important; }
