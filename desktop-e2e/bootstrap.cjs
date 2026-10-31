@@ -187,6 +187,21 @@ net.fetch = async (input, init) => {
     const xml = `<worksheet><sheetData>${rows.map((r, i) => `<row r="${i + 1}">${r.map((v, c) => cell(`${String.fromCharCode(65 + c)}${i + 1}`, v)).join('')}</row>`).join('')}</sheetData></worksheet>`;
     return new Response(storedZip('xl/worksheets/sheet1.xml', Buffer.from(xml, 'utf8')), { status: 200 });
   }
+  // With fixtures.asic, ASIC's index of three published days, the ones SI samples (the latest, a 15th's and the last
+  // month end's weekday), and their files in ASIC's layout: BHP's made-up position grows from 1.50% to 1.62%.
+  if (fixtures.asic && url.hostname === 'download.asic.gov.au') {
+    fixtures.calls.asic = [...(fixtures.calls.asic ?? []), url.pathname];
+    const weekday = (t) => { while ([0, 6].includes(new Date(t).getUTCDay())) t -= DAY_MS; return new Date(t).toISOString().slice(0, 10); };
+    const latest = new Date(`${weekdaysBack(1)[0]}T00:00:00Z`);
+    const [y, m] = [latest.getUTCFullYear(), latest.getUTCMonth()];
+    const mid = Date.UTC(y, m, 15) < latest.getTime() ? Date.UTC(y, m, 15) : Date.UTC(y, m - 1, 15);
+    const days = [latest.toISOString().slice(0, 10), weekday(mid), weekday(Date.UTC(y, m, 0))];
+    if (url.pathname.endsWith('/short-selling-data.json')) return json(days.map((d) => ({ date: Number(d.replace(/-/g, '')), version: '001' })));
+    const k = days.findIndex((d) => url.pathname.includes(`RR${d.replace(/-/g, '')}-001-`));
+    if (k < 0) return new Response('', { status: 404 });
+    const short = [82537252, 79000000, 76262736][k];
+    return new Response(['Product,Product Code,Reported Short Positions,Total Product in Issue,% of Total Product in Issue Reported as Short Positions', `BHP GROUP LIMITED ORDINARY,BHP,${short},5084182410,${(short / 5084182410) * 100}`].join('\r\n'), { status: 200, headers: { 'Content-Type': 'text/csv' } });
+  }
   if (fixtures.treasuryCurve && url.hostname === 'home.treasury.gov') {
     return new Response(treasuryCsv(url.pathname.split('/').at(-2)), { status: 200, headers: { 'Content-Type': 'text/csv' } });
   }

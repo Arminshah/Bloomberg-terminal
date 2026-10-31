@@ -1096,6 +1096,10 @@ const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(ur
     if (provider === 'datasets') {
       return /^\uFEFF?Symbol,Security,GICS Sector,GICS Sub-Industry/.test(text) ? null : { kind: 'schema-changed', message: 'The S&P 500 member list changed its format.' };
     }
+    if (provider === 'asic') {
+      const ok = url.endsWith('.json') ? /^\s*\[/.test(text) : /^\uFEFF?Product,Product Code,/.test(text);
+      return ok ? null : { kind: 'schema-changed', message: 'ASIC changed its short position files.' };
+    }
     if (provider === 'nasdaq') {
       const checks = require('./nasdaq.cjs');
       const message = new URL(url).pathname.endsWith('/option-chain') ? checks.nasdaqOptionProblem(text) : checks.nasdaqProblem(text);
@@ -1261,6 +1265,15 @@ ipcMain.handle('index-members', async (event, kind, arg) => {
   if (!req) throw new Error('not allowed');
   // Wikimedia asks programs to name themselves and say how to reach their author: the app's own agent does both.
   return keyedGet(req.provider, req.url, req.headers, req.ttl, req.provider === 'nasdaq' ? [60, 60_000] : [10, 60_000], [], req.provider === 'wikipedia' ? clientAgent() : nasdaqAgent());
+});
+
+// ASIC's daily aggregated short positions (electron/asic.cjs), for SI on ASX stocks: the index of published days,
+// then the days the page picks from it. A day's file never changes; the index is kept three hours.
+const asic = require('./asic.cjs');
+ipcMain.handle('asic', async (event, kind, date, version) => {
+  const req = asic.asicRequest(kind, date, version);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  return keyedGet('asic', req.url, { Accept: kind === 'index' ? 'application/json' : 'text/csv' }, req.ttl, [60, 60_000], [], clientAgent());
 });
 
 // State Street's SPDR holdings files (electron/spdr.cjs): SPY's shares of each S&P 500 member weight SPX's members,

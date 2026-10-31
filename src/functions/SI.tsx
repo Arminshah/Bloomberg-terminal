@@ -13,6 +13,7 @@ import { loadCompanyFacts, resolveFiler, secAvailable, secTicker, useSecLoad, ty
 import { realSplits } from '../data/live/yahoo';
 import { coverShareCounts } from '../data/marketcap';
 import { pctOfSharesAt } from '../data/shortinterest';
+import { asxCode, useAsicShort } from '../data/live/asic';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
 
@@ -28,7 +29,12 @@ const RANGES = [
  * beside the price. Each settlement's share of the shares outstanding takes the SEC cover count dated on or before
  * it; the share of the float is given for the latest settlement only, against today's float (no dated float exists).
  */
-export function SI({ sec }: FnProps) {
+export function SI(props: FnProps) {
+  // ASX stocks have ASIC's daily aggregated short positions; every other stock FINRA's record (US listings).
+  return asxCode(props.sec) ? <AsxShortInterest {...props} /> : <UsShortInterest {...props} />;
+}
+
+function UsShortInterest({ sec }: FnProps) {
   const s = sec!;
   useTick(10);
   const panel = usePanelId();
@@ -186,6 +192,94 @@ export function SI({ sec }: FnProps) {
             average daily volume (days to cover). % Shrs Out: each settlement&apos;s short interest over the shares outstanding then, the count on the cover of the SEC filing
             dated on or before it (a split between the two dates applied; hover for the count and its date), blank without one. % Current Float: the latest settlement only, over today&apos;s
             float{float ? '' : ', which the source did not give this time'}, as no float is published for earlier dates.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * SI for an ASX stock: ASIC's daily aggregated short positions, the shares reported short over the product in issue,
+ * on the latest published day and on two days a month (mid-month and month end) over two years. Positions are those of
+ * four trading days before ASIC publishes them.
+ */
+function AsxShortInterest({ sec }: FnProps) {
+  const s = sec!;
+  const panel = usePanelId();
+  const [range, setRange] = useState(2);
+  const { available, code, rows: all, loading, problem } = useAsicShort(s);
+  const days = RANGES.find((r) => r.n === range)!.days;
+  const from = engine.today * DAY_MS - days * DAY_MS;
+  const at = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+  const rows = all.filter((r) => at(r.date) >= from);
+  const latest = all[0];
+  const prior = all[1];
+  const asc = [...rows].reverse();
+  const daily = engine.daily(s.id);
+  const price = daily.length ? asc.map((r) => ({ x: at(r.date), y: closeAt(daily, at(r.date)), label: fmtDay(at(r.date)) })) : [];
+  const csv = () => [['Position Date', 'Reported Short Positions', 'Total Product in Issue', '% Short', 'Source'], ...rows.map((r) => [r.date, r.short, r.issued, r.pct, 'ASIC daily aggregated short positions (CC BY 4.0)'])];
+  return (
+    <div>
+      <FnHeader code="SHORTINTEREST" title="Short Interest" sec={s} tabs={RANGES.map((r) => ({ n: r.n, label: r.label }))} tab={range} onTab={setRange}
+        actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_SI.csv`, csv)} />
+      {!available ? (
+        <div className="empty">ASX short positions come from ASIC&apos;s daily files, read by the desktop app.</div>
+      ) : !latest ? (
+        <div className="empty">{loading ? 'Reading ASIC\u2019s short position files…' : problem ?? `ASIC reports no short position in ${code}.`}</div>
+      ) : (
+        <>
+          <div className="si-top">
+            <KV
+              items={[
+                ['Position Date', fmtDay(at(latest.date))],
+                ['Reported Short Positions', `${fmtBig(latest.short, 2)}${prior ? `  (${fmtPct(prior.short ? (latest.short / prior.short - 1) * 100 : NaN, 1)} since ${fmtDay(at(prior.date))})` : ''}`],
+                ['Short % of Product in Issue', `${fmtNum(latest.pct, 2)}%${prior ? `  (${fmtNum(latest.pct - prior.pct, 2)} pts)` : ''}`],
+                ['Product in Issue', fmtBig(latest.issued, 3)],
+              ]}
+            />
+            <XYChart
+              height={170}
+              series={[
+                { label: 'Price', color: '#e8e8e8', points: price },
+                { label: 'Short %', color: '#ff9e1b', points: asc.map((r) => ({ x: at(r.date), y: r.pct, label: fmtDay(at(r.date)) })), axis: 'left', markers: true },
+              ]}
+              xFormat={(v) => fmtDay(v)}
+              yFormat={(v) => fmtNum(v, 2)}
+              y2Format={(v) => fmtNum(v, 2)}
+            />
+          </div>
+          <table className="tbl zebra" data-testid="asic-short">
+            <thead>
+              <tr>
+                <th>Position Date</th>
+                <th className="num">Reported Short</th>
+                <th className="num">Change</th>
+                <th className="num hide-m">Product in Issue</th>
+                <th className="num">% Short</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => {
+                const before = rows[i + 1];
+                const d = before ? r.short - before.short : NaN;
+                return (
+                  <tr key={r.date}>
+                    <td className="amber">{fmtDay(at(r.date))}</td>
+                    <td className="num white">{fmtNum(r.short, 0)}</td>
+                    <td className={`num ${d > 0 ? 'up' : d < 0 ? 'dn' : ''}`}>{Number.isFinite(d) ? `${d > 0 ? '+' : ''}${fmtNum(d, 0)}` : ''}</td>
+                    <td className="num hide-m">{fmtNum(r.issued, 0)}</td>
+                    <td className="num">{fmtNum(r.pct, 2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="pad-s muted">
+            ASIC&apos;s daily aggregated short positions: the short positions reported to ASIC in each product, over the product in issue, as of four trading days before ASIC
+            publishes them. Shown: the latest published day, and the last day published on or before each 15th and each month end. ASX has no days-to-cover or settlement
+            record like FINRA&apos;s. Source: © Australian Securities &amp; Investments Commission, licensed under CC BY 4.0.
+            {loading ? ' Reading more days…' : ''}
           </p>
         </>
       )}

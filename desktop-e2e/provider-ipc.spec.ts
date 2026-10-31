@@ -74,7 +74,8 @@ interface Fixtures {
   nasdaqOptions?: boolean;
   treasuryCurve?: boolean;
   spdr?: boolean;
-  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  asic?: boolean;
+  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -1691,6 +1692,24 @@ test("State Street's SPY holdings cross the bridge as stock lines, kept six hour
   expect((await calls(app)).ssga).toEqual(['/library-content/products/fund-data/etfs/us/holdings-daily-us-en-spy.xlsx']);
   const refused = await page.evaluate(async () => {
     try { await window.arminDesktop!.spdrHoldings!('QQQ' as 'SPY'); return false; } catch { return true; }
+  });
+  expect(refused).toBe(true);
+});
+
+test("SI shows an ASX stock's short positions from ASIC's daily files", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.asic = true; });
+  await command(page, 'BHP AU Equity SHORTINTEREST', 'SHORTINTEREST');
+  const table = page.getByTestId('asic-short');
+  await expect(table.locator('tbody tr')).toHaveCount(3, { timeout: 30_000 });
+  await expect(table.locator('tbody tr').first().locator('td').nth(1)).toHaveText('82,537,252');
+  await expect(table.locator('tbody tr').first().locator('td').nth(4)).toHaveText('1.62');
+  await expect(page.locator('.panel').first()).toContainText('Australian Securities & Investments Commission, licensed under CC BY 4.0');
+  const asked = (await calls(app)).asic ?? [];
+  expect(asked[0]).toBe('/short-selling/short-selling-data.json');
+  expect(asked.slice(1).every((p) => /^\/short-selling\/RR\d{8}-001-SSDailyAggShortPos\.csv$/.test(p))).toBe(true);
+  // Only the index and real days cross the bridge.
+  const refused = await page.evaluate(async () => {
+    try { await window.arminDesktop!.asic!('day', '../../etc', '001'); return false; } catch { return true; }
   });
   expect(refused).toBe(true);
 });

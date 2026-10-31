@@ -51,6 +51,7 @@ In the desktop app, every request below goes out from the Electron main process 
 | Wikipedia | The FTSE 100's members with ticker, ISIN and ICB sector (`SCREEN`'s FTSE 100 universe) | MediaWiki Action API (`parse`) | None | Enabled (desktop) |
 | TipRanks | Analyst consensus, average price target, Smart Score and recent rating actions (`ANALYSTS`), on request | MCP server | `TIPRANKS_API_KEY` | On request only, 45 calls a month at most, switch `TIPRANKS_ENABLED` |
 | Anthropic | Answers to open questions on the help desk (`MESSAGES`), with the app's own data as tools | Messages API | `ANTHROPIC_API_KEY` | Enabled once the key is set, switch `CLAUDE_HELPDESK_ENABLED`; without it the built-in assistant answers |
+| ASIC (short position reports) | `SHORTINTEREST` for ASX stocks: shares reported short, product in issue and the share short | Daily CSV files and their index | None | Enabled (desktop); see [ASIC's short position reports](#asics-short-position-reports) |
 | State Street (SPDR holdings) | SPY's holdings, which weight the S&P 500's members (index boards, `MEMB`) and give their SEDOL and CUSIP (the ISIN on `DES`); DIA's, the Dow's members when Yahoo gives none | Daily XLSX files | None | Enabled (desktop); see [State Street's holdings files](#state-streets-holdings-files) |
 | Nasdaq option chains | Listed options of US stocks and ETFs, NDX and XND: composite bid, ask, last, change, the day's volume and open interest (`OPTIONS`) | JSON behind nasdaq.com's option-chain page | None | Enabled (desktop); see [Nasdaq option chains](#nasdaq-option-chains) |
 | Binance | | Spot REST API | | Evaluated, not connected (see below) |
@@ -534,6 +535,15 @@ Read and tested on 31 October 2026. `electron/spdr.cjs` reads two daily workbook
 - DES identifiers: an S&P 500 member's SEDOL1 is SPY's, and its ISIN is "US", its CUSIP from SPY and the ISO 6166 check digit when the SEC records the company as incorporated in a US state (the 29 members incorporated abroad, with CINS codes such as Accenture's G1151C101, carry their home country's ISIN, which is not derived). All 503 CUSIPs and SEDOLs in the file of 29 October 2026 passed their check digits; a code that fails is not shown.
 - Dow membership: when Yahoo gives none, DIA's 30 tickers before the list kept in the app. DIA held Alphabet and not Verizon on 29 October 2026, as S&P Dow Jones Indices announced on 23 June 2026.
 - Terms: State Street's [terms](https://www.ssga.com/us/en/footer/terms-and-conditions) forbid copying or disseminating the site's information "except for the purpose of accessing the Site and producing print-outs for your own personal use". They say nothing about automated reading, and `robots.txt` does not disallow `/library-content/products/fund-data/`. The app reads the two files for its owner's display, at most every six hours, in memory only.
+
+## ASIC's short position reports
+
+Read and tested on 31 October 2026. For an ASX stock `SHORTINTEREST` reads ASIC's daily aggregated short positions (`electron/asic.cjs`): the index `https://download.asic.gov.au/short-selling/short-selling-data.json` (every published day since 16 June 2010, each with a version), then day files `RR{YYYYMMDD}-{version}-SSDailyAggShortPos.csv` with Product, Product Code, Reported Short Positions, Total Product in Issue and the percentage reported short (792 products on 26 October 2026; names with commas are quoted). Positions are those of four trading days before publication (26 October's file was dated 30 October). One file covers every product, so the files are shared by all ASX stocks; the screen shows the latest day and the last day published on or before each 15th and month end over two years (about 50 files, kept a week each).
+
+- Check: on 26 October 2026 ASIC gave Pilbara Minerals (PLS) 15.366% short, and the data survey of 31 October found ShortMan, which republishes ASIC's figures, at 15.37%. BHP was 1.62% (82,537,252 of 5,084,182,410 shares).
+- Terms: ASIC's [copyright page](https://www.asic.gov.au/about-asic/dealing-with-asic/copyright-and-linking-to-our-websites) lists short selling position reporting data among the material that may be reproduced under CC BY 4.0 with ownership acknowledged; SI gives the credit.
+
+UK stocks have the FCA's daily aggregated net short positions (by ISIN, free for personal use), but the app has no London ticker-to-ISIN list beyond the FTSE 100's, so they are not connected yet.
 
 ## Cboe delayed quotes (evaluated, not connected)
 

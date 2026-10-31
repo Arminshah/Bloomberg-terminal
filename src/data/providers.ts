@@ -525,6 +525,21 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'asic',
+    name: 'ASIC (short position reports)',
+    serves: "SHORTINTEREST for ASX stocks: each product's reported short positions, the product in issue and the share short, daily",
+    dataClass: 'Official: aggregated short position reports, as of four trading days before publication',
+    policy: 'enabled',
+    limit: '60/min',
+    terms: 'ASIC lets its short selling position reporting data be reproduced under CC BY 4.0, with ownership acknowledged ("© Australian Securities & Investments Commission"), which SI shows. The app reads the index of days and up to 50 day files the first time an ASX stock is shown, kept a week each.',
+    docs: [
+      { label: 'Short position reports', url: 'https://asic.gov.au/regulatory-resources/markets/short-selling/short-position-reports-table/' },
+      { label: 'Copyright', url: 'https://www.asic.gov.au/about-asic/dealing-with-asic/copyright-and-linking-to-our-websites' },
+    ],
+    checked: '2026-10-31',
+    desktop: true,
+  },
+  {
     id: 'ssga',
     name: 'State Street (SPDR holdings files)',
     serves: "SPY's holdings of the S&P 500's members, which weight SPX's members on the index boards and MEMB and give DES their SEDOL and the CUSIP behind a US issuer's ISIN; DIA's holdings, the Dow's members when Yahoo gives none",
