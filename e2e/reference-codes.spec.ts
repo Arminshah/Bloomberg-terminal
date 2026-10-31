@@ -383,16 +383,20 @@ test('SCREEN joins criteria by AND within a group and OR across groups, says its
   // So do the FTSE 100 (Wikipedia's member list, Yahoo's statements) and the paper's preset that switches to it.
   await expect(panel.locator('option[value="ftse"]')).toHaveAttribute('disabled', '');
   await expect(panel.locator('option[value="ftse"]')).toContainText('desktop app');
-  await expect(panel.getByRole('button', { name: 'FTSE 100: gross margin and ROE above 25%' })).toBeDisabled();
-  const rows = panel.locator('tbody tr');
-  const all = await rows.count();
+  await expect(panel.getByRole('button', { name: /FTSE 100: gross margin and ROE above 25%/ })).toBeDisabled();
+  // TE04 03:01: the hint row, the screens at the left, the categories and Selected Screening Criteria with Matches.
+  await expect(page.locator('.cmd-hints')).toContainText('1 <GO> for Results, <Back> to Return');
+  await expect(panel.locator('.eqs-strip')).toHaveText(['My Recent Screens', 'Popular Screens', 'Screening Criteria', 'Add Criteria']);
+  await expect(panel.locator('.eqs-cat').first()).toHaveText('31) Market');
+  const count = async () => Number((await panel.getByTestId('eqs-result-count').textContent())?.replace(/\D/g, ''));
+  const all = await count();
   // The universe's size comes first, as the screen's first line, before any criterion narrows it.
   expect(Number((await panel.getByTestId('eqs-universe-count').textContent())?.replace(/\D/g, ''))).toBe(all);
   await panel.getByLabel('Value 1.1').fill('500');
   const logic = panel.getByTestId('eqs-logic');
   await expect(logic).toContainText('Screen: Market value ≥ 500 $bn.');
-  await expect.poll(() => rows.count()).toBeLessThan(all);
-  const big = await rows.count();
+  await expect.poll(count).toBeLessThan(all);
+  const big = await count();
   // The stocks left after the criterion, beside it (as the fixed income search's Matches column).
   await expect(panel.getByTestId('eqs-left-1.1')).toHaveText(`${big} left`);
   // A second group, joined by OR: more stocks, never fewer.
@@ -400,7 +404,18 @@ test('SCREEN joins criteria by AND within a group and OR across groups, says its
   await panel.getByLabel('Field 2.1').selectOption('divYld');
   await panel.getByLabel('Value 2.1').fill('3');
   await expect(logic).toContainText('Screen: Market value ≥ 500 $bn or Dividend yield ≥ 3 %.');
-  await expect.poll(() => rows.count()).toBeGreaterThan(big);
+  await expect.poll(count).toBeGreaterThan(big);
+  // 1 <GO> opens the results on a page of their own, one row a match; Back returns to the criteria.
+  const matches = await count();
+  await run(page, '1');
+  await expect(panel.locator('table tbody tr')).toHaveCount(matches);
+  await page.locator('#cmd-0').press('End');
+  await expect(logic).toBeVisible();
+  // Typing a field's name adds it as a criterion, numbered on from 51).
+  await panel.getByLabel('Add criteria').fill('Beta');
+  await panel.getByLabel('Add criteria').press('Enter');
+  await expect(panel.getByLabel('Field 2.2')).toHaveValue('beta');
+  await panel.getByRole('button', { name: 'Remove criterion 2.2' }).click();
   // A second criterion in the first group, joined by AND.
   await panel.getByRole('button', { name: '+ And' }).first().click();
   await panel.getByLabel('Field 1.2').selectOption('sector');
@@ -429,19 +444,24 @@ test('SCREEN keeps the top N of the stocks the criteria above left, in an order 
   const panel = page.locator('.panel').first();
   const rows = panel.locator('tbody tr');
   const logic = panel.getByTestId('eqs-logic');
+  const back = () => page.locator('#cmd-0').press('End');
   await panel.getByLabel('Value 1.1').fill('50');
   await expect(logic).toContainText('Screen: Market value ≥ 50 $bn.');
-  // The table opens sorted by market value, largest first: the three a rank should keep.
+  // The results open sorted by market value, largest first: the three a rank should keep.
   const firstThree = async () => (await rows.locator('td:nth-child(2)').allTextContents()).slice(0, 3).map((t) => t.trim());
+  await run(page, '1');
   await expect.poll(() => rows.count()).toBeGreaterThan(3);
   const largest = await firstThree();
+  await back();
   await panel.getByRole('button', { name: '+ And' }).first().click();
   await panel.getByLabel('Comparison 1.2').selectOption('top');
   await panel.getByLabel('Value 1.2').fill('3');
   await expect(logic).toContainText('Market value ≥ 50 $bn and Top 3 by Market value, higher is better');
   await expect(panel.getByTestId('eqs-left-1.2')).toHaveText('3 left');
+  await run(page, '1');
   await expect(rows).toHaveCount(3);
   expect((await firstThree()).sort()).toEqual([...largest].sort());
+  await back();
   // Criteria apply in order: moved up, the rank comes first.
   await panel.getByRole('button', { name: 'Move criterion 1.2 up' }).click();
   await expect(logic).toContainText('Top 3 by Market value, higher is better and Market value ≥ 50 $bn');
@@ -452,6 +472,7 @@ test('SCREEN keeps the top N of the stocks the criteria above left, in an order 
   await panel.getByLabel('Comparison 1.2').selectOption('lte');
   await panel.getByLabel('Value 1.2').fill('1000');
   await expect(logic).toContainText('Top 3 by Market value, higher is better and P/E, latest fiscal year ≤ 1000');
+  await run(page, '1');
   await expect(panel.locator('thead th', { hasText: 'P/E LFY' })).toHaveCount(1);
   expect(errors).toEqual([]);
 });

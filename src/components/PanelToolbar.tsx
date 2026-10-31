@@ -2,11 +2,12 @@ import { engine } from '../data/market';
 import { relatedMenu, toggleRelatedMenu } from './RelatedMenu';
 import { HelpMenu } from './HelpMenu';
 import { useCallback, useState } from 'react';
+import { panelBack } from '../terminal/subpage';
 import { execute } from '../terminal/exec';
 import { primaryMnemonic, styledMnemonic } from '../terminal/legacy';
 import { FUNCTIONS, lookupFn } from '../terminal/registry';
 import { settings } from '../terminal/settings';
-import { back, currentRoute, forward, LINK_GROUPS, linkGroupOf, loadedSecurity, setLinkGroup, soloPanel, terminal, toggleSolo, type LinkGroup } from '../terminal/state';
+import { currentRoute, forward, LINK_GROUPS, linkGroupOf, loadedSecurity, setLinkGroup, soloPanel, terminal, toggleSolo, type LinkGroup } from '../terminal/state';
 import { recallPanelCommand } from './CommandLine';
 
 /** A security as the toolbar and tabs name it: the issuer's name in capitals and its yellow key ("APPLE INC Equity"). */
@@ -51,7 +52,7 @@ export function PanelToolbar({ panel, panels = 1 }: { panel: number; panels?: nu
   const fnLabel = mnemonics ? styledMnemonic(route.fn, route.args).mnemonic : route.fn;
   return (
     <div className="panel-toolbar" role="toolbar" aria-label={`Panel ${panel + 1} tools`} onDoubleClick={(e) => { if (panels > 1 && (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('ptb-gap'))) toggleSolo(panel); }}>
-      <button type="button" className="ptb-nav" aria-label="Back" title="Back (Backspace on an empty line)" disabled={!canBack} onClick={() => back(panel)}>
+      <button type="button" className="ptb-nav" aria-label="Back" title="Back (Backspace on an empty line)" disabled={!canBack} onClick={() => panelBack(panel)}>
         <svg viewBox="0 0 8 12" width="8" height="12" aria-hidden="true"><path d="M6.5 1 1.5 6l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" /></svg>
       </button>
       <button type="button" className="ptb-nav" aria-label="Forward" title="Forward" disabled={!canFwd} onClick={() => forward(panel)}>

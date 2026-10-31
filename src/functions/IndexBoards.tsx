@@ -778,7 +778,21 @@ export function BoardMap({ ix }: { ix: SecurityDef }) {
   const status = boardStatus(board);
   return (
     <div className={view === 'heat' ? 'fn-fill' : undefined}>
-      <FnHeader code="INDEXMAP" title="Intraday Market Map" sec={ix} actions={exportActions(panel, `${ix.ticker}_map.csv`, csv)} />
+      {/* The red bar's Export without a number (TE04 01:55). */}
+      <FnHeader
+        code="INDEXMAP"
+        title="Intraday Market Map"
+        sec={ix}
+        actions={[
+          {
+            n: 9951,
+            bare: true,
+            label: 'Export',
+            onClick: () => {},
+            menu: exportActions(panel, `${ix.ticker}_map.csv`, csv).map((a) => ({ label: a.label === 'Copy' ? 'Copy to Clipboard' : 'Download as CSV', title: a.title, onClick: a.onClick })),
+          },
+        ]}
+      />
       <div className="chart-tools">
         <IndexPicker ix={ix} fn="INDEXMAP" />
         <span className="fld">
@@ -802,7 +816,7 @@ export function BoardMap({ ix }: { ix: SecurityDef }) {
         <button type="button" className="link" onClick={() => setFocus(null)}>{ix.ticker}</button> &gt; <button type="button" className="link" onClick={() => setFocus(null)}>{group === 'sector' && board.index.key === 'SPX' ? 'GICS' : group === 'sector' ? 'Sector' : 'Region'}</button>
         {focus ? <> &gt; <span className="white">{focus}</span></> : null}
       </nav>
-      <nav className="tabs" aria-label="Map views">
+      <nav className="tabs tabs-plain" aria-label="Map views">
         {([['both', 'Pie Chart & Table'], ['table', 'Table'], ['pie', 'Pie Chart'], ['heat', 'Heatmap']] as [ImapView, string][]).map(([k, label]) => (
           <button key={k} type="button" className={`tab${view === k ? ' on' : ''}`} onClick={() => setView(k)}>
             {label}
@@ -810,7 +824,7 @@ export function BoardMap({ ix }: { ix: SecurityDef }) {
         ))}
       </nav>
       <div className="imap-title">
-        <span className="white">{view === 'heat' ? `${ix.ticker}: Intraday Return by ${groupWord} (sized by Weight)` : `${ix.ticker}: Percent Price Change by ${subWord}`}</span>
+        <span className="white">{view === 'heat' ? `${ix.ticker}: Intraday Return by ${groupWord} (sized by Weight)` : `${ix.ticker}: Intraday Return by ${subWord}`}</span>
         <span className="white">{scope.length} Securities</span>
       </div>
       {status ??

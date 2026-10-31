@@ -1616,6 +1616,27 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .rv-seg-bar i { display: inline-block; height: 0.85em; max-width: calc(100% - 4em); background: #a9a9a9; vertical-align: -1px; }
 .rv-seg tr.sel .rv-seg-bar i { background: #5a8fd6; }
 @media (max-width: 760px) { .rv-top { grid-template-columns: 1fr; } }
+/* GP as TE02 01:55: two rows of controls, the periods plain with the chosen one blue, + Related Data and Edit Chart
+   at the right. */
+.gp-row { flex-wrap: wrap; gap: 4px 10px; }
+.gp-field { padding: 0 6px; background: var(--amber); color: #000; white-space: nowrap; }
+.gp-periods { display: inline-flex; gap: 2px; }
+.gp-per { border: 0; padding: 0 7px; background: transparent; color: #e8e8e8; font-size: var(--fs-s); }
+.gp-per:hover { background: #2b2b2b; }
+.gp-per.on { background: #0451b7; color: #fff; }
+.gp-freq { border: 0; padding: 0 4px; background: transparent; color: #e8e8e8; font-size: var(--fs-s); }
+.gp-freq option { background: #1e1e1e; }
+.gp-plain { border: 0; padding: 0 6px; background: transparent; color: #e8e8e8; font-size: var(--fs-s); white-space: nowrap; }
+.gp-plain:hover { background: #2b2b2b; }
+.gp-right { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.gp-edit { border: 0; padding: 0 8px; background: transparent; color: #e8e8e8; font-size: var(--fs-s); white-space: nowrap; }
+.gp-edit.on { background: #0451b7; color: #fff; }
+.gp-related { position: relative; }
+.gp-related-menu { position: absolute; z-index: 40; top: 100%; right: 0; min-width: 300px; padding: 6px 10px; background: #000; border: 1px solid #5a5a5a; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6); }
+.gp-related-menu > div { padding: 2px 0; }
+.gp-related-menu button { display: block; width: 100%; padding: 2px 10px; border: 0; background: transparent; text-align: left; font-size: var(--fs); white-space: nowrap; }
+.gp-related-menu button:hover { background: #153b67; }
+.gp-studies { flex-wrap: wrap; gap: 3px; }
 .fa-set { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--white); }
 .fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid #1d1d1d; background: #000; }
 .fa-bottom > button { background: #434142; border: 0; color: var(--white); padding: 0 12px; }
@@ -1824,12 +1845,43 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .ws-picker { display: flex; flex-wrap: wrap; gap: 12px; }
 .ws-picker fieldset { border: 1px solid var(--line, #333); padding: 4px 8px; display: grid; grid-template-columns: repeat(3, minmax(130px, auto)); gap: 2px 12px; }
 .ws-col { white-space: nowrap; cursor: pointer; }
+/* EQS as TE04 03:01: screens at the left, criteria at the right, grey strips over each part. */
+.eqs-main { display: grid; grid-template-columns: minmax(180px, 230px) 1fr; gap: 0 10px; padding: 2px 6px; }
+.eqs-side { display: flex; flex-direction: column; min-width: 0; border-right: 3px solid #2a2a2a; padding-right: 8px; }
+.eqs-strip { padding: 1px 8px; margin-top: 4px; background: #2b2b2b; color: var(--white); }
+.eqs-item { display: block; width: 100%; padding: 1px 6px; border: 0; background: transparent; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs); }
+.eqs-item b, .eqs-cat b, .eqs-n { color: #b0b0b0; font-weight: 500; margin-right: 2px; }
+.eqs-item:hover:not(:disabled), .eqs-cat:hover:not(:disabled) { background: #1e1e1e; }
+.eqs-item.on { background: #153b67; }
+.eqs-item:disabled { opacity: 0.55; }
+.eqs-all { display: flex; align-items: center; gap: 6px; }
+.eqs-all .sel-inp { max-width: 110px; }
+.eqs-body { min-width: 0; }
+.eqs-asof { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.eqs-date { padding: 0 6px; background: var(--amber); color: #000; }
+.eqs-cats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; padding: 2px 0; }
+.eqs-cat { padding: 1px 0; border: 0; background: transparent; color: var(--amber); text-align: left; font-size: var(--fs); }
+.eqs-add { display: flex; align-items: center; gap: 4px; padding: 3px 0 6px 20px; }
+.eqs-add-inp { flex: 1 1 auto; min-width: 120px; }
+.eqs-fields { border: 0; padding: 0 10px; background: #3a3a3a; color: var(--white); font-size: var(--fs-s); }
+.eqs-sel-h { display: flex; justify-content: space-between; padding: 1px 8px 1px 20px; margin-top: 10px; background: #2b2b2b; color: var(--white); }
+.eqs-crit .eqs-left { margin-left: auto; color: var(--amber); }
+.eqs-universe .eqs-left { color: var(--white); }
+.eqs-remove { border: 0; background: transparent; color: #e0485c; padding: 0 2px; font-size: 1.05em; line-height: 1; }
+.eqs-addrow { display: flex; align-items: center; gap: 10px; }
+.eqs-addrow .eqs-item { width: auto; }
+.eqs-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 3px 8px; }
+.eqs-see { display: flex; justify-content: flex-end; padding: 6px 8px; }
+.eqs-count { color: var(--white); }
+.eqs-res-h { display: flex; align-items: center; gap: 12px; padding: 3px 8px; border-bottom: 1px solid var(--line); }
+.eqs-res-h .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+@media (max-width: 760px) { .eqs-main { grid-template-columns: 1fr; } .eqs-side { border-right: 0; } .eqs-cats { grid-template-columns: 1fr 1fr; } }
 .eqs-groups { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px; }
 .eqs-group { border: 1px solid var(--line); margin: 0; padding: 2px 8px 4px; }
 .eqs-group legend { color: var(--amber); padding: 0 4px; }
 .eqs-crit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0; }
 .eqs-crit.incomplete .sel-inp, .eqs-crit.incomplete .inp { border-style: dashed; }
-.eqs-left { margin-left: 6px; font-variant-numeric: tabular-nums; }
+.eqs-left { margin-left: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* SCREEN's Results tab (the FTSE 100), as the paper's: names and figures amber, the summary row white, the sorted
    column's heading amber, a bar at the left of each of its cells in proportion to the value. */
 .eqs-results tbody td { color: var(--amber); }

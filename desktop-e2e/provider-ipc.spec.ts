@@ -2284,18 +2284,26 @@ test("SCREEN screens Nasdaq's whole US list in the desktop app and says how many
   await panel.getByLabel('Universe').selectOption('us');
   // 23 rows, less the preferred share.
   await expect(panel.locator('.fnh-sub')).toContainText("22 of Nasdaq's list of 22 US-listed stocks, loaded", { timeout: 30_000 });
+  // The matches stand beside See Results; the results open on their own page (1 <GO>) and Back returns.
+  const matches = panel.getByTestId('eqs-result-count');
   const rows = panel.locator('tbody tr');
+  await expect(matches).toHaveText('(22)');
+  await command(page, '1', 'SCREEN');
   await expect(rows).toHaveCount(22);
   await expect(rows.first()).toContainText('NVDA');
+  await page.locator('#cmd-0').press('End');
   await panel.getByLabel('Field 1.1').selectOption('sector');
   await panel.getByLabel('Value 1.1').fill('Technology');
-  await expect(rows).toHaveCount(4);
+  await expect(matches).toHaveText('(4)');
   const logic = panel.getByTestId('eqs-logic');
   await expect(logic).toContainText('3 left out because a value the screen needs is missing (Sector 3).');
   await panel.getByLabel('A stock missing a value').selectOption('keep');
-  await expect(rows).toHaveCount(7);
+  await expect(matches).toHaveText('(7)');
   await expect(logic).toContainText('3 kept although a value the screen needs is missing (Sector 3), marked ?.');
+  await command(page, '1', 'SCREEN');
+  await expect(rows).toHaveCount(7);
   await expect(rows.filter({ hasText: 'BRK.B' }).locator('td').last()).toHaveText('?');
+  await page.locator('#cmd-0').press('End');
   // The ratios the list lacks: the screen says they come only for the app's own stocks.
   await expect(panel.getByLabel('Field 1.1').locator('option[value="pe"]')).toContainText("the app's stocks only");
   await expect(panel.getByText("Nasdaq's list has no P/E, yield, ROE, beta or returns")).toBeVisible();
@@ -2310,7 +2318,7 @@ test("SCREEN runs the first portfolio paper's FTSE 100 screen on Wikipedia's mem
   await command(page, 'SCREEN', 'SCREEN');
   const panel = page.locator('.panel').first();
   // The paper's screen is a preset: it switches to the FTSE 100.
-  await panel.getByRole('button', { name: 'FTSE 100: gross margin and ROE above 25%' }).click();
+  await panel.getByRole('button', { name: /FTSE 100: gross margin and ROE above 25%/ }).click();
   await expect(panel.getByLabel('Universe')).toHaveValue('ftse');
   const sub = panel.locator('.fnh-sub');
   await expect(sub).toContainText("3 of the FTSE 100's 100 members (Wikipedia's FTSE 100 Index article, Constituents table, loaded", { timeout: 30_000 });
@@ -2326,7 +2334,8 @@ test("SCREEN runs the first portfolio paper's FTSE 100 screen on Wikipedia's mem
   await expect(logic).toContainText('Screen: Gross margin, latest fiscal year > 25 % and Return on common equity, latest fiscal year > 25 %.');
   // Undecided: the 93 members without statements, and Smiths; HSBC's 11% fails the second criterion whatever its margin.
   await expect(logic).toContainText('94 left out because a value the screen needs is missing (Return on common equity 94, Gross margin 93).');
-  // The Results tab in the paper's columns, sorted by gross margin with the bar, under the plain means.
+  // The Results tab in the paper's columns, sorted by gross margin with the bar, under the plain means (1 <GO>).
+  await command(page, '1', 'SCREEN');
   await expect(panel.getByRole('button', { name: 'Results', exact: true })).toHaveAttribute('aria-pressed', 'true');
   const table = panel.locator('table.eqs-results');
   const heads = table.locator('thead th');
@@ -2362,6 +2371,7 @@ test("SCREEN runs the first portfolio paper's FTSE 100 screen on Wikipedia's mem
   await expect(panel.locator('tbody tr').filter({ hasText: 'Personal Care, Drug and Grocery Stores' })).toHaveCount(1);
   await expect(panel.locator('tbody tr').filter({ hasText: 'RKT' })).toHaveCount(1);
   // Kept when undecided, as chosen: the members without the figures stay in, so the counts rise.
+  await page.locator('#cmd-0').press('End');
   await panel.getByLabel('A stock missing a value').selectOption('keep');
   await expect(panel.getByTestId('eqs-left-1.1')).toHaveText('100 left');
   await expect(panel.getByTestId('eqs-left-1.2')).toHaveText('97 left');
@@ -2389,6 +2399,7 @@ test('SCREEN says why the FTSE 100 has no members when Wikipedia refuses, with n
   await expect(sub).toContainText("Wikipedia's FTSE 100 list did not load: Wikipedia did not answer: HTTP 429", { timeout: 30_000 });
   // "0 of" before a list has loaded would read as a result.
   await expect(sub).not.toContainText(/(^|\s)0 of /);
+  await command(page, '1', 'SCREEN');
   await expect(panel.locator('table.eqs-results td.empty')).toContainText("Wikipedia's FTSE 100 list did not load");
   await expect(panel.getByTestId('eqs-investable')).toHaveCount(0);
   // Refused at the sections: the section is not asked for, and no member is asked of Yahoo.

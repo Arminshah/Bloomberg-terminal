@@ -36,8 +36,9 @@ describe('workspace tabs', () => {
     expect(screen()).toEqual({ fn: 'CHART', sec: 'MSFT US Equity' });
   });
 
-  it('names a tab after its active screen, "New Tab" while untouched, or the name the user gave', () => {
-    expect(tabTitle(workspaceTabs.get().tabs[0], terminal.get())).toBe('New Tab');
+  it('names a tab after its active screen, untouched or not (TE04 01:21), or the name the user gave', () => {
+    const first = terminal.get().panels[0].history[0];
+    expect(tabTitle(workspaceTabs.get().tabs[0], terminal.get())).toBe(`${first.sec ? `${first.sec.split(' ')[0]} ` : ''}${first.fn}`);
     navigate(0, { fn: 'CHART', sec: 'AAPL US Equity' });
     expect(tabTitle(workspaceTabs.get().tabs[0], terminal.get())).toBe('AAPL CHART');
     renameTab('t1', '  EQUITY_LONG  ');

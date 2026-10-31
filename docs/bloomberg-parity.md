@@ -276,6 +276,58 @@ Inventory: red bar with the security box, "Export ▾" and "Settings ▾" withou
 - Not done: Settings ▾, the pencil to edit the peers, the multiples chart (no source gives the peers' forward P/E history), tabs ESG, EPS Preview, Ownership, Credit and Custom, other currencies.
 - Checked: `e2e/reference-codes.spec.ts` (columns and order, pinning as 100) and 101), the segment panel's Whole Firm, the unnumbered tab, the Export dropdown, Mkt Cap > leaving one row and restoring them, the Median and percentile tests), the whole browser and desktop suites.
 
+### M3 EQS (E3)
+
+Evidence: TE04 03:01 (2023).
+
+Inventory: the hint row "1 <GO> for Results, <Back> to Return"; red bar "Formula", "Actions ▾" and "Backtest" without numbers; at the left "My Recent Screens" (10) Last Unsaved Screen, the saved screens from 11), 20) All Saved Screens) and "Popular Screens" (21) on), each under a grey strip, entries amber and the fixed ones white; at the right "As Of" with an amber date, "Screening Criteria" with categories 31) to 36) in three columns, "Add Criteria" with a full-width amber field and "3) Fields", "Selected Screening Criteria" with a Matches column: Security Universe and its count, then 51) to 55) each with a drag handle, its count in amber and a red remove mark, "56) Add screening criteria"; at the bottom right "1) See Results | WATC »". The results open on a page of their own.
+
+- Now: that layout, with the app's own presets as the popular screens, its six field categories as 31) to 36) (each adds a criterion on its first field), Add Criteria taking a typed field name (Enter adds it) and 3) Fields listing every field by category, the universe chooser on the Security Universe line, the criteria numbered from 51) across the groups with their matches and a red ⊗, the next number adding one. 1) See Results shows the match count and opens the results on their own page; Back (End, the BACK key, the toolbar's arrow, Backspace on an empty line) returns to the criteria. 10) Last Unsaved Screen brings back the screen being built before a saved one was opened. Actions ▾ holds See Results, Reset and the results' Copy and Download.
+- Kept from the app: OR groups, ranks (top or bottom N), periods, the missing-value rule, excluded industries, saving and deleting by name, the FTSE 100 paper view with its Results and Overview, the logic line and the sources note.
+- Not done: Formula, Backtest, the drag handles (▲▼ move a criterion instead), "More Screens", WATC (results open on EQS's own page until WATC is built in M5), the As Of date as a choice (the screen runs on today's figures).
+- Checked: `e2e/reference-codes.spec.ts` (hint, strips, categories, counts against Matches, the results page with as many rows as matches, Back, a typed field added as 2.2, ranks and periods on the results page), `desktop-e2e/provider-ipc.spec.ts` (Nasdaq's list, the FTSE 100 paper screen and its refusal case, through the results page), the whole browser and desktop suites.
+
+### M3 WEI (E3)
+
+Evidence: TE04 01:21 (2023), TE06 04:15 (zoomed chrome).
+
+Inventory: hint row "LLP <GO> to Open in Launchpad"; red bar "News ▾" and "Settings ▾" without numbers; an amber "Standard ▾", tick boxes Movers, Volatility, Ratios, Futures and Δ AVAT (blue when ticked), "10D ▾", an amber "%Chg 3M ▾" and "USD ▾"; columns Index, 2Day, Value, Net Chg, a change bar, %Chg, Time, Adv/Dcl, 10D Vol, 30D Vol and more; region strips 1) Americas, 2) EMEA, 3) Asia/Pacific; rows numbered 11), 21), 31) with the name amber, the bar green or red, the volatility figures amber.
+
+- Now: News ▾ (Top News, World Equity Index Futures) and Settings ▾ (copy and download the table) without numbers; Movers (the change bar, now before %Chg as in the frame), Volatility (10D Vol and 30D Vol in amber), Futures, and the period of the extra change column (1M, 3M as the frame, 6M, YTD, 1Y) with its currency. 10D and 30D Vol are the sample standard deviation of the daily log returns over the last 10 or 30 completed sessions, annualised with 261 trading days (the provider's daily convention in PORT; its WEI fields' own convention is not in the pack and no public page states it, so this is unverified).
+- Kept from the app: the intraday line (the frame's 2Day needs the day before's intraday prices, which no source gives), the currency the extra change is converted into, the freshness legend.
+- Not done: Ratios and Δ AVAT (no source gives index ratios or average volume at this time of day), Adv/Dcl (needs each index's members), the LLP hint (the app has no Launchpad yet).
+- Checked: `tests/wei-volatility.test.ts` (the volatility worked by hand, today's bar left out, too few closes), the measured-colours look test on WEI, the whole browser and desktop suites.
+
+### M3 Tab names (E3)
+
+Evidence: TE04 01:21 ("WEI World Equity Indices"), TE01 02:27 ("New Tab" on the new-tab page).
+
+- Now: a tab is named after its screen even in the untouched default workspace; "New Tab" is only the new-tab page's name, as in the frames. Before, the first tab read "New Tab" over WEI until another screen was opened.
+- Checked: `tests/workspace-tabs.test.ts`, the browser tests of tabs.
+
+### M3 IMAP (E3)
+
+Evidence: TE04 01:55 (DAX, 2023), TE04 02:29 (the security dropdown).
+
+Inventory: red bar "Export" and "Settings ▾" without numbers; the index in an amber field, "Group by" Region or Sector as radio buttons, "Market Cap (USD)" with an amber "All ▾", a grey "Historical Performance" button; a blue breadcrumb "DAX > GICS"; grey tabs Pie Chart & Table (chosen), Table, Pie Chart; "DAX: Intraday Return by GICS Sector"; a sunburst with the index at the centre, the sectors around it and the members outside, green or red by the day's return, each sector labelled with its change; at the right "Name" over 1) All Securities and the sectors from 2) with ">".
+
+- Already built before this pass (the desktop app, with the S&P 500, Nasdaq-100 and Dow members): the controls, the breadcrumb, the tabs, the sunburst and the numbered group list, plus the app's Heatmap tab and the group table's change and share-up columns.
+- Now: Export is a dropdown without a number; the tabs are the grey ones of the frames; the title reads "Intraday Return by" as the frame's.
+- Checked on live data in the desktop app (31 October 2026, closes of 30 October, `docs/parity-m3-imap-live.png`): INDU's All Securities line gives -1.09%, the index's own change on the quote line. The browser demo has no index memberships and shows the app's heat map with a note saying so.
+- Not done: Settings ▾, the member labels on the outer ring.
+
+### M3 GP (E3)
+
+Evidence: TE02 00:59, 01:33, 01:55, 02:19, 03:15, 04:23, 04:27, 04:43, 04:45 (2024).
+
+Inventory: red bar with the security box, "94) Suggested Charts ▾", "96) Actions ▾", "97) Edit ▾" and "Line Chart"; first row: two amber date boxes, an amber field box ("Last Px"), a period box ("1BF ▾"), "Local CCY ▾", "Mov Avgs" with a pencil, "Key Events"; second row: 1D, 3D, 1M, 6M, YTD, 1Y (blue when chosen), 5Y, Max, "Daily ▼", a blue chart-type button and "Table", at the right "+ Related Data ▾" (Index & Sector, Peers), an amber "Add Data" field, "«" and "Edit Chart" with a pencil; a navy mountain chart with the axis at the right.
+
+- Now: 94) Suggested Charts ▾ (Price and Volume, Moving Averages, Bollinger Bands, RSI, MACD, against the market's main index), 96) Actions ▾ (Table, the intraday or daily chart, copy and export of the chart's data) and 97) Edit ▾ (Securities & Studies, Compare Returns, the chart styles) as dropdowns; the first row with the range boxes, Last Px and Local CCY in amber, Mov Avgs (the 50- and 200-day averages) and Key Events; the second row with the periods as plain buttons (the chosen one blue, their numbers still working with GO), Daily ▼, the chart type, Table, + Related Data ▾ (the market's main index and the stock's peers, added as lines), Add Data (the comparison field) and Edit Chart, which opens the studies.
+- Changed for the owner to confirm: the study buttons now sit under Edit Chart, as the frames' side panel holds them, instead of always showing; a chart opened by a study (RSI, MACD, BOLL) opens them by itself.
+- Kept from the app: the 3M and 2Y periods, Line, Mountain, Candle and Bar as visible buttons, the readout line.
+- Not done: 3D (the app keeps one day of intraday prices), the field box as a choice (other fields such as P/E history need sources the app lacks), the period box (1BF), G's saved graphs, Track, Annotate, News and Zoom on the chart.
+- Checked: `e2e/terminal.spec.ts` (periods by number and button, typed dates leaving none chosen, the three dropdowns, Edit Chart and its studies, the RSI chart), the look tests, live data in the desktop app (`docs/parity-m3-gp-live.png`), the whole browser and desktop suites.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

@@ -177,7 +177,8 @@ test('numbered menu items and back navigation work', async ({ page }) => {
   await boot(page, '1');
   await run(page, 'MSFT CHART');
   await run(page, '3');
-  await expect(page.locator('.tab.on')).toContainText('3M');
+  // GP's periods are plain buttons (TE02 01:55); their numbers still work with GO.
+  await expect(page.locator('.gp-per.on')).toHaveText('3M');
   await run(page, 'MSFT PROFILE');
   await expect(page.locator('.fnh-code').first()).toHaveText('PROFILE');
   await page.locator('#cmd-0').click();
@@ -327,7 +328,7 @@ test('chart style mnemonics, intraday period and help on a typed mnemonic', asyn
   await expect(page.locator('#cmd-0')).toHaveAccessibleDescription(/AAPL US Equity GPC/);
   await run(page, 'AAPL GPO 3M');
   await expect(panel.getByRole('group', { name: 'Chart type' }).locator('button.on')).toHaveText('Bar');
-  await expect(panel.locator('.tab.on')).toHaveText('3) 3M');
+  await expect(panel.locator('.gp-per.on')).toHaveText('3M');
   // The style belongs to that chart; a plain GP keeps the saved style.
   await run(page, 'AAPL GP');
   await expect(panel.locator('.fnh-mnemonic')).toContainText('GP');
@@ -398,18 +399,28 @@ test('DES pages and numbered boxes, the security in the red bar and typed chart 
   await expect(start).toHaveValue(/^\d{2}\/\d{2}\/\d{4}$/);
   await start.fill('01/02/2026');
   await start.press('Enter');
-  await expect(panel.locator('.tab.on')).toHaveCount(0);
+  await expect(panel.locator('.gp-per.on')).toHaveCount(0);
   await expect(start).toHaveValue('01/02/2026');
   await start.fill('13/45/2026');
   await start.press('Enter');
   await expect(start).toHaveClass(/\bbad\b/);
   await run(page, '6');
-  await expect(panel.locator('.tab.on')).toHaveText('6) 1Y');
+  await expect(panel.locator('.gp-per.on')).toHaveText('1Y');
+  // TE02 01:55: 94) Suggested Charts, 96) Actions and 97) Edit open dropdowns; Edit Chart opens the studies.
+  await expect(panel.locator('.fnh-actions .act')).toHaveText([/94\) Suggested Charts/, /96\) Actions/, /97\) Edit/]);
+  await run(page, '96');
+  await expect(page.getByTestId('red-drop')).toContainText('Table');
+  await page.keyboard.press('Escape');
+  await expect(panel.getByRole('group', { name: 'Period' }).getByRole('button')).toHaveText(['1D', '1M', '3M', '6M', 'YTD', '1Y', '2Y', '5Y', 'Max']);
+  await panel.getByRole('button', { name: /Edit Chart/ }).click();
+  await expect(panel.getByRole('button', { name: 'SMA 50', exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: /Edit Chart/ }).click();
   // RSI <GO> is a chart with the RSI study added for that chart, shown under its own mnemonic.
   await run(page, 'AAPL RSI');
   await expect(panel.locator('.fnh-mnemonic')).toContainText('RSI');
   await expect(panel.getByRole('button', { name: 'RSI', exact: true })).toHaveClass(/\bon\b/);
   await run(page, 'AAPL GP');
+  await panel.getByRole('button', { name: /Edit Chart/ }).click();
   await expect(panel.getByRole('button', { name: 'RSI', exact: true })).not.toHaveClass(/\bon\b/);
   // FA opens a page by name; MOST lists the stocks nearest their 52-week highs.
   await run(page, 'FA AAPL BS');
