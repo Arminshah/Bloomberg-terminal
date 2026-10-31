@@ -121,6 +121,62 @@ function CompareBox({ sec, list, setList }: { sec: SecurityDef; list: string[]; 
   );
 }
 
+/**
+ * Edit Chart's side panel (TE02 04:43): a field to find a study, Normalize, and a tree of the charted securities, each
+ * with tick boxes for its lines, a colour swatch and a red mark to take it off the chart.
+ */
+function EditChart({ sec, studies, lower, compare, onStudy, onLower, onRemove, onClose }: {
+  sec: SecurityDef; studies: string[]; lower: LowerKind[]; compare: string[];
+  onStudy: (id: string) => void; onLower: (k: LowerKind) => void; onRemove: (id: string) => void; onClose: () => void;
+}) {
+  const [find, setFind] = useState('');
+  const all: { id: string; label: string; color: string; on: boolean; toggle: () => void }[] = [
+    ...STUDIES.map((st) => ({ id: st.id, label: st.label, color: st.ov.color, on: studies.includes(st.id), toggle: () => onStudy(st.id) })),
+    { id: VOLUME_AVERAGE.id, label: VOLUME_AVERAGE.label, color: '#9a9a9a', on: studies.includes(VOLUME_AVERAGE.id), toggle: () => onStudy(VOLUME_AVERAGE.id) },
+    ...(['VOL', 'RSI', 'MACD'] as LowerKind[]).map((k) => ({ id: k, label: k === 'VOL' ? 'Volume' : k, color: '#9a9a9a', on: lower.includes(k), toggle: () => onLower(k) })),
+  ];
+  const shown = all.filter((x) => x.on);
+  const offer = all.filter((x) => !x.on && (!find.trim() || x.label.toLowerCase().includes(find.trim().toLowerCase())));
+  return (
+    <aside className="gp-edit-panel" aria-label="Edit Chart">
+      <div className="gp-edit-top">
+        <input className="inp gp-find" aria-label="Browse data and studies" placeholder="Browse Data, Studies, Events, etc" value={find} onChange={(e) => setFind(e.target.value)} />
+        <button type="button" className="gp-plain" aria-label="Close Edit Chart" onClick={onClose}>»</button>
+      </div>
+      <label className="gp-edit-row" title="Compared lines are drawn as the change since the first day shown">
+        <input type="checkbox" checked={compare.length > 0} readOnly disabled={compare.length === 0} /> Normalize
+      </label>
+      <div className="gp-tree">
+        <div className="gp-tree-sec white">▾ {sec.id}</div>
+        <label className="gp-tree-line"><input type="checkbox" checked readOnly disabled /> <i style={{ background: '#e8e8e8' }} /> {sec.quote === 'yield' ? 'Yield' : 'Last Price'}</label>
+        {shown.map((x) => (
+          <label key={x.id} className="gp-tree-line">
+            <input type="checkbox" aria-label={x.label} checked onChange={x.toggle} /> <i style={{ background: x.color }} /> {x.label}
+          </label>
+        ))}
+        {compare.map((id, i) => (
+          <div key={id}>
+            <div className="gp-tree-sec white">
+              ▾ {id}
+              <button type="button" className="gp-remove" aria-label={`Remove ${id}`} title="Take off the chart" onClick={() => onRemove(id)}>⊗</button>
+            </div>
+            <label className="gp-tree-line"><input type="checkbox" checked readOnly disabled /> <i style={{ background: COMPARE_COLORS[i % COMPARE_COLORS.length] }} /> Last Price</label>
+          </div>
+        ))}
+      </div>
+      <div className="gp-tree-add">
+        <div className="amber">Studies</div>
+        {offer.map((x) => (
+          <label key={x.id} className="gp-tree-line">
+            <input type="checkbox" aria-label={x.label} checked={false} onChange={x.toggle} /> {x.label}
+          </label>
+        ))}
+        {!offer.length && <div className="muted">{find.trim() ? 'No study by that name.' : 'Every study is on the chart.'}</div>}
+      </div>
+    </aside>
+  );
+}
+
 /** The market each country's stocks are charted against in + Related Data: its main index. */
 const HOME_INDEX: Record<string, string> = { US: 'SPX Index', GB: 'UKX Index', DE: 'DAX Index', FR: 'CAC Index', JP: 'NKY Index', HK: 'HSI Index', NL: 'AEX Index', CH: 'SMI Index', ES: 'IBEX Index', IT: 'FTSEMIB Index', CA: 'SPTSX Index', AU: 'AS51 Index', KR: 'KOSPI Index', TW: 'TWSE Index', IN: 'NIFTY Index' };
 
@@ -375,47 +431,26 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
           <button type="button" className={`gp-edit${editing ? ' on' : ''}`} aria-pressed={editing} onClick={() => setEditing(!editing)}>✎ Edit Chart</button>
         </span>
       </div>
-      {editing && (
-        <div className="chart-tools gp-studies" aria-label="Studies">
-          <span className="white">Studies</span>
-          {STUDIES.map((st) => (
-            <button
-              key={st.id}
-              type="button"
-              className={`chip-btn${p.studies.includes(st.id) ? ' on' : ''}`}
-              style={p.studies.includes(st.id) ? { background: st.ov.color } : undefined}
-              onClick={() => toggleStudy(st.id)}
-            >
-              {st.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            className={`chip-btn${p.studies.includes(VOLUME_AVERAGE.id) ? ' on' : ''}`}
-            title="The 15-day simple average of volume, drawn over the volume bars"
-            onClick={() => toggleStudy(VOLUME_AVERAGE.id)}
-          >
-            {VOLUME_AVERAGE.label}
-          </button>
-          {(['VOL', 'RSI', 'MACD'] as LowerKind[]).map((k) => (
-            <button
-              key={k}
-              type="button"
-              className={`chip-btn${p.lower.includes(k) ? ' on' : ''}`}
-              style={p.lower.includes(k) ? { background: '#9a9a9a' } : undefined}
-              onClick={() => toggleLower(k)}
-            >
-              {k === 'VOL' ? 'Volume' : k}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="gp-body">
       <ChartView
         series={series}
         options={options}
         resetKey={`${sec.id}|${period}|${freq}|${intraday}|${custom ? `${custom.from}-${custom.to}` : ''}`}
         readout={{ unit: sec.quote === 'yield' ? 'yield %' : sec.ccy, periodicity: intraday ? 'Intraday' : freq === 'D' ? 'Daily' : freq === 'W' ? 'Weekly' : 'Monthly' }}
       />
+        {editing && (
+          <EditChart
+            sec={sec}
+            studies={p.studies}
+            lower={p.lower}
+            compare={compare}
+            onStudy={toggleStudy}
+            onLower={toggleLower}
+            onRemove={(id) => setCompare(compare.filter((x) => x !== id))}
+            onClose={() => setEditing(false)}
+          />
+        )}
+      </div>
     </div>
   );
 }

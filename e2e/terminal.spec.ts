@@ -412,16 +412,21 @@ test('DES pages and numbered boxes, the security in the red bar and typed chart 
   await expect(page.getByTestId('red-drop')).toContainText('Table');
   await page.keyboard.press('Escape');
   await expect(panel.getByRole('group', { name: 'Period' }).getByRole('button')).toHaveText(['1D', '1M', '3M', '6M', 'YTD', '1Y', '2Y', '5Y', 'Max']);
-  await panel.getByRole('button', { name: /Edit Chart/ }).click();
-  await expect(panel.getByRole('button', { name: 'SMA 50', exact: true })).toBeVisible();
-  await panel.getByRole('button', { name: /Edit Chart/ }).click();
+  // Edit Chart opens its panel at the right of the chart (TE02 04:43): the security's lines and the studies to add.
+  await panel.locator('.gp-edit').click();
+  const edit = panel.getByRole('complementary', { name: 'Edit Chart' });
+  await expect(edit.getByRole('checkbox', { name: 'SMA 50', exact: true })).toBeVisible();
+  await edit.getByLabel('Browse data and studies').fill('boll');
+  await expect(edit.locator('.gp-tree-add .gp-tree-line')).toHaveText(['BOLL']);
+  await panel.locator('.gp-edit').click();
+  await expect(edit).toHaveCount(0);
   // RSI <GO> is a chart with the RSI study added for that chart, shown under its own mnemonic.
   await run(page, 'AAPL RSI');
   await expect(panel.locator('.fnh-mnemonic')).toContainText('RSI');
-  await expect(panel.getByRole('button', { name: 'RSI', exact: true })).toHaveClass(/\bon\b/);
+  await expect(panel.getByRole('checkbox', { name: 'RSI', exact: true })).toBeChecked();
   await run(page, 'AAPL GP');
-  await panel.getByRole('button', { name: /Edit Chart/ }).click();
-  await expect(panel.getByRole('button', { name: 'RSI', exact: true })).not.toHaveClass(/\bon\b/);
+  await panel.locator('.gp-edit').click();
+  await expect(panel.getByRole('checkbox', { name: 'RSI', exact: true })).not.toBeChecked();
   // FA opens a page by name; MOST lists the stocks nearest their 52-week highs.
   await run(page, 'FA AAPL BS');
   await expect(panel.locator('.tab.on')).toHaveText('3) B/S');
