@@ -1916,6 +1916,42 @@ test("company news merges Benzinga's stories through Alpaca with Google News's s
   expect(google.map((u) => new URL(u).searchParams.get('q'))).toContain('"Apple" (stock OR shares OR earnings OR AAPL) when:7d');
 });
 
+test("company news steps through its headlines with CN's 4) Previous and 3) Next, typed or clicked", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.newsStories = true; });
+  await command(page, 'AAPL COMPANYNEWS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.news-item')).toHaveCount(2);
+  const steps = panel.locator('.fnh-actions .story-step');
+  const [previous, next] = [steps.nth(0), steps.nth(1)];
+  // On the function bar in CN's order; the first headline is open, so there is nothing before it.
+  await expect(steps).toHaveText(['4) Previous', '3) Next']);
+  await expect(panel.locator('.story h2')).toHaveText('Synthetic Benzinga story about the company');
+  await expect(previous).toBeDisabled();
+  await expect(next).toBeEnabled();
+  // 3 <GO> opens the next headline, as a click on 3) Next would.
+  await page.locator('#cmd-0').fill('3');
+  await page.locator('#cmd-0').press('Enter');
+  await expect(panel.locator('.story h2')).toHaveText('Synthetic Google story about the company');
+  await expect(panel.locator('.news-item.sel .news-n')).toHaveText('102)');
+  await expect(next).toBeDisabled();
+  await expect(previous).toBeEnabled();
+  // At the end of the list 3 <GO> opens nothing and says why.
+  await page.locator('#cmd-0').fill('3');
+  await page.locator('#cmd-0').press('Enter');
+  await expect(page.locator('.cmd-msg.error')).toHaveText('No next story: the last headline is open');
+  await expect(panel.locator('.story h2')).toHaveText('Synthetic Google story about the company');
+  // 4 <GO> goes back to the first; a click on 3) Next goes forward again.
+  await page.locator('#cmd-0').fill('4');
+  await page.locator('#cmd-0').press('Enter');
+  await expect(panel.locator('.story h2')).toHaveText('Synthetic Benzinga story about the company');
+  await expect(panel.locator('.news-item.sel .news-n')).toHaveText('101)');
+  await expect(previous).toBeDisabled();
+  await next.click();
+  await expect(panel.locator('.story h2')).toHaveText('Synthetic Google story about the company');
+  await previous.click();
+  await expect(panel.locator('.story h2')).toHaveText('Synthetic Benzinga story about the company');
+});
+
 test('without an Anthropic key nothing goes to Anthropic and the built-in assistant answers', async ({ desktop: { page } }) => {
   // No ANTHROPIC_API_KEY: the main process says so and sends nothing; the built-in assistant answers.
   expect(await page.evaluate(() => window.arminDesktop!.assistant!([{ role: 'user', content: 'hi' }]))).toEqual({ missing: 'ANTHROPIC_API_KEY' });
