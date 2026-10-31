@@ -108,6 +108,19 @@ function storedZip(name, data) {
 }
 fixtures.dataAccuracy = false;
 fixtures.extendedHours = false;
+// The consolidated-day fixture's "now": the real time on a weekday in New York, the last Friday at 15:59 there on a
+// weekend. Real quotes are dated by their session; a Saturday time made Yahoo's session (rolled forward to Monday)
+// differ from IEX's (Saturday), and the watchlist rightly kept IEX's own volume (CI, 31 October 2026, 00:06 New York).
+const NY_PARTS = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', weekday: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+function sessionNow(now = Date.now()) {
+  const part = (t, type) => NY_PARTS.formatToParts(t).find((x) => x.type === type)?.value;
+  const back = { Sat: 1, Sun: 2 }[part(now, 'weekday')];
+  if (!back) return now;
+  const friday = now - back * 86_400_000;
+  const minutes = Number(part(friday, 'hour')) * 60 + Number(part(friday, 'minute'));
+  return friday + ((15 * 60 + 59) - minutes) * 60_000 - Number(part(friday, 'second')) * 1000 - (friday % 1000);
+}
+
 net.fetch = async (input, init) => {
   const url = new URL(String(input));
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -467,7 +480,7 @@ net.fetch = async (input, init) => {
       const symbol = decodeURIComponent(url.pathname.split('/').at(-1));
       // With fixtures.consolidatedDay, AAPL's minute bars of all venues for the last hour (Yahoo's day chart).
       if (fixtures.consolidatedDay && symbol === 'AAPL' && url.searchParams.get('interval') === '1m') {
-        const end = Math.floor(Date.now() / 60_000) * 60 - 60;
+        const end = Math.floor(sessionNow() / 60_000) * 60 - 60;
         const timestamp = Array.from({ length: 60 }, (_, k) => end - (59 - k) * 60);
         const close = timestamp.map((_, k) => 120 + 3 * Math.sin(k / 6) + k / 30);
         fixtures.calls.minuteBars = [...(fixtures.calls.minuteBars ?? []), symbol];
@@ -529,7 +542,7 @@ net.fetch = async (input, init) => {
         return { regularMarketPrice: price, regularMarketVolume: volume, marketCap: 5e10 };
       })() : {}),
       // The session's open, range and volume of all US venues, beside IEX's own (consolidatedDay).
-      ...(fixtures.consolidatedDay && symbol === 'AAPL' ? { regularMarketVolume: 15_000_000, regularMarketOpen: 120.5, regularMarketDayHigh: 125, regularMarketDayLow: 119.5, gmtOffSetMilliseconds: -4 * 3_600_000, exchangeTimezoneName: 'America/New_York' } : {}),
+      ...(fixtures.consolidatedDay && symbol === 'AAPL' ? { regularMarketTime: Math.floor(sessionNow() / 1000), regularMarketVolume: 15_000_000, regularMarketOpen: 120.5, regularMarketDayHigh: 125, regularMarketDayLow: 119.5, gmtOffSetMilliseconds: -4 * 3_600_000, exchangeTimezoneName: 'America/New_York' } : {}),
       ...(fixtures.extendedHours ? {
         regularMarketPrice: 123.45, regularMarketTime: Date.parse('2026-10-19T20:00:00Z') / 1000,
         preMarketPrice: 125, preMarketTime: Date.parse('2026-10-20T11:55:00Z') / 1000,
@@ -696,7 +709,7 @@ net.fetch = async (input, init) => {
       return json({ snapshots: second ? { AAPL261120P00100000: snapshot, AAPL1261120C00100000: snapshot } : first, next_page_token: second ? null : 'second-page' });
     }
     fixtures.calls.alpaca.push(url.href);
-    const now = Date.now();
+    const now = fixtures.consolidatedDay ? sessionNow() : Date.now();
     const tradeAt = now - fixtures.tradeAgeMs;
     const date = new Date(tradeAt).toISOString().slice(0, 10);
     const previous = new Date(tradeAt - 86_400_000).toISOString().slice(0, 10);
