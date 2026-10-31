@@ -96,7 +96,8 @@ export function ScreenResults({ rows, empty, onOpen }: { rows: ScreenRow[]; empt
         label: col.label,
         title: col.title,
         num: true,
-        width: 104,
+        // Room for the bar (48px at most) beside a figure such as "643.99%" without touching it.
+        width: 124,
         cls: () => 'eqs-cell',
         sort: (r) => value(r.c, col.key),
         render: (r) => {

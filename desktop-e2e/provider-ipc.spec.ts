@@ -2179,6 +2179,10 @@ test("SCREEN runs the first portfolio paper's FTSE 100 screen on Wikipedia's mem
   // The bar marks the sorted column, the largest value full length; it moves with the sort.
   await expect(table.locator('td:nth-child(3) .eqs-bar')).toHaveCount(4);
   await expect(rows.nth(0).locator('.eqs-bar')).toHaveAttribute('style', /width: 48px/);
+  // The full-length bar ends before its figure starts.
+  const bar = await rows.nth(0).locator('td').nth(2).locator('.eqs-bar').boundingBox();
+  const figure = await rows.nth(0).locator('td').nth(2).locator('span').first().boundingBox();
+  expect(bar!.x + bar!.width).toBeLessThanOrEqual(figure!.x);
   await expect(table.locator('td:nth-child(4) .eqs-bar')).toHaveCount(0);
   await heads.nth(3).click();
   await expect(rows.nth(0).locator('td').nth(1)).toHaveText('RECKITT');
