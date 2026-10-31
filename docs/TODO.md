@@ -12,7 +12,11 @@ The owner's plan is `docs/parity-build-plan.md`, with the evidence in the owner'
 
 Done on 31 October: the setup (plan in docs, watchlist guards `6d78081`) and all of M1, the window chrome, one commit each: red bar `f2c4c62`, command line `201adf0`, two-line quote strip `3105797`, toolbar `ddcdd45`, autocomplete `ce374b7`, section strips and Suggested Functions footer `b9e8ef2`, tab strip as title bar `03644ee`, Options menu and window keys `8ef6d15`, dialogs `d77cab1`, field lists `e56c429`, fixed-width pages `f133377`. What each matches, what does not and why: `docs/bloomberg-parity.md`, "Parity build". Before and after: `docs/parity-m1-des.png`, `docs/parity-m1-typing.png`.
 
-Next: M2.1, the Related Functions Menu as an overlay panel, then the rest of M2 in the plan's order.
+M2, navigation and keyboard, is done too (2.1 to 2.6, ticked in the plan with their commits).
+
+M3, screen by screen, in the plan's order: DES (Profile `b61bebc`, Revenue & EPS `323e9e6`, Ratios `2e252ee`), FA (`fe08045` red bar dropdowns, numbered grey tabs and views from 11); `0387b8e` the grid, graph mode and settings; `c4c72f2` Segments), EE (`36f7dbb`), ANR (`e3eafc0`) and RV (`ff87aeb`). Each entry in `docs/bloomberg-parity.md` lists the frame's elements, what now matches, what is the app's own, what is a labelled blank and what is not built. Before and after: `docs/parity-m3-fa.png`, `docs/parity-m3-ee.png`, `docs/parity-m3-rv.png`.
+
+Next: EQS (TE04 03:01: the recent and popular screens at the left, the criteria categories, Add Criteria, Selected Screening Criteria with Matches, "1) See Results"), then WEI, IMAP, GP and G, and the rest of M3 in the plan's order.
 
 Portfolio management (asked 30 October): build everything in the owner's upload as exact copies, on real data. The plan, the errors found in the sources and how each is handled, and what cannot match are in `docs/portfolio-management-plan.md`; each screen's description is in `docs/portfolio-management-screens.md`. Order: mean-variance maths, month-end prices, the mean-variance screen, screening (FTSE 100, gross margin, return on common equity, running match counts), the MPC back-test with the Hold policy, then the company analysis screens.
 
