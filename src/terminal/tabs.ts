@@ -149,26 +149,23 @@ export function moveTab(id: string, toIndex: number): void {
   });
 }
 
-const DEFAULT_SCREENS = JSON.stringify(defaultTerminal().panels.map((p) => p.history));
-
 /**
- * What a tab is called: its name, else "New Tab" while its workspace is the untouched default, else its active
- * screen ("AAPL CHART"), as a browser names a tab after its page.
+ * What a tab is called: its name, else its active screen ("AAPL CHART"), as the 2024 frames name every tab after its
+ * screen ("WEI World Equity Indices", TE04 01:21); "New Tab" only on the new-tab page (TE01 02:27).
  */
 export function tabTitle(tab: WorkspaceTab, live: TerminalState | undefined): string {
   if (tab.name) return tab.name;
   const s = live ?? tab.saved;
   if (!s || !Array.isArray(s.panels)) return 'New Tab';
-  if (JSON.stringify(s.panels.map((p) => p.history)) === DEFAULT_SCREENS) return 'New Tab';
   const r = currentRoute(s, s.active);
   if (r.fn === 'WELCOME') return 'New Tab';
   return `${r.sec ? `${r.sec.split(' ')[0]} ` : ''}${r.fn}`;
 }
 
-/** The route a tab names: its active panel's, or none while the tab is untouched ("New Tab"). */
+/** The route a tab names: its active panel's, or none without a saved workspace. */
 export function tabRoute(tab: WorkspaceTab, live: TerminalState | undefined) {
   const s = live ?? tab.saved;
-  if (!s || !Array.isArray(s.panels) || JSON.stringify(s.panels.map((p) => p.history)) === DEFAULT_SCREENS) return undefined;
+  if (!s || !Array.isArray(s.panels)) return undefined;
   return currentRoute(s, s.active);
 }
 
