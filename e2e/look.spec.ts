@@ -46,7 +46,7 @@ test('IBM Plex Sans is the typeface, fixed: loaded, slightly bold, with no setti
   expect(errors).toEqual([]);
 });
 
-test("the terminal's measured colours: red function bar, grey section strips, and a cyan command line that reads <HELP> for explanation.", async ({ page }) => {
+test("the terminal's measured colours: red function bar, grey section strips, and the 2024 command line with its blue triangle and cursor", async ({ page }) => {
   const errors = await boot(page);
   const css = (selector: string, prop: string) => page.locator(selector).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
   await run(page, 'MARKET');
@@ -56,27 +56,35 @@ test("the terminal's measured colours: red function bar, grey section strips, an
   expect(await css('.fnh-actions .act', 'background-color')).toBe('rgba(0, 0, 0, 0)');
   expect(await css('.fnh-actions .act', 'border-right-color')).toBe('rgb(63, 2, 9)');
   expect(await css('.tbl tr.group td', 'background-color')).toBe('rgb(52, 52, 52)');
-  // Focused and empty: the hint, with <HELP> in green; the box and cursor are cyan, typed text white and fixed-width.
+  // The command line (TE01 05:09, TE04 01:13): a black field with a thin muted blue outline, a blue triangle at its
+  // left, a blue block cursor, typed text white and fixed-width. Empty, it shows no text at all: no placeholder and no
+  // "<HELP> for explanation.".
   const input = page.locator('#cmd-0');
+  const field = page.locator('.panel').first().locator('.cmd-field');
   await input.click();
-  const hint = page.locator('.panel').first().locator('.cmd-hint');
-  await expect(hint).toBeVisible();
-  await expect(hint).toHaveText('<HELP> for explanation.');
-  expect(await css('.cmd-hint b', 'color')).toBe('rgb(60, 191, 79)');
-  expect(await css('#cmd-0', 'box-shadow')).toContain('rgb(31, 182, 240)');
-  expect(await css('#cmd-0', 'caret-color')).toBe('rgb(31, 182, 240)');
+  expect(await css('.cmd-field', 'border-top-color')).toBe('rgb(109, 150, 212)');
+  expect(await css('.cmd-field', 'background-color')).toBe('rgb(0, 0, 0)');
+  expect(await field.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe('rgb(46, 138, 246)');
+  expect(await css('#cmd-0', 'caret-color')).toBe('rgb(46, 138, 246)');
   // Playwright's own Chromium may predate caret-shape; the desktop app's Electron has it (checked in desktop-e2e).
   if (await page.evaluate(() => CSS.supports('caret-shape', 'block'))) expect(await css('#cmd-0', 'caret-shape')).toBe('block');
   expect(await css('#cmd-0', 'color')).toBe('rgb(255, 255, 255)');
   expect(await css('#cmd-0', 'font-family')).toMatch(/^"?IBM Plex Mono"?,/);
-  await page.keyboard.type('w');
-  await expect(hint).toBeHidden();
-  await page.keyboard.press('Backspace');
-  await expect(hint).toBeVisible();
-  // Elsewhere, the empty line names the command behind the screen.
+  expect(await input.getAttribute('placeholder')).toBeNull();
+  await expect(page.locator('.panel').first().getByText('for explanation.')).toHaveCount(0);
+  // The field covers about three quarters of the row.
+  const row = (await page.locator('.panel').first().locator('.cmd').boundingBox())!;
+  const box = (await field.boundingBox())!;
+  expect(box.width / row.width).toBeGreaterThan(0.6);
+  expect(box.width / row.width).toBeLessThan(0.8);
+  // What the panel runs is still named, for screen readers.
   await input.blur();
-  await expect(hint).toBeHidden();
-  await expect(input).toHaveAttribute('placeholder', /MARKET|WEI/);
+  await expect(input).toHaveAccessibleDescription(/MARKET|WEI/);
+  // Messages go on the row below, in white.
+  await run(page, 'NOSUCHCODE');
+  const hints = page.locator('.panel').first().locator('.cmd-hints');
+  await expect(hints.locator('.cmd-msg.error')).toBeVisible();
+  expect((await hints.boundingBox())!.y).toBeGreaterThanOrEqual(row.y + row.height - 1);
   expect(errors).toEqual([]);
 });
 

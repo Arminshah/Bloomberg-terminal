@@ -293,6 +293,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
 
   const fnDef = lookupFn(route.fn);
   return (
+    <>
     <div className="cmd" role="search">
       <span className="cmd-num" title={`Panel ${panel + 1}`}>
         {panel + 1}
@@ -331,7 +332,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         aria-activedescendant={open && sel >= 0 && items[sel] ? `cmd-option-${panel}-${sel}` : undefined}
         aria-label={`Panel ${panel + 1} command line`}
         title="Enter / GO runs a command. Clicking an empty line lists your favourites: Down goes into the list, Up recalls the last command. Up / Down recall commands when suggestions are closed; Ctrl+Up / Down always recall."
-        placeholder={`${routeText(route, mnemonics)}${fnDef ? `  ·  ${fnDef.name}` : ''}`}
+        aria-describedby={`cmd-route-${panel}`}
         onChange={(e) => {
           setValue(e.target.value);
           recallIndex.current = -1;
@@ -342,11 +343,10 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
       />
-      <span className="cmd-hint" aria-hidden="true">
-        <b>&lt;HELP&gt;</b>&nbsp;for explanation.
+      {/* An empty line shows only the triangle and the cursor; what the panel runs is named for screen readers. */}
+      <span id={`cmd-route-${panel}`} className="sr-only">{`${routeText(route, mnemonics)}${fnDef ? ` · ${fnDef.name}` : ''}`}</span>
       </span>
-      </span>
-      {msg && <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span>}
+      <span className="cmd-spacer" />
       <button type="button" className="cmd-help" title="Help for this function" onClick={() => run(`HELP ${route.fn}`)}>
         ?
       </button>
@@ -396,6 +396,9 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         </div>
       )}
     </div>
+    {/* The row under the command line carries its hints and messages, in white. */}
+    <div className="cmd-hints" aria-live="polite">{msg && <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span>}</div>
+    </>
   );
 }
 

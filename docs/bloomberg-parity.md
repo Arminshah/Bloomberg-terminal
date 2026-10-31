@@ -18,6 +18,15 @@ Evidence: TE01 03:11, TE01 01:41, TE04 04:55 (and the pack's 337-frame median). 
 - Not changed: the frames draw the bar's labels larger than body text and the "98)" numbers smaller and condensed; the app keeps its text sizes (owner's rule). The app has no red-bar dropdown yet, so the dropdown red `#840C1E` (TE02 04:43) has nothing to apply to; a dropdown built later takes it.
 - Checked: `e2e/look.spec.ts` (bar colour, item background and divider).
 
+### M1.2 Command line (E3)
+
+Evidence: TE01 05:09 (typed "OF"), TE04 01:13 (typed "WEI"), TE01 01:53 (empty field), TE05 03:59. Sampled: cursor `#348EFF` on TE01 05:09 (the pack measures `#2E8AF6` over three videos).
+
+- Now: a black field with a thin muted blue outline (`#6D96D4`) over about three quarters of the row, a small blue triangle at its left and a blue block cursor (`#2E8AF6`); typed text stays white IBM Plex Mono capitals. Empty, the line shows only the triangle and cursor: the "<HELP> for explanation." hint and the grey route text are gone (no 2024 frame shows either). What the panel runs stays available to screen readers as the line's description. Messages (errors, "Saved…") moved to a row under the command line, in white; errors keep a dark red ground so they stand out.
+- Kept, with no counterpart in the frames: the GO and ? buttons at the right of the row (mouse users), until M1.4 decides where they sit.
+- Not shown in any frame: what the hint row says outside a function's own mode, so it stays empty unless there is a message.
+- Checked: `e2e/look.spec.ts` (outline, triangle, cursor colour and shape, no placeholder, width share, message row), `desktop-e2e/provider-ipc.spec.ts` (block cursor in Electron), `e2e/terminal.spec.ts` (the route is still named).
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

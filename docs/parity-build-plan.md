@@ -20,7 +20,7 @@ Setup
 - [x] S5 Watchlist guards (`6d78081`)
 
 M1. Window chrome
-- [ ] 1.1 Red function bar
+- [x] 1.1 Red function bar (`f2c4c62`)
 - [ ] 1.2 Command line
 - [ ] 1.3 Two-line quote strip
 - [ ] 1.4 Toolbar row

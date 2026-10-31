@@ -31,8 +31,8 @@
      (docs/bloomberg-parity.md, "Parity build"), the grey section strips and the command line's border and cursor. */
   --function-bar: #870e1f;
   --section: #343434;
-  --cmd-cyan: #1fb6f0;
-  --help-green: #3cbf4f;
+  --cmd-blue: #2e8af6;
+  --cmd-outline: #6d96d4;
   --sel: #ff9e1b;
   --sel-text: #000000;
   --flash-up: rgba(47, 211, 107, 0.42);
@@ -456,9 +456,11 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 }
 .cmd-nav button:hover:not(:disabled) { color: var(--amber); background: var(--bg-3); }
 .cmd-nav button:disabled { opacity: 0.25; cursor: default; }
-/* The command line: white fixed-width text on black with a cyan block cursor, and a cyan box while it has focus. Empty
-   and focused, it reads "<HELP> for explanation."; empty otherwise, it names the command behind the screen. */
-.cmd-field { position: relative; flex: 1; min-width: 0; display: flex; }
+/* The command line, as the 2024 frames draw it (TE01 05:09, TE04 01:13): a black field with a thin muted blue outline
+   over about three quarters of the row, a small blue triangle at its left, white fixed-width capitals and a blue
+   block cursor. Empty, it shows only the triangle and the cursor; hints and messages go on the row below. */
+.cmd-field { position: relative; flex: 0 1 74%; min-width: 0; display: flex; align-items: stretch; margin: 2px 0; border: 1px solid var(--cmd-outline); background: #000; }
+.cmd-field::before { content: ''; flex: none; align-self: center; width: 6px; height: 12px; margin-left: 2px; background: var(--cmd-blue); clip-path: polygon(0 0, 100% 50%, 0 100%); }
 .cmd-input {
   flex: 1;
   min-width: 0;
@@ -466,37 +468,20 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   outline: none;
   background: transparent;
   color: var(--white);
-  padding: 0 8px;
+  padding: 0 6px 0 5px;
   text-transform: uppercase;
-  caret-color: var(--cmd-cyan);
+  caret-color: var(--cmd-blue);
   caret-shape: block;
   font-family: var(--fixed);
   font-weight: 500;
   letter-spacing: 0;
 }
-.cmd-input::placeholder { color: #8a6326; text-transform: none; font-weight: 400; font-family: var(--sans); }
-.cmd-input:focus { background: #000; box-shadow: inset 0 0 0 1px var(--cmd-cyan); }
-.cmd-input:focus::placeholder { color: transparent; }
-.cmd-hint { display: none; position: absolute; left: 8px; top: 0; bottom: 0; align-items: center; pointer-events: none; color: #a0a0a0; font-family: var(--fixed); letter-spacing: 0; white-space: nowrap; }
-.cmd-hint b { color: var(--help-green); font-weight: 500; }
-.cmd-input:focus:placeholder-shown + .cmd-hint { display: flex; }
-.cmd-msg {
-  position: absolute;
-  right: 74px;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  max-width: 60%;
-  padding: 0 8px;
-  pointer-events: none;
-  font-size: var(--fs-s);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cmd-msg.error { color: #fff; background: #7a1010; }
-.cmd-msg.info { color: #000; background: var(--amber); }
+.cmd-input:focus-visible { outline: none; }
+.cmd-spacer { flex: 1 1 0; min-width: 0; }
+.cmd-hints { display: flex; align-items: center; gap: 12px; height: 20px; flex: none; padding: 0 8px; overflow: hidden; background: #000; border-bottom: 1px solid var(--line-2); color: var(--white); font-family: var(--sans); white-space: nowrap; }
+.cmd-msg { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-s); }
+.cmd-msg.error { padding: 0 6px; color: #fff; background: #7a1010; }
+.cmd-msg.info { color: var(--white); }
 .cmd-go {
   flex: none;
   border: 0;
@@ -1262,7 +1247,6 @@ a.news-item { color: inherit; text-decoration: none; }
 @container panel (max-width: 420px) {
   .hide-m { display: none !important; }
   .kv-cols { grid-template-columns: 1fr; }
-  .cmd-msg { right: 44px; max-width: 70%; }
 }
 @container panel (max-width: 240px) {
   .panel-tool { display: none; }
