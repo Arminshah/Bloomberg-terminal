@@ -18,3 +18,13 @@ describe("PROFILE's head office line", () => {
     expect(headOffice('London, United Kingdom', '')).toBe('London, United Kingdom');
   });
 });
+
+describe("PROFILE's market value and share counts, in millions as DES writes them", () => {
+  it('gives one decimal, a separator and M at any size', async () => {
+    const { inMillions } = await import('../src/functions/DESEquity');
+    expect(inMillions(41_934.9)).toBe('41,934.9M');
+    expect(inMillions(4_964.5)).toBe('4,964.5M');
+    expect(inMillions(3_412_345.67)).toBe('3,412,345.7M');
+    expect(inMillions(NaN)).toBe('--');
+  });
+});
