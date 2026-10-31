@@ -202,6 +202,25 @@ net.fetch = async (input, init) => {
     const short = [82537252, 79000000, 76262736][k];
     return new Response(['Product,Product Code,Reported Short Positions,Total Product in Issue,% of Total Product in Issue Reported as Short Positions', `BHP GROUP LIMITED ORDINARY,BHP,${short},5084182410,${(short / 5084182410) * 100}`].join('\r\n'), { status: 200, headers: { 'Content-Type': 'text/csv' } });
   }
+  // With fixtures.fedinvest, TreasuryDirect's FedInvest price page: the form with a CSRF token, then for the last two
+  // weekdays a table of made-up prices in the page's layout (any other day comes back unpriced, as one not yet
+  // published does). The posted dates are recorded.
+  if (fixtures.fedinvest && url.hostname === 'www.treasurydirect.gov') {
+    if ((init?.method ?? 'GET') === 'GET') return new Response('<form id="fromToDate" method="post"><input type="hidden" name="_csrf" value="TEST-TOKEN" /></form>', { status: 200, headers: { 'Content-Type': 'text/html' } });
+    const form = new URLSearchParams(String(init?.body ?? ''));
+    const date = form.get('priceDate') ?? '';
+    fixtures.calls.fedinvest = [...(fixtures.calls.fedinvest ?? []), { date, token: form.get('_csrf') }];
+    const k = weekdaysBack(2, Date.now() + DAY_MS).indexOf(date);
+    const td = (cells) => `<tr>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`;
+    const px = (latest, prev) => (k === 0 ? latest : k === 1 ? prev : '0.000000');
+    const rows = [
+      td(['912797XX1', 'MARKET BASED BILL', '0.000%', '12/03/2026', '', '0.000000', px('99.650000', '99.640000'), '0.000000']),
+      td(['91282CAA1', 'MARKET BASED NOTE', '4.625%', '08/15/2036', '', px('97.531250', '97.328125'), px('97.515625', '97.312500'), '0.000000']),
+      td(['91282CBB2', 'MARKET BASED NOTE', '5.000%', '09/30/2033', '', px('100.984375', '100.937500'), px('100.968750', '100.921875'), '0.000000']),
+      td(['912828ZZ1', 'TIPS', '0.125%', '02/15/2051', '', px('49.546875', '49.500000'), px('49.500000', '49.468750'), '0.000000']),
+    ];
+    return new Response(`<table><tr><th>CUSIP</th><th>SECURITY TYPE</th><th>RATE</th><th>MATURITY DATE</th><th>CALL DATE</th><th>BUY</th><th>SELL</th><th>END OF DAY</th></tr>${rows.join('')}</table>`, { status: 200, headers: { 'Content-Type': 'text/html' } });
+  }
   if (fixtures.treasuryCurve && url.hostname === 'home.treasury.gov') {
     return new Response(treasuryCsv(url.pathname.split('/').at(-2)), { status: 200, headers: { 'Content-Type': 'text/csv' } });
   }

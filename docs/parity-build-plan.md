@@ -54,8 +54,9 @@ M3. Screen parity
 - [x] GP and G: the three dropdowns, both control rows, Related Data, Edit Chart (next commit); G's saved graphs, 3D and the field choice not built
 - [ ] TOP (left for now: see docs/TODO.md)
 - [x] DS: Ask a Question on an opened filing, Gemini's answers kept to the filing's own words (next commit); the document viewer not built
-- [x] SRCH: the search page with criteria and matches, results on their own page, real US Treasuries from the Treasury's statement (next commit); corporates and My Searches not built
-- [x] WB: Regional and Developed views, Bonds, Spreads and Curves with the Data Range band, Security Analysis (next commit), checked on official yields in the desktop app; named bonds, prices and the countries without a free source not built
+- [x] SRCH: the search page with criteria and matches, results on their own page, real US Treasuries from the Treasury's statement (`a71fab9`); corporates and My Searches not built
+- [x] WB: Regional and Developed views, Bonds, Spreads and Curves with the Data Range band, Security Analysis (`6b505c3`), checked on official yields in the desktop app; named bonds, prices and the countries without a free source not built
+- [x] ALLQ: the montage's layout, FedInvest's prices for US Treasuries in the desktop app with spreads to the latest issue of the nearest tenor (next commit); dealer quotes, axes and ALLQ for currencies not built
 - [x] YAS: the Yield & Spread page, its tabs and Settings, the measures checked against TE07 03:47 (next commit); G-Sprd, I-Sprd, ASW and True Yield blank
 
 ## 1. Rules that come before anything in this plan

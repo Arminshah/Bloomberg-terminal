@@ -9,6 +9,7 @@ import { engine, useTick } from '../data/market';
 import type { SecurityDef } from '../data/types';
 import { BOND_FIELDS, BOUNDARY_LABEL, boundariesFor, describeSearch, matchesAfterEach, RATINGS, runSearch, treasuryInstruments, type BondCrit, type BondField, type Instrument } from '../data/bond-search';
 import { fiscalAvailable, parseMspd, useFiscal } from '../data/live/fiscal';
+import { fedinvest, fedInvestAvailable, loadFedInvest, treasuryIdByCusip } from '../data/live/fedinvest';
 import { execute } from '../terminal/exec';
 import { useMenu, usePanelId } from '../terminal/panel';
 import { currentRoute, terminal } from '../terminal/state';
@@ -77,6 +78,12 @@ export function SRCH({ route, sec }: FnProps) {
   const [crits, setCrits] = useState<BondCrit[]>(() => initialCrits(route.args, sec, real));
   const [tab, setTab] = useState(41);
   const [page, setPage] = useState<'criteria' | 'results'>('criteria');
+  // The results' prices and links: FedInvest's Treasuries, loaded when the results are first shown.
+  const fed = fedinvest.use((x) => x);
+  useEffect(() => {
+    if (real && page === 'results' && fedInvestAvailable() && fed.state === 'off') void loadFedInvest();
+  }, [real, page, fed.state]);
+  const secOf = (i: Instrument) => i.secId ?? (i.cusip ? treasuryIdByCusip(i.cusip) : undefined);
   // Back steps from the results to the criteria, from the mouse's button and the keyboard's alike (as EQS).
   const shownRoute = terminal.use((st) => currentRoute(st, panel));
   const fresh = useRef(true);
@@ -155,21 +162,21 @@ export function SRCH({ route, sec }: FnProps) {
             rows={found}
             rowKey={(i) => i.id}
             numbered
-            onRowClick={real ? undefined : (i, e) => i.secId && openSecurity(panel, i.secId, e)}
+            onRowClick={(i, e) => { const id = secOf(i); if (id) openSecurity(panel, id, e); }}
             defaultSort={{ key: 'm', dir: 1 }}
             empty={status ?? 'No instrument matches. Loosen a criterion.'}
             columns={[
-              { key: 'n', label: 'Security', render: (i) => (i.secId ? <SecLink id={i.secId}>{i.name}</SecLink> : <span className="amber">{i.name}</span>), sort: (i) => i.name },
+              { key: 'n', label: 'Security', render: (i) => { const id = secOf(i); return id ? <SecLink id={id}>{i.name}</SecLink> : <span className="amber">{i.name}</span>; }, sort: (i) => i.name },
               ...(real ? [{ key: 'c', label: 'CUSIP', render: (i: Instrument) => i.cusip ?? '', sort: (i: Instrument) => i.cusip ?? '' }] : [{ key: 'i', label: 'Issuer', hideM: true, render: (i: Instrument) => <span className="ellipsis" style={{ maxWidth: 200, display: 'inline-block' }}>{i.issuer}</span>, sort: (i: Instrument) => i.issuer ?? '' }]),
               { key: 't', label: 'Type', render: (i) => i.type, sort: (i) => i.type },
               { key: 'p', label: 'Cpn', num: true, render: (i) => (Number.isFinite(i.coupon) ? fmtNum(i.coupon, 3) : '--'), sort: (i) => (Number.isFinite(i.coupon) ? i.coupon : -1) },
               { key: 'm', label: 'Maturity', render: (i) => fmtDay(Date.parse(`${i.maturity}T00:00:00Z`)), sort: (i) => i.maturity },
               ...(real ? [] : [{ key: 'r', label: 'Rtg', render: (i: Instrument) => i.rating ?? '', sort: (i: Instrument) => RATINGS.indexOf(i.rating ?? 'CCC') }]),
               { key: 'a', label: 'Amt Out (USD MM)', num: true, render: (i) => (Number.isFinite(i.amountMM) ? fmtInt(i.amountMM) : '--'), sort: (i) => (Number.isFinite(i.amountMM) ? i.amountMM : -1) },
-              ...(real ? [] : [{ key: 'x', label: 'Price', num: true, render: (i: Instrument) => (i.secId ? <LivePx id={i.secId} /> : ''), sort: (i: Instrument) => (i.secId ? engine.quote(i.secId)?.last ?? 0 : 0) }]),
+              { key: 'x', label: 'Price', num: true, render: (i: Instrument) => { const id = secOf(i); return id ? <LivePx id={id} /> : ''; }, sort: (i: Instrument) => { const id = secOf(i); return id ? engine.quote(id)?.last ?? 0 : 0; } },
             ]}
           />
-          {real ? <p className="pad-s muted">Amounts are the statement&apos;s outstanding amounts at its date ({fmtDay(Date.parse(`${asOf}T00:00:00Z`))}), all issues of a CUSIP together. No free source gives Treasury prices by CUSIP; the yields by maturity are on the curve screens.</p> : null}
+          {real ? <p className="pad-s muted">Amounts are the statement&apos;s outstanding amounts at its date ({fmtDay(Date.parse(`${asOf}T00:00:00Z`))}), all issues of a CUSIP together. {fed.latest ? `Prices: TreasuryDirect FedInvest's Sell prices of ${fmtDay(Date.parse(`${fed.latest.date}T00:00:00Z`))} for notes and bonds (bills, TIPS and FRNs have none here); a row opens its Treasury.` : fed.state === 'loading' ? "Loading the Treasury's prices from FedInvest…" : fed.state === 'error' ? `FedInvest unavailable: ${fed.error}` : ''}</p> : null}
         </>
       ) : tab === 43 ? (
         <div className="srch-examples">

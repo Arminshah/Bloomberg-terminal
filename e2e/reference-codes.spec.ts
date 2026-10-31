@@ -463,6 +463,32 @@ test('WB as TE07 01:15: Regional view, Bonds, Spreads and Curves tabs, a Data Ra
   expect(errors).toEqual([]);
 });
 
+test('ALLQ as TE07 04:17: security box, Request Access and Settings, Spreads vs a benchmark, and the quote montage', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL 4.65 02/23/46 CORP ALLQ');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('DEALERQUOTES');
+  await expect(panel.locator('.fnh-sec')).toHaveText('AAPL 4.65 02/23/46 Corp');
+  await expect(panel.locator('.fnh-actions .act')).toHaveText(['Request Access▾', 'Settings▾']);
+  const table = panel.getByTestId('allq-table');
+  await expect(table.locator('thead th')).toHaveText(['PCS', 'Firm Name', 'Bid Px / Ask Px', 'Bid Spd / Ask Spd', 'BSz(M) x ASz(M)', 'Time']);
+  // Two lines above the dealers, then the demo's eight fictional dealers, said so.
+  await expect(table.locator('tr.allq-lead')).toHaveCount(2);
+  await expect(panel.getByTestId('allq-dealer')).toHaveCount(8);
+  await expect(panel.locator('.allq-status')).toContainText('dealers and their quotes are generated');
+  // The spreads are measured against the latest Treasury of the nearest tenor, priced in 32nds.
+  await expect(panel.getByLabel('Benchmark')).toHaveValue(/ Govt$/);
+  await expect(panel.locator('.allq-bench')).toContainText(/\d+-\d{2}\+? \/ \d+-\d{2}\+?/);
+  // Settings shows yields instead; Split Bid/Offer sorts each side on its own.
+  await panel.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('menuitem', { name: 'Show Bid Yld / Ask Yld' }).click();
+  await expect(table.locator('thead th').nth(3)).toHaveText('Bid Yld / Ask Yld');
+  await panel.getByLabel('Split Bid/Offer').check();
+  const asks = (await panel.getByTestId('allq-dealer').locator('td:nth-child(3)').allTextContents()).map((t) => Number(t.split('/')[1]));
+  expect(asks).toEqual([...asks].sort((a, b) => a - b));
+  expect(errors).toEqual([]);
+});
+
 test('SCREEN joins criteria by AND within a group and OR across groups, says its universe, and keeps saved screens', async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'EQS');

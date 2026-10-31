@@ -6,6 +6,7 @@ import { OFFICIAL_YIELD_IDS } from './govyields';
 import { krakenOwns } from './kraken';
 import { officialAvailable } from './official';
 import { iexOwns } from './iex-engine';
+import { fedinvestOwns } from './fedinvest';
 import { EUREX_IDS, eurexAvailable } from './eurex';
 
 /**
@@ -15,6 +16,7 @@ import { EUREX_IDS, eurexAvailable } from './eurex';
 export function hasRealSource(d: SecurityDef): boolean {
   if (iexOwns(d.id)) return true;
   if (krakenOwns(d.id)) return true;
+  if (fedinvestOwns(d.id)) return true;
   if (yahooSymbolFor(d)) return true;
   if (treasuryAvailable() && TREASURY_IDS.has(d.id)) return true;
   if (officialAvailable() && OFFICIAL_YIELD_IDS.has(d.id)) return true;

@@ -2042,3 +2042,19 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .wb-tile-spark { grid-area: spark; align-self: center; }
 .wb-tile-last { grid-area: last; color: #e0e0e0; }
 .wb-tile-chg { grid-area: chg; color: #e0e0e0; text-align: right; }
+
+/* ALLQ, All Quotes (TE07 04:17): a status line with the time and the dealer switches, "Spreads vs" an amber
+   benchmark, then PCS, Firm Name, Bid Px / Ask Px, Bid Spd / Ask Spd and sizes under a #3A3A3A heading; the two lines
+   above the dealers on #282828, the dealers on black, columns split by #313131 rules. */
+.allq-status, .allq-bench { display: flex; align-items: center; gap: 14px; padding: 2px 6px; flex-wrap: wrap; }
+.allq-clock { color: var(--amber); font-variant-numeric: tabular-nums; }
+.allq-status .chk { color: #fff; }
+.allq-status .chk:has(input:disabled) { color: #9a9a9a; }
+.allq-demo { color: var(--muted); }
+.allq-bench { gap: 10px; }
+.allq-bench-pick { min-width: 230px; }
+.allq-src { padding: 0 6px; background: var(--amber); color: #000; }
+.allq-tbl th { background: #3a3a3a; color: #e8e8e8; }
+.allq-tbl td + td, .allq-tbl th + th { border-left: 1px solid #313131; }
+.allq-tbl tr.allq-lead td { background: #282828; }
+.allq-none { padding: 6px; }

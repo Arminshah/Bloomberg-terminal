@@ -1,11 +1,12 @@
 import { engine } from '../data/market';
 import { lookupSecurity, lookupSource } from '../data/live/lookup';
+import { fedInvestAvailable, fedinvest, loadFedInvest } from '../data/live/fedinvest';
 import { CLASS_LABEL } from '../data/registry';
 import { parseCommand } from './commands';
 import { plainWords } from './plain-words';
 import { flash, clearFlash, menuItem } from './panel';
 import { lookupFn } from './registry';
-import { loadedSecurity, navigate, terminal } from './state';
+import { currentRoute, loadedSecurity, navigate, terminal } from './state';
 import { commandForName, nameQuery } from './name-search';
 
 /** Bumped per panel on every command, so a slow online lookup never overrides a newer command. */
@@ -32,6 +33,32 @@ function lookupThenRun(panel: number, text: string, ticker: string, message: str
     const again = parseCommand(text, lookupFn);
     if (again.kind === 'route') execute(panel, text);
     else execute(panel, r.def.id);
+  });
+  return true;
+}
+
+/** A US Treasury typed by name ("T 4 5/8 08/15/36 Govt") or by CUSIP ("91282CAA1"). */
+const TREASURY_TYPED = /^\s*(?:T\s+\d+(?:\.\d+)?(?:\s+\d\/\d)?\s+\d{2}\/\d{2}\/\d{2}\b|912[0-9A-Z]{6}\b)/i;
+
+/** Loads FedInvest's Treasuries (the desktop app adds them when first needed), then runs the original command. */
+function treasuryThenRun(panel: number, text: string): boolean {
+  const seq = runSeq.get(panel);
+  // The load can take most of a minute: the command still runs unless another was typed or the panel shows another
+  // screen by then (its state object changes meanwhile, as screens note their tabs).
+  const shown = () => {
+    const r = currentRoute(terminal.get(), panel);
+    return `${r.fn}|${r.sec ?? ''}|${r.args ?? ''}`;
+  };
+  const before = shown();
+  flash(panel, "Loading the Treasury's prices from FedInvest…", 'info');
+  void loadFedInvest().then(() => {
+    if (runSeq.get(panel) !== seq || shown() !== before) return;
+    const st = fedinvest.get();
+    if (st.state !== 'ready') {
+      flash(panel, `Treasury prices unavailable: ${st.error ?? 'FedInvest did not answer'}`, 'error');
+      return;
+    }
+    execute(panel, text);
   });
   return true;
 }
@@ -86,6 +113,7 @@ export function execute(panel: number, text: string): boolean {
       navigate(panel, { fn: 'HELP', args: parsed.topic || undefined, sec: loadedSecurity(terminal.get(), panel) });
       return true;
     case 'error':
+      if (TREASURY_TYPED.test(text) && fedInvestAvailable() && fedinvest.get().state !== 'ready') return treasuryThenRun(panel, text);
       if (parsed.lookup) return lookupThenRun(panel, text, parsed.lookup, parsed.message);
       if (!parsed.final && lookupSource() && nameQuery(text)) return nameThenRun(panel, text, parsed.message);
       flash(panel, parsed.message, 'error');

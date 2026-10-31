@@ -1974,7 +1974,7 @@ export class MarketEngine {
    * Registers a security found at runtime (online lookup). Daily bars or
    * anchors, when given, calibrate its history before the first quote.
    */
-  addSecurity(def: SecurityDef, init: { bars?: { day: number; o: number; h: number; l: number; c: number; v: number }[]; anchors?: [day: number, level: number][] } = {}): boolean {
+  addSecurity(def: SecurityDef, init: { bars?: { day: number; o: number; h: number; l: number; c: number; v: number }[]; anchors?: [day: number, level: number][] } = {}, notify = true): boolean {
     if (this.byId.has(def.id)) return false;
     this.defs.push(def);
     this.byId.set(def.id, def);
@@ -1991,8 +1991,18 @@ export class MarketEngine {
     this.updateBase(st, t, false);
     this.publishQuote(st, t);
     this.version++;
-    for (const fn of this.listeners) fn(new Set([def.id]));
+    if (notify) for (const fn of this.listeners) fn(new Set([def.id]));
     return true;
+  }
+
+  /**
+   * Adds many securities and tells the screens once: FedInvest's 400-odd Treasuries one at a time would re-render
+   * every subscribed screen 400 times. Returns the ids added.
+   */
+  addSecurities(defs: SecurityDef[]): string[] {
+    const added = defs.filter((d) => this.addSecurity(d, {}, false)).map((d) => d.id);
+    if (added.length) this.flush(added);
+    return added;
   }
 
   /** Every security that should appear in search and monitors. */

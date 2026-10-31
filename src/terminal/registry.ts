@@ -67,7 +67,8 @@ import { IB } from '../functions/IB';
 import { HS } from '../functions/HS';
 import { NOTE } from '../functions/NOTE';
 import { MENU } from '../functions/MENU';
-import { ALLQ, DDIS } from '../functions/CREDIT';
+import { DDIS } from '../functions/CREDIT';
+import { ALLQ } from '../functions/ALLQ';
 import { SRCH } from '../functions/SRCH';
 import { AUCTIONS } from '../functions/AUCTIONS';
 import { GF, HVT, MEMB, MOV, MRR, GRR, TRA, VWAP } from '../functions/ANALYSIS';
@@ -219,7 +220,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'BONDSEARCH', name: 'Fixed Income Search', category: 'Rates & Credit', desc: 'Search Treasuries and corporate bonds by issuer, rating, maturity and coupon with yields and spreads (browser model; bond prices have no free source).', component: SRCH, example: 'AAPL CORP', unavailable: 'bond prices have no free source', hint: '1 <GO> for Results' },
   { code: 'AUCTIONS', name: 'Treasury Auction Results', category: 'Rates & Credit', desc: "The Treasury's auctions from Fiscal Data (about 16 months) and TreasuryDirect (results minutes after each auction): bills, notes and bonds, TIPS and FRNs with the high yield, rate or margin, price, share allotted at the high, bid-to-cover and the dealer, direct and indirect shares of the competitive award, a link to each results release, and the auctions announced but not yet held (desktop app).", component: AUCTIONS, example: 'AUCTIONS' },
   { code: 'DEBTPROFILE', name: 'Debt Distribution', category: 'Rates & Credit', desc: "An issuer's bonds by maturity: amounts outstanding, weighted coupon, life and spread (browser model).", component: DDIS, example: 'DEBTPROFILE JPM CORP', unavailable: 'bond data has no free source' },
-  { code: 'DEALERQUOTES', name: 'All Quotes', category: 'Rates & Credit', needsSec: true, classes: ['bond'], desc: 'Dealer quote montage for a bond with best bid and offer, yields and sizes (browser model; dealer quotes have no free source).', component: ALLQ, unavailable: 'dealer quotes have no free source', suggested: ['BONDCALC', 'BONDSEARCH'] },
+  { code: 'DEALERQUOTES', name: 'All Quotes', category: 'Rates & Credit', needsSec: true, classes: ['bond'], desc: "Every source's bid and ask for a bond, with spreads or yields against the latest Treasury of the nearest tenor. In the desktop app a US Treasury's prices from the Treasury's FedInvest; dealer quotes have no free source (the browser demo simulates dealers).", component: ALLQ, suggested: ['BONDCALC', 'BONDSEARCH'] },
   // Commodities
   { code: 'COMMODITIES', name: 'Global Commodities', category: 'Commodities', desc: 'Energy, metals, grains, softs and livestock futures with changes, YTD and intraday.', component: GLCO },
   { code: 'OILMARKET', name: 'Oil', category: 'Commodities', desc: 'The oil page: WTI, Brent, heating oil and gasoline futures, the Brent-WTI spread and two crack spreads with their year\'s range, curves and news.', component: OIL },

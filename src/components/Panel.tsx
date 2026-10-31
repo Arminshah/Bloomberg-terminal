@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { engine } from '../data/market';
 import { lookupSecurity } from '../data/live/lookup';
+import { fedinvest, fedInvestAvailable, loadFedInvest } from '../data/live/fedinvest';
 import { PanelContext } from '../terminal/panel';
 import { lookupFn } from '../terminal/registry';
 import { currentRoute, setActive, terminal } from '../terminal/state';
@@ -58,17 +59,29 @@ export function Panel({ index, place, panels = 1, solo = false, hidden = false }
 
 /**
  * A saved panel can name a stock that is not registered at startup (a lookup
- * that was not kept). A US stock is looked up again; anything else says so.
+ * that was not kept), or a Treasury, which the desktop app adds once FedInvest's
+ * prices load. A US stock is looked up again and a Treasury's prices loaded;
+ * anything else says so.
  */
 function MissingSecurity({ id, onFound }: { id: string; onFound: () => void }) {
-  const [msg, setMsg] = useState(`Looking up ${id.split(' ')[0]}…`);
+  const [msg, setMsg] = useState(/ Govt$/.test(id) && fedInvestAvailable() ? "Loading the Treasury's prices from FedInvest…" : `Looking up ${id.split(' ')[0]}…`);
   useEffect(() => {
+    let live = true;
+    if (/ Govt$/.test(id) && fedInvestAvailable()) {
+      void loadFedInvest().then(() => {
+        if (!live) return;
+        if (engine.get(id)) onFound();
+        else setMsg(fedinvest.get().state === 'error' ? `${id}: FedInvest unavailable (${fedinvest.get().error})` : `${id} is not on FedInvest's latest price list`);
+      });
+      return () => {
+        live = false;
+      };
+    }
     const m = /^(\S+) US Equity$/.exec(id);
     if (!m) {
       setMsg(`${id} is not available`);
       return;
     }
-    let live = true;
     void lookupSecurity(m[1]).then((r) => {
       if (!live) return;
       if (r.ok) onFound();
