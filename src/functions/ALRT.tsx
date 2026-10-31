@@ -70,7 +70,7 @@ export function ALRT({ sec }: FnProps) {
           <span style={{ position: 'relative' }}>
             <input className="inp" placeholder="Security" aria-label="Security" value={text} onChange={(e) => setText(e.target.value)} />
             {hits.length > 0 && (
-              <div className="ac" style={{ left: 0, right: 'auto', minWidth: 300 }}>
+              <div className="ac ac-field" style={{ left: 0, right: 'auto', minWidth: 300 }}>
                 {hits.map(({ def }) => (
                   <div key={def.id} className="ac-item" onMouseDown={(e) => { e.preventDefault(); setText(def.id); }}>
                     <span className="k">{def.id}</span>

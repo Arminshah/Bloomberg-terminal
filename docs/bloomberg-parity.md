@@ -97,6 +97,15 @@ Evidence: TE01 05:11 (the Log Off dialog: light grey title bar with a dark title
 - The app has no other dialog; the unused `.modal` style went. The Yahoo cookie window is Yahoo's own page in a window of its own and stays as it is.
 - Checked: `e2e/compliance.spec.ts` (role, title bar and body colours, dimming, Cancel focused, Escape cancels, Add anyway records), the whole browser suite.
 
+### M1.10 Field dropdowns (E3)
+
+Evidence: TE02 00:59 (GP's field list: grey codes, amber names), TE04 02:29 (IMAP's index box: "Suggested Indices/Funds", tickers white with the typed letters bold, names amber, "Browse..." and "Create Custom List..." in blue), TE02 01:55, TE07 01:45.
+
+- Now: the choices of every amber field list (`sel-inp`, about a hundred across the screens) are amber on dark grey `#1E1E1E`, group headings white, the chosen one dark blue. The security pickers on screens (GP's compare box, COMP, ALRT, FAV and the worksheets) list tickers in white and names in amber on `#1E1E1E`, the lit row dark blue.
+- The watchlist's add-a-security list is the owner's and keeps its look (yellow tickers); a browser test checks it.
+- Not done: "Browse..." and "Create Custom List..." rows (no index browser or custom lists in these pickers yet); the field codes shown before names in GP's list (the provider's own codes). How the list draws depends on the system: Windows draws the native lists in these colours; some Linux desktops draw their own.
+- Checked: `e2e/look.spec.ts` (option colours, picker colours, the watchlist's list unchanged), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

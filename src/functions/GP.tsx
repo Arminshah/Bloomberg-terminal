@@ -98,7 +98,7 @@ function CompareBox({ sec, list, setList }: { sec: SecurityDef; list: string[]; 
         }}
       />
       {hits.length > 0 && (
-        <div className="ac" style={{ left: 0, right: 'auto', minWidth: 300 }}>
+        <div className="ac ac-field" style={{ left: 0, right: 'auto', minWidth: 300 }}>
           {hits.map(({ def }) => (
             <div key={def.id} className="ac-item" onMouseDown={(e) => { e.preventDefault(); add(def.id); }}>
               <span className="k">{def.id}</span>

@@ -161,7 +161,7 @@ export function FAV({ route }: FnProps) {
             }}
           />
           {hits.length > 0 && (
-            <div className="ac" style={{ left: 0, right: 'auto', minWidth: 320 }}>
+            <div className="ac ac-field" style={{ left: 0, right: 'auto', minWidth: 320 }}>
               {hits.map(({ def }) => (
                 <div
                   key={def.id}
