@@ -64,10 +64,11 @@ test('TECH lists the studies with what each computes, and a study opens the char
   await expect(panel.locator('tbody tr', { hasText: 'Relative strength index' })).toContainText('AAPL US GP RSI');
   await panel.locator('tbody tr', { hasText: 'Relative strength index' }).click();
   await expect(panel.locator('.fnh-code')).toHaveText('CHART');
-  await expect(panel.getByRole('button', { name: 'RSI', exact: true })).toHaveClass(/\bon\b/);
+  // A chart a study opened shows Edit Chart's panel with the study ticked (TE02 04:43).
+  await expect(panel.getByRole('checkbox', { name: 'RSI', exact: true })).toBeChecked();
   await run(page, 'AAPL US Equity TECH');
   await panel.locator('tbody tr', { hasText: '200 closes' }).click();
-  await expect(panel.getByRole('button', { name: 'SMA 200', exact: true })).toHaveClass(/\bon\b/);
+  await expect(panel.getByRole('checkbox', { name: 'SMA 200', exact: true })).toBeChecked();
   expect(errors).toEqual([]);
 });
 
@@ -76,7 +77,7 @@ test("CHART takes the report's studies: the 10-, 20- and 30-day averages and the
   await run(page, 'AAPL US GP SMA10 SMA20 SMA30 VMA15');
   const panel = page.locator('.panel').first();
   await expect(panel.locator('.fnh-code')).toHaveText('CHART');
-  for (const name of ['SMA 10', 'SMA 20', 'SMA 30', 'Vol MA 15']) await expect(panel.getByRole('button', { name, exact: true })).toHaveClass(/\bon\b/);
+  for (const name of ['SMA 10', 'SMA 20', 'SMA 30', 'Vol MA 15']) await expect(panel.getByRole('checkbox', { name, exact: true })).toBeChecked();
   expect(errors).toEqual([]);
 });
 
