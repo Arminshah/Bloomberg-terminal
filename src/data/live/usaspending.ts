@@ -232,10 +232,10 @@ export function subRelations(list: FedSubaward[], role: 'customer' | 'supplier',
     if (u) g.uei.set(u, (g.uei.get(u) ?? 0) + s.amount);
     by.set(party.key, g);
   }
-  return [...by.values()]
-    .filter((g) => g.amount > 0 || g.list.some((s) => doubtful.has(subawardKey(s))))
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, max)
+  const ranked = [...by.values()].filter((g) => g.amount > 0).sort((a, b) => b.amount - a.amount).slice(0, max);
+  // A party with only doubtful records has no amount to rank by; it is kept beyond the cap, with its reason.
+  const unranked = [...by.values()].filter((g) => g.amount <= 0 && g.list.some((s) => doubtful.has(subawardKey(s))));
+  return [...ranked, ...unranked]
     .map((g) => ({
       ...g.party,
       role,

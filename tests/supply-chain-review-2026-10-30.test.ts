@@ -406,6 +406,10 @@ describe('SPLC review of 30 October 2026: the federal records', () => {
     const got = subRelations(subs, 'supplier', fedContext('NOC', 'NORTHROP GRUMMAN CORP /DE/'), new Set(['VSBAFMDKTWL4']), 30, doubtful);
     expect(got.map((r) => [r.name, r.amount])).toEqual([['Airbus', 107163324], ['TECHNOVARE SYSTEMS, INC.', undefined]]);
     expect(got[1].evidence[0].sentence).toContain("Not counted: the reported $927.0M is 27% of the prime contract's $3.5B obligation and 6139 times the subcontractor's next-largest subaward of two years ($151.0K)");
+    // Northrop's live screen of 31 October 2026 had more ranked suppliers than the cap, and the record was dropped
+    // with them; it stays, after the ranked ones.
+    const capped = subRelations(subs, 'supplier', fedContext('NOC', 'NORTHROP GRUMMAN CORP /DE/'), new Set(['VSBAFMDKTWL4']), 1, doubtful);
+    expect(capped.map((r) => [r.name, r.amount])).toEqual([['Airbus', 107163324], ['TECHNOVARE SYSTEMS, INC.', undefined]]);
   });
 
   it('reads Vertex Aerospace as V2X, its name now, and Electric Boat under General Dynamics, its parent in the records (findings 2 and 9)', async () => {
