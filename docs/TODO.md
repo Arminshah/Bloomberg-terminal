@@ -4,7 +4,7 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
-2.30.0 was requested on 31 October through `.github/release-request.json`: the portfolio-management screens (FRONTIER, MPC), the FTSE 100 screen, the SPLC review fixes (`docs/splc-review-2026-10-30.md`), official session figures from Nasdaq's record, the interface work of 31 October and the unpublished 2.29.1 accuracy work. It is published only once the release workflow has finished and both Windows executables and their checksums are on the release.
+2.30.0 was published on 31 October (08:23 UTC). 2.31.0 was requested on 31 October through `.github/release-request.json`: the new data sources of 31 October (`docs/release-v2.31.0.md`) and the screen-by-screen layout work since 2.30.0. It is published only once the release workflow has finished and both Windows executables and their checksums are on the release.
 
 ### 15. More free data sources (asked 31 October)
 
