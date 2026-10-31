@@ -55,7 +55,9 @@ test("the terminal's measured colours: red function bar, grey section strips, an
   // The numbered items sit on the bar's red, white, with a thin dark line between them (TE01 03:11).
   expect(await css('.fnh-actions .act', 'background-color')).toBe('rgba(0, 0, 0, 0)');
   expect(await css('.fnh-actions .act', 'border-right-color')).toBe('rgb(63, 2, 9)');
-  expect(await css('.tbl tr.group td', 'background-color')).toBe('rgb(52, 52, 52)');
+  // Region strips and section headers are flat dark grey (#222222, TE04 01:21; DES box headers TE01 03:11).
+  expect(await css('.tbl tr.group td', 'background-color')).toBe('rgb(34, 34, 34)');
+  expect(await css('.tbl tr.group td', 'background-image')).toBe('none');
   // The command line (TE01 05:09, TE04 01:13): a black field with a thin muted blue outline, a blue triangle at its
   // left, a blue block cursor, typed text white and fixed-width. Empty, it shows no text at all: no placeholder and no
   // "<HELP> for explanation.".
@@ -119,6 +121,31 @@ test("the quote strip's two lines sit above the red bar, the first sharing the c
   await run(page, 'TOP');
   await expect(panel.locator('.qstrip')).toHaveCount(0);
   await expect(panel.locator('.cmd-field')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test('a screen the 2024 frames show a footer on carries "Suggested Functions" with two related functions; others do not', async ({ page }) => {
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  await run(page, 'AAPL US Equity DES');
+  await expect(panel.locator('.sugg-fns')).toHaveCount(0);
+  // Section headers on DES are flat, not a gradient.
+  expect(await panel.locator('.sect-h').first().evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).backgroundImage])).toEqual(['rgb(34, 34, 34)', 'none']);
+  await run(page, 'FRD');
+  const foot = panel.locator('.sugg-fns');
+  await expect(foot.locator('.sugg-lbl')).toHaveText('Suggested Functions');
+  expect(await foot.locator('.sugg-lbl').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 158, 27)');
+  expect(await foot.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(26, 26, 26)');
+  await expect(foot.locator('.sugg-fn b')).toHaveText(['BTMM', 'OVML']);
+  expect(await foot.locator('.sugg-fn span').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(172, 172, 174)');
+  // At the panel's bottom edge, the second suggestion at the right.
+  const box = (await panel.boundingBox())!;
+  const f = (await foot.boundingBox())!;
+  expect(Math.abs(f.y + f.height - (box.y + box.height))).toBeLessThan(3);
+  const second = (await foot.locator('.sugg-fn').nth(1).boundingBox())!;
+  expect(Math.abs(second.x + second.width - (f.x + f.width))).toBeLessThan(3);
+  await foot.locator('.sugg-fn').first().click();
+  await expect(panel.locator('.fnh-code')).toHaveText('MONEYMARKET');
   expect(errors).toEqual([]);
 });
 

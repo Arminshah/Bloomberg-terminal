@@ -30,7 +30,7 @@
   /* Measured from the terminal's published screens: the red function bar from the 2024 tutorial frames
      (docs/bloomberg-parity.md, "Parity build"), the grey section strips and the command line's border and cursor. */
   --function-bar: #870e1f;
-  --section: #343434;
+  --section: #222222;
   --cmd-blue: #2e8af6;
   --cmd-outline: #6d96d4;
   --sel: #ff9e1b;
@@ -540,6 +540,17 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .cmd .ac-item.sel .ac-hist, .cmd .ac-item:hover .ac-hist { color: #c8c8c8 !important; }
 .cmd .ac-more-row .ac-more { grid-column: 3; width: auto; padding: 1px 0 4px; color: #a8a8a8; font-style: italic; }
 
+/* The "Suggested Functions" footer (TE01 01:53): #1A1A1A, the amber label in its own cell, then two suggestions, a bold
+   white mnemonic and a grey name each, the second at the right edge, thin rules between. */
+.sugg-fns { display: flex; align-items: stretch; flex: none; height: 24px; background: #1a1a1a; border-top: 1px solid #000; font-family: var(--sans); white-space: nowrap; overflow: hidden; }
+.sugg-lbl { display: inline-flex; align-items: center; padding: 0 14px; color: var(--amber); border-right: 1px solid #3a3a3a; }
+.sugg-fn { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 0 12px; border: 0; background: transparent; color: #acacae; text-align: left; }
+.sugg-fn b { color: var(--white); font-weight: 600; }
+.sugg-fn span { overflow: hidden; text-overflow: ellipsis; }
+.sugg-fn.end { margin-left: auto; border-left: 1px solid #3a3a3a; }
+.sugg-fn:hover { background: #262626; }
+.sugg-fn:hover span { color: var(--white); }
+
 /* --------------------------------------------------------- function header */
 .fnh {
   position: sticky;
@@ -691,12 +702,12 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .tbl tr.click:hover td { background: #182232; box-shadow: inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
 .tbl tr.click:hover td:first-child { box-shadow: inset 1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
 .tbl tr.click:hover td:last-child { box-shadow: inset -1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
-/* Group lines ("1) Americas", a date) are flat neutral grey strips with white titles, as monitor regions are on the terminal. */
+/* Group lines ("1) Americas", a date) are flat dark grey strips (#222222, TE04 01:21) with white titles. */
 .tbl tr.group td {
   color: var(--white);
   background: var(--section);
   font-weight: 500;
-  border-top: 1px solid #444444;
+  border-top: 1px solid #2c2c2c;
   border-bottom: 1px solid #1a1a1a;
 }
 .tbl tr.group .group-toggle { color: #c0c0c0; }
@@ -760,12 +771,13 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   gap: 8px;
   padding: 2px 8px;
   color: var(--white);
-  border-top: 1px solid #4b5158;
-  border-bottom: 1px solid #15171a;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
   font-family: var(--sans);
   font-weight: 500;
   white-space: nowrap;
-  background: linear-gradient(180deg, #3d4248 0%, #2a2e33 100%);
+  /* Flat, as the box headers and region strips of the 2024 frames (#1E1E1E to #222222, TE01 03:11, TE04 01:21). */
+  background: var(--section);
 }
 .sect-h .right { margin-left: auto; color: #b9c0c8; font-weight: 400; }
 

@@ -61,6 +61,15 @@ Evidence: TE01 05:09 (typed "OF"), TE04 01:13 (typed "WEI"), TE02 05:47 and 06:0
 - The watchlist's add-a-security list uses the same building blocks; the new look is limited to the command line, so the watchlist's list is unchanged.
 - Checked: `e2e/look.spec.ts` (colours, bold letters, no category column, lit row, More Functions and More Securities), the whole browser suite.
 
+### M1.6 Section strips and the Suggested Functions footer (E3)
+
+Evidence: TE04 01:21 (WEI region strips), TE01 03:11 (DES box headers), TE01 01:53 (NSN footer), TE08 06:12 (FRD footer), the EEG short (`FFM_EEG` 0:15.4), and the OCR of every tutorial and short (`*_OCR_TEXT.txt`, "Suggested Functions"). Sampled: WEI strips `#222222` and `#212121`, header row `#232323`, DES box headers `#1E1E1E`, footer `#1A1A1A`.
+
+- Now: region strips ("1) Americas") and section headers are flat `#222222` (were `#343434` strips and a light grey gradient on headers). The panel gets a footer on the screens a frame shows one on, FRD (FXFORWARD), ALLQ (DEALERQUOTES) and EEG (ESTIMATEGRAPH): "Suggested Functions" in amber in its own cell, then two related functions, each a bold white mnemonic and the app's own name for it in grey `#ACACAE`, the second at the right edge. A click runs it with the panel's security. The suggestions are kept in the function registry (`suggested`).
+- Chosen: the footer's suggestions in the frames read like the provider's recommendations and change with the screen; here each is two related functions of the app (FRD: BTMM and OVML; ALLQ: YAS and SRCH; EEG: EEO and GP, as the EEG short shows), described by the app's own names, not the provider's wording.
+- Not done: footers on screens the app lacks (NSN, MODL, FXIP, FXFC, FXFM, SDRV, WSL; M5) and on screens where the OCR shows a footer whose suggestions the app cannot run (ANR's BAS). The app had no blue banner to replace.
+- Checked: `e2e/look.spec.ts` (strip and header colours, footer label, colours, order, position and click), `tests/suggested-functions.test.ts` (each suggestion exists), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

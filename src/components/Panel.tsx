@@ -7,6 +7,7 @@ import { currentRoute, setActive, terminal } from '../terminal/state';
 import { CommandLine } from './CommandLine';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PanelToolbar } from './PanelToolbar';
+import { SuggestedFunctions } from './SuggestedFunctions';
 
 /**
  * `place`: the panel's grid lines in a layout of your own (rows-layout.ts); the fixed layouts place panels by CSS.
@@ -45,6 +46,7 @@ export function Panel({ index, place, panels = 1, solo = false, hidden = false }
             </ErrorBoundary>
           )}
         </div>
+        {def.suggested ? <SuggestedFunctions panel={index} codes={def.suggested} /> : null}
       </PanelContext.Provider>
     </section>
   );
