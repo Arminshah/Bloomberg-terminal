@@ -88,6 +88,9 @@ export interface FinPeriod {
   totAssets: number;
   curLiab: number;
   debt: number;
+  /** Total debt's current and non-current parts (with capital leases), when the source gives both (WACC's ST and LT debt). */
+  debtST?: number;
+  debtLT?: number;
   totLiab: number;
   equity: number;
   /** Minority interest and preferred stock on the balance sheet; NaN when the source lists none. */

@@ -299,6 +299,7 @@ export function periodFrom(label: string, end: number, row: Row, balance?: Row, 
     curLiab: M(g('CurrentLiabilities')),
     // Both components are required: one missing component never means zero debt.
     debt: Number.isFinite(debtReported) ? debtReported : debtCurrent + debtNoncurrent,
+    ...(Number.isFinite(debtCurrent) && Number.isFinite(debtNoncurrent) ? { debtST: debtCurrent, debtLT: debtNoncurrent } : {}),
     totLiab: M(g('TotalLiabilitiesNetMinorityInterest')),
     equity: M(g('StockholdersEquity')),
     minority: M(g('MinorityInterest')),

@@ -554,6 +554,32 @@ test("PORT's tabs as the 2021 guide lists them, with Characteristics and Attribu
   expect(errors).toEqual([]);
 });
 
+test("WACC as the 2022 screen: cost of capital, capital structure, history and Economic Value Added", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity WACC');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('WACC');
+  await expect(panel.locator('.fnh-actions .act')).toHaveText(['1) Create Report']);
+  await expect(panel.getByLabel('Period')).toHaveValue('MR');
+  const cost = panel.getByTestId('wacc-cost');
+  await expect(cost.locator('thead th')).toHaveText(['', 'Weight', 'Cost', 'W x C']);
+  await expect(cost.locator('tbody td:first-child')).toHaveText(['3) Equity', '4) Debt Cost (A-T)', '5) Preferred Equity', 'WACC']);
+  // The weights add up to the total capital, and WACC is the sum of the weighted costs.
+  const pctOf = async (loc: ReturnType<typeof panel.locator>) => Number((await loc.innerText()).replace('%', ''));
+  const weights = await Promise.all([0, 1, 2].map((i) => pctOf(cost.locator('tbody tr').nth(i).locator('td').nth(1))));
+  expect(weights.reduce((a, w) => a + w, 0)).toBeCloseTo(100, 0);
+  const parts = await Promise.all([0, 1, 2].map((i) => pctOf(cost.locator('tbody tr').nth(i).locator('td').nth(3))));
+  expect(parts.reduce((a, w) => a + w, 0)).toBeCloseTo(await pctOf(panel.getByTestId('wacc-value')), 0);
+  await expect(panel.getByTestId('wacc-capital').locator('td:first-child')).toHaveText(['Market Cap', 'ST Debt', 'LT Debt', 'Pref. Eqty', 'Total']);
+  await expect(panel.getByTestId('wacc-eva').locator('td:first-child')).toHaveText(['7) Net Operating Profit', '8) Cash Operating Taxes', 'NOPAT', '9) Total Investment Capital', 'Capital Charge', 'Economic Value Added', 'ROIC', 'EVA Spread']);
+  await expect(panel.getByRole('radiogroup', { name: 'History field' }).getByRole('radio')).toHaveCount(4);
+  // 4) opens the cost of debt as the help page sets it without a fair market curve.
+  await run(page, '4');
+  await expect(panel.getByLabel('Adjustment factor')).toHaveValue('1.38');
+  await expect(panel.locator('.note')).toContainText('Rough approximation for WACC');
+  expect(errors).toEqual([]);
+});
+
 test('SCREEN joins criteria by AND within a group and OR across groups, says its universe, and keeps saved screens', async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'EQS');

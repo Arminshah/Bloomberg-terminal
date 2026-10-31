@@ -914,7 +914,9 @@ test('WACC and EQRP use the beta BETA shows by default: two years of weekly retu
   await expect(beta).toHaveText(/^\d+\.\d{3}$/);
   const adjusted = (await beta.innerText()).trim();
   const wacc = await open('AAPL US Equity WACC', 'WACC');
-  await expect(kv(wacc, 'Adjusted beta')).toHaveText(adjusted);
+  // 3) Equity opens the cost of equity's inputs.
+  await run(page, '3');
+  await expect(kv(wacc, 'Adjusted beta \\(0\\.67 × raw \\+ 0\\.33\\)')).toHaveText(adjusted);
   await expect(wacc.locator('dt', { hasText: /^Raw beta \(2Y weekly vs SPX, as BETA\)$/ })).toBeVisible();
   const eqrp = await open('AAPL US Equity EQRP', 'RISKPREMIUM');
   await expect(eqrp.getByLabel('Beta', { exact: true })).toHaveAttribute('placeholder', adjusted);

@@ -2112,3 +2112,21 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .port-attr-list td.port-attr-neg { text-align: right; width: 22%; }
 .port-attr-list td:last-child { width: 22%; }
 .port-char td:first-child { color: #fff; }
+
+/* WACC (the 2022 screen in the reference pack): Period over four panels, Cost of Capital, Capital Structure with a pie,
+   History and Economic Value Added, each with a grey heading line and amber figures. */
+.wacc-period { display: flex; align-items: center; gap: 8px; padding: 3px 6px; }
+.wacc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 0 4px; }
+.wacc-box { background: #0d0d0d; border: 1px solid #262626; min-width: 0; }
+.wacc-name { padding: 1px 6px; color: var(--amber); }
+.wacc-box-h { padding: 1px 6px; background: #2a2a2a; color: #f0f0f0; }
+.wacc-tbl td, .wacc-tbl th { border-bottom: 0; }
+.wacc-tbl th { background: transparent; }
+.wacc-tbl tr.wacc-total td { color: #fff; border-top: 1px solid #3a3a3a; }
+.wacc-tbl tr.wacc-gap td { padding-top: 8px; }
+.wacc-cap { display: flex; align-items: center; gap: 10px; padding: 6px; }
+.wacc-pie { width: 92px; height: 92px; flex: none; }
+.wacc-cap .wacc-tbl { flex: 1; }
+.wacc-key { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: middle; }
+.wacc-hist-keys { display: flex; gap: 10px; padding: 2px 6px; }
+.rowno { color: #cfcfcf; font-weight: 500; margin-right: 3px; }
