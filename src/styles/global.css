@@ -405,6 +405,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   opacity: 0.55;
 }
 .panel[hidden] { display: none; }
+.panel-main { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .panel-body { position: relative; flex: 1; min-height: 0; overflow: auto; }
 
 .panel-body.fill { overflow: hidden; display: flex; flex-direction: column; }
@@ -585,6 +586,32 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
    text size (80em is 960 pixels at the default 12px). */
 .panel-body:has(> .fixed-page) { background: #000; }
 .fixed-page > :not(.fnh), .fixed-page > .fnh > :not(.fnh-row) { max-width: 80em; margin-left: auto; margin-right: auto; }
+
+/* The Related Functions Menu (TE01 02:53, 03:35): a #1E1E1E panel over the left two thirds of the screen under the
+   toolbar; "<Cancel> X" top right; a home mark and a blue italic path ending in white italics; two columns of numbered
+   headings in white with ">" and functions with a grey number, white mnemonic and amber title. */
+.rfm { position: absolute; z-index: 30; top: 0; left: 0; bottom: 0; width: min(100%, max(560px, 66%)); display: flex; flex-direction: column; overflow: auto; background: #1e1e1e; border-right: 1px solid #3a3a3a; box-shadow: 8px 0 24px rgba(0, 0, 0, 0.6); font-family: var(--sans); }
+.rfm-top { display: flex; justify-content: flex-end; flex: none; }
+.rfm-cancel { border: 0; padding: 2px 10px; background: transparent; color: var(--white); }
+.rfm-cancel:hover { background: #2c2c2c; }
+.rfm-path { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px 14px 10px; font-style: italic; }
+.rfm-home { display: inline-flex; color: var(--white); }
+.rfm-link { border: 0; padding: 0; background: transparent; color: #7f9fd0; font-style: italic; }
+.rfm-link:hover { text-decoration: underline; }
+.rfm-sep { color: #b0b0b0; font-style: normal; }
+.rfm-here { color: var(--white); }
+.rfm-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; padding: 0 10px 12px; }
+.rfm-col { display: flex; flex-direction: column; min-width: 0; }
+.rfm-row { display: grid; grid-template-columns: 34px 78px minmax(0, 1fr); align-items: baseline; gap: 0 8px; padding: 2px 6px; border: 0; background: transparent; text-align: left; white-space: nowrap; }
+.rfm-row:hover, .rfm-row:focus-visible { background: #153b67; outline: none; }
+.rfm-group { grid-template-columns: 34px minmax(0, 1fr); margin-top: 12px; }
+.rfm-col > .rfm-group:first-child { margin-top: 0; }
+.rfm-n { color: #8a8a8a; text-align: right; }
+.rfm-mn { color: var(--white); overflow: hidden; text-overflow: clip; }
+.rfm-gt { color: var(--white); overflow: hidden; text-overflow: ellipsis; }
+.rfm-t { color: var(--amber); overflow: hidden; text-overflow: ellipsis; }
+.rfm-row.none .rfm-t { color: #777777; }
+@media (max-width: 760px) { .rfm { width: 100%; } .rfm-cols { grid-template-columns: 1fr; } }
 
 /* --------------------------------------------------------- function header */
 .fnh {

@@ -43,9 +43,14 @@ export function useNumberedRows<T>(owner: string, rows: T[], first: number, open
   return nums;
 }
 
+/** The owner whose numbers win while it is registered: the Related Functions Menu laid over a screen. */
+export const OVERLAY_MENU = 'related-menu';
+
 export function menuItem(panel: number, n: number): MenuItem | undefined {
   const byOwner = panelMenus.get(panel);
   if (!byOwner) return undefined;
+  const over = byOwner.get(OVERLAY_MENU);
+  if (over?.length) return over.find((i) => i.n === n);
   for (const items of byOwner.values()) {
     const hit = items.find((i) => i.n === n);
     if (hit) return hit;

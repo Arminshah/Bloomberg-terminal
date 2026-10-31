@@ -114,6 +114,16 @@ Evidence: TE01 01:41 (DES in a whole window: the red bar runs the full width, th
 - Unverified: the page's exact width. The frames are zoomed differently and show no pixel scale; 80em gives DES's three columns the room its labels need and margins close to TE01 01:41's at 1600 pixels.
 - Checked: `e2e/look.spec.ts` (each of the four: page at most 960px, equal margins over 10 percent, black, red bar full width; WEI unchanged), the whole browser suite.
 
+### M2.1 Related Functions Menu overlay (E3)
+
+Evidence: TE01 02:53 (AAPL, the full overlay), TE01 03:35 (opening over DES, a lit row), TE03 02:51 (a commodity future's groups).
+
+- Now: "Related Functions Menu ⌄⌄" on the toolbar opens a panel over the left two thirds of the screen (`#1E1E1E`), from under the quote strip to the panel's foot, the screen still showing at the right. "<Cancel> X" sits at its top right; a home mark and a blue italic path ("Main Menu > Equities >") end in "Analyze APPLE INC Equity" in white italics. Two columns hold numbered headings in white with ">" and up to four functions each (grey number, white mnemonic, amber title); the numbers run through headings and functions and on from the first column into the second. A heading opens its whole group, with the path extended. A click, or a number and GO, runs the function and closes the overlay; Cancel, Escape or another screen close it. With no security loaded it lists the market sectors. The lit row is dark blue (TE01 03:35).
+- The groups are the app's own security menus under the frames' group names (Company Overview, Company Analysis, Research & Estimates, Comparative Analytics, Charting & Reporting, Security Surveillance, Trade Analytics, Derivatives, then the app's Credit and Tools), titled with the app's names. Functions the app lacks (MFID, MODL, BICO, ALTD, TLTS, CMAP, IOIA, MDM, RANK, VENU, ESG) are not listed; the menu never offers a function that does nothing.
+- Kept: MENU <GO> opens the full menu page; the MENU key (Alt+End, the key bar's MENU) still climbs from the security's menu to the sector's and the main menu.
+- Unverified: what the small diagonal arrow beside some items means (not shown), so it is not drawn.
+- Checked: `e2e/look.spec.ts` (path, numbering, colours, two columns, width, group drill-down, Cancel, 2 <GO>, Escape), `e2e/shell.spec.ts` (the MENU key climbs), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

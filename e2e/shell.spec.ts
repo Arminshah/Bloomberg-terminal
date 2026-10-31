@@ -35,12 +35,14 @@ test('panel toolbar retains securities, switches recent securities and preserves
 test('MENU climbs the security, sector and main menu hierarchy independently of BACK', async ({ page }) => {
   await boot(page);
   await run(page, 'AAPL GP');
-  const menu = page.locator('.panel').first().getByRole('button', { name: 'Menu', exact: false }).first();
-  await menu.click();
+  // The MENU key (Alt+End, or MENU on the key bar) climbs the menus; the toolbar's Related Functions Menu opens an
+  // overlay instead (look.spec.ts).
+  const menu = () => page.keyboard.press('Alt+End');
+  await menu();
   await expect(page.getByRole('navigation', { name: 'Menu path' })).toContainText('Analyze APPLE INC Equity');
-  await menu.click();
+  await menu();
   await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('EQUITY');
-  await menu.click();
+  await menu();
   await expect(page.locator('.panel').first().locator('.fnh-title')).toHaveText('Main Menu');
   await expect(page.getByLabel('Panel 1 loaded security', { exact: true })).toHaveValue('AAPL US Equity');
   await page.locator('#cmd-0').press('Alt+ArrowLeft');

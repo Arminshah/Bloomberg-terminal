@@ -257,6 +257,52 @@ test('DES, EE, ANR and EQS keep to a page of fixed width centred in a wide panel
   expect(errors).toEqual([]);
 });
 
+test('the Related Functions Menu opens over the screen as the 2024 frames draw it, runs a number and GO, and closes with Cancel', async ({ page }) => {
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  await run(page, 'AAPL US Equity DES');
+  await panel.getByRole('button', { name: /Related Functions Menu/ }).click();
+  const rfm = panel.getByRole('dialog', { name: 'Related Functions Menu' });
+  // TE01 02:53: <Cancel> X, the path ending in the page, numbered headings and functions in two columns.
+  await expect(rfm.getByRole('button', { name: '<Cancel> X' })).toBeVisible();
+  await expect(rfm.getByRole('navigation', { name: 'Menu path' })).toHaveText(/Main Menu\s*>\s*Equities\s*>\s*Analyze APPLE INC Equity/);
+  await expect(rfm.locator('.rfm-group').first()).toHaveText(/^1\)\s*Company Overview >$/);
+  const des = rfm.locator('.rfm-row:not(.rfm-group)').first();
+  await expect(des.locator('.rfm-n')).toHaveText('2)');
+  await expect(des.locator('.rfm-mn')).toHaveText('DES');
+  const colour = (loc: ReturnType<typeof page.locator>, prop = 'color') => loc.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+  expect(await colour(rfm, 'background-color')).toBe('rgb(30, 30, 30)');
+  expect(await colour(des.locator('.rfm-n'))).toBe('rgb(138, 138, 138)');
+  expect(await colour(des.locator('.rfm-mn'))).toBe('rgb(255, 255, 255)');
+  expect(await colour(des.locator('.rfm-t'))).toBe('rgb(255, 158, 27)');
+  expect(await colour(rfm.locator('.rfm-link').first(), 'font-style')).toBe('italic');
+  // Two columns, the numbers running on from the first into the second; the screen still shows at the right.
+  const cols = rfm.locator('.rfm-col');
+  await expect(cols).toHaveCount(2);
+  const lastLeft = Number((await cols.nth(0).locator('.rfm-n').last().textContent())!.replace(')', ''));
+  const firstRight = Number((await cols.nth(1).locator('.rfm-n').first().textContent())!.replace(')', ''));
+  expect(firstRight).toBe(lastLeft + 1);
+  expect((await rfm.boundingBox())!.width).toBeLessThan((await panel.boundingBox())!.width * 0.8);
+  // A heading opens its whole group.
+  await rfm.locator('.rfm-group', { hasText: 'Charting & Reporting' }).click();
+  await expect(rfm.locator('.rfm-here')).toHaveText('Charting & Reporting');
+  await expect(rfm.locator('.rfm-row', { hasText: 'Price Chart' })).toBeVisible();
+  // Cancel closes it; reopened, 2 <GO> runs DES's line.
+  await rfm.getByRole('button', { name: '<Cancel> X' }).click();
+  await expect(rfm).toHaveCount(0);
+  await run(page, 'AAPL US Equity FA');
+  await panel.getByRole('button', { name: /Related Functions Menu/ }).click();
+  await run(page, '2');
+  await expect(panel.locator('.fnh-code')).toHaveText('PROFILE');
+  await expect(rfm).toHaveCount(0);
+  // Escape closes it too.
+  await panel.getByRole('button', { name: /Related Functions Menu/ }).click();
+  await expect(rfm).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(rfm).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.

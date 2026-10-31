@@ -14,9 +14,9 @@ import { navigate } from '../terminal/state';
 import type { FnProps, MenuItem } from '../terminal/types';
 
 /** One menu line: a function code, optionally with its own label and command. */
-type Entry = string | { code: string; label?: string; cmd?: string };
+export type Entry = string | { code: string; label?: string; cmd?: string };
 
-interface Group {
+export interface Group {
   title: string;
   entries: Entry[];
 }
@@ -36,7 +36,7 @@ const EQUITY: Group[] = [
   { title: 'Tools', entries: ['NOTES', 'CORRELATION', 'CROSSCHECK'] },
 ];
 
-const MENUS: Record<AssetClass, Group[]> = {
+export const MENUS: Record<AssetClass, Group[]> = {
   equity: EQUITY,
   index: [
     { title: 'Index', entries: ['PROFILE', 'CONTRIB', 'MEMBERS', 'MOVERS', 'RANKEDRETURNS', 'GROUPRETURNS', 'INDEXMAP', 'MARKET', 'INDEXFUTURES', 'COMPANYNEWS'] },
@@ -82,7 +82,7 @@ const MENUS: Record<AssetClass, Group[]> = {
 };
 
 /** Market sector menus for a sector word on its own (EQUITY, GOVT, CRNCY). */
-const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: SecurityDef) => boolean; rank?: (d: SecurityDef) => number; note?: string }> = {
+export const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: SecurityDef) => boolean; rank?: (d: SecurityDef) => number; note?: string }> = {
   GOVT: {
     title: 'Government Securities',
     groups: [
@@ -144,7 +144,7 @@ const SECTORS: Record<string, { title: string; groups: Group[]; list?: (d: Secur
   },
 };
 
-const MAIN: { key: string; label: string }[] = [
+export const MAIN: { key: string; label: string }[] = [
   { key: 'GOVT', label: 'Government securities (F2)' },
   { key: 'CORP', label: 'Corporate bonds (F3)' },
   { key: 'MTGE', label: 'Mortgages (F4)' },
@@ -185,7 +185,7 @@ function MenuPath({ sector, sec }: { sector?: string; sec?: SecurityDef }) {
   );
 }
 
-interface Line {
+export interface Line {
   n: number;
   code: string;
   label: string;
@@ -194,7 +194,7 @@ interface Line {
   none?: string;
 }
 
-function linesFor(groups: Group[], sec: SecurityDef | undefined, start = 1): { title: string; lines: Line[] }[] {
+export function linesFor(groups: Group[], sec: SecurityDef | undefined, start = 1): { title: string; lines: Line[] }[] {
   let n = start;
   const issuerRoot = sec?.cls === 'equity' ? sec.ticker.split(' ')[0] : undefined;
   const hasBonds = !!sec && engine.securities.some((d) => d.bond?.issuer === sec.id);

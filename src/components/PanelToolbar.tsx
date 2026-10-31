@@ -1,5 +1,6 @@
 import { engine } from '../data/market';
-import { showPanelHelp, showPanelMenu } from '../terminal/actions';
+import { showPanelHelp } from '../terminal/actions';
+import { relatedMenu, toggleRelatedMenu } from './RelatedMenu';
 import { execute } from '../terminal/exec';
 import { primaryMnemonic, styledMnemonic } from '../terminal/legacy';
 import { FUNCTIONS, lookupFn } from '../terminal/registry';
@@ -28,6 +29,7 @@ export function PanelToolbar({ panel, panels = 1 }: { panel: number; panels?: nu
   const canFwd = terminal.use((s) => s.panels[panel].idx < s.panels[panel].history.length - 1);
   const group = terminal.use((s) => linkGroupOf(s.panels[panel]));
   const solo = soloPanel.use((s) => s.panel === panel);
+  const menuOpen = relatedMenu.use((s) => s.panel === panel);
   const mnemonics = settings.use((s) => s.mnemonics);
   const def = lookupFn(route.fn);
   const security = loaded ? engine.get(loaded) : undefined;
@@ -69,7 +71,7 @@ export function PanelToolbar({ panel, panels = 1 }: { panel: number; panels?: nu
         </select>
       </span>
       <span className="ptb-rule" aria-hidden="true" />
-      <button type="button" className="panel-menu" onClick={() => showPanelMenu(panel)} title="Related functions; press again to move up the menu hierarchy">
+      <button type="button" className="panel-menu" aria-expanded={menuOpen} onClick={() => toggleRelatedMenu(panel)} title="Related functions of the loaded security (MENU <GO> opens the full menu)">
         Related Functions Menu <svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M1.5 1.5 5 4.5l3.5-3M1.5 5.5 5 8.5l3.5-3" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg>
       </button>
       <span className="ptb-gap" />

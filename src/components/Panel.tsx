@@ -7,6 +7,7 @@ import { currentRoute, setActive, terminal } from '../terminal/state';
 import { CommandLine } from './CommandLine';
 import { ErrorBoundary } from './ErrorBoundary';
 import { PanelToolbar } from './PanelToolbar';
+import { RelatedMenu } from './RelatedMenu';
 import { SuggestedFunctions } from './SuggestedFunctions';
 
 /**
@@ -37,6 +38,8 @@ export function Panel({ index, place, panels = 1, solo = false, hidden = false }
         {/* No frame title above the toolbar: in 2024 the tab strip is the window's title bar (TE01 03:11). */}
         <PanelToolbar panel={index} panels={panels} />
         <CommandLine panel={index} route={route} />
+        <div className="panel-main">
+        <RelatedMenu />
         <div className="panel-body" id={`panel-body-${index}`}>
           {route.sec && !sec ? (
             <MissingSecurity id={route.sec} onFound={found} />
@@ -45,6 +48,7 @@ export function Panel({ index, place, panels = 1, solo = false, hidden = false }
               <Fn route={route} sec={sec} />
             </ErrorBoundary>
           )}
+        </div>
         </div>
         {def.suggested ? <SuggestedFunctions panel={index} codes={def.suggested} /> : null}
       </PanelContext.Provider>
