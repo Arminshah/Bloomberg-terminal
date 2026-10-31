@@ -6,6 +6,7 @@ import { OFFICIAL_YIELD_IDS } from './govyields';
 import { krakenOwns } from './kraken';
 import { officialAvailable } from './official';
 import { iexOwns } from './iex-engine';
+import { EUREX_IDS, eurexAvailable } from './eurex';
 
 /**
  * Which securities the desktop app has a real source for. Everything else is
@@ -17,6 +18,7 @@ export function hasRealSource(d: SecurityDef): boolean {
   if (yahooSymbolFor(d)) return true;
   if (treasuryAvailable() && TREASURY_IDS.has(d.id)) return true;
   if (officialAvailable() && OFFICIAL_YIELD_IDS.has(d.id)) return true;
+  if (eurexAvailable() && EUREX_IDS.has(d.id)) return true;
   return false;
 }
 

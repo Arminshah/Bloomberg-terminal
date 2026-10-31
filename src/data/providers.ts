@@ -526,6 +526,21 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'eurex',
+    name: 'Eurex (market statistics)',
+    serves: 'INDEXFUTURES: the Euro Stoxx 50 and DAX futures (VG1, GX1) at the front month\'s daily settlement, with the day\'s range, volume and open interest, and the index close Eurex gives with them',
+    dataClass: 'Exchange data, end of day: the daily settlement, published in the evening',
+    policy: 'enabled',
+    limit: '2/min',
+    terms: "Eurex's terms allow \"the downloading of a single copy in a single personal computer's memory for personal, non-commercial use only\", the content unaltered. Its robots.txt asks every agent to wait 30 seconds between requests; the app sends four requests every six hours at most, 30 seconds apart. STOXX and DAX are trademarks of STOXX Ltd. and Deutsche Börse.",
+    docs: [
+      { label: 'Market statistics (online)', url: 'https://www.eurex.com/ex-en/data/statistics/market-statistics-online' },
+      { label: 'Disclaimer and terms of use', url: 'https://www.eurex.com/ex-en/disclaimer' },
+    ],
+    checked: '2026-10-31',
+    desktop: true,
+  },
+  {
     id: 'asic',
     name: 'ASIC (short position reports)',
     serves: "SHORTINTEREST for ASX stocks: each product's reported short positions, the product in issue and the share short, daily",

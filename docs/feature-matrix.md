@@ -100,7 +100,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `MARKET` | World equity indices with changes and YTD in local currency and USD | Yahoo Finance | Real; USD YTD calculated |
 | `INDEXRANKING` (`WEIS`) | `MARKET`'s indices ranked by price return over 1D to 1Y, local or in USD, EUR, GBP, JPY, CHF | Yahoo Finance | Calculated; no dividends; unranked when a close is missing |
 | `WORLDMAP` (`WM`) | One main index per market on a grid laid out like the world, coloured by return | Yahoo Finance | Calculated; the grid is the app's own |
-| `INDEXFUTURES` | US index futures with basis and fair value | Yahoo Finance (CME, delay as Yahoo states it) | Real; fair value a stated model. Non-US futures not available |
+| `INDEXFUTURES` | US index futures with basis and fair value; Euro Stoxx 50 and DAX futures at the daily settlement | Yahoo Finance (CME, delay as Yahoo states it); Eurex's end-of-day statistics | Real; fair value a stated model. Other non-US futures not available |
 | `EXCHANGES` (`EXCH`) | NYSE, Euronext, London, Xetra and Tokyo: local time, open/closed/holiday/weekend, early closes, next open or close | NYSE and Euronext rules; LSE, Xetra and JPX tables through 2027 | Real (published calendars). Regular sessions only; unscheduled closures not known |
 | `CONTRIB` | What moved an index | Yahoo Finance | Calculated. Index points for the Dow only (its membership is public); other indices by the app's stocks in that market |
 | `HEATMAP` | Stocks by sector, sized by market value, coloured by change | Yahoo Finance | Calculated |

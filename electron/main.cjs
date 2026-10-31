@@ -1096,6 +1096,10 @@ const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(ur
     if (provider === 'datasets') {
       return /^\uFEFF?Symbol,Security,GICS Sector,GICS Sub-Industry/.test(text) ? null : { kind: 'schema-changed', message: 'The S&P 500 member list changed its format.' };
     }
+    if (provider === 'eurex') {
+      const message = require('./eurex.cjs').eurexProblem(text);
+      return message ? { kind: 'schema-changed', message } : null;
+    }
     if (provider === 'asic') {
       const ok = url.endsWith('.json') ? /^\s*\[/.test(text) : /^\uFEFF?Product,Product Code,/.test(text);
       return ok ? null : { kind: 'schema-changed', message: 'ASIC changed its short position files.' };
@@ -1265,6 +1269,15 @@ ipcMain.handle('index-members', async (event, kind, arg) => {
   if (!req) throw new Error('not allowed');
   // Wikimedia asks programs to name themselves and say how to reach their author: the app's own agent does both.
   return keyedGet(req.provider, req.url, req.headers, req.ttl, req.provider === 'nasdaq' ? [60, 60_000] : [10, 60_000], [], req.provider === 'wikipedia' ? clientAgent() : nasdaqAgent());
+});
+
+// Eurex's end-of-day statistics for the Euro Stoxx 50 and DAX futures (electron/eurex.cjs): one request every 30
+// seconds at most, as Eurex's robots.txt asks.
+const eurex = require('./eurex.cjs');
+ipcMain.handle('eurex', async (event, product, busdate) => {
+  const req = eurex.eurexRequest(product, busdate || undefined);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  return keyedGet('eurex', req.url, { Accept: 'application/json' }, req.ttl, [1, 30_000], [], clientAgent());
 });
 
 // ASIC's daily aggregated short positions (electron/asic.cjs), for SI on ASX stocks: the index of published days,
