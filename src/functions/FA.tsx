@@ -46,6 +46,16 @@ const margin = (a: number, rev: number) => (Number.isFinite(a) && rev > 0 ? (a /
 const growthNm = (a: number, b: number | undefined) => b !== undefined && Number.isFinite(a) && Number.isFinite(b) && b <= 0;
 const mln = (v: number | undefined) => (v === undefined ? NaN : v / 1e6);
 
+/**
+ * A grid figure as FA writes it: money in millions with one decimal and a separator (20,292.0), growth and margins
+ * with one decimal and no sign, ratios marked with %, and per-share figures with their own decimals.
+ */
+export function faNumber(v: number, r: { dec?: number; ratio?: boolean; pct?: boolean }): string {
+  if (r.ratio) return fmtNum(v, 1);
+  if (r.pct) return `${fmtNum(v, 1)}%`;
+  return fmtNum(v, r.dec ?? 1);
+}
+
 /** Preferred stock and minority interest, as Adj Highlights' "Preferred & Other": none when the source lists neither. */
 export function preferredAndOther(p: Pick<FinPeriod, 'preferred' | 'minority'>): number {
   const parts = [p.preferred, p.minority].filter((x): x is number => x !== undefined && Number.isFinite(x));
@@ -266,7 +276,7 @@ export function FA({ sec, route }: FnProps) {
   const months = quarterly ? '3 Months Ending' : '12 Months Ending';
   // A missing figure is left empty (the note says why); "NM" where both figures are there but a ratio means nothing.
   const fmtCell = (r: Row, v: number, i?: number) =>
-    !Number.isFinite(v) ? (i != null && r.nm?.(cols[i], prevOf(i)) ? 'NM' : '') : r.ratio ? fmtNum(v, 1) : r.pct ? `${fmtNum(v, 1)}%` : fmtNum(v, r.dec ?? (Math.abs(v) >= 100 ? 0 : 1));
+    !Number.isFinite(v) ? (i != null && r.nm?.(cols[i], prevOf(i)) ? 'NM' : '') : faNumber(v, r);
   return (
     <div data-audit-state={JSON.stringify({ schema: 1, domain: 'financials', capturedAt: Date.now(), security: s.id, currency: ccy, page: TABS[tab - 1].file, periods: cols.map((p) => ({ label: p.label, end: p.end, basis: p.basis, rev: p.rev, opInc: p.opInc, operatingIncomeVariants: p.operatingIncomeVariants, niTotal: p.niTotal, ni: p.ni, niTotalFiled: p.niTotalFiled, niTotalBasisConflict: !!p.niTotalBasisConflict, niTotalBasisDetails: p.niTotalBasisDetails, parentIncomeMargin: parentIncomeMargin(p) })) })}>
       <FnHeader

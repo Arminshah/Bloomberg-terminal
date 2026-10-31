@@ -33,3 +33,13 @@ describe("FINANCIALS Key Stats' market value lines at each period's end", () => 
     expect(periodEnterpriseValue(50_000, { cash: NaN, debt: 10_000, preferred: 0, minority: 0 })).toBeNaN();
   });
 });
+
+describe("FINANCIALS figures as FA writes them", () => {
+  it('gives money in millions with one decimal and a separator, at any size', async () => {
+    const { faNumber } = await import('../src/functions/FA');
+    expect(faNumber(20_292, {})).toBe('20,292.0');
+    expect(faNumber(-791, {})).toBe('-791.0');
+    expect(faNumber(37.6, { ratio: true })).toBe('37.6');
+    expect(faNumber(2.7, { dec: 2 })).toBe('2.70');
+  });
+});
