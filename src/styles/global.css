@@ -213,6 +213,20 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .wtab-new:hover:not(:disabled) { background: #dbd9dc; color: #000; }
 .wtab-new:disabled { color: #9a989b; cursor: default; }
 @media (max-width: 760px) { .wtab { min-width: 70px; flex-basis: 130px; } }
+/* "≡ Options" and its menu (TE01 02:27): dark text on the light strip; the menu dark with amber items, the zoom
+   percentage in an amber box between grey − and + boxes. */
+.wopt { position: relative; flex: none; display: flex; align-items: stretch; -webkit-app-region: no-drag; app-region: no-drag; }
+.wopt-btn { border: 0; padding: 0 12px; background: transparent; color: #2b2a2c; font-size: 12px; white-space: nowrap; }
+.wopt-btn:hover, .wopt-btn[aria-expanded='true'] { background: #dbd9dc; color: #000; }
+.wopt-menu { position: absolute; top: 100%; right: 0; z-index: 60; min-width: 230px; padding: 4px 0; background: #1e1e1e; border: 1px solid #3a3a3a; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7); }
+.wopt-item { display: block; width: 100%; padding: 4px 14px; border: 0; background: transparent; color: var(--amber); text-align: left; white-space: nowrap; }
+.wopt-item:hover:not(:disabled) { background: #153b67; }
+.wopt-item:disabled, .wopt-step:disabled { color: #6c6c6c; cursor: default; }
+.wopt-zoom { display: flex; align-items: center; gap: 4px; margin: 4px 0; padding: 4px 14px; border-top: 1px solid #3a3a3a; }
+.wopt-zoom-lbl { margin-right: 6px; color: var(--amber); }
+.wopt-step { width: 20px; height: 18px; padding: 0; border: 0; background: #4a4a4a; color: var(--white); line-height: 18px; }
+.wopt-step:hover:not(:disabled) { background: #5c5c5c; }
+.wopt-pct { min-width: 46px; padding: 0 4px; background: var(--amber); color: #2d0000; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* PORTFOLIO's tabs: one per portfolio (PORT.tsx). */
 .ptabs {

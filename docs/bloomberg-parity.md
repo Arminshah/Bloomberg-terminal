@@ -80,6 +80,15 @@ Evidence: TE01 03:11 (three tabs, light strip), TE01 01:53 (four tabs), TE01 01:
 - Not changed: the mnemonic is set in small bold capitals in the frames; here it is bold at the tab's 12px (text sizes stay). Unverified and not built: the inward-arrows icon at the right of the strip (its action is not shown). "≡ Options" follows in M1.8.
 - Checked: `e2e/look.spec.ts` (colours, label, bold mnemonic, square corners, clip, equal widths, × on the active tab and on hover), `e2e/terminal.spec.ts` (tabs follow the active screen, rename, close, reopen), the whole browser suite.
 
+### M1.8 Options menu and window keys (E3 for the menu, E1 for the keys)
+
+Evidence: TE01 02:27 (the WELC tips page: the Options menu with New Tab, New Window, Zoom "− 130% +", Best Fit Window Size, Reset Window Size & Zoom; Ctrl − and Ctrl = to zoom, Ctrl [ and Ctrl ] to cycle windows, Ctrl N for a new window, up to 16 windows), TE01 02:31 (two windows, each with the full chrome).
+
+- Now: "≡ Options" sits at the right of the tab strip and opens a dark menu with amber items: New Tab; New Window (up to 16); Zoom with grey − and + boxes around the percentage in amber; Best Fit Window Size (the window takes the working area of its screen); Reset Window Size & Zoom (1600 by 1000, centred, 100%). In the desktop app Ctrl N opens a new window (Ctrl Shift N still does), Ctrl [ and Ctrl ] go to the previous and next window, Ctrl − and Ctrl = zoom by half a step (unchanged), and a 17th window is refused.
+- In the browser demo the window items are greyed out: a web page cannot open or size a window of its own; the browser's zoom keys apply.
+- Not done: dragging a tab out of the strip into a window of its own (the frames' transcript mentions it); the inward-arrows icon beside Options (its action is not shown).
+- Checked: `e2e/look.spec.ts` (menu items, colours, greyed items in a browser, New Tab, Escape), `desktop-e2e/provider-ipc.spec.ts` (zoom in to 110% and reset to 100% on the real window, New Window opens a second window), the title-bar test.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

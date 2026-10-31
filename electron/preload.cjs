@@ -65,6 +65,8 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   streamOpen: () => ipcRenderer.invoke('stream:open'),
   streamSend: (msg) => ipcRenderer.invoke('stream:send', String(msg)),
   streamClose: () => ipcRenderer.invoke('stream:close'),
+  /** The tab strip's Options menu: 'new', 'zoom-get', 'zoom-in', 'zoom-out', 'best-fit' or 'reset'. */
+  windowOptions: (op) => ipcRenderer.invoke('window:options', String(op)),
   onStream: (cb) => {
     const handler = (_event, kind, data) => cb(String(kind), typeof data === 'string' ? data : undefined);
     ipcRenderer.on('stream', handler);

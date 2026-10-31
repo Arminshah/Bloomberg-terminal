@@ -30,6 +30,8 @@ declare global {
   interface Window {
     arminDesktop?: {
       platform: string;
+      /** The tab strip's Options menu for this window (electron/main.cjs, "window:options"). */
+      windowOptions?(op: 'new' | 'zoom-get' | 'zoom-in' | 'zoom-out' | 'best-fit' | 'reset'): Promise<{ zoom: number; windows: number; max: number; opened?: boolean }>;
       yahoo(path: string): Promise<{ status: number; data: unknown; disabled?: boolean; session?: boolean }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string; sourceLabel?: string; missing?: string }>;

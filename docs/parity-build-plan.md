@@ -26,7 +26,7 @@ M1. Window chrome
 - [x] 1.4 Toolbar row (`ddcdd45`)
 - [x] 1.5 Autocomplete (`ce374b7`)
 - [x] 1.6 Section strips and the Suggested Functions footer (`b9e8ef2`)
-- [ ] 1.7 Tab strip as the title bar
+- [x] 1.7 Tab strip as the title bar (`03644ee`)
 - [ ] 1.8 Options menu and window keys
 - [ ] 1.9 Dialogs
 - [ ] 1.10 Field dropdowns

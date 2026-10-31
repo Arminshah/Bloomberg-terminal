@@ -179,6 +179,31 @@ test("the tab strip is the window's light title bar: square tabs of equal width,
   expect(errors).toEqual([]);
 });
 
+test('"≡ Options" at the right of the tab strip opens New Tab, New Window, Zoom, Best Fit and Reset; a browser greys out the window items', async ({ page }) => {
+  const errors = await boot(page);
+  const options = page.getByRole('button', { name: /Options/ });
+  // TE01 02:27: at the right of the strip, before the window's buttons.
+  const strip = (await page.locator('.wtabs-bar').boundingBox())!;
+  const at = (await options.boundingBox())!;
+  expect(at.x + at.width).toBeGreaterThan(strip.x + strip.width - 4);
+  await options.click();
+  const menu = page.getByRole('menu', { name: 'Window options' });
+  await expect(menu.getByRole('menuitem')).toHaveText(['New Tab', 'New Window', 'Best Fit Window Size', 'Reset Window Size & Zoom']);
+  await expect(menu.getByRole('group', { name: 'Zoom' })).toContainText('Zoom');
+  expect(await menu.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(30, 30, 30)');
+  expect(await menu.getByRole('menuitem', { name: 'New Tab' }).evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 158, 27)');
+  // A web page cannot open or size a window of its own.
+  for (const name of ['New Window', 'Best Fit Window Size', 'Reset Window Size & Zoom']) await expect(menu.getByRole('menuitem', { name })).toBeDisabled();
+  await expect(menu.getByRole('button', { name: 'Zoom in' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await options.click();
+  await menu.getByRole('menuitem', { name: 'New Tab' }).click();
+  await expect(page.locator('.wtab')).toHaveCount(2);
+  await expect(menu).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.
