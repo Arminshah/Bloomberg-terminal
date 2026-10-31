@@ -517,7 +517,8 @@ function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }
   const from = Number.isFinite(days) ? engine.today * DAY_MS - days * DAY_MS : -Infinity;
   const points: { x: number; y: number; label: string }[] = [];
   for (let i = 0; i < daily.length; i++) if (daily.t[i] >= from) points.push({ x: daily.t[i], y: sec.ccy === 'GBp' ? daily.c[i] / 100 : daily.c[i], label: fmtDay(daily.t[i]) });
-  if (points.length < 2) return null;
+  // The range buttons stay while the price history is still on its way, or missing.
+  const noHistory = points.length < 2;
   const refLines = c
     ? [
         ...(Number.isFinite(c.mean) ? [{ y: c.mean, color: '#e8e8e8', label: `12M Tgt Px ${fmtNum(c.mean, 2)}` }] : []),
@@ -534,6 +535,9 @@ function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }
           </button>
         ))}
       </div>
+      {noHistory ? (
+        <div className="muted pad-s">No price history for this range yet.</div>
+      ) : (
       <XYChart
         height={150}
         series={[{ label: 'Price', color: '#ffd23f', points }]}
@@ -541,6 +545,7 @@ function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }
         xFormat={(v) => fmtDay(v)}
         yFormat={(v) => fmtNum(v, 0)}
       />
+      )}
     </div>
   );
 }
