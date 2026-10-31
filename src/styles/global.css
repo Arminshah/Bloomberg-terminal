@@ -1069,18 +1069,24 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
   position: fixed;
   inset: 0;
   z-index: 90;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.72);
   display: grid;
   place-items: center;
   padding: 16px;
 }
-.modal {
-  width: min(560px, 100%);
-  max-height: 90%;
-  overflow: auto;
-  background: var(--bg-1);
-  border: 1px solid var(--amber-dim);
-}
+/* A dialog (TE01 05:11): light grey title bar #CECDCE with a dark title and ×, dark body #1B1A18 with the question in
+   white and detail in amber, grey buttons with white text at the bottom right, the default one outlined in blue. */
+.dlg { width: min(520px, 100%); max-height: 90%; display: flex; flex-direction: column; background: #1b1a18; border: 1px solid #cecdce; font-family: var(--sans); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8); }
+.dlg-title { display: flex; align-items: center; justify-content: space-between; flex: none; padding: 2px 4px 2px 8px; background: #cecdce; color: #1a1a1a; }
+.dlg-x { width: 20px; height: 18px; padding: 0; border: 0; background: transparent; color: #1a1a1a; font-size: 16px; line-height: 16px; }
+.dlg-x:hover { background: #b6b4b7; }
+.dlg-body { padding: 12px 14px 4px; overflow: auto; color: var(--white); }
+.dlg-list { margin: 6px 0 4px 18px; padding: 0; color: var(--amber); }
+.dlg-buttons { display: flex; justify-content: flex-end; gap: 8px; flex: none; padding: 8px 12px 12px; }
+.dlg-btn { min-width: 56px; padding: 2px 10px; border: 1px solid #4a4a4a; background: #3c3c3c; color: var(--white); }
+.dlg-btn:hover { background: #4a4a4a; }
+.dlg-btn.primary { border-color: #2e8af6; box-shadow: inset 0 0 0 1px #2e8af6; }
+.dlg-btn:focus-visible { outline: 1px solid #fff; outline-offset: 1px; }
 
 /* ------------------------------------------------------------- mobile */
 @media (max-width: 760px) {

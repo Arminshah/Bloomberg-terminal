@@ -89,6 +89,14 @@ Evidence: TE01 02:27 (the WELC tips page: the Options menu with New Tab, New Win
 - Not done: dragging a tab out of the strip into a window of its own (the frames' transcript mentions it); the inward-arrows icon beside Options (its action is not shown).
 - Checked: `e2e/look.spec.ts` (menu items, colours, greyed items in a browser, New Tab, Escape), `desktop-e2e/provider-ipc.spec.ts` (zoom in to 110% and reset to 100% on the real window, New Window opens a second window), the title-bar test.
 
+### M1.9 Dialogs (E3)
+
+Evidence: TE01 05:11 (the Log Off dialog: light grey title bar with a dark title and "×", dark body, the question in white and a second line in amber, buttons at the bottom right with the default one outlined in blue, the screen behind dimmed to near black).
+
+- Now: a shared dialog (`src/components/Dialog.tsx`) in that form: title bar `#CECDCE`, body `#1B1A18`, grey buttons with white text, the default one outlined in blue and focused, Escape and "×" closing it, the whole window dimmed behind. The app had one place that asks before acting, the pre-trade compliance question on PORTFOLIO and its Transactions tab; it was a box inside the screen and is now this dialog ("Compliance Check", the exceptions in amber, "Add anyway" or "Record anyway" and Cancel, Cancel the default).
+- The app has no other dialog; the unused `.modal` style went. The Yahoo cookie window is Yahoo's own page in a window of its own and stays as it is.
+- Checked: `e2e/compliance.spec.ts` (role, title bar and body colours, dimming, Cancel focused, Escape cancels, Add anyway records), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).
