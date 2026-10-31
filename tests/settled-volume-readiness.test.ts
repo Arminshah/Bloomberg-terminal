@@ -119,6 +119,31 @@ describe('settled-volume readiness', () => {
     expect(api).toHaveBeenCalledTimes(5);
   });
 
+  it('asks again two minutes after a request that got no answer, without using one of the four attempts', async () => {
+    // A start-up refusal (Nasdaq throttling dozens of requests at once) left Exxon and Lilly on Yahoo's provisional volume
+    // through the data audit's capture of 31 October 2026.
+    const clocks: number[] = [];
+    api.mockImplementation(async () => { clocks.push(Date.now()); return clocks.length === 1 ? { status: 429, text: '' } : { status: 200, text: '{"data":null}' }; });
+    ready(WMT); open(WMT); stop = start();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(api).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(3 * 60_000);
+    expect(api).toHaveBeenCalledTimes(2);
+    expect(clocks[1] - clocks[0]).toBeLessThan(4 * 60_000);
+    // An answer without the day's row waits the usual half hour; the four attempts are still all there.
+    for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(31 * 60_000);
+    expect(api).toHaveBeenCalledTimes(5);
+  });
+
+  it('stops asking every two minutes after five requests without an answer', async () => {
+    api.mockImplementation(async () => { throw new Error('offline'); });
+    ready(WMT); open(WMT); stop = start();
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(20 * 60_000);
+    // The first request and five quick retries, then the half-hour spacing.
+    expect(api).toHaveBeenCalledTimes(6);
+  });
+
   it('does not request a session still trading, including after new history', async () => {
     vi.setSystemTime(Date.parse('2026-10-30T14:00:00Z'));
     ready(WMT, '2026-10-30'); open(WMT); stop = start();
