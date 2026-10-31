@@ -499,26 +499,44 @@ function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | nul
 }
 
 /** A year of closes with the consensus target and the range of targets, as ANR's chart beside its summary. */
+/** ANR's chart ranges; 2Y is the one its captures show. */
+const CHART_RANGES: { id: string; days: number }[] = [
+  { id: '6M', days: 182 },
+  { id: '1Y', days: 365 },
+  { id: '2Y', days: 730 },
+  { id: '5Y', days: 1826 },
+  { id: 'Max', days: Infinity },
+];
+
 function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }) {
   useColourScheme();
   const colours = palette();
+  const [range, setRange] = useState('2Y');
+  const days = CHART_RANGES.find((r) => r.id === range)?.days ?? 730;
   const daily = engine.daily(sec.id);
-  const from = engine.today * DAY_MS - 365 * DAY_MS;
+  const from = Number.isFinite(days) ? engine.today * DAY_MS - days * DAY_MS : -Infinity;
   const points: { x: number; y: number; label: string }[] = [];
   for (let i = 0; i < daily.length; i++) if (daily.t[i] >= from) points.push({ x: daily.t[i], y: sec.ccy === 'GBp' ? daily.c[i] / 100 : daily.c[i], label: fmtDay(daily.t[i]) });
   if (points.length < 2) return null;
   const refLines = c
     ? [
-        ...(Number.isFinite(c.mean) ? [{ y: c.mean, color: '#ff9e1b', label: `12M Tgt Px ${fmtNum(c.mean, 2)}` }] : []),
+        ...(Number.isFinite(c.mean) ? [{ y: c.mean, color: '#e8e8e8', label: `12M Tgt Px ${fmtNum(c.mean, 2)}` }] : []),
         ...(Number.isFinite(c.high) ? [{ y: c.high, color: colours.up, label: `High ${fmtNum(c.high, 2)}` }] : []),
         ...(Number.isFinite(c.low) ? [{ y: c.low, color: colours.dn, label: `Low ${fmtNum(c.low, 2)}` }] : []),
       ]
     : [];
   return (
     <div className="anr-chart">
+      <div className="row" style={{ gap: 3, marginBottom: 3 }} role="group" aria-label="Chart range">
+        {CHART_RANGES.map((r) => (
+          <button key={r.id} type="button" className={`chip-btn${r.id === range ? ' on' : ''}`} aria-pressed={r.id === range} onClick={() => setRange(r.id)}>
+            {r.id}
+          </button>
+        ))}
+      </div>
       <XYChart
         height={150}
-        series={[{ label: 'Price', color: '#e8e8e8', points }]}
+        series={[{ label: 'Price', color: '#ffd23f', points }]}
         refLines={refLines}
         xFormat={(v) => fmtDay(v)}
         yFormat={(v) => fmtNum(v, 0)}

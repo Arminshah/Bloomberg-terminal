@@ -1663,6 +1663,12 @@ test('research remains usable across FMP 402s and the Finnhub fallback, each row
   const snap = page.locator('.panel').first().locator('.anr-snap');
   await expect(snap.locator('dt')).toHaveText(['Consensus Rating', 'Buys', 'Holds', 'Sells', '12M Tgt Px', 'Last Price', 'Pricing Currency', 'Return Potential', 'LTM Return']);
   await expect(snap.locator('dd').nth(6)).toHaveText('USD');
+  // ANR's chart ranges, 2Y first shown.
+  const ranges = page.locator('.panel').first().getByRole('group', { name: 'Chart range' });
+  await expect(ranges.getByRole('button')).toHaveText(['6M', '1Y', '2Y', '5Y', 'Max']);
+  await expect(ranges.getByRole('button', { name: '2Y' })).toHaveAttribute('aria-pressed', 'true');
+  await ranges.getByRole('button', { name: '5Y' }).click();
+  await expect(ranges.getByRole('button', { name: '5Y' })).toHaveAttribute('aria-pressed', 'true');
   expect((await calls(app)).retired).toEqual([]);
 });
 
