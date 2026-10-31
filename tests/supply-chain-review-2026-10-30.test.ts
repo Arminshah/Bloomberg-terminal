@@ -298,6 +298,13 @@ describe('SPLC review of 30 October 2026: companies the company took over, and s
     expect(relationStatus(stake)).toBe('ended');
     // Its licence with Pfizer goes on with Novartis's subsidiary.
     expect(relationStatus({ ...stake, role: 'partner' })).toBe('reported');
+    // Pfizer's 10-K of February 2026 (pfe-20251231.htm): the 32% it held at the end of 2023 is no stake today.
+    const pfe = (sentence: string) => ({ sentence, filer: 'Pfizer Inc', form: '10-K', date: '2026-02-26', path: '78003/000007800326000026/pfe-20251231.htm' });
+    const haleon: Relation = { key: 'cik:1900304', name: 'Haleon plc', ticker: 'HLN', cik: 1900304, role: 'investment', side: 'own', evidence: [
+      pfe('We owned 32% of Haleon as of December 31, 2023.'),
+      pfe('The change was driven mainly by $6.9 billion cash paid for the acquisition of Metsera, net of cash acquired, and $0.7 billion lower proceeds from the remaining sale of our investment in Haleon in 2025 compared with the portion sold in 2024, partially offset by a $3.8 billion increase in net proceeds from short-term investments.'),
+    ] };
+    expect(relationStatus(haleon)).toBe('ended');
     const ford = { cik: 37996, names: targetNames('F', 'FORD MOTOR CO').names, ticker: 'F' };
     const got = ownRelations([BOSK_CAPITAL], dir, ford, { filer: 'Ford Motor Co', form: '10-Q', date: '2025-10-24', path: '37996/000003799625000186/f-20250930.htm' });
     expect(got.map((r) => [r.role, r.name])).toEqual([['investment', 'BlueOval SK']]);

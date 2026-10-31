@@ -117,7 +117,9 @@ export function assertionFor(e: Evidence, r: Pick<Relation, 'role'>): Relationsh
     : /\b(?:plans? to|expects? to|intends? to|proposed|nonbinding|non-binding|letter of intent|memorandum of understanding)\b/i.test(s) ? 'planned'
       : /\b(?:entered into|signed|executed)\b/i.test(s) ? 'signed' : 'reported';
   const contractKey = contractReference(s, r.role);
-  const ownership = r.role === 'investment' && /\b(?:stake|ownership|interest|shares|investment)\b/i.test(s);
+  // "We owned 32% of Haleon as of December 31, 2023" (Pfizer's 10-K of February 2026) is a holding the same 10-K's
+  // "remaining sale of our investment in Haleon in 2025" ends.
+  const ownership = r.role === 'investment' && /\b(?:stake|ownership|interest|shares|investment|owned|owns|held|holds)\b/i.test(s);
   const explicit = explicitEffective(s, ended);
   const event = /^On\b/i.test(s.trim()) ? eventDate(s) || undefined : undefined;
   // A closure without a contract reference must not close every contract with that company.
