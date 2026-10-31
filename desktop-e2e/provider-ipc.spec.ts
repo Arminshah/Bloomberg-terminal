@@ -66,6 +66,7 @@ interface Fixtures {
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
+  ecbSpf?: boolean;
   centralBankRates?: boolean;
   policyDecisions?: boolean;
   policyDown?: boolean;
@@ -76,7 +77,7 @@ interface Fixtures {
   treasuryCurve?: boolean;
   spdr?: boolean;
   asic?: boolean;
-  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; fedinvest?: { date: string; token: string | null }[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; fedinvest?: { date: string; token: string | null }[]; treasuryDirect?: string[]; ecbSpf?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -649,6 +650,26 @@ test("ECFC shows the IMF's World Economic Outlook for the regions and major econ
   expect(asked).toContain('/external/datamapper/api/v1/PCPIPCH');
 });
 
+test("ECOFORECASTS shows the ECB's Survey of Professional Forecasters for the euro area, with each change since the round before", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.ecbSpf = true;
+  });
+  await command(page, 'ECOFORECASTS', 'ECOFORECASTS');
+  const panel = page.locator('.panel').first();
+  await panel.getByLabel('Forecasts from').selectOption('ecb-spf');
+  const survey = panel.getByTestId('ecb-spf');
+  await expect(survey).toContainText('ECB Survey of Professional Forecasters, Q4 2026 round', { timeout: 30_000 });
+  await expect(survey).toContainText('the change since the Q3 2026 round');
+  const table = panel.getByRole('table', { name: 'Survey of Professional Forecasters' });
+  await expect(table.locator('thead th')).toHaveText(['Euro area', '2026', '2027', '2028', 'Longer term (2031)', 'Chg 2026', 'Chg 2027', 'Chg 2028', 'Chg LT']);
+  // HICP inflation: 2.99% this year (2.73 in the Q3 round), 2.63 next year, 1.99 in 2028, 2.02 in the longer term.
+  await expect(table.locator('tbody tr').filter({ hasText: 'HICP inflation' }).locator('td')).toHaveText(['HICP inflation, % y/y', '2.99', '2.63', '1.99', '2.02', '+0.26', '+0.46', '-0.01', '-0.02']);
+  await expect(table.locator('tbody tr').filter({ hasText: 'Real GDP growth' }).locator('td').nth(1)).toHaveText('0.97');
+  await expect(table.locator('tbody tr').filter({ hasText: 'Unemployment rate' }).locator('td').nth(1)).toHaveText('6.37');
+  await expect(survey).toContainText('Source: ECB statistics.');
+  expect((await calls(app)).ecbSpf).toEqual(['/service/data/SPF/Q.U2.HICP+CORE+RGDP+UNEM.POINT..Q.AVG?lastNObservations=2&format=csvdata']);
+});
+
 test("ECTR ranks an economy's goods trade by partner from the IMF, with its regions, any year and a partner's months", async ({ desktop: { app, page } }) => {
   await app.evaluate(() => {
     (globalThis as FixtureGlobal).__desktopFixtures.imfTrade = true;
@@ -974,6 +995,47 @@ test("ALLQ on a Treasury shows FedInvest's Sell and Buy, the day before, and spr
   await expect(panel.getByLabel('Coupon %')).toHaveValue('4.625');
   await expect(panel.getByLabel('Maturity', { exact: true })).toHaveValue('2036-08-15');
   await expect(panel).toContainText("TreasuryDirect FedInvest's Sell price of");
+});
+
+test("AUCTIONS shows the Treasury's auction results, TreasuryDirect's over Fiscal Data's blanks, and the schedule", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.fiscal = true;
+  });
+  await page.clock.install({ time: new Date('2026-10-31T16:00:00Z') });
+  await page.reload();
+  await command(page, 'AUCR', 'AUCTIONS');
+  const panel = page.locator('.panel').first();
+  const table = panel.getByTestId('auctions');
+  // The 3-Year Note of 6 October 2026: 4.932% high yield, 99.842840, 8.35% at the high, 2.62 cover; dealers, direct and
+  // indirect bidders took 10.7%, 31.7% and 57.6% of the competitive award.
+  const note = table.locator('tbody tr').filter({ hasText: '91282CRQ6' });
+  for (const v of ['3-Year Note', '06/10/26', '4.875', '4.932', '99.842840', '8.35', '2.62', '10.7', '31.7', '57.6', '58.0', '15/10/26', '15/10/29']) await expect(note).toContainText(v, { timeout: 30_000 });
+  await expect(note.getByRole('link', { name: 'PDF' })).toHaveAttribute('href', 'https://www.treasurydirect.gov/instit/annceresult/press/preanre/2026/R_20261006_2.pdf');
+  // Fiscal Data has no result yet for the 20-year reopening of 21 October; TreasuryDirect's is shown.
+  await expect(table.locator('tbody tr').filter({ hasText: '912810UX4' })).toContainText('5.469');
+  await expect(table.locator('tbody tr').filter({ hasText: '912810UX4' })).toContainText('19-Year 10-Month Bond (reopening)');
+  await panel.getByRole('button', { name: '2) Bills' }).click();
+  const bill = table.locator('tbody tr').filter({ hasText: '912797VZ7' });
+  for (const v of ['4-Week Bill (reopening)', '3.910', '3.976', '16.96', '3.10']) await expect(bill).toContainText(v);
+  await expect(table.locator('thead')).toContainText('High Rate');
+  await expect(table.locator('tbody tr').filter({ hasText: '27-Day CMB (reopening)' })).toContainText('3.605');
+  await panel.getByRole('button', { name: '3) TIPS' }).click();
+  await expect(table.locator('tbody tr').filter({ hasText: '91282CRR4' })).toContainText('2.367');
+  await expect(table.locator('thead')).toContainText('High Real Yld');
+  await panel.getByRole('button', { name: '4) FRNs' }).click();
+  await expect(table.locator('tbody tr').filter({ hasText: '91282CRS2' })).toContainText('0.038');
+  await expect(table.locator('thead')).toContainText('Spread');
+  await panel.getByRole('button', { name: '5) Upcoming' }).click();
+  const rows = table.locator('tbody tr');
+  await expect(rows).toHaveCount(4);
+  await expect(rows.first()).toContainText('13-Week Bill (reopening)');
+  await expect(rows.first()).toContainText('95.0');
+  await expect(rows.last()).toContainText('30-Year Bond');
+  // All three answers came through: no source is named as missing.
+  await expect(panel).not.toContainText('did not answer');
+  await expect(panel).toContainText('back to 21/05/26');
+  expect(new Set((await calls(app)).treasuryDirect ?? [])).toEqual(new Set(['/TA_WS/securities/auctioned?format=json&days=30', '/TA_WS/securities/upcoming?format=json']));
+  expect((await calls(app)).fiscal ?? []).toEqual(['/services/api/fiscal_service/v1/accounting/od/auctions_query']);
 });
 
 test("FXCA says when it has no live rate, and converts at the ECB's reference rate of a past day", async ({ desktop: { app, page } }) => {

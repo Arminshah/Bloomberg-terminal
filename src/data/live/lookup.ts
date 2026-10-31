@@ -19,8 +19,8 @@ import { favourites, portfolios, watchlists } from '../../terminal/userdata';
 
 /** Official sources the desktop app's main process fetches (fixed URLs, see electron/main.cjs). */
 export type OfficialSource =
-  | 'effr' | 'sofr' | 'nyfed' | 'fomc' | 'fedStatement' | 'fedImplementation' | 'ecb' | 'ecbFx' | 'estr' | 'boe' | 'sonia' | 'bojLoan' | 'bojCall' | 'boc' | 'rba' | 'snb' | 'bcb' | 'bis'
-  | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb' | 'bde'
+  | 'effr' | 'sofr' | 'nyfed' | 'fomc' | 'fedStatement' | 'fedImplementation' | 'ecb' | 'ecbFx' | 'estr' | 'ecbSpf' | 'boe' | 'sonia' | 'bojLoan' | 'bojCall' | 'boc' | 'rba' | 'snb' | 'bcb' | 'bis'
+  | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb' | 'bde' | 'clevNowcast'
   | 'ukcpi' | 'ukgdp' | 'ukunemp' | 'estatHicp' | 'estatUnemp' | 'estatGdp'
   | 'statcan' | 'absUnemp' | 'absCpi' | 'blsCpi' | 'blsUnemp'
   | 'newsFed' | 'newsEcb' | 'newsBoe' | 'newsBoc' | 'newsRba' | 'newsBea' | 'newsEsma'
@@ -58,14 +58,15 @@ declare global {
       bea?(kind: import('./bea').BeaKind): Promise<KeyedAnswer>;
       /** The CFTC's Commitments of Traders (no key): src/data/live/cftc.ts. */
       cftc?(kind: 'latest' | 'history', report: import('./cftc').CotReport, mode: import('./cftc').CotMode, code?: string): Promise<KeyedAnswer>;
-      /** The Treasury's Fiscal Data (no key): src/data/live/fiscal.ts. */
-      fiscal?(kind: 'mspd' | 'avg-rates'): Promise<KeyedAnswer>;
+      /** The Treasury's Fiscal Data and TreasuryDirect's securities service (no key): src/data/live/fiscal.ts, auctions.ts. */
+      fiscal?(kind: 'mspd' | 'avg-rates' | 'auctions' | 'auctions-recent' | 'auctions-upcoming'): Promise<KeyedAnswer>;
       /** Massive's dividend record for one US ticker (MASSIVE_API_KEY): src/data/live/massive-dividends.ts. */
       massiveDividends?(ticker: string): Promise<KeyedAnswer>;
       nasdaq?(kind: import('./nasdaq-company').NasdaqKind | 'info' | 'historical', symbol: string): Promise<KeyedAnswer>;
       nasdaqOptions?(symbol: string, assetClass: 'stocks' | 'etf' | 'index'): Promise<KeyedAnswer>;
       spdrHoldings?(fund: 'SPY' | 'DIA'): Promise<import('./index-members').SpdrAnswer>;
       asic?(kind: 'index' | 'day', date?: string, version?: string): Promise<KeyedAnswer>;
+      eurex?(product: 'FESX' | 'FDAX', busdate?: string): Promise<KeyedAnswer>;
       finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;
       finvizPeers?(symbol: string): Promise<KeyedAnswer>;

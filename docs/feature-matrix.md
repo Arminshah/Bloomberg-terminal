@@ -100,7 +100,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `MARKET` | World equity indices with changes and YTD in local currency and USD | Yahoo Finance | Real; USD YTD calculated |
 | `INDEXRANKING` (`WEIS`) | `MARKET`'s indices ranked by price return over 1D to 1Y, local or in USD, EUR, GBP, JPY, CHF | Yahoo Finance | Calculated; no dividends; unranked when a close is missing |
 | `WORLDMAP` (`WM`) | One main index per market on a grid laid out like the world, coloured by return | Yahoo Finance | Calculated; the grid is the app's own |
-| `INDEXFUTURES` | US index futures with basis and fair value | Yahoo Finance (CME, delay as Yahoo states it) | Real; fair value a stated model. Non-US futures not available |
+| `INDEXFUTURES` | US index futures with basis and fair value; Euro Stoxx 50 and DAX futures at the daily settlement | Yahoo Finance (CME, delay as Yahoo states it); Eurex's end-of-day statistics | Real; fair value a stated model. Other non-US futures not available |
 | `EXCHANGES` (`EXCH`) | NYSE, Euronext, London, Xetra and Tokyo: local time, open/closed/holiday/weekend, early closes, next open or close | NYSE and Euronext rules; LSE, Xetra and JPX tables through 2027 | Real (published calendars). Regular sessions only; unscheduled closures not known |
 | `CONTRIB` | What moved an index | Yahoo Finance | Calculated. Index points for the Dow only (its membership is public); other indices by the app's stocks in that market |
 | `HEATMAP` | Stocks by sector, sized by market value, coloured by change | Yahoo Finance | Calculated |
@@ -140,6 +140,7 @@ The default retains Yahoo prices and history alongside the separate IEX box on `
 | `BONDCALC` | Price/yield, accrued, duration, convexity, DV01, yield to each call and to worst with the workout date and price to worst, G/Z-spread, Z01, scenarios and cash flows; five day counts and explicit/lagged settlement | User terms, price/yield, optional call schedule, benchmark yield and continuous zero curve | Calculated regular schedule; calls valued as redemptions without option value (no OAS); settlement skips weekends only; no observed price or curve |
 | `SWAPCALC` | Par coupon, NPV, projected cash flows, curve/coupon bump P&L | User contract and separate discount/projection zero curves | Calculated forward-start fixed/float model; no dealer curve, fixing history or OIS conventions |
 | `DEBTPROFILE T GOVT` | The U.S. Treasury's marketable debt outstanding by class and year of maturity, with the Treasury's average interest rates | U.S. Treasury Fiscal Data: Monthly Statement of the Public Debt (no key) | Real, monthly, desktop app; amounts, not prices |
+| `AUCTIONS` (`AUCR`) | Treasury auction results by kind (notes and bonds, bills, TIPS, FRNs): high yield, rate or margin, price, share allotted at the high, bid-to-cover, dealer, direct and indirect shares, offering, issue and maturity, a link to each results release; and the auctions on the schedule | U.S. Treasury: Fiscal Data's auction records (about 16 months) and TreasuryDirect's securities service (last 30 days' results, the schedule), no key | Real, desktop app; results minutes after each auction |
 | `BONDSEARCH`, `DEBTPROFILE` (other issuers), `DEALERQUOTES` | | none | Not available: individual bond/dealer datasets have no connected free source |
 
 ## Commodities and economics

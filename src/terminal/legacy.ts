@@ -98,6 +98,7 @@ export const LEGACY_CODES: Record<string, string> = {
   ECWB: 'ECONCHART',
   CCRV: 'FUTURESCURVE',
   CTM: 'CONTRACTS',
+  AUCR: 'AUCTIONS',
   ECFC: 'ECOFORECASTS',
   ECTR: 'TRADEFLOWS',
   EQBT: 'BACKTEST',

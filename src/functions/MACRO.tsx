@@ -168,7 +168,7 @@ export function MACRO({ route }: FnProps) {
                 const chgShown = Number.isFinite(chg) ? Math.round(chg * 10 ** m.dec) / 10 ** m.dec || 0 : NaN;
                 return (
                   <tr key={m.id} className={`click${picked.includes(m) ? ' sel' : ''}`} onClick={() => execute(panel, `MACRO ${m.id}`)}>
-                    <td title={`FRED series ${m.id}`}>{m.label}</td>
+                    <td title={m.id.includes(':') ? m.source : `FRED series ${m.id}`}>{m.label}</td>
                     <td className="num white">{r ? fmtValue(m, r.value) : '--'}</td>
                     <td className="muted">{r ? periodText(m, r.date) : ''}</td>
                     <td className={`num ${chgShown > 0 ? 'up' : chgShown < 0 ? 'dn' : ''}`}>{Number.isFinite(chgShown) ? `${chgShown > 0 ? '+' : ''}${fmtNum(chgShown, m.dec)}${m.unit === 'k' ? 'k' : ''}` : '--'}</td>

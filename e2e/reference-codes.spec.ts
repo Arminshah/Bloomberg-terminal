@@ -271,6 +271,16 @@ test("ECFC says the IMF's forecasts are read in the desktop app, and shows none 
   expect(errors).toEqual([]);
 });
 
+test("AUCR says the Treasury's auctions are read in the desktop app, and shows none in the demo", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AUCR');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('AUCTIONS');
+  await expect(panel.locator('.empty')).toContainText('read from Fiscal Data and TreasuryDirect in the desktop app. The browser demo has none, and none is generated.');
+  await expect(panel.locator('tbody tr')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("ECTR says trade by partner is read from the IMF in the desktop app, and shows none in the demo", async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'ECTR DEU');

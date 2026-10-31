@@ -147,7 +147,7 @@ function nasdaqAgent() {
   return `ArminTerminal/${app.getVersion()}`;
 }
 function clientAgent() {
-  return `ArminTerminal/${app.getVersion()} (+https://github.com/arminshah/bloomberg-terminal)`;
+  return `ArminTerminal/${app.getVersion()} (+https://github.com/arminshah/armin-terminal)`;
 }
 // What the page may ask Yahoo for, and what is removed from the answers (electron/yahoo-scope.cjs).
 const { ALLOWED, yahooRequest, withoutRestricted } = require('./yahoo-scope.cjs');
@@ -285,6 +285,8 @@ const OFFICIAL = {
   // The overnight benchmarks the ECB and the Bank of England publish: the euro short-term rate (ECB Data Portal,
   // dataset EST) and SONIA (Bank of England database, IUDSOIA).
   estr: (since) => `https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT?format=csvdata&startPeriod=${since}`,
+  // The ECB's Survey of Professional Forecasters: the panel's average point forecasts of the last two rounds, every horizon.
+  ecbSpf: () => 'https://data-api.ecb.europa.eu/service/data/SPF/Q.U2.HICP+CORE+RGDP+UNEM.POINT..Q.AVG?lastNObservations=2&format=csvdata',
   sonia: (since) => boeSeries('IUDSOIA', since),
   // The Bank of Japan's Time-Series Data Search API (no key; its notice asks for a credit line, shown where the
   // figures are): the basic loan rate, daily with every change (IR01, MADR1Z@D), and the uncollateralized overnight
@@ -309,6 +311,9 @@ const OFFICIAL = {
   jgbHistory: () => 'https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/historical/jgbcme_all.csv',
   canadas: (since) => `https://www.bankofcanada.ca/valet/observations/group/bond_yields_benchmark/json?start_date=${since}`,
   acgb: () => 'https://www.rba.gov.au/statistics/tables/csv/f2-data.csv',
+  // The Cleveland Fed's inflation nowcasts (no key; updated each business day): one chart per month with the daily
+  // nowcast of CPI, core CPI, PCE and core PCE, month on month. 7.7 MB, about 360 KB compressed.
+  clevNowcast: () => 'https://www.clevelandfed.org/-/media/files/webcharts/inflationnowcasting/nowcast_month.json?sc_lang=en',
   // Banco de España's secondary-market yields (table TI_1_3, no key): the whole table as CSV for a first load (from
   // 1987, 1.3 MB), then the 10-year series' last three months from its BIE API (4 KB) for each refresh.
   bde: (since, today) => (Date.parse(today) - Date.parse(since) > 92 * 86_400_000
@@ -353,8 +358,8 @@ const OFFICIAL = {
 
 /** Which provider publishes each official source, for the status screen. */
 const OFFICIAL_PROVIDER = {
-  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', fedStatement: 'fedboard', fedImplementation: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
-  rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bis: 'bis', bde: 'bde', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
+  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', fedStatement: 'fedboard', fedImplementation: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', ecbSpf: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
+  rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bis: 'bis', bde: 'bde', clevNowcast: 'clevelandfed', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
   newsFed: 'fedboard', newsEcb: 'ecb', newsBoe: 'boe', newsBoc: 'boc', newsRba: 'rba', newsBea: 'bea', newsEsma: 'esma',
@@ -380,7 +385,7 @@ ipcMain.handle('official', async (event, source, since) => {
     return { status: res.status, text: res.ok ? await res.text() : '' };
   }
   // Some statistics services answer large requests slowly; a stalled one still ends.
-  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' || source === 'ecbFx' || source === 'estr' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' || source === 'ecbFx' || source === 'estr' || source === 'ecbSpf' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
   return { status: res.status, text: res.ok ? await res.text() : '', at: Date.now(), url };
 });
 
@@ -1113,6 +1118,10 @@ const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(ur
     if (provider === 'datasets') {
       return /^\uFEFF?Symbol,Security,GICS Sector,GICS Sub-Industry/.test(text) ? null : { kind: 'schema-changed', message: 'The S&P 500 member list changed its format.' };
     }
+    if (provider === 'eurex') {
+      const message = require('./eurex.cjs').eurexProblem(text);
+      return message ? { kind: 'schema-changed', message } : null;
+    }
     if (provider === 'asic') {
       const ok = url.endsWith('.json') ? /^\s*\[/.test(text) : /^\uFEFF?Product,Product Code,/.test(text);
       return ok ? null : { kind: 'schema-changed', message: 'ASIC changed its short position files.' };
@@ -1168,12 +1177,13 @@ ipcMain.handle('cftc', async (event, kind, report, mode, code) => {
   return keyedGet('cftc', req.url, { Accept: 'application/json' }, req.ttl, [30, 60_000], []);
 });
 
-// The Treasury's Fiscal Data (electron/fiscal.cjs) for DEBTPROFILE T: no key.
+// The Treasury's Fiscal Data (electron/fiscal.cjs) for DEBTPROFILE T and AUCTIONS, and TreasuryDirect's securities
+// service for AUCTIONS' latest results and announced auctions: no key.
 const fiscal = require('./fiscal.cjs');
 ipcMain.handle('fiscal', async (event, kind) => {
   const req = fiscal.fiscalRequest(String(kind));
   if (!fromApp(event) || !req) throw new Error('not allowed');
-  return keyedGet('fiscal', req.url, { Accept: 'application/json' }, req.ttl, [20, 60_000], []);
+  return keyedGet(req.provider ?? 'fiscal', req.url, { Accept: 'application/json' }, req.ttl, [20, 60_000], []);
 });
 
 // BEA (electron/bea.cjs): two national accounts tables with the owner's UserID, which BEA's answer repeats and the
@@ -1282,6 +1292,15 @@ ipcMain.handle('index-members', async (event, kind, arg) => {
   if (!req) throw new Error('not allowed');
   // Wikimedia asks programs to name themselves and say how to reach their author: the app's own agent does both.
   return keyedGet(req.provider, req.url, req.headers, req.ttl, req.provider === 'nasdaq' ? [60, 60_000] : [10, 60_000], [], req.provider === 'wikipedia' ? clientAgent() : nasdaqAgent());
+});
+
+// Eurex's end-of-day statistics for the Euro Stoxx 50 and DAX futures (electron/eurex.cjs): one request every 30
+// seconds at most, as Eurex's robots.txt asks.
+const eurex = require('./eurex.cjs');
+ipcMain.handle('eurex', async (event, product, busdate) => {
+  const req = eurex.eurexRequest(product, busdate || undefined);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  return keyedGet('eurex', req.url, { Accept: 'application/json' }, req.ttl, [1, 30_000], [], clientAgent());
 });
 
 // ASIC's daily aggregated short positions (electron/asic.cjs), for SI on ASX stocks: the index of published days,

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { parseFredFirstRelease, type Obs } from '../src/data/live/fred';
+import { parseClevelandNowcast } from '../src/data/live/official';
+import { parseCommand } from '../src/terminal/commands';
+import { lookupFn } from '../src/terminal/registry';
 import { MACRO_SERIES, FIRST_RELEASE_IDS, FRED_NOTICE } from '../src/data/macroseries';
 import { history, latestReading } from '../src/functions/MACRO';
 
@@ -25,6 +28,15 @@ describe('macro dashboard figures', () => {
     const obs: Obs = [['2026-07-01', 159_500], ['2026-08-01', 159_600], ['2026-09-01', 159_742]];
     const r = latestReading(line('PAYEMS'), obs)!;
     expect(r).toEqual({ value: 142, date: '2026-09-01', prev: 100 });
+  });
+
+  it("shows GDPNow's nowcast for the quarter as published, the quarter before it beside it, and says it is a nowcast", () => {
+    // FRED's GDPNOW: one value a quarter, the current one revised until the BEA's advance estimate (synthetic values).
+    const r = latestReading(line('GDPNOW'), [['2026-07-01', 3.3], ['2026-10-01', 3.2]])!;
+    expect(r).toEqual({ value: 3.2, date: '2026-10-01', prev: 3.3 });
+    expect(line('GDPNOW')).toMatchObject({ group: 'Growth', freq: 'q', calc: 'level' });
+    expect(line('GDPNOW').label).toMatch(/nowcast/);
+    expect(line('GDPNOW').source).toMatch(/^Federal Reserve Bank of Atlanta \(a model nowcast/);
   });
 
   it('scales weekly claims to thousands', () => {
@@ -73,5 +85,35 @@ describe('first releases (ALFRED)', () => {
     ]);
     expect(parseFredFirstRelease('nope')).toEqual([]);
     expect(FIRST_RELEASE_IDS).toEqual(['PAYEMS', 'A191RL1Q225SBEA']);
+  });
+});
+
+describe("the Cleveland Fed's inflation nowcasts", () => {
+  // A synthetic file in the layout of nowcast_month.json (read on 31 October 2026): one chart a target month, its
+  // categories with a vertical line between days, and a nowcast series per measure beside the actuals. Made-up values.
+  const chart = (month: string, cpi: string[], actual: string[]) => ({
+    chart: { _comment: '2026-10-30 00:00', caption: 'Inflation Nowcasting', subcaption: month },
+    categories: [{ category: [{ label: '10/28' }, { label: '10/29' }, { label: 'PCE Sep', vline: 'true' }, { label: '10/30' }] }],
+    dataset: [
+      { seriesname: 'CPI Inflation', data: cpi.map((value) => ({ value })) },
+      { seriesname: 'Core PCE Inflation', data: [{ value: '0.25' }, { value: '' }] },
+      { seriesname: 'Actual CPI Inflation', data: actual.map((value) => ({ value })) },
+    ],
+  });
+  const text = JSON.stringify([chart('2026-9', ['0.52', '0.53', ''], ['0.65']), chart('2026-10', ['0.23', '0.24', ''], [''])]);
+
+  it("takes each month's latest nowcast, leaving the actuals out", () => {
+    const m = parseClevelandNowcast(text);
+    expect(m.get('CPI')).toEqual([['2026-09-01', 0.53], ['2026-10-01', 0.24]]);
+    expect(m.get('COREPCE')).toEqual([['2026-09-01', 0.25], ['2026-10-01', 0.25]]);
+    expect(m.has('CORECPI')).toBe(false);
+    expect(parseClevelandNowcast('<html>').size).toBe(0);
+  });
+
+  it('shows on MACRO as this month against last, named as a nowcast, and opens from its own line', () => {
+    const r = latestReading(line('CLEV:CPI'), parseClevelandNowcast(text).get('CPI'))!;
+    expect(r).toEqual({ value: 0.24, date: '2026-10-01', prev: 0.53 });
+    expect(line('CLEV:CPI').label).toMatch(/nowcast/);
+    expect(parseCommand('MACRO CLEV:CPI', lookupFn)).toMatchObject({ kind: 'route', fn: 'MACRO', args: 'CLEV:CPI' });
   });
 });

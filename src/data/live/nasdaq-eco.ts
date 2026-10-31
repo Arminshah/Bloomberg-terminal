@@ -3,8 +3,10 @@ import { createStore } from '../../core/store';
 import { DAY_MS } from '../calendar';
 
 /**
- * The economic calendar from Nasdaq's site (desktop app, no key): each day's releases in every country with the time
- * (New York), the actual value, the consensus forecast and the previous value, as Nasdaq's data partner publishes them.
+ * The economic calendar from Nasdaq's site (desktop app, no key): each day's releases in every country with the time,
+ * the actual value, the consensus forecast and the previous value, as Nasdaq's data partner publishes them. The time
+ * field is UTC-4 all year, New York's summer time: the app reads it so, which is New York time from March to
+ * November and an hour later than New York in winter (US payrolls at 08:30 New York read 09:30 from November).
  * Values stay as published (with their units: 1.0%, A$5.5B); a number is read from them only to compare actual and
  * consensus.
  */
@@ -95,8 +97,10 @@ export function parseNasdaqEco(text: string, date: string): { data: NasdaqEcoEve
         const countryName = ecoValue(r?.country);
         const hm = /^(\d{1,2}):(\d{2})$/.exec(ecoValue(r?.gmt));
         if (!name || !Number.isFinite(base)) return null;
-        // The "gmt" field is New York time on that day: China's 10:00 GDP release reads 22:00 the evening before.
-        const time = hm ? newYorkTime(day, Number(hm[1]), Number(hm[2])) : base;
+        // The "gmt" field is UTC-4 whatever the season: China's 10:00 GDP release (02:00 UTC) reads 22:00 the evening
+        // before; checked on 31 October 2026 against the BLS's schedule (payrolls of 6 November at 08:30 New York,
+        // listed at 09:30) and Germany's PMI at 09:55 Frankfurt, listed 03:55 in October and 04:55 in November.
+        const time = hm ? base + ((Number(hm[1]) + 4) * 60 + Number(hm[2])) * 60_000 : base;
         return {
           id: `${date}:${i}:${name}`,
           time,
