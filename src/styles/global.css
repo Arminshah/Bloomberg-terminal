@@ -1569,6 +1569,14 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .fa-gc-table { margin-left: auto; }
 .fa-gc-bar .link-btn { color: var(--amber); }
 @media (max-width: 760px) { .fa-graph-mode { grid-template-columns: 1fr; } .fa-gl { max-height: 180px; border-right: 0; } }
+/* FA Segments (PT_FA_business_drivers 0:17.0): the switches above the grid, the fold arrows and the grey share rows. */
+.seg-ctl { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: #000; border-bottom: 1px solid #1d1d1d; }
+.seg-tg { display: inline-flex; gap: 2px; }
+.seg-tg button { border: 0; padding: 0 8px; background: #3a3a3a; color: #e8e8e8; font-size: var(--fs-s); }
+.seg-tg button.on { background: #1f5da6; color: #fff; }
+.seg-tg button:disabled { color: #777; }
+.seg-fold { display: inline-block; width: 14px; margin-right: 4px; padding: 0; border: 0; background: none; color: #e8e8e8; text-align: center; cursor: pointer; }
+.seg-tbl { margin-bottom: 10px; }
 .fa-set { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--white); }
 .fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid #1d1d1d; background: #000; }
 .fa-bottom > button { background: #434142; border: 0; color: var(--white); padding: 0 12px; }
