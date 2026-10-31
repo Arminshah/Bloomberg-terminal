@@ -4,6 +4,8 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
+2.30.0 was requested on 31 October through `.github/release-request.json`: the portfolio-management screens (FRONTIER, MPC), the FTSE 100 screen, the SPLC review fixes (`docs/splc-review-2026-10-30.md`), official session figures from Nasdaq's record, the interface work of 31 October and the unpublished 2.29.1 accuracy work. It is published only once the release workflow has finished and both Windows executables and their checksums are on the release.
+
 ### 14. Match the provider's terminal screen for screen (asked 31 October)
 
 The owner's plan is `docs/parity-build-plan.md`, with the evidence in the owner's private reference pack (cloned into the git-ignored `reference/visual/bloomberg-pack-2026-10-31/`, never committed). Work through it in order: setup, M1 window chrome, M2 navigation and keyboard, M3 screens, M4 calculations, M5 missing functions. Its "Progress" list is ticked with each commit; start at the first unticked item. Two things never change: the typeface (`CLAUDE.md`) and the watchlist (`tests/watchlist-guard.test.ts`, `e2e/watchlist-guard.spec.ts`). The owner approved the 2024 visual corrections in the pack's `START_HERE_FOR_CLAUDE.md` except anything touching those two. Features with no counterpart stay; ask the owner before hiding any.
