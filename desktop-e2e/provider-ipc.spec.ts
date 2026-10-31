@@ -1039,8 +1039,9 @@ test("ALLQ on a Treasury shows FedInvest's Sell and Buy, the day before, and spr
     (globalThis as FixtureGlobal).__desktopFixtures.fedinvest = true;
   });
   const panel = page.locator('.panel').first();
-  // A CUSIP typed before the Treasuries are loaded: FedInvest's two latest days load, then the command runs.
-  await command(page, '91282CAA1 Govt ALLQ', 'DEALERQUOTES');
+  // A CUSIP typed after its function, before the Treasuries are loaded: FedInvest's two latest days load, then the
+  // command runs.
+  await command(page, 'ALLQ 91282CAA1 Govt', 'DEALERQUOTES');
   const rows = panel.getByTestId('allq-table').locator('tbody tr');
   await expect(rows.first()).toContainText('FedInvest Sell / Buy', { timeout: 30_000 });
   await expect(rows.first()).toContainText('97-16+ / 97-17');
@@ -1055,8 +1056,9 @@ test("ALLQ on a Treasury shows FedInvest's Sell and Buy, the day before, and spr
   const asked = (await calls(app)).fedinvest ?? [];
   expect(asked.every((c) => c.token === 'TEST-TOKEN')).toBe(true);
   expect(asked.length).toBeGreaterThanOrEqual(2);
-  // YAS starts from the note's coupon and maturity and FedInvest's Sell price, and says so.
-  await command(page, 'T 4 5/8 08/15/36 Govt YAS', 'BONDCALC');
+  // YAS starts from the note's coupon and maturity and FedInvest's Sell price, and says so. The name with its coupon in
+  // decimals, as SRCH writes it, finds the note too.
+  await command(page, 'T 4.625 08/15/36 Govt YAS', 'BONDCALC');
   await expect(panel.getByLabel('Coupon %')).toHaveValue('4.625');
   await expect(panel.getByLabel('Maturity', { exact: true })).toHaveValue('2036-08-15');
   await expect(panel).toContainText("TreasuryDirect FedInvest's Sell price of");

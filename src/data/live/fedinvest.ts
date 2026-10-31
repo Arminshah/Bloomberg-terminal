@@ -90,7 +90,9 @@ export function treasuryTicker(r: Pick<FedRow, 'rate' | 'maturity'>): string {
 
 /** The app's security for a Treasury note or bond on FedInvest's list. */
 export function treasuryDef(r: FedRow, ticker = treasuryTicker(r)): SecurityDef {
-  const [y] = r.maturity.split('-');
+  const [y, m, d] = r.maturity.split('-');
+  const suffix = ticker.slice(treasuryTicker(r).length);
+  const decimal = `T ${String(Number(r.rate.toFixed(3)))} ${m}/${d}/${y.slice(2)}${suffix}`;
   return {
     id: `${ticker} Govt`,
     ticker,
@@ -104,7 +106,8 @@ export function treasuryDef(r: FedRow, ticker = treasuryTicker(r)): SecurityDef 
     vol: 0,
     dec: 4,
     quote: 'price',
-    alias: [r.cusip],
+    // The CUSIP, and the name with a decimal coupon as SRCH writes it ("T 4.625 08/15/36").
+    alias: [r.cusip, ...(decimal !== ticker ? [decimal] : [])],
     // FedInvest gives no issue date; the coupon schedule runs back from the maturity, which is all YAS needs.
     bond: { coupon: r.rate, maturity: r.maturity, issue: '', legs: [], spread: 0, freq: 2, rating: 'AA+', seniority: 'Govt' },
   };
@@ -163,7 +166,9 @@ function addSecurities(latest: FedDay, prev?: FedDay) {
     byCusip.set(r.cusip, def.id);
     owned.add(def.id);
   }
-  engine.addSecurities(defs.filter((d) => !engine.get(d.id)));
+  // A def of the same name already there is the simulator's on-the-run note (the desktop app keeps it hidden, as it
+  // has no source): the real one, with its CUSIP and terms, takes its place.
+  engine.replaceSecurities(defs);
   for (const [id, bars] of daily) engine.setExternalDaily(id, bars, { eod: true, provider: 'TreasuryDirect FedInvest' });
   engine.flush(daily.map(([id]) => id));
 }

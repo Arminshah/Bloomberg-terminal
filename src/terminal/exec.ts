@@ -37,8 +37,11 @@ function lookupThenRun(panel: number, text: string, ticker: string, message: str
   return true;
 }
 
-/** A US Treasury typed by name ("T 4 5/8 08/15/36 Govt") or by CUSIP ("91282CAA1"). */
-const TREASURY_TYPED = /^\s*(?:T\s+\d+(?:\.\d+)?(?:\s+\d\/\d)?\s+\d{2}\/\d{2}\/\d{2}\b|912[0-9A-Z]{6}\b)/i;
+/**
+ * A US Treasury typed by name ("T 4 5/8 08/15/36 Govt", "T 4.625 08/15/36") or by CUSIP ("91282CAA1"), before its
+ * function or after it ("ALLQ 91282CAA1 Govt").
+ */
+export const TREASURY_TYPED = /(?:^|\s)(?:T\s+\d+(?:\.\d+)?(?:\s+\d\/\d{1,2})?\s+\d{2}\/\d{2}\/\d{2}\b|912[0-9A-Z]{6}\b)/i;
 
 /** Loads FedInvest's Treasuries (the desktop app adds them when first needed), then runs the original command. */
 function treasuryThenRun(panel: number, text: string): boolean {

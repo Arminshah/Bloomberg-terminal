@@ -26,11 +26,14 @@ const norm = (s: string) => s.toUpperCase().replace(/\s+/g, ' ').trim();
 
 let tickerIndex: Map<string, SecurityDef[]> | null = null;
 let indexedCount = 0;
+let indexedGen = -1;
 
 function index(): Map<string, SecurityDef[]> {
-  // Securities looked up online are appended at runtime; rebuild when the list grows.
-  if (tickerIndex && indexedCount === engine.securities.length) return tickerIndex;
+  // Securities looked up online are appended at runtime, and FedInvest's Treasuries replace the simulator's of the
+  // same name: rebuild when the list grows or a security is replaced.
+  if (tickerIndex && indexedCount === engine.securities.length && indexedGen === engine.defsGeneration) return tickerIndex;
   indexedCount = engine.securities.length;
+  indexedGen = engine.defsGeneration;
   tickerIndex = new Map();
   const add = (k: string, d: SecurityDef) => {
     const key = norm(k);

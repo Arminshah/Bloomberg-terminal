@@ -297,6 +297,7 @@ export class MarketEngine {
   readonly defs: SecurityDef[];
   readonly byId = new Map<string, SecurityDef>();
   private states = new Map<string, State>();
+  private defsGen = 0;
   private quotes = new Map<string, Quote>();
   private listeners = new Set<EngineListener>();
   private minuteFactor = new Map<string, Float64Array>();
@@ -1985,6 +1986,7 @@ export class MarketEngine {
    */
   addSecurity(def: SecurityDef, init: { bars?: { day: number; o: number; h: number; l: number; c: number; v: number }[]; anchors?: [day: number, level: number][] } = {}, notify = true): boolean {
     if (this.byId.has(def.id)) return false;
+    this.defsGen++;
     this.defs.push(def);
     this.byId.set(def.id, def);
     this.listed = null;
@@ -2012,6 +2014,30 @@ export class MarketEngine {
     const added = defs.filter((d) => this.addSecurity(d, {}, false)).map((d) => d.id);
     if (added.length) this.flush(added);
     return added;
+  }
+
+  /**
+   * Puts each def in place of the security of the same id, history and all, or adds it. FedInvest's Treasury takes
+   * the place of the simulator's on-the-run note of the same name, whose terms, aliases and prices are its own.
+   * Tells the screens once; returns the ids.
+   */
+  replaceSecurities(defs: SecurityDef[]): string[] {
+    for (const def of defs) {
+      const old = this.byId.get(def.id);
+      if (!old) continue;
+      this.defs.splice(this.defs.indexOf(old), 1);
+      this.byId.delete(def.id);
+      this.states.delete(def.id);
+      this.resetDependents(def.id);
+    }
+    const ids = defs.filter((d) => this.addSecurity(d, {}, false)).map((d) => d.id);
+    if (ids.length) this.flush(ids);
+    return ids;
+  }
+
+  /** Changes whenever a security is added or replaced (the registry's index rebuilds on it). */
+  get defsGeneration(): number {
+    return this.defsGen;
   }
 
   /** Every security that should appear in search and monitors. */
