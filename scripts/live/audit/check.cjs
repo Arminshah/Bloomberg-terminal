@@ -74,8 +74,8 @@ const TOLERANCE = {
 const rows = [];
 const add = (r) => rows.push(assurance.sanitize({ evidenceKind: 'reference', ...r }));
 const FLAGGED_ON_SCREEN = Symbol('flagged');
-/** A figure on screen, or the marker for a cell that says "Sources disagree". */
-const shown = (text, parse) => (/^Sources disagree$/.test((text ?? '').trim()) ? FLAGGED_ON_SCREEN : parse(text));
+/** A figure on screen, or an explicit source/definition warning with retained alternatives. */
+const shown = (text, parse) => (assurance.isSourceWarning(text) ? FLAGGED_ON_SCREEN : parse(text));
 /** A comparison: PASS within tolerance, FAIL beyond it, SKIP when either side has no figure (with the reason). */
 function compare(area, item, field, app, ref, tol, refName, note) {
   // The screen itself says the sources disagree on this figure: reported, not hidden and not failed.

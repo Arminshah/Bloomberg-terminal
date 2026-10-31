@@ -14,7 +14,7 @@ const day = dayNum(now);
 const facts = { cik: 59478, name: 'Synthetic issuer', facts: { 'dei:EntityCommonStockSharesOutstanding': { shares: [
   { end: '2026-10-26', filed: '2026-10-29', form: '10-Q', val: 1500, accn: 'one' },
 ] } } } as unknown as CompanyFacts;
-const candidates = (html: string) => JSON.parse(/data-source-candidates="([^"]+)"/.exec(html)![1].replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+const candidates = (html: string) => JSON.parse(/data-source-candidates="([^"]+)"/.exec(html)![1].replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&amp;/g, '&'));
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -114,5 +114,88 @@ describe('market-value conflict evidence', () => {
     expect(evidence.basis).toBeUndefined();
     expect(evidence.message).toContain('source unknown');
     expect(candidates(html)[0]).toMatchObject({ source: 'Current app share count (source unknown)', method: 'unknown', shares: 1200, value: 126000, observedAt: null, sourceTime: null });
+  });
+});
+
+describe('Lilly historical share-definition evidence', () => {
+  const current = 890_745_031;
+  const cover = { cik: 59478, name: 'ELI LILLY & Co', facts: { 'dei:EntityCommonStockSharesOutstanding': { shares: [
+    { end: '2026-10-26', filed: '2026-10-29', form: '10-Q', val: 940_745_031, accn: '0000059478-26-000108' },
+  ] } }, ownEnd: {} } as CompanyFacts;
+  const origin = { shares: current / 1e6, source: 'Yahoo Finance quote', method: 'current-market-cap-pair' as const, observedAt: now - 1000,
+    sourceTime: now - 5000, price: 1373.7, marketCap: current * 1373.7, currency: 'USD' };
+
+  it('labels the matched historical definition conditionally and retains the original counts, clocks and quoted limits', () => {
+    engine.setExternalDaily(id, [{ day, o: 100, h: 110, l: 95, c: 105, v: 1000 }]);
+    const sec = { ...engine.get(id)!, eq: { ...engine.get(id)!.eq!, shares: origin.shares } };
+    const evidence = shareCountConflict(sec.eq.shares, cover, now, origin)!;
+    const html = renderToStaticMarkup(createElement(MarketValueConflict, { sec, evidence }));
+    expect(evidence).toMatchObject({ current, cover: 940_745_031, basis: origin, definition: {
+      label: 'Possible definitional difference', status: 'historical-trust-holding-current-count-unconfirmed', trustShares: 50_000_000,
+      observedGap: 50_000_000, gapPrecisionShares: 10_000,
+      trustAsOf: ['2025-12-31', '2024-12-31'], filed: '2026-02-12',
+      sourceUrl: 'https://www.sec.gov/Archives/edgar/data/59478/000005947826000013/0000059478-26-000013-index.html',
+      coverSourceUrl: 'https://www.sec.gov/Archives/edgar/data/59478/000005947826000108/0000059478-26-000108-index.html',
+    } });
+    expect(evidence.definition?.quote).toContain('Stock held by the trust is not considered outstanding in the computation of EPS.');
+    expect(evidence.message).toContain('The current trust holding and Yahoo\'s current treatment are unconfirmed.');
+    expect(evidence.message).toContain('The unchanged September 2026 dollar cost basis does not establish the current share count.');
+    expect(html).toContain('>Possible definitional difference<');
+    expect(html).toContain('data-source-conflict="shares-outstanding"');
+    expect(candidates(html)).toMatchObject([
+      { shares: current, value: current * 105, sourceMarketCap: origin.marketCap, sourcePriceQuoted: origin.price, observedAt: origin.observedAt,
+        sourceTime: origin.sourceTime, definition: evidence.definition },
+      { shares: 940_745_031, value: 940_745_031 * 105 },
+    ]);
+    expect(sec.eq.shares).toBe(origin.shares);
+  });
+
+  it('annotates only gaps that round to 50.00 million shares without widening the share-conflict threshold', () => {
+    const rounded = current + 4999;
+    const annotated = shareCountConflict(rounded / 1e6, cover, now, { ...origin, shares: rounded / 1e6, marketCap: rounded * origin.price })?.definition;
+    expect(annotated).toMatchObject({ gapPrecisionShares: 10_000 });
+    expect(annotated?.observedGap).toBeCloseTo(49_995_001, 5);
+    const different = current + 5001;
+    expect(shareCountConflict(different / 1e6, cover, now, { ...origin, shares: different / 1e6, marketCap: different * origin.price })?.definition).toBeUndefined();
+    expect(shareCountConflict(935, cover, now, { ...origin, shares: 935, marketCap: 935e6 * origin.price })).toBeUndefined();
+  });
+
+  it('labels the retained live cap/price pair conditionally without rounding its actual implied count', () => {
+    const pair = { ...origin, marketCap: 1_260_239_323_136, price: 1414.815 };
+    const implied = pair.marketCap / pair.price;
+    const evidence = shareCountConflict(implied / 1e6, cover, now, { ...pair, shares: implied / 1e6 })!;
+    expect(evidence.current).toBeCloseTo(890_744_954.7368383, 5);
+    expect(evidence.cover).toBe(940_745_031);
+    expect(evidence.definition).toMatchObject({ label: 'Possible definitional difference', gapPrecisionShares: 10_000 });
+    expect(evidence.definition?.observedGap).toBeCloseTo(50_000_076.26316166, 5);
+    expect(evidence.message).toContain('rounds to 50.00 million shares at 0.01 million-share precision');
+  });
+
+  it.each([
+    { source: 'Nasdaq holdings' },
+    { method: 'reported' as const },
+    { observedAt: now + 1 },
+    { sourceTime: now + 1 },
+    { observedAt: Date.parse('2026-10-28T20:00:00Z') },
+    { sourceTime: Date.parse('2026-10-28T20:00:00Z') },
+    { marketCap: NaN },
+    { price: 0 },
+    { marketCap: (current + 1000) * origin.price },
+    { currency: 'EUR' },
+    { classMultiplier: 10 },
+  ])('does not apply a historical explanation to an ineligible share origin: %o', (change) => {
+    const evidence = shareCountConflict(origin.shares, cover, now, { ...origin, ...change })!;
+    expect(evidence).toMatchObject({ current, cover: 940_745_031 });
+    expect(evidence.definition).toBeUndefined();
+    const sec = { ...engine.get(id)!, eq: { ...engine.get(id)!.eq!, shares: origin.shares } };
+    expect(renderToStaticMarkup(createElement(MarketValueConflict, { sec, evidence }))).toContain('>Sources disagree<');
+  });
+
+  it('does not generalize one retained filing to another issuer, cover or an untracked current count', () => {
+    expect(shareCountConflict(origin.shares, { ...cover, cik: 123 }, now, origin)?.definition).toBeUndefined();
+    const otherCover = structuredClone(cover);
+    otherCover.facts['dei:EntityCommonStockSharesOutstanding'].shares[0].accn = 'another-filing';
+    expect(shareCountConflict(origin.shares, otherCover, now, origin)?.definition).toBeUndefined();
+    expect(shareCountConflict(origin.shares, cover, now)?.definition).toBeUndefined();
   });
 });

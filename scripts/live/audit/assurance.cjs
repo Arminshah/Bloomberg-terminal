@@ -6,6 +6,9 @@ const STATUSES = ['PASS', 'FAIL', 'FLAGGED', 'BLOCKED', 'INCOMPLETE', 'SKIP'];
 const SECRET_FIELDS = /^(?:authorization|cookie|set-cookie|password|secret|.*(?:api[_-]?key|secret[_-]?key|api[_-]?token|access[_-]?token)|token)$/i;
 const SECRET_ENV = /(?:API_KEY|SECRET_KEY|API_TOKEN|^GH_TOKEN$|^GITHUB_TOKEN$)/;
 
+/** Definition evidence with an unconfirmed current holding still requires review. */
+const isSourceWarning = (text) => /^(?:Sources disagree|Possible definitional difference)$/.test(String(text ?? '').trim());
+
 function redact(value, environment = process.env) {
   let text = String(value ?? '').replace(/((?:api[_-]?key|token|key)=)[^&\s"<>]+/gi, '$1<redacted>').replace(/\bBearer\s+[A-Za-z0-9_.+\/-]+/gi, 'Bearer <redacted>');
   for (const [name, secret] of Object.entries(environment)) if (SECRET_ENV.test(name) && typeof secret === 'string' && secret.length >= 8) text = text.split(secret).join('<redacted>');
@@ -62,4 +65,4 @@ function assess(rows, requirements = []) {
   return { ...counts, coverage, assurance: exitCode === 0 ? 'verified-required-scope' : 'incomplete', exitCode };
 }
 
-module.exports = { STATUSES, redact, sanitize, numericComparison, conflictComparison, conflictCandidates, assess };
+module.exports = { STATUSES, redact, sanitize, numericComparison, conflictComparison, conflictCandidates, isSourceWarning, assess };

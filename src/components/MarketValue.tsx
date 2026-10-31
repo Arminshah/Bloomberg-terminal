@@ -43,6 +43,7 @@ export function MarketValueConflict({ sec, evidence, measure = 'market-cap', cur
       ...(origin?.price != null ? { sourcePriceQuoted: origin.price } : {}),
       ...(origin?.currency ? { sourceCurrency: origin.currency } : {}),
       ...(origin?.classMultiplier != null ? { classMultiplier: origin.classMultiplier } : {}),
+      ...(evidence.definition ? { definition: evidence.definition } : {}),
     },
     { source: `SEC ${evidence.form} cover shares`, shares: evidence.cover, sharesAsOf: evidence.asOf, filed: evidence.filed, sourceUrl: evidence.sourceUrl },
   ].map((row) => ({
@@ -50,7 +51,7 @@ export function MarketValueConflict({ sec, evidence, measure = 'market-cap', cur
     value: measure === 'shares' ? row.shares : row.shares * price * fx,
     measure, ...(measure === 'market-cap' ? { currency: targetCurrency, price, priceTime: quote?.time, basis: 'Current price multiplied by each share count; share definitions remain unresolved' } : {}),
   }));
-  return <span className="amber" title={evidence.message} data-testid="mcap-disagree" data-source-conflict="shares-outstanding" data-source-candidates={JSON.stringify(candidates)}>Sources disagree</span>;
+  return <span className="amber" title={evidence.message} data-testid="mcap-disagree" data-source-conflict="shares-outstanding" data-source-candidates={JSON.stringify(candidates)}>{evidence.definition?.label ?? 'Sources disagree'}</span>;
 }
 
 export function MarketValue({ sec, children, measure, currency }: MarketValueProps) {

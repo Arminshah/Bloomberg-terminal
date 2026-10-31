@@ -77,7 +77,7 @@ const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice
             try { return [JSON.parse(node.tagName === 'SCRIPT' ? node.textContent ?? '' : node.getAttribute('data-audit-state') ?? '')]; } catch { return []; }
           }),
           conflicts: [...panel.querySelectorAll('[data-source-conflict], [title]')]
-            .filter((node) => /Sources disagree/.test(node.textContent ?? '') && !!node.getAttribute('title'))
+            .filter((node) => (node.hasAttribute('data-source-conflict') || /Sources disagree/.test(node.textContent ?? '')) && !!node.getAttribute('title'))
             .map((node) => ({ text: node.textContent?.trim(), detail: node.getAttribute('title'), label: node.closest('dd')?.previousElementSibling?.textContent ?? node.closest('tr')?.textContent?.slice(0, 500), candidates: (() => { try { return JSON.parse(node.getAttribute('data-source-candidates') ?? '[]'); } catch { return []; } })() })),
         }));
         const quote = snapshot.domains.find((domain) => domain.domain === 'quote');
