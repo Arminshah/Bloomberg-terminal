@@ -268,6 +268,8 @@ export function CompanyNews({ sec }: FnProps) {
           }
           symbol={symbol ?? undefined}
           ranked={3}
+          // CN numbers its headlines from 101), clear of the screen's own numbered actions.
+          first={101}
         />
       )}
     </div>

@@ -1899,7 +1899,8 @@ test("company news merges Benzinga's stories through Alpaca with Google News's s
   await expect(panel.locator('.news-item').nth(1).locator('.hl')).toHaveText('Synthetic Google story about the company · AAPL');
   await expect(panel.locator('.news-item').nth(1).locator('.src')).toHaveText('RTRS');
   // Headlines are numbered; typing a headline's number and GO opens it in the reader.
-  await expect(panel.locator('.news-item .news-n')).toHaveText(['1)', '2)']);
+  // Numbered from 101), as CN numbers its headlines.
+  await expect(panel.locator('.news-item .news-n')).toHaveText(['101)', '102)']);
   await expect(panel.locator('.story h2')).toHaveText('Synthetic Benzinga story about the company');
   await page.locator('#cmd-0').fill('2');
   await page.locator('#cmd-0').press('Enter');
