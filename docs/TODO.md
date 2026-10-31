@@ -16,7 +16,9 @@ M2, navigation and keyboard, is done too (2.1 to 2.6, ticked in the plan with th
 
 M3, screen by screen, in the plan's order: DES (Profile `b61bebc`, Revenue & EPS `323e9e6`, Ratios `2e252ee`), FA (`fe08045` red bar dropdowns, numbered grey tabs and views from 11); `0387b8e` the grid, graph mode and settings; `c4c72f2` Segments), EE (`36f7dbb`), ANR (`e3eafc0`) and RV (`ff87aeb`). Each entry in `docs/bloomberg-parity.md` lists the frame's elements, what now matches, what is the app's own, what is a labelled blank and what is not built. Before and after: `docs/parity-m3-fa.png`, `docs/parity-m3-ee.png`, `docs/parity-m3-rv.png`.
 
-Next: EQS (TE04 03:01: the recent and popular screens at the left, the criteria categories, Add Criteria, Selected Screening Criteria with Matches, "1) See Results"), then WEI, IMAP, GP and G, and the rest of M3 in the plan's order.
+Then EQS (`d7450ba`), WEI with 10D and 30D volatility (`ba4144e`), tab names (`5ba9041`), IMAP (`5455a63`, checked on live data in the desktop app) and GP (`1448c52`). Pictures: `docs/parity-m3-eqs.png`, `docs/parity-m3-imap-live.png`, `docs/parity-m3-gp-live.png`. A screen can now hold Back for a page of its own (`src/terminal/subpage.ts`), as EQS's results do.
+
+Next: TOP, then N, CN and NSE, DS, YAS and the rest of M3 in the plan's order. One point for the owner: GP's study buttons now sit under Edit Chart, as the frames' side panel holds them (`docs/bloomberg-parity.md`, "M3 GP").
 
 Portfolio management (asked 30 October): build everything in the owner's upload as exact copies, on real data. The plan, the errors found in the sources and how each is handled, and what cannot match are in `docs/portfolio-management-plan.md`; each screen's description is in `docs/portfolio-management-screens.md`. Order: mean-variance maths, month-end prices, the mean-variance screen, screening (FTSE 100, gross margin, return on common equity, running match counts), the MPC back-test with the Hold policy, then the company analysis screens.
 
