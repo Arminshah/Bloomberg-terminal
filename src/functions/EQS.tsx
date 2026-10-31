@@ -5,7 +5,7 @@ import { DataTable, type Column } from '../components/DataTable';
 import { Chg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { SimBadge } from '../components/Source';
-import { fmtBig, fmtInt, fmtNum, fmtTime } from '../core/format';
+import { fmtBig, fmtInt, fmtIso, fmtNum, fmtTime } from '../core/format';
 import { useTick } from '../data/market';
 import { calendarAvailable, earningsCalendar, requestListings } from '../data/live/earnings-calendar';
 import { FTSE_SOURCE, useFtse100, type FtseList, type MemberFigures } from '../data/live/ftse100';
@@ -43,6 +43,7 @@ import {
   type ScreenRow,
   type Universe,
 } from '../data/screen';
+import { resultsCsv, ScreenResults } from './ScreenResults';
 import { flash, usePanelId } from '../terminal/panel';
 import { savedScreens } from '../terminal/userdata';
 import type { SecurityDef } from '../data/types';
@@ -141,6 +142,9 @@ export function EQS({ route }: FnProps) {
   const named = wanted ? savedScreens.get().screens.find((x) => x.name?.toUpperCase().startsWith(wanted)) : undefined;
   const [s, setS] = useState<ScreenDef>(() => named ?? BLANK_SCREEN);
   const [name, setName] = useState(() => named?.name ?? '');
+  // The FTSE 100's results open on the paper's Results tab; Overview is the table every universe has.
+  const [view, setView] = useState<'overview' | 'results'>('results');
+  const paperView = s.universe === 'ftse' && view === 'results';
   useEffect(() => {
     if (wanted && !named) flash(panel, `No saved screen named ${wanted}`, 'error');
   }, [wanted, named, panel]);
@@ -159,6 +163,8 @@ export function EQS({ route }: FnProps) {
     [s.universe, list, ftse.list, ftse.by, s.universe !== 'us' ? tick : 0],
   );
   const out = useMemo(() => runScreen(cands, s), [cands, s]);
+  // The latest day the FTSE 100's prices reach.
+  const latestDay = s.universe === 'ftse' ? cands.map((c) => String(c.values.day ?? '')).filter(Boolean).sort().at(-1) : undefined;
   // The stocks left after each criterion in its group, as the fixed income search shows them beside its criteria.
   const left = useMemo(() => matchesAfterEach(cands, s), [cands, s]);
   const fields = offered(s.universe);
@@ -271,6 +277,7 @@ export function EQS({ route }: FnProps) {
   ];
 
   const csv = () => {
+    if (paperView) return resultsCsv(out.rows);
     // Every field for its default period, then the other periods the criteria use.
     const cols: Col[] = [...fields.filter((f) => f.id !== 'name').map((f) => colOf(f.id)), ...shown].filter((c, i, a) => a.findIndex((x) => x.key === c.key) === i);
     return [
@@ -459,17 +466,36 @@ export function EQS({ route }: FnProps) {
             : ` ${out.undecided.toLocaleString('en-US')} kept although a value the screen needs is missing (${missingText}), marked ?.`)}
         {unrankedText && ` ${unrankedText}.`}
       </div>
-      <DataTable
-        rows={out.rows}
-        rowKey={(r) => r.c.ticker}
-        numbered
-        onRowClick={(r, e) => openTicker(panel, r.c, e)}
-        defaultSort={{ key: 'cap', dir: -1 }}
-        empty={s.universe === 'us' && !list?.data ? universeText : 'No stock matches. Loosen a criterion.'}
-        page={{ index: 0, size: PAGE }}
-        columns={columns}
-      />
-      {out.rows.length > PAGE && <div className="note pad-s">The table shows the first {PAGE} in its order; the export has all {out.rows.length.toLocaleString('en-US')}.</div>}
+      {s.universe === 'ftse' && (
+        <nav className="tabs" aria-label="Screen results">
+          {(['overview', 'results'] as const).map((v) => (
+            <button key={v} type="button" className={`tab${view === v ? ' on' : ''}`} aria-pressed={view === v} onClick={() => setView(v)}>
+              {v === 'overview' ? 'Overview' : 'Results'}
+            </button>
+          ))}
+        </nav>
+      )}
+      {paperView ? (
+        <ScreenResults rows={out.rows} empty={!ftse.list?.members?.length ? universeText : 'No stock matches. Loosen a criterion.'} onOpen={(c, e) => openTicker(panel, c, e)} />
+      ) : (
+        <DataTable
+          rows={out.rows}
+          rowKey={(r) => r.c.ticker}
+          numbered
+          onRowClick={(r, e) => openTicker(panel, r.c, e)}
+          defaultSort={{ key: 'cap', dir: -1 }}
+          empty={(s.universe === 'us' && !list?.data) || (s.universe === 'ftse' && !ftse.list?.members?.length) ? universeText : 'No stock matches. Loosen a criterion.'}
+          page={{ index: 0, size: PAGE }}
+          columns={columns}
+        />
+      )}
+      {!paperView && out.rows.length > PAGE && <div className="note pad-s">The table shows the first {PAGE} in its order; the export has all {out.rows.length.toLocaleString('en-US')}.</div>}
+      {paperView && (
+        <div className="note pad-s" data-testid="eqs-results-note">
+          LF: the latest fiscal year in Yahoo Finance&apos;s annual statements (the app uses the latest annual figures, not interim ones). GM: gross profit over revenue. ROE: net income to common shareholders over the average of the year&apos;s opening and closing common equity. Market Cap: billions of pounds. Price:D-1: the previous session&apos;s close, pence unless marked. P/E: the last price over the year&apos;s diluted EPS. Total Return YTD: % since last year&apos;s final close, dividends reinvested.
+          {latestDay ? ` Prices to ${fmtIso(latestDay)}.` : ''} Investable Universe: the plain mean of the rows below.
+        </div>
+      )}
       <div className="note pad-s">
         Where the figures come from:{' '}
         {fields

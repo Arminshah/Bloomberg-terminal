@@ -41,10 +41,12 @@ interface Props<T> {
   summary?: ReactNode;
   /** Optional display page; sorting still covers the entire filtered row set. */
   page?: { index: number; size: number };
+  /** Told when a click on a heading changes the sort (null: unsorted), for a screen that marks the sorted column. */
+  onSortChange?: (sort: { key: string; dir: 1 | -1 } | null) => void;
 }
 
 /** Sortable, groupable data table with sticky headers. */
-export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, groupBy, selected, className, numbered, empty, footer, summary, page }: Props<T>) {
+export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, groupBy, selected, className, numbered, empty, footer, summary, page, onSortChange }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(defaultSort ?? null);
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -81,7 +83,9 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
 
   const toggle = (c: Column<T>) => {
     if (!c.sort) return;
-    setSort((s) => (s && s.key === c.key ? (s.dir === -1 ? { key: c.key, dir: 1 } : null) : { key: c.key, dir: c.num ? -1 : 1 }));
+    const next: { key: string; dir: 1 | -1 } | null = sort && sort.key === c.key ? (sort.dir === -1 ? { key: c.key, dir: 1 } : null) : { key: c.key, dir: c.num ? -1 : 1 };
+    setSort(next);
+    onSortChange?.(next);
   };
 
   let lastGroup: string | null = null;

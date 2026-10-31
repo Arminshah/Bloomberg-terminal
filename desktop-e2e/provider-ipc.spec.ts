@@ -54,6 +54,7 @@ interface Fixtures {
   nasdaqList?: boolean;
   monthly?: boolean;
   ftseMonthEnd?: boolean;
+  ftse100?: boolean;
   mpcData?: boolean;
   congressGov?: boolean;
   eia?: boolean;
@@ -69,7 +70,7 @@ interface Fixtures {
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   segments?: boolean;
-  calls: { fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -2130,6 +2131,77 @@ test("SCREEN screens Nasdaq's whole US list in the desktop app and says how many
   // The ratios the list lacks: the screen says they come only for the app's own stocks.
   await expect(panel.getByLabel('Field 1.1').locator('option[value="pe"]')).toContainText("the app's stocks only");
   await expect(panel.getByText("Nasdaq's list has no P/E, yield, ROE, beta or returns")).toBeVisible();
+});
+
+test("SCREEN runs the first portfolio paper's FTSE 100 screen on Wikipedia's members and Yahoo's statements, with its Results tab", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.ftse100 = true;
+    process.env.YAHOO_PRICES_ENABLED = 'true';
+  });
+  await page.reload();
+  await command(page, 'SCREEN', 'SCREEN');
+  const panel = page.locator('.panel').first();
+  // The paper's screen is a preset: it switches to the FTSE 100.
+  await panel.getByRole('button', { name: 'FTSE 100: gross margin and ROE above 25%' }).click();
+  await expect(panel.getByLabel('Universe')).toHaveValue('ftse');
+  const sub = panel.locator('.fnh-sub');
+  await expect(sub).toContainText("3 of the FTSE 100's 100 members (Wikipedia's FTSE 100 Index article, Constituents table, loaded", { timeout: 30_000 });
+  // Every member asked of Yahoo: seven have statements and a chart, the rest neither.
+  await expect(sub).toContainText('figures for 100 of 100 from Yahoo Finance', { timeout: 60_000 });
+  // As the paper's criteria page: the universe, then what is left after each criterion. Gross margin above 25%: BATS,
+  // GSK, Reckitt, Smiths, IHG and United Utilities (HSBC reports no gross profit; the others have no statements).
+  // Then return on common equity above 25%: BATS has 15.74%, Smiths no 2025 equity, IHG negative equity.
+  await expect(panel.getByTestId('eqs-universe-count')).toHaveText('100');
+  await expect(panel.getByTestId('eqs-left-1.1')).toHaveText('6 left');
+  await expect(panel.getByTestId('eqs-left-1.2')).toHaveText('3 left');
+  const logic = panel.getByTestId('eqs-logic');
+  await expect(logic).toContainText('Screen: Gross margin, latest fiscal year > 25 % and Return on common equity, latest fiscal year > 25 %.');
+  // Undecided: the 93 members without statements, and Smiths; HSBC's 11% fails the second criterion whatever its margin.
+  await expect(logic).toContainText('94 left out because a value the screen needs is missing (Return on common equity 94, Gross margin 93).');
+  // The Results tab in the paper's columns, sorted by gross margin with the bar, under the plain means.
+  await expect(panel.getByRole('button', { name: 'Results', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const table = panel.locator('table.eqs-results');
+  const heads = table.locator('thead th');
+  await expect(heads.nth(1)).toHaveText('Name');
+  await expect(heads.nth(2)).toHaveText('GM LF▼');
+  await expect(heads.nth(2)).toHaveAttribute('aria-sort', 'descending');
+  for (const [i, h] of ['ROE LF', 'Market Cap', 'Price:D-1', 'P/E', 'Total ReturnYTD'].entries()) await expect(heads.nth(3 + i)).toHaveText(h);
+  await expect(heads.nth(2)).toHaveAttribute('title', /latest annual figures/);
+  // Real FY figures (Yahoo, 30 October 2026) and the synthetic prices: United Utilities 93.87% and 27.67%, 681,888,418
+  // shares at 1,210p, P/E 12.10 / 0.858, total return (1,210 + 40) / 1,200; GSK and Reckitt likewise.
+  const rows = table.locator('tbody:not(.tbl-summary) tr');
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0).locator('td')).toHaveText(['31)', 'UNITED UTILITIES', '93.87%', '27.67%', '8.25B', '1250.00', '14.10', '4.17']);
+  await expect(rows.nth(1).locator('td')).toHaveText(['32)', 'GSK PLC', '72.40%', '38.05%', '73.76B', '1900.00', '13.26', '5.56']);
+  await expect(rows.nth(2).locator('td')).toHaveText(['33)', 'RECKITT', '60.78%', '44.06%', '32.92B', '5200.00', '10.48', '2.00']);
+  await expect(panel.getByTestId('eqs-investable').locator('td')).toHaveText(['', 'Investable Universe (3)', '75.68%', '36.59%', '38.31B', '2783.33', '12.61', '3.91']);
+  // The bar marks the sorted column, the largest value full length; it moves with the sort.
+  await expect(table.locator('td:nth-child(3) .eqs-bar')).toHaveCount(4);
+  await expect(rows.nth(0).locator('.eqs-bar')).toHaveAttribute('style', /width: 48px/);
+  await expect(table.locator('td:nth-child(4) .eqs-bar')).toHaveCount(0);
+  await heads.nth(3).click();
+  await expect(rows.nth(0).locator('td').nth(1)).toHaveText('RECKITT');
+  await expect(table.locator('td:nth-child(4) .eqs-bar')).toHaveCount(4);
+  await expect(table.locator('td:nth-child(3) .eqs-bar')).toHaveCount(0);
+  await expect(panel.getByTestId('eqs-results-note')).toContainText('the app uses the latest annual figures, not interim ones');
+  // Overview: the table every universe has, with tickers and the ICB sector.
+  await panel.getByRole('button', { name: 'Overview', exact: true }).click();
+  await expect(table).toHaveCount(0);
+  await expect(panel.locator('tbody tr').filter({ hasText: 'Personal Care, Drug and Grocery Stores' })).toHaveCount(1);
+  await expect(panel.locator('tbody tr').filter({ hasText: 'RKT' })).toHaveCount(1);
+  // Kept when undecided, as chosen: the members without the figures stay in, so the counts rise.
+  await panel.getByLabel('A stock missing a value').selectOption('keep');
+  await expect(panel.getByTestId('eqs-left-1.1')).toHaveText('100 left');
+  await expect(panel.getByTestId('eqs-left-1.2')).toHaveText('97 left');
+  // The sections first, then the section titled Constituents by its number, with the app's own User-Agent; one
+  // statements request a member.
+  const wiki = (await calls(app)).wikipedia ?? [];
+  expect(wiki.map((c) => new URLSearchParams(c.search).get('prop'))).toEqual(['tocdata', 'text']);
+  expect(new URLSearchParams(wiki[1].search).get('section')).toBe('7');
+  expect(wiki.every((c) => c.agent.startsWith('ArminTerminal/'))).toBe(true);
+  const statements = (await calls(app)).yahoo.filter((c) => c.startsWith('/ws/fundamentals-timeseries/v1/finance/timeseries/BATS.L?'));
+  expect(statements).toHaveLength(1);
+  expect(statements[0]).toContain('type=annualGrossProfit,annualTotalRevenue,annualNetIncomeCommonStockholders,annualCommonStockEquity,annualDilutedEPS');
 });
 
 test('in the evening the watchlist shows after-hours live and the morning\'s pre-market as N/A', async ({ desktop: { app, page } }) => {

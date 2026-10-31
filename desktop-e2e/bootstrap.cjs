@@ -28,6 +28,15 @@ const splitsTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests
 const crudeSpark = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-spark-cl-2026-10.json'), 'utf8'));
 // Yahoo's month-end closes of five London stocks, January 2009 to January 2019 (FRONTIER, fixtures.ftseMonthEnd).
 const ftseMonthEnd = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/ftse-month-end-2009-2019.json'), 'utf8')).closes;
+// SCREEN's FTSE 100 (fixtures.ftse100): Wikipedia's FTSE 100 article as the MediaWiki API answered on 30 October 2026
+// (its sections, and its Constituents section trimmed to the table), and Yahoo's annual statements of seven members as
+// Yahoo answered that day.
+const ftseSections = fs.readFileSync(path.join(__dirname, '../tests/fixtures/wikipedia-ftse100-sections-2026-10-30.json'), 'utf8');
+const ftseConstituents = fs.readFileSync(path.join(__dirname, '../tests/fixtures/wikipedia-ftse100-constituents-2026-10-30.json'), 'utf8');
+const ftseStatements = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/fixtures/yahoo-ftse100-statements-2026-10-30.json'), 'utf8'));
+// Synthetic daily charts for those seven, whatever the year the test runs: last year's final close, closes on 5 and
+// 6 January, and a dividend going ex on the 6th; in pence, IHG in dollars as Yahoo quotes it.
+const FTSE_PRICES = { 'UU.L': [1200, 1250, 1210, 40], 'GSK.L': [1800, 1900, 1840, 60], 'RKT.L': [5000, 5200, 5100, 0], 'BATS.L': [4214, 4516, 4592, 0], 'IHG.L': [150, 160, 165, 0], 'SMIN.L': [2600, 2700, 2697, 0], 'HSBA.L': [1100, 1280, 1277, 0] };
 // Yahoo's month-end closes of the Dow and the 30 members the app keeps for it, ten years to 23 October 2026 (EQBT,
 // fixtures.monthly).
 // Congress.gov's answers of 26 October 2026: the latest bills, the 119th Congress's laws and H.R. 7831 with its
@@ -395,10 +404,23 @@ net.fetch = async (input, init) => {
       : `${owner('0001900003', 'BOYNTON OPHIR', 'Chief Financial Officer')}<nonDerivativeTable>${line(day(22), 'A', 12000, null, 'A', 212000)}</nonDerivativeTable>`;
     return new Response(`<?xml version="1.0"?><ownershipDocument><schemaVersion>X0508</schemaVersion><documentType>4</documentType>${body}</ownershipDocument>`, { status: 200, headers: { 'Content-Type': 'text/xml' } });
   }
+  // With fixtures.ftse100, the MediaWiki API's answers for the FTSE 100 article; any other section does not exist.
+  if (fixtures.ftse100 && url.hostname === 'en.wikipedia.org' && url.pathname === '/w/api.php') {
+    const h = init?.headers;
+    fixtures.calls.wikipedia = [...(fixtures.calls.wikipedia ?? []), { search: url.search, agent: (typeof h?.get === 'function' ? h.get('User-Agent') : h?.['User-Agent']) ?? '' }];
+    const raw = (body) => new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url.searchParams.get('page') === 'FTSE_100_Index' && url.searchParams.get('prop') === 'tocdata') return raw(ftseSections);
+    if (url.searchParams.get('page') === 'FTSE_100_Index' && url.searchParams.get('prop') === 'text' && url.searchParams.get('section') === '7') return raw(ftseConstituents);
+    return json({ error: { code: 'nosuchsection', info: `There is no section ${url.searchParams.get('section')} in FTSE 100 Index.` } });
+  }
   if (url.hostname === 'fc.yahoo.com') return new Response(null, { status: 404 });
   if (url.hostname === 'query2.finance.yahoo.com') {
     fixtures.calls.yahoo.push(url.pathname + url.search.replace(/([?&]crumb=)[^&]*/g, '$1<session>'));
     if (url.pathname === '/v1/test/getcrumb') return new Response('synthetic-session-crumb', { headers: { 'Content-Type': 'text/plain' } });
+    // With fixtures.ftse100, a member's annual statements as saved; a member not saved has none.
+    if (fixtures.ftse100 && url.pathname.startsWith('/ws/fundamentals-timeseries/') && (url.searchParams.get('type') ?? '').includes('annualGrossProfit')) {
+      return json(ftseStatements[decodeURIComponent(url.pathname.split('/').at(-1))] ?? { timeseries: { result: [] } });
+    }
     if (url.pathname === '/v1/finance/search') {
       const symbol = fixtures.dataAccuracy && url.searchParams.get('q') === 'NBIS' ? 'NBIS' : 'APLD';
       // A company's name typed in the command line: the search answers with the company of that name.
@@ -447,6 +469,16 @@ net.fetch = async (input, init) => {
         const close = timestamp.map((_, k) => 120 + 3 * Math.sin(k / 6) + k / 30);
         fixtures.calls.minuteBars = [...(fixtures.calls.minuteBars ?? []), symbol];
         return json({ chart: { result: [{ meta: { symbol, currency: 'USD', gmtoffset: -14400, exchangeTimezoneName: 'America/New_York', regularMarketVolume: 15_000_000 }, timestamp, indicators: { quote: [{ open: close, high: close.map((c) => c + 0.1), low: close.map((c) => c - 0.1), close, volume: close.map(() => 250_000) }] } }], error: null } });
+      }
+      // With fixtures.ftse100, a member's daily chart with dividends is the synthetic one above; the other members
+      // have none, as Yahoo answers for a symbol it does not know.
+      if (fixtures.ftse100 && symbol.endsWith('.L') && url.searchParams.get('events') === 'div') {
+        const p = FTSE_PRICES[symbol];
+        if (!p) return new Response(JSON.stringify({ chart: { result: null, error: { code: 'Not Found', description: 'No data found, symbol may be delisted' } } }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+        const y = new Date().getUTCFullYear();
+        const at = [Date.UTC(y - 1, 11, 31, 8), Date.UTC(y, 0, 5, 8), Date.UTC(y, 0, 6, 8)].map((t) => t / 1000);
+        const dividends = p[3] ? { [at[2]]: { amount: p[3], date: at[2] } } : {};
+        return json({ chart: { result: [{ meta: { symbol, currency: symbol === 'IHG.L' ? 'USD' : 'GBp', exchangeName: 'LSE', gmtoffset: 0, exchangeTimezoneName: 'Europe/London' }, timestamp: at, events: { dividends }, indicators: { quote: [{ close: p.slice(0, 3) }] } }], error: null } });
       }
       // With fixtures.ftseMonthEnd, a London stock's daily chart holds its month-end closes only, which is all the
       // screen keeps; a London stock the fixture lacks is not found, as Yahoo answers for FERG.L.

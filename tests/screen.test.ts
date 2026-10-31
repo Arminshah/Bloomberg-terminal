@@ -3,8 +3,9 @@ import { engine } from '../src/data/market';
 import { parseNasdaqListings } from '../src/data/live/earnings-calendar';
 import { toUsd } from '../src/data/analytics';
 import { financials, keyStats } from '../src/data/fundamentals';
-import { appCandidates, complete, describeScreen, evaluate, FIELD, ftseCandidates, grossMargin, matchesAfterEach, meets, NM, periodOf, PRESETS, returnOnCommonEquity, runScreen, unitOf, usCandidates, valueKey, type Candidate, type Criterion, type ScreenDef } from '../src/data/screen';
+import { appCandidates, columnMean, complete, describeScreen, evaluate, FIELD, ftseCandidates, grossMargin, matchesAfterEach, meets, NM, periodOf, PRESETS, returnOnCommonEquity, runScreen, unitOf, usCandidates, valueKey, type Candidate, type Criterion, type ScreenDef } from '../src/data/screen';
 import { annualFigures, dailyFigures, type FtseMember } from '../src/data/live/ftse100';
+import { resultsCsv } from '../src/functions/ScreenResults';
 import { parseCommand } from '../src/terminal/commands';
 import { lookupFn } from '../src/terminal/registry';
 import list from './fixtures/nasdaq-screener-2026-10.json';
@@ -274,7 +275,7 @@ describe("SCREEN over the FTSE 100: the first portfolio paper's screen", () => {
     // 2,159,189,751 shares (30 June 2026) at 45.92 pounds; P/E 45.92 over the diluted EPS of 3.491 pounds.
     expect(bats.values.cap).toBeCloseTo((2_159_189_751 * 45.92) / 1e9, 9);
     expect(bats.values['pe@lfy']).toBeCloseTo(45.92 / 3.491, 9);
-    expect(bats.values).toMatchObject({ price: 4592, prev: 4516, ccy: 'GBp', fy: '2025-12-31', sector: 'Tobacco' });
+    expect(bats.values).toMatchObject({ price: 4592, prev: 4516, ccy: 'GBp', fy: '2025-12-31', day: '2026-10-30', sector: 'Tobacco' });
     expect(bats.values.chg).toBeCloseTo((4592 / 4516 - 1) * 100, 9);
     expect(bats.values.tr).toBeCloseTo(13.74, 4);
     expect(bats.values.ytd).toBeCloseTo(8.9701, 4);
@@ -323,5 +324,28 @@ describe("SCREEN over the FTSE 100: the first portfolio paper's screen", () => {
     expect(unitOf(FIELD.cap, 'ftse')).toBe('£bn');
     expect(unitOf(FIELD.cap, 'us')).toBe('$bn');
     expect(describeScreen({ ...s, groups: [[{ field: 'cap', op: 'gte', value: '10' }]] })).toBe('Market value ≥ 10 £bn');
+  });
+
+  it('heads the results with "Investable Universe (n)", the plain mean of each column', () => {
+    // As the paper's summary row: the simple average of the rows below, each column on its own.
+    expect(columnMean([48.4, 60, 71.6])).toEqual({ mean: 60, n: 3 });
+    expect(columnMean([83.4986, 72.4, 93.87]).mean).toBeCloseTo((83.4986 + 72.4 + 93.87) / 3, 12);
+    // A missing or not meaningful value is left out of the mean and of the count, never read as zero.
+    expect(columnMean([10, NaN, NM, 20, undefined])).toEqual({ mean: 15, n: 2 });
+    expect(columnMean([]).mean).toBeNaN();
+    // The export carries the same row first. Synthetic rows: two pence prices and a loss's P/E.
+    const row = (ticker: string, values: Candidate['values']) => ({ c: cand(values, ticker), unknown: [] });
+    const rows = [
+      row('A', { gm: 80, roce: 30, cap: 10, prev: 1000, ccy: 'GBp', 'pe@lfy': 12, tr: 5, fy: '2025-12-31' }),
+      row('B', { gm: 40, roce: 50, cap: 30, prev: 3000, ccy: 'GBp', 'pe@lfy': NM, tr: -5, fy: '2026-03-31' }),
+    ];
+    const table = resultsCsv(rows);
+    expect(table[0]).toEqual(['Name', 'Ticker', 'GM LF (%)', 'ROE LF (%)', 'Market Cap (GBP bn)', 'Price:D-1', 'Currency', 'P/E', 'Total Return YTD (%)', 'Fiscal year end']);
+    expect(table[1]).toEqual(['Investable Universe (2)', '', 60, 40, 20, 2000, 'GBp', 12, 0, '']);
+    expect(table[3]).toEqual(['B', 'B', 40, 50, 30, 3000, 'GBp', NM, -5, '2026-03-31']);
+    // Prices in different currencies have no mean.
+    const mixed = resultsCsv([...rows, row('C', { prev: 33.71, ccy: 'USD' })]);
+    expect(mixed[1][5]).toBe('');
+    expect(mixed[1][0]).toBe('Investable Universe (3)');
   });
 });

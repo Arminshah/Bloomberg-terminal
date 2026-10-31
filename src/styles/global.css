@@ -1593,6 +1593,17 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .eqs-crit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0; }
 .eqs-crit.incomplete .sel-inp, .eqs-crit.incomplete .inp { border-style: dashed; }
 .eqs-left { margin-left: 6px; font-variant-numeric: tabular-nums; }
+/* SCREEN's Results tab (the FTSE 100), as the paper's: names and figures amber, the summary row white, the sorted
+   column's heading amber, a bar at the left of each of its cells in proportion to the value. */
+.eqs-results tbody td { color: var(--amber); }
+.eqs-results tbody.tbl-summary td { color: var(--white); }
+.eqs-results tbody td.idx { color: var(--muted); }
+.eqs-results th[aria-sort] { color: var(--amber); }
+.eqs-results td.eqs-cell { position: relative; }
+.eqs-results .eqs-name { display: inline-block; max-width: 260px; }
+.eqs-bar { position: absolute; left: 6px; top: 50%; height: 9px; margin-top: -5px; background: var(--up); }
+.eqs-bar.neg { background: var(--dn); }
+.eqs-results tr.eqs-spacer td { height: 6px; border-bottom: 0; }
 /* A range on one line, as the watchlist's Day Range and 52-Wk Range: low, bar with the filled part and a marker, high. */
 .rangebar { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .rb-end { color: var(--white); font-size: var(--fs-s); min-width: 40px; text-align: right; }

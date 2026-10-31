@@ -502,7 +502,7 @@ export function returnOnCommonEquity(netIncome: number, equityEnd: number, equit
  * (the last price over that year's diluted EPS) from Yahoo's annual statements, and the market value, prices and
  * returns from its daily chart. Market values are in pounds; a line quoted in dollars or euros is converted at
  * `usd`'s rates (the engine's), and has none without a rate. `values.ccy` is the price's currency, `values.fy` the
- * fiscal year's end.
+ * fiscal year's end and `values.day` the latest price's day.
  */
 export function ftseCandidates(members: readonly FtseMember[], by: Readonly<Record<string, MemberFigures>>, usd: (ccy: string) => number = (c) => engine.usdValue(c)): Candidate[] {
   return members.map((m) => {
@@ -530,9 +530,20 @@ export function ftseCandidates(members: readonly FtseMember[], by: Readonly<Reco
         name: m.name,
         ccy: d?.currency ?? '',
         fy: a?.end ?? '',
+        day: d?.lastDay ?? '',
       },
     };
   });
+}
+
+/**
+ * A results column's plain mean, as the paper's summary row "Investable Universe (n)" shows it (each of its six
+ * columns is the simple average of the rows below), and how many rows have a value: a missing or not meaningful
+ * value is left out of both.
+ */
+export function columnMean(values: readonly (number | string | undefined)[]): { mean: number; n: number } {
+  const xs = values.filter((v): v is number => typeof v === 'number' && Number.isFinite(v));
+  return { mean: xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN, n: xs.length };
 }
 
 export const PRESETS: { name: string; universe?: Universe; groups: Criterion[][] }[] = [
