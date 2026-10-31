@@ -117,6 +117,8 @@ Plan:
 
 ## Waiting on you
 
+On 31 October the owner left every open choice to the sessions' judgement: "just do whatever is best for the project and end goal... make a Bloomberg terminal 1:1 ... accurate in data, looks, feels, functions, features". So decide each question below by what matches the reference frames and the provider's real behaviour most closely, record the choice and why, and go on; ask the owner only about money (paid plans) or about a source whose terms forbid automated use (Cboe, the FCA), which stay off. The owner's fixed rules still stand: the IBM Plex typeface (CLAUDE.md), the app's own name and logo, real data only.
+
 - Parity build, four questions (31 October):
   1. The tab strip: the 2024 frames show it light (`#CFCDD0`) and dark (`#424242`) with no visible cause. The light one is built. Keep it, or the dark one?
   2. Features with no counterpart in the frames, all kept working: the top bar (clocks, market timers, layouts, BOT, BREAKING, FAV, ALERTS, FUNCTIONS, REFRESH), the ticker tape, the function-key bar, the demo banner, the help desk (MESSAGES), PROVIDERS, favourite stars, the extra panel layouts, and in each panel the panel number, the link group list, command recall and the GO button. Should any be hidden in a 1:1 view? Nothing is hidden until you say.
