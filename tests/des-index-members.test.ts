@@ -165,10 +165,10 @@ describe("PROFILE's Members line and Movers table in the desktop app, from the i
     expect(t).toContain("Members from Wikipedia's FTSE 100 Index article, Constituents table");
   });
 
-  it('says no free source gives the membership of another index, and keeps the link to MEMBERS', () => {
+  it('says the app does not load the membership of another index (public lists exist), and keeps the link to MEMBERS', () => {
     desktop();
     const html = renderToStaticMarkup(createElement(IndexMembers, { sec: engine.get('DAX Index')! }));
-    expect(html).toContain('<span title="No free source gives the full membership of DAX Index: the app has the members of the S&amp;P 500, the Nasdaq-100, the Dow and the FTSE 100.">--</span>');
+    expect(html).toContain('<span title="The app does not load the membership of DAX Index: it has the members of the S&amp;P 500, the Nasdaq-100, the Dow and the FTSE 100.">--</span>');
     expect(text(html)).toContain('6) Members | MEMB »');
   });
 });

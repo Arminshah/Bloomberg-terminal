@@ -240,7 +240,7 @@ export function IndexMembers({ sec }: { sec: SecurityDef }) {
   if (membersAvailable() && BOARD_INDICES[sec.id]) return <BoardIndexMembers sec={sec} />;
   if (membersAvailable() && sec.id === 'UKX Index') return <FtseIndexMembers sec={sec} />;
   const why = membersAvailable()
-    ? `No free source gives the full membership of ${sec.id}: the app has the members of the S&P 500, the Nasdaq-100, the Dow and the FTSE 100.`
+    ? `The app does not load the membership of ${sec.id}: it has the members of the S&P 500, the Nasdaq-100, the Dow and the FTSE 100.`
     : "The index's members need the desktop app, which loads them from public lists.";
   return <IndexMembersView sec={sec} moves={[]} blank={why} members="MEMBERS" movers="CONTRIB" />;
 }
