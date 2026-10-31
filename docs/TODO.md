@@ -24,6 +24,13 @@ The owner asked for every free source that makes the data more complete, accurat
 
 ### 14. Match the provider's terminal screen for screen (asked 31 October)
 
+Decided on 31 October, as the owner asked (decide open questions by what matches the frames and the real product most closely, record why, go on):
+1. Tab strip: the light strip (`#CFCDD0`) stays. Most 2024 frames show it, and none shows what turns it dark.
+2. Features with no counterpart (top bar, ticker tape, function-key bar, demo banner, MESSAGES, PROVIDERS, favourite stars, extra layouts, panel numbers, link groups, command recall, GO): all stay visible. The owner's standing rule is to ask before hiding any of them, so none is hidden.
+3. Text sizes: unchanged. The typeface rule (`CLAUDE.md` and the owner's 31 October brief) says to tell the owner rather than change a size; the frames' larger red bar and quote lines, smaller item numbers and small-capital mnemonic are noted here for the owner.
+4. Autocomplete: Enter keeps running what was typed. The frames light the first suggestion but none shows what GO then runs; running only what is typed cannot run something unintended.
+
+
 The owner's plan is `docs/parity-build-plan.md`, with the evidence in the owner's private reference pack (cloned into the git-ignored `reference/visual/bloomberg-pack-2026-10-31/`, never committed). Work through it in order: setup, M1 window chrome, M2 navigation and keyboard, M3 screens, M4 calculations, M5 missing functions. Its "Progress" list is ticked with each commit; start at the first unticked item. Two things never change: the typeface (`CLAUDE.md`) and the watchlist (`tests/watchlist-guard.test.ts`, `e2e/watchlist-guard.spec.ts`). The owner approved the 2024 visual corrections in the pack's `START_HERE_FOR_CLAUDE.md` except anything touching those two. Features with no counterpart stay; ask the owner before hiding any.
 
 Done on 31 October: the setup (plan in docs, watchlist guards `6d78081`) and all of M1, the window chrome, one commit each: red bar `f2c4c62`, command line `201adf0`, two-line quote strip `3105797`, toolbar `ddcdd45`, autocomplete `ce374b7`, section strips and Suggested Functions footer `b9e8ef2`, tab strip as title bar `03644ee`, Options menu and window keys `8ef6d15`, dialogs `d77cab1`, field lists `e56c429`, fixed-width pages `f133377`. What each matches, what does not and why: `docs/bloomberg-parity.md`, "Parity build". Before and after: `docs/parity-m1-des.png`, `docs/parity-m1-typing.png`.
@@ -117,11 +124,6 @@ Plan:
 
 ## Waiting on you
 
-- Parity build, four questions (31 October):
-  1. The tab strip: the 2024 frames show it light (`#CFCDD0`) and dark (`#424242`) with no visible cause. The light one is built. Keep it, or the dark one?
-  2. Features with no counterpart in the frames, all kept working: the top bar (clocks, market timers, layouts, BOT, BREAKING, FAV, ALERTS, FUNCTIONS, REFRESH), the ticker tape, the function-key bar, the demo banner, the help desk (MESSAGES), PROVIDERS, favourite stars, the extra panel layouts, and in each panel the panel number, the link group list, command recall and the GO button. Should any be hidden in a 1:1 view? Nothing is hidden until you say.
-  3. Text sizes, kept as you fixed them: the frames draw the red bar's labels and the two quote lines about a third larger than table text, the numbers before items ("98)") smaller, and the tab's mnemonic in small capitals. Say if you want any of these sizes changed.
-  4. Autocomplete: the frames light the first suggestion whatever is typed. Here the first row is lit only when it is what Enter runs, so Enter keeps running the command you typed. Say if you want Enter to run the first suggestion instead.
 - The latest GitHub audit executed with the required repository secrets; no new credential request is pending. The approved scheduler on `main` calls the development branch. Fresh CI and audit jobs ran after the repository became public again. See `docs/audit-check.md` for configuration and `docs/accuracy-v2.29.1.md` for the unresolved findings.
 
 - The watchlist layout of 27 October, two points to confirm: "52-Wk %" is the one-year price change (today's price against the close a year earlier, without dividends); "Avg Vol (3M)" is the average of the last 63 full trading days, so it can differ a little from Yahoo's own figure. Say if you meant something else.
