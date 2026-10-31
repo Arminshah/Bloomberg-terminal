@@ -274,7 +274,15 @@ net.fetch = async (input, init) => {
     const text = (body) => new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
     if (url.pathname.endsWith('/v1/debt/mspd/mspd_table_3_market')) return text(fiscalFixture('mspd-table3'));
     if (url.pathname.endsWith('/v2/accounting/od/avg_interest_rates')) return text(fiscalFixture('avg-rates'));
+    if (url.pathname.endsWith('/v1/accounting/od/auctions_query')) return text(fs.readFileSync(path.join(__dirname, '../tests/fixtures/fiscal/auctions-2026-10-31.json'), 'utf8'));
     return new Response(JSON.stringify({ error: 'Not Found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+  }
+  // TreasuryDirect's securities service for AUCTIONS: the last 30 days' results and the schedule, of 31 October 2026.
+  if (fixtures.fiscal && url.hostname === 'www.treasurydirect.gov') {
+    fixtures.calls.treasuryDirect = [...(fixtures.calls.treasuryDirect ?? []), `${url.pathname}${url.search}`];
+    const file = { '/TA_WS/securities/auctioned': 'auctioned', '/TA_WS/securities/upcoming': 'upcoming' }[url.pathname];
+    if (file) return new Response(fs.readFileSync(path.join(__dirname, `../tests/fixtures/fiscal/treasurydirect-${file}-2026-10-31.json`), 'utf8'), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response('Not Found', { status: 404 });
   }
   if (fixtures.cftc && url.hostname === 'publicreporting.cftc.gov') {
     const where = url.searchParams.get('$where') ?? '';

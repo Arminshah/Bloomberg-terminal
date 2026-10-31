@@ -87,7 +87,8 @@ One small read-only request per key and endpoint, from the build environment, ea
 | EIA | natural gas storage series | works |
 | BEA | NIPA tables | works |
 | CFTC | public reporting platform (no key) | works |
-| Treasury Fiscal Data | debt datasets (no key) | works |
+| Treasury Fiscal Data | debt and auction datasets (no key) | works |
+| TreasuryDirect | securities service: auctioned, upcoming (no key) | works |
 | Eulerpool | congress trades, equity profile | outage (HTTP 502 from its own servers, as on 25 to 27 October); evaluation only, not used |
 
 `FINNHUB_SECRET_KEY` is Finnhub's webhook secret: no request the app makes needs it, so it is never sent. CME Group's settlement pages refuse automated reading (HTTP 403, and its terms forbid scraping), so futures settlements have no independent free reference.
@@ -285,6 +286,15 @@ Two datasets, checked live on 28 October 2026:
 - **Average interest rates on U.S. Treasury securities** (`/v2/accounting/od/avg_interest_rates`): the Treasury's own average rate by class and for all marketable debt (3.518% for September 2026), shown for the statement's month only.
 
 The statement is published on the fourth business day of each month for the month before ("New Data Expected 11/05/2026" on the dataset's page on 28 October). The app keeps each answer six hours.
+
+### Treasury auctions (AUCTIONS, alias AUCR)
+
+`AUCTIONS`, in the desktop app, joins two Treasury sources, both under the Fiscal Service's [terms for web APIs](https://www.treasurydirect.gov/legal-information/developers/web-api-terms/), which let an app "search, display, analyze, retrieve, view, and otherwise get information" from the data, and bar using the Treasury's name to imply endorsement. Checked live on 31 October 2026:
+
+- Fiscal Data's **Treasury Securities Auctions Data** (`/v1/accounting/od/auctions_query`, sorted by auction date, newest first): the app asks the latest 600 records, which reached back to 9 June 2025, with 26 named fields (`electron/fiscal.cjs`, `AUCTION_FIELDS`). Results reach this dataset a week or two late: on 31 October, with records updated on 30 October, its newest auctions (19 to 22 October, the 5-Year TIPS and the 20-year reopening among them) still had no results, and none of the auctions announced since 17 October was listed.
+- TreasuryDirect's **securities service** (`https://www.treasurydirect.gov/TA_WS/securities/auctioned?format=json&days=30` and `.../upcoming?format=json`): the results of the last 30 days, posted minutes after each auction closes (each record's `updatedTimestamp`: 13:04 New York time for the 3-Year Note of 6 October, which closed at 13:00), and the auctions on the schedule. A wider `days` does not give a complete history (400 days returned 208 records, with one bill a month before May 2026), so Fiscal Data stays the history. The service's record has 187 fields; the app reads the same figures Fiscal Data has. Both sources had results for 17 auctions held since 1 October 2026, and all 20 fields the app reads matched on every one of them (yield, rate or margin, coupon or spread, price, allotment, cover, the bidder groups, totals, amounts, dates and the results file). For example, the 3-Year Note of 6 October (CUSIP 91282CRQ6) at a high yield of 4.932%, price 99.842840, 8.35% allotted at the high, bid-to-cover 2.62, and a competitive award of $56,995,537,500, of which primary dealers took 6,121,437,500, direct bidders 18,047,610,000 and indirect bidders 32,826,490,000; total awarded 59,377,561,000. TreasuryDirect's robots.txt turns all crawlers away from the site; the app is not a crawler and asks only these two documented endpoints, while AUCTIONS is open.
+
+How the two are joined (`src/data/live/auctions.ts`): one row per CUSIP and auction day, TreasuryDirect's record over Fiscal Data's, except that a record without results never replaces one with. Fields, by kind: notes and bonds show the high yield (a real yield for TIPS) and the coupon; bills the high discount rate and the investment rate (TreasuryDirect's `highRate` and `investmentRate`); FRNs the high discount margin, with the spread they pay (a reopened FRN keeps its original spread: the 1-Year 10-Month reopening of 23 September 2026 cleared at a 0.040 margin on a 0.050 spread). The competitive award is TreasuryDirect's competitive par awarded inside and outside the offering amount, which equals Fiscal Data's `comp_accepted`; the dealer, direct and indirect percentages are each group's share of it. The total is the grand total awarded, SOMA and FIMA included (Fiscal Data's `total_accepted`). A cash management bill is named CMB. The upcoming list includes tentative auctions whose offering amount is not announced yet (the November refunding's 3-, 10- and 30-year issues on 31 October, to be announced on 4 November): their amount and maturity stay blank. A held auction that neither source has a result for stays in its kind's tab with blank results, never under Upcoming. Each result links the Treasury's results release (PDF). Fiscal Data's answer is kept an hour, TreasuryDirect's results 15 minutes and its schedule an hour.
 
 ## Kraken
 

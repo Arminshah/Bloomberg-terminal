@@ -1158,12 +1158,13 @@ ipcMain.handle('cftc', async (event, kind, report, mode, code) => {
   return keyedGet('cftc', req.url, { Accept: 'application/json' }, req.ttl, [30, 60_000], []);
 });
 
-// The Treasury's Fiscal Data (electron/fiscal.cjs) for DEBTPROFILE T: no key.
+// The Treasury's Fiscal Data (electron/fiscal.cjs) for DEBTPROFILE T and AUCTIONS, and TreasuryDirect's securities
+// service for AUCTIONS' latest results and announced auctions: no key.
 const fiscal = require('./fiscal.cjs');
 ipcMain.handle('fiscal', async (event, kind) => {
   const req = fiscal.fiscalRequest(String(kind));
   if (!fromApp(event) || !req) throw new Error('not allowed');
-  return keyedGet('fiscal', req.url, { Accept: 'application/json' }, req.ttl, [20, 60_000], []);
+  return keyedGet(req.provider ?? 'fiscal', req.url, { Accept: 'application/json' }, req.ttl, [20, 60_000], []);
 });
 
 // BEA (electron/bea.cjs): two national accounts tables with the owner's UserID, which BEA's answer repeats and the
