@@ -194,6 +194,22 @@ function cleanNames(names) {
 
 const MAX_SENTENCE = 1200;
 
+/** At most MAX_SENTENCE characters of a sentence around position `at`, cut between words. */
+function around(s, at) {
+  if (s.length <= MAX_SENTENCE) return s;
+  let from = at > MAX_SENTENCE / 2 ? at - MAX_SENTENCE / 2 : 0;
+  let to = Math.min(s.length, from + MAX_SENTENCE);
+  if (from > 0) {
+    const space = s.indexOf(' ', from - 1);
+    if (space >= 0 && space < at) from = space + 1;
+  }
+  if (to < s.length) {
+    const space = s.lastIndexOf(' ', to);
+    if (space > Math.max(from, at)) to = space;
+  }
+  return s.slice(from, to);
+}
+
 /**
  * A sentence that ends what the one before it describes, without naming the company again: "The JDA concluded in
  * September 2024." (SES AI's 10-K, after its partnership with GM), "As the agreement was terminated in October 2023, no
@@ -215,9 +231,9 @@ function mentionSentences(text, names, max = 80) {
     for (let i = 0; i < list.length && count < max; i++) {
       const s = list[i];
       if (s.length < 25 || !/[a-z]{3}/.test(s) || !pattern.test(s)) continue;
-      // A long sentence keeps the part around the first mention of the company, so the name is never cut off.
-      const at = s.length > MAX_SENTENCE ? pattern.index(s) : 0;
-      out.push(at > MAX_SENTENCE / 2 ? s.slice(at - MAX_SENTENCE / 2, at + MAX_SENTENCE / 2) : s.slice(0, MAX_SENTENCE));
+      // A long sentence keeps the part around the first mention of the company, so the name is never cut off, cut
+      // between words ("ry clearances for the Merger" began mid-word).
+      out.push(around(s, s.length > MAX_SENTENCE ? pattern.index(s) : 0));
       count++;
       const next = list[i + 1];
       if (next && !pattern.test(next) && next.length <= MAX_SENTENCE && ENDS_PREVIOUS.test(next)) out.push(`[next] ${next}`);
@@ -228,7 +244,7 @@ function mentionSentences(text, names, max = 80) {
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 11;
+const EXTRACTION = 12;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;

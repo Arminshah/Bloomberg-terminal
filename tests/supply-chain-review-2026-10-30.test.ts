@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as main from '../electron/supply-chain.cjs';
 import * as federal from '../electron/usaspending.cjs';
 import {
-  buildDirectory, federalParty, filerIdentity, listingEvents, listingLabel, mergeRelations, normalizeName, ownRelations, relationEnding, relationshipView, relationStatus, runChain,
+  buildDirectory, classify, federalParty, filerIdentity, listingEvents, listingLabel, mergeRelations, normalizeName, ownRelations, relationEnding, relationshipView, relationStatus, runChain,
   takenOver, targetNames, targetPattern, type Chain, type ChainIO, type FtsHit, type Relation,
 } from '../src/data/live/supply-chain';
 import { appendRelationshipHistory, endingAssertion, statedBy } from '../src/data/live/supply-chain-history';
@@ -403,5 +403,66 @@ describe('SPLC review of 30 October 2026: the federal records', () => {
     // Each record still names the party as filed.
     expect(got.find((r) => r.key === 'cik:40533')!.evidence[0].sentence).toMatch(/^ELECTRIC BOAT CORPORATION subcontract to NORTHROP GRUMMAN SYSTEMS CORPORATION/);
     expect(asked).toEqual(['recipients E7BEKJ4V9528', 'profile d5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C', 'recipients NVC1EFKKYB93']);
+  });
+});
+
+/** What another company's statement says of the target, read as runChain reads it (the filer's initials too). */
+const theirs = (target: [string, string], filer: [string, string], sentence: string) => {
+  const t = targetNames(target[0], target[1]);
+  const names = targetNames(filer[0], filer[1]).names.flatMap((n) => (/^[A-Z][a-z]{2,} [A-Z][a-z]{2,}$/.test(n) ? [n, n.replace(' ', '')] : [n]));
+  const words = (names[0] ?? '').split(/[\s-]+/).filter((w) => /^[A-Z]/.test(w));
+  return classify(sentence, targetPattern(t.names.concat(t.legal)), targetPattern(words.length >= 3 ? [...names, words.map((w) => w[0]).join('')] : names));
+};
+const PFE: [string, string] = ['PFE', 'PFIZER INC'];
+const MRK: [string, string] = ['MRK', 'Merck & Co., Inc.'];
+const LLY: [string, string] = ['LLY', 'ELI LILLY & Co'];
+
+describe('SPLC review of 30 October 2026: statements that are no business relation', () => {
+  it('reads no partner in a lawsuit against the company, nor a supplier in slides of one (PFE-5, PFE-4)', () => {
+    expect(theirs(PFE, ['ABUS', 'Arbutus Biopharma Corp'], 'The Company is also consulting closely with and supporting its exclusive licensee, Genevant Sciences, to protect and defend its intellectual property, which is the subject of on-going lawsuits against Moderna and Pfizer/BioNTech for use of Arbutus\' patented LNP technology in their COVID-19 vaccines.')).toBeNull();
+    expect(theirs(PFE, ['ABUS', 'Arbutus Biopharma Corp'], 'Arbutus continues to consult closely with and support its exclusive licensee, Genevant Sciences, to protect and defend Arbutus\'s intellectual property, which is the subject of on-going lawsuits against Moderna and Pfizer/BioNTech.')).toBeNull();
+  });
+
+  it('reads no rival in an antitrust indemnity, and no partner in a list of competing products, a career or a third party\'s licence (M1, M7)', () => {
+    expect(theirs(MRK, ['OGN', 'Organon & Co.'], 'Subject to certain exceptions specified in the Separation and Distribution Agreement, Organon assumed liability for all pending and threatened legal matters related to products transferred from Merck to Organon in connection with the spinoff, including competition investigations resulting from enforcement activity concerning Merck\'s conduct involving Organon\'s products.')).toBeNull();
+    expect(theirs(MRK, ['CBIO', 'CRESCENT BIOPHARMA, INC.'], 'In addition, we are aware of several anti-PD-(L)1/VEGF bispecific product candidates in clinical development for solid tumor indications, including, but not limited to, ivonescimab (Summit Therapeutics Inc.), pumitamig (co-developed by BioNTech SE and Bristol Myers Squibb), LM-299 (LaNova Medicines Ltd.; in-licensed by Merck), SSGJ-707 (3SBio Inc.; in-licensed by Pfizer), and CTX-10726 (Compass Therapeutics, Inc.).')).toBeNull();
+    expect(theirs(MRK, ['EIKN', 'Eikon Therapeutics, Inc.'], 'Perlmutter and Baynes previously collaborated with our current Chief Business Officer, Benjamin Thorner, during their time at both Amgen and Merck to identify, evaluate, and acquire or in-license important medicines.')).toBeNull();
+    expect(theirs(MRK, ['LGND', 'LIGAND PHARMACEUTICALS INC'], 'Under the terms of the Agenus Agreement, we received (i) 18.75% of the licensed royalties and 31.875% of the future licensed milestones paid to Agenus on six-partnered oncology programs, including BMS-986442 (Bristol Myers Squibb), AGEN2373 (Gilead), INCAGN2385 and INCAGN2390 (Incyte), MK-4830 (Merck), and UGN-301 (UroGen Pharma) (collectively referred as "Agenus Partnered Programs"), and (ii) a synthetic 2.625% royalty on future global net sales of Agenus\' novel immuno-oncology botensilimab in combination with balstilimab ("BOT/BAL") program, collectively subject to certain events which may adjust the royalty and milestone percentages paid to us.')).toBeNull();
+    // M3: a fund's warrants, from enGene's beneficial-ownership table.
+    expect(theirs(MRK, ['ENGN', 'enGene Holdings Inc.'], 'The number of enGene Warrants reported includes warrants held by Lumira III that may be exercised to acquire 114,945 Common Shares, warrants held by Lumira III Int\'l that may be exercised to acquire 3,825 Common Shares, warrants held by Lumira IV that may be exercised to acquire 38,301 Common Shares, warrants held by Lumira IV Int\'l that may be exercised to acquire 9,207 Common Shares, warrants held by Merck-Lumira that may be exercised to acquire 145,603 Common Shares, and warrants held by Merck-Lumira B that may be exercised to acquire 20,673 Common Shares.')).toBeNull();
+    // Still a rival: a product the company markets through its own venture of two (Mangoceuticals's 10-K).
+    expect(theirs(LLY, ['MGRX', 'MANGOCEUTICALS, INC.'], 'We mainly compete with other companies offering men\'s wellness products, including Hims & Hers Health, Inc. and Roman, and with our Mango ED products, we compete against much larger pharmaceutical companies who offer ED branded drugs like Viagra (Pfizer) and Cialis (marketed by Lilly ICOS LLC, a joint venture between Eli Lilly and Company and ICOS Corporation) and their generic forms.')).toEqual({ role: 'competitor' });
+  });
+
+  it("reads no relation in a trademark notice, a merger's boilerplate, another company's takeover or a clause on termination (GM-6, LLY-10, LLY-9, LLY-6)", () => {
+    expect(theirs(['GM', 'GENERAL MOTORS CO'], ['PHIN', 'PHINIA INC.'], '(DELCO REMY is a registered trademark of General Motors LLC, licensed to PHINIA Technologies Inc.)')).toBeNull();
+    expect(theirs(LLY, ['ATAI', 'AtaiBeckley Inc.'], 'the ability of each party to consummate the Merger; the closing of the Merger might be delayed or not occur at all; Lilly\'s ability to successfully integrate AtaiBeckley and execute on the continued development of AtaiBeckley\'s programs following the closing of the Merger')).toBeNull();
+    expect(theirs(LLY, ['SDGR', 'Schrodinger, Inc.'], 'For example, in 2024, we received $47.6 million for the equity stake that we owned in Morphic Holding, Inc., or Morphic, one of our drug discovery collaborators and co-founded companies, in connection with Morphic\'s acquisition by Eli Lilly and Company, or Lilly, for approximately $3.2 billion.')).toBeNull();
+    expect(theirs(LLY, ['SDGR', 'Schrodinger, Inc.'], 'In June 2026, in connection with the completion of Eli Lilly and Company\'s acquisition of Ajax, the Company received a cash payment of approximately $57,180, comprised of $47,180 on account of the Company\'s equity stake in Ajax and $10,000 from a collaboration milestone payment.')).toBeNull();
+    expect(theirs(LLY, ['RNA', 'Atrium Therapeutics, Inc.'], 'In such event, material licenses granted to Lilly expire, and the Company and Lilly negotiate in good faith a product reversion to Avidity.')).toBeNull();
+  });
+
+  it("reads Bristol-Myers's alliance with Pfizer as a partnership, and Hess Midstream's risk factors as no relation (PFE-9, CVX-3, CVX-4)", () => {
+    expect(theirs(PFE, ['BMY', 'BRISTOL MYERS SQUIBB CO'], 'BMS and Pfizer manufacture the product in the alliance and BMS is the principal in the end customer product sales in the U.S., significant countries in Europe, as well as Canada, Australia, China, Japan and South Korea.')).toEqual({ role: 'partner' });
+    const cvx: [string, string] = ['CVX', 'CHEVRON CORP'];
+    expect(theirs(cvx, ['HESM', 'Hess Midstream LP'], 'Cyberattacks and events affecting our operational technology networks or other digital infrastructure and artificial intelligence technologies by us, Chevron or our business partners may materially impact our business and operations.')).toBeNull();
+    expect(theirs(cvx, ['HESM', 'Hess Midstream LP'], 'If Chevron\'s production volumes decrease or if Chevron\'s customers reduce their purchases of crude oil, natural gas or NGLs from Chevron due to the increased availability of less expensive products from other suppliers or for other reasons, Chevron may meet only the minimum volume commitments of our commercial agreements (or pay the shortfall fee if it does not meet the minimum volume), which could cause a material decrease in our revenues.')).toBeNull();
+  });
+
+  it("reads no rival in a venture of several automakers, and no customer in a waiver under an asset purchase (GM-4, X4)", () => {
+    expect(theirs(['GM', 'GENERAL MOTORS CO'], ['AETN', 'SHOREPOWER TECHNOLOGIES INC.'], 'We face competition from other EV charging companies, including ChargePoint, ABB, Cyber Switching, Siemens, Tesla, EVBox, BP, Shell, Hyundai, Electrify America, EVGo, the recently announced joint venture among BMW, General Motors, Honda, Hyundai, Kia, Mercedes-Benz and Stellantis and others.')).toBeNull();
+    expect(theirs(['XOM', 'EXXON MOBIL CORP'], ['SOC', 'Sable Offshore Corp.'], 'Additionally, in connection with the Third Amendment, the Company obtained a limited waiver (the "Limited Waiver") from Exxon and Mobil Pacific Pipeline Company under the Sable-EM Purchase Agreement, which defers the Company\'s obligation to provide plugging and abandonment financial security under Section 11.18(c) of the Sable-EM Purchase Agreement until the earlier of (i) December 22, 2028, (ii) the date on which the new money secured financing to be entered into prior to the maturity date of Term Loan B for the primary purposes of refinancing the Senior Secured Term Loan is redeemed, repaid or otherwise refinanced, or (iii) the occurrence of an event of default.')).toBeNull();
+  });
+
+  it("takes no supplier from parts a recall names (GM-8), and cuts a long statement between words", () => {
+    const gm = { cik: 1467858, names: targetNames('GM', 'GENERAL MOTORS CO').names, ticker: 'GM' };
+    const got = ownRelations(['ARC Matters In May 2023, we initiated a voluntary recall covering nearly one million 2014-2017 model year Buick Enclave, Chevrolet Traverse, and GMC Acadia SUVs equipped with driver front airbag inflators manufactured by ARC Automotive, Inc. (ARC), and accrued an insignificant amount for the expected costs of the recall.'], dir, gm, { filer: 'General Motors Co', form: '10-K', date: '2026-01-27', path: '1467858/000146785826000013/gm-20251231.htm' });
+    expect(got.filter((r) => r.role === 'supplier')).toEqual([]);
+    // LLY-10: the statement began "ry clearances for the Merger".
+    const long = `${'the possibility that the shareholders may not approve the adoption of the Merger agreement; a failure to (or delay in) receiving the required regulatory clearances for the Merger; '.repeat(8)}Lilly's ability to successfully integrate AtaiBeckley.`;
+    const [cut] = main.mentionSentences(long, ['Lilly']);
+    expect(cut.length).toBeLessThanOrEqual(1200);
+    expect(long.includes(` ${cut}`)).toBe(true);
+    expect(cut.endsWith('integrate AtaiBeckley.')).toBe(true);
   });
 });
