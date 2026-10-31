@@ -489,6 +489,41 @@ test('ALLQ as TE07 04:17: security box, Request Access and Settings, Spreads vs 
   expect(errors).toEqual([]);
 });
 
+test("PORT's Intraday tab as the 2025 frame: navigator, summary movers, and the portfolio by GICS sector", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'PORTFOLIO');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.tab.on')).toContainText('Intraday');
+  await expect(panel.getByTestId('port-intraday')).toContainText('No holdings in');
+  // Positions are added on 2) Holdings.
+  await run(page, '2');
+  for (const [sec, qty] of [['AAPL', '10'], ['XOM', '20']]) {
+    await panel.getByLabel('Security', { exact: true }).fill(sec);
+    await panel.getByLabel('Quantity', { exact: true }).fill(qty);
+    await panel.getByRole('button', { name: 'Add', exact: true }).click();
+  }
+  await run(page, '1');
+  const nav = panel.getByRole('complementary', { name: 'Intraday Navigator' });
+  await expect(nav).toContainText('Report Definition');
+  await expect(nav.getByLabel('Classification')).toHaveValue('GICS Sector');
+  const grid = panel.getByTestId('port-grid');
+  await expect(grid.locator('thead tr').first().locator('th')).toHaveText(['', '#', '% Wgt', 'Contribution to Return', 'Total Return']);
+  // The total: both holdings, all the weight; every GICS sector listed under it.
+  const total = grid.locator('tbody tr.port-total');
+  await expect(total.locator('td').nth(1)).toHaveText('2');
+  await expect(total.locator('td').nth(3)).toHaveText('100.00');
+  await expect(grid.locator('tbody tr').filter({ hasText: 'Information Technology' })).toHaveCount(1);
+  // A sector opens to its holdings.
+  await grid.locator('tbody tr').filter({ hasText: 'Energy' }).click();
+  await expect(grid.locator('tr.port-line')).toContainText('Exxon Mobil');
+  // The benchmark's members load in the desktop app only: here its columns are blank, and the foot says why.
+  await expect(panel.locator('.port-foot')).toContainText('load in the desktop app');
+  // Differences off: the Diff columns go.
+  await nav.getByLabel('Differences').uncheck();
+  await expect(grid.locator('thead tr').nth(1).locator('th')).toHaveCount(9);
+  expect(errors).toEqual([]);
+});
+
 test('SCREEN joins criteria by AND within a group and OR across groups, says its universe, and keeps saved screens', async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'EQS');

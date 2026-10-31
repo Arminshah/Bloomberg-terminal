@@ -671,7 +671,8 @@ test('portfolio date-aligned risk, independent stress P&L and coverage-labelled 
   expect(csv).toContain('Expected shortfall contribution USD');
   expect(csv).toContain('AAPL US Equity,5,90,1,false');
   expect(csv).toContain('Historical session,Replay NAV USD,AAPL US Equity local price,AAPL US Equity USD per currency unit');
-  await run(page, '2');
+  // 3) Performance.
+  await run(page, '3');
   await expect(page.getByText('Fixed holdings replay (USD)', { exact: true })).toBeVisible();
   await expect(page.getByText('Historical NAV', { exact: true })).toBeVisible();
   await run(page, 'CORR');
@@ -832,6 +833,9 @@ test('portfolio tabs keep each portfolio\'s holdings and cash, open, rename, clo
     await panel.getByRole('button', { name: 'Add', exact: true }).click();
   };
   await run(page, 'PORTFOLIO');
+  // PORT opens on Intraday (the 2025 frame); positions are added on 2) Holdings.
+  await expect(panel.locator('.tab.on')).toContainText('Intraday');
+  await run(page, '2');
   await expect(panel.locator('.ptab')).toHaveCount(1);
   await expect(panel.getByRole('button', { name: /^Close / })).toHaveCount(0);
   await panel.locator('.ptab').first().dblclick();
@@ -867,6 +871,7 @@ test('portfolio tabs keep each portfolio\'s holdings and cash, open, rename, clo
   await page.reload();
   await expect(panel.locator('.ptab')).toHaveCount(2);
   await expect(panel.locator('.ptab.on')).toHaveText('EQUITY_LONG×');
+  await run(page, '2');
   await expect(panel.getByRole('button', { name: 'Remove AAPL US Equity', exact: true })).toBeVisible();
 
   await panel.getByRole('button', { name: 'Close DOMESTIC BOND FUND' }).click();

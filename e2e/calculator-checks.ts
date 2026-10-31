@@ -215,6 +215,8 @@ export async function checkAmericanOption(page: Page, run: RunCommand) {
 
 export async function checkPortfolioPositions(page: Page, run: RunCommand) {
   await run('PORT', 'PORTFOLIO');
+  // PORT opens on Intraday; cash and positions are typed on 2) Holdings.
+  await run('2', 'PORTFOLIO');
   await page.getByLabel('Cash in USD').fill('10000');
   await page.getByRole('button', { name: 'Set cash', exact: true }).click();
   await page.getByLabel('Security', { exact: true }).fill('AAPL');
@@ -229,5 +231,6 @@ export async function checkPortfolioPositions(page: Page, run: RunCommand) {
   await expect(holding.locator('td').nth(2)).toHaveText('5');
   // Reducing the position must retain its 90 average cost, even with a 200 adjustment price.
   await expect(holding.locator('td').nth(3)).toHaveText('90.00');
-  await run('3', 'PORTFOLIO');
+  // 4) Risk & Allocation.
+  await run('4', 'PORTFOLIO');
 }
