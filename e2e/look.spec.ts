@@ -149,6 +149,36 @@ test('a screen the 2024 frames show a footer on carries "Suggested Functions" wi
   expect(errors).toEqual([]);
 });
 
+test("the tab strip is the window's light title bar: square tabs of equal width, a bold mnemonic and the title, × on the active tab", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity DES');
+  const bar = page.locator('.wtabs-bar');
+  const style = (loc: ReturnType<typeof page.locator>, prop: string) => loc.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+  // TE01 03:11: the strip #CFCDD0, the active tab #1A1A1A joined to the toolbar, the mnemonic bold.
+  expect(await style(bar, 'background-color')).toBe('rgb(207, 205, 208)');
+  const active = page.locator('.wtab.on');
+  await expect(active.locator('.wtab-title')).toHaveText('DES APPLE INC Equity');
+  await expect(active.locator('.wtab-mn')).toHaveText('DES');
+  expect(await style(active.locator('.wtab-mn'), 'font-weight')).toBe('600');
+  expect(await style(active, 'background-color')).toBe('rgb(26, 26, 26)');
+  expect(await style(active, 'border-top-left-radius')).toBe('0px');
+  expect(await style(active.locator('.wtab-title'), 'text-overflow')).toBe('clip');
+  // A second tab: the same width, dark grey text on the strip, its × hidden until the pointer is over it.
+  await page.getByRole('button', { name: 'New tab' }).click();
+  await run(page, 'TOP');
+  await page.locator('.wtab').first().click();
+  const other = page.locator('.wtab').nth(1);
+  await expect(other.locator('.wtab-title')).toHaveText(/^TOP /);
+  expect(await style(other, 'color')).toBe('rgb(82, 80, 84)');
+  expect(await style(other.locator('.wtab-x'), 'opacity')).toBe('0');
+  expect(await style(active.locator('.wtab-x'), 'opacity')).toBe('1');
+  const [a, b] = [await page.locator('.wtab').nth(0).boundingBox(), await other.boundingBox()];
+  expect(Math.abs(a!.width - b!.width)).toBeLessThan(1);
+  await other.hover();
+  expect(await style(other.locator('.wtab-x'), 'opacity')).toBe('1');
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.

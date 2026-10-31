@@ -1726,9 +1726,9 @@ function createWindow(id = nextId()) {
     icon: fs.existsSync(ICON) ? ICON : undefined,
     show: false,
     autoHideMenuBar: true,
-    // No title bar: the window's own minimise, maximise and close buttons sit at the right end of the app's tab bar,
+    // No title bar: the window's own minimise, maximise and close buttons sit at the right end of the app's light tab bar,
     // which drags the window (WorkspaceTabs.tsx keeps the tabs clear of them). TAB_BAR_HEIGHT matches the bar's CSS.
-    ...(process.platform === 'darwin' ? {} : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0a0a0a', symbolColor: '#c8c8c8', height: TAB_BAR_HEIGHT } }),
+    ...(process.platform === 'darwin' ? {} : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#cfcdd0', symbolColor: '#2b2b2b', height: TAB_BAR_HEIGHT } }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

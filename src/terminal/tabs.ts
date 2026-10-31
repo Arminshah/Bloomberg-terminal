@@ -161,6 +161,13 @@ export function tabTitle(tab: WorkspaceTab, live: TerminalState | undefined): st
   return `${r.sec ? `${r.sec.split(' ')[0]} ` : ''}${r.fn}`;
 }
 
+/** The route a tab names: its active panel's, or none while the tab is untouched ("New Tab"). */
+export function tabRoute(tab: WorkspaceTab, live: TerminalState | undefined) {
+  const s = live ?? tab.saved;
+  if (!s || !Array.isArray(s.panels) || JSON.stringify(s.panels.map((p) => p.history)) === DEFAULT_SCREENS) return undefined;
+  return currentRoute(s, s.active);
+}
+
 /** For the tests: forget the tabs closed in this session. */
 export function forgetClosedTabs(): void {
   closed.length = 0;

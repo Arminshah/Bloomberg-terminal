@@ -70,6 +70,16 @@ Evidence: TE04 01:21 (WEI region strips), TE01 03:11 (DES box headers), TE01 01:
 - Not done: footers on screens the app lacks (NSN, MODL, FXIP, FXFC, FXFM, SDRV, WSL; M5) and on screens where the OCR shows a footer whose suggestions the app cannot run (ANR's BAS). The app had no blue banner to replace.
 - Checked: `e2e/look.spec.ts` (strip and header colours, footer label, colours, order, position and click), `tests/suggested-functions.test.ts` (each suggestion exists), the whole browser suite.
 
+### M1.7 Tab strip as the title bar (E3)
+
+Evidence: TE01 03:11 (three tabs, light strip), TE01 01:53 (four tabs), TE01 01:41 (one tab, whole window), TE04 03:01 and 04:55 (dark strip). Sampled: strip `#D1CCD0` and active tab `#1A1A1A` on TE01 03:11, dark strip `#424242` on TE04 04:55.
+
+- Now: the workspace tab bar, already the desktop window's title bar, is the light strip `#CFCDD0` with square tabs of equal width (they share the strip as they shrink). Each label is the screen's mnemonic in bold, then the security by name with its yellow key or the function's name ("DES APPLE INC Equity", "TOP Top News", "DS Document Search"), cut at the tab's edge without an ellipsis. The active tab is `#1A1A1A` with light text and its "×"; the others have dark grey text `#525054` and show their "×" only under the pointer, so a mouse can still close them. "+" follows the tabs. In the desktop app the window's own buttons are drawn in dark grey on the light strip.
+- Kept from the app: renaming a tab (its name follows the mnemonic), dragging to reorder, middle-click to close, Ctrl+T, Ctrl+W, Ctrl+Shift+T, Ctrl+PageUp/PageDown and Ctrl+1 to 9.
+- For the owner: the frames show the strip both light (`#CFCDD0`) and dark (`#424242`) with no visible cause; the light one is built. Say if you prefer the dark one.
+- Not changed: the mnemonic is set in small bold capitals in the frames; here it is bold at the tab's 12px (text sizes stay). Unverified and not built: the inward-arrows icon at the right of the strip (its action is not shown). "≡ Options" follows in M1.8.
+- Checked: `e2e/look.spec.ts` (colours, label, bold mnemonic, square corners, clip, equal widths, × on the active tab and on hover), `e2e/terminal.spec.ts` (tabs follow the active screen, rename, close, reopen), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

@@ -129,8 +129,9 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   display: flex;
   align-items: stretch;
   min-height: 32px;
-  background: #0a0a0a;
-  border-bottom: 1px solid var(--line-2);
+  /* The 2024 frames' light strip (TE01 01:41, TE01 03:11; a dark #424242 state appears in TE04 without a visible
+     cause). */
+  background: #cfcdd0;
   -webkit-app-region: drag;
   app-region: drag;
 }
@@ -138,10 +139,10 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   flex: 0 1 auto;
   min-width: 0;
   display: flex;
-  align-items: flex-end;
-  gap: 1px;
-  padding: 3px var(--gutter) 0;
-  padding-top: calc(3px + env(safe-area-inset-top, 0px));
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  padding-top: env(safe-area-inset-top, 0px);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -151,63 +152,67 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   position: relative;
   width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
 }
-.wtabs-bar.wco .wtabs-controls::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: #6a6a6a; }
+.wtabs-bar.wco .wtabs-controls::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: #9a989b; }
 .wtabs::-webkit-scrollbar { display: none; }
+/* Square tabs of equal width, cut at the edge without an ellipsis; the mnemonic bold, then the title. */
 .wtab {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 0 1 260px;
   min-width: 90px;
-  max-width: 200px;
-  flex: 0 1 auto;
-  height: 28px;
-  padding: 0 4px 0 10px;
-  background: #171717;
-  color: #a8a8a8;
-  border: 1px solid #262626;
-  border-bottom: 0;
-  border-radius: 5px 5px 0 0;
+  padding: 0 4px 0 12px;
+  background: transparent;
+  color: #525054;
+  border: 0;
+  border-right: 1px solid #b3b1b4;
+  border-radius: 0;
   cursor: default;
   user-select: none;
   font-size: 12px;
 }
-.wtab:hover { background: #1f1f1f; color: var(--text); }
-.wtab.on { background: #2a2a2a; color: #fff; border-color: var(--line-2); box-shadow: inset 0 2px 0 var(--amber); }
+.wtab:hover:not(.on) { background: #dbd9dc; color: #2c2b2d; }
+.wtab.on { background: #1a1a1a; color: #d5d4d6; border-right-color: #1a1a1a; }
+.wtab-mn { color: #3e3c3e; font-weight: 600; }
+.wtab.on .wtab-mn { color: #e2e1e3; }
 .wtab.dragging { opacity: 0.5; }
-.wtab-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wtab-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: clip; white-space: nowrap; }
 .wtab-edit { flex: 1 1 auto; min-width: 0; width: 100%; background: #000; color: var(--amber-2); border: 1px solid var(--amber-dim); font: inherit; padding: 0 3px; }
 .wtab-x {
   flex: none;
-  width: 16px;
-  height: 16px;
-  line-height: 14px;
+  width: 18px;
+  height: 18px;
+  line-height: 16px;
   padding: 0;
   border: 0;
-  border-radius: 3px;
+  border-radius: 0;
   background: transparent;
-  color: #8a8a8a;
-  font-size: 14px;
+  color: #d0d0d0;
+  font-size: 17px;
   cursor: pointer;
 }
+/* Only the active tab shows its ×; another tab's appears when the pointer is over it. */
+.wtab:not(.on) .wtab-x { opacity: 0; color: #3e3c3e; }
+.wtab:not(.on):hover .wtab-x { opacity: 1; }
 .wtab-x:hover { background: #3c3c3c; color: #fff; }
 .wtab-new {
   flex: none;
-  align-self: flex-end;
-  width: 22px;
-  height: 20px;
-  margin: 0 auto 4px 4px;
+  align-self: center;
+  width: 26px;
+  height: 24px;
+  margin: 0 auto 0 4px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0;
   background: transparent;
-  color: #bdbdbd;
-  font-size: 16px;
-  line-height: 18px;
+  color: #1a1a1a;
+  font-size: 20px;
+  line-height: 22px;
   cursor: pointer;
 }
-.wtab-new:hover:not(:disabled) { background: #262626; color: #fff; }
-.wtab-new:disabled { color: #4a4a4a; cursor: default; }
-@media (max-width: 760px) { .wtab { min-width: 70px; max-width: 130px; } }
+.wtab-new:hover:not(:disabled) { background: #dbd9dc; color: #000; }
+.wtab-new:disabled { color: #9a989b; cursor: default; }
+@media (max-width: 760px) { .wtab { min-width: 70px; flex-basis: 130px; } }
 
 /* PORTFOLIO's tabs: one per portfolio (PORT.tsx). */
 .ptabs {

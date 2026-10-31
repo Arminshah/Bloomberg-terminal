@@ -1,10 +1,28 @@
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { terminal } from '../terminal/state';
-import { closeTab, MAX_TABS, moveTab, newTab, renameTab, switchTab, tabTitle, workspaceTabs } from '../terminal/tabs';
+import { lookupFn } from '../terminal/registry';
+import { styledMnemonic } from '../terminal/legacy';
+import { closeTab, MAX_TABS, moveTab, newTab, renameTab, switchTab, tabRoute, tabTitle, workspaceTabs, type WorkspaceTab } from '../terminal/tabs';
+import type { TerminalState } from '../terminal/state';
+import { securityLabel } from './PanelToolbar';
 
 /**
- * The window's workspace tabs, as in a browser: click a tab to show it, × or a middle click closes it, + opens a new
- * one, a double click renames it and dragging reorders. Ctrl+T, Ctrl+W, Ctrl+Shift+T, Ctrl+PageUp/PageDown and
+ * A tab's label as the 2024 frames write it (TE01 03:11): the screen's mnemonic in bold, then the security by name
+ * with its yellow key ("DES APPLE INC Equity") or the function's name ("TOP Top News"). A tab the user named keeps
+ * its name after the mnemonic.
+ */
+function tabLabel(tab: WorkspaceTab, live: TerminalState | undefined): { mnemonic: string; title: string } {
+  const r = tabRoute(tab, live);
+  if (!r) return { mnemonic: '', title: tab.name ?? 'New Tab' };
+  const mnemonic = styledMnemonic(r.fn, r.args).mnemonic;
+  return { mnemonic, title: tab.name ?? (r.sec ? securityLabel(r.sec) : (lookupFn(r.fn)?.name ?? r.fn)) };
+}
+
+/**
+ * The window's workspace tabs, as in a browser and as the 2024 frames draw them (TE01 03:11): a light strip that is the
+ * window's title bar, square tabs of equal width, the active one dark and joined to the toolbar with its ×. Click a tab
+ * to show it, × (on another tab, shown on hover) or a middle click closes it, + opens a new one, a double click
+ * renames it and dragging reorders. Ctrl+T, Ctrl+W, Ctrl+Shift+T, Ctrl+PageUp/PageDown and
  * Ctrl+1 to Ctrl+9 work as in a browser (see App).
  */
 /** Whether the window's own buttons are drawn over the page (the desktop app without a title bar). */
@@ -53,6 +71,7 @@ export function WorkspaceTabs() {
       {t.tabs.map((tab, i) => {
         const on = tab.id === t.active;
         const title = tabTitle(tab, on ? live : undefined);
+        const label = tabLabel(tab, on ? live : undefined);
         return (
           <div
             key={tab.id}
@@ -105,7 +124,7 @@ export function WorkspaceTabs() {
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span className="wtab-title">{title}</span>
+              <span className="wtab-title">{label.mnemonic ? <b className="wtab-mn">{label.mnemonic}</b> : null}{label.mnemonic ? ' ' : ''}{label.title}</span>
             )}
             <button
               type="button"
