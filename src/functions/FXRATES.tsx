@@ -198,7 +198,9 @@ export { SwapCalc as SWPM } from './SwapCalc';
 
 // ------------------------------------------------------------------ CENB
 
-const MONITOR_POLICY_SERIES: Partial<Record<string, keyof PolicyRates>> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOJ: 'bojLoan', BOC: 'boc', RBA: 'rba', SNB: 'snb', BCB: 'bcb' };
+// The BOJ's row is its call-rate guideline and PBOC, RBI and BANXICO are their policy rates, all from the BIS's compilation.
+const MONITOR_POLICY_SERIES: Partial<Record<string, keyof PolicyRates>> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOJ: 'bojTarget', BOC: 'boc', RBA: 'rba', SNB: 'snb', BCB: 'bcb', PBOC: 'pboc', RBI: 'rbi', BANXICO: 'banxico' };
+const VIA_BIS = new Set(['BOJ', 'PBOC', 'RBI', 'BANXICO']);
 
 /** CENB: central bank policy monitor. */
 export function CENB(_: FnProps) {
@@ -241,13 +243,13 @@ export function CENB(_: FnProps) {
             const next = calendar.next;
             const days = next ? Math.round((Date.parse(`${next.date}T00:00:00Z`) - Date.parse(`${bankDate(b.code, now)}T00:00:00Z`)) / DAY_MS) : NaN;
             const clock = BANK_CLOCKS[b.code];
-            const nextTime = next ? !clock ? 'time not verified' : clock.timeKnown === false ? 'time varies (Tokyo)' : `${new Intl.DateTimeFormat('en-GB', { timeZone: clock.tz, hour: '2-digit', minute: '2-digit' }).format(next.scheduledAt)} ${clock.tz.split('/').at(-1)?.replaceAll('_', ' ')}` : '';
+            const nextTime = next ? !clock ? 'time not verified' : clock.timeKnown === false ? (b.code === 'BOJ' ? 'time varies (Tokyo)' : 'time not verified') : `${new Intl.DateTimeFormat('en-GB', { timeZone: clock.tz, hour: '2-digit', minute: '2-digit' }).format(next.scheduledAt)} ${clock.tz.split('/').at(-1)?.replaceAll('_', ' ')}` : '';
             const y2 = twoYear(b.country);
             const yv = y2 ? engine.quote(y2)!.last : NaN;
             return (
               <tr key={b.code} data-bank-code={b.code} data-source-health={health?.state}>
                 <td>
-                  <span className="amber b">{b.code}</span> <span className="hide-m">{b.bank}</span>
+                  <span className="amber b">{b.code}</span> <span className="hide-m">{b.bank}</span>{b.real && VIA_BIS.has(b.code) && <span className="muted"> · via BIS</span>}
                 </td>
                 <td className="hide-m">{COUNTRY_NAMES[b.country] ?? b.country}</td>
                 <td className="num white b">
@@ -282,7 +284,8 @@ export function CENB(_: FnProps) {
           : 'Policy rates are reference settings (the Fed range is derived from the 3-month bill) and may be out of date; the desktop app loads the Fed, ECB, Bank of England and Bank of Canada rates from the banks themselves.'}{' '}
         The Fed&apos;s complete range comes from the same effective observation or statement record; a missing lower bound is left unavailable. Announced future targets remain separate until their verified effective date. Each bank retains its own source check and calendar coverage. The Fed&apos;s 2-year spread is to the upper limit of its target range. A 2-year yield below the policy rate means the market expects cuts.
       </p>
-      <Credits ids={['fedboard', 'nyfed', 'treasury', 'ecb', 'bundesbank', 'boe', 'boc', 'rba', 'snb', 'bcb']} />
+      {engine.realOnly && <p className="pad-s muted">The BOJ&apos;s guideline and the PBoC&apos;s, RBI&apos;s and Banxico&apos;s rates come from the BIS&apos;s compilation of central bank policy rates, which follows each bank by days to weeks: Source check gives the date of its latest observation, so a decision after that date is not shown yet.</p>}
+      <Credits ids={['fedboard', 'nyfed', 'treasury', 'ecb', 'bundesbank', 'boe', 'boc', 'rba', 'snb', 'bcb', 'bis']} />
     </div>
   );
 }

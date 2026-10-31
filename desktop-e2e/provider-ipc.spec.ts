@@ -73,7 +73,7 @@ interface Fixtures {
   segments?: boolean;
   nasdaqOptions?: boolean;
   treasuryCurve?: boolean;
-  calls: { nasdaqOptions?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { nasdaqOptions?: string[]; bis?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -1249,6 +1249,30 @@ test("ECB, BOE and BOJ show each bank's rate from its own data, its last move an
   await expect(kv('Last move')).toHaveText('+25 bp, calendar match 18/09/26 (unverified)');
   await expect(kv('Uncollateralized overnight call rate')).toHaveText('1.227% on 23/10/26');
   await expect(panel.locator('.fnh')).toContainText('REAL');
+});
+
+test("CENTRALBANKS lists the PBoC, RBI, Banxico and the BOJ's guideline from the BIS, credited and dated", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.centralBankRates = true;
+  });
+  await page.reload();
+  await command(page, 'CENTRALBANKS', 'CENTRALBANKS');
+  const monitor = page.getByTestId('central-bank-monitor');
+  const rbi = monitor.locator('tr[data-bank-code="RBI"]');
+  await expect(rbi).toContainText('via BIS', { timeout: 30_000 });
+  await expect(rbi.locator('td').nth(2)).toHaveText('5.50%');
+  await expect(rbi.locator('td').nth(3)).toHaveText('+25 bp');
+  // The BIS's latest observation dates the rate (the fixture's is five days back).
+  const observed = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10);
+  await expect(rbi.locator('td').last()).toHaveAttribute('title', new RegExp(`Source as of ${observed}`));
+  await expect(monitor.locator('tr[data-bank-code="BANXICO"] td').nth(2)).toHaveText('6.75%');
+  await expect(monitor.locator('tr[data-bank-code="PBOC"] td').nth(2)).toHaveText('3.00%');
+  await expect(monitor.locator('tr[data-bank-code="BOJ"] td').nth(2)).toHaveText('1.25%');
+  await expect(page.locator('.panel').first()).toContainText('Source: BIS central bank policy rates (WS_CBPOL)');
+  const asked = (await calls(app)).bis ?? [];
+  expect(asked.length).toBeGreaterThan(0);
+  expect(asked[0]).toContain('/WS_CBPOL/1.0/D.CN+IN+MX+JP?');
+  expect(asked[0]).toContain('detail=dataonly');
 });
 
 test("CBRT lists each bank's rate with its moves from the bank's own data, and the meeting that decided each", async ({ desktop: { app, page } }) => {

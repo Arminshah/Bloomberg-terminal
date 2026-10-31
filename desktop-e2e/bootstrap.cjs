@@ -384,6 +384,14 @@ net.fetch = async (input, init) => {
     if (url.hostname === 'www.bankofengland.co.uk' && url.searchParams.get('SeriesCodes') === 'IUDSOIA') return file('boe-sonia.csv', 'text/csv');
     if (url.hostname === 'www.stat-search.boj.or.jp' && url.searchParams.get('db') === 'IR01') return file('boj-basic-loan-rate.json', 'application/json');
     if (url.hostname === 'www.stat-search.boj.or.jp' && url.searchParams.get('db') === 'FM01') return file('boj-call-rate.json', 'application/json');
+    // The BIS's policy rates in its CSV layout: synthetic levels, not any bank's actual rates, each with a move 20 days
+    // back and observed until 5 days back.
+    if (url.hostname === 'stats.bis.org' && url.pathname.includes('/WS_CBPOL/')) {
+      fixtures.calls.bis = [...(fixtures.calls.bis ?? []), url.pathname + url.search];
+      const day = (n) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+      const rows = [['CN', 3.1, 3], ['IN', 5.25, 5.5], ['MX', 7, 6.75], ['JP', 1, 1.25]].flatMap(([area, before, after]) => [[60, before], [20, after], [5, after]].map(([n, v]) => `D,${area},${day(n)},${v}`));
+      return new Response(['FREQ,REF_AREA,TIME_PERIOD,OBS_VALUE', ...rows].join('\n'), { status: 200, headers: { 'Content-Type': 'text/csv' } });
+    }
   }
   // With fixtures.ecbFx, the ECB's reference rates as published for 25 to 30 June 2026 (tests/fixtures/ecb-exr-2026-06.csv).
   if (fixtures.ecbFx && url.hostname === 'data-api.ecb.europa.eu' && url.pathname.startsWith('/service/data/EXR/')) {

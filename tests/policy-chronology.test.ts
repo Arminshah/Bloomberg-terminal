@@ -145,7 +145,8 @@ describe('policy source refresh chronology', () => {
       return answer('', at, 503);
     };
     const first = await loadPolicyRates(request(t1), t1);
-    expect(first).toEqual({ answered: 1, failures: 7 });
+    // Eleven banks: the eight with their own feeds and the three the BIS supplies; only the Fed answered.
+    expect(first).toEqual({ answered: 1, failures: 10 });
     const oldSeries = policyRates.get().fedUpper;
     expect(policyRates.get().health?.effr).toMatchObject({ state: 'current', checkedAt: t1, sourceDate: '2026-10-27' });
     expect(policyRates.get().health?.ecb?.state).toBe('error');

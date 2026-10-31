@@ -281,6 +281,10 @@ const OFFICIAL = {
     const [y, m, d] = since.split('-');
     return `https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json&dataInicial=${d}/${m}/${y}`;
   },
+  // The BIS's daily policy rates (WS_CBPOL, no key) for the banks with no free daily feed of their own: the PBoC's
+  // one-year loan prime rate, the RBI's repo rate, Banxico's target and the BOJ's call-rate guideline. Use is free if
+  // the BIS is cited. The BIS compiles them from each bank, days to weeks after a move; dates and values only.
+  bis: (since) => `https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.CN+IN+MX+JP?startPeriod=${since}&format=csv&detail=dataonly`,
   // Government bond yields, end of day.
   bunds: () => 'https://api.statistiken.bundesbank.de/rest/download/BBSIS/D.I.ZST.ZI.EUR.S1311.B.A604.R02XX+R05XX+R10XX+R30XX.R.A.A._Z._Z.A?format=csv&lang=en',
   gilts: (since) => boeSeries('IUDSNPY,IUDMNPY,IUDLNPY', since),
@@ -328,7 +332,7 @@ const OFFICIAL = {
 /** Which provider publishes each official source, for the status screen. */
 const OFFICIAL_PROVIDER = {
   effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', fedStatement: 'fedboard', fedImplementation: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
-  rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
+  rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bis: 'bis', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
   newsFed: 'fedboard', newsEcb: 'ecb', newsBoe: 'boe', newsBoc: 'boc', newsRba: 'rba', newsBea: 'bea', newsEsma: 'esma',

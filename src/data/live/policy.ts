@@ -2,7 +2,7 @@ import { createStore } from '../../core/store';
 import { DAY_MS } from '../calendar';
 import { setFeed } from './status';
 import { registerRefresh } from '../../terminal/refresh';
-import { officialAnswer, officialAvailable, parseRbaTable, parseSgs, parseSnbCube, type OfficialAnswer } from './official';
+import { officialAnswer, officialAvailable, parseBisCbpol, parseRbaTable, parseSgs, parseSnbCube, type OfficialAnswer } from './official';
 import { datasetHealth, type DatasetHealth } from './provenance';
 import type { OfficialSource } from './lookup';
 import { fedStatementLinks, parseFedDecision, type PolicyDecision } from './policy-decisions';
@@ -15,8 +15,11 @@ import { bankDate, scheduledPolicyAt } from '../policy-state';
  * Board), the ECB deposit rate (ECB Data Portal), Bank Rate (Bank of
  * England), the overnight target (Bank of Canada), the cash rate target
  * (Reserve Bank of Australia), the SNB policy rate (Swiss National Bank) and
- * the Selic target (Banco Central do Brasil). Each series keeps the date and
- * size of every move.
+ * the Selic target (Banco Central do Brasil). The banks with no free daily
+ * feed of their own come from the BIS's compilation of policy rates (cited as
+ * the BIS requires): the PBoC's one-year loan prime rate, the RBI's repo rate,
+ * Banxico's target and the BOJ's call-rate guideline. Each series keeps the
+ * date and size of every move.
  */
 
 export interface PolicySeries {
@@ -44,6 +47,11 @@ export interface PolicyRates {
   rba?: PolicySeries;
   snb?: PolicySeries;
   bcb?: PolicySeries;
+  /** From the BIS (WS_CBPOL), days to weeks behind each bank: PBoC 1-year LPR, RBI repo, Banxico target, BOJ guideline. */
+  pboc?: PolicySeries;
+  rbi?: PolicySeries;
+  banxico?: PolicySeries;
+  bojTarget?: PolicySeries;
   /** The euro short-term rate (ECB) and SONIA (Bank of England): each overnight benchmark, daily. */
   estr?: PolicySeries;
   sonia?: PolicySeries;
@@ -235,13 +243,14 @@ export function mergeDecisionVersions(previous: readonly PolicyDecision[], incom
 export const POLICY_SOURCE: Partial<Record<keyof PolicyRates, OfficialSource>> = {
   fedUpper: 'effr', fedLower: 'effr', effr: 'effr', sofr: 'sofr', ecb: 'ecb', boe: 'boe', boc: 'boc',
   rba: 'rba', snb: 'snb', bcb: 'bcb', estr: 'estr', sonia: 'sonia', bojLoan: 'bojLoan', bojCall: 'bojCall',
+  pboc: 'bis', rbi: 'bis', banxico: 'bis', bojTarget: 'bis',
 };
 
 /** Injected transport and time permit chronological checks without pretending fixture data are live observations. */
 export async function loadPolicyRates(request: (source: OfficialSource, since: string) => Promise<OfficialAnswer> = officialAnswer, now = Date.now()): Promise<{ answered: number; failures: number }> {
   const since = new Date(now - 4 * 365 * DAY_MS).toISOString().slice(0, 10);
   const recent = new Date(now - 92 * DAY_MS).toISOString().slice(0, 10);
-  const sources = ['effr', 'sofr', 'nyfed', 'fomc', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb', 'estr', 'sonia', 'bojLoan', 'bojCall', 'newsFed'] as const;
+  const sources = ['effr', 'sofr', 'nyfed', 'fomc', 'ecb', 'boe', 'boc', 'rba', 'snb', 'bcb', 'bis', 'estr', 'sonia', 'bojLoan', 'bojCall', 'newsFed'] as const;
   const answers = await Promise.all(sources.map(async (source) => {
     try { return await request(source, ['estr', 'sonia', 'bojCall'].includes(source) ? recent : since); }
     catch (err) { return { status: 0, text: '', attemptedAt: now, receivedAt: now, error: err instanceof Error ? err.message : 'Source unavailable' } as OfficialAnswer; }
@@ -259,23 +268,32 @@ export async function loadPolicyRates(request: (source: OfficialSource, since: s
   };
   const text = (source: typeof sources[number]) => validTransport(response[source]) ? response[source].text : '';
   const fed = parseNyFed(text('effr'));
-  const series: [keyof Pick<PolicyRates, 'fedUpper' | 'fedLower' | 'effr' | 'sofr' | 'ecb' | 'boe' | 'boc' | 'rba' | 'snb' | 'bcb' | 'estr' | 'sonia' | 'bojLoan' | 'bojCall'>, OfficialSource, Obs, string][] = [
+  const series: [keyof Pick<PolicyRates, 'fedUpper' | 'fedLower' | 'effr' | 'sofr' | 'ecb' | 'boe' | 'boc' | 'rba' | 'snb' | 'bcb' | 'estr' | 'sonia' | 'bojLoan' | 'bojCall' | 'pboc' | 'rbi' | 'banxico' | 'bojTarget'>, OfficialSource, Obs, string][] = [
     ['fedUpper', 'effr', fed.upper, 'FED'], ['fedLower', 'effr', fed.lower, 'FED'], ['effr', 'effr', fed.rate, 'FED'],
     ['sofr', 'sofr', parseNyFed(text('sofr')).rate, 'FED'], ['ecb', 'ecb', parseEcbCsv(text('ecb')), 'ECB'],
     ['boe', 'boe', parseBoeCsv(text('boe')), 'BOE'], ['boc', 'boc', parseValet(text('boc'), 'V39079'), 'BOC'],
     ['rba', 'rba', parseRbaTable(text('rba')).get('FIRMMCRTD') ?? [], 'RBA'], ['snb', 'snb', parseSnbCube(text('snb'), 'LZ'), 'SNB'],
     ['bcb', 'bcb', parseSgs(text('bcb'), bankDate('BCB', now)), 'BCB'], ['estr', 'estr', parseEcbCsv(text('estr')), 'ECB'],
     ['sonia', 'sonia', parseBoeCsv(text('sonia')), 'BOE'], ['bojLoan', 'bojLoan', parseBojJson(text('bojLoan')), 'BOJ'], ['bojCall', 'bojCall', parseBojJson(text('bojCall')), 'BOJ'],
+    ['pboc', 'bis', parseBisCbpol(text('bis'), 'CN'), 'PBOC'], ['rbi', 'bis', parseBisCbpol(text('bis'), 'IN'), 'RBI'],
+    ['banxico', 'bis', parseBisCbpol(text('bis'), 'MX'), 'BANXICO'], ['bojTarget', 'bis', parseBisCbpol(text('bis'), 'JP'), 'BOJ'],
   ];
   let fedValid = true;
+  // The BIS answers for four banks at once; its check holds only if every one of them came through.
+  let bisValid = true;
+  let bisAsOf: string | undefined;
   for (const [key, source, obs, bank] of series) {
     const candidate = toChanges(obs, bankDate(bank, now));
     const previous = prev[key];
     const regressed = !!candidate && !!previous && candidate.asOf < previous.asOf;
     if (candidate && !regressed) next[key] = candidate;
     if (source === 'effr') fedValid = fedValid && !!candidate && !regressed;
-    else record(source, response[source as typeof sources[number]], !!candidate && !regressed, candidate?.asOf, regressed ? 'The source returned an older observation window; the newer value was retained.' : 'No valid effective observations in the response.');
+    else if (source === 'bis') {
+      bisValid = bisValid && !!candidate && !regressed;
+      if (candidate && (!bisAsOf || candidate.asOf < bisAsOf)) bisAsOf = candidate.asOf;
+    } else record(source, response[source as typeof sources[number]], !!candidate && !regressed, candidate?.asOf, regressed ? 'The source returned an older observation window; the newer value was retained.' : 'No valid effective observations in the response.');
   }
+  record('bis', response.bis, bisValid, bisAsOf, 'The BIS answer lacked a valid series for one of its four banks.');
   fedValid = fedValid && !!next.fedLower && !!next.fedUpper && next.fedLower.asOf === next.fedUpper.asOf && next.fedLower.last <= next.fedUpper.last;
   if (!fedValid) { next.fedUpper = prev.fedUpper; next.fedLower = prev.fedLower; next.effr = prev.effr; }
   record('effr', response.effr, fedValid, next.fedUpper?.asOf, 'The response did not establish coherent effective fed funds and target-range observations.');
@@ -317,6 +335,9 @@ const BANKS: [keyof PolicyRates, string][] = [
   ['rba', 'Reserve Bank of Australia'],
   ['snb', 'Swiss National Bank'],
   ['bcb', 'Banco Central do Brasil'],
+  ['pboc', "People's Bank of China (BIS)"],
+  ['rbi', 'Reserve Bank of India (BIS)'],
+  ['banxico', 'Banco de México (BIS)'],
 ];
 
 /** Loads the rates in the desktop app and refreshes them every hour; a source that fails is tried again after two minutes. */

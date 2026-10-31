@@ -59,7 +59,8 @@ function referenceBanks(): CentralBank[] {
   ];
 }
 
-const REAL_SERIES: Record<string, keyof PolicyRates> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOC: 'boc', RBA: 'rba', SNB: 'snb', BCB: 'bcb' };
+// PBOC, RBI, BANXICO and BOJ come through the BIS's compilation (src/data/live/policy.ts), dated by its observations.
+const REAL_SERIES: Record<string, keyof PolicyRates> = { FED: 'fedUpper', ECB: 'ecb', BOE: 'boe', BOC: 'boc', RBA: 'rba', SNB: 'snb', BCB: 'bcb', PBOC: 'pboc', RBI: 'rbi', BANXICO: 'banxico', BOJ: 'bojTarget' };
 
 /** A bank's real rate series, when loaded. */
 export function policySeries(code: string, now = engine.now()): PolicySeries | undefined {

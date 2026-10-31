@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Credits } from '../components/Credits';
 import { FnHeader } from '../components/FnHeader';
 import { Chg, Section } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
@@ -26,6 +27,8 @@ interface Bank {
   name: string;
   rate: string;
   key: keyof PolicyRates;
+  /** Read from the BIS's compilation rather than the bank's own data service. */
+  viaBis?: boolean;
 }
 
 export const RATE_BANKS: Bank[] = [
@@ -37,6 +40,9 @@ export const RATE_BANKS: Bank[] = [
   { code: 'RBA', name: 'Reserve Bank of Australia', rate: 'Cash rate target', key: 'rba' },
   { code: 'SNB', name: 'Swiss National Bank', rate: 'SNB policy rate', key: 'snb' },
   { code: 'BCB', name: 'Banco Central do Brasil', rate: 'Selic target', key: 'bcb' },
+  { code: 'PBOC', name: "People's Bank of China", rate: '1-year loan prime rate', key: 'pboc', viaBis: true },
+  { code: 'RBI', name: 'Reserve Bank of India', rate: 'Policy repo rate', key: 'rbi', viaBis: true },
+  { code: 'BANXICO', name: 'Banco de México', rate: 'Target for the overnight interbank rate', key: 'banxico', viaBis: true },
 ];
 
 const day = (iso: string) => fmtDay(Date.parse(`${iso}T00:00:00Z`));
@@ -64,7 +70,7 @@ export function CBRT(_: FnProps) {
   const auditState = { schema: 1, domain: 'policy', capturedAt: now, banks: rows.map((r) => ({ code: r.b.code, rateKey: r.b.key, current: { value: r.current.value, lower: r.current.lower, upper: r.current.value, effectiveAt: r.current.effectiveDate ? policyEffectiveAt(r.b.code, r.current.effectiveDate) : undefined, effectivePrecision: 'date', sourceUrl: r.current.sourceUrl ?? r.health?.source, sourceAsOf: r.current.sourceAsOf, lastSuccessfulAt: r.health?.checkedAt, lastAttemptAt: r.health?.attemptedAt, freshnessState: r.health?.state, stale: r.health?.state === 'cached' || r.health?.state === 'error', error: r.health?.error, conflict: r.current.conflict }, latestDecision: r.latest ? { ...r.latest, outcome: r.latest.action, effectiveAt: r.latest.effectiveDate ? policyEffectiveAt(r.b.code, r.latest.effectiveDate) : undefined, effectivePrecision: 'date' } : undefined, nextDecision: r.calendar.next, awaitingDecision: r.calendar.awaiting, calendarThrough: r.calendar.horizon })) };
   return (
     <div data-audit-state={JSON.stringify(auditState)}>
-      <FnHeader code="RATEANALYSIS" title="Central Bank Rate Analysis" sub={engine.realOnly ? <><RealBadge /> each bank&apos;s own data: its rate and every move over about four years</> : "The banks' rate histories are read by the desktop app"} />
+      <FnHeader code="RATEANALYSIS" title="Central Bank Rate Analysis" sub={engine.realOnly ? <><RealBadge /> each bank&apos;s own data (three via the BIS): its rate and every move over about four years</> : "The banks' rate histories are read by the desktop app"} />
       {!engine.realOnly ? (
         <div className="empty">The banks&apos; rate histories come from their own data services and are read by the desktop app. The browser demo has none, and none are generated.</div>
       ) : (
@@ -93,7 +99,7 @@ export function CBRT(_: FnProps) {
                       <RowNo n={nums[i]} />
                       {r.b.name}
                     </td>
-                    <td className="hide-m muted">{r.b.rate}</td>
+                    <td className="hide-m muted">{r.b.rate}{r.b.viaBis ? ' · via BIS' : ''}</td>
                     <td className="num white">{Number.isFinite(r.current.value) ? `${fmtNum(r.current.value, 2)}%` : '--'}</td>
                     <td className="num hide-m">{last ? day(last.date) : '--'}</td>
                     <td className="num">{last ? <><Chg v={last.change * 100} dec={0} /> bp</> : '--'}</td>
@@ -101,7 +107,7 @@ export function CBRT(_: FnProps) {
                     <td className="num hide-m" title={r.health ? `${r.health.checkedAt ? `Last successful check ${fmtDateTime(r.health.checkedAt)}` : 'No successful check'}${r.health.error ? `; latest attempt failed: ${r.health.error}` : ''}` : 'Confirmation time unavailable'}>{r.current.sourceAsOf ? day(r.current.sourceAsOf) : '--'}{r.health?.state === 'error' ? ' · retained' : ''}</td>
                     <td className="num">{Number.isFinite(r.year) ? <><Chg v={r.year * 100} dec={0} /> bp</> : '--'}</td>
                     <td className="num hide-m">{r.s ? `${r.count.up} up, ${r.count.down} down` : '--'}</td>
-                    <td className="num hide-m" title={`${r.b.code === 'BOJ' ? 'Release time varies; date only. ' : ''}Calendar coverage through ${r.calendar.horizon ?? 'unknown'}`}>{r.calendar.next ? <>{day(r.calendar.next.date)} · {r.b.code === 'BOJ' ? 'time varies (Tokyo)' : `${new Intl.DateTimeFormat('en-GB', { timeZone: BANK_CLOCKS[r.b.code]?.tz ?? 'UTC', hour: '2-digit', minute: '2-digit' }).format(r.calendar.next.scheduledAt)} ${BANK_CLOCKS[r.b.code]?.tz.split('/').at(-1)?.replaceAll('_', ' ') ?? 'UTC'}`}</> : <span className="amber">Calendar exhausted</span>}</td>
+                    <td className="num hide-m" title={`${r.b.code === 'BOJ' ? 'Release time varies; date only. ' : ''}Calendar coverage through ${r.calendar.horizon ?? 'unknown'}`}>{r.calendar.next ? <>{day(r.calendar.next.date)} · {r.b.code === 'BOJ' ? 'time varies (Tokyo)' : BANK_CLOCKS[r.b.code]?.timeKnown === false ? 'time not verified' : `${new Intl.DateTimeFormat('en-GB', { timeZone: BANK_CLOCKS[r.b.code]?.tz ?? 'UTC', hour: '2-digit', minute: '2-digit' }).format(r.calendar.next.scheduledAt)} ${BANK_CLOCKS[r.b.code]?.tz.split('/').at(-1)?.replaceAll('_', ' ') ?? 'UTC'}`}</> : r.b.code === 'PBOC' ? <span className="muted">Monthly fixing; dates unavailable</span> : <span className="amber">Calendar exhausted</span>}</td>
                   </tr>
                 );
               })}
@@ -190,7 +196,9 @@ export function CBRT(_: FnProps) {
           <div className="note">
             Each rate observation keeps its own date. History steps stop at dated effective evidence; chart dots mark announced targets separately. A confirmed HOLD never creates an extra move when earlier rate history is missing. A meeting within eight days of a move is only a calendar match. The loaded history is about four years and calendars have explicit coverage limits. Paths the markets price are on RATEPROBS for the Fed only: the app has no other banks&apos; rate futures.
             {loaded.length < RATE_BANKS.length && ` Not loaded yet: ${rows.filter((r) => !r.s).map((r) => r.b.name).join(', ')}.`}
+            {' '}The PBoC, RBI and Banxico rates come from the BIS&apos;s compilation, which follows each bank by days to weeks: Source as of is the date of its latest observation.
           </div>
+          <Credits ids={['bis']} />
         </>
       )}
     </div>

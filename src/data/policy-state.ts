@@ -15,6 +15,10 @@ export const BANK_CLOCKS: Record<string, { tz: string; hour: number; minute: num
   RBA: { tz: 'Australia/Sydney', hour: 14, minute: 30 },
   SNB: { tz: 'Europe/Zurich', hour: 9, minute: 30 },
   BCB: { tz: 'America/Sao_Paulo', hour: 18, minute: 30 },
+  // Rates the app reads from the BIS's compilation; their announcement times are not verified here.
+  PBOC: { tz: 'Asia/Shanghai', hour: 23, minute: 59, timeKnown: false },
+  RBI: { tz: 'Asia/Kolkata', hour: 23, minute: 59, timeKnown: false },
+  BANXICO: { tz: 'America/Mexico_City', hour: 23, minute: 59, timeKnown: false },
 };
 
 /** A conservative end-of-day boundary is used when the bank publishes no fixed release time. */

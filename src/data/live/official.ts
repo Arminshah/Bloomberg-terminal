@@ -116,6 +116,23 @@ export function parseSnbCube(text: string, item: string): Obs {
   return out;
 }
 
+/** The BIS's policy-rate CSV without attributes ("FREQ,REF_AREA,TIME_PERIOD,OBS_VALUE"): one country's daily levels. Weekends and holidays come as NaN. */
+export function parseBisCbpol(text: string, area: string): Obs {
+  const rows = lines(text);
+  const head = rows[0]?.split(',').map((c) => c.trim());
+  const at = (name: string) => head?.indexOf(name) ?? -1;
+  const [ref, time, value] = [at('REF_AREA'), at('TIME_PERIOD'), at('OBS_VALUE')];
+  if (ref < 0 || time < 0 || value < 0) return [];
+  const out: Obs = [];
+  for (const line of rows.slice(1)) {
+    const cells = line.split(',').map((c) => c.trim());
+    if (cells[ref] !== area || !ISO.test(cells[time] ?? '')) continue;
+    const v = num(cells[value] ?? '');
+    if (Number.isFinite(v)) out.push([cells[time], v]);
+  }
+  return out;
+}
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /** Banco Central do Brasil SGS series JSON: [{data: "dd/mm/yyyy", valor: "13.75"}]. Dates after `today` (targets already set ahead) are left out. */
 export function parseSgs(text: string, today: string): Obs {

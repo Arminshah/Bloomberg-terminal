@@ -300,16 +300,18 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'bis',
     name: 'Bank for International Settlements',
-    serves: "Central bankers' speeches from around the world (RSS, HEADLINES)",
-    dataClass: 'Official announcements',
+    serves: "Central bankers' speeches from around the world (RSS, HEADLINES); the policy rates of the People's Bank of China, the Reserve Bank of India, Banco de México and the Bank of Japan's guideline (CENTRALBANKS, RATEANALYSIS)",
+    dataClass: 'Official announcements; official statistics compiled from each central bank, days to weeks after a move',
     policy: 'enabled',
     feed: 'news',
-    terms: '"Users may download, display, print out, photocopy or redistribute any BIS Material for non-commercial purposes." Nothing may imply BIS endorsement.',
+    terms: '"Users may download, display, print out, photocopy or redistribute any BIS Material for non-commercial purposes." Nothing may imply BIS endorsement. BIS statistics: "The use of the statistics is unrestricted, provided that ... the BIS must be cited ... as the source" (Terms of permitted use of BIS statistics); the app shows the credit under the rates.',
     docs: [
       { label: 'Terms and conditions', url: 'https://www.bis.org/terms_conditions.htm' },
+      { label: 'Terms of permitted use of BIS statistics', url: 'https://data.bis.org/help/legal' },
+      { label: 'Central bank policy rates (WS_CBPOL)', url: 'https://data.bis.org/topics/CBPOL' },
       { label: 'RSS feed', url: 'https://www.bis.org/doclist/cbspeeches.rss' },
     ],
-    checked: '2026-10-19',
+    checked: '2026-10-31',
     desktop: true,
   },
   {

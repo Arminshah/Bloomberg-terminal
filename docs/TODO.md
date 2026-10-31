@@ -11,6 +11,7 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 The owner asked for every free source that makes the data more complete, accurate and checked. One source at a time: read its terms, test it live, compare a sample with a second source, then build it with tests (`docs/adding-a-provider.md`).
 
 - Done: `OPTIONS` opens on Nasdaq's composite option chain (US stocks, ETFs, NDX, XND) with volume and open interest, and the app's IVM, Greeks and implied forward per expiry; Alpaca stays as the second source (`docs/data-providers.md`, "Nasdaq option chains").
+- Done: the PBoC, RBI and Banxico rates and the BOJ's guideline come from the BIS's policy-rate compilation, so `CENTRALBANKS` and `RATEANALYSIS` list them in the desktop app, dated by the BIS's latest observation. The Dow's fallback member list has Alphabet in Verizon's place (since 29 June 2026).
 - Not used: Cboe's delayed quote files (SPX, RUT and VIX options, Greeks). Every Cboe quote page forbids automated download and warns of IP blocks (`docs/data-providers.md`, "Cboe delayed quotes"). Only the owner can decide otherwise.
 - Next: the survey's other clusters (bonds and Treasury auctions, government yields, index members, identifiers, short interest, segments, analyst history, ownership, intraday futures, news and calendars), each checked the same way before it is built.
 

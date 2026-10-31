@@ -163,6 +163,17 @@ The app reads the policy rate and benchmark bond yields from the [Valet API](htt
 
 The app reads tables F1 and F2 from the [statistical tables](https://www.rba.gov.au/statistics/tables/). The [copyright page](https://www.rba.gov.au/copyright/): RBA material "is provided under a Creative Commons Attribution 4.0 International License (CC BY 4.0 Licence)" and may be reproduced and adapted "provided that the RBA is properly attributed".
 
+## BIS central bank policy rates
+
+Read and tested on 31 October 2026. For the banks with no free daily feed of their own, the app reads the BIS's compilation of central bank policy rates ([WS_CBPOL](https://data.bis.org/topics/CBPOL)): `https://stats.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/D.CN+IN+MX+JP?startPeriod=...&format=csv&detail=dataonly`, no key, the last four years in one answer (about 14 KB). Rows are `FREQ,REF_AREA,TIME_PERIOD,OBS_VALUE`, one a day, with NaN on weekends and holidays.
+
+- What each series is, in the BIS's definitions: China "From 20 Aug 2019 onwards: Loan Prime Rate (1 year)"; India "official repo overnight rate"; Mexico "Central Bank target, money-market overnight rate"; Japan the guideline for the uncollateralized overnight call rate ("From 24 Sep 2026: the BOJ encourages the uncollateralized overnight call rate to remain at around 1.25 percent").
+- Delay: on 31 October 2026 the latest observations were 19 October (China, India) and 27 October (Japan, Mexico). A decision can reach the BIS days to about three weeks later, so `CENTRALBANKS` and `RATEANALYSIS` show the date of the latest observation beside each rate and say the rate comes via the BIS.
+- Checks the same day: the RBI's homepage gave a policy repo rate of 5.50%, as the BIS did (raised from 5.25% on 7 October 2026). The survey of 31 October also found Banxico's own target (6.50%) and the BCB's Selic equal to the BIS's.
+- Terms: [Terms of permitted use of BIS statistics](https://data.bis.org/help/legal): "The use of the statistics is unrestricted, provided that: if the statistics are reproduced, the BIS must be cited in your publication or product as the source of the statistics" and the use does not imply endorsement. The app's credit under the rates names the BIS and the four banks.
+
+The Bank of Japan's basic loan rate on `RATEANALYSIS` and `BOJPORTAL` still comes from the Bank's own Time-Series Data Search; `CENTRALBANKS` shows its call-rate guideline from the BIS, which is the rate the Bank sets.
+
 ## Swiss National Bank, Banco Central do Brasil, Ministry of Finance Japan
 
 The app reads the SNB policy rate from the [data portal](https://data.snb.ch/en), the Selic target from the [BCB open data portal](https://dadosabertos.bcb.gov.br/dataset/432-taxa-de-juros---meta-selic-definida-pelo-copom) and JGB yields from the [Ministry of Finance](https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/index.htm). Their terms were not verified in this check: the SNB and Ministry of Finance terms pages returned 404, and the BCB terms were not reviewed. Meeting dates for the banks other than the Fed are entered from their published calendars; the BCB's 2027 Copom dates (decisions on 27 January, 17 March, 28 April, 16 June, 4 August, 22 September, 27 October and 8 December) were published on 23 June 2026. The BCB's calendar page could not be read automatically on 14 October 2026; the dates were taken from news reports of that release, which agree with each other, and the first date with the BCB's English Copom page.
