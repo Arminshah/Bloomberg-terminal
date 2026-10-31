@@ -372,6 +372,39 @@ test('W opens worksheets: securities by fields, fundamentals beside market field
   expect(errors).toEqual([]);
 });
 
+test('SRCH as TE07 02:23: criteria joined by And with their matches, the count, and the results on their own page', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL CORP');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('BONDSEARCH');
+  await expect(page.locator('.cmd-hints')).toContainText('1 <GO> for Results');
+  await expect(panel.locator('.tab')).toHaveText(['Build/Edit Search', 'Example Searches']);
+  await expect(panel.locator('.subtab.on')).toContainText('Build with Criterion');
+  // "AAPL CORP" starts with corporates by that issuer; the query is echoed at the right.
+  await expect(panel.getByTestId('srch-query')).toHaveText('DEMO BONDS SECURITY TYPE CORP ISSUER AAPL');
+  const count = async () => Number((await panel.getByTestId('srch-count').textContent())?.replace(/\D/g, ''));
+  const apple = await count();
+  expect(apple).toBeGreaterThan(0);
+  await expect(panel.getByTestId('srch-left-2')).toHaveText(String(apple));
+  // A criterion added from the amber row narrows the matches; removing it brings them back.
+  await panel.getByLabel('Add a criterion').selectOption('maturity');
+  await panel.getByLabel('Criterion 3', { exact: true }).fill('100');
+  await expect(panel.getByTestId('srch-left-3')).toHaveText('0');
+  await expect.poll(count).toBe(0);
+  await panel.getByRole('button', { name: 'Remove criterion 3' }).click();
+  await expect.poll(count).toBe(apple);
+  // 1 <GO> opens the results; Back returns to the criteria.
+  await run(page, '1');
+  await expect(panel.locator('table tbody tr')).toHaveCount(apple);
+  await page.locator('#cmd-0').press('End');
+  await expect(panel.getByTestId('srch-count')).toBeVisible();
+  // An example search replaces the criteria.
+  await panel.getByRole('button', { name: 'Example Searches' }).click();
+  await panel.getByRole('button', { name: 'Coupons of 5% or more' }).click();
+  await expect(panel.getByTestId('srch-query')).toHaveText('DEMO BONDS COUPON > 4.999');
+  expect(errors).toEqual([]);
+});
+
 test('SCREEN joins criteria by AND within a group and OR across groups, says its universe, and keeps saved screens', async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'EQS');

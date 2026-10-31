@@ -66,7 +66,8 @@ import { IB } from '../functions/IB';
 import { HS } from '../functions/HS';
 import { NOTE } from '../functions/NOTE';
 import { MENU } from '../functions/MENU';
-import { ALLQ, DDIS, SRCH } from '../functions/CREDIT';
+import { ALLQ, DDIS } from '../functions/CREDIT';
+import { SRCH } from '../functions/SRCH';
 import { GF, HVT, MEMB, MOV, MRR, GRR, TRA, VWAP } from '../functions/ANALYSIS';
 import { EEO } from '../functions/EEO';
 import { CACS } from '../functions/CACS';
@@ -213,7 +214,7 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'FEDMEETINGS', name: 'FOMC Meetings', category: 'Rates & Credit', desc: "The year's scheduled FOMC announcement days from the Federal Reserve Board's calendar, each decided one with the target range that took effect and the move in basis points, from the New York Fed's daily series; numbered links to the Fed path, central banks and money markets.", component: FOMC, example: 'FOMC' },
   { code: 'CENTRALBANKS', name: 'Central Bank Monitor', category: 'Rates & Credit', desc: 'Policy rates, last moves and next decision dates for major central banks against 2-year yields.', component: CENB },
   { code: 'RATEANALYSIS', name: 'Central Bank Rate Analysis', category: 'Rates & Credit', desc: "Each central bank's policy rate from its own data with every move over about four years: the level, the last move, the change over a year, the rises and cuts, the next decision, a step chart and the meeting that decided each move.", component: CBRT },
-  { code: 'BONDSEARCH', name: 'Fixed Income Search', category: 'Rates & Credit', desc: 'Search Treasuries and corporate bonds by issuer, rating, maturity and coupon with yields and spreads (browser model; bond prices have no free source).', component: SRCH, example: 'AAPL CORP', unavailable: 'bond prices have no free source' },
+  { code: 'BONDSEARCH', name: 'Fixed Income Search', category: 'Rates & Credit', desc: 'Search Treasuries and corporate bonds by issuer, rating, maturity and coupon with yields and spreads (browser model; bond prices have no free source).', component: SRCH, example: 'AAPL CORP', unavailable: 'bond prices have no free source', hint: '1 <GO> for Results' },
   { code: 'DEBTPROFILE', name: 'Debt Distribution', category: 'Rates & Credit', desc: "An issuer's bonds by maturity: amounts outstanding, weighted coupon, life and spread (browser model).", component: DDIS, example: 'DEBTPROFILE JPM CORP', unavailable: 'bond data has no free source' },
   { code: 'DEALERQUOTES', name: 'All Quotes', category: 'Rates & Credit', needsSec: true, classes: ['bond'], desc: 'Dealer quote montage for a bond with best bid and offer, yields and sizes (browser model; dealer quotes have no free source).', component: ALLQ, unavailable: 'dealer quotes have no free source', suggested: ['BONDCALC', 'BONDSEARCH'] },
   // Commodities
