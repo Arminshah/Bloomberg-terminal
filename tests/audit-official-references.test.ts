@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const references = require('../scripts/live/audit/references.cjs') as {
   nasdaqOfficialRow: (json: unknown, day: string) => { day: string; open: number; high: number; low: number; close: number; volume: number } | null;
+  officialRowPath: (day: string) => string;
   coverShares: (facts: unknown, day: string, maxAgeDays?: number) => { shares: number; asOf: string; form: string; filed: string; accession: string; cik: number; entity: string } | null;
   splitSince: (bars: { day: string; splitFactor?: number }[], asOf: string, day: string) => boolean;
 };
@@ -14,6 +15,12 @@ const appleHistorical = { data: { tradesTable: { rows: [{ date: '10/29/2026', cl
 describe("Nasdaq's official historical row decides a disputed high or low", () => {
   it('reads the row of the session asked for, as numbers', () => {
     expect(references.nasdaqOfficialRow(appleHistorical, '2026-10-29')).toEqual({ day: '2026-10-29', open: 348, high: 351.43, low: 347.3, close: 348.91, volume: 42_582_130 });
+  });
+
+  it('asks for the week ending on the session, as Nasdaq refuses a range of one day', () => {
+    // fromdate=2026-10-30&todate=2026-10-30 answered HTTP 400 on 31 October 2026; the week to 30 October gave its row.
+    expect(references.officialRowPath('2026-10-30')).toBe('historical?assetclass=stocks&fromdate=2026-10-23&todate=2026-10-30&limit=10');
+    expect(references.officialRowPath('2026-03-02')).toBe('historical?assetclass=stocks&fromdate=2026-02-23&todate=2026-03-02&limit=10');
   });
 
   it('gives nothing for a session not published yet, or a row that cannot be read', () => {

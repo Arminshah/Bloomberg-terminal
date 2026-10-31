@@ -13,18 +13,19 @@ import { nasdaqTicker } from './nasdaq-book';
 
 export const SETTLED_SOURCE = 'Nasdaq historical prices · consolidated volume of all US venues';
 export const SETTLED_OPEN_SOURCE = 'Nasdaq historical prices · official opening price';
+export const SETTLED_RANGE_SOURCE = 'Nasdaq historical prices · official session high and low';
 
 /** Nasdaq's historical rows as sessions (day number) with their volume, open and close; rows it cannot read are left out. */
-export function parseNasdaqDays(text: string): { day: number; volume: number; close: number; open: number }[] {
+export function parseNasdaqDays(text: string): { day: number; volume: number; close: number; open: number; high: number; low: number }[] {
   try {
     const rows = JSON.parse(text)?.data?.tradesTable?.rows;
     if (!Array.isArray(rows)) return [];
-    const out: { day: number; volume: number; close: number; open: number }[] = [];
+    const out: { day: number; volume: number; close: number; open: number; high: number; low: number }[] = [];
     for (const r of rows) {
       const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(r?.date ?? ''));
       const volume = nasdaqNumber(r?.volume);
       if (!m || !(volume > 0)) continue;
-      out.push({ day: dayNum(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2]))), volume: Math.round(volume), close: nasdaqNumber(r?.close), open: nasdaqNumber(r?.open) });
+      out.push({ day: dayNum(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2]))), volume: Math.round(volume), close: nasdaqNumber(r?.close), open: nasdaqNumber(r?.open), high: nasdaqNumber(r?.high), low: nasdaqNumber(r?.low) });
     }
     return out;
   } catch {
@@ -50,7 +51,10 @@ export function nyDay(ms: number): number {
   return dayNum(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day)));
 }
 
-const asked = new Map<string, { at: number; day: number; times: number }>();
+const asked = new Map<string, { at: number; day: number; times: number; failed: number }>();
+/** A request that got no answer is asked again after two minutes, up to five times a session, and is not one of the four. */
+const RETRY_MS = 2 * 60_000;
+const QUICK_RETRIES = 5;
 
 /** The US stocks on screen and in watchlists, the first 60. */
 function wanted(): string[] {
@@ -64,20 +68,23 @@ function wanted(): string[] {
   return [...ids].filter((id) => nasdaqTicker(id) !== null).slice(0, 60);
 }
 
-async function settle(id: string, symbol: string, day: number, active: () => boolean) {
+/** Asks Nasdaq for a session's row and settles it; 'failed' when no answer came (an error, a refusal, a throttle). */
+async function settle(id: string, symbol: string, day: number, active: () => boolean): Promise<'answered' | 'failed'> {
   const api = window.arminDesktop;
-  if (!api?.nasdaq) return;
+  if (!api?.nasdaq) return 'failed';
   try {
     const res = await api.nasdaq('historical', symbol);
-    if (!active()) return;
-    const row = res.text ? parseNasdaqDays(res.text).find((r) => r.day === day) : undefined;
-    if (row && engine.settleVolume(id, day, row.volume, SETTLED_SOURCE, { price: row.open, source: SETTLED_OPEN_SOURCE })) engine.flush([id]);
+    if (!res.text || (res.status !== undefined && res.status !== 200)) return 'failed';
+    if (!active()) return 'answered';
+    const row = parseNasdaqDays(res.text).find((r) => r.day === day);
+    if (row && engine.settleVolume(id, day, row.volume, SETTLED_SOURCE, { price: row.open, source: SETTLED_OPEN_SOURCE }, { high: row.high, low: row.low, source: SETTLED_RANGE_SOURCE })) engine.flush([id]);
+    return 'answered';
   } catch {
-    /* asked again on a later round */
+    return 'failed';
   }
 }
 
-/** Settles the finished session's volume of the US stocks in view: each at most every 30 minutes, four times a session. */
+/** Settles the finished session's volume of the US stocks in view: each at most every 30 minutes, four times a session (a request that got no answer is asked again sooner). */
 export function startSettledVolumes(): () => void {
   if (typeof window === 'undefined' || !window.arminDesktop?.nasdaq) return () => undefined;
   let stopped = false;
@@ -96,8 +103,14 @@ export function startSettledVolumes(): () => void {
       const a = asked.get(id);
       if (a && a.day === day && (a.times >= 4 || now - a.at < 30 * 60_000)) continue;
       if (!settleDue(day, now)) continue;
-      asked.set(id, { at: now, day, times: a && a.day === day ? a.times + 1 : 1 });
-      void settle(id, nasdaqTicker(id)!, day, () => !stopped);
+      const failed = a && a.day === day ? a.failed : 0;
+      asked.set(id, { at: now, day, times: a && a.day === day ? a.times + 1 : 1, failed });
+      void settle(id, nasdaqTicker(id)!, day, () => !stopped).then((outcome) => {
+        const e = asked.get(id);
+        if (outcome !== 'failed' || !e || e.day !== day || e.failed >= QUICK_RETRIES) return;
+        // Not an attempt: a throttled or refused request at start-up must not leave a provisional volume for half an hour.
+        asked.set(id, { at: e.at - 30 * 60_000 + RETRY_MS, day, times: e.times - 1, failed: e.failed + 1 });
+      });
     }
   };
   // A newly opened line or its first history must not wait for the minute poll.

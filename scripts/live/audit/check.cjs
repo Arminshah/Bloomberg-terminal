@@ -315,7 +315,7 @@ async function equity(t) {
       // session; until that row is published the figure stays unresolved, failed by neither source alone.
       const extremes = rows.slice(firstComparison).filter((row) => row.status === 'FAIL' && (row.field === 'High' || row.field === 'Low'));
       if (extremes.length) {
-        const official = await nasdaq(t, `historical?assetclass=stocks&fromdate=${d.day}&todate=${d.day}&limit=5`);
+        const official = await nasdaq(t, references.officialRowPath(d.day));
         const row = official.ok ? references.nasdaqOfficialRow(official.json, d.day) : null;
         for (const failure of extremes) {
           rows.splice(rows.indexOf(failure), 1);
