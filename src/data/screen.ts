@@ -67,7 +67,7 @@ export const SCREEN_FIELDS: readonly ScreenField[] = [
   { id: 'opMargin', label: 'Operating margin', kind: 'num', category: 'Profitability', unit: '%', periods: ['ltm', 'lq', 'lfy'], from: { app: "the period's operating income over its revenue", us: OWN } },
   { id: 'netMargin', label: 'Net margin', kind: 'num', category: 'Profitability', unit: '%', periods: ['ltm', 'lq', 'lfy'], from: { app: "the period's net income over its revenue", us: OWN } },
   { id: 'gm', label: 'Gross margin', kind: 'num', category: 'Profitability', unit: '%', periods: ['lfy'], from: { ftse: "gross profit over revenue in the latest fiscal year of Yahoo Finance's annual statements; none for a company that reports no gross profit (banks, insurers, investment trusts)" } },
-  { id: 'roce', label: 'Return on common equity', kind: 'num', category: 'Profitability', unit: '%', periods: ['lfy'], from: { ftse: "net income to common shareholders over the average of common equity at the start and end of the latest fiscal year, from Yahoo Finance's annual statements; none without the year before's equity, not meaningful when the average is not positive" } },
+  { id: 'roce', label: 'Return on common equity', kind: 'num', category: 'Profitability', unit: '%', periods: ['lfy'], from: { ftse: "net income to common shareholders over the average of common equity at the start and end of the latest fiscal year, from Yahoo Finance's annual statements; none without the year before's equity, not meaningful when the equity at either end is not positive" } },
   { id: 'beta', label: 'Beta', kind: 'num', category: 'Risk and return', from: { app: 'two years of weekly returns against the local index, as BETA works it out', us: OWN } },
   { id: 'ytd', label: 'YTD change', kind: 'num', category: 'Risk and return', unit: '%', from: { app: 'the price change since the end of last year', us: OWN, ftse: "the price change since last year's final close, from Yahoo Finance's daily closes" } },
   { id: 'tr', label: 'Total return YTD', kind: 'num', category: 'Risk and return', unit: '%', from: { ftse: "the return since last year's final close with each dividend reinvested at the close of its ex-date, from Yahoo Finance's daily closes and dividends" } },
@@ -490,11 +490,13 @@ export function grossMargin(grossProfit: number, revenue: number): number | stri
 }
 
 /** Return on common equity, %: net income to common shareholders over the average of the year's opening and closing
- * common equity. NaN without any of the three; not meaningful when the average is not positive. */
+ * common equity. NaN without any of the three; not meaningful when the equity at either end is not positive. */
 export function returnOnCommonEquity(netIncome: number, equityEnd: number, equityStart: number): number | string {
   if (![netIncome, equityEnd, equityStart].every(Number.isFinite)) return NaN;
-  const average = (equityEnd + equityStart) / 2;
-  return average > 0 ? (netIncome / average) * 100 : NM;
+  // Equity that crosses zero during the year leaves an average that measures nothing: Rolls-Royce's turned positive
+  // in 2025, and its small average gave a return of 644% on 31 October 2026.
+  if (equityStart <= 0 || equityEnd <= 0) return NM;
+  return (netIncome / ((equityEnd + equityStart) / 2)) * 100;
 }
 
 /**
