@@ -4,6 +4,8 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const references = require('../scripts/live/audit/references.cjs') as {
   nasdaqOfficialRow: (json: unknown, day: string) => { day: string; open: number; high: number; low: number; close: number; volume: number } | null;
+  coverShares: (facts: unknown, day: string, maxAgeDays?: number) => { shares: number; asOf: string; form: string; filed: string; accession: string; cik: number; entity: string } | null;
+  splitSince: (bars: { day: string; splitFactor?: number }[], asOf: string, day: string) => boolean;
 };
 
 /** Nasdaq's historical answer for Apple, 29 October 2026, as read on 31 October (the 30 October row not yet published). */
@@ -20,5 +22,41 @@ describe("Nasdaq's official historical row decides a disputed high or low", () =
     expect(references.nasdaqOfficialRow({ data: { tradesTable: { rows: [{ date: '10/29/2026', high: 'N/A', low: '$347.30' }] } } }, '2026-10-29')).toBeNull();
     expect(references.nasdaqOfficialRow({ data: { tradesTable: { rows: [{ date: '10/29/2026', high: '$340.00', low: '$347.30' }] } } }, '2026-10-29')).toBeNull();
     expect(references.nasdaqOfficialRow({ data: null }, '2026-10-29')).toBeNull();
+  });
+});
+
+describe('the market value from the SEC cover count', () => {
+  const facts = (shares: { end: string; val: number; form?: string; filed?: string; accn?: string }[], cik = 1045810, entityName = 'NVIDIA CORP') => ({
+    cik,
+    entityName,
+    facts: { dei: { EntityCommonStockSharesOutstanding: { units: { shares: shares.map((x) => ({ form: '10-Q', filed: '2026-08-26', accn: '0001045810-26-000000', ...x })) } } } },
+  });
+
+  it("takes the latest cover count on or before the session: NVIDIA's 24.1 billion of 21 August 2026", () => {
+    const f = facts([{ end: '2026-05-15', val: 24_200_000_000, filed: '2026-05-20' }, { end: '2026-08-21', val: 24_100_000_000 }]);
+    expect(references.coverShares(f, '2026-10-30')).toMatchObject({ shares: 24_100_000_000, asOf: '2026-08-21', form: '10-Q', cik: 1045810, entity: 'NVIDIA CORP' });
+    // 24.1 billion × 204.64 is the market value the app showed (about $4.93 trillion), not Nasdaq's $5.149 trillion.
+    expect((24_100_000_000 * 204.64) / 1e12).toBeCloseTo(4.932, 3);
+    // A cover dated after the session is not used for it.
+    expect(references.coverShares(f, '2026-08-20')).toMatchObject({ asOf: '2026-05-15' });
+  });
+
+  it("uses the holding company's cover when the SEC files Exxon under it: 4,111,911,960 shares", () => {
+    const f = facts([{ end: '2026-06-30', val: 4_111_911_960, filed: '2026-08-03', accn: '0000034088-26-000093' }], 2115436, 'ExxonMobil Holdings Corp');
+    const c = references.coverShares(f, '2026-10-30')!;
+    expect(c).toMatchObject({ shares: 4_111_911_960, entity: 'ExxonMobil Holdings Corp', accession: '0000034088-26-000093' });
+    expect(c.shares * 187.25).toBe(769_955_514_510);
+  });
+
+  it('gives no count for several share classes on one date, a cover too old, or none at all', () => {
+    expect(references.coverShares(facts([{ end: '2026-07-20', val: 5_800_000_000 }, { end: '2026-07-20', val: 860_000_000 }]), '2026-10-30')).toBeNull();
+    expect(references.coverShares(facts([{ end: '2026-04-01', val: 24_100_000_000 }]), '2026-10-30')).toBeNull();
+    expect(references.coverShares({ facts: {} }, '2026-10-30')).toBeNull();
+  });
+
+  it('notices a split between the cover date and the session', () => {
+    const bars = [{ day: '2026-08-20', splitFactor: 1 }, { day: '2026-09-10', splitFactor: 4 }, { day: '2026-10-30', splitFactor: 1 }];
+    expect(references.splitSince(bars, '2026-08-21', '2026-10-30')).toBe(true);
+    expect(references.splitSince(bars, '2026-09-10', '2026-10-30')).toBe(false);
   });
 });

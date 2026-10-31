@@ -197,4 +197,26 @@ function nasdaqOfficialRow(json, day) {
   return Number.isFinite(out.high) && Number.isFinite(out.low) && out.high >= out.low ? out : null;
 }
 
-module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics, capturedQuote, withQuoteCapture, withProfileReturnCapture, nasdaqOfficialRow };
+/**
+ * The shares on the company's latest SEC cover (dei:EntityCommonStockSharesOutstanding) dated on or before `day`: null
+ * when there is none within `maxAgeDays`, or when the cover gives more than one figure for that date (several share
+ * classes, which a single count cannot stand for).
+ */
+function coverShares(companyFacts, day, maxAgeDays = 150) {
+  const list = companyFacts?.facts?.dei?.EntityCommonStockSharesOutstanding?.units?.shares;
+  if (!Array.isArray(list) || !/^\d{4}-\d{2}-\d{2}$/.test(String(day))) return null;
+  const dated = list.filter((x) => typeof x?.end === 'string' && x.end <= day && Number(x.val) > 0);
+  const asOf = dated.map((x) => x.end).sort().at(-1);
+  if (!asOf || (Date.parse(day) - Date.parse(asOf)) / 86_400_000 > maxAgeDays) return null;
+  const same = dated.filter((x) => x.end === asOf);
+  if (new Set(same.map((x) => Number(x.val))).size !== 1) return null;
+  const latest = same.sort((a, b) => String(b.filed).localeCompare(String(a.filed)))[0];
+  return { shares: Number(latest.val), asOf, form: latest.form, filed: latest.filed, accession: latest.accn, cik: companyFacts.cik, entity: companyFacts.entityName };
+}
+
+/** Whether Tiingo's bars record a split after the cover date up to and including the session (a share count then stale). */
+function splitSince(bars, asOf, day) {
+  return bars.some((x) => x.day > asOf && x.day <= day && Number.isFinite(Number(x.splitFactor)) && Number(x.splitFactor) !== 1);
+}
+
+module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics, capturedQuote, withQuoteCapture, withProfileReturnCapture, nasdaqOfficialRow, coverShares, splitSince };

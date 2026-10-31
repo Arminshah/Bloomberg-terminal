@@ -189,7 +189,14 @@ async function quoteDiagnostics(ticker, shownDay, bars) {
   };
 }
 let secTickers;
+const secFactsKept = new Map();
 async function secFacts(t) {
+  if (secFactsKept.has(t)) return secFactsKept.get(t);
+  const answer = await secFactsFetch(t);
+  secFactsKept.set(t, answer);
+  return answer;
+}
+async function secFactsFetch(t) {
   const ua = env('SEC_USER_AGENT');
   if (!ua) return { kind: 'no-key', detail: 'SEC_USER_AGENT is not set' };
   const h = { 'User-Agent': ua, Accept: 'application/json' };
@@ -274,6 +281,9 @@ async function equity(t) {
   }
   const summary = await nasdaq(t, 'summary?assetclass=stocks');
   const summaryRetrievedAt = Date.now();
+  // The finished session's Tiingo close and bars, for the market value from the SEC cover count.
+  let capClose = null;
+  let dailyBars = [];
   // The session the screen shows: a date when the session is over, a time while it trades.
   const shownDay = screenDay(after(bq, 'Last update'));
   if (!bars.ok) {
@@ -314,6 +324,8 @@ async function equity(t) {
           else add({ status: 'INCOMPLETE', area: 'quote', item: t, field: failure.field, app: failure.app, ref: failure.ref, refName: failure.refName, detail: `${tiingoSaid}; Nasdaq's official historical row for ${d.day} is ${official.ok ? 'not published yet' : `unavailable (${official.kind})`}, so the figure is not decided.` });
         }
       }
+      capClose = { close: d.close, day: d.day };
+      dailyBars = b;
     }
     // The previous close: the session before the one shown (today's, while it trades).
     const ref = sessionOver ? (at > 0 ? b[at - 1] : undefined) : b.filter((x) => x.day < iso(now)).pop();
@@ -367,12 +379,29 @@ async function equity(t) {
       else if (yearAgo) compare('profile', t, '12M total return', num(tr), (last.adjClose / yearAgo.adjClose - 1) * 100, TOLERANCE.totalReturn, `Tiingo adjusted ${yearAgo.day} to ${last.day}`);
     }
   }
-  if (!summary.ok) blocked('quote', t, 'Market cap', summary, 'Nasdaq summary');
-  else {
+  // The market value against the company's own share count: the latest SEC cover count (one class, at most 150
+  // days old, no split since) times Tiingo's close of the session shown. Nasdaq's market value is kept beside it; it
+  // decides only when the SEC count cannot be used.
+  const capShown = shown(after(bq, 'Market cap'), big);
+  const facts = capClose ? await secFacts(t) : null;
+  const cover = facts?.ok ? references.coverShares(facts.json, capClose.day) : null;
+  const primary = cover && !references.splitSince(dailyBars, cover.asOf, capClose.day) ? cover : null;
+  let primaryPassed = false;
+  if (primary) {
     const index = rows.length;
-    compare('quote', t, 'Market cap', shown(after(bq, 'Market cap'), big), num(summary.json.data.summaryData?.MarketCap?.value), TOLERANCE.marketCap, 'Nasdaq market cap');
+    compare('quote', t, 'Market cap', capShown, primary.shares * capClose.close, TOLERANCE.marketCap, `SEC cover shares × Tiingo close ${capClose.day}`, `${primary.shares.toLocaleString('en-US')} shares on the cover of ${primary.entity} (CIK ${primary.cik}), ${primary.form} filed ${primary.filed}, as of ${primary.asOf}, accession ${primary.accession}; close ${capClose.close}.`);
+    primaryPassed = rows[index]?.status === 'PASS';
+  }
+  if (!summary.ok) {
+    if (!primary) blocked('quote', t, 'Market cap', summary, 'Nasdaq summary');
+  } else {
+    const index = rows.length;
+    const nasdaqCap = num(summary.json.data.summaryData?.MarketCap?.value);
+    compare('quote', t, primary ? 'Market cap (Nasdaq)' : 'Market cap', primary && capShown === FLAGGED_ON_SCREEN ? NaN : capShown, nasdaqCap, TOLERANCE.marketCap, 'Nasdaq market cap', primary && capShown === FLAGGED_ON_SCREEN ? 'the screen flags this figure; the SEC cover comparison above carries it' : undefined);
     const comparison = rows[index];
-    if (comparison.status === 'FAIL') Object.assign(comparison, assurance.sanitize(references.withQuoteCapture(comparison, screenSnapshot(`${t} US Equity BQ`), { source: 'Nasdaq summary', retrievedAt: summaryRetrievedAt, marketCap: num(summary.json.data.summaryData?.MarketCap?.value), price: num(summary.json.data.primaryData?.lastSalePrice) })));
+    if (comparison.status === 'FAIL' && primaryPassed) {
+      Object.assign(comparison, { status: 'SKIP', detail: `Nasdaq's market value is beyond the tolerance of the screen's, which agrees with the SEC cover count × close above; Nasdaq is kept for reference and does not decide.` });
+    } else if (comparison.status === 'FAIL') Object.assign(comparison, assurance.sanitize(references.withQuoteCapture(comparison, screenSnapshot(`${t} US Equity BQ`), { source: 'Nasdaq summary', retrievedAt: summaryRetrievedAt, marketCap: nasdaqCap, price: num(summary.json.data.primaryData?.lastSalePrice) })));
   }
   for (const failure of rows.slice(quoteStart).filter((row) => row.area === 'quote' && row.status === 'FAIL' && !Object.hasOwn(row, 'capturedQuote'))) {
     Object.assign(failure, assurance.sanitize(references.withQuoteCapture(failure, screenSnapshot(`${t} US Equity BQ`))));
