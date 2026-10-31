@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { complete, describeSearch, matchesAfterEach, runSearch, treasuryInstruments, treasuryName, type Instrument } from '../src/data/bond-search';
+import { complete, describeSearch, issuedSinceStatement, matchesAfterEach, runSearch, treasuryInstruments, treasuryName, type Instrument } from '../src/data/bond-search';
 import { initialCrits } from '../src/functions/SRCH';
 
 const NOW = Date.UTC(2026, 9, 31);
@@ -54,5 +54,27 @@ describe("SRCH's universe and starting criteria", () => {
   it('starts "AAPL CORP" on the demo with corporates by that issuer, and "T GOVT" with all Treasuries', () => {
     expect(initialCrits('AAPL CORP', undefined, false)).toEqual([{ field: 'type', boundary: 'include', value: 'Corp' }, { field: 'issuer', boundary: 'include', value: 'AAPL' }]);
     expect(initialCrits('T GOVT', undefined, true)).toEqual([]);
+  });
+});
+
+describe("SRCH's notes and bonds issued since the statement", () => {
+  const listed: Instrument[] = [{ id: '91282CRL7', name: 'T 3.875 09/15/29', cusip: '91282CRL7', type: 'Notes', issuer: 'US Treasury', coupon: 3.875, maturity: '2029-09-15', amountMM: 69_000 }];
+  const fed = [
+    { cusip: '91282CRL7', type: 'Notes', rate: 3.875, maturity: '2029-09-15' },
+    { cusip: '91282CSA0', type: 'Notes', rate: 4.875, maturity: '2029-10-15' },
+    { cusip: '912797AA1', type: 'Bills', rate: 0, maturity: '2026-11-03' },
+    { cusip: '912828AA1', type: 'TIPS', rate: 0.125, maturity: '2051-02-15' },
+  ];
+
+  it('adds the notes and bonds FedInvest prices that the statement does not list yet, without an amount', () => {
+    const since = issuedSinceStatement(listed, fed);
+    expect(since).toEqual([{ id: '91282CSA0', name: 'T 4.875 10/15/29', cusip: '91282CSA0', type: 'Notes', issuer: 'US Treasury', coupon: 4.875, maturity: '2029-10-15', amountMM: NaN }]);
+  });
+
+  it('finds the new 3-year by maturity, and leaves it out of a search on amount outstanding', () => {
+    const all = [...listed, ...issuedSinceStatement(listed, fed)];
+    const now = Date.parse('2026-10-31T00:00:00Z');
+    expect(runSearch(all, [{ field: 'maturity', boundary: 'between', value: '2.9', to: '3.1' }], now).map((i) => i.cusip)).toContain('91282CSA0');
+    expect(runSearch(all, [{ field: 'amount', boundary: 'gt', value: '1000' }], now).map((i) => i.cusip)).toEqual(['91282CRL7']);
   });
 });

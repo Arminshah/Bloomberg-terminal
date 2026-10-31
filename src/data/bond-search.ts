@@ -121,6 +121,21 @@ export function treasuryName(rate: number, maturity: string): string {
   return `T ${cpn} ${m}/${d}/${y.slice(2)}`;
 }
 
+/**
+ * The notes and bonds on FedInvest's price list that the statement does not list yet (issued after its date), with no
+ * amount outstanding until the next statement gives one.
+ */
+export function issuedSinceStatement(listed: Instrument[], rows: Iterable<{ cusip: string; type: string; rate: number; maturity: string }>): Instrument[] {
+  const have = new Set(listed.map((i) => i.cusip));
+  const out: Instrument[] = [];
+  for (const r of rows) {
+    if ((r.type !== 'Notes' && r.type !== 'Bonds') || have.has(r.cusip)) continue;
+    have.add(r.cusip);
+    out.push({ id: r.cusip, name: treasuryName(r.rate, r.maturity), cusip: r.cusip, type: r.type, issuer: 'US Treasury', coupon: r.rate, maturity: r.maturity, amountMM: NaN });
+  }
+  return out;
+}
+
 /** Every marketable Treasury on the statement as an instrument. */
 export function treasuryInstruments(debt: PublicDebt): Instrument[] {
   return debt.securities.map((s) => ({

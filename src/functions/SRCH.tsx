@@ -7,7 +7,7 @@ import { exportActions } from '../components/ExportActions';
 import { fmtDay, fmtInt, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import type { SecurityDef } from '../data/types';
-import { BOND_FIELDS, BOUNDARY_LABEL, boundariesFor, describeSearch, matchesAfterEach, RATINGS, runSearch, treasuryInstruments, type BondCrit, type BondField, type Instrument } from '../data/bond-search';
+import { BOND_FIELDS, BOUNDARY_LABEL, boundariesFor, describeSearch, matchesAfterEach, RATINGS, issuedSinceStatement, runSearch, treasuryInstruments, type BondCrit, type BondField, type Instrument } from '../data/bond-search';
 import { fiscalAvailable, parseMspd, useFiscal } from '../data/live/fiscal';
 import { fedinvest, fedInvestAvailable, loadFedInvest, treasuryIdByCusip } from '../data/live/fedinvest';
 import { execute } from '../terminal/exec';
@@ -74,15 +74,17 @@ export function SRCH({ route, sec }: FnProps) {
   const real = engine.realOnly;
   const { mspd } = useFiscal();
   const debt = useMemo(() => (real && mspd?.state === 'ok' && mspd.text ? parseMspd(mspd.text) : null), [real, mspd]);
-  const universe = useMemo<Instrument[]>(() => (real ? (debt && !('error' in debt) ? treasuryInstruments(debt) : []) : demoInstruments()), [real, debt]);
+  // The results' prices and links, and the notes and bonds issued since the statement: FedInvest's Treasuries.
+  const fed = fedinvest.use((x) => x);
+  useEffect(() => {
+    if (real && fedInvestAvailable() && fed.state === 'off') void loadFedInvest();
+  }, [real, fed.state]);
+  const listed = useMemo<Instrument[]>(() => (real ? (debt && !('error' in debt) ? treasuryInstruments(debt) : []) : demoInstruments()), [real, debt]);
+  const since = useMemo(() => (real && listed.length && fed.latest ? issuedSinceStatement(listed, fed.latest.rows.values()) : []), [real, listed, fed.latest]);
+  const universe = useMemo(() => (since.length ? [...listed, ...since] : listed), [listed, since]);
   const [crits, setCrits] = useState<BondCrit[]>(() => initialCrits(route.args, sec, real));
   const [tab, setTab] = useState(41);
   const [page, setPage] = useState<'criteria' | 'results'>('criteria');
-  // The results' prices and links: FedInvest's Treasuries, loaded when the results are first shown.
-  const fed = fedinvest.use((x) => x);
-  useEffect(() => {
-    if (real && page === 'results' && fedInvestAvailable() && fed.state === 'off') void loadFedInvest();
-  }, [real, page, fed.state]);
   const secOf = (i: Instrument) => i.secId ?? (i.cusip ? treasuryIdByCusip(i.cusip) : undefined);
   // Back steps from the results to the criteria, from the mouse's button and the keyboard's alike (as EQS).
   const shownRoute = terminal.use((st) => currentRoute(st, panel));
@@ -176,7 +178,7 @@ export function SRCH({ route, sec }: FnProps) {
               { key: 'x', label: 'Price', num: true, render: (i: Instrument) => { const id = secOf(i); return id ? <LivePx id={id} /> : ''; }, sort: (i: Instrument) => { const id = secOf(i); return id ? engine.quote(id)?.last ?? 0 : 0; } },
             ]}
           />
-          {real ? <p className="pad-s muted">Amounts are the statement&apos;s outstanding amounts at its date ({fmtDay(Date.parse(`${asOf}T00:00:00Z`))}), all issues of a CUSIP together. {fed.latest ? `Prices: TreasuryDirect FedInvest's Sell prices of ${fmtDay(Date.parse(`${fed.latest.date}T00:00:00Z`))} for notes and bonds (bills, TIPS and FRNs have none here); a row opens its Treasury.` : fed.state === 'loading' ? "Loading the Treasury's prices from FedInvest…" : fed.state === 'error' ? `FedInvest unavailable: ${fed.error}` : ''}</p> : null}
+          {real ? <p className="pad-s muted">Amounts are the statement&apos;s outstanding amounts at its date ({fmtDay(Date.parse(`${asOf}T00:00:00Z`))}), all issues of a CUSIP together.{since.length ? ` ${fmtInt(since.length)} notes and bonds issued since then come from FedInvest's list, with no amount until the next statement.` : ''} {fed.latest ? `Prices: TreasuryDirect FedInvest's Sell prices of ${fmtDay(Date.parse(`${fed.latest.date}T00:00:00Z`))} for notes and bonds (bills, TIPS and FRNs have none here); a row opens its Treasury.` : fed.state === 'loading' ? "Loading the Treasury's prices from FedInvest…" : fed.state === 'error' ? `FedInvest unavailable: ${fed.error}` : ''}</p> : null}
         </>
       ) : tab === 43 ? (
         <div className="srch-examples">
@@ -200,7 +202,7 @@ export function SRCH({ route, sec }: FnProps) {
           </div>
           <div className="srch-line">
             <span className="amber">Sources</span>
-            <span className="white">{real ? 'Monthly Statement of the Public Debt (Treasury Fiscal Data)' : 'Simulated'}</span>
+            <span className="white">{real ? `Monthly Statement of the Public Debt (Treasury Fiscal Data)${since.length ? '; notes and bonds issued since: TreasuryDirect FedInvest' : ''}` : 'Simulated'}</span>
           </div>
           {status ? <p className="amber" role="status">{status}</p> : null}
           <table className="tbl srch-crit">

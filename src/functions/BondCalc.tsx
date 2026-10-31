@@ -109,7 +109,7 @@ export function BondCalc({ sec }: FnProps) {
   }) : [];
   const points = r ? Array.from({ length: 41 }, (_, k) => ({ x: r.yield - 2 + k / 10, y: cleanFromYield(terms, settle, r.yield - 2 + k / 10) })).filter((p) => Number.isFinite(p.y)) : [];
   const rows = () => [
-    ['Source', example ? 'Calculation example, not market data' : 'User-entered contract terms and price/yield'],
+    ['Source', example ? 'Calculation example, not market data' : priced && !edited ? `Coupon and maturity of ${sec!.ticker}; price: TreasuryDirect FedInvest's Sell price of ${fmtDay(Date.parse(priced.date))}` : 'User-entered contract terms and price/yield'],
     ['Convention', `${work ? 'Fixed-rate bond with the calls typed in, each a redemption without option value' : 'Regular fixed-rate bullet'}; ${basisLabel}; unadjusted dates`],
     ['Day count', form.basis], ['Trade date', form.lag === 'manual' ? '' : form.trade], ['Settlement lag', lagLabel],
     ['Coupon %', terms.coupon], ['Maturity', form.maturity], ['Settlement', settleText], ['Frequency', terms.freq], ['Face', face],
