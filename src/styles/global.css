@@ -1577,6 +1577,21 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .seg-tg button:disabled { color: #777; }
 .seg-fold { display: inline-block; width: 14px; margin-right: 4px; padding: 0; border: 0; background: none; color: #e8e8e8; text-align: center; cursor: pointer; }
 .seg-tbl { margin-bottom: 10px; }
+/* EE (TE04 06:27): the control line, 4)'s period tabs (the chosen one blue), the numbered rows with the first selected. */
+.ee-ctl { display: inline-flex; align-items: center; gap: 7px; margin-left: 6px; white-space: nowrap; }
+.ee-tabs { display: inline-flex; gap: 2px; }
+.ee-tab { border: 0; padding: 0 8px; background: #3a3a3a; color: #e8e8e8; font-size: var(--fs-s); white-space: nowrap; }
+.ee-tab b { color: inherit; font-weight: 500; }
+.ee-tab.on { background: #0451b7; color: #fff; }
+.ee-tbl td:first-child { white-space: nowrap; }
+.ee-tbl .ee-n { color: #b0b0b0; font-weight: 500; margin-right: 2px; }
+.ee-tbl tbody tr { cursor: pointer; }
+.ee-tbl tbody tr.sel td { background: #0f3357; }
+.ee-news { padding: 4px 6px; }
+.ee-news-hl { display: block; color: var(--white); text-decoration: none; margin-bottom: 4px; }
+.ee-news-hl:hover { text-decoration: underline; }
+.ee-news-sum { margin: 0 0 4px; color: var(--amber); display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+.ee-news-src { font-size: var(--fs-s); }
 .fa-set { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--white); }
 .fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid #1d1d1d; background: #000; }
 .fa-bottom > button { background: #434142; border: 0; color: var(--white); padding: 0 12px; }

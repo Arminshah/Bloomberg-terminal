@@ -164,6 +164,8 @@ export interface YahooEarnings {
   following: YahooAhead | null;
   /** How each period's consensus changed over 90 days; empty when Yahoo gives none. */
   trends?: EstimateTrend[];
+  /** The analysts' long-term EPS growth a year, Yahoo's "next 5 years" (0.12 is 12%); NaN when it gives none. */
+  ltg?: number;
 }
 
 /** The earningsTrend rows that carry a consensus history. */
@@ -267,7 +269,7 @@ export function parseYahooEarnings(answer: unknown, symbol?: string, now = Date.
     const call = number(cal?.earningsCallDate?.[0]) * 1000;
     next.dateEstimated = cal?.isEarningsDateEstimate === true || !(call > 0 && call >= date - DAY_MS);
   }
-  return { data: { past, revCcy: ccyOf(row.earnings?.financialCurrency), next, following, trends: parseEstimateTrends(trend).map((t) => ({ ...definition, basis: trendBasis, ...t })) } };
+  return { data: { past, revCcy: ccyOf(row.earnings?.financialCurrency), next, following, trends: parseEstimateTrends(trend).map((t) => ({ ...definition, basis: trendBasis, ...t })), ltg: number(trend.find((x) => x?.period === '+5y')?.growth) } };
 }
 
 // ------------------------------------------------- estimates kept by the app
