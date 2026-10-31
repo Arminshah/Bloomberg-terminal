@@ -568,6 +568,22 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'jpx',
+    name: 'Japan Exchange Group (settlement prices, open interest)',
+    serves: "INDEXFUTURES: the Nikkei 225 future on the Osaka Exchange (NK1) at the front month's settlement, against the previous Tokyo trading day's when the app read that day, with the month's volume and open interest and the index close",
+    dataClass: 'Exchange data, end of day: the settlement; no open, high or low',
+    policy: 'enabled',
+    limit: '10/min',
+    terms: "JPX's terms of use reserve its rights and prohibit \"the collection of data or secondary use of information from this website for commercial purposes\" without permission; this is the owner's private display. robots.txt allows everything. Only the latest day of each file is online, so the app keeps each day it reads on disk (the last 40) and reads a day's files once.",
+    docs: [
+      { label: 'Settlement prices for futures and options', url: 'https://www.jpx.co.jp/english/markets/derivatives/settlement-price/index.html' },
+      { label: 'Trading volume and open interest', url: 'https://www.jpx.co.jp/english/markets/derivatives/trading-volume/index.html' },
+      { label: 'Terms of use', url: 'https://www.jpx.co.jp/english/term-of-use/index.html' },
+    ],
+    checked: '2026-10-31',
+    desktop: true,
+  },
+  {
     id: 'asic',
     name: 'ASIC (short position reports)',
     serves: "SHORTINTEREST for ASX stocks: each product's reported short positions, the product in issue and the share short, daily",

@@ -11,6 +11,7 @@ import { startTreasury } from '../data/live/ust';
 import { startPolicyRates } from '../data/live/policy';
 import { startGovYields } from '../data/live/govyields';
 import { startEurex } from '../data/live/eurex';
+import { startJpx } from '../data/live/jpx';
 import { startFred } from '../data/live/fred';
 import { startOfficialNews } from '../data/live/officialnews';
 import { startKraken } from '../data/live/kraken';
@@ -196,6 +197,7 @@ export function startBackground(): () => void {
   stops.push(startPolicyRates());
   stops.push(startGovYields());
   stops.push(startEurex());
+  stops.push(startJpx());
   stops.push(startFred());
   return () => stops.forEach((s) => s());
 }

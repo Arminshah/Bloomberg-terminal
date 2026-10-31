@@ -4,6 +4,7 @@ import { dividendYield, riskFreeRate } from './options';
 import { yahooQuotes } from './live/yahoo';
 import { frontContract } from './live/yquotes';
 import { eurexFront } from './live/eurex';
+import { jpxFront } from './live/jpx';
 import type { SecurityDef } from './types';
 
 /**
@@ -13,13 +14,15 @@ import type { SecurityDef } from './types';
  * (from its ETF). Fair value is a model: F = S x e^((r - q) x days / 365).
  * Eurex's Euro Stoxx 50 and DAX lines take their contract from Eurex's
  * statistics and the euro rate the app has (the ECB's deposit rate); the DAX is
- * a performance index, its dividends reinvested, so q is 0 for it.
+ * a performance index, its dividends reinvested, so q is 0 for it. The Nikkei
+ * 225 line (NK1) takes its contract from JPX's settlement and open interest
+ * files, against the index close JPX settles with.
  */
 export function realFutureContract(sec: SecurityDef) {
   const f = sec.fut!;
   const und = engine.get(f.underlying)!;
   const uq = engine.quote(und.id)!;
-  const ex = eurexFront.get(sec.id);
+  const ex = eurexFront.get(sec.id) ?? jpxFront.get(sec.id);
   const fc = ex ? undefined : frontContract(yahooQuotes.get(sec.id));
   const root = sec.ticker.replace(/1$/, '').trim();
   const expiry = ex ? Math.floor(Date.parse(`${ex.expiry}T00:00:00Z`) / DAY_MS) : fc ? Math.floor(fc.expiry / DAY_MS) : NaN;

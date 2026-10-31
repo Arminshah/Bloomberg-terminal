@@ -447,6 +447,19 @@ net.fetch = async (input, init) => {
     }
   }
   // With fixtures.ecbFx, the ECB's reference rates as published for 25 to 30 June 2026 (tests/fixtures/ecb-exr-2026-06.csv).
+  // JPX's settlement and open interest pages and the files they name, synthetic, in JPX's layouts.
+  if (fixtures.jpx && url.hostname === 'www.jpx.co.jp') {
+    fixtures.calls.jpx = [...(fixtures.calls.jpx ?? []), url.pathname];
+    const files = {
+      '/english/markets/derivatives/settlement-price/index.html': ['settlement-page-synthetic.html', 'text/html'],
+      '/english/markets/derivatives/trading-volume/index.html': ['oi-page-synthetic.html', 'text/html'],
+      '/english/markets/derivatives/settlement-price/tvdivq00000014l6-att/rb_e20261030.csv': ['rb_e20261030-synthetic.csv', 'text/csv'],
+      '/english/markets/derivatives/trading-volume/vk0khi000002j00k-att/20261030open_interest_e.xlsx': ['open_interest-20261030-synthetic.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    };
+    const hit = files[url.pathname];
+    if (hit) return new Response(fs.readFileSync(path.join(__dirname, `../tests/fixtures/jpx/${hit[0]}`)), { status: 200, headers: { 'Content-Type': hit[1] } });
+    return new Response('Not Found', { status: 404 });
+  }
   // The Philadelphia Fed's survey page and Q3 2026 release page in their layout, with made-up figures.
   if (fixtures.philfed && url.hostname === 'www.philadelphiafed.org') {
     fixtures.calls.philfed = [...(fixtures.calls.philfed ?? []), url.pathname];

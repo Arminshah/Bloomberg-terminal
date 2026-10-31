@@ -8,6 +8,7 @@ import { officialAvailable } from './official';
 import { iexOwns } from './iex-engine';
 import { fedinvestOwns } from './fedinvest';
 import { EUREX_IDS, eurexAvailable } from './eurex';
+import { JPX_IDS, jpxAvailable } from './jpx';
 
 /**
  * Which securities the desktop app has a real source for. Everything else is
@@ -21,6 +22,7 @@ export function hasRealSource(d: SecurityDef): boolean {
   if (treasuryAvailable() && TREASURY_IDS.has(d.id)) return true;
   if (officialAvailable() && OFFICIAL_YIELD_IDS.has(d.id)) return true;
   if (eurexAvailable() && EUREX_IDS.has(d.id)) return true;
+  if (jpxAvailable() && JPX_IDS.has(d.id)) return true;
   return false;
 }
 

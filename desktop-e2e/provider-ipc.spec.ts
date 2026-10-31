@@ -69,6 +69,7 @@ interface Fixtures {
   ecbSpf?: boolean;
   blsSchedule?: boolean;
   philfed?: boolean;
+  jpx?: boolean;
   centralBankRates?: boolean;
   policyDecisions?: boolean;
   policyDown?: boolean;
@@ -79,7 +80,7 @@ interface Fixtures {
   treasuryCurve?: boolean;
   spdr?: boolean;
   asic?: boolean;
-  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; fedinvest?: { date: string; token: string | null }[]; treasuryDirect?: string[]; ecbSpf?: string[]; blsSchedule?: string[]; philfed?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; fedinvest?: { date: string; token: string | null }[]; treasuryDirect?: string[]; ecbSpf?: string[]; blsSchedule?: string[]; philfed?: string[]; jpx?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -667,6 +668,31 @@ test("the BLS's release schedule is asked only with the owner's SEC_USER_AGENT c
   expect(answer.status).toBe(200);
   expect(answer.text).toContain('SUMMARY:Employment Situation');
   expect((await calls(app)).blsSchedule).toEqual(['Armin Desktop Test desktop-fixture@example.invalid']);
+});
+
+test("INDEXFUTURES shows the Nikkei 225 future from JPX's settlement, against the previous trading day the app kept", async ({ desktop: { app, page } }) => {
+  await app.evaluate(({ app: electronApp }) => {
+    (globalThis as FixtureGlobal).__desktopFixtures.jpx = true;
+    const fs = process.getBuiltinModule('node:fs');
+    const path = process.getBuiltinModule('node:path');
+    // The settlement the app read on Thursday 29 October (synthetic), kept on disk as the app keeps each day.
+    fs.writeFileSync(path.join(electronApp.getPath('userData'), 'jpx-nikkei225.json'), JSON.stringify({ days: { '2026-10-29': { close: 49000, months: [{ sq: '2026-12-10', month: '2026-12', settle: 49500, theoretical: 49500 }] } } }));
+  });
+  await page.reload();
+  await command(page, 'INDEXFUTURES', 'INDEXFUTURES');
+  const panel = page.locator('.panel').first();
+  const row = panel.locator('tbody tr').filter({ hasText: 'NK1' });
+  // Friday 30 October's file: December settles at 50,010 against 49,500, on 40,000 contracts; the index closed at
+  // 49,990.5. JPX gives no high or low.
+  await expect(row).toContainText('NKZ6', { timeout: 30_000 });
+  for (const v of ['50,010', '+510', '+1.03%', '40,000', '49,990.50']) await expect(row).toContainText(v);
+  // No high or low from JPX: the two cells are blank, not the settlement repeated.
+  await expect(row.locator('td').nth(5)).toHaveText('--');
+  await expect(row.locator('td').nth(6)).toHaveText('--');
+  await expect(panel).toContainText('The Nikkei 225 future (NK) is JPX’s end of day on the Osaka Exchange');
+  const asked = (await calls(app)).jpx ?? [];
+  expect(asked).toContain('/english/markets/derivatives/settlement-price/tvdivq00000014l6-att/rb_e20261030.csv');
+  expect(asked).toContain('/english/markets/derivatives/trading-volume/vk0khi000002j00k-att/20261030open_interest_e.xlsx');
 });
 
 test("ECOFORECASTS shows the Philadelphia Fed's latest survey as its release page tabulates it, previous beside new", async ({ desktop: { app, page } }) => {
