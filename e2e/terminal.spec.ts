@@ -384,6 +384,11 @@ test('DES pages and numbered boxes, the security in the red bar and typed chart 
   await expect(panel.locator('.sect-h', { hasText: 'Prod Seg' })).toContainText('9) Prod Seg | FA PROD »');
   await panel.locator('.tab', { hasText: 'Ratios' }).click();
   await expect(panel.locator('.sect-h', { hasText: 'Per Share Data' })).toBeVisible();
+  // Scranton manual p.28: the top block with links 7) to 9) to the statements, then six boxes in this order.
+  await expect(panel.locator('.des-fy dt')).toHaveText(['Fiscal Year End', 'Last Quarter End', 'Current/T12M']);
+  await expect(panel.locator('.des-fy-links .des-link')).toHaveText(['7) Income Statements (FA IS)', '8) Balance Sheet (FA BS)', '9) Cash Flow (FA CF)']);
+  await expect(panel.locator('.cols-3 .sect-h')).toHaveText(['Issue Data▤', 'Per Share Data▤', 'Cash Flow Analysis▤', 'Growth Potential▤', 'Profitability▤', 'Structure▤']);
+  await expect(panel.locator('.sect', { hasText: 'Structure' }).locator('dt')).toHaveText(['Curr Ratio', 'Quick Ratio', 'Debt/Assets', 'Debt/Com Eq', 'A/R Trnovr', 'Inv Turnover', 'GM', 'EBIT/Tot Int Exp']);
   await run(page, '1');
   await run(page, '9');
   await expect(panel.locator('.fnh-code').first()).toHaveText('EARNINGSSUMMARY');

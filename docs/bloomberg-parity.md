@@ -217,6 +217,18 @@ Inventory of the frame: 6) Comparable Revenue | EM and 7) Comparable Earnings Pe
 - Kept below the terminal's layout, the app's own: next report and its estimate, the annual and quarterly statement lines with growth and net income, the reported earnings, the analysts' ratings and the demo's regions.
 - Checked: `tests/fiscal-grid.test.ts` (fiscal year and quarter for September and December year ends and a 53-week year, reported and estimated cells, the number formats), `e2e/terminal.spec.ts` (headings, rows, columns, format, legend, segment boxes), the whole browser suite.
 
+### M3 DES, Ratios page (E3, 2016)
+
+Evidence: `04_university_guides/Scranton_Bloomberg_Training_Manual.pdf` p.28 (AAPL, page 3/5, 2016), the newest picture of this page in the pack. Its p.28 also shows page 4/5 as built above, with "3Yr Gr" and the legend in the same places.
+
+Inventory: a top block (Fiscal Year End as month/year, Last Quarter End as month/year and quarter, Current/T12M with the currency) with links 7) Income Statements, 8) Balance Sheet, 9) Cash Flow to FA's pages; six boxes in two rows of three, each heading with a chart mark at its right: Issue Data, Per Share Data, Cash Flow Analysis, Growth Potential, Profitability and Structure, eight rows each (seven in Per Share Data), short labels in amber, values in white.
+
+- Now: the page has that block, those boxes, rows and labels in that order. Links 7) to 9) open FA on I/S, B/S and C/F, also as 7, 8 or 9 and GO. CPS is cash from operations per share (the picture's 9.81 against EPS of 8.66 fits that, not cash per share).
+- The app's own measures, marked so on hover because the provider publishes no definition: Cash Gen/Cash Reqd (cash from operations over capital spending plus dividends paid), Csh Dvd Cov (that less capital spending, over dividends), Eff IR (interest expense over debt), Cap 1Y Gr (growth of debt plus equity), ROC (operating income after the effective tax rate, over debt plus equity). Empl 1Y Gr is a labelled blank (no source gives last year's headcount).
+- Kept: net margin, capital spending to sales and cash per share, named in the note under the boxes.
+- Unverified: the page's 2024 look (no newer picture); the chart marks open nothing.
+- Checked: `tests/ratios-des-rows.test.ts` (each new measure by hand, blanks), `e2e/terminal.spec.ts` (top block, links, box order, Structure's rows), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

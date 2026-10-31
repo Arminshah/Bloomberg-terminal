@@ -21,7 +21,7 @@ import { loadInsiders, summarize } from '../data/live/insiders';
 import { wantShares } from '../data/live/shares';
 import { usePeers } from '../data/live/peers';
 import { engine, useQuote, useTick } from '../data/market';
-import { epsText, fiscalGrid, fiscalYearOf, GRID_ROWS, revenueText } from '../data/fiscal-grid';
+import { epsText, fiscalGrid, fiscalQuarterOf, fiscalYearOf, GRID_ROWS, revenueText } from '../data/fiscal-grid';
 import { useSegments, type SegmentState } from '../data/live/segments';
 import { equityRatios } from '../data/ratios';
 import type { SecurityDef } from '../data/types';
@@ -544,53 +544,108 @@ function RatiosPage({ sec }: { sec: SecurityDef }) {
   const f = financials(sec);
   const ks = keyStats(sec);
   const ccy = reportCcy(sec);
+  const eq = sec.eq!;
   const latest = f.annual[f.annual.length - 1];
   const prior = f.annual[f.annual.length - 2];
+  const lastQ = f.quarterly[f.quarterly.length - 1];
   const r = equityRatios(f.ltm, latest, prior, marketValueRep(sec));
+  // Links 7) to 9): the statements on FA (Scranton manual p.28, 2016).
+  const links: [number, string, string][] = [[7, 'Income Statements', 'IS'], [8, 'Balance Sheet', 'BS'], [9, 'Cash Flow', 'CF']];
+  useMenu('des-ratios', useMemo(() => links.map(([n, label, page]) => ({ n, label, run: () => execute(panel, `${sec.id} FINANCIALS ${page}`) })), [panel, sec.id])); // eslint-disable-line react-hooks/exhaustive-deps
+  const n1 = (v: number) => fmtNum(v, 1);
   const n2 = (v: number) => fmtNum(v, 2);
   const p1 = (v: number) => fmtPct(v, 1, false);
-  const g1 = (v: number) => fmtPct(v, 1);
+  const g1 = (v: number) => fmtPct(v, 1, false);
+  const own = (v: string, what: string) => <span title={`The app's own measure: ${what}. The provider does not publish its definition.`}>{v}</span>;
+  const mmYyyy = (ms: number) => (Number.isFinite(ms) ? `${String(new Date(ms).getUTCMonth() + 1).padStart(2, '0')}/${new Date(ms).getUTCFullYear()}` : '--');
+  const mmYy = (ms: number) => (Number.isFinite(ms) ? `${String(new Date(ms).getUTCMonth() + 1).padStart(2, '0')}/${String(new Date(ms).getUTCFullYear()).slice(2)}` : '--');
   if (!f.annual.length) return <div className="empty">{engine.realOnly ? 'Loading the statements from Yahoo Finance…' : 'No statements for this company.'}</div>;
+  const box = (title: string, items: [string, ReactNode][]) => (
+    <Section title={title} right={<span className="des-chart-mark" aria-hidden="true">▤</span>}>
+      <KV items={items} />
+    </Section>
+  );
   return (
     <>
       <div className="des-fy">
         <KV
           items={[
-            ['Fiscal year end', latest ? fmtDay(latest.end) : '--'],
-            ['Trailing 12 months to', fmtDay(f.ltm.end)],
-            ['Currency', `${ccy} millions, per share in ${ccy}`],
+            ['Fiscal Year End', latest ? mmYyyy(latest.end) : '--'],
+            ['Last Quarter End', lastQ ? `${mmYy(lastQ.end)} Q${fiscalQuarterOf(lastQ.end, eq.fye || 12)}` : '--'],
+            ['Current/T12M', `(${ccy})`],
           ]}
         />
         <span className="des-fy-links">
-          {(['Income statement', 'Balance sheet', 'Cash flow'] as const).map((label) => (
-            <button key={label} type="button" className="des-link" onClick={() => execute(panel, `${sec.id} FINANCIALS`)}>
-              {label} ({name('FINANCIALS')})
+          {links.map(([n, label, page]) => (
+            <button key={n} type="button" className="des-link" onClick={() => execute(panel, `${sec.id} FINANCIALS ${page}`)}>
+              <b className="des-n">{n})</b> <span className="amber">{label} ({name('FINANCIALS')} {page})</span>
             </button>
           ))}
         </span>
       </div>
-      <div className="cols">
-        <Section title="Issue Data">
-          <KV items={[['Last Px', <LivePx key="l" id={sec.id} />], ['P/E', n2(ks.pe)], ['12M Dvd Yld', p1(ks.divYld)], ['P/B', n2(ks.pb)], ['P/S', n2(ks.ps)], ['EV/T12M EBITDA', n2(ks.evEbitda)], [`Mkt Cap (${ks.tradeCcy})`, <CapLink key="mc" id={sec.id}>{fmtMln(ks.mcap)}</CapLink>], [`EV (${ks.ccy})`, fmtMln(ks.ev)]]} />
-        </Section>
-        <Section title="Per Share Data">
-          <KV items={[['EPS T12M', n2(f.ltm.eps)], ['DPS', n2(f.ltm.dps)], ['Bk Val Per Sh', n2(r.bookPerShare)], ['Rev Per Sh', n2(r.revPerShare)], ['Cash Per Sh', n2(r.cashPerShare)], ['FCF Per Sh', n2(r.fcfPerShare)], ['Diluted Shares', fmtMln(f.ltm.shares)]]} />
-        </Section>
-        <Section title="Cash Flow Analysis">
-          <KV items={[['P/CF', n2(r.pcf)], ['P/FCF', n2(r.pfcf)], ['CF/NI', n2(r.cfToNi)], ['Dvd Payout', p1(ks.payout)], ['CFO/Sales', p1(r.cfoToSales)], ['Capex/Sales', p1(r.capexToSales)]]} />
-        </Section>
-        <Section title="Growth Potential">
-          <KV items={[['Rev 1Y Gr', g1(r.revGrowth)], ['EPS 1Y Gr', g1(r.epsGrowth)], ['Bk Val 1Y Gr', g1(r.bookGrowth)], ['Assets 1Y Gr', g1(r.assetGrowth)], ['R&D/Sales', p1(r.rndToSales)], ['Retention Rate', p1(r.retention)]]} />
-        </Section>
-        <Section title="Profitability">
-          <KV items={[['EBITDA', fmtMln(f.ltm.ebitda)], ['EBIT', fmtMln(f.ltm.opInc)], ['Gross Mrgn', p1(r.grossMargin)], ['Oper Mrgn', p1(r.opMargin)], ['Pretax Mrgn', p1(r.pretaxMargin)], ['Net Mrgn', p1(r.netMargin)], ['ROA', p1(r.roa)], ['ROE', p1(r.roe)], ['Asset Turnover', n2(r.assetTurnover)]]} />
-        </Section>
-        <Section title="Structure">
-          <KV items={[['Current Ratio', n2(r.currentRatio)], ['Quick Ratio', n2(r.quickRatio)], ['Debt/Assets', p1(r.debtToAssets)], ['Debt/Equity', p1(r.debtToEquity)], ['EBIT/Interest', n2(r.interestCover)], ['Inv Turnover', n2(r.invTurnover)], ['A/R Turnover', n2(r.recvTurnover)]]} />
-        </Section>
+      <div className="cols cols-3">
+        {box('Issue Data', [
+          ['Last Px', <span key="l">{ks.tradeCcy}/<LivePx id={sec.id} /></span>],
+          ['P/E', n1(ks.pe)],
+          ['Dvd Ind Yld', p1(ks.divYld)],
+          ['P/B', n2(ks.pb)],
+          ['P/S', n1(ks.ps)],
+          ['Curr EV/T12M EBITDA', n1(ks.evEbitda)],
+          ['Mkt Cap', <CapLink key="mc" id={sec.id}>{inMillions(ks.mcap)}</CapLink>],
+          ['Curr EV', inMillions(ks.ev)],
+        ])}
+        {box('Per Share Data', [
+          ['EPS T12M', n2(f.ltm.eps)],
+          ['DPS', n2(f.ltm.dps)],
+          ['Bk Val Per Sh', n2(r.bookPerShare)],
+          ['Rev/Bas Sh', n2(r.revPerShare)],
+          ['CPS', <span key="c" title="Cash from operations per share, trailing 12 months">{n2(r.cfoPerShare)}</span>],
+          ['Curr Shares Out', eq.shares > 0 ? `${fmtNum(eq.shares / 1000, 1)}B` : '--'],
+          ['FCF/Basic Sh', n2(r.fcfPerShare)],
+        ])}
+        {box('Cash Flow Analysis', [
+          ['P/CF', n1(r.pcf)],
+          ['Curr P/FCF', n1(r.pfcf)],
+          ['CF/NI', n1(r.cfToNi)],
+          ['Dvd P/O', p1(ks.payout)],
+          ['Cash Gen/Cash Reqd', own(n1(r.cashGenToReqd), 'cash from operations over capital spending plus dividends paid')],
+          ['Csh Dvd Cov', own(n1(r.cashDividendCover), 'cash from operations less capital spending, over dividends paid')],
+          ['CFO/Sales', p1(r.cfoToSales)],
+          ['Eff IR', own(p1(r.effectiveInterest), 'interest expense over total debt')],
+        ])}
+        {box('Growth Potential', [
+          ['Dil EPS Frm Cont Op 1Y Gr', g1(r.epsGrowth)],
+          ['Cap 1Y Gr', own(g1(r.capitalGrowth), 'growth of debt plus equity over the last fiscal year')],
+          ['BPS 1Y Gr', g1(r.bookGrowth)],
+          ['R&D To Sl', p1(r.rndToSales)],
+          ['Retntn Rt', p1(r.retention)],
+          ['Rev - 1 Yr Gr', g1(r.revGrowth)],
+          ['Empl 1Y Gr', <span key="e" className="muted" title="Needs the number of employees a year ago: none of the app's sources gives it">--</span>],
+          ['Ast 1Y Gr', g1(r.assetGrowth)],
+        ])}
+        {box('Profitability', [
+          ['EBITDA', revenueText(f.ltm.ebitda)],
+          ['EBIT', revenueText(f.ltm.opInc)],
+          ['OPM', p1(r.opMargin)],
+          ['Pretax Mrgn', p1(r.pretaxMargin)],
+          ['ROA', p1(r.roa)],
+          ['ROE', p1(r.roe)],
+          ['ROC', own(p1(r.returnOnCapital), 'operating income after the effective tax rate, over debt plus equity')],
+          ['Ast TO', n1(r.assetTurnover)],
+        ])}
+        {box('Structure', [
+          ['Curr Ratio', n1(r.currentRatio)],
+          ['Quick Ratio', n1(r.quickRatio)],
+          ['Debt/Assets', p1(r.debtToAssets)],
+          ['Debt/Com Eq', p1(r.debtToEquity)],
+          ['A/R Trnovr', n1(r.recvTurnover)],
+          ['Inv Turnover', n1(r.invTurnover)],
+          ['GM', p1(r.grossMargin)],
+          ['EBIT/Tot Int Exp', n1(r.interestCover)],
+        ])}
       </div>
       <div className="note">
-        Worked out from the reported statements: the trailing twelve months, growth from the last two fiscal years, prices against the current market value. P/E, yield, P/B, P/S and EV/EBITDA are the figures PROFILE shows.
+        Worked out from the reported statements: the trailing twelve months, growth from the last two fiscal years, prices against the current market value. P/E, yield, P/B, P/S and EV/EBITDA are the figures PROFILE shows. Rows marked on hover as the app&apos;s own use its definitions where the provider publishes none. The app&apos;s other measures: net margin {p1(r.netMargin)}, capital spending/sales {p1(r.capexToSales)}, cash per share {n2(r.cashPerShare)}.
       </div>
     </>
   );

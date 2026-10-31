@@ -1207,6 +1207,10 @@ a.sear-title:hover { text-decoration: underline; }
 .fisc-legend { padding: 2px 8px 6px; color: #b0b0b0; }
 .seg-bar { background: linear-gradient(90deg, #1f5e2a var(--w, 0%), transparent var(--w, 0%)); color: var(--white); }
 
+/* DES Ratios (Scranton manual p.28): six boxes in three columns, a chart mark at each heading's right. */
+.cols-3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+.des-chart-mark { color: #b8b8b8; }
+
 /* ------------------------------------------------------------- mobile */
 @media (max-width: 760px) {
   .workspace { grid-template: 1fr / 1fr !important; }
