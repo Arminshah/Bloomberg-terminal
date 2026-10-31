@@ -510,3 +510,26 @@ describe("SPLC review of 30 October 2026: shares", () => {
     expect([shown.share, sharePeriod(shown.evidence[0].sentence)]).toEqual([15, '2025']);
   });
 });
+
+describe('SPLC review of 30 October 2026: who supplies whom', () => {
+  it("reads Lilly as the holder of Scribe's note and BioAge's supplier, and IPO underwriting text as no trade (LLY-1 to LLY-5)", () => {
+    expect(theirs(LLY, ['SCTX', 'Scribe Therapeutics, Inc.'], 'Interest expense consists of coupon interest accrued on the convertible note that we issued to Eli Lilly and Company in May 2023.')).toEqual({ role: 'investment' });
+    expect(theirs(LLY, ['BIOA', 'BioAge Labs, Inc.'], 'For example, we entered into a material transfer agreement with Lilly, under which Lilly has agreed to manufacture and supply us with a certain quantity (which may be increased by mutual consent) of tirzepatide so we can sponsor a clinical trial in which azelaprag and tirzepatide are co-administered concomitantly or sequentially.')).toEqual({ role: 'customer' });
+    expect(theirs(LLY, ['TRXB', 'TRex Bio, Inc.'], 'The underwriters will receive the same underwriting discounts and commissions on any of our shares of common stock purchased by Lilly as it will from any other shares of common stock sold to the public in this offering.')).toBeNull();
+    expect(theirs(LLY, ['MANE', 'Veradermics, Inc'], 'The underwriters will receive the same underwriting discounts and commissions on any of our shares of common stock purchased by Eli Lilly as it will from any other shares of common stock sold to the public in this offering.')).toBeNull();
+    expect(theirs(LLY, ['MANE', 'Veradermics, Inc'], 'If Eli Lilly or the cornerstone investor is allocated all or a portion of the shares it has indicated an interest in purchasing in this offering or more, and purchases any such shares, such purchases could reduce the available public float for our shares of common stock if Eli Lilly or the cornerstone investor holds such shares long-term.')).toBeNull();
+  });
+
+  it('reads Cerence and AYRO as suppliers to GM and Air Industries as a supplier to Northrop (GM-2, GM-3, NOC finding 3)', () => {
+    const GMT: [string, string] = ['GM', 'GENERAL MOTORS CO'];
+    expect(theirs(GMT, ['CRNC', 'Cerence Inc.'], 'Our automobile manufacturer customers, commonly referred to as OEMs, include BMW, Mercedes-Benz, the Volkswagen Group (Volkswagen, Audi, Porsche, and other brands), Stellantis, Renault, Toyota, Ford, General Motors, BYD, Great Wall Motor, NIO, and many others and represented approximately 50% of our revenue in fiscal year 2025.')?.role).toBe('supplier');
+    expect(theirs(GMT, ['AYRO', 'AYRO, Inc.'], 'In December 2024, the Company was named a tier one supplier for General Motors (GM) through its partnership with GLV and has secured its first purchase order from one of the top three automotive manufacturers in the United States.')).toEqual({ role: 'supplier' });
+    expect(theirs(['NOC', 'NORTHROP GRUMMAN CORP /DE/'], ['AIRI', 'AIR INDUSTRIES GROUP'], "Air Industries Group's relationship with Northrop Grumman began decades ago as a supplier to a predecessor, the Grumman Aerospace Corporation which was located just a few miles from our Bay Shore facility.")).toEqual({ role: 'supplier' });
+  });
+
+  it("reads Microsoft as Chevron's customer for the power Chevron provides (CVX-1)", () => {
+    const cvx = { cik: 93410, names: targetNames('CVX', 'CHEVRON CORP').names, ticker: 'CVX' };
+    const got = ownRelations(['During the quarter, Chevron signed a 20-year power purchase agreement with Microsoft to provide 2.67 gigawatts of behind-the-meter power for its data center in West Texas.'], buildDirectory([{ cik: 789019, ticker: 'MSFT', title: 'MICROSOFT CORP' }]), cvx, { filer: 'CHEVRON CORP', form: '8-K', date: '2026-07-31', path: '93410/000009341026000162/a06302026ex9918-k.htm', type: 'EX-99.1' });
+    expect(got.map((r) => [r.role, r.ticker])).toEqual([['customer', 'MSFT']]);
+  });
+});
