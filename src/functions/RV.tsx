@@ -135,6 +135,7 @@ export function RV({ sec }: FnProps) {
   // The median, as the terminal's Median line, is of the loaded security and its peers; the average leaves it out.
   const stat = (f: (xs: number[]) => number, label: ReactNode, withSubject: boolean, testId?: string) => (
     <tr className="group" data-testid={testId}>
+      <td />
       <td colSpan={5}>{label}</td>
       {metrics.map((k) => {
         const xs = (withSubject ? rows : rows.slice(1)).map((r) => r[k] as number).filter(Number.isFinite);
@@ -199,11 +200,15 @@ export function RV({ sec }: FnProps) {
         rowKey={(r) => r.d.id}
         selected={s.id}
         columns={cols}
+        // The loaded security stays first as 100), its peers numbered from 101) in the sorted order, as on RV.
+        pinFirst
+        numbered={101}
         summary={
           <>
             {stat(median, <span title="The median of the loaded security and its peers on each figure, NM and missing figures left out; with an even count, the mean of the two middle figures">Median</span>, true, 'rv-median')}
             {stat((xs) => xs.reduce((a, b) => a + b, 0) / xs.length, 'Peer average (excl. subject)', false)}
             <tr className="group" data-testid="rv-rank">
+              <td />
               <td colSpan={5} title="Where the loaded security ranks among itself and its peers on each figure: 0 the lowest, 100 the highest (Excel's PERCENTRANK.INC)">
                 {s.ticker} percentile among peers
               </td>
