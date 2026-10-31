@@ -3,6 +3,7 @@ import { KeyBar } from './components/KeyBar';
 import { Panel } from './components/Panel';
 import { TickerTape } from './components/TickerTape';
 import { Toasts } from './components/Toasts';
+import { SecurityPopup } from './components/SecurityPopup';
 import { TopBar } from './components/TopBar';
 import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { closeTab, cycleTab, newTab, reopenClosedTab, tabByNumber, workspaceTabs } from './terminal/tabs';
@@ -238,6 +239,7 @@ export function App() {
       {tape ? <TickerTape /> : <div />}
       <KeyBar />
       <Toasts />
+      <SecurityPopup />
     </div>
   );
 }

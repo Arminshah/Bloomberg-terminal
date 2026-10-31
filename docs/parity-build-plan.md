@@ -33,7 +33,7 @@ M1. Window chrome
 - [x] 1.11 Fixed-width pages for DES, EE, ANR and EQS (`f133377`)
 
 M2. Navigation, keyboard and menus
-- [ ] 2.1 Related Functions Menu overlay
+- [x] 2.1 Related Functions Menu overlay (`ed60a30`) and the right-click window (next commit)
 - [ ] 2.2 Help menu and Live Help
 - [ ] 2.3 Keyboard table and gaps
 - [ ] 2.4 Command grammar and plain-word search

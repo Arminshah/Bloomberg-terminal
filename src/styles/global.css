@@ -1135,6 +1135,17 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .dlg-btn.primary { border-color: #2e8af6; box-shadow: inset 0 0 0 1px #2e8af6; }
 .dlg-btn:focus-visible { outline: 1px solid #fff; outline-offset: 1px; }
 
+/* The small Related Functions window (TE03 05:59): the security in white, its name in cyan, numbered functions. */
+.secpop-id { color: var(--white); font-size: var(--fs-l); }
+.secpop-name { margin-bottom: 10px; color: var(--cyan); }
+.secpop-list { display: flex; flex-direction: column; }
+.secpop-row { display: grid; grid-template-columns: 28px 64px minmax(0, 1fr); align-items: baseline; gap: 0 8px; padding: 2px 4px; border: 0; background: transparent; text-align: left; white-space: nowrap; }
+.secpop-row:hover, .secpop-row:focus-visible { background: #153b67; outline: none; }
+.secpop-n { color: #c8c8c8; text-align: right; }
+.secpop-mn { color: var(--white); }
+.secpop-t { color: var(--amber); }
+.secpop-more { grid-template-columns: 28px minmax(0, 1fr); margin-top: 10px; }
+
 /* ------------------------------------------------------------- mobile */
 @media (max-width: 760px) {
   .workspace { grid-template: 1fr / 1fr !important; }

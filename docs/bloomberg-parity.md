@@ -124,6 +124,15 @@ Evidence: TE01 02:53 (AAPL, the full overlay), TE01 03:35 (opening over DES, a l
 - Unverified: what the small diagonal arrow beside some items means (not shown), so it is not drawn.
 - Checked: `e2e/look.spec.ts` (path, numbering, colours, two columns, width, group drill-down, Cancel, 2 <GO>, Escape), `e2e/shell.spec.ts` (the MENU key climbs), the whole browser suite.
 
+### M2.1 Right-click Related Functions window (E3)
+
+Evidence: TE03 05:59 (a right-click on a commodity index: a small window titled "Related Functions", the security in white, its description in cyan, five numbered functions, "6) More Related Functions...", a Close button).
+
+- Now: a right-click on a security link anywhere in the app (monitors, movers, tables) opens that window as a dialog: the security in white, its name in cyan, five functions in the frame's order (DES, HP, GIP, GP, then one for its asset class: FA for a stock, MEMB for an index, FRD for a currency, YAS for a bond, the commodity monitor, the futures monitor, the crypto monitor or the curve), "6) More Related Functions..." (the security's menu) and Close, with no "×" as in the frame. A click or a number key runs the line in the panel the right-click came from; Escape or Close shut it.
+- Not in the watchlist: its tickers keep no right-click menu, as the owner fixed the watchlist.
+- Unverified: which five functions the provider offers for a stock (the frame shows a commodity index); the app's choice follows the frame's order.
+- Checked: `e2e/look.spec.ts` (title, no ×, six lines, cyan name, 1 runs DES on that security, Close, none in the watchlist), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

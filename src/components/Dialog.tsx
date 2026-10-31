@@ -10,9 +10,9 @@ export interface DialogButton {
 /**
  * A dialog as the 2024 frames draw one (TE01 05:11): a light grey title bar with a dark title and "×", a dark body, the
  * buttons at the bottom right with the default one outlined in blue, and the screen behind dimmed. Escape and "×"
- * close it as `onClose` says.
+ * close it as `onClose` says; the small Related Functions window has no "×" (TE03 05:59).
  */
-export function Dialog({ title, onClose, buttons, children, testId }: { title: string; onClose: () => void; buttons: DialogButton[]; children: ReactNode; testId?: string }) {
+export function Dialog({ title, onClose, buttons, children, testId, closeX = true }: { title: string; onClose: () => void; buttons: DialogButton[]; children: ReactNode; testId?: string; closeX?: boolean }) {
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     box.current?.querySelector<HTMLButtonElement>('.dlg-btn.primary')?.focus();
@@ -36,7 +36,7 @@ export function Dialog({ title, onClose, buttons, children, testId }: { title: s
       >
         <div className="dlg-title">
           <span>{title}</span>
-          <button type="button" className="dlg-x" aria-label="Close" onClick={onClose}>×</button>
+          {closeX ? <button type="button" className="dlg-x" aria-label="Close" onClick={onClose}>×</button> : null}
         </div>
         <div className="dlg-body">{children}</div>
         <div className="dlg-buttons">

@@ -5,7 +5,8 @@ import { DAY_MS } from '../data/calendar';
 import type { Quote } from '../data/types';
 import { freshnessOf, type FreshnessLabel } from '../data/freshness';
 import { defaultFnFor, usePanelId } from '../terminal/panel';
-import { broadcastSecurity, navigate, panelCount, terminal } from '../terminal/state';
+import { broadcastSecurity, currentRoute, navigate, panelCount, terminal } from '../terminal/state';
+import { securityPopup } from './SecurityPopup';
 import { settings } from '../terminal/settings';
 import { heatColour } from '../terminal/palette';
 import { Flash } from './Flash';
@@ -27,15 +28,26 @@ export function openSecurity(panel: number, id: string, e?: MouseEvent, fn?: str
 
 export function SecLink({ id, children, fn, className }: { id: string; children?: ReactNode; fn?: string; className?: string }) {
   const panel = usePanelId();
+  // A right-click opens the small Related Functions window (TE03 05:59), except in the watchlist, which the owner fixed.
+  const inWatchlist = terminal.use((s) => currentRoute(s, panel).fn === 'WATCHLIST');
   return (
     <button
       type="button"
       className={`sec-link ${className ?? ''}`}
-      title={`${id} — click to open, shift-click for next panel`}
+      title={`${id} — click to open, shift-click for next panel${inWatchlist ? '' : ', right-click for related functions'}`}
       onClick={(e) => {
         e.stopPropagation();
         openSecurity(panel, id, e, fn);
       }}
+      onContextMenu={
+        inWatchlist
+          ? undefined
+          : (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              securityPopup.set({ at: { panel, id } });
+            }
+      }
     >
       {children ?? id}
     </button>

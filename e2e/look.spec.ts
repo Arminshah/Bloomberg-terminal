@@ -303,6 +303,41 @@ test('the Related Functions Menu opens over the screen as the 2024 frames draw i
   expect(errors).toEqual([]);
 });
 
+test('a right-click on a security opens the small Related Functions window; a number runs its line; the watchlist keeps no such menu', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('armin:watchlists')) localStorage.setItem('armin:watchlists', JSON.stringify({ v: 1, s: { lists: [{ name: 'Core', ids: ['MSFT US Equity'] }], active: 0 } }));
+  });
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  await run(page, 'MOST');
+  const link = panel.locator('.sec-link').first();
+  await expect(link).toBeVisible();
+  await link.click({ button: 'right' });
+  const pop = page.getByTestId('security-popup');
+  // TE03 05:59: the security, its name in cyan, five numbered functions, More Related Functions..., Close.
+  await expect(pop.locator('.dlg-title')).toHaveText('Related Functions');
+  await expect(pop.locator('.dlg-x')).toHaveCount(0);
+  await expect(pop.locator('.secpop-row')).toHaveCount(6);
+  await expect(pop.locator('.secpop-mn').first()).toHaveText('DES');
+  await expect(pop.locator('.secpop-more')).toHaveText(/^6\)\s*More Related Functions\.\.\.$/);
+  expect(await pop.locator('.secpop-name').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(69, 211, 230)');
+  const id = (await pop.locator('.secpop-id').textContent())!;
+  await page.keyboard.press('1');
+  await expect(pop).toHaveCount(0);
+  await expect(panel.locator('.fnh-code')).toHaveText('PROFILE');
+  await expect(panel.locator('.fnh-sec')).toHaveText(id);
+  // Close closes it.
+  await run(page, 'MOST');
+  await panel.locator('.sec-link').first().click({ button: 'right' });
+  await pop.getByRole('button', { name: 'Close' }).click();
+  await expect(pop).toHaveCount(0);
+  // The watchlist is the owner's: no popup there.
+  await run(page, 'WATCHLIST');
+  await panel.locator('.tbl tbody .sec-link').first().click({ button: 'right' });
+  await expect(pop).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.
