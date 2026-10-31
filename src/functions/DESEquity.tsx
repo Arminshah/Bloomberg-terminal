@@ -413,23 +413,23 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
 const BETA_INDEX: Record<string, string> = { US: 'SPX', GB: 'UKX', DE: 'DAX', FR: 'CAC', JP: 'NKY', HK: 'HSI', CA: 'SPTSX', BE: 'BEL20', NL: 'AEX', CH: 'SMI', AU: 'AS51' };
 
 /**
- * PROFILE's beta line. The source's beta (Yahoo's or Finnhub's, five years of monthly returns) is against the S&P 500:
- * Apple's 1.07 at Yahoo on 31 October 2026 against 1.09 worked out on the S&P 500. For a stock listed elsewhere it is
- * not against the home index (GSK: 0.28 at Yahoo, 0.95 on the FTSE 100), so there the line gives the beta BETA works
- * out against the home index, two years of weekly returns, adjusted, and names no index when that cannot be worked out.
+ * PROFILE's beta line, as DES gives it: two years of weekly returns against the home index (the S&P 500 for a US stock,
+ * the FTSE 100 for a London one), adjusted as 0.67 x raw + 0.33 x 1, the method BETA works out. Public DES captures show
+ * the adjusted figure (a guide of March 2023: DES "Beta vs SPX 1.17" beside BETA's raw 1.258 and adjusted 1.172, 103
+ * weekly points). The source's beta (Yahoo's or Finnhub's, five years of monthly returns, raw) is another method: it is
+ * shown only when the history is too short to work out DES's, under a plain "Beta" that names no index.
  */
 export function betaLine(country: string, sourceBeta: number, worked: () => number, bench: string, realOnly: boolean): { label: string; value: number; worked: boolean; title: string } {
-  const source = "The source's beta, 5 years of monthly returns";
-  if (!realOnly || (country === 'US' && Number.isFinite(sourceBeta))) {
+  const source = "The source's beta, 5 years of monthly returns, a different method from DES's";
+  if (!realOnly) {
     return { label: `Beta vs ${BETA_INDEX[country] ?? 'index'}`, value: sourceBeta, worked: false, title: `${source}; BETA works it out against the local index` };
   }
   const w = worked();
   if (Number.isFinite(w)) {
-    const why = Number.isFinite(sourceBeta) ? `the source's beta (${fmtNum(sourceBeta, 2)}) is not measured against this index` : 'the sources give no beta for this company';
-    return { label: `Beta vs ${bench}`, value: w, worked: true, title: `Worked out from two years of weekly returns against the ${bench} (adjusted beta), as on BETA: ${why}` };
+    return { label: `Beta vs ${bench}`, value: w, worked: true, title: `Two years of weekly returns against the ${bench}, adjusted (0.67 x raw + 0.33), as DES gives it and BETA works it out` };
   }
   if (Number.isFinite(sourceBeta)) {
-    return { label: 'Beta', value: sourceBeta, worked: false, title: `${source}; the source does not name the index, and for a stock outside the US it is not the home index` };
+    return { label: 'Beta', value: sourceBeta, worked: false, title: `${source}; the price history is too short to work out the two-year weekly beta` };
   }
   return { label: `Beta vs ${bench}`, value: NaN, worked: false, title: 'No beta: the sources give none and the price history is too short to work one out' };
 }

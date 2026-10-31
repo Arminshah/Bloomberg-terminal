@@ -56,3 +56,23 @@ describe("FINANCIALS graph mode's measuring line, as FA labels it", () => {
     expect(measureChange(-5, 10, 0, 365 * 86_400_000).text).toBe('');
   });
 });
+
+describe("FINANCIALS' past market value takes the shares outstanding at the period end", () => {
+  it('uses the balance-sheet count dated at the end, else the cover count nearest it, in today\'s shares', async () => {
+    const { sharesAtPeriodEnd } = await import('../src/data/marketcap');
+    const { BALANCE_SHARES, COVER_SHARES } = await import('../src/data/live/sec');
+    const facts = (balance: { end: string; val: number; filed: string }[], cover: { end: string; val: number; filed: string }[]) =>
+      ({ facts: { [BALANCE_SHARES]: { shares: balance }, [COVER_SHARES]: { shares: cover } } }) as never;
+    const cf = facts(
+      [{ end: '2024-12-31', val: 1_000, filed: '2025-02-20' }, { end: '2025-12-31', val: 980, filed: '2026-02-19' }],
+      [{ end: '2026-02-10', val: 975, filed: '2026-02-19' }, { end: '2025-10-20', val: 985, filed: '2025-10-30' }],
+    );
+    // The balance sheet's count at 31 December 2025, not the cover filed before it (985 on 20 October).
+    expect(sharesAtPeriodEnd(cf, '2025-12-31', [])).toBe(980);
+    // A period with no balance-sheet count takes the cover dated nearest it within 100 days.
+    expect(sharesAtPeriodEnd(cf, '2026-03-31', [])).toBe(975);
+    expect(sharesAtPeriodEnd(cf, '2023-06-30', [])).toBeNaN();
+    // A 4-for-1 split after the period end puts the count in today's shares.
+    expect(sharesAtPeriodEnd(cf, '2024-12-31', [{ day: Date.parse('2025-06-02T00:00:00Z') / 86_400_000, numerator: 4, denominator: 1 }])).toBe(4_000);
+  });
+});

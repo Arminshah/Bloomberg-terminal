@@ -10,10 +10,13 @@ export interface RatingSummary {
   holdPct: number;
   sellPct: number;
   /**
-   * The ratings' average on the 1 (sell) to 5 (buy) scale of ANR's consensus rating: buys 5, holds 3, sells 1.
-   * The report's four ANR captures give a rating at most 0.04 under this average of their own counts (some sources
-   * are graded between the steps, which counts do not show). Scoring the source's "buy" count 4 and only "strong buy"
-   * 5 read 4.29 for Microsoft on 31 October 2026 (Finnhub: 22, 40, 3, 0, 0), where this average is 4.91.
+   * ANR's consensus rating places each firm's rating, on that firm's own scale, onto 1 to 5 (strong buy or equivalent 5,
+   * buy 4, hold 3, sell 2, strong sell 1; the provider's ANR index methodology, July 2023, appendix II) and averages
+   * the ratings updated in the last 12 months. From grouped counts the best fit is buys 5, holds 3, sells 1: a firm's
+   * top grade counts 5 (the report's four captures sit at most 0.04 under this average, the gap one firm grading
+   * between steps), so it can read a few hundredths high. Scoring the source's "buy" count 4 read 4.29 for Microsoft on
+   * 31 October 2026 (Finnhub: 22, 40, 3, 0, 0), where this average is 4.91. Which grade of a three-grade firm is 4 is
+   * not settled by any public source.
    */
   score: number;
 }

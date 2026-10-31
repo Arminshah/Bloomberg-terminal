@@ -8,7 +8,9 @@ import { Chg, LivePx, SecLink } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtNum } from '../core/format';
 import { useTick } from '../data/market';
-import { marketCapUsd, periodChange } from '../data/analytics';
+import { closeAt, horizonStart, marketCapUsd, periodChange } from '../data/analytics';
+import { DAY_MS } from '../data/calendar';
+import type { Series } from '../data/series';
 import { financials, keyStats, peers } from '../data/fundamentals';
 import { median, percentRank } from '../finance/stats';
 import type { SecurityDef } from '../data/types';
@@ -87,6 +89,15 @@ export function evBuildUp(p: { mcap: number; netDebt: number; minority: number; 
   const debt = !Number.isFinite(p.netDebt) ? '+ net debt: none listed' : p.netDebt < 0 ? `− net cash ${v(p.netDebt)}` : `+ net debt ${v(p.netDebt)}`;
   const part = (label: string, x: number) => (Number.isFinite(x) ? `+ ${label} ${v(x)}` : `+ ${label}: none listed`);
   return [`Market value ${v(p.mcap)}`, debt, part('preferred stock', p.preferred), part('minority interest', p.minority)].join(' ');
+}
+
+/**
+ * RV's "Chg Pct 1M": the last price on the close on or before the same date a calendar month before today (a public RV
+ * capture of 17 March 2023 counts from 17 February), not a month before the latest session.
+ */
+export function monthChange(s: Series, last: number, today: number): number {
+  const base = s.length ? closeAt(s, horizonStart('1M', today)) : NaN;
+  return Number.isFinite(base) && base > 0 && Number.isFinite(last) ? (last / base - 1) * 100 : NaN;
 }
 
 /** One line of RV's comp range: the subject's figure, the low and high among it and its peers, and their median. */
@@ -191,7 +202,7 @@ export function RV({ sec }: FnProps) {
         const emp = d.eq?.emp ?? NaN;
         return {
           d, mcap: marketCapUsd(d.id), ev: k.ev * toUsd, evWhy: evBuildUp(k.evParts, toUsd), pe: k.pe, pb: k.pb, evEbitda: k.evEbitda, dy, roe: k.roe, margin: k.netMargin,
-          d1: periodChange(d.id, '1D'), m1: periodChange(d.id, '1M'), ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y'),
+          d1: periodChange(d.id, '1D'), m1: monthChange(engine.daily(d.id), engine.quote(d.id)?.last ?? NaN, engine.today * DAY_MS), ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y'),
           revG: k.revGrowth, epsG: k.epsGrowth, gm: k.grossMargin, opm: k.opMargin,
           ebitdaM: ltm.rev > 0 ? (ltm.ebitda / ltm.rev) * 100 : NaN, roa: k.roa,
           tax: ltm.pretax > 0 ? (ltm.tax / ltm.pretax) * 100 : NaN,

@@ -73,6 +73,24 @@ function shareRows(cf: Pick<CompanyFacts, 'facts'> | null | undefined): FiledRow
   return c.length && last(c) >= last(latestPerEnd(balance)) - 400 ? cover : balance;
 }
 
+/**
+ * The shares outstanding at a period's end, as a statement's past market capitalisation takes them (the shares held by
+ * investors at the period end, net of treasury stock): the balance-sheet count dated at that end, else the cover count
+ * dated nearest it within 100 days (a 10-K's or 20-F's cover is dated after the year end), in today's shares (adjusted
+ * for later splits). NaN when the filings give neither.
+ */
+export function sharesAtPeriodEnd(cf: Pick<CompanyFacts, 'facts'> | null | undefined, endIso: string, splits: SplitEvent[]): number {
+  const today = (c: ShareCount) => c.val * splitFactorAfter(splits, dayOf(c.end));
+  const balance = latestPerEnd(((cf?.facts[BALANCE_SHARES]?.shares ?? []) as FiledRow[]).filter((r) => r.val > 0));
+  const atEnd = balance.find((c) => c.end === endIso);
+  if (atEnd) return today(atEnd);
+  const day = dayOf(endIso);
+  const cover = latestPerEnd(((cf?.facts[COVER_SHARES]?.shares ?? []) as FiledRow[]).filter((r) => r.val > 0)).filter((c) => Math.abs(dayOf(c.end) - day) <= 100);
+  if (!cover.length) return NaN;
+  const nearest = cover.reduce((a, b) => (Math.abs(dayOf(b.end) - day) < Math.abs(dayOf(a.end) - day) ? b : a));
+  return today(nearest);
+}
+
 /** Share counts by date (the latest filing's count for each date, a revision included), oldest first. */
 export function coverShareCounts(cf: Pick<CompanyFacts, 'facts'> | null | undefined): ShareCount[] {
   return latestPerEnd(shareRows(cf));

@@ -478,7 +478,7 @@ function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | nul
     <div className="anr-snap">
       <KV
         items={[
-          [<span key="s" title="Average of the ratings counted on ANR's 1 to 5 scale: buys 5, holds 3, sells 1">Consensus Rating</span>, rs ? fmtNum(rs.score, 2) : '--'],
+          [<span key="s" title="Average of the ratings counted, scored buys 5, holds 3, sells 1: ANR places each firm's own scale on 1 to 5, which grouped counts can only approach (a few hundredths high when a firm grades between steps)">Consensus Rating</span>, rs ? fmtNum(rs.score, 2) : '--'],
           [<span key="b" className="up">Buys</span>, rs ? share(rs.buyPct, rs.buys) : '--'],
           [<span key="h">Holds</span>, rs ? share(rs.holdPct, rs.holds) : '--'],
           [<span key="x" className="dn">Sells</span>, rs ? share(rs.sellPct, rs.sells) : '--'],
