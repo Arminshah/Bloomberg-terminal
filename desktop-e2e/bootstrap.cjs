@@ -428,6 +428,11 @@ net.fetch = async (input, init) => {
     }
   }
   // With fixtures.ecbFx, the ECB's reference rates as published for 25 to 30 June 2026 (tests/fixtures/ecb-exr-2026-06.csv).
+  // The ECB's Survey of Professional Forecasters as the Data Portal answered on 31 October 2026 (trimmed).
+  if (fixtures.ecbSpf && url.hostname === 'data-api.ecb.europa.eu' && url.pathname.startsWith('/service/data/SPF/')) {
+    fixtures.calls.ecbSpf = [...(fixtures.calls.ecbSpf ?? []), url.pathname + url.search];
+    return new Response(fs.readFileSync(path.join(__dirname, '../tests/fixtures/ecb-spf-2026-10-31.csv'), 'utf8'), { status: 200, headers: { 'Content-Type': 'text/csv' } });
+  }
   if (fixtures.ecbFx && url.hostname === 'data-api.ecb.europa.eu' && url.pathname.startsWith('/service/data/EXR/')) {
     fixtures.calls.ecbFx = [...(fixtures.calls.ecbFx ?? []), url.pathname + url.search];
     return new Response(fs.readFileSync(path.join(__dirname, '../tests/fixtures/ecb-exr-2026-06.csv'), 'utf8'), { status: 200, headers: { 'Content-Type': 'text/csv' } });

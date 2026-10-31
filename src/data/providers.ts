@@ -193,7 +193,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'ecb',
     name: 'European Central Bank',
-    serves: 'Deposit facility rate; the euro short-term rate (€STR); press releases and blog posts (RSS)',
+    serves: "Deposit facility rate; the euro short-term rate (€STR); the Survey of Professional Forecasters' averages for the euro area (ECOFORECASTS); press releases and blog posts (RSS)",
     dataClass: 'Policy rate and announcements (official)',
     policy: 'enabled',
     feed: 'policy',

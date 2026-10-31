@@ -3,8 +3,9 @@ import { FnHeader } from '../components/FnHeader';
 import { RealBadge } from '../components/Source';
 import { exportActions } from '../components/ExportActions';
 import { XYChart } from '../components/chart/XYChart';
-import { fmtNum } from '../core/format';
+import { fmtNum, fmtSigned } from '../core/format';
 import { useWeo, weoAvailable, WEO, type WeoValues } from '../data/live/weo';
+import { roundLabel, SPF_TOPICS, useEcbSpf, type EcbSpf } from '../data/live/spf';
 import { CREDITS } from '../components/Credits';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -13,7 +14,8 @@ import type { FnProps } from '../terminal/types';
  * ECFC, economic forecasts: the IMF's World Economic Outlook for the world, its regions and the largest economies,
  * one indicator at a time (GDP growth, inflation, unemployment, current account, government balance and debt), two
  * years back to five ahead, with any economy's history and projections on a chart. From the current year on the
- * figures are the IMF's projections.
+ * figures are the IMF's projections. The ECB's Survey of Professional Forecasters gives the euro area's consensus beside
+ * it: the panel's average for this year, the next two and the longer term, against the round before.
  */
 
 /** The groups the WEO gives figures for, in the order the WEO tables list them. */
@@ -36,8 +38,63 @@ export function weoRows(values: WeoValues, names: Record<string, string>, view: 
     .sort((a, b) => (names[a] ?? a).localeCompare(names[b] ?? b));
 }
 
+/** The survey's table: one row per variable, the round's average for each year and the longer term, and its change since the round before. */
+export function SpfTable({ spf }: { spf: EcbSpf }) {
+  const horizons = [...spf.years, 'LT'];
+  const head = (h: string) => (h === 'LT' ? `Longer term${spf.longTermYear ? ` (${spf.longTermYear})` : ''}` : h);
+  return (
+    <table className="tbl" aria-label="Survey of Professional Forecasters">
+      <thead>
+        <tr>
+          <th>Euro area</th>
+          {horizons.map((h) => <th key={h} className="num cyan">{head(h)}</th>)}
+          {horizons.map((h) => <th key={`d${h}`} className="num">Chg {h === 'LT' ? 'LT' : h}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {SPF_TOPICS.map((t) => {
+          const row = spf.values[t.id] ?? {};
+          return (
+            <tr key={t.id}>
+              <td>{t.label}, {t.unit}</td>
+              {horizons.map((h) => <td key={h} className="num cyan">{row[h] ? fmtNum(row[h].now, 2) : ''}</td>)}
+              {horizons.map((h) => {
+                const c = row[h];
+                // Coloured by the change as shown: one that rounds to 0.00 is neither up nor down.
+                const d = c && c.before !== undefined ? Math.round((c.now - c.before) * 100) / 100 : undefined;
+                return <td key={`d${h}`} className={`num${d === undefined ? '' : d > 0 ? ' up' : d < 0 ? ' down' : ''}`}>{d === undefined ? '' : fmtSigned(d, 2)}</td>;
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function SurveyView() {
+  const { state, spf, message } = useEcbSpf(true);
+  if (state === 'none') return <div className="empty">The ECB&apos;s survey is read from the ECB Data Portal in the desktop app. The browser demo has none, and none is generated.</div>;
+  if (state === 'loading') return <div className="empty">Reading the ECB&apos;s Survey of Professional Forecasters…</div>;
+  if (state === 'error' || !spf) return <div className="empty amber" role="status">{message}</div>;
+  return (
+    <div data-testid="ecb-spf">
+      <div className="pad-s">
+        <b>ECB Survey of Professional Forecasters, {roundLabel(spf.round)} round</b>: the average of the panel&apos;s point forecasts for the euro area, by
+        calendar year.{spf.previous ? ` Chg: the change since the ${roundLabel(spf.previous)} round for the same year.` : ''}
+      </div>
+      <SpfTable spf={spf} />
+      <div className="note">
+        The ECB publishes the survey&apos;s results four times a year. The longer term is the year five years ahead in the third and fourth quarters&apos; rounds
+        and four years ahead in the first and second. {CREDITS.ecb}
+      </div>
+    </div>
+  );
+}
+
 export function ECFC({ route }: FnProps) {
   const panel = usePanelId();
+  const [source, setSource] = useState<'imf' | 'ecb-spf'>('imf');
   const [tab, setTab] = useState(1);
   const [view, setView] = useState<'major' | 'all'>('major');
   const [words, setWords] = useState('');
@@ -65,6 +122,23 @@ export function ECFC({ route }: FnProps) {
       : part.state === 'error'
         ? part.message
         : '';
+  const pick = (
+    <label className="fld">
+      Source
+      <select className="sel-inp" aria-label="Forecasts from" value={source} onChange={(e) => setSource(e.target.value as 'imf' | 'ecb-spf')}>
+        <option value="imf">IMF World Economic Outlook</option>
+        <option value="ecb-spf">ECB Survey of Professional Forecasters (euro area)</option>
+      </select>
+    </label>
+  );
+  if (source === 'ecb-spf') {
+    return (
+      <div>
+        <FnHeader code="ECOFORECASTS" title="Economic Forecasts" sub={<><RealBadge /> ECB Survey of Professional Forecasters · euro area</>} controls={<div className="chart-tools">{pick}</div>} />
+        <SurveyView />
+      </div>
+    );
+  }
   return (
     <div>
       <FnHeader
@@ -77,6 +151,7 @@ export function ECFC({ route }: FnProps) {
         actions={exportActions(panel, `ECFC_${ind.id}.csv`, csv)}
         controls={
           <div className="chart-tools">
+            {pick}
             <label className="fld">
               Show
               <select className="sel-inp" aria-label="Show" value={view} onChange={(e) => setView(e.target.value as 'major' | 'all')}>

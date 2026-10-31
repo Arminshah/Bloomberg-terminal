@@ -65,6 +65,7 @@ interface Fixtures {
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
+  ecbSpf?: boolean;
   centralBankRates?: boolean;
   policyDecisions?: boolean;
   policyDown?: boolean;
@@ -75,7 +76,7 @@ interface Fixtures {
   treasuryCurve?: boolean;
   spdr?: boolean;
   asic?: boolean;
-  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; treasuryDirect?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; treasuryDirect?: string[]; ecbSpf?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -646,6 +647,26 @@ test("ECFC shows the IMF's World Economic Outlook for the regions and major econ
   const asked = (await calls(app)).imf ?? [];
   expect(asked).toContain('/external/datamapper/api/v1/NGDP_RPCH');
   expect(asked).toContain('/external/datamapper/api/v1/PCPIPCH');
+});
+
+test("ECOFORECASTS shows the ECB's Survey of Professional Forecasters for the euro area, with each change since the round before", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.ecbSpf = true;
+  });
+  await command(page, 'ECOFORECASTS', 'ECOFORECASTS');
+  const panel = page.locator('.panel').first();
+  await panel.getByLabel('Forecasts from').selectOption('ecb-spf');
+  const survey = panel.getByTestId('ecb-spf');
+  await expect(survey).toContainText('ECB Survey of Professional Forecasters, Q4 2026 round', { timeout: 30_000 });
+  await expect(survey).toContainText('the change since the Q3 2026 round');
+  const table = panel.getByRole('table', { name: 'Survey of Professional Forecasters' });
+  await expect(table.locator('thead th')).toHaveText(['Euro area', '2026', '2027', '2028', 'Longer term (2031)', 'Chg 2026', 'Chg 2027', 'Chg 2028', 'Chg LT']);
+  // HICP inflation: 2.99% this year (2.73 in the Q3 round), 2.63 next year, 1.99 in 2028, 2.02 in the longer term.
+  await expect(table.locator('tbody tr').filter({ hasText: 'HICP inflation' }).locator('td')).toHaveText(['HICP inflation, % y/y', '2.99', '2.63', '1.99', '2.02', '+0.26', '+0.46', '-0.01', '-0.02']);
+  await expect(table.locator('tbody tr').filter({ hasText: 'Real GDP growth' }).locator('td').nth(1)).toHaveText('0.97');
+  await expect(table.locator('tbody tr').filter({ hasText: 'Unemployment rate' }).locator('td').nth(1)).toHaveText('6.37');
+  await expect(survey).toContainText('Source: ECB statistics.');
+  expect((await calls(app)).ecbSpf).toEqual(['/service/data/SPF/Q.U2.HICP+CORE+RGDP+UNEM.POINT..Q.AVG?lastNObservations=2&format=csvdata']);
 });
 
 test("ECTR ranks an economy's goods trade by partner from the IMF, with its regions, any year and a partner's months", async ({ desktop: { app, page } }) => {

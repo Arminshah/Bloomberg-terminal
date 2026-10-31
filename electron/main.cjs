@@ -268,6 +268,8 @@ const OFFICIAL = {
   // The overnight benchmarks the ECB and the Bank of England publish: the euro short-term rate (ECB Data Portal,
   // dataset EST) and SONIA (Bank of England database, IUDSOIA).
   estr: (since) => `https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT?format=csvdata&startPeriod=${since}`,
+  // The ECB's Survey of Professional Forecasters: the panel's average point forecasts of the last two rounds, every horizon.
+  ecbSpf: () => 'https://data-api.ecb.europa.eu/service/data/SPF/Q.U2.HICP+CORE+RGDP+UNEM.POINT..Q.AVG?lastNObservations=2&format=csvdata',
   sonia: (since) => boeSeries('IUDSOIA', since),
   // The Bank of Japan's Time-Series Data Search API (no key; its notice asks for a credit line, shown where the
   // figures are): the basic loan rate, daily with every change (IR01, MADR1Z@D), and the uncollateralized overnight
@@ -339,7 +341,7 @@ const OFFICIAL = {
 
 /** Which provider publishes each official source, for the status screen. */
 const OFFICIAL_PROVIDER = {
-  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', fedStatement: 'fedboard', fedImplementation: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
+  effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', fedStatement: 'fedboard', fedImplementation: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', ecbSpf: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
   rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bis: 'bis', bde: 'bde', clevNowcast: 'clevelandfed', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
@@ -366,7 +368,7 @@ ipcMain.handle('official', async (event, source, since) => {
     return { status: res.status, text: res.ok ? await res.text() : '' };
   }
   // Some statistics services answer large requests slowly; a stalled one still ends.
-  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' || source === 'ecbFx' || source === 'estr' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
+  const res = await tracked(OFFICIAL_PROVIDER[source], url, { headers: { 'User-Agent': clientAgent(), ...(source === 'ecb' || source === 'ecbFx' || source === 'estr' || source === 'ecbSpf' ? { Accept: 'text/csv' } : {}) }, cache: 'no-cache', signal: AbortSignal.timeout(2 * TIMEOUT_MS) });
   return { status: res.status, text: res.ok ? await res.text() : '', at: Date.now(), url };
 });
 
