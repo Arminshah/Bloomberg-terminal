@@ -1,6 +1,6 @@
 # Armin Terminal
 
-Version **2.29.1** corrects financial statement selection when later proxy disclosures reuse accounting tags, refreshes range statistics after quote corrections, and improves source evidence and audit dates. It includes the policy, earnings-history and supply-chain changes in 2.29.0. See the [2.29.1 release notes](docs/release-v2.29.1.md) and [accuracy follow-up](docs/accuracy-v2.29.1.md).
+Version **2.30.0** adds the portfolio-management screens (FRONTIER, mean-variance analysis; MPC, the model-predictive-control back-tests), a FTSE 100 universe for the screener, a filing-by-filing review of the supply-chain screen with its fixes, and official session figures from Nasdaq's record. It includes the unpublished 2.29.1 accuracy work. See the [2.30.0 release notes](docs/release-v2.30.0.md).
 
 Version **2.27.0** brings back the IBM Plex Sans typeface, gives the watchlist a new default layout and after-hours rule, adds a Transactions tab to PORTFOLIO (lots, realised P&L, time- and money-weighted returns), yield to call and to worst on BONDCALC, a help desk that ignores instructions planted in the news, and new screens: commodity sector pages, world currency rates, index rankings and a markets map, portals on the ECB, the Bank of England and the Bank of Japan, central bank rate analysis and your own news pages. See the [2.27.0 release notes](docs/release-v2.27.0.md).
 
