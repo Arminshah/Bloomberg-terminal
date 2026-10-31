@@ -122,6 +122,36 @@ function nasdaqProblem(text) {
   return null;
 }
 
+// One underlying's whole listed option chain from nasdaq.com's option-chain page (no key): per contract the composite
+// bid, ask, last, change, the day's volume and open interest, in one answer (SPY's 5,985 strike rows are 240 KB).
+// Nasdaq files ETFs and stocks under different asset classes and answers "Symbol not exists" for the wrong one; of
+// the indices it lists options for the Nasdaq-100 (NDX) and its micro version (XND), not SPX, RUT or VIX.
+const OPTION_CLASSES = new Set(['stocks', 'etf', 'index']);
+const OPTION_INDICES = new Set(['NDX', 'XND']);
+
+/** The request for one underlying's chain, or null when the symbol or asset class is not one the app asks for. */
+function nasdaqOptionChainRequest(symbol, assetClass) {
+  if (typeof symbol !== 'string' || typeof assetClass !== 'string' || !OPTION_CLASSES.has(assetClass)) return null;
+  if (assetClass === 'index' ? !OPTION_INDICES.has(symbol) : !COMPANY.test(symbol)) return null;
+  // Delayed quotes move all session; a minute keeps a refresh from asking twice.
+  return { url: `https://api.nasdaq.com/api/quote/${symbol}/option-chain?assetclass=${assetClass}&limit=10000&fromdate=all&excode=oprac&callput=callput&money=all&type=all`, ttl: 60_000, headers: { Accept: 'application/json, text/plain, */*' } };
+}
+
+/** An option answer for the wrong asset class is an answer ("Symbol not exists"), not a failure of the feed. */
+function nasdaqOptionProblem(text) {
+  let j;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    return 'Nasdaq returned a page that is not JSON.';
+  }
+  const code = j?.status?.rCode;
+  if (code === 400 && j?.status?.bCodeMessage?.some?.((m) => m?.code === 1001)) return null;
+  if (code !== undefined && code !== 200) return `Nasdaq refused the request (${String(j?.status?.bCodeMessage?.[0]?.errorMessage ?? code).slice(0, 120)}).`;
+  if (!Array.isArray(j?.data?.table?.rows)) return 'Nasdaq changed the option chain format.';
+  return null;
+}
+
 // FINRA's consolidated short interest (no key), for every US-listed stock: Nasdaq's page has it for Nasdaq listings
 // only. A POST to FINRA's Query API for one symbol's settlements of the last 75 days; FINRA publishes twice a month.
 function finraShortRequest(symbol, now = Date.now(), days = 75, limit = 12) {
@@ -155,4 +185,4 @@ function finraSettlementRequest(date, now = Date.now()) {
   return { url: 'https://api.finra.org/data/group/otcMarket/name/consolidatedShortInterest', ttl: 24 * HOUR, headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body };
 }
 
-module.exports = { finraShortRequest, finraSettlementRequest, nasdaqCalendarRequest, nasdaqEconomicRequest, nasdaqIpoRequest, nasdaqDividendRequest, nasdaqSplitsRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem };
+module.exports = { finraShortRequest, finraSettlementRequest, nasdaqCalendarRequest, nasdaqEconomicRequest, nasdaqIpoRequest, nasdaqDividendRequest, nasdaqSplitsRequest, nasdaqScreenerRequest, nasdaqCompanyRequest, COMPANY_KINDS, nasdaqProblem, nasdaqOptionChainRequest, nasdaqOptionProblem };

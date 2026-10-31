@@ -31,6 +31,8 @@ export function optionContract(symbol: string): OptionContract | null {
 export interface OptionSnapshot extends OptionContract {
   bid: number; ask: number; bidSize: number; askSize: number; quoteAt: number;
   last: number; lastSize: number; tradeAt: number;
+  /** The day's change in the last price, the day's volume and the open interest, from feeds that give them (Nasdaq; not Alpaca). */
+  change?: number; volume?: number; openInterest?: number;
   iv: number; delta: number; gamma: number; theta: number; vega: number; rho: number;
 }
 

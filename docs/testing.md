@@ -50,6 +50,8 @@ The 2.15 data-accuracy regressions are in `earnings-accuracy.test.ts`, `financia
 | `favalerts.test.ts` | Favourite pop-ups: once per story by link and title, newest on top, dismissing one or all, the caps, kept across a restart, and which stories count as about a favourite |
 | `finance.test.ts` | Black-Scholes, Treasury math, indicators and statistics |
 | `contracts.test.ts` | Independent bond yield/price and finite-difference risk checks, zero-volatility option limits, covered interest parity, dual-curve swap PV/par/coupon/curve risk, date/curve/input boundaries |
+| `nasdaq-options.test.ts` | Nasdaq's option-chain request boundary, "Symbol not exists" as an answer, text figures and "--", OCC symbols from the row links, mismatched rows left out, the stock-then-ETF lookup, quote times and NDX's morning expiry |
+| `option-chain-analytics.test.ts` | Black's formula and its inversion, put-call parity, Greeks against bumped prices, the par curve, the implied forward, a whole synthetic chain, adjusted roots and a missing rate |
 | `option-chain.test.ts` | Indicative-only read-only request boundary, OCC decoding, missing fields, event ages, sequential pagination, repeated tokens, page limits, partial failures and credentials/entitlements |
 | `strategy-spreads.test.ts` | Independent common-expiry strategy payoffs, unlimited tails, breakevens, aggregate Greeks/scenarios, and bond Z-spreads against zero-coupon and explicit nonflat-curve cash flows |
 | `data.test.ts`, `layout.test.ts`, `lookup.test.ts`, `portfolio.test.ts` | Heat map layout, calendars, fundamentals, workspace layouts, ticker lookup, the portfolio without paper trading |

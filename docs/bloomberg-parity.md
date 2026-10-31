@@ -372,7 +372,7 @@ The Alpaca request and field schema was checked against its official SDK: [chain
 | `RELEASES` | ECO economic calendar | Partial: FRED dates/actual/prior and bank decisions | No consensus survey, release-time coverage or global surprise monitoring |
 | `ECONSTATS` | ECST world economics | Partial: selected countries/official statistics | Coverage/frequencies/revisions incomplete; Japan CPI not connected |
 | `HOLIDAYS` | CDR market calendars | Partial: selected exchanges and early closes | No global settlement/calendar engine; some tables stop at 2027 and unscheduled closures are unknown |
-| `OPTIONS` | OMON option monitor | Partial: Alpaca indicative US equity snapshots | No real-time OPRA, index options, open interest/daily volume, exercise/deliverable reference data or surface history |
+| `OPTIONS` | OMON option monitor | Partial: Nasdaq's delayed composite chain for US stocks, ETFs, NDX and XND, with volume, open interest and the app's IVM, Greeks and implied forward; Alpaca indicative as a second source | No real-time OPRA, SPX/RUT/VIX options, exercise/deliverable reference data or surface history |
 | `OPTIONCALC` | OVME option valuation | Model: European/American value/IV, exercise premium, Greeks, grid diagnostics, scenarios and CSV | No exotics, discrete cash dividends, fitted market surface, margin/assignment or complete exchange conventions |
 | `OPTIONSTRATEGY` | OSA option strategy | Model: common-expiry multi-leg + stock risk/scenarios | No different-expiry calendars, American exercise/assignment, margin, funding or live strategy execution |
 | `WATCHLIST` | Launchpad monitors (WATCH) | Local tool: editable lists and source prices | No shared enterprise monitors or arbitrary Bloomberg data columns |

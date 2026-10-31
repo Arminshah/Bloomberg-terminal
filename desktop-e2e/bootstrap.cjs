@@ -121,9 +121,64 @@ function sessionNow(now = Date.now()) {
   return friday + ((15 * 60 + 59) - minutes) * 60_000 - Number(part(friday, 'second')) * 1000 - (friday % 1000);
 }
 
+// With fixtures.nasdaqOptions, a synthetic option chain in the layout of nasdaq.com's option-chain page (OMON): the
+// underlying at 100 as of the last weekday's close, two Friday expiries at least three and seven weeks on, strikes
+// 90 to 110, priced by Black's formula at 25% volatility on a forward of 100.50 (the Treasury fixture's 4.00% for the
+// discount) and quoted five cents either side. Nasdaq files SPY as an ETF and answers "Symbol not exists" otherwise.
+// With fixtures.treasuryCurve, the Treasury's par curve at 4.00% on every tenor for the last three weekdays.
+const DAY_MS = 86_400_000;
+function weekdaysBack(count, now = Date.now()) {
+  const out = [];
+  for (let t = now - DAY_MS; out.length < count; t -= DAY_MS) if (![0, 6].includes(new Date(t).getUTCDay())) out.push(new Date(t).toISOString().slice(0, 10));
+  return out;
+}
+function treasuryCsv(year) {
+  const head = 'Date,"1 Mo","2 Mo","3 Mo","6 Mo","1 Yr","2 Yr","3 Yr","5 Yr","7 Yr","10 Yr","20 Yr","30 Yr"';
+  const rows = weekdaysBack(3).filter((d) => d.startsWith(`${year}-`)).map((d) => `${d.slice(5, 7)}/${d.slice(8, 10)}/${d.slice(0, 4)},${Array(12).fill('4.00').join(',')}`);
+  return [head, ...rows].join('\n');
+}
+function normCdf(x) {
+  const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2);
+  const erf = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-(x * x) / 2);
+  return x >= 0 ? (1 + erf) / 2 : (1 - erf) / 2;
+}
+function nasdaqChainFixture(symbol) {
+  const asOf = weekdaysBack(1)[0];
+  const start = Date.parse(`${asOf}T20:00:00Z`);
+  const fridays = [];
+  for (let t = start + 21 * DAY_MS; fridays.length < 2; t += DAY_MS) if (new Date(t).getUTCDay() === 5 && (!fridays.length || t - Date.parse(fridays[0]) >= 28 * DAY_MS)) fridays.push(new Date(t).toISOString().slice(0, 10));
+  const MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const label = (iso) => `${MON[Number(iso.slice(5, 7)) - 1].slice(0, 1)}${MON[Number(iso.slice(5, 7)) - 1].slice(1).toLowerCase()} ${Number(iso.slice(8, 10))}`;
+  const figure = (v) => v.toFixed(2);
+  const rows = [];
+  for (const expiry of fridays) {
+    rows.push({ expirygroup: expiry, expiryDate: null, strike: null, drillDownURL: null });
+    const years = (Date.parse(`${expiry}T20:00:00Z`) - start) / (365 * DAY_MS);
+    const discount = Math.exp(-2 * Math.log1p(4 / 200) * years);
+    const F = 100.5;
+    const s = 0.25 * Math.sqrt(years);
+    for (let k = 90; k <= 110; k += 2.5) {
+      const d1 = (Math.log(F / k) + s * s / 2) / s;
+      const call = discount * (F * normCdf(d1) - k * normCdf(d1 - s));
+      const put = call - discount * (F - k);
+      const osi = `${symbol.toLowerCase().padEnd(6, '-')}${expiry.slice(2, 4)}${expiry.slice(5, 7)}${expiry.slice(8, 10)}c${String(k * 1000).padStart(8, '0')}`;
+      rows.push({
+        expirygroup: '', expiryDate: label(expiry), strike: figure(k), drillDownURL: `/market-activity/stocks/${symbol.toLowerCase()}/option-chain/call-put-options/${osi}`,
+        c_Last: figure(call), c_Change: '0.10', c_Bid: figure(call - 0.05), c_Ask: figure(call + 0.05), c_Volume: k === 100 ? '1,500' : '--', c_Openinterest: k === 100 ? '12,345' : '200',
+        p_Last: figure(put), p_Change: '-0.10', p_Bid: figure(Math.max(0, put - 0.05)), p_Ask: figure(put + 0.05), p_Volume: k === 100 ? '900' : '--', p_Openinterest: k === 100 ? '8,000' : '150',
+      });
+    }
+  }
+  const [y, m, d] = asOf.split('-');
+  return { data: { totalRecord: rows.length, lastTrade: `LAST TRADE: $100.00 (AS OF ${MON[Number(m) - 1]} ${Number(d)}, ${y})`, table: { asOf: null, headers: {}, rows }, filterlist: {} }, message: null, status: { rCode: 200, bCodeMessage: null, developerMessage: null } };
+}
+
 net.fetch = async (input, init) => {
   const url = new URL(String(input));
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  if (fixtures.treasuryCurve && url.hostname === 'home.treasury.gov') {
+    return new Response(treasuryCsv(url.pathname.split('/').at(-2)), { status: 200, headers: { 'Content-Type': 'text/csv' } });
+  }
   // With fixtures.supplyChain, SPLC's full-text search and three annual reports (electron/supply-chain.cjs).
   // The two filers naming it are listed under their own CIKs: SPLC takes a filer's name and ticker from that entry.
   if (fixtures.supplyChain && url.hostname === 'www.sec.gov' && url.pathname === '/files/company_tickers.json') return json({ 0: { cik_str: 1513845, ticker: 'NBIS', title: 'Nebius Group N.V.' }, 1: { cik_str: 1408710, ticker: 'FN', title: 'Fabrinet' }, 2: { cik_str: 2222222, ticker: 'EXCL', title: 'Example Cloud Inc.' } });
@@ -594,6 +649,13 @@ net.fetch = async (input, init) => {
   }
   if (url.hostname === 'api.nasdaq.com') {
     fixtures.calls.nasdaq = (fixtures.calls.nasdaq ?? 0) + 1;
+    const chain = /^\/api\/quote\/([A-Z.]+)\/option-chain$/.exec(url.pathname);
+    if (fixtures.nasdaqOptions && chain) {
+      fixtures.calls.nasdaqOptions = [...(fixtures.calls.nasdaqOptions ?? []), `${chain[1]}:${url.searchParams.get('assetclass')}`];
+      const filed = chain[1] === 'SPY' ? 'etf' : chain[1] === 'NDX' ? 'index' : 'stocks';
+      if (url.searchParams.get('assetclass') !== filed) return json({ data: null, message: null, status: { rCode: 400, bCodeMessage: [{ code: 1001, errorMessage: 'Symbol not exists.' }], developerMessage: null } });
+      return json(nasdaqChainFixture(chain[1]));
+    }
     // The dividends go ex on the first weekday two days or more ahead, whatever the day the test runs; two splits fall
     // in the coming fortnight, the others two months back.
     const usDay = (iso) => `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(0, 4)}`;

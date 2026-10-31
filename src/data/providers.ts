@@ -480,16 +480,16 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'nasdaq',
     name: 'Nasdaq (nasdaq.com data pages)',
-    serves: "EVENTS' market-wide earnings calendar and stock list; for one US-listed stock, what Yahoo leaves empty: market value, industry, description, dividend and its declaration, record and payment dates, short interest (Nasdaq listings), institutional ownership, the price target and buy/hold/sell count, the coming quarters' EPS consensus and the next report date",
+    serves: "EVENTS' market-wide earnings calendar and stock list; for one US-listed stock, what Yahoo leaves empty: market value, industry, description, dividend and its declaration, record and payment dates, short interest (Nasdaq listings), institutional ownership, the price target and buy/hold/sell count, the coming quarters' EPS consensus and the next report date; OPTIONS' listed option chains for US stocks, ETFs, NDX and XND: composite bid, ask, last, the day's volume and open interest",
     dataClass: 'Reference: exchange and analyst data as nasdaq.com publishes it; EPS consensus from Zacks as Nasdaq credits it',
     policy: 'enabled',
     limit: '60/min',
-    terms: "The JSON behind nasdaq.com's public quote, company, analyst and calendar pages, without a key, for personal use. The app asks only for the stock on screen (peers: the market value only), keeps answers 2 to 24 hours and fills only fields the other sources leave empty. Nasdaq's servers refuse a User-Agent with a web address or Electron's, so the app sends its plain name and version.",
+    terms: "The JSON behind nasdaq.com's public quote, company, analyst, calendar and option-chain pages, without a key. Nasdaq's Legal Information (updated 11 May 2026) licenses the site \"solely for your personal, non-commercial use\" and asks users not to use \"any process, whether automated or manual, to capture data or content from the Service\": a risk this private app accepts, as with Yahoo. The app asks only for the security on screen (peers: the market value only), keeps answers a minute (option chains) to 24 hours and fills only fields the other sources leave empty. Nasdaq's servers refuse a User-Agent with a web address or Electron's, so the app sends its plain name and version.",
     docs: [
       { label: 'nasdaq.com market activity', url: 'https://www.nasdaq.com/market-activity' },
-      { label: 'Terms of use', url: 'https://www.nasdaq.com/terms-of-use' },
+      { label: 'Legal information (terms of use)', url: 'https://www.nasdaq.com/legal' },
     ],
-    checked: '2026-10-20',
+    checked: '2026-10-31',
     desktop: true,
   },
   {

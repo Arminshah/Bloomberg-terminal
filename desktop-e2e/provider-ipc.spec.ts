@@ -71,7 +71,9 @@ interface Fixtures {
   chartSplits?: Record<string, { date: number; numerator: number; denominator: number }[]>;
   supplyChain?: boolean;
   segments?: boolean;
-  calls: { wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  nasdaqOptions?: boolean;
+  treasuryCurve?: boolean;
+  calls: { nasdaqOptions?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -1564,6 +1566,7 @@ test('portfolio adjustments retain cost and unavailable real histories never pro
 test('indicative option chains cross real IPC, paginate and keep adjusted roots and old timestamps explicit', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.optionContractCount = 101; });
   await command(page, 'AAPL OMON', 'OPTIONS');
+  await page.getByLabel('Source', { exact: true }).selectOption('alpaca');
   await expect(page.getByTestId('option-chain').getByRole('row')).toHaveCount(101); // header + 100 displayed rows
   await expect(page.getByText('INDICATIVE', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Next rows', exact: true }).click();
@@ -1596,9 +1599,67 @@ test('indicative option chains cross real IPC, paginate and keep adjusted roots 
   expect((await calls(app)).options).toHaveLength(2);
 });
 
+test("OMON shows Nasdaq's composite chain with volume, open interest and the app's IVM on the implied forward", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const f = (globalThis as FixtureGlobal).__desktopFixtures;
+    f.nasdaqOptions = true;
+    f.treasuryCurve = true;
+  });
+  await page.reload();
+  await command(page, 'AAPL OMON', 'OPTIONS');
+  await expect(page.getByText('DELAYED', { exact: true })).toBeVisible();
+  const chain = page.getByTestId('nasdaq-chain');
+  // The expiry line: days to expiry, contract size, the Treasury rate for the maturity and the implied forward.
+  await expect(chain.locator('tr.group').first()).toHaveText(/^\d{2}-[A-Z][a-z]{2}-\d{2} \(\d+d\); CSize 100; R 4\.00; IFwd 100\.(49|50|51)$/, { timeout: 30_000 });
+  const atm = chain.locator('tbody').first().locator('tr:not(.group)').filter({ has: page.locator('td:first-child', { hasText: /^100\.00$/ }) });
+  const cells = atm.getByRole('cell');
+  await expect(cells.nth(1)).toHaveText(/^AAPL \d{2}\/\d{2}\/\d{2} C100$/);
+  await expect(cells.nth(6)).toHaveText('1,500');
+  await expect(cells.nth(7)).toHaveText('12,345');
+  await expect(cells.nth(9)).toHaveText(/^AAPL \d{2}\/\d{2}\/\d{2} P100$/);
+  await expect(cells.nth(14)).toHaveText('900');
+  await expect(cells.nth(15)).toHaveText('8,000');
+  // The fixture prices every contract at 25% volatility; the app finds it again from each mid.
+  for (const k of [5, 13]) {
+    const ivm = Number(await cells.nth(k).textContent());
+    expect(ivm).toBeGreaterThan(24.5);
+    expect(ivm).toBeLessThan(25.5);
+  }
+  await expect(page.getByTestId('chain-totals')).toContainText('call volume 1,500, put volume 900, put/call 0.60');
+  // Greeks: delta near a half at the money, and Nasdaq's change.
+  await page.locator('button.tab', { hasText: 'Greeks' }).click();
+  const delta = Number(await atm.getByRole('cell').nth(3).textContent());
+  expect(delta).toBeGreaterThan(0.45);
+  expect(delta).toBeLessThan(0.6);
+  // Nasdaq files ETFs apart from stocks: its "Symbol not exists" under the wrong class crosses the bridge as an
+  // answer (the page then asks for the ETF), not as a fault of the feed. (The fixture app lists no ETF to open.)
+  const spy = await page.evaluate(async () => {
+    const stocks = await window.arminDesktop!.nasdaqOptions!('SPY', 'stocks');
+    const etf = await window.arminDesktop!.nasdaqOptions!('SPY', 'etf');
+    return { stocks: JSON.parse(stocks.text).status.bCodeMessage[0].errorMessage, rows: JSON.parse(etf.text).data.table.rows.length };
+  });
+  expect(spy).toEqual({ stocks: 'Symbol not exists.', rows: 20 });
+  expect((await page.evaluate(() => window.arminDesktop!.providersStatus!())).providers.nasdaq.lastError ?? '').not.toContain('Symbol not exists');
+  expect((await calls(app)).nasdaqOptions).toEqual(['AAPL:stocks', 'SPY:stocks', 'SPY:etf']);
+  // SPX options are Cboe's: no request, and the reason.
+  await command(page, 'SPX Index OMON', 'OPTIONS');
+  await expect(page.getByRole('status').filter({ hasText: 'Cboe' })).toContainText('not for this security');
+  expect((await calls(app)).nasdaqOptions).toHaveLength(3);
+  // Only the option-chain URL for a listed symbol and class crosses the bridge.
+  const refused = await page.evaluate(async () => {
+    const out: boolean[] = [];
+    for (const [s, c] of [['SPX', 'index'], ['AAPL', 'quotes']]) {
+      try { await window.arminDesktop!.nasdaqOptions!(s, c as 'index'); out.push(false); } catch { out.push(true); }
+    }
+    return out;
+  });
+  expect(refused).toEqual([true, true]);
+});
+
 test('a refused next option page leaves a visibly partial stale chain', async ({ desktop: { app, page } }) => {
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.optionPageFailure = true; });
   await command(page, 'AAPL OMON', 'OPTIONS');
+  await page.getByLabel('Source', { exact: true }).selectOption('alpaca');
   await expect(page.getByTestId('option-chain').getByRole('row')).toHaveCount(2);
   await expect(page.getByRole('status').filter({ hasText: 'PARTIAL CHAIN' })).toContainText('STALE RESPONSE');
   await expect(page.getByRole('status').filter({ hasText: 'PARTIAL CHAIN' })).toContainText('Deterministic option entitlement refusal');
@@ -1619,6 +1680,7 @@ test('malformed option schemas are not cached or reported as successful and reco
   expect(report.providers.alpaca.lastErrorKind).toBe('schema-changed');
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.optionMalformed = false; });
   await command(page, 'AAPL OMON', 'OPTIONS');
+  await page.getByLabel('Source', { exact: true }).selectOption('alpaca');
   await expect(page.getByTestId('option-chain').getByRole('row')).toHaveCount(3);
   expect((await calls(app)).options).toHaveLength(4);
 });

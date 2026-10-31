@@ -61,6 +61,7 @@ declare global {
       /** Massive's dividend record for one US ticker (MASSIVE_API_KEY): src/data/live/massive-dividends.ts. */
       massiveDividends?(ticker: string): Promise<KeyedAnswer>;
       nasdaq?(kind: import('./nasdaq-company').NasdaqKind | 'info' | 'historical', symbol: string): Promise<KeyedAnswer>;
+      nasdaqOptions?(symbol: string, assetClass: 'stocks' | 'etf' | 'index'): Promise<KeyedAnswer>;
       finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;
       finvizPeers?(symbol: string): Promise<KeyedAnswer>;

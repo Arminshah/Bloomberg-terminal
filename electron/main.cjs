@@ -1088,7 +1088,8 @@ const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(ur
       return /^\uFEFF?Symbol,Security,GICS Sector,GICS Sub-Industry/.test(text) ? null : { kind: 'schema-changed', message: 'The S&P 500 member list changed its format.' };
     }
     if (provider === 'nasdaq') {
-      const message = require('./nasdaq.cjs').nasdaqProblem(text);
+      const checks = require('./nasdaq.cjs');
+      const message = new URL(url).pathname.endsWith('/option-chain') ? checks.nasdaqOptionProblem(text) : checks.nasdaqProblem(text);
       return message ? { kind: 'schema-changed', message } : null;
     }
     if (provider !== 'alpaca' || !new URL(url).pathname.startsWith('/v1beta1/options/snapshots/')) return null;
@@ -1261,6 +1262,15 @@ ipcMain.handle('nasdaq', async (event, kind, symbol) => {
   // The watchlist's real-time quotes go in a lane of their own (20 a minute), so they never hold up EVENTS' calendar
   // days or a company's pages.
   if (kind === 'info') return keyedGet('nasdaq-quote', req.url, req.headers, req.ttl, [20, 60_000], [], nasdaqAgent());
+  return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
+});
+
+// One underlying's listed options from Nasdaq's option-chain page, without a key (electron/nasdaq.cjs): composite
+// quotes, the day's volume and open interest. Nasdaq files ETFs apart from stocks, so the page asks for one, then the
+// other. Same pace as the company pages.
+ipcMain.handle('nasdaq-options', async (event, symbol, assetClass) => {
+  const req = nasdaq.nasdaqOptionChainRequest(symbol, assetClass);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
   return keyedGet('nasdaq', req.url, req.headers, req.ttl, [60, 60_000], [], nasdaqAgent());
 });
 

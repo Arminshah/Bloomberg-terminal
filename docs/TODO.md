@@ -6,6 +6,14 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 2.30.0 was requested on 31 October through `.github/release-request.json`: the portfolio-management screens (FRONTIER, MPC), the FTSE 100 screen, the SPLC review fixes (`docs/splc-review-2026-10-30.md`), official session figures from Nasdaq's record, the interface work of 31 October and the unpublished 2.29.1 accuracy work. It is published only once the release workflow has finished and both Windows executables and their checksums are on the release.
 
+### 15. More free data sources (asked 31 October)
+
+The owner asked for every free source that makes the data more complete, accurate and checked. One source at a time: read its terms, test it live, compare a sample with a second source, then build it with tests (`docs/adding-a-provider.md`).
+
+- Done: `OPTIONS` opens on Nasdaq's composite option chain (US stocks, ETFs, NDX, XND) with volume and open interest, and the app's IVM, Greeks and implied forward per expiry; Alpaca stays as the second source (`docs/data-providers.md`, "Nasdaq option chains").
+- Not used: Cboe's delayed quote files (SPX, RUT and VIX options, Greeks). Every Cboe quote page forbids automated download and warns of IP blocks (`docs/data-providers.md`, "Cboe delayed quotes"). Only the owner can decide otherwise.
+- Next: the survey's other clusters (bonds and Treasury auctions, government yields, index members, identifiers, short interest, segments, analyst history, ownership, intraday futures, news and calendars), each checked the same way before it is built.
+
 ### 14. Match the provider's terminal screen for screen (asked 31 October)
 
 The owner's plan is `docs/parity-build-plan.md`, with the evidence in the owner's private reference pack (cloned into the git-ignored `reference/visual/bloomberg-pack-2026-10-31/`, never committed). Work through it in order: setup, M1 window chrome, M2 navigation and keyboard, M3 screens, M4 calculations, M5 missing functions. Its "Progress" list is ticked with each commit; start at the first unticked item. Two things never change: the typeface (`CLAUDE.md`) and the watchlist (`tests/watchlist-guard.test.ts`, `e2e/watchlist-guard.spec.ts`). The owner approved the 2024 visual corrections in the pack's `START_HERE_FOR_CLAUDE.md` except anything touching those two. Features with no counterpart stay; ask the owner before hiding any.
