@@ -13,18 +13,19 @@ import { nasdaqTicker } from './nasdaq-book';
 
 export const SETTLED_SOURCE = 'Nasdaq historical prices · consolidated volume of all US venues';
 export const SETTLED_OPEN_SOURCE = 'Nasdaq historical prices · official opening price';
+export const SETTLED_RANGE_SOURCE = 'Nasdaq historical prices · official session high and low';
 
 /** Nasdaq's historical rows as sessions (day number) with their volume, open and close; rows it cannot read are left out. */
-export function parseNasdaqDays(text: string): { day: number; volume: number; close: number; open: number }[] {
+export function parseNasdaqDays(text: string): { day: number; volume: number; close: number; open: number; high: number; low: number }[] {
   try {
     const rows = JSON.parse(text)?.data?.tradesTable?.rows;
     if (!Array.isArray(rows)) return [];
-    const out: { day: number; volume: number; close: number; open: number }[] = [];
+    const out: { day: number; volume: number; close: number; open: number; high: number; low: number }[] = [];
     for (const r of rows) {
       const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(r?.date ?? ''));
       const volume = nasdaqNumber(r?.volume);
       if (!m || !(volume > 0)) continue;
-      out.push({ day: dayNum(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2]))), volume: Math.round(volume), close: nasdaqNumber(r?.close), open: nasdaqNumber(r?.open) });
+      out.push({ day: dayNum(Date.UTC(Number(m[3]), Number(m[1]) - 1, Number(m[2]))), volume: Math.round(volume), close: nasdaqNumber(r?.close), open: nasdaqNumber(r?.open), high: nasdaqNumber(r?.high), low: nasdaqNumber(r?.low) });
     }
     return out;
   } catch {
@@ -76,7 +77,7 @@ async function settle(id: string, symbol: string, day: number, active: () => boo
     if (!res.text || (res.status !== undefined && res.status !== 200)) return 'failed';
     if (!active()) return 'answered';
     const row = parseNasdaqDays(res.text).find((r) => r.day === day);
-    if (row && engine.settleVolume(id, day, row.volume, SETTLED_SOURCE, { price: row.open, source: SETTLED_OPEN_SOURCE })) engine.flush([id]);
+    if (row && engine.settleVolume(id, day, row.volume, SETTLED_SOURCE, { price: row.open, source: SETTLED_OPEN_SOURCE }, { high: row.high, low: row.low, source: SETTLED_RANGE_SOURCE })) engine.flush([id]);
     return 'answered';
   } catch {
     return 'failed';

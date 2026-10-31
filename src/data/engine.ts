@@ -77,7 +77,7 @@ interface ExtData {
    * A finished session's volume of all venues from a second source; a later reading of that session never lowers it.
    * With it, the session's official open from the same source, which a later provisional reading never replaces.
    */
-  settled?: { day: number; volume: number; source: string; open?: { price: number; source: string } };
+  settled?: { day: number; volume: number; source: string; open?: { price: number; source: string }; range?: { high: number; low: number; source: string } };
   /** Intraday bars of the latest session. */
   intra: Series;
   session: number;
@@ -1319,6 +1319,7 @@ export class MarketEngine {
     if (st.ext?.dayProvider) q.dayProvider = st.ext.dayProvider;
     if (st.ext?.settled && st.ext.settled.day === st.ext.session && st.ext.settled.volume >= st.volume) q.volumeSource = st.ext.settled.source;
     if (st.ext?.settled?.open && st.ext.settled.day === st.ext.session && st.dayOpen === st.ext.settled.open.price) q.openSource = st.ext.settled.open.source;
+    if (st.ext?.settled?.range && st.ext.settled.day === st.ext.session && st.dayHigh === st.ext.settled.range.high && st.dayLow === st.ext.settled.range.low) q.rangeSource = st.ext.settled.range.source;
     if (st.ext?.provider) q.provider = st.ext.provider;
     if (st.ext) {
       if (st.prevCloseDay !== undefined) q.prevCloseDay = st.prevCloseDay;
@@ -1464,7 +1465,7 @@ export class MarketEngine {
     return day < this.today || this.states.get(id)?.ext?.settled?.day === day;
   }
 
-  settleVolume(id: string, day: number, volume: number, source: string, open?: { price: number; source: string }): boolean {
+  settleVolume(id: string, day: number, volume: number, source: string, open?: { price: number; source: string }, range?: { high: number; low: number; source: string }): boolean {
     const st = this.states.get(id);
     const ext = st?.ext;
     if (!st || !ext || ext.session !== day || !(volume > 0)) return false;
@@ -1472,13 +1473,18 @@ export class MarketEngine {
     const n = s.length - 1;
     if (n < 0 || dayNum(s.t[n]) !== day) return false;
     const official = open && Number.isFinite(open.price) && open.price > 0 ? open : undefined;
-    ext.settled = { day, volume, source, ...(official ? { open: official } : {}) };
+    const officialRange = range && Number.isFinite(range.high) && Number.isFinite(range.low) && range.low > 0 && range.high >= range.low ? range : undefined;
+    ext.settled = { day, volume, source, ...(official ? { open: official } : {}), ...(officialRange ? { range: officialRange } : {}) };
     // The price source's open of a finished session can be its first print, not the official opening price (Yahoo's
     // Tesla on 29 October 2026: 405.94 against the official 405.625).
     const reopened = !!official && s.o[n] !== official.price;
     if (reopened) this.applyOpen(st, s, n, official!.price);
+    // Its high and low can miss a print the consolidated tape has (Yahoo's quote for Apple on 30 October 2026: a low of
+    // 342.35 against the official 334.35, which Yahoo's own daily bar later gave).
+    const reranged = !!officialRange && (s.h[n] !== officialRange.high || s.l[n] !== officialRange.low);
+    if (reranged) this.applyRange(st, s, n, officialRange!);
     const louder = volume > st.volume;
-    if (!louder && !reopened) return false;
+    if (!louder && !reopened && !reranged) return false;
     if (louder) {
       s.v[n] = volume;
       st.volume = volume;
@@ -1487,6 +1493,14 @@ export class MarketEngine {
     this.derivedCache.clear();
     this.publishQuote(st, this.now());
     return true;
+  }
+
+  /** Puts a session's official high and low on its daily bar and quote. */
+  private applyRange(st: State, s: Series, n: number, r: { high: number; low: number }) {
+    s.h[n] = r.high;
+    s.l[n] = r.low;
+    st.dayHigh = r.high;
+    st.dayLow = r.low;
   }
 
   /** Puts a session's official open on its daily bar and quote; the day's range takes it in. */
@@ -1769,6 +1783,8 @@ export class MarketEngine {
     st.dayLow = s.l[s.length - 1];
     const officialOpen = st.ext.settled?.day === last.day ? st.ext.settled.open?.price : undefined;
     if (officialOpen !== undefined) this.applyOpen(st, s, s.length - 1, officialOpen);
+    const officialRange = st.ext.settled?.day === last.day ? st.ext.settled.range : undefined;
+    if (officialRange) this.applyRange(st, s, s.length - 1, officialRange);
     const settled = st.ext.settled?.day === last.day ? st.ext.settled.volume : NaN;
     if (settled > (s.v[s.length - 1] || 0)) s.v[s.length - 1] = settled;
     st.volume = s.v[s.length - 1];
@@ -1824,6 +1840,11 @@ export class MarketEngine {
     const keepLo = newSession || (q.full && Number.isFinite(lo)) ? Infinity : s.l[n];
     s.h[n] = Math.max(Number.isFinite(hi) ? hi : -Infinity, keepHi, q.last, s.o[n]);
     s.l[n] = Math.min(Number.isFinite(lo) ? lo : Infinity, keepLo, q.last, s.o[n]);
+    // A settled session keeps its official high and low against the price source's provisional ones.
+    if (ext.settled?.day === day && ext.settled.range) {
+      s.h[n] = ext.settled.range.high;
+      s.l[n] = ext.settled.range.low;
+    }
     s.c[n] = q.last;
     const read = q.volume != null && Number.isFinite(q.volume) ? q.volume : s.v[n];
     // A quote taken at the close leaves the session's volume short of what all venues reported (Yahoo's for Apple on

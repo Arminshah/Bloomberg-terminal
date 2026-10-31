@@ -70,8 +70,9 @@ export function securityFields(sec: SecurityDef, q: Quote | undefined, now: numb
     ...day,
     ...(q?.openSource ? { source: q.openSource, note: 'The finished session’s official opening price, as the consolidated tape reports it; the price source’s first reading differed.' } : {}),
   });
-  market('PX_HIGH', 'Session high', 'High of the source session; the time shown belongs to the source snapshot, not the high event.', q?.high, day);
-  market('PX_LOW', 'Session low', 'Low of the source session; the time shown belongs to the source snapshot, not the low event.', q?.low, day);
+  const range = q?.rangeSource ? { source: q.rangeSource, note: 'The finished session’s official high and low, as the consolidated tape reports them; the price source’s readings differed.' } : {};
+  market('PX_HIGH', 'Session high', 'High of the source session; the time shown belongs to the source snapshot, not the high event.', q?.high, { ...day, ...range });
+  market('PX_LOW', 'Session low', 'Low of the source session; the time shown belongs to the source snapshot, not the low event.', q?.low, { ...day, ...range });
   market('PX_PREV_CLOSE', 'Previous close', 'Source previous close, checked against a prior daily bar when available. Unverified bases remain labelled.', q?.prevClose, {
     status: q?.src === 'SIM' ? 'DEMO DATA' : q?.chgCheck === 'verified' ? (q.prevSettle ? 'SETTLEMENT' : 'VERIFIED CLOSE') : 'UNVERIFIED BASE',
     asOf: timestamp(q?.prevCloseDay === undefined ? undefined : q.prevCloseDay * DAY_MS), dateOnly: true,
