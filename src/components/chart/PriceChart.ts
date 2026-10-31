@@ -146,7 +146,11 @@ export class PriceChart {
     vma?: Float64Array;
   } = { overlays: [], cmp: [] };
   private indKey = '';
-  /** The bar percent mode measures from: the first bar of the range the view last reset to. */
+  /**
+   * The bar percent mode measures from: the first bar of the range the view last reset to, as a public GP guide's
+   * Factor(100) example bases on the range's first trading day. Keeping it while panning is the app's choice: no public
+   * source says what GP does then, and GP can base on the day before the first bar (its benchmark mode).
+   */
   private normT: number | null = null;
   onHover?: (index: number | null) => void;
   onObservation?: (observation: ChartObservation | null) => void;
@@ -225,7 +229,7 @@ export class PriceChart {
     const pad = Math.max(1, count * 0.02);
     this.v1 = end + pad;
     this.v0 = end - count;
-    // Normalised as of the range's first bar, as GP's "Normalized As Of": panning or zooming does not move it.
+    // Normalised as of the range's first bar, named as GP's "Normalized As Of"; the app keeps it while panning or zooming.
     this.normT = n ? this.s.t[Math.max(0, Math.min(n - 1, Math.floor(this.v0)))] : null;
     this.schedule();
   }
