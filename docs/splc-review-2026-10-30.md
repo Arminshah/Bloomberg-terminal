@@ -26,6 +26,7 @@ Branch: `worktree-agent-aa7deeb76b3726e1e`. Regression tests: `tests/supply-chai
 | `daba7a7` | tests: quote the review's filings in full | none (four test cases now quote the filings word for word) |
 | `e0629fa` | a holding the company says it owned ends with its sale | Haleon (Pfizer note) |
 | `dcfd8bd` | a drug supplied for the filer's own trial is a collaboration | LAVA customer row (M4), BioAge customer row (LLY-2) |
+| (next) | a party matched on one word is looked up first | Vertex ×2 on the live screen (NOC 2) |
 
 ## Eli Lilly
 
@@ -197,7 +198,7 @@ The U.S. Government's 84% of 2025 sales (10-K of 27 January 2026) is correct and
 
 **1. The Defense Contract Management Agency shown as a $12.7B customer, 8 rows.** "Defense Contract Management Agency contract F4261098C0001 with NORTHROP GRUMMAN SYSTEMS CORPORATION: $10.0B obligated, from Jul 1998 to Nov 2025. ..." (https://www.usaspending.gov/award/CONT_AWD_F4261098C0001_9700_-NONE-_-NONE-), and seven more. DCMA administers contracts the Air Force, Army and Navy issue and fund. Fixed in `9d8cebe`: when the awarding sub-agency is DCMA, the customer is the funding agency.
 
-**2. Vertex Aerospace read as Vertex, Inc. (VERX), 2 rows.** "VERTEX AEROSPACE LLC subcontract to NORTHROP GRUMMAN SYSTEMS CORPORATION under Department of Defense contract FA702225F0011: $4.2M, Apr 2025. ..." (https://www.usaspending.gov/award/CONT_AWD_FA702225F0011_9700_FA702222D0001_9700). Fixed in `9d8cebe`: a party matched on one word is looked up by its UEI; USAspending names it V2X AEROSPACE LLC today, so the rows go to V2X, Inc. (VVX).
+**2. Vertex Aerospace read as Vertex, Inc. (VERX), 2 rows.** "VERTEX AEROSPACE LLC subcontract to NORTHROP GRUMMAN SYSTEMS CORPORATION under Department of Defense contract FA702225F0011: $4.2M, Apr 2025. ..." (https://www.usaspending.gov/award/CONT_AWD_FA702225F0011_9700_FA702222D0001_9700). Fixed in `9d8cebe`: a party matched on one word is looked up by its UEI; USAspending names it V2X AEROSPACE LLC today, so the rows go to V2X, Inc. (VVX). A live capture of Northrop's screen on 31 October 2026 still showed Vertex, Inc.: it ranked 25th by amount among the unmatched parties, and lookups stop at 15. The next commit looks up one-word matches first.
 
 **3. Air Industries shown as a customer.** "Air Industries Group's relationship with Northrop Grumman began decades ago as a supplier to a predecessor, the Grumman Aerospace Corporation ..." (https://www.sec.gov/Archives/edgar/data/1009891/000121390025019757/ea023289801ex99-1_airindust.htm). Fixed in `a084d67`: supplier.
 

@@ -416,6 +416,7 @@ describe('SPLC review of 30 October 2026: the federal records', () => {
       SUB_ROW({ 'Sub-Award ID': '4500003477', 'Sub-Awardee Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Sub-Recipient UEI': 'H9M6J1PND9M3', 'Sub-Award Amount': 4178357.64, 'Sub-Award Date': '2025-04-29', 'Prime Recipient Name': 'VERTEX AEROSPACE LLC', 'Prime Award Recipient UEI': 'NVC1EFKKYB93', 'Prime Award ID': 'FA702225F0011', prime_award_generated_internal_id: 'CONT_AWD_FA702225F0011_9700_FA702222D0001_9700' }),
       SUB_ROW({ 'Sub-Award ID': '4502043922', 'Sub-Awardee Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Sub-Recipient UEI': 'DJUCEANK2KP4', 'Sub-Award Amount': 239794.14, 'Sub-Award Date': '2024-11-07', 'Prime Recipient Name': 'VERTEX AEROSPACE LLC', 'Prime Award Recipient UEI': 'NVC1EFKKYB93', 'Prime Award ID': 'N0001921F0094', prime_award_generated_internal_id: 'CONT_AWD_N0001921F0094_9700_N6134019D1010_9700' }),
       SUB_ROW({ 'Sub-Award ID': '1000060443', 'Sub-Awardee Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Sub-Recipient UEI': 'LCV2N9FVV739', 'Sub-Award Amount': 157065062.0, 'Sub-Award Date': '2024-11-04', 'Prime Recipient Name': 'ELECTRIC BOAT CORPORATION', 'Prime Award Recipient UEI': 'E7BEKJ4V9528', 'Prime Award ID': 'N0002417C2117', 'Sub-Award Description': 'SEE REMARKS', prime_award_generated_internal_id: 'CONT_AWD_N0002417C2117_9700_-NONE-_-NONE-' }),
+      // A constructed record: General Dynamics' own subawards to Northrop, $11.8M on the reviewed screen.
       SUB_ROW({ 'Sub-Award ID': 'GD-1', 'Sub-Awardee Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Sub-Recipient UEI': 'DJUCEANK2KP4', 'Sub-Award Amount': 11800000, 'Sub-Award Date': '2025-06-01', 'Prime Recipient Name': 'GENERAL DYNAMICS CORP', 'Prime Award Recipient UEI': 'VF58HFRNGEL8', 'Prime Award ID': 'N0002425C0001', prime_award_generated_internal_id: 'CONT_AWD_N0002425C0001_9700_-NONE-_-NONE-' }),
     ] });
     const primes = subRelations(received, 'customer', ctx, new Set(['H9M6J1PND9M3', 'DJUCEANK2KP4', 'LCV2N9FVV739']));
@@ -427,18 +428,24 @@ describe('SPLC review of 30 October 2026: the federal records', () => {
     };
     expect(federal.usaspendingRequest('profile', 'd5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C')).toEqual({ method: 'GET', url: `${federal.API}/recipient/d5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C/` });
     expect(federal.usaspendingRequest('profile', '../award')).toBeNull();
-    const got = await resolveParties(primes, async (kind, arg) => {
+    const ask = async (kind: UsaspendingKind, arg: string) => {
       asked.push(`${kind} ${arg}`);
       const body = answers[`${kind} ${arg}`];
       return body ? { status: 200, rows: federal.parseUsaspending(kind, JSON.stringify(body))! } : { status: 404, rows: [] };
-    }, ctx);
+    };
+    // The live screen of 31 October 2026 had 24 larger unmatched parties, and lookups stop at 15: a one-word match is
+    // looked up first.
+    const first = await resolveParties(primes, ask, ctx, 1);
+    expect(first.map((r) => r.key).sort()).toEqual(['cik:1601548', 'cik:40533', 'n:electric boat']);
+    asked.length = 0;
+    const got = await resolveParties(primes, ask, ctx);
     expect(got.map((r) => [r.key, r.name, r.ticker, Math.round(r.amount!)]).sort()).toEqual([
       ['cik:1601548', 'V2X, Inc.', 'VVX', Math.round(4178357.64 + 239794.14)],
       ['cik:40533', 'GENERAL DYNAMICS CORP', 'GD', Math.round(157065062 + 11800000)],
     ]);
     // Each record still names the party as filed.
     expect(got.find((r) => r.key === 'cik:40533')!.evidence[0].sentence).toMatch(/^ELECTRIC BOAT CORPORATION subcontract to NORTHROP GRUMMAN SYSTEMS CORPORATION/);
-    expect(asked).toEqual(['recipients E7BEKJ4V9528', 'profile d5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C', 'recipients NVC1EFKKYB93']);
+    expect(asked).toEqual(['recipients NVC1EFKKYB93', 'recipients E7BEKJ4V9528', 'profile d5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C']);
   });
 });
 

@@ -282,7 +282,10 @@ export async function doubtfulSubawards(list: FedSubaward[], primes: Map<string,
  */
 export async function resolveParties(rels: (Relation & { uei?: string })[], ask: FedAsk, ctx: FederalContext, max = MAX_LOOKUPS): Promise<Relation[]> {
   const listed = (p: FedParty) => !!(p.cik || p.ticker || p.yahoo || p.id);
-  const todo = rels.filter((r) => r.uei && (r.amount ?? 0) >= MIN_LOOKUP && (r.key.startsWith('n:') || (r as Relation & { loose?: boolean }).loose)).sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0)).slice(0, max);
+  // A party matched on one word goes first: it puts dollars on a listed company that may be another one (Vertex
+  // Aerospace, now V2X, on Vertex, Inc., 25th by amount among Northrop's unmatched parties). Then the largest.
+  const loose = (r: Relation) => Number(!!(r as Relation & { loose?: boolean }).loose);
+  const todo = rels.filter((r) => r.uei && (r.amount ?? 0) >= MIN_LOOKUP && (r.key.startsWith('n:') || loose(r))).sort((a, b) => loose(b) - loose(a) || (b.amount ?? 0) - (a.amount ?? 0)).slice(0, max);
   const moved = new Map<Relation, FedParty>();
   for (const r of todo) {
     const found = (rows<FedRecipient>(await ask('recipients', r.uei!).catch(() => null)) ?? []).filter((x) => x.uei === r.uei);
