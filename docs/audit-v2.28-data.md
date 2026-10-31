@@ -99,6 +99,8 @@ Severity: S1 a wrong figure shown as fact; S2 a misleading figure or label; S3 a
 
 ## Where two sources differ
 
+31 October source follow-up: [the retained primary checks](accuracy-primary-sources-2026-10-30.md) supply the Lilly trust quotation missing from the later continuation's D29/D31 qualifications. The 2025 10-K describes 50 million trust shares excluded from EPS at December 2025 and 2024. That is dated evidence of a definition difference, not proof of the October 2026 trust holding or the feed's historical 2022 denominator. The latest October cover and Yahoo count therefore keep both values and an explicit current-holding limitation. The historical D29/D31 observations above remain the findings of their original audit. The same source notes identify Exxon's Q2 2026 sales revenue versus total revenues and other income; see `docs/accuracy-v2.29.1.md` for the subsequent label and margin safeguards.
+
 Where two sources give the same figure and differ, the screens now say "Sources disagree" in amber instead of showing one of them as fact, with both values on hover (`docs/troubleshooting.md`):
 
 - a quarter's EPS when the sources report it on different bases (D9);

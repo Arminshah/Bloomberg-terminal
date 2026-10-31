@@ -2,6 +2,10 @@
 
 For any Claude session that takes over Armin Terminal, on this account or another. Read this first, then `docs/TODO.md` (the one list of what comes next), then `docs/bloomberg-parity.md` ("Evidence pack v3: gap analysis" and "Screenshots from three public guides").
 
+Owner's coordination update, 31 October: fetch and merge the latest development branch before pushing; no rebase or force push. Codex merged Claude's `6f113a9` and is applying the source-qualified Lilly share-definition and Exxon revenue-basis labels from `docs/accuracy-primary-sources-2026-10-30.md`. FRONTIER, MPC, FTSE 100 screening and SPLC are Claude's work; leave those files and tests alone. Claude will handle the planned 2.30.0 release after its screening and SPLC work. Do not publish 2.29.1 or change the release request from the accuracy continuation. The earlier 2.29.1 release instructions below are historical status, superseded by this owner update.
+
+The source-label changes and the pending Fed publication-identity safeguard passed all local checks on that merged branch: lint, type checks, 1,970 unit tests, build, 97 browser checks and 79 fixture desktop checks. Lilly's historical trust explanation remains conditional with current holdings unconfirmed; Exxon retains both named revenue observations and withheld mixed-basis margins. Fresh live results are recorded in `docs/accuracy-v2.29.1.md` when available.
+
 ## Published 2.29.0 and the 2.29.1 follow-up
 
 2.29.0 was published on 29 October by release run 40946612641. Both Windows executables and checksum files were verified publicly; normal CI also passed. Diagnostic live run 40951008804 reported 559 passes, 6 failures, 4 unresolved flags, 5 blocked checks, 3 incomplete results and 87 skips. The failures and follow-up are recorded in `docs/accuracy-v2.29.1.md`; they are not erased by the software test results. The 2.29.1 release request will start the same gated workflow after the follow-up checks pass. Verify its actual result before claiming publication.
