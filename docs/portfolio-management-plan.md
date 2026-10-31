@@ -117,6 +117,13 @@ Fixed:
 - ANALYSTS: the summary under ANR's names, with the pricing currency.
 - FINANCIALS: market value, cash, preferred and other, total debt and enterprise value at each period's end; money with one decimal at any size (`0961324`, `79086d0`).
 - PROFILE: market value and share counts in millions (`0842190`).
+- PROFILE: Issue Info in DES's panels (institutional and insider holdings, issue information with the exchange's MIC, top holders) (`292433c`); for an index, DES's period table, and the equity list titled for what it is.
+- ANALYSTS: a table of firms with their standing ratings in their own words, coloured by meaning; the chart's 6M to Max ranges in ANR's colours.
+- COMPANYNEWS: headlines from 101) and the story's header line as `date time [SRC]`.
+- PEERS: RV's comp range panel on the Overview.
+- FINANCIALS: the segments' revenue as grouped bars by fiscal year; graph mode with FA's measuring line.
+- CHART: Key Events (ex-dividend dates, splits, earnings reports).
+- The watchlist guard keeps a screenshot baseline per browser, so CI's renderer no longer fails it.
 
 Wrong and still open:
 
@@ -126,10 +133,10 @@ Wrong and still open:
 Missing, by screen, with the source the app has or a labelled blank where it has none:
 
 - FINANCIALS, Adj Highlights: dates as MM/DD/YYYY (the app follows the date-order setting); five years and two estimates by default. The adjusted lines have no free source and stay as reported, labelled. Segments by measure as a bar chart with a tree, the measuring line (total and compound annual change over calendar days), and the grid drawn as a chart (graph mode). Segments come from SEC filings only, so the papers' London companies get a labelled blank.
-- CHART against an index: 5Y as the default range and a 3D range; key events from Yahoo's dividends and splits and the earnings calendar.
+- CHART against an index: a 3D range (intraday over three days).
 - PEERS: market value and price in one chosen currency; the comp range panel (current-year P/E, EV to estimated EBITDA, sales growth, EBITDA margin, return on invested capital, with low, high, subject and median); return on capital on the Profitability sheet.
 - ANALYSTS: monthly 100% stacked bars of buys, holds and sells (Finnhub and Yahoo give only the last four months, and Finnhub nothing for London listings, so the captures' two years cannot be filled from them); range buttons; the count of firms with a target; one row per firm with its own rating word; the price spread pane, which needs a history of the consensus target that no free source gives (labelled blank, or built up from the firms' target history).
-- PROFILE: the Issue Info page's panels (institutional and insider holdings, top holders, issue information, index weights); the index page's members, movers and period table from the FTSE 100 list and the index boards.
-- COMPANYNEWS: headlines numbered from `101)`, the story header as `MM/DD/YYYY hh:mm:ss [SRC]`, and Previous and Next.
+- PROFILE: index weights on Issue Info; ISIN and SEDOL (no free source for most listings); the index page's member counts and movers.
+- COMPANYNEWS: Previous and Next.
 
 The chart does not add an index by default: the report's author added the FTSE 100 with Compare, and GP opens on the security alone.
