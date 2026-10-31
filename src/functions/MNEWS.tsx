@@ -195,7 +195,7 @@ export function StoryPane({ reader, empty, symbol, fresh, first = 1, breaking = 
           </div>,
         ])}
       </div>
-      {current ? <Reader story={current} symbol={symbol} onBack={() => reader.open(null)} /> : <div className="empty">Select a headline.</div>}
+      {current ? <Reader key={current.id} story={current} symbol={symbol} onBack={() => reader.open(null)} /> : <div className="empty">Select a headline.</div>}
     </div>
   );
 }
