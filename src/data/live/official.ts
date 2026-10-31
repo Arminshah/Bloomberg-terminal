@@ -116,6 +116,41 @@ export function parseSnbCube(text: string, item: string): Obs {
   return out;
 }
 
+const SPANISH_MONTHS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+
+/**
+ * Banco de España's yields, by series code: its table CSV (a row of series codes, then "28 OCT 2026",3.150,...,
+ * with "_" for no value and Spanish month names) or its BIE API's JSON ([{serie, fechas: [ISO], valores}]).
+ */
+export function parseBde(text: string): Map<string, Obs> {
+  const out = new Map<string, Obs>();
+  const body = text.replace(/^\uFEFF/, '').trimStart();
+  if (body.startsWith('[')) {
+    let rows: unknown;
+    try { rows = JSON.parse(body); } catch { return out; }
+    for (const r of Array.isArray(rows) ? rows : []) {
+      const s = r as { serie?: unknown; fechas?: unknown; valores?: unknown };
+      if (typeof s.serie !== 'string' || !Array.isArray(s.fechas) || !Array.isArray(s.valores) || s.fechas.length !== s.valores.length) continue;
+      const values = s.valores;
+      s.fechas.forEach((d, i) => {
+        const v = values[i];
+        if (typeof d === 'string' && ISO.test(d.slice(0, 10)) && typeof v === 'number') push(out, s.serie as string, d.slice(0, 10), v);
+      });
+    }
+    return out;
+  }
+  const rows = lines(body).map((l) => l.split(',').map((c) => c.replace(/"/g, '').trim()));
+  const codes = rows[0] ?? [];
+  for (const cells of rows.slice(1)) {
+    const m = /^(\d{1,2}) ([A-Z]{3}) (\d{4})$/.exec(cells[0] ?? '');
+    const month = m ? SPANISH_MONTHS.indexOf(m[2]) : -1;
+    if (!m || month < 0) continue;
+    const day = `${m[3]}-${String(month + 1).padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+    cells.forEach((c, i) => { if (i > 0 && /^[A-Z]_\w+$/.test(codes[i] ?? '')) push(out, codes[i], day, num(c)); });
+  }
+  return out;
+}
+
 /** The BIS's policy-rate CSV without attributes ("FREQ,REF_AREA,TIME_PERIOD,OBS_VALUE"): one country's daily levels. Weekends and holidays come as NaN. */
 export function parseBisCbpol(text: string, area: string): Obs {
   const rows = lines(text);

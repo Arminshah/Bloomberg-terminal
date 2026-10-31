@@ -146,7 +146,7 @@ export function WB(_: FnProps) {
           ? 'Spreads and curve slope in basis points. Each yield is the figure its source publishes: US Treasury par yields, Bundesbank zero-coupon yields, Bank of England par yields, Japanese Ministry of Finance constant-maturity yields, Bank of Canada benchmark yields and RBA interpolated yields, so methods differ slightly between countries. All are end of day; the Cboe intraday 5, 10 and 30-year Treasury yield indices are separate lines (FVX, TNX, TYX). Countries without a free official source are not listed.'
           : 'Spreads and curve slope in basis points. Simulated curves move with US rates through a country beta.'}
       </div>
-      <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba']} />
+      <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba', 'bde']} />
     </div>
   );
 }
@@ -226,7 +226,7 @@ export function WBMV(_: FnProps) {
       <div className="note">
         Each yield is its official source&apos;s, as on BONDS, so methods differ slightly between countries; changes are in basis points against the close {period.label === '1D' ? 'before' : `at the start of the ${period.label} period`}. Countries without a free official source are not listed.
       </div>
-      <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba']} />
+      <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba', 'bde']} />
     </div>
   );
 }

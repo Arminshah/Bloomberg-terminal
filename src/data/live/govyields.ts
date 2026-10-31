@@ -2,7 +2,7 @@ import { engine } from '../market';
 import { isoToDay } from '../calendar';
 import type { ExtBar } from '../engine';
 import { setFeed } from './status';
-import { official, officialAvailable, parseBoeColumns, parseBubaCsv, parseMofCsv, parseRbaTable, parseValetGroup, type Obs } from './official';
+import { official, officialAvailable, parseBde, parseBoeColumns, parseBubaCsv, parseMofCsv, parseRbaTable, parseValetGroup, type Obs } from './official';
 import type { OfficialSource } from './lookup';
 import { registerRefresh } from '../../terminal/refresh';
 
@@ -15,6 +15,7 @@ import { registerRefresh } from '../../terminal/refresh';
  * - Japan: Ministry of Finance JGB yields at constant maturities
  * - Canada: Bank of Canada benchmark bond yields (2, 3, 5, 7, 10 years and the long-term benchmark)
  * - Australia: Reserve Bank of Australia interpolated yields (table F2: 2, 3, 5 and 10 years)
+ * - Spain: Banco de España, the average yield of outright spot trades in 10-year bonds on the secondary market
  * Other countries have no free official daily source and stay off the desktop app.
  */
 
@@ -33,6 +34,7 @@ const BOE_METHOD = 'Bank of England, nominal par yield from its fitted gilt curv
 const MOF_METHOD = 'Ministry of Finance Japan, JGB yield at constant maturity';
 const BOC_METHOD = 'Bank of Canada, benchmark bond yield';
 const RBA_METHOD = 'Reserve Bank of Australia, interpolated government bond yield (table F2)';
+const BDE_METHOD = "Banco de España, average yield of outright spot trades in 10-year bonds on the secondary market (Bolsas y Mercados Españoles' figures)";
 
 export const OFFICIAL_LINES: Line[] = [
   { id: 'GDBR2 Index', source: 'bunds', key: BUBA('02'), method: BUBA_METHOD },
@@ -49,6 +51,7 @@ export const OFFICIAL_LINES: Line[] = [
   ...[2, 3, 5, 7, 10].map((t) => ({ id: `GCAN${t}YR Index`, source: 'canadas' as const, key: `BD.CDN.${t}YR.DQ.YLD`, method: BOC_METHOD })),
   { id: 'GCAN30YR Index', source: 'canadas', key: 'BD.CDN.LONG.DQ.YLD', method: `${BOC_METHOD} (long-term benchmark, the 30-year bond)` },
   ...[2, 3, 5, 10].map((t) => ({ id: `GACGB${t} Index`, source: 'acgb' as const, key: `FCMYGBAG${t}D`, method: RBA_METHOD })),
+  { id: 'GSPG10YR Index', source: 'bde', key: 'D_G0B1F0ZP', method: BDE_METHOD },
 ];
 
 const BY_ID = new Map(OFFICIAL_LINES.map((l) => [l.id, l]));
@@ -57,7 +60,7 @@ const BY_ID = new Map(OFFICIAL_LINES.map((l) => [l.id, l]));
 export const OFFICIAL_YIELD_IDS = new Set(BY_ID.keys());
 
 /** The publisher of each official source, shown as the line's provider. */
-const PUBLISHER: Record<string, string> = { bunds: 'Deutsche Bundesbank', gilts: 'Bank of England', jgb: 'Ministry of Finance Japan', canadas: 'Bank of Canada', acgb: 'Reserve Bank of Australia' };
+const PUBLISHER: Record<string, string> = { bunds: 'Deutsche Bundesbank', gilts: 'Bank of England', jgb: 'Ministry of Finance Japan', canadas: 'Bank of Canada', acgb: 'Reserve Bank of Australia', bde: 'Banco de España' };
 
 /** Who publishes a line's yield and how it is measured, for lines on an official source. */
 export function yieldMethod(id: string): string | undefined {
@@ -85,6 +88,8 @@ export function parseSource(source: OfficialSource, text: string): Map<string, O
       return parseValetGroup(text);
     case 'acgb':
       return parseRbaTable(text);
+    case 'bde':
+      return parseBde(text);
     default:
       return new Map();
   }
@@ -99,7 +104,8 @@ function merge(source: OfficialSource, parsed: Map<string, Obs>) {
     const obs = parsed.get(line.key);
     if (!obs?.length) continue;
     const days = history.get(line.id) ?? new Map<number, number>();
-    for (const b of obsToBars(obs)) days.set(b.day, b.c);
+    // Banco de España's refreshes round to two decimals; its table's three stay for the days it already gave.
+    for (const b of obsToBars(obs)) if (!(source === 'bde' && days.has(b.day))) days.set(b.day, b.c);
     history.set(line.id, days);
   }
 }
@@ -126,8 +132,8 @@ async function load(source: OfficialSource, since: string): Promise<boolean> {
   return true;
 }
 
-const SOURCES: OfficialSource[] = ['bunds', 'gilts', 'jgb', 'canadas', 'acgb'];
-const NAMES: Record<string, string> = { bunds: 'Bundesbank', gilts: 'Bank of England', jgb: 'MoF Japan', canadas: 'Bank of Canada', acgb: 'RBA' };
+const SOURCES: OfficialSource[] = ['bunds', 'gilts', 'jgb', 'canadas', 'acgb', 'bde'];
+const NAMES: Record<string, string> = { bunds: 'Bundesbank', gilts: 'Bank of England', jgb: 'MoF Japan', canadas: 'Bank of Canada', acgb: 'RBA', bde: 'Banco de España' };
 
 /**
  * Loads ten years of history, then refreshes the latest values every hour. A

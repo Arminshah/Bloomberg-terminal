@@ -21,6 +21,7 @@ In the desktop app, every request below goes out from the Electron main process 
 | Swiss National Bank | SNB policy rate | Data portal | None | Enabled |
 | Bank of Canada | Policy rate; benchmark bond yields | Valet API | None | Enabled |
 | Reserve Bank of Australia | Cash rate target; government bond yields | Statistical tables (CSV) | None | Enabled |
+| Banco de España | Spain's 10-year government bond yield | Table TI_1_3 (CSV) and the BIE API | None | Enabled (desktop); see [Banco de España](#banco-de-espa%C3%B1a) |
 | Banco Central do Brasil | Selic target | SGS API | None | Enabled |
 | Ministry of Finance Japan | JGB yields | CSV download | None | Enabled |
 | Office for National Statistics | UK CPI, GDP growth, unemployment | Time series CSV and JSON | None | Enabled |
@@ -174,6 +175,16 @@ Read and tested on 31 October 2026. For the banks with no free daily feed of the
 - Terms: [Terms of permitted use of BIS statistics](https://data.bis.org/help/legal): "The use of the statistics is unrestricted, provided that: if the statistics are reproduced, the BIS must be cited in your publication or product as the source of the statistics" and the use does not imply endorsement. The app's credit under the rates names the BIS and the four banks.
 
 The Bank of Japan's basic loan rate on `RATEANALYSIS` and `BOJPORTAL` still comes from the Bank's own Time-Series Data Search; `CENTRALBANKS` shows its call-rate guideline from the BIS, which is the rate the Bank sets.
+
+## Banco de España
+
+Read and tested on 31 October 2026. Spain's 10-year line (`GSPG10YR`) is Banco de España's series D_G0B1F0ZP: the average yield of outright spot trades in 10-year government bonds on the secondary market, daily, in percent. The first load reads the whole table TI_1_3 as CSV (`https://www.bde.es/webbe/es/estadisticas/compartido/datos/csv/ti_1_3.csv`, 1.3 MB, Latin-1, a row of series codes, then one row a day such as `"28 OCT 2026",...,4.028` with Spanish month names and `_` for no value; the 10-year series starts on 18 July 1989). Each hourly refresh asks the BIE API for the last three months only (`https://app.bde.es/bierest/resources/srdatosapp/listaSeries?idioma=en&series=D_G0B1F0ZP&rango=3M`, 4 KB), which rounds to two decimals, so it adds new days without overwriting the table's three. The API accepts only 3M, 12M and 36M as ranges.
+
+- Freshness: about two business days behind: on Saturday 31 October 2026 the latest value was 28 October (4.028%).
+- Checks: the API's three years and the table agree within rounding (largest gap 0.005 points). The survey of 31 October found BdE's monthly averages for June to September 2026 within 0.4 basis points of Eurostat's and FRED's monthly Spanish 10-year series, which are compiled from the same source; no independent daily quote was reachable.
+- Terms: the [terms of use of Banco de España's statistics](https://www.bde.es/wbe/en/estadisticas/recursos/terminos/terminos-de-uso.html) make them free to access and reuse provided the Bank is named as the source, content and metadata are not altered and no sponsorship is implied; they do not cover third-party data. The table's source row credits the 10-year column to Bolsas y Mercados Españoles, so the credit under the yields names both.
+
+France, Italy and the UK's 2 and 30-year points still have no line from an official daily source: the Banque de France's CNO-TEC yields may not be redistributed and need an account, Banca d'Italia's daily benchmark yields have no machine endpoint, and the Bank of England's 2 and 30-year points exist only as zero-coupon yields, which would sit beside its par yields at 5, 10 and 20 years on one curve.
 
 ## Swiss National Bank, Banco Central do Brasil, Ministry of Finance Japan
 

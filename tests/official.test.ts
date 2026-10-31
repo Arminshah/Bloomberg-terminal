@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { euroAreaCode, parseAbsCsv, parseBoeColumns, parseBubaCsv, parseJsonStat, parseMofCsv, parseOnsCsv, parseOnsMonths, parseRbaTable, parseSgs, parseSnbCube, parseStatcanVectors, parseValetGroup } from '../src/data/live/official';
+import { euroAreaCode, parseAbsCsv, parseBde, parseBoeColumns, parseBubaCsv, parseJsonStat, parseMofCsv, parseOnsCsv, parseOnsMonths, parseRbaTable, parseSgs, parseSnbCube, parseStatcanVectors, parseValetGroup } from '../src/data/live/official';
 import { parseFomcCalendar, parseNyFedLatest } from '../src/data/live/policy';
 import { obsToBars, OFFICIAL_LINES, parseSource } from '../src/data/live/govyields';
 import { fedPath, meetingMoves } from '../src/data/fedpath';
@@ -153,6 +153,29 @@ describe('official sources', () => {
     const r = parseNyFedLatest(NYFED);
     expect(r.map((x) => x.type)).toEqual(['EFFR', 'SOFR']);
     expect(r[0]).toMatchObject({ date: '2026-10-08', rate: 3.88, p1: 3.85, p99: 3.89, volume: 117 });
+  });
+
+  it("reads Banco de España's yields from its table CSV and from its API, by series code", () => {
+    // Synthetic answers in the two layouts checked on 31 October 2026: the table's header rows (the first column's
+    // accented names as net.fetch decodes Latin-1 text), Spanish month names and "_" for no value; the API's JSON.
+    const csv = [
+      '"C\uFFFDDIGO DE LA SERIE",D_G0B1F0ZD,D_G0B1F0ZP',
+      '"N\uFFFDMERO SECUENCIAL",97255,97265',
+      '"FRECUENCIA","DIARIA","DIARIA"',
+      '"30 DIC 2025",2.951,3.300',
+      '"02 ENE 2026","_",3.312',
+      '"28 OCT 2026",3.150,4.028',
+      '"FUENTE","","Bolsas y Mercados Espa\uFFFDoles"',
+    ].join('\r\n');
+    const table = parseBde(csv);
+    expect(table.get('D_G0B1F0ZP')).toEqual([['2025-12-30', 3.3], ['2026-01-02', 3.312], ['2026-10-28', 4.028]]);
+    expect(table.get('D_G0B1F0ZD')).toEqual([['2025-12-30', 2.951], ['2026-10-28', 3.15]]);
+    const api = JSON.stringify([{ serie: 'D_G0B1F0ZP', codFrecuencia: 'D', fechas: ['2026-10-28T09:15:00Z', '2026-10-27T09:15:00Z'], valores: [4.03, 4.04] }]);
+    expect(parseBde(api).get('D_G0B1F0ZP')).toEqual([['2026-10-28', 4.03], ['2026-10-27', 4.04]]);
+    expect(parseBde('[{"serie":"D_G0B1F0ZP","fechas":["2026-10-28T09:15:00Z"],"valores":[]}]').size).toBe(0);
+    expect(parseBde('<html>').size).toBe(0);
+    const line = OFFICIAL_LINES.find((l) => l.id === 'GSPG10YR Index')!;
+    expect(parseSource(line.source, csv).get(line.key)?.at(-1)).toEqual(['2026-10-28', 4.028]);
   });
 
   it('maps every official line to a series its source publishes', () => {

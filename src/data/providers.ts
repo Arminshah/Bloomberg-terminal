@@ -327,6 +327,21 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'bde',
+    name: 'Banco de España',
+    serves: "Spain's 10-year government bond yield (GSPG10YR): the average yield of outright spot trades on the secondary market, daily",
+    dataClass: 'Official statistics, end of day, about two business days behind',
+    policy: 'enabled',
+    feed: 'yields',
+    terms: 'Banco de España\'s statistics are free to access and reuse provided the Bank is named as the source, the data and metadata are not altered, and no sponsorship is implied; its legal notice allows personal use of information from the site. The table credits the 10-year series to Bolsas y Mercados Españoles, which the app names too.',
+    docs: [
+      { label: 'Terms of use of the statistics', url: 'https://www.bde.es/wbe/en/estadisticas/recursos/terminos/terminos-de-uso.html' },
+      { label: 'Table TI_1_3 (CSV)', url: 'https://www.bde.es/webbe/es/estadisticas/compartido/datos/csv/ti_1_3.csv' },
+    ],
+    checked: '2026-10-31',
+    desktop: true,
+  },
+  {
     id: 'bcb',
     name: 'Banco Central do Brasil',
     serves: 'Selic target',

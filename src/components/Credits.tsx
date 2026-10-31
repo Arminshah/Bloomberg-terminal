@@ -23,6 +23,7 @@ export const CREDITS = {
   mof: 'Source: Ministry of Finance Japan.',
   snb: 'Source: Swiss National Bank.',
   bcb: 'Source: Banco Central do Brasil.',
+  bde: 'Source: Banco de España website (www.bde.es); the 10-year yield as Bolsas y Mercados Españoles compiles it.',
   bis: "Source: BIS central bank policy rates (WS_CBPOL), from the People's Bank of China, the Reserve Bank of India, Banco de México and the Bank of Japan.",
   ons: 'Source: Office for National Statistics licensed under the Open Government Licence v.3.0.',
   eurostat: 'Source: Eurostat.',

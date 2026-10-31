@@ -292,6 +292,11 @@ const OFFICIAL = {
   jgbHistory: () => 'https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/historical/jgbcme_all.csv',
   canadas: (since) => `https://www.bankofcanada.ca/valet/observations/group/bond_yields_benchmark/json?start_date=${since}`,
   acgb: () => 'https://www.rba.gov.au/statistics/tables/csv/f2-data.csv',
+  // Banco de España's secondary-market yields (table TI_1_3, no key): the whole table as CSV for a first load (from
+  // 1987, 1.3 MB), then the 10-year series' last three months from its BIE API (4 KB) for each refresh.
+  bde: (since, today) => (Date.parse(today) - Date.parse(since) > 92 * 86_400_000
+    ? 'https://www.bde.es/webbe/es/estadisticas/compartido/datos/csv/ti_1_3.csv'
+    : 'https://app.bde.es/bierest/resources/srdatosapp/listaSeries?idioma=en&series=D_G0B1F0ZP&rango=3M'),
   // Official headline statistics: the ONS for the UK, Eurostat for the euro area and its members.
   ukcpi: () => 'https://www.ons.gov.uk/generator?format=csv&uri=/economy/inflationandpriceindices/timeseries/d7g7/mm23',
   ukgdp: () => 'https://www.ons.gov.uk/generator?format=csv&uri=/economy/grossdomesticproductgdp/timeseries/ihyr/qna',
@@ -332,7 +337,7 @@ const OFFICIAL = {
 /** Which provider publishes each official source, for the status screen. */
 const OFFICIAL_PROVIDER = {
   effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', fedStatement: 'fedboard', fedImplementation: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
-  rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bis: 'bis', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
+  rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bis: 'bis', bde: 'bde', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
   newsFed: 'fedboard', newsEcb: 'ecb', newsBoe: 'boe', newsBoc: 'boc', newsRba: 'rba', newsBea: 'bea', newsEsma: 'esma',
