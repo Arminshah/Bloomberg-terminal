@@ -4,7 +4,7 @@ import {
   buildDirectory, filerIdentity, listingEvents, listingLabel, mergeRelations, ownRelations, relationEnding, relationshipView, relationStatus, runChain,
   takenOver, targetNames, targetPattern, type Chain, type ChainIO, type FtsHit, type Relation,
 } from '../src/data/live/supply-chain';
-import { appendRelationshipHistory, endingAssertion } from '../src/data/live/supply-chain-history';
+import { appendRelationshipHistory, endingAssertion, statedBy } from '../src/data/live/supply-chain-history';
 import type { SecCompany } from '../src/data/live/sec';
 
 /**
@@ -217,6 +217,21 @@ describe('SPLC review of 30 October 2026: relations the cited filing itself says
     const unresolved = { id: 'own', evidenceId: 'own', state: 'ended' as const, sourceDate: own.date, sourcePrecision: 'day' as const, scope: 'unresolved' as const };
     expect(relationStatus({ key: 'cik:1001233', name: 'Sangamo', role: 'partner', side: 'both', evidence: [{ ...own, assertion: unresolved }] })).toBe('unresolved');
     expect(relationStatus({ key: 'cik:1001233', name: 'Sangamo', role: 'partner', side: 'both', evidence: [{ ...own, assertion: unresolved }, { ...theirs, assertion: endingAssertion(theirs, { how: 'terminated', date: '2025-04-21' }) }] })).toBe('ended');
+  });
+});
+
+describe('SPLC review of 30 October 2026: who states each statement', () => {
+  it("labels Incyte's own 10-K as Incyte's, on a relation Lilly's 10-K names first (18 Lilly rows, 51 Pfizer rows, Northrop's L3Harris)", () => {
+    const lilly = { sentence: 'We have a worldwide license and collaboration agreement with Incyte Corporation (Incyte), which provides us the development and commercialization rights to baricitinib, which is branded and trademarked as Olumiant, and certain follow-on compounds, for the treatment of inflammatory and autoimmune diseases.', filer: 'ELI LILLY & Co', form: '10-K', date: '2025-02-19', path: '59478/000005947825000067/lly-20241231.htm' };
+    const incyte = { sentence: 'These include OLUMIANT (baricitinib), which is licensed to our collaborative partner Eli Lilly and Company ("Lilly"), and JAKAVI (ruxolitinib) and TABRECTA (capmatinib), which are licensed to Novartis.', filer: 'INCYTE CORP', form: '10-K', date: '2026-02-10', path: '879169/000087916926000010/incy-20251231.htm' };
+    const own: Relation = { key: 'cik:879169', name: 'Incyte Corp', cik: 879169, role: 'partner', side: 'own', evidence: [lilly] };
+    const theirs: Relation = { ...own, side: 'theirs', evidence: [incyte] };
+    // Lilly's own filings are read first; the saved history kept "own" for every statement after.
+    expect(appendRelationshipHistory([own], [theirs])[0].side).toBe('both');
+    expect(appendRelationshipHistory([], [own, theirs])[0].side).toBe('both');
+    expect(statedBy(lilly, 59478)).toBe('own');
+    expect(statedBy(incyte, 59478)).toBe('theirs');
+    expect(statedBy({ sentence: 'Defense Logistics Agency contract SPE2DP26F4183 with PFIZER INC: $0.2M obligated.', filer: 'USAspending.gov', form: 'Contract', date: '2026-04-01', path: '', url: 'https://www.usaspending.gov/award/CONT_AWD_SPE2DP26F4183_9700_SPE2DP26D0001_9700' }, 78003)).toBe('records');
   });
 });
 

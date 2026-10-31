@@ -5,7 +5,7 @@ import { openSecurity } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct } from '../core/format';
 import { engine } from '../data/market';
 import { listingLabel, rebuildSupplyChain, sharePeriod, supplyChainAvailable, useSupplyChain, relationKind, relationStatus, relationshipView, customerCounts, type Chain, type Filer, type Relation, type Role } from '../data/live/supply-chain';
-import { compatibleShareTotal, contractIntervals, evidenceIdentity } from '../data/live/supply-chain-history';
+import { compatibleShareTotal, contractIntervals, evidenceIdentity, statedBy } from '../data/live/supply-chain-history';
 import { secTicker } from '../data/live/sec';
 import { earningsCalendar, requestListings } from '../data/live/earnings-calendar';
 import { execute } from '../terminal/exec';
@@ -498,7 +498,7 @@ export function SPLC({ sec }: FnProps) {
       const a = r.assertions?.find((x) => x.evidenceId === evidenceIdentity(ev));
       const o = r.observations?.find((x) => x.evidenceId === evidenceIdentity(ev));
       const named = r.identityLinks?.[0]?.evidence;
-      return [relationKind(r), r.role, r.key, displayName(r.name), r.ticker ?? '', listingLabel(r.listing), relationStatus(r), o?.value ?? '', o?.basis ?? '', o?.period ?? '', o?.periodEnd ?? '', o?.denominator ?? '', o?.scope ?? '', o?.segment ?? '', r.side, r.amount ?? '', ev.filer, ev.form, ev.date, ev.observedAt ? new Date(ev.observedAt).toISOString() : '', ev.parserVersion ?? '', a?.state ?? '', a?.contractKey ?? '', a?.effectiveFrom ?? '', a?.effectiveTo ?? '', named?.date ?? '', named?.observedAt ? new Date(named.observedAt).toISOString() : '', named ? sourceUrl(named) : '', view === 'history' ? recordedBy : '', ev.context ?? '', ev.sentence, sourceUrl(ev)];
+      return [relationKind(r), r.role, r.key, displayName(r.name), r.ticker ?? '', listingLabel(r.listing), relationStatus(r), o?.value ?? '', o?.basis ?? '', o?.period ?? '', o?.periodEnd ?? '', o?.denominator ?? '', o?.scope ?? '', o?.segment ?? '', statedBy(ev, chain?.company?.cik), r.amount ?? '', ev.filer, ev.form, ev.date, ev.observedAt ? new Date(ev.observedAt).toISOString() : '', ev.parserVersion ?? '', a?.state ?? '', a?.contractKey ?? '', a?.effectiveFrom ?? '', a?.effectiveTo ?? '', named?.date ?? '', named?.observedAt ? new Date(named.observedAt).toISOString() : '', named ? sourceUrl(named) : '', view === 'history' ? recordedBy : '', ev.context ?? '', ev.sentence, sourceUrl(ev)];
     })),
   ];
   const entities = all.filter((r) => relationKind(r) === 'entity');

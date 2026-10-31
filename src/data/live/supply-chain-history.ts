@@ -46,6 +46,16 @@ export interface ShareObservation {
   evidenceId: string;
 }
 
+/**
+ * Who states one statement: the company itself (its own filing), the other company, or government records. Read from
+ * the statement's own filing, never from the relation it is merged into.
+ */
+export function statedBy(e: Evidence, companyCik: number | undefined): 'own' | 'theirs' | 'records' {
+  if (!e.path && e.url) return 'records';
+  const cik = Number(e.path.split('/')[0]);
+  return companyCik != null && cik === companyCik ? 'own' : 'theirs';
+}
+
 /** Full citation identity matters: repeated wording in a new filing is a new disclosure. */
 export function evidenceIdentity(e: Evidence): string {
   return JSON.stringify([e.path || e.url || '', e.date, e.type ?? '', e.sentence]);
@@ -164,6 +174,9 @@ export function appendRelationshipHistory(previous: Relation[], incoming: Relati
     const have = by.get(k);
     if (!have) { by.set(k, { ...r, evidence: [...r.evidence], assertions: [...r.assertions!], observations: [...r.observations!] }); continue; }
     for (const e of r.evidence) if (!have.evidence.some((x) => evidenceIdentity(x) === evidenceIdentity(e))) have.evidence.push(e);
+    // Who states it: both sides once the company and the other each do (Incyte's 10-K beside Lilly's own; L3Harris's
+    // beside Northrop's), whichever was read first; government records add to the filings.
+    if (r.side !== have.side && r.side !== 'records') have.side = have.side === 'records' ? r.side : 'both';
     for (const a of r.assertions!) if (!have.assertions!.some((x) => x.id === a.id)) have.assertions!.push(a);
     for (const o of r.observations!) if (!have.observations!.some((x) => x.id === o.id)) have.observations!.push(o);
     if (r.identityLinks) have.identityLinks = [...new Map([...(have.identityLinks ?? []), ...r.identityLinks].map((link) => [evidenceIdentity(link.evidence), link])).values()];
