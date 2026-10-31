@@ -1,7 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// A Chromium other than Playwright's own (the cloud sandbox's newer build) draws text differently, so screenshot
+// baselines are kept per browser: Playwright's Chromium, as CI runs it, and the sandbox's.
+const ownChromium = !!process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+
 export default defineConfig({
   testDir: './e2e',
+  snapshotPathTemplate: `{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{-projectName}{-platform}${ownChromium ? '-own-chromium' : ''}{ext}`,
   timeout: 60_000,
   fullyParallel: false,
   retries: 0,
