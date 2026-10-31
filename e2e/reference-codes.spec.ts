@@ -1169,3 +1169,51 @@ test("PEERS' Curr shows a London stock's market values and prices in pounds, not
   expect(usd.cap / usd.px / (gbp.cap / gbp.px)).toBeCloseTo(1, 6);
   expect(errors).toEqual([]);
 });
+
+test('ECO as the 2025 brochure draws it: the red bar, region and range, the numbered agenda with A, M, R and C, a release, a bell, the filters', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'ECO');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('RELEASES');
+  await expect(panel.locator('.fnh-title')).toHaveText('Economic Calendars');
+  await expect(panel.locator('.fnh-actions .act')).toHaveText(['1) Calendars▾', '2) Alerts', '3) Export▾', '4) Settings▾']);
+  await expect(panel.getByLabel('Region')).toHaveValue('US');
+  await expect(panel.getByRole('button', { name: '6) Browse' })).toBeVisible();
+  await expect(panel.getByTestId('eco-clock')).toHaveText(/^\d\d:\d\d:\d\d$/);
+  await expect(panel.getByLabel('Kind of event')).toHaveValue('releases');
+  await expect(panel.getByLabel('Subtype')).toHaveValue('all');
+  const table = panel.getByTestId('eco-table');
+  await expect(table.locator('thead tr').first().locator('th')).toHaveText(['Date Time', 'A', 'M', 'R', 'Event', 'Period', 'Surv(M)', 'Actual', 'Prior', 'Revised', 'C']);
+  const rows = table.locator('tbody tr');
+  await expect.poll(() => rows.count()).toBeGreaterThan(2);
+  // Numbered from 21), each with its country last; the United States by default.
+  await expect(rows.first().locator('td').first()).toHaveText(/^21\) \d\d\/\d\d( \d\d:\d\d)?$/);
+  expect(new Set(await table.locator('tbody tr td:last-child').allTextContents())).toEqual(new Set(['US']));
+  // 21 and GO opens the release: its figures and where they come from.
+  await run(page, '21');
+  const rel = page.getByTestId('eco-release');
+  await expect(rel).toContainText('Surv(M)');
+  await expect(rel).toContainText('generated for the demo');
+  await rel.locator('.dlg-btn', { hasText: 'Close' }).click();
+  // The bell sets an alert, listed under 2) Alerts.
+  const bell = rows.first().getByRole('button', { name: /^Alert me when/ });
+  await bell.click();
+  await expect(rows.first().locator('.eco-bell-btn')).toHaveAttribute('aria-pressed', 'true');
+  await run(page, '2');
+  const al = page.getByTestId('eco-alerts');
+  await expect(al.locator('tbody tr')).toHaveCount(1);
+  await al.getByRole('button', { name: 'Clear' }).click();
+  await expect(al).toContainText('No release alert is set');
+  await al.locator('.dlg-btn', { hasText: 'Close' }).click();
+  // The world: more than one country.
+  await panel.getByLabel('Region').selectOption('WORLD');
+  await expect.poll(async () => new Set(await table.locator('tbody tr td:last-child').allTextContents()).size).toBeGreaterThan(1);
+  // The filter row (Settings): only the releases with all four bars.
+  await panel.getByRole('button', { name: /4\) Settings/ }).click();
+  await page.getByRole('menuitem', { name: 'Show the Filter Row' }).click();
+  await panel.getByLabel('Lowest relevance').selectOption('4');
+  await expect.poll(() => rows.count()).toBeGreaterThan(0);
+  for (const label of await table.locator('tbody .eco-bars').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))) expect(label).toBe('Relevance 4 of 4');
+  await expect(panel.getByTestId('eco-news')).toContainText('Economics News and Analysis | NEWS »');
+  expect(errors).toEqual([]);
+});

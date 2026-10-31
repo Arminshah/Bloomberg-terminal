@@ -148,6 +148,18 @@ async function loadDay(date: string, now: number) {
   }
 }
 
+/**
+ * Today's releases from Nasdaq, asked again at most every quarter of an hour, for the release alerts when ECO is not
+ * open; the events Nasdaq has given for today and yesterday.
+ */
+export function refreshNasdaqEcoToday(now: number): NasdaqEcoEvent[] {
+  if (!nasdaqEcoAvailable()) return [];
+  const today = nasdaqEcoRequestDate(new Date(now).toISOString().slice(0, 10));
+  void loadDay(today, now);
+  const days = nasdaqEco.get().days;
+  return [today, nasdaqEcoRequestDate(new Date(now - DAY_MS).toISOString().slice(0, 10))].flatMap((d) => days[d]?.events ?? []);
+}
+
 /** The week's events from Nasdaq (loaded day by day, today first), with whether any day is still loading or failed. */
 export function useNasdaqEco(start: number, days: number, now: number): { events: NasdaqEcoEvent[]; loading: boolean; failed: boolean; any: boolean } {
   nasdaqEco.use((s) => s.v);

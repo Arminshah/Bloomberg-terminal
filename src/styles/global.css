@@ -876,11 +876,50 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 /* FA: the "12 Months Ending" line under the period headings. */
 .tbl tr.fa-ending th { position: static; color: #b9c0c8; font-weight: 400; background: #1e2125; }
 
-/* ECO agenda: days alternate in shade, and releases still to come read in amber, as on the terminal. */
-.tbl.eco tr.eco-band td { background: #10141a; }
-.tbl.eco tr.eco-ahead td { color: var(--amber-2); }
-.tbl.eco tr.eco-ahead td.num.b { color: var(--amber-2); }
-.tbl.eco .eco-date { color: inherit; font-variant-numeric: tabular-nums; }
+/* ECO (Equities Workflow Brochure p.12, 2025): the region and range rows, the agenda with full-height column rules, days
+   banded black and #1E1E1E, today's event names white and the rest amber, R's four bars and M's bell. */
+.eco-ctl { background: #000; padding: 2px 6px 3px; }
+.eco-ctl-row { display: flex; align-items: center; gap: 8px; min-height: 22px; flex-wrap: wrap; }
+.eco-ctl .sel-inp { min-width: 150px; }
+.eco-ctl .eco-region { min-width: 190px; }
+.eco-clock { font-variant-numeric: tabular-nums; }
+.eco-range { margin-left: auto; }
+.eco-view { margin-left: 18px; }
+.eco-radio { display: inline-flex; align-items: center; gap: 3px; }
+.eco-radio input { accent-color: #359aff; margin: 0; }
+.eco-next { margin-left: auto; }
+.tbl.eco th { background: #232323; color: #d7d7d7; border-right: 1px solid #404040; }
+.tbl.eco td { border-right: 1px solid #2a2a2a; border-bottom: 0; color: var(--amber); }
+.tbl.eco tr.eco-band td { background: #1e1e1e; }
+.tbl.eco td.white { color: var(--white); }
+.tbl.eco tr.eco-today td.eco-ev { color: var(--white); }
+.tbl.eco .eco-dt { font-variant-numeric: tabular-nums; }
+.tbl.eco .eco-dt .rowno { color: #a5a5a5; float: left; }
+.tbl.eco .eco-icon { width: 18px; padding: 0 2px; text-align: center; }
+.tbl.eco tr.eco-filters th { background: #000; padding: 1px 2px; }
+.tbl.eco tr.eco-filters .sel-inp { min-width: 0; width: 48px; }
+.tbl.eco tr.eco-filters .inp { width: 100%; }
+.eco-bars { display: inline-flex; align-items: flex-end; gap: 1px; height: 12px; vertical-align: middle; }
+.eco-bars i { display: block; width: 3px; background: #232323; }
+.eco-bars i.on.b1 { background: #b6721d; }
+.eco-bars i.on.b2 { background: #ffa028; }
+.eco-bars i.on.b3 { background: #ffc070; }
+.eco-bars i.on.b4 { background: #ffdfb7; }
+.eco-bell-btn { border: 0; background: transparent; padding: 0; line-height: 0; cursor: pointer; }
+.eco-bell { width: 11px; height: 11px; fill: none; stroke: #787878; stroke-width: 1.1; vertical-align: middle; }
+.eco-bell.on { fill: #35d655; stroke: #35d655; }
+.eco-news { margin-top: 6px; }
+.eco-news-h { background: #1e1e1e; color: var(--white); padding: 1px 6px; }
+.eco-news ol { list-style: none; margin: 0; padding: 0; }
+.eco-news li button { display: flex; gap: 8px; width: 100%; border: 0; background: transparent; padding: 0 6px; height: var(--row); align-items: center; text-align: left; color: var(--amber); cursor: pointer; font: inherit; }
+.eco-news li button:hover { background: #1e1e1e; }
+.eco-news-src { color: #fa5a28; flex: none; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eco-news-t { flex: none; font-variant-numeric: tabular-nums; }
+.eco-news-hl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eco-browse { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+.eco-browse > div { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.eco-custom-list { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 2px 12px; }
+.eco-custom-name { display: flex; gap: 8px; align-items: center; }
 
 /* ANR: the consensus summary above the sections, two short columns. */
 /* ANR's summary beside its chart (TE04 07:13): the company in cyan, shares in green or red with their counts at the right. */

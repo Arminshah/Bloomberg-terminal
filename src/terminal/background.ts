@@ -25,6 +25,11 @@ import type { SecurityDef } from '../data/types';
 import { settings } from './settings';
 import { toast } from './toasts';
 import { addFavAlerts, favAlertsFrom, markWatched, watchSince } from './favalerts';
+import { releaseAlerts, dueReleaseAlerts } from '../data/release-alerts';
+import { fromEco, fromNasdaq, type EcoRow } from '../data/eco-rows';
+import { ecoEvents, newYorkDate, policyCalendarEvents } from '../data/eco';
+import { refreshNasdaqEcoToday } from '../data/live/nasdaq-eco';
+import { DAY_MS } from '../data/calendar';
 
 let audio: AudioContext | null = null;
 function beep() {
@@ -176,6 +181,28 @@ function watchBreaking(): () => void {
   };
 }
 
+/**
+ * ECO's release alerts: once a minute while any bell is set, today's releases (Nasdaq's in the desktop app, FRED's
+ * and the central banks' otherwise, the demo's in the browser) are checked, and each alerted release rings once when
+ * its actual is out.
+ */
+function watchReleases(): () => void {
+  const check = () => {
+    if (!releaseAlerts.get().keys.length) return;
+    const now = engine.now();
+    const nq = refreshNasdaqEcoToday(now);
+    const rows: EcoRow[] = nq.length
+      ? policyCalendarEvents(nq, now - DAY_MS, now, now).map((e) => fromNasdaq(e, now))
+      : ecoEvents(now - DAY_MS, now, now).map((e) => fromEco(e, now, newYorkDate(now), engine.realOnly));
+    const due = dueReleaseAlerts(rows, now);
+    for (const r of due.slice(0, 3)) toast({ title: `RELEASE · ${r.country}`, body: `${r.name}: ${r.actual}${r.survey ? ` (Surv ${r.survey})` : ''}${r.prior ? `, prior ${r.prior}` : ''}`, kind: 'alert', command: 'ECO' }, 12000);
+    if (due.length && settings.get().sound) beep();
+  };
+  check();
+  const timer = setInterval(check, 60_000);
+  return () => clearInterval(timer);
+}
+
 /** Starts app-wide background services; returns a cleanup function. */
 export function startBackground(): () => void {
   const stops: (() => void)[] = [];
@@ -186,6 +213,7 @@ export function startBackground(): () => void {
   stops.push(engine.subscribe(() => checkAlerts()));
   stops.push(watchNews());
   stops.push(watchBreaking());
+  stops.push(watchReleases());
   const chatTimer = setInterval(chatTick, 20_000);
   stops.push(() => clearInterval(chatTimer));
   stops.push(startLiveFeeds());

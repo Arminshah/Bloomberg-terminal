@@ -2,15 +2,23 @@
 // Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
 import { Credits } from '../components/Credits';
 import { useState } from 'react';
+import { createStore } from '../core/store';
+import { Dialog } from '../components/Dialog';
+import { DateRangeFields } from '../components/DateRange';
+import { exportActions } from '../components/ExportActions';
+import { news, type Story } from '../data/news';
+import { countryStories } from '../data/world-bonds';
+import { ECO_REGIONS, ECO_SUBTYPES, ECO_TYPES, fredChart, fromEco, fromNasdaq, inRegion, ofKind, type EcoRow, type EcoType } from '../data/eco-rows';
+import { releaseAlerts, releaseKey, toggleReleaseAlert } from '../data/release-alerts';
 import { FnHeader } from '../components/FnHeader';
 import { Chg, LivePx, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
-import { fmtDateTime, fmtDay, fmtMonthDayNum, fmtNum, fmtTime, WEEKDAYS, zonedParts } from '../core/format';
+import { fmtDateTime, fmtDay, fmtMonthDayNum, fmtNum, fmtTime, zonedParts } from '../core/format';
 import { execute } from '../terminal/exec';
-import { usePanelId } from '../terminal/panel';
+import { flash, useMenu, usePanelId } from '../terminal/panel';
 import { engine, useInterval } from '../data/market';
 import { DAY_MS } from '../data/calendar';
-import { centralBanks, COUNTRY_NAMES, ecoEvents, newYorkDate, policyCalendarEvents, type EcoEvent } from '../data/eco';
+import { centralBanks, COUNTRY_NAMES, ecoEvents, newYorkDate, policyCalendarEvents } from '../data/eco';
 import { periodChange } from '../data/analytics';
 import type { FnProps } from '../terminal/types';
 import { FRED_NOTICE, FRED_TERMS_URL } from '../data/macroseries';
@@ -19,24 +27,36 @@ import { desktopData } from '../data/live/yahoo';
 import { policyRates } from '../data/live/policy';
 import { currentPolicyTarget, policyDecisionLabel, policyMeetingState } from '../data/policy-state';
 import type { DatasetHealth } from '../data/live/provenance';
-import { ecoNumber, nasdaqEcoAvailable, useNasdaqEco } from '../data/live/nasdaq-eco';
+import { nasdaqEcoAvailable, useNasdaqEco } from '../data/live/nasdaq-eco';
 import { COMPUTED_GROWTH, COUNTRY_STATS, EUROSTAT_MEMBERS, figurePeriod, figureStatus, fredData, fredSeriesHealth, US_EVENTS, valueAt, type Calc, type Freq, type Obs } from '../data/live/fred';
 
-const COUNTRIES = ['US', 'EZ', 'DE', 'GB', 'JP', 'CN', 'CA', 'AU'];
-/** The desktop app's calendar: US releases from FRED and the central banks with their own data. */
-const REAL_COUNTRIES = ['US', 'EZ', 'GB', 'CA', 'AU', 'CH', 'BR'];
+/** ECO's saved defaults (9 GO): the region and how many days the range runs from today, and the filter row. */
+const ecoPrefs = createStore<{ region: string; days: number; filters: boolean; custom: { name: string; countries: string[] }[] }>({ region: 'US', days: 7, filters: false, custom: [] }, 'eco', 1);
 
-/** Monday of the current week; on weekends, the coming week. */
-function weekStart(ms: number): number {
-  const d = new Date(ms);
-  const wd = d.getUTCDay();
-  if (wd === 6 || wd === 0) return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + (wd === 6 ? 2 : 1));
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - (wd - 1));
+/** Nasdaq is asked one day at a time: a range longer than this is cut, and the screen says so. */
+const NASDAQ_MAX_DAYS = 31;
+
+/** The countries the region field offers, in the order of the app's markets. */
+const ECO_COUNTRY_LIST = ['US', 'CA', 'BR', 'MX', 'EZ', 'DE', 'FR', 'IT', 'ES', 'GB', 'CH', 'SE', 'NO', 'NL', 'BE', 'JP', 'CN', 'AU', 'NZ', 'IN', 'KR', 'HK', 'SG'];
+
+const countryName = (c: string) => COUNTRY_NAMES[c] ?? c;
+
+/** The region a field value names: a region's id, "custom:<name>" for a custom calendar, or a country's code. */
+function regionSpec(region: string, custom: { name: string; countries: string[] }[]): string | string[] {
+  if (region.startsWith('custom:')) return custom.find((c) => `custom:${c.name}` === region)?.countries ?? [];
+  return region;
 }
 
-function fmtVal(e: EcoEvent, v: number | null): string {
-  if (v == null || !Number.isFinite(v)) return '';
-  return `${fmtNum(v, e.dec)}${e.unit === '%' ? '%' : e.unit}`;
+function regionLabel(region: string): string {
+  if (region.startsWith('custom:')) return region.slice(7);
+  return ECO_REGIONS.find((r) => r.id === region)?.name ?? countryName(region);
+}
+
+/** The day (UTC midnight) a row falls on in the display time zone; a date-only release keeps its own date. */
+function rowDay(r: EcoRow): number {
+  if (r.date) return Date.parse(`${r.date}T00:00:00Z`);
+  const p = zonedParts(r.time);
+  return Date.UTC(p.y, p.mo - 1, p.d);
 }
 
 function countdown(ms: number): string {
@@ -47,281 +67,422 @@ function countdown(ms: number): string {
   return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m ${s % 60}s`;
 }
 
+/** R: four rising bars, lit from dark to light amber up to the release's level (the app's reading, see EcoRow). */
+function Bars({ n }: { n: number }) {
+  return (
+    <span className="eco-bars" role="img" aria-label={`Relevance ${n} of 4`}>
+      {[1, 2, 3, 4].map((i) => <i key={i} className={i <= n ? `on b${i}` : ''} style={{ height: `${3 + i * 2}px` }} />)}
+    </span>
+  );
+}
+
+/** M: the release's alert, an outline bell, green when set. */
+function Bell({ on }: { on: boolean }) {
+  return (
+    <svg className={`eco-bell${on ? ' on' : ''}`} viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M6 1.4c-1.9 0-3.1 1.4-3.1 3.3v2.4L1.8 8.6h8.4L9.1 7.1V4.7C9.1 2.8 7.9 1.4 6 1.4z" />
+      <path d="M4.7 9.6a1.4 1.4 0 0 0 2.6 0" />
+    </svg>
+  );
+}
+
+const cell = (v: string) => v || '--';
+
+/**
+ * ECO, Economic Calendars, as the Equities Workflow Brochure draws it (p.12, January 2025): 1) Calendars, 2) Alerts,
+ * 3) Export and 4) Settings on the red bar; the region in its amber field with 6) Browse, the clock and the date range;
+ * the kind and subtype of event and the Agenda view; the agenda numbered from 21) with Date Time, A, M, R, Event,
+ * Period, Surv(M), Actual, Prior, Revised and C, the days banded; and the economics headlines under it (Quick Start
+ * 2024, p.33). A row opens its release.
+ */
 export function ECO(_: FnProps) {
   useInterval(1000);
+  const panel = usePanelId();
   const now = engine.now();
-  const [week, setWeek] = useState(2);
   const real = engine.realOnly;
   policyRates.use((r) => r);
-  const countries = real ? REAL_COUNTRIES : COUNTRIES;
-  const [ctry, setCtry] = useState<string[]>(countries);
   fredData.use((x) => x.loaded);
   fredData.use((x) => x.health);
   const needsKey = fredData.use((x) => x.needsKey);
   const keyRefused = fredData.use((x) => x.keyRefused);
-  const [minRel, setMinRel] = useState(1);
-  const today = newYorkDate(now);
-  const start = weekStart(now) + (week - 2) * 7 * DAY_MS;
-  const all = ecoEvents(start, start + 7 * DAY_MS, now);
-  const events = all.filter((e) => ctry.includes(e.country) && e.relevance >= minRel);
-  const next = ecoEvents(now - DAY_MS, now + 14 * DAY_MS, now).find((e) => e.relevance >= 3 && (e.date ? e.date > today || (e.date === today && e.actual == null) : e.time > now));
-  // The desktop app's calendar comes from Nasdaq's (every country, times, consensus); FRED's when Nasdaq has nothing.
-  const nq = useNasdaqEco(start, 7, now);
-  if (real && desktopData() && nasdaqEcoAvailable() && (nq.any || nq.loading)) {
-    return <NasdaqEcoCalendar week={week} setWeek={setWeek} nq={nq} now={now} minRel={minRel} setMinRel={setMinRel} />;
-  }
-  // As on the terminal's agenda, each line carries its own date; days alternate in shade instead of heading groups.
-  let lastDay = '';
+  const prefs = ecoPrefs.use((s) => s);
+  const bells = releaseAlerts.use((s) => s.keys);
+  const stories = news.use((s) => s.stories);
+  const today = (() => {
+    const p = zonedParts(now);
+    return Date.UTC(p.y, p.mo - 1, p.d);
+  })();
+  const [region, setRegion] = useState(prefs.region);
+  const [range, setRange] = useState({ from: today, to: today + prefs.days * DAY_MS });
+  const [type, setType] = useState<EcoType>('releases');
+  const [sub, setSub] = useState('all');
+  const [showFilters, setShowFilters] = useState(prefs.filters);
+  const [minBars, setMinBars] = useState(0);
+  const [text, setText] = useState('');
+  const [open, setOpen] = useState<EcoRow | null>(null);
+  const [dialog, setDialog] = useState<'browse' | 'custom' | 'alerts' | null>(null);
+
+  // Each source is asked a day either side, so a release late in the evening somewhere still lands on its day here.
+  const fetchFrom = range.from - DAY_MS;
+  const span = Math.round((range.to - range.from) / DAY_MS) + 1;
+  const cut = span > NASDAQ_MAX_DAYS;
+  const nq = useNasdaqEco(fetchFrom, Math.min(span, NASDAQ_MAX_DAYS) + 2, now);
+  const onNasdaq = real && desktopData() && nasdaqEcoAvailable() && (nq.any || nq.loading);
+  const fetchTo = range.to + 2 * DAY_MS;
+  const nyToday = newYorkDate(now);
+  const all: EcoRow[] = onNasdaq
+    ? policyCalendarEvents(nq.events, fetchFrom, fetchTo, now).map((e) => fromNasdaq(e, now))
+    : ecoEvents(fetchFrom, fetchTo, now).map((e) => {
+        const ev = e.real && e.country === 'US' ? US_EVENTS.find((x) => e.id.startsWith(`US:${x.name}:`)) : undefined;
+        return fromEco(e, now, nyToday, real, ev ? fredChart(ev.series, ev.calc) : undefined);
+      });
+  const spec = regionSpec(region, prefs.custom);
+  const lastDay = cut ? range.from + (NASDAQ_MAX_DAYS - 1) * DAY_MS : range.to;
+  const needle = text.trim().toLowerCase();
+  const rows = all
+    .filter((r) => {
+      const d = rowDay(r);
+      return d >= range.from && d <= (onNasdaq ? lastDay : range.to) && inRegion(r.country, spec) && ofKind(r, type, sub) && r.bars >= minBars && (!needle || r.name.toLowerCase().includes(needle));
+    })
+    .sort((a, b) => rowDay(a) - rowDay(b) || a.time - b.time);
+  const next = all.find((r) => r.relevance >= 3 && !r.released && r.time > now && inRegion(r.country, spec));
+  const headlines = econStories(stories, spec);
+
+  const saveDefault = () => {
+    ecoPrefs.set((s) => ({ ...s, region, days: Math.max(1, Math.round((range.to - range.from) / DAY_MS)), filters: showFilters }));
+    flash(panel, `Saved as ECO's default: ${regionLabel(region)}, ${Math.round((range.to - range.from) / DAY_MS)} days from today`, 'info');
+  };
+  const csv = () => [
+    ['Date', 'Time', 'Country', 'Event', 'Period', 'Surv(M)', 'Actual', 'Prior', 'Revised', 'Relevance (of 4, the app\'s reading)', 'Source'],
+    ...rows.map((r) => [fmtDay(rowDay(r), true), r.date ? '' : fmtTime(r.time, false), r.country, r.name, r.period, r.survey, r.actual, r.prior, r.revised, r.bars, r.source]),
+  ];
+  const exp = exportActions(panel, 'economic-calendar.csv', csv);
+  const first = 21;
+  useMenu('eco', [
+    { n: 6, label: 'Browse', run: () => setDialog('browse') },
+    { n: 9, label: 'Save as Default', run: saveDefault },
+    ...headlines.map((s, i) => ({ n: 11 + i, label: s.headline, run: () => readStory(panel, s) })),
+    ...rows.map((r, i) => ({ n: first + i, label: r.name, run: () => setOpen(r) })),
+  ]);
+
+  const emptyText = onNasdaq
+    ? nq.loading ? "Loading Nasdaq's economic calendar…" : 'No releases for these choices.'
+    : real && keyRefused
+      ? `The FRED API key was not accepted: ${keyRefused} Check the key in PROVIDERS.`
+      : real && needsKey
+        ? 'US releases need your free FRED API key (from fredaccount.stlouisfed.org): add it in PROVIDERS.'
+        : real && !fredData.get().loaded
+          ? 'Loading the release calendar from FRED…'
+          : 'No releases for these choices.';
+  const subtypes = ECO_SUBTYPES[type];
   let band = 0;
+  let prevDay = NaN;
   return (
-    <div>
+    <div className="eco-screen">
       <FnHeader
         code="RELEASES"
-        title="Economic Calendar"
-        sub={
-          <>
-            Times in your display time zone ·{' '}
-            {real ? (
-              <>
-                <RealBadge /> selected US releases ({US_EVENTS.length} indicators from {new Set(US_EVENTS.map((e) => e.rid)).size} reports): scheduled dates and published values from the FRED API (it gives no times of day) · central bank decisions from the banks' own data · consensus forecasts are not public
-              </>
-            ) : all.some((e) => e.real) ? (
-              <>
-                <RealBadge /> Fed, ECB, BoE and BoC decisions · <SimBadge /> other releases, marked DEMO
-              </>
-            ) : (
-              <>
-                <SimBadge /> release dates, consensus and actuals
-              </>
-            )}
-          </>
-        }
-        tabs={[
-          { n: 1, label: 'Last week' },
-          { n: 2, label: 'This week' },
-          { n: 3, label: 'Next week' },
+        title="Economic Calendars"
+        actions={[
+          {
+            n: 1,
+            label: 'Calendars',
+            onClick: () => {},
+            menu: [
+              ...ECO_REGIONS.map((r) => ({ label: r.name, onClick: () => setRegion(r.id) })),
+              ...prefs.custom.map((c, i) => ({ label: `${c.name} (custom)`, sep: i === 0, onClick: () => setRegion(`custom:${c.name}`) })),
+              { label: 'Add New Custom Calendar…', sep: true, onClick: () => setDialog('custom') },
+            ],
+          },
+          { n: 2, label: 'Alerts', onClick: () => setDialog('alerts'), title: 'The releases whose bells are set' },
+          { n: 3, label: 'Export', onClick: () => {}, menu: exp.map((a) => ({ label: a.label === 'Copy' ? 'Copy to Clipboard' : 'Download as CSV', title: a.title, onClick: a.onClick })) },
+          {
+            n: 4,
+            label: 'Settings',
+            onClick: () => {},
+            menu: [
+              { label: showFilters ? 'Hide the Filter Row' : 'Show the Filter Row', onClick: () => setShowFilters((v) => !v) },
+              { label: 'Save as Default (9 GO)', onClick: saveDefault },
+              { label: 'Time Zone and Date Order (SETTINGS)', sep: true, onClick: () => execute(panel, 'SETTINGS') },
+            ],
+          },
         ]}
-        tab={week}
-        onTab={setWeek}
+        controls={
+          <div className="eco-ctl">
+            <div className="eco-ctl-row">
+              <select className="sel-inp eco-region" aria-label="Region" value={region} onChange={(e) => setRegion(e.target.value)}>
+                <optgroup label="Regions">{ECO_REGIONS.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</optgroup>
+                {prefs.custom.length ? <optgroup label="Custom calendars">{prefs.custom.map((c) => <option key={c.name} value={`custom:${c.name}`}>{c.name}</option>)}</optgroup> : null}
+                <optgroup label="Countries">{ECO_COUNTRY_LIST.map((c) => <option key={c} value={c}>{countryName(c)}</option>)}</optgroup>
+              </select>
+              <button type="button" className="btn-grey" onClick={() => setDialog('browse')}><b>6)</b> Browse</button>
+              <span className="white eco-clock" data-testid="eco-clock">{fmtTime(now, true)}</span>
+              <span className="eco-range"><DateRangeFields from={range.from} to={range.to} label="" onChange={(from, to) => setRange({ from, to })} /></span>
+            </div>
+            <div className="eco-ctl-row">
+              <select className="sel-inp" aria-label="Kind of event" value={type} onChange={(e) => { setType(e.target.value as EcoType); setSub('all'); }}>
+                {ECO_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+              <select className="sel-inp" aria-label="Subtype" value={sub} onChange={(e) => setSub(e.target.value)}>
+                {subtypes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+              </select>
+              <span className="amber eco-view">View</span>
+              <label className="eco-radio amber"><input type="radio" checked readOnly /> Agenda</label>
+              <label className="eco-radio amber" title="No frame shows the terminal's Weekly view, so the app has only the Agenda"><input type="radio" disabled /> Weekly</label>
+              {next ? (
+                <span className="eco-next muted" title="The app's own reading of what is next, by its relevance">
+                  Next key release <span className="amber">{next.country} {next.name}</span> in <span className="white">{countdown(next.time - now)}</span>
+                </span>
+              ) : null}
+            </div>
+          </div>
+        }
       />
-      <div className="chart-tools">
-        {countries.map((c) => (
-          <button key={c} type="button" className={`chip-btn${ctry.includes(c) ? ' on' : ''}`} style={ctry.includes(c) ? { background: 'var(--amber)' } : undefined} onClick={() => setCtry(ctry.includes(c) ? ctry.filter((x) => x !== c) : [...ctry, c])}>
-            {c}
-          </button>
-        ))}
-        <span className="seg" role="group" aria-label="Relevance">
-          {[1, 2, 3].map((r) => (
-            <button key={r} type="button" className={minRel === r ? 'on' : ''} onClick={() => setMinRel(r)}>
-              {'●'.repeat(r)}+
-            </button>
-          ))}
-        </span>
-        {next && (
-          <span>
-            <span className="amber">Next key release</span> {next.country} {next.name}{' '}
-            {next.date ? (
-              <span className="white b">{next.date === today ? 'today' : `on ${WEEKDAYS[new Date(`${next.date}T12:00:00Z`).getUTCDay()]} ${fmtMonthDayNum(Number(next.date.slice(5, 7)), Number(next.date.slice(8, 10)))}`}</span>
-            ) : (
-              <>
-                in <span className="white b">{countdown(next.time - now)}</span>
-              </>
-            )}
-          </span>
-        )}
-      </div>
-      <table className="tbl eco">
+      <table className="tbl eco" data-testid="eco-table">
         <thead>
           <tr>
-            <th>Date Time</th>
-            <th title="Country">C</th>
+            <th className="num">Date Time</th>
+            <th className="eco-icon" title="Live audio or video of the release: no free source">A</th>
+            <th className="eco-icon" title="Alert: set the bell to be told when the release is out">M</th>
+            <th className="eco-icon" title="Relevance, the app's reading of the kind of release (no source gives it)">R</th>
             <th>Event</th>
-            <th>Period</th>
-            {real ? null : <th className="num" title="Survey: the median forecast">Surv(M)</th>}
-            <th className="num" title={real ? 'The published value for the period, including any revisions since' : undefined}>
-              Actual
-            </th>
-            <th className="num" title={real ? 'The previous period as currently published' : undefined}>
-              Prior
-            </th>
-            {real ? null : <th className="num hide-m">Revised</th>}
-            <th className="hide-m" title="Relevance">R</th>
+            <th className="num">Period</th>
+            <th className="num" title={onNasdaq ? "Nasdaq's consensus (its data partner's), not a median of a survey" : 'Survey: the median forecast'}>Surv(M)</th>
+            <th className="num">Actual</th>
+            <th className="num">Prior</th>
+            <th className="num hide-m">Revised</th>
+            <th title="Country">C</th>
           </tr>
+          {showFilters ? (
+            <tr className="eco-filters">
+              <th />
+              <th />
+              <th />
+              <th>
+                <select className="sel-inp" aria-label="Lowest relevance" value={minBars} onChange={(e) => setMinBars(Number(e.target.value))}>
+                  <option value={0}>All</option>
+                  <option value={2}>2+</option>
+                  <option value={3}>3+</option>
+                  <option value={4}>4</option>
+                </select>
+              </th>
+              <th><input className="inp" aria-label="Event filter" placeholder="Event" value={text} onChange={(e) => setText(e.target.value)} /></th>
+              <th colSpan={6} />
+            </tr>
+          ) : null}
         </thead>
         <tbody>
-          {events.length === 0 && (
+          {rows.length === 0 ? (
             <tr>
-              <td colSpan={real ? 7 : 9} className="empty">
-                {real && keyRefused
-                  ? `The FRED API key was not accepted: ${keyRefused} Check the key in PROVIDERS.`
-                  : real && needsKey
-                    ? 'US releases need your free FRED API key (from fredaccount.stlouisfed.org): add it in PROVIDERS.'
-                    : real && !fredData.get().loaded
-                      ? 'Loading the release calendar from FRED…'
-                      : 'No events for the selected filters.'}
-              </td>
+              <td colSpan={11} className="empty">{emptyText}</td>
             </tr>
-          )}
-          {events.map((e) => {
-            // A date-only event belongs to its own date, whatever the display time zone.
-            const p = e.date ? { y: Number(e.date.slice(0, 4)), mo: Number(e.date.slice(5, 7)), d: Number(e.date.slice(8, 10)) } : zonedParts(e.time);
-            const dayKey = `${p.y}-${p.mo}-${p.d}`;
-            if (dayKey !== lastDay) band++;
-            lastDay = dayKey;
-            const md = fmtMonthDayNum(p.mo, p.d);
-            const diff = e.actual != null && e.survey != null ? e.actual - e.survey : 0;
-            const released = e.policyStatus ? e.policyStatus === 'confirmed' : e.date ? e.actual != null || e.date < today : real ? e.time <= now : e.actual != null;
-            const dueToday = !released && e.date === today;
-            const soon = !e.date && !released && e.time - now < 3600_000 && e.time > now;
+          ) : null}
+          {rows.map((r, i) => {
+            const day = rowDay(r);
+            if (day !== prevDay) band++;
+            prevDay = day;
+            const p = r.date ? null : zonedParts(r.time);
+            const md = fmtMonthDayNum(new Date(day).getUTCMonth() + 1, new Date(day).getUTCDate());
+            const bell = bells.includes(releaseKey(r.country, r.name));
+            const dueNote = !r.released ? (r.date ? (day === today ? 'Due today; the source gives no time' : 'The source gives the day, not the time') : r.time > now ? `Due in ${countdown(r.time - now)}` : 'Its time has passed; the value has not reached the source yet') : undefined;
             return (
-              <tr key={e.id} data-policy-status={e.policyStatus} data-policy-date={e.policyStatus ? e.policyDecision?.date ?? e.id.split(':').at(-1) : undefined} data-policy-outcome={e.policyDecision?.action} className={`${band % 2 ? 'eco-band' : ''}${released ? '' : ' eco-ahead'}`}>
-                <td className={soon ? 'yellow b' : undefined} title={e.date ? e.kind === 'rate' ? 'The policy statement gives no exact publication time' : 'FRED gives the release date, not the time' : `${WEEKDAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]} ${md}${e.timeFrom ? `; time from the ${e.timeFrom}` : ''}`}>
-                  <span className="eco-date">{md}</span> {e.date ? '--:--' : fmtTime(e.time, false)}
+              <tr
+                key={r.id}
+                className={`click${band % 2 ? '' : ' eco-band'}${day === today ? ' eco-today' : ''}`}
+                onClick={() => setOpen(r)}
+                title={r.description || undefined}
+                data-policy-status={r.policyStatus}
+                data-policy-date={r.policyStatus ? r.policyDecision?.date ?? r.date ?? newYorkDate(r.time) : undefined}
+                data-policy-outcome={r.policyDecision?.action}
+              >
+                <td className="num amber eco-dt" title={r.timeFrom ? `Time from the ${r.timeFrom}` : undefined}>
+                  <span className="rowno">{first + i})</span> {md}{p ? ` ${String(p.h).padStart(2, '0')}:${String(p.mi).padStart(2, '0')}` : ''}
                 </td>
-                <td className="amber">{e.country}</td>
-                <td className={e.relevance >= 3 ? 'white b' : ''}>
-                  {e.name}
-                  {e.policyDecision && <> · <a href={e.policyDecision.sourceUrl} target="_blank" rel="noreferrer noopener">{policyDecisionLabel(e.policyDecision)}</a></>}
-                  {e.health && <span className="muted" title={`${e.health.checkedAt ? `Last successful check ${fmtDateTime(e.health.checkedAt)}. ` : 'No successful check recorded. '}${e.health.error ?? ''}`}>{e.health.state === 'error' ? ' · retained; latest check failed' : e.health.state === 'cached' ? ' · cached' : ''}</span>}
-                  {e.real || !all.some((x) => x.real) ? null : <span className="muted"> DEMO</span>}
+                <td className="eco-icon" />
+                <td className="eco-icon">
+                  <button type="button" className="eco-bell-btn" aria-label={bell ? `Clear the alert on ${r.name}` : `Alert me when ${r.name} is out`} aria-pressed={bell} title={bell ? 'Alert set: the app tells you when the actual is out' : 'Set an alert for when the actual is out'} onClick={(e) => { e.stopPropagation(); toggleReleaseAlert(r.country, r.name); }}>
+                    <Bell on={bell} />
+                  </button>
                 </td>
-                <td className="muted">{e.period}</td>
-                {real ? null : <td className="num">{fmtVal(e, e.survey)}</td>}
-                <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`}>
-                  {e.policyStatus === 'statement-unavailable' ? <span className="muted" title="This bank's published statement decisions are not automatically archived here">statement not archived</span> : e.policyStatus === 'awaiting-publication' ? <span className="amber" title="The scheduled release time has passed, but no official statement has been archived">awaiting statement</span> : released ? (
-                    e.actual != null ? (
-                      fmtVal(e, e.actual)
-                    ) : (
-                      <span className="muted" title={e.kind === 'rate' ? 'No source-confirmed policy outcome is available' : 'Released; the value has not reached the source yet'}>
-                        pending
-                      </span>
-                    )
-                  ) : dueToday ? (
-                    <span className="yellow" title="Scheduled for today; the value shows once the source has it">
-                      due today
-                    </span>
-                  ) : soon ? (
-                    <span className="yellow">{countdown(e.time - now)}</span>
-                  ) : (
-                    ''
-                  )}
+                <td className="eco-icon" title={`Relevance ${r.bars} of 4: the app's reading of the kind of release`}><Bars n={r.bars} /></td>
+                <td className="eco-ev">
+                  {r.name}
+                  {r.policyDecision ? <> · <a href={r.policyDecision.sourceUrl} target="_blank" rel="noreferrer noopener" onClick={(e) => e.stopPropagation()}>{policyDecisionLabel(r.policyDecision)}</a></> : null}
+                  {r.health && r.health.state !== 'current' ? <span className="muted" title={`${r.health.checkedAt ? `Last successful check ${fmtDateTime(r.health.checkedAt)}. ` : 'No successful check recorded. '}${r.health.error ?? ''}`}>{r.health.state === 'error' ? ' · retained; latest check failed' : r.health.state === 'cached' ? ' · cached' : ''}</span> : null}
+                  {!r.real && all.some((x) => x.real) ? <span className="muted"> DEMO</span> : null}
                 </td>
-                <td className="num">{fmtVal(e, e.prior)}</td>
-                {real ? null : <td className="num hide-m muted">{fmtVal(e, e.revised)}</td>}
-                <td className="hide-m amber" title={`Relevance ${e.relevance}/3`}>
-                  {'●'.repeat(e.relevance)}
-                  <span className="faint">{'●'.repeat(3 - e.relevance)}</span>
+                <td className="num amber">{cell(r.period)}</td>
+                <td className="num amber" title={r.notes?.survey}>{cell(r.survey)}</td>
+                <td className="num white" title={r.notes?.actual ?? dueNote}>
+                  {r.policyStatus === 'awaiting-publication' ? <span className="amber" title="The scheduled time has passed, but no official statement has been archived">awaiting statement</span> : r.policyStatus === 'statement-unavailable' ? <span className="muted" title="This bank's statements are not archived here">statement not archived</span> : cell(r.actual)}
                 </td>
+                <td className="num amber" title={r.notes?.prior}>{cell(r.prior)}</td>
+                <td className="num amber hide-m">{cell(r.revised)}</td>
+                <td className="amber" title={r.countryName}>{r.country}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
-      {real ? <FredNotice /> : null}
+      {cut && onNasdaq ? <p className="pad-s amber">Nasdaq is asked one day at a time, so the agenda stops at {fmtDay(lastDay, true)}: {NASDAQ_MAX_DAYS} days.</p> : null}
+      <div className="eco-news" data-testid="eco-news">
+        <div className="eco-news-h">Economics News and Analysis | <button type="button" className="link-btn" onClick={() => execute(panel, `NEWS ${Array.isArray(spec) || ECO_REGIONS.some((x) => x.id === spec) ? 'ECONOMY' : countryName(spec)}`)}>NEWS »</button></div>
+        {headlines.length ? (
+          <ol>
+            {headlines.map((s, i) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => readStory(panel, s)} title={s.headline}>
+                  <span className="rowno">{11 + i})</span>
+                  <span className="eco-news-src">{s.source}</span>
+                  <span className="amber eco-news-t">{storyStamp(s.time, now)}</span>
+                  <span className="amber eco-news-hl">{s.headline}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <div className="muted pad-s">No economics headline the app holds names {regionLabel(region)} yet; NEWS » searches all news.</div>
+        )}
+      </div>
+      <p className="pad-s muted">
+        {onNasdaq ? "Releases, times, consensus, actual and prior: Nasdaq's calendar, as its data partner publishes them (it gives no period or revision). Fed decisions: the Fed's own statements, their actual the announced upper bound. " : real ? `US releases: FRED's release dates and published values (${US_EVENTS.length} indicators; FRED gives no time of day); central bank decisions from the banks' own data; consensus forecasts are not public. ` : 'Release dates, consensus and actuals are generated for the demo. '}
+        Times are in your display time zone. Relevance (R) is the app&apos;s reading of the kind of release, and the kinds and subtypes are sorted by name; the sources give neither. A: no source has live audio or video. Bells ring once, when the actual is out, while the app runs.
+      </p>
+      {real && !onNasdaq ? <FredNotice /> : null}
+      {open ? <EcoRelease r={open} onClose={() => setOpen(null)} /> : null}
+      {dialog === 'browse' ? <EcoBrowse onPick={(id) => { setRegion(id); setDialog(null); }} onClose={() => setDialog(null)} custom={prefs.custom} /> : null}
+      {dialog === 'custom' ? <EcoCustom onSave={(c) => { ecoPrefs.set((s) => ({ ...s, custom: [...s.custom.filter((x) => x.name !== c.name), c] })); setRegion(`custom:${c.name}`); setDialog(null); }} onClose={() => setDialog(null)} /> : null}
+      {dialog === 'alerts' ? <EcoAlerts onClose={() => setDialog(null)} /> : null}
     </div>
   );
 }
 
-const ECO_COUNTRIES = ['US', 'EZ', 'DE', 'FR', 'IT', 'GB', 'JP', 'CN', 'CA', 'AU', 'CH'];
+/** Stories that name a region's countries and read as economics, newest first. */
+const ECON = /inflation|\bgdp\b|econom|jobs|payroll|unemploy|central bank|interest rate|rate (?:cut|hike|decision)|\bcpi\b|\bppi\b|\bpmi\b|retail sales|trade|tariff|recession|growth|wages|yields?\b|monetary|fiscal|budget|deficit/i;
 
-/** ECO on Nasdaq's calendar: every country's releases with the time, the consensus, the actual and the prior value. */
-function NasdaqEcoCalendar({ week, setWeek, nq, now, minRel, setMinRel }: { week: number; setWeek: (n: number) => void; nq: ReturnType<typeof useNasdaqEco>; now: number; minRel: number; setMinRel: (n: number) => void }) {
-  const [ctry, setCtry] = useState<string[]>(ECO_COUNTRIES);
-  const [others, setOthers] = useState(false);
-  const start = weekStart(now) + (week - 2) * 7 * DAY_MS;
-  const merged = policyCalendarEvents(nq.events, start, start + 7 * DAY_MS, now);
-  const events = merged.filter((e) => (ctry.includes(e.country) || (others && !ECO_COUNTRIES.includes(e.country))) && e.relevance >= minRel);
-  const next = merged.find((e) => e.relevance >= 3 && e.time > now && (ctry.includes(e.country) || others));
-  let lastDay = '';
-  let band = 0;
+function econStories(stories: Story[], spec: string | string[]): Story[] {
+  const econ = stories.filter((s) => ECON.test(s.headline));
+  const countries = Array.isArray(spec) ? spec : ECO_REGIONS.find((r) => r.id === spec) ? ECO_REGIONS.find((r) => r.id === spec)!.countries : [spec];
+  const named = countries.length ? [...new Map(countries.flatMap((c) => countryStories(econ, c, 5)).map((s) => [s.id, s])).values()] : econ;
+  return named.sort((a, b) => b.time - a.time).slice(0, 5);
+}
+
+function storyStamp(t: number, now: number): string {
+  const p = zonedParts(t);
+  const q = zonedParts(now);
+  return p.y === q.y && p.mo === q.mo && p.d === q.d ? `${String(p.h).padStart(2, '0')}:${String(p.mi).padStart(2, '0')}` : fmtMonthDayNum(p.mo, p.d);
+}
+
+function readStory(panel: number, s: Story) {
+  if (s.url) window.open(s.url, '_blank', 'noopener,noreferrer');
+  else flash(panel, 'This story has no link to its publisher');
+}
+
+/** A release opened from the agenda: its figures and where they come from, its description, and its chart. */
+function EcoRelease({ r, onClose }: { r: EcoRow; onClose: () => void }) {
+  const panel = usePanelId();
+  const go = (cmd: string) => {
+    onClose();
+    execute(panel, cmd);
+  };
   return (
-    <div>
-      <FnHeader
-        code="RELEASES"
-        title="Economic Calendar"
-        sub={<>Times in your display time zone · <RealBadge /> Nasdaq calendar · Fed outcomes from official statements</>}
-        tabs={[
-          { n: 1, label: 'Last week' },
-          { n: 2, label: 'This week' },
-          { n: 3, label: 'Next week' },
-        ]}
-        tab={week}
-        onTab={setWeek}
-      />
-      <div className="chart-tools">
-        {ECO_COUNTRIES.map((c) => (
-          <button key={c} type="button" className={`chip-btn${ctry.includes(c) ? ' on' : ''}`} style={ctry.includes(c) ? { background: 'var(--amber)' } : undefined} onClick={() => setCtry(ctry.includes(c) ? ctry.filter((x) => x !== c) : [...ctry, c])}>
-            {c}
-          </button>
-        ))}
-        <button type="button" className={`chip-btn${others ? ' on' : ''}`} style={others ? { background: 'var(--amber)' } : undefined} onClick={() => setOthers(!others)} title="Every other country Nasdaq lists">
-          Other
-        </button>
-        <span className="seg" role="group" aria-label="Relevance">
-          {[1, 2, 3].map((r) => (
-            <button key={r} type="button" className={minRel === r ? 'on' : ''} onClick={() => setMinRel(r)}>
-              {'●'.repeat(r)}+
-            </button>
-          ))}
-        </span>
-        {next && (
-          <span>
-            <span className="amber">Next key release</span> {next.country} {next.name} in <span className="white b">{countdown(next.time - now)}</span>
-          </span>
-        )}
-        {nq.loading ? <span className="amber">loading…</span> : null}
-      </div>
-      <table className="tbl eco">
-        <thead>
-          <tr>
-            <th>Date Time</th>
-            <th title="Country">C</th>
-            <th>Event</th>
-            <th className="num" title="Survey: the consensus forecast">Surv(M)</th>
-            <th className="num">Actual</th>
-            <th className="num">Prior</th>
-            <th className="hide-m" title="Relevance, from the kind of release">R</th>
-          </tr>
-        </thead>
+    <Dialog
+      title={`${r.countryName} ${r.name}`}
+      onClose={onClose}
+      testId="eco-release"
+      buttons={[
+        ...(r.chart ? [{ label: 'Chart (ECONCHART)', onClick: () => go(`ECONCHART ${r.chart}`) }] : []),
+        { label: 'News', onClick: () => go(`NEWS ${r.name}`) },
+        { label: 'Close', onClick: onClose, primary: true },
+      ]}
+    >
+      <table className="tbl eco-rel">
         <tbody>
-          {events.length === 0 && (
-            <tr>
-              <td colSpan={7} className="empty">{nq.loading ? "Loading Nasdaq's economic calendar…" : 'No events for the selected filters.'}</td>
-            </tr>
-          )}
-          {events.map((e) => {
-            const p = e.date ? { y: Number(e.date.slice(0, 4)), mo: Number(e.date.slice(5, 7)), d: Number(e.date.slice(8, 10)) } : zonedParts(e.time);
-            const dayKey = `${p.y}-${p.mo}-${p.d}`;
-            if (dayKey !== lastDay) band++;
-            lastDay = dayKey;
-            const a = ecoNumber(e.actual);
-            const c = ecoNumber(e.consensus);
-            const diff = Number.isFinite(a) && Number.isFinite(c) ? a - c : 0;
-            const ahead = e.policyStatus ? e.policyStatus !== 'confirmed' : e.time > now && !e.actual;
-            const soon = ahead && e.time - now < 3600_000;
-            return (
-              <tr key={e.id} data-policy-status={e.policyStatus} data-policy-date={e.policyStatus ? e.policyDecision?.date ?? newYorkDate(e.time) : undefined} data-policy-outcome={e.policyDecision?.action} className={`${band % 2 ? 'eco-band' : ''}${ahead ? ' eco-ahead' : ''}`} title={e.description || undefined}>
-                <td className={soon ? 'yellow b' : undefined}>
-                  <span className="eco-date">{fmtMonthDayNum(p.mo, p.d)}</span> {e.date ? 'time not provided' : fmtTime(e.time, false)}
-                </td>
-                <td className="amber" title={e.countryName}>{e.country}</td>
-                <td className={e.relevance >= 3 ? 'white b' : ''}>{e.name}{e.policyDecision && <> · <a href={e.policyDecision.sourceUrl} target="_blank" rel="noreferrer noopener">{policyDecisionLabel(e.policyDecision)}</a></>}</td>
-                <td className="num" title={e.reportedConsensus ? `Nasdaq reports ${e.reportedConsensus}; target-bound definition not verified` : undefined}>{e.consensus}</td>
-                <td className={`num b ${diff > 0 ? 'up' : diff < 0 ? 'dn' : 'white'}`} title={e.reportedActual ? `Nasdaq reports ${e.reportedActual}; official statement controls the announced upper bound` : undefined}>{e.policyStatus === 'awaiting-publication' ? <span className="amber">awaiting statement</span> : e.actual || (soon && e.time > now ? <span className="yellow">{countdown(e.time - now)}</span> : '')}</td>
-                <td className="num" title={e.reportedPrevious ? `Nasdaq reports ${e.reportedPrevious}; official upper-bound evidence controls this comparison` : undefined}>{e.previous}</td>
-                <td className="hide-m amber" title={`Relevance ${e.relevance}/3`}>
-                  {'●'.repeat(e.relevance)}
-                  <span className="faint">{'●'.repeat(3 - e.relevance)}</span>
-                </td>
-              </tr>
-            );
-          })}
+          <tr><td className="amber">Release</td><td className="white">{r.date ? `${fmtDay(Date.parse(`${r.date}T00:00:00Z`), true)} (no time from the source)` : fmtDateTime(r.time)}</td></tr>
+          <tr><td className="amber">Period</td><td>{cell(r.period)}</td></tr>
+          <tr><td className="amber">Surv(M)</td><td>{cell(r.survey)}</td></tr>
+          <tr><td className="amber">Actual</td><td className="white">{cell(r.actual)}</td></tr>
+          <tr><td className="amber">Prior</td><td>{cell(r.prior)}</td></tr>
+          <tr><td className="amber">Revised</td><td>{cell(r.revised)}</td></tr>
+          <tr><td className="amber">Relevance</td><td>{r.bars} of 4 (the app&apos;s reading)</td></tr>
+          <tr><td className="amber">Source</td><td>{r.source}</td></tr>
         </tbody>
       </table>
-      <p className="pad-s muted">
-        Nasdaq supplies the release calendar and its reported figures. Fed rows use the shared official statement record, including unchanged/0 bp and emergency decisions. Their actual is the announced upper bound; a delayed statement remains awaiting publication. Vendor policy figures remain in the cell details, and unverified target-bound forecasts are excluded from the surprise comparison. Relevance is the app&apos;s reading of the release type.
-      </p>
-    </div>
+      {r.description ? <p className="pad-s">{r.description.replace(/<br\s*\/?>/gi, ' ').replace(/&lt;BR\/&gt;/gi, ' ')}</p> : null}
+      {!r.chart ? <p className="pad-s muted">{r.real ? 'No history of this release is connected: its actuals and the survey are shown as published today.' : 'A demo release: its figures are generated.'}</p> : null}
+    </Dialog>
+  );
+}
+
+/** 6) Browse: the regions, the custom calendars and the countries, to pick one. */
+function EcoBrowse({ onPick, onClose, custom }: { onPick: (id: string) => void; onClose: () => void; custom: { name: string; countries: string[] }[] }) {
+  return (
+    <Dialog title="Browse Regions" onClose={onClose} testId="eco-browse" buttons={[{ label: 'Close', onClick: onClose, primary: true }]}>
+      <div className="eco-browse">
+        <div>
+          <div className="amber">Regions</div>
+          {ECO_REGIONS.map((r) => <button key={r.id} type="button" className="link-btn" onClick={() => onPick(r.id)}>{r.name}</button>)}
+          {custom.length ? <div className="amber">Custom calendars</div> : null}
+          {custom.map((c) => <button key={c.name} type="button" className="link-btn" onClick={() => onPick(`custom:${c.name}`)}>{c.name}</button>)}
+        </div>
+        <div>
+          <div className="amber">Countries</div>
+          {ECO_COUNTRY_LIST.map((c) => <button key={c} type="button" className="link-btn" onClick={() => onPick(c)}>{countryName(c)}</button>)}
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+/** 1) Calendars, Add New Custom Calendar (Scranton 2015, p.53): a name and the countries to include. */
+function EcoCustom({ onSave, onClose }: { onSave: (c: { name: string; countries: string[] }) => void; onClose: () => void }) {
+  const [name, setName] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
+  const ok = name.trim() !== '' && picked.length > 0;
+  return (
+    <Dialog
+      title="Add New Custom Calendar"
+      onClose={onClose}
+      testId="eco-custom"
+      buttons={[
+        { label: '1) Save', primary: true, onClick: () => { if (ok) onSave({ name: name.trim(), countries: picked }); } },
+        { label: 'Close', onClick: onClose },
+      ]}
+    >
+      <label className="eco-custom-name"><span className="amber">Calendar Name</span> <input className="inp" aria-label="Calendar Name" value={name} onChange={(e) => setName(e.target.value)} /></label>
+      <p className="muted">Tick the countries to include.</p>
+      <div className="eco-custom-list">
+        {ECO_COUNTRY_LIST.map((c) => (
+          <label key={c} className="chk"><input type="checkbox" checked={picked.includes(c)} onChange={() => setPicked((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]))} /> {countryName(c)}</label>
+        ))}
+      </div>
+    </Dialog>
+  );
+}
+
+/** 2) Alerts: the releases whose bells are set, each with a way to clear it. */
+function EcoAlerts({ onClose }: { onClose: () => void }) {
+  const keys = releaseAlerts.use((s) => s.keys);
+  return (
+    <Dialog title="Release Alerts" onClose={onClose} testId="eco-alerts" buttons={[{ label: 'Close', onClick: onClose, primary: true }]}>
+      {keys.length ? (
+        <table className="tbl">
+          <tbody>
+            {keys.map((k) => {
+              const [c, ...n] = k.split('|');
+              return (
+                <tr key={k}>
+                  <td className="amber">{c}</td>
+                  <td>{n.join('|')}</td>
+                  <td><button type="button" className="link-btn" onClick={() => toggleReleaseAlert(c, n.join('|'))}>Clear</button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      ) : (
+        <p className="muted">No release alert is set: the bell on an agenda row sets one.</p>
+      )}
+    </Dialog>
   );
 }
 

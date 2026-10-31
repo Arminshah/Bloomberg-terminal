@@ -60,6 +60,7 @@ M3. Screen parity
 - [x] PORT: the 2021 guide's tabs, Intraday (`bbd1308`), the red bar (`a82e17b`), Characteristics, VaR, Scenarios, Tracking Error/Volatility and Attribution (`6583ae2`), checked against the S&P 500's members in the desktop app; the Workspace row, attribution over longer periods and the 2025 frame's other subtabs not built
 - [x] WACC: the 2022 screen's four panels, the help page's cost of debt, preferred and Economic Value Added, a history by fiscal year (`d03a2fe`), checked on Apple in the desktop app; fair market curves and the industry adjustments not available
 - [x] BETA: the 2022 screen, the scatter with its fit and histograms, the full statistics panel with t-tests (next commit), checked on Apple in the desktop app; Beta +/-, Lag, Winsorize and a second range not built
+- [x] ECO: the 2025 window, regions and custom calendars, kinds and subtypes, the numbered agenda with A, M, R and C, a release opened, bells that ring in the background, the filter row and the headlines strip, checked live on Nasdaq's calendar; the Weekly view and live audio not built
 - [x] YAS: the Yield & Spread page, its tabs and Settings, the measures checked against TE07 03:47 (next commit); G-Sprd, I-Sprd, ASW and True Yield blank
 
 ## 1. Rules that come before anything in this plan
