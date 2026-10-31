@@ -775,6 +775,32 @@ test('EE is the earnings and estimates page: its boxes open the screens with the
   expect(errors).toEqual([]);
 });
 
+test("PEERS' Median line comes first and is the median of the loaded stock and its peers, as the report's RV captures give it", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL PEERS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
+  await expect(panel.locator('tbody.tbl-summary tr').first()).toHaveAttribute('data-testid', 'rv-median');
+  // Read the P/E column and the Median line at one moment, as the demo's prices move.
+  const snap = await panel.evaluate((el) => {
+    const headers = Array.from(el.querySelectorAll('thead th')).map((h) => h.textContent?.trim() ?? '');
+    const col = headers.findIndex((h) => h.startsWith('P/E'));
+    const rows = Array.from(el.querySelectorAll('tbody:not(.tbl-summary) tr')).filter((r) => r.querySelectorAll('td').length > col);
+    const valueAt = (r: Element) => Number(r.querySelectorAll('td')[col]?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
+    // The Median line's first cell spans the five columns before P/E.
+    const cell = el.querySelectorAll('[data-testid="rv-median"] td')[col - 4];
+    return { col, values: rows.map(valueAt), hasSubject: rows.some((r) => r.textContent?.includes('AAPL US')), median: Number(cell?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN) };
+  });
+  expect(snap.col).toBeGreaterThan(0);
+  expect(snap.hasSubject).toBe(true);
+  const xs = snap.values.filter(Number.isFinite).sort((a, b) => a - b);
+  expect(xs.length).toBeGreaterThan(2);
+  const mid = Math.floor(xs.length / 2);
+  const expected = xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
+  expect(snap.median).toBeCloseTo(expected, 9);
+  expect(errors).toEqual([]);
+});
+
 test("PEERS ranks the loaded stock among its peers on each figure, as the table's own figures give", async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'AAPL PEERS');

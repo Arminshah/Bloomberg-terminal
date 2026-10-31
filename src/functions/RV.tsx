@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { CapLink } from '../components/CapLink';
 import { engine } from '../data/market';
 import { usePeers } from '../data/live/peers';
@@ -132,14 +132,16 @@ export function RV({ sec }: FnProps) {
     const v = rows[0]?.[k] as number;
     return { k, pr: percentRank(xs, v), below: xs.filter((x) => x < v).length, of: xs.length };
   });
-  const stat = (f: (xs: number[]) => number, label: string) => (
-    <tr className="group">
+  // The median, as the terminal's Median line, is of the loaded security and its peers; the average leaves it out.
+  const stat = (f: (xs: number[]) => number, label: ReactNode, withSubject: boolean, testId?: string) => (
+    <tr className="group" data-testid={testId}>
       <td colSpan={5}>{label}</td>
       {metrics.map((k) => {
-        const xs = rows.slice(1).map((r) => r[k] as number).filter(Number.isFinite);
+        const xs = (withSubject ? rows : rows.slice(1)).map((r) => r[k] as number).filter(Number.isFinite);
+        const v = xs.length ? f(xs) : NaN;
         return (
           <td key={k} className="num">
-            {xs.length ? fmtNum(f(xs), k === 'pb' || k === 'dy' ? 2 : 1) : ''}
+            {Number.isFinite(v) ? <span data-value={v}>{fmtNum(v, k === 'pb' || k === 'dy' ? 2 : 1)}</span> : ''}
           </td>
         );
       })}
@@ -199,8 +201,8 @@ export function RV({ sec }: FnProps) {
         columns={cols}
         summary={
           <>
-            {stat((xs) => xs.reduce((a, b) => a + b, 0) / xs.length, 'Peer average (excl. subject)')}
-            {stat(median, 'Peer median (excl. subject)')}
+            {stat(median, <span title="The median of the loaded security and its peers on each figure, NM and missing figures left out; with an even count, the mean of the two middle figures">Median</span>, true, 'rv-median')}
+            {stat((xs) => xs.reduce((a, b) => a + b, 0) / xs.length, 'Peer average (excl. subject)', false)}
             <tr className="group" data-testid="rv-rank">
               <td colSpan={5} title="Where the loaded security ranks among itself and its peers on each figure: 0 the lowest, 100 the highest (Excel's PERCENTRANK.INC)">
                 {s.ticker} percentile among peers
@@ -216,7 +218,7 @@ export function RV({ sec }: FnProps) {
       />
       <div className="note">
         {desktopData()
-          ? `Peers: for a US-listed stock the companies Finviz lists as its peers, with ·similar the stocks Yahoo Finance links to it both ways; otherwise companies in ${s.name}'s own industry as Yahoo's company profiles name it (Finnhub's sub-industry with FINNHUB_API_KEY, the app's own stocks, Yahoo's similar stocks), largest first. EV is market value plus net debt, preferred stock and minority interest from the latest balance sheet; a part the source does not list adds nothing, and an EV's parts show on hover. Banks have none. NM: not meaningful (P/E on a loss, P/B and ROE on negative equity, EV/EBITDA on negative EBITDA). Averages and medians leave the loaded security and NM out. `
+          ? `Peers: for a US-listed stock the companies Finviz lists as its peers, with ·similar the stocks Yahoo Finance links to it both ways; otherwise companies in ${s.name}'s own industry as Yahoo's company profiles name it (Finnhub's sub-industry with FINNHUB_API_KEY, the app's own stocks, Yahoo's similar stocks), largest first. EV is market value plus net debt, preferred stock and minority interest from the latest balance sheet; a part the source does not list adds nothing, and an EV's parts show on hover. Banks have none. NM: not meaningful (P/E on a loss, P/B and ROE on negative equity, EV/EBITDA on negative EBITDA). The median includes the loaded security, as the terminal's Median line does; the average leaves it out; both leave NM and missing figures out. `
           : ''}
         Highlighted row is the loaded security; its percentile ranks it among itself and the peers with a figure, 0 the lowest and 100 the highest (Excel&apos;s PERCENTRANK.INC). Click a ticker to open it; shift-click opens it in the next panel.
       </div>
