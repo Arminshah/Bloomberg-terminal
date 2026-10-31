@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as main from '../electron/supply-chain.cjs';
+import * as federal from '../electron/usaspending.cjs';
 import {
-  buildDirectory, filerIdentity, listingEvents, listingLabel, mergeRelations, ownRelations, relationEnding, relationshipView, relationStatus, runChain,
+  buildDirectory, federalParty, filerIdentity, listingEvents, listingLabel, mergeRelations, normalizeName, ownRelations, relationEnding, relationshipView, relationStatus, runChain,
   takenOver, targetNames, targetPattern, type Chain, type ChainIO, type FtsHit, type Relation,
 } from '../src/data/live/supply-chain';
 import { appendRelationshipHistory, endingAssertion, statedBy } from '../src/data/live/supply-chain-history';
+import { agencyRelations, doubtfulSubawards, federalRelations, resolveParties, subRelations, type FedAward, type FederalContext, type FedSubaward, type UsaspendingKind } from '../src/data/live/usaspending';
 import type { SecCompany } from '../src/data/live/sec';
 
 /**
@@ -290,5 +292,116 @@ describe('SPLC review of 30 October 2026: companies the company took over, and s
     const ford = { cik: 37996, names: targetNames('F', 'FORD MOTOR CO').names, ticker: 'F' };
     const got = ownRelations(['Moreover, in order to secure critical materials for production of electric vehicles, we have entered into and we may, in the future, enter into offtake agreements with raw material suppliers and make investments in certain raw material and battery suppliers, including contributing up to a maximum of $6.6 billion in capital to BlueOval SK, LLC ("BOSK") over a five-year period ending in 2026.'], dir, ford, { filer: 'Ford Motor Co', form: '10-Q', date: '2025-10-24', path: '37996/000003799625000186/f-20250930.htm' });
     expect(got.map((r) => [r.role, r.name])).toEqual([['investment', 'BlueOval SK']]);
+  });
+});
+
+// USAspending.gov's answers of 30 October 2026 (api.usaspending.gov/api/v2), as the main process reads them.
+const parsed = <T>(kind: UsaspendingKind, body: unknown) => federal.parseUsaspending(kind, JSON.stringify(body)) as T[];
+const FED: SecCompany[] = [
+  { cik: 78003, ticker: 'PFE', title: 'PFIZER INC' },
+  { cik: 1133421, ticker: 'NOC', title: 'NORTHROP GRUMMAN CORP /DE/' },
+  { cik: 40533, ticker: 'GD', title: 'GENERAL DYNAMICS CORP' },
+  { cik: 1601548, ticker: 'VVX', title: 'V2X, Inc.' },
+  { cik: 1806837, ticker: 'VERX', title: 'Vertex, Inc.' },
+  { cik: 4611, ticker: 'AIR', title: 'AAR CORP' },
+];
+const fedDir = buildDirectory(FED);
+const fedContext = (ticker: string, title: string): FederalContext => {
+  const names = targetNames(ticker, title);
+  const keys = [...new Set([normalizeName(title), ...names.legal.map(normalizeName)])];
+  const re = new RegExp(targetPattern(names.names).source);
+  return { keys, self: (n) => re.test(n) || keys.some((k) => normalizeName(n) === k || normalizeName(n).startsWith(`${k} `)), party: (n) => federalParty(n, fedDir), normalize: normalizeName, today: '2026-10-30' };
+};
+const SUB_ROW = (r: Record<string, unknown>) => ({ 'Awarding Agency': 'Department of Defense', ...r });
+
+describe('SPLC review of 30 October 2026: the federal records', () => {
+  it("names the Air Force, not the Defense Contract Management Agency that administers its contract, as Northrop's customer (finding 1)", () => {
+    expect(federal.usaspendingRequest('awards', 'G7LEFNAN9J74', Date.parse('2026-10-30T12:00:00Z'))!.body.fields).toEqual(expect.arrayContaining(['Funding Agency', 'Funding Sub Agency']));
+    const awards = parsed<FedAward>('awards', { results: [{ internal_id: 297794617, 'Award ID': 'F4261098C0001', 'Recipient Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Recipient UEI': 'G7LEFNAN9J74', 'Award Amount': 10008567439.01, 'Awarding Agency': 'Department of Defense', 'Awarding Sub Agency': 'Defense Contract Management Agency', 'Funding Agency': 'Department of Defense', 'Funding Sub Agency': 'Department of the Air Force', 'Start Date': '1998-07-01', 'End Date': '2025-11-30', generated_internal_id: 'CONT_AWD_F4261098C0001_9700_-NONE-_-NONE-' }] });
+    const got = agencyRelations(awards, fedContext('NOC', 'NORTHROP GRUMMAN CORP /DE/'));
+    expect(got.map((r) => [r.key, r.name, Math.round(r.amount!)])).toEqual([['gov:department of the air force', 'Department of the Air Force', 10008567439]]);
+  });
+
+  it("does not count Meridian Medical Technologies' contracts for Pfizer: USAspending files no dollars of it under Pfizer (PFE-1)", async () => {
+    const asked: string[] = [];
+    const children = [
+      { recipient_id: 'p-c', uei: 'MHBQULRMEEJ5', name: 'PFIZER INC', amount: 1176693793.44 },
+      { uei: 'ZEFHQN761XB1', name: 'MERIDIAN MEDICAL TECHNOLOGIES, INC.', amount: 0 },
+      { uei: 'VBM4PLZ9VBC4', name: 'MERIDIAN MEDICAL TECHNOLOGIES, LLC', amount: 0 },
+      { uei: 'J1C9WY9JYTJ6', name: 'MERIDIAN MEDICAL TECHNOLOGIES, INC.', amount: 0 },
+      { uei: 'UMHBBBR5H3Z6', name: 'MYLAN INSTITUTIONAL INC', amount: 0 },
+      { uei: 'V4XFAW56JGZ3', name: 'PFIZER INC.', amount: 0 },
+    ];
+    const answer = (kind: UsaspendingKind) => kind === 'recipients'
+      ? { results: [{ id: 'aaaaaaaa-0000-0000-0000-000000000000-P', uei: 'MHBQULRMEEJ5', name: 'PFIZER INC', recipient_level: 'P', amount: 1176693793.44 }, { id: 'aaaaaaaa-0000-0000-0000-000000000000-C', uei: 'MHBQULRMEEJ5', name: 'PFIZER INC', recipient_level: 'C', amount: 1176693793.44 }] }
+      : kind === 'children' ? children : { results: [] };
+    await federalRelations(async (kind, arg) => {
+      asked.push(`${kind} ${arg}`);
+      return { status: 200, rows: federal.parseUsaspending(kind, JSON.stringify(answer(kind)))! };
+    }, { ...fedContext('PFE', 'PFIZER INC'), named: async (list) => new Set(list) });
+    const units = asked.find((a) => a.startsWith('awards '))!.slice(7).split(',');
+    expect(units).toContain('MHBQULRMEEJ5');
+    expect(units).toContain('V4XFAW56JGZ3');
+    for (const meridian of ['ZEFHQN761XB1', 'VBM4PLZ9VBC4', 'J1C9WY9JYTJ6', 'UMHBBBR5H3Z6']) expect(units).not.toContain(meridian);
+  });
+
+  it("counts a subaward reported three times under one number once (Dayton T. Brown, finding 5)", () => {
+    const report = (amount: number) => SUB_ROW({ 'Sub-Award ID': '5000256853', 'Sub-Awardee Name': 'DAYTON T. BROWN, INC.', 'Sub-Recipient UEI': 'GN84UHWZJMR8', 'Sub-Award Amount': amount, 'Sub-Award Date': '2022-03-31', 'Prime Recipient Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Prime Award Recipient UEI': 'PK8PM2GNVMP8', 'Prime Award ID': 'N0001913C9999', 'Sub-Award Description': 'STANDARDPARTHARDWARE', prime_award_generated_internal_id: 'CONT_AWD_N0001913C9999_9700_-NONE-_-NONE-' });
+    const subs = parsed<FedSubaward>('subs', { results: [report(15020601), report(14999812), report(14999812)] });
+    const got = subRelations(subs, 'supplier', fedContext('NOC', 'NORTHROP GRUMMAN CORP /DE/'), new Set(['PK8PM2GNVMP8']));
+    expect(got.map((r) => [r.name, r.amount, r.evidence.length])).toEqual([['DAYTON T. BROWN, INC.', 15020601, 1]]);
+  });
+
+  it("shows Technovare's $927.0M subaward with the reason, without counting or ranking it (finding 4)", async () => {
+    const row = (r: Record<string, unknown>) => SUB_ROW({ 'Prime Recipient Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Prime Award Recipient UEI': 'VSBAFMDKTWL4', 'Prime Award ID': 'FA881018C0006', prime_award_generated_internal_id: 'CONT_AWD_FA881018C0006_9700_-NONE-_-NONE-', ...r });
+    const subs = parsed<FedSubaward>('subs', { results: [
+      row({ 'Sub-Award ID': '5000414846', 'Sub-Awardee Name': 'TECHNOVARE SYSTEMS, INC.', 'Sub-Recipient UEI': 'PQX9B291F4V5', 'Sub-Award Amount': 927047948.0, 'Sub-Award Date': '2023-07-28', 'Sub-Award Description': 'TECHNICAL SERVICES' }),
+      row({ 'Sub-Award ID': '5000299326', 'Sub-Awardee Name': 'AIRBUS US SPACE & DEFENSE INC', 'Sub-Recipient UEI': 'KDFTJG6RK5A8', 'Sub-Award Amount': 107163324.0, 'Sub-Award Date': '2022-08-04' }),
+    ] });
+    // The Next-Gen OPIR Polar contract: $3,485,513,539.13 obligated since June 2018. Technovare's one other subaward of
+    // two years: $151,000 under FA880820C0049, March 2025.
+    const asked: string[] = [];
+    const doubtful = await doubtfulSubawards(subs, new Map([['FA881018C0006', 3485513539.13]]), async (kind, arg) => {
+      asked.push(`${kind} ${arg}`);
+      return { status: 200, rows: federal.parseUsaspending(kind, JSON.stringify({ results: [SUB_ROW({ 'Sub-Award ID': '5300033936 CO8', 'Sub-Awardee Name': 'TECHNOVARE SYSTEMS, INC.', 'Sub-Recipient UEI': 'PQX9B291F4V5', 'Sub-Award Amount': 151000.0, 'Sub-Award Date': '2025-03-17', 'Prime Recipient Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Prime Award Recipient UEI': 'VSBAFMDKTWL4', 'Prime Award ID': 'FA880820C0049' })] }))! };
+    });
+    // Airbus's $107.2M is 3% of the prime: not a candidate.
+    expect(asked).toEqual(['subawards PQX9B291F4V5']);
+    const got = subRelations(subs, 'supplier', fedContext('NOC', 'NORTHROP GRUMMAN CORP /DE/'), new Set(['VSBAFMDKTWL4']), 30, doubtful);
+    expect(got.map((r) => [r.name, r.amount])).toEqual([['Airbus', 107163324], ['TECHNOVARE SYSTEMS, INC.', undefined]]);
+    expect(got[1].evidence[0].sentence).toContain("Not counted: the reported $927.0M is 27% of the prime contract's $3.5B obligation and 6139 times the subcontractor's next-largest subaward of two years ($151.0K)");
+  });
+
+  it('reads Vertex Aerospace as V2X, its name now, and Electric Boat under General Dynamics, its parent in the records (findings 2 and 9)', async () => {
+    const ctx = fedContext('NOC', 'NORTHROP GRUMMAN CORP /DE/');
+    // First-word matching took Vertex Aerospace for Vertex, Inc., the tax software company.
+    expect(federalParty('VERTEX AEROSPACE LLC', fedDir)).toMatchObject({ ticker: 'VERX', loose: true });
+    const received = parsed<FedSubaward>('subawards', { results: [
+      SUB_ROW({ 'Sub-Award ID': '4500003477', 'Sub-Awardee Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Sub-Recipient UEI': 'H9M6J1PND9M3', 'Sub-Award Amount': 4178357.64, 'Sub-Award Date': '2025-04-29', 'Prime Recipient Name': 'VERTEX AEROSPACE LLC', 'Prime Award Recipient UEI': 'NVC1EFKKYB93', 'Prime Award ID': 'FA702225F0011', prime_award_generated_internal_id: 'CONT_AWD_FA702225F0011_9700_FA702222D0001_9700' }),
+      SUB_ROW({ 'Sub-Award ID': '4502043922', 'Sub-Awardee Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Sub-Recipient UEI': 'DJUCEANK2KP4', 'Sub-Award Amount': 239794.14, 'Sub-Award Date': '2024-11-07', 'Prime Recipient Name': 'VERTEX AEROSPACE LLC', 'Prime Award Recipient UEI': 'NVC1EFKKYB93', 'Prime Award ID': 'N0001921F0094', prime_award_generated_internal_id: 'CONT_AWD_N0001921F0094_9700_N6134019D1010_9700' }),
+      SUB_ROW({ 'Sub-Award ID': '1000060443', 'Sub-Awardee Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Sub-Recipient UEI': 'LCV2N9FVV739', 'Sub-Award Amount': 157065062.0, 'Sub-Award Date': '2024-11-04', 'Prime Recipient Name': 'ELECTRIC BOAT CORPORATION', 'Prime Award Recipient UEI': 'E7BEKJ4V9528', 'Prime Award ID': 'N0002417C2117', 'Sub-Award Description': 'SEE REMARKS', prime_award_generated_internal_id: 'CONT_AWD_N0002417C2117_9700_-NONE-_-NONE-' }),
+      SUB_ROW({ 'Sub-Award ID': 'GD-1', 'Sub-Awardee Name': 'NORTHROP GRUMMAN SYSTEMS CORPORATION', 'Sub-Recipient UEI': 'DJUCEANK2KP4', 'Sub-Award Amount': 11800000, 'Sub-Award Date': '2025-06-01', 'Prime Recipient Name': 'GENERAL DYNAMICS CORP', 'Prime Award Recipient UEI': 'VF58HFRNGEL8', 'Prime Award ID': 'N0002425C0001', prime_award_generated_internal_id: 'CONT_AWD_N0002425C0001_9700_-NONE-_-NONE-' }),
+    ] });
+    const primes = subRelations(received, 'customer', ctx, new Set(['H9M6J1PND9M3', 'DJUCEANK2KP4', 'LCV2N9FVV739']));
+    const asked: string[] = [];
+    const answers: Record<string, unknown> = {
+      'recipients NVC1EFKKYB93': { results: [{ id: 'fb63ba18-02ee-d557-7366-681926c60e0d-P', uei: 'NVC1EFKKYB93', name: 'V2X AEROSPACE LLC', recipient_level: 'P', amount: 1666188323.99 }, { id: 'fb63ba18-02ee-d557-7366-681926c60e0d-C', uei: 'NVC1EFKKYB93', name: 'V2X AEROSPACE LLC', recipient_level: 'C', amount: 1666188323.99 }] },
+      'recipients E7BEKJ4V9528': { results: [{ id: 'd5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C', uei: 'E7BEKJ4V9528', name: 'ELECTRIC BOAT CORPORATION', recipient_level: 'C', amount: 12893891635.18 }, { id: 'd5ab5f51-db3a-a26f-96a1-1b24c3e2802c-P', uei: 'E7BEKJ4V9528', name: 'ELECTRIC BOAT CORPORATION', recipient_level: 'P', amount: 7555185389.43 }] },
+      'profile d5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C': { name: 'ELECTRIC BOAT CORPORATION', uei: 'E7BEKJ4V9528', recipient_level: 'C', parent_name: 'GENERAL DYNAMICS CORP', parent_uei: 'VF58HFRNGEL8' },
+    };
+    expect(federal.usaspendingRequest('profile', 'd5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C')).toEqual({ method: 'GET', url: `${federal.API}/recipient/d5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C/` });
+    expect(federal.usaspendingRequest('profile', '../award')).toBeNull();
+    const got = await resolveParties(primes, async (kind, arg) => {
+      asked.push(`${kind} ${arg}`);
+      const body = answers[`${kind} ${arg}`];
+      return body ? { status: 200, rows: federal.parseUsaspending(kind, JSON.stringify(body))! } : { status: 404, rows: [] };
+    }, ctx);
+    expect(got.map((r) => [r.key, r.name, r.ticker, Math.round(r.amount!)]).sort()).toEqual([
+      ['cik:1601548', 'V2X, Inc.', 'VVX', Math.round(4178357.64 + 239794.14)],
+      ['cik:40533', 'GENERAL DYNAMICS CORP', 'GD', Math.round(157065062 + 11800000)],
+    ]);
+    // Each record still names the party as filed.
+    expect(got.find((r) => r.key === 'cik:40533')!.evidence[0].sentence).toMatch(/^ELECTRIC BOAT CORPORATION subcontract to NORTHROP GRUMMAN SYSTEMS CORPORATION/);
+    expect(asked).toEqual(['recipients E7BEKJ4V9528', 'profile d5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C', 'recipients NVC1EFKKYB93']);
   });
 });

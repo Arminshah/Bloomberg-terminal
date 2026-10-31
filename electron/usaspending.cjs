@@ -15,6 +15,8 @@ const NAME = /^[A-Za-z0-9][A-Za-z0-9 .,&'-]{2,79}$/;
 const UEI = /^[A-Z0-9]{12}$/;
 /** A contract number (PIID): "N0001917C0001", "W9128Z26FA001", "47QFCA24F0009". */
 const PIID = /^[A-Z0-9][A-Z0-9-]{3,49}$/;
+/** A recipient's USAspending ID: a hash and its level ("d5ab5f51-db3a-a26f-96a1-1b24c3e2802c-C"). */
+const RECIPIENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-[PCR]$/;
 
 const day = (t) => new Date(t).toISOString().slice(0, 10);
 const period = (now, years) => [{ start_date: day(now - years * 365 * DAY), end_date: day(now) }];
@@ -33,7 +35,8 @@ const SUB_FIELDS = ['Sub-Award ID', 'Sub-Awardee Name', 'Sub-Recipient UEI', 'Su
  * - 'children': the units under a parent recipient (its UEI);
  * - 'awards': the prime contracts of these recipients (UEIs) with activity in the last two years, largest first;
  * - 'subawards': the subcontracts these recipients received in the last two years, largest first;
- * - 'subs': the subcontracts let under these contracts (PIIDs) in the last five years, largest first.
+ * - 'subs': the subcontracts let under these contracts (PIIDs) in the last five years, largest first;
+ * - 'profile': one recipient's own record (its USAspending ID), with the parent USAspending files it under.
  */
 function usaspendingRequest(kind, arg, now = Date.now()) {
   if (typeof arg !== 'string') return null;
@@ -42,6 +45,7 @@ function usaspendingRequest(kind, arg, now = Date.now()) {
     return { method: 'POST', url: `${API}/recipient/`, body: { keyword: text, award_type: 'contracts', limit: 50, page: 1, sort: 'amount', order: 'desc' } };
   }
   if (kind === 'children' && UEI.test(text)) return { method: 'GET', url: `${API}/recipient/children/${text}/` };
+  if (kind === 'profile' && RECIPIENT_ID.test(text)) return { method: 'GET', url: `${API}/recipient/${text}/` };
   const ueis = kind === 'awards' || kind === 'subawards' ? list(text, UEI, 25) : null;
   if (kind === 'awards' && ueis) {
     return {
@@ -49,7 +53,7 @@ function usaspendingRequest(kind, arg, now = Date.now()) {
       url: `${API}/search/spending_by_award/`,
       body: {
         filters: { recipient_search_text: ueis, award_type_codes: CONTRACTS, time_period: period(now, 2) },
-        fields: ['Award ID', 'Recipient Name', 'Recipient UEI', 'Award Amount', 'Awarding Agency', 'Awarding Sub Agency', 'Start Date', 'End Date', 'Description'],
+        fields: ['Award ID', 'Recipient Name', 'Recipient UEI', 'Award Amount', 'Awarding Agency', 'Awarding Sub Agency', 'Funding Agency', 'Funding Sub Agency', 'Start Date', 'End Date', 'Description'],
         limit: 100, page: 1, sort: 'Award Amount', order: 'desc',
       },
     };
@@ -89,6 +93,10 @@ function parseUsaspending(kind, text) {
     if (!Array.isArray(json)) return null;
     return json.map((r) => ({ id: str(r?.recipient_id), name: str(r?.name), uei: uei(r?.uei), amount: num(r?.amount) })).filter((r) => r.name && r.uei);
   }
+  if (kind === 'profile') {
+    if (!json || typeof json !== 'object' || Array.isArray(json) || !str(json.name)) return null;
+    return [{ name: str(json.name), uei: uei(json.uei), parentName: str(json.parent_name), parentUei: uei(json.parent_uei) }];
+  }
   const rows = json?.results;
   if (!Array.isArray(rows)) return null;
   if (kind === 'recipients') {
@@ -97,7 +105,7 @@ function parseUsaspending(kind, text) {
   if (kind === 'awards') {
     return rows.map((r) => ({
       id: str(r.generated_internal_id), award: str(r['Award ID']), recipient: str(r['Recipient Name']), uei: uei(r['Recipient UEI']), amount: num(r['Award Amount']),
-      agency: str(r['Awarding Agency']), subAgency: str(r['Awarding Sub Agency']), start: iso(r['Start Date']), end: iso(r['End Date']), description: str(r.Description),
+      agency: str(r['Awarding Agency']), subAgency: str(r['Awarding Sub Agency']), fundingAgency: str(r['Funding Agency']), fundingSubAgency: str(r['Funding Sub Agency']), start: iso(r['Start Date']), end: iso(r['End Date']), description: str(r.Description),
     })).filter((r) => r.id && r.recipient && Number.isFinite(r.amount));
   }
   return rows.map((r) => ({

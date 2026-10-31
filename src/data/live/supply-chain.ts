@@ -2330,11 +2330,14 @@ export function federalParty(name: string, dir: Directory): FedParty {
   );
   // "BOEING COMPANY, THE" is The Boeing Company.
   let words = normalizeName(name.replace(/,\s*THE\s*$/i, '')).split(' ').filter(Boolean);
+  const all = words.length;
   while (words.length) {
     const k = words.join(' ');
     // "HUNTINGTON INGALLS INCORPORATED" is Huntington Ingalls Industries.
     const hit = dir.byName.get(k) ?? (words.length >= 2 ? dir.byName.get(`${k} industries`) : undefined);
-    if (hit) return { key: relationKey(hit), ...hit };
+    // Found by its first word alone once the unit's words were dropped, and not a well-known name: "VERTEX AEROSPACE
+    // LLC" as Vertex, Inc., the tax software company (it is V2X's unit). The caller may look it up.
+    if (hit) return { key: relationKey(hit), ...hit, ...(words.length === 1 && all > 1 && !KNOWN[k] ? { loose: true } : {}) };
     const listed = aliasIndex.has(k) ? dir.byTicker.get(aliasIndex.get(k)!) : undefined;
     if (listed) {
       const f = { name: knownName(listed.ticker) ?? listed.title, ticker: listed.ticker, cik: listed.cik };
@@ -3096,6 +3099,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
             }
             return out;
           },
+          lookUpParties: true,
           today,
         }, (step, state, found, url) => { if (state === 'failed') failedDocument(); emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === `usaspending/${step}` ? { ...x, state, ...(found != null ? { found } : {}), ...(url ? { url } : {}) } : x)) })); });
         relations.push(...got.relations.map((r) => enrichRelation(r, Date.now())));

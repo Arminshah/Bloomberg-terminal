@@ -92,7 +92,7 @@ export function shareLabel(r: Relation): string {
 export function describe(r: Relation, t: string): string {
   if (r.side === 'records') {
     const v = r.amount != null ? `$${fmtBig(r.amount, 1)}` : '';
-    if (r.role === 'supplier') return `Subcontractor on ${t}'s federal contracts: ${v} reported in five years`;
+    if (r.role === 'supplier') return v ? `Subcontractor on ${t}'s federal contracts: ${v} reported in five years` : `Subcontractor on ${t}'s federal contracts: the reported amount is not counted (see the record)`;
     return r.evidence.some((e) => e.form === 'Contract') ? `Federal agency: ${v} obligated on ${t}'s contracts running in the last year` : `Prime contractor: ${v} in subcontracts to ${t} in two years`;
   }
   const period = r.share != null ? sharePeriod(r.evidence[0]?.sentence ?? '') : '';
