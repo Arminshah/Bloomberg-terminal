@@ -57,7 +57,7 @@ M3. Screen parity
 - [x] SRCH: the search page with criteria and matches, results on their own page, real US Treasuries from the Treasury's statement (`a71fab9`); corporates and My Searches not built
 - [x] WB: Regional and Developed views, Bonds, Spreads and Curves with the Data Range band, Security Analysis (`6b505c3`), checked on official yields in the desktop app; named bonds, prices and the countries without a free source not built
 - [x] ALLQ: the montage's layout, FedInvest's prices for US Treasuries in the desktop app with spreads to the latest issue of the nearest tenor (`06e8fcc`); dealer quotes, axes and ALLQ for currencies not built
-- [ ] PORT (every tab): Intraday done (next commit), checked against the S&P 500's members in the desktop app; the red bar, Workspace row and the other subtabs to come
+- [x] PORT: the 2021 guide's tabs, Intraday (`bbd1308`), the red bar (`a82e17b`), Characteristics, VaR, Scenarios, Tracking Error/Volatility and Attribution (next commit), checked against the S&P 500's members in the desktop app; the Workspace row, attribution over longer periods and the 2025 frame's other subtabs not built
 - [x] YAS: the Yield & Spread page, its tabs and Settings, the measures checked against TE07 03:47 (next commit); G-Sprd, I-Sprd, ASW and True Yield blank
 
 ## 1. Rules that come before anything in this plan

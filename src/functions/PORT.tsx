@@ -15,6 +15,8 @@ import { adjustPosition, BASE_CURRENCIES, baseFx, basePerPrice, isMargined, navV
 import type { FnProps } from '../terminal/types';
 import { PortfolioPerformance, PortfolioRisk } from './PortfolioRisk';
 import { PortIntraday } from './PortIntraday';
+import { PortAttribution } from './PortAttribution';
+import { PortCharacteristics } from './PortCharacteristics';
 import { HoldingMismatch, transactionRows, Transactions } from './PortTransactions';
 import { complianceSummary, PreTradeCheck, preTradeProblems } from './PreTrade';
 import { execute } from '../terminal/exec';
@@ -433,11 +435,16 @@ export function PORT(_: FnProps) {
         title="Portfolio & Risk Analytics"
         sub={`${st.name} · the holdings you enter`}
         tabs={[
+          // PORT's tabs as the 2021 guide lists them (Intraday to Attribution), then the app's own Transactions.
           { n: 1, label: 'Intraday' },
           { n: 2, label: 'Holdings' },
-          { n: 3, label: 'Performance' },
-          { n: 4, label: 'Risk & Allocation' },
-          { n: 5, label: 'Transactions' },
+          { n: 3, label: 'Characteristics' },
+          { n: 4, label: 'VaR' },
+          { n: 5, label: 'Scenarios' },
+          { n: 6, label: 'Tracking Error/Volatility' },
+          { n: 7, label: 'Performance' },
+          { n: 8, label: 'Attribution' },
+          { n: 9, label: 'Transactions' },
         ]}
         tab={tab}
         onTab={setTab}
@@ -452,7 +459,7 @@ export function PORT(_: FnProps) {
             menu: [
               { label: 'New Portfolio', onClick: () => { if (!newPortfolio()) flash(panel, `At most ${MAX_PORTFOLIOS} portfolios`, 'error'); } },
               { label: 'Add Holdings', onClick: () => setTab(2) },
-              { label: 'Record a Transaction', onClick: () => setTab(5) },
+              { label: 'Record a Transaction', onClick: () => setTab(9) },
               { label: 'Compliance Rules (COMPLIANCE)', sep: true, onClick: () => execute(panel, 'COMPLIANCE') },
             ],
           },
@@ -472,14 +479,22 @@ export function PORT(_: FnProps) {
             label: 'Settings',
             onClick: () => {},
             menu: [
-              { label: `Benchmark: ${engine.get(st.benchmark)?.ticker ?? st.benchmark} (set on 3) Performance)`, onClick: () => setTab(3) },
+              { label: `Benchmark: ${engine.get(st.benchmark)?.ticker ?? st.benchmark} (set on 7) Performance)`, onClick: () => setTab(7) },
               { label: `Base Currency: ${base} (set on 2) Holdings)`, onClick: () => setTab(2) },
             ],
           },
         ]}
         controls={<PortfolioTabs />}
       />
-      {tab === 1 ? <PortIntraday key={active} onHoldings={() => setTab(2)} /> : tab === 2 ? <Holdings key={active} /> : tab === 3 ? <PortfolioPerformance /> : tab === 4 ? <PortfolioRisk /> : <Transactions key={active} />}
+      {tab === 1 ? <PortIntraday key={active} onHoldings={() => setTab(2)} />
+        : tab === 2 ? <Holdings key={active} />
+        : tab === 3 ? <PortCharacteristics key={active} />
+        : tab === 4 ? <PortfolioRisk view="var" />
+        : tab === 5 ? <PortfolioRisk view="scenarios" />
+        : tab === 6 ? <PortfolioRisk view="tev" />
+        : tab === 7 ? <PortfolioPerformance />
+        : tab === 8 ? <PortAttribution key={active} />
+        : <Transactions key={active} />}
       <div className="note">Current values use source FX marks, which may be delayed or stale. Day and price P&L translate local price changes at current FX; FX P&L is the change in the {st.base ?? 'USD'} value of each position's cost since you entered it, for positions entered from 2.8.0 on. Holdings are stored {engine.realOnly ? 'on this computer' : 'in this browser'} only.</div>
     </div>
   );

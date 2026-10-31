@@ -9,7 +9,7 @@ import { SecLink } from '../components/cells';
 import { portfolio } from '../terminal/userdata';
 import { basePerPrice } from '../terminal/portfolio';
 
-type Classification = 'GICS Sector' | 'Country' | 'Asset Class';
+export type Classification = 'GICS Sector' | 'Country' | 'Asset Class';
 
 /** A rise green and a fall red, as the frame colours the contribution columns. */
 function Signed({ v, dec = 2 }: { v: number; dec?: number }) {
@@ -24,20 +24,19 @@ const num = (v: number, dec = 2) => (Number.isFinite(v) && v !== 0 ? fmtNum(v, d
  * strip (contribution to return against the benchmark, the movers by bucket and by security), and the portfolio
  * against its benchmark by GICS sector: counts, weights, contributions and returns, with their differences.
  */
-export function PortIntraday({ onHoldings }: { onHoldings?: () => void }) {
-  useTick(2);
+/**
+ * The portfolio against its benchmark, bucketed by `classification`: the figures the Intraday, Characteristics and
+ * Attribution tabs share. The benchmark's members come from IMAP's index data (the desktop app); until they load, and
+ * in the browser, `benchReady` is false and the benchmark's figures are left blank.
+ */
+export function usePortVsBench(classification: Classification = 'GICS Sector') {
   const st = portfolio.use((s) => s);
   const base = st.base ?? 'USD';
   const benchIsBoard = !!BOARD_INDICES[st.benchmark];
   const board = useIndexMembers(benchIsBoard ? st.benchmark : undefined);
-  // The benchmark's columns need its members: the desktop app loads them; until then, and in the browser, they stay blank.
   const benchReady = !!board && board.members.some((m) => Number.isFinite(m.weight));
-  const [diffs, setDiffs] = useState(true);
-  const [classification, setClassification] = useState<Classification>('GICS Sector');
-  const [open, setOpen] = useState<string[]>([]);
-  const [navOpen, setNavOpen] = useState(true);
-  const bucketOf = (d: { cls: string; country: string; eq?: { sector: string } }, sector?: string, country?: string) =>
-    classification === 'GICS Sector' ? sector ?? d.eq?.sector ?? CLASS_LABEL[d.cls as keyof typeof CLASS_LABEL] : classification === 'Country' ? COUNTRY_NAMES[country ?? d.country] ?? country ?? d.country : CLASS_LABEL[d.cls as keyof typeof CLASS_LABEL];
+  const bucketOf = (d: { cls: string; country: string; eq?: { sector: string } }) =>
+    classification === 'GICS Sector' ? d.eq?.sector ?? CLASS_LABEL[d.cls as keyof typeof CLASS_LABEL] : classification === 'Country' ? COUNTRY_NAMES[d.country] ?? d.country : CLASS_LABEL[d.cls as keyof typeof CLASS_LABEL];
   const held = st.positions
     .map((p) => {
       const d = engine.get(p.id);
@@ -48,7 +47,8 @@ export function PortIntraday({ onHoldings }: { onHoldings?: () => void }) {
     })
     .filter((x): x is NonNullable<typeof x> => !!x);
   const port: PortLine[] = toWeights(held).map(({ mv: _mv, ...l }) => l);
-  const bench: PortLine[] = (board?.members ?? []).map((m) => ({
+  const members = board?.members ?? [];
+  const bench: PortLine[] = members.map((m) => ({
     id: m.id,
     name: m.name,
     bucket: classification === 'GICS Sector' ? m.sector || 'Unclassified' : classification === 'Country' ? COUNTRY_NAMES[m.country] ?? m.country : 'Equity',
@@ -58,6 +58,24 @@ export function PortIntraday({ onHoldings }: { onHoldings?: () => void }) {
   const { rows, total } = buckets(port, bench, classification === 'GICS Sector' ? undefined : []);
   const benchName = engine.get(st.benchmark)?.ticker ?? st.benchmark;
   const exceptions = st.positions.filter((p) => !engine.get(p.id) || !Number.isFinite(engine.quote(p.id)?.pct ?? NaN));
+  const mvTotal = held.reduce((x, h) => x + (Number.isFinite(h.mv) ? h.mv : 0), 0);
+  const benchNote = benchReady
+    ? `Benchmark weights: ${BOARD_INDICES[st.benchmark].from}; members' day changes from their previous close.`
+    : benchIsBoard
+      ? membersAvailable()
+        ? `Loading ${benchName}'s members…`
+        : `${benchName}'s members load in the desktop app; the benchmark columns are blank here.`
+      : `${benchName} has no member list here: the benchmark columns need the S&P 500, the Nasdaq-100 or the Dow (set it on 7) Performance).`;
+  return { st, base, benchIsBoard, benchReady, members, port, bench, rows, total, benchName, exceptions, mvTotal, benchNote };
+}
+
+export function PortIntraday({ onHoldings }: { onHoldings?: () => void }) {
+  useTick(2);
+  const [diffs, setDiffs] = useState(true);
+  const [classification, setClassification] = useState<Classification>('GICS Sector');
+  const [open, setOpen] = useState<string[]>([]);
+  const [navOpen, setNavOpen] = useState(true);
+  const { st, base, benchReady, rows, total, benchName, exceptions, benchNote } = usePortVsBench(classification);
   const toggle = (n: string) => setOpen((o) => (o.includes(n) ? o.filter((x) => x !== n) : [...o, n]));
   const bucketMovers = movers(rows, (r) => r.ctrDiff);
   const secMovers = movers(rows.flatMap((r) => r.lines), (l) => l.ctr);
@@ -185,15 +203,7 @@ export function PortIntraday({ onHoldings }: { onHoldings?: () => void }) {
         </table>
         <div className="port-foot">
           <span className={exceptions.length ? 'dn' : 'muted'} title={exceptions.map((p) => p.id).join(', ')}>Exceptions ({exceptions.length})</span>
-          <span className="muted">
-            {benchReady
-              ? `Benchmark weights: ${BOARD_INDICES[st.benchmark].from}; members' day changes from their previous close.`
-              : benchIsBoard
-                ? membersAvailable()
-                  ? `Loading ${benchName}'s members…`
-                  : `${benchName}'s members load in the desktop app; the benchmark columns are blank here.`
-                : `${benchName} has no member list here: the benchmark columns need the S&P 500, the Nasdaq-100 or the Dow (set it on Performance).`}
-          </span>
+          <span className="muted">{benchNote}</span>
         </div>
       </div>
     </div>

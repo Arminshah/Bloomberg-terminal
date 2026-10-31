@@ -231,6 +231,6 @@ export async function checkPortfolioPositions(page: Page, run: RunCommand) {
   await expect(holding.locator('td').nth(2)).toHaveText('5');
   // Reducing the position must retain its 90 average cost, even with a 200 adjustment price.
   await expect(holding.locator('td').nth(3)).toHaveText('90.00');
-  // 4) Risk & Allocation.
+  // 4) VaR.
   await run('4', 'PORTFOLIO');
 }

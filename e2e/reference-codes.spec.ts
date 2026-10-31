@@ -524,6 +524,36 @@ test("PORT's Intraday tab as the 2025 frame: navigator, summary movers, and the 
   expect(errors).toEqual([]);
 });
 
+test("PORT's tabs as the 2021 guide lists them, with Characteristics and Attribution on the holdings", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'PORTFOLIO');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.tab')).toHaveText(['1) Intraday', '2) Holdings', '3) Characteristics', '4) VaR', '5) Scenarios', '6) Tracking Error/Volatility', '7) Performance', '8) Attribution', '9) Transactions']);
+  await run(page, '2');
+  for (const [sec, qty] of [['AAPL', '10'], ['XOM', '20']]) {
+    await panel.getByLabel('Security', { exact: true }).fill(sec);
+    await panel.getByLabel('Quantity', { exact: true }).fill(qty);
+    await panel.getByRole('button', { name: 'Add', exact: true }).click();
+  }
+  // Characteristics: the portfolio's own figures; the benchmark's need its members (the desktop app).
+  await run(page, '3');
+  const chars = panel.getByTestId('port-characteristics');
+  await expect(chars.locator('tbody tr').filter({ hasText: 'Number of Securities' }).locator('td').nth(1)).toHaveText('2');
+  await expect(chars.locator('tbody tr').filter({ hasText: 'Largest Holding (%)' }).locator('td').nth(2)).toHaveText('--');
+  // Attribution: the summary and both views, blank without the benchmark's members, and saying why.
+  await run(page, '8');
+  const attr = panel.getByTestId('port-attribution');
+  await expect(attr.locator('.port-box-h')).toHaveText(['Outperformance', 'Global Details', 'Attribution Effects']);
+  await expect(attr.getByTestId('attr-active')).toHaveText('--');
+  await expect(attr).toContainText('load in the desktop app');
+  await expect(attr.getByRole('button', { name: 'Asset Allocation & Security Selection' })).toBeVisible();
+  // Manage ▾ opens Transactions on 9).
+  await panel.getByRole('button', { name: 'Manage' }).click();
+  await page.getByRole('menuitem', { name: 'Record a Transaction' }).click();
+  await expect(panel.locator('.tab.on')).toHaveText('9) Transactions');
+  expect(errors).toEqual([]);
+});
+
 test('SCREEN joins criteria by AND within a group and OR across groups, says its universe, and keeps saved screens', async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'EQS');

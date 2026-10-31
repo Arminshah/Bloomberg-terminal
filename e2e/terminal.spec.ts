@@ -656,9 +656,12 @@ test('portfolio date-aligned risk, independent stress P&L and coverage-labelled 
   await checkPortfolioPositions(page, async (cmd, code) => { await run(page, cmd); await expect(page.locator('.fnh-code').first()).toHaveText(code); });
   await expect(page.getByTestId('risk-samples')).toHaveText('252');
   const nav = Number((await page.getByTestId('risk-nav').innerText()).replace(/,/g, ''));
+  // 5) Scenarios holds the stress test; the risk settings carry over between 4) VaR, 5) and 6).
+  await run(page, '5');
   await page.getByRole('button', { name: 'All prices −10%', exact: true }).click();
   const pnl = Number((await page.getByTestId('stress-pnl').innerText()).replace(/,/g, ''));
   expect(pnl).toBeCloseTo(-0.1 * (nav - 10_000), 1);
+  await run(page, '4');
   await page.getByLabel('Risk confidence').selectOption('0.975');
   await page.getByLabel('Risk horizon').selectOption('5');
   await expect(page.getByTestId('risk-samples')).toHaveText('248');
@@ -671,8 +674,12 @@ test('portfolio date-aligned risk, independent stress P&L and coverage-labelled 
   expect(csv).toContain('Expected shortfall contribution USD');
   expect(csv).toContain('AAPL US Equity,5,90,1,false');
   expect(csv).toContain('Historical session,Replay NAV USD,AAPL US Equity local price,AAPL US Equity USD per currency unit');
-  // 3) Performance.
-  await run(page, '3');
+  // 6) Tracking Error/Volatility keeps the settings chosen on 4) VaR.
+  await run(page, '6');
+  await expect(page.getByLabel('Risk confidence')).toHaveValue('0.975');
+  await expect(page.getByText('Benchmark risk · matched interval returns', { exact: true })).toBeVisible();
+  // 7) Performance.
+  await run(page, '7');
   await expect(page.getByText('Fixed holdings replay (USD)', { exact: true })).toBeVisible();
   await expect(page.getByText('Historical NAV', { exact: true })).toBeVisible();
   await run(page, 'CORR');

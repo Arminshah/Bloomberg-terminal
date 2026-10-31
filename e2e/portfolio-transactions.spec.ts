@@ -23,7 +23,7 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   const msg = page.locator('.cmd-msg');
   await run(page, 'PORTFOLIO');
   await expect(panel.locator('.fnh-code').first()).toHaveText('PORTFOLIO');
-  await run(page, '5');
+  await run(page, '9');
   await expect(panel.getByText('No transactions yet', { exact: false })).toBeVisible();
 
   const record = async (type: string, sec: string, date: string, qty: string, price: string, fee = '', rate = '') => {
@@ -86,7 +86,7 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   await panel.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(holdingRow.locator('td').nth(2)).toHaveText('15');
   await expect(panel.getByTestId('holding-mismatch')).toContainText('AAPL US: Holdings say 15, the transactions 5');
-  await run(page, '5');
+  await run(page, '9');
   await expect(panel.getByTestId('holding-mismatch')).toContainText('AAPL US: Holdings say 15, the transactions 5');
   await panel.getByRole('button', { name: 'Use the transactions for AAPL US', exact: true }).click();
   await expect(panel.getByTestId('holding-mismatch')).toHaveCount(0);
@@ -100,7 +100,7 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   await expect(holdingRow.locator('td').nth(2)).toHaveText('20');
 
   // Export ▾ on the red bar saves the transactions as well as the holdings.
-  await run(page, '5');
+  await run(page, '9');
   const saving = page.waitForEvent('download');
   await panel.getByRole('button', { name: 'Export' }).click();
   await page.getByRole('menuitem', { name: 'Download Transactions as CSV' }).click();
@@ -112,7 +112,7 @@ test("PORTFOLIO's transactions: lots matched oldest first, refusals, rates, the 
   // Kept after a reload.
   await page.reload();
   await run(page, 'PORTFOLIO');
-  await run(page, '5');
+  await run(page, '9');
   await expect(panel.getByTestId('txn-table').locator('tbody tr')).toHaveCount(4);
   expect(errors).toEqual([]);
 });

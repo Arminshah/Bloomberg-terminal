@@ -1256,7 +1256,7 @@ test("PORTFOLIO's transactions put shares bought before a split on today's basis
   await panel.getByLabel('Quantity', { exact: true }).fill('10');
   await panel.getByLabel('Price', { exact: true }).fill('200');
   await panel.getByRole('button', { name: 'Add', exact: true }).click();
-  await panel.getByRole('button', { name: '5) Transactions', exact: true }).click();
+  await panel.getByRole('button', { name: '9) Transactions', exact: true }).click();
   const record = async (sec: string, qty: string, price: string, fee: string) => {
     await panel.getByLabel('Security', { exact: true }).fill(sec);
     await panel.getByLabel('Trade date', { exact: true }).fill('2026-06-29');
@@ -1696,6 +1696,8 @@ test('portfolio adjustments retain cost and unavailable real histories never pro
   await checkPortfolioPositions(page, (text, code) => command(page, text, code));
   await expect(page.getByTestId('risk-nav')).toHaveCount(0);
   await expect(page.getByRole('status').filter({ hasText: 'Missing completed price or FX history' })).toBeVisible();
+  // The stress test is on 5) Scenarios.
+  await page.locator('.panel').first().getByRole('button', { name: '5) Scenarios', exact: true }).click();
   await expect(page.getByTestId('stress-pnl')).toHaveText('--');
   await expect(page.getByRole('button', { name: 'Export risk CSV', exact: true })).toBeDisabled();
   await command(page, 'CORR', 'CORRELATION');

@@ -94,7 +94,13 @@ export function PortfolioPerformance() {
   </>;
 }
 
-export function PortfolioRisk() {
+/**
+ * PORT's risk tabs, as the 2021 guide names them: VaR (historical VaR and expected shortfall, each position's
+ * contribution, the exposure allocation and the captured marks), Scenarios (the custom stress test and the worst
+ * historical scenarios) and Tracking Error/Volatility (the portfolio against its benchmark). One calculation serves all
+ * three, so their figures agree.
+ */
+export function PortfolioRisk({ view }: { view: 'var' | 'scenarios' | 'tev' }) {
   const [observations, setObservations] = useState(252);
   const [confidence, setConfidence] = useState(0.95);
   const [horizon, setHorizon] = useState(1);
@@ -149,8 +155,8 @@ export function PortfolioRisk() {
     </div>
     {issue && <div className="pad amber" role="status">{issue}</div>}
     {risk && history && <>
-      <div className="cols">
-        <Section title={`Historical risk · signed loss in ${B}`}><KV items={[
+      {view !== 'scenarios' ? <div className="cols">
+        {view === 'var' ? <Section title={`Historical risk · signed loss in ${B}`}><KV items={[
           ['Current marked NAV', <span key="nav" data-testid="risk-nav">{fmtNum(risk.nav, 2)}</span>],
           ['Gross / net notional', `${fmtNum(risk.grossExposure, 0)} / ${fmtNum(risk.netExposure, 0)}`],
           ['Gross leverage / NAV', risk.nav > 0 ? `${fmtNum(risk.grossExposure / risk.nav, 2)}×` : '-- (nonpositive NAV)'],
@@ -161,27 +167,32 @@ export function PortfolioRisk() {
           ['Max drawdown of replay NAV', fmtPct(risk.drawdown * 100, 2)],
           ['Shared historical scenarios', <span key="n" data-testid="risk-samples">{risk.scenarioPnl.length}</span>],
           ['Expected shortfall tail mass', `${fmtNum(risk.tail.tailMass, 2)} observations`],
-        ]} /></Section>
-        <Section title="Benchmark risk · matched interval returns"><KV items={[
+        ]} /></Section> : null}
+        {view === 'tev' ? <Section title="Benchmark risk · matched interval returns"><KV items={[
           ['Benchmark', engine.get(st.benchmark)?.ticker ?? st.benchmark],
           ['Matched observations', benchmark?.dates.length ?? 0],
           ['Beta', fmtNum(benchmark?.regression.beta, 4)],
           ['Correlation / R²', `${fmtNum(benchmark?.regression.corr, 4)} / ${fmtNum(benchmark?.regression.r2, 4)}`],
           ['Annualised tracking error', fmtPct((benchmark?.trackingError ?? NaN) * 100, 2, false)],
           ['Information ratio', fmtNum(benchmark?.informationRatio, 4)],
-        ]} /><div className="note">Portfolio historical shock P&L / current NAV versus benchmark {B} price returns. Same start and end dates; at least 20 matches. Ratios require positive NAV and nonzero denominator variance.</div></Section>
-      </div>
+        ]} /><div className="note">Portfolio historical shock P&L / current NAV versus benchmark {B} price returns. Same start and end dates; at least 20 matches. Ratios require positive NAV and nonzero denominator variance.</div></Section> : null}
+        {view === 'tev' ? <Section title={`Volatility · ${B}`}><KV items={[
+          ['Annualised volatility', `${fmtPct(risk.annualVolatility * 100, 2, false)} / ${fmtNum(risk.annualVolatilityUsd, 2)} ${B}`],
+          ['Current marked NAV', fmtNum(risk.nav, 2)],
+          ['Max drawdown of replay NAV', fmtPct(risk.drawdown * 100, 2)],
+        ]} /></Section> : null}
+      </div> : null}
       <div className="note">{fmtDay(history.dates[0])}–{fmtDay(history.dates.at(-1)!)} · {risk.dailyPnl.length} one-interval observations · {history.omittedDates} incomplete dates omitted. Multi-interval shocks use overlapping observed windows and full repricing, without square-root scaling. Annual volatility assumes {annualSessions} comparable intervals per year. Negative VaR/ES means gains at that quantile/tail. These are historical estimates, not loss limits.</div>
-      {risk.tail.tailMass < 5 && <div className="note amber">The expected shortfall tail contains less than five observations ({fmtNum(risk.tail.tailMass, 2)}). Extreme-tail estimates are sensitive to this small sample; overlapping horizons also share data.</div>}
-      <Section title="Position risk contributions" right="signed · hedges may contribute negatively">
+      {view === 'var' && risk.tail.tailMass < 5 && <div className="note amber">The expected shortfall tail contains less than five observations ({fmtNum(risk.tail.tailMass, 2)}). Extreme-tail estimates are sensitive to this small sample; overlapping horizons also share data.</div>}
+      {view === 'var' ? <Section title="Position risk contributions" right="signed · hedges may contribute negatively">
         <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Security</th><th className="num">Exposure {B}</th><th className="num">Annual vol contribution {B}</th><th className="num">Vol contribution %</th><th className="num">ES contribution {B}</th></tr></thead><tbody>
           {risk.contributions.map((r) => <tr key={r.id}><td><SecLink id={r.id}>{engine.get(r.id)?.ticker ?? r.id}</SecLink></td><td className="num">{fmtNum(r.exposure, 2)}</td><td className="num">{fmtNum(r.volatilityUsd, 2)}</td><td className="num">{fmtNum(r.volatilityShare * 100, 2)}</td><td className="num">{fmtNum(r.expectedShortfall, 2)}</td></tr>)}
         </tbody></table></div>
         <div className="note">Volatility contributions use sample covariance with total portfolio P&L and sum to annual dollar volatility. ES contributions share the portfolio’s worst-tail weights, including tied-boundary scenarios, and sum to portfolio ES.</div>
-      </Section>
-      <Section title="Worst historical scenarios"><table className="tbl"><thead><tr><th>Start</th><th>End</th><th className="num">Repriced P&L {B}</th></tr></thead><tbody>{worst.map((r) => <tr key={r.end}><td>{fmtDay(r.start)}</td><td>{fmtDay(r.end)}</td><td className="num"><Chg v={r.pnl} dec={2} /></td></tr>)}</tbody></table></Section>
+      </Section> : null}
+      {view === 'scenarios' ? <Section title="Worst historical scenarios"><table className="tbl"><thead><tr><th>Start</th><th>End</th><th className="num">Repriced P&L {B}</th></tr></thead><tbody>{worst.map((r) => <tr key={r.end}><td>{fmtDay(r.start)}</td><td>{fmtDay(r.end)}</td><td className="num"><Chg v={r.pnl} dec={2} /></td></tr>)}</tbody></table></Section> : null}
     </>}
-    <Section title="Custom stress test" right={`instant local price and ${B}-per-currency moves`}>
+    {view === 'scenarios' ? <Section title="Custom stress test" right={`instant local price and ${B}-per-currency moves`}>
       <div className="pad-s row" style={{ gap: 8 }}><button type="button" className="btn" onClick={() => setShocks(Object.fromEntries(positions.map((p) => [p.id, { price: '-10', fx: '0' }])))}>All prices −10%</button><button type="button" className="btn" onClick={() => setShocks({})}>Reset shocks</button></div>
       <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Security</th><th className="num">Local price move %</th><th className="num">FX move %</th><th className="num">P&L {B}</th></tr></thead><tbody>{stress.map((r) => <tr key={r.p.id}><td>{engine.get(r.p.id)?.ticker ?? r.p.id}</td>
         <td className="num"><input className="inp" style={{ width: 95, textAlign: 'right' }} aria-label={`Price shock ${r.p.id}`} value={r.price} inputMode="decimal" onChange={(e) => setShock(r.p.id, 'price', e.target.value)} /></td>
@@ -189,12 +200,12 @@ export function PortfolioRisk() {
       <div className="pad-s"><strong>Stress P&L {B}: <span data-testid="stress-pnl">{fmtNum(stressPnl, 2)}</span></strong> · Stressed NAV: <span data-testid="stress-nav">{fmtNum(currentNav + stressPnl, 2)}</span></div>
       {stress.some((r) => !Number.isFinite(r.pnl)) && <div className="note amber" role="status">Enter a price move of at least −100%, an FX move greater than −100%, and wait for valid current marks for every position.</div>}
       <div className="note">Linear price exposures are fully repriced. Futures contribute unrealised P&L to NAV and full contract notional to risk; FX changes also revalue that unrealised amount. Cash stays unchanged. Options, yield-only series, financing, margin calls and transaction costs are outside this calculation.</div>
-    </Section>
-    <Section title="Exposure allocation · share of gross absolute notional" right={<select className="sel-inp" aria-label="Exposure grouping" value={group} onChange={(e) => setGroup(e.target.value)}><option value="class">Asset class</option><option value="sector">Sector</option><option value="region">Region</option></select>}><table className="tbl"><tbody>{[...groups.entries()].sort((a, b) => b[1] - a[1]).map(([key, value]) => <tr key={key}><td>{key}</td><td className="num">{fmtNum(value, 2)} {B}</td><td className="num">{fmtNum(gross > 0 ? value / gross * 100 : NaN, 2)}%</td></tr>)}</tbody></table></Section>
+    </Section> : null}
+    {view === 'var' ? <><Section title="Exposure allocation · share of gross absolute notional" right={<select className="sel-inp" aria-label="Exposure grouping" value={group} onChange={(e) => setGroup(e.target.value)}><option value="class">Asset class</option><option value="sector">Sector</option><option value="region">Region</option></select>}><table className="tbl"><tbody>{[...groups.entries()].sort((a, b) => b[1] - a[1]).map(([key, value]) => <tr key={key}><td>{key}</td><td className="num">{fmtNum(value, 2)} {B}</td><td className="num">{fmtNum(gross > 0 ? value / gross * 100 : NaN, 2)}%</td></tr>)}</tbody></table></Section>
     <Section title="Captured marks and history coverage"><div className="tbl-wrap"><table className="tbl"><thead><tr><th>Security</th><th className="num">Price</th><th>Price source / freshness</th><th>Quote time UTC</th><th className="num">{B} per currency</th><th>FX source / freshness</th><th>FX time UTC</th><th className="num">Prior-date price bars</th><th className="num">Prior-date FX bars</th></tr></thead><tbody>{positions.map((p) => <tr key={p.id}><td>{engine.get(p.id)?.ticker ?? p.id}</td><td className="num">{fmtNum(p.price, engine.get(p.id)?.dec ?? 4)} {p.quoteCurrency}</td><td>{p.priceMark.provider} · {p.priceMark.freshness}</td><td>{capturedTime(p.priceMark) || '--'}</td><td className="num">{fmtNum(p.fx, 6)} / {p.fxCurrency}</td><td title={p.fxProxyNote}>{p.fxId ?? B} · {p.fxMark.provider} · {p.fxMark.freshness}</td><td>{capturedTime(p.fxMark) || '--'}</td><td className="num">{p.prices.length}</td><td className="num">{p.fxHistory?.length ?? B}</td></tr>)}</tbody></table></div>
       <div className="note">Marks and their sources, source times, receipt times and freshness are captured together{snapshot.ok ? ` at ${new Date(snapshot.value.capturedAt).toISOString()}` : ''}. The calculations and CSV use that same snapshot; displayed freshness is evaluated at capture.</div>
       {positions.some((p) => p.fxProxyNote) && <div className="note amber">{[...new Set(positions.map((p) => p.fxProxyNote).filter(Boolean))].join(' ')}</div>}
-    </Section>
+    </Section></> : null}
     <MethodNote base={B} />
   </>;
 }

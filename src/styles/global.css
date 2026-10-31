@@ -2094,3 +2094,21 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .port-grid tr.port-line td { background: #0b0b0b; }
 .port-indent { padding-left: 26px !important; }
 .port-foot { display: flex; gap: 14px; padding: 4px; flex-wrap: wrap; }
+
+/* PORT's Attribution tab (PT_PORT_Enterprise_attribution 0:14): Outperformance with the portfolio's and the
+   benchmark's returns as two bars, the views on grey tabs, and the contributors in amber with green bars to the right
+   for the top ones and red bars to the left for the bottom ones. */
+.port-attr-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.port-attr-out { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+.port-attr-out > div:first-child { flex: 1; min-width: 0; }
+.port-attr-bars { display: flex; align-items: flex-end; gap: 8px; height: 64px; }
+.port-attr-bars i { display: block; width: 22px; }
+.port-attr-bars i.up { background: #2a9a44; }
+.port-attr-bars i.dn { background: #d01f35; }
+.port-attr-views { margin-top: 4px; }
+.port-attr-h { padding: 2px 4px; color: var(--amber); background: #1a1a1a; }
+.port-attr-list td { border-bottom: 0; }
+.port-attr-list tr.port-attr-group td { color: #fff; padding-top: 4px; }
+.port-attr-list td.port-attr-neg { text-align: right; width: 22%; }
+.port-attr-list td:last-child { width: 22%; }
+.port-char td:first-child { color: #fff; }
