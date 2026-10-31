@@ -54,8 +54,15 @@ test('F1 opens contextual help and panel cycling keeps command focus local', asy
   await run(page, 'NVDA GP');
   await page.keyboard.press('F1');
   await expect(page.getByTestId('function-example')).toHaveText('NVDA US Equity GP');
+  // Twice: Live Help, the help desk's window (the 2017 student guide p.2; TE03 09:07).
   await page.keyboard.press('F1');
-  await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('MESSAGES');
+  await expect(page.getByTestId('live-help')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('live-help')).toHaveCount(0);
+  // End is BACK on the terminal's keyboard: on an empty command line it returns to the screen before.
+  await page.locator('#cmd-0').click();
+  await page.keyboard.press('End');
+  await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('CHART');
   await page.keyboard.press('Control+Tab');
   await expect(page.locator('#cmd-1')).toBeFocused();
   await page.keyboard.press('Control+Shift+Tab');

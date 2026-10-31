@@ -143,6 +143,33 @@ Evidence: TE01 04:45 (the "?▾" menu over a dimmed DES), TE03 09:07 and TE07 05
 - Kept: F1 opens the help page and F1 twice the help desk, as before (M2.3 reviews the keys).
 - Checked: `e2e/look.spec.ts` (items, yellow row, amber items, dimming, What's New in DES, Help Page, Live Help's amber box, a question from the list, Start Chat and the desk's answer), `tests/whatsnew-function.test.ts`, the whole browser suite.
 
+### M2.3 Keyboard (E1 and E3)
+
+Evidence: `03_bloomberg_getting_started_and_keyboard/Getting_Started_Guide_for_Students_2017.pdf` p.2 (the whole keyboard drawn, keys labelled, with notes on Cancel, Help, Search, the sector keys, Menu and GO), `Bloomberg_Keyboard_5_Reference_Guide_2023.pdf` p.2 (the 2023 keyboard's right half: Quote Function, Message, IB, Menu, Print and Enter in green, F8 to F12 in yellow, the fraction keys in blue), `Bloomberg_Terminal_Quick_Start_2024.pdf` (HELP twice opens the help desk's chat). A PC keyboard has none of the special keys, so the app maps them to ordinary keys and to its key bar.
+
+| Key on the terminal's keyboard | Colour | What it does there | On a PC keyboard in the app | Status |
+| --- | --- | --- | --- | --- |
+| Esc / Cancel | red | Leaves the current activity | Esc clears the command line, closes a list, menu or dialog; CANCEL on the key bar | Done |
+| F1 Help | green | Once: the function's help page; twice: the help desk | F1 once: HELP for the function; twice: the Live Help window (since this change; before, the help desk screen) | Done |
+| Search | green | Keyword search of everything | Plain words typed on the command line search (M2.4) | M2.4 |
+| Cmnd History | green | Earlier commands | Ctrl+↑ / Ctrl+↓; HISTORY on the key bar; ↶ on the toolbar | Done |
+| Codes & Favorites | white | Favourite codes | ★ FAV on the top bar, the favourites listed when the command line is clicked | Partial: no key of its own |
+| News | green | News | NEWS on the key bar opens TOP | Done |
+| Quote Line, Quote Function | green | A security's quote | The quote strip on every security screen; QUOTE (BQ) as a function | Partial: no key of its own |
+| Message, IB | green | Mail and chat | Message on the toolbar opens MESSAGES (the app's help desk); no mail or chat network | Partial |
+| Menu | green | The related functions menu | Alt+End and MENU on the key bar climb the menus; the toolbar's Related Functions Menu opens the overlay | Done |
+| F2 to F12 | yellow | Govt, Corp, Mtge, M-Mkt, Muni, Pfd, Equity, Comdty, Index, Curncy, Port | The same function keys type the sector word; the key bar has them | Done |
+| 1/2 to 1/64 | blue | Type a fraction in a bond price | None | Not built: no field takes fractions yet |
+| Print | green | Print the screen | None | Not built |
+| Pause / Log Off | red | Log off | None: the app has no log-in | Not applicable |
+| End / Back | green | Back to the screen before | End on an empty command line or outside a field (since this change); Alt+←, Backspace on an empty line, BACK on the key bar | Done |
+| Pg Up, Pg Dn | grey | Page back and forward | PgUp, PgDn; a number typed first moves that many pages; PG BK and PG FWD on the key bar | Done |
+| Enter / GO | green | Run the command line | Enter; GO at the right of the command row and on the key bar; number and GO for a numbered item | Done |
+| Alt / Badges | green | Not described in the sources | None | Unverified |
+| Panel | blue | Next panel | Ctrl+Tab, Alt+1 to 6, PANEL on the key bar | Done |
+
+- Checked: `e2e/shell.spec.ts` (F1 once the help page, twice Live Help, Esc closes it, End goes back), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

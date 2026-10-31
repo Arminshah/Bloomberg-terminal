@@ -34,7 +34,7 @@ M1. Window chrome
 
 M2. Navigation, keyboard and menus
 - [x] 2.1 Related Functions Menu overlay (`ed60a30`) and the right-click window (`b13f047`)
-- [ ] 2.2 Help menu and Live Help
+- [x] 2.2 Help menu and Live Help (`917e53d`)
 - [ ] 2.3 Keyboard table and gaps
 - [ ] 2.4 Command grammar and plain-word search
 - [ ] 2.5 New-tab page

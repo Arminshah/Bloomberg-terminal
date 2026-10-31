@@ -26,9 +26,9 @@ const sector = (label: string, fkey: string, title: string, mobile = false): Key
 });
 
 export const KEYS: Key[] = [
-  { label: 'HELP', sub: 'F1', color: 'green', run: showPanelHelp, title: 'Current function help (F1); press twice for the local assistant' },
+  { label: 'HELP', sub: 'F1', color: 'green', run: showPanelHelp, title: 'Help page for the current function (F1); press twice for Live Help, the help desk' },
   { label: 'MENU', sub: 'ALT+END', color: 'green', run: showPanelMenu, title: 'Related functions menu (Alt+End)', mobile: true },
-  { label: 'BACK', sub: 'ALT+←', color: 'green', run: (p) => back(p), title: 'Previous screen (Backspace on empty line)' },
+  { label: 'BACK', sub: 'END', color: 'green', run: (p) => back(p), title: 'Previous screen (End, Alt+←, or Backspace on an empty line)' },
   sector('GOVT', 'F2', 'Government bonds market sector (F2)'),
   sector('CORP', 'F3', 'Corporate bonds market sector (F3)'),
   sector('MTGE', 'F4', 'Mortgage securities market sector (F4)'),

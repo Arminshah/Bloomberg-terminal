@@ -1,3 +1,4 @@
+import { createStore } from '../core/store';
 import { engine } from '../data/market';
 import { commandApis } from '../components/CommandLine';
 import { execute } from './exec';
@@ -6,8 +7,12 @@ import { currentRoute, loadedSecurity, navigate, terminal } from './state';
 
 const helpTimes = new Map<number, number>();
 
+/** The panel whose Live Help window is open, if any (HelpMenu.tsx draws it). */
+export const liveHelp = createStore<{ panel: number | null }>({ panel: null });
+
 /**
- * HELP is contextual; a second press opens the explicitly local assistant. A mnemonic or words typed first ask
+ * HELP is contextual: once, the function's help page; twice within a second and a half, Live Help, the help desk's
+ * window (2017 student guide p.2: once for a help page, twice for the help desk; TE03 09:07). A mnemonic or words typed first ask
  * for help on them, as "DES <HELP>" does on the terminal: a function's help page, or a search of the functions
  * and securities.
  */
@@ -22,7 +27,7 @@ export function showPanelHelp(panel: number) {
     return;
   }
   if (previous !== undefined && now - previous < 1500) {
-    execute(panel, 'HELP HELP');
+    liveHelp.set({ panel });
     return;
   }
   const route = currentRoute(terminal.get(), panel);

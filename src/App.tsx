@@ -156,6 +156,16 @@ export function App() {
         showPanelMenu(active);
         return;
       }
+      // End is BACK on the terminal's keyboard (2017 student guide p.2): on an empty command line or outside a field.
+      if (e.key === 'End' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        const t = e.target as HTMLInputElement | null;
+        const emptyCommand = !!t?.classList?.contains('cmd-input') && !t.value;
+        if (!isTyping(e.target) || emptyCommand) {
+          e.preventDefault();
+          back(active);
+          return;
+        }
+      }
       if (e.ctrlKey && e.key === 'Tab') {
         e.preventDefault();
         const n = window.innerWidth <= 760 ? Math.max(panelCount(terminal.get()), 4) : panelCount(terminal.get());

@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { createStore } from '../core/store';
 import { askHelpDesk, HELP_EXAMPLES } from '../functions/IB';
+import { liveHelp } from '../terminal/actions';
 import { execute } from '../terminal/exec';
 import { primaryMnemonic } from '../terminal/legacy';
 import { currentRoute, terminal } from '../terminal/state';
 import { Dialog } from './Dialog';
-
-/** The panel whose Live Help window is open, if any. */
-export const liveHelp = createStore<{ panel: number | null }>({ panel: null });
 
 /**
  * The yellow "?▾" menu at the right of a panel's toolbar (TE01 04:45): a dark panel over the dimmed screen, the first
