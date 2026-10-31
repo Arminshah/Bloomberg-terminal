@@ -447,6 +447,13 @@ net.fetch = async (input, init) => {
     }
   }
   // With fixtures.ecbFx, the ECB's reference rates as published for 25 to 30 June 2026 (tests/fixtures/ecb-exr-2026-06.csv).
+  // The Philadelphia Fed's survey page and Q3 2026 release page in their layout, with made-up figures.
+  if (fixtures.philfed && url.hostname === 'www.philadelphiafed.org') {
+    fixtures.calls.philfed = [...(fixtures.calls.philfed ?? []), url.pathname];
+    const file = { '/surveys-and-data/real-time-data-research/survey-of-professional-forecasters': 'index-synthetic.html', '/surveys-and-data/real-time-data-research/spf-q3-2026': 'spf-q3-2026-synthetic.html' }[url.pathname];
+    if (file) return new Response(fs.readFileSync(path.join(__dirname, `../tests/fixtures/philfed/${file}`), 'utf8'), { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    return new Response('<html><title>Page not found</title></html>', { status: 404, headers: { 'Content-Type': 'text/html' } });
+  }
   // The BLS's release calendar as www.bls.gov sent it on 31 October 2026 (trimmed); each request's User-Agent is kept.
   if (fixtures.blsSchedule && url.hostname === 'www.bls.gov' && url.pathname === '/schedule/news_release/bls.ics') {
     const h = init?.headers;

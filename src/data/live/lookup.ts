@@ -66,6 +66,8 @@ declare global {
       nasdaqOptions?(symbol: string, assetClass: 'stocks' | 'etf' | 'index'): Promise<KeyedAnswer>;
       spdrHoldings?(fund: 'SPY' | 'DIA'): Promise<import('./index-members').SpdrAnswer>;
       asic?(kind: 'index' | 'day', date?: string, version?: string): Promise<KeyedAnswer>;
+      /** The Philadelphia Fed's Survey of Professional Forecasters pages (no key): src/data/live/us-spf.ts. */
+      philfed?(kind: 'index' | 'survey', quarter?: number, year?: number): Promise<KeyedAnswer>;
       eurex?(product: 'FESX' | 'FDAX', busdate?: string): Promise<KeyedAnswer>;
       finra?(kind: 'short-interest' | 'short-history' | 'settlement', symbol: string): Promise<KeyedAnswer>;
       estimateHistory?(kind: 'earnings' | 'calendar', symbol: string): Promise<KeyedAnswer>;

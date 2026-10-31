@@ -1132,6 +1132,10 @@ const keyedGet = createRequester({ providers, fetch: (url, init) => net.fetch(ur
       const message = require('./eurex.cjs').eurexProblem(text);
       return message ? { kind: 'schema-changed', message } : null;
     }
+    if (provider === 'philfed') {
+      const message = require('./philfed.cjs').philFedProblem(text);
+      return message ? { kind: 'schema-changed', message } : null;
+    }
     if (provider === 'asic') {
       const ok = url.endsWith('.json') ? /^\s*\[/.test(text) : /^\uFEFF?Product,Product Code,/.test(text);
       return ok ? null : { kind: 'schema-changed', message: 'ASIC changed its short position files.' };
@@ -1316,6 +1320,15 @@ ipcMain.handle('eurex', async (event, product, busdate) => {
 // ASIC's daily aggregated short positions (electron/asic.cjs), for SI on ASX stocks: the index of published days,
 // then the days the page picks from it. A day's file never changes; the index is kept three hours.
 const asic = require('./asic.cjs');
+// The Philadelphia Fed's Survey of Professional Forecasters (electron/philfed.cjs): the survey's page and a quarter's
+// release page, HTML, for ECOFORECASTS' US consensus.
+const philfed = require('./philfed.cjs');
+ipcMain.handle('philfed', async (event, kind, quarter, year) => {
+  const req = philfed.philFedRequest(kind, quarter, year);
+  if (!fromApp(event) || !req) throw new Error('not allowed');
+  return keyedGet('philfed', req.url, { Accept: 'text/html' }, req.ttl, [10, 60_000], [], clientAgent());
+});
+
 ipcMain.handle('asic', async (event, kind, date, version) => {
   const req = asic.asicRequest(kind, date, version);
   if (!fromApp(event) || !req) throw new Error('not allowed');

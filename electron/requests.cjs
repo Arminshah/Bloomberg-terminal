@@ -12,7 +12,7 @@ function retryAfter(value, now) {
 
 /** Providers whose answers are RSS or Atom feeds (or, for the index member list, CSV) rather than JSON. */
 // Providers that answer with text other than JSON (feeds, CSV), checked by `validate` instead.
-const XML_PROVIDERS = new Set(['marketwatch', 'sec', 'yahoo-rss', 'euronext', 'google-news', 'datasets', 'asic']);
+const XML_PROVIDERS = new Set(['marketwatch', 'sec', 'yahoo-rss', 'euronext', 'google-news', 'datasets', 'asic', 'philfed']);
 
 // `refresh` (electron/refresh.cjs) says when a kept answer is out of date because the owner asked for fresh data.
 function createRequester({ providers, fetch, agent, validate, timeoutMs = 20_000, now = Date.now, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), random = Math.random, refresh }) {

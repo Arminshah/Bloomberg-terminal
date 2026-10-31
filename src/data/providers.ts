@@ -788,6 +788,19 @@ export const PROVIDERS: ProviderDef[] = [
     checked: '2026-10-31', desktop: true,
   },
   {
+    id: 'philfed',
+    name: 'Federal Reserve Bank of Philadelphia (Survey of Professional Forecasters)',
+    serves: "ECOFORECASTS: the latest survey's median forecasts for the US (real GDP growth, unemployment, payrolls, CPI and PCE inflation over one, five and ten years, the risk of a negative quarter), each beside the previous survey's",
+    dataClass: 'Official survey: quarterly medians of the panel, as the Bank tabulates them',
+    policy: 'enabled', limit: '10/min',
+    terms: "The site states no reuse terms beyond \"Copyright 2026. All rights reserved.\"; its robots.txt allows these pages. Used for the owner's private display with the Bank named as the source (the owner's choice, 31 October 2026). The app reads two pages only while ECOFORECASTS shows the survey: the survey's page every six hours, a release page once a day.",
+    docs: [
+      { label: 'Survey of Professional Forecasters', url: 'https://www.philadelphiafed.org/surveys-and-data/real-time-data-research/survey-of-professional-forecasters' },
+      { label: 'Documentation (variables)', url: 'https://www.philadelphiafed.org/-/media/FRBP/Assets/Surveys-And-Data/survey-of-professional-forecasters/spf-documentation.pdf' },
+    ],
+    checked: '2026-10-31', desktop: true,
+  },
+  {
     id: 'treasurydirect',
     name: 'TreasuryDirect (securities service)',
     serves: "AUCTIONS: the last 30 days' auction results, posted minutes after each auction closes, and the auctions on the Treasury's schedule not yet held",
