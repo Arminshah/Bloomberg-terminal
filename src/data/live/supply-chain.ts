@@ -1143,6 +1143,11 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   const named = ms.filter((m) => !m.product || m.goods);
   for (const m of company) {
     if (after(s, m, /^(?:'s)?[^.;]{0,60}\b(?:manufactures?|produces?|distributes?|supplies|provides|fills?|packages?)\b[^.;]{0,80}\bon (?:our|its) behalf\b/i)) return { role: 'customer' };
+    // A drug supplied for the filer's own trial is a clinical collaboration: "Merck agreed to provide us with
+    // pembrolizumab for the dose escalation and expansion phases of our Phase 1 study of LAVA-1207" (LAVA's 10-K), "Lilly
+    // has agreed to manufacture and supply us with a certain quantity ... of tirzepatide so we can sponsor a clinical
+    // trial" (BioAge's prospectus).
+    if (/^(?:'s)?[^.;]{0,30}\b(?:has |have )?(?:committed|agreed) to\b[^.;]{0,40}\b(?:supply|provide|deliver)\b[^.;]{0,160}\b(?:(?:our|the Company's)\s+(?:[\w-]+\s+){0,3}(?:study|trial)|so (?:that )?(?:we|the Company) can (?:sponsor|conduct|run)\s+(?:a|an|the|our)\s+(?:[\w-]+\s+){0,2}(?:study|trial))\b/i.test(s.slice(m.end, m.end + 320))) return { role: 'partner' };
     if (after(s, m, /^(?:'s)?[^.;]{0,30}\b(?:has |have )?(?:committed|agreed) to\b[^.;]{0,80}\b(?:manufacture|produce|build|supply|provide|deliver|fabricate)\b[^.;]{0,60}\bfor\b/i)) return { role: 'customer' };
     // "under which Lilly has agreed to manufacture and supply us with a certain quantity ... of tirzepatide" (BioAge).
     if (after(s, m, /^(?:'s)?[^.;]{0,30}\b(?:has |have )?(?:committed|agreed) to\b[^.;]{0,40}\b(?:manufacture|produce|supply|provide|deliver)\b[^.;]{0,30}\b(?:us|the Company)\b/i)) return { role: 'customer' };
