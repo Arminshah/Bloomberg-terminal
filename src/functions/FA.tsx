@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { Chg } from '../components/cells';
@@ -14,6 +14,12 @@ import { sourceLabel } from '../components/Source';
 import type { FnProps } from '../terminal/types';
 import { useSegments } from '../data/live/segments';
 import { segmentRows, SegmentsView } from './FASegments';
+import { closeAt } from '../data/analytics';
+import { engine, useHistoryVersion } from '../data/market';
+import { capAtPeriodEnd, capSeries, shareFilings } from '../data/marketcap';
+import { loadCompanyFacts, resolveFiler, secAvailable, secTicker, useSecLoad, type CompanyFacts } from '../data/live/sec';
+import { realSplits } from '../data/live/yahoo';
+import { wantShares } from '../data/live/shares';
 
 type Row = {
   label: string;
@@ -40,10 +46,26 @@ const margin = (a: number, rev: number) => (Number.isFinite(a) && rev > 0 ? (a /
 const growthNm = (a: number, b: number | undefined) => b !== undefined && Number.isFinite(a) && Number.isFinite(b) && b <= 0;
 const mln = (v: number | undefined) => (v === undefined ? NaN : v / 1e6);
 
+/** Preferred stock and minority interest, as Adj Highlights' "Preferred & Other": none when the source lists neither. */
+export function preferredAndOther(p: Pick<FinPeriod, 'preferred' | 'minority'>): number {
+  const parts = [p.preferred, p.minority].filter((x): x is number => x !== undefined && Number.isFinite(x));
+  return parts.length ? parts.reduce((a, b) => a + b, 0) : NaN;
+}
+
 /**
- * FA's first page, as the terminal's Key Stats: the headline figures with their growth and margins under them. The
- * market value lines are left out: they need the share count and price at each period end, which the statements do
- * not give.
+ * Enterprise value at a period's end, as Adj Highlights works it: market capitalisation plus total debt and preferred
+ * and other, less cash and equivalents. A part the source does not list adds nothing; without the market value, the
+ * debt or the cash there is none.
+ */
+export function periodEnterpriseValue(cap: number, p: Pick<FinPeriod, 'cash' | 'debt' | 'preferred' | 'minority'>): number {
+  if (![cap, p.debt, p.cash].every(Number.isFinite)) return NaN;
+  const other = preferredAndOther(p);
+  return cap + p.debt + (Number.isFinite(other) ? other : 0) - p.cash;
+}
+
+/**
+ * FA's first page, as the terminal's Key Stats: the market value lines at each period's end (put before these in the
+ * screen, as they need prices), then the headline figures with their growth and margins under them.
  */
 const KEY: Row[] = [
   { label: 'Revenue', get: (p) => p.rev, bold: true, est: (e) => mln(e.revenueAvg) },
@@ -179,6 +201,39 @@ export function FA({ sec, route }: FnProps) {
   const supplementSources = [...new Set(cols.flatMap((p) => p.supplements ?? []))];
   const revenueDefinitions = [...new Map(cols.flatMap((p) => p.niTotalBasisDetails ?? []).flatMap((difference) => difference.definition ? [[difference.definition.accession, difference.definition] as const] : [])).values()];
   const ccy = reportCcy(s);
+  // The market value at each period's end, for Key Stats' first lines: the last close by then times the shares on the
+  // latest SEC cover filed before it, as MARKETCAP works it; a company without SEC covers takes today's count back.
+  useEffect(() => wantShares(s.id), [s.id]);
+  const history = useHistoryVersion();
+  const ticker = secTicker(s);
+  const facts = useSecLoad<CompanyFacts>(tab === 1 && secAvailable() && ticker ? `facts:${ticker}` : null, async (force) => {
+    const c = await resolveFiler(ticker!, force);
+    if (!c.ok) return c;
+    return loadCompanyFacts(c.data.cik, force);
+  });
+  const cf = facts.result?.ok ? facts.result.data : null;
+  const sharesNow = (s.eq?.shares ?? NaN) * 1e6;
+  const caps = useMemo(
+    () => capSeries(engine.daily(s.id), sharesNow, shareFilings(cf), realSplits.get(s.id) ?? [], s.minor ? 0.01 : 1),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [s.id, cf, sharesNow, history],
+  );
+  const tradeCcy = s.ccy === 'GBp' ? 'GBP' : s.ccy === 'USd' ? 'USD' : s.ccy;
+  // In the statements' currency at that day's rates (through the dollar), millions; none without a rate.
+  const capFor = (p: FinPeriod) => {
+    const pt = capAtPeriodEnd(caps.points, p.end);
+    if (!pt) return NaN;
+    if (tradeCcy === ccy) return pt.cap / 1e6;
+    const usdPer = (c: string) => (c === 'USD' ? 1 : closeAt(engine.daily(`CCY:${c}`), pt.t));
+    return (pt.cap * usdPer(tradeCcy)) / usdPer(ccy) / 1e6;
+  };
+  const marketRows: Row[] = [
+    { label: 'Market Capitalization', get: capFor, bold: true },
+    { label: 'Cash & Equivalents', get: (p) => p.cash },
+    { label: 'Preferred & Other', get: preferredAndOther },
+    { label: 'Total Debt', get: (p) => p.debt },
+    { label: 'Enterprise Value', get: (p) => periodEnterpriseValue(capFor(p), p), bold: true },
+  ];
   // The analysts' consensus for the coming fiscal years, beside the reported ones (annual view, statements' currency).
   const est = useAnalysts(analystsAvailable() && analystSymbol(s) ? s : undefined, ['estimates']).estimates as AnalystPart<Estimate[]> | undefined;
   const lastEnd = f.annual.length ? f.annual[f.annual.length - 1].end : NaN;
@@ -192,7 +247,7 @@ export function FA({ sec, route }: FnProps) {
   // Dividends come in the unit the shares trade in (Shell: pence) while the statements are in the reporting
   // currency (dollars): the row says its unit, and no payout ratio divides one by the other.
   const divUnit = s.ccy !== ccy ? (s.ccy === 'GBp' ? 'pence' : s.ccy) : '';
-  const rows = TABS[tab - 1].rows.map((r) =>
+  const rows = (tab === 1 ? [...marketRows, ...KEY] : TABS[tab - 1].rows).map((r) =>
     divUnit && r.label === 'Dividends per Share' ? { ...r, label: `Dividends per Share (${divUnit})` } : divUnit && r.label === 'Dividend Payout Ratio' ? { ...r, get: () => NaN, nm: undefined } : r,
   );
   // Growth lines compare a year with the one before and a quarter with the same quarter a year earlier; the LTM
