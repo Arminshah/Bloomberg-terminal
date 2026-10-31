@@ -13,11 +13,11 @@ Paths starting with a two-digit folder (`08_video_frames/...`) are inside the pa
 Ticked when finished, with the commit. The next session starts at the first unticked item. The evidence and what still differs for each item are in `docs/bloomberg-parity.md`, "Parity build".
 
 Setup
-- [ ] S1 Branch, `npm ci`, every check passing before any change
-- [ ] S2 The pack at `reference/visual/bloomberg-pack-2026-10-31/`, git-ignored
-- [ ] S3 The pack's reading list read
-- [ ] S4 This plan in `docs/parity-build-plan.md`, item 14 in `docs/TODO.md`
-- [ ] S5 Watchlist guards
+- [x] S1 Branch, `npm ci`, every check passing before any change (31 October: lint, types, 1,994 unit, build, 97 browser, 81 desktop)
+- [x] S2 The pack at `reference/visual/bloomberg-pack-2026-10-31/`, git-ignored
+- [x] S3 The pack's reading list read
+- [x] S4 This plan in `docs/parity-build-plan.md`, item 14 in `docs/TODO.md` (`4fbb0da`)
+- [x] S5 Watchlist guards (`6d78081`)
 
 M1. Window chrome
 - [ ] 1.1 Red function bar

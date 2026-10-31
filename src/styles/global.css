@@ -27,9 +27,9 @@
   --magenta: #d77bff;
   --hdr: #292b2e;
   --hdr-text: #eeeeee;
-  /* Measured from the terminal's published screens (docs/visual-research-2026-10.md): the red function bar, the grey
-     section strips, and the command line's cyan border and cursor. */
-  --function-bar: #a21826;
+  /* Measured from the terminal's published screens: the red function bar from the 2024 tutorial frames
+     (docs/bloomberg-parity.md, "Parity build"), the grey section strips and the command line's border and cursor. */
+  --function-bar: #870e1f;
   --section: #343434;
   --cmd-cyan: #1fb6f0;
   --help-green: #3cbf4f;
@@ -589,7 +589,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   letter-spacing: 0.04em;
 }
 /* The loaded security sits in an amber field at the left end of the red bar, as on the terminal's function screens. */
-.fnh-sec { flex: none; align-self: stretch; display: inline-flex; align-items: center; margin: -2px 0 -2px -6px; padding: 0 8px; background: var(--amber); color: #000; font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+.fnh-sec { flex: none; align-self: stretch; display: inline-flex; align-items: center; margin: -2px 0 -2px -6px; padding: 0 8px; background: var(--amber); color: #2d0000; font-family: var(--mono); font-weight: 500; white-space: nowrap; }
 .fnh-name { color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 0 auto; max-width: 45%; }
 .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0 !important; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* "Page 2/5" sits on the function bar beside the title, as the terminal shows multi-page screens. */
@@ -609,7 +609,8 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .fnh-launch { flex: none; width: 12px; height: 12px; color: var(--white); opacity: 0.95; }
 .fnh-sub { color: #bdc4cd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .fnh-actions { display: flex; gap: 0; flex: 0 1 auto; min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
-.fnh-actions .act { flex: none; border: 0; border-right: 2px solid var(--function-bar); background: #6c0b17; padding: 1px 9px; color: #fff; font-size: var(--fs); }
+/* The numbered items sit on the bar's own red in white, a thin dark line between them. */
+.fnh-actions .act { flex: none; border: 0; border-right: 2px solid #3f0209; background: transparent; padding: 1px 9px; color: #fff; font-size: var(--fs); }
 .fnh-actions .act b { color: #fff; }
 .fnh-actions .act:hover { background: #a32929; outline: 1px solid #fff; outline-offset: -1px; }
 /* A chosen view in the red bar is a lit field: white on dark blue, readable against the red. */

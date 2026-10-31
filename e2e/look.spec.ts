@@ -51,7 +51,10 @@ test("the terminal's measured colours: red function bar, grey section strips, an
   const css = (selector: string, prop: string) => page.locator(selector).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
   await run(page, 'MARKET');
   await expect(page.locator('.tbl tr.group').first()).toContainText('Americas');
-  expect(await css('.fnh-row', 'background-color')).toBe('rgb(162, 24, 38)');
+  expect(await css('.fnh-row', 'background-color')).toBe('rgb(135, 14, 31)');
+  // The numbered items sit on the bar's red, white, with a thin dark line between them (TE01 03:11).
+  expect(await css('.fnh-actions .act', 'background-color')).toBe('rgba(0, 0, 0, 0)');
+  expect(await css('.fnh-actions .act', 'border-right-color')).toBe('rgb(63, 2, 9)');
   expect(await css('.tbl tr.group td', 'background-color')).toBe('rgb(52, 52, 52)');
   // Focused and empty: the hint, with <HELP> in green; the box and cursor are cyan, typed text white and fixed-width.
   const input = page.locator('#cmd-0');

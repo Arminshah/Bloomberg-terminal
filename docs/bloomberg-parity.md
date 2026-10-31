@@ -4,6 +4,20 @@ Reviewed 19 October 2026 against the registered commands, screen implementations
 
 Bloomberg's [current product overview](https://professional.bloomberg.com/products/bloomberg-terminal/), [getting-started guide](https://data.bloomberglp.com/professional/sites/10/Getting-Started-Guide-for-Students-English.pdf) and public product documentation were accessible during the 19 October review. The [terminal fidelity audit](terminal-fidelity-audit.md) records primary references, presentation conventions, wider capability gaps and implementation priorities. No licensed Bloomberg session, reference outputs, complete function specification or pixel-by-pixel comparison was available. The comparisons below concern the named workflows and their known data/convention requirements, not a certified comparison to a particular Bloomberg software version. Browser demo figures are excluded from real-data coverage.
 
+## Parity build (from 31 October 2026)
+
+The owner's plan (`docs/parity-build-plan.md`) works from the private reference pack, cloned into the git-ignored `reference/visual/bloomberg-pack-2026-10-31/`. Frames are cited as in the plan: "TE01 03:11" is `08_video_frames/TE01_Getting_Started/frames/TE01_Getting_Started_03m11s.jpg`. Colours were sampled with Pillow as the median of a flat box; video colours hold to about ±10 per channel. Evidence levels: E3 for a frame looked at, E1 for written pages. Two things stay as the owner fixed them whatever a frame shows: the typeface (`CLAUDE.md`) and the watchlist (`tests/watchlist-guard.test.ts`, `e2e/watchlist-guard.spec.ts`, added before any change).
+
+Text sizes are not changed. Where the frames show a larger size than the app's (the red bar's labels and the two quote lines are about a third larger than table text; the numbers before items are smaller), the app keeps its sizes and the case is listed here for the owner.
+
+### M1.1 Red function bar (E3)
+
+Evidence: TE01 03:11, TE01 01:41, TE04 04:55 (and the pack's 337-frame median). Sampled again for this change: TE01 03:11 bar `#880E1D`, amber security box `#FFA029`.
+
+- Now: the bar is `#870E1F` (was `#A21826`, from 2017 screens). The numbered items sit on the bar's own red in white, with a 2px dark divider `#3F0209` between them (they had their own darker red boxes). The security box keeps the amber fill, its text near-black `#2D0000`. Page count, launch mark and title stay at the right.
+- Not changed: the frames draw the bar's labels larger than body text and the "98)" numbers smaller and condensed; the app keeps its text sizes (owner's rule). The app has no red-bar dropdown yet, so the dropdown red `#840C1E` (TE02 04:43) has nothing to apply to; a dropdown built later takes it.
+- Checked: `e2e/look.spec.ts` (bar colour, item background and divider).
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).
