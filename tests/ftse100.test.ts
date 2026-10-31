@@ -8,6 +8,8 @@ import { parseListing, yahooListingSymbol } from '../src/data/listings';
 // British American Tobacco's daily closes and dividends from 1 December 2025.
 import STATEMENTS from './fixtures/yahoo-ftse100-statements-2026-10-30.json';
 import BATS_DAILY from './fixtures/yahoo-bats-daily-2026-10-30.json';
+// United Utilities' daily chart as Yahoo answered it overnight, at 00:28 UTC on 31 October 2026.
+import UU_OVERNIGHT from './fixtures/yahoo-uu-daily-overnight-2026-10-31.json';
 // The MediaWiki API's answers of 30 October 2026 for Wikipedia's FTSE 100 Index article: its sections (titles and
 // numbers only) and its Constituents section, kept to the heading and the table (Wikipedia's text is CC BY-SA).
 import SECTIONS from './fixtures/wikipedia-ftse100-sections-2026-10-30.json?raw';
@@ -129,6 +131,22 @@ describe("the FTSE 100's figures from Yahoo", () => {
     expect(d.priceReturn).toBeCloseTo((4592 / 4214 - 1) * 100, 10);
     expect(d.priceReturn).toBeCloseTo(8.9701, 4);
     expect(d.totalReturn).toBeCloseTo(13.74, 4);
+  });
+
+  it("takes the chart's own latest price for a session whose bar Yahoo leaves empty overnight", () => {
+    // United Utilities at 00:28 UTC on 31 October 2026: the bar of the 30th has no close, the chart's price is 1,534p
+    // at 16:35 that day. Checked by hand: the close before is the 29th's 1,523p; from 1,194p at the end of 2025, with
+    // dividends of 35.78p (25 June 2026), the year's price return is 28.4757% and its total return 32.0145%.
+    const d = dailyFigures(UU_OVERNIGHT, Date.UTC(2026, 9, 31, 0, 28))!;
+    expect(d).toMatchObject({ last: 1534, lastDay: '2026-10-30', prev: 1523, prevDay: '2026-10-29', base: 1194, baseDay: '2025-12-31' });
+    expect(d.priceReturn).toBeCloseTo(28.4757, 4);
+    expect(d.totalReturn).toBeCloseTo(32.0145, 4);
+    // Without the chart's price the empty bar is left out, and nothing is put in its place.
+    const bare = structuredClone(UU_OVERNIGHT) as { chart: { result: { meta: Record<string, unknown> }[] } };
+    delete bare.chart.result[0].meta.regularMarketPrice;
+    expect(dailyFigures(bare, Date.UTC(2026, 9, 31, 0, 28))).toMatchObject({ last: 1523, lastDay: '2026-10-29' });
+    // A bar with a close keeps it: the chart's price does not replace a day that has one.
+    expect(dailyFigures(BATS_DAILY, NOW)!.last).toBe(4592);
   });
 
   it("reinvests a dividend at the close of its ex-date, and has no return without last year's close", () => {

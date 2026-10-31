@@ -273,7 +273,8 @@ export interface DailyFigures {
 
 /**
  * The latest price, the previous session's close and the year's price and total returns from a daily chart with
- * dividends. Days are the exchange's (Yahoo's gmtoffset); a day with two bars keeps the later. The total return
+ * dividends. Days are the exchange's (Yahoo's gmtoffset); a day with two bars keeps the later; a later day the bars
+ * leave empty takes the chart's own latest price (meta.regularMarketPrice at regularMarketTime). The total return
  * chains (close + dividends going ex that day) / previous close from last year's final close. Yahoo's own adjusted
  * close is not used: for London lines it moves by a hundredth of each dividend, as if the pence were pounds
  * (British American Tobacco's four dividends of about 1.4% each moved it by 0.06% in all, 30 October 2026).
@@ -289,6 +290,16 @@ export function dailyFigures(chart: any, now: number): DailyFigures | null {
     const c = close[i];
     if (typeof t === 'number' && typeof c === 'number' && Number.isFinite(c) && c > 0) byDay.set(dayOf(t), c);
   });
+  // Overnight Yahoo leaves the latest session's bar without a close while the chart's own latest price has it
+  // (United Utilities, 31 October 2026 00:28 UTC: the bar of the 30th empty, 1,534p in the chart's price). That price
+  // fills its day when no bar has one, so the latest close and the one before stay where they belong.
+  const latest = Number(r?.meta?.regularMarketPrice);
+  const latestAt = Number(r?.meta?.regularMarketTime);
+  if (latest > 0 && Number.isFinite(latestAt)) {
+    const day = dayOf(latestAt);
+    const lastBar = [...byDay.keys()].sort().at(-1);
+    if (!byDay.has(day) && (!lastBar || day > lastBar)) byDay.set(day, latest);
+  }
   const bars = [...byDay].sort((a, b) => a[0].localeCompare(b[0]));
   if (!bars.length) return null;
   const year = dayOf(Math.floor(now / 1000)).slice(0, 4);
