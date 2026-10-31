@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { DataTable } from '../components/DataTable';
 import { KV, LivePx, SecLink, Section } from '../components/cells';
-import { fmtDay, fmtInt, fmtNum, fmtTime } from '../core/format';
+import { fmtInt, fmtNum, fmtTime } from '../core/format';
 import { hashString, normal } from '../core/rng';
 import { engine, useTick } from '../data/market';
 import { resolveSecurity } from '../data/registry';
@@ -12,10 +12,7 @@ import { usePanelId } from '../terminal/panel';
 import { openSecurity } from '../components/cells';
 import { NoBondData, SimBadge } from '../components/Source';
 import { TreasuryDebt } from './TreasuryDebt';
-import { desktopData } from '../data/live/yahoo';
 import type { FnProps } from '../terminal/types';
-
-const RATING_ORDER = ['AAA', 'AA+', 'AA', 'AA-', 'A+', 'A', 'A-', 'BBB+', 'BBB', 'BBB-', 'BB+', 'BB', 'BB-'];
 
 function bonds(): SecurityDef[] {
   return engine.securities.filter((d) => d.cls === 'bond');
@@ -66,98 +63,6 @@ function rowsFor(list: SecurityDef[]): Row[] {
     const a = analytics({ coupon: b.coupon, maturity: new Date(`${b.maturity}T00:00:00Z`), freq: 2 }, settle, by.last);
     return { d, y: by.last, spread: by.spread, dur: a.modified, yrs: years(d) };
   });
-}
-
-/** SRCH: fixed income search with issuer, sector, rating, maturity and coupon filters. */
-export function SRCH(props: FnProps) {
-  if (engine.realOnly) return <NoBondData code="BONDSEARCH" title="Fixed Income Search" />;
-  return <SRCHSim {...props} />;
-}
-
-function SRCHSim({ route, sec }: FnProps) {
-  useTick(3);
-  const init = parseIssuer(route.args, sec);
-  const [issuer, setIssuer] = useState(init.root);
-  const [tab, setTab] = useState(init.yk === 'Corp' ? 2 : init.yk === 'Govt' ? 3 : 1);
-  const [minRating, setMinRating] = useState('BB-');
-  const [matFrom, setMatFrom] = useState('');
-  const [matTo, setMatTo] = useState('');
-  const [cpnMin, setCpnMin] = useState('');
-  const yk = tab === 2 ? 'Corp' : tab === 3 ? 'Govt' : 'All';
-  const list = bonds().filter((d) => {
-    if (yk !== 'All' && d.yk !== yk) return false;
-    if (!matchesIssuer(d, issuer.trim().toUpperCase())) return false;
-    const r = RATING_ORDER.indexOf(d.bond!.rating ?? 'AA+');
-    if (r > RATING_ORDER.indexOf(minRating)) return false;
-    const yr = years(d);
-    if (matFrom && yr < Number(matFrom)) return false;
-    if (matTo && yr > Number(matTo)) return false;
-    if (cpnMin && d.bond!.coupon < Number(cpnMin)) return false;
-    return true;
-  });
-  const rows = rowsFor(list);
-  return (
-    <div>
-      <FnHeader
-        code="BONDSEARCH"
-        title="Fixed Income Search"
-        sub={
-          <>
-            {rows.length} securities match · <SimBadge /> bond prices{desktopData() ? ' modelled off the real Treasury curve plus an issuer spread' : ''}
-          </>
-        }
-        tabs={[
-          { n: 1, label: 'All' },
-          { n: 2, label: 'Corporates' },
-          { n: 3, label: 'Treasuries' },
-        ]}
-        tab={tab}
-        onTab={setTab}
-      />
-      <div className="chart-tools">
-        <label className="fld">
-          Issuer
-          <input className="inp" style={{ width: 110 }} value={issuer} placeholder="Ticker or name" onChange={(e) => setIssuer(e.target.value.toUpperCase())} />
-        </label>
-        <label className="fld">
-          Min rating
-          <select className="inp" value={minRating} onChange={(e) => setMinRating(e.target.value)}>
-            {RATING_ORDER.map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
-        </label>
-        <label className="fld">
-          Maturity (yrs)
-          <input className="inp" style={{ width: 48 }} value={matFrom} placeholder="from" inputMode="decimal" onChange={(e) => setMatFrom(e.target.value)} />
-          <input className="inp" style={{ width: 48 }} value={matTo} placeholder="to" inputMode="decimal" onChange={(e) => setMatTo(e.target.value)} />
-        </label>
-        <label className="fld">
-          Min coupon
-          <input className="inp" style={{ width: 52 }} value={cpnMin} inputMode="decimal" onChange={(e) => setCpnMin(e.target.value)} />
-        </label>
-      </div>
-      <DataTable
-        rows={rows}
-        rowKey={(r) => r.d.id}
-        numbered
-        defaultSort={{ key: 'm', dir: 1 }}
-        empty="No bonds match. Clear a filter or try another issuer (AAPL, JPM, T)."
-        columns={[
-          { key: 't', label: 'Security', render: (r) => <SecLink id={r.d.id}>{r.d.ticker}</SecLink>, sort: (r) => r.d.ticker },
-          { key: 'i', label: 'Issuer', hideM: true, render: (r) => <span className="ellipsis" style={{ maxWidth: 200, display: 'inline-block' }}>{issuerOf(r.d)}</span>, sort: (r) => issuerOf(r.d) },
-          { key: 'c', label: 'Cpn', num: true, render: (r) => fmtNum(r.d.bond!.coupon, 3), sort: (r) => r.d.bond!.coupon },
-          { key: 'm', label: 'Maturity', render: (r) => fmtDay(Date.parse(`${r.d.bond!.maturity}T00:00:00Z`)), sort: (r) => r.yrs },
-          { key: 'r', label: 'Rtg', render: (r) => r.d.bond!.rating ?? '', sort: (r) => RATING_ORDER.indexOf(r.d.bond!.rating ?? 'AA+') },
-          { key: 'a', label: 'Amt $MM', num: true, hideM: true, render: (r) => fmtInt(r.d.bond!.amount ?? 0), sort: (r) => r.d.bond!.amount ?? 0 },
-          { key: 'p', label: 'Price', num: true, render: (r) => <LivePx id={r.d.id} />, sort: (r) => engine.quote(r.d.id)!.last },
-          { key: 'y', label: 'Yield', num: true, render: (r) => fmtNum(r.y, 3), sort: (r) => r.y },
-          { key: 's', label: 'Sprd bp', num: true, render: (r) => fmtNum(r.spread, 0), sort: (r) => r.spread },
-          { key: 'd', label: 'Mod dur', num: true, hideM: true, render: (r) => fmtNum(r.dur, 2), sort: (r) => r.dur },
-        ]}
-      />
-    </div>
-  );
 }
 
 /** The U.S. Treasury named in the arguments: "T GOVT", "UST", "TREASURY" (a bare "T" is AT&T's stock). */

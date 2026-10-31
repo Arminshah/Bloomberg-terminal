@@ -54,6 +54,7 @@ M3. Screen parity
 - [x] GP and G: the three dropdowns, both control rows, Related Data, Edit Chart (next commit); G's saved graphs, 3D and the field choice not built
 - [ ] TOP (left for now: see docs/TODO.md)
 - [x] DS: Ask a Question on an opened filing, Gemini's answers kept to the filing's own words (next commit); the document viewer not built
+- [x] SRCH: the search page with criteria and matches, results on their own page, real US Treasuries from the Treasury's statement (next commit); corporates and My Searches not built
 - [x] YAS: the Yield & Spread page, its tabs and Settings, the measures checked against TE07 03:47 (next commit); G-Sprd, I-Sprd, ASW and True Yield blank
 
 ## 1. Rules that come before anything in this plan

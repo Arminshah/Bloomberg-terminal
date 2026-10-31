@@ -1681,6 +1681,23 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .ds-ask-point { padding: 4px 8px; margin: 4px 0; background: #1e1e1e; }
 .ds-ask-quote { color: #9a9a9a; font-style: italic; padding-left: 10px; }
 .ds-ask-note { font-size: var(--fs-s); }
+/* SRCH as TE07 02:23: the query echoed at the right, the criteria table, the amber add row, the count and Results. */
+.srch { padding: 2px 8px; }
+.srch-top, .srch-line { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
+.srch-query { margin-left: auto; color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+.srch-total { margin-left: auto; }
+.srch-crit { margin-top: 6px; }
+.srch-crit td { vertical-align: middle; }
+.srch-sel { border: 0; background: transparent; font-size: var(--fs); }
+.srch-sel option { background: #1e1e1e; color: var(--amber); }
+.srch-val { white-space: nowrap; }
+.srch-val .inp { width: 150px; }
+.srch-add td { background: #000; }
+.srch-add-sel { width: 100%; border: 0; padding: 1px 6px; background: var(--amber); color: #000; font-size: var(--fs); }
+.srch-foot { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 6px 0; }
+.srch-results { background: #3a3a3a; }
+.srch-more { display: flex; gap: 18px; padding: 4px 8px; }
+.srch-examples { display: flex; flex-direction: column; padding: 6px 8px; max-width: 520px; }
 .fa-set { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--white); }
 .fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid #1d1d1d; background: #000; }
 .fa-bottom > button { background: #434142; border: 0; color: var(--white); padding: 0 12px; }
