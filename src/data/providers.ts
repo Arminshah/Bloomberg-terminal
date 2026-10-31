@@ -160,6 +160,17 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'fedinvest',
+    name: 'TreasuryDirect FedInvest',
+    serves: "The day's Buy, Sell and End of Day prices of every marketable Treasury by CUSIP (ALLQ and the Treasuries' prices)",
+    dataClass: 'Daily prices (official)',
+    policy: 'enabled',
+    terms: "A Bureau of the Fiscal Service publication for the Federal Investments Program. The price page is a form, so the app asks for it as a browser would: once for the latest day and once for the day before, when a Treasury's prices are first needed.",
+    docs: [{ label: 'FedInvest prices', url: 'https://www.treasurydirect.gov/GA-FI/FedInvest/selectSecurityPriceDate' }],
+    checked: '2026-10-31',
+    desktop: true,
+  },
+  {
     id: 'nyfed',
     name: 'Federal Reserve Bank of New York',
     serves: 'Effective fed funds rate and target range, SOFR and the other reference rates',

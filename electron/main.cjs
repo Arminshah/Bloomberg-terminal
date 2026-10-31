@@ -230,6 +230,23 @@ ipcMain.handle('treasury', async (event, year) => {
   return { status: res.status, text: res.ok ? await res.text() : '' };
 });
 
+// FedInvest: the Treasury's daily prices for every marketable Treasury (TreasuryDirect, Bureau of the Fiscal Service).
+// The page is a form with a CSRF token and a session cookie: fetch the form, post the date with its token, and take
+// the table the post redirects to. Chromium's stack (net.fetch) keeps the cookie; the site refuses Node's.
+const FEDINVEST = 'https://www.treasurydirect.gov/GA-FI/FedInvest/selectSecurityPriceDate';
+ipcMain.handle('fedinvest', async (event, date) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const d = String(date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T00:00:00Z`))) throw new Error('not allowed');
+  const init = { headers: { 'User-Agent': clientAgent() }, credentials: 'include', cache: 'no-cache', signal: AbortSignal.timeout(40_000) };
+  const form = await tracked('fedinvest', FEDINVEST, init);
+  const token = /name="_csrf" value="([^"]+)"/.exec(form.ok ? await form.text() : '')?.[1];
+  if (!token) return { status: form.ok ? 502 : form.status, text: '' };
+  const body = new URLSearchParams({ priceDate: d, submit: 'Show Prices', _csrf: token }).toString();
+  const res = await tracked('fedinvest', FEDINVEST, { ...init, method: 'POST', body, headers: { ...init.headers, 'Content-Type': 'application/x-www-form-urlencoded', Referer: FEDINVEST } });
+  return { status: res.status, text: res.ok ? await res.text() : '' };
+});
+
 // ---------------------------------------------------------- Official data
 // Policy rates, funding rates, meeting calendars and government bond yields
 // from central banks and finance ministries (public services, no keys). Each

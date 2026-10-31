@@ -20,6 +20,8 @@ export interface TreasurySecurity {
   maturity: string;
   /** Millions of dollars outstanding (all issues of the CUSIP together). */
   outstanding: number;
+  /** The first issue's date (YYYY-MM-DD; reopenings come later), or '' when the statement gives none. */
+  issue: string;
 }
 
 export interface PublicDebt {
@@ -76,7 +78,7 @@ export function parseMspd(text: string): PublicDebt | { error: string } {
     if (UNMATURED[id] && Number.isFinite(out)) statedByClass[UNMATURED[id]] = out;
     // One line per CUSIP carries the amount outstanding; the lines after it are its reopenings (amount "null").
     if (!cls || !/^[0-9A-Z]{9}$/.test(id) || !Number.isFinite(out) || !ISO.test(String(r?.maturity_date ?? ''))) continue;
-    securities.push({ cusip: id, cls, rate: amount(r?.interest_rate_pct), maturity: r.maturity_date, outstanding: out });
+    securities.push({ cusip: id, cls, rate: amount(r?.interest_rate_pct), maturity: r.maturity_date, outstanding: out, issue: ISO.test(String(r?.issue_date ?? '')) ? r.issue_date : '' });
   }
   return { recordDate, securities, statedByClass, statedTotal: amount(total.outstanding_amt) };
 }

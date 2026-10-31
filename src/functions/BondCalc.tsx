@@ -13,6 +13,8 @@ import { parseZeroCurve } from '../finance/contracts';
 import { bondSpreadValue } from '../finance/bond-spreads';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
+import type { SecurityDef } from '../data/types';
+import { fedinvest, fedinvestOwns } from '../data/live/fedinvest';
 
 type Form = {
   coupon: string; maturity: string; trade: string; lag: string; settle: string; frequency: string; basis: DayCount; mode: string; value: string; face: string;
@@ -31,12 +33,16 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 /** Regular fixed-rate bullet analytics, available without a bond quote or subscription. */
 export function BondCalc({ sec }: FnProps) {
   const panel = usePanelId();
+  // A Treasury priced by FedInvest starts from its terms and that day's Sell price, the figures the page names.
+  const [priced] = useState(() => fedPriced(sec));
   const [form, setForm] = useState<Form>(() => {
     const today = isoDay(new Date(engine.now()));
-    return { coupon: '', maturity: '', trade: today, lag: String(defaultSettlementLag(sec?.cls === 'bond' ? sec : undefined)), settle: '', frequency: '2',
+    const base: Form = { coupon: '', maturity: '', trade: today, lag: String(defaultSettlementLag(sec?.cls === 'bond' ? sec : undefined)), settle: '', frequency: '2',
       basis: 'ACT/ACT ICMA', mode: 'yield', value: '', face: '1000000', benchmark: '', curve: '', calls: '' };
+    return priced ? { ...base, coupon: String(priced.coupon), maturity: priced.maturity, trade: priced.date, mode: 'price', value: String(priced.price) } : base;
   });
   const [example, setExample] = useState(false);
+  const [edited, setEdited] = useState(false);
   // YAS's page tabs and its own settings (TE07 03:47): yields quoted semi-annually, modified duration, Equiv once a
   // year, the after-tax yield at the frame's 40.8 % income and 23.8 % capital gains rates.
   const [tab, setTab] = useState(1);
@@ -45,7 +51,7 @@ export function BondCalc({ sec }: FnProps) {
   const [equivFreq, setEquivFreq] = useState(1);
   const [incTax, setIncTax] = useState('40.8');
   const [cgTax, setCgTax] = useState('23.8');
-  const update = (fn: (f: Form) => Form) => { setForm(fn); setExample(false); };
+  const update = (fn: (f: Form) => Form) => { setForm(fn); setExample(false); setEdited(true); };
   const set = (key: keyof Form, value: string) => update((f) => ({ ...f, [key]: value }));
   const marketLag = String(defaultSettlementLag(sec?.cls === 'bond' ? sec : undefined));
   const trade = contractDate(form.trade);
@@ -133,7 +139,7 @@ export function BondCalc({ sec }: FnProps) {
           ...(r ? exportActions(panel, 'bond-calculation.csv', rows).map((a, i) => ({ label: a.label === 'Copy' ? 'Copy the Calculation' : 'Download as CSV', title: a.title, sep: i === 0, onClick: a.onClick })) : []),
         ],
       }]} />
-    <CalcSource>{example ? 'Example inputs. ' : 'Your contract terms and price/yield. '}Calculated price, yield risk and optional benchmark/Z-spreads. Supply the benchmark or zero curve; no market quote, curve or issue terms are inferred.</CalcSource>
+    <CalcSource>{example ? 'Example inputs. ' : priced && !edited ? `Coupon and maturity of ${sec!.ticker}; price: TreasuryDirect FedInvest's Sell price of ${fmtDay(Date.parse(priced.date))}, traded that day. ` : 'Your contract terms and price/yield. '}Calculated price, yield risk and optional benchmark/Z-spreads. Supply the benchmark or zero curve; no market quote, curve or issue terms are inferred.</CalcSource>
     <div className="chart-tools">
       <CalcInput label="Coupon %" value={form.coupon} onChange={(v) => set('coupon', v)} />
       <CalcInput label="Maturity" type="date" value={form.maturity} onChange={(v) => set('maturity', v)} />
@@ -298,4 +304,14 @@ export function BondCalc({ sec }: FnProps) {
     </>}
     <p className="pad-s muted">Regular fixed-rate bullet, nominal yield compounded at coupon frequency. {basisLabel}: accrued interest is coupon/frequency × accrued days / period days and the first cash flow is discounted DSC/E periods, both on that day count. Settlement lags count weekdays only, with no holiday calendar. Dates are unadjusted. Confirm contractual settlement, day count and coupon schedule; calls count only as typed in the call schedule, and stubs, sinking funds, defaults and taxes are outside this model.</p>
   </div>;
+}
+
+/** A FedInvest Treasury's coupon, maturity, and Sell price with its day, or nothing for any other security. */
+function fedPriced(sec?: SecurityDef): { coupon: number; maturity: string; price: number; date: string } | undefined {
+  if (!sec?.bond || !fedinvestOwns(sec.id)) return undefined;
+  const day = fedinvest.get().latest;
+  const cusip = sec.alias?.[0];
+  const row = cusip ? day?.rows.get(cusip) : undefined;
+  if (!day || !row || !Number.isFinite(row.sell)) return undefined;
+  return { coupon: sec.bond.coupon, maturity: sec.bond.maturity, price: row.sell, date: day.date };
 }

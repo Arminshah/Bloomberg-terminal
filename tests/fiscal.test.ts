@@ -32,8 +32,9 @@ describe("the Treasury's marketable debt", () => {
     expect(debt.recordDate).toBe('2026-09-30');
     expect(debt.securities).toHaveLength(463);
     expect(new Set(debt.securities.map((s) => s.cusip)).size).toBe(463);
-    // The bill maturing on 1 October 2026: three issues, 334,135.4294 million outstanding together.
-    expect(debt.securities.find((s) => s.cusip === '912797SA6')).toEqual({ cusip: '912797SA6', cls: 'Bills', rate: NaN, maturity: '2026-10-01', outstanding: 334_135.4294 });
+    // The bill maturing on 1 October 2026: four issues, 334,135.4294 million outstanding together, first issued on
+    // 2 October 2025 (the line that carries the amount; the reopenings follow it).
+    expect(debt.securities.find((s) => s.cusip === '912797SA6')).toEqual({ cusip: '912797SA6', cls: 'Bills', rate: NaN, maturity: '2026-10-01', outstanding: 334_135.4294, issue: '2025-10-02' });
     // A TIPS with its inflation adjustment.
     expect(debt.securities.find((s) => s.cusip === '91282CDC2')).toMatchObject({ cls: 'TIPS', rate: 0.125, outstanding: 46_746.30949112 });
     expect(debt.statedTotal).toBeCloseTo(31_834_878.4434023, 6);

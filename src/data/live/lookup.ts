@@ -34,6 +34,8 @@ declare global {
       windowOptions?(op: 'new' | 'zoom-get' | 'zoom-in' | 'zoom-out' | 'best-fit' | 'reset'): Promise<{ zoom: number; windows: number; max: number; opened?: boolean }>;
       yahoo(path: string): Promise<{ status: number; data: unknown; disabled?: boolean; session?: boolean }>;
       treasury(year: number): Promise<{ status: number; text: string }>;
+      /** FedInvest's price table for a date (YYYY-MM-DD), as the page's HTML. */
+      fedinvest(date: string): Promise<{ status: number; text: string }>;
       official(source: OfficialSource, since: string): Promise<{ status: number; text: string; sourceLabel?: string; missing?: string }>;
       fred?(kind: 'release-dates' | 'observations' | 'first-release' | 'search' | 'series' | 'chart', arg: string, from?: string): Promise<{ status: number; text: string; missing?: string; refused?: string; throttled?: boolean }>;
       sec?(kind: import('./sec').SecKind, arg: string): Promise<import('./sec').SecAnswer>;
