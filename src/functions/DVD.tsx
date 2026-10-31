@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { exportActions } from '../components/ExportActions';
@@ -135,7 +134,6 @@ export function DVD({ sec }: FnProps) {
           </div>
         }
       />
-      <QuoteStrip sec={s} />
       {all.length === 0 ? (
         <div className="empty">
           {engine.realOnly && !engine.isExternal(s.id)

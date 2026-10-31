@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { fmtDateTime, fmtNum } from '../core/format';
 import { engine, useInterval, useQuote } from '../data/market';
 import { secTicker } from '../data/live/sec';
@@ -82,7 +81,6 @@ export function CROSSCHECK({ sec }: FnProps) {
   return (
     <div>
       {header}
-      <QuoteStrip sec={s} />
       <div className="chart-tools">
         {EOD_PROVIDERS.map((p) => {
           const r = results[p.id];

@@ -4,6 +4,52 @@ Reviewed 19 October 2026 against the registered commands, screen implementations
 
 Bloomberg's [current product overview](https://professional.bloomberg.com/products/bloomberg-terminal/), [getting-started guide](https://data.bloomberglp.com/professional/sites/10/Getting-Started-Guide-for-Students-English.pdf) and public product documentation were accessible during the 19 October review. The [terminal fidelity audit](terminal-fidelity-audit.md) records primary references, presentation conventions, wider capability gaps and implementation priorities. No licensed Bloomberg session, reference outputs, complete function specification or pixel-by-pixel comparison was available. The comparisons below concern the named workflows and their known data/convention requirements, not a certified comparison to a particular Bloomberg software version. Browser demo figures are excluded from real-data coverage.
 
+## Parity build (from 31 October 2026)
+
+The owner's plan (`docs/parity-build-plan.md`) works from the private reference pack, cloned into the git-ignored `reference/visual/bloomberg-pack-2026-10-31/`. Frames are cited as in the plan: "TE01 03:11" is `08_video_frames/TE01_Getting_Started/frames/TE01_Getting_Started_03m11s.jpg`. Colours were sampled with Pillow as the median of a flat box; video colours hold to about ±10 per channel. Evidence levels: E3 for a frame looked at, E1 for written pages. Two things stay as the owner fixed them whatever a frame shows: the typeface (`CLAUDE.md`) and the watchlist (`tests/watchlist-guard.test.ts`, `e2e/watchlist-guard.spec.ts`, added before any change).
+
+Text sizes are not changed. Where the frames show a larger size than the app's (the red bar's labels and the two quote lines are about a third larger than table text; the numbers before items are smaller), the app keeps its sizes and the case is listed here for the owner.
+
+### M1.1 Red function bar (E3)
+
+Evidence: TE01 03:11, TE01 01:41, TE04 04:55 (and the pack's 337-frame median). Sampled again for this change: TE01 03:11 bar `#880E1D`, amber security box `#FFA029`.
+
+- Now: the bar is `#870E1F` (was `#A21826`, from 2017 screens). The numbered items sit on the bar's own red in white, with a 2px dark divider `#3F0209` between them (they had their own darker red boxes). The security box keeps the amber fill, its text near-black `#2D0000`. Page count, launch mark and title stay at the right.
+- Not changed: the frames draw the bar's labels larger than body text and the "98)" numbers smaller and condensed; the app keeps its text sizes (owner's rule). The app has no red-bar dropdown yet, so the dropdown red `#840C1E` (TE02 04:43) has nothing to apply to; a dropdown built later takes it.
+- Checked: `e2e/look.spec.ts` (bar colour, item background and divider).
+
+### M1.2 Command line (E3)
+
+Evidence: TE01 05:09 (typed "OF"), TE04 01:13 (typed "WEI"), TE01 01:53 (empty field), TE05 03:59. Sampled: cursor `#348EFF` on TE01 05:09 (the pack measures `#2E8AF6` over three videos).
+
+- Now: a black field with a thin muted blue outline (`#6D96D4`) over about three quarters of the row, a small blue triangle at its left and a blue block cursor (`#2E8AF6`); typed text stays white IBM Plex Mono capitals. Empty, the line shows only the triangle and cursor: the "<HELP> for explanation." hint and the grey route text are gone (no 2024 frame shows either). What the panel runs stays available to screen readers as the line's description. Messages (errors, "Saved…") moved to a row under the command line, in white; errors keep a dark red ground so they stand out.
+- Kept, with no counterpart in the frames: the GO and ? buttons at the right of the row (mouse users), until M1.4 decides where they sit.
+- Not shown in any frame: what the hint row says outside a function's own mode, so it stays empty unless there is a message.
+- Checked: `e2e/look.spec.ts` (outline, triangle, cursor colour and shape, no placeholder, width share, message row), `desktop-e2e/provider-ipc.spec.ts` (block cursor in Electron), `e2e/terminal.spec.ts` (the route is still named).
+
+### M1.3 Two-line quote strip (E3)
+
+Evidence: TE01 03:11 (AAPL DES), TE01 01:41 (GOOGL, whole window), TE04 04:55 (VOW FA), TE04 04:11 (RV loaded after typing).
+
+- Now: every screen with a security shows the strip in the panel's chrome, above the red bar, as each window does in the frames. Line 1 shares the command line's row: ticker in white, the currency's symbol in grey, an arrow for the last tick (green up, red down), the last price and the day's net change coloured by the change's sign, today's line (the same day chart the watchlist draws, used as it is), then bid/ask. Clicking the row or typing turns it into the command field; running a command brings the quote back. Line 2 takes the hint row: signal bars, a yellow clock, then amber At, Vol, O, H, L, Val and Prev with white values, "d" after the time when the source says it is delayed. The 27 screens that drew their own one-line strip under the red bar no longer do.
+- Kept from the app (no counterpart in the frames): the source's name, the pre- and after-market price, the source and receipt times (on hover over At) and the freshness and session badges, at the right of line 2. The signal bars and clock carry the freshness and session on hover.
+- Labelled blank: Val (the session's traded value). None of the app's sources supplies it, so it shows "--" with the reason on hover rather than last price times volume.
+- Not done, no data: the grey exchange letters after prices and the bid and ask sizes ("4x1"); the quotes carry neither. Not shown: the percentage change, which the frames' line 1 does not carry (the screens still show it, DES's Px/Chg 1D for one).
+- Not changed: the frames draw both lines about a third larger than table text; the app keeps the price at its 16px and the rest at 12px.
+- Unverified: what the signal bars mean; the small blue block some frames show at the row's left edge.
+- Checked: `e2e/look.spec.ts` (labels, order, colours, position above the red bar, typing and back), the whole browser suite.
+
+### M1.4 Toolbar row (E3)
+
+Evidence: TE01 03:11, TE06 04:15 (zoomed), TE01 01:41 (whole window, right end). Sampled: toolbar `#1A1A1A` on TE01 03:11.
+
+- Now: one row on `#1A1A1A` with plain light grey text and thin vertical rules, no boxes: back "<" and forward ">", the loaded security by name with its yellow key and "▾" ("APPLE INC Equity ▾"), the function's mnemonic "▾" ("DES ▾", "GPC ▾" for a candlestick chart), "Related Functions Menu" with a double chevron; at the right an envelope with "Message" (opens the app's MESSAGES), a window button and a yellow "?" with "▾" (function help, F1; M2.2 turns it into the help menu). The security and function are still the native lists, laid invisibly over their labels.
+- Moved: back and forward from the command row; the panel's link group (a coloured list, shown by name) and command recall "↶" sit before Message. They have no counterpart in the frames and stay as features.
+- Removed: the frame title above the toolbar ("1-ARMIN" with a green mnemonic badge), which the 2024 frames do not have (the tab strip is the title bar). Its maximise button is now the window button (same names for screen readers), and a double-click on the toolbar's empty part maximises and restores as the title did. The command row's "?" went; the toolbar's yellow "?▾" does the same.
+- Kept: the panel's number at the left of the command row (blue when the panel is active) and GO at its right end. Neither is in the frames; both are the app's own.
+- Unverified: what the window button's "▾" opens in the frames (not shown); here it maximises the panel.
+- Checked: `e2e/look.spec.ts` (order of the items, colours, no boxes, maximise by button and by double-click, Message), the whole browser and desktop suites.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

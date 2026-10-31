@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { exportActions } from '../components/ExportActions';
@@ -109,7 +108,6 @@ export function BBK({ sec }: FnProps) {
           </div>
         }
       />
-      <QuoteStrip sec={s} />
       {status ? (
         <div className="empty">{status}</div>
       ) : (

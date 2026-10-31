@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { EarningsEvidence } from '../components/EarningsExpectations';
 import { exportActions } from '../components/ExportActions';
 import { fmtBig, fmtIso, fmtNum, fmtPct, fmtDay } from '../core/format';
@@ -160,7 +159,6 @@ export function EEO({ sec }: FnProps) {
           </div>
         }
       />
-      <QuoteStrip sec={s} />
       <EarningsEvidence c={consensus} security={s.id} />
       {!last ? (
         <div className="empty">{status === 'loading' ? 'Loading the statements…' : 'No reported fiscal year from the source for this security.'}</div>

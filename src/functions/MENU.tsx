@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, LivePx, SecLink, Section } from '../components/cells';
 import { engine, useTick } from '../data/market';
 import { marketCapUsd } from '../data/analytics';
@@ -272,7 +271,6 @@ function SecurityMenu({ sec }: { sec: SecurityDef }) {
     <div>
       <FnHeader code="MENU" title="Related Functions Menu" sec={sec} sub={CLASS_LABEL[sec.cls]} />
       <MenuPath sec={sec} />
-      <QuoteStrip sec={sec} />
       <p className="pad-s muted">Enter a number and press GO, or type a function mnemonic such as {primaryMnemonic('PROFILE')}. Analysis functions use the loaded security.</p>
       <MenuGrid groups={groups} />
     </div>

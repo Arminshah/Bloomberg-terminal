@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { execute } from '../terminal/exec';
 import { panelMessages, clearFlash, flash } from '../terminal/panel';
 import { turnPage, typedPageCount } from '../terminal/paging';
-import { back, forward, LINK_GROUPS, linkGroupOf, navigate, setLinkGroup, terminal, type LinkGroup } from '../terminal/state';
+import { back, navigate, terminal } from '../terminal/state';
 import { CHART_STYLES, primaryMnemonic, styledMnemonic } from '../terminal/legacy';
 import { settings } from '../terminal/settings';
 import { startSuggestions, suggest, type Suggestion } from '../terminal/suggest';
@@ -10,6 +10,8 @@ import { nameSuggestions } from '../terminal/name-search';
 import { favourites } from '../terminal/userdata';
 import type { Route } from '../terminal/types';
 import { lookupFn } from '../terminal/registry';
+import { engine, useQuote } from '../data/market';
+import { QuoteLine1, QuoteLine2 } from './QuoteStrip';
 
 /** Imperative handles per panel for global keys and the key bar. */
 interface CommandApi {
@@ -90,15 +92,14 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   const [value, setValue] = useState('');
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(-1);
+  // Typing turns the row into the command field; until then, on a security's screen, it shows the quote's first line.
+  const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const entries = useRef<string[]>([]);
   const recallIndex = useRef(-1);
   const draft = useRef('');
   const msg = panelMessages.use((m) => m[panel]);
-  const canBack = terminal.use((s) => s.panels[panel].idx > 0);
-  const canFwd = terminal.use((s) => s.panels[panel].idx < s.panels[panel].history.length - 1);
-  const group = terminal.use((s) => linkGroupOf(s.panels[panel]));
   const mnemonics = settings.use((s) => s.mnemonics);
   const favIds = favourites.use((s) => s.ids);
   const recentSecs = terminal.use((s) => s.recentSecs);
@@ -116,6 +117,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
     const next = Math.max(0, recallIndex.current + direction);
     recallIndex.current = next >= entries.current.length ? -1 : next;
     setValue(recallIndex.current < 0 ? draft.current : entries.current[recallIndex.current]);
+    setEditing(true);
     setOpen(false);
     setSel(-1);
     inputRef.current?.focus();
@@ -132,6 +134,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         const cur = valueRef.current.trimEnd();
         setValue(`${cur}${cur ? ' ' : ''}${token} `);
         recallIndex.current = -1;
+        setEditing(true);
         setOpen(true);
         setSel(-1);
         el.focus();
@@ -139,6 +142,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       submit: () => submitRef.current(),
       clear: () => {
         setValue('');
+        setEditing(false);
         setOpen(false);
         setSel(-1);
         recallIndex.current = -1;
@@ -197,6 +201,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
     const ok = execute(panel, text);
     if (ok) {
       setValue('');
+      setEditing(false);
       setOpen(false);
       setSel(-1);
     }
@@ -271,6 +276,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         if (open && items.length) setOpen(false);
         else {
           setValue('');
+          setEditing(false);
           recallIndex.current = -1;
           clearFlash(panel);
         }
@@ -292,30 +298,18 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   };
 
   const fnDef = lookupFn(route.fn);
+  const sec = route.sec ? engine.get(route.sec) : undefined;
+  const quote = useQuote(sec?.id);
+  // The quote strip's two lines (TE01 03:11, TE04 04:55): the first shares the command line's row until typing starts,
+  // the second takes the hint row. Screens without a security always show the command field.
+  const quoteShown = !!sec && !!quote && !editing && !value;
   return (
+    <>
     <div className="cmd" role="search">
       <span className="cmd-num" title={`Panel ${panel + 1}`}>
         {panel + 1}
       </span>
-      <select
-        className="cmd-link"
-        aria-label={`Panel ${panel + 1} security link group`}
-        title="Security link group: matching colors share selections across visible compatible panels. A linked monitor keeps its list open."
-        value={group}
-        style={{ color: LINK_GROUPS[group].color }}
-        onChange={(e) => setLinkGroup(panel, Number(e.target.value) as LinkGroup)}
-      >
-        {LINK_GROUPS.map((g) => <option key={g.id} value={g.id}>{g.id ? `${g.id} ${g.name}` : 'Unlinked'}</option>)}
-      </select>
-      <span className="cmd-nav">
-        <button type="button" aria-label="Back" title="Back (Backspace on empty line)" disabled={!canBack} onClick={() => back(panel)}>
-          ‹
-        </button>
-        <button type="button" aria-label="Forward" title="Forward" disabled={!canFwd} onClick={() => forward(panel)}>
-          ›
-        </button>
-      </span>
-      <span className="cmd-field">
+      <span className={`cmd-field${quoteShown ? ' as-quote' : ''}`} onMouseDown={() => setEditing(true)}>
       <input
         ref={inputRef}
         id={`cmd-${panel}`}
@@ -331,25 +325,26 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         aria-activedescendant={open && sel >= 0 && items[sel] ? `cmd-option-${panel}-${sel}` : undefined}
         aria-label={`Panel ${panel + 1} command line`}
         title="Enter / GO runs a command. Clicking an empty line lists your favourites: Down goes into the list, Up recalls the last command. Up / Down recall commands when suggestions are closed; Ctrl+Up / Down always recall."
-        placeholder={`${routeText(route, mnemonics)}${fnDef ? `  ·  ${fnDef.name}` : ''}`}
+        aria-describedby={`cmd-route-${panel}`}
         onChange={(e) => {
           setValue(e.target.value);
+          setEditing(true);
           recallIndex.current = -1;
           setOpen(true);
           setSel(-1);
         }}
         onKeyDown={onKeyDown}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onBlur={() => {
+          setEditing(false);
+          setTimeout(() => setOpen(false), 120);
+        }}
       />
-      <span className="cmd-hint" aria-hidden="true">
-        <b>&lt;HELP&gt;</b>&nbsp;for explanation.
+      {/* An empty line shows only the triangle and the cursor; what the panel runs is named for screen readers. */}
+      {quoteShown && sec ? <span className="cmd-quote"><QuoteLine1 sec={sec} /></span> : null}
+      <span id={`cmd-route-${panel}`} className="sr-only">{`${routeText(route, mnemonics)}${fnDef ? ` · ${fnDef.name}` : ''}`}</span>
       </span>
-      </span>
-      {msg && <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span>}
-      <button type="button" className="cmd-help" title="Help for this function" onClick={() => run(`HELP ${route.fn}`)}>
-        ?
-      </button>
+      <span className="cmd-spacer" />
       <button type="button" className="cmd-go" onMouseDown={(e) => e.preventDefault()} onClick={submit}>
         GO
       </button>
@@ -396,6 +391,9 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         </div>
       )}
     </div>
+    {/* The row under the command line carries its hints and messages, in white. */}
+    <div className="cmd-hints" aria-live="polite">{msg ? <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span> : quoteShown && sec ? <QuoteLine2 sec={sec} /> : null}</div>
+    </>
   );
 }
 

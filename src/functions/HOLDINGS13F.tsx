@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { KV } from '../components/cells';
 import { DataTable, type Column } from '../components/DataTable';
 import { HeatTreemap, type HeatLeaf } from '../components/HeatTreemap';
@@ -231,7 +230,6 @@ export function HOLDINGS13F({ sec, route }: FnProps) {
           </div>
         }
       />
-      {s && <QuoteStrip sec={s} />}
       {status ? (
         <div className="empty">{status}</div>
       ) : (

@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, KV, LivePx } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { sourceLabel } from '../components/Source';
@@ -108,7 +107,6 @@ export function EESummary({ sec }: FnProps) {
   return (
     <div data-audit-state={JSON.stringify(earningsAuditState(consensus, s.id, Date.now(), real?.quarterly, reportCcy(s)))}>
       <FnHeader code="EARNINGSSUMMARY" title="Earnings & Estimates" sec={s} sub={<>Quarterly · {sourceLabel(status, "demo figures; the analysts' figures need the desktop app")}</>} />
-      <QuoteStrip sec={s} />
       <EarningsEvidence c={consensus} security={s.id} />
       <div className="des-grid">
         <div className="des-col">

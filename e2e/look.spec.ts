@@ -46,34 +46,79 @@ test('IBM Plex Sans is the typeface, fixed: loaded, slightly bold, with no setti
   expect(errors).toEqual([]);
 });
 
-test("the terminal's measured colours: red function bar, grey section strips, and a cyan command line that reads <HELP> for explanation.", async ({ page }) => {
+test("the terminal's measured colours: red function bar, grey section strips, and the 2024 command line with its blue triangle and cursor", async ({ page }) => {
   const errors = await boot(page);
   const css = (selector: string, prop: string) => page.locator(selector).first().evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
   await run(page, 'MARKET');
   await expect(page.locator('.tbl tr.group').first()).toContainText('Americas');
-  expect(await css('.fnh-row', 'background-color')).toBe('rgb(162, 24, 38)');
+  expect(await css('.fnh-row', 'background-color')).toBe('rgb(135, 14, 31)');
+  // The numbered items sit on the bar's red, white, with a thin dark line between them (TE01 03:11).
+  expect(await css('.fnh-actions .act', 'background-color')).toBe('rgba(0, 0, 0, 0)');
+  expect(await css('.fnh-actions .act', 'border-right-color')).toBe('rgb(63, 2, 9)');
   expect(await css('.tbl tr.group td', 'background-color')).toBe('rgb(52, 52, 52)');
-  // Focused and empty: the hint, with <HELP> in green; the box and cursor are cyan, typed text white and fixed-width.
+  // The command line (TE01 05:09, TE04 01:13): a black field with a thin muted blue outline, a blue triangle at its
+  // left, a blue block cursor, typed text white and fixed-width. Empty, it shows no text at all: no placeholder and no
+  // "<HELP> for explanation.".
   const input = page.locator('#cmd-0');
+  const field = page.locator('.panel').first().locator('.cmd-field');
   await input.click();
-  const hint = page.locator('.panel').first().locator('.cmd-hint');
-  await expect(hint).toBeVisible();
-  await expect(hint).toHaveText('<HELP> for explanation.');
-  expect(await css('.cmd-hint b', 'color')).toBe('rgb(60, 191, 79)');
-  expect(await css('#cmd-0', 'box-shadow')).toContain('rgb(31, 182, 240)');
-  expect(await css('#cmd-0', 'caret-color')).toBe('rgb(31, 182, 240)');
+  expect(await css('.cmd-field', 'border-top-color')).toBe('rgb(109, 150, 212)');
+  expect(await css('.cmd-field', 'background-color')).toBe('rgb(0, 0, 0)');
+  expect(await field.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe('rgb(46, 138, 246)');
+  expect(await css('#cmd-0', 'caret-color')).toBe('rgb(46, 138, 246)');
   // Playwright's own Chromium may predate caret-shape; the desktop app's Electron has it (checked in desktop-e2e).
   if (await page.evaluate(() => CSS.supports('caret-shape', 'block'))) expect(await css('#cmd-0', 'caret-shape')).toBe('block');
   expect(await css('#cmd-0', 'color')).toBe('rgb(255, 255, 255)');
   expect(await css('#cmd-0', 'font-family')).toMatch(/^"?IBM Plex Mono"?,/);
-  await page.keyboard.type('w');
-  await expect(hint).toBeHidden();
-  await page.keyboard.press('Backspace');
-  await expect(hint).toBeVisible();
-  // Elsewhere, the empty line names the command behind the screen.
+  expect(await input.getAttribute('placeholder')).toBeNull();
+  await expect(page.locator('.panel').first().getByText('for explanation.')).toHaveCount(0);
+  // The field covers about three quarters of the row.
+  const row = (await page.locator('.panel').first().locator('.cmd').boundingBox())!;
+  const box = (await field.boundingBox())!;
+  expect(box.width / row.width).toBeGreaterThan(0.6);
+  expect(box.width / row.width).toBeLessThan(0.8);
+  // What the panel runs is still named, for screen readers.
   await input.blur();
-  await expect(hint).toBeHidden();
-  await expect(input).toHaveAttribute('placeholder', /MARKET|WEI/);
+  await expect(input).toHaveAccessibleDescription(/MARKET|WEI/);
+  // Messages go on the row below, in white.
+  await run(page, 'NOSUCHCODE');
+  const hints = page.locator('.panel').first().locator('.cmd-hints');
+  await expect(hints.locator('.cmd-msg.error')).toBeVisible();
+  expect((await hints.boundingBox())!.y).toBeGreaterThanOrEqual(row.y + row.height - 1);
+  expect(errors).toEqual([]);
+});
+
+test("the quote strip's two lines sit above the red bar, the first sharing the command line's row until typing starts", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity FA');
+  const panel = page.locator('.panel').first();
+  // TE04 04:55, TE01 03:11: line 1 is the ticker, the currency, the last price and change, then the bid and ask.
+  const line1 = panel.locator('.cmd .qline-1');
+  await expect(line1.locator('.qs-ticker')).toHaveText('AAPL US');
+  await expect(line1.locator('.qs-ccy')).toHaveText('$');
+  await expect(line1.locator('.px')).toHaveText(/^\d[\d,]*\.\d{2}$/);
+  expect(await line1.locator('.qs-ticker').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 255, 255)');
+  // Line 2 is on the hint row: amber labels At, Vol, O, H, L, Val and Prev with white values; Val is a labelled blank.
+  const line2 = panel.locator('.cmd-hints .qline-2');
+  expect(await line2.locator('.lbl').allInnerTexts()).toEqual(['At', 'Vol', 'O', 'H', 'L', 'Val', 'Prev']);
+  expect(await line2.locator('.lbl').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 158, 27)');
+  await expect(line2.locator('.qs-clock')).toBeVisible();
+  // Both lines come before the red bar, and the screen no longer draws a strip of its own.
+  const bar = (await panel.locator('.fnh-row').boundingBox())!;
+  expect((await line2.boundingBox())!.y + 1).toBeLessThan(bar.y);
+  await expect(panel.locator('.panel-body .qstrip')).toHaveCount(0);
+  // Typing turns the first row into the command field and hides the quote; running the command brings it back.
+  await panel.locator('#cmd-0').click();
+  await expect(line1).toHaveCount(0);
+  await page.keyboard.type('DES');
+  await expect(panel.locator('.cmd-field')).not.toHaveClass(/as-quote/);
+  await page.keyboard.press('Enter');
+  await expect(panel.locator('.fnh-code')).toHaveText('PROFILE');
+  await expect(line1.locator('.qs-ticker')).toHaveText('AAPL US');
+  // A screen without a security keeps the command field and an empty hint row.
+  await run(page, 'TOP');
+  await expect(panel.locator('.qstrip')).toHaveCount(0);
+  await expect(panel.locator('.cmd-field')).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -116,7 +161,7 @@ test('a colour-blind scheme turns rises blue in text, heat maps and charts, and 
   expect(errors).toEqual([]);
 });
 
-test("each panel's frame names its function and number, and maximises it alone and back", async ({ page }) => {
+test("each panel's toolbar names its security and function as the 2024 frames do, and maximises the panel alone and back", async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('armin:terminal')) localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: '4' } }));
   });
@@ -124,25 +169,42 @@ test("each panel's frame names its function and number, and maximises it alone a
   const panels = page.locator('.panel');
   await expect(panels).toHaveCount(4);
   await run(page, 'AAPL US Equity GP');
-  const frame = panels.first().locator('.panel-frame');
-  await expect(frame.locator('.panel-frame-mn')).toHaveText('GP');
-  await expect(frame.locator('.panel-frame-title')).toHaveText('1-ARMIN');
-  await expect(panels.nth(1).locator('.panel-frame-title')).toHaveText('2-ARMIN');
+  // No frame title above the toolbar: the tab strip is the window's title bar (TE01 03:11).
+  await expect(page.locator('.panel-frame')).toHaveCount(0);
+  const bar = panels.first().locator('.panel-toolbar');
+  // TE01 03:11, TE06 04:15: back, forward, the security by name with its yellow key, the function, the menu; then
+  // Message, the window button and the yellow help mark at the right.
+  await expect(bar.locator('.ptb-security .ptb-label')).toHaveText('APPLE INC Equity ▾');
+  await expect(bar.locator('.ptb-function .ptb-label')).toHaveText('GP ▾');
+  await expect(bar.getByRole('button', { name: /Related Functions Menu/ })).toBeVisible();
+  const order = await bar.locator('> *').evaluateAll((els) => els.map((el) => el.className.split(' ')[0]).filter((c) => c !== 'ptb-rule' && c !== 'ptb-gap'));
+  expect(order).toEqual(['ptb-nav', 'ptb-nav', 'ptb-pick', 'ptb-pick', 'panel-menu', 'cmd-link', 'panel-tool', 'ptb-message', 'ptb-window', 'ptb-help']);
+  // Plain light grey text on #1A1A1A, no boxes; the help mark is yellow with dark text.
+  const style = (loc: typeof bar, prop: string) => loc.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+  expect(await style(bar, 'background-color')).toBe('rgb(26, 26, 26)');
+  expect(await style(bar.locator('.panel-menu'), 'background-color')).toBe('rgba(0, 0, 0, 0)');
+  expect(await style(bar.locator('.panel-menu'), 'border-top-width')).toBe('0px');
+  expect(await style(bar, 'color')).toBe('rgb(213, 213, 214)');
+  expect(await style(bar.locator('.ptb-help-q'), 'background-color')).toBe('rgb(252, 225, 3)');
+  // The window button maximises the panel alone and restores the layout.
   const quarter = (await panels.nth(1).boundingBox())!;
   await panels.nth(1).getByRole('button', { name: 'Show panel 2 alone' }).click();
   await expect(page.locator('.panel:visible')).toHaveCount(1);
-  // Alone, it takes the room of all four.
   const alone = (await panels.nth(1).boundingBox())!;
   expect(alone.width).toBeGreaterThan(quarter.width * 1.95);
   expect(alone.height).toBeGreaterThan(quarter.height * 1.95);
   await panels.nth(1).getByRole('button', { name: 'Show every panel again' }).click();
   await expect(page.locator('.panel:visible')).toHaveCount(4);
-  // A double-click on the title does the same; the first panel kept its chart while hidden.
-  await frame.dblclick();
+  // A double-click on the toolbar's empty part does the same; the first panel kept its chart while hidden.
+  const free = (await bar.locator('.ptb-gap').boundingBox())!;
+  await page.mouse.dblclick(free.x + free.width / 2, free.y + free.height / 2);
   await expect(page.locator('.panel:visible')).toHaveCount(1);
   await expect(panels.first().locator('.fnh-code')).toHaveText('CHART');
-  await frame.dblclick();
+  await page.mouse.dblclick(free.x + free.width / 2, free.y + free.height / 2);
   await expect(page.locator('.panel:visible')).toHaveCount(4);
+  // Message opens the app's help desk.
+  await bar.locator('.ptb-message').click();
+  await expect(panels.first().locator('.fnh-code')).toHaveText('MESSAGES');
   expect(errors).toEqual([]);
 });
 

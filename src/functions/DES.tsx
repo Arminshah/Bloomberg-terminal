@@ -3,7 +3,6 @@ import { FnHeader } from '../components/FnHeader';
 import { LatestNews } from '../components/LatestNews';
 import { krakenOwns, krakenPairFor } from '../data/live/kraken';
 import { COINGECKO_ATTRIBUTION, coinGecko } from '../data/live/coingecko';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { Sparkline } from '../components/Sparkline';
 import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
@@ -685,7 +684,6 @@ export function DES({ sec }: FnProps) {
         tab={tab}
         onTab={setTab}
       />
-      <QuoteStrip sec={s} />
       {body}
       {/* The company's six latest stories under its profile (and under every other security's description). */}
       {engine.realOnly && (s.cls !== 'equity' || tab === 1) ? <LatestNews sec={s} /> : null}

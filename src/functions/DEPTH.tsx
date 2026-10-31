@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Freshness } from '../components/Freshness';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { Section } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { palette, useColourScheme } from '../terminal/palette';
@@ -167,7 +166,6 @@ function KrakenDepth({ sec: s }: { sec: SecurityDef }) {
           </>
         }
       />
-      <QuoteStrip sec={s} />
       {!book ? (
         <div className="empty">{failed ? 'Kraken did not answer; trying again every few seconds (PROVIDERS shows why).' : 'Loading the order book from Kraken…'}</div>
       ) : (
@@ -230,7 +228,6 @@ export function DEPTH({ sec }: FnProps) {
     return (
       <div>
         <FnHeader code="DEPTH" title="Market Depth" sec={s} sub={<BookSource id={s.id} />} />
-        <QuoteStrip sec={s} />
         <Section title="Top of book" right={engine.quote(s.id)?.src === 'CLOSE' ? 'outside the regular session' : undefined}>
           <TopOfBook sec={s} />
         </Section>
@@ -256,7 +253,6 @@ function DepthSim({ sec: s }: { sec: SecurityDef }) {
   return (
     <div>
       <FnHeader code="DEPTH" title="Market Depth" sec={s} sub={<BookSource id={s.id} />} />
-      <QuoteStrip sec={s} />
       <div className="chart-tools">
         <span>
           <span className="amber">Spread</span> {fmtNum(spread, s.dec)} ({fmtNum((spread / b.bids[0].px) * 10000, 1)} bp)

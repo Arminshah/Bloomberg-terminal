@@ -78,13 +78,13 @@ test('mnemonic display can be changed and stays saved without changing command b
   const errors = await boot(page, '1');
   await run(page, 'AAPL GP');
   await expect(page.locator('.fnh-mnemonic')).toContainText('GP');
-  await expect(page.locator('#cmd-0')).toHaveAttribute('placeholder', /AAPL US Equity GP/);
+  await expect(page.locator('#cmd-0')).toHaveAccessibleDescription(/AAPL US Equity GP/);
   await run(page, 'SETTINGS');
   await page.getByRole('checkbox', { name: 'Show short function mnemonics and <GO> cues' }).uncheck();
   await run(page, 'AAPL GP');
   await expect(page.locator('.fnh-mnemonic')).toHaveCount(0);
   await expect(page.locator('.fnh-code')).toHaveText('CHART');
-  await expect(page.locator('#cmd-0')).toHaveAttribute('placeholder', /AAPL US Equity CHART/);
+  await expect(page.locator('#cmd-0')).toHaveAccessibleDescription(/AAPL US Equity CHART/);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('armin:settings') ?? 'null')?.s?.mnemonics)).toBe(false);
   await page.reload();
   await expect(page.locator('.fnh-code')).toHaveText('CHART');
@@ -324,7 +324,7 @@ test('chart style mnemonics, intraday period and help on a typed mnemonic', asyn
   await run(page, 'GPC AAPL');
   await expect(panel.locator('.fnh-mnemonic')).toContainText('GPC');
   await expect(panel.getByRole('group', { name: 'Chart type' }).locator('button.on')).toHaveText('Candle');
-  await expect(page.locator('#cmd-0')).toHaveAttribute('placeholder', /AAPL US Equity GPC/);
+  await expect(page.locator('#cmd-0')).toHaveAccessibleDescription(/AAPL US Equity GPC/);
   await run(page, 'AAPL GPO 3M');
   await expect(panel.getByRole('group', { name: 'Chart type' }).locator('button.on')).toHaveText('Bar');
   await expect(panel.locator('.tab.on')).toHaveText('3) 3M');

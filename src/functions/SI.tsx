@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { exportActions } from '../components/ExportActions';
@@ -101,7 +100,6 @@ export function SI({ sec }: FnProps) {
         onTab={setRange}
         actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_SI.csv`, csv)}
       />
-      <QuoteStrip sec={s} />
       {!symbol ? (
         <div className="empty">Short interest comes from FINRA&apos;s consolidated record, which covers US-listed stocks (desktop app).</div>
       ) : loading ? (

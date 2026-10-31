@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { actionLabel, position, useAnalystActions, type AnalystAction, type Position } from '../data/live/analyst-actions';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { NotConnected } from '../components/NotConnected';
 import { Chg, HBar, KV, LivePx, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtIso, fmtNum, fmtPct, fmtTime } from '../core/format';
@@ -43,7 +42,6 @@ export function ANR({ sec }: FnProps) {
     return (
       <div>
         <FnHeader code="ANALYSTS" title="Analyst Recommendations" sec={s} sub="Price targets, ratings and estimates" />
-        <QuoteStrip sec={s} />
         <NotConnected
           what="This screen shows analyst price targets, the tally of broker ratings, recent rating actions and estimates."
           why="The desktop app reads FMP, Finnhub, Yahoo Finance and TipRanks research; the browser has no connected research source."
@@ -76,7 +74,6 @@ export function ANR({ sec }: FnProps) {
     return (
       <div>
         {header}
-        <QuoteStrip sec={s} />
         <div className="empty">FMP, Finnhub and Nasdaq research here covers US-listed stocks; {s.ticker} is not one. TipRanks covers some other markets:</div>
         {s.cls === 'equity' ? <TipRanksResearch key={s.id} def={s} /> : null}
       </div>
@@ -95,7 +92,6 @@ export function ANR({ sec }: FnProps) {
   return (
     <div>
       {header}
-      <QuoteStrip sec={s} />
       <div className="pad-s" style={{ display: 'flex', gap: 8 }}>
         <button type="button" className="btn" onClick={() => { retryAnalysts(); retryFinnhub(); }}>Retry analyst research</button>
         <button type="button" className="btn" onClick={() => execute(panel, 'PROVIDERS')}>Open the provider screen</button>

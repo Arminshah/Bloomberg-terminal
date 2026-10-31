@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, Section, KV } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtEarnDate, fmtIso, fmtMln, fmtNum, fmtPct } from '../core/format';
@@ -342,7 +341,6 @@ export function EE({ sec }: FnProps) {
           </>
         }
       />
-      <QuoteStrip sec={s} />
       <EarningsEvidence c={consensus} security={s.id} />
       <div className="ern-top">
         <div>

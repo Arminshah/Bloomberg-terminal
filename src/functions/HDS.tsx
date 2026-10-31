@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { DataTable } from '../components/DataTable';
 import { HBar, KV, Section } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
@@ -91,7 +90,6 @@ function Ownership({ sec: s }: { sec: NonNullable<FnProps['sec']> }) {
           </div>
         }
       />
-      <QuoteStrip sec={s} />
       <div className="qstrip hds-stats">
         <span><span className="lbl">Shrs Out</span>{Number.isFinite(out) ? `${fmtNum(out, 1)}M` : '--'}</span>
         <span><span className="lbl">% Out</span>{fmtNum(total, 2)}</span>

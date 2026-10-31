@@ -4,6 +4,10 @@ Updated 30 October 2026. This is the one list of what comes next for Armin Termi
 
 ## Next, in this order
 
+### 14. Match the provider's terminal screen for screen (asked 31 October)
+
+The owner's plan is `docs/parity-build-plan.md`, with the evidence in the owner's private reference pack (cloned into the git-ignored `reference/visual/bloomberg-pack-2026-10-31/`, never committed). Work through it in order: setup, M1 window chrome, M2 navigation and keyboard, M3 screens, M4 calculations, M5 missing functions. Its "Progress" list is ticked with each commit; start at the first unticked item. Two things never change: the typeface (`CLAUDE.md`) and the watchlist (`tests/watchlist-guard.test.ts`, `e2e/watchlist-guard.spec.ts`). The owner approved the 2024 visual corrections in the pack's `START_HERE_FOR_CLAUDE.md` except anything touching those two. Features with no counterpart stay; ask the owner before hiding any.
+
 Portfolio management (asked 30 October): build everything in the owner's upload as exact copies, on real data. The plan, the errors found in the sources and how each is handled, and what cannot match are in `docs/portfolio-management-plan.md`; each screen's description is in `docs/portfolio-management-screens.md`. Order: mean-variance maths, month-end prices, the mean-variance screen, screening (FTSE 100, gross margin, return on common equity, running match counts), the MPC back-test with the Hold policy, then the company analysis screens.
 
 2.29.0 is published. The live follow-up and the 2.29.1 patch are documented in `docs/accuracy-v2.29.1.md`. At `8234588`, CI including Windows passed; the live audit reported 553 passes, zero numerical failures, five flags, two blocked checks, three incomplete results and 103 skips. Verification remains incomplete. The earlier completed-session open/volume discrepancies still need corroboration. Next evidence work: Lilly's share definition, Exxon's revenue basis, partial supply-chain coverage and unavailable references. Keep coverage limits separate from passing software checks, and hold the 2.29.1 publication request.
