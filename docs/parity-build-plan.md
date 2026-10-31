@@ -52,7 +52,8 @@ M3. Screen parity
 - [x] WEI: News and Settings dropdowns, Movers, Volatility (10D and 30D), the change period (next commit); Ratios, Δ AVAT and Adv/Dcl not built
 - [x] IMAP: Export dropdown, grey tabs, the frame's title (next commit), checked on live data in the desktop app; Settings not built
 - [x] GP and G: the three dropdowns, both control rows, Related Data, Edit Chart (next commit); G's saved graphs, 3D and the field choice not built
-- [ ] TOP
+- [ ] TOP (left for now: see docs/TODO.md)
+- [x] YAS: the Yield & Spread page, its tabs and Settings, the measures checked against TE07 03:47 (next commit); G-Sprd, I-Sprd, ASW and True Yield blank
 
 ## 1. Rules that come before anything in this plan
 

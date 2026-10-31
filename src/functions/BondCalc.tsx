@@ -4,7 +4,8 @@ import { CalcInput, CalcSelect, CalcSource } from '../components/CalcInputs';
 import { XYChart } from '../components/chart/XYChart';
 import { KV, Section } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
-import { fmtDay, fmtNum } from '../core/format';
+import { fmtBig, fmtDay, fmtNum } from '../core/format';
+import { afterTaxYield, currentYield, invoice, moneyMarketYield, restateYield, yasRisk } from '../finance/yas';
 import { engine } from '../data/market';
 import { analytics, cleanFromYield, couponSchedule, DAY_COUNTS, defaultSettlementLag, parseCallSchedule, settlementDate, to32nds, workouts, yieldFromClean, type BondAnalytics, type BondTerms, type DayCount } from '../finance/bonds';
 import { contractDate, inputNumber } from '../finance/contracts';
@@ -36,6 +37,14 @@ export function BondCalc({ sec }: FnProps) {
       basis: 'ACT/ACT ICMA', mode: 'yield', value: '', face: '1000000', benchmark: '', curve: '', calls: '' };
   });
   const [example, setExample] = useState(false);
+  // YAS's page tabs and its own settings (TE07 03:47): yields quoted semi-annually, modified duration, Equiv once a
+  // year, the after-tax yield at the frame's 40.8 % income and 23.8 % capital gains rates.
+  const [tab, setTab] = useState(1);
+  const [quoteBasis, setQuoteBasis] = useState(2);
+  const [durKind, setDurKind] = useState<'mod' | 'mac'>('mod');
+  const [equivFreq, setEquivFreq] = useState(1);
+  const [incTax, setIncTax] = useState('40.8');
+  const [cgTax, setCgTax] = useState('23.8');
   const update = (fn: (f: Form) => Form) => { setForm(fn); setExample(false); };
   const set = (key: keyof Form, value: string) => update((f) => ({ ...f, [key]: value }));
   const marketLag = String(defaultSettlementLag(sec?.cls === 'bond' ? sec : undefined));
@@ -66,6 +75,10 @@ export function BondCalc({ sec }: FnProps) {
     }
   }
   const r = result;
+  const risk = yasRisk(r ?? ({} as BondAnalytics), terms.freq, quoteBasis);
+  const inv = invoice(r ?? ({} as BondAnalytics), face);
+  const mmkt = r ? moneyMarketYield(terms, settle, r) : NaN;
+  const afterTax = r ? afterTaxYield(terms, settle, r, inputNumber(incTax), inputNumber(cgTax)) : NaN;
   const benchmark = inputNumber(form.benchmark);
   const gSpread = r && Number.isFinite(benchmark) && benchmark > -100 * terms.freq ? (r.yield - benchmark) * 100 : NaN;
   let spread: ReturnType<typeof bondSpreadValue> | undefined;
@@ -106,7 +119,20 @@ export function BondCalc({ sec }: FnProps) {
   ];
   return <div>
     <FnHeader code="BONDCALC" title="Yield & Spread Analysis" sec={sec} sub={`${work ? 'Fixed-rate bond with calls' : 'Regular fixed-rate bullet'} · ${basisLabel} · ${form.lag === 'manual' ? 'manual settlement' : lagLabel.replace(/ \(.*\)$/, '')}`}
-      actions={[{ n: 1, label: 'Example', onClick: () => { setForm(EXAMPLE); setExample(true); } }, ...(r ? exportActions(panel, 'bond-calculation.csv', rows) : [])]} />
+      plainTabs
+      tabs={[{ n: 1, label: 'Yield & Spread' }, { n: 2, label: 'Graphs' }, { n: 3, label: 'Pricing' }, { n: 4, label: 'Description' }, { n: 6, label: 'Calls' }]}
+      tab={tab}
+      onTab={setTab}
+      actions={[{
+        n: 9971,
+        bare: true,
+        label: 'Settings',
+        onClick: () => {},
+        menu: [
+          { label: 'Load the Calculation Example', onClick: () => { setForm(EXAMPLE); setExample(true); } },
+          ...(r ? exportActions(panel, 'bond-calculation.csv', rows).map((a, i) => ({ label: a.label === 'Copy' ? 'Copy the Calculation' : 'Download as CSV', title: a.title, sep: i === 0, onClick: a.onClick })) : []),
+        ],
+      }]} />
     <CalcSource>{example ? 'Example inputs. ' : 'Your contract terms and price/yield. '}Calculated price, yield risk and optional benchmark/Z-spreads. Supply the benchmark or zero curve; no market quote, curve or issue terms are inferred.</CalcSource>
     <div className="chart-tools">
       <CalcInput label="Coupon %" value={form.coupon} onChange={(v) => set('coupon', v)} />
@@ -121,7 +147,124 @@ export function BondCalc({ sec }: FnProps) {
       <CalcInput label={form.mode === 'price' ? 'Clean price per 100' : 'Yield %'} value={form.value} onChange={(v) => set('value', v)} />
       <CalcInput label="Face amount" value={form.face} onChange={(v) => set('face', v)} />
     </div>
-    {!r ? <div className="pad amber" role="status">{error} Enter your inputs or load the calculation example.</div> : <>
+    {!r ? <div className="pad amber" role="status">{error} Enter your inputs or load the calculation example.</div> : tab === 1 ? <>
+      {/* The Yield & Spread page as TE07 03:47 lays it out: the inputs at the left, Risk at the right, then Spreads,
+          Yield Calculations and Invoice, and the after-tax yield. */}
+      <div className="yas" data-testid="yas-page">
+        <div className="yas-head">{sec?.cls === 'bond' ? sec.name : `${fmtNum(terms.coupon, 3)} ${fmtDay(terms.maturity.getTime(), true)}`}</div>
+        <div className="yas-top">
+          <div className="yas-in">
+            <span className="amber">Spread</span>
+            <span className="yas-box" title="The yield over the benchmark yield typed beside it, in basis points (YAS's spread to its benchmark)">{Number.isFinite(gSpread) ? <span data-testid="bond-g-spread">{fmtNum(gSpread, 2)}</span> : ''}</span>
+            <span className="yas-unit">bp vs</span>
+            <span className="yas-bench"><CalcInput label="Benchmark nominal yield %" value={form.benchmark} onChange={(v) => set('benchmark', v)} /></span>
+            <span className="amber">Price</span>
+            <span className="yas-box"><span data-testid="bond-clean">{fmtNum(r.clean, 6)}</span></span>
+            <span className="yas-unit">{to32nds(r.clean)}</span>
+            <span />
+            <span className="amber">Yield</span>
+            <span className="yas-box" title={quoteBasis === terms.freq ? undefined : `${fmtNum(r.yield, 6)} on the bond's own ${terms.freq} times a year`}>{fmtNum(risk.yieldPct, 6)}</span>
+            <span className="yas-unit">{work?.toWorst && work.toWorst.kind === 'call' ? 'Wst' : 'Mty'}</span>
+            <select className="sel-inp yas-basis" aria-label="Yields are" value={quoteBasis} onChange={(e) => setQuoteBasis(Number(e.target.value))}>
+              <option value={2}>S/A</option>
+              <option value={1}>Annual</option>
+              {![1, 2].includes(terms.freq) && <option value={terms.freq}>{terms.freq}/Yr</option>}
+            </select>
+            <span className="amber">Wkout</span>
+            <span className="yas-plain">{fmtDay((work?.toWorst?.date ?? terms.maturity).getTime(), true)} @ {fmtNum(work?.toWorst?.price ?? 100, 2)}</span>
+            <span />
+            <span />
+            <span className="amber">Accrued</span>
+            <span className="yas-plain"><span data-testid="bond-accrued">{fmtNum(r.accrued, 6)}</span></span>
+            <span className="yas-unit"><span data-testid="bond-accrued-days">{`${r.accruedDays} of ${fmtNum(r.periodDays, Number.isInteger(r.periodDays) ? 0 : 1)}`}</span> days</span>
+            <span />
+            <span className="amber">Settle</span>
+            <span className="yas-plain">{fmtDay(settle.getTime(), true)}</span>
+            <span />
+            <span />
+          </div>
+          <div className="yas-risk">
+            <div className="yas-strip">Risk</div>
+            <div className="yas-radio" role="radiogroup" aria-label="Duration">
+              <label><input type="radio" checked={durKind === 'mod'} onChange={() => setDurKind('mod')} /> M.Dur</label>
+              <label><input type="radio" checked={durKind === 'mac'} onChange={() => setDurKind('mac')} /> Dur</label>
+              <span className="num white">{fmtNum(durKind === 'mod' ? risk.modified : r.macaulay, 3)}</span>
+            </div>
+            <KV items={[
+              [<span key="r" title="Modified duration times the full price over 100, as YAS shows it">Risk</span>, fmtNum(risk.risk, 3)],
+              [<span key="c" title="Convexity scaled by a hundredth, as YAS shows it">Convexity</span>, fmtNum(risk.convexity, 3)],
+              [`DV01 on ${face === 1_000_000 ? '1MM' : fmtBig(face, 0)}`, fmtNum(risk.dvOn(face), 2)],
+              [<span key="b" title="Needs the benchmark bond's own terms, which the calculator does not take">Benchmark Risk</span>, '--'],
+              [<span key="h" title="Needs the benchmark bond's own terms">Risk Hedge</span>, '--'],
+              [<span key="p" title="Needs the benchmark bond's own terms">Proceeds Hedge</span>, '--'],
+            ]} />
+          </div>
+        </div>
+        <div className="yas-bottom">
+          <div>
+            <div className="yas-strip">Spreads</div>
+            <table className="tbl yas-tbl"><tbody>
+              <tr><td><b className="yas-n">11)</b> <span className="amber" title="Against the government curve interpolated at maturity; the calculator takes no curve of yields">G-Sprd</span></td><td className="num">--</td></tr>
+              <tr><td><b className="yas-n">12)</b> <span className="amber" title="Against the swap curve; no source the app reads gives one">I-Sprd</span></td><td className="num">--</td></tr>
+              <tr><td><b className="yas-n">13)</b> <span className="amber" title="Against a futures contract's implied yield; not modelled">Basis</span></td><td className="num">--</td></tr>
+              <tr><td><b className="yas-n">14)</b> <span className="amber" title="From the zero curve typed below">Z-Sprd</span></td><td className="num">{spread ? fmtNum(spread.spreadBp, 1) : '--'}</td></tr>
+              <tr><td><b className="yas-n">15)</b> <span className="amber" title="Needs a swap curve; no source the app reads gives one">ASW</span></td><td className="num">--</td></tr>
+              <tr><td><b className="yas-n">16)</b> <span className="amber" title="For a bullet bond the option-adjusted spread is the Z-spread; with calls it needs a rate tree, not modelled">OAS</span></td><td className="num">{spread && !work ? fmtNum(spread.spreadBp, 1) : '--'}</td></tr>
+            </tbody></table>
+          </div>
+          <div>
+            <div className="yas-strip">Yield Calculations</div>
+            <table className="tbl yas-tbl"><tbody>
+              <tr><td className="amber">Street Convention</td><td className="num"><span data-testid="bond-yield">{fmtNum(r.yield, 6)}</span></td></tr>
+              <tr><td className="amber">Equiv <select className="sel-inp yas-mini" aria-label="Equivalent frequency" value={equivFreq} onChange={(e) => setEquivFreq(Number(e.target.value))}>{[1, 2, 4, 12].map((f) => <option key={f} value={f}>{f}</option>)}</select> /Yr</td><td className="num">{fmtNum(restateYield(r.yield, terms.freq, equivFreq), 6)}</td></tr>
+              <tr><td className="amber" title="Simple interest on Act/360, for a bond in its last coupon period">Mmkt (Act/360)</td><td className="num">{Number.isFinite(mmkt) ? fmtNum(mmkt, 6) : ''}</td></tr>
+              <tr><td className="amber" title="Needs a holiday calendar to move each payment to its business day; the app has none">True Yield</td><td className="num">--</td></tr>
+              <tr><td className="amber">Current Yield</td><td className="num">{fmtNum(currentYield(terms.coupon, r.clean), 3)}</td></tr>
+            </tbody></table>
+          </div>
+          <div>
+            <div className="yas-strip">Invoice</div>
+            <table className="tbl yas-tbl"><tbody>
+              <tr><td className="amber">Face</td><td className="num">{fmtNum(inv.face, 0)}</td></tr>
+              <tr><td className="amber">Principal</td><td className="num">{fmtNum(inv.principal, 2)}</td></tr>
+              <tr><td className="amber">Accrued ({inv.days} Days)</td><td className="num">{fmtNum(inv.accrued, 2)}</td></tr>
+              <tr><td className="amber">Total{sec?.ccy ? ` (${sec.ccy})` : ''}</td><td className="num white">{fmtNum(inv.total, 2)}</td></tr>
+            </tbody></table>
+          </div>
+        </div>
+        <div className="yas-tax">
+          <span className="amber">After Tax (Inc</span>
+          <input className="inp yas-mini" aria-label="Income tax %" value={incTax} onChange={(e) => setIncTax(e.target.value)} />
+          <span className="amber">% CG</span>
+          <input className="inp yas-mini" aria-label="Capital gains tax %" value={cgTax} onChange={(e) => setCgTax(e.target.value)} />
+          <span className="amber">%)</span>
+          <span className="white" data-testid="bond-after-tax">{Number.isFinite(afterTax) ? fmtNum(afterTax, 6) : '--'}</span>
+        </div>
+      </div>
+      <Section title="Zero curve for Z-Sprd">
+        <div className="pad-s"><label className="fld" style={{ display: 'block', whiteSpace: 'normal' }}>Zero curve: years from settlement, continuous zero %<textarea className="inp" aria-label="Bond zero curve" rows={4} value={form.curve} onChange={(e) => set('curve', e.target.value)} placeholder={'1,3\n5,3\n10,3'} spellCheck={false} style={{ width: 'min(100%, 500px)', display: 'block' }} /></label></div>
+        <p className="pad-s muted">ACT/365F cash-flow times; log-linear discount factors from settlement, no extrapolation. A constant continuous spread is added at every payment date. Treasury par yields must be bootstrapped into zero rates before use.</p>
+        {spreadError ? <div className="pad-s amber" role="status">{spreadError}</div> : spread ? <>
+          <KV items={[
+            ['Z-spread bp', <span key="z" data-testid="bond-z-spread">{fmtNum(spread.spreadBp, 6)}</span>],
+            ['Zero-spread clean price / 100', fmtNum(spread.zeroSpreadClean, 6)], ['Spread duration (years)', fmtNum(spread.spreadDuration, 6)],
+            ['Z01 per 100 face', fmtNum(spread.z01, 6)], ['Z01 for face amount', fmtNum(spread.z01 * face / 100, 2)],
+          ]} />
+          <table className="tbl"><thead><tr><th>Z-spread shift bp</th><th className="num">Clean / 100</th><th className="num">P&L for face amount</th></tr></thead><tbody>{spread.scenarios.map((s) => <tr key={s.bp}><td>{s.bp}</td><td className="num">{fmtNum(s.clean, 6)}</td><td className="num">{fmtNum((s.clean - r.clean) * face / 100, 2)}</td></tr>)}</tbody></table>
+        </> : <p className="pad-s muted">Enter a zero curve to solve Z-spread. This is an option-free spread, not an option-adjusted spread.</p>}
+      </Section>
+    </> : tab === 2 ? <>
+      <div className="cols">
+        <Section title="Price / yield"><XYChart height={210} series={[{ label: 'Clean price / 100', color: '#ffb547', points }]} xFormat={(v) => `${fmtNum(v, 2)}%`} yFormat={(v) => fmtNum(v, 2)} /></Section>
+      </div>
+      <div className="cols"><Section title="Parallel yield scenarios"><table className="tbl"><thead><tr><th>Shift bp</th><th className="num">Clean / 100</th><th className="num">Price change</th><th className="num">P&L</th></tr></thead>
+        <tbody>{scenarios.map((s) => <tr key={s.bp}><td>{s.bp > 0 ? '+' : ''}{s.bp}</td><td className="num">{fmtNum(s.price, 6)}</td><td className="num">{fmtNum(s.change, 6)}</td><td className="num">{fmtNum(s.pnl, 2)}</td></tr>)}</tbody></table></Section>
+</div>
+    </> : tab === 3 ? <>
+      <div className="cols"><Section title="Cash flows" right={`${cash.length} payments`}><div style={{ maxHeight: 300, overflow: 'auto' }}><table className="tbl"><thead><tr><th>Payment date</th><th className="num">Cash flow / 100</th><th className="num">PV / 100</th></tr></thead>
+          <tbody>{cash.map((c) => <tr key={c.date.getTime()}><td>{fmtDay(c.date.getTime(), true)}</td><td className="num">{fmtNum(c.amount, 6)}</td><td className="num">{fmtNum(c.pv, 6)}</td></tr>)}</tbody></table></div></Section></div>
+
+    </> : tab === 4 ? <>
       <div className="cols">
         <Section title="Price and yield"><KV items={[
           ['Clean price / 100', <span key="p" data-testid="bond-clean" className="white b">{fmtNum(r.clean, 6)}</span>],
@@ -136,23 +279,8 @@ export function BondCalc({ sec }: FnProps) {
           ['Macaulay duration (years)', fmtNum(r.macaulay, 6)], ['Modified duration', fmtNum(r.modified, 6)], ['Convexity', fmtNum(r.convexity, 6)],
           ['DV01 per 100 face', fmtNum(r.dv01, 6)], ['DV01 for face amount', fmtNum(r.dv01 * face / 100, 2)], ['Remaining coupons', String(r.remaining)],
         ]} /></Section>
-        <Section title="Price / yield"><XYChart height={210} series={[{ label: 'Clean price / 100', color: '#ffb547', points }]} xFormat={(v) => `${fmtNum(v, 2)}%`} yFormat={(v) => fmtNum(v, 2)} /></Section>
       </div>
-      <Section title="Benchmark and zero-curve spreads">
-        <div className="chart-tools"><CalcInput label="Benchmark nominal yield %" value={form.benchmark} onChange={(v) => set('benchmark', v)} /></div>
-        <p className="pad-s muted">G-spread compares your bond yield with the entered benchmark yield. Use matching nominal compounding and a suitable government benchmark maturity.</p>
-        {form.benchmark.trim() && !Number.isFinite(gSpread) ? <p className="pad-s amber" role="status">Enter a finite benchmark yield above the compounding lower bound.</p> : <p className="pad-s">G-spread bp: <span className="white" data-testid="bond-g-spread">{fmtNum(gSpread, 4)}</span></p>}
-        <div className="pad-s"><label className="fld" style={{ display: 'block', whiteSpace: 'normal' }}>Zero curve: years from settlement, continuous zero %<textarea className="inp" aria-label="Bond zero curve" rows={4} value={form.curve} onChange={(e) => set('curve', e.target.value)} placeholder={'1,3\n5,3\n10,3'} spellCheck={false} style={{ width: 'min(100%, 500px)', display: 'block' }} /></label></div>
-        <p className="pad-s muted">ACT/365F cash-flow times; log-linear discount factors from settlement, no extrapolation. A constant continuous spread is added at every payment date. Treasury par yields must be bootstrapped into zero rates before use.</p>
-        {spreadError ? <div className="pad-s amber" role="status">{spreadError}</div> : spread ? <>
-          <KV items={[
-            ['Z-spread bp', <span key="z" data-testid="bond-z-spread">{fmtNum(spread.spreadBp, 6)}</span>],
-            ['Zero-spread clean price / 100', fmtNum(spread.zeroSpreadClean, 6)], ['Spread duration (years)', fmtNum(spread.spreadDuration, 6)],
-            ['Z01 per 100 face', fmtNum(spread.z01, 6)], ['Z01 for face amount', fmtNum(spread.z01 * face / 100, 2)],
-          ]} />
-          <table className="tbl"><thead><tr><th>Z-spread shift bp</th><th className="num">Clean / 100</th><th className="num">P&L for face amount</th></tr></thead><tbody>{spread.scenarios.map((s) => <tr key={s.bp}><td>{s.bp}</td><td className="num">{fmtNum(s.clean, 6)}</td><td className="num">{fmtNum((s.clean - r.clean) * face / 100, 2)}</td></tr>)}</tbody></table>
-        </> : <p className="pad-s muted">Enter a zero curve to solve Z-spread. This is an option-free spread, not an option-adjusted spread.</p>}
-      </Section>
+    </> : <>
       <Section title="Call schedule: yield to call and to worst">
         <div className="pad-s"><label className="fld" style={{ display: 'block', whiteSpace: 'normal' }}>Calls: one a line, date and price per 100<textarea className="inp" aria-label="Call schedule" rows={4} value={form.calls} onChange={(e) => set('calls', e.target.value)} placeholder={'2028-06-15, 102\n2029-06-15, 101\n2030-06-15, 100'} spellCheck={false} style={{ width: 'min(100%, 500px)', display: 'block' }} /></label></div>
         {callError ? <div className="pad-s amber" role="status">{callError}</div> : work ? <>
@@ -167,10 +295,6 @@ export function BondCalc({ sec }: FnProps) {
         </> : <p className="pad-s muted">{skipped ? `No call between settlement and maturity (left out: ${skipped}).` : 'Type the call dates and prices to get the yield to each call and the yield to worst.'}</p>}
         <p className="pad-s muted">Each call is treated as a redemption on its date at its price: the coupons on the bond&apos;s schedule before it, then the price and the coupon accrued since the last coupon date, discounted at the yield as for maturity. The yield to worst is the lowest of the yields to each call and to maturity, from the clean price above; the price to worst is the lowest clean price at the yield above. The option itself has no value here: this is not an option-adjusted spread. Price, accrued and the risk measures above are to maturity.</p>
       </Section>
-      <div className="cols"><Section title="Parallel yield scenarios"><table className="tbl"><thead><tr><th>Shift bp</th><th className="num">Clean / 100</th><th className="num">Price change</th><th className="num">P&L</th></tr></thead>
-        <tbody>{scenarios.map((s) => <tr key={s.bp}><td>{s.bp > 0 ? '+' : ''}{s.bp}</td><td className="num">{fmtNum(s.price, 6)}</td><td className="num">{fmtNum(s.change, 6)}</td><td className="num">{fmtNum(s.pnl, 2)}</td></tr>)}</tbody></table></Section>
-        <Section title="Cash flows" right={`${cash.length} payments`}><div style={{ maxHeight: 300, overflow: 'auto' }}><table className="tbl"><thead><tr><th>Payment date</th><th className="num">Cash flow / 100</th><th className="num">PV / 100</th></tr></thead>
-          <tbody>{cash.map((c) => <tr key={c.date.getTime()}><td>{fmtDay(c.date.getTime(), true)}</td><td className="num">{fmtNum(c.amount, 6)}</td><td className="num">{fmtNum(c.pv, 6)}</td></tr>)}</tbody></table></div></Section></div>
     </>}
     <p className="pad-s muted">Regular fixed-rate bullet, nominal yield compounded at coupon frequency. {basisLabel}: accrued interest is coupon/frequency × accrued days / period days and the first cash flow is discounted DSC/E periods, both on that day count. Settlement lags count weekdays only, with no holiday calendar. Dates are unadjusted. Confirm contractual settlement, day count and coupon schedule; calls count only as typed in the call schedule, and stubs, sinking funds, defaults and taxes are outside this model.</p>
   </div>;

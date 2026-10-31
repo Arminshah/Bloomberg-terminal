@@ -60,7 +60,7 @@ export function moneyMarketYield(terms: BondTerms, settle: Date, a: BondAnalytic
  * tax, and the redemption less tax on the gain over the clean price paid, to the full price; the accrued interest
  * bought is returned untaxed in the first coupon. Periods and discounting as the street yield.
  */
-export function afterTaxYield(terms: BondTerms, settle: Date, a: BondAnalytics, incomeTax: number, gainsTax: number): number {
+export function afterTaxYield(terms: BondTerms, _settle: Date, a: BondAnalytics, incomeTax: number, gainsTax: number): number {
   const freq = terms.freq ?? 2;
   const cpn = terms.coupon / freq;
   const n = a.remaining;

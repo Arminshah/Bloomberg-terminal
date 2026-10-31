@@ -1637,6 +1637,26 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .gp-related-menu button { display: block; width: 100%; padding: 2px 10px; border: 0; background: transparent; text-align: left; font-size: var(--fs); white-space: nowrap; }
 .gp-related-menu button:hover { background: #153b67; }
 .gp-studies { flex-wrap: wrap; gap: 3px; }
+/* YAS's Yield & Spread page (TE07 03:47): amber input boxes at the left, Risk at the right, three panels under them. */
+.yas { padding: 4px 8px; }
+.yas-head { color: var(--white); padding: 2px 0 4px; }
+.yas-top { display: grid; grid-template-columns: minmax(320px, 1.4fr) minmax(220px, 1fr); gap: 0 16px; }
+.yas-in { display: grid; grid-template-columns: auto minmax(90px, auto) auto 1fr; align-items: center; gap: 3px 8px; align-content: start; }
+.yas-box { min-width: 90px; padding: 0 6px; background: var(--amber); color: #000; text-align: right; }
+.yas-plain { color: var(--white); }
+.yas-unit { color: #e8e8e8; white-space: nowrap; }
+.yas-bench .fld { gap: 4px; }
+.yas-basis, .yas-mini { width: auto; min-width: 3.5em; justify-self: start; }
+.yas-risk .kv { margin: 0; }
+.yas-strip { padding: 1px 6px; background: #222; color: var(--white); }
+.yas-radio { display: flex; align-items: center; gap: 12px; padding: 2px 6px; color: var(--amber); }
+.yas-radio .num { margin-left: auto; }
+.yas-bottom { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 12px; margin-top: 8px; }
+.yas-tbl td { padding: 1px 6px; }
+.yas-n { color: #b0b0b0; font-weight: 500; }
+.yas-tax { display: flex; align-items: center; gap: 6px; padding: 6px 0 2px; }
+.yas-tax .yas-mini { width: 4em; }
+@media (max-width: 900px) { .yas-top, .yas-bottom { grid-template-columns: 1fr; } }
 .fa-set { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--white); }
 .fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid #1d1d1d; background: #000; }
 .fa-bottom > button { background: #434142; border: 0; color: var(--white); padding: 0 12px; }
