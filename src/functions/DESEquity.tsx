@@ -36,7 +36,9 @@ export const EQUITY_DES_TABS = [
   { n: 2, label: 'Issue Info' },
   { n: 3, label: 'Ratios' },
   { n: 4, label: 'Revenue & EPS' },
-  { n: 5, label: 'Industry Info' },
+  { n: 5, label: 'ESG' },
+  // The app's own, after the five the terminal shows (brochure 2025 p.13).
+  { n: 6, label: 'Industry Info' },
 ];
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -140,6 +142,12 @@ export function inMillions(v: number | undefined): string {
   return v !== undefined && Number.isFinite(v) ? `${fmtNum(v, 1)}M` : '--';
 }
 
+/** A market value given in millions, as DES writes it: in billions from a billion up ("2,400.3B"), else in millions. */
+export function marketCapText(millions: number | undefined): string {
+  if (millions === undefined || !Number.isFinite(millions)) return '--';
+  return Math.abs(millions) >= 1000 ? `${fmtNum(millions / 1000, 1)}B` : inMillions(millions);
+}
+
 export const isChiefExecutive = (title: string) => /\b(?:CEO|Chief Executive)\b/i.test(title) && !/\b(?:former|retired|interim)\b/i.test(title);
 
 /**
@@ -193,7 +201,6 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   useEffect(() => wantShares(sec.id), [sec.id]);
   const ccy = reportCcy(sec);
   const est = useAnalysts(analystsAvailable() && analystSymbol(sec) ? sec : undefined, ['estimates', 'consensus', 'ratings']);
-  const analysts = useAnalystSnapshot(sec);
   const estPart = est.estimates as AnalystPart<Estimate[]> | undefined;
   const annual = financials(sec).annual;
   const { fy, next } = fiscalEstimates(estPart, annual.length ? annual[annual.length - 1].end : NaN);
@@ -243,8 +250,6 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const f = real?.float;
   // Outside the US no short interest is published for the whole market: the rows say so instead of dashes.
   const noShortData = engine.realOnly && sec.country !== 'US' && !(f && (Number.isFinite(f.short) || Number.isFinite(f.daysToCover)));
-  const mix = real ? [] : revenueMix(sec);
-  const hs = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 3);
   // The boxes take the numbers the terminal's description page gives them; a number typed with GO opens the box.
   const items: MenuItem[] = useMemo(() => {
     const go = (fn: string) => () => execute(panel, `${sec.id} ${fn}`);
@@ -254,9 +259,6 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
       { n: 10, label: 'Analyst Ratings', run: go('ANALYSTS') },
       { n: 12, label: 'Dividend', run: go('DIVIDENDS') },
       { n: 15, label: 'Management', run: go('MANAGEMENT') },
-      { n: 19, label: '12M Total Return', run: go('TOTALRETURN') },
-      { n: 20, label: 'Beta', run: go('BETA') },
-      { n: 21, label: 'Ownership', run: go('HOLDERS') },
     ];
     if (eq.web) list.push({ n: 14, label: 'Website', run: () => window.open(eq.web, '_blank', 'noopener') });
     officers.forEach((_, i) => list.push({ n: 16 + i, label: 'Management', run: go('MANAGEMENT') }));
@@ -307,7 +309,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               [`52 Wk H (${fmtDay(rs.hi52t)})`, fmtNum(rs.hi52, sec.dec)],
               [`52 Wk L (${fmtDay(rs.lo52t)})`, fmtNum(rs.lo52, sec.dec)],
               ['YTD Change/%', pair(<Chg key="a" v={ytdAbs} dec={sec.dec} />, <Chg key="p" v={ytd} pct />)],
-              [`Mkt Cap (${ks.tradeCcy})`, <MarketValue key="mc" sec={sec}><CapLink id={sec.id}>{inMillions(ks.mcap)}</CapLink></MarketValue>],
+              [`Mkt Cap (${ks.tradeCcy})`, <MarketValue key="mc" sec={sec}><CapLink id={sec.id}>{marketCapText(ks.mcap)}</CapLink></MarketValue>],
               ...(ks.tradeCcy === 'USD' ? [] : [['Mkt Cap (USD)', <MarketValue key="mcu" sec={sec} currency="USD"><CapLink id={sec.id}>{fmtBig(marketCapUsd(sec.id))}</CapLink></MarketValue>] as [string, ReactNode]]),
               ['Shrs Out/Float', <MarketValue key="so" sec={sec} measure="shares">{pair(inMillions(eq.shares), f && Number.isFinite(f.float) ? inMillions(f.float / 1e6) : '--')}</MarketValue>],
               ...(noShortData
@@ -347,9 +349,6 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               />
             )}
           </Box>
-          <Box n={10} title="Analyst Ratings" fn="ANALYSTS" sec={sec}>
-            <AnalystSummary sec={sec} snap={analysts} />
-          </Box>
         </div>
         <div className="des-col">
           <Box n={13} title="Corporate Info" sec={sec}>
@@ -360,7 +359,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
                 </button>
               )}
               <div className="amber">{city || (engine.realOnly ? '' : '--')}</div>
-              <KV items={[['Empls', eq.emp > 0 ? fmtInt(eq.emp) : '--'], ['Fiscal Year End', MONTHS[eq.fye - 1] ?? '--'], ['Exchange', sec.exch ?? '--']]} />
+              <KV items={[['Empls', eq.emp > 0 ? fmtInt(eq.emp) : '--']]} />
             </div>
           </Box>
           <Box n={15} title="Management" fn="MANAGEMENT" sec={sec}>
@@ -379,10 +378,11 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               </ol>
             )}
           </Box>
+          {/* No numbers on these two, even with values (brochure 2025 p.13, TE01 01:45): 18) runs on to 21). */}
           <dl className="kv des-links">
             <dt>
               <button type="button" className="des-link" onClick={() => execute(panel, `${sec.id} TOTALRETURN`)}>
-                <b className="des-n">19)</b> 12M Tot Ret
+                12M Tot Ret
               </button>
             </dt>
             <dd title="The price change with the dividends reinvested on their ex-dates, from the close a year before the latest session">
@@ -390,7 +390,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
             </dd>
             <dt>
               <button type="button" className="des-link" onClick={() => execute(panel, `${sec.id} BETA`)}>
-                <b className="des-n">20)</b> {beta.label}
+                {beta.label}
               </button>
             </dt>
             <dd title={beta.title}>
@@ -398,42 +398,9 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
               {beta.worked ? '*' : ''}
             </dd>
           </dl>
-          <Box n={21} title="Ownership" fn="HOLDERS" sec={sec}>
-            {real && !Number.isFinite(real.breakdown?.institutions) && !Number.isFinite(real.breakdown?.insiders) && !Number.isFinite(real.breakdown?.count) ? (
-              <p className="pad-s muted">No ownership breakdown from the sources for this company; HOLDERS lists the holders they give.</p>
-            ) : real ? (
-              <KV
-                items={[
-                  ['Institutions', fmtPct(real.breakdown?.institutions, 2, false)],
-                  ['Insiders', fmtPct(real.breakdown?.insiders, 2, false)],
-                  ['Inst. holders', fmtInt(real.breakdown?.count)],
-                ]}
-              />
-            ) : engine.realOnly ? (
-              <p className="pad-s muted">{fundVersion.get().status[sec.id] === 'error' ? 'No ownership data from the sources for this company.' : 'Loading ownership…'}</p>
-            ) : (
-              <KV items={hs.map((h) => [h.name, `${fmtNum(h.pct, 2)}%`] as [string, string])} />
-            )}
+          <Box n={21} title="Depositary Receipts" sec={sec}>
+            <KV items={[['Active Receipts', <span key="r" className="muted" title="Depositary receipts on the company's shares: none of the app's sources lists them">--</span>]]} />
           </Box>
-          {mix.length > 0 && (
-            <Section title="Revenue by region" right={<span className="badge sim">DEMO DATA</span>}>
-              <table className="tbl">
-                <tbody>
-                  {mix.map((m) => (
-                    <tr key={m.region}>
-                      <td style={{ width: 70 }}>{m.region}</td>
-                      <td>
-                        <HBar value={m.pct} max={100} color="var(--amber)" />
-                      </td>
-                      <td className="num" style={{ width: 56 }}>
-                        {fmtNum(m.pct, 1)}%
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Section>
-          )}
         </div>
       </div>
     </>
@@ -529,6 +496,7 @@ function IssueInfoPage({ sec }: { sec: SecurityDef }) {
           <KV
             items={[
               ['Sec Type', 'Common Stock'],
+              ['Fiscal Year End', MONTHS[eq.fye - 1] ?? '--'],
               ['Pri Exch', sec.exch ?? '--'],
               ['PAR', noSource],
               ['Pri MIC', marketIdentifier(sec.exch)],
@@ -629,6 +597,8 @@ function RatiosPage({ sec }: { sec: SecurityDef }) {
 // ---------------------------------------------------------------- 4) Revenue & EPS
 
 function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
+  const analysts = useAnalystSnapshot(sec);
+  const mix = getRealFund(sec.id) ? [] : revenueMix(sec);
   const f = financials(sec);
   const ccy = reportCcy(sec);
   const years = f.annual.slice(-6);
@@ -743,11 +713,56 @@ function RevenueEpsPage({ sec }: { sec: SecurityDef }) {
           </table>
         </Section>
       )}
+      {/* The app's own boxes, moved from the profile page so that page matches the terminal's (brochure 2025 p.13). */}
+      <div className="cols">
+        <Box n={10} title="Analyst Ratings" fn="ANALYSTS" sec={sec}>
+          <AnalystSummary sec={sec} snap={analysts} />
+        </Box>
+        <div>
+          {mix.length > 0 && (
+            <Section title="Revenue by region" right={<span className="badge sim">DEMO DATA</span>}>
+              <table className="tbl">
+                <tbody>
+                  {mix.map((m) => (
+                    <tr key={m.region}>
+                      <td style={{ width: 70 }}>{m.region}</td>
+                      <td>
+                        <HBar value={m.pct} max={100} color="var(--amber)" />
+                      </td>
+                      <td className="num" style={{ width: 56 }}>
+                        {fmtNum(m.pct, 1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Section>
+          )}
+        </div>
+      </div>
     </>
   );
 }
 
-// ---------------------------------------------------------------- 5) Industry Info
+// ---------------------------------------------------------------- 5) ESG
+
+/**
+ * The ESG tab (brochure 2025 p.13 names it; the 2022 article's picture shows its scores): ESG scores are the
+ * provider's own or other agencies' licensed data, which the app has no source for, so the page says so.
+ */
+function EsgPage({ sec }: { sec: SecurityDef }) {
+  const why = 'ESG scores are licensed data of the provider and of rating agencies; none of the app\'s sources gives them';
+  return (
+    <div className="cols">
+      <Section title="ESG Scores">
+        <KV items={['ESG Disclosure Score', 'Environmental', 'Social', 'Governance'].map((k) => [k, <span key={k} className="muted" title={why}>--</span>] as [string, ReactNode])} />
+        <div className="note muted">{why}. The company publishes its own sustainability reports; FILINGS lists its filings{sec.country === 'US' ? ' with the SEC' : ''}.</div>
+      </Section>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 6) Industry Info
 
 function IndustryPage({ sec }: { sec: SecurityDef }) {
   const tick = useTick(5);
@@ -804,6 +819,8 @@ export function EquityDES({ sec, tab }: { sec: SecurityDef; tab: number }) {
     case 4:
       return <RevenueEpsPage sec={sec} />;
     case 5:
+      return <EsgPage sec={sec} />;
+    case 6:
       return <IndustryPage sec={sec} />;
     default:
       return <ProfilePage sec={sec} />;

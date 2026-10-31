@@ -742,6 +742,8 @@ export function DES({ sec }: FnProps) {
         tabs={tabs}
         tab={tab}
         onTab={setTab}
+        plainTabs
+        paged={!!tabs}
       />
       {body}
       {/* The company's six latest stories under its profile (and under every other security's description). */}

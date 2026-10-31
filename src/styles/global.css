@@ -707,6 +707,12 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 }
 .tab:hover { background: var(--bg-4); }
 .tab.on { background: #253f77; border-top-color: #b5d2ff; color: var(--white); }
+/* Screen tabs as DES and FA draw them in 2024 (TE01 03:11, TE04 04:55): unnumbered, the active one light grey with
+   black text (#A19FA2), the others dark grey (#464646) with light text, a slanted right edge. Opt-in per screen. */
+.tabs-plain { gap: 3px; padding: 3px 6px 0; background: #000; border-bottom: 1px solid #3a3a3a; }
+.tabs-plain .tab { border: 0; padding: 1px 16px 1px 10px; background: #464646; color: #e0e0e0; clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 100%, 0 100%); }
+.tabs-plain .tab:hover { background: #575757; }
+.tabs-plain .tab.on { background: #a19fa2; color: #000; }
 
 .qstrip { display: flex; align-items: baseline; gap: 0 12px; min-width: 0; overflow: hidden; white-space: nowrap; }
 .qstrip .px { font-size: var(--fs-xl); font-weight: 600; color: var(--white); }
