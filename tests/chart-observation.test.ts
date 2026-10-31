@@ -111,6 +111,15 @@ describe('chart observation and visible-window labels', () => {
     expect(texts()).toContain(`Normalized As Of DAY:${series.t[18]}`);
   });
 
+  it('marks the key events in view with their letters, and none outside it', () => {
+    // The view shows the last 12 bars (18 to 29): a dividend on bar 25 is in it, a split on bar 3 is not.
+    chart.setData(series, { ...options, events: [{ t: series.t[25], kind: 'D' }, { t: series.t[3], kind: 'S' }] }, true);
+    fillText.mockClear();
+    flush();
+    expect(texts()).toContain('D');
+    expect(texts()).not.toContain('S');
+  });
+
   it("draws the volume average over the bars and gives it beside the day's volume", () => {
     chart.setData(series, { ...options, volumeAverage: 3 }, true);
     fillText.mockClear();

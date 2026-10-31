@@ -34,6 +34,8 @@ export interface ChartOptions {
   initialBars: number;
   /** The n-bar simple average of volume, drawn as a line over the volume bars. */
   volumeAverage?: number;
+  /** Key events marked along the bottom of the price pane: D an ex-dividend date, S a split, E an earnings report. */
+  events?: { t: number; kind: 'D' | 'S' | 'E' }[];
   /** Bars left out after the visible window when the view is reset (a typed end date before the latest bar). */
   initialEnd?: number;
   color?: string;
@@ -761,6 +763,24 @@ export class PriceChart {
 
     // Studies and the readout always describe the same inspected observation.
     for (const p of panes.slice(1)) this.drawLower(p, i0, i1, bw, inspected);
+
+    // Key events: a lettered marker at the bar of each event in view, along the bottom of the price pane.
+    if (opt.events?.length) {
+      const colour = { D: T.up, S: '#d77bff', E: '#45d3e6' } as const;
+      ctx.font = T.font;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const ev of opt.events) {
+        const i = indexAtOrBefore(s, ev.t);
+        if (i < i0 || i > i1 || (i === s.length - 1 && ev.t > s.t[i] + 86_400_000)) continue;
+        const x = this.xAt(i);
+        const y = main.top + main.h - 9;
+        ctx.fillStyle = colour[ev.kind];
+        this.box(x - 6, y - 6, 12, 12);
+        ctx.fillStyle = '#000';
+        ctx.fillText(ev.kind, x, y + 0.5);
+      }
+    }
 
     // Axis tags: average, reference, comparisons, last.
     if (opt.annotate && !pct) this.axisTag(yAt(avg), fmtNum(avg, opt.dec), '#3a2a10', T.amber, main);
