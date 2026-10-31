@@ -409,6 +409,8 @@ net.fetch = async (input, init) => {
     const h = init?.headers;
     fixtures.calls.wikipedia = [...(fixtures.calls.wikipedia ?? []), { search: url.search, agent: (typeof h?.get === 'function' ? h.get('User-Agent') : h?.['User-Agent']) ?? '' }];
     const raw = (body) => new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    // With fixtures.wikipediaDown, the API's refusal as it answered a shared cloud address on 30 October 2026.
+    if (fixtures.wikipediaDown) return new Response('You are making too many requests to the API.', { status: 429, headers: { 'Retry-After': '21', 'Content-Type': 'text/plain' } });
     if (url.searchParams.get('page') === 'FTSE_100_Index' && url.searchParams.get('prop') === 'tocdata') return raw(ftseSections);
     if (url.searchParams.get('page') === 'FTSE_100_Index' && url.searchParams.get('prop') === 'text' && url.searchParams.get('section') === '7') return raw(ftseConstituents);
     return json({ error: { code: 'nosuchsection', info: `There is no section ${url.searchParams.get('section')} in FTSE 100 Index.` } });

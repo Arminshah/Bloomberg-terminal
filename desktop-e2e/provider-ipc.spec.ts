@@ -55,6 +55,7 @@ interface Fixtures {
   monthly?: boolean;
   ftseMonthEnd?: boolean;
   ftse100?: boolean;
+  wikipediaDown?: boolean;
   mpcData?: boolean;
   congressGov?: boolean;
   eia?: boolean;
@@ -2202,6 +2203,26 @@ test("SCREEN runs the first portfolio paper's FTSE 100 screen on Wikipedia's mem
   const statements = (await calls(app)).yahoo.filter((c) => c.startsWith('/ws/fundamentals-timeseries/v1/finance/timeseries/BATS.L?'));
   expect(statements).toHaveLength(1);
   expect(statements[0]).toContain('type=annualGrossProfit,annualTotalRevenue,annualNetIncomeCommonStockholders,annualCommonStockEquity,annualDilutedEPS');
+});
+
+test('SCREEN says why the FTSE 100 has no members when Wikipedia refuses, with no count and no list', async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    const f = (globalThis as FixtureGlobal).__desktopFixtures;
+    f.ftse100 = true;
+    f.wikipediaDown = true;
+  });
+  await command(page, 'SCREEN', 'SCREEN');
+  const panel = page.locator('.panel').first();
+  await panel.getByLabel('Universe').selectOption('ftse');
+  const sub = panel.locator('.fnh-sub');
+  await expect(sub).toContainText("Wikipedia's FTSE 100 list did not load: Wikipedia did not answer: HTTP 429", { timeout: 30_000 });
+  // "0 of" before a list has loaded would read as a result.
+  await expect(sub).not.toContainText(/(^|\s)0 of /);
+  await expect(panel.locator('table.eqs-results td.empty')).toContainText("Wikipedia's FTSE 100 list did not load");
+  await expect(panel.getByTestId('eqs-investable')).toHaveCount(0);
+  // Refused at the sections: the section is not asked for, and no member is asked of Yahoo.
+  expect(((await calls(app)).wikipedia ?? []).map((c) => new URLSearchParams(c.search).get('prop'))).toEqual(['tocdata']);
+  expect((await calls(app)).yahoo.some((c) => c.includes('annualGrossProfit'))).toBe(false);
 });
 
 test('in the evening the watchlist shows after-hours live and the morning\'s pre-market as N/A', async ({ desktop: { app, page } }) => {

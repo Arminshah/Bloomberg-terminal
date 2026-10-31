@@ -79,7 +79,7 @@ function colLabel(c: Col, u: Universe): string {
 
 /** The FTSE 100 universe in words: Wikipedia's list, its review date and load time, and how many members have figures. */
 function ftseText(list: FtseList | undefined, by: Readonly<Record<string, MemberFigures>>, problem: string | undefined): string {
-  if (!list || (list.state === 'loading' && !list.members)) return "the FTSE 100's members from Wikipedia, loading";
+  if (!list || (list.state === 'loading' && !list.members)) return "The FTSE 100's members from Wikipedia, loading";
   if (!list.members?.length) return `Wikipedia's FTSE 100 list did not load: ${list.message ?? 'no answer'}`;
   const n = list.members.length;
   const done = list.members.filter((m) => by[m.yahoo]?.annual !== undefined && by[m.yahoo]?.daily !== undefined).length;
@@ -293,7 +293,9 @@ export function EQS({ route }: FnProps) {
         title="Equity Screening"
         sub={
           <>
-            {out.rows.length.toLocaleString('en-US')} of {universeText} ·{' '}
+            {/* No count until the universe has stocks: "0 of" before a list loads would read as a result. */}
+            {cands.length ? `${out.rows.length.toLocaleString('en-US')} of ` : ''}
+            {universeText} ·{' '}
             {s.universe === 'us' || desktopData() ? <span className="badge live">REAL</span> : <><SimBadge /> ratios; real data needs the desktop app</>}
           </>
         }
