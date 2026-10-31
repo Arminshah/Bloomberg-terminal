@@ -37,8 +37,9 @@ const ftseStatements = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests
 // Synthetic daily charts for those seven, whatever the year the test runs: last year's final close, closes on 5 and
 // 6 January, and a dividend going ex on the 6th; in pence, IHG in dollars as Yahoo quotes it.
 const FTSE_PRICES = { 'UU.L': [1200, 1250, 1210, 40], 'GSK.L': [1800, 1900, 1840, 60], 'RKT.L': [5000, 5200, 5100, 0], 'BATS.L': [4214, 4516, 4592, 0], 'IHG.L': [150, 160, 165, 0], 'SMIN.L': [2600, 2700, 2697, 0], 'HSBA.L': [1100, 1280, 1277, 0] };
-// Yahoo's month-end closes of the Dow and the 30 members the app keeps for it, ten years to 23 October 2026 (EQBT,
-// fixtures.monthly).
+// Yahoo's month-end closes of the Dow and the 30 members the app kept for it, ten years to 23 October 2026 (EQBT,
+// fixtures.monthly), and Alphabet's, which replaced Verizon in the Dow on 29 June 2026: added on 31 October from the
+// same Yahoo endpoint on the same dates, its October bar its close of 23 October as the others' are.
 // Congress.gov's answers of 26 October 2026: the latest bills, the 119th Congress's laws and H.R. 7831 with its
 // parts (BILL, fixtures.congressGov).
 // EIA's answers of 28 October 2026: its weekly storage report of 22 October (week ending 16 October), and from its

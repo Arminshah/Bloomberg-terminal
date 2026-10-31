@@ -714,7 +714,8 @@ test("EQBT back-tests momentum on the Dow's members from Yahoo's month-end close
   // The Dow's closes are asked while its members load, then the members 20 at a time. Another rule re-runs on the
   // same closes, with nothing asked again.
   const monthly = async () => (await calls(app)).yahoo.filter((c) => c.startsWith('/v8/finance/spark?') && c.includes('range=10y') && c.includes('interval=1mo'));
-  expect(await monthly()).toEqual(['/v8/finance/spark?symbols=%5EDJI&range=10y&interval=1mo', expect.stringContaining('symbols=AAPL,AMGN,'), expect.stringContaining('symbols=MSFT,NKE,')]);
+  // The members in the app's order, with Alphabet in Verizon's place: the second twenty start at Merck.
+  expect(await monthly()).toEqual(['/v8/finance/spark?symbols=%5EDJI&range=10y&interval=1mo', expect.stringContaining('symbols=AAPL,AMGN,'), expect.stringContaining('symbols=MRK,MSFT,NKE,')]);
   await panel.getByLabel('Rule', { exact: true }).selectOption('lowvol');
   await expect(panel.getByRole('table', { name: 'Picks now' }).locator('thead')).toContainText('Volatility');
   expect(await monthly()).toHaveLength(3);
