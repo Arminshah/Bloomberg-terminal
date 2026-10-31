@@ -453,7 +453,9 @@ describe('dividend amounts', () => {
     expect(fmtAmount(29.179998)).toBe('29.18');
     expect(fmtAmount(18.279999)).toBe('18.28');
     expect(fmtAmount(NaN)).toBe('--');
-  });
+    // Importing the DVD screen loads a large module graph, which can pass the default 5 seconds when every test file
+    // runs at once; the assertions above are unchanged.
+  }, 30_000);
 });
 
 describe('quotes without a Yahoo session', () => {

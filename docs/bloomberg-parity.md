@@ -265,6 +265,17 @@ Inventory: red bar with the security box and "Actions ▾", "Alert" and "Export"
 - Not done: Alert, the target's date, the Price Spread chart (no source keeps the consensus target's history), the row tick boxes and chart icons, 1 Yr Rtn, BARR and Rank (the provider's own ranking of analysts; labelled blanks). The link to the analysts' news opens CN (the app has no NSE search on analyst actions).
 - Checked: `desktop-e2e/provider-ipc.spec.ts` (the summary's lines and order, the currency, the ranges with 2Y chosen, Retry from Actions, the research tests), the whole browser and desktop suites.
 
+### M3 RV (E3)
+
+Evidence: TE04 04:11 (VOW GR, 2023).
+
+Inventory: red bar with the security box, "Export ▾" and "Settings ▾" without numbers; Comp Source with an amber field and a pencil, Region "Global ▾", "Mkt Cap >" with an amber 0 and Curr; at the left a Segment and Revenue % table, "Whole Firm" 100% selected in blue, each segment with a grey bar; at the right a multiples chart "Premium to Whole Firm Comps | EQRV »" with a Metric field and 3M to 5Y; tabs Overview, Comp Sheets, ESG, Markets, EPS Preview, Ownership, Credit and Custom, unnumbered and grey; the peers table with Name, Mkt Cap, Last Px, Chg Pct 1D and 1M, Rev and EPS 1 Yr Gr, P/E, ROE and Dvd 12M Yld, an Average line first, the stock in cyan, peers numbered from 101); a note on accounting adjustments.
+
+- Now: Export ▾ (Copy to Clipboard, Download as CSV) without a number; Comp Source (the app's peer source in an amber field), Region (Global or the stock's own country), Mkt Cap > (billions of dollars, the loaded stock always kept) and Curr on the company line, Region and Mkt Cap > filtering the peers; the tabs unnumbered and grey; the segment panel with Whole Firm and each business segment's share of the latest year's revenue from the 10-K (the desktop app; the browser says so) beside the app's comp range; the summary lines above the peers, as the frame's Average line.
+- The app's own, kept: the comp range in the chart's place, Median, Peer average and the percentile line, Comp Sheets' three sheets, Markets.
+- Not done: Settings ▾, the pencil to edit the peers, the multiples chart (no source gives the peers' forward P/E history), tabs ESG, EPS Preview, Ownership, Credit and Custom, other currencies.
+- Checked: `e2e/reference-codes.spec.ts` (columns and order, pinning as 100) and 101), the segment panel's Whole Firm, the unnumbered tab, the Export dropdown, Mkt Cap > leaving one row and restoring them, the Median and percentile tests), the whole browser and desktop suites.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).
