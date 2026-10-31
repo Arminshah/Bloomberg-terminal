@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   finnhub: (kind, symbol) => ipcRenderer.invoke('finnhub', String(kind), String(symbol)),
   nasdaq: (kind, symbol) => ipcRenderer.invoke('nasdaq', String(kind), String(symbol)),
   nasdaqOptions: (symbol, assetClass) => ipcRenderer.invoke('nasdaq-options', String(symbol), String(assetClass)),
+  spdrHoldings: (fund) => ipcRenderer.invoke('spdr-holdings', String(fund)),
   indexMembers: (kind, arg) => ipcRenderer.invoke('index-members', String(kind), String(arg ?? '')),
   finra: (kind, symbol) => ipcRenderer.invoke('finra', String(kind), String(symbol)),
   estimateHistory: (kind, symbol) => ipcRenderer.invoke('estimate-history', String(kind), String(symbol)),

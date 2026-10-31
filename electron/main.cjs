@@ -1258,6 +1258,37 @@ ipcMain.handle('index-members', async (event, kind, arg) => {
   return keyedGet(req.provider, req.url, req.headers, req.ttl, req.provider === 'nasdaq' ? [60, 60_000] : [10, 60_000], [], req.provider === 'wikipedia' ? clientAgent() : nasdaqAgent());
 });
 
+// State Street's SPDR holdings files (electron/spdr.cjs): SPY's shares of each S&P 500 member weight SPX's members,
+// and DIA's tickers are the Dow's. The workbook is read here and the page gets its rows; a file is kept six hours.
+const spdr = require('./spdr.cjs');
+const spdrKept = new Map();
+ipcMain.handle('spdr-holdings', async (event, fund) => {
+  const url = spdr.spdrHoldingsUrl(fund);
+  if (!fromApp(event) || !url) throw new Error('not allowed');
+  const kept = spdrKept.get(fund);
+  if (kept && Date.now() - kept.at < 6 * 3_600_000) return kept;
+  const fail = (error) => (kept ? { ...kept, stale: true, error } : { error });
+  await providers.slot('ssga', 4, 60_000);
+  let res;
+  try {
+    res = await tracked('ssga', url, { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch {
+    return fail('State Street did not answer.');
+  }
+  if (!res.ok) {
+    providers.recordProblem('ssga', providers.errorKind(res.status), `HTTP ${res.status}`);
+    return fail(`State Street answered HTTP ${res.status}.`);
+  }
+  const parsed = spdr.parseSpdrHoldings(Buffer.from(await res.arrayBuffer()));
+  if (parsed.error) {
+    providers.recordProblem('ssga', 'schema-changed', parsed.error);
+    return fail(parsed.error);
+  }
+  const value = { ...parsed, at: Date.now() };
+  spdrKept.set(fund, value);
+  return value;
+});
+
 // One company's figures from Nasdaq's quote and company pages, without a key (electron/nasdaq.cjs): they fill what
 // Yahoo leaves empty. Shares the calendar's pace of 60 requests a minute.
 ipcMain.handle('nasdaq', async (event, kind, symbol) => {

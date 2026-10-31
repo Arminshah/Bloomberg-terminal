@@ -176,6 +176,16 @@ function nasdaqChainFixture(symbol) {
 net.fetch = async (input, init) => {
   const url = new URL(String(input));
   const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  // With fixtures.spdr, a synthetic SPY holdings workbook in State Street's layout (one sheet, inline strings): one
+  // stock line and a cash line. The names and figures are made up.
+  if (fixtures.spdr && url.hostname === 'www.ssga.com') {
+    fixtures.calls.ssga = [...(fixtures.calls.ssga ?? []), url.pathname];
+    const cell = (ref, v) => (typeof v === 'number' ? `<c r="${ref}"><v>${v}</v></c>` : `<c r="${ref}" t="inlineStr"><is><t>${v}</t></is></c>`);
+    const rows = [['Fund Name:', 'Synthetic SPDR Fund'], ['Ticker Symbol:', 'SPY'], ['Holdings:', 'As of 29-Oct-2026'], ['Name', 'Ticker', 'Identifier', 'SEDOL', 'Weight', 'Sector', 'Shares Held', 'Local Currency'],
+      ['ALPHA CORP', 'AAPL', '000000001', '1000001', 60, '-', 300000000, 'USD'], ['US DOLLAR', '-', '-', '-', 0.1, '-', 1000000, 'USD']];
+    const xml = `<worksheet><sheetData>${rows.map((r, i) => `<row r="${i + 1}">${r.map((v, c) => cell(`${String.fromCharCode(65 + c)}${i + 1}`, v)).join('')}</row>`).join('')}</sheetData></worksheet>`;
+    return new Response(storedZip('xl/worksheets/sheet1.xml', Buffer.from(xml, 'utf8')), { status: 200 });
+  }
   if (fixtures.treasuryCurve && url.hostname === 'home.treasury.gov') {
     return new Response(treasuryCsv(url.pathname.split('/').at(-2)), { status: 200, headers: { 'Content-Type': 'text/csv' } });
   }

@@ -73,7 +73,8 @@ interface Fixtures {
   segments?: boolean;
   nasdaqOptions?: boolean;
   treasuryCurve?: boolean;
-  calls: { nasdaqOptions?: string[]; bis?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  spdr?: boolean;
+  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -1678,6 +1679,19 @@ test("OMON shows Nasdaq's composite chain with volume, open interest and the app
     return out;
   });
   expect(refused).toEqual([true, true]);
+});
+
+test("State Street's SPY holdings cross the bridge as stock lines, kept six hours, and only SPY and DIA are asked", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.spdr = true; });
+  const got = await page.evaluate(() => window.arminDesktop!.spdrHoldings!('SPY'));
+  expect(got).toMatchObject({ fund: 'SPY', asOf: '2026-10-29', holdings: [{ name: 'ALPHA CORP', ticker: 'AAPL', cusip: '000000001', sedol: '1000001', weight: 60, shares: 300000000, currency: 'USD' }] });
+  expect('holdings' in got ? got.holdings : []).toHaveLength(1);
+  await page.evaluate(() => window.arminDesktop!.spdrHoldings!('SPY'));
+  expect((await calls(app)).ssga).toEqual(['/library-content/products/fund-data/etfs/us/holdings-daily-us-en-spy.xlsx']);
+  const refused = await page.evaluate(async () => {
+    try { await window.arminDesktop!.spdrHoldings!('QQQ' as 'SPY'); return false; } catch { return true; }
+  });
+  expect(refused).toBe(true);
 });
 
 test('a refused next option page leaves a visibly partial stale chain', async ({ desktop: { app, page } }) => {

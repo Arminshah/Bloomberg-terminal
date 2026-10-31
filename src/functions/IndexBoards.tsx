@@ -179,7 +179,9 @@ export function BoardMovers({ ix }: { ix: SecurityDef }) {
         {board.members.length ? `${priced.length} of ${board.members.length} members priced (Yahoo, as of ${asOf(board)}); volumes from Nasdaq. ` : ''}
         {price
           ? `Points = price change ÷ the Dow divisor (the members' previous closes summed, divided by the index's previous close); together ${fmtSigned(board.explained, 2)} against the index's ${fmtSigned(iq.chg, 2)}.`
-          : `Points are estimates: weights from market values (Nasdaq), not the index's float-adjusted weights; together ${fmtSigned(board.explained, 2)} against the index's ${fmtSigned(iq.chg, 2)}.`}
+          : board.weightsFrom
+            ? `Points = weight × the index's previous close × the member's change. ${spyWeights(board.weightsFrom)} Together ${fmtSigned(board.explained, 2)} against the index's ${fmtSigned(iq.chg, 2)}.`
+            : `Points are estimates: weights from market values (Nasdaq), not the index's float-adjusted weights; together ${fmtSigned(board.explained, 2)} against the index's ${fmtSigned(iq.chg, 2)}.`}
         {` Members from ${board.index.from}.`}
         {board.message ? ` ${board.message}` : ''}
       </p>
@@ -249,7 +251,7 @@ export function BoardMembers({ ix }: { ix: SecurityDef }) {
                 <td>{m.name}</td>
                 <td className="hide-m muted">{m.sector}</td>
                 {/* Nasdaq's list gives no market value for a few share classes (Brown-Forman's class B): no weight, shares or value then. */}
-                <td className="num white" title={Number.isFinite(m.weight) ? undefined : NO_CAP}>{Number.isFinite(m.weight) ? `${fmtNum(m.weight * 100, 2)}%` : ''}</td>
+                <td className="num white" title={Number.isFinite(m.weight) ? undefined : board.weightsFrom ? "Not in SPY's holdings file" : NO_CAP}>{Number.isFinite(m.weight) ? `${fmtNum(m.weight * 100, 2)}%` : ''}</td>
                 <td className="num hide-m">{price ? fmtNum(m.prevClose, 2) : Number.isFinite(m.cap) ? fmtBig(m.cap / m.last, 2) : ''}</td>
                 <td className="num white">{fmtNum(m.last, 2)}</td>
                 <td className={`num ${sign(m.pct)}`}>{fmtPct(m.pct, 2)}</td>
@@ -262,7 +264,9 @@ export function BoardMembers({ ix }: { ix: SecurityDef }) {
       <p className="pad-s muted">
         {price
           ? "Price weighted: each member's weight is its price over the members' prices summed."
-          : "Weights are estimates from market values (Nasdaq's stock list, a company with two share classes shared between them), not the index provider's float-adjusted weights; shares are market value over price."}
+          : board.weightsFrom
+            ? `${spyWeights(board.weightsFrom)} Shares and market value are the company's (Nasdaq's stock list).`
+            : "Weights are estimates from market values (Nasdaq's stock list, a company with two share classes shared between them), not the index provider's float-adjusted weights; shares are market value over price."}
         {` Members from ${board.index.from}.`}
       </p>
     </div>
@@ -270,6 +274,11 @@ export function BoardMembers({ ix }: { ix: SecurityDef }) {
 }
 
 const NO_CAP = "Nasdaq's stock list gives no market value for this share class";
+
+/** How SPX's weights are made from SPY's holdings, and what the file leaves out. */
+function spyWeights(w: NonNullable<Board['weightsFrom']>): string {
+  return `Weights: each member's shares held by State Street's SPY (holdings as of ${w.asOf}) at its previous close; SPY holds the whole index, so these follow S&P's float-adjusted weights.${w.missing.length ? ` Not in that file, so without a weight: ${w.missing.join(', ')}.` : ''}`;
+}
 
 // ------------------------------------------------------------------- MRR
 

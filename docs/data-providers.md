@@ -50,6 +50,7 @@ In the desktop app, every request below goes out from the Electron main process 
 | Wikipedia | The FTSE 100's members with ticker, ISIN and ICB sector (`SCREEN`'s FTSE 100 universe) | MediaWiki Action API (`parse`) | None | Enabled (desktop) |
 | TipRanks | Analyst consensus, average price target, Smart Score and recent rating actions (`ANALYSTS`), on request | MCP server | `TIPRANKS_API_KEY` | On request only, 45 calls a month at most, switch `TIPRANKS_ENABLED` |
 | Anthropic | Answers to open questions on the help desk (`MESSAGES`), with the app's own data as tools | Messages API | `ANTHROPIC_API_KEY` | Enabled once the key is set, switch `CLAUDE_HELPDESK_ENABLED`; without it the built-in assistant answers |
+| State Street (SPDR holdings) | SPY's holdings, which weight the S&P 500's members (index boards, `MEMB`); DIA's, the Dow's members when Yahoo gives none | Daily XLSX files | None | Enabled (desktop); see [State Street's holdings files](#state-streets-holdings-files) |
 | Nasdaq option chains | Listed options of US stocks and ETFs, NDX and XND: composite bid, ask, last, change, the day's volume and open interest (`OPTIONS`) | JSON behind nasdaq.com's option-chain page | None | Enabled (desktop); see [Nasdaq option chains](#nasdaq-option-chains) |
 | Binance | | Spot REST API | | Evaluated, not connected (see below) |
 | Cboe delayed quotes | | JSON behind cboe.com's delayed quote pages | | Evaluated, not connected: Cboe forbids automated download (see below) |
@@ -513,6 +514,14 @@ How `OPTIONS` uses it: the chain opens on the nearest expiry with ten strikes ar
 - IVM is the volatility at which Black's formula on that forward gives the contract's mid; DM and gamma are per unit of the underlying at Nasdaq's last price, vega per volatility point.
 
 On Microsoft's chain of 30 October 2026 the app's IVM was within a median 0.22 volatility points of Cboe's published IV for out-of-the-money contracts (90% within 0.69), and its delta within 0.004. Deep in the money, where spreads are widest and early exercise of an American contract has value, the two differed by a median 2.6 points. Adjusted roots (deliverables other than 100 shares, such as AAPL1) are listed without IVM or CSize. Without a Treasury yield in the app the IVM column stays blank and says why.
+
+## State Street's holdings files
+
+Read and tested on 31 October 2026. `electron/spdr.cjs` reads two daily workbooks without a key: `https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-spy.xlsx` (SPY, the S&P 500) and `...-dia.xlsx` (DIA, the Dow). Each has the fund name, its ticker and "As of 29-Oct-2026" at the top, then Name, Ticker, Identifier (the CUSIP for US stocks), SEDOL, Weight, Sector (always "-"), Shares Held and Local Currency, then cash ("US DOLLAR"), futures, a merger's contingent value rights under a numeric ticker, and a disclaimer. The app keeps the stock lines only (SPY: 503, DIA: 30 on 31 October 2026). The files are a business day behind.
+
+- SPX weights: SPY holds every member, so its shares of each are in proportion to the index's float-adjusted shares. The boards weight each member by SPY's shares times its previous close, which follows prices through the day. On 31 October, SPY's shares at Nasdaq's latest prices gave weights within 0.006 points of SPY's own weight column for every member (Alphabet's two classes 2.505 and 2.018 against 2.503 and 2.017). The weights the app used before, from total market values with a company's value split equally between its share classes, put NVIDIA, Apple and Microsoft 0.6 to 0.8 points too low against SPY's. Members the file does not hold yet (added since its date) get no weight, and the note names them. Without the file the boards fall back to market values and say so.
+- Dow membership: when Yahoo gives none, DIA's 30 tickers before the list kept in the app. DIA held Alphabet and not Verizon on 29 October 2026, as S&P Dow Jones Indices announced on 23 June 2026.
+- Terms: State Street's [terms](https://www.ssga.com/us/en/footer/terms-and-conditions) forbid copying or disseminating the site's information "except for the purpose of accessing the Site and producing print-outs for your own personal use". They say nothing about automated reading, and `robots.txt` does not disallow `/library-content/products/fund-data/`. The app reads the two files for its owner's display, at most every six hours, in memory only.
 
 ## Cboe delayed quotes (evaluated, not connected)
 

@@ -510,6 +510,21 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'ssga',
+    name: 'State Street (SPDR holdings files)',
+    serves: "SPY's holdings of the S&P 500's members, which weight SPX's members on the index boards and MEMB; DIA's holdings, the Dow's members when Yahoo gives none",
+    dataClass: "Fund holdings as of the previous business day: a full-replication fund's shares, in proportion to the index's float-adjusted shares",
+    policy: 'enabled',
+    limit: '4/min',
+    terms: "State Street's terms forbid copying or disseminating the site's information \"except for the purpose of accessing the Site and producing print-outs for your own personal use\". The app reads the two daily files for its owner's display, at most every six hours, and keeps them in memory only. The terms say nothing about automated reading, and the site's robots.txt does not disallow the files' path (both read 31 October 2026).",
+    docs: [
+      { label: 'SPY holdings (daily file)', url: 'https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-spy.xlsx' },
+      { label: 'Terms and conditions', url: 'https://www.ssga.com/us/en/footer/terms-and-conditions' },
+    ],
+    checked: '2026-10-31',
+    desktop: true,
+  },
+  {
     id: 'finviz',
     name: 'Finviz (quote page)',
     serves: "Two years of reports with the revenue and EPS expected and reported, each quarter's end date, the report date and session, and the coming report's estimates (EARNINGS, EVENTS); the companies it lists as a US stock's peers (PEERS, PROFILE)",

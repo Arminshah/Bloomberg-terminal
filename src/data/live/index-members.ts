@@ -75,6 +75,18 @@ export interface Member extends MemberInfo {
   points: number;
 }
 
+/** State Street's holdings file for one SPDR fund, as electron/spdr.cjs reads it. */
+export interface SpdrHoldings {
+  fund: string;
+  /** The holdings' date ("As of 29-Oct-2026"), ISO. */
+  asOf: string;
+  holdings: { name: string; ticker: string; cusip: string; sedol: string; weight: number; shares: number; currency: string }[];
+  at: number;
+  stale?: boolean;
+  error?: string;
+}
+export type SpdrAnswer = SpdrHoldings | { error: string };
+
 export interface ListState {
   state: 'loading' | 'ok' | 'error';
   members?: MemberInfo[];
@@ -92,7 +104,10 @@ export const indexData = createStore<{
   history: Record<string, { t: number[]; c: number[] }>;
   historyAt: Partial<Record<IndexKey, number>>;
   problems: Partial<Record<IndexKey, string>>;
-}>({ v: 0, lists: {}, quotes: {}, volumes: {}, quotesAt: {}, volumesAt: {}, history: {}, historyAt: {}, problems: {} });
+  /** SPY's and DIA's holdings (State Street), and why a file is missing. */
+  holdings: Partial<Record<'SPY' | 'DIA', SpdrHoldings>>;
+  holdingsProblem: Partial<Record<'SPY' | 'DIA', string>>;
+}>({ v: 0, lists: {}, quotes: {}, volumes: {}, quotesAt: {}, volumesAt: {}, history: {}, historyAt: {}, problems: {}, holdings: {}, holdingsProblem: {} });
 
 /** Answers are stored as they arrive; screens redraw at most every half second while a refresh runs. */
 let notifyPending = false;
@@ -207,6 +222,29 @@ async function answer(kind: 'sp500' | 'nasdaq100' | 'nasdaq-quotes', arg = ''): 
 }
 
 const listAsked = new Map<IndexKey, number>();
+const holdingsAsked = new Map<'SPY' | 'DIA', number>();
+
+/** One fund's holdings, asked at most every six hours (State Street updates them once a business day). */
+async function loadHoldings(fund: 'SPY' | 'DIA'): Promise<SpdrHoldings | undefined> {
+  const have = indexData.get().holdings[fund];
+  const request = window.arminDesktop?.spdrHoldings;
+  if (!request || Date.now() - (holdingsAsked.get(fund) ?? 0) < 6 * 3_600_000) return have;
+  holdingsAsked.set(fund, Date.now());
+  try {
+    const got = await request(fund);
+    if ('holdings' in got && got.holdings.length) bump((s) => ({ holdings: { ...s.holdings, [fund]: got }, holdingsProblem: { ...s.holdingsProblem, [fund]: got.stale ? got.error : undefined } }));
+    else bump((s) => ({ holdingsProblem: { ...s.holdingsProblem, [fund]: got.error ?? 'No holdings.' } }));
+  } catch {
+    bump((s) => ({ holdingsProblem: { ...s.holdingsProblem, [fund]: 'State Street did not answer.' } }));
+  }
+  return indexData.get().holdings[fund];
+}
+
+/** The Dow's members from DIA's holdings: its stock tickers, when the file lists 28 to 32 of them. */
+export function dowFromDia(h: SpdrHoldings | undefined): string[] {
+  const tickers = (h?.holdings ?? []).filter((x) => x.currency === 'USD' && /^[A-Z]{1,5}$/.test(x.ticker)).map((x) => x.ticker);
+  return tickers.length >= 28 && tickers.length <= 32 ? [...new Set(tickers)].sort() : [];
+}
 
 async function loadList(key: IndexKey) {
   const have = indexData.get().lists[key];
@@ -227,7 +265,12 @@ async function loadList(key: IndexKey) {
         /* the list below */
       }
       const fromYahoo = list.length >= 28;
-      next = { state: 'ok', members: (fromYahoo ? list : DOW_FALLBACK).map((symbol) => ({ symbol, name: '', sector: '', industry: '' })), at: Date.now(), ...(fromYahoo ? {} : { message: 'Membership as kept in the app (Yahoo gave none).' }) };
+      // Without Yahoo, DIA's holdings (the fund holds the 30 members) before the list kept here.
+      const dia = fromYahoo ? undefined : await loadHoldings('DIA');
+      const fromDia = dowFromDia(dia);
+      const members = fromYahoo ? list : fromDia.length ? fromDia : DOW_FALLBACK;
+      const message = fromYahoo ? undefined : fromDia.length ? `Membership from State Street's DIA holdings as of ${dia!.asOf} (Yahoo gave none).` : 'Membership as kept in the app (Yahoo gave none).';
+      next = { state: 'ok', members: members.map((symbol) => ({ symbol, name: '', sector: '', industry: '' })), at: Date.now(), ...(message ? { message } : {}) };
     } else {
       const res = await answer(key === 'SPX' ? 'sp500' : 'nasdaq100');
       const parsed = res.text ? (key === 'SPX' ? parseSp500(res.text) : parseNasdaq100(res.text)) : { error: res.error ?? (res.status ? `HTTP ${res.status}` : 'no answer') };
@@ -349,6 +392,7 @@ export function useIndexMembers(indexId: string | undefined, opts: { history?: b
     const tick = async () => {
       if (stopped || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return;
       requestListings();
+      if (key === 'SPX') void loadHoldings('SPY');
       await loadList(key);
       const s = indexData.get();
       if (Date.now() - (s.quotesAt[key] ?? 0) > 55_000) void refreshQuotes(key);
@@ -386,6 +430,8 @@ export interface Board {
   explained: number;
   quotesAt?: number;
   volumesAt?: number;
+  /** When the weights come from SPY's holdings: the file's date, and members it does not hold (added since). */
+  weightsFrom?: { fund: 'SPY'; asOf: string; missing: string[] };
 }
 
 /**
@@ -423,7 +469,12 @@ export function indexBoard(indexId: string): Board | null {
     return { m, l, q, name: m.name || l?.name.replace(/\s+(Common Stock|Class [A-C] Common Stock|Ordinary Shares).*$/i, '').trim() || m.symbol };
   });
   const caps = shareClassCaps(base.map((x) => ({ symbol: x.m.symbol, name: x.name, cap: x.l?.cap ?? NaN })));
-  const weightBase = base.map((x) => (b.weighting === 'price' ? x.q?.prevClose ?? NaN : caps.get(x.m.symbol) ?? NaN));
+  // SPY holds the S&P 500 in full, so its shares of each member are in proportion to the index's float-adjusted
+  // shares; at each member's previous close they give the index's weights. Used when the file covers the list.
+  const spy = b.key === 'SPX' ? s.holdings.SPY : undefined;
+  const held = spy ? new Map(spy.holdings.map((h) => [h.ticker, h.shares])) : undefined;
+  const fromFund = !!held && base.length > 0 && base.filter((x) => held.has(x.m.symbol)).length >= 0.95 * base.length;
+  const weightBase = base.map((x) => (b.weighting === 'price' ? x.q?.prevClose ?? NaN : fromFund ? (held!.get(x.m.symbol) ?? NaN) * (x.q?.prevClose ?? NaN) : caps.get(x.m.symbol) ?? NaN));
   const total = weightBase.reduce((a, w) => a + (Number.isFinite(w) ? w : 0), 0);
   const divisor = b.weighting === 'price' && iq && iq.prevClose > 0 ? total / iq.prevClose : NaN;
   const members: Member[] = base.map((x, i) => {
@@ -464,6 +515,7 @@ export function indexBoard(indexId: string): Board | null {
     explained: members.reduce((a, m) => a + (Number.isFinite(m.points) ? m.points : 0), 0),
     quotesAt: s.quotesAt[b.key],
     volumesAt: s.volumesAt[b.key],
+    ...(fromFund ? { weightsFrom: { fund: 'SPY' as const, asOf: spy!.asOf, missing: base.filter((x) => !held!.has(x.m.symbol)).map((x) => x.m.symbol) } } : {}),
   };
 }
 
