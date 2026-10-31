@@ -194,22 +194,41 @@ function cleanNames(names) {
 
 const MAX_SENTENCE = 1200;
 
-/** The sentences that name the company (the first `max`), each cut to a readable length. */
+/**
+ * A sentence that ends what the one before it describes, without naming the company again: "The JDA concluded in
+ * September 2024." (SES AI's 10-K, after its partnership with GM), "As the agreement was terminated in October 2023, no
+ * revenue was recognized" (Syros's 10-Q, after its agreement with a Pfizer subsidiary).
+ */
+const ENDS_PREVIOUS = /\b(?:(?:was|were|has been|had been|is)\s+terminated|terminated\s+(?:the|this|that|such|our|its)\b|concluded\s+(?:in|on|as of)|expired\s+(?:in|on|as of)|(?:was|were)\s+assigned\s+to|no longer\s+(?:has|have|holds?|owns?|promotes?|supplies|provides?|purchases?)\b)/i;
+
+/**
+ * The sentences that name the company (the first `max`), each cut to a readable length. A sentence right after one of
+ * them, in the same paragraph, that says the agreement ended comes too, marked "[next] ": it says when the relation
+ * the first one states came to an end.
+ */
 function mentionSentences(text, names, max = 80) {
   const pattern = namePattern(names);
   const out = [];
-  for (const s of splitSentences(text)) {
-    if (s.length < 25 || !/[a-z]{3}/.test(s) || !pattern.test(s)) continue;
-    // A long sentence keeps the part around the first mention of the company, so the name is never cut off.
-    const at = s.length > MAX_SENTENCE ? pattern.index(s) : 0;
-    out.push(at > MAX_SENTENCE / 2 ? s.slice(at - MAX_SENTENCE / 2, at + MAX_SENTENCE / 2) : s.slice(0, MAX_SENTENCE));
-    if (out.length >= max) break;
+  let count = 0;
+  for (const block of String(text).split('\n')) {
+    const list = splitSentences(block);
+    for (let i = 0; i < list.length && count < max; i++) {
+      const s = list[i];
+      if (s.length < 25 || !/[a-z]{3}/.test(s) || !pattern.test(s)) continue;
+      // A long sentence keeps the part around the first mention of the company, so the name is never cut off.
+      const at = s.length > MAX_SENTENCE ? pattern.index(s) : 0;
+      out.push(at > MAX_SENTENCE / 2 ? s.slice(at - MAX_SENTENCE / 2, at + MAX_SENTENCE / 2) : s.slice(0, MAX_SENTENCE));
+      count++;
+      const next = list[i + 1];
+      if (next && !pattern.test(next) && next.length <= MAX_SENTENCE && ENDS_PREVIOUS.test(next)) out.push(`[next] ${next}`);
+    }
+    if (count >= max) break;
   }
   return out;
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 9;
+const EXTRACTION = 10;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;

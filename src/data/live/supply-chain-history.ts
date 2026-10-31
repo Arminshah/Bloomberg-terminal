@@ -16,7 +16,9 @@ export interface RelationshipAssertion {
   scope: 'contract' | 'ownership' | 'relationship' | 'unresolved';
   evidenceId: string;
   phase?: 'conditional' | 'under-construction' | 'operating';
-  ending?: 'terminated' | 'expired' | 'repaid' | 'disposed';
+  ending?: 'terminated' | 'expired' | 'repaid' | 'disposed' | 'assigned';
+  /** When the statement says its event happened ("In January 2021, we entered into ..."): YYYY, YYYY-MM or YYYY-MM-DD. */
+  statedAt?: string;
 }
 export interface IdentityLink {
   entityKey: string;
@@ -70,6 +72,25 @@ export function contractReference(sentence: string, role: Role): string | undefi
   return undefined;
 }
 
+const MONTHS: Record<string, string> = { january: '01', february: '02', march: '03', april: '04', may: '05', june: '06', july: '07', august: '08', september: '09', october: '10', november: '11', december: '12' };
+
+/** The date a statement opens with: "In January 2021, ...", "On December 11, 2023, ...", "In 2022, ...". */
+export function statedAt(sentence: string): string | undefined {
+  const m = /^(?:In|On|During|As of|Effective)\s+(?:(?:early|mid|late)[- ])?(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:(\d{1,2}),\s+)?)?((?:19|20)\d{2})\b/.exec(sentence.trim());
+  if (!m) return undefined;
+  return m[1] ? `${m[3]}-${MONTHS[m[1].toLowerCase()]}${m[2] ? `-${m[2].padStart(2, '0')}` : ''}` : m[3];
+}
+
+/**
+ * An ending stated for the whole relationship, not one contract: a counterparty's filing says its agreement with the
+ * company was terminated, expired, concluded or assigned away, or that it sold the property leased to it. It closes
+ * the statements published by then, unless they say they happened after the ending.
+ */
+export function endingAssertion(e: Evidence, ending: { how: 'terminated' | 'expired' | 'assigned' | 'disposed'; date?: string }): RelationshipAssertion {
+  const evidenceId = evidenceIdentity(e);
+  return { id: evidenceId, state: 'ended', sourceDate: e.date, sourcePrecision: 'day', observedAt: e.observedAt, ...(ending.date ? { effectiveTo: ending.date } : {}), scope: 'relationship', evidenceId, ending: ending.how };
+}
+
 function explicitEffective(sentence: string, ended: boolean): string | undefined {
   const m = new RegExp(`\\b(?:effective(?:\\s+(?:as of|on|from))?|${ended ? 'terminated on|expired on' : 'commencing on|commences on|beginning on'})\\s+(${DATE_WORDS})`, 'i').exec(sentence);
   return m ? eventDate(m[1]) || undefined : undefined;
@@ -90,9 +111,10 @@ export function assertionFor(e: Evidence, r: Pick<Relation, 'role'>): Relationsh
   // A closure without a contract reference must not close every contract with that company.
   const scope = ownership ? 'ownership' : contractKey ? 'contract' : ended ? 'unresolved' : 'relationship';
   const evidenceId = evidenceIdentity(e);
+  const stated = statedAt(s);
   return {
     id: evidenceId, state, sourceDate: e.date, sourcePrecision: 'day', observedAt: e.observedAt,
-    ...(event ? { eventDate: event } : {}), ...(explicit ? ended ? { effectiveTo: explicit } : { effectiveFrom: explicit } : {}),
+    ...(event ? { eventDate: event } : {}), ...(stated ? { statedAt: stated } : {}), ...(explicit ? ended ? { effectiveTo: explicit } : { effectiveFrom: explicit } : {}),
     ...(contractKey ? { contractKey } : ownership ? { contractKey: 'ownership' } : {}), scope, evidenceId,
     ...(/\b(?:conditional|conditioned upon|subject to (?:approval|closing|completion))\b/i.test(s) ? { phase: 'conditional' as const }
       : /\b(?:under construction|construction is underway)\b/i.test(s) ? { phase: 'under-construction' as const }
@@ -168,9 +190,15 @@ export function relationStatus(r: Relation, effectiveAsOf?: string): 'reported' 
   const positives = assertions.filter((a) => a.state !== 'ended' && a.state !== 'planned');
   const ended = assertions.filter((a) => a.state === 'ended' && (!a.effectiveTo || a.effectiveTo <= day));
   if (!ended.length) return positives.length ? 'reported' : 'unresolved';
-  if (ended.some((a) => a.scope === 'unresolved')) return 'unresolved';
+  // A closure without a contract reference needs reconciling, unless a later statement ends the whole relationship
+  // (Pfizer's 8-K "Terminated a global collaboration and license agreement with Sangamo", then Sangamo's 10-Q on the
+  // termination effective April 21, 2025).
+  if (ended.some((a) => a.scope === 'unresolved' && !ended.some((e) => e.scope === 'relationship' && e.sourceDate >= a.sourceDate))) return 'unresolved';
   const closed = (a: RelationshipAssertion) => ended.some((e) => e.contractKey && e.contractKey === a.contractKey && (e.effectiveTo ?? e.eventDate ?? e.sourceDate) >= (a.effectiveFrom ?? a.eventDate ?? a.sourceDate));
-  if (positives.length && positives.some((a) => !closed(a))) return 'reported';
+  // An ending of the whole relationship closes what was published by then, unless a statement says its event came after
+  // the ending ("In 2025, we entered into a new agreement").
+  const closedAll = (a: RelationshipAssertion) => ended.some((e) => e.scope === 'relationship' && a.sourceDate <= e.sourceDate && !(a.statedAt && e.effectiveTo && a.statedAt > e.effectiveTo));
+  if (positives.length && positives.some((a) => !closed(a) && !closedAll(a))) return 'reported';
   return 'ended';
 }
 

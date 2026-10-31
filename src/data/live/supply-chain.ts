@@ -7,7 +7,7 @@ import { yahooGet } from './yahoo';
 import { parseSpark } from './index-members';
 import { findByTicker, loadFiler, loadFilingIndex, loadSecCompanies, secAvailable, secTicker, type SecCompany } from './sec';
 import { federalRelations, type FedAsk, type FedParty, type FedStep } from './usaspending';
-import { appendRelationshipHistory, enrichRelation, lifecycleRelations, evidenceIdentity, relationKind, type RelationshipAssertion, type ShareObservation, type IdentityLink } from './supply-chain-history';
+import { appendRelationshipHistory, endingAssertion, enrichRelation, lifecycleRelations, evidenceIdentity, relationKind, type RelationshipAssertion, type ShareObservation, type IdentityLink } from './supply-chain-history';
 export { relationKind, relationStatus, relationshipView, customerCounts } from './supply-chain-history';
 
 /**
@@ -2340,6 +2340,134 @@ export function eventDate(sentence: string): string {
   return m ? `${m[3]}-${MONTH_NUM[m[1].toLowerCase()]}-${m[2].padStart(2, '0')}` : '';
 }
 
+/** How a relation came to an end, as a filing says it. */
+export interface Ending {
+  how: 'terminated' | 'expired' | 'assigned' | 'disposed';
+  /** When, as precisely as the filing gives it: YYYY-MM-DD, YYYY-MM or YYYY; undefined when it gives no date. */
+  date?: string;
+}
+
+const MONTH_WORD = '(January|February|March|April|May|June|July|August|September|October|November|December)';
+/** "effective November 7, 2023", "effective late November 2025", "effective April 21, 2025". */
+const EFFECTIVE_DATE = new RegExp(String.raw`\beffective\s+(?:as\s+of\s+|on\s+)?(?:(?:early|mid|late)[- ])?${MONTH_WORD}\s+(?:(\d{1,2}),\s+)?((?:19|20)\d{2})\b`, 'i');
+const ANY_DATE = new RegExp(String.raw`\b${MONTH_WORD}\s+(?:(\d{1,2}),\s+)?((?:19|20)\d{2})\b`, 'g');
+
+/**
+ * The date an ending took effect: the effective date it gives, else the latest date it names ("In February 2023 and May
+ * 2024, Merck provided us written notice of termination" is May 2024), else a bare year ("terminated in 2022").
+ */
+export function endingDate(sentence: string, from?: number): string | undefined {
+  const day = (m: RegExpExecArray | RegExpMatchArray) => `${m[3]}-${MONTH_NUM[m[1].toLowerCase()]}${m[2] ? `-${m[2].padStart(2, '0')}` : ''}`;
+  // The first date right after the ending word: "was terminated in 2022 and in February 2023, we and Genentech agreed"
+  // is 2022; "terminating the Merck Collaboration Agreement effective November 7, 2023".
+  if (from != null) {
+    const near = sentence.slice(from, from + 90);
+    const effective = EFFECTIVE_DATE.exec(near);
+    const at = new RegExp(String.raw`^[^.;]{0,60}?\b(?:in|on|as of|by|during)\s+(?:(?:early|mid|late)[- ])?(?:${MONTH_WORD}\s+(?:(\d{1,2}),\s+)?)?((?:19|20)\d{2})\b`, 'i').exec(near);
+    const first = effective && (!at || (effective.index ?? 0) <= (at.index ?? 0) + at[0].length) ? effective : at;
+    if (first) return first[1] ? day(first) : first[3];
+  }
+  const effective = EFFECTIVE_DATE.exec(sentence);
+  if (effective) return day(effective);
+  // Else the latest date before it: "In February 2023 and May 2024, Merck provided us written notice of termination".
+  const dates = [...sentence.slice(0, from ?? sentence.length).matchAll(ANY_DATE)].map(day).sort();
+  if (dates.length) return dates[dates.length - 1];
+  const year = /\b(?:in|during|since|as of|by|at the end of)\s+(?:fiscal\s+(?:year\s+)?)?((?:19|20)\d{2})\b/i.exec(sentence.slice(0, from ?? sentence.length));
+  return year?.[1];
+}
+
+/** Words that make an ending a possibility, a right or a condition: "Merck has the right to terminate", "In such event, material licenses granted to Lilly expire". */
+const ENDING_HEDGE = /\b(?:may|might|could|would|can|shall|will)\s+(?:\w+\s+){0,2}?(?:terminat\w*|expire|assign)\b|\b(?:right|option|ability|entitled)\s+to\s+(?:\w+\s+){0,2}?terminat|\b(?:if|unless|in the event|in such event|in the case|to the extent|whether)\b[^.;]{0,100}\b(?:terminat\w*|expir\w*)|\bupon\s+(?:any\s+|the\s+|such\s+|its\s+)?(?:termination|expiration|expiry)\b|\bterminable\b|\bwithout cause\b[^.;]{0,40}\bterminat|\bprior to (?:the )?(?:termination|expiration)\b/i;
+/** What the agreement is, so a terminated merger, lease of an office or employment is no ending of the relation. */
+const AGREEMENT_WORD = /\b(?:agreements?|collaborations?|licen[cs]es?|partnerships?|arrangements?|alliance|JDA|joint development|programs?|royalt\w+|rights)\b/i;
+const AGREEMENT_NOUN = /^(?:agreements?|collaborations?|licen[cs]es?|licen[cs]e agreements?|partnerships?|arrangements?|alliance|JDA)$/i;
+/** The nouns a "was terminated" can follow: the last one before it is what ended ("a Merck-led Phase 2 trial ... was terminated" ended a trial). */
+const ENDED_NOUN = /\b(agreements?|collaborations?|licen[cs]es?|partnerships?|arrangements?|alliance|JDA|trials?|stud(?:y|ies)|programs?|targets?|candidates?|compounds?|indications?|products?|leases?|employees?|employment|plans?|mergers?|offerings?|facilit(?:y|ies)|loans?|notes?|options?|rights|credits?)\b/gi;
+/** Part of an agreement ended, not the agreement: a program or target under it, certain of several agreements. */
+const PARTIAL_ENDING = /\b(?:certain of|some of|one of|a portion of|part of)\b[^.;]{0,60}\b(?:agreements?|collaborations?|programs?|targets?)\b|\b(?:programs?|targets?|indications?|compounds?|candidates?|products?)\b[^.;]{0,40}\bunder the\b[^.;]{0,40}\bAgreement\b|\b(?:to add|added|adding)\b[^.;]{0,40}\btargets?\b|\b(?:right of first (?:negotiation|refusal)|ROF[NR]|options?|opportunity to (?:exclusively )?negotiate)\b[^.;]{0,160}\bexpired\b/i;
+/** Words a named agreement carries that are not a party's name ("the Exclusive License and Research Collaboration Agreement"). */
+const AGREEMENT_TITLE_WORD = /^(?:The|This|That|Such|Our|Its|Exclusive|Non-?Exclusive|License|Licence|Licensing|and|&|Research|Collaboration|Collaborative|Development|Co-?Development|Commercialization|Co-?Commercialization|Option|Supply|Manufacturing|Master|Amended|Restated|Clinical|Trial|Original|Promotion|Purchase|Services?|Strategic|Joint|Venture|Material|Transfer|Evaluation|Platform|Discovery|Global|Worldwide|Asset|Royalty|Sublicense|Framework|Partnership|Alliance|Initial|New|First|Second|Third|Fourth|Fifth|Neuromuscular|Program)$/;
+
+/**
+ * The agreements a sentence names by title ("the Merck Collaboration Agreement", "the Third Pfizer Agreement", "the
+ * Vertex Agreement"), each with the party words in its title.
+ */
+function namedAgreements(s: string): { title: string; party: string }[] {
+  const out: { title: string; party: string }[] = [];
+  for (const m of s.matchAll(/\b((?:[A-Z][\w&.-]*\s+){1,6})Agreements?\b/g)) {
+    const words = m[1].trim().split(/\s+/);
+    // A run of capitals starts the sentence or follows "the"/"a": "In October 2023, the Merck Collaboration Agreement".
+    const party = words.filter((w) => !AGREEMENT_TITLE_WORD.test(w)).join(' ');
+    out.push({ title: m[1].trim(), party });
+  }
+  return out;
+}
+
+/**
+ * What a statement about the company says ended (`pattern` matches its names): its agreement terminated ("In October
+ * 2023, the Merck Collaboration Agreement and development thereunder was terminated by Merck", Artiva's 10-K), a notice
+ * of termination received from it, the agreement assigned away from it ("subsequently assigned to Alexion"), its
+ * royalties expired or stopped ("We will receive no additional royalties from Merck", Enzon's 10-K), or a property
+ * leased to it sold ("completed the sale of its industrial property in Melbourne, Florida leased to Northrop Grumman",
+ * Modiv's 10-Q). With `previous`, the sentence follows one that names the company ("The JDA concluded in September
+ * 2024." after SES AI's partnership with GM). Null when it says no such thing, or only that it could happen.
+ */
+export function relationEnding(sentence: string, pattern: RegExp, previous?: string): Ending | null {
+  const s = sentence.replace(/^\[(?:competitors|next)\]\s*/, '');
+  if (ENDING_HEDGE.test(s) || SAFE_HARBOR.test(s) || PARTIAL_ENDING.test(s)) return null;
+  const named = (text: string) => {
+    pattern.lastIndex = 0;
+    return pattern.test(text);
+  };
+  if (!previous && !named(s)) return null;
+  // The sentence after one naming the company speaks of its agreement only by a definite reference: "The JDA concluded",
+  // "As the agreement was terminated"; "On March 8, 2019, the Company entered into" another one.
+  if (previous && !named(s) && !/^(?:As |Because |Since |However, |In addition, )?(?:the|this|that|such|our|these)\s+(?:[\w-]+\s+){0,3}?(?:agreements?|collaborations?|JDA|partnerships?|arrangements?|licen[cs]es?)\b/i.test(s)) return null;
+  const p = pattern.source;
+  const ended = (how: Ending['how'], m?: RegExpExecArray | RegExpMatchArray | null): Ending => {
+    const from = m?.index != null ? m.index + m[0].length : undefined;
+    // An assignment's date follows it; a date before it is the signing ("In December 2017, the Company entered into ...
+    // subsequently assigned to Alexion ... in September 2023").
+    const signed = how === 'assigned' && from != null && /\b(?:entered into|signed|executed)\b/i.test(s.slice(0, from));
+    const date = signed ? endingDate(' '.repeat(from!) + s.slice(from), from) : endingDate(s, from);
+    return { how, ...(date ? { date } : {}) };
+  };
+  let m: RegExpExecArray | null;
+  if ((m = /\bcompleted the sale of\b[^.;]{0,120}\bleased to\b|\bsold\s+(?:its|our|the)\s+(?:[\w-]+\s+){0,4}(?:property|properties|building|facility|campus)\b[^.;]{0,80}\bleased to\b/i.exec(s)) && (previous || new RegExp(String.raw`\bleased to\s+(?:the\s+)?(?:${p})`).test(s))) return ended('disposed');
+  // The company as the assignee or successor gains the agreement ("assigned to Pfizer"); so does the filer ("the Lilly
+  // Agreement was assigned to and assumed by us", Atrium's 8-K; "the Company became the successor in interest to the
+  // Merck Neuromuscular License Agreement", Kineta's 10-Q).
+  const gains = new RegExp(String.raw`\b(?:assigned|assignment)\b[^.;]{0,100}?\bto\s+(?:and\s+assumed\s+by\s+)?(?:the\s+)?(?:${p}|us\b|our\b|the Company\b|the Registrant\b)|(?:${p}|\b[Ww]e|\b[Tt]he Company)(?!'s|’s)\s+(?:(?:also|later|then|thereby|has|have|had)\s+)?became\s+(?:the\s+)?successor`);
+  if (gains.test(s)) return null;
+  if ((m = /\bsubsequently assigned to\b|\b(?:was|were|has been)\s+assigned to\b|\bassignment of (?:the|this|its|such|our)\b[^.;]{0,100}\bto\b/i.exec(s))) return ended('assigned', m);
+  // Voyager's 10-Q: "Alexion ... acquired all of Pfizer's rights under the Alexion Agreement and became the
+  // successor-in-interest to Pfizer thereunder" (the agreement is named after its new party).
+  if ((m = new RegExp(String.raw`\bsuccessor[- ]in[- ]interest to\s+(?:the\s+)?(?:${p})(?!\s+(?:[A-Z][\w-]*\s+){0,4}(?:Agreement|License|Licence))|\bacquired all of\s+(?:${p})(?:'s|’s) rights\b`).exec(s))) return ended('assigned', m);
+  // A named agreement must be the company's own, and the only one named: "the Vertex Agreement" is another company's,
+  // and "terminated the Third Pfizer Agreement ... under Amendment No. 1 to the Second Pfizer Agreement" ended one of two.
+  const titles = namedAgreements(s);
+  const parties = titles.filter((t) => t.party);
+  if (parties.some((t) => !new RegExp(p).test(t.party)) || new Set(parties.map((t) => t.title)).size > 1 || /\bAmendment No\./.test(s)) return null;
+  if (!AGREEMENT_WORD.test(s) && !previous) return null;
+  if ((m = /\b(?:will|shall)\s+receive\s+no\s+(?:further|future|additional|more)\s+(?:royalt\w+|milestones?|payments?)\b|\bno\s+(?:further|future|additional)\s+royalt\w+\b[^.;]{0,40}\b(?:will be|are|is)\s+(?:due|payable|owed)\b/i.exec(s))) return ended('expired', m);
+  // An agreement, its term or the royalties under it expired; patents or options expiring are no end of the agreement.
+  if ((m = /\b(?:agreements?|licen[cs]es?|term|royalt\w+|right to receive\b[^.;]{0,60})\s+(?:\w+\s+){0,3}?expired\b/i.exec(s))) return ended('expired', m);
+  // "terminated ... and Merck exclusively licensed to Acumen": the relation goes on in another form.
+  if (new RegExp(String.raw`\bterminated\b[^.;]{0,20}\band\s+(?:${p})\s+(?:\w+ly\s+)?(?:licensed|granted|agreed|entered)`).test(s)) return null;
+  for (const t of s.matchAll(/\b(?:was|were|has been|had been|have been|is|are)\s+(?:\w+\s+){0,2}?terminated\b|\b(?:agreements?|collaborations?|licen[cs]es?|partnerships?|arrangements?|JDA)\s+terminated\b/gi)) {
+    const nouns = [...s.slice(Math.max(0, (t.index ?? 0) - 160), (t.index ?? 0) + t[0].length).matchAll(ENDED_NOUN)].map((x) => x[1]);
+    if (AGREEMENT_NOUN.test(nouns[nouns.length - 1] ?? '')) return ended('terminated', t);
+  }
+  if ((m = /\bterminated\s+(?:the|this|that|such|our|its|their)\s+(?:[\w-]+\s+){0,6}?(?:agreements?|collaborations?|licen[cs]es?|partnerships?|arrangements?|JDA)\b/i.exec(s))) return ended('terminated', m);
+  // A notice received, given or sent: "we received notice from Merck that it was terminating", "Merck provided us
+  // written notice of termination", "Pfizer notified the Company of its termination"; not "unless Lilly notifies".
+  if ((m = /\b(?:received|provided|delivered|sent|gave|given|issued|served)\b[^.;]{0,80}\bnotice\b[^.;]{0,100}\b(?:termination|terminate|terminating|expiration)\b|\bnotified\b[^.;]{0,100}\b(?:termination|terminate|terminating)\b/i.exec(s))) return ended('terminated', m);
+  if ((m = /\bconcluded\s+(?=in|on|as of)/i.exec(s))) return ended('terminated', m);
+  if ((m = new RegExp(String.raw`\bformer\s+(?:[\w-]+\s+){0,6}?(?:agreements?|collaborations?|licen[cs]es?|partnerships?)\s+(?:agreement\s+)?with\s+(?:the\s+)?(?:${p})|\bformer\s+(?:[\w-]+\s+){0,2}partners?,?\s+(?:${p})`, 'i').exec(s))) return ended('terminated', m);
+  if ((m = new RegExp(String.raw`(?:^|[,;]\s*|\b(?:and|that|which)\s+)(?:${p})\s+(?:will\s+|would\s+|shall\s+)?no longer\s+(?:promotes?|has any rights|have any rights)\b`).exec(s)) || (previous && (m = /\bno longer\s+(?:promotes?|has any rights|have any rights)\b/i.exec(s)))) return ended('terminated');
+  return null;
+}
+
 /** The sites a sentence says are leased to the named company: "Polaris Forge 2, its AI Factory campus ... currently leased to Oracle". */
 export function leasedSites(sentence: string, name: string): string[] {
   const head = name.split(/[\s,]+/)[0];
@@ -2965,10 +3093,28 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
       // A filing that calls another company by the target's name speaks of that company throughout.
       const other = sentences.some((s) => definesOther(s, pattern));
       const filedYear = Number(f.date.slice(0, 4));
+      // The agreement the filing says ended: its statements of the relation published by then are history.
+      const endings: { e: Evidence; ending: Ending }[] = [];
+      const roles = new Set<Role>();
+      let prev: { sentence: string; role?: Role } | undefined;
       for (const sentence of other ? [] : sentences) {
+        if (sentence.startsWith('[next] ')) {
+          // The sentence after one naming the company ("The JDA concluded in September 2024."), quoted with it.
+          const next = sentence.slice('[next] '.length);
+          const ending = prev && (prev.role === 'partner' || prev.role === 'supplier' || prev.role === 'customer') ? relationEnding(next, pattern, prev.sentence) : null;
+          if (ending) endings.push({ e: evidence(f, `${prev!.sentence} ${next}`), ending });
+          continue;
+        }
+        prev = { sentence };
         if (exclude?.test(sentence)) continue;
+        const ending = relationEnding(sentence, pattern);
+        if (ending) {
+          endings.push({ e: evidence(f, sentence), ending });
+          continue;
+        }
         const c = classify(sentence, pattern, filer);
         if (!c) continue;
+        prev.role = c.role;
         // "95% of our China revenue in 2019" in a 2026 report: a figure for a long-past year is no current relation, nor
         // is an event dated long before ("On December 11, 1998, The Coca-Cola Company announced an agreement").
         const years = (sentence.match(/\b(?:19|20)\d{2}\b/g) ?? []).map(Number).filter((y) => y <= filedYear + 1);
@@ -2979,7 +3125,18 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
         found++;
         const r: Relation = { key: `cik:${f.cik}`, name: identity.name, ticker: identity.ticker, cik: f.cik, ...(identity.listing ? { listing: identity.listing } : {}), role: c.role, share: c.share, qualifier: c.qualifier, basis: c.basis, side: 'theirs', evidence: [evidence(f, sentence)] };
         relations.push(r); captured.push(enrichRelation(r));
+        roles.add(c.role);
         if (c.also) { const also = { ...r, role: c.also, share: undefined, qualifier: undefined, basis: undefined }; relations.push(also); captured.push(enrichRelation(also)); }
+      }
+      // An ending closes the agreement's roles the filing states (partner, supplier or customer), or a partnership when it
+      // states none; a stake or a rivalry is not an agreement.
+      const closing = [...roles].filter((x) => x === 'partner' || x === 'supplier' || x === 'customer');
+      for (const { e, ending } of endings) {
+        for (const role of closing.length ? closing : ['partner' as const]) {
+          const r: Relation = { key: `cik:${f.cik}`, name: identity.name, ticker: identity.ticker, cik: f.cik, ...(identity.listing ? { listing: identity.listing } : {}), role, side: 'theirs', evidence: [{ ...e, assertion: endingAssertion(e, ending) }] };
+          relations.push(r); captured.push(enrichRelation(r));
+          found++;
+        }
       }
     } else failedDocument();
     mark(f, sentences ? 'read' : 'failed', found);
