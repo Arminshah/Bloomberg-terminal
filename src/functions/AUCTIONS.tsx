@@ -75,7 +75,7 @@ export function AUCTIONS(_: FnProps) {
         tabs={TABS.map((x) => ({ n: x.n, label: x.label }))} tab={tab} onTab={setTab}
         actions={rows.length ? exportActions(panel, 'treasury-auctions.csv', csv) : []} />
       {state === 'none' ? (
-        <div className="empty">Treasury auctions come from the Treasury&apos;s Fiscal Data, read by the desktop app.</div>
+        <div className="empty">The Treasury&apos;s auctions are read from Fiscal Data and TreasuryDirect in the desktop app. The browser demo has none, and none is generated.</div>
       ) : state === 'loading' ? (
         <div className="empty">Reading the Treasury&apos;s auctions…</div>
       ) : state === 'error' ? (
