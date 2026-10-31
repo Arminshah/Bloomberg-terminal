@@ -1633,6 +1633,17 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
     if (SAFE_HARBOR.test(s) || /\brisks related to:/i.test(s)) continue;
     // The text of slides ("Investor Presentation 2026 7 / 46 AI Data Center Expansion ..."): headings run together.
     if (/\bInvestor Presentation\b|\b\d{1,3}\s\/\s\d{1,3}\b/.test(s)) continue;
+    // A company it took over, or whose stake was redeemed: every relation with it ends then (runChain).
+    const taken = takenOver(s, dir, selfPattern);
+    if (taken) {
+      for (const f of taken.parties) {
+        if (ownName(f.name) || (f.cik && f.cik === self.cik)) continue;
+        const list = (ended.taken ??= new Map()).get(relationKey(f)) ?? [];
+        list.push({ party: f, evidence: { ...ev, sentence: raw }, ending: taken.ending });
+        ended.taken.set(relationKey(f), list);
+      }
+      continue;
+    }
     // A loan repaid or ended: its agent bank is no longer a lender.
     if (LOAN_ENDED.test(s)) {
       for (const m of s.matchAll(AGENT_OF)) for (const f of findCompanies(m[1], dir).slice(-1)) (ended.repaid ??= new Set()).add(relationKey(f));
@@ -1787,7 +1798,11 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       if (subject.some((f) => new RegExp(`${escapeRe(f.name.split(/[ ,]/)[0])}(?:'s)?\\s+(?:\\w+\\s+){0,2}(?:relies|depends|uses|sources|purchases|buys|procures|engages|outsources|suppliers?|vendors?)\\b`, 'i').test(lead))) continue;
       // "the DRIVE ecosystem is expanding to include tier 1 suppliers, automotive integrators and sensor partners
       // including Bosch, Sony and ZF": partners building on its products, not its suppliers.
-      const role: Role = /\becosystem\b|\bpartners?\b[^.;]{0,40}\b(?:including|include|includes|such as)\b|\btier[- ](?:1|one|2|two)\b|\bcollaborat\w*/i.test(s) ? 'partner' : 'supplier';
+      // "make investments in certain raw material and battery suppliers, including contributing up to a maximum of $6.6
+      // billion in capital to BlueOval SK, LLC" (Ford's 10-Q): the suppliers listed are stakes it holds.
+      const role: Role = /\binvestments?\s+in\s+(?:[\w-]+\s+){0,6}?(?:suppliers?|vendors?)\b[^.;]{0,20}\b(?:including|such as)\b/i.test(s)
+        ? 'investment'
+        : /\becosystem\b|\bpartners?\b[^.;]{0,40}\b(?:including|include|includes|such as)\b|\btier[- ](?:1|one|2|two)\b|\bcollaborat\w*/i.test(s) ? 'partner' : 'supplier';
       for (const f of findCompanies(at >= 0 ? s.slice(at) : s, dir)) add(f, role, raw);
       continue;
     }
@@ -1824,6 +1839,51 @@ export interface EndedStakes {
   legalNames?: Map<string, string>;
   /** Production retains lifecycle disclosures; legacy pure-classifier callers can request its original current-only view. */
   retainHistory?: boolean;
+  /**
+   * Companies the company says it took over or whose stake was redeemed ("In July 2025, we acquired all shares of Verve
+   * Therapeutics, Inc."), by relation key, with the statement and when: every relation with them ends then.
+   */
+  taken?: Map<string, { party: Found; evidence: Evidence; ending: Ending }[]>;
+}
+
+/**
+ * The companies a statement of the company's own says it took over, or whose stake in them was redeemed: "In July
+ * 2025, we acquired all shares of Verve Therapeutics, Inc. (Verve)" (Lilly's 10-K), "On October 3, 2022, we acquired
+ * Biohaven" (Pfizer's 10-K), "the completed acquisitions of Orna Therapeutics, Inc., Ajax Therapeutics, Inc. ...",
+ * "Lilly completes acquisition of AtaiBeckley", "Ford's membership interest in BOSK was redeemed in full". Not "an
+ * agreement to acquire", not "acquired certain assets of", not another company's acquisition.
+ */
+export function takenOver(sentence: string, dir: Directory, self: RegExp): { parties: Found[]; ending: Ending } | null {
+  const s = sentence;
+  const own = String.raw`(?:\b[Ww]e|\b[Tt]he Company|${self.source})`;
+  const one = new RegExp(String.raw`${own}\s+(?:have\s+|has\s+)?acquired\s+(?:all\s+(?:of\s+)?(?:the\s+)?(?:outstanding\s+|issued and outstanding\s+)?(?:shares|stock|equity(?:\s+interests?)?|capital stock|common stock)\s+of\s+)?`).exec(s);
+  const many = new RegExp(String.raw`(?:${own}\s+(?:has\s+|have\s+)?(?:completed|completes)\s+(?:the\s+|our\s+|its\s+)?|\bthe completed\s+)acquisitions?\s+of\s+`).exec(s);
+  const redeemed = new RegExp(String.raw`\b(?:our|its|the Company's|${self.source}(?:'s|’s))\s+(?:membership|ownership|equity)\s+interests?\s+in\s+`).exec(s);
+  const at = (m: RegExpExecArray) => s.slice(m.index + m[0].length);
+  // A company no longer listed, written without its legal form ("AtaiBeckley", "BlueOval SK"); not a product's code
+  // ("Merck acquired MK-1045 (formerly CN201)").
+  const bare = (text: string): Found[] => {
+    const b = /^([A-Z][\w&-]*(?:\s+[A-Z][\w&-]*){0,3})(?=\s+(?:to|for|in|on|from|and|was|were)\b|\s*[,.;(]|$)/.exec(text);
+    return b && !NOT_COMPANY.test(b[1]) && !/\d/.test(b[1]) && !/^(?:Inc|Corp|Corporation|Company|Ltd|LLC)\b/.test(b[1]) ? [{ name: b[1], index: 0 }] : [];
+  };
+  if (redeemed) {
+    const found = findCompanies(at(redeemed), dir, true).filter((f) => f.index <= 2).slice(0, 1);
+    const party = found.length ? found : bare(at(redeemed));
+    if (party.length && /^[^.;]{0,60}\b(?:was|were)\s+redeemed\b/i.test(at(redeemed).slice(party[0].index))) return { parties: party, ending: { how: 'disposed', ...(endingDate(s) ? { date: endingDate(s) } : {}) } };
+  }
+  const m = many ?? one;
+  if (!m) return null;
+  const rest = at(m);
+  // Shares, stock or assets bought, or what another company held: "we acquired SoftBank Vision Fund (AIV M2) L.P.'s
+  // (SoftBank) Cruise Class A-1, Class F and Class G Preferred Shares", "we acquired Class E Common Shares" (GM's 10-K).
+  if (m === one && !/\ball\s/.test(m[0]) && /^[^,;]{0,80}?(?:'s|’s|\b(?:[Ss]hares|[Ss]tock|assets|interests?|rights|propert(?:y|ies)|licen[cs]es?)\b)/.test(rest)) return null;
+  // "acquired Biohaven, the maker of Nurtec", not "acquired Biohaven's rights" or "acquired a 20% stake".
+  let parties = (many ? partiesAt(rest, dir, true) : findCompanies(rest.slice(0, 160), dir, true).filter((f) => f.index <= 2).slice(0, 1))
+    .filter((f) => !/^[A-Z][\w&.-]*(?:\s+[A-Z][\w&.-]*){0,4}(?:'s|’s)/.test(rest.slice(f.index)));
+  if (!parties.length) parties = bare(rest);
+  if (!parties.length) return null;
+  const date = endingDate(s);
+  return { parties, ending: { how: 'disposed', ...(date ? { date } : {}) } };
 }
 
 /** The name that ends a phrase ("Purchases from Ablecom Technology, Inc." → "Ablecom Technology, Inc."): its capitalised words, with the small words a name can hold ("Bank of America"). */
@@ -3143,6 +3203,21 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     publish();
   });
   await federal;
+  // A company it took over (or whose stake was redeemed) is no longer a counterparty: each of its relations ends then. A
+  // company no longer listed is named in its own filings under its CIK, and in the company's by name.
+  for (const [key, list] of ended.taken ?? []) {
+    const name = normalizeName(list[0].party.name);
+    const same = captured.filter((r) => r.key === key || (name && normalizeName(r.name) === name));
+    for (const k of new Set(same.map((r) => `${r.key}|${r.role}`))) {
+      const was = same.find((r) => `${r.key}|${r.role}` === k)!;
+      for (const { evidence: e, ending } of list) {
+        const r: Relation = { key: was.key, name: was.name, ticker: was.ticker, cik: was.cik, id: was.id, yahoo: was.yahoo, ...(was.listing ? { listing: was.listing } : {}), role: was.role, side: 'own', evidence: [{ ...e, assertion: endingAssertion(e, ending) }] };
+        relations.push(r);
+        captured.push(enrichRelation(r));
+      }
+    }
+  }
+  if (ended.taken?.size) publish();
   // Companies the SEC's current list no longer has: their own filing lists say why (a change in control, a
   // bankruptcy, a deregistration or a delisting). Without an answer they stay "Not listed".
   const unlisted = [...new Set(captured.filter((r) => r.cik && r.listing).map((r) => r.cik!))].slice(0, MAX_LISTING_CHECKS);

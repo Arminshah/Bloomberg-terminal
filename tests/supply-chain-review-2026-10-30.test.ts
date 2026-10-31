@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as main from '../electron/supply-chain.cjs';
 import {
   buildDirectory, filerIdentity, listingEvents, listingLabel, mergeRelations, ownRelations, relationEnding, relationshipView, relationStatus, runChain,
-  targetNames, targetPattern, type Chain, type ChainIO, type FtsHit, type Relation,
+  takenOver, targetNames, targetPattern, type Chain, type ChainIO, type FtsHit, type Relation,
 } from '../src/data/live/supply-chain';
 import { appendRelationshipHistory, endingAssertion } from '../src/data/live/supply-chain-history';
 import type { SecCompany } from '../src/data/live/sec';
@@ -217,5 +217,63 @@ describe('SPLC review of 30 October 2026: relations the cited filing itself says
     const unresolved = { id: 'own', evidenceId: 'own', state: 'ended' as const, sourceDate: own.date, sourcePrecision: 'day' as const, scope: 'unresolved' as const };
     expect(relationStatus({ key: 'cik:1001233', name: 'Sangamo', role: 'partner', side: 'both', evidence: [{ ...own, assertion: unresolved }] })).toBe('unresolved');
     expect(relationStatus({ key: 'cik:1001233', name: 'Sangamo', role: 'partner', side: 'both', evidence: [{ ...own, assertion: unresolved }, { ...theirs, assertion: endingAssertion(theirs, { how: 'terminated', date: '2025-04-21' }) }] })).toBe('ended');
+  });
+});
+
+describe('SPLC review of 30 October 2026: companies the company took over, and stakes it no longer holds', () => {
+  const lilly = targetPattern(targetNames('LLY', 'ELI LILLY & Co').names);
+  it("reads its own statements of a takeover or a redeemed stake, and not purchases of shares, assets or products", () => {
+    const parties = (s: string, self = lilly) => takenOver(s, dir, self);
+    // LLY-11, LLY-10: Lilly's 10-K of February 2026 and its release of October 2026.
+    expect(parties('In July 2025, we acquired all shares of Verve Therapeutics, Inc. (Verve) for a purchase price of $10.50 per share in cash (or an aggregate of $549 million, net of cash acquired), plus one non-tradeable contingent value right (CVR) per share that entitles the holder to receive up to an additional $3.00 per share (or an aggregate of up to approximately $300 million) payable, subject to certain terms and conditions, upon the achievement of a certain specified milestone.')).toEqual({ parties: [{ name: 'Verve Therapeutics', index: 0 }], ending: { how: 'disposed', date: '2025-07' } });
+    expect(parties('Lilly completes acquisition of AtaiBeckley to advance therapies for treatment-resistant depression and other mental health conditions (announcement)')?.parties.map((p) => p.name)).toEqual(['AtaiBeckley']);
+    // An agreement to acquire is no takeover yet.
+    expect(parties('In addition, we have entered into an agreement to acquire AtaiBeckley Inc., subject to closing conditions.')).toBeNull();
+    // PFE-6: Pfizer's 10-K of February 2025.
+    expect(parties('Biohaven--On October 3, 2022, we acquired Biohaven, the maker of Nurtec ODT/Vydura (rimegepant), an innovative therapy approved for both acute treatment of migraine and prevention of episodic migraine in adults.', PFIZER)).toMatchObject({ parties: [{ name: 'Biohaven' }], ending: { date: '2022-10-03' } });
+    // F-4: Ford's 10-Q of July 2026.
+    const ford = targetPattern(targetNames('F', 'FORD MOTOR CO').names);
+    expect(parties('Upon closing, Ford\'s membership interest in BlueOval SK was redeemed in full.', ford)?.parties.map((p) => p.name)).toEqual(['BlueOval SK']);
+    // GM's 10-K: shares bought from SoftBank and from minority holders; Merck's 10-Q: a product bought.
+    const gm = targetPattern(targetNames('GM', 'GENERAL MOTORS CO').names);
+    expect(parties('Cruise Preferred Shares In March 2022, we acquired SoftBank Vision Fund (AIV M2) L.P.\'s (SoftBank) Cruise Class A-1, Class F and Class G Preferred Shares for $2.1 billion and made an additional $1.35 billion investment in Cruise in place of SoftBank.', gm)).toBeNull();
+    expect(parties('In December 2024, we acquired Class F and Class G Preferred Shares from noncontrolling shareholders for an insignificant amount.', gm)).toBeNull();
+    expect(parties('In September 2024, Merck acquired MK-1045 (formerly CN201), a novel investigational clinical-stage bispecific antibody for the treatment of B-cell associated diseases, from Curon Biopharmaceutical (Curon).', MERCK)).toBeNull();
+  });
+
+  it("ends Verve's relations with Lilly when Lilly's own filing says it acquired Verve (LLY-11)", async () => {
+    const verve: FtsHit = { cik: 1840574, name: 'Verve Therapeutics, Inc.', tickers: ['VERV'], form: '10-K', date: '2025-03-04', path: '1840574/000095017025028376/verv-20241231.htm', score: 1, type: '10-K' };
+    const io: ChainIO = {
+      companies: async () => [...SEC, { cik: 59478, ticker: 'LLY', title: 'ELI LILLY & Co' }],
+      filings: async (cik) => (cik === 59478 ? [{ form: '10-K', filed: '2026-02-12', accession: '0000059478-26-000013', doc: 'lly-20251231.htm' }] : []),
+      fts: async (arg) => (arg === '|Lilly|reports' ? { hits: [verve], total: 1 } : { hits: [], total: 0 }),
+      text: async (kind, path) => {
+        if (kind === 'own' && path.endsWith('lly-20251231.htm')) return ['In July 2025, we acquired all shares of Verve Therapeutics, Inc. (Verve) for a purchase price of $10.50 per share in cash (or an aggregate of $549 million, net of cash acquired), plus one non-tradeable contingent value right (CVR) per share that entitles the holder to receive up to an additional $3.00 per share (or an aggregate of up to approximately $300 million) payable, subject to certain terms and conditions, upon the achievement of a certain specified milestone.'];
+        if (kind === 'mentions' && path === verve.path) return [
+          'In June 2023, we entered into an exclusive, five-year global research collaboration with Lilly focused on advancing our in vivo gene editing Lp(a) program.',
+          'In July 2023, we sold and issued 1,552,795 shares of our common stock to Lilly at a price of $19.32 per share, for an aggregate purchase price of $30.0 million.',
+        ];
+        return [];
+      },
+      securities: [],
+    };
+    let chain: Chain = { state: 'loading', filers: [], relations: [], changes: {} };
+    await runChain({ ticker: 'LLY', name: 'Eli Lilly' }, io, (f) => { chain = f(chain); });
+    expect(relationshipView(chain, 'current').filter((r) => r.key === 'cik:1840574')).toEqual([]);
+    const past = relationshipView(chain, 'history').filter((r) => r.key === 'cik:1840574');
+    expect(past.map((r) => [r.role, relationStatus(r)]).sort()).toEqual([['investment', 'ended'], ['partner', 'ended']]);
+    expect(past[0].assertions?.find((a) => a.state === 'ended')).toMatchObject({ effectiveTo: '2025-07', scope: 'relationship' });
+  });
+
+  it("ends a stake in a company taken over since, and reads Ford's investments in its battery suppliers as stakes (PFE-10, F-4)", () => {
+    // Tourmaline's 8-K of 28 October 2025 completed Novartis's merger (item 5.01); Pfizer's shares were bought for cash.
+    const ev = { sentence: 'In addition, in May 2023, we issued 8,823,529 additional shares of our Series A convertible preferred stock to Pfizer pursuant to an anti-dilution provision within the Pfizer License Agreement.', filer: 'Tourmaline Bio, Inc.', form: '10-K', date: '2025-03-13', path: '1827506/000182750625000027/trml-20241231.htm' };
+    const stake: Relation = { key: 'cik:1827506', name: 'Tourmaline Bio, Inc.', cik: 1827506, role: 'investment', side: 'theirs', evidence: [ev], listing: { listed: false, was: 'TRML', events: listingEvents([{ form: '15-12G', filed: '2025-11-07' }, { form: '8-K', filed: '2025-10-28', items: ['2.01', '3.01', '5.01', '5.03'] }]) } };
+    expect(relationStatus(stake)).toBe('ended');
+    // Its licence with Pfizer goes on with Novartis's subsidiary.
+    expect(relationStatus({ ...stake, role: 'partner' })).toBe('reported');
+    const ford = { cik: 37996, names: targetNames('F', 'FORD MOTOR CO').names, ticker: 'F' };
+    const got = ownRelations(['Moreover, in order to secure critical materials for production of electric vehicles, we have entered into and we may, in the future, enter into offtake agreements with raw material suppliers and make investments in certain raw material and battery suppliers, including contributing up to a maximum of $6.6 billion in capital to BlueOval SK, LLC ("BOSK") over a five-year period ending in 2026.'], dir, ford, { filer: 'Ford Motor Co', form: '10-Q', date: '2025-10-24', path: '37996/000003799625000186/f-20250930.htm' });
+    expect(got.map((r) => [r.role, r.name])).toEqual([['investment', 'BlueOval SK']]);
   });
 });

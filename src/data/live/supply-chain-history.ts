@@ -188,6 +188,10 @@ export function relationStatus(r: Relation, effectiveAsOf?: string): 'reported' 
   const day = effectiveAsOf ?? new Date().toISOString().slice(0, 10);
   const assertions = (r.assertions ?? r.evidence.map((e) => assertionFor(e, r))).filter((a) => !(a.effectiveFrom && a.effectiveFrom > day));
   const positives = assertions.filter((a) => a.state !== 'ended' && a.state !== 'planned');
+  // A stake in a company taken over since (its 8-K reporting a change in control) is no longer held in it: Pfizer's
+  // Tourmaline shares after Novartis bought Tourmaline for cash in October 2025.
+  const takeover = r.role === 'investment' ? r.listing?.events?.find((x) => x.what === 'change in control' && x.date <= day) : undefined;
+  if (takeover && !positives.some((a) => a.sourceDate > takeover.date)) return 'ended';
   const ended = assertions.filter((a) => a.state === 'ended' && (!a.effectiveTo || a.effectiveTo <= day));
   if (!ended.length) return positives.length ? 'reported' : 'unresolved';
   // A closure without a contract reference needs reconciling, unless a later statement ends the whole relationship

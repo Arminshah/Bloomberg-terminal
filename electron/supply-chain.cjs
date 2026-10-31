@@ -228,7 +228,7 @@ function mentionSentences(text, names, max = 80) {
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 10;
+const EXTRACTION = 11;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;
@@ -261,6 +261,9 @@ const OWN = new RegExp(
     String.raw`|[A-Z][\w&.' -]{1,80}?,?\s+(?:Inc|Ltd|LLC|Corp|Corporation|Co|Limited|plc|GmbH|AG|S\.A|N\.V)\.?\s*\(\s*["“][A-Z][\w&.-]{1,24}["”]\)` +
     // Closures and changes must survive extraction, even when the original signing words are absent.
     String.raw`|\b(?:terminated|cancelled|canceled|expired|repaid in full|paid off|extinguished|spun off|reacquired)\b[^.;]{0,200}\b(?:facility|loan|lease|contract|agreement|stake|interest|investment|subsidiary|[A-Z][a-z]{2,})\b` +
+    // Companies it took over, and a stake redeemed: "In July 2025, we acquired all shares of Verve Therapeutics, Inc.",
+    // "the completed acquisition of AtaiBeckley", "Ford's membership interest in BOSK was redeemed in full".
+    String.raw`|\b(?:[Ww]e|[Tt]he Company)\s+(?:have\s+)?acquired\s+(?:all\s+|[A-Z])|\b(?:completed|completes)\s+(?:the\s+|our\s+|its\s+)?acquisitions?\s+of\s+[A-Z]|\binterests?\s+in\s+[A-Z][^.;]{0,60}\b(?:was|were)\s+redeemed\b` +
     String.raw`|\b(?:facility|loan|lease|contract|agreement|stake|interest|investment)\b[^.;]{0,200}\b(?:terminated|cancelled|canceled|expired|repaid in full|paid off|extinguished|sold)\b)`,
 );
 // A sentence that introduces a list of competitors on the lines that follow.
