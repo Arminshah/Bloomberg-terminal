@@ -15,7 +15,7 @@ import { defaultBenchmark } from '../finance/beta';
 import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings, peers, priceInCurrency, reportCcy, revenueMix } from '../data/fundamentals';
 import { desktopData, yahooSymbolFor } from '../data/live/yahoo';
 import { fundVersion, getRealFund, useFundamentalsFor, type RealFund } from '../data/live/yfund';
-import { secAvailable, secTicker, useSecLoad } from '../data/live/sec';
+import { loadFiler, resolveFiler, secAvailable, secTicker, useSecLoad } from '../data/live/sec';
 import { useFigiListings } from '../data/live/related';
 import { loadInsiders, summarize } from '../data/live/insiders';
 import { wantShares } from '../data/live/shares';
@@ -472,61 +472,95 @@ function fyLabel(iso: string): string {
 
 // ---------------------------------------------------------------- 2) Issue Info
 
+/** Market identifier codes (ISO 10383) of the exchanges the app's listings name, for Issue Information. */
+const MIC: [RegExp, string][] = [
+  [/^nasdaq(?! (stockholm|helsinki|copenhagen))/i, 'XNAS'], [/^nyse$/i, 'XNYS'], [/^nyse american/i, 'XASE'], [/^nyse arca/i, 'ARCX'],
+  [/^london$/i, 'XLON'], [/^tokyo$/i, 'XTKS'], [/^six swiss/i, 'XSWX'], [/^en paris$/i, 'XPAR'], [/^en amsterdam$/i, 'XAMS'],
+  [/^en brussels$/i, 'XBRU'], [/^en lisbon$/i, 'XLIS'], [/^xetra$/i, 'XETR'], [/^toronto$/i, 'XTSE'], [/^hong kong$/i, 'XHKG'],
+  [/^asx$/i, 'XASX'], [/^nasdaq stockholm$/i, 'XSTO'], [/^nasdaq helsinki$/i, 'XHEL'], [/^oslo bors$/i, 'XOSL'], [/^vienna$/i, 'XWBO'],
+];
+
+export function marketIdentifier(exch: string | undefined): string {
+  return MIC.find(([re]) => exch && re.test(exch))?.[1] ?? '--';
+}
+
 function IssueInfoPage({ sec }: { sec: SecurityDef }) {
   useTick(5);
   const eq = sec.eq!;
-  const ks = keyStats(sec);
-  const rs = rangeStats(sec.id);
   const real = getRealFund(sec.id);
-  // Fund filings overlap with their managers' 13F positions, so the summary counts managers only.
-  const h = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 10);
-  const inst = h.reduce((s, x) => s + x.pct, 0);
+  const b = real?.breakdown ?? null;
+  const ticker = secTicker(sec);
+  const us = sec.country === 'US';
+  // The SEC's company record (state of incorporation) and the last six months of Form 4 filings, for a US filer.
+  const filer = useSecLoad(engine.realOnly && us && ticker ? `submissions:${ticker}` : null, async (force) => {
+    const c = await resolveFiler(ticker!, force);
+    if (!c.ok) return c;
+    return loadFiler(c.data.cik, force);
+  });
+  const insiders = useSecLoad(engine.realOnly && us && ticker ? `insiders6:${sec.id}` : null, () => loadInsiders(sec, 6));
+  const figiAnswer = useFigiListings(engine.realOnly && us ? ticker : null);
+  const figi = figiAnswer?.listings.find((l) => l.exchCode === 'US')?.figi;
+  // Fund filings overlap with their managers' 13F positions, so the list counts managers only.
+  const top = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 7);
+  const asOf = top.reduce((m, x) => (Number.isFinite(x.filed) && x.filed > m ? x.filed : m), NaN);
+  const none = (why: string) => <span className="muted" title={why}>--</span>;
+  const noSource = none('No free source gives this figure');
+  const net = insiders.result?.ok ? summarize(insiders.result.data.trades).all.netShares : NaN;
   return (
     <>
       <div className="cols">
-        <Section title="Issue Data">
+        <Section title="Public Offerings">
+          <div className="empty">Public offerings are not available.</div>
+        </Section>
+        <Section title="Inst Holdings">
           <KV
             items={[
-              ['Ticker', `${sec.ticker} ${sec.id.split(' ').slice(1, -1).join(' ')}`.trim()],
-              ['Security type', 'Common stock'],
-              ['Primary exchange', sec.exch ?? '--'],
-              ['Trading currency', sec.ccy],
-              ['Reporting currency', ks.ccy],
-              ['Country', COUNTRY_NAMES[sec.country] ?? sec.country],
+              ['# of Inst. Owners', b && Number.isFinite(b.count) ? fmtInt(b.count) : noSource],
+              ['Shares Owned', b && Number.isFinite(b.institutions) ? fmtMln((eq.shares * b.institutions) / 100) : noSource],
+              ['Shares Out/Float', b ? `${fmtNum(b.institutions, 0)}%/${fmtNum(b.institutionsFloat, 1)}%` : noSource],
+              ['# of Buyers/Sellers', noSource],
+              ['Shares Bought', noSource],
             ]}
           />
         </Section>
-        <Section title="Shares and Trading">
-          <KV
-            items={[
-              ['Shares out', fmtMln(eq.shares)],
-              [`Mkt cap (${ks.tradeCcy})`, <CapLink key="mc" id={sec.id}>{fmtMln(ks.mcap)}</CapLink>],
-              ['Avg volume 30D', fmtBig(rs.avgVol30)],
-              ['Volatility 30D / 260D', `${fmtNum(rs.vol30, 1)}% / ${fmtNum(rs.vol260, 1)}%`],
-              ['Beta (source, 5Y monthly)', fmtNum(eq.beta, 2)],
-            ]}
-          />
-        </Section>
-        {real && (
-          <Section title="Float and Short Interest">
-            <KV items={floatItems(real, eq.shares)} />
-            <FloatNote real={real} />
-          </Section>
-        )}
       </div>
-      <Section title="Top institutional holders" right={`Top 10 hold ${fmtNum(inst, 1)}%`}>
-        <DataTable
-          rows={h}
-          rowKey={(r) => r.name}
-          numbered
-          columns={[
-            { key: 'n', label: 'Holder', render: (r) => r.name },
-            { key: 'p', label: '% Out', num: true, render: (r) => fmtNum(r.pct, 2) },
-            { key: 's', label: 'Position', num: true, render: (r) => fmtBig(r.shares) },
-            { key: 'c', label: 'Change', num: true, render: (r) => <Chg v={r.change / 1e6} dec={2} /> },
-          ]}
-        />
-      </Section>
+      <div className="cols">
+        <Section title="Issue Information">
+          <KV
+            items={[
+              ['Sec Type', 'Common Stock'],
+              ['Pri Exch', sec.exch ?? '--'],
+              ['PAR', noSource],
+              ['Pri MIC', marketIdentifier(sec.exch)],
+              ['Incorp', filer.result?.ok && filer.result.data.stateOfIncorporation ? filer.result.data.stateOfIncorporation : us ? noSource : none('The state of incorporation comes from SEC filings, for US filers')],
+              ['FIGI', figi ?? (us ? noSource : none('OpenFIGI is asked for US listings'))],
+              ['ISIN', noSource],
+              ['SEDOL1', noSource],
+            ]}
+          />
+        </Section>
+        <Section title="Insider Holdings">
+          <KV
+            items={[
+              ['% Held by Insiders', b && Number.isFinite(b.insiders) ? `${fmtNum(b.insiders, 2)}%` : noSource],
+              ['Net Change Last 6M', Number.isFinite(net) ? <span key="n" title="Shares bought less shares sold in the Form 4 filings of the last six months, options left out">{fmtInt(net)}</span> : us ? noSource : none('Form 4 filings are made with the SEC for US-listed companies')],
+            ]}
+          />
+        </Section>
+        <Section title="Top Holders" right={Number.isFinite(asOf) ? `as of ${fmtDay(asOf)}` : undefined}>
+          {top.length ? (
+            <KV items={top.map((h) => [<span key={h.name} className="amber ellipsis">{h.name}</span>, `${fmtNum(h.pct, 2)}%`])} />
+          ) : (
+            <div className="empty">No holder filings from the source.</div>
+          )}
+        </Section>
+      </div>
+      {real && (
+        <Section title="Float and Short Interest">
+          <KV items={floatItems(real, eq.shares)} />
+          <FloatNote real={real} />
+        </Section>
+      )}
     </>
   );
 }

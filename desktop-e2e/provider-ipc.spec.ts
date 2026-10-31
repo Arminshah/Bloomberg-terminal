@@ -1477,6 +1477,10 @@ test('holders sort and filter by reported period, and short float is calculated 
   await expect(positions.first()).toContainText('Recent Synthetic Holder');
   await command(page, 'AAPL DES', 'PROFILE');
   await page.getByRole('button', { name: /2\) Issue Info/ }).click();
+  // DES's Issue Info panels, in the order of the report's captures, then the float and short interest.
+  const issueInfo = page.locator('.panel').first();
+  await expect(issueInfo.locator('.sect-h')).toHaveText([/^Public Offerings/, /^Inst Holdings/, /^Issue Information/, /^Insider Holdings/, /^Top Holders/, /^Float and Short Interest/]);
+  await expect(issueInfo.locator('dt').filter({ hasText: 'Pri MIC' }).locator('+ dd')).toHaveText('XNAS');
   const shortFloat = page.locator('dt').filter({ hasText: 'Short interest, % of float' });
   await expect(shortFloat.locator('+ dd')).toHaveText('15.00%');
   await expect(shortFloat).toContainText('calculated');

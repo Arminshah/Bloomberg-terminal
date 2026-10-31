@@ -28,3 +28,15 @@ describe("PROFILE's market value and share counts, in millions as DES writes the
     expect(inMillions(NaN)).toBe('--');
   });
 });
+
+describe("Issue Information's market identifier code", () => {
+  it('names the exchange by its ISO 10383 code, and none for an exchange it does not know', async () => {
+    const { marketIdentifier } = await import('../src/functions/DESEquity');
+    expect(marketIdentifier('NASDAQ GS')).toBe('XNAS');
+    expect(marketIdentifier('NYSE')).toBe('XNYS');
+    expect(marketIdentifier('London')).toBe('XLON');
+    expect(marketIdentifier('Nasdaq Stockholm')).toBe('XSTO');
+    expect(marketIdentifier('Somewhere')).toBe('--');
+    expect(marketIdentifier(undefined)).toBe('--');
+  });
+});
