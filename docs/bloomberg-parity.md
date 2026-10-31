@@ -133,6 +133,16 @@ Evidence: TE03 05:59 (a right-click on a commodity index: a small window titled 
 - Unverified: which five functions the provider offers for a stock (the frame shows a commodity index); the app's choice follows the frame's order.
 - Checked: `e2e/look.spec.ts` (title, no ×, six lines, cyan name, 1 runs DES on that security, Close, none in the watchlist), the whole browser suite.
 
+### M2.2 Help menu and Live Help (E3)
+
+Evidence: TE01 04:45 (the "?▾" menu over a dimmed DES), TE03 09:07 and TE07 05:11 (the Live Help window).
+
+- Now: the toolbar's yellow "?▾" opens a dark menu under it while the screen behind dims. Its first row is on yellow `#FCE103` with dark text, "See What's New in DES", and lists the release-note lines about the panel's function (WHATSNEW now takes a function as well as a version). Then amber items: Help Page (the function's help, as F1), Live Help, and Recent Enhancements (the release notes). Escape or a click outside closes it.
+- Live Help opens a window laid out as TE03 09:07: a badge and the desk's name, a greeting, a large amber box for the question, Start Chat, and questions to start from. Start Chat hands the question to the app's help desk (MESSAGES), which answers in the panel as it does from its own box. The badge, the desk's name and every sentence are the app's own; nothing of the provider's wording or artwork.
+- Not built: "Take a Tour of ..." (the second yellow row; the app has no tours), Training Request and Training Videos and Events (the provider's own services).
+- Kept: F1 opens the help page and F1 twice the help desk, as before (M2.3 reviews the keys).
+- Checked: `e2e/look.spec.ts` (items, yellow row, amber items, dimming, What's New in DES, Help Page, Live Help's amber box, a question from the list, Start Chat and the desk's answer), `tests/whatsnew-function.test.ts`, the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

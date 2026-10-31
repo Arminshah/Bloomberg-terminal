@@ -338,6 +338,42 @@ test('a right-click on a security opens the small Related Functions window; a nu
   expect(errors).toEqual([]);
 });
 
+test('the yellow ? opens the help menu over a dimmed screen: What\'s New for the function, Help Page, Live Help and Recent Enhancements', async ({ page }) => {
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  await run(page, 'AAPL US Equity DES');
+  await panel.getByRole('button', { name: 'Panel 1 help menu' }).click();
+  const menu = panel.getByRole('menu', { name: 'Help' });
+  // TE01 04:45: the first row on yellow with dark text, then amber items; the screen behind dimmed.
+  await expect(menu.getByRole('menuitem')).toHaveText(["See What's New in DES", 'Help Page', 'Live Help', 'Recent Enhancements']);
+  const first = menu.getByRole('menuitem').first();
+  expect(await first.evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])).toEqual(['rgb(252, 225, 3)', 'rgb(26, 26, 26)']);
+  expect(await menu.getByRole('menuitem', { name: 'Help Page' }).evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 158, 27)');
+  await expect(page.locator('.hmenu-dim')).toBeVisible();
+  await first.click();
+  await expect(panel.locator('.fnh-title')).toHaveText("What's New in DES");
+  // Help Page opens the function's help.
+  await run(page, 'AAPL US Equity DES');
+  await panel.getByRole('button', { name: 'Panel 1 help menu' }).click();
+  await menu.getByRole('menuitem', { name: 'Help Page' }).click();
+  await expect(panel.locator('.fnh-code')).toHaveText('HELP');
+  // Live Help (TE03 09:07): the desk's window; a question from the list, Start Chat, and the help desk answers.
+  await panel.getByRole('button', { name: 'Panel 1 help menu' }).click();
+  await menu.getByRole('menuitem', { name: 'Live Help' }).click();
+  const live = page.getByTestId('live-help');
+  await expect(live.locator('.dlg-title')).toContainText('Live Help');
+  const box = live.getByRole('textbox', { name: 'Question for the help desk' });
+  expect(await box.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(255, 158, 27)');
+  await live.getByRole('button', { name: 'How do I set a price alert?' }).click();
+  await expect(box).toHaveValue('How do I set a price alert?');
+  await live.getByRole('button', { name: /Start Chat/ }).click();
+  await expect(live).toHaveCount(0);
+  await expect(panel.locator('.fnh-code')).toHaveText('MESSAGES');
+  await expect(panel.locator('.msg.me')).toContainText('How do I set a price alert?');
+  await expect(panel.locator('.msg').last()).not.toHaveClass(/\bme\b/);
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.

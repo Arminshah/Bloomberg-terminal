@@ -1146,6 +1146,29 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
 .secpop-t { color: var(--amber); }
 .secpop-more { grid-template-columns: 28px minmax(0, 1fr); margin-top: 10px; }
 
+/* The help menu (TE01 04:45): a dark panel under the toolbar's yellow ?, the first row on yellow #FCE103 with dark
+   text, then amber items; the screen behind dimmed. */
+.hmenu-dim { position: fixed; inset: 0; z-index: 70; background: rgba(0, 0, 0, 0.6); }
+.panel-toolbar { position: relative; }
+.hmenu { position: absolute; z-index: 71; top: 100%; right: 0; min-width: 260px; padding: 0 0 6px; background: #1e1e1e; border: 1px solid #3a3a3a; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7); }
+.hmenu-item { display: block; width: 100%; padding: 4px 14px !important; border: 0; background: transparent; color: var(--amber) !important; text-align: left; white-space: nowrap; font-size: var(--fs); }
+.hmenu-item:hover { background: #153b67 !important; }
+.hmenu-item.hot { background: #fce103 !important; color: #1a1a1a !important; }
+.hmenu-item.hot:hover { background: #ffe93a !important; }
+/* Live Help (TE03 09:07): a badge and the desk's name, a greeting, a large amber box, Start Chat, questions to start
+   from. The badge is the app's own. */
+.lh-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.lh-badge { display: grid; place-items: center; flex: none; width: 40px; height: 40px; background: #2f9e46; color: #fff; font-weight: 600; font-size: 20px; }
+.lh-desk { color: #b0b0b0; font-size: var(--fs-s); }
+.lh-greet { color: var(--white); }
+.lh-box { display: block; width: 100%; height: 130px; padding: 4px 6px; border: 1px solid #dc8b1e; background: var(--amber); color: #1a1a1a; resize: vertical; font-family: var(--sans); }
+.lh-box::placeholder { color: #6b4708; }
+.lh-start { display: flex; justify-content: flex-end; margin: 6px 0 10px; }
+.lh-faq-h { color: var(--amber); margin-bottom: 4px; }
+.lh-faq { margin: 0; padding: 0; list-style: none; }
+.lh-faq li button { display: block; width: 100%; padding: 2px 6px; border: 0; border-bottom: 1px solid #2a2a2a; background: #232323; color: var(--white); text-align: left; }
+.lh-faq li button:hover { background: #153b67; }
+
 /* ------------------------------------------------------------- mobile */
 @media (max-width: 760px) {
   .workspace { grid-template: 1fr / 1fr !important; }

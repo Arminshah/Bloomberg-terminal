@@ -7,6 +7,7 @@ import { engine } from '../data/market';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import { chats } from '../terminal/userdata';
+import { navigate } from '../terminal/state';
 import { settings } from '../terminal/settings';
 import type { FnProps } from '../terminal/types';
 
@@ -30,6 +31,30 @@ const LOOKING: Record<string, string> = {
 
 /** Questions the help desk answers, offered while its conversation is empty. */
 const EXAMPLES = ['When does NVDA report?', 'Did AAPL beat last quarter?', 'SEC filings for TSLA', 'How do I set a price alert?'];
+
+/** The help desk's questions offered in the Live Help window too. */
+export const HELP_EXAMPLES = EXAMPLES;
+
+/**
+ * Starts a help desk conversation from outside the screen (the Live Help window): the panel shows the help desk and the
+ * question is asked there, the answer arriving as it would from the screen's own box.
+ */
+export async function askHelpDesk(panel: number, question: string): Promise<void> {
+  const t = question.trim();
+  if (!t) return;
+  ensureRooms();
+  chats.set((s) => ({ ...s, active: 'helpdesk' }));
+  navigate(panel, { fn: 'MESSAGES', args: 'HELP' });
+  const room = chats.get().rooms.find((r) => r.id === 'helpdesk');
+  const history = room?.messages ?? [];
+  postMessage('helpdesk', 'ME', t);
+  try {
+    const reply = await botReply(t, 'helpdesk', history, () => undefined);
+    if (reply.text) postMessage('helpdesk', room?.who ?? 'HELP DESK', reply.text, { commands: reply.commands, links: reply.links });
+  } catch (err) {
+    postMessage('helpdesk', room?.who ?? 'HELP DESK', `Something went wrong while answering: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
 
 /** Who answers the help desk, and where a question goes. */
 function whoAnswers(): string {

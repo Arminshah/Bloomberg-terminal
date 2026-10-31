@@ -4,6 +4,7 @@ import { Panel } from './components/Panel';
 import { TickerTape } from './components/TickerTape';
 import { Toasts } from './components/Toasts';
 import { SecurityPopup } from './components/SecurityPopup';
+import { LiveHelp } from './components/HelpMenu';
 import { TopBar } from './components/TopBar';
 import { WorkspaceTabs } from './components/WorkspaceTabs';
 import { closeTab, cycleTab, newTab, reopenClosedTab, tabByNumber, workspaceTabs } from './terminal/tabs';
@@ -240,6 +241,7 @@ export function App() {
       <KeyBar />
       <Toasts />
       <SecurityPopup />
+      <LiveHelp />
     </div>
   );
 }

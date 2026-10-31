@@ -1,6 +1,7 @@
 import { engine } from '../data/market';
-import { showPanelHelp } from '../terminal/actions';
 import { relatedMenu, toggleRelatedMenu } from './RelatedMenu';
+import { HelpMenu } from './HelpMenu';
+import { useCallback, useState } from 'react';
 import { execute } from '../terminal/exec';
 import { primaryMnemonic, styledMnemonic } from '../terminal/legacy';
 import { FUNCTIONS, lookupFn } from '../terminal/registry';
@@ -30,6 +31,8 @@ export function PanelToolbar({ panel, panels = 1 }: { panel: number; panels?: nu
   const group = terminal.use((s) => linkGroupOf(s.panels[panel]));
   const solo = soloPanel.use((s) => s.panel === panel);
   const menuOpen = relatedMenu.use((s) => s.panel === panel);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const closeHelp = useCallback(() => setHelpOpen(false), []);
   const mnemonics = settings.use((s) => s.mnemonics);
   const def = lookupFn(route.fn);
   const security = loaded ? engine.get(loaded) : undefined;
@@ -101,9 +104,10 @@ export function PanelToolbar({ panel, panels = 1 }: { panel: number; panels?: nu
       >
         <svg viewBox="0 0 14 12" width="13" height="11" aria-hidden="true"><rect x="0.6" y="0.6" width="12.8" height="10.8" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M0.6 3.2h12.8" stroke="currentColor" strokeWidth="1.2" />{solo ? <path d="M9.5 9.5 5 5m0 0v3m0-3h3" fill="none" stroke="#3cbf4f" strokeWidth="1.4" /> : <path d="M5 9.5 9.5 5m0 0v3m0-3h-3" fill="none" stroke="#3cbf4f" strokeWidth="1.4" />}</svg>
       </button>
-      <button type="button" className="ptb-help" onClick={() => showPanelHelp(panel)} title="Help for this function (F1); press twice for the help desk" aria-label={`Panel ${panel + 1} function help`}>
+      <button type="button" className="ptb-help" aria-haspopup="menu" aria-expanded={helpOpen} onClick={() => setHelpOpen((v) => !v)} title="Help: this function's page, live help and what's new (F1 opens the help page)" aria-label={`Panel ${panel + 1} help menu`}>
         <span className="ptb-help-q">?</span>▾
       </button>
+      {helpOpen ? <HelpMenu panel={panel} onClose={closeHelp} /> : null}
     </div>
   );
 }
