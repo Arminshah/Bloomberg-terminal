@@ -1,0 +1,22 @@
+node_modules
+dist
+dist-single
+coverage
+test-results
+playwright-report
+*.log
+.DS_Store
+.vite
+release
+
+# Provider keys and local data never go into the repository
+.env
+.env.*
+!.env.example
+
+# Reference documents, images and video frames for audits: copyrighted, never committed.
+reference/
+scripts/live/primary.json
+
+# Live data audit runs (scripts/live/audit/check.cjs)
+audit-out/

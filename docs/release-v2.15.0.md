@@ -1,0 +1,18 @@
+# Armin Terminal 2.15.0
+
+This release fixes missing financial coverage, duplicate fiscal quarters, and extended-hours watchlist quotes, with clearer source and reporting-date labels.
+
+- **SEC filings:** standalone monetary quarters can be calculated from compatible cumulative disclosures, including cash flow and fourth quarters. Calculations show `c` and retain both filings in their tooltips; reported quarters take precedence. EPS and weighted share counts are never subtracted. Foreign issuers such as NBIS get a separate, labelled provider table when SEC company facts contain no quarterly statements. Fixed column sizing and reserved annotation space align period headers with figures.
+- **Watchlists and favourites:** pre-market and after-hours observations load independently when Alpaca IEX supplies regular prices. Yahoo chart observations provide a fallback when the full quote has no session data. Each session keeps its own source, observation time, and regular-close comparison; the IEX regular quote remains the source for Last.
+- **Earnings:** `1Q2027` and `Q1 2027` now use one fiscal-quarter format. Fiscal and calendar periods are matched using provider identities, and an announcement cannot populate several quarters. Conflicting provider EPS comparisons remain available separately. Announcement sessions show Pre-market, After-market, During market, or Time not provided. Q1 2027 means the first quarter of fiscal year 2027; that quarter can end in calendar 2026.
+- **Financial analysis:** sparse responses no longer erase valid observations. Compatible missing statement lines, current trailing values, and balance-sheet amounts receive supported fallbacks with source disclosures. Annual data is never silently substituted for quarterly data.
+- **Holders:** the As of column sorts by reported holding date, with newest first by default; a period selector filters the latest available holdings. These dates describe the positions, not the date a manager filed them with the SEC.
+- **Management:** malformed ages and years are rejected, reported zero compensation remains zero, and company-profile roles and pay are labelled as source-reported. Compensation years and historical proxy tables are distinguished from current roles.
+- **Short interest:** short shares as a percentage of float are calculated when the provider supplies the two share counts but omits the percentage, with an explicit calculation label and date qualification.
+- **Cost of capital:** missing debt can use a dated provider snapshot or compatible reported borrowing components. Cash retains its reported balance-sheet basis. Unavailable inputs remain explicit, and perpetuity checks distinguish missing cash flow from negative cash flow.
+
+Provider coverage, accepted Yahoo sessions, SEC access, and any required API entitlements still determine availability. Unsupported figures remain unavailable rather than becoming zero or an invented estimate. Supplemented statements and calculated quarters identify their basis; different reporting currencies and EPS bases remain distinct.
+
+The release workflow runs lint, TypeScript, unit tests, browser tests, and Electron tests before building Windows and Linux packages. It publishes only after both native builds and uploaded SHA256 checks succeed.
+
+Local Linux validation: 863 unit tests, 33 browser tests, and 28 Electron tests; ESLint, TypeScript and production build; AppImage and Debian package builds, SHA256 verification, and launch of the packaged 2.15.0 application. Live SEC/Yahoo coverage and current officer appointments are not established by these deterministic checks.

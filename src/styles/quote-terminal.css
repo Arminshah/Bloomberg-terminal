@@ -1,0 +1,74 @@
+/* SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+ * Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE. */
+/* Scoped quote workstation: compact fields, stable numeric columns and source context. */
+.quote-terminal { container: quote-screen / inline-size; }
+.quote-terminal .quote-overview > .sect { container: quote-details / inline-size; }
+.quote-terminal .quote-identity {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line-2);
+  background: #000;
+}
+.quote-terminal .quote-security { color: var(--amber); font-weight: 600; }
+.quote-terminal .quote-venue { margin-left: auto; color: var(--text); font-size: var(--fs-s); }
+.quote-terminal .quote-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) repeat(2, minmax(0, 1fr));
+  margin: 0;
+  padding: 6px 8px 7px;
+  gap: 8px;
+  align-items: end;
+  font-variant-numeric: tabular-nums;
+}
+.quote-terminal .quote-summary-yield { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.quote-terminal .quote-summary dt,
+.quote-terminal .quote-inside dt { color: var(--amber); font-size: var(--fs-s); }
+.quote-terminal .quote-summary dd { margin: 1px 0 0; color: var(--white); font-size: var(--fs-xl); white-space: nowrap; }
+.quote-terminal .quote-last dd { font-size: calc(var(--fs-xl) * 1.5); font-weight: 600; line-height: 1.2; }
+.quote-terminal .quote-inside {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 8px 4px;
+  border: 1px solid var(--line-2);
+  font-variant-numeric: tabular-nums;
+}
+.quote-terminal .quote-inside > div { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 3px 6px; }
+.quote-terminal .quote-inside > div + div { border-left: 1px solid var(--line-2); }
+.quote-terminal .quote-inside dd { margin: 0; color: var(--cyan); font-size: var(--fs-l); white-space: nowrap; }
+.quote-terminal .quote-session-note { padding: 0 8px 3px; color: var(--text); font-size: var(--fs-s); }
+.quote-terminal .quote-session-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.quote-terminal .quote-session-stats > .kv { gap: 0 6px; margin: 0; }
+.quote-terminal .quote-session-stats > .kv + .kv { border-left: 1px solid var(--line); }
+.quote-terminal .quote-session-stats dt { font-size: var(--fs-s); }
+.quote-terminal .quote-session-stats dd { font-variant-numeric: tabular-nums; }
+.quote-terminal .quote-update {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 3px 8px;
+  border-top: 1px solid var(--line);
+  color: var(--text);
+  font-size: var(--fs-s);
+  font-variant-numeric: tabular-nums;
+}
+.quote-terminal .quote-update > span:first-child { color: var(--amber); }
+.quote-terminal .quote-intraday { display: flex; flex-direction: column; }
+.quote-terminal .quote-chart { display: flex; height: 250px; min-height: 250px; }
+@container quote-screen (max-width: 900px) {
+  .quote-terminal .quote-session-stats { grid-template-columns: 1fr; }
+  .quote-terminal .quote-session-stats > .kv + .kv { border-left: 0; border-top: 1px solid var(--line); }
+}
+@container quote-details (max-width: 440px) {
+  .quote-terminal .quote-summary { gap: 4px; }
+  .quote-terminal .quote-summary dd { font-size: var(--fs-l); }
+  .quote-terminal .quote-last dd { font-size: var(--fs-xl); }
+  .quote-terminal .quote-inside > div { flex-wrap: wrap; }
+}
+@container quote-details (max-width: 280px) {
+  .quote-terminal .quote-summary { grid-template-columns: 1fr; }
+  .quote-terminal .quote-summary > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+}

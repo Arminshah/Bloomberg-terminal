@@ -1,0 +1,7 @@
+/* SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+ * Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE. */
+.sec-figures { table-layout: fixed; min-width: 850px; }
+.sec-figures th.num, .sec-figures td.num { padding-right: 1.4em; font-variant-numeric: tabular-nums; }
+.sec-figures td.num { position: relative; }
+.sec-figures th:first-child, .sec-figures td:first-child { overflow: hidden; text-overflow: ellipsis; }
+.sec-figures .sec-fact-mark { position: absolute; right: 0.35em; top: 0; width: 0.8em; text-align: left; }

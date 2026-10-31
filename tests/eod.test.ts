@@ -1,0 +1,171 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as eodMain from '../electron/eod.cjs';
+import { compareCloses, diffBp, eodRange, parseAlphaVantage, parseMassive, parseTiingo, parseTwelveData } from '../src/data/live/eod';
+
+// Answers in the layouts the providers document: Massive's custom-bars sample,
+// and the shapes of Alpha Vantage's and Twelve Data's documented demo answers.
+
+describe('end-of-day requests (main process)', () => {
+  it('builds only the requests the app makes', () => {
+    // Massive's and Twelve Data's keys go in a header, not the URL.
+    const m = eodMain.eodRequest('massive', 'AAPL', '2026-09-01', '2026-10-13', 'secret')!;
+    expect(m.url).toBe('https://api.massive.com/v2/aggs/ticker/AAPL/range/1/day/2026-09-01/2026-10-13?adjusted=true&sort=asc&limit=5000');
+    expect(m.headers).toEqual({ Authorization: 'Bearer secret' });
+    const td = eodMain.eodRequest('twelvedata', 'BRK.B', '2026-09-01', '2026-10-13', 'secret')!;
+    expect(td.url).toBe('https://api.twelvedata.com/time_series?symbol=BRK.B&interval=1day&start_date=2026-09-01&end_date=2026-10-13&order=asc');
+    expect(td.headers).toEqual({ Authorization: 'apikey secret' });
+    // Alpha Vantage documents only the query parameter.
+    expect(eodMain.eodRequest('alphavantage', 'IBM', '2026-09-01', '2026-10-13', 'k')!.url).toBe('https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=IBM&outputsize=compact&apikey=k');
+    expect(eodMain.eodRequest('fmp', 'AAPL', '2026-09-01', '2026-10-13', 'k')).toBeNull();
+    expect(eodMain.eodRequest('massive', 'aapl', '2026-09-01', '2026-10-13', 'k')).toBeNull();
+    expect(eodMain.eodRequest('massive', 'AAPL/../x', '2026-09-01', '2026-10-13', 'k')).toBeNull();
+    expect(eodMain.eodRequest('massive', 'AAPL', '2026-10-13', '2026-09-01', 'k')).toBeNull();
+  });
+
+  it('keeps each free plan within its budget', () => {
+    expect(eodMain.PROVIDERS.massive.perMinute).toBeLessThanOrEqual(5);
+    expect(eodMain.PROVIDERS.alphavantage.perDay).toBeLessThan(25);
+    expect(eodMain.PROVIDERS.twelvedata.perMinute).toBeLessThan(8);
+    expect(eodMain.PROVIDERS.twelvedata.gate).toBe('TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED');
+    const t = Date.parse('2026-10-14T10:00:00Z');
+    let n = 0;
+    while (eodMain.takeDaily('alphavantage', t)) n++;
+    expect(n).toBe(eodMain.PROVIDERS.alphavantage.perDay);
+    // A new UTC day starts a new budget.
+    expect(eodMain.takeDaily('alphavantage', t + 86_400_000)).toBe(true);
+    expect(eodMain.takeDaily('massive', t)).toBe(true);
+  });
+});
+
+describe('end-of-day answers', () => {
+  it('reads Massive aggregates by session date in New York', () => {
+    const sample = { adjusted: true, queryCount: 2, results: [{ c: 75.0875, h: 75.15, l: 73.7975, n: 1, o: 74.06, t: 1577941200000, v: 135647456, vw: 74.6099 }, { c: 74.3575, h: 75.145, l: 74.125, n: 1, o: 74.2875, t: 1578027600000, v: 146535512, vw: 74.7026 }], resultsCount: 2, status: 'OK', ticker: 'AAPL' };
+    const r = parseMassive(JSON.stringify(sample));
+    expect('bars' in r && r.bars.map((b) => [b.date, b.c])).toEqual([['2020-01-02', 75.0875], ['2020-01-03', 74.3575]]);
+    expect(parseMassive('{"status":"ERROR","error":"Unknown API Key"}')).toEqual({ error: 'Unknown API Key' });
+  });
+
+  it("reads Alpha Vantage's daily series and its limit notices", () => {
+    const sample = { 'Meta Data': { '1. Information': 'Daily Prices (open, high, low, close) and Volumes', '2. Symbol': 'IBM' }, 'Time Series (Daily)': { '2026-10-13': { '1. open': '228.2150', '2. high': '233.5000', '3. low': '227.2770', '4. close': '230.7800', '5. volume': '5083223' }, '2026-10-12': { '1. open': '226', '2. high': '229', '3. low': '225', '4. close': '228', '5. volume': '100' } } };
+    const r = parseAlphaVantage(JSON.stringify(sample));
+    expect('bars' in r && r.bars.map((b) => b.date)).toEqual(['2026-10-12', '2026-10-13']);
+    expect('bars' in r && r.bars[1].c).toBe(230.78);
+    expect(parseAlphaVantage('{"Information":"Our standard API rate limit is 25 requests per day."}')).toEqual({ error: 'Our standard API rate limit is 25 requests per day.' });
+  });
+
+  it("reads Twelve Data's time series and its errors", () => {
+    const sample = { meta: { symbol: 'AAPL', interval: '1day', currency: 'USD', exchange_timezone: 'America/New_York', exchange: 'NASDAQ' }, values: [{ datetime: '2026-10-13', open: '344.66501', high: '348.14990', low: '340.73999', close: '341.26999', volume: '38897865' }, { datetime: '2026-10-12', open: '338.22', high: '342.63', low: '337.60001', close: '340.97', volume: '25900600' }], status: 'ok' };
+    const r = parseTwelveData(JSON.stringify(sample));
+    expect('bars' in r && r.bars.map((b) => [b.date, b.c])).toEqual([['2026-10-12', 340.97], ['2026-10-13', 341.26999]]);
+    expect(parseTwelveData('{"code":401,"message":"**apikey** parameter is incorrect","status":"error"}')).toEqual({ error: '**apikey** parameter is incorrect' });
+  });
+});
+
+describe('close cross-check', () => {
+  it('lines up sessions newest first and measures gaps in basis points', () => {
+    const app = [{ date: '2026-10-12', c: 340.97 }, { date: '2026-10-13', c: 341.27 }];
+    const rows = compareCloses(app, { twelvedata: [{ date: '2026-10-13', o: 1, h: 1, l: 1, c: 341.26999, v: 1 }] });
+    expect(rows.map((r) => r.date)).toEqual(['2026-10-13', '2026-10-12']);
+    expect(rows[0].others.twelvedata).toBe(341.26999);
+    expect(rows[1].others.twelvedata).toBeUndefined();
+    expect(diffBp(341.27, 341.26999)).toBeCloseTo(-0.0003, 3);
+    expect(diffBp(100, 101)).toBeCloseTo(100, 10);
+    expect(diffBp(100, undefined)).toBeNaN();
+  });
+});
+
+describe('Tiingo end-of-day', () => {
+  it('builds the request with the token in a header and class shares with a dash', () => {
+    const r = eodMain.eodRequest('tiingo', 'BRK.B', '2026-09-01', '2026-10-13', 'tok')!;
+    expect(r.url).toBe('https://api.tiingo.com/tiingo/daily/brk-b/prices?startDate=2026-09-01&endDate=2026-10-13&format=json');
+    expect(r.headers).toEqual({ Authorization: 'Token tok' });
+    expect(r.url).not.toContain('tok');
+    // Its free plan allows 50 an hour and 1,000 a day; the app stays below both and has a switch.
+    expect(eodMain.PROVIDERS.tiingo.perHour).toBeLessThan(50);
+    expect(eodMain.PROVIDERS.tiingo.perDay).toBeLessThan(1000);
+    expect(eodMain.PROVIDERS.tiingo.gate).toBe('TIINGO_ENABLED');
+  });
+
+  it('reads daily prices as traded, oldest first', () => {
+    const text = JSON.stringify([
+      { date: '2026-10-13T00:00:00.000Z', close: 101.5, high: 102, low: 100, open: 100.5, volume: 1200000, adjClose: 101.5, adjHigh: 102, adjLow: 100, adjOpen: 100.5, adjVolume: 1200000, divCash: 0, splitFactor: 1 },
+      { date: '2026-10-10T00:00:00.000Z', close: 100.25, high: 101, low: 99, open: 99.5, volume: 1000000, adjClose: 100.25, adjHigh: 101, adjLow: 99, adjOpen: 99.5, adjVolume: 1000000, divCash: 0, splitFactor: 1 },
+    ]);
+    expect(parseTiingo(text)).toEqual({
+      bars: [
+        { date: '2026-10-10', o: 99.5, h: 101, l: 99, c: 100.25, v: 1000000 },
+        { date: '2026-10-13', o: 100.5, h: 102, l: 100, c: 101.5, v: 1200000 },
+      ],
+    });
+    expect(parseTiingo('{"detail":"Invalid token."}')).toEqual({ error: 'Invalid token.' });
+  });
+});
+
+describe('completed end-of-day history', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it.each([
+    ['2026-10-19T14:00:00Z', '2026-10-16'], // Monday morning: Friday's close.
+    ['2026-10-19T20:00:00Z', '2026-10-19'], // 16:00 EDT.
+    ['2026-10-20T01:00:00Z', '2026-10-19'], // UTC has advanced; New York has not.
+    ['2026-04-03T22:00:00Z', '2026-04-02'], // Good Friday.
+    ['2026-11-27T17:59:00Z', '2026-11-25'], // Before the Thanksgiving Friday early close.
+    ['2026-11-27T18:00:00Z', '2026-11-27'], // 13:00 EST.
+    ['2026-11-02T20:59:00Z', '2026-10-30'], // Winter regular close is 21:00 UTC.
+    ['2026-11-02T21:00:00Z', '2026-11-02'],
+  ])('ends the requested range at a completed US session at %s', (now, to) => {
+    expect(eodRange(Date.parse(now), 7)).toEqual({ from: new Date(Date.parse(`${to}T00:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10), to });
+  });
+
+  it('caches the actual date range and refreshes when a new session completes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-16T19:30:00Z'));
+    const eod = vi.fn(async () => ({ status: 200, text: '[]' }));
+    vi.stubGlobal('window', { arminDesktop: { eod } });
+    const { loadEod } = await import('../src/data/live/eod');
+
+    await loadEod('tiingo', 'RANGE', 7);
+    await loadEod('tiingo', 'RANGE', 7);
+    expect(eod).toHaveBeenCalledTimes(1);
+    expect(eod).toHaveBeenLastCalledWith('tiingo', 'RANGE', '2026-10-08', '2026-10-15');
+    await loadEod('tiingo', 'RANGE', 45);
+    expect(eod).toHaveBeenCalledTimes(2);
+    expect(eod).toHaveBeenLastCalledWith('tiingo', 'RANGE', '2026-08-31', '2026-10-15');
+
+    vi.setSystemTime(new Date('2026-10-16T20:00:00Z'));
+    await loadEod('tiingo', 'RANGE', 7);
+    expect(eod).toHaveBeenCalledTimes(3);
+    expect(eod).toHaveBeenLastCalledWith('tiingo', 'RANGE', '2026-10-09', '2026-10-16');
+  });
+
+  it('removes compact-history rows outside the requested range and the unfinished session', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-16T19:00:00Z'));
+    const row = { '1. open': '100', '2. high': '102', '3. low': '99', '4. close': '101', '5. volume': '1000' };
+    const text = JSON.stringify({ 'Time Series (Daily)': { '2026-10-01': row, '2026-10-15': row, '2026-10-16': row } });
+    const eod = vi.fn(async () => ({ status: 200, text }));
+    vi.stubGlobal('window', { arminDesktop: { eod } });
+    const { loadEod } = await import('../src/data/live/eod');
+    const result = await loadEod('alphavantage', 'FILTER', 7);
+    expect(result.ok && result.bars.map((b) => b.date)).toEqual(['2026-10-15']);
+  });
+
+  it('keeps the broker refusal explanation and source time for a stale fallback', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-16T19:00:00Z'));
+    const at = Date.parse('2026-10-16T17:00:00Z');
+    const eod = vi.fn()
+      .mockResolvedValueOnce({ status: 403, text: '', error: 'HTTP 403: Your plan does not include this timeframe.' })
+      .mockResolvedValue({ status: 0, text: '[]', at, stale: true, budget: true, error: "Today's budget is spent." });
+    vi.stubGlobal('window', { arminDesktop: { eod } });
+    const { loadEod } = await import('../src/data/live/eod');
+    expect(await loadEod('tiingo', 'STALE')).toEqual({ ok: false, reason: 'error', message: 'HTTP 403: Your plan does not include this timeframe.' });
+    expect(await loadEod('tiingo', 'STALE')).toEqual({ ok: true, bars: [], at, stale: true });
+    await loadEod('tiingo', 'STALE');
+    expect(eod).toHaveBeenCalledTimes(3); // An old fallback is never kept as a fresh one-hour answer.
+  });
+});

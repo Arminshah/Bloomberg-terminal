@@ -1,0 +1,1182 @@
+[
+ {
+  "ticker": "NVDA",
+  "title": "NVIDIA CORP",
+  "filer": "CoreWeave, Inc.",
+  "side": "theirs",
+  "sentence": "We continue to extend and enhance our foundational infrastructure with the latest GPU and CPU innovations, and expect to be among the first cloud providers to deploy the NVIDIA Rubin platform, expanding our support for large-scale inference, reasoning, and agentic AI.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "customer: the shown statements say CoreWeave will deploy NVIDIA's Rubin platform, so CoreWeave buys from NVIDIA. No shown statement says CoreWeave sells to NVID"
+ },
+ {
+  "ticker": "NVDA",
+  "title": "NVIDIA CORP",
+  "filer": "Beamr Imaging Ltd.",
+  "side": "theirs",
+  "sentence": "For example, our collaboration with NVIDIA is based on a mutual development program of our Beamr Cloud SaaS solution that launched in February 2024 and that has been approved at senior levels at NVIDIA.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "partner: a joint development collaboration (already listed as R72); nothing is sold to NVIDIA"
+ },
+ {
+  "ticker": "NVDA",
+  "title": "NVIDIA CORP",
+  "filer": "Silvaco Group, Inc.",
+  "side": "theirs",
+  "sentence": "\"We launched new partnerships with industry leaders, Nvidia and Dassault Systemes.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "partner: the sentence announces a partnership; no sale to NVIDIA is stated"
+ },
+ {
+  "ticker": "NVDA",
+  "title": "NVIDIA CORP",
+  "filer": "SB Energy, Inc.",
+  "side": "theirs",
+  "sentence": "We and OpenAI are highly dependent on NVIDIA for the success of our PORTS-Pike Technology Campus",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "partner (R50) and investment (R91). SB Energy hosts NVIDIA compute by supplying land, power and shell, which is a landlord-type arrangement and not a supplier r"
+ },
+ {
+  "ticker": "NVDA",
+  "title": "NVIDIA CORP",
+  "filer": "Beamr Imaging Ltd.",
+  "side": "theirs",
+  "sentence": "While our collaboration has not been reduced to a written agreement, we believe that NVIDIA has a commercial incentive to complete the development and deploy the software update that enables the CABR powered NVENC because of the superior video compression rates of the NVENC when combined with our CABR solution.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "partner: an unwritten joint development of a CABR-powered NVENC software update; Beamr is not shown buying from NVIDIA"
+ },
+ {
+  "ticker": "NVDA",
+  "title": "NVIDIA CORP",
+  "filer": "ONE STOP SYSTEMS, INC.",
+  "side": "theirs",
+  "sentence": "NVIDIA, a key supplier of GPUs to the market, lists more than 500 such applications across a broad set of market spaces, along with focused teams on specific industries of high growth potential such as their NVIDIA Drive team for autonomous navigation.",
+  "wrongRole": "customer",
+  "kind": "not_a_relation",
+  "why": "no relation is stated. The phrase 'a key supplier of GPUs to the market' describes NVIDIA's position in the market, not a sale to OSS."
+ },
+ {
+  "ticker": "NVDA",
+  "title": "NVIDIA CORP",
+  "filer": "Professional Diversity Network, Inc.",
+  "side": "theirs",
+  "sentence": "requirements or restrictions imposed by manufacturers, distributors or suppliers, including NVIDIA and AMAX, relating to end users, end uses, resale or transfer of GPU equipment",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "No partnership with NVIDIA. The 'Collaboration Agreement' is PDN Intelligence's own agreement with another party. NVIDIA appears only as a GPU manufacturer whos"
+ },
+ {
+  "ticker": "NVDA",
+  "title": "NVIDIA CORP",
+  "filer": "Qualcomm",
+  "side": "theirs",
+  "sentence": "Examples (some of which are strategic partners of ours in other areas) include Broadcom, HiSilicon, MediaTek, Mobileye, Nvidia, NXP Semiconductors, Qorvo, Samsung, Skyworks, Texas Instruments and UNISOC.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "competitor: this is Qualcomm's own list of competitors (NVDA's list also names Qualcomm as R38). The parenthetical about strategic partners is a hedge covering "
+ },
+ {
+  "ticker": "MU",
+  "title": "MICRON TECHNOLOGY INC",
+  "filer": "Arista Networks, Inc.",
+  "side": "theirs",
+  "sentence": "For example, China has announced controls on both the use of Micron products and export controls on certain materials used, among other things, in the production of semiconductors, optical components, and other electronic devices including germanium and gallium.",
+  "wrongRole": "customer",
+  "kind": "not_a_relation",
+  "why": "no relation is stated. The sentence uses China's restrictions on Micron products as an example of trade-control risk and does not say Arista buys from Micron."
+ },
+ {
+  "ticker": "MU",
+  "title": "MICRON TECHNOLOGY INC",
+  "filer": "VIAVI SOLUTIONS INC.",
+  "side": "theirs",
+  "sentence": "For example, in May 2023, China announced controls on the use of Micron products in China, following a cybersecurity review of Micron.",
+  "wrongRole": "customer",
+  "kind": "not_a_relation",
+  "why": "no relation is stated. The sentence is an example of Chinese government action against Micron and is not a purchase by VIAVI."
+ },
+ {
+  "ticker": "MU",
+  "title": "MICRON TECHNOLOGY INC",
+  "filer": "Owlet, Inc.",
+  "side": "theirs",
+  "sentence": "The global semiconductor market is currently experiencing a structural shortage of NAND flash as major suppliers (such as Samsung, SK Hynix, and Micron) prioritize capital expenditure for High-Bandwidth Memory (HBM) and Enterprise-grade Solid State Drives (SSDs) to meet the demand for AI infrastructure.",
+  "wrongRole": "customer",
+  "kind": "not_a_relation",
+  "why": "no relation is stated. The sentence describes the NAND market and lists Micron among the major suppliers to the industry, not as Owlet's supplier."
+ },
+ {
+  "ticker": "PFE",
+  "title": "PFIZER INC",
+  "filer": "OPKO HEALTH, INC.",
+  "side": "own",
+  "sentence": "(15)Ngenla is licensed from OPKO Health, Inc., and is developed and commercialized by Pfizer, including in the U.S., Latin America, Europe, Africa, and Asia.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "partner (OPKO licenses Ngenla/somatrogon to Pfizer, which develops and sells it; already captured as R25)"
+ },
+ {
+  "ticker": "PFE",
+  "title": "PFIZER INC",
+  "filer": "OPKO HEALTH, INC.",
+  "side": "theirs",
+  "sentence": "We are substantially dependent on Pfizer for the successful commercialization of such product.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "partner (Pfizer is OPKO's licensee and commercializes OPKO's product; OPKO buys nothing from Pfizer)"
+ },
+ {
+  "ticker": "PFE",
+  "title": "PFIZER INC",
+  "filer": "Allogene Therapeutics, Inc.",
+  "side": "theirs",
+  "sentence": "For instance, we may experience competition from companies, such as AbbVie, Inc., Amgen Inc., BMS, Compass Therapeutics, Inc., F. Hoffmann-La Roche AG, Genmab A/S, GlaxoSmithKline plc, Immunocore Holdings plc, Johnson & Johnson, MacroGenics, Inc., Merck & Co. Inc., Merus N.V., Pfizer",
+  "wrongRole": "competitor",
+  "kind": "not_a_relation",
+  "why": "no competitor relation stated; a hedge about possible future competition (Pfizer is actually Allogene's licensor/shareholder)"
+ },
+ {
+  "ticker": "PFE",
+  "title": "PFIZER INC",
+  "filer": "Arbutus Biopharma Corp",
+  "side": "theirs",
+  "sentence": "In July 2026, the Company, along with its exclusive licensee Genevant Sciences GmbH, filed three international lawsuits seeking to enforce patents protecting the Company's LNP technology against Pfizer/BioNTech.",
+  "wrongRole": "partner",
+  "kind": "not_a_relation",
+  "why": "no partnership: Arbutus is suing Pfizer/BioNTech for patent infringement; the 'exclusive licensee' is Genevant, a third company"
+ },
+ {
+  "ticker": "PFE",
+  "title": "PFIZER INC",
+  "filer": "Protalix BioTherapeutics, Inc.",
+  "side": "theirs",
+  "sentence": "Pursuant to the Amended Pfizer Agreement, the Company sold to Pfizer its share in the collaboration worldwide except for Brazil.",
+  "wrongRole": "investment",
+  "kind": "wrong_role",
+  "why": "partner (Pfizer bought Protalix's share of the Elelyso collaboration, an asset/profit-share interest, not equity in Protalix; already captured as R21)"
+ },
+ {
+  "ticker": "PFE",
+  "title": "PFIZER INC",
+  "filer": "Viatris Inc",
+  "side": "theirs",
+  "sentence": "If the Distribution were determined not to have qualified for tax-free treatment, Pfizer would generally be subject to tax as if it sold the Viatris common stock in a transaction taxable to Pfizer",
+  "wrongRole": "investment",
+  "kind": "not_current",
+  "why": "no current stake: Pfizer distributed all Viatris (Upjohn) shares to its stockholders in the 2020 spin-off; the sentence is a hypothetical tax consequence under "
+ },
+ {
+  "ticker": "NKE",
+  "title": "NIKE, Inc.",
+  "filer": "Tailored Brands, Inc. / DE",
+  "side": "theirs",
+  "sentence": "In addition, Ms. Rosen has advised leading fashion and retail brands, including Chrome Hearts, Rosewood Capital, Theory, Bare Essentials, and Nike, providing strategic guidance on growth, merchandising, product development, sales, marketing, and brand positioning.",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "no relation: a director's biography says she personally advised Nike"
+ },
+ {
+  "ticker": "NKE",
+  "title": "NIKE, Inc.",
+  "filer": "BBB FOODS INC",
+  "side": "theirs",
+  "sentence": "Mr. Khouri is the chief executive officer and a board member of United Investors Holding SAL, a Beirut-based group of distribution companies, that retail and distribute brands such as Nike, Converse and Levi's.",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "no relation: a director's other company (United Investors Holding) distributes Nike; BBB Foods has no relation with Nike"
+ },
+ {
+  "ticker": "GE",
+  "title": "GENERAL ELECTRIC CO",
+  "filer": "Varex Imaging Corp",
+  "side": "theirs",
+  "sentence": "Our top five customers, measured by revenue, are Canon Medical Systems Corporation (\"Canon\"), United Imaging Healthcare, General Electric Company, Siemens Healthineers AG (\"Siemens\"), and Rapiscan Systems, Inc., which collectively accounted for approximately 40% of total revenue in fiscal year 2025.",
+  "wrongRole": "supplier",
+  "kind": "wrong_company",
+  "why": "the medical-imaging OEM customer is GE HealthCare (spun off January 2023), which is excluded; not GE Aerospace"
+ },
+ {
+  "ticker": "GE",
+  "title": "GENERAL ELECTRIC CO",
+  "filer": "Berkshire Partners",
+  "side": "own",
+  "sentence": "Warburg Pincus Managing Director Dan Zamlong, said, \"We are incredibly proud of the platform we have built in partnership with Berkshire Partners and CPP's talented management team.",
+  "wrongRole": "partner",
+  "kind": "not_a_relation",
+  "why": "no relation with GE: a quoted Warburg Pincus executive describes Warburg's co-ownership of CPP with Berkshire Partners"
+ },
+ {
+  "ticker": "LLY",
+  "title": "ELI LILLY & Co",
+  "filer": "Verve Therapeutics, Inc.",
+  "side": "theirs",
+  "sentence": "We expect to deliver the opt-in package for the PCSK9 program to Lilly and receive a decision from Lilly in the second half of 2025.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "partner (research collaboration and opt-in under the Lilly agreement; already captured as R45). Delivering an opt-in package is a collaboration deliverable, not"
+ },
+ {
+  "ticker": "LLY",
+  "title": "ELI LILLY & Co",
+  "filer": "Almirall",
+  "side": "own",
+  "sentence": "We have a license agreement with Almirall, S.A. (Almirall), under which Almirall licensed the rights to develop and commercialize Ebglyss, for the treatment or prevention of dermatology indications, including, but not limited to, atopic dermatitis in Europe.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "partner (licensee that develops and commercializes Ebglyss in Europe; already captured as R18)"
+ },
+ {
+  "ticker": "LLY",
+  "title": "ELI LILLY & Co",
+  "filer": "Acrivon Therapeutics, Inc.",
+  "side": "theirs",
+  "sentence": "In July 2025, Acrivon obtained full release of ROFN obligations from Lilly.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "partner (in-licensee of prexasertib from Lilly; the ROFN is a term of that licence; already captured as R43)"
+ },
+ {
+  "ticker": "LLY",
+  "title": "ELI LILLY & Co",
+  "filer": "PetVivo Holdings, Inc.",
+  "side": "theirs",
+  "sentence": "Our competitors include Zoetis, Inc.; Merck Animal Health, the animal health division of Merck & Co., Inc.; Merial, the animal health division of Sanofi, S.A.; Elanco, the animal health division of Eli Lilly and Company;",
+  "wrongRole": "competitor",
+  "kind": "wrong_company",
+  "why": "The competitor named is Elanco (Elanco Animal Health, ELAN). It has been independent of Lilly since the 2019 split-off, so the appositive is outdated and PetViv"
+ },
+ {
+  "ticker": "LLY",
+  "title": "ELI LILLY & Co",
+  "filer": "Crinetics Pharmaceuticals, Inc.",
+  "side": "theirs",
+  "sentence": "In July 2024, Radionetics formed a strategic partnership with Eli Lilly and Company (\"Lilly\"), receiving a $140.0 million upfront payment and granting Lilly the exclusive right to acquire Radionetics for $1.0 billion.",
+  "wrongRole": "partner",
+  "kind": "not_a_relation",
+  "why": "The partnership is between Radionetics Oncology (a Crinetics spin-off/investee) and Lilly. Crinetics itself has no relation with Lilly in this statement."
+ },
+ {
+  "ticker": "AVGO",
+  "title": "Broadcom Inc.",
+  "filer": "Gen Digital Inc.",
+  "side": "theirs",
+  "sentence": "As a result, we are dependent on Broadcom for services and technology that are critical to our business, and if Broadcom fails to deliver these Engine-Related Services it would result in significant business disruption",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "customer: Broadcom provides the Engine-Related Services and technology to Gen Digital, so Gen Digital buys from Broadcom"
+ },
+ {
+  "ticker": "AVGO",
+  "title": "Broadcom Inc.",
+  "filer": "Celestica",
+  "side": "theirs",
+  "sentence": "Broadcom recognizes Celestica as our preferred provider for our most technically demanding data center platform solutions.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "supplier: per the statement, Celestica is Broadcom's preferred provider of data center platform solutions, so Celestica supplies Broadcom"
+ },
+ {
+  "ticker": "AVGO",
+  "title": "Broadcom Inc.",
+  "filer": "EXTREME NETWORKS INC",
+  "side": "theirs",
+  "sentence": "Our product development efforts also depend upon continued collaboration with our key suppliers, including our merchant silicon vendors such as Broadcom, Inc..",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "customer (Broadcom is Extreme's merchant silicon supplier)"
+ },
+ {
+  "ticker": "AVGO",
+  "title": "Broadcom Inc.",
+  "filer": "Qualcomm",
+  "side": "theirs",
+  "sentence": "Examples (some of which are strategic partners of ours in other areas) include Broadcom, HiSilicon, MediaTek, Mobileye, Nvidia, NXP Semiconductors, Qorvo, Samsung, Skyworks, Texas Instruments and UNISOC.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "competitor: the sentence lists examples of Qualcomm's competitors. The parenthetical only says some of them are partners in other areas, without saying which."
+ },
+ {
+  "ticker": "AVGO",
+  "title": "Broadcom Inc.",
+  "filer": "Arista Networks, Inc.",
+  "side": "theirs",
+  "sentence": "Our product development efforts are also dependent upon the success of our continued collaboration with our key merchant silicon vendors such as Broadcom.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "customer (Broadcom is Arista's key merchant silicon supplier)"
+ },
+ {
+  "ticker": "IREN",
+  "title": "IREN Ltd",
+  "filer": "Microsoft",
+  "side": "own",
+  "sentence": "We secured several new multi-year contracts, including a landmark partnership with Microsoft, which solidifies IREN's position as a leading AI Cloud Service Provider and expands our reach into new hyperscale customer segments.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "customer: the Microsoft deal is a multi-year AI Cloud Services contract under which Microsoft buys compute from IREN, described as expanding into hyperscale cus"
+ },
+ {
+  "ticker": "IREN",
+  "title": "IREN Ltd",
+  "filer": "Microsoft",
+  "side": "own",
+  "sentence": "The proceeds of the GPU Financing are used to finance a portion of the acquisition cost of GPUs and related infrastructure deployed by the Financing SPV in support of the Group's agreement with Microsoft Corporation (\"Microsoft\") announced in November 2025 (the \"Microsoft Agreement\").",
+  "wrongRole": "lender",
+  "kind": "wrong_role",
+  "why": "customer: Microsoft is the counterparty to the Microsoft Agreement (an AI cloud contract) that the GPU Financing supports. The lenders are the GPU Financing pro"
+ },
+ {
+  "ticker": "WMT",
+  "title": "Walmart Inc.",
+  "filer": "MEXICAN ECONOMIC DEVELOPMENT INC (FEMSA)",
+  "side": "theirs",
+  "sentence": "OXXO stores face competition from small-format stores such as 7-Eleven and Circle K in Mexico, Tiendas D1, Ara and Tostao in Colombia, upa! in Chile, Tambo Mas in Peru, and Circle K and Speedway in the U.S., as well as from other numerous retail and grocery chains (such as Wal-Mart, H-E-B, Soriana",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "competitor: FEMSA says its OXXO stores compete with Wal-Mart and other chains. The sentence describes no supply relation at all."
+ },
+ {
+  "ticker": "WMT",
+  "title": "Walmart Inc.",
+  "filer": "Ibotta, Inc.",
+  "side": "theirs",
+  "sentence": "Publishers include third parties that host Ibotta's offers on a white-label basis (e.g., a retailer publisher such as Walmart), as well as Ibotta itself, which hosts its own offers on D2C properties.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "partner: Walmart is a 'retailer publisher' that hosts Ibotta's offers, a distribution alliance. The CPG brands pay Ibotta and Ibotta pays the publishers, so Wal"
+ },
+ {
+  "ticker": "WMT",
+  "title": "Walmart Inc.",
+  "filer": "INNOVATIVE FOOD HOLDINGS INC",
+  "side": "theirs",
+  "sentence": "During the three months ended March 31, 2025 and 2024, the Company's largest customer, U.S. Foods, Inc. and its affiliates, accounted for approximately 34% and 49% of total sales, respectively; Sam's Club, a membership-based warehouse retailer and subsidiary of Walmart Inc. represented 19% and 0%",
+  "wrongRole": "supplier",
+  "wrongShare": 0,
+  "kind": "wrong_share",
+  "why": "supplier, share 19% (their-revenue). Sam's Club, a Walmart subsidiary, was 19% of IVFH sales for the quarter ended March 31, 2025. The 0% is the prior-year comp"
+ },
+ {
+  "ticker": "WMT",
+  "title": "Walmart Inc.",
+  "filer": "BUDA JUICE, INC.",
+  "side": "theirs",
+  "sentence": "From 2021 through current, Burris is the Chief Executive Officer of Country Fresh, Inc., one of the largest producers and distributors of freshly cut fruits and vegetables in the United States, operating 9 processing plants nationwide and serving major national retailers including Walmart",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "No relation between Buda Juice and Walmart. The sentence is a director's biography saying Country Fresh, Inc. (another company the director runs) serves Walmart"
+ },
+ {
+  "ticker": "WMT",
+  "title": "Walmart Inc.",
+  "filer": "MARZETTI CO",
+  "side": "theirs",
+  "sentence": "Total net sales attributed to Chick-fil-A, including the Retail sales resulting from the exclusive license agreement and the Foodservice sales, and Retail segment net sales attributed to Walmart for each of the years ended June 30 were as follows:",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier only, already listed as R10. The exclusive license agreement in the sentence is with Chick-fil-A, not Walmart."
+ },
+ {
+  "ticker": "WMT",
+  "title": "Walmart Inc.",
+  "filer": "GREEN DOT CORP",
+  "side": "theirs",
+  "sentence": "We expect that both our largest BaaS partner and Walmart will continue to have a significant impact on our operating revenues in future periods.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier only, already listed as R48. Walmart is a retail distributor of Green Dot's products. In the sentence, 'partner' refers to Green Dot's unnamed 'largest"
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "Tradewinds Universal",
+  "side": "theirs",
+  "sentence": "The Company initiated online marketing and sales efforts for its UP protein bars, with a principal focus on larger retail outlets and distributors, including Trader Joe's, Costco, and Core-Mark.",
+  "wrongRole": "supplier",
+  "kind": "unsupported",
+  "why": "No supply relation is shown. One statement is about a third party (YouBar) whose products retailers such as Costco distribute. The other gives Costco only as a "
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "Venu Holding Corp",
+  "side": "theirs",
+  "sentence": "Roth Industries is a leading consumer packaged goods company, specializing in prepared foods, based in Colorado Springs, Colorado with distribution in more than 8,000 retail supermarkets nationwide, including Costco, Walmart, Kroger, and others.",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "No Venu–Costco relation. The sentence describes Roth Industries' retail distribution, and Roth Industries is a different company."
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "BED BATH & BEYOND, INC.",
+  "side": "theirs",
+  "sentence": "traditional general merchandise and specialty retailers and liquidators including Ashley Furniture, Best Buy, Costco, Crate and Barrel, Ethan Allen, Gilt, Home Depot, HomeGoods, Hudson's Bay Company, IKEA, J.C.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "Not a supplier. The fragment comes from the filer's competition list (retailers and liquidators it competes with), so competitor at most. Nothing shows the file"
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "Where Food Comes From, Inc.",
+  "side": "theirs",
+  "sentence": "Producers, restaurant chains and retailers with dominant market shares and large buying power, like Dannon, Tyson, McDonald's, Chick-Fil-A, Costco, and Wal-Mart, are leading the way in prioritizing sustainable food supply initiatives in response to consumer demands.",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "Industry commentary naming large buyers that lead sustainability trends. It states no business between the filer and Costco."
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "Camping World Holdings, Inc.",
+  "side": "theirs",
+  "sentence": "Our Ultimate RV Show has evolved to be a multi-channel experience that is both online and in store locations and we have become Costco's exclusive RV partner for its auto program.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "partner: Camping World is Costco's exclusive RV partner in the Costco Auto Program, a member-referral alliance. Costco does not buy RVs from Camping World."
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "Omada Health, Inc.",
+  "side": "theirs",
+  "sentence": "Costco has partnered with us to deploy a wide range of member outreach strategies.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "supplier: Costco is Omada's client (Omada's 'representative customers include Costco'). Omada sells its programme to Costco, so the direction is reversed. This "
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "FARMER BROTHERS CO",
+  "side": "theirs",
+  "sentence": "Smucker Company (Folgers Coffee) and The Kraft Heinz Company (Maxwell House Coffee), wholesale foodservice distributors such as Sysco Corporation and US Foods Holding Corp., regional and national coffee roasters such as Westrock Coffee Company, Massimo Zanetti Beverage USA, Trilliant Food",
+  "wrongRole": "competitor",
+  "kind": "unsupported",
+  "why": "The shown statement never names Costco. It lists coffee roasters and distributors and is cut off ('As ma...'), so the shown text does not support a Costco compe"
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "Purple Innovation, Inc.",
+  "side": "theirs",
+  "sentence": "the expansion of and benefits to us from our commercial relationship with Mattress Firm, the impact of other commercial relationships, including those with Walmart, Costco, and other traditional and non-traditional partners, our ability to drive profitable growth",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier only, already listed as R6. This is forward-looking-statement boilerplate about 'commercial relationships' (Purple sells through Costco). It describes "
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "Mama's Creations, Inc.",
+  "side": "theirs",
+  "sentence": "\"Our Costco partnership continues to accelerate - evolving from $0.5 million in fiscal 2023 to exceeding $10 million in Q1 of fiscal 2026 alone, culminating in our first National Print MVM and securing everyday item status in the Northeast region.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier: the 'Costco partnership' is sales to Costco, more than $10 million in Q1 FY2026. Costco buys Mama's products."
+ },
+ {
+  "ticker": "COST",
+  "title": "COSTCO WHOLESALE CORP /NEW",
+  "filer": "Callaway Golf Co",
+  "side": "theirs",
+  "sentence": "(e) for any Collateral held by Costco on consignment on behalf of a U.S. Domiciled Obligor, Costco acknowledges the applicable Obli",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier: in this credit-agreement clause, Costco holds Callaway goods on consignment, so it sells Callaway products. 'Licensor' and 'License' in the clause mea"
+ },
+ {
+  "ticker": "CAT",
+  "title": "CATERPILLAR INC",
+  "filer": "New Zealand Banking Group",
+  "side": "own",
+  "sentence": "Cat Financial's competitors include Wells Fargo Equipment Finance Inc., Banc of America Leasing & Capital LLC, BNP Paribas Leasing Solutions Limited, Australia and New Zealand Banking Group Limited, Société Générale S.A. and various other banks and finance companies.",
+  "wrongRole": "competitor",
+  "kind": "wrong_company",
+  "why": "The competitor is Australia and New Zealand Banking Group Limited (ANZ). The competitor role is right, but the name was cut at 'and', which produced a company t"
+ },
+ {
+  "ticker": "XOM",
+  "title": "ExxonMobil Holdings Corp",
+  "filer": "EVOLUTION PETROLEUM CORP",
+  "side": "theirs",
+  "sentence": "In the year ended June 30, 2026, three individual operators, Diversified, Denbury (ExxonMobil), and Foundation, each accounted for more than 10% of our total revenues, collectively representing approximately 46% of our total revenues for the year.",
+  "wrongRole": "supplier",
+  "wrongShare": 10,
+  "kind": "wrong_role",
+  "why": "Partner (co-owner). Evolution holds non-operated working interests in fields operated by Denbury, an ExxonMobil subsidiary. The operator collects and remits pro"
+ },
+ {
+  "ticker": "XOM",
+  "title": "ExxonMobil Holdings Corp",
+  "filer": "DORCHESTER MINERALS, L.P.",
+  "side": "theirs",
+  "sentence": "Royalties operating revenues from properties operated by Exxon Mobil Corporation and its subsidiaries and Chevron Corporation and its subsidiaries represented approximately 15% and 10% of total operating revenues for the year ended December 31, 2025, respectively.",
+  "wrongRole": "supplier",
+  "wrongShare": 15,
+  "kind": "wrong_role",
+  "why": "Dorchester owns royalty/mineral interests in properties that Exxon operates. Exxon is the lessee that pays royalties. This is a lessor (landlord-type) relation,"
+ },
+ {
+  "ticker": "XOM",
+  "title": "ExxonMobil Holdings Corp",
+  "filer": "EXPAND ENERGY Corp",
+  "side": "theirs",
+  "sentence": "Under a CO2 services agreement with ExxonMobil Low Carbon Solutions Onshore Storage, LLC (\"Exxon\"), NG3 anticipates that it will deliver CO2 to Exxon for capture, additional transportation and storage.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "Customer. Under a CO2 services agreement, ExxonMobil Low Carbon Solutions captures, transports and stores CO2 for Expand's NG3 project. Expand hands over the CO"
+ },
+ {
+  "ticker": "XOM",
+  "title": "ExxonMobil Holdings Corp",
+  "filer": "GLOBAL PARTNERS LP",
+  "side": "theirs",
+  "sentence": "The Remediation Guaranty was provided to ExxonMobil to provide security for Landco's obligations to perform and complete the demolition and remediation responsibilities set forth in the TDRRA.",
+  "wrongRole": "supplier",
+  "kind": "unsupported",
+  "why": "The statement is a guaranty given to ExxonMobil that secures Landco's demolition/remediation obligations under a property agreement (TDRRA). It shows no sale of"
+ },
+ {
+  "ticker": "XOM",
+  "title": "ExxonMobil Holdings Corp",
+  "filer": "SunocoCorp LLC",
+  "side": "theirs",
+  "sentence": "USA delivers fuel, lubricants and other related products and services to commercial and wholesale customers, and operates a network of retail fuel and convenience stores under various brands, including On the Run, Arco, Cenex, Chevron, Conoco, Marathon, Exxon, Mobil and other brands",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "Customer. The stores run under the Exxon/Mobil brands, so SunocoCorp is a branded distributor that buys Exxon-branded fuel. This duplicates R13, which already l"
+ },
+ {
+  "ticker": "XOM",
+  "title": "ExxonMobil Holdings Corp",
+  "filer": "Matador Resources Co",
+  "side": "theirs",
+  "sentence": "For the years ended December 31, 2025, 2024 and 2023, three significant purchasers accounted for 72%, 79% and 76%, respectively, of the Company's total oil, natural gas and NGL revenues: Plains Marketing, L.P. (49%, 53% and 42%, respectively), Exxon Mobil Corporation (13%, 15% and 24%...",
+  "wrongRole": "supplier",
+  "wrongShare": 72,
+  "kind": "wrong_share",
+  "why": "The supplier role is right, but the share is 13% (Exxon's figure for 2025). 72% is the combined share of three purchasers (Plains, Exxon, Enterprise)."
+ },
+ {
+  "ticker": "XOM",
+  "title": "ExxonMobil Holdings Corp",
+  "filer": "CROSS TIMBERS ROYALTY TRUST",
+  "side": "theirs",
+  "sentence": "All underlying royalties, underlying nonproducing royalties and underlying working interest properties are currently owned by XTO Energy or other affiliated companies of ExxonMobil.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "This is a royalty trust whose net profits interests are carved from properties owned by XTO Energy, an ExxonMobil subsidiary. XTO is the trust's sponsor and pay"
+ },
+ {
+  "ticker": "XOM",
+  "title": "ExxonMobil Holdings Corp",
+  "filer": "CF Industries Holdings, Inc.",
+  "side": "theirs",
+  "sentence": "ExxonMobil, our CCS partner for this project, is transporting and permanently storing the CO2.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "Customer. Under a commercial CCS agreement, ExxonMobil transports and permanently stores CF's CO2, so CF buys the service from ExxonMobil."
+ },
+ {
+  "ticker": "XOM",
+  "title": "ExxonMobil Holdings Corp",
+  "filer": "ARKO Petroleum Corp.",
+  "side": "theirs",
+  "sentence": "We are also able to leverage our scale to enhance efficiencies, including capturing competitive pricing terms and offering multiple fuel branding options for our customers through our strong relationships with our major fuel supply partners such as: BP, ExxonMobil, Marathon, Motiva, Shell, and Valero.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "Customer. ExxonMobil is one of ARKO's fuel suppliers ('fuel supply partners'), so ARKO buys fuel from ExxonMobil."
+ },
+ {
+  "ticker": "SMCI",
+  "title": "Super Micro Computer, Inc.",
+  "filer": "Nutanix, Inc.",
+  "side": "theirs",
+  "sentence": "Our business depends on manufacturers (including Supermicro and our OEM partners) to assemble and/or produce the hardware platforms on which our software runs (including both the Nutanix-branded NX series hardware platforms and the various third-party hardware platforms...",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "Customer. Supermicro is named as a manufacturer that assembles and produces Nutanix's hardware platforms, so Nutanix buys from Supermicro. This duplicates R3, w"
+ },
+ {
+  "ticker": "MSFT",
+  "title": "MICROSOFT CORP",
+  "filer": "ACI WORLDWIDE, INC.",
+  "side": "theirs",
+  "sentence": "We have alliances with our technology partners Microsoft Corporation, Amazon, HPE, IBM, Red Hat, and Oracle, whose industry-leading hardware, software, and cloud-based infrastructure services are utilized by and in delivery of ACI's products.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "partner (a technology alliance, already listed as R39). The statement names no purchase from Microsoft specifically."
+ },
+ {
+  "ticker": "MSFT",
+  "title": "MICROSOFT CORP",
+  "filer": "Crexendo, Inc.",
+  "side": "theirs",
+  "sentence": "The competitive landscape for our software solutions fall into two main categories, (1) other third party UCaaS platform vendors, such as Cisco, Mitel, Microsoft, Ooma, Alianza,",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "competitor: Crexendo lists Microsoft in its competitive landscape as a UCaaS platform vendor."
+ },
+ {
+  "ticker": "MSFT",
+  "title": "MICROSOFT CORP",
+  "filer": "ORANGEKLOUD TECHNOLOGY INC.",
+  "side": "theirs",
+  "sentence": "We believe we compete favorably in features, integration, cost efficiency (especially with government grant support), and Microsoft ecosystem depth.",
+  "wrongRole": "competitor",
+  "kind": "not_a_relation",
+  "why": "No competition with Microsoft is stated. \"Microsoft ecosystem depth\" is a feature of ORKT's offering (ORKT resells Microsoft products; see R8 customer)."
+ },
+ {
+  "ticker": "MSFT",
+  "title": "MICROSOFT CORP",
+  "filer": "Motorsport Games Inc.",
+  "side": "theirs",
+  "sentence": "In addition to third-party software competitors, integrated video game console hardware and software companies, such as Microsoft, Sony, and Nintendo, compete directly with us in the development of game titles for their respective platforms",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "competitor: the statement says Microsoft, Sony and Nintendo \"compete directly with us\"."
+ },
+ {
+  "ticker": "MSFT",
+  "title": "MICROSOFT CORP",
+  "filer": "PC CONNECTION INC",
+  "side": "theirs",
+  "sentence": "We offer a broad selection of over 460,000 products at competitive prices, including products from vendors like Apple, Cisco, Dell Inc., HP Inc., Hewlett-Packard Enterprise, Intel, Lenovo, Microsoft Corporation, and VMware by Broadcom, and we partner with more than 1,600 suppliers.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "customer: PC Connection resells Microsoft products, and Microsoft is one of its vendors."
+ },
+ {
+  "ticker": "MSFT",
+  "title": "MICROSOFT CORP",
+  "filer": "ELECTRONIC ARTS INC.",
+  "side": "theirs",
+  "sentence": "We primarily distribute our console products and services through partners, such as Sony and Microsoft.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier: Microsoft distributes and resells EA's console products. This relation is already listed as R3 with a 16% share."
+ },
+ {
+  "ticker": "MSFT",
+  "title": "MICROSOFT CORP",
+  "filer": "Nebius Group N.V.",
+  "side": "theirs",
+  "sentence": "Subject to the satisfaction of deployment and availability of the Microsoft GPU Services, Microsoft has committed to pay the Group fees under the Microsoft Agreement estimated to be up to $17,392.9, irrespective of actual utilization of the GPU capacity",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier: Nebius sells GPU capacity to Microsoft, which pays it fees. This relation is already listed as R4."
+ },
+ {
+  "ticker": "MSFT",
+  "title": "MICROSOFT CORP",
+  "filer": "Skkynet Cloud Systems, Inc.",
+  "side": "theirs",
+  "sentence": "We have made recent progress on partnering with world-class hardware companies such as Microsoft (world's largest software vendor), Siemens AG (world's largest industrial automation vendor)",
+  "wrongRole": "partner",
+  "kind": "unsupported",
+  "why": "No partnership or agreement is stated. \"Made recent progress on partnering with\" is aspirational marketing that lists several companies."
+ },
+ {
+  "ticker": "ORCL",
+  "title": "ORACLE CORP",
+  "filer": "Schneider Electric",
+  "side": "own",
+  "sentence": "Since joining Schneider Electric in 2017, the organization has transformed from an electrical equipment supplier into a digital energy technology partner for key segments, like utilities and datacenters",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "This is an executive or director biography in an Oracle 8-K about a person's career at Schneider Electric. \"Supplier\" describes Schneider's own business, and no"
+ },
+ {
+  "ticker": "ORCL",
+  "title": "ORACLE CORP",
+  "filer": "Black Titan Corp",
+  "side": "theirs",
+  "sentence": "In particular, maintenance, implementation, and licensing of Oracle Corporation's PeopleSoft HCM and PeopleSoft Financials products accounted for 78.9% of the Company's Group's revenues in fiscal year 2024.",
+  "wrongRole": "supplier",
+  "wrongShare": 78.9,
+  "kind": "wrong_role",
+  "why": "customer (a licensee and reseller of Oracle PeopleSoft; see R33). 78.9% is the share of Black Titan's revenue that comes from Oracle's products, i.e. basis thei"
+ },
+ {
+  "ticker": "ORCL",
+  "title": "ORACLE CORP",
+  "filer": "Rimini Street, Inc.",
+  "side": "theirs",
+  "sentence": "Finally, major enterprise software vendors, including Oracle, SAP, Infor and Microsoft, routinely promote upgrades and cloud migrations as strategic imperatives.",
+  "wrongRole": "customer",
+  "kind": "not_a_relation",
+  "why": "These are generic market references. Rimini competes with Oracle (R21) and does not buy from it."
+ },
+ {
+  "ticker": "ORCL",
+  "title": "ORACLE CORP",
+  "filer": "DOMO, INC.",
+  "side": "theirs",
+  "sentence": "Data warehouse integration and fast query: Domo can sit on top of major cloud data platforms including Snowflake, Databricks, Google BigQuery, Oracle, IBM Cloud, Dremio, Amazon Redshift, Azure SQL, MySQL, and Amazon Athena.",
+  "wrongRole": "customer",
+  "kind": "not_a_relation",
+  "why": "This is a product compatibility list. No purchase, licence or partnership with Oracle is stated."
+ },
+ {
+  "ticker": "F",
+  "title": "FORD MOTOR CO",
+  "filer": "DANA Inc",
+  "side": "theirs",
+  "sentence": "Ford Motor Company (Ford) and Stellantis N.V. (Stellantis) were the only individual customers accounting for 10% or more of our consolidated sales in one or more of the past three years.",
+  "wrongRole": "supplier",
+  "wrongShare": 10,
+  "kind": "wrong_share",
+  "why": "Supplier is right, but these statements give no share for the latest period: the 10% threshold covers \"one or more of the past three years\". Use Dana's per-year"
+ },
+ {
+  "ticker": "F",
+  "title": "FORD MOTOR CO",
+  "filer": "UNIVERSAL LOGISTICS HOLDINGS, INC.",
+  "side": "theirs",
+  "sentence": "In 2025, 2024 and 2023, General Motors accounted for approximately 25%, 18% and 20% of our total operating revenues, respectively, and Ford accounted for approximately 6%, 17% and 6%, respectively.",
+  "wrongRole": "supplier",
+  "wrongShare": 25,
+  "kind": "wrong_share",
+  "why": "Ford's share is 6% for 2025. 25% is General Motors' figure."
+ },
+ {
+  "ticker": "F",
+  "title": "FORD MOTOR CO",
+  "filer": "Blue Bird Corp",
+  "side": "theirs",
+  "sentence": "In the Company's fiscal year ended October 1, 2016 (\"fiscal 2016\"), years ahead of our competition, we launched the industry's first gasoline powered Type C bus (utilizing an exclusive Ford engine and transmission and Roush CleanTech fuel usage evaporative emissions certification)",
+  "wrongRole": "competitor",
+  "kind": "wrong_role",
+  "why": "customer: Blue Bird buys Ford engines and transmissions (and now collaborates with Ford on F53/F59 chassis, R15). \"Competition\" in the sentence refers to other "
+ },
+ {
+  "ticker": "QCOM",
+  "title": "QUALCOMM INC/DE",
+  "filer": "Netskope Inc",
+  "side": "theirs",
+  "sentence": "Netskope partnered with Qualcomm network and security teams to deploy the Netskope One platform.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "supplier — Netskope is the vendor; Qualcomm deployed Netskope's platform, so Qualcomm is Netskope's customer, not the reverse"
+ },
+ {
+  "ticker": "QCOM",
+  "title": "QUALCOMM INC/DE",
+  "filer": "Netskope Inc",
+  "side": "theirs",
+  "sentence": "Through collaboration with Netskope, Qualcomm has enhanced network performance and traffic processing efficiency and expanded peering capabilities.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier — a customer testimonial describing the benefits Qualcomm got from using Netskope's product, not a research collaboration, JV or alliance"
+ },
+ {
+  "ticker": "QCOM",
+  "title": "QUALCOMM INC/DE",
+  "filer": "SEQUANS COMMUNICATIONS",
+  "side": "theirs",
+  "sentence": "In September 2024, the Company sold to Qualcomm its IP for two main 4G IoT technologies (Monarch2 and Calliope2).",
+  "wrongRole": "investment",
+  "kind": "wrong_role",
+  "why": "Qualcomm bought Sequans' 4G IoT IP (an asset purchase in 2024, licensed back to Sequans) — Qualcomm is a buyer/licensee (already R4 supplier / R25 partner); Qua"
+ },
+ {
+  "ticker": "BA",
+  "title": "BOEING CO",
+  "filer": "HEXCEL CORP /DE/",
+  "side": "theirs",
+  "sentence": "For the years ended December 31, 2025 and December 31, 2024, approximately 39% and 40% of our total consolidated sales, respectively, were to Airbus, and its related subcontractors and approximately 13% and 15% of our total consolidated sales, respectively, were to Boeing and its related subcontractors.",
+  "wrongRole": "supplier",
+  "wrongShare": 13,
+  "kind": "wrong_share",
+  "why": "supplier, no share — 13% is sales to Boeing AND its related subcontractors combined; no Boeing-only figure is given"
+ },
+ {
+  "ticker": "BA",
+  "title": "BOEING CO",
+  "filer": "AerCap Holdings N.V.",
+  "side": "theirs",
+  "sentence": "For example, the grounding and suspension of deliveries of the Boeing 737 MAX in 2019 and 2020 and the suspension of deliveries of the Boeing 787 in 2020 and 2021, production halts and enhanced inspection procedures required in advance of certification and clearance for delivery of certain Boeing aircraft have led to delays in the deliv",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "customer — AerCap buys aircraft from Boeing (already correctly listed as R23)"
+ },
+ {
+  "ticker": "BA",
+  "title": "BOEING CO",
+  "filer": "FS Bancorp, Inc.",
+  "side": "theirs",
+  "sentence": "Pierce County, the region's second most populous county, features a diversified economy that includes military-related federal employment at Joint Base Lewis-McChord, significant healthcare providers such as MultiCare Health System and the Franciscan Health System, major shipping activity through the Port of Tacoma, and aerospace",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "no relation — a bank's description of the Pierce County regional economy that mentions Boeing's local aerospace operations"
+ },
+ {
+  "ticker": "BA",
+  "title": "BOEING CO",
+  "filer": "LOCKHEED MARTIN CORP",
+  "side": "theirs",
+  "sentence": "We hold a 50% membership interest in United Launch Alliance (ULA), with The Boeing Company (Boeing) holding the other 50% interest.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "partner — Lockheed and Boeing are 50/50 joint-venture owners of United Launch Alliance"
+ },
+ {
+  "ticker": "BA",
+  "title": "BOEING CO",
+  "filer": "Spirit AeroSystems Holdings",
+  "side": "own",
+  "sentence": "Among these factors are risks related to: (1) general conditions in the economy and our industry, including those due to regulatory changes; (2) our reliance on our commercial airline customers; (3) the overall health of our aircraft production system, production quality issues, commercial airplane",
+  "wrongRole": "customer",
+  "kind": "not_a_relation",
+  "why": "the shown statement is Boeing's forward-looking-statement boilerplate and does not name Spirit as a customer; Spirit is a Boeing supplier (R5), acquired by Boei"
+ },
+ {
+  "ticker": "TSLA",
+  "title": "Tesla, Inc.",
+  "filer": "EVgo Inc.",
+  "side": "theirs",
+  "sentence": "Eligible Tesla EVs can also charge at our CCS stations through the CCS adapter, and with Autocharge+, we can deliver the same plug and charge experience to Tesla drivers that they have on Tesla's Supercharger network.",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "no supplier relation — EVgo serves owners/drivers of Tesla vehicles via adapters and sells nothing to Tesla Inc. (EVgo names Tesla as a competitor, R14)"
+ },
+ {
+  "ticker": "TSLA",
+  "title": "Tesla, Inc.",
+  "filer": "Semilux International Ltd.",
+  "side": "theirs",
+  "sentence": "Pegatron is a Tier-1 supplier to the EV market in the United States whose customers include Tesla.",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "the sentence describes Pegatron's (a third party's) supply relation with Tesla; Semilux itself has no stated relation with Tesla"
+ },
+ {
+  "ticker": "TSLA",
+  "title": "Tesla, Inc.",
+  "filer": "MATTHEWS INTERNATIONAL CORP",
+  "side": "theirs",
+  "sentence": "Further, an adverse outcome of a dispute, including the dispute with Tesla, may require the Company to pay damages; cease making, licensing, or using products or offering services that are alleged to incorporate the intellectual property of others; expend additional development resources to redesign",
+  "wrongRole": "partner",
+  "kind": "not_a_relation",
+  "why": "litigation only — a dispute with Tesla (trade-secret claims over dry-battery-electrode equipment); the 'license agreements' wording is generic IP-risk boilerpla"
+ },
+ {
+  "ticker": "AMD",
+  "title": "ADVANCED MICRO DEVICES INC",
+  "filer": "OpenAI",
+  "side": "own",
+  "sentence": "In October 2025, we entered into a product purchase agreement with OpenAI OpCo, LLC, (OpenAI) to deploy 6 gigawatts of AMD GPUs, with the deployment of the first gigawatt of capacity powered by our AMD Instinct MI450 series products.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "customer: OpenAI buys AMD GPUs under a product purchase agreement (6 GW of AMD Instinct GPUs)"
+ },
+ {
+  "ticker": "AMD",
+  "title": "ADVANCED MICRO DEVICES INC",
+  "filer": "Cerebras Systems Inc.",
+  "side": "theirs",
+  "sentence": "As a result, the demand for fast inference is enormous and Cerebras is scaling to meet it, securing more data center capacity, expanding manufacturing, and growing with customers and partners including OpenAI, AWS, AMD, and CrowdStrike.\"",
+  "wrongRole": "supplier",
+  "kind": "unsupported",
+  "why": "no role determinable; AMD appears in a mixed 'customers and partners' list (AMD is in fact a Cerebras competitor, R25)"
+ },
+ {
+  "ticker": "AMD",
+  "title": "ADVANCED MICRO DEVICES INC",
+  "filer": "SolarMax Technology, Inc.",
+  "side": "theirs",
+  "sentence": "Approximately 95% of our China revenue in 2019 was generated from Changzhou Almaden Co., Ltd., which was a related party that we refer to in this annual report as AMD.",
+  "wrongRole": "supplier",
+  "wrongShare": 95,
+  "kind": "wrong_company",
+  "why": "no relation with Advanced Micro Devices: 'AMD' is SolarMax's defined term for Changzhou Almaden Co., Ltd., a Chinese related party (and the figure is for 2019)"
+ },
+ {
+  "ticker": "AMD",
+  "title": "ADVANCED MICRO DEVICES INC",
+  "filer": "Astera Labs, Inc.",
+  "side": "theirs",
+  "sentence": "Astera Labs' expanded Taiwan footprint positions the company to bring together broader engineering, cross-functional support, and closer business coordination with key AI platform providers including AMD, Arm, Intel, and NVIDIA.",
+  "wrongRole": "customer",
+  "kind": "unsupported",
+  "why": "only ecosystem coordination with a list of platform providers; no purchase from AMD stated"
+ },
+ {
+  "ticker": "AMD",
+  "title": "ADVANCED MICRO DEVICES INC",
+  "filer": "Rackspace Technology, Inc.",
+  "side": "theirs",
+  "sentence": "Both companies expect to dedicate sales and marketing resources to identify and engage enterprise customers for AMD compute-powered infrastructure, with each company committing personnel to jointly develop and pursue customer opportunities across regulated industries.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "partner (joint go-to-market/co-selling; already captured as R34); the 'customers' are third-party enterprises"
+ },
+ {
+  "ticker": "AMD",
+  "title": "ADVANCED MICRO DEVICES INC",
+  "filer": "Arm Holdings",
+  "side": "own",
+  "sentence": "Some competitors are pursuing alternative computing architectures, such as Arm, which could grow the Arm ecosystem and increase competition in consumer, commercial and data center, reducing demand for our products.",
+  "wrongRole": "competitor",
+  "kind": "not_a_company",
+  "why": "'Arm' here is the processor architecture other competitors pursue; Arm Holdings is not said to compete with AMD"
+ },
+ {
+  "ticker": "AMD",
+  "title": "ADVANCED MICRO DEVICES INC",
+  "filer": "Lineage Cell Therapeutics, Inc.",
+  "side": "theirs",
+  "sentence": "We received RMAT designation from the FDA for OPC1 for the treatment of subacute SCIs and Genentech received RMAT designation from the FDA for OpRegen for the treatment of GA secondary to AMD, and we or our partners may seek RMAT designation for other product candidates.",
+  "wrongRole": "partner",
+  "kind": "not_a_company",
+  "why": "'AMD' is age-related macular degeneration (disease); the partner in the sentence is Roche/Genentech, not Advanced Micro Devices"
+ },
+ {
+  "ticker": "AMD",
+  "title": "ADVANCED MICRO DEVICES INC",
+  "filer": "Cerebras Systems Inc.",
+  "side": "theirs",
+  "sentence": "All statements other than statements of historical fact could be deemed to be forward-looking, including, but not limited to, statements regarding Cerebras's expectations regarding growth in its revenue, customer demand, outlook for Q3, full year 2026 and 2027, the timing, execution and anticipated",
+  "wrongRole": "partner",
+  "kind": "not_a_relation",
+  "why": "forward-looking-statement safe-harbor boilerplate; describes no AMD partnership"
+ },
+ {
+  "ticker": "INTC",
+  "title": "INTEL CORP",
+  "filer": "TOWER SEMICONDUCTOR LTD",
+  "side": "theirs",
+  "sentence": "In September 2023, Tower and Intel signed an agreement under which Intel has committed to build a capacity corridor at Tower's instructions, in order for Intel to manufacture wafers for Tower's customers in Intel's 300mm facility in New Mexico, USA.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "customer: Intel manufactures wafers for Tower (and Tower's customers) in Intel's New Mexico fab, i.e. Tower buys foundry capacity from Intel"
+ },
+ {
+  "ticker": "INTC",
+  "title": "INTEL CORP",
+  "filer": "HIVE Digital Technologies Ltd.",
+  "side": "theirs",
+  "sentence": "The Company has also entered into a manufacturing agreement with an original design manufacturer (\"ODM\") that has expertise in electronics manufacturing and experience manufacturing integrated systems for Intel.",
+  "wrongRole": "supplier",
+  "kind": "not_a_relation",
+  "why": "describes a third-party ODM's past experience manufacturing for Intel; no HIVE–Intel relation"
+ },
+ {
+  "ticker": "INTC",
+  "title": "INTEL CORP",
+  "filer": "Arm Holdings",
+  "side": "own",
+  "sentence": "We also face significant competition from companies that design processors based on the ARM architecture, such as Apple with its M series products, Qualcomm with its Snapdragon products and MediaTek with its Kompanio products.",
+  "wrongRole": "competitor",
+  "kind": "not_a_company",
+  "why": "'ARM' is the architecture used by competitors (Apple, Qualcomm, MediaTek); Arm Holdings itself is not named as a competitor"
+ },
+ {
+  "ticker": "INTC",
+  "title": "INTEL CORP",
+  "filer": "Mobileye Global Inc.",
+  "side": "theirs",
+  "sentence": "These companies may be less willing or unwilling to develop and maintain relationships with us, and may favor our competitors or may view us as competitors, because of our relationship with Intel.",
+  "wrongRole": "competitor",
+  "kind": "not_a_relation",
+  "why": "risk-factor hedge about how third parties may view Mobileye because of its Intel ownership; Mobileye is Intel's majority-owned subsidiary and partner, not a com"
+ },
+ {
+  "ticker": "INTC",
+  "title": "INTEL CORP",
+  "filer": "AMBARELLA INC",
+  "side": "theirs",
+  "sentence": "In the automotive camera market, we compete against Horizon Robotics Inc., Mobileye, a subsidiary of Intel Corporation, Novatek, NVIDIA, Qualcomm, Renesas Electronics Corporation, and Texas Instruments.",
+  "wrongRole": "competitor",
+  "kind": "not_a_relation",
+  "why": "Ambarella's competitor is Mobileye (separately listed, MBLY); Intel is named only as Mobileye's parent"
+ },
+ {
+  "ticker": "INTC",
+  "title": "INTEL CORP",
+  "filer": "Beamr Imaging Ltd.",
+  "side": "theirs",
+  "sentence": "AV1 (the emerging royalty-free standard led by Google, Apple, Microsoft, Intel and many others which is used on Netflix, Youtube and Vimeo)",
+  "wrongRole": "partner",
+  "kind": "not_a_relation",
+  "why": "Intel is named only as one of the companies leading the AV1 video standard; no Beamr–Intel relation"
+ },
+ {
+  "ticker": "INTC",
+  "title": "INTEL CORP",
+  "filer": "HIVE Digital Technologies Ltd.",
+  "side": "theirs",
+  "sentence": "Our history includes building the BuzzMiner in collaboration with Intel Corporation and also becoming one of the largest demand-response participants in Sweden, helping balance the national electrical grid.",
+  "wrongRole": "partner",
+  "kind": "not_current",
+  "why": "historical collaboration (BuzzMiner built with Intel's since-discontinued Blockscale chips); no current partnership stated"
+ },
+ {
+  "ticker": "KO",
+  "title": "COCA COLA CO",
+  "filer": "UNITED BREWERIES CO INC",
+  "side": "theirs",
+  "sentence": "In non-alcoholic beverages we compete mainly with Paraguay Refrescos S.A., in Paraguay, with Montevideo Refrescos S.R.L. in Uruguay, and in Bolivia with Embotelladoras Bolivianas Unidas, EMBOL S.A., all of them bottlers of The Coca-Cola Company's products.",
+  "wrongRole": "competitor",
+  "kind": "not_a_relation",
+  "why": "CCU's stated competitors are Coca-Cola bottlers (licensees in Chile, Paraguay Refrescos, Montevideo Refrescos, EMBOL); The Coca-Cola Company is named only as th"
+ },
+ {
+  "ticker": "KO",
+  "title": "COCA COLA CO",
+  "filer": "Brag House Holdings, Inc.",
+  "side": "theirs",
+  "sentence": "Due to the success Brag House was able to achieve, the partnership with McDonald's and Coca-Cola grew stronger as Brag House was contracted by Coca-Cola, in collaboration with McDonald's, for the third consecutive year to host a nationwide Fortnite tournament",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier: Coca-Cola contracted (paid) Brag House to host Fortnite tournaments — a marketing service sold to Coca-Cola"
+ },
+ {
+  "ticker": "KO",
+  "title": "COCA COLA CO",
+  "filer": "UNITED BREWERIES CO INC",
+  "side": "theirs",
+  "sentence": "On December 11, 1998, The Coca-Cola Company announced an agreement with Cadbury Schweppes to acquire certain of the latter's international beverage brands, including those licensed to ECUSA, and in August 1999 the agreement was reported to have been consummated.",
+  "wrongRole": "partner",
+  "kind": "unsupported",
+  "why": "1998 history of The Coca-Cola Company buying Cadbury Schweppes brands (some licensed to CCU's ECUSA); no current CCU–TCCC licence or partnership is stated"
+ },
+ {
+  "ticker": "KO",
+  "title": "COCA COLA CO",
+  "filer": "Innovation Beverage Group Ltd",
+  "side": "theirs",
+  "sentence": "Our partnership with Coca-Cola Europacific Partners (NASDAQ: CCEP), one of the world's largest Coca-Cola bottlers, to exclusively manufacture ABC bitters for distribution in Australia is a key component of this strategy.",
+  "wrongRole": "partner",
+  "kind": "wrong_company",
+  "why": "the partner is Coca-Cola Europacific Partners (CCEP), a separately listed bottler, not The Coca-Cola Company"
+ },
+ {
+  "ticker": "APLD",
+  "title": "Applied Digital Corp.",
+  "filer": "Macquarie Group",
+  "side": "own",
+  "sentence": "This announcement follows a period of record-breaking growth and notable achievements for Applied Digital, including an additional 150MW lease with CoreWeave at its Polaris Forge 1 Campus, a $5.0 billion AI infrastructure partnership with Macquarie Asset Management, and several industry and community impact recognitions.",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "investor: the $5.0B 'AI infrastructure partnership' with Macquarie Asset Management is a preferred-equity financing commitment, already captured as investor (R2"
+ },
+ {
+  "ticker": "AAPL",
+  "title": "Apple Inc.",
+  "filer": "Jamf Holding Corp.",
+  "side": "theirs",
+  "sentence": "We have built our company through a primary focus on being the leading solution for Apple in the enterprise because we believe that due to Apple's broad range of devices, combined with the changing demographics of today's workforce and their strong preference for Apple, Apple will become the number one device",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "Not a supplier: Jamf sells Apple-device management software to enterprises and depends on Apple's ecosystem. No statement says it sells to Apple. At most a chan"
+ },
+ {
+  "ticker": "AAPL",
+  "title": "Apple Inc.",
+  "filer": "Ingram Micro Holding Corp",
+  "side": "theirs",
+  "sentence": "We sell products purchased from many vendors, but generated approximately 21%, 19% and 16% of our consolidated net sales in Fiscal Year 2025, Fiscal Year 2024 and Fiscal Year 2023, respectively, from products purchased from Apple Inc. Additionally, we generated approximately 9%, 10%, and 10% of our",
+  "wrongRole": "customer",
+  "wrongShare": 9,
+  "kind": "wrong_share",
+  "why": "Role is right, but the share should be 21%: Apple products were 21% of Ingram Micro's FY2025 consolidated net sales. 9% is HP Inc.'s figure from the next senten"
+ },
+ {
+  "ticker": "AAPL",
+  "title": "Apple Inc.",
+  "filer": "PLAYSTUDIOS, Inc.",
+  "side": "theirs",
+  "sentence": "Trade receivables generally represent amounts due to the Company from social and mobile platform operators, including Apple, Google, and direct-to-consumer (\"DTC\") payment processors, including Xsolla.",
+  "wrongRole": "customer",
+  "kind": "unsupported",
+  "why": "The statement only says platform operators (Apple, Google) owe the filer amounts they collected from players. It does not say the filer buys from Apple: no fee "
+ },
+ {
+  "ticker": "AAPL",
+  "title": "Apple Inc.",
+  "filer": "Life360, Inc.",
+  "side": "theirs",
+  "sentence": "For example, in 2021 one of our Channel Partners, Apple, began to require mobile applications using its operating system, iOS, to affirmatively (on an opt-in basis) obtain an end user's permission to \"track them across apps or websites owned by other companies\" or access their device's advertising identifier",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "customer: 'Channel Partners' is Life360's term for the app stores it distributes through and pays fees to. There is no licence, JV or alliance with Apple; the s"
+ },
+ {
+  "ticker": "CRWV",
+  "title": "CoreWeave, Inc.",
+  "filer": "Boost Run Inc.",
+  "side": "theirs",
+  "sentence": "Our competitive landscape includes major cloud platforms-AWS, Azure, Google Cloud-plus dedicated AI infrastructure specialists like CoreWeave, Nebius and White Fiber.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "competitor: Boost Run lists CoreWeave in its own competitive landscape. No purchase is stated."
+ },
+ {
+  "ticker": "CRWV",
+  "title": "CoreWeave, Inc.",
+  "filer": "Core Scientific, Inc./tx",
+  "side": "theirs",
+  "sentence": "Our colocation revenue is currently derived entirely from a single customer, CoreWeave, a provider of HPC services.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "Direction is reversed: CoreWeave is Core Scientific's sole colocation customer, so Core Scientific is CoreWeave's supplier (already R2)."
+ },
+ {
+  "ticker": "CRWV",
+  "title": "CoreWeave, Inc.",
+  "filer": "Core Scientific, Inc./tx",
+  "side": "theirs",
+  "sentence": "Core Scientific Finance is developing six data center facilities across five sites that have been 100% licensed to CoreWeave, Inc. (\"CoreWeave\" and the development of each such data center facility, a \"Project\" and collectively, the \"Projects\") pursuant to a series of licensing agreements entered",
+  "wrongRole": "partner",
+  "kind": "wrong_role",
+  "why": "supplier: these are colocation/real-property licences of data center space and power to CoreWeave, i.e. Core Scientific sells capacity to CoreWeave (already R2)"
+ },
+ {
+  "ticker": "PLTR",
+  "title": "Palantir Technologies Inc.",
+  "filer": "Rackspace Technology, Inc.",
+  "side": "theirs",
+  "sentence": "Mr. Kandiah added, \"This quarter, we continued to expand work across our installed base and launched our Managed Compute and Inference Platform, backed by partners including AMD and Palantir.",
+  "wrongRole": "supplier",
+  "kind": "wrong_role",
+  "why": "partner: Rackspace's platform is 'backed by partners including AMD and Palantir', and Palantir named Rackspace a Preferred Partner (already R20). No sale to Pal"
+ },
+ {
+  "ticker": "PLTR",
+  "title": "Palantir Technologies Inc.",
+  "filer": "Voyager Technologies, Inc./TX",
+  "side": "theirs",
+  "sentence": "Our partnership with Palantir to deploy AI-powered edge computing across defense and space applications is one example of this approach.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "partner: a joint partnership to deploy edge computing; Voyager is also a JV co-partner in Starlab (R10). The statement does not say Voyager buys or licenses Pal"
+ },
+ {
+  "ticker": "PLTR",
+  "title": "Palantir Technologies Inc.",
+  "filer": "LEAR CORP",
+  "side": "theirs",
+  "sentence": "We are leveraging our internal capabilities through strategic partnerships (e.g., Palantir Technologies, Inc. (\"Palantir\")) and acquisitions to rapidly develop and deploy automation and AI solutions.",
+  "wrongRole": "customer",
+  "kind": "wrong_role",
+  "why": "partner: the statements say only 'strategic partnerships (e.g., Palantir)' (already R12). No purchase or licence of Palantir software is stated in these sentenc"
+ },
+ {
+  "ticker": "PLTR",
+  "title": "Palantir Technologies Inc.",
+  "filer": "Wheels Up Experience Inc.",
+  "side": "theirs",
+  "sentence": "Wheels Up announced plans to implement Surf Air Mobility's Enterprise BrokerOS platform, powered by industry-leading AI technology partner, Palantir.",
+  "wrongRole": "customer",
+  "kind": "not_a_relation",
+  "why": "Wheels Up is implementing Surf Air Mobility's BrokerOS, so it is Surf Air's customer. Palantir is Surf Air's technology partner. No direct Wheels Up–Palantir re"
+ }
+]

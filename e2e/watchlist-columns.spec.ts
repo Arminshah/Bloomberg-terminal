@@ -1,0 +1,46 @@
+import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+
+test('watchlist column choices, order and sort persist and export the filtered view with provenance', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => {
+    localStorage.setItem('armin:demo', '1');
+    if (!localStorage.getItem('armin:terminal')) localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: '1' } }));
+    if (!localStorage.getItem('armin:settings')) localStorage.setItem('armin:settings', JSON.stringify({ v: 1, s: { liveCrypto: false, liveFx: false, newsFlashes: false } }));
+    if (!localStorage.getItem('armin:watchlists')) localStorage.setItem('armin:watchlists', JSON.stringify({ v: 1, s: { lists: [{ name: 'Core', ids: ['MSFT US Equity', 'AAPL US Equity'] }], active: 0 } }));
+  });
+  await page.goto('/');
+  const cmd = page.locator('#cmd-0');
+  await cmd.fill('WATCHLIST');
+  await cmd.press('Enter');
+  const panel = page.locator('.panel').first();
+  await panel.getByRole('button', { name: '94) Columns', exact: true }).click();
+  await panel.getByRole('button', { name: 'Source check', exact: true }).click();
+  await panel.getByRole('button', { name: 'Move Provider column left', exact: true }).click();
+  await panel.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(panel.locator('.tbl thead th').nth(3)).toHaveText('Provider');
+  await panel.locator('.tbl thead').getByRole('button', { name: 'Name', exact: true }).click();
+  await expect(panel.locator('.tbl tbody tr').first()).toContainText('Apple');
+  await expect(panel.getByRole('button', { name: 'Move up', exact: true }).first()).toBeDisabled();
+  await panel.getByLabel('Filter watchlist').fill('Apple');
+  await expect(panel.locator('.tbl tbody tr')).toHaveCount(1);
+  const pending = page.waitForEvent('download');
+  await panel.getByRole('button', { name: '99) Export', exact: true }).click();
+  const csv = await readFile((await (await pending).path())!, 'utf8');
+  expect(csv.split('\n')[0]).toBe('Security,Name,Last Price,Provider,Currency,Freshness,Time,Received UTC,Change Check');
+  expect(csv).toContain('AAPL US Equity');
+  expect(csv).not.toContain('MSFT US Equity');
+  expect(csv).toContain('DEMO DATA');
+  expect(csv).toContain('ARMIN_SOURCE_TIME');
+  expect(csv).not.toContain('PX_VOLUME');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('armin:watchlists') ?? 'null')?.s?.lists[0]?.sort?.column)).toBe('NAME');
+  await page.reload();
+  await expect(panel.locator('.fnh-code')).toHaveText('WATCHLIST');
+  await expect(panel.locator('.tbl thead th').nth(3)).toHaveText('Provider');
+  await expect(panel.locator('.tbl thead th').nth(1)).toHaveAttribute('aria-sort', 'ascending');
+  await expect(panel.locator('.tbl tbody tr').first()).toContainText('Apple');
+  await panel.getByRole('button', { name: '95) Manual order', exact: true }).click();
+  await expect(panel.locator('.tbl tbody tr').first()).toContainText('Microsoft');
+  expect(errors).toEqual([]);
+});

@@ -1,0 +1,173 @@
+name: Release desktop app
+
+# Tests gate the draft. The Windows builder uploads directly to that draft, avoiding
+# Actions artifact-storage quotas. Only the complete, verified draft is published.
+# Windows only: the app is released for Windows. Without Actions minutes, the
+# portable app can be built locally with `npm run desktop:build:portable` and
+# attached to a draft release by hand.
+on:
+  push:
+    tags: ['v*']
+    branches: [claude/market-events-v2.16.0-id814n]
+    paths: [.github/release-request.json]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Version tag to build and publish (for example v2.3.0). If it does not exist yet, it is created on the commit this run starts from, which must carry that version in package.json.
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  # Run for both triggers: a skipped ancestor causes downstream jobs to skip,
+  # even when verify overrides that skip. Pushed tags are validated; manual
+  # runs can create a missing tag only when package.json has the same version.
+  tag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.target.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Select the explicitly requested release
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/* ]]; then
+            RELEASE_TAG=$(node scripts/release-request.cjs)
+          fi
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
+      - name: Create the version tag if it is missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$RELEASE_TAG" == "v$(node -p "require('./package.json').version")" ]]
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null; then
+            [[ "$(git rev-list -n 1 "$RELEASE_TAG")" == "$(git rev-parse HEAD)" ]] || { echo 'Existing version tag points to another commit.'; exit 1; }
+          else
+            git tag "$RELEASE_TAG" "$(git rev-parse HEAD)"
+            git push origin "refs/tags/$RELEASE_TAG"
+          fi
+
+  verify:
+    needs: tag
+    # Runs after the tag job, or without it for a pushed tag.
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --maxWorkers=1
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      # The desktop tests run on Windows itself, in the windows job.
+
+  draft:
+    needs: [tag, verify]
+    env:
+      RELEASE_TAG: ${{ needs.tag.outputs.tag }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+      - name: Prepare version-matched draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$RELEASE_TAG" == "v$(node -p "require('./package.json').version")" ]]
+          release_commit=$(git rev-parse HEAD)
+          release_notes="docs/release-$RELEASE_TAG.md"
+          test -f "$release_notes"
+          if release_state=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            [[ "$release_state" == true ]] || { echo 'This version is already published.'; exit 1; }
+            gh release edit "$RELEASE_TAG" --notes-file "$release_notes"
+          else
+            gh release create "$RELEASE_TAG" --draft --verify-tag --target "$release_commit" --title "Armin Terminal $RELEASE_TAG" --notes-file "$release_notes"
+          fi
+
+  windows:
+    needs: [tag, draft]
+    env:
+      RELEASE_TAG: ${{ needs.tag.outputs.tag }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    outputs:
+      manifest: ${{ steps.assets.outputs.manifest }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build Windows installer and portable app
+        run: npm run desktop:build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Verify native Windows Electron workflows
+        run: npx playwright test --config playwright.desktop.config.ts
+      - name: Check packages and calculate SHA256
+        id: assets
+        run: node scripts/release-assets.mjs checksums windows
+      - name: Upload Windows files to the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem release -File | Where-Object { $_.Extension -in '.exe', '.sha256' } | ForEach-Object { $_.FullName }
+          gh release upload $env:RELEASE_TAG @assets --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  publish:
+    needs: [tag, windows]
+    env:
+      RELEASE_TAG: ${{ needs.tag.outputs.tag }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.tag.outputs.tag }}
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - name: Verify all uploaded assets and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WINDOWS_MANIFEST: ${{ needs.windows.outputs.manifest }}
+        run: |
+          set -euo pipefail
+          node scripts/release-assets.mjs validate
+          gh release edit "$RELEASE_TAG" --draft=false --latest

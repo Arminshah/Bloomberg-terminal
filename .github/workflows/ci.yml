@@ -1,0 +1,59 @@
+name: CI
+
+# Actions minutes are limited: CI runs for pull requests, pushes to main and on
+# demand (Actions tab > CI > Run workflow), not for every push to a work branch,
+# whose commits are tested locally before they are pushed. The release workflow
+# runs the full suite again before anything is published. A newer run for the
+# same branch or pull request cancels the older one.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --maxWorkers=1
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      # A failed screenshot comparison prints the image this runner drew, so a baseline can come from CI's renderer.
+      - if: failure()
+        run: for f in $(find test-results -name '*-actual.png' 2>/dev/null); do echo "SCREENSHOT $f"; base64 -w0 "$f"; echo; done
+      - run: xvfb-run -a npm run e2e:desktop
+
+  # Branch/PR builds validate packaging. Tagged releases deliver packages directly
+  # to a draft GitHub Release instead of consuming Actions artifact storage.
+  desktop:
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run desktop:build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: npx playwright test --config playwright.desktop.config.ts
+      - run: node scripts/release-assets.mjs checksums windows

@@ -1,0 +1,99 @@
+import { describe, expect, it } from 'vitest';
+import * as selftest from '../electron/selftest.cjs';
+import { fixture } from './fixtures/congress/files.cjs';
+import bojLoan from './fixtures/central-banks/boj-basic-loan-rate.json?raw';
+
+// Made-up answers in each provider's documented layout; no request leaves the test.
+const test = (id: string) => selftest.TESTS.find((t) => t.id === id)!;
+
+describe('provider self-test', () => {
+  it('requests ECB CSV explicitly and rejects missing or nonnumeric observations', () => {
+    expect(test('ecb').request([], 0).accept).toBe('text/csv');
+    for (const body of ['{"dataSets":[]}', 'TIME_PERIOD,OBS_VALUE\n2026-10-16,\n', 'TIME_PERIOD,OBS_VALUE\n2026-10-16,NaN\n']) expect(() => test('ecb').read(body)).toThrow();
+  });
+
+  it("reads the Bank of Japan's basic loan rate from its Time-Series Data Search, asking from two months back", () => {
+    expect(test('boj').request([], Date.parse('2026-10-27T12:00:00Z')).url).toBe('https://www.stat-search.boj.or.jp/api/v1/getDataCode?format=json&lang=en&db=IR01&startDate=202608&code=MADR1Z@D');
+    expect(test('boj').read(bojLoan)).toBe('1.5% on 2026-09-30');
+    expect(() => test('boj').read('{"STATUS":400,"MESSAGE":"Invalid parameter"}')).toThrow('Invalid parameter');
+  });
+
+  it('selects a percentage rate instead of displaying the SOFR index as an unknown percent', () => {
+    expect(test('nyfed').read('{"refRates":[{"type":"SOFRAI","effectiveDate":"2026-10-16","index":123.45},{"type":"EFFR","effectiveDate":"2026-10-16","percentRate":3.88}]}')).toBe('EFFR 3.88% on 2026-10-16');
+    expect(() => test('nyfed').read('{"refRates":[{"type":"SOFRAI","effectiveDate":"2026-10-16","index":123.45}]}')).toThrow('no usable percentage rates');
+  });
+
+  it('reads each kind of answer into a short sample', () => {
+    expect(test('nyfed').read('{"refRates":[{"effectiveDate":"2026-10-16","type":"EFFR","percentRate":3.58}]}')).toBe('EFFR 3.58% on 2026-10-16');
+    expect(test('ecb').read('KEY,FREQ,TIME_PERIOD,OBS_VALUE\nFM.D,D,2026-10-16,2.00\n')).toBe('2.00% on 2026-10-16');
+    expect(test('kraken').read('{"error":[],"result":{"XXBTZUSD":{"c":["67000.1","0.1"]}}}')).toBe('BTC/USD 67000.1');
+    expect(() => test('kraken').read('{"error":["EGeneral:Too many requests"]}')).toThrow('EGeneral:Too many requests');
+    expect(test('fred').read('{"observations":[{"date":"2026-10-16","value":"4.05"}]}')).toBe('4.05% on 2026-10-16');
+    expect(test('fmp').read('[{"symbol":"AAPL","targetHigh":300,"targetLow":200,"targetConsensus":250.5}]')).toBe('consensus 250.5, high 300, low 200');
+    expect(test('finnhub-quote').read('{"c":343.46,"t":1792180800}')).toBe('AAPL 343.46 at 2026-10-16 20:00 UTC');
+    expect(() => test('finnhub-quote').read('{"c":0,"t":0}')).toThrow('empty quote');
+    expect(test('alpaca').read('{"AAPL":{"latestTrade":{"p":343.4,"t":"2026-10-16T19:59:59.1Z"}}}')).toBe('AAPL 343.4 on IEX at 2026-10-16 19:59 UTC');
+    expect(test('massive').read('{"results":[{"c":343.46,"t":1792180800000}]}')).toBe('close 343.46 on 2026-10-16');
+    expect(() => test('alphavantage').read('{"Information":"25 requests per day"}')).toThrow('25 requests per day');
+  });
+
+  it('builds requests with keys only in headers or the query the provider documents', () => {
+    const now = Date.parse('2026-10-18T10:00:00Z');
+    expect(test('finnhub-quote').request(['k'], now)).toEqual({ url: 'https://finnhub.io/api/v1/quote?symbol=AAPL', headers: { 'X-Finnhub-Token': 'k' } });
+    expect(test('tiingo').request(['k'], now).url).toBe('https://api.tiingo.com/tiingo/daily/aapl/prices?startDate=2026-10-08&endDate=2026-10-18&format=json');
+    expect(test('alpaca').request(['id', 's'], now).url).toBe('https://data.alpaca.markets/v2/stocks/snapshots?symbols=AAPL&feed=iex');
+    // Every keyed test names the credentials it needs.
+    for (const t of selftest.TESTS) if (/KEY|TOKEN|AGENT/.test(JSON.stringify(t.credentials ?? []))) expect(t.credentials!.length).toBeGreaterThan(0);
+  });
+
+  it("maps Apple's CUSIP on OpenFIGI, with the key only when one is set", () => {
+    const t = test('openfigi');
+    expect(t.keyless).toBe(true);
+    expect(t.request(['k'], 0)).toEqual({
+      url: 'https://api.openfigi.com/v3/mapping',
+      method: 'POST',
+      body: '[{"idType":"ID_CUSIP","idValue":"037833100","exchCode":"US"}]',
+      headers: { 'Content-Type': 'application/json', 'X-OPENFIGI-APIKEY': 'k' },
+    });
+    expect(t.request([], 0).headers).toEqual({ 'Content-Type': 'application/json' });
+    // OpenFIGI's answer layout (api.openfigi.com/v3/mapping): one entry per job.
+    expect(t.read('[{"data":[{"figi":"BBG000B9XRY4","name":"APPLE INC","ticker":"AAPL","exchCode":"US","compositeFIGI":"BBG000B9XRY4","securityType":"Common Stock"}]}]')).toBe('037833100 is AAPL, APPLE INC');
+    expect(() => t.read('[{"warning":"No identifier found."}]')).toThrow('no US listing');
+    expect(() => t.read('[{"error":"Invalid idValue format"}]')).toThrow('Invalid idValue format');
+    expect(() => t.read('<html>')).toThrow('format the app does not recognise');
+  });
+
+  it("reads the House Clerk's index of the year, last year's in January", () => {
+    const t = test('house-clerk');
+    expect(t.binary).toBe(true);
+    const oct = Date.parse('2026-10-25T12:00:00Z');
+    expect(t.request([], oct).url).toBe('https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip');
+    expect(t.request([], Date.parse('2027-01-10T12:00:00Z')).url).toBe('https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip');
+    // The Clerk's 2026 index as published on 25 October 2026.
+    expect(t.read(fixture('2026FD.zip'), oct)).toBe('2026: 1763 filings, 437 of them trade reports, latest filed 2026-10-22');
+    expect(() => t.read(fixture('2026FD.zip'), Date.parse('2027-03-01T00:00:00Z'))).toThrow('no 2027FD.txt in the archive');
+  });
+
+  it('writes a report with states and samples, never a key', () => {
+    const text = selftest.reportText({
+      at: Date.parse('2026-10-18T10:00:00Z'),
+      version: '2.5.0',
+      platform: 'win32 x64',
+      results: [
+        { label: 'Yahoo crumb', state: 'fail', status: 401, ms: 120, detail: 'Invalid Cookie' },
+        { label: 'FRED', state: 'pass', status: 200, ms: 300, detail: '4.05% on 2026-10-16' },
+        { label: 'Tiingo', state: 'skip', detail: 'no TIINGO_API_KEY set' },
+      ],
+    });
+    expect(text).toBe(
+      [
+        'Armin Terminal 2.5.0 self-test, 2026-10-18 10:00:00 UTC, win32 x64',
+        '1 passed, 1 failed, 1 skipped or switched off',
+        '',
+        'FAIL Yahoo crumb HTTP 401 120 ms: Invalid Cookie',
+        'PASS FRED HTTP 200 300 ms: 4.05% on 2026-10-16',
+        'SKIP Tiingo: no TIINGO_API_KEY set',
+      ].join('\n'),
+    );
+  });
+});

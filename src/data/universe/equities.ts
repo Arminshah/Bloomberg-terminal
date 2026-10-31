@@ -1,0 +1,605 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
+import type { EquityInfo, Region, SecurityDef } from '../types';
+
+interface EqSeed extends EquityInfo {
+  t: string; // ticker incl. exchange code, e.g. "AAPL US"
+  n: string; // long name
+  x: string; // exchange display name
+  ccy: string;
+  c: string; // country ISO2
+  px: number;
+  vol: number;
+  y: string; // calibration symbol
+  minor?: boolean;
+  alias?: string[];
+}
+
+const REGION: Record<string, Region> = {
+  US: 'Americas', CA: 'Americas', BR: 'Americas', MX: 'Americas',
+  NL: 'EMEA', DE: 'EMEA', FR: 'EMEA', CH: 'EMEA', GB: 'EMEA', DK: 'EMEA',
+  JP: 'APAC', HK: 'APAC', TW: 'APAC', KR: 'APAC', IN: 'APAC', AU: 'APAC', CN: 'APAC',
+};
+
+const DECIMALS: Record<string, number> = { JPY: 1, KRW: 0, TWD: 1, GBp: 1 };
+
+const US = { x: 'NYSE', ccy: 'USD', c: 'US' };
+const NQ = { x: 'NASDAQ GS', ccy: 'USD', c: 'US' };
+
+const SEEDS: EqSeed[] = [
+  {
+    ...NQ, t: 'AAPL US', n: 'Apple Inc', px: 245, vol: 0.27, y: 'AAPL', sector: 'Information Technology',
+    industry: 'Technology Hardware', shares: 14800, beta: 1.12, rev: 416000, ni: 112000, dps: 1.04, emp: 166000,
+    hq: 'Cupertino, CA', ceo: 'Tim Cook', founded: 1976, fye: 9, netDebt: -35000, book: 74000, lag: 30,
+    desc: 'Apple Inc. designs, manufactures and markets smartphones, personal computers, tablets, wearables and accessories, and sells a range of related services. Products include iPhone, Mac, iPad, Apple Watch and AirPods; services include the App Store, iCloud, Apple Music, Apple Pay and AppleCare. The company sells through its retail and online stores, direct sales force, carriers, wholesalers and resellers worldwide.',
+  },
+  {
+    ...NQ, t: 'MSFT US', n: 'Microsoft Corp', px: 510, vol: 0.24, y: 'MSFT', sector: 'Information Technology',
+    industry: 'Software', shares: 7430, beta: 0.95, rev: 305000, ni: 110000, dps: 3.64, emp: 228000,
+    hq: 'Redmond, WA', ceo: 'Satya Nadella', founded: 1975, fye: 6, netDebt: -40000, book: 365000, lag: 28,
+    desc: 'Microsoft Corporation develops and licenses software, cloud services, devices and solutions. Segments are Productivity and Business Processes (Microsoft 365, LinkedIn, Dynamics), Intelligent Cloud (Azure, server products, GitHub, enterprise services) and More Personal Computing (Windows, devices, Xbox gaming and search advertising).',
+  },
+  {
+    ...NQ, t: 'NVDA US', n: 'NVIDIA Corp', px: 185, vol: 0.48, y: 'NVDA', sector: 'Information Technology',
+    industry: 'Semiconductors', shares: 24300, beta: 1.75, rev: 230000, ni: 125000, dps: 0.04, emp: 36000,
+    hq: 'Santa Clara, CA', ceo: 'Jensen Huang', founded: 1993, fye: 1, netDebt: -50000, book: 120000, lag: 24,
+    desc: 'NVIDIA Corporation designs accelerated computing platforms. Its Compute & Networking segment supplies data center GPUs, systems, networking and AI software used to train and run large models; the Graphics segment sells GeForce GPUs for gaming and PCs, professional visualization products and automotive platforms.',
+  },
+  {
+    ...NQ, t: 'GOOGL US', n: 'Alphabet Inc-Cl A', px: 245, vol: 0.30, y: 'GOOGL', sector: 'Communication Services',
+    industry: 'Interactive Media & Services', shares: 12100, beta: 1.02, rev: 400000, ni: 128000, dps: 0.84, emp: 190000,
+    hq: 'Mountain View, CA', ceo: 'Sundar Pichai', founded: 1998, fye: 12, netDebt: -70000, book: 390000, lag: 28,
+    alias: ['GOOG', 'GOOGLE'],
+    desc: 'Alphabet Inc. is the holding company of Google. Google Services includes Search, YouTube, Android, Chrome, Maps, Gmail and Google Play and earns revenue mainly from advertising and subscriptions. Google Cloud provides infrastructure, data analytics and AI services to enterprises; Other Bets include Waymo and Verily.',
+  },
+  {
+    ...NQ, t: 'AMZN US', n: 'Amazon.com Inc', px: 225, vol: 0.32, y: 'AMZN', sector: 'Consumer Discretionary',
+    industry: 'Broadline Retail', shares: 10700, beta: 1.30, rev: 715000, ni: 75000, dps: 0, emp: 1550000,
+    hq: 'Seattle, WA', ceo: 'Andy Jassy', founded: 1994, fye: 12, netDebt: -25000, book: 330000, lag: 30,
+    desc: 'Amazon.com, Inc. operates online and physical stores and provides cloud computing through Amazon Web Services. It also sells advertising services, Prime memberships, devices such as Kindle and Echo, and fulfilment, logistics and seller services to third-party merchants across North America and international markets.',
+  },
+  {
+    ...NQ, t: 'META US', n: 'Meta Platforms Inc-Class A', px: 720, vol: 0.38, y: 'META', sector: 'Communication Services',
+    industry: 'Interactive Media & Services', shares: 2520, beta: 1.25, rev: 200000, ni: 72000, dps: 2.1, emp: 78000,
+    hq: 'Menlo Park, CA', ceo: 'Mark Zuckerberg', founded: 2004, fye: 12, netDebt: -5000, book: 215000, lag: 29,
+    alias: ['FB', 'FACEBOOK'],
+    desc: 'Meta Platforms, Inc. builds technologies that help people connect. The Family of Apps segment includes Facebook, Instagram, Messenger, WhatsApp and Threads and is funded mostly by advertising; Reality Labs develops augmented and virtual reality hardware, software and content, including Quest headsets and AI glasses.',
+  },
+  {
+    ...NQ, t: 'TSLA US', n: 'Tesla Inc', px: 420, vol: 0.62, y: 'TSLA', sector: 'Consumer Discretionary',
+    industry: 'Automobiles', shares: 3320, beta: 2.05, rev: 95000, ni: 4500, dps: 0, emp: 125000,
+    hq: 'Austin, TX', ceo: 'Elon Musk', founded: 2003, fye: 12, netDebt: -30000, book: 80000, lag: 22,
+    desc: 'Tesla, Inc. designs, develops, manufactures and sells electric vehicles and energy generation and storage systems. The Automotive segment sells vehicles, regulatory credits, software and services; the Energy segment sells Powerwall and Megapack batteries and solar products. The company also develops autonomous driving software and robotics.',
+  },
+  {
+    ...US, t: 'BRK/B US', n: 'Berkshire Hathaway Inc-Cl B', px: 490, vol: 0.17, y: 'BRK-B', sector: 'Financials',
+    industry: 'Multi-Sector Holdings', shares: 2157, beta: 0.85, rev: 372000, ni: 66000, dps: 0, emp: 392000,
+    hq: 'Omaha, NE', ceo: 'Greg Abel', founded: 1839, fye: 12, netDebt: -250000, book: 680000, lag: 33,
+    alias: ['BRK', 'BRKB', 'BERKSHIRE'],
+    desc: 'Berkshire Hathaway Inc. is a holding company owning subsidiaries in insurance and reinsurance (GEICO, General Re, Berkshire Hathaway Reinsurance), freight rail (BNSF), utilities and energy, manufacturing, service and retailing businesses. It also holds a large portfolio of publicly traded equities.',
+  },
+  {
+    ...NQ, t: 'AVGO US', n: 'Broadcom Inc', px: 340, vol: 0.45, y: 'AVGO', sector: 'Information Technology',
+    industry: 'Semiconductors', shares: 4720, beta: 1.20, rev: 66000, ni: 25000, dps: 2.6, emp: 37000,
+    hq: 'Palo Alto, CA', ceo: 'Hock Tan', founded: 1961, fye: 10, netDebt: 55000, book: 75000, lag: 40,
+    desc: 'Broadcom Inc. designs, develops and supplies semiconductor and infrastructure software solutions. Semiconductor products include custom AI accelerators, networking switches, broadband, wireless and storage chips; infrastructure software includes VMware cloud foundation, mainframe, security and enterprise software.',
+  },
+  {
+    ...US, t: 'JPM US', n: 'JPMorgan Chase & Co', px: 300, vol: 0.22, y: 'JPM', sector: 'Financials',
+    industry: 'Banks', shares: 2740, beta: 1.05, rev: 182000, ni: 57000, dps: 6.0, emp: 318000,
+    hq: 'New York, NY', ceo: 'Jamie Dimon', founded: 1799, fye: 12, netDebt: 0, book: 360000, lag: 14,
+    desc: 'JPMorgan Chase & Co. is a global financial services firm. It operates Consumer & Community Banking (Chase), the Commercial & Investment Bank (investment banking, markets, securities services, commercial lending) and Asset & Wealth Management, serving consumers, businesses, institutions and governments.',
+  },
+  {
+    ...US, t: 'LLY US', n: 'Eli Lilly & Co', px: 820, vol: 0.32, y: 'LLY', sector: 'Health Care',
+    industry: 'Pharmaceuticals', shares: 896, beta: 0.45, rev: 63000, ni: 20000, dps: 6.92, emp: 47000,
+    hq: 'Indianapolis, IN', ceo: 'David Ricks', founded: 1876, fye: 12, netDebt: 35000, book: 20000, lag: 30,
+    desc: 'Eli Lilly and Company discovers, develops, manufactures and markets human pharmaceuticals. Key products include tirzepatide (Mounjaro, Zepbound) for diabetes and obesity, as well as treatments in oncology, immunology and neuroscience such as Verzenio, Taltz and Kisunla.',
+  },
+  {
+    ...US, t: 'V US', n: 'Visa Inc-Class A Shares', px: 345, vol: 0.20, y: 'V', sector: 'Financials',
+    industry: 'Financial Services', shares: 1930, beta: 0.95, rev: 40000, ni: 21000, dps: 2.68, emp: 31600,
+    hq: 'San Francisco, CA', ceo: 'Ryan McInerney', founded: 1958, fye: 9, netDebt: 5000, book: 38000, lag: 28,
+    alias: ['VISA'],
+    desc: 'Visa Inc. operates a global payments technology network that facilitates digital payments among consumers, merchants, financial institutions and governments. It earns service, data processing, international transaction and value-added services revenue from card and account-to-account transactions.',
+  },
+  {
+    ...US, t: 'UNH US', n: 'UnitedHealth Group Inc', px: 330, vol: 0.38, y: 'UNH', sector: 'Health Care',
+    industry: 'Health Care Providers & Services', shares: 905, beta: 0.55, rev: 445000, ni: 14000, dps: 8.84, emp: 400000,
+    hq: 'Eden Prairie, MN', ceo: 'Stephen Hemsley', founded: 1977, fye: 12, netDebt: 50000, book: 95000, lag: 15,
+    desc: 'UnitedHealth Group Incorporated is a diversified health care company. UnitedHealthcare provides health benefit plans for employers, individuals, Medicare and Medicaid; Optum provides care delivery (Optum Health), health technology and analytics (Optum Insight) and pharmacy services (Optum Rx).',
+  },
+  {
+    ...US, t: 'XOM US', n: 'Exxon Mobil Corp', px: 115, vol: 0.23, y: 'XOM', sector: 'Energy',
+    industry: 'Oil, Gas & Consumable Fuels', shares: 4250, beta: 0.55, rev: 325000, ni: 30000, dps: 4.12, emp: 61000,
+    hq: 'Spring, TX', ceo: 'Darren Woods', founded: 1870, fye: 12, netDebt: 25000, book: 265000, lag: 31,
+    alias: ['EXXON'],
+    desc: 'Exxon Mobil Corporation explores for and produces crude oil and natural gas, and manufactures and markets petroleum products, chemicals and specialty products. Its Upstream, Energy Products, Chemical Products and Specialty Products segments operate in the United States, Canada, Guyana and internationally.',
+  },
+  {
+    ...US, t: 'MA US', n: 'Mastercard Inc - A', px: 580, vol: 0.21, y: 'MA', sector: 'Financials',
+    industry: 'Financial Services', shares: 905, beta: 1.0, rev: 32000, ni: 15000, dps: 3.48, emp: 35000,
+    hq: 'Purchase, NY', ceo: 'Michael Miebach', founded: 1966, fye: 12, netDebt: 10000, book: 7000, lag: 30,
+    alias: ['MASTERCARD'],
+    desc: 'Mastercard Incorporated is a technology company in the global payments industry. It connects consumers, financial institutions, merchants, governments and businesses through its payments network and provides value-added services including cyber and intelligence, data analytics and loyalty solutions.',
+  },
+  {
+    ...US, t: 'JNJ US', n: 'Johnson & Johnson', px: 190, vol: 0.17, y: 'JNJ', sector: 'Health Care',
+    industry: 'Pharmaceuticals', shares: 2410, beta: 0.45, rev: 93000, ni: 26000, dps: 5.2, emp: 138000,
+    hq: 'New Brunswick, NJ', ceo: 'Joaquin Duato', founded: 1886, fye: 12, netDebt: 12000, book: 78000, lag: 14,
+    desc: 'Johnson & Johnson researches, develops, manufactures and sells health care products. Innovative Medicine covers immunology, oncology, neuroscience, cardiovascular and infectious diseases; MedTech provides orthopaedic, surgery, interventional solutions and vision products.',
+  },
+  {
+    ...US, t: 'PG US', n: 'Procter & Gamble Co/The', px: 155, vol: 0.16, y: 'PG', sector: 'Consumer Staples',
+    industry: 'Household Products', shares: 2340, beta: 0.40, rev: 84000, ni: 16000, dps: 4.23, emp: 109000,
+    hq: 'Cincinnati, OH', ceo: 'Shailesh Jejurikar', founded: 1837, fye: 6, netDebt: 27000, book: 52000, lag: 19,
+    desc: 'The Procter & Gamble Company provides branded consumer packaged goods in Beauty, Grooming, Health Care, Fabric & Home Care and Baby, Feminine & Family Care. Brands include Tide, Pampers, Gillette, Oral-B, Pantene, Ariel, Charmin and Head & Shoulders.',
+  },
+  {
+    ...US, t: 'HD US', n: 'Home Depot Inc', px: 400, vol: 0.22, y: 'HD', sector: 'Consumer Discretionary',
+    industry: 'Specialty Retail', shares: 995, beta: 1.0, rev: 165000, ni: 14500, dps: 9.2, emp: 470000,
+    hq: 'Atlanta, GA', ceo: 'Ted Decker', founded: 1978, fye: 1, netDebt: 60000, book: 12000, lag: 18,
+    desc: 'The Home Depot, Inc. is a home improvement retailer selling building materials, home improvement products, lawn and garden products and decor, and providing installation, rental and professional services to do-it-yourself customers and professional contractors across the US, Canada and Mexico.',
+  },
+  {
+    ...NQ, t: 'COST US', n: 'Costco Wholesale Corp', px: 930, vol: 0.20, y: 'COST', sector: 'Consumer Staples',
+    industry: 'Consumer Staples Distribution', shares: 444, beta: 0.80, rev: 275000, ni: 8100, dps: 5.2, emp: 341000,
+    hq: 'Issaquah, WA', ceo: 'Ron Vachris', founded: 1983, fye: 8, netDebt: -8000, book: 27000, lag: 28,
+    desc: 'Costco Wholesale Corporation operates membership warehouses offering branded and private-label products across a wide range of categories at low prices. It also operates e-commerce sites, gasoline stations, pharmacies and travel services, and earns a significant share of profit from membership fees.',
+  },
+  {
+    ...US, t: 'ORCL US', n: 'Oracle Corp', px: 280, vol: 0.45, y: 'ORCL', sector: 'Information Technology',
+    industry: 'Software', shares: 2840, beta: 1.30, rev: 62000, ni: 13000, dps: 2.0, emp: 162000,
+    hq: 'Austin, TX', ceo: 'Clay Magouyrk', founded: 1977, fye: 5, netDebt: 95000, book: 25000, lag: 12,
+    desc: 'Oracle Corporation provides products and services for enterprise information technology. It offers Oracle Cloud Infrastructure, cloud applications including Fusion ERP and NetSuite, database and middleware software, and hardware, along with license support and consulting services.',
+  },
+  {
+    ...US, t: 'ABBV US', n: 'AbbVie Inc', px: 220, vol: 0.22, y: 'ABBV', sector: 'Health Care',
+    industry: 'Biotechnology', shares: 1770, beta: 0.50, rev: 60000, ni: 6000, dps: 6.92, emp: 55000,
+    hq: 'North Chicago, IL', ceo: 'Robert Michael', founded: 2013, fye: 12, netDebt: 60000, book: -3000, lag: 31,
+    desc: 'AbbVie Inc. discovers, develops, manufactures and sells pharmaceuticals in immunology (Skyrizi, Rinvoq, Humira), oncology, neuroscience, eye care and aesthetics (Botox, Juvederm).',
+  },
+  {
+    ...US, t: 'BAC US', n: 'Bank of America Corp', px: 50, vol: 0.26, y: 'BAC', sector: 'Financials',
+    industry: 'Banks', shares: 7500, beta: 1.30, rev: 105000, ni: 29000, dps: 1.12, emp: 213000,
+    hq: 'Charlotte, NC', ceo: 'Brian Moynihan', founded: 1904, fye: 12, netDebt: 0, book: 300000, lag: 14,
+    alias: ['BOFA'],
+    desc: 'Bank of America Corporation provides banking and financial products to individuals, businesses, institutions and governments through Consumer Banking, Global Wealth & Investment Management (Merrill), Global Banking and Global Markets.',
+  },
+  {
+    ...US, t: 'KO US', n: 'Coca-Cola Co/The', px: 70, vol: 0.15, y: 'KO', sector: 'Consumer Staples',
+    industry: 'Beverages', shares: 4300, beta: 0.45, rev: 48000, ni: 12000, dps: 2.12, emp: 69700,
+    hq: 'Atlanta, GA', founded: 1886, fye: 12, netDebt: 35000, book: 30000, lag: 21,
+    alias: ['COKE'],
+    desc: 'The Coca-Cola Company manufactures and sells beverage concentrates and syrups, and finished beverages, to bottling partners, distributors and retailers. Its portfolio includes sparkling soft drinks, water, sports, coffee, tea, juice and dairy brands such as Coca-Cola, Sprite, Fanta, Powerade and smartwater.',
+  },
+  {
+    ...NQ, t: 'NFLX US', n: 'Netflix Inc', px: 115, vol: 0.36, y: 'NFLX', sector: 'Communication Services',
+    industry: 'Entertainment', shares: 4250, beta: 1.30, rev: 45000, ni: 11000, dps: 0, emp: 14000,
+    hq: 'Los Gatos, CA', ceo: 'Ted Sarandos', founded: 1997, fye: 12, netDebt: 6000, book: 27000, lag: 17,
+    desc: 'Netflix, Inc. is an entertainment service offering TV series, films, games and live programming across a wide variety of genres and languages to paid memberships in over 190 countries, with ad-supported and ad-free subscription plans.',
+  },
+  {
+    ...US, t: 'CRM US', n: 'Salesforce Inc', px: 250, vol: 0.32, y: 'CRM', sector: 'Information Technology',
+    industry: 'Software', shares: 960, beta: 1.20, rev: 41000, ni: 7000, dps: 1.66, emp: 76000,
+    hq: 'San Francisco, CA', ceo: 'Marc Benioff', founded: 1999, fye: 1, netDebt: -5000, book: 60000, lag: 33,
+    alias: ['SALESFORCE'],
+    desc: 'Salesforce, Inc. provides customer relationship management technology. Its Agentforce platform and clouds for sales, service, marketing, commerce, integration (MuleSoft), analytics (Tableau) and collaboration (Slack) help companies connect with customers.',
+  },
+  {
+    ...NQ, t: 'AMD US', n: 'Advanced Micro Devices', px: 165, vol: 0.52, y: 'AMD', sector: 'Information Technology',
+    industry: 'Semiconductors', shares: 1620, beta: 1.90, rev: 34000, ni: 4000, dps: 0, emp: 28000,
+    hq: 'Santa Clara, CA', ceo: 'Lisa Su', founded: 1969, fye: 12, netDebt: -2000, book: 60000, lag: 29,
+    desc: 'Advanced Micro Devices, Inc. designs high-performance and adaptive computing products, including Instinct data center GPUs, EPYC server processors, Ryzen client CPUs, Radeon graphics, embedded and semi-custom chips for gaming consoles.',
+  },
+  {
+    ...NQ, t: 'PEP US', n: 'PepsiCo Inc', px: 145, vol: 0.18, y: 'PEP', sector: 'Consumer Staples',
+    industry: 'Beverages', shares: 1370, beta: 0.50, rev: 93000, ni: 8500, dps: 5.69, emp: 319000,
+    hq: 'Purchase, NY', ceo: 'Ramon Laguarta', founded: 1965, fye: 12, netDebt: 40000, book: 19000, lag: 9,
+    alias: ['PEPSI'],
+    desc: 'PepsiCo, Inc. manufactures, markets and sells beverages and convenient foods worldwide, including Pepsi, Gatorade, Mountain Dew, Lay\'s, Doritos, Cheetos, Quaker and Tropicana brands, through direct-store delivery, warehouse and foodservice channels.',
+  },
+  {
+    ...NQ, t: 'WMT US', n: 'Walmart Inc', px: 100, vol: 0.20, y: 'WMT', sector: 'Consumer Staples',
+    industry: 'Consumer Staples Distribution', shares: 7980, beta: 0.55, rev: 700000, ni: 20000, dps: 0.99, emp: 2100000,
+    hq: 'Bentonville, AR', ceo: 'John Furner', founded: 1962, fye: 1, netDebt: 45000, book: 95000, lag: 19,
+    alias: ['WALMART'],
+    desc: 'Walmart Inc. operates retail and wholesale stores, clubs and e-commerce sites in the US and internationally through Walmart U.S., Walmart International and Sam\'s Club, selling grocery, general merchandise, health and wellness products, and growing advertising and membership businesses.',
+  },
+  {
+    ...US, t: 'CVX US', n: 'Chevron Corp', px: 155, vol: 0.23, y: 'CVX', sector: 'Energy',
+    industry: 'Oil, Gas & Consumable Fuels', shares: 2050, beta: 0.85, rev: 190000, ni: 14000, dps: 6.84, emp: 45000,
+    hq: 'Houston, TX', ceo: 'Mike Wirth', founded: 1879, fye: 12, netDebt: 35000, book: 185000, lag: 31,
+    desc: 'Chevron Corporation is an integrated energy company. Upstream explores for, develops and produces crude oil and natural gas, including LNG; Downstream refines, markets and transports fuels, lubricants and petrochemicals. Operations span the US, Kazakhstan, Australia, Guyana and other regions.',
+  },
+  {
+    ...US, t: 'MRK US', n: 'Merck & Co. Inc.', px: 90, vol: 0.24, y: 'MRK', sector: 'Health Care',
+    industry: 'Pharmaceuticals', shares: 2500, beta: 0.40, rev: 64000, ni: 18000, dps: 3.4, emp: 75000,
+    hq: 'Rahway, NJ', ceo: 'Robert Davis', founded: 1891, fye: 12, netDebt: 30000, book: 50000, lag: 30,
+    desc: 'Merck & Co., Inc. is a global health care company offering prescription medicines, vaccines, biologic therapies and animal health products. Key products include Keytruda in oncology and Gardasil vaccines.',
+  },
+  {
+    ...NQ, t: 'ADBE US', n: 'Adobe Inc', px: 350, vol: 0.33, y: 'ADBE', sector: 'Information Technology',
+    industry: 'Software', shares: 420, beta: 1.20, rev: 23500, ni: 7000, dps: 0, emp: 30000,
+    hq: 'San Jose, CA', ceo: 'Shantanu Narayen', founded: 1982, fye: 11, netDebt: 0, book: 12000, lag: 14,
+    desc: 'Adobe Inc. provides creative, document and marketing software. Digital Media includes Creative Cloud (Photoshop, Premiere, Illustrator, Firefly) and Document Cloud (Acrobat); Digital Experience offers analytics, content and customer journey management solutions.',
+  },
+  {
+    ...US, t: 'TMO US', n: 'Thermo Fisher Scientific Inc', px: 510, vol: 0.25, y: 'TMO', sector: 'Health Care',
+    industry: 'Life Sciences Tools & Services', shares: 378, beta: 0.80, rev: 44000, ni: 6600, dps: 1.72, emp: 125000,
+    hq: 'Waltham, MA', ceo: 'Marc Casper', founded: 1956, fye: 12, netDebt: 30000, book: 52000, lag: 22,
+    desc: 'Thermo Fisher Scientific Inc. provides analytical instruments, life science solutions, specialty diagnostics, laboratory products and biopharma services to pharmaceutical and biotech companies, hospitals, research institutions and government agencies.',
+  },
+  {
+    ...NQ, t: 'CSCO US', n: 'Cisco Systems Inc', px: 70, vol: 0.20, y: 'CSCO', sector: 'Information Technology',
+    industry: 'Communications Equipment', shares: 3950, beta: 0.85, rev: 57000, ni: 10500, dps: 1.64, emp: 86000,
+    hq: 'San Jose, CA', ceo: 'Chuck Robbins', founded: 1984, fye: 7, netDebt: 10000, book: 46000, lag: 17,
+    desc: 'Cisco Systems, Inc. designs and sells networking, security, collaboration, observability and data center products and services, including switching, routing, wireless, Splunk software and Webex, to enterprises, service providers and governments.',
+  },
+  {
+    ...US, t: 'MCD US', n: "McDonald's Corp", px: 305, vol: 0.17, y: 'MCD', sector: 'Consumer Discretionary',
+    industry: 'Hotels, Restaurants & Leisure', shares: 713, beta: 0.55, rev: 26000, ni: 8400, dps: 7.44, emp: 150000,
+    hq: 'Chicago, IL', ceo: 'Chris Kempczinski', founded: 1940, fye: 12, netDebt: 52000, book: -3000, lag: 36,
+    desc: "McDonald's Corporation owns, operates and franchises McDonald's restaurants in more than 100 countries, earning rent, royalties and initial fees from franchisees as well as sales from company-operated restaurants.",
+  },
+  {
+    ...NQ, t: 'INTC US', n: 'Intel Corp', px: 36, vol: 0.55, y: 'INTC', sector: 'Information Technology',
+    industry: 'Semiconductors', shares: 4770, beta: 1.30, rev: 53000, ni: 1500, dps: 0, emp: 85000,
+    hq: 'Santa Clara, CA', ceo: 'Lip-Bu Tan', founded: 1968, fye: 12, netDebt: 25000, book: 110000, lag: 24,
+    desc: 'Intel Corporation designs and manufactures semiconductor products, including client and data center CPUs, networking and edge products, and provides contract chip manufacturing through Intel Foundry.',
+  },
+  {
+    ...US, t: 'DIS US', n: 'Walt Disney Co/The', px: 112, vol: 0.27, y: 'DIS', sector: 'Communication Services',
+    industry: 'Entertainment', shares: 1800, beta: 1.15, rev: 95000, ni: 12000, dps: 1.5, emp: 233000,
+    hq: 'Burbank, CA', founded: 1923, fye: 9, netDebt: 37000, book: 105000, lag: 43,
+    alias: ['DISNEY'],
+    desc: 'The Walt Disney Company is a global entertainment company. Entertainment includes film and television studios, Disney+, Hulu and linear networks; Sports includes ESPN; Experiences includes theme parks, resorts, cruise lines and consumer products.',
+  },
+  {
+    ...US, t: 'IBM US', n: 'International Business Machines Corp', px: 285, vol: 0.28, y: 'IBM', sector: 'Information Technology',
+    industry: 'IT Services', shares: 935, beta: 0.70, rev: 66000, ni: 8000, dps: 6.72, emp: 270000,
+    hq: 'Armonk, NY', ceo: 'Arvind Krishna', founded: 1911, fye: 12, netDebt: 50000, book: 28000, lag: 21,
+    desc: 'International Business Machines Corporation provides hybrid cloud and AI software (Red Hat, automation, data and transaction processing), consulting services and infrastructure including IBM Z mainframes and distributed systems.',
+  },
+  {
+    ...NQ, t: 'QCOM US', n: 'Qualcomm Inc', px: 170, vol: 0.34, y: 'QCOM', sector: 'Information Technology',
+    industry: 'Semiconductors', shares: 1080, beta: 1.25, rev: 44000, ni: 11000, dps: 3.56, emp: 49000,
+    hq: 'San Diego, CA', ceo: 'Cristiano Amon', founded: 1985, fye: 9, netDebt: 0, book: 22000, lag: 36,
+    desc: 'Qualcomm Incorporated develops wireless technologies. QCT sells Snapdragon chipsets for handsets, automotive, PCs and IoT devices; QTL licenses its patent portfolio covering 3G, 4G and 5G standards.',
+  },
+  {
+    ...US, t: 'GS US', n: 'Goldman Sachs Group Inc', px: 780, vol: 0.27, y: 'GS', sector: 'Financials',
+    industry: 'Capital Markets', shares: 305, beta: 1.35, rev: 57000, ni: 16000, dps: 16.0, emp: 46000,
+    hq: 'New York, NY', ceo: 'David Solomon', founded: 1869, fye: 12, netDebt: 0, book: 125000, lag: 14,
+    alias: ['GOLDMAN'],
+    desc: 'The Goldman Sachs Group, Inc. is a global investment banking, securities and investment management firm providing advisory, underwriting, market making, financing and asset and wealth management services to corporations, governments, institutions and individuals.',
+  },
+  {
+    ...US, t: 'MS US', n: 'Morgan Stanley', px: 155, vol: 0.26, y: 'MS', sector: 'Financials',
+    industry: 'Capital Markets', shares: 1595, beta: 1.30, rev: 68000, ni: 16000, dps: 4.0, emp: 80000,
+    hq: 'New York, NY', ceo: 'Ted Pick', founded: 1935, fye: 12, netDebt: 0, book: 105000, lag: 15,
+    desc: 'Morgan Stanley is a financial holding company providing institutional securities, wealth management and investment management services, including investment banking, sales and trading, brokerage and advisory services.',
+  },
+  {
+    ...US, t: 'CAT US', n: 'Caterpillar Inc', px: 480, vol: 0.28, y: 'CAT', sector: 'Industrials',
+    industry: 'Machinery', shares: 468, beta: 1.10, rev: 64000, ni: 9500, dps: 6.04, emp: 112000,
+    hq: 'Irving, TX', ceo: 'Joe Creed', founded: 1925, fye: 12, netDebt: 33000, book: 20000, lag: 29,
+    desc: 'Caterpillar Inc. manufactures construction and mining equipment, off-highway diesel and natural gas engines, industrial gas turbines and diesel-electric locomotives, and provides financing through Cat Financial.',
+  },
+  {
+    ...US, t: 'BA US', n: 'Boeing Co/The', px: 225, vol: 0.35, y: 'BA', sector: 'Industrials',
+    industry: 'Aerospace & Defense', shares: 760, beta: 1.40, rev: 85000, ni: -2000, dps: 0, emp: 172000,
+    hq: 'Arlington, VA', ceo: 'Kelly Ortberg', founded: 1916, fye: 12, netDebt: 30000, book: 5000, lag: 28,
+    alias: ['BOEING'],
+    desc: 'The Boeing Company designs, develops, manufactures, sells and supports commercial jetliners, military aircraft, satellites, missile defense, human space flight and launch systems, and provides aftermarket services through Global Services.',
+  },
+  {
+    ...US, t: 'NKE US', n: 'Nike Inc-Cl B', px: 70, vol: 0.32, y: 'NKE', sector: 'Consumer Discretionary',
+    industry: 'Textiles, Apparel & Luxury Goods', shares: 1480, beta: 1.0, rev: 46000, ni: 3000, dps: 1.64, emp: 77800,
+    hq: 'Beaverton, OR', ceo: 'Elliott Hill', founded: 1964, fye: 5, netDebt: -1000, book: 13000, lag: 30,
+    alias: ['NIKE'],
+    desc: 'NIKE, Inc. designs, develops, markets and sells athletic footwear, apparel, equipment and accessories under the Nike, Jordan and Converse brands through retail stores, digital platforms, wholesale accounts and distributors worldwide.',
+  },
+  {
+    ...US, t: 'PFE US', n: 'Pfizer Inc', px: 26, vol: 0.24, y: 'PFE', sector: 'Health Care',
+    industry: 'Pharmaceuticals', shares: 5690, beta: 0.50, rev: 62000, ni: 9000, dps: 1.72, emp: 81000,
+    hq: 'New York, NY', ceo: 'Albert Bourla', founded: 1849, fye: 12, netDebt: 50000, book: 92000, lag: 35,
+    alias: ['PFIZER'],
+    desc: 'Pfizer Inc. discovers, develops, manufactures and sells biopharmaceutical products across primary care, specialty care and oncology, including vaccines, anticoagulants, migraine, cardiovascular and cancer medicines.',
+  },
+  {
+    ...US, t: 'T US', n: 'AT&T Inc', px: 27, vol: 0.19, y: 'T', sector: 'Communication Services',
+    industry: 'Diversified Telecommunication Services', shares: 7150, beta: 0.60, rev: 124000, ni: 14000, dps: 1.11, emp: 140000,
+    hq: 'Dallas, TX', ceo: 'John Stankey', founded: 1983, fye: 12, netDebt: 120000, book: 110000, lag: 22,
+    alias: ['ATT'],
+    desc: 'AT&T Inc. provides wireless and wireline telecommunications, fibre broadband and related services to consumers and businesses in the US and Mexico.',
+  },
+  {
+    ...US, t: 'VZ US', n: 'Verizon Communications Inc', px: 43, vol: 0.18, y: 'VZ', sector: 'Communication Services',
+    industry: 'Diversified Telecommunication Services', shares: 4220, beta: 0.40, rev: 138000, ni: 18000, dps: 2.76, emp: 96000,
+    hq: 'New York, NY', ceo: 'Dan Schulman', founded: 1983, fye: 12, netDebt: 140000, book: 103000, lag: 22,
+    alias: ['VERIZON'],
+    desc: 'Verizon Communications Inc. provides wireless and wireline communications services, fixed wireless and fibre broadband, and network, security and IoT solutions to consumers, businesses and government customers.',
+  },
+  {
+    ...US, t: 'UBER US', n: 'Uber Technologies Inc', px: 95, vol: 0.38, y: 'UBER', sector: 'Industrials',
+    industry: 'Ground Transportation', shares: 2090, beta: 1.40, rev: 50000, ni: 9000, dps: 0, emp: 31000,
+    hq: 'San Francisco, CA', ceo: 'Dara Khosrowshahi', founded: 2009, fye: 12, netDebt: 3000, book: 25000, lag: 36,
+    desc: 'Uber Technologies, Inc. operates a technology platform connecting consumers with independent providers of ride services (Mobility), meal and grocery delivery (Delivery) and shippers with carriers (Freight).',
+  },
+  {
+    ...NQ, t: 'PLTR US', n: 'Palantir Technologies Inc-A', px: 175, vol: 0.65, y: 'PLTR', sector: 'Information Technology',
+    industry: 'Software', shares: 2370, beta: 2.30, rev: 6000, ni: 2000, dps: 0, emp: 4000,
+    hq: 'Denver, CO', ceo: 'Alex Karp', founded: 2003, fye: 12, netDebt: -6000, book: 7000, lag: 34,
+    alias: ['PALANTIR'],
+    desc: 'Palantir Technologies Inc. builds software platforms for data integration and AI, including Gotham for government and defense agencies, Foundry for commercial enterprises and the Artificial Intelligence Platform (AIP).',
+  },
+  {
+    // Figures from the company's filings as of fiscal Q1 2027 (quarter to 31 Aug 2026).
+    ...NQ, t: 'APLD US', n: 'Applied Digital Corp', px: 23.68, vol: 1.0, y: 'APLD', sector: 'Information Technology',
+    industry: 'IT Services', shares: 302.4, beta: 6.0, rev: 872, ni: -452, dps: 0, emp: 256,
+    hq: 'Dallas, TX', ceo: 'Wes Cummins', fye: 5, netDebt: 3534, book: 1631, lag: 37,
+    alias: ['APPLIED DIGITAL'],
+    desc: 'Applied Digital Corporation designs, builds and operates data centers for high-performance computing and AI. It hosts GPU clusters for AI and machine learning customers, provides energized infrastructure to crypto mining customers, and develops large AI factory campuses in North Dakota. It was known as Applied Blockchain until November 2022.',
+  },
+  {
+    ...US, t: 'WFC US', n: 'Wells Fargo & Co', px: 82, vol: 0.27, y: 'WFC', sector: 'Financials',
+    industry: 'Banks', shares: 3200, beta: 1.15, rev: 84000, ni: 20000, dps: 1.8, emp: 210000,
+    hq: 'San Francisco, CA', ceo: 'Charlie Scharf', founded: 1852, fye: 12, netDebt: 0, book: 180000, lag: 14,
+    desc: 'Wells Fargo & Company is a diversified financial services company providing consumer banking and lending, commercial banking, corporate and investment banking, and wealth and investment management.',
+  },
+  {
+    ...US, t: 'C US', n: 'Citigroup Inc', px: 100, vol: 0.30, y: 'C', sector: 'Financials',
+    industry: 'Banks', shares: 1840, beta: 1.35, rev: 84000, ni: 14000, dps: 2.4, emp: 229000,
+    hq: 'New York, NY', ceo: 'Jane Fraser', founded: 1812, fye: 12, netDebt: 0, book: 210000, lag: 14,
+    alias: ['CITI'],
+    desc: 'Citigroup Inc. is a global bank offering services, markets, banking, wealth and US personal banking businesses to consumers, corporations, governments and institutions in nearly 160 countries.',
+  },
+  {
+    ...NQ, t: 'MU US', n: 'Micron Technology Inc', px: 200, vol: 0.50, y: 'MU', sector: 'Information Technology',
+    industry: 'Semiconductors', shares: 1120, beta: 1.50, rev: 40000, ni: 8500, dps: 0.46, emp: 48000,
+    hq: 'Boise, ID', ceo: 'Sanjay Mehrotra', founded: 1978, fye: 8, netDebt: 5000, book: 55000, lag: 26,
+    alias: ['MICRON'],
+    desc: 'Micron Technology, Inc. designs and manufactures memory and storage products, including DRAM, high-bandwidth memory (HBM) and NAND flash, for data center, PC, mobile, automotive and industrial markets.',
+  },
+  {
+    ...NQ, t: 'COIN US', n: 'Coinbase Global Inc -Class A', px: 330, vol: 0.70, y: 'COIN', sector: 'Financials',
+    industry: 'Capital Markets', shares: 260, beta: 2.80, rev: 7000, ni: 2500, dps: 0, emp: 4000,
+    hq: 'Remote-first', ceo: 'Brian Armstrong', founded: 2012, fye: 12, netDebt: -5000, book: 15000, lag: 31,
+    alias: ['COINBASE'],
+    desc: 'Coinbase Global, Inc. operates a platform for buying, selling, storing and staking crypto assets for retail and institutional customers, and earns transaction, subscription and services revenue including stablecoin interest and custody fees.',
+  },
+  {
+    ...US, t: 'LMT US', n: 'Lockheed Martin Corp', px: 480, vol: 0.20, y: 'LMT', sector: 'Industrials',
+    industry: 'Aerospace & Defense', shares: 233, beta: 0.30, rev: 73000, ni: 5000, dps: 13.8, emp: 121000,
+    hq: 'Bethesda, MD', ceo: 'Jim Taiclet', founded: 1995, fye: 12, netDebt: 18000, book: 6000, lag: 21,
+    desc: 'Lockheed Martin Corporation researches, designs, develops, manufactures and sustains advanced technology systems for defense and space, including the F-35, missiles and fire control, rotary and mission systems (Sikorsky) and space systems.',
+  },
+  {
+    ...US, t: 'GE US', n: 'GE Aerospace', px: 290, vol: 0.28, y: 'GE', sector: 'Industrials',
+    industry: 'Aerospace & Defense', shares: 1060, beta: 1.20, rev: 42000, ni: 7000, dps: 1.44, emp: 53000,
+    hq: 'Evendale, OH', ceo: 'Larry Culp', founded: 1892, fye: 12, netDebt: 7000, book: 19000, lag: 21,
+    desc: 'GE Aerospace designs, manufactures and services commercial and military aircraft engines and systems, including CFM LEAP and GE9X engines, through its Commercial Engines & Services and Defense & Propulsion Technologies segments.',
+  },
+  {
+    ...US, t: 'NEE US', n: 'NextEra Energy Inc', px: 75, vol: 0.24, y: 'NEE', sector: 'Utilities',
+    industry: 'Electric Utilities', shares: 2060, beta: 0.60, rev: 26000, ni: 7000, dps: 2.27, emp: 17000,
+    hq: 'Juno Beach, FL', ceo: 'John Ketchum', founded: 1925, fye: 12, netDebt: 85000, book: 52000, lag: 24,
+    desc: 'NextEra Energy, Inc. owns Florida Power & Light, a large regulated electric utility, and NextEra Energy Resources, a leading generator of renewable energy from wind and solar and a developer of battery storage.',
+  },
+  {
+    ...NQ, t: 'LIN US', n: 'Linde PLC', px: 470, vol: 0.18, y: 'LIN', sector: 'Materials',
+    industry: 'Chemicals', shares: 470, beta: 0.85, rev: 34000, ni: 6800, dps: 6.0, emp: 66000,
+    hq: 'Woking, United Kingdom', ceo: 'Sanjiv Lamba', founded: 1879, fye: 12, netDebt: 18000, book: 39000, lag: 31,
+    desc: 'Linde plc is an industrial gas and engineering company supplying atmospheric gases (oxygen, nitrogen, argon), process gases (hydrogen, helium, carbon dioxide) and engineering services to healthcare, manufacturing, chemicals, electronics and energy customers.',
+  },
+  {
+    ...US, t: 'PLD US', n: 'Prologis Inc', px: 115, vol: 0.26, y: 'PLD', sector: 'Real Estate',
+    industry: 'Industrial REITs', shares: 928, beta: 1.10, rev: 8800, ni: 3500, dps: 4.04, emp: 2700,
+    hq: 'San Francisco, CA', ceo: 'Dan Letter', founded: 1983, fye: 12, netDebt: 33000, book: 54000, lag: 15,
+    desc: 'Prologis, Inc. owns, manages and develops logistics real estate leased to manufacturers, retailers, transportation companies and third-party logistics providers across the Americas, Europe and Asia.',
+  },
+  // Europe
+  {
+    t: 'ASML NA', n: 'ASML Holding NV', x: 'EN Amsterdam', ccy: 'EUR', c: 'NL', px: 820, vol: 0.38, y: 'ASML.AS',
+    sector: 'Information Technology', industry: 'Semiconductor Equipment', shares: 390, beta: 1.30, rev: 32700, ni: 9600,
+    dps: 6.4, emp: 44000, hq: 'Veldhoven, Netherlands', ceo: 'Christophe Fouquet', founded: 1984, fye: 12, netDebt: -8000,
+    book: 18000, lag: 15,
+    desc: 'ASML Holding N.V. develops, produces and services lithography systems used by chipmakers to pattern integrated circuits, including extreme ultraviolet (EUV) and deep ultraviolet (DUV) scanners, metrology and inspection systems.',
+  },
+  {
+    t: 'SAP GY', n: 'SAP SE', x: 'Xetra', ccy: 'EUR', c: 'DE', px: 230, vol: 0.28, y: 'SAP.DE', sector: 'Information Technology',
+    industry: 'Software', shares: 1167, beta: 1.10, rev: 36800, ni: 7000, dps: 2.35, emp: 109000, hq: 'Walldorf, Germany',
+    ceo: 'Christian Klein', founded: 1972, fye: 12, netDebt: -2000, book: 44000, lag: 22,
+    desc: 'SAP SE provides enterprise application software and cloud services, including ERP (S/4HANA Cloud), supply chain, human capital management, procurement, customer experience and business AI for organisations of all sizes.',
+  },
+  {
+    t: 'SIE GY', n: 'Siemens AG-Reg', x: 'Xetra', ccy: 'EUR', c: 'DE', px: 235, vol: 0.24, y: 'SIE.DE', sector: 'Industrials',
+    industry: 'Industrial Conglomerates', shares: 790, beta: 1.10, rev: 79000, ni: 10000, dps: 5.35, emp: 312000,
+    hq: 'Munich, Germany', ceo: 'Roland Busch', founded: 1847, fye: 9, netDebt: 40000, book: 55000, lag: 44,
+    desc: 'Siemens AG is a technology company focused on industry, infrastructure, transport and healthcare, offering automation and digitalisation hardware and software, smart infrastructure, rail systems (Mobility) and a stake in Siemens Healthineers.',
+  },
+  {
+    t: 'MC FP', n: 'LVMH Moet Hennessy Louis Vuitton SE', x: 'EN Paris', ccy: 'EUR', c: 'FR', px: 560, vol: 0.30, y: 'MC.PA',
+    sector: 'Consumer Discretionary', industry: 'Textiles, Apparel & Luxury Goods', shares: 500, beta: 1.10, rev: 82000,
+    ni: 11000, dps: 13, emp: 213000, hq: 'Paris, France', ceo: 'Bernard Arnault', founded: 1987, fye: 12, netDebt: 10000,
+    book: 70000, lag: 15, alias: ['LVMH'],
+    desc: 'LVMH Moet Hennessy Louis Vuitton SE is a luxury goods group operating in fashion and leather goods (Louis Vuitton, Dior), wines and spirits (Moet & Chandon, Hennessy), perfumes and cosmetics, watches and jewellery (Tiffany, Bulgari) and selective retailing (Sephora).',
+  },
+  {
+    t: 'TTE FP', n: 'TotalEnergies SE', x: 'EN Paris', ccy: 'EUR', c: 'FR', px: 54, vol: 0.22, y: 'TTE.PA', sector: 'Energy',
+    industry: 'Oil, Gas & Consumable Fuels', shares: 2200, beta: 0.70, rev: 170000, ni: 13000, dps: 3.4, emp: 102000,
+    hq: 'Courbevoie, France', ceo: 'Patrick Pouyanne', founded: 1924, fye: 12, netDebt: 22000, book: 110000, lag: 30,
+    alias: ['TOTAL'],
+    desc: 'TotalEnergies SE is a multi-energy company that produces and markets oil, natural gas, LNG, biofuels and electricity, with growing renewable power generation, refining, petrochemicals and retail fuel networks worldwide.',
+  },
+  {
+    t: 'OR FP', n: "L'Oreal SA", x: 'EN Paris', ccy: 'EUR', c: 'FR', px: 375, vol: 0.24, y: 'OR.PA', sector: 'Consumer Staples',
+    industry: 'Personal Care Products', shares: 534, beta: 0.80, rev: 44000, ni: 6200, dps: 7.0, emp: 90000,
+    hq: 'Clichy, France', ceo: 'Nicolas Hieronimus', founded: 1909, fye: 12, netDebt: 3000, book: 32000, lag: 22,
+    alias: ['LOREAL'],
+    desc: "L'Oreal SA manufactures and sells cosmetics, haircare, skincare and fragrance products through Consumer Products, Luxe, Dermatological Beauty and Professional Products divisions, with brands such as L'Oreal Paris, Lancome, La Roche-Posay and Kerastase.",
+  },
+  {
+    t: 'NESN SW', n: 'Nestle SA-Reg', x: 'SIX Swiss Ex', ccy: 'CHF', c: 'CH', px: 80, vol: 0.17, y: 'NESN.SW', sector: 'Consumer Staples',
+    industry: 'Food Products', shares: 2575, beta: 0.50, rev: 90000, ni: 10000, dps: 3.05, emp: 277000,
+    hq: 'Vevey, Switzerland', ceo: 'Philipp Navratil', founded: 1866, fye: 12, netDebt: 55000, book: 37000, lag: 22,
+    alias: ['NESTLE'],
+    desc: 'Nestle S.A. is a food and beverage company producing coffee (Nescafe, Nespresso), pet care (Purina), nutrition and health science, confectionery, prepared dishes, dairy and water products sold in nearly every country.',
+  },
+  {
+    t: 'NOVN SW', n: 'Novartis AG-Reg', x: 'SIX Swiss Ex', ccy: 'CHF', c: 'CH', px: 100, vol: 0.18, y: 'NOVN.SW', sector: 'Health Care',
+    industry: 'Pharmaceuticals', shares: 1950, beta: 0.50, rev: 41000, ni: 12000, dps: 3.5, emp: 76000,
+    hq: 'Basel, Switzerland', ceo: 'Vas Narasimhan', founded: 1996, fye: 12, netDebt: 18000, book: 40000, lag: 22,
+    alias: ['NOVARTIS'],
+    desc: 'Novartis AG is an innovative medicines company focused on cardiovascular, renal and metabolic diseases, immunology, neuroscience and oncology, with medicines including Entresto, Kisqali, Cosentyx and Pluvicto.',
+  },
+  {
+    t: 'ROG SW', n: 'Roche Holding AG-Genusschein', x: 'SIX Swiss Ex', ccy: 'CHF', c: 'CH', px: 265, vol: 0.20, y: 'ROP.SW',
+    sector: 'Health Care', industry: 'Pharmaceuticals', shares: 800, beta: 0.40, rev: 61000, ni: 11000, dps: 9.7, emp: 103000,
+    hq: 'Basel, Switzerland', ceo: 'Thomas Schinecker', founded: 1896, fye: 12, netDebt: 22000, book: 22000, lag: 23,
+    alias: ['ROCHE'],
+    desc: 'Roche Holding AG develops and sells pharmaceuticals and diagnostics. Pharmaceuticals focus on oncology, immunology, neuroscience and ophthalmology; Diagnostics provides in-vitro diagnostic instruments, tests and digital solutions.',
+  },
+  {
+    t: 'SHEL LN', n: 'Shell PLC', x: 'London', ccy: 'GBp', c: 'GB', px: 2700, vol: 0.21, y: 'SHEL.L', minor: true,
+    sector: 'Energy', industry: 'Oil, Gas & Consumable Fuels', shares: 5800, beta: 0.60, rev: 215000, ni: 13000, dps: 107,
+    emp: 96000, hq: 'London, United Kingdom', ceo: 'Wael Sawan', founded: 1907, fye: 12, netDebt: 30000, book: 135000, lag: 30,
+    alias: ['SHELL'],
+    desc: 'Shell plc is an integrated energy company engaged in exploration and production of oil and gas, integrated gas and LNG, chemicals and products, marketing of fuels and lubricants, and renewables and energy solutions.',
+  },
+  {
+    t: 'AZN LN', n: 'AstraZeneca PLC', x: 'London', ccy: 'GBp', c: 'GB', px: 12000, vol: 0.22, y: 'AZN.L', minor: true,
+    sector: 'Health Care', industry: 'Pharmaceuticals', shares: 1550, beta: 0.40, rev: 42000, ni: 6800, dps: 232, emp: 94000,
+    hq: 'Cambridge, United Kingdom', ceo: 'Pascal Soriot', founded: 1999, fye: 12, netDebt: 20000, book: 32000, lag: 36,
+    alias: ['ASTRAZENECA'],
+    desc: 'AstraZeneca PLC discovers, develops and commercialises prescription medicines in oncology, cardiovascular, renal and metabolism, respiratory and immunology, and rare diseases (Alexion), including Tagrisso, Farxiga and Imfinzi.',
+  },
+  {
+    t: 'HSBA LN', n: 'HSBC Holdings PLC', x: 'London', ccy: 'GBp', c: 'GB', px: 1000, vol: 0.22, y: 'HSBA.L', minor: true,
+    sector: 'Financials', industry: 'Banks', shares: 17600, beta: 0.60, rev: 50000, ni: 18000, dps: 50, emp: 211000,
+    hq: 'London, United Kingdom', ceo: 'Georges Elhedery', founded: 1865, fye: 12, netDebt: 0, book: 140000, lag: 28,
+    alias: ['HSBC'],
+    desc: 'HSBC Holdings plc is a global banking and financial services group with businesses in Hong Kong, the UK, corporate and institutional banking, and international wealth and premier banking, serving customers across Asia, Europe, the Middle East and the Americas.',
+  },
+  {
+    t: 'ULVR LN', n: 'Unilever PLC', x: 'London', ccy: 'GBp', c: 'GB', px: 4500, vol: 0.18, y: 'ULVR.L', minor: true,
+    sector: 'Consumer Staples', industry: 'Personal Care Products', shares: 2450, beta: 0.40, rev: 51000, ni: 5100, dps: 155,
+    emp: 120000, hq: 'London, United Kingdom', ceo: 'Fernando Fernandez', founded: 1929, fye: 12, netDebt: 24000, book: 17000, lag: 23,
+    alias: ['UNILEVER'],
+    desc: 'Unilever PLC supplies consumer goods in Beauty & Wellbeing, Personal Care, Home Care and Foods, with brands including Dove, Vaseline, Axe, Persil, Hellmann\'s and Knorr sold in over 190 countries.',
+  },
+  {
+    t: 'NOVOB DC', n: 'Novo Nordisk A/S-B', x: 'Copenhagen', ccy: 'DKK', c: 'DK', px: 330, vol: 0.40, y: 'NOVO-B.CO',
+    sector: 'Health Care', industry: 'Pharmaceuticals', shares: 4440, beta: 0.60, rev: 310000, ni: 105000, dps: 11.65,
+    emp: 77000, hq: 'Bagsvaerd, Denmark', ceo: 'Maziar Mike Doustdar', founded: 1923, fye: 12, netDebt: 90000, book: 140000, lag: 36,
+    alias: ['NOVO', 'NOVO NORDISK'],
+    desc: 'Novo Nordisk A/S develops and sells treatments for diabetes and obesity, including Ozempic and Wegovy (semaglutide), insulins, and therapies for rare blood and endocrine disorders.',
+  },
+  // Asia Pacific
+  {
+    t: '7203 JT', n: 'Toyota Motor Corp', x: 'Tokyo', ccy: 'JPY', c: 'JP', px: 3000, vol: 0.28, y: '7203.T',
+    sector: 'Consumer Discretionary', industry: 'Automobiles', shares: 13000, beta: 0.80, rev: 48000000, ni: 4500000, dps: 95,
+    emp: 380000, hq: 'Toyota City, Japan', founded: 1937, fye: 3, netDebt: 10000000, book: 36000000, lag: 38, alias: ['TOYOTA'],
+    desc: 'Toyota Motor Corporation manufactures and sells passenger vehicles, trucks, buses and related parts, including Toyota, Lexus, Daihatsu and Hino brands and a broad line-up of hybrid, plug-in, battery-electric and fuel-cell vehicles, and provides financial services.',
+  },
+  {
+    t: '6758 JT', n: 'Sony Group Corp', x: 'Tokyo', ccy: 'JPY', c: 'JP', px: 4000, vol: 0.30, y: '6758.T',
+    sector: 'Consumer Discretionary', industry: 'Household Durables', shares: 6000, beta: 0.90, rev: 12900000, ni: 1100000,
+    dps: 25, emp: 112000, hq: 'Tokyo, Japan', ceo: 'Hiroki Totoki', founded: 1946, fye: 3, netDebt: -500000, book: 7500000, lag: 40,
+    alias: ['SONY'],
+    desc: 'Sony Group Corporation operates game and network services (PlayStation), music, pictures, entertainment technology and services, and imaging and sensing solutions including image sensors for smartphones and automotive applications.',
+  },
+  {
+    t: '9984 JT', n: 'SoftBank Group Corp', x: 'Tokyo', ccy: 'JPY', c: 'JP', px: 5000, vol: 0.60, y: '9984.T',
+    sector: 'Communication Services', industry: 'Wireless Telecommunication Services', shares: 5700, beta: 1.60, rev: 7200000,
+    ni: 2000000, dps: 11, emp: 65000, hq: 'Tokyo, Japan', ceo: 'Masayoshi Son', founded: 1981, fye: 3, netDebt: 12000000,
+    book: 13000000, lag: 42, alias: ['SOFTBANK'],
+    desc: 'SoftBank Group Corp. is an investment holding company with stakes in technology companies through SoftBank Vision Funds, Arm Holdings and SoftBank Corp., and large commitments to AI infrastructure.',
+  },
+  {
+    t: '700 HK', n: 'Tencent Holdings Ltd', x: 'Hong Kong', ccy: 'HKD', c: 'HK', px: 620, vol: 0.32, y: '0700.HK',
+    sector: 'Communication Services', industry: 'Interactive Media & Services', shares: 9150, beta: 0.90, rev: 820000, ni: 230000,
+    dps: 4.5, emp: 110000, hq: 'Shenzhen, China', ceo: 'Ma Huateng', founded: 1998, fye: 12, netDebt: -50000, book: 1050000, lag: 44,
+    alias: ['TENCENT'],
+    desc: 'Tencent Holdings Limited provides value-added services including social networks (Weixin/WeChat, QQ), online games and digital content, online advertising, and fintech and business services including payments and cloud computing.',
+  },
+  {
+    t: '9988 HK', n: 'Alibaba Group Holding Ltd', x: 'Hong Kong', ccy: 'HKD', c: 'HK', px: 160, vol: 0.42, y: '9988.HK',
+    sector: 'Consumer Discretionary', industry: 'Broadline Retail', shares: 19100, beta: 1.0, rev: 1090000, ni: 140000, dps: 1.02,
+    emp: 125000, hq: 'Hangzhou, China', ceo: 'Eddie Wu', founded: 1999, fye: 3, netDebt: -200000, book: 1100000, lag: 50,
+    alias: ['ALIBABA', 'BABA'],
+    desc: 'Alibaba Group Holding Limited operates e-commerce marketplaces (Taobao, Tmall), international commerce, local consumer services and logistics (Cainiao), and Alibaba Cloud, a leading provider of cloud and AI infrastructure in China.',
+  },
+  {
+    t: '2330 TT', n: 'Taiwan Semiconductor Manufacturing', x: 'Taiwan', ccy: 'TWD', c: 'TW', px: 1400, vol: 0.32, y: '2330.TW',
+    sector: 'Information Technology', industry: 'Semiconductors', shares: 25930, beta: 1.10, rev: 3800000, ni: 1700000, dps: 22,
+    emp: 84000, hq: 'Hsinchu, Taiwan', ceo: 'C.C. Wei', founded: 1987, fye: 12, netDebt: -1500000, book: 4200000, lag: 16,
+    alias: ['TSMC', 'TSM'],
+    desc: 'Taiwan Semiconductor Manufacturing Company Limited is the world\'s largest dedicated semiconductor foundry, manufacturing logic chips on leading-edge process technologies for customers in high-performance computing, smartphones, IoT and automotive.',
+  },
+  {
+    t: '005930 KS', n: 'Samsung Electronics Co Ltd', x: 'Korea SE', ccy: 'KRW', c: 'KR', px: 95000, vol: 0.34, y: '005930.KS',
+    sector: 'Information Technology', industry: 'Technology Hardware', shares: 5920, beta: 1.0, rev: 320000000, ni: 35000000,
+    dps: 1446, emp: 125000, hq: 'Suwon, South Korea', founded: 1969, fye: 12, netDebt: -90000000, book: 400000000, lag: 30,
+    alias: ['SAMSUNG'],
+    desc: 'Samsung Electronics Co., Ltd. manufactures memory and system semiconductors, smartphones, displays, televisions and home appliances, and provides foundry services.',
+  },
+  {
+    t: 'RELIANCE IN', n: 'Reliance Industries Ltd', x: 'NSE India', ccy: 'INR', c: 'IN', px: 1400, vol: 0.24, y: 'RELIANCE.NS',
+    sector: 'Energy', industry: 'Oil, Gas & Consumable Fuels', shares: 13530, beta: 0.90, rev: 10000000, ni: 800000, dps: 5.5,
+    emp: 347000, hq: 'Mumbai, India', ceo: 'Mukesh Ambani', founded: 1973, fye: 3, netDebt: 1200000, book: 8500000, lag: 18,
+    alias: ['RELIANCE'],
+    desc: 'Reliance Industries Limited is a conglomerate engaged in oil-to-chemicals refining and petrochemicals, oil and gas exploration, retail (Reliance Retail), digital services and telecoms (Jio Platforms) and new energy.',
+  },
+  {
+    t: 'BHP AU', n: 'BHP Group Ltd', x: 'ASX', ccy: 'AUD', c: 'AU', px: 42, vol: 0.25, y: 'BHP.AX', sector: 'Materials',
+    industry: 'Metals & Mining', shares: 5080, beta: 0.90, rev: 77000, ni: 13500, dps: 1.7, emp: 90000,
+    hq: 'Melbourne, Australia', founded: 1885, fye: 6, netDebt: 15000, book: 75000, lag: 50,
+    desc: 'BHP Group Limited is a global resources company producing iron ore, copper, metallurgical coal and nickel, and developing potash, with major operations in Australia and the Americas.',
+  },
+  {
+    t: 'CBA AU', n: 'Commonwealth Bank of Australia', x: 'ASX', ccy: 'AUD', c: 'AU', px: 165, vol: 0.20, y: 'CBA.AX',
+    sector: 'Financials', industry: 'Banks', shares: 1673, beta: 0.80, rev: 28000, ni: 10300, dps: 4.85, emp: 49000,
+    hq: 'Sydney, Australia', ceo: 'Matt Comyn', founded: 1911, fye: 6, netDebt: 0, book: 75000, lag: 45,
+    alias: ['COMMBANK'],
+    desc: 'Commonwealth Bank of Australia provides retail, business and institutional banking, funds management and superannuation services, primarily in Australia and New Zealand.',
+  },
+  {
+    t: 'RY CN', n: 'Royal Bank of Canada', x: 'Toronto', ccy: 'CAD', c: 'CA', px: 200, vol: 0.17, y: 'RY.TO',
+    sector: 'Financials', industry: 'Banks', shares: 1410, beta: 0.85, rev: 63000, ni: 18000, dps: 6.16, emp: 98000,
+    hq: 'Toronto, Canada', ceo: 'Dave McKay', founded: 1864, fye: 10, netDebt: 0, book: 130000, lag: 34,
+    alias: ['RBC'],
+    desc: 'Royal Bank of Canada provides personal and commercial banking, wealth management, insurance, investor and treasury services and capital markets products in Canada, the US and internationally.',
+  },
+  {
+    t: 'SHOP CN', n: 'Shopify Inc - Class A', x: 'Toronto', ccy: 'CAD', c: 'CA', px: 210, vol: 0.55, y: 'SHOP.TO',
+    sector: 'Information Technology', industry: 'IT Services', shares: 1300, beta: 2.20, rev: 15000, ni: 2500, dps: 0, emp: 8100,
+    hq: 'Ottawa, Canada', ceo: 'Tobi Lutke', founded: 2004, fye: 12, netDebt: -7000, book: 18000, lag: 37,
+    alias: ['SHOPIFY'],
+    desc: 'Shopify Inc. provides a commerce platform and services for merchants to sell online, in store and across marketplaces and social channels, along with payments, capital, shipping and fulfilment solutions.',
+  },
+];
+
+export const EQUITIES: SecurityDef[] = SEEDS.map((s) => {
+  const { t, n, x, ccy, c, px, vol, y, minor, alias, ...eq } = s;
+  return {
+    id: `${t} Equity`,
+    ticker: t,
+    yk: 'Equity',
+    name: n,
+    cls: 'equity',
+    ccy,
+    country: c,
+    region: REGION[c] ?? 'Americas',
+    exch: x,
+    px,
+    vol,
+    dec: DECIMALS[ccy] ?? 2,
+    yahoo: y,
+    minor,
+    alias,
+    eq,
+    quote: 'price',
+  } satisfies SecurityDef;
+});

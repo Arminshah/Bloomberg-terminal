@@ -1,0 +1,655 @@
+{
+ "_note": "Trimmed live Yahoo Finance answers fetched on 18 October 2026: AAPL and ASML.AS quoteSummary (assetProfile, defaultKeyStatistics) and the split events of the GE and NVDA ten-year daily charts with their last three bars.",
+ "AAPL": {
+  "quoteSummary": {
+   "result": [
+    {
+     "assetProfile": {
+      "city": "Cupertino",
+      "state": "CA",
+      "country": "United States",
+      "industry": "Consumer Electronics",
+      "companyOfficers": [
+       {
+        "maxAge": 1,
+        "name": "Mr. Timothy D. Cook",
+        "age": 64,
+        "title": "Executive Chairman of the Board",
+        "yearBorn": 1961,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 16759518,
+         "fmt": "16.76M",
+         "longFmt": "16,759,518"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. Kevan  Parekh",
+        "age": 53,
+        "title": "Senior VP & CFO",
+        "yearBorn": 1972,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 4034174,
+         "fmt": "4.03M",
+         "longFmt": "4,034,174"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. Sabih  Khan",
+        "age": 58,
+        "title": "Senior VP & Chief Operating Officer",
+        "yearBorn": 1967,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 5021905,
+         "fmt": "5.02M",
+         "longFmt": "5,021,905"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Ms. Deirdre  O'Brien",
+        "age": 58,
+        "title": "Senior Vice President of Retail & People",
+        "yearBorn": 1967,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 5037867,
+         "fmt": "5.04M",
+         "longFmt": "5,037,867"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Ms. Katherine L. Adams",
+        "age": 61,
+        "title": "Secretary",
+        "yearBorn": 1964,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 5022482,
+         "fmt": "5.02M",
+         "longFmt": "5,022,482"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. John  Ternus",
+        "age": 49,
+        "title": "CEO & Director",
+        "yearBorn": 1976,
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. Ben  Borders",
+        "age": 44,
+        "title": "Principal Accounting Officer",
+        "yearBorn": 1981,
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Suhasini  Chandramouli",
+        "title": "Director of Investor Relations",
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Ms. Jennifer G. Newstead J.D.",
+        "age": 55,
+        "title": "Senior VP of Government Affairs & General Counsel",
+        "yearBorn": 1970,
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Ms. Kristin Huguet Quayle",
+        "title": "Vice President of Worldwide Communications",
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       }
+      ]
+     },
+     "defaultKeyStatistics": {
+      "sharesOutstanding": {
+       "raw": 14594180000,
+       "fmt": "14.59B",
+       "longFmt": "14,594,180,000"
+      },
+      "floatShares": {
+       "raw": 14569078010,
+       "fmt": "14.57B",
+       "longFmt": "14,569,078,010"
+      },
+      "sharesShort": {
+       "raw": 120763539,
+       "fmt": "120.76M",
+       "longFmt": "120,763,539"
+      },
+      "shortRatio": {
+       "raw": 2.82,
+       "fmt": "2.82"
+      },
+      "shortPercentOfFloat": {
+       "raw": 0.0083,
+       "fmt": "0.83%"
+      },
+      "sharesShortPriorMonth": {
+       "raw": 139749097,
+       "fmt": "139.75M",
+       "longFmt": "139,749,097"
+      },
+      "sharesShortPreviousMonthDate": {
+       "raw": 1788134400,
+       "fmt": "2026-08-31"
+      },
+      "dateShortInterest": {
+       "raw": 1790726400,
+       "fmt": "2026-09-30"
+      },
+      "sharesPercentSharesOut": {
+       "raw": 0.0083,
+       "fmt": "0.83%"
+      },
+      "impliedSharesOutstanding": {
+       "raw": 14594180000,
+       "fmt": "14.59B",
+       "longFmt": "14,594,180,000"
+      }
+     }
+    }
+   ],
+   "error": null
+  }
+ },
+ "ASML.AS": {
+  "quoteSummary": {
+   "result": [
+    {
+     "assetProfile": {
+      "city": "Veldhoven",
+      "country": "Netherlands",
+      "industry": "Semiconductor Equipment & Materials",
+      "companyOfficers": [
+       {
+        "maxAge": 1,
+        "name": "Mr. Christophe D. Fouquet",
+        "age": 52,
+        "title": "President, CEO and Chair of the Board of Management",
+        "yearBorn": 1973,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 3783000,
+         "fmt": "3.78M",
+         "longFmt": "3,783,000"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. Roger J. M. Dassen Ph.D.",
+        "age": 60,
+        "title": "Executive VP, CFO & Member of the Management Board",
+        "yearBorn": 1965,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 2227000,
+         "fmt": "2.23M",
+         "longFmt": "2,227,000"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. Frederic J. M. Schneider-Maunoury",
+        "age": 64,
+        "title": "Executive VP, COO & Member of the Management Board",
+        "yearBorn": 1961,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 2243000,
+         "fmt": "2.24M",
+         "longFmt": "2,243,000"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. James P. Koonmen",
+        "age": 58,
+        "title": "Executive VP, Chief Customer Officer & Member of Management Board",
+        "yearBorn": 1967,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 2388000,
+         "fmt": "2.39M",
+         "longFmt": "2,388,000"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. Wayne R. Allan",
+        "age": 58,
+        "title": "Executive VP, Chief Strategic Sourcing & Procurement Officer and Member of Management Board",
+        "yearBorn": 1967,
+        "fiscalYear": 2025,
+        "totalPay": {
+         "raw": 2340000,
+         "fmt": "2.34M",
+         "longFmt": "2,340,000"
+        },
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. Marco J. A. Pieters",
+        "title": "Executive VP, CTO & Member of Management Board",
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Jim  Kavanagh",
+        "title": "Vice President of Investor Relations",
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Ms. Cristina  Monteiro",
+        "title": "Executive Vice President Human Resources & Organization",
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Mr. Ron  Kool",
+        "title": "Head of Business Performance Improvement",
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       },
+       {
+        "maxAge": 1,
+        "name": "Herman  Boom",
+        "title": "Head of Strategic Sourcing & Procurement",
+        "fiscalYear": 2025,
+        "exercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        },
+        "unexercisedValue": {
+         "raw": 0,
+         "fmt": null,
+         "longFmt": "0"
+        }
+       }
+      ]
+     },
+     "defaultKeyStatistics": {
+      "sharesOutstanding": {
+       "raw": 385417742,
+       "fmt": "385.42M",
+       "longFmt": "385,417,742"
+      },
+      "floatShares": {
+       "raw": 382977408,
+       "fmt": "382.98M",
+       "longFmt": "382,977,408"
+      },
+      "sharesShort": {},
+      "shortRatio": {},
+      "shortPercentOfFloat": {},
+      "sharesShortPriorMonth": {},
+      "sharesShortPreviousMonthDate": {},
+      "dateShortInterest": {},
+      "sharesPercentSharesOut": {},
+      "impliedSharesOutstanding": {
+       "raw": 385417742,
+       "fmt": "385.42M",
+       "longFmt": "385,417,742"
+      }
+     }
+    }
+   ],
+   "error": null
+  }
+ },
+ "GE": {
+  "chart": {
+   "result": [
+    {
+     "meta": {
+      "currency": "USD",
+      "symbol": "GE",
+      "exchangeName": "NYQ",
+      "instrumentType": "EQUITY",
+      "gmtoffset": -14400,
+      "timezone": "EDT",
+      "exchangeTimezoneName": "America/New_York"
+     },
+     "timestamp": [
+      1791984600,
+      1792071000,
+      1792157400
+     ],
+     "events": {
+      "splits": {
+       "1551191400": {
+        "date": 1551191400,
+        "numerator": 104.0,
+        "denominator": 100.0,
+        "splitRatio": "104:100"
+       },
+       "1627911000": {
+        "date": 1627911000,
+        "numerator": 1.0,
+        "denominator": 8.0,
+        "splitRatio": "1:8"
+       },
+       "1672842600": {
+        "date": 1672842600,
+        "numerator": 1281.0,
+        "denominator": 1000.0,
+        "splitRatio": "1281:1000"
+       },
+       "1712064600": {
+        "date": 1712064600,
+        "numerator": 1253.0,
+        "denominator": 1000.0,
+        "splitRatio": "1253:1000"
+       }
+      }
+     },
+     "indicators": {
+      "quote": [
+       {
+        "open": [
+         307.7300109863281,
+         308.79998779296875,
+         314.7900085449219
+        ],
+        "high": [
+         311.2699890136719,
+         312.17999267578125,
+         321.1700134277344
+        ],
+        "low": [
+         305.0899963378906,
+         304.0899963378906,
+         313.20001220703125
+        ],
+        "close": [
+         307.0199890136719,
+         312.0,
+         313.8299865722656
+        ],
+        "volume": [
+         3302100,
+         3809200,
+         4204700
+        ]
+       }
+      ]
+     }
+    }
+   ],
+   "error": null
+  }
+ },
+ "NVDA": {
+  "chart": {
+   "result": [
+    {
+     "meta": {
+      "currency": "USD",
+      "symbol": "NVDA",
+      "exchangeName": "NMS",
+      "instrumentType": "EQUITY",
+      "gmtoffset": -14400,
+      "timezone": "EDT",
+      "exchangeTimezoneName": "America/New_York"
+     },
+     "timestamp": [
+      1791984600,
+      1792071000,
+      1792157400
+     ],
+     "events": {
+      "splits": {
+       "1626787800": {
+        "date": 1626787800,
+        "numerator": 4.0,
+        "denominator": 1.0,
+        "splitRatio": "4:1"
+       },
+       "1718026200": {
+        "date": 1718026200,
+        "numerator": 10.0,
+        "denominator": 1.0,
+        "splitRatio": "10:1"
+       }
+      }
+     },
+     "indicators": {
+      "quote": [
+       {
+        "open": [
+         225.52999877929688,
+         215.3000030517578,
+         216.55999755859375
+        ],
+        "high": [
+         226.0,
+         218.47000122070312,
+         218.67999267578125
+        ],
+        "low": [
+         219.63999938964844,
+         212.85000610351562,
+         213.32000732421875
+        ],
+        "close": [
+         221.3000030517578,
+         217.22999572753906,
+         214.1300048828125
+        ],
+        "volume": [
+         118730100,
+         127087900,
+         120855100
+        ]
+       }
+      ]
+     }
+    }
+   ],
+   "error": null
+  }
+ }
+}

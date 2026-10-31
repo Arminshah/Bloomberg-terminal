@@ -1,0 +1,540 @@
+// SPDX-License-Identifier: LicenseRef-PolyForm-Strict-1.0.0
+// Copyright (c) 2026 Armin. Non-commercial use only; no copying into other work, changes or redistribution. See LICENSE.
+import { useMemo, useState, type ReactNode } from 'react';
+import { CapLink } from '../components/CapLink';
+import { engine } from '../data/market';
+import { usePeers } from '../data/live/peers';
+import { FnHeader } from '../components/FnHeader';
+import { DataTable, type Column } from '../components/DataTable';
+import { Chg, LivePx, SecLink } from '../components/cells';
+import { exportActions } from '../components/ExportActions';
+import { fmtBig, fmtNum } from '../core/format';
+import { useTick } from '../data/market';
+import { closeAt, horizonStart, marketCap, marketCapUsd, periodChange } from '../data/analytics';
+import { DAY_MS } from '../data/calendar';
+import type { Series } from '../data/series';
+import { financials, keyStats, peers } from '../data/fundamentals';
+import { majorCurrency } from '../data/portfolio-history';
+import { median, percentRank } from '../finance/stats';
+import type { SecurityDef } from '../data/types';
+import { usePanelId } from '../terminal/panel';
+import type { FnProps } from '../terminal/types';
+import { useFundamentalsFor } from '../data/live/yfund';
+import { desktopData } from '../data/live/yahoo';
+import { SimBadge } from '../components/Source';
+import { secAvailable } from '../data/live/sec';
+import { useSegments, type SegmentState } from '../data/live/segments';
+
+interface Row {
+  d: SecurityDef;
+  /** Market value and the last price (in its currency's main unit: pounds, not pence), in the currency chosen. */
+  mcap: number;
+  px: number;
+  /** Enterprise value, in the currency chosen, and how it is made up. */
+  ev: number;
+  evWhy: string;
+  pe: number;
+  pb: number;
+  evEbitda: number;
+  dy: number;
+  roe: number;
+  margin: number;
+  d1: number;
+  m1: number;
+  ytd: number;
+  y1: number;
+  /** The latest fiscal year's revenue and diluted EPS on the year before's, %. */
+  revG: number;
+  epsG: number;
+  gm: number;
+  opm: number;
+  ebitdaM: number;
+  roa: number;
+  /** Tax over pretax income, last 12 months, %. */
+  tax: number;
+  /** Revenue per employee, thousands in the currency chosen. */
+  revEmp: number;
+  /** Cash and total debt, latest balance sheet, in the currency chosen. */
+  cash: number;
+  debt: number;
+  netDebtEbitda: number;
+  de: number;
+  curRatio: number;
+  /** Not meaningful: P/E on a loss, P/B and ROE on negative equity, EV/EBITDA on negative EBITDA. */
+  nm: Set<keyof Row>;
+  /** Why a figure is blank when the reason is not on the figure itself: no exchange rate to convert it, or no price. */
+  why: Partial<Record<keyof Row, string>>;
+}
+
+const NM_WHY: Record<string, string> = {
+  pe: 'Not meaningful: trailing 12-month EPS is a loss',
+  pb: 'Not meaningful: shareholders’ equity is negative',
+  roe: 'Not meaningful: shareholders’ equity is negative',
+  evEbitda: 'Not meaningful: trailing 12-month EBITDA is negative',
+  tax: 'Not meaningful: pretax income is a loss',
+  netDebtEbitda: 'Not meaningful: trailing 12-month EBITDA is negative',
+  de: 'Not meaningful: shareholders’ equity is negative',
+};
+
+/**
+ * RV's pages under the terminal's names: Overview with its columns in its order, Comp Sheets' Equity Valuation,
+ * Profitability and Balance Sheet, and Markets. The provider's CDS Spreads, Op Stats, ESG, EPS Preview, Ownership,
+ * Credit and Custom sheets need data the free sources do not give for every peer, and are not offered.
+ */
+const PAGES = [
+  { n: 1, label: 'Overview' },
+  { n: 2, label: 'Comp Sheets' },
+  { n: 3, label: 'Markets' },
+];
+const SHEETS = [
+  { n: 1, label: 'Equity Valuation' },
+  { n: 2, label: 'Profitability' },
+  { n: 3, label: 'Balance Sheet' },
+];
+
+/** An enterprise value's parts, in words: "Market value 100.00B + net debt 20.00B + preferred stock: none listed + minority interest 3.00B". */
+export function evBuildUp(p: { mcap: number; netDebt: number; minority: number; preferred: number }, toUsd: number): string {
+  const v = (x: number) => fmtBig(Math.abs(x) * toUsd);
+  const debt = !Number.isFinite(p.netDebt) ? '+ net debt: none listed' : p.netDebt < 0 ? `− net cash ${v(p.netDebt)}` : `+ net debt ${v(p.netDebt)}`;
+  const part = (label: string, x: number) => (Number.isFinite(x) ? `+ ${label} ${v(x)}` : `+ ${label}: none listed`);
+  return [`Market value ${v(p.mcap)}`, debt, part('preferred stock', p.preferred), part('minority interest', p.minority)].join(' ');
+}
+
+/**
+ * RV's "Chg Pct 1M": the last price on the close on or before the same date a calendar month before today (a public RV
+ * capture of 17 March 2023 counts from 17 February), not a month before the latest session.
+ */
+export function monthChange(s: Series, last: number, today: number): number {
+  const base = s.length ? closeAt(s, horizonStart('1M', today)) : NaN;
+  return Number.isFinite(base) && base > 0 && Number.isFinite(last) ? (last / base - 1) * 100 : NaN;
+}
+
+/**
+ * RV's Curr choices: the loaded security's own currency in its main unit (pounds for a line quoted in pence), then US
+ * dollars.
+ */
+export function rvCurrencies(ccy: string): string[] {
+  const own = majorCurrency(ccy);
+  return own === 'USD' ? ['USD'] : [own, 'USD'];
+}
+
+/**
+ * What one unit of `from` is worth in `to`, the currency chosen under RV's Curr (a main unit), through each
+ * currency's US dollar value (`usd`, the engine's rates). A minor unit is a hundredth of its main one, so a price in
+ * pence comes out in pounds. NaN without a rate, so no figure is shown in the wrong currency.
+ */
+export function rvRate(from: string, to: string, usd: (ccy: string) => number): number {
+  const main = majorCurrency(from);
+  const unit = main === from ? 1 : 0.01;
+  if (main === to) return unit;
+  const r = usd(main) / usd(to);
+  return Number.isFinite(r) && r > 0 ? unit * r : NaN;
+}
+
+/** One line of RV's comp range: the subject's figure, the low and high among it and its peers, and their median. */
+export function compRange(values: number[], subject: number): { low: number; high: number; median: number; subject: number } | null {
+  const xs = values.filter(Number.isFinite);
+  if (!xs.length) return null;
+  return { low: Math.min(...xs), high: Math.max(...xs), median: median(xs), subject };
+}
+
+/**
+ * RV's comp range panel: for each figure the low and high among the loaded security and its peers, a line between
+ * them with a dot at the security and a diamond at the median. The captures' current-year P/E and EV to estimated
+ * EBITDA need every peer's estimates, which the free sources do not give, so the reported figures stand in, named so.
+ */
+function CompRange({ rows, ticker }: { rows: Row[]; ticker: string }) {
+  const lines: { label: string; key: keyof Row; pct: boolean }[] = [
+    { label: 'P/E', key: 'pe', pct: false },
+    { label: 'EV/EBITDA', key: 'evEbitda', pct: false },
+    { label: 'Revenue Growth', key: 'revG', pct: true },
+    { label: 'EBITDA Margin', key: 'ebitdaM', pct: true },
+    { label: 'ROE', key: 'roe', pct: true },
+  ];
+  const f = (v: number, pct: boolean) => (Number.isFinite(v) ? `${fmtNum(v, 2)}${pct ? '%' : ''}` : '--');
+  const W = 140;
+  return (
+    <table className="tbl rv-range" data-testid="rv-range">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th className="num">{ticker}</th>
+          <th className="num">Low</th>
+          <th>Comp Range</th>
+          <th className="num">High</th>
+        </tr>
+      </thead>
+      <tbody>
+        {lines.map((l) => {
+          const r = compRange(rows.map((x) => x[l.key] as number), rows[0]?.[l.key] as number);
+          const at = (v: number) => (r && r.high > r.low ? 4 + ((v - r.low) / (r.high - r.low)) * (W - 8) : W / 2);
+          return (
+            <tr key={l.key} data-key={l.key}>
+              <td className="amber">{l.label}</td>
+              <td className="num cyan">{f(r?.subject ?? NaN, l.pct)}</td>
+              <td className="num amber">{f(r?.low ?? NaN, l.pct)}</td>
+              <td>
+                {r ? (
+                  <svg width={W} height={12} aria-label={`${l.label}: low ${f(r.low, l.pct)}, median ${f(r.median, l.pct)}, high ${f(r.high, l.pct)}`}>
+                    <line x1={4} x2={W - 4} y1={6} y2={6} stroke="#8f8f8f" strokeWidth={1} />
+                    <path d={`M ${at(r.median)} 2 L ${at(r.median) + 4} 6 L ${at(r.median)} 10 L ${at(r.median) - 4} 6 Z`} fill="#ff9e1b" />
+                    {Number.isFinite(r.subject) ? <circle cx={at(r.subject)} cy={6} r={3.5} fill="#45d3e6" /> : null}
+                  </svg>
+                ) : null}
+              </td>
+              <td className="num amber">{f(r?.high ?? NaN, l.pct)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colSpan={5} className="muted">
+            <span className="cyan">●</span> {ticker} <span style={{ color: '#ff9e1b' }}>◆</span> Median · low and high include {ticker}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  );
+}
+
+/**
+ * RV's segment panel (TE04 04:11): "Whole Firm" 100% in blue, then each business segment's share of the latest
+ * fiscal year's revenue with a grey bar, from the company's 10-K (as FA's Segments page reads it).
+ */
+export function segmentShares(state: SegmentState | undefined): { label: string; pct: number }[] {
+  if (state?.state !== 'ok') return [];
+  const t = state.report.tables.find((x) => x.metric === 'revenue' && x.breakdown === 'segment') ?? state.report.tables.find((x) => x.metric === 'revenue');
+  const end = t?.periods[0]?.end;
+  if (!t || !end) return [];
+  const top = t.lines.filter((l) => !l.parent && Number.isFinite(l.values[end]) && l.values[end] > 0);
+  const total = t.total[end] ?? top.reduce((a, l) => a + l.values[end], 0);
+  if (!(total > 0)) return [];
+  return top.map((l) => ({ label: l.label, pct: (l.values[end] / total) * 100 })).sort((a, b) => b.pct - a.pct);
+}
+
+function SegmentPanel({ state }: { state: SegmentState | undefined }) {
+  const shares = segmentShares(state);
+  return (
+    <table className="tbl rv-seg" data-testid="rv-segments">
+      <thead>
+        <tr>
+          <th>Segment</th>
+          <th className="num">Revenue %</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr className="sel">
+          <td className="amber">Whole Firm</td>
+          <td className="rv-seg-bar"><span>100%</span><i style={{ width: '100%' }} /></td>
+        </tr>
+        {shares.map((x) => (
+          <tr key={x.label}>
+            <td className="amber ellipsis">{x.label}</td>
+            <td className="rv-seg-bar"><span>{fmtNum(x.pct, 0)}%</span><i style={{ width: `${Math.max(1, x.pct)}%` }} /></td>
+          </tr>
+        ))}
+        {!shares.length ? (
+          <tr>
+            <td colSpan={2} className="muted">
+              {!secAvailable() ? 'Segments come from the company’s 10-K, read by the desktop app.' : !state || state.state === 'loading' ? 'Reading the 10-K’s segments…' : state.state === 'ok' ? 'The 10-K tags no revenue by segment.' : state.message}
+            </td>
+          </tr>
+        ) : null}
+      </tbody>
+    </table>
+  );
+}
+
+export function RV({ sec }: FnProps) {
+  const s = sec!;
+  const panel = usePanelId();
+  const tick = useTick(5);
+  // The desktop app finds real peers (Finnhub, Yahoo); the browser build takes the built-in list's industry.
+  const found = usePeers(desktopData() ? s : undefined);
+  const ids = found?.ids.join(',') ?? '';
+  const group = useMemo(
+    () => (desktopData() ? [s, ...(found?.ids ?? []).map((id) => engine.get(id)).filter((d): d is SecurityDef => !!d && d.id !== s.id)] : [s, ...peers(s, 12)]),
+    [s, ids], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const basis = new Map((found?.group?.picks ?? []).map((p) => [p.symbol.replace('-', '/'), p.basis]));
+  const { loaded, failed } = useFundamentalsFor(group);
+  const [page, setPage] = useState(1);
+  const [sheet, setSheet] = useState(1);
+  // Curr: the loaded security's own currency (its main unit) by default, as RV opens, or US dollars.
+  const choices = rvCurrencies(s.ccy);
+  const [cur, setCur] = useState<'own' | 'USD'>('own');
+  const ccy = cur === 'USD' ? 'USD' : choices[0];
+  // RV's controls (TE04 04:11): the peers from anywhere or the subject's own country, and a floor on market value.
+  const [region, setRegion] = useState<'global' | 'home'>('global');
+  const [minCap, setMinCap] = useState(0);
+  const segments = useSegments(s, page === 1 && secAvailable());
+  const rows: Row[] = useMemo(
+    () =>
+      group.filter((d, i) => i === 0 || ((region === 'global' || d.country === s.country) && (!(minCap > 0) || marketCapUsd(d.id) >= minCap * 1e9))).map((d) => {
+        const k = keyStats(d);
+        const ltm = financials(d).ltm;
+        const nm = new Set<keyof Row>();
+        if (!Number.isFinite(k.pe) && Number.isFinite(k.epsLtm) && k.epsLtm <= 0) nm.add('pe');
+        if (!Number.isFinite(k.pb) && Number.isFinite(ltm?.equity) && ltm.equity <= 0) nm.add('pb');
+        if (!Number.isFinite(k.roe) && Number.isFinite(ltm?.equity) && ltm.equity <= 0) nm.add('roe');
+        if (!Number.isFinite(k.evEbitda) && Number.isFinite(ltm?.ebitda) && ltm.ebitda <= 0) nm.add('evEbitda');
+        if (Number.isFinite(ltm?.tax) && ltm.pretax <= 0) nm.add('tax');
+        if (Number.isFinite(ltm?.debt) && ltm.ebitda <= 0) nm.add('netDebtEbitda');
+        if (!Number.isFinite(k.de) && Number.isFinite(ltm?.debt) && ltm.equity <= 0) nm.add('de');
+        // A company that paid nothing in the last 12 months has no yield, not a yield of zero.
+        const dy = Number.isFinite(k.divYld) && k.divYld > 0 ? k.divYld : NaN;
+        // Into the currency chosen at today's rates: the price from the unit it is quoted in (pence), the market value
+        // from the trading currency, the statements' figures (millions) from theirs.
+        const usd = (c: string) => engine.usdValue(c);
+        const pxRate = rvRate(d.ccy, ccy, usd);
+        const capRate = rvRate(majorCurrency(d.ccy), ccy, usd);
+        const toCcy = rvRate(k.ccy, ccy, usd) * 1e6;
+        const last = engine.quote(d.id)?.last ?? NaN;
+        const noRate = (from: string) => `No ${majorCurrency(from)} to ${ccy} rate yet: left blank rather than shown in ${majorCurrency(from)}`;
+        const why: Row['why'] = {};
+        if (!Number.isFinite(capRate)) why.mcap = why.px = noRate(d.ccy);
+        else if (!Number.isFinite(last)) why.mcap = why.px = 'No price from the source yet';
+        if (!Number.isFinite(toCcy)) why.ev = why.cash = why.debt = why.revEmp = noRate(k.ccy);
+        const emp = d.eq?.emp ?? NaN;
+        return {
+          d, mcap: marketCap(d.id) * capRate, px: last * pxRate, ev: k.ev * toCcy, evWhy: evBuildUp(k.evParts, toCcy), pe: k.pe, pb: k.pb, evEbitda: k.evEbitda, dy, roe: k.roe, margin: k.netMargin,
+          // The month's change compares the unconverted price with the line's own closes.
+          d1: periodChange(d.id, '1D'), m1: monthChange(engine.daily(d.id), last, engine.today * DAY_MS), ytd: periodChange(d.id, 'YTD'), y1: periodChange(d.id, '1Y'),
+          revG: k.revGrowth, epsG: k.epsGrowth, gm: k.grossMargin, opm: k.opMargin,
+          ebitdaM: ltm.rev > 0 ? (ltm.ebitda / ltm.rev) * 100 : NaN, roa: k.roa,
+          tax: ltm.pretax > 0 ? (ltm.tax / ltm.pretax) * 100 : NaN,
+          revEmp: emp > 0 ? (ltm.rev * toCcy) / emp / 1e3 : NaN,
+          cash: ltm.cash * toCcy, debt: ltm.debt * toCcy,
+          netDebtEbitda: ltm.ebitda > 0 ? (ltm.debt - (Number.isFinite(ltm.cash) ? ltm.cash : 0)) / ltm.ebitda : NaN,
+          de: k.de, curRatio: ltm.curLiab > 0 ? ltm.curAssets / ltm.curLiab : NaN, nm, why,
+        };
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [group, tick, loaded, ccy, region, minCap],
+  );
+  /** A figure column; `pct` adds a % sign, `chg` colours it as a change. Two decimals, as RV writes its figures. */
+  const num = (key: keyof Row, label: string, opts: { dec?: number; pct?: boolean; chg?: boolean; title?: string; money?: boolean } = {}): Column<Row> => ({
+    key,
+    label,
+    num: true,
+    title: opts.title,
+    sort: (r) => r[key] as number,
+    render: (r) => {
+      const v = r[key] as number;
+      const dec = opts.dec ?? 2;
+      // The exact figure rides on the cell, for a check against the summary lines, which work on exact figures.
+      if (Number.isFinite(v)) return <span data-value={v}>{opts.chg ? <Chg v={v} pct dec={dec} /> : opts.money ? fmtBig(v) : `${fmtNum(v, dec)}${opts.pct ? '%' : ''}`}</span>;
+      if (r.nm.has(key)) return <span className="muted" title={NM_WHY[key as string]}>NM</span>;
+      if (key === 'dy') return <span className="muted" title="No dividend paid in the last 12 months">none</span>;
+      return <span className="muted" title={r.why[key]}>--</span>;
+    },
+  });
+  const name: Column<Row>[] = [
+    {
+      key: 't',
+      label: 'Name',
+      render: (r) => {
+        const b = basis.get(r.d.ticker.split(' ')[0]);
+        return (
+          <>
+            <SecLink id={r.d.id}>{r.d.ticker}</SecLink>
+            {b === 'similar' ? <span className="muted" title="A stock Yahoo Finance links to this one both ways (its similar stocks and theirs)"> ·similar</span> : b === 'sub-industry' ? <span className="muted" title="Finnhub puts it in the same sub-industry"> ·sub-ind</span> : null}
+          </>
+        );
+      },
+      sort: (r) => r.d.ticker,
+    },
+    { key: 'n', label: '', render: (r) => <span className="muted ellipsis" style={{ display: 'inline-block', maxWidth: 170 }}>{r.d.name}</span>, hideM: true },
+  ];
+  const blank = (r: Row, key: keyof Row) => <span className="muted" title={r.why[key]}>--</span>;
+  const mcap: Column<Row> = { key: 'mcap', label: `Mkt Cap ${ccy}`, num: true, render: (r) => (Number.isFinite(r.mcap) ? <CapLink id={r.d.id}><span data-value={r.mcap}>{fmtBig(r.mcap)}</span></CapLink> : blank(r, 'mcap')), sort: (r) => r.mcap };
+  // Every price in the currency chosen and its main unit, two decimals as RV writes them; a line already in that
+  // currency keeps its own decimals.
+  const last: Column<Row> = {
+    key: 'px',
+    label: 'Last Px',
+    num: true,
+    title: `Last price in ${ccy}, in its main unit: a price quoted in pence or in another currency is converted, at today's rate where the currency differs`,
+    // Keyed by the currency, so a change of currency is not flashed as a price move.
+    render: (r) => (Number.isFinite(r.px) ? <span data-value={r.px}><LivePx key={ccy} id={r.d.id} value={r.px} dec={r.d.ccy === ccy ? r.d.dec : Math.abs(r.px) < 1 ? 4 : 2} /></span> : blank(r, 'px')),
+    sort: (r) => r.px,
+  };
+  const ev: Column<Row> = { key: 'ev', label: `EV ${ccy}`, num: true, title: 'Enterprise value: market value, net debt, preferred stock and minority interest. Hover a value for its parts.', render: (r) => (Number.isFinite(r.ev) ? <span data-value={r.ev} title={r.evWhy}>{fmtBig(r.ev)}</span> : blank(r, 'ev')), sort: (r) => r.ev };
+  const dyCol = num('dy', 'Dvd 12M Yld', { pct: true });
+  // Each page's columns after the name, in RV's order where its captures show one, and the column it sorts on first.
+  const layout: { cols: Column<Row>[]; sort: keyof Row } =
+    page === 1
+      ? { cols: [mcap, last, num('d1', 'Chg Pct 1D', { chg: true }), num('m1', 'Chg Pct 1M', { chg: true }), num('revG', 'Rev - 1 Yr Gr:Y', { pct: true, title: "The latest fiscal year's revenue on the year before's" }), num('epsG', 'EPS - 1 Yr Gr:Y', { pct: true, title: "The latest fiscal year's diluted EPS on the year before's; none from a loss" }), num('pe', 'P/E'), num('roe', 'ROE', { pct: true }), dyCol], sort: 'roe' }
+      : page === 3
+        ? { cols: [last, num('d1', 'Chg Pct 1D', { chg: true }), num('m1', 'Chg Pct 1M', { chg: true }), num('ytd', 'Chg Pct YTD', { chg: true }), num('y1', 'Chg Pct 1Y', { chg: true })], sort: 'd1' }
+        : sheet === 2
+          ? { cols: [num('revG', 'Revenue Growth', { pct: true, title: "The latest fiscal year's revenue on the year before's" }), num('gm', 'Gross Margin', { pct: true }), num('opm', 'Op Margin', { pct: true }), num('ebitdaM', 'EBITDA Margin TTM', { pct: true }), num('margin', 'Net Profit Margin TTM', { pct: true }), num('roa', 'Return On Assets', { pct: true }), num('roe', 'Return On Equity', { pct: true }), num('tax', 'Eff Tax Rate', { pct: true }), num('revEmp', `Revenue/Employee ${ccy}`, { title: `Revenue over the last 12 months per employee, in thousands of ${ccy}` })], sort: 'gm' }
+          : sheet === 3
+            ? { cols: [num('cash', `Cash ${ccy}`, { money: true }), num('debt', `Total Debt ${ccy}`, { money: true }), num('netDebtEbitda', 'Net Debt/EBITDA'), num('de', 'Total Debt/Equity', { pct: true }), num('curRatio', 'Current Ratio')], sort: 'de' }
+            : { cols: [mcap, ev, num('pe', 'P/E'), num('pb', 'P/B'), num('evEbitda', 'EV/EBITDA'), dyCol], sort: 'pe' };
+  const cols: Column<Row>[] = [...name, ...layout.cols];
+  // Figures the summary lines work on: every column with a number, the prices included, as they are all in the
+  // currency chosen and the terminal's Median line gives a Last Px.
+  const metrics = layout.cols.map((c) => c.key as keyof Row);
+  // The loaded security's percentile rank on each figure among itself and its peers (NM and missing left out); a
+  // share price's level says nothing on its own, so the prices are not ranked.
+  const ranked: (keyof Row)[] = metrics.filter((k) => k !== 'px');
+  const ranks = new Map(
+    ranked.map((k) => {
+      const xs = rows.map((r) => r[k] as number).filter(Number.isFinite);
+      const v = rows[0]?.[k] as number;
+      return [k, { pr: percentRank(xs, v), below: xs.filter((x) => x < v).length, of: xs.length }] as const;
+    }),
+  );
+  // One cell for each column, so a summary figure sits under its column; the name cells hold the line's label.
+  const summaryCells = (cell: (k: keyof Row) => ReactNode, keys = metrics) =>
+    layout.cols.map((c) => (keys.includes(c.key as keyof Row) ? <td key={c.key} className="num" data-key={c.key}>{cell(c.key as keyof Row)}</td> : <td key={c.key} />));
+  // The median, as the terminal's Median line, is of the loaded security and its peers; the average leaves it out.
+  const stat = (f: (xs: number[]) => number, label: ReactNode, withSubject: boolean, testId?: string) => (
+    <tr className="group" data-testid={testId}>
+      <td />
+      <td>{label}</td>
+      <td className="hide-m" />
+      {summaryCells((k) => {
+        const xs = (withSubject ? rows : rows.slice(1)).map((r) => r[k] as number).filter(Number.isFinite);
+        const v = xs.length ? f(xs) : NaN;
+        return Number.isFinite(v) ? <span data-value={v}>{k === 'mcap' || k === 'ev' || k === 'cash' || k === 'debt' ? fmtBig(v) : fmtNum(v, 2)}</span> : '';
+      })}
+    </tr>
+  );
+  const rankOf = (k: keyof Row) => {
+    const r = ranks.get(k);
+    return r && Number.isFinite(r.pr) ? Math.round(r.pr * 100) : '';
+  };
+  const all: (keyof Row)[] = ['pe', 'pb', 'evEbitda', 'dy', 'roe', 'margin', 'd1', 'm1', 'ytd', 'y1', 'revG', 'epsG', 'gm', 'opm', 'ebitdaM', 'roa', 'tax', 'revEmp', 'netDebtEbitda', 'de', 'curRatio'];
+  // The export in the currency chosen, as the table shows it.
+  const csv = () => [
+    ['Ticker', 'Name', `Mkt cap ${ccy}`, `EV ${ccy}`, `Cash ${ccy}`, `Total debt ${ccy}`, `Last px ${ccy}`, ...all.map((k) => (k === 'revEmp' ? `revEmp ${ccy}` : k))],
+    ...rows.map((r) => [r.d.ticker, r.d.name, Math.round(r.mcap), Number.isFinite(r.ev) ? Math.round(r.ev) : '', Number.isFinite(r.cash) ? Math.round(r.cash) : '', Number.isFinite(r.debt) ? Math.round(r.debt) : '', r.px, ...all.map((k) => r[k] as number)].map((v) => (typeof v === 'number' ? (Number.isFinite(v) ? Number(v.toFixed(3)) : '') : v))),
+  ];
+  return (
+    <div>
+      <FnHeader code="PEERS" title="Relative Valuation" sec={s} tabs={PAGES} tab={page} onTab={setPage} plainTabs tabNumbers={false} inlineControls controls={
+          <span className="ee-ctl rv-ctl">
+            <span className="amber">Comp Source</span>
+            <span className="rv-field" title={desktopData() ? 'Finviz peers, Yahoo Finance similar stocks, then the industry in Yahoo’s profiles' : 'The built-in list’s industry, then its sector'}>{desktopData() ? 'Industry Peers' : 'Built-in Industry'}</span>
+            <label className="fld">
+              Region
+              <select className="sel-inp" aria-label="Region" value={region} onChange={(e) => setRegion(e.target.value as 'global' | 'home')}>
+                <option value="global">Global</option>
+                <option value="home">{s.country || 'Home market'}</option>
+              </select>
+            </label>
+            <label className="fld">
+              Mkt Cap &gt;
+              <input className="inp rv-cap" aria-label="Minimum market value in billions of US dollars" type="number" min={0} step={1} value={minCap} onChange={(e) => setMinCap(Math.max(0, Number(e.target.value) || 0))} title="Billions of US dollars; the loaded stock always stays" />
+            </label>
+            <label className="fld" title="Market values, enterprise values, cash, debt, revenue per employee and last prices in this currency, in its main unit (pounds, not pence); figures in other currencies converted at today's rates">
+              Curr
+              <select className="sel-inp" aria-label="Currency" value={ccy} onChange={(e) => setCur(e.target.value === 'USD' ? 'USD' : 'own')}>
+                {choices.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </span>
+        } sub={
+          <>
+            {desktopData() ? (
+              found?.group ? (
+                <>
+                  {found.group.picks.length} peers in {found.group.industry || found.group.sector} ({found.group.sources.join(', ') || 'no source answered'}){found.state === 'loading' ? ', loading their data' : ''} ·{' '}
+                </>
+              ) : found?.state === 'error' ? (
+                <>No peers: {found.message} · </>
+              ) : (
+                <>Finding peers… · </>
+              )
+            ) : (
+              <>Peers from the built-in list: {s.eq!.industry}, then {s.eq!.sector} · </>
+            )}
+            {desktopData() ? (
+              loaded + failed < group.length ? (
+                `Loading real data, ${loaded} of ${group.length} companies…`
+              ) : (
+                <>
+                  <span className="badge live">REAL</span> Yahoo Finance ratios
+                  {failed ? (
+                    <>
+                      {' '}
+                      for {loaded} of {group.length}; no company data from the source for the rest (their P/E and P/B are the quote's)
+                    </>
+                  ) : null}
+                </>
+              )
+            ) : (
+              <>
+                <SimBadge /> ratios from generated statements; real data needs the desktop app
+              </>
+            )}
+          </>
+        } actions={[
+          {
+            n: 9701,
+            bare: true,
+            label: 'Export',
+            onClick: () => {},
+            menu: exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_RV.csv`, csv).map((a) => ({ label: a.label === 'Copy' ? 'Copy to Clipboard' : 'Download as CSV', title: a.title, onClick: a.onClick })),
+          },
+        ]} />
+      {page === 1 && (
+        <div className="rv-top">
+          <SegmentPanel state={segments} />
+          <CompRange rows={rows} ticker={s.ticker.split(' ')[0]} />
+        </div>
+      )}
+      {page === 2 && (
+        <div className="row rv-sheets" style={{ gap: 3, padding: '3px 6px' }}>
+          {SHEETS.map((t) => (
+            <button key={t.n} type="button" className={`chip-btn${t.n === sheet ? ' on' : ''}`} aria-pressed={t.n === sheet} onClick={() => setSheet(t.n)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+      <DataTable
+        // Each page sorts on its own column first, as RV's Overview sorts on ROE.
+        key={`${page}:${sheet}`}
+        // The comp sheet itself, apart from the comp range and segment panels' tables.
+        className="rv-comps"
+        rows={rows}
+        rowKey={(r) => r.d.id}
+        selected={s.id}
+        columns={cols}
+        defaultSort={{ key: layout.sort, dir: -1 }}
+        // The loaded security stays first as 100), its peers numbered from 101) in the sorted order, as on RV.
+        pinFirst
+        numbered={101}
+        summary={
+          <>
+            {stat(median, <span title="The median of the loaded security and its peers on each figure, NM and missing figures left out; with an even count, the mean of the two middle figures">Median</span>, true, 'rv-median')}
+            {stat((xs) => xs.reduce((a, b) => a + b, 0) / xs.length, 'Peer average (excl. subject)', false)}
+            <tr className="group" data-testid="rv-rank">
+              <td />
+              <td title="Where the loaded security ranks among itself and its peers on each figure: 0 the lowest, 100 the highest (Excel's PERCENTRANK.INC)">{s.ticker} percentile among peers</td>
+              <td className="hide-m" />
+              {summaryCells((k) => {
+                const r = ranks.get(k)!;
+                return <span title={Number.isFinite(r.pr) ? `${r.below} of the ${r.of - 1} others are lower` : 'No figure for the loaded security, or no peer to compare'}>{rankOf(k)}</span>;
+              }, ranked)}
+            </tr>
+          </>
+        }
+      />
+      <div className="note">
+        {desktopData()
+          ? `Peers: for a US-listed stock the companies Finviz lists as its peers, with ·similar the stocks Yahoo Finance links to it both ways; otherwise companies in ${s.name}'s own industry as Yahoo's company profiles name it (Finnhub's sub-industry with FINNHUB_API_KEY, the app's own stocks, Yahoo's similar stocks), largest first. EV is market value plus net debt, preferred stock and minority interest from the latest balance sheet; a part the source does not list adds nothing, and an EV's parts show on hover. Banks have none. Growth is the latest fiscal year's on the year before's; margins, returns and the tax rate are over the last 12 months; market values, cash, debt, revenue per employee and last prices are in the currency chosen under Curr (${ccy}), prices in its main unit, at today's rates. NM: not meaningful (P/E on a loss, P/B, ROE and debt to equity on negative equity, EV/EBITDA and net debt to EBITDA on negative EBITDA, the tax rate on a pretax loss). The median includes the loaded security, as the terminal's Median line does; the average leaves it out; both leave NM and missing figures out. `
+          : ''}
+        The loaded security is pinned as 100); its percentile ranks it among itself and the peers with a figure, 0 the lowest and 100 the highest (Excel&apos;s PERCENTRANK.INC). Click a ticker to open it; shift-click opens it in the next panel.
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,96 @@
+name: Data audit
+
+# The live data audit (scripts/live/audit/check.cjs): the desktop app's figures against independent references, each
+# within a stated tolerance. It fails when a figure is beyond its tolerance, and reports a blocked reference (refused
+# key, plan limit, rate limit, network, outage) as blocked, never as passed. See docs/audit-check.md.
+#
+# GitHub runs a schedule only from the default branch (main): until this file is on main, it runs when the check
+# changes and when started by hand (Actions > Data audit > Run workflow, on the work branch). Runners are free while
+# the repository is public; a private repository needs Actions minutes.
+#
+# Secrets (Settings > Secrets and variables > Actions > New repository secret): TIINGO_API_KEY, MASSIVE_API_KEY,
+# SEC_USER_AGENT; optional EIA_API_KEY and COINGECKO_API_KEY. A missing one turns its checks into skipped checks.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Development revision whose data and audit are checked
+        required: false
+        type: string
+        default: claude/market-events-v2.16.0-id814n
+      tickers:
+        required: false
+        type: string
+      research_tickers:
+        required: false
+        type: string
+  # When the check itself changes, on any branch: it tests the check, and GitHub learns of the workflow only from a run.
+  push:
+    paths:
+      - .github/workflows/data-audit.yml
+      - scripts/live/audit/**
+      - scripts/live/capture.cjs
+      - scripts/live/bootstrap-live.cjs
+  schedule:
+    # Tuesday to Saturday at 01:37 UTC: after each US session's close and evening trading, references published.
+    - cron: '37 1 * * 2-6'
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: Comma-separated US tickers (default AAPL,NVDA,JPM,XOM,WMT,LLY,KO,TSLA)
+        required: false
+        type: string
+      ref:
+        description: Optional revision to check (defaults to the selected workflow branch)
+        required: false
+        type: string
+      research_tickers:
+        description: Earnings and supply-chain tickers (default APLD,NVDA)
+        required: false
+        type: string
+
+concurrency:
+  # The wrapper and direct runs share free-plan credentials and must not exhaust one another's quotas.
+  group: data-audit
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          # A later push must not change the revision of a queued push audit.
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Audit the live figures
+        env:
+          TIINGO_API_KEY: ${{ secrets.TIINGO_API_KEY }}
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+          EIA_API_KEY: ${{ secrets.EIA_API_KEY }}
+          COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
+          TICKERS: ${{ inputs.tickers }}
+          RESEARCH_TICKERS: ${{ inputs.research_tickers }}
+          NODE_USE_ENV_PROXY: '1'
+        shell: bash
+        run: |
+          args=(--out audit-out/run)
+          if [ -n "$TICKERS" ]; then args+=(--tickers "$TICKERS"); fi
+          if [ -n "$RESEARCH_TICKERS" ]; then args+=(--research-tickers "$RESEARCH_TICKERS"); fi
+          node scripts/live/audit/check.cjs "${args[@]}"
+      - name: Keep the report
+        if: always()
+        run: |
+          if [ -f audit-out/run/report.md ]; then cat audit-out/run/report.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f audit-out/run/report.json ]; then node scripts/live/audit/annotate.cjs audit-out/run/report.json; fi

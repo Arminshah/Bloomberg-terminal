@@ -1,0 +1,106 @@
+# The data audit check
+
+`npm run audit:check` (`scripts/live/audit/check.cjs`) runs the data audit as one check: it opens the desktop app on live data, captures its screens, fetches independent references and compares each figure within a stated tolerance. It is the audit of 28 October 2026 (`docs/audit-v2.28-data.md`) made repeatable, so that a figure that goes wrong is caught the next time it runs.
+
+## What it compares
+
+For each ticker (by default AAPL, NVDA, JPM, XOM, WMT, LLY, KO and TSLA: technology, banks, energy, retail, pharma, consumer staples and autos), plus bitcoin and natural gas:
+
+| Screen | Figure | Reference | Tolerance |
+| --- | --- | --- | --- |
+| `QUOTE` | Last price, open, high, low, volume of the session shown | Tiingo's daily bar for that date | 0.02% (a cent) for the close and the previous close; 0.05% for open, high and low; 1% for volume |
+| `QUOTE` | Previous close | Tiingo's close of the session before | 0.02% or a cent |
+| `QUOTE` | Average volume, 30 days; realised volatility, 30 days | Tiingo's last 30 sessions | 1.5%; 3% |
+| `QUOTE` | 52-week low and high | Tiingo's daily highs and lows, adjusted for splits, over 52 weeks or a year (sources differ by that day) | 0.1% |
+| `QUOTE` | Market value | Nasdaq's summary | 2% |
+| `PROFILE` | YTD % (from the price the screen shows); 12-month total return | Tiingo's close of the last session of the year before; adjusted closes | 0.1 and 1 percentage point |
+| `PROFILE` | Shares outstanding; short interest | Massive's share-class count; FINRA's latest settlement (from Nasdaq's page for its listings, FINRA's Query API for others) | 1.5%; 0.5% |
+| `DIVIDENDS` | Every dividend in the span both sources cover: declaration, ex, record and payable dates, amount | Nasdaq's dividend record, or Massive's dividends where Nasdaq gives none; amounts as paid, set on today's share basis with the splits the screen lists | Same dates; amount within $0.0005 |
+| `FINANCIALS` | Revenue, gross profit, net income, diluted EPS, operating cash flow and capital expenditure, each year and the last twelve months | The SEC filings (companyfacts) | 0.2% or $0.6 million; EPS within 0.011 |
+| `QUOTE` for XBTUSD | Bitcoin's last price (Kraken) | CoinGecko's price | 1.5% (one exchange against an aggregate, minutes apart) |
+| `NGAS` | Lower 48 working gas for the week shown | EIA's data series for the same week | Exact |
+
+The report gives each tolerance with its reason. While a session trades, the session's own figures are skipped (they move); the scheduled runs come after the US evening session, when they are settled.
+
+## Results
+
+Each comparison is one of:
+
+- **PASS**: within tolerance.
+- **FAIL**: beyond tolerance. The check exits with code 1.
+- **FLAGGED**: an unresolved displayed conflict. Captured alternatives and evidence are retained; a candidate agreeing with a reference does not resolve the conflict. A critical flag prevents verified assurance.
+- **INCOMPLETE**: required definitions, source coverage or corroboration are missing. Optional missing comparisons remain separate SKIP results.
+- **BLOCKED**: the reference or the capture could not be checked, with the reason: `auth` (key refused), `entitlement` (the plan does not cover it), `rate-limit`, `network-policy` (the network refused the host), `network`, `outage` (the provider's server failed), `no-data`, `malformed` (an answer that is not the expected data), `setup` (the app was not built or the capture failed). Exit code 2 when nothing failed but something was blocked.
+- **SKIP**: not compared, with the reason (a key not set, a session still trading, a reference not published yet).
+
+A blocked, flagged, incomplete or skipped comparison is never counted as passed. Exit 0 means the explicitly required scope was verified, exit 1 means a factual/invariant failure, exit 2 means blocked verification, and exit 3 means incomplete required assurance. Required areas need reference passes as well as their specified invariant checks; all-skipped runs cannot pass. The report is written to `audit-out/<date>/report.md` and `report.json`, with the screens' text and screenshots under `screens/`. `audit-out/` is not committed.
+
+## Running it
+
+```
+npm ci
+npm run build
+npm run audit:check                          # all default tickers
+node scripts/live/audit/check.cjs --tickers AAPL,KO --out audit-out/today
+node scripts/live/audit/check.cjs --skip-capture --out audit-out/today   # compare screens captured before
+```
+
+On Linux without a display it starts the app under `xvfb-run`. A run of the eight default tickers takes about 15 minutes, most of it the capture.
+
+## Keys it needs
+
+The check reads keys from the environment only. It never prints them, writes them to the report or sends them anywhere but their own provider.
+
+| Name | Used for | Without it |
+| --- | --- | --- |
+| `TIINGO_API_KEY` | Daily bars: last, open, high, low, previous close, volume, 30-day average, volatility, YTD, total return | Those comparisons are skipped |
+| `MASSIVE_API_KEY` | Shares outstanding; dividends where Nasdaq gives none | Skipped |
+| `SEC_USER_AGENT` | The SEC's figures for FINANCIALS (a name and contact email, as the SEC requires; also used by the app itself) | Skipped |
+| `EIA_API_KEY` | EIA's storage series for NGAS (also used by the app for NGAS's history) | Skipped |
+| `COINGECKO_API_KEY` | Optional: CoinGecko answers without it at a lower rate | Asked without a key |
+
+Nasdaq's and FINRA's figures need no key.
+
+## Where it runs
+
+The check needs a machine that can run the desktop app (Linux with `xvfb-run`, or Windows) and reach the providers. Keys in a conversation or a cloud session's scratch folder do not reach any scheduler: each runner needs its own copy.
+
+- **On your computer**: set the keys in the environment (or a `.env` file, which is never committed) and run `npm run audit:check`.
+- **A Claude Code scheduled task in the cloud environment**: it starts a fresh session on schedule, checks out the work branch, builds and runs the check, and reports the result. The keys go in the cloud environment's settings (the environment menu in the session's title bar, then Edit), as environment variables or network secrets under the names above. A new session picks them up.
+- **GitHub Actions** (`.github/workflows/data-audit.yml`): the keys go in the repository's Settings > Secrets and variables > Actions > New repository secret, under the names above; the workflow passes each to the check, and the report appears on the run's summary page. The approved small scheduler on `main` calls the development branch's reusable workflow. Direct and scheduled runs share a concurrency group to protect the same provider credentials; Massive reference requests are paced below five per minute. While the repository is public, runners are free; while it is private they need Actions minutes (on 27 and 28 October every job failed within seconds for the account's billing). Reports contain market figures and sanitized provenance, never a key. GitHub may require sign-in to read logs and the full job summary, even for a public repository.
+
+After an audit writes its report, the final step emits a public summary and up to eight sanitized detail annotations through `scripts/live/audit/annotate.cjs`. Each command is limited to 3 KiB, with failures first and exact shown/omitted counts. This stays below GitHub's per-step count limit and avoids long messages disappearing from public pages. Long individual rows may be truncated; full reports remain in the signed-in run summary. Escaped provider text cannot inject workflow commands. Audit exit statuses remain unchanged.
+
+
+## Policy, earnings and supply-chain coverage (2.29.0)
+
+The capture now includes CBRT plus ERN and SPLC for APLD and NVIDIA by default. Choose a different research set with `--research-tickers LLY,PFE,MRK,XOM,CVX,F,GM,NOC`. The ordinary eight-ticker quote/statements audit remains separate.
+
+- **Policy:** ordered effective target bounds, source-check chronology, no future-effective current policy, HOLD/hike/cut semantics, and the latest published official FOMC statement. A calendar date alone is no result.
+- **Earnings:** compatible accounting/currency/share definitions, arithmetic, pre-announcement snapshot cutoffs when available, consecutive trailing quarters, and directly filed diluted EPS from SEC companyfacts. Original consensus vintages are not certified merely because a commercial provider returns historical rows.
+- **SPLC:** entities separate from concentration disclosures, recomputed counts, chronology and explicit bounded/partial extraction. Up to four documentary quotations per research company are sampled against their canonical SEC documents. Exact quotation agreement corroborates that evidence; it does not independently certify every inferred role, identity, contract state or omitted relationship.
+
+The data-bearing screens expose a sanitized, versioned audit snapshot. Capture writes `*.audit.json` only with `ARMIN_LIVE_AUDIT=1`; these files contain research observations and provenance, never provider authentication. Evidence dates, receipt times and successful-check clocks remain separate. Reports state their actual scope and required coverage results. A verified required scope is not a certificate for every screen or historical figure.
+
+The lightweight default-branch scheduler calls this workflow on the development branch. It adds no application code or merge to main. The user approved that scheduler-only exception on 29 October 2026. Runner secrets must already be configured; a key in chat is not a runner secret. Scheduled and manual runs report unavailable access as blocked/incomplete.
+
+Inherited HTTP/HTTPS proxies are honored with Node 24's environment-proxy support. Destination-policy denial is never bypassed. Captures, logs, candidate metadata and report strings are sanitized before writing public report artifacts.
+
+
+## Candidate follow-up diagnostics
+
+A failed open or volume comparison now retains its original value, reference and tolerance and adds dated secondary observations for the displayed day and previous available reference day. Massive bars are requested unadjusted; other provider session/auction conventions remain unverified unless their evidence establishes them. Explicit response-security mismatches are rejected. Missing or refused secondary sources do not make the original comparison pass.
+
+FINANCIALS captures the selected parent-income source and unresolved statement-basis warnings. The audit reports those warnings independently from numerical comparisons, and fails a numerical parent-income margin displayed across an unresolved basis. Earnings corroboration uses the actual observation's exact filed fiscal period and matching currency rather than assuming its screen row's calendar month-end is the filing date.
+
+QUOTE captures its displayed raw values, provider names, quote clocks and market-value inputs. Share evidence identifies the observation used for the current count; absent publisher dates remain unknown. The development capture also observes normal Yahoo quote, summary, spark and chart responses the app already requested. It makes no additional provider request. Reads are limited to 2 MiB, 1.5 seconds and four concurrent copies, retaining at most two observations per response kind for 80 symbols. Only whitelisted market fields are stored; authentication queries and unrelated response fields are excluded.
+
+Text and audit metadata are read in the same browser task. Only responses whose bounded body read completed before that capture can enter its evidence. Raw minute bars remain labelled as individual bars, with their interval and timestamp. Public open/volume failures put all three sources' displayed-day values first, then the app's provenance; market-value failures include the price and share basis. Full source observations remain in the JSON report. These diagnostics do not change a failed comparison, widen a tolerance or certify an earlier failed session when a later intraday check is skipped.
+
+Push audits check out their triggering commit, so a later push from another session cannot silently change the code under audit. An explicitly supplied ref still takes precedence; the scheduler deliberately supplies the development branch.
+
+Every failed QUOTE comparison now receives captured provenance. Previous-close evidence includes quote change fields, spark's two previous-close fields and dated daily closes. DES captures the quote price and time used with its actual year-end base and YTD return; a failed YTD comparison includes those inputs alongside the reference base. Reported and standardized operating-income alternatives remain separate in FA captures. These additions diagnose source definitions and update timing without changing comparison values or tolerances.
+
+Revenue-basis warnings retain the selected filed concept and other exactly aligned, recognized definitions from already fetched facts. A matching alternative does not select a new basis or clear the warning. Share-count candidates use their recorded provider, method and eligible observation clocks; unknown origins remain explicit.
+
+For the Fed reference, the calendar and official RSS feeds supply canonical published-statement links. The statement body must establish the dated decision, and the implementation note must bind matching bounds to an explicit FOMC Desk effective date. Conflicting publication dates, unrelated instructions, noncanonical responses and unavailable evidence prevent verification. RSS headlines and Board IORB dates do not corroborate the target. Changes anywhere in the audit helpers or live-capture scripts trigger a new development audit.

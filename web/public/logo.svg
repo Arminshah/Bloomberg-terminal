@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Armin Terminal">
+  <title>Armin Terminal</title>
+  <!-- Rounded graphite tile with a teal "A" monogram: two strokes meeting at the apex, and a violet crossbar
+       drawn as a rising tick, so the letter also reads as a small price line. -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#14181c" stroke="#2b333b" stroke-width="2"/>
+  <path d="M16 50 L32 13 L48 50" fill="none" stroke="#2ec4b6" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M22 38 L29 34 L34 37 L42 31" fill="none" stroke="#a78bfa" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
