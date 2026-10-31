@@ -55,6 +55,7 @@ M3. Screen parity
 - [ ] TOP (left for now: see docs/TODO.md)
 - [x] DS: Ask a Question on an opened filing, Gemini's answers kept to the filing's own words (next commit); the document viewer not built
 - [x] SRCH: the search page with criteria and matches, results on their own page, real US Treasuries from the Treasury's statement (next commit); corporates and My Searches not built
+- [x] WB: Regional and Developed views, Bonds, Spreads and Curves with the Data Range band, Security Analysis (next commit), checked on official yields in the desktop app; named bonds, prices and the countries without a free source not built
 - [x] YAS: the Yield & Spread page, its tabs and Settings, the measures checked against TE07 03:47 (next commit); G-Sprd, I-Sprd, ASW and True Yield blank
 
 ## 1. Rules that come before anything in this plan

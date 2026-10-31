@@ -405,6 +405,54 @@ test('SRCH as TE07 02:23: criteria joined by And with their matches, the count, 
   expect(errors).toEqual([]);
 });
 
+test('WB as TE07 01:15: Regional view, Bonds, Spreads and Curves tabs, a Data Range band, and Security Analysis', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'WB');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('BONDS');
+  await expect(panel.getByTestId('wb-view')).toHaveValue('Regional');
+  await expect(panel.locator('.fnh-actions .act')).toHaveText(['Export', 'Settings▾']);
+  await expect(panel.locator('.tab')).toHaveText(['91) Bonds', '92) Spreads', '93) Curves']);
+  await expect(panel.getByLabel('Maturity')).toHaveValue('10');
+  await expect(panel.getByLabel('Data range')).toHaveValue('YTD');
+  const table = panel.getByTestId('wb-table');
+  await expect(table.locator('thead tr').nth(1).locator('th')).toHaveText(['Region', 'RMI', 'Security', '', 'Price', 'Chg', 'Yld', 'Chg', 'Yld', 'Low', /^Range/, 'High', 'YTD Chg']);
+  // The countries keep the terminal's numbers under their regions: 10) United States, 22) Germany, 30) Japan.
+  await expect(panel.getByTestId('wb-row-US').locator('td').first()).toHaveText('10)United States');
+  await expect(panel.getByTestId('wb-row-DE').locator('td').first()).toHaveText('22)Germany');
+  await expect(panel.getByTestId('wb-row-JP').locator('td').first()).toHaveText('30)Japan');
+  await expect(panel.getByTestId('wb-row-US').getByTestId('wb-range')).toBeVisible();
+  // Spreads: the Sell country (Germany) has no spread of its own; the others are measured against it.
+  await run(page, '92');
+  await expect(panel.getByLabel('Spread against')).toHaveValue('DE');
+  await expect(panel.getByLabel('Data range')).toHaveValue('3M');
+  await expect(panel.getByTestId('wb-row-DE')).toHaveClass(/wb-base/);
+  await expect(table.locator('thead tr').nth(1).locator('th.num')).toHaveText(['Yld', 'Spd', 'Chg', '#SD/Day', 'Low', 'High', 'Avg', '+/-', '#SD', 'RSI']);
+  const us = await panel.getByTestId('wb-row-US').locator('td').nth(3).textContent();
+  expect(Number(us?.replace(/,/g, ''))).not.toBeNaN();
+  // Curves: the 2-year to 10-year slope by default.
+  await run(page, '93');
+  await expect(panel.getByLabel('Curve')).toHaveValue('2-10');
+  await expect(table.locator('thead tr').nth(1).locator('th.num').nth(2)).toHaveText('Crv');
+  // Developed: one list, lowest yield first, numbered from 1.
+  await run(page, '91');
+  await panel.getByTestId('wb-view').selectOption('Developed');
+  await expect(panel.locator('.fnh-title')).toHaveText('World Bond Markets: Developed');
+  await expect(panel.getByTestId('wb-row-BR')).toHaveCount(0);
+  const ylds = (await table.locator('tbody tr td.num.cyan').allTextContents()).map(Number);
+  expect(ylds).toEqual([...ylds].sort((a, b) => a - b));
+  // A country's number opens its Security Analysis: headlines and other markets; Close shuts it.
+  await panel.getByTestId('wb-view').selectOption('Regional');
+  await run(page, '22');
+  const sa = page.getByTestId('wb-analysis');
+  await expect(sa).toContainText('1) News Headlines | More »');
+  await expect(sa).toContainText('2) Germany: Other Markets');
+  await expect(sa.locator('.wb-tile')).toHaveCount(2);
+  await sa.getByRole('button', { name: 'Close' }).click();
+  await expect(sa).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('SCREEN joins criteria by AND within a group and OR across groups, says its universe, and keeps saved screens', async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'EQS');

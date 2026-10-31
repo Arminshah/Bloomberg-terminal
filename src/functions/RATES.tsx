@@ -1,9 +1,9 @@
 import { Credits, type CreditId } from '../components/Credits';
-import { Fragment, useMemo, useState, type MouseEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { XYChart } from '../components/chart/XYChart';
 import { Chg, KV, LivePx, SecLink, Section, openSecurity } from '../components/cells';
-import { GroupRow, RowNo, useCollapsed } from '../components/Numbered';
+import { RowNo } from '../components/Numbered';
 import { fmtDateTime, fmtDay, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { periodChange, type Horizon } from '../data/analytics';
@@ -12,144 +12,14 @@ import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { DAY_MS } from '../data/calendar';
 import { to32nds } from '../finance/bonds';
 import type { FnProps } from '../terminal/types';
-import { useGroupedRows, useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
+import { useNumberedRows, usePanelId } from '../terminal/panel';
 import { RatesSource, RealBadge, SimBadge } from '../components/Source';
 import { desktopData } from '../data/live/yahoo';
 import { policyRates, type PolicyRates } from '../data/live/policy';
 import { currentPolicyTarget, policyMeetingState, policyTargetHealth } from '../data/policy-state';
 import { contractSymbols, quotesTiming, useYahooQuotes } from '../data/live/yquotes';
 import { fedPath, meetingMoves, type MeetingMoves } from '../data/fedpath';
-
-// ------------------------------------------------------------------- WB
-
-const WB_ROWS: { c: string; ids: Record<number, string> }[] = [
-  { c: 'US', ids: { 2: 'USGG2YR Index', 5: 'USGG5YR Index', 10: 'USGG10YR Index', 30: 'USGG30YR Index' } },
-  { c: 'DE', ids: { 2: 'GDBR2 Index', 5: 'GDBR5 Index', 10: 'GDBR10 Index', 30: 'GDBR30 Index' } },
-  { c: 'GB', ids: { 2: 'GUKG2 Index', 5: 'GUKG5 Index', 10: 'GUKG10 Index', 30: 'GUKG30 Index' } },
-  { c: 'JP', ids: { 2: 'GJGB2 Index', 5: 'GJGB5 Index', 10: 'GJGB10 Index', 30: 'GJGB30 Index' } },
-  { c: 'FR', ids: { 10: 'GFRN10 Index' } },
-  { c: 'IT', ids: { 10: 'GBTPGR10 Index' } },
-  { c: 'ES', ids: { 10: 'GSPG10YR Index' } },
-  { c: 'CH', ids: { 10: 'GSWISS10 Index' } },
-  { c: 'CA', ids: { 2: 'GCAN2YR Index', 5: 'GCAN5YR Index', 10: 'GCAN10YR Index', 30: 'GCAN30YR Index' } },
-  { c: 'AU', ids: { 2: 'GACGB2 Index', 5: 'GACGB5 Index', 10: 'GACGB10 Index' } },
-  { c: 'CN', ids: { 10: 'GCNY10YR Index' } },
-  { c: 'IN', ids: { 10: 'GIND10YR Index' } },
-  { c: 'BR', ids: { 10: 'GEBR10Y Index' } },
-  { c: 'MX', ids: { 10: 'GMXN10YR Index' } },
-];
-
-/** WB's regions, as the terminal's World Bond Markets groups its countries. */
-const WB_REGIONS: { name: string; countries: string[] }[] = [
-  { name: 'Americas', countries: ['US', 'CA', 'BR', 'MX'] },
-  { name: 'EMEA', countries: ['DE', 'GB', 'FR', 'IT', 'ES', 'CH'] },
-  { name: 'Asia/Pacific', countries: ['JP', 'AU', 'CN', 'IN'] },
-];
-
-export function WB(_: FnProps) {
-  useTick(2);
-  const ust = engine.quote('USGG10YR Index')!.last;
-  const bund = engine.quote('GDBR10 Index')!.last;
-  // The desktop app lists only countries with an official source, and only their published tenors.
-  const has = (id?: string) => !!id && engine.hasSource(id);
-  const rows = WB_ROWS.filter((r) => Object.values(r.ids).some(has));
-  const panel = usePanelId();
-  // A country's line opens its 10-year yield chart, or its longest published tenor where there is no 10-year.
-  const benchmark = (r: (typeof rows)[number]) => (has(r.ids[10]) ? r.ids[10] : [30, 5, 2].map((t) => r.ids[t]).find(has));
-  const open = (r: (typeof rows)[number], e?: MouseEvent) => {
-    const id = benchmark(r);
-    if (id) openSecurity(panel, id, e, 'CHART');
-  };
-  // Regions 1) to 3) fold and unfold; each numbers its countries from its own ten, so the numbers stay put.
-  const [collapsed, toggle] = useCollapsed();
-  const lists = WB_REGIONS.map((g) => g.countries.map((c) => rows.find((r) => r.c === c)).filter((r): r is (typeof rows)[number] => !!r));
-  const regions = WB_REGIONS.map((g, gi) => ({ ...g, rows: lists[gi], gi })).filter((g) => g.rows.length > 0);
-  const nums = useGroupedRows('wb-rows', lists, WB_REGIONS.map((g) => !collapsed.includes(g.name)), (r) => open(r), (r) => COUNTRY_NAMES[r.c]);
-  useMenu('wb-regions', WB_REGIONS.map((g, gi) => ({ n: gi + 1, label: g.name, run: () => toggle(g.name) })));
-  return (
-    <div>
-      <FnHeader
-        code="BONDS"
-        title="World Bond Markets"
-        sub={
-          <>
-            Generic government yields, changes in bp · <RatesSource />
-          </>
-        }
-      />
-      <table className="tbl">
-        <thead>
-          <tr>
-            <th>Country</th>
-            {[2, 5, 10, 30].map((t) => (
-              <th key={t} className="num">
-                {t}Y
-              </th>
-            ))}
-            <th className="num">10Y 1D</th>
-            <th className="num hide-m">10Y 1M</th>
-            <th className="num hide-m">10Y YTD</th>
-            <th className="num">vs UST</th>
-            <th className="num hide-m">vs Bund</th>
-            <th className="num hide-m">2s10s</th>
-          </tr>
-        </thead>
-        <tbody>
-          {regions.map((g) => (
-            <Fragment key={g.name}>
-              <GroupRow n={g.gi + 1} name={g.name} span={11} open={!collapsed.includes(g.name)} onToggle={() => toggle(g.name)} />
-          {(collapsed.includes(g.name) ? [] : g.rows).map((r, i) => {
-            const ten = r.ids[10];
-            const q10 = engine.quote(ten)!;
-            const two = has(r.ids[2]) ? engine.quote(r.ids[2])!.last : NaN;
-            const n = nums[g.gi][i];
-            return (
-              <tr key={r.c} className="click" onClick={(e) => open(r, e)} title={`${COUNTRY_NAMES[r.c]}: click, or type ${n} and GO, for the ${has(ten) ? '10-year' : 'benchmark'} yield chart`}>
-                <td className="amber">
-                  <RowNo n={n} />
-                  {COUNTRY_NAMES[r.c]}
-                </td>
-                {[2, 5, 10, 30].map((t) => (
-                  <td key={t} className="num white">
-                    {has(r.ids[t]) ? (
-                      <SecLink id={r.ids[t]} fn="CHART">
-                        <LivePx id={r.ids[t]} />
-                      </SecLink>
-                    ) : (
-                      // A tenor the country's source does not publish (the Bank of England's par yields stop at 5, 10
-                      // and 20 years; the RBA's at 10).
-                      <span className="faint" title="Not published by this country's official source" />
-                    )}
-                  </td>
-                ))}
-                <td className="num">
-                  <Chg v={q10.chg} bp />
-                </td>
-                <td className="num hide-m">
-                  <Chg v={periodChange(ten, '1M')} bp dec={0} />
-                </td>
-                <td className="num hide-m">
-                  <Chg v={periodChange(ten, 'YTD')} bp dec={0} />
-                </td>
-                <td className="num">{r.c === 'US' ? '' : spread(q10.last, ust)}</td>
-                <td className="num hide-m">{r.c === 'DE' ? '' : spread(q10.last, bund)}</td>
-                <td className="num hide-m">{spread(q10.last, two)}</td>
-              </tr>
-            );
-          })}
-            </Fragment>
-          ))}
-        </tbody>
-      </table>
-      <div className="note">
-        {engine.realOnly
-          ? 'Spreads and curve slope in basis points. Each yield is the figure its source publishes: US Treasury par yields, Bundesbank zero-coupon yields, Bank of England par yields, Japanese Ministry of Finance constant-maturity yields, Bank of Canada benchmark yields and RBA interpolated yields, so methods differ slightly between countries. All are end of day; the Cboe intraday 5, 10 and 30-year Treasury yield indices are separate lines (FVX, TNX, TYX). Countries without a free official source are not listed.'
-          : 'Spreads and curve slope in basis points. Simulated curves move with US rates through a country beta.'}
-      </div>
-      <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba', 'bde']} />
-    </div>
-  );
-}
+import { WB_COUNTRIES } from '../data/world-bonds';
 
 // ----------------------------------------------------------------- WBMV
 
@@ -175,9 +45,9 @@ export function WBMV(_: FnProps) {
   const [tab, setTab] = useState(1);
   const period = MOVER_PERIODS[tab - 1];
   const lines = rankMovers(
-    WB_ROWS.flatMap((r) =>
+    WB_COUNTRIES.flatMap((r) =>
       Object.entries(r.ids)
-        .filter(([, id]) => engine.hasSource(id))
+        .filter((e): e is [string, string] => !!e[1] && engine.hasSource(e[1]))
         .map(([tenor, id]) => ({ c: r.c, tenor: Number(tenor), id, chg: periodChange(id, period.h) })),
     ),
   );
@@ -229,11 +99,6 @@ export function WBMV(_: FnProps) {
       <Credits ids={['treasury', 'bundesbank', 'boe', 'mof', 'boc', 'rba', 'bde']} />
     </div>
   );
-}
-
-/** Difference in basis points, or nothing when either yield is missing. */
-function spread(a: number, b: number): string {
-  return Number.isFinite(a) && Number.isFinite(b) ? fmtNum((a - b) * 100, 0) : '';
 }
 
 // ------------------------------------------------------------------- GC
