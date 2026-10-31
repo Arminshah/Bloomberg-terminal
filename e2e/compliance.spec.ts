@@ -58,6 +58,19 @@ test('COMPLIANCE checks your rules on a portfolio as prices move, and PORTFOLIO 
   await addPosition('TSLA', '5');
   const ask = panel.getByTestId('pre-trade');
   await expect(ask).toContainText('Restricted list: TSLA US');
+  // A dialog as the 2024 frames draw one (TE01 05:11): light grey title bar, dark body, the screen behind dimmed,
+  // Cancel the default and focused.
+  await expect(ask).toHaveRole('alertdialog');
+  await expect(ask.locator('.dlg-title')).toContainText('Compliance Check');
+  expect(await ask.locator('.dlg-title').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(206, 205, 206)');
+  expect(await ask.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(27, 26, 24)');
+  expect(await page.locator('.overlay').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0.72)');
+  await expect(panel.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  // Escape cancels, as the button does.
+  await page.keyboard.press('Escape');
+  await expect(ask).toHaveCount(0);
+  await expect(panel.locator('tbody tr', { hasText: 'TSLA' })).toHaveCount(0);
+  await addPosition('TSLA', '5');
   await panel.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(ask).toHaveCount(0);
   await expect(panel.locator('tbody tr', { hasText: 'TSLA' })).toHaveCount(0);

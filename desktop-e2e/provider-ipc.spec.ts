@@ -203,6 +203,22 @@ test("the tab bar is the window's title bar: the window's own buttons sit at its
   expect(nav.x + nav.width).toBeLessThanOrEqual(narrow.x + 0.5);
 });
 
+test('the tab strip\'s Options menu zooms the window, resets it, and opens a new window', async ({ desktop: { app, page } }) => {
+  const options = page.getByRole('button', { name: /Options/ });
+  await options.click();
+  const menu = page.getByRole('menu', { name: 'Window options' });
+  const pct = menu.locator('.wopt-pct');
+  await expect(pct).toHaveText('100%');
+  await menu.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(pct).toHaveText('110%');
+  expect(await app.evaluate(({ BrowserWindow }) => Math.round(BrowserWindow.getAllWindows()[0].webContents.getZoomFactor() * 100))).toBe(110);
+  await menu.getByRole('menuitem', { name: 'Reset Window Size & Zoom' }).click();
+  expect(await app.evaluate(({ BrowserWindow }) => Math.round(BrowserWindow.getAllWindows()[0].webContents.getZoomFactor() * 100))).toBe(100);
+  await options.click();
+  await menu.getByRole('menuitem', { name: 'New Window' }).click();
+  await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2);
+});
+
 test("the command line's cursor is a blue block in the desktop app", async ({ desktop: { page } }) => {
   const input = page.locator('#cmd-0');
   await input.click();

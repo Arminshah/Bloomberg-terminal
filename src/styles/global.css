@@ -30,7 +30,7 @@
   /* Measured from the terminal's published screens: the red function bar from the 2024 tutorial frames
      (docs/bloomberg-parity.md, "Parity build"), the grey section strips and the command line's border and cursor. */
   --function-bar: #870e1f;
-  --section: #343434;
+  --section: #222222;
   --cmd-blue: #2e8af6;
   --cmd-outline: #6d96d4;
   --sel: #ff9e1b;
@@ -129,8 +129,9 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   display: flex;
   align-items: stretch;
   min-height: 32px;
-  background: #0a0a0a;
-  border-bottom: 1px solid var(--line-2);
+  /* The 2024 frames' light strip (TE01 01:41, TE01 03:11; a dark #424242 state appears in TE04 without a visible
+     cause). */
+  background: #cfcdd0;
   -webkit-app-region: drag;
   app-region: drag;
 }
@@ -138,10 +139,10 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   flex: 0 1 auto;
   min-width: 0;
   display: flex;
-  align-items: flex-end;
-  gap: 1px;
-  padding: 3px var(--gutter) 0;
-  padding-top: calc(3px + env(safe-area-inset-top, 0px));
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  padding-top: env(safe-area-inset-top, 0px);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -151,63 +152,81 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   position: relative;
   width: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
 }
-.wtabs-bar.wco .wtabs-controls::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: #6a6a6a; }
+.wtabs-bar.wco .wtabs-controls::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 1px; background: #9a989b; }
 .wtabs::-webkit-scrollbar { display: none; }
+/* Square tabs of equal width, cut at the edge without an ellipsis; the mnemonic bold, then the title. */
 .wtab {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: 0 1 260px;
   min-width: 90px;
-  max-width: 200px;
-  flex: 0 1 auto;
-  height: 28px;
-  padding: 0 4px 0 10px;
-  background: #171717;
-  color: #a8a8a8;
-  border: 1px solid #262626;
-  border-bottom: 0;
-  border-radius: 5px 5px 0 0;
+  padding: 0 4px 0 12px;
+  background: transparent;
+  color: #525054;
+  border: 0;
+  border-right: 1px solid #b3b1b4;
+  border-radius: 0;
   cursor: default;
   user-select: none;
   font-size: 12px;
 }
-.wtab:hover { background: #1f1f1f; color: var(--text); }
-.wtab.on { background: #2a2a2a; color: #fff; border-color: var(--line-2); box-shadow: inset 0 2px 0 var(--amber); }
+.wtab:hover:not(.on) { background: #dbd9dc; color: #2c2b2d; }
+.wtab.on { background: #1a1a1a; color: #d5d4d6; border-right-color: #1a1a1a; }
+.wtab-mn { color: #3e3c3e; font-weight: 600; }
+.wtab.on .wtab-mn { color: #e2e1e3; }
 .wtab.dragging { opacity: 0.5; }
-.wtab-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wtab-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: clip; white-space: nowrap; }
 .wtab-edit { flex: 1 1 auto; min-width: 0; width: 100%; background: #000; color: var(--amber-2); border: 1px solid var(--amber-dim); font: inherit; padding: 0 3px; }
 .wtab-x {
   flex: none;
-  width: 16px;
-  height: 16px;
-  line-height: 14px;
+  width: 18px;
+  height: 18px;
+  line-height: 16px;
   padding: 0;
   border: 0;
-  border-radius: 3px;
+  border-radius: 0;
   background: transparent;
-  color: #8a8a8a;
-  font-size: 14px;
+  color: #d0d0d0;
+  font-size: 17px;
   cursor: pointer;
 }
+/* Only the active tab shows its ×; another tab's appears when the pointer is over it. */
+.wtab:not(.on) .wtab-x { opacity: 0; color: #3e3c3e; }
+.wtab:not(.on):hover .wtab-x { opacity: 1; }
 .wtab-x:hover { background: #3c3c3c; color: #fff; }
 .wtab-new {
   flex: none;
-  align-self: flex-end;
-  width: 22px;
-  height: 20px;
-  margin: 0 auto 4px 4px;
+  align-self: center;
+  width: 26px;
+  height: 24px;
+  margin: 0 auto 0 4px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0;
   background: transparent;
-  color: #bdbdbd;
-  font-size: 16px;
-  line-height: 18px;
+  color: #1a1a1a;
+  font-size: 20px;
+  line-height: 22px;
   cursor: pointer;
 }
-.wtab-new:hover:not(:disabled) { background: #262626; color: #fff; }
-.wtab-new:disabled { color: #4a4a4a; cursor: default; }
-@media (max-width: 760px) { .wtab { min-width: 70px; max-width: 130px; } }
+.wtab-new:hover:not(:disabled) { background: #dbd9dc; color: #000; }
+.wtab-new:disabled { color: #9a989b; cursor: default; }
+@media (max-width: 760px) { .wtab { min-width: 70px; flex-basis: 130px; } }
+/* "≡ Options" and its menu (TE01 02:27): dark text on the light strip; the menu dark with amber items, the zoom
+   percentage in an amber box between grey − and + boxes. */
+.wopt { position: relative; flex: none; display: flex; align-items: stretch; -webkit-app-region: no-drag; app-region: no-drag; }
+.wopt-btn { border: 0; padding: 0 12px; background: transparent; color: #2b2a2c; font-size: 12px; white-space: nowrap; }
+.wopt-btn:hover, .wopt-btn[aria-expanded='true'] { background: #dbd9dc; color: #000; }
+.wopt-menu { position: absolute; top: 100%; right: 0; z-index: 60; min-width: 230px; padding: 4px 0; background: #1e1e1e; border: 1px solid #3a3a3a; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.7); }
+.wopt-item { display: block; width: 100%; padding: 4px 14px; border: 0; background: transparent; color: var(--amber); text-align: left; white-space: nowrap; }
+.wopt-item:hover:not(:disabled) { background: #153b67; }
+.wopt-item:disabled, .wopt-step:disabled { color: #6c6c6c; cursor: default; }
+.wopt-zoom { display: flex; align-items: center; gap: 4px; margin: 4px 0; padding: 4px 14px; border-top: 1px solid #3a3a3a; }
+.wopt-zoom-lbl { margin-right: 6px; color: var(--amber); }
+.wopt-step { width: 20px; height: 18px; padding: 0; border: 0; background: #4a4a4a; color: var(--white); line-height: 18px; }
+.wopt-step:hover:not(:disabled) { background: #5c5c5c; }
+.wopt-pct { min-width: 46px; padding: 0 4px; background: var(--amber); color: #2d0000; text-align: center; font-variant-numeric: tabular-nums; }
 
 /* PORTFOLIO's tabs: one per portfolio (PORT.tsx). */
 .ptabs {
@@ -517,6 +536,40 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .ac-more:hover { text-decoration: underline; }
 .ac-foot { padding: 3px 8px; color: var(--faint); font-size: var(--fs-s); border-top: 1px solid var(--line); }
 
+/* The command line's suggestions, as the 2024 frames draw them (TE01 05:09, TE04 01:13): full width under the command
+   row on #1E1E1E with a thin grey line on top; white headings; the command in white and its title in amber, the typed
+   letters bold in both; a history mark on functions used recently; "More Functions…" in grey italics under the
+   titles; the lit row dark blue with its colours kept; no category column. Scoped to .cmd: the watchlist's own add
+   list keeps its look. */
+.cmd .ac { left: 0; right: 0; background: #1e1e1e; border: 0; border-top: 1px solid #5c5c5c; }
+.cmd .ac-head { padding: 7px 10px 3px 26px; color: var(--white); }
+.cmd .ac-head:not(:first-child) { margin-top: 4px; border-top: 1px solid #3a3a3a; }
+.cmd .ac-item, .cmd .ac-more-row { grid-template-columns: 14px minmax(110px, max-content) minmax(0, 1fr) auto; gap: 0 12px; padding: 2px 10px 2px 8px; }
+.cmd .ac-more-row { display: grid; }
+.cmd .ac-hist { display: inline-flex; align-self: center; color: #c8c8c8; }
+.cmd .ac-item .fn, .cmd .ac-item .k { color: var(--white); font-weight: 500; }
+.cmd .ac-item .fn b, .cmd .ac-item .k b { color: var(--white); font-weight: 600; }
+.cmd .ac-item .k.fav { color: var(--white); }
+.cmd .ac-item > .ac-title { color: var(--amber); }
+.cmd .ac-item > .ac-title b { color: var(--amber); font-weight: 600; }
+.cmd .ac-item.sel, .cmd .ac-item:hover { background: #153b67; }
+.cmd .ac-item.sel *, .cmd .ac-item:hover * { color: inherit !important; }
+.cmd .ac-item.sel .fn, .cmd .ac-item.sel .k, .cmd .ac-item:hover .fn, .cmd .ac-item:hover .k { color: var(--white) !important; }
+.cmd .ac-item.sel > .ac-title, .cmd .ac-item:hover > .ac-title { color: var(--amber) !important; }
+.cmd .ac-item.sel .ac-hist, .cmd .ac-item:hover .ac-hist { color: #c8c8c8 !important; }
+.cmd .ac-more-row .ac-more { grid-column: 3; width: auto; padding: 1px 0 4px; color: #a8a8a8; font-style: italic; }
+
+/* The "Suggested Functions" footer (TE01 01:53): #1A1A1A, the amber label in its own cell, then two suggestions, a bold
+   white mnemonic and a grey name each, the second at the right edge, thin rules between. */
+.sugg-fns { display: flex; align-items: stretch; flex: none; height: 24px; background: #1a1a1a; border-top: 1px solid #000; font-family: var(--sans); white-space: nowrap; overflow: hidden; }
+.sugg-lbl { display: inline-flex; align-items: center; padding: 0 14px; color: var(--amber); border-right: 1px solid #3a3a3a; }
+.sugg-fn { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 0 12px; border: 0; background: transparent; color: #acacae; text-align: left; }
+.sugg-fn b { color: var(--white); font-weight: 600; }
+.sugg-fn span { overflow: hidden; text-overflow: ellipsis; }
+.sugg-fn.end { margin-left: auto; border-left: 1px solid #3a3a3a; }
+.sugg-fn:hover { background: #262626; }
+.sugg-fn:hover span { color: var(--white); }
+
 /* --------------------------------------------------------- function header */
 .fnh {
   position: sticky;
@@ -668,12 +721,12 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .tbl tr.click:hover td { background: #182232; box-shadow: inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
 .tbl tr.click:hover td:first-child { box-shadow: inset 1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
 .tbl tr.click:hover td:last-child { box-shadow: inset -1px 0 #c8d1dd, inset 0 1px #c8d1dd, inset 0 -1px #c8d1dd; }
-/* Group lines ("1) Americas", a date) are flat neutral grey strips with white titles, as monitor regions are on the terminal. */
+/* Group lines ("1) Americas", a date) are flat dark grey strips (#222222, TE04 01:21) with white titles. */
 .tbl tr.group td {
   color: var(--white);
   background: var(--section);
   font-weight: 500;
-  border-top: 1px solid #444444;
+  border-top: 1px solid #2c2c2c;
   border-bottom: 1px solid #1a1a1a;
 }
 .tbl tr.group .group-toggle { color: #c0c0c0; }
@@ -737,12 +790,13 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
   gap: 8px;
   padding: 2px 8px;
   color: var(--white);
-  border-top: 1px solid #4b5158;
-  border-bottom: 1px solid #15171a;
+  border-top: 1px solid #000;
+  border-bottom: 1px solid #000;
   font-family: var(--sans);
   font-weight: 500;
   white-space: nowrap;
-  background: linear-gradient(180deg, #3d4248 0%, #2a2e33 100%);
+  /* Flat, as the box headers and region strips of the 2024 frames (#1E1E1E to #222222, TE01 03:11, TE04 01:21). */
+  background: var(--section);
 }
 .sect-h .right { margin-left: auto; color: #b9c0c8; font-weight: 400; }
 
@@ -1015,18 +1069,24 @@ label.fld { display: inline-flex; align-items: center; gap: 6px; color: var(--am
   position: fixed;
   inset: 0;
   z-index: 90;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.72);
   display: grid;
   place-items: center;
   padding: 16px;
 }
-.modal {
-  width: min(560px, 100%);
-  max-height: 90%;
-  overflow: auto;
-  background: var(--bg-1);
-  border: 1px solid var(--amber-dim);
-}
+/* A dialog (TE01 05:11): light grey title bar #CECDCE with a dark title and ×, dark body #1B1A18 with the question in
+   white and detail in amber, grey buttons with white text at the bottom right, the default one outlined in blue. */
+.dlg { width: min(520px, 100%); max-height: 90%; display: flex; flex-direction: column; background: #1b1a18; border: 1px solid #cecdce; font-family: var(--sans); box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8); }
+.dlg-title { display: flex; align-items: center; justify-content: space-between; flex: none; padding: 2px 4px 2px 8px; background: #cecdce; color: #1a1a1a; }
+.dlg-x { width: 20px; height: 18px; padding: 0; border: 0; background: transparent; color: #1a1a1a; font-size: 16px; line-height: 16px; }
+.dlg-x:hover { background: #b6b4b7; }
+.dlg-body { padding: 12px 14px 4px; overflow: auto; color: var(--white); }
+.dlg-list { margin: 6px 0 4px 18px; padding: 0; color: var(--amber); }
+.dlg-buttons { display: flex; justify-content: flex-end; gap: 8px; flex: none; padding: 8px 12px 12px; }
+.dlg-btn { min-width: 56px; padding: 2px 10px; border: 1px solid #4a4a4a; background: #3c3c3c; color: var(--white); }
+.dlg-btn:hover { background: #4a4a4a; }
+.dlg-btn.primary { border-color: #2e8af6; box-shadow: inset 0 0 0 1px #2e8af6; }
+.dlg-btn:focus-visible { outline: 1px solid #fff; outline-offset: 1px; }
 
 /* ------------------------------------------------------------- mobile */
 @media (max-width: 760px) {

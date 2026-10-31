@@ -1702,6 +1702,43 @@ ipcMain.handle('stream:send', (event, msg) => {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ subscribe: list }));
 });
 
+// The tab strip's Options menu (TE01 02:27): new window, zoom, best fit and reset, for the window that asks.
+ipcMain.handle('window:options', (event, op) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) throw new Error('no window');
+  const answer = (extra = {}) => ({ zoom: zoomBy(win, 0), windows: windows.size, max: MAX_WINDOWS, ...extra });
+  switch (op) {
+    case 'zoom-get':
+      return answer();
+    case 'zoom-in':
+      zoomBy(win, 0.5);
+      return answer();
+    case 'zoom-out':
+      zoomBy(win, -0.5);
+      return answer();
+    case 'new':
+      return answer({ opened: !!createWindow() });
+    case 'best-fit': {
+      // The whole working area of the window's display, without the maximised state.
+      if (win.isMaximized()) win.unmaximize();
+      win.setBounds(screen.getDisplayMatching(win.getBounds()).workArea);
+      return answer();
+    }
+    case 'reset': {
+      if (win.isMaximized()) win.unmaximize();
+      win.webContents.setZoomLevel(0);
+      const area = screen.getDisplayMatching(win.getBounds()).workArea;
+      const width = Math.min(DEFAULT_SIZE.width, area.width);
+      const height = Math.min(DEFAULT_SIZE.height, area.height);
+      win.setBounds({ x: area.x + Math.round((area.width - width) / 2), y: area.y + Math.round((area.height - height) / 2), width, height });
+      return answer();
+    }
+    default:
+      throw new Error('unknown option');
+  }
+});
+
 ipcMain.handle('stream:close', (event) => {
   if (!fromApp(event)) throw new Error('not allowed');
   streams.get(event.sender.id)?.close();
@@ -1710,13 +1747,33 @@ ipcMain.handle('stream:close', (event) => {
 
 /** The tab bar's height in pixels (.wtabs-bar in global.css): the window's buttons are drawn this tall over it. */
 const TAB_BAR_HEIGHT = 32;
+/** At most this many windows, as the terminal allows (TE01 02:27). */
+const MAX_WINDOWS = 16;
+/** A new window's size, and the size "Reset Window Size & Zoom" returns to. */
+const DEFAULT_SIZE = { width: 1600, height: 1000 };
+
+/** Zoom steps of half a level, as Ctrl - and Ctrl = take them; the window's zoom as a percentage. */
+function zoomBy(win, step) {
+  if (step) win.webContents.setZoomLevel(Math.max(-3, Math.min(4, win.webContents.getZoomLevel() + step)));
+  return Math.round(win.webContents.getZoomFactor() * 100);
+}
+
+/** The next or previous window in the order they were opened (Ctrl ] and Ctrl [). */
+function cycleWindow(win, dir) {
+  const list = [...windows.values()].filter((w) => !w.isDestroyed());
+  if (list.length < 2) return;
+  const next = list[(list.indexOf(win) + dir + list.length) % list.length];
+  if (next.isMinimized()) next.restore();
+  next.focus();
+}
 
 function createWindow(id = nextId()) {
+  if (windows.size >= MAX_WINDOWS) return null;
   const saved = loadState()[id] ?? {};
   const bounds = visible(saved.bounds);
   const win = new BrowserWindow({
-    width: bounds?.width ?? 1600,
-    height: bounds?.height ?? 1000,
+    width: bounds?.width ?? DEFAULT_SIZE.width,
+    height: bounds?.height ?? DEFAULT_SIZE.height,
     x: bounds?.x,
     y: bounds?.y,
     minWidth: 640,
@@ -1726,9 +1783,9 @@ function createWindow(id = nextId()) {
     icon: fs.existsSync(ICON) ? ICON : undefined,
     show: false,
     autoHideMenuBar: true,
-    // No title bar: the window's own minimise, maximise and close buttons sit at the right end of the app's tab bar,
+    // No title bar: the window's own minimise, maximise and close buttons sit at the right end of the app's light tab bar,
     // which drags the window (WorkspaceTabs.tsx keeps the tabs clear of them). TAB_BAR_HEIGHT matches the bar's CSS.
-    ...(process.platform === 'darwin' ? {} : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#0a0a0a', symbolColor: '#c8c8c8', height: TAB_BAR_HEIGHT } }),
+    ...(process.platform === 'darwin' ? {} : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#cfcdd0', symbolColor: '#2b2b2b', height: TAB_BAR_HEIGHT } }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -1761,9 +1818,13 @@ function createWindow(id = nextId()) {
     if (input.type !== 'keyDown') return;
     const ctrl = input.control || input.meta;
     const key = input.key.toLowerCase();
-    if (ctrl && input.shift && key === 'n') {
+    if (ctrl && key === 'n') {
+      // Ctrl N opens a new window, as on the terminal (Ctrl Shift N did before and still does).
       e.preventDefault();
       createWindow();
+    } else if (ctrl && !input.shift && (input.key === '[' || input.key === ']')) {
+      e.preventDefault();
+      cycleWindow(win, input.key === ']' ? 1 : -1);
     } else if (ctrl && input.shift && key === 'i') {
       e.preventDefault();
       win.webContents.toggleDevTools();
@@ -1775,10 +1836,10 @@ function createWindow(id = nextId()) {
       win.webContents.reloadIgnoringCache();
     } else if (ctrl && (key === '=' || key === '+')) {
       e.preventDefault();
-      win.webContents.setZoomLevel(Math.min(4, win.webContents.getZoomLevel() + 0.5));
+      zoomBy(win, 0.5);
     } else if (ctrl && key === '-') {
       e.preventDefault();
-      win.webContents.setZoomLevel(Math.max(-3, win.webContents.getZoomLevel() - 0.5));
+      zoomBy(win, -0.5);
     } else if (ctrl && key === '0') {
       e.preventDefault();
       win.webContents.setZoomLevel(0);

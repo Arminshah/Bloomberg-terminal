@@ -1,5 +1,6 @@
 import { bookOf, checkRules, newProblems, type Finding, type Status } from '../terminal/compliance';
 import type { Portfolio } from '../terminal/userdata';
+import { Dialog } from '../components/Dialog';
 
 /** The pre-trade side of COMPLIANCE (CMGR), for PORTFOLIO's entry forms: what a trade would add to the exceptions. */
 
@@ -15,23 +16,28 @@ export function preTradeProblems(before: Portfolio, after: Portfolio): string[] 
   return newProblems(checkRules(rules, bookOf(before)), checkRules(rules, bookOf(after)));
 }
 
-/** The pre-trade check's question: what the trade would breach, and whether to record it anyway. */
+/**
+ * The pre-trade check's question, as a dialog (TE01 05:11): what the trade would breach, and whether to record it
+ * anyway. Cancel is the default; Escape and "×" cancel.
+ */
 export function PreTradeCheck({ problems, onGo, onCancel, go = 'Record anyway' }: { problems: string[]; onGo: () => void; onCancel: () => void; go?: string }) {
   return (
-    <div className="note amber" role="alert" data-testid="pre-trade">
-      <div>Compliance check: this would add {problems.length === 1 ? 'an exception' : `${problems.length} exceptions`} to your rules (COMPLIANCE):</div>
-      <ul style={{ margin: '4px 0 6px 18px' }}>
+    <Dialog
+      title="Compliance Check"
+      testId="pre-trade"
+      onClose={onCancel}
+      buttons={[
+        { label: go, onClick: onGo },
+        { label: 'Cancel', onClick: onCancel, primary: true },
+      ]}
+    >
+      <div>This would add {problems.length === 1 ? 'an exception' : `${problems.length} exceptions`} to your rules (COMPLIANCE):</div>
+      <ul className="dlg-list">
         {problems.map((p) => (
           <li key={p}>{p}</li>
         ))}
       </ul>
-      <button type="button" className="btn" onClick={onGo}>
-        {go}
-      </button>{' '}
-      <button type="button" className="btn primary" onClick={onCancel}>
-        Cancel
-      </button>
-    </div>
+    </Dialog>
   );
 }
 

@@ -50,6 +50,53 @@ Evidence: TE01 03:11, TE06 04:15 (zoomed), TE01 01:41 (whole window, right end).
 - Unverified: what the window button's "▾" opens in the frames (not shown); here it maximises the panel.
 - Checked: `e2e/look.spec.ts` (order of the items, colours, no boxes, maximise by button and by double-click, Message), the whole browser and desktop suites.
 
+### M1.5 Autocomplete (E3)
+
+Evidence: TE01 05:09 (typed "OF"), TE04 01:13 (typed "WEI"), TE02 05:47 and 06:01 (typed "G"). Sampled on TE01 05:09: panel `#1E1E1E`, lit row `#133C68` (the pack measures `#153B67`).
+
+- Now: the list opens under the command row across the whole panel on `#1E1E1E`, with a thin grey line on top. Headings are white capitals (FUNCTIONS, SECURITIES). Function rows: the command in white and the title in amber, the typed letters bold in both; a circular history mark before functions used recently. Security rows: ticker and yellow key in white with the typed letters bold, the name in amber. "More Functions…" and a new "More Securities…" (opens the security finder with the text typed) in grey italics under the titles. The row the arrows light is dark blue `#153B67` and keeps its colours. No category column.
+- The first row is lit only when it is what Enter runs anyway (WEI typed, WEI listed first). The frames light the first row whatever was typed; doing that here would make Enter run a suggestion instead of the command typed (with its security and arguments), so Enter keeps running what was typed unless a row was chosen with the arrows.
+- Kept from the app: the favourites and recent securities listed before anything is typed, with their prices, and the hint line at the foot ("↑↓ select · Enter run…").
+- Not done, no source: natural-language rows ("SEARCH WHO OWNS …") and "(Did You Mean?)" rows; the app's suggestions have neither. The amber italic descriptors after some security names (TE04 01:13) are the provider's own data.
+- The watchlist's add-a-security list uses the same building blocks; the new look is limited to the command line, so the watchlist's list is unchanged.
+- Checked: `e2e/look.spec.ts` (colours, bold letters, no category column, lit row, More Functions and More Securities), the whole browser suite.
+
+### M1.6 Section strips and the Suggested Functions footer (E3)
+
+Evidence: TE04 01:21 (WEI region strips), TE01 03:11 (DES box headers), TE01 01:53 (NSN footer), TE08 06:12 (FRD footer), the EEG short (`FFM_EEG` 0:15.4), and the OCR of every tutorial and short (`*_OCR_TEXT.txt`, "Suggested Functions"). Sampled: WEI strips `#222222` and `#212121`, header row `#232323`, DES box headers `#1E1E1E`, footer `#1A1A1A`.
+
+- Now: region strips ("1) Americas") and section headers are flat `#222222` (were `#343434` strips and a light grey gradient on headers). The panel gets a footer on the screens a frame shows one on, FRD (FXFORWARD), ALLQ (DEALERQUOTES) and EEG (ESTIMATEGRAPH): "Suggested Functions" in amber in its own cell, then two related functions, each a bold white mnemonic and the app's own name for it in grey `#ACACAE`, the second at the right edge. A click runs it with the panel's security. The suggestions are kept in the function registry (`suggested`).
+- Chosen: the footer's suggestions in the frames read like the provider's recommendations and change with the screen; here each is two related functions of the app (FRD: BTMM and OVML; ALLQ: YAS and SRCH; EEG: EEO and GP, as the EEG short shows), described by the app's own names, not the provider's wording.
+- Not done: footers on screens the app lacks (NSN, MODL, FXIP, FXFC, FXFM, SDRV, WSL; M5) and on screens where the OCR shows a footer whose suggestions the app cannot run (ANR's BAS). The app had no blue banner to replace.
+- Checked: `e2e/look.spec.ts` (strip and header colours, footer label, colours, order, position and click), `tests/suggested-functions.test.ts` (each suggestion exists), the whole browser suite.
+
+### M1.7 Tab strip as the title bar (E3)
+
+Evidence: TE01 03:11 (three tabs, light strip), TE01 01:53 (four tabs), TE01 01:41 (one tab, whole window), TE04 03:01 and 04:55 (dark strip). Sampled: strip `#D1CCD0` and active tab `#1A1A1A` on TE01 03:11, dark strip `#424242` on TE04 04:55.
+
+- Now: the workspace tab bar, already the desktop window's title bar, is the light strip `#CFCDD0` with square tabs of equal width (they share the strip as they shrink). Each label is the screen's mnemonic in bold, then the security by name with its yellow key or the function's name ("DES APPLE INC Equity", "TOP Top News", "DS Document Search"), cut at the tab's edge without an ellipsis. The active tab is `#1A1A1A` with light text and its "×"; the others have dark grey text `#525054` and show their "×" only under the pointer, so a mouse can still close them. "+" follows the tabs. In the desktop app the window's own buttons are drawn in dark grey on the light strip.
+- Kept from the app: renaming a tab (its name follows the mnemonic), dragging to reorder, middle-click to close, Ctrl+T, Ctrl+W, Ctrl+Shift+T, Ctrl+PageUp/PageDown and Ctrl+1 to 9.
+- For the owner: the frames show the strip both light (`#CFCDD0`) and dark (`#424242`) with no visible cause; the light one is built. Say if you prefer the dark one.
+- Not changed: the mnemonic is set in small bold capitals in the frames; here it is bold at the tab's 12px (text sizes stay). Unverified and not built: the inward-arrows icon at the right of the strip (its action is not shown). "≡ Options" follows in M1.8.
+- Checked: `e2e/look.spec.ts` (colours, label, bold mnemonic, square corners, clip, equal widths, × on the active tab and on hover), `e2e/terminal.spec.ts` (tabs follow the active screen, rename, close, reopen), the whole browser suite.
+
+### M1.8 Options menu and window keys (E3 for the menu, E1 for the keys)
+
+Evidence: TE01 02:27 (the WELC tips page: the Options menu with New Tab, New Window, Zoom "− 130% +", Best Fit Window Size, Reset Window Size & Zoom; Ctrl − and Ctrl = to zoom, Ctrl [ and Ctrl ] to cycle windows, Ctrl N for a new window, up to 16 windows), TE01 02:31 (two windows, each with the full chrome).
+
+- Now: "≡ Options" sits at the right of the tab strip and opens a dark menu with amber items: New Tab; New Window (up to 16); Zoom with grey − and + boxes around the percentage in amber; Best Fit Window Size (the window takes the working area of its screen); Reset Window Size & Zoom (1600 by 1000, centred, 100%). In the desktop app Ctrl N opens a new window (Ctrl Shift N still does), Ctrl [ and Ctrl ] go to the previous and next window, Ctrl − and Ctrl = zoom by half a step (unchanged), and a 17th window is refused.
+- In the browser demo the window items are greyed out: a web page cannot open or size a window of its own; the browser's zoom keys apply.
+- Not done: dragging a tab out of the strip into a window of its own (the frames' transcript mentions it); the inward-arrows icon beside Options (its action is not shown).
+- Checked: `e2e/look.spec.ts` (menu items, colours, greyed items in a browser, New Tab, Escape), `desktop-e2e/provider-ipc.spec.ts` (zoom in to 110% and reset to 100% on the real window, New Window opens a second window), the title-bar test.
+
+### M1.9 Dialogs (E3)
+
+Evidence: TE01 05:11 (the Log Off dialog: light grey title bar with a dark title and "×", dark body, the question in white and a second line in amber, buttons at the bottom right with the default one outlined in blue, the screen behind dimmed to near black).
+
+- Now: a shared dialog (`src/components/Dialog.tsx`) in that form: title bar `#CECDCE`, body `#1B1A18`, grey buttons with white text, the default one outlined in blue and focused, Escape and "×" closing it, the whole window dimmed behind. The app had one place that asks before acting, the pre-trade compliance question on PORTFOLIO and its Transactions tab; it was a box inside the screen and is now this dialog ("Compliance Check", the exceptions in amber, "Add anyway" or "Record anyway" and Cancel, Cancel the default).
+- The app has no other dialog; the unused `.modal` style went. The Yahoo cookie window is Yahoo's own page in a window of its own and stays as it is.
+- Checked: `e2e/compliance.spec.ts` (role, title bar and body colours, dimming, Cancel focused, Escape cancels, Add anyway records), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

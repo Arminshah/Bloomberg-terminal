@@ -49,6 +49,8 @@ export interface FnDef {
   unavailable?: string;
   /** Words after the function are a topic unless they name a stock: "TOP Oil" is oil news, not the crude future. */
   topics?: boolean;
+  /** Two related functions for the panel's "Suggested Functions" footer, on screens the 2024 frames show one on. */
+  suggested?: [string, string];
 }
 
 export interface MenuItem {
