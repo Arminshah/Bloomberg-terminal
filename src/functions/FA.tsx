@@ -20,6 +20,7 @@ import { capAtPeriodEnd, capSeries, shareFilings } from '../data/marketcap';
 import { loadCompanyFacts, resolveFiler, secAvailable, secTicker, useSecLoad, type CompanyFacts } from '../data/live/sec';
 import { realSplits } from '../data/live/yahoo';
 import { wantShares } from '../data/live/shares';
+import { XYChart } from '../components/chart/XYChart';
 
 type Row = {
   label: string;
@@ -54,6 +55,19 @@ export function faNumber(v: number, r: { dec?: number; ratio?: boolean; pct?: bo
   if (r.ratio) return fmtNum(v, 1);
   if (r.pct) return `${fmtNum(v, 1)}%`;
   return fmtNum(v, r.dec ?? 1);
+}
+
+/**
+ * FA's measuring line between two bars: the total change and the compound annual change over the calendar days between
+ * the two period ends (365 days a year), as "+94.41% (+39.37%ann.)". NaN without two positive values a day or more apart.
+ */
+export function measureChange(v0: number, v1: number, t0: number, t1: number): { total: number; annual: number; text: string } {
+  const days = (t1 - t0) / 86_400_000;
+  if (!(v0 > 0) || !(v1 > 0) || !(days >= 1)) return { total: NaN, annual: NaN, text: '' };
+  const total = (v1 / v0 - 1) * 100;
+  const annual = (Math.pow(v1 / v0, 365 / days) - 1) * 100;
+  const signed = (v: number) => `${v >= 0 ? '+' : ''}${fmtNum(v, 2)}%`;
+  return { total, annual, text: `${signed(total)} (${signed(annual)}ann.)` };
 }
 
 /** Preferred stock and minority interest, as Adj Highlights' "Preferred & Other": none when the source lists neither. */
@@ -199,6 +213,9 @@ export function FA({ sec, route }: FnProps) {
   const [quarterly, setQuarterly] = useState(false);
   const [periods, setPeriods] = useState(5);
   const [offset, setOffset] = useState(0);
+  // FA's graph mode: the line whose chart button was pressed, drawn as bars above the grid.
+  const [graphed, setGraph] = useState<{ tab: number; ri: number } | null>(null);
+  const graph = graphed && graphed.tab === tab ? graphed.ri : null;
   const { real, status: fundStatus } = useFundamentals(s);
   const segments = useSegments(s, tab === 6);
   const status = fundStatus === 'ok' && !hasRealStatements(s) ? 'error' : fundStatus;
@@ -318,6 +335,32 @@ export function FA({ sec, route }: FnProps) {
         </div>}
       />
       {tab === 6 ? <SegmentsView state={segments} /> : <>
+      {graph !== null && rows[graph] ? (() => {
+        const r = rows[graph];
+        // Reported periods in orange and estimates in brown, one bar per period, as FA's graph mode draws them.
+        const reported = cols.map((c, i) => ({ x: i, y: value(r, i), label: periodHeading(c, quarterly), t: c.end })).filter((q) => Number.isFinite(q.y));
+        const est = estimates.map((e, j) => ({ x: cols.length + j, y: estValue(r, e), label: `${e.date.slice(0, 4)} Y Est`, t: Date.parse(`${e.date}T00:00:00Z`) })).filter((q) => Number.isFinite(q.y));
+        const all = [...reported, ...est];
+        const m = all.length > 1 ? measureChange(all[0].y, all[all.length - 1].y, all[0].t, all[all.length - 1].t) : null;
+        return (
+          <div className="fa-graph-mode" data-testid="fa-graph">
+            <div className="row" style={{ gap: 8, padding: '3px 6px' }}>
+              <span className="amber">{r.label}</span>
+              {m?.text ? <span className="white" title={`From ${all[0].label} to ${all[all.length - 1].label}, compounded over the calendar days between the period ends`}>{m.text}</span> : null}
+              <button type="button" className="act" onClick={() => setGraph(null)}>Close graph</button>
+              <button type="button" className="act" onClick={() => execute(panel, `${s.id} FUNDCHART`)}>Graph Fundamentals (FUNDCHART)</button>
+            </div>
+            <XYChart
+              height={180}
+              series={[
+                { label: r.label, color: '#ff9e1b', kind: 'bar', points: reported },
+                ...(est.length ? [{ label: `${r.label} Est`, color: '#9a7a4a', kind: 'bar' as const, points: est }] : []),
+              ]}
+              xFormat={(v) => all.find((q) => q.x === v)?.label ?? ''}
+            />
+          </div>
+        );
+      })() : null}
       <div className="tbl-wrap">
         <table className="tbl zebra fa-tbl">
           <thead>
@@ -371,7 +414,7 @@ export function FA({ sec, route }: FnProps) {
                 <tr key={`${ri}:${r.label}`}>
                   <td className={r.bold ? 'amber b' : r.ratio ? 'muted' : sub ? 'white' : 'amber'} style={r.indent ? { paddingLeft: 22 } : undefined}>
                     {!r.ratio && (
-                      <button type="button" className="fa-graph" title={`Graph ${r.label.replace(/^[+-] /, '')} (GF)`} aria-label={`Graph ${r.label.replace(/^[+-] /, '')}`} onClick={() => execute(panel, `${s.id} FUNDCHART`)}>
+                      <button type="button" className="fa-graph" title={`Graph ${r.label.replace(/^[+-] /, '')} (GF)`} aria-label={`Graph ${r.label.replace(/^[+-] /, '')}`} onClick={() => setGraph(graph === ri ? null : { tab, ri })}>
                         <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 9V1M1 9h8M2.5 7l2-2.5 1.6 1.4L8.5 3" fill="none" stroke="currentColor" strokeWidth="1.1" /></svg>
                       </button>
                     )}

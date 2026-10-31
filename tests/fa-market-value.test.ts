@@ -43,3 +43,16 @@ describe("FINANCIALS figures as FA writes them", () => {
     expect(faNumber(2.7, { dec: 2 })).toBe('2.70');
   });
 });
+
+describe("FINANCIALS graph mode's measuring line, as FA labels it", () => {
+  it('gives the total change and the compound annual change over the calendar days between the period ends', async () => {
+    const { measureChange } = await import('../src/functions/FA');
+    // Two fiscal years that include a 29 February: 731 days.
+    const m = measureChange(100, 194.41, Date.parse('2014-12-31T00:00:00Z'), Date.parse('2016-12-31T00:00:00Z'));
+    expect(m.total).toBeCloseTo(94.41, 9);
+    expect(m.annual).toBeCloseTo((Math.pow(1.9441, 365 / 731) - 1) * 100, 9);
+    expect(m.text).toBe('+94.41% (+39.37%ann.)');
+    expect(measureChange(100, 80, Date.parse('2024-12-31T00:00:00Z'), Date.parse('2025-12-31T00:00:00Z')).text).toBe('-20.00% (-20.00%ann.)');
+    expect(measureChange(-5, 10, 0, 365 * 86_400_000).text).toBe('');
+  });
+});
