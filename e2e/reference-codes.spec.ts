@@ -580,6 +580,37 @@ test("WACC as the 2022 screen: cost of capital, capital structure, history and E
   expect(errors).toEqual([]);
 });
 
+test("BETA as the 2022 screen: Relative Index, range buttons, the scatter with its fit and histograms, and the statistics", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity BETA');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('BETA');
+  await expect(panel.getByLabel('Relative index')).toHaveAttribute('placeholder', 'SPX');
+  await expect(panel.locator('.fnh-actions .act')).toHaveText(['Actions▾', 'Edit▾']);
+  await expect(panel.locator('.beta-range')).toHaveText(['6M', 'YTD', '1Y', '2Y', '5Y', 'Max']);
+  await expect(panel.locator('.beta-range.on')).toHaveText('2Y');
+  await expect(panel.getByLabel('Frequency')).toHaveValue('W');
+  const stats = panel.getByTestId('beta-stats');
+  await expect(stats.locator('tbody td.amber')).toHaveText(['Raw BETA', 'Adjusted BETA', 'ALPHA (Intercept)', 'R^2 (Correlation^2)', 'R (Correlation)', 'Std Dev of Error', 'Std Error of ALPHA', 'Std Error of BETA', 't-Test', 'Significance', 'Last T-Value', 'Last P-Value', 'Number of Points', 'Last Spread', 'Last Ratio', '1Y Daily BETA']);
+  const val = async (label: string) => Number((await stats.locator('tr', { hasText: label }).first().locator('td').nth(1).innerText()).replace(/,/g, ''));
+  // Adjusted = 0.67 × raw + 0.33; t-Test = beta over its standard error; R² = R × R.
+  const raw = await val('Raw BETA');
+  expect(await val('Adjusted BETA')).toBeCloseTo(0.67 * raw + 0.33, 2);
+  expect(await val('t-Test')).toBeCloseTo(raw / (await val('Std Error of BETA')), 0);
+  expect(await val('R^2 (Correlation^2)')).toBeCloseTo((await val('R (Correlation)')) ** 2, 2);
+  // The plot: orange points, the red line and its equation, a histogram on each axis.
+  const plot = panel.getByRole('img', { name: 'Returns scatter with the fitted line' });
+  await expect(plot.locator('circle')).toHaveCount((await val('Number of Points')) + 1);
+  await expect(plot.locator('.beta-eq')).toContainText('Y = ');
+  // Edit ▾ hides the histograms; 1Y reruns the regression on a year.
+  await panel.getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('menuitem', { name: 'Hide the Histograms' }).click();
+  await panel.locator('.beta-range', { hasText: '1Y' }).click();
+  await expect(panel.locator('.beta-range.on')).toHaveText('1Y');
+  expect(await val('Number of Points')).toBeLessThan(60);
+  expect(errors).toEqual([]);
+});
+
 test('SCREEN joins criteria by AND within a group and OR across groups, says its universe, and keeps saved screens', async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'EQS');

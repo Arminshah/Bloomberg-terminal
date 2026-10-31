@@ -910,7 +910,7 @@ test('WACC and EQRP use the beta BETA shows by default: two years of weekly retu
     return panel;
   };
   const kv = (panel: ReturnType<Page['locator']>, label: string) => panel.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
-  const beta = kv(await open('AAPL US Equity BETA', 'BETA'), 'Adjusted beta');
+  const beta = (await open('AAPL US Equity BETA', 'BETA')).getByTestId('beta-stats').locator('tr', { hasText: 'Adjusted BETA' }).locator('td').nth(1);
   await expect(beta).toHaveText(/^\d+\.\d{3}$/);
   const adjusted = (await beta.innerText()).trim();
   const wacc = await open('AAPL US Equity WACC', 'WACC');

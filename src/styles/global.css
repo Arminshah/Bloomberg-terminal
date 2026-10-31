@@ -2130,3 +2130,32 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .wacc-key { display: inline-block; width: 9px; height: 9px; margin-right: 5px; vertical-align: middle; }
 .wacc-hist-keys { display: flex; gap: 10px; padding: 2px 6px; }
 .rowno { color: #cfcfcf; font-weight: 500; margin-right: 3px; }
+
+/* BETA, Historical Beta (the 2022 screen): the Relative Index in an amber field on the red bar, amber data fields, the
+   range buttons with the chosen one in blue, the scatter on #101A22 with orange points, the red fitted line and orange
+   histograms, and the Statistics panel with amber labels and white figures. */
+.fnh-lbl { flex: none; align-self: center; padding: 0 6px; color: #fff; }
+.fnh-field { flex: none; align-self: stretch; width: 130px; margin: -2px 6px -2px 0; padding: 0 6px; border: 0; border-radius: 0; background: var(--amber); color: #000; font: inherit; }
+.fnh-field::placeholder { color: #2d0000; opacity: 1; }
+.beta-controls, .beta-ranges { display: flex; align-items: center; gap: 8px; padding: 2px 6px; flex-wrap: wrap; }
+.beta-lbl { color: var(--amber); }
+.beta-fld { padding: 0 6px; background: var(--amber); color: #000; }
+.beta-date { width: 130px; }
+.beta-range { padding: 0 6px; border: 0; background: transparent; color: #e8e8e8; font: inherit; cursor: pointer; }
+.beta-range:hover { outline: 1px solid #fff; outline-offset: -1px; }
+.beta-range.on { background: #1d3f80; color: #fff; }
+.beta-main { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 6px; padding: 0 4px; }
+.beta-plot-col { min-width: 0; }
+.beta-plot-host { width: 100%; }
+.beta-plot { display: block; background: #000; }
+.beta-tick { fill: #9aa5ae; font-size: 11px; font-family: var(--fixed); }
+.beta-axis { fill: #c8c8c8; font-size: 11px; font-family: var(--fixed); }
+.beta-eq { fill: #f0f0f0; font-size: 11px; font-family: var(--fixed); }
+.beta-empty { min-height: 200px; display: grid; place-items: center; }
+.beta-stats { background: #000; min-width: 0; }
+.beta-stats-tabs { display: flex; gap: 2px; margin-bottom: 3px; }
+.beta-stats-tabs button { padding: 1px 8px; border: 0; background: #2a2a2a; color: #e0e0e0; font: inherit; cursor: pointer; }
+.beta-stats-tabs button.on { background: #1d3f80; color: #fff; }
+.beta-stats-tbl td { border-bottom: 0; padding-top: 1px; padding-bottom: 1px; }
+.beta-stats-tbl th { background: transparent; color: #fff; }
+.beta-transform p { margin: 4px 2px; color: #cfcfcf; }
