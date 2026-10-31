@@ -159,10 +159,17 @@ export function totalReturn1Y(sec: SecurityDef): number {
   return (tr - 1) * 100;
 }
 
-/** The current and next fiscal years' EPS estimates (the first two estimate years from today), for Est P/E and PEG. */
-function fiscalEstimates(part: AnalystPart<Estimate[]> | undefined): { fy?: Estimate; next?: Estimate; from?: string } {
-  const today = new Date(engine.today * DAY_MS).toISOString().slice(0, 10);
-  const years = (part?.state === 'ok' ? part.data ?? [] : []).filter((e) => e.date >= today && Number.isFinite(e.epsAvg));
+/**
+ * The current and next fiscal years' EPS estimates, for Est P/E and PEG. The current year is the first one whose
+ * results are not yet in the statements: the report's capture of 31 January 2019 gives Est P/E for 12/18, a year that
+ * had ended but was reported in February. Without the statements it is the first year ending from today; a year ended
+ * more than a year ago never counts as current.
+ */
+export function fiscalEstimates(part: AnalystPart<Estimate[]> | undefined, lastReportedEnd = NaN, todayMs = engine.today * DAY_MS): { fy?: Estimate; next?: Estimate; from?: string } {
+  // A fiscal year's estimate can be dated a few days after the statements' period end (52- and 53-week years).
+  const from = Number.isFinite(lastReportedEnd) ? Math.max(lastReportedEnd + 20 * DAY_MS, todayMs - 366 * DAY_MS) : todayMs;
+  const fromIso = new Date(from).toISOString().slice(0, 10);
+  const years = (part?.state === 'ok' ? part.data ?? [] : []).filter((e) => e.date >= fromIso && Number.isFinite(e.epsAvg));
   return { fy: years[0], next: years[1], from: part?.source };
 }
 
@@ -183,7 +190,8 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
   const est = useAnalysts(analystsAvailable() && analystSymbol(sec) ? sec : undefined, ['estimates', 'consensus', 'ratings']);
   const analysts = useAnalystSnapshot(sec);
   const estPart = est.estimates as AnalystPart<Estimate[]> | undefined;
-  const { fy, next } = fiscalEstimates(estPart);
+  const annual = financials(sec).annual;
+  const { fy, next } = fiscalEstimates(estPart, annual.length ? annual[annual.length - 1].end : NaN);
   // The price in the estimates' currency (a London price in pence against estimates in pounds or euros); research on
   // a listing outside the US must state its currency.
   const estCcy = fy?.epsCurrency ?? fy?.currency ?? estPart?.currency;
