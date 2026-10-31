@@ -198,6 +198,15 @@ function nasdaqOfficialRow(json, day) {
 }
 
 /**
+ * The request for the official row of a session: the week ending on it. Nasdaq answers HTTP 400 to a range of one day
+ * (fromdate equal to todate), as it did for Apple's 30 October 2026 on 31 October.
+ */
+function officialRowPath(day) {
+  const from = new Date(Date.parse(`${day}T00:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10);
+  return `historical?assetclass=stocks&fromdate=${from}&todate=${day}&limit=10`;
+}
+
+/**
  * The shares on the company's latest SEC cover (dei:EntityCommonStockSharesOutstanding) dated on or before `day`: null
  * when there is none within `maxAgeDays`, or when the cover gives more than one figure for that date (several share
  * classes, which a single count cannot stand for).
@@ -219,4 +228,4 @@ function splitSince(bars, asOf, day) {
   return bars.some((x) => x.day > asOf && x.day <= day && Number.isFinite(Number(x.splitFactor)) && Number(x.splitFactor) !== 1);
 }
 
-module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics, capturedQuote, withQuoteCapture, withProfileReturnCapture, nasdaqOfficialRow, coverShares, splitSince };
+module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics, capturedQuote, withQuoteCapture, withProfileReturnCapture, nasdaqOfficialRow, officialRowPath, coverShares, splitSince };
