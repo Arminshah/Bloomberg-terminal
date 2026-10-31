@@ -16,7 +16,7 @@ import { useSegments } from '../data/live/segments';
 import { segmentRows, SegmentsView } from './FASegments';
 import { closeAt } from '../data/analytics';
 import { engine, useHistoryVersion } from '../data/market';
-import { capAtPeriodEnd, capSeries, shareFilings } from '../data/marketcap';
+import { capAtPeriodEnd, capSeries, shareFilings, sharesAtPeriodEnd } from '../data/marketcap';
 import { loadCompanyFacts, resolveFiler, secAvailable, secTicker, useSecLoad, type CompanyFacts } from '../data/live/sec';
 import { realSplits } from '../data/live/yahoo';
 import { wantShares } from '../data/live/shares';
@@ -247,12 +247,16 @@ export function FA({ sec, route }: FnProps) {
   );
   const tradeCcy = s.ccy === 'GBp' ? 'GBP' : s.ccy === 'USd' ? 'USD' : s.ccy;
   // In the statements' currency at that day's rates (through the dollar), millions; none without a rate.
+  // FA's past market capitalisation is the period-end close times the shares outstanding at the period end (net of
+  // treasury), so the filings' count dated at that end replaces the one last filed before it, where they give one.
   const capFor = (p: FinPeriod) => {
     const pt = capAtPeriodEnd(caps.points, p.end);
     if (!pt) return NaN;
-    if (tradeCcy === ccy) return pt.cap / 1e6;
+    const atEnd = cf ? sharesAtPeriodEnd(cf, new Date(p.end).toISOString().slice(0, 10), realSplits.get(s.id) ?? []) : NaN;
+    const cap = Number.isFinite(atEnd) && pt.shares ? (pt.cap / pt.shares) * atEnd : pt.cap;
+    if (tradeCcy === ccy) return cap / 1e6;
     const usdPer = (c: string) => (c === 'USD' ? 1 : closeAt(engine.daily(`CCY:${c}`), pt.t));
-    return (pt.cap * usdPer(tradeCcy)) / usdPer(ccy) / 1e6;
+    return (cap * usdPer(tradeCcy)) / usdPer(ccy) / 1e6;
   };
   const marketRows: Row[] = [
     { label: 'Market Capitalization', get: capFor, bold: true },
