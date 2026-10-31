@@ -17,6 +17,18 @@ export interface StatementBasisObservation {
   filed?: string;
   concept?: string;
   sourceUrl?: string;
+  /** A line name established by the cited filing for this exact observation. */
+  label?: string;
+}
+
+export interface StatementBasisDefinition {
+  label: string;
+  selectedLine: string;
+  filedLine: string;
+  explanation: string;
+  quote: string;
+  sourceUrl: string;
+  accession: string;
 }
 
 /** Original source observations behind a reporting-basis warning, before line selection. */
@@ -27,6 +39,8 @@ export interface StatementBasisDifference {
   observations: StatementBasisObservation[];
   /** Other recognized, exactly aligned filed revenue definitions; diagnostic only, never selected by a match. */
   revenueAlternatives?: StatementBasisObservation[];
+  /** Retained primary evidence explaining the exact pair; does not reconcile a mixed statement basis. */
+  definition?: StatementBasisDefinition;
 }
 
 /** All statement money values in millions of the reporting currency (GBP for pence lines). */

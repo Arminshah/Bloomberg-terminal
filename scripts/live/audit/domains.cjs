@@ -76,9 +76,10 @@ function validateFinancials(snapshot, item, now = Date.now()) {
     if (!period.niTotalBasisConflict) continue;
     const differences = Array.isArray(period.niTotalBasisDetails) ? period.niTotalBasisDetails : [];
     const detail = differences.map((difference) => {
-      const selected = (difference.observations ?? []).map((observation) => `${observation.source}=${observation.value} at ${iso(observation.end)}${observation.concept ? ` [${observation.concept}; start=${observation.start ?? 'unknown'}; filed=${observation.filed ?? 'unknown'}${observation.sourceUrl ? `; ${observation.sourceUrl}` : ''}]` : ''}`).join(' vs ');
+      const selected = (difference.observations ?? []).map((observation) => `${observation.source}${observation.label ? ` (${observation.label})` : ''}=${observation.value} at ${iso(observation.end)}${observation.concept ? ` [${observation.concept}; start=${observation.start ?? 'unknown'}; filed=${observation.filed ?? 'unknown'}${observation.sourceUrl ? `; ${observation.sourceUrl}` : ''}]` : ''}`).join(' vs ');
       const alternatives = (difference.revenueAlternatives ?? []).slice(0, 5).map((observation) => `${observation.concept}=${observation.value} [${observation.start ?? 'unknown'}..${iso(observation.end)}; filed=${observation.filed ?? 'unknown'}]`).join('; ');
-      return `${difference.field}: ${selected} ${difference.currency ?? ''} (${difference.unit ?? 'unit unknown'})${alternatives ? `; SEC revenue alternatives (diagnostic only; a match does not resolve the warning): ${alternatives}` : ''}`;
+      const definition = difference.definition ? `; ${difference.definition.label}: ${difference.definition.explanation} Source: ${difference.definition.sourceUrl}` : '';
+      return `${difference.field}: ${selected} ${difference.currency ?? ''} (${difference.unit ?? 'unit unknown'})${definition}${alternatives ? `; SEC revenue alternatives (diagnostic only; a match does not resolve the warning): ${alternatives}` : ''}`;
     }).join('; ');
     result.push(row('INCOMPLETE', `parent income basis ${period.label ?? ''}`, ['Filed parent income and other statement lines have unresolved reporting-basis differences; a matching net-income value does not resolve the conflict.', detail].filter(Boolean).join(' '), { basisDifferences: differences }));
     if (finite(period.parentIncomeMargin)) result.push(row('FAIL', `parent income margin ${period.label ?? ''}`, 'a numerical parent-income margin is displayed despite an unresolved statement source basis'));

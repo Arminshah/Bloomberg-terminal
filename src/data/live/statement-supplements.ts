@@ -23,7 +23,7 @@ export interface StatementSupplement {
   /** The figures a later filing restated (its latest value differs from the first one filed). */
   restated: Set<string>;
   /** Original exact-period metadata for tracing source-basis warnings. */
-  observations: Map<string, { start?: string; end: string; filed: string; concept: string; sourceUrl: string }>;
+  observations: Map<string, { start?: string; end: string; filed: string; form: string; accession: string; concept: string; sourceUrl: string; derived?: boolean }>;
   revenueAlternatives?: StatementBasisObservation[];
 }
 
@@ -67,7 +67,7 @@ export function secStatementRows(cf: CompanyFacts, currency: string, kind: Perio
       item.filed.set(key, fact.filed);
       if (fact.restated) item.restated.add(key);
       item.sources.set(key, `SEC EDGAR ${fact.form}, filed ${fmtIso(fact.filed, true)}${fact.derived ? ' (calculated from aligned reported totals)' : ''}`);
-      item.observations.set(key, { ...(fact.start ? { start: fact.start } : {}), end: fact.end, filed: fact.filed, concept: fact.concept, sourceUrl: `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(cf.cik).padStart(10, '0')}.json` });
+      item.observations.set(key, { ...(fact.start ? { start: fact.start } : {}), end: fact.end, filed: fact.filed, form: fact.form, accession: fact.accn, concept: fact.concept, sourceUrl: `https://data.sec.gov/api/xbrl/companyfacts/CIK${String(cf.cik).padStart(10, '0')}.json`, ...(fact.derived ? { derived: true } : {}) });
       if (line.key === 'revenue') item.revenueAlternatives = revenueAlternatives(cf, line, fact, currency, kind, asOf);
       out.set(end, item);
     }

@@ -164,6 +164,7 @@ export function FA({ sec, route }: FnProps) {
   const off = Math.min(offset, maxOffset);
   const cols = all.slice(Math.max(0, all.length - periods - off), all.length - off);
   const supplementSources = [...new Set(cols.flatMap((p) => p.supplements ?? []))];
+  const revenueDefinitions = [...new Map(cols.flatMap((p) => p.niTotalBasisDetails ?? []).flatMap((difference) => difference.definition ? [[difference.definition.accession, difference.definition] as const] : [])).values()];
   const ccy = reportCcy(s);
   // The analysts' consensus for the coming fiscal years, beside the reported ones (annual view, statements' currency).
   const est = useAnalysts(analystsAvailable() && analystSymbol(s) ? s : undefined, ['estimates']).estimates as AnalystPart<Estimate[]> | undefined;
@@ -339,6 +340,7 @@ export function FA({ sec, route }: FnProps) {
           : status === 'sim' ? "Statements are simulated from each company's scale and sector profile; they are not reported figures." : ''}
       </div>
       {cols.some((p) => p.niTotalBasisConflict) ? <div className="note">Filed parent net income is shown on its own reported basis. Other statement lines remain on an unresolved basis; the affected net margins are withheld.</div> : null}
+      {revenueDefinitions.map((definition) => <div className="note" key={definition.accession}><b>{definition.label}: </b>{definition.explanation} <a href={definition.sourceUrl} target="_blank" rel="noreferrer" title={definition.quote}>Filed statement ({definition.accession})</a>.</div>)}
       {supplementSources.length ? <details className="note"><summary>* Supplemental observations (hover a period heading for its sources)</summary>{supplementSources.map((source) => <div key={source}>{source}</div>)}</details> : null}
       </>}
     </div>

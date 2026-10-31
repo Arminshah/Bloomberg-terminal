@@ -5,6 +5,7 @@ import { createWants, registerRefresh } from '../../terminal/refresh';
 import { engine } from '../market';
 import { DAY_MS } from '../calendar';
 import type { EarningsEvent, FinPeriod, Holder, StatementBasisDifference } from '../fundamentals';
+import { exxonRevenueDefinition } from './revenue-basis';
 import type { SecurityDef } from '../types';
 import { desktopData, impliedShares, realDividends, realSplits, yahooGet, yahooSymbolFor } from './yahoo';
 import { finnhubAvailable, finnhubSymbol, loadFinnhub, type FinnhubMetric, type FinnhubProfile } from './finnhub';
@@ -423,12 +424,14 @@ export function buildRealFund(def: SecurityDef, summary: Json, annualRes: Json, 
         const conflict = conflictingKeys.length > 0;
         const differences: StatementBasisDifference[] = conflictingKeys.map((key) => {
           const observation = extra.observations.get(key);
+          const definition = key === 'TotalRevenue' ? exxonRevenueDefinition(def, secFacts, currency, kind, end, row.get(key)!, extra, now) : undefined;
           return {
             field: key, currency, unit: 'raw monetary units', observations: [
-              { source: key === 'OperatingIncome' && operatingIncomeField(row) === 'TotalOperatingIncomeAsReported' ? 'Yahoo Finance statement time series TotalOperatingIncomeAsReported' : 'Yahoo Finance statement time series', value: row.get(key === 'OperatingIncome' ? operatingIncomeField(row) : key)!, end },
-              { source: extra.sources.get(key)!, value: extra.row.get(key)!, end: secEnd, ...(observation ? { start: observation.start, filed: observation.filed, concept: observation.concept, sourceUrl: observation.sourceUrl } : {}) },
+              { source: key === 'OperatingIncome' && operatingIncomeField(row) === 'TotalOperatingIncomeAsReported' ? 'Yahoo Finance statement time series TotalOperatingIncomeAsReported' : 'Yahoo Finance statement time series', value: row.get(key === 'OperatingIncome' ? operatingIncomeField(row) : key)!, end, ...(definition ? { label: definition.selectedLine } : {}) },
+              { source: extra.sources.get(key)!, value: extra.row.get(key)!, end: secEnd, ...(observation ? { start: observation.start, filed: observation.filed, concept: observation.concept, sourceUrl: observation.sourceUrl } : {}), ...(definition ? { label: definition.filedLine } : {}) },
             ],
             ...(key === 'TotalRevenue' && extra.revenueAlternatives?.length ? { revenueAlternatives: extra.revenueAlternatives } : {}),
+            ...(definition ? { definition } : {}),
           };
         });
         // Per-share figures follow net income to common shareholders, which restating revenue or operating income for
