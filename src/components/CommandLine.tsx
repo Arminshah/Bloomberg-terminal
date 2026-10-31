@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { execute } from '../terminal/exec';
 import { panelMessages, clearFlash, flash } from '../terminal/panel';
 import { turnPage, typedPageCount } from '../terminal/paging';
-import { back, forward, LINK_GROUPS, linkGroupOf, navigate, setLinkGroup, terminal, type LinkGroup } from '../terminal/state';
+import { back, navigate, terminal } from '../terminal/state';
 import { CHART_STYLES, primaryMnemonic, styledMnemonic } from '../terminal/legacy';
 import { settings } from '../terminal/settings';
 import { startSuggestions, suggest, type Suggestion } from '../terminal/suggest';
@@ -100,9 +100,6 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   const recallIndex = useRef(-1);
   const draft = useRef('');
   const msg = panelMessages.use((m) => m[panel]);
-  const canBack = terminal.use((s) => s.panels[panel].idx > 0);
-  const canFwd = terminal.use((s) => s.panels[panel].idx < s.panels[panel].history.length - 1);
-  const group = terminal.use((s) => linkGroupOf(s.panels[panel]));
   const mnemonics = settings.use((s) => s.mnemonics);
   const favIds = favourites.use((s) => s.ids);
   const recentSecs = terminal.use((s) => s.recentSecs);
@@ -312,24 +309,6 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       <span className="cmd-num" title={`Panel ${panel + 1}`}>
         {panel + 1}
       </span>
-      <select
-        className="cmd-link"
-        aria-label={`Panel ${panel + 1} security link group`}
-        title="Security link group: matching colors share selections across visible compatible panels. A linked monitor keeps its list open."
-        value={group}
-        style={{ color: LINK_GROUPS[group].color }}
-        onChange={(e) => setLinkGroup(panel, Number(e.target.value) as LinkGroup)}
-      >
-        {LINK_GROUPS.map((g) => <option key={g.id} value={g.id}>{g.id ? `${g.id} ${g.name}` : 'Unlinked'}</option>)}
-      </select>
-      <span className="cmd-nav">
-        <button type="button" aria-label="Back" title="Back (Backspace on empty line)" disabled={!canBack} onClick={() => back(panel)}>
-          ‹
-        </button>
-        <button type="button" aria-label="Forward" title="Forward" disabled={!canFwd} onClick={() => forward(panel)}>
-          ›
-        </button>
-      </span>
       <span className={`cmd-field${quoteShown ? ' as-quote' : ''}`} onMouseDown={() => setEditing(true)}>
       <input
         ref={inputRef}
@@ -366,9 +345,6 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       <span id={`cmd-route-${panel}`} className="sr-only">{`${routeText(route, mnemonics)}${fnDef ? ` · ${fnDef.name}` : ''}`}</span>
       </span>
       <span className="cmd-spacer" />
-      <button type="button" className="cmd-help" title="Help for this function" onClick={() => run(`HELP ${route.fn}`)}>
-        ?
-      </button>
       <button type="button" className="cmd-go" onMouseDown={(e) => e.preventDefault()} onClick={submit}>
         GO
       </button>

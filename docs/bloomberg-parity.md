@@ -39,6 +39,17 @@ Evidence: TE01 03:11 (AAPL DES), TE01 01:41 (GOOGL, whole window), TE04 04:55 (V
 - Unverified: what the signal bars mean; the small blue block some frames show at the row's left edge.
 - Checked: `e2e/look.spec.ts` (labels, order, colours, position above the red bar, typing and back), the whole browser suite.
 
+### M1.4 Toolbar row (E3)
+
+Evidence: TE01 03:11, TE06 04:15 (zoomed), TE01 01:41 (whole window, right end). Sampled: toolbar `#1A1A1A` on TE01 03:11.
+
+- Now: one row on `#1A1A1A` with plain light grey text and thin vertical rules, no boxes: back "<" and forward ">", the loaded security by name with its yellow key and "▾" ("APPLE INC Equity ▾"), the function's mnemonic "▾" ("DES ▾", "GPC ▾" for a candlestick chart), "Related Functions Menu" with a double chevron; at the right an envelope with "Message" (opens the app's MESSAGES), a window button and a yellow "?" with "▾" (function help, F1; M2.2 turns it into the help menu). The security and function are still the native lists, laid invisibly over their labels.
+- Moved: back and forward from the command row; the panel's link group (a coloured list, shown by name) and command recall "↶" sit before Message. They have no counterpart in the frames and stay as features.
+- Removed: the frame title above the toolbar ("1-ARMIN" with a green mnemonic badge), which the 2024 frames do not have (the tab strip is the title bar). Its maximise button is now the window button (same names for screen readers), and a double-click on the toolbar's empty part maximises and restores as the title did. The command row's "?" went; the toolbar's yellow "?▾" does the same.
+- Kept: the panel's number at the left of the command row (blue when the panel is active) and GO at its right end. Neither is in the frames; both are the app's own.
+- Unverified: what the window button's "▾" opens in the frames (not shown); here it maximises the panel.
+- Checked: `e2e/look.spec.ts` (order of the items, colours, no boxes, maximise by button and by double-click, Message), the whole browser and desktop suites.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

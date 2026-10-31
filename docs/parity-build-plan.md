@@ -22,7 +22,7 @@ Setup
 M1. Window chrome
 - [x] 1.1 Red function bar (`f2c4c62`)
 - [x] 1.2 Command line (`201adf0`)
-- [ ] 1.3 Two-line quote strip
+- [x] 1.3 Two-line quote strip (`3105797`)
 - [ ] 1.4 Toolbar row
 - [ ] 1.5 Autocomplete
 - [ ] 1.6 Section strips and the Suggested Functions footer

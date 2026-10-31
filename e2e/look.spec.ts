@@ -161,7 +161,7 @@ test('a colour-blind scheme turns rises blue in text, heat maps and charts, and 
   expect(errors).toEqual([]);
 });
 
-test("each panel's frame names its function and number, and maximises it alone and back", async ({ page }) => {
+test("each panel's toolbar names its security and function as the 2024 frames do, and maximises the panel alone and back", async ({ page }) => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('armin:terminal')) localStorage.setItem('armin:terminal', JSON.stringify({ v: 3, s: { layout: '4' } }));
   });
@@ -169,25 +169,42 @@ test("each panel's frame names its function and number, and maximises it alone a
   const panels = page.locator('.panel');
   await expect(panels).toHaveCount(4);
   await run(page, 'AAPL US Equity GP');
-  const frame = panels.first().locator('.panel-frame');
-  await expect(frame.locator('.panel-frame-mn')).toHaveText('GP');
-  await expect(frame.locator('.panel-frame-title')).toHaveText('1-ARMIN');
-  await expect(panels.nth(1).locator('.panel-frame-title')).toHaveText('2-ARMIN');
+  // No frame title above the toolbar: the tab strip is the window's title bar (TE01 03:11).
+  await expect(page.locator('.panel-frame')).toHaveCount(0);
+  const bar = panels.first().locator('.panel-toolbar');
+  // TE01 03:11, TE06 04:15: back, forward, the security by name with its yellow key, the function, the menu; then
+  // Message, the window button and the yellow help mark at the right.
+  await expect(bar.locator('.ptb-security .ptb-label')).toHaveText('APPLE INC Equity ▾');
+  await expect(bar.locator('.ptb-function .ptb-label')).toHaveText('GP ▾');
+  await expect(bar.getByRole('button', { name: /Related Functions Menu/ })).toBeVisible();
+  const order = await bar.locator('> *').evaluateAll((els) => els.map((el) => el.className.split(' ')[0]).filter((c) => c !== 'ptb-rule' && c !== 'ptb-gap'));
+  expect(order).toEqual(['ptb-nav', 'ptb-nav', 'ptb-pick', 'ptb-pick', 'panel-menu', 'cmd-link', 'panel-tool', 'ptb-message', 'ptb-window', 'ptb-help']);
+  // Plain light grey text on #1A1A1A, no boxes; the help mark is yellow with dark text.
+  const style = (loc: typeof bar, prop: string) => loc.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+  expect(await style(bar, 'background-color')).toBe('rgb(26, 26, 26)');
+  expect(await style(bar.locator('.panel-menu'), 'background-color')).toBe('rgba(0, 0, 0, 0)');
+  expect(await style(bar.locator('.panel-menu'), 'border-top-width')).toBe('0px');
+  expect(await style(bar, 'color')).toBe('rgb(213, 213, 214)');
+  expect(await style(bar.locator('.ptb-help-q'), 'background-color')).toBe('rgb(252, 225, 3)');
+  // The window button maximises the panel alone and restores the layout.
   const quarter = (await panels.nth(1).boundingBox())!;
   await panels.nth(1).getByRole('button', { name: 'Show panel 2 alone' }).click();
   await expect(page.locator('.panel:visible')).toHaveCount(1);
-  // Alone, it takes the room of all four.
   const alone = (await panels.nth(1).boundingBox())!;
   expect(alone.width).toBeGreaterThan(quarter.width * 1.95);
   expect(alone.height).toBeGreaterThan(quarter.height * 1.95);
   await panels.nth(1).getByRole('button', { name: 'Show every panel again' }).click();
   await expect(page.locator('.panel:visible')).toHaveCount(4);
-  // A double-click on the title does the same; the first panel kept its chart while hidden.
-  await frame.dblclick();
+  // A double-click on the toolbar's empty part does the same; the first panel kept its chart while hidden.
+  const free = (await bar.locator('.ptb-gap').boundingBox())!;
+  await page.mouse.dblclick(free.x + free.width / 2, free.y + free.height / 2);
   await expect(page.locator('.panel:visible')).toHaveCount(1);
   await expect(panels.first().locator('.fnh-code')).toHaveText('CHART');
-  await frame.dblclick();
+  await page.mouse.dblclick(free.x + free.width / 2, free.y + free.height / 2);
   await expect(page.locator('.panel:visible')).toHaveCount(4);
+  // Message opens the app's help desk.
+  await bar.locator('.ptb-message').click();
+  await expect(panels.first().locator('.fnh-code')).toHaveText('MESSAGES');
   expect(errors).toEqual([]);
 });
 
