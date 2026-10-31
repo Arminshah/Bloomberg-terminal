@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { actionLabel, position, useAnalystActions, type AnalystAction, type Position } from '../data/live/analyst-actions';
+import { actionLabel, latestByFirm, position, ratingTone, useAnalystActions, type AnalystAction, type Position } from '../data/live/analyst-actions';
 import { NotConnected } from '../components/NotConnected';
 import { Chg, HBar, KV, LivePx, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtIso, fmtNum, fmtPct, fmtTime } from '../core/format';
@@ -226,6 +226,7 @@ export function ANR({ sec }: FnProps) {
           </>
         )}
       </Section> : null}
+      {actions?.rows?.length ? <FirmRatings rows={actions.rows} /> : null}
       {actions?.rows?.length ? (
         <Section title="Recent rating actions" right={`${actions.rows.length} actions · MarketBeat · received ${fmtDay(actions.at)}${actions.stale ? ' · STALE: the latest request failed' : ''}`}>
           <RatingActions rows={actions.rows} last={engine.quote(s.id)?.last ?? NaN} />
@@ -267,6 +268,47 @@ export function ANR({ sec }: FnProps) {
         Targets, ratings and estimates are provider consensus and analyst opinions, not forecasts calculated by this app. Each dataset keeps its own source, fiscal/per-share basis and retrieval time. Yahoo fallback has no equivalent to FMP&apos;s period-average target history, so that dataset remains unavailable when FMP denies it. Finnhub supplies recommendation counts, not price targets. Research is cached for hours; opening this screen does not poll it continuously.
       </div>
     </div>
+  );
+}
+
+/**
+ * ANR's analyst table: each firm once with its analyst, its latest rating in its own words (coloured by meaning, an
+ * upgrade marked), its latest target and the date, newest first. The provider's per-analyst return, BARR and rank are
+ * its own measures and have no free source.
+ */
+function FirmRatings({ rows }: { rows: AnalystAction[] }) {
+  const firms = latestByFirm(rows);
+  const rated = firms.filter((f) => f.rating).length;
+  return (
+    <Section title={`Showing ${rated} of ${firms.length} sources`} right="MarketBeat, each firm's latest action">
+      <table className="tbl anr-firms">
+        <thead>
+          <tr>
+            <th className="num">#</th>
+            <th>Firm</th>
+            <th>Analyst</th>
+            <th>Recommendation</th>
+            <th className="num">Tgt Px</th>
+            <th>Date↓</th>
+          </tr>
+        </thead>
+        <tbody>
+          {firms.map((f, i) => (
+            <tr key={f.firm} className={f.rating ? undefined : 'muted'}>
+              <td className="num">{i + 1})</td>
+              <td className="amber ellipsis">{f.firm}</td>
+              <td className="white ellipsis">{f.analyst}</td>
+              <td className={ratingTone(f.rating)} title={f.rating ? `${f.firm}'s own words${f.upgraded ? ', an upgrade' : f.downgraded ? ', a downgrade' : ''}` : 'No rating among its actions'}>
+                {f.upgraded ? <span className="up">⬆ </span> : f.downgraded ? <span className="dn">⬇ </span> : null}
+                {f.rating || '--'}
+              </td>
+              <td className="num dn">{Number.isFinite(f.target) ? fmtNum(f.target, 2) : ''}</td>
+              <td className="white">{fmtDay(Date.parse(`${f.date}T00:00:00Z`))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Section>
   );
 }
 
