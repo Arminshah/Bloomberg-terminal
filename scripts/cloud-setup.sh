@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Existing cloud checkouts are isolated already; use this checkout without a worktree.
-cd /workspace/Bloomberg-terminal
+# Existing cloud checkouts are isolated already; use this checkout without a worktree. The repository was renamed
+# Armin-terminal on 31 October 2026, so the checkout is found from this script rather than by its folder's name.
+cd "$(dirname "$0")/.."
 export npm_config_cache=/workspace/.npm-cache
 export electron_config_cache=/workspace/.cache/electron
 export NODE_USE_ENV_PROXY=1

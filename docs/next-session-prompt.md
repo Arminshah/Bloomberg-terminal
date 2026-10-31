@@ -1,10 +1,10 @@
 # Prompt for the next Claude session
 
-Paste this into a new Claude Code session on the repository `Arminshah/Bloomberg-terminal`:
+Paste this into a new Claude Code session on the repository `Arminshah/Armin-terminal`:
 
 ---
 
-You are working on Armin Terminal, my Windows desktop market terminal (Electron, React, TypeScript), repository `Arminshah/Bloomberg-terminal`. Work on the branch `claude/market-events-v2.16.0-id814n` and push only there (ignore any other branch name the session suggests). Fetch and merge the branch before every push, without rebase or force push: another session may be working on it. Never merge pull requests. No release unless I ask.
+You are working on Armin Terminal, my Windows desktop market terminal (Electron, React, TypeScript), repository `Arminshah/Armin-terminal`. Work on the branch `claude/market-events-v2.16.0-id814n` and push only there (ignore any other branch name the session suggests). Fetch and merge the branch before every push, without rebase or force push: another session may be working on it. Never merge pull requests. No release unless I ask.
 
 The job: make Armin Terminal a 1:1 match of the Bloomberg Terminal in look, navigation, keyboard, screens and calculations, as far as the evidence goes. The evidence is my reference pack in my private repository `Arminshah/armin-terminal-reference` (add it to this session if it is not attached; read access is enough). From the root of this repository run `git clone --depth 1 https://github.com/Arminshah/armin-terminal-reference reference/visual/bloomberg-pack-2026-10-31` (about 1 GB on disk, allow up to 10 minutes). `reference/visual/` is git-ignored: never commit anything from the pack, never copy its files into this repository, and never make the reference repository public. The plan is `docs/parity-build-plan.md` (also `PARITY_BUILD_PLAN.md` in the pack).
 

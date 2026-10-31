@@ -147,7 +147,7 @@ function nasdaqAgent() {
   return `ArminTerminal/${app.getVersion()}`;
 }
 function clientAgent() {
-  return `ArminTerminal/${app.getVersion()} (+https://github.com/arminshah/bloomberg-terminal)`;
+  return `ArminTerminal/${app.getVersion()} (+https://github.com/arminshah/armin-terminal)`;
 }
 // What the page may ask Yahoo for, and what is removed from the answers (electron/yahoo-scope.cjs).
 const { ALLOWED, yahooRequest, withoutRestricted } = require('./yahoo-scope.cjs');

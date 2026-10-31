@@ -42,7 +42,7 @@ This is an independent project, not affiliated with Bloomberg L.P. It does not h
 
 ## Download
 
-From the [Releases page](https://github.com/arminshah/bloomberg-terminal/releases):
+From the [Releases page](https://github.com/arminshah/armin-terminal/releases):
 
 | System | File | |
 | --- | --- | --- |

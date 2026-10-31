@@ -1,6 +1,6 @@
 # Installing and starting
 
-The desktop app runs on Windows (64-bit). Download it from the [Releases page](https://github.com/arminshah/bloomberg-terminal/releases); when the repository is private, sign in to GitHub first.
+The desktop app runs on Windows (64-bit). Download it from the [Releases page](https://github.com/arminshah/armin-terminal/releases); when the repository is private, sign in to GitHub first.
 
 ## Windows
 
