@@ -645,7 +645,7 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 }
 /* The loaded security sits in an amber field at the left end of the red bar, as on the terminal's function screens. */
 .fnh-sec { flex: none; align-self: stretch; display: inline-flex; align-items: center; margin: -2px 0 -2px -6px; padding: 0 8px; background: var(--amber); color: #2d0000; font-family: var(--mono); font-weight: 500; white-space: nowrap; }
-.fnh-name { color: var(--white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 0 auto; max-width: 45%; }
+.fnh-name { color: #86d8de; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 0 auto; max-width: 45%; }
 .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0 !important; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* "Page 2/5" sits on the function bar beside the title, as the terminal shows multi-page screens. */
 .fnh-page { flex: none; border: 0; padding: 0 6px; background: transparent; color: var(--white); font-size: var(--fs-s); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -713,6 +713,22 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .tabs-plain .tab { border: 0; padding: 1px 16px 1px 10px; background: #464646; color: #e0e0e0; clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 100%, 0 100%); }
 .tabs-plain .tab:hover { background: #575757; }
 .tabs-plain .tab.on { background: #a19fa2; color: #000; }
+.tabs-plain .tab b { color: inherit; font-weight: 500; }
+/* FA's second row of views (TE04 04:55): a light grey band, dark labels with yellow numbers, the chosen one in blue. */
+.subtabs { display: flex; gap: 0; padding: 0 6px; background: #8f8d8e; overflow-x: auto; scrollbar-width: none; font-family: var(--sans); }
+.subtabs::-webkit-scrollbar { display: none; }
+.subtab { flex: none; border: 0; padding: 0 12px; background: transparent; color: #111; white-space: nowrap; font-size: var(--fs-s); }
+.subtab b { color: #3a3a3a; font-weight: 500; margin-right: 1px; }
+.subtab:hover { background: #a3a1a2; }
+.subtab.on { background: #1f5da6; color: #fff; }
+.subtab.on b { color: #fce154; }
+/* A red bar item's dropdown (TE02 04:43): the bar's red, white entries, groups split by a dark line. */
+.fnh-actions .act .act-caret { margin-left: 5px; font-size: 0.8em; }
+.red-drop { position: fixed; z-index: 80; min-width: 190px; padding: 3px 0; background: #870e1f; border: 1px solid #28021b; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6); font-family: var(--sans); }
+.red-drop-item { display: block; width: 100%; padding: 2px 16px; border: 0; background: transparent; color: #fff; text-align: left; white-space: nowrap; font-size: var(--fs); }
+.red-drop-item.sep { margin-top: 3px; padding-top: 5px; border-top: 2px solid #4f0006; }
+.red-drop-item:hover:not(:disabled), .red-drop-item:focus-visible { background: #a32929; outline: 0; }
+.red-drop-item:disabled { color: #c98a93; }
 
 .qstrip { display: flex; align-items: baseline; gap: 0 12px; min-width: 0; overflow: hidden; white-space: nowrap; }
 .qstrip .px { font-size: var(--fs-xl); font-weight: 600; color: var(--white); }
@@ -1533,16 +1549,44 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .most-tbl td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* FA: controls in the header, estimate columns, graph icons and the paging bar. */
-.fa-tools { border-bottom: 0; background: transparent; padding: 3px 7px; }
+.fa-tools { flex: 1 1 auto; min-width: 0; border-bottom: 0; background: transparent; padding: 0 0 0 6px; }
 .fa-tools .fa-src { margin-left: auto; }
-.fa-tbl th.fa-est, .fa-tbl td.fa-est { background: rgba(255, 158, 27, 0.06); color: #ffd28a; }
-.fa-graph { background: none; border: 0; color: #6f8fb5; width: 14px; height: 12px; padding: 0; margin-right: 5px; vertical-align: -1px; cursor: pointer; }
-.fa-graph svg { width: 10px; height: 10px; }
-.fa-graph:hover { color: var(--white); }
-.fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid var(--line); background: var(--bg-1); }
-.fa-bottom > button { background: #2b2b2b; border: 1px solid #444; color: var(--white); padding: 0 6px; }
-.fa-bottom > button:disabled { color: var(--faint); }
+.fnh-context:has(.fa-tools) { flex-wrap: wrap; }
+/* FA's grid as TE04 04:55 draws it: black rows, thin dark lines between the columns, the Current/LTM column on grey. */
+.fa-tbl td + td, .fa-tbl th + th { border-left: 1px solid #1d1d1d; }
+.fa-tbl th.fa-ltm, .fa-tbl td.fa-ltm { background: #282828; }
+.fa-tbl tr.fa-gap td { height: var(--row, 20px); padding: 0; border: 0; }
+.fa-tbl .fa-extra { border-left-color: #333; }
+.fa-graph { background: none; border: 0; color: #2f6fd6; width: 14px; height: 12px; padding: 0; margin-right: 5px; vertical-align: -1px; cursor: pointer; }
+.fa-graph svg { width: 11px; height: 11px; }
+.fa-graph:hover, .fa-graph.on { color: #7fb0ff; }
+/* Graph mode (TE04 05:19): the lines with tick boxes at the left, the chart at the right. */
+.fa-graph-mode { display: grid; grid-template-columns: minmax(170px, 260px) 1fr; border-bottom: 1px solid #1d1d1d; }
+.fa-gl { padding: 4px 0; border-right: 1px solid #333; overflow-y: auto; max-height: 420px; }
+.fa-gl-row { display: flex; align-items: center; gap: 7px; padding: 1px 8px; white-space: nowrap; cursor: pointer; }
+.fa-gl-row:hover { background: #1e1e1e; }
+.fa-gl-gap { height: var(--row, 20px); }
+.fa-tbl .fa-indent { padding-left: 16px; }
+.fa-gc { min-width: 0; display: flex; flex-direction: column; }
+.fa-gc-bar { display: flex; align-items: center; gap: 10px; padding: 3px 8px; background: #000; border-bottom: 1px solid #1d1d1d; }
+.fa-gc-table { margin-left: auto; }
+.fa-gc-bar .link-btn { color: var(--amber); }
+@media (max-width: 760px) { .fa-graph-mode { grid-template-columns: 1fr; } .fa-gl { max-height: 180px; border-right: 0; } }
+/* FA Segments (PT_FA_business_drivers 0:17.0): the switches above the grid, the fold arrows and the grey share rows. */
+.seg-ctl { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: #000; border-bottom: 1px solid #1d1d1d; }
+.seg-tg { display: inline-flex; gap: 2px; }
+.seg-tg button { border: 0; padding: 0 8px; background: #3a3a3a; color: #e8e8e8; font-size: var(--fs-s); }
+.seg-tg button.on { background: #1f5da6; color: #fff; }
+.seg-tg button:disabled { color: #777; }
+.seg-fold { display: inline-block; width: 14px; margin-right: 4px; padding: 0; border: 0; background: none; color: #e8e8e8; text-align: center; cursor: pointer; }
+.seg-tbl { margin-bottom: 10px; }
+.fa-set { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--white); }
+.fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid #1d1d1d; background: #000; }
+.fa-bottom > button { background: #434142; border: 0; color: var(--white); padding: 0 12px; }
+.fa-bottom > button:disabled { color: #8a8a8a; }
 .fa-bottom .fa-next { margin-left: 12px; color: var(--amber); display: inline-flex; gap: 6px; align-items: center; }
+.fa-bottom .fa-next .link { color: var(--white); }
+.fa-bottom .fa-next .fa-next-fn { margin-left: 10px; }
 .fa-bottom .link, .link-btn { background: none; border: 0; color: var(--cyan); padding: 0; cursor: pointer; }
 .dvd-top { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 10px; padding: 4px 8px; align-items: start; }
 @media (max-width: 760px) { .dvd-top { grid-template-columns: 1fr; } }

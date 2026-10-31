@@ -426,6 +426,57 @@ test('DES pages and numbered boxes, the security in the red bar and typed chart 
   expect(errors).toEqual([]);
 });
 
+test('FA as TE04 04:55 draws it: numbered grey tabs, views from 11), dropdowns on the red bar and its settings', async ({ page }) => {
+  const errors = await boot(page, '1');
+  const panel = page.locator('.panel').first();
+  await run(page, 'FA AAPL');
+  await expect(panel.locator('.fnh-title')).toHaveText('Financial Analysis');
+  // Numbered tabs, the chosen one light grey with black text; the page's views on a grey band, numbered from 11.
+  await expect(panel.locator('.tab')).toHaveText(['1) Key Stats', '2) I/S', '3) B/S', '4) C/F', '5) Ratios', '6) Segments']);
+  expect(await panel.locator('.tab.on').evaluate((el) => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color])).toEqual(['rgb(161, 159, 162)', 'rgb(0, 0, 0)']);
+  await expect(panel.locator('.subtab')).toHaveText(['11) GAAP Highlights', '12) Enterprise Value', '13) Multiples', '14) Per Share']);
+  await expect(panel.locator('.subtab.on')).toHaveText('11) GAAP Highlights');
+  // Lines amber, breakdowns white, growth and margins grey, an empty row between the groups.
+  const colour = (text: string) => panel.locator('.fa-tbl tbody td:first-child', { hasText: text }).first().evaluate((el) => getComputedStyle(el).color);
+  expect(await colour('Market Capitalization')).toBe('rgb(255, 158, 27)');
+  expect(await colour('- Cash & Equivalents')).toBe('rgb(255, 255, 255)');
+  expect(await colour('Growth %, YoY')).toBe('rgb(143, 143, 143)');
+  await expect(panel.locator('tr.fa-gap')).toHaveCount(2);
+  // TE04 05:19: a line's chart button opens the graph, the lines ticked in a list at its left; Table goes back.
+  await panel.getByRole('button', { name: 'Graph Market Capitalization' }).click();
+  const graph = panel.getByTestId('fa-graph');
+  await expect(graph.locator('.fa-gl-row input:checked')).toHaveCount(1);
+  await graph.locator('.fa-gl-row', { hasText: 'Enterprise Value' }).locator('input').check();
+  await expect(graph.locator('.fa-gl-row input:checked')).toHaveCount(2);
+  await expect(graph.locator('canvas')).toBeVisible();
+  await graph.getByRole('button', { name: 'Table' }).click();
+  await expect(panel.getByTestId('fa-graph')).toHaveCount(0);
+  await run(page, '13');
+  await expect(panel.locator('.subtab.on')).toHaveText('13) Multiples');
+  await expect(panel.locator('.fa-tbl tbody td:first-child', { hasText: 'Price / Earnings' })).toBeVisible();
+  await run(page, '2');
+  await expect(panel.locator('.subtab')).toHaveText(['11) GAAP', '12) GAAP %']);
+  await run(page, '12');
+  await expect(panel.locator('.fa-tbl thead th').first()).toHaveText('In % of Revenue');
+  // 96) Actions and 97) Export open dropdowns under them on the red bar; Escape closes one.
+  await run(page, '96');
+  await expect(page.getByTestId('red-drop')).toContainText('Graph Fundamentals');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('red-drop')).toHaveCount(0);
+  await panel.getByRole('button', { name: /97\) Export/ }).click();
+  await expect(page.getByTestId('red-drop').getByRole('menuitem')).toHaveText(['Copy to Clipboard', 'Download as CSV']);
+  await page.keyboard.press('Escape');
+  // 98) Settings turns the app's own columns off and on.
+  await run(page, '98');
+  await expect(page.getByTestId('fa-settings')).toBeVisible();
+  await page.getByTestId('fa-settings').getByLabel('Trend column').uncheck();
+  await expect(panel.locator('.fa-tbl thead th', { hasText: 'Trend' })).toHaveCount(0);
+  await page.getByTestId('fa-settings').getByLabel('Trend column').check();
+  await page.getByTestId('fa-settings').locator('.dlg-btn', { hasText: 'Close' }).click();
+  await expect(panel.locator('.fa-tbl thead th', { hasText: 'Trend' })).toHaveCount(1);
+  expect(errors).toEqual([]);
+});
+
 test('bad commands explain themselves', async ({ page }) => {
   await boot(page, '1');
   await run(page, 'ZZZZ CHART');

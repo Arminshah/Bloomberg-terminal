@@ -8,6 +8,8 @@ export interface XYPoint {
   x: number;
   y: number;
   label?: string;
+  /** A bar's own colour, in place of its series' (an estimate year drawn dimmed). */
+  color?: string;
 }
 
 export interface XYSeries {
@@ -263,6 +265,7 @@ export function XYChart(props: Props) {
             const x = X(q.x) - (bw * barSeries.length) / 2 + bi * bw;
             const ya = Y(0);
             const yb = Y(q.y);
+            ctx.fillStyle = q.color ?? s.color;
             box(x, Math.min(ya, yb), bw - 1, Math.max(1, Math.abs(yb - ya)));
           }
           return;

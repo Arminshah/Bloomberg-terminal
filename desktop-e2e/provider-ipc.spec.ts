@@ -1377,17 +1377,25 @@ test("FINANCIALS' Segments page reads the latest 10-K's XBRL: segments, product 
   await command(page, 'FA AAPL SEG', 'FINANCIALS');
   const panel = page.locator('.panel').first();
   const seg = panel.getByTestId('seg-revenue-segment');
-  await expect(seg.locator('tbody tr').first()).toContainText('Americas', { timeout: 30_000 });
-  await expect(seg.locator('tbody tr').first()).toContainText('178,353');
-  await expect(seg.locator('thead')).toContainText('FY 2025');
-  await expect(seg.locator('tbody tr', { hasText: 'Total revenue (reported)' })).toContainText('416,161');
+  await expect(seg.locator('tbody tr.seg-line').first()).toContainText('Americas', { timeout: 30_000 });
+  await expect(seg.locator('tbody tr.seg-line').first()).toContainText('178,353');
+  await expect(seg.locator('thead')).toContainText('2025 Y');
+  // The measure's row carries the company's own total; each line's share of it is the grey row under the line.
+  await expect(seg.locator('tr.seg-measure')).toContainText('416,161');
+  await expect(seg.locator('tr.seg-share').first()).toContainText('42.86%');
   // iPhone, Mac, iPad and Wearables add up to Products, so they are shown within it.
-  const product = panel.getByTestId('seg-revenue-product').locator('tbody tr');
+  const product = panel.getByTestId('seg-revenue-product').locator('tbody tr.seg-line');
   await expect(product.nth(0)).toContainText('Products');
   await expect(product.nth(1)).toContainText('iPhone');
   await expect(product.nth(1)).toContainText('209,586');
-  await expect(panel.getByTestId('seg-revenue-geography')).toContainText('United States');
   await expect(panel.getByTestId('seg-operating-segment')).toContainText('72,480');
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-fa-segments.png') });
+  // Group By Segment puts each segment's revenue and profit together; Location shows the regions.
+  await panel.getByRole('button', { name: 'Segment', exact: true }).click();
+  await expect(panel.getByTestId('seg-by-segment-segment')).toContainText('Operating Income');
+  await panel.getByRole('button', { name: 'Measure', exact: true }).click();
+  await panel.getByRole('button', { name: 'Location', exact: true }).click();
+  await expect(panel.getByTestId('seg-revenue-geography')).toContainText('United States');
   await expect(panel.getByTestId('fa-segments')).toContainText('10-K filed');
   // The 10-K, not the newer 10-Q: its folder, instance and labels.
   expect((await calls(app)).segments).toEqual([
