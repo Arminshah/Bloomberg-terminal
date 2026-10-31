@@ -527,7 +527,7 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'ssga',
     name: 'State Street (SPDR holdings files)',
-    serves: "SPY's holdings of the S&P 500's members, which weight SPX's members on the index boards and MEMB; DIA's holdings, the Dow's members when Yahoo gives none",
+    serves: "SPY's holdings of the S&P 500's members, which weight SPX's members on the index boards and MEMB and give DES their SEDOL and the CUSIP behind a US issuer's ISIN; DIA's holdings, the Dow's members when Yahoo gives none",
     dataClass: "Fund holdings as of the previous business day: a full-replication fund's shares, in proportion to the index's float-adjusted shares",
     policy: 'enabled',
     limit: '4/min',

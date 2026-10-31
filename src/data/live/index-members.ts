@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { cusipValid, sedolValid } from '../../core/identifiers';
 import { createStore } from '../../core/store';
 import { engine } from '../market';
 import { desktopData, yahooGet } from './yahoo';
@@ -238,6 +239,25 @@ async function loadHoldings(fund: 'SPY' | 'DIA'): Promise<SpdrHoldings | undefin
     bump((s) => ({ holdingsProblem: { ...s.holdingsProblem, [fund]: 'State Street did not answer.' } }));
   }
   return indexData.get().holdings[fund];
+}
+
+/**
+ * A US stock's CUSIP and SEDOL as SPY's holdings file lists them (S&P 500 members), loading the file once; undefined
+ * when SPY does not hold the stock or its codes fail their check digits.
+ */
+export function useFundIdentifiers(symbol: string | null): { cusip: string; sedol: string; asOf: string } | undefined {
+  indexData.use((s) => s.v);
+  useEffect(() => {
+    if (symbol && membersAvailable()) void loadHoldings('SPY');
+  }, [symbol]);
+  return symbol ? fundIdentifiers(indexData.get().holdings.SPY, symbol) : undefined;
+}
+
+/** A holding's CUSIP and SEDOL (blank when its check digit fails), with the file's date. */
+export function fundIdentifiers(file: SpdrHoldings | undefined, symbol: string): { cusip: string; sedol: string; asOf: string } | undefined {
+  const h = file?.holdings.find((x) => x.ticker === symbol);
+  if (!file || !h || !cusipValid(h.cusip)) return undefined;
+  return { cusip: h.cusip, sedol: sedolValid(h.sedol) ? h.sedol : '', asOf: file.asOf };
 }
 
 /** The Dow's members from DIA's holdings: its stock tickers, when the file lists 28 to 32 of them. */

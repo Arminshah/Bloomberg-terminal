@@ -16,6 +16,8 @@ import { dividends, earningsHistory, financials, holders, keyStats, nextEarnings
 import { desktopData, yahooSymbolFor } from '../data/live/yahoo';
 import { fundVersion, getRealFund, useFundamentalsFor, type RealFund } from '../data/live/yfund';
 import { loadFiler, resolveFiler, secAvailable, secTicker, useSecLoad } from '../data/live/sec';
+import { useFundIdentifiers } from '../data/live/index-members';
+import { US_STATES, usIsin } from '../core/identifiers';
 import { useFigiListings } from '../data/live/related';
 import { loadInsiders, summarize } from '../data/live/insiders';
 import { wantShares } from '../data/live/shares';
@@ -469,6 +471,12 @@ function IssueInfoPage({ sec }: { sec: SecurityDef }) {
   const insiders = useSecLoad(engine.realOnly && us && ticker ? `insiders6:${sec.id}` : null, () => loadInsiders(sec, 6));
   const figiAnswer = useFigiListings(engine.realOnly && us ? ticker : null);
   const figi = figiAnswer?.listings.find((l) => l.exchCode === 'US')?.figi;
+  // An S&P 500 member's CUSIP and SEDOL from State Street's SPY holdings; a company incorporated in a US state has the
+  // ISIN "US", its CUSIP and a check digit (ISO 6166). Others' ISINs carry their home country and are not derived.
+  const codes = useFundIdentifiers(engine.realOnly && us && ticker ? ticker.replace(/-/g, '.') : null);
+  const incorporation = filer.result?.ok ? filer.result.data.stateOfIncorporation : undefined;
+  const isin = codes && incorporation && US_STATES.has(incorporation) ? usIsin(codes.cusip) : '';
+  const fromSpy = codes ? `From State Street's SPY holdings as of ${codes.asOf}` : '';
   // Fund filings overlap with their managers' 13F positions, so the list counts managers only.
   const top = holders(sec).filter((x) => x.type !== 'Fund').slice(0, 7);
   const asOf = top.reduce((m, x) => (Number.isFinite(x.filed) && x.filed > m ? x.filed : m), NaN);
@@ -504,8 +512,8 @@ function IssueInfoPage({ sec }: { sec: SecurityDef }) {
               ['Pri MIC', marketIdentifier(sec.exch)],
               ['Incorp', filer.result?.ok && filer.result.data.stateOfIncorporation ? filer.result.data.stateOfIncorporation : us ? noSource : none('The state of incorporation comes from SEC filings, for US filers')],
               ['FIGI', figi ?? (us ? noSource : none('OpenFIGI is asked for US listings'))],
-              ['ISIN', noSource],
-              ['SEDOL1', noSource],
+              ['ISIN', isin ? <span key="isin" title={`${fromSpy}: "US", the CUSIP ${codes!.cusip} and its check digit (ISO 6166), the company being incorporated in ${incorporation}`}>{isin}</span> : noSource],
+              ['SEDOL1', codes?.sedol ? <span key="sedol" title={fromSpy}>{codes.sedol}</span> : noSource],
             ]}
           />
         </Section>

@@ -51,6 +51,7 @@ The 2.15 data-accuracy regressions are in `earnings-accuracy.test.ts`, `financia
 | `finance.test.ts` | Black-Scholes, Treasury math, indicators and statistics |
 | `contracts.test.ts` | Independent bond yield/price and finite-difference risk checks, zero-volatility option limits, covered interest parity, dual-curve swap PV/par/coupon/curve risk, date/curve/input boundaries |
 | `nasdaq-options.test.ts` | Nasdaq's option-chain request boundary, "Symbol not exists" as an answer, text figures and "--", OCC symbols from the row links, mismatched rows left out, the stock-then-ETF lookup, quote times and NDX's morning expiry |
+| `identifiers.test.ts` | CUSIP, ISIN and SEDOL check digits, a US issuer's ISIN from its CUSIP, the SEC's state codes, and the codes taken from SPY's holdings |
 | `spdr.test.ts` | State Street's holdings workbooks (a synthetic ZIP in their layout), the stock lines kept, layout changes, SPX weights from SPY's shares at each previous close, the fallback to market values, and DIA's Dow membership |
 | `bis-policy.test.ts` | The BIS's policy-rate CSV, the four banks it supplies, a failed check that keeps earlier levels, and the BIS named and credited on CENTRALBANKS and RATEANALYSIS |
 | `option-chain-analytics.test.ts` | Black's formula and its inversion, put-call parity, Greeks against bumped prices, the par curve, the implied forward, a whole synthetic chain, adjusted roots and a missing rate |
