@@ -8,9 +8,10 @@ import type { Bucket } from './port-intraday';
  * - Allocation = (portfolio weight − benchmark weight) × (benchmark bucket return − benchmark return)
  * - Selection = portfolio weight × (portfolio bucket return − benchmark bucket return)
  *
- * Weights are fractions, returns percent, effects percentage points. A bucket the benchmark does not hold takes the
- * portfolio's own return as its benchmark return, so its whole difference is allocation; a bucket the portfolio does
- * not hold has no selection.
+ * Weights are fractions, returns percent, effects percentage points. Both are worked from the bucket's contribution
+ * (portfolio weight × portfolio bucket return), so they add up whatever the weights' signs. A bucket the benchmark does
+ * not hold is all allocation (its contribution less its weight × the benchmark return); a bucket the portfolio does
+ * not hold has no selection. The portfolio's weights add to 100 with cash, so the effects add to the outperformance.
  */
 
 export interface AttrRow {
@@ -39,10 +40,15 @@ export function attribution(rows: Bucket[], total: Bucket): Attribution {
   const out: AttrRow[] = rows.map((r) => {
     const wp = r.wPort / 100;
     const wb = r.wBench / 100;
-    const rps = wp > 0 ? r.retPort : NaN;
-    const rbs = wb > 0 ? r.retBench : rps;
-    const allocation = wp === 0 && wb === 0 ? 0 : (wp - wb) * ((Number.isFinite(rbs) ? rbs : rb) - rb);
-    const selection = wp > 0 && Number.isFinite(rps) && Number.isFinite(rbs) ? wp * (rps - rbs) : 0;
+    let allocation = 0;
+    let selection = 0;
+    if (wb > 0) {
+      // From the bucket's contribution rather than its return, so a short or a hedge (a weight below zero) adds up too.
+      selection = wp !== 0 ? r.ctrPort - wp * r.retBench : 0;
+      allocation = (wp - wb) * (r.retBench - rb);
+    } else if (wp !== 0) {
+      allocation = r.ctrPort - wp * rb;
+    }
     return { name: r.name, wPort: r.wPort, wBench: r.wBench, retPort: r.retPort, retBench: r.retBench, allocation, selection, total: allocation + selection };
   });
   return {
@@ -55,10 +61,12 @@ export function attribution(rows: Bucket[], total: Bucket): Attribution {
   };
 }
 
-/** Each holding's share of its bucket's selection effect: its weight × (its return − its bucket's benchmark return). */
+/**
+ * Each holding's share of its bucket's selection effect: its weight × (its return − its bucket's benchmark return). A
+ * bucket the benchmark does not hold is all allocation, so its holdings have no selection share.
+ */
 export function securitySelection(rows: Bucket[]): { id?: string; name: string; bucket: string; effect: number }[] {
-  return rows.flatMap((r) => {
-    const rbs = r.wBench > 0 ? r.retBench : r.retPort;
-    return r.lines.map((l) => ({ id: l.id, name: l.name, bucket: r.name, effect: (l.weight / 100) * (l.ret - rbs) })).filter((x) => Number.isFinite(x.effect));
-  });
+  return rows.flatMap((r) =>
+    r.wBench > 0 ? r.lines.map((l) => ({ id: l.id, name: l.name, bucket: r.name, effect: (l.weight / 100) * (l.ret - r.retBench) })).filter((x) => Number.isFinite(x.effect)) : [],
+  );
 }

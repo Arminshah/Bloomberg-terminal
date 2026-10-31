@@ -1,13 +1,13 @@
 import { Fragment, useState, type ReactNode } from 'react';
-import { fmtNum, fmtSigned } from '../core/format';
+import { fmtDay, fmtNum, fmtSigned } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { BOARD_INDICES, membersAvailable, useIndexMembers } from '../data/live/index-members';
+import { BOARD_INDICES, membersAvailable, useIndexList, useIndexMembers } from '../data/live/index-members';
 import { CLASS_LABEL } from '../data/registry';
 import { COUNTRY_NAMES } from '../data/eco';
-import { buckets, movers, toWeights, type Bucket, type PortLine } from '../data/port-intraday';
+import { buckets, movers, type Bucket, type PortLine } from '../data/port-intraday';
 import { SecLink } from '../components/cells';
 import { portfolio } from '../terminal/userdata';
-import { basePerPrice } from '../terminal/portfolio';
+import { basePerPrice, isMargined, navValue } from '../terminal/portfolio';
 
 export type Classification = 'GICS Sector' | 'Country' | 'Asset Class';
 
@@ -24,49 +24,109 @@ const num = (v: number, dec = 2) => (Number.isFinite(v) && v !== 0 ? fmtNum(v, d
  * strip (contribution to return against the benchmark, the movers by bucket and by security), and the portfolio
  * against its benchmark by GICS sector: counts, weights, contributions and returns, with their differences.
  */
+/** Nasdaq's sector names on its stock list, as GICS sectors (used only when neither the S&P 500's list nor the app has one). */
+const NASDAQ_TO_GICS: Record<string, string> = {
+  Technology: 'Information Technology', Telecommunications: 'Communication Services', Finance: 'Financials', 'Basic Materials': 'Materials',
+  'Health Care': 'Health Care', 'Real Estate': 'Real Estate', 'Consumer Discretionary': 'Consumer Discretionary', 'Consumer Staples': 'Consumer Staples',
+  Industrials: 'Industrials', Energy: 'Energy', Utilities: 'Utilities',
+};
+
+export interface PortException {
+  id: string;
+  why: string;
+}
+
 /**
  * The portfolio against its benchmark, bucketed by `classification`: the figures the Intraday, Characteristics and
- * Attribution tabs share. The benchmark's members come from IMAP's index data (the desktop app); until they load, and
- * in the browser, `benchReady` is false and the benchmark's figures are left blank.
+ * Attribution tabs share.
+ *
+ * The portfolio's weights are each holding's exposure at the previous close over the net asset value then (securities
+ * at market, futures at full notional, shorts below zero, cash as a line), so they add to 100 and each contribution is
+ * the holding's day P&L over that value, the day return Holdings shows. A holding without a confirmed change or an
+ * exchange rate is an exception and leaves the totals blank.
+ *
+ * The benchmark's members come from IMAP's index data (the desktop app). Its columns wait until members holding 95% of
+ * its weight are priced; a sector's return is then its priced members'. Members of the Nasdaq-100 and the Dow take
+ * their GICS sector from the S&P 500's list, or the app's own, before Nasdaq's sector names.
  */
 export function usePortVsBench(classification: Classification = 'GICS Sector') {
   const st = portfolio.use((s) => s);
   const base = st.base ?? 'USD';
   const benchIsBoard = !!BOARD_INDICES[st.benchmark];
   const board = useIndexMembers(benchIsBoard ? st.benchmark : undefined);
-  const benchReady = !!board && board.members.some((m) => Number.isFinite(m.weight));
-  const bucketOf = (d: { cls: string; country: string; eq?: { sector: string } }) =>
-    classification === 'GICS Sector' ? d.eq?.sector ?? CLASS_LABEL[d.cls as keyof typeof CLASS_LABEL] : classification === 'Country' ? COUNTRY_NAMES[d.country] ?? d.country : CLASS_LABEL[d.cls as keyof typeof CLASS_LABEL];
-  const held = st.positions
-    .map((p) => {
-      const d = engine.get(p.id);
-      const q = engine.quote(p.id);
-      if (!d || !q) return null;
-      const ret = q.chgCheck === 'unverified' ? NaN : q.pct;
-      return { id: p.id, name: d.name, bucket: bucketOf(d), mv: p.qty * q.last * basePerPrice(d, base), ret };
-    })
-    .filter((x): x is NonNullable<typeof x> => !!x);
-  const port: PortLine[] = toWeights(held).map(({ mv: _mv, ...l }) => l);
+  const spxList = useIndexList(benchIsBoard && st.benchmark !== 'SPX Index' ? 'SPX Index' : undefined);
+  const gicsBySymbol = new Map((spxList?.members ?? []).map((m) => [m.symbol, m.sector]));
   const members = board?.members ?? [];
+  const weightAll = members.reduce((a, m) => a + (Number.isFinite(m.weight) ? m.weight : 0), 0);
+  const weightPriced = members.reduce((a, m) => a + (Number.isFinite(m.weight) && Number.isFinite(m.pct) ? m.weight : 0), 0);
+  const benchReady = weightAll > 0 && weightPriced >= 0.95 * weightAll;
+  const pricedCount = members.filter((m) => Number.isFinite(m.pct)).length;
+
+  const exceptions: PortException[] = [];
+  let navNow = Number.isFinite(st.cash) ? st.cash : 0;
+  let dayPnl = 0;
+  const raw: { id: string; name: string; bucket: string; exposure: number; ret: number; margined: boolean; value: number }[] = [];
+  for (const p of st.positions) {
+    const d = engine.get(p.id);
+    const q = engine.quote(p.id);
+    if (!d || !q) {
+      exceptions.push({ id: p.id, why: d ? 'no price yet' : 'unknown security' });
+      continue;
+    }
+    const k = basePerPrice(d, base);
+    if (!Number.isFinite(k)) exceptions.push({ id: p.id, why: `no exchange rate into ${base} yet` });
+    const confirmed = q.chgCheck !== 'unverified' && Number.isFinite(q.chg) && Number.isFinite(q.pct);
+    if (!confirmed) exceptions.push({ id: p.id, why: 'no confirmed day change yet' });
+    const prev = confirmed ? q.last - q.chg : q.last;
+    navNow += navValue(d, p.qty, q.last, p.cost, base);
+    if (confirmed) dayPnl += p.qty * q.chg * k;
+    const bucket = classification === 'GICS Sector' ? d.eq?.sector ?? CLASS_LABEL[d.cls] : classification === 'Country' ? COUNTRY_NAMES[d.country] ?? (d.country || 'Unclassified') : CLASS_LABEL[d.cls];
+    raw.push({ id: p.id, name: d.name, bucket, exposure: p.qty * prev * k, ret: confirmed ? q.pct : NaN, margined: isMargined(d), value: p.qty * q.last * k });
+  }
+  const navPrev = navNow - dayPnl;
+  const navOk = Number.isFinite(navPrev) && navPrev > 0;
+  const port: PortLine[] = raw.map((r) => ({ id: r.id, name: r.name, bucket: r.bucket, weight: navOk ? (r.exposure / navPrev) * 100 : NaN, ret: r.ret }));
+  const held = port.reduce((a, l) => a + (Number.isFinite(l.weight) ? l.weight : 0), 0);
+  if (navOk && port.length && Math.abs(100 - held) > 1e-6) port.push({ name: 'Cash and Financing', bucket: 'Cash', weight: 100 - held, ret: 0 });
+  if (!navOk && st.positions.length) exceptions.push({ id: st.name, why: 'net asset value not positive or not known' });
+
+  let mapped = 0;
+  const sectorOf = (m: (typeof members)[number]) => {
+    if (st.benchmark === 'SPX Index') return m.sector || 'Unclassified';
+    const fromSpx = gicsBySymbol.get(m.symbol);
+    if (fromSpx) return fromSpx;
+    const own = m.id ? engine.get(m.id)?.eq?.sector : undefined;
+    if (own) return own;
+    if (NASDAQ_TO_GICS[m.sector]) {
+      mapped++;
+      return NASDAQ_TO_GICS[m.sector];
+    }
+    return m.sector && Object.values(NASDAQ_TO_GICS).includes(m.sector) ? m.sector : 'Unclassified';
+  };
   const bench: PortLine[] = members.map((m) => ({
     id: m.id,
     name: m.name,
-    bucket: classification === 'GICS Sector' ? m.sector || 'Unclassified' : classification === 'Country' ? COUNTRY_NAMES[m.country] ?? m.country : 'Equity',
+    bucket: classification === 'GICS Sector' ? sectorOf(m) : classification === 'Country' ? COUNTRY_NAMES[m.country] ?? (m.country || 'Unclassified') : 'Equity',
     weight: m.weight * 100,
     ret: m.pct,
   }));
   const { rows, total } = buckets(port, bench, classification === 'GICS Sector' ? undefined : []);
   const benchName = engine.get(st.benchmark)?.ticker ?? st.benchmark;
-  const exceptions = st.positions.filter((p) => !engine.get(p.id) || !Number.isFinite(engine.quote(p.id)?.pct ?? NaN));
-  const mvTotal = held.reduce((x, h) => x + (Number.isFinite(h.mv) ? h.mv : 0), 0);
+  const secValue = raw.reduce((a, r) => a + (!r.margined && Number.isFinite(r.value) ? r.value : 0), 0);
+  const futNotional = raw.reduce((a, r) => a + (r.margined && Number.isFinite(r.value) ? r.value : 0), 0);
+  const weightsFrom = board?.weightsFrom
+    ? `State Street's SPY holdings of ${fmtDay(Date.parse(`${board.weightsFrom.asOf}T00:00:00Z`))} at each member's previous close`
+    : BOARD_INDICES[st.benchmark]?.weighting === 'price'
+      ? "the members' previous closes (the index is price-weighted)"
+      : "estimates from Nasdaq's market values (the index's own float adjustments are not published)";
   const benchNote = benchReady
-    ? `Benchmark weights: ${BOARD_INDICES[st.benchmark].from}; members' day changes from their previous close.`
+    ? `Benchmark weights: ${weightsFrom}; members' day changes from their previous close${pricedCount < members.length ? `; ${pricedCount} of ${members.length} members priced, a sector's return is its priced members'` : ''}${mapped ? `; ${mapped} members' sectors mapped from Nasdaq's names` : ''}.`
     : benchIsBoard
       ? membersAvailable()
-        ? `Loading ${benchName}'s members…`
+        ? `Loading ${benchName}'s members and prices (${pricedCount} of ${members.length || '…'} priced)…`
         : `${benchName}'s members load in the desktop app; the benchmark columns are blank here.`
       : `${benchName} has no member list here: the benchmark columns need the S&P 500, the Nasdaq-100 or the Dow (set it on 7) Performance).`;
-  return { st, base, benchIsBoard, benchReady, members, port, bench, rows, total, benchName, exceptions, mvTotal, benchNote };
+  return { st, base, benchIsBoard, benchReady, members, port, bench, rows, total, benchName, exceptions, nav: navNow, secValue, futNotional, benchNote };
 }
 
 export function PortIntraday({ onHoldings }: { onHoldings?: () => void }) {
@@ -187,7 +247,7 @@ export function PortIntraday({ onHoldings }: { onHoldings?: () => void }) {
                         <td className="num">{l.wBench > 0 ? 1 : ''}</td>
                         <td className="num">{num(l.weight)}</td>
                         <td className="num">{l.wBench > 0 ? num(l.wBench) : ''}</td>
-                        {diffCell(l.weight - l.wBench)}
+                        {diffCell(benchReady ? l.weight - l.wBench : NaN)}
                         <td className="num"><Signed v={l.ctr} /></td>
                         <td className="num" />
                         {diffs ? <td className="num" /> : null}
@@ -202,7 +262,7 @@ export function PortIntraday({ onHoldings }: { onHoldings?: () => void }) {
           </tbody>
         </table>
         <div className="port-foot">
-          <span className={exceptions.length ? 'dn' : 'muted'} title={exceptions.map((p) => p.id).join(', ')}>Exceptions ({exceptions.length})</span>
+          <span className={exceptions.length ? 'dn' : 'muted'} title={exceptions.map((x) => `${x.id}: ${x.why}`).join('\n')} data-testid="port-exceptions">Exceptions ({exceptions.length})</span>
           <span className="muted">{benchNote}</span>
         </div>
       </div>

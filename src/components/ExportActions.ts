@@ -24,7 +24,7 @@ export function exportActions(panel: number, filename: string, rows: () => (stri
       title: 'Download the table as a CSV file',
       onClick: () => {
         const ok = downloadText(filename, toCsv(rows()));
-        flash(panel, ok ? `Saved ${filename}` : 'Downloads are blocked here; use 98) Copy', ok ? 'info' : 'error');
+        flash(panel, ok ? `Saved ${filename}` : 'Downloads are blocked here; use Copy instead', ok ? 'info' : 'error');
       },
     });
   }

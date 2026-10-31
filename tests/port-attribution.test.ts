@@ -44,9 +44,69 @@ describe('PORT Attribution', () => {
   it("splits a bucket's selection over its holdings", () => {
     const sel = securitySelection(rows);
     expect(sel.find((s) => s.id === 'AAPL')!.effect).toBeCloseTo(0.15, 12);
-    // Energy's only holding against its own bucket's return: no selection.
-    expect(sel.find((s) => s.id === 'XOM')!.effect).toBeCloseTo(0, 12);
+    // Energy is not in the benchmark: the sector is all allocation, so its holding has no selection share.
+    expect(sel.find((s) => s.id === 'XOM')).toBeUndefined();
     const it = sel.filter((s) => s.bucket === 'Information Technology').reduce((x, s) => x + s.effect, 0);
     expect(it).toBeCloseTo(row('Information Technology').selection, 12);
+  });
+});
+
+describe('PORT Attribution with shorts and hedges', () => {
+  // Weights of net asset value with cash, so they add to 100 whatever their signs.
+  const bench: PortLine[] = [
+    { id: 'AAPL', name: 'Apple', bucket: 'Information Technology', weight: 60, ret: 1 },
+    { id: 'XOM', name: 'Exxon', bucket: 'Energy', weight: 10, ret: -1 },
+    { id: 'JPM', name: 'JPMorgan', bucket: 'Financials', weight: 30, ret: -1.5 },
+  ];
+
+  it('adds up with a short in a sector the benchmark holds', () => {
+    const port: PortLine[] = [
+      { id: 'AAPL', name: 'Apple', bucket: 'Information Technology', weight: 100, ret: 1 },
+      { id: 'XOM', name: 'Exxon', bucket: 'Energy', weight: -20, ret: -2 },
+      { name: 'Cash', bucket: 'Cash', weight: 20, ret: 0 },
+    ];
+    const { rows, total } = buckets(port, bench);
+    const a = attribution(rows, total);
+    expect(a.allocation + a.selection).toBeCloseTo(a.active, 12);
+    // The short's selection: −0.2 × (−2 − (−1)) = +0.2.
+    expect(a.rows.find((r) => r.name === 'Energy')!.selection).toBeCloseTo(0.2, 12);
+  });
+
+  it('adds up with a hedge in a sector the benchmark lacks', () => {
+    const port: PortLine[] = [
+      { id: 'AAPL', name: 'Apple', bucket: 'Information Technology', weight: 200, ret: 1 },
+      { id: 'ES1', name: 'S&P 500 future', bucket: 'Futures', weight: -100, ret: 1 },
+    ];
+    const { rows, total } = buckets(port, bench);
+    const a = attribution(rows, total);
+    expect(total.retPort).toBeCloseTo(1, 12);
+    expect(a.allocation + a.selection).toBeCloseTo(a.active, 12);
+    // The hedge's sector: its contribution −1 less its weight × the benchmark's return.
+    expect(a.rows.find((r) => r.name === 'Futures')!.allocation).toBeCloseTo(-1 - -1 * total.retBench, 12);
+  });
+
+  it('leaves the portfolio blank where a holding has no confirmed change', () => {
+    const port: PortLine[] = [
+      { id: 'AAPL', name: 'Apple', bucket: 'Information Technology', weight: 50, ret: 2 },
+      { id: 'MSFT', name: 'Microsoft', bucket: 'Information Technology', weight: 50, ret: NaN },
+    ];
+    const { rows, total } = buckets(port, bench);
+    const it = rows.find((r) => r.name === 'Information Technology')!;
+    expect(it.portMissing).toBe(1);
+    expect(it.ctrPort).toBeNaN();
+    expect(total.retPort).toBeNaN();
+    expect(attribution(rows, total).active).toBeNaN();
+  });
+
+  it("measures a benchmark sector by its priced members, not counting the others as 0%", () => {
+    const partly: PortLine[] = [
+      { id: 'AAPL', name: 'Apple', bucket: 'Information Technology', weight: 50, ret: 2 },
+      { id: 'MSFT', name: 'Microsoft', bucket: 'Information Technology', weight: 50, ret: NaN },
+    ];
+    const { rows } = buckets([], partly);
+    const it = rows.find((r) => r.name === 'Information Technology')!;
+    expect(it.retBench).toBeCloseTo(2, 12);
+    expect(it.benchPricedWeight).toBe(50);
+    expect(it.ctrBench).toBeCloseTo(2, 12);
   });
 });
