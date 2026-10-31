@@ -20,17 +20,6 @@ async function boot(page: Page) {
   return errors;
 }
 
-test("ANALYSTS' summary has ANR's lines in their order, the pricing currency among them", async ({ page }) => {
-  const errors = await boot(page);
-  await run(page, 'AAPL ANALYSTS');
-  const panel = page.locator('.panel').first();
-  await expect(panel.locator('.fnh-code')).toHaveText('ANALYSTS');
-  const labels = (await panel.locator('.anr-snap dt').allTextContents()).map((t) => t.trim());
-  expect(labels).toEqual(['Consensus Rating', 'Buys', 'Holds', 'Sells', '12M Tgt Px', 'Last Price', 'Pricing Currency', 'Return Potential', 'LTM Return']);
-  await expect(panel.locator('.anr-snap dd').nth(6)).toHaveText('USD');
-  expect(errors).toEqual([]);
-});
-
 test('WBMV ranks government yields by their move, largest first, for each period', async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'WBMV');
@@ -791,7 +780,7 @@ test("PEERS has RV's Overview columns in their order, its Comp Sheets and Market
   await run(page, 'AAPL PEERS');
   const panel = page.locator('.panel').first();
   await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
-  const headers = () => panel.locator('thead th').allTextContents().then((hs) => hs.map((h) => h.replace(/ [▲▼]$/, '').trim()));
+  const headers = () => panel.locator('thead th').allTextContents().then((hs) => hs.map((h) => h.replace(/\s*[▲▼]$/, '').trim()));
   expect(await headers()).toEqual(['#', 'Name', '', 'Mkt Cap USD', 'Last Px', 'Chg Pct 1D', 'Chg Pct 1M', 'Rev - 1 Yr Gr:Y', 'EPS - 1 Yr Gr:Y', 'P/E', 'ROE', 'Dvd 12M Yld']);
   const body = panel.locator('tbody:not(.tbl-summary) tr');
   await expect(body.first().locator('td').first()).toHaveText('100)');

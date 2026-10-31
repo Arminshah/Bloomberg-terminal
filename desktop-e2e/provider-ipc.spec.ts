@@ -1655,6 +1655,10 @@ test('research remains usable across FMP 402s and the Finnhub fallback, each row
   await expect(page.getByRole('cell', { name: '1.25', exact: true })).toBeVisible();
   expect((await calls(app)).finnhub.some((url) => new URL(url).pathname === '/api/v1/stock/recommendation')).toBe(true);
   await expect(page.getByTestId('more-research')).toContainText('Company guidance');
+  // The summary's lines under ANR's names and in its order, the pricing currency among them.
+  const snap = page.locator('.panel').first().locator('.anr-snap');
+  await expect(snap.locator('dt')).toHaveText(['Consensus Rating', 'Buys', 'Holds', 'Sells', '12M Tgt Px', 'Last Price', 'Pricing Currency', 'Return Potential', 'LTM Return']);
+  await expect(snap.locator('dd').nth(6)).toHaveText('USD');
   expect((await calls(app)).retired).toEqual([]);
 });
 
