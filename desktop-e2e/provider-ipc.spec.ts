@@ -62,6 +62,7 @@ interface Fixtures {
   bea?: boolean;
   cftc?: boolean;
   fiscal?: boolean;
+  fedinvest?: boolean;
   thirteenF?: boolean;
   congress?: boolean;
   ecbFx?: boolean;
@@ -75,7 +76,7 @@ interface Fixtures {
   treasuryCurve?: boolean;
   spdr?: boolean;
   asic?: boolean;
-  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; fedinvest?: { date: string; token: string | null }[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -945,6 +946,34 @@ test("DEBTPROFILE T GOVT shows the Treasury's marketable debt from its statement
   await expect(panel).toContainText("They add up to the statement's own total for each class.");
   await expect(panel.getByTestId('debt-mismatch')).toHaveCount(0);
   expect(new Set((await calls(app)).fiscal ?? [])).toEqual(new Set(['/services/api/fiscal_service/v1/debt/mspd/mspd_table_3_market', '/services/api/fiscal_service/v2/accounting/od/avg_interest_rates']));
+});
+
+test("ALLQ on a Treasury shows FedInvest's Sell and Buy, the day before, and spreads to the nearest benchmark; YAS starts from them", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.fedinvest = true;
+  });
+  const panel = page.locator('.panel').first();
+  // A CUSIP typed before the Treasuries are loaded: FedInvest's two latest days load, then the command runs.
+  await command(page, '91282CAA1 Govt ALLQ', 'DEALERQUOTES');
+  const rows = panel.getByTestId('allq-table').locator('tbody tr');
+  await expect(rows.first()).toContainText('FedInvest Sell / Buy', { timeout: 30_000 });
+  await expect(rows.first()).toContainText('97-16+ / 97-17');
+  await expect(rows.nth(1)).toContainText('Previous Day');
+  await expect(rows.nth(1)).toContainText('97-10 / 97-10+');
+  await expect(rows.first().locator('td').nth(3)).toHaveText(/^\d+\.\d \/ \d+\.\d$/);
+  // The nearest latest issue other than the note itself: the 7-year.
+  await expect(panel.getByLabel('Benchmark')).toHaveValue('T 5 09/30/33 Govt');
+  await expect(panel.getByTestId('allq-status')).toContainText('FedInvest prices of');
+  await expect(rows.filter({ hasText: 'Dealer quotes have no free source' })).toHaveCount(1);
+  // Each request posted the form's token; the latest weekday and the one before it were asked for.
+  const asked = (await calls(app)).fedinvest ?? [];
+  expect(asked.every((c) => c.token === 'TEST-TOKEN')).toBe(true);
+  expect(asked.length).toBeGreaterThanOrEqual(2);
+  // YAS starts from the note's coupon and maturity and FedInvest's Sell price, and says so.
+  await command(page, 'T 4 5/8 08/15/36 Govt YAS', 'BONDCALC');
+  await expect(panel.getByLabel('Coupon %')).toHaveValue('4.625');
+  await expect(panel.getByLabel('Maturity', { exact: true })).toHaveValue('2036-08-15');
+  await expect(panel).toContainText("TreasuryDirect FedInvest's Sell price of");
 });
 
 test("FXCA says when it has no live rate, and converts at the ECB's reference rate of a past day", async ({ desktop: { app, page } }) => {

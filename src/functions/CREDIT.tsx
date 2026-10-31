@@ -1,16 +1,14 @@
-import { useMemo } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { DataTable } from '../components/DataTable';
 import { KV, LivePx, SecLink, Section } from '../components/cells';
-import { fmtInt, fmtNum, fmtTime } from '../core/format';
-import { hashString, normal } from '../core/rng';
+import { fmtInt, fmtNum } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { resolveSecurity } from '../data/registry';
 import type { SecurityDef } from '../data/types';
-import { analytics, settlementDate, yieldFromClean } from '../finance/bonds';
+import { analytics, settlementDate } from '../finance/bonds';
 import { usePanelId } from '../terminal/panel';
 import { openSecurity } from '../components/cells';
-import { NoBondData, SimBadge } from '../components/Source';
+import { NoBondData } from '../components/Source';
 import { TreasuryDebt } from './TreasuryDebt';
 import type { FnProps } from '../terminal/types';
 
@@ -173,110 +171,3 @@ function DDISSim({ route, sec }: FnProps) {
   );
 }
 
-const DEALERS = ['NGAT', 'HRBR', 'BLWT', 'KSTR', 'MRDN', 'SMMT', 'ATLS', 'CRST'];
-const DEALER_NAMES: Record<string, string> = {
-  NGAT: 'Northgate Securities', HRBR: 'Harbor Capital Markets', BLWT: 'Bluewater Fixed Income', KSTR: 'Kestrel Capital',
-  MRDN: 'Meridian Credit', SMMT: 'Summit Dealer Services', ATLS: 'Atlas Markets', CRST: 'Crestline Partners',
-};
-
-/** ALLQ: dealer quote montage for a bond (simulated dealers). */
-export function ALLQ(props: FnProps) {
-  if (engine.realOnly) return <NoBondData code="DEALERQUOTES" title="All Quotes" />;
-  return <ALLQSim {...props} />;
-}
-
-function ALLQSim({ sec }: FnProps) {
-  useTick(2);
-  const s = sec!;
-  const q = engine.quote(s.id)!;
-  const b = s.bond!;
-  const terms = { coupon: b.coupon, maturity: new Date(`${b.maturity}T00:00:00Z`), freq: 2 };
-  const settle = settlementDate(new Date(engine.now()));
-  const govt = s.yk === 'Govt';
-  const half = govt ? 1 / 256 : 0.0625;
-  const minute = Math.floor(engine.now() / 60_000);
-  const seed = hashString(s.id);
-  const quotes = useMemo(() => {
-    return DEALERS.map((dl, i) => {
-      const k = hashString(dl);
-      // Each dealer re-quotes every few minutes around the composite.
-      const epoch = Math.floor((minute + (k % 7)) / (3 + (k % 4)));
-      // Skew stays inside the minimum half-width, so no dealer's bid can cross another's offer.
-      const skew = Math.max(-0.35, Math.min(0.35, normal(seed ^ k, epoch, 1) * 0.25)) * half;
-      const width = half * (0.85 + Math.abs(normal(seed ^ k, epoch, 2)));
-      const mid = q.last + skew;
-      const bid = mid - width;
-      const ask = mid + width;
-      const sizeBase = govt ? 25 : 2;
-      const bsz = Math.max(1, Math.round(sizeBase * Math.exp(0.6 * normal(seed ^ k, epoch, 3))));
-      const asz = Math.max(1, Math.round(sizeBase * Math.exp(0.6 * normal(seed ^ k, epoch, 4))));
-      const t = (epoch * (3 + (k % 4)) - (k % 7)) * 60_000 + (i * 7919) % 60_000;
-      return { dl, bid, ask, bsz, asz, t: Math.min(t, engine.now()) };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [minute, s.id, Math.round(q.last / half)]);
-  const bestBid = Math.max(...quotes.map((x) => x.bid));
-  const bestAsk = Math.min(...quotes.map((x) => x.ask));
-  const y = (px: number) => yieldFromClean(terms, settle, px);
-  const dec = govt ? 4 : 3;
-  return (
-    <div>
-      <FnHeader
-        code="DEALERQUOTES"
-        title="All Quotes"
-        sec={s}
-        sub={
-          <>
-            {s.name} · <SimBadge /> dealer montage: dealers and their quotes are generated
-          </>
-        }
-      />
-      <div className="cols">
-        <Section title="Composite">
-          <KV
-            items={[
-              ['Best bid / ask', `${fmtNum(bestBid, dec)} / ${fmtNum(bestAsk, dec)}`],
-              ['Best bid / ask yield', `${fmtNum(y(bestBid), 3)} / ${fmtNum(y(bestAsk), 3)}`],
-              ['Composite mid', fmtNum((bestBid + bestAsk) / 2, dec)],
-              ['Last', <LivePx key="l" id={s.id} />],
-              ['Contributors', String(quotes.length)],
-            ]}
-          />
-        </Section>
-      </div>
-      <table className="tbl">
-        <thead>
-          <tr>
-            <th>Dealer</th>
-            <th className="hide-m">Name</th>
-            <th className="num">Bid</th>
-            <th className="num">Ask</th>
-            <th className="num">Bid yld</th>
-            <th className="num">Ask yld</th>
-            <th className="num">Bid sz MM</th>
-            <th className="num">Ask sz MM</th>
-            <th className="num hide-m">Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          {quotes
-            .sort((a, z) => z.bid - a.bid)
-            .map((x) => (
-              <tr key={x.dl}>
-                <td className="amber b">{x.dl}</td>
-                <td className="hide-m">{DEALER_NAMES[x.dl]}</td>
-                <td className={`num ${x.bid === bestBid ? 'up b' : 'white'}`}>{fmtNum(x.bid, dec)}</td>
-                <td className={`num ${x.ask === bestAsk ? 'dn b' : 'white'}`}>{fmtNum(x.ask, dec)}</td>
-                <td className="num">{fmtNum(y(x.bid), 3)}</td>
-                <td className="num">{fmtNum(y(x.ask), 3)}</td>
-                <td className="num">{fmtInt(x.bsz)}</td>
-                <td className="num">{fmtInt(x.asz)}</td>
-                <td className="num hide-m">{fmtTime(x.t, false)}</td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
-      <p className="pad-s muted">Best bid in green, best offer in red. Dealers are fictional and quotes are simulated around the composite price.</p>
-    </div>
-  );
-}
