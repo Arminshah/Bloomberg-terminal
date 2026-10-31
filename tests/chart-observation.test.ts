@@ -95,4 +95,12 @@ describe('chart observation and visible-window labels', () => {
     expect(texts()).toContain('8.47%'); // (128 / 118 - 1) x 100
     expect(texts()).not.toContain('128.00');
   });
+
+  it("draws the volume average over the bars and gives it beside the day's volume", () => {
+    chart.setData(series, { ...options, volumeAverage: 3 }, true);
+    fillText.mockClear();
+    flush();
+    // The last three volumes are 28,000, 29,000 and 30,000.
+    expect(texts()).toContain('Volume 30.00K  SMA(3) 29.00K');
+  });
 });

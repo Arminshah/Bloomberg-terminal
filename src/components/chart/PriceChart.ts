@@ -32,6 +32,8 @@ export interface ChartOptions {
   refLine?: { value: number; label: string };
   /** Number of bars visible when the view is reset. */
   initialBars: number;
+  /** The n-bar simple average of volume, drawn as a line over the volume bars. */
+  volumeAverage?: number;
   /** Bars left out after the visible window when the view is reset (a typed end date before the latest bar). */
   initialEnd?: number;
   color?: string;
@@ -139,6 +141,7 @@ export class PriceChart {
     rsi?: Float64Array;
     macd?: { macd: Float64Array; signal: Float64Array; hist: Float64Array };
     cmp: Float64Array[];
+    vma?: Float64Array;
   } = { overlays: [], cmp: [] };
   private indKey = '';
   onHover?: (index: number | null) => void;
@@ -412,7 +415,7 @@ export class PriceChart {
   private computeIndicators() {
     const s = this.s!;
     const opt = this.opt!;
-    const key = `${s.length}:${s.c[s.length - 1]}:${opt.overlays.map((o) => o.kind + o.n).join()}:${opt.lower.join()}:${opt.compare.length}`;
+    const key = `${s.length}:${s.c[s.length - 1]}:${opt.overlays.map((o) => o.kind + o.n).join()}:${opt.lower.join()}:${opt.compare.length}:${opt.volumeAverage ?? ''}`;
     if (key === this.indKey) return;
     this.indKey = key;
     const closes = s.c.subarray(0, s.length);
@@ -425,6 +428,7 @@ export class PriceChart {
     });
     this.ind.rsi = opt.lower.includes('RSI') ? rsi(closes, 14) : undefined;
     this.ind.macd = opt.lower.includes('MACD') ? macd(closes) : undefined;
+    this.ind.vma = opt.volumeAverage && opt.lower.includes('VOL') ? sma(s.v.subarray(0, s.length), opt.volumeAverage) : undefined;
     // Align comparison series to the primary timestamps (last value at or before).
     this.ind.cmp = opt.compare.map((cmp) => {
       const out = new Float64Array(s.length).fill(NaN);
@@ -939,8 +943,9 @@ export class PriceChart {
       ctx.fillText(txt, LEFT + 4, p.top + 9);
     };
     if (p.kind === 'VOL') {
+      const vma = this.ind.vma;
       let max = 0;
-      for (let i = i0; i <= i1; i++) max = Math.max(max, s.v[i]);
+      for (let i = i0; i <= i1; i++) max = Math.max(max, s.v[i], vma && Number.isFinite(vma[i]) ? vma[i] : 0);
       if (max <= 0) {
         ctx.restore();
         return;
@@ -952,7 +957,24 @@ export class PriceChart {
         ctx.fillStyle = s.c[i] >= s.o[i] ? T.upFill : T.dnFill;
         this.box(this.xAt(i) - w / 2, p.top + p.h - hgt, w, hgt);
       }
-      label(`Volume ${fmtBig(s.v[inspected])}`);
+      if (vma) {
+        ctx.strokeStyle = T.text;
+        ctx.lineWidth = this.hair();
+        ctx.beginPath();
+        let on = false;
+        for (let i = i0; i <= i1; i++) {
+          if (!Number.isFinite(vma[i])) {
+            on = false;
+            continue;
+          }
+          const y = p.top + p.h - (vma[i] / max) * (p.h - 14);
+          if (on) ctx.lineTo(this.xAt(i), y);
+          else ctx.moveTo(this.xAt(i), y);
+          on = true;
+        }
+        ctx.stroke();
+      }
+      label(`Volume ${fmtBig(s.v[inspected])}${vma ? `  SMA(${this.opt!.volumeAverage}) ${Number.isFinite(vma[inspected]) ? fmtBig(vma[inspected]) : '--'}` : ''}`);
       ctx.restore();
       this.lowerAxis(p, [[0, '0'], [max, fmtBig(max)]], 0, max);
       return;
