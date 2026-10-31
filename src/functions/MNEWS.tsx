@@ -31,6 +31,11 @@ function Sentiment({ story, symbol }: { story: MarketStory; symbol?: string }) {
   );
 }
 
+/** A story's header line as CN gives it: the publication date with the four-digit year, the time to the second and the source's code. */
+export function storyStamp(story: Pick<MarketStory, 'time' | 'publisher'>): string {
+  return `${fmtDate(story.time, undefined, true)} ${fmtTime(story.time)} [${sourceCode(story.publisher)}]`;
+}
+
 function Reader({ story, symbol, onBack }: { story: MarketStory; symbol?: string; onBack: () => void }) {
   return (
     <article className="story">
@@ -38,10 +43,10 @@ function Reader({ story, symbol, onBack }: { story: MarketStory; symbol?: string
         ‹ Headlines
       </button>
       <div className="meta">
-        <span className="amber">{story.publisher}</span>
-        <span title="Publication time, as the source gives it">
-          Published {fmtDate(story.time)} {fmtTime(story.time)}
+        <span className="muted story-stamp" title="Publication time, as the source gives it, and the source's code">
+          {storyStamp(story)}
         </span>
+        <span className="amber">{story.publisher}</span>
         <span className="muted">via {story.feeds.join(', ')}</span>
         {story.filing ? <span className="badge live">FILING</span> : null}
       </div>
