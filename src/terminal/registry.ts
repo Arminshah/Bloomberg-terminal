@@ -53,7 +53,8 @@ import { WEIS, WM } from '../functions/WORLDEQ';
 import { BOE, BOJ, ECB } from '../functions/CBPORTAL';
 import { CBRT } from '../functions/CBRT';
 import { MYN } from '../functions/MYN';
-import { ECO, ECST } from '../functions/ECO';
+import { ECO, ECMX } from '../functions/ECO';
+import { ECST } from '../functions/ECST';
 import { MACRO } from '../functions/MACRO';
 import { OMON, OVME } from '../functions/OPTIONS';
 import { OptionStrategy } from '../functions/OptionStrategy';
@@ -241,7 +242,8 @@ export const FUNCTIONS: FnDef[] = [
   { code: 'TRADEFLOWS', name: 'Trade Flows', category: 'Economics', desc: "An economy's goods exports and imports with each partner country and region from the IMF's International Trade in Goods (formerly the Direction of Trade Statistics): any of the last ten years with the balance, each partner's share and the change on the year before, a partner's trade by year on a chart, and its last 24 months (desktop app).", component: ECTR, example: 'TRADEFLOWS DEU' },
   { code: 'LEGISLATION', name: 'U.S. Legislation', category: 'Economics', desc: "Bills in Congress from Congress.gov: the latest by update with where each stands, the laws enacted in the current Congress, and a bill's sponsor, cosponsors, committees, Congressional Research Service summary, actions, subjects and text; found by words in the title or by number (desktop app, CONGRESS_GOV_API_KEY).", component: BILL, example: 'LEGISLATION HR 7831' },
   { code: 'RELEASES', name: 'Economic Calendars', category: 'Economics', desc: "Each region's releases, central bank events and auctions by day, numbered, with period, survey, actual, prior and revised; a release opens its figures, description and chart, and a bell alerts you when its actual is out. The desktop app reads Nasdaq's calendar, or FRED's release dates and the central banks' own decisions.", component: ECO, aliases: ['ECONCAL', 'WECO'] },
-  { code: 'ECONSTATS', name: 'World Economic Statistics', category: 'Economics', desc: 'GDP, inflation, unemployment and policy rates by country alongside live yields and markets.', component: ECST, aliases: ['GEW'] },
+  { code: 'ECONSTATS', name: 'World Economic Statistics', category: 'Economics', desc: "One country's statistics by category, as its statistics office publishes them: each indicator's current and previous figure with their periods, its chart, a search across countries and a custom view of your own. The desktop app reads the BEA, BLS, Census and Fed (via FRED), Eurostat, the ONS, Statistics Canada and the ABS.", component: ECST, example: 'ECST GB' },
+  { code: 'ECONMATRIX', name: 'Economic Matrix', category: 'Economics', desc: 'GDP, inflation, unemployment and policy rates by country side by side, with real rates, 10-year yields and the year to date of equities and currencies.', component: ECMX, aliases: ['GEW'] },
   { code: 'HOLIDAYS', name: 'Holiday Calendar', category: 'Economics', desc: 'Exchange holiday and early-close calendars for New York, Euronext, London, Frankfurt and Tokyo.', component: CDR, example: 'HOLIDAYS US' },
   // Derivatives
   { code: 'OPTIONS', name: 'Option Monitor', category: 'Derivatives', needsSec: true, classes: ['equity', 'index'], desc: "Listed options of US stocks and ETFs and of NDX and XND, from Nasdaq's delayed composite chain: bid, ask, last, volume and open interest, with the app's mid implied volatility (IVM), delta, gamma and vega on each expiry's implied forward. Alpaca's indicative feed with your keys as a second source. No SPX, RUT or VIX options (Cboe's terms forbid automated download).", component: OMON },

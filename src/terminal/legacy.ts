@@ -132,7 +132,7 @@ export const LEGACY_CODES: Record<string, string> = {
   WM: 'WORLDMAP',
   ECO: 'RELEASES',
   ECST: 'ECONSTATS',
-  ECMX: 'ECONSTATS',
+  ECMX: 'ECONMATRIX',
   CDR: 'HOLIDAYS',
   OMON: 'OPTIONS',
   OVME: 'OPTIONCALC',

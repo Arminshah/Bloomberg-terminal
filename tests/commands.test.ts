@@ -261,8 +261,8 @@ describe('codes from the reference guides that name screens the app has', () => 
     expect(primaryMnemonic('DOCSEARCH')).toBe('DS');
   });
 
-  it('opens ECONSTATS for GEW (key economic statistics by country) and ALERTS for NLRT (news alerts)', () => {
-    expect(parse('GEW')).toEqual({ kind: 'route', fn: 'ECONSTATS' });
+  it('opens the economic matrix for GEW (key economic statistics by country) and ALERTS for NLRT (news alerts)', () => {
+    expect(parse('GEW')).toEqual({ kind: 'route', fn: 'ECONMATRIX' });
     expect(parse('NLRT')).toEqual({ kind: 'route', fn: 'ALERTS' });
     expect(primaryMnemonic('ECONSTATS')).toBe('ECST');
     expect(primaryMnemonic('ALERTS')).toBe('ALRT');
@@ -340,11 +340,14 @@ describe('terminal mnemonics added in 2.13', () => {
 
   it('accepts EVT, ECMX and FOMC', () => {
     expect(parse('EVT')).toEqual({ kind: 'route', fn: 'EVENTS' });
-    expect(parse('ECMX')).toEqual({ kind: 'route', fn: 'ECONSTATS' });
+    expect(parse('ECMX')).toEqual({ kind: 'route', fn: 'ECONMATRIX' });
+    // ECST takes a country, or S for its search.
+    expect(parse('ECST GB')).toEqual({ kind: 'route', fn: 'ECONSTATS', args: 'GB' });
     expect(parse('FOMC')).toEqual({ kind: 'route', fn: 'FEDMEETINGS' });
     // Headers keep the mnemonic the terminal's menus list first.
     expect(primaryMnemonic('EVENTS')).toBe('EVTS');
     expect(primaryMnemonic('ECONSTATS')).toBe('ECST');
+    expect(primaryMnemonic('ECONMATRIX')).toBe('ECMX');
     expect(primaryMnemonic('FEDMEETINGS')).toBe('FOMC');
   });
 });

@@ -1217,3 +1217,60 @@ test('ECO as the 2025 brochure draws it: the red bar, region and range, the numb
   await expect(panel.getByTestId('eco-news')).toContainText('Economics News and Analysis | NEWS »');
   expect(errors).toEqual([]);
 });
+
+test('ECST as the 2020 and 2023 guides draw it: Search and Settings, the two views, the country and its tree, Current and Previous, the chart bar; ECMX keeps the matrix', async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'ECST');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('ECONSTATS');
+  await expect(panel.locator('.fnh-title')).toHaveText('World Economic Statistics');
+  await expect(panel.locator('.fnh-actions .act')).toHaveText(['91) Search', '92) Settings▾']);
+  await expect(panel.locator('nav.tabs .tab')).toHaveText([/Standard Views/, /Custom Views/]);
+  await expect(panel.getByLabel('Country', { exact: true })).toHaveValue('US');
+  await expect(panel.getByRole('button', { name: '1) Browse' })).toBeVisible();
+  await expect(panel.getByTestId('ecst-title')).toHaveText('Key Indicators - United States');
+  const table = panel.getByTestId('ecst-table');
+  await expect(table.locator('thead tr').first().locator('th')).toHaveText(['Text', '', 'Ticker', 'Current', 'Previous']);
+  await expect(table.locator('thead tr').nth(1).locator('th')).toHaveText(['Value', 'Date', 'Value', 'Date']);
+  await expect(table.locator('tr.ecst-sec').first()).toHaveText('National Accounts');
+  await expect(table.getByTestId('ecst-row').first().locator('td').first()).toHaveText('11) Real GDP (qoq %, saar)');
+  // The browser demo has no statistics: blanks, said so under the chart.
+  await expect(table.getByTestId('ecst-row').first().locator('td').nth(3)).toHaveText('--');
+  await expect(panel.getByTestId('ecst-chart')).toContainText('The browser demo has no statistics');
+  // A category from the tree, and a section of it.
+  await panel.locator('.ecst-cat', { hasText: /^Labor Market$/ }).click();
+  await expect(panel.getByTestId('ecst-title')).toHaveText('Labor Market - United States');
+  await expect(table.getByTestId('ecst-row').nth(1)).toContainText('Unemployment Rate (%, sa)');
+  // A section of Key Indicators: only its rows, the section highlighted.
+  await panel.locator('.ecst-cat', { hasText: /^Key Indicators$/ }).click();
+  await panel.locator('.ecst-sub', { hasText: /^Producer Prices$/ }).click();
+  await expect(panel.locator('.ecst-sub.sel')).toHaveText('Producer Prices');
+  await expect(table.getByTestId('ecst-row')).toHaveText([/PPI Final Demand/]);
+  // Another country, from its field.
+  await panel.getByLabel('Country', { exact: true }).selectOption('DE');
+  await expect(panel.getByTestId('ecst-title')).toHaveText('Key Indicators - Germany');
+  await expect(table.getByTestId('ecst-row')).toHaveText([/Real GDP \(yoy %\)/, /HICP \(yoy %\)/, /Unemployment Rate/]);
+  // 91) Search finds an indicator in any country.
+  await run(page, '91');
+  const search = page.getByTestId('ecst-search');
+  await search.getByLabel('Search indicators').fill('canada unemployment');
+  await search.getByRole('button', { name: /Canada Unemployment Rate/ }).click();
+  await expect(panel.getByTestId('ecst-title')).toHaveText('Key Indicators - Canada');
+  // 3) Maximize Chart.
+  await run(page, '3');
+  await expect(panel.getByTestId('ecst-table')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: '3) Restore Chart' })).toBeVisible();
+  // 95) Custom Views: the builder adds an indicator of any country.
+  await run(page, '95');
+  await panel.getByLabel('Builder country').selectOption('GB');
+  await panel.getByRole('button', { name: 'Add', exact: true }).click();
+  await run(page, '3');
+  await expect(panel.getByTestId('ecst-row')).toHaveCount(1);
+  await expect(panel.getByTestId('ecst-row').first()).toContainText('GB Real GDP (yoy %)');
+  // ECMX and GEW keep the matrix of every country.
+  await run(page, 'ECMX');
+  await expect(panel.locator('.fnh-code')).toHaveText('ECONMATRIX');
+  await expect(panel.locator('.fnh-title')).toHaveText('Economic Matrix');
+  await expect(panel.locator('tbody tr').first()).toContainText('United States');
+  expect(errors).toEqual([]);
+});

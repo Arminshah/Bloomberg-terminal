@@ -61,6 +61,7 @@ M3. Screen parity
 - [x] WACC: the 2022 screen's four panels, the help page's cost of debt, preferred and Economic Value Added, a history by fiscal year (`d03a2fe`), checked on Apple in the desktop app; fair market curves and the industry adjustments not available
 - [x] BETA: the 2022 screen, the scatter with its fit and histograms, the full statistics panel with t-tests (next commit), checked on Apple in the desktop app; Beta +/-, Lag, Winsorize and a second range not built
 - [x] ECO: the 2025 window, regions and custom calendars, kinds and subtypes, the numbered agenda with A, M, R and C, a release opened, bells that ring in the background, the filter row and the headlines strip, checked live on Nasdaq's calendar; the Weekly view and live audio not built
+- [x] ECST: one country at a time, its categories as a tree, Current and Previous with their periods, the chart and Maximize Chart, Search and Custom Views, checked live; the cross-country table moved whole to ECMX (and GEW)
 - [x] YAS: the Yield & Spread page, its tabs and Settings, the measures checked against TE07 03:47 (next commit); G-Sprd, I-Sprd, ASW and True Yield blank
 
 ## 1. Rules that come before anything in this plan

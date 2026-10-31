@@ -511,7 +511,11 @@ const STATS: Record<string, { gdp: number; cpi: number; un: number; y10?: string
   MX: { gdp: 0.8, cpi: 3.9, un: 2.7, y10: 'GMXN10YR Index', idx: 'MEXBOL Index', ccy: 'USDMXN Curncy' },
 };
 
-export function ECST(props: FnProps) {
+/**
+ * ECMX, Economic Matrix: the key figures of every country the app reads, side by side (GEW opens it too). It was the
+ * app's ECST until ECST took the terminal's one-country layout.
+ */
+export function ECMX(props: FnProps) {
   if (engine.realOnly) return <ECSTReal />;
   return <ECSTSim {...props} />;
 }
@@ -581,8 +585,8 @@ function ECSTReal() {
   return (
     <div>
       <FnHeader
-        code="ECONSTATS"
-        title="World Economic Statistics"
+        code="ECONMATRIX"
+        title="Economic Matrix"
         sub={
           <>
             <RealBadge /> latest published figures with their periods: BEA and BLS, Japan's Cabinet Office, the IMF and the OECD (via FRED), Eurostat, the ONS, Statistics Canada, the ABS · policy rates from the central banks
@@ -656,8 +660,8 @@ function ECSTSim(_: FnProps) {
   return (
     <div>
       <FnHeader
-        code="ECONSTATS"
-        title="World Economic Statistics"
+        code="ECONMATRIX"
+        title="Economic Matrix"
         sub={
           <>
             <SimBadge /> GDP, inflation and jobless figures are reference settings{desktopData() ? ' · market levels and the Fed, ECB, BoE and BoC rates are real' : ''}
