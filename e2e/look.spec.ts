@@ -204,6 +204,59 @@ test('"≡ Options" at the right of the tab strip opens New Tab, New Window, Zoo
   expect(errors).toEqual([]);
 });
 
+test("a field's list and a screen's security picker read as the 2024 frames draw them; the watchlist's add list keeps its look", async ({ page }) => {
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('armin:watchlists')) localStorage.setItem('armin:watchlists', JSON.stringify({ v: 1, s: { lists: [{ name: 'Core', ids: ['MSFT US Equity'] }], active: 0 } }));
+  });
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  const style = (loc: ReturnType<typeof page.locator>, prop: string) => loc.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+  // TE02 00:59, TE07 01:45: a field's choices are amber on dark grey.
+  await run(page, 'AAPL US Equity FA');
+  const option = panel.locator('select.sel-inp option').first();
+  expect(await style(option, 'color')).toBe('rgb(255, 158, 27)');
+  expect(await style(option, 'background-color')).toBe('rgb(30, 30, 30)');
+  // TE04 02:29: a security picker on a screen, tickers white and names amber on #1E1E1E.
+  await run(page, 'AAPL US Equity GP');
+  await panel.getByLabel('Add comparison security').fill('micro');
+  const picker = panel.locator('.ac.ac-field');
+  await expect(picker.locator('.ac-item').first()).toBeVisible();
+  expect(await style(picker, 'background-color')).toBe('rgb(30, 30, 30)');
+  expect(await style(picker.locator('.ac-item .k').first(), 'color')).toBe('rgb(255, 255, 255)');
+  expect(await style(picker.locator('.ac-item > :nth-child(2)').first(), 'color')).toBe('rgb(255, 158, 27)');
+  // The watchlist's own add list is the owner's and stays as it was: yellow tickers.
+  await run(page, 'WATCHLIST');
+  await panel.getByLabel('Add security to monitor').fill('micro');
+  const add = panel.locator('.ac').first();
+  await expect(add.locator('.ac-item').first()).toBeVisible();
+  await expect(panel.locator('.ac-field')).toHaveCount(0);
+  expect(await style(add.locator('.ac-item .k').first(), 'color')).toBe('rgb(255, 210, 63)');
+  expect(errors).toEqual([]);
+});
+
+test('DES, EE, ANR and EQS keep to a page of fixed width centred in a wide panel, under a full-width red bar', async ({ page }) => {
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  for (const cmd of ['AAPL US Equity DES', 'AAPL US Equity EE', 'AAPL US Equity ANR', 'EQS']) {
+    await run(page, cmd);
+    const body = (await panel.locator('.panel-body').boundingBox())!;
+    const bar = (await panel.locator('.fnh-row').boundingBox())!;
+    // TE01 01:41: the red bar spans the window; the page under it is narrower, with equal black margins.
+    expect(bar.width).toBeGreaterThan(body.width - 20);
+    const content = (await panel.locator('.fixed-page > :not(.fnh)').first().boundingBox())!;
+    expect(content.width).toBeLessThanOrEqual(961);
+    const left = content.x - body.x;
+    const right = body.x + body.width - (content.x + content.width);
+    expect(left).toBeGreaterThan(body.width * 0.1);
+    expect(Math.abs(left - right)).toBeLessThan(20);
+    expect(await panel.locator('.panel-body').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(0, 0, 0)');
+  }
+  // Other screens use the whole width.
+  await run(page, 'WEI');
+  await expect(panel.locator('.fixed-page')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.

@@ -287,7 +287,7 @@ export function EQS({ route }: FnProps) {
   };
 
   return (
-    <div>
+    <div className="fixed-page">
       <FnHeader
         code="SCREEN"
         title="Equity Screening"

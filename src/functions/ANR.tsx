@@ -40,7 +40,7 @@ export function ANR({ sec }: FnProps) {
   const recStale = bundledRecs?.length ? parts.ratings?.stale : fh?.stale;
   if (!analystsAvailable()) {
     return (
-      <div>
+      <div className="fixed-page">
         <FnHeader code="ANALYSTS" title="Analyst Recommendations" sec={s} sub="Price targets, ratings and estimates" />
         <NotConnected
           what="This screen shows analyst price targets, the tally of broker ratings, recent rating actions and estimates."
@@ -72,7 +72,7 @@ export function ANR({ sec }: FnProps) {
   );
   if (!symbol) {
     return (
-      <div>
+      <div className="fixed-page">
         {header}
         <div className="empty">FMP, Finnhub and Nasdaq research here covers US-listed stocks; {s.ticker} is not one. TipRanks covers some other markets:</div>
         {s.cls === 'equity' ? <TipRanksResearch key={s.id} def={s} /> : null}
@@ -90,7 +90,7 @@ export function ANR({ sec }: FnProps) {
   const loading = (p: AnalystPart | undefined) => !p || p.state === 'loading';
   const vs = (t: number) => <span className={upside(t) >= 0 ? 'up' : 'dn'}>{fmtPct(upside(t), 1)}</span>;
   return (
-    <div>
+    <div className="fixed-page">
       {header}
       <div className="pad-s" style={{ display: 'flex', gap: 8 }}>
         <button type="button" className="btn" onClick={() => { retryAnalysts(); retryFinnhub(); }}>Retry analyst research</button>

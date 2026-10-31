@@ -570,6 +570,22 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .sugg-fn:hover { background: #262626; }
 .sugg-fn:hover span { color: var(--white); }
 
+/* A screen's own security picker (GP's compare box, COMP, ALRT, FAV, W's worksheets; TE04 02:29): the field list's
+   look, tickers white and names amber on #1E1E1E, the lit row dark blue. The watchlist's add list keeps its own. */
+.ac.ac-field { background: #1e1e1e; border-color: #3a3a3a; }
+.ac-field .ac-item .k { color: var(--white); }
+.ac-field .ac-item > :nth-child(2) { color: var(--amber); }
+.ac-field .ac-item.sel, .ac-field .ac-item:hover { background: #153b67; }
+.ac-field .ac-item.sel *, .ac-field .ac-item:hover * { color: inherit !important; }
+.ac-field .ac-item.sel .k, .ac-field .ac-item:hover .k { color: var(--white) !important; }
+.ac-field .ac-item.sel > :nth-child(2), .ac-field .ac-item:hover > :nth-child(2) { color: var(--amber) !important; }
+
+/* DES, EE, ANR and EQS draw a page of fixed width, centred in a wide window with black margins (TE01 01:41, about 15
+   percent each side): the red bar runs the full width, everything under it keeps to the page. The width follows the
+   text size (80em is 960 pixels at the default 12px). */
+.panel-body:has(> .fixed-page) { background: #000; }
+.fixed-page > :not(.fnh), .fixed-page > .fnh > :not(.fnh-row) { max-width: 80em; margin-left: auto; margin-right: auto; }
+
 /* --------------------------------------------------------- function header */
 .fnh {
   position: sticky;
@@ -886,7 +902,11 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .inp:not(textarea), .sel-inp { background: var(--amber); border-color: #dc8b1e; color: #000; border-radius: 0; }
 .inp:not(textarea)::placeholder { color: #4b310d; opacity: 1; }
 .inp:not(textarea):focus, .sel-inp:focus { border-color: var(--white); outline: 1px solid var(--white); outline-offset: -1px; }
-.inp option, .sel-inp option { background: #151515; color: var(--text); }
+/* A field's list (TE02 00:59, TE04 02:29, TE07 01:45): a dark grey panel with amber choices and white group headings. */
+.inp option, .sel-inp option { background: #1e1e1e; color: var(--amber); }
+.inp optgroup, .sel-inp optgroup { background: #1e1e1e; color: var(--white); font-style: normal; }
+.inp option:checked, .sel-inp option:checked { background: #153b67; color: var(--amber); }
+.inp option:disabled, .sel-inp option:disabled { color: #777777; }
 .inp.wide { width: 100%; }
 /* HP: the range summary at the right of the controls, and the price table's blocks across the screen. */
 .hp-summary { display: grid; grid-template-columns: auto auto auto auto; gap: 0 8px; margin: 0 0 0 auto; font-variant-numeric: tabular-nums; }
