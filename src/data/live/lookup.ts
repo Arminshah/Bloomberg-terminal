@@ -22,7 +22,7 @@ export type OfficialSource =
   | 'effr' | 'sofr' | 'nyfed' | 'fomc' | 'fedStatement' | 'fedImplementation' | 'ecb' | 'ecbFx' | 'estr' | 'ecbSpf' | 'boe' | 'sonia' | 'bojLoan' | 'bojCall' | 'boc' | 'rba' | 'snb' | 'bcb' | 'bis'
   | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb' | 'bde' | 'clevNowcast'
   | 'ukcpi' | 'ukgdp' | 'ukunemp' | 'estatHicp' | 'estatUnemp' | 'estatGdp'
-  | 'statcan' | 'absUnemp' | 'absCpi' | 'blsCpi' | 'blsUnemp'
+  | 'statcan' | 'absUnemp' | 'absCpi' | 'blsCpi' | 'blsUnemp' | 'blsSchedule'
   | 'newsFed' | 'newsEcb' | 'newsBoe' | 'newsBoc' | 'newsRba' | 'newsBea' | 'newsEsma'
   | 'newsFedSpeeches' | 'newsEcbBlog' | 'newsBoj' | 'newsBis' | 'newsSec';
 

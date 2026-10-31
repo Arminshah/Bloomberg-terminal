@@ -440,14 +440,15 @@ export const PROVIDERS: ProviderDef[] = [
   {
     id: 'bls',
     name: 'U.S. Bureau of Labor Statistics',
-    serves: 'US CPI and unemployment rate when no FRED key is set (ECONSTATS, ECO, MACRO)',
+    serves: "US CPI and unemployment rate when no FRED key is set (ECONSTATS, ECO, MACRO); the release schedule's times for payrolls, CPI, PPI and JOLTS on ECO",
     dataClass: 'Economic release (official)',
     policy: 'enabled',
     feed: 'eco',
-    terms: 'US government work in the public domain. The public API, version 1, needs no key and allows a small number of requests a day from each address; the app asks twice a day at most, and only while FRED has no key.',
+    terms: "US government work in the public domain. The public API, version 1, needs no key and allows a small number of requests a day from each address; the app asks twice a day at most, and only while FRED has no key. www.bls.gov's release calendar refuses automated clients that name no contact, so it is asked with SEC_USER_AGENT's, every 12 hours, and not at all without it.",
     docs: [
       { label: 'Public Data API', url: 'https://www.bls.gov/developers/' },
       { label: 'API signatures (version 1)', url: 'https://www.bls.gov/developers/api_signature.htm' },
+      { label: 'Release calendar (iCalendar)', url: 'https://www.bls.gov/schedule/news_release/bls.ics' },
     ],
     checked: CHECKED,
     desktop: true,

@@ -339,6 +339,8 @@ const OFFICIAL = {
   // (LNS14000000) — the series FRED republishes as CPIAUCNS and UNRATE. Asked only when no FRED key is set.
   blsCpi: () => 'https://api.bls.gov/publicAPI/v1/timeseries/data/CUUR0000SA0',
   blsUnemp: () => 'https://api.bls.gov/publicAPI/v1/timeseries/data/LNS14000000',
+  // The BLS's release schedule (iCalendar): each release's date and time in New York. Asked with SEC_USER_AGENT's contact.
+  blsSchedule: () => 'https://www.bls.gov/schedule/news_release/bls.ics',
   // Official announcements for the news screens: each publisher's own RSS feed (headline, link, date).
   newsFed: () => 'https://www.federalreserve.gov/feeds/press_all.xml',
   newsEcb: () => 'https://www.ecb.europa.eu/rss/press.html',
@@ -361,7 +363,7 @@ const OFFICIAL_PROVIDER = {
   effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', fedStatement: 'fedboard', fedImplementation: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', ecbSpf: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
   rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bis: 'bis', bde: 'bde', clevNowcast: 'clevelandfed', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
-  statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
+  statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls', blsSchedule: 'bls',
   newsFed: 'fedboard', newsEcb: 'ecb', newsBoe: 'boe', newsBoc: 'boc', newsRba: 'rba', newsBea: 'bea', newsEsma: 'esma',
   newsFedSpeeches: 'fedboard', newsEcbBlog: 'ecb', newsBoj: 'boj', newsBis: 'bis', newsSec: 'sec',
 };
@@ -375,6 +377,14 @@ ipcMain.handle('official', async (event, source, since) => {
     const answer = await fetchFedPress((url, init) => tracked('fedboard', url, init), { headers: { 'User-Agent': clientAgent() }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
     if (answer.error) providers.recordProblem('fedboard', 'schema-changed', answer.error);
     return answer;
+  }
+  if (source === 'blsSchedule') {
+    // www.bls.gov refuses automated clients that name no contact (HTTP 403): the owner's SEC_USER_AGENT names one.
+    // Without it nothing is sent.
+    const agent = providers.credential('SEC_USER_AGENT').value;
+    if (!agent || !providers.CREDENTIALS.SEC_USER_AGENT.valid(agent)) return { status: 0, text: '', missing: 'SEC_USER_AGENT' };
+    const res = await tracked('bls', url, { headers: { 'User-Agent': agent, Accept: 'text/calendar' }, cache: 'no-cache', signal: AbortSignal.timeout(TIMEOUT_MS) });
+    return { status: res.status, text: res.ok ? await res.text() : '', at: Date.now() };
   }
   if (source === 'newsSec') {
     // The SEC wants every automated client to name itself and a contact: without SEC_USER_AGENT nothing is sent.
