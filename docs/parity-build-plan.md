@@ -47,7 +47,8 @@ M3. Screen parity
 - [x] FA: header, views from 11), grid colours and signs, graph mode, settings (`0387b8e`), Segments (next commit); the adjusted views, tabs 7) to 10) and the drill-down are not built
 - [x] EE: control line, box labels, Company Financials 21) to 23) with rows 11) to 16), Earnings Trends bars, news box, estimates graph (next commit); Alert, Contact IR and MODL not built
 - [x] ANR: red bar items without numbers, summary and stacked ratings chart, firms table under it (next commit); Alert, the spread chart and the ranking columns not built
-- [ ] RV
+- [x] RV: Export dropdown, controls with Region and Mkt Cap > filters, segment panel, unnumbered tabs (next commit); the multiples chart, Settings and five tabs not built
+- [ ] EQS
 
 ## 1. Rules that come before anything in this plan
 

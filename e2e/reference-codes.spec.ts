@@ -788,9 +788,9 @@ test("PEERS has RV's Overview columns in their order, its Comp Sheets and Market
   await run(page, 'AAPL PEERS');
   const panel = page.locator('.panel').first();
   await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
-  const headers = () => panel.locator('table:not(.rv-range) thead th').allTextContents().then((hs) => hs.map((h) => h.replace(/\s*[▲▼]$/, '').trim()));
+  const headers = () => panel.locator('table:not(.rv-range):not(.rv-seg) thead th').allTextContents().then((hs) => hs.map((h) => h.replace(/\s*[▲▼]$/, '').trim()));
   expect(await headers()).toEqual(['#', 'Name', '', 'Mkt Cap USD', 'Last Px', 'Chg Pct 1D', 'Chg Pct 1M', 'Rev - 1 Yr Gr:Y', 'EPS - 1 Yr Gr:Y', 'P/E', 'ROE', 'Dvd 12M Yld']);
-  const body = panel.locator('table:not(.rv-range) tbody:not(.tbl-summary) tr');
+  const body = panel.locator('table:not(.rv-range):not(.rv-seg) tbody:not(.tbl-summary) tr');
   // RV's comp range panel: five figures, each with the subject, low and high.
   const range = panel.getByTestId('rv-range');
   await expect(range.locator('tbody tr td:first-child')).toHaveText(['P/E', 'EV/EBITDA', 'Revenue Growth', 'EBITDA Margin', 'ROE']);
@@ -798,6 +798,19 @@ test("PEERS has RV's Overview columns in their order, its Comp Sheets and Market
   await expect(body.first().locator('td').first()).toHaveText('100)');
   await expect(body.first()).toContainText('AAPL US');
   await expect(body.nth(1).locator('td').first()).toHaveText('101)');
+  // TE04 04:11: the segment panel opens on Whole Firm (the browser has no 10-K), the tabs are unnumbered, Export is a
+  // dropdown without a number, and Mkt Cap > leaves out the peers below it while the loaded stock stays.
+  await expect(panel.getByTestId('rv-segments').locator('tbody tr').first()).toContainText('Whole Firm100%');
+  await expect(panel.locator('.tab').first()).toHaveText('Overview');
+  await panel.locator('.fnh-actions').getByRole('button', { name: /^Export/ }).click();
+  await expect(page.getByTestId('red-drop').getByRole('menuitem')).toHaveText(['Copy to Clipboard', 'Download as CSV']);
+  await page.keyboard.press('Escape');
+  const before = await body.count();
+  await panel.getByLabel('Minimum market value in billions of US dollars').fill('100000');
+  await expect(body).toHaveCount(1);
+  await expect(body.first()).toContainText('AAPL US');
+  await panel.getByLabel('Minimum market value in billions of US dollars').fill('0');
+  await expect(body).toHaveCount(before);
   await panel.getByRole('button', { name: 'Comp Sheets' }).first().click();
   for (const name of ['Equity Valuation', 'Profitability', 'Balance Sheet']) await expect(panel.getByRole('button', { name, exact: true })).toBeVisible();
   await panel.getByRole('button', { name: 'Profitability', exact: true }).click();
@@ -816,9 +829,9 @@ test("PEERS' Median line comes first and is the median of the loaded stock and i
   await expect(panel.locator('tbody.tbl-summary tr').first()).toHaveAttribute('data-testid', 'rv-median');
   // Read the P/E column and the Median line at one moment, as the demo's prices move.
   const snap = await panel.evaluate((el) => {
-    const headers = Array.from(el.querySelectorAll('table:not(.rv-range) thead th')).map((h) => h.textContent?.trim() ?? '');
+    const headers = Array.from(el.querySelectorAll('table:not(.rv-range):not(.rv-seg) thead th')).map((h) => h.textContent?.trim() ?? '');
     const col = headers.findIndex((h) => h.startsWith('P/E'));
-    const rows = Array.from(el.querySelectorAll('table:not(.rv-range) tbody:not(.tbl-summary) tr')).filter((r) => r.querySelectorAll('td').length > col);
+    const rows = Array.from(el.querySelectorAll('table:not(.rv-range):not(.rv-seg) tbody:not(.tbl-summary) tr')).filter((r) => r.querySelectorAll('td').length > col);
     const valueAt = (r: Element) => Number(r.querySelectorAll('td')[col]?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
     const cell = el.querySelector('[data-testid="rv-median"] td[data-key="pe"]');
     return { col, values: rows.map(valueAt), hasSubject: rows.some((r) => r.textContent?.includes('AAPL US')), median: Number(cell?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN) };
@@ -844,9 +857,9 @@ test("PEERS ranks the loaded stock among its peers on each figure, as the table'
   // carries its own) and the rank row are read at one moment, as the demo's prices move, and two P/Es can look
   // equal at one decimal while one is lower.
   const snap = await panel.evaluate((el) => {
-    const headers = Array.from(el.querySelectorAll('table:not(.rv-range) thead th')).map((h) => h.textContent?.trim() ?? '');
+    const headers = Array.from(el.querySelectorAll('table:not(.rv-range):not(.rv-seg) thead th')).map((h) => h.textContent?.trim() ?? '');
     const col = headers.findIndex((h) => h.startsWith('P/E'));
-    const rows = Array.from(el.querySelectorAll('table:not(.rv-range) tbody:not(.tbl-summary) tr')).filter((r) => r.getAttribute('data-testid') !== 'rv-rank' && r.querySelectorAll('td').length > col);
+    const rows = Array.from(el.querySelectorAll('table:not(.rv-range):not(.rv-seg) tbody:not(.tbl-summary) tr')).filter((r) => r.getAttribute('data-testid') !== 'rv-rank' && r.querySelectorAll('td').length > col);
     const valueAt = (r: Element) => Number(r.querySelectorAll('td')[col]?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
     const subject = rows.find((r) => r.textContent?.includes('AAPL US'));
     const rankCell = el.querySelector('[data-testid="rv-rank"] td[data-key="pe"]');

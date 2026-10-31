@@ -19,6 +19,8 @@ import type { FnProps } from '../terminal/types';
 import { useFundamentalsFor } from '../data/live/yfund';
 import { desktopData } from '../data/live/yahoo';
 import { SimBadge } from '../components/Source';
+import { secAvailable } from '../data/live/sec';
+import { useSegments, type SegmentState } from '../data/live/segments';
 
 interface Row {
   d: SecurityDef;
@@ -167,6 +169,54 @@ function CompRange({ rows, ticker }: { rows: Row[]; ticker: string }) {
   );
 }
 
+/**
+ * RV's segment panel (TE04 04:11): "Whole Firm" 100% in blue, then each business segment's share of the latest
+ * fiscal year's revenue with a grey bar, from the company's 10-K (as FA's Segments page reads it).
+ */
+export function segmentShares(state: SegmentState | undefined): { label: string; pct: number }[] {
+  if (state?.state !== 'ok') return [];
+  const t = state.report.tables.find((x) => x.metric === 'revenue' && x.breakdown === 'segment') ?? state.report.tables.find((x) => x.metric === 'revenue');
+  const end = t?.periods[0]?.end;
+  if (!t || !end) return [];
+  const top = t.lines.filter((l) => !l.parent && Number.isFinite(l.values[end]) && l.values[end] > 0);
+  const total = t.total[end] ?? top.reduce((a, l) => a + l.values[end], 0);
+  if (!(total > 0)) return [];
+  return top.map((l) => ({ label: l.label, pct: (l.values[end] / total) * 100 })).sort((a, b) => b.pct - a.pct);
+}
+
+function SegmentPanel({ state }: { state: SegmentState | undefined }) {
+  const shares = segmentShares(state);
+  return (
+    <table className="tbl rv-seg" data-testid="rv-segments">
+      <thead>
+        <tr>
+          <th>Segment</th>
+          <th className="num">Revenue %</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr className="sel">
+          <td className="amber">Whole Firm</td>
+          <td className="rv-seg-bar"><span>100%</span><i style={{ width: '100%' }} /></td>
+        </tr>
+        {shares.map((x) => (
+          <tr key={x.label}>
+            <td className="amber ellipsis">{x.label}</td>
+            <td className="rv-seg-bar"><span>{fmtNum(x.pct, 0)}%</span><i style={{ width: `${Math.max(1, x.pct)}%` }} /></td>
+          </tr>
+        ))}
+        {!shares.length ? (
+          <tr>
+            <td colSpan={2} className="muted">
+              {!secAvailable() ? 'Segments come from the company’s 10-K, read by the desktop app.' : !state || state.state === 'loading' ? 'Reading the 10-K’s segments…' : state.state === 'ok' ? 'The 10-K tags no revenue by segment.' : state.message}
+            </td>
+          </tr>
+        ) : null}
+      </tbody>
+    </table>
+  );
+}
+
 export function RV({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
@@ -182,9 +232,13 @@ export function RV({ sec }: FnProps) {
   const { loaded, failed } = useFundamentalsFor(group);
   const [page, setPage] = useState(1);
   const [sheet, setSheet] = useState(1);
+  // RV's controls (TE04 04:11): the peers from anywhere or the subject's own country, and a floor on market value.
+  const [region, setRegion] = useState<'global' | 'home'>('global');
+  const [minCap, setMinCap] = useState(0);
+  const segments = useSegments(s, page === 1 && secAvailable());
   const rows: Row[] = useMemo(
     () =>
-      group.map((d) => {
+      group.filter((d, i) => i === 0 || ((region === 'global' || d.country === s.country) && (!(minCap > 0) || marketCapUsd(d.id) >= minCap * 1e9))).map((d) => {
         const k = keyStats(d);
         const ltm = financials(d).ltm;
         const nm = new Set<keyof Row>();
@@ -213,7 +267,7 @@ export function RV({ sec }: FnProps) {
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [group, tick, loaded],
+    [group, tick, loaded, region, minCap],
   );
   /** A figure column; `pct` adds a % sign, `chg` colours it as a change. Two decimals, as RV writes its figures. */
   const num = (key: keyof Row, label: string, opts: { dec?: number; pct?: boolean; chg?: boolean; title?: string; money?: boolean } = {}): Column<Row> => ({
@@ -302,7 +356,25 @@ export function RV({ sec }: FnProps) {
   ];
   return (
     <div>
-      <FnHeader code="PEERS" title="Relative Valuation" sec={s} tabs={PAGES} tab={page} onTab={setPage} sub={
+      <FnHeader code="PEERS" title="Relative Valuation" sec={s} tabs={PAGES} tab={page} onTab={setPage} plainTabs tabNumbers={false} inlineControls controls={
+          <span className="ee-ctl rv-ctl">
+            <span className="amber">Comp Source</span>
+            <span className="rv-field" title={desktopData() ? 'Finviz peers, Yahoo Finance similar stocks, then the industry in Yahoo’s profiles' : 'The built-in list’s industry, then its sector'}>{desktopData() ? 'Industry Peers' : 'Built-in Industry'}</span>
+            <label className="fld">
+              Region
+              <select className="sel-inp" aria-label="Region" value={region} onChange={(e) => setRegion(e.target.value as 'global' | 'home')}>
+                <option value="global">Global</option>
+                <option value="home">{s.country || 'Home market'}</option>
+              </select>
+            </label>
+            <label className="fld">
+              Mkt Cap &gt;
+              <input className="inp rv-cap" aria-label="Minimum market value in billions of US dollars" type="number" min={0} step={1} value={minCap} onChange={(e) => setMinCap(Math.max(0, Number(e.target.value) || 0))} title="Billions of US dollars; the loaded stock always stays" />
+            </label>
+            <span className="amber">Curr</span>
+            <span className="rv-field">USD</span>
+          </span>
+        } sub={
           <>
             {desktopData() ? (
               found?.group ? (
@@ -337,8 +409,21 @@ export function RV({ sec }: FnProps) {
               </>
             )}
           </>
-        } actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_RV.csv`, csv)} />
-      {page === 1 && <CompRange rows={rows} ticker={s.ticker.split(' ')[0]} />}
+        } actions={[
+          {
+            n: 9701,
+            bare: true,
+            label: 'Export',
+            onClick: () => {},
+            menu: exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_RV.csv`, csv).map((a) => ({ label: a.label === 'Copy' ? 'Copy to Clipboard' : 'Download as CSV', title: a.title, onClick: a.onClick })),
+          },
+        ]} />
+      {page === 1 && (
+        <div className="rv-top">
+          <SegmentPanel state={segments} />
+          <CompRange rows={rows} ticker={s.ticker.split(' ')[0]} />
+        </div>
+      )}
       {page === 2 && (
         <div className="row rv-sheets" style={{ gap: 3, padding: '3px 6px' }}>
           {SHEETS.map((t) => (

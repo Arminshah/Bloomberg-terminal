@@ -1602,6 +1602,17 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .ee-news-hl:hover { text-decoration: underline; }
 .ee-news-sum { margin: 0 0 4px; color: var(--amber); display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
 .ee-news-src { font-size: var(--fs-s); }
+/* RV (TE04 04:11): read-only amber fields, the segment panel's grey bars beside the comp range. */
+.rv-field { padding: 0 6px; background: var(--amber); color: #000; white-space: nowrap; }
+.rv-cap { width: 5em; }
+.rv-top { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.2fr); gap: 0 12px; border-bottom: 1px solid var(--line); }
+.rv-seg { align-self: start; }
+.rv-seg tr.sel td { background: #1d4a8a; }
+.rv-seg-bar { position: relative; width: 55%; }
+.rv-seg-bar span { display: inline-block; min-width: 3.2em; text-align: right; margin-right: 4px; color: var(--white); }
+.rv-seg-bar i { display: inline-block; height: 0.85em; max-width: calc(100% - 4em); background: #a9a9a9; vertical-align: -1px; }
+.rv-seg tr.sel .rv-seg-bar i { background: #5a8fd6; }
+@media (max-width: 760px) { .rv-top { grid-template-columns: 1fr; } }
 .fa-set { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--white); }
 .fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid #1d1d1d; background: #000; }
 .fa-bottom > button { background: #434142; border: 0; color: var(--white); padding: 0 12px; }
