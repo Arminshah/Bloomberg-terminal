@@ -1477,6 +1477,10 @@ test('holders sort and filter by reported period, and short float is calculated 
   await expect(positions.first()).toContainText('Recent Synthetic Holder');
   await command(page, 'AAPL DES', 'PROFILE');
   await page.getByRole('button', { name: /2\) Issue Info/ }).click();
+  // DES's Issue Info panels, in the order of the report's captures, then the float and short interest.
+  const issueInfo = page.locator('.panel').first();
+  await expect(issueInfo.locator('.sect-h')).toHaveText([/^Public Offerings/, /^Inst Holdings/, /^Issue Information/, /^Insider Holdings/, /^Top Holders/, /^Float and Short Interest/]);
+  await expect(issueInfo.locator('dt').filter({ hasText: 'Pri MIC' }).locator('+ dd')).toHaveText('XNAS');
   const shortFloat = page.locator('dt').filter({ hasText: 'Short interest, % of float' });
   await expect(shortFloat.locator('+ dd')).toHaveText('15.00%');
   await expect(shortFloat).toContainText('calculated');
@@ -1655,6 +1659,16 @@ test('research remains usable across FMP 402s and the Finnhub fallback, each row
   await expect(page.getByRole('cell', { name: '1.25', exact: true })).toBeVisible();
   expect((await calls(app)).finnhub.some((url) => new URL(url).pathname === '/api/v1/stock/recommendation')).toBe(true);
   await expect(page.getByTestId('more-research')).toContainText('Company guidance');
+  // The summary's lines under ANR's names and in its order, the pricing currency among them.
+  const snap = page.locator('.panel').first().locator('.anr-snap');
+  await expect(snap.locator('dt')).toHaveText(['Consensus Rating', 'Buys', 'Holds', 'Sells', '12M Tgt Px', 'Last Price', 'Pricing Currency', 'Return Potential', 'LTM Return']);
+  await expect(snap.locator('dd').nth(6)).toHaveText('USD');
+  // ANR's chart ranges, 2Y first shown.
+  const ranges = page.locator('.panel').first().getByRole('group', { name: 'Chart range' });
+  await expect(ranges.getByRole('button')).toHaveText(['6M', '1Y', '2Y', '5Y', 'Max']);
+  await expect(ranges.getByRole('button', { name: '2Y' })).toHaveAttribute('aria-pressed', 'true');
+  await ranges.getByRole('button', { name: '5Y' }).click();
+  await expect(ranges.getByRole('button', { name: '5Y' })).toHaveAttribute('aria-pressed', 'true');
   expect((await calls(app)).retired).toEqual([]);
 });
 
@@ -1885,12 +1899,13 @@ test("company news merges Benzinga's stories through Alpaca with Google News's s
   await expect(panel.locator('.news-item').nth(1).locator('.hl')).toHaveText('Synthetic Google story about the company · AAPL');
   await expect(panel.locator('.news-item').nth(1).locator('.src')).toHaveText('RTRS');
   // Headlines are numbered; typing a headline's number and GO opens it in the reader.
-  await expect(panel.locator('.news-item .news-n')).toHaveText(['1)', '2)']);
+  // Numbered from 101), as CN numbers its headlines.
+  await expect(panel.locator('.news-item .news-n')).toHaveText(['101)', '102)']);
   await expect(panel.locator('.story h2')).toHaveText('Synthetic Benzinga story about the company');
-  await page.locator('#cmd-0').fill('2');
+  await page.locator('#cmd-0').fill('102');
   await page.locator('#cmd-0').press('Enter');
   await expect(panel.locator('.story h2')).toHaveText('Synthetic Google story about the company');
-  await expect(panel.locator('.news-item.sel .news-n')).toHaveText('2)');
+  await expect(panel.locator('.news-item.sel .news-n')).toHaveText('102)');
   await expect(panel.locator('.fnh-sub')).toContainText('Alpaca: 1');
   await expect(panel.locator('.fnh-sub')).toContainText('Google News: 1');
   // Massive has no key here; it says so rather than failing silently.

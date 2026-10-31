@@ -43,12 +43,19 @@ interface Props<T> {
   page?: { index: number; size: number };
   /** Told when a click on a heading changes the sort (null: unsorted), for a screen that marks the sorted column. */
   onSortChange?: (sort: { key: string; dir: 1 | -1 } | null) => void;
+  /**
+   * Keep the first row first whatever the sort, numbered one before the rest, as the terminal's RV pins the loaded
+   * security as 100) above its peers from 101). Opt-in: other tables sort every row.
+   */
+  pinFirst?: boolean;
 }
 
 /** Sortable, groupable data table with sticky headers. */
-export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, groupBy, selected, className, numbered, empty, footer, summary, page, onSortChange }: Props<T>) {
+export function DataTable<T>({ columns, rows: given, rowKey, onRowClick, defaultSort, groupBy, selected, className, numbered, empty, footer, summary, page, onSortChange, pinFirst }: Props<T>) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(defaultSort ?? null);
-  const sorted = useMemo(() => {
+  const pinned = pinFirst && given.length ? given[0] : undefined;
+  const rows = useMemo(() => (pinFirst ? given.slice(1) : given), [given, pinFirst]);
+  const sortedRest = useMemo(() => {
     if (!sort) return rows;
     const col = columns.find((c) => c.key === sort.key);
     if (!col?.sort) return rows;
@@ -80,6 +87,7 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
     }
     return withIdx.map((x) => x.r);
   }, [rows, sort, columns, groupBy]);
+  const sorted = useMemo(() => (pinned !== undefined ? [pinned, ...sortedRest] : sortedRest), [pinned, sortedRest]);
 
   const toggle = (c: Column<T>) => {
     if (!c.sort) return;
@@ -94,7 +102,8 @@ export function DataTable<T>({ columns, rows, rowKey, onRowClick, defaultSort, g
   const visible = page ? sorted.slice(offset, offset + page.size) : sorted;
   const owner = useId();
   // Numbers follow the displayed order across display pages, around the function bar's 96 to 99.
-  const nums = numbered ? rowNumbers(numbered === true ? 1 : numbered, offset + visible.length).slice(offset) : [];
+  const start = numbered === true ? 1 : numbered || 1;
+  const nums = !numbered ? [] : pinned !== undefined ? [start - 1, ...rowNumbers(start, offset + visible.length - 1)].slice(offset) : rowNumbers(start, offset + visible.length).slice(offset);
   // Only rows that open something are typed by number; the others are numbered for reading.
   useMenu(`table:${owner}`, onRowClick ? nums.map((n, k) => ({ n, label: rowKey(visible[k], offset + k), run: () => onRowClick(visible[k]) })) : []);
   return (

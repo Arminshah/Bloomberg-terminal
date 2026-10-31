@@ -34,6 +34,9 @@ jobs:
       - run: npm test -- --maxWorkers=1
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
+      # A failed screenshot comparison prints the image this runner drew, so a baseline can come from CI's renderer.
+      - if: failure()
+        run: for f in $(find test-results -name '*-actual.png' 2>/dev/null); do echo "SCREENSHOT $f"; base64 -w0 "$f"; echo; done
       - run: xvfb-run -a npm run e2e:desktop
 
   # Branch/PR builds validate packaging. Tagged releases deliver packages directly

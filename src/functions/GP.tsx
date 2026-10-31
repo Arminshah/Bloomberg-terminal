@@ -11,6 +11,8 @@ import { resolveSecurity, searchSecurities } from '../data/registry';
 import { aggregate, barsSince, type Periodicity, type Series } from '../data/series';
 import { horizonStart, type Horizon } from '../data/analytics';
 import type { SecurityDef } from '../data/types';
+import { realDividends, realSplits } from '../data/live/yahoo';
+import { earningsHistory } from '../data/fundamentals';
 import { execute } from '../terminal/exec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
@@ -118,6 +120,17 @@ function CompareBox({ sec, list, setList }: { sec: SecurityDef; list: string[]; 
   );
 }
 
+/** The key events GP marks: ex-dividend dates and splits from the price history's source, and earnings report dates. */
+export function chartEvents(sec: SecurityDef): { t: number; kind: 'D' | 'S' | 'E' }[] {
+  const DAY = 86_400_000;
+  return [
+    ...(realDividends.get(sec.id) ?? []).map((d) => ({ t: d.day * DAY, kind: 'D' as const })),
+    ...(realSplits.get(sec.id) ?? []).map((x) => ({ t: x.day * DAY, kind: 'S' as const })),
+    // A report date the source gives only as its quarter's end is left out.
+    ...earningsHistory(sec).filter((e) => !e.dateUnknown && !e.approx && Number.isFinite(e.date)).map((e) => ({ t: e.date, kind: 'E' as const })),
+  ].sort((a, b) => a.t - b.t);
+}
+
 function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: addStudies = [], lower: addLower = [] }: { sec: SecurityDef; intraday: boolean; initialPeriod?: string; style?: ChartType; mnemonic?: string; studies?: string[]; lower?: LowerKind[] }) {
   const panel = usePanelId();
   const iex = useQuote(sec.id)?.provider === IEX_PROVIDER;
@@ -143,6 +156,8 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
   const [custom, setCustom] = useState<{ from: number; to: number } | null>(null);
   const [freq, setFreq] = useState<Periodicity>('D');
   const [compare, setCompare] = useState<string[]>([]);
+  // GP's Key Events: ex-dividend dates and splits from the price history's source, and the reported earnings dates.
+  const [keyEvents, setKeyEvents] = useState(false);
   const tick = useTick(intraday ? 1 : freq === 'D' ? 1_000_000 : 5);
   // The daily chart barely re-renders on ticks; this brings in a history that arrives after the first render.
   const history = useHistoryVersion();
@@ -181,10 +196,11 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
       refLine: intraday ? { value: engine.prevClose(sec.id), label: 'Prev' } : undefined,
       initialBars: intraday ? 100000 : custom ? Math.max(5, windowBars(series.t, custom.from, custom.to).count) : barsFor(period, freq, daily),
       initialEnd: !intraday && custom ? windowBars(series.t, custom.from, custom.to).after : undefined,
+      events: !intraday && keyEvents ? chartEvents(sec) : undefined,
       timeLabel: (t) => fmtTime(t, false),
       dateLabel: (t) => fmtDay(t),
     }),
-    [p, sec, intraday, compareSeries, period, freq, daily, series, custom],
+    [p, sec, intraday, compareSeries, period, freq, daily, series, custom, keyEvents],
   );
 
   const toggleStudy = (id: string) => {
@@ -235,6 +251,11 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
       {iex && <IexHistoryNotice intraday={intraday} />}
       <div className="chart-tools">
         {!intraday && shownRange && <DateRangeFields from={shownRange.from} to={shownRange.to} onChange={(from, to) => setCustom({ from, to })} />}
+        {!intraday && (
+          <label className="chk" title="Mark ex-dividend dates (D), splits (S) and earnings reports (E) on the chart">
+            <input type="checkbox" checked={keyEvents} onChange={(e) => setKeyEvents(e.target.checked)} /> Key Events
+          </label>
+        )}
         <span className="seg" role="group" aria-label="Chart type">
           {TYPES.map((t) => (
             <button key={t.id} type="button" className={p.type === t.id ? 'on' : ''} onClick={() => setType(t.id)}>

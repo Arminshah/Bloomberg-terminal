@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { actionLabel, position, useAnalystActions, type AnalystAction, type Position } from '../data/live/analyst-actions';
+import { actionLabel, latestByFirm, position, ratingTone, useAnalystActions, type AnalystAction, type Position } from '../data/live/analyst-actions';
 import { NotConnected } from '../components/NotConnected';
 import { Chg, HBar, KV, LivePx, Section } from '../components/cells';
 import { fmtBig, fmtDay, fmtIso, fmtNum, fmtPct, fmtTime } from '../core/format';
@@ -226,6 +226,7 @@ export function ANR({ sec }: FnProps) {
           </>
         )}
       </Section> : null}
+      {actions?.rows?.length ? <FirmRatings rows={actions.rows} /> : null}
       {actions?.rows?.length ? (
         <Section title="Recent rating actions" right={`${actions.rows.length} actions · MarketBeat · received ${fmtDay(actions.at)}${actions.stale ? ' · STALE: the latest request failed' : ''}`}>
           <RatingActions rows={actions.rows} last={engine.quote(s.id)?.last ?? NaN} />
@@ -267,6 +268,47 @@ export function ANR({ sec }: FnProps) {
         Targets, ratings and estimates are provider consensus and analyst opinions, not forecasts calculated by this app. Each dataset keeps its own source, fiscal/per-share basis and retrieval time. Yahoo fallback has no equivalent to FMP&apos;s period-average target history, so that dataset remains unavailable when FMP denies it. Finnhub supplies recommendation counts, not price targets. Research is cached for hours; opening this screen does not poll it continuously.
       </div>
     </div>
+  );
+}
+
+/**
+ * ANR's analyst table: each firm once with its analyst, its latest rating in its own words (coloured by meaning, an
+ * upgrade marked), its latest target and the date, newest first. The provider's per-analyst return, BARR and rank are
+ * its own measures and have no free source.
+ */
+function FirmRatings({ rows }: { rows: AnalystAction[] }) {
+  const firms = latestByFirm(rows);
+  const rated = firms.filter((f) => f.rating).length;
+  return (
+    <Section title={`Showing ${rated} of ${firms.length} sources`} right="MarketBeat, each firm's latest action">
+      <table className="tbl anr-firms">
+        <thead>
+          <tr>
+            <th className="num">#</th>
+            <th>Firm</th>
+            <th>Analyst</th>
+            <th>Recommendation</th>
+            <th className="num">Tgt Px</th>
+            <th>Date↓</th>
+          </tr>
+        </thead>
+        <tbody>
+          {firms.map((f, i) => (
+            <tr key={f.firm} className={f.rating ? undefined : 'muted'}>
+              <td className="num">{i + 1})</td>
+              <td className="amber ellipsis">{f.firm}</td>
+              <td className="white ellipsis">{f.analyst}</td>
+              <td className={ratingTone(f.rating)} title={f.rating ? `${f.firm}'s own words${f.upgraded ? ', an upgrade' : f.downgraded ? ', a downgrade' : ''}` : 'No rating among its actions'}>
+                {f.upgraded ? <span className="up">⬆ </span> : f.downgraded ? <span className="dn">⬇ </span> : null}
+                {f.rating || '--'}
+              </td>
+              <td className="num dn">{Number.isFinite(f.target) ? fmtNum(f.target, 2) : ''}</td>
+              <td className="white">{fmtDay(Date.parse(`${f.date}T00:00:00Z`))}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Section>
   );
 }
 
@@ -436,7 +478,7 @@ function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | nul
     <div className="anr-snap">
       <KV
         items={[
-          [<span key="s" title="Average of the ratings counted: buys 5, holds 3, sells 1">Rating score (5 buy, 1 sell)</span>, rs ? fmtNum(rs.score, 2) : '--'],
+          [<span key="s" title="Average of the ratings counted on ANR's 1 to 5 scale: buys 5, holds 3, sells 1">Consensus Rating</span>, rs ? fmtNum(rs.score, 2) : '--'],
           [<span key="b" className="up">Buys</span>, rs ? share(rs.buyPct, rs.buys) : '--'],
           [<span key="h">Holds</span>, rs ? share(rs.holdPct, rs.holds) : '--'],
           [<span key="x" className="dn">Sells</span>, rs ? share(rs.sellPct, rs.sells) : '--'],
@@ -444,10 +486,11 @@ function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | nul
       />
       <KV
         items={[
-          ['Average target', c ? fmtNum(c.mean, 2) : '--'],
-          ['Last price', <LivePx key="p" id={sec.id} />],
-          ['Return potential', <Chg key="r" v={potential} pct dec={1} />],
-          ['LTM return', <Chg key="l" v={periodChange(sec.id, '1Y')} pct dec={1} />],
+          [<span key="t" title="The average of the analysts' 12-month price targets">12M Tgt Px</span>, c ? fmtNum(c.mean, 2) : '--'],
+          ['Last Price', <LivePx key="p" id={sec.id} />],
+          ['Pricing Currency', sec.ccy],
+          [<span key="r" title="12M Tgt Px over the last price, less one">Return Potential</span>, <Chg key="r" v={potential} pct dec={1} />],
+          [<span key="l" title="The price change over the last 12 months">LTM Return</span>, <Chg key="l" v={periodChange(sec.id, '1Y')} pct dec={1} />],
         ]}
       />
       <TargetChart sec={sec} c={c} />
@@ -456,30 +499,53 @@ function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | nul
 }
 
 /** A year of closes with the consensus target and the range of targets, as ANR's chart beside its summary. */
+/** ANR's chart ranges; 2Y is the one its captures show. */
+const CHART_RANGES: { id: string; days: number }[] = [
+  { id: '6M', days: 182 },
+  { id: '1Y', days: 365 },
+  { id: '2Y', days: 730 },
+  { id: '5Y', days: 1826 },
+  { id: 'Max', days: Infinity },
+];
+
 function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }) {
   useColourScheme();
   const colours = palette();
+  const [range, setRange] = useState('2Y');
+  const days = CHART_RANGES.find((r) => r.id === range)?.days ?? 730;
   const daily = engine.daily(sec.id);
-  const from = engine.today * DAY_MS - 365 * DAY_MS;
+  const from = Number.isFinite(days) ? engine.today * DAY_MS - days * DAY_MS : -Infinity;
   const points: { x: number; y: number; label: string }[] = [];
   for (let i = 0; i < daily.length; i++) if (daily.t[i] >= from) points.push({ x: daily.t[i], y: sec.ccy === 'GBp' ? daily.c[i] / 100 : daily.c[i], label: fmtDay(daily.t[i]) });
-  if (points.length < 2) return null;
+  // The range buttons stay while the price history is still on its way, or missing.
+  const noHistory = points.length < 2;
   const refLines = c
     ? [
-        ...(Number.isFinite(c.mean) ? [{ y: c.mean, color: '#ff9e1b', label: `12M Tgt Px ${fmtNum(c.mean, 2)}` }] : []),
+        ...(Number.isFinite(c.mean) ? [{ y: c.mean, color: '#e8e8e8', label: `12M Tgt Px ${fmtNum(c.mean, 2)}` }] : []),
         ...(Number.isFinite(c.high) ? [{ y: c.high, color: colours.up, label: `High ${fmtNum(c.high, 2)}` }] : []),
         ...(Number.isFinite(c.low) ? [{ y: c.low, color: colours.dn, label: `Low ${fmtNum(c.low, 2)}` }] : []),
       ]
     : [];
   return (
     <div className="anr-chart">
+      <div className="row" style={{ gap: 3, marginBottom: 3 }} role="group" aria-label="Chart range">
+        {CHART_RANGES.map((r) => (
+          <button key={r.id} type="button" className={`chip-btn${r.id === range ? ' on' : ''}`} aria-pressed={r.id === range} onClick={() => setRange(r.id)}>
+            {r.id}
+          </button>
+        ))}
+      </div>
+      {noHistory ? (
+        <div className="muted pad-s">No price history for this range yet.</div>
+      ) : (
       <XYChart
         height={150}
-        series={[{ label: 'Price', color: '#e8e8e8', points }]}
+        series={[{ label: 'Price', color: '#ffd23f', points }]}
         refLines={refLines}
         xFormat={(v) => fmtDay(v)}
         yFormat={(v) => fmtNum(v, 0)}
       />
+      )}
     </div>
   );
 }

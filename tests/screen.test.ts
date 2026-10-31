@@ -240,6 +240,9 @@ describe("SCREEN over the FTSE 100: the first portfolio paper's screen", () => {
     expect(grossMargin(5, 0)).toBe(NM);
     // IHG's common equity was negative at both ends of 2025.
     expect(returnOnCommonEquity(758, -2_741, -2_312)).toBe(NM);
+    // Equity that turned positive during the year: the average is small and positive, the return meaningless.
+    expect(returnOnCommonEquity(2_500, 1_200, -400)).toBe(NM);
+    expect(returnOnCommonEquity(2_500, -400, 1_200)).toBe(NM);
   });
 
   it('compares strictly above and below, as "> 25" in the paper', () => {

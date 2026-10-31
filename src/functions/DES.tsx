@@ -8,7 +8,8 @@ import { Chg, KV, LivePx, SecLink, Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
 import { fmtBig, fmtDay, fmtInt, fmtNum, fmtPct } from '../core/format';
 import { engine, useTick } from '../data/market';
-import { marketCapUsd, periodChange, rangeStats } from '../data/analytics';
+import { closeAt, marketCapUsd, periodChange, periodStart, rangeStats } from '../data/analytics';
+import type { Series } from '../data/series';
 import { centralBanks, COUNTRY_NAMES } from '../data/eco';
 import { CURRENCY_INFO } from '../data/universe';
 import { analytics as bondAnalytics, settlementDate } from '../finance/bonds';
@@ -107,8 +108,54 @@ function Returns({ id }: { id: string }) {
   );
 }
 
+/**
+ * DES's period table for an index: its level at the start of the year and a year before the latest close, with the change
+ * since each in percent and in points, then its 52-week high and low with their dates.
+ */
+export function indexPeriodRows(s: Series, last: number, hi52: number, hi52t: number, lo52: number, lo52t: number): { label: string; level: number; pct: number; net: number; date?: number }[] {
+  const from = (level: number) => ({ level, pct: (last / level - 1) * 100, net: last - level });
+  return [
+    { label: 'Year to Date', ...from(s.length ? closeAt(s, periodStart(s, 'YTD')) : NaN) },
+    { label: '52 Week Ago', ...from(s.length ? closeAt(s, periodStart(s, '1Y')) : NaN) },
+    { label: '52 Week High', level: hi52, pct: NaN, net: NaN, date: hi52t },
+    { label: '52 Week Low', level: lo52, pct: NaN, net: NaN, date: lo52t },
+  ];
+}
+
+function IndexPeriods({ sec }: { sec: SecurityDef }) {
+  const rs = rangeStats(sec.id);
+  const last = engine.quote(sec.id)?.last ?? NaN;
+  const rows = indexPeriodRows(engine.daily(sec.id), last, rs.hi52, rs.hi52t, rs.lo52, rs.lo52t);
+  return (
+    <table className="tbl des-periods">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th className="num">Level</th>
+          <th className="num">% Change</th>
+          <th className="num">Net Change</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.label}>
+            <td className="amber">{r.label}</td>
+            <td className="num white">
+              {fmtNum(r.level, 2)}
+              {r.date !== undefined && Number.isFinite(r.date) ? <span className="muted"> ({fmtDay(r.date)})</span> : null}
+            </td>
+            <td className="num">{r.date === undefined ? <Chg v={r.pct} dec={2} /> : null}</td>
+            <td className="num">{r.date === undefined ? <Chg v={r.net} dec={2} /> : null}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 function IndexDES({ sec }: { sec: SecurityDef }) {
   useTick(5);
+  const panel = usePanelId();
   const rs = rangeStats(sec.id);
   const members = engine.securities.filter((d) => d.cls === 'equity' && (sec.country === 'US' ? d.country === 'US' : d.country === sec.country));
   return (
@@ -126,6 +173,7 @@ function IndexDES({ sec }: { sec: SecurityDef }) {
               ['Realised vol 30D', `${fmtNum(rs.vol30, 1)}%`],
             ]}
           />
+          <IndexPeriods sec={sec} />
           <Range52 sec={sec} />
           <Returns id={sec.id} />
         </Section>
@@ -134,7 +182,18 @@ function IndexDES({ sec }: { sec: SecurityDef }) {
         </Section>
       </div>
       {members.length > 0 && sec.ticker !== 'VIX' && (
-        <Section title="Members in the Armin universe" right={`${members.length} securities`}>
+        <Section
+          // Not the index's members: every equity of the index's country in the app's own list. MEMBERS has the members.
+          title={`${COUNTRY_NAMES[sec.country] ?? sec.country} equities in the app's list`}
+          right={
+            <>
+              {members.length} securities ·{' '}
+              <button type="button" className="act" onClick={() => execute(panel, `${sec.id} MEMBERS`)}>
+                The index&apos;s members (MEMBERS)
+              </button>
+            </>
+          }
+        >
           <DataTable
             rows={members}
             rowKey={(d) => d.id}

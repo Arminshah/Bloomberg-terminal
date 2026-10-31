@@ -98,3 +98,55 @@ export function useAnalystActions(def: SecurityDef | undefined): Entry | undefin
   }, [symbol]);
   return entry;
 }
+
+/** One firm's standing view, as an analyst table lists its sources: its latest rating and target and their date. */
+export interface FirmRating {
+  firm: string;
+  analyst: string;
+  /** The firm's own words for its latest rating; empty when its actions set none. */
+  rating: string;
+  /** Its latest price target; NaN when it set none. */
+  target: number;
+  /** YYYY-MM-DD of its latest action. */
+  date: string;
+  /** Its latest rating came with an upgrade or a downgrade. */
+  upgraded: boolean;
+  downgraded: boolean;
+}
+
+/**
+ * Each firm once, newest action first: the latest rating it gave, the latest target it set and the analyst on its latest
+ * action. A target-only action keeps the rating given before it, as the firm's rating stands until it changes.
+ */
+export function latestByFirm(rows: AnalystAction[]): FirmRating[] {
+  const newest = rows.map((r, i) => ({ r, i })).sort((a, b) => b.r.date.localeCompare(a.r.date) || a.i - b.i).map((x) => x.r);
+  const by = new Map<string, FirmRating>();
+  for (const r of newest) {
+    const key = r.firm.trim().toLowerCase();
+    if (!key) continue;
+    let f = by.get(key);
+    if (!f) {
+      f = { firm: r.firm.trim(), analyst: r.analyst.trim(), rating: '', target: NaN, date: r.date, upgraded: false, downgraded: false };
+      by.set(key, f);
+    }
+    if (!f.rating && r.rating.trim()) {
+      f.rating = r.rating.trim();
+      const act = actionLabel(r);
+      f.upgraded = act === 'Upgraded';
+      f.downgraded = act === 'Downgraded';
+    }
+    if (!Number.isFinite(f.target) && Number.isFinite(r.to)) f.target = r.to;
+    if (!f.analyst && r.analyst.trim()) f.analyst = r.analyst.trim();
+  }
+  return [...by.values()];
+}
+
+/**
+ * The colour ANR gives a rating word, as a class: green for buys, yellow for holds, red for sells, and orange (the app's
+ * amber) for a rating suspended, restricted or under review.
+ */
+export function ratingTone(rating: string): 'up' | 'yellow' | 'dn' | 'amber' | 'muted' {
+  if (/suspend|restrict|under review|not rated/i.test(rating)) return 'amber';
+  const p = position(rating);
+  return p === 'BUY' ? 'up' : p === 'HOLD' ? 'yellow' : p === 'SELL' ? 'dn' : 'muted';
+}

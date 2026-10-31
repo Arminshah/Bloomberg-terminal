@@ -126,10 +126,10 @@ export function fmtMonthDayNum(month: number, day: number): string {
 const dayMonthYear = (y: number, month: number, day: number, long: boolean) => `${fmtMonthDayNum(month, day)}/${long ? String(y) : String(y).slice(2)}`;
 
 /** DD/MM/YY (or MM/DD/YY) in the display time zone. */
-export function fmtDate(ms: number, tz: TzMode = tzMode): string {
+export function fmtDate(ms: number, tz: TzMode = tzMode, long = false): string {
   if (!Number.isFinite(ms)) return DASH;
   const p = zonedParts(ms, tz);
-  return dayMonthYear(p.y, p.mo, p.d, false);
+  return dayMonthYear(p.y, p.mo, p.d, long);
 }
 
 /** DD/MM/YY (or MM/DD/YY) for UTC-dated bars (daily history); `long` gives the four-digit year. */

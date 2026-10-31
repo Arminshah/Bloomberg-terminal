@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { Sparkline } from '../components/Sparkline';
 import { Chg } from '../components/cells';
@@ -14,6 +14,13 @@ import { sourceLabel } from '../components/Source';
 import type { FnProps } from '../terminal/types';
 import { useSegments } from '../data/live/segments';
 import { segmentRows, SegmentsView } from './FASegments';
+import { closeAt } from '../data/analytics';
+import { engine, useHistoryVersion } from '../data/market';
+import { capAtPeriodEnd, capSeries, shareFilings } from '../data/marketcap';
+import { loadCompanyFacts, resolveFiler, secAvailable, secTicker, useSecLoad, type CompanyFacts } from '../data/live/sec';
+import { realSplits } from '../data/live/yahoo';
+import { wantShares } from '../data/live/shares';
+import { XYChart } from '../components/chart/XYChart';
 
 type Row = {
   label: string;
@@ -41,9 +48,48 @@ const growthNm = (a: number, b: number | undefined) => b !== undefined && Number
 const mln = (v: number | undefined) => (v === undefined ? NaN : v / 1e6);
 
 /**
- * FA's first page, as the terminal's Key Stats: the headline figures with their growth and margins under them. The
- * market value lines are left out: they need the share count and price at each period end, which the statements do
- * not give.
+ * A grid figure as FA writes it: money in millions with one decimal and a separator (20,292.0), growth and margins
+ * with one decimal and no sign, ratios marked with %, and per-share figures with their own decimals.
+ */
+export function faNumber(v: number, r: { dec?: number; ratio?: boolean; pct?: boolean }): string {
+  if (r.ratio) return fmtNum(v, 1);
+  if (r.pct) return `${fmtNum(v, 1)}%`;
+  return fmtNum(v, r.dec ?? 1);
+}
+
+/**
+ * FA's measuring line between two bars: the total change and the compound annual change over the calendar days between
+ * the two period ends (365 days a year), as "+94.41% (+39.37%ann.)". NaN without two positive values a day or more apart.
+ */
+export function measureChange(v0: number, v1: number, t0: number, t1: number): { total: number; annual: number; text: string } {
+  const days = (t1 - t0) / 86_400_000;
+  if (!(v0 > 0) || !(v1 > 0) || !(days >= 1)) return { total: NaN, annual: NaN, text: '' };
+  const total = (v1 / v0 - 1) * 100;
+  const annual = (Math.pow(v1 / v0, 365 / days) - 1) * 100;
+  const signed = (v: number) => `${v >= 0 ? '+' : ''}${fmtNum(v, 2)}%`;
+  return { total, annual, text: `${signed(total)} (${signed(annual)}ann.)` };
+}
+
+/** Preferred stock and minority interest, as Adj Highlights' "Preferred & Other": none when the source lists neither. */
+export function preferredAndOther(p: Pick<FinPeriod, 'preferred' | 'minority'>): number {
+  const parts = [p.preferred, p.minority].filter((x): x is number => x !== undefined && Number.isFinite(x));
+  return parts.length ? parts.reduce((a, b) => a + b, 0) : NaN;
+}
+
+/**
+ * Enterprise value at a period's end, as Adj Highlights works it: market capitalisation plus total debt and preferred
+ * and other, less cash and equivalents. A part the source does not list adds nothing; without the market value, the
+ * debt or the cash there is none.
+ */
+export function periodEnterpriseValue(cap: number, p: Pick<FinPeriod, 'cash' | 'debt' | 'preferred' | 'minority'>): number {
+  if (![cap, p.debt, p.cash].every(Number.isFinite)) return NaN;
+  const other = preferredAndOther(p);
+  return cap + p.debt + (Number.isFinite(other) ? other : 0) - p.cash;
+}
+
+/**
+ * FA's first page, as the terminal's Key Stats: the market value lines at each period's end (put before these in the
+ * screen, as they need prices), then the headline figures with their growth and margins under them.
  */
 const KEY: Row[] = [
   { label: 'Revenue', get: (p) => p.rev, bold: true, est: (e) => mln(e.revenueAvg) },
@@ -167,6 +213,9 @@ export function FA({ sec, route }: FnProps) {
   const [quarterly, setQuarterly] = useState(false);
   const [periods, setPeriods] = useState(5);
   const [offset, setOffset] = useState(0);
+  // FA's graph mode: the line whose chart button was pressed, drawn as bars above the grid.
+  const [graphed, setGraph] = useState<{ tab: number; ri: number } | null>(null);
+  const graph = graphed && graphed.tab === tab ? graphed.ri : null;
   const { real, status: fundStatus } = useFundamentals(s);
   const segments = useSegments(s, tab === 6);
   const status = fundStatus === 'ok' && !hasRealStatements(s) ? 'error' : fundStatus;
@@ -179,6 +228,39 @@ export function FA({ sec, route }: FnProps) {
   const supplementSources = [...new Set(cols.flatMap((p) => p.supplements ?? []))];
   const revenueDefinitions = [...new Map(cols.flatMap((p) => p.niTotalBasisDetails ?? []).flatMap((difference) => difference.definition ? [[difference.definition.accession, difference.definition] as const] : [])).values()];
   const ccy = reportCcy(s);
+  // The market value at each period's end, for Key Stats' first lines: the last close by then times the shares on the
+  // latest SEC cover filed before it, as MARKETCAP works it; a company without SEC covers takes today's count back.
+  useEffect(() => wantShares(s.id), [s.id]);
+  const history = useHistoryVersion();
+  const ticker = secTicker(s);
+  const facts = useSecLoad<CompanyFacts>(tab === 1 && secAvailable() && ticker ? `facts:${ticker}` : null, async (force) => {
+    const c = await resolveFiler(ticker!, force);
+    if (!c.ok) return c;
+    return loadCompanyFacts(c.data.cik, force);
+  });
+  const cf = facts.result?.ok ? facts.result.data : null;
+  const sharesNow = (s.eq?.shares ?? NaN) * 1e6;
+  const caps = useMemo(
+    () => capSeries(engine.daily(s.id), sharesNow, shareFilings(cf), realSplits.get(s.id) ?? [], s.minor ? 0.01 : 1),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [s.id, cf, sharesNow, history],
+  );
+  const tradeCcy = s.ccy === 'GBp' ? 'GBP' : s.ccy === 'USd' ? 'USD' : s.ccy;
+  // In the statements' currency at that day's rates (through the dollar), millions; none without a rate.
+  const capFor = (p: FinPeriod) => {
+    const pt = capAtPeriodEnd(caps.points, p.end);
+    if (!pt) return NaN;
+    if (tradeCcy === ccy) return pt.cap / 1e6;
+    const usdPer = (c: string) => (c === 'USD' ? 1 : closeAt(engine.daily(`CCY:${c}`), pt.t));
+    return (pt.cap * usdPer(tradeCcy)) / usdPer(ccy) / 1e6;
+  };
+  const marketRows: Row[] = [
+    { label: 'Market Capitalization', get: capFor, bold: true },
+    { label: 'Cash & Equivalents', get: (p) => p.cash },
+    { label: 'Preferred & Other', get: preferredAndOther },
+    { label: 'Total Debt', get: (p) => p.debt },
+    { label: 'Enterprise Value', get: (p) => periodEnterpriseValue(capFor(p), p), bold: true },
+  ];
   // The analysts' consensus for the coming fiscal years, beside the reported ones (annual view, statements' currency).
   const est = useAnalysts(analystsAvailable() && analystSymbol(s) ? s : undefined, ['estimates']).estimates as AnalystPart<Estimate[]> | undefined;
   const lastEnd = f.annual.length ? f.annual[f.annual.length - 1].end : NaN;
@@ -192,7 +274,7 @@ export function FA({ sec, route }: FnProps) {
   // Dividends come in the unit the shares trade in (Shell: pence) while the statements are in the reporting
   // currency (dollars): the row says its unit, and no payout ratio divides one by the other.
   const divUnit = s.ccy !== ccy ? (s.ccy === 'GBp' ? 'pence' : s.ccy) : '';
-  const rows = TABS[tab - 1].rows.map((r) =>
+  const rows = (tab === 1 ? [...marketRows, ...KEY] : TABS[tab - 1].rows).map((r) =>
     divUnit && r.label === 'Dividends per Share' ? { ...r, label: `Dividends per Share (${divUnit})` } : divUnit && r.label === 'Dividend Payout Ratio' ? { ...r, get: () => NaN, nm: undefined } : r,
   );
   // Growth lines compare a year with the one before and a quarter with the same quarter a year earlier; the LTM
@@ -211,7 +293,7 @@ export function FA({ sec, route }: FnProps) {
   const months = quarterly ? '3 Months Ending' : '12 Months Ending';
   // A missing figure is left empty (the note says why); "NM" where both figures are there but a ratio means nothing.
   const fmtCell = (r: Row, v: number, i?: number) =>
-    !Number.isFinite(v) ? (i != null && r.nm?.(cols[i], prevOf(i)) ? 'NM' : '') : r.ratio ? fmtNum(v, 1) : r.pct ? `${fmtNum(v, 1)}%` : fmtNum(v, r.dec ?? (Math.abs(v) >= 100 ? 0 : 1));
+    !Number.isFinite(v) ? (i != null && r.nm?.(cols[i], prevOf(i)) ? 'NM' : '') : faNumber(v, r);
   return (
     <div data-audit-state={JSON.stringify({ schema: 1, domain: 'financials', capturedAt: Date.now(), security: s.id, currency: ccy, page: TABS[tab - 1].file, periods: cols.map((p) => ({ label: p.label, end: p.end, basis: p.basis, rev: p.rev, opInc: p.opInc, operatingIncomeVariants: p.operatingIncomeVariants, niTotal: p.niTotal, ni: p.ni, niTotalFiled: p.niTotalFiled, niTotalBasisConflict: !!p.niTotalBasisConflict, niTotalBasisDetails: p.niTotalBasisDetails, parentIncomeMargin: parentIncomeMargin(p) })) })}>
       <FnHeader
@@ -253,6 +335,32 @@ export function FA({ sec, route }: FnProps) {
         </div>}
       />
       {tab === 6 ? <SegmentsView state={segments} /> : <>
+      {graph !== null && rows[graph] ? (() => {
+        const r = rows[graph];
+        // Reported periods in orange and estimates in brown, one bar per period, as FA's graph mode draws them.
+        const reported = cols.map((c, i) => ({ x: i, y: value(r, i), label: periodHeading(c, quarterly), t: c.end })).filter((q) => Number.isFinite(q.y));
+        const est = estimates.map((e, j) => ({ x: cols.length + j, y: estValue(r, e), label: `${e.date.slice(0, 4)} Y Est`, t: Date.parse(`${e.date}T00:00:00Z`) })).filter((q) => Number.isFinite(q.y));
+        const all = [...reported, ...est];
+        const m = all.length > 1 ? measureChange(all[0].y, all[all.length - 1].y, all[0].t, all[all.length - 1].t) : null;
+        return (
+          <div className="fa-graph-mode" data-testid="fa-graph">
+            <div className="row" style={{ gap: 8, padding: '3px 6px' }}>
+              <span className="amber">{r.label}</span>
+              {m?.text ? <span className="white" title={`From ${all[0].label} to ${all[all.length - 1].label}, compounded over the calendar days between the period ends`}>{m.text}</span> : null}
+              <button type="button" className="act" onClick={() => setGraph(null)}>Close graph</button>
+              <button type="button" className="act" onClick={() => execute(panel, `${s.id} FUNDCHART`)}>Graph Fundamentals (FUNDCHART)</button>
+            </div>
+            <XYChart
+              height={180}
+              series={[
+                { label: r.label, color: '#ff9e1b', kind: 'bar', points: reported },
+                ...(est.length ? [{ label: `${r.label} Est`, color: '#9a7a4a', kind: 'bar' as const, points: est }] : []),
+              ]}
+              xFormat={(v) => all.find((q) => q.x === v)?.label ?? ''}
+            />
+          </div>
+        );
+      })() : null}
       <div className="tbl-wrap">
         <table className="tbl zebra fa-tbl">
           <thead>
@@ -306,7 +414,7 @@ export function FA({ sec, route }: FnProps) {
                 <tr key={`${ri}:${r.label}`}>
                   <td className={r.bold ? 'amber b' : r.ratio ? 'muted' : sub ? 'white' : 'amber'} style={r.indent ? { paddingLeft: 22 } : undefined}>
                     {!r.ratio && (
-                      <button type="button" className="fa-graph" title={`Graph ${r.label.replace(/^[+-] /, '')} (GF)`} aria-label={`Graph ${r.label.replace(/^[+-] /, '')}`} onClick={() => execute(panel, `${s.id} FUNDCHART`)}>
+                      <button type="button" className="fa-graph" title={`Graph ${r.label.replace(/^[+-] /, '')} (GF)`} aria-label={`Graph ${r.label.replace(/^[+-] /, '')}`} onClick={() => setGraph(graph === ri ? null : { tab, ri })}>
                         <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 9V1M1 9h8M2.5 7l2-2.5 1.6 1.4L8.5 3" fill="none" stroke="currentColor" strokeWidth="1.1" /></svg>
                       </button>
                     )}

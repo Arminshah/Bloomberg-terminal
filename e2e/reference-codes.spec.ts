@@ -775,6 +775,56 @@ test('EE is the earnings and estimates page: its boxes open the screens with the
   expect(errors).toEqual([]);
 });
 
+test("PEERS has RV's Overview columns in their order, its Comp Sheets and Markets, and pins the loaded stock as 100)", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL PEERS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
+  const headers = () => panel.locator('table:not(.rv-range) thead th').allTextContents().then((hs) => hs.map((h) => h.replace(/\s*[▲▼]$/, '').trim()));
+  expect(await headers()).toEqual(['#', 'Name', '', 'Mkt Cap USD', 'Last Px', 'Chg Pct 1D', 'Chg Pct 1M', 'Rev - 1 Yr Gr:Y', 'EPS - 1 Yr Gr:Y', 'P/E', 'ROE', 'Dvd 12M Yld']);
+  const body = panel.locator('table:not(.rv-range) tbody:not(.tbl-summary) tr');
+  // RV's comp range panel: five figures, each with the subject, low and high.
+  const range = panel.getByTestId('rv-range');
+  await expect(range.locator('tbody tr td:first-child')).toHaveText(['P/E', 'EV/EBITDA', 'Revenue Growth', 'EBITDA Margin', 'ROE']);
+  await expect(range.locator('thead th')).toHaveText(['Metric', 'AAPL', 'Low', 'Comp Range', 'High']);
+  await expect(body.first().locator('td').first()).toHaveText('100)');
+  await expect(body.first()).toContainText('AAPL US');
+  await expect(body.nth(1).locator('td').first()).toHaveText('101)');
+  await panel.getByRole('button', { name: 'Comp Sheets' }).first().click();
+  for (const name of ['Equity Valuation', 'Profitability', 'Balance Sheet']) await expect(panel.getByRole('button', { name, exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Profitability', exact: true }).click();
+  expect(await headers()).toEqual(['#', 'Name', '', 'Revenue Growth', 'Gross Margin', 'Op Margin', 'EBITDA Margin TTM', 'Net Profit Margin TTM', 'Return On Assets', 'Return On Equity', 'Eff Tax Rate', 'Revenue/Employee USD']);
+  await expect(body.first()).toContainText('AAPL US');
+  await panel.getByRole('button', { name: 'Markets' }).first().click();
+  expect(await headers()).toEqual(['#', 'Name', '', 'Last Px', 'Chg Pct 1D', 'Chg Pct 1M', 'Chg Pct YTD', 'Chg Pct 1Y']);
+  expect(errors).toEqual([]);
+});
+
+test("PEERS' Median line comes first and is the median of the loaded stock and its peers, as the report's RV captures give it", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL PEERS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
+  await expect(panel.locator('tbody.tbl-summary tr').first()).toHaveAttribute('data-testid', 'rv-median');
+  // Read the P/E column and the Median line at one moment, as the demo's prices move.
+  const snap = await panel.evaluate((el) => {
+    const headers = Array.from(el.querySelectorAll('table:not(.rv-range) thead th')).map((h) => h.textContent?.trim() ?? '');
+    const col = headers.findIndex((h) => h.startsWith('P/E'));
+    const rows = Array.from(el.querySelectorAll('table:not(.rv-range) tbody:not(.tbl-summary) tr')).filter((r) => r.querySelectorAll('td').length > col);
+    const valueAt = (r: Element) => Number(r.querySelectorAll('td')[col]?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
+    const cell = el.querySelector('[data-testid="rv-median"] td[data-key="pe"]');
+    return { col, values: rows.map(valueAt), hasSubject: rows.some((r) => r.textContent?.includes('AAPL US')), median: Number(cell?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN) };
+  });
+  expect(snap.col).toBeGreaterThan(0);
+  expect(snap.hasSubject).toBe(true);
+  const xs = snap.values.filter(Number.isFinite).sort((a, b) => a - b);
+  expect(xs.length).toBeGreaterThan(2);
+  const mid = Math.floor(xs.length / 2);
+  const expected = xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
+  expect(snap.median).toBeCloseTo(expected, 9);
+  expect(errors).toEqual([]);
+});
+
 test("PEERS ranks the loaded stock among its peers on each figure, as the table's own figures give", async ({ page }) => {
   const errors = await boot(page);
   await run(page, 'AAPL PEERS');
@@ -786,13 +836,12 @@ test("PEERS ranks the loaded stock among its peers on each figure, as the table'
   // carries its own) and the rank row are read at one moment, as the demo's prices move, and two P/Es can look
   // equal at one decimal while one is lower.
   const snap = await panel.evaluate((el) => {
-    const headers = Array.from(el.querySelectorAll('thead th')).map((h) => h.textContent?.trim() ?? '');
+    const headers = Array.from(el.querySelectorAll('table:not(.rv-range) thead th')).map((h) => h.textContent?.trim() ?? '');
     const col = headers.findIndex((h) => h.startsWith('P/E'));
-    const rows = Array.from(el.querySelectorAll('tbody:not(.tbl-summary) tr')).filter((r) => r.getAttribute('data-testid') !== 'rv-rank' && r.querySelectorAll('td').length > col);
+    const rows = Array.from(el.querySelectorAll('table:not(.rv-range) tbody:not(.tbl-summary) tr')).filter((r) => r.getAttribute('data-testid') !== 'rv-rank' && r.querySelectorAll('td').length > col);
     const valueAt = (r: Element) => Number(r.querySelectorAll('td')[col]?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
     const subject = rows.find((r) => r.textContent?.includes('AAPL US'));
-    // The rank row's first cell spans the five columns before P/E.
-    const rankCell = el.querySelectorAll('[data-testid="rv-rank"] td')[col - 4];
+    const rankCell = el.querySelector('[data-testid="rv-rank"] td[data-key="pe"]');
     return { col, values: rows.map(valueAt), subject: subject ? valueAt(subject) : NaN, rank: rankCell?.textContent?.trim() ?? '' };
   });
   expect(snap.col).toBeGreaterThan(0);

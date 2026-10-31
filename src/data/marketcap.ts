@@ -79,6 +79,25 @@ export function coverShareCounts(cf: Pick<CompanyFacts, 'facts'> | null | undefi
 }
 
 /** Every filed share count with its filing date (revisions as separate rows), oldest filing first. */
+/**
+ * The market value at a period's end, as a financial statement's market capitalisation line: the value on the last
+ * trading day on or before that date (the end counts in full), none when no close falls in the ten days before it.
+ */
+export function capAtPeriodEnd(points: CapPoint[], end: number): CapPoint | undefined {
+  const until = end + 86_400_000;
+  let lo = 0;
+  let hi = points.length - 1;
+  let at = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid].t < until) {
+      at = mid;
+      lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  return at >= 0 && points[at].t >= end - 10 * 86_400_000 ? points[at] : undefined;
+}
+
 export function shareFilings(cf: Pick<CompanyFacts, 'facts'> | null | undefined): ShareCount[] {
   return shareRows(cf)
     .filter((r) => r.val > 0)
