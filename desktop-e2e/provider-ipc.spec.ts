@@ -1675,6 +1675,7 @@ test('research remains usable across FMP 402s and the Finnhub fallback, each row
   const ranges = page.locator('.panel').first().getByRole('group', { name: 'Chart range' });
   await expect(ranges.getByRole('button')).toHaveText(['6M', '1Y', '2Y', '5Y', 'Max']);
   await expect(ranges.getByRole('button', { name: '2Y' })).toHaveAttribute('aria-pressed', 'true');
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-anr-fixture.png') });
   await ranges.getByRole('button', { name: '5Y' }).click();
   await expect(ranges.getByRole('button', { name: '5Y' })).toHaveAttribute('aria-pressed', 'true');
   expect((await calls(app)).retired).toEqual([]);
@@ -1819,7 +1820,9 @@ test('Equibles is retired: no request, no bridge, no research section, even with
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.researchBlocked = true; });
   await command(page, 'APLD ANALYSTS');
   await expect(page.getByTestId('more-research')).toBeVisible();
-  await page.getByRole('button', { name: 'Retry analyst research', exact: true }).click();
+  // The research controls sit in the red bar's Actions ▾, as TE04 07:13 has it.
+  await page.locator('.panel').first().getByRole('button', { name: /^Actions/ }).click();
+  await page.getByRole('menuitem', { name: 'Retry analyst research', exact: true }).click();
   await expect(page.getByTestId('more-research')).toBeVisible();
   await expect(page.getByText('Equibles', { exact: false })).toHaveCount(0);
   expect(await page.evaluate(() => 'equibles' in window.arminDesktop!)).toBe(false);

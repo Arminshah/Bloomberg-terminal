@@ -881,7 +881,16 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .tbl.eco .eco-date { color: inherit; font-variant-numeric: tabular-nums; }
 
 /* ANR: the consensus summary above the sections, two short columns. */
-.anr-snap { display: grid; grid-template-columns: minmax(220px, 300px) minmax(220px, 300px) 1fr; gap: 0 24px; border-bottom: 1px solid var(--line); background: var(--bg-1); }
+/* ANR's summary beside its chart (TE04 07:13): the company in cyan, shares in green or red with their counts at the right. */
+.anr-snap { display: grid; grid-template-columns: minmax(220px, 300px) 1fr; gap: 0 18px; padding: 4px 8px; border-bottom: 1px solid var(--line); background: #000; }
+.anr-sum .kv + .kv { margin-top: var(--row, 20px); }
+.anr-name { color: #86d8de; padding: 1px 0 2px; }
+.anr-share { display: inline-flex; gap: 14px; justify-content: flex-end; }
+.anr-count { min-width: 2.5em; text-align: right; color: var(--white); }
+.anr-chart-top { justify-content: flex-end; align-items: center; }
+.anr-asof { padding: 0 6px; background: var(--amber); color: #000; margin-right: 8px; }
+.anr-firms-h { display: flex; align-items: center; gap: 18px; }
+.anr-firms .anr-n { color: #b0b0b0; }
 
 /* DES: name and classification, the description, then three columns of numbered boxes. */
 .des-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 4px 8px 0; }
@@ -1291,7 +1300,8 @@ a.sear-title:hover { text-decoration: underline; }
   white-space: nowrap;
 }
 .chip-btn:hover { color: var(--text); border-color: var(--muted); }
-.chip-btn.on { color: #000; border-color: transparent; }
+/* A chosen period or view, white on the blue the 2024 frames use (#0451B7: ANR's "2Y", GP's ranges, EE's tabs). */
+.chip-btn.on { background: #0451b7; color: #fff; border-color: transparent; }
 .cmp-chip { display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; border: 1px solid; font-size: var(--fs-s); }
 .cmp-chip button { border: 0; background: none; color: inherit; padding: 0 2px; }
 

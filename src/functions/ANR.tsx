@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
+import { exportActions } from '../components/ExportActions';
 import { actionLabel, latestByFirm, position, ratingTone, useAnalystActions, type AnalystAction, type Position } from '../data/live/analyst-actions';
 import { NotConnected } from '../components/NotConnected';
 import { Chg, HBar, KV, LivePx, Section } from '../components/cells';
@@ -57,11 +58,31 @@ export function ANR({ sec }: FnProps) {
   const estimates = parts.estimates as AnalystPart<Estimate[]> | undefined;
   const all = [consensus, ratings, summary, grades, estimates];
   const at = Math.max(0, ...all.map((p) => p?.at ?? 0));
+  // The red bar as TE04 07:13: "Actions ▾" and "Export" without numbers; the research controls sit in Actions.
+  const firmsCsv = () => [
+    ['Firm', 'Analyst', 'Recommendation', 'Target price', 'Date'],
+    ...latestByFirm(actions?.rows ?? []).map((f) => [f.firm, f.analyst, f.rating, Number.isFinite(f.target) ? f.target : '', f.date]),
+  ];
   const header = (
     <FnHeader
       code="ANALYSTS"
       title="Analyst Recommendations"
       sec={s}
+      actions={[
+        {
+          n: 9601,
+          bare: true,
+          label: 'Actions',
+          onClick: () => {},
+          menu: [
+            { label: 'Retry analyst research', onClick: () => { retryAnalysts(); retryFinnhub(); } },
+            { label: 'Open the provider screen', onClick: () => execute(panel, 'PROVIDERS') },
+            { label: 'Earnings & Estimates', sep: true, onClick: () => execute(panel, `${s.id} EARNINGSSUMMARY`) },
+            { label: 'News on Analyst Activity', onClick: () => execute(panel, `${s.id} COMPANYNEWS`) },
+          ],
+        },
+        ...exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_ANR.csv`, firmsCsv).filter((a) => a.n === 99).map((a) => ({ ...a, n: 9602, bare: true, label: 'Export' })),
+      ]}
       sub={
         <>
           Source-labelled research · FMP, Finnhub, Yahoo Finance and Nasdaq{at ? ` · last response ${fmtDay(at)} ${fmtTime(at, false)}` : ''}
@@ -92,14 +113,8 @@ export function ANR({ sec }: FnProps) {
   return (
     <div className="fixed-page">
       {header}
-      <div className="pad-s" style={{ display: 'flex', gap: 8 }}>
-        <button type="button" className="btn" onClick={() => { retryAnalysts(); retryFinnhub(); }}>Retry analyst research</button>
-        <button type="button" className="btn" onClick={() => execute(panel, 'PROVIDERS')}>Open the provider screen</button>
-      </div>
-      <ResearchCoverage symbol={symbol} parts={[
-        ['Price targets', consensus], ['Ratings', ratings], ['Target-history averages', summary], ['Rating actions', grades], ['Annual estimates', estimates],
-      ]} />
-      <AnrSnapshot sec={s} c={comparableTarget ? c : null} r={r} />
+      <AnrSnapshot sec={s} c={comparableTarget ? c : null} r={r} recs={recs} />
+      {actions?.rows?.length ? <FirmRatings rows={actions.rows} sec={s} /> : null}
       <div className="cols">
         <Section title="Price target" right={targetCurrency ?? 'currency not supplied'}>
           {loading(consensus) ? (
@@ -226,7 +241,6 @@ export function ANR({ sec }: FnProps) {
           </>
         )}
       </Section> : null}
-      {actions?.rows?.length ? <FirmRatings rows={actions.rows} /> : null}
       {actions?.rows?.length ? (
         <Section title="Recent rating actions" right={`${actions.rows.length} actions · MarketBeat · received ${fmtDay(actions.at)}${actions.stale ? ' · STALE: the latest request failed' : ''}`}>
           <RatingActions rows={actions.rows} last={engine.quote(s.id)?.last ?? NaN} />
@@ -264,6 +278,9 @@ export function ANR({ sec }: FnProps) {
       </Section>
       <MoreResearch sec={s} />
       <TipRanksResearch key={s.id} def={s} />
+      <ResearchCoverage symbol={symbol} parts={[
+        ['Price targets', consensus], ['Ratings', ratings], ['Target-history averages', summary], ['Rating actions', grades], ['Annual estimates', estimates],
+      ]} />
       <div className="note">
         Targets, ratings and estimates are provider consensus and analyst opinions, not forecasts calculated by this app. Each dataset keeps its own source, fiscal/per-share basis and retrieval time. Yahoo fallback has no equivalent to FMP&apos;s period-average target history, so that dataset remains unavailable when FMP denies it. Finnhub supplies recommendation counts, not price targets. Research is cached for hours; opening this screen does not poll it continuously.
       </div>
@@ -276,11 +293,26 @@ export function ANR({ sec }: FnProps) {
  * upgrade marked), its latest target and the date, newest first. The provider's per-analyst return, BARR and rank are
  * its own measures and have no free source.
  */
-function FirmRatings({ rows }: { rows: AnalystAction[] }) {
+/** Columns of the terminal's firms table that rank analysts by its own measure; no source gives them. */
+const RANKING_TITLE = "The provider's own measure of how the analyst's calls did; no source the app reads gives it";
+
+/**
+ * The firms table under the summary (TE04 07:13): "Showing n of m sources", each firm's latest call with its analyst,
+ * the recommendation in its tone, the target and the date, newest first; the ranking columns are labelled blanks.
+ */
+function FirmRatings({ rows, sec }: { rows: AnalystAction[]; sec: SecurityDef }) {
+  const panel = usePanelId();
   const firms = latestByFirm(rows);
   const rated = firms.filter((f) => f.rating).length;
   return (
-    <Section title={`Showing ${rated} of ${firms.length} sources`} right="MarketBeat, each firm's latest action">
+    <section className="sect anr-firms-box">
+      <div className="sect-h anr-firms-h">
+        <span className="white">Showing {rated} of {firms.length} sources</span>
+        <button type="button" className="des-link" onClick={() => execute(panel, `${sec.id} COMPANYNEWS`)} title="The company's news (CN)">
+          Recent News on Analyst Activity <span className="des-fn">| CN »</span>
+        </button>
+        <span className="right muted">MarketBeat, each firm&apos;s latest action</span>
+      </div>
       <table className="tbl anr-firms">
         <thead>
           <tr>
@@ -289,26 +321,32 @@ function FirmRatings({ rows }: { rows: AnalystAction[] }) {
             <th>Analyst</th>
             <th>Recommendation</th>
             <th className="num">Tgt Px</th>
-            <th>Date↓</th>
+            <th className="amber">Date↓</th>
+            <th className="num" title={RANKING_TITLE}>1 Yr Rtn</th>
+            <th className="num" title={RANKING_TITLE}>BARR</th>
+            <th className="num" title={RANKING_TITLE}>Rank</th>
           </tr>
         </thead>
         <tbody>
           {firms.map((f, i) => (
             <tr key={f.firm} className={f.rating ? undefined : 'muted'}>
-              <td className="num">{i + 1})</td>
+              <td className="num anr-n">{i + 1})</td>
               <td className="amber ellipsis">{f.firm}</td>
               <td className="white ellipsis">{f.analyst}</td>
               <td className={ratingTone(f.rating)} title={f.rating ? `${f.firm}'s own words${f.upgraded ? ', an upgrade' : f.downgraded ? ', a downgrade' : ''}` : 'No rating among its actions'}>
                 {f.upgraded ? <span className="up">⬆ </span> : f.downgraded ? <span className="dn">⬇ </span> : null}
                 {f.rating || '--'}
               </td>
-              <td className="num dn">{Number.isFinite(f.target) ? fmtNum(f.target, 2) : ''}</td>
+              <td className="num white">{Number.isFinite(f.target) ? fmtNum(f.target, 2) : ''}</td>
               <td className="white">{fmtDay(Date.parse(`${f.date}T00:00:00Z`))}</td>
+              <td className="num muted" title={RANKING_TITLE}>--</td>
+              <td className="num muted" title={RANKING_TITLE}>--</td>
+              <td className="num muted" title={RANKING_TITLE}>--</td>
             </tr>
           ))}
         </tbody>
       </table>
-    </Section>
+    </section>
   );
 }
 
@@ -469,31 +507,47 @@ function TargetRange({ c, last }: { c: TargetConsensus; last: number }) {
  * sells, the average target against the last price, and the past year's return. Each line is worked out from the
  * figures the sections below show with their sources; nothing is added.
  */
-function AnrSnapshot({ sec, c, r }: { sec: SecurityDef; c: TargetConsensus | null; r: RatingTally | null }) {
+/**
+ * ANR's summary as TE04 07:13 lays it out: the company in cyan, Consensus Rating and the buys, holds and sells with
+ * their shares and counts, then the target, the price, the currency, the return to the target and the year's return;
+ * the chart beside it.
+ */
+function AnrSnapshot({ sec, c, r, recs }: { sec: SecurityDef; c: TargetConsensus | null; r: RatingTally | null; recs: MonthCounts[] }) {
   const rs = r ? ratingSummary(r) : null;
   const last = engine.quote(sec.id)?.last ?? NaN;
   const potential = c && Number.isFinite(c.mean) && last > 0 ? (c.mean / last - 1) * 100 : NaN;
-  const share = (pct: number, count: number) => (Number.isFinite(pct) ? `${fmtNum(pct, 1)}%  ${count}` : '--');
+  const share = (pct: number, count: number, tone: string) =>
+    Number.isFinite(pct) ? (
+      <span className="anr-share">
+        <span className={tone}>{fmtNum(pct, 1)}%</span>
+        <span className="anr-count">{count}</span>
+      </span>
+    ) : (
+      '--'
+    );
   return (
     <div className="anr-snap">
-      <KV
-        items={[
-          [<span key="s" title="Average of the ratings counted, scored buys 5, holds 3, sells 1: ANR places each firm's own scale on 1 to 5, which grouped counts can only approach (a few hundredths high when a firm grades between steps)">Consensus Rating</span>, rs ? fmtNum(rs.score, 2) : '--'],
-          [<span key="b" className="up">Buys</span>, rs ? share(rs.buyPct, rs.buys) : '--'],
-          [<span key="h">Holds</span>, rs ? share(rs.holdPct, rs.holds) : '--'],
-          [<span key="x" className="dn">Sells</span>, rs ? share(rs.sellPct, rs.sells) : '--'],
-        ]}
-      />
-      <KV
-        items={[
-          [<span key="t" title="The average of the analysts' 12-month price targets">12M Tgt Px</span>, c ? fmtNum(c.mean, 2) : '--'],
-          ['Last Price', <LivePx key="p" id={sec.id} />],
-          ['Pricing Currency', sec.ccy],
-          [<span key="r" title="12M Tgt Px over the last price, less one">Return Potential</span>, <Chg key="r" v={potential} pct dec={1} />],
-          [<span key="l" title="The price change over the last 12 months">LTM Return</span>, <Chg key="l" v={periodChange(sec.id, '1Y')} pct dec={1} />],
-        ]}
-      />
-      <TargetChart sec={sec} c={c} />
+      <div className="anr-sum">
+        <div className="anr-name">{sec.name}</div>
+        <KV
+          items={[
+            [<span key="s" title="Average of the ratings counted on ANR's 1 to 5 scale: buys 5, holds 3, sells 1">Consensus Rating</span>, rs ? fmtNum(rs.score, 2) : '--'],
+            ['Buys', rs ? share(rs.buyPct, rs.buys, 'up') : '--'],
+            ['Holds', rs ? share(rs.holdPct, rs.holds, 'white') : '--'],
+            ['Sells', rs ? share(rs.sellPct, rs.sells, 'dn') : '--'],
+          ]}
+        />
+        <KV
+          items={[
+            [<span key="t" title="The average of the analysts' 12-month price targets">12M Tgt Px</span>, c ? fmtNum(c.mean, 2) : '--'],
+            ['Last Price', <LivePx key="p" id={sec.id} />],
+            ['Pricing Currency', sec.ccy],
+            [<span key="r" title="12M Tgt Px over the last price, less one">Return Potential</span>, <Chg key="r" v={potential} pct dec={1} />],
+            [<span key="l" title="The price change over the last 12 months">LTM Return</span>, <Chg key="l" v={periodChange(sec.id, '1Y')} pct dec={1} />],
+          ]}
+        />
+      </div>
+      <TargetChart sec={sec} c={c} recs={recs} />
     </div>
   );
 }
@@ -508,7 +562,31 @@ const CHART_RANGES: { id: string; days: number }[] = [
   { id: 'Max', days: Infinity },
 ];
 
-function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }) {
+/** The ratings' colours as the chart draws them (TE04 07:13): buys green, holds tan, sells red. */
+export const RATING_COLOURS = { buy: '#01831e', hold: '#b9ae65', sell: '#9e142e' };
+
+/** A month's counts of ratings, as Finnhub and the bundled sources give them. */
+type MonthCounts = Pick<RecommendationMonth, 'strongBuy' | 'buy' | 'hold' | 'sell' | 'strongSell'> & { period?: string };
+
+/**
+ * Each month's ratings as stacked shares of 100 (buys, holds, sells), from the providers' monthly counts: the bars of
+ * ANR's chart.
+ */
+export function ratingShares(recs: MonthCounts[]): { t: number; buy: number; hold: number; sell: number }[] {
+  return recs
+    .filter((m): m is MonthCounts & { period: string } => !!m.period)
+    .map((m) => {
+      const buy = (m.strongBuy || 0) + (m.buy || 0);
+      const hold = m.hold || 0;
+      const sell = (m.sell || 0) + (m.strongSell || 0);
+      const total = buy + hold + sell;
+      return { t: Date.parse(`${m.period.slice(0, 10)}T00:00:00Z`), buy: total ? (buy / total) * 100 : NaN, hold: total ? (hold / total) * 100 : NaN, sell: total ? (sell / total) * 100 : NaN };
+    })
+    .filter((x) => Number.isFinite(x.t) && Number.isFinite(x.buy))
+    .sort((a, b) => a.t - b.t);
+}
+
+function TargetChart({ sec, c, recs }: { sec: SecurityDef; c: TargetConsensus | null; recs: MonthCounts[] }) {
   useColourScheme();
   const colours = palette();
   const [range, setRange] = useState('2Y');
@@ -519,16 +597,21 @@ function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }
   for (let i = 0; i < daily.length; i++) if (daily.t[i] >= from) points.push({ x: daily.t[i], y: sec.ccy === 'GBp' ? daily.c[i] / 100 : daily.c[i], label: fmtDay(daily.t[i]) });
   // The range buttons stay while the price history is still on its way, or missing.
   const noHistory = points.length < 2;
+  // Price white, the consensus target yellow, as the terminal draws them; the ratings' shares in bars on the left scale.
+  const shares = ratingShares(recs).filter((m) => m.t >= from);
+  const bars = (key: 'buy' | 'hold' | 'sell', label: string) => ({ label, color: RATING_COLOURS[key], kind: 'bar' as const, stack: 'ratings', axis: 'left' as const, points: shares.map((m) => ({ x: m.t, y: m[key] })) });
   const refLines = c
     ? [
-        ...(Number.isFinite(c.mean) ? [{ y: c.mean, color: '#e8e8e8', label: `12M Tgt Px ${fmtNum(c.mean, 2)}` }] : []),
+        ...(Number.isFinite(c.mean) ? [{ y: c.mean, color: '#eadb1c', label: `12M Tgt Px ${fmtNum(c.mean, 2)}` }] : []),
         ...(Number.isFinite(c.high) ? [{ y: c.high, color: colours.up, label: `High ${fmtNum(c.high, 2)}` }] : []),
         ...(Number.isFinite(c.low) ? [{ y: c.low, color: colours.dn, label: `Low ${fmtNum(c.low, 2)}` }] : []),
       ]
     : [];
   return (
     <div className="anr-chart">
-      <div className="row" style={{ gap: 3, marginBottom: 3 }} role="group" aria-label="Chart range">
+      <div className="row anr-chart-top" style={{ gap: 3, marginBottom: 3 }} role="group" aria-label="Chart range">
+        <span className="amber">As of</span>
+        <span className="anr-asof">{fmtDay(engine.today * DAY_MS)}</span>
         {CHART_RANGES.map((r) => (
           <button key={r.id} type="button" className={`chip-btn${r.id === range ? ' on' : ''}`} aria-pressed={r.id === range} onClick={() => setRange(r.id)}>
             {r.id}
@@ -539,11 +622,12 @@ function TargetChart({ sec, c }: { sec: SecurityDef; c: TargetConsensus | null }
         <div className="muted pad-s">No price history for this range yet.</div>
       ) : (
       <XYChart
-        height={150}
-        series={[{ label: 'Price', color: '#ffd23f', points }]}
+        height={190}
+        series={[...(shares.length ? [bars('buy', 'Buy %'), bars('hold', 'Hold %'), bars('sell', 'Sell %')] : []), { label: 'Price', color: '#e8e8e8', points }]}
         refLines={refLines}
         xFormat={(v) => fmtDay(v)}
         yFormat={(v) => fmtNum(v, 0)}
+        y2Format={shares.length ? (v) => fmtNum(v, 0) : undefined}
       />
       )}
     </div>

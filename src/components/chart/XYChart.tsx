@@ -26,6 +26,8 @@ export interface XYSeries {
   labelBelow?: boolean;
   /** Plot against a second scale whose labels are at the left (a yield beside a dividend, say). */
   axis?: 'left';
+  /** Bars of the same stack share one slot, each starting where the one before it ends (ANR's ratings, TE04 07:13). */
+  stack?: string;
 }
 
 interface Props {
@@ -118,14 +120,29 @@ export function XYChart(props: Props) {
         x0 = Math.min(x0, tx(t.v));
         x1 = Math.max(x1, tx(t.v));
       }
+      // Stacked bars: each series of a stack starts where the one before it ends at the same x.
+      const bases = new Map<XYSeries, number[]>();
+      const runs = new Map<string, Map<number, number>>();
+      for (const s of p.series) {
+        if (s.kind !== 'bar' || !s.stack) continue;
+        const run = runs.get(s.stack) ?? new Map<number, number>();
+        runs.set(s.stack, run);
+        bases.set(s, s.points.map((q) => {
+          const b = run.get(q.x) ?? 0;
+          run.set(q.x, b + q.y);
+          return b;
+        }));
+      }
+      const tops = (s: XYSeries) => (bases.has(s) ? s.points.map((q, i) => ({ ...q, y: q.y + bases.get(s)![i] })) : s.points);
       const second = p.series.filter((s) => s.axis === 'left');
-      const firstPts = p.series.filter((s) => s.axis !== 'left').flatMap((s) => s.points);
+      const firstPts = p.series.filter((s) => s.axis !== 'left').flatMap(tops);
       const yPts = firstPts.length ? firstPts : pts;
       let y0 = Math.min(...yPts.map((q) => q.y), ...(p.refLines ?? []).filter((l) => l.y != null).map((l) => l.y!));
       let y1 = Math.max(...yPts.map((q) => q.y), ...(p.refLines ?? []).filter((l) => l.y != null).map((l) => l.y!));
       // The second scale: its own range, padded the same way.
-      const secondPts = second.flatMap((s) => s.points);
-      let b0 = secondPts.length ? Math.min(...secondPts.map((q) => q.y)) : 0;
+      const secondPts = second.flatMap(tops);
+      // Bars on the second scale stand on zero.
+      let b0 = secondPts.length ? Math.min(...secondPts.map((q) => q.y), ...(second.some((s) => s.kind === 'bar') ? [0] : [])) : 0;
       let b1 = secondPts.length ? Math.max(...secondPts.map((q) => q.y)) : 1;
       if (b1 - b0 < 1e-9) {
         b1 += 1;
@@ -251,20 +268,24 @@ export function XYChart(props: Props) {
       }
       // series
       const barSeries = p.series.filter((s) => s.kind === 'bar');
+      // One slot per unstacked bar series and per stack.
+      const slots = [...new Set(barSeries.map((s) => s.stack ?? s))];
       p.series.forEach((s) => {
         Y = s.axis === 'left' ? Y2 : Y1;
         ctx.strokeStyle = s.color;
         ctx.fillStyle = s.color;
         ctx.lineWidth = s.width ?? 1.6;
         if (s.kind === 'bar') {
-          const bi = barSeries.indexOf(s);
+          const bi = slots.indexOf(s.stack ?? s);
           const xs = s.points.map((q) => X(q.x));
           const gap = xs.length > 1 ? Math.min(...xs.slice(1).map((x, i) => x - xs[i])) : (R - L) / 4;
-          const bw = Math.max(2, (gap * 0.7) / barSeries.length);
-          for (const q of s.points) {
-            const x = X(q.x) - (bw * barSeries.length) / 2 + bi * bw;
-            const ya = Y(0);
-            const yb = Y(q.y);
+          const bw = Math.max(2, (gap * 0.7) / slots.length);
+          const base = bases.get(s);
+          for (const [qi, q] of s.points.entries()) {
+            const x = X(q.x) - (bw * slots.length) / 2 + bi * bw;
+            const b = base ? base[qi] : 0;
+            const ya = Y(b);
+            const yb = Y(b + q.y);
             ctx.fillStyle = q.color ?? s.color;
             box(x, Math.min(ya, yb), bw - 1, Math.max(1, Math.abs(yb - ya)));
           }
