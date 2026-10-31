@@ -167,6 +167,8 @@ export interface Quote {
   openSource?: string;
   /** The finished session's official high and low, when they replaced the price source's. */
   rangeSource?: string;
+  /** True once the finished session was checked against its official record (Nasdaq's historical row). */
+  sessionSettled?: boolean;
   /** Who supplies the line: "Yahoo Finance", "US Treasury", "Deutsche Bundesbank" and so on. */
   provider?: string;
   /** When the app received the latest value (epoch ms), as against `time`, when the market set it. */

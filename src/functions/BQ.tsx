@@ -28,9 +28,23 @@ import type { Quote, SecurityDef } from '../data/types';
 import type { FnProps } from '../terminal/types';
 import { sourceCode } from '../data/sourcecode';
 import { quoteAuditState } from '../data/live/quote-audit';
+import { settleDue } from '../data/live/settled-volume';
+import { nasdaqTicker } from '../data/live/nasdaq-book';
+import { dayNum } from '../data/calendar';
 import '../styles/quote-terminal.css';
 
 const QUOTE_REACH: NewsReach = { massive: false, marketaux: false };
+
+/**
+ * A US stock's finished session not yet checked against Nasdaq's historical record: its open, high, low and volume
+ * are the price source's own readings, which can miss a print (Apple on 30 October 2026: a low of 342.35 against the
+ * official 334.35) until the record arrives.
+ */
+export function provisionalSession(id: string, q: Quote, now = Date.now()): boolean {
+  if (!engine.realOnly || q.sessionSettled || q.src === 'SIM' || q.src === 'NONE' || nasdaqTicker(id) === null) return false;
+  const d = engine.daily(id);
+  return d.length > 0 && settleDue(dayNum(d.t[d.length - 1]), now);
+}
 
 export function BQ({ sec }: FnProps) {
   const s = sec!;
@@ -145,6 +159,11 @@ export function BQ({ sec }: FnProps) {
               ]}
             />
           </div>
+          {provisionalSession(s.id, q) ? (
+            <div className="quote-session-note" data-testid="provisional-session" title="Nasdaq's historical record gives a finished session's official open, high, low and consolidated volume; the app asks for it once the session ends.">
+              Provisional: the price source&apos;s open, high, low and volume, until Nasdaq&apos;s official session record arrives
+            </div>
+          ) : null}
           <div className="quote-update"><span>Last update</span><span>{q.src === 'EOD' || q.dayOnly ? `as of ${fmtDay(q.time)}` : fmtStamp(q.time)}</span></div>
         </Section>
         <Section title="Intraday" right={`prev ${fmtNum(q.prevClose, s.dec)}`} className="quote-intraday">
