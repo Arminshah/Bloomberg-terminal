@@ -33,8 +33,12 @@ export const BOARD_INDICES: Record<string, BoardIndex> = {
   'INDU Index': { key: 'INDU', id: 'INDU Index', weighting: 'price', from: "Yahoo's Dow membership" },
 };
 
-/** The Dow's members when Yahoo gives no membership (its last known composition; Yahoo's list wins when it answers). */
-export const DOW_FALLBACK = ['AAPL', 'AMGN', 'AMZN', 'AXP', 'BA', 'CAT', 'CRM', 'CSCO', 'CVX', 'DIS', 'GS', 'HD', 'HON', 'IBM', 'JNJ', 'JPM', 'KO', 'MCD', 'MMM', 'MRK', 'MSFT', 'NKE', 'NVDA', 'PG', 'SHW', 'TRV', 'UNH', 'V', 'VZ', 'WMT'];
+/**
+ * The Dow's members when Yahoo gives no membership (its last known composition; Yahoo's list wins when it answers).
+ * Alphabet (GOOGL) replaced Verizon before trading on 29 June 2026 (S&P Dow Jones Indices, 23 June 2026); checked
+ * against State Street's DIA holdings of 29 October 2026.
+ */
+export const DOW_FALLBACK = ['AAPL', 'AMGN', 'AMZN', 'AXP', 'BA', 'CAT', 'CRM', 'CSCO', 'CVX', 'DIS', 'GOOGL', 'GS', 'HD', 'HON', 'IBM', 'JNJ', 'JPM', 'KO', 'MCD', 'MMM', 'MRK', 'MSFT', 'NKE', 'NVDA', 'PG', 'SHW', 'TRV', 'UNH', 'V', 'WMT'];
 
 export interface MemberInfo {
   /** Nasdaq's style: BRK.B. */

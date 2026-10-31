@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as main from '../electron/index-members.cjs';
-import { csvFields, parseNasdaq100, parseNasdaqVolumes, parseSp500, parseSpark, shareClassCaps } from '../src/data/live/index-members';
+import { csvFields, DOW_FALLBACK, parseNasdaq100, parseNasdaqVolumes, parseSp500, parseSpark, shareClassCaps } from '../src/data/live/index-members';
 
 const sp500 = [
   'Symbol,Security,GICS Sector,GICS Sub-Industry,Headquarters Location,Date added,CIK,Founded',
@@ -58,6 +58,15 @@ describe('index members without a key', () => {
     expect(main.nasdaqQuotesRequest('AAPL,aapl')).toBeNull();
     expect(main.nasdaqQuotesRequest('AAPL,AAPL')).toBeNull();
     expect(main.nasdaqQuotesRequest('../x')).toBeNull();
+  });
+});
+
+describe("the Dow's members kept in the app", () => {
+  it("are the 30 of today, with Alphabet in Verizon's place since 29 June 2026", () => {
+    expect(new Set(DOW_FALLBACK).size).toBe(30);
+    expect(DOW_FALLBACK).toContain('GOOGL');
+    expect(DOW_FALLBACK).not.toContain('VZ');
+    expect(DOW_FALLBACK).toEqual([...DOW_FALLBACK].sort());
   });
 });
 
