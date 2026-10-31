@@ -116,6 +116,32 @@ export function parseSnbCube(text: string, item: string): Obs {
   return out;
 }
 
+/**
+ * The Cleveland Fed's monthly inflation nowcasts (charts in FusionCharts' layout, one per target month, its month in
+ * "subcaption" as 2026-10): for each measure, the latest nowcast of each month, as [the month's first day, % change
+ * on the month]. A past month's figure is its last nowcast before the actual; "Actual ..." series are left out.
+ */
+export function parseClevelandNowcast(text: string): Map<'CPI' | 'CORECPI' | 'PCE' | 'COREPCE', Obs> {
+  const KEYS: Record<string, 'CPI' | 'CORECPI' | 'PCE' | 'COREPCE'> = { 'CPI Inflation': 'CPI', 'Core CPI Inflation': 'CORECPI', 'PCE Inflation': 'PCE', 'Core PCE Inflation': 'COREPCE' };
+  const out = new Map<'CPI' | 'CORECPI' | 'PCE' | 'COREPCE', Obs>();
+  let charts: unknown;
+  try { charts = JSON.parse(text); } catch { return out; }
+  for (const c of Array.isArray(charts) ? charts : []) {
+    const m = /^(\d{4})-(\d{1,2})$/.exec(String((c as { chart?: { subcaption?: unknown } })?.chart?.subcaption ?? ''));
+    const sets = (c as { dataset?: unknown })?.dataset;
+    if (!m || !Array.isArray(sets)) continue;
+    const month = `${m[1]}-${m[2].padStart(2, '0')}-01`;
+    for (const s of sets as { seriesname?: unknown; data?: unknown }[]) {
+      const key = KEYS[String(s?.seriesname ?? '')];
+      if (!key || !Array.isArray(s.data)) continue;
+      const values = (s.data as { value?: unknown }[]).map((d) => num(String(d?.value ?? ''))).filter(Number.isFinite);
+      if (values.length) push(out as Map<string, Obs>, key, month, values[values.length - 1]);
+    }
+  }
+  for (const obs of out.values()) obs.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return out;
+}
+
 const SPANISH_MONTHS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
 
 /**

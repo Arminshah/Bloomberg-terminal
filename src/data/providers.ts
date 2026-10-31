@@ -526,6 +526,21 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'clevelandfed',
+    name: 'Federal Reserve Bank of Cleveland',
+    serves: "MACRO: the inflation nowcasts for this month, CPI, core CPI, PCE and core PCE, month on month",
+    dataClass: 'Official research: a model nowcast, updated each business day',
+    policy: 'enabled',
+    feed: 'eco',
+    terms: 'The Bank\'s content may be reproduced "for noncommercial, personal, or educational purposes" when "appropriately credited to the Federal Reserve Bank of Cleveland"; each line names it. The app reads the month file with the other statistics.',
+    docs: [
+      { label: 'Inflation nowcasting', url: 'https://www.clevelandfed.org/indicators-and-data/inflation-nowcasting' },
+      { label: 'Terms of use', url: 'https://www.clevelandfed.org/privacy' },
+    ],
+    checked: '2026-10-31',
+    desktop: true,
+  },
+  {
     id: 'eurex',
     name: 'Eurex (market statistics)',
     serves: 'INDEXFUTURES: the Euro Stoxx 50 and DAX futures (VG1, GX1) at the front month\'s daily settlement, with the day\'s range, volume and open interest, and the index close Eurex gives with them',

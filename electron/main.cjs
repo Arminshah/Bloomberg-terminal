@@ -292,6 +292,9 @@ const OFFICIAL = {
   jgbHistory: () => 'https://www.mof.go.jp/english/policy/jgbs/reference/interest_rate/historical/jgbcme_all.csv',
   canadas: (since) => `https://www.bankofcanada.ca/valet/observations/group/bond_yields_benchmark/json?start_date=${since}`,
   acgb: () => 'https://www.rba.gov.au/statistics/tables/csv/f2-data.csv',
+  // The Cleveland Fed's inflation nowcasts (no key; updated each business day): one chart per month with the daily
+  // nowcast of CPI, core CPI, PCE and core PCE, month on month. 7.7 MB, about 360 KB compressed.
+  clevNowcast: () => 'https://www.clevelandfed.org/-/media/files/webcharts/inflationnowcasting/nowcast_month.json?sc_lang=en',
   // Banco de España's secondary-market yields (table TI_1_3, no key): the whole table as CSV for a first load (from
   // 1987, 1.3 MB), then the 10-year series' last three months from its BIE API (4 KB) for each refresh.
   bde: (since, today) => (Date.parse(today) - Date.parse(since) > 92 * 86_400_000
@@ -337,7 +340,7 @@ const OFFICIAL = {
 /** Which provider publishes each official source, for the status screen. */
 const OFFICIAL_PROVIDER = {
   effr: 'nyfed', sofr: 'nyfed', nyfed: 'nyfed', fomc: 'fedboard', fedStatement: 'fedboard', fedImplementation: 'fedboard', ecb: 'ecb', ecbFx: 'ecb', estr: 'ecb', boe: 'boe', sonia: 'boe', bojLoan: 'boj', bojCall: 'boj', gilts: 'boe', boc: 'boc', canadas: 'boc',
-  rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bis: 'bis', bde: 'bde', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
+  rba: 'rba', acgb: 'rba', snb: 'snb', bcb: 'bcb', bis: 'bis', bde: 'bde', clevNowcast: 'clevelandfed', bunds: 'bundesbank', jgb: 'mof', jgbHistory: 'mof',
   ukcpi: 'ons', ukgdp: 'ons', ukunemp: 'ons', estatHicp: 'eurostat', estatUnemp: 'eurostat', estatGdp: 'eurostat',
   statcan: 'statcan', absUnemp: 'abs', absCpi: 'abs', blsCpi: 'bls', blsUnemp: 'bls',
   newsFed: 'fedboard', newsEcb: 'ecb', newsBoe: 'boe', newsBoc: 'boc', newsRba: 'rba', newsBea: 'bea', newsEsma: 'esma',

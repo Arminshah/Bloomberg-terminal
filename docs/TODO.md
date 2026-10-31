@@ -15,10 +15,10 @@ The owner asked for every free source that makes the data more complete, accurat
 - Not used: Cboe's delayed quote files (SPX, RUT and VIX options, Greeks). Every Cboe quote page forbids automated download and warns of IP blocks (`docs/data-providers.md`, "Cboe delayed quotes"). Only the owner can decide otherwise.
 - Next, from the survey of 31 October (each still to be checked the same way before it is built):
   - Index futures outside the US: done for the Euro Stoxx 50 and DAX (Eurex's daily settlements on INDEXFUTURES, 31 October); next, JPX's settlement file and open-interest workbook for Nikkei 225 and TOPIX futures (INDEXFUTURES, the futures curve). No permitted free source gives their intraday prices.
-  - UK short interest: the FCA's daily aggregated net short positions, by ISIN; the app needs a London ticker-to-ISIN list first (the FTSE 100's list covers only its members).
+  - UK short interest: the FCA's daily aggregated net short positions exist, but its terms (clause 3.3) bar including them in an electronic retrieval system without permission: the owner's call.
   - Treasuries: Fiscal Data's auction results, buybacks and TIPS and FRN indexes; the Bank of England's 2 and 30-year gilt points exist only as zero-coupon yields.
   - Fund holders: the SEC's N-PORT data for every fund holding a stock (HOLDERS), and the 13F data sets for buyers and sellers counts.
-  - Economics: the BLS's release schedule (iCalendar) for official release times, the Cleveland Fed's daily inflation nowcasts (GDPNow is on MACRO since 31 October), and the Philadelphia Fed's and the ECB's surveys of professional forecasters as official consensus (ECOFORECASTS).
+  - Economics: the BLS's release schedule (iCalendar) for official release times, (GDPNow and the Cleveland Fed's inflation nowcasts are on MACRO since 31 October; ECO's release times are right in winter now), and the Philadelphia Fed's and the ECB's surveys of professional forecasters as official consensus (ECOFORECASTS).
   - Not available free: SPX, RUT and VIX options (Cboe's terms), per-bond corporate and municipal prices, ESG scores, a history of consensus price targets.
 
 ### 14. Match the provider's terminal screen for screen (asked 31 October)

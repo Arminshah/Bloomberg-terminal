@@ -2,7 +2,7 @@ import { fmtMonthDayNum } from '../../core/format';
 import { createStore } from '../../core/store';
 import { setFeed } from './status';
 import { registerRefresh } from '../../terminal/refresh';
-import { euroAreaCode, officialAnswer, parseAbsCsv, parseJsonStat, parseOnsCsv, parseOnsMonths, parseStatcanVectors, type OfficialAnswer } from './official';
+import { euroAreaCode, officialAnswer, parseAbsCsv, parseClevelandNowcast, parseJsonStat, parseOnsCsv, parseOnsMonths, parseStatcanVectors, type OfficialAnswer } from './official';
 import { datasetHealth, type DatasetHealth } from './provenance';
 import type { KeyedAnswer } from './lookup';
 import { FIRST_RELEASE_IDS, MACRO_SERIES } from '../macroseries';
@@ -312,15 +312,16 @@ function fredSeriesIds(): string[] {
   const ids = new Set<string>();
   for (const ev of US_EVENTS) ids.add(ev.series);
   for (const c of Object.values(COUNTRY_STATS)) for (const s of [c.gdp, c.cpi, c.un]) if (s && !s[0].includes(':')) ids.add(s[0]);
-  for (const m of MACRO_SERIES) ids.add(m.id);
+  // Lines from other publishers (CLEV:) load with the statistics offices' figures below.
+  for (const m of MACRO_SERIES) if (!m.id.includes(':')) ids.add(m.id);
   return [...ids];
 }
 
 /** Headline rates the statistics offices publish themselves (ONS, Eurostat), under pseudo series ids. */
 async function loadOfficialStats(series: Record<string, Obs>, health: Record<string, DatasetHealth>): Promise<number> {
   const since = new Date(Date.now() - 3 * 365.25 * 86_400_000).toISOString().slice(0, 10);
-  const [cpi, gdp, unemp, hicp, eun, egdp, statcan, absUnemp, absCpi] = await Promise.all(
-    (['ukcpi', 'ukgdp', 'ukunemp', 'estatHicp', 'estatUnemp', 'estatGdp', 'statcan', 'absUnemp', 'absCpi'] as const).map((k) => officialAnswer(k, since)),
+  const [cpi, gdp, unemp, hicp, eun, egdp, statcan, absUnemp, absCpi, clev] = await Promise.all(
+    (['ukcpi', 'ukgdp', 'ukunemp', 'estatHicp', 'estatUnemp', 'estatGdp', 'statcan', 'absUnemp', 'absCpi', 'clevNowcast'] as const).map((k) => officialAnswer(k, since)),
   );
   let fresh = 0;
   const text = (r: OfficialAnswer) => r.status === 200 && !r.stale && !r.error ? r.text : '';
@@ -336,6 +337,9 @@ async function loadOfficialStats(series: Record<string, Obs>, health: Record<str
   const sc = parseStatcanVectors(text(statcan));
   put('STATCAN:UN', sc.get(2062815), statcan, 'Statistics Canada');
   put('STATCAN:CPI', sc.get(41690973), statcan, 'Statistics Canada');
+  // The Cleveland Fed's nowcasts of this month's inflation (MACRO), each month's latest.
+  const nowcasts = parseClevelandNowcast(text(clev));
+  for (const k of ['CPI', 'CORECPI', 'PCE', 'COREPCE'] as const) put(`CLEV:${k}`, nowcasts.get(k), clev, 'Federal Reserve Bank of Cleveland');
   put('ABS:UN', parseAbsCsv(text(absUnemp)), absUnemp, 'ABS');
   put('ABS:CPI', parseAbsCsv(text(absCpi)), absCpi, 'ABS');
   put('ONS:D7G7', parseOnsCsv(text(cpi)), cpi, 'ONS');

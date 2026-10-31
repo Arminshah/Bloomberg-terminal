@@ -20,7 +20,7 @@ import { favourites, portfolios, watchlists } from '../../terminal/userdata';
 /** Official sources the desktop app's main process fetches (fixed URLs, see electron/main.cjs). */
 export type OfficialSource =
   | 'effr' | 'sofr' | 'nyfed' | 'fomc' | 'fedStatement' | 'fedImplementation' | 'ecb' | 'ecbFx' | 'estr' | 'boe' | 'sonia' | 'bojLoan' | 'bojCall' | 'boc' | 'rba' | 'snb' | 'bcb' | 'bis'
-  | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb' | 'bde'
+  | 'bunds' | 'gilts' | 'jgb' | 'jgbHistory' | 'canadas' | 'acgb' | 'bde' | 'clevNowcast'
   | 'ukcpi' | 'ukgdp' | 'ukunemp' | 'estatHicp' | 'estatUnemp' | 'estatGdp'
   | 'statcan' | 'absUnemp' | 'absCpi' | 'blsCpi' | 'blsUnemp'
   | 'newsFed' | 'newsEcb' | 'newsBoe' | 'newsBoc' | 'newsRba' | 'newsBea' | 'newsEsma'

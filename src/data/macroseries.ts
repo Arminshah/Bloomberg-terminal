@@ -6,7 +6,9 @@
  * from two of them. One line is a published nowcast, the Atlanta Fed's
  * GDPNow, and says so: the current quarter's figure is revised as the
  * month's data arrive, and a past quarter keeps its last nowcast before the
- * BEA's advance estimate.
+ * BEA's advance estimate. The Cleveland Fed's inflation nowcasts are the same
+ * kind: this month's change in CPI and PCE prices, from its own file (ids
+ * CLEV:...), not FRED.
  */
 
 export type MacroFreq = 'd' | 'w' | 'm' | 'q';
@@ -43,6 +45,10 @@ export const MACRO_SERIES: MacroSeries[] = [
   { id: 'CPIAUCSL', label: 'CPI, all items, YoY', group: 'Inflation', freq: 'm', calc: 'yoy', unit: '%', dec: 1, source: 'US Bureau of Labor Statistics', keys: ['CPI', 'INFLATION'] },
   { id: 'CPILFESL', label: 'CPI less food and energy, YoY', group: 'Inflation', freq: 'm', calc: 'yoy', unit: '%', dec: 1, source: 'US Bureau of Labor Statistics', keys: ['CPI', 'CORE', 'INFLATION'] },
   { id: 'PCEPILFE', label: 'PCE price index less food and energy, YoY', group: 'Inflation', freq: 'm', calc: 'yoy', unit: '%', dec: 1, source: 'US Bureau of Economic Analysis', keys: ['PCE', 'CORE', 'INFLATION'] },
+  { id: 'CLEV:CPI', label: 'Cleveland Fed nowcast: CPI, this month, MoM', group: 'Inflation', freq: 'm', calc: 'level', unit: '%', dec: 2, source: 'Federal Reserve Bank of Cleveland (a model nowcast, updated each business day)', keys: ['CPI', 'INFLATION', 'NOWCAST'] },
+  { id: 'CLEV:CORECPI', label: 'Cleveland Fed nowcast: core CPI, this month, MoM', group: 'Inflation', freq: 'm', calc: 'level', unit: '%', dec: 2, source: 'Federal Reserve Bank of Cleveland (a model nowcast, updated each business day)', keys: ['CPI', 'CORE', 'INFLATION', 'NOWCAST'] },
+  { id: 'CLEV:PCE', label: 'Cleveland Fed nowcast: PCE prices, this month, MoM', group: 'Inflation', freq: 'm', calc: 'level', unit: '%', dec: 2, source: 'Federal Reserve Bank of Cleveland (a model nowcast, updated each business day)', keys: ['PCE', 'INFLATION', 'NOWCAST'] },
+  { id: 'CLEV:COREPCE', label: 'Cleveland Fed nowcast: core PCE prices, this month, MoM', group: 'Inflation', freq: 'm', calc: 'level', unit: '%', dec: 2, source: 'Federal Reserve Bank of Cleveland (a model nowcast, updated each business day)', keys: ['PCE', 'CORE', 'INFLATION', 'NOWCAST'] },
   { id: 'UNRATE', label: 'Unemployment rate', group: 'Labour', freq: 'm', calc: 'level', unit: '%', dec: 1, source: 'US Bureau of Labor Statistics', keys: ['JOBS', 'UNEMPLOYMENT', 'LABOR', 'LABOUR'] },
   { id: 'PAYEMS', label: 'Nonfarm payrolls, monthly change', group: 'Labour', freq: 'm', calc: 'diff', unit: 'k', dec: 0, source: 'US Bureau of Labor Statistics', keys: ['JOBS', 'PAYROLLS', 'NFP', 'LABOR', 'LABOUR'] },
   { id: 'ICSA', label: 'Initial jobless claims', group: 'Labour', freq: 'w', calc: 'level', unit: 'k', dec: 0, scale: 0.001, source: 'US Department of Labor', keys: ['JOBS', 'CLAIMS', 'LABOR', 'LABOUR'] },
