@@ -809,9 +809,9 @@ test("PEERS has RV's Overview columns in their order, its Comp Sheets and Market
   await run(page, 'AAPL PEERS');
   const panel = page.locator('.panel').first();
   await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
-  const headers = () => panel.locator('table:not(.rv-range):not(.rv-seg) thead th').allTextContents().then((hs) => hs.map((h) => h.replace(/\s*[▲▼]$/, '').trim()));
+  const headers = () => panel.locator('table.rv-comps:not(.rv-seg) thead th').allTextContents().then((hs) => hs.map((h) => h.replace(/\s*[▲▼]$/, '').trim()));
   expect(await headers()).toEqual(['#', 'Name', '', 'Mkt Cap USD', 'Last Px', 'Chg Pct 1D', 'Chg Pct 1M', 'Rev - 1 Yr Gr:Y', 'EPS - 1 Yr Gr:Y', 'P/E', 'ROE', 'Dvd 12M Yld']);
-  const body = panel.locator('table:not(.rv-range):not(.rv-seg) tbody:not(.tbl-summary) tr');
+  const body = panel.locator('table.rv-comps:not(.rv-seg) tbody:not(.tbl-summary) tr');
   // RV's comp range panel: five figures, each with the subject, low and high.
   const range = panel.getByTestId('rv-range');
   await expect(range.locator('tbody tr td:first-child')).toHaveText(['P/E', 'EV/EBITDA', 'Revenue Growth', 'EBITDA Margin', 'ROE']);
@@ -850,9 +850,9 @@ test("PEERS' Median line comes first and is the median of the loaded stock and i
   await expect(panel.locator('tbody.tbl-summary tr').first()).toHaveAttribute('data-testid', 'rv-median');
   // Read the P/E column and the Median line at one moment, as the demo's prices move.
   const snap = await panel.evaluate((el) => {
-    const headers = Array.from(el.querySelectorAll('table:not(.rv-range):not(.rv-seg) thead th')).map((h) => h.textContent?.trim() ?? '');
+    const headers = Array.from(el.querySelectorAll('table.rv-comps:not(.rv-seg) thead th')).map((h) => h.textContent?.trim() ?? '');
     const col = headers.findIndex((h) => h.startsWith('P/E'));
-    const rows = Array.from(el.querySelectorAll('table:not(.rv-range):not(.rv-seg) tbody:not(.tbl-summary) tr')).filter((r) => r.querySelectorAll('td').length > col);
+    const rows = Array.from(el.querySelectorAll('table.rv-comps:not(.rv-seg) tbody:not(.tbl-summary) tr')).filter((r) => r.querySelectorAll('td').length > col);
     const valueAt = (r: Element) => Number(r.querySelectorAll('td')[col]?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
     const cell = el.querySelector('[data-testid="rv-median"] td[data-key="pe"]');
     return { col, values: rows.map(valueAt), hasSubject: rows.some((r) => r.textContent?.includes('AAPL US')), median: Number(cell?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN) };
@@ -878,9 +878,9 @@ test("PEERS ranks the loaded stock among its peers on each figure, as the table'
   // carries its own) and the rank row are read at one moment, as the demo's prices move, and two P/Es can look
   // equal at one decimal while one is lower.
   const snap = await panel.evaluate((el) => {
-    const headers = Array.from(el.querySelectorAll('table:not(.rv-range):not(.rv-seg) thead th')).map((h) => h.textContent?.trim() ?? '');
+    const headers = Array.from(el.querySelectorAll('table.rv-comps:not(.rv-seg) thead th')).map((h) => h.textContent?.trim() ?? '');
     const col = headers.findIndex((h) => h.startsWith('P/E'));
-    const rows = Array.from(el.querySelectorAll('table:not(.rv-range):not(.rv-seg) tbody:not(.tbl-summary) tr')).filter((r) => r.getAttribute('data-testid') !== 'rv-rank' && r.querySelectorAll('td').length > col);
+    const rows = Array.from(el.querySelectorAll('table.rv-comps:not(.rv-seg) tbody:not(.tbl-summary) tr')).filter((r) => r.getAttribute('data-testid') !== 'rv-rank' && r.querySelectorAll('td').length > col);
     const valueAt = (r: Element) => Number(r.querySelectorAll('td')[col]?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
     const subject = rows.find((r) => r.textContent?.includes('AAPL US'));
     const rankCell = el.querySelector('[data-testid="rv-rank"] td[data-key="pe"]');
@@ -891,5 +891,40 @@ test("PEERS ranks the loaded stock among its peers on each figure, as the table'
   expect(Number.isFinite(snap.subject)).toBe(true);
   const expected = Math.round((finite.filter((v) => v < snap.subject).length / (finite.length - 1)) * 100);
   expect(snap.rank).toBe(String(expected));
+  expect(errors).toEqual([]);
+});
+
+test("PEERS' Curr shows a London stock's market values and prices in pounds, not pence, or in US dollars", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'SHEL LN Equity PEERS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
+  const curr = panel.getByLabel('Currency', { exact: true });
+  await expect(curr).toHaveValue('GBP');
+  await expect(curr.locator('option')).toHaveText(['GBP', 'USD']);
+  const head = panel.locator('table.rv-comps thead');
+  await expect(head).toContainText('Mkt Cap GBP');
+  // Shell's market value and price, read at one moment, as the demo's prices and rates move.
+  const shell = () =>
+    panel.evaluate((el) => {
+      const headers = Array.from(el.querySelectorAll('table.rv-comps thead th')).map((h) => h.textContent?.trim() ?? '');
+      const row = Array.from(el.querySelectorAll('table.rv-comps tbody:not(.tbl-summary) tr')).find((r) => r.textContent?.includes('SHEL LN'));
+      const cell = (label: string) => row?.querySelectorAll('td')[headers.findIndex((h) => h.startsWith(label))];
+      const value = (label: string) => Number(cell(label)?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
+      return { cap: value('Mkt Cap'), px: value('Last Px'), text: cell('Last Px')?.textContent?.trim() ?? '' };
+    });
+  const gbp = await shell();
+  // Pounds with two decimals, as RV writes a London price.
+  expect(gbp.text).toMatch(/^[\d,]+\.\d{2}$/);
+  await expect(panel.locator('[data-testid="rv-median"] td[data-key="px"] [data-value]')).toHaveCount(1);
+  await curr.selectOption('USD');
+  await expect(head).toContainText('Mkt Cap USD');
+  await expect(head).not.toContainText('GBP');
+  const usd = await shell();
+  // A pound is worth more than a dollar. The market value and the price convert at the same rate, so their ratio (the
+  // share count) is the same in both currencies.
+  expect(usd.px / gbp.px).toBeGreaterThan(1);
+  expect(usd.px / gbp.px).toBeLessThan(2);
+  expect(usd.cap / usd.px / (gbp.cap / gbp.px)).toBeCloseTo(1, 6);
   expect(errors).toEqual([]);
 });

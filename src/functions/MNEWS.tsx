@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { isBreakingStory } from '../data/live/breaking';
 import { FnHeader } from '../components/FnHeader';
 import { fmtDate, fmtStamp, fmtTime } from '../core/format';
@@ -9,10 +9,10 @@ import { combinedFeed, MARKET_EDITIONS, MARKET_SOURCES, marketNews, newsAvailabl
 import { securityNews, useSecuritiesNews } from '../data/live/secnews';
 import { watchlists } from '../terminal/userdata';
 import { execute } from '../terminal/exec';
-import { useNumberedRows, usePanelId } from '../terminal/panel';
+import { flash, useMenu, useNumberedRows, usePanelId } from '../terminal/panel';
 import { firstRowNumber } from '../terminal/numbering';
 import { sourceCode } from '../data/sourcecode';
-import type { FnProps } from '../terminal/types';
+import type { FnProps, MenuItem } from '../terminal/types';
 
 /** A story's sentiment from Marketaux, for one ticker or all it tags. */
 function Sentiment({ story, symbol }: { story: MarketStory; symbol?: string }) {
@@ -69,11 +69,6 @@ function Reader({ story, symbol, onBack }: { story: MarketStory; symbol?: string
 }
 
 /**
- * Headlines on the left, the selected story on the right. Headlines are numbered from `first`, clear of the
- * screen's own tabs and actions, and typing a headline's number and GO opens it. With `fresh`, stories published
- * less than that many milliseconds ago are marked NEW, and each line shows its age.
- */
-/**
  * The terminal's Top Ranked News: of the last day's stories, those most sources carry, then those tagged with the
  * company, newest first among equals. Stories carried once and untagged are not ranked.
  */
@@ -85,22 +80,105 @@ export function rankStories(stories: MarketStory[], now: number, symbol?: string
     .slice(0, n);
 }
 
-export function StoryList({ stories: given, empty, symbol, fresh, first = 1, ranked = 0, breaking = false }: { stories: MarketStory[]; empty: string; symbol?: string; fresh?: number; first?: number; ranked?: number; breaking?: boolean }) {
-  const [sel, setSel] = useState<string | null>(null);
-  const now = engine.now();
+/** A story list's headlines in the order shown and the story open in the reader. */
+export interface StoryReader {
+  now: number;
+  /** With `ranked`, the stories under Top Ranked News; the rest follow under Time Ordered News. */
+  top: MarketStory[];
+  stories: MarketStory[];
+  /** The story chosen, or the first headline until one is. */
+  current?: MarketStory;
+  /** The headlines just above and below the open one, which a story's 4) Previous and 3) Next open. */
+  prev?: MarketStory;
+  next?: MarketStory;
+  /** A story was chosen: on a phone the reader then takes the list's place. */
+  reading: boolean;
+  open: (story: MarketStory | null) => void;
+  /** Opens a story from 4) Previous or 3) Next; `stepped` counts those, so the list brings the open headline into view. */
+  step: (story: MarketStory) => void;
+  stepped: number;
+}
+
+/** The list's order at `now` with the story `sel` open (the first headline when none is), and that story's neighbours. */
+export function storyOrder(given: MarketStory[], now: number, sel: string | null, symbol?: string, ranked = 0): Pick<StoryReader, 'top' | 'stories' | 'current' | 'prev' | 'next'> {
   // With `ranked`, the top stories head the list under Top Ranked News; the rest follow under Time Ordered News.
   const top = ranked ? rankStories(given, now, symbol, ranked) : [];
   const stories = top.length ? [...top, ...given.filter((s) => !top.includes(s))] : given;
-  const current = stories.find((s) => s.id === sel) ?? stories[0];
-  const nums = useNumberedRows('story-list', stories, first, (s) => setSel(s.id), (s) => s.title);
+  const at = Math.max(0, stories.findIndex((s) => s.id === sel));
+  return { top, stories, current: stories[at], prev: at > 0 ? stories[at - 1] : undefined, next: stories[at + 1] };
+}
+
+/** A story list's state, held by a screen that steps through its stories (COMPANYNEWS) and given to StoryPane. */
+export function useStoryReader(given: MarketStory[], symbol?: string, ranked = 0): StoryReader {
+  const [sel, setSel] = useState<string | null>(null);
+  const [stepped, setStepped] = useState(0);
+  const now = engine.now();
+  return {
+    now,
+    ...storyOrder(given, now, sel, symbol, ranked),
+    reading: !!sel,
+    open: (s) => setSel(s?.id ?? null),
+    step: (s) => {
+      setSel(s.id);
+      setStepped((n) => n + 1);
+    },
+    stepped,
+  };
+}
+
+/** A story's numbered action on CN's function bar; with nowhere to go it is disabled, and `why` says so. */
+export interface StoryStep extends MenuItem {
+  to?: MarketStory;
+  why: string;
+}
+
+/**
+ * CN's 4) Previous and 3) Next, in the function bar's order: they open the headline above and below the open story
+ * in the list's order. At the list's ends, or with no story, the button is disabled and its number says why.
+ */
+export function storySteps(reader: Pick<StoryReader, 'current' | 'prev' | 'next' | 'step'>, panel: number): StoryStep[] {
+  const action = (n: number, label: string, to: MarketStory | undefined, end: string): StoryStep => {
+    const why = reader.current ? end : 'No story is open';
+    return { n, label, to, why, run: () => (to ? reader.step(to) : flash(panel, why, 'error')) };
+  };
+  return [action(4, 'Previous', reader.prev, 'No previous story: the first headline is open'), action(3, 'Next', reader.next, 'No next story: the last headline is open')];
+}
+
+interface StoryListProps {
+  empty: string;
+  symbol?: string;
+  fresh?: number;
+  first?: number;
+  breaking?: boolean;
+}
+
+/**
+ * Headlines on the left, the selected story on the right. Headlines are numbered from `first`, clear of the
+ * screen's own tabs and actions, and typing a headline's number and GO opens it. With `fresh`, stories published
+ * less than that many milliseconds ago are marked NEW, and each line shows its age.
+ */
+export function StoryList({ stories, ranked = 0, ...props }: StoryListProps & { stories: MarketStory[]; ranked?: number }) {
+  const reader = useStoryReader(stories, props.symbol, ranked);
+  return <StoryPane reader={reader} {...props} />;
+}
+
+/** StoryList, its state held by the screen (useStoryReader), so the screen's own actions can open its stories. */
+export function StoryPane({ reader, empty, symbol, fresh, first = 1, breaking = false }: StoryListProps & { reader: StoryReader }) {
+  const { now, top, stories, current } = reader;
+  const nums = useNumberedRows('story-list', stories, first, reader.open, (s) => s.title);
+  const list = useRef<HTMLDivElement>(null);
+  // After 4) Previous or 3) Next, the open story's headline scrolls into view if the list had it out of sight.
+  useEffect(() => {
+    if (reader.stepped) list.current?.querySelector('.news-item.sel')?.scrollIntoView({ block: 'nearest' });
+  }, [reader.stepped]);
   return (
-    <div className={`news${sel ? ' reading' : ''}`} style={{ flex: 1, minHeight: 0 }}>
-      <div className="news-list" role="list">
+    <div className={`news${reader.reading ? ' reading' : ''}`} style={{ flex: 1, minHeight: 0 }}>
+      <div className="news-list" role="list" ref={list}>
         {stories.length === 0 && <div className="empty">{empty}</div>}
         {stories.map((s, i) => [
           top.length && i === 0 ? <div key="h-top" className="news-head" role="presentation">Top Ranked News</div> : null,
           top.length && i === top.length ? <div key="h-time" className="news-head" role="presentation">Time Ordered News</div> : null,
-          <div key={s.id} role="listitem" className={`news-item numbered real${current?.id === s.id ? ' sel' : ''}${fresh && now - s.time < fresh ? ' fresh' : ''}`} onClick={() => setSel(s.id)}>
+          <div key={s.id} role="listitem" className={`news-item numbered real${current?.id === s.id ? ' sel' : ''}${fresh && now - s.time < fresh ? ' fresh' : ''}`} onClick={() => reader.open(s)}>
             <span className="news-n">{nums[i] !== undefined ? `${nums[i]})` : ''}</span>
             <span className="time" title={`Published ${fmtDate(s.time)} ${fmtTime(s.time)}`}>
               {fresh ? ageText(now - s.time) : fmtStamp(s.time, now)}
@@ -117,7 +195,7 @@ export function StoryList({ stories: given, empty, symbol, fresh, first = 1, ran
           </div>,
         ])}
       </div>
-      {current ? <Reader story={current} symbol={symbol} onBack={() => setSel(null)} /> : <div className="empty">Select a headline.</div>}
+      {current ? <Reader key={current.id} story={current} symbol={symbol} onBack={() => reader.open(null)} /> : <div className="empty">Select a headline.</div>}
     </div>
   );
 }
@@ -243,9 +321,23 @@ export function CompanyNews({ sec }: FnProps) {
   const { stories, states } = useMemo(() => securityNews(s), [s, v]); // eslint-disable-line react-hooks/exhaustive-deps
   const status = states.map(([n, f]) => feedWord(n, f)).join(' · ');
   const names = states.map(([n]) => n).filter((n) => n !== 'Euronext');
+  // The screen holds the list's state so its 4) Previous and 3) Next, typed or clicked, step through the headlines.
+  const reader = useStoryReader(stories, symbol ?? undefined, 3);
+  const steps = storySteps(reader, panel);
+  useMenu('story-steps', steps);
   return (
     <div className="fn-fill">
-      <FnHeader code="COMPANYNEWS" title={s.cls === 'equity' ? 'Company News' : 'News'} sec={s} sub={states.length ? `${stories.length} stories · ${status}` : 'No news source'} />
+      <FnHeader
+        code="COMPANYNEWS"
+        title={s.cls === 'equity' ? 'Company News' : 'News'}
+        sec={s}
+        sub={states.length ? `${stories.length} stories · ${status}` : 'No news source'}
+        right={steps.map((x) => (
+          <button key={x.n} type="button" className="act story-step" disabled={!x.to} onClick={x.run} title={x.to ? `${x.to.title} (type ${x.n} and press Enter)` : x.why}>
+            <b>{x.n})</b> {x.label}
+          </button>
+        ))}
+      />
       <div className="chart-tools">
         {symbol ? (
           <button type="button" className="btn" onClick={() => execute(panel, `${s.id} FILINGS`)}>
@@ -262,8 +354,8 @@ export function CompanyNews({ sec }: FnProps) {
       ) : !newsAvailable() ? (
         <div className="empty">News is read by the desktop app; the browser build has no data source.</div>
       ) : (
-        <StoryList
-          stories={stories}
+        <StoryPane
+          reader={reader}
           empty={
             states.some(([, f]) => !f || f.state === 'loading')
               ? 'Loading news…'
@@ -272,7 +364,6 @@ export function CompanyNews({ sec }: FnProps) {
                 : `No recent stories for ${s.ticker} from the sources: the line above says what each returned.`
           }
           symbol={symbol ?? undefined}
-          ranked={3}
           // CN numbers its headlines from 101), clear of the screen's own numbered actions.
           first={101}
         />
