@@ -743,6 +743,7 @@ export function DES({ sec }: FnProps) {
         tab={tab}
         onTab={setTab}
         plainTabs
+        tabNumbers={false}
         paged={!!tabs}
       />
       {body}
