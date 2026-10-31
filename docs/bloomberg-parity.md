@@ -316,6 +316,18 @@ Inventory: red bar "Export" and "Settings ▾" without numbers; the index in an 
 - Checked on live data in the desktop app (31 October 2026, closes of 30 October, `docs/parity-m3-imap-live.png`): INDU's All Securities line gives -1.09%, the index's own change on the quote line. The browser demo has no index memberships and shows the app's heat map with a note saying so.
 - Not done: Settings ▾, the member labels on the outer ring.
 
+### M3 GP (E3)
+
+Evidence: TE02 00:59, 01:33, 01:55, 02:19, 03:15, 04:23, 04:27, 04:43, 04:45 (2024).
+
+Inventory: red bar with the security box, "94) Suggested Charts ▾", "96) Actions ▾", "97) Edit ▾" and "Line Chart"; first row: two amber date boxes, an amber field box ("Last Px"), a period box ("1BF ▾"), "Local CCY ▾", "Mov Avgs" with a pencil, "Key Events"; second row: 1D, 3D, 1M, 6M, YTD, 1Y (blue when chosen), 5Y, Max, "Daily ▼", a blue chart-type button and "Table", at the right "+ Related Data ▾" (Index & Sector, Peers), an amber "Add Data" field, "«" and "Edit Chart" with a pencil; a navy mountain chart with the axis at the right.
+
+- Now: 94) Suggested Charts ▾ (Price and Volume, Moving Averages, Bollinger Bands, RSI, MACD, against the market's main index), 96) Actions ▾ (Table, the intraday or daily chart, copy and export of the chart's data) and 97) Edit ▾ (Securities & Studies, Compare Returns, the chart styles) as dropdowns; the first row with the range boxes, Last Px and Local CCY in amber, Mov Avgs (the 50- and 200-day averages) and Key Events; the second row with the periods as plain buttons (the chosen one blue, their numbers still working with GO), Daily ▼, the chart type, Table, + Related Data ▾ (the market's main index and the stock's peers, added as lines), Add Data (the comparison field) and Edit Chart, which opens the studies.
+- Changed for the owner to confirm: the study buttons now sit under Edit Chart, as the frames' side panel holds them, instead of always showing; a chart opened by a study (RSI, MACD, BOLL) opens them by itself.
+- Kept from the app: the 3M and 2Y periods, Line, Mountain, Candle and Bar as visible buttons, the readout line.
+- Not done: 3D (the app keeps one day of intraday prices), the field box as a choice (other fields such as P/E history need sources the app lacks), the period box (1BF), G's saved graphs, Track, Annotate, News and Zoom on the chart.
+- Checked: `e2e/terminal.spec.ts` (periods by number and button, typed dates leaving none chosen, the three dropdowns, Edit Chart and its studies, the RSI chart), the look tests, live data in the desktop app (`docs/parity-m3-gp-live.png`), the whole browser and desktop suites.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

@@ -12,9 +12,10 @@ import { aggregate, barsSince, type Periodicity, type Series } from '../data/ser
 import { horizonStart, type Horizon } from '../data/analytics';
 import type { SecurityDef } from '../data/types';
 import { realDividends, realSplits } from '../data/live/yahoo';
-import { earningsHistory } from '../data/fundamentals';
+import { earningsHistory, peers } from '../data/fundamentals';
 import { execute } from '../terminal/exec';
-import { usePanelId } from '../terminal/panel';
+import { useMenu, usePanelId } from '../terminal/panel';
+import { exportActions } from '../components/ExportActions';
 import type { FnProps } from '../terminal/types';
 import { styledMnemonic } from '../terminal/legacy';
 import { DateRangeFields } from '../components/DateRange';
@@ -91,9 +92,9 @@ function CompareBox({ sec, list, setList }: { sec: SecurityDef; list: string[]; 
         </span>
       ))}
       <input
-        className="inp"
+        className="inp gp-add"
         style={{ width: 120 }}
-        placeholder="+ Compare"
+        placeholder="Add Data"
         aria-label="Add comparison security"
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -114,6 +115,35 @@ function CompareBox({ sec, list, setList }: { sec: SecurityDef; list: string[]; 
               <span />
             </div>
           ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
+/** The market each country's stocks are charted against in + Related Data: its main index. */
+const HOME_INDEX: Record<string, string> = { US: 'SPX Index', GB: 'UKX Index', DE: 'DAX Index', FR: 'CAC Index', JP: 'NKY Index', HK: 'HSI Index', NL: 'AEX Index', CH: 'SMI Index', ES: 'IBEX Index', IT: 'FTSEMIB Index', CA: 'SPTSX Index', AU: 'AS51 Index', KR: 'KOSPI Index', TW: 'TWSE Index', IN: 'NIFTY Index' };
+
+/** GP's "+ Related Data ▾" (TE02 01:55): Index & Sector and Peers, each a choice that adds the line to the chart. */
+function RelatedData({ related, onAdd }: { related: { index?: SecurityDef; peers: SecurityDef[] }; onAdd: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="gp-related">
+      <button type="button" className="gp-plain" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>+ Related Data ▾</button>
+      {open && (
+        <div className="gp-related-menu" role="menu" onMouseLeave={() => setOpen(false)}>
+          <div className="white">Index &amp; Sector</div>
+          {related.index ? (
+            <button type="button" role="menuitem" className="amber" onClick={() => { onAdd(related.index!.id); setOpen(false); }}>
+              Relative Index ({related.index.name})
+            </button>
+          ) : <div className="muted">None for this security</div>}
+          <div className="white">Peers</div>
+          {related.peers.length ? related.peers.map((d) => (
+            <button key={d.id} type="button" role="menuitem" className="amber" onClick={() => { onAdd(d.id); setOpen(false); }}>
+              {d.name} ({d.id})
+            </button>
+          )) : <div className="muted">None in the app&apos;s list</div>}
         </div>
       )}
     </span>
@@ -214,8 +244,39 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
     store.set((s) => ({ ...s, lower: s.lower.includes(k) ? s.lower.filter((x) => x !== k) : [...s.lower, k] }));
   };
 
-  const tabs = intraday || iex ? undefined : PERIODS.map((x) => ({ n: x.n, label: x.label }));
+  // The periods as GP's second row draws them (TE02 01:55): plain buttons, the chosen one blue; their numbers still
+  // work with GO.
+  const showPeriods = !(intraday || iex);
   const currentTab = custom ? undefined : PERIODS.find((x) => x.id === period)?.n;
+  const pickPeriod = (n: number) => {
+    const per = PERIODS.find((x) => x.n === n)!;
+    if (per.id === '1D') execute(panel, `${sec.id} INTRADAY`);
+    else {
+      setCustom(null);
+      setPeriod(per.id);
+    }
+  };
+  useMenu('gp-periods', showPeriods ? PERIODS.map((x) => ({ n: x.n, label: x.label, run: () => pickPeriod(x.n) })) : []);
+  // Edit Chart's studies open by themselves on a chart a study opened (RSI, MACD, BOLL), so the study shows as on.
+  const [editing, setEditing] = useState(addStudies.length > 0 || addLower.length > 0);
+  // Mov Avgs: the 50- and 200-day averages, as the box's default pair.
+  const movAvgs = ['SMA50', 'SMA200'].every((id) => p.studies.includes(id));
+  const setMovAvgs = (on: boolean) => {
+    for (const id of ['SMA50', 'SMA200']) if (p.studies.includes(id) !== on) toggleStudy(id);
+  };
+  // + Related Data: the market's main index and the stock's peers, added to the chart as comparisons.
+  const related = useMemo(() => {
+    const index = engine.get(HOME_INDEX[sec.country] ?? 'SPX Index');
+    const peerList = sec.cls === 'equity' ? peers(sec, 3) : [];
+    return { index: index && index.id !== sec.id ? index : undefined, peers: peerList };
+  }, [sec]);
+  const addCompare = (id: string) => {
+    if (id !== sec.id && !compare.includes(id) && compare.length < 5) setCompare([...compare, id]);
+  };
+  const seriesCsv = () => [
+    ['Date', 'Open', 'High', 'Low', 'Close', 'Volume'],
+    ...Array.from({ length: series.length }, (_, i) => [new Date(series.t[i]).toISOString().slice(0, intraday ? 16 : 10), series.o[i], series.h[i], series.l[i], series.c[i], series.v[i]]),
+  ];
   // The range the boxes show: the typed dates, or the period's first bar to the latest one.
   const shownRange = useMemo(() => {
     if (custom) return custom;
@@ -231,30 +292,74 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
         mnemonic={mnemonic}
         title={intraday ? 'Intraday Chart' : 'Price Chart'}
         sec={sec}
-        tabs={tabs}
-        tab={currentTab}
-        onTab={(n) => {
-          const per = PERIODS.find((x) => x.n === n)!;
-          if (per.id === '1D') execute(panel, `${sec.id} INTRADAY`);
-          else {
-            setCustom(null);
-            setPeriod(per.id);
-          }
-        }}
         actions={[
-          ...(iex && !intraday ? [{ n: 94, label: 'Intraday', onClick: () => execute(panel, `${sec.id} INTRADAY`) }] : []),
-          ...(intraday ? [{ n: 95, label: 'Daily', onClick: () => execute(panel, `${sec.id} CHART`) }] : []),
-          { n: 96, label: 'Table', onClick: () => execute(panel, `${sec.id} HISTORY`) },
-          { n: 97, label: 'Compare', onClick: () => execute(panel, `${sec.id} RETURNS`) },
+          {
+            n: 94,
+            label: 'Suggested Charts',
+            onClick: () => {},
+            menu: [
+              { label: 'Price and Volume', onClick: () => { setType('mountain'); if (!p.lower.includes('VOL')) toggleLower('VOL'); } },
+              { label: 'Moving Averages (50 and 200 days)', onClick: () => setMovAvgs(true) },
+              { label: 'Bollinger Bands', onClick: () => { if (!p.studies.includes('BOLL')) toggleStudy('BOLL'); } },
+              { label: 'Relative Strength (RSI)', onClick: () => { if (!p.lower.includes('RSI')) toggleLower('RSI'); } },
+              { label: 'MACD', onClick: () => { if (!p.lower.includes('MACD')) toggleLower('MACD'); } },
+              ...(related.index ? [{ label: `Against ${related.index.name}`, sep: true, onClick: () => addCompare(related.index!.id) }] : []),
+            ],
+          },
+          {
+            n: 96,
+            label: 'Actions',
+            onClick: () => {},
+            menu: [
+              { label: 'Table', title: 'HISTORY', onClick: () => execute(panel, `${sec.id} HISTORY`) },
+              intraday ? { label: 'Daily Chart', onClick: () => execute(panel, `${sec.id} CHART`) } : { label: 'Intraday Chart', onClick: () => execute(panel, `${sec.id} INTRADAY`) },
+              ...exportActions(panel, `${sec.ticker.replace(/\W+/g, '_')}_${intraday ? 'intraday' : 'daily'}.csv`, seriesCsv).map((a, i) => ({ label: a.label === 'Copy' ? 'Copy Data to Clipboard' : 'Export Data as CSV', title: a.title, sep: i === 0, onClick: a.onClick })),
+            ],
+          },
+          {
+            n: 97,
+            label: 'Edit',
+            onClick: () => {},
+            menu: [
+              { label: 'Securities & Studies...', onClick: () => setEditing(true) },
+              { label: 'Compare Returns', title: 'RETURNS', onClick: () => execute(panel, `${sec.id} RETURNS`) },
+              ...TYPES.map((t, i) => ({ label: `${t.label} Chart`, sep: i === 0, onClick: () => setType(t.id) })),
+            ],
+          },
         ]}
       />
       {iex && <IexHistoryNotice intraday={intraday} />}
-      <div className="chart-tools">
+      <div className="chart-tools gp-row">
         {!intraday && shownRange && <DateRangeFields from={shownRange.from} to={shownRange.to} onChange={(from, to) => setCustom({ from, to })} />}
+        <span className="gp-field" title={sec.quote === 'yield' ? 'The yield' : 'The last price of each period'}>{sec.quote === 'yield' ? 'Yield' : 'Last Px'}</span>
+        <span className="gp-field" title={`In the security's own currency (${sec.ccy})`}>Local CCY</span>
+        {!intraday && (
+          <label className="chk" title="The 50- and 200-day simple moving averages">
+            <input type="checkbox" checked={movAvgs} onChange={(e) => setMovAvgs(e.target.checked)} /> Mov Avgs
+          </label>
+        )}
         {!intraday && (
           <label className="chk" title="Mark ex-dividend dates (D), splits (S) and earnings reports (E) on the chart">
             <input type="checkbox" checked={keyEvents} onChange={(e) => setKeyEvents(e.target.checked)} /> Key Events
           </label>
+        )}
+      </div>
+      <div className="chart-tools gp-row">
+        {showPeriods && (
+          <span className="gp-periods" role="group" aria-label="Period">
+            {PERIODS.map((x) => (
+              <button key={x.n} type="button" className={`gp-per${x.n === currentTab ? ' on' : ''}`} aria-pressed={x.n === currentTab} title={`${x.n} <GO>`} onClick={() => pickPeriod(x.n)}>
+                {x.label}
+              </button>
+            ))}
+          </span>
+        )}
+        {!intraday && (
+          <select className="gp-freq" aria-label="Frequency" value={freq} onChange={(e) => setFreq(e.target.value as Periodicity)}>
+            <option value="D">Daily</option>
+            <option value="W">Weekly</option>
+            <option value="M">Monthly</option>
+          </select>
         )}
         <span className="seg" role="group" aria-label="Chart type">
           {TYPES.map((t) => (
@@ -263,16 +368,16 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
             </button>
           ))}
         </span>
-        {!intraday && (
-          <span className="seg" role="group" aria-label="Frequency">
-            {(['D', 'W', 'M'] as Periodicity[]).map((f) => (
-              <button key={f} type="button" className={freq === f ? 'on' : ''} onClick={() => setFreq(f)}>
-                {f === 'D' ? 'Daily' : f === 'W' ? 'Weekly' : 'Monthly'}
-              </button>
-            ))}
-          </span>
-        )}
-        <span className="row" style={{ gap: 3 }}>
+        <button type="button" className="gp-plain" onClick={() => execute(panel, `${sec.id} HISTORY`)}>Table</button>
+        <span className="gp-right">
+          <RelatedData related={related} onAdd={addCompare} />
+          <CompareBox sec={sec} list={compare} setList={setCompare} />
+          <button type="button" className={`gp-edit${editing ? ' on' : ''}`} aria-pressed={editing} onClick={() => setEditing(!editing)}>✎ Edit Chart</button>
+        </span>
+      </div>
+      {editing && (
+        <div className="chart-tools gp-studies" aria-label="Studies">
+          <span className="white">Studies</span>
           {STUDIES.map((st) => (
             <button
               key={st.id}
@@ -303,9 +408,8 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
               {k === 'VOL' ? 'Volume' : k}
             </button>
           ))}
-        </span>
-        <CompareBox sec={sec} list={compare} setList={setCompare} />
-      </div>
+        </div>
+      )}
       <ChartView
         series={series}
         options={options}

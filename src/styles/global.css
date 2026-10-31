@@ -1616,6 +1616,27 @@ label.chk { display: inline-flex; align-items: center; gap: 4px; color: var(--te
 .rv-seg-bar i { display: inline-block; height: 0.85em; max-width: calc(100% - 4em); background: #a9a9a9; vertical-align: -1px; }
 .rv-seg tr.sel .rv-seg-bar i { background: #5a8fd6; }
 @media (max-width: 760px) { .rv-top { grid-template-columns: 1fr; } }
+/* GP as TE02 01:55: two rows of controls, the periods plain with the chosen one blue, + Related Data and Edit Chart
+   at the right. */
+.gp-row { flex-wrap: wrap; gap: 4px 10px; }
+.gp-field { padding: 0 6px; background: var(--amber); color: #000; white-space: nowrap; }
+.gp-periods { display: inline-flex; gap: 2px; }
+.gp-per { border: 0; padding: 0 7px; background: transparent; color: #e8e8e8; font-size: var(--fs-s); }
+.gp-per:hover { background: #2b2b2b; }
+.gp-per.on { background: #0451b7; color: #fff; }
+.gp-freq { border: 0; padding: 0 4px; background: transparent; color: #e8e8e8; font-size: var(--fs-s); }
+.gp-freq option { background: #1e1e1e; }
+.gp-plain { border: 0; padding: 0 6px; background: transparent; color: #e8e8e8; font-size: var(--fs-s); white-space: nowrap; }
+.gp-plain:hover { background: #2b2b2b; }
+.gp-right { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.gp-edit { border: 0; padding: 0 8px; background: transparent; color: #e8e8e8; font-size: var(--fs-s); white-space: nowrap; }
+.gp-edit.on { background: #0451b7; color: #fff; }
+.gp-related { position: relative; }
+.gp-related-menu { position: absolute; z-index: 40; top: 100%; right: 0; min-width: 300px; padding: 6px 10px; background: #000; border: 1px solid #5a5a5a; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6); }
+.gp-related-menu > div { padding: 2px 0; }
+.gp-related-menu button { display: block; width: 100%; padding: 2px 10px; border: 0; background: transparent; text-align: left; font-size: var(--fs); white-space: nowrap; }
+.gp-related-menu button:hover { background: #153b67; }
+.gp-studies { flex-wrap: wrap; gap: 3px; }
 .fa-set { display: flex; align-items: center; gap: 8px; padding: 3px 0; color: var(--white); }
 .fa-bottom { display: flex; align-items: center; gap: 4px; padding: 3px 8px; border-top: 1px solid #1d1d1d; background: #000; }
 .fa-bottom > button { background: #434142; border: 0; color: var(--white); padding: 0 12px; }
