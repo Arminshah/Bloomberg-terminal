@@ -57,4 +57,19 @@ describe("Nasdaq's economic calendar", () => {
     expect(nasdaqEcoRequestDate('2026-10-28')).toBe('2026-10-29');
     expect(nasdaqEcoDay('2026-11-01')).toBe('2026-10-31');
   });
+
+  it('reads the time as UTC-4 in winter too, when New York is UTC-5', () => {
+    // Asked on 31 October 2026: date=2026-11-07 listed the payroll report of Friday 6 November at 09:30, which the
+    // BLS's schedule puts at 08:30 New York (13:30 UTC); date=2026-11-03 listed Germany's manufacturing PMI of
+    // 2 November at 04:55, 09:55 in Frankfurt (08:55 UTC).
+    const nfp = JSON.stringify({ data: { rows: [{ gmt: '09:30', country: 'United States', eventName: 'Nonfarm Payrolls', actual: '', consensus: '', previous: '', description: '' }] } });
+    const r = parseNasdaqEco(nfp, '2026-11-07');
+    if ('error' in r) throw new Error(r.error);
+    expect(new Date(r.data[0].time).toISOString()).toBe('2026-11-06T13:30:00.000Z');
+    expect(r.data[0].time).toBe(newYorkTime('2026-11-06', 8, 30));
+    const pmi = JSON.stringify({ data: { rows: [{ gmt: '04:55', country: 'Germany', eventName: 'HCOB Germany Manufacturing PMI', actual: '', consensus: '', previous: '', description: '' }] } });
+    const p = parseNasdaqEco(pmi, '2026-11-03');
+    if ('error' in p) throw new Error(p.error);
+    expect(new Date(p.data[0].time).toISOString()).toBe('2026-11-02T08:55:00.000Z');
+  });
 });
