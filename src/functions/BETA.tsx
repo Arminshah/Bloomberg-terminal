@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { XYChart } from '../components/chart/XYChart';
 import { KV, Section } from '../components/cells';
 import { fmtDay, fmtNum } from '../core/format';
@@ -73,7 +72,6 @@ export function BETA({ sec, route }: FnProps) {
     <div>
       <FnHeader code={regression ? 'REGRESSION' : 'BETA'} title={regression ? 'Regression Analysis' : 'Historical Beta'} sec={s} sub={`vs ${bench} · ${PERIODS[tab - 1].label} ${label.toLowerCase()}`} tabs={PERIODS.map((p) => ({ n: p.n, label: p.label }))} tab={tab} onTab={setTab}
         actions={FREQUENCIES.map((f) => ({ n: f.n, label: FREQUENCY_LABEL[f.freq], on: freq === f.freq, onClick: () => setFreq(f.freq) }))} />
-      <QuoteStrip sec={s} />
       <div className="chart-tools">
         <label className="fld" htmlFor="beta-bench">
           {regression ? 'Against (independent)' : 'Relative index'}

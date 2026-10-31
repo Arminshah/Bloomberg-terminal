@@ -3,7 +3,6 @@ import { CapLink } from '../components/CapLink';
 import { engine } from '../data/market';
 import { usePeers } from '../data/live/peers';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { DataTable, type Column } from '../components/DataTable';
 import { Chg, LivePx, SecLink } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
@@ -193,7 +192,6 @@ export function RV({ sec }: FnProps) {
             )}
           </>
         } actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_RV.csv`, csv)} />
-      <QuoteStrip sec={s} />
       <DataTable
         rows={rows}
         rowKey={(r) => r.d.id}

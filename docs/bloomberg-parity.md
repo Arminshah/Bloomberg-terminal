@@ -27,6 +27,18 @@ Evidence: TE01 05:09 (typed "OF"), TE04 01:13 (typed "WEI"), TE01 01:53 (empty f
 - Not shown in any frame: what the hint row says outside a function's own mode, so it stays empty unless there is a message.
 - Checked: `e2e/look.spec.ts` (outline, triangle, cursor colour and shape, no placeholder, width share, message row), `desktop-e2e/provider-ipc.spec.ts` (block cursor in Electron), `e2e/terminal.spec.ts` (the route is still named).
 
+### M1.3 Two-line quote strip (E3)
+
+Evidence: TE01 03:11 (AAPL DES), TE01 01:41 (GOOGL, whole window), TE04 04:55 (VOW FA), TE04 04:11 (RV loaded after typing).
+
+- Now: every screen with a security shows the strip in the panel's chrome, above the red bar, as each window does in the frames. Line 1 shares the command line's row: ticker in white, the currency's symbol in grey, an arrow for the last tick (green up, red down), the last price and the day's net change coloured by the change's sign, today's line (the same day chart the watchlist draws, used as it is), then bid/ask. Clicking the row or typing turns it into the command field; running a command brings the quote back. Line 2 takes the hint row: signal bars, a yellow clock, then amber At, Vol, O, H, L, Val and Prev with white values, "d" after the time when the source says it is delayed. The 27 screens that drew their own one-line strip under the red bar no longer do.
+- Kept from the app (no counterpart in the frames): the source's name, the pre- and after-market price, the source and receipt times (on hover over At) and the freshness and session badges, at the right of line 2. The signal bars and clock carry the freshness and session on hover.
+- Labelled blank: Val (the session's traded value). None of the app's sources supplies it, so it shows "--" with the reason on hover rather than last price times volume.
+- Not done, no data: the grey exchange letters after prices and the bid and ask sizes ("4x1"); the quotes carry neither. Not shown: the percentage change, which the frames' line 1 does not carry (the screens still show it, DES's Px/Chg 1D for one).
+- Not changed: the frames draw both lines about a third larger than table text; the app keeps the price at its 16px and the rest at 12px.
+- Unverified: what the signal bars mean; the small blue block some frames show at the row's left edge.
+- Checked: `e2e/look.spec.ts` (labels, order, colours, position above the red bar, typing and back), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

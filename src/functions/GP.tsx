@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { IexHistoryNotice } from '../components/IexHistoryNotice';
 import { ChartView } from '../components/chart/ChartView';
 import { COMPARE_COLORS, type ChartOptions, type ChartType, type LowerKind, type Overlay } from '../components/chart/PriceChart';
@@ -226,7 +225,6 @@ function ChartScreen({ sec, intraday, initialPeriod, style, mnemonic, studies: a
           { n: 97, label: 'Compare', onClick: () => execute(panel, `${sec.id} RETURNS`) },
         ]}
       />
-      <QuoteStrip sec={sec} />
       {iex && <IexHistoryNotice intraday={intraday} />}
       <div className="chart-tools">
         {!intraday && shownRange && <DateRangeFields from={shownRange.from} to={shownRange.to} onChange={(from, to) => setCustom({ from, to })} />}

@@ -1,6 +1,5 @@
 import { Fragment, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { IexHistoryNotice } from '../components/IexHistoryNotice';
 import { Chg } from '../components/cells';
 import { DateRangeFields } from '../components/DateRange';
@@ -137,7 +136,6 @@ export function HP({ sec, route }: FnProps) {
         }}
         actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_${per}.csv`, csv)}
       />
-      <QuoteStrip sec={s} />
       {iex && <IexHistoryNotice />}
       <div className="chart-tools hp-tools">
         <DateRangeFields from={shownFrom} to={shownTo} onChange={(a, b) => setCustom({ from: a, to: b })} />

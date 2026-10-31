@@ -10,6 +10,8 @@ import { nameSuggestions } from '../terminal/name-search';
 import { favourites } from '../terminal/userdata';
 import type { Route } from '../terminal/types';
 import { lookupFn } from '../terminal/registry';
+import { engine, useQuote } from '../data/market';
+import { QuoteLine1, QuoteLine2 } from './QuoteStrip';
 
 /** Imperative handles per panel for global keys and the key bar. */
 interface CommandApi {
@@ -90,6 +92,8 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   const [value, setValue] = useState('');
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(-1);
+  // Typing turns the row into the command field; until then, on a security's screen, it shows the quote's first line.
+  const [editing, setEditing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const entries = useRef<string[]>([]);
@@ -116,6 +120,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
     const next = Math.max(0, recallIndex.current + direction);
     recallIndex.current = next >= entries.current.length ? -1 : next;
     setValue(recallIndex.current < 0 ? draft.current : entries.current[recallIndex.current]);
+    setEditing(true);
     setOpen(false);
     setSel(-1);
     inputRef.current?.focus();
@@ -132,6 +137,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         const cur = valueRef.current.trimEnd();
         setValue(`${cur}${cur ? ' ' : ''}${token} `);
         recallIndex.current = -1;
+        setEditing(true);
         setOpen(true);
         setSel(-1);
         el.focus();
@@ -139,6 +145,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       submit: () => submitRef.current(),
       clear: () => {
         setValue('');
+        setEditing(false);
         setOpen(false);
         setSel(-1);
         recallIndex.current = -1;
@@ -197,6 +204,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
     const ok = execute(panel, text);
     if (ok) {
       setValue('');
+      setEditing(false);
       setOpen(false);
       setSel(-1);
     }
@@ -271,6 +279,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         if (open && items.length) setOpen(false);
         else {
           setValue('');
+          setEditing(false);
           recallIndex.current = -1;
           clearFlash(panel);
         }
@@ -292,6 +301,11 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   };
 
   const fnDef = lookupFn(route.fn);
+  const sec = route.sec ? engine.get(route.sec) : undefined;
+  const quote = useQuote(sec?.id);
+  // The quote strip's two lines (TE01 03:11, TE04 04:55): the first shares the command line's row until typing starts,
+  // the second takes the hint row. Screens without a security always show the command field.
+  const quoteShown = !!sec && !!quote && !editing && !value;
   return (
     <>
     <div className="cmd" role="search">
@@ -316,7 +330,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
           ›
         </button>
       </span>
-      <span className="cmd-field">
+      <span className={`cmd-field${quoteShown ? ' as-quote' : ''}`} onMouseDown={() => setEditing(true)}>
       <input
         ref={inputRef}
         id={`cmd-${panel}`}
@@ -335,15 +349,20 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         aria-describedby={`cmd-route-${panel}`}
         onChange={(e) => {
           setValue(e.target.value);
+          setEditing(true);
           recallIndex.current = -1;
           setOpen(true);
           setSel(-1);
         }}
         onKeyDown={onKeyDown}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onBlur={() => {
+          setEditing(false);
+          setTimeout(() => setOpen(false), 120);
+        }}
       />
       {/* An empty line shows only the triangle and the cursor; what the panel runs is named for screen readers. */}
+      {quoteShown && sec ? <span className="cmd-quote"><QuoteLine1 sec={sec} /></span> : null}
       <span id={`cmd-route-${panel}`} className="sr-only">{`${routeText(route, mnemonics)}${fnDef ? ` · ${fnDef.name}` : ''}`}</span>
       </span>
       <span className="cmd-spacer" />
@@ -397,7 +416,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       )}
     </div>
     {/* The row under the command line carries its hints and messages, in white. */}
-    <div className="cmd-hints" aria-live="polite">{msg && <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span>}</div>
+    <div className="cmd-hints" aria-live="polite">{msg ? <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span> : quoteShown && sec ? <QuoteLine2 sec={sec} /> : null}</div>
     </>
   );
 }

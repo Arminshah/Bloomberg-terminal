@@ -1952,7 +1952,9 @@ test('the explicit IEX source switch supplies watchlist and quote prices with on
   const quote = page.locator('.panel').first();
   await expect(quote.getByText('Alpaca · IEX only', { exact: false }).first()).toBeVisible();
   await expect(quote.getByText('IEX ONLY', { exact: true })).toBeVisible();
-  await expect(quote.getByText('REAL-TIME', { exact: true })).toBeVisible();
+  // The screen's own badge, and the quote strip's in the panel's chrome.
+  await expect(quote.locator('.panel-body').getByText('REAL-TIME', { exact: true })).toBeVisible();
+  await expect(quote.locator('.cmd-hints .fr-rt')).toHaveText('REAL-TIME');
   expect((await calls(app)).alpaca.length).toBeGreaterThan(0);
   for (const url of (await calls(app)).alpaca) expect(new URL(url).searchParams.get('feed')).toBe('iex');
 });
@@ -1981,7 +1983,8 @@ test('a newly fetched IEX snapshot keeps an old trade stale on the main quote an
   await enableIex(page);
   await command(page, 'AAPL QUOTE');
   const quote = page.locator('.panel').first();
-  await expect(quote.locator('.fr-stale')).toHaveText('STALE');
+  await expect(quote.locator('.panel-body .fr-stale')).toHaveText('STALE');
+  await expect(quote.locator('.cmd-hints .fr-stale')).toHaveText('STALE');
   await expect(quote.locator('.fr-rt')).toHaveCount(0);
   await expect(quote.getByText('IEX ONLY', { exact: true })).toBeVisible();
   const answer: KeyedAnswer = await page.evaluate(() => window.arminDesktop!.alpaca!('snapshots', 'AAPL'));

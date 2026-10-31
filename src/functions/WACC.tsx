@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { KV, Section } from '../components/cells';
 import { fmtDay, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { engine } from '../data/market';
@@ -68,7 +67,6 @@ export function WACC({ sec }: FnProps) {
   return (
     <div>
       <FnHeader code="WACC" title="Weighted Average Cost of Capital" sec={s} sub={<>CAPM cost of equity, after-tax cost of debt · {status === 'ok' && real?.statementsFrom === 'SEC EDGAR' ? <><span className="badge live">REAL</span> SEC EDGAR statements</> : sourceLabel(status, 'balance sheet generated; real data needs the desktop app')}</>} />
-      <QuoteStrip sec={s} />
       <div className="cols">
         <Section title="Cost of equity">
           <KV

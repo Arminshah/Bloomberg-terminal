@@ -88,6 +88,40 @@ test("the terminal's measured colours: red function bar, grey section strips, an
   expect(errors).toEqual([]);
 });
 
+test("the quote strip's two lines sit above the red bar, the first sharing the command line's row until typing starts", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'AAPL US Equity FA');
+  const panel = page.locator('.panel').first();
+  // TE04 04:55, TE01 03:11: line 1 is the ticker, the currency, the last price and change, then the bid and ask.
+  const line1 = panel.locator('.cmd .qline-1');
+  await expect(line1.locator('.qs-ticker')).toHaveText('AAPL US');
+  await expect(line1.locator('.qs-ccy')).toHaveText('$');
+  await expect(line1.locator('.px')).toHaveText(/^\d[\d,]*\.\d{2}$/);
+  expect(await line1.locator('.qs-ticker').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 255, 255)');
+  // Line 2 is on the hint row: amber labels At, Vol, O, H, L, Val and Prev with white values; Val is a labelled blank.
+  const line2 = panel.locator('.cmd-hints .qline-2');
+  expect(await line2.locator('.lbl').allInnerTexts()).toEqual(['At', 'Vol', 'O', 'H', 'L', 'Val', 'Prev']);
+  expect(await line2.locator('.lbl').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 158, 27)');
+  await expect(line2.locator('.qs-clock')).toBeVisible();
+  // Both lines come before the red bar, and the screen no longer draws a strip of its own.
+  const bar = (await panel.locator('.fnh-row').boundingBox())!;
+  expect((await line2.boundingBox())!.y + 1).toBeLessThan(bar.y);
+  await expect(panel.locator('.panel-body .qstrip')).toHaveCount(0);
+  // Typing turns the first row into the command field and hides the quote; running the command brings it back.
+  await panel.locator('#cmd-0').click();
+  await expect(line1).toHaveCount(0);
+  await page.keyboard.type('DES');
+  await expect(panel.locator('.cmd-field')).not.toHaveClass(/as-quote/);
+  await page.keyboard.press('Enter');
+  await expect(panel.locator('.fnh-code')).toHaveText('PROFILE');
+  await expect(line1.locator('.qs-ticker')).toHaveText('AAPL US');
+  // A screen without a security keeps the command field and an empty hint row.
+  await run(page, 'TOP');
+  await expect(panel.locator('.qstrip')).toHaveCount(0);
+  await expect(panel.locator('.cmd-field')).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { cryptoReference, yahooQuotes } from '../data/live/yahoo';
 import { QuoteFreshness } from '../components/Freshness';
 import { krakenHandedBack, krakenOwns } from '../data/live/kraken';
@@ -194,7 +193,6 @@ export function CRYP({ sec }: FnProps) {
         title="Cryptocurrency Monitor"
         sub={allCaps ? `Total value ${fmtBig(total)} USD · BTC share ${btc >= 0 && total > 0 ? fmtNum((caps[btc] / total) * 100, 1) : '--'}% of listed assets` : anyKraken ? 'Kraken exchange prices, USD pairs' : undefined}
       />
-      {focus && <QuoteStrip sec={focus} />}
       <table className="tbl">
         <thead>
           <tr>

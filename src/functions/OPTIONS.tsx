@@ -1,6 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { CalcSource } from '../components/CalcInputs';
 import { XYChart } from '../components/chart/XYChart';
 import { KV, Section } from '../components/cells';
@@ -110,7 +109,6 @@ function OptionCalculator({ sec, route }: FnProps) {
     <div>
       <FnHeader code="OPTIONCALC" title="Option Valuation" sec={s} sub={`${model} · continuous rate and dividend yield`} actions={exportActions(panel, 'option-calculation.csv', csv)} />
       <CalcSource>Source inputs or your overrides. Choose European or American exercise; confirm the tenor and multiplier. Flat continuous rates, dividend yield and volatility. No discrete cash dividend schedule or executable option quote.</CalcSource>
-      <QuoteStrip sec={s} />
       {engine.realOnly && !Number.isFinite(r) && (
         <div className="note amber">There is {rateName} (the central bank has no free daily source here), so the option is valued only once you enter a rate.</div>
       )}

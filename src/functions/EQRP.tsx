@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { XYChart } from '../components/chart/XYChart';
 import { fmtDay, fmtNum } from '../core/format';
 import { DAY_MS } from '../data/calendar';
@@ -60,7 +59,6 @@ export function EQRP({ sec }: FnProps) {
           </div>
         }
       />
-      <QuoteStrip sec={s} />
       <div className="eqrp-grid">
         <div>
           <div className="mov-title">Country/Region Data</div>

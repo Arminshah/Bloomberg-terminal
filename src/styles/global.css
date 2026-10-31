@@ -638,18 +638,31 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .tab:hover { background: var(--bg-4); }
 .tab.on { background: #253f77; border-top-color: #b5d2ff; color: var(--white); }
 
-.qstrip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 14px;
-  padding: 3px 8px;
-  border-bottom: 1px solid var(--line);
-  background: var(--bg-1);
-}
+.qstrip { display: flex; align-items: baseline; gap: 0 12px; min-width: 0; overflow: hidden; white-space: nowrap; }
 .qstrip .px { font-size: var(--fs-xl); font-weight: 600; color: var(--white); }
+.qstrip .px.up { color: var(--up); }
+.qstrip .px.dn { color: var(--dn); }
 .qstrip .lbl { color: var(--amber); margin-right: 4px; }
-.qstrip .src { font-size: 9px; padding: 0 4px; border: 1px solid currentColor; letter-spacing: 0.08em; }
+.qstrip .src { display: inline-flex; gap: 4px; align-self: center; }
+.qstrip .src .badge { font-size: 9px; }
+/* The first line takes the command line's row when nobody is typing; the field's outline, triangle and caret hide. */
+.cmd-field.as-quote { flex: 1 1 auto; border-color: transparent; }
+.cmd-field.as-quote::before { visibility: hidden; }
+.cmd-field.as-quote .cmd-input { opacity: 0; }
+.cmd-quote { position: absolute; inset: 0; display: flex; align-items: center; padding-left: 2px; pointer-events: none; overflow: hidden; }
+.qline-1 { align-items: center; }
+.qline-1 .qs-ticker { color: var(--white); }
+.qline-1 .qs-ccy { margin-left: -6px; color: #999999; }
+.qline-1 .qs-tick { width: 0.7em; margin-right: -9px; text-align: center; }
+.qline-1 .qs-spark { display: inline-flex; align-self: center; }
+.qline-1 .qs-ba { color: var(--white); }
+.qline-2 { align-items: center; width: 100%; }
+.qline-2 .qs-icons { display: inline-flex; align-items: center; gap: 4px; }
+.qs-bars { fill: var(--amber); }
+.qs-clock rect { fill: #ebd621; }
+.qs-clock path { stroke: #000; }
+.qline-2 .qs-d { color: #999999; }
+.qline-2 .src { margin-left: auto; }
 .arrow-up::before { content: '▲'; font-size: 0.75em; margin-right: 3px; color: var(--up); }
 .arrow-dn::before { content: '▼'; font-size: 0.75em; margin-right: 3px; color: var(--dn); }
 

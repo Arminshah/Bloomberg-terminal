@@ -21,7 +21,7 @@ Setup
 
 M1. Window chrome
 - [x] 1.1 Red function bar (`f2c4c62`)
-- [ ] 1.2 Command line
+- [x] 1.2 Command line (`201adf0`)
 - [ ] 1.3 Two-line quote strip
 - [ ] 1.4 Toolbar row
 - [ ] 1.5 Autocomplete

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { CalcInput, CalcSelect } from '../components/CalcInputs';
 import { DataTable, type Column } from '../components/DataTable';
 import { exportActions } from '../components/ExportActions';
@@ -68,7 +67,6 @@ export function OptionMonitor({ sec }: FnProps) {
     <FnHeader code="OPTIONS" title="Option Monitor" sec={s} sub="Alpaca indicative feed · listed US equity contracts"
       tabs={[{ n: 1, label: 'Chain' }, { n: 2, label: 'Greeks & times' }]} tab={view} onTab={(n) => { setView(n); setPage(0); }}
       actions={[{ n: 3, label: 'Refresh', onClick: refresh }, { n: 4, label: 'Strategy', onClick: () => execute(panel, `${s.id} OPTIONSTRATEGY`) }, ...(rows.length ? exportActions(panel, 'option-chain.csv', exportRows) : [])]} />
-    <QuoteStrip sec={s} />
     <div className="pad-s muted"><span className="badge">INDICATIVE</span> Indicative quotes and delayed trades from Alpaca. These are not OPRA consolidated or executable prices. IV and Greeks are provider fields; missing fields stay blank. Open interest and daily option volume are not supplied by this endpoint.</div>
     {!available || !symbol ? <div className="pad amber" role="status">{!available ? 'Option snapshots need the desktop app and both Alpaca keys on PROVIDERS.' : 'This feed covers US-listed equities, not this underlying. Index options are not connected.'}</div> : <>
       <form className="chart-tools" onSubmit={(event) => { event.preventDefault(); setShownExpiry(''); setPage(0); if (expiryInput === requestExpiry) refresh(); else setRequestExpiry(expiryInput); }}>

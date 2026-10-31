@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { Sparkline } from '../components/Sparkline';
 import { Chg } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
@@ -235,7 +234,6 @@ export function FA({ sec, route }: FnProps) {
           </span>
         </div>}
       />
-      <QuoteStrip sec={s} />
       {tab === 6 ? <SegmentsView state={segments} /> : <>
       <div className="tbl-wrap">
         <table className="tbl zebra fa-tbl">

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { Chg, Section } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
 import { exportActions } from '../components/ExportActions';
@@ -117,7 +116,6 @@ export function MCAP({ sec }: FnProps) {
           ...exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_market_cap.csv`, csv),
         ]}
       />
-      <QuoteStrip sec={s} />
       <div className="mcap-head">
         <div>
           <div className="muted">Market cap now</div>

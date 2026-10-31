@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { fmtBig, fmtNum, fmtTime } from '../core/format';
 import { engine, useTick } from '../data/market';
 import type { SecurityDef, Trade } from '../data/types';
@@ -99,7 +98,6 @@ export function TAS({ sec }: FnProps) {
   return (
     <div>
       <FnHeader code="TRADES" title="Time and Sales" sec={s} sub={<TapeSource id={s.id} />} />
-      <QuoteStrip sec={s} />
       <div className="chart-tools">
         <label className="fld" htmlFor="tas-min">
           Min size

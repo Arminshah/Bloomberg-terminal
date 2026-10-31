@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { Section } from '../components/cells';
 import { DataTable } from '../components/DataTable';
 import { exportActions } from '../components/ExportActions';
@@ -217,7 +216,6 @@ export function INSD({ sec }: FnProps) {
         sub="Form 4 filings on SEC EDGAR, last 12 months"
         actions={trades.length ? exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_INSD.csv`, () => insiderCsv(trades)) : undefined}
       />
-      <QuoteStrip sec={s} />
       {!secAvailable() ? (
         <div className="empty">Insiders&apos; Form 4 filings are read from SEC EDGAR in the desktop app; none are generated.</div>
       ) : !secTicker(s) ? (
@@ -361,7 +359,6 @@ export function MGMT({ sec }: FnProps) {
         sub={<>Company officers · {sourceLabel(status, 'officers come from Yahoo Finance in the desktop app; none are generated')}</>}
         actions={rows.length ? exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_MGMT.csv`, csv) : undefined}
       />
-      <QuoteStrip sec={s} />
       {body}
       {secAvailable() && secTicker(s) ? (
         <Section title="Insider transactions, last 12 months (SEC Form 4)" right={insiders.result?.ok ? `${insiders.result.data.trades.length} transactions` : 'SEC EDGAR'}>

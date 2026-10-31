@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { DataTable } from '../components/DataTable';
 import { FnHeader } from '../components/FnHeader';
-import { QuoteStrip } from '../components/QuoteStrip';
 import { KV, Section } from '../components/cells';
 import { copyText, downloadText } from '../core/csv';
 import { fmtNum } from '../core/format';
@@ -37,7 +36,6 @@ function FieldSearch({ sec, initialQuery }: { sec: SecurityDef; initialQuery: st
       { n: 98, label: 'Copy fields', onClick: () => { void copyText(csv()).then((ok) => flash(panel, ok ? 'Copied the filtered fields with sources and timestamps' : 'Clipboard unavailable', ok ? 'info' : 'error')); } },
       { n: 99, label: 'Export fields', onClick: () => downloadText(`${sec.ticker.replaceAll(' ', '-')}-fields.csv`, csv()) },
     ]} />
-    <QuoteStrip sec={sec} />
     <div className="chart-tools">
       <input className="inp fields-search" aria-label="Search data fields" placeholder="Field ID, name or definition · e.g. PX_LAST, spread, volume" value={query} onChange={(e) => setQuery(e.target.value)} />
       <select className="sel-inp" aria-label="Field category" value={category} onChange={(e) => setCategory(e.target.value as FieldCategory | '')}><option value="">All categories</option>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
