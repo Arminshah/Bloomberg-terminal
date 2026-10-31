@@ -45,13 +45,14 @@ test('HRA regresses one security on another, named after the function, with its 
   const panel = page.locator('.panel').first();
   await expect(panel.locator('.fnh-code')).toHaveText('REGRESSION');
   await expect(panel.locator('.fnh-title')).toContainText('Regression Analysis');
-  await expect(panel.locator('.fnh')).toContainText('vs MSFT US Equity');
-  await expect(panel.getByText('Against (independent)')).toBeVisible();
-  await expect(panel.locator('.kv')).toContainText('R²');
+  // The independent security named after the function, in the red bar's field and as the panel's X.
+  await expect(panel.getByLabel('Independent security')).toHaveAttribute('placeholder', 'MSFT US');
+  await expect(panel.locator('.beta-stats')).toContainText(`X = ${'MICROSOFT'}`, { ignoreCase: true });
+  await expect(panel.getByTestId('beta-stats')).toContainText('R^2 (Correlation^2)');
   // BETA keeps its own name and default index.
   await run(page, 'AAPL US Equity BETA');
   await expect(panel.locator('.fnh-code')).toHaveText('BETA');
-  await expect(panel.getByText('Relative index')).toBeVisible();
+  await expect(panel.getByLabel('Relative index')).toHaveAttribute('placeholder', 'SPX');
   expect(errors).toEqual([]);
 });
 
