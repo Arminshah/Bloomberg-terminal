@@ -759,10 +759,18 @@ test('EE is the earnings and estimates page: its boxes open the screens with the
   const panel = page.locator('.panel').first();
   await expect(panel.locator('.fnh-code')).toHaveText('EARNINGSSUMMARY');
   await expect(panel.locator('.fnh-title')).toHaveText('Earnings & Estimates');
-  for (const box of ['1) Earnings History', '2) Consensus Overview', '3) Analyst Coverage', '4) Reported and Expected', '5) Earnings Trend', '7) Earnings Estimate Graph']) await expect(panel.locator('.sect-h', { hasText: box })).toBeVisible();
+  // TE04 06:27: the boxes in the terminal's order, 4) on annual figures with its period tabs and numbered measures.
+  for (const box of ['1) Earnings History', '2) Consensus Overview', '3) Analyst Coverage', '4) Company Financials', '5) Earnings Trends', '6) Company News', '7) Earnings Estimates Graph']) await expect(panel.locator('.sect-h', { hasText: box })).toBeVisible();
+  await expect(panel.locator('.ee-tab').first()).toContainText('21) Current Period Overview');
+  await expect(panel.getByTestId('ee-current').locator('thead th')).toHaveText([/Measure/, /Est$/, '4Wk Chg', 'YoY Gr', 'Growth vs Peers', 'Past Surprise', 'Analysts']);
+  await expect(panel.getByTestId('ee-current').locator('tbody tr').first()).toHaveClass(/\bsel\b/);
   // The demo's own statements give the last report; the analysts' figures are the desktop app's, and none are generated.
   await expect(panel.locator('.kv').first()).toContainText('Prior Announcement');
-  await expect(panel.getByTestId('ee-last').locator('tbody tr').first().locator('td').nth(2)).toHaveText('--');
+  await expect(panel.locator('.kv').first()).toContainText('Avg/Implied 1 Day Move');
+  await expect(panel.getByTestId('ee-current').locator('tbody tr').first().locator('td').nth(1)).toHaveText('--');
+  // 22) shows the last fiscal year from the demo's statements.
+  await run(page, '22');
+  await expect(panel.getByTestId('ee-prior').locator('tbody tr').nth(2)).toContainText('Revenue');
   await expect(panel.locator('.empty').first()).toContainText('none are generated');
   await run(page, '2');
   await expect(panel.locator('.fnh-code')).toHaveText('ESTIMATES');

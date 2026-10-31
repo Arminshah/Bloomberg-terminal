@@ -28,6 +28,8 @@ export interface Action {
   title?: string;
   /** The item opens these as a dropdown under it, as the terminal's "96) Actions ▾" (TE02 04:43); onClick is unused. */
   menu?: DropItem[];
+  /** Drawn without its number and not run by typing one, as ANR's "Actions ▾", "Alert" and "Export" (TE04 07:13). */
+  bare?: boolean;
 }
 
 export interface Tab {
@@ -86,7 +88,7 @@ export function FnHeader({ code, mnemonic: shown, title, sec, sub, actions = [],
     () => [
       ...(tabs ?? []).map((t) => ({ n: t.n, label: t.label, run: () => onTab?.(t.n) })),
       ...(subTabs ?? []).map((t) => ({ n: t.n, label: t.label, run: () => onSubTab?.(t.n) })),
-      ...actions.map((a) => ({ n: a.n, label: a.label, run: a.menu ? () => openDrop(a.n) : a.onClick })),
+      ...actions.filter((a) => !a.bare).map((a) => ({ n: a.n, label: a.label, run: a.menu ? () => openDrop(a.n) : a.onClick })),
     ],
     [tabs, subTabs, actions, onTab, onSubTab, openDrop],
   );
@@ -142,11 +144,11 @@ export function FnHeader({ code, mnemonic: shown, title, sec, sub, actions = [],
               type="button"
               className={`act${a.on || drop?.n === a.n ? ' on' : ''}${a.menu ? ' has-drop' : ''}`}
               onClick={a.menu ? () => openDrop(a.n) : a.onClick}
-              title={a.title ?? `Type ${a.n} and press Enter`}
+              title={a.title ?? (a.bare ? undefined : `Type ${a.n} and press Enter`)}
               aria-haspopup={a.menu ? 'menu' : undefined}
               aria-expanded={a.menu ? drop?.n === a.n : undefined}
             >
-              <b>{a.n})</b> {a.label}
+              {a.bare ? null : <><b>{a.n})</b> </>}{a.label}
               {a.menu ? <span className="act-caret" aria-hidden="true">▾</span> : null}
             </button>
           ))}

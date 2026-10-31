@@ -1675,6 +1675,7 @@ test('research remains usable across FMP 402s and the Finnhub fallback, each row
   const ranges = page.locator('.panel').first().getByRole('group', { name: 'Chart range' });
   await expect(ranges.getByRole('button')).toHaveText(['6M', '1Y', '2Y', '5Y', 'Max']);
   await expect(ranges.getByRole('button', { name: '2Y' })).toHaveAttribute('aria-pressed', 'true');
+  if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-anr-fixture.png') });
   await ranges.getByRole('button', { name: '5Y' }).click();
   await expect(ranges.getByRole('button', { name: '5Y' })).toHaveAttribute('aria-pressed', 'true');
   // ANR's 100% stacked bars by month, beside the monthly counts: the one month the fixture's Finnhub answer gives.
@@ -1824,7 +1825,9 @@ test('Equibles is retired: no request, no bridge, no research section, even with
   await app.evaluate(() => { (globalThis as FixtureGlobal).__desktopFixtures.researchBlocked = true; });
   await command(page, 'APLD ANALYSTS');
   await expect(page.getByTestId('more-research')).toBeVisible();
-  await page.getByRole('button', { name: 'Retry analyst research', exact: true }).click();
+  // The research controls sit in the red bar's Actions ▾, as TE04 07:13 has it.
+  await page.locator('.panel').first().getByRole('button', { name: /^Actions/ }).click();
+  await page.getByRole('menuitem', { name: 'Retry analyst research', exact: true }).click();
   await expect(page.getByTestId('more-research')).toBeVisible();
   await expect(page.getByText('Equibles', { exact: false })).toHaveCount(0);
   expect(await page.evaluate(() => 'equibles' in window.arminDesktop!)).toBe(false);
@@ -2347,19 +2350,24 @@ test('EE sums up the earnings on one page with the figures of ERN, EEO, ANR, EM 
   // A loss-maker: the P/E on the blended forward EPS and next year's growth are not meaningful.
   // Current market price is 18 in the quote fixture; the target provider's old 20 is not today's price.
   await expect(kv).toContainText('Current Price18.00');
-  await expect(kv).toContainText('Adjusted T12M P/E150.00');
-  await expect(kv.locator('dd', { hasText: 'NM' })).toHaveCount(2);
+  await expect(kv).toContainText('Trailing 12M P/E150.00');
+  await expect(kv.locator('dd', { hasText: 'NM' })).toHaveCount(1);
   await expect(kv).toContainText('6/1/0');
   await expect(kv).toContainText('25.00');
-  // Q1 2027: -0.01 against -0.303 expected, and the four reports with an estimate all came in above it.
+  // Next year's growth on a loss is not meaningful (23) Next Period).
+  await panel.getByRole('button', { name: /^23\) Next Period/ }).click();
+  await expect(panel.getByTestId('ee-following').locator('tbody tr').first()).toContainText('NM');
+  // Quarterlies, 22): Q1 2027, -0.01 against -0.303 expected, and the four reports with an estimate all beat it.
+  await panel.getByLabel('Periodicity').selectOption('Q');
+  await panel.getByRole('button', { name: /^22\) Prior Period Analysis/ }).click();
   const eps = panel.getByTestId('ee-last').locator('tbody tr').first();
-  for (const t of ['-0.010', '-0.303', '+96.70%', 'Above 4/4']) await expect(eps).toContainText(t);
-  await expect(panel.getByTestId('ee-last').locator('tbody tr').nth(2)).toContainText('341.88M');
-  // The next quarter's estimate, as EM gives it.
-  await panel.getByRole('button', { name: /^Next/ }).click();
+  for (const t of ['-0.010', '-0.303', '+96.70%', 'Beat 4 of 4']) await expect(eps).toContainText(t);
+  await expect(panel.getByTestId('ee-last').locator('tbody tr').nth(2)).toContainText('341.875M');
+  // 21): the next quarter's estimate, as EM gives it.
+  await panel.getByRole('button', { name: /^21\) Current Period Overview/ }).click();
   await expect(panel.getByTestId('ee-next').locator('tbody tr').first()).toContainText('-0.170');
-  await expect(panel.getByTestId('ee-next').locator('tbody tr').nth(1)).toContainText('162.85M');
-  await expect(panel.getByTestId('ee-next').locator('tbody tr').nth(1)).toContainText('+28.64%');
+  await expect(panel.getByTestId('ee-next').locator('tbody tr').nth(2)).toContainText('162.847M');
+  await expect(panel.getByTestId('ee-next').locator('tbody tr').nth(2)).toContainText('+28.64%');
   await expect(panel.locator('canvas')).toHaveCount(2);
   if (process.env.ARMIN_REVIEW_ARTIFACTS) await page.screenshot({ path: join(process.env.ARMIN_REVIEW_ARTIFACTS, 'armin-ee-fixture.png') });
   // Box 1 opens ERN, whose snapshot gives the same average move and the same last report (dated by the analysts'
