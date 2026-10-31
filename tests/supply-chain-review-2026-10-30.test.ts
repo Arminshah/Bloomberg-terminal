@@ -98,7 +98,7 @@ describe('SPLC review of 30 October 2026: who a related company is', () => {
   });
 
   it('replaces a saved name and ticker with the newest reading of the same CIK', () => {
-    const ev = { sentence: 'In July 2024, Coterra joined our beneficial reuse strategic agreement.', filer: 'Aris Water Solutions, Inc.', form: '10-K', date: '2025-02-27', path: '1865187/000155837025001818/aris-20241231x10k.htm' };
+    const ev = { sentence: 'In July 2024, Coterra joined our beneficial reuse strategic agreement (the "Joint Industry Project" or "JIP") with Chevron U.S.A. Inc., ConocoPhillips and Exxon Mobil Corporation (collectively with us, the "alliance members") to develop and pilot technologies and processes to treat produced water for potential beneficial reuse opportunities.', filer: 'Aris Water Solutions, Inc.', form: '10-K', date: '2025-02-27', path: '1865187/000155837025001818/aris-20241231x10k.htm' };
     const saved: Relation = { key: 'cik:1865187', name: 'Aris Mining Corp', ticker: 'ARIS', cik: 1865187, role: 'partner', side: 'theirs', evidence: [ev] };
     const now: Relation = { key: 'cik:1865187', name: 'Aris Water Solutions, Inc.', cik: 1865187, listing: { listed: false, was: 'ARIS' }, role: 'partner', side: 'theirs', evidence: [ev] };
     const [merged] = appendRelationshipHistory([saved], [now]);
@@ -162,8 +162,10 @@ describe('SPLC review of 30 October 2026: relations the cited filing itself says
     expect(relationEnding('The JDA concluded in September 2024.', GM, ses)).toEqual({ how: 'terminated', date: '2024-09' });
     const syros = 'During the three and nine months ended September 30, 2023, the Company recognized revenue of $3.8 million and $9.6 million, respectively, under a license and collaboration agreement with Global Therapeutics, Inc, now a subsidiary of Pfizer.';
     expect(relationEnding('As the agreement was terminated in October 2023, no revenue was recognized during the three and nine month periods ended September 30, 2024.', PFIZER, syros)).toEqual({ how: 'terminated', date: '2023-10' });
-    // Another agreement in the next sentence is no ending of this one.
-    expect(relationEnding('On March 8, 2019, the Company entered into an agreement that was later terminated.', PFIZER, syros)).toBeNull();
+    // Another agreement in the next sentence is no ending of this one (Allogene's 10-K: Pfizer assigned it the agreement
+    // with Cellectis that Allogene later ended).
+    const allogene = 'As part of the Pfizer Agreement, Pfizer assigned to the Company a Research Collaboration and License Agreement (the Original Cellectis Agreement) with Cellectis S.A. (Cellectis).';
+    expect(relationEnding('On March 8, 2019, the Company entered into a License Agreement (the Cellectis Agreement) with Cellectis and terminated the Original Cellectis Agreement.', PFIZER, allogene)).toBeNull();
   });
 
   it("reads no ending in a right to end, a condition, part of an agreement, another company's agreement or the filer taking one over", () => {
@@ -209,6 +211,7 @@ describe('SPLC review of 30 October 2026: relations the cited filing itself says
   it('keeps a relation a later statement says began after the ending, and settles an unscoped closure by a later ending', () => {
     const ev = (sentence: string, date: string) => ({ sentence, filer: 'X', form: '10-K', date, path: `1/000000000${date.replace(/-/g, '')}0/x.htm` });
     const end = ev('In October 2023, the Merck Collaboration Agreement and development thereunder was terminated by Merck.', '2025-03-24');
+    // A constructed statement: no reviewed filing restarts a relation it says ended.
     const later = ev('In 2025, we entered into a new research agreement with Merck.', '2025-03-24');
     const r: Relation = { key: 'cik:1', name: 'X', role: 'partner', side: 'theirs', evidence: [{ ...end, assertion: endingAssertion(end, { how: 'terminated', date: '2023-10' }) }, later] };
     expect(relationStatus(r)).toBe('reported');
@@ -237,6 +240,12 @@ describe('SPLC review of 30 October 2026: who states each statement', () => {
   });
 });
 
+// Ford's 10-Q of 29 July 2026 (www.sec.gov/Archives/edgar/data/37996/000003799626000156/f-20260630.htm), as the app reads it.
+const BOSK_DEFINED = 'In May 2026, we and the U.S. Department of Energy ("DOE") entered into a Loan Arrangement and Reimbursement Agreement (the "Ford DOE Loan Agreement"), and we assumed from BlueOval SK, LLC ("BOSK"), our former joint venture, all obligations under a $3.8 billion promissory note payable to the DOE for advances previously made to BOSK.';
+const BOSK_REDEEMED = "Upon closing, Ford's membership interest in BOSK was redeemed in full, Ford's obligation to make further capital contributions to BOSK was terminated, and Ford was released from its 50% guarantee of BOSK's payment obligations under the BOSK DOE Loan.";
+// Ford's 10-Q of 24 October 2025.
+const BOSK_CAPITAL = 'Moreover, in order to secure critical materials for production of electric vehicles, we have entered into and we may, in the future, enter into offtake agreements with raw material suppliers and make investments in certain raw material and battery suppliers, including contributing up to a maximum of $6.6 billion in capital to BlueOval SK, LLC ("BOSK") over a five-year period ending in 2026.';
+
 describe('SPLC review of 30 October 2026: companies the company took over, and stakes it no longer holds', () => {
   const lilly = targetPattern(targetNames('LLY', 'ELI LILLY & Co').names);
   it("reads its own statements of a takeover or a redeemed stake, and not purchases of shares, assets or products", () => {
@@ -248,9 +257,9 @@ describe('SPLC review of 30 October 2026: companies the company took over, and s
     expect(parties('In addition, we have entered into an agreement to acquire AtaiBeckley Inc., subject to closing conditions.')).toBeNull();
     // PFE-6: Pfizer's 10-K of February 2025.
     expect(parties('Biohaven--On October 3, 2022, we acquired Biohaven, the maker of Nurtec ODT/Vydura (rimegepant), an innovative therapy approved for both acute treatment of migraine and prevention of episodic migraine in adults.', PFIZER)).toMatchObject({ parties: [{ name: 'Biohaven' }], ending: { date: '2022-10-03' } });
-    // F-4: Ford's 10-Q of July 2026.
+    // F-4: Ford's 10-Q of July 2026, which defines "BOSK" (see the runChain case below).
     const ford = targetPattern(targetNames('F', 'FORD MOTOR CO').names);
-    expect(parties('Upon closing, Ford\'s membership interest in BlueOval SK was redeemed in full.', ford)?.parties.map((p) => p.name)).toEqual(['BlueOval SK']);
+    expect(parties(BOSK_REDEEMED, ford)?.parties.map((p) => p.name)).toEqual(['BOSK']);
     // GM's 10-K: shares bought from SoftBank and from minority holders; Merck's 10-Q: a product bought.
     const gm = targetPattern(targetNames('GM', 'GENERAL MOTORS CO').names);
     expect(parties('Cruise Preferred Shares In March 2022, we acquired SoftBank Vision Fund (AIV M2) L.P.\'s (SoftBank) Cruise Class A-1, Class F and Class G Preferred Shares for $2.1 billion and made an additional $1.35 billion investment in Cruise in place of SoftBank.', gm)).toBeNull();
@@ -290,8 +299,28 @@ describe('SPLC review of 30 October 2026: companies the company took over, and s
     // Its licence with Pfizer goes on with Novartis's subsidiary.
     expect(relationStatus({ ...stake, role: 'partner' })).toBe('reported');
     const ford = { cik: 37996, names: targetNames('F', 'FORD MOTOR CO').names, ticker: 'F' };
-    const got = ownRelations(['Moreover, in order to secure critical materials for production of electric vehicles, we have entered into and we may, in the future, enter into offtake agreements with raw material suppliers and make investments in certain raw material and battery suppliers, including contributing up to a maximum of $6.6 billion in capital to BlueOval SK, LLC ("BOSK") over a five-year period ending in 2026.'], dir, ford, { filer: 'Ford Motor Co', form: '10-Q', date: '2025-10-24', path: '37996/000003799625000186/f-20250930.htm' });
+    const got = ownRelations([BOSK_CAPITAL], dir, ford, { filer: 'Ford Motor Co', form: '10-Q', date: '2025-10-24', path: '37996/000003799625000186/f-20250930.htm' });
     expect(got.map((r) => [r.role, r.name])).toEqual([['investment', 'BlueOval SK']]);
+  });
+
+  it("ends Ford's stake in BlueOval SK when a later 10-Q says its interest in \"BOSK\" was redeemed (F-4)", async () => {
+    const io: ChainIO = {
+      companies: async () => [...SEC, { cik: 37996, ticker: 'F', title: 'FORD MOTOR CO' }],
+      filings: async (cik) => (cik === 37996 ? [
+        { form: '10-Q', filed: '2026-07-29', accession: '0000037996-26-000156', doc: 'f-20260630.htm' },
+        { form: '10-Q', filed: '2025-10-24', accession: '0000037996-25-000186', doc: 'f-20250930.htm' },
+        { form: '10-K', filed: '2025-02-06', accession: '0000037996-25-000013', doc: 'f-20241231.htm' },
+      ] : []),
+      fts: async () => ({ hits: [], total: 0 }),
+      text: async (kind, path) => (kind !== 'own' ? [] : path.endsWith('f-20260630.htm') ? [BOSK_DEFINED, BOSK_REDEEMED] : path.endsWith('f-20250930.htm') ? [BOSK_CAPITAL] : []),
+      securities: [],
+    };
+    let chain: Chain = { state: 'loading', filers: [], relations: [], changes: {} };
+    await runChain({ ticker: 'F', name: 'Ford Motor Company' }, io, (f) => { chain = f(chain); });
+    expect(relationshipView(chain, 'current').filter((r) => r.name === 'BlueOval SK')).toEqual([]);
+    const past = relationshipView(chain, 'history').filter((r) => r.name === 'BlueOval SK');
+    expect(past.map((r) => [r.role, relationStatus(r)])).toEqual([['investment', 'ended']]);
+    expect(past[0].evidence.map((e) => e.sentence)).toContain(BOSK_REDEEMED);
   });
 });
 
@@ -458,12 +487,13 @@ describe('SPLC review of 30 October 2026: statements that are no business relati
     const gm = { cik: 1467858, names: targetNames('GM', 'GENERAL MOTORS CO').names, ticker: 'GM' };
     const got = ownRelations(['ARC Matters In May 2023, we initiated a voluntary recall covering nearly one million 2014-2017 model year Buick Enclave, Chevrolet Traverse, and GMC Acadia SUVs equipped with driver front airbag inflators manufactured by ARC Automotive, Inc. (ARC), and accrued an insignificant amount for the expected costs of the recall.'], dir, gm, { filer: 'General Motors Co', form: '10-K', date: '2026-01-27', path: '1467858/000146785826000013/gm-20251231.htm' });
     expect(got.filter((r) => r.role === 'supplier')).toEqual([]);
-    // LLY-10: the statement began "ry clearances for the Merger".
-    const long = `${'the possibility that the shareholders may not approve the adoption of the Merger agreement; a failure to (or delay in) receiving the required regulatory clearances for the Merger; '.repeat(8)}Lilly's ability to successfully integrate AtaiBeckley.`;
+    // LLY-10: the statement from AtaiBeckley's 8-K of 16 July 2026 (ef20078103_ex99-1.htm) began "ry clearances for the Merger".
+    const long = "These risks and uncertainties include, but are not limited to: the possibility that AtaiBeckley's shareholders may not approve the adoption of the Merger agreement; AtaiBeckley's receipt of any competing offers or acquisition proposals; a failure to (or delay in) receiving the required regulatory clearances for the Merger; a condition to closing of the Merger may not be satisfied (or waived); the ability of each party to consummate the Merger; the closing of the Merger might be delayed or not occur at all; the diversion of management time and attention from ongoing business operations and opportunities; the response of competitors to the Merger; the effect of the Merger and the public announcement of the Merger on AtaiBeckley's operations and its relationships with its suppliers, business partners, management and employees, including its ability to attract and retain key personnel; Lilly's ability to successfully integrate AtaiBeckley and execute on the continued development of AtaiBeckley's programs following the closing of the Merger; that all or any of the potential milestone payments pursuant to the CVRs will become payable on the terms described herein or at all; the outcome of any legal proceedings that could be instituted against the parties to the Merger; the risks inherent in drug research, development and commercialization; disruption in AtaiBeckley's plans and operations attributable to the Merger; changes in AtaiBeckley's business during the period between announcement and closing of the Merger; Lilly's evaluation of the accounting treatment of the potential acquisition and its potential impact on its financial results and financial guidance; the effects of the Merger (or the announcement thereof) on AtaiBeckley's stock price; relationships with key third parties or governmental entities; regulatory changes and developments; and the impact of global macroeconomic conditions, including trade and other global disputes and interruptions, including related to tariffs, trade protection measures, and similar restrictions.";
     const [cut] = main.mentionSentences(long, ['Lilly']);
     expect(cut.length).toBeLessThanOrEqual(1200);
     expect(long.includes(` ${cut}`)).toBe(true);
-    expect(cut.endsWith('integrate AtaiBeckley.')).toBe(true);
+    expect(cut).toContain("Lilly's ability to successfully integrate AtaiBeckley");
+    expect(classify(cut, targetPattern(targetNames('LLY', 'ELI LILLY & Co').names))).toBeNull();
   });
 });
 
