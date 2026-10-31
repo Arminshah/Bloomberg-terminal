@@ -49,7 +49,8 @@ M3. Screen parity
 - [x] ANR: red bar items without numbers, summary and stacked ratings chart, firms table under it (next commit); Alert, the spread chart and the ranking columns not built
 - [x] RV: Export dropdown, controls with Region and Mkt Cap > filters, segment panel, unnumbered tabs (next commit); the multiples chart, Settings and five tabs not built
 - [x] EQS: screens list, criteria categories, Add Criteria, Selected Screening Criteria with Matches, results on their own page with Back (next commit); Formula, Backtest and WATC not built
-- [ ] WEI
+- [x] WEI: News and Settings dropdowns, Movers, Volatility (10D and 30D), the change period (next commit); Ratios, Δ AVAT and Adv/Dcl not built
+- [ ] IMAP
 
 ## 1. Rules that come before anything in this plan
 

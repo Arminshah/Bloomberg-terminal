@@ -287,6 +287,24 @@ Inventory: the hint row "1 <GO> for Results, <Back> to Return"; red bar "Formula
 - Not done: Formula, Backtest, the drag handles (▲▼ move a criterion instead), "More Screens", WATC (results open on EQS's own page until WATC is built in M5), the As Of date as a choice (the screen runs on today's figures).
 - Checked: `e2e/reference-codes.spec.ts` (hint, strips, categories, counts against Matches, the results page with as many rows as matches, Back, a typed field added as 2.2, ranks and periods on the results page), `desktop-e2e/provider-ipc.spec.ts` (Nasdaq's list, the FTSE 100 paper screen and its refusal case, through the results page), the whole browser and desktop suites.
 
+### M3 WEI (E3)
+
+Evidence: TE04 01:21 (2023), TE06 04:15 (zoomed chrome).
+
+Inventory: hint row "LLP <GO> to Open in Launchpad"; red bar "News ▾" and "Settings ▾" without numbers; an amber "Standard ▾", tick boxes Movers, Volatility, Ratios, Futures and Δ AVAT (blue when ticked), "10D ▾", an amber "%Chg 3M ▾" and "USD ▾"; columns Index, 2Day, Value, Net Chg, a change bar, %Chg, Time, Adv/Dcl, 10D Vol, 30D Vol and more; region strips 1) Americas, 2) EMEA, 3) Asia/Pacific; rows numbered 11), 21), 31) with the name amber, the bar green or red, the volatility figures amber.
+
+- Now: News ▾ (Top News, World Equity Index Futures) and Settings ▾ (copy and download the table) without numbers; Movers (the change bar, now before %Chg as in the frame), Volatility (10D Vol and 30D Vol in amber), Futures, and the period of the extra change column (1M, 3M as the frame, 6M, YTD, 1Y) with its currency. 10D and 30D Vol are the sample standard deviation of the daily log returns over the last 10 or 30 completed sessions, annualised with 261 trading days (the provider's daily convention in PORT; its WEI fields' own convention is not in the pack and no public page states it, so this is unverified).
+- Kept from the app: the intraday line (the frame's 2Day needs the day before's intraday prices, which no source gives), the currency the extra change is converted into, the freshness legend.
+- Not done: Ratios and Δ AVAT (no source gives index ratios or average volume at this time of day), Adv/Dcl (needs each index's members), the LLP hint (the app has no Launchpad yet).
+- Checked: `tests/wei-volatility.test.ts` (the volatility worked by hand, today's bar left out, too few closes), the measured-colours look test on WEI, the whole browser and desktop suites.
+
+### M3 Tab names (E3)
+
+Evidence: TE04 01:21 ("WEI World Equity Indices"), TE01 02:27 ("New Tab" on the new-tab page).
+
+- Now: a tab is named after its screen even in the untouched default workspace; "New Tab" is only the new-tab page's name, as in the frames. Before, the first tab read "New Tab" over WEI until another screen was opened.
+- Checked: `tests/workspace-tabs.test.ts`, the browser tests of tabs.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).
