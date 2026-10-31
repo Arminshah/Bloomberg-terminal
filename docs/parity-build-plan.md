@@ -43,7 +43,8 @@ M2. Navigation, keyboard and menus
 M3 to M5: ticked per screen, calculation and function as they are done (see sections M3, M4 and M5 below).
 
 M3. Screen parity
-- [x] DES Profile (`b61bebc`); Issue Info, Ratios, Revenue & EPS and ESG pages next
+- [x] DES: Profile (`b61bebc`), Revenue & EPS (`323e9e6`), Ratios (`2e252ee`), ESG (labelled blank, `b61bebc`); Issue Info has no newer picture, look unverified
+- [ ] FA
 
 ## 1. Rules that come before anything in this plan
 
