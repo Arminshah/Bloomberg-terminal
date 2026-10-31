@@ -1,4 +1,5 @@
 import { Chg, Section } from '../components/cells';
+import { XYChart } from '../components/chart/XYChart';
 import { fmtIso, fmtNum } from '../core/format';
 import { secAvailable } from '../data/live/sec';
 import { BREAKDOWN_TITLE, type SegmentState, type SegmentTable } from '../data/live/segments';
@@ -99,6 +100,36 @@ function Table({ t }: { t: SegmentTable }) {
   );
 }
 
+/** The series colours of FA's segment chart, in the order the segments are ticked. */
+const SEGMENT_COLOURS = ['#ff9e1b', '#2fd36b', '#ffd23f', '#45d3e6', '#d77bff'];
+
+/**
+ * The segment chart's series: the company's top-level reported segments (up to five, largest first in the latest year),
+ * one bar per fiscal year in billions, labelled "FY 2025" by the year the fiscal year ends in.
+ */
+export function segmentSeries(t: SegmentTable): { label: string; color: string; kind: 'bar'; points: { x: number; y: number; label: string }[] }[] {
+  const latest = t.periods[0]?.end;
+  const top = t.lines.filter((l) => !l.parent && Number.isFinite(l.values[latest ?? ''])).sort((a, b) => (b.values[latest!] ?? 0) - (a.values[latest!] ?? 0)).slice(0, 5);
+  const years = [...t.periods].reverse();
+  return top.map((l, i) => ({
+    label: `Revenue: ${l.label}`,
+    color: SEGMENT_COLOURS[i],
+    kind: 'bar' as const,
+    points: years.filter((p) => Number.isFinite(l.values[p.end])).map((p) => ({ x: Number(p.end.slice(0, 4)), y: l.values[p.end] / 1e9, label: `FY ${p.end.slice(0, 4)}` })),
+  }));
+}
+
+/** FA's Segments by measure: the reported segments' revenue as grouped bars, one group per fiscal year. */
+function SegmentChart({ t }: { t: SegmentTable }) {
+  const series = segmentSeries(t);
+  if (!series.length) return null;
+  return (
+    <Section title={`Revenue by ${BREAKDOWN_TITLE[t.breakdown].toLowerCase()}`} right="Billions">
+      <XYChart height={220} series={series} xFormat={(v) => `FY ${fmtNum(v, 0)}`} yFormat={(v) => `${fmtNum(v, 0)}B`} />
+    </Section>
+  );
+}
+
 /** FINANCIALS' Segments page. */
 export function SegmentsView({ state }: { state: SegmentState | undefined }) {
   if (!secAvailable()) return <div className="empty">Segments are read from the company’s annual report (10-K) on SEC EDGAR by the desktop app.</div>;
@@ -114,6 +145,11 @@ export function SegmentsView({ state }: { state: SegmentState | undefined }) {
         </a>
         ), with the names it gives its segments. Indented lines are counted within the line above them.
       </div>
+      {(() => {
+        // The chart draws the business segments' revenue, or the products' where the filing gives no segments.
+        const t = r.tables.find((x) => x.metric === 'revenue' && x.breakdown === 'segment') ?? r.tables.find((x) => x.metric === 'revenue' && x.breakdown === 'product');
+        return t ? <SegmentChart t={t} /> : null;
+      })()}
       {r.tables.map((t) => (
         <Table key={`${t.metric}-${t.breakdown}`} t={t} />
       ))}
