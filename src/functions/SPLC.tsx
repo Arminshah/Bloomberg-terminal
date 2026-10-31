@@ -77,7 +77,8 @@ export function shareLabel(r: Relation): string {
   switch (r.basis) {
     case 'their-revenue':
     case 'target-revenue':
-      return `Rev: ${v}${tail}`;
+      // A share of one line of revenue (Matador's oil, natural gas and NGL revenues), named in full in the line below.
+      return `${revenueLineOf(r) ? 'Line rev' : 'Rev'}: ${v}${tail}`;
     case 'their-product-sales':
       return `Sales: ${v}${tail}`;
     case 'their-purchases':
@@ -86,6 +87,12 @@ export function shareLabel(r: Relation): string {
     default:
       return `${v}${tail}`;
   }
+}
+
+/** The line of revenue the shown share is of, when the filing names one ("oil, natural gas and NGL"). */
+function revenueLineOf(r: Relation): string | undefined {
+  const e = r.evidence[0];
+  return e ? r.observations?.find((o) => o.evidenceId === evidenceIdentity(e))?.line : undefined;
 }
 
 /** One line on what the relation is, in the target's terms. */
@@ -99,11 +106,11 @@ export function describe(r: Relation, t: string): string {
   const v = r.share != null ? `${r.qualifier === '>' ? 'at least ' : r.qualifier === '<' ? 'less than ' : ''}${fmtNum(r.share, r.share % 1 ? 1 : 0)}%` : '';
   switch (r.role) {
     case 'supplier':
-      if (r.basis === 'their-revenue') return `${t} brought ${v} of its revenue${period ? ` (${period})` : ''}`;
+      if (r.basis === 'their-revenue') return `${t} brought ${v} of its ${revenueLineOf(r) ? `${revenueLineOf(r)} revenues` : 'revenue'}${period ? ` (${period})` : ''}`;
       if (r.basis === 'target-purchases') return `${v} of ${t}'s purchases${period ? ` (${period})` : ''}`;
       return r.side === 'theirs' ? `Names ${t} as a customer` : r.side === 'both' ? `Named by ${t}; names it as a customer` : `Named by ${t} as a supplier`;
     case 'customer':
-      if (r.basis === 'target-revenue') return `${v} of ${t}'s revenue${period ? ` (${period})` : ''}`;
+      if (r.basis === 'target-revenue') return `${v} of ${t}'s ${revenueLineOf(r) ? `${revenueLineOf(r)} revenues` : 'revenue'}${period ? ` (${period})` : ''}`;
       if (r.basis === 'their-product-sales') return `${v} of its sales are ${t} products${period ? ` (${period})` : ''}`;
       if (r.basis === 'their-purchases') return `${v} of its purchases are from ${t}${period ? ` (${period})` : ''}`;
       return r.side === 'theirs' ? `Names ${t} as a supplier` : r.side === 'both' ? `Named by ${t}; names it as a supplier` : `Named by ${t} as a customer`;
@@ -498,7 +505,7 @@ export function SPLC({ sec }: FnProps) {
       const a = r.assertions?.find((x) => x.evidenceId === evidenceIdentity(ev));
       const o = r.observations?.find((x) => x.evidenceId === evidenceIdentity(ev));
       const named = r.identityLinks?.[0]?.evidence;
-      return [relationKind(r), r.role, r.key, displayName(r.name), r.ticker ?? '', listingLabel(r.listing), relationStatus(r), o?.value ?? '', o?.basis ?? '', o?.period ?? '', o?.periodEnd ?? '', o?.denominator ?? '', o?.scope ?? '', o?.segment ?? '', statedBy(ev, chain?.company?.cik), r.amount ?? '', ev.filer, ev.form, ev.date, ev.observedAt ? new Date(ev.observedAt).toISOString() : '', ev.parserVersion ?? '', a?.state ?? '', a?.contractKey ?? '', a?.effectiveFrom ?? '', a?.effectiveTo ?? '', named?.date ?? '', named?.observedAt ? new Date(named.observedAt).toISOString() : '', named ? sourceUrl(named) : '', view === 'history' ? recordedBy : '', ev.context ?? '', ev.sentence, sourceUrl(ev)];
+      return [relationKind(r), r.role, r.key, displayName(r.name), r.ticker ?? '', listingLabel(r.listing), relationStatus(r), o?.value ?? '', o?.basis ?? '', o?.period ?? '', o?.periodEnd ?? '', o?.denominator === 'line-revenue' && o.line ? `line-revenue (${o.line})` : o?.denominator ?? '', o?.scope ?? '', o?.segment ?? '', statedBy(ev, chain?.company?.cik), r.amount ?? '', ev.filer, ev.form, ev.date, ev.observedAt ? new Date(ev.observedAt).toISOString() : '', ev.parserVersion ?? '', a?.state ?? '', a?.contractKey ?? '', a?.effectiveFrom ?? '', a?.effectiveTo ?? '', named?.date ?? '', named?.observedAt ? new Date(named.observedAt).toISOString() : '', named ? sourceUrl(named) : '', view === 'history' ? recordedBy : '', ev.context ?? '', ev.sentence, sourceUrl(ev)];
     })),
   ];
   const entities = all.filter((r) => relationKind(r) === 'entity');

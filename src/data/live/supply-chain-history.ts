@@ -1,4 +1,4 @@
-import { eventDate, findCompanies, normalizeName, relationKey, sharePeriod, type Chain, type Directory, type Evidence, type Relation, type Role } from './supply-chain';
+import { eventDate, findCompanies, normalizeName, periodMonths, relationKey, sharePeriod, type Chain, type Directory, type Evidence, type Relation, type Role } from './supply-chain';
 
 /** Parsed public disclosures, not a reconstruction of observations that predate collection. */
 export const RELATIONSHIP_PARSER = 3;
@@ -36,7 +36,9 @@ export interface ShareObservation {
   qualifier?: '>' | '<';
   basis: Relation['basis'];
   period: string;
-  denominator: 'revenue' | 'continuing-operations-revenue' | 'segment-revenue' | 'product-sales' | 'purchases' | 'unknown';
+  denominator: 'revenue' | 'continuing-operations-revenue' | 'segment-revenue' | 'line-revenue' | 'product-sales' | 'purchases' | 'unknown';
+  /** The revenue line a share is of, as the filing names it: "oil, natural gas and NGL" (Matador's 10-K). */
+  line?: string;
   scope: 'target' | 'counterparty' | 'unknown';
   /** Segment or business context from the disclosure, kept independently of the denominator. */
   segment?: string;
@@ -133,20 +135,39 @@ export function assertionFor(e: Evidence, r: Pick<Relation, 'role'>): Relationsh
   };
 }
 
+/** Words of a revenue phrase that do not name a line of it: "of our total operating revenue" is all of it. */
+const WHOLE_REVENUE_WORD = /^(?:total|net|consolidated|operating|gross|annual|aggregate|reported|and)$/i;
+
+/**
+ * The line of revenue a share is of, when the filing names one: "accounted for 72%, 79% and 76%, respectively, of the
+ * Company's total oil, natural gas and NGL revenues" (Matador's 10-K) is "oil, natural gas and NGL"; "of our operating
+ * revenue" names none.
+ */
+export function revenueLine(sentence: string): string | undefined {
+  const m = /\bof\s+(?:the Company's|our|its|their)\s+((?:[A-Za-z][\w-]*,?\s+){1,7}?)(?:revenues?|net sales|sales)\b/i.exec(sentence);
+  if (!m) return undefined;
+  const words = m[1].trim().split(/\s+/);
+  const named = words.filter((w) => !WHOLE_REVENUE_WORD.test(w.replace(/,$/, '')));
+  if (!named.length) return undefined;
+  return words.filter((w, i) => i > 0 || !WHOLE_REVENUE_WORD.test(w.replace(/,$/, ''))).join(' ').replace(/,$/, '');
+}
+
 export function shareObservation(r: Relation, e: Evidence): ShareObservation | undefined {
   if (r.share == null || !Number.isFinite(r.share)) return undefined;
   const s = e.sentence;
+  const line = r.basis === 'their-revenue' || r.basis === 'target-revenue' ? revenueLine(s) : undefined;
   const denominator: ShareObservation['denominator'] = /\bcontinuing operations\b/i.test(s) ? 'continuing-operations-revenue'
     : /\bof\s+(?:our |its |the Company's )?(?:[\w-]+\s+){0,5}(?:segment|business line|loyalty services)\s+revenues?\b/i.test(s) ? 'segment-revenue'
-      : r.basis === 'their-product-sales' ? 'product-sales'
-        : r.basis === 'their-purchases' || r.basis === 'target-purchases' ? 'purchases'
-          : r.basis === 'target-revenue' || r.basis === 'their-revenue' ? 'revenue' : 'unknown';
+      : line ? 'line-revenue'
+        : r.basis === 'their-product-sales' ? 'product-sales'
+          : r.basis === 'their-purchases' || r.basis === 'target-purchases' ? 'purchases'
+            : r.basis === 'target-revenue' || r.basis === 'their-revenue' ? 'revenue' : 'unknown';
   const scope = r.basis?.startsWith('target-') ? 'target' : r.basis?.startsWith('their-') ? 'counterparty' : 'unknown';
   const evidenceId = evidenceIdentity(e);
   const segment = /^([A-Z][\w&-]*(?:\s+[A-Z][\w&-]*){0,4}?)\s+(?:Business|Segment)\b/.exec(s)?.[1]
     ?? /\b(?:our|the)\s+([A-Z][A-Za-z &-]{1,60}?)\s+segment\b/.exec(s)?.[1];
   const periodEnd = new RegExp(`\\b(?:ended|ending)\\s+(${DATE_WORDS})`, 'i').exec(s);
-  return { id: JSON.stringify([evidenceId, r.share, r.basis, r.qualifier]), value: r.share, qualifier: r.qualifier, basis: r.basis, period: sharePeriod(s), ...(periodEnd ? { periodEnd: eventDate(periodEnd[1]) } : {}), denominator, scope, ...(segment ? { segment } : {}), sourceDate: e.date, observedAt: e.observedAt, evidenceId };
+  return { id: JSON.stringify([evidenceId, r.share, r.basis, r.qualifier]), value: r.share, qualifier: r.qualifier, basis: r.basis, period: sharePeriod(s), ...(periodEnd ? { periodEnd: eventDate(periodEnd[1]) } : {}), denominator, ...(line ? { line } : {}), scope, ...(segment ? { segment } : {}), sourceDate: e.date, observedAt: e.observedAt, evidenceId };
 }
 
 export function enrichRelation(r: Relation, observedAt?: number): Relation {
@@ -227,7 +248,10 @@ export function relationshipView(chain: Chain, mode: 'current' | 'history', know
     const evidence = r.evidence.filter(eligible);
     const ids = new Set(evidence.map(evidenceIdentity));
     const observations = r.observations?.filter((o) => ids.has(o.evidenceId));
-    const selected = observations?.slice().sort((a, b) => b.sourceDate.localeCompare(a.sourceDate) || (b.observedAt ?? 0) - (a.observedAt ?? 0)).at(0);
+    // A year's share before a part year's, then the latest: Dauch's 15% of 2025 (10-K) rather than its 11% of the first
+    // six months of 2026 (10-Q); a share with no period stated ranks between them.
+    const span = (o: ShareObservation) => { const n = periodMonths(o.period); return n >= 12 ? 2 : n === 0 ? 1 : 0; };
+    const selected = observations?.slice().sort((a, b) => span(b) - span(a) || b.sourceDate.localeCompare(a.sourceDate) || (b.observedAt ?? 0) - (a.observedAt ?? 0)).at(0);
     return { ...r, evidence: selected ? evidence.slice().sort((a, b) => Number(evidenceIdentity(b) === selected.evidenceId) - Number(evidenceIdentity(a) === selected.evidenceId)) : evidence,
       ...(selected || knownAsOf ? { share: selected?.value, qualifier: selected?.qualifier, basis: selected?.basis } : {}),
       assertions: r.assertions?.filter((a) => ids.has(a.evidenceId)), observations, identityLinks: r.identityLinks?.filter((link) => eligible(link.evidence)) };
@@ -258,7 +282,7 @@ export function customerCounts(rows: Relation[]): { named: number; unnamed: numb
 export function compatibleShareTotal(rows: Relation[]): number | undefined {
   if (!rows.length || rows.some((r) => relationKind(r) === 'concentration' || r.unnamed || r.qualifier || r.basis !== 'target-revenue')) return undefined;
   const obs = rows.map((r) => r.observations?.find((o) => o.evidenceId === evidenceIdentity(r.evidence[0])) ?? shareObservation(r, r.evidence[0]));
-  if (obs.some((o) => !o || !o.period || o.denominator === 'unknown' || o.denominator === 'segment-revenue')) return undefined;
+  if (obs.some((o) => !o || !o.period || o.denominator === 'unknown' || o.denominator === 'segment-revenue' || o.denominator === 'line-revenue')) return undefined;
   const first = obs[0]!;
   if (obs.some((o) => o!.period !== first.period || o!.periodEnd !== first.periodEnd || o!.denominator !== first.denominator || o!.scope !== first.scope || o!.segment !== first.segment)) return undefined;
   if (new Set(rows.map((r) => r.key)).size !== rows.length) return undefined;

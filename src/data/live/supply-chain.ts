@@ -533,13 +533,20 @@ export function percentRuns(s: string): Pct[][] {
   const runs: Pct[][] = [];
   for (const p of all) {
     const last = runs[runs.length - 1];
-    if (last && /^\s*,?\s*(?:and\s+|or\s+)?$/i.test(s.slice(last[last.length - 1].end, p.index))) last.push(p);
-    else runs.push([p]);
+    const gap = last ? s.slice(last[last.length - 1].end, p.index) : '';
+    if (last && /^\s*,?\s*(?:and\s+|or\s+)?$/i.test(gap)) last.push(p);
+    // A figure written without its sign inside a list: "17.6%, 15.7%, 13.8 and 11.8%, respectively" (Montauk's 10-K;
+    // ExxonMobil's is 13.8, not Mercuria's 11.8).
+    else if (last && /^\s*,\s*(?:\d{1,3}(?:\.\d{1,2})?(?![\d.])(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+))+$/i.test(gap)) {
+      const at = last[last.length - 1].end;
+      for (const m of gap.matchAll(/\d{1,3}(?:\.\d{1,2})?/g)) last.push({ value: Number(m[0]), index: at + (m.index ?? 0), end: at + (m.index ?? 0) + m[0].length });
+      last.push(p);
+    } else runs.push([p]);
   }
   return runs;
 }
 
-const OF_REVENUE = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?:(?:our|its|their|the Company's|the Group's|Company's|Group's|total|consolidated|net|aggregate|annual|worldwide)\s+)*(?:(?:total|net|consolidated|product|segment|gross)\s+)*(?:(?!of\b|from\b|to\b|in\b)[A-Za-z&-]+,?\s+){0,5}?(?:revenue|revenues|net sales|sales|turnover)\b(?![ -](?:volumes?|force|tax|taxes|team|agents?|channels?|representatives?|prices?|growth|mix|units?)\b)/i;
+const OF_REVENUE = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?!(?:global|world|industry|market|U\.S\.|US|domestic)\b)(?:(?:our|its|their|the Company's|the Group's|Company's|Group's|total|consolidated|net|aggregate|annual|worldwide)\s+)*(?:(?:total|net|consolidated|product|segment|gross)\s+)*(?:(?!of\b|from\b|to\b|in\b)[A-Za-z&-]+,?\s+){0,5}?(?:revenue|revenues|net sales|sales|turnover)\b(?![ -](?:volumes?|force|tax|taxes|team|agents?|channels?|representatives?|prices?|growth|mix|units?)\b)/i;
 /**
  * A share of the company's revenue, not of one segment's: "9.2% of net sales for our Sun and Skin Care segment" and "of
  * our Government Operations segment revenues" (Edgewell's 10-K of November 2025) are a segment's.
@@ -650,7 +657,10 @@ export function yearPairRun(s: string): { run: Pct[]; purchases: boolean } | nul
   if (pairs.length < 2) return null;
   const last = pairs[pairs.length - 1];
   const tail = s.slice((last.index ?? 0) + last[0].length, (last.index ?? 0) + last[0].length + 140);
-  const revenue = !!companyRevenue(tail);
+  // The basis written first: "As a percentage of total sales from operations, our sales to Ford were approximately 32%
+  // in 2025, 31% in 2024 and 28% in 2023" (Dana's 10-K).
+  const lead = /^As a (?:percentage|percent|share) of (?:our |its |the Company's )?(?:total |net |consolidated )*(?:sales|revenues?|net sales)\b[^,;]{0,40},/i.test(s.trim());
+  const revenue = !!companyRevenue(tail) || lead;
   const purchases = !revenue && OF_PURCHASES.test(tail);
   if (!revenue && !purchases) return null;
   let best = pairs[0];
@@ -864,6 +874,14 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   // Names before it, each ended by a comma or an "and" (linear: no two ways to split a run of names).
   const defendants = String.raw`(?:the\s+)?(?:[A-Z][\w&/.-]*(?:\s+[A-Z][\w&/.-]*)*(?:,\s+(?:and\s+|or\s+)?|\s+(?:and|or)\s+))*$`;
   if (company.length && company.every((c) => new RegExp(String.raw`\b(?:disputes?|lawsuits?|litigation|complaints?|claims?|arbitration|suits?|actions?|proceedings?)\s+(?:with|against|by|filed by)\s+${defendants}|\b(?:recovery|damages|compensation)\s+(?:from|against)\s+${defendants}|\b(?:enforce|assert)\w*\s+(?:our\s+|its\s+|the\s+)?patents?\b[^.;]{0,80}\bagainst\s+(?:the\s+)?$`, 'i').test(before(c)))) return null;
+  // The filer's generic of the company's drug competes with it, whatever share of the filer's sales it makes: "Varenicline
+  // tablets (Endo's generic version of Pfizer Inc.'s Chantix®) ... made up 15% of consolidated total revenues" (Endo's
+  // S-1/A). Not another's generic ("Teva launched ..., the generic version of Lilly's branded product Forsteo", Halozyme).
+  const ownGeneric = (c: Mention) => {
+    const g = /(\b(?:our|its)|[A-Z][\w&.-]*['’\u0092]s|[Tt]he Company['’]s)\s+generic\s+(?:versions?|equivalents?|forms?|cop(?:y|ies))\s+of\s+(?:the\s+)?$/.exec(before(c));
+    return !!g && (/^(?:our|its|[Tt]he Company)/.test(g[1]) || byFiler(g[1].replace(/['’\u0092]s$/, '')));
+  };
+  if (company.some(ownGeneric)) return { role: 'competitor' };
   // "Companies such as Microsoft, Sony and Nintendo compete directly with us".
   if (company.some((c) => /^(?:'s)?,?[^.;]{0,120}?\bcompete[sd]?\s+(?:directly\s+|primarily\s+|principally\s+|head-to-head\s+)?(?:with|against)\s+(?:us|the Company)\b/i.test(s.slice(c.end)) && !HEDGED_COMPETITION.test(s))) return { role: 'competitor' };
   // A jointly owned company: "We hold a 50% membership interest in ULA, with The Boeing Company holding the other 50%".
@@ -911,7 +929,9 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   if (company.some((c) => /^[^.;]{0,80}?\b(?:charges?|charged|collects?|collected|retains?|withholds?)\b[^.;]{0,60}\b(?:fees?|commissions?)\b/i.test(s.slice(c.end)))) return { role: 'customer' };
   const anchor = company.length ? company : ms;
   const FORM = String.raw`(?:,?\s+(?:Inc|Corp|Corporation|Co|Company|Ltd|LLC|L\.P|LP|plc)\.?)?`;
-  const GIVES = String.raw`(?:account(?:ed|s)? for|represent(?:ed|s)?|contribut(?:ed|es)|compris(?:ed|es)|constitut(?:ed|es)|generated|made up)\s+(?:approximately\s+|about\s+|roughly\s+|over\s+|more than\s+|less than\s+)?`;
+  // "our top five customers accounted for approximately 37% of our net sales, with General Motors Company representing
+  // 18%" (Phinia's 10-K).
+  const GIVES = String.raw`(?:account(?:ed|s|ing)? for|represent(?:ed|s|ing)?|contribut(?:ed|es|ing)|compris(?:ed|es|ing)|constitut(?:ed|es|ing)|generated|made up)\s+(?:approximately\s+|about\s+|roughly\s+|over\s+|more than\s+|less than\s+)?`;
   // The run the target's name goes with: "Costco accounted for approximately 11%" (name, verb, figure), "13% ... were
   // to Boeing" or "21% ... from products purchased from Apple Inc." (figure, then the name), "Exxon Mobil Corp (13%,
   // 15% and 16%, respectively)" (the figures beside the name); else the nearest.
@@ -976,6 +996,14 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     // "Walmart and its affiliates ... accounted for": one company with its own units, unless others are named with it.
     const together = GROUP.test(clause) || /\bcollectively\b|\btogether\b|\bcombined\b|\baltogether\b/i.test(near) || /\b(?:collectively|together|combined|altogether)\b/i.test(clause);
     if (found.how !== 'company' && !/\beach\b/i.test(clause) && (several || (together && !/\b(?:and|with) (?:its|their) (?:affiliates|subsidiaries)\b/i.test(clause)))) {
+      share = undefined;
+      qualifier = undefined;
+    }
+    // A share of the filer's own product line, the target only among the makers it is sold to after the figure: "Our OEM
+    // aluminum wheels accounted for approximately 92% of our sales in 2024 and were primarily sold for factory installation
+    // on vehicle models manufactured by BMW (including Mini), Ford, GM, ..." (Superior Industries' 10-K).
+    const firstNamed = Math.min(...anchor.map((c) => c.index));
+    if (!tied(run) && firstNamed > run[run.length - 1].end && /(?:^|[,;:]\s*|\b(?:In|For|During)\s[^,]{0,40},\s*)(?:[Oo]ur|[Ii]ts|[Tt]he Company's)\s+(?![^.;]{0,40}\b(?:customers?|clients?|sales to|revenues? from)\b)[^.;]{0,60}?\b(?:accounted|represented|comprised|contributed|made up|constituted)\b/.test(clause)) {
       share = undefined;
       qualifier = undefined;
     }
@@ -2387,6 +2415,9 @@ export function sharePeriod(sentence: string): string {
     const n = ({ three: 3, six: 6, nine: 9, twelve: 12 } as Record<string, number>)[m[1].toLowerCase()] ?? Number(m[1]);
     return n === 12 ? `Year to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}` : `${n}M to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}`;
   }
+  // "for the first six months of 2026" (Dauch's 10-Q): part of a year, never the year.
+  m = /\bfirst (three|six|nine|3|6|9) months of (?:fiscal (?:year )?)?(\d{4})\b/i.exec(s);
+  if (m) return `${({ three: 3, six: 6, nine: 9 } as Record<string, number>)[m[1].toLowerCase()] ?? Number(m[1])}M of ${m[2]}`;
   // "During the quarter ended March 29, 2026": three months.
   m = /\bquarter ended ([A-Z][a-z]+) \d{1,2}, (\d{4})\b/.exec(s);
   if (m && MONTH_ABBR[m[1].toLowerCase()]) return `3M to ${MONTH_ABBR[m[1].toLowerCase()]} ${m[2]}`;

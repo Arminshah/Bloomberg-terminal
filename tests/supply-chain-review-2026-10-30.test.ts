@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import * as main from '../electron/supply-chain.cjs';
 import * as federal from '../electron/usaspending.cjs';
 import {
-  buildDirectory, classify, federalParty, filerIdentity, listingEvents, listingLabel, mergeRelations, normalizeName, ownRelations, relationEnding, relationshipView, relationStatus, runChain,
+  buildDirectory, classify, federalParty, filerIdentity, sharePeriod, listingEvents, listingLabel, mergeRelations, normalizeName, ownRelations, relationEnding, relationshipView, relationStatus, runChain,
   takenOver, targetNames, targetPattern, type Chain, type ChainIO, type FtsHit, type Relation,
 } from '../src/data/live/supply-chain';
-import { appendRelationshipHistory, endingAssertion, statedBy } from '../src/data/live/supply-chain-history';
+import { appendRelationshipHistory, endingAssertion, enrichRelation, revenueLine, shareObservation, statedBy } from '../src/data/live/supply-chain-history';
 import { agencyRelations, doubtfulSubawards, federalRelations, resolveParties, subRelations, type FedAward, type FederalContext, type FedSubaward, type UsaspendingKind } from '../src/data/live/usaspending';
 import type { SecCompany } from '../src/data/live/sec';
 
@@ -464,5 +464,49 @@ describe('SPLC review of 30 October 2026: statements that are no business relati
     expect(cut.length).toBeLessThanOrEqual(1200);
     expect(long.includes(` ${cut}`)).toBe(true);
     expect(cut.endsWith('integrate AtaiBeckley.')).toBe(true);
+  });
+});
+
+const XOM: [string, string] = ['XOM', 'EXXON MOBIL CORP'];
+const FORD: [string, string] = ['F', 'FORD MOTOR CO'];
+
+describe("SPLC review of 30 October 2026: shares", () => {
+  it("gives ExxonMobil its own figure in a list written partly without the sign (X2)", () => {
+    expect(theirs(XOM, ['MNTK', 'Montauk Renewables, Inc.'], 'In 2024, RIN sales to Valero, GE Warren, ExxonMobil and Mercuria represented approximately 17.6%, 15.7%, 13.8 and 11.8%, respectively, of our operating revenue.')).toMatchObject({ role: 'supplier', share: 13.8 });
+  });
+
+  it("keeps the line of revenue a share is of (X3): Matador's 13% is of its oil, natural gas and NGL revenues", () => {
+    const matador = 'For the years ended December 31, 2025, 2024 and 2023, three significant purchasers accounted for 72%, 79% and 76%, respectively, of the Company\'s total oil, natural gas and NGL revenues: Plains Marketing, L.P. (49%, 53% and 42%, respectively), Exxon Mobil Corporation (13%, 15% and 24%, respectively) and Enterprise Products Partners L.P. (10%, 11% and 10%, respectively).';
+    expect(theirs(XOM, ['MTDR', 'Matador Resources Co'], matador)).toMatchObject({ role: 'supplier', share: 13, basis: 'their-revenue' });
+    expect(revenueLine(matador)).toBe('oil, natural gas and NGL');
+    const ev = { sentence: matador, filer: 'Matador Resources Co', form: '10-K', date: '2026-02-26', path: '1520006/000152000626000002/mtdr-20251231.htm' };
+    expect(shareObservation({ key: 'cik:1520006', name: 'Matador', role: 'supplier', side: 'theirs', share: 13, basis: 'their-revenue', evidence: [ev] }, ev)).toMatchObject({ denominator: 'line-revenue', line: 'oil, natural gas and NGL', period: 'Year to Dec 2025' });
+    // "of our operating revenue" is the whole of Montauk's.
+    expect(revenueLine('In 2025, RIN sales to Valero and ExxonMobil represented approximately 17.4% and 11.3%, respectively, of our operating revenue.')).toBeUndefined();
+  });
+
+  it("takes no share of a market, of a generic's own sales, or of a product line sold to many makers (PFE-2, PFE-3, PFE-4, F-1)", () => {
+    expect(theirs(PFE, ['PCVX', 'Vaxcyte, Inc.'], 'The Prevnar franchise from Pfizer Inc. ("Pfizer") comprised of Prevnar 13 ("PCV13") and PCV20, was among the highest selling non-COVID vaccine products in the world in 2024, accounting for approximately 12% of global non-COVID vaccine sales.')?.share).toBeUndefined();
+    expect(theirs(PFE, ['ROIV', 'Roivant Sciences Ltd.'], '150 mRNA COVID-19 Vaccines from Moderna and Pfizer/BioNTech Have Generated Over $145BN in Revenue Revenue as of 9/30/2025 Data and sales calculated from Evaluate and company docs from MRNA, PFE, and BNTX Total SpikeVax Sales account for ~1/3 of mRNA vaccine sales to date; Comirnaty sales account for remaining ~2/3 US SpikeVax Sales make up ~10% of global COVID-mRNA vaccine sales to date Genevant/ABUS continue to pursue recovery against Pfizer and BioNTech in the US, as well as against Moderna in the US and in several other major markets')).toBeNull();
+    expect(theirs(PFE, ['NDOI', 'Endo, Inc.'], 'For the three months ended March 31, 2023, Varenicline tablets (Endo\'s generic version of Pfizer Inc.\'s Chantix®), which launched in September 2021, made up 15% of consolidated total revenues.')).toEqual({ role: 'competitor' });
+    expect(theirs(LLY, ['HALO', 'HALOZYME THERAPEUTICS, INC.'], 'In 2020, Teva launched Teriparatide Injection, the generic version of Lilly\'s branded product Forsteo® featuring our multi-dose pen platform, for commercial sale in several countries outside of the U.S. In November 2023, Teva announced FDA approval of the generic version of Forteo, featuring our multi-dose auto-injector pen platform for the treatment of osteoporosis among certain women and men.')?.role).not.toBe('competitor');
+    const superior = theirs(FORD, ['SUP', 'SUPERIOR INDUSTRIES INTERNATIONAL INC'], 'Our OEM aluminum wheels accounted for approximately 92% of our sales in 2024 and were primarily sold for factory installation on vehicle models manufactured by BMW (including Mini), Ford, GM, Jaguar-Land Rover, Lucid Motors, Mazda, Mitsubishi, Nissan, Peugeot, Renault, Stellantis, Subaru, Suzuki, Toyota, VW Group (Volkswagen, Audi, Skoda, Porsche), and Volvo.');
+    expect(superior?.role).toBe('supplier');
+    expect(superior?.share).toBeUndefined();
+  });
+
+  it('reads shares stated beside a group figure or with the basis first (GM-5, F-2)', () => {
+    expect(theirs(['GM', 'GENERAL MOTORS CO'], ['PHIN', 'PHINIA INC.'], 'For the year ended December 31, 2025, our top five customers accounted for approximately 37% of our net sales, with General Motors Company representing 18%.')).toMatchObject({ role: 'supplier', share: 18, basis: 'their-revenue' });
+    expect(theirs(FORD, ['DAN', 'DANA INC'], 'As a percentage of total sales from operations, our sales to Ford were approximately 32% in 2025, 31% in 2024 and 28% in 2023.')).toMatchObject({ role: 'supplier', share: 32, basis: 'their-revenue' });
+  });
+
+  it("labels a part year as such and shows the year's share before it (F-3)", () => {
+    const half = 'Sales to Ford were approximately 11% of our consolidated net sales for the first six months of 2026, and 15% for both the first six months of 2025 and the full year 2025.';
+    expect(sharePeriod(half)).toBe('6M of 2026');
+    const year = 'Sales to Ford were approximately 15% of our consolidated net sales in 2025, 13% in 2024, and 12% in 2023.';
+    const dauch = (sentence: string, date: string, share: number): Relation => enrichRelation({ key: 'cik:1062231', name: 'Dauch Corp', ticker: 'DCH', cik: 1062231, role: 'supplier', side: 'theirs', share, basis: 'their-revenue', evidence: [{ sentence, filer: 'Dauch Corp', form: date > '2026-03' ? '10-Q' : '10-K', date, path: `1062231/${date}/dch.htm` }] });
+    const chain: Chain = { state: 'ok', filers: [], changes: {}, relations: appendRelationshipHistory([], [dauch(year, '2026-02-13', 15), dauch(half, '2026-08-07', 11)]) };
+    const [shown] = relationshipView(chain, 'current');
+    expect([shown.share, sharePeriod(shown.evidence[0].sentence)]).toEqual([15, '2025']);
   });
 });
