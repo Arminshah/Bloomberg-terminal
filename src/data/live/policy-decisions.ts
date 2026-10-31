@@ -58,6 +58,34 @@ function plain(html: string): string {
     .replace(/[–—−]/g, '-').replace(/\s+/g, ' ').trim();
 }
 
+const titleText = (label: string) => plain(label.replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/, '$1'));
+const excludedPublication = (label: string) => /\bminutes\b|\blonger[-\s]+run\s+goals\b|\bmonetary\s+policy\s+strategy\b/i.test(titleText(label));
+
+function publicationType(label: string) {
+  const text = titleText(label).replace(/^Federal Reserve Board\s*[-|:]\s*/i, '').replace(/\s*[-|]\s*Federal Reserve Board$/i, '').trim();
+  if (excludedPublication(text)) return 'other';
+  if (/^(?:Federal Reserve(?: Board)?\s+(?:issues|releases)\s+(?:an?\s+)?)?(?:FOMC|Federal Open Market Committee)\s+statement\.?$/i.test(text)) return 'statement';
+  if (/^(?:Federal Reserve(?: Board)?|Board of Governors of the Federal Reserve System|Press Release|News\s*(?:&|and)\s*Events|Monetary Policy|FOMC)$/i.test(text)) return 'generic';
+  return 'unknown';
+}
+
+/** A policy range quoted by another publication does not make that publication a new decision. */
+export function isFedStatementPublication(html: string): boolean {
+  const clean = html.replace(/<!--[\s\S]*?-->|<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  const labels: string[] = [];
+  for (const meta of clean.matchAll(/<meta\b[^>]*>/gi)) {
+    if (/\bname\s*=\s*["']DC\.title["']/i.test(meta[0])) labels.push(/\bcontent\s*=\s*["']([^"']*)["']/i.exec(meta[0])?.[1] ?? '');
+  }
+  labels.push(...[...clean.matchAll(/<title\b[^>]*>([\s\S]*?)<\/title>/gi)].map((m) => m[1]));
+  const article = clean.replace(/<(aside|nav|footer)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  for (const heading of article.matchAll(/<(h[1-6])\b([^>]*)>([\s\S]*?)<\/\1\s*>/gi)) {
+    const classes = /\bclass\s*=\s*["']([^"']*)["']/i.exec(heading[2])?.[1].split(/\s+/) ?? [];
+    if (classes.includes('title') || classes.includes('article__title')) labels.push(heading[3]);
+  }
+  const types = labels.map(publicationType);
+  return types.includes('statement') && types.every((type) => type === 'statement' || type === 'generic');
+}
+
 function canonicalPath(value: string): { date: string; path: string; implementation: boolean } | undefined {
   let url: URL;
   try { url = new URL(entities(value.trim()), ORIGIN); } catch { return undefined; }
@@ -70,10 +98,21 @@ function canonicalPath(value: string): { date: string; path: string; implementat
 
 /** Discover only published official statement URLs; never manufacture an outcome from a scheduled date. */
 export function fedStatementLinks(html: string): FedStatementLink[] {
-  const paths = [
-    ...[...html.matchAll(/\bhref\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1]),
-    ...[...html.matchAll(/<link\b[^>]*>\s*(?:<!\[CDATA\[)?([^<\]]+)(?:\]\]>)?\s*<\/link>/gi)].map((m) => m[1]),
-  ].map(canonicalPath).filter((x): x is NonNullable<typeof x> => !!x);
+  const values: string[] = [];
+  const clean = html.replace(/<!--[\s\S]*?-->|<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  const outside = clean.replace(/<(item|entry)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi, (_all: string, _tag: string, block: string) => {
+    const title = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(block)?.[1] ?? '';
+    if (!excludedPublication(title)) {
+      values.push(...[...block.matchAll(/<link\b[^>]*>\s*(?:<!\[CDATA\[)?([^<\]]+)(?:\]\]>)?\s*<\/link>/gi)].map((m) => m[1]));
+      values.push(...[...block.matchAll(/<link\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi)].map((m) => m[1]));
+    }
+    return ' ';
+  });
+  for (const anchor of outside.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)) {
+    const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(anchor[1])?.[1];
+    if (href && !excludedPublication(anchor[2])) values.push(href);
+  }
+  const paths = values.map(canonicalPath).filter((x): x is NonNullable<typeof x> => !!x);
   const out = new Map<string, FedStatementLink>();
   for (const p of paths) {
     if (p.implementation) continue;
@@ -156,7 +195,7 @@ function action(text: string, t: Target): Pick<PolicyDecision, 'action' | 'chang
 export function parseFedDecision(statementHtml: string, implementationHtml: string, sourceUrl: string, retrievedAt: number, now = retrievedAt): PolicyDecision | undefined {
   if (!statementHtml || statementHtml.length > 1_500_000 || !Number.isFinite(retrievedAt) || !Number.isFinite(now)) return undefined;
   const path = canonicalPath(sourceUrl);
-  if (!path || path.implementation) return undefined;
+  if (!path || path.implementation || !isFedStatementPublication(statementHtml)) return undefined;
   const text = plain(statementHtml);
   const published = pageDate(statementHtml, text);
   const p = zonedParts(now, 'America/New_York');

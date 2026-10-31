@@ -10,7 +10,7 @@ import { movesSince, rateMoves } from '../src/data/rate-analysis';
 const URL = 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20261028a.htm';
 const RELEASE = Date.parse('2026-10-28T18:00:00Z');
 const OBS: PolicySeries = { changes: [['2026-01-01', 4.25], ['2026-09-17', 4]], last: 4, asOf: '2026-10-27' };
-const statement = (body = 'The Committee decided to maintain the target range for the federal funds rate at 3-3/4 to 4 percent.') => `<p class="article__time">October 28, 2026</p><p>For release at 2:00 p.m. EDT</p><p>${body}</p>`;
+const statement = (body = 'The Committee decided to maintain the target range for the federal funds rate at 3-3/4 to 4 percent.') => `<p class="article__time">October 28, 2026</p><p>For release at 2:00 p.m. EDT</p><h3 class="title">Federal Reserve issues FOMC statement</h3><p>${body}</p>`;
 const implementation = (date = 'October 29, 2026', range = '3-3/4 to 4') => `<p class="article__time">October 28, 2026</p><p>Effective ${date}, the Federal Open Market Committee directs the Desk to:</p><p>Maintain the federal funds rate in a target range of ${range} percent.</p>`;
 const hold = (at = RELEASE + 60_000) => parseFedDecision(statement(), implementation(), URL, at)!;
 const rates = (decision = hold()): PolicyRates => ({ fedUpper: OBS, fedLower: { changes: [['2026-01-01', 4], ['2026-09-17', 3.75]], last: 3.75, asOf: OBS.asOf }, decisions: [decision] });

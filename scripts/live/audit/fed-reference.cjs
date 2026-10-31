@@ -41,12 +41,25 @@ function fedResponseMatches(requested, actual) {
   return !!expected && canonicalEvidence(actual) === expected;
 }
 
+const titleText = (label) => compact(label.replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/, '$1'));
+const excludedPublication = (label) => /\bminutes\b|\blonger[-\s]+run\s+goals\b|\bmonetary\s+policy\s+strategy\b/i.test(titleText(label));
+
 /** Calendar/RSS discovery supplies links only, never a decision from a headline. */
 function statementLinks(text, today) {
-  const values = [
-    ...[...String(text).matchAll(/\bhref\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1]),
-    ...[...String(text).matchAll(/<link\b[^>]*>\s*(?:<!\[CDATA\[)?([^<\]]+)(?:\]\]>)?\s*<\/link>/gi)].map((m) => m[1]),
-  ];
+  const values = [];
+  const clean = String(text).replace(/<!--[\s\S]*?-->|<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  const outside = clean.replace(/<(item|entry)\b[^>]*>([\s\S]*?)<\/\1\s*>/gi, (_all, _tag, block) => {
+    const title = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(block)?.[1] ?? '';
+    if (!excludedPublication(title)) {
+      values.push(...[...block.matchAll(/<link\b[^>]*>\s*(?:<!\[CDATA\[)?([^<\]]+)(?:\]\]>)?\s*<\/link>/gi)].map((m) => m[1]));
+      values.push(...[...block.matchAll(/<link\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>/gi)].map((m) => m[1]));
+    }
+    return ' ';
+  });
+  for (const anchor of outside.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a\s*>/gi)) {
+    const href = /\bhref\s*=\s*["']([^"']+)["']/i.exec(anchor[1])?.[1];
+    if (href && !excludedPublication(anchor[2])) values.push(href);
+  }
   return [...new Set(values.map((value) => canonical(value)).filter((value) => value && value.date <= today).map((value) => value.url))].sort().reverse();
 }
 
@@ -76,6 +89,32 @@ function rate(value) {
 
 function textOf(html) {
   return compact(html.replace(/&frac14;/gi, ' 1/4').replace(/&frac12;/gi, ' 1/2').replace(/&frac34;/gi, ' 3/4'));
+}
+
+function publicationType(label) {
+  const text = titleText(label).replace(/^Federal Reserve Board\s*[-|:]\s*/i, '').replace(/\s*[-|]\s*Federal Reserve Board$/i, '').trim();
+  if (excludedPublication(text)) return 'other';
+  if (/^(?:Federal Reserve(?: Board)?\s+(?:issues|releases)\s+(?:an?\s+)?)?(?:FOMC|Federal Open Market Committee)\s+statement\.?$/i.test(text)) return 'statement';
+  if (/^(?:Federal Reserve(?: Board)?|Board of Governors of the Federal Reserve System|Press Release|News\s*(?:&|and)\s*Events|Monetary Policy|FOMC)$/i.test(text)) return 'generic';
+  return 'unknown';
+}
+
+/** Publication identity is separate from the decision stated in its body. */
+function isStatementPublication(html) {
+  if (typeof html !== 'string' || !html || html.length > 1_500_000) return false;
+  const clean = html.replace(/<!--[\s\S]*?-->|<(script|style|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  const labels = [];
+  for (const meta of clean.matchAll(/<meta\b[^>]*>/gi)) {
+    if (/\bname\s*=\s*["']DC\.title["']/i.test(meta[0])) labels.push(/\bcontent\s*=\s*["']([^"']*)["']/i.exec(meta[0])?.[1] ?? '');
+  }
+  labels.push(...[...clean.matchAll(/<title\b[^>]*>([\s\S]*?)<\/title>/gi)].map((m) => m[1]));
+  const article = clean.replace(/<(aside|nav|footer)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ');
+  for (const heading of article.matchAll(/<(h[1-6])\b([^>]*)>([\s\S]*?)<\/\1\s*>/gi)) {
+    const classes = /\bclass\s*=\s*["']([^"']*)["']/i.exec(heading[2])?.[1].split(/\s+/) ?? [];
+    if (classes.includes('title') || classes.includes('article__title')) labels.push(heading[3]);
+  }
+  const types = labels.map(publicationType);
+  return types.includes('statement') && types.every((type) => type === 'statement' || type === 'generic');
 }
 
 function publicationDate(html) {
@@ -124,6 +163,7 @@ async function obtainFedReference(request, today) {
   if (!discovery.ok) return discovery;
   const statement = await obtain(request, discovery.url);
   if (!statement.ok) return { ...statement, discovery };
+  if (!isStatementPublication(statement.text)) return { kind: 'malformed', detail: 'The canonical publication was not identified unambiguously as an FOMC decision statement', discovery };
   const reference = fedStatement(statement.text, discovery.url);
   if (!reference || publicationDate(statement.text) !== reference.date || !matchingTargets(textOf(statement.text), reference)) return { kind: 'malformed', detail: 'The complete official statement did not establish an unambiguous dated policy target and action', discovery };
   const implementationUrl = discovery.url.replace(/a\.htm$/, 'a1.htm');
@@ -139,4 +179,4 @@ function effectiveDateComparison(decision, reference) {
   return { status: !app ? 'INCOMPLETE' : app === reference.effectiveDate ? 'PASS' : 'FAIL', field: 'decision effective date', evidenceKind: 'reference', app, ref: reference.effectiveDate, refName: reference.implementationUrl, detail: !app ? 'The captured decision has no explicit effective date to compare' : 'Independently read the matching FOMC Desk implementation direction' };
 }
 
-module.exports = { CALENDAR, statementLinks, fedResponseMatches, discoverStatement, implementationDate, obtainFedReference, effectiveDateComparison };
+module.exports = { CALENDAR, statementLinks, isStatementPublication, fedResponseMatches, discoverStatement, implementationDate, obtainFedReference, effectiveDateComparison };

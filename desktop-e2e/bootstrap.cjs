@@ -290,7 +290,7 @@ net.fetch = async (input, init) => {
     const source = 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20261028a.htm';
     if (url.pathname === '/monetarypolicy/fomccalendars.htm') return new Response(`${calendar}<a href="${source}">Synthetic statement</a>`, { status: 200 });
     if (url.pathname.startsWith('/feeds/')) return new Response(`<rss><channel><item><title>Synthetic policy hold</title><link>${source}</link><pubDate>Wed, 28 Oct 2026 18:00:00 GMT</pubDate></item></channel></rss>`, { status: 200 });
-    if (url.pathname.endsWith('monetary20261028a.htm')) return new Response('<p class="article__time">October 28, 2026</p><p>For release at 2:00 p.m. EDT</p><p>The Committee decided to maintain the target range for the federal funds rate at 3-3/4 to 4 percent.</p>', { status: 200 });
+    if (url.pathname.endsWith('monetary20261028a.htm')) return new Response('<p class="article__time">October 28, 2026</p><p>For release at 2:00 p.m. EDT</p><h3 class="title">Federal Reserve issues FOMC statement</h3><p>The Committee decided to maintain the target range for the federal funds rate at 3-3/4 to 4 percent.</p>', { status: 200 });
     if (url.pathname.endsWith('monetary20261028a1.htm')) return new Response('<p class="article__time">October 28, 2026</p><p>Effective October 29, 2026, the Federal Open Market Committee directs the Desk to:</p><p>Undertake open market operations to maintain the federal funds rate in a target range of 3-3/4 to 4 percent.</p>', { status: 200 });
     if (url.hostname === 'markets.newyorkfed.org') return json({ refRates: [
       { effectiveDate: '2026-09-16', percentRate: 3.6, targetRateFrom: 3.5, targetRateTo: 3.75 },

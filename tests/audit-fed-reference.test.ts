@@ -1,8 +1,9 @@
 /// <reference types="node" />
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
+import calendar from './fixtures/fomc-calendar.html?raw';
 const require = createRequire(import.meta.url);
-const { CALENDAR, statementLinks, fedResponseMatches, discoverStatement, implementationDate, obtainFedReference, effectiveDateComparison } = require('../scripts/live/audit/fed-reference.cjs');
+const { CALENDAR, statementLinks, isStatementPublication, fedResponseMatches, discoverStatement, implementationDate, obtainFedReference, effectiveDateComparison } = require('../scripts/live/audit/fed-reference.cjs');
 const { FED_PRESS_URLS } = require('../electron/official-feeds.cjs');
 
 // Synthetic publisher-shaped documents exercise discovery and parsing only.
@@ -10,7 +11,7 @@ const TODAY = '2026-10-30';
 const URL = 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20261028a.htm';
 const NOTE = URL.replace('a.htm', 'a1.htm');
 const body = (text: string, date = 'October 28, 2026') => `<p class="article__time">${date}</p><p>${text}</p>`;
-const STATEMENT = body('The Committee decided to maintain the target range for the federal funds rate at 3-3/4 to 4 percent.');
+const STATEMENT = '<h3 class="title">Federal Reserve issues FOMC statement</h3>' + body('The Committee decided to maintain the target range for the federal funds rate at 3-3/4 to 4 percent.');
 const implementation = (range = '3-3/4 to 4', date = 'October 29, 2026') => body(`The Board maintained IORB at 3.9 percent, effective October 28, 2026. Effective ${date}, the Federal Open Market Committee directs the Open Market Desk to: Undertake operations to maintain the federal funds rate in a target range of ${range} percent.`);
 const rss = (link = URL) => `<rss><channel><item><title>A headline alone is no decision</title><link><![CDATA[${link}]]></link></item></channel></rss>`;
 const ok = (text: string) => ({ ok: true, text });
@@ -108,5 +109,52 @@ describe('independent official Fed reference discovery', () => {
     for (const actual of [undefined, '', URL.replace('www.federalreserve.gov', 'evil.example'), URL.replace('20261028', '20261029'), NOTE, URL + '?token=anything', URL.replace('https:', 'http:')]) expect(fedResponseMatches(URL, actual)).toBe(false);
     expect(fedResponseMatches(CALENDAR, FED_PRESS_URLS[0])).toBe(false);
     expect(fedResponseMatches(FED_PRESS_URLS[0], FED_PRESS_URLS[0])).toBe(true);
+  });
+
+  it('excludes the retained calendar strategy release without treating its canonical URL as a decision', () => {
+    const strategy = 'https://www.federalreserve.gov/newsevents/pressreleases/monetary20250822a.htm';
+    expect(calendar).toContain('/newsevents/pressreleases/monetary20250822a.htm');
+    expect(calendar).toContain('Statement on Longer-Run Goals and Monetary Policy Strategy');
+    const links = statementLinks(calendar, '2025-08-25');
+    expect(links).not.toContain(strategy);
+    expect(links[0]).toBe('https://www.federalreserve.gov/newsevents/pressreleases/monetary20250730a.htm');
+  });
+
+  it('rejects minutes, strategy and unidentified bodies even when they quote an unambiguous historical target', async () => {
+    for (const title of ['Minutes of the Federal Open Market Committee', 'Statement on Longer-Run Goals and Monetary Policy Strategy', 'Other monetary policy release', '']) {
+      const document = STATEMENT.replace('<h3 class="title">Federal Reserve issues FOMC statement</h3>', title ? `<h3 class="article__title">${title}</h3>` : '');
+      const request = vi.fn(async (url: string) => url === CALENDAR ? ok(`<a href="${URL}">HTML</a>`) : url === URL ? ok(document) : ok(implementation()));
+      expect(await obtainFedReference(request, TODAY)).toMatchObject({ kind: 'malformed' });
+      expect(request.mock.calls.map(([url]) => url)).toEqual([CALENDAR, URL]);
+    }
+  });
+
+  it('requires consistent publication titles while allowing generic site metadata', () => {
+    expect(isStatementPublication('<title>Federal Reserve Board</title>' + STATEMENT)).toBe(true);
+    expect(isStatementPublication('<title>Federal Reserve Board - Federal Reserve issues FOMC statement</title><meta name="DC.title" content="FOMC statement">' + STATEMENT)).toBe(true);
+    expect(isStatementPublication('<meta name="DC.title" content="Minutes of the Federal Open Market Committee">' + STATEMENT)).toBe(false);
+    expect(isStatementPublication('<meta name="DC.title" content="FOMC statement">' + STATEMENT.replace('Federal Reserve issues FOMC statement', 'Minutes of the Federal Open Market Committee'))).toBe(false);
+    expect(isStatementPublication('<title>Federal Reserve changes discount rates</title>' + STATEMENT)).toBe(false);
+    expect(isStatementPublication('<!-- <h3>FOMC statement</h3> -->' + body('A target is quoted here'))).toBe(false);
+  });
+
+  it('uses exact publication title classes and ignores sidebar section titles', () => {
+    const sidebar = '<aside><h3 class="panel-title">Minutes</h3><h3 class="panel-title">Statement on Longer-Run Goals</h3><h3 class="title">Minutes</h3></aside>';
+    expect(isStatementPublication(STATEMENT + sidebar)).toBe(true);
+    expect(isStatementPublication(STATEMENT + '<h3 class="footer-title">Minutes</h3>')).toBe(true);
+    expect(isStatementPublication('<h3>FOMC statement</h3>' + body('The historical target is quoted.'))).toBe(false);
+    expect(isStatementPublication('<h3 class="panel-title">FOMC statement</h3>' + body('The historical target is quoted.'))).toBe(false);
+    expect(isStatementPublication(STATEMENT.replace('Federal Reserve issues FOMC statement', 'Minutes'))).toBe(false);
+    expect(isStatementPublication('<meta name="DC.title" content="FOMC statement">' + STATEMENT.replace('Federal Reserve issues FOMC statement', 'Statement on Longer-Run Goals'))).toBe(false);
+  });
+
+  it('ignores only explicitly identified newer nondecisions and does not skip an unreadable unknown candidate', async () => {
+    const newer = URL.replace('20261028', '20261029');
+    const labelled = `<rss><channel><item><title>Minutes of the Federal Open Market Committee</title><link>${newer}</link></item><item><title>Federal Reserve issues FOMC statement</title><link>${URL}</link></item></channel></rss>`;
+    expect(statementLinks(labelled, TODAY)).toEqual([URL]);
+    expect(statementLinks(labelled.replace('<title>Minutes of the Federal Open Market Committee</title>', '<title><![CDATA[Minutes of the Federal Open Market Committee]]></title>'), TODAY)).toEqual([URL]);
+    const unknown = vi.fn(async (url: string) => url === CALENDAR ? ok(`<a href="${newer}">HTML</a><a href="${URL}">HTML</a>`) : url === newer ? { kind: 'network-or-access', detail: 'HTTP 403' } : ok(STATEMENT));
+    expect(await obtainFedReference(unknown, TODAY)).toMatchObject({ kind: 'network-or-access' });
+    expect(unknown.mock.calls.map(([url]) => url)).toEqual([CALENDAR, newer]);
   });
 });
