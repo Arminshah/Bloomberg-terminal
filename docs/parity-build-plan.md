@@ -30,7 +30,7 @@ M1. Window chrome
 - [x] 1.8 Options menu and window keys (`8ef6d15`)
 - [x] 1.9 Dialogs (`d77cab1`)
 - [x] 1.10 Field dropdowns (`e56c429`)
-- [ ] 1.11 Fixed-width pages for DES, EE, ANR and EQS
+- [x] 1.11 Fixed-width pages for DES, EE, ANR and EQS (`f133377`)
 
 M2. Navigation, keyboard and menus
 - [ ] 2.1 Related Functions Menu overlay
