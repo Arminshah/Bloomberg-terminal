@@ -354,7 +354,7 @@ const KNOWN: Record<string, Known> = {
 };
 
 /** The names a company goes by in other companies' reports, by its ticker. */
-const ALIASES: Record<string, { legal: string[]; names: string[]; exclude?: string }> = {
+const ALIASES: Record<string, { legal: string[]; names: string[]; exclude?: string; namesake?: Namesake }> = {
   AAPL: { legal: ['Apple Inc'], names: ['Apple'] },
   MSFT: { legal: ['Microsoft Corporation'], names: ['Microsoft'] },
   AMZN: { legal: ['Amazon.com'], names: ['Amazon', 'Amazon.com', 'Amazon Web Services', 'AWS'] },
@@ -402,7 +402,17 @@ const ALIASES: Record<string, { legal: string[]; names: string[]; exclude?: stri
   CVX: { legal: ['Chevron Corporation'], names: ['Chevron'] },
   LLY: { legal: ['Eli Lilly and Company'], names: ['Eli Lilly', 'Lilly'], exclude: String.raw`\b(?!Eli\b)[A-Z][a-z]+ (?:[A-Z]\. )?Lilly\b|Lilly Endowment|Lilly Foundation|Lilly Pulitzer` },
   PFE: { legal: ['Pfizer Inc'], names: ['Pfizer'] },
-  MRK: { legal: ['Merck & Co'], names: ['Merck'] },
+  // "Merck" is also Merck KGaA, Darmstadt, Germany (EMD Serono, MilliporeSigma, Ares Trading). Merck & Co. makes no
+  // chemicals: "chemicals suppliers who range from large traditional companies such as Merck and Gentex" (Gauzy's 20-F).
+  MRK: {
+    legal: ['Merck & Co'],
+    names: ['Merck'],
+    exclude: String.raw`\bchemicals? suppliers?\b[^.;]{0,80}\bMerck\b(?! & Co| Sharp)`,
+    namesake: {
+      other: String.raw`Merck (?:Healthcare )?KG[aA]A|Darmstadt|EMD Serono|Merck Serono|Ares Trading|MilliporeSigma`,
+      own: String.raw`Merck & Co|Merck Sharp|\bMSD\b|Rahway|Kenilworth|KEYTRUDA|Keytruda|pembrolizumab|\bMK-\d{3,4}\b|GARDASIL|Gardasil|JANUVIA|Januvia|ERVEBO`,
+    },
+  },
   UNH: { legal: ['UnitedHealth Group'], names: ['UnitedHealth'] },
   JPM: { legal: ['JPMorgan Chase & Co'], names: ['JPMorgan Chase', 'JPMorgan', 'J.P. Morgan'] },
   V: { legal: ['Visa Inc'], names: ['Visa Inc'] },
@@ -445,6 +455,14 @@ const ALIASES: Record<string, { legal: string[]; names: string[]; exclude?: stri
 
 const SUFFIX_WORD: Record<string, string> = { CORP: 'Corporation', CORPORATION: 'Corporation', INC: 'Inc', INCORPORATED: 'Incorporated', LTD: 'Ltd', LIMITED: 'Limited', PLC: 'plc', CO: 'Company', LLC: 'LLC', 'N.V.': 'N.V.', NV: 'N.V.', AG: 'AG', SE: 'SE', 'S.A.': 'S.A.', SA: 'S.A.' };
 
+/** Another company of the same name, and the marks that tell the two apart in a filing. */
+export interface Namesake {
+  /** The other company's own names and places ("Merck KGaA", "Darmstadt", "EMD Serono"). */
+  other: string;
+  /** Names, places and products only the target has ("Merck & Co.", "MSD", "Rahway", "KEYTRUDA"). */
+  own: string;
+}
+
 export interface TargetNames {
   /** Full legal names searched in the SEC's index ("NVIDIA Corporation"). */
   legal: string[];
@@ -452,6 +470,22 @@ export interface TargetNames {
   exclude?: string;
   /** Names matched in sentences ("NVIDIA"; for Apple "Apple", which excludes "Apple Pay"). */
   names: string[];
+  /** A company of the same name: a filing that names it and never marks the target means it by the bare name. */
+  namesake?: Namesake;
+}
+
+/**
+ * Whether a filing's sentences about the name speak of the namesake throughout: Recursion's 10-K files its
+ * collaboration under "Merck KGaA (Merck)" and Vera's names "Ares Trading S.A., an affiliate of Merck KGaA, Darmstadt,
+ * Germany", and neither writes "Merck & Co.", "MSD" or a Merck & Co. product, so their bare "Merck" is Merck KGaA.
+ * One mention settles nothing: Lumos lists "Saizen® (Merck Serono S.A.)" among rival products once, and its "Merck"
+ * is the licensor of LUM-201 and the maker of ERVEBO.
+ */
+export function speaksOfNamesake(sentences: string[], names: Pick<TargetNames, 'namesake'>): boolean {
+  if (!names.namesake) return false;
+  const other = new RegExp(names.namesake.other);
+  const own = new RegExp(names.namesake.own);
+  return sentences.filter((s) => other.test(s)).length >= 2 && !sentences.some((s) => own.test(s));
 }
 
 /** How other reports name a company: its legal name for the search, its short names for reading. */
@@ -459,7 +493,7 @@ export function targetNames(ticker: string | undefined, title: string): TargetNa
   const alias = ticker ? ALIASES[ticker.toUpperCase()] : undefined;
   // "Eli Lilly and Company" without its legal form is "Eli Lilly", not "Eli Lilly and".
   const bare = (l: string) => l.replace(SUFFIX, '').replace(/^The\s+/, '').trim().replace(/[\s,]+(?:and|&)$/i, '').trim();
-  if (alias) return { legal: alias.legal, names: [...new Set([...alias.names, ...alias.legal.map(bare)])], ...(alias.exclude ? { exclude: alias.exclude } : {}) };
+  if (alias) return { legal: alias.legal, names: [...new Set([...alias.names, ...alias.legal.map(bare)])], ...(alias.exclude ? { exclude: alias.exclude } : {}), ...(alias.namesake ? { namesake: alias.namesake } : {}) };
   const clean = title.replace(STATE_TAG, '').replace(/\s+/g, ' ').trim();
   const words = clean.replace(/,/g, ' ').split(' ').filter(Boolean);
   const tail: string[] = [];
@@ -3220,8 +3254,9 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
       const filerNames = targetNames(f.tickers[0], f.name).names.flatMap((n) => (/^[A-Z][a-z]{2,} [A-Z][a-z]{2,}$/.test(n) ? [n, n.replace(' ', '')] : [n]));
       const words = (filerNames[0] ?? '').split(/[\s-]+/).filter((w) => /^[A-Z]/.test(w));
       const filer = targetPattern(words.length >= 3 ? [...filerNames, words.map((w) => w[0]).join('')] : filerNames);
-      // A filing that calls another company by the target's name speaks of that company throughout.
-      const other = sentences.some((s) => definesOther(s, pattern));
+      // A filing that calls another company by the target's name speaks of that company throughout, as does one that
+      // names only the target's namesake.
+      const other = sentences.some((s) => definesOther(s, pattern)) || speaksOfNamesake(sentences, names);
       const filedYear = Number(f.date.slice(0, 4));
       // The agreement the filing says ended: its statements of the relation published by then are history.
       const endings: { e: Evidence; ending: Ending }[] = [];

@@ -3,7 +3,7 @@ import * as main from '../electron/supply-chain.cjs';
 import * as federal from '../electron/usaspending.cjs';
 import {
   buildDirectory, classify, federalParty, filerIdentity, sharePeriod, listingEvents, listingLabel, mergeRelations, normalizeName, ownRelations, relationEnding, relationshipView, relationStatus, runChain,
-  takenOver, targetNames, targetPattern, type Chain, type ChainIO, type FtsHit, type Relation,
+  speaksOfNamesake, takenOver, targetNames, targetPattern, type Chain, type ChainIO, type FtsHit, type Relation,
 } from '../src/data/live/supply-chain';
 import { appendRelationshipHistory, endingAssertion, enrichRelation, revenueLine, shareObservation, statedBy } from '../src/data/live/supply-chain-history';
 import { agencyRelations, doubtfulSubawards, federalRelations, resolveParties, subRelations, type FedAward, type FederalContext, type FedSubaward, type UsaspendingKind } from '../src/data/live/usaspending';
@@ -531,5 +531,64 @@ describe('SPLC review of 30 October 2026: who supplies whom', () => {
     const cvx = { cik: 93410, names: targetNames('CVX', 'CHEVRON CORP').names, ticker: 'CVX' };
     const got = ownRelations(['During the quarter, Chevron signed a 20-year power purchase agreement with Microsoft to provide 2.67 gigawatts of behind-the-meter power for its data center in West Texas.'], buildDirectory([{ cik: 789019, ticker: 'MSFT', title: 'MICROSOFT CORP' }]), cvx, { filer: 'CHEVRON CORP', form: '8-K', date: '2026-07-31', path: '93410/000009341026000162/a06302026ex9918-k.htm', type: 'EX-99.1' });
     expect(got.map((r) => [r.role, r.ticker])).toEqual([['customer', 'MSFT']]);
+  });
+});
+
+describe('SPLC review of 30 October 2026: which Merck', () => {
+  // Recursion's 10-K of 2026-02-25 and Vera's of 2026-02-26 (finding M6), as the app reads their sentences naming Merck.
+  const recursion = [
+    'Merck KGaA (Darmstadt, Germany)',
+    'In September 2023, we entered into a collaboration with Merck KGaA, Darmstadt, Germany.',
+    'In September 2023, the Company and Merck entered into a collaboration agreement to discover novel small molecule drug candidates across oncology, neuroinflammation and immunology.',
+    "The collaboration utilizes the Company's AI platform and the Company is performing drug design and discovery while Merck will be assuming responsibility for the preclinical and clinical development.",
+  ];
+  const vera = [
+    'If we breach our license agreement with Ares Trading S.A., an affiliate of Merck KGaA, Darmstadt, Germany, related to atacicept, the license agreement with Novartis International Pharmaceutical AG related to MAU868, or the license agreement with the Board of Trustees of Leland Stanford Junior University related to VT-109, we could lose the ability to continue the development and commercialization of atacicept, MAU868, or VT-109, respectively.',
+    'It was advanced by Merck KGaA (Merck), Darmstadt, Germany, in clinical trials for several autoimmune diseases, including rheumatoid arthritis (RA), multiple sclerosis, SLE, and IgAN.',
+    'On October 29, 2020, we entered into the Ares Agreement with Ares, an affiliate of Merck, pursuant to which Ares granted us an exclusive worldwide license to certain patents and related know-how to research, develop, manufacture, use and commercialize therapeutic products containing atacicept or any other compound that is covered by a claim of such licensed patents.',
+    'If we breach our license agreement with Ares, an affiliate of Merck related to atacicept, the license agreement with Novartis related to MAU868, or the license agreement with Stanford related to VT-109, we could lose the ability to continue the development and commercialization of atacicept, MAU868, or VT-109, respectively.',
+  ];
+  // Lumos's 10-Q of 2024-11-07 names Merck Serono once, among rival products; its Merck is Merck & Co.
+  const lumos = [
+    'There are a variety of currently marketed rhGH therapies administered by daily subcutaneous injection and used for the treatment of GHD, principally Norditropin® (Novo Nordisk A/S ("Novo Nordisk")), Humatrope® (Eli Lilly and Company), Nutropin-AQ® (F. Hoffman-La Roche Ltd./Genentech, Inc.), Genotropin® (Pfizer Inc.), Saizen® (Merck Serono S.A.), Tev-tropin® (Teva Pharmaceuticals Industries Ltd.), Omnitrope® (Sandoz GmbH), Valtropin® (LG Life Science and Biopartners GmbH) and Zomacton® (Ferring Pharmaceuticals, Inc.), as well as therapies administered by weekly subcutaneous injection by Skytrofa® (Ascendis Pharma), Ngenla® (OPKO Health, Inc. in collaboration with Pfizer Inc.) and Sogroya® (Novo Nordisk, Inc.).',
+    'Under the Lumos Merck Agreement, Lumos will be required to pay Merck substantial development milestone payments for achievement of specified milestones relating to each of the first and second indications.',
+  ];
+  // Gauzy's 20-F of 2025-03-11 (finding M2): a maker of liquid-crystal chemicals, which Merck & Co. is not.
+  const gauzy = 'Our light control technologies and products compete principally with products from electrochromic glass manufacturers such as View Inc. and Sage (owned by Saint-Gobain Glass) as well as a select group of chemicals suppliers who range from large traditional companies such as Merck and Gentex to a few small suppliers primarily located in Asia.';
+  const companies: SecCompany[] = [
+    ...SEC,
+    { cik: 1601830, ticker: 'RXRX', title: 'Recursion Pharmaceuticals, Inc.' },
+    { cik: 1831828, ticker: 'VERA', title: 'Vera Therapeutics, Inc.' },
+    { cik: 1781446, ticker: 'GAUZ', title: 'Gauzy Ltd.' },
+  ];
+  const hit = (cik: number, name: string, ticker: string, form: string, date: string, path: string): FtsHit => ({ cik, name, tickers: ticker ? [ticker] : [], form, date, path, score: 1, type: form });
+  const hits = [
+    hit(1601830, 'RECURSION PHARMACEUTICALS, INC.', 'RXRX', '10-K', '2026-02-25', '1601830/000160183026000039/rxrx-20251231.htm'),
+    hit(1831828, 'Vera Therapeutics, Inc.', 'VERA', '10-K', '2026-02-26', '1831828/000119312526077442/vera-20251231.htm'),
+    hit(1126234, 'LUMOS PHARMA, INC.', '', '10-Q', '2024-11-07', '1126234/000112623424000097/nlnk-20240930.htm'),
+    hit(1781446, 'Gauzy Ltd.', 'GAUZ', '20-F', '2025-03-11', '1781446/000121390025022437/ea0233167-20f_gauzy.htm'),
+  ];
+  const text: Record<string, string[]> = { 1601830: recursion, 1831828: vera, 1126234: lumos, 1781446: [gauzy] };
+
+  it("reads a filing's bare \"Merck\" as Merck KGaA when it names only Merck KGaA, and once is not enough (M2, M6)", async () => {
+    const names = targetNames('MRK', 'Merck & Co., Inc.');
+    expect(speaksOfNamesake(recursion, names)).toBe(true);
+    expect(speaksOfNamesake(vera, names)).toBe(true);
+    expect(speaksOfNamesake(lumos, names)).toBe(false);
+    // C4's 10-K of 2026-02-26 names both, and "Merck Sharp & Dohme" marks Merck & Co.
+    expect(speaksOfNamesake([...recursion, 'On December 11, 2023, the Company and Merck Sharp & Dohme, LLC, or Merck, entered into an exclusive license and collaboration agreement, or the Merck Agreement, to develop degrader-antibody conjugates, or DACs, an emerging modality designed to selectively target and neutralize disease-causing proteins in cancer cells.'], names)).toBe(false);
+    expect(speaksOfNamesake(recursion, targetNames('PFE', 'PFIZER INC'))).toBe(false);
+
+    const io: ChainIO = {
+      companies: async () => companies,
+      filings: async () => [],
+      fts: async (arg) => (arg === '|Merck|reports' ? { hits, total: hits.length } : { hits: [], total: 0 }),
+      text: async (kind, path) => (kind === 'mentions' ? text[path.split('/')[0]] ?? [] : []),
+      securities: [],
+    };
+    let chain: Chain = { state: 'loading', filers: [], relations: [], changes: {} };
+    await runChain({ ticker: 'MRK', name: 'Merck & Co., Inc.' }, io, (f) => { chain = f(chain); });
+    const shown = relationshipView(chain, 'history').map((r) => [r.role, r.key]);
+    expect(shown).toEqual([['partner', 'cik:1126234']]);
   });
 });
