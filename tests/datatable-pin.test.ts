@@ -22,3 +22,11 @@ describe('a table that pins its first row, as RV pins the loaded security', () =
     expect(order(html)).toEqual(['101) HIGH', '102) SUBJECT', '103) LOW']);
   });
 });
+
+describe("RV's comp range", () => {
+  it('takes the low and high among the subject and its peers, and their median, leaving missing figures out', async () => {
+    const { compRange } = await import('../src/functions/RV');
+    expect(compRange([12, 30, NaN, 18, 25], 12)).toEqual({ low: 12, high: 30, median: 21.5, subject: 12 });
+    expect(compRange([NaN, NaN], NaN)).toBeNull();
+  });
+});

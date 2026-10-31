@@ -89,6 +89,73 @@ export function evBuildUp(p: { mcap: number; netDebt: number; minority: number; 
   return [`Market value ${v(p.mcap)}`, debt, part('preferred stock', p.preferred), part('minority interest', p.minority)].join(' ');
 }
 
+/** One line of RV's comp range: the subject's figure, the low and high among it and its peers, and their median. */
+export function compRange(values: number[], subject: number): { low: number; high: number; median: number; subject: number } | null {
+  const xs = values.filter(Number.isFinite);
+  if (!xs.length) return null;
+  return { low: Math.min(...xs), high: Math.max(...xs), median: median(xs), subject };
+}
+
+/**
+ * RV's comp range panel: for each figure the low and high among the loaded security and its peers, a line between
+ * them with a dot at the security and a diamond at the median. The captures' current-year P/E and EV to estimated
+ * EBITDA need every peer's estimates, which the free sources do not give, so the reported figures stand in, named so.
+ */
+function CompRange({ rows, ticker }: { rows: Row[]; ticker: string }) {
+  const lines: { label: string; key: keyof Row; pct: boolean }[] = [
+    { label: 'P/E', key: 'pe', pct: false },
+    { label: 'EV/EBITDA', key: 'evEbitda', pct: false },
+    { label: 'Revenue Growth', key: 'revG', pct: true },
+    { label: 'EBITDA Margin', key: 'ebitdaM', pct: true },
+    { label: 'ROE', key: 'roe', pct: true },
+  ];
+  const f = (v: number, pct: boolean) => (Number.isFinite(v) ? `${fmtNum(v, 2)}${pct ? '%' : ''}` : '--');
+  const W = 140;
+  return (
+    <table className="tbl rv-range" data-testid="rv-range">
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th className="num">{ticker}</th>
+          <th className="num">Low</th>
+          <th>Comp Range</th>
+          <th className="num">High</th>
+        </tr>
+      </thead>
+      <tbody>
+        {lines.map((l) => {
+          const r = compRange(rows.map((x) => x[l.key] as number), rows[0]?.[l.key] as number);
+          const at = (v: number) => (r && r.high > r.low ? 4 + ((v - r.low) / (r.high - r.low)) * (W - 8) : W / 2);
+          return (
+            <tr key={l.key} data-key={l.key}>
+              <td className="amber">{l.label}</td>
+              <td className="num cyan">{f(r?.subject ?? NaN, l.pct)}</td>
+              <td className="num amber">{f(r?.low ?? NaN, l.pct)}</td>
+              <td>
+                {r ? (
+                  <svg width={W} height={12} aria-label={`${l.label}: low ${f(r.low, l.pct)}, median ${f(r.median, l.pct)}, high ${f(r.high, l.pct)}`}>
+                    <line x1={4} x2={W - 4} y1={6} y2={6} stroke="#8f8f8f" strokeWidth={1} />
+                    <path d={`M ${at(r.median)} 2 L ${at(r.median) + 4} 6 L ${at(r.median)} 10 L ${at(r.median) - 4} 6 Z`} fill="#ff9e1b" />
+                    {Number.isFinite(r.subject) ? <circle cx={at(r.subject)} cy={6} r={3.5} fill="#45d3e6" /> : null}
+                  </svg>
+                ) : null}
+              </td>
+              <td className="num amber">{f(r?.high ?? NaN, l.pct)}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colSpan={5} className="muted">
+            <span className="cyan">●</span> {ticker} <span style={{ color: '#ff9e1b' }}>◆</span> Median · low and high include {ticker}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  );
+}
+
 export function RV({ sec }: FnProps) {
   const s = sec!;
   const panel = usePanelId();
@@ -260,6 +327,7 @@ export function RV({ sec }: FnProps) {
             )}
           </>
         } actions={exportActions(panel, `${s.ticker.replace(/\W+/g, '_')}_RV.csv`, csv)} />
+      {page === 1 && <CompRange rows={rows} ticker={s.ticker.split(' ')[0]} />}
       {page === 2 && (
         <div className="row rv-sheets" style={{ gap: 3, padding: '3px 6px' }}>
           {SHEETS.map((t) => (
