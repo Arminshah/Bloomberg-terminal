@@ -666,7 +666,7 @@ export function DES({ sec }: FnProps) {
       break;
   }
   return (
-    <div>
+    <div className="fixed-page">
       <FnHeader
         code="PROFILE"
         title={`Security Description: ${CLASS_LABEL[s.cls]}`}

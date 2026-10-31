@@ -106,6 +106,14 @@ Evidence: TE02 00:59 (GP's field list: grey codes, amber names), TE04 02:29 (IMA
 - Not done: "Browse..." and "Create Custom List..." rows (no index browser or custom lists in these pickers yet); the field codes shown before names in GP's list (the provider's own codes). How the list draws depends on the system: Windows draws the native lists in these colours; some Linux desktops draw their own.
 - Checked: `e2e/look.spec.ts` (option colours, picker colours, the watchlist's list unchanged), the whole browser suite.
 
+### M1.11 Fixed-width pages for DES, EE, ANR and EQS (E3)
+
+Evidence: TE01 01:41 (DES in a whole window: the red bar runs the full width, the page under it is centred with black margins of about 15 percent each side), and the left margins of EE, ANR and EQS in TE04 (06:27, 07:13, 03:01).
+
+- Now: on DES, EE, ANR and EQS everything under the red bar keeps to a page 80em wide (960 pixels at the default 12px text, so it follows the text-size setting), centred, with the panel black on both sides. The red bar stays full width. A narrower panel shows the page at the panel's width, as before.
+- Unverified: the page's exact width. The frames are zoomed differently and show no pixel scale; 80em gives DES's three columns the room its labels need and margins close to TE01 01:41's at 1600 pixels.
+- Checked: `e2e/look.spec.ts` (each of the four: page at most 960px, equal margins over 10 percent, black, red bar full width; WEI unchanged), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

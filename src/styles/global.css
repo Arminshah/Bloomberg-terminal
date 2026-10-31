@@ -580,6 +580,12 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .ac-field .ac-item.sel .k, .ac-field .ac-item:hover .k { color: var(--white) !important; }
 .ac-field .ac-item.sel > :nth-child(2), .ac-field .ac-item:hover > :nth-child(2) { color: var(--amber) !important; }
 
+/* DES, EE, ANR and EQS draw a page of fixed width, centred in a wide window with black margins (TE01 01:41, about 15
+   percent each side): the red bar runs the full width, everything under it keeps to the page. The width follows the
+   text size (80em is 960 pixels at the default 12px). */
+.panel-body:has(> .fixed-page) { background: #000; }
+.fixed-page > :not(.fnh), .fixed-page > .fnh > :not(.fnh-row) { max-width: 80em; margin-left: auto; margin-right: auto; }
+
 /* --------------------------------------------------------- function header */
 .fnh {
   position: sticky;

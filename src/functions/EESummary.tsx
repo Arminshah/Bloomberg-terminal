@@ -105,7 +105,7 @@ export function EESummary({ sec }: FnProps) {
 
   const noAnalysts = desktop ? 'No source gives this company’s estimates.' : "The analysts' figures are read by the desktop app; the browser demo has none, and none are generated.";
   return (
-    <div data-audit-state={JSON.stringify(earningsAuditState(consensus, s.id, Date.now(), real?.quarterly, reportCcy(s)))}>
+    <div className="fixed-page" data-audit-state={JSON.stringify(earningsAuditState(consensus, s.id, Date.now(), real?.quarterly, reportCcy(s)))}>
       <FnHeader code="EARNINGSSUMMARY" title="Earnings & Estimates" sec={s} sub={<>Quarterly · {sourceLabel(status, "demo figures; the analysts' figures need the desktop app")}</>} />
       <EarningsEvidence c={consensus} security={s.id} />
       <div className="des-grid">

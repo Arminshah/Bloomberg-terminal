@@ -29,7 +29,7 @@ M1. Window chrome
 - [x] 1.7 Tab strip as the title bar (`03644ee`)
 - [x] 1.8 Options menu and window keys (`8ef6d15`)
 - [x] 1.9 Dialogs (`d77cab1`)
-- [ ] 1.10 Field dropdowns
+- [x] 1.10 Field dropdowns (`e56c429`)
 - [ ] 1.11 Fixed-width pages for DES, EE, ANR and EQS
 
 M2. Navigation, keyboard and menus

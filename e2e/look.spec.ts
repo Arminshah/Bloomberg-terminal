@@ -234,6 +234,29 @@ test("a field's list and a screen's security picker read as the 2024 frames draw
   expect(errors).toEqual([]);
 });
 
+test('DES, EE, ANR and EQS keep to a page of fixed width centred in a wide panel, under a full-width red bar', async ({ page }) => {
+  const errors = await boot(page);
+  const panel = page.locator('.panel').first();
+  for (const cmd of ['AAPL US Equity DES', 'AAPL US Equity EE', 'AAPL US Equity ANR', 'EQS']) {
+    await run(page, cmd);
+    const body = (await panel.locator('.panel-body').boundingBox())!;
+    const bar = (await panel.locator('.fnh-row').boundingBox())!;
+    // TE01 01:41: the red bar spans the window; the page under it is narrower, with equal black margins.
+    expect(bar.width).toBeGreaterThan(body.width - 20);
+    const content = (await panel.locator('.fixed-page > :not(.fnh)').first().boundingBox())!;
+    expect(content.width).toBeLessThanOrEqual(961);
+    const left = content.x - body.x;
+    const right = body.x + body.width - (content.x + content.width);
+    expect(left).toBeGreaterThan(body.width * 0.1);
+    expect(Math.abs(left - right)).toBeLessThan(20);
+    expect(await panel.locator('.panel-body').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(0, 0, 0)');
+  }
+  // Other screens use the whole width.
+  await run(page, 'WEI');
+  await expect(panel.locator('.fixed-page')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test('a colour-blind scheme turns rises blue in text, heat maps and charts, and plain text a lighter amber', async ({ page }) => {
   const errors = await boot(page);
   // Pixels of a colour on the panel's chart canvas.
