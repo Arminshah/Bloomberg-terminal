@@ -1669,6 +1669,11 @@ test('research remains usable across FMP 402s and the Finnhub fallback, each row
   await expect(ranges.getByRole('button', { name: '2Y' })).toHaveAttribute('aria-pressed', 'true');
   await ranges.getByRole('button', { name: '5Y' }).click();
   await expect(ranges.getByRole('button', { name: '5Y' })).toHaveAttribute('aria-pressed', 'true');
+  // ANR's 100% stacked bars by month, beside the monthly counts: the one month the fixture's Finnhub answer gives.
+  const bars = page.locator('.panel').first().getByTestId('anr-bars');
+  await expect(bars.locator('[data-period]')).toHaveCount(1);
+  await expect(bars.locator('[data-period="2026-10-01"]')).toContainText('Oct');
+  await expect(page.locator('.panel').first().getByText('Finnhub gives the latest 1 month of rating counts', { exact: false })).toBeVisible();
   expect((await calls(app)).retired).toEqual([]);
 });
 

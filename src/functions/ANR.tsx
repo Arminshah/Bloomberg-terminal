@@ -16,7 +16,8 @@ import { palette, useColourScheme } from '../terminal/palette';
 import { DAY_MS } from '../data/calendar';
 import { reportCcy } from '../data/fundamentals';
 import { periodChange } from '../data/analytics';
-import { ratingSummary } from '../data/anr';
+import { monthlyShares, ratingSummary, type RatingCounts } from '../data/anr';
+import { CHART_THEME } from '../components/chart/PriceChart';
 import { finnhubAvailable, finnhubSymbol, retryFinnhub, useFinnhub, type FinnhubPart, type RecommendationMonth } from '../data/live/finnhub';
 
 /**
@@ -154,7 +155,7 @@ export function ANR({ sec }: FnProps) {
           ) : !recs.length ? (
             <div className="note">Recommendation history is unavailable.{fh?.message ? <details><summary>Source details</summary>{fh.message}</details> : null}</div>
           ) : (
-            <table className="tbl zebra">
+            <><RecommendationBars months={recs} source={recSource ?? 'The source'} /><table className="tbl zebra">
               <thead>
                 <tr>
                   <th>Month</th>
@@ -182,7 +183,7 @@ export function ANR({ sec }: FnProps) {
                   );
                 })}
               </tbody>
-            </table>
+            </table></>
           )}
           {recAt ? <div className="note">Source: {recSource} · received {fmtDay(recAt)} {fmtTime(recAt, false)}{recStale ? ' · STALE' : ''}</div> : null}
         </Section>
@@ -433,6 +434,98 @@ function recommendationPeriod(period: string | undefined): string {
   const relative = /^-(\d+)m$/.exec(period ?? '');
   if (relative) return `${relative[1]} month(s) before snapshot`;
   return period && /^\d{4}-\d{2}-\d{2}$/.test(period) ? fmtDay(Date.parse(`${period}T00:00:00Z`)) : period ?? '--';
+}
+
+/**
+ * The monthly bars' colours, sampled from the report's captures (Figures 2.9 and 2.33): green buys, khaki holds, dark
+ * red sells. Under a colour-blind scheme, buys and sells take that scheme's colours (palette.ts).
+ */
+const BAR_HOLD = '#bcb266';
+const barColours = (scheme: string) => {
+  const p = palette();
+  return { buy: scheme === 'default' ? '#00a220' : p.heatUp[1], hold: BAR_HOLD, sell: p.heatDn[1] };
+};
+
+/**
+ * ANR's 100% stacked bars of the ratings by month, oldest at the left: %Buy at the bottom in green, %Hold in khaki,
+ * %Sell on top in dark red, on a 0 to 100 axis at the left, with the legend in a dark box at the top left. ANR draws a
+ * bar for every month of its chart's range; the free sources give the latest four months, so the bars are those the
+ * source gives, each labelled with its month. A month without ratings is a labelled gap.
+ */
+export function RecommendationBars({ months, source }: { months: readonly (RatingCounts & { period?: string })[]; source: string }) {
+  const scheme = useColourScheme();
+  const bars = monthlyShares(months);
+  if (!bars.length) return null;
+  const colour = barColours(scheme);
+  const SLOT = 64;
+  const BAR = 40;
+  const L = 34;
+  const TOP = 26;
+  const PLOT = 96;
+  const H = TOP + PLOT + 30;
+  // The legend's keys in a row, each a square and its name (about 7 pixels a letter in the charts' fixed face).
+  const legend = (
+    [
+      ['%Buy', colour.buy],
+      ['%Hold', colour.hold],
+      ['%Sell', colour.sell],
+    ] as const
+  ).map(([label, fill], i, all) => ({ label, fill, x: L + 6 + all.slice(0, i).reduce((w, [l]) => w + 22 + l.length * 7, 0) }));
+  const legendEnd = legend[legend.length - 1].x + 12 + legend[legend.length - 1].label.length * 7 + 6;
+  const W = Math.max(L + bars.length * SLOT + 8, legendEnd + 8);
+  const y = (pct: number) => TOP + PLOT - (pct / 100) * PLOT;
+  const when = (b: (typeof bars)[number]) => (b.year ? `${b.label} ${b.year}` : `${recommendationPeriod(b.period)} (${b.period})`);
+  const seg = (b: (typeof bars)[number], name: string, from: number, pct: number, count: number, fill: string, x: number) =>
+    pct > 0 ? (
+      <rect x={x} y={y(from + pct)} width={BAR} height={(pct / 100) * PLOT} fill={fill}>
+        <title>{`${when(b)}: ${name} ${fmtNum(pct, 1)}% (${count} of ${b.total} ratings)`}</title>
+      </rect>
+    ) : null;
+  return (
+    <>
+      <svg data-testid="anr-bars" width={W} height={H} role="img" aria-label={`Shares of buys, holds and sells by month, ${source}`} style={{ display: 'block', margin: '4px 0', font: CHART_THEME.font }}>
+        {[0, 50, 100].map((v) => (
+          <g key={v}>
+            <line x1={L - 4} x2={L} y1={y(v)} y2={y(v)} stroke={CHART_THEME.axis} />
+            <text x={L - 6} y={y(v)} dy="0.35em" textAnchor="end" fill={CHART_THEME.axisText}>{v}</text>
+          </g>
+        ))}
+        <line x1={L} x2={L} y1={TOP} y2={TOP + PLOT} stroke={CHART_THEME.axis} />
+        {bars.map((b, i) => {
+          const x = L + i * SLOT + (SLOT - BAR) / 2;
+          const mid = x + BAR / 2;
+          const newYear = !!b.year && b.year !== bars[i - 1]?.year;
+          return (
+            <g key={b.period} data-period={b.period}>
+              {b.total > 0 ? (
+                <>
+                  {seg(b, '%Buy', 0, b.buyPct, b.buys, colour.buy, x)}
+                  {seg(b, '%Hold', b.buyPct, b.holdPct, b.holds, colour.hold, x)}
+                  {seg(b, '%Sell', b.buyPct + b.holdPct, b.sellPct, b.sells, colour.sell, x)}
+                </>
+              ) : (
+                <text x={mid} y={y(50)} dy="0.35em" textAnchor="middle" fill={CHART_THEME.axisText}>
+                  --<title>{`${when(b)}: the source counts no ratings for this month`}</title>
+                </text>
+              )}
+              <text x={mid} y={TOP + PLOT + 13} textAnchor="middle" fill={CHART_THEME.text}>{b.label}</text>
+              {newYear ? <text x={mid} y={TOP + PLOT + 26} textAnchor="middle" fill={CHART_THEME.axisText}>{b.year}</text> : null}
+            </g>
+          );
+        })}
+        <rect x={L + 2} y={3} width={legendEnd - L - 2} height={16} fill="#1a1a1a" stroke="#333" />
+        {legend.map((k) => (
+          <g key={k.label}>
+            <rect x={k.x} y={7} width={8} height={8} fill={k.fill} />
+            <text x={k.x + 12} y={11} dy="0.35em" fill={CHART_THEME.text}>{k.label}</text>
+          </g>
+        ))}
+      </svg>
+      <div className="note">
+        {source} gives the latest {bars.length} month{bars.length === 1 ? '' : 's'} of rating counts, so the chart has {bars.length} bar{bars.length === 1 ? '' : 's'}, not one for each month of the chart&apos;s range above. %Buy counts strong buys and buys, %Sell sells and strong sells.
+      </div>
+    </>
+  );
 }
 
 function ResearchSource({ part }: { part: AnalystPart | undefined }) {
