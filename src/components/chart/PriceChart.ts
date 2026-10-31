@@ -1067,9 +1067,11 @@ export class PriceChart {
       }
     }
     const legendIdx = idx ?? a.i1;
+    // A study is drawn on the security's own scale, so in percent mode its figure is its change from the same base.
+    const studyText = (v: number) => (a.pct && idx == null ? (Number.isFinite(v) ? `${fmtNum((v / s.c[a.i0] - 1) * 100, 2)}%` : '--') : fmtNum(v, opt.dec));
     for (const ov of this.ind.overlays) {
       const v = ov.a[legendIdx];
-      rows.push({ k: ov.o.kind === 'BOLL' ? `BOLL(${ov.o.n},2)` : `${ov.o.kind}(${ov.o.n})`, v: fmtNum(v, opt.dec), c: ov.o.color });
+      rows.push({ k: ov.o.kind === 'BOLL' ? `BOLL(${ov.o.n},2)` : `${ov.o.kind}(${ov.o.n})`, v: studyText(v), c: ov.o.color });
     }
     this.ind.cmp.forEach((arr, k) => {
       const b0 = firstFinite(arr, a.i0, a.i1);

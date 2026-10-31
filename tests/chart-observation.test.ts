@@ -85,4 +85,14 @@ describe('chart observation and visible-window labels', () => {
     flush();
     expect(observation).toBeNull();
   });
+
+  it('gives a study its change from the base in percent mode, as its line is drawn, not its price', () => {
+    chart.setData(series, { ...options, percent: true }, true);
+    fillText.mockClear();
+    flush();
+    // The visible window starts at the close of 118 and ends at 129; SMA(3) ends at 128.
+    expect(texts()).toContain('9.32%');
+    expect(texts()).toContain('8.47%'); // (128 / 118 - 1) x 100
+    expect(texts()).not.toContain('128.00');
+  });
 });
