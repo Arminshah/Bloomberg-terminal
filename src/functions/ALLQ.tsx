@@ -25,6 +25,13 @@ export interface QuoteLine {
   /** The two lines above the dealers are amber (TE07 04:17). */
   lead?: boolean;
   time?: number;
+  /**
+   * Which of the benchmark's prices the line's spread is measured against: its own day's ('prev', with that day's
+   * settlement) or the end-of-day price ('eod'). The latest Sell and Buy otherwise.
+   */
+  vs?: 'prev' | 'eod';
+  /** The settlement its yields are worked to, when it is not the screen's. */
+  settle?: Date;
 }
 
 /** A benchmark the spreads are measured against: the latest issue of each standard tenor. */
@@ -34,6 +41,11 @@ export interface Benchmark {
   maturity: string;
   bid: number;
   ask: number;
+  /** FedInvest's end-of-day price and the previous day's Sell and Buy, for the lines of those days. */
+  eod?: number;
+  prev?: { bid: number; ask: number };
+  /** Chosen by maturity alone: the debt statement's issue dates have not loaded, so it may be an older issue. */
+  byMaturity?: boolean;
 }
 
 const TENORS = [2, 3, 5, 7, 10, 20, 30];
@@ -91,6 +103,22 @@ function termsOf(sec: SecurityDef) {
   return { coupon: sec.bond!.coupon, maturity: new Date(`${sec.bond!.maturity}T00:00:00Z`), freq: 2 as const };
 }
 
+type Terms = ReturnType<typeof termsOf>;
+
+/**
+ * A line's yield on one side and its spread to the benchmark in basis points. A line of another day is measured to
+ * its own settlement, against the benchmark's price of that day (the previous day's Sell or Buy, or its end-of-day
+ * price), so the spread is that day's.
+ */
+export function lineSecond(l: QuoteLine, side: 'bid' | 'ask', terms: Terms | null, bench: Benchmark | undefined, benchTerms: Terms | null, settle: Date): { yld: number; spd: number } {
+  const v = side === 'bid' ? l.bid : l.ask;
+  const at = l.settle ?? settle;
+  const yld = terms && Number.isFinite(v) ? yieldFromClean(terms, at, v) : NaN;
+  const bpx = !bench ? NaN : l.vs === 'eod' ? bench.eod ?? NaN : l.vs === 'prev' ? (side === 'bid' ? bench.prev?.bid : bench.prev?.ask) ?? NaN : side === 'bid' ? bench.bid : bench.ask;
+  const by = benchTerms && Number.isFinite(bpx) ? yieldFromClean(benchTerms, at, bpx) : NaN;
+  return { yld, spd: (yld - by) * 100 };
+}
+
 /** ALLQ: every source's bid and ask for a bond, laid out as TE07 04:17. */
 export function ALLQ(props: FnProps) {
   if (engine.realOnly) return <AllqTreasury {...props} />;
@@ -131,16 +159,31 @@ function AllqTreasury({ sec }: FnProps) {
   const lines: QuoteLine[] = [
     { pcs: 'TSY', firm: 'FedInvest Sell / Buy', title: `TreasuryDirect FedInvest, prices of ${fmtDay(Date.parse(st.latest.date))}: Sell as the bid, Buy as the ask`, bid: row.sell, ask: row.buy, lead: true },
   ];
-  if (Number.isFinite(row.eod)) lines.push({ pcs: '', firm: 'End of Day', title: "FedInvest's end-of-day price", bid: row.eod, ask: NaN, lead: true });
-  if (prev && st.prev) lines.push({ pcs: '', firm: `Previous Day (${fmtDay(Date.parse(st.prev.date))})`, title: `FedInvest, prices of ${fmtDay(Date.parse(st.prev.date))}`, bid: prev.sell, ask: prev.buy, lead: true });
-  const benches = fedBenchmarks(st.latest, issues);
+  if (Number.isFinite(row.eod)) lines.push({ pcs: '', firm: 'End of Day', title: "FedInvest's end-of-day price; its spread is to the benchmark's end-of-day price", bid: row.eod, ask: NaN, lead: true, vs: 'eod' });
+  if (prev && st.prev) {
+    const day = fmtDay(Date.parse(st.prev.date));
+    lines.push({ pcs: '', firm: `Previous Day (${day})`, title: `FedInvest, prices of ${day}: yields to that day's settlement, spreads to the benchmark's prices of that day`, bid: prev.sell, ask: prev.buy, lead: true, vs: 'prev', settle: settlementDate(new Date(`${st.prev.date}T00:00:00Z`)) });
+  }
+  const benches = fedBenchmarks(st.latest, st.prev, issues);
   return <AllqLayout sec={s} lines={lines} benches={benches} settle={settle} status={`FedInvest prices of ${fmtDay(Date.parse(st.latest.date))}`} note="Dealer quotes have no free source: the lines are the Treasury's own FedInvest prices." />;
 }
 
-function fedBenchmarks(day: FedDay, issues?: Map<string, string>): Benchmark[] {
+function fedBenchmarks(day: FedDay, prevDay: FedDay | undefined, issues?: Map<string, string>): Benchmark[] {
   const rows = [...day.rows.values()].filter((r: FedRow) => (r.type === 'Notes' || r.type === 'Bonds') && Number.isFinite(r.sell));
   return onTheRun(rows, day.date, issues ? (r) => issues.get(r.cusip) || undefined : undefined)
-    .map(({ tenor, row }) => ({ id: treasuryIdByCusip(row.cusip) ?? '', tenor, maturity: row.maturity, bid: row.sell, ask: row.buy }))
+    .map(({ tenor, row }) => {
+      const p = prevDay?.rows.get(row.cusip);
+      return {
+        id: treasuryIdByCusip(row.cusip) ?? '',
+        tenor,
+        maturity: row.maturity,
+        bid: row.sell,
+        ask: row.buy,
+        eod: row.eod,
+        prev: p ? { bid: p.sell, ask: p.buy } : undefined,
+        byMaturity: !issues,
+      };
+    })
     .filter((b) => b.id);
 }
 
@@ -206,18 +249,16 @@ function AllqLayout({ sec, lines, benches, settle, status, note, empty, demo }: 
   const govt = sec.yk === 'Govt';
   const px = (v: number) => (!Number.isFinite(v) ? '' : govt ? to32nds(v) : fmtNum(v, 3));
   const terms = sec.bond ? termsOf(sec) : null;
-  const y = (v: number) => (terms ? yieldFromClean(terms, settle, v) : NaN);
   const auto = sec.bond ? nearestBenchmark(benches, sec.id, sec.bond.maturity) : undefined;
   const bench = benches.find((b) => b.id === benchId) ?? auto;
   const benchDef = bench ? engine.get(bench.id) : undefined;
-  const by = (v: number) => (benchDef?.bond ? yieldFromClean(termsOf(benchDef), settle, v) : NaN);
+  const benchTerms = benchDef?.bond ? termsOf(benchDef) : null;
+  const by = (v: number) => (benchTerms && Number.isFinite(v) ? yieldFromClean(benchTerms, settle, v) : NaN);
   const benchBidY = bench ? by(bench.bid) : NaN;
   const benchAskY = bench ? by(bench.ask) : NaN;
   const second = (l: QuoteLine, side: 'bid' | 'ask') => {
-    const v = side === 'bid' ? l.bid : l.ask;
-    if (!Number.isFinite(v)) return NaN;
-    const yy = y(v);
-    return showYield ? yy : (yy - (side === 'bid' ? benchBidY : benchAskY)) * 100;
+    const r = lineSecond(l, side, terms, bench, benchTerms, settle);
+    return showYield ? r.yld : r.spd;
   };
   const fmtSecond = (v: number) => (!Number.isFinite(v) ? '' : showYield ? fmtNum(v, 3) : fmtNum(v, 1));
   const lead = lines.filter((l) => l.lead);
@@ -261,7 +302,7 @@ function AllqLayout({ sec, lines, benches, settle, status, note, empty, demo }: 
           {benches.length ? null : <option value="">No benchmark</option>}
           {benches.map((b) => (
             <option key={b.id} value={b.id}>
-              {b.id} ({b.tenor}Y)
+              {b.id} ({b.tenor}Y{b.byMaturity ? ', by maturity' : ''})
             </option>
           ))}
         </select>
@@ -327,7 +368,8 @@ function AllqLayout({ sec, lines, benches, settle, status, note, empty, demo }: 
         </tbody>
       </table>
       <p className="pad-s muted">
-        {showYield ? 'Yields' : 'Spreads in basis points: the line’s yield less the benchmark’s on the same side'}, each from its price to settlement on {fmtDay(settle.getTime())}. {demo ? 'Best bid in green, best offer in red. The dealers are fictional and their quotes simulated around the composite price.' : 'Sizes are not published (x).'}
+        {showYield ? 'Yields' : 'Spreads in basis points: the line’s yield less the benchmark’s on the same side'}, each from its price to settlement on {fmtDay(settle.getTime())} (the Previous Day line to its own day’s settlement, against the benchmark’s prices of that day).{' '}
+        {benches.some((b) => b.byMaturity) ? 'The debt statement’s issue dates have not loaded, so each benchmark is the note or bond maturing last within its tenor, which can be an older issue. ' : ''} {demo ? 'Best bid in green, best offer in red. The dealers are fictional and their quotes simulated around the composite price.' : 'Sizes are not published (x).'}
       </p>
     </div>
   );

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { nearestBenchmark, onTheRun, type Benchmark } from '../src/functions/ALLQ';
+import { lineSecond, nearestBenchmark, onTheRun, type Benchmark, type QuoteLine } from '../src/functions/ALLQ';
+import { yieldFromClean } from '../src/finance/bonds';
 
 describe('ALLQ benchmarks', () => {
   // Maturities as FedInvest listed them on 30 October 2026, before the November refunding.
@@ -42,5 +43,37 @@ describe('ALLQ benchmarks', () => {
     expect(nearestBenchmark(benches, 'corp', '2054-02-05')?.id).toBe('30y');
     expect(nearestBenchmark(benches, '10y', '2036-08-15')?.id).toBe('7y');
     expect(nearestBenchmark([], 'corp', '2035-02-05')).toBeUndefined();
+  });
+});
+
+describe("ALLQ's lines of another day", () => {
+  // The desktop fixture's prices: the note 4 5/8 08/15/36 against the 5% of 09/30/33, on 29 and 30 October 2026.
+  const terms = { coupon: 4.625, maturity: new Date('2036-08-15T00:00:00Z'), freq: 2 as const };
+  const benchTerms = { coupon: 5, maturity: new Date('2033-09-30T00:00:00Z'), freq: 2 as const };
+  const bench: Benchmark = { id: 'T 5 09/30/33 Govt', tenor: 7, maturity: '2033-09-30', bid: 100.96875, ask: 101, eod: 100.953125, prev: { bid: 100.921875, ask: 100.953125 } };
+  const settle = new Date('2026-11-02T00:00:00Z');
+  const prevSettle = new Date('2026-10-30T00:00:00Z');
+
+  it("measures the Previous Day line to its own settlement, against the benchmark's prices of that day", () => {
+    const line: QuoteLine = { pcs: '', firm: 'Previous Day', bid: 97.3125, ask: 97.34375, vs: 'prev', settle: prevSettle };
+    const r = lineSecond(line, 'bid', terms, bench, benchTerms, settle);
+    const want = (yieldFromClean(terms, prevSettle, 97.3125) - yieldFromClean(benchTerms, prevSettle, 100.921875)) * 100;
+    expect(r.spd).toBeCloseTo(want, 9);
+    expect(r.yld).toBeCloseTo(yieldFromClean(terms, prevSettle, 97.3125), 12);
+    // Not against today's benchmark price: that would carry the benchmark's own move over the day.
+    const stale = (yieldFromClean(terms, prevSettle, 97.3125) - yieldFromClean(benchTerms, prevSettle, 100.96875)) * 100;
+    expect(Math.abs(r.spd - stale)).toBeGreaterThan(0.3);
+  });
+
+  it("measures the End of Day line against the benchmark's end-of-day price, and the latest against Sell and Buy", () => {
+    const eod: QuoteLine = { pcs: '', firm: 'End of Day', bid: 97.5, ask: NaN, vs: 'eod' };
+    expect(lineSecond(eod, 'bid', terms, bench, benchTerms, settle).spd).toBeCloseTo((yieldFromClean(terms, settle, 97.5) - yieldFromClean(benchTerms, settle, 100.953125)) * 100, 9);
+    const latest: QuoteLine = { pcs: 'TSY', firm: 'FedInvest', bid: 97.515625, ask: 97.53125 };
+    expect(lineSecond(latest, 'ask', terms, bench, benchTerms, settle).spd).toBeCloseTo((yieldFromClean(terms, settle, 97.53125) - yieldFromClean(benchTerms, settle, 101)) * 100, 9);
+  });
+
+  it('has no spread for a day the benchmark has no price', () => {
+    const line: QuoteLine = { pcs: '', firm: 'Previous Day', bid: 97.3125, ask: 97.34375, vs: 'prev', settle: prevSettle };
+    expect(lineSecond(line, 'bid', terms, { ...bench, prev: undefined }, benchTerms, settle).spd).toBeNaN();
   });
 });
