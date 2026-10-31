@@ -1,9 +1,12 @@
 /**
  * The series on the macro dashboard (MACRO), all from the FRED API, which
  * republishes each agency's figures. Each line names the agency that
- * publishes the figure, its frequency and how it is shown. Nothing is
- * forecast: every value is a published observation or a change worked out
- * from two of them.
+ * publishes the figure, its frequency and how it is shown. The app forecasts
+ * nothing: every value is a published observation or a change worked out
+ * from two of them. One line is a published nowcast, the Atlanta Fed's
+ * GDPNow, and says so: the current quarter's figure is revised as the
+ * month's data arrive, and a past quarter keeps its last nowcast before the
+ * BEA's advance estimate.
  */
 
 export type MacroFreq = 'd' | 'w' | 'm' | 'q';
@@ -44,6 +47,7 @@ export const MACRO_SERIES: MacroSeries[] = [
   { id: 'PAYEMS', label: 'Nonfarm payrolls, monthly change', group: 'Labour', freq: 'm', calc: 'diff', unit: 'k', dec: 0, source: 'US Bureau of Labor Statistics', keys: ['JOBS', 'PAYROLLS', 'NFP', 'LABOR', 'LABOUR'] },
   { id: 'ICSA', label: 'Initial jobless claims', group: 'Labour', freq: 'w', calc: 'level', unit: 'k', dec: 0, scale: 0.001, source: 'US Department of Labor', keys: ['JOBS', 'CLAIMS', 'LABOR', 'LABOUR'] },
   { id: 'A191RL1Q225SBEA', label: 'Real GDP, annualised QoQ', group: 'Growth', freq: 'q', calc: 'level', unit: '%', dec: 1, source: 'US Bureau of Economic Analysis', keys: ['GDP', 'GROWTH'] },
+  { id: 'GDPNOW', label: "Atlanta Fed GDPNow: the quarter's real GDP nowcast, annualised", group: 'Growth', freq: 'q', calc: 'level', unit: '%', dec: 1, source: 'Federal Reserve Bank of Atlanta (a model nowcast, revised through the quarter)', keys: ['GDP', 'GROWTH', 'NOWCAST', 'GDPNOW'] },
   { id: 'INDPRO', label: 'Industrial production, YoY', group: 'Growth', freq: 'm', calc: 'yoy', unit: '%', dec: 1, source: 'Federal Reserve Board', keys: ['GROWTH', 'PRODUCTION', 'IP'] },
   { id: 'M2SL', label: 'M2 money stock, YoY', group: 'Money and credit', freq: 'm', calc: 'yoy', unit: '%', dec: 1, source: 'Federal Reserve Board', keys: ['MONEY', 'M2'] },
   { id: 'BAMLC0A0CM', label: 'US corporate investment-grade spread (OAS)', group: 'Money and credit', freq: 'd', calc: 'level', unit: 'pts', dec: 2, source: 'ICE Data Indices', copyrighted: true, keys: ['CREDIT', 'SPREADS', 'IG'] },

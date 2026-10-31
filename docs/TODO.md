@@ -18,7 +18,7 @@ The owner asked for every free source that makes the data more complete, accurat
   - UK short interest: the FCA's daily aggregated net short positions, by ISIN; the app needs a London ticker-to-ISIN list first (the FTSE 100's list covers only its members).
   - Treasuries: Fiscal Data's auction results, buybacks and TIPS and FRN indexes; the Bank of England's 2 and 30-year gilt points exist only as zero-coupon yields.
   - Fund holders: the SEC's N-PORT data for every fund holding a stock (HOLDERS), and the 13F data sets for buyers and sellers counts.
-  - Economics: the BLS's release schedule (iCalendar) for official release times, the Cleveland Fed's daily inflation nowcasts, the Atlanta Fed's GDPNow (FRED) beside the GDP consensus, and the Philadelphia Fed's and the ECB's surveys of professional forecasters as official consensus (ECOFORECASTS).
+  - Economics: the BLS's release schedule (iCalendar) for official release times, the Cleveland Fed's daily inflation nowcasts (GDPNow is on MACRO since 31 October), and the Philadelphia Fed's and the ECB's surveys of professional forecasters as official consensus (ECOFORECASTS).
   - Not available free: SPX, RUT and VIX options (Cboe's terms), per-bond corporate and municipal prices, ESG scores, a history of consensus price targets.
 
 ### 14. Match the provider's terminal screen for screen (asked 31 October)

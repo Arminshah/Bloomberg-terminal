@@ -27,6 +27,15 @@ describe('macro dashboard figures', () => {
     expect(r).toEqual({ value: 142, date: '2026-09-01', prev: 100 });
   });
 
+  it("shows GDPNow's nowcast for the quarter as published, the quarter before it beside it, and says it is a nowcast", () => {
+    // FRED's GDPNOW: one value a quarter, the current one revised until the BEA's advance estimate (synthetic values).
+    const r = latestReading(line('GDPNOW'), [['2026-07-01', 3.3], ['2026-10-01', 3.2]])!;
+    expect(r).toEqual({ value: 3.2, date: '2026-10-01', prev: 3.3 });
+    expect(line('GDPNOW')).toMatchObject({ group: 'Growth', freq: 'q', calc: 'level' });
+    expect(line('GDPNOW').label).toMatch(/nowcast/);
+    expect(line('GDPNOW').source).toMatch(/^Federal Reserve Bank of Atlanta \(a model nowcast/);
+  });
+
   it('scales weekly claims to thousands', () => {
     const r = latestReading(line('ICSA'), [['2026-09-26', 231_000], ['2026-10-03', 225_000]])!;
     expect(r.value).toBe(225);
