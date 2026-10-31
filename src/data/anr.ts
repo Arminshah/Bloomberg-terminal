@@ -10,8 +10,10 @@ export interface RatingSummary {
   holdPct: number;
   sellPct: number;
   /**
-   * The ratings' average on a 1 (sell) to 5 (buy) scale, the scale ANR's consensus rating uses: strong buy 5,
-   * buy 4, hold 3, sell 2, strong sell 1. Worked out here from the counts the source gives.
+   * The ratings' average on the 1 (sell) to 5 (buy) scale of ANR's consensus rating: buys 5, holds 3, sells 1.
+   * The report's four ANR captures give a rating at most 0.04 under this average of their own counts (some sources
+   * are graded between the steps, which counts do not show). Scoring the source's "buy" count 4 and only "strong buy"
+   * 5 read 4.29 for Microsoft on 31 October 2026 (Finnhub: 22, 40, 3, 0, 0), where this average is 4.91.
    */
   score: number;
 }
@@ -34,6 +36,6 @@ export function ratingSummary(r: RatingTally): RatingSummary {
     buyPct: pct(sb + b),
     holdPct: pct(h),
     sellPct: pct(s + ss),
-    score: total > 0 ? (5 * sb + 4 * b + 3 * h + 2 * s + ss) / total : NaN,
+    score: total > 0 ? (5 * (sb + b) + 3 * h + (s + ss)) / total : NaN,
   };
 }

@@ -215,12 +215,18 @@ describe('ANR summary', () => {
     expect(r).toMatchObject({ buys: 6, holds: 3, sells: 1, total: 10 });
     expect(r.buyPct).toBeCloseTo(60);
     expect(r.sellPct).toBeCloseTo(10);
-    expect(r.score).toBeCloseTo((10 + 16 + 9 + 2) / 10);
+    expect(r.score).toBeCloseTo((5 * 6 + 3 * 3 + 1) / 10);
+  });
+
+  it("scores every buy 5, as the report's captures and the counts of 31 October 2026 show", () => {
+    // Finnhub's counts for 1 October 2026: strong buy, buy, hold, sell, strong sell.
+    expect(ratingSummary({ strongBuy: 22, buy: 40, hold: 3, sell: 0, strongSell: 0, consensus: '' }).score).toBeCloseTo(4.908, 3); // Microsoft
+    expect(ratingSummary({ strongBuy: 11, buy: 20, hold: 14, sell: 3, strongSell: 1, consensus: '' }).score).toBeCloseTo(4.102, 3); // Apple
   });
 
   it('gives no score without ratings and ignores missing counts', () => {
     expect(ratingSummary({ strongBuy: 0, buy: 0, hold: 0, sell: 0, strongSell: 0, consensus: '' }).score).toBeNaN();
-    expect(ratingSummary({ strongBuy: NaN, buy: 1, hold: NaN, sell: 0, strongSell: 0, consensus: '' }).score).toBe(4);
+    expect(ratingSummary({ strongBuy: NaN, buy: 1, hold: NaN, sell: 0, strongSell: 0, consensus: '' }).score).toBe(5);
   });
 });
 
