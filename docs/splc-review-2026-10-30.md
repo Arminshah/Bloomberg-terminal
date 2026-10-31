@@ -8,6 +8,7 @@ Branch: `worktree-agent-aa7deeb76b3726e1e`. Regression tests: `tests/supply-chai
 
 - Every rule change ran over the 438 filings the reviews cite, saved locally, through `runChain` with a fixed clock, before and after the change. Each commit changed only the rows it names. The federal records were checked against `api.usaspending.gov` on 30 and 31 October 2026.
 - After each commit: `npm run lint`, `npm run typecheck`, `npx vitest run tests/supply-chain*`.
+- Northrop's screen was captured live twice on 31 October 2026 (`ARMIN_LIVE_CSV=1`). The first capture showed the DCMA rows gone, the Air Force at $38.7B, Dayton T. Brown at $15.0M, Future Tech at $37.3M, L3 Technologies at $36.5M, Electric Boat inside General Dynamics ($262.5M), Modiv out of the current view and the U.S. Government's 84% unchanged. It also showed two defects of `9d8cebe`, fixed in `4981b54` and `d710692`; the second capture showed Vertex's $4.4M under V2X, Inc. (VVX) and Technovare's record with its reason and no amount. Both captures stopped at the 240-second limit while lookups were still running, so roll-ups that come late (AIR Industries Machining joined AIR Industries Group in the first capture only) may not show in a capture.
 - One earlier test changed its expectation: `tests/supply-chain-deals.test.ts` read Scribe's "convertible note that we issued to Eli Lilly" as a lender. It now expects an investment (LLY-1).
 
 ## Commits
@@ -26,7 +27,8 @@ Branch: `worktree-agent-aa7deeb76b3726e1e`. Regression tests: `tests/supply-chai
 | `daba7a7` | tests: quote the review's filings in full | none (four test cases now quote the filings word for word) |
 | `e0629fa` | a holding the company says it owned ends with its sale | Haleon (Pfizer note) |
 | `dcfd8bd` | a drug supplied for the filer's own trial is a collaboration | LAVA customer row (M4), BioAge customer row (LLY-2) |
-| (next) | a party matched on one word is looked up first | Vertex ×2 on the live screen (NOC 2) |
+| `4981b54` | a federal party matched on one word is looked up first | Vertex ×2 on the live screen (NOC 2) |
+| `d710692` | a doubtful subaward stays on the screen past the ranking cap | Technovare on the live screen (NOC 4) |
 
 ## Eli Lilly
 
@@ -198,11 +200,11 @@ The U.S. Government's 84% of 2025 sales (10-K of 27 January 2026) is correct and
 
 **1. The Defense Contract Management Agency shown as a $12.7B customer, 8 rows.** "Defense Contract Management Agency contract F4261098C0001 with NORTHROP GRUMMAN SYSTEMS CORPORATION: $10.0B obligated, from Jul 1998 to Nov 2025. ..." (https://www.usaspending.gov/award/CONT_AWD_F4261098C0001_9700_-NONE-_-NONE-), and seven more. DCMA administers contracts the Air Force, Army and Navy issue and fund. Fixed in `9d8cebe`: when the awarding sub-agency is DCMA, the customer is the funding agency.
 
-**2. Vertex Aerospace read as Vertex, Inc. (VERX), 2 rows.** "VERTEX AEROSPACE LLC subcontract to NORTHROP GRUMMAN SYSTEMS CORPORATION under Department of Defense contract FA702225F0011: $4.2M, Apr 2025. ..." (https://www.usaspending.gov/award/CONT_AWD_FA702225F0011_9700_FA702222D0001_9700). Fixed in `9d8cebe`: a party matched on one word is looked up by its UEI; USAspending names it V2X AEROSPACE LLC today, so the rows go to V2X, Inc. (VVX). A live capture of Northrop's screen on 31 October 2026 still showed Vertex, Inc.: it ranked 25th by amount among the unmatched parties, and lookups stop at 15. The next commit looks up one-word matches first.
+**2. Vertex Aerospace read as Vertex, Inc. (VERX), 2 rows.** "VERTEX AEROSPACE LLC subcontract to NORTHROP GRUMMAN SYSTEMS CORPORATION under Department of Defense contract FA702225F0011: $4.2M, Apr 2025. ..." (https://www.usaspending.gov/award/CONT_AWD_FA702225F0011_9700_FA702222D0001_9700). Fixed in `9d8cebe`: a party matched on one word is looked up by its UEI; USAspending names it V2X AEROSPACE LLC today, so the rows go to V2X, Inc. (VVX). A live capture of Northrop's screen on 31 October 2026 still showed Vertex, Inc.: it ranked 25th by amount among the unmatched parties, and lookups stop at 15. `4981b54` looks up one-word matches first; the second live capture shows V2X.
 
 **3. Air Industries shown as a customer.** "Air Industries Group's relationship with Northrop Grumman began decades ago as a supplier to a predecessor, the Grumman Aerospace Corporation ..." (https://www.sec.gov/Archives/edgar/data/1009891/000121390025019757/ea023289801ex99-1_airindust.htm). Fixed in `a084d67`: supplier.
 
-**4. Technovare's $927.0M subaward ranked fifth.** "NORTHROP GRUMMAN SYSTEMS CORPORATION subcontract to TECHNOVARE SYSTEMS, INC. under Department of Defense contract FA881018C0006: $927.0M, Jul 2023. TECHNICAL SERVICES." (https://www.usaspending.gov/award/CONT_AWD_FA881018C0006_9700_-NONE-_-NONE-). It is 27% of a $3.49B prime, and Technovare's other subaward of the period is $151,000. Fixed in `9d8cebe`: a subaward of $100M or more, above a tenth of its prime contract and over 20 times the subcontractor's next one (or with no other), is shown with that reason and not counted or ranked.
+**4. Technovare's $927.0M subaward ranked fifth.** "NORTHROP GRUMMAN SYSTEMS CORPORATION subcontract to TECHNOVARE SYSTEMS, INC. under Department of Defense contract FA881018C0006: $927.0M, Jul 2023. TECHNICAL SERVICES." (https://www.usaspending.gov/award/CONT_AWD_FA881018C0006_9700_-NONE-_-NONE-). It is 27% of a $3.49B prime, and Technovare's other subaward of the period is $151,000. Fixed in `9d8cebe`: a subaward of $100M or more, above a tenth of its prime contract and over 20 times the subcontractor's next one (or with no other), is shown with that reason and not counted or ranked. The first live capture dropped it with the suppliers past the ranking cap; `d710692` keeps it after the ranked ones.
 
 **5. Repeated reports of one subaward added up.** Dayton T. Brown (5000256853, three reports on 2022-03-31: $30.0M shown for about $15.0M), Future Tech (5000346655), L3 Technologies (5000307012, nine reports), HII Mission Technologies (P000075408). Fixed in `9d8cebe`: a subaward number under one prime counts once, its latest report (the largest on the same day). The review's possible cases (Lockheed 5000366136, Aurora, Jabil) differ in amount and description and may be modifications; they also count once now.
 
