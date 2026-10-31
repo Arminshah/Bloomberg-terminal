@@ -48,7 +48,8 @@ M3. Screen parity
 - [x] EE: control line, box labels, Company Financials 21) to 23) with rows 11) to 16), Earnings Trends bars, news box, estimates graph (next commit); Alert, Contact IR and MODL not built
 - [x] ANR: red bar items without numbers, summary and stacked ratings chart, firms table under it (next commit); Alert, the spread chart and the ranking columns not built
 - [x] RV: Export dropdown, controls with Region and Mkt Cap > filters, segment panel, unnumbered tabs (next commit); the multiples chart, Settings and five tabs not built
-- [ ] EQS
+- [x] EQS: screens list, criteria categories, Add Criteria, Selected Screening Criteria with Matches, results on their own page with Back (next commit); Formula, Backtest and WATC not built
+- [ ] WEI
 
 ## 1. Rules that come before anything in this plan
 

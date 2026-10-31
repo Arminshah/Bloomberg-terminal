@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { CapLink } from '../components/CapLink';
 import { FnHeader } from '../components/FnHeader';
 import { DataTable, type Column } from '../components/DataTable';
 import { Chg, LivePx, SecLink, openSecurity } from '../components/cells';
 import { exportActions } from '../components/ExportActions';
 import { SimBadge } from '../components/Source';
-import { fmtBig, fmtInt, fmtIso, fmtNum, fmtTime } from '../core/format';
+import { fmtBig, fmtDay, fmtInt, fmtIso, fmtNum, fmtTime } from '../core/format';
 import { useTick } from '../data/market';
 import { calendarAvailable, earningsCalendar, requestListings } from '../data/live/earnings-calendar';
 import { FTSE_SOURCE, useFtse100, type FtseList, type MemberFigures } from '../data/live/ftse100';
@@ -44,10 +44,13 @@ import {
   type Universe,
 } from '../data/screen';
 import { resultsCsv, ScreenResults } from './ScreenResults';
-import { flash, usePanelId } from '../terminal/panel';
+import { flash, useMenu, usePanelId } from '../terminal/panel';
+import { leaveTabs, noteTab } from '../terminal/tab-history';
+import { setSubpageBack } from '../terminal/subpage';
+import { currentRoute, terminal } from '../terminal/state';
 import { savedScreens } from '../terminal/userdata';
 import type { SecurityDef } from '../data/types';
-import type { FnProps } from '../terminal/types';
+import type { FnProps, MenuItem } from '../terminal/types';
 
 /** The exclusion word a stock's sector or industry contains, if any (case does not matter). */
 export function excludedBy(d: Pick<SecurityDef, 'eq'>, exclude: string): string | undefined {
@@ -144,6 +147,21 @@ export function EQS({ route }: FnProps) {
   const [name, setName] = useState(() => named?.name ?? '');
   // The FTSE 100's results open on the paper's Results tab; Overview is the table every universe has.
   const [view, setView] = useState<'overview' | 'results'>('results');
+  // The criteria page, then the results on a page of their own (1 <GO>), Back returning (TE04 03:01).
+  const [page, setPage] = useState<'criteria' | 'results'>('criteria');
+  // Back steps from the results to the criteria as it steps through a screen's tabs (tab-history.ts).
+  const shownRoute = terminal.use((st) => currentRoute(st, panel));
+  const fresh = useRef(true);
+  useEffect(() => {
+    noteTab(panel, shownRoute, page === 'results' ? 2 : 1, (n) => setPage(n === 2 ? 'results' : 'criteria'), fresh.current);
+    fresh.current = false;
+  }, [panel, shownRoute, page]);
+  useEffect(() => () => leaveTabs(panel, shownRoute), [panel, shownRoute]);
+  useEffect(() => {
+    if (page !== 'results') return;
+    setSubpageBack(panel, () => setPage('criteria'));
+    return () => setSubpageBack(panel, undefined);
+  }, [panel, page]);
   const paperView = s.universe === 'ftse' && view === 'results';
   useEffect(() => {
     if (wanted && !named) flash(panel, `No saved screen named ${wanted}`, 'error');
@@ -206,9 +224,12 @@ export function EQS({ route }: FnProps) {
     savedScreens.set((x) => ({ screens: [...x.screens.filter((y) => y.name?.toUpperCase() !== n.toUpperCase()), def].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')) }));
     flash(panel, `Saved ${n}: SCREEN ${n.toUpperCase()} opens it`);
   };
+  // The screen being built when a saved one is opened: 10) Last Unsaved Screen brings it back.
+  const [unsaved, setUnsaved] = useState<ScreenDef | null>(null);
   const load = (n: string) => {
     const def = saved.find((x) => x.name === n);
     if (!def) return;
+    if (!name.trim() || !saved.some((x) => x.name === name.trim())) setUnsaved(s);
     setS(def);
     setName(n);
   };
@@ -286,6 +307,37 @@ export function EQS({ route }: FnProps) {
     ];
   };
 
+  // The criteria are numbered from 51), one after another across the groups; the next number adds one (TE04 03:01).
+  const critNo = (gi: number, ci: number) => 51 + s.groups.slice(0, gi).reduce((a, g) => a + g.length, 0) + ci;
+  const addNo = 51 + s.groups.reduce((a, g) => a + g.length, 0);
+  const firstOf = (cat: ScreenField['category']) => fields.find((x) => x.category === cat);
+  const addField = (field: FieldId) => {
+    const last = s.groups.length - 1;
+    const kind = FIELD[field].kind;
+    setGroups(s.groups.map((g, i) => (i === last ? [...g, { field, op: OPS[kind][0].id, value: '' }] : g)));
+  };
+  const [adding, setAdding] = useState('');
+  const addTyped = () => {
+    const t = adding.trim().toLowerCase();
+    const f = fields.find((x) => x.label.toLowerCase() === t) ?? fields.find((x) => x.label.toLowerCase().startsWith(t)) ?? fields.find((x) => x.label.toLowerCase().includes(t));
+    if (!t) return;
+    if (!f) return flash(panel, `No field named ${adding.trim()}`, 'error');
+    addField(f.id);
+    setAdding('');
+  };
+  const menu: MenuItem[] = page === 'criteria'
+    ? [
+        { n: 1, label: 'See Results', run: () => setPage('results') },
+        { n: 10, label: 'Last Unsaved Screen', run: () => { if (unsaved) { setS(unsaved); setName(''); } } },
+        ...saved.slice(0, 9).map((x, i) => ({ n: 11 + i, label: x.name ?? '', run: () => load(x.name ?? '') })),
+        ...PRESETS.slice(0, 9).map((p, i) => ({ n: 21 + i, label: p.name, run: () => applyPreset(p) })),
+        ...CATEGORIES.map((cat, i) => ({ n: 31 + i, label: cat, run: () => { const f = firstOf(cat); if (f) addField(f.id); } })),
+        { n: addNo, label: 'Add screening criteria', run: () => addCriterion(s.groups.length - 1) },
+      ]
+    : [];
+  useMenu('eqs', menu);
+  const resultCount = out.rows.length;
+
   return (
     <div className="fixed-page">
       <FnHeader
@@ -299,45 +351,106 @@ export function EQS({ route }: FnProps) {
             {s.universe === 'us' || desktopData() ? <span className="badge live">REAL</span> : <><SimBadge /> ratios; real data needs the desktop app</>}
           </>
         }
-        actions={exportActions(panel, `${(name.trim() || 'EQS').replace(/\W+/g, '_')}_results.csv`, csv)}
+        actions={[
+          {
+            n: 9801,
+            bare: true,
+            label: 'Actions',
+            onClick: () => {},
+            menu: [
+              { label: 'See Results', onClick: () => setPage('results') },
+              { label: 'Reset the Screen', onClick: () => { setS({ ...BLANK_SCREEN, universe: s.universe }); setName(''); } },
+              ...exportActions(panel, `${(name.trim() || 'EQS').replace(/\W+/g, '_')}_results.csv`, csv).map((a, i) => ({ label: a.label === 'Copy' ? 'Copy Results to Clipboard' : 'Download Results as CSV', title: a.title, sep: i === 0, onClick: a.onClick })),
+            ],
+          },
+        ]}
       />
-      <div className="chart-tools" style={{ gap: '6px 14px' }}>
-        <label className="fld" htmlFor={`eqs-universe-${panel}`}>
-          Universe
-          <select id={`eqs-universe-${panel}`} className="sel-inp" value={s.universe} onChange={(e) => switchUniverse(e.target.value as Universe)}>
-            <option value="app">The app&apos;s stocks</option>
-            <option value="us" disabled={!usAvailable}>
-              US-listed stocks (Nasdaq&apos;s list){usAvailable ? '' : ': desktop app'}
-            </option>
-            <option value="ftse" disabled={!ftseAvailable}>
-              FTSE 100 (Wikipedia&apos;s member list){ftseAvailable ? '' : ': desktop app'}
-            </option>
-          </select>
-        </label>
-        <label className="fld" htmlFor={`eqs-missing-${panel}`} title="A stock whose result turns on a value the source does not give">
-          A stock missing a value
-          <select id={`eqs-missing-${panel}`} className="sel-inp" value={s.missing} onChange={(e) => setS({ ...s, missing: e.target.value as ScreenDef['missing'] })}>
-            <option value="leave-out">is left out</option>
-            <option value="keep">is kept, marked ?</option>
-          </select>
-        </label>
-        <label className="fld" htmlFor={`eqs-exclude-${panel}`} title="Leave out stocks whose sector or industry contains any of these words, separated by commas">
-          Exclude industries
-          <input id={`eqs-exclude-${panel}`} className="inp" style={{ width: 190 }} placeholder="tobacco, casinos, defense" value={s.exclude} onChange={(e) => setS({ ...s, exclude: e.target.value })} />
-        </label>
-        <button type="button" className="btn" onClick={() => { setS({ ...BLANK_SCREEN, universe: s.universe }); setName(''); }}>
-          Reset
-        </button>
-      </div>
-      <div className="eqs-groups">
-        {cands.length > 0 && (
-          <div className="eqs-crit" title="The stocks screened, before the criteria below">
-            <span className="white">Security universe</span>
-            <span className="eqs-left muted" data-testid="eqs-universe-count">
-              {fmtInt(cands.length)}
-            </span>
+      {page === 'criteria' ? (
+      <div className="eqs-main">
+        <aside className="eqs-side" aria-label="Screens">
+          <div className="eqs-strip">My Recent Screens</div>
+          <button type="button" className="eqs-item white" disabled={!unsaved} title={unsaved ? 'Back to the screen you were building before opening a saved one' : 'The screen being built is the unsaved one'} onClick={() => { if (unsaved) { setS(unsaved); setName(''); } }}>
+            <b>10)</b> Last Unsaved Screen
+          </button>
+          {saved.slice(0, 9).map((x, i) => (
+            <button key={x.name} type="button" className={`eqs-item amber${x.name === name.trim() ? ' on' : ''}`} onClick={() => load(x.name ?? '')}>
+              <b>{11 + i})</b> {x.name}
+            </button>
+          ))}
+          <label className="eqs-item white eqs-all" htmlFor={`eqs-saved-${panel}`}>
+            <b>20)</b> All Saved Screens
+            <select id={`eqs-saved-${panel}`} className="sel-inp" aria-label="Saved screens" value={isSaved ? name.trim() : ''} onChange={(e) => load(e.target.value)}>
+              <option value="">{saved.length ? 'Choose…' : 'None yet'}</option>
+              {saved.map((x) => (
+                <option key={x.name} value={x.name}>
+                  {x.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="eqs-strip">Popular Screens</div>
+          {PRESETS.map((p, i) => (
+            <button key={p.name} type="button" className="eqs-item amber" disabled={p.universe === 'ftse' && !ftseAvailable} title={p.universe === 'ftse' ? (ftseAvailable ? 'Switches to the FTSE 100 universe' : 'The FTSE 100 universe needs the desktop app') : undefined} onClick={() => applyPreset(p)}>
+              <b>{21 + i})</b> <span>{p.name}</span>
+            </button>
+          ))}
+        </aside>
+        <section className="eqs-body">
+          <div className="eqs-asof">
+            <span className="amber">As Of</span>
+            <span className="eqs-date" title="The screen runs on today's figures">{fmtDay(Date.now())}</span>
           </div>
-        )}
+          <div className="eqs-strip">Screening Criteria</div>
+          <div className="eqs-cats">
+            {CATEGORIES.map((cat, i) => (
+              <button key={cat} type="button" className="eqs-cat" disabled={!firstOf(cat)} title={`Add a criterion on ${cat.toLowerCase()}: ${fields.filter((x) => x.category === cat).map((x) => x.label).join(', ')}`} onClick={() => { const f = firstOf(cat); if (f) addField(f.id); }}>
+                <b>{31 + i})</b> {cat}
+              </button>
+            ))}
+          </div>
+          <div className="eqs-strip">Add Criteria</div>
+          <div className="eqs-add">
+            <input className="inp eqs-add-inp" aria-label="Add criteria" placeholder="Type a field and press Enter" list={`eqs-fields-${panel}`} value={adding} onChange={(e) => setAdding(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addTyped()} />
+            <datalist id={`eqs-fields-${panel}`}>
+              {fields.map((x) => (
+                <option key={x.id} value={x.label} />
+              ))}
+            </datalist>
+            <select className="eqs-fields" aria-label="Fields" value="" onChange={(e) => e.target.value && addField(e.target.value as FieldId)}>
+              <option value="">3) Fields</option>
+              {CATEGORIES.map((cat) => (
+                <optgroup key={cat} label={cat}>
+                  {fields.filter((x) => x.category === cat).map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <div className="eqs-sel-h">
+            <span>Selected Screening Criteria</span>
+            <span>Matches</span>
+          </div>
+          <div className="eqs-groups">
+            <div className="eqs-crit eqs-universe" title="The stocks screened, before the criteria below">
+              <span className="white">Security Universe</span>
+              <select id={`eqs-universe-${panel}`} className="sel-inp" aria-label="Universe" value={s.universe} onChange={(e) => switchUniverse(e.target.value as Universe)}>
+                <option value="app">The app&apos;s stocks</option>
+                <option value="us" disabled={!usAvailable}>
+                  US-listed stocks (Nasdaq&apos;s list){usAvailable ? '' : ': desktop app'}
+                </option>
+                <option value="ftse" disabled={!ftseAvailable}>
+                  FTSE 100 (Wikipedia&apos;s member list){ftseAvailable ? '' : ': desktop app'}
+                </option>
+              </select>
+              {cands.length > 0 && (
+                <span className="eqs-left white" data-testid="eqs-universe-count">
+                  {fmtInt(cands.length)}
+                </span>
+              )}
+            </div>
         {s.groups.map((g, gi) => (
           <fieldset key={gi} className="eqs-group" aria-label={`Group ${gi + 1}`}>
             <legend>{gi === 0 ? 'All of' : 'Or all of'}</legend>
@@ -347,6 +460,7 @@ export function EQS({ route }: FnProps) {
               const listId = `eqs-dl-${c.field}-${panel}`;
               return (
                 <div key={ci} className={`eqs-crit${complete(c) ? '' : ' incomplete'}`} title={complete(c) ? f.from[s.universe] : 'Not applied until it has a value'}>
+                  <b className="eqs-n">{critNo(gi, ci)})</b>
                   <select className="sel-inp" aria-label={`Field ${at}`} value={c.field} onChange={(e) => pickField(gi, ci, e.target.value as FieldId)}>
                     {CATEGORIES.map((cat) => (
                       <optgroup key={cat} label={cat}>
@@ -407,58 +521,55 @@ export function EQS({ route }: FnProps) {
                   <button type="button" className="link-btn" aria-label={`Move criterion ${at} down`} title="Move down: criteria apply in order" disabled={ci === g.length - 1} onClick={() => moveCriterion(gi, ci, 1)}>
                     ▼
                   </button>
-                  <button type="button" className="link-btn" aria-label={`Remove criterion ${at}`} onClick={() => removeCriterion(gi, ci)}>
-                    ✕
-                  </button>
                   {left[gi]?.[ci] != null && cands.length > 0 && (
-                    <span className="eqs-left muted" data-testid={`eqs-left-${at}`} title={`Stocks left after this criterion${ci > 0 ? ' and the ones above it' : ''}${s.groups.length > 1 ? ' in this group' : ''}`}>
+                    <span className="eqs-left" data-testid={`eqs-left-${at}`} title={`Stocks left after this criterion${ci > 0 ? ' and the ones above it' : ''}${s.groups.length > 1 ? ' in this group' : ''}`}>
                       {fmtInt(left[gi][ci]!)} left
                     </span>
                   )}
+                  <button type="button" className="eqs-remove" aria-label={`Remove criterion ${at}`} title="Remove" onClick={() => removeCriterion(gi, ci)}>
+                    ⊗
+                  </button>
                 </div>
               );
             })}
-            <button type="button" className="link-btn" onClick={() => addCriterion(gi)}>
+            <button type="button" className="link-btn eqs-and" onClick={() => addCriterion(gi)}>
               + And
             </button>
           </fieldset>
         ))}
-        <div>
-          <button type="button" className="btn" onClick={() => setGroups([...s.groups, [{ field: 'cap', op: 'gte', value: '' }]])}>
-            + Or group
-          </button>
-        </div>
-      </div>
-      <div className="chart-tools">
-        <span className="amber">Preset screens</span>
-        {PRESETS.map((p) => (
-          <button key={p.name} type="button" className="chip-btn" disabled={p.universe === 'ftse' && !ftseAvailable} title={p.universe === 'ftse' ? (ftseAvailable ? 'Switches to the FTSE 100 universe' : 'The FTSE 100 universe needs the desktop app') : undefined} onClick={() => applyPreset(p)}>
-            {p.name}
-          </button>
-        ))}
-      </div>
-      <div className="chart-tools">
-        <label className="fld" htmlFor={`eqs-saved-${panel}`}>
-          Saved screens
-          <select id={`eqs-saved-${panel}`} className="sel-inp" value={isSaved ? name.trim() : ''} onChange={(e) => load(e.target.value)}>
-            <option value="">{saved.length ? 'Choose…' : 'None yet'}</option>
-            {saved.map((x) => (
-              <option key={x.name} value={x.name}>
-                {x.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <input className="inp" style={{ width: 160 }} aria-label="Screen name" placeholder="Name this screen" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} />
-        <button type="button" className="btn" disabled={!name.trim()} onClick={save}>
-          Save
-        </button>
-        {isSaved && (
-          <button type="button" className="btn" onClick={remove}>
-            Delete
-          </button>
-        )}
-      </div>
+            <div className="eqs-addrow">
+              <button type="button" className="eqs-item white" onClick={() => addCriterion(s.groups.length - 1)}>
+                <b>{addNo})</b> Add screening criteria
+              </button>
+              <button type="button" className="btn" onClick={() => setGroups([...s.groups, [{ field: 'cap', op: 'gte', value: '' }]])}>
+                + Or group
+              </button>
+            </div>
+          </div>
+          <div className="eqs-opts">
+            <label className="fld" htmlFor={`eqs-missing-${panel}`} title="A stock whose result turns on a value the source does not give">
+              A stock missing a value
+              <select id={`eqs-missing-${panel}`} className="sel-inp" value={s.missing} onChange={(e) => setS({ ...s, missing: e.target.value as ScreenDef['missing'] })}>
+                <option value="leave-out">is left out</option>
+                <option value="keep">is kept, marked ?</option>
+              </select>
+            </label>
+            <label className="fld" htmlFor={`eqs-exclude-${panel}`} title="Leave out stocks whose sector or industry contains any of these words, separated by commas">
+              Exclude industries
+              <input id={`eqs-exclude-${panel}`} className="inp" style={{ width: 170 }} placeholder="tobacco, casinos, defense" value={s.exclude} onChange={(e) => setS({ ...s, exclude: e.target.value })} />
+            </label>
+          </div>
+          <div className="eqs-opts">
+            <input className="inp" style={{ width: 160 }} aria-label="Screen name" placeholder="Name this screen" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} />
+            <button type="button" className="btn" disabled={!name.trim()} onClick={save}>
+              Save
+            </button>
+            {isSaved && (
+              <button type="button" className="btn" onClick={remove}>
+                Delete
+              </button>
+            )}
+          </div>
       <div className="note pad-s" data-testid="eqs-logic">
         Screen: {describeScreen(s)}.
         {out.excluded > 0 && ` ${out.excluded.toLocaleString('en-US')} left out for an excluded industry.`}
@@ -467,6 +578,22 @@ export function EQS({ route }: FnProps) {
             ? ` ${out.undecided.toLocaleString('en-US')} left out because a value the screen needs is missing (${missingText}).`
             : ` ${out.undecided.toLocaleString('en-US')} kept although a value the screen needs is missing (${missingText}), marked ?.`)}
         {unrankedText && ` ${unrankedText}.`}
+      </div>
+          <div className="eqs-see">
+            <button type="button" className="des-link" onClick={() => setPage('results')} title="1 <GO>">
+              <b className="des-n">1)</b> See Results <span className="eqs-count" data-testid="eqs-result-count">({fmtInt(resultCount)})</span> »
+            </button>
+          </div>
+        </section>
+      </div>
+      ) : (
+      <>
+      <div className="eqs-res-h">
+        <button type="button" className="link-btn" onClick={() => setPage('criteria')} title="<Back> or End">
+          ‹ Screening Criteria
+        </button>
+        <span className="white">{fmtInt(resultCount)} results</span>
+        <span className="muted">{describeScreen(s)}</span>
       </div>
       {s.universe === 'ftse' && (
         <nav className="tabs" aria-label="Screen results">
@@ -497,6 +624,8 @@ export function EQS({ route }: FnProps) {
           LF: the latest fiscal year in Yahoo Finance&apos;s annual statements (the app uses the latest annual figures, not interim ones). GM: gross profit over revenue. ROE: net income to common shareholders over the average of the year&apos;s opening and closing common equity. Market Cap: billions of pounds. Price:D-1: the previous session&apos;s close, pence unless marked. P/E: the last price over the year&apos;s diluted EPS. Total Return YTD: % since last year&apos;s final close, dividends reinvested.
           {latestDay ? ` Prices to ${fmtIso(latestDay)}.` : ''} Investable Universe: the plain mean of the rows below.
         </div>
+      )}
+      </>
       )}
       <div className="note pad-s">
         Where the figures come from:{' '}

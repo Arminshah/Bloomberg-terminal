@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { execute } from '../terminal/exec';
 import { panelMessages, clearFlash, flash } from '../terminal/panel';
 import { turnPage, typedPageCount } from '../terminal/paging';
-import { back, navigate, terminal } from '../terminal/state';
+import { navigate, terminal } from '../terminal/state';
+import { panelBack } from '../terminal/subpage';
 import { CHART_STYLES, primaryMnemonic, styledMnemonic } from '../terminal/legacy';
 import { settings } from '../terminal/settings';
 import { startSuggestions, suggest, type Suggestion } from '../terminal/suggest';
@@ -298,7 +299,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
       case 'Backspace':
         if (!value && !e.repeat) {
           e.preventDefault();
-          back(panel);
+          panelBack(panel);
         }
         break;
       case 'PageUp':

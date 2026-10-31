@@ -276,6 +276,17 @@ Inventory: red bar with the security box, "Export ▾" and "Settings ▾" withou
 - Not done: Settings ▾, the pencil to edit the peers, the multiples chart (no source gives the peers' forward P/E history), tabs ESG, EPS Preview, Ownership, Credit and Custom, other currencies.
 - Checked: `e2e/reference-codes.spec.ts` (columns and order, pinning as 100) and 101), the segment panel's Whole Firm, the unnumbered tab, the Export dropdown, Mkt Cap > leaving one row and restoring them, the Median and percentile tests), the whole browser and desktop suites.
 
+### M3 EQS (E3)
+
+Evidence: TE04 03:01 (2023).
+
+Inventory: the hint row "1 <GO> for Results, <Back> to Return"; red bar "Formula", "Actions ▾" and "Backtest" without numbers; at the left "My Recent Screens" (10) Last Unsaved Screen, the saved screens from 11), 20) All Saved Screens) and "Popular Screens" (21) on), each under a grey strip, entries amber and the fixed ones white; at the right "As Of" with an amber date, "Screening Criteria" with categories 31) to 36) in three columns, "Add Criteria" with a full-width amber field and "3) Fields", "Selected Screening Criteria" with a Matches column: Security Universe and its count, then 51) to 55) each with a drag handle, its count in amber and a red remove mark, "56) Add screening criteria"; at the bottom right "1) See Results | WATC »". The results open on a page of their own.
+
+- Now: that layout, with the app's own presets as the popular screens, its six field categories as 31) to 36) (each adds a criterion on its first field), Add Criteria taking a typed field name (Enter adds it) and 3) Fields listing every field by category, the universe chooser on the Security Universe line, the criteria numbered from 51) across the groups with their matches and a red ⊗, the next number adding one. 1) See Results shows the match count and opens the results on their own page; Back (End, the BACK key, the toolbar's arrow, Backspace on an empty line) returns to the criteria. 10) Last Unsaved Screen brings back the screen being built before a saved one was opened. Actions ▾ holds See Results, Reset and the results' Copy and Download.
+- Kept from the app: OR groups, ranks (top or bottom N), periods, the missing-value rule, excluded industries, saving and deleting by name, the FTSE 100 paper view with its Results and Overview, the logic line and the sources note.
+- Not done: Formula, Backtest, the drag handles (▲▼ move a criterion instead), "More Screens", WATC (results open on EQS's own page until WATC is built in M5), the As Of date as a choice (the screen runs on today's figures).
+- Checked: `e2e/reference-codes.spec.ts` (hint, strips, categories, counts against Matches, the results page with as many rows as matches, Back, a typed field added as 2.2, ranks and periods on the results page), `desktop-e2e/provider-ipc.spec.ts` (Nasdaq's list, the FTSE 100 paper screen and its refusal case, through the results page), the whole browser and desktop suites.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

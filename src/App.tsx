@@ -16,10 +16,11 @@ import { setTimeZone } from './core/format';
 import { lookupFn } from './terminal/registry';
 import { settings } from './terminal/settings';
 import { colourScheme } from './terminal/palette';
-import { back, currentRoute, panelCount, rowsOrDefault, setActive, splitFor, terminal, soloPanel } from './terminal/state';
+import { currentRoute, panelCount, rowsOrDefault, setActive, splitFor, terminal, soloPanel } from './terminal/state';
 import { rowsGrid } from './terminal/rows-layout';
 import { Splitters } from './components/Splitters';
 import { startBackground } from './terminal/background';
+import { panelBack } from './terminal/subpage';
 import { DemoBanner } from './components/NoDataSource';
 import { demoMode } from './data/demo';
 import { startIexPrices } from './data/live/iex-engine';
@@ -162,7 +163,7 @@ export function App() {
         const emptyCommand = !!t?.classList?.contains('cmd-input') && !t.value;
         if (!isTyping(e.target) || emptyCommand) {
           e.preventDefault();
-          back(active);
+          panelBack(active);
           return;
         }
       }
@@ -217,7 +218,7 @@ export function App() {
       }
       if (e.key === 'Backspace') {
         e.preventDefault();
-        back(active);
+        panelBack(active);
         return;
       }
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
