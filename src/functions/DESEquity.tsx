@@ -125,6 +125,16 @@ function marketValueRep(sec: SecurityDef): number {
 // ---------------------------------------------------------------- 1) Profile
 
 /** A chief executive's title, not a former or interim one. */
+/**
+ * The head office line: the source's city and state or country, then the country code where the source has not
+ * already named the country ("Cupertino, CA, US", but "London, United Kingdom" rather than "London, United Kingdom, GB").
+ */
+export function headOffice(hq: string, country: string): string {
+  if (!hq) return '';
+  if (!country || hq.endsWith(country) || (COUNTRY_NAMES[country] && hq.endsWith(COUNTRY_NAMES[country]))) return hq;
+  return `${hq}, ${country}`;
+}
+
 export const isChiefExecutive = (title: string) => /\b(?:CEO|Chief Executive)\b/i.test(title) && !/\b(?:former|retired|interim)\b/i.test(title);
 
 /**
@@ -240,7 +250,7 @@ function ProfilePage({ sec }: { sec: SecurityDef }) {
     return list;
   }, [panel, sec.id, officers.length, eq.web]); // eslint-disable-line react-hooks/exhaustive-deps
   useMenu('des-boxes', items);
-  const city = eq.hq ? `${eq.hq}${sec.country && !eq.hq.endsWith(sec.country) ? `, ${sec.country}` : ''}` : '';
+  const city = headOffice(eq.hq, sec.country ?? '');
   // Without the source's beta, the one BETA works out: two years of weekly returns against the local index.
   const workedBeta = engine.realOnly && !Number.isFinite(eq.beta) ? localBeta(sec.id) : NaN;
   const benchId = defaultBenchmark(sec, (x) => !!engine.get(x));
