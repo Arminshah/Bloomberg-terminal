@@ -50,6 +50,17 @@ Evidence: TE01 03:11, TE06 04:15 (zoomed), TE01 01:41 (whole window, right end).
 - Unverified: what the window button's "▾" opens in the frames (not shown); here it maximises the panel.
 - Checked: `e2e/look.spec.ts` (order of the items, colours, no boxes, maximise by button and by double-click, Message), the whole browser and desktop suites.
 
+### M1.5 Autocomplete (E3)
+
+Evidence: TE01 05:09 (typed "OF"), TE04 01:13 (typed "WEI"), TE02 05:47 and 06:01 (typed "G"). Sampled on TE01 05:09: panel `#1E1E1E`, lit row `#133C68` (the pack measures `#153B67`).
+
+- Now: the list opens under the command row across the whole panel on `#1E1E1E`, with a thin grey line on top. Headings are white capitals (FUNCTIONS, SECURITIES). Function rows: the command in white and the title in amber, the typed letters bold in both; a circular history mark before functions used recently. Security rows: ticker and yellow key in white with the typed letters bold, the name in amber. "More Functions…" and a new "More Securities…" (opens the security finder with the text typed) in grey italics under the titles. The row the arrows light is dark blue `#153B67` and keeps its colours. No category column.
+- The first row is lit only when it is what Enter runs anyway (WEI typed, WEI listed first). The frames light the first row whatever was typed; doing that here would make Enter run a suggestion instead of the command typed (with its security and arguments), so Enter keeps running what was typed unless a row was chosen with the arrows.
+- Kept from the app: the favourites and recent securities listed before anything is typed, with their prices, and the hint line at the foot ("↑↓ select · Enter run…").
+- Not done, no source: natural-language rows ("SEARCH WHO OWNS …") and "(Did You Mean?)" rows; the app's suggestions have neither. The amber italic descriptors after some security names (TE04 01:13) are the provider's own data.
+- The watchlist's add-a-security list uses the same building blocks; the new look is limited to the command line, so the watchlist's list is unchanged.
+- Checked: `e2e/look.spec.ts` (colours, bold letters, no category column, lit row, More Functions and More Securities), the whole browser suite.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

@@ -23,7 +23,7 @@ M1. Window chrome
 - [x] 1.1 Red function bar (`f2c4c62`)
 - [x] 1.2 Command line (`201adf0`)
 - [x] 1.3 Two-line quote strip (`3105797`)
-- [ ] 1.4 Toolbar row
+- [x] 1.4 Toolbar row (`ddcdd45`)
 - [ ] 1.5 Autocomplete
 - [ ] 1.6 Section strips and the Suggested Functions footer
 - [ ] 1.7 Tab strip as the title bar

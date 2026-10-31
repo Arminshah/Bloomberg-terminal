@@ -10,6 +10,7 @@ import { nameSuggestions } from '../terminal/name-search';
 import { favourites } from '../terminal/userdata';
 import type { Route } from '../terminal/types';
 import { lookupFn } from '../terminal/registry';
+import { parseCommand } from '../terminal/commands';
 import { engine, useQuote } from '../data/market';
 import { QuoteLine1, QuoteLine2 } from './QuoteStrip';
 
@@ -103,6 +104,7 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   const mnemonics = settings.use((s) => s.mnemonics);
   const favIds = favourites.use((s) => s.ids);
   const recentSecs = terminal.use((s) => s.recentSecs);
+  const recentFns = terminal.use((s) => s.recentFns);
 
   const valueRef = useRef(value);
   valueRef.current = value;
@@ -219,11 +221,21 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
   };
 
   const submit = () => sel >= 0 && items[sel] ? choose(items[sel]) : run(valueRef.current);
+  // The first row is lit, as the terminal lights it, when it is what Enter would run anyway (WEI typed, WEI first);
+  // Enter always runs what was typed unless a row was chosen with the arrows.
+  const shownSel = sel >= 0 ? sel : items[0]?.execute && sameRoute(value, items[0].execute) ? 0 : -1;
   // The word being typed: bold in the functions' titles, and the search behind "More Functions…".
   const typed = value.trim().split(/\s+/).at(-1) ?? '';
   // The directory searched for it, opened as a route: typed as a command, "HELP CORP" would open the CORP market.
   const moreFunctions = (text: string) => {
     navigate(panel, { fn: 'HELP', args: text });
+    setValue('');
+    setOpen(false);
+    setSel(-1);
+  };
+  // "More Securities…": the security finder (SECF) with the typed text.
+  const moreSecurities = (text: string) => {
+    navigate(panel, { fn: 'SEARCH', args: text });
     setValue('');
     setOpen(false);
     setSel(-1);
@@ -352,7 +364,10 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
         <div className="ac" id={`cmd-suggestions-${panel}`} ref={listRef} role="listbox" aria-label="Suggested functions and securities">
           {items.map((s, i) => {
             const head = i === 0 || items[i - 1].kind !== s.kind;
-            const lastFn = s.kind === 'fn' && (i + 1 === items.length || items[i + 1].kind !== 'fn');
+            const last = i + 1 === items.length || items[i + 1].kind !== s.kind;
+            const on = i === shownSel;
+            const recentFn = s.kind === 'fn' && recentFns.includes(s.primary);
+            const command = s.kind === 'fn' ? `${s.scope ? `${s.scope} ` : ''}${mnemonics ? suggestedMnemonic(s) : s.primary}` : s.primary;
             return [
               head ? (
                 <div key={`h${i}`} className="ac-head">
@@ -364,24 +379,27 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
                 id={`cmd-option-${panel}-${i}`}
                 data-i={i}
                 role="option"
-                aria-selected={i === sel}
-                className={`ac-item${i === sel ? ' sel' : ''}`}
+                aria-selected={on}
+                className={`ac-item${on ? ' sel' : ''}`}
                 onMouseDown={(e) => {
                   e.preventDefault();
                   choose(s);
                 }}
               >
+                <span className="ac-hist" title={recentFn ? 'Used recently' : undefined}>{recentFn ? <HistoryIcon /> : null}</span>
                 <span className={s.kind === 'fn' ? 'fn' : s.kind === 'fav' ? 'k fav' : 'k'} title={s.kind === 'fn' ? `${s.primary}: ${s.secondary}` : undefined}>
-                  {s.kind === 'fn' && s.scope ? `${s.scope} ` : ''}
-                  {s.kind === 'fn' && mnemonics ? suggestedMnemonic(s) : s.primary}
+                  {boldPrefix(command, s.kind === 'fn' && s.scope ? '' : typed)}
                 </span>
-                <span>{s.kind === 'fn' ? boldTyped(s.secondary, typed) : s.secondary}</span>
-                <span className="tag">{s.tag}</span>
+                <span className="ac-title">{s.kind === 'fav' || s.kind === 'recent' ? s.secondary : boldTyped(s.secondary, typed)}</span>
+                {/* No category column (TE01 05:09); the list shown before typing keeps each security's price. */}
+                <span className="tag">{s.kind === 'fav' || s.kind === 'recent' ? s.tag : ''}</span>
               </div>,
-              lastFn && typed ? (
-                <button key="more" type="button" className="ac-more" onMouseDown={(e) => e.preventDefault()} onClick={() => moreFunctions(typed)} title={`Every function matching ${typed}, in HELP`}>
-                  More Functions…
-                </button>
+              last && typed && (s.kind === 'fn' || s.kind === 'sec') ? (
+                <div key={`more-${s.kind}`} className="ac-more-row">
+                  <button type="button" className="ac-more" onMouseDown={(e) => e.preventDefault()} onClick={() => (s.kind === 'fn' ? moreFunctions(typed) : moreSecurities(value.trim()))} title={s.kind === 'fn' ? `Every function matching ${typed}, in HELP` : `Every security matching ${value.trim()}, in the security finder`}>
+                    {s.kind === 'fn' ? 'More Functions…' : 'More Securities…'}
+                  </button>
+                </div>
               ) : null,
             ];
           })}
@@ -394,6 +412,32 @@ export function CommandLine({ panel, route }: { panel: number; route: Route }) {
     {/* The row under the command line carries its hints and messages, in white. */}
     <div className="cmd-hints" aria-live="polite">{msg ? <span className={`cmd-msg ${msg.kind}`}>{msg.text}</span> : quoteShown && sec ? <QuoteLine2 sec={sec} /> : null}</div>
     </>
+  );
+}
+
+/** Whether two command texts open the same screen ("WEI" and "MARKET"). */
+function sameRoute(a: string, b: string): boolean {
+  if (!a.trim()) return false;
+  const x = parseCommand(a, lookupFn);
+  const y = parseCommand(b, lookupFn);
+  return x.kind === 'route' && y.kind === 'route' && x.fn === y.fn && (x.sec ?? '') === (y.sec ?? '') && (x.args ?? '') === (y.args ?? '');
+}
+
+/** The typed letters in bold at the start of a command or ticker ("**WEI**F", "**OF**C US Equity"). */
+function boldPrefix(text: string, typed: string): ReactNode {
+  const t = typed.trim();
+  if (!t || !text.toUpperCase().startsWith(t.toUpperCase())) return text;
+  return [<b key="b">{text.slice(0, t.length)}</b>, text.slice(t.length)];
+}
+
+/** The circular arrow before a function used recently. */
+function HistoryIcon() {
+  return (
+    <svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true">
+      <path d="M2.2 6a3.8 3.8 0 1 0 1.1-2.7" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M1.4 1.6v2.4h2.4" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M6 3.8V6l1.5 1" fill="none" stroke="currentColor" strokeWidth="1.1" />
+    </svg>
   );
 }
 

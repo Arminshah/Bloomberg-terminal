@@ -517,6 +517,29 @@ span.ellipsis, .tbl td span.ellipsis { vertical-align: top; }
 .ac-more:hover { text-decoration: underline; }
 .ac-foot { padding: 3px 8px; color: var(--faint); font-size: var(--fs-s); border-top: 1px solid var(--line); }
 
+/* The command line's suggestions, as the 2024 frames draw them (TE01 05:09, TE04 01:13): full width under the command
+   row on #1E1E1E with a thin grey line on top; white headings; the command in white and its title in amber, the typed
+   letters bold in both; a history mark on functions used recently; "More Functions…" in grey italics under the
+   titles; the lit row dark blue with its colours kept; no category column. Scoped to .cmd: the watchlist's own add
+   list keeps its look. */
+.cmd .ac { left: 0; right: 0; background: #1e1e1e; border: 0; border-top: 1px solid #5c5c5c; }
+.cmd .ac-head { padding: 7px 10px 3px 26px; color: var(--white); }
+.cmd .ac-head:not(:first-child) { margin-top: 4px; border-top: 1px solid #3a3a3a; }
+.cmd .ac-item, .cmd .ac-more-row { grid-template-columns: 14px minmax(110px, max-content) minmax(0, 1fr) auto; gap: 0 12px; padding: 2px 10px 2px 8px; }
+.cmd .ac-more-row { display: grid; }
+.cmd .ac-hist { display: inline-flex; align-self: center; color: #c8c8c8; }
+.cmd .ac-item .fn, .cmd .ac-item .k { color: var(--white); font-weight: 500; }
+.cmd .ac-item .fn b, .cmd .ac-item .k b { color: var(--white); font-weight: 600; }
+.cmd .ac-item .k.fav { color: var(--white); }
+.cmd .ac-item > .ac-title { color: var(--amber); }
+.cmd .ac-item > .ac-title b { color: var(--amber); font-weight: 600; }
+.cmd .ac-item.sel, .cmd .ac-item:hover { background: #153b67; }
+.cmd .ac-item.sel *, .cmd .ac-item:hover * { color: inherit !important; }
+.cmd .ac-item.sel .fn, .cmd .ac-item.sel .k, .cmd .ac-item:hover .fn, .cmd .ac-item:hover .k { color: var(--white) !important; }
+.cmd .ac-item.sel > .ac-title, .cmd .ac-item:hover > .ac-title { color: var(--amber) !important; }
+.cmd .ac-item.sel .ac-hist, .cmd .ac-item:hover .ac-hist { color: #c8c8c8 !important; }
+.cmd .ac-more-row .ac-more { grid-column: 3; width: auto; padding: 1px 0 4px; color: #a8a8a8; font-style: italic; }
+
 /* --------------------------------------------------------- function header */
 .fnh {
   position: sticky;

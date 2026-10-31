@@ -208,25 +208,50 @@ test("each panel's toolbar names its security and function as the 2024 frames do
   expect(errors).toEqual([]);
 });
 
-test('suggestions read as the terminal lists them: amber heading, white mnemonics, typed letters bold, More Functions…', async ({ page }) => {
+test('suggestions read as the 2024 frames list them: white heading, white command and amber title with the typed letters bold, grey More Functions…', async ({ page }) => {
   const errors = await boot(page);
   const input = page.locator('#cmd-0');
+  const colour = (loc: ReturnType<typeof page.locator>, prop = 'color') => loc.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
   await input.click();
   await page.keyboard.type('corp');
   const list = page.locator('.panel').first().locator('.ac');
+  // TE01 05:09, TE04 01:13: the list spans the row on #1E1E1E under a thin grey line; headings are white.
+  expect(await colour(list, 'background-color')).toBe('rgb(30, 30, 30)');
   await expect(list.locator('.ac-head').first()).toHaveText('FUNCTIONS');
-  expect(await list.locator('.ac-head').first().evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 158, 27)');
+  expect(await colour(list.locator('.ac-head').first())).toBe('rgb(255, 255, 255)');
   const item = list.locator('.ac-item', { hasText: 'Corporate Actions' }).first();
-  await expect(item.locator('b')).toHaveText('Corp');
-  expect(await item.locator('.fn').evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 255, 255)');
+  await expect(item.locator('.ac-title b')).toHaveText('Corp');
+  expect(await colour(item.locator('.fn'))).toBe('rgb(255, 255, 255)');
+  expect(await colour(item.locator('.ac-title'))).toBe('rgb(255, 158, 27)');
+  // No category column on function rows.
+  await expect(item.locator('.tag')).toHaveText('');
   const more = list.getByRole('button', { name: 'More Functions…' });
-  expect(await more.evaluate((el) => [getComputedStyle(el).fontStyle, getComputedStyle(el).color])).toEqual(['italic', 'rgb(77, 155, 230)']);
+  expect(await more.evaluate((el) => [getComputedStyle(el).fontStyle, getComputedStyle(el).color])).toEqual(['italic', 'rgb(168, 168, 168)']);
+  // The arrows light a row dark blue and keep its colours.
+  await page.keyboard.press('ArrowDown');
+  const lit = list.locator('.ac-item.sel');
+  expect(await colour(lit, 'background-color')).toBe('rgb(21, 59, 103)');
+  expect(await colour(lit.locator('.ac-title'))).toBe('rgb(255, 158, 27)');
   await more.click();
   await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('HELP');
   await expect(page.locator('.panel').first().locator('.fnh-title')).toContainText('CORP');
   // The directory lists the functions that match, not every function.
   await expect(page.locator('.panel').first().locator('.sect', { hasText: 'Corporate Actions' })).toBeVisible();
   await expect(page.locator('.panel').first().getByText('World Equity Indices', { exact: true })).toHaveCount(0);
+  // Typed in full, a function's row comes first and lit, its typed letters bold; Enter runs it.
+  await input.click();
+  await page.keyboard.type('WEI');
+  const first = list.locator('.ac-item').first();
+  await expect(first).toHaveClass(/\bsel\b/);
+  await expect(first.locator('.fn b')).toHaveText('WEI');
+  // A security's rows: ticker white with the typed letters bold, name amber, then More Securities… opens the finder.
+  await input.fill('');
+  await page.keyboard.type('micro');
+  const sec = list.locator('.ac-item', { hasText: 'MSFT US Equity' }).first();
+  expect(await colour(sec.locator('.k'))).toBe('rgb(255, 255, 255)');
+  expect(await colour(sec.locator('.ac-title'))).toBe('rgb(255, 158, 27)');
+  await list.getByRole('button', { name: 'More Securities…' }).click();
+  await expect(page.locator('.panel').first().locator('.fnh-code')).toHaveText('SEARCH');
   expect(errors).toEqual([]);
 });
 
