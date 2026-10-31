@@ -26,6 +26,7 @@ import { NoBondNotice, sourceLabel } from '../components/Source';
 import { realFutureContract } from '../data/realfut';
 import { yieldMethod } from '../data/live/govyields';
 import { EQUITY_DES_TABS, EquityDES } from './DESEquity';
+import { IndexMembers } from './DESIndexMembers';
 import { usYieldMethod } from '../data/live/ust';
 
 function RelatedMenu({ sec, fns }: { sec: SecurityDef; fns: [string, string][] }) {
@@ -179,6 +180,7 @@ function IndexDES({ sec }: { sec: SecurityDef }) {
         </Section>
         <Section title="1-year price">
           <PriceChartMini sec={sec} />
+          <IndexMembers sec={sec} />
         </Section>
       </div>
       {members.length > 0 && sec.ticker !== 'VIX' && (
