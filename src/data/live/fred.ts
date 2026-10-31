@@ -1,3 +1,4 @@
+import { blsReleaseTimes, parseBlsSchedule } from './bls-schedule';
 import { fmtMonthDayNum } from '../../core/format';
 import { createStore } from '../../core/store';
 import { setFeed } from './status';
@@ -34,6 +35,8 @@ export interface FredState {
   at: number;
   /** Confirmation and failed attempts for each series/release; a retained value does not renew its check. */
   health: Record<string, DatasetHealth>;
+  /** Release id -> day -> the time in New York the BLS's release schedule gives ("08:30"), for the BLS's releases. */
+  releaseTimes?: Record<number, Record<string, string>>;
 }
 
 export type FirstRelease = [date: string, value: number, published: string];
@@ -529,7 +532,17 @@ async function loadCalendars(): Promise<boolean> {
       any ||= !answer.cached;
     }
   }
-  fredData.set((s) => ({ ...s, releases, health: { ...s.health, ...health }, ...keyState(s, stop) }));
+  // The BLS's own schedule gives its releases' times, which FRED does not; it needs no FRED key.
+  const bls = await window.arminDesktop?.official?.('blsSchedule', new Date().toISOString().slice(0, 10)).catch(() => undefined);
+  const schedule = bls?.text ? parseBlsSchedule(bls.text) : undefined;
+  const releaseTimes = schedule && !('error' in schedule) ? blsReleaseTimes(schedule) : undefined;
+  // Without SEC_USER_AGENT nothing was asked, so nothing failed: the dates simply show without times.
+  if (!bls?.missing) {
+    health['bls-schedule'] = datasetHealth(fredData.get().health['bls-schedule'], releaseTimes
+      ? { at: Date.now(), ok: true, source: 'BLS release schedule' }
+      : { at: Date.now(), ok: false, source: 'BLS release schedule', error: schedule && 'error' in schedule ? schedule.error : `The BLS answered ${bls?.status ? `HTTP ${bls.status}` : 'nothing'}.` });
+  }
+  fredData.set((s) => ({ ...s, releases, ...(releaseTimes ? { releaseTimes } : {}), health: { ...s.health, ...health }, ...keyState(s, stop) }));
   return any;
 }
 

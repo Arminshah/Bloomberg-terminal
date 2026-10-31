@@ -66,6 +66,7 @@ interface Fixtures {
   congress?: boolean;
   ecbFx?: boolean;
   ecbSpf?: boolean;
+  blsSchedule?: boolean;
   centralBankRates?: boolean;
   policyDecisions?: boolean;
   policyDown?: boolean;
@@ -76,7 +77,7 @@ interface Fixtures {
   treasuryCurve?: boolean;
   spdr?: boolean;
   asic?: boolean;
-  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; treasuryDirect?: string[]; ecbSpf?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
+  calls: { nasdaqOptions?: string[]; bis?: string[]; ssga?: string[]; asic?: string[];  wikipedia?: { search: string; agent: string }[]; fiscal?: string[]; treasuryDirect?: string[]; ecbSpf?: string[]; blsSchedule?: string[]; cftc?: { ds: string; single: boolean }[]; bea?: string[]; eia?: { path: string; keyed: boolean; series: string[] }[]; congressGov?: { path: string; keyed: boolean }[]; imf?: string[]; fred?: string[]; ecbFx?: string[]; congress?: string[]; sec13f?: string[]; openfigi?: { jobs: { idType: string; idValue: string; exchCode: string }[]; keyed: boolean }[]; fts?: string[]; usaspending?: string[]; segments?: string[]; fmp: number; marketaux: number; alpaca: string[]; options: string[]; alpacaNews: string[]; google: string[]; finnhub: string[]; yahoo: string[]; retired: string[]; tipranks: { method: string; name?: string; keyed: boolean }[] };
 }
 type FixtureGlobal = typeof globalThis & { __desktopFixtures: Fixtures };
 type Desktop = { app: ElectronApplication; page: Page; errors: string[] };
@@ -647,6 +648,23 @@ test("ECFC shows the IMF's World Economic Outlook for the regions and major econ
   const asked = (await calls(app)).imf ?? [];
   expect(asked).toContain('/external/datamapper/api/v1/NGDP_RPCH');
   expect(asked).toContain('/external/datamapper/api/v1/PCPIPCH');
+});
+
+test("the BLS's release schedule is asked only with the owner's SEC_USER_AGENT contact, which bls.gov requires", async ({ desktop: { app, page } }) => {
+  await app.evaluate(() => {
+    (globalThis as FixtureGlobal).__desktopFixtures.blsSchedule = true;
+    delete process.env.SEC_USER_AGENT;
+  });
+  // Without a contact nothing is sent.
+  expect(await page.evaluate(() => window.arminDesktop!.official('blsSchedule', '2026-10-31'))).toMatchObject({ status: 0, text: '', missing: 'SEC_USER_AGENT' });
+  expect((await calls(app)).blsSchedule ?? []).toEqual([]);
+  await app.evaluate(() => {
+    process.env.SEC_USER_AGENT = 'Armin Desktop Test desktop-fixture@example.invalid';
+  });
+  const answer = await page.evaluate(() => window.arminDesktop!.official('blsSchedule', '2026-10-31'));
+  expect(answer.status).toBe(200);
+  expect(answer.text).toContain('SUMMARY:Employment Situation');
+  expect((await calls(app)).blsSchedule).toEqual(['Armin Desktop Test desktop-fixture@example.invalid']);
 });
 
 test("ECOFORECASTS shows the ECB's Survey of Professional Forecasters for the euro area, with each change since the round before", async ({ desktop: { app, page } }) => {

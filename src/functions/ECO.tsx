@@ -173,7 +173,7 @@ export function ECO(_: FnProps) {
             const soon = !e.date && !released && e.time - now < 3600_000 && e.time > now;
             return (
               <tr key={e.id} data-policy-status={e.policyStatus} data-policy-date={e.policyStatus ? e.policyDecision?.date ?? e.id.split(':').at(-1) : undefined} data-policy-outcome={e.policyDecision?.action} className={`${band % 2 ? 'eco-band' : ''}${released ? '' : ' eco-ahead'}`}>
-                <td className={soon ? 'yellow b' : undefined} title={e.date ? e.kind === 'rate' ? 'The policy statement gives no exact publication time' : 'FRED gives the release date, not the time' : `${WEEKDAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]} ${md}`}>
+                <td className={soon ? 'yellow b' : undefined} title={e.date ? e.kind === 'rate' ? 'The policy statement gives no exact publication time' : 'FRED gives the release date, not the time' : `${WEEKDAYS[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]} ${md}${e.timeFrom ? `; time from the ${e.timeFrom}` : ''}`}>
                   <span className="eco-date">{md}</span> {e.date ? '--:--' : fmtTime(e.time, false)}
                 </td>
                 <td className="amber">{e.country}</td>

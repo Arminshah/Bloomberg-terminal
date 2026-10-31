@@ -105,6 +105,8 @@ export interface EcoEvent {
   real?: boolean;
   /** For an event whose source gives the day but not the time (FRED release dates): that day, ISO. */
   date?: string;
+  /** Where a real event's time of day comes from, when not from the source of its figures ("BLS release schedule"). */
+  timeFrom?: string;
   /** Official policy announcement evidence, distinct from the daily effective-rate series. */
   policyDecision?: PolicyDecision;
   policyStatus?: 'confirmed' | 'awaiting-publication' | 'statement-unavailable' | 'scheduled';
@@ -304,8 +306,9 @@ export function newYorkDate(now: number): string {
  * US releases from the FRED API: the agencies' scheduled dates (FRED gives no
  * time of day) and the values published for each release's period. An event
  * sits at noon UTC of its date so it sorts into the right day; screens show
- * its date, never a time. Actual and prior are the figures as currently
- * published, so they include any revisions since.
+ * its date, never a time, unless the BLS's release schedule lists the release
+ * on that day: then it has the BLS's time in New York. Actual and prior are
+ * the figures as currently published, so they include any revisions since.
  */
 /**
  * The days a US event is published. FRED files some dates of other reports under a release:
@@ -337,15 +340,17 @@ function usReleases(from: number, to: number, now: number): EcoEvent[] {
   for (const ev of US_EVENTS) {
     for (const d of releaseDays(ev, st.releases)) {
       const [y, m, day] = d.split('-').map(Number);
-      const t = Date.UTC(y, m - 1, day, 12);
-      if (t < from || t > to) continue;
+      const noon = Date.UTC(y, m - 1, day, 12);
+      if (noon < from || noon > to) continue;
+      const hhmm = st.releaseTimes?.[ev.rid]?.[d];
       const p = expectedPeriod(ev, Date.UTC(y, m - 1, day));
       const obs = st.series[ev.series];
       const prior = valueAt(obs, previousPeriod(p, ev.freq), ev.calc, ev.freq, ev.scale);
       out.push({
         id: `US:${ev.name}:${d}`,
-        time: t,
-        date: d,
+        ...(hhmm
+          ? { time: zonedToUtc(y, m - 1, day, Number(hhmm.slice(0, 2)), Number(hhmm.slice(3, 5)), 'America/New_York'), timeFrom: 'BLS release schedule' }
+          : { time: noon, date: d }),
         country: 'US',
         name: ev.name,
         period: fredPeriodLabel(p, ev.freq),

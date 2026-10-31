@@ -428,6 +428,12 @@ net.fetch = async (input, init) => {
     }
   }
   // With fixtures.ecbFx, the ECB's reference rates as published for 25 to 30 June 2026 (tests/fixtures/ecb-exr-2026-06.csv).
+  // The BLS's release calendar as www.bls.gov sent it on 31 October 2026 (trimmed); each request's User-Agent is kept.
+  if (fixtures.blsSchedule && url.hostname === 'www.bls.gov' && url.pathname === '/schedule/news_release/bls.ics') {
+    const h = init?.headers;
+    fixtures.calls.blsSchedule = [...(fixtures.calls.blsSchedule ?? []), (typeof h?.get === 'function' ? h.get('User-Agent') : h?.['User-Agent']) ?? ''];
+    return new Response(fs.readFileSync(path.join(__dirname, '../tests/fixtures/bls-schedule-2026-10-31.ics'), 'utf8'), { status: 200, headers: { 'Content-Type': 'text/calendar' } });
+  }
   // The ECB's Survey of Professional Forecasters as the Data Portal answered on 31 October 2026 (trimmed).
   if (fixtures.ecbSpf && url.hostname === 'data-api.ecb.europa.eu' && url.pathname.startsWith('/service/data/SPF/')) {
     fixtures.calls.ecbSpf = [...(fixtures.calls.ecbSpf ?? []), url.pathname + url.search];
