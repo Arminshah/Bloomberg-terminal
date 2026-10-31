@@ -301,6 +301,19 @@ async function equity(t) {
         const diagnostics = await quoteDiagnostics(t, shownDay, b);
         if (diagnostics) for (const failure of failures) Object.assign(failure, assurance.sanitize(references.withQuoteDiagnostics(failure, diagnostics, screenSnapshot(`${t} US Equity BQ`))));
       }
+      // A high or low beyond the tolerance against Tiingo is decided by Nasdaq's official historical row for the
+      // session; until that row is published the figure stays unresolved, failed by neither source alone.
+      const extremes = rows.slice(firstComparison).filter((row) => row.status === 'FAIL' && (row.field === 'High' || row.field === 'Low'));
+      if (extremes.length) {
+        const official = await nasdaq(t, `historical?assetclass=stocks&fromdate=${d.day}&todate=${d.day}&limit=5`);
+        const row = official.ok ? references.nasdaqOfficialRow(official.json, d.day) : null;
+        for (const failure of extremes) {
+          rows.splice(rows.indexOf(failure), 1);
+          const tiingoSaid = `Tiingo's ${failure.field.toLowerCase()} for ${d.day} is ${failure.ref}, beyond the tolerance`;
+          if (row) compare('quote', t, failure.field, failure.app, failure.field === 'High' ? row.high : row.low, TOLERANCE.highLow, `Nasdaq official ${failure.field.toLowerCase()} ${d.day}`, `${tiingoSaid}; Nasdaq's official historical row decides.`);
+          else add({ status: 'INCOMPLETE', area: 'quote', item: t, field: failure.field, app: failure.app, ref: failure.ref, refName: failure.refName, detail: `${tiingoSaid}; Nasdaq's official historical row for ${d.day} is ${official.ok ? 'not published yet' : `unavailable (${official.kind})`}, so the figure is not decided.` });
+        }
+      }
     }
     // The previous close: the session before the one shown (today's, while it trades).
     const ref = sessionOver ? (at > 0 ? b[at - 1] : undefined) : b.filter((x) => x.day < iso(now)).pop();

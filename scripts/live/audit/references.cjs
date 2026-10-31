@@ -179,4 +179,22 @@ function withProfileReturnCapture(failure, snapshot, referenceObservation) {
   return { ...failure, capturedReturns: { capturedAt, state, recomputedYtd }, referenceObservation, detail: [detail, failure.detail].filter(Boolean).join('; ') };
 }
 
-module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics, capturedQuote, withQuoteCapture, withProfileReturnCapture };
+/**
+ * Nasdaq's official historical row for one session ({data: {tradesTable: {rows: [{date: "10/29/2026", open: "$348.00",
+ * high, low, close, volume: "42,582,130"}]}}}), as numbers; null when the row is not published yet or not usable.
+ */
+function nasdaqOfficialRow(json, day) {
+  const rows = json?.data?.tradesTable?.rows;
+  if (!Array.isArray(rows) || !/^\d{4}-\d{2}-\d{2}$/.test(String(day))) return null;
+  const [y, m, d] = day.split('-');
+  const row = rows.find((r) => r?.date === `${m}/${d}/${y}`);
+  if (!row) return null;
+  const n = (v) => {
+    const x = Number(String(v ?? '').replace(/[$,\s]/g, ''));
+    return Number.isFinite(x) && x > 0 ? x : NaN;
+  };
+  const out = { day, open: n(row.open), high: n(row.high), low: n(row.low), close: n(row.close), volume: n(row.volume) };
+  return Number.isFinite(out.high) && Number.isFinite(out.low) && out.high >= out.low ? out : null;
+}
+
+module.exports = { referenceEnd, invalidDailyBars, splitFactorsAt, requestBudget, quoteProbeDays, quoteProbe, withQuoteDiagnostics, capturedQuote, withQuoteCapture, withProfileReturnCapture, nasdaqOfficialRow };
