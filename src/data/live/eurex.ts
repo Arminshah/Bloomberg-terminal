@@ -71,10 +71,21 @@ export function eurexAvailable(): boolean {
   return typeof window !== 'undefined' && typeof window.arminDesktop?.eurex === 'function';
 }
 
-/** Loads each product's latest day and the day before, at Eurex's pace; again every six hours and on REFRESH. */
+/** What REFRESH reports for Eurex: its loads take minutes, so a refresh starts one and does not wait for it. */
+export const EUREX_REFRESH = {
+  source: 'Eurex index futures',
+  state: 'waiting',
+  detail: 'end-of-day settlements, asked in the background: Eurex asks for 30 seconds between requests, so its four answers take about 90 s',
+} as const;
+
+/**
+ * Loads each product's latest day and the day before, at Eurex's pace; again every six hours and on REFRESH. One
+ * load at a time: the start, the timer and REFRESH share a load that is still running.
+ */
 export function startEurex(): () => void {
   if (!eurexAvailable()) return () => undefined;
   let stopped = false;
+  let running: Promise<number> | undefined;
   const load = async (): Promise<number> => {
     const request = window.arminDesktop!.eurex!;
     let ok = 0;
@@ -94,9 +105,10 @@ export function startEurex(): () => void {
     }
     return ok;
   };
-  void load();
-  const timer = setInterval(() => void load(), 6 * 3_600_000);
-  const offRefresh = registerRefresh({ source: 'Eurex index futures', run: async () => { const n = await load(); return { source: 'Eurex index futures', state: n ? 'asked' : 'failed', detail: `${n} of 2 answered` }; } });
+  const loadOnce = () => (running ??= load().finally(() => { running = undefined; }));
+  void loadOnce();
+  const timer = setInterval(() => void loadOnce(), 6 * 3_600_000);
+  const offRefresh = registerRefresh({ source: EUREX_REFRESH.source, run: () => { void loadOnce(); return { ...EUREX_REFRESH }; } });
   return () => {
     stopped = true;
     clearInterval(timer);

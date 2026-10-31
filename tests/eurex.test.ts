@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { eurexProblem, eurexRequest } from '../electron/eurex.cjs';
-import { applyEurex, eurexFront, frontMonth, parseEurex } from '../src/data/live/eurex';
+import { applyEurex, EUREX_REFRESH, eurexFront, frontMonth, parseEurex, startEurex } from '../src/data/live/eurex';
+import { refreshAll } from '../src/terminal/refresh';
 import { engine } from '../src/data/market';
 import { realFutureContract } from '../src/data/realfut';
 
@@ -65,5 +66,22 @@ describe("Eurex's statistics", () => {
     expect(c.code).toBe('GXZ6');
     expect(c.q).toBe(0);
     expect(c.fair).toBeCloseTo(6131.31 * Math.exp((c.rate / 100) * (49 / 365)), 6);
+  });
+});
+
+describe('Eurex and REFRESH', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('starts a load in the background and does not hold REFRESH for Eurex\'s 30-second pace, nor start a second load', async () => {
+    // Eurex has not answered yet (its pace keeps the next request 30 seconds away).
+    const ask = vi.fn(() => new Promise<never>(() => undefined));
+    vi.stubGlobal('window', { arminDesktop: { eurex: ask } });
+    const stop = startEurex();
+    expect(ask).toHaveBeenCalledTimes(1);
+    const report = await refreshAll({ timeoutMs: 1_000 });
+    expect(report?.outcomes).toContainEqual(EUREX_REFRESH);
+    // The load still running is the one REFRESH stands for.
+    expect(ask).toHaveBeenCalledTimes(1);
+    stop();
   });
 });
