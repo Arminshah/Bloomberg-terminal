@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { UNRATED_AF, capitalStructure, costOfDebtFallback, costOfEquity, costOfPreferred, economicValueAdded, waccOf } from '../src/finance/wacc';
+import { engine } from '../src/data/market';
+import { DAY_MS } from '../src/data/calendar';
+import { closeNear, usdPerUnitAt } from '../src/functions/WACC';
 
 // The screens' figures as the owner's reference pack quotes them (METHODOLOGY.md, sections 1 and 4).
 describe('WACC weights and the cost of capital', () => {
@@ -63,5 +66,25 @@ describe('Economic Value Added', () => {
     const ibm = economicValueAdded(15_299.53, 0, 69_502.0, 8.6718);
     expect(ibm.roic).toBeCloseTo(22.01, 2);
     expect(ibm.charge).toBeCloseTo(6_027.07, 1);
+  });
+});
+
+describe("WACC's history: a close only within ten days of the year-end", () => {
+  it('takes the last close at or before the day, and none from further back', () => {
+    const id = 'AAPL US Equity';
+    const sr = engine.daily(id);
+    const last = sr.t[sr.length - 1];
+    expect(closeNear(id, last)).toBe(sr.c[sr.length - 1]);
+    expect(closeNear(id, last + 10 * DAY_MS)).toBe(sr.c[sr.length - 1]);
+    expect(closeNear(id, last + 11 * DAY_MS)).toBeNaN();
+    expect(closeNear(id, sr.t[0] - DAY_MS)).toBeNaN();
+  });
+
+  it('turns a pair quoted either way into dollars per unit', () => {
+    const t = engine.daily('EURUSD Curncy').t.at(-1)!;
+    expect(usdPerUnitAt('USD', t)).toBe(1);
+    expect(usdPerUnitAt('EUR', t)).toBeCloseTo(closeNear('EURUSD Curncy', t), 12);
+    expect(usdPerUnitAt('JPY', t)).toBeCloseTo(1 / closeNear('USDJPY Curncy', t), 12);
+    expect(usdPerUnitAt('XYZ', t)).toBeNaN();
   });
 });

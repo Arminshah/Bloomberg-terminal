@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FnHeader } from '../components/FnHeader';
 import { KV, Section } from '../components/cells';
 import { XYChart } from '../components/chart/XYChart';
@@ -7,8 +7,9 @@ import { fmtDay, fmtMln, fmtNum, fmtPct } from '../core/format';
 import { engine, useTick } from '../data/market';
 import { DAY_MS } from '../data/calendar';
 import { lineOf, staleSince } from '../data/world-bonds';
-import { closeAt, defaultBeta } from '../data/analytics';
-import { financials, keyStats, latestDebtPeriod, reportCcy, type FinPeriod } from '../data/fundamentals';
+import { defaultBeta } from '../data/analytics';
+import { indexAtOrBefore } from '../data/series';
+import { financials, keyStats, latestDebtPeriod, majorPrice, reportCcy, type FinPeriod } from '../data/fundamentals';
 import { riskFree } from '../data/options';
 import type { FnProps } from '../terminal/types';
 import { sourceLabel } from '../components/Source';
@@ -43,6 +44,21 @@ type HistField = 'WACC' | 'EVA' | 'ROIC' | 'EVA Spread';
 const HIST_FIELDS: HistField[] = ['WACC', 'EVA', 'ROIC', 'EVA Spread'];
 const HIST_COLORS: Record<HistField, string> = { WACC: '#ffd23f', EVA: '#45d3e6', ROIC: '#2fd36b', 'EVA Spread': '#ff9e1b' };
 const PIE_COLORS = { mcap: '#1f43e0', st: '#e0261f', lt: '#f0a020', pref: '#2fb050' };
+
+/** The close at or before `t`, when it is within ten days of `t`; NaN otherwise (a line that has not caught up). */
+export function closeNear(id: string, t: number): number {
+  const sr = engine.daily(id);
+  const i = indexAtOrBefore(sr, t);
+  return i >= 0 && t - sr.t[i] <= 10 * DAY_MS ? sr.c[i] : NaN;
+}
+
+/** US dollars per unit of a currency at `t`, from its pair's daily closes; NaN without a close within ten days. */
+export function usdPerUnitAt(ccy: string, t: number): number {
+  if (ccy === 'USD') return 1;
+  if (engine.get(`${ccy}USD Curncy`)) return closeNear(`${ccy}USD Curncy`, t);
+  if (engine.get(`USD${ccy} Curncy`)) return 1 / closeNear(`USD${ccy} Curncy`, t);
+  return NaN;
+}
 
 /** Raw beta from two years of weekly returns ending at `to`, as BETA computes it; NaN without 52 weeks in common. */
 function betaAt(id: string, bench: string, to: number): number {
@@ -98,10 +114,17 @@ export function WACC({ sec }: FnProps) {
   const ke = costOfEquity(rf, adjBeta, erp);
   const ltm = f.ltm;
   const fy = period === 'MR' ? undefined : f.annual.find((p) => p.label === period);
+  // A fiscal year the statements no longer hold (the source keeps five) goes back to MR rather than showing MR's
+  // figures under the year's name.
+  useEffect(() => {
+    if (period !== 'MR' && f.annual.length && !fy) setPeriod('MR');
+  }, [period, fy, f.annual.length]);
   // MR: the latest balance sheet and the trailing twelve months; a fiscal year: that year's statements.
   const balance = fy ?? latestDebtPeriod([...f.quarterly, ...f.annual, ltm, ...(real?.balance ? [real.balance] : [])]);
   const income: FinPeriod = fy ?? ltm;
   const debt = balance?.debt ?? NaN;
+  // Unknown debt is not zero debt: without the balance sheet's total debt there is no WACC (the source's rule too).
+  const debtKnown = Number.isFinite(debt);
   const split = balance && Number.isFinite(balance.debtST ?? NaN) && Number.isFinite(balance.debtLT ?? NaN);
   // Without the source's split all debt counts as long-term, and the screen says so.
   const stDebt = split ? balance!.debtST! : 0;
@@ -113,33 +136,42 @@ export function WACC({ sec }: FnProps) {
   // The company's own effective rate, shown beside the help page's method: interest expense over total debt.
   const effective = debt > 0 && Number.isFinite(income.interest) ? (Math.abs(income.interest) / debt) * 100 : NaN;
   const preferred = balance?.preferred ?? NaN;
-  const prefDiv = income.niTotal - income.ni;
+  // Net income less net income to common: withheld when the filed parent income is on another basis than the feed's.
+  const prefDiv = income.niTotalBasisConflict ? NaN : income.niTotal - income.ni;
   const kp = costOfPreferred(prefDiv, preferred);
   const E = ks.mcap * fx;
-  const { cap, wacc } = waccOf(capitalStructure(E, stDebt, ltDebt, preferred), ke, kd.after, kp);
+  const solved = waccOf(capitalStructure(E, stDebt, ltDebt, preferred), ke, kd.after, kp);
+  const cap = solved.cap;
+  const wacc = debtKnown ? solved.wacc : NaN;
   const minority = Number.isFinite(balance?.minority ?? NaN) ? balance!.minority! : 0;
-  const tic = debt + (balance?.equity ?? NaN) + minority + (Number.isFinite(preferred) ? preferred : 0);
+  // Stockholders' equity already includes preferred stock, so it is not added again.
+  const tic = debt + (balance?.equity ?? NaN) + minority;
   const nop = income.opInc;
   const eva = economicValueAdded(nop, nop * taxRate, tic, wacc);
-  const noDebt = !(debt > 0);
+  const noDebt = debtKnown && !(debt > 0);
+  // Weights mean nothing until the debt is known.
+  const known = (v: number) => (debtKnown ? pctOr(v) : '--');
 
   // History: each fiscal year at its year-end market value, rates and beta, with that year's statements.
   const benchId = defaultBenchmark(s, (x) => !!engine.get(x));
   const history = f.annual
     .filter((p) => Number.isFinite(p.end))
     .map((p) => {
-      const px = closeAt(engine.daily(s.id), p.end);
-      const mcap = px * (Number.isFinite(p.shares) ? p.shares : ks.shares) * fx;
-      const rfY = rfLine ? closeAt(engine.daily(rfLine.id), p.end) : NaN;
-      const kstY = shortLine ? closeAt(engine.daily(shortLine.id), p.end) : NaN;
+      // The year-end close in major units (pence to pounds), the year's diluted average shares, and the year-end
+      // exchange rate; each must be within ten days of the year-end, or the year has no WACC.
+      const px = majorPrice(s, closeNear(s.id, p.end));
+      const fxY = ccy === tradeCcy ? 1 : usdPerUnitAt(tradeCcy, p.end) / usdPerUnitAt(ccy, p.end);
+      const mcap = px * p.shares * fxY;
+      const rfY = rfLine ? closeNear(rfLine.id, p.end) : NaN;
+      const kstY = shortLine ? closeNear(shortLine.id, p.end) : NaN;
       const bY = betaAt(s.id, benchId, p.end);
       const keY = costOfEquity(rfY, adjustedBeta(bY), erp);
       const splitY = Number.isFinite(p.debtST ?? NaN) && Number.isFinite(p.debtLT ?? NaN);
       const taxY = p.pretax > 0 && Number.isFinite(p.tax) ? p.tax / p.pretax : 0.21;
       const kdY = costOfDebtFallback(splitY ? p.debtST! : 0, splitY ? p.debtLT! : p.debt, Number.isFinite(kstY) ? kstY : rfY, rfY, af, taxY);
-      const kpY = costOfPreferred(p.niTotal - p.ni, p.preferred ?? NaN);
-      const w = waccOf(capitalStructure(mcap, splitY ? p.debtST! : 0, splitY ? p.debtLT! : p.debt, p.preferred ?? NaN), keY, kdY.after, kpY).wacc;
-      const ticY = p.debt + p.equity + (Number.isFinite(p.minority ?? NaN) ? p.minority! : 0) + (Number.isFinite(p.preferred ?? NaN) ? p.preferred! : 0);
+      const kpY = costOfPreferred(p.niTotalBasisConflict ? NaN : p.niTotal - p.ni, p.preferred ?? NaN);
+      const w = Number.isFinite(p.debt) ? waccOf(capitalStructure(mcap, splitY ? p.debtST! : 0, splitY ? p.debtLT! : p.debt, p.preferred ?? NaN), keY, kdY.after, kpY).wacc : NaN;
+      const ticY = p.debt + p.equity + (Number.isFinite(p.minority ?? NaN) ? p.minority! : 0);
       const e = economicValueAdded(p.opInc, p.opInc * taxY, ticY, w);
       return { end: p.end, label: p.label, WACC: w, EVA: e.eva, ROIC: e.roic, 'EVA Spread': e.spread };
     });
@@ -209,21 +241,21 @@ export function WACC({ sec }: FnProps) {
             <tbody>
               <tr className="click" onClick={() => setDetail(detail === 'equity' ? null : 'equity')}>
                 <td className="amber"><b className="rowno">3)</b> Equity</td>
-                <td className="num amber">{pctOr(cap.we * 100)}</td>
+                <td className="num amber">{known(cap.we * 100)}</td>
                 <td className="num amber">{pctOr(ke)}</td>
-                <td className="num amber">{pctOr(cap.we * ke)}</td>
+                <td className="num amber">{known(cap.we * ke)}</td>
               </tr>
               <tr className="click" onClick={() => setDetail(detail === 'debt' ? null : 'debt')}>
                 <td className="amber"><b className="rowno">4)</b> Debt Cost (A-T)</td>
-                <td className="num amber">{pctOr(cap.wd * 100)}</td>
-                <td className="num amber">{cap.wd > 0 ? pctOr(kd.after) : pctOr(0)}</td>
-                <td className="num amber">{pctOr(cap.wd > 0 ? cap.wd * kd.after : 0)}</td>
+                <td className="num amber">{known(cap.wd * 100)}</td>
+                <td className="num amber">{!debtKnown ? '--' : cap.wd > 0 ? pctOr(kd.after) : pctOr(0)}</td>
+                <td className="num amber">{known(cap.wd > 0 ? cap.wd * kd.after : 0)}</td>
               </tr>
               <tr className="click" onClick={() => setDetail(detail === 'preferred' ? null : 'preferred')}>
                 <td className="amber"><b className="rowno">5)</b> Preferred Equity</td>
-                <td className="num amber">{pctOr(cap.wp * 100)}</td>
+                <td className="num amber">{known(cap.wp * 100)}</td>
                 <td className="num amber">{cap.wp > 0 ? pctOr(kp) : pctOr(0)}</td>
-                <td className="num amber">{pctOr(cap.wp > 0 ? cap.wp * kp : 0)}</td>
+                <td className="num amber">{known(cap.wp > 0 ? cap.wp * kp : 0)}</td>
               </tr>
               <tr className="wacc-total">
                 <td>WACC</td>
@@ -245,14 +277,14 @@ export function WACC({ sec }: FnProps) {
                 {([['Market Cap', cap.mcap, cap.we, PIE_COLORS.mcap], ['ST Debt', cap.stDebt, cap.wst, PIE_COLORS.st], ['LT Debt', cap.ltDebt, cap.wlt, PIE_COLORS.lt], ['Pref. Eqty', cap.preferred, cap.wp, PIE_COLORS.pref]] as const).map(([label, v, w, c]) => (
                   <tr key={label}>
                     <td><i className="wacc-key" style={{ background: c }} />{label}</td>
-                    <td className="num amber">{Number.isFinite(cap.total) ? fmtNum(v, 1) : '--'}</td>
-                    <td className="num amber">{pctOr(w * 100)}</td>
+                    <td className="num amber">{Number.isFinite(cap.total) && (debtKnown || label === 'Market Cap') ? fmtNum(v, 1) : '--'}</td>
+                    <td className="num amber">{known(w * 100)}</td>
                   </tr>
                 ))}
                 <tr className="wacc-total">
                   <td>Total</td>
-                  <td className="num">{Number.isFinite(cap.total) ? fmtNum(cap.total, 1) : '--'}</td>
-                  <td className="num">{Number.isFinite(cap.total) ? '100.0%' : '--'}</td>
+                  <td className="num">{Number.isFinite(cap.total) && debtKnown ? fmtNum(cap.total, 1) : '--'}</td>
+                  <td className="num">{Number.isFinite(cap.total) && debtKnown ? '100.0%' : '--'}</td>
                 </tr>
               </tbody>
             </table>
@@ -309,7 +341,10 @@ export function WACC({ sec }: FnProps) {
             items={[
               [split ? `Short-term debt (as of ${fmtDay(balance!.end)})` : 'Short-term debt', split ? `${fmtMln(stDebt)} ${ccy}` : '-- (the source gives no split: all debt counted as long-term)'],
               [balance ? `Long-term debt (as of ${fmtDay(balance.end)})` : 'Long-term debt', `${fmtMln(ltDebt)} ${ccy}`],
-              [shortLine ? `Short rate (${shortLine.name})` : 'Short rate', Number.isFinite(kstNow) ? `${fmtNum(kstNow, 3)}%` : `${fmtNum(rf, 3)}% (no short ${ccy} rate in this app: the 10-year)`],
+              [
+                Number.isFinite(kstNow) ? `Short rate (${shortLine!.name})` : 'Short rate (the 10-year in its place)',
+                Number.isFinite(kstNow) ? `${fmtNum(kstNow, 3)}%` : `${fmtNum(rf, 3)}% (${shortLine ? `waiting for the ${shortLine.name}'s latest close` : `no short ${ccy} rate in this app`})`,
+              ],
               [rfLine ? `Long rate (${rfLine.name})` : 'Long rate', Number.isFinite(rf) ? `${fmtNum(rf, 3)}%` : '--'],
               ['Adjustment factor (1.38 for an unrated issuer)', <input key="af" type="number" step="0.01" className="inp" style={{ width: 80, textAlign: 'right' }} value={af} onChange={(e) => setAf(Number(e.target.value) || 0)} aria-label="Adjustment factor" />],
               ['Pre-tax cost of debt', `${fmtNum(kd.pre, 2)}%`],
@@ -337,7 +372,7 @@ export function WACC({ sec }: FnProps) {
             items={[
               ['Net operating profit', `operating income, ${income === ltm ? 'trailing twelve months' : income.label}`],
               ['Cash operating taxes', `net operating profit × the effective tax rate (${fmtPct(taxRate * 100, 1, false)})`],
-              ['Total investment capital', `total debt + shareholders' equity${minority ? ' + minority interest' : ''}${Number.isFinite(preferred) && preferred > 0 ? ' + preferred' : ''}, ${balance ? fmtDay(balance.end) : ''}`],
+              ['Total investment capital', `total debt + shareholders' equity (which includes preferred stock)${minority ? ' + minority interest' : ''}, ${balance ? fmtDay(balance.end) : ''}`],
               ['Capital charge', `total investment capital × WACC (${pctOr(wacc, 2)})`],
             ]}
           />
@@ -348,8 +383,11 @@ export function WACC({ sec }: FnProps) {
       </Section>
       <div className="note">
         {'Rough approximation for WACC: the app has no fair market curve for the issuer, so the cost of debt is the government short and long rates weighted by short- and long-term debt, times the adjustment factor and one minus the effective tax rate. '}
-        {!betaFromHistory ? 'The app has under 52 weeks of matched prices for its own beta, so the provider\'s is used. ' : ''}
+        {!betaFromHistory ? (Number.isFinite(rawBeta) ? 'The app has under 52 weeks of matched prices for its own beta, so the provider\'s is used. ' : 'No beta yet: the app has under 52 weeks of matched prices and the provider gave none. ') : ''}
         {noDebt ? 'No debt on the latest balance sheet. ' : ''}
+        {!debtKnown ? 'The balance sheet\'s total debt has not come from the source yet, so there is no WACC: unknown debt is not counted as none. ' : ''}
+        {income.niTotalBasisConflict ? 'Preferred dividends are withheld: the filed parent income is on another basis than the feed\'s. ' : ''}
+        History: each fiscal year at its year-end close (in major units), the year&apos;s diluted average shares, the year-end exchange rate and rates, and its own two-year weekly beta; a figure more than ten days from the year-end leaves the year blank. 
         Market cap is the current market value. Net operating profit is operating income and cash operating taxes are that times the effective tax rate; total investment capital is debt plus book equity. The provider adjusts all three by industry, which the app cannot, so EVA and ROIC are approximations. The equity risk premium and the adjustment factor are inputs; the 21% tax rate is used only without a pretax profit.
         {Number.isFinite(ltm.end) ? ` Trailing twelve months end ${fmtDay(ltm.end)}.` : ''}
         {balance?.supplements?.length ? ` Balance supplements: ${balance.supplements.join('; ')}.` : ''}
