@@ -433,7 +433,9 @@ describe('SPLC: what checking the fifth round for losses found', () => {
 
   it("keeps a licence with a company's subsidiary, and notes and shares issued to it", () => {
     expect(role('In December 2020, the Company entered into an exclusive license agreement with Dermira, Inc., a wholly owned subsidiary of Eli Lilly and Company ("Dermira") to develop and commercialize EVO756.', ['Eli Lilly', 'Lilly'], ['Evommune'])).toBe('partner');
-    expect(role('Interest expense consists of coupon interest accrued on the convertible note that we issued to Eli Lilly and Company in May 2023.', ['Eli Lilly', 'Lilly'], ['Scribe Therapeutics'])).toBe('lender');
+    // Lilly holds Scribe's note: Lilly lent to Scribe, so Scribe is Lilly's investment, not its lender (corrected after the
+    // review of 30 October 2026, finding LLY-1; docs/splc-review-2026-10-30.md).
+    expect(role('Interest expense consists of coupon interest accrued on the convertible note that we issued to Eli Lilly and Company in May 2023.', ['Eli Lilly', 'Lilly'], ['Scribe Therapeutics'])).toBe('investment');
     expect(role('On October 27, 2025, the Company issued to AMD an aggregate of 1,151,052 shares of its Common Stock at $0.01 par value per share.', ['AMD', 'Advanced Micro Devices'], ['Sanmina'])).toBe('investment');
   });
 

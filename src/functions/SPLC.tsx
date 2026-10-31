@@ -4,8 +4,8 @@ import { exportActions } from '../components/ExportActions';
 import { openSecurity } from '../components/cells';
 import { fmtBig, fmtDay, fmtNum, fmtPct } from '../core/format';
 import { engine } from '../data/market';
-import { rebuildSupplyChain, sharePeriod, supplyChainAvailable, useSupplyChain, relationKind, relationStatus, relationshipView, customerCounts, type Chain, type Filer, type Relation, type Role } from '../data/live/supply-chain';
-import { compatibleShareTotal, contractIntervals, evidenceIdentity } from '../data/live/supply-chain-history';
+import { listingLabel, rebuildSupplyChain, sharePeriod, supplyChainAvailable, useSupplyChain, relationKind, relationStatus, relationshipView, customerCounts, type Chain, type Filer, type Relation, type Role } from '../data/live/supply-chain';
+import { compatibleShareTotal, contractIntervals, evidenceIdentity, statedBy } from '../data/live/supply-chain-history';
 import { secTicker } from '../data/live/sec';
 import { earningsCalendar, requestListings } from '../data/live/earnings-calendar';
 import { execute } from '../terminal/exec';
@@ -77,7 +77,8 @@ export function shareLabel(r: Relation): string {
   switch (r.basis) {
     case 'their-revenue':
     case 'target-revenue':
-      return `Rev: ${v}${tail}`;
+      // A share of one line of revenue (Matador's oil, natural gas and NGL revenues), named in full in the line below.
+      return `${revenueLineOf(r) ? 'Line rev' : 'Rev'}: ${v}${tail}`;
     case 'their-product-sales':
       return `Sales: ${v}${tail}`;
     case 'their-purchases':
@@ -88,22 +89,28 @@ export function shareLabel(r: Relation): string {
   }
 }
 
+/** The line of revenue the shown share is of, when the filing names one ("oil, natural gas and NGL"). */
+function revenueLineOf(r: Relation): string | undefined {
+  const e = r.evidence[0];
+  return e ? r.observations?.find((o) => o.evidenceId === evidenceIdentity(e))?.line : undefined;
+}
+
 /** One line on what the relation is, in the target's terms. */
 export function describe(r: Relation, t: string): string {
   if (r.side === 'records') {
     const v = r.amount != null ? `$${fmtBig(r.amount, 1)}` : '';
-    if (r.role === 'supplier') return `Subcontractor on ${t}'s federal contracts: ${v} reported in five years`;
+    if (r.role === 'supplier') return v ? `Subcontractor on ${t}'s federal contracts: ${v} reported in five years` : `Subcontractor on ${t}'s federal contracts: the reported amount is not counted (see the record)`;
     return r.evidence.some((e) => e.form === 'Contract') ? `Federal agency: ${v} obligated on ${t}'s contracts running in the last year` : `Prime contractor: ${v} in subcontracts to ${t} in two years`;
   }
   const period = r.share != null ? sharePeriod(r.evidence[0]?.sentence ?? '') : '';
   const v = r.share != null ? `${r.qualifier === '>' ? 'at least ' : r.qualifier === '<' ? 'less than ' : ''}${fmtNum(r.share, r.share % 1 ? 1 : 0)}%` : '';
   switch (r.role) {
     case 'supplier':
-      if (r.basis === 'their-revenue') return `${t} brought ${v} of its revenue${period ? ` (${period})` : ''}`;
+      if (r.basis === 'their-revenue') return `${t} brought ${v} of its ${revenueLineOf(r) ? `${revenueLineOf(r)} revenues` : 'revenue'}${period ? ` (${period})` : ''}`;
       if (r.basis === 'target-purchases') return `${v} of ${t}'s purchases${period ? ` (${period})` : ''}`;
       return r.side === 'theirs' ? `Names ${t} as a customer` : r.side === 'both' ? `Named by ${t}; names it as a customer` : `Named by ${t} as a supplier`;
     case 'customer':
-      if (r.basis === 'target-revenue') return `${v} of ${t}'s revenue${period ? ` (${period})` : ''}`;
+      if (r.basis === 'target-revenue') return `${v} of ${t}'s ${revenueLineOf(r) ? `${revenueLineOf(r)} revenues` : 'revenue'}${period ? ` (${period})` : ''}`;
       if (r.basis === 'their-product-sales') return `${v} of its sales are ${t} products${period ? ` (${period})` : ''}`;
       if (r.basis === 'their-purchases') return `${v} of its purchases are from ${t}${period ? ` (${period})` : ''}`;
       return r.side === 'theirs' ? `Names ${t} as a supplier` : r.side === 'both' ? `Named by ${t}; names it as a supplier` : `Named by ${t} as a customer`;
@@ -207,7 +214,7 @@ interface BoxProps {
 
 function Box({ r, x, y, w, h, fill, t, onOpen }: BoxProps) {
   const ev = r.evidence[0];
-  const tip = `${displayName(r.name)}${r.ticker ? ` (${r.ticker})` : ''}\n${describe(r, t)}\n\n"${trunc(ev?.sentence ?? '', 420)}"\n${ev ? `${ev.filer}, ${ev.form} ${ev.url ? 'dated' : 'filed'} ${ev.date}` : ''}`;
+  const tip = `${displayName(r.name)}${r.ticker ? ` (${r.ticker})` : r.listing ? ` (${listingLabel(r.listing)})` : ''}\n${describe(r, t)}\n\n"${trunc(ev?.sentence ?? '', 420)}"\n${ev ? `${ev.filer}, ${ev.form} ${ev.url ? 'dated' : 'filed'} ${ev.date}` : ''}`;
   const chars = Math.floor((w - 10) / 7.4);
   return (
     <g className={`splc-box${openable(r) ? ' link' : ''}`} onClick={(e) => openable(r) && onOpen(r, e)} data-key={r.key}>
@@ -416,7 +423,7 @@ function RelationTable({ rows, t, changes, onOpen, role, capOf }: { rows: Relati
               <td className={openable(r) ? 'link amber' : 'white'} onClick={(e) => openable(r) && onOpen(r, e)}>
                 {displayName(r.name)}
               </td>
-              <td>{r.ticker ?? (r.id ? r.id.replace(/ Equity$/, '') : '')}</td>
+              <td>{r.ticker ?? (r.listing ? <span className="muted" title={(r.listing.events ?? []).map((x) => `${x.form} ${x.date}: ${x.what}`).join('\n') || "Not in the SEC's current list of listed companies"}>{listingLabel(r.listing)}</span> : r.id ? r.id.replace(/ Equity$/, '') : '')}</td>
               {role === 'other' && <td>{relationLabel(r)}</td>}
               <td>{describe(r, t)}</td>
               <td className={relationStatus(r) === 'unresolved' ? 'amber' : 'muted'}>{relationKind(r) === 'concentration' ? 'Identity unresolved' : relationStatus(r) === 'ended' ? 'Ended' : relationStatus(r) === 'unresolved' ? 'Needs reconciliation' : 'Reported'}</td>
@@ -493,12 +500,12 @@ export function SPLC({ sec }: FnProps) {
   const fillOf = (r: Relation) => (color === 'change' ? changeFill(r.key === '__self' ? selfChange(s.id) : changes[r.key]) : color === 'share' ? shareFill(r.key === '__self' ? undefined : r.share) : '#1d3a22');
   const onOpen = (r: Relation, e: MouseEvent) => openRelated(panel, r, e);
   const csv = () => [
-    ['Record kind', 'Relation', 'Entity ID', 'Name', 'Ticker', 'Recorded state', 'Share %', 'Share of', 'Share period', 'Period end', 'Denominator', 'Scope', 'Segment', 'Stated by', 'Contracts $', 'Filer', 'Form', 'Published (day)', 'First recorded', 'Parser version', 'Assertion state', 'Contract reference', 'Effective from', 'Effective to', 'Identity naming publication', 'Identity naming first recorded', 'Identity naming document', 'Knowledge cutoff', 'Evidence context', 'Statement', 'Document'],
+    ['Record kind', 'Relation', 'Entity ID', 'Name', 'Ticker', 'Listing', 'Recorded state', 'Share %', 'Share of', 'Share period', 'Period end', 'Denominator', 'Scope', 'Segment', 'Stated by', 'Contracts $', 'Filer', 'Form', 'Published (day)', 'First recorded', 'Parser version', 'Assertion state', 'Contract reference', 'Effective from', 'Effective to', 'Identity naming publication', 'Identity naming first recorded', 'Identity naming document', 'Knowledge cutoff', 'Evidence context', 'Statement', 'Document'],
     ...all.flatMap((r) => r.evidence.map((ev) => {
       const a = r.assertions?.find((x) => x.evidenceId === evidenceIdentity(ev));
       const o = r.observations?.find((x) => x.evidenceId === evidenceIdentity(ev));
       const named = r.identityLinks?.[0]?.evidence;
-      return [relationKind(r), r.role, r.key, displayName(r.name), r.ticker ?? '', relationStatus(r), o?.value ?? '', o?.basis ?? '', o?.period ?? '', o?.periodEnd ?? '', o?.denominator ?? '', o?.scope ?? '', o?.segment ?? '', r.side, r.amount ?? '', ev.filer, ev.form, ev.date, ev.observedAt ? new Date(ev.observedAt).toISOString() : '', ev.parserVersion ?? '', a?.state ?? '', a?.contractKey ?? '', a?.effectiveFrom ?? '', a?.effectiveTo ?? '', named?.date ?? '', named?.observedAt ? new Date(named.observedAt).toISOString() : '', named ? sourceUrl(named) : '', view === 'history' ? recordedBy : '', ev.context ?? '', ev.sentence, sourceUrl(ev)];
+      return [relationKind(r), r.role, r.key, displayName(r.name), r.ticker ?? '', listingLabel(r.listing), relationStatus(r), o?.value ?? '', o?.basis ?? '', o?.period ?? '', o?.periodEnd ?? '', o?.denominator === 'line-revenue' && o.line ? `line-revenue (${o.line})` : o?.denominator ?? '', o?.scope ?? '', o?.segment ?? '', statedBy(ev, chain?.company?.cik), r.amount ?? '', ev.filer, ev.form, ev.date, ev.observedAt ? new Date(ev.observedAt).toISOString() : '', ev.parserVersion ?? '', a?.state ?? '', a?.contractKey ?? '', a?.effectiveFrom ?? '', a?.effectiveTo ?? '', named?.date ?? '', named?.observedAt ? new Date(named.observedAt).toISOString() : '', named ? sourceUrl(named) : '', view === 'history' ? recordedBy : '', ev.context ?? '', ev.sentence, sourceUrl(ev)];
     })),
   ];
   const entities = all.filter((r) => relationKind(r) === 'entity');

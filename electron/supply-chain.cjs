@@ -194,22 +194,57 @@ function cleanNames(names) {
 
 const MAX_SENTENCE = 1200;
 
-/** The sentences that name the company (the first `max`), each cut to a readable length. */
+/** At most MAX_SENTENCE characters of a sentence around position `at`, cut between words. */
+function around(s, at) {
+  if (s.length <= MAX_SENTENCE) return s;
+  let from = at > MAX_SENTENCE / 2 ? at - MAX_SENTENCE / 2 : 0;
+  let to = Math.min(s.length, from + MAX_SENTENCE);
+  if (from > 0) {
+    const space = s.indexOf(' ', from - 1);
+    if (space >= 0 && space < at) from = space + 1;
+  }
+  if (to < s.length) {
+    const space = s.lastIndexOf(' ', to);
+    if (space > Math.max(from, at)) to = space;
+  }
+  return s.slice(from, to);
+}
+
+/**
+ * A sentence that ends what the one before it describes, without naming the company again: "The JDA concluded in
+ * September 2024." (SES AI's 10-K, after its partnership with GM), "As the agreement was terminated in October 2023, no
+ * revenue was recognized" (Syros's 10-Q, after its agreement with a Pfizer subsidiary).
+ */
+const ENDS_PREVIOUS = /\b(?:(?:was|were|has been|had been|is)\s+terminated|terminated\s+(?:the|this|that|such|our|its)\b|concluded\s+(?:in|on|as of)|expired\s+(?:in|on|as of)|(?:was|were)\s+assigned\s+to|no longer\s+(?:has|have|holds?|owns?|promotes?|supplies|provides?|purchases?)\b)/i;
+
+/**
+ * The sentences that name the company (the first `max`), each cut to a readable length. A sentence right after one of
+ * them, in the same paragraph, that says the agreement ended comes too, marked "[next] ": it says when the relation
+ * the first one states came to an end.
+ */
 function mentionSentences(text, names, max = 80) {
   const pattern = namePattern(names);
   const out = [];
-  for (const s of splitSentences(text)) {
-    if (s.length < 25 || !/[a-z]{3}/.test(s) || !pattern.test(s)) continue;
-    // A long sentence keeps the part around the first mention of the company, so the name is never cut off.
-    const at = s.length > MAX_SENTENCE ? pattern.index(s) : 0;
-    out.push(at > MAX_SENTENCE / 2 ? s.slice(at - MAX_SENTENCE / 2, at + MAX_SENTENCE / 2) : s.slice(0, MAX_SENTENCE));
-    if (out.length >= max) break;
+  let count = 0;
+  for (const block of String(text).split('\n')) {
+    const list = splitSentences(block);
+    for (let i = 0; i < list.length && count < max; i++) {
+      const s = list[i];
+      if (s.length < 25 || !/[a-z]{3}/.test(s) || !pattern.test(s)) continue;
+      // A long sentence keeps the part around the first mention of the company, so the name is never cut off, cut
+      // between words ("ry clearances for the Merger" began mid-word).
+      out.push(around(s, s.length > MAX_SENTENCE ? pattern.index(s) : 0));
+      count++;
+      const next = list[i + 1];
+      if (next && !pattern.test(next) && next.length <= MAX_SENTENCE && ENDS_PREVIOUS.test(next)) out.push(`[next] ${next}`);
+    }
+    if (count >= max) break;
   }
   return out;
 }
 
 /** The version of the sentence extraction, part of the stored sentences' keys. */
-const EXTRACTION = 9;
+const EXTRACTION = 12;
 
 /** Counterparties a company announces without naming them: "a U.S. based investment-grade hyperscaler". */
 const UNNAMED_PARTY = String.raw`(?:a|an|the same|another|one|two|three|its)\s+(?:[\w.,-]+\s+){0,6}?(?:hyperscalers?|customers?|tenants?|OEMs?|automakers?|carriers?|utilit(?:y|ies)|retailers?|operators?|cloud (?:service )?providers?|(?:technology|semiconductor|software|automotive|energy|telecommunications|pharmaceutical) compan(?:y|ies))\b`;
@@ -242,6 +277,9 @@ const OWN = new RegExp(
     String.raw`|[A-Z][\w&.' -]{1,80}?,?\s+(?:Inc|Ltd|LLC|Corp|Corporation|Co|Limited|plc|GmbH|AG|S\.A|N\.V)\.?\s*\(\s*["“][A-Z][\w&.-]{1,24}["”]\)` +
     // Closures and changes must survive extraction, even when the original signing words are absent.
     String.raw`|\b(?:terminated|cancelled|canceled|expired|repaid in full|paid off|extinguished|spun off|reacquired)\b[^.;]{0,200}\b(?:facility|loan|lease|contract|agreement|stake|interest|investment|subsidiary|[A-Z][a-z]{2,})\b` +
+    // Companies it took over, and a stake redeemed: "In July 2025, we acquired all shares of Verve Therapeutics, Inc.",
+    // "the completed acquisition of AtaiBeckley", "Ford's membership interest in BOSK was redeemed in full".
+    String.raw`|\b(?:[Ww]e|[Tt]he Company)\s+(?:have\s+)?acquired\s+(?:all\s+|[A-Z])|\b(?:completed|completes)\s+(?:the\s+|our\s+|its\s+)?acquisitions?\s+of\s+[A-Z]|\binterests?\s+in\s+[A-Z][^.;]{0,60}\b(?:was|were)\s+redeemed\b` +
     String.raw`|\b(?:facility|loan|lease|contract|agreement|stake|interest|investment)\b[^.;]{0,200}\b(?:terminated|cancelled|canceled|expired|repaid in full|paid off|extinguished|sold)\b)`,
 );
 // A sentence that introduces a list of competitors on the lines that follow.

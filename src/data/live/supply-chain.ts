@@ -7,7 +7,7 @@ import { yahooGet } from './yahoo';
 import { parseSpark } from './index-members';
 import { findByTicker, loadFiler, loadFilingIndex, loadSecCompanies, secAvailable, secTicker, type SecCompany } from './sec';
 import { federalRelations, type FedAsk, type FedParty, type FedStep } from './usaspending';
-import { appendRelationshipHistory, enrichRelation, lifecycleRelations, evidenceIdentity, relationKind, type RelationshipAssertion, type ShareObservation, type IdentityLink } from './supply-chain-history';
+import { appendRelationshipHistory, endingAssertion, enrichRelation, lifecycleRelations, evidenceIdentity, relationKind, type RelationshipAssertion, type ShareObservation, type IdentityLink } from './supply-chain-history';
 export { relationKind, relationStatus, relationshipView, customerCounts } from './supply-chain-history';
 
 /**
@@ -70,9 +70,11 @@ export interface Evidence {
 export interface Relation {
   key: string;
   name: string;
-  /** US ticker from the SEC's company list. */
+  /** US ticker from the SEC's company list, for the related company's own CIK only. */
   ticker?: string;
   cik?: number;
+  /** A company with a CIK that the SEC's current list no longer has: why, from its own filings. */
+  listing?: Listing;
   /** The app's security id when the company is one of its built-in securities. */
   id?: string;
   /** Yahoo's symbol, for the day's change. */
@@ -98,7 +100,8 @@ export interface Relation {
 
 // ------------------------------------------------------------------ names
 
-const SUFFIX = /(?:,?\s+(?:S\.?A\.?B\.?\s+de\s+C\.?V|S\.?A\.?\s+de\s+C\.?V|S\.?\s+de\s+R\.?L\.?(?:\s+de\s+C\.?V)?|Inc|Incorporated|Corp|Corporation|Co|Company|Cos|Ltd|Limited|LLC|L\.L\.C|plc|N\.V|NV|S\.A|SA|AG|SE|SpA|S\.p\.A|GmbH|LP|L\.P|Holdings?|Group|Hldgs|Bhd|Pty)\.?)+$/i;
+// "N.A." and "National Association" are a US bank's legal form: "JPMorgan Chase Bank, N.A." is "JPMorgan Chase Bank".
+const SUFFIX = /(?:,?\s+(?:S\.?A\.?B\.?\s+de\s+C\.?V|S\.?A\.?\s+de\s+C\.?V|S\.?\s+de\s+R\.?L\.?(?:\s+de\s+C\.?V)?|Inc|Incorporated|Corp|Corporation|Co|Company|Cos|Ltd|Limited|LLC|L\.L\.C|plc|N\.V|NV|S\.A|SA|AG|SE|SpA|S\.p\.A|GmbH|LP|L\.P|Holdings?|Group|Hldgs|Bhd|Pty|N\.\s?A|National Association)\.?)+$/i;
 const STATE_TAG = /\s*[/\\][A-Za-z]{2,3}[/\\]?\s*$/;
 
 /** A company name without its legal form, punctuation or case: "Cisco Systems, Inc." → "cisco systems". */
@@ -317,6 +320,8 @@ const KNOWN: Record<string, Known> = {
   'qatar airways': { name: 'Qatar Airways' },
   'air india': { name: 'Air India' },
   avolon: { name: 'Avolon' },
+  // "Citibank, N.A." is Citigroup's bank, not the ADR depositary filer the SEC lists as "Citibank,N.A./ADR" (GM's 8-K
+  // of March 2026).
   citibank: { name: 'Citigroup', ticker: 'C' },
   deere: { name: 'Deere & Company', ticker: 'DE' },
   'doosan bobcat': { name: 'Doosan Bobcat', yahoo: '241560.KS' },
@@ -349,7 +354,7 @@ const KNOWN: Record<string, Known> = {
 };
 
 /** The names a company goes by in other companies' reports, by its ticker. */
-const ALIASES: Record<string, { legal: string[]; names: string[]; exclude?: string }> = {
+const ALIASES: Record<string, { legal: string[]; names: string[]; exclude?: string; namesake?: Namesake }> = {
   AAPL: { legal: ['Apple Inc'], names: ['Apple'] },
   MSFT: { legal: ['Microsoft Corporation'], names: ['Microsoft'] },
   AMZN: { legal: ['Amazon.com'], names: ['Amazon', 'Amazon.com', 'Amazon Web Services', 'AWS'] },
@@ -397,7 +402,17 @@ const ALIASES: Record<string, { legal: string[]; names: string[]; exclude?: stri
   CVX: { legal: ['Chevron Corporation'], names: ['Chevron'] },
   LLY: { legal: ['Eli Lilly and Company'], names: ['Eli Lilly', 'Lilly'], exclude: String.raw`\b(?!Eli\b)[A-Z][a-z]+ (?:[A-Z]\. )?Lilly\b|Lilly Endowment|Lilly Foundation|Lilly Pulitzer` },
   PFE: { legal: ['Pfizer Inc'], names: ['Pfizer'] },
-  MRK: { legal: ['Merck & Co'], names: ['Merck'] },
+  // "Merck" is also Merck KGaA, Darmstadt, Germany (EMD Serono, MilliporeSigma, Ares Trading). Merck & Co. makes no
+  // chemicals: "chemicals suppliers who range from large traditional companies such as Merck and Gentex" (Gauzy's 20-F).
+  MRK: {
+    legal: ['Merck & Co'],
+    names: ['Merck'],
+    exclude: String.raw`\bchemicals? suppliers?\b[^.;]{0,80}\bMerck\b(?! & Co| Sharp)`,
+    namesake: {
+      other: String.raw`Merck (?:Healthcare )?KG[aA]A|Darmstadt|EMD Serono|Merck Serono|Ares Trading|MilliporeSigma`,
+      own: String.raw`Merck & Co|Merck Sharp|\bMSD\b|Rahway|Kenilworth|KEYTRUDA|Keytruda|pembrolizumab|\bMK-\d{3,4}\b|GARDASIL|Gardasil|JANUVIA|Januvia|ERVEBO`,
+    },
+  },
   UNH: { legal: ['UnitedHealth Group'], names: ['UnitedHealth'] },
   JPM: { legal: ['JPMorgan Chase & Co'], names: ['JPMorgan Chase', 'JPMorgan', 'J.P. Morgan'] },
   V: { legal: ['Visa Inc'], names: ['Visa Inc'] },
@@ -440,6 +455,14 @@ const ALIASES: Record<string, { legal: string[]; names: string[]; exclude?: stri
 
 const SUFFIX_WORD: Record<string, string> = { CORP: 'Corporation', CORPORATION: 'Corporation', INC: 'Inc', INCORPORATED: 'Incorporated', LTD: 'Ltd', LIMITED: 'Limited', PLC: 'plc', CO: 'Company', LLC: 'LLC', 'N.V.': 'N.V.', NV: 'N.V.', AG: 'AG', SE: 'SE', 'S.A.': 'S.A.', SA: 'S.A.' };
 
+/** Another company of the same name, and the marks that tell the two apart in a filing. */
+export interface Namesake {
+  /** The other company's own names and places ("Merck KGaA", "Darmstadt", "EMD Serono"). */
+  other: string;
+  /** Names, places and products only the target has ("Merck & Co.", "MSD", "Rahway", "KEYTRUDA"). */
+  own: string;
+}
+
 export interface TargetNames {
   /** Full legal names searched in the SEC's index ("NVIDIA Corporation"). */
   legal: string[];
@@ -447,6 +470,22 @@ export interface TargetNames {
   exclude?: string;
   /** Names matched in sentences ("NVIDIA"; for Apple "Apple", which excludes "Apple Pay"). */
   names: string[];
+  /** A company of the same name: a filing that names it and never marks the target means it by the bare name. */
+  namesake?: Namesake;
+}
+
+/**
+ * Whether a filing's sentences about the name speak of the namesake throughout: Recursion's 10-K files its
+ * collaboration under "Merck KGaA (Merck)" and Vera's names "Ares Trading S.A., an affiliate of Merck KGaA, Darmstadt,
+ * Germany", and neither writes "Merck & Co.", "MSD" or a Merck & Co. product, so their bare "Merck" is Merck KGaA.
+ * One mention settles nothing: Lumos lists "Saizen® (Merck Serono S.A.)" among rival products once, and its "Merck"
+ * is the licensor of LUM-201 and the maker of ERVEBO.
+ */
+export function speaksOfNamesake(sentences: string[], names: Pick<TargetNames, 'namesake'>): boolean {
+  if (!names.namesake) return false;
+  const other = new RegExp(names.namesake.other);
+  const own = new RegExp(names.namesake.own);
+  return sentences.filter((s) => other.test(s)).length >= 2 && !sentences.some((s) => own.test(s));
 }
 
 /** How other reports name a company: its legal name for the search, its short names for reading. */
@@ -454,7 +493,7 @@ export function targetNames(ticker: string | undefined, title: string): TargetNa
   const alias = ticker ? ALIASES[ticker.toUpperCase()] : undefined;
   // "Eli Lilly and Company" without its legal form is "Eli Lilly", not "Eli Lilly and".
   const bare = (l: string) => l.replace(SUFFIX, '').replace(/^The\s+/, '').trim().replace(/[\s,]+(?:and|&)$/i, '').trim();
-  if (alias) return { legal: alias.legal, names: [...new Set([...alias.names, ...alias.legal.map(bare)])], ...(alias.exclude ? { exclude: alias.exclude } : {}) };
+  if (alias) return { legal: alias.legal, names: [...new Set([...alias.names, ...alias.legal.map(bare)])], ...(alias.exclude ? { exclude: alias.exclude } : {}), ...(alias.namesake ? { namesake: alias.namesake } : {}) };
   const clean = title.replace(STATE_TAG, '').replace(/\s+/g, ' ').trim();
   const words = clean.replace(/,/g, ' ').split(' ').filter(Boolean);
   const tail: string[] = [];
@@ -528,13 +567,20 @@ export function percentRuns(s: string): Pct[][] {
   const runs: Pct[][] = [];
   for (const p of all) {
     const last = runs[runs.length - 1];
-    if (last && /^\s*,?\s*(?:and\s+|or\s+)?$/i.test(s.slice(last[last.length - 1].end, p.index))) last.push(p);
-    else runs.push([p]);
+    const gap = last ? s.slice(last[last.length - 1].end, p.index) : '';
+    if (last && /^\s*,?\s*(?:and\s+|or\s+)?$/i.test(gap)) last.push(p);
+    // A figure written without its sign inside a list: "17.6%, 15.7%, 13.8 and 11.8%, respectively" (Montauk's 10-K;
+    // ExxonMobil's is 13.8, not Mercuria's 11.8).
+    else if (last && /^\s*,\s*(?:\d{1,3}(?:\.\d{1,2})?(?![\d.])(?:\s*,\s*(?:and\s+|or\s+)?|\s+(?:and|or)\s+))+$/i.test(gap)) {
+      const at = last[last.length - 1].end;
+      for (const m of gap.matchAll(/\d{1,3}(?:\.\d{1,2})?/g)) last.push({ value: Number(m[0]), index: at + (m.index ?? 0), end: at + (m.index ?? 0) + m[0].length });
+      last.push(p);
+    } else runs.push([p]);
   }
   return runs;
 }
 
-const OF_REVENUE = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?:(?:our|its|their|the Company's|the Group's|Company's|Group's|total|consolidated|net|aggregate|annual|worldwide)\s+)*(?:(?:total|net|consolidated|product|segment|gross)\s+)*(?:(?!of\b|from\b|to\b|in\b)[A-Za-z&-]+,?\s+){0,5}?(?:revenue|revenues|net sales|sales|turnover)\b(?![ -](?:volumes?|force|tax|taxes|team|agents?|channels?|representatives?|prices?|growth|mix|units?)\b)/i;
+const OF_REVENUE = /^(?:\s*,?\s*(?:or more|or greater|or less))?\s*,?\s*(?:respectively\s*,?\s*)?(?:of|in)\s+(?:the\s+)?(?!(?:global|world|industry|market|U\.S\.|US|domestic)\b)(?:(?:our|its|their|the Company's|the Group's|Company's|Group's|total|consolidated|net|aggregate|annual|worldwide)\s+)*(?:(?:total|net|consolidated|product|segment|gross)\s+)*(?:(?!of\b|from\b|to\b|in\b)[A-Za-z&-]+,?\s+){0,5}?(?:revenue|revenues|net sales|sales|turnover)\b(?![ -](?:volumes?|force|tax|taxes|team|agents?|channels?|representatives?|prices?|growth|mix|units?)\b)/i;
 /**
  * A share of the company's revenue, not of one segment's: "9.2% of net sales for our Sun and Skin Care segment" and "of
  * our Government Operations segment revenues" (Edgewell's 10-K of November 2025) are a segment's.
@@ -645,7 +691,10 @@ export function yearPairRun(s: string): { run: Pct[]; purchases: boolean } | nul
   if (pairs.length < 2) return null;
   const last = pairs[pairs.length - 1];
   const tail = s.slice((last.index ?? 0) + last[0].length, (last.index ?? 0) + last[0].length + 140);
-  const revenue = !!companyRevenue(tail);
+  // The basis written first: "As a percentage of total sales from operations, our sales to Ford were approximately 32%
+  // in 2025, 31% in 2024 and 28% in 2023" (Dana's 10-K).
+  const lead = /^As a (?:percentage|percent|share) of (?:our |its |the Company's )?(?:total |net |consolidated )*(?:sales|revenues?|net sales)\b[^,;]{0,40},/i.test(s.trim());
+  const revenue = !!companyRevenue(tail) || lead;
   const purchases = !revenue && OF_PURCHASES.test(tail);
   if (!revenue && !purchases) return null;
   let best = pairs[0];
@@ -684,9 +733,9 @@ export function productListShare(s: string, pattern: RegExp): { share: number; y
 
 // "Our competitive landscape includes ..." names competitors; "competitive pricing", "ahead of our competition" and
 // "we compete favorably in ... Microsoft ecosystem depth" do not.
-const COMPETITION_NOISE = /\b(?:Competition (?:Authority|Commission|Bureau|Tribunal|Act|Law)|competition (?:law|laws|authorit\w*|regulat\w*)|anti-?competitive|competitive(?:ly|ness)?(?!\s+(?:landscape|environment|set\b|field\b))|ahead of (?:our|the) competition|compete favou?rably (?:in|on|based on|with respect to|in terms of))\b/g;
+const COMPETITION_NOISE = /\b(?:Competition (?:Authority|Commission|Bureau|Tribunal|Act|Law)|competition (?:law|laws|authorit\w*|regulat\w*|investigations?|enforcement|inquir\w*|matters?)|anti-?competitive|competitive(?:ly|ness)?(?!\s+(?:landscape|environment|set\b|field\b))|ahead of (?:our|the) competition|compete favou?rably (?:in|on|based on|with respect to|in terms of))\b/g;
 /** Career lines in biographies ("Prior to his tenure at Apple, he served as a partner at McKinsey"). */
-const BIOGRAPHY = /\b(?:served as|serves as|serving as|tenure at|prior to joining|previously (?:served|held|worked|was)|held (?:various|senior|several|a|an|the) |career at|was employed|worked at|joined (?:us|the Company|our company) from|member of the board|board of directors of|(?:served|serves|serving|worked|held)\b[^.;]{0,60}\b(?:as|roles?|positions?)\b[^.;]{0,60}\b(?:at|of|for|with)\b|(?:Mr|Ms|Mrs|Dr)\.\s+[A-Z][a-z]+\b[^.;]{0,80}\b(?:served|joined|worked|held|was|previously|prior)\b|\b(?:he|she) (?:has |had )?(?:served|negotiated|led|founded|joined|held|worked)\b|\bhis (?:career|tenure|role)\b|\bher (?:career|tenure|role)\b|\bunder (?:his|her) leadership\b|\bexperience (?:at|with|in)\b[^.;]{0,80}\b(?:including|such as)\b|\bsince joining\b)/i;
+const BIOGRAPHY = /\b(?:served as|serves as|serving as|tenure at|prior to joining|previously (?:served|held|worked|was)|held (?:various|senior|several|a|an|the) |career at|was employed|worked at|joined (?:us|the Company|our company) from|member of the board|board of directors of|(?:served|serves|serving|worked|held)\b[^.;]{0,60}\b(?:as|roles?|positions?)\b[^.;]{0,60}\b(?:at|of|for|with)\b|(?:Mr|Ms|Mrs|Dr)\.\s+[A-Z][a-z]+\b[^.;]{0,80}\b(?:served|joined|worked|held|was|previously|prior)\b|\b(?:he|she) (?:has |had )?(?:served|negotiated|led|founded|joined|held|worked)\b|\bhis (?:career|tenure|role)\b|\bher (?:career|tenure|role)\b|\bunder (?:his|her) leadership\b|\bexperience (?:at|with|in)\b[^.;]{0,80}\b(?:including|such as)\b|\bsince joining\b|\bduring (?:his|her|their) (?:time|tenure|employment|careers?) (?:at|with)\b|\bpreviously collaborated with (?:our|the Company's) (?:current |former )?(?:Chief|President|CEO|CFO|COO|Head|Executive))/i;
 /** Lawsuits, patents and trade cases name companies without a commercial relation. */
 const LITIGATION = /\b(?:infring\w*|patents?|litigation|lawsuits?|complaint|court|International Trade Commission|exclusion order|antitrust|alleg\w+|plaintiffs?|defendants?)\b/i;
 /** The filer itself: investments and partnerships count only when they involve it. */
@@ -730,10 +779,10 @@ const PEER_GROUP = /\b(?:peer group|peer companies|comparator group|compensation
 const NEGATED = /\b(?:not|no|never|neither|nor|without)\b[^.;]{0,40}\b(?:partner\w*|compet\w*|customers?|suppliers?|relationship|affiliat\w*|endorse\w*|sponsor\w*|implies?|imply)\b/i;
 const ENDED = /\b(?:terminat(?:ed|ion|es|ing)|former(?:ly)?|expired|no longer|ceased|wound down|forfeit(?:ed|ure)|cancel(?:l)?ed|discontinu\w*|repurchased all|sold (?:all|its entire)|sell[- ]down|transfer(?:red)? (?:of )?(?:its|their|all|our) rights|in the past|history includes|prior to (?:the|its|our) (?:transfer|sale|spin-?off|separation))\b/i;
 /** A contract's definitions ("'Covered Royalty Payment' means"), a transcript's questions ("Your competitors"). */
-const NOT_STATEMENT = /"[A-Z][^"]{2,60}"\s+(?:means|shall mean|has the meaning)\b|\b(?:you|your)\b|incorporated (?:herein )?by reference|\bExhibit \d|registration rights|\bbuy-?back|\brepurchase(?:d|s)? (?:of )?(?:its|our|their) (?:own )?shares|contingent consideration|\bearn-?outs?\b|previous period|prior period|closing conditions?|subject to (?:the )?(?:closing|completion|consummation)|available from|\bObligors?\b|\bGuarant(?:y|ee) was provided\b|\bto provide security for\b|\bamounts due (?:to the Company )?from\b|\bas if (?:it|they|we|the Company)\b/i;
+const NOT_STATEMENT = /"[A-Z][^"]{2,60}"\s+(?:means|shall mean|has the meaning)\b|\b(?:you|your)\b|incorporated (?:herein )?by reference|\bExhibit \d|registration rights|\bbuy-?back|\brepurchase(?:d|s)? (?:of )?(?:its|our|their) (?:own )?shares|contingent consideration|\bearn-?outs?\b|previous period|prior period|closing conditions?|subject to (?:the )?(?:closing|completion|consummation)|available from|\bObligors?\b|\bGuarant(?:y|ee) was provided\b|\bto provide security for\b|\bamounts due (?:to the Company )?from\b|\bas if (?:it|they|we|the Company)\b|\b(?:is|are)\s+(?:a\s+|the\s+)?(?:registered\s+)?(?:trademarks?|trade names?|service marks?)\s+(?:of|owned by)\b|\bin such event\b|\bin the event of (?:a |any |the )?(?:termination|breach|change (?:of|in) control)\b|\bunderwriters? will receive\b|\bindicated an interest in purchasing\b/i;
 /** Plans and hopes: "we plan to rely on AMD", "we aim to broaden our partnerships with Microsoft". */
 const INTENT = /\b(?:plans?|planned|planning|aims?|intends?|intended|seeks?|seeking|hopes?|anticipates?|anticipated|expects? to|may|might|could|would|potential(?:ly)?|proposed|prospective)\b[^.;]{0,60}$/i;
-const TAKEOVER = /\b(?:Merger Sub|merger agreement|notice and waiver|waiver (?:under|of)|CVR|contingent value right|Agreement and Plan of Merger|plan of merger|Effective Time|tender offer|business combination|acquisition of (?:all|substantially all)|acquired by|to be acquired|would acquire|asset purchase agreement|purchase and sale agreement|sold (?:its|our|the|certain) [^.;]{0,60}\b(?:program|business|assets?|division|unit|portfolio|rights)\b|acquired certain assets|transition services?)\b/i;
+const TAKEOVER = /\b(?:Merger Sub|merger agreement|notice and waiver|waiver (?:under|of)|CVR|contingent value right|Agreement and Plan of Merger|plan of merger|Effective Time|tender offer|business combination|acquisition of (?:all|substantially all)|acquired by|to be acquired|would acquire|asset purchase agreement|purchase and sale agreement|sold (?:its|our|the|certain) [^.;]{0,60}\b(?:program|business|assets?|division|unit|portfolio|rights)\b|acquired certain assets|transition services?|acquisition (?:of [^.;]{0,60} )?by|'s acquisition of|waivers?)\b/i;
 const HEDGED_COMPETITION = /\b(?:may|might|could|would|can)\s+(?:also\s+|potentially\s+|in the future\s+|eventually\s+)?(?:include|compete|face|become|enter|move|experience|favou?r|view|regard|consider|see)\b|\bif (?:they|it|we|any)\b|\bpotential(?:ly)? (?:compet|entrant)/i;
 /** Licences, royalties and research collaborations: partnerships, whichever way the money flows. */
 const LICENSING = /\b(?:royalt(?:y|ies)|milestone payments?|upfront payments?|collaboration (?:agreement|revenue|and license|and supply)|clinical (?:trial )?collaboration|license and collaboration|co-develop\w*|co-commerciali[sz]\w*|research (?:and development )?collaboration|option and license|in-licens\w*|out-licens\w*|sublicens\w*|exclusive (?:[\w.-]+\s+){0,3}licen[cs]e|licen[cs]ed (?:to|from)|licen[cs]e (?:agreements?|granted) (?:with|to|from)|(?:concluded|determined) that [^.;]{0,40}\b(?:is|was) a customer|ASC 606|contract with a customer|performance obligations?|stand[- ]ready obligation|transfer of the licen[cs]e|licens(?:ee|or)|know-how|opt-in (?:rights?|options?|payments?|packages?|decisions?|licen[cs]es?)|research (?:and development )?services|clinical (?:trial )?supply|compounds? transferred|ROF[NR]|rights? of first (?:negotiation|refusal))\b/i;
@@ -822,7 +871,16 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   const ms = mentions(s, pattern).filter(
     (m) =>
       !(competing && /(?:\b(?:a|an|the)\s+(?:[\w-]+\s+){0,3}(?:subsidiary|division|unit|affiliate|business|arm|segment)\s+of|\b(?:bottlers?|licensees?|franchisees?)\s+of)\s+(?:the\s+)?$/i.test(s.slice(Math.max(0, m.index - 80), m.index))) &&
-      !/^(?:'s)?\s+(?:EVs?\s+|vehicle\s+)?(?:drivers|owners|users|riders|subscribers)\b|^\s+EVs?\b/i.test(s.slice(m.end, m.end + 30)),
+      !/^(?:'s)?\s+(?:EVs?\s+|vehicle\s+)?(?:drivers|owners|users|riders|subscribers)\b|^\s+EVs?\b/i.test(s.slice(m.end, m.end + 30)) &&
+      // A product's owner or licensee in parentheses names a third party's deal: "MK-4830 (Merck)" in Ligand's list of
+      // Agenus's partnered programs, "LM-299 (LaNova Medicines Ltd.; in-licensed by Merck)" in Crescent's competitors.
+      !(/^\s*\)/.test(s.slice(m.end, m.end + 4)) && /(?:\b[A-Z]{1,6}-?\d[\w-]*\s*\(\s*|\((?:[^()]{0,80};\s*)?(?:co-developed|in-licensed|licensed|partnered|developed|acquired|marketed|owned)\s+by\s+(?:[^()]{0,60}\s+and\s+)?)$/.test(s.slice(Math.max(0, m.index - 160), m.index))) &&
+      // Part of another name: a fund ("warrants held by Merck-Lumira", enGene's ownership table), a product.
+      !/^-[A-Z]/.test(s.slice(m.end, m.end + 2)) &&
+      // A member of a venture of several named as the venture: "the recently announced joint venture among BMW, General
+      // Motors, Honda" (Shorepower's competitor, IONNA). Not "Lilly ICOS LLC, a joint venture between Eli Lilly and
+      // Company and ICOS Corporation", the company's own venture of two.
+      !/\bjoint venture\s+among\s+(?:[A-Z][\w&.-]*(?: [A-Z][\w&.-]*)*(?:,\s+(?:and\s+)?|\s+and\s+))*$/.test(s.slice(Math.max(0, m.index - 200), m.index)),
   );
   const company = ms.filter((m) => !m.product);
   if (!ms.length || BIOGRAPHY.test(s) || SAFE_HARBOR.test(s) || PEER_GROUP.test(s)) return null;
@@ -839,13 +897,25 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   if ((s.match(/\([A-Z]{2,5}\)/g)?.length ?? 0) >= 3 && !/\bcompet/i.test(s)) return null;
   // "does not imply any partnership", "we do not compete directly with Apple".
   if (company.some((c) => NEGATED.test(s.slice(Math.max(0, c.index - 120), c.end + 60)))) return null;
-  if (TAKEOVER.test(s) || ENDED.test(s) || NOT_STATEMENT.test(s)) return null;
+  // "the Merger" is a merger agreement's defined term: forward-looking boilerplate of a takeover (AtaiBeckley's 8-K).
+  if (TAKEOVER.test(s) || ENDED.test(s) || NOT_STATEMENT.test(s) || /\bthe Merger\b/.test(s)) return null;
   // Another company defined by the target's short name: "Changzhou Almaden Co., Ltd. (we refer to it as "AMD")".
   if (definesOther(s, pattern)) return null;
   // A technical fit is no trade: "powered by Palantir", "compatible with Microsoft", "certifications from Microsoft".
   if (company.length && company.every((c) => /\b(?:powered by|built on|based on|running on|runs on|compatible with|integrat\w* with|works? with|support(?:s|ed)? for|certifi\w* (?:by|from)|certifications? from|on top of|alongside|in conjunction with|sub-?tier (?:suppliers?|vendors?) (?:of|to)|tier[- ](?:2|3|two|three) (?:suppliers?|vendors?) (?:of|to))\s+(?:[^.;]{0,30})$/i.test(before(c)) || /\bpowered by\s+(?:[\w-]+\s+){0,5}(?:partner|provider|leader)s?,?\s+$/i.test(before(c)) || /\b(?:sit on top of|connects? to|integrates? with|compatible with|works? with)\s+(?:[\w-]+\s+){0,5}(?:platforms?|systems?|clouds?|databases?|tools?)\s+(?:including|such as|like)\s+([^.;]{0,140})$/i.test(before(c)))) return null;
-  // A dispute is no relation: "the dispute with Tesla", "lawsuits ... against Pfizer".
-  if (company.length && company.every((c) => /\b(?:disputes?|lawsuits?|litigation|complaints?|claims?|arbitration|suits?)\s+(?:with|against|by|filed by)\s+(?:the\s+)?$|\b(?:enforce|assert)\w*\s+(?:our\s+|its\s+|the\s+)?patents?\b[^.;]{0,80}\bagainst\s+(?:the\s+)?$/i.test(before(c)))) return null;
+  // A dispute is no relation: "the dispute with Tesla", "on-going lawsuits against Moderna and Pfizer/BioNTech" (Arbutus's
+  // release), "continue to pursue recovery against Pfizer and BioNTech" (Roivant's slides).
+  // Names before it, each ended by a comma or an "and" (linear: no two ways to split a run of names).
+  const defendants = String.raw`(?:the\s+)?(?:[A-Z][\w&/.-]*(?:\s+[A-Z][\w&/.-]*)*(?:,\s+(?:and\s+|or\s+)?|\s+(?:and|or)\s+))*$`;
+  if (company.length && company.every((c) => new RegExp(String.raw`\b(?:disputes?|lawsuits?|litigation|complaints?|claims?|arbitration|suits?|actions?|proceedings?)\s+(?:with|against|by|filed by)\s+${defendants}|\b(?:recovery|damages|compensation)\s+(?:from|against)\s+${defendants}|\b(?:enforce|assert)\w*\s+(?:our\s+|its\s+|the\s+)?patents?\b[^.;]{0,80}\bagainst\s+(?:the\s+)?$`, 'i').test(before(c)))) return null;
+  // The filer's generic of the company's drug competes with it, whatever share of the filer's sales it makes: "Varenicline
+  // tablets (Endo's generic version of Pfizer Inc.'s Chantix®) ... made up 15% of consolidated total revenues" (Endo's
+  // S-1/A). Not another's generic ("Teva launched ..., the generic version of Lilly's branded product Forsteo", Halozyme).
+  const ownGeneric = (c: Mention) => {
+    const g = /(\b(?:our|its)|[A-Z][\w&.-]*['’\u0092]s|[Tt]he Company['’]s)\s+generic\s+(?:versions?|equivalents?|forms?|cop(?:y|ies))\s+of\s+(?:the\s+)?$/.exec(before(c));
+    return !!g && (/^(?:our|its|[Tt]he Company)/.test(g[1]) || byFiler(g[1].replace(/['’\u0092]s$/, '')));
+  };
+  if (company.some(ownGeneric)) return { role: 'competitor' };
   // "Companies such as Microsoft, Sony and Nintendo compete directly with us".
   if (company.some((c) => /^(?:'s)?,?[^.;]{0,120}?\bcompete[sd]?\s+(?:directly\s+|primarily\s+|principally\s+|head-to-head\s+)?(?:with|against)\s+(?:us|the Company)\b/i.test(s.slice(c.end)) && !HEDGED_COMPETITION.test(s))) return { role: 'competitor' };
   // A jointly owned company: "We hold a 50% membership interest in ULA, with The Boeing Company holding the other 50%".
@@ -893,7 +963,9 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   if (company.some((c) => /^[^.;]{0,80}?\b(?:charges?|charged|collects?|collected|retains?|withholds?)\b[^.;]{0,60}\b(?:fees?|commissions?)\b/i.test(s.slice(c.end)))) return { role: 'customer' };
   const anchor = company.length ? company : ms;
   const FORM = String.raw`(?:,?\s+(?:Inc|Corp|Corporation|Co|Company|Ltd|LLC|L\.P|LP|plc)\.?)?`;
-  const GIVES = String.raw`(?:account(?:ed|s)? for|represent(?:ed|s)?|contribut(?:ed|es)|compris(?:ed|es)|constitut(?:ed|es)|generated|made up)\s+(?:approximately\s+|about\s+|roughly\s+|over\s+|more than\s+|less than\s+)?`;
+  // "our top five customers accounted for approximately 37% of our net sales, with General Motors Company representing
+  // 18%" (Phinia's 10-K).
+  const GIVES = String.raw`(?:account(?:ed|s|ing)? for|represent(?:ed|s|ing)?|contribut(?:ed|es|ing)|compris(?:ed|es|ing)|constitut(?:ed|es|ing)|generated|made up)\s+(?:approximately\s+|about\s+|roughly\s+|over\s+|more than\s+|less than\s+)?`;
   // The run the target's name goes with: "Costco accounted for approximately 11%" (name, verb, figure), "13% ... were
   // to Boeing" or "21% ... from products purchased from Apple Inc." (figure, then the name), "Exxon Mobil Corp (13%,
   // 15% and 16%, respectively)" (the figures beside the name); else the nearest.
@@ -961,6 +1033,14 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
       share = undefined;
       qualifier = undefined;
     }
+    // A share of the filer's own product line, the target only among the makers it is sold to after the figure: "Our OEM
+    // aluminum wheels accounted for approximately 92% of our sales in 2024 and were primarily sold for factory installation
+    // on vehicle models manufactured by BMW (including Mini), Ford, GM, ..." (Superior Industries' 10-K).
+    const firstNamed = Math.min(...anchor.map((c) => c.index));
+    if (!tied(run) && firstNamed > run[run.length - 1].end && /(?:^|[,;:]\s*|\b(?:In|For|During)\s[^,]{0,40},\s*)(?:[Oo]ur|[Ii]ts|[Tt]he Company's)\s+(?![^.;]{0,40}\b(?:customers?|clients?|sales to|revenues? from)\b)[^.;]{0,60}?\b(?:accounted|represented|comprised|contributed|made up|constituted)\b/.test(clause)) {
+      share = undefined;
+      qualifier = undefined;
+    }
     // "13% ... were to Boeing and its related subcontractors": the figure covers other companies too. "Ford and Stellantis
     // were the only customers accounting for 10% or more ... in one or more of the past three years": no year's figure.
     const p0 = pattern.source;
@@ -980,7 +1060,9 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     if (new RegExp(String.raw`\b(?:services?|support|maintenance)\s+(?:services\s+)?for\s+(?:the\s+)?(?:${p})(?:'s|’s)?\s+(?:[A-Z][\w-]*\s+){0,4}(?:products?|software|applications?|systems?|platforms?)\b`).test(s)) return null;
     const distributor =
       new RegExp(`(?:products?|solutions?|offerings?)\\s+(?:purchased\\s+|sourced\\s+|bought\\s+)?from\\s+(?:[^.]{0,40}?)(?:${p})|sales of (?:${p})(?:'s)?\\s+(?:[A-Za-z.,-]+\\s+){0,3}?products|(?:${p})(?:\\s+(?:Corporation|Corp\\.?|Inc\\.?|Company))?(?:'s|’s)?\\s+(?:branded\\s+)?(?:[A-Z][\\w-]*\\s+){0,4}(?:and\\s+(?:[A-Z][\\w-]*\\s+){1,4})?products|(?:${p})\\s+(?:units?|devices?|items?|subscriptions?)\\s+(?:sold|shipped|delivered)`).test(s) ||
-      /\b(?:suppliers?|vendors?|brands?|branded)\b/i.test(clause) ||
+      // "(Volkswagen, Audi, Porsche, and other brands)" inside "Our automobile manufacturer customers ... include" (Cerence's
+      // 10-K) names a customer's brands, not brands the filer sells.
+      (/\b(?:suppliers?|vendors?|brands?|branded)\b/i.test(clause.replace(/\([^)]*\)/g, ' ')) && !/\bcustomers?\b[^.;]{0,80}\b(?:include|includes|including|such as|are)\b/i.test(clause)) ||
       // "Sales of product from our top five manufacturers/publishers as a group (Microsoft, Dell, ...)".
       /\b(?:products?|sales)\b[^.;]{0,40}\bfrom\s+(?:our|its|the)\s+(?:[\w-]+\s+){0,3}(?:manufacturers?|publishers?)\b/i.test(clause);
     if (purchases) return { role: 'customer', share, qualifier, basis: 'their-purchases' };
@@ -1015,8 +1097,9 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   // them to it.
   const issuedTo = (c: Mention) => /\b(?:issued|sold)\s+to\s+(?:the\s+)?$/i.test(before(c)) && /^(?:'s)?,?\s+(?:an?\s+(?:additional\s+)?(?:aggregate\s+of\s+)?)?(?:[\d,.]+\s+)?(?:[\w-]+\s+){0,2}?(?:shares|units|stock|common|preferred|ordinary)\b/i.test(s.slice(c.end));
   // "issued to Micron a senior subordinated convertible promissory note", "the convertible note that we issued to Eli
-  // Lilly": the company lent to the filer.
-  if (company.some((c) => (/\b(?:issued|sold)\s+to\s+(?:the\s+)?$/i.test(before(c)) && /^(?:'s)?,?\s+(?:an?\s+)?(?:[\w$,.-]+\s+){0,5}?(?:notes?|debentures?|bonds?)\b/i.test(s.slice(c.end))) || /\b(?:notes?|debentures?)\s+(?:that\s+)?(?:we|the Company)\s+issued\s+to\s+(?:the\s+)?$/i.test(before(c))) && byFiler(s)) return { role: 'lender' };
+  // Lilly": the company lent to the filer and holds its note, an investment of the company's; the filer is no lender
+  // to it (Scribe's 10-Q, finding LLY-1 of the review of 30 October 2026).
+  if (company.some((c) => (/\b(?:issued|sold)\s+to\s+(?:the\s+)?$/i.test(before(c)) && /^(?:'s)?,?\s+(?:an?\s+)?(?:[\w$,.-]+\s+){0,5}?(?:notes?|debentures?|bonds?)\b/i.test(s.slice(c.end))) || /\b(?:notes?|debentures?)\s+(?:that\s+)?(?:we|the Company)\s+issued\s+to\s+(?:the\s+)?$/i.test(before(c))) && byFiler(s)) return { role: 'investment' };
   if (company.some((c) => INVEST_AFTER.test(s.slice(c.end)) || INVEST_BEFORE.test(before(c)) || issuedTo(c))) return byFiler(s) ? { role: 'investment' } : null;
 
   // Competitors the filer names: "our competitors include ... NVIDIA", "we compete with Apple", "Apple, Dell and HP are
@@ -1060,7 +1143,14 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
   const named = ms.filter((m) => !m.product || m.goods);
   for (const m of company) {
     if (after(s, m, /^(?:'s)?[^.;]{0,60}\b(?:manufactures?|produces?|distributes?|supplies|provides|fills?|packages?)\b[^.;]{0,80}\bon (?:our|its) behalf\b/i)) return { role: 'customer' };
+    // A drug supplied for the filer's own trial is a clinical collaboration: "Merck agreed to provide us with
+    // pembrolizumab for the dose escalation and expansion phases of our Phase 1 study of LAVA-1207" (LAVA's 10-K), "Lilly
+    // has agreed to manufacture and supply us with a certain quantity ... of tirzepatide so we can sponsor a clinical
+    // trial" (BioAge's prospectus).
+    if (/^(?:'s)?[^.;]{0,30}\b(?:has |have )?(?:committed|agreed) to\b[^.;]{0,40}\b(?:supply|provide|deliver)\b[^.;]{0,160}\b(?:(?:our|the Company's)\s+(?:[\w-]+\s+){0,3}(?:study|trial)|so (?:that )?(?:we|the Company) can (?:sponsor|conduct|run)\s+(?:a|an|the|our)\s+(?:[\w-]+\s+){0,2}(?:study|trial))\b/i.test(s.slice(m.end, m.end + 320))) return { role: 'partner' };
     if (after(s, m, /^(?:'s)?[^.;]{0,30}\b(?:has |have )?(?:committed|agreed) to\b[^.;]{0,80}\b(?:manufacture|produce|build|supply|provide|deliver|fabricate)\b[^.;]{0,60}\bfor\b/i)) return { role: 'customer' };
+    // "under which Lilly has agreed to manufacture and supply us with a certain quantity ... of tirzepatide" (BioAge).
+    if (after(s, m, /^(?:'s)?[^.;]{0,30}\b(?:has |have )?(?:committed|agreed) to\b[^.;]{0,40}\b(?:manufacture|produce|supply|provide|deliver)\b[^.;]{0,30}\b(?:us|the Company)\b/i)) return { role: 'customer' };
     if (after(s, m, /^(?:'s)?,\s+(?:our|the Company's)\s+(?:[\w-]+\s+){0,2}partner\b[^,]{0,50},\s+(?:is|are|will be|has been)\s+\w+ing\b/i)) return { role: 'customer' };
     if (/\bdeliver\w*\s+(?:[\w-]+\s+){0,3}to\s+(?:the\s+)?$/i.test(before(m)) && after(s, m, /^(?:'s)?[^.;]{0,30}\bfor\s+(?:[\w-]+\s+){0,2}?(?:capture|transport\w*|storage|disposal|processing|treatment|recycling|sequestration)\b/i)) return { role: 'customer' };
   }
@@ -1122,10 +1212,14 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
         !/\b(?:alternative|work(?:s|ing)? with|partner\w*|coordinat\w*|ecosystem|align\w*)\b[^.;]{0,60}\b(?:suppliers?|vendors?|providers?|platforms?)\b/i.test(b) && !third(b)) ||
       /\b(?:sole|single|limited)[- ](?:source|sourced|supplier|vendor)s?\b[^.;]{0,150}$/i.test(b) ||
       (dependence && forGoods && /\b(?:[Ww]e|[Oo]ur|[Tt]he Company|[Ii]t)\b/.test(b.slice(-120))) ||
-      (gapListy(b, /\b(?:purchase[sd]?|purchasing|source[sd]?|sourcing|procure[sd]?|procuring|buy|buys|bought|obtain(?:ed|s)?)\b[^.;]{0,100}\bfrom\s+([^.;]{0,50})$/i) && !/\b(?:orders?|revenues?|royalt\w*|payments?|received)\b[^.;]{0,40}\bfrom\s+[^.;]{0,50}$/i.test(b) && !/\b(?:shares?|stock|securities|warrants?|units|interests?|stake|assets?|business|propert(?:y|ies)|land|rights|acreage|leases?)\b[^.;]{0,80}\bfrom\s+[^.;]{0,50}$/i.test(b)) ||
+      (gapListy(b, /\b(?:purchase[sd]?|purchasing|source[sd]?|sourcing|procure[sd]?|procuring|buy|buys|bought|obtain(?:ed|s)?)\b[^.;]{0,100}\bfrom\s+([^.;]{0,50})$/i) && !/\b(?:orders?|revenues?|royalt\w*|payments?|received)\b[^.;]{0,40}\bfrom\s+[^.;]{0,50}$/i.test(b) &&
+        // Others' purchases from the company: "if Chevron's customers reduce their purchases of crude oil ... from Chevron".
+        !/\b(?:their|his|her)\s+(?:purchas\w*|orders?)\b[^.;]{0,100}\bfrom\s+[^.;]{0,50}$/i.test(b) && !/\b(?:shares?|stock|securities|warrants?|units|interests?|stake|assets?|business|propert(?:y|ies)|land|rights|acreage|leases?)\b[^.;]{0,80}\bfrom\s+[^.;]{0,50}$/i.test(b)) ||
       (gapListy(b, /\b(?:supplied|produced|manufactured|fabricated) by\s+([^.;]{0,40})$/i) && /\b(?:[Oo]ur|[Ww]e)\b/.test(b.slice(-90))) ||
       /\b(?:our|the)\s+use of\s+$/i.test(b) ||
-      (after(s, m, /^(?:'s)?,?[^.;]{0,60}\bas (?:a|an|our|the|its) (?:\w+\s+){0,2}(?:supplier|vendor|source|provider)\b/i) && !after(s, m, /^(?:'s)?,?[^.;]{0,60}\b(?:our|us|we|the Company)\b[^.;]{0,30}\bas (?:a|an|our|the|its) /i)) ||
+      // Not "relationship with Northrop Grumman began decades ago as a supplier to a predecessor" (Air Industries' release):
+      // a supplier to someone else than the filer.
+      (after(s, m, /^(?:'s)?,?[^.;]{0,60}\bas (?:a|an|our|the|its) (?:\w+\s+){0,2}(?:supplier|vendor|source|provider)\b(?!\s+(?:to|for)\s+(?!us\b|our\b|the Company\b))/i) && !after(s, m, /^(?:'s)?,?[^.;]{0,60}\b(?:our|us|we|the Company)\b[^.;]{0,30}\bas (?:a|an|our|the|its) /i)) ||
       after(s, m, /^(?:'s)?,?\s+(?:is|was|remains|has been) (?:our|a|the|an) (?:\w+\s+){0,3}(?:supplier|vendor|source)\b/i) ||
       after(s, m, /^(?:Corporation|Corp\.?|Inc\.?)?,\s+(?:our|the Company's) (?:[\w-]+\s+){0,6}?(?:supplier|vendor|provider|manufacturer|foundry)\b/i) ||
       // "a Volume Supply Agreement with Fabrinet, a leading electronics manufacturing services provider".
@@ -1144,6 +1238,11 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     // lock-up letter): the thing provided comes after the names.
     if (/\b(?:provid\w*|deliver\w*|sen[dt]\w*|furnish\w*|giv(?:e|es|en|ing))\s+to\s+(?:the\s+)?$/i.test(b) && after(s, m, /^(?:'s)?(?:,?\s+(?:and\s+)?[A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,3})*,?\s+(?:an?|the|any|such|its|our|their)\s+(?:[\w-]+\s+){0,2}?(?:notices?|copy|copies|updates?|reports?|information|statements?|certificates?|documents?|letters?|consents?|waivers?|requests?)\b/)) continue;
     if (/\b(?:was|were|been|is|are|being)\s+(?:contracted|hired|engaged|retained|commissioned|awarded a contract)\s+by\s+(?:the\s+)?$/i.test(b) && byFiler(b.slice(-160))) return { role: 'supplier' };
+    // "the Company was named a tier one supplier for General Motors (GM) through its partnership with GLV" (AYRO's 10-K):
+    // the partnership is GLV's; to GM the filer is a supplier.
+    if (/\b(?:was|were|been|is|are)\s+(?:named|selected|chosen|designated|approved|qualified)\s+(?:as\s+)?(?:a|an|the|its)\s+(?:[\w-]+\s+){0,3}(?:supplier|vendor|provider)\s+(?:for|to|of)\s+(?:the\s+)?$/i.test(b) && byFiler(b.slice(-160))) return { role: 'supplier' };
+    // "Air Industries Group's relationship with Northrop Grumman began decades ago as a supplier to a predecessor".
+    if (after(s, m, /^(?:'s)?,?[^.;]{0,60}\bas (?:a|an) (?:\w+\s+){0,2}(?:supplier|vendor|provider)\s+to\s+(?!us\b|our\b|the Company\b)/i) && byFiler(b.slice(-160))) return { role: 'supplier' };
     if (after(s, m, /^(?:'s)?\s+(?:has\s+)?(?:recogni[sz]e[sd]?|selected|named|chose|chosen|designated)\s+(?:[A-Z][\w&.-]*\s+|us\s+|the Company\s+){1,3}as\s+(?:its|our|a|the|their)\s+(?:[\w-]+\s+){0,3}(?:provider|supplier|vendor|source|manufacturer)\b/i)) return { role: 'supplier' };
     const forTarget = /\b(?:manufactur\w*|build|builds|built|building|construct\w*|install\w*|assembl\w*|fabricat\w*|produc(?:e|es|ed|ing))\b[^.;]{0,80}?\bfor\s+(?:(?:our|the|its)\s+(?:\w+\s+){0,2}customers?,?\s+)?$/i.test(b) && !/\b(?:solutions?|alternatives?|options?|platforms?|choice|focus|experience|expertise|track record)\b[^.;]{0,60}\bfor\s+[^.;]{0,30}$/i.test(b);
     if (
@@ -1191,12 +1290,15 @@ function classifyStatement(sentence: string, pattern: RegExp, filer?: RegExp): C
     if (/\b(?:some|many|certain|several|most) of (?:which|whom|them|these)\s+(?:are|may be|have been|were)\s+(?:[\w-]+\s+){0,2}partners\b/i.test(lead)) continue;
     if (/\bpartners?\s+(?:and|or)\s+(?:the\s+)?$/i.test(lead) || /\bchannel partners?\b[^.;]{0,20}$/i.test(lead)) continue;
     if (at < 0 && /^[^.;]{0,50}\bother\b[^.;]{0,40}\bpartners\b/i.test(tail)) continue;
+    // "by us, Chevron or our business partners" (Hess Midstream's risk factors): the partners are others.
+    if (at < 0 && /^\s*,?\s*(?:or|and|nor)\s+(?:our|its|their|any)\s+(?:[\w-]+\s+){0,2}partners\b/i.test(tail)) continue;
     if (/\b(?:progress (?:on|in|toward)|seek(?:s|ing)? to|looking to|aim(?:s|ing)? to|plan(?:s|ning)? to|hope(?:s)? to)\s+(?:\w+\s+){0,2}partner\w*/i.test(lead)) continue;
     // The filer's own partnership: "we", "our" or its name before the partnership word.
     const who = at >= 0 ? lead.slice(Math.max(0, at - 80), at + 40) : s.slice(Math.max(0, c.index - 80), c.end + 60);
     if (!byFiler(who) && !/\b(?:[Bb]oth companies|[Ee]ach company|jointly)\b/.test(s)) continue;
     const around = s.slice(Math.max(0, c.index - 160), c.end + 160);
-    if (/\b(?:stores?|clubs?|warehouses?|doors|shelves|shelf|retail(?:er)?s?|sold (?:in|at|through)|sales (?:at|through|in)|placement|assortment|distribut\w* (?:[\w-]+\s+){0,5}through)\b/i.test(around) && !/^(?:'s|’s)?\s+(?:exclusive|preferred|official)\b/i.test(tail)) return { role: 'supplier' };
+    // Sales "in the U.S." are geography, not a retailer's shelves (Bristol-Myers on its alliance with Pfizer).
+    if (/\b(?:stores?|clubs?|warehouses?|doors|shelves|shelf|retail(?:er)?s?|sold (?:in|at|through)|sales (?:at|through)|placement|assortment|distribut\w* (?:[\w-]+\s+){0,5}through)\b/i.test(around) && !/^(?:'s|’s)?\s+(?:exclusive|preferred|official)\b/i.test(tail)) return { role: 'supplier' };
     // "Our Costco partnership ... from $0.5 million in fiscal 2023 to exceeding $10 million": sales to it.
     if (/^(?:'s|’s)?\s+partnership\b/i.test(tail) && /\$\s?[\d.,]+\s*(?:million|billion|[MB]\b)/i.test(around)) return { role: 'supplier' };
     // "We have partnered with Jacobs and Vertiv to build the data center": the target builds or equips the filer's site.
@@ -1221,7 +1323,16 @@ export interface Directory {
   /** Normalized name → company. */
   byName: Map<string, { name: string; ticker?: string; cik?: number; id?: string; yahoo?: string }>;
   byTicker: Map<string, SecCompany>;
+  /**
+   * CIK → its entry in the SEC's current list of listed companies. A filer's name and ticker come from here, never
+   * from the ticker its filing carried: the SEC gives a retired ticker to another company ("ARIS" was Aris Water
+   * Solutions, CIK 1865187, and is now Aris Mining, CIK 1964504).
+   */
+  byCik: Map<number, SecCompany>;
 }
+
+/** An ADR facility the SEC lists under the depositary bank's name ("Citibank,N.A./ADR", tickers JTGEY and JTGLF): another issuer's shares, not the bank. */
+const DEPOSITARY_ADR = /^(?:Citibank|JPMorgan Chase Bank|Deutsche Bank Trust Company|(?:The )?Bank of New York(?: Mellon)?|BNY Mellon)\b.*\/ADR\/?$/i;
 
 /** The SEC's company list and the app's securities by normalized name, for finding companies in a sentence. */
 /** A listed company's usual name when the SEC writes it in capitals ("NVIDIA CORP" is NVIDIA). */
@@ -1234,8 +1345,11 @@ export function knownName(ticker: string | undefined): string | undefined {
 export function buildDirectory(companies: SecCompany[], securities: SecurityDef[] = []): Directory {
   const byName: Directory['byName'] = new Map();
   const byTicker = new Map<string, SecCompany>();
+  const byCik = new Map<number, SecCompany>();
   for (const c of companies) {
+    if (DEPOSITARY_ADR.test(c.title)) continue;
     if (!byTicker.has(c.ticker)) byTicker.set(c.ticker, c);
+    if (!byCik.has(c.cik)) byCik.set(c.cik, c);
     const key = normalizeName(c.title);
     if (key && !byName.has(key)) byName.set(key, { name: knownName(c.ticker) ?? c.title.replace(STATE_TAG, ''), ticker: c.ticker, cik: c.cik });
   }
@@ -1248,7 +1362,54 @@ export function buildDirectory(companies: SecCompany[], securities: SecurityDef[
     const listed = v.ticker ? byTicker.get(v.ticker) : undefined;
     byName.set(k, listed ? { name: v.name, ticker: listed.ticker, cik: listed.cik } : { name: v.name, id: v.id, yahoo: v.yahoo, ticker: v.ticker });
   }
-  return { byName, byTicker };
+  return { byName, byTicker, byCik };
+}
+
+/**
+ * A filer as the related company: its name and ticker from its own CIK's entry in the SEC's current list, or, when
+ * the list no longer has the CIK, the name it filed under and no ticker, with the ticker its filing carried kept as a
+ * former one ("Aris Water Solutions, Inc.", was ARIS, now Aris Mining's).
+ */
+export function filerIdentity(dir: Directory, cik: number, filedName: string, filedTickers: string[] = []): { name: string; ticker?: string; listing?: Listing } {
+  const listed = dir.byCik.get(cik);
+  if (listed) return { name: knownName(listed.ticker) ?? listed.title.replace(STATE_TAG, ''), ticker: listed.ticker };
+  return { name: filedName, listing: { listed: false, ...(filedTickers[0] ? { was: filedTickers[0] } : {}) } };
+}
+
+/** Why a company with a CIK has no ticker now, from its own filings: a change in control, a bankruptcy, a deregistration or a delisting. */
+export interface Listing {
+  listed: false;
+  /** The ticker its filing carried when it was filed. */
+  was?: string;
+  /** Forms 15 (deregistration) and 25 (delisting), and 8-Ks reporting a change in control (item 5.01) or a bankruptcy (1.03), newest first. */
+  events?: { form: string; date: string; what: 'change in control' | 'bankruptcy' | 'deregistered' | 'delisted' }[];
+}
+
+const DEREGISTERED = /^15F?-(?:12[BG]|15D)$/;
+
+/** The events in a company's filing list that explain why it has no listing now, newest first. */
+export function listingEvents(filings: { form: string; filed: string; items?: string[] }[]): NonNullable<Listing['events']> {
+  const out: NonNullable<Listing['events']> = [];
+  for (const f of [...filings].sort((a, b) => b.filed.localeCompare(a.filed))) {
+    if (DEREGISTERED.test(f.form)) out.push({ form: f.form, date: f.filed, what: 'deregistered' });
+    else if (/^25(?:-NSE)?$/.test(f.form)) out.push({ form: f.form, date: f.filed, what: 'delisted' });
+    else if (/^8-K/.test(f.form) && f.items?.includes('5.01')) out.push({ form: f.form, date: f.filed, what: 'change in control' });
+    else if (/^8-K/.test(f.form) && f.items?.includes('1.03')) out.push({ form: f.form, date: f.filed, what: 'bankruptcy' });
+  }
+  // The last of each kind, and only the events of the last delisting: the year before the latest of them.
+  const last = out[0]?.date;
+  const since = last ? `${Number(last.slice(0, 4)) - 1}${last.slice(4)}` : '';
+  return out.filter((e, i) => e.date >= since && out.findIndex((x) => x.what === e.what) === i);
+}
+
+/** "Acquired Oct 2025 (was ARIS)": a company's listing as SPLC shows it; '' while it is listed. */
+export function listingLabel(l: Listing | undefined): string {
+  if (!l) return '';
+  const e = l.events ?? [];
+  const pick = e.find((x) => x.what === 'change in control') ?? e.find((x) => x.what === 'bankruptcy') ?? e.find((x) => x.what === 'deregistered') ?? e.find((x) => x.what === 'delisted');
+  const month = pick ? ` ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(pick.date.slice(5, 7)) - 1]} ${pick.date.slice(0, 4)}` : '';
+  const what = !pick ? 'Not listed' : pick.what === 'change in control' ? 'Acquired' : pick.what === 'bankruptcy' ? 'Bankruptcy' : pick.what === 'deregistered' ? 'Deregistered' : 'Delisted';
+  return `${what}${month}${l.was ? ` (was ${l.was})` : ''}`;
 }
 
 export interface Found {
@@ -1312,7 +1473,11 @@ export function findCompanies(input: string, dir: Directory, loose = false, whol
         const key = normalizeName(phrase);
         if (!key) continue;
         const single = !key.includes(' ');
-        const entry = dir.byName.get(key);
+        // "Jiangsu Hengrui Pharmaceutical Co., Ltd." (Merck's release of August 2026) is the SEC's "Jiangsu Hengrui
+        // Pharmaceuticals Co., Ltd.": a name of several words read with its last word singular or plural.
+        const last = key.slice(key.lastIndexOf(' ') + 1);
+        const other = single || last.length < 6 ? '' : /[^s]s$/.test(last) ? key.slice(0, -1) : `${key}s`;
+        const entry = dir.byName.get(key) ?? (other && n === ws.length ? dir.byName.get(other) : undefined);
         // A first word alone stands for a company only when it is a well-known one or written like a brand ("NVIDIA
         // Blackwell", "CoreWeave Compute"); "Polaris Forge 1" is not Polaris Inc.
         const prefixOk = n === ws.length || !single || KNOWN[key] || BRAND.test(ws[0]);
@@ -1565,6 +1730,17 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
     if (SAFE_HARBOR.test(s) || /\brisks related to:/i.test(s)) continue;
     // The text of slides ("Investor Presentation 2026 7 / 46 AI Data Center Expansion ..."): headings run together.
     if (/\bInvestor Presentation\b|\b\d{1,3}\s\/\s\d{1,3}\b/.test(s)) continue;
+    // A company it took over, or whose stake was redeemed: every relation with it ends then (runChain).
+    const taken = takenOver(s, dir, selfPattern);
+    if (taken) {
+      for (const f of taken.parties) {
+        if (ownName(f.name) || (f.cik && f.cik === self.cik)) continue;
+        const list = (ended.taken ??= new Map()).get(relationKey(f)) ?? [];
+        list.push({ party: f, evidence: { ...ev, sentence: raw }, ending: taken.ending });
+        ended.taken.set(relationKey(f), list);
+      }
+      continue;
+    }
     // A loan repaid or ended: its agent bank is no longer a lender.
     if (LOAN_ENDED.test(s)) {
       for (const m of s.matchAll(AGENT_OF)) for (const f of findCompanies(m[1], dir).slice(-1)) (ended.repaid ??= new Set()).add(relationKey(f));
@@ -1719,7 +1895,11 @@ export function ownRelations(sentences: string[], dir: Directory, self: { cik?: 
       if (subject.some((f) => new RegExp(`${escapeRe(f.name.split(/[ ,]/)[0])}(?:'s)?\\s+(?:\\w+\\s+){0,2}(?:relies|depends|uses|sources|purchases|buys|procures|engages|outsources|suppliers?|vendors?)\\b`, 'i').test(lead))) continue;
       // "the DRIVE ecosystem is expanding to include tier 1 suppliers, automotive integrators and sensor partners
       // including Bosch, Sony and ZF": partners building on its products, not its suppliers.
-      const role: Role = /\becosystem\b|\bpartners?\b[^.;]{0,40}\b(?:including|include|includes|such as)\b|\btier[- ](?:1|one|2|two)\b|\bcollaborat\w*/i.test(s) ? 'partner' : 'supplier';
+      // "make investments in certain raw material and battery suppliers, including contributing up to a maximum of $6.6
+      // billion in capital to BlueOval SK, LLC" (Ford's 10-Q): the suppliers listed are stakes it holds.
+      const role: Role = /\binvestments?\s+in\s+(?:[\w-]+\s+){0,6}?(?:suppliers?|vendors?)\b[^.;]{0,20}\b(?:including|such as)\b/i.test(s)
+        ? 'investment'
+        : /\becosystem\b|\bpartners?\b[^.;]{0,40}\b(?:including|include|includes|such as)\b|\btier[- ](?:1|one|2|two)\b|\bcollaborat\w*/i.test(s) ? 'partner' : 'supplier';
       for (const f of findCompanies(at >= 0 ? s.slice(at) : s, dir)) add(f, role, raw);
       continue;
     }
@@ -1756,6 +1936,51 @@ export interface EndedStakes {
   legalNames?: Map<string, string>;
   /** Production retains lifecycle disclosures; legacy pure-classifier callers can request its original current-only view. */
   retainHistory?: boolean;
+  /**
+   * Companies the company says it took over or whose stake was redeemed ("In July 2025, we acquired all shares of Verve
+   * Therapeutics, Inc."), by relation key, with the statement and when: every relation with them ends then.
+   */
+  taken?: Map<string, { party: Found; evidence: Evidence; ending: Ending }[]>;
+}
+
+/**
+ * The companies a statement of the company's own says it took over, or whose stake in them was redeemed: "In July
+ * 2025, we acquired all shares of Verve Therapeutics, Inc. (Verve)" (Lilly's 10-K), "On October 3, 2022, we acquired
+ * Biohaven" (Pfizer's 10-K), "the completed acquisitions of Orna Therapeutics, Inc., Ajax Therapeutics, Inc. ...",
+ * "Lilly completes acquisition of AtaiBeckley", "Ford's membership interest in BOSK was redeemed in full". Not "an
+ * agreement to acquire", not "acquired certain assets of", not another company's acquisition.
+ */
+export function takenOver(sentence: string, dir: Directory, self: RegExp): { parties: Found[]; ending: Ending } | null {
+  const s = sentence;
+  const own = String.raw`(?:\b[Ww]e|\b[Tt]he Company|${self.source})`;
+  const one = new RegExp(String.raw`${own}\s+(?:have\s+|has\s+)?acquired\s+(?:all\s+(?:of\s+)?(?:the\s+)?(?:outstanding\s+|issued and outstanding\s+)?(?:shares|stock|equity(?:\s+interests?)?|capital stock|common stock)\s+of\s+)?`).exec(s);
+  const many = new RegExp(String.raw`(?:${own}\s+(?:has\s+|have\s+)?(?:completed|completes)\s+(?:the\s+|our\s+|its\s+)?|\bthe completed\s+)acquisitions?\s+of\s+`).exec(s);
+  const redeemed = new RegExp(String.raw`\b(?:our|its|the Company's|${self.source}(?:'s|’s))\s+(?:membership|ownership|equity)\s+interests?\s+in\s+`).exec(s);
+  const at = (m: RegExpExecArray) => s.slice(m.index + m[0].length);
+  // A company no longer listed, written without its legal form ("AtaiBeckley", "BlueOval SK"); not a product's code
+  // ("Merck acquired MK-1045 (formerly CN201)").
+  const bare = (text: string): Found[] => {
+    const b = /^([A-Z][\w&-]*(?:\s+[A-Z][\w&-]*){0,3})(?=\s+(?:to|for|in|on|from|and|was|were)\b|\s*[,.;(]|$)/.exec(text);
+    return b && !NOT_COMPANY.test(b[1]) && !/\d/.test(b[1]) && !/^(?:Inc|Corp|Corporation|Company|Ltd|LLC)\b/.test(b[1]) ? [{ name: b[1], index: 0 }] : [];
+  };
+  if (redeemed) {
+    const found = findCompanies(at(redeemed), dir, true).filter((f) => f.index <= 2).slice(0, 1);
+    const party = found.length ? found : bare(at(redeemed));
+    if (party.length && /^[^.;]{0,60}\b(?:was|were)\s+redeemed\b/i.test(at(redeemed).slice(party[0].index))) return { parties: party, ending: { how: 'disposed', ...(endingDate(s) ? { date: endingDate(s) } : {}) } };
+  }
+  const m = many ?? one;
+  if (!m) return null;
+  const rest = at(m);
+  // Shares, stock or assets bought, or what another company held: "we acquired SoftBank Vision Fund (AIV M2) L.P.'s
+  // (SoftBank) Cruise Class A-1, Class F and Class G Preferred Shares", "we acquired Class E Common Shares" (GM's 10-K).
+  if (m === one && !/\ball\s/.test(m[0]) && /^[^,;]{0,80}?(?:'s|’s|\b(?:[Ss]hares|[Ss]tock|assets|interests?|rights|propert(?:y|ies)|licen[cs]es?)\b)/.test(rest)) return null;
+  // "acquired Biohaven, the maker of Nurtec", not "acquired Biohaven's rights" or "acquired a 20% stake".
+  let parties = (many ? partiesAt(rest, dir, true) : findCompanies(rest.slice(0, 160), dir, true).filter((f) => f.index <= 2).slice(0, 1))
+    .filter((f) => !/^[A-Z][\w&.-]*(?:\s+[A-Z][\w&.-]*){0,4}(?:'s|’s)/.test(rest.slice(f.index)));
+  if (!parties.length) parties = bare(rest);
+  if (!parties.length) return null;
+  const date = endingDate(s);
+  return { parties, ending: { how: 'disposed', ...(date ? { date } : {}) } };
 }
 
 /** The name that ends a phrase ("Purchases from Ablecom Technology, Inc." → "Ablecom Technology, Inc."): its capitalised words, with the small words a name can hold ("Bank of America"). */
@@ -2047,6 +2272,9 @@ export function dealRole(before: string, rawAfter: string, sentence: string, sel
   if (/\b(?:leases?|leased|lease agreements?|hosting|colocation)\b/i.test(b)) {
     return HOST_LEASE.test(sentence) && !/\b(?:landlord|lessor|leased from|we lease (?:our|office))\b/i.test(sentence) ? 'customer' : null;
   }
+  // "Chevron signed a 20-year power purchase agreement with Microsoft to provide 2.67 gigawatts of behind-the-meter power
+  // for its data center" (Chevron's 8-K): the filer provides, the party buys.
+  if (/\b(?:power purchase|PPA)\b/i.test(b) && /^(?:'s)?,?(?:[^.;]|\.(?=\d)){0,40}?\bto (?:provide|supply|deliver|sell)\b(?:[^.;]|\.(?=\d)){0,80}\b(?:for|to)\s+(?:its|their)\b/i.test(after)) return 'customer';
   if (/\b(?:power purchase|PPA|purchase agreements?|purchase orders?|placed (?:an |a )?orders?|procurement|supply of (?:power|electricity|energy|natural gas))\b/i.test(b)) return 'supplier';
   // Who supplies whom, from the words after the party.
   if (/^(?:'s)?[^;]{0,80}?\b(?:(?:will|shall|agreed to|agrees to|is to)\s+(?:supply|provide|deliver|sell|manufacture|produce)\b[^.;]{0,60}\b(?:us|the Company|to us)|under which [^.;]{0,40}\bwill (?:supply|provide|deliver|sell|manufacture))\b/i.test(after)) return 'supplier';
@@ -2169,7 +2397,9 @@ export function ownStatements(sentence: string, dir: Directory, self?: RegExp): 
       role = /^[^.;]{0,80}\bfor (?:a |the )?(?:significant|substantial|large|majority|portion|most|all)[^.;]{0,40}\b(?:revenue|revenues|sales)\b/i.test(rest) ? 'customer' : 'supplier';
     } else if (word === 'by') {
       // "Our products are manufactured by Foxconn"; not a glossary's "credit reports produced by Fair Isaac Corporation".
-      if (/\b(?:manufactured|produced|supplied|fabricated|assembled)\s+$/i.test(before) && /\b(?:[Oo]ur|[Ww]e|[Uu]s|[Tt]he Company(?:'s)?|[Tt]he Group(?:'s)?)\b/.test(clause)) role = 'supplier';
+      // Not parts a recall names: "we initiated a voluntary recall covering ... SUVs equipped with driver front airbag
+      // inflators manufactured by ARC Automotive, Inc." (GM's 10-K; ARC sold them to airbag-module makers).
+      if (/\b(?:manufactured|produced|supplied|fabricated|assembled)\s+$/i.test(before) && /\b(?:[Oo]ur|[Ww]e|[Uu]s|[Tt]he Company(?:'s)?|[Tt]he Group(?:'s)?)\b/.test(clause) && !/\brecall(?:s|ed)?\b/i.test(s)) role = 'supplier';
       else if (/\b(?:selected|chosen|awarded|engaged)\b[^.;]{0,60}$/i.test(before)) role = 'customer';
     }
     if (!role) continue;
@@ -2202,11 +2432,14 @@ export function federalParty(name: string, dir: Directory): FedParty {
   );
   // "BOEING COMPANY, THE" is The Boeing Company.
   let words = normalizeName(name.replace(/,\s*THE\s*$/i, '')).split(' ').filter(Boolean);
+  const all = words.length;
   while (words.length) {
     const k = words.join(' ');
     // "HUNTINGTON INGALLS INCORPORATED" is Huntington Ingalls Industries.
     const hit = dir.byName.get(k) ?? (words.length >= 2 ? dir.byName.get(`${k} industries`) : undefined);
-    if (hit) return { key: relationKey(hit), ...hit };
+    // Found by its first word alone once the unit's words were dropped, and not a well-known name: "VERTEX AEROSPACE
+    // LLC" as Vertex, Inc., the tax software company (it is V2X's unit). The caller may look it up.
+    if (hit) return { key: relationKey(hit), ...hit, ...(words.length === 1 && all > 1 && !KNOWN[k] ? { loose: true } : {}) };
     const listed = aliasIndex.has(k) ? dir.byTicker.get(aliasIndex.get(k)!) : undefined;
     if (listed) {
       const f = { name: knownName(listed.ticker) ?? listed.title, ticker: listed.ticker, cik: listed.cik };
@@ -2236,6 +2469,9 @@ export function sharePeriod(sentence: string): string {
     const n = ({ three: 3, six: 6, nine: 9, twelve: 12 } as Record<string, number>)[m[1].toLowerCase()] ?? Number(m[1]);
     return n === 12 ? `Year to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}` : `${n}M to ${MONTH_ABBR[m[2].toLowerCase()]} ${m[3]}`;
   }
+  // "for the first six months of 2026" (Dauch's 10-Q): part of a year, never the year.
+  m = /\bfirst (three|six|nine|3|6|9) months of (?:fiscal (?:year )?)?(\d{4})\b/i.exec(s);
+  if (m) return `${({ three: 3, six: 6, nine: 9 } as Record<string, number>)[m[1].toLowerCase()] ?? Number(m[1])}M of ${m[2]}`;
   // "During the quarter ended March 29, 2026": three months.
   m = /\bquarter ended ([A-Z][a-z]+) \d{1,2}, (\d{4})\b/.exec(s);
   if (m && MONTH_ABBR[m[1].toLowerCase()]) return `3M to ${MONTH_ABBR[m[1].toLowerCase()]} ${m[2]}`;
@@ -2270,6 +2506,134 @@ const MONTH_NUM: Record<string, string> = { january: '01', february: '02', march
 export function eventDate(sentence: string): string {
   const m = /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+((?:19|20)\d{2})\b/.exec(sentence);
   return m ? `${m[3]}-${MONTH_NUM[m[1].toLowerCase()]}-${m[2].padStart(2, '0')}` : '';
+}
+
+/** How a relation came to an end, as a filing says it. */
+export interface Ending {
+  how: 'terminated' | 'expired' | 'assigned' | 'disposed';
+  /** When, as precisely as the filing gives it: YYYY-MM-DD, YYYY-MM or YYYY; undefined when it gives no date. */
+  date?: string;
+}
+
+const MONTH_WORD = '(January|February|March|April|May|June|July|August|September|October|November|December)';
+/** "effective November 7, 2023", "effective late November 2025", "effective April 21, 2025". */
+const EFFECTIVE_DATE = new RegExp(String.raw`\beffective\s+(?:as\s+of\s+|on\s+)?(?:(?:early|mid|late)[- ])?${MONTH_WORD}\s+(?:(\d{1,2}),\s+)?((?:19|20)\d{2})\b`, 'i');
+const ANY_DATE = new RegExp(String.raw`\b${MONTH_WORD}\s+(?:(\d{1,2}),\s+)?((?:19|20)\d{2})\b`, 'g');
+
+/**
+ * The date an ending took effect: the effective date it gives, else the latest date it names ("In February 2023 and May
+ * 2024, Merck provided us written notice of termination" is May 2024), else a bare year ("terminated in 2022").
+ */
+export function endingDate(sentence: string, from?: number): string | undefined {
+  const day = (m: RegExpExecArray | RegExpMatchArray) => `${m[3]}-${MONTH_NUM[m[1].toLowerCase()]}${m[2] ? `-${m[2].padStart(2, '0')}` : ''}`;
+  // The first date right after the ending word: "was terminated in 2022 and in February 2023, we and Genentech agreed"
+  // is 2022; "terminating the Merck Collaboration Agreement effective November 7, 2023".
+  if (from != null) {
+    const near = sentence.slice(from, from + 90);
+    const effective = EFFECTIVE_DATE.exec(near);
+    const at = new RegExp(String.raw`^[^.;]{0,60}?\b(?:in|on|as of|by|during)\s+(?:(?:early|mid|late)[- ])?(?:${MONTH_WORD}\s+(?:(\d{1,2}),\s+)?)?((?:19|20)\d{2})\b`, 'i').exec(near);
+    const first = effective && (!at || (effective.index ?? 0) <= (at.index ?? 0) + at[0].length) ? effective : at;
+    if (first) return first[1] ? day(first) : first[3];
+  }
+  const effective = EFFECTIVE_DATE.exec(sentence);
+  if (effective) return day(effective);
+  // Else the latest date before it: "In February 2023 and May 2024, Merck provided us written notice of termination".
+  const dates = [...sentence.slice(0, from ?? sentence.length).matchAll(ANY_DATE)].map(day).sort();
+  if (dates.length) return dates[dates.length - 1];
+  const year = /\b(?:in|during|since|as of|by|at the end of)\s+(?:fiscal\s+(?:year\s+)?)?((?:19|20)\d{2})\b/i.exec(sentence.slice(0, from ?? sentence.length));
+  return year?.[1];
+}
+
+/** Words that make an ending a possibility, a right or a condition: "Merck has the right to terminate", "In such event, material licenses granted to Lilly expire". */
+const ENDING_HEDGE = /\b(?:may|might|could|would|can|shall|will)\s+(?:\w+\s+){0,2}?(?:terminat\w*|expire|assign)\b|\b(?:right|option|ability|entitled)\s+to\s+(?:\w+\s+){0,2}?terminat|\b(?:if|unless|in the event|in such event|in the case|to the extent|whether)\b[^.;]{0,100}\b(?:terminat\w*|expir\w*)|\bupon\s+(?:any\s+|the\s+|such\s+|its\s+)?(?:termination|expiration|expiry)\b|\bterminable\b|\bwithout cause\b[^.;]{0,40}\bterminat|\bprior to (?:the )?(?:termination|expiration)\b/i;
+/** What the agreement is, so a terminated merger, lease of an office or employment is no ending of the relation. */
+const AGREEMENT_WORD = /\b(?:agreements?|collaborations?|licen[cs]es?|partnerships?|arrangements?|alliance|JDA|joint development|programs?|royalt\w+|rights)\b/i;
+const AGREEMENT_NOUN = /^(?:agreements?|collaborations?|licen[cs]es?|licen[cs]e agreements?|partnerships?|arrangements?|alliance|JDA)$/i;
+/** The nouns a "was terminated" can follow: the last one before it is what ended ("a Merck-led Phase 2 trial ... was terminated" ended a trial). */
+const ENDED_NOUN = /\b(agreements?|collaborations?|licen[cs]es?|partnerships?|arrangements?|alliance|JDA|trials?|stud(?:y|ies)|programs?|targets?|candidates?|compounds?|indications?|products?|leases?|employees?|employment|plans?|mergers?|offerings?|facilit(?:y|ies)|loans?|notes?|options?|rights|credits?)\b/gi;
+/** Part of an agreement ended, not the agreement: a program or target under it, certain of several agreements. */
+const PARTIAL_ENDING = /\b(?:certain of|some of|one of|a portion of|part of)\b[^.;]{0,60}\b(?:agreements?|collaborations?|programs?|targets?)\b|\b(?:programs?|targets?|indications?|compounds?|candidates?|products?)\b[^.;]{0,40}\bunder the\b[^.;]{0,40}\bAgreement\b|\b(?:to add|added|adding)\b[^.;]{0,40}\btargets?\b|\b(?:right of first (?:negotiation|refusal)|ROF[NR]|options?|opportunity to (?:exclusively )?negotiate)\b[^.;]{0,160}\bexpired\b/i;
+/** Words a named agreement carries that are not a party's name ("the Exclusive License and Research Collaboration Agreement"). */
+const AGREEMENT_TITLE_WORD = /^(?:The|This|That|Such|Our|Its|Exclusive|Non-?Exclusive|License|Licence|Licensing|and|&|Research|Collaboration|Collaborative|Development|Co-?Development|Commercialization|Co-?Commercialization|Option|Supply|Manufacturing|Master|Amended|Restated|Clinical|Trial|Original|Promotion|Purchase|Services?|Strategic|Joint|Venture|Material|Transfer|Evaluation|Platform|Discovery|Global|Worldwide|Asset|Royalty|Sublicense|Framework|Partnership|Alliance|Initial|New|First|Second|Third|Fourth|Fifth|Neuromuscular|Program)$/;
+
+/**
+ * The agreements a sentence names by title ("the Merck Collaboration Agreement", "the Third Pfizer Agreement", "the
+ * Vertex Agreement"), each with the party words in its title.
+ */
+function namedAgreements(s: string): { title: string; party: string }[] {
+  const out: { title: string; party: string }[] = [];
+  for (const m of s.matchAll(/\b((?:[A-Z][\w&.-]*\s+){1,6})Agreements?\b/g)) {
+    const words = m[1].trim().split(/\s+/);
+    // A run of capitals starts the sentence or follows "the"/"a": "In October 2023, the Merck Collaboration Agreement".
+    const party = words.filter((w) => !AGREEMENT_TITLE_WORD.test(w)).join(' ');
+    out.push({ title: m[1].trim(), party });
+  }
+  return out;
+}
+
+/**
+ * What a statement about the company says ended (`pattern` matches its names): its agreement terminated ("In October
+ * 2023, the Merck Collaboration Agreement and development thereunder was terminated by Merck", Artiva's 10-K), a notice
+ * of termination received from it, the agreement assigned away from it ("subsequently assigned to Alexion"), its
+ * royalties expired or stopped ("We will receive no additional royalties from Merck", Enzon's 10-K), or a property
+ * leased to it sold ("completed the sale of its industrial property in Melbourne, Florida leased to Northrop Grumman",
+ * Modiv's 10-Q). With `previous`, the sentence follows one that names the company ("The JDA concluded in September
+ * 2024." after SES AI's partnership with GM). Null when it says no such thing, or only that it could happen.
+ */
+export function relationEnding(sentence: string, pattern: RegExp, previous?: string): Ending | null {
+  const s = sentence.replace(/^\[(?:competitors|next)\]\s*/, '');
+  if (ENDING_HEDGE.test(s) || SAFE_HARBOR.test(s) || PARTIAL_ENDING.test(s)) return null;
+  const named = (text: string) => {
+    pattern.lastIndex = 0;
+    return pattern.test(text);
+  };
+  if (!previous && !named(s)) return null;
+  // The sentence after one naming the company speaks of its agreement only by a definite reference: "The JDA concluded",
+  // "As the agreement was terminated"; "On March 8, 2019, the Company entered into" another one.
+  if (previous && !named(s) && !/^(?:As |Because |Since |However, |In addition, )?(?:the|this|that|such|our|these)\s+(?:[\w-]+\s+){0,3}?(?:agreements?|collaborations?|JDA|partnerships?|arrangements?|licen[cs]es?)\b/i.test(s)) return null;
+  const p = pattern.source;
+  const ended = (how: Ending['how'], m?: RegExpExecArray | RegExpMatchArray | null): Ending => {
+    const from = m?.index != null ? m.index + m[0].length : undefined;
+    // An assignment's date follows it; a date before it is the signing ("In December 2017, the Company entered into ...
+    // subsequently assigned to Alexion ... in September 2023").
+    const signed = how === 'assigned' && from != null && /\b(?:entered into|signed|executed)\b/i.test(s.slice(0, from));
+    const date = signed ? endingDate(' '.repeat(from!) + s.slice(from), from) : endingDate(s, from);
+    return { how, ...(date ? { date } : {}) };
+  };
+  let m: RegExpExecArray | null;
+  if ((m = /\bcompleted the sale of\b[^.;]{0,120}\bleased to\b|\bsold\s+(?:its|our|the)\s+(?:[\w-]+\s+){0,4}(?:property|properties|building|facility|campus)\b[^.;]{0,80}\bleased to\b/i.exec(s)) && (previous || new RegExp(String.raw`\bleased to\s+(?:the\s+)?(?:${p})`).test(s))) return ended('disposed');
+  // The company as the assignee or successor gains the agreement ("assigned to Pfizer"); so does the filer ("the Lilly
+  // Agreement was assigned to and assumed by us", Atrium's 8-K; "the Company became the successor in interest to the
+  // Merck Neuromuscular License Agreement", Kineta's 10-Q).
+  const gains = new RegExp(String.raw`\b(?:assigned|assignment)\b[^.;]{0,100}?\bto\s+(?:and\s+assumed\s+by\s+)?(?:the\s+)?(?:${p}|us\b|our\b|the Company\b|the Registrant\b)|(?:${p}|\b[Ww]e|\b[Tt]he Company)(?!'s|’s)\s+(?:(?:also|later|then|thereby|has|have|had)\s+)?became\s+(?:the\s+)?successor`);
+  if (gains.test(s)) return null;
+  if ((m = /\bsubsequently assigned to\b|\b(?:was|were|has been)\s+assigned to\b|\bassignment of (?:the|this|its|such|our)\b[^.;]{0,100}\bto\b/i.exec(s))) return ended('assigned', m);
+  // Voyager's 10-Q: "Alexion ... acquired all of Pfizer's rights under the Alexion Agreement and became the
+  // successor-in-interest to Pfizer thereunder" (the agreement is named after its new party).
+  if ((m = new RegExp(String.raw`\bsuccessor[- ]in[- ]interest to\s+(?:the\s+)?(?:${p})(?!\s+(?:[A-Z][\w-]*\s+){0,4}(?:Agreement|License|Licence))|\bacquired all of\s+(?:${p})(?:'s|’s) rights\b`).exec(s))) return ended('assigned', m);
+  // A named agreement must be the company's own, and the only one named: "the Vertex Agreement" is another company's,
+  // and "terminated the Third Pfizer Agreement ... under Amendment No. 1 to the Second Pfizer Agreement" ended one of two.
+  const titles = namedAgreements(s);
+  const parties = titles.filter((t) => t.party);
+  if (parties.some((t) => !new RegExp(p).test(t.party)) || new Set(parties.map((t) => t.title)).size > 1 || /\bAmendment No\./.test(s)) return null;
+  if (!AGREEMENT_WORD.test(s) && !previous) return null;
+  if ((m = /\b(?:will|shall)\s+receive\s+no\s+(?:further|future|additional|more)\s+(?:royalt\w+|milestones?|payments?)\b|\bno\s+(?:further|future|additional)\s+royalt\w+\b[^.;]{0,40}\b(?:will be|are|is)\s+(?:due|payable|owed)\b/i.exec(s))) return ended('expired', m);
+  // An agreement, its term or the royalties under it expired; patents or options expiring are no end of the agreement.
+  if ((m = /\b(?:agreements?|licen[cs]es?|term|royalt\w+|right to receive\b[^.;]{0,60})\s+(?:\w+\s+){0,3}?expired\b/i.exec(s))) return ended('expired', m);
+  // "terminated ... and Merck exclusively licensed to Acumen": the relation goes on in another form.
+  if (new RegExp(String.raw`\bterminated\b[^.;]{0,20}\band\s+(?:${p})\s+(?:\w+ly\s+)?(?:licensed|granted|agreed|entered)`).test(s)) return null;
+  for (const t of s.matchAll(/\b(?:was|were|has been|had been|have been|is|are)\s+(?:\w+\s+){0,2}?terminated\b|\b(?:agreements?|collaborations?|licen[cs]es?|partnerships?|arrangements?|JDA)\s+terminated\b/gi)) {
+    const nouns = [...s.slice(Math.max(0, (t.index ?? 0) - 160), (t.index ?? 0) + t[0].length).matchAll(ENDED_NOUN)].map((x) => x[1]);
+    if (AGREEMENT_NOUN.test(nouns[nouns.length - 1] ?? '')) return ended('terminated', t);
+  }
+  if ((m = /\bterminated\s+(?:the|this|that|such|our|its|their)\s+(?:[\w-]+\s+){0,6}?(?:agreements?|collaborations?|licen[cs]es?|partnerships?|arrangements?|JDA)\b/i.exec(s))) return ended('terminated', m);
+  // A notice received, given or sent: "we received notice from Merck that it was terminating", "Merck provided us
+  // written notice of termination", "Pfizer notified the Company of its termination"; not "unless Lilly notifies".
+  if ((m = /\b(?:received|provided|delivered|sent|gave|given|issued|served)\b[^.;]{0,80}\bnotice\b[^.;]{0,100}\b(?:termination|terminate|terminating|expiration)\b|\bnotified\b[^.;]{0,100}\b(?:termination|terminate|terminating)\b/i.exec(s))) return ended('terminated', m);
+  if ((m = /\bconcluded\s+(?=in|on|as of)/i.exec(s))) return ended('terminated', m);
+  if ((m = new RegExp(String.raw`\bformer\s+(?:[\w-]+\s+){0,6}?(?:agreements?|collaborations?|licen[cs]es?|partnerships?)\s+(?:agreement\s+)?with\s+(?:the\s+)?(?:${p})|\bformer\s+(?:[\w-]+\s+){0,2}partners?,?\s+(?:${p})`, 'i').exec(s))) return ended('terminated', m);
+  if ((m = new RegExp(String.raw`(?:^|[,;]\s*|\b(?:and|that|which)\s+)(?:${p})\s+(?:will\s+|would\s+|shall\s+)?no longer\s+(?:promotes?|has any rights|have any rights)\b`).exec(s)) || (previous && (m = /\bno longer\s+(?:promotes?|has any rights|have any rights)\b/i.exec(s)))) return ended('terminated');
+  return null;
 }
 
 /** The sites a sentence says are leased to the named company: "Polaris Forge 2, its AI Factory campus ... currently leased to Oracle". */
@@ -2312,6 +2676,7 @@ export function mergeRelations(list: Relation[], options: { preserveRoles?: bool
     if (r.side !== have.side && r.side !== 'records') have.side = have.side === 'records' ? r.side : 'both';
     if (r.amount != null) have.amount = Math.max(have.amount ?? 0, r.amount);
     have.ticker ??= r.ticker;
+    have.listing ??= r.listing;
     have.id ??= r.id;
     have.yahoo ??= r.yahoo;
   }
@@ -2396,6 +2761,8 @@ export function mergeRelations(list: Relation[], options: { preserveRoles?: bool
 
 /** At most this many of a company's differently named federal units are looked up in its own filings. */
 const MAX_UNIT_CHECKS = 12;
+/** At most this many related companies without a listing have their filing lists read for the reason. */
+const MAX_LISTING_CHECKS = 30;
 
 export interface FtsHit {
   cik: number;
@@ -2837,6 +3204,7 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
             }
             return out;
           },
+          lookUpParties: true,
           today,
         }, (step, state, found, url) => { if (state === 'failed') failedDocument(); emit((c) => ({ ...c, filers: c.filers.map((x) => (x.path === `usaspending/${step}` ? { ...x, state, ...(found != null ? { found } : {}), ...(url ? { url } : {}) } : x)) })); });
         relations.push(...got.relations.map((r) => enrichRelation(r, Date.now())));
@@ -2885,19 +3253,38 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
     if (sentences) {
       coverage.documentsRead++;
       if (sentences.length >= 80) capped('A document reached the mention extraction limit.');
-      const listed = dir.byTicker.get(f.tickers[0] ?? '');
+      const identity = filerIdentity(dir, f.cik, f.name, f.tickers);
       // The filer as its documents call it, initials included ("BMS" for Bristol-Myers Squibb).
       // Two-word names also written as one ("Open Text" is "OpenText" in its own filings).
       const filerNames = targetNames(f.tickers[0], f.name).names.flatMap((n) => (/^[A-Z][a-z]{2,} [A-Z][a-z]{2,}$/.test(n) ? [n, n.replace(' ', '')] : [n]));
       const words = (filerNames[0] ?? '').split(/[\s-]+/).filter((w) => /^[A-Z]/.test(w));
       const filer = targetPattern(words.length >= 3 ? [...filerNames, words.map((w) => w[0]).join('')] : filerNames);
-      // A filing that calls another company by the target's name speaks of that company throughout.
-      const other = sentences.some((s) => definesOther(s, pattern));
+      // A filing that calls another company by the target's name speaks of that company throughout, as does one that
+      // names only the target's namesake.
+      const other = sentences.some((s) => definesOther(s, pattern)) || speaksOfNamesake(sentences, names);
       const filedYear = Number(f.date.slice(0, 4));
+      // The agreement the filing says ended: its statements of the relation published by then are history.
+      const endings: { e: Evidence; ending: Ending }[] = [];
+      const roles = new Set<Role>();
+      let prev: { sentence: string; role?: Role } | undefined;
       for (const sentence of other ? [] : sentences) {
+        if (sentence.startsWith('[next] ')) {
+          // The sentence after one naming the company ("The JDA concluded in September 2024."), quoted with it.
+          const next = sentence.slice('[next] '.length);
+          const ending = prev && (prev.role === 'partner' || prev.role === 'supplier' || prev.role === 'customer') ? relationEnding(next, pattern, prev.sentence) : null;
+          if (ending) endings.push({ e: evidence(f, `${prev!.sentence} ${next}`), ending });
+          continue;
+        }
+        prev = { sentence };
         if (exclude?.test(sentence)) continue;
+        const ending = relationEnding(sentence, pattern);
+        if (ending) {
+          endings.push({ e: evidence(f, sentence), ending });
+          continue;
+        }
         const c = classify(sentence, pattern, filer);
         if (!c) continue;
+        prev.role = c.role;
         // "95% of our China revenue in 2019" in a 2026 report: a figure for a long-past year is no current relation, nor
         // is an event dated long before ("On December 11, 1998, The Coca-Cola Company announced an agreement").
         const years = (sentence.match(/\b(?:19|20)\d{2}\b/g) ?? []).map(Number).filter((y) => y <= filedYear + 1);
@@ -2906,15 +3293,51 @@ export async function runChain(target: { ticker?: string; name: string }, io: Ch
         const dated = /^(?:In|On|During|By|As of)\s+(?:(?:early|mid|late)[- ])?(?:[A-Z][a-z]+\s+)?(?:\d{1,2},\s+)?((?:19|20)\d{2})\b/.exec(sentence.trim());
         if (dated && Number(dated[1]) < filedYear - 5 && Math.max(...years) < filedYear - 5 && /\b(?:announced|acquir\w+|acquisition|sold|completed|consummated|merged|spun off|spin-off|divest\w*)\b/i.test(sentence)) continue;
         found++;
-        const r: Relation = { key: `cik:${f.cik}`, name: knownName(f.tickers[0]) ?? listed?.title ?? f.name, ticker: f.tickers[0], cik: f.cik, role: c.role, share: c.share, qualifier: c.qualifier, basis: c.basis, side: 'theirs', evidence: [evidence(f, sentence)] };
+        const r: Relation = { key: `cik:${f.cik}`, name: identity.name, ticker: identity.ticker, cik: f.cik, ...(identity.listing ? { listing: identity.listing } : {}), role: c.role, share: c.share, qualifier: c.qualifier, basis: c.basis, side: 'theirs', evidence: [evidence(f, sentence)] };
         relations.push(r); captured.push(enrichRelation(r));
+        roles.add(c.role);
         if (c.also) { const also = { ...r, role: c.also, share: undefined, qualifier: undefined, basis: undefined }; relations.push(also); captured.push(enrichRelation(also)); }
+      }
+      // An ending closes the agreement's roles the filing states (partner, supplier or customer), or a partnership when it
+      // states none; a stake or a rivalry is not an agreement.
+      const closing = [...roles].filter((x) => x === 'partner' || x === 'supplier' || x === 'customer');
+      for (const { e, ending } of endings) {
+        for (const role of closing.length ? closing : ['partner' as const]) {
+          const r: Relation = { key: `cik:${f.cik}`, name: identity.name, ticker: identity.ticker, cik: f.cik, ...(identity.listing ? { listing: identity.listing } : {}), role, side: 'theirs', evidence: [{ ...e, assertion: endingAssertion(e, ending) }] };
+          relations.push(r); captured.push(enrichRelation(r));
+          found++;
+        }
       }
     } else failedDocument();
     mark(f, sentences ? 'read' : 'failed', found);
     publish();
   });
   await federal;
+  // A company it took over (or whose stake was redeemed) is no longer a counterparty: each of its relations ends then. A
+  // company no longer listed is named in its own filings under its CIK, and in the company's by name.
+  for (const [key, list] of ended.taken ?? []) {
+    const name = normalizeName(list[0].party.name);
+    const same = captured.filter((r) => r.key === key || (name && normalizeName(r.name) === name));
+    for (const k of new Set(same.map((r) => `${r.key}|${r.role}`))) {
+      const was = same.find((r) => `${r.key}|${r.role}` === k)!;
+      for (const { evidence: e, ending } of list) {
+        const r: Relation = { key: was.key, name: was.name, ticker: was.ticker, cik: was.cik, id: was.id, yahoo: was.yahoo, ...(was.listing ? { listing: was.listing } : {}), role: was.role, side: 'own', evidence: [{ ...e, assertion: endingAssertion(e, ending) }] };
+        relations.push(r);
+        captured.push(enrichRelation(r));
+      }
+    }
+  }
+  if (ended.taken?.size) publish();
+  // Companies the SEC's current list no longer has: their own filing lists say why (a change in control, a
+  // bankruptcy, a deregistration or a delisting). Without an answer they stay "Not listed".
+  const unlisted = [...new Set(captured.filter((r) => r.cik && r.listing).map((r) => r.cik!))].slice(0, MAX_LISTING_CHECKS);
+  for (const cik of unlisted) {
+    const filings = await io.filings(cik).catch(() => null);
+    const events = filings ? listingEvents(filings) : [];
+    if (!events.length) continue;
+    for (const list of [captured, relations]) for (const r of list) if (r.cik === cik && r.listing) r.listing = { ...r.listing, events };
+  }
+  if (unlisted.length) publish();
   if (coverage.failedDocuments) warn('Some source documents could not be read. The extracted relationships are incomplete.');
   if (!company) warn('No company filing index was matched; only counterparties found in other sources are available.');
   reportCoverage();

@@ -1,4 +1,4 @@
-import { eventDate, findCompanies, normalizeName, relationKey, sharePeriod, type Chain, type Directory, type Evidence, type Relation, type Role } from './supply-chain';
+import { eventDate, findCompanies, normalizeName, periodMonths, relationKey, sharePeriod, type Chain, type Directory, type Evidence, type Relation, type Role } from './supply-chain';
 
 /** Parsed public disclosures, not a reconstruction of observations that predate collection. */
 export const RELATIONSHIP_PARSER = 3;
@@ -16,7 +16,9 @@ export interface RelationshipAssertion {
   scope: 'contract' | 'ownership' | 'relationship' | 'unresolved';
   evidenceId: string;
   phase?: 'conditional' | 'under-construction' | 'operating';
-  ending?: 'terminated' | 'expired' | 'repaid' | 'disposed';
+  ending?: 'terminated' | 'expired' | 'repaid' | 'disposed' | 'assigned';
+  /** When the statement says its event happened ("In January 2021, we entered into ..."): YYYY, YYYY-MM or YYYY-MM-DD. */
+  statedAt?: string;
 }
 export interface IdentityLink {
   entityKey: string;
@@ -34,7 +36,9 @@ export interface ShareObservation {
   qualifier?: '>' | '<';
   basis: Relation['basis'];
   period: string;
-  denominator: 'revenue' | 'continuing-operations-revenue' | 'segment-revenue' | 'product-sales' | 'purchases' | 'unknown';
+  denominator: 'revenue' | 'continuing-operations-revenue' | 'segment-revenue' | 'line-revenue' | 'product-sales' | 'purchases' | 'unknown';
+  /** The revenue line a share is of, as the filing names it: "oil, natural gas and NGL" (Matador's 10-K). */
+  line?: string;
   scope: 'target' | 'counterparty' | 'unknown';
   /** Segment or business context from the disclosure, kept independently of the denominator. */
   segment?: string;
@@ -42,6 +46,16 @@ export interface ShareObservation {
   sourceDate: string;
   observedAt?: number;
   evidenceId: string;
+}
+
+/**
+ * Who states one statement: the company itself (its own filing), the other company, or government records. Read from
+ * the statement's own filing, never from the relation it is merged into.
+ */
+export function statedBy(e: Evidence, companyCik: number | undefined): 'own' | 'theirs' | 'records' {
+  if (!e.path && e.url) return 'records';
+  const cik = Number(e.path.split('/')[0]);
+  return companyCik != null && cik === companyCik ? 'own' : 'theirs';
 }
 
 /** Full citation identity matters: repeated wording in a new filing is a new disclosure. */
@@ -70,6 +84,25 @@ export function contractReference(sentence: string, role: Role): string | undefi
   return undefined;
 }
 
+const MONTHS: Record<string, string> = { january: '01', february: '02', march: '03', april: '04', may: '05', june: '06', july: '07', august: '08', september: '09', october: '10', november: '11', december: '12' };
+
+/** The date a statement opens with: "In January 2021, ...", "On December 11, 2023, ...", "In 2022, ...". */
+export function statedAt(sentence: string): string | undefined {
+  const m = /^(?:In|On|During|As of|Effective)\s+(?:(?:early|mid|late)[- ])?(?:(January|February|March|April|May|June|July|August|September|October|November|December)\s+(?:(\d{1,2}),\s+)?)?((?:19|20)\d{2})\b/.exec(sentence.trim());
+  if (!m) return undefined;
+  return m[1] ? `${m[3]}-${MONTHS[m[1].toLowerCase()]}${m[2] ? `-${m[2].padStart(2, '0')}` : ''}` : m[3];
+}
+
+/**
+ * An ending stated for the whole relationship, not one contract: a counterparty's filing says its agreement with the
+ * company was terminated, expired, concluded or assigned away, or that it sold the property leased to it. It closes
+ * the statements published by then, unless they say they happened after the ending.
+ */
+export function endingAssertion(e: Evidence, ending: { how: 'terminated' | 'expired' | 'assigned' | 'disposed'; date?: string }): RelationshipAssertion {
+  const evidenceId = evidenceIdentity(e);
+  return { id: evidenceId, state: 'ended', sourceDate: e.date, sourcePrecision: 'day', observedAt: e.observedAt, ...(ending.date ? { effectiveTo: ending.date } : {}), scope: 'relationship', evidenceId, ending: ending.how };
+}
+
 function explicitEffective(sentence: string, ended: boolean): string | undefined {
   const m = new RegExp(`\\b(?:effective(?:\\s+(?:as of|on|from))?|${ended ? 'terminated on|expired on' : 'commencing on|commences on|beginning on'})\\s+(${DATE_WORDS})`, 'i').exec(sentence);
   return m ? eventDate(m[1]) || undefined : undefined;
@@ -84,15 +117,18 @@ export function assertionFor(e: Evidence, r: Pick<Relation, 'role'>): Relationsh
     : /\b(?:plans? to|expects? to|intends? to|proposed|nonbinding|non-binding|letter of intent|memorandum of understanding)\b/i.test(s) ? 'planned'
       : /\b(?:entered into|signed|executed)\b/i.test(s) ? 'signed' : 'reported';
   const contractKey = contractReference(s, r.role);
-  const ownership = r.role === 'investment' && /\b(?:stake|ownership|interest|shares|investment)\b/i.test(s);
+  // "We owned 32% of Haleon as of December 31, 2023" (Pfizer's 10-K of February 2026) is a holding the same 10-K's
+  // "remaining sale of our investment in Haleon in 2025" ends.
+  const ownership = r.role === 'investment' && /\b(?:stake|ownership|interest|shares|investment|owned|owns|held|holds)\b/i.test(s);
   const explicit = explicitEffective(s, ended);
   const event = /^On\b/i.test(s.trim()) ? eventDate(s) || undefined : undefined;
   // A closure without a contract reference must not close every contract with that company.
   const scope = ownership ? 'ownership' : contractKey ? 'contract' : ended ? 'unresolved' : 'relationship';
   const evidenceId = evidenceIdentity(e);
+  const stated = statedAt(s);
   return {
     id: evidenceId, state, sourceDate: e.date, sourcePrecision: 'day', observedAt: e.observedAt,
-    ...(event ? { eventDate: event } : {}), ...(explicit ? ended ? { effectiveTo: explicit } : { effectiveFrom: explicit } : {}),
+    ...(event ? { eventDate: event } : {}), ...(stated ? { statedAt: stated } : {}), ...(explicit ? ended ? { effectiveTo: explicit } : { effectiveFrom: explicit } : {}),
     ...(contractKey ? { contractKey } : ownership ? { contractKey: 'ownership' } : {}), scope, evidenceId,
     ...(/\b(?:conditional|conditioned upon|subject to (?:approval|closing|completion))\b/i.test(s) ? { phase: 'conditional' as const }
       : /\b(?:under construction|construction is underway)\b/i.test(s) ? { phase: 'under-construction' as const }
@@ -101,20 +137,39 @@ export function assertionFor(e: Evidence, r: Pick<Relation, 'role'>): Relationsh
   };
 }
 
+/** Words of a revenue phrase that do not name a line of it: "of our total operating revenue" is all of it. */
+const WHOLE_REVENUE_WORD = /^(?:total|net|consolidated|operating|gross|annual|aggregate|reported|and)$/i;
+
+/**
+ * The line of revenue a share is of, when the filing names one: "accounted for 72%, 79% and 76%, respectively, of the
+ * Company's total oil, natural gas and NGL revenues" (Matador's 10-K) is "oil, natural gas and NGL"; "of our operating
+ * revenue" names none.
+ */
+export function revenueLine(sentence: string): string | undefined {
+  const m = /\bof\s+(?:the Company's|our|its|their)\s+((?:[A-Za-z][\w-]*,?\s+){1,7}?)(?:revenues?|net sales|sales)\b/i.exec(sentence);
+  if (!m) return undefined;
+  const words = m[1].trim().split(/\s+/);
+  const named = words.filter((w) => !WHOLE_REVENUE_WORD.test(w.replace(/,$/, '')));
+  if (!named.length) return undefined;
+  return words.filter((w, i) => i > 0 || !WHOLE_REVENUE_WORD.test(w.replace(/,$/, ''))).join(' ').replace(/,$/, '');
+}
+
 export function shareObservation(r: Relation, e: Evidence): ShareObservation | undefined {
   if (r.share == null || !Number.isFinite(r.share)) return undefined;
   const s = e.sentence;
+  const line = r.basis === 'their-revenue' || r.basis === 'target-revenue' ? revenueLine(s) : undefined;
   const denominator: ShareObservation['denominator'] = /\bcontinuing operations\b/i.test(s) ? 'continuing-operations-revenue'
     : /\bof\s+(?:our |its |the Company's )?(?:[\w-]+\s+){0,5}(?:segment|business line|loyalty services)\s+revenues?\b/i.test(s) ? 'segment-revenue'
-      : r.basis === 'their-product-sales' ? 'product-sales'
-        : r.basis === 'their-purchases' || r.basis === 'target-purchases' ? 'purchases'
-          : r.basis === 'target-revenue' || r.basis === 'their-revenue' ? 'revenue' : 'unknown';
+      : line ? 'line-revenue'
+        : r.basis === 'their-product-sales' ? 'product-sales'
+          : r.basis === 'their-purchases' || r.basis === 'target-purchases' ? 'purchases'
+            : r.basis === 'target-revenue' || r.basis === 'their-revenue' ? 'revenue' : 'unknown';
   const scope = r.basis?.startsWith('target-') ? 'target' : r.basis?.startsWith('their-') ? 'counterparty' : 'unknown';
   const evidenceId = evidenceIdentity(e);
   const segment = /^([A-Z][\w&-]*(?:\s+[A-Z][\w&-]*){0,4}?)\s+(?:Business|Segment)\b/.exec(s)?.[1]
     ?? /\b(?:our|the)\s+([A-Z][A-Za-z &-]{1,60}?)\s+segment\b/.exec(s)?.[1];
   const periodEnd = new RegExp(`\\b(?:ended|ending)\\s+(${DATE_WORDS})`, 'i').exec(s);
-  return { id: JSON.stringify([evidenceId, r.share, r.basis, r.qualifier]), value: r.share, qualifier: r.qualifier, basis: r.basis, period: sharePeriod(s), ...(periodEnd ? { periodEnd: eventDate(periodEnd[1]) } : {}), denominator, scope, ...(segment ? { segment } : {}), sourceDate: e.date, observedAt: e.observedAt, evidenceId };
+  return { id: JSON.stringify([evidenceId, r.share, r.basis, r.qualifier]), value: r.share, qualifier: r.qualifier, basis: r.basis, period: sharePeriod(s), ...(periodEnd ? { periodEnd: eventDate(periodEnd[1]) } : {}), denominator, ...(line ? { line } : {}), scope, ...(segment ? { segment } : {}), sourceDate: e.date, observedAt: e.observedAt, evidenceId };
 }
 
 export function enrichRelation(r: Relation, observedAt?: number): Relation {
@@ -134,6 +189,7 @@ export function enrichRelation(r: Relation, observedAt?: number): Relation {
 /** Retain all recorded versions, including periods no longer selected for the current display. */
 export function appendRelationshipHistory(previous: Relation[], incoming: Relation[], observedAt?: number): Relation[] {
   const by = new Map<string, Relation>();
+  const newer = new Set(incoming);
   for (const raw of [...previous, ...incoming]) {
     const r = enrichRelation(raw, observedAt);
     // Anonymous concentration labels are local to a filing and cannot identify an entity across periods.
@@ -141,11 +197,21 @@ export function appendRelationshipHistory(previous: Relation[], incoming: Relati
     const have = by.get(k);
     if (!have) { by.set(k, { ...r, evidence: [...r.evidence], assertions: [...r.assertions!], observations: [...r.observations!] }); continue; }
     for (const e of r.evidence) if (!have.evidence.some((x) => evidenceIdentity(x) === evidenceIdentity(e))) have.evidence.push(e);
+    // Who states it: both sides once the company and the other each do (Incyte's 10-K beside Lilly's own; L3Harris's
+    // beside Northrop's), whichever was read first; government records add to the filings.
+    if (r.side !== have.side && r.side !== 'records') have.side = have.side === 'records' ? r.side : 'both';
     for (const a of r.assertions!) if (!have.assertions!.some((x) => x.id === a.id)) have.assertions!.push(a);
     for (const o of r.observations!) if (!have.observations!.some((x) => x.id === o.id)) have.observations!.push(o);
     if (r.identityLinks) have.identityLinks = [...new Map([...(have.identityLinks ?? []), ...r.identityLinks].map((link) => [evidenceIdentity(link.evidence), link])).values()];
-    // Name/ticker changes are display aliases only; earlier citations keep the name as filed.
+    // Name/ticker changes are display aliases only; earlier citations keep the name as filed. The newest reading names
+    // the company: a saved record keeps no ticker the SEC has since given to another company.
+    if (newer.has(raw) && r.cik && r.cik === have.cik) {
+      have.name = r.name;
+      have.ticker = r.ticker;
+      have.listing = r.listing;
+    }
     have.ticker ??= r.ticker;
+    have.listing ??= r.listing;
     have.cik ??= r.cik;
     have.id ??= r.id;
     have.yahoo ??= r.yahoo;
@@ -158,11 +224,21 @@ export function relationStatus(r: Relation, effectiveAsOf?: string): 'reported' 
   const day = effectiveAsOf ?? new Date().toISOString().slice(0, 10);
   const assertions = (r.assertions ?? r.evidence.map((e) => assertionFor(e, r))).filter((a) => !(a.effectiveFrom && a.effectiveFrom > day));
   const positives = assertions.filter((a) => a.state !== 'ended' && a.state !== 'planned');
+  // A stake in a company taken over since (its 8-K reporting a change in control) is no longer held in it: Pfizer's
+  // Tourmaline shares after Novartis bought Tourmaline for cash in October 2025.
+  const takeover = r.role === 'investment' ? r.listing?.events?.find((x) => x.what === 'change in control' && x.date <= day) : undefined;
+  if (takeover && !positives.some((a) => a.sourceDate > takeover.date)) return 'ended';
   const ended = assertions.filter((a) => a.state === 'ended' && (!a.effectiveTo || a.effectiveTo <= day));
   if (!ended.length) return positives.length ? 'reported' : 'unresolved';
-  if (ended.some((a) => a.scope === 'unresolved')) return 'unresolved';
+  // A closure without a contract reference needs reconciling, unless a later statement ends the whole relationship
+  // (Pfizer's 8-K "Terminated a global collaboration and license agreement with Sangamo", then Sangamo's 10-Q on the
+  // termination effective April 21, 2025).
+  if (ended.some((a) => a.scope === 'unresolved' && !ended.some((e) => e.scope === 'relationship' && e.sourceDate >= a.sourceDate))) return 'unresolved';
   const closed = (a: RelationshipAssertion) => ended.some((e) => e.contractKey && e.contractKey === a.contractKey && (e.effectiveTo ?? e.eventDate ?? e.sourceDate) >= (a.effectiveFrom ?? a.eventDate ?? a.sourceDate));
-  if (positives.length && positives.some((a) => !closed(a))) return 'reported';
+  // An ending of the whole relationship closes what was published by then, unless a statement says its event came after
+  // the ending ("In 2025, we entered into a new agreement").
+  const closedAll = (a: RelationshipAssertion) => ended.some((e) => e.scope === 'relationship' && a.sourceDate <= e.sourceDate && !(a.statedAt && e.effectiveTo && a.statedAt > e.effectiveTo));
+  if (positives.length && positives.some((a) => !closed(a) && !closedAll(a))) return 'reported';
   return 'ended';
 }
 
@@ -174,7 +250,10 @@ export function relationshipView(chain: Chain, mode: 'current' | 'history', know
     const evidence = r.evidence.filter(eligible);
     const ids = new Set(evidence.map(evidenceIdentity));
     const observations = r.observations?.filter((o) => ids.has(o.evidenceId));
-    const selected = observations?.slice().sort((a, b) => b.sourceDate.localeCompare(a.sourceDate) || (b.observedAt ?? 0) - (a.observedAt ?? 0)).at(0);
+    // A year's share before a part year's, then the latest: Dauch's 15% of 2025 (10-K) rather than its 11% of the first
+    // six months of 2026 (10-Q); a share with no period stated ranks between them.
+    const span = (o: ShareObservation) => { const n = periodMonths(o.period); return n >= 12 ? 2 : n === 0 ? 1 : 0; };
+    const selected = observations?.slice().sort((a, b) => span(b) - span(a) || b.sourceDate.localeCompare(a.sourceDate) || (b.observedAt ?? 0) - (a.observedAt ?? 0)).at(0);
     return { ...r, evidence: selected ? evidence.slice().sort((a, b) => Number(evidenceIdentity(b) === selected.evidenceId) - Number(evidenceIdentity(a) === selected.evidenceId)) : evidence,
       ...(selected || knownAsOf ? { share: selected?.value, qualifier: selected?.qualifier, basis: selected?.basis } : {}),
       assertions: r.assertions?.filter((a) => ids.has(a.evidenceId)), observations, identityLinks: r.identityLinks?.filter((link) => eligible(link.evidence)) };
@@ -205,7 +284,7 @@ export function customerCounts(rows: Relation[]): { named: number; unnamed: numb
 export function compatibleShareTotal(rows: Relation[]): number | undefined {
   if (!rows.length || rows.some((r) => relationKind(r) === 'concentration' || r.unnamed || r.qualifier || r.basis !== 'target-revenue')) return undefined;
   const obs = rows.map((r) => r.observations?.find((o) => o.evidenceId === evidenceIdentity(r.evidence[0])) ?? shareObservation(r, r.evidence[0]));
-  if (obs.some((o) => !o || !o.period || o.denominator === 'unknown' || o.denominator === 'segment-revenue')) return undefined;
+  if (obs.some((o) => !o || !o.period || o.denominator === 'unknown' || o.denominator === 'segment-revenue' || o.denominator === 'line-revenue')) return undefined;
   const first = obs[0]!;
   if (obs.some((o) => o!.period !== first.period || o!.periodEnd !== first.periodEnd || o!.denominator !== first.denominator || o!.scope !== first.scope || o!.segment !== first.segment)) return undefined;
   if (new Set(rows.map((r) => r.key)).size !== rows.length) return undefined;
