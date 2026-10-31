@@ -501,6 +501,8 @@ export function RV({ sec }: FnProps) {
       <DataTable
         // Each page sorts on its own column first, as RV's Overview sorts on ROE.
         key={`${page}:${sheet}`}
+        // The comp sheet itself, apart from the comp range and segment panels' tables.
+        className="rv-comps"
         rows={rows}
         rowKey={(r) => r.d.id}
         selected={s.id}
