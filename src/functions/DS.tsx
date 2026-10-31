@@ -6,6 +6,7 @@ import { docQueryString, docUrl, highlightTerms, parseDocSearch, type DocHit, ty
 import { resolveFiler, secAvailable, secTicker, SEC_DESKTOP_ONLY, SEC_NEEDS_AGENT } from '../data/live/sec';
 import { usePanelId } from '../terminal/panel';
 import type { FnProps } from '../terminal/types';
+import type { DocAnswer } from '../data/live/lookup';
 
 const FORM_SETS: { key: string; label: string; forms: string[] }[] = [
   { key: 'all', label: 'All Documents', forms: [] },
@@ -31,6 +32,77 @@ function marked(sentence: string, terms: string[]): ReactNode {
   if (!terms.length) return sentence;
   const re = new RegExp(`(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
   return sentence.split(re).map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : <Fragment key={i}>{part}</Fragment>));
+}
+
+/** Questions to start from, in the app's own words. */
+const SUGGESTIONS = ['Sum up the main points', 'What risks does it name?', 'What does it say about the outlook?', 'What changed from the year before?', 'Where does it mention competition?'];
+
+/**
+ * DS's Ask a Question on one filing (FFM_DS_TA 0:30.7, 0:35.5): an amber field, suggestions, then Gemini's answer from
+ * the filing's text with each point over the filing's own words; points whose quote is not in the filing never reach
+ * the page (electron/gemini.cjs).
+ */
+function DocAsk({ path }: { path: string }) {
+  const [q, setQ] = useState('');
+  const [state, setState] = useState<{ q: string; a?: DocAnswer } | null>(null);
+  if (typeof window.arminDesktop?.docAsk !== 'function') return <p className="muted ds-ask-note">Ask a Question runs in the desktop app with a Gemini key on PROVIDERS.</p>;
+  const ask = async (question: string) => {
+    const t = question.trim();
+    if (!t) return;
+    setQ(t);
+    setState({ q: t });
+    const a = await window.arminDesktop!.docAsk!(path, t).catch((e: unknown) => ({ error: String((e as Error)?.message ?? e) }) as DocAnswer);
+    setState({ q: t, a });
+  };
+  const a = state?.a;
+  const why = !a ? '' : a.missing === 'GEMINI_API_KEY' ? 'Set GEMINI_API_KEY on PROVIDERS to ask questions.' : a.missing === 'SEC_USER_AGENT' ? 'Set SEC_USER_AGENT on PROVIDERS to read the filing.' : a.gated ? 'Gemini is switched off on PROVIDERS (GEMINI_DOCS_ENABLED).' : a.budget ? "Today's 200 questions to Gemini are used; it answers again tomorrow." : a.refused ? `The Gemini key was not sent: ${a.refused}.` : a.error ?? '';
+  return (
+    <div className="ds-ask" data-testid="ds-ask">
+      <div className="ds-ask-h">Ask a Question</div>
+      <input
+        className="inp ds-ask-inp"
+        aria-label="Ask a question about this document"
+        placeholder="Ask about this document"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && void ask(q)}
+      />
+      <p className="muted">Ask a question about this filing, or ask for a summary of what it says on a subject. The answer comes from the filing&apos;s text only.</p>
+      {!state ? (
+        <>
+          <div className="amber">Suggestions</div>
+          <div className="ds-ask-sugg">
+            {SUGGESTIONS.map((x) => (
+              <button key={x} type="button" className="ds-ask-chip" onClick={() => void ask(x)}>
+                {x}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : !a ? (
+        <p className="muted">Reading the filing and asking Gemini…</p>
+      ) : why ? (
+        <p className="amber" role="status">{why}</p>
+      ) : (
+        <div className="ds-ask-answer" data-testid="ds-answer">
+          {a.answer ? <p className="white">{a.answer}</p> : null}
+          {(a.points ?? []).map((p, i) => (
+            <div key={i} className="ds-ask-point">
+              <div className="white">• {p.point}</div>
+              <div className="ds-ask-quote">&ldquo;{p.quote}&rdquo;</div>
+            </div>
+          ))}
+          {!a.points?.length && !a.answer ? <p className="muted">Gemini gave no point it could quote from the filing.</p> : null}
+          <p className="muted ds-ask-note">
+            Answer by Google Gemini ({a.model}) from this filing&apos;s text; each point is shown over the words it quotes.
+            {a.dropped ? ` ${a.dropped} point${a.dropped === 1 ? ' was' : 's were'} left out: the quote was not in the filing, or a figure was not in its quote.` : ''}
+            {a.truncated ? ' The filing is long: only its first part was read.' : ''}
+          </p>
+          <button type="button" className="link-btn" onClick={() => { setState(null); setQ(''); }}>Ask another question</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -248,6 +320,7 @@ export function DS({ sec }: FnProps) {
                                 </p>
                               ))
                             )}
+                            {o !== 'loading' && <DocAsk key={h.path} path={h.path} />}
                           </td>
                         </tr>
                       )}

@@ -64,6 +64,8 @@ export async function checkBondCalls(page: Page, run: RunCommand) {
   await page.getByLabel('Maturity', { exact: true }).fill('2036-01-15');
   await page.getByLabel('Solve from').selectOption('price');
   await page.getByLabel('Clean price per 100').fill('117.5');
+  // YAS keeps the calls on their own page, 6) Calls (TE07 03:47).
+  await page.locator('.panel').first().getByRole('button', { name: /6\) Calls/ }).click();
   await page.getByLabel('Call schedule').fill('2031-01-15, 110\n2020-01-15, 115');
   // 7.43% to the call (7.4332997367 from a separate solver), below the 7.48% to maturity: the call is the worst.
   await expect.poll(() => displayed(page, 'bond-ytw')).toBeCloseTo(7.4332997367, 6);

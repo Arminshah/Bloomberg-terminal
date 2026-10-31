@@ -74,6 +74,8 @@ declare global {
       finnhubResearch?(kind: 'ratings', symbol: string, fresh?: boolean): Promise<KeyedAnswer>;
       tipranks?(kind: 'consensus' | 'ratings' | 'usage', ticker: string): Promise<KeyedAnswer>;
       assistant?(messages: unknown[]): Promise<import('../assistant/types').AssistantAnswer>;
+      /** DS's Ask a Question: Gemini's answer about one filing, only points whose quotes are in the filing. */
+      docAsk?(docPath: string, question: string): Promise<DocAnswer>;
       finnhub?(kind: 'profile' | 'metric' | 'recommendation' | 'earnings' | 'calendar' | 'history' | 'quote' | 'peers', symbol: string): Promise<KeyedAnswer>;
       news?(source: import('./marketnews').NewsSource, arg?: string): Promise<KeyedAnswer>;
       alpaca?(kind: 'snapshots', symbols: string): Promise<KeyedAnswer>;
@@ -104,6 +106,22 @@ declare global {
  * it was kept from an earlier request, `stale` when a newer one failed; `missing` or `refused` when no
  * usable key is configured; `budget` when the app's daily allowance for the provider is spent.
  */
+/** DS's Ask a Question: Gemini's answer about a filing, kept only where it quotes the filing (electron/gemini.cjs). */
+export interface DocAnswer {
+  model?: string;
+  answer?: string;
+  points?: { point: string; quote: string }[];
+  /** Points left out because their quote is not in the filing, or a figure is not in their quote. */
+  dropped?: number;
+  /** The filing is longer than the part sent. */
+  truncated?: boolean;
+  error?: string;
+  missing?: string;
+  refused?: string;
+  gated?: string;
+  budget?: boolean;
+}
+
 export interface KeyedAnswer {
   /** Earliest retry time after a provider throttle or circuit breaker. */
   retryAt?: number;

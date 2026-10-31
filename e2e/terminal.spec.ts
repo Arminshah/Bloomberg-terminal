@@ -581,8 +581,10 @@ test('bond and FX forward calculators solve independent examples, reject invalid
     await expect(page.locator('.fnh-code').first()).toHaveText(code);
   };
   await checkBond(page, execute);
+  // YAS's Settings ▾ on the red bar holds the calculation's export (TE07 03:47).
   const saving = page.waitForEvent('download');
-  await run(page, '99');
+  await page.locator('.panel').first().getByRole('button', { name: /^Settings/ }).click();
+  await page.getByTestId('red-drop').getByRole('menuitem', { name: 'Download as CSV' }).click();
   const download = await saving;
   expect(download.suggestedFilename()).toBe('bond-calculation.csv');
   const path = await download.path();
@@ -594,7 +596,8 @@ test('bond and FX forward calculators solve independent examples, reject invalid
   await checkBondConventions(page, execute);
   await checkBondCalls(page, execute);
   const callsCsv = page.waitForEvent('download');
-  await run(page, '99');
+  await page.locator('.panel').first().getByRole('button', { name: /^Settings/ }).click();
+  await page.getByTestId('red-drop').getByRole('menuitem', { name: 'Download as CSV' }).click();
   const callsText = await readFile((await (await callsCsv).path())!, 'utf8');
   expect(callsText).toContain('Call schedule (date and price per 100),"2031-01-15, 110"');
   expect(callsText).toContain('Workout date,2031-01-15');

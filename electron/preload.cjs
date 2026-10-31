@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('arminDesktop', {
   finnhubResearch: (kind, symbol, fresh) => ipcRenderer.invoke('finnhub-research', String(kind), String(symbol), fresh === true),
   tipranks: (kind, ticker) => ipcRenderer.invoke('tipranks', String(kind), String(ticker)),
   assistant: (messages) => ipcRenderer.invoke('assistant', messages),
+  docAsk: (docPath, question) => ipcRenderer.invoke('doc-ask', docPath, question),
   finnhub: (kind, symbol) => ipcRenderer.invoke('finnhub', String(kind), String(symbol)),
   nasdaq: (kind, symbol) => ipcRenderer.invoke('nasdaq', String(kind), String(symbol)),
   nasdaqOptions: (symbol, assetClass) => ipcRenderer.invoke('nasdaq-options', String(symbol), String(assetClass)),

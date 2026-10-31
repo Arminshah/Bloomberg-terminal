@@ -27,7 +27,8 @@ export type Credential =
   | 'CONGRESS_GOV_API_KEY'
   | 'EIA_API_KEY'
   | 'BEA_API_KEY'
-  | 'ANTHROPIC_API_KEY';
+  | 'ANTHROPIC_API_KEY'
+  | 'GEMINI_API_KEY';
 
 /**
  * enabled: in use; needs-credential: in use once its key is configured;
@@ -979,6 +980,24 @@ export const PROVIDERS: ProviderDef[] = [
     desktop: true,
   },
   {
+    id: 'gemini',
+    name: 'Google Gemini (DS Ask a Question)',
+    serves: "Answers to questions about one SEC filing on DS, from the filing's own text",
+    dataClass: 'Generated answers, each point quoting the filing word for word; points whose quote is not in the filing are left out',
+    policy: 'needs-credential',
+    credential: 'GEMINI_API_KEY',
+    setting: 'GEMINI_DOCS_ENABLED',
+    limit: '200/day',
+    terms: "Gemini API with your own key (gemini-3-flash-preview, then gemini-3.1-flash-lite). The question and the filing's text are sent to Google; on the free tier Google may use them to improve its products (Gemini API terms). The key stays in the main process. The app stops at 200 requests a day.",
+    docs: [
+      { label: 'Gemini API', url: 'https://ai.google.dev/gemini-api/docs' },
+      { label: 'Pricing and free tier', url: 'https://ai.google.dev/gemini-api/docs/pricing' },
+      { label: 'Terms', url: 'https://ai.google.dev/gemini-api/terms' },
+    ],
+    checked: '2026-10-31',
+    desktop: true,
+  },
+  {
     id: 'anthropic',
     name: 'Anthropic (Claude help desk)',
     serves: 'Answers to open questions on MESSAGES: Claude reads prices, earnings, filings, analysts and news through the app\'s own sources as tools',
@@ -1044,7 +1063,7 @@ export interface ProviderStats {
   dayCap?: number;
 }
 
-export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'OPENFIGI_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED' | 'GOOGLE_NEWS_RSS_ENABLED' | 'MASSIVE_NEWS_ENABLED' | 'CLAUDE_HELPDESK_ENABLED';
+export type SettingName = 'YAHOO_PRICES_ENABLED' | 'YAHOO_RESEARCH_ENABLED' | 'KRAKEN_ENABLED' | 'TWELVE_DATA_DISPLAY_RIGHTS_CONFIRMED' | 'MARKETWATCH_RSS_ENABLED' | 'FMP_ENABLED' | 'FINNHUB_ENABLED' | 'OPENFIGI_ENABLED' | 'TIPRANKS_ENABLED' | 'MARKETAUX_ENABLED' | 'ALPACA_ENABLED' | 'ALPACA_IEX_PRICES_ENABLED' | 'TIINGO_ENABLED' | 'YAHOO_RSS_ENABLED' | 'EURONEXT_RSS_ENABLED' | 'GOOGLE_NEWS_RSS_ENABLED' | 'MASSIVE_NEWS_ENABLED' | 'CLAUDE_HELPDESK_ENABLED' | 'GEMINI_DOCS_ENABLED';
 
 export interface SettingState {
   label: string;

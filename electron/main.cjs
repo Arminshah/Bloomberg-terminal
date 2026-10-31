@@ -1495,6 +1495,42 @@ ipcMain.handle('option-chain', async (event, arg) => {
   return keyedGet('alpaca', url, alpaca.alpacaHeaders(id.value, secret.value), 15_000, [120, 60_000], [id.value, secret.value]);
 });
 
+// DS's Ask a Question (electron/gemini.cjs): the filing's text read here from sec.gov (once a session), the question and
+// that text sent to Gemini with the owner's key, and only the points whose quotes are in the filing returned.
+const gemini = require('./gemini.cjs');
+const filingTexts = new Map();
+ipcMain.handle('doc-ask', async (event, docPath, question) => {
+  if (!fromApp(event)) throw new Error('not allowed');
+  const url = supply.docUrl(docPath);
+  if (!url) throw new Error('not allowed');
+  if (!providers.setting('GEMINI_DOCS_ENABLED').value) return { gated: 'GEMINI_DOCS_ENABLED' };
+  const key = usableKey('GEMINI_API_KEY', 'gemini');
+  if (!key.value) return key;
+  const problem = gemini.checkQuestion(question);
+  if (problem) return { error: problem };
+  if (!providers.withinDailyCap('gemini')) return { budget: true };
+  let text = filingTexts.get(docPath);
+  if (!text) {
+    const ua = providers.credential('SEC_USER_AGENT').value;
+    if (!ua || !providers.CREDENTIALS.SEC_USER_AGENT.valid(ua)) return { missing: 'SEC_USER_AGENT' };
+    await providers.slot('sec', sec.PER_SECOND, 1000);
+    let res;
+    try {
+      res = await tracked('sec', url, { headers: { 'User-Agent': ua, Accept: 'text/html' }, cache: 'no-cache', signal: AbortSignal.timeout(3 * TIMEOUT_MS) });
+    } catch (err) {
+      return { error: `The filing did not load: ${String(err?.message ?? err).replace(/https?:\/\/\S+/g, '<url>').slice(0, 120)}` };
+    }
+    if (!res.ok) return { error: `The filing did not load (HTTP ${res.status}).` };
+    text = supply.htmlToText(await res.text());
+    filingTexts.set(docPath, text);
+  }
+  try {
+    return { ...(await gemini.ask((u, init) => tracked('gemini', u, init), key.value, question, text)), truncated: text.length > gemini.MAX_DOC };
+  } catch (err) {
+    return { error: gemini.errorText(err, key.value) };
+  }
+});
+
 // The help desk's Claude mode (electron/assistant.cjs): one request per call; the page runs the tools between calls.
 const assistant = require('./assistant.cjs');
 let claude = null;

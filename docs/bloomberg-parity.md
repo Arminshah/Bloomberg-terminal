@@ -328,6 +328,29 @@ Inventory: red bar with the security box, "94) Suggested Charts ▾", "96) Actio
 - Not done: 3D (the app keeps one day of intraday prices), the field box as a choice (other fields such as P/E history need sources the app lacks), the period box (1BF), G's saved graphs, Track, Annotate, News and Zoom on the chart.
 - Checked: `e2e/terminal.spec.ts` (periods by number and button, typed dates leaving none chosen, the three dropdowns, Edit Chart and its studies, the RSI chart), the look tests, live data in the desktop app (`docs/parity-m3-gp-live.png`), the whole browser and desktop suites.
 
+### M3 YAS (E3) and M4 YAS measures
+
+Evidence: TE07 03:47 (IBM 5.3 02/05/54, 2024); `METHODOLOGY.md` section 14 with its worked checks (CTX, GKN, Ford).
+
+Inventory: red bar with the bond in an amber box and "Settings ▾", a green "95) Buy"; bid/ask price and yield, "BMRK @ 15:02", Notes; tabs 1) Yield & Spread, 2) Graphs, 3) Pricing, 4) Description, 5) Custom, 6) Calls; Spread (bp) vs a benchmark, Price, Yield with Wst and S/A, Wkout @ price, Consensus Yld, Settle; Risk (M.Dur or Dur, Risk, Convexity, DV 01 on 1MM, Benchmark Risk, Risk Hedge, Proceeds Hedge); Spreads 11) G-Sprd, 12) I-Sprd, 13) Basis, 14) Z-Sprd, 15) ASW, 16) OAS; Yield Calculations (Street Convention, Equiv 1/Yr, Mmkt (Act/360), True Yield, Current Yield); Invoice (Face, Principal, Accrued (97 Days), Total (USD)); After Tax (Inc 40.800 % CG 23.800 %); Issue Price.
+
+- Now: the page has that layout, with the calculator's terms in a row above it (the app has no bond reference data, so the terms are typed). Settings ▾ holds the example and the export; the tabs are numbered and grey; the call schedule is on 6) Calls, the price/yield chart and scenarios on 2) Graphs, the cash flows on 3) Pricing, the full figures on 4) Description.
+- Checked against the frame's own bond (`tests/yas-measures.test.ts`, and on screen with its figures typed in): Spread 105.07 against a benchmark yield of 4.489521 (the frame's 105.07), yield 5.540202, 97 accrued days, Equiv 1/Yr 5.616937, current yield 5.490, M.Dur 14.31, Risk 14.0 and convexity 3.11 to the digits the frame shows, after-tax yield 3.306142 against 3.306384 (0.02 bp; the provider's treatment of the accrued interest differs slightly). Also the pack's CTX (yield 10.305, 89 days, Risk 4.566) and GKN (5.860 on the semi-annual basis, Risk 5.795) screens.
+- Measures added (M4 item 1, `src/finance/yas.ts`): yields restated on a quoting basis (S/A by default), modified duration and Risk = modified × full / 100 on that basis, convexity / 100, Equiv at 1, 2, 4 or 12 a year, current yield, the invoice, the money-market yield on Act/360 in the last coupon period (empty otherwise, as the frame's box), the after-tax yield.
+- Labelled blanks: G-Sprd (needs the government curve interpolated at maturity), I-Sprd and ASW (no swap curve source), Basis, True Yield (no holiday calendar), the benchmark's risk and hedges (needs the benchmark bond's terms), OAS for a callable bond (needs a rate tree; for a bullet it is the Z-spread).
+- Not done: 95) Buy, Notes, Consensus Yld, 5) Custom, Issue Price, bid/ask lines (no bond quotes).
+
+### M3 DS: Ask a Question (E3)
+
+Evidence: FFM_DS_TA 0:30.7 and 0:35.5 (an earnings call transcript open on DS, 2025).
+
+Inventory: a document with "Document Actions ▾", Comment, Highlight ▾ and zoom; at its left "Ask a Question" with an amber field, a grey line explaining what to ask, "Suggestions" in amber over grey buttons; once asked, a one-line answer over bullet points in grey boxes, each linked to the passage it comes from.
+
+- Now: an opened filing on DS (a result's matching sentences) has that panel: the amber field, the explanation, "Suggestions" with five questions in the app's own words, then the answer and each point over the filing's own words in quotes. The answer is Google Gemini's (the owner's key, `GEMINI_API_KEY`, with the switch `GEMINI_DOCS_ENABLED` on PROVIDERS; gemini-3-flash-preview, then gemini-3.1-flash-lite), from the filing's text read on sec.gov by the desktop app.
+- Kept to the filing (`electron/gemini.cjs`): each point must quote the filing word for word (case, curly quotes, dashes and spacing aside; a quote shortened with "…" counts only when each piece is in the filing in order), and every figure in a point must be in its quote; the answer sentence is dropped if it carries a figure the filing does not contain. What is dropped is counted under the answer, and the panel names Gemini and its model. The question and the filing go to Google; on the free tier Google may use them (PROVIDERS says so). The app stops at 200 requests a day.
+- Checked: `tests/gemini-grounding.test.ts` (quotes found or not, figures, the answer's figures, shortened quotes in and out of order, the question limits, the key kept out of errors); live in the desktop app on Apple's 10-K with "What risks does it name?" (`docs/parity-m3-ds-live.png`): five points kept over their quotes, one left out.
+- Not done: the document viewer itself (the filing opens on sec.gov), Document Actions, Comment, Highlight, and the links from a point to its place in the document.
+
 ## Changes after 2.12.0
 
 Paging with `Page n/m` and typed page counts, numbered monitor rows and headlines that open with GO, HELP on a typed mnemonic, mnemonics in autocomplete, the aliases ERN, CF (typed only), NSE, EQRV, OWN, QR, HVG, PDF, GPO and GPC, and the new `EXCHANGES` (`EXCH`) screen. Details and remaining differences: [terminal-fidelity-v2.13.md](terminal-fidelity-v2.13.md).

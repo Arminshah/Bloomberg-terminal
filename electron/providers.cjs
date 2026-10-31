@@ -42,6 +42,8 @@ const CREDENTIALS = {
   CONGRESS_GOV_API_KEY: { label: 'Congress.gov API key', valid: (v) => /^[A-Za-z0-9]{40}$/.test(v) },
   // Anthropic: Claude answers the help desk's questions (MESSAGES) with the app's data as tools.
   ANTHROPIC_API_KEY: { label: 'Anthropic API key (Claude help desk)', valid: (v) => /^sk-ant-[A-Za-z0-9_-]{20,250}$/.test(v) && !/^sk-ant-x+$/i.test(v) },
+  // Google's Gemini API: DS's Ask a Question on a filing (electron/gemini.cjs). Keys are AIza… or the newer AQ.… form.
+  GEMINI_API_KEY: { label: 'Google Gemini API key (DS Ask a Question)', valid: (v) => /^(AIza[0-9A-Za-z_-]{35}|AQ\.[A-Za-z0-9._-]{20,250})$/.test(v) },
   // The SEC asks for an application name and a contact email it can reach.
   SEC_USER_AGENT: {
     label: 'SEC User-Agent (application name and your contact email)',
@@ -177,6 +179,7 @@ const SETTINGS = {
   OPENFIGI_ENABLED: { label: 'OpenFIGI tickers for the CUSIPs of 13F holdings', default: true },
   TIPRANKS_ENABLED: { label: 'TipRanks analyst consensus, targets and rating actions (on request)', default: true },
   CLAUDE_HELPDESK_ENABLED: { label: 'Claude answers help desk questions (sends them to Anthropic)', default: true },
+  GEMINI_DOCS_ENABLED: { label: 'Gemini answers questions about a filing on DS (sends the filing and the question to Google)', default: true },
   FINNHUB_ENABLED: { label: 'Finnhub company data, recommendations and news', default: true },
   MARKETAUX_ENABLED: { label: 'Marketaux news and sentiment', default: true },
   ALPACA_ENABLED: { label: 'Alpaca IEX stocks and indicative options (market data only)', default: true },
@@ -430,6 +433,8 @@ const DAILY = {
   tiingo: { limit: 1000, cap: 500 },
   // Anthropic bills by use rather than limiting requests: the app's ceiling bounds a day's cost (a question takes 1 to 8).
   anthropic: { limit: null, cap: 400 },
+  // Gemini's free tier limits requests a day by model; the app keeps well under them.
+  gemini: { limit: null, cap: 200 },
 };
 
 const TODAY_FILE = () => (app?.getPath ? path.join(app.getPath('userData'), 'provider-requests-today.json') : null);
