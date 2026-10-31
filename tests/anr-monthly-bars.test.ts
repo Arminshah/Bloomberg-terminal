@@ -90,7 +90,7 @@ describe("ANR's monthly bars on ANALYSTS", () => {
     for (const label of ['Jul', 'Aug', 'Sep', 'Oct', '%Buy', '%Hold', '0', '50', '100']) expect(html).toContain(`>${label}</text>`);
     expect(html.match(/>2026<\/text>/g)).toHaveLength(1);
     expect(html).toContain('Oct 2026: %Buy 95.4% (62 of 65 ratings)');
-    expect(html).toContain('Finnhub gives the latest 4 months of rating counts, so the chart has 4 bars');
+    expect(html).toContain('a bar for each month of rating counts Finnhub gives (4 here; the free sources give at most the last four)');
   });
 
   it('draws sells on top of holds on top of buys, and labels relative months as the source gives them', () => {
@@ -101,7 +101,7 @@ describe("ANR's monthly bars on ANALYSTS", () => {
     expect(hold).toBeLessThan(buy);
     expect(heights(html, '#a1122c')[3]).toBeCloseTo((4 / 49) * 96, 6);
     for (const label of ['-3m', '-2m', '-1m', '0m']) expect(html).toContain(`>${label}</text>`);
-    expect(html).toContain('Yahoo Finance gives the latest 4 months');
+    expect(html).toContain('a bar for each month of rating counts Yahoo Finance gives (4 here');
   });
 
   it("draws buys and sells in a colour-blind scheme's own colours", () => {

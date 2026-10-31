@@ -1673,7 +1673,7 @@ test('research remains usable across FMP 402s and the Finnhub fallback, each row
   const bars = page.locator('.panel').first().getByTestId('anr-bars');
   await expect(bars.locator('[data-period]')).toHaveCount(1);
   await expect(bars.locator('[data-period="2026-10-01"]')).toContainText('Oct');
-  await expect(page.locator('.panel').first().getByText('Finnhub gives the latest 1 month of rating counts', { exact: false })).toBeVisible();
+  await expect(page.locator('.panel').first().getByText('a bar for each month of rating counts Finnhub gives (1 here', { exact: false })).toBeVisible();
   expect((await calls(app)).retired).toEqual([]);
 });
 

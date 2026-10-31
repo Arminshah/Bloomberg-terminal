@@ -522,7 +522,7 @@ export function RecommendationBars({ months, source }: { months: readonly (Ratin
         ))}
       </svg>
       <div className="note">
-        {source} gives the latest {bars.length} month{bars.length === 1 ? '' : 's'} of rating counts, so the chart has {bars.length} bar{bars.length === 1 ? '' : 's'}, not one for each month of the chart&apos;s range above. %Buy counts strong buys and buys, %Sell sells and strong sells.
+        The chart has a bar for each month of rating counts {source} gives ({bars.length} here; the free sources give at most the last four), not one for each month of the chart&apos;s range above. %Buy counts strong buys and buys, %Sell sells and strong sells.
       </div>
     </>
   );
