@@ -851,3 +851,38 @@ test("PEERS ranks the loaded stock among its peers on each figure, as the table'
   expect(snap.rank).toBe(String(expected));
   expect(errors).toEqual([]);
 });
+
+test("PEERS' Curr shows a London stock's market values and prices in pounds, not pence, or in US dollars", async ({ page }) => {
+  const errors = await boot(page);
+  await run(page, 'SHEL LN Equity PEERS');
+  const panel = page.locator('.panel').first();
+  await expect(panel.locator('.fnh-code')).toHaveText('PEERS');
+  const curr = panel.getByLabel('Currency', { exact: true });
+  await expect(curr).toHaveValue('GBP');
+  await expect(curr.locator('option')).toHaveText(['GBP', 'USD']);
+  const head = panel.locator('table:not(.rv-range) thead');
+  await expect(head).toContainText('Mkt Cap GBP');
+  // Shell's market value and price, read at one moment, as the demo's prices and rates move.
+  const shell = () =>
+    panel.evaluate((el) => {
+      const headers = Array.from(el.querySelectorAll('table:not(.rv-range) thead th')).map((h) => h.textContent?.trim() ?? '');
+      const row = Array.from(el.querySelectorAll('table:not(.rv-range) tbody:not(.tbl-summary) tr')).find((r) => r.textContent?.includes('SHEL LN'));
+      const cell = (label: string) => row?.querySelectorAll('td')[headers.findIndex((h) => h.startsWith(label))];
+      const value = (label: string) => Number(cell(label)?.querySelector('[data-value]')?.getAttribute('data-value') ?? NaN);
+      return { cap: value('Mkt Cap'), px: value('Last Px'), text: cell('Last Px')?.textContent?.trim() ?? '' };
+    });
+  const gbp = await shell();
+  // Pounds with two decimals, as RV writes a London price.
+  expect(gbp.text).toMatch(/^[\d,]+\.\d{2}$/);
+  await expect(panel.locator('[data-testid="rv-median"] td[data-key="px"] [data-value]')).toHaveCount(1);
+  await curr.selectOption('USD');
+  await expect(head).toContainText('Mkt Cap USD');
+  await expect(head).not.toContainText('GBP');
+  const usd = await shell();
+  // A pound is worth more than a dollar. The market value and the price convert at the same rate, so their ratio (the
+  // share count) is the same in both currencies.
+  expect(usd.px / gbp.px).toBeGreaterThan(1);
+  expect(usd.px / gbp.px).toBeLessThan(2);
+  expect(usd.cap / usd.px / (gbp.cap / gbp.px)).toBeCloseTo(1, 6);
+  expect(errors).toEqual([]);
+});

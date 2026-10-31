@@ -109,12 +109,16 @@ const MARK_CLASS: Partial<Record<FreshnessLabel, string>> = {
   'UNKNOWN FRESHNESS': 'unk-px',
 };
 
-/** Live last price with tick flash, marked with its freshness (no mark for real time). */
-export function LivePx({ id, dec }: { id: string; dec?: number }) {
+/**
+ * Live last price with tick flash, marked with its freshness (no mark for real time). `value`, when given, is shown
+ * in place of the quote's price and marked the same way: RV's price in the currency chosen under Curr.
+ */
+export function LivePx({ id, dec, value }: { id: string; dec?: number; value?: number }) {
   const q = useQuote(id);
   const def = engine.get(id);
   if (!q || !def) return <span>--</span>;
-  const px = <Flash value={q.last}>{fmtNum(q.last, dec ?? def.dec)}</Flash>;
+  const last = value ?? q.last;
+  const px = <Flash value={last}>{fmtNum(last, dec ?? def.dec)}</Flash>;
   const f = freshnessOf(q, def, Date.now());
   const cls = f ? MARK_CLASS[f.label] : undefined;
   const provenance = q.provider ? `${q.provider}. ` : '';
